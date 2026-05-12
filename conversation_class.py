@@ -1,0 +1,92 @@
+import os
+import json
+import uuid
+from datetime import datetime
+
+
+class Conversation:
+    """
+    用户级会话容器，隔离不同对话的上下文和历史记录。
+    一个 Conversation 包含：
+      - contexts/   : 该会话下各 agent 的上下文文件
+      - sessions/   : 该会话下各 reAct 执行记录
+      - meta.json   : 会话元数据（创建时间、最后活跃时间、状态）
+    """
+
+    id: str
+    path: str
+    create_time: datetime
+    last_active: datetime
+    state: str = 'active'
+
+    def __init__(self, conv_id: str = None):
+        if conv_id:
+            # 恢复已有对话
+            self.id = conv_id
+            self.path = os.path.join('conversations', conv_id)
+            self._load_meta()
+        else:
+            # 新建对话
+            self.id = self._generate_id()
+            self.path = os.path.join('conversations', self.id)
+            self.create_time = datetime.now()
+            self.last_active = self.create_time
+            self.state = 'active'
+            self._ensure_dirs()
+            self._save_meta()
+
+    def _generate_id(self) -> str:
+        return f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+    def _ensure_dirs(self):
+        os.makedirs(os.path.join(self.path, 'contexts'), exist_ok=True)
+        os.makedirs(os.path.join(self.path, 'sessions'), exist_ok=True)
+
+    def _meta_path(self) -> str:
+        return os.path.join(self.path, 'meta.json')
+
+    def _save_meta(self):
+        with open(self._meta_path(), 'w', encoding='utf-8') as f:
+            json.dump({
+                'id': self.id,
+                'create_time': self.create_time.isoformat(),
+                'last_active': self.last_active.isoformat(),
+                'state': self.state,
+            }, f, ensure_ascii=False, indent=4)
+
+    def _load_meta(self):
+        meta_path = self._meta_path()
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+                self.create_time = datetime.fromisoformat(meta['create_time'])
+                self.last_active = datetime.fromisoformat(meta['last_active'])
+                self.state = meta.get('state', 'active')
+        else:
+            self.create_time = datetime.now()
+            self.last_active = self.create_time
+            self.state = 'active'
+
+    def touch(self):
+        """更新最后活跃时间并持久化。"""
+        self.last_active = datetime.now()
+        self._ensure_dirs()
+        self._save_meta()
+
+    def get_context_path(self, agent_id: str) -> str:
+        return os.path.join(self.path, 'contexts', f'{agent_id}.json')
+
+    def get_session_path(self, session_id: str) -> str:
+        return os.path.join(self.path, 'sessions', f'{session_id}.json')
+
+    def list_contexts(self) -> list[str]:
+        """列出该会话下所有已有的 agent context 文件。"""
+        ctx_dir = os.path.join(self.path, 'contexts')
+        if not os.path.exists(ctx_dir):
+            return []
+        return [f for f in os.listdir(ctx_dir) if f.endswith('.json')]
+
+    def archive(self):
+        """归档会话，不再活跃。"""
+        self.state = 'archived'
+        self._save_meta()
