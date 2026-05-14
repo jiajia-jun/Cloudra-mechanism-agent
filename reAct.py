@@ -232,13 +232,9 @@ class reAct:
             for tool in tools_list:
                 # NOTE: get_tools_lst() 现在返回实例对象（不再是类），因此直接用 tool.tool_name 匹配。
                 if tool.tool_name == tool_name:
-                    # 需要注入 subagent 的工具（bashtools、SubAgentLauncher）
-                    # 由于 get_tools_lst() 已预先无参实例化，这些工具的 subagent 为 None，
-                    # 这里需要重新实例化并注入当前 agent。
-                    if tool_name in ('bashtools', 'SubAgentLauncher'):
-                        tool_instance = tool.__class__(subagent=self.agent)
-                    else:
-                        tool_instance = tool  # 其他工具直接用预生成的实例
+                    # 统一注入当前 agent 到工具实例中，以便工具内部获取上下文和进行安全审计
+                    tool_instance = tool.__class__(subagent=self.agent)
+                    
                     input_schema_class = tool_instance.input_schema
                     input_instance = input_schema_class(**tool_args)
                     session.state = 'waiting'
@@ -252,18 +248,26 @@ class reAct:
             
             # 每个工具结果单独作为一条消息
             for tool_result, tool_call_id in zip(tool_results, tool_call_ids):
+                image_path = None
                 if isinstance(tool_result, Exception):
                     # 如果工具执行抛出了异常，将错误信息反馈给 Agent
                     content = f"【系统错误】工具执行发生异常: {str(tool_result)}"
                     self.log.update_content(f"{Color.RED}工具异常: {str(tool_result)}{Color.END}\n")
                 else:
-                    content = json.dumps(tool_result.toJson())
+                    result_dict = tool_result.toJson()
+                    content = json.dumps(result_dict)
+                    # 自动提取图片路径（如果工具输出中包含该字段）
+                    if result_dict.get('image_path'):
+                        image_path = result_dict.get('image_path')
                 
                 result_block = {
                     'role': 'tool',
                     'tool_call_id': tool_call_id,
                     'content': content
                 }
+                if image_path:
+                    result_block['image_path'] = image_path
+                    
                 self.agent.update_context(result_block)
             
             session.state = 'thinking'
@@ -328,13 +332,25 @@ class Coordinator_reAct(reAct):
         super().__init__(
             agent=agent,
             prompt=(
-                '**你是一个最高级别的任务协调者（Coordinator）。你掌控着整个系统的运行。**\n'
-                '你的核心职责与权力：\n'
-                '1. **任务拆解与隔离**：将用户需求拆解为独立的子任务。通过 `SubAgentLauncher` 分发任务。\n'
-                '2. **定义子 Agent 行为**：子 Agent (a-1, a-2, a-3) 只是你的工具，它们的“人格”和“规则”由你通过 `reasoning_prompt` 动态决定。为了任务隔离，请务必在 `reasoning_prompt` 中明确它们的任务范围和行为禁令（例如：“你现在的身份是纯净的文案录入员，只允许调用 text_writer，严禁搜索”）。\n'
-                '3. **绝对路径导航**：必须在指令中提供工作目录的绝对路径。\n'
-                '4. **结果评估与终结**：你是唯一有权决定任务是否完成的人。汇总子任务结果后，给出最终答复并调用 stop 结束。\n'
-                '**记住：你是系统的大脑，子 Agent 的所有行为都应在你的严密定义的 prompt 框架下运行。**'
+                '# Role: 最高级任务协调者 (Coordinator)\n\n'
+                '## 核心使命\n'
+                '你掌控着整个 Cloudra 系统的运行。你的任务是接收用户复杂的化学科研需求，通过科学的拆解与指派，调动子 Agent 协作完成目标。\n\n'
+                '## 核心职责与权力\n'
+                '1. **任务拆解 (Decomposition)**: 将模糊的需求转化为清晰、逻辑连贯的子任务。使用 `SubAgentLauncher` 启动子 Agent。\n'
+                '2. **环境塑造 (Environment Injection)**: 子 Agent (a-1, a-2, a-3) 是你的数字化肢体。你必须通过 `reasoning_prompt` 为它们注入：\n'
+                '   - **临时身份**: 明确它们在当前任务中的角色。\n'
+                '   - **行动范围**: 明确可以调用的工具，并**显式禁止**不相关的危险操作。\n'
+                '   - **背景上下文**: 提供完成任务所需的关键信息或文件路径。\n'
+                '3. **绝对路径原则**: 所有的文件操作、路径描述必须使用**绝对路径**以确保多进程环境下的执行准确性。\n'
+                '4. **安全合规 (Safety Audit)**: 系统已启用危险操作审计。当子 Agent 执行 `TextWriter` 或 `bashtools` 下的危险指令时，将进入人工审批流。请告知子 Agent 在执行此类操作前，必须在 Thought 中清晰阐述理由。\n'
+                '5. **视觉锚点说明 (Visual Anchors)**: 在你的历史上下文中，可能会出现包含本地文件路径（如 `/path/to/image.png`）的 `image_url` 块。这些是系统内部的视觉锚点，代表你此前已“看到”或生成的图像。你无需解析路径字符串本身，只需将其视为对话中特定视觉信息的占位符即可。\n'
+                '6. **专家分工 (Specialized Roles)**: \n'
+                '   - **Visionary (a-4)**: 系统的“双眼”。它是视觉识别、图表解析和图像数据提取的唯一专家。任何涉及“看图、读图、分析图”的任务应指派给它。\n'
+                '   - **Writer (a-2)**: 系统的“双手”。它擅长文档产出和代码编写（包括调用绘图工具生成图片），但它不具备专业的视觉分析能力。生成的图片应交给 Visionary 进行质量检查或内容解读。\n'
+                '7. **结果评估与答复**: 你是唯一有权决定任务终结的人。汇总所有子任务成果后，给出最终、专业的回复并调用 `stop` 工具退出。\n\n'
+                '## 工作指南\n'
+                '- **严谨性**: 对于化学实验参数、文献结论，必须追求 100% 的准确性。\n'
+                '- **隔离性**: 尽量让子任务独立，减少子 Agent 间的耦合。'
             )
         )
         self.database_path = db_path

@@ -169,6 +169,21 @@ class Bashtools(Tool):
         if not self.has_command_permission(command):
             result = f'没有权限执行该命令: {command}'
             return Bashtools_output_schema(result=result, terminal_id=terminal_id, run_command=command)
+
+        # 触发安全检查
+        if self.is_destructive(command) or self.is_script(command):
+            details = (
+                f"【动作】: 执行危险终端命令\n"
+                f"【终端 ID】: {terminal_id}\n"
+                f"【执行指令】: {command}"
+            )
+            if not await self.ensure_safety(session, details=details):
+                return Bashtools_output_schema(
+                    result="【安全拦截】该危险指令已被拒绝执行。",
+                    terminal_id=terminal_id,
+                    run_command=command
+                )
+
         process = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,

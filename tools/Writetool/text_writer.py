@@ -37,6 +37,21 @@ class TextWriter(Tool):
     async def tool_call(self, user_input: TextWriter_input_schema, session: Session) -> TextWriter_output_schema:
         path = user_input.filepath
         content = user_input.content
+
+        # 构造详细的申请信息，将修改内容贴出来给用户看
+        details = (
+            f"【动作】: 覆写文件\n"
+            f"【目标路径】: {path}\n"
+            f"【写入内容】: \n"
+            f"--- START ---\n"
+            f"{content}\n"
+            f"--- END ---"
+        )
+
+        # 触发安全检查
+        if not await self.ensure_safety(session, details=details):
+            return TextWriter_output_schema(is_writed=False, filepath=path)
+
         with open(path, 'w', encoding='utf-8') as f:
             f.write(content)
         return TextWriter_output_schema(is_writed=True, filepath=path)

@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import copy
 from tools_class import Tool, get_tools
 from tools import get_tools_lst
 from pydantic import BaseModel
@@ -180,6 +181,12 @@ class Agent(BaseModel):
             return os.path.join(base_path, 'conversations', self.conversation_id, 'contexts', self.id + '.json')
         return os.path.join(base_path, 'contexts', self.id + '.json')
 
+    def _encode_image(self, image_path: str) -> str:
+        """将本地图片转为 Base64"""
+        import base64
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+
     def llm_call(self) -> ChatResponse:
         '''
         调用llm接口。
@@ -196,52 +203,104 @@ class Agent(BaseModel):
         client = OpenAI(api_key=self._api_key ,
                         base_url=self.llm_site ,
                         )
-        content = []
-        content.append({"role": "system", "content": self.prompt})
-        for i, context_block in enumerate(self.context):
-            msg = dict(context_block)
-            if 'role' not in msg:
-                msg['role'] = 'user'
-            if 'content' not in msg:
-                if 'assistant' in msg:
-                    msg['content'] = str(msg.get('assistant', msg))
-                elif 'content' not in msg:
-                    msg['content'] = None
-            if 'reasoning_content' in msg:
-                msg['reasoning_content'] = str(msg.get('reasoning_content')) if msg.get('reasoning_content') else None
-            content.append(msg)
-        
-        if available_tool_classes:
-            try:
-                response = client.chat.completions.create(
-                    model=self.model,
-                    messages=content,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    top_p=self.top_p,
-                    frequency_penalty=self.frequency_penalty,
-                    presence_penalty=self.presence_penalty,
-                    stream=self.is_stream,
-                    tools=available_tool_classes,)
+
+        def build_messages(use_multimodal=True):
+            content = []
+            content.append({"role": "system", "content": self.prompt})
+            for context_block in self.context:
+                msg = copy.deepcopy(dict(context_block))
+                if 'role' not in msg: msg['role'] = 'user'
                 
-            except Exception as e:
-                print(e)
-                raise e
-        else:
-            try:
-                response = client.chat.completions.create(
+                # 处理多模态逻辑
+                if isinstance(msg.get('content'), list):
+                    new_content = []
+                    for part in msg['content']:
+                        if isinstance(part, dict) and part.get('type') == 'image_url':
+                            path = part.get('image_url', {}).get('url')
+                            if use_multimodal:
+                                # 尝试构建 Base64
+                                try:
+                                    if path and os.path.exists(path):
+                                        base64_image = self._encode_image(path)
+                                        ext = os.path.splitext(path)[1].lower().replace('.', '')
+                                        mime = f"image/{ext}" if ext in ['png', 'jpeg', 'jpg', 'webp'] else "image/png"
+                                        new_content.append({
+                                            "type": "image_url",
+                                            "image_url": {"url": f"data:{mime};base64,{base64_image}"}
+                                        })
+                                    else:
+                                        new_content.append({"type": "text", "text": f"[图片缺失: {path}]"})
+                                except Exception as e:
+                                    new_content.append({"type": "text", "text": f"[图片加载失败: {path}]"})
+                            else:
+                                # 降级模式：转为纯文本
+                                new_content.append({"type": "text", "text": f"[图片: {path} (当前模型不支持视觉)]"})
+                        else:
+                            new_content.append(part)
+                    msg['content'] = new_content if use_multimodal else "\n".join([p.get('text', '') for p in new_content])
+                
+                if 'content' not in msg:
+                    msg['content'] = str(msg.get('assistant', msg)) if 'assistant' in msg else None
+                
+                if 'reasoning_content' in msg:
+                    msg['reasoning_content'] = str(msg['reasoning_content']) if msg['reasoning_content'] else None
+                
+                content.append(msg)
+            return content
+
+        # 尝试第一次调用（完整多模态）
+        try:
+            messages = build_messages(use_multimodal=True)
+            if available_tool_classes:
+                return client.chat.completions.create(
                     model=self.model,
-                    messages=content,
+                    messages=messages,
                     temperature=self.temperature,
                     max_tokens=self.max_tokens,
                     top_p=self.top_p,
-                    frequency_penalty=self.frequency_penalty,
-                    presence_penalty=self.presence_penalty,
-                    stream=self.is_stream)
-            except Exception as e:
-                print(e)
+                    stream=self.is_stream,
+                    tools=available_tool_classes,
+                )
+            else:
+                return client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                    top_p=self.top_p,
+                    stream=self.is_stream
+                )
+        except Exception as e:
+            # 捕获 400 错误（通常是由于不支持 image_url 引起的）
+            err_msg = str(e).lower()
+            if "image_url" in err_msg or "unknown variant" in err_msg or "400" in err_msg:
+                print(f"\033[93m[系统预警]\033[0m 当前模型或接口不支持多模态内容，正在切换至“纯文本降级模式”重试...")
+                # 重新构建纯文本消息列表
+                messages = build_messages(use_multimodal=False)
+                # 第二次调用（纯文本降级）
+                if available_tool_classes:
+                    return client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens,
+                        top_p=self.top_p,
+                        stream=self.is_stream,
+                        tools=available_tool_classes,
+                    )
+                else:
+                    return client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens,
+                        top_p=self.top_p,
+                        stream=self.is_stream
+                    )
+            else:
+                # 其他类型的错误，原样抛出
+                print(f"\033[91m[LLM 异常]\033[0m {e}")
                 raise e
-        return response
     
     def update_context(self, new_block: dict) -> None:
         '''
@@ -251,8 +310,23 @@ class Agent(BaseModel):
         '''
         if 'role' not in new_block:
             new_block['role'] = 'user'
-        if 'content' not in new_block:
+        
+        # 提取 image_path（如果存在）
+        image_path = new_block.pop('image_path', None)
+        
+        # 如果包含图片，将 content 构建为 OpenAI 标准的 list 结构，但 URL 暂存本地路径
+        if image_path:
+            text_content = new_block.get('content', "查看此图片内容：")
+            new_block['content'] = [
+                {"type": "text", "text": text_content if text_content else "查看此图片内容："},
+                {
+                    "type": "image_url", 
+                    "image_url": {"url": image_path}
+                }
+            ]
+        elif 'content' not in new_block:
             new_block['content'] = str(new_block)
+                
         self.context.append(new_block)
         context_path = self._context_path()
         os.makedirs(os.path.dirname(context_path), exist_ok=True)

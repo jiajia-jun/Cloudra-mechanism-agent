@@ -21,6 +21,7 @@ class pdf2md_input_schema(input_schema):
 class pdf2md_output_schema(output_schema):
     is_finished: bool = Field(description="是否转换成功")
     md_path: str = Field(description="生成的 Markdown 文件路径，失败时为空字符串")
+    extracted_images: list[str] = Field(default_factory=list, description="从 PDF 中提取出的图片绝对路径列表")
     content: str = Field(default="", description="转换过程的输出或错误信息")
 
 
@@ -37,7 +38,7 @@ class pdf2md(Tool):
     async def tool_call(self, user_input: pdf2md_input_schema, session: Session) -> pdf2md_output_schema:
         input_path = user_input.input_path
         target_path = user_input.output_path
-        command = f'mineru -p {input_path} -o {target_path} -b pipeline'
+        command = f'mineru -p "{input_path}" -o "{target_path}" -b pipeline'
         timeout = user_input.timeout
 
         process = await asyncio.create_subprocess_shell(
@@ -62,16 +63,44 @@ class pdf2md(Tool):
                 content=f'命令执行失败:{e}'
             )
 
-        if stderr:
+        if stderr and b"error" in stderr.lower():
             return pdf2md_output_schema(
                 is_finished=False,
                 md_path='',
                 content=stderr.decode('utf-8')
             )
 
+        # 扫描提取出的图片
+        # MinerU 通常在 target_path/{filename}/images 目录下生成图片
+        extracted_images = []
+        try:
+            import os
+            from pathlib import Path
+            
+            # 获取 PDF 文件名（不含后缀）
+            pdf_stem = Path(input_path).stem
+            # 搜索 MinerU 的输出子目录
+            potential_img_dir = Path(target_path) / pdf_stem / "images"
+            
+            if potential_img_dir.exists() and potential_img_dir.is_dir():
+                for img_file in potential_img_dir.iterdir():
+                    if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp']:
+                        extracted_images.append(str(img_file.absolute()))
+        except Exception as e:
+            # 即使扫描图片失败，也不影响 MD 转换的结果返回
+            print(f"扫描图片目录时发生异常: {e}")
+
+        # 寻找生成的 markdown 文件路径
+        md_file_path = ""
+        pdf_stem = Path(input_path).stem
+        potential_md = Path(target_path) / pdf_stem / f"{pdf_stem}.md"
+        if potential_md.exists():
+            md_file_path = str(potential_md.absolute())
+
         return pdf2md_output_schema(
             is_finished=True,
-            md_path=target_path,
+            md_path=md_file_path if md_file_path else target_path,
+            extracted_images=extracted_images,
             content=stdout.decode('utf-8')
         )
 

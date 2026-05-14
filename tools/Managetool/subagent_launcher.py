@@ -14,13 +14,14 @@ from session_class import Session
 description = (
     "启动子 Agent 执行特定任务。Coordinator 可将复杂任务拆分为多个子任务。\n"
     "重要指南：\n"
-    "- 必须在 query 中提供绝对路径。\n"
-    "- 任务描述需极其明确，指定要使用的工具，并明确禁止子 Agent 使用与其任务无关的工具（如 getskill）。\n"
-    "- 建议参考 subagent-prompting Skill。\n"
+    "- **绝对路径**: 必须在 query 或 context 中提供工作目录的绝对路径。\n"
+    "- **安全提示**: 系统已开启【安全审计】。对于 Writer 的写入和 Researcher 的脚本操作，请指导它们在 Thought 中详细说明意图以辅助审批。\n"
+    "- **任务定义**: 任务描述需极其明确，指定要使用的工具，并明确禁止子 Agent 使用与其任务无关的工具。\n"
     "可用的子 Agent:\n"
-    "1. explorer (a-1): 项目内容探索 agent。用于探索项目结构、总结关键信息。只读权限。\n"
-    "2. writer (a-2): 文件写入 agent。用于写入或修改代码、文档等。读写权限。\n"
-    "3. researcher (a-3): 学术研究 agent。用于 arXiv 文献调研、终端命令执行、PDF 处理。读+脚本权限。"
+    "1. explorer (a-1): 项目探索。总结架构，提取关键信息。只读。\n"
+    "2. writer (a-2): 文档/代码产出。覆写文件。需通过安全审计。\n"
+    "3. researcher (a-3): 文献/脚本研究。科研搜索，脚本执行。需通过安全审计。\n"
+    "4. visionary (a-4): 视觉解析。专门负责图片、图表、分子结构的视觉识别与数据提取。"
 )
 
 

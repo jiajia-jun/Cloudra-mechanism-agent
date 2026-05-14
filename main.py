@@ -33,6 +33,16 @@ def init_database(db_path: str):
             input_data TEXT
         )
     ''')
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS approvals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT,
+            agent_name TEXT,
+            details TEXT,
+            state TEXT DEFAULT 'pending' -- pending, approved, denied
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -104,6 +114,36 @@ def checking_task(database_path: str):
         
         time.sleep(1)
 
+def approval_handler(database_path: str):
+    """处理安全审批的后台线程"""
+    while True:
+        try:
+            con = sqlite3.connect(database_path)
+            cur = con.cursor()
+            cur.execute("SELECT id, session_id, details FROM approvals WHERE state = 'pending'")
+            requests = cur.fetchall()
+            con.close()
+
+            for req_id, session_id, details in requests:
+                print(f"\n{Color.RED}{Color.BOLD}[安全审批请求]{Color.END}")
+                print(f"来自会话: {session_id}")
+                print(f"操作详情: {Color.YELLOW}{details}{Color.END}")
+                
+                user_input = input("是否允许执行？(y/n): ").strip().lower()
+                
+                state = 'approved' if user_input == 'y' else 'denied'
+                
+                con = sqlite3.connect(database_path)
+                cur = con.cursor()
+                cur.execute("UPDATE approvals SET state = ? WHERE id = ?", (state, req_id))
+                con.commit()
+                con.close()
+                print(f"{Color.GREEN}已标记为: {state}{Color.END}\n")
+
+        except Exception as e:
+            pass
+        time.sleep(2)
+
 
 class Color:
     BLUE = '\033[94m'
@@ -154,6 +194,9 @@ def main():
 
     t = threading.Thread(target=checking_task, args=(database,), daemon=True)
     t.start()
+
+    t_approval = threading.Thread(target=approval_handler, args=(database,), daemon=True)
+    t_approval.start()
     
     print(f"{Color.GREEN}[系统]{Color.END} 协调者 Agent 已就绪，开始推理...\n")
     

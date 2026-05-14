@@ -109,6 +109,9 @@ class Tool(BaseModel):
     # 工具的输出模式类（存放类对象，非实例）
     output_schema: Any = output_schema
 
+    # 引用调用该工具的 Agent 实例
+    subagent: Any = None
+
     def is_read(self) -> bool:
         return False
 
@@ -133,6 +136,59 @@ class Tool(BaseModel):
         执行结果以 output_schema 实例返回。
         '''
         raise NotImplementedError("子类必须实现 tool_call 方法")
+
+    async def ensure_safety(self, session: Session, details: str) -> bool:
+        '''
+        安全检查：如果工具被标记为 destructive，则必须经过 Coordinator 审批。
+        '''
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(base_dir, 'tasks', 'database.db')
+        
+        # 获取当前 Agent 名称
+        agent_name = self.subagent.name if self.subagent else "Unknown Agent"
+        
+        # 格式化详细信息
+        full_details = f"【发起 Agent】: {agent_name}\n{details}"
+        
+        print(f"\n\033[91m[安全审计]\033[0m 正在申请危险操作审批...\n{full_details}")
+        
+        return await self.request_approval(db_path, session.id, full_details)
+
+    async def request_approval(self, db_path: str, session_id: str, details: str) -> bool:
+        import sqlite3
+        import asyncio
+        import time
+
+        con = sqlite3.connect(db_path, timeout=10)
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO approvals (session_id, details, state) VALUES (?, ?, ?)",
+            (session_id, details, 'pending')
+        )
+        approval_id = cur.lastrowid
+        con.commit()
+        con.close()
+
+        # 轮询等待审批结果
+        while True:
+            await asyncio.sleep(2)
+            con = sqlite3.connect(db_path, timeout=10)
+            cur = con.cursor()
+            cur.execute("SELECT state FROM approvals WHERE id = ?", (approval_id,))
+            row = cur.fetchone()
+            con.close()
+
+            if row:
+                state = row[0]
+                if state == 'approved':
+                    print(f"\033[92m[安全审计]\033[0m 审批通过。")
+                    return True
+                elif state == 'denied':
+                    print(f"\033[91m[安全审计]\033[0m 审批拒绝。")
+                    return False
+            
+            # 可选：在终端提示等待中
+            # print(".", end="", flush=True)
 
     @classmethod
     def _get_field_default(cls, field_name: str):
