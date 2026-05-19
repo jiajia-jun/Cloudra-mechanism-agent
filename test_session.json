@@ -1,7 +1,0 @@
-{
-    "id": "test_session",
-    "path": "test_session.json",
-    "create_time": "2026-05-15T00:04:47.744271",
-    "state": "sleeping",
-    "tool_calling": {}
-}

@@ -1,0 +1,181 @@
+"""
+Cloudra configuration management.
+
+Supports layered config:
+  1. CLI arguments (highest priority)
+  2. Environment variables (CLOUDRA_* and legacy COORDINATOR_* / FOLLOWER_*)
+  3. Config file (~/.config/cloudra/config.yaml)
+  4. Defaults (lowest priority)
+"""
+
+import os
+from pathlib import Path
+from typing import Optional
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+import yaml
+
+# Try platformdirs, fallback to appdirs or manual
+try:
+    from platformdirs import user_config_dir, user_data_dir
+except ImportError:
+    user_config_dir = lambda app: Path.home() / ".config" / app
+    user_data_dir = lambda app: Path.home() / ".local" / "share" / app
+
+
+APP_NAME = "cloudra"
+DEFAULT_CONFIG_PATH = Path(user_config_dir(APP_NAME)) / "config.yaml"
+DEFAULT_DATA_DIR = Path(user_data_dir(APP_NAME))
+
+
+class LLMConfig(BaseSettings):
+    """LLM provider configuration for a single agent type."""
+    model: str = "deepseek-v4-pro"
+    url: str = "https://api.deepseek.com/"
+    key: str = ""
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+
+class CloudraConfig(BaseSettings):
+    """Global Cloudra configuration."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="CLOUDRA_",
+        env_nested_delimiter="__",
+        extra="ignore",
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+
+    # Paths
+    data_dir: Path = Field(default_factory=lambda: Path(user_data_dir(APP_NAME)))
+    config_file: Path = Field(default_factory=lambda: Path(user_config_dir(APP_NAME)) / "config.yaml")
+
+    # LLM configs
+    coordinator: LLMConfig = Field(default_factory=LLMConfig)
+    follower: LLMConfig = Field(default_factory=LLMConfig)
+
+    @field_validator("data_dir", "config_file", mode="before")
+    @classmethod
+    def _coerce_path(cls, v):
+        if isinstance(v, str):
+            return Path(v)
+        return v
+
+    def model_post_init(self, __context):
+        # Backward compatibility: read legacy .env vars
+        self._load_legacy_env()
+        # Load YAML config file if it exists
+        self._load_yaml_config()
+        # Ensure data dirs exist
+        self._ensure_dirs()
+
+    def _load_legacy_env(self):
+        """Read COORDINATOR_* / FOLLOWER_* from environment or .env."""
+        # These may have been loaded by pydantic-settings from .env already,
+        # but we also check them directly to be safe.
+        if os.getenv("COORDINATOR_MODEL"):
+            self.coordinator.model = os.getenv("COORDINATOR_MODEL")
+        if os.getenv("COORDINATOR_URL"):
+            self.coordinator.url = os.getenv("COORDINATOR_URL")
+        if os.getenv("COORDINATOR_KEY"):
+            self.coordinator.key = os.getenv("COORDINATOR_KEY")
+        if os.getenv("FOLLOWER_MODEL"):
+            self.follower.model = os.getenv("FOLLOWER_MODEL")
+        if os.getenv("FOLLOWER_URL"):
+            self.follower.url = os.getenv("FOLLOWER_URL")
+        if os.getenv("FOLLOWER_KEY"):
+            self.follower.key = os.getenv("FOLLOWER_KEY")
+
+    def _load_yaml_config(self):
+        """Load config from YAML file, overriding defaults."""
+        cfg_path = self.config_file
+        if not cfg_path.exists():
+            return
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            if "llm" in data:
+                if "coordinator" in data["llm"]:
+                    for k, v in data["llm"]["coordinator"].items():
+                        if hasattr(self.coordinator, k) and v:
+                            setattr(self.coordinator, k, v)
+                if "follower" in data["llm"]:
+                    for k, v in data["llm"]["follower"].items():
+                        if hasattr(self.follower, k) and v:
+                            setattr(self.follower, k, v)
+            if "data_dir" in data:
+                self.data_dir = Path(data["data_dir"])
+        except Exception as e:
+            print(f"[Config Warning] Failed to load {cfg_path}: {e}")
+
+    def _ensure_dirs(self):
+        """Create data directories if they don't exist."""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        (self.data_dir / "conversations").mkdir(exist_ok=True)
+        (self.data_dir / "logs").mkdir(exist_ok=True)
+        (self.data_dir / "sessions").mkdir(exist_ok=True)
+        (self.data_dir / "tasks").mkdir(exist_ok=True)
+        (self.data_dir / "contexts").mkdir(exist_ok=True)
+
+    def save(self):
+        """Persist current config to YAML file."""
+        cfg_path = self.config_file
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "data_dir": str(self.data_dir),
+            "llm": {
+                "coordinator": {
+                    "model": self.coordinator.model,
+                    "url": self.coordinator.url,
+                    "key": self.coordinator.key,
+                },
+                "follower": {
+                    "model": self.follower.model,
+                    "url": self.follower.url,
+                    "key": self.follower.key,
+                },
+            },
+        }
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+    def to_display_dict(self) -> dict:
+        """Return a dict for display, masking sensitive keys."""
+        return {
+            "data_dir": str(self.data_dir),
+            "config_file": str(self.config_file),
+            "llm": {
+                "coordinator": {
+                    "model": self.coordinator.model,
+                    "url": self.coordinator.url,
+                    "key": "***" if self.coordinator.key else "(not set)",
+                },
+                "follower": {
+                    "model": self.follower.model,
+                    "url": self.follower.url,
+                    "key": "***" if self.follower.key else "(not set)",
+                },
+            },
+        }
+
+
+# Global config instance (lazy singleton pattern)
+_config: Optional[CloudraConfig] = None
+
+
+def get_config() -> CloudraConfig:
+    """Get the global CloudraConfig instance."""
+    global _config
+    if _config is None:
+        _config = CloudraConfig()
+    return _config
+
+
+def reload_config() -> CloudraConfig:
+    """Force reload config from disk/env."""
+    global _config
+    _config = CloudraConfig()
+    return _config
