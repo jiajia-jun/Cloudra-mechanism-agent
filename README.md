@@ -43,6 +43,15 @@ Ensure you have Python 3.10+ installed.
 pip install -e .
 ```
 
+## Testing
+
+Run the test suite using `pytest`:
+
+```bash
+pip install pytest pytest-asyncio
+pytest tests/
+```
+
 ## Quick Start
 
 ### Configuration

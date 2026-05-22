@@ -103,12 +103,15 @@ class IRProcessor(Tool):
                 pk_dataset = res[0]
                 
                 # 提取峰位置和强度
-                for i in range(pk_dataset.shape[-1]):
+                y_peaks = np.atleast_1d(pk_dataset.data.squeeze())
+                x_peaks = np.atleast_1d(pk_dataset.x.values)
+
+                for i in range(len(y_peaks)):
                     # 统一使用 .magnitude 安全提取数值用于 JSON 序列化
-                    pos_val = pk_dataset.x.values[i]
+                    pos_val = x_peaks[i]
                     pos = float(pos_val.magnitude) if hasattr(pos_val, 'magnitude') else float(pos_val)
                     
-                    inten_val = pk_dataset.data.squeeze()[i]
+                    inten_val = y_peaks[i]
                     val = float(inten_val.magnitude) if hasattr(inten_val, 'magnitude') else float(inten_val)
                     
                     group_matches = []

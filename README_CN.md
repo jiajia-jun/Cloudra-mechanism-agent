@@ -41,6 +41,15 @@ cloudra/
 pip install -e .
 ```
 
+## 测试指南
+
+使用 `pytest` 运行完整测试套件：
+
+```bash
+pip install pytest pytest-asyncio
+pytest tests/
+```
+
 ## 快速开始
 
 ### 配置初始化

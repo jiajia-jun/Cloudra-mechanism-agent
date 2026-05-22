@@ -38,6 +38,8 @@ dependencies = [
     "python-frontmatter>=1.0",
     "nmrglue>=0.10",
     "spectrochempy>=0.6.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.20",
 ]
 
 [project.scripts]
