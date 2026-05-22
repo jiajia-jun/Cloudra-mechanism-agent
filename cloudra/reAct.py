@@ -240,7 +240,7 @@ class reAct:
                     input_schema_class = tool_instance.input_schema
                     input_instance = input_schema_class(**tool_args)
                     session.state = 'waiting'
-                    acts.append(tool_instance.tool_call(input_instance, session))
+                    acts.append(tool_instance.safe_call(input_instance, session))
                     tool_call_ids.append(tool_call_id)
                     break
         
@@ -342,7 +342,8 @@ class Coordinator_reAct(reAct):
                 '你掌控着整个 Cloudra 系统的运行。你的任务是接收用户复杂的化学科研需求，通过科学的拆解与指派，调动子 Agent 协作完成目标。\n\n'
                 '## 核心职责与权力\n'
                 '1. **任务拆解 (Decomposition)**: 将模糊的需求转化为清晰、逻辑连贯的子任务。使用 `SubAgentLauncher` 启动子 Agent。\n'
-                '2. **环境塑造 (Environment Injection)**: 子 Agent (a-1, a-2, a-3) 是你的数字化肢体。你必须通过 `reasoning_prompt` 为它们注入：\n'
+                '2. **全程监控 (Oversight)**: 当子 Agent 完成后，如果 `SubAgentLauncher` 返回的摘要信息不足以辅助决策，你必须调用 `get_subagent_report` 来获取该任务的完整执行过程（包含推理、工具调用及详细结论）。\n'
+                '3. **环境塑造 (Environment Injection)**: 子 Agent (a-1, a-2, a-3) 是你的数字化肢体。你必须通过 `reasoning_prompt` 为它们注入：\n'
                 '   - **临时身份**: 明确它们在当前任务中的角色。\n'
                 '   - **行动范围**: 明确可以调用的工具，并**显式禁止**不相关的危险操作。\n'
                 '   - **背景上下文**: 提供完成任务所需的关键信息或文件路径。\n'
@@ -351,7 +352,9 @@ class Coordinator_reAct(reAct):
                 '5. **视觉锚点说明 (Visual Anchors)**: 在你的历史上下文中，可能会出现包含本地文件路径（如 `/path/to/image.png`）的 `image_url` 块。这些是系统内部的视觉锚点，代表你此前已“看到”或生成的图像。你无需解析路径字符串本身，只需将其视为对话中特定视觉信息的占位符即可。\n'
                 '6. **专家分工 (Specialized Roles)**: \n'
                 '   - **Visionary (a-4)**: 系统的“双眼”。它是视觉识别、图表解析和图像数据提取的唯一专家。任何涉及“看图、读图、分析图”的任务应指派给它。\n'
-                '   - **Writer (a-2)**: 系统的“双手”。它擅长文档产出和代码编写（包括调用绘图工具生成图片），但它不具备专业的视觉分析能力。生成的图片应交给 Visionary 进行质量检查或内容解读。\n'
+                '   - **Writer (a-2)**: 系统的“双手”。它擅长文档产出和代码编写（包括调用绘图工具生成图片），但它不具备专业的视觉分析能力。\n'
+                '   - **Operator (a-5)**: 系统的“重装步兵”。专门执行危险操作、环境配置、大型脚本和大规模文件管理。它拥有最高权限，但其动作必须严审。\n'
+                '   - **Coder (a-6)**: 系统的“架构师”。专注于高质量算法实现、科学计算脚本编写及代码重构。它是解决复杂逻辑和自动化工作流的首选专家。\n'
                 '7. **结果评估与答复**: 你是唯一有权决定任务终结的人。汇总所有子任务成果后，给出最终、专业的回复并调用 `stop` 工具退出。\n\n'
                 '## 工作指南\n'
                 '- **严谨性**: 对于化学实验参数、文献结论，必须追求 100% 的准确性。\n'

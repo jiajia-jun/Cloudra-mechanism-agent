@@ -2,9 +2,6 @@ from pydantic import Field
 from typing import Any, Optional, List
 import os
 
-from rdkit import Chem
-from rdkit.Chem import Draw
-from rdkit.Chem.Draw import rdMolDraw2D
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
 
@@ -58,6 +55,9 @@ class MoleculeDrawer(Tool):
         return True
 
     async def tool_call(self, user_input: MoleculeDrawer_input_schema, session: Session) -> MoleculeDrawer_output_schema:
+        from rdkit import Chem
+        from rdkit.Chem import Draw
+        from rdkit.Chem.Draw import rdMolDraw2D
         import os
         smiles = user_input.smiles
         path = user_input.output_path

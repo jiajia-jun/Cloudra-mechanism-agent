@@ -1,6 +1,5 @@
 from pydantic import Field
 from typing import Any, Dict, List
-import httpx
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
 
@@ -51,6 +50,7 @@ class ChemRxivSearcher(Tool):
         return " ".join(abstract_list)
 
     async def tool_call(self, user_input: ChemRxivSearcher_input_schema, session: Session) -> ChemRxivSearcher_output_schema:
+        import httpx
         # OpenAlex API 地址
         api_url = "https://api.openalex.org/works"
         

@@ -21,7 +21,9 @@ description = (
     "1. explorer (a-1): 项目探索。总结架构，提取关键信息。只读。\n"
     "2. writer (a-2): 文档/代码产出。覆写文件。需通过安全审计。\n"
     "3. researcher (a-3): 文献/脚本研究。科研搜索，脚本执行。需通过安全审计。\n"
-    "4. visionary (a-4): 视觉解析。专门负责图片、图表、分子结构的视觉识别与数据提取。"
+    "4. visionary (a-4): 视觉解析。专门负责图片、图表、分子结构的视觉识别与数据提取。\n"
+    "5. operator (a-5): 高级操作。执行危险指令、环境配置、大规模文件管理。拥有最高执行权限，需严审。\n"
+    "6. coder (a-6): 代码专家。编写复杂算法、科学计算脚本及自动化工作流。擅长重构、调试与性能优化。"
 )
 
 
@@ -175,8 +177,18 @@ class SubAgentLauncher(Tool):
                     output_lines.append(line.strip())
             process.wait()
 
-            # 从 session 文件中获取最终结果（或者简单返回最后几行）
-            result = f"Task completed synchronously. Final summary: {output_lines[-2] if len(output_lines) > 1 else 'Check session logs.'}"
+            # 核心改进：从数据库中获取真实的 result 字段，而不是抓取 stdout 的最后一行
+            # 这样可以确保哪怕结论很长，Coordinator 也能完整看到
+            con = sqlite3.connect(db_path)
+            cur = con.cursor()
+            cur.execute("SELECT result FROM session WHERE session_id = ?", (session_id,))
+            row = cur.fetchone()
+            con.close()
+
+            if row and row[0]:
+                result = row[0]
+            else:
+                result = f"Task completed, but no explicit result was found in database. Last output lines: {' | '.join(output_lines[-3:])}"
         else:
             # 异步模式：仅写入 ready，由 main.py 的后台线程 pickup
             cur.execute(

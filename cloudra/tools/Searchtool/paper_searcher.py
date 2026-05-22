@@ -3,7 +3,6 @@ from typing import Any
 
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
-import arxiv
 
 
 description = (
@@ -44,6 +43,7 @@ class PaperSearcher(Tool):
         return True
 
     async def tool_call(self, user_input: PaperSearcher_input_schema, session: Session) -> PaperSearcher_output_schema:
+        import arxiv
         try:
             if user_input.sort_by not in ['Relevance', 'SubmittedDate', 'LastUpdatedDate']:
                 user_input.sort_by = 'Relevance'

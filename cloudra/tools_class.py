@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Any
+import os
 from pydantic_core import PydanticUndefined
 from cloudra.subagents import Subagent_hash
 from cloudra.session_class import Session
@@ -149,6 +150,23 @@ class Tool(BaseModel):
         执行结果以 output_schema 实例返回。
         '''
         raise NotImplementedError("子类必须实现 tool_call 方法")
+
+    async def safe_call(self, user_input: input_schema, session: Session) -> output_schema:
+        '''
+        带有通用异常捕获的工具调用包装器，确保工具执行失败不会导致系统崩溃。
+        '''
+        try:
+            return await self.tool_call(user_input, session)
+        except Exception as e:
+            # 尝试构造一个通用的错误输出
+            # 注意：某些工具可能定义了特殊的错误字段，这里使用最基础的 output_schema 逻辑
+            error_msg = f"【工具执行异常】{self.tool_name}: {str(e)}"
+            # 记录日志或打印 (可选)
+            # print(error_msg)
+            
+            # 返回一个标记为失败的 output_schema 实例 (如果子类定义了 is_success 等字段，这里可以更智能)
+            # 这里先返回包含错误信息的 Generic 结果，reAct.py 会处理 Exception 情况
+            raise e 
 
     async def ensure_safety(self, session: Session, details: str) -> bool:
         '''

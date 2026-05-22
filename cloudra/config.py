@@ -57,6 +57,9 @@ class CloudraConfig(BaseSettings):
     coordinator: LLMConfig = Field(default_factory=LLMConfig)
     follower: LLMConfig = Field(default_factory=LLMConfig)
 
+    # UI/UX state
+    last_conversation_id: Optional[str] = None
+
     @field_validator("data_dir", "config_file", mode="before")
     @classmethod
     def _coerce_path(cls, v):
@@ -108,6 +111,8 @@ class CloudraConfig(BaseSettings):
                             setattr(self.follower, k, v)
             if "data_dir" in data:
                 self.data_dir = Path(data["data_dir"])
+            if "last_conversation_id" in data:
+                self.last_conversation_id = data["last_conversation_id"]
         except Exception as e:
             print(f"[Config Warning] Failed to load {cfg_path}: {e}")
 
@@ -126,6 +131,7 @@ class CloudraConfig(BaseSettings):
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "data_dir": str(self.data_dir),
+            "last_conversation_id": self.last_conversation_id,
             "llm": {
                 "coordinator": {
                     "model": self.coordinator.model,

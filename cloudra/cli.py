@@ -62,21 +62,36 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
 
 @cli.command()
 @click.argument("query")
-@click.option("--conv-id", default=None, help="继续已有对话的 ID")
+@click.option("--conv-id", default=None, help="指定对话 ID")
+@click.option("--new", is_flag=True, help="启动新对话，不自动恢复")
 @click.option("--dry-run", is_flag=True, help="只显示配置，不实际执行")
-def run(query, conv_id, dry_run):
+def run(query, conv_id, new, dry_run):
     """运行一个 Cloudra 任务。"""
     config = get_config()
-    
+    # Logic for sticky conversation
+    if conv_id:
+        active_conv_id = conv_id
+    elif new:
+        active_conv_id = None
+    else:
+        active_conv_id = config.last_conversation_id
+        if active_conv_id:
+            console.print(f"[dim]自动恢复上次对话: {active_conv_id}[/dim]")
+
+    # Resolve actual ID (creates directory if new, but we need it for consistency)
+    from cloudra.conversation_class import Conversation
+    temp_conv = Conversation(active_conv_id)
+    active_conv_id = temp_conv.id
+
     if dry_run:
         console.print(Panel("[bold]Dry Run 模式[/bold]", style="yellow"))
         console.print(f"Query: {query}")
-        if conv_id:
-            console.print(f"Conversation: {conv_id}")
+        console.print(f"Conversation ID: {active_conv_id}")
         console.print(f"Data Dir: {config.data_dir}")
         console.print(f"Coordinator Model: {config.coordinator.model}")
         console.print(f"Follower Model: {config.follower.model}")
         return
+
     
     # Validate API keys
     if not config.coordinator.key:
@@ -85,12 +100,19 @@ def run(query, conv_id, dry_run):
         sys.exit(1)
     
     try:
-        result = run_task(query, conv_id=conv_id, verbose=True)
+        result = run_task(query, conv_id=active_conv_id, verbose=True)
+        
+        # Save the used ID as the last one
+        config.last_conversation_id = active_conv_id
+        config.save()
+        
     except KeyboardInterrupt:
         console.print("\n[yellow]任务被用户中断。[/yellow]")
         sys.exit(130)
     except Exception as e:
         console.print(f"[red]任务执行失败: {e}[/red]")
+        import traceback
+        console.print(traceback.format_exc())
         sys.exit(1)
 
 
