@@ -8,9 +8,10 @@ Cloudra is an AI Agent collaboration framework specifically designed for chemica
 
 - Multi-Process Architecture: Utilizes a Manager-Worker model where the Coordinator manages multiple Follower agents in independent processes for robust task execution and isolation.
 - ReAct Reasoning Engine: Implements a single-loop Reasoning-Acting (ReAct) architecture for more natural and efficient interaction with tools.
-- Multimodal Chemistry Capabilities: Integrated RDKit for molecule drawing and Visionary agents for analyzing spectra (NMR, IR), electron microscopy images, and complex chemical charts.
-- Scientific Search: Built-in tools for searching and parsing literature from ArXiv and ChemRxiv, with automatic PDF-to-Markdown conversion.
-- Execution Sandbox: Provides a secure Bash environment for running chemical simulations, data processing scripts, and git operations.
+- Multimodal Chemistry Capabilities: Integrated RDKit for molecule drawing and specialized processors for raw spectroscopy data (NMR, IR), allowing for deep analysis beyond simple image interpretation.
+- Professional Spectroscopy Suite: Built-in `NMRProcessor` (via nmrglue) and `IRProcessor` (via spectrochempy) for handling raw instrument files (Bruker, Varian, JCAMP-DX, etc.) with advanced preprocessing like phase correction and baseline removal.
+- Specialized Agent Matrix: A growing library of agents including `Visionary` (visual analysis), `Coder` (algorithm implementation), and `Operator` (environment & risk management).
+- High Stability & Fork-Safety: Robust execution engine with tool caching, lazy-loading of heavy C-extensions, and `safe_call` wrappers to prevent crashes in high-concurrency environments.
 
 ## Project Structure
 
@@ -18,17 +19,19 @@ Cloudra is an AI Agent collaboration framework specifically designed for chemica
 cloudra/
 ├── agent.py               # Core Agent logic
 ├── cli.py                 # Command Line Interface
-├── coordinator.py         # Task coordination management
 ├── reAct.py               # ReAct reasoning implementation
 ├── subagents/             # Specialized agent definitions
-│   ├── explorer.py        # File and project exploration
-│   ├── researcher.py      # Literature and research specialist
-│   ├── visionary.py       # Vision and multimodal analysis
-│   └── writer.py          # Documentation and code specialist
+│   ├── explorer.py        # Project structure navigation
+│   ├── researcher.py      # Literature & data specialist
+│   ├── visionary.py       # Vision & raw spectrum analysis
+│   ├── writer.py          # Documentation specialist
+│   ├── coder.py           # Algorithm & pipeline developer
+│   └── operator.py        # High-risk execution & env manager
 └── tools/                 # Toolkits for agents
     ├── Bashtool/          # Command execution
-    ├── Chemtool/          # Molecular drawing (SMILES/RDKit)
+    ├── Chemtool/          # Molecular drawing & Spectrum processing
     ├── Searchtool/        # ArXiv/ChemRxiv and PDF parsing
+    ├── Managetool/        # Sub-agent control & task oversight
     └── Writetool/         # File management
 ```
 
