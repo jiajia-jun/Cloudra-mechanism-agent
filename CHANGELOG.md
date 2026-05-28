@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.0] - 2026-05-29
+
+### 新增
+- **化学结构图像识别 (`image_to_smiles`)**：基于 DECIMER (MIT License) 深度学习模型，支持将化学结构图（截图、手绘图）转换为 SMILES 字符串。
+- **SMILES 转 MOL (`smiles_to_mol`)**：基于 RDKit，支持 SMILES 到 MOL 格式转换，可选 2D/3D 坐标生成。
+- **用户交互工具 (`ask_user`)**：Agent 可在任务执行中主动向用户提问并等待回答，支持默认值与 EOF 容错处理。
+
+### 改进
+- **工具目录扩展**：新增 `tools/Interactool/` 用于人机交互类工具。
+
 ## [1.0.0] - 2026-05-20
 
 ### 重构

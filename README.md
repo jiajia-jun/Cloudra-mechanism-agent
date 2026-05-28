@@ -8,8 +8,10 @@ Cloudra is an AI Agent collaboration framework specifically designed for chemica
 
 - Multi-Process Architecture: Utilizes a Manager-Worker model where the Coordinator manages multiple Follower agents in independent processes for robust task execution and isolation.
 - ReAct Reasoning Engine: Implements a single-loop Reasoning-Acting (ReAct) architecture for more natural and efficient interaction with tools.
-- Multimodal Chemistry Capabilities: Integrated RDKit for molecule drawing and specialized processors for raw spectroscopy data (NMR, IR), allowing for deep analysis beyond simple image interpretation.
+- Multimodal Chemistry Capabilities: Integrated RDKit for molecule drawing, specialized processors for raw spectroscopy data (NMR, IR), and deep learning-based optical chemical structure recognition (DECIMER) for image-to-SMILES conversion, allowing for deep analysis beyond simple image interpretation.
 - Professional Spectroscopy Suite: Built-in `NMRProcessor` (via nmrglue) and `IRProcessor` (via spectrochempy) for handling raw instrument files (Bruker, Varian, JCAMP-DX, etc.) with advanced preprocessing like phase correction and baseline removal.
+- **Chemical Structure Interconversion**: Supports SMILES ↔ MOL conversion and image-based structure recognition, bridging graphical depictions with machine-readable formats.
+- **Human-in-the-Loop Interaction**: Built-in `ask_user` tool allows agents to proactively clarify requirements, confirm actions, or collect missing information from users during task execution.
 - Specialized Agent Matrix: A growing library of agents including `Visionary` (visual analysis), `Coder` (algorithm implementation), and `Operator` (environment & risk management).
 - High Stability & Fork-Safety: Robust execution engine with tool caching, lazy-loading of heavy C-extensions, and `safe_call` wrappers to prevent crashes in high-concurrency environments.
 
@@ -32,6 +34,7 @@ cloudra/
     ├── Chemtool/          # Molecular drawing & Spectrum processing
     ├── Searchtool/        # ArXiv/ChemRxiv and PDF parsing
     ├── Managetool/        # Sub-agent control & task oversight
+    ├── Interactool/       # Human-in-the-loop interaction
     └── Writetool/         # File management
 ```
 
