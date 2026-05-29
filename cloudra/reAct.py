@@ -187,8 +187,18 @@ class reAct:
             if tool_calls:
                 new_block['tool_calls'] = tool_calls
         
-        agent.update_context(new_block)
+        # 延迟加载逻辑：如果有 tool_calls，先存入 undos 缓冲区
+        if tool_calls:
+            self.undos.append(new_block)
+        else:
+            agent.update_context(new_block)
+            
         return tool_calls
+
+    def _commit_undos(self):
+        '''将缓冲区中的消息提交到上下文。'''
+        while self.undos:
+            self.agent.update_context(self.undos.pop(0))
 
     async def act_result(self, tool_calls: list):
         '''
@@ -221,6 +231,7 @@ class reAct:
                     'tool_call_id': tool_call_id,
                     'content': f"【系统错误】工具参数解析失败 (JSON Error): {str(e)}。请确保参数格式正确。"
                 }
+                self._commit_undos()
                 self.agent.update_context(result_block)
                 self.log.update_content(f"{Color.RED}参数解析失败: {tool_name}{Color.END}\n")
                 continue
@@ -231,6 +242,7 @@ class reAct:
             
             self.log.update_content(f"{Color.YELLOW}执行工具: {tool_name}{Color.END}\n")
             
+            found = False
             for tool in tools_list:
                 # NOTE: get_tools_lst() 现在返回实例对象（不再是类），因此直接用 tool.tool_name 匹配。
                 if tool.tool_name == tool_name:
@@ -242,11 +254,22 @@ class reAct:
                     session.state = 'waiting'
                     acts.append(tool_instance.safe_call(input_instance, session))
                     tool_call_ids.append(tool_call_id)
+                    found = True
                     break
+            
+            if not found:
+                result_block = {
+                    'role': 'tool',
+                    'tool_call_id': tool_call_id,
+                    'content': f"【系统错误】找不到工具: {tool_name}。请检查工具名称是否正确。"
+                }
+                self._commit_undos()
+                self.agent.update_context(result_block)
         
         if acts:
             # 使用 return_exceptions=True，确保单个工具崩溃不影响其他工具，且能捕获异常
             tool_results = await asyncio.gather(*acts, return_exceptions=True)
+            self._commit_undos()
             
             # 每个工具结果单独作为一条消息
             for tool_result, tool_call_id in zip(tool_results, tool_call_ids):
