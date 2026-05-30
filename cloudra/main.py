@@ -31,7 +31,8 @@ def init_database(db_path: str):
         CREATE TABLE IF NOT EXISTS subagent_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             state TEXT,
-            input_data TEXT
+            input_data TEXT,
+            conversation_id TEXT
         )
     ''')
 
@@ -65,13 +66,26 @@ def checking_task(database_path: str):
 
     while True:
         try:
-            con = sqlite3.connect(database_path)
+            con = sqlite3.connect(database_path, timeout=10)
             cur = con.cursor()
-            cur.execute("SELECT id, input_data FROM subagent_requests WHERE state = ?", ('ready',))
-            requests = cur.fetchall()
-
-            for request in requests:
-                request_id, input_data = request
+            
+            # 使用原子操作 (Optimistic Locking): 先尝试把状态从 ready 改为 running，并返回被修改的 id 和 input_data
+            # 如果别的线程已经改了，这个 UPDATE 就会返回空，从而避免冲突。
+            cur.execute("""
+                UPDATE subagent_requests 
+                SET state = 'running' 
+                WHERE id IN (
+                    SELECT id FROM subagent_requests WHERE state = 'ready' LIMIT 1
+                )
+                RETURNING id, input_data
+            """)
+            
+            claimed_task = cur.fetchone()
+            
+            if claimed_task:
+                request_id, input_data = claimed_task
+                con.commit() # 确认修改
+                
                 if isinstance(input_data, str):
                     input_instance = json.loads(input_data)
                 else:
@@ -82,29 +96,31 @@ def checking_task(database_path: str):
                 template_agent = getattr(agent_hash, agent_id, None)
                 agent_name = template_agent.name if template_agent else "Unknown"
 
-                # 标记为处理中
-                cur.execute(
-                    "UPDATE subagent_requests SET state = ? WHERE id = ?",
-                    ('running', request_id)
-                )
-                con.commit()
-
                 # 启动子进程
-                # 使用 sys.executable 确保使用与主进程相同的 Python 解释器
-                # 以模块方式启动，保证包内 import 正确
                 process = subprocess.Popen(
                     [sys.executable, '-m', 'cloudra.executor', '--task_id', str(request_id), '--db', database_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
-                    bufsize=1 # 行缓冲
+                    bufsize=1
                 )
-
-                # 开启线程实时读取输出
-                t = threading.Thread(target=pipe_logger, args=(process, agent_name), daemon=True)
-                t.start()
                 
-                active_processes[request_id] = process
+                # ISSUE 3 Fix: 等待一小会儿，检查进程是否瞬间崩溃
+                time.sleep(0.5)
+                if process.poll() is not None:
+                    # 进程刚起就死了
+                    return_code = process.returncode
+                    print(f"{Color.RED}[系统错误]{Color.END} Agent {agent_name} (Task {request_id}) 启动失败! 退出码: {return_code}")
+                    # 回滚状态为 failed，避免死等
+                    cur.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', request_id))
+                    con.commit()
+                else:
+                    # 正常运行，开启线程读取日志
+                    t = threading.Thread(target=pipe_logger, args=(process, agent_name), daemon=True)
+                    t.start()
+                    active_processes[request_id] = process
+            else:
+                con.rollback()
 
             con.close()
         except Exception as e:
@@ -210,12 +226,12 @@ def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
     if verbose:
         print(f"\n{Color.YELLOW}[系统]{Color.END} 正在等待子任务完成...")
     while True:
-        con = sqlite3.connect(database)
+        con = sqlite3.connect(database, timeout=10)
         cur = con.cursor()
-        # 只检查属于当前会话且未完成的任务
+        # ISSUE 4 Fix: 使用索引列精确匹配，不再使用低效且危险的 LIKE
         cur.execute(
-            "SELECT COUNT(*) FROM subagent_requests WHERE (state = 'ready' OR state = 'running') AND input_data LIKE ?",
-            (f'%{conversation.id}%',)
+            "SELECT COUNT(*) FROM subagent_requests WHERE (state = 'ready' OR state = 'running') AND conversation_id = ?",
+            (conversation.id,)
         )
         count = cur.fetchone()[0]
         con.close()
