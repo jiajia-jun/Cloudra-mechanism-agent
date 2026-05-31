@@ -128,6 +128,22 @@ class Bashtools(Tool):
             stderr=asyncio.subprocess.PIPE
         )
         session.tool_calling[terminal_id] = command
+        
+        def decode_output(data: bytes) -> str:
+            if not data:
+                return ""
+            import platform
+            try:
+                return data.decode('utf-8')
+            except UnicodeDecodeError:
+                if platform.system() == 'Windows':
+                    for enc in ['gbk', 'cp936', 'cp437']:
+                        try:
+                            return data.decode(enc)
+                        except UnicodeDecodeError:
+                            continue
+                return data.decode('utf-8', errors='replace')
+
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
@@ -138,11 +154,14 @@ class Bashtools(Tool):
             print(e)
             result = f'命令执行失败:{e}'
             del session.tool_calling[terminal_id]
-            return Bashtools_output_schema(result=stderr.decode('utf-8'), terminal_id=terminal_id, run_command=command)
+            # Use safer decoding for stderr too
+            err_msg = decode_output(stderr) if 'stderr' in locals() else str(e)
+            return Bashtools_output_schema(result=err_msg, terminal_id=terminal_id, run_command=command)
+        
         del session.tool_calling[terminal_id]
-        result = stdout.decode('utf-8')
+        result = decode_output(stdout)
         if stderr:
-            result += stderr.decode('utf-8')
+            result += "\n" + decode_output(stderr)
         return Bashtools_output_schema(result=result, terminal_id=terminal_id, run_command=command)
 
 

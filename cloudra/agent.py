@@ -94,7 +94,7 @@ class Agent(BaseModel):
             tool_instance = tool()
         tool_perms = tool_instance.tool_permission_all()
         agent_perms = self.permission_all()
-        return check_permission(agent_perms, tool_perms)
+        return check_permission(agent_perms, tool_perms)    #No its not a recursion
 
 
     def get_available_tools(self) -> list:

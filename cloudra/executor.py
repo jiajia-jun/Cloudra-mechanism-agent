@@ -9,7 +9,7 @@ from cloudra.reAct import reAct
 from cloudra.subagents import Subagent_hash
 
 async def run_executor(task_id: int, database_path: str):
-    # 1. 连接数据库获取任务
+    # 连接数据库获取任务
     con = sqlite3.connect(database_path, timeout=10)
     cur = con.cursor()
     cur.execute("PRAGMA journal_mode=WAL;")
@@ -22,7 +22,7 @@ async def run_executor(task_id: int, database_path: str):
     input_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
     con.close()
 
-    # 2. 准备 Agent 环境
+    # 准备 Agent 环境,从哈希表里取实例
     agent_hash = Subagent_hash()
     agent_id = input_data.get('agent_id')
     query = input_data.get('query')
@@ -32,11 +32,13 @@ async def run_executor(task_id: int, database_path: str):
         print(f"Error: Agent ID {agent_id} not found.")
         return
 
+
+    # 关于为什么deepcopy: 不这样做的话所有会话中的子agent都会是同一个
     sub_agent = copy.deepcopy(template_agent)
     sub_agent.query = query
     sub_agent.conversation_id = input_data.get('conversation_id', 'default')
     
-    # 核心修复：必须根据新的 conversation_id 重新加载上下文，否则会产生跨会话污染
+    # 重新加载上下文，否则会产生跨会话污染
     sub_agent.context = sub_agent.get_context()
     
     # 如果 payload 中传入了额外的 context，则追加进去

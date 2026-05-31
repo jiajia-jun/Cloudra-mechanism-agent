@@ -51,6 +51,7 @@ class reAct:
     log: Log
     _continue : bool = True
     database_path: str = ''
+    undos: list = []
     
     def __init__(self , agent: Agent, prompt: str = ""):
         self.agent = agent
@@ -387,3 +388,24 @@ class Coordinator_reAct(reAct):
         self.database_path = db_path
         self.query = agent.query
         self.log.is_main = True
+
+    async def run(self):
+        result = await super().run()
+        
+        # 任务结束后，检查是否有新邮件并提醒
+        try:
+            from cloudra.tools.Interactool.email_reader import EmailReader, EmailReader_input_schema
+            reader = EmailReader(subagent=self.agent)
+            # 仅检查是否有未读邮件，不输出具体内容以节省 token
+            inbox = await reader.tool_call(EmailReader_input_schema(count=1, only_unread=True), self.session)
+            if inbox.success and inbox.emails:
+                print(f"\n{Color.YELLOW}[系统提醒] 收件箱中有新的未读邮件，可能包含用户的最新反馈或指令。{Color.END}")
+                # 向上下文注入一条系统提醒，让 Agent 知道有新消息
+                self.agent.update_context({
+                    "role": "system", 
+                    "content": "【系统提醒】收件箱中有新的未读邮件，可能包含用户的最新反馈或指令，请在必要时调用 email_reader 查看。"
+                })
+        except Exception:
+            pass # 忽略检查失败
+            
+        return result

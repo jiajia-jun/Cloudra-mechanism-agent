@@ -43,17 +43,24 @@ class BashCommandClassifier:
         'lsof', 'ping', 'df', 'du', 'file', 'stat', 'which', 'whereis',
         'uname', 'free', 'uptime', 'date', 'echo', 'printenv', 'env',
         'git', 'hg', 'svn',
-        'cd', 'nproc',  # directory change and CPU count are read-like
+        'cd', 'nproc',
+        # Windows equivalents
+        'dir', 'type', 'findstr', 'ver', 'systeminfo', 'hostname', 'ipconfig',
+        'tasklist', 'sc', 'set', 'where', 'assoc', 'ftype', 'vol', 'label',
     }
 
     WRITE_CMDS = {
         'awk', 'sed', 'tee', 'truncate', 'touch', 'mkdir',
+        # Windows equivalents
+        'copy', 'xcopy', 'robocopy', 'move', 'ren', 'rename', 'md', 'rd', 'attrib', 'setx',
     }
 
     SCRIPT_CMDS = {
         'python', 'python3', 'python2', 'bash', 'sh', 'zsh', 'fish',
         'cargo', 'yarn', 'go', 'g16', 'g09', 'perl', 'ruby', 'node', 'nodejs',
         'npm', 'npx', 'conda', 'pip', 'pip3',
+        # Windows equivalents
+        'powershell', 'pwsh', 'cmd', 'cscript', 'wscript', 'batch',
     }
 
     DESTRUCTIVE_CMDS = {
@@ -61,15 +68,18 @@ class BashCommandClassifier:
         'docker', 'docker-compose', 'podman',
         'kubectl', 'kubectx', 'kubens',
         'ssh', 'scp', 'sftp', 'rsync',
-        'wget', 'curl',  # curl with -o is destructive; we flag curl as both read+destructive
+        'wget', 'curl',
         'chmod', 'chown', 'chgrp',
         'mkfs', 'dd', 'fdisk', 'parted',
         'kill', 'pkill', 'killall',
         'shutdown', 'reboot', 'poweroff',
         'tar', 'zip', 'unzip', 'gzip', 'gunzip',
-        'source', 'export',  # environment modification
-        'pip', 'pip3', 'conda', 'npm', 'npx', 'yarn',  # package managers modify environment
-        'mkdir', 'touch', 'sed',  # modify filesystem
+        'source', 'export',
+        'pip', 'pip3', 'conda', 'npm', 'npx', 'yarn',
+        'mkdir', 'touch', 'sed',
+        # Windows equivalents
+        'del', 'erase', 'rd', 'rmdir', 'move', 'ren', 'rename', 'format', 'taskkill', 'net',
+        'icacls', 'takeown', 'cipher',
     }
 
     # Shell metacharacters that indicate write/destructive behavior
@@ -85,6 +95,9 @@ class BashCommandClassifier:
 
         Handles pipes, redirects, variable assignments, and quoted strings.
         """
+        import platform
+        is_windows = platform.system() == 'Windows'
+        
         analysis = CommandAnalysis()
 
         if not command or not command.strip():
@@ -92,7 +105,8 @@ class BashCommandClassifier:
 
         # 1. Tokenize with shlex
         try:
-            tokens = shlex.split(command, comments=False, posix=True)
+            # On Windows, posix=False is usually better for cmd.exe
+            tokens = shlex.split(command, comments=False, posix=not is_windows)
         except ValueError:
             # Unclosed quotes or other shlex failures: fall back to string analysis
             return cls._fallback_classify(command)
@@ -103,6 +117,7 @@ class BashCommandClassifier:
                 if pattern.fullmatch(tok):
                     analysis.has_redirect = True
                     break
+            # Pipes in Windows are also |
             if tok in ('|', '|&'):
                 analysis.has_pipe = True
 
@@ -119,23 +134,31 @@ class BashCommandClassifier:
             if not segment:
                 continue
 
-            # Strip leading variable assignments like FOO=bar python ...
+            # Strip leading variable assignments (Unix style)
             cmd_idx = 0
-            for idx, tok in enumerate(segment):
-                # A var assignment looks like KEY=VALUE without spaces around =
-                if '=' in tok and not tok.startswith('=') and not tok.endswith('='):
-                    # But be careful: commands like `python -c 'a=1'` won't hit here
-                    # because shlex handles quotes. However, `FOO=bar` as a standalone
-                    # token is definitely an assignment.
-                    parts = tok.split('=', 1)
-                    if parts[0].isidentifier():
-                        continue
-                cmd_idx = idx
-                break
+            if not is_windows:
+                for idx, tok in enumerate(segment):
+                    if '=' in tok and not tok.startswith('=') and not tok.endswith('='):
+                        parts = tok.split('=', 1)
+                        if parts[0].isidentifier():
+                            continue
+                    cmd_idx = idx
+                    break
+
+            if cmd_idx >= len(segment):
+                continue
 
             cmd_name = segment[cmd_idx]
-            # Handle absolute paths like /usr/bin/python3
-            cmd_base = cmd_name.split('/')[-1]
+            
+            # Handle absolute paths: /usr/bin/python or C:\Python39\python.exe
+            # Replace backslashes for uniform processing
+            cmd_name_clean = cmd_name.replace('\\', '/')
+            cmd_base = cmd_name_clean.split('/')[-1]
+            
+            # Remove .exe suffix if present
+            if cmd_base.lower().endswith('.exe'):
+                cmd_base = cmd_base[:-4]
+                
             commands.append(cmd_base)
 
         if not commands:
@@ -173,6 +196,9 @@ class BashCommandClassifier:
         Fallback when shlex fails (e.g. unclosed quotes).
         Uses regex-based word-boundary matching.
         """
+        import platform
+        is_windows = platform.system() == 'Windows'
+        
         analysis = CommandAnalysis()
 
         # Detect redirects with regex
@@ -180,9 +206,24 @@ class BashCommandClassifier:
             analysis.has_redirect = True
 
         # Extract the first "word" that looks like a command
-        first_word_match = re.search(r'^[\s]*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*[\s]+)*([^\s|;&]+)', command)
+        # Windows command regex needs to handle backslashes and drive letters
+        if is_windows:
+            # Matches C:\foo\bar.exe or just command
+            first_word_match = re.search(r'^[\s]*([^\s|;&]+)', command)
+        else:
+            # Unix: handles variable assignments FOO=bar command
+            first_word_match = re.search(r'^[\s]*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*[\s]+)*([^\s|;&]+)', command)
+            
         if first_word_match:
-            cmd = first_word_match.group(1).split('/')[-1].lower()
+            cmd_full = first_word_match.group(1)
+            # Clean up Windows paths
+            cmd_clean = cmd_full.replace('\\', '/')
+            cmd = cmd_clean.split('/')[-1].lower()
+            
+            # Remove .exe
+            if cmd.endswith('.exe'):
+                cmd = cmd[:-4]
+                
             analysis.primary_cmd = cmd
             analysis.pipe_commands = [cmd]
 

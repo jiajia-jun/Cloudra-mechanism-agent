@@ -38,6 +38,20 @@ class LLMConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
 
+class EmailConfig(BaseSettings):
+    """SMTP/IMAP configuration for notifications and interaction."""
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 465
+    imap_server: str = "imap.gmail.com"
+    imap_port: int = 993
+    user: str = ""
+    password: str = ""  # Should be an app password
+    sender_name: str = "Cloudra Assistant"
+    whitelist: list[str] = []
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+
 class CloudraConfig(BaseSettings):
     """Global Cloudra configuration."""
 
@@ -56,6 +70,9 @@ class CloudraConfig(BaseSettings):
     # LLM configs
     coordinator: LLMConfig = Field(default_factory=LLMConfig)
     follower: LLMConfig = Field(default_factory=LLMConfig)
+
+    # Email config
+    email: EmailConfig = Field(default_factory=EmailConfig)
 
     # UI/UX state
     last_conversation_id: Optional[str] = None
@@ -91,6 +108,12 @@ class CloudraConfig(BaseSettings):
             self.follower.url = os.getenv("FOLLOWER_URL")
         if os.getenv("FOLLOWER_KEY"):
             self.follower.key = os.getenv("FOLLOWER_KEY")
+        
+        # Email legacy envs
+        if os.getenv("SMTP_USER"):
+            self.email.user = os.getenv("SMTP_USER")
+        if os.getenv("SMTP_PASS"):
+            self.email.password = os.getenv("SMTP_PASS")
 
     def _load_yaml_config(self):
         """Load config from YAML file, overriding defaults."""
@@ -109,6 +132,12 @@ class CloudraConfig(BaseSettings):
                     for k, v in data["llm"]["follower"].items():
                         if hasattr(self.follower, k) and v:
                             setattr(self.follower, k, v)
+            
+            if "email" in data:
+                for k, v in data["email"].items():
+                    if hasattr(self.email, k) and v:
+                        setattr(self.email, k, v)
+
             if "data_dir" in data:
                 self.data_dir = Path(data["data_dir"])
             if "last_conversation_id" in data:
@@ -144,6 +173,16 @@ class CloudraConfig(BaseSettings):
                     "key": self.follower.key,
                 },
             },
+            "email": {
+                "smtp_server": self.email.smtp_server,
+                "smtp_port": self.email.smtp_port,
+                "imap_server": self.email.imap_server,
+                "imap_port": self.email.imap_port,
+                "user": self.email.user,
+                "password": self.email.password,
+                "sender_name": self.email.sender_name,
+                "whitelist": self.email.whitelist,
+            }
         }
         with open(cfg_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
