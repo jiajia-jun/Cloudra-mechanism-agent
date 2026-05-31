@@ -6,14 +6,14 @@ Cloudra is an AI Agent collaboration framework specifically designed for chemica
 
 ## Core Features
 
-- Multi-Process Architecture: Utilizes a Manager-Worker model where the Coordinator manages multiple Follower agents in independent processes for robust task execution and isolation.
-- ReAct Reasoning Engine: Implements a single-loop Reasoning-Acting (ReAct) architecture for more natural and efficient interaction with tools.
-- Multimodal Chemistry Capabilities: Integrated RDKit for molecule drawing, specialized processors for raw spectroscopy data (NMR, IR), and deep learning-based optical chemical structure recognition (DECIMER) for image-to-SMILES conversion, allowing for deep analysis beyond simple image interpretation.
-- Professional Spectroscopy Suite: Built-in `NMRProcessor` (via nmrglue) and `IRProcessor` (via spectrochempy) for handling raw instrument files (Bruker, Varian, JCAMP-DX, etc.) with advanced preprocessing like phase correction and baseline removal.
-- **Chemical Structure Interconversion**: Supports SMILES ↔ MOL conversion and image-based structure recognition, bridging graphical depictions with machine-readable formats.
-- **Human-in-the-Loop Interaction**: Built-in `ask_user` tool allows agents to proactively clarify requirements, confirm actions, or collect missing information from users during task execution.
-- Specialized Agent Matrix: A growing library of agents including `Visionary` (visual analysis), `Coder` (algorithm implementation), and `Operator` (environment & risk management).
-- High Stability & Fork-Safety: Robust execution engine with tool caching, lazy-loading of heavy C-extensions, and `safe_call` wrappers to prevent crashes in high-concurrency environments.
+- **Multi-Process Architecture**: Utilizes a Manager-Worker model where the Coordinator manages multiple Follower agents in independent processes for robust task execution and isolation.
+- **ReAct Reasoning Engine**: Implements a single-loop Reasoning-Acting (ReAct) architecture for more natural and efficient interaction with tools.
+- **Remote Control & Notifications**: Integrated email-based interaction allowing agents to send reports, read inbox instructions, and be remotely awakened via a secure whitelist.
+- **Cross-Platform Compatibility**: Full support for both Linux and Windows environments, including robust shell command analysis and output encoding handling.
+- **Multimodal Chemistry Capabilities**: Integrated RDKit for molecule drawing, specialized processors for raw spectroscopy data (NMR, IR), and deep learning-based optical chemical structure recognition (DECIMER).
+- **Professional Spectroscopy Suite**: Built-in `NMRProcessor` and `IRProcessor` for handling raw instrument files (Bruker, Varian, JCAMP-DX, etc.).
+- **Human-in-the-Loop Interaction**: Built-in `ask_user` tool allows agents to proactively clarify requirements or collect missing information from users.
+- **Specialized Agent Matrix**: A growing library of agents including `Visionary`, `Coder`, `Operator`, `Researcher`, and `Writer`.
 
 ## Project Structure
 
@@ -21,6 +21,8 @@ Cloudra is an AI Agent collaboration framework specifically designed for chemica
 cloudra/
 ├── agent.py               # Core Agent logic
 ├── cli.py                 # Command Line Interface
+├── api.py                 # FastAPI-based Web/Mobile API
+├── email_listener.py      # Background email wakeup service (New)
 ├── reAct.py               # ReAct reasoning implementation
 ├── subagents/             # Specialized agent definitions
 │   ├── explorer.py        # Project structure navigation
@@ -30,11 +32,11 @@ cloudra/
 │   ├── coder.py           # Algorithm & pipeline developer
 │   └── operator.py        # High-risk execution & env manager
 └── tools/                 # Toolkits for agents
-    ├── Bashtool/          # Command execution
+    ├── Bashtool/          # Cross-platform command execution
     ├── Chemtool/          # Molecular drawing & Spectrum processing
     ├── Searchtool/        # ArXiv/ChemRxiv and PDF parsing
     ├── Managetool/        # Sub-agent control & task oversight
-    ├── Interactool/       # Human-in-the-loop interaction
+    ├── Interactool/       # Email interaction & ask_user
     └── Writetool/         # File management
 ```
 
@@ -46,20 +48,20 @@ Ensure you have Python 3.10+ installed.
 pip install -e .
 ```
 
-## Testing
+## Remote Wake-up
 
-Run the test suite using `pytest`:
+To start the background email listener for remote control:
 
 ```bash
-pip install pytest pytest-asyncio
-pytest tests/
+python -m cloudra.email_listener
 ```
+*Note: Ensure your SMTP/IMAP settings and whitelist are configured via `cloudra config`.*
 
 ## Quick Start
 
 ### Configuration
 
-Initialize your API keys and model preferences:
+Initialize your API keys, model preferences, and email settings:
 
 ```bash
 cloudra config init
@@ -70,21 +72,13 @@ cloudra config init
 Run a chemistry research task directly from the CLI:
 
 ```bash
-cloudra run "Search for recent papers on perovskite solar cells and let the researcher summarize them"
+cloudra run "Search for recent papers on perovskite solar cells and send the summary to my email"
 ```
 
-### Viewing History
+## Testing
 
-Check previous conversations:
-
-```bash
-cloudra history
-```
-
-### Checking Logs
-
-View detailed reasoning logs for a specific conversation:
+Run the test suite using `pytest`:
 
 ```bash
-cloudra logs [conv_id]
+pytest tests/
 ```

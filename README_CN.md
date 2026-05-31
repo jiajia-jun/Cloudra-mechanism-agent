@@ -4,14 +4,13 @@ Cloudra 是专为化学科研设计的 AI Agent 协作框架。它通过协调�
 
 ## 核心特性
 
-- 多进程协作架构：采用 Manager-Worker 模型，由协调者（Coordinator）在独立进程中管理多个执行者（Follower），确保任务执行的稳定性与隔离性。
-- ReAct 推理引擎：采用单循环 ReAct（Reasoning-Acting）架构，使 Agent 能够更自然、高效地调用工具。
-- 化学多模态能力：集成 RDKit 分子绘图功能、基于 DECIMER 深度学习的化学结构图像识别（图片转 SMILES），并配备专业的光谱解析引擎（NMR, IR），支持直接处理原始仪器数据而非仅限于图像解析。
-- 专业光谱分析全家桶：内置 `NMRProcessor` (基于 nmrglue) 和 `IRProcessor` (基于 spectrochempy)，支持 Bruker, Varian, JCAMP-DX 等格式的读取、相位校正、基线调平和峰提取。
-- **化学结构互转**：支持 SMILES ↔ MOL 格式转换以及基于图像的结构识别，打通图形 depiction 与机器可读格式之间的桥梁。
-- **人机交互闭环**：内置 `ask_user` 工具，允许 Agent 在执行任务过程中主动向用户澄清需求、确认操作或收集缺失信息。
-- 专业 Agent 矩阵：拥有 `Visionary` (视觉与定量图谱分析)、`Coder` (高质量算法实现) 和 `Operator` (环境管理与高危操作执行) 等多位专家。
-- 高稳定性与 Fork 安全：具备工具加载缓存、C 扩展库延迟加载及 `safe_call` 防护机制，确保在高并发和复杂科研环境下系统运行的健壮性。
+- **多进程协作架构**：采用 Manager-Worker 模型，由协调者（Coordinator）在独立进程中管理多个执行者（Follower），确保任务执行的稳定性与隔离性。
+- **ReAct 推理引擎**：采用单循环 ReAct（Reasoning-Acting）架构，使 Agent 能够更自然、高效地调用工具。
+- **远程控制与通知**：集成了基于邮件的交互系统，支持发送实验报告、读取收件箱指令，并可通过安全白名单进行远程邮件唤醒。
+- **跨平台兼容性**：全面支持 Linux 和 Windows 系统，内置健壮的 Shell 指令分析引擎和终端编码自动处理机制。
+- **化学多模态能力**：集成 RDKit 分子绘图功能、基于 DECIMER 深度学习的化学结构图像识别（图片转 SMILES），并配备专业的光谱解析引擎。
+- **人机交互闭环**：内置 `ask_user` 工具，允许 Agent 在执行任务过程中主动向用户澄清需求或收集缺失信息。
+- **专业 Agent 矩阵**：拥有 `Visionary` (视觉分析)、`Coder` (算法实现)、`Researcher` (文献调研) 等多位专家。
 
 ## 项目结构
 
@@ -19,6 +18,8 @@ Cloudra 是专为化学科研设计的 AI Agent 协作框架。它通过协调�
 cloudra/
 ├── agent.py               # 核心 Agent 逻辑
 ├── cli.py                 # 命令行界面
+├── api.py                 # 基于 FastAPI 的 Web/移动端接口
+├── email_listener.py      # 后台邮件唤醒服务 (新增)
 ├── reAct.py               # ReAct 推理实现
 ├── subagents/             # 专业化 Agent 定义
 │   ├── explorer.py        # 项目结构导航
@@ -28,11 +29,11 @@ cloudra/
 │   ├── coder.py           # 算法与流水线开发
 │   └── operator.py        # 高危操作与环境管理
 └── tools/                 # 工具集
-    ├── Bashtool/          # 命令执行
+    ├── Bashtool/          # 跨平台命令执行
     ├── Chemtool/          # 分子绘图与光谱处理
     ├── Searchtool/        # 文献检索与 PDF 解析
     ├── Managetool/        # 子 Agent 调度与任务审计
-    ├── Interactool/       # 人机交互工具
+    ├── Interactool/       # 邮件交互与人机问答
     └── Writetool/         # 文件管理
 ```
 
@@ -44,20 +45,20 @@ cloudra/
 pip install -e .
 ```
 
-## 测试指南
+## 远程唤醒
 
-使用 `pytest` 运行完整测试套件：
+启动后台邮件监听服务以支持远程控制：
 
 ```bash
-pip install pytest pytest-asyncio
-pytest tests/
+python -m cloudra.email_listener
 ```
+*注意：请确保已通过 `cloudra config` 配置了 SMTP/IMAP 设置及安全白名单。*
 
 ## 快速开始
 
 ### 配置初始化
 
-设置 API Key 和模型偏好：
+设置 API Key、模型偏好以及邮件服务参数：
 
 ```bash
 cloudra config init
@@ -68,21 +69,13 @@ cloudra config init
 通过命令行启动化学科研任务：
 
 ```bash
-cloudra run "搜索钙钛矿太阳能电池的最新论文并让 researcher 进行总结"
+cloudra run "搜索钙钛矿太阳能电池的最新论文并将总结发送到我的邮箱"
 ```
 
-### 查看历史
+## 测试指南
 
-查看之前的对话记录：
-
-```bash
-cloudra history
-```
-
-### 查看日志
-
-查看特定对话的详细推理日志：
+使用 `pytest` 运行完整测试套件：
 
 ```bash
-cloudra logs [对话ID]
+pytest tests/
 ```
