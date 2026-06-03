@@ -54,6 +54,19 @@ Cloudra 是一款面向化学科研领域的 AI Agent 协作框架软件。它�
 | Operator | a-5 | 系统环境管理、高风险操作执行 |
 | Coder | a-6 | 科学计算流水线开发、算法实现 |
 
+#### 2.2.1 Agent 职能详述
+Cloudra 采用多代理协作模式，通过不同职能的 Agent 相互配合完成复杂任务。每个 Agent 拥有独立的身份定义（Prompt）和权限边界。
+
+| Agent 名称 | ID | 核心职能 | 权限级别 | 详细描述 |
+|-----------|------|---------|---------|---------|
+| **Coordinator** | a-0 | 任务协调与总控 | 最高 (Admin) | 整个系统的“大脑”，负责接收原始指令、拆解子任务并调度 Follower 代理执行。 |
+| **Explorer** | a-1 | 项目结构发现 | 只读 (Read) | 导航员。擅长摸清项目文件结构与组织逻辑，精确定位关键配置、代码或数据路径。 |
+| **Writer** | a-2 | 内容产出与文档 | 写入/破坏 (Write/Destructive) | 内容产出专家。负责编写高质量代码、生成实验报告及维护 Markdown 文档。支持文件覆盖写入。 |
+| **Researcher** | a-3 | 学术检索与执行 | 读取/脚本 (Read/Script) | 科研助理。支持 arXiv/ChemRxiv 检索、PDF 论文深度阅读及实验模拟脚本的初步运行。 |
+| **Visionary** | a-4 | 视觉解析专家 | 读取 (Read) | “眼睛”。专门解析图片、图表、分子结构图及 NMR/IR 原始波谱数据，将其转化为结构化文本。 |
+| **Operator** | a-5 | 环境管理与危险执行 | 全权限 (Full) | “重装步兵”。执行系统底层操作、环境配置及危险指令。每一步操作均受严格审批流监控。 |
+| **Coder** | a-6 | 算法与代码工程 | 写入/脚本 (Write/Script) | 架构师。负责复杂算法实现、科学计算流水线开发及自动化工作流优化。擅长 NumPy/Pandas 数据处理。 |
+
 ### 2.3 工具套件（Tools）
 
 #### 2.3.1 化学与计算工具（Chemtool & Vaspkit）
@@ -77,6 +90,32 @@ Cloudra 是一款面向化学科研领域的 AI Agent 协作框架软件。它�
 #### 2.3.5 系统工具
 - **跨平台 Bash 工具**：针对 Windows/Linux 优化，支持指令集自动识别与路径回退。
 - **文本持久化**：结构化实验记录与报告写入。
+
+#### 2.3.6 工具功能详述
+软件内置了丰富的工具集，通过 ReAct 循环供各 Agent 调用。
+
+**1. 管理与交互类工具**
+- **SubAgentLauncher (t-0)**: 启动子 Agent 执行特定子任务。支持同步阻塞（is_wait=True）或异步提交模式。核心参数包括 `agent_id` (代理标识) 和 `query` (子任务描述)。
+- **Ask User (t-12)**: 主动向用户发起对话。用于澄清模糊需求或在关键节点征求人工决策。
+- **Stop (t-stop)**: 显式终止当前的 ReAct 推理循环，标记任务完成。
+
+**2. 化学专业类工具 (Chemtool)**
+- **NMRProcessor (t-9)**: 科研级 NMR 原始数据处理。支持 Bruker、Varian、JCAMP-DX 等格式。具备自动相位校正、基线校正、特征峰提取等能力。
+- **IRProcessor (t-8)**: 专业红外光谱解析。支持 Thermo SPA、JCAMP-DX 等。具备基线校正、平滑、二阶导数分析及特征官能团自动识别能力。
+- **Image to SMILES (t-10)**: 基于 DECIMER 深度学习模型的 OCSR 工具，将化学结构截图或草图转换为 SMILES。
+- **Molecule Drawer**: 分子结构可视化与格式转换，支持生成 2D/3D 渲染图。
+
+**3. 搜索与数据类工具 (Searchtool)**
+- **Paper Searcher (t-4)**: 检索 arXiv 学术论文。支持按相关度、提交时间排序。
+- **ChemRxiv Searcher (t-6)**: 检索 ChemRxiv 预印本及 OpenAlex 数据库。支持摘要还原与 PDF 链接提取。
+- **PDF to Markdown (t-3)**: 利用 MinerU 引擎将 PDF 论文转换为结构化 Markdown，同时自动提取文中的图片与图表。
+- **Image Reader (t-7)**: 视觉感知入口。将本地图片载入 Agent 视觉上下文，支持多模态理解。
+
+**4. 系统与通用类工具**
+- **Bashtools (t-1)**: 跨平台终端指令执行工具。内置安全审计，支持多终端并发。
+- **Text Writer (t-5) / Text Reader (t-2)**: 高效的文本读写接口，支持 UTF-8 编码及行级切片读取。
+- **Get Skill (t-5)**: 动态加载领域知识库（Skill），允许 Agent 即时学习特定的实验或计算 SOP。
+
 
 ### 2.4 安全与权限系统
 
