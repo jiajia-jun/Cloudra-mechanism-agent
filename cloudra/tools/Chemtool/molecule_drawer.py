@@ -52,7 +52,8 @@ class MoleculeDrawer(Tool):
         return True
 
     def is_destructive(self) -> bool:
-        return True
+        # 绘图并保存文件通常仅需 WRITE 权限。
+        return False
 
     async def tool_call(self, user_input: MoleculeDrawer_input_schema, session: Session) -> MoleculeDrawer_output_schema:
         from rdkit import Chem

@@ -1,3 +1,4 @@
+import os
 from pydantic import Field
 from typing import Any
 
@@ -17,7 +18,7 @@ class TextWriter_input_schema(input_schema):
 
 
 class TextWriter_output_schema(output_schema):
-    is_writed: bool = Field(description="是否写入成功")
+    is_written: bool = Field(description="是否写入成功")
     filepath: str = Field(description="实际写入的文件路径")
 
 
@@ -32,29 +33,34 @@ class TextWriter(Tool):
         return True
 
     def is_destructive(self) -> bool:
-        return True
+        # 写入文件通常仅需 WRITE 权限。
+        # 之前设为 True 会导致没有 DESTRUCTIVE 权限的 Coder 等 Agent 无法看到此工具。
+        return False
 
     async def tool_call(self, user_input: TextWriter_input_schema, session: Session) -> TextWriter_output_schema:
         path = user_input.filepath
         content = user_input.content
 
+        # 确保父目录存在
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
         # 构造详细的申请信息，将修改内容贴出来给用户看
         details = (
-            f"【动作】: 覆写文件\n"
+            f"【动作】: 写入/覆写文件\n"
             f"【目标路径】: {path}\n"
-            f"【写入内容】: \n"
+            f"【内容预览】: \n"
             f"--- START ---\n"
-            f"{content}\n"
+            f"{content[:1000]}{'...' if len(content) > 1000 else ''}\n"
             f"--- END ---"
         )
 
         # 触发安全检查
         if not await self.ensure_safety(session, details=details):
-            return TextWriter_output_schema(is_writed=False, filepath=path)
+            return TextWriter_output_schema(is_written=False, filepath=path)
 
         with open(path, 'w', encoding='utf-8') as f:
             f.write(content)
-        return TextWriter_output_schema(is_writed=True, filepath=path)
+        return TextWriter_output_schema(is_written=True, filepath=path)
 
 
 def get_class():
