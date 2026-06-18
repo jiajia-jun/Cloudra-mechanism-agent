@@ -8,7 +8,7 @@ import argparse
 from cloudra.reAct import reAct
 from cloudra.subagents import Subagent_hash
 
-async def run_executor(task_id: int, database_path: str):
+async def run_executor(task_id: int, database_path: str, session_id: str = None):
     # 连接数据库获取任务
     con = sqlite3.connect(database_path, timeout=10)
     cur = con.cursor()
@@ -45,12 +45,22 @@ async def run_executor(task_id: int, database_path: str):
     extra_context = input_data.get('context', [])
     if extra_context:
         for block in extra_context:
+            # LLM 可能把 context 传成字符串列表，需要转换成标准消息字典
+            if isinstance(block, str):
+                block = {"role": "user", "content": block}
+            elif not isinstance(block, dict):
+                block = {"role": "user", "content": str(block)}
             sub_agent.update_context(block)
     
     # 强制子进程日志不打印到控制台，由主进程通过管道收集
+    # 如果 launcher 已指定 session_id，则复用，保证 launcher 与 executor 的 session 一致
+    if not session_id:
+        session_id = input_data.get('session_id')
+
     sub_reAct = reAct(
         agent=sub_agent,
-        prompt=input_data.get('reasoning_prompt', "")
+        prompt=input_data.get('reasoning_prompt', ""),
+        session_id=session_id
     )
     sub_reAct.log.is_main = True # 在子进程内部，它是主日志
 
@@ -79,6 +89,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--task_id', type=int, required=True)
     parser.add_argument('--db', type=str, required=True)
+    parser.add_argument('--session_id', type=str, default=None)
     args = parser.parse_args()
 
-    asyncio.run(run_executor(args.task_id, args.db))
+    asyncio.run(run_executor(args.task_id, args.db, args.session_id))

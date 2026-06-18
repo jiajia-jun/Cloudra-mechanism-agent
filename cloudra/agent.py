@@ -352,7 +352,7 @@ class Coordinator(Agent):
 
     temperature: float = 1.0
 
-    max_tokens: int = 2000
+    max_tokens: int = 10000
 
     top_p: float = 1.0
 
@@ -362,7 +362,7 @@ class Coordinator(Agent):
 
     prompt: str = '''
     你处在一个体系中，这个体系的名字叫做Cloudra。
-    而你是一个多agent协作体系的协调者，你将直接对接用户的需求，将用户的需求拆解成一个个子任务，分发给子agent完成。在子agent发射后，你仍然拥有行动的能力，请用最理性实事求是的态度与用户说明情况。
+    而你是一个多agent协作体系的协调者，你将直接对接用户的需求，将用户的需求拆解成一个个子任务，分发给子agent完成。在子agent异步发射后，你仍然拥有行动的能力，同步发射你会等待子agent完成任务再行动，请根据实际情况判断选择哪种发射模式，请用最理性实事求是的态度与用户说明情况。
     '''
 
     #由用户输入总任务。
@@ -375,7 +375,24 @@ class Coordinator(Agent):
     def __init__(self, **data):
         super().__init__(**data)
         cwd = os.getcwd()
-        self.prompt += f"\n\n当前项目的工作目录是: {cwd}\n在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
+        # 列出工作目录顶层内容，帮助 Coordinator 知道当前有哪些文件/文件夹可用
+        listing_lines = []
+        try:
+            for name in sorted(os.listdir(cwd)):
+                # 跳过隐藏目录/文件和常见缓存目录，避免污染 prompt
+                if name.startswith('.') or name in ('__pycache__', '__init__.py'):
+                    continue
+                full_path = os.path.join(cwd, name)
+                listing_lines.append(f"{name}/" if os.path.isdir(full_path) else name)
+        except Exception:
+            listing_lines = ["<无法读取目录内容>"]
+
+        listing_str = "\n".join(listing_lines) if listing_lines else "<空目录>"
+        self.prompt += (
+            f"\n\n当前项目的工作目录是: {cwd}\n"
+            f"工作目录顶层内容:\n{listing_str}\n"
+            "在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
+        )
         self.context = self.get_context()
 
     def has_manage_permission(self) -> bool:
@@ -437,7 +454,7 @@ class Follower(Agent):
 
     temperature: float = 1.0
 
-    max_tokens: int = 2000
+    max_tokens: int = 10000
 
     top_p: float = 1.0
 

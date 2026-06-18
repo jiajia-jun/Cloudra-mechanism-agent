@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudra"
-version = "1.2.0"
+version = "1.2.1"
 description = "面向化学科研的 AI Agent 协作框架"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,6 +40,7 @@ dependencies = [
     "spectrochempy>=0.6.0",
     "pytest>=7.0",
     "pytest-asyncio>=0.20",
+    "playwright>=1.40",
 ]
 
 [project.scripts]

@@ -1,7 +1,6 @@
 from pydantic import Field
 from typing import Any
 
-from cloudra.reAct import Log, reAct
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.agent import Agent
 import os
@@ -17,6 +16,7 @@ description = (
     "- **绝对路径**: 必须在 query 或 context 中提供工作目录的绝对路径。\n"
     "- **安全提示**: 系统已开启【安全审计】。对于 Writer 的写入和 Researcher 的脚本操作，请指导它们在 Thought 中详细说明意图以辅助审批。\n"
     "- **任务定义**: 任务描述需极其明确，指定要使用的工具，并明确禁止子 Agent 使用与其任务无关的工具。\n"
+    "- **agent_id 必须是唯一标识符**: 调用时只能传入类似 a-1、a-2 的 id，不能传 explorer、writer 等名称。\n"
     "可用的子 Agent:\n"
     "1. explorer (a-1): 项目探索。总结架构，提取关键信息。只读。\n"
     "2. writer (a-2): 文档/代码产出。覆写文件。需通过安全审计。\n"
@@ -28,7 +28,7 @@ description = (
 
 
 class SubAgentLauncher_input_schema(input_schema):
-    agent_id: str = Field(description="要启动的子 Agent 标识符")
+    agent_id: str = Field(description="要启动的子 Agent 唯一标识符（id），例如 a-1、a-2、a-3，不能传名称如 explorer、writer")
     query: str = Field(description="任务描述")
     reasoning_prompt: str = Field(
         default="",
@@ -40,7 +40,11 @@ class SubAgentLauncher_input_schema(input_schema):
     )
     context: list = Field(
         default_factory=list,
-        description="提供给子 Agent 的初始上下文信息列表"
+        description=(
+            "提供给子 Agent 的初始上下文信息列表。"
+            "列表中的每个元素必须是标准消息字典，格式为 {\"role\": \"user\"/\"system\"/\"assistant\", \"content\": \"...\"}，"
+            "不要传入纯字符串。"
+        )
     )
     is_wait: bool = Field(
         default=False,
@@ -119,13 +123,6 @@ class SubAgentLauncher(Tool):
         sub_agent.query = query
         sub_agent.context = context
 
-        # 创建子 agent 的 react 实例（仅用于获取 session_id）
-        sub_reAct = reAct(
-            agent=sub_agent,
-            prompt=reasoning_prompt
-        )
-
-        session_id = sub_reAct.session.id
         act_agent = sub_agent.name
 
         # 写入数据库记录
@@ -150,10 +147,18 @@ class SubAgentLauncher(Tool):
         if is_wait:
             # 同步模式：标记为 running 并直接启动子进程执行
             cur.execute(
-                "INSERT INTO subagent_requests (state, input_data) VALUES (?, ?)",
-                ('running', json.dumps(payload))
+                "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
+                ('running', json.dumps(payload), conversation_id)
             )
             task_id = cur.lastrowid
+
+            # 使用 task_id 生成统一的 session_id，确保 launcher 与 executor 看到的是同一个 session
+            session_id = f"{sub_agent.id}_task{task_id}"
+            payload['session_id'] = session_id
+            cur.execute(
+                "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
+                (json.dumps(payload), task_id)
+            )
             con.commit()
             con.close()
 
@@ -163,7 +168,7 @@ class SubAgentLauncher(Tool):
             # 启动并等待子进程结束
             print(f"\n[系统] 正在同步执行子任务 (Task ID: {task_id})... 请稍候。")
             process = subprocess.Popen(
-                [sys.executable, '-m', 'cloudra.executor', '--task_id', str(task_id), '--db', db_path],
+                [sys.executable, '-m', 'cloudra.executor', '--task_id', str(task_id), '--db', db_path, '--session_id', session_id],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True
@@ -192,8 +197,15 @@ class SubAgentLauncher(Tool):
         else:
             # 异步模式：仅写入 ready，由 main.py 的后台线程 pickup
             cur.execute(
-                "INSERT INTO subagent_requests (state, input_data) VALUES (?, ?)",
-                ('ready', json.dumps(payload))
+                "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
+                ('ready', json.dumps(payload), conversation_id)
+            )
+            task_id = cur.lastrowid
+            session_id = f"{sub_agent.id}_task{task_id}"
+            payload['session_id'] = session_id
+            cur.execute(
+                "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
+                (json.dumps(payload), task_id)
             )
             con.commit()
             con.close()

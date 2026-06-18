@@ -4,6 +4,7 @@ import sqlite3
 from cloudra.agent import Agent
 import asyncio
 import json
+from datetime import datetime
 from cloudra.log_class import Log
 from cloudra.tools_class import input_schema,get_tools
 from cloudra.tools import get_tools_lst
@@ -53,7 +54,7 @@ class reAct:
     database_path: str = ''
     undos: list = []
     
-    def __init__(self , agent: Agent, prompt: str = ""):
+    def __init__(self , agent: Agent, prompt: str = "", session_id: str = None):
         self.agent = agent
         # 如果调用者显式提供了 prompt（即 Coordinator 定义的），则优先使用它实现任务隔离
         self.prompt = prompt if prompt else agent.prompt
@@ -70,7 +71,7 @@ class reAct:
 
         self.log = Log(agent.name, log_path=log_path)
         self.log.session = None
-        self.session_create()
+        self.session_create(session_id)
 
     async def run(self):
         '''
@@ -222,7 +223,9 @@ class reAct:
             
             try:
                 if isinstance(tool_args_raw, str):
-                    tool_args = json.loads(tool_args_raw)
+                    # strict=False 允许 JSON 字符串中出现未转义的换行/控制字符，
+                    # 这是 LLM 生成 text_writer 等多行参数时的常见情况。
+                    tool_args = json.loads(tool_args_raw, strict=False)
                 else:
                     tool_args = tool_args_raw
             except json.JSONDecodeError as e:
@@ -300,7 +303,7 @@ class reAct:
 
         return stop_requested
 
-    def session_create(self) -> None:
+    def session_create(self, session_id: str = None) -> None:
         '''
         创建session，记录agent的整个生命周期。
         Session 文件放在 agent 所属 conversation 的 sessions/ 目录下。
@@ -309,15 +312,15 @@ class reAct:
         data_dir = get_config().data_dir
         if not self.database_path:
             self.database_path = os.path.join(data_dir, 'tasks', 'database.db')
-        session_id = f'{self.agent.id}_?'
         conv_id = getattr(self.agent, 'conversation_id', 'default')
+        # 如果调用方指定了 session_id（如 SubAgentLauncher），则直接使用；否则按时间生成。
+        session_id = session_id if session_id else f'{self.agent.id}_{datetime.now().isoformat()}'
         if conv_id and conv_id != 'default':
             _path = os.path.join(data_dir, 'conversations', conv_id, 'sessions', session_id + '.json')
         else:
             _path = os.path.join(data_dir, 'sessions', session_id + '.json')
         os.makedirs(os.path.dirname(_path), exist_ok=True)
         session_ = Session(id=session_id, path=_path)
-        session_.id = f'{self.agent.id}_{session_.create_time}'
         self.session = session_
         self.log.session = session_
 

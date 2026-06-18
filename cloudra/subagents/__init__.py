@@ -6,6 +6,10 @@ import json
 
 CURRENT_DIR = Path(__file__).parent
 
+# 全局缓存，避免每次实例化 Subagent_hash 都重新扫描/导入子 agent 模块
+_SUBAGENTS_DICT_CACHE = None
+
+
 def get_subagents_lst():
     '''
     从 subagents 目录下递归加载子 agent 类，返回一个子 agent 类列表。
@@ -23,9 +27,14 @@ def get_subagents_lst():
         rel_path = py_file.relative_to(CURRENT_DIR.parent)
         module_name = ".".join(rel_path.with_suffix("").parts)
 
-        spec = importlib.util.spec_from_file_location(module_name, py_file)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        # 复用已加载的模块，避免重复执行 side-effects
+        if module_name in sys.modules:
+            module = sys.modules[module_name]
+        else:
+            spec = importlib.util.spec_from_file_location(module_name, py_file)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
 
         get_class = getattr(module, "get_class", None)
         if get_class is not None:
@@ -40,12 +49,15 @@ def get_subagents_lst():
 def get_dict():
     '''
     将子agent类加载为json，返回dict。
+    使用模块级缓存，保证同进程内只加载一次。
     '''
-    subagents = get_subagents_lst()
-    subagents_dict = {}
-    for subagent in subagents:
-        subagents_dict[subagent.id] = subagent
-    return subagents_dict
+    global _SUBAGENTS_DICT_CACHE
+    if _SUBAGENTS_DICT_CACHE is None:
+        subagents = get_subagents_lst()
+        _SUBAGENTS_DICT_CACHE = {}
+        for subagent in subagents:
+            _SUBAGENTS_DICT_CACHE[subagent.id] = subagent
+    return _SUBAGENTS_DICT_CACHE
 
 class Subagent_hash:
      
