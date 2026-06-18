@@ -75,7 +75,7 @@ class EmailListener:
         if subject.upper().startswith(WAKEUP_PREFIX):
             query = subject[len(WAKEUP_PREFIX):].strip()
         elif body.upper().startswith(WAKEUP_PREFIX):
-            # 提取第一行作为指令
+            # 提取第一行作为指令，正文完整递送给agent
             first_line = body.split('\n')[0]
             query = first_line[len(WAKEUP_PREFIX):].strip()
 
@@ -88,7 +88,7 @@ class EmailListener:
             try:
                 # 开启任务执行
                 # 注意：此处为同步执行，执行期间监听会暂停，防止并发冲突
-                run_task(query, verbose=True)
+                run_task(body, verbose=True)
             except Exception as e:
                 logger.error(f"执行唤醒任务失败: {e}")
                 print(f"[错误] 任务执行中断: {e}")
