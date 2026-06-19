@@ -112,7 +112,7 @@ class EmailReader(Tool):
                 subject=subject,
                 sender=sender,
                 date=date,
-                body=body[:2000] # 截断过长的正文
+                body=body
             ))
 
         mail.close()
