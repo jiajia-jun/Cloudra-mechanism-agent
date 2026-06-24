@@ -32,7 +32,7 @@ class EmailReader_output_schema(output_schema):
     message: str = Field(description="状态或错误信息")
 
 class EmailReader(Tool):
-    tool_id: str = 't-12'
+    tool_id: str = 't-30'
     tool_name: str = 'email_reader'
     tool_description: str = description
     input_schema: Any = EmailReader_input_schema
