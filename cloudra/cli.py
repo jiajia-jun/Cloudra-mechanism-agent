@@ -21,7 +21,7 @@ from cloudra.main import run_task
 
 console = Console()
 APP_NAME = "cloudra"
-VERSION = "1.0.0"
+VERSION = "1.5.0"
 
 
 @click.group(invoke_without_command=True)

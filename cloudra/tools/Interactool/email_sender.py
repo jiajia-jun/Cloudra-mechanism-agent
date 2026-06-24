@@ -28,7 +28,7 @@ class EmailSender_output_schema(output_schema):
     message: str = Field(description="执行结果详情或错误信息")
 
 class EmailSender(Tool):
-    tool_id: str = 't-11'
+    tool_id: str = 't-29'
     tool_name: str = 'email_sender'
     tool_description: str = description
     input_schema: Any = EmailSender_input_schema

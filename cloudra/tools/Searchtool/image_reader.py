@@ -20,7 +20,7 @@ class ImageReader_output_schema(output_schema):
     message: str = Field(default="", description="读取状态或错误信息")
 
 class ImageReader(Tool):
-    tool_id: str = 't-7'
+    tool_id: str = 't-27'
     tool_name: str = 'image_reader'
     tool_description: str = description
     input_schema: Any = ImageReader_input_schema

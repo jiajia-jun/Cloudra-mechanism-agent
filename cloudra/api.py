@@ -18,7 +18,7 @@ from cloudra.skill_class import skill_loader
 app = FastAPI(
     title="Cloudra API (Mobile-Ready)",
     description="Cloudra AI 化学科研助手 - 增强型局域网服务",
-    version="1.1.0"
+    version="1.5.0"
 )
 
 # --- 跨域配置 (CORS) ---

@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.5.0] - 2026-06-25
+
+### 新增
+- **计算化学任务提交 (`submit_compute_job`)**：支持将 Gaussian (`.gjf`)、VASP、ORCA 输入文件提交到 `compute_jobs` 任务队列，可选择同步阻塞或异步后台执行。
+- **计算守护者 (`guard`)**：后台周期性解析 Gaussian 输出日志 (`.out`)，生成 `state_{taskid}.json`，任务完成后自动更新数据库状态为 `done` 或 `failed`，并唤醒对应会话的 Agent。
+- **Gaussian 日志深度解析 (`gaussian_log_parser`)**：基于 `cclib` 提取 SCF 能量、HOMO/LUMO、偶极矩、振动频率、虚频、热力学修正、Mulliken 电荷及正常终止状态。
+- **化学文件格式转换 (`format_converter`)**：基于 ASE 实现 `mol / xyz / gjf / pdb / cif / sdf` 等常见化学文件格式互转。
+- **Gaussian 输入文件生成 (`gjf_writer`)**：从 SMILES、xyz 或 mol 文件自动生成完整的 `.gjf` 输入文件，支持自定义方法、基组、任务类型、内存与核数。
+
+### 修复
+- 修复 `compute_executor.py` 中参数校验 `is True` 永远失效的问题，改为 `is None`。
+- 修复 `compute_executor.py` 启动 guard 时模块名和参数名错误（`guard` → `cloudra.guard`，`--taskid/--gjf_path` → `--task_id/--path`）。
+- 修复 `guard.py` 中 `Path` 与字符串拼接导致的 `TypeError`。
+- 修复 `guard.py` 中 `cclib.io.ccwrite(data.outputtype="cjson")` 的语法错误。
+- 修复 `submit_compute_job.py` 同步执行路径中 `run_now` 未实现且未正确缩进为类方法的问题。
+- 修复多个工具 ID 重复的问题（`getskill`、`chemrxiv_searcher`、`image_reader`、`headless_browser`、`email_sender`、`email_reader` 重新分配唯一 ID）。
+- 修复 `guard.py` 解析失败时 `state_str` 未定义即被使用的潜在 `NameError`。
+
 ## [1.2.1] - 2026-06-18
 
 ### 新增

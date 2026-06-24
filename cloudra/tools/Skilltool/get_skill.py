@@ -36,7 +36,7 @@ class GetSkill_output_schema(output_schema):
 
 class GetSkill(Tool):
 
-    tool_id: str = 't-5'
+    tool_id: str = 't-25'
     tool_name: str = 'getskill'
     # NOTE: 这里先给一个静态兜底值，真正的动态描述在 __init__ 中根据 skills 目录内容拼接。
     # 由于 tool_schema_json 已改为实例方法，__init__ 里设置的 self.tool_description 会被 LLM 看到。

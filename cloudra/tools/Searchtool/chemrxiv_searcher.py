@@ -22,7 +22,7 @@ class ChemRxivSearcher_output_schema(output_schema):
     content: list = Field(description="搜索结果列表，每个元素为一个论文信息字典")
 
 class ChemRxivSearcher(Tool):
-    tool_id: str = 't-6'
+    tool_id: str = 't-26'
     tool_name: str = 'chemrxiv_searcher'
     tool_description: str = description
     input_schema: Any = ChemRxivSearcher_input_schema

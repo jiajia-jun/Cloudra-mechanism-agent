@@ -45,7 +45,19 @@ def init_database(db_path: str):
             state TEXT DEFAULT 'pending' -- pending, approved, denied
         )
     ''')
-    
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS compute_jobs(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id TEXT,
+            state TEXT,
+            path TEXT,
+            start_timestamp INTEGER,
+            end_timestamp INTEGER DEFAULT -1,
+            jobtype TEXT DEFAULT 'gaussian' -- gaussian, orca, vasp
+        )
+                
+       ''')
     conn.commit()
     conn.close()
 
@@ -159,6 +171,44 @@ def approval_handler(database_path: str):
         time.sleep(2)
 
 
+def check_compute(db_path: str):
+    while True:
+        try:
+            con = sqlite3.connect(db_path, timeout=10)
+            cur = con.cursor()
+
+            cur.execute("""
+                UPDATE compute_jobs
+                SET state = 'running'
+                WHERE id IN (
+                    SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1
+                )
+                RETURNING id
+            """)
+
+            claimed_task = cur.fetchone()
+
+            if claimed_task:
+                task_id, = claimed_task
+                con.commit() # 确认修改
+            
+                process = subprocess.Popen(
+                        [sys.executable, '-m', 'cloudra.compute_executor', '--task_id', str(task_id), '--db_path', db_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1
+                    )
+            con.close()
+        except Exception as e:
+            print(f'遇到了问题：{e}')
+            break
+        time.sleep(5)
+
+
+
+
+
 class Color:
     BLUE = '\033[94m'
     GREEN = '\033[92m'
@@ -172,7 +222,7 @@ class Color:
 def print_banner():
     print(f"{Color.BLUE}{Color.BOLD}")
     print("  Cloudra - AI 化学科研助手")
-    print(f"  版本: v1.0.0{Color.END}")
+    print(f"  版本: v1.5.0{Color.END}")
     print("-" * 45)
 
 
@@ -211,6 +261,9 @@ def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
     father_reAct = Coordinator_reAct(coordinator_agent)
 
     t = threading.Thread(target=checking_task, args=(database,), daemon=True)
+    t.start()
+
+    t = threading.Thread(target=check_compute, args=(database,), daemon=True)
     t.start()
 
     t_approval = threading.Thread(target=approval_handler, args=(database,), daemon=True)
