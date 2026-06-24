@@ -1,4 +1,6 @@
-
+import time
+import httpx
+import openai 
 import os
 import sqlite3
 from cloudra.agent import Agent
@@ -46,13 +48,14 @@ class Color:
     END = '\033[0m'
 
 class reAct:
-    session: Session
+    session: Session 
     agent: Agent
     prompt: str
     log: Log
     _continue : bool = True
     database_path: str = ''
     undos: list = []
+    _reset_count: int = 0
     
     def __init__(self , agent: Agent, prompt: str = "", session_id: str = None):
         self.agent = agent
@@ -60,7 +63,7 @@ class reAct:
         self.prompt = prompt if prompt else agent.prompt
         self.log = Log(agent.name)
         self.log.session = None
-        
+            
         data_dir = get_config().data_dir
         conv_id = getattr(agent, 'conversation_id', 'default')
         if conv_id and conv_id != 'default':
@@ -124,44 +127,56 @@ class reAct:
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n')
             
             reasoning_buffer = ""
-            
-            for chunk in response:
-                choice = chunk.choices[0]
-                delta = choice.delta
-                finish_reason = choice.finish_reason
-                token = delta.content
+            try:
+                for chunk in response:
+                    choice = chunk.choices[0]
+                    delta = choice.delta
+                    finish_reason = choice.finish_reason
+                    token = delta.content
                 
-                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                    reasoning_buffer += delta.reasoning_content
+                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                        reasoning_buffer += delta.reasoning_content
 
-                if token:
-                    final_response += token
-                    self.log.update_content(token)
+                    if token:
+                        final_response += token
+                        self.log.update_content(token)
 
-                if delta.tool_calls:
-                    for tc_chunk in delta.tool_calls:
-                        tc_idx = tc_chunk.index
-                        chunk_dict = tc_chunk.model_dump(exclude_none=True)
+                    if delta.tool_calls:
+                        for tc_chunk in delta.tool_calls:
+                            tc_idx = tc_chunk.index
+                            chunk_dict = tc_chunk.model_dump(exclude_none=True)
 
-                        if tc_idx not in tool_call_buffer:
-                            tool_call_buffer[tc_idx] = {}
+                            if tc_idx not in tool_call_buffer:
+                                tool_call_buffer[tc_idx] = {}
 
-                        tool_call_buffer[tc_idx] = dynamic_deep_merge(
-                            tool_call_buffer[tc_idx], 
-                            chunk_dict
-                        )
+                            tool_call_buffer[tc_idx] = dynamic_deep_merge(
+                                tool_call_buffer[tc_idx], 
+                                chunk_dict
+                            )
 
-                if finish_reason == 'tool_calls' or (finish_reason == 'stop' and tool_call_buffer):
-                    if reasoning_buffer:
-                        self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_buffer}{Color.END}\n")
-                    reasoning_content = reasoning_buffer
+                    if finish_reason == 'tool_calls' or (finish_reason == 'stop' and tool_call_buffer):
+                        if reasoning_buffer:
+                            self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_buffer}{Color.END}\n")
+                        reasoning_content = reasoning_buffer
                     
-                    for tc_data in tool_call_buffer.values():
-                        tool_calls.append(tc_data)
-                        func_name = tc_data.get('function', {}).get('name', 'Unknown')
-                        self.log.update_content(new_content=f"{Color.GREEN}工具调用: {func_name}{Color.END}\n")
+                        for tc_data in tool_call_buffer.values():
+                            tool_calls.append(tc_data)
+                            func_name = tc_data.get('function', {}).get('name', 'Unknown')
+                            self.log.update_content(new_content=f"{Color.GREEN}工具调用: {func_name}{Color.END}\n")
             
-            tool_call_buffer.clear()
+                tool_call_buffer.clear()
+            except (httpx.HTTPError, openai.APIConnectionError) as e:
+                self.log.update_content(
+                        new_content=f"{Color.RED}[reasoning步骤]出现网络错误：{e}，{2 ** (self._reset_count+1)}秒后重试"
+                        )
+                self._reset_count += 1
+                time.sleep(2 ** self._reset_count)
+                # 重试，只是网络问题的话让用户自行等待或者切断程序
+                return self.reasoning()
+            except Exception as e:
+                self.log.update_content(new_content=f"{Color.RED}[reasoning步骤]未知的错误：{e}")
+                raise e
+
              
         else:
             message = response.choices[0].message
@@ -251,6 +266,8 @@ class reAct:
                 # NOTE: get_tools_lst() 现在返回实例对象（不再是类），因此直接用 tool.tool_name 匹配。
                 if tool.tool_name == tool_name:
                     # 统一注入当前 agent 到工具实例中，以便工具内部获取上下文和进行安全审计
+                    # 我知道这是很粗糙的设计，因为Agent不应该承载这么多的上下文信息，但不妨把
+                    # Agent看成一个运行状态机，reAct专注过程，Agent专注状态
                     tool_instance = tool.__class__(subagent=self.agent)
                     
                     input_schema_class = tool_instance.input_schema

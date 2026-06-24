@@ -13,6 +13,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     con = sqlite3.connect(database_path, timeout=10)
     cur = con.cursor()
     cur.execute("PRAGMA journal_mode=WAL;")
+    cur.execute("PRAGMA busy_timeout=5000;")
     cur.execute("SELECT input_data FROM subagent_requests WHERE id = ?", (task_id,))
     row = cur.fetchone()
     if not row:
