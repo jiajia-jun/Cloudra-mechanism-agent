@@ -1,6 +1,6 @@
 from pydantic import Field
 from typing import Any
-
+import sqlite3
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
 
