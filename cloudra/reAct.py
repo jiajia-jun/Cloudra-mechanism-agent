@@ -107,6 +107,11 @@ class reAct:
             if stopped:
                 self.session.state = 'sleeping'
                 content = self.agent.context[-1].get('content', '任务已完成')
+                if self.agent.id != 'a-0':
+                    self.agent.context = []
+                    with open(self.agent._context_path(),'w',encoding='utf-8'):
+                        f.write('')
+                    print("Agent {self.agent.name}上下文已释放！")
                 return content
 
     def reasoning(self) -> list:
