@@ -66,7 +66,7 @@ async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path
 
         # 唤醒 agent
         prompt = f'task_id为{taskid}的任务的state已更新，请前去监测任务状态！若出现问题，请发邮件联系用户。'
-        cmd = ['cloudra', 'run', f'"{prompt}"', '--conv_id', conv_id]
+        cmd = ['cloudra', 'run', prompt, '--conv-id', conv_id]
         subprocess.run(cmd)
 
         # 任务已结束，退出监控循环

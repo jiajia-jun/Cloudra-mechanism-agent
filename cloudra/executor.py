@@ -58,9 +58,10 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     if not session_id:
         session_id = input_data.get('session_id')
 
+    # 子 Agent 的身份 prompt 由 agent.prompt 提供，任务要求由 agent.query 提供，
+    # reAct 不再接收会覆盖身份 prompt 的 prompt 参数。
     sub_reAct = reAct(
         agent=sub_agent,
-        prompt=input_data.get('reasoning_prompt', ""),
         session_id=session_id
     )
     sub_reAct.log.is_main = True # 在子进程内部，它是主日志

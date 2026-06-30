@@ -57,10 +57,15 @@ class reAct:
     undos: list = []
     _reset_count: int = 0
     
-    def __init__(self , agent: Agent, prompt: str = "", session_id: str = None):
+    def __init__(self, agent: Agent, query: str = "", session_id: str = None):
         self.agent = agent
-        # 如果调用者显式提供了 prompt（即 Coordinator 定义的），则优先使用它实现任务隔离
-        self.prompt = prompt if prompt else agent.prompt
+        # query 是本次任务要求，应该作为 user 消息进入上下文，
+        # 绝不能覆盖 agent.prompt（身份 prompt）。
+        if query:
+            agent.query = query
+            # 重新加载上下文，使新的 query 作为第一条 user 消息生效。
+            # 注意：如果调用方已经在上下文中追加了额外消息，应在调用 reAct 之前完成。
+            agent.context = agent.get_context()
         self.log = Log(agent.name)
         self.log.session = None
             
@@ -109,9 +114,9 @@ class reAct:
                 content = self.agent.context[-1].get('content', '任务已完成')
                 if self.agent.id != 'a-0':
                     self.agent.context = []
-                    with open(self.agent._context_path(),'w',encoding='utf-8'):
+                    with open(self.agent._context_path(),'w',encoding='utf-8') as f:
                         f.write('')
-                    print("Agent {self.agent.name}上下文已释放！")
+                    print(f"Agent {self.agent.name}上下文已释放！")
                 return content
 
     def reasoning(self) -> list:
@@ -119,8 +124,7 @@ class reAct:
         reAct的推理方法，分析agent的上下文和工具，决定下一步行动。
         '''
         agent = self.agent
-        # 使用统一的 prompt
-        agent.prompt = self.prompt
+        # agent.prompt 是身份 prompt，必须保留，不允许被任务要求覆盖。
         response = agent.llm_call()
         final_response = ''
         reasoning_content = ''
@@ -162,7 +166,8 @@ class reAct:
                     if finish_reason == 'tool_calls' or (finish_reason == 'stop' and tool_call_buffer):
                         if reasoning_buffer:
                             self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_buffer}{Color.END}\n")
-                        reasoning_content = reasoning_buffer
+                            reasoning_content = reasoning_buffer
+                            reasoning_buffer = ""
                     
                         for tc_data in tool_call_buffer.values():
                             tool_calls.append(tc_data)
@@ -170,6 +175,9 @@ class reAct:
                             self.log.update_content(new_content=f"{Color.GREEN}工具调用: {func_name}{Color.END}\n")
             
                 tool_call_buffer.clear()
+                # 流式输出结束时，如果还有未打印的 reasoning_content，补打出来
+                if reasoning_buffer:
+                    self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_buffer}{Color.END}\n")
             except (httpx.HTTPError, openai.APIConnectionError) as e:
                 self.log.update_content(
                         new_content=f"{Color.RED}[reasoning步骤]出现网络错误：{e}，{2 ** (self._reset_count+1)}秒后重试"
@@ -188,6 +196,9 @@ class reAct:
             final_response = message.content
             if hasattr(message, 'reasoning_content') and message.reasoning_content:
                 reasoning_content = message.reasoning_content
+            # 非流式模式下，模型返回的 reasoning_content 也打印出来
+            if reasoning_content:
+                self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_content}{Color.END}\n")
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n{final_response}\n')
             
             if message.tool_calls:
@@ -222,6 +233,38 @@ class reAct:
         while self.undos:
             self.agent.update_context(self.undos.pop(0))
 
+    @staticmethod
+    def _truncate(text: str, max_len: int = 200) -> str:
+        '''截断长文本，用于日志展示。'''
+        if not text:
+            return text
+        if len(text) > max_len:
+            return text[:max_len] + '...'
+        return text
+
+    def _summarize_args(self, tool_name: str, args: dict) -> str:
+        '''生成工具参数的可读摘要，避免把完整大文件内容打印到日志。'''
+        if not args:
+            return ''
+        # 对常见大字段做截断
+        display = {}
+        for k, v in args.items():
+            s = str(v)
+            display[k] = self._truncate(s, max_len=300)
+        summary = json.dumps(display, ensure_ascii=False)
+        return self._truncate(summary, max_len=600)
+
+    def _summarize_result(self, tool_name: str, result: dict) -> str:
+        '''生成工具结果的可读摘要。'''
+        # 优先取常用字段
+        text = (
+            result.get('message')
+            or result.get('result')
+            or result.get('content')
+            or json.dumps(result, ensure_ascii=False)
+        )
+        return self._truncate(str(text), max_len=400)
+
     async def act_result(self, tool_calls: list):
         '''
         并发执行 reasoning 阶段收集到的 tool_calls。
@@ -234,6 +277,7 @@ class reAct:
         # 并发执行所有工具调用
         acts = []
         tool_call_ids = []
+        tool_names = []
         stop_requested = False
         
         for tool_call in tool_calls:
@@ -264,7 +308,11 @@ class reAct:
                 self._continue = False
                 stop_requested = True
             
-            self.log.update_content(f"{Color.YELLOW}执行工具: {tool_name}{Color.END}\n")
+            args_summary = self._summarize_args(tool_name, tool_args)
+            self.log.update_content(
+                f"{Color.YELLOW}执行工具: {tool_name}{Color.END}"
+                f"{(' 参数: ' + args_summary) if args_summary else ''}\n"
+            )
             
             found = False
             for tool in tools_list:
@@ -280,6 +328,7 @@ class reAct:
                     session.state = 'waiting'
                     acts.append(tool_instance.safe_call(input_instance, session))
                     tool_call_ids.append(tool_call_id)
+                    tool_names.append(tool_name)
                     found = True
                     break
             
@@ -292,6 +341,9 @@ class reAct:
                 self._commit_undos()
                 self.agent.update_context(result_block)
         
+        # 记录 tool_call_id 到工具名的映射，方便结果日志展示
+        id_to_name = dict(zip(tool_call_ids, tool_names))
+
         if acts:
             # 使用 return_exceptions=True，确保单个工具崩溃不影响其他工具，且能捕获异常
             tool_results = await asyncio.gather(*acts, return_exceptions=True)
@@ -299,17 +351,23 @@ class reAct:
             
             # 每个工具结果单独作为一条消息
             for tool_result, tool_call_id in zip(tool_results, tool_call_ids):
+                tool_name = id_to_name.get(tool_call_id, 'Unknown')
                 image_path = None
                 if isinstance(tool_result, Exception):
                     # 如果工具执行抛出了异常，将错误信息反馈给 Agent
                     content = f"【系统错误】工具执行发生异常: {str(tool_result)}"
-                    self.log.update_content(f"{Color.RED}工具异常: {str(tool_result)}{Color.END}\n")
+                    self.log.update_content(f"{Color.RED}工具异常: {tool_name}: {str(tool_result)}{Color.END}\n")
                 else:
                     result_dict = tool_result.toJson()
                     content = json.dumps(result_dict)
                     # 自动提取图片路径（如果工具输出中包含该字段）
                     if result_dict.get('image_path'):
                         image_path = result_dict.get('image_path')
+                    summary = self._summarize_result(tool_name, result_dict)
+                    status_color = Color.GREEN if result_dict.get('is_success', result_dict.get('is_written', result_dict.get('stopped', True))) else Color.RED
+                    self.log.update_content(
+                        f"{status_color}工具完成: {tool_name} -> {summary}{Color.END}\n"
+                    )
                 
                 result_block = {
                     'role': 'tool',
@@ -383,35 +441,10 @@ class Coordinator_reAct(reAct):
     def __init__(self, agent: Agent):
         data_dir = get_config().data_dir
         db_path = os.path.join(data_dir, 'tasks', 'database.db')
-        super().__init__(
-            agent=agent,
-            prompt=(
-                '# Role: 最高级任务协调者 (Coordinator)\n\n'
-                '## 核心使命\n'
-                '你掌控着整个 Cloudra 系统的运行。你的任务是接收用户复杂的化学科研需求，通过科学的拆解与指派，调动子 Agent 协作完成目标。\n\n'
-                '## 核心职责与权力\n'
-                '1. **任务拆解 (Decomposition)**: 将模糊的需求转化为清晰、逻辑连贯的子任务。使用 `SubAgentLauncher` 启动子 Agent。\n'
-                '2. **全程监控 (Oversight)**: 当子 Agent 完成后，如果 `SubAgentLauncher` 返回的摘要信息不足以辅助决策，你必须调用 `get_subagent_report` 来获取该任务的完整执行过程（包含推理、工具调用及详细结论）。\n'
-                '3. **环境塑造 (Environment Injection)**: 子 Agent (a-1, a-2, a-3) 是你的数字化肢体。你必须通过 `reasoning_prompt` 为它们注入：\n'
-                '   - **临时身份**: 明确它们在当前任务中的角色。\n'
-                '   - **行动范围**: 明确可以调用的工具，并**显式禁止**不相关的危险操作。\n'
-                '   - **背景上下文**: 提供完成任务所需的关键信息或文件路径。\n'
-                '3. **绝对路径原则**: 所有的文件操作、路径描述必须使用**绝对路径**以确保多进程环境下的执行准确性。\n'
-                '4. **安全合规 (Safety Audit)**: 系统已启用危险操作审计。当子 Agent 执行 `TextWriter` 或 `bashtools` 下的危险指令时，将进入人工审批流。请告知子 Agent 在执行此类操作前，必须在 Thought 中清晰阐述理由。\n'
-                '5. **视觉锚点说明 (Visual Anchors)**: 在你的历史上下文中，可能会出现包含本地文件路径（如 `/path/to/image.png`）的 `image_url` 块。这些是系统内部的视觉锚点，代表你此前已“看到”或生成的图像。你无需解析路径字符串本身，只需将其视为对话中特定视觉信息的占位符即可。\n'
-                '6. **专家分工 (Specialized Roles)**: \n'
-                '   - **Visionary (a-4)**: 系统的“双眼”。它是视觉识别、图表解析和图像数据提取的唯一专家。任何涉及“看图、读图、分析图”的任务应指派给它。\n'
-                '   - **Writer (a-2)**: 系统的“双手”。它擅长文档产出和代码编写（包括调用绘图工具生成图片），但它不具备专业的视觉分析能力。\n'
-                '   - **Operator (a-5)**: 系统的“重装步兵”。专门执行危险操作、环境配置、大型脚本和大规模文件管理。它拥有最高权限，但其动作必须严审。\n'
-                '   - **Coder (a-6)**: 系统的“架构师”。专注于高质量算法实现、科学计算脚本编写及代码重构。它是解决复杂逻辑和自动化工作流的首选专家。\n'
-                '7. **结果评估与答复**: 你是唯一有权决定任务终结的人。汇总所有子任务成果后，给出最终、专业的回复并调用 `stop` 工具退出。\n\n'
-                '## 工作指南\n'
-                '- **严谨性**: 对于化学实验参数、文献结论，必须追求 100% 的准确性。\n'
-                '- **隔离性**: 尽量让子任务独立，减少子 Agent 间的耦合。'
-            )
-        )
+        # Coordinator 的身份 prompt 已包含 ReAct 工作指南，
+        # 这里不再传入额外 query，让 agent.query（用户原始输入）作为第一条 user 消息。
+        super().__init__(agent=agent)
         self.database_path = db_path
-        self.query = agent.query
         self.log.is_main = True
 
     async def run(self):

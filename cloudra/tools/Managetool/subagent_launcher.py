@@ -29,14 +29,11 @@ description = (
 
 class SubAgentLauncher_input_schema(input_schema):
     agent_id: str = Field(description="要启动的子 Agent 唯一标识符（id），例如 a-1、a-2、a-3，不能传名称如 explorer、writer")
-    query: str = Field(description="任务描述")
-    reasoning_prompt: str = Field(
-        default="",
-        description="推理提示词，指导子 Agent 如何思考与决策；为空时使用默认提示词"
-    )
-    observe_prompt: str = Field(
-        default="",
-        description="观察提示词，指导子 Agent 何时结束观察；为空时使用默认提示词"
+    query: str = Field(
+        description=(
+            "任务描述。这里只写当前任务需要什么，不要写子 Agent 的身份信息（系统已通过 prompt 注入）。"
+            "必须包含：任务目标、必要的绝对路径/输入数据、允许使用的工具、禁止使用的工具、输出格式要求、完成标准。"
+        )
     )
     context: list = Field(
         default_factory=list,
@@ -90,8 +87,6 @@ class SubAgentLauncher(Tool):
 
         agent_id = input_instance.agent_id
         query = input_instance.query
-        reasoning_prompt = input_instance.reasoning_prompt
-        observe_prompt = input_instance.observe_prompt
         context = input_instance.context
         is_wait = input_instance.is_wait
         
@@ -135,8 +130,6 @@ class SubAgentLauncher(Tool):
         payload = {
             'agent_id': agent_id,
             'query': query,
-            'reasoning_prompt': reasoning_prompt,
-            'observe_prompt': observe_prompt,
             'context': context,
             'conversation_id': conversation_id,
         }
@@ -176,10 +169,14 @@ class SubAgentLauncher(Tool):
             
             # 实时将子进程输出打印到控制台（带上前缀）
             output_lines = []
+            prefix = f"\033[96m[{act_agent}]\033[0m"
             for line in iter(process.stdout.readline, ''):
-                if line:
-                    print(f"\033[96m[{act_agent}]\033[0m {line.strip()}")
-                    output_lines.append(line.strip())
+                if not line:
+                    continue
+                # 子进程输出可能包含多行，逐行加前缀
+                for subline in line.splitlines():
+                    print(f"{prefix} {subline}")
+                    output_lines.append(subline)
             process.wait()
 
             # 核心改进：从数据库中获取真实的 result 字段，而不是抓取 stdout 的最后一行

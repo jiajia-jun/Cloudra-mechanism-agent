@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import copy
+from pathlib import Path
 from cloudra.tools_class import Tool, get_tools
 from cloudra.tools import get_tools_lst
 from pydantic import BaseModel
@@ -14,6 +15,19 @@ from cloudra.tools.core.permission_model import Permission, check_permission
 load_dotenv()
 
 ChatResponse = Union[ChatCompletion, Stream[ChatCompletionChunk]]
+
+
+def load_prompt(agent_name: str) -> str:
+    """
+    从 prompts/{agent_name}.md 加载对应 Agent 的 prompt。
+    便于将 prompt 与代码分离，统一在 prompts/ 目录下管理。
+    """
+    prompts_dir = Path(__file__).parent / 'prompts'
+    prompt_path = prompts_dir / f"{agent_name}.md"
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
+    return prompt_path.read_text(encoding='utf-8')
+
 
 class Agent(BaseModel):
     '''agent父类，用于定义各类agent属性：
@@ -192,10 +206,10 @@ class Agent(BaseModel):
         available_tool_classes = []
         for tool in tool_classes:
             if self.check_permission(tool):
-                # HACK: 硬编码注入 subagent，使 Bashtools 的动态 description 生效
-                if tool.tool_name == 'bashtools':
-                    tool = tool.__class__(subagent=self)
-                available_tool_classes.append(tool.tool_schema_json())
+                # 重新实例化并注入当前 Agent，使依赖 subagent 的动态 tool_description 生效。
+                # 同时避免直接修改 get_tools_lst() 返回的全局缓存实例。
+                tool_instance = tool.__class__(subagent=self)
+                available_tool_classes.append(tool_instance.tool_schema_json())
         
         client = OpenAI(api_key=self._api_key ,
                         base_url=self.llm_site ,
@@ -360,10 +374,7 @@ class Coordinator(Agent):
 
     presence_penalty: float = 0.0
 
-    prompt: str = '''
-    你处在一个体系中，这个体系的名字叫做Cloudra。
-    而你是一个多agent协作体系的协调者，你将直接对接用户的需求，将用户的需求拆解成一个个子任务，分发给子agent完成。在子agent异步发射后，你仍然拥有行动的能力，同步发射你会等待子agent完成任务再行动，请根据实际情况判断选择哪种发射模式，请用最理性实事求是的态度与用户说明情况。
-    '''
+    prompt: str = load_prompt('coordinator')
 
     #由用户输入总任务。
     query: str
@@ -400,6 +411,34 @@ class Coordinator(Agent):
         协调者允许访问子agent。
         '''
         return True
+
+    def has_write_permission(self) -> bool:
+        '''
+        Coordinator 允许使用简单的 write 工具（如输出最终报告、发送邮件），
+        但不拥有 script 和 destructive 权限，不能自己执行脚本或危险操作。
+        '''
+        return True
+
+    def get_available_tools(self) -> list:
+        '''
+        Coordinator 实际可见的工具列表。
+        虽然拥有 write 权限，但只允许使用白名单中的 write 工具；
+        化学工具、脚本执行、破坏性工具等复杂任务必须委派给子 Agent。
+        '''
+        write_tool_allowlist = {'text_writer', 'email_sender'}
+        tools = super().get_available_tools()
+        available_tools = []
+        for tool in tools:
+            module = getattr(tool.__class__, '__module__', '')
+            # Coordinator 不直接处理化学/脚本类工具
+            if 'Chemtool' in module or 'Bashtool' in module:
+                continue
+            if tool.tool_name in write_tool_allowlist:
+                available_tools.append(tool)
+                continue
+            if not (tool.is_write() or tool.is_script() or tool.is_destructive()):
+                available_tools.append(tool)
+        return available_tools
 
     def get_context(self) -> list:
         '''

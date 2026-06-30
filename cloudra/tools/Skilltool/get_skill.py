@@ -15,13 +15,17 @@ class GetSkill_input_schema(input_schema):
         default="",
         description="在阅读skill后需要调用references时使用该参数，填入父skill中提到的ref名字。"
     )
+    # FIXME: 以下两个字段为预留功能，当前 tool_call 中未实现，保留 schema 是为了后续扩展：
+    #   - script_command: 根据 skill 中的指令执行脚本
+    #   - RAG_keyword: 在长篇幅 skill 中按关键词检索片段
+    # 在实现前，LLM 调用时无需填写。
     script_command: str = Field(
         default="",
-        description="请根据你在skill中看到的指令来输入。"
+        description="（预留，暂未实现）根据 skill 中的指令执行脚本。"
     )
     RAG_keyword: str = Field(
         default="",
-        description="暂不可用。在需要根据特定需求阅读长篇幅skill时，输入关键词检索有用的片段。"
+        description="（预留，暂未实现）在长篇幅 skill 中按关键词检索有用片段。"
     )
 
 

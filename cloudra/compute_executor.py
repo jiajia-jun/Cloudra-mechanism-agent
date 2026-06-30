@@ -33,9 +33,9 @@ async def run_compute(taskid: str, dbpath: str):
             # 除非用户主动阻断，而那种情况下的僵尸进程是有益的
             guard = [sys.executable, "-m", "cloudra.guard", 
                     "--path", data_dic['path'], 
-                    "--timeout", 1800, 
+                    "--timeout", "1800", 
                     "--conv_id", data_dic['conversation_id'],
-                    "--task_id", taskid,
+                    "--task_id", str(taskid),
                     "--db_path", dbpath]
             calculate = ['calculator.sh', data_dic['path'], data_dic['jobtype']]
 

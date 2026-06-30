@@ -14,7 +14,7 @@ Sub-agents might not inherit your current working directory correctly if it's re
 *   **CWD**: Your current working directory is provided in your system prompt. Use it to construct absolute paths.
 
 ## 2. Be Explicit About the Task
-Do not give vague instructions. If you know exactly what needs to be written, provide it in the `query` or `reasoning_prompt`.
+Do not give vague instructions. If you know exactly what needs to be written, provide it in the `query`.
 *   **Bad**: `Write a poem about chemistry.` (Sub-agent might try to use `get_skill` to find out what "chemistry" is).
 *   **Good**: `Write the following poem to /path/to/file.txt: [Poem Content]. Use the text_writer tool directly. Do NOT use other tools like get_skill.`
 

@@ -42,7 +42,8 @@ def init_database(db_path: str):
             session_id TEXT,
             agent_name TEXT,
             details TEXT,
-            state TEXT DEFAULT 'pending' -- pending, approved, denied
+            state TEXT DEFAULT 'pending', -- pending, approved, denied
+            denial_reason TEXT DEFAULT ''
         )
     ''')
 
@@ -67,9 +68,13 @@ import subprocess
 
 def pipe_logger(process, agent_name):
     """用于实时转发子进程输出的辅助函数"""
+    prefix = f"{Color.CYAN}[{agent_name}]{Color.END}"
     for line in iter(process.stdout.readline, ''):
-        if line:
-            print(f"{Color.CYAN}[{agent_name}]{Color.END} {line.strip()}")
+        if not line:
+            continue
+        # 子进程输出可能包含多行（如 reasoning_content），逐行加前缀，避免信息混在一起
+        for subline in line.splitlines():
+            print(f"{prefix} {subline}")
     process.stdout.close()
 
 def checking_task(database_path: str):
@@ -158,13 +163,24 @@ def approval_handler(database_path: str):
                 user_input = input("是否允许执行？(y/n): ").strip().lower()
                 
                 state = 'approved' if user_input == 'y' else 'denied'
+                denial_reason = ''
+                if state == 'denied':
+                    reason_input = input("拒绝原因（可选，直接回车跳过）: ").strip()
+                    if reason_input:
+                        denial_reason = reason_input
                 
                 con = sqlite3.connect(database_path)
                 cur = con.cursor()
-                cur.execute("UPDATE approvals SET state = ? WHERE id = ?", (state, req_id))
+                cur.execute(
+                    "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ?",
+                    (state, denial_reason, req_id)
+                )
                 con.commit()
                 con.close()
-                print(f"{Color.GREEN}已标记为: {state}{Color.END}\n")
+                status_msg = f"已标记为: {state}"
+                if state == 'denied' and denial_reason:
+                    status_msg += f"，原因: {denial_reason}"
+                print(f"{Color.GREEN}{status_msg}{Color.END}\n")
 
         except Exception as e:
             pass
@@ -222,7 +238,7 @@ class Color:
 def print_banner():
     print(f"{Color.BLUE}{Color.BOLD}")
     print("  Cloudra - AI 化学科研助手")
-    print(f"  版本: v1.5.0{Color.END}")
+    print(f"  版本: v1.5.1{Color.END}")
     print("-" * 45)
 
 
@@ -255,8 +271,10 @@ def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
     conversation.touch()
     
     coordinator_agent = Coordinator(query=query, conversation_id=conversation.id)
-    new_query = {'role':'user', 'content':query}
-    coordinator_agent.update_context(new_query)
+    # Coordinator.get_context() 已经在新会话里把 query 作为第一条 user 消息插入。
+    # 只有当前上下文中最后一条不是当前 query 时才追加，避免重复插入。
+    if not coordinator_agent.context or coordinator_agent.context[-1].get('content') != query:
+        coordinator_agent.update_context({'role': 'user', 'content': query})
 
     father_reAct = Coordinator_reAct(coordinator_agent)
 

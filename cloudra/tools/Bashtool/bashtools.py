@@ -115,9 +115,13 @@ class Bashtools(Tool):
                 f"【终端 ID】: {terminal_id}\n"
                 f"【执行指令】: {command}"
             )
-            if not await self.ensure_safety(session, details=details):
+            approved, denial_reason = await self.ensure_safety(session, details=details)
+            if not approved:
+                result_msg = "【安全拦截】该危险指令已被拒绝执行。"
+                if denial_reason:
+                    result_msg += f"\n拒绝原因: {denial_reason}"
                 return Bashtools_output_schema(
-                    result="【安全拦截】该危险指令已被拒绝执行。",
+                    result=result_msg,
                     terminal_id=terminal_id,
                     run_command=command
                 )

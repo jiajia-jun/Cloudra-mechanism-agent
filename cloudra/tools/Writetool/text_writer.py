@@ -20,6 +20,7 @@ class TextWriter_input_schema(input_schema):
 class TextWriter_output_schema(output_schema):
     is_written: bool = Field(description="是否写入成功")
     filepath: str = Field(description="实际写入的文件路径")
+    message: str = Field(default="", description="状态或错误信息")
 
 
 class TextWriter(Tool):
@@ -55,8 +56,12 @@ class TextWriter(Tool):
         )
 
         # 触发安全检查
-        if not await self.ensure_safety(session, details=details):
-            return TextWriter_output_schema(is_written=False, filepath=path)
+        approved, denial_reason = await self.ensure_safety(session, details=details)
+        if not approved:
+            message = "【安全拦截】写入操作已被拒绝。"
+            if denial_reason:
+                message += f"\n拒绝原因: {denial_reason}"
+            return TextWriter_output_schema(is_written=False, filepath=path, message=message)
 
         with open(path, 'w', encoding='utf-8') as f:
             f.write(content)

@@ -153,24 +153,19 @@ class Tool(BaseModel):
 
     async def safe_call(self, user_input: input_schema, session: Session) -> output_schema:
         '''
-        带有通用异常捕获的工具调用包装器，确保工具执行失败不会导致系统崩溃。
+        带有通用异常捕获的工具调用包装器。
+        工具执行失败时抛出包含工具名的 RuntimeError，由 reAct.act_result() 统一捕获并回传给 LLM。
         '''
         try:
             return await self.tool_call(user_input, session)
         except Exception as e:
-            # 尝试构造一个通用的错误输出
-            # 注意：某些工具可能定义了特殊的错误字段，这里使用最基础的 output_schema 逻辑
             error_msg = f"【工具执行异常】{self.tool_name}: {str(e)}"
-            # 记录日志或打印 (可选)
-            # print(error_msg)
-            
-            # 返回一个标记为失败的 output_schema 实例 (如果子类定义了 is_success 等字段，这里可以更智能)
-            # 这里先返回包含错误信息的 Generic 结果，reAct.py 会处理 Exception 情况
-            raise e 
+            raise RuntimeError(error_msg) from e 
 
-    async def ensure_safety(self, session: Session, details: str) -> bool:
+    async def ensure_safety(self, session: Session, details: str) -> tuple[bool, str]:
         '''
         安全检查：如果工具被标记为 destructive，则必须经过 Coordinator 审批。
+        返回 (是否通过, 拒绝原因)。通过时拒绝原因为空字符串。
         '''
         from cloudra.config import get_config
         db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
@@ -185,7 +180,7 @@ class Tool(BaseModel):
         
         return await self.request_approval(db_path, session.id, full_details)
 
-    async def request_approval(self, db_path: str, session_id: str, details: str) -> bool:
+    async def request_approval(self, db_path: str, session_id: str, details: str) -> tuple[bool, str]:
         import sqlite3
         import asyncio
         import time
@@ -193,8 +188,8 @@ class Tool(BaseModel):
         con = sqlite3.connect(db_path, timeout=10)
         cur = con.cursor()
         cur.execute(
-            "INSERT INTO approvals (session_id, details, state) VALUES (?, ?, ?)",
-            (session_id, details, 'pending')
+            "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES (?, ?, ?, ?)",
+            (session_id, details, 'pending', '')
         )
         approval_id = cur.lastrowid
         con.commit()
@@ -205,18 +200,22 @@ class Tool(BaseModel):
             await asyncio.sleep(2)
             con = sqlite3.connect(db_path, timeout=10)
             cur = con.cursor()
-            cur.execute("SELECT state FROM approvals WHERE id = ?", (approval_id,))
+            cur.execute("SELECT state, denial_reason FROM approvals WHERE id = ?", (approval_id,))
             row = cur.fetchone()
             con.close()
 
             if row:
-                state = row[0]
+                state, denial_reason = row
                 if state == 'approved':
                     print(f"\033[92m[安全审计]\033[0m 审批通过。")
-                    return True
+                    return True, ''
                 elif state == 'denied':
-                    print(f"\033[91m[安全审计]\033[0m 审批拒绝。")
-                    return False
+                    reason = denial_reason or ''
+                    if reason:
+                        print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
+                    else:
+                        print(f"\033[91m[安全审计]\033[0m 审批拒绝。")
+                    return False, reason
             
             # 可选：在终端提示等待中
             # print(".", end="", flush=True)

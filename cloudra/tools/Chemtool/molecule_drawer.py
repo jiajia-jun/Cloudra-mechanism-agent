@@ -71,8 +71,12 @@ class MoleculeDrawer(Tool):
             f"【参数摘要】: 尺寸={user_input.width}x{user_input.height}, "
             f"原子编号={user_input.add_atom_indices}, 手性标注={user_input.add_stereo_annotation}"
         )
-        if not await self.ensure_safety(session, details=details):
-            return MoleculeDrawer_output_schema(is_success=False, image_path="", message="【安全拦截】操作被拒绝。")
+        approved, denial_reason = await self.ensure_safety(session, details=details)
+        if not approved:
+            message = "【安全拦截】操作被拒绝。"
+            if denial_reason:
+                message += f"\n拒绝原因: {denial_reason}"
+            return MoleculeDrawer_output_schema(is_success=False, image_path="", message=message)
 
         try:
             # 1. 解析分子
