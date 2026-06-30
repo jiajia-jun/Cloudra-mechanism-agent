@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.1] - 2026-06-30
+
+### 新增
+- **Prompt 体系重构**：将各子 Agent 的 prompt 从 Python 类迁移到 `cloudra/prompts/*.md` 文件，便于独立维护与热更新。
+- **Coordinator 工具范围精简**：为 Coordinator 配置更聚焦的工具集合，减少无关工具干扰，提升任务拆解与调度决策质量。
+- **用户体验增强**：改进 Coordinator 与执行流程的反馈信息，让子任务状态、等待提示更清晰。
+
+### 修复
+- 修复 `text_writer` 多行文本写入失败的问题（`reAct` 中 JSON 参数解析改为 `strict=False`，允许未转义换行符）。
+- 修复 `SubAgentLauncher` 未写入 `conversation_id` 导致 `main.py` 等待子任务时直接退出的问题。
+- 修复 `SubAgentLauncher` 与 `executor` 之间 `session_id` 不一致的问题。
+- 修复 `Subagent_hash` 每次实例化都重复扫描/导入子 agent 模块的问题，新增模块级缓存。
+- 修复 `executor` 处理 `context` 字符串列表时的 `TypeError`。
+- Coordinator 的 system prompt 现在会列出当前工作目录的顶层内容，便于子 Agent 定位文件。
+
 ## [1.5.0] - 2026-06-25
 
 ### 新增
@@ -17,20 +32,6 @@
 - 修复 `submit_compute_job.py` 同步执行路径中 `run_now` 未实现且未正确缩进为类方法的问题。
 - 修复多个工具 ID 重复的问题（`getskill`、`chemrxiv_searcher`、`image_reader`、`headless_browser`、`email_sender`、`email_reader` 重新分配唯一 ID）。
 - 修复 `guard.py` 解析失败时 `state_str` 未定义即被使用的潜在 `NameError`。
-
-## [1.2.1] - 2026-06-18
-
-### 新增
-- **HTTP 爬虫/下载工具 (`web_fetcher`)**：支持抓取网页 HTML、提取正文文本，以及下载文件到本地。
-- **无头浏览器工具 (`headless_browser`)**：基于 Playwright Chromium，支持 JS 渲染页面抓取与截图；浏览器环境未就绪时自动降级为静态 HTTP 抓取。
-
-### 修复
-- 修复 `text_writer` 多行文本写入失败的问题（`reAct` 中 JSON 参数解析改为 `strict=False`，允许未转义换行符）。
-- 修复 `SubAgentLauncher` 未写入 `conversation_id` 导致 `main.py` 等待子任务时直接退出的问题。
-- 修复 `SubAgentLauncher` 与 `executor` 之间 `session_id` 不一致的问题。
-- 修复 `Subagent_hash` 每次实例化都重复扫描/导入子 agent 模块的问题，新增模块级缓存。
-- 修复 `executor` 处理 `context` 字符串列表时的 `TypeError`。
-- Coordinator 的 system prompt 现在会列出当前工作目录的顶层内容，便于子 Agent 定位文件。
 
 ## [1.2.0] - 2026-06-01
 
