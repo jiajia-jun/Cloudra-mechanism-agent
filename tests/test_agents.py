@@ -8,7 +8,7 @@ def test_coordinator_permissions():
     perms = agent.permission_all()
     assert bool(perms & Permission.READ) is True
     assert bool(perms & Permission.MANAGE) is True
-    assert bool(perms & Permission.WRITE) is False # Coordinator 默认不写文件
+    assert bool(perms & Permission.WRITE) is True  # Coordinator 拥有 write 权限，但实际受白名单约束
     assert agent.has_manage_permission() is True
 
 def test_follower_permissions():

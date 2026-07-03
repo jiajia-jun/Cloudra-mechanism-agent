@@ -3,6 +3,7 @@ import httpx
 import openai 
 import os
 import sqlite3
+import aiosqlite
 from cloudra.agent import Agent
 import asyncio
 import json
@@ -12,6 +13,10 @@ from cloudra.tools_class import input_schema,get_tools
 from cloudra.tools import get_tools_lst
 from cloudra.session_class import Session
 from cloudra.config import get_config
+
+
+# 每次 reasoning 前等待外部事件的最长时间（秒）
+EXTERNAL_EVENT_POLL_INTERVAL = 0.5
 
 
 def dynamic_deep_merge(buffer_dict: dict, delta_dict: dict) -> dict:
@@ -63,9 +68,6 @@ class reAct:
         # 绝不能覆盖 agent.prompt（身份 prompt）。
         if query:
             agent.query = query
-            # 重新加载上下文，使新的 query 作为第一条 user 消息生效。
-            # 注意：如果调用方已经在上下文中追加了额外消息，应在调用 reAct 之前完成。
-            agent.context = agent.get_context()
         self.log = Log(agent.name)
         self.log.session = None
             
@@ -81,29 +83,49 @@ class reAct:
         self.log.session = None
         self.session_create(session_id)
 
+    async def _poll_and_inject_external_events(self):
+        """轮询外部事件并注入到当前 Agent 上下文。"""
+        if self.agent.context_manager is None:
+            return
+        events = await self.agent.context_manager.poll_external_events()
+        for event in events:
+            await self.agent.update_context({
+                "role": "system",
+                "content": f"【{event['event_type']}】{event['content']}"
+            })
+            self.log.update_content(
+                f"{Color.YELLOW}[外部事件] {event['event_type']}: {self._truncate(event['content'], 200)}{Color.END}\n"
+            )
+
     async def run(self):
         '''
         reAct的核心方法，执行agent的任务。
         '''
+        # 确保上下文管理器已初始化，并加载初始上下文
+        await self.agent.get_context()
+        
         while self._continue:
             self.session.state = 'thinking'
-            tool_calls = self.reasoning()
+            
+            # 每轮推理前，轮询并注入外部事件
+            await self._poll_and_inject_external_events()
+            
+            tool_calls = await self.reasoning()
             
             # 如果没有工具调用且有内容，或者已经停止
             if not tool_calls:
                 # 检查最后一条消息内容
-                content = self.agent.context[-1].get('content', '')
+                context = await self.agent.get_context()
+                content = context[-1].get('content', '') if context else ''
                 if content:
                     self.session.state = 'sleeping'
                     # 更新数据库结果
-                    con = sqlite3.connect(self.database_path, timeout=10)
-                    cur = con.cursor()
-                    cur.execute(
-                        "UPDATE session SET state = ?, result = ? WHERE session_id = ?",
-                        ('sleeping', content, self.session.id)
-                    )
-                    con.commit()
-                    con.close()
+                    async with aiosqlite.connect(self.database_path, timeout=10) as con:
+                        await con.execute(
+                            "UPDATE session SET state = ?, result = ? WHERE session_id = ?",
+                            ('sleeping', content, self.session.id)
+                        )
+                        await con.commit()
                     return content
             
             self.session.state = 'acting'
@@ -111,21 +133,20 @@ class reAct:
             
             if stopped:
                 self.session.state = 'sleeping'
-                content = self.agent.context[-1].get('content', '任务已完成')
+                context = await self.agent.get_context()
+                content = context[-1].get('content', '任务已完成') if context else '任务已完成'
                 if self.agent.id != 'a-0':
-                    self.agent.context = []
-                    with open(self.agent._context_path(),'w',encoding='utf-8') as f:
-                        f.write('')
+                    await self.agent.clear_context()
                     print(f"Agent {self.agent.name}上下文已释放！")
                 return content
 
-    def reasoning(self) -> list:
+    async def reasoning(self) -> list:
         '''
         reAct的推理方法，分析agent的上下文和工具，决定下一步行动。
         '''
         agent = self.agent
         # agent.prompt 是身份 prompt，必须保留，不允许被任务要求覆盖。
-        response = agent.llm_call()
+        response = await agent.llm_call()
         final_response = ''
         reasoning_content = ''
         tool_calls = []
@@ -224,14 +245,14 @@ class reAct:
         if tool_calls:
             self.undos.append(new_block)
         else:
-            agent.update_context(new_block)
+            await agent.update_context(new_block)
             
         return tool_calls
 
-    def _commit_undos(self):
+    async def _commit_undos(self):
         '''将缓冲区中的消息提交到上下文。'''
         while self.undos:
-            self.agent.update_context(self.undos.pop(0))
+            await self.agent.update_context(self.undos.pop(0))
 
     @staticmethod
     def _truncate(text: str, max_len: int = 200) -> str:
@@ -299,8 +320,8 @@ class reAct:
                     'tool_call_id': tool_call_id,
                     'content': f"【系统错误】工具参数解析失败 (JSON Error): {str(e)}。请确保参数格式正确。"
                 }
-                self._commit_undos()
-                self.agent.update_context(result_block)
+                await self._commit_undos()
+                await self.agent.update_context(result_block)
                 self.log.update_content(f"{Color.RED}参数解析失败: {tool_name}{Color.END}\n")
                 continue
             
@@ -338,8 +359,8 @@ class reAct:
                     'tool_call_id': tool_call_id,
                     'content': f"【系统错误】找不到工具: {tool_name}。请检查工具名称是否正确。"
                 }
-                self._commit_undos()
-                self.agent.update_context(result_block)
+                await self._commit_undos()
+                await self.agent.update_context(result_block)
         
         # 记录 tool_call_id 到工具名的映射，方便结果日志展示
         id_to_name = dict(zip(tool_call_ids, tool_names))
@@ -347,7 +368,7 @@ class reAct:
         if acts:
             # 使用 return_exceptions=True，确保单个工具崩溃不影响其他工具，且能捕获异常
             tool_results = await asyncio.gather(*acts, return_exceptions=True)
-            self._commit_undos()
+            await self._commit_undos()
             
             # 每个工具结果单独作为一条消息
             for tool_result, tool_call_id in zip(tool_results, tool_call_ids):
@@ -377,7 +398,7 @@ class reAct:
                 if image_path:
                     result_block['image_path'] = image_path
                     
-                self.agent.update_context(result_block)
+                await self.agent.update_context(result_block)
             
             session.state = 'thinking'
 
@@ -449,21 +470,4 @@ class Coordinator_reAct(reAct):
 
     async def run(self):
         result = await super().run()
-        
-        # 任务结束后，检查是否有新邮件并提醒
-        try:
-            from cloudra.tools.Interactool.email_reader import EmailReader, EmailReader_input_schema
-            reader = EmailReader(subagent=self.agent)
-            # 仅检查是否有未读邮件，不输出具体内容以节省 token
-            inbox = await reader.tool_call(EmailReader_input_schema(count=1, only_unread=True), self.session)
-            if inbox.success and inbox.emails:
-                print(f"\n{Color.YELLOW}[系统提醒] 收件箱中有新的未读邮件，可能包含用户的最新反馈或指令。{Color.END}")
-                # 向上下文注入一条系统提醒，让 Agent 知道有新消息
-                self.agent.update_context({
-                    "role": "system", 
-                    "content": "【系统提醒】收件箱中有新的未读邮件，可能包含用户的最新反馈或指令，请在必要时调用 email_reader 查看。"
-                })
-        except Exception:
-            pass # 忽略检查失败
-            
         return result

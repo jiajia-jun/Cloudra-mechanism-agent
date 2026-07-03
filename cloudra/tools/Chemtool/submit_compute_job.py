@@ -1,17 +1,19 @@
 from pydantic import Field
 from typing import Any, Literal
 
-from pydantic_core.core_schema import field_after_validator_function
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
-from cloudra.config import CloudraConfig
-import sqlite3
+from cloudra.config import get_config
+from cloudra.compute_utils import check_job_type, launch_compute_processes
+import aiosqlite
 import os
 import time
 
 
-datadir = CloudraConfig().data_dir
-db_path = os.path.join(datadir, "tasks", "database.db")
+def _db_path() -> str:
+    """动态获取数据库路径，便于测试隔离。"""
+    return os.path.join(get_config().data_dir, "tasks", "database.db")
+
 
 description = (
     "提交计算任务的工具。"
@@ -58,128 +60,95 @@ class SubmitComputeJob(Tool):
         f_path = user_input.input_file
         workdir = os.path.dirname(f_path)
         conv_id = getattr(self.subagent, 'conversation_id', 'default')
-        if os.path.exists(f_path):
-            if user_input.is_async:
-                try:
-                    con = sqlite3.connect(db_path)
-                    cur = con.cursor()
-                    # 4. INSERT INTO compute_jobs (conversation_id, path, state, job_type, start_timestamp)
-                    try:
-                        cur.execute('''
-                        INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
-                        VALUES (?,?,?,?,?,?)
-                                ''',
-                        (conv_id, f_path, 'ready', user_input.job_type, -1, -1))
-                        job_id = cur.lastrowid
-                        con.commit()
-                        con.close()
-                        # 5. 返回 job_id, job_dir, state='ready'
-                        return SubmitComputeJob_output_schema(
-                                is_success=True,
-                                job_id=job_id,
-                                job_dir=workdir,
-                                state="ready",
-                                message="任务提交成功，将会定时唤醒你去监测任务。")
-                    except Exception as e:
-                        con.rollback()
-                        con.close()
-                        return SubmitComputeJob_output_schema(
-                                is_success=False,
-                                message=f"任务提交遇到错误：{e}")
 
-                except Exception as e:
-                    return SubmitComputeJob_output_schema(
-                            is_success=False,
-                            message=f"数据库连接遇到错误：{e}")
-
-            else:
-                # 直接写入running，并开始计算
-                try:
-                    con = sqlite3.connect(db_path)
-                    cur = con.cursor()
-                    try:
-                        now = time.time()
-                        cur.execute('''
-                        INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
-                        VALUES (?,?,?,?,?,?)
-                                ''',
-                        (conv_id, f_path, 'running', user_input.job_type, now, -1))
-                        job_id = cur.lastrowid
-                        con.commit()
-                        # 任务提交是昂贵的，必须在数据库留痕才允许进行。
-                        await self.run_now(job_id, db_path, f_path, user_input.job_type, conv_id)
-                        con.close()
-                        return SubmitComputeJob_output_schema(
-                                is_success=True,
-                                job_id=job_id,
-                                job_dir=workdir,
-                                state="ready",
-                                message="任务运行完毕")
-
-
-                    except Exception as e:
-                        con.close()
-                        return SubmitComputeJob_output_schema(
-                                is_success=False,
-                                message=f"任务提交遇到错误：{e}")
-                
-                except Exception as e:
-                    return SubmitComputeJob_output_schema(
-                            is_success=False,
-                            message=f"数据库连接遇到错误：{e}")
-
-        else:
+        if not os.path.exists(f_path):
             return SubmitComputeJob_output_schema(
                     is_success=False,
                     message="文件或目录不存在。")
 
+        # 2. 校验当前环境是否具备对应的计算程序
+        ok, msg = check_job_type(user_input.job_type, workdir)
+        if not ok:
+            return SubmitComputeJob_output_schema(is_success=False, message=msg)
 
-    async def run_now(self, job_id: int, db_path: str, input_file: str, job_type: str, conv_id: str):
-        """在主进程中阻塞执行计算任务，并在完成后更新数据库状态。"""
-        import sys
-        import asyncio
+        if user_input.is_async:
+            try:
+                async with aiosqlite.connect(_db_path()) as con:
+                    cur = await con.execute('''
+                    INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
+                    VALUES (?,?,?,?,?,?)
+                            ''',
+                    (conv_id, f_path, 'ready', user_input.job_type, -1, -1))
+                    job_id = cur.lastrowid
+                    await con.commit()
+                    return SubmitComputeJob_output_schema(
+                            is_success=True,
+                            job_id=job_id,
+                            job_dir=workdir,
+                            state="ready",
+                            message="任务提交成功，将会定时唤醒你去监测任务。")
 
-        guard_cmd = [
-            sys.executable, '-m', 'cloudra.guard',
-            '--path', input_file,
-            '--timeout', '1800',
-            '--conv_id', conv_id,
-            '--task_id', str(job_id),
-            '--db_path', db_path,
-        ]
-        calculate_cmd = ['calculator.sh', input_file, job_type]
+            except Exception as e:
+                return SubmitComputeJob_output_schema(
+                        is_success=False,
+                        message=f"任务提交遇到错误：{e}")
 
-        guard_proc = None
-        try:
-            # 启动 guard 在后台周期性解析输出并唤醒 agent
-            guard_proc = await asyncio.create_subprocess_exec(*guard_cmd)
+        else:
+            # 直接写入 running，并开始计算
+            try:
+                db_path = _db_path()
+                async with aiosqlite.connect(db_path) as con:
+                    now = time.time()
+                    cur = await con.execute('''
+                    INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
+                    VALUES (?,?,?,?,?,?)
+                            ''',
+                    (conv_id, f_path, 'running', user_input.job_type, now, -1))
+                    job_id = cur.lastrowid
+                    await con.commit()
+                    # 任务提交是昂贵的，必须在数据库留痕才允许进行。
+                    state = await self.run_now(job_id, db_path, f_path, user_input.job_type, conv_id)
+                    return SubmitComputeJob_output_schema(
+                            is_success=True,
+                            job_id=job_id,
+                            job_dir=workdir,
+                            state=state,
+                            message=f"任务运行完毕，最终状态：{state}")
 
-            # 阻塞执行实际计算脚本，直到其结束
-            calc_proc = await asyncio.create_subprocess_exec(*calculate_cmd)
-            returncode = await calc_proc.wait()
+            except Exception as e:
+                return SubmitComputeJob_output_schema(
+                        is_success=False,
+                        message=f"任务提交遇到错误：{e}")
 
-            # 给 guard 一段短暂的解析窗口（最多 10 秒）
-            if guard_proc.returncode is None:
-                try:
-                    await asyncio.wait_for(guard_proc.wait(), timeout=10.0)
-                except asyncio.TimeoutError:
-                    pass
 
-            # 更新数据库中的任务状态
-            con = sqlite3.connect(db_path, timeout=10)
-            cur = con.cursor()
-            state = 'done' if returncode == 0 else 'failed'
-            cur.execute(
+    async def run_now(self, job_id: int, db_path: str, input_file: str, job_type: str, conv_id: str) -> str:
+        """在主进程中阻塞执行计算任务，并在完成后更新数据库状态。返回最终状态 'done' 或 'failed'。"""
+        ok, msg = await launch_compute_processes(
+            task_id=job_id,
+            input_file=input_file,
+            job_type=job_type,
+            conv_id=conv_id,
+            db_path=db_path,
+            wait_for_calculator=True,
+        )
+
+        if not ok:
+            async with aiosqlite.connect(db_path, timeout=10) as con:
+                await con.execute(
+                    "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
+                    ('failed', time.time(), job_id)
+                )
+                await con.commit()
+            raise RuntimeError(f"运行计算任务失败：{msg}")
+
+        state = 'done'
+        async with aiosqlite.connect(db_path, timeout=10) as con:
+            await con.execute(
                 "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
                 (state, time.time(), job_id)
             )
-            con.commit()
-            con.close()
-        finally:
-            # 确保 guard 不会成为僵尸/常驻进程
-            if guard_proc is not None and guard_proc.returncode is None:
-                guard_proc.kill()
-                await guard_proc.wait()
+            await con.commit()
+        return state
 
 
 def get_class():

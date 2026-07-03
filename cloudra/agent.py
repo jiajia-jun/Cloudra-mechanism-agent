@@ -6,11 +6,12 @@ from pathlib import Path
 from cloudra.tools_class import Tool, get_tools
 from cloudra.tools import get_tools_lst
 from pydantic import BaseModel
-from typing import Union
+from typing import Optional, Union
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion,ChatCompletionChunk
 from dotenv import load_dotenv
 from cloudra.tools.core.permission_model import Permission, check_permission
+from cloudra.context_manager import ContextManager
 
 load_dotenv()
 
@@ -43,7 +44,7 @@ class Agent(BaseModel):
     10.agent使用模型频率惩罚（frequency_penalty）
     11.agent使用模型存在惩罚（presence_penalty）
     12.agent身份prompt（prompt）
-    13.agent上下文（context）
+    13.agent上下文管理器（context_manager）
     14.agent输出方式（is_stream）
 
     该类的其他方法:
@@ -51,6 +52,8 @@ class Agent(BaseModel):
     llm_call方法：调用llm，输出ChatResponse或ChatStream
     后续可能加入的方法：调用本地专用模型，不能通过openai接口，因此待定，可以上github上看看有没有开源的逆合成分析模型等
     '''
+    model_config = {"arbitrary_types_allowed": True}
+
     #唯一标识符
     id: str
 
@@ -92,9 +95,43 @@ class Agent(BaseModel):
 
     is_stream: bool
 
-    context: list = []
+    # 上下文管理器：Agent 上下文的唯一真相来源
+    context_manager: Optional[ContextManager] = None
 
     conversation_id: str
+
+    def _init_context_manager(self) -> None:
+        '''初始化本 Agent 的 ContextManager。'''
+        self.context_manager = ContextManager(
+            agent_id=self.id,
+            conversation_id=self.conversation_id,
+            prompt=self.prompt,
+            query=self.query,
+        )
+
+    async def get_context(self) -> list:
+        '''
+        加载上下文。ContextManager 是上下文的唯一真相来源。
+        '''
+        if self.context_manager is None:
+            self._init_context_manager()
+        return await self.context_manager.load()
+
+    async def update_context(self, new_block: dict) -> None:
+        '''
+        更新上下文，新增一个块。
+        确保每条消息都有 role 字段。
+        文件路径根据 conversation_id 隔离。
+        '''
+        if self.context_manager is None:
+            self._init_context_manager()
+        await self.context_manager.append(new_block)
+
+    async def clear_context(self) -> None:
+        '''清空上下文（通常用于任务结束后释放）。'''
+        if self.context_manager is None:
+            self._init_context_manager()
+        await self.context_manager.clear()
 
     def check_permission(self, tool: type[Tool] | Tool) -> bool:
         '''
@@ -172,16 +209,11 @@ class Agent(BaseModel):
         if self.destructive_permission():
             perms |= Permission.DESTRUCTIVE
         return perms
-    
-    def get_context(self) -> list:
-        '''
-        在后续子类中加载上下文。
-        '''
-        return []
 
     def _context_path(self) -> str:
         '''
         根据 conversation_id 返回上下文文件路径。
+        保留此方法以兼容旧代码，但新代码应优先使用 ContextManager。
         '''
         from cloudra.config import get_config
         data_dir = get_config().data_dir
@@ -195,7 +227,7 @@ class Agent(BaseModel):
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
 
-    def llm_call(self) -> ChatResponse:
+    async def llm_call(self) -> ChatResponse:
         '''
         调用llm接口。
         输出：
@@ -215,10 +247,11 @@ class Agent(BaseModel):
                         base_url=self.llm_site ,
                         )
 
-        def build_messages(use_multimodal=True):
+        async def build_messages(use_multimodal=True):
             content = []
             content.append({"role": "system", "content": self.prompt})
-            for context_block in self.context:
+            context = await self.get_context()
+            for context_block in context:
                 msg = copy.deepcopy(dict(context_block))
                 if 'role' not in msg: msg['role'] = 'user'
                 
@@ -261,7 +294,7 @@ class Agent(BaseModel):
 
         # 尝试第一次调用（完整多模态）
         try:
-            messages = build_messages(use_multimodal=True)
+            messages = await build_messages(use_multimodal=True)
             if available_tool_classes:
                 return client.chat.completions.create(
                     model=self.model,
@@ -287,7 +320,7 @@ class Agent(BaseModel):
             if "image_url" in err_msg or "unknown variant" in err_msg or "400" in err_msg:
                 print(f"\033[93m[系统预警]\033[0m 当前模型或接口不支持多模态内容，正在切换至“纯文本降级模式”重试...")
                 # 重新构建纯文本消息列表
-                messages = build_messages(use_multimodal=False)
+                messages = await build_messages(use_multimodal=False)
                 # 第二次调用（纯文本降级）
                 if available_tool_classes:
                     return client.chat.completions.create(
@@ -312,40 +345,6 @@ class Agent(BaseModel):
                 # 其他类型的错误，原样抛出
                 print(f"\033[91m[LLM 异常]\033[0m {e}")
                 raise e
-    
-    def update_context(self, new_block: dict) -> None:
-        '''
-        更新上下文，新增一个块。
-        确保每条消息都有 role 字段。
-        文件路径根据 conversation_id 隔离。
-        '''
-        if 'role' not in new_block:
-            new_block['role'] = 'user'
-        
-        # 提取 image_path（如果存在）
-        image_path = new_block.pop('image_path', None)
-        
-        # 如果包含图片，将 content 构建为 OpenAI 标准的 list 结构，但 URL 暂存本地路径
-        if image_path:
-            text_content = new_block.get('content', "查看此图片内容：")
-            new_block['content'] = [
-                {"type": "text", "text": text_content if text_content else "查看此图片内容："},
-                {
-                    "type": "image_url", 
-                    "image_url": {"url": image_path}
-                }
-            ]
-        elif 'content' not in new_block:
-            new_block['content'] = str(new_block)
-                
-        self.context.append(new_block)
-        context_path = self._context_path()
-        os.makedirs(os.path.dirname(context_path), exist_ok=True)
-        with open(context_path, 'w', encoding='utf-8') as f:
-            json.dump(self.context, f, ensure_ascii=False, indent=4)
-    
-
-
 
 
 class Coordinator(Agent):
@@ -381,8 +380,6 @@ class Coordinator(Agent):
 
     is_stream: bool = True
 
-    context: list = []
-
     def __init__(self, **data):
         super().__init__(**data)
         cwd = os.getcwd()
@@ -404,7 +401,6 @@ class Coordinator(Agent):
             f"工作目录顶层内容:\n{listing_str}\n"
             "在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
         )
-        self.context = self.get_context()
 
     def has_manage_permission(self) -> bool:
         '''
@@ -440,41 +436,7 @@ class Coordinator(Agent):
                 available_tools.append(tool)
         return available_tools
 
-    def get_context(self) -> list:
-        '''
-        加载上下文，但需要另行写入新增上下文
-        '''
-        system_json = {
-            "role": "system",
-            "content": self.prompt
-        }
-        query_json = {
-            "role": "user",
-            "content": self.query
-        }
-        context_path = self._context_path()
-        os.makedirs(os.path.dirname(context_path), exist_ok=True)
-        if os.path.isfile(context_path):
-            try:
-                with open(context_path, 'r', encoding='utf-8') as f:
-                    self.context = json.load(f)
-            except json.JSONDecodeError:
-                print(f'无法解析JSON文件：{context_path}')
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                if exc_traceback is not None:
-                    print(f'错误发生在文件 {exc_traceback.tb_frame.f_code.co_filename} 的第 {exc_traceback.tb_lineno} 行')
-                    raise json.JSONDecodeError("无法解析JSON文件", context_path, exc_traceback.tb_lineno)
-                else:
-                    raise json.JSONDecodeError("无法解析JSON文件", context_path, 0)
-        else:
-            self.context = [system_json, query_json]
-            with open(context_path, 'w', encoding='utf-8') as f:
-                json.dump(self.context, f, ensure_ascii=False, indent=4)
 
-        return self.context
-    
-
-        
 class Follower(Agent):
     '''
     子agent大类，后续有细分类型，再定义子类。
@@ -507,42 +469,28 @@ class Follower(Agent):
 
     is_stream: bool = False
 
-    context: list = []
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.context = self.get_context()
-
-    def get_context(self) -> list:
-        '''
-        加载上下文，确保包含 prompt 和 query。
-        '''
-        system_json = {"role": "system", "content": self.prompt}
-        query_json = {"role": "user", "content": self.query}
-        
-        context_path = self._context_path()
-        os.makedirs(os.path.dirname(context_path), exist_ok=True)
-        
-        if os.path.isfile(context_path):
-            try:
-                with open(context_path, 'r', encoding='utf-8') as f:
-                    history = json.load(f)
-                    # 只有当历史为空或仅包含 system message 时才插入 query
-                    if not history or (len(history) == 1 and history[0].get('role') == 'system'):
-                        self.context = [system_json, query_json]
-                    else:
-                        self.context = history
-            except:
-                self.context = [system_json, query_json]
-        else:
-            self.context = [system_json, query_json]
-        
-        # 立即持久化，防止多进程环境下读取到空文件
-        with open(context_path, 'w', encoding='utf-8') as f:
-            json.dump(self.context, f, ensure_ascii=False, indent=4)
-            
-        return self.context
-
     def has_read_permission(self) -> bool:
         return True
     
+    def has_write_permission(self) -> bool:
+        '''
+        正常情况下，agent不允许写入文件，除非在子类中额外开放。
+        '''
+        return False
+
+    def script_run_permission(self) -> bool:
+        '''
+        运行脚本的权限。
+        '''
+        return False
+
+    def destructive_permission(self) -> bool:
+        '''
+        如rm，mkdir等对目录结构进行变化的操作。
+        '''
+        return False
+
+
+def get_class():
+    """兼容旧导入，返回 Agent 基类。"""
+    return Agent

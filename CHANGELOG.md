@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.0] - 2026-07-04
+
+### 新增
+- **统一计算任务基础设施**：新增 `cloudra.compute_utils` 模块，提供 `check_job_type`、`build_calculator_cmd`、`launch_compute_processes` 等共享函数，统一处理 Gaussian / VASP / ORCA 计算任务的依赖检查与进程启动。
+- **ContextManager 上下文管理器**：引入 `cloudra.context_manager`，将此前分散的 `context` 列表收敛为数据库驱动的上下文源，支持外部事件注入与轮询，为邮件唤醒等异步交互提供统一入口。
+- **compute_executor 预检与失败兜底**：Compute Executor 在启动计算前会校验计算程序可用性，启动失败或异常退出时会将任务状态更新为 `failed`。
+
+### 重构
+- **Agent 上下文接口异步化**：`Agent` 类的 `get_context`、`update_context`、`clear_context`、`llm_call` 全部改为 `async`，移除内部 `context` 列表，统一通过 `ContextManager` 读写。
+- **会话状态机**：引入 `active / running / sleeping / archived` 四种会话状态，`run_task_async` 统一通过 `asyncio.run` 启动并在结束后正确转态。
+- **sqlite3 → aiosqlite**：所有异步路径中的数据库访问统一使用 `aiosqlite`，避免同步 sqlite 阻塞事件循环。
+- **calculator.sh 简化**：Gaussian 直接通过系统 PATH 调用 `g16 / g09 / g26`，不再要求用户在工作目录放置可执行副本。
+
+### 修复
+- 修复 `submit_compute_job` 同步模式未真正等待计算完成、错误未落库的问题，现在返回 `done` 或 `failed`。
+- 修复 `cloudra/reAct.py` 缺失 `import sqlite3` 导致的 `NameError`。
+
 ## [1.5.1] - 2026-06-30
 
 ### 新增

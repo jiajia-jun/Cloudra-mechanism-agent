@@ -7,6 +7,7 @@ import threading
 import os
 import asyncio
 import json
+import aiosqlite
 import sqlite3
 import time
 from cloudra.subagents import Subagent_hash
@@ -57,8 +58,19 @@ def init_database(db_path: str):
             end_timestamp INTEGER DEFAULT -1,
             jobtype TEXT DEFAULT 'gaussian' -- gaussian, orca, vasp
         )
-                
-       ''')
+    ''')
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS context_events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id TEXT,
+            agent_id TEXT,
+            event_type TEXT,
+            content TEXT,
+            state TEXT DEFAULT 'pending', -- pending, delivered, failed
+            created_at REAL
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -188,6 +200,8 @@ def approval_handler(database_path: str):
 
 
 def check_compute(db_path: str):
+    active_processes = {}
+
     while True:
         try:
             con = sqlite3.connect(db_path, timeout=10)
@@ -215,13 +229,25 @@ def check_compute(db_path: str):
                         text=True,
                         bufsize=1
                     )
+                # 等待一小会儿，检查 compute_executor 是否瞬间崩溃
+                time.sleep(0.5)
+                if process.poll() is not None:
+                    return_code = process.returncode
+                    print(f"{Color.RED}[系统错误]{Color.END} 计算任务 (Task {task_id}) 启动失败! 退出码: {return_code}")
+                    # 若 compute_executor 内已写入 failed 则无需再改；这里做二次兜底
+                    cur.execute("UPDATE compute_jobs SET state = ? WHERE id = ? AND state = 'running'", ('failed', task_id))
+                    con.commit()
+                else:
+                    t = threading.Thread(target=pipe_logger, args=(process, f"compute-{task_id}"), daemon=True)
+                    t.start()
+                    active_processes[task_id] = process
+            else:
+                con.rollback()
+
             con.close()
         except Exception as e:
-            print(f'遇到了问题：{e}')
-            break
+            print(f'{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}')
         time.sleep(5)
-
-
 
 
 
@@ -238,13 +264,28 @@ class Color:
 def print_banner():
     print(f"{Color.BLUE}{Color.BOLD}")
     print("  Cloudra - AI 化学科研助手")
-    print(f"  版本: v1.5.1{Color.END}")
+    print(f"  版本: v1.6.0{Color.END}")
     print("-" * 45)
 
 
-def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
+async def _wait_for_subtasks(database: str, conversation_id: str) -> None:
+    """异步等待当前 conversation 下的子任务全部完成。"""
+    while True:
+        async with aiosqlite.connect(database, timeout=10) as con:
+            cur = await con.execute(
+                "SELECT COUNT(*) FROM subagent_requests WHERE (state = 'ready' OR state = 'running') AND conversation_id = ?",
+                (conversation_id,)
+            )
+            row = await cur.fetchone()
+            count = row[0] if row else 0
+        if count == 0:
+            break
+        await asyncio.sleep(1)
+
+
+async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) -> str:
     """
-    执行一个 Cloudra 任务。
+    执行一个 Cloudra 任务（异步版本）。
     
     Args:
         query: 用户查询/需求
@@ -271,10 +312,10 @@ def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
     conversation.touch()
     
     coordinator_agent = Coordinator(query=query, conversation_id=conversation.id)
-    # Coordinator.get_context() 已经在新会话里把 query 作为第一条 user 消息插入。
     # 只有当前上下文中最后一条不是当前 query 时才追加，避免重复插入。
-    if not coordinator_agent.context or coordinator_agent.context[-1].get('content') != query:
-        coordinator_agent.update_context({'role': 'user', 'content': query})
+    context = await coordinator_agent.get_context()
+    if not context or context[-1].get('content') != query:
+        await coordinator_agent.update_context({'role': 'user', 'content': query})
 
     father_reAct = Coordinator_reAct(coordinator_agent)
 
@@ -290,27 +331,20 @@ def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
     if verbose:
         print(f"{Color.GREEN}[系统]{Color.END} 协调者 Agent 已就绪，开始推理...\n")
     
-    result = asyncio.run(father_reAct.run())
+    # 标记会话为运行中
+    conversation.set_state('running')
+    try:
+        result = await father_reAct.run()
+    finally:
+        # 无论成功失败，任务结束后都标记为 sleeping（除非被归档）
+        if conversation.state != 'archived':
+            conversation.set_state('sleeping')
     conversation.touch()
 
     # 等待子任务完成
     if verbose:
         print(f"\n{Color.YELLOW}[系统]{Color.END} 正在等待子任务完成...")
-    while True:
-        con = sqlite3.connect(database, timeout=10)
-        cur = con.cursor()
-        # ISSUE 4 Fix: 使用索引列精确匹配，不再使用低效且危险的 LIKE
-        cur.execute(
-            "SELECT COUNT(*) FROM subagent_requests WHERE (state = 'ready' OR state = 'running') AND conversation_id = ?",
-            (conversation.id,)
-        )
-        count = cur.fetchone()[0]
-        con.close()
-        
-        if count == 0:
-            break
-        
-        time.sleep(1)
+    await _wait_for_subtasks(database, conversation.id)
     
     if verbose:
         print(f"\n{Color.BLUE}{Color.BOLD}" + "="*20 + " 任务完成 " + "="*20 + f"{Color.END}")
@@ -318,6 +352,13 @@ def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
         print(f"{Color.BLUE}{Color.BOLD}" + "="*48 + f"{Color.END}")
     
     return result
+
+
+def run_task(query: str, conv_id: str = None, verbose: bool = True) -> str:
+    """
+    执行一个 Cloudra 任务（同步包装入口）。
+    """
+    return asyncio.run(run_task_async(query, conv_id, verbose))
 
 
 def legacy_main():

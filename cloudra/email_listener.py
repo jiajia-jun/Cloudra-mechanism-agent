@@ -2,8 +2,13 @@ import time
 import os
 import sys
 import logging
+import asyncio
+import json
+import re
 from cloudra.config import get_config
 from cloudra.main import run_task
+from cloudra.conversation_class import Conversation
+from cloudra.context_manager import ContextManager
 from cloudra.tools.Interactool.email_reader import EmailReader, EmailReader_input_schema
 
 # 设置静默日志：仅打印关键错误
@@ -44,6 +49,33 @@ class EmailListener:
             
             time.sleep(self.interval)
 
+    def _get_last_conversation_id(self) -> str:
+        """获取最近一次活跃的 conversation id，优先使用配置中的 last_conversation_id。"""
+        cfg = get_config()
+        if cfg.last_conversation_id:
+            return cfg.last_conversation_id
+        # 否则从 conversations 目录找最新非归档的
+        conv_dir = cfg.data_dir / "conversations"
+        if not conv_dir.exists():
+            return None
+        candidates = []
+        for entry in conv_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            meta_path = entry / "meta.json"
+            if meta_path.exists():
+                try:
+                    with open(meta_path, "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                    if meta.get("state") in ("running", "sleeping", "active"):
+                        candidates.append((meta.get("last_active", ""), entry.name))
+                except Exception:
+                    continue
+        if candidates:
+            candidates.sort(reverse=True)
+            return candidates[0][1]
+        return None
+
     def _poll_once(self):
         # 仅读取 1 封最新的未读邮件
         # IMAP 的 _read_imap 方法在读取后会自动将邮件设为已读
@@ -57,7 +89,6 @@ class EmailListener:
         # 白名单校验
         if self.config.whitelist:
             # 提取发件人邮箱 (处理 "Name <email@example.com>" 格式)
-            import re
             sender_email = msg.sender
             match = re.search(r'<(.*)>', sender_email)
             if match:
@@ -86,7 +117,20 @@ class EmailListener:
             logger.warning(f"触发任务: {query} | 来源: {msg.sender}")
 
             try:
-                # 开启任务执行
+                conv_id = self._get_last_conversation_id()
+                if conv_id:
+                    conversation = Conversation(conv_id)
+                    if conversation.state == 'running':
+                        # 会话正在运行，注入邮件事件到 Coordinator 上下文
+                        asyncio.run(ContextManager.inject_event(
+                            conversation_id=conv_id,
+                            agent_id='a-0',
+                            event_type='email',
+                            content=f"收到来自 {msg.sender} 的新邮件，主题：{subject}，正文：{body}"
+                        ))
+                        print(f"[+] 已向运行中的会话 {conv_id} 注入邮件事件")
+                        return
+                # 未找到运行中会话，启动新任务
                 # 注意：此处为同步执行，执行期间监听会暂停，防止并发冲突
                 run_task(body, verbose=True)
             except Exception as e:

@@ -5,7 +5,7 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.agent import Agent
 import os
 import json
-import sqlite3
+import aiosqlite
 from cloudra.subagents import Subagent_hash
 from cloudra.session_class import Session
 
@@ -110,13 +110,17 @@ class SubAgentLauncher(Tool):
                 result=f"【系统错误】子 Agent '{agent_id}' 实例异常，缺少必要属性。"
             )
 
-        # 创建子 agent 的实例，注入身份和 prompt
+        # 创建子 agent 的实例，注入身份、conversation_id 和任务
         sub_agent.temperature = 0.7
         sub_agent.top_p = 1.0
         sub_agent.frequency_penalty = 0.0
         sub_agent.presence_penalty = 0.0
         sub_agent.query = query
-        sub_agent.context = context
+        conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
+        sub_agent.conversation_id = conversation_id
+        # 初始化上下文管理器：后续 executor 会通过 update_context 追加 extra_context
+        sub_agent.context_manager = None
+        await sub_agent.get_context()
 
         act_agent = sub_agent.name
 
@@ -125,8 +129,6 @@ class SubAgentLauncher(Tool):
         db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
-
         payload = {
             'agent_id': agent_id,
             'query': query,
@@ -134,58 +136,54 @@ class SubAgentLauncher(Tool):
             'conversation_id': conversation_id,
         }
         
-        con = sqlite3.connect(db_path)
-        cur = con.cursor()
-        
         if is_wait:
             # 同步模式：标记为 running 并直接启动子进程执行
-            cur.execute(
-                "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                ('running', json.dumps(payload), conversation_id)
-            )
-            task_id = cur.lastrowid
+            async with aiosqlite.connect(db_path) as con:
+                cur = await con.execute(
+                    "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
+                    ('running', json.dumps(payload), conversation_id)
+                )
+                task_id = cur.lastrowid
 
-            # 使用 task_id 生成统一的 session_id，确保 launcher 与 executor 看到的是同一个 session
-            session_id = f"{sub_agent.id}_task{task_id}"
-            payload['session_id'] = session_id
-            cur.execute(
-                "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
-                (json.dumps(payload), task_id)
-            )
-            con.commit()
-            con.close()
+                # 使用 task_id 生成统一的 session_id，确保 launcher 与 executor 看到的是同一个 session
+                session_id = f"{sub_agent.id}_task{task_id}"
+                payload['session_id'] = session_id
+                await con.execute(
+                    "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
+                    (json.dumps(payload), task_id)
+                )
+                await con.commit()
 
-            import subprocess
+            import asyncio
             import sys
             
             # 启动并等待子进程结束
             print(f"\n[系统] 正在同步执行子任务 (Task ID: {task_id})... 请稍候。")
-            process = subprocess.Popen(
-                [sys.executable, '-m', 'cloudra.executor', '--task_id', str(task_id), '--db', db_path, '--session_id', session_id],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, '-m', 'cloudra.executor', '--task_id', str(task_id), '--db', db_path, '--session_id', session_id,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
             )
             
             # 实时将子进程输出打印到控制台（带上前缀）
             output_lines = []
             prefix = f"\033[96m[{act_agent}]\033[0m"
-            for line in iter(process.stdout.readline, ''):
+            while True:
+                line = await process.stdout.readline()
                 if not line:
-                    continue
+                    break
+                text = line.decode('utf-8', errors='replace')
                 # 子进程输出可能包含多行，逐行加前缀
-                for subline in line.splitlines():
+                for subline in text.splitlines():
                     print(f"{prefix} {subline}")
                     output_lines.append(subline)
-            process.wait()
+            await process.wait()
 
             # 核心改进：从数据库中获取真实的 result 字段，而不是抓取 stdout 的最后一行
             # 这样可以确保哪怕结论很长，Coordinator 也能完整看到
-            con = sqlite3.connect(db_path)
-            cur = con.cursor()
-            cur.execute("SELECT result FROM session WHERE session_id = ?", (session_id,))
-            row = cur.fetchone()
-            con.close()
+            async with aiosqlite.connect(db_path) as con:
+                cur = await con.execute("SELECT result FROM session WHERE session_id = ?", (session_id,))
+                row = await cur.fetchone()
 
             if row and row[0]:
                 result = row[0]
@@ -193,19 +191,19 @@ class SubAgentLauncher(Tool):
                 result = f"Task completed, but no explicit result was found in database. Last output lines: {' | '.join(output_lines[-3:])}"
         else:
             # 异步模式：仅写入 ready，由 main.py 的后台线程 pickup
-            cur.execute(
-                "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                ('ready', json.dumps(payload), conversation_id)
-            )
-            task_id = cur.lastrowid
-            session_id = f"{sub_agent.id}_task{task_id}"
-            payload['session_id'] = session_id
-            cur.execute(
-                "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
-                (json.dumps(payload), task_id)
-            )
-            con.commit()
-            con.close()
+            async with aiosqlite.connect(db_path) as con:
+                cur = await con.execute(
+                    "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
+                    ('ready', json.dumps(payload), conversation_id)
+                )
+                task_id = cur.lastrowid
+                session_id = f"{sub_agent.id}_task{task_id}"
+                payload['session_id'] = session_id
+                await con.execute(
+                    "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
+                    (json.dumps(payload), task_id)
+                )
+                await con.commit()
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"
 
         return SubAgentLauncher_output_schema(

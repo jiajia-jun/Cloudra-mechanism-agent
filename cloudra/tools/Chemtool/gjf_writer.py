@@ -167,7 +167,11 @@ class GjfWriter(Tool):
 
     @staticmethod
     def _build_gjf(user_input: GjfWriter_input_schema, coords: str) -> str:
-        """拼装完整的 .gjf 文本。"""
+        """拼装完整的 .gjf 文本。
+
+        Gaussian 要求坐标块后有一个空行作为输入结束标记，
+        因此末尾统一保留一个空行。
+        """
         link0 = GjfWriter._build_link0(user_input)
         route = GjfWriter._build_route(user_input)
 
@@ -179,15 +183,15 @@ class GjfWriter(Tool):
             "",                    # Title 后空行
             f"{user_input.charge} {user_input.multiplicity}",
             coords,
-            "",                    # 坐标后空行
+            "",                    # 坐标后空行（Gaussian 输入结束标记）
         ]
 
         if user_input.end_setting:
-            sections.append(user_input.end_setting)
-            sections.append("")    # 末尾空行
-            sections.append("")    # 再一次空行以防万一
+            # 在结束空行之前插入自定义设置及其后的空行
+            sections.insert(-1, user_input.end_setting)
+            sections.insert(-1, "")
 
-        return "\n".join(sections)
+        return "\n".join(sections) + "\n"
 
     async def tool_call(self, user_input: GjfWriter_input_schema, session: Session) -> GjfWriter_output_schema:
         try:

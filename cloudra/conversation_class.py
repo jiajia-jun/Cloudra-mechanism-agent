@@ -11,8 +11,14 @@ class Conversation:
     用户级会话容器，隔离不同对话的上下文和历史记录。
     一个 Conversation 包含：
       - contexts/   : 该会话下各 agent 的上下文文件
-      - sessions/   : 该会话下各 reAct 执行记录
+      - sessions/   : 该会话下 reAct 执行记录
       - meta.json   : 会话元数据（创建时间、最后活跃时间、状态）
+    
+    状态说明：
+      - active  : 新建或刚恢复，尚未开始运行
+      - running : Coordinator 正在运行中
+      - sleeping: Coordinator 已完成任务，处于休眠等待唤醒状态
+      - archived: 已归档，不再活跃
     """
 
     id: str
@@ -20,6 +26,8 @@ class Conversation:
     create_time: datetime
     last_active: datetime
     state: str = 'active'
+
+    VALID_STATES = {'active', 'running', 'sleeping', 'archived'}
 
     def __init__(self, conv_id: str = None):
         data_dir = get_config().data_dir
@@ -76,6 +84,13 @@ class Conversation:
         self._ensure_dirs()
         self._save_meta()
 
+    def set_state(self, state: str):
+        """更新会话状态，仅接受预定义状态。"""
+        if state not in self.VALID_STATES:
+            raise ValueError(f"无效的会话状态: {state}，必须是 {self.VALID_STATES} 之一")
+        self.state = state
+        self.touch()
+
     def get_context_path(self, agent_id: str) -> str:
         return os.path.join(self.path, 'contexts', f'{agent_id}.json')
 
@@ -91,5 +106,4 @@ class Conversation:
 
     def archive(self):
         """归档会话，不再活跃。"""
-        self.state = 'archived'
-        self._save_meta()
+        self.set_state('archived')

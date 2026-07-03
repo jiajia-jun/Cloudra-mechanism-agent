@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Any
 import os
+import aiosqlite
 from pydantic_core import PydanticUndefined
 from cloudra.subagents import Subagent_hash
 from cloudra.session_class import Session
@@ -181,28 +182,23 @@ class Tool(BaseModel):
         return await self.request_approval(db_path, session.id, full_details)
 
     async def request_approval(self, db_path: str, session_id: str, details: str) -> tuple[bool, str]:
-        import sqlite3
         import asyncio
         import time
 
-        con = sqlite3.connect(db_path, timeout=10)
-        cur = con.cursor()
-        cur.execute(
-            "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES (?, ?, ?, ?)",
-            (session_id, details, 'pending', '')
-        )
-        approval_id = cur.lastrowid
-        con.commit()
-        con.close()
+        async with aiosqlite.connect(db_path, timeout=10) as con:
+            cur = await con.execute(
+                "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES (?, ?, ?, ?)",
+                (session_id, details, 'pending', '')
+            )
+            approval_id = cur.lastrowid
+            await con.commit()
 
         # 轮询等待审批结果
         while True:
             await asyncio.sleep(2)
-            con = sqlite3.connect(db_path, timeout=10)
-            cur = con.cursor()
-            cur.execute("SELECT state, denial_reason FROM approvals WHERE id = ?", (approval_id,))
-            row = cur.fetchone()
-            con.close()
+            async with aiosqlite.connect(db_path, timeout=10) as con:
+                cur = await con.execute("SELECT state, denial_reason FROM approvals WHERE id = ?", (approval_id,))
+                row = await cur.fetchone()
 
             if row:
                 state, denial_reason = row

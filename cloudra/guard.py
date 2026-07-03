@@ -5,18 +5,21 @@ import json
 import os
 import subprocess
 import argparse
-import sqlite3
+import aiosqlite
 import time
+
+from cloudra.context_manager import ContextManager
 
 
 async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path: str):
     '''
     启动后每 time_out 秒解析一次 log 文档，写入 state.json，
-    更新 compute_jobs 表状态，并唤醒 conv_id 下的 agent。
+    更新 compute_jobs 表状态，并向 conv_id 下的 Coordinator 注入事件。
 
     path 是 gjf 路径！
     '''
-    log_path = Path(path).with_suffix('.out')
+    from cloudra.compute_utils import get_log_path
+    log_path = Path(get_log_path(path, job_type='gaussian'))
     workdir = os.path.dirname(log_path)
 
     while True:
@@ -49,25 +52,32 @@ async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path
             continue
 
         # 更新数据库中的任务状态
+        state = 'done' if is_success else 'failed'
         try:
-            con = sqlite3.connect(db_path, timeout=10)
-            cur = con.cursor()
-            state = 'done' if is_success else 'failed'
-            cur.execute(
-                "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
-                (state, time.time(), taskid)
-            )
-            con.commit()
-            con.close()
+            async with aiosqlite.connect(db_path, timeout=10) as con:
+                await con.execute(
+                    "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
+                    (state, time.time(), taskid)
+                )
+                await con.commit()
             print(f'数据库状态已更新: task_id={taskid}, state={state}')
         except Exception as e:
             print(f'更新数据库失败：{e}')
             continue
 
-        # 唤醒 agent
-        prompt = f'task_id为{taskid}的任务的state已更新，请前去监测任务状态！若出现问题，请发邮件联系用户。'
-        cmd = ['cloudra', 'run', prompt, '--conv-id', conv_id]
-        subprocess.run(cmd)
+        # 向 Coordinator 注入计算任务完成事件
+        event_content = f'task_id为{taskid}的任务的state已更新为{state}，请前去监测任务状态！若出现问题，请发邮件联系用户。'
+        try:
+            await ContextManager.inject_event(
+                conversation_id=conv_id,
+                agent_id='a-0',
+                event_type='compute_job',
+                content=event_content,
+                db_path=db_path,
+            )
+            print(f'已向 Coordinator 注入计算任务事件: task_id={taskid}')
+        except Exception as e:
+            print(f'注入上下文事件失败：{e}')
 
         # 任务已结束，退出监控循环
         break

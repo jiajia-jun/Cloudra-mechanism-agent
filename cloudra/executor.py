@@ -1,7 +1,7 @@
 import sys
 import os
 import json
-import sqlite3
+import aiosqlite
 import asyncio
 import copy
 import argparse
@@ -10,18 +10,16 @@ from cloudra.subagents import Subagent_hash
 
 async def run_executor(task_id: int, database_path: str, session_id: str = None):
     # 连接数据库获取任务
-    con = sqlite3.connect(database_path, timeout=10)
-    cur = con.cursor()
-    cur.execute("PRAGMA journal_mode=WAL;")
-    cur.execute("PRAGMA busy_timeout=5000;")
-    cur.execute("SELECT input_data FROM subagent_requests WHERE id = ?", (task_id,))
-    row = cur.fetchone()
-    if not row:
-        print(f"Error: Task {task_id} not found.")
-        return
-    
-    input_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-    con.close()
+    async with aiosqlite.connect(database_path, timeout=10) as con:
+        await con.execute("PRAGMA journal_mode=WAL;")
+        await con.execute("PRAGMA busy_timeout=5000;")
+        cur = await con.execute("SELECT input_data FROM subagent_requests WHERE id = ?", (task_id,))
+        row = await cur.fetchone()
+        if not row:
+            print(f"Error: Task {task_id} not found.")
+            return
+        
+        input_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
 
     # 准备 Agent 环境,从哈希表里取实例
     agent_hash = Subagent_hash()
@@ -40,7 +38,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     sub_agent.conversation_id = input_data.get('conversation_id', 'default')
     
     # 重新加载上下文，否则会产生跨会话污染
-    sub_agent.context = sub_agent.get_context()
+    await sub_agent.get_context()
     
     # 如果 payload 中传入了额外的 context，则追加进去
     extra_context = input_data.get('context', [])
@@ -51,7 +49,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
                 block = {"role": "user", "content": block}
             elif not isinstance(block, dict):
                 block = {"role": "user", "content": str(block)}
-            sub_agent.update_context(block)
+            await sub_agent.update_context(block)
     
     # 强制子进程日志不打印到控制台，由主进程通过管道收集
     # 如果 launcher 已指定 session_id，则复用，保证 launcher 与 executor 的 session 一致
@@ -74,18 +72,14 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         print(f"--- Agent {sub_agent.name} 执行完毕 ---")
         
         # 4. 更新数据库状态为 done
-        con = sqlite3.connect(database_path, timeout=10)
-        cur = con.cursor()
-        cur.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))
-        con.commit()
-        con.close()
+        async with aiosqlite.connect(database_path, timeout=10) as con:
+            await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))
+            await con.commit()
     except Exception as e:
         print(f"Critical Error in Sub-process: {e}")
-        con = sqlite3.connect(database_path, timeout=10)
-        cur = con.cursor()
-        cur.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', task_id))
-        con.commit()
-        con.close()
+        async with aiosqlite.connect(database_path, timeout=10) as con:
+            await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', task_id))
+            await con.commit()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -1,6 +1,6 @@
 import os
 import json
-import sqlite3
+import aiosqlite
 import asyncio
 import socket
 from typing import Optional, List, Dict, Any
@@ -18,7 +18,7 @@ from cloudra.skill_class import skill_loader
 app = FastAPI(
     title="Cloudra API (Mobile-Ready)",
     description="Cloudra AI 化学科研助手 - 增强型局域网服务",
-    version="1.5.1"
+    version="1.6.0"
 )
 
 # --- 跨域配置 (CORS) ---
@@ -145,11 +145,9 @@ async def get_pending_approvals():
     if not os.path.exists(db_path):
         return []
     
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'")
-    rows = cur.fetchall()
-    conn.close()
+    async with aiosqlite.connect(db_path) as conn:
+        cur = await conn.execute("SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'")
+        rows = await cur.fetchall()
     
     return [{"id": r[0], "session_id": r[1], "agent_name": r[2], "details": r[3]} for r in rows]
 
@@ -159,11 +157,9 @@ async def process_approval(approval_id: int, dec: ApprovalDecision):
     db_path = get_db_path()
     state = 'approved' if dec.decision.lower() == 'approved' else 'denied'
     
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("UPDATE approvals SET state = ? WHERE id = ?", (state, approval_id))
-    conn.commit()
-    conn.close()
+    async with aiosqlite.connect(db_path) as conn:
+        await conn.execute("UPDATE approvals SET state = ? WHERE id = ?", (state, approval_id))
+        await conn.commit()
     
     return {"status": "success", "id": approval_id, "new_state": state}
 
