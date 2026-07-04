@@ -5,7 +5,7 @@ import aiosqlite
 import json
 import asyncio
 import time
-
+import os
 from cloudra.compute_utils import check_job_type, launch_compute_processes
 
 

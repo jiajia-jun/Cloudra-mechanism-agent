@@ -231,7 +231,7 @@ def check_compute(db_path: str):
                     )
                 # 等待一小会儿，检查 compute_executor 是否瞬间崩溃
                 time.sleep(0.5)
-                if process.poll() is not None:
+                if process.poll() is not None and process.returncode != 0:
                     return_code = process.returncode
                     print(f"{Color.RED}[系统错误]{Color.END} 计算任务 (Task {task_id}) 启动失败! 退出码: {return_code}")
                     # 若 compute_executor 内已写入 failed 则无需再改；这里做二次兜底
