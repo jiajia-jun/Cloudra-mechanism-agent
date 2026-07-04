@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 import cclib
+import io
 import json
 import os
 import subprocess
@@ -26,7 +27,7 @@ async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path
         await asyncio.sleep(time_out)
 
         try:
-            data = cclib.io.read(log_path)
+            data = cclib.io.ccread(log_path)
             is_success = data.metadata.get('success', False)
             state_str = cclib.io.ccwrite(data, outputtype="cjson")
         except Exception as e:
@@ -34,13 +35,13 @@ async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path
             continue
 
         try:
-            state_CJSON = cclib.io.cjsonreader.CJSON(state_str)
+            state_CJSON = cclib.io.cjsonreader.CJSON(io.StringIO(state_str))
         except Exception as e:
             print(f'json文件解析失败：{e}')
             continue
 
         data_dic = state_CJSON.parse()
-        del data_dic['atomcoords']
+        data_dic.pop('atomcoords', None)
         data_dic['is_success'] = is_success
         json_nm = f'state_{taskid}.json'
         json_path = os.path.join(workdir, json_nm)
