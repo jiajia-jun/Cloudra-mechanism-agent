@@ -1367,9 +1367,9 @@ cloudra/yolo_guard.py:12	from openai import OpenAI
 cloudra/yolo_guard.py:13	
 cloudra/yolo_guard.py:14	
 cloudra/yolo_guard.py:15	def _load_prompt(name: str) -> str:
-cloudra/yolo_guard.py:16	    """从仓库 prompts/ 目录加载指定 prompt 文件。"""
-cloudra/yolo_guard.py:17	    # yolo_guard.py 位于 cloudra/ 下，prompts/ 位于仓库根目录
-cloudra/yolo_guard.py:18	    prompts_dir = Path(__file__).parent.parent / "prompts"
+cloudra/yolo_guard.py:16	    """从 cloudra/prompts/ 目录加载指定 prompt 文件。"""
+cloudra/yolo_guard.py:17	    prompts_dir = Path(__file__).parent / "prompts"
+cloudra/yolo_guard.py:18	    prompt_path = prompts_dir / f"{name}.md"
 cloudra/yolo_guard.py:19	    prompt_path = prompts_dir / f"{name}.md"
 cloudra/yolo_guard.py:20	    if not prompt_path.exists():
 cloudra/yolo_guard.py:21	        raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
