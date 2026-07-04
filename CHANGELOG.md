@@ -17,6 +17,8 @@
 - `Agent.llm_call()` 大幅简化，移除重复的消息构建和异常驱动降级逻辑。
 - `ContextManager` 成为上下文的唯一渲染来源，职责更清晰。
 - 区分 `max_tokens`（生成限制）与 `context_window`（上下文窗口），避免大上下文模型配置冲突。
+- 统一依赖源到 `pyproject.toml`，删除独立的 `requirements.txt`，并补齐 `fastapi`/`uvicorn`。
+- `cloudra.__version__` 现在作为唯一版本来源，`cli.py` 与 `api.py` 同步读取。
 
 ### 移除
 - 删除 `draw_caffeine.py`（废弃的临时脚本）。

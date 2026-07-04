@@ -7,9 +7,16 @@ AI Agent collaboration framework for chemical research.
 ## Highlights
 
 - **Self-Built ReAct Framework**: Not built on LangChain or AutoGPT. A lightweight, custom reasoning-acting loop designed for traceability and full control in scientific workflows.
-- **Human-in-the-Loop by Design**: Every destructive or script execution is gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
+- **Human-in-the-Loop by Design**: Destructive or script executions are gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
+- **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines.
+- **Context Compression**: Automatically summarizes older conversation history when context exceeds half of the model window, preventing unbounded growth.
 - **Full Chemistry Toolkit**: Molecule drawing, image-to-SMILES (DECIMER), NMR/IR raw data processing, Gaussian input generation, format conversion, log parsing, and DFT job submission/monitoring.
-- **Multi-Process & Secure**: Coordinator and Follower agents run in isolated processes. SQLite WAL mode, permission bit-flags, and audit logs keep operations safe.
+- **Multi-Process & Secure**: Coordinator and Follower agents run in isolated processes. SQLite WAL mode, permission bit-flags, audit logs, and an optional YOLO guard keep operations safe.
+
+## Requirements
+
+- Python 3.10+
+- An OpenAI-compatible API key for the Coordinator (Follower can share the same or use a different one)
 
 ## Installation
 
@@ -17,7 +24,7 @@ AI Agent collaboration framework for chemical research.
 pip install -e .
 ```
 
-Requires Python 3.10+.
+All dependencies are declared in `pyproject.toml`. There is no separate `requirements.txt`.
 
 ## Quick Start
 
@@ -51,6 +58,7 @@ cloudra run "YOUR TASK"                 # start / resume last conversation
 cloudra run "YOUR TASK" --new           # force new conversation
 cloudra run "YOUR TASK" --conv-id ID    # continue a specific conversation
 cloudra run "YOUR TASK" --dry-run       # print config without executing
+cloudra run "YOUR TASK" --yolo          # auto-approve risky operations via LLM
 
 # Configuration
 cloudra config init                     # interactive setup
@@ -67,6 +75,16 @@ cloudra skills                          # list available skills
 # Remote email wakeup
 python -m cloudra.email_listener
 ```
+
+## API Server
+
+Cloudra also exposes an HTTP API built with FastAPI:
+
+```bash
+python -m cloudra.api
+```
+
+The server binds to `0.0.0.0:8000` by default and serves generated files under `/data`.
 
 ## Chemistry Workflow Example
 
@@ -93,8 +111,42 @@ cloudra run "Parse /tmp/benzene.out and report SCF energy, HOMO-LUMO gap, and fr
 
 ## Security Model
 
-Cloudra uses bit-flag permissions (`READ`, `WRITE`, `SCRIPT`, `DESTRUCTIVE`, `MANAGE`). Dangerous operations are paused and logged to the `approvals` table until a human approves or denies them via CLI/API.
+Cloudra uses bit-flag permissions (`READ`, `WRITE`, `SCRIPT`, `DESTRUCTIVE`, `MANAGE`). Dangerous operations are paused and logged to the `approvals` table until a human approves or denies them via CLI/API. With `--yolo`, an independent LLM guard (`cloudra/yolo_guard.py`) makes the approval decision instead; use it only in trusted environments.
+
+## Project Structure
+
+```
+cloudra/
+├── agent.py              # Agent base class and Coordinator
+├── reAct.py              # ReAct reasoning loop
+├── executor.py           # Tool execution engine
+├── context_manager.py    # Message/context rendering
+├── session_manager.py    # SQLite persistence
+├── tools_class.py        # BaseTool and tool registry
+├── config.py             # Configuration management
+├── cli.py                # Command-line interface
+├── api.py                # FastAPI server
+├── yolo_guard.py         # YOLO mode safety guard
+├── tools/                # Tool implementations
+├── subagents/            # Follower agent roles
+├── skills/               # Markdown-based skill library
+└── prompts/              # Agent prompt templates
+```
+
+## Development
+
+Run tests:
+
+```bash
+pytest tests -q
+```
+
+Check code style:
+
+```bash
+ruff check cloudra tests
+```
 
 ## License
 
-See [copyright_docs/](copyright_docs/).
+MIT. See `pyproject.toml` for the full license text.

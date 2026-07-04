@@ -17,11 +17,12 @@ from rich.text import Text
 
 from cloudra.config import get_config, reload_config, CloudraConfig
 from cloudra.main import run_task
+from cloudra import __version__
 
 
 console = Console()
 APP_NAME = "cloudra"
-VERSION = "1.6.1"
+VERSION = __version__
 
 
 @click.group(invoke_without_command=True)

@@ -14,11 +14,12 @@ from cloudra.main import run_task
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
 from cloudra.skill_class import skill_loader
+from cloudra import __version__
 
 app = FastAPI(
     title="Cloudra API (Mobile-Ready)",
     description="Cloudra AI 化学科研助手 - 增强型局域网服务",
-    version="1.6.1"
+    version=__version__
 )
 
 # --- 跨域配置 (CORS) ---

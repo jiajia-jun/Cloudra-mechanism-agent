@@ -2,12 +2,21 @@
 
 专为化学科研设计的 AI Agent 协作框架。
 
+[English](README.md)
+
 ## 核心亮点
 
 - **自研 ReAct 框架**：不依赖 LangChain、AutoGPT 等重型框架，拥有完全可控的轻量级推理-行动循环，适合需要可追溯性的科研场景。
 - **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
+- **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。
+- **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
 - **化学工具齐全**：覆盖分子绘图、图片转 SMILES、NMR/IR 原始数据处理、Gaussian 输入生成、格式转换、输出日志解析、DFT 任务提交与监控。
-- **多进程安全架构**：Coordinator 与 Follower 在独立进程中运行，基于 SQLite WAL、位标志权限和审批日志保障安全。
+- **多进程安全架构**：Coordinator 与 Follower 在独立进程中运行，基于 SQLite WAL、位标志权限、审批日志以及可选的 YOLO Guard 保障安全。
+
+## 环境要求
+
+- Python 3.10+
+- 一个 OpenAI 兼容的 API Key，供 Coordinator 使用（Follower 可复用同一 Key，也可单独配置）
 
 ## 安装
 
@@ -15,7 +24,7 @@
 pip install -e .
 ```
 
-需要 Python 3.10+。
+所有依赖均声明在 `pyproject.toml` 中，不再维护单独的 `requirements.txt`。
 
 ## 快速开始
 
@@ -49,6 +58,7 @@ cloudra run "你的任务"                  # 启动或自动恢复上次对话
 cloudra run "你的任务" --new            # 强制新建对话
 cloudra run "你的任务" --conv-id ID     # 继续指定对话
 cloudra run "你的任务" --dry-run        # 只打印配置，不执行
+cloudra run "你的任务" --yolo           # 由 LLM 自动审批危险操作
 
 # 配置管理
 cloudra config init                     # 交互式初始化
@@ -65,6 +75,16 @@ cloudra skills                          # 可用 Skills
 # 远程邮件唤醒
 python -m cloudra.email_listener
 ```
+
+## API 服务
+
+Cloudra 同时提供基于 FastAPI 的 HTTP API：
+
+```bash
+python -m cloudra.api
+```
+
+服务默认监听 `0.0.0.0:8000`，并在 `/data` 路径下提供生成的图片、报告等静态文件。
 
 ## 计算化学工作流示例
 
@@ -91,8 +111,42 @@ cloudra run "解析 /tmp/benzene.out，报告 SCF 能量、HOMO-LUMO 能隙和�
 
 ## 安全模型
 
-Cloudra 使用位标志权限（`READ`、`WRITE`、`SCRIPT`、`DESTRUCTIVE`、`MANAGE`）。危险操作会被挂起并写入 `approvals` 表，等待用户在 CLI/API 中显式通过或驳回。
+Cloudra 使用位标志权限（`READ`、`WRITE`、`SCRIPT`、`DESTRUCTIVE`、`MANAGE`）。危险操作会被挂起并写入 `approvals` 表，等待用户在 CLI/API 中显式通过或驳回。启用 `--yolo` 后，由独立的 LLM Guard（`cloudra/yolo_guard.py`）代替人工审批；请只在受信任的环境中使用。
+
+## 项目结构
+
+```
+cloudra/
+├── agent.py              # Agent 基类与 Coordinator
+├── reAct.py              # ReAct 推理循环
+├── executor.py           # 工具执行引擎
+├── context_manager.py    # 消息/上下文渲染
+├── session_manager.py    # SQLite 持久化
+├── tools_class.py        # BaseTool 与工具注册
+├── config.py             # 配置管理
+├── cli.py                # 命令行入口
+├── api.py                # FastAPI 服务
+├── yolo_guard.py         # YOLO 模式安全守卫
+├── tools/                # 工具实现
+├── subagents/            # Follower Agent 角色
+├── skills/               # Markdown 格式 Skill 库
+└── prompts/              # Agent Prompt 模板
+```
+
+## 开发
+
+运行测试：
+
+```bash
+pytest tests -q
+```
+
+检查代码风格：
+
+```bash
+ruff check cloudra tests
+```
 
 ## 许可证
 
-详见 [copyright_docs/](copyright_docs/)。
+MIT。完整许可证文本见 `pyproject.toml`。

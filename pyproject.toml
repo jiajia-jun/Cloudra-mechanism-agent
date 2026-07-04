@@ -43,7 +43,9 @@ dependencies = [
     "playwright>=1.40",
     "ase>=3.28.0",
     "cclib>=1.8.1",
-    "aiosqlite>=0.20"
+    "aiosqlite>=0.20",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0"
 ]
 
 [project.scripts]
@@ -56,3 +58,16 @@ Homepage = "https://github.com/cloudra/agent4chem"
 where = ["."]
 include = ["cloudra*"]
 exclude = ["tests*", "test_*"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
