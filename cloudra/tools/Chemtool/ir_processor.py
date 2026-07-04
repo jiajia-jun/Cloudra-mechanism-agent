@@ -2,6 +2,13 @@ import os
 from pydantic import Field
 from typing import Any, Optional, List, Dict
 import numpy as np
+
+# spectrochempy 在 Python 3.10 中会引用 datetime.UTC（3.11 新增），
+# 在导入前为 3.10 环境补上兼容性补丁。
+import datetime
+if not hasattr(datetime, "UTC"):
+    datetime.UTC = datetime.timezone.utc
+
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
 
