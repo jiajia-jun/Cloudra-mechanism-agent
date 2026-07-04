@@ -1,5 +1,6 @@
-Cloudra V1.6.1                                              第 31 页
+Cloudra V1.6.2                                              第 31 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/chemrxiv_searcher.py:34	    def _reconstruct_abstract(self, inverted_index: Dict[str, List[int]]) -> str:
 cloudra/tools/Searchtool/chemrxiv_searcher.py:35	        """OpenAlex 返回的摘要是倒排索引格式，需要手动还原为文本。"""
 cloudra/tools/Searchtool/chemrxiv_searcher.py:36	        if not inverted_index:
 cloudra/tools/Searchtool/chemrxiv_searcher.py:37	            return ""
@@ -49,11 +50,11 @@ cloudra/tools/Searchtool/chemrxiv_searcher.py:80
 cloudra/tools/Searchtool/chemrxiv_searcher.py:81	                data = response.json()
 cloudra/tools/Searchtool/chemrxiv_searcher.py:82	                works = data.get("results", [])
 cloudra/tools/Searchtool/chemrxiv_searcher.py:83	                results = []
-cloudra/tools/Searchtool/chemrxiv_searcher.py:84	
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 32 页
+Cloudra V1.6.2                                              第 32 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/chemrxiv_searcher.py:84	
 cloudra/tools/Searchtool/chemrxiv_searcher.py:85	                for work in works:
 cloudra/tools/Searchtool/chemrxiv_searcher.py:86	                    # 1. 基础信息 (light)
 cloudra/tools/Searchtool/chemrxiv_searcher.py:87	                    item = {
@@ -103,11 +104,11 @@ cloudra/tools/Searchtool/image_reader.py:4
 cloudra/tools/Searchtool/image_reader.py:5	from cloudra.tools_class import Tool, input_schema, output_schema
 cloudra/tools/Searchtool/image_reader.py:6	from cloudra.session_class import Session
 cloudra/tools/Searchtool/image_reader.py:7	
-cloudra/tools/Searchtool/image_reader.py:8	description = (
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 33 页
+Cloudra V1.6.2                                              第 33 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/image_reader.py:8	description = (
 cloudra/tools/Searchtool/image_reader.py:9	    "视觉感知工具：读取本地图像文件（PNG/JPG/JPEG/WEBP）并将其载入 Agent 的视觉上下文中。"
 cloudra/tools/Searchtool/image_reader.py:10	    "调用此工具后，Agent 将能够“看到”图片内容并进行分析、描述或对比。"
 cloudra/tools/Searchtool/image_reader.py:11	)
@@ -157,11 +158,11 @@ cloudra/tools/Searchtool/image_reader.py:54	            is_success=True,
 cloudra/tools/Searchtool/image_reader.py:55	            image_path=path, 
 cloudra/tools/Searchtool/image_reader.py:56	            message=f"已成功加载图片：{path}。{user_input.description}"
 cloudra/tools/Searchtool/image_reader.py:57	        )
-cloudra/tools/Searchtool/image_reader.py:58	
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 34 页
+Cloudra V1.6.2                                              第 34 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/image_reader.py:58	
 cloudra/tools/Searchtool/image_reader.py:59	def get_class():
 cloudra/tools/Searchtool/image_reader.py:60	    return ImageReader
 cloudra/tools/Searchtool/paper_searcher.py:1	from pydantic import Field
@@ -211,11 +212,11 @@ cloudra/tools/Searchtool/paper_searcher.py:44
 cloudra/tools/Searchtool/paper_searcher.py:45	    async def tool_call(self, user_input: PaperSearcher_input_schema, session: Session) -> PaperSearcher_output_schema:
 cloudra/tools/Searchtool/paper_searcher.py:46	        import arxiv
 cloudra/tools/Searchtool/paper_searcher.py:47	        try:
-cloudra/tools/Searchtool/paper_searcher.py:48	            if user_input.sort_by not in ['Relevance', 'SubmittedDate', 'LastUpdatedDate']:
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 35 页
+Cloudra V1.6.2                                              第 35 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/paper_searcher.py:48	            if user_input.sort_by not in ['Relevance', 'SubmittedDate', 'LastUpdatedDate']:
 cloudra/tools/Searchtool/paper_searcher.py:49	                user_input.sort_by = 'Relevance'
 cloudra/tools/Searchtool/paper_searcher.py:50	            if user_input.sort_order not in ['Ascending', 'Descending']:
 cloudra/tools/Searchtool/paper_searcher.py:51	                user_input.sort_order = 'Descending'
@@ -265,11 +266,11 @@ cloudra/tools/Searchtool/paper_searcher.py:94	    return PaperSearcher
 cloudra/tools/Searchtool/pdf2md.py:1	from pydantic import Field
 cloudra/tools/Searchtool/pdf2md.py:2	from typing import Any
 cloudra/tools/Searchtool/pdf2md.py:3	
-cloudra/tools/Searchtool/pdf2md.py:4	from cloudra.tools_class import Tool, input_schema, output_schema
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 36 页
+Cloudra V1.6.2                                              第 36 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/pdf2md.py:4	from cloudra.tools_class import Tool, input_schema, output_schema
 cloudra/tools/Searchtool/pdf2md.py:5	from cloudra.session_class import Session
 cloudra/tools/Searchtool/pdf2md.py:6	import asyncio
 cloudra/tools/Searchtool/pdf2md.py:7	
@@ -319,11 +320,11 @@ cloudra/tools/Searchtool/pdf2md.py:50	        try:
 cloudra/tools/Searchtool/pdf2md.py:51	            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
 cloudra/tools/Searchtool/pdf2md.py:52	        except asyncio.TimeoutError:
 cloudra/tools/Searchtool/pdf2md.py:53	            process.kill()
-cloudra/tools/Searchtool/pdf2md.py:54	            return pdf2md_output_schema(
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 37 页
+Cloudra V1.6.2                                              第 37 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/pdf2md.py:54	            return pdf2md_output_schema(
 cloudra/tools/Searchtool/pdf2md.py:55	                is_finished=False,
 cloudra/tools/Searchtool/pdf2md.py:56	                md_path='',
 cloudra/tools/Searchtool/pdf2md.py:57	                content='命令执行超时！'
@@ -373,11 +374,11 @@ cloudra/tools/Searchtool/pdf2md.py:100	        return pdf2md_output_schema(
 cloudra/tools/Searchtool/pdf2md.py:101	            is_finished=True,
 cloudra/tools/Searchtool/pdf2md.py:102	            md_path=md_file_path if md_file_path else target_path,
 cloudra/tools/Searchtool/pdf2md.py:103	            extracted_images=extracted_images,
-cloudra/tools/Searchtool/pdf2md.py:104	            content=stdout.decode('utf-8')
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 38 页
+Cloudra V1.6.2                                              第 38 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/pdf2md.py:104	            content=stdout.decode('utf-8')
 cloudra/tools/Searchtool/pdf2md.py:105	        )
 cloudra/tools/Searchtool/pdf2md.py:106	
 cloudra/tools/Searchtool/pdf2md.py:107	
@@ -427,11 +428,11 @@ cloudra/tools/Searchtool/text_reader.py:41
 cloudra/tools/Searchtool/text_reader.py:42	        total_lines = len(lines)
 cloudra/tools/Searchtool/text_reader.py:43	        
 cloudra/tools/Searchtool/text_reader.py:44	        # 修正切片逻辑
-cloudra/tools/Searchtool/text_reader.py:45	        actual_start = max(0, start_line)
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 39 页
+Cloudra V1.6.2                                              第 39 页
 ----------------------------------------------------------------------
+cloudra/tools/Searchtool/text_reader.py:45	        actual_start = max(0, start_line)
 cloudra/tools/Searchtool/text_reader.py:46	        if end_line == -1:
 cloudra/tools/Searchtool/text_reader.py:47	            actual_end = total_lines
 cloudra/tools/Searchtool/text_reader.py:48	        else:
@@ -481,11 +482,11 @@ cloudra/tools/Skilltool/get_skill.py:29	    )
 cloudra/tools/Skilltool/get_skill.py:30	
 cloudra/tools/Skilltool/get_skill.py:31	
 cloudra/tools/Skilltool/get_skill.py:32	class GetSkill_output_schema(output_schema):
-cloudra/tools/Skilltool/get_skill.py:33	    content: str = Field(
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 40 页
+Cloudra V1.6.2                                              第 40 页
 ----------------------------------------------------------------------
+cloudra/tools/Skilltool/get_skill.py:33	    content: str = Field(
 cloudra/tools/Skilltool/get_skill.py:34	        description="资料内容。"
 cloudra/tools/Skilltool/get_skill.py:35	    )
 cloudra/tools/Skilltool/get_skill.py:36	    result: str = Field(
@@ -535,11 +536,11 @@ cloudra/tools/Skilltool/get_skill.py:79	        loader = skill_loader()
 cloudra/tools/Skilltool/get_skill.py:80	        skill_name = user_input.skill_name
 cloudra/tools/Skilltool/get_skill.py:81	        other = user_input.other
 cloudra/tools/Skilltool/get_skill.py:82	
-cloudra/tools/Skilltool/get_skill.py:83	        content = loader.get_content(skill_name)
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 41 页
+Cloudra V1.6.2                                              第 41 页
 ----------------------------------------------------------------------
+cloudra/tools/Skilltool/get_skill.py:83	        content = loader.get_content(skill_name)
 cloudra/tools/Skilltool/get_skill.py:84	        if content == 'skill不存在。':
 cloudra/tools/Skilltool/get_skill.py:85	            return GetSkill_output_schema(
 cloudra/tools/Skilltool/get_skill.py:86	                content="",
@@ -589,11 +590,11 @@ cloudra/tools/Stoptool/stop_tool.py:23
 cloudra/tools/Stoptool/stop_tool.py:24	
 cloudra/tools/Stoptool/stop_tool.py:25	class StopTool(Tool):
 cloudra/tools/Stoptool/stop_tool.py:26	    tool_id: str = 't-stop'
-cloudra/tools/Stoptool/stop_tool.py:27	    tool_name: str = 'stop'
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 42 页
+Cloudra V1.6.2                                              第 42 页
 ----------------------------------------------------------------------
+cloudra/tools/Stoptool/stop_tool.py:27	    tool_name: str = 'stop'
 cloudra/tools/Stoptool/stop_tool.py:28	    tool_description: str = (
 cloudra/tools/Stoptool/stop_tool.py:29	        "结束当前任务并停止 ReAct 循环。"
 cloudra/tools/Stoptool/stop_tool.py:30	        "当 agent 判断任务已完成、无需继续推理或行动时调用此工具。"
@@ -643,11 +644,11 @@ cloudra/tools/Writetool/text_writer.py:24
 cloudra/tools/Writetool/text_writer.py:25	
 cloudra/tools/Writetool/text_writer.py:26	class TextWriter(Tool):
 cloudra/tools/Writetool/text_writer.py:27	    tool_id: str = 't-5'
-cloudra/tools/Writetool/text_writer.py:28	    tool_name: str = 'text_writer'
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 43 页
+Cloudra V1.6.2                                              第 43 页
 ----------------------------------------------------------------------
+cloudra/tools/Writetool/text_writer.py:28	    tool_name: str = 'text_writer'
 cloudra/tools/Writetool/text_writer.py:29	    tool_description: str = description
 cloudra/tools/Writetool/text_writer.py:30	    input_schema: Any = TextWriter_input_schema
 cloudra/tools/Writetool/text_writer.py:31	    output_schema: Any = TextWriter_output_schema
@@ -697,11 +698,11 @@ cloudra/tools/__init__.py:2	import os
 cloudra/tools/__init__.py:3	import sys
 cloudra/tools/__init__.py:4	from pathlib import Path
 cloudra/tools/__init__.py:5	
-cloudra/tools/__init__.py:6	CURRENT_DIR = Path(__file__).parent
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 44 页
+Cloudra V1.6.2                                              第 44 页
 ----------------------------------------------------------------------
+cloudra/tools/__init__.py:6	CURRENT_DIR = Path(__file__).parent
 cloudra/tools/__init__.py:7	
 cloudra/tools/__init__.py:8	_TOOLS_CACHE = None
 cloudra/tools/__init__.py:9	
@@ -751,11 +752,11 @@ cloudra/tools/__init__.py:52	            # 记录错误但不中断整体加载
 cloudra/tools/__init__.py:53	            print(f"警告: 加载工具 {py_file} 失败: {e}")
 cloudra/tools/__init__.py:54	
 cloudra/tools/__init__.py:55	    _TOOLS_CACHE = tools
-cloudra/tools/__init__.py:56	    return tools
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 45 页
+Cloudra V1.6.2                                              第 45 页
 ----------------------------------------------------------------------
+cloudra/tools/__init__.py:56	    return tools
 cloudra/tools/core/__init__.py:1	from .permission_model import Permission, check_permission, permission_to_dict
 cloudra/tools/core/__init__.py:2	from .command_analyzer import BashCommandClassifier, CommandAnalysis
 cloudra/tools/core/__init__.py:3	
@@ -805,11 +806,11 @@ cloudra/tools/core/command_analyzer.py:36	    Classifies shell commands into per
 cloudra/tools/core/command_analyzer.py:37	    """
 cloudra/tools/core/command_analyzer.py:38	
 cloudra/tools/core/command_analyzer.py:39	    # Command name -> Permission mapping
-cloudra/tools/core/command_analyzer.py:40	    READ_CMDS = {
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 46 页
+Cloudra V1.6.2                                              第 46 页
 ----------------------------------------------------------------------
+cloudra/tools/core/command_analyzer.py:40	    READ_CMDS = {
 cloudra/tools/core/command_analyzer.py:41	        'ls', 'pwd', 'cat', 'head', 'tail', 'grep', 'find', 'wc',
 cloudra/tools/core/command_analyzer.py:42	        'id', 'whoami', 'curl', 'top', 'ps', 'ifconfig', 'netstat',
 cloudra/tools/core/command_analyzer.py:43	        'lsof', 'ping', 'df', 'du', 'file', 'stat', 'which', 'whereis',
@@ -859,11 +860,11 @@ cloudra/tools/core/command_analyzer.py:86	    REDIRECT_PATTERNS = [
 cloudra/tools/core/command_analyzer.py:87	        re.compile(r'\d*[<>]'),        # >, >>, <, 2>, etc.
 cloudra/tools/core/command_analyzer.py:88	        re.compile(r'\d*>&'),          # >&
 cloudra/tools/core/command_analyzer.py:89	    ]
-cloudra/tools/core/command_analyzer.py:90	
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 47 页
+Cloudra V1.6.2                                              第 47 页
 ----------------------------------------------------------------------
+cloudra/tools/core/command_analyzer.py:90	
 cloudra/tools/core/command_analyzer.py:91	    @classmethod
 cloudra/tools/core/command_analyzer.py:92	    def classify(cls, command: str) -> CommandAnalysis:
 cloudra/tools/core/command_analyzer.py:93	        """
@@ -913,11 +914,11 @@ cloudra/tools/core/command_analyzer.py:136
 cloudra/tools/core/command_analyzer.py:137	            # Strip leading variable assignments (Unix style)
 cloudra/tools/core/command_analyzer.py:138	            cmd_idx = 0
 cloudra/tools/core/command_analyzer.py:139	            if not is_windows:
-cloudra/tools/core/command_analyzer.py:140	                for idx, tok in enumerate(segment):
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 48 页
+Cloudra V1.6.2                                              第 48 页
 ----------------------------------------------------------------------
+cloudra/tools/core/command_analyzer.py:140	                for idx, tok in enumerate(segment):
 cloudra/tools/core/command_analyzer.py:141	                    if '=' in tok and not tok.startswith('=') and not tok.endswith('='):
 cloudra/tools/core/command_analyzer.py:142	                        parts = tok.split('=', 1)
 cloudra/tools/core/command_analyzer.py:143	                        if parts[0].isidentifier():
@@ -967,11 +968,11 @@ cloudra/tools/core/command_analyzer.py:186	        # 5. Redirects imply write + 
 cloudra/tools/core/command_analyzer.py:187	        if analysis.has_redirect:
 cloudra/tools/core/command_analyzer.py:188	            perms |= Permission.WRITE | Permission.DESTRUCTIVE
 cloudra/tools/core/command_analyzer.py:189	
-cloudra/tools/core/command_analyzer.py:190	        analysis.permissions = perms
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 49 页
+Cloudra V1.6.2                                              第 49 页
 ----------------------------------------------------------------------
+cloudra/tools/core/command_analyzer.py:190	        analysis.permissions = perms
 cloudra/tools/core/command_analyzer.py:191	        return analysis
 cloudra/tools/core/command_analyzer.py:192	
 cloudra/tools/core/command_analyzer.py:193	    @classmethod
@@ -1021,11 +1022,11 @@ cloudra/tools/core/command_analyzer.py:236	                (cls.SCRIPT_CMDS, Per
 cloudra/tools/core/command_analyzer.py:237	                (cls.DESTRUCTIVE_CMDS, Permission.DESTRUCTIVE),
 cloudra/tools/core/command_analyzer.py:238	            ]:
 cloudra/tools/core/command_analyzer.py:239	                if cmd in pool or cmd_core in pool:
-cloudra/tools/core/command_analyzer.py:240	                    perms |= perm
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 50 页
+Cloudra V1.6.2                                              第 50 页
 ----------------------------------------------------------------------
+cloudra/tools/core/command_analyzer.py:240	                    perms |= perm
 cloudra/tools/core/command_analyzer.py:241	
 cloudra/tools/core/command_analyzer.py:242	            if analysis.has_redirect:
 cloudra/tools/core/command_analyzer.py:243	                perms |= Permission.WRITE | Permission.DESTRUCTIVE
@@ -1075,11 +1076,11 @@ cloudra/tools/core/permission_model.py:39	        'is_write': bool(perms & Permi
 cloudra/tools/core/permission_model.py:40	        'is_manage': bool(perms & Permission.MANAGE),
 cloudra/tools/core/permission_model.py:41	        'is_script': bool(perms & Permission.SCRIPT),
 cloudra/tools/core/permission_model.py:42	        'is_destructive': bool(perms & Permission.DESTRUCTIVE),
-cloudra/tools/core/permission_model.py:43	    }
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 51 页
+Cloudra V1.6.2                                              第 51 页
 ----------------------------------------------------------------------
+cloudra/tools/core/permission_model.py:43	    }
 cloudra/tools_class.py:1	from pydantic import BaseModel, Field
 cloudra/tools_class.py:2	from typing import Any
 cloudra/tools_class.py:3	import os
@@ -1129,11 +1130,11 @@ cloudra/tools_class.py:46	        - 强制附加 additionalProperties: false，�
 cloudra/tools_class.py:47	        '''
 cloudra/tools_class.py:48	        schema = cls.model_json_schema()
 cloudra/tools_class.py:49	        parameters = {
-cloudra/tools_class.py:50	            "type": "object",
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 52 页
+Cloudra V1.6.2                                              第 52 页
 ----------------------------------------------------------------------
+cloudra/tools_class.py:50	            "type": "object",
 cloudra/tools_class.py:51	            "properties": schema.get("properties", {}),
 cloudra/tools_class.py:52	            "required": schema.get("required", []),
 cloudra/tools_class.py:53	            "additionalProperties": False,
@@ -1183,11 +1184,11 @@ cloudra/tools_class.py:96	    '''
 cloudra/tools_class.py:97	    model_config = {"arbitrary_types_allowed": True}
 cloudra/tools_class.py:98	
 cloudra/tools_class.py:99	    # 唯一标识符
-cloudra/tools_class.py:100	    tool_id: str = ''
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 53 页
+Cloudra V1.6.2                                              第 53 页
 ----------------------------------------------------------------------
+cloudra/tools_class.py:100	    tool_id: str = ''
 cloudra/tools_class.py:101	
 cloudra/tools_class.py:102	    # 工具名称（即 OpenAI function.name）
 cloudra/tools_class.py:103	    tool_name: str = ''
@@ -1237,11 +1238,11 @@ cloudra/tools_class.py:146	        return perms
 cloudra/tools_class.py:147	
 cloudra/tools_class.py:148	    async def tool_call(self, user_input: input_schema, session: Session) -> output_schema:
 cloudra/tools_class.py:149	        '''
-cloudra/tools_class.py:150	        调用工具。子类必须重写此方法。
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 54 页
+Cloudra V1.6.2                                              第 54 页
 ----------------------------------------------------------------------
+cloudra/tools_class.py:150	        调用工具。子类必须重写此方法。
 cloudra/tools_class.py:151	        执行结果以 output_schema 实例返回。
 cloudra/tools_class.py:152	        '''
 cloudra/tools_class.py:153	        raise NotImplementedError("子类必须实现 tool_call 方法")
@@ -1291,11 +1292,11 @@ cloudra/tools_class.py:196	        tool_args: dict,
 cloudra/tools_class.py:197	        guard: 'YoloGuard',
 cloudra/tools_class.py:198	    ) -> tuple[bool, str]:
 cloudra/tools_class.py:199	        """调用 YoloGuard 做自动判断。"""
-cloudra/tools_class.py:200	        approved, reason = await guard.judge(
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 55 页
+Cloudra V1.6.2                                              第 55 页
 ----------------------------------------------------------------------
+cloudra/tools_class.py:200	        approved, reason = await guard.judge(
 cloudra/tools_class.py:201	            self.tool_name, tool_args, self.subagent, session
 cloudra/tools_class.py:202	        )
 cloudra/tools_class.py:203	        if approved:
@@ -1345,11 +1346,11 @@ cloudra/tools_class.py:246	    @classmethod
 cloudra/tools_class.py:247	    def _get_field_default(cls, field_name: str):
 cloudra/tools_class.py:248	        '''获取类字段的默认值，兼容 Pydantic v2（类级别无法直接访问普通字段）。'''
 cloudra/tools_class.py:249	        field = cls.model_fields.get(field_name)
-cloudra/tools_class.py:250	        if field and field.default is not PydanticUndefined:
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 56 页
+Cloudra V1.6.2                                              第 56 页
 ----------------------------------------------------------------------
+cloudra/tools_class.py:250	        if field and field.default is not PydanticUndefined:
 cloudra/tools_class.py:251	            return field.default
 cloudra/tools_class.py:252	        return None
 cloudra/tools_class.py:253	
@@ -1399,11 +1400,11 @@ cloudra/vaspkit_py/__init__.py:5	  - Band structure calculation & plotting
 cloudra/vaspkit_py/__init__.py:6	  - Density of states (DOS) analysis
 cloudra/vaspkit_py/__init__.py:7	  - Charge density processing
 cloudra/vaspkit_py/__init__.py:8	  - Work function extraction
-cloudra/vaspkit_py/__init__.py:9	  - STM image simulation (Tersoff-Hamann)
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 57 页
+Cloudra V1.6.2                                              第 57 页
 ----------------------------------------------------------------------
+cloudra/vaspkit_py/__init__.py:9	  - STM image simulation (Tersoff-Hamann)
 cloudra/vaspkit_py/__init__.py:10	"""
 cloudra/vaspkit_py/__init__.py:11	
 cloudra/vaspkit_py/__init__.py:12	__version__ = "0.1.0"
@@ -1453,11 +1454,11 @@ cloudra/vaspkit_py/constants.py:33
 cloudra/vaspkit_py/constants.py:34	# eV to Hartree
 cloudra/vaspkit_py/constants.py:35	EV2HARTREE = 1.0 / HARTREE2EV
 cloudra/vaspkit_py/constants.py:36	
-cloudra/vaspkit_py/constants.py:37	# Ry to eV
-----------------------------------------------------------------------
+
 
-Cloudra V1.6.1                                              第 58 页
+Cloudra V1.6.2                                              第 58 页
 ----------------------------------------------------------------------
+cloudra/vaspkit_py/constants.py:37	# Ry to eV
 cloudra/vaspkit_py/constants.py:38	RY2EV = 13.605693122994
 cloudra/vaspkit_py/constants.py:39	
 cloudra/vaspkit_py/constants.py:40	# eV to Ry
@@ -1480,141 +1481,140 @@ cloudra/yolo_guard.py:15	def _load_prompt(name: str) -> str:
 cloudra/yolo_guard.py:16	    """从 cloudra/prompts/ 目录加载指定 prompt 文件。"""
 cloudra/yolo_guard.py:17	    prompts_dir = Path(__file__).parent / "prompts"
 cloudra/yolo_guard.py:18	    prompt_path = prompts_dir / f"{name}.md"
-cloudra/yolo_guard.py:19	    prompt_path = prompts_dir / f"{name}.md"
-cloudra/yolo_guard.py:20	    if not prompt_path.exists():
-cloudra/yolo_guard.py:21	        raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
-cloudra/yolo_guard.py:22	    return prompt_path.read_text(encoding="utf-8")
+cloudra/yolo_guard.py:19	    if not prompt_path.exists():
+cloudra/yolo_guard.py:20	        raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
+cloudra/yolo_guard.py:21	    return prompt_path.read_text(encoding="utf-8")
+cloudra/yolo_guard.py:22	
 cloudra/yolo_guard.py:23	
-cloudra/yolo_guard.py:24	
-cloudra/yolo_guard.py:25	YOLO_SYSTEM_PROMPT = _load_prompt("yolo_guard")
+cloudra/yolo_guard.py:24	YOLO_SYSTEM_PROMPT = _load_prompt("yolo_guard")
+cloudra/yolo_guard.py:25	
 cloudra/yolo_guard.py:26	
-cloudra/yolo_guard.py:27	
-cloudra/yolo_guard.py:28	def is_yolo_enabled() -> bool:
-cloudra/yolo_guard.py:29	    """检查当前是否启用了 YOLO 全自动模式。"""
-cloudra/yolo_guard.py:30	    return os.environ.get("CLOUDRA_YOLO_MODE", "").lower() in ("1", "true", "yes", "on")
+cloudra/yolo_guard.py:27	def is_yolo_enabled() -> bool:
+cloudra/yolo_guard.py:28	    """检查当前是否启用了 YOLO 全自动模式。"""
+cloudra/yolo_guard.py:29	    return os.environ.get("CLOUDRA_YOLO_MODE", "").lower() in ("1", "true", "yes", "on")
+cloudra/yolo_guard.py:30	
 cloudra/yolo_guard.py:31	
-cloudra/yolo_guard.py:32	
-cloudra/yolo_guard.py:33	def _format_content(content: Any, max_len: int = 1000) -> str:
-cloudra/yolo_guard.py:34	    """把任意 content 转为可读的截断文本。"""
-cloudra/yolo_guard.py:35	    if content is None:
-cloudra/yolo_guard.py:36	        return ""
-cloudra/yolo_guard.py:37	    if isinstance(content, list):
-cloudra/yolo_guard.py:38	        parts = []
-cloudra/yolo_guard.py:39	        for part in content:
-cloudra/yolo_guard.py:40	            if not isinstance(part, dict):
-cloudra/yolo_guard.py:41	                parts.append(str(part))
-cloudra/yolo_guard.py:42	                continue
-cloudra/yolo_guard.py:43	            part_type = part.get("type", "text")
-cloudra/yolo_guard.py:44	            if part_type == "text":
-cloudra/yolo_guard.py:45	                parts.append(str(part.get("text", "")))
-cloudra/yolo_guard.py:46	            elif part_type == "image_url":
-----------------------------------------------------------------------
+cloudra/yolo_guard.py:32	def _format_content(content: Any, max_len: int = 1000) -> str:
+cloudra/yolo_guard.py:33	    """把任意 content 转为可读的截断文本。"""
+cloudra/yolo_guard.py:34	    if content is None:
+cloudra/yolo_guard.py:35	        return ""
+cloudra/yolo_guard.py:36	    if isinstance(content, list):
+cloudra/yolo_guard.py:37	        parts = []
+cloudra/yolo_guard.py:38	        for part in content:
+cloudra/yolo_guard.py:39	            if not isinstance(part, dict):
+cloudra/yolo_guard.py:40	                parts.append(str(part))
+cloudra/yolo_guard.py:41	                continue
+cloudra/yolo_guard.py:42	            part_type = part.get("type", "text")
+cloudra/yolo_guard.py:43	            if part_type == "text":
+cloudra/yolo_guard.py:44	                parts.append(str(part.get("text", "")))
+cloudra/yolo_guard.py:45	            elif part_type == "image_url":
+
 
-Cloudra V1.6.1                                              第 59 页
+Cloudra V1.6.2                                              第 59 页
 ----------------------------------------------------------------------
-cloudra/yolo_guard.py:47	                image_url = part.get("image_url", {})
-cloudra/yolo_guard.py:48	                url = image_url.get("url", "") if isinstance(image_url, dict) else str(image_url)
-cloudra/yolo_guard.py:49	                parts.append(f"[图片: {url}]")
-cloudra/yolo_guard.py:50	            else:
-cloudra/yolo_guard.py:51	                parts.append(str(part))
-cloudra/yolo_guard.py:52	        text = "\n".join(parts)
-cloudra/yolo_guard.py:53	    elif isinstance(content, dict):
-cloudra/yolo_guard.py:54	        text = json.dumps(content, ensure_ascii=False)
-cloudra/yolo_guard.py:55	    else:
-cloudra/yolo_guard.py:56	        text = str(content)
-cloudra/yolo_guard.py:57	
-cloudra/yolo_guard.py:58	    if len(text) > max_len:
-cloudra/yolo_guard.py:59	        text = text[:max_len] + "...[截断]"
-cloudra/yolo_guard.py:60	    return text
+cloudra/yolo_guard.py:46	                image_url = part.get("image_url", {})
+cloudra/yolo_guard.py:47	                url = image_url.get("url", "") if isinstance(image_url, dict) else str(image_url)
+cloudra/yolo_guard.py:48	                parts.append(f"[图片: {url}]")
+cloudra/yolo_guard.py:49	            else:
+cloudra/yolo_guard.py:50	                parts.append(str(part))
+cloudra/yolo_guard.py:51	        text = "\n".join(parts)
+cloudra/yolo_guard.py:52	    elif isinstance(content, dict):
+cloudra/yolo_guard.py:53	        text = json.dumps(content, ensure_ascii=False)
+cloudra/yolo_guard.py:54	    else:
+cloudra/yolo_guard.py:55	        text = str(content)
+cloudra/yolo_guard.py:56	
+cloudra/yolo_guard.py:57	    if len(text) > max_len:
+cloudra/yolo_guard.py:58	        text = text[:max_len] + "...[截断]"
+cloudra/yolo_guard.py:59	    return text
+cloudra/yolo_guard.py:60	
 cloudra/yolo_guard.py:61	
-cloudra/yolo_guard.py:62	
-cloudra/yolo_guard.py:63	async def _format_recent_context(agent, limit: int = 5, max_len_per_msg: int = 1000) -> str:
-cloudra/yolo_guard.py:64	    """格式化当前 Agent 上下文中最近 N 条消息，供 YOLO 判断使用。"""
-cloudra/yolo_guard.py:65	    if agent.context_manager is None:
-cloudra/yolo_guard.py:66	        return "<无上下文>"
-cloudra/yolo_guard.py:67	
-cloudra/yolo_guard.py:68	    try:
-cloudra/yolo_guard.py:69	        context = await agent.context_manager.load()
-cloudra/yolo_guard.py:70	    except Exception:
-cloudra/yolo_guard.py:71	        return "<读取上下文失败>"
-cloudra/yolo_guard.py:72	
-cloudra/yolo_guard.py:73	    messages = context[-limit:] if len(context) > limit else context
-cloudra/yolo_guard.py:74	    lines = []
-cloudra/yolo_guard.py:75	    for msg in messages:
-cloudra/yolo_guard.py:76	        role = msg.get("role", "unknown")
-cloudra/yolo_guard.py:77	        content = _format_content(msg.get("content"), max_len=max_len_per_msg)
-cloudra/yolo_guard.py:78	        lines.append(f"[{role}] {content}")
-cloudra/yolo_guard.py:79	    return "\n\n".join(lines)
+cloudra/yolo_guard.py:62	async def _format_recent_context(agent, limit: int = 5, max_len_per_msg: int = 1000) -> str:
+cloudra/yolo_guard.py:63	    """格式化当前 Agent 上下文中最近 N 条消息，供 YOLO 判断使用。"""
+cloudra/yolo_guard.py:64	    if agent.context_manager is None:
+cloudra/yolo_guard.py:65	        return "<无上下文>"
+cloudra/yolo_guard.py:66	
+cloudra/yolo_guard.py:67	    try:
+cloudra/yolo_guard.py:68	        context = await agent.context_manager.load()
+cloudra/yolo_guard.py:69	    except Exception:
+cloudra/yolo_guard.py:70	        return "<读取上下文失败>"
+cloudra/yolo_guard.py:71	
+cloudra/yolo_guard.py:72	    messages = context[-limit:] if len(context) > limit else context
+cloudra/yolo_guard.py:73	    lines = []
+cloudra/yolo_guard.py:74	    for msg in messages:
+cloudra/yolo_guard.py:75	        role = msg.get("role", "unknown")
+cloudra/yolo_guard.py:76	        content = _format_content(msg.get("content"), max_len=max_len_per_msg)
+cloudra/yolo_guard.py:77	        lines.append(f"[{role}] {content}")
+cloudra/yolo_guard.py:78	    return "\n\n".join(lines)
+cloudra/yolo_guard.py:79	
 cloudra/yolo_guard.py:80	
-cloudra/yolo_guard.py:81	
-cloudra/yolo_guard.py:82	class YoloGuard:
-cloudra/yolo_guard.py:83	    """独立的安全判断 Agent。"""
-cloudra/yolo_guard.py:84	
-cloudra/yolo_guard.py:85	    def __init__(self):
-cloudra/yolo_guard.py:86	        self.model = os.environ.get("FOLLOWER_MODEL")
-cloudra/yolo_guard.py:87	        self.base_url = os.environ.get("FOLLOWER_URL")
-cloudra/yolo_guard.py:88	        self.api_key = os.environ.get("FOLLOWER_KEY")
-cloudra/yolo_guard.py:89	
-cloudra/yolo_guard.py:90	    def _client(self) -> OpenAI:
-cloudra/yolo_guard.py:91	        if not self.model or not self.base_url or not self.api_key:
-cloudra/yolo_guard.py:92	            raise RuntimeError(
-cloudra/yolo_guard.py:93	                "YOLO 模式需要 FOLLOWER_MODEL / FOLLOWER_URL / FOLLOWER_KEY 环境变量"
-cloudra/yolo_guard.py:94	            )
-cloudra/yolo_guard.py:95	        return OpenAI(api_key=self.api_key, base_url=self.base_url)
-cloudra/yolo_guard.py:96	
-----------------------------------------------------------------------
+cloudra/yolo_guard.py:81	class YoloGuard:
+cloudra/yolo_guard.py:82	    """独立的安全判断 Agent。"""
+cloudra/yolo_guard.py:83	
+cloudra/yolo_guard.py:84	    def __init__(self):
+cloudra/yolo_guard.py:85	        self.model = os.environ.get("FOLLOWER_MODEL")
+cloudra/yolo_guard.py:86	        self.base_url = os.environ.get("FOLLOWER_URL")
+cloudra/yolo_guard.py:87	        self.api_key = os.environ.get("FOLLOWER_KEY")
+cloudra/yolo_guard.py:88	
+cloudra/yolo_guard.py:89	    def _client(self) -> OpenAI:
+cloudra/yolo_guard.py:90	        if not self.model or not self.base_url or not self.api_key:
+cloudra/yolo_guard.py:91	            raise RuntimeError(
+cloudra/yolo_guard.py:92	                "YOLO 模式需要 FOLLOWER_MODEL / FOLLOWER_URL / FOLLOWER_KEY 环境变量"
+cloudra/yolo_guard.py:93	            )
+cloudra/yolo_guard.py:94	        return OpenAI(api_key=self.api_key, base_url=self.base_url)
+cloudra/yolo_guard.py:95	
+
 
-Cloudra V1.6.1                                              第 60 页
+Cloudra V1.6.2                                              第 60 页
 ----------------------------------------------------------------------
-cloudra/yolo_guard.py:97	    async def judge(
-cloudra/yolo_guard.py:98	        self,
-cloudra/yolo_guard.py:99	        tool_name: str,
-cloudra/yolo_guard.py:100	        tool_args: dict,
-cloudra/yolo_guard.py:101	        agent,
-cloudra/yolo_guard.py:102	        session,
-cloudra/yolo_guard.py:103	    ) -> tuple[bool, str]:
-cloudra/yolo_guard.py:104	        """判断当前工具调用是否应该被允许执行。"""
-cloudra/yolo_guard.py:105	        recent_context = await _format_recent_context(agent)
-cloudra/yolo_guard.py:106	        args_summary = _format_content(tool_args, max_len=1000)
-cloudra/yolo_guard.py:107	
-cloudra/yolo_guard.py:108	        prompt = (
-cloudra/yolo_guard.py:109	            f"{YOLO_SYSTEM_PROMPT}\n\n"
-cloudra/yolo_guard.py:110	            f"[当前任务]\n{getattr(agent, 'query', '')}\n\n"
-cloudra/yolo_guard.py:111	            f"[执行者]\n{getattr(agent, 'name', 'Unknown Agent')}\n\n"
-cloudra/yolo_guard.py:112	            f"[待审批操作]\n"
-cloudra/yolo_guard.py:113	            f"工具: {tool_name}\n"
-cloudra/yolo_guard.py:114	            f"参数: {args_summary}\n\n"
-cloudra/yolo_guard.py:115	            f"[最近 5 条上下文]\n{recent_context}\n\n"
-cloudra/yolo_guard.py:116	            "请只返回 JSON，格式如下：\n"
-cloudra/yolo_guard.py:117	            '{"approved": true/false, "reason": "简要说明"}'
-cloudra/yolo_guard.py:118	        )
-cloudra/yolo_guard.py:119	
-cloudra/yolo_guard.py:120	        client = self._client()
-cloudra/yolo_guard.py:121	        response = client.chat.completions.create(
-cloudra/yolo_guard.py:122	            model=self.model,
-cloudra/yolo_guard.py:123	            messages=[
-cloudra/yolo_guard.py:124	                {"role": "system", "content": YOLO_SYSTEM_PROMPT},
-cloudra/yolo_guard.py:125	                {"role": "user", "content": prompt},
-cloudra/yolo_guard.py:126	            ],
-cloudra/yolo_guard.py:127	            temperature=0.1,
-cloudra/yolo_guard.py:128	            max_tokens=500,
-cloudra/yolo_guard.py:129	        )
-cloudra/yolo_guard.py:130	        content = response.choices[0].message.content or ""
-cloudra/yolo_guard.py:131	
-cloudra/yolo_guard.py:132	        # 尝试解析 JSON
-cloudra/yolo_guard.py:133	        try:
-cloudra/yolo_guard.py:134	            # 先尝试直接解析；如果 LLM 包在 markdown code block 里，先提取
-cloudra/yolo_guard.py:135	            raw = content.strip()
-cloudra/yolo_guard.py:136	            if raw.startswith("```"):
-cloudra/yolo_guard.py:137	                raw = raw.strip("`").strip()
-cloudra/yolo_guard.py:138	                if raw.lower().startswith("json"):
-cloudra/yolo_guard.py:139	                    raw = raw[4:].strip()
-cloudra/yolo_guard.py:140	            result = json.loads(raw)
-cloudra/yolo_guard.py:141	            approved = bool(result.get("approved", False))
-cloudra/yolo_guard.py:142	            reason = str(result.get("reason", "")).strip()
-cloudra/yolo_guard.py:143	            return approved, reason
-cloudra/yolo_guard.py:144	        except Exception as e:
-cloudra/yolo_guard.py:145	            # 解析失败视为拒绝，并把原始输出作为原因
-cloudra/yolo_guard.py:146	            return False, f"YOLO 判断输出无法解析: {content}"
-----------------------------------------------------------------------
+cloudra/yolo_guard.py:96	    async def judge(
+cloudra/yolo_guard.py:97	        self,
+cloudra/yolo_guard.py:98	        tool_name: str,
+cloudra/yolo_guard.py:99	        tool_args: dict,
+cloudra/yolo_guard.py:100	        agent,
+cloudra/yolo_guard.py:101	        session,
+cloudra/yolo_guard.py:102	    ) -> tuple[bool, str]:
+cloudra/yolo_guard.py:103	        """判断当前工具调用是否应该被允许执行。"""
+cloudra/yolo_guard.py:104	        recent_context = await _format_recent_context(agent)
+cloudra/yolo_guard.py:105	        args_summary = _format_content(tool_args, max_len=1000)
+cloudra/yolo_guard.py:106	
+cloudra/yolo_guard.py:107	        prompt = (
+cloudra/yolo_guard.py:108	            f"{YOLO_SYSTEM_PROMPT}\n\n"
+cloudra/yolo_guard.py:109	            f"[当前任务]\n{getattr(agent, 'query', '')}\n\n"
+cloudra/yolo_guard.py:110	            f"[执行者]\n{getattr(agent, 'name', 'Unknown Agent')}\n\n"
+cloudra/yolo_guard.py:111	            f"[待审批操作]\n"
+cloudra/yolo_guard.py:112	            f"工具: {tool_name}\n"
+cloudra/yolo_guard.py:113	            f"参数: {args_summary}\n\n"
+cloudra/yolo_guard.py:114	            f"[最近 5 条上下文]\n{recent_context}\n\n"
+cloudra/yolo_guard.py:115	            "请只返回 JSON，格式如下：\n"
+cloudra/yolo_guard.py:116	            '{"approved": true/false, "reason": "简要说明"}'
+cloudra/yolo_guard.py:117	        )
+cloudra/yolo_guard.py:118	
+cloudra/yolo_guard.py:119	        client = self._client()
+cloudra/yolo_guard.py:120	        response = client.chat.completions.create(
+cloudra/yolo_guard.py:121	            model=self.model,
+cloudra/yolo_guard.py:122	            messages=[
+cloudra/yolo_guard.py:123	                {"role": "system", "content": YOLO_SYSTEM_PROMPT},
+cloudra/yolo_guard.py:124	                {"role": "user", "content": prompt},
+cloudra/yolo_guard.py:125	            ],
+cloudra/yolo_guard.py:126	            temperature=0.1,
+cloudra/yolo_guard.py:127	            max_tokens=500,
+cloudra/yolo_guard.py:128	        )
+cloudra/yolo_guard.py:129	        content = response.choices[0].message.content or ""
+cloudra/yolo_guard.py:130	
+cloudra/yolo_guard.py:131	        # 尝试解析 JSON
+cloudra/yolo_guard.py:132	        try:
+cloudra/yolo_guard.py:133	            # 先尝试直接解析；如果 LLM 包在 markdown code block 里，先提取
+cloudra/yolo_guard.py:134	            raw = content.strip()
+cloudra/yolo_guard.py:135	            if raw.startswith("```"):
+cloudra/yolo_guard.py:136	                raw = raw.strip("`").strip()
+cloudra/yolo_guard.py:137	                if raw.lower().startswith("json"):
+cloudra/yolo_guard.py:138	                    raw = raw[4:].strip()
+cloudra/yolo_guard.py:139	            result = json.loads(raw)
+cloudra/yolo_guard.py:140	            approved = bool(result.get("approved", False))
+cloudra/yolo_guard.py:141	            reason = str(result.get("reason", "")).strip()
+cloudra/yolo_guard.py:142	            return approved, reason
+cloudra/yolo_guard.py:143	        except Exception as e:
+cloudra/yolo_guard.py:144	            # 解析失败视为拒绝，并把原始输出作为原因
+cloudra/yolo_guard.py:145	            return False, f"YOLO 判断输出无法解析: {content}"
+
 
