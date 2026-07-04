@@ -1,16 +1,16 @@
 import os
-import json
-import sys
 from pathlib import Path
-from cloudra.tools_class import Tool, get_tools
-from cloudra.tools import get_tools_lst
-from pydantic import BaseModel
 from typing import Optional, Union
-from openai import OpenAI, Stream
-from openai.types.chat import ChatCompletion,ChatCompletionChunk
+
 from dotenv import load_dotenv
-from cloudra.tools.core.permission_model import Permission, check_permission
+from openai import OpenAI, Stream
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from pydantic import BaseModel
+
 from cloudra.context_manager import ContextManager
+from cloudra.tools import get_tools_lst
+from cloudra.tools.core.permission_model import Permission, check_permission
+from cloudra.tools_class import Tool
 
 load_dotenv()
 
@@ -102,6 +102,10 @@ class Agent(BaseModel):
     def supports_vision(self) -> bool:
         return False
 
+    # 可选的会话级唯一标识。子 Agent 被启动时会被赋予独立的 session_id，
+    # 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
+    session_id: Optional[str] = None
+
     # 上下文管理器：Agent 上下文的唯一真相来源
     context_manager: Optional[ContextManager] = None
 
@@ -114,6 +118,7 @@ class Agent(BaseModel):
             conversation_id=self.conversation_id,
             prompt=self.prompt,
             query=self.query,
+            session_id=getattr(self, 'session_id', None),
         )
 
     async def get_context(self) -> list:
@@ -172,7 +177,7 @@ class Agent(BaseModel):
                 # 需要注入 subagent 的 Bashtools/SubAgentLauncher 已在 reAct.py 中按需重新实例化。
                 available_tools.append(tool)
         return available_tools
-    
+
     def has_manage_permission(self) -> bool:
         '''
         启动子agent的权限。
@@ -184,25 +189,25 @@ class Agent(BaseModel):
         正常情况下，agent不允许写入文件，除非在子类中额外开放。
         '''
         return False
-    
+
     def has_read_permission(self) -> bool:
         '''
         检查是否有读取文件的权限。
         '''
         return True
-    
+
     def script_run_permission(self) -> bool:
         '''
         运行脚本的权限。
         '''
         return False
-    
+
     def destructive_permission(self) -> bool:
         '''
         如rm，mkdir等对目录结构进行变化的操作。
         '''
         return False
-    
+
     def permission_all(self) -> Permission:
         perms = Permission.NONE
         if self.has_read_permission():
@@ -414,7 +419,7 @@ class Follower(Agent):
 
     def has_read_permission(self) -> bool:
         return True
-    
+
     def has_write_permission(self) -> bool:
         '''
         正常情况下，agent不允许写入文件，除非在子类中额外开放。

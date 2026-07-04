@@ -1,12 +1,14 @@
-import sys
-import os
-import json
-import aiosqlite
+import argparse
 import asyncio
 import copy
-import argparse
+import json
+import os
+
+import aiosqlite
+
 from cloudra.reAct import reAct
 from cloudra.subagents import Subagent_hash
+
 
 async def run_executor(task_id: int, database_path: str, session_id: str = None):
     # 连接数据库获取任务
@@ -18,14 +20,14 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         if not row:
             print(f"Error: Task {task_id} not found.")
             return
-        
+
         input_data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
 
     # 准备 Agent 环境,从哈希表里取实例
     agent_hash = Subagent_hash()
     agent_id = input_data.get('agent_id')
     query = input_data.get('query')
-    
+
     template_agent = getattr(agent_hash, agent_id, None)
     if template_agent is None:
         print(f"Error: Agent ID {agent_id} not found.")
@@ -36,10 +38,14 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     sub_agent = copy.deepcopy(template_agent)
     sub_agent.query = query
     sub_agent.conversation_id = input_data.get('conversation_id', 'default')
-    
+    sub_agent.session_id = input_data.get('session_id')
+
+    # 重置上下文管理器：深拷贝可能把 launcher 中或模板实例里的旧 context_manager 带过来，
+    # 强制置空后 get_context() 会按当前 conversation_id/session_id 重新初始化，避免跨任务污染。
+    sub_agent.context_manager = None
     # 重新加载上下文，否则会产生跨会话污染
     await sub_agent.get_context()
-    
+
     # 如果 payload 中传入了额外的 context，则追加进去
     extra_context = input_data.get('context', [])
     if extra_context:
@@ -50,7 +56,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
             elif not isinstance(block, dict):
                 block = {"role": "user", "content": str(block)}
             await sub_agent.update_context(block)
-    
+
     # 强制子进程日志不打印到控制台，由主进程通过管道收集
     # 如果 launcher 已指定 session_id，则复用，保证 launcher 与 executor 的 session 一致
     if not session_id:
@@ -70,7 +76,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         result = await sub_reAct.run()
         print(f"\n[结论] {result}")
         print(f"--- Agent {sub_agent.name} 执行完毕 ---")
-        
+
         # 4. 更新数据库状态为 done
         async with aiosqlite.connect(database_path, timeout=10) as con:
             await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))

@@ -9,8 +9,8 @@ ContextManager 是 Agent 上下文的唯一真相来源，负责：
 """
 
 import base64
-import os
 import json
+import os
 import time
 from typing import Optional
 
@@ -19,7 +19,6 @@ from openai import OpenAI
 
 from cloudra.config import get_config
 from cloudra.token_estimator import TokenEstimator
-
 
 # 本地图片扩展名到 MIME 类型的映射
 _IMAGE_MIME_TYPES = {
@@ -31,15 +30,25 @@ _IMAGE_MIME_TYPES = {
 }
 
 
-def _context_file_path(agent_id: str, conversation_id: str) -> str:
-    """返回指定 agent 在指定 conversation 下的上下文文件路径。"""
+def _context_file_path(agent_id: str, conversation_id: str, session_id: Optional[str] = None) -> str:
+    """返回指定 agent 在指定 conversation 下的上下文文件路径。
+
+    如果提供 session_id，则把上下文文件放到 conversations/{conv_id}/contexts/sessions/
+    目录下，以 {agent_id}_{session_id}.json 命名，确保同一 conversation 内的不同子任务
+    拥有独立的上下文文件，避免任务间相互污染。
+    """
     data_dir = get_config().data_dir
     if conversation_id and conversation_id != 'default':
         base = os.path.join(data_dir, 'conversations', conversation_id, 'contexts')
     else:
         base = os.path.join(data_dir, 'contexts')
+    if session_id:
+        base = os.path.join(base, 'sessions')
+        filename = f"{agent_id}_{session_id}.json"
+    else:
+        filename = f"{agent_id}.json"
     os.makedirs(base, exist_ok=True)
-    return os.path.join(base, f"{agent_id}.json")
+    return os.path.join(base, filename)
 
 
 def _db_path() -> str:
@@ -57,12 +66,14 @@ class ContextManager:
         prompt: str,
         query: str,
         db_path: Optional[str] = None,
+        session_id: Optional[str] = None,
     ):
         self.agent_id = agent_id
         self.conversation_id = conversation_id or 'default'
         self.prompt = prompt
         self.query = query
-        self.context_file = _context_file_path(agent_id, self.conversation_id)
+        self.session_id = session_id
+        self.context_file = _context_file_path(agent_id, self.conversation_id, session_id)
         self.db_path = db_path or _db_path()
 
     def _initial_context(self) -> list:

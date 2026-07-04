@@ -1,23 +1,21 @@
 import os
-import pytest
-import asyncio
 import sqlite3
-import tempfile
-import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from cloudra.compute_utils import (
-    check_job_type,
-    check_calculator_script,
     build_calculator_cmd,
+    check_calculator_script,
+    check_job_type,
     get_log_path,
 )
+from cloudra.context_manager import ContextManager
 from cloudra.tools.Chemtool.submit_compute_job import (
     SubmitComputeJob,
     SubmitComputeJob_input_schema,
 )
-from cloudra.context_manager import ContextManager
 
 
 @pytest.fixture
@@ -101,7 +99,6 @@ def isolated_db(tmp_path, monkeypatch):
     data_dir.mkdir()
 
     from cloudra.config import get_config, reload_config
-    from cloudra import context_manager
 
     # 强制重新加载配置，指向临时目录
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -350,3 +347,68 @@ def test_calculator_script_missing_input():
     )
     assert result.returncode != 0
     assert "输入文件不存在" in result.stderr
+
+
+@pytest.mark.asyncio
+async def test_context_manager_session_isolation(isolated_db):
+    """同一 conversation_id 下，不同 session_id 的上下文文件应相互隔离。"""
+    cm1 = ContextManager(
+        agent_id="a-1",
+        conversation_id="shared_conv",
+        prompt="You are agent a-1.",
+        query="task 1",
+        session_id="session_1",
+    )
+    await cm1.append({"role": "assistant", "content": "result from task 1"})
+
+    cm2 = ContextManager(
+        agent_id="a-1",
+        conversation_id="shared_conv",
+        prompt="You are agent a-1.",
+        query="task 2",
+        session_id="session_2",
+    )
+    ctx2 = await cm2.load()
+
+    # ctx2 应该是初始上下文 [system, user query]，不包含 task 1 的消息
+    assert len(ctx2) == 2
+    assert ctx2[0]["role"] == "system"
+    assert ctx2[1]["role"] == "user"
+    assert ctx2[1]["content"] == "task 2"
+    assert not any("task 1" in str(msg.get("content", "")) for msg in ctx2)
+
+
+@pytest.mark.asyncio
+async def test_subagent_launcher_no_template_pollution(isolated_db):
+    """SubAgentLauncher 不应修改 Subagent_hash 中的全局模板实例。"""
+    from cloudra.config import get_config
+    from cloudra.main import init_database
+    from cloudra.subagents import Subagent_hash
+    from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
+
+    db_path = os.path.join(get_config().data_dir, "tasks", "database.db")
+    init_database(db_path)
+
+    tool = SubAgentLauncher()
+    tool.subagent = MockAgent("a-0", "parent_conv")
+
+    hash_before = Subagent_hash()
+    template = getattr(hash_before, "a-1")
+    original_query = template.query
+    original_context_manager = template.context_manager
+
+    input_inst = SubAgentLauncher_input_schema(
+        agent_id="a-1",
+        query="new task for a-1",
+        is_wait=False,
+    )
+    result = await tool.tool_call(input_inst, session=None)
+
+    assert result.session_id.startswith("a-1_task")
+    assert result.act_agent == template.name
+
+    hash_after = Subagent_hash()
+    template_after = getattr(hash_after, "a-1")
+    # 全局模板实例的 query 和 context_manager 不应被修改
+    assert template_after.query == original_query
+    assert template_after.context_manager == original_context_manager

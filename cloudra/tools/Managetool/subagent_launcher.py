@@ -1,14 +1,15 @@
-from pydantic import Field
+import copy
+import json
+import os
 from typing import Any
 
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.agent import Agent
-import os
-import json
 import aiosqlite
-from cloudra.subagents import Subagent_hash
-from cloudra.session_class import Session
+from pydantic import Field
 
+from cloudra.agent import Agent
+from cloudra.session_class import Session
+from cloudra.subagents import Subagent_hash
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "启动子 Agent 执行特定任务。Coordinator 可将复杂任务拆分为多个子任务。\n"
@@ -89,11 +90,11 @@ class SubAgentLauncher(Tool):
         query = input_instance.query
         context = input_instance.context
         is_wait = input_instance.is_wait
-        
-        # 尝试从 hash 中获取 sub_agent 实例
-        sub_agent = getattr(agent_hash, agent_id, None)
 
-        if sub_agent is None:
+        # 尝试从 hash 中获取子 agent 模板实例
+        template_agent = getattr(agent_hash, agent_id, None)
+
+        if template_agent is None:
             available_ids = list(agent_hash.subagents_dict.keys())
             result = f"Error: Agent ID '{agent_id}' not found. Available IDs: {available_ids}"
             return SubAgentLauncher_output_schema(
@@ -102,25 +103,27 @@ class SubAgentLauncher(Tool):
                 result=result
             )
 
-        # 核心防御：如果 sub_agent 存在但不是期望的类型，或者由于某种原因属性被清空
-        if not hasattr(sub_agent, 'temperature'):
+        # 核心防御：如果模板实例异常或属性被清空
+        if not hasattr(template_agent, 'temperature'):
              return SubAgentLauncher_output_schema(
                 session_id="error",
                 act_agent="none",
                 result=f"【系统错误】子 Agent '{agent_id}' 实例异常，缺少必要属性。"
             )
 
-        # 创建子 agent 的实例，注入身份、conversation_id 和任务
+        # 深拷贝模板实例，避免污染 Subagent_hash 中的全局缓存。
+        # 每个子任务都应拿到一个独立、干净的 Agent 实例。
+        sub_agent = copy.deepcopy(template_agent)
         sub_agent.temperature = 0.7
         sub_agent.top_p = 1.0
         sub_agent.frequency_penalty = 0.0
         sub_agent.presence_penalty = 0.0
         sub_agent.query = query
+        # 保留父 Agent 的 conversation_id，使 _wait_for_subtasks 仍能按 conversation 聚合任务。
+        # 真正的上下文隔离通过 session_id 在 ContextManager 中实现。
         conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
         sub_agent.conversation_id = conversation_id
-        # 初始化上下文管理器：后续 executor 会通过 update_context 追加 extra_context
-        sub_agent.context_manager = None
-        await sub_agent.get_context()
+        # 不在这里初始化 context_manager，避免在 launcher 进程中污染模板实例。
 
         act_agent = sub_agent.name
 
@@ -129,34 +132,37 @@ class SubAgentLauncher(Tool):
         db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        payload = {
+        # 先插入记录以获取 task_id，再生成 session_id 并更新 payload。
+        # session_id 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
+        base_payload = {
             'agent_id': agent_id,
             'query': query,
             'context': context,
             'conversation_id': conversation_id,
         }
-        
+
         if is_wait:
             # 同步模式：标记为 running 并直接启动子进程执行
             async with aiosqlite.connect(db_path) as con:
                 cur = await con.execute(
                     "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                    ('running', json.dumps(payload), conversation_id)
+                    ('running', json.dumps(base_payload), conversation_id)
                 )
                 task_id = cur.lastrowid
 
                 # 使用 task_id 生成统一的 session_id，确保 launcher 与 executor 看到的是同一个 session
                 session_id = f"{sub_agent.id}_task{task_id}"
-                payload['session_id'] = session_id
+                sub_agent.session_id = session_id
+                base_payload['session_id'] = session_id
                 await con.execute(
                     "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
-                    (json.dumps(payload), task_id)
+                    (json.dumps(base_payload), task_id)
                 )
                 await con.commit()
 
             import asyncio
             import sys
-            
+
             # 启动并等待子进程结束
             print(f"\n[系统] 正在同步执行子任务 (Task ID: {task_id})... 请稍候。")
             process = await asyncio.create_subprocess_exec(
@@ -164,7 +170,7 @@ class SubAgentLauncher(Tool):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT
             )
-            
+
             # 实时将子进程输出打印到控制台（带上前缀）
             output_lines = []
             prefix = f"\033[96m[{act_agent}]\033[0m"
@@ -194,14 +200,15 @@ class SubAgentLauncher(Tool):
             async with aiosqlite.connect(db_path) as con:
                 cur = await con.execute(
                     "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                    ('ready', json.dumps(payload), conversation_id)
+                    ('ready', json.dumps(base_payload), conversation_id)
                 )
                 task_id = cur.lastrowid
                 session_id = f"{sub_agent.id}_task{task_id}"
-                payload['session_id'] = session_id
+                sub_agent.session_id = session_id
+                base_payload['session_id'] = session_id
                 await con.execute(
                     "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
-                    (json.dumps(payload), task_id)
+                    (json.dumps(base_payload), task_id)
                 )
                 await con.commit()
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"
