@@ -13,9 +13,8 @@ from openai import OpenAI
 
 
 def _load_prompt(name: str) -> str:
-    """从仓库 prompts/ 目录加载指定 prompt 文件。"""
-    # yolo_guard.py 位于 cloudra/ 下，prompts/ 位于仓库根目录
-    prompts_dir = Path(__file__).parent.parent / "prompts"
+    """从 cloudra/prompts/ 目录加载指定 prompt 文件。"""
+    prompts_dir = Path(__file__).parent / "prompts"
     prompt_path = prompts_dir / f"{name}.md"
     if not prompt_path.exists():
         raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
