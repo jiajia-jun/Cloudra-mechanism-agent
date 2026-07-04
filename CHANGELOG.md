@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.2] - 2026-07-04
+
+### 新增
+- **Coordinator 异步计算等待与事件唤醒**：异步提交计算任务后，Coordinator 不再立即退出，而是保持进程存活并轮询后台任务；当 `guard` 注入计算完成事件后，Coordinator 会被唤醒继续处理结果。
+  - 扩展 `_wait_for_subtasks` 为 `_wait_for_background_tasks`，同时等待子 Agent 任务和计算任务。
+  - `run_task_async` 新增事件唤醒循环。
+  - 新增 `tests/test_run_task_async.py` 测试。
+
 ## [1.6.1] - 2026-07-04
 
 ### 新增
