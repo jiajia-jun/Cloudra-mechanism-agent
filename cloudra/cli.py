@@ -21,7 +21,7 @@ from cloudra.main import run_task
 
 console = Console()
 APP_NAME = "cloudra"
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 
 @click.group(invoke_without_command=True)
@@ -65,8 +65,12 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
 @click.option("--conv-id", default=None, help="指定对话 ID")
 @click.option("--new", is_flag=True, help="启动新对话，不自动恢复")
 @click.option("--dry-run", is_flag=True, help="只显示配置，不实际执行")
-def run(query, conv_id, new, dry_run):
+@click.option("--yolo", is_flag=True, help="启用 YOLO 全自动模式（危险操作由 LLM 自动审批）")
+def run(query, conv_id, new, dry_run, yolo):
     """运行一个 Cloudra 任务。"""
+    if yolo:
+        os.environ["CLOUDRA_YOLO_MODE"] = "true"
+        console.print("[bold yellow]YOLO 模式已启用：危险操作将由 LLM 自动审批[/bold yellow]")
     config = get_config()
     # Logic for sticky conversation
     if conv_id:

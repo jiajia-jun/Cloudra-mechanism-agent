@@ -264,7 +264,7 @@ class Color:
 def print_banner():
     print(f"{Color.BLUE}{Color.BOLD}")
     print("  Cloudra - AI 化学科研助手")
-    print(f"  版本: v1.6.0{Color.END}")
+    print(f"  版本: v1.6.1{Color.END}")
     print("-" * 45)
 
 

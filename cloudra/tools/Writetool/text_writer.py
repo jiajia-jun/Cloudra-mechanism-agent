@@ -56,7 +56,7 @@ class TextWriter(Tool):
         )
 
         # 触发安全检查
-        approved, denial_reason = await self.ensure_safety(session, details=details)
+        approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=user_input.model_dump(mode="json"))
         if not approved:
             message = "【安全拦截】写入操作已被拒绝。"
             if denial_reason:

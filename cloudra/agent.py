@@ -1,7 +1,6 @@
 import os
 import json
 import sys
-import copy
 from pathlib import Path
 from cloudra.tools_class import Tool, get_tools
 from cloudra.tools import get_tools_lst
@@ -75,8 +74,11 @@ class Agent(BaseModel):
     #agent使用模型温度
     temperature: float = 0.7
 
-    #agent使用模型最大token
+    #agent使用模型最大token（生成限制）
     max_tokens: int
+
+    #agent使用模型上下文窗口（用于上下文压缩阈值计算）
+    context_window: int = 128000
 
     #agent使用模型top_p
     top_p: float = 1.0
@@ -94,6 +96,11 @@ class Agent(BaseModel):
     query: str
 
     is_stream: bool
+
+    # 当前 Agent 使用的模型是否支持视觉输入（多模态）
+    @property
+    def supports_vision(self) -> bool:
+        return False
 
     # 上下文管理器：Agent 上下文的唯一真相来源
     context_manager: Optional[ContextManager] = None
@@ -221,12 +228,6 @@ class Agent(BaseModel):
             return os.path.join(data_dir, 'conversations', self.conversation_id, 'contexts', self.id + '.json')
         return os.path.join(data_dir, 'contexts', self.id + '.json')
 
-    def _encode_image(self, image_path: str) -> str:
-        """将本地图片转为 Base64"""
-        import base64
-        with open(image_path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode('utf-8')
-
     async def llm_call(self) -> ChatResponse:
         '''
         调用llm接口。
@@ -242,109 +243,35 @@ class Agent(BaseModel):
                 # 同时避免直接修改 get_tools_lst() 返回的全局缓存实例。
                 tool_instance = tool.__class__(subagent=self)
                 available_tool_classes.append(tool_instance.tool_schema_json())
-        
-        client = OpenAI(api_key=self._api_key ,
-                        base_url=self.llm_site ,
-                        )
 
-        async def build_messages(use_multimodal=True):
-            content = []
-            content.append({"role": "system", "content": self.prompt})
-            context = await self.get_context()
-            for context_block in context:
-                msg = copy.deepcopy(dict(context_block))
-                if 'role' not in msg: msg['role'] = 'user'
-                
-                # 处理多模态逻辑
-                if isinstance(msg.get('content'), list):
-                    new_content = []
-                    for part in msg['content']:
-                        if isinstance(part, dict) and part.get('type') == 'image_url':
-                            path = part.get('image_url', {}).get('url')
-                            if use_multimodal:
-                                # 尝试构建 Base64
-                                try:
-                                    if path and os.path.exists(path):
-                                        base64_image = self._encode_image(path)
-                                        ext = os.path.splitext(path)[1].lower().replace('.', '')
-                                        mime = f"image/{ext}" if ext in ['png', 'jpeg', 'jpg', 'webp'] else "image/png"
-                                        new_content.append({
-                                            "type": "image_url",
-                                            "image_url": {"url": f"data:{mime};base64,{base64_image}"}
-                                        })
-                                    else:
-                                        new_content.append({"type": "text", "text": f"[图片缺失: {path}]"})
-                                except Exception as e:
-                                    new_content.append({"type": "text", "text": f"[图片加载失败: {path}]"})
-                            else:
-                                # 降级模式：转为纯文本
-                                new_content.append({"type": "text", "text": f"[图片: {path} (当前模型不支持视觉)]"})
-                        else:
-                            new_content.append(part)
-                    msg['content'] = new_content if use_multimodal else "\n".join([p.get('text', '') for p in new_content])
-                
-                if 'content' not in msg:
-                    msg['content'] = str(msg.get('assistant', msg)) if 'assistant' in msg else None
-                
-                if 'reasoning_content' in msg:
-                    msg['reasoning_content'] = str(msg['reasoning_content']) if msg['reasoning_content'] else None
-                
-                content.append(msg)
-            return content
+        client = OpenAI(
+            api_key=self._api_key,
+            base_url=self.llm_site,
+        )
 
-        # 尝试第一次调用（完整多模态）
+        if self.context_manager is None:
+            self._init_context_manager()
+        messages = await self.context_manager.build_messages(
+            supports_vision=self.supports_vision,
+            max_context_tokens=self.context_window // 2 if self.context_window else None,
+        )
+
+        request_kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "top_p": self.top_p,
+            "stream": self.is_stream,
+        }
+        if available_tool_classes:
+            request_kwargs["tools"] = available_tool_classes
+
         try:
-            messages = await build_messages(use_multimodal=True)
-            if available_tool_classes:
-                return client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    top_p=self.top_p,
-                    stream=self.is_stream,
-                    tools=available_tool_classes,
-                )
-            else:
-                return client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    top_p=self.top_p,
-                    stream=self.is_stream
-                )
+            return client.chat.completions.create(**request_kwargs)
         except Exception as e:
-            # 捕获 400 错误（通常是由于不支持 image_url 引起的）
-            err_msg = str(e).lower()
-            if "image_url" in err_msg or "unknown variant" in err_msg or "400" in err_msg:
-                print(f"\033[93m[系统预警]\033[0m 当前模型或接口不支持多模态内容，正在切换至“纯文本降级模式”重试...")
-                # 重新构建纯文本消息列表
-                messages = await build_messages(use_multimodal=False)
-                # 第二次调用（纯文本降级）
-                if available_tool_classes:
-                    return client.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        temperature=self.temperature,
-                        max_tokens=self.max_tokens,
-                        top_p=self.top_p,
-                        stream=self.is_stream,
-                        tools=available_tool_classes,
-                    )
-                else:
-                    return client.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        temperature=self.temperature,
-                        max_tokens=self.max_tokens,
-                        top_p=self.top_p,
-                        stream=self.is_stream
-                    )
-            else:
-                # 其他类型的错误，原样抛出
-                print(f"\033[91m[LLM 异常]\033[0m {e}")
-                raise e
+            print(f"\033[91m[LLM 异常]\033[0m {e}")
+            raise
 
 
 class Coordinator(Agent):
@@ -365,7 +292,9 @@ class Coordinator(Agent):
 
     temperature: float = 1.0
 
-    max_tokens: int = 10000
+    max_tokens: int = 8192
+
+    context_window: int = 1000000
 
     top_p: float = 1.0
 
@@ -379,6 +308,12 @@ class Coordinator(Agent):
     query: str
 
     is_stream: bool = True
+
+    @property
+    def supports_vision(self) -> bool:
+        """从全局配置读取协调者模型是否支持视觉输入。"""
+        from cloudra.config import get_config
+        return get_config().coordinator.supports_vision
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -455,7 +390,9 @@ class Follower(Agent):
 
     temperature: float = 1.0
 
-    max_tokens: int = 10000
+    max_tokens: int = 4096
+
+    context_window: int = 1000000
 
     top_p: float = 1.0
 
@@ -468,6 +405,12 @@ class Follower(Agent):
     query: str
 
     is_stream: bool = False
+
+    @property
+    def supports_vision(self) -> bool:
+        """从全局配置读取跟随者模型是否支持视觉输入。"""
+        from cloudra.config import get_config
+        return get_config().follower.supports_vision
 
     def has_read_permission(self) -> bool:
         return True

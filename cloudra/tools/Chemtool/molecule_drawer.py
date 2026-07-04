@@ -71,7 +71,7 @@ class MoleculeDrawer(Tool):
             f"【参数摘要】: 尺寸={user_input.width}x{user_input.height}, "
             f"原子编号={user_input.add_atom_indices}, 手性标注={user_input.add_stereo_annotation}"
         )
-        approved, denial_reason = await self.ensure_safety(session, details=details)
+        approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=user_input.model_dump(mode="json"))
         if not approved:
             message = "【安全拦截】操作被拒绝。"
             if denial_reason:

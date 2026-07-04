@@ -34,6 +34,7 @@ class LLMConfig(BaseSettings):
     model: str = "deepseek-v4-pro"
     url: str = "https://api.deepseek.com/"
     key: str = ""
+    supports_vision: bool = False
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -124,14 +125,12 @@ class CloudraConfig(BaseSettings):
             with open(cfg_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
             if "llm" in data:
-                if "coordinator" in data["llm"]:
-                    for k, v in data["llm"]["coordinator"].items():
-                        if hasattr(self.coordinator, k) and v:
-                            setattr(self.coordinator, k, v)
-                if "follower" in data["llm"]:
-                    for k, v in data["llm"]["follower"].items():
-                        if hasattr(self.follower, k) and v:
-                            setattr(self.follower, k, v)
+                for role in ("coordinator", "follower"):
+                    if role in data["llm"]:
+                        cfg = getattr(self, role)
+                        for k, v in data["llm"][role].items():
+                            if hasattr(cfg, k) and v is not None:
+                                setattr(cfg, k, v)
             
             if "email" in data:
                 for k, v in data["email"].items():
@@ -166,11 +165,13 @@ class CloudraConfig(BaseSettings):
                     "model": self.coordinator.model,
                     "url": self.coordinator.url,
                     "key": self.coordinator.key,
+                    "supports_vision": self.coordinator.supports_vision,
                 },
                 "follower": {
                     "model": self.follower.model,
                     "url": self.follower.url,
                     "key": self.follower.key,
+                    "supports_vision": self.follower.supports_vision,
                 },
             },
             "email": {
@@ -197,11 +198,13 @@ class CloudraConfig(BaseSettings):
                     "model": self.coordinator.model,
                     "url": self.coordinator.url,
                     "key": "***" if self.coordinator.key else "(not set)",
+                    "supports_vision": self.coordinator.supports_vision,
                 },
                 "follower": {
                     "model": self.follower.model,
                     "url": self.follower.url,
                     "key": "***" if self.follower.key else "(not set)",
+                    "supports_vision": self.follower.supports_vision,
                 },
             },
         }

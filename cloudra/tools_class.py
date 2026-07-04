@@ -163,23 +163,50 @@ class Tool(BaseModel):
             error_msg = f"【工具执行异常】{self.tool_name}: {str(e)}"
             raise RuntimeError(error_msg) from e 
 
-    async def ensure_safety(self, session: Session, details: str) -> tuple[bool, str]:
+    async def ensure_safety(
+        self,
+        session: Session,
+        details: str,
+        tool_args: dict | None = None,
+    ) -> tuple[bool, str]:
         '''
-        安全检查：如果工具被标记为 destructive，则必须经过 Coordinator 审批。
+        安全检查：如果工具被标记为 destructive，则必须经过审批。
+        默认通过数据库等待用户审批；若启用了 YOLO 模式，则调用独立 Agent 自动判断。
         返回 (是否通过, 拒绝原因)。通过时拒绝原因为空字符串。
         '''
-        from cloudra.config import get_config
-        db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
-        
+        from cloudra.yolo_guard import is_yolo_enabled, YoloGuard
+
         # 获取当前 Agent 名称
         agent_name = self.subagent.name if self.subagent else "Unknown Agent"
-        
-        # 格式化详细信息
         full_details = f"【发起 Agent】: {agent_name}\n{details}"
-        
+
         print(f"\n\033[91m[安全审计]\033[0m 正在申请危险操作审批...\n{full_details}")
-        
+
+        if is_yolo_enabled():
+            guard = YoloGuard()
+            return await self._yolo_judge(session, tool_args or {}, guard)
+
+        from cloudra.config import get_config
+        db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
         return await self.request_approval(db_path, session.id, full_details)
+
+    async def _yolo_judge(
+        self,
+        session: Session,
+        tool_args: dict,
+        guard: 'YoloGuard',
+    ) -> tuple[bool, str]:
+        """调用 YoloGuard 做自动判断。"""
+        approved, reason = await guard.judge(
+            self.tool_name, tool_args, self.subagent, session
+        )
+        if approved:
+            print(f"\033[92m[安全审计/YOLO]\033[0m 自动审批通过。")
+            return True, ""
+        else:
+            reason_text = reason or "YOLO Agent 认为该操作存在风险"
+            print(f"\033[91m[安全审计/YOLO]\033[0m 自动审批拒绝。原因: {reason_text}")
+            return False, reason_text
 
     async def request_approval(self, db_path: str, session_id: str, details: str) -> tuple[bool, str]:
         import asyncio
