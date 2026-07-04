@@ -268,17 +268,26 @@ def print_banner():
     print("-" * 45)
 
 
-async def _wait_for_subtasks(database: str, conversation_id: str) -> None:
-    """异步等待当前 conversation 下的子任务全部完成。"""
+async def _wait_for_background_tasks(database: str, conversation_id: str) -> None:
+    """异步等待当前 conversation 下的所有后台任务（子 Agent + 计算任务）全部完成。
+
+    Coordinator 在此阶段保持进程存活但处于休息状态，不占用 LLM 资源；
+    当计算任务完成或子 Agent 返回时，会被唤醒继续处理。
+    """
     while True:
         async with aiosqlite.connect(database, timeout=10) as con:
             cur = await con.execute(
-                "SELECT COUNT(*) FROM subagent_requests WHERE (state = 'ready' OR state = 'running') AND conversation_id = ?",
-                (conversation_id,)
+                """
+                SELECT 
+                    (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                    (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?)
+                """,
+                (conversation_id, conversation_id)
             )
             row = await cur.fetchone()
-            count = row[0] if row else 0
-        if count == 0:
+            subagent_count = row[0] if row else 0
+            compute_count = row[1] if row else 0
+        if subagent_count == 0 and compute_count == 0:
             break
         await asyncio.sleep(1)
 
@@ -335,17 +344,30 @@ async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) 
     conversation.set_state('running')
     try:
         result = await father_reAct.run()
+
+        # Coordinator 第一轮推理结束后，进入休息等待模式：
+        # 进程保持存活，持续轮询后台任务（子 Agent / 计算任务）和外部事件。
+        while True:
+            if verbose:
+                print(f"\n{Color.YELLOW}[系统]{Color.END} 正在等待后台任务完成...")
+            await _wait_for_background_tasks(database, conversation.id)
+
+            # 检查 guard / 邮件监听器等是否注入了外部事件
+            cm = coordinator_agent.context_manager
+            has_pending = await cm.has_pending_events() if cm else False
+            if not has_pending:
+                break
+
+            if verbose:
+                print(f"\n{Color.YELLOW}[系统]{Color.END} 收到外部事件，Coordinator 继续处理...")
+            result = await father_reAct.run()
+
     finally:
         # 无论成功失败，任务结束后都标记为 sleeping（除非被归档）
         if conversation.state != 'archived':
             conversation.set_state('sleeping')
     conversation.touch()
 
-    # 等待子任务完成
-    if verbose:
-        print(f"\n{Color.YELLOW}[系统]{Color.END} 正在等待子任务完成...")
-    await _wait_for_subtasks(database, conversation.id)
-    
     if verbose:
         print(f"\n{Color.BLUE}{Color.BOLD}" + "="*20 + " 任务完成 " + "="*20 + f"{Color.END}")
         print(f"{Color.BOLD}最终结果:{Color.END}\n{result}")
