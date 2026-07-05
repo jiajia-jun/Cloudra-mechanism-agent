@@ -20,20 +20,31 @@ EXTERNAL_EVENT_POLL_INTERVAL = 0.5
 
 
 def dynamic_deep_merge(buffer_dict: dict, delta_dict: dict) -> dict:
-    """通用动态拼接工具：不硬编码任何字段名，自动合并字符串，自动递归字典"""
+    """通用动态拼接工具：不硬编码任何字段名，自动合并字符串，自动递归字典。
+
+    注意：tool_call 中的 'type' 和 'name' 是固定枚举值，收到重复 chunk 时应
+    直接覆盖，而不是字符串累加；否则会出现 'functionfunction...' 这种非法值，
+    导致部分 provider（如 Xiaomi token-plan）返回 400。
+    """
+    # 这些字段在 OpenAI tool_call chunk 中是固定值，不应累加。
+    overwrite_fields = {"type", "name"}
+
     for key, value in delta_dict.items():
         if isinstance(value, dict):
             # 如果是嵌套字典（比如 'function'），递归进去拼接
             if key not in buffer_dict:
                 buffer_dict[key] = {}
             dynamic_deep_merge(buffer_dict[key], value)
-            
+
         elif isinstance(value, str):
-            # 如果是字符串（比如 'id', 'name', 'arguments'），执行累加操作
-            if key not in buffer_dict:
-                buffer_dict[key] = ""
-            buffer_dict[key] += value
-            
+            # 固定值字段直接覆盖，其余字符串字段累加。
+            if key in overwrite_fields:
+                buffer_dict[key] = value
+            else:
+                if key not in buffer_dict:
+                    buffer_dict[key] = ""
+                buffer_dict[key] += value
+
         else:
             # 如果是数字或其他类型（比如 'index'），直接覆盖/初始化
             buffer_dict[key] = value
@@ -159,6 +170,8 @@ class reAct:
             reasoning_buffer = ""
             try:
                 for chunk in response:
+                    if not chunk.choices:
+                        continue
                     choice = chunk.choices[0]
                     delta = choice.delta
                     finish_reason = choice.finish_reason

@@ -7,7 +7,7 @@ from cloudra.yolo_guard import (
     YoloGuard,
     is_yolo_enabled,
     _format_content,
-    _format_recent_context,
+    _format_recent_context_multimodal,
 )
 
 
@@ -34,7 +34,7 @@ class TestFormatContent:
         ]
         result = _format_content(content)
         assert "看图" in result
-        assert "[图片: /path/to/img.png]" in result
+        assert "[图片]" in result
 
     def test_dict(self):
         content = {"command": "ls -la"}
@@ -74,7 +74,8 @@ class TestFormatRecentContext:
         await cm.append({"role": "assistant", "content": "我来帮你"})
         await cm.append({"role": "user", "content": "读取文件"})
 
-        text = await _format_recent_context(fake_agent, limit=2)
+        parts = await _format_recent_context_multimodal(fake_agent, limit=2)
+        text = "".join([p.get("text", "") for p in parts if p.get("type") == "text"])
         assert "我来帮你" in text
         assert "读取文件" in text
         assert "你好" not in text  # 超过 limit 被截断
@@ -97,9 +98,11 @@ class TestYoloGuardJudge:
 
         guard = YoloGuard()
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = json.dumps(
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.arguments = json.dumps(
             {"approved": True, "reason": "操作合理"}
         )
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.chat.completions.create.return_value = mock_response
@@ -122,9 +125,11 @@ class TestYoloGuardJudge:
 
         guard = YoloGuard()
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = json.dumps(
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.arguments = json.dumps(
             {"approved": False, "reason": "超出任务范围"}
         )
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.chat.completions.create.return_value = mock_response
@@ -146,7 +151,9 @@ class TestYoloGuardJudge:
 
         guard = YoloGuard()
         mock_response = MagicMock()
-        mock_response.choices[0].message.content = "这不是 JSON"
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.arguments = "这不是 JSON"
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.chat.completions.create.return_value = mock_response
@@ -158,7 +165,7 @@ class TestYoloGuardJudge:
             )
 
         assert approved is False
-        assert "无法解析" in reason
+        assert "结构提取失败" in reason
 
     def test_missing_env(self, fake_agent, monkeypatch):
         monkeypatch.delenv("FOLLOWER_MODEL", raising=False)

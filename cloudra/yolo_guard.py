@@ -29,26 +29,29 @@ def is_yolo_enabled() -> bool:
     return os.environ.get("CLOUDRA_YOLO_MODE", "").lower() in ("1", "true", "yes", "on")
 
 
-def _format_content(content: Any, max_len: int = 1000) -> str:
-    """把任意 content 转为可读的截断文本。"""
+def _format_content_multimodal(content: Any, max_len: int = 1000) -> list:
+    """把任意 content 转为大模型可识别的多模态对象列表（保留图片结构）。"""
     if content is None:
-        return ""
+        return []
+    
     if isinstance(content, list):
         parts = []
         for part in content:
             if not isinstance(part, dict):
-                parts.append(str(part))
+                parts.append({"type": "text", "text": str(part)})
                 continue
             part_type = part.get("type", "text")
             if part_type == "text":
-                parts.append(str(part.get("text", "")))
+                text = str(part.get("text", ""))
+                if len(text) > max_len:
+                    text = text[:max_len] + "...[截断]"
+                parts.append({"type": "text", "text": text})
             elif part_type == "image_url":
-                image_url = part.get("image_url", {})
-                url = image_url.get("url", "") if isinstance(image_url, dict) else str(image_url)
-                parts.append(f"[图片: {url}]")
+                # 保留原生图片结构
+                parts.append(part)
             else:
-                parts.append(str(part))
-        text = "\n".join(parts)
+                parts.append({"type": "text", "text": str(part)})
+        return parts
     elif isinstance(content, dict):
         text = json.dumps(content, ensure_ascii=False)
     else:
@@ -56,26 +59,39 @@ def _format_content(content: Any, max_len: int = 1000) -> str:
 
     if len(text) > max_len:
         text = text[:max_len] + "...[截断]"
-    return text
+    return [{"type": "text", "text": text}]
 
 
-async def _format_recent_context(agent, limit: int = 5, max_len_per_msg: int = 1000) -> str:
-    """格式化当前 Agent 上下文中最近 N 条消息，供 YOLO 判断使用。"""
+def _format_content(content: Any, max_len: int = 1000) -> str:
+    """保留旧的纯文本转换，用于提取 args 等。"""
+    parts = _format_content_multimodal(content, max_len)
+    text_parts = []
+    for p in parts:
+        if p.get("type") == "text":
+            text_parts.append(p.get("text", ""))
+        elif p.get("type") == "image_url":
+            text_parts.append("[图片]")
+    return "\n".join(text_parts)
+
+
+async def _format_recent_context_multimodal(agent, limit: int = 5, max_len_per_msg: int = 1000) -> list:
+    """格式化当前 Agent 上下文中最近 N 条消息，并保留多模态结构供 YOLO 使用。"""
     if agent.context_manager is None:
-        return "<无上下文>"
+        return [{"type": "text", "text": "<无上下文>"}]
 
     try:
         context = await agent.context_manager.load()
     except Exception:
-        return "<读取上下文失败>"
+        return [{"type": "text", "text": "<读取上下文失败>"}]
 
     messages = context[-limit:] if len(context) > limit else context
-    lines = []
+    final_parts = []
     for msg in messages:
         role = msg.get("role", "unknown")
-        content = _format_content(msg.get("content"), max_len=max_len_per_msg)
-        lines.append(f"[{role}] {content}")
-    return "\n\n".join(lines)
+        final_parts.append({"type": "text", "text": f"\n[{role}] "})
+        final_parts.extend(_format_content_multimodal(msg.get("content"), max_len=max_len_per_msg))
+        
+    return final_parts
 
 
 class YoloGuard:
@@ -101,45 +117,68 @@ class YoloGuard:
         session,
     ) -> tuple[bool, str]:
         """判断当前工具调用是否应该被允许执行。"""
-        recent_context = await _format_recent_context(agent)
+        # 提取多模态上下文
+        recent_context_parts = await _format_recent_context_multimodal(agent)
         args_summary = _format_content(tool_args, max_len=1000)
 
-        prompt = (
-            f"{YOLO_SYSTEM_PROMPT}\n\n"
+        prefix_text = (
             f"[当前任务]\n{getattr(agent, 'query', '')}\n\n"
             f"[执行者]\n{getattr(agent, 'name', 'Unknown Agent')}\n\n"
             f"[待审批操作]\n"
             f"工具: {tool_name}\n"
             f"参数: {args_summary}\n\n"
-            f"[最近 5 条上下文]\n{recent_context}\n\n"
-            "请只返回 JSON，格式如下：\n"
-            '{"approved": true/false, "reason": "简要说明"}'
+            f"[最近 5 条上下文]\n"
         )
+
+        # 组装最终的 user content 数组（支持图文混排）
+        user_content = [{"type": "text", "text": prefix_text}]
+        user_content.extend(recent_context_parts)
+
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "submit_approval_decision",
+                "description": "提交针对当前拦截操作的安全审计结论。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "approved": {
+                            "type": "boolean",
+                            "description": "是否允许该操作执行。允许为 true，拒绝为 false。"
+                        },
+                        "reason": {
+                            "type": ["string", "null"],
+                            "description": "简要说明允许或拒绝的理由。如无特殊说明可为空或忽略。"
+                        }
+                    },
+                    "required": ["approved"]
+                }
+            }
+        }]
 
         client = self._client()
         response = client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": YOLO_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": user_content},
             ],
             temperature=0.1,
             max_tokens=500,
+            tools=tools,
+            tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
-        content = response.choices[0].message.content or ""
 
-        # 尝试解析 JSON
         try:
-            # 先尝试直接解析；如果 LLM 包在 markdown code block 里，先提取
-            raw = content.strip()
-            if raw.startswith("```"):
-                raw = raw.strip("`").strip()
-                if raw.lower().startswith("json"):
-                    raw = raw[4:].strip()
-            result = json.loads(raw)
+            # 强制提取 Tool Call 参数，彻底杜绝大模型啰嗦文本导致的解析错误
+            tool_call = response.choices[0].message.tool_calls[0]
+            result = json.loads(tool_call.function.arguments)
             approved = bool(result.get("approved", False))
-            reason = str(result.get("reason", "")).strip()
+            
+            # 支持 NoneType 处理
+            raw_reason = result.get("reason")
+            reason = str(raw_reason).strip() if raw_reason is not None else ""
+            
             return approved, reason
         except Exception as e:
-            # 解析失败视为拒绝，并把原始输出作为原因
-            return False, f"YOLO 判断输出无法解析: {content}"
+            return False, f"YOLO Tool Call 结构提取失败: {e}"

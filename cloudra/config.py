@@ -31,7 +31,7 @@ DEFAULT_DATA_DIR = Path(user_data_dir(APP_NAME))
 
 class LLMConfig(BaseSettings):
     """LLM provider configuration for a single agent type."""
-    model: str = "deepseek-v4-pro"
+    model: str = "mimo-v2.5-ultraspeed"
     url: str = "https://api.deepseek.com/"
     key: str = ""
     supports_vision: bool = False
