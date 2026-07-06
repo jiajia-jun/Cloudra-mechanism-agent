@@ -42,17 +42,19 @@ class skill_loader:
         return datas
 
     def get_reference(self, skill_name, ref_name) -> str:
-        # FIX: 漏了 self.，原代码引用未定义的 base_path 会导致 NameError
-        ref_path = os.path.join(self.base_path, skill_name, 'references', ref_name)
-        if os.path.isfile(ref_path):
-            with open(ref_path, 'r', encoding = 'utf-8') as f:
-                return f.read()
-        elif os.path.isdir(ref_path):
-            dir_filelst = os.listdir(ref_path)
-            return fr'该reference为文件夹，文件夹下有：{dir_filelst} ,请根据需要输入ref/filename调用资料，win系统请用ref\filename'
+        # 支持多种可能的资料文件夹命名约定
+        possible_dirs = ['references', 'reference', 'ref']
+        
+        for dir_name in possible_dirs:
+            ref_path = os.path.join(self.base_path, skill_name, dir_name, ref_name)
+            if os.path.isfile(ref_path):
+                with open(ref_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            elif os.path.isdir(ref_path):
+                dir_filelst = os.listdir(ref_path)
+                return fr'该reference为文件夹，文件夹下有：{dir_filelst} ,请根据需要输入 {ref_name}/filename 调用资料，win系统请用 {ref_name}\filename'
 
-        else:
-            return '该资料不存在。'
+        return '该资料不存在。'
 
     # FIX: 原拼写为 skill_dsatas_get（多打了个 s）
     def get_content(self, skill_name) -> str:

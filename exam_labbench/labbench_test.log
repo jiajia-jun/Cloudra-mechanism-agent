@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/yyy2333/Cloudra/program/CLOUDRA/benchmarks/labbench_run/runner.py", line 12, in <module>
+    import labbench
+  File "/home/yyy2333/Cloudra/program/CLOUDRA/benchmarks/LAB-Bench/labbench/__init__.py", line 15, in <module>
+    from .vertex import VertexZeroShotAgent
+  File "/home/yyy2333/Cloudra/program/CLOUDRA/benchmarks/LAB-Bench/labbench/vertex.py", line 4, in <module>
+    import vertexai
+ModuleNotFoundError: No module named 'vertexai'

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.3] - 2026-07-07
+
+### 新增
+- **论文写作 Skill**：新增 `research-paper-writing` skill，指导 AI 进行学术论文写作、Markdown/LaTeX 排版、期刊模板格式化。
+  - 包含 storytelling、introduction、abstract、method、experiments、conclusion、related-work 等章节写作指南
+  - 包含 LaTeX 期刊模板指南（IEEE/Nature/Elsevier/ACM/APA）
+  - 包含命令行工具使用指南（Pandoc/LaTeX 编译/参考文献管理）
+
+### 改进
+- **Writer Prompt**：更新 writer prompt，明确论文写作时调用 `research-paper-writing` skill，约束行文风格，禁止夸大其词。
+
 ## [1.6.2] - 2026-07-04
 
 ### 新增
