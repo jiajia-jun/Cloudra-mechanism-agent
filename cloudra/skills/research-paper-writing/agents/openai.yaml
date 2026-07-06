@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Paper Writing"
+  short_description: "Guide paper writing from story to publication-ready format with Markdown/LaTeX typesetting"
+  default_prompt: "Use $research-paper-writing to improve my paper's storytelling, convert to journal template format, and align formatting using command-line tools."
