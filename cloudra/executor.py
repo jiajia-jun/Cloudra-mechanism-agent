@@ -4,17 +4,15 @@ import copy
 import json
 import os
 
-import aiosqlite
-
 from cloudra.reAct import reAct
 from cloudra.subagents import Subagent_hash
+from cloudra.database import ConversationDB
 
 
 async def run_executor(task_id: int, database_path: str, session_id: str = None):
     # 连接数据库获取任务
-    async with aiosqlite.connect(database_path, timeout=10) as con:
-        await con.execute("PRAGMA journal_mode=WAL;")
-        await con.execute("PRAGMA busy_timeout=5000;")
+    db = ConversationDB.from_path(database_path)
+    async with db.aconnect() as con:
         cur = await con.execute("SELECT input_data FROM subagent_requests WHERE id = ?", (task_id,))
         row = await cur.fetchone()
         if not row:
@@ -78,12 +76,12 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         print(f"--- Agent {sub_agent.name} 执行完毕 ---")
 
         # 4. 更新数据库状态为 done
-        async with aiosqlite.connect(database_path, timeout=10) as con:
+        async with db.aconnect() as con:
             await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))
             await con.commit()
     except Exception as e:
         print(f"Critical Error in Sub-process: {e}")
-        async with aiosqlite.connect(database_path, timeout=10) as con:
+        async with db.aconnect() as con:
             await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', task_id))
             await con.commit()
 

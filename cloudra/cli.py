@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from cloudra.config import get_config, reload_config, CloudraConfig
+from cloudra.database import get_database_path
 from cloudra.main import run_task
 from cloudra import __version__
 
@@ -356,9 +357,9 @@ def skills():
 def sessions(state):
     """查看所有 Session 状态。"""
     data_dir = get_config().data_dir
-    db_path = data_dir / "tasks" / "database.db"
+    db_path = get_database_path()
     
-    if not db_path.exists():
+    if not os.path.exists(db_path):
         console.print("[yellow]数据库尚未创建。[/yellow]")
         return
     

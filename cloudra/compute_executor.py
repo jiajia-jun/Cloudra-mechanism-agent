@@ -1,18 +1,19 @@
 import subprocess
 import argparse
 import sys
-import aiosqlite
 import json
 import asyncio
 import time
 import os
 from cloudra.compute_utils import check_job_type, launch_compute_processes
+from cloudra.database import ConversationDB
 
 
 async def _mark_failed(dbpath: str, task_id: int, message: str):
     """将任务标记为 failed，并打印错误信息。"""
     print(f"Error: {message}")
-    async with aiosqlite.connect(dbpath, timeout=10) as con:
+    db = ConversationDB.from_path(dbpath)
+    async with db.aconnect() as con:
         await con.execute(
             "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
             ('failed', time.time(), task_id)
@@ -23,11 +24,8 @@ async def _mark_failed(dbpath: str, task_id: int, message: str):
 async def run_compute(task_id: int, dbpath: str):
 
     # 接收main传来的id，改数据库，发射guard(与任务绑定，传id，路径，conv_id)和calculator.sh(健壮一点，方便以后解耦)两个子进程
-    async with aiosqlite.connect(dbpath, timeout=10) as con:
-        await con.execute("PRAGMA journal_mode=WAL;")
-        await con.execute("PRAGMA busy_timeout=5000;")
-        await con.execute("PRAGMA synchronous=NORMAL;")
-        
+    db = ConversationDB.from_path(dbpath)
+    async with db.aconnect() as con:
         cur = await con.execute("SELECT conversation_id, path, jobtype FROM compute_jobs WHERE id=?", (task_id,))
         row = await cur.fetchone()
     
@@ -46,7 +44,7 @@ async def run_compute(task_id: int, dbpath: str):
 
     # 正常情况下main已经改过state了，这里再确认一次
     try:
-        async with aiosqlite.connect(dbpath, timeout=10) as con:
+        async with db.aconnect() as con:
             await con.execute("UPDATE compute_jobs SET state=? WHERE id=?", ("running", task_id))
             await con.commit()
     except Exception as e:

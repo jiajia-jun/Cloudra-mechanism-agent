@@ -7,74 +7,17 @@ import threading
 import os
 import asyncio
 import json
-import aiosqlite
-import sqlite3
 import time
 from cloudra.subagents import Subagent_hash
 from cloudra.config import get_config
+from cloudra.database import ConversationDB
 
 
 def init_database(db_path: str):
-    """初始化数据库表"""
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("PRAGMA journal_mode=WAL;")
+    """初始化数据库表（兼容旧接口，新代码请用 ConversationDB）。"""
+    ConversationDB.from_path(db_path).init()
     
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS session (
-            session_id TEXT PRIMARY KEY,
-            state TEXT,
-            result TEXT
-        )
-    ''')
     
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS subagent_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            state TEXT,
-            input_data TEXT,
-            conversation_id TEXT
-        )
-    ''')
-
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS approvals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT,
-            agent_name TEXT,
-            details TEXT,
-            state TEXT DEFAULT 'pending', -- pending, approved, denied
-            denial_reason TEXT DEFAULT ''
-        )
-    ''')
-
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS compute_jobs(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id TEXT,
-            state TEXT,
-            path TEXT,
-            start_timestamp INTEGER,
-            end_timestamp INTEGER DEFAULT -1,
-            jobtype TEXT DEFAULT 'gaussian' -- gaussian, orca, vasp
-        )
-    ''')
-
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS context_events(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id TEXT,
-            agent_id TEXT,
-            event_type TEXT,
-            content TEXT,
-            state TEXT DEFAULT 'pending', -- pending, delivered, failed
-            created_at REAL
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-
 import copy
 import subprocess
 
@@ -89,83 +32,86 @@ def pipe_logger(process, agent_name):
             print(f"{prefix} {subline}")
     process.stdout.close()
 
-def checking_task(database_path: str):
+def checking_task(database_path: str, stop_event: threading.Event = None):
     # 记录已经启动的进程，避免重复启动
     active_processes = {} 
 
     while True:
+        if stop_event and stop_event.is_set():
+            break
         try:
-            con = sqlite3.connect(database_path, timeout=10)
-            cur = con.cursor()
-            
-            # 使用原子操作 (Optimistic Locking): 先尝试把状态从 ready 改为 running，并返回被修改的 id 和 input_data
-            # 如果别的线程已经改了，这个 UPDATE 就会返回空，从而避免冲突。
-            cur.execute("""
-                UPDATE subagent_requests 
-                SET state = 'running' 
-                WHERE id IN (
-                    SELECT id FROM subagent_requests WHERE state = 'ready' LIMIT 1
-                )
-                RETURNING id, input_data
-            """)
-            
-            claimed_task = cur.fetchone()
-            
-            if claimed_task:
-                request_id, input_data = claimed_task
-                con.commit() # 确认修改
+            db = ConversationDB.from_path(database_path)
+            with db.connect() as con:
+                cur = con.cursor()
                 
-                if isinstance(input_data, str):
-                    input_instance = json.loads(input_data)
-                else:
-                    input_instance = input_data
-
-                agent_id = input_instance.get('agent_id')
-                agent_hash = Subagent_hash()
-                template_agent = getattr(agent_hash, agent_id, None)
-                agent_name = template_agent.name if template_agent else "Unknown"
-
-                # 启动子进程
-                process = subprocess.Popen(
-                    [sys.executable, '-m', 'cloudra.executor', '--task_id', str(request_id), '--db', database_path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1
-                )
+                # 使用原子操作 (Optimistic Locking): 先尝试把状态从 ready 改为 running，并返回被修改的 id 和 input_data
+                # 如果别的线程已经改了，这个 UPDATE 就会返回空，从而避免冲突。
+                cur.execute("""
+                    UPDATE subagent_requests 
+                    SET state = 'running' 
+                    WHERE id IN (
+                        SELECT id FROM subagent_requests WHERE state = 'ready' LIMIT 1
+                    )
+                    RETURNING id, input_data
+                """)
                 
-                # ISSUE 3 Fix: 等待一小会儿，检查进程是否瞬间崩溃
-                time.sleep(0.5)
-                if process.poll() is not None:
-                    # 进程刚起就死了
-                    return_code = process.returncode
-                    print(f"{Color.RED}[系统错误]{Color.END} Agent {agent_name} (Task {request_id}) 启动失败! 退出码: {return_code}")
-                    # 回滚状态为 failed，避免死等
-                    cur.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', request_id))
-                    con.commit()
-                else:
-                    # 正常运行，开启线程读取日志
-                    t = threading.Thread(target=pipe_logger, args=(process, agent_name), daemon=True)
-                    t.start()
-                    active_processes[request_id] = process
-            else:
-                con.rollback()
+                claimed_task = cur.fetchone()
+                
+                if claimed_task:
+                    request_id, input_data = claimed_task
+                    con.commit() # 确认修改
+                    
+                    if isinstance(input_data, str):
+                        input_instance = json.loads(input_data)
+                    else:
+                        input_instance = input_data
 
-            con.close()
+                    agent_id = input_instance.get('agent_id')
+                    agent_hash = Subagent_hash()
+                    template_agent = getattr(agent_hash, agent_id, None)
+                    agent_name = template_agent.name if template_agent else "Unknown"
+
+                    # 启动子进程
+                    process = subprocess.Popen(
+                        [sys.executable, '-m', 'cloudra.executor', '--task_id', str(request_id), '--db', database_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1
+                    )
+                    
+                    # ISSUE 3 Fix: 等待一小会儿，检查进程是否瞬间崩溃
+                    time.sleep(0.5)
+                    if process.poll() is not None:
+                        # 进程刚起就死了
+                        return_code = process.returncode
+                        print(f"{Color.RED}[系统错误]{Color.END} Agent {agent_name} (Task {request_id}) 启动失败! 退出码: {return_code}")
+                        # 回滚状态为 failed，避免死等
+                        cur.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', request_id))
+                        con.commit()
+                    else:
+                        # 正常运行，开启线程读取日志
+                        t = threading.Thread(target=pipe_logger, args=(process, agent_name), daemon=True)
+                        t.start()
+                        active_processes[request_id] = process
+                else:
+                    con.rollback()
         except Exception as e:
             print(f"{Color.RED}[系统错误]{Color.END} checking_task 发生异常: {e}")
         
         time.sleep(1)
 
-def approval_handler(database_path: str):
+def approval_handler(database_path: str, stop_event: threading.Event = None):
     """处理安全审批的后台线程"""
     while True:
+        if stop_event and stop_event.is_set():
+            break
         try:
-            con = sqlite3.connect(database_path)
-            cur = con.cursor()
-            cur.execute("SELECT id, session_id, details FROM approvals WHERE state = 'pending'")
-            requests = cur.fetchall()
-            con.close()
+            db = ConversationDB.from_path(database_path)
+            with db.connect() as con:
+                cur = con.cursor()
+                cur.execute("SELECT id, session_id, details FROM approvals WHERE state = 'pending'")
+                requests = cur.fetchall()
 
             for req_id, session_id, details in requests:
                 print(f"\n{Color.RED}{Color.BOLD}[安全审批请求]{Color.END}")
@@ -181,14 +127,13 @@ def approval_handler(database_path: str):
                     if reason_input:
                         denial_reason = reason_input
                 
-                con = sqlite3.connect(database_path)
-                cur = con.cursor()
-                cur.execute(
-                    "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ?",
-                    (state, denial_reason, req_id)
-                )
-                con.commit()
-                con.close()
+                with db.connect() as con:
+                    cur = con.cursor()
+                    cur.execute(
+                        "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ?",
+                        (state, denial_reason, req_id)
+                    )
+                    con.commit()
                 status_msg = f"已标记为: {state}"
                 if state == 'denied' and denial_reason:
                     status_msg += f"，原因: {denial_reason}"
@@ -199,52 +144,53 @@ def approval_handler(database_path: str):
         time.sleep(2)
 
 
-def check_compute(db_path: str):
+def check_compute(db_path: str, stop_event: threading.Event = None):
     active_processes = {}
 
     while True:
+        if stop_event and stop_event.is_set():
+            break
         try:
-            con = sqlite3.connect(db_path, timeout=10)
-            cur = con.cursor()
+            db = ConversationDB.from_path(db_path)
+            with db.connect() as con:
+                cur = con.cursor()
 
-            cur.execute("""
-                UPDATE compute_jobs
-                SET state = 'running'
-                WHERE id IN (
-                    SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1
-                )
-                RETURNING id
-            """)
-
-            claimed_task = cur.fetchone()
-
-            if claimed_task:
-                task_id, = claimed_task
-                con.commit() # 确认修改
-            
-                process = subprocess.Popen(
-                        [sys.executable, '-m', 'cloudra.compute_executor', '--task_id', str(task_id), '--db_path', db_path],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1
+                cur.execute("""
+                    UPDATE compute_jobs
+                    SET state = 'running'
+                    WHERE id IN (
+                        SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1
                     )
-                # 等待一小会儿，检查 compute_executor 是否瞬间崩溃
-                time.sleep(0.5)
-                if process.poll() is not None and process.returncode != 0:
-                    return_code = process.returncode
-                    print(f"{Color.RED}[系统错误]{Color.END} 计算任务 (Task {task_id}) 启动失败! 退出码: {return_code}")
-                    # 若 compute_executor 内已写入 failed 则无需再改；这里做二次兜底
-                    cur.execute("UPDATE compute_jobs SET state = ? WHERE id = ? AND state = 'running'", ('failed', task_id))
-                    con.commit()
-                else:
-                    t = threading.Thread(target=pipe_logger, args=(process, f"compute-{task_id}"), daemon=True)
-                    t.start()
-                    active_processes[task_id] = process
-            else:
-                con.rollback()
+                    RETURNING id
+                """)
 
-            con.close()
+                claimed_task = cur.fetchone()
+
+                if claimed_task:
+                    task_id, = claimed_task
+                    con.commit() # 确认修改
+                
+                    process = subprocess.Popen(
+                            [sys.executable, '-m', 'cloudra.compute_executor', '--task_id', str(task_id), '--db_path', db_path],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            bufsize=1
+                        )
+                    # 等待一小会儿，检查 compute_executor 是否瞬间崩溃
+                    time.sleep(0.5)
+                    if process.poll() is not None and process.returncode != 0:
+                        return_code = process.returncode
+                        print(f"{Color.RED}[系统错误]{Color.END} 计算任务 (Task {task_id}) 启动失败! 退出码: {return_code}")
+                        # 若 compute_executor 内已写入 failed 则无需再改；这里做二次兜底
+                        cur.execute("UPDATE compute_jobs SET state = ? WHERE id = ? AND state = 'running'", ('failed', task_id))
+                        con.commit()
+                    else:
+                        t = threading.Thread(target=pipe_logger, args=(process, f"compute-{task_id}"), daemon=True)
+                        t.start()
+                        active_processes[task_id] = process
+                else:
+                    con.rollback()
         except Exception as e:
             print(f'{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}')
         time.sleep(5)
@@ -274,8 +220,9 @@ async def _wait_for_background_tasks(database: str, conversation_id: str) -> Non
     Coordinator 在此阶段保持进程存活但处于休息状态，不占用 LLM 资源；
     当计算任务完成或子 Agent 返回时，会被唤醒继续处理。
     """
+    db = ConversationDB.from_path(database)
     while True:
-        async with aiosqlite.connect(database, timeout=10) as con:
+        async with db.aconnect() as con:
             cur = await con.execute(
                 """
                 SELECT 
@@ -311,14 +258,15 @@ async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) 
             print(f"{Color.GREEN}[系统]{Color.END} 继续对话: {conv_id}")
 
     data_dir = get_config().data_dir
-    database = os.path.join(data_dir, 'tasks', 'database.db')
     
-    os.makedirs(os.path.dirname(database), exist_ok=True)
-    init_database(database)
-
     # 恢复或创建对话
     conversation = Conversation(conv_id)
     conversation.touch()
+    
+    # 每个 conversation 拥有独立的数据库，避免并发时全局锁竞争。
+    conv_db = ConversationDB(conversation.id)
+    conv_db.init()
+    database = conv_db.path
     
     coordinator_agent = Coordinator(query=query, conversation_id=conversation.id)
     # 只有当前上下文中最后一条不是当前 query 时才追加，避免重复插入。
@@ -328,6 +276,7 @@ async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) 
 
     father_reAct = Coordinator_reAct(coordinator_agent)
 
+    # 为该 conversation 启动独立的后台 daemon 线程（各 conversation 之间不共享 DB）
     t = threading.Thread(target=checking_task, args=(database,), daemon=True)
     t.start()
 

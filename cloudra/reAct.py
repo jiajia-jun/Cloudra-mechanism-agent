@@ -2,8 +2,6 @@ import time
 import httpx
 import openai 
 import os
-import sqlite3
-import aiosqlite
 from cloudra.agent import Agent
 import asyncio
 import json
@@ -13,6 +11,7 @@ from cloudra.tools_class import input_schema,get_tools
 from cloudra.tools import get_tools_lst
 from cloudra.session_class import Session
 from cloudra.config import get_config
+from cloudra.database import get_database_path, ConversationDB
 
 
 # 每次 reasoning 前等待外部事件的最长时间（秒）
@@ -90,6 +89,9 @@ class reAct:
             log_path = os.path.join(data_dir, 'logs', agent.name)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
+        # 按 conversation 隔离 SQLite，避免并发 benchmark 时全局锁竞争。
+        self.database_path = get_database_path(conv_id)
+
         self.log = Log(agent.name, log_path=log_path)
         self.log.session = None
         self.session_create(session_id)
@@ -131,7 +133,8 @@ class reAct:
                 if content:
                     self.session.state = 'sleeping'
                     # 更新数据库结果
-                    async with aiosqlite.connect(self.database_path, timeout=10) as con:
+                    db = ConversationDB.from_path(self.database_path)
+                    async with db.aconnect() as con:
                         await con.execute(
                             "UPDATE session SET state = ?, result = ? WHERE session_id = ?",
                             ('sleeping', content, self.session.id)
@@ -257,10 +260,20 @@ class reAct:
         # 延迟加载逻辑：如果有 tool_calls，先存入 undos 缓冲区
         if tool_calls:
             self.undos.append(new_block)
-        else:
+        elif not self._is_empty_assistant_block(new_block):
             await agent.update_context(new_block)
             
         return tool_calls
+
+    @staticmethod
+    def _is_empty_assistant_block(block: dict) -> bool:
+        """判断一条消息是否为没有有效载荷的 assistant 空消息。"""
+        if block.get("role") != "assistant":
+            return False
+        has_content = bool(block.get("content"))
+        has_reasoning = bool(block.get("reasoning_content"))
+        has_tool_calls = bool(block.get("tool_calls"))
+        return not (has_content or has_reasoning or has_tool_calls)
 
     async def _commit_undos(self):
         '''将缓冲区中的消息提交到上下文。'''
@@ -425,7 +438,7 @@ class reAct:
         '''
         data_dir = get_config().data_dir
         if not self.database_path:
-            self.database_path = os.path.join(data_dir, 'tasks', 'database.db')
+            self.database_path = get_database_path(getattr(self.agent, 'conversation_id', 'default'))
         conv_id = getattr(self.agent, 'conversation_id', 'default')
         # 如果调用方指定了 session_id（如 SubAgentLauncher），则直接使用；否则按时间生成。
         session_id = session_id if session_id else f'{self.agent.id}_{datetime.now().isoformat()}'
@@ -434,20 +447,20 @@ class reAct:
         else:
             _path = os.path.join(data_dir, 'sessions', session_id + '.json')
         os.makedirs(os.path.dirname(_path), exist_ok=True)
+        os.makedirs(os.path.dirname(self.database_path), exist_ok=True)
         session_ = Session(id=session_id, path=_path)
         self.session = session_
         self.log.session = session_
 
         # 数据库为单一事实来源：创建即入库
-        con = sqlite3.connect(self.database_path, timeout=10)
-        cur = con.cursor()
-        cur.execute("PRAGMA journal_mode=WAL;")
-        cur.execute(
-            "INSERT OR IGNORE INTO session (session_id, state, result) VALUES (?, ?, ?)",
-            (session_.id, 'sleeping', '')
-        )
-        con.commit()
-        con.close()
+        db = ConversationDB.from_path(self.database_path)
+        with db.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                "INSERT OR IGNORE INTO session (session_id, state, result) VALUES (?, ?, ?)",
+                (session_.id, 'sleeping', '')
+            )
+            con.commit()
         return
     
     def kill(self):
@@ -456,14 +469,14 @@ class reAct:
         session.upload_json()
         self._continue = False
         # 同步数据库
-        con = sqlite3.connect(self.database_path, timeout=10)
-        cur = con.cursor()
-        cur.execute(
-            "UPDATE session SET state = ? WHERE session_id = ?",
-            ('killed', session.id)
-        )
-        con.commit()
-        con.close()
+        db = ConversationDB.from_path(self.database_path)
+        with db.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                "UPDATE session SET state = ? WHERE session_id = ?",
+                ('killed', session.id)
+            )
+            con.commit()
 
 
 class Coordinator_reAct(reAct):
@@ -473,12 +486,9 @@ class Coordinator_reAct(reAct):
     session: Session
 
     def __init__(self, agent: Agent):
-        data_dir = get_config().data_dir
-        db_path = os.path.join(data_dir, 'tasks', 'database.db')
         # Coordinator 的身份 prompt 已包含 ReAct 工作指南，
         # 这里不再传入额外 query，让 agent.query（用户原始输入）作为第一条 user 消息。
         super().__init__(agent=agent)
-        self.database_path = db_path
         self.log.is_main = True
 
     async def run(self):

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 # 导入你的核心逻辑
 from cloudra.main import run_task
 from cloudra.config import get_config
+from cloudra.database import get_database_path
 from cloudra.conversation_class import Conversation
 from cloudra.skill_class import skill_loader
 from cloudra import __version__
@@ -57,8 +58,27 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-def get_db_path():
-    return os.path.join(data_dir, 'tasks', 'database.db')
+def get_db_path(conv_id: str = "default"):
+    return get_database_path(conv_id)
+
+
+def _list_conversation_db_paths() -> list[str]:
+    """返回所有已存在 conversation 的数据库路径。"""
+    conv_dir = data_dir / "conversations"
+    if not conv_dir.exists():
+        return []
+    paths = []
+    for entry in conv_dir.iterdir():
+        if entry.is_dir():
+            db = entry / "tasks" / "database.db"
+            if db.exists():
+                paths.append(str(db))
+    # 兼容 default conversation
+    default_db = data_dir / "conversations" / "default" / "tasks" / "database.db"
+    if default_db.exists() and str(default_db) not in paths:
+        paths.append(str(default_db))
+    return paths
+
 
 # --- API 路由 ---
 
@@ -141,21 +161,37 @@ async def chat_endpoint(req: ChatRequest):
 
 @app.get("/approvals")
 async def get_pending_approvals():
-    """获取待审批请求"""
-    db_path = get_db_path()
-    if not os.path.exists(db_path):
-        return []
-    
-    async with aiosqlite.connect(db_path) as conn:
-        cur = await conn.execute("SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'")
-        rows = await cur.fetchall()
-    
-    return [{"id": r[0], "session_id": r[1], "agent_name": r[2], "details": r[3]} for r in rows]
+    """获取待审批请求（扫描所有 conversation DB）。"""
+    results = []
+    for db_path in _list_conversation_db_paths():
+        async with aiosqlite.connect(db_path) as conn:
+            cur = await conn.execute("SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'")
+            rows = await cur.fetchall()
+        for r in rows:
+            results.append({
+                "id": r[0],
+                "session_id": r[1],
+                "agent_name": r[2],
+                "details": r[3],
+                "db_path": db_path,
+            })
+    return results
 
 @app.post("/approvals/{approval_id}")
-async def process_approval(approval_id: int, dec: ApprovalDecision):
-    """执行审批操作"""
-    db_path = get_db_path()
+async def process_approval(approval_id: int, dec: ApprovalDecision, db_path: str = None):
+    """执行审批操作。可通过 db_path 指定所属 conversation 数据库。"""
+    if not db_path:
+        # 未指定时扫描所有 DB 查找该 approval_id
+        for candidate in _list_conversation_db_paths():
+            async with aiosqlite.connect(candidate) as conn:
+                cur = await conn.execute("SELECT id FROM approvals WHERE id = ?", (approval_id,))
+                if await cur.fetchone():
+                    db_path = candidate
+                    break
+    
+    if not db_path or not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail="未找到对应的审批请求")
+    
     state = 'approved' if dec.decision.lower() == 'approved' else 'denied'
     
     async with aiosqlite.connect(db_path) as conn:

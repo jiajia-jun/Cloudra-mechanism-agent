@@ -3,16 +3,10 @@ from typing import Any, Literal
 
 from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
-from cloudra.config import get_config
+from cloudra.database import get_database_path, ConversationDB
 from cloudra.compute_utils import check_job_type, launch_compute_processes
-import aiosqlite
 import os
 import time
-
-
-def _db_path() -> str:
-    """动态获取数据库路径，便于测试隔离。"""
-    return os.path.join(get_config().data_dir, "tasks", "database.db")
 
 
 description = (
@@ -71,9 +65,13 @@ class SubmitComputeJob(Tool):
         if not ok:
             return SubmitComputeJob_output_schema(is_success=False, message=msg)
 
+        db_path = get_database_path(conv_id)
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        db = ConversationDB(conv_id)
+
         if user_input.is_async:
             try:
-                async with aiosqlite.connect(_db_path()) as con:
+                async with db.aconnect() as con:
                     cur = await con.execute('''
                     INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
                     VALUES (?,?,?,?,?,?)
@@ -96,8 +94,7 @@ class SubmitComputeJob(Tool):
         else:
             # 直接写入 running，并开始计算
             try:
-                db_path = _db_path()
-                async with aiosqlite.connect(db_path) as con:
+                async with db.aconnect() as con:
                     now = time.time()
                     cur = await con.execute('''
                     INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
@@ -132,8 +129,9 @@ class SubmitComputeJob(Tool):
             wait_for_calculator=True,
         )
 
+        db = ConversationDB.from_path(db_path)
         if not ok:
-            async with aiosqlite.connect(db_path, timeout=10) as con:
+            async with db.aconnect() as con:
                 await con.execute(
                     "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
                     ('failed', time.time(), job_id)
@@ -142,7 +140,7 @@ class SubmitComputeJob(Tool):
             raise RuntimeError(f"运行计算任务失败：{msg}")
 
         state = 'done'
-        async with aiosqlite.connect(db_path, timeout=10) as con:
+        async with db.aconnect() as con:
             await con.execute(
                 "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
                 (state, time.time(), job_id)

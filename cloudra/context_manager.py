@@ -14,10 +14,10 @@ import os
 import time
 from typing import Optional
 
-import aiosqlite
 from openai import OpenAI
 
 from cloudra.config import get_config
+from cloudra.database import get_database_path, ConversationDB
 from cloudra.token_estimator import TokenEstimator
 
 # 本地图片扩展名到 MIME 类型的映射
@@ -51,9 +51,9 @@ def _context_file_path(agent_id: str, conversation_id: str, session_id: Optional
     return os.path.join(base, filename)
 
 
-def _db_path() -> str:
-    """返回任务数据库路径。"""
-    return os.path.join(get_config().data_dir, 'tasks', 'database.db')
+def _db_path(conversation_id: Optional[str] = None) -> str:
+    """返回指定 conversation 的任务数据库路径。"""
+    return get_database_path(conversation_id)
 
 
 class ContextManager:
@@ -74,7 +74,8 @@ class ContextManager:
         self.query = query
         self.session_id = session_id
         self.context_file = _context_file_path(agent_id, self.conversation_id, session_id)
-        self.db_path = db_path or _db_path()
+        self.db_path = db_path or _db_path(self.conversation_id)
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
     def _initial_context(self) -> list:
         """构造初始上下文：system prompt + user query。"""
@@ -161,6 +162,8 @@ class ContextManager:
             )
             for i, msg in enumerate(raw_context)
         ]
+
+        rendered = self._drop_empty_assistant_messages(rendered)
 
         if max_context_tokens is None:
             return rendered
@@ -275,6 +278,30 @@ class ContextManager:
             rendered["reasoning_content"] = str(rendered["reasoning_content"]) if rendered["reasoning_content"] else None
 
         return rendered
+
+    @staticmethod
+    def _drop_empty_assistant_messages(messages: list[dict]) -> list[dict]:
+        """过滤掉 assistant 角色的空消息。
+
+        部分模型/接口要求 assistant 消息至少提供 content、reasoning_content
+        或 tool_calls 之一。如果某条 assistant 消息三者皆空，直接丢弃会避免
+        后续 LLM 调用返回 400 (Param Incorrect)。
+        """
+        cleaned = []
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                cleaned.append(msg)
+                continue
+
+            has_content = bool(msg.get("content"))
+            has_reasoning = bool(msg.get("reasoning_content"))
+            has_tool_calls = bool(msg.get("tool_calls"))
+
+            if has_content or has_reasoning or has_tool_calls:
+                cleaned.append(msg)
+            # else: 空 assistant 消息直接丢弃
+
+        return cleaned
 
     async def _summarize_history(self, history: list[dict]) -> str:
         """调用 FOLLOWER 配置的大模型把历史消息压缩成一段梗概。"""
@@ -417,9 +444,10 @@ class ContextManager:
 
         该方法是静态方法，因为生产者通常不持有目标 Agent 的 ContextManager 实例。
         """
-        path = db_path or _db_path()
+        path = db_path or _db_path(conversation_id)
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        async with aiosqlite.connect(path, timeout=10) as con:
+        db = ConversationDB.from_path(path)
+        async with db.aconnect() as con:
             await con.execute(
                 """
                 INSERT INTO context_events (conversation_id, agent_id, event_type, content, state, created_at)
@@ -432,7 +460,8 @@ class ContextManager:
     async def poll_external_events(self) -> list[dict]:
         """轮询属于本 agent 的 pending 外部事件，标记为 delivered 后返回。"""
         events = []
-        async with aiosqlite.connect(self.db_path, timeout=10) as con:
+        db = ConversationDB.from_path(self.db_path)
+        async with db.aconnect() as con:
             cur = await con.execute(
                 """
                 SELECT id, event_type, content FROM context_events
@@ -459,7 +488,8 @@ class ContextManager:
 
     async def has_pending_events(self) -> bool:
         """检查是否有待处理的外部事件。"""
-        async with aiosqlite.connect(self.db_path, timeout=10) as con:
+        db = ConversationDB.from_path(self.db_path)
+        async with db.aconnect() as con:
             cur = await con.execute(
                 """
                 SELECT COUNT(*) FROM context_events

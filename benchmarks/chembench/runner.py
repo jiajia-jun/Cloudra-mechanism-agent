@@ -43,13 +43,13 @@ from typing import Any, Iterator, Optional
 from cloudra.agent import Coordinator
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
+from cloudra.database import ConversationDB
 from cloudra.main import (
     Color,
     _wait_for_background_tasks,
     approval_handler,
     check_compute,
     checking_task,
-    init_database,
 )
 from cloudra.reAct import Coordinator_reAct
 
@@ -86,53 +86,64 @@ class RunnerConfig:
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
+class _ConversationInfra:
+    """为单个 conversation 启动后台 daemon 线程，并提供 stop_event 用于结束它们。"""
+
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        self.stop_event = threading.Event()
+        self.threads: list[threading.Thread] = []
+
+    def start(self) -> None:
+        """启动 checking_task / check_compute / approval_handler 三个后台线程。"""
+        for target, name in (
+            (checking_task, "chembench-checker"),
+            (check_compute, "chembench-compute"),
+            (approval_handler, "chembench-approval"),
+        ):
+            t = threading.Thread(
+                target=target,
+                args=(self.db_path, self.stop_event),
+                daemon=True,
+                name=name,
+            )
+            t.start()
+            self.threads.append(t)
+
+    def stop(self) -> None:
+        """通知后台线程退出，并等待它们结束（最多 2 秒）。"""
+        self.stop_event.set()
+        for t in self.threads:
+            t.join(timeout=2.0)
+
+
 class ChemBenchRunner:
     """
     驱动 ChemBench 评测的核心类。
 
     使用方式：
         runner = ChemBenchRunner(config)
-        runner.setup()          # 初始化后台线程和 DB（只调用一次）
         summary = asyncio.run(runner.run(benchmark))
     """
 
     def __init__(self, config: RunnerConfig):
         self.config    = config
-        self._db_path  = _db_path()
         self._reporter = BenchmarkReporter(config.run_id)
-        self._infra_started = False
 
     # ── 初始化 ────────────────────────────────────────────────────────────────
 
     def setup(self) -> None:
         """
-        初始化数据库并启动后台 daemon 线程。
-        必须在 run() 之前调用，且只调用一次。
-
-        YOLO 模式：运行前确保已设置 CLOUDRA_YOLO_MODE=true，
-        approval_handler 会将所有危险操作转交 YoloGuard 自动判断，
-        不再通过 CLI input() 阻塞。
+        旧版入口兼容性方法。当前实现已把数据库/后台线程下放到每道题目，
+        因此 setup() 不再需要做全局初始化。
         """
-        if self._infra_started:
-            return
+        pass
 
-        os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
-        init_database(self._db_path)
-
-        threading.Thread(
-            target=checking_task, args=(self._db_path,), daemon=True, name="chembench-checker"
-        ).start()
-        threading.Thread(
-            target=check_compute, args=(self._db_path,), daemon=True, name="chembench-compute"
-        ).start()
-        threading.Thread(
-            target=approval_handler, args=(self._db_path,), daemon=True, name="chembench-approval"
-        ).start()
-
-        self._infra_started = True
-        if self.config.verbose:
-            _log("后台线程已启动，YOLO 模式: "
-                 f"{'ON' if os.environ.get('CLOUDRA_YOLO_MODE', '').lower() in ('1','true','yes','on') else 'OFF'}")
+    def _start_conversation_infra(self, db_path: str) -> _ConversationInfra:
+        """为单个 conversation 启动独立的后台线程。"""
+        infra = _ConversationInfra(db_path)
+        infra.start()
+        return infra
 
     # ── 主流程 ────────────────────────────────────────────────────────────────
 
@@ -147,8 +158,6 @@ class ChemBenchRunner:
         Returns:
             BenchmarkRun 汇总对象（同时写入 summary.json）。
         """
-        assert self._infra_started, "必须先调用 setup()"
-
         all_tasks = [task for tq in benchmark.topics.values() for task in tq.tasks]
         questions = list(self._filter_questions(all_tasks))
         total     = len(questions)
@@ -184,6 +193,12 @@ class ChemBenchRunner:
 
         conversation = Conversation(None)
         conversation.touch()
+
+        # 每道题拥有独立的 conversation DB，彻底隔离并发写锁。
+        conv_db = ConversationDB(conversation.id)
+        conv_db.init()
+        infra = self._start_conversation_infra(conv_db.path)
+
         t0 = time.monotonic()
         timed_out  = False
         raw_output = ""
@@ -222,7 +237,7 @@ class ChemBenchRunner:
 
                 result = await safe_react_run()
                 while True:
-                    await _wait_for_background_tasks(self._db_path, conversation.id)
+                    await _wait_for_background_tasks(conv_db.path, conversation.id)
                     has_pending = await coordinator.context_manager.has_pending_events() \
                         if coordinator.context_manager else False
                     if not has_pending:
@@ -250,6 +265,7 @@ class ChemBenchRunner:
         except Exception as exc:
             _log(f"  [异常] {q_name}: {exc}", warn=True)
         finally:
+            infra.stop()
             if conversation.state != "archived":
                 conversation.set_state("sleeping")
 
@@ -311,11 +327,6 @@ from benchmarks.chembench.utils import get_field
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────────
-
-def _db_path() -> str:
-    data_dir = get_config().data_dir
-    return os.path.join(data_dir, "tasks", "database.db")
-
 
 def _get_field(obj: Any, field: str, default: Any) -> Any:
     return get_field(obj, field, default)

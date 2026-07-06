@@ -1,13 +1,19 @@
 from pydantic import BaseModel, Field
 from typing import Any
 import os
-import aiosqlite
 from pydantic_core import PydanticUndefined
 from cloudra.subagents import Subagent_hash
 from cloudra.session_class import Session
 # HACK: 这里原本缺少 import，属于历史遗留问题；get_tools_lst 定义在 tools/__init__.py
 from cloudra.tools import get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
+from cloudra.database import get_database_path, ConversationDB
+
+
+def _tool_db_path(subagent) -> str:
+    """根据 tool 关联的 Agent 返回对应 conversation 的数据库路径。"""
+    conv_id = getattr(subagent, 'conversation_id', 'default') if subagent else 'default'
+    return get_database_path(conv_id)
 
 
 def get_tools() -> list[dict]:
@@ -186,8 +192,7 @@ class Tool(BaseModel):
             guard = YoloGuard()
             return await self._yolo_judge(session, tool_args or {}, guard)
 
-        from cloudra.config import get_config
-        db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
+        db_path = _tool_db_path(self.subagent)
         return await self.request_approval(db_path, session.id, full_details)
 
     async def _yolo_judge(
@@ -212,7 +217,8 @@ class Tool(BaseModel):
         import asyncio
         import time
 
-        async with aiosqlite.connect(db_path, timeout=10) as con:
+        db = ConversationDB.from_path(db_path)
+        async with db.aconnect() as con:
             cur = await con.execute(
                 "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES (?, ?, ?, ?)",
                 (session_id, details, 'pending', '')
@@ -223,7 +229,7 @@ class Tool(BaseModel):
         # 轮询等待审批结果
         while True:
             await asyncio.sleep(2)
-            async with aiosqlite.connect(db_path, timeout=10) as con:
+            async with db.aconnect() as con:
                 cur = await con.execute("SELECT state, denial_reason FROM approvals WHERE id = ?", (approval_id,))
                 row = await cur.fetchone()
 

@@ -261,6 +261,10 @@ class Agent(BaseModel):
             max_context_tokens=self.context_window // 2 if self.context_window else None,
         )
 
+        # 最终防御：再次过滤 assistant 空消息，避免某些 provider 因
+        # messages[N] 为空而返回 400 Param Incorrect。
+        messages = self.context_manager._drop_empty_assistant_messages(messages)
+
         request_kwargs = {
             "model": self.model,
             "messages": messages,

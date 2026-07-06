@@ -3,13 +3,13 @@ import json
 import os
 from typing import Any
 
-import aiosqlite
 from pydantic import Field
 
 from cloudra.agent import Agent
 from cloudra.session_class import Session
 from cloudra.subagents import Subagent_hash
 from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.database import get_database_path, ConversationDB
 
 description = (
     "启动子 Agent 执行特定任务。Coordinator 可将复杂任务拆分为多个子任务。\n"
@@ -127,10 +127,9 @@ class SubAgentLauncher(Tool):
 
         act_agent = sub_agent.name
 
-        # 写入数据库记录
-        from cloudra.config import get_config
-        db_path = os.path.join(get_config().data_dir, 'tasks', 'database.db')
+        db_path = get_database_path(conversation_id)
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        db = ConversationDB(conversation_id)
 
         # 先插入记录以获取 task_id，再生成 session_id 并更新 payload。
         # session_id 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
@@ -143,7 +142,7 @@ class SubAgentLauncher(Tool):
 
         if is_wait:
             # 同步模式：标记为 running 并直接启动子进程执行
-            async with aiosqlite.connect(db_path) as con:
+            async with db.aconnect() as con:
                 cur = await con.execute(
                     "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
                     ('running', json.dumps(base_payload), conversation_id)
@@ -187,7 +186,7 @@ class SubAgentLauncher(Tool):
 
             # 核心改进：从数据库中获取真实的 result 字段，而不是抓取 stdout 的最后一行
             # 这样可以确保哪怕结论很长，Coordinator 也能完整看到
-            async with aiosqlite.connect(db_path) as con:
+            async with db.aconnect() as con:
                 cur = await con.execute("SELECT result FROM session WHERE session_id = ?", (session_id,))
                 row = await cur.fetchone()
 
@@ -197,7 +196,7 @@ class SubAgentLauncher(Tool):
                 result = f"Task completed, but no explicit result was found in database. Last output lines: {' | '.join(output_lines[-3:])}"
         else:
             # 异步模式：仅写入 ready，由 main.py 的后台线程 pickup
-            async with aiosqlite.connect(db_path) as con:
+            async with db.aconnect() as con:
                 cur = await con.execute(
                     "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
                     ('ready', json.dumps(base_payload), conversation_id)

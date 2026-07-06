@@ -6,6 +6,7 @@ import sqlite3
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from cloudra.database import ConversationDB
 
 
 @pytest.fixture
@@ -22,43 +23,10 @@ def isolated_db(tmp_path, monkeypatch):
     cfg.data_dir = data_dir
     cfg._ensure_dirs()
 
-    db_path = data_dir / "tasks" / "database.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(db_path))
-    cur = con.cursor()
-    cur.execute("PRAGMA journal_mode=WAL;")
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS compute_jobs(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id TEXT,
-            state TEXT,
-            path TEXT,
-            start_timestamp INTEGER,
-            end_timestamp INTEGER DEFAULT -1,
-            jobtype TEXT DEFAULT 'gaussian'
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS subagent_requests(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            state TEXT,
-            input_data TEXT,
-            conversation_id TEXT
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS context_events(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id TEXT,
-            agent_id TEXT,
-            event_type TEXT,
-            content TEXT,
-            state TEXT DEFAULT 'pending',
-            created_at REAL
-        )
-    ''')
-    con.commit()
-    con.close()
+    from cloudra.database import ConversationDB
+
+    # 初始化 conversation-scoped 数据库
+    ConversationDB("test_conv").init()
 
     return str(data_dir)
 
@@ -66,10 +34,10 @@ def isolated_db(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_wait_for_background_tasks_blocks_on_compute_jobs(isolated_db):
     """_wait_for_background_tasks 应阻塞直到 compute_jobs 中无 running 任务。"""
-    from cloudra.config import get_config
+    from cloudra.database import ConversationDB
     from cloudra.main import _wait_for_background_tasks
 
-    db_path = os.path.join(get_config().data_dir, "tasks", "database.db")
+    db_path = ConversationDB("test_conv").path
     conv_id = "test_conv"
 
     con = sqlite3.connect(db_path)
@@ -103,7 +71,7 @@ async def test_wait_for_background_tasks_blocks_on_subagent_requests(isolated_db
     from cloudra.config import get_config
     from cloudra.main import _wait_for_background_tasks
 
-    db_path = os.path.join(get_config().data_dir, "tasks", "database.db")
+    db_path = ConversationDB("test_conv").path
     conv_id = "test_conv"
 
     con = sqlite3.connect(db_path)

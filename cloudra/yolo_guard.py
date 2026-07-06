@@ -171,7 +171,21 @@ class YoloGuard:
 
         try:
             # 强制提取 Tool Call 参数，彻底杜绝大模型啰嗦文本导致的解析错误
-            tool_call = response.choices[0].message.tool_calls[0]
+            message = response.choices[0].message
+            # 某些 provider 不返回 tool_calls 而是返回 content，做兼容处理
+            if not message.tool_calls:
+                content = message.content or ""
+                # 尝试从 content 中解析 JSON
+                try:
+                    result = json.loads(content)
+                    approved = bool(result.get("approved", False))
+                    raw_reason = result.get("reason")
+                    reason = str(raw_reason).strip() if raw_reason is not None else ""
+                    return approved, reason
+                except Exception:
+                    return False, f"YOLO 未返回 tool_call，且 content 无法解析: {content[:200]}"
+
+            tool_call = message.tool_calls[0]
             result = json.loads(tool_call.function.arguments)
             approved = bool(result.get("approved", False))
             

@@ -107,36 +107,10 @@ def isolated_db(tmp_path, monkeypatch):
     cfg.data_dir = data_dir
     cfg._ensure_dirs()
 
-    # 初始化数据库
-    db_path = data_dir / "tasks" / "database.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(db_path))
-    cur = con.cursor()
-    cur.execute("PRAGMA journal_mode=WAL;")
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS compute_jobs(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id TEXT,
-            state TEXT,
-            path TEXT,
-            start_timestamp INTEGER,
-            end_timestamp INTEGER DEFAULT -1,
-            jobtype TEXT DEFAULT 'gaussian'
-        )
-    ''')
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS context_events(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id TEXT,
-            agent_id TEXT,
-            event_type TEXT,
-            content TEXT,
-            state TEXT DEFAULT 'pending',
-            created_at REAL
-        )
-    ''')
-    con.commit()
-    con.close()
+    from cloudra.database import ConversationDB
+
+    # 初始化 conversation-scoped 数据库
+    ConversationDB("test_conv").init()
 
     return str(data_dir)
 
@@ -386,8 +360,9 @@ async def test_subagent_launcher_no_template_pollution(isolated_db):
     from cloudra.subagents import Subagent_hash
     from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
 
-    db_path = os.path.join(get_config().data_dir, "tasks", "database.db")
-    init_database(db_path)
+    from cloudra.database import ConversationDB
+
+    ConversationDB("parent_conv").init()
 
     tool = SubAgentLauncher()
     tool.subagent = MockAgent("a-0", "parent_conv")

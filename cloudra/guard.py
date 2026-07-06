@@ -6,10 +6,10 @@ import json
 import os
 import subprocess
 import argparse
-import aiosqlite
 import time
 
 from cloudra.context_manager import ContextManager
+from cloudra.database import ConversationDB
 
 
 async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path: str):
@@ -22,6 +22,7 @@ async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path
     from cloudra.compute_utils import get_log_path
     log_path = Path(get_log_path(path, job_type='gaussian'))
     workdir = os.path.dirname(log_path)
+    db = ConversationDB.from_path(db_path)
 
     while True:
         await asyncio.sleep(time_out)
@@ -55,7 +56,7 @@ async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path
         # 更新数据库中的任务状态
         state = 'done' if is_success else 'failed'
         try:
-            async with aiosqlite.connect(db_path, timeout=10) as con:
+            async with db.aconnect() as con:
                 await con.execute(
                     "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
                     (state, time.time(), taskid)
