@@ -20,6 +20,18 @@
 
 ## 安装
 
+### 一键安装（推荐）
+
+```bash
+./install.sh
+```
+
+该脚本会检查 Python 版本、可选地创建虚拟环境、以 editable 模式安装 Cloudra，
+并交互式初始化配置。如果你已有 `.env` 文件，它还可以将 LLM 设置迁移到新的
+YAML 配置中。
+
+### 手动安装
+
 ```bash
 pip install -e .
 ```

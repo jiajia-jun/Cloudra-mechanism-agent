@@ -9,6 +9,7 @@ from cloudra.yolo_guard import (
     _format_content,
     _format_recent_context_multimodal,
 )
+from cloudra.config import reload_config
 
 
 class TestIsYoloEnabled:
@@ -95,6 +96,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -122,6 +124,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -148,6 +151,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -172,6 +176,12 @@ class TestYoloGuardJudge:
         monkeypatch.delenv("FOLLOWER_URL", raising=False)
         monkeypatch.delenv("FOLLOWER_KEY", raising=False)
 
-        guard = YoloGuard()
-        with pytest.raises(RuntimeError):
-            guard._client()
+        mock_cfg = MagicMock()
+        mock_cfg.follower.model = ""
+        mock_cfg.follower.url = ""
+        mock_cfg.follower.key = ""
+
+        with patch("cloudra.yolo_guard.get_config", return_value=mock_cfg):
+            guard = YoloGuard()
+            with pytest.raises(RuntimeError):
+                guard._client()

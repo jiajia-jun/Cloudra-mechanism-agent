@@ -1,5 +1,6 @@
 import os
 import pytest
+from unittest.mock import patch
 from cloudra.context_manager import ContextManager
 
 
@@ -131,10 +132,6 @@ class TestContextManagerRender:
     @pytest.mark.asyncio
     async def test_token_compression(self, context_manager, monkeypatch):
         """当历史消息超过 token 预算时，用 LLM 梗概替换历史，保留最近 10 轮。"""
-        # 伪造 FOLLOWER 环境变量
-        monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
-        monkeypatch.setenv("FOLLOWER_URL", "http://localhost:9999")
-        monkeypatch.setenv("FOLLOWER_KEY", "test-key")
 
         # 构造 12 轮较早对话 + 2 轮最近对话
         for i in range(12):
@@ -158,12 +155,13 @@ class TestContextManagerRender:
             })
 
         # 预算足够保留最近 10 轮但不够保留完整历史
-        msgs = await context_manager.build_messages(
-            supports_vision=True,
-            max_context_tokens=3000,
-        )
+        with patch.object(context_manager, "_summarize_history", side_effect=RuntimeError("mock failure")):
+            msgs = await context_manager.build_messages(
+                supports_vision=True,
+                max_context_tokens=3000,
+            )
 
-        # 由于环境变量是假的，梗概生成会失败，应回退到原始消息
+        # 由于梗概生成失败，应回退到原始消息
         # 这个测试主要验证：不删除历史、不兜底、最近 10 轮保留
         assert any(m.get("role") == "system" for m in msgs)
         assistant_contents = [

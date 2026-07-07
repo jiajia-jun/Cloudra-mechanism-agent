@@ -2,17 +2,15 @@ import os
 from pathlib import Path
 from typing import Optional, Union
 
-from dotenv import load_dotenv
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import BaseModel
 
+from cloudra.config import get_config
 from cloudra.context_manager import ContextManager
 from cloudra.tools import get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
-
-load_dotenv()
 
 ChatResponse = Union[ChatCompletion, Stream[ChatCompletionChunk]]
 
@@ -293,11 +291,11 @@ class Coordinator(Agent):
 
     type: str = 'coordinator'
 
-    model: str = os.environ.get('COORDINATOR_MODEL')
+    model: Optional[str] = None
 
-    llm_site: str = os.environ.get('COORDINATOR_URL')
+    llm_site: Optional[str] = None
 
-    _api_key: str = os.environ.get('COORDINATOR_KEY')
+    _api_key: Optional[str] = None
 
     temperature: float = 1.0
 
@@ -313,7 +311,7 @@ class Coordinator(Agent):
 
     prompt: str = load_prompt('coordinator')
 
-    #由用户输入总任务。
+    # 由用户输入总任务。
     query: str
 
     is_stream: bool = True
@@ -321,11 +319,14 @@ class Coordinator(Agent):
     @property
     def supports_vision(self) -> bool:
         """从全局配置读取协调者模型是否支持视觉输入。"""
-        from cloudra.config import get_config
         return get_config().coordinator.supports_vision
 
     def __init__(self, **data):
         super().__init__(**data)
+        cfg = get_config().coordinator
+        self.model = self.model or cfg.model
+        self.llm_site = self.llm_site or cfg.url
+        self._api_key = self._api_key or cfg.key
         cwd = os.getcwd()
         # 列出工作目录顶层内容，帮助 Coordinator 知道当前有哪些文件/文件夹可用
         listing_lines = []
@@ -391,11 +392,11 @@ class Follower(Agent):
 
     type: str = 'follower'
 
-    model: str = os.environ.get('FOLLOWER_MODEL')
+    model: Optional[str] = None
 
-    llm_site: str = os.environ.get('FOLLOWER_URL')
+    llm_site: Optional[str] = None
 
-    _api_key: str = os.environ.get('FOLLOWER_KEY')
+    _api_key: Optional[str] = None
 
     temperature: float = 1.0
 
@@ -418,8 +419,14 @@ class Follower(Agent):
     @property
     def supports_vision(self) -> bool:
         """从全局配置读取跟随者模型是否支持视觉输入。"""
-        from cloudra.config import get_config
         return get_config().follower.supports_vision
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        cfg = get_config().follower
+        self.model = self.model or cfg.model
+        self.llm_site = self.llm_site or cfg.url
+        self._api_key = self._api_key or cfg.key
 
     def has_read_permission(self) -> bool:
         return True

@@ -6,10 +6,13 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
+
+from cloudra.config import get_config
 
 
 def _load_prompt(name: str) -> str:
@@ -98,14 +101,16 @@ class YoloGuard:
     """独立的安全判断 Agent。"""
 
     def __init__(self):
-        self.model = os.environ.get("FOLLOWER_MODEL")
-        self.base_url = os.environ.get("FOLLOWER_URL")
-        self.api_key = os.environ.get("FOLLOWER_KEY")
+        cfg = get_config().follower
+        self.model = cfg.model
+        self.base_url = cfg.url
+        self.api_key = cfg.key
 
     def _client(self) -> OpenAI:
         if not self.model or not self.base_url or not self.api_key:
             raise RuntimeError(
-                "YOLO 模式需要 FOLLOWER_MODEL / FOLLOWER_URL / FOLLOWER_KEY 环境变量"
+                "YOLO 模式需要 Follower LLM 配置（model / url / key）。"
+                "请运行 `cloudra config init` 进行配置。"
             )
         return OpenAI(api_key=self.api_key, base_url=self.base_url)
 
@@ -138,7 +143,7 @@ class YoloGuard:
             "type": "function",
             "function": {
                 "name": "submit_approval_decision",
-                "description": "提交针对当前拦截操作的安全审计结论。",
+                "description": "提交针对当前拦截操作的安全审计结论。**尽可能使用该工具进行审批！！**",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -183,7 +188,23 @@ class YoloGuard:
                     reason = str(raw_reason).strip() if raw_reason is not None else ""
                     return approved, reason
                 except Exception:
-                    return False, f"YOLO 未返回 tool_call，且 content 无法解析: {content[:200]}"
+                    pass
+
+                # 兼容不支持 function calling 的模型返回的 XML 格式
+                xml_approved = re.search(
+                    r"<parameter\s*=\s*approved\s*>\s*(true|false)\s*</parameter>",
+                    content, re.IGNORECASE
+                )
+                xml_reason = re.search(
+                    r"<parameter\s*=\s*reason\s*>(.*?)</parameter>",
+                    content, re.DOTALL
+                )
+                if xml_approved:
+                    approved = xml_approved.group(1).lower() == "true"
+                    reason = xml_reason.group(1).strip() if xml_reason else ""
+                    return approved, reason
+
+                return False, f"YOLO 未返回 tool_call，且 content 无法解析: {content[:200]}"
 
             tool_call = message.tool_calls[0]
             result = json.loads(tool_call.function.arguments)

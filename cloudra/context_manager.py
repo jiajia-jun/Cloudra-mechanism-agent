@@ -305,14 +305,15 @@ class ContextManager:
 
     async def _summarize_history(self, history: list[dict]) -> str:
         """调用 FOLLOWER 配置的大模型把历史消息压缩成一段梗概。"""
-        model = os.environ.get("FOLLOWER_MODEL")
-        base_url = os.environ.get("FOLLOWER_URL")
-        api_key = os.environ.get("FOLLOWER_KEY")
+        cfg = get_config().follower
+        model = cfg.model
+        base_url = cfg.url
+        api_key = cfg.key
 
         if not model or not base_url or not api_key:
             raise RuntimeError(
-                "缺少 FOLLOWER_MODEL / FOLLOWER_URL / FOLLOWER_KEY 环境变量，"
-                "无法生成历史消息梗概。"
+                "缺少 FOLLOWER 配置（model / url / key），"
+                "无法生成历史消息梗概。请运行 `cloudra config init` 进行配置。"
             )
 
         # 把历史消息转为纯文本摘要输入

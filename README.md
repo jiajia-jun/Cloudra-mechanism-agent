@@ -20,6 +20,19 @@ AI Agent collaboration framework for chemical research.
 
 ## Installation
 
+### One-line install (recommended)
+
+```bash
+./install.sh
+```
+
+This script checks your Python version, optionally creates a virtual environment,
+installs Cloudra in editable mode, and interactively initializes your config.
+If you have an existing `.env` file, it can migrate the LLM settings into the
+new YAML-based config.
+
+### Manual install
+
 ```bash
 pip install -e .
 ```

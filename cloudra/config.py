@@ -3,9 +3,16 @@ Cloudra configuration management.
 
 Supports layered config:
   1. CLI arguments (highest priority)
-  2. Environment variables (CLOUDRA_* and legacy COORDINATOR_* / FOLLOWER_*)
-  3. Config file (~/.config/cloudra/config.yaml)
-  4. Defaults (lowest priority)
+  2. Config file (~/.config/cloudra/config.yaml)
+  3. Environment variables (CLOUDRA_* and legacy COORDINATOR_* / FOLLOWER_*)
+  4. .env file in the current working directory
+  5. Defaults (lowest priority)
+
+Note: the config file takes precedence over environment variables and .env,
+so values set via `cloudra config init` / `cloudra config set` are always
+effective. Environment variables are still supported for backward compatibility
+and CI/automation use cases, but the YAML config is the recommended source of
+truth for local development.
 """
 
 import os
