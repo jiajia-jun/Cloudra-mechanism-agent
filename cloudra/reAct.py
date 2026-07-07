@@ -1,17 +1,19 @@
 import time
 import httpx
-import openai 
+import openai
 import os
+import numpy as np
 from cloudra.agent import Agent
 import asyncio
 import json
 from datetime import datetime
 from cloudra.log_class import Log
-from cloudra.tools_class import input_schema,get_tools
+from cloudra.tools_class import input_schema, get_tools
 from cloudra.tools import get_tools_lst
 from cloudra.session_class import Session
 from cloudra.config import get_config
 from cloudra.database import get_database_path, ConversationDB
+from cloudra.supervisor import get_supervisor
 
 
 # 每次 reasoning 前等待外部事件的最长时间（秒）
@@ -96,6 +98,86 @@ class reAct:
         self.log.session = None
         self.session_create(session_id)
 
+        # 每轮 ReAct 的步数计数，用于触发 Supervisor 定期审查
+        self.step_count = 0
+        # 科学督导模块：默认每 5 轮审查一次方向
+        self.supervisor = get_supervisor(interval=5)
+
+    def _should_use_supervisor(self) -> bool:
+        """判断是否启用 Supervisor。
+
+        默认启用；如果 Supervisor 未配置有效 LLM，则后续 review 会退化，
+        这里仍保留实例以便统一日志。
+        """
+        return getattr(self.agent, 'type', '') != 'yolo_guard'
+
+    async def _supervisor_review(self) -> None:
+        """调用 Supervisor 审查当前方向，并将建议写入上下文。"""
+        if not self.supervisor or not self.agent.context_manager:
+            return
+
+        try:
+            user_goal = self.agent.query or ""
+            messages = await self.agent.get_context()
+
+            # 从当前 conversation 的数据库检索历史 cases
+            db = ConversationDB.from_path(self.database_path)
+            cases = db.get_cases(limit=50)
+
+            review = await self.supervisor.review(
+                user_goal=user_goal,
+                messages=messages,
+                cases=cases,
+            )
+            advice_text = self.supervisor.format_advice(review)
+            await self.agent.context_manager.set_supervisor_advice(advice_text)
+
+            if review.verdict in ('redirect', 'pause_and_reflect'):
+                self.log.update_content(
+                    f"{Color.YELLOW}[Supervisor] {review.verdict.upper()}: {review.reasoning}{Color.END}\n"
+                )
+                for item in review.advice:
+                    self.log.update_content(f"{Color.YELLOW}  - {item}{Color.END}\n")
+            else:
+                self.log.update_content(
+                    f"{Color.BLUE}[Supervisor] 审查通过: {review.reasoning}{Color.END}\n"
+                )
+        except Exception as e:
+            print(f"[reAct] Supervisor 审查失败: {e}")
+
+    async def _persist_case(self) -> None:
+        """任务结束时把 trajectory 沉淀为结构化 case。"""
+        if not self.supervisor or not self.agent.context_manager:
+            return
+
+        try:
+            messages = await self.agent.get_context()
+            if not messages or len(messages) < 3:
+                return
+
+            case_data = await self.supervisor.extract_case(messages)
+            task_summary = case_data.get("task_summary", "")
+            if not task_summary:
+                return
+
+            embedding = self.supervisor.embed_text(task_summary)
+            embedding_bytes = embedding.astype(np.float32).tobytes()
+
+            db = ConversationDB.from_path(self.database_path)
+            db.add_case(
+                session_id=self.session.id,
+                task_summary=task_summary,
+                outcome=case_data.get("outcome", "unknown"),
+                outcome_reason=case_data.get("outcome_reason", ""),
+                lesson=case_data.get("lesson", ""),
+                embedding=embedding_bytes,
+            )
+            self.log.update_content(
+                f"{Color.BLUE}[系统] 已沉淀任务经验到 cases 表。{Color.END}\n"
+            )
+        except Exception as e:
+            print(f"[reAct] Case 沉淀失败: {e}")
+
     async def _poll_and_inject_external_events(self):
         """轮询外部事件并注入到当前 Agent 上下文。"""
         if self.agent.context_manager is None:
@@ -119,9 +201,14 @@ class reAct:
         
         while self._continue:
             self.session.state = 'thinking'
+            self.step_count += 1
             
             # 每轮推理前，轮询并注入外部事件
             await self._poll_and_inject_external_events()
+            
+            # 每 5 轮触发一次 Supervisor 方向审查
+            if self._should_use_supervisor() and self.supervisor and self.supervisor.should_review(self.step_count):
+                await self._supervisor_review()
             
             tool_calls = await self.reasoning()
             
@@ -140,6 +227,8 @@ class reAct:
                             ('sleeping', content, self.session.id)
                         )
                         await con.commit()
+                    # 任务结束前沉淀经验 case
+                    await self._persist_case()
                     return content
             
             self.session.state = 'acting'
@@ -149,6 +238,8 @@ class reAct:
                 self.session.state = 'sleeping'
                 context = await self.agent.get_context()
                 content = context[-1].get('content', '任务已完成') if context else '任务已完成'
+                # 任务结束前沉淀经验 case
+                await self._persist_case()
                 if self.agent.id != 'a-0':
                     await self.agent.clear_context()
                     print(f"Agent {self.agent.name}上下文已释放！")

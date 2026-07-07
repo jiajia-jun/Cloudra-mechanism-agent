@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from cloudra.config import get_config
 from cloudra.context_manager import ContextManager
+from cloudra.memory import get_memory_manager
 from cloudra.tools import get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
@@ -347,6 +348,26 @@ class Coordinator(Agent):
             "在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
         )
 
+        # 加载 Coordinator 的长期记忆到身份 prompt
+        self._inject_memory_to_prompt()
+
+    def _inject_memory_to_prompt(self) -> None:
+        """把全局 MEMORY.md 的内容注入到 Coordinator 的身份 prompt。"""
+        try:
+            conv_id = getattr(self, 'conversation_id', None)
+            manager = get_memory_manager(conversation_id=conv_id)
+            memory_text = manager.load()
+            if memory_text and memory_text.strip():
+                self.prompt += (
+                    "\n\n## 长期记忆（从过往任务中积累的经验）\n\n"
+                    "以下经验来自 MEMORY.md，在执行任务时优先遵循：\n\n"
+                    f"{memory_text.strip()}\n\n"
+                    "如果你从这些经验中学到了新的可复用原则，请调用 `update_memory` 工具更新记忆。"
+                )
+        except Exception as e:
+            # 记忆加载失败不应阻止 Coordinator 启动
+            print(f"[Coordinator] 加载长期记忆失败: {e}")
+
     def has_manage_permission(self) -> bool:
         '''
         协调者允许访问子agent。
@@ -366,7 +387,7 @@ class Coordinator(Agent):
         虽然拥有 write 权限，但只允许使用白名单中的 write 工具；
         化学工具、脚本执行、破坏性工具等复杂任务必须委派给子 Agent。
         '''
-        write_tool_allowlist = {'text_writer', 'email_sender'}
+        write_tool_allowlist = {'text_writer', 'email_sender', 'update_memory'}
         tools = super().get_available_tools()
         available_tools = []
         for tool in tools:

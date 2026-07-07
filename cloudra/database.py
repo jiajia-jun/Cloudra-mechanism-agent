@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from pathlib import Path
+import time
 from typing import Optional
 
 import aiosqlite
@@ -59,6 +59,7 @@ class ConversationDB:
             cur.execute(_CREATE_APPROVALS)
             cur.execute(_CREATE_COMPUTE_JOBS)
             cur.execute(_CREATE_CONTEXT_EVENTS)
+            cur.execute(_CREATE_CASES)
             con.commit()
         return self
 
@@ -88,8 +89,124 @@ class ConversationDB:
             await cur.execute(_CREATE_APPROVALS)
             await cur.execute(_CREATE_COMPUTE_JOBS)
             await cur.execute(_CREATE_CONTEXT_EVENTS)
+            await cur.execute(_CREATE_CASES)
             await con.commit()
         return self
+
+    def add_case(
+        self,
+        session_id: str,
+        task_summary: str,
+        outcome: str,
+        outcome_reason: str = "",
+        lesson: str = "",
+        embedding: Optional[bytes] = None,
+    ) -> int:
+        """同步写入一条 case，返回 case id。"""
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                INSERT INTO cases
+                (conversation_id, session_id, task_summary, outcome, outcome_reason, lesson, embedding, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    self.conversation_id,
+                    session_id,
+                    task_summary,
+                    outcome,
+                    outcome_reason,
+                    lesson,
+                    embedding,
+                    time.time(),
+                ),
+            )
+            con.commit()
+            return cur.lastrowid
+
+    async def aadd_case(
+        self,
+        session_id: str,
+        task_summary: str,
+        outcome: str,
+        outcome_reason: str = "",
+        lesson: str = "",
+        embedding: Optional[bytes] = None,
+    ) -> int:
+        """异步写入一条 case，返回 case id。"""
+        async with self.aconnect() as con:
+            cur = await con.execute(
+                """
+                INSERT INTO cases
+                (conversation_id, session_id, task_summary, outcome, outcome_reason, lesson, embedding, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    self.conversation_id,
+                    session_id,
+                    task_summary,
+                    outcome,
+                    outcome_reason,
+                    lesson,
+                    embedding,
+                    time.time(),
+                ),
+            )
+            await con.commit()
+            return cur.lastrowid
+
+    def get_cases(self, limit: Optional[int] = None) -> list[dict]:
+        """同步读取 cases，返回字典列表。"""
+        with self.connect() as con:
+            cur = con.cursor()
+            sql = "SELECT * FROM cases ORDER BY created_at DESC"
+            params = ()
+            if limit is not None:
+                sql += " LIMIT ?"
+                params = (limit,)
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+            return self._rows_to_cases(rows)
+
+    async def aget_cases(self, limit: Optional[int] = None) -> list[dict]:
+        """异步读取 cases，返回字典列表。"""
+        async with self.aconnect() as con:
+            cur = await con.execute(
+                "SELECT * FROM cases ORDER BY created_at DESC LIMIT ?",
+                (limit if limit is not None else -1,),
+            )
+            rows = await cur.fetchall()
+            return self._rows_to_cases(rows)
+
+    @staticmethod
+    def _rows_to_cases(rows: list) -> list[dict]:
+        """把 SQLite 行列表转换为 case 字典列表。"""
+        cases = []
+        for row in rows:
+            embedding = row[7]
+            cases.append(
+                {
+                    "id": row[0],
+                    "conversation_id": row[1],
+                    "session_id": row[2],
+                    "task_summary": row[3],
+                    "outcome": row[4],
+                    "outcome_reason": row[5],
+                    "lesson": row[6],
+                    "embedding": embedding,
+                    "created_at": row[8],
+                }
+            )
+        return cases
+
+    def case_count(self) -> int:
+        """返回当前 conversation 的 case 数量。"""
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("SELECT COUNT(*) FROM cases")
+            row = cur.fetchone()
+            return row[0] if row else 0
 
 
 # SQL 建表语句统一放在这里，作为唯一表结构定义。
@@ -141,6 +258,20 @@ _CREATE_CONTEXT_EVENTS = """
         event_type TEXT,
         content TEXT,
         state TEXT DEFAULT 'pending',
+        created_at REAL
+    )
+"""
+
+_CREATE_CASES = """
+    CREATE TABLE IF NOT EXISTS cases(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT,
+        session_id TEXT,
+        task_summary TEXT,
+        outcome TEXT,
+        outcome_reason TEXT,
+        lesson TEXT,
+        embedding BLOB,
         created_at REAL
     )
 """

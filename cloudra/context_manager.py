@@ -56,6 +56,10 @@ def _db_path(conversation_id: Optional[str] = None) -> str:
     return get_database_path(conversation_id)
 
 
+# Supervisor 建议消息在上下文中的标记，用于定位更新
+SUPERVISOR_ADVICE_MARKER = "[Supervisor]"
+
+
 class ContextManager:
     """管理单个 Agent 的上下文生命周期与外部事件注入。"""
 
@@ -123,6 +127,64 @@ class ContextManager:
         context = await self.load()
         context.append(new_block)
         await self.replace(context)
+
+    async def set_supervisor_advice(self, advice_text: str) -> None:
+        """设置/更新 Supervisor 建议。
+
+        Supervisor 建议位于身份层（system prompt）和 query 层（user query）之下，
+        事件层/对话历史之上，即上下文列表的第 2 个位置（索引 2）。
+        如果已存在 Supervisor 建议，则替换；否则在索引 2 处插入。
+        """
+        context = await self.load()
+        advice_msg = {
+            "role": "system",
+            "content": f"{SUPERVISOR_ADVICE_MARKER}\n{advice_text}",
+        }
+
+        # 查找现有的 Supervisor 建议消息
+        existing_idx = None
+        for i, msg in enumerate(context):
+            if msg.get("role") == "system":
+                content = msg.get("content", "")
+                if isinstance(content, str) and content.startswith(SUPERVISOR_ADVICE_MARKER):
+                    existing_idx = i
+                    break
+
+        if existing_idx is not None:
+            context[existing_idx] = advice_msg
+        else:
+            # 插入到索引 2：system prompt (0) + user query (1) 之后
+            insert_idx = min(2, len(context))
+            context.insert(insert_idx, advice_msg)
+
+        await self.replace(context)
+
+    async def clear_supervisor_advice(self) -> None:
+        """清除当前上下文中的 Supervisor 建议。"""
+        context = await self.load()
+        context = [
+            msg for msg in context
+            if not (
+                msg.get("role") == "system"
+                and isinstance(msg.get("content", ""), str)
+                and msg.get("content", "").startswith(SUPERVISOR_ADVICE_MARKER)
+            )
+        ]
+        await self.replace(context)
+
+    def _is_supervisor_advice(self, msg: dict) -> bool:
+        """判断一条消息是否是 Supervisor 建议。"""
+        if msg.get("role") != "system":
+            return False
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            return content.startswith(SUPERVISOR_ADVICE_MARKER)
+        if isinstance(content, list):
+            text = "\n".join(
+                str(part.get("text", "")) for part in content if isinstance(part, dict)
+            )
+            return text.startswith(SUPERVISOR_ADVICE_MARKER)
+        return False
 
     async def build_messages(
         self,
