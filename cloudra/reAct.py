@@ -13,6 +13,7 @@ from cloudra.tools import get_tools_lst
 from cloudra.session_class import Session
 from cloudra.config import get_config
 from cloudra.database import get_database_path, ConversationDB
+from cloudra.case_bank import get_case_bank
 from cloudra.supervisor import get_supervisor
 
 
@@ -120,9 +121,9 @@ class reAct:
             user_goal = self.agent.query or ""
             messages = await self.agent.get_context()
 
-            # 从当前 conversation 的数据库检索历史 cases
-            db = ConversationDB.from_path(self.database_path)
-            cases = db.get_cases(limit=50)
+            # 从全局 Case Bank 检索历史经验（跨 conversation 共享）
+            case_bank = get_case_bank()
+            cases = case_bank.get_cases(limit=50)
 
             review = await self.supervisor.review(
                 user_goal=user_goal,
@@ -146,7 +147,7 @@ class reAct:
             print(f"[reAct] Supervisor 审查失败: {e}")
 
     async def _persist_case(self) -> None:
-        """任务结束时把 trajectory 沉淀为结构化 case。"""
+        """任务结束时把 trajectory 沉淀为结构化 case 到全局 Case Bank。"""
         if not self.supervisor or not self.agent.context_manager:
             return
 
@@ -163,8 +164,8 @@ class reAct:
             embedding = self.supervisor.embed_text(task_summary)
             embedding_bytes = embedding.astype(np.float32).tobytes()
 
-            db = ConversationDB.from_path(self.database_path)
-            db.add_case(
+            case_bank = get_case_bank()
+            case_bank.add_case(
                 session_id=self.session.id,
                 task_summary=task_summary,
                 outcome=case_data.get("outcome", "unknown"),
@@ -173,7 +174,7 @@ class reAct:
                 embedding=embedding_bytes,
             )
             self.log.update_content(
-                f"{Color.BLUE}[系统] 已沉淀任务经验到 cases 表。{Color.END}\n"
+                f"{Color.BLUE}[系统] 已沉淀任务经验到全局 Case Bank。{Color.END}\n"
             )
         except Exception as e:
             print(f"[reAct] Case 沉淀失败: {e}")

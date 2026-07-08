@@ -47,9 +47,8 @@ class MemoryManager:
         self.memory_path = self._resolve_path()
 
     def _resolve_path(self) -> Path:
-        """解析记忆文件路径。当前默认使用全局记忆。"""
+        """解析记忆文件路径。默认使用全局记忆，跨会话共享。"""
         data_dir = get_config().data_dir
-        # 如需按 conversation 隔离，可改为 conversations/{conv_id}/memory/MEMORY.md
         path = Path(data_dir) / "memory" / "MEMORY.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path

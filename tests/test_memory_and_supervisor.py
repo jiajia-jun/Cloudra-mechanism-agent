@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from cloudra.context_manager import ContextManager, SUPERVISOR_ADVICE_MARKER
-from cloudra.database import ConversationDB
+from cloudra.case_bank import CaseBank
 from cloudra.memory import MemoryManager
 from cloudra.supervisor import Supervisor
 
@@ -132,20 +132,21 @@ class TestSupervisor:
 
 
 # ---------------------------------------------------------------------------
-# Database cases tests
+# CaseBank tests（全局案例库）
 # ---------------------------------------------------------------------------
 @pytest.fixture
-def case_db(tmp_path):
-    db = ConversationDB(conversation_id="test-cases")
-    db.path = str(tmp_path / "test_cases.db")
-    db.init()
-    return db
+def case_bank(tmp_path, monkeypatch):
+    """提供一个使用临时文件的全局 CaseBank 实例。"""
+    cfg = MagicMock()
+    cfg.data_dir = tmp_path
+    monkeypatch.setattr("cloudra.case_bank.get_config", lambda: cfg)
+    return CaseBank(str(tmp_path / "case_bank.db")).init()
 
 
-class TestCasesTable:
-    def test_add_and_get_case(self, case_db):
+class TestCaseBank:
+    def test_add_and_get_case(self, case_bank):
         emb = np.array([0.1, 0.2, 0.3], dtype=np.float32).tobytes()
-        case_id = case_db.add_case(
+        case_id = case_bank.add_case(
             session_id="s-1",
             task_summary="测试任务",
             outcome="success",
@@ -155,54 +156,23 @@ class TestCasesTable:
         )
         assert case_id > 0
 
-        cases = case_db.get_cases(limit=10)
+        cases = case_bank.get_cases(limit=10)
         assert len(cases) == 1
         assert cases[0]["session_id"] == "s-1"
         assert cases[0]["task_summary"] == "测试任务"
         assert cases[0]["outcome"] == "success"
         assert cases[0]["embedding"] == emb
 
-    def test_case_count(self, case_db):
-        assert case_db.case_count() == 0
-        case_db.add_case(
+    def test_case_count(self, case_bank):
+        assert case_bank.case_count() == 0
+        case_bank.add_case(
             session_id="s-1",
             task_summary="任务1",
             outcome="success",
         )
-        assert case_db.case_count() == 1
+        assert case_bank.case_count() == 1
 
 
-# ---------------------------------------------------------------------------
-# UpdateMemory tool test
-# ---------------------------------------------------------------------------
-@pytest.mark.asyncio
-class TestUpdateMemoryTool:
-    async def test_update_memory_writes_file(self, tmp_path, monkeypatch):
-        from cloudra.tools.Writetool.update_memory import UpdateMemory
-        from cloudra.agent import Coordinator
-
-        cfg = MagicMock()
-        cfg.data_dir = tmp_path
-        monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
-
-        agent = Coordinator(query="test", conversation_id="test-conv")
-        tool = UpdateMemory(subagent=agent)
-        from cloudra.tools.Writetool.update_memory import UpdateMemory_input_schema
-
-        result = await tool.tool_call(
-            UpdateMemory_input_schema(
-                lesson="Gaussian TS 搜索前必须做柔性扫描。",
-                source="reaction-path-task",
-                skill_name="dft-calculation",
-            ),
-            MagicMock(),
-        )
-        assert "已记录经验" in result.result
-        manager = MemoryManager(conversation_id="test-conv")
-        manager.memory_path = tmp_path / "memory" / "MEMORY.md"
-        content = manager.load()
-        assert "Gaussian TS" in content
-        assert result.word_count > 0
 # ---------------------------------------------------------------------------
 # UpdateMemory tool test
 # ---------------------------------------------------------------------------
