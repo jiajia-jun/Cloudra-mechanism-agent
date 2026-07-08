@@ -271,23 +271,39 @@ class Supervisor:
 
         prompt = self.build_prompt(user_goal, timeline_summary, relevant_cases)
 
+        request_kwargs = dict(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": SUPERVISOR_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=1024,
+            response_format={"type": "json_object"},
+        )
         try:
             client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": SUPERVISOR_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=1024,
-                response_format={"type": "json_object"},
-            )
+            response = client.chat.completions.create(**request_kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
+                print(f"\033[93m[LLM fallback] Supervisor 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
+                client2 = OpenAI(api_key=self.api_key, base_url=self.base_url, default_headers={"User-Agent": "curl/7.68.0"})
+                try:
+                    response = client2.chat.completions.create(**request_kwargs)
+                except Exception as e2:
+                    print(f"[Supervisor] Fallback 调用失败: {e2}")
+                    return SupervisorReview(verdict="proceed", reasoning=f"Supervisor Fallback 调用失败: {e2}")
+            else:
+                print(f"[Supervisor] LLM 调用失败: {e}")
+                return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 调用失败: {e}")
+
+        try:
             content = response.choices[0].message.content or "{}"
             data = json.loads(content)
         except Exception as e:
-            print(f"[Supervisor] LLM 调用失败: {e}")
-            return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 调用失败: {e}")
+            print(f"[Supervisor] JSON 解析失败: {e}")
+            return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 解析失败: {e}")
 
         # 限制 advice 数量
         advice = data.get("advice", [])
@@ -324,29 +340,39 @@ class Supervisor:
             "--- JSON ---"
         )
 
+        request_kwargs = dict(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "你是一个从任务记录中提取经验教训的助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=1024,
+            response_format={"type": "json_object"},
+        )
         try:
             client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "你是一个从任务记录中提取经验教训的助手。"},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=1024,
-                response_format={"type": "json_object"},
-            )
+            response = client.chat.completions.create(**request_kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
+                print(f"\033[93m[LLM fallback] Supervisor(extract) 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
+                client2 = OpenAI(api_key=self.api_key, base_url=self.base_url, default_headers={"User-Agent": "curl/7.68.0"})
+                try:
+                    response = client2.chat.completions.create(**request_kwargs)
+                except Exception as e2:
+                    print(f"[Supervisor] Fallback 调用失败: {e2}")
+                    return self._fallback_case_data(timeline_summary, e2)
+            else:
+                print(f"[Supervisor] 提取 Case 失败: {e}")
+                return self._fallback_case_data(timeline_summary, e)
+
+        try:
             content = response.choices[0].message.content or "{}"
             data = json.loads(content)
         except Exception as e:
-            print(f"[Supervisor] case 提取失败: {e}")
-            # 兜底：基于规则提取
-            return {
-                "task_summary": timeline_summary[:200],
-                "outcome": "unknown",
-                "outcome_reason": f"case 提取失败: {e}",
-                "lesson": "",
-            }
+            print(f"[Supervisor] 提取 Case JSON 解析失败: {e}")
+            return self._fallback_case_data(timeline_summary, e)
 
         return {
             "task_summary": data.get("task_summary", timeline_summary[:200]),

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudra"
-version = "1.6.3"
+version = "1.7.0"
 description = "面向化学科研的 AI Agent 协作框架"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -46,7 +46,8 @@ dependencies = [
     "aiosqlite>=0.20",
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
-    "chemcoord>=2.1.2"
+    "chemcoord>=2.1.2",
+    "pymupdf>=1.24.0",
 ]
 
 [project.scripts]

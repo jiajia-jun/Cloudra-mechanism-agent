@@ -10,6 +10,8 @@ AI Agent collaboration framework for chemical research.
 - **Human-in-the-Loop by Design**: Destructive or script executions are gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
 - **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines.
 - **Context Compression**: Automatically summarizes older conversation history when context exceeds half of the model window, preventing unbounded growth.
+- **Self-Learning & Case Bank**: Agents can distill successful workflows into a global Case Bank for cross-conversation memory and knowledge reuse.
+- **Scientific Supervisor**: Introduces an independent Supervisor agent to oversee experimental progress and validate scientific rigor.
 - **Full Chemistry Toolkit**: Molecule drawing, image-to-SMILES (DECIMER), NMR/IR raw data processing, Gaussian input generation, format conversion, log parsing, and DFT job submission/monitoring.
 - **Multi-Process & Secure**: Coordinator and Follower agents run in isolated processes. SQLite WAL mode, permission bit-flags, audit logs, and an optional YOLO guard keep operations safe.
 
@@ -58,6 +60,15 @@ Resume the last conversation:
 ```bash
 cloudra run "Continue the previous analysis"
 ```
+
+## Self-Learning Memory & Case Bank
+
+Cloudra features a cross-conversation memory and self-learning mechanism powered by a **Global Case Bank** and a **Scientific Supervisor**:
+
+1. **Experience Extraction**: At the end of every task (or when pausing for user input), the independent Supervisor agent reviews the entire conversation trajectory. It summarizes the task goal, the outcome, the root causes of success/failure, and extracts reusable "Lessons".
+2. **Global Persistence**: This structured knowledge is saved into a global SQLite database (`case_bank.db`), breaking the boundary of isolated conversation lifecycles.
+3. **Knowledge Retrieval**: When initiating a new task, the Coordinator automatically queries the Case Bank for recent or relevant historical cases and injects them into the system prompt context.
+4. **Self-Evolution**: Through this continuous feedback loop, the system automatically learns to avoid past mistakes (e.g., problematic tool parameters) and prioritizes proven paths, becoming progressively smarter and more adapted to your workflow.
 
 ## CLI Reference
 
@@ -135,6 +146,7 @@ cloudra/
 ├── executor.py           # Tool execution engine
 ├── context_manager.py    # Message/context rendering
 ├── session_manager.py    # SQLite persistence
+├── supervisor.py         # Scientific oversight and validation
 ├── tools_class.py        # BaseTool and tool registry
 ├── config.py             # Configuration management
 ├── cli.py                # Command-line interface

@@ -10,6 +10,8 @@
 - **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
 - **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。
 - **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
+- **自我学习与全局案例库**：Agent 可将成功经验沉淀至全局 Case Bank，支持跨对话的记忆与经验复用。
+- **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。
 - **化学工具齐全**：覆盖分子绘图、图片转 SMILES、NMR/IR 原始数据处理、Gaussian 输入生成、格式转换、输出日志解析、DFT 任务提交与监控。
 - **多进程安全架构**：Coordinator 与 Follower 在独立进程中运行，基于 SQLite WAL、位标志权限、审批日志以及可选的 YOLO Guard 保障安全。
 
@@ -57,6 +59,15 @@ cloudra run "搜索钙钛矿太阳能电池最新论文并总结关键发现"
 ```bash
 cloudra run "继续之前的分析"
 ```
+
+## 记忆机制与全局案例库 (Self-Learning & Case Bank)
+
+Cloudra 设计了一套跨对话的记忆与自我学习机制，核心围绕 **全局案例库 (Case Bank)** 和 **科研监督员 (Supervisor)** 展开：
+
+1. **经验提取 (Extraction)**：在每次任务结束（或暂停与用户确认）时，独立的 Supervisor Agent 会自动阅读整个对话的行动轨迹 (Trajectory)。它负责总结任务目标、最终结果、成功/失败的原因，并提炼出可供未来参考的“经验教训 (Lesson)”。
+2. **全局持久化 (Persistence)**：提取出的结构化知识将被写入全局层面的 SQLite 数据库（`case_bank.db`），打破了单次对话 (Conversation) 的生命周期隔离。
+3. **经验复用 (Retrieval)**：在启动新的科研任务时，Coordinator 会自动从 Case Bank 检索历史案例，并将其注入到 System Prompt 的上下文中。
+4. **自我进化**：通过该机制，系统能自动避开曾经踩过的坑（如容易报错的参数组合），并优先采用验证过的成功路径，实现真正的“越用越聪明”。
 
 ## CLI 命令参考
 
@@ -134,6 +145,7 @@ cloudra/
 ├── executor.py           # 工具执行引擎
 ├── context_manager.py    # 消息/上下文渲染
 ├── session_manager.py    # SQLite 持久化
+├── supervisor.py         # 科学监督与决策验证
 ├── tools_class.py        # BaseTool 与工具注册
 ├── config.py             # 配置管理
 ├── cli.py                # 命令行入口

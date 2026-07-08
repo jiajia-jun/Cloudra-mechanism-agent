@@ -297,8 +297,14 @@ class reAct:
                             self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_buffer}{Color.END}\n")
                             reasoning_content = reasoning_buffer
                             reasoning_buffer = ""
+
+                        # 部分中转站/模型会返回 function.name 为空的 tool_call，
+                        # 但 arguments 里保留了工具特有参数。这里根据参数签名反推工具名，
+                        # 对自定义工具也生效，因为映射是从 input_schema 自动生成的。
+                        normalized_tcs = self._normalize_tool_calls(list(tool_call_buffer.values()))
+                        tool_call_buffer.clear()
                     
-                        for tc_data in tool_call_buffer.values():
+                        for tc_data in normalized_tcs:
                             tool_calls.append(tc_data)
                             func_name = tc_data.get('function', {}).get('name', 'Unknown')
                             self.log.update_content(new_content=f"{Color.GREEN}工具调用: {func_name}{Color.END}\n")
@@ -331,8 +337,10 @@ class reAct:
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n{final_response}\n')
             
             if message.tool_calls:
+                raw_tool_calls = []
                 for tool_call in message.tool_calls:
-                    tool_calls.append(tool_call.model_dump(exclude_none=True))
+                    raw_tool_calls.append(tool_call.model_dump(exclude_none=True))
+                tool_calls = self._normalize_tool_calls(raw_tool_calls)
 
         # 构建完整的 assistant 消息写入上下文
         if message:  # 非stream模式
@@ -366,6 +374,83 @@ class reAct:
         has_reasoning = bool(block.get("reasoning_content"))
         has_tool_calls = bool(block.get("tool_calls"))
         return not (has_content or has_reasoning or has_tool_calls)
+
+    def _build_tool_arg_maps(self) -> tuple[dict[frozenset, str], dict[frozenset, str]]:
+        """根据每个工具的 input_schema 自动建立参数→工具名的反查表。
+
+        返回两个映射：
+        - required_map: required 字段集合 → 工具名
+        - full_map: 全部参数字段集合 → 工具名
+
+        对自定义工具生效：只要新工具遵循 input_schema 规范，就会在这里自动出现，
+        不需要改 reAct.py。
+        """
+        required_map: dict[frozenset, str] = {}
+        full_map: dict[frozenset, str] = {}
+        for tool in get_tools_lst():
+            try:
+                schema = tool.input_schema.to_parameters_schema()
+            except Exception:
+                continue
+            props = schema.get("properties", {})
+            required = frozenset(schema.get("required", []))
+            full_keys = frozenset(props.keys())
+            if required:
+                required_map.setdefault(required, tool.tool_name)
+            if full_keys:
+                full_map.setdefault(full_keys, tool.tool_name)
+        return required_map, full_map
+
+    def _normalize_tool_calls(self, tool_calls: list[dict]) -> list[dict]:
+        """对 tool_calls 做后处理：当 function.name 为空时，根据 arguments 反推工具名。"""
+        if not tool_calls:
+            return tool_calls
+
+        required_map, full_map = self._build_tool_arg_maps()
+
+        for tc in tool_calls:
+            func = tc.get("function") or {}
+            name = func.get("name") if isinstance(func, dict) else None
+            args_raw = func.get("arguments") if isinstance(func, dict) else None
+
+            if name:
+                continue
+
+            args = args_raw
+            if isinstance(args_raw, str):
+                try:
+                    args = json.loads(args_raw, strict=False)
+                except Exception:
+                    args = {}
+            if not isinstance(args, dict):
+                args = {}
+
+            arg_keys = frozenset(args.keys())
+            inferred = None
+
+            # 1) 精确匹配全部字段集合（能抓到 stop 等 required 为空但签名独特的工具）
+            if arg_keys in full_map:
+                inferred = full_map[arg_keys]
+            # 2) 精确匹配 required 字段集合
+            elif arg_keys in required_map:
+                inferred = required_map[arg_keys]
+            else:
+                # 3) 模糊匹配：找 required 是 args 子集且重合度最高的工具
+                candidates = [
+                    (req, tname) for req, tname in required_map.items() if req.issubset(arg_keys)
+                ]
+                if candidates:
+                    candidates.sort(key=lambda item: (-len(item[0]), item[1]))
+                    inferred = candidates[0][1]
+
+            if inferred:
+                func["name"] = inferred
+                tc["function"] = func
+                print(
+                    f"\033[93m[reAct] tool_call name 为空，根据参数推断为 '{inferred}'\033[0m"
+                )
+
+        return tool_calls
 
     async def _commit_undos(self):
         '''将缓冲区中的消息提交到上下文。'''
@@ -420,10 +505,31 @@ class reAct:
         stop_requested = False
         
         for tool_call in tool_calls:
-            tool_name = tool_call.get('function', {}).get('name', 'Unknown')
+            tool_name = tool_call.get('function', {}).get('name', '')
             tool_call_id = tool_call.get('id')
             tool_args_raw = tool_call.get('function', {}).get('arguments', {})
-            
+
+            # 空 tool name 直接提醒 LLM，避免进入无意义的工具查找/循环
+            if not tool_name:
+                available_names = sorted({t.tool_name for t in tools_list})
+                example = '{"name": "getskill", "arguments": {"skill_name": "subagent-prompting"}}'
+                err_msg = (
+                    "【系统错误】工具调用缺少 function.name。"
+                    "OpenAI function calling 要求必须提供准确的工具名，"
+                    f"例如：{example}。"
+                    f"当前可用工具：{', '.join(available_names)}。"
+                    "请重新调用，并确保 `name` 字段非空。"
+                )
+                result_block = {
+                    'role': 'tool',
+                    'tool_call_id': tool_call_id,
+                    'content': err_msg,
+                }
+                await self._commit_undos()
+                await self.agent.update_context(result_block)
+                self.log.update_content(f"{Color.RED}工具名缺失，已提醒 LLM 补全。{Color.END}\n")
+                continue
+
             try:
                 if isinstance(tool_args_raw, str):
                     # strict=False 允许 JSON 字符串中出现未转义的换行/控制字符，

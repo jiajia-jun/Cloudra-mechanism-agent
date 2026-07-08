@@ -162,7 +162,7 @@ class YoloGuard:
         }]
 
         client = self._client()
-        response = client.chat.completions.create(
+        request_kwargs = dict(
             model=self.model,
             messages=[
                 {"role": "system", "content": YOLO_SYSTEM_PROMPT},
@@ -173,6 +173,24 @@ class YoloGuard:
             tools=tools,
             tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
+        
+        try:
+            response = client.chat.completions.create(**request_kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
+                print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
+                client2 = OpenAI(
+                    api_key=self.api_key, 
+                    base_url=self.base_url, 
+                    default_headers={"User-Agent": "curl/7.68.0"}
+                )
+                try:
+                    response = client2.chat.completions.create(**request_kwargs)
+                except Exception as e2:
+                    return False, f"YOLO fallback 网络异常: {e2}"
+            else:
+                return False, f"YOLO 网络异常: {e}"
 
         try:
             # 强制提取 Tool Call 参数，彻底杜绝大模型啰嗦文本导致的解析错误
