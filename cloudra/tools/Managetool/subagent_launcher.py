@@ -91,6 +91,9 @@ class SubAgentLauncher(Tool):
         context = input_instance.context
         is_wait = input_instance.is_wait
 
+        # 兼容测试或旧调用中 session 为 None 的情况。
+        parent_session_id = getattr(session, "id", None) if session else None
+
         # 尝试从 hash 中获取子 agent 模板实例
         template_agent = getattr(agent_hash, agent_id, None)
 
@@ -138,7 +141,7 @@ class SubAgentLauncher(Tool):
             'query': query,
             'context': context,
             'conversation_id': conversation_id,
-            'parent_session_id': session.id,
+            'parent_session_id': parent_session_id,
         }
 
         if is_wait:
@@ -157,7 +160,7 @@ class SubAgentLauncher(Tool):
                 await con.execute(
                     """UPDATE subagent_requests
                     SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
-                    (json.dumps(base_payload), session_id, session.id, task_id)
+                    (json.dumps(base_payload), session_id, parent_session_id, task_id)
                 )
                 await con.commit()
 
@@ -210,7 +213,7 @@ class SubAgentLauncher(Tool):
                 await con.execute(
                     """UPDATE subagent_requests
                     SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
-                    (json.dumps(base_payload), session_id, session.id, task_id)
+                    (json.dumps(base_payload), session_id, parent_session_id, task_id)
                 )
                 await con.commit()
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"

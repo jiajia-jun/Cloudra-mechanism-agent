@@ -50,6 +50,8 @@ class SubmitComputeJob(Tool):
         return True
 
     async def tool_call(self, user_input: SubmitComputeJob_input_schema, session: Session) -> SubmitComputeJob_output_schema:
+        # 兼容测试或旧调用中 session 为 None 的情况。
+        session_id = getattr(session, "id", None) if session else None
         # 1. 校验 input_file 是否存在
         f_path = user_input.input_file
         workdir = os.path.dirname(f_path)
@@ -77,7 +79,7 @@ class SubmitComputeJob(Tool):
                     (conversation_id, session_id, path, state, jobtype, start_timestamp, end_timestamp)
                     VALUES (?,?,?,?,?,?,?)
                             ''',
-                    (conv_id, session.id, f_path, 'ready', user_input.job_type, -1, -1))
+                    (conv_id, session_id, f_path, 'ready', user_input.job_type, -1, -1))
                     job_id = cur.lastrowid
                     await con.commit()
                     return SubmitComputeJob_output_schema(
@@ -102,7 +104,7 @@ class SubmitComputeJob(Tool):
                     (conversation_id, session_id, path, state, jobtype, start_timestamp, end_timestamp)
                     VALUES (?,?,?,?,?,?,?)
                             ''',
-                    (conv_id, session.id, f_path, 'running', user_input.job_type, now, -1))
+                    (conv_id, session_id, f_path, 'running', user_input.job_type, now, -1))
                     job_id = cur.lastrowid
                     await con.commit()
                     # 任务提交是昂贵的，必须在数据库留痕才允许进行。
