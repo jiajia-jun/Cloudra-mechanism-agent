@@ -1,21 +1,21 @@
-import time
-import httpx
-import openai
-import os
-import numpy as np
-from cloudra.agent import Agent
 import asyncio
 import json
+import os
+import time
 from datetime import datetime
-from cloudra.log_class import Log
-from cloudra.tools_class import input_schema, get_tools
-from cloudra.tools import get_tools_lst
-from cloudra.session_class import Session
-from cloudra.config import get_config
-from cloudra.database import get_database_path, ConversationDB
-from cloudra.case_bank import get_case_bank
-from cloudra.supervisor import get_supervisor
 
+import httpx
+import numpy as np
+import openai
+
+from cloudra.agent import Agent
+from cloudra.case_bank import get_case_bank
+from cloudra.config import get_config
+from cloudra.database import ConversationDB, get_database_path
+from cloudra.log_class import Log
+from cloudra.session_class import Session
+from cloudra.supervisor import get_supervisor
+from cloudra.tools import get_tools_lst
 
 # 每次 reasoning 前等待外部事件的最长时间（秒）
 EXTERNAL_EVENT_POLL_INTERVAL = 0.5
@@ -66,7 +66,7 @@ class Color:
     END = '\033[0m'
 
 class reAct:
-    session: Session 
+    session: Session
     agent: Agent
     prompt: str
     log: Log
@@ -74,16 +74,23 @@ class reAct:
     database_path: str = ''
     undos: list = []
     _reset_count: int = 0
-    
-    def __init__(self, agent: Agent, query: str = "", session_id: str = None):
+
+    def __init__(
+        self,
+        agent: Agent,
+        query: str = "",
+        session_id: str = None,
+        parent_session_id: str = None,
+    ):
         self.agent = agent
+        self.parent_session_id = parent_session_id
         # query 是本次任务要求，应该作为 user 消息进入上下文，
         # 绝不能覆盖 agent.prompt（身份 prompt）。
         if query:
             agent.query = query
         self.log = Log(agent.name)
         self.log.session = None
-            
+
         data_dir = get_config().data_dir
         conv_id = getattr(agent, 'conversation_id', 'default')
         if conv_id and conv_id != 'default':
@@ -199,46 +206,55 @@ class reAct:
         '''
         # 确保上下文管理器已初始化，并加载初始上下文
         await self.agent.get_context()
-        
+
         while self._continue:
             self.session.state = 'thinking'
+            self._record_phase('thinking')
             self.step_count += 1
-            
+
             # 每轮推理前，轮询并注入外部事件
             await self._poll_and_inject_external_events()
-            
+
             # 每 5 轮触发一次 Supervisor 方向审查
             if self._should_use_supervisor() and self.supervisor and self.supervisor.should_review(self.step_count):
                 await self._supervisor_review()
-            
+
             tool_calls = await self.reasoning()
-            
+
             # 如果没有工具调用且有内容，或者已经停止
             if not tool_calls:
                 # 检查最后一条消息内容
                 context = await self.agent.get_context()
                 content = context[-1].get('content', '') if context else ''
                 if content:
-                    self.session.state = 'sleeping'
+                    self.session.state = 'completed'
                     # 更新数据库结果
                     db = ConversationDB.from_path(self.database_path)
                     async with db.aconnect() as con:
                         await con.execute(
-                            "UPDATE session SET state = ?, result = ? WHERE session_id = ?",
-                            ('sleeping', content, self.session.id)
+                            "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
+                            ('completed', content, datetime.now().isoformat(), self.session.id)
                         )
                         await con.commit()
                     # 任务结束前沉淀经验 case
                     await self._persist_case()
                     return content
-            
+
             self.session.state = 'acting'
+            self._record_phase('acting')
             stopped = await self.act_result(tool_calls)
-            
+
             if stopped:
-                self.session.state = 'sleeping'
+                self.session.state = 'completed'
                 context = await self.agent.get_context()
                 content = context[-1].get('content', '任务已完成') if context else '任务已完成'
+                db = ConversationDB.from_path(self.database_path)
+                async with db.aconnect() as con:
+                    await con.execute(
+                        "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
+                        ('completed', content, datetime.now().isoformat(), self.session.id),
+                    )
+                    await con.commit()
                 # 任务结束前沉淀经验 case
                 await self._persist_case()
                 if self.agent.id != 'a-0':
@@ -257,11 +273,11 @@ class reAct:
         reasoning_content = ''
         tool_calls = []
         message = None
-        
+
         if agent.is_stream:
-            tool_call_buffer = {}  
+            tool_call_buffer = {}
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n')
-            
+
             reasoning_buffer = ""
             try:
                 for chunk in response:
@@ -271,7 +287,7 @@ class reAct:
                     delta = choice.delta
                     finish_reason = choice.finish_reason
                     token = delta.content
-                
+
                     if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
                         reasoning_buffer += delta.reasoning_content
 
@@ -288,7 +304,7 @@ class reAct:
                                 tool_call_buffer[tc_idx] = {}
 
                             tool_call_buffer[tc_idx] = dynamic_deep_merge(
-                                tool_call_buffer[tc_idx], 
+                                tool_call_buffer[tc_idx],
                                 chunk_dict
                             )
 
@@ -303,12 +319,12 @@ class reAct:
                         # 对自定义工具也生效，因为映射是从 input_schema 自动生成的。
                         normalized_tcs = self._normalize_tool_calls(list(tool_call_buffer.values()))
                         tool_call_buffer.clear()
-                    
+
                         for tc_data in normalized_tcs:
                             tool_calls.append(tc_data)
                             func_name = tc_data.get('function', {}).get('name', 'Unknown')
                             self.log.update_content(new_content=f"{Color.GREEN}工具调用: {func_name}{Color.END}\n")
-            
+
                 tool_call_buffer.clear()
                 # 流式输出结束时，如果还有未打印的 reasoning_content，补打出来
                 if reasoning_buffer:
@@ -325,7 +341,7 @@ class reAct:
                 self.log.update_content(new_content=f"{Color.RED}[reasoning步骤]未知的错误：{e}")
                 raise e
 
-             
+
         else:
             message = response.choices[0].message
             final_response = message.content
@@ -335,7 +351,7 @@ class reAct:
             if reasoning_content:
                 self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_content}{Color.END}\n")
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n{final_response}\n')
-            
+
             if message.tool_calls:
                 raw_tool_calls = []
                 for tool_call in message.tool_calls:
@@ -353,16 +369,16 @@ class reAct:
                 new_block['content'] = final_response
             else:
                 new_block['content'] = None
-            
+
             if tool_calls:
                 new_block['tool_calls'] = tool_calls
-        
+
         # 延迟加载逻辑：如果有 tool_calls，先存入 undos 缓冲区
         if tool_calls:
             self.undos.append(new_block)
         elif not self._is_empty_assistant_block(new_block):
             await agent.update_context(new_block)
-            
+
         return tool_calls
 
     @staticmethod
@@ -497,13 +513,13 @@ class reAct:
         '''
         session = self.session
         tools_list = get_tools_lst()
-        
+
         # 并发执行所有工具调用
         acts = []
         tool_call_ids = []
         tool_names = []
         stop_requested = False
-        
+
         for tool_call in tool_calls:
             tool_name = tool_call.get('function', {}).get('name', '')
             tool_call_id = tool_call.get('id')
@@ -548,17 +564,18 @@ class reAct:
                 await self.agent.update_context(result_block)
                 self.log.update_content(f"{Color.RED}参数解析失败: {tool_name}{Color.END}\n")
                 continue
-            
+
             if tool_name == 'stop':
                 self._continue = False
                 stop_requested = True
-            
+
             args_summary = self._summarize_args(tool_name, tool_args)
+            self._record_event("tool_started", {"tool": tool_name, "arguments": args_summary})
             self.log.update_content(
                 f"{Color.YELLOW}执行工具: {tool_name}{Color.END}"
                 f"{(' 参数: ' + args_summary) if args_summary else ''}\n"
             )
-            
+
             found = False
             for tool in tools_list:
                 # NOTE: get_tools_lst() 现在返回实例对象（不再是类），因此直接用 tool.tool_name 匹配。
@@ -567,7 +584,7 @@ class reAct:
                     # 我知道这是很粗糙的设计，因为Agent不应该承载这么多的上下文信息，但不妨把
                     # Agent看成一个运行状态机，reAct专注过程，Agent专注状态
                     tool_instance = tool.__class__(subagent=self.agent)
-                    
+
                     input_schema_class = tool_instance.input_schema
                     input_instance = input_schema_class(**tool_args)
                     session.state = 'waiting'
@@ -576,7 +593,7 @@ class reAct:
                     tool_names.append(tool_name)
                     found = True
                     break
-            
+
             if not found:
                 result_block = {
                     'role': 'tool',
@@ -585,7 +602,11 @@ class reAct:
                 }
                 await self._commit_undos()
                 await self.agent.update_context(result_block)
-        
+                self._record_event(
+                    "tool_finished",
+                    {"tool": tool_name, "result": result_block["content"]},
+                )
+
         # 记录 tool_call_id 到工具名的映射，方便结果日志展示
         id_to_name = dict(zip(tool_call_ids, tool_names))
 
@@ -593,7 +614,7 @@ class reAct:
             # 使用 return_exceptions=True，确保单个工具崩溃不影响其他工具，且能捕获异常
             tool_results = await asyncio.gather(*acts, return_exceptions=True)
             await self._commit_undos()
-            
+
             # 每个工具结果单独作为一条消息
             for tool_result, tool_call_id in zip(tool_results, tool_call_ids):
                 tool_name = id_to_name.get(tool_call_id, 'Unknown')
@@ -613,7 +634,7 @@ class reAct:
                     self.log.update_content(
                         f"{status_color}工具完成: {tool_name} -> {summary}{Color.END}\n"
                     )
-                
+
                 result_block = {
                     'role': 'tool',
                     'tool_call_id': tool_call_id,
@@ -621,12 +642,34 @@ class reAct:
                 }
                 if image_path:
                     result_block['image_path'] = image_path
-                    
+
                 await self.agent.update_context(result_block)
-            
+                self._record_event(
+                    "tool_finished",
+                    {"tool": tool_name, "result": self._truncate(content, 800)},
+                )
+
             session.state = 'thinking'
 
         return stop_requested
+
+    def _record_phase(self, phase: str) -> None:
+        """刷新心跳并记录可供前端消费的 Session 阶段事件。"""
+        self._record_event("phase", {"phase": phase})
+
+    def _record_event(self, event_type: str, data: dict) -> None:
+        now = datetime.now().isoformat()
+        db = ConversationDB.from_path(self.database_path)
+        with db.connect() as con:
+            con.execute(
+                "UPDATE session SET heartbeat_at=? WHERE session_id=?",
+                (now, self.session.id),
+            )
+            con.execute(
+                "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
+                (self.session.id, event_type, json.dumps(data, ensure_ascii=False), now),
+            )
+            con.commit()
 
     def session_create(self, session_id: str = None) -> None:
         '''
@@ -655,12 +698,50 @@ class reAct:
         with db.connect() as con:
             cur = con.cursor()
             cur.execute(
-                "INSERT OR IGNORE INTO session (session_id, state, result) VALUES (?, ?, ?)",
-                (session_.id, 'sleeping', '')
+                """INSERT OR IGNORE INTO session
+                (session_id, agent_id, agent_type, parent_session_id, query, state, result, pid,
+                 worker_id, created_at, started_at, heartbeat_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    session_.id,
+                    getattr(self.agent, 'id', None),
+                    getattr(self.agent, 'type', None),
+                    self.parent_session_id,
+                    getattr(self.agent, 'query', ''),
+                    'running',
+                    '',
+                    os.getpid(),
+                    f'process:{os.getpid()}',
+                    session_.create_time.isoformat(),
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat(),
+                ),
+            )
+            cur.execute(
+                """UPDATE session SET
+                agent_id = COALESCE(agent_id, ?),
+                agent_type = COALESCE(agent_type, ?),
+                parent_session_id = COALESCE(parent_session_id, ?),
+                query = COALESCE(query, ?),
+                state = 'running',
+                pid = ?,
+                worker_id = ?,
+                started_at = COALESCE(started_at, ?)
+                WHERE session_id = ?""",
+                (
+                    getattr(self.agent, 'id', None),
+                    getattr(self.agent, 'type', None),
+                    self.parent_session_id,
+                    getattr(self.agent, 'query', ''),
+                    os.getpid(),
+                    f'process:{os.getpid()}',
+                    datetime.now().isoformat(),
+                    session_.id,
+                ),
             )
             con.commit()
         return
-    
+
     def kill(self):
         session = self.session
         session.state = 'killed'
@@ -683,10 +764,10 @@ class Coordinator_reAct(reAct):
     '''
     session: Session
 
-    def __init__(self, agent: Agent):
+    def __init__(self, agent: Agent, session_id: str = None):
         # Coordinator 的身份 prompt 已包含 ReAct 工作指南，
         # 这里不再传入额外 query，让 agent.query（用户原始输入）作为第一条 user 消息。
-        super().__init__(agent=agent)
+        super().__init__(agent=agent, session_id=session_id)
         self.log.is_main = True
 
     async def run(self):

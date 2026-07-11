@@ -6,10 +6,10 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.agent import Agent
+from cloudra.database import ConversationDB, get_database_path
 from cloudra.session_class import Session
 from cloudra.subagents import Subagent_hash
 from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.database import get_database_path, ConversationDB
 
 description = (
     "启动子 Agent 执行特定任务。Coordinator 可将复杂任务拆分为多个子任务。\n"
@@ -138,6 +138,7 @@ class SubAgentLauncher(Tool):
             'query': query,
             'context': context,
             'conversation_id': conversation_id,
+            'parent_session_id': session.id,
         }
 
         if is_wait:
@@ -154,8 +155,9 @@ class SubAgentLauncher(Tool):
                 sub_agent.session_id = session_id
                 base_payload['session_id'] = session_id
                 await con.execute(
-                    "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
-                    (json.dumps(base_payload), task_id)
+                    """UPDATE subagent_requests
+                    SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
+                    (json.dumps(base_payload), session_id, session.id, task_id)
                 )
                 await con.commit()
 
@@ -206,8 +208,9 @@ class SubAgentLauncher(Tool):
                 sub_agent.session_id = session_id
                 base_payload['session_id'] = session_id
                 await con.execute(
-                    "UPDATE subagent_requests SET input_data = ? WHERE id = ?",
-                    (json.dumps(base_payload), task_id)
+                    """UPDATE subagent_requests
+                    SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
+                    (json.dumps(base_payload), session_id, session.id, task_id)
                 )
                 await con.commit()
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"

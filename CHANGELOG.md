@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.1] - 2026-07-12
+
+### 新增
+- **前端 UI 从零实现**：像素风格（Unifont）、纯黑主题、绿/黄强调色；左侧会话列表、消息渲染、Session Trace、审批面板、JSON 结构化查看器、Markdown 自动渲染、清空会话二次确认弹窗。
+- **前端构建产物**：`frontend/dist/` 已生成，后端直接挂载。
+- **会话清空**：左侧栏新增“清空会话”按钮，二次确认后删除所有 Conversation / Session / 消息 / 审批记录。
+- **Tool JSON 结构化渲染**：tool 消息解析为可折叠 JSON 树；字符串值若含 Markdown 则自动渲染，并支持 TXT/MD 切换。
+
+### 改进
+- **后端 API**：新增 `DELETE /api/conversations` 与 `CloudraService.delete_all_conversations()`；CORS 支持 DELETE。
+- **后端数据模型**：调整 `session` 表结构以支持新的 Session 生命周期与事件记录。
+
 ## [1.7.0] - 2026-07-09
 
 ### 新增

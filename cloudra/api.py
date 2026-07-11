@@ -1,220 +1,247 @@
-import os
-import json
-import aiosqlite
+"""Cloudra HTTP API。
+
+API 是应用服务层的 HTTP 适配器。默认仅监听本机；如需局域网访问，请设置
+``CLOUDRA_API_TOKEN`` 并显式指定 ``CLOUDRA_API_HOST=0.0.0.0``。
+"""
+
+from __future__ import annotations
+
 import asyncio
-import socket
-from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+import json
+import os
+from pathlib import Path
+from typing import Literal
+
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-# 导入你的核心逻辑
-from cloudra.main import run_task
-from cloudra.config import get_config
-from cloudra.database import get_database_path
-from cloudra.conversation_class import Conversation
-from cloudra.skill_class import skill_loader
 from cloudra import __version__
+from cloudra.config import get_config
+from cloudra.service import CloudraService
+from cloudra.skill_class import skill_loader
 
-app = FastAPI(
-    title="Cloudra API (Mobile-Ready)",
-    description="Cloudra AI 化学科研助手 - 增强型局域网服务",
-    version=__version__
-)
 
-# --- 跨域配置 (CORS) ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class SessionCreate(BaseModel):
+    query: str = Field(min_length=1, max_length=20_000)
 
-# --- 静态文件挂载 ---
-# 允许手机端访问生成的图片、报告等文件
-data_dir = get_config().data_dir
-app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
-
-# --- 数据模型 ---
-class ChatRequest(BaseModel):
-    query: str
-    conv_id: Optional[str] = None
 
 class ApprovalDecision(BaseModel):
-    decision: str  # 'approved' 或 'denied'
+    decision: Literal["approved", "denied"]
+    denial_reason: str = Field(default="", max_length=2_000)
 
-# --- 辅助函数 ---
-def get_local_ip():
-    """获取本机局域网 IP 地址"""
+
+def _allowed_origins() -> list[str]:
+    raw = os.getenv(
+        "CLOUDRA_API_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+    )
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+def create_app(service: CloudraService | None = None) -> FastAPI:
+    """创建应用；工厂函数让测试可以注入假的 service。"""
+    service = service or CloudraService()
+    api_token = os.getenv("CLOUDRA_API_TOKEN", "").strip()
+
+    app = FastAPI(
+        title="Cloudra API",
+        description="Cloudra 前端与自动化客户端使用的 Conversation/Session API",
+        version=__version__,
+    )
+    app.state.cloudra_service = service
+    if hasattr(service.session_runner, "recover_stale_sessions"):
+        app.router.add_event_handler("startup", service.session_runner.recover_stale_sessions)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_allowed_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+    artifacts_dir = Path(get_config().data_dir) / "artifacts"
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # 不需要真的连接，只是为了获取本机出局 IP
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # 只读环境仍应能导入 API；此时仅禁用产物下载路由。
+        pass
+    if artifacts_dir.is_dir():
+        app.mount("/artifacts", StaticFiles(directory=artifacts_dir), name="artifacts")
 
-def get_db_path(conv_id: str = "default"):
-    return get_database_path(conv_id)
+    async def authorize(authorization: str | None = Header(default=None)) -> None:
+        # 本机开发时可以不设 token；对外监听时启动函数会强制要求 token。
+        if not api_token:
+            return
+        if authorization != f"Bearer {api_token}":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="缺少或无效的 API Token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
+    protected = [Depends(authorize)]
 
-def _list_conversation_db_paths() -> list[str]:
-    """返回所有已存在 conversation 的数据库路径。"""
-    conv_dir = data_dir / "conversations"
-    if not conv_dir.exists():
-        return []
-    paths = []
-    for entry in conv_dir.iterdir():
-        if entry.is_dir():
-            db = entry / "tasks" / "database.db"
-            if db.exists():
-                paths.append(str(db))
-    # 兼容 default conversation
-    default_db = data_dir / "conversations" / "default" / "tasks" / "database.db"
-    if default_db.exists() and str(default_db) not in paths:
-        paths.append(str(default_db))
-    return paths
+    @app.get("/api/health")
+    async def health() -> dict:
+        return {"status": "ok", "version": __version__}
 
+    @app.post("/api/conversations", status_code=status.HTTP_201_CREATED, dependencies=protected)
+    async def create_conversation() -> dict:
+        conversation = service.create_conversation()
+        return {"id": conversation.id, "state": conversation.state}
 
-# --- API 路由 ---
+    @app.post(
+        "/api/conversations/{conversation_id}/sessions",
+        status_code=status.HTTP_202_ACCEPTED,
+        dependencies=protected,
+    )
+    async def create_session(conversation_id: str, request: SessionCreate) -> dict:
+        try:
+            _, record = service.submit_session(request.query, conversation_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return record.to_dict()
 
-@app.get("/")
-async def root():
-    local_ip = get_local_ip()
-    return {
-        "status": "online",
-        "local_access": f"http://{local_ip}:8000",
-        "docs": f"http://{local_ip}:8000/docs",
-        "data_root": f"http://{local_ip}:8000/data",
-        "device_ip": local_ip
-    }
+    @app.get(
+        "/api/conversations/{conversation_id}/sessions/{session_id}/events",
+        dependencies=protected,
+    )
+    async def get_session_events(
+        conversation_id: str,
+        session_id: str,
+        after_id: int = 0,
+    ) -> list[dict]:
+        try:
+            return service.session_runner.events(conversation_id, session_id, after_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-@app.get("/conversations")
-async def list_conversations():
-    """获取所有历史对话"""
-    conv_dir = data_dir / "conversations"
-    if not conv_dir.exists():
-        return []
-    
-    conversations = []
-    for entry in conv_dir.iterdir():
-        if entry.is_dir():
-            meta_path = entry / "meta.json"
-            if meta_path.exists():
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    conversations.append(json.load(f))
-    
-    conversations.sort(key=lambda x: x.get("last_active", ""), reverse=True)
-    return conversations
-
-@app.get("/conversations/{conv_id}")
-async def get_conversation_history(conv_id: str):
-    """获取对话记录，并将本地路径转换为 Web URL"""
-    conv = Conversation(conv_id)
-    ctx_path = conv.get_context_path("a-0")
-    
-    if not os.path.exists(ctx_path):
-        return []
-    
-    try:
-        with open(ctx_path, "r", encoding="utf-8") as f:
-            history = json.load(f)
-            
-        # 路径重写逻辑：将本地绝对路径转换为 /data/ 相对路径，方便手机访问
-        for msg in history:
-            content = msg.get('content')
-            if isinstance(content, list):
-                for part in content:
-                    if part.get('type') == 'image_url':
-                        local_path = part['image_url'].get('url')
-                        if local_path and os.path.isabs(local_path):
-                            # 计算相对于 data_dir 的路径
-                            try:
-                                rel_path = os.path.relpath(local_path, data_dir)
-                                part['image_url']['url'] = f"/data/{rel_path}"
-                            except ValueError:
-                                pass
-            elif isinstance(msg.get('image_path'), str):
-                try:
-                    rel_path = os.path.relpath(msg['image_path'], data_dir)
-                    msg['image_path'] = f"/data/{rel_path}"
-                except ValueError:
-                    pass
-                    
-        return history
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/chat")
-async def chat_endpoint(req: ChatRequest):
-    """执行对话任务"""
-    try:
-        # 注意：run_task 目前是同步的，对于耗时任务，后续建议改为异步或 WebSocket
-        result = run_task(req.query, conv_id=req.conv_id, verbose=False)
-        return {"status": "success", "data": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/approvals")
-async def get_pending_approvals():
-    """获取待审批请求（扫描所有 conversation DB）。"""
-    results = []
-    for db_path in _list_conversation_db_paths():
-        async with aiosqlite.connect(db_path) as conn:
-            cur = await conn.execute("SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'")
-            rows = await cur.fetchall()
-        for r in rows:
-            results.append({
-                "id": r[0],
-                "session_id": r[1],
-                "agent_name": r[2],
-                "details": r[3],
-                "db_path": db_path,
-            })
-    return results
-
-@app.post("/approvals/{approval_id}")
-async def process_approval(approval_id: int, dec: ApprovalDecision, db_path: str = None):
-    """执行审批操作。可通过 db_path 指定所属 conversation 数据库。"""
-    if not db_path:
-        # 未指定时扫描所有 DB 查找该 approval_id
-        for candidate in _list_conversation_db_paths():
-            async with aiosqlite.connect(candidate) as conn:
-                cur = await conn.execute("SELECT id FROM approvals WHERE id = ?", (approval_id,))
-                if await cur.fetchone():
-                    db_path = candidate
+    @app.get(
+        "/api/conversations/{conversation_id}/sessions/{session_id}/events/stream",
+        dependencies=protected,
+    )
+    async def stream_session_events(
+        conversation_id: str,
+        session_id: str,
+        after_id: int = 0,
+    ) -> StreamingResponse:
+        async def generate():
+            cursor = after_id
+            while True:
+                events = service.session_runner.events(conversation_id, session_id, cursor)
+                for event in events:
+                    cursor = event["id"]
+                    yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                record = service.session_runner.get(conversation_id, session_id)
+                if record is None or record.state in {
+                    "completed", "sleeping", "failed", "cancelled", "killed", "interrupted"
+                }:
                     break
-    
-    if not db_path or not os.path.exists(db_path):
-        raise HTTPException(status_code=404, detail="未找到对应的审批请求")
-    
-    state = 'approved' if dec.decision.lower() == 'approved' else 'denied'
-    
-    async with aiosqlite.connect(db_path) as conn:
-        await conn.execute("UPDATE approvals SET state = ? WHERE id = ?", (state, approval_id))
-        await conn.commit()
-    
-    return {"status": "success", "id": approval_id, "new_state": state}
+                await asyncio.sleep(1)
 
-@app.get("/skills")
-async def get_available_skills():
-    """查看可用技能"""
-    loader = skill_loader()
-    return loader.skill_datas_get()
+        return StreamingResponse(generate(), media_type="text/event-stream")
 
-# --- 启动服务 ---
-if __name__ == "__main__":
+    @app.get("/api/conversations/{conversation_id}/sessions", dependencies=protected)
+    async def list_sessions(conversation_id: str) -> list[dict]:
+        try:
+            return [record.to_dict() for record in service.session_runner.list(conversation_id)]
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/conversations/{conversation_id}/sessions/{session_id}", dependencies=protected)
+    async def get_session(conversation_id: str, session_id: str) -> dict:
+        try:
+            record = service.session_runner.get(conversation_id, session_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if record is None:
+            raise HTTPException(status_code=404, detail="Session 不存在")
+        return record.to_dict()
+
+    @app.post(
+        "/api/conversations/{conversation_id}/sessions/{session_id}/cancel",
+        dependencies=protected,
+    )
+    async def cancel_session(conversation_id: str, session_id: str) -> dict:
+        try:
+            record = service.session_runner.cancel(conversation_id, session_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if record is None:
+            raise HTTPException(status_code=404, detail="Session 不存在")
+        return record.to_dict()
+
+    @app.get("/api/conversations", dependencies=protected)
+    async def list_conversations() -> list[dict]:
+        return service.list_conversations()
+
+    @app.delete("/api/conversations", dependencies=protected)
+    async def delete_all_conversations() -> dict:
+        count = service.delete_all_conversations()
+        return {"deleted": count}
+
+    @app.get("/api/conversations/{conversation_id}/messages", dependencies=protected)
+    async def get_messages(conversation_id: str) -> list[dict]:
+        try:
+            return service.get_conversation_messages(conversation_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=500, detail="无法读取会话消息") from exc
+
+    @app.get("/api/approvals", dependencies=protected)
+    async def list_approvals() -> list[dict]:
+        return await service.list_pending_approvals()
+
+    @app.post(
+        "/api/conversations/{conversation_id}/approvals/{approval_id}/decision",
+        dependencies=protected,
+    )
+    async def decide_approval(
+        conversation_id: str,
+        approval_id: int,
+        request: ApprovalDecision,
+    ) -> dict:
+        try:
+            changed = await service.decide_approval(
+                conversation_id,
+                approval_id,
+                request.decision,
+                request.denial_reason,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if not changed:
+            raise HTTPException(status_code=404, detail="待审批记录不存在")
+        return {"id": approval_id, "conversation_id": conversation_id, "state": request.decision}
+
+    @app.get("/api/skills", dependencies=protected)
+    async def get_skills():
+        return skill_loader().skill_datas_get()
+
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    if frontend_dir.is_dir():
+        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+
+    return app
+
+
+app = create_app()
+
+
+def main() -> None:
+    """启动开发服务器。默认只允许本机访问。"""
     import uvicorn
-    local_ip = get_local_ip()
-    print(f"\n🚀 Cloudra 增强版 API 已启动!")
-    print(f"🏠 本地访问: http://127.0.0.1:8000")
-    print(f"📱 局域网访问 (手机/平板): http://{local_ip}:8000")
-    print(f"📂 静态资源根路径: {data_dir}")
-    print(f"📖 交互式文档: http://{local_ip}:8000/docs\n")
-    
-    # 绑定 0.0.0.0 是局域网发现的关键
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    host = os.getenv("CLOUDRA_API_HOST", "127.0.0.1")
+    port = int(os.getenv("CLOUDRA_API_PORT", "8000"))
+    if host not in {"127.0.0.1", "localhost", "::1"} and not os.getenv("CLOUDRA_API_TOKEN"):
+        raise RuntimeError("对外监听 API 前必须设置 CLOUDRA_API_TOKEN")
+    uvicorn.run("cloudra.api:app", host=host, port=port, reload=False)
+
+
+if __name__ == "__main__":
+    main()

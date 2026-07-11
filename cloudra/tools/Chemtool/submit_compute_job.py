@@ -1,13 +1,13 @@
-from pydantic import Field
-from typing import Any, Literal
-
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
-from cloudra.database import get_database_path, ConversationDB
-from cloudra.compute_utils import check_job_type, launch_compute_processes
 import os
 import time
+from typing import Any, Literal
 
+from pydantic import Field
+
+from cloudra.compute_utils import check_job_type, launch_compute_processes
+from cloudra.database import ConversationDB, get_database_path
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "提交计算任务的工具。"
@@ -73,10 +73,11 @@ class SubmitComputeJob(Tool):
             try:
                 async with db.aconnect() as con:
                     cur = await con.execute('''
-                    INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
-                    VALUES (?,?,?,?,?,?)
+                    INSERT INTO compute_jobs
+                    (conversation_id, session_id, path, state, jobtype, start_timestamp, end_timestamp)
+                    VALUES (?,?,?,?,?,?,?)
                             ''',
-                    (conv_id, f_path, 'ready', user_input.job_type, -1, -1))
+                    (conv_id, session.id, f_path, 'ready', user_input.job_type, -1, -1))
                     job_id = cur.lastrowid
                     await con.commit()
                     return SubmitComputeJob_output_schema(
@@ -97,10 +98,11 @@ class SubmitComputeJob(Tool):
                 async with db.aconnect() as con:
                     now = time.time()
                     cur = await con.execute('''
-                    INSERT INTO compute_jobs (conversation_id, path, state, jobtype, start_timestamp, end_timestamp) 
-                    VALUES (?,?,?,?,?,?)
+                    INSERT INTO compute_jobs
+                    (conversation_id, session_id, path, state, jobtype, start_timestamp, end_timestamp)
+                    VALUES (?,?,?,?,?,?,?)
                             ''',
-                    (conv_id, f_path, 'running', user_input.job_type, now, -1))
+                    (conv_id, session.id, f_path, 'running', user_input.job_type, now, -1))
                     job_id = cur.lastrowid
                     await con.commit()
                     # 任务提交是昂贵的，必须在数据库留痕才允许进行。

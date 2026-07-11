@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 from typing import Optional
 
@@ -28,6 +29,8 @@ class ConversationDB:
 
     def __init__(self, conversation_id: Optional[str] = None):
         self.conversation_id = conversation_id or "default"
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", self.conversation_id):
+            raise ValueError("无效的 conversation_id")
         self.path = self._build_path(self.conversation_id)
 
     @staticmethod
@@ -58,6 +61,13 @@ class ConversationDB:
             cur.execute(_CREATE_APPROVALS)
             cur.execute(_CREATE_COMPUTE_JOBS)
             cur.execute(_CREATE_CONTEXT_EVENTS)
+            cur.execute(_CREATE_SESSION_EVENTS)
+            cur.execute(_CREATE_SCHEMA_MIGRATIONS)
+            self._migrate_session_schema(cur)
+            self._migrate_related_schema(cur)
+            cur.execute(
+                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'))"
+            )
             con.commit()
         return self
 
@@ -87,18 +97,93 @@ class ConversationDB:
             await cur.execute(_CREATE_APPROVALS)
             await cur.execute(_CREATE_COMPUTE_JOBS)
             await cur.execute(_CREATE_CONTEXT_EVENTS)
+            await cur.execute(_CREATE_SESSION_EVENTS)
+            await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
+            await self._amigrate_session_schema(cur)
+            await self._amigrate_related_schema(cur)
+            await cur.execute(
+                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'))"
+            )
             await con.commit()
         return self
+
+    @staticmethod
+    def _migrate_session_schema(cur) -> None:
+        """为旧数据库补齐 Session 元数据列，不删除已有记录。"""
+        existing = {row[1] for row in cur.execute("PRAGMA table_info(session)").fetchall()}
+        for name, definition in _SESSION_EXTRA_COLUMNS.items():
+            if name not in existing:
+                cur.execute(f"ALTER TABLE session ADD COLUMN {name} {definition}")
+
+    @staticmethod
+    async def _amigrate_session_schema(cur) -> None:
+        await cur.execute("PRAGMA table_info(session)")
+        existing = {row[1] for row in await cur.fetchall()}
+        for name, definition in _SESSION_EXTRA_COLUMNS.items():
+            if name not in existing:
+                await cur.execute(f"ALTER TABLE session ADD COLUMN {name} {definition}")
+
+    @staticmethod
+    def _migrate_related_schema(cur) -> None:
+        for table, columns in _RELATED_EXTRA_COLUMNS.items():
+            existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}
+            for name, definition in columns.items():
+                if name not in existing:
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+    @staticmethod
+    async def _amigrate_related_schema(cur) -> None:
+        for table, columns in _RELATED_EXTRA_COLUMNS.items():
+            await cur.execute(f"PRAGMA table_info({table})")
+            existing = {row[1] for row in await cur.fetchall()}
+            for name, definition in columns.items():
+                if name not in existing:
+                    await cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
 
 # SQL 建表语句统一放在这里，作为唯一表结构定义。
 _CREATE_SESSION = """
     CREATE TABLE IF NOT EXISTS session (
         session_id TEXT PRIMARY KEY,
-        state TEXT,
-        result TEXT
+        agent_id TEXT,
+        agent_type TEXT,
+        parent_session_id TEXT,
+        query TEXT,
+        state TEXT NOT NULL DEFAULT 'queued',
+        result TEXT,
+        error TEXT,
+        pid INTEGER,
+        worker_id TEXT,
+        created_at TEXT,
+        started_at TEXT,
+        heartbeat_at TEXT,
+        finished_at TEXT,
+        exit_code INTEGER
     )
 """
+
+_SESSION_EXTRA_COLUMNS = {
+    "agent_id": "TEXT",
+    "agent_type": "TEXT",
+    "parent_session_id": "TEXT",
+    "query": "TEXT",
+    "error": "TEXT",
+    "pid": "INTEGER",
+    "worker_id": "TEXT",
+    "created_at": "TEXT",
+    "started_at": "TEXT",
+    "heartbeat_at": "TEXT",
+    "finished_at": "TEXT",
+    "exit_code": "INTEGER",
+}
+
+_RELATED_EXTRA_COLUMNS = {
+    "subagent_requests": {
+        "session_id": "TEXT",
+        "parent_session_id": "TEXT",
+    },
+    "compute_jobs": {"session_id": "TEXT"},
+}
 
 _CREATE_SUBAGENT_REQUESTS = """
     CREATE TABLE IF NOT EXISTS subagent_requests (
@@ -144,6 +229,22 @@ _CREATE_CONTEXT_EVENTS = """
     )
 """
 
+_CREATE_SESSION_EVENTS = """
+    CREATE TABLE IF NOT EXISTS session_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        data TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_SCHEMA_MIGRATIONS = """
+    CREATE TABLE IF NOT EXISTS schema_migrations(
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+    )
+"""
 
 def get_database_path(conversation_id: Optional[str] = None) -> str:
     """返回指定 conversation 的数据库路径（兼容旧接口）。"""

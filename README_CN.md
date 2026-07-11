@@ -99,15 +99,105 @@ cloudra skills                          # 可用 Skills
 python -m cloudra.email_listener
 ```
 
-## API 服务
+## API 服务（前端开发预览）
 
-Cloudra 同时提供基于 FastAPI 的 HTTP API：
+Cloudra 提供基于 FastAPI 的 HTTP API。API 与 CLI 共用 `CloudraService`
+业务层。前端的一次请求对应 conversation 数据库中的一个 Coordinator Session；
+Session 保存 query、状态、结果、错误和运行时间等信息。服务重启后仍能查询记录，
+但正在执行的 Session 目前不会自动恢复。
 
 ```bash
 python -m cloudra.api
 ```
 
-服务默认监听 `0.0.0.0:8000`，并在 `/data` 路径下提供生成的图片、报告等静态文件。
+服务默认只监听 `127.0.0.1:8000`。打开 `http://127.0.0.1:8000/docs`
+可以使用 FastAPI 自动生成的交互式接口文档。
+
+先创建 Conversation：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/conversations
+```
+
+然后在该 Conversation 中启动 Session：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/conversations/CONV_ID/sessions \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"总结水分解催化剂的研究进展"}'
+```
+
+接口会立即返回 `session_id`；随后通过
+`GET /api/conversations/{conversation_id}/sessions/{session_id}` 查询运行状态。
+`subagent_requests` 和 `compute_jobs` 仍表示 Session 执行期间派生的内部工作。
+
+实时事件可通过 SSE 订阅：
+
+```text
+GET /api/conversations/{conversation_id}/sessions/{session_id}/events/stream
+```
+
+Session 使用 SQLite 原子状态更新避免多个 API worker 重复领取，运行期间定时写入
+`heartbeat_at`。服务启动时，失去心跳的旧 `running` Session 会变为 `interrupted`；
+系统不会自动重跑它，以免重复执行写文件、发邮件或提交计算等有副作用的操作。
+`parent_session_id` 连接 Coordinator 和子 Agent，`compute_jobs.session_id` 连接计算任务与发起它的 Session。
+
+需要局域网访问时必须先配置 Token：
+
+```bash
+export CLOUDRA_API_TOKEN='请替换为足够长的随机字符串'
+export CLOUDRA_API_HOST='0.0.0.0'
+python -m cloudra.api
+```
+
+客户端请求需携带 `Authorization: Bearer <token>`。生成物只允许放在并访问
+`<data_dir>/artifacts`，不再公开整个 Cloudra 数据目录。
+
+### Web 前端
+
+最简单的启动方式是在项目根目录运行：
+
+```bash
+./web.sh
+```
+
+脚本会自动检查环境、按需安装或构建前端，然后在
+`http://127.0.0.1:8000` 启动完整界面。开发时可以使用：
+
+```bash
+./web.sh dev
+```
+
+更多选项使用 `./web.sh --help` 查看。
+
+前端位于 `frontend/`，使用 React、TypeScript、Vite、TanStack Query 和
+`@microsoft/fetch-event-source`。首次运行：
+
+```bash
+cd frontend
+npm install --registry=https://registry.npmmirror.com
+npm run dev
+```
+
+开发服务器默认使用 `http://127.0.0.1:5173`，并把 `/api` 与 `/artifacts`
+转发到 `http://127.0.0.1:8000`。另一个终端需要同时运行：
+
+```bash
+python -m cloudra.api
+```
+
+生产使用时先构建：
+
+```bash
+cd frontend
+npm run build
+cd ..
+python -m cloudra.api
+```
+
+FastAPI 检测到 `frontend/dist` 后会将其挂载到根路径，访问
+`http://127.0.0.1:8000/` 即可打开界面。页面支持 Conversation 切换、
+Session 提交与取消、SSE 实时轨迹、历史消息、危险操作审批和 API Token。
 
 ## 计算化学工作流示例
 

@@ -5,8 +5,8 @@ import sqlite3
 
 import pytest
 
-from cloudra.database import ConversationDB, get_database_path
 from cloudra.config import get_config, reload_config
+from cloudra.database import ConversationDB, get_database_path
 
 
 @pytest.fixture
@@ -49,6 +49,18 @@ def test_conversation_db_init_creates_tables(isolated_db):
     assert "approvals" in tables
     assert "compute_jobs" in tables
     assert "context_events" in tables
+    assert "session_events" in tables
+    assert "schema_migrations" in tables
+    with sqlite3.connect(db.path) as con:
+        session_columns = {row[1] for row in con.execute("PRAGMA table_info(session)")}
+    assert {"agent_id", "query", "error", "pid", "started_at", "finished_at"} <= session_columns
+    with sqlite3.connect(db.path) as con:
+        compute_columns = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
+        subagent_columns = {row[1] for row in con.execute("PRAGMA table_info(subagent_requests)")}
+        version = con.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+    assert "session_id" in compute_columns
+    assert {"session_id", "parent_session_id"} <= subagent_columns
+    assert version == 2
 
 
 def test_conversation_db_isolation(isolated_db):
@@ -80,3 +92,24 @@ def test_conversation_db_connect_sets_wal_and_busy_timeout(isolated_db):
         assert cur.fetchone()[0].upper() == "WAL"
         cur.execute("PRAGMA busy_timeout")
         assert cur.fetchone()[0] == 20000
+
+
+def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):
+    db = ConversationDB("conv_legacy")
+    db.ensure_dir()
+    with sqlite3.connect(db.path) as con:
+        con.execute("CREATE TABLE session (session_id TEXT PRIMARY KEY, state TEXT, result TEXT)")
+        con.execute(
+            "INSERT INTO session (session_id, state, result) VALUES (?, ?, ?)",
+            ("legacy-1", "sleeping", "old result"),
+        )
+        con.commit()
+
+    db.init()
+
+    with sqlite3.connect(db.path) as con:
+        row = con.execute(
+            "SELECT session_id, state, result, agent_id, pid FROM session WHERE session_id = ?",
+            ("legacy-1",),
+        ).fetchone()
+    assert row == ("legacy-1", "sleeping", "old result", None, None)

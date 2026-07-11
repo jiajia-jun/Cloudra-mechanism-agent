@@ -3,10 +3,11 @@ import asyncio
 import copy
 import json
 import os
+from datetime import datetime
 
+from cloudra.database import ConversationDB
 from cloudra.reAct import reAct
 from cloudra.subagents import Subagent_hash
-from cloudra.database import ConversationDB
 
 
 async def run_executor(task_id: int, database_path: str, session_id: str = None):
@@ -64,9 +65,22 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     # reAct 不再接收会覆盖身份 prompt 的 prompt 参数。
     sub_reAct = reAct(
         agent=sub_agent,
-        session_id=session_id
+        session_id=session_id,
+        parent_session_id=input_data.get('parent_session_id'),
     )
     sub_reAct.log.is_main = True # 在子进程内部，它是主日志
+
+    async def heartbeat():
+        while True:
+            async with db.aconnect() as con:
+                await con.execute(
+                    "UPDATE session SET heartbeat_at=? WHERE session_id=?",
+                    (datetime.now().isoformat(), session_id),
+                )
+                await con.commit()
+            await asyncio.sleep(5)
+
+    heartbeat_task = asyncio.create_task(heartbeat())
 
     # 3. 执行任务
     print(f"--- Agent {sub_agent.name} 启动 (PID: {os.getpid()}) ---")
@@ -78,12 +92,23 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         # 4. 更新数据库状态为 done
         async with db.aconnect() as con:
             await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))
+            await con.execute(
+                "UPDATE session SET exit_code=0, finished_at=COALESCE(finished_at, ?) WHERE session_id=?",
+                (datetime.now().isoformat(), session_id),
+            )
             await con.commit()
     except Exception as e:
         print(f"Critical Error in Sub-process: {e}")
         async with db.aconnect() as con:
             await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', task_id))
+            await con.execute(
+                """UPDATE session SET state='failed', error=?, finished_at=?, exit_code=1
+                WHERE session_id=?""",
+                (str(e), datetime.now().isoformat(), session_id),
+            )
             await con.commit()
+    finally:
+        heartbeat_task.cancel()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

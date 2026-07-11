@@ -4,6 +4,7 @@ Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
 
 import os
 import sys
+import asyncio
 import json
 import sqlite3
 from pathlib import Path
@@ -17,7 +18,7 @@ from rich.text import Text
 
 from cloudra.config import get_config, reload_config, CloudraConfig
 from cloudra.database import get_database_path
-from cloudra.main import run_task
+from cloudra.service import CloudraService
 from cloudra import __version__
 
 
@@ -106,7 +107,9 @@ def run(query, conv_id, new, dry_run, yolo):
         sys.exit(1)
     
     try:
-        result = run_task(query, conv_id=active_conv_id, verbose=True)
+        # CLI 和 HTTP API 共用同一个业务服务层；CLI 只负责终端输入输出。
+        service = CloudraService()
+        result = asyncio.run(service.run_task(query, conversation_id=active_conv_id, verbose=True))
         
         # Save the used ID as the last one
         config.last_conversation_id = active_conv_id

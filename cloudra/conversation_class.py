@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import re
 from datetime import datetime
 
 from cloudra.config import get_config
@@ -28,10 +29,13 @@ class Conversation:
     state: str = 'active'
 
     VALID_STATES = {'active', 'running', 'sleeping', 'archived'}
+    ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 
     def __init__(self, conv_id: str = None):
         data_dir = get_config().data_dir
         if conv_id:
+            if not self.ID_PATTERN.fullmatch(conv_id):
+                raise ValueError("会话 ID 只能包含字母、数字、下划线和连字符，长度不超过 100")
             # 恢复已有对话
             self.id = conv_id
             self.path = os.path.join(data_dir, 'conversations', conv_id)

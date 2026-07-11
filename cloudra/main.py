@@ -210,7 +210,7 @@ class Color:
 def print_banner():
     print(f"{Color.BLUE}{Color.BOLD}")
     print("  Cloudra - AI 化学科研助手")
-    print(f"  版本: v1.6.3{Color.END}")
+    print(f"  版本: v1.7.1{Color.END}")
     print("-" * 45)
 
 
@@ -239,7 +239,12 @@ async def _wait_for_background_tasks(database: str, conversation_id: str) -> Non
         await asyncio.sleep(1)
 
 
-async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) -> str:
+async def run_task_async(
+    query: str,
+    conv_id: str = None,
+    verbose: bool = True,
+    session_id: str = None,
+) -> str:
     """
     执行一个 Cloudra 任务（异步版本）。
     
@@ -274,17 +279,23 @@ async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) 
     if not context or context[-1].get('content') != query:
         await coordinator_agent.update_context({'role': 'user', 'content': query})
 
-    father_reAct = Coordinator_reAct(coordinator_agent)
+    father_reAct = Coordinator_reAct(coordinator_agent, session_id=session_id)
 
     # 为该 conversation 启动独立的后台 daemon 线程（各 conversation 之间不共享 DB）
-    t = threading.Thread(target=checking_task, args=(database,), daemon=True)
-    t.start()
+    stop_event = threading.Event()
+    background_threads = []
 
-    t = threading.Thread(target=check_compute, args=(database,), daemon=True)
+    t = threading.Thread(target=checking_task, args=(database, stop_event), daemon=True)
     t.start()
+    background_threads.append(t)
 
-    t_approval = threading.Thread(target=approval_handler, args=(database,), daemon=True)
+    t = threading.Thread(target=check_compute, args=(database, stop_event), daemon=True)
+    t.start()
+    background_threads.append(t)
+
+    t_approval = threading.Thread(target=approval_handler, args=(database, stop_event), daemon=True)
     t_approval.start()
+    background_threads.append(t_approval)
     
     if verbose:
         print(f"{Color.GREEN}[系统]{Color.END} 协调者 Agent 已就绪，开始推理...\n")
@@ -312,6 +323,11 @@ async def run_task_async(query: str, conv_id: str = None, verbose: bool = True) 
             result = await father_reAct.run()
 
     finally:
+        # 每次任务拥有自己的 worker；任务结束必须通知它们退出，避免重复恢复
+        # conversation 后积累永久轮询线程。
+        stop_event.set()
+        for thread in background_threads:
+            thread.join(timeout=0.2)
         # 无论成功失败，任务结束后都标记为 sleeping（除非被归档）
         if conversation.state != 'archived':
             conversation.set_state('sleeping')

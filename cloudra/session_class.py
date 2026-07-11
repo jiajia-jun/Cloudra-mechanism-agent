@@ -13,6 +13,8 @@ class Session:
         self.id = id
         self.path = path
         self.state = 'sleeping'
+        # 必须是实例字段，避免不同 Session 共享同一个类级 dict。
+        self.tool_calling = {}
         session_dict = self.to_json()
         import json
         with open(self.path, 'w', encoding='utf-8') as f:
@@ -38,5 +40,4 @@ class Session:
             json.dump(self.to_json(), f, ensure_ascii=False, indent=4)
 
     
-
 
