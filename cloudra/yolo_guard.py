@@ -178,7 +178,19 @@ class YoloGuard:
             response = client.chat.completions.create(**request_kwargs)
         except Exception as e:
             msg = str(e).lower()
-            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
+            # 处理只支持 temperature=1 的 reasoning 模型
+            if "only 1 is allowed" in msg or ("temperature" in msg and "1" in msg):
+                print(
+                    "\033[93m[LLM fallback] YOLO 当前模型只支持 temperature=1，"
+                    "正在重试...\033[0m"
+                )
+                request_kwargs = dict(request_kwargs)
+                request_kwargs["temperature"] = 1.0
+                try:
+                    response = client.chat.completions.create(**request_kwargs)
+                except Exception as e2:
+                    return False, f"YOLO temperature=1 重试失败: {e2}"
+            elif any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
                 print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
                 client2 = OpenAI(
                     api_key=self.api_key,

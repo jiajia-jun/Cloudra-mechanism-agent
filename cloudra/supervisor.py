@@ -115,6 +115,48 @@ class Supervisor:
             )
         return self._openai_client
 
+    def _call_model(
+        self,
+        request_kwargs: dict,
+        fallback_label: str = "Supervisor",
+    ) -> Optional[dict]:
+        """统一调用 LLM，处理 temperature 限制等可恢复错误。
+
+        某些 reasoning 模型（如 o1/o3 系列）只支持 temperature=1。
+        如果请求因 temperature 被拒，自动把 temperature 设为 1 重试一次。
+        返回 response 字典或 None（失败时）。
+        """
+        try:
+            client = self._get_client()
+            return client.chat.completions.create(**request_kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            # 处理只支持 temperature=1 的模型
+            if "only 1 is allowed" in msg or "temperature" in msg and "1" in msg:
+                print(
+                    f"\033[93m[LLM fallback] {fallback_label} 当前模型只支持 temperature=1，"
+                    f"正在重试...\033[0m"
+                )
+                request_kwargs = dict(request_kwargs)
+                request_kwargs["temperature"] = 1.0
+                try:
+                    client = self._get_client()
+                    return client.chat.completions.create(**request_kwargs)
+                except Exception as e2:
+                    print(f"[{fallback_label}] temperature=1 重试失败: {e2}")
+                    return None
+            # 网络/拦截类错误，尝试自定义请求头
+            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
+                print(f"\033[93m[LLM fallback] {fallback_label} 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
+                client2 = self._get_client(custom_headers=True)
+                try:
+                    return client2.chat.completions.create(**request_kwargs)
+                except Exception as e2:
+                    print(f"[{fallback_label}] Fallback 调用失败: {e2}")
+                    return None
+            print(f"[{fallback_label}] LLM 调用失败: {e}")
+            return None
+
     def should_review(self, step: int) -> bool:
         """判断当前轮次是否应该触发审查。"""
         return step > 0 and step % self.interval == 0
@@ -297,26 +339,13 @@ class Supervisor:
                 {"role": "system", "content": SUPERVISOR_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.3,
+            temperature=1.0,
             max_tokens=1024,
             response_format={"type": "json_object"},
         )
-        try:
-            client = self._get_client()
-            response = client.chat.completions.create(**request_kwargs)
-        except Exception as e:
-            msg = str(e).lower()
-            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
-                print(f"\033[93m[LLM fallback] Supervisor 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = self._get_client(custom_headers=True)
-                try:
-                    response = client2.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    print(f"[Supervisor] Fallback 调用失败: {e2}")
-                    return SupervisorReview(verdict="proceed", reasoning=f"Supervisor Fallback 调用失败: {e2}")
-            else:
-                print(f"[Supervisor] LLM 调用失败: {e}")
-                return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 调用失败: {e}")
+        response = self._call_model(request_kwargs, fallback_label="Supervisor")
+        if response is None:
+            return SupervisorReview(verdict="proceed", reasoning="Supervisor 调用失败，默认继续执行。")
 
         try:
             content = response.choices[0].message.content or "{}"
@@ -366,26 +395,13 @@ class Supervisor:
                 {"role": "system", "content": "你是一个从任务记录中提取经验教训的助手。"},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.3,
+            temperature=1.0,
             max_tokens=1024,
             response_format={"type": "json_object"},
         )
-        try:
-            client = self._get_client()
-            response = client.chat.completions.create(**request_kwargs)
-        except Exception as e:
-            msg = str(e).lower()
-            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
-                print(f"\033[93m[LLM fallback] Supervisor(extract) 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = self._get_client(custom_headers=True)
-                try:
-                    response = client2.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    print(f"[Supervisor] Fallback 调用失败: {e2}")
-                    return self._fallback_case_data(timeline_summary, e2)
-            else:
-                print(f"[Supervisor] 提取 Case 失败: {e}")
-                return self._fallback_case_data(timeline_summary, e)
+        response = self._call_model(request_kwargs, fallback_label="Supervisor(extract)")
+        if response is None:
+            return self._fallback_case_data(timeline_summary, "Supervisor(extract) 调用失败")
 
         try:
             content = response.choices[0].message.content or "{}"
