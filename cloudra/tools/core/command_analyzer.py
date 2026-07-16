@@ -97,7 +97,7 @@ class BashCommandClassifier:
         """
         import platform
         is_windows = platform.system() == 'Windows'
-        
+
         analysis = CommandAnalysis()
 
         if not command or not command.strip():
@@ -149,16 +149,16 @@ class BashCommandClassifier:
                 continue
 
             cmd_name = segment[cmd_idx]
-            
+
             # Handle absolute paths: /usr/bin/python or C:\Python39\python.exe
             # Replace backslashes for uniform processing
             cmd_name_clean = cmd_name.replace('\\', '/')
             cmd_base = cmd_name_clean.split('/')[-1]
-            
+
             # Remove .exe suffix if present
             if cmd_base.lower().endswith('.exe'):
                 cmd_base = cmd_base[:-4]
-                
+
             commands.append(cmd_base)
 
         if not commands:
@@ -198,7 +198,7 @@ class BashCommandClassifier:
         """
         import platform
         is_windows = platform.system() == 'Windows'
-        
+
         analysis = CommandAnalysis()
 
         # Detect redirects with regex
@@ -213,17 +213,17 @@ class BashCommandClassifier:
         else:
             # Unix: handles variable assignments FOO=bar command
             first_word_match = re.search(r'^[\s]*(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*[\s]+)*([^\s|;&]+)', command)
-            
+
         if first_word_match:
             cmd_full = first_word_match.group(1)
             # Clean up Windows paths
             cmd_clean = cmd_full.replace('\\', '/')
             cmd = cmd_clean.split('/')[-1].lower()
-            
+
             # Remove .exe
             if cmd.endswith('.exe'):
                 cmd = cmd[:-4]
-                
+
             analysis.primary_cmd = cmd
             analysis.pipe_commands = [cmd]
 

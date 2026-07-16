@@ -20,12 +20,29 @@ from pydantic import BaseModel, Field
 
 from cloudra import __version__
 from cloudra.config import get_config
+from cloudra.database import ConversationDB
 from cloudra.service import CloudraService
 from cloudra.skill_class import skill_loader
 
 
 class SessionCreate(BaseModel):
     query: str = Field(min_length=1, max_length=20_000)
+    working_directory: str | None = Field(default=None, max_length=4_096)
+
+
+def _validate_working_directory(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        raise ValueError("工作目录必须使用绝对路径")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("工作目录不存在或无法访问") from exc
+    if not resolved.is_dir():
+        raise ValueError("工作目录必须指向一个文件夹")
+    return str(resolved)
 
 
 class ApprovalDecision(BaseModel):
@@ -36,7 +53,8 @@ class ApprovalDecision(BaseModel):
 def _allowed_origins() -> list[str]:
     raw = os.getenv(
         "CLOUDRA_API_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,"
+        "tauri://localhost,http://tauri.localhost,https://tauri.localhost",
     )
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
@@ -100,7 +118,15 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     async def create_session(conversation_id: str, request: SessionCreate) -> dict:
         try:
-            _, record = service.submit_session(request.query, conversation_id)
+            working_directory = _validate_working_directory(request.working_directory)
+            if working_directory is None:
+                _, record = service.submit_session(request.query, conversation_id)
+            else:
+                _, record = service.submit_session(
+                    request.query,
+                    conversation_id,
+                    working_directory=working_directory,
+                )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return record.to_dict()
@@ -130,17 +156,26 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     ) -> StreamingResponse:
         async def generate():
             cursor = after_id
-            while True:
-                events = service.session_runner.events(conversation_id, session_id, cursor)
-                for event in events:
-                    cursor = event["id"]
-                    yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                record = service.session_runner.get(conversation_id, session_id)
-                if record is None or record.state in {
-                    "completed", "sleeping", "failed", "cancelled", "killed", "interrupted"
-                }:
-                    break
-                await asyncio.sleep(1)
+            db = ConversationDB(conversation_id)
+            if not Path(db.path).is_file():
+                # 数据库尚未创建（会话从未启动）：保持原有行为，直接结束空流
+                return
+            # 整个轮询周期复用同一个连接，避免每秒新开两个 SQLite 连接
+            with db.connect() as conn:
+                while True:
+                    events = service.session_runner.events(conversation_id, session_id, cursor, conn=conn)
+                    for event in events:
+                        cursor = event["id"]
+                        yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    # 本轮事件里已出现终态事件时直接结束，省去一次 session 状态查询
+                    if any(event["event_type"] in {"completed", "failed", "cancelled"} for event in events):
+                        break
+                    record = service.session_runner.get(conversation_id, session_id, conn=conn)
+                    if record is None or record.state in {
+                        "completed", "sleeping", "failed", "cancelled", "killed", "interrupted"
+                    }:
+                        break
+                    await asyncio.sleep(1)
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 

@@ -15,8 +15,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-import aiosqlite
-
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
 from cloudra.database import ConversationDB
@@ -73,7 +71,9 @@ class SessionRunner:
         self._running: dict[tuple[str, str], asyncio.Task] = {}
         self.worker_id = f"api:{os.getpid()}:{uuid.uuid4().hex[:8]}"
 
-    def submit(self, query: str, conversation_id: str) -> SessionRecord:
+    def submit(
+        self, query: str, conversation_id: str, working_directory: str | None = None
+    ) -> SessionRecord:
         session_id = f"a-0_run_{uuid.uuid4().hex}"
         now = datetime.now(timezone.utc).isoformat()
         db = ConversationDB(conversation_id).init()
@@ -86,17 +86,35 @@ class SessionRunner:
             )
             conn.commit()
         self._emit(conversation_id, session_id, "queued", {"query": query})
-        task = asyncio.create_task(self._execute(query, conversation_id, session_id))
+        task = asyncio.create_task(
+            self._execute(query, conversation_id, session_id, working_directory)
+        )
         self._running[(conversation_id, session_id)] = task
         return self.get(conversation_id, session_id)
 
-    async def _execute(self, query: str, conversation_id: str, session_id: str) -> None:
+    async def _execute(
+        self,
+        query: str,
+        conversation_id: str,
+        session_id: str,
+        working_directory: str | None = None,
+    ) -> None:
         now = datetime.now(timezone.utc).isoformat()
         if not self._claim(conversation_id, session_id, now):
             return
         heartbeat = asyncio.create_task(self._heartbeat(conversation_id, session_id))
         try:
-            result = await self.service.run_task(query, conversation_id, session_id=session_id)
+            if working_directory is None:
+                result = await self.service.run_task(
+                    query, conversation_id, session_id=session_id
+                )
+            else:
+                result = await self.service.run_task(
+                    query,
+                    conversation_id,
+                    session_id=session_id,
+                    working_directory=working_directory,
+                )
             self._update(
                 conversation_id,
                 session_id,
@@ -166,7 +184,9 @@ class SessionRunner:
             conn.commit()
 
     def _emit(self, conversation_id: str, session_id: str, event_type: str, data: dict) -> None:
-        db = ConversationDB(conversation_id).init()
+        # 库已在 submit() 时初始化；不要在这里重复 init()——建表+迁移是写事务，
+        # 并发子 Agent 高频上报事件时会放大写锁竞争。
+        db = ConversationDB(conversation_id)
         with db.connect() as conn:
             conn.execute(
                 "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
@@ -174,22 +194,29 @@ class SessionRunner:
             )
             conn.commit()
 
-    def events(self, conversation_id: str, session_id: str, after_id: int = 0) -> list[dict]:
+    def events(self, conversation_id: str, session_id: str, after_id: int = 0, conn=None) -> list[dict]:
         validate_conversation_id(conversation_id)
         validate_session_id(session_id)
-        db = ConversationDB(conversation_id)
-        if not Path(db.path).is_file():
-            return []
-        with db.connect() as conn:
-            rows = conn.execute(
+
+        def _fetch(c) -> list[dict]:
+            rows = c.execute(
                 """SELECT id, event_type, data, created_at FROM session_events
                 WHERE session_id=? AND id>? ORDER BY id""",
                 (session_id, after_id),
             ).fetchall()
-        return [
-            {"id": row[0], "event_type": row[1], "data": json.loads(row[2]), "created_at": row[3]}
-            for row in rows
-        ]
+            return [
+                {"id": row[0], "event_type": row[1], "data": json.loads(row[2]), "created_at": row[3]}
+                for row in rows
+            ]
+
+        if conn is not None:
+            # 复用调用方持有的连接（如 SSE 轮询），跳过路径检查、不新开连接
+            return _fetch(conn)
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return []
+        with db.connect() as owned:
+            return _fetch(owned)
 
     def recover_stale_sessions(self, timeout_seconds: int = 60) -> int:
         """把失去心跳的 running Session 标为 interrupted，避免永久假运行。"""
@@ -216,22 +243,45 @@ class SessionRunner:
                     )
                     conn.commit()
                     changed += cursor.rowcount
+                    # 状态一致性：子 Agent 请求若仍挂在 'running'，但其 executor 的
+                    # Session 已死（心跳过期/不存在/非 running），一并标记 failed，
+                    # 避免等待方（_wait_for_background_tasks 等）永久阻塞。
+                    conn.execute(
+                        """UPDATE subagent_requests SET state='failed'
+                        WHERE state='running' AND (
+                            session_id IS NULL
+                            OR session_id NOT IN (SELECT session_id FROM session)
+                            OR session_id IN (
+                                SELECT session_id FROM session
+                                WHERE state != 'running' OR heartbeat_at IS NULL OR heartbeat_at < ?
+                            )
+                        )""",
+                        (cutoff,),
+                    )
+                    conn.commit()
             except (OSError, sqlite3.Error):
                 continue
         return changed
 
-    def get(self, conversation_id: str, session_id: str) -> SessionRecord | None:
+    def get(self, conversation_id: str, session_id: str, conn=None) -> SessionRecord | None:
         validate_conversation_id(conversation_id)
         validate_session_id(session_id)
-        db_path = Path(ConversationDB(conversation_id).path)
-        if not db_path.is_file():
-            return None
-        with ConversationDB(conversation_id).connect() as conn:
-            row = conn.execute(
+
+        def _fetch(c) -> SessionRecord | None:
+            row = c.execute(
                 f"SELECT {_SESSION_COLUMNS} FROM session WHERE session_id = ?",
                 (session_id,),
             ).fetchone()
-        return SessionRecord(*row) if row else None
+            return SessionRecord(*row) if row else None
+
+        if conn is not None:
+            # 复用调用方持有的连接（如 SSE 轮询），跳过路径检查、不新开连接
+            return _fetch(conn)
+        db_path = Path(ConversationDB(conversation_id).path)
+        if not db_path.is_file():
+            return None
+        with ConversationDB(conversation_id).connect() as owned:
+            return _fetch(owned)
 
     def list(self, conversation_id: str) -> list[SessionRecord]:
         validate_conversation_id(conversation_id)
@@ -310,24 +360,37 @@ class CloudraService:
         conversation_id: str | None = None,
         verbose: bool = False,
         session_id: str | None = None,
+        working_directory: str | None = None,
+        interactive_approval: bool = False,
     ) -> str:
         if conversation_id is not None:
             validate_conversation_id(conversation_id)
         if session_id is not None:
             validate_session_id(session_id)
+        # interactive_approval 默认 False：API 路径没有 stdin，不能启动 input() 审批线程，
+        # 审批走 Web/API 通道；CLI 入口需显式传 True
         return await run_task_async(
             query,
             conv_id=conversation_id,
             verbose=verbose,
             session_id=session_id,
+            working_directory=working_directory,
+            interactive_approval=interactive_approval,
         )
 
-    def submit_session(self, query: str, conversation_id: str | None = None) -> tuple[str, SessionRecord]:
+    def submit_session(
+        self,
+        query: str,
+        conversation_id: str | None = None,
+        working_directory: str | None = None,
+    ) -> tuple[str, SessionRecord]:
         if conversation_id is None:
             conversation_id = self.create_conversation().id
         else:
             validate_conversation_id(conversation_id)
-        return conversation_id, self.session_runner.submit(query, conversation_id)
+        return conversation_id, self.session_runner.submit(
+            query, conversation_id, working_directory
+        )
 
     def list_conversations(self) -> list[dict]:
         root = self.config.data_dir / "conversations"
@@ -366,15 +429,18 @@ class CloudraService:
     async def list_pending_approvals(self) -> list[dict]:
         results = []
         for conversation in self.list_conversations():
+            # 非 running 的会话不可能产生新的 pending 审批，跳过以省去开库查询
+            if conversation.get("state") != "running":
+                continue
             conversation_id = conversation.get("id", "")
             try:
                 validate_conversation_id(conversation_id)
             except ValueError:
                 continue
-            db_path = Path(ConversationDB(conversation_id).path)
-            if not db_path.is_file():
+            db = ConversationDB(conversation_id)
+            if not Path(db.path).is_file():
                 continue
-            async with aiosqlite.connect(db_path) as conn:
+            async with db.aconnect() as conn:
                 cursor = await conn.execute(
                     "SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'"
                 )
@@ -397,10 +463,10 @@ class CloudraService:
         denial_reason: str = "",
     ) -> bool:
         validate_conversation_id(conversation_id)
-        db_path = Path(ConversationDB(conversation_id).path)
-        if not db_path.is_file():
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
             return False
-        async with aiosqlite.connect(db_path) as conn:
+        async with db.aconnect() as conn:
             cursor = await conn.execute(
                 "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ? AND state = 'pending'",
                 (decision, denial_reason, approval_id),

@@ -41,6 +41,12 @@ pip install -e .
 
 All dependencies are declared in `pyproject.toml`. There is no separate `requirements.txt`.
 
+> **Note (HPC users)**: runtime state lives in per-conversation SQLite databases
+> (WAL mode) under the data directory (`~/.local/share/cloudra` by default).
+> WAL requires a local filesystem with reliable file locking — if your home
+> directory is on NFS/Lustre (common on clusters), point `CLOUDRA_DATA_DIR`
+> to a local disk (e.g. `/tmp` or a local SSD).
+
 ## Quick Start
 
 Initialize configuration:
@@ -69,6 +75,8 @@ Cloudra features a cross-conversation memory and self-learning mechanism powered
 2. **Global Persistence**: This structured knowledge is saved into a global SQLite database (`case_bank.db`), breaking the boundary of isolated conversation lifecycles.
 3. **Knowledge Retrieval**: When initiating a new task, the Coordinator automatically queries the Case Bank for recent or relevant historical cases and injects them into the system prompt context.
 4. **Self-Evolution**: Through this continuous feedback loop, the system automatically learns to avoid past mistakes (e.g., problematic tool parameters) and prioritizes proven paths, becoming progressively smarter and more adapted to your workflow.
+
+> **⚠️ Critical incident notice (affects v1.7.0–v1.7.1, fixed in current code)**: A typo in the Supervisor module made `_get_client()` call *itself* recursively (`self._openai_client = self._get_client()`). Since case-bank persistence (`_persist_case` → `extract_case`) runs after **every** task, the recursion fired on every run — even a trivial "hello". On Python 3.13 the recursion never raised `RecursionError`; stack frames consumed RAM at ~500 MB/s until the kernel OOM killer terminated the process (observed 7.5 GB anonymous RSS within ~30 seconds). Because this happened after the task output was printed, the symptom looked like "task finished, program went idle, then memory exploded". **The client is now constructed directly and the recursion is eliminated; if you are running an older checkout, upgrade before use.**
 
 ## CLI Reference
 
@@ -108,7 +116,7 @@ Cloudra also exposes an HTTP API built with FastAPI:
 python -m cloudra.api
 ```
 
-The server binds to `0.0.0.0:8000` by default and serves generated files under `/data`.
+The server binds to `127.0.0.1:8000` by default and serves generated files under `/artifacts`. If you bind to a non-loopback address (`CLOUDRA_API_HOST`), set `CLOUDRA_API_TOKEN` first — `web.sh` enforces this.
 
 ## Chemistry Workflow Example
 

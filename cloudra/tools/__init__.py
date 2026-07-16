@@ -1,5 +1,4 @@
 import importlib.util
-import os
 import sys
 from pathlib import Path
 
@@ -21,7 +20,7 @@ def get_tools_lst():
     project_root = str(CURRENT_DIR.parent)
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
-        
+
     for py_file in CURRENT_DIR.rglob("*.py"):
         # 排除 __init__.py、__pycache__ 以及核心依赖目录 core
         if py_file.name == "__init__.py" or "__pycache__" in str(py_file) or "core" in py_file.parts:
@@ -31,12 +30,12 @@ def get_tools_lst():
         try:
             rel_path = py_file.relative_to(CURRENT_DIR.parent)
             module_name = ".".join(rel_path.with_suffix("").parts)
-            
+
             # 使用标准的 import_module 或 spec 加载
             spec = importlib.util.spec_from_file_location(module_name, py_file)
             if spec is None or spec.loader is None:
                 continue
-                
+
             module = importlib.util.module_from_spec(spec)
             # 在执行前放入 sys.modules 是标准的，但我们要防止重复执行
             if module_name not in sys.modules:

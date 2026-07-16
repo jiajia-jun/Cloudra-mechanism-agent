@@ -1,6 +1,4 @@
 import asyncio
-import base64
-import os
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +7,6 @@ from pydantic import Field
 
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
-
 
 description = (
     "当用户输入或工具结果中包含 PDF、Word、Excel、PPT 等二进制文档时，"
@@ -78,7 +75,6 @@ class pdf2md(Tool):
         images_dir.mkdir(parents=True, exist_ok=True)
 
         md_file_path = output_dir / f"{stem}.md"
-        extracted_images: list[str] = []
 
         # 在后台线程运行 CPU 密集型 PDF 解析
         loop = asyncio.get_event_loop()

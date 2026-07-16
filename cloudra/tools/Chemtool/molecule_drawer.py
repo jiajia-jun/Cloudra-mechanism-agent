@@ -1,9 +1,10 @@
-from pydantic import Field
-from typing import Any, Optional, List
 import os
+from typing import Any, List, Optional
 
-from cloudra.tools_class import Tool, input_schema, output_schema
+from pydantic import Field
+
 from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "利用 RDKit 将化学 SMILES 转换为高度可定制的分子结构图像 (PNG/SVG)。"
@@ -13,16 +14,16 @@ description = (
 class MoleculeDrawer_input_schema(input_schema):
     smiles: str = Field(description="分子的 SMILES 字符串")
     output_path: str = Field(description="保存图像的绝对路径（.png 或 .svg）")
-    
+
     # 基础设置
     width: int = Field(default=400, description="图像宽度 (px)")
     height: int = Field(default=400, description="图像高度 (px)")
     legend: str = Field(default="", description="分子下方的说明文字")
-    
+
     # 高亮设置
     highlight_atoms: Optional[List[int]] = Field(default=None, description="要高亮的原子索引列表")
     highlight_bonds: Optional[List[int]] = Field(default=None, description="要高亮的键索引列表")
-    
+
     # 绘图风格 (MolDrawOptions)
     add_atom_indices: bool = Field(default=False, description="是否显示原子索引编号")
     add_stereo_annotation: bool = Field(default=False, description="是否显示手性标注 (R/S)")
@@ -31,7 +32,7 @@ class MoleculeDrawer_input_schema(input_schema):
     padding: float = Field(default=0.05, description="分子与边框的留白比例 (0-1)")
     use_bw: bool = Field(default=False, description="是否使用黑白模式")
     font_size: int = Field(default=12, description="原子标签字体大小")
-    
+
     # 结构处理
     kekulize: bool = Field(default=True, description="是否进行 Kekulize 处理（显示单双键交替）")
     add_hs: bool = Field(default=False, description="是否显示氢原子")
@@ -57,12 +58,10 @@ class MoleculeDrawer(Tool):
 
     async def tool_call(self, user_input: MoleculeDrawer_input_schema, session: Session) -> MoleculeDrawer_output_schema:
         from rdkit import Chem
-        from rdkit.Chem import Draw
         from rdkit.Chem.Draw import rdMolDraw2D
-        import os
         smiles = user_input.smiles
         path = user_input.output_path
-        
+
         # 安全审批
         details = (
             f"【动作】: 绘制分子结构图\n"
@@ -87,7 +86,7 @@ class MoleculeDrawer(Tool):
             # 2. 预处理
             if user_input.add_hs:
                 mol = Chem.AddHs(mol)
-            
+
             if user_input.kekulize:
                 Chem.Kekulize(mol)
 
@@ -110,7 +109,7 @@ class MoleculeDrawer(Tool):
 
             # 4. 执行绘图
             drawer.DrawMolecule(
-                mol, 
+                mol,
                 legend=user_input.legend,
                 highlightAtoms=user_input.highlight_atoms,
                 highlightBonds=user_input.highlight_bonds
@@ -126,7 +125,7 @@ class MoleculeDrawer(Tool):
                     f.write(content)
 
             return MoleculeDrawer_output_schema(is_success=True, image_path=path, message="图像生成成功。")
-            
+
         except Exception as e:
             return MoleculeDrawer_output_schema(is_success=False, image_path="", message=f"绘图异常: {str(e)}")
 

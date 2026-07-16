@@ -1,13 +1,14 @@
-from cloudra.session_class import Session
-from typing import Any
 import asyncio
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.agent import Agent
 import uuid
+from typing import Any
+
 from pydantic import Field
 
-from cloudra.tools.core.permission_model import Permission, check_permission
+from cloudra.agent import Agent
+from cloudra.session_class import Session
 from cloudra.tools.core.command_analyzer import BashCommandClassifier
+from cloudra.tools.core.permission_model import Permission, check_permission
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 
 class Bashtools_input_schema(input_schema):
@@ -128,11 +129,12 @@ class Bashtools(Tool):
 
         process = await asyncio.create_subprocess_shell(
             command,
+            cwd=getattr(self.subagent, "working_directory", None),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         session.tool_calling[terminal_id] = command
-        
+
         def decode_output(data: bytes) -> str:
             if not data:
                 return ""
@@ -161,7 +163,7 @@ class Bashtools(Tool):
             # Use safer decoding for stderr too
             err_msg = decode_output(stderr) if 'stderr' in locals() else str(e)
             return Bashtools_output_schema(result=err_msg, terminal_id=terminal_id, run_command=command)
-        
+
         del session.tool_calling[terminal_id]
         result = decode_output(stdout)
         if stderr:

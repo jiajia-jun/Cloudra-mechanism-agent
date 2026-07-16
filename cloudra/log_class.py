@@ -1,6 +1,8 @@
 import os
-from cloudra.session_class import Session
+
 from cloudra.config import get_config
+from cloudra.session_class import Session
+
 
 class Log:
     '''
@@ -21,6 +23,8 @@ class Log:
         self.session = None
         self.level = 0
         self.is_main = False
+        # 流式输出期间持有的文件句柄（见 begin_stream/end_stream）
+        self._stream_file = None
 
     def get_content(self) -> list:
         '''
@@ -35,12 +39,27 @@ class Log:
                 f.write('')
                 return []
 
+    def begin_stream(self) -> None:
+        """流式输出开始时持有文件句柄，避免每个 token 都 open/write/close。"""
+        if self._stream_file is None:
+            self._stream_file = open(self.path, 'a', encoding='utf-8')
+
+    def end_stream(self) -> None:
+        """流式输出结束，关闭句柄（close 会顺带 flush 缓冲）。"""
+        if self._stream_file is not None:
+            self._stream_file.close()
+            self._stream_file = None
+
     def update_content(self, new_content: str, print_to_console: bool = True) -> None:
         '''
         更新日志内容，追加新的内容。
         '''
         if print_to_console and self.is_main:
             print(new_content, end='', flush=True)
-            
+
+        # 流式期间复用已持有的句柄；非流式维持原有一次一开的写法
+        if self._stream_file is not None:
+            self._stream_file.write(new_content)
+            return
         with open(self.path, 'a', encoding='utf-8') as f:
             f.write(new_content)

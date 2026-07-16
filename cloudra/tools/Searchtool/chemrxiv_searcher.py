@@ -1,7 +1,9 @@
-from pydantic import Field
 from typing import Any, Dict, List
-from cloudra.tools_class import Tool, input_schema, output_schema
+
+from pydantic import Field
+
 from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通过 OpenAlex 开放 API 搜索 ChemRxiv 及其他学术平台的论文。"
@@ -35,25 +37,25 @@ class ChemRxivSearcher(Tool):
         """OpenAlex 返回的摘要是倒排索引格式，需要手动还原为文本。"""
         if not inverted_index:
             return ""
-        
+
         # 找到最大的索引位置
         max_index = 0
         for indices in inverted_index.values():
             max_index = max(max_index, max(indices))
-        
+
         # 创建一个空列表并填入单词
         abstract_list = [""] * (max_index + 1)
         for word, indices in inverted_index.items():
             for index in indices:
                 abstract_list[index] = word
-        
+
         return " ".join(abstract_list)
 
     async def tool_call(self, user_input: ChemRxivSearcher_input_schema, session: Session) -> ChemRxivSearcher_output_schema:
         import httpx
         # OpenAlex API 地址
         api_url = "https://api.openalex.org/works"
-        
+
         # 构建查询参数
         # 过滤条件：我们专门指定来源为 ChemRxiv (OpenAlex ID: S4306400032)
         # 如果你想搜索全网，可以去掉 filter 参数
@@ -71,13 +73,13 @@ class ChemRxivSearcher(Tool):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(api_url, params=params, headers=headers)
-                
+
                 if response.status_code != 200:
                     return ChemRxivSearcher_output_schema(content=[{
                         "error": f"OpenAlex API 异常: {response.status_code}",
                         "detail": response.text[:200]
                     }])
-                
+
                 data = response.json()
                 works = data.get("results", [])
                 results = []
@@ -104,10 +106,10 @@ class ChemRxivSearcher(Tool):
                         # 作者处理
                         authorships = work.get("authorships", [])
                         item["authors"] = [a.get("author", {}).get("display_name") for a in authorships]
-                        
+
                         # 概念/分类
                         item["concepts"] = [c.get("display_name") for c in work.get("concepts", [])[:5]]
-                        
+
                         # PDF 下载链接 (OpenAlex 直接提供最佳 OA 链接)
                         best_location = work.get("best_oa_location") or {}
                         item["pdf_url"] = best_location.get("pdf_url") or work.get("doi")
@@ -116,7 +118,7 @@ class ChemRxivSearcher(Tool):
 
                 if not results:
                     return ChemRxivSearcher_output_schema(content=[{"message": "未找到相关论文。"}])
-                
+
                 return ChemRxivSearcher_output_schema(content=results)
 
         except Exception as e:

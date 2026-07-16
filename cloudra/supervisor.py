@@ -94,6 +94,26 @@ class Supervisor:
         self.api_key = api_key or cfg.follower.key
         self.interval = max(1, interval)
         self.max_advice_items = max(1, max_advice_items)
+        # OpenAI 客户端缓存：review/extract 每 5 步触发一次，避免重复新建连接池
+        self._openai_client = None
+        self._openai_client_custom = None
+
+    def _get_client(self, custom_headers: bool = False) -> OpenAI:
+        """返回缓存的 OpenAI 客户端（custom_headers 用于中转站 fallback）。"""
+        if custom_headers:
+            if self._openai_client_custom is None:
+                self._openai_client_custom = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    default_headers={"User-Agent": "curl/7.68.0"},
+                )
+            return self._openai_client_custom
+        if self._openai_client is None:
+            self._openai_client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
+        return self._openai_client
 
     def should_review(self, step: int) -> bool:
         """判断当前轮次是否应该触发审查。"""
@@ -153,7 +173,7 @@ class Supervisor:
             return np.zeros(1536, dtype=np.float32)
 
         try:
-            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            client = self._get_client()
             # 注意：base_url 若指向 OpenAI 兼容服务，embedding 模型名可能不同
             # 这里使用 text-embedding-3-small 作为默认值
             response = client.embeddings.create(
@@ -282,13 +302,13 @@ class Supervisor:
             response_format={"type": "json_object"},
         )
         try:
-            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            client = self._get_client()
             response = client.chat.completions.create(**request_kwargs)
         except Exception as e:
             msg = str(e).lower()
             if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
                 print(f"\033[93m[LLM fallback] Supervisor 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = OpenAI(api_key=self.api_key, base_url=self.base_url, default_headers={"User-Agent": "curl/7.68.0"})
+                client2 = self._get_client(custom_headers=True)
                 try:
                     response = client2.chat.completions.create(**request_kwargs)
                 except Exception as e2:
@@ -351,13 +371,13 @@ class Supervisor:
             response_format={"type": "json_object"},
         )
         try:
-            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+            client = self._get_client()
             response = client.chat.completions.create(**request_kwargs)
         except Exception as e:
             msg = str(e).lower()
             if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
                 print(f"\033[93m[LLM fallback] Supervisor(extract) 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = OpenAI(api_key=self.api_key, base_url=self.base_url, default_headers={"User-Agent": "curl/7.68.0"})
+                client2 = self._get_client(custom_headers=True)
                 try:
                     response = client2.chat.completions.create(**request_kwargs)
                 except Exception as e2:
@@ -379,6 +399,19 @@ class Supervisor:
             "outcome": data.get("outcome", "unknown"),
             "outcome_reason": data.get("outcome_reason", ""),
             "lesson": data.get("lesson", ""),
+        }
+
+    def _fallback_case_data(self, timeline_summary: str, exc: Exception) -> dict:
+        """extract_case 的 LLM 调用失败时的兜底返回。
+
+        task_summary 置空，让 _persist_case 提前返回、不沉淀残缺 case，
+        行为与提取失败不写入 case bank 的设计一致。
+        """
+        return {
+            "task_summary": "",
+            "outcome": "unknown",
+            "outcome_reason": f"Case 提取 LLM 调用失败: {exc}",
+            "lesson": "",
         }
 
     def format_advice(self, review: SupervisorReview) -> str:

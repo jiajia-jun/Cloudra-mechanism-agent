@@ -1,14 +1,14 @@
-from pydantic import Field
-from typing import Any, List, Optional
-import imaplib
-import email
-from email.header import decode_header
-import os
 import asyncio
+import email
+import imaplib
+from email.header import decode_header
+from typing import Any, List, Optional
 
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
+from pydantic import Field
+
 from cloudra.config import get_config
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "从收件箱读取最新的电子邮件。可以根据发件人过滤，并指定读取的数量。"
@@ -43,18 +43,18 @@ class EmailReader(Tool):
 
     async def tool_call(self, user_input: EmailReader_input_schema, session: Session) -> EmailReader_output_schema:
         config = get_config().email
-        
+
         if not config.user or not config.password:
             return EmailReader_output_schema(
-                success=False, 
+                success=False,
                 message="【配置错误】IMAP 用户名或密码未设置。"
             )
 
         try:
             emails = await asyncio.to_thread(self._read_imap, config, user_input)
             return EmailReader_output_schema(
-                success=True, 
-                emails=emails, 
+                success=True,
+                emails=emails,
                 message=f"成功读取 {len(emails)} 封邮件"
             )
         except Exception as e:
@@ -70,7 +70,7 @@ class EmailReader(Tool):
         search_criteria = "UNSEEN" if user_input.only_unread else "ALL"
         if user_input.filter_sender:
             search_criteria = f'({search_criteria} FROM "{user_input.filter_sender}")'
-        
+
         status, messages = mail.search(None, search_criteria)
         if status != "OK":
             return []
@@ -83,19 +83,20 @@ class EmailReader(Tool):
         result_list = []
         for e_id in email_ids:
             status, data = mail.fetch(e_id, "(RFC822)")
-            if status != "OK": continue
-            
+            if status != "OK":
+                continue
+
             raw_email = data[0][1]
             msg = email.message_from_bytes(raw_email)
-            
+
             # 解码主题
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
                 subject = subject.decode(encoding if encoding else "utf-8")
-            
+
             sender = msg.get("From")
             date = msg.get("Date")
-            
+
             # 提取正文
             body = ""
             if msg.is_multipart():

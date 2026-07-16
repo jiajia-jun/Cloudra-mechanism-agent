@@ -2,6 +2,12 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { Approval, Conversation, Message, Session, SessionEvent } from "./types";
 
 const TOKEN_KEY = "cloudra_api_token";
+const DESKTOP_API_ORIGIN = "http://127.0.0.1:18473";
+const isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+function endpoint(path: string) {
+  return `${isDesktop ? DESKTOP_API_ORIGIN : ""}${path}`;
+}
 
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY) ?? "",
@@ -10,7 +16,7 @@ export const tokenStore = {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = tokenStore.get();
-  const response = await fetch(path, {
+  const response = await fetch(endpoint(path), {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -26,14 +32,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  health: () => request<{ status: string; version: string }>("/api/health"),
   conversations: () => request<Conversation[]>("/api/conversations"),
   createConversation: () => request<Conversation>("/api/conversations", { method: "POST" }),
   deleteAllConversations: () => request<{ deleted: number }>("/api/conversations", { method: "DELETE" }),
   messages: (conversationId: string) => request<Message[]>(`/api/conversations/${conversationId}/messages`),
   sessions: (conversationId: string) => request<Session[]>(`/api/conversations/${conversationId}/sessions`),
-  createSession: (conversationId: string, query: string) => request<Session>(
+  createSession: (conversationId: string, query: string, workingDirectory?: string) => request<Session>(
     `/api/conversations/${conversationId}/sessions`,
-    { method: "POST", body: JSON.stringify({ query }) }
+    { method: "POST", body: JSON.stringify({ query, working_directory: workingDirectory || null }) }
   ),
   session: (conversationId: string, sessionId: string) => request<Session>(
     `/api/conversations/${conversationId}/sessions/${sessionId}`
@@ -60,7 +67,7 @@ export async function streamSession(
 ) {
   const token = tokenStore.get();
   await fetchEventSource(
-    `/api/conversations/${conversationId}/sessions/${sessionId}/events/stream`,
+    endpoint(`/api/conversations/${conversationId}/sessions/${sessionId}/events/stream`),
     {
       signal,
       headers: token ? { Authorization: `Bearer ${token}` } : {},

@@ -1,14 +1,13 @@
+import os
+from typing import Any, Literal, Optional
+
+import ase
 from pydantic import Field
-import numpy as np
-from typing import Any, Optional, Literal
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
 from rdkit import Chem
 from rdkit.Chem import AllChem
-import ase
-import cclib
-import os
 
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "生成 Gaussian 输入文件（.gjf）的工具。"

@@ -40,6 +40,11 @@ pip install -e .
 
 所有依赖均声明在 `pyproject.toml` 中，不再维护单独的 `requirements.txt`。
 
+> **集群用户注意**：运行状态保存在数据目录下的按会话 SQLite 数据库中
+> （WAL 模式，默认 `~/.local/share/cloudra`）。WAL 依赖本地文件系统的可靠
+> 文件锁——如果你的 home 目录挂载在 NFS/Lustre 上（集群常见），请把
+> `CLOUDRA_DATA_DIR` 指向本地磁盘（如 `/tmp` 或本地 SSD）。
+
 ## 快速开始
 
 初始化配置：
@@ -68,6 +73,8 @@ Cloudra 设计了一套跨对话的记忆与自我学习机制，核心围绕 **
 2. **全局持久化 (Persistence)**：提取出的结构化知识将被写入全局层面的 SQLite 数据库（`case_bank.db`），打破了单次对话 (Conversation) 的生命周期隔离。
 3. **经验复用 (Retrieval)**：在启动新的科研任务时，Coordinator 会自动从 Case Bank 检索历史案例，并将其注入到 System Prompt 的上下文中。
 4. **自我进化**：通过该机制，系统能自动避开曾经踩过的坑（如容易报错的参数组合），并优先采用验证过的成功路径，实现真正的“越用越聪明”。
+
+> **⚠️ 严重事故警示（影响 v1.7.0–v1.7.1，已在当前代码修复）**：Supervisor 模块的 `_get_client()` 曾因一处笔误自我递归调用（`self._openai_client = self._get_client()`）。由于 Case Bank 的经验沉淀（`_persist_case` → `extract_case`）在**每次**任务结束后都会执行，该递归在每次运行时都会被触发——哪怕只是发一句“你好”。在 Python 3.13 上此递归不会抛出 `RecursionError`，栈帧以约 500MB/s 的速度持续占用内存，约 30 秒内即可耗尽整机 RAM（实测单进程 anon-rss 达 7.5GB），最终被内核 OOM killer 杀死。由于发生在任务输出打印完之后，表象为“任务结束、程序待机，随后内存被写爆”。**当前代码已改为直接构造 OpenAI 客户端、彻底消除递归；如果你在使用旧版本代码，请务必升级后再运行。**
 
 ## CLI 命令参考
 
@@ -198,6 +205,28 @@ python -m cloudra.api
 FastAPI 检测到 `frontend/dist` 后会将其挂载到根路径，访问
 `http://127.0.0.1:8000/` 即可打开界面。页面支持 Conversation 切换、
 Session 提交与取消、SSE 实时轨迹、历史消息、危险操作审批和 API Token。
+
+### 桌面 GUI
+
+Cloudra GUI 使用 Tauri 2 封装现有 React 工作台。桌面窗口启动时会自动拉起仅监听
+`127.0.0.1:18473` 的 FastAPI 进程，关闭应用时一并停止，不需要手动打开浏览器或
+运行 `web.sh`。在 Ubuntu 24.04 上首次使用需安装系统依赖：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libdbus-1-dev libwebkit2gtk-4.1-dev \
+  libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+```
+
+开发模式启动：
+
+```bash
+./desktop.sh
+```
+
+也可以直接在 `frontend/` 中运行 `npm run desktop`。如果 Cloudra 安装在非默认
+Python 环境中，通过 `CLOUDRA_PYTHON=/绝对路径/python ./desktop.sh` 指定解释器。
+桌面端支持原生工作目录选择器；Web 版本仍保留手动输入绝对路径的方式。
 
 ## 计算化学工作流示例
 

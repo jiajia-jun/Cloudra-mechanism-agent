@@ -1,12 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, KeyRound, Menu, Plus, Send, Square, Trash2, TriangleAlert, X } from "lucide-react";
+import { Check, FolderOpen, KeyRound, Menu, Plus, Send, Square, Trash2, TriangleAlert, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { api, streamSession, tokenStore } from "./api";
 import type { Approval, Message, Session, SessionEvent } from "./types";
 
 // sleeping 是旧版本 Session 的完成状态，保留兼容，避免为历史 Session 打开无尽 SSE。
 const terminalStates = new Set(["completed", "sleeping", "failed", "cancelled", "killed", "interrupted"]);
+const WORKING_DIRECTORY_KEY = "cloudra_working_directory";
+const isDesktop = "__TAURI_INTERNALS__" in window;
+
+const stateLabels: Record<string, string> = {
+  idle: "空闲", queued: "排队中", running: "运行中", thinking: "思考中",
+  completed: "已完成", sleeping: "已完成", failed: "失败", cancelled: "已取消",
+  killed: "已终止", interrupted: "已中断"
+};
+
+function stateLabel(state?: string | null) {
+  return stateLabels[state ?? "idle"] ?? state ?? "空闲";
+}
 
 function shortId(value: string) {
   return value.length > 22 ? `${value.slice(0, 12)}…${value.slice(-7)}` : value;
@@ -132,6 +144,7 @@ export default function App() {
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [query, setQuery] = useState("");
+  const [workingDirectory, setWorkingDirectory] = useState(() => localStorage.getItem(WORKING_DIRECTORY_KEY) ?? "");
   const [token, setToken] = useState(tokenStore.get());
   const [tokenOpen, setTokenOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
@@ -139,6 +152,9 @@ export default function App() {
   const streamRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const health = useQuery({
+    queryKey: ["health"], queryFn: api.health, retry: 5, retryDelay: 1_000, refetchInterval: 10_000
+  });
   const conversations = useQuery({ queryKey: ["conversations", token], queryFn: api.conversations });
   const messages = useQuery({
     queryKey: ["messages", conversationId, token],
@@ -206,7 +222,10 @@ export default function App() {
     mutationFn: async () => {
       let convId = conversationId;
       if (!convId) convId = (await api.createConversation()).id;
-      const session = await api.createSession(convId, query.trim());
+      const directory = workingDirectory.trim();
+      const session = await api.createSession(convId, query.trim(), directory);
+      if (directory) localStorage.setItem(WORKING_DIRECTORY_KEY, directory);
+      else localStorage.removeItem(WORKING_DIRECTORY_KEY);
       return { convId, session };
     },
     onSuccess: ({ convId, session }) => {
@@ -254,35 +273,44 @@ export default function App() {
     conversations.refetch();
   };
 
+  const chooseWorkingDirectory = async () => {
+    if (!isDesktop || isRunning) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({ directory: true, multiple: false, title: "选择 Cloudra 工作目录" });
+    if (typeof selected === "string") setWorkingDirectory(selected);
+  };
+
   return (
     <div className="shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="brand"><div><strong>CLOUDRA</strong><small>RESEARCH CONSOLE</small></div></div>
+        <div className="brand"><div className="brand-mark">C</div><div><strong>Cloudra</strong><small>科研协作工作台</small></div></div>
         <button className="block-button" onClick={() => createConversation.mutate()}><Plus size={15} /> 新对话</button>
-        <div className="section-label">CONVERSATIONS</div>
+        <div className="section-label">对话记录</div>
         <nav className="conversation-list">
           {conversations.isError && <div className="muted error">{String(conversations.error)}</div>}
           {conversations.data?.map((conversation) => (
             <button key={conversation.id} className={conversation.id === conversationId ? "selected" : ""}
               onClick={() => { setConversationId(conversation.id); setActiveSession(null); setEvents([]); setSidebarOpen(false); }}>
-              <span>{shortId(conversation.id)}</span><small>{conversation.state}</small>
+              <span>{shortId(conversation.id)}</span><small>{stateLabel(conversation.state)}</small>
             </button>
           ))}
         </nav>
         <div className="sidebar-footer">
-          <button className="text-button" onClick={() => setTokenOpen(true)}><KeyRound size={14} /> API TOKEN</button>
+          <button className="text-button" onClick={() => setTokenOpen(true)}><KeyRound size={14} /> API 密钥</button>
           <button className="text-button danger" disabled={deleteAll.isPending}
             onClick={() => setClearOpen(true)}>
             <Trash2 size={14} /> 清空会话
           </button>
-          <span className="connection"><i /> LOCAL / 8000</span>
+          <span className={`connection ${health.isSuccess ? "online" : "offline"}`}>
+            <i /> {health.isSuccess ? `${isDesktop ? "桌面服务" : "本地服务"} · v${health.data.version}` : "正在连接本地服务"}
+          </span>
         </div>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
           <button className="icon-button mobile-only" onClick={() => setSidebarOpen(true)}><Menu size={17} /></button>
-          <div><div className="eyebrow">CURRENT CONVERSATION</div><h1>{conversationId ? shortId(conversationId) : "未选择对话"}</h1></div>
+          <div><div className="eyebrow">当前对话</div><h1>{conversationId ? shortId(conversationId) : "未选择对话"}</h1></div>
           {sessions.data && sessions.data.length > 1 && <select className="session-select" value={activeSession?.session_id ?? ""}
             onChange={(event) => {
               const selected = sessions.data?.find((item) => item.session_id === event.target.value) ?? null;
@@ -292,9 +320,9 @@ export default function App() {
                 if (!terminalStates.has(selected.state)) startStream(selected, conversationId);
               }
             }}>
-            {sessions.data.map((session) => <option value={session.session_id} key={session.session_id}>{shortId(session.session_id)} · {session.state}</option>)}
+            {sessions.data.map((session) => <option value={session.session_id} key={session.session_id}>{shortId(session.session_id)} · {stateLabel(session.state)}</option>)}
           </select>}
-          <div className={`state-chip ${activeSession?.state ?? "idle"}`}><i />{activeSession?.state ?? "idle"}</div>
+          <div className={`state-chip ${activeSession?.state ?? "idle"}`}><i />{stateLabel(activeSession?.state)}</div>
         </header>
 
         <section className="content">
@@ -304,7 +332,7 @@ export default function App() {
           <div className="messages">
             {messages.data?.filter((message) => message.role !== "system" && messageText(message)).map((message, index) => (
               <article className={`message ${message.role}`} key={`${message.role}-${index}`}>
-                <div className="message-meta">{message.role === "user" ? "YOU" : message.role.toUpperCase()}</div>
+                <div className="message-meta">{message.role === "user" ? "你" : message.role === "assistant" ? "Cloudra" : "工具"}</div>
                 <div className="message-body">
                   {message.role === "tool" ? (
                     <JsonView text={messageText(message)} />
@@ -320,7 +348,7 @@ export default function App() {
 
           {(activeSession || events.length > 0) && (
             <section className="runtime">
-              <div className="runtime-head"><span>SESSION TRACE</span><code>{activeSession ? shortId(activeSession.session_id) : "--"}</code></div>
+              <div className="runtime-head"><span>运行轨迹</span><code>{activeSession ? shortId(activeSession.session_id) : "--"}</code></div>
               <div className="event-list">
                 {events.map((event) => (
                   <div className={`event ${event.event_type}`} key={event.id}>
@@ -334,7 +362,7 @@ export default function App() {
 
           {visibleApprovals.map((approval) => (
             <section className="approval" key={`${approval.conversation_id}-${approval.id}`}>
-              <div><div className="eyebrow">APPROVAL REQUIRED</div><pre>{approval.details}</pre></div>
+              <div><div className="eyebrow">需要你的确认</div><pre>{approval.details}</pre></div>
               <div className="approval-actions">
                 <button onClick={() => decide.mutate({ approval, decision: "denied" })}><X size={14} /> 拒绝</button>
                 <button className="inverse" onClick={() => decide.mutate({ approval, decision: "approved" })}><Check size={14} /> 允许</button>
@@ -345,6 +373,14 @@ export default function App() {
         </section>
 
         <footer className="composer">
+          <div className="directory-field">
+            <FolderOpen size={15} />
+            <span>工作目录</span>
+            <input aria-label="工作目录" value={workingDirectory} onChange={(event) => setWorkingDirectory(event.target.value)}
+              disabled={Boolean(isRunning)} placeholder="留空则使用服务启动目录" />
+            {isDesktop && <button type="button" className="directory-picker" disabled={Boolean(isRunning)}
+              onClick={chooseWorkingDirectory}>选择…</button>}
+          </div>
           <textarea value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入研究任务…"
             onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (query.trim()) submit.mutate(); } }} />
           {isRunning ? (
@@ -352,13 +388,14 @@ export default function App() {
           ) : (
             <button className="send" disabled={!query.trim() || submit.isPending} onClick={() => submit.mutate()} title="提交"><Send size={16} /></button>
           )}
-          <div className="composer-note">ENTER 发送 · SHIFT+ENTER 换行</div>
+          {submit.isError && <div className="composer-error">{String(submit.error)}</div>}
+          <div className="composer-note">Enter 发送 · Shift + Enter 换行</div>
         </footer>
       </main>
 
       {tokenOpen && <div className="modal-backdrop" onClick={() => setTokenOpen(false)}><div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><span>API TOKEN</span><button className="icon-button" onClick={() => setTokenOpen(false)}><X size={16} /></button></div>
-        <p>本机未设置 Token 时留空。Token 只保存在当前浏览器的 localStorage。</p>
+        <div className="modal-head"><span>API 密钥</span><button className="icon-button" onClick={() => setTokenOpen(false)}><X size={16} /></button></div>
+        <p>本机未设置密钥时可以留空。密钥只保存在当前设备。</p>
         <input type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Bearer token" />
         <button className="block-button" onClick={saveToken}>保存并重新连接</button>
       </div></div>}

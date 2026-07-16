@@ -36,7 +36,7 @@ def _format_content_multimodal(content: Any, max_len: int = 1000) -> list:
     """把任意 content 转为大模型可识别的多模态对象列表（保留图片结构）。"""
     if content is None:
         return []
-    
+
     if isinstance(content, list):
         parts = []
         for part in content:
@@ -93,7 +93,7 @@ async def _format_recent_context_multimodal(agent, limit: int = 5, max_len_per_m
         role = msg.get("role", "unknown")
         final_parts.append({"type": "text", "text": f"\n[{role}] "})
         final_parts.extend(_format_content_multimodal(msg.get("content"), max_len=max_len_per_msg))
-        
+
     return final_parts
 
 
@@ -173,7 +173,7 @@ class YoloGuard:
             tools=tools,
             tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
-        
+
         try:
             response = client.chat.completions.create(**request_kwargs)
         except Exception as e:
@@ -181,8 +181,8 @@ class YoloGuard:
             if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
                 print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
                 client2 = OpenAI(
-                    api_key=self.api_key, 
-                    base_url=self.base_url, 
+                    api_key=self.api_key,
+                    base_url=self.base_url,
                     default_headers={"User-Agent": "curl/7.68.0"}
                 )
                 try:
@@ -227,11 +227,11 @@ class YoloGuard:
             tool_call = message.tool_calls[0]
             result = json.loads(tool_call.function.arguments)
             approved = bool(result.get("approved", False))
-            
+
             # 支持 NoneType 处理
             raw_reason = result.get("reason")
             reason = str(raw_reason).strip() if raw_reason is not None else ""
-            
+
             return approved, reason
         except Exception as e:
             return False, f"YOLO Tool Call 结构提取失败: {e}"

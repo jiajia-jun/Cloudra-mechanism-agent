@@ -6,7 +6,12 @@ import sqlite3
 import pytest
 
 from cloudra.config import get_config, reload_config
-from cloudra.database import ConversationDB, get_database_path
+from cloudra.database import (
+    ConversationDB,
+    aretry_on_locked,
+    get_database_path,
+    retry_on_locked,
+)
 
 
 @pytest.fixture
@@ -92,6 +97,45 @@ def test_conversation_db_connect_sets_wal_and_busy_timeout(isolated_db):
         assert cur.fetchone()[0].upper() == "WAL"
         cur.execute("PRAGMA busy_timeout")
         assert cur.fetchone()[0] == 20000
+
+
+@pytest.mark.asyncio
+async def test_conversation_db_aconnect_sets_busy_timeout(isolated_db):
+    db = ConversationDB("conv_async_pragma").init()
+    async with db.aconnect(timeout=20) as con:
+        cur = await con.execute("PRAGMA journal_mode")
+        assert (await cur.fetchone())[0].upper() == "WAL"
+        cur = await con.execute("PRAGMA busy_timeout")
+        assert (await cur.fetchone())[0] == 20000
+
+
+def test_retry_on_locked_retries_transient_lock():
+    attempts = 0
+
+    def operation():
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise sqlite3.OperationalError("database is locked")
+        return "ok"
+
+    assert retry_on_locked(operation, retries=3, base_delay=0) == "ok"
+    assert attempts == 3
+
+
+@pytest.mark.asyncio
+async def test_aretry_on_locked_retries_transient_lock():
+    attempts = 0
+
+    async def operation():
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise sqlite3.OperationalError("database is busy")
+        return "ok"
+
+    assert await aretry_on_locked(operation, retries=3, base_delay=0) == "ok"
+    assert attempts == 3
 
 
 def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):

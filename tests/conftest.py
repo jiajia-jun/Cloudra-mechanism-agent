@@ -1,7 +1,9 @@
-import pytest
 import os
+
+import pytest
+
 from cloudra.session_class import Session
-from datetime import datetime
+
 
 @pytest.fixture
 def mock_session(tmp_path):

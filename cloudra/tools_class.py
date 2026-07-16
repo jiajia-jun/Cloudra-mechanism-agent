@@ -1,13 +1,17 @@
-from pydantic import BaseModel, Field
-from typing import Any
-import os
+from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
-from cloudra.subagents import Subagent_hash
+
+from cloudra.database import ConversationDB, get_database_path
 from cloudra.session_class import Session
+
 # HACK: 这里原本缺少 import，属于历史遗留问题；get_tools_lst 定义在 tools/__init__.py
 from cloudra.tools import get_tools_lst
-from cloudra.tools.core.permission_model import Permission, check_permission
-from cloudra.database import get_database_path, ConversationDB
+from cloudra.tools.core.permission_model import Permission
+
+if TYPE_CHECKING:
+    from cloudra.yolo_guard import YoloGuard
 
 
 def _tool_db_path(subagent) -> str:
@@ -93,7 +97,7 @@ class output_schema(BaseModel):
 class Tool(BaseModel):
     '''
     工具基类。所有具体工具应继承此类。
-    
+
     关于 input_schema / output_schema：
     - 这里存放的是具体的 schema 类（如 TextReader_input_schema），而非实例。
     - 使用 Any 类型并开启 arbitrary_types_allowed，避免 Pydantic 对类对象做字段校验。
@@ -167,7 +171,7 @@ class Tool(BaseModel):
             return await self.tool_call(user_input, session)
         except Exception as e:
             error_msg = f"【工具执行异常】{self.tool_name}: {str(e)}"
-            raise RuntimeError(error_msg) from e 
+            raise RuntimeError(error_msg) from e
 
     async def ensure_safety(
         self,
@@ -180,7 +184,7 @@ class Tool(BaseModel):
         默认通过数据库等待用户审批；若启用了 YOLO 模式，则调用独立 Agent 自动判断。
         返回 (是否通过, 拒绝原因)。通过时拒绝原因为空字符串。
         '''
-        from cloudra.yolo_guard import is_yolo_enabled, YoloGuard
+        from cloudra.yolo_guard import YoloGuard, is_yolo_enabled
 
         # 获取当前 Agent 名称
         agent_name = self.subagent.name if self.subagent else "Unknown Agent"
@@ -206,7 +210,7 @@ class Tool(BaseModel):
             self.tool_name, tool_args, self.subagent, session
         )
         if approved:
-            print(f"\033[92m[安全审计/YOLO]\033[0m 自动审批通过。")
+            print("\033[92m[安全审计/YOLO]\033[0m 自动审批通过。")
             return True, ""
         else:
             reason_text = reason or "YOLO Agent 认为该操作存在风险"
@@ -215,7 +219,6 @@ class Tool(BaseModel):
 
     async def request_approval(self, db_path: str, session_id: str, details: str) -> tuple[bool, str]:
         import asyncio
-        import time
 
         db = ConversationDB.from_path(db_path)
         async with db.aconnect() as con:
@@ -236,16 +239,16 @@ class Tool(BaseModel):
             if row:
                 state, denial_reason = row
                 if state == 'approved':
-                    print(f"\033[92m[安全审计]\033[0m 审批通过。")
+                    print("\033[92m[安全审计]\033[0m 审批通过。")
                     return True, ''
                 elif state == 'denied':
                     reason = denial_reason or ''
                     if reason:
                         print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
                     else:
-                        print(f"\033[91m[安全审计]\033[0m 审批拒绝。")
+                        print("\033[91m[安全审计]\033[0m 审批拒绝。")
                     return False, reason
-            
+
             # 可选：在终端提示等待中
             # print(".", end="", flush=True)
 

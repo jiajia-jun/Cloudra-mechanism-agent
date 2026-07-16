@@ -3,15 +3,17 @@ from __future__ import annotations
 import os
 import re
 from io import StringIO
-from typing import Any, Optional, Literal
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import numpy as np
 import pandas as pd
 from pydantic import Field
 
-from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
+if TYPE_CHECKING:
+    import chemcoord as cc
 
 _COVALENT_RADII = {
     'H': 0.31, 'He': 0.28,
@@ -364,7 +366,6 @@ class InternalCoordinates(Tool):
         lines = [ln for ln in zmatrix_text.splitlines()
                  if ln.strip() and not ln.strip().startswith("#")]
 
-        n = len(lines)
         records = []
         name_to_index: dict[str, int] = {}
 
@@ -436,8 +437,8 @@ class InternalCoordinates(Tool):
         绕开 chemcoord Zmat.get_cartesian 的只读数组 bug，直接用底层 transformation.get_X
         从 Z-matrix 重建 Cartesian，返回 xyz 文本。
         """
-        import chemcoord.internal_coordinates._zmat_transformation as tr
         import chemcoord.constants as constants
+        import chemcoord.internal_coordinates._zmat_transformation as tr
         from chemcoord.utilities._temporary_deprecation_workarounds import replace_without_warn
 
         c_table = zmat_frame.loc[:, ['b', 'a', 'd']].copy()

@@ -1,14 +1,14 @@
+import importlib.util
 import os
-import re
 from html.parser import HTMLParser
-from pydantic import Field
 from typing import Any
 from urllib.parse import urlparse
 
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
-from cloudra.config import get_config
+from pydantic import Field
 
+from cloudra.config import get_config
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "使用无头浏览器（Playwright Chromium）访问指定 URL，获取渲染后的页面文本、标题或截图。"
@@ -132,12 +132,7 @@ class HeadlessBrowser(Tool):
                 error=f"不支持的 action: {action}，仅支持 fetch / screenshot。"
             )
 
-        playwright_available = False
-        try:
-            from playwright.async_api import async_playwright
-            playwright_available = True
-        except ImportError:
-            pass
+        playwright_available = importlib.util.find_spec("playwright.async_api") is not None
 
         if playwright_available:
             try:
@@ -183,8 +178,9 @@ class HeadlessBrowser(Tool):
         timeout_sec: int,
         parsed
     ) -> HeadlessBrowser_output_schema:
-        from playwright.async_api import async_playwright
         from datetime import datetime
+
+        from playwright.async_api import async_playwright
 
         data_dir = get_config().data_dir
         screenshot_dir = os.path.join(data_dir, 'screenshots')

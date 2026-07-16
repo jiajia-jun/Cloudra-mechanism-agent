@@ -1,9 +1,10 @@
-from pydantic import Field
-from typing import Any
 import os
+from typing import Any
 
-from cloudra.tools_class import Tool, input_schema, output_schema
+from pydantic import Field
+
 from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "视觉感知工具：读取本地图像文件（PNG/JPG/JPEG/WEBP）并将其载入 Agent 的视觉上下文中。"
@@ -31,28 +32,28 @@ class ImageReader(Tool):
 
     async def tool_call(self, user_input: ImageReader_input_schema, session: Session) -> ImageReader_output_schema:
         path = user_input.image_path
-        
+
         # 验证文件是否存在
         if not os.path.exists(path):
             return ImageReader_output_schema(
-                is_success=False, 
-                image_path="", 
+                is_success=False,
+                image_path="",
                 message=f"错误：文件不存在于路径 {path}"
             )
-            
+
         # 验证是否为支持的图片格式
         ext = os.path.splitext(path)[1].lower()
         if ext not in ['.png', '.jpg', '.jpeg', '.webp']:
             return ImageReader_output_schema(
-                is_success=False, 
-                image_path="", 
+                is_success=False,
+                image_path="",
                 message=f"错误：不支持的文件格式 {ext}。目前仅支持 PNG, JPG, JPEG, WEBP。"
             )
 
         # 返回路径。reAct.py 探测到 image_path 字段后，会自动触发多模态发送逻辑。
         return ImageReader_output_schema(
-            is_success=True, 
-            image_path=path, 
+            is_success=True,
+            image_path=path,
             message=f"已成功加载图片：{path}。{user_input.description}"
         )
 

@@ -1,16 +1,17 @@
-import os
-from pydantic import Field
-from typing import Any, Optional, List, Dict
-import numpy as np
-
 # spectrochempy 在 Python 3.10 中会引用 datetime.UTC（3.11 新增），
 # 在导入前为 3.10 环境补上兼容性补丁。
 import datetime
+import os
+from typing import Any, Dict, List
+
+import numpy as np
+from pydantic import Field
+
 if not hasattr(datetime, "UTC"):
     datetime.UTC = datetime.timezone.utc
 
-from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "专业级红外光谱 (IR) 处理与解析工具：基于 SpectroChemPy 库。"
@@ -20,12 +21,12 @@ description = (
 
 class IRProcessor_input_schema(input_schema):
     data_path: str = Field(description="原始 IR 数据文件路径")
-    
+
     # 预处理选项
     baseline: bool = Field(default=True, description="是否进行基线校正 (Rubberband/Modified Poly)")
     smooth: bool = Field(default=True, description="是否进行平滑 (Savitzky-Golay)")
     normalize: str = Field(default="snv", description="归一化方法: 'snv' (标准正态变换), 'minmax', 'area', 'none'")
-    
+
     # 分析参数
     detect_peaks: bool = Field(default=True, description="是否自动提取吸收峰")
     peak_threshold: float = Field(default=0.05, description="峰提取灵敏度")
@@ -33,7 +34,7 @@ class IRProcessor_input_schema(input_schema):
 
     # 专家选项 (JSON 字典)
     advanced_settings: Dict[str, Any] = Field(
-        default_factory=dict, 
+        default_factory=dict,
         description="高级参数覆盖。支持: 'smooth_size', 'smooth_order', 'baseline_method', 'baseline_params' (dict) 等"
     )
 
@@ -75,27 +76,27 @@ class IRProcessor(Tool):
             # 2. 预处理流水线
             proc = dataset.copy()
             adv = user_input.advanced_settings
-            
+
             # 转换为吸光度 (如果是透过率)
             try:
                 if str(proc.units) == "percent":
                     proc = proc.log10()
-            except:
+            except Exception:
                 pass
-            
+
             # 平滑 (使用高级方法 smooth)
             if user_input.smooth:
                 if proc.shape[-1] > 11:
                     size = adv.get('smooth_size', 11)
                     order = adv.get('smooth_order', 2)
                     proc = proc.smooth(size=size, order=order)
-            
+
             # 基线校正 (使用 basc)
             if user_input.baseline:
                 method = adv.get('baseline_method', 'rubberband')
                 params = adv.get('baseline_params', {})
                 proc = proc.basc(method=method, **params)
-                
+
             # 归一化 (使用高级数学运算)
             if user_input.normalize == 'snv':
                 # 高级运算会自动处理单位，归一化后变为无单位 (dimensionless)
@@ -108,7 +109,7 @@ class IRProcessor(Tool):
             if user_input.detect_peaks:
                 res = proc.find_peaks(threshold=user_input.peak_threshold)
                 pk_dataset = res[0]
-                
+
                 # 提取峰位置和强度
                 y_peaks = np.atleast_1d(pk_dataset.data.squeeze())
                 x_peaks = np.atleast_1d(pk_dataset.x.values)
@@ -117,14 +118,14 @@ class IRProcessor(Tool):
                     # 统一使用 .magnitude 安全提取数值用于 JSON 序列化
                     pos_val = x_peaks[i]
                     pos = float(pos_val.magnitude) if hasattr(pos_val, 'magnitude') else float(pos_val)
-                    
+
                     inten_val = y_peaks[i]
                     val = float(inten_val.magnitude) if hasattr(inten_val, 'magnitude') else float(inten_val)
-                    
+
                     group_matches = []
                     if user_input.identify_groups:
                         group_matches = self._match_group(pos)
-                        
+
                     peaks_list.append({
                         "wavenumber": round(pos, 2),
                         "intensity": round(val, 4),
@@ -135,12 +136,12 @@ class IRProcessor(Tool):
             # 确保返回的是纯数值列表，避免带单位的对象进入 JSON
             x_raw = proc.x.values
             y_raw = proc.data.squeeze()
-            
+
             x_list = [float(v.magnitude) if hasattr(v, 'magnitude') else float(v) for v in x_raw]
             y_list = [float(v.magnitude) if hasattr(v, 'magnitude') else float(v) for v in y_raw]
-            
+
             step = max(1, len(x_list) // 800)
-            
+
             return IRProcessor_output_schema(
                 is_success=True,
                 units=str(proc.x.units),

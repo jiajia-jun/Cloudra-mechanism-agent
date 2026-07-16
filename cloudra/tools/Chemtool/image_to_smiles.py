@@ -1,9 +1,10 @@
 import os
-from pydantic import Field
 from typing import Any
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
 
+from pydantic import Field
+
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "化学结构图像识别工具 (OCSR)：基于 DECIMER 深度学习模型，"

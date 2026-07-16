@@ -57,3 +57,11 @@ htmlcov/
 # Frontend
 frontend/node_modules/
 frontend/*.tsbuildinfo
+frontend/src-tauri/target/
+
+# Chemistry job artifacts (Gaussian etc.)
+fort.*
+*.chk
+*.gjf
+*.log
+*.out

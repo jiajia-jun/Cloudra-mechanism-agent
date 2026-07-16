@@ -54,7 +54,7 @@ dependencies = [
 cloudra = "cloudra.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/cloudra/agent4chem"
+Homepage = "https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists"
 
 [tool.setuptools.packages.find]
 where = ["."]

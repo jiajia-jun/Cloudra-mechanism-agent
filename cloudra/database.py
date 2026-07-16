@@ -7,14 +7,62 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
+import random
 import re
 import sqlite3
-from typing import Optional
+import time
+from typing import Awaitable, Callable, Optional, TypeVar
 
 import aiosqlite
 
 from cloudra.config import get_config
+
+DEFAULT_BUSY_TIMEOUT = 60.0
+DEFAULT_LOCK_RETRIES = 4
+_T = TypeVar("_T")
+
+
+def _is_locked_error(exc: BaseException) -> bool:
+    return isinstance(exc, sqlite3.OperationalError) and (
+        "locked" in str(exc).lower() or "busy" in str(exc).lower()
+    )
+
+
+def retry_on_locked(
+    operation: Callable[[], _T],
+    *,
+    retries: int = DEFAULT_LOCK_RETRIES,
+    base_delay: float = 0.25,
+) -> _T:
+    """Retry a complete short SQLite operation when another writer owns the lock."""
+    for attempt in range(retries + 1):
+        try:
+            return operation()
+        except sqlite3.OperationalError as exc:
+            if not _is_locked_error(exc) or attempt >= retries:
+                raise
+            time.sleep(base_delay * (2**attempt) + random.uniform(0, base_delay))
+    raise RuntimeError("unreachable")
+
+
+async def aretry_on_locked(
+    operation: Callable[[], Awaitable[_T]],
+    *,
+    retries: int = DEFAULT_LOCK_RETRIES,
+    base_delay: float = 0.25,
+) -> _T:
+    """Async counterpart of :func:`retry_on_locked`."""
+    for attempt in range(retries + 1):
+        try:
+            return await operation()
+        except sqlite3.OperationalError as exc:
+            if not _is_locked_error(exc) or attempt >= retries:
+                raise
+            await asyncio.sleep(base_delay * (2**attempt) + random.uniform(0, base_delay))
+    raise RuntimeError("unreachable")
 
 
 class ConversationDB:
@@ -54,6 +102,12 @@ class ConversationDB:
     def init(self) -> "ConversationDB":
         """初始化数据库：建目录、建表、启用 WAL。"""
         self.ensure_dir()
+        # journal_mode is persistent.  Switching it on every connection needs a
+        # stronger lock and creates avoidable contention between worker processes.
+        with sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT) as con:
+            con.execute(f"PRAGMA busy_timeout={int(DEFAULT_BUSY_TIMEOUT * 1000)};")
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.commit()
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(_CREATE_SESSION)
@@ -71,26 +125,32 @@ class ConversationDB:
             con.commit()
         return self
 
-    def connect(self, timeout: float = 30.0):
+    def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
         """返回一个已配置 WAL/busy_timeout 的同步 SQLite 连接。"""
         self.ensure_dir()
         con = sqlite3.connect(self.path, timeout=timeout)
         cur = con.cursor()
-        cur.execute("PRAGMA journal_mode=WAL;")
         cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
         cur.execute("PRAGMA synchronous=NORMAL;")
-        con.commit()
         return con
 
-    def aconnect(self, timeout: float = 30.0):
-        """返回一个已配置 WAL/busy_timeout 的异步 SQLite 连接上下文。"""
+    @contextlib.asynccontextmanager
+    async def aconnect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
+        """返回一个统一配置 busy_timeout 的异步 SQLite 连接上下文。"""
         self.ensure_dir()
-        return aiosqlite.connect(self.path, timeout=timeout)
+        con = await aiosqlite.connect(self.path, timeout=timeout)
+        try:
+            await con.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
+            await con.execute("PRAGMA synchronous=NORMAL;")
+            yield con
+        finally:
+            await con.close()
 
     async def ainit(self) -> "ConversationDB":
         """异步初始化数据库。"""
         self.ensure_dir()
         async with self.aconnect() as con:
+            await con.execute("PRAGMA journal_mode=WAL;")
             cur = await con.cursor()
             await cur.execute(_CREATE_SESSION)
             await cur.execute(_CREATE_SUBAGENT_REQUESTS)

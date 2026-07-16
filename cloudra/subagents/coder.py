@@ -1,5 +1,6 @@
 from cloudra.agent import Follower, load_prompt
 
+
 class coder(Follower):
     id: str = 'a-6'
     name: str = 'coder'
@@ -8,13 +9,13 @@ class coder(Follower):
 
     def has_read_permission(self) -> bool:
         return True
-    
+
     def has_write_permission(self) -> bool:
         return True
-    
+
     def script_run_permission(self) -> bool:
         return True
-    
+
     def destructive_permission(self) -> bool:
         return False
 

@@ -1,7 +1,10 @@
-from pydantic import Field
 from typing import Any
-from cloudra.tools_class import Tool, input_schema, output_schema
+
+from pydantic import Field
+
 from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
+
 
 class BenchTool_input_schema(input_schema):
     answer: str = Field(
@@ -38,16 +41,17 @@ class BenchTool(Tool):
     ) -> BenchTool_output_schema:
         # 核心逻辑：严格遵循架构纯洁性，绝不污染 Agent 或 Session 实例。
         # 通过 Conversation 容器，将答案以文件形式固化到当前会话的物理沙箱中。
-        from cloudra.conversation_class import Conversation
-        import os
         import json
+        import os
+
+        from cloudra.conversation_class import Conversation
 
         if hasattr(self, 'subagent') and self.subagent and hasattr(self.subagent, 'conversation_id'):
             conv = Conversation(conv_id=self.subagent.conversation_id)
             ans_path = os.path.join(conv.path, "benchmark_answer.json")
             with open(ans_path, 'w', encoding='utf-8') as f:
                 json.dump({"answer": user_input.answer.strip()}, f)
-        
+
         return BenchTool_output_schema(
             is_success=True,
             message="交卷成功！后台评测系统已记录该题答案。请立即调用 stop 工具以彻底结束当前推理循环。"

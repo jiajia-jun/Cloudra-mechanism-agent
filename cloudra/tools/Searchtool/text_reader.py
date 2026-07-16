@@ -1,9 +1,9 @@
-from pydantic import Field
 from typing import Any
 
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
+from pydantic import Field
 
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "以文本形式读取本地文件，支持 md、txt、json、gjf、py、sh 等纯文本格式。"
@@ -40,7 +40,7 @@ class TextReader(Tool):
             lines = f.readlines()
 
         total_lines = len(lines)
-        
+
         # 修正切片逻辑
         actual_start = max(0, start_line)
         if end_line == -1:
@@ -54,7 +54,7 @@ class TextReader(Tool):
         selected_lines = lines[actual_start:actual_end]
         # 直接拼接，因为 lines 已经包含了 \n
         content_str = ''.join(selected_lines)
-        
+
         return TextReader_output_schema(content=content_str)
 
 

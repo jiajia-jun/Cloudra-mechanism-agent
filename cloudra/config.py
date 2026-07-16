@@ -19,16 +19,19 @@ import os
 from pathlib import Path
 from typing import Optional
 
+import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import yaml
 
 # Try platformdirs, fallback to appdirs or manual
 try:
     from platformdirs import user_config_dir, user_data_dir
 except ImportError:
-    user_config_dir = lambda app: Path.home() / ".config" / app
-    user_data_dir = lambda app: Path.home() / ".local" / "share" / app
+    def user_config_dir(app):
+        return Path.home() / ".config" / app
+
+    def user_data_dir(app):
+        return Path.home() / ".local" / "share" / app
 
 
 APP_NAME = "cloudra"
@@ -116,7 +119,7 @@ class CloudraConfig(BaseSettings):
             self.follower.url = os.getenv("FOLLOWER_URL")
         if os.getenv("FOLLOWER_KEY"):
             self.follower.key = os.getenv("FOLLOWER_KEY")
-        
+
         # Email legacy envs
         if os.getenv("SMTP_USER"):
             self.email.user = os.getenv("SMTP_USER")
@@ -138,7 +141,7 @@ class CloudraConfig(BaseSettings):
                         for k, v in data["llm"][role].items():
                             if hasattr(cfg, k) and v is not None:
                                 setattr(cfg, k, v)
-            
+
             if "email" in data:
                 for k, v in data["email"].items():
                     if hasattr(self.email, k) and v:

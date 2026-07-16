@@ -1,7 +1,7 @@
-import os
 import json
-import uuid
+import os
 import re
+import uuid
 from datetime import datetime
 
 from cloudra.config import get_config
@@ -14,7 +14,7 @@ class Conversation:
       - contexts/   : 该会话下各 agent 的上下文文件
       - sessions/   : 该会话下 reAct 执行记录
       - meta.json   : 会话元数据（创建时间、最后活跃时间、状态）
-    
+
     状态说明：
       - active  : 新建或刚恢复，尚未开始运行
       - running : Coordinator 正在运行中

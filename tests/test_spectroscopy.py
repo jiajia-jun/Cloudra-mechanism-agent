@@ -1,7 +1,9 @@
+
 import pytest
-import os
+
 from cloudra.tools.Chemtool.ir_processor import IRProcessor, IRProcessor_input_schema
-from cloudra.tools.Chemtool.nmr_processor import NMRProcessor, NMRProcessor_input_schema
+from cloudra.tools.Chemtool.nmr_processor import NMRProcessor
+
 
 @pytest.fixture
 def mock_ir_file(tmp_path):
@@ -41,18 +43,18 @@ async def test_ir_processor_basic(mock_ir_file, mock_session):
     tool = IRProcessor()
     input_data = IRProcessor_input_schema(
         data_path=mock_ir_file,
-        smooth=False, 
+        smooth=False,
         baseline=False, # 关闭基线校正以简化 mock 数据的峰检测
         peak_threshold=0.1,
         advanced_settings={}
     )
-    
+
     result = await tool.safe_call(input_data, mock_session)
     assert result.is_success is True
     assert len(result.peaks) > 0
     # 兼容不同的单位写法 (unicode 或 字符串)
     assert "cm" in result.units and ("-1" in result.units or "⁻¹" in result.units)
-    
+
     # 验证是否至少发现了一个峰
     print(f"\nDetected Peaks: {result.peaks}")
     assert any(p['wavenumber'] > 0 for p in result.peaks)

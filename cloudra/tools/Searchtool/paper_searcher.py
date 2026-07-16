@@ -1,9 +1,9 @@
-from pydantic import Field
 from typing import Any
 
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
+from pydantic import Field
 
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通过 arXiv API 搜索学术论文，返回结构化结果列表。"
@@ -70,10 +70,10 @@ class PaperSearcher(Tool):
                     'journal_ref': result.journal_ref,
                     'doi': result.doi
                 }
-                
+
                 if user_input.mode in ['normal', 'weight']:
                     item['abstract'] = result.summary.strip('\n')
-                
+
                 if user_input.mode == 'weight':
                     item['authors'] = [author.name for author in result.authors]
                     item['categories'] = list(result.categories)
@@ -81,7 +81,7 @@ class PaperSearcher(Tool):
                     item['pdf_url'] = result.pdf_url
                     item['comment'] = result.comment
                     item['links'] = [str(link) for link in result.links]
-                
+
                 results_list.append(item)
 
             return PaperSearcher_output_schema(content=results_list)

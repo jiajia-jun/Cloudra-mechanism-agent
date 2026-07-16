@@ -1,6 +1,6 @@
-import os
 
 from datetime import datetime
+
 
 class Session:
     id: str
@@ -19,7 +19,7 @@ class Session:
         import json
         with open(self.path, 'w', encoding='utf-8') as f:
             json.dump(session_dict, f, ensure_ascii=False, indent=4)
-        
+
 
     def to_json(self) -> dict:
         create_time = self.create_time
@@ -33,11 +33,11 @@ class Session:
             'tool_calling': self.tool_calling
         }
         return json_dict
-    
+
     def upload_json(self):
         import json
         with open(self.path, 'w', encoding='utf-8') as f:
             json.dump(self.to_json(), f, ensure_ascii=False, indent=4)
 
-    
+
 

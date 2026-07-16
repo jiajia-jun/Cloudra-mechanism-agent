@@ -1,11 +1,11 @@
 """测试 Coordinator 异步任务等待与事件唤醒机制。"""
 
 import asyncio
-import os
 import sqlite3
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+
 from cloudra.database import ConversationDB
 
 
@@ -68,7 +68,6 @@ async def test_wait_for_background_tasks_blocks_on_compute_jobs(isolated_db):
 @pytest.mark.asyncio
 async def test_wait_for_background_tasks_blocks_on_subagent_requests(isolated_db):
     """_wait_for_background_tasks 应阻塞直到 subagent_requests 中无 running 任务。"""
-    from cloudra.config import get_config
     from cloudra.main import _wait_for_background_tasks
 
     db_path = ConversationDB("test_conv").path

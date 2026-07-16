@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import requests
-
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import BaseModel
@@ -114,7 +113,7 @@ class Agent(BaseModel):
     context_window: int = 128000
 
     #agent使用模型top_p
-    top_p: float = 1.0
+    top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
 
     #agent使用模型频率惩罚
     frequency_penalty: float = 0.0
@@ -144,11 +143,22 @@ class Agent(BaseModel):
 
     conversation_id: str
 
+    # API 会话可独立指定目录，避免修改进程级 cwd 导致并发任务互相影响。
+    working_directory: Optional[str] = None
+
     # 兼容被中转站拦截的 OpenAI 客户端：启用后改用 requests 发送请求
     _curl_mode: bool = False
 
     # 启用 OpenAI 客户端 + 自定义请求头（比 requests 更规范）
     _use_custom_headers: bool = False
+
+    # OpenAI 客户端实例级缓存：避免每个推理步骤都新建 httpx 连接池
+    _openai_client: Optional[OpenAI] = None
+    _openai_client_custom: Optional[OpenAI] = None
+
+    # 工具 schema 列表缓存：工具集与本 Agent 权限在进程内是静态的，
+    # 无需每个推理步骤都重新实例化全部工具并重新生成 pydantic schema。
+    _tools_schema_cache: Optional[list] = None
 
     def _init_context_manager(self) -> None:
         '''初始化本 Agent 的 ContextManager。'''
@@ -352,12 +362,14 @@ class Agent(BaseModel):
         return _ResponseDictWrapper(data)
 
     def _openai_client_with_custom_headers(self) -> OpenAI:
-        """返回带自定义 User-Agent 的 OpenAI 客户端，用于二级 fallback。"""
-        return OpenAI(
-            api_key=self._api_key,
-            base_url=self.llm_site,
-            default_headers={"User-Agent": "curl/7.68.0"},
-        )
+        """返回带自定义 User-Agent 的 OpenAI 客户端（实例级缓存），用于二级 fallback。"""
+        if self._openai_client_custom is None:
+            self._openai_client_custom = OpenAI(
+                api_key=self._api_key,
+                base_url=self.llm_site,
+                default_headers={"User-Agent": "curl/7.68.0"},
+            )
+        return self._openai_client_custom
 
     def _json_to_single_chunk_stream(self, data: dict):
         """把非流式响应包装成单 chunk 流生成器，兼容 reAct 的流式消费代码。"""
@@ -422,14 +434,17 @@ class Agent(BaseModel):
 
         一旦某一级成功，该 Agent 实例会记住这一级，后续调用优先使用。
         '''
-        tool_classes = get_tools_lst()
-        available_tool_classes = []
-        for tool in tool_classes:
-            if self.check_permission(tool):
-                # 重新实例化并注入当前 Agent，使依赖 subagent 的动态 tool_description 生效。
-                # 同时避免直接修改 get_tools_lst() 返回的全局缓存实例。
-                tool_instance = tool.__class__(subagent=self)
-                available_tool_classes.append(tool_instance.tool_schema_json())
+        if self._tools_schema_cache is None:
+            tool_classes = get_tools_lst()
+            available_tool_classes = []
+            for tool in tool_classes:
+                if self.check_permission(tool):
+                    # 重新实例化并注入当前 Agent，使依赖 subagent 的动态 tool_description 生效。
+                    # 同时避免直接修改 get_tools_lst() 返回的全局缓存实例。
+                    tool_instance = tool.__class__(subagent=self)
+                    available_tool_classes.append(tool_instance.tool_schema_json())
+            self._tools_schema_cache = available_tool_classes
+        available_tool_classes = self._tools_schema_cache
 
         if self.context_manager is None:
             self._init_context_manager()
@@ -438,18 +453,16 @@ class Agent(BaseModel):
             max_context_tokens=self.context_window // 2 if self.context_window else None,
         )
 
-        # 最终防御：再次过滤 assistant 空消息，避免某些 provider 因
-        # messages[N] 为空而返回 400 Param Incorrect。
-        messages = self.context_manager._drop_empty_assistant_messages(messages)
-
         request_kwargs = {
             "model": self.model,
             "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "top_p": self.top_p,
             "stream": self.is_stream,
         }
+        # top_p 仅在显式设置时发送：k3 等严格端点只接受特定值（如 0.95），默认不发送
+        if self.top_p is not None:
+            request_kwargs["top_p"] = self.top_p
         if available_tool_classes:
             request_kwargs["tools"] = available_tool_classes
 
@@ -479,11 +492,13 @@ class Agent(BaseModel):
                 print(f"\033[91m[LLM 异常]\033[0m {e}")
                 raise
 
-        # Level 1: OpenAI 客户端默认请求头
-        client = OpenAI(
-            api_key=self._api_key,
-            base_url=self.llm_site,
-        )
+        # Level 1: OpenAI 客户端默认请求头（实例级缓存，避免每步新建连接池）
+        if self._openai_client is None:
+            self._openai_client = OpenAI(
+                api_key=self._api_key,
+                base_url=self.llm_site,
+            )
+        client = self._openai_client
 
         try:
             return client.chat.completions.create(**request_kwargs)
@@ -527,7 +542,7 @@ class Coordinator(Agent):
 
     context_window: int = 1000000
 
-    top_p: float = 1.0
+    top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
 
     frequency_penalty: float = 0.0
 
@@ -551,7 +566,7 @@ class Coordinator(Agent):
         self.model = self.model or cfg.model
         self.llm_site = self.llm_site or cfg.url
         self._api_key = self._api_key or cfg.key
-        cwd = os.getcwd()
+        cwd = self.working_directory or os.getcwd()
         # 列出工作目录顶层内容，帮助 Coordinator 知道当前有哪些文件/文件夹可用
         listing_lines = []
         try:
@@ -647,7 +662,7 @@ class Follower(Agent):
 
     context_window: int = 1000000
 
-    top_p: float = 1.0
+    top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
 
     frequency_penalty: float = 0.0
 

@@ -23,7 +23,6 @@ from openai import OpenAI
 
 from cloudra.config import get_config
 
-
 # 默认记忆字数上限（中文字符按 1 个计，英文单词按 1 个计）。
 # 超过此阈值时触发自动压缩。
 DEFAULT_MEMORY_WORD_LIMIT = 4000
@@ -45,6 +44,8 @@ class MemoryManager:
         self.word_limit = max(100, word_limit)
         self.compressed_word_limit = max(100, compressed_word_limit)
         self.memory_path = self._resolve_path()
+        # OpenAI 客户端缓存：压缩是低频操作，但没必要每次新建连接池
+        self._openai_client = None
 
     def _resolve_path(self) -> Path:
         """解析记忆文件路径。默认使用全局记忆，跨会话共享。"""
@@ -169,7 +170,9 @@ class MemoryManager:
         ).format(limit=self.compressed_word_limit, text=text[:12000])
 
         try:
-            client = OpenAI(api_key=api_key, base_url=base_url)
+            if self._openai_client is None:
+                self._openai_client = OpenAI(api_key=api_key, base_url=base_url)
+            client = self._openai_client
             response = client.chat.completions.create(
                 model=model,
                 messages=[

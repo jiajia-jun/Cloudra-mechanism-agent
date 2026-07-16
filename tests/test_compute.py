@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -355,12 +354,9 @@ async def test_context_manager_session_isolation(isolated_db):
 @pytest.mark.asyncio
 async def test_subagent_launcher_no_template_pollution(isolated_db):
     """SubAgentLauncher 不应修改 Subagent_hash 中的全局模板实例。"""
-    from cloudra.config import get_config
-    from cloudra.main import init_database
+    from cloudra.database import ConversationDB
     from cloudra.subagents import Subagent_hash
     from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
-
-    from cloudra.database import ConversationDB
 
     ConversationDB("parent_conv").init()
 

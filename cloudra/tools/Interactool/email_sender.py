@@ -1,15 +1,16 @@
-from pydantic import Field
-from typing import Any, List, Optional
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
-import os
 import asyncio
+import os
+import smtplib
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any, List, Optional
 
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.session_class import Session
+from pydantic import Field
+
 from cloudra.config import get_config
+from cloudra.session_class import Session
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "发送电子邮件通知。支持发送纯文本或 HTML 内容，并可携带多个文件作为附件。"
@@ -40,10 +41,10 @@ class EmailSender(Tool):
 
     async def tool_call(self, user_input: EmailSender_input_schema, session: Session) -> EmailSender_output_schema:
         config = get_config().email
-        
+
         if not config.user or not config.password:
             return EmailSender_output_schema(
-                success=False, 
+                success=False,
                 message="【配置错误】SMTP 用户名或密码未设置。请通过 config 设置或环境变量配置。"
             )
 
@@ -84,7 +85,7 @@ class EmailSender(Tool):
         else:
             server = smtplib.SMTP(config.smtp_server, config.smtp_port)
             server.starttls()
-            
+
         server.login(config.user, config.password)
         server.send_message(msg)
         server.quit()

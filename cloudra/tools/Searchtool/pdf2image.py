@@ -1,11 +1,11 @@
-from pydantic import Field
-from typing import Any
 import os
+from typing import Any
+
 import fitz  # PyMuPDF
+from pydantic import Field
 
-from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.session_class import Session
-
+from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "将 PDF 文件转换为多张图片。"
@@ -37,14 +37,14 @@ class pdf2image(Tool):
     async def tool_call(self, user_input: pdf2image_input_schema, session: Session) -> pdf2image_output_schema:
         pdf_path = user_input.pdf_path
         output_dir = user_input.output_dir
-        
+
         if not os.path.exists(pdf_path):
             return pdf2image_output_schema(
                 is_success=False,
                 image_paths=[],
                 message=f"错误：文件不存在于路径 {pdf_path}"
             )
-            
+
         try:
             os.makedirs(output_dir, exist_ok=True)
         except Exception as e:
@@ -55,7 +55,7 @@ class pdf2image(Tool):
             )
 
         image_paths = []
-        
+
         try:
             doc = fitz.open(pdf_path)
             for page_num in range(len(doc)):
@@ -63,16 +63,16 @@ class pdf2image(Tool):
                 # 提高分辨率，通常设置 matrix 2x2 或 3x3 会有较好的 OCR/读取效果
                 # 此处采用 2x2，兼顾清晰度和文件大小
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                
+
                 # 提取 PDF 文件名作为前缀
                 base_name = os.path.splitext(os.path.basename(pdf_path))[0]
                 img_path = os.path.join(output_dir, f"{base_name}_page_{page_num + 1}.png")
-                
+
                 pix.save(img_path)
                 image_paths.append(os.path.abspath(img_path))
-                
+
             doc.close()
-            
+
             return pdf2image_output_schema(
                 is_success=True,
                 image_paths=image_paths,

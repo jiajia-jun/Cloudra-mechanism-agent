@@ -200,6 +200,14 @@ _CREATE_CASES = """
 """
 
 
+_CASE_BANK_CACHE: dict[str, "CaseBank"] = {}
+
+
 def get_case_bank(db_path: Optional[str] = None) -> CaseBank:
-    """工厂函数，返回已初始化的 CaseBank 实例。"""
-    return CaseBank(db_path).init()
+    """工厂函数，返回已初始化的 CaseBank 实例（按路径缓存，避免重复 init 写事务）。"""
+    bank = CaseBank(db_path)
+    key = bank.db_path
+    if key not in _CASE_BANK_CACHE:
+        bank.init()
+        _CASE_BANK_CACHE[key] = bank
+    return _CASE_BANK_CACHE[key]

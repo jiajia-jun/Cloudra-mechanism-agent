@@ -1,15 +1,15 @@
 import json
-import os
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from cloudra.config import reload_config
 from cloudra.yolo_guard import (
     YoloGuard,
-    is_yolo_enabled,
     _format_content,
     _format_recent_context_multimodal,
+    is_yolo_enabled,
 )
-from cloudra.config import reload_config
 
 
 class TestIsYoloEnabled:

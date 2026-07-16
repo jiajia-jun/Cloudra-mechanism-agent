@@ -2,25 +2,21 @@
 Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
 """
 
-import os
-import sys
 import asyncio
 import json
+import os
 import sqlite3
-from pathlib import Path
-from typing import Optional
+import sys
 
 import click
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from rich.text import Text
+from rich.table import Table
 
-from cloudra.config import get_config, reload_config, CloudraConfig
+from cloudra import __version__
+from cloudra.config import get_config
 from cloudra.database import get_database_path
 from cloudra.service import CloudraService
-from cloudra import __version__
-
 
 console = Console()
 APP_NAME = "cloudra"
@@ -42,11 +38,11 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
     if version:
         console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
         sys.exit(0)
-    
+
     if ctx.invoked_subcommand is None:
         console.print("[yellow]请使用子命令，或运行 `cloudra --help` 查看用法。[/yellow]")
         sys.exit(0)
-    
+
     # Apply CLI overrides to config
     config = get_config()
     if coordinator_model:
@@ -99,22 +95,25 @@ def run(query, conv_id, new, dry_run, yolo):
         console.print(f"Follower Model: {config.follower.model}")
         return
 
-    
+
     # Validate API keys
     if not config.coordinator.key:
         console.print("[red]错误: Coordinator API Key 未设置。[/red]")
         console.print("请运行 `cloudra config init` 进行配置，或通过环境变量设置。")
         sys.exit(1)
-    
+
     try:
         # CLI 和 HTTP API 共用同一个业务服务层；CLI 只负责终端输入输出。
         service = CloudraService()
-        result = asyncio.run(service.run_task(query, conversation_id=active_conv_id, verbose=True))
-        
+        # CLI 有终端 stdin，显式启用交互式审批线程（service 层默认为 API 场景的 False）
+        asyncio.run(service.run_task(
+            query, conversation_id=active_conv_id, verbose=True, interactive_approval=True,
+        ))
+
         # Save the used ID as the last one
         config.last_conversation_id = active_conv_id
         config.save()
-        
+
     except KeyboardInterrupt:
         console.print("\n[yellow]任务被用户中断。[/yellow]")
         sys.exit(130)
@@ -137,30 +136,30 @@ def config_init(force):
     """交互式初始化配置文件。"""
     cfg = get_config()
     cfg_path = cfg.config_file
-    
+
     if cfg_path.exists() and not force:
         console.print(f"[yellow]配置文件已存在: {cfg_path}[/yellow]")
         console.print("使用 `--force` 覆盖，或直接编辑该文件。")
         return
-    
+
     console.print("[bold]Cloudra 配置初始化[/bold]\n")
-    
+
     # Prompt for values (use existing as defaults)
     coord_model = click.prompt("Coordinator 模型", default=cfg.coordinator.model)
     coord_url = click.prompt("Coordinator API 地址", default=cfg.coordinator.url)
     coord_key = click.prompt("Coordinator API Key", default="", hide_input=True)
-    
+
     follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
     follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
     follower_key = click.prompt("Follower API Key", default="", hide_input=True)
-    
+
     cfg.coordinator.model = coord_model
     cfg.coordinator.url = coord_url
     cfg.coordinator.key = coord_key or cfg.coordinator.key
     cfg.follower.model = follower_model
     cfg.follower.url = follower_url
     cfg.follower.key = follower_key or cfg.follower.key
-    
+
     cfg.save()
     console.print(f"[green]配置已保存至: {cfg_path}[/green]")
 
@@ -170,18 +169,18 @@ def config_show():
     """显示当前生效的配置（敏感信息脱敏）。"""
     cfg = get_config()
     display = cfg.to_display_dict()
-    
+
     console.print(Panel("[bold]Cloudra 配置[/bold]", style="cyan"))
     console.print(f"[bold]Data Directory:[/bold] {display['data_dir']}")
     console.print(f"[bold]Config File:[/bold] {display['config_file']}")
     console.print()
-    
+
     table = Table(title="LLM 配置", show_header=True, header_style="bold magenta")
     table.add_column("角色")
     table.add_column("模型")
     table.add_column("URL")
     table.add_column("Key")
-    
+
     table.add_row(
         "Coordinator",
         display['llm']['coordinator']['model'],
@@ -194,7 +193,7 @@ def config_show():
         display['llm']['follower']['url'],
         display['llm']['follower']['key'],
     )
-    
+
     console.print(table)
 
 
@@ -218,7 +217,7 @@ def _resolve_config_attr(cfg, key: str):
 def config_get(key):
     """读取单个配置项。例如: cloudra config get coordinator.model"""
     cfg = get_config()
-    
+
     target, final_key = _resolve_config_attr(cfg, key)
     if target is None:
         # Try without 'llm.' prefix for convenience
@@ -228,13 +227,13 @@ def config_get(key):
     if target is None:
         console.print(f"[red]配置项不存在: {key}[/red]")
         sys.exit(1)
-    
+
     value = getattr(target, final_key)
-    
+
     # Mask keys
     if "key" in key.lower() and isinstance(value, str) and value:
         value = "***"
-    
+
     console.print(value)
 
 
@@ -244,7 +243,7 @@ def config_get(key):
 def config_set(key, value):
     """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
     cfg = get_config()
-    
+
     target, final_key = _resolve_config_attr(cfg, key)
     if target is None:
         target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
@@ -253,7 +252,7 @@ def config_set(key, value):
     if target is None:
         console.print(f"[red]配置项不存在: {key}[/red]")
         sys.exit(1)
-    
+
     setattr(target, final_key, value)
     cfg.save()
     console.print(f"[green]已设置 {key} = {value}[/green]")
@@ -265,11 +264,11 @@ def history(limit):
     """查看历史对话列表。"""
     data_dir = get_config().data_dir
     conv_dir = data_dir / "conversations"
-    
+
     if not conv_dir.exists():
         console.print("[yellow]暂无历史对话。[/yellow]")
         return
-    
+
     conversations = []
     for entry in conv_dir.iterdir():
         if entry.is_dir():
@@ -283,17 +282,17 @@ def history(limit):
                     "last_active": meta.get("last_active", ""),
                     "state": meta.get("state", "active"),
                 })
-    
+
     # Sort by last_active descending
     conversations.sort(key=lambda x: x["last_active"], reverse=True)
     conversations = conversations[:limit]
-    
+
     table = Table(title="历史对话", show_header=True, header_style="bold magenta")
     table.add_column("对话 ID", style="cyan")
     table.add_column("创建时间")
     table.add_column("最后活跃")
     table.add_column("状态")
-    
+
     for conv in conversations:
         table.add_row(
             conv["id"],
@@ -301,7 +300,7 @@ def history(limit):
             conv["last_active"][:19] if conv["last_active"] else "",
             conv["state"],
         )
-    
+
     console.print(table)
 
 
@@ -311,11 +310,11 @@ def logs(conv_id):
     """查看某个对话的日志。"""
     data_dir = get_config().data_dir
     log_dir = data_dir / "conversations" / conv_id / "logs"
-    
+
     if not log_dir.exists():
         console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
         return
-    
+
     for log_file in sorted(log_dir.iterdir()):
         if log_file.is_file():
             console.print(Panel(f"[bold]{log_file.name}[/bold]", style="blue"))
@@ -334,24 +333,24 @@ def logs(conv_id):
 def skills():
     """列出可用的 Skills。"""
     from cloudra.skill_class import skill_loader
-    
+
     loader = skill_loader()
     skills_data = loader.skill_datas_get()
-    
+
     if not skills_data:
         console.print("[yellow]暂无可用 Skills。[/yellow]")
         return
-    
+
     table = Table(title="可用 Skills", show_header=True, header_style="bold green")
     table.add_column("名称", style="cyan")
     table.add_column("描述")
-    
+
     for skill in skills_data:
         table.add_row(
             skill.get("name", "N/A"),
             skill.get("description", "")[:80],
         )
-    
+
     console.print(table)
 
 
@@ -359,34 +358,33 @@ def skills():
 @click.option("--state", default=None, help="按状态过滤 (sleeping, thinking, acting, killed)")
 def sessions(state):
     """查看所有 Session 状态。"""
-    data_dir = get_config().data_dir
     db_path = get_database_path()
-    
+
     if not os.path.exists(db_path):
         console.print("[yellow]数据库尚未创建。[/yellow]")
         return
-    
+
     con = sqlite3.connect(str(db_path))
     cur = con.cursor()
-    
+
     if state:
         cur.execute("SELECT session_id, state, result FROM session WHERE state = ? ORDER BY rowid DESC", (state,))
     else:
         cur.execute("SELECT session_id, state, result FROM session ORDER BY rowid DESC LIMIT 50")
-    
+
     rows = cur.fetchall()
     con.close()
-    
+
     table = Table(title="Sessions", show_header=True, header_style="bold magenta")
     table.add_column("Session ID", style="cyan")
     table.add_column("State")
     table.add_column("Result", max_width=60)
-    
+
     for row in rows:
         session_id, st, result = row
         result = (result or "")[:100]
         table.add_row(session_id, st, result)
-    
+
     console.print(table)
 
 

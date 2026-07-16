@@ -3,9 +3,9 @@ import asyncio
 import copy
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
-from cloudra.database import ConversationDB
+from cloudra.database import ConversationDB, aretry_on_locked
 from cloudra.reAct import reAct
 from cloudra.subagents import Subagent_hash
 
@@ -38,6 +38,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     sub_agent.query = query
     sub_agent.conversation_id = input_data.get('conversation_id', 'default')
     sub_agent.session_id = input_data.get('session_id')
+    sub_agent.working_directory = input_data.get('working_directory')
 
     # 重置上下文管理器：深拷贝可能把 launcher 中或模板实例里的旧 context_manager 带过来，
     # 强制置空后 get_context() 会按当前 conversation_id/session_id 重新初始化，避免跨任务污染。
@@ -72,12 +73,15 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
 
     async def heartbeat():
         while True:
-            async with db.aconnect() as con:
-                await con.execute(
-                    "UPDATE session SET heartbeat_at=? WHERE session_id=?",
-                    (datetime.now().isoformat(), session_id),
-                )
-                await con.commit()
+            async def write_heartbeat():
+                async with db.aconnect() as con:
+                    await con.execute(
+                        "UPDATE session SET heartbeat_at=? WHERE session_id=?",
+                        (datetime.now(timezone.utc).isoformat(), session_id),
+                    )
+                    await con.commit()
+
+            await aretry_on_locked(write_heartbeat)
             await asyncio.sleep(5)
 
     heartbeat_task = asyncio.create_task(heartbeat())
@@ -90,23 +94,31 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         print(f"--- Agent {sub_agent.name} 执行完毕 ---")
 
         # 4. 更新数据库状态为 done
-        async with db.aconnect() as con:
-            await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))
-            await con.execute(
-                "UPDATE session SET exit_code=0, finished_at=COALESCE(finished_at, ?) WHERE session_id=?",
-                (datetime.now().isoformat(), session_id),
-            )
-            await con.commit()
+        async def mark_done():
+            async with db.aconnect() as con:
+                await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('done', task_id))
+                await con.execute(
+                    "UPDATE session SET exit_code=0, finished_at=COALESCE(finished_at, ?) WHERE session_id=?",
+                    (datetime.now(timezone.utc).isoformat(), session_id),
+                )
+                await con.commit()
+
+        await aretry_on_locked(mark_done)
     except Exception as e:
         print(f"Critical Error in Sub-process: {e}")
-        async with db.aconnect() as con:
-            await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', task_id))
-            await con.execute(
-                """UPDATE session SET state='failed', error=?, finished_at=?, exit_code=1
-                WHERE session_id=?""",
-                (str(e), datetime.now().isoformat(), session_id),
-            )
-            await con.commit()
+        error_message = str(e)
+
+        async def mark_failed():
+            async with db.aconnect() as con:
+                await con.execute("UPDATE subagent_requests SET state = ? WHERE id = ?", ('failed', task_id))
+                await con.execute(
+                    """UPDATE session SET state='failed', error=?, finished_at=?, exit_code=1
+                    WHERE session_id=?""",
+                    (error_message, datetime.now(timezone.utc).isoformat(), session_id),
+                )
+                await con.commit()
+
+        await aretry_on_locked(mark_failed)
     finally:
         heartbeat_task.cancel()
 

@@ -1,10 +1,10 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
-from cloudra.context_manager import ContextManager, SUPERVISOR_ADVICE_MARKER
 from cloudra.case_bank import CaseBank
+from cloudra.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 from cloudra.memory import MemoryManager
 from cloudra.supervisor import Supervisor
 
@@ -179,8 +179,8 @@ class TestCaseBank:
 @pytest.mark.asyncio
 class TestUpdateMemoryTool:
     async def test_update_memory_writes_file(self, tmp_path, monkeypatch):
-        from cloudra.tools.Writetool.update_memory import UpdateMemory
         from cloudra.agent import Coordinator
+        from cloudra.tools.Writetool.update_memory import UpdateMemory
 
         cfg = MagicMock()
         cfg.data_dir = tmp_path
@@ -269,9 +269,9 @@ class TestMemoryCompressionFallback:
 class TestReActSupervisorIntegration:
     def test_should_use_supervisor_default(self, tmp_path, monkeypatch):
         """普通 Agent 默认启用 Supervisor。"""
-        from cloudra.reAct import reAct
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
+        from cloudra.reAct import reAct
 
         conv_id = "test-react"
         db_path = str(tmp_path / "test.db")
@@ -291,9 +291,9 @@ class TestReActSupervisorIntegration:
 
     def test_supervisor_instance_created(self, tmp_path, monkeypatch):
         """reAct 初始化时应创建 Supervisor 实例。"""
-        from cloudra.reAct import reAct
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
+        from cloudra.reAct import reAct
 
         conv_id = "test-react"
         db_path = str(tmp_path / "test.db")

@@ -17,7 +17,7 @@ from typing import Optional
 from openai import OpenAI
 
 from cloudra.config import get_config
-from cloudra.database import get_database_path, ConversationDB
+from cloudra.database import ConversationDB, get_database_path
 from cloudra.token_estimator import TokenEstimator
 
 # 本地图片扩展名到 MIME 类型的映射
@@ -80,6 +80,11 @@ class ContextManager:
         self.context_file = _context_file_path(agent_id, self.conversation_id, session_id)
         self.db_path = db_path or _db_path(self.conversation_id)
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        # 上下文实例缓存：本实例是 context_file 生命周期内的唯一写者，
+        # 首次 load 后驻留内存，避免每条消息都全量读盘 + json 解析。
+        self._context_cache: Optional[list] = None
+        # 压缩用的 OpenAI 客户端缓存，避免每次压缩都新建连接池。
+        self._openai_client: Optional[OpenAI] = None
 
     def _initial_context(self) -> list:
         """构造初始上下文：system prompt + user query。"""
@@ -89,22 +94,29 @@ class ContextManager:
         ]
 
     async def load(self) -> list:
-        """从文件加载上下文；若文件不存在则初始化并保存。"""
+        """加载上下文；若文件不存在则初始化并保存。
+
+        首次读取后驻留实例缓存（本实例是该文件的唯一写者），
+        后续 load 不再触碰磁盘。
+        """
+        if self._context_cache is not None:
+            return self._context_cache
         if os.path.isfile(self.context_file):
             try:
                 with open(self.context_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    self._context_cache = json.load(f)
+                    return self._context_cache
             except json.JSONDecodeError as e:
                 # 文件损坏时回退到初始上下文，避免直接崩溃
                 print(f"[ContextManager] 上下文文件解析失败，已重置: {self.context_file}, 错误: {e}")
 
-        context = self._initial_context()
-        await self.replace(context)
-        return context
+        self._context_cache = self._initial_context()
+        await self.replace(self._context_cache)
+        return self._context_cache
 
     async def replace(self, context: list) -> None:
-        """全量替换上下文并持久化到文件。"""
-        os.makedirs(os.path.dirname(self.context_file), exist_ok=True)
+        """全量替换上下文并持久化到文件（同时刷新实例缓存）。"""
+        self._context_cache = context
         with open(self.context_file, 'w', encoding='utf-8') as f:
             json.dump(context, f, ensure_ascii=False, indent=4)
 
@@ -401,7 +413,9 @@ class ContextManager:
             "--- 梗概 ---"
         )
 
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        if self._openai_client is None:
+            self._openai_client = OpenAI(api_key=api_key, base_url=base_url)
+        client = self._openai_client
         response = client.chat.completions.create(
             model=model,
             messages=[

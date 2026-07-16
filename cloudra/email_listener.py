@@ -1,14 +1,14 @@
-import time
-import os
-import sys
-import logging
 import asyncio
 import json
+import logging
+import os
 import re
+import time
+
 from cloudra.config import get_config
-from cloudra.main import run_task
-from cloudra.conversation_class import Conversation
 from cloudra.context_manager import ContextManager
+from cloudra.conversation_class import Conversation
+from cloudra.main import run_task
 from cloudra.tools.Interactool.email_reader import EmailReader, EmailReader_input_schema
 
 # 设置静默日志：仅打印关键错误
@@ -26,7 +26,7 @@ class EmailListener:
     def __init__(self, interval: int = 60):
         self.interval = interval
         self.config = get_config().email
-        
+
         # 初始化读取器所需的 dummy agent
         from cloudra.agent import Coordinator
         # 避免监听器启动时产生冗余的 context 文件
@@ -40,13 +40,13 @@ class EmailListener:
             return
 
         print(f"[*] Cloudra 邮件唤醒监听中... (前缀: {WAKEUP_PREFIX})")
-        
+
         while True:
             try:
                 self._poll_once()
             except Exception as e:
                 logger.error(f"监听循环异常: {e}")
-            
+
             time.sleep(self.interval)
 
     def _get_last_conversation_id(self) -> str:
@@ -80,12 +80,12 @@ class EmailListener:
         # 仅读取 1 封最新的未读邮件
         # IMAP 的 _read_imap 方法在读取后会自动将邮件设为已读
         emails = self.reader._read_imap(self.config, EmailReader_input_schema(count=1, only_unread=True))
-        
+
         if not emails:
             return
 
         msg = emails[0]
-        
+
         # 白名单校验
         if self.config.whitelist:
             # 提取发件人邮箱 (处理 "Name <email@example.com>" 格式)
@@ -93,7 +93,7 @@ class EmailListener:
             match = re.search(r'<(.*)>', sender_email)
             if match:
                 sender_email = match.group(1)
-            
+
             if sender_email not in self.config.whitelist:
                 logger.warning(f"拦截到非法发件人的唤醒指令: {sender_email}")
                 return
@@ -112,7 +112,7 @@ class EmailListener:
 
         if query:
             print(f"\n[!] 唤醒指令触发: {query} (来自: {msg.sender})")
-            
+
             # 记录到日志
             logger.warning(f"触发任务: {query} | 来源: {msg.sender}")
 

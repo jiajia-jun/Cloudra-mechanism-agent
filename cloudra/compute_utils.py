@@ -1,12 +1,11 @@
 """计算任务相关的公共工具函数。"""
 
+import asyncio
 import os
 import shutil
-import sys
-import asyncio
 import subprocess
+import sys
 from pathlib import Path
-from typing import Optional
 
 # 各 job_type 所需的任一外部可执行程序（通过系统 PATH 查找）。
 _REQUIRED_BINS = {

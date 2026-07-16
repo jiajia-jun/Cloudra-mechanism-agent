@@ -1,10 +1,9 @@
-import subprocess
 import argparse
-import sys
-import json
 import asyncio
-import time
 import os
+import sys
+import time
+
 from cloudra.compute_utils import check_job_type, launch_compute_processes
 from cloudra.database import ConversationDB
 
@@ -28,7 +27,7 @@ async def run_compute(task_id: int, dbpath: str):
     async with db.aconnect() as con:
         cur = await con.execute("SELECT conversation_id, path, jobtype FROM compute_jobs WHERE id=?", (task_id,))
         row = await cur.fetchone()
-    
+
     data_dic = {'conversation_id': row[0], 'path': row[1], 'job_type': row[2]}
     workdir = os.path.dirname(data_dic['path'])
 

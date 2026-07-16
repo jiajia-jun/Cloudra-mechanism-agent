@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 import numpy as np
@@ -11,7 +11,7 @@ import openai
 from cloudra.agent import Agent
 from cloudra.case_bank import get_case_bank
 from cloudra.config import get_config
-from cloudra.database import ConversationDB, get_database_path
+from cloudra.database import ConversationDB, get_database_path, retry_on_locked
 from cloudra.log_class import Log
 from cloudra.session_class import Session
 from cloudra.supervisor import get_supervisor
@@ -110,6 +110,8 @@ class reAct:
         self.step_count = 0
         # 科学督导模块：默认每 5 轮审查一次方向
         self.supervisor = get_supervisor(interval=5)
+        # tool_call 反查表缓存：仅当真的出现空 name 时才惰性构建（见 _normalize_tool_calls）
+        self._tool_arg_maps = None
 
     def _should_use_supervisor(self) -> bool:
         """判断是否启用 Supervisor。
@@ -233,7 +235,7 @@ class reAct:
                     async with db.aconnect() as con:
                         await con.execute(
                             "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
-                            ('completed', content, datetime.now().isoformat(), self.session.id)
+                            ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id)
                         )
                         await con.commit()
                     # 任务结束前沉淀经验 case
@@ -252,7 +254,7 @@ class reAct:
                 async with db.aconnect() as con:
                     await con.execute(
                         "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
-                        ('completed', content, datetime.now().isoformat(), self.session.id),
+                        ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id),
                     )
                     await con.commit()
                 # 任务结束前沉淀经验 case
@@ -279,6 +281,7 @@ class reAct:
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n')
 
             reasoning_buffer = ""
+            self.log.begin_stream()
             try:
                 for chunk in response:
                     if not chunk.choices:
@@ -340,6 +343,8 @@ class reAct:
             except Exception as e:
                 self.log.update_content(new_content=f"{Color.RED}[reasoning步骤]未知的错误：{e}")
                 raise e
+            finally:
+                self.log.end_stream()
 
 
         else:
@@ -422,7 +427,18 @@ class reAct:
         if not tool_calls:
             return tool_calls
 
-        required_map, full_map = self._build_tool_arg_maps()
+        # 只有真的出现空 name 的 tool_call 时才需要反查表，
+        # 避免每个推理步骤都无条件重建全部工具的参数 schema。
+        def _has_empty_name(tc: dict) -> bool:
+            func = tc.get("function") or {}
+            return not (func.get("name") if isinstance(func, dict) else None)
+
+        if not any(_has_empty_name(tc) for tc in tool_calls):
+            return tool_calls
+
+        if self._tool_arg_maps is None:
+            self._tool_arg_maps = self._build_tool_arg_maps()
+        required_map, full_map = self._tool_arg_maps
 
         for tc in tool_calls:
             func = tc.get("function") or {}
@@ -658,18 +674,22 @@ class reAct:
         self._record_event("phase", {"phase": phase})
 
     def _record_event(self, event_type: str, data: dict) -> None:
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         db = ConversationDB.from_path(self.database_path)
-        with db.connect() as con:
-            con.execute(
-                "UPDATE session SET heartbeat_at=? WHERE session_id=?",
-                (now, self.session.id),
-            )
-            con.execute(
-                "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
-                (self.session.id, event_type, json.dumps(data, ensure_ascii=False), now),
-            )
-            con.commit()
+
+        def write_event() -> None:
+            with db.connect() as con:
+                con.execute(
+                    "UPDATE session SET heartbeat_at=? WHERE session_id=?",
+                    (now, self.session.id),
+                )
+                con.execute(
+                    "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
+                    (self.session.id, event_type, json.dumps(data, ensure_ascii=False), now),
+                )
+                con.commit()
+
+        retry_on_locked(write_event)
 
     def session_create(self, session_id: str = None) -> None:
         '''
@@ -695,51 +715,54 @@ class reAct:
 
         # 数据库为单一事实来源：创建即入库
         db = ConversationDB.from_path(self.database_path)
-        with db.connect() as con:
-            cur = con.cursor()
-            cur.execute(
-                """INSERT OR IGNORE INTO session
-                (session_id, agent_id, agent_type, parent_session_id, query, state, result, pid,
-                 worker_id, created_at, started_at, heartbeat_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    session_.id,
-                    getattr(self.agent, 'id', None),
-                    getattr(self.agent, 'type', None),
-                    self.parent_session_id,
-                    getattr(self.agent, 'query', ''),
-                    'running',
-                    '',
-                    os.getpid(),
-                    f'process:{os.getpid()}',
-                    session_.create_time.isoformat(),
-                    datetime.now().isoformat(),
-                    datetime.now().isoformat(),
-                ),
-            )
-            cur.execute(
-                """UPDATE session SET
-                agent_id = COALESCE(agent_id, ?),
-                agent_type = COALESCE(agent_type, ?),
-                parent_session_id = COALESCE(parent_session_id, ?),
-                query = COALESCE(query, ?),
-                state = 'running',
-                pid = ?,
-                worker_id = ?,
-                started_at = COALESCE(started_at, ?)
-                WHERE session_id = ?""",
-                (
-                    getattr(self.agent, 'id', None),
-                    getattr(self.agent, 'type', None),
-                    self.parent_session_id,
-                    getattr(self.agent, 'query', ''),
-                    os.getpid(),
-                    f'process:{os.getpid()}',
-                    datetime.now().isoformat(),
-                    session_.id,
-                ),
-            )
-            con.commit()
+
+        def create_session_record() -> None:
+            with db.connect() as con:
+                con.execute(
+                    """INSERT OR IGNORE INTO session
+                    (session_id, agent_id, agent_type, parent_session_id, query, state, result, pid,
+                     worker_id, created_at, started_at, heartbeat_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        session_.id,
+                        getattr(self.agent, 'id', None),
+                        getattr(self.agent, 'type', None),
+                        self.parent_session_id,
+                        getattr(self.agent, 'query', ''),
+                        'running',
+                        '',
+                        os.getpid(),
+                        f'process:{os.getpid()}',
+                        session_.create_time.isoformat(),
+                        datetime.now(timezone.utc).isoformat(),
+                        datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
+                con.execute(
+                    """UPDATE session SET
+                    agent_id = COALESCE(agent_id, ?),
+                    agent_type = COALESCE(agent_type, ?),
+                    parent_session_id = COALESCE(parent_session_id, ?),
+                    query = COALESCE(query, ?),
+                    state = 'running',
+                    pid = ?,
+                    worker_id = ?,
+                    started_at = COALESCE(started_at, ?)
+                    WHERE session_id = ?""",
+                    (
+                        getattr(self.agent, 'id', None),
+                        getattr(self.agent, 'type', None),
+                        self.parent_session_id,
+                        getattr(self.agent, 'query', ''),
+                        os.getpid(),
+                        f'process:{os.getpid()}',
+                        datetime.now(timezone.utc).isoformat(),
+                        session_.id,
+                    ),
+                )
+                con.commit()
+
+        retry_on_locked(create_session_record)
         return
 
     def kill(self):

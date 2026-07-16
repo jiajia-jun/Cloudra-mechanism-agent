@@ -1,6 +1,10 @@
-from pydantic import BaseModel  # FIX: 原拼写为 Basemodel，Pydantic v2 正确名为 BaseModel
 import os
+
 import frontmatter as frt
+
+# 模块级缓存：skills 目录内容在进程生命周期内不变，而 GetSkill 每个 LLM 步骤
+# 都会实例化 skill_loader，缓存可避免每步对所有 SKILL.md 做全量打开+解析
+_SKILL_DATAS_CACHE: dict[str, list[dict]] = {}
 
 # NOTE: Skills 模型仅作为 skill frontmatter 的字段参照，当前未被实例化使用。
 # 若后续需要校验 skill 元数据，可取消注释并补全默认值。
@@ -26,25 +30,28 @@ class skill_loader:
         self.md_pathlst = [os.path.join(path,'SKILL.md') for path in self.pathlst if os.path.isdir(path)]
 
     def skill_datas_get(self) -> list[dict]:
-        mds = self.md_pathlst
-        datas = []
-        for md in mds:
-            with open(md, 'r', encoding='utf-8') as f:
-                post = frt.load(f)
-                metadata = post.metadata
-                content = post.content
+        if self.base_path not in _SKILL_DATAS_CACHE:
+            mds = self.md_pathlst
+            datas = []
+            for md in mds:
+                with open(md, 'r', encoding='utf-8') as f:
+                    post = frt.load(f)
+                    metadata = post.metadata
+                    content = post.content
 
-                # FIX: dict.update() 返回 None，原代码把 None 当数据 append 了
-                # 这里直接修改 metadata dict 后 append（frontmatter 的 metadata 是普通 dict）
-                metadata['content'] = content
-                datas.append(metadata)
+                    # FIX: dict.update() 返回 None，原代码把 None 当数据 append 了
+                    # 这里直接修改 metadata dict 后 append（frontmatter 的 metadata 是普通 dict）
+                    metadata['content'] = content
+                    datas.append(metadata)
 
-        return datas
+            _SKILL_DATAS_CACHE[self.base_path] = datas
+
+        return _SKILL_DATAS_CACHE[self.base_path]
 
     def get_reference(self, skill_name, ref_name) -> str:
         # 支持多种可能的资料文件夹命名约定
         possible_dirs = ['references', 'reference', 'ref']
-        
+
         for dir_name in possible_dirs:
             ref_path = os.path.join(self.base_path, skill_name, dir_name, ref_name)
             if os.path.isfile(ref_path):

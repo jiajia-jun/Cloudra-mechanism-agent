@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import Field
 
 from cloudra.agent import Agent
-from cloudra.database import ConversationDB, get_database_path
+from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
 from cloudra.session_class import Session
 from cloudra.subagents import Subagent_hash
 from cloudra.tools_class import Tool, input_schema, output_schema
@@ -118,10 +118,12 @@ class SubAgentLauncher(Tool):
         # 每个子任务都应拿到一个独立、干净的 Agent 实例。
         sub_agent = copy.deepcopy(template_agent)
         sub_agent.temperature = 0.7
-        sub_agent.top_p = 1.0
+        # 不发送 top_p：k3 等严格端点只接受特定值（如 0.95），留 None 用服务商默认
+        sub_agent.top_p = None
         sub_agent.frequency_penalty = 0.0
         sub_agent.presence_penalty = 0.0
         sub_agent.query = query
+        sub_agent.working_directory = getattr(self.subagent, 'working_directory', None)
         # 保留父 Agent 的 conversation_id，使 _wait_for_subtasks 仍能按 conversation 聚合任务。
         # 真正的上下文隔离通过 session_id 在 ContextManager 中实现。
         conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
@@ -142,27 +144,30 @@ class SubAgentLauncher(Tool):
             'context': context,
             'conversation_id': conversation_id,
             'parent_session_id': parent_session_id,
+            'working_directory': sub_agent.working_directory,
         }
 
         if is_wait:
             # 同步模式：标记为 running 并直接启动子进程执行
-            async with db.aconnect() as con:
-                cur = await con.execute(
-                    "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                    ('running', json.dumps(base_payload), conversation_id)
-                )
-                task_id = cur.lastrowid
+            async def create_running_task():
+                async with db.aconnect() as con:
+                    cur = await con.execute(
+                        "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
+                        ('running', json.dumps(base_payload), conversation_id)
+                    )
+                    task_id = cur.lastrowid
+                    session_id = f"{sub_agent.id}_task{task_id}"
+                    payload = dict(base_payload, session_id=session_id)
+                    await con.execute(
+                        """UPDATE subagent_requests
+                        SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
+                        (json.dumps(payload), session_id, parent_session_id, task_id)
+                    )
+                    await con.commit()
+                    return task_id, session_id, payload
 
-                # 使用 task_id 生成统一的 session_id，确保 launcher 与 executor 看到的是同一个 session
-                session_id = f"{sub_agent.id}_task{task_id}"
-                sub_agent.session_id = session_id
-                base_payload['session_id'] = session_id
-                await con.execute(
-                    """UPDATE subagent_requests
-                    SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
-                    (json.dumps(base_payload), session_id, parent_session_id, task_id)
-                )
-                await con.commit()
+            task_id, session_id, base_payload = await aretry_on_locked(create_running_task)
+            sub_agent.session_id = session_id
 
             import asyncio
             import sys
@@ -201,21 +206,25 @@ class SubAgentLauncher(Tool):
                 result = f"Task completed, but no explicit result was found in database. Last output lines: {' | '.join(output_lines[-3:])}"
         else:
             # 异步模式：仅写入 ready，由 main.py 的后台线程 pickup
-            async with db.aconnect() as con:
-                cur = await con.execute(
-                    "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                    ('ready', json.dumps(base_payload), conversation_id)
-                )
-                task_id = cur.lastrowid
-                session_id = f"{sub_agent.id}_task{task_id}"
-                sub_agent.session_id = session_id
-                base_payload['session_id'] = session_id
-                await con.execute(
-                    """UPDATE subagent_requests
-                    SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
-                    (json.dumps(base_payload), session_id, parent_session_id, task_id)
-                )
-                await con.commit()
+            async def create_ready_task():
+                async with db.aconnect() as con:
+                    cur = await con.execute(
+                        "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
+                        ('ready', json.dumps(base_payload), conversation_id)
+                    )
+                    task_id = cur.lastrowid
+                    session_id = f"{sub_agent.id}_task{task_id}"
+                    payload = dict(base_payload, session_id=session_id)
+                    await con.execute(
+                        """UPDATE subagent_requests
+                        SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
+                        (json.dumps(payload), session_id, parent_session_id, task_id)
+                    )
+                    await con.commit()
+                    return task_id, session_id, payload
+
+            task_id, session_id, base_payload = await aretry_on_locked(create_ready_task)
+            sub_agent.session_id = session_id
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"
 
         return SubAgentLauncher_output_schema(
