@@ -17,7 +17,7 @@ import os
 from typing import Optional
 
 import numpy as np
-from openai import OpenAI
+from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from cloudra.config import get_config
@@ -98,24 +98,24 @@ class Supervisor:
         self._openai_client = None
         self._openai_client_custom = None
 
-    def _get_client(self, custom_headers: bool = False) -> OpenAI:
-        """返回缓存的 OpenAI 客户端（custom_headers 用于中转站 fallback）。"""
+    def _get_client(self, custom_headers: bool = False) -> AsyncOpenAI:
+        """返回缓存的 AsyncOpenAI 客户端（custom_headers 用于中转站 fallback）。"""
         if custom_headers:
             if self._openai_client_custom is None:
-                self._openai_client_custom = OpenAI(
+                self._openai_client_custom = AsyncOpenAI(
                     api_key=self.api_key,
                     base_url=self.base_url,
                     default_headers={"User-Agent": "curl/7.68.0"},
                 )
             return self._openai_client_custom
         if self._openai_client is None:
-            self._openai_client = OpenAI(
+            self._openai_client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
             )
         return self._openai_client
 
-    def _call_model(
+    async def _call_model(
         self,
         request_kwargs: dict,
         fallback_label: str = "Supervisor",
@@ -128,7 +128,7 @@ class Supervisor:
         """
         try:
             client = self._get_client()
-            return client.chat.completions.create(**request_kwargs)
+            return await client.chat.completions.create(**request_kwargs)
         except Exception as e:
             msg = str(e).lower()
             # 处理只支持 temperature=1 的模型
@@ -141,7 +141,7 @@ class Supervisor:
                 request_kwargs["temperature"] = 1.0
                 try:
                     client = self._get_client()
-                    return client.chat.completions.create(**request_kwargs)
+                    return await client.chat.completions.create(**request_kwargs)
                 except Exception as e2:
                     print(f"[{fallback_label}] temperature=1 重试失败: {e2}")
                     return None
@@ -150,7 +150,7 @@ class Supervisor:
                 print(f"\033[93m[LLM fallback] {fallback_label} 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
                 client2 = self._get_client(custom_headers=True)
                 try:
-                    return client2.chat.completions.create(**request_kwargs)
+                    return await client2.chat.completions.create(**request_kwargs)
                 except Exception as e2:
                     print(f"[{fallback_label}] Fallback 调用失败: {e2}")
                     return None
@@ -205,7 +205,7 @@ class Supervisor:
             summary = summary[: max_tokens * 4]
         return summary
 
-    def embed_text(self, text: str) -> np.ndarray:
+    async def embed_text(self, text: str) -> np.ndarray:
         """将文本编码为向量。
 
         默认使用 OpenAI embedding API。如果未配置，返回零向量（退化 gracefully）。
@@ -218,7 +218,7 @@ class Supervisor:
             client = self._get_client()
             # 注意：base_url 若指向 OpenAI 兼容服务，embedding 模型名可能不同
             # 这里使用 text-embedding-3-small 作为默认值
-            response = client.embeddings.create(
+            response = await client.embeddings.create(
                 model="text-embedding-3-small",
                 input=text[:8000],
             )
@@ -324,7 +324,7 @@ class Supervisor:
             SupervisorReview 对象。
         """
         timeline_summary = self.compress_timeline(messages)
-        query_vec = self.embed_text(timeline_summary)
+        query_vec = await self.embed_text(timeline_summary)
         relevant_cases = self.retrieve_relevant_cases(
             query_vec,
             cases or [],
@@ -343,7 +343,7 @@ class Supervisor:
             max_tokens=1024,
             response_format={"type": "json_object"},
         )
-        response = self._call_model(request_kwargs, fallback_label="Supervisor")
+        response = await self._call_model(request_kwargs, fallback_label="Supervisor")
         if response is None:
             return SupervisorReview(verdict="proceed", reasoning="Supervisor 调用失败，默认继续执行。")
 
@@ -399,7 +399,7 @@ class Supervisor:
             max_tokens=1024,
             response_format={"type": "json_object"},
         )
-        response = self._call_model(request_kwargs, fallback_label="Supervisor(extract)")
+        response = await self._call_model(request_kwargs, fallback_label="Supervisor(extract)")
         if response is None:
             return self._fallback_case_data(timeline_summary, "Supervisor(extract) 调用失败")
 

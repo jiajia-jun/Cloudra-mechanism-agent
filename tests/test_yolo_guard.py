@@ -1,5 +1,5 @@
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -107,7 +107,7 @@ class TestYoloGuardJudge:
         mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create.return_value = mock_response
+            mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
                 "text_reader",
                 {"path": "/data.txt"},
@@ -135,7 +135,7 @@ class TestYoloGuardJudge:
         mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create.return_value = mock_response
+            mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
                 "bashtools",
                 {"command": "rm -rf /"},
@@ -160,7 +160,7 @@ class TestYoloGuardJudge:
         mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create.return_value = mock_response
+            mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
                 "text_writer",
                 {"path": "/x.txt", "content": "hello"},

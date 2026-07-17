@@ -138,6 +138,9 @@ class SubAgentLauncher(Tool):
 
         # 先插入记录以获取 task_id，再生成 session_id 并更新 payload。
         # session_id 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
+        # yolo 标志随 payload 落库：子 Agent 子进程启动时据此注入 CLOUDRA_YOLO_MODE，
+        # 使 Session 级 YOLO 能跨进程传播（CLI 进程级 env 则天然继承）。
+        from cloudra.yolo_guard import is_yolo_enabled
         base_payload = {
             'agent_id': agent_id,
             'query': query,
@@ -145,6 +148,7 @@ class SubAgentLauncher(Tool):
             'conversation_id': conversation_id,
             'parent_session_id': parent_session_id,
             'working_directory': sub_agent.working_directory,
+            'yolo': is_yolo_enabled(),
         }
 
         if is_wait:
@@ -172,12 +176,16 @@ class SubAgentLauncher(Tool):
             import asyncio
             import sys
 
-            # 启动并等待子进程结束
+            # 启动并等待子进程结束；Session 级 YOLO 通过 env 显式传给子进程
             print(f"\n[系统] 正在同步执行子任务 (Task ID: {task_id})... 请稍候。")
+            child_env = dict(os.environ)
+            if base_payload.get('yolo'):
+                child_env["CLOUDRA_YOLO_MODE"] = "true"
             process = await asyncio.create_subprocess_exec(
                 sys.executable, '-m', 'cloudra.executor', '--task_id', str(task_id), '--db', db_path, '--session_id', session_id,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT
+                stderr=asyncio.subprocess.STDOUT,
+                env=child_env
             )
 
             # 实时将子进程输出打印到控制台（带上前缀）
@@ -196,9 +204,12 @@ class SubAgentLauncher(Tool):
 
             # 核心改进：从数据库中获取真实的 result 字段，而不是抓取 stdout 的最后一行
             # 这样可以确保哪怕结论很长，Coordinator 也能完整看到
-            async with db.aconnect() as con:
-                cur = await con.execute("SELECT result FROM session WHERE session_id = ?", (session_id,))
-                row = await cur.fetchone()
+            async def fetch_result():
+                async with db.aconnect() as con:
+                    cur = await con.execute("SELECT result FROM session WHERE session_id = ?", (session_id,))
+                    return await cur.fetchone()
+
+            row = await aretry_on_locked(fetch_result)
 
             if row and row[0]:
                 result = row[0]

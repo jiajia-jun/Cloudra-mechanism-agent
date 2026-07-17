@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -126,13 +127,17 @@ def checking_task(database_path: str, stop_event: threading.Event = None):
                     template_agent = getattr(agent_hash, agent_id, None)
                     agent_name = template_agent.name if template_agent else "Unknown"
 
-                    # 启动子进程
+                    # 启动子进程；Session 级 YOLO 通过 env 显式传给子进程
+                    child_env = dict(os.environ)
+                    if input_instance.get('yolo'):
+                        child_env["CLOUDRA_YOLO_MODE"] = "true"
                     process = subprocess.Popen(
                         [sys.executable, '-m', 'cloudra.executor', '--task_id', str(request_id), '--db', database_path],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
                         text=True,
-                        bufsize=1
+                        bufsize=1,
+                        env=child_env
                     )
 
                     # ISSUE 3 Fix: 等待一小会儿，检查进程是否瞬间崩溃

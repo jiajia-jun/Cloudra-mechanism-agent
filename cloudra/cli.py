@@ -198,18 +198,9 @@ def config_show():
 
 
 def _resolve_config_attr(cfg, key: str):
-    """Resolve a dot-path like 'llm.coordinator.model' against a Pydantic model."""
-    parts = key.split(".")
-    target = cfg
-    for part in parts[:-1]:
-        if hasattr(target, part):
-            target = getattr(target, part)
-        else:
-            return None, None
-    final_key = parts[-1]
-    if not hasattr(target, final_key):
-        return None, None
-    return target, final_key
+    """Backward-compatible alias; 实现已下沉到 cloudra.config 供 API 复用。"""
+    from cloudra.config import resolve_config_attr
+    return resolve_config_attr(cfg, key)
 
 
 @config_cmd.command(name="get")
@@ -242,19 +233,13 @@ def config_get(key):
 @click.argument("value")
 def config_set(key, value):
     """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
-    cfg = get_config()
+    from cloudra.config import set_config_value
 
-    target, final_key = _resolve_config_attr(cfg, key)
-    if target is None:
-        target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
-    if target is None:
-        target, final_key = _resolve_config_attr(cfg, f"follower.{key}")
-    if target is None:
-        console.print(f"[red]配置项不存在: {key}[/red]")
+    try:
+        set_config_value(key, value)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
         sys.exit(1)
-
-    setattr(target, final_key, value)
-    cfg.save()
     console.print(f"[green]已设置 {key} = {value}[/green]")
 
 

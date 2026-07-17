@@ -14,10 +14,10 @@ import os
 import time
 from typing import Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from cloudra.config import get_config
-from cloudra.database import ConversationDB, get_database_path
+from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
 from cloudra.token_estimator import TokenEstimator
 
 # 本地图片扩展名到 MIME 类型的映射
@@ -414,9 +414,9 @@ class ContextManager:
         )
 
         if self._openai_client is None:
-            self._openai_client = OpenAI(api_key=api_key, base_url=base_url)
+            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         client = self._openai_client
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": "你是一个专门压缩对话历史的助手。"},
@@ -524,55 +524,72 @@ class ContextManager:
         path = db_path or _db_path(conversation_id)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         db = ConversationDB.from_path(path)
-        async with db.aconnect() as con:
-            await con.execute(
-                """
-                INSERT INTO context_events (conversation_id, agent_id, event_type, content, state, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (conversation_id, agent_id, event_type, content, 'pending', time.time())
-            )
-            await con.commit()
 
-    async def poll_external_events(self) -> list[dict]:
-        """轮询属于本 agent 的 pending 外部事件，标记为 delivered 后返回。"""
-        events = []
-        db = ConversationDB.from_path(self.db_path)
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                """
-                SELECT id, event_type, content FROM context_events
-                WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
-                ORDER BY created_at ASC
-                """,
-                (self.conversation_id, self.agent_id)
-            )
-            rows = await cur.fetchall()
-            if rows:
-                event_ids = [r[0] for r in rows]
+        async def insert_event() -> None:
+            async with db.aconnect() as con:
                 await con.execute(
-                    "UPDATE context_events SET state = 'delivered' WHERE id IN ({})".format(
-                        ','.join('?' * len(event_ids))
-                    ),
-                    event_ids
+                    """
+                    INSERT INTO context_events (conversation_id, agent_id, event_type, content, state, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (conversation_id, agent_id, event_type, content, 'pending', time.time())
                 )
                 await con.commit()
-                events = [
-                    {"id": r[0], "event_type": r[1], "content": r[2]}
-                    for r in rows
-                ]
+
+        await aretry_on_locked(insert_event)
+
+    async def poll_external_events(self) -> list[dict]:
+        """轮询属于本 agent 的 pending 外部事件，标记为 delivered 后返回。
+
+        加锁重试：多进程并发时写锁竞争是常态，轮询路径不能一次失败就炸掉主流程。
+        """
+        events = []
+        db = ConversationDB.from_path(self.db_path)
+
+        async def poll() -> list[dict]:
+            found = []
+            async with db.aconnect() as con:
+                cur = await con.execute(
+                    """
+                    SELECT id, event_type, content FROM context_events
+                    WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
+                    ORDER BY created_at ASC
+                    """,
+                    (self.conversation_id, self.agent_id)
+                )
+                rows = await cur.fetchall()
+                if rows:
+                    event_ids = [r[0] for r in rows]
+                    await con.execute(
+                        "UPDATE context_events SET state = 'delivered' WHERE id IN ({})".format(
+                            ','.join('?' * len(event_ids))
+                        ),
+                        event_ids
+                    )
+                    await con.commit()
+                    found = [
+                        {"id": r[0], "event_type": r[1], "content": r[2]}
+                        for r in rows
+                    ]
+            return found
+
+        events = await aretry_on_locked(poll)
         return events
 
     async def has_pending_events(self) -> bool:
         """检查是否有待处理的外部事件。"""
         db = ConversationDB.from_path(self.db_path)
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                """
-                SELECT COUNT(*) FROM context_events
-                WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
-                """,
-                (self.conversation_id, self.agent_id)
-            )
-            row = await cur.fetchone()
-            return row[0] > 0 if row else False
+
+        async def count_pending() -> bool:
+            async with db.aconnect() as con:
+                cur = await con.execute(
+                    """
+                    SELECT COUNT(*) FROM context_events
+                    WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
+                    """,
+                    (self.conversation_id, self.agent_id)
+                )
+                row = await cur.fetchone()
+                return row[0] > 0 if row else False
+
+        return await aretry_on_locked(count_pending)

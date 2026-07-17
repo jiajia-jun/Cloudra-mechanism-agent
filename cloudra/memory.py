@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from cloudra.config import get_config
 
@@ -78,7 +78,7 @@ class MemoryManager:
         en_words = len(re.findall(r"[a-zA-Z0-9]+", text))
         return cn_chars + en_words
 
-    def append_lesson(
+    async def append_lesson(
         self,
         lesson: str,
         source: str = "",
@@ -116,18 +116,18 @@ class MemoryManager:
 
         word_count = self._count_words(current_text)
         if word_count > self.word_limit:
-            self._compress_memory()
+            await self._compress_memory()
             return f"已记录经验并触发记忆压缩（原字数 {word_count}）。"
 
         return f"已记录经验（当前记忆字数 {word_count}）。"
 
-    def _compress_memory(self) -> None:
+    async def _compress_memory(self) -> None:
         """当记忆超过字数上限时，调用 LLM 压缩为核心原则。"""
         current_text = self.load()
         if not current_text.strip():
             return
 
-        compressed = self._llm_compress(current_text)
+        compressed = await self._llm_compress(current_text)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         new_content = (
@@ -149,7 +149,7 @@ class MemoryManager:
             f"[MemoryManager] MEMORY.md 已自动压缩并归档到 {archive_path}"
         )
 
-    def _llm_compress(self, text: str) -> str:
+    async def _llm_compress(self, text: str) -> str:
         """调用 FOLLOWER 配置的大模型把记忆压缩成核心原则。"""
         cfg = get_config().follower
         model = cfg.model
@@ -171,9 +171,9 @@ class MemoryManager:
 
         try:
             if self._openai_client is None:
-                self._openai_client = OpenAI(api_key=api_key, base_url=base_url)
+                self._openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
             client = self._openai_client
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": "你是一个专门整理科研助手长期记忆的助手。"},

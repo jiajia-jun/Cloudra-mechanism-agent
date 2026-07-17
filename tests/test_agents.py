@@ -32,3 +32,9 @@ def test_agent_available_tools():
     assert 'bashtools' in tool_names
     # 假设 molecule_drawer 是 destructive，explorer 不该有
     # assert 'molecule_drawer' not in tool_names
+
+
+def test_follower_streams_by_default():
+    """Follower（子 Agent）默认开启流式，前端才能收到各 session 的 llm_chunk。"""
+    from cloudra.subagents.explorer import explorer
+    assert explorer(query="test", conversation_id="test").is_stream is True

@@ -57,7 +57,7 @@ class UpdateMemory(Tool):
         conv_id = getattr(self.subagent, 'conversation_id', None) if self.subagent else None
         manager = get_memory_manager(conversation_id=conv_id)
 
-        result = manager.append_lesson(
+        result = await manager.append_lesson(
             lesson=user_input.lesson,
             source=user_input.source,
             skill_name=user_input.skill_name,

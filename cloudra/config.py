@@ -220,6 +220,72 @@ class CloudraConfig(BaseSettings):
         }
 
 
+def resolve_config_attr(cfg: CloudraConfig, key: str):
+    """Resolve a dot-path like 'llm.coordinator.model' against a Pydantic model.
+
+    Returns (target, final_key) or (None, None) when the path does not exist.
+    """
+    parts = key.split(".")
+    target = cfg
+    for part in parts[:-1]:
+        if hasattr(target, part):
+            target = getattr(target, part)
+        else:
+            return None, None
+    final_key = parts[-1]
+    if not hasattr(target, final_key):
+        return None, None
+    return target, final_key
+
+
+def _coerce_value(current, value: str):
+    """按配置项当前值的类型把字符串输入转为对应类型。"""
+    if isinstance(current, bool):
+        lowered = value.strip().lower()
+        if lowered in ("1", "true", "yes", "on"):
+            return True
+        if lowered in ("0", "false", "no", "off"):
+            return False
+        raise ValueError(f"布尔配置项只接受 true/false/1/0/yes/no/on/off，收到: {value}")
+    if isinstance(current, int):
+        try:
+            return int(value.strip())
+        except ValueError:
+            raise ValueError(f"整数配置项收到非法值: {value}") from None
+    if isinstance(current, list):
+        stripped = value.strip()
+        if stripped.startswith("["):
+            import json
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"列表配置项 JSON 解析失败: {exc}") from None
+            if not isinstance(parsed, list):
+                raise ValueError("列表配置项需要 JSON 数组或逗号分隔字符串")
+            return parsed
+        return [item.strip() for item in stripped.split(",") if item.strip()]
+    if isinstance(current, Path):
+        return Path(value).expanduser()
+    return value
+
+
+def set_config_value(key: str, value: str) -> None:
+    """设置单个配置项并保存。未知配置项或非法值抛出 ValueError。
+
+    解析顺序与 CLI 一致：原样路径 → coordinator.<key> → follower.<key>。
+    """
+    cfg = get_config()
+    target, final_key = resolve_config_attr(cfg, key)
+    if target is None:
+        target, final_key = resolve_config_attr(cfg, f"coordinator.{key}")
+    if target is None:
+        target, final_key = resolve_config_attr(cfg, f"follower.{key}")
+    if target is None:
+        raise ValueError(f"配置项不存在: {key}")
+    setattr(target, final_key, _coerce_value(getattr(target, final_key), value))
+    cfg.save()
+
+
 # Global config instance (lazy singleton pattern)
 _config: Optional[CloudraConfig] = None
 

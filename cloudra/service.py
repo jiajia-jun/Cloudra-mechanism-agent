@@ -9,6 +9,7 @@ import re
 import shutil
 import signal
 import sqlite3
+import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -72,7 +73,11 @@ class SessionRunner:
         self.worker_id = f"api:{os.getpid()}:{uuid.uuid4().hex[:8]}"
 
     def submit(
-        self, query: str, conversation_id: str, working_directory: str | None = None
+        self,
+        query: str,
+        conversation_id: str,
+        working_directory: str | None = None,
+        yolo: bool = False,
     ) -> SessionRecord:
         session_id = f"a-0_run_{uuid.uuid4().hex}"
         now = datetime.now(timezone.utc).isoformat()
@@ -85,9 +90,9 @@ class SessionRunner:
                 (session_id, "a-0", "coordinator", query, "queued", now),
             )
             conn.commit()
-        self._emit(conversation_id, session_id, "queued", {"query": query})
+        self._emit(conversation_id, session_id, "queued", {"query": query, "yolo": yolo})
         task = asyncio.create_task(
-            self._execute(query, conversation_id, session_id, working_directory)
+            self._execute(query, conversation_id, session_id, working_directory, yolo)
         )
         self._running[(conversation_id, session_id)] = task
         return self.get(conversation_id, session_id)
@@ -98,7 +103,11 @@ class SessionRunner:
         conversation_id: str,
         session_id: str,
         working_directory: str | None = None,
+        yolo: bool = False,
     ) -> None:
+        # Session 级 YOLO 开关：只作用于本会话任务及其派生协程
+        from cloudra.yolo_guard import set_session_yolo
+        set_session_yolo(yolo)
         now = datetime.now(timezone.utc).isoformat()
         if not self._claim(conversation_id, session_id, now):
             return
@@ -294,41 +303,64 @@ class SessionRunner:
             ).fetchall()
         return [SessionRecord(*row) for row in rows]
 
-    def cancel(self, conversation_id: str, session_id: str) -> SessionRecord | None:
+    async def cancel(self, conversation_id: str, session_id: str) -> SessionRecord | None:
+        """请求打断 Session：先置 cancel_requested 让 Agent 自行退出，子进程超时再 SIGTERM。"""
         record = self.get(conversation_id, session_id)
         if record is None:
             return None
+        if record.state in ("queued", "running"):
+            # Agent 会在循环边界（reAct.run）和流式期间（cancel watcher）检查该状态
+            self._update(conversation_id, session_id, state="cancel_requested")
+            self._emit(conversation_id, session_id, "cancel_requested", {})
         task = self._running.get((conversation_id, session_id))
         if task and not task.done():
+            # API 进程内协程任务：取消协程，CancelledError 路径会落 cancelled
             task.cancel()
-        elif record.state == "running" and record.pid and record.agent_type != "coordinator":
-            try:
-                os.kill(record.pid, signal.SIGTERM)
-                self._update(conversation_id, session_id, state="cancelled")
-                self._emit(conversation_id, session_id, "cancelled", {"signal": "SIGTERM"})
-            except (ProcessLookupError, PermissionError):
-                self._update(conversation_id, session_id, state="interrupted")
+        elif record.pid and record.state in ("queued", "running", "cancel_requested"):
+            # 子进程任务：给 3 秒宽限期让 cancel_requested 生效，未退出再 SIGTERM
+            deadline = time.monotonic() + 3.0
+            while time.monotonic() < deadline:
+                current = self.get(conversation_id, session_id)
+                if current is None or current.state in (
+                    "completed", "failed", "cancelled", "interrupted", "killed"
+                ):
+                    break
+                await asyncio.sleep(0.3)
+            current = self.get(conversation_id, session_id)
+            if current is not None and current.state == "cancel_requested":
+                try:
+                    os.kill(record.pid, signal.SIGTERM)
+                    # executor 的 SIGTERM 处理器会自行落 cancelled，这里不重复写
+                except (ProcessLookupError, PermissionError):
+                    self._update(conversation_id, session_id, state="interrupted")
         self._cancel_descendants(conversation_id, session_id)
-        return record
+        return self.get(conversation_id, session_id)
 
     def _cancel_descendants(self, conversation_id: str, parent_session_id: str) -> None:
-        """取消父 Session 派生的子 Agent 请求、子 Session 和计算任务。"""
+        """级联打断父 Session 派生的子 Agent 请求、子 Session 和计算任务。"""
         db = ConversationDB(conversation_id)
         with db.connect() as conn:
             children = conn.execute(
                 """SELECT session_id, pid FROM session
-                WHERE parent_session_id=? AND state IN ('queued', 'running')""",
+                WHERE parent_session_id=? AND state IN ('queued', 'running', 'cancel_requested')""",
                 (parent_session_id,),
             ).fetchall()
             for child_id, pid in children:
+                # 先置 cancel_requested，给子进程自行退出的机会
+                conn.execute(
+                    """UPDATE session SET state='cancel_requested'
+                    WHERE session_id=? AND state IN ('queued', 'running')""",
+                    (child_id,),
+                )
                 if pid and pid != os.getpid():
                     try:
+                        # executor 安装了 SIGTERM 处理器，会自行落 cancelled
                         os.kill(pid, signal.SIGTERM)
                     except (ProcessLookupError, PermissionError):
                         pass
                 conn.execute(
                     """UPDATE session SET state='cancelled', finished_at=?
-                    WHERE session_id=?""",
+                    WHERE session_id=? AND state NOT IN ('cancelled', 'failed', 'completed')""",
                     (datetime.now(timezone.utc).isoformat(), child_id),
                 )
             conn.execute(
@@ -383,13 +415,14 @@ class CloudraService:
         query: str,
         conversation_id: str | None = None,
         working_directory: str | None = None,
+        yolo: bool = False,
     ) -> tuple[str, SessionRecord]:
         if conversation_id is None:
             conversation_id = self.create_conversation().id
         else:
             validate_conversation_id(conversation_id)
         return conversation_id, self.session_runner.submit(
-            query, conversation_id, working_directory
+            query, conversation_id, working_directory, yolo
         )
 
     def list_conversations(self) -> list[dict]:

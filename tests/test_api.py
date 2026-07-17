@@ -29,7 +29,7 @@ class FakeService:
     def create_conversation(self):
         return type("Conversation", (), {"id": "conv_1", "state": "active"})()
 
-    def submit_session(self, query, conversation_id=None):
+    def submit_session(self, query, conversation_id=None, working_directory=None, yolo=False):
         return conversation_id, _Record()
 
     def list_conversations(self):

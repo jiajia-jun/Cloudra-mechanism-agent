@@ -19,15 +19,22 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from cloudra import __version__
-from cloudra.config import get_config
+from cloudra.config import get_config, set_config_value
 from cloudra.database import ConversationDB
-from cloudra.service import CloudraService
+from cloudra.service import CloudraService, validate_conversation_id
 from cloudra.skill_class import skill_loader
 
 
 class SessionCreate(BaseModel):
     query: str = Field(min_length=1, max_length=20_000)
     working_directory: str | None = Field(default=None, max_length=4_096)
+    # 按 Session 启用 YOLO 全自动审批（等价 CLI 的 --yolo，但只作用于本会话）
+    yolo: bool = False
+
+
+class ConfigSet(BaseModel):
+    key: str = Field(min_length=1, max_length=100)
+    value: str = Field(default="", max_length=4_096)
 
 
 def _validate_working_directory(value: str | None) -> str | None:
@@ -120,12 +127,13 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         try:
             working_directory = _validate_working_directory(request.working_directory)
             if working_directory is None:
-                _, record = service.submit_session(request.query, conversation_id)
+                _, record = service.submit_session(request.query, conversation_id, yolo=request.yolo)
             else:
                 _, record = service.submit_session(
                     request.query,
                     conversation_id,
                     working_directory=working_directory,
+                    yolo=request.yolo,
                 )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -202,7 +210,7 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     async def cancel_session(conversation_id: str, session_id: str) -> dict:
         try:
-            record = service.session_runner.cancel(conversation_id, session_id)
+            record = await service.session_runner.cancel(conversation_id, session_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if record is None:
@@ -256,6 +264,68 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     @app.get("/api/skills", dependencies=protected)
     async def get_skills():
         return skill_loader().skill_datas_get()
+
+    @app.get("/api/config", dependencies=protected)
+    async def get_config_display() -> dict:
+        """当前生效配置（敏感字段脱敏），等价 `cloudra config show`。"""
+        return get_config().to_display_dict()
+
+    @app.post("/api/config/set", dependencies=protected)
+    async def set_config(request: ConfigSet) -> dict:
+        """设置单个配置项，等价 `cloudra config set <key> <value>`。"""
+        try:
+            set_config_value(request.key, request.value)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return get_config().to_display_dict()
+
+    _LOG_CONTENT_CAP = 256 * 1024
+
+    @app.get("/api/conversations/{conversation_id}/logs", dependencies=protected)
+    async def get_conversation_logs(conversation_id: str) -> list[dict]:
+        """读取对话日志目录下的所有日志文件，等价 `cloudra logs <conv_id>`。"""
+        try:
+            validate_conversation_id(conversation_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        log_dir = Path(get_config().data_dir) / "conversations" / conversation_id / "logs"
+        if not log_dir.is_dir():
+            return []
+        results = []
+        for entry in sorted(log_dir.iterdir()):
+            if not entry.is_file():
+                continue
+            try:
+                raw = entry.read_bytes()[: _LOG_CONTENT_CAP + 1]
+                truncated = len(raw) > _LOG_CONTENT_CAP
+                results.append({
+                    "name": entry.name,
+                    "size": entry.stat().st_size,
+                    "content": raw[:_LOG_CONTENT_CAP].decode("utf-8", errors="replace"),
+                    "truncated": truncated,
+                })
+            except OSError:
+                continue
+        return results
+
+    @app.get("/api/sessions", dependencies=protected)
+    async def list_all_sessions(state: str | None = None) -> list[dict]:
+        """跨会话聚合所有 Session，替代 CLI `sessions` 读取的遗留全局表。"""
+        rows = []
+        for conversation in service.list_conversations():
+            conversation_id = conversation.get("id", "")
+            try:
+                validate_conversation_id(conversation_id)
+            except ValueError:
+                continue
+            for record in service.session_runner.list(conversation_id):
+                row = record.to_dict()
+                row["conversation_id"] = conversation_id
+                rows.append(row)
+        if state:
+            rows = [row for row in rows if row["state"] == state]
+        rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
+        return rows[:100]
 
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
     if frontend_dir.is_dir():

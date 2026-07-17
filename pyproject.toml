@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloudra"
-version = "1.7.1"
+version = "1.8.0"
 description = "面向化学科研的 AI Agent 协作框架"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -60,6 +60,11 @@ Homepage = "https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists"
 where = ["."]
 include = ["cloudra*"]
 exclude = ["tests*", "test_*"]
+
+# 运行时必需的非 Python 资源：prompts、技能文档、计算脚本。
+# 缺失时 pip 安装的包会在 _load_prompt / skill_loader 处报 FileNotFoundError。
+[tool.setuptools.package-data]
+cloudra = ["prompts/*.md", "skills/**/*", "calculator.sh"]
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"

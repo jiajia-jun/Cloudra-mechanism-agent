@@ -2,15 +2,19 @@
 
 当环境变量 ``CLOUDRA_YOLO_MODE=true`` 时，不再通过数据库等待用户审批，
 而是调用一个独立的 LLM Agent 自动判断危险操作是否合理。
+
+除进程级环境变量外，也支持按 Session 启用：API 服务在会话任务内通过
+``set_session_yolo`` 设置 contextvar，只对当前会话生效，互不影响。
 """
 
+import contextvars
 import json
 import os
 import re
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from cloudra.config import get_config
 
@@ -27,8 +31,22 @@ def _load_prompt(name: str) -> str:
 YOLO_SYSTEM_PROMPT = _load_prompt("yolo_guard")
 
 
+# 按 Session 的 YOLO 开关：asyncio task 内设置后只影响该任务及其派生的协程，
+# 进程内并发的其他会话不受影响。缺省回落到进程级环境变量（CLI 路径）。
+_SESSION_YOLO: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "cloudra_session_yolo", default=False
+)
+
+
+def set_session_yolo(enabled: bool) -> contextvars.Token:
+    """为当前异步上下文启用/关闭 Session 级 YOLO，返回可复位的 token。"""
+    return _SESSION_YOLO.set(enabled)
+
+
 def is_yolo_enabled() -> bool:
-    """检查当前是否启用了 YOLO 全自动模式。"""
+    """检查当前是否启用了 YOLO 全自动模式（Session 级优先，回落环境变量）。"""
+    if _SESSION_YOLO.get():
+        return True
     return os.environ.get("CLOUDRA_YOLO_MODE", "").lower() in ("1", "true", "yes", "on")
 
 
@@ -106,13 +124,13 @@ class YoloGuard:
         self.base_url = cfg.url
         self.api_key = cfg.key
 
-    def _client(self) -> OpenAI:
+    def _client(self) -> AsyncOpenAI:
         if not self.model or not self.base_url or not self.api_key:
             raise RuntimeError(
                 "YOLO 模式需要 Follower LLM 配置（model / url / key）。"
                 "请运行 `cloudra config init` 进行配置。"
             )
-        return OpenAI(api_key=self.api_key, base_url=self.base_url)
+        return AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def judge(
         self,
@@ -175,7 +193,7 @@ class YoloGuard:
         )
 
         try:
-            response = client.chat.completions.create(**request_kwargs)
+            response = await client.chat.completions.create(**request_kwargs)
         except Exception as e:
             msg = str(e).lower()
             # 处理只支持 temperature=1 的 reasoning 模型
@@ -187,18 +205,18 @@ class YoloGuard:
                 request_kwargs = dict(request_kwargs)
                 request_kwargs["temperature"] = 1.0
                 try:
-                    response = client.chat.completions.create(**request_kwargs)
+                    response = await client.chat.completions.create(**request_kwargs)
                 except Exception as e2:
                     return False, f"YOLO temperature=1 重试失败: {e2}"
             elif any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
                 print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = OpenAI(
+                client2 = AsyncOpenAI(
                     api_key=self.api_key,
                     base_url=self.base_url,
                     default_headers={"User-Agent": "curl/7.68.0"}
                 )
                 try:
-                    response = client2.chat.completions.create(**request_kwargs)
+                    response = await client2.chat.completions.create(**request_kwargs)
                 except Exception as e2:
                     return False, f"YOLO fallback 网络异常: {e2}"
             else:

@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -24,7 +24,7 @@ def memory_manager(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 class TestMemoryManager:
     async def test_append_lesson_creates_file(self, memory_manager):
-        result = memory_manager.append_lesson("测试经验", source="test", skill_name="dft")
+        result = await memory_manager.append_lesson("测试经验", source="test", skill_name="dft")
         assert "已记录经验" in result
         assert memory_manager.memory_path.exists()
         content = memory_manager.load()
@@ -39,10 +39,10 @@ class TestMemoryManager:
 
     async def test_compression_triggered(self, memory_manager):
         # 触发压缩：写入超过 50 字的内容
-        with patch.object(memory_manager, "_llm_compress", return_value="压缩后的核心原则。"):
-            memory_manager.append_lesson("这是一条非常长的经验教训，" * 10, source="test")
+        with patch.object(memory_manager, "_llm_compress", new=AsyncMock(return_value="压缩后的核心原则。")):
+            await memory_manager.append_lesson("这是一条非常长的经验教训，" * 10, source="test")
             # 再次追加确保超过阈值
-            result = memory_manager.append_lesson("另一条非常长的经验教训，" * 10, source="test")
+            result = await memory_manager.append_lesson("另一条非常长的经验教训，" * 10, source="test")
             assert "触发记忆压缩" in result
             # 归档文件应存在
             assert memory_manager.memory_path.with_suffix(".archive.md").exists()
@@ -234,7 +234,7 @@ class TestCoordinatorMemoryLoading:
         # 预写入记忆
         manager = MemoryManager(conversation_id="test-conv")
         manager.memory_path = tmp_path / "memory" / "MEMORY.md"
-        manager.append_lesson("VASP 磁性体系必须设置 ISPIN=2。", source="test")
+        await manager.append_lesson("VASP 磁性体系必须设置 ISPIN=2。", source="test")
 
         agent = Coordinator(query="test", conversation_id="test-conv")
         assert "长期记忆" in agent.prompt
@@ -254,8 +254,8 @@ class TestMemoryCompressionFallback:
 
         manager = MemoryManager(word_limit=30, compressed_word_limit=20)
         # 写入多条经验，触发压缩；此时 LLM 未配置，会走 fallback
-        manager.append_lesson("经验 A：检查基组。" * 5, source="test")
-        manager.append_lesson("经验 B：检查泛函。" * 5, source="test")
+        await manager.append_lesson("经验 A：检查基组。" * 5, source="test")
+        await manager.append_lesson("经验 B：检查泛函。" * 5, source="test")
 
         content = manager.load()
         assert content != ""

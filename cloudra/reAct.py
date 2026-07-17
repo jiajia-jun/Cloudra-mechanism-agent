@@ -11,7 +11,7 @@ import openai
 from cloudra.agent import Agent
 from cloudra.case_bank import get_case_bank
 from cloudra.config import get_config
-from cloudra.database import ConversationDB, get_database_path, retry_on_locked
+from cloudra.database import ConversationDB, aretry_on_locked, get_database_path, retry_on_locked
 from cloudra.log_class import Log
 from cloudra.session_class import Session
 from cloudra.supervisor import get_supervisor
@@ -52,6 +52,75 @@ def dynamic_deep_merge(buffer_dict: dict, delta_dict: dict) -> dict:
             buffer_dict[key] = value
 
     return buffer_dict
+
+
+class AgentCancelled(Exception):
+    """用户请求打断（cancel_requested）时由 Agent 主动抛出。
+
+    executor 捕获后把任务标记为 cancelled 而非 failed。
+    """
+
+
+_STREAM_SENTINEL = object()
+
+
+async def _aiter_chunks(response):
+    """统一异步迭代 LLM chunk。
+
+    AsyncStream（AsyncOpenAI）直接 async 迭代；requests fallback 返回的
+    同步生成器用线程拉取 next()，避免网络阻塞冻结事件循环。
+    """
+    if hasattr(response, "__aiter__"):
+        async for chunk in response:
+            yield chunk
+        return
+    iterator = iter(response)
+    while True:
+        chunk = await asyncio.to_thread(next, iterator, _STREAM_SENTINEL)
+        if chunk is _STREAM_SENTINEL:
+            break
+        yield chunk
+
+
+class _ChunkPumper:
+    """把 LLM token 增量节流落库为 llm_chunk 事件。
+
+    节流规则：单流缓冲满 80 字符，或距上次落库满 0.4s，即flush。
+    目标是兼顾前端流式观感和 SQLite 写入压力（约 2.5 写/秒/Agent）。
+    """
+
+    FLUSH_INTERVAL = 0.4
+    FLUSH_SIZE = 80
+
+    def __init__(self, record):
+        # record: async callable(event_type: str, data: dict)，由 reAct._record_event 提供
+        self._record = record
+        self._buffers: dict[str, list[str]] = {"content": [], "reasoning": []}
+        self._sizes: dict[str, int] = {"content": 0, "reasoning": 0}
+        self._last_flush = time.monotonic()
+
+    async def add(self, stream: str, delta: str) -> None:
+        if not delta:
+            return
+        self._buffers[stream].append(delta)
+        self._sizes[stream] += len(delta)
+        if (
+            self._sizes[stream] >= self.FLUSH_SIZE
+            or (time.monotonic() - self._last_flush) >= self.FLUSH_INTERVAL
+        ):
+            await self.flush(stream)
+
+    async def flush(self, stream: str = None) -> None:
+        targets = (stream,) if stream else ("content", "reasoning")
+        for name in targets:
+            if not self._buffers[name]:
+                continue
+            delta = "".join(self._buffers[name])
+            self._buffers[name].clear()
+            self._sizes[name] = 0
+            await self._record("llm_chunk", {"stream": name, "delta": delta})
+        self._last_flush = time.monotonic()
+
 
 class Color:
     PURPLE = '\033[95m'
@@ -112,6 +181,40 @@ class reAct:
         self.supervisor = get_supervisor(interval=5)
         # tool_call 反查表缓存：仅当真的出现空 name 时才惰性构建（见 _normalize_tool_calls）
         self._tool_arg_maps = None
+        # 打断（cancel）信号：由 _cancel_watcher 轮询 DB 置位，流式消费循环逐 chunk 检查
+        self._cancel_event = asyncio.Event()
+
+    async def _check_cancellation(self) -> None:
+        """检查本 session 是否被请求打断；命中则抛出 AgentCancelled。"""
+        db = ConversationDB.from_path(self.database_path)
+
+        async def read_state():
+            async with db.aconnect() as con:
+                cur = await con.execute(
+                    "SELECT state FROM session WHERE session_id=?", (self.session.id,)
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+
+        state = await aretry_on_locked(read_state)
+        if state == 'cancel_requested':
+            raise AgentCancelled()
+
+    async def _cancel_watcher(self) -> None:
+        """后台轮询 cancel_requested（1s 间隔），命中时置位 _cancel_event。
+
+        流式 LLM 消费循环逐 chunk 检查该事件，实现流式期间的秒级打断。
+        """
+        while True:
+            await asyncio.sleep(1)
+            try:
+                await self._check_cancellation()
+            except AgentCancelled:
+                self._cancel_event.set()
+                return
+            except Exception:
+                # 检查本身失败（如锁竞争）不影响主流程，下轮再查
+                continue
 
     def _should_use_supervisor(self) -> bool:
         """判断是否启用 Supervisor。
@@ -141,6 +244,12 @@ class reAct:
             )
             advice_text = self.supervisor.format_advice(review)
             await self.agent.context_manager.set_supervisor_advice(advice_text)
+            # 遥测事件：前端边栏据此展示当前阶段的 Supervisor 意见
+            await self._record_event("supervisor_review", {
+                "verdict": review.verdict,
+                "reasoning": review.reasoning,
+                "advice": [str(item) for item in review.advice],
+            })
 
             if review.verdict in ('redirect', 'pause_and_reflect'):
                 self.log.update_content(
@@ -170,7 +279,7 @@ class reAct:
             if not task_summary:
                 return
 
-            embedding = self.supervisor.embed_text(task_summary)
+            embedding = await self.supervisor.embed_text(task_summary)
             embedding_bytes = embedding.astype(np.float32).tobytes()
 
             case_bank = get_case_bank()
@@ -209,10 +318,37 @@ class reAct:
         # 确保上下文管理器已初始化，并加载初始上下文
         await self.agent.get_context()
 
+        try:
+            return await self._run_loop()
+        except AgentCancelled:
+            # 用户打断：落库 cancelled 状态后向上抛，由 executor 统一收尾
+            self.session.state = 'cancelled'
+            db = ConversationDB.from_path(self.database_path)
+
+            async def mark_cancelled() -> None:
+                async with db.aconnect() as con:
+                    await con.execute(
+                        "UPDATE session SET state='cancelled', finished_at=? WHERE session_id=?",
+                        (datetime.now(timezone.utc).isoformat(), self.session.id),
+                    )
+                    await con.commit()
+
+            try:
+                await aretry_on_locked(mark_cancelled)
+            except Exception as e:
+                print(f"[reAct] cancelled 状态写入失败: {e}")
+            self.log.update_content(f"{Color.YELLOW}[系统] 任务已被用户打断。{Color.END}\n")
+            raise
+
+    async def _run_loop(self):
+        '''reAct 的主循环（从 run 拆出以便统一捕获 AgentCancelled）。'''
         while self._continue:
             self.session.state = 'thinking'
-            self._record_phase('thinking')
+            await self._record_phase('thinking')
             self.step_count += 1
+
+            # 每轮循环边界检查一次打断请求（流式期间的打断由 _cancel_watcher 负责）
+            await self._check_cancellation()
 
             # 每轮推理前，轮询并注入外部事件
             await self._poll_and_inject_external_events()
@@ -232,31 +368,47 @@ class reAct:
                     self.session.state = 'completed'
                     # 更新数据库结果
                     db = ConversationDB.from_path(self.database_path)
-                    async with db.aconnect() as con:
-                        await con.execute(
-                            "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
-                            ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id)
-                        )
-                        await con.commit()
+
+                    async def mark_completed() -> None:
+                        async with db.aconnect() as con:
+                            await con.execute(
+                                "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
+                                ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id)
+                            )
+                            await con.commit()
+
+                    await aretry_on_locked(mark_completed)
                     # 任务结束前沉淀经验 case
                     await self._persist_case()
                     return content
 
             self.session.state = 'acting'
-            self._record_phase('acting')
+            await self._record_phase('acting')
             stopped = await self.act_result(tool_calls)
 
             if stopped:
                 self.session.state = 'completed'
+                # result 取最后一条 assistant 正文：stop 调用后 context[-1] 是工具返回
+                # （{"stopped": true, ...} 的原始 JSON），不能直接当最终总结。
                 context = await self.agent.get_context()
-                content = context[-1].get('content', '任务已完成') if context else '任务已完成'
+                content = ''
+                for msg in reversed(context):
+                    if msg.get('role') == 'assistant' and msg.get('content'):
+                        content = str(msg['content'])
+                        break
+                if not content:
+                    content = context[-1].get('content', '任务已完成') if context else '任务已完成'
                 db = ConversationDB.from_path(self.database_path)
-                async with db.aconnect() as con:
-                    await con.execute(
-                        "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
-                        ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id),
-                    )
-                    await con.commit()
+
+                async def mark_stopped() -> None:
+                    async with db.aconnect() as con:
+                        await con.execute(
+                            "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
+                            ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id),
+                        )
+                        await con.commit()
+
+                await aretry_on_locked(mark_stopped)
                 # 任务结束前沉淀经验 case
                 await self._persist_case()
                 if self.agent.id != 'a-0':
@@ -281,9 +433,20 @@ class reAct:
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n')
 
             reasoning_buffer = ""
+            # token 级流式事件：节流后写入 session_events，供前端实时渲染
+            pumper = _ChunkPumper(
+                lambda event_type, data: self._record_event(
+                    event_type,
+                    {**data, "agent_id": agent.id, "agent_name": agent.name},
+                )
+            )
+            # 流式期间的打断监视：cancel_requested 时置位 _cancel_event
+            watcher = asyncio.create_task(self._cancel_watcher())
             self.log.begin_stream()
             try:
-                for chunk in response:
+                async for chunk in _aiter_chunks(response):
+                    if self._cancel_event.is_set():
+                        raise AgentCancelled()
                     if not chunk.choices:
                         continue
                     choice = chunk.choices[0]
@@ -293,10 +456,12 @@ class reAct:
 
                     if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
                         reasoning_buffer += delta.reasoning_content
+                        await pumper.add("reasoning", delta.reasoning_content)
 
                     if token:
                         final_response += token
                         self.log.update_content(token)
+                        await pumper.add("content", token)
 
                     if delta.tool_calls:
                         for tc_chunk in delta.tool_calls:
@@ -332,18 +497,40 @@ class reAct:
                 # 流式输出结束时，如果还有未打印的 reasoning_content，补打出来
                 if reasoning_buffer:
                     self.log.update_content(f"{Color.DARKCYAN}[thinking]{reasoning_buffer}{Color.END}\n")
+                # 冲刷残余增量并标记流结束
+                await pumper.flush()
+                await self._record_event(
+                    "llm_stream_end",
+                    {
+                        "agent_id": agent.id,
+                        "agent_name": agent.name,
+                        "has_tool_calls": bool(tool_calls),
+                    },
+                )
             except (httpx.HTTPError, openai.APIConnectionError) as e:
                 self.log.update_content(
                         new_content=f"{Color.RED}[reasoning步骤]出现网络错误：{e}，{2 ** (self._reset_count+1)}秒后重试"
                         )
                 self._reset_count += 1
-                time.sleep(2 ** self._reset_count)
+                await asyncio.sleep(2 ** self._reset_count)
                 # 重试，只是网络问题的话让用户自行等待或者切断程序
-                return self.reasoning()
+                return await self.reasoning()
+            except AgentCancelled:
+                # 打断请求：关闭底层流，向上传播由 run() 统一落库 cancelled
+                close = getattr(response, "close", None)
+                if close is not None:
+                    try:
+                        maybe_awaitable = close()
+                        if asyncio.iscoroutine(maybe_awaitable):
+                            await maybe_awaitable
+                    except Exception:
+                        pass
+                raise
             except Exception as e:
                 self.log.update_content(new_content=f"{Color.RED}[reasoning步骤]未知的错误：{e}")
                 raise e
             finally:
+                watcher.cancel()
                 self.log.end_stream()
 
 
@@ -586,7 +773,7 @@ class reAct:
                 stop_requested = True
 
             args_summary = self._summarize_args(tool_name, tool_args)
-            self._record_event("tool_started", {"tool": tool_name, "arguments": args_summary})
+            await self._record_event("tool_started", {"tool": tool_name, "arguments": args_summary})
             self.log.update_content(
                 f"{Color.YELLOW}执行工具: {tool_name}{Color.END}"
                 f"{(' 参数: ' + args_summary) if args_summary else ''}\n"
@@ -618,7 +805,7 @@ class reAct:
                 }
                 await self._commit_undos()
                 await self.agent.update_context(result_block)
-                self._record_event(
+                await self._record_event(
                     "tool_finished",
                     {"tool": tool_name, "result": result_block["content"]},
                 )
@@ -660,7 +847,7 @@ class reAct:
                     result_block['image_path'] = image_path
 
                 await self.agent.update_context(result_block)
-                self._record_event(
+                await self._record_event(
                     "tool_finished",
                     {"tool": tool_name, "result": self._truncate(content, 800)},
                 )
@@ -669,27 +856,38 @@ class reAct:
 
         return stop_requested
 
-    def _record_phase(self, phase: str) -> None:
+    async def _record_phase(self, phase: str) -> None:
         """刷新心跳并记录可供前端消费的 Session 阶段事件。"""
-        self._record_event("phase", {"phase": phase})
+        await self._record_event("phase", {"phase": phase})
 
-    def _record_event(self, event_type: str, data: dict) -> None:
+    async def _record_event(self, event_type: str, data: dict) -> None:
+        """写入 session_events 遥测事件。
+
+        遥测写入是可丢弃的：多进程并发时 SQLite 写锁竞争激烈，
+        重试耗尽后只记录日志，绝不能让日志/事件写入杀死 Agent 主流程。
+        使用异步连接 + aretry_on_locked，避免同步 busy_timeout 等待冻结事件循环。
+        """
         now = datetime.now(timezone.utc).isoformat()
         db = ConversationDB.from_path(self.database_path)
 
-        def write_event() -> None:
-            with db.connect() as con:
-                con.execute(
+        async def write_event() -> None:
+            async with db.aconnect() as con:
+                await con.execute(
                     "UPDATE session SET heartbeat_at=? WHERE session_id=?",
                     (now, self.session.id),
                 )
-                con.execute(
+                await con.execute(
                     "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
                     (self.session.id, event_type, json.dumps(data, ensure_ascii=False), now),
                 )
-                con.commit()
+                await con.commit()
 
-        retry_on_locked(write_event)
+        try:
+            await aretry_on_locked(write_event)
+        except Exception as e:
+            self.log.update_content(
+                f"{Color.YELLOW}[reAct] 事件写入失败（已忽略）: {event_type}: {e}{Color.END}\n"
+            )
 
     def session_create(self, session_id: str = None) -> None:
         '''

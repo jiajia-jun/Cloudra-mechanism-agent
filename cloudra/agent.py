@@ -1,11 +1,13 @@
 import asyncio
 import json
 import os
+import random
 from pathlib import Path
 from typing import Any, Optional, Union
 
+import openai
 import requests
-from openai import OpenAI, Stream
+from openai import AsyncOpenAI, AsyncStream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import BaseModel
 
@@ -16,7 +18,7 @@ from cloudra.tools import get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
 
-ChatResponse = Union[ChatCompletion, Stream[ChatCompletionChunk]]
+ChatResponse = Union[ChatCompletion, AsyncStream[ChatCompletionChunk]]
 
 
 class _ResponseDictWrapper:
@@ -153,8 +155,8 @@ class Agent(BaseModel):
     _use_custom_headers: bool = False
 
     # OpenAI 客户端实例级缓存：避免每个推理步骤都新建 httpx 连接池
-    _openai_client: Optional[OpenAI] = None
-    _openai_client_custom: Optional[OpenAI] = None
+    _openai_client: Optional[AsyncOpenAI] = None
+    _openai_client_custom: Optional[AsyncOpenAI] = None
 
     # 工具 schema 列表缓存：工具集与本 Agent 权限在进程内是静态的，
     # 无需每个推理步骤都重新实例化全部工具并重新生成 pydantic schema。
@@ -361,10 +363,10 @@ class Agent(BaseModel):
             return self._json_to_single_chunk_stream(data)
         return _ResponseDictWrapper(data)
 
-    def _openai_client_with_custom_headers(self) -> OpenAI:
+    def _openai_client_with_custom_headers(self) -> AsyncOpenAI:
         """返回带自定义 User-Agent 的 OpenAI 客户端（实例级缓存），用于二级 fallback。"""
         if self._openai_client_custom is None:
-            self._openai_client_custom = OpenAI(
+            self._openai_client_custom = AsyncOpenAI(
                 api_key=self._api_key,
                 base_url=self.llm_site,
                 default_headers={"User-Agent": "curl/7.68.0"},
@@ -421,6 +423,27 @@ class Agent(BaseModel):
         return _iter_chunks()
 
     async def llm_call(self) -> ChatResponse:
+        '''调用llm接口，带瞬时错误退避重试。
+
+        429（限流/engine overloaded）、5xx、连接/超时错误属于瞬时故障，
+        之前会直接抛出导致整个任务崩溃；这里统一做指数退避重试。
+        其他错误（认证、参数错误等）不重试，直接抛出。
+        '''
+        max_retries = 4
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._llm_call_once()
+            except (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError) as e:
+                retriable, err = True, e
+            except openai.APIStatusError as e:
+                retriable, err = (e.status_code is not None and e.status_code >= 500), e
+            if not retriable or attempt >= max_retries:
+                raise err
+            delay = min(5 * (2 ** attempt), 60) + random.uniform(0, 2)
+            print(f"\033[93m[LLM 重试]\033[0m 瞬时错误（{err}），{delay:.0f} 秒后重试 ({attempt + 1}/{max_retries})")
+            await asyncio.sleep(delay)
+
+    async def _llm_call_once(self) -> ChatResponse:
         '''
         调用llm接口。
         输出：
@@ -483,7 +506,7 @@ class Agent(BaseModel):
         if self._use_custom_headers:
             client = self._openai_client_with_custom_headers()
             try:
-                return client.chat.completions.create(**request_kwargs)
+                return await client.chat.completions.create(**request_kwargs)
             except Exception as e:
                 if self._is_fallback_trigger(e):
                     print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e}\033[0m")
@@ -494,21 +517,21 @@ class Agent(BaseModel):
 
         # Level 1: OpenAI 客户端默认请求头（实例级缓存，避免每步新建连接池）
         if self._openai_client is None:
-            self._openai_client = OpenAI(
+            self._openai_client = AsyncOpenAI(
                 api_key=self._api_key,
                 base_url=self.llm_site,
             )
         client = self._openai_client
 
         try:
-            return client.chat.completions.create(**request_kwargs)
+            return await client.chat.completions.create(**request_kwargs)
         except Exception as e:
             if self._is_fallback_trigger(e):
                 print(f"\033[93m[LLM fallback] OpenAI 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
                 self._use_custom_headers = True
                 client2 = self._openai_client_with_custom_headers()
                 try:
-                    return client2.chat.completions.create(**request_kwargs)
+                    return await client2.chat.completions.create(**request_kwargs)
                 except Exception as e2:
                     if self._is_fallback_trigger(e2):
                         print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e2}\033[0m")
@@ -672,7 +695,9 @@ class Follower(Agent):
 
     query: str
 
-    is_stream: bool = False
+    # 子 Agent 也走流式：llm_chunk 事件写入各自 session 的事件表，
+    # 前端按 session 展示对话式 transcript；CLI 侧子进程输出相应变为逐块实时打印。
+    is_stream: bool = True
 
     @property
     def supports_vision(self) -> bool:
