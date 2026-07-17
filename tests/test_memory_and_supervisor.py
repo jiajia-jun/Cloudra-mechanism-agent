@@ -311,3 +311,46 @@ class TestReActSupervisorIntegration:
         react = reAct(agent)
         assert react.supervisor is not None
         assert react.supervisor.interval == 5
+
+
+class TestSupervisorJsonTruncation:
+    """thinking 模型 JSON 输出被 max_tokens 截断时的翻倍重试。"""
+
+    @staticmethod
+    def _resp(content: str, finish: str):
+        import types
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(
+                message=types.SimpleNamespace(content=content),
+                finish_reason=finish,
+            )]
+        )
+
+    @pytest.mark.asyncio
+    async def test_truncated_json_retried_with_doubled_budget(self, supervisor):
+        truncated = self._resp('{"verdict": "proceed", "reason', "length")
+        full = self._resp('{"verdict": "redirect", "reasoning": "ok", "advice": ["a"]}', "stop")
+        with patch.object(supervisor, "_call_model", new=AsyncMock(side_effect=[truncated, full])) as call:
+            data, err = await supervisor._call_json_model({"max_tokens": 4096}, "Supervisor")
+        assert err is None
+        assert data["verdict"] == "redirect"
+        assert call.await_count == 2
+        # 重试时 max_tokens 翻倍
+        assert call.await_args_list[1].args[0]["max_tokens"] == 8192
+
+    @pytest.mark.asyncio
+    async def test_malformed_json_not_retried(self, supervisor):
+        bad = self._resp("这不是 JSON", "stop")
+        with patch.object(supervisor, "_call_model", new=AsyncMock(return_value=bad)) as call:
+            data, err = await supervisor._call_json_model({"max_tokens": 4096}, "Supervisor")
+        assert data is None and err is not None
+        assert call.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_review_uses_raised_budget(self, supervisor):
+        full = self._resp('{"verdict": "pass", "reasoning": "ok", "advice": []}', "stop")
+        with patch.object(supervisor, "_call_model", new=AsyncMock(return_value=full)) as call, \
+             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=__import__("numpy").zeros(1536))):
+            review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
+        assert call.await_args_list[0].args[0]["max_tokens"] == 4096
+        assert review.verdict == "pass"

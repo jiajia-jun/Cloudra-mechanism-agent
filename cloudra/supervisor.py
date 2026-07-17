@@ -161,6 +161,33 @@ class Supervisor:
         """判断当前轮次是否应该触发审查。"""
         return step > 0 and step % self.interval == 0
 
+    async def _call_json_model(self, request_kwargs: dict, fallback_label: str):
+        """调用模型并解析 JSON 输出，处理 thinking 模型的 max_tokens 截断。
+
+        首次输出被截断（finish_reason='length'，表现为 JSON Unterminated）时，
+        用加倍的 max_tokens 重试一次。返回 (data, error)；data 为 None 时 error 非空。
+        """
+        response = await self._call_model(request_kwargs, fallback_label)
+        if response is None:
+            return None, "LLM 调用失败"
+        content = response.choices[0].message.content or "{}"
+        finish_reason = getattr(response.choices[0], "finish_reason", None)
+        try:
+            return json.loads(content), None
+        except Exception as exc:
+            if finish_reason != "length":
+                return None, exc
+        # 截断重试一次：thinking 段吃掉了预算，翻倍后 JSON 通常能完整生成
+        retry_kwargs = dict(request_kwargs)
+        retry_kwargs["max_tokens"] = int(request_kwargs.get("max_tokens", 1024)) * 2
+        response = await self._call_model(retry_kwargs, fallback_label)
+        if response is None:
+            return None, "截断重试调用失败"
+        try:
+            return json.loads(response.choices[0].message.content or "{}"), None
+        except Exception as exc:
+            return None, exc
+
     def compress_timeline(
         self,
         messages: list[dict],
@@ -340,19 +367,14 @@ class Supervisor:
                 {"role": "user", "content": prompt},
             ],
             temperature=1.0,
-            max_tokens=1024,
+            # thinking 模型的思考段会吃掉输出预算，1024 极易截断 JSON
+            max_tokens=4096,
             response_format={"type": "json_object"},
         )
-        response = await self._call_model(request_kwargs, fallback_label="Supervisor")
-        if response is None:
-            return SupervisorReview(verdict="proceed", reasoning="Supervisor 调用失败，默认继续执行。")
-
-        try:
-            content = response.choices[0].message.content or "{}"
-            data = json.loads(content)
-        except Exception as e:
-            print(f"[Supervisor] JSON 解析失败: {e}")
-            return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 解析失败: {e}")
+        data, error = await self._call_json_model(request_kwargs, "Supervisor")
+        if error is not None:
+            print(f"[Supervisor] 审查调用/解析失败: {error}")
+            return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 审查失败: {error}")
 
         # 限制 advice 数量
         advice = data.get("advice", [])
@@ -396,19 +418,13 @@ class Supervisor:
                 {"role": "user", "content": prompt},
             ],
             temperature=1.0,
-            max_tokens=1024,
+            max_tokens=4096,
             response_format={"type": "json_object"},
         )
-        response = await self._call_model(request_kwargs, fallback_label="Supervisor(extract)")
-        if response is None:
-            return self._fallback_case_data(timeline_summary, "Supervisor(extract) 调用失败")
-
-        try:
-            content = response.choices[0].message.content or "{}"
-            data = json.loads(content)
-        except Exception as e:
-            print(f"[Supervisor] 提取 Case JSON 解析失败: {e}")
-            return self._fallback_case_data(timeline_summary, e)
+        data, error = await self._call_json_model(request_kwargs, "Supervisor(extract)")
+        if error is not None:
+            print(f"[Supervisor] 提取 Case JSON 解析失败: {error}")
+            return self._fallback_case_data(timeline_summary, error)
 
         return {
             "task_summary": data.get("task_summary", timeline_summary[:200]),

@@ -187,7 +187,8 @@ class YoloGuard:
                 {"role": "user", "content": user_content},
             ],
             temperature=0.1,
-            max_tokens=500,
+            # thinking 模型思考段会吃掉输出预算，500 可能截断 tool_call 的 JSON
+            max_tokens=2000,
             tools=tools,
             tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
