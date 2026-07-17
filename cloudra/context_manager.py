@@ -238,6 +238,7 @@ class ContextManager:
         ]
 
         rendered = self._drop_empty_assistant_messages(rendered)
+        rendered = self._repair_dangling_tool_calls(rendered)
 
         if max_context_tokens is None:
             return rendered
@@ -376,6 +377,39 @@ class ContextManager:
             # else: 空 assistant 消息直接丢弃
 
         return cleaned
+
+    @staticmethod
+    def _repair_dangling_tool_calls(messages: list[dict]) -> list[dict]:
+        """修补悬挂的 tool_calls。
+
+        OpenAI 协议要求：带 tool_calls 的 assistant 消息，其后必须紧跟与每个
+        tool_call_id 对应的 tool 响应，否则端点会拒绝整个请求（400）。
+        Session 在"assistant 发起调用"与"结果写回上下文"之间被打断/取消时，
+        上下文会留下没有响应的 tool_calls，导致该对话后续所有请求都 400。
+        这里为缺失响应的 tool_call 补一条说明性的 tool 消息（幂等：已被响应
+        覆盖的 id 不会重复补）。
+        """
+        answered = {
+            msg.get("tool_call_id")
+            for msg in messages
+            if msg.get("role") == "tool" and msg.get("tool_call_id")
+        }
+        repaired = []
+        for msg in messages:
+            repaired.append(msg)
+            if msg.get("role") != "assistant":
+                continue
+            tool_calls = msg.get("tool_calls") or []
+            for call in tool_calls:
+                call_id = call.get("id") if isinstance(call, dict) else None
+                if call_id and call_id not in answered:
+                    repaired.append({
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "content": "【系统提示】该工具调用在执行完成前被打断/取消，没有返回结果。",
+                    })
+                    answered.add(call_id)
+        return repaired
 
     async def _summarize_history(self, history: list[dict]) -> str:
         """调用 FOLLOWER 配置的大模型把历史消息压缩成一段梗概。"""

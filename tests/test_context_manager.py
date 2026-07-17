@@ -170,3 +170,35 @@ class TestContextManagerRender:
         ]
         assert any("最近回复 1" in c for c in assistant_contents)
         assert any("历史回复 0" in c for c in assistant_contents)
+
+
+class TestRepairDanglingToolCalls:
+    """悬挂 tool_calls 修补：被打断的会话不能让后续请求全部 400。"""
+
+    @pytest.mark.asyncio
+    async def test_dangling_tool_call_gets_synthetic_response(self, context_manager):
+        await context_manager.append({"role": "assistant", "content": "", "tool_calls": [
+            {"id": "call_1", "type": "function", "function": {"name": "text_writer", "arguments": "{}"}},
+            {"id": "call_2", "type": "function", "function": {"name": "bashtools", "arguments": "{}"}},
+        ]})
+        # call_1 有响应，call_2 悬挂
+        await context_manager.append({"role": "tool", "tool_call_id": "call_1", "content": "ok"})
+
+        messages = await context_manager.build_messages()
+        answered = {
+            msg["tool_call_id"] for msg in messages if msg.get("role") == "tool"
+        }
+        assert "call_2" in answered
+        synthetic = [m for m in messages if m.get("tool_call_id") == "call_2"]
+        assert len(synthetic) == 1
+        assert "打断" in synthetic[0]["content"]
+
+        # 不变式：每个 assistant 的 tool_call 都有响应（端点 400 的充要条件）
+        for msg in messages:
+            if msg.get("role") == "assistant":
+                for call in msg.get("tool_calls") or []:
+                    assert call["id"] in answered
+
+        # 幂等：真实响应不会被覆盖/重复补
+        real = [m for m in messages if m.get("tool_call_id") == "call_1"]
+        assert len(real) == 1 and real[0]["content"] == "ok"
