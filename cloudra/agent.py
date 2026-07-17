@@ -561,7 +561,8 @@ class Coordinator(Agent):
 
     temperature: float = 1.0
 
-    max_tokens: int = 8192
+    # k3 等 thinking 模型的思考段极长，8192 常在 reasoning 中途耗尽导致输出被截断
+    max_tokens: int = 32768
 
     context_window: int = 1000000
 
@@ -681,7 +682,8 @@ class Follower(Agent):
 
     temperature: float = 1.0
 
-    max_tokens: int = 4096
+    # writer 类子 Agent 要整篇写文件，4096 极易截断（JSON 参数被拦腰切断）
+    max_tokens: int = 16384
 
     context_window: int = 1000000
 

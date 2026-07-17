@@ -61,6 +61,14 @@ class AgentCancelled(Exception):
     """
 
 
+class LLMOutputTruncated(Exception):
+    """模型输出连续被 max_tokens 截断（thinking 过长/tool_call 被拦腰截断）。
+
+    截断的输出绝不能被当成"正常说完"：否则上一条工具结果会被误存为最终答案，
+    session 表现为"调用完工具就提前结束"。
+    """
+
+
 _STREAM_SENTINEL = object()
 
 
@@ -181,6 +189,8 @@ class reAct:
         self.supervisor = get_supervisor(interval=5)
         # tool_call 反查表缓存：仅当真的出现空 name 时才惰性构建（见 _normalize_tool_calls）
         self._tool_arg_maps = None
+        # 输出被 max_tokens 截断的重试计数（见 _retry_on_truncation）
+        self._truncation_retries = 0
         # 打断（cancel）信号：由 _cancel_watcher 轮询 DB 置位，流式消费循环逐 chunk 检查
         self._cancel_event = asyncio.Event()
 
@@ -339,6 +349,25 @@ class reAct:
                 print(f"[reAct] cancelled 状态写入失败: {e}")
             self.log.update_content(f"{Color.YELLOW}[系统] 任务已被用户打断。{Color.END}\n")
             raise
+        except LLMOutputTruncated as exc:
+            # 输出反复被 max_tokens 截断：明确落库 failed，绝不让工具结果误当最终答案
+            self.session.state = 'failed'
+            db = ConversationDB.from_path(self.database_path)
+
+            async def mark_truncated() -> None:
+                async with db.aconnect() as con:
+                    await con.execute(
+                        "UPDATE session SET state='failed', error=?, finished_at=? WHERE session_id=?",
+                        (str(exc), datetime.now(timezone.utc).isoformat(), self.session.id),
+                    )
+                    await con.commit()
+
+            try:
+                await aretry_on_locked(mark_truncated)
+            except Exception as e:
+                print(f"[reAct] truncated 状态写入失败: {e}")
+            self.log.update_content(f"{Color.RED}[系统] {exc}{Color.END}\n")
+            raise
 
     async def _run_loop(self):
         '''reAct 的主循环（从 run 拆出以便统一捕获 AgentCancelled）。'''
@@ -433,6 +462,7 @@ class reAct:
             self.log.update_content(f'{Color.CYAN}{agent.name}[reasoning]:{Color.END}\n')
 
             reasoning_buffer = ""
+            last_finish_reason = None
             # token 级流式事件：节流后写入 session_events，供前端实时渲染
             pumper = _ChunkPumper(
                 lambda event_type, data: self._record_event(
@@ -452,6 +482,8 @@ class reAct:
                     choice = chunk.choices[0]
                     delta = choice.delta
                     finish_reason = choice.finish_reason
+                    if finish_reason:
+                        last_finish_reason = finish_reason
                     token = delta.content
 
                     if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
@@ -493,6 +525,8 @@ class reAct:
                             func_name = tc_data.get('function', {}).get('name', 'Unknown')
                             self.log.update_content(new_content=f"{Color.GREEN}工具调用: {func_name}{Color.END}\n")
 
+                # 流结束时 tool_call_buffer 仍有内容：tool_call 的 JSON 被拦腰截断
+                leftover_tool_calls = bool(tool_call_buffer)
                 tool_call_buffer.clear()
                 # 流式输出结束时，如果还有未打印的 reasoning_content，补打出来
                 if reasoning_buffer:
@@ -533,9 +567,15 @@ class reAct:
                 watcher.cancel()
                 self.log.end_stream()
 
+            # 输出被 max_tokens 截断：finish_reason=='length'，或 tool_call 被拦腰截断。
+            # 截断的输出不能按"正常说完"处理（否则上一条工具结果会被误存为最终答案）。
+            if last_finish_reason == 'length' or leftover_tool_calls:
+                return await self._retry_on_truncation()
 
         else:
             message = response.choices[0].message
+            if response.choices[0].finish_reason == 'length':
+                return await self._retry_on_truncation()
             final_response = message.content
             if hasattr(message, 'reasoning_content') and message.reasoning_content:
                 reasoning_content = message.reasoning_content
@@ -549,6 +589,9 @@ class reAct:
                 for tool_call in message.tool_calls:
                     raw_tool_calls.append(tool_call.model_dump(exclude_none=True))
                 tool_calls = self._normalize_tool_calls(raw_tool_calls)
+
+        # 输出完整生成：重置截断重试计数
+        self._truncation_retries = 0
 
         # 构建完整的 assistant 消息写入上下文
         if message:  # 非stream模式
@@ -572,6 +615,30 @@ class reAct:
             await agent.update_context(new_block)
 
         return tool_calls
+
+    MAX_TRUNCATION_RETRIES = 2
+
+    async def _retry_on_truncation(self) -> list:
+        """输出被 max_tokens 截断时的处理：注入收敛提示重试，反复截断则抛 LLMOutputTruncated。"""
+        if self._truncation_retries < self.MAX_TRUNCATION_RETRIES:
+            self._truncation_retries += 1
+            self.log.update_content(
+                f"{Color.YELLOW}[系统] 模型输出被 max_tokens 截断，"
+                f"注入收敛提示后重试 ({self._truncation_retries}/{self.MAX_TRUNCATION_RETRIES}){Color.END}\n"
+            )
+            await self.agent.update_context({
+                "role": "system",
+                "content": (
+                    "【系统提示】你上一条输出因 max_tokens 限制被截断，结论或 tool_call 没有完整生成。"
+                    "请立即收敛思考长度，用简洁形式直接给出最终结论，或重新发起必要的工具调用。"
+                ),
+            })
+            return await self.reasoning()
+        raise LLMOutputTruncated(
+            f"模型输出连续 {self.MAX_TRUNCATION_RETRIES + 1} 次被 max_tokens 截断"
+            f"（当前上限 {self.agent.max_tokens} tokens）。"
+            "这通常意味着 thinking 过长，请增大 max_tokens 或拆分任务。"
+        )
 
     @staticmethod
     def _is_empty_assistant_block(block: dict) -> bool:
