@@ -171,6 +171,63 @@ class TestYoloGuardJudge:
         assert approved is False
         assert "结构提取失败" in reason
 
+    @pytest.mark.asyncio
+    async def test_judge_fallback_chain(self, fake_agent, monkeypatch):
+        """temperature=1 重试再遇 tool_choice/thinking 400 时，应继续降级到不强制 tool_choice。"""
+        monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
+        monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
+        monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
+
+        guard = YoloGuard()
+        mock_response = MagicMock()
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.arguments = json.dumps({"approved": True, "reason": "放行"})
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+
+        create = AsyncMock(side_effect=[
+            Exception("Error code: 400 - only 1 is allowed for temperature"),
+            Exception("Error code: 400 - tool_choice 'specified' is incompatible with thinking enabled"),
+            mock_response,
+        ])
+        with patch.object(guard, "_client") as mock_client:
+            mock_client.return_value.chat.completions.create = create
+            approved, reason = await guard.judge(
+                "text_writer",
+                {"path": "/x.txt", "content": "hello"},
+                fake_agent,
+                None,
+            )
+
+        assert approved is True
+        assert "放行" in reason
+        assert create.call_count == 3
+        # 第三次调用应是不强制 tool_choice 的变体
+        assert "tool_choice" not in create.call_args_list[2].kwargs
+
+    @pytest.mark.asyncio
+    async def test_judge_fallback_exhausted(self, fake_agent, monkeypatch):
+        """全部变体都失败时返回拒绝并说明原因（安全侧失败）。"""
+        monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
+        monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
+        monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
+
+        guard = YoloGuard()
+        create = AsyncMock(side_effect=Exception("Error code: 400 - tool_choice 'specified' is incompatible with thinking enabled"))
+        with patch.object(guard, "_client") as mock_client:
+            mock_client.return_value.chat.completions.create = create
+            approved, reason = await guard.judge(
+                "text_writer",
+                {"path": "/x.txt", "content": "hello"},
+                fake_agent,
+                None,
+            )
+
+        assert approved is False
+        assert "全部降级重试失败" in reason
+        assert create.call_count == 4
+
     def test_missing_env(self, fake_agent, monkeypatch):
         monkeypatch.delenv("FOLLOWER_MODEL", raising=False)
         monkeypatch.delenv("FOLLOWER_URL", raising=False)

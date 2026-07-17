@@ -192,35 +192,47 @@ class YoloGuard:
             tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
 
-        try:
-            response = await client.chat.completions.create(**request_kwargs)
-        except Exception as e:
-            msg = str(e).lower()
-            # 处理只支持 temperature=1 的 reasoning 模型
-            if "only 1 is allowed" in msg or ("temperature" in msg and "1" in msg):
-                print(
-                    "\033[93m[LLM fallback] YOLO 当前模型只支持 temperature=1，"
-                    "正在重试...\033[0m"
-                )
-                request_kwargs = dict(request_kwargs)
-                request_kwargs["temperature"] = 1.0
-                try:
-                    response = await client.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    return False, f"YOLO temperature=1 重试失败: {e2}"
-            elif any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
-                print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = AsyncOpenAI(
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                    default_headers={"User-Agent": "curl/7.68.0"}
-                )
-                try:
-                    response = await client2.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    return False, f"YOLO fallback 网络异常: {e2}"
-            else:
+        # 依次降级尝试，覆盖两类受限端点：
+        # 1) 只允许 temperature=1 的 reasoning 模型；
+        # 2) 开启 thinking 后拒绝强制 tool_choice 的模型
+        #    （去掉 tool_choice 后由下方 content 解析兜底）。
+        temp1 = dict(request_kwargs)
+        temp1["temperature"] = 1.0
+        auto_choice = dict(request_kwargs)
+        auto_choice.pop("tool_choice", None)
+        temp1_auto = dict(auto_choice)
+        temp1_auto["temperature"] = 1.0
+        candidate_kwargs = [request_kwargs, temp1, auto_choice, temp1_auto]
+
+        response = None
+        last_error: Exception | None = None
+        for kwargs in candidate_kwargs:
+            try:
+                response = await client.chat.completions.create(**kwargs)
+                break
+            except Exception as e:
+                last_error = e
+                msg = str(e).lower()
+                # 参数类限制：继续尝试下一个降级变体
+                if any(k in msg for k in ("temperature", "tool_choice", "thinking")):
+                    continue
+                # 请求头/限流类拦截：换 UA 重试当前变体
+                if any(k in msg for k in ("blocked", "access denied", "forbidden", "too many requests", "rate limit")):
+                    print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
+                    client2 = AsyncOpenAI(
+                        api_key=self.api_key,
+                        base_url=self.base_url,
+                        default_headers={"User-Agent": "curl/7.68.0"}
+                    )
+                    try:
+                        response = await client2.chat.completions.create(**kwargs)
+                        break
+                    except Exception as e2:
+                        return False, f"YOLO fallback 网络异常: {e2}"
                 return False, f"YOLO 网络异常: {e}"
+
+        if response is None:
+            return False, f"YOLO 全部降级重试失败: {last_error}"
 
         try:
             # 强制提取 Tool Call 参数，彻底杜绝大模型啰嗦文本导致的解析错误
