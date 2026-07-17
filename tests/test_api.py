@@ -56,8 +56,23 @@ async def test_health_is_public(monkeypatch):
 
 def test_frontend_is_mounted(monkeypatch):
     monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
-    app = create_app(FakeService())
-    assert any(getattr(route, "path", None) == "" and getattr(route, "name", None) == "frontend" for route in app.routes)
+    # frontend/dist 是构建产物、不入库；CI 检出中不存在，这里补一个最小副本
+    # 验证"dist 存在则挂载"的逻辑本身（已存在真实 dist 时直接使用，不覆盖）。
+    import shutil
+    from pathlib import Path
+
+    dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    created = False
+    if not dist.is_dir():
+        dist.mkdir(parents=True)
+        (dist / "index.html").write_text("<!doctype html>", encoding="utf-8")
+        created = True
+    try:
+        app = create_app(FakeService())
+        assert any(getattr(route, "path", None) == "" and getattr(route, "name", None) == "frontend" for route in app.routes)
+    finally:
+        if created:
+            shutil.rmtree(dist, ignore_errors=True)
 
 
 @pytest.mark.asyncio
