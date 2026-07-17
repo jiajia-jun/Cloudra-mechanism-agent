@@ -8,7 +8,9 @@
 
 - **自研 ReAct 框架**：不依赖 LangChain、AutoGPT 等重型框架，拥有完全可控的轻量级推理-行动循环，适合需要可追溯性的科研场景。
 - **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
-- **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。
+- **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。GUI 中为按 Session 生效的勾选项（contextvar 隔离并传播到子 Agent 进程），互不影响。
+- **流式输出与任务打断**：Coordinator 与每个子 Agent 的 LLM 增量以 `llm_chunk` 事件经 SSE 实时渲染，运行区按 Session 分面板展示对话式 transcript；任意 Session 可从 GUI/API 打断（先 `cancel_requested` 优雅退出，超时 SIGTERM 兜底，并级联取消子 Agent 与计算任务）。
+- **桌面端与 Web 界面**：Tauri 桌面壳（内嵌后端 sidecar，可打包含独立 Python 运行时的零依赖分发目录）+ API 直接挂载的 Web 界面。
 - **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
 - **自我学习与全局案例库**：Agent 可将成功经验沉淀至全局 Case Bank，支持跨对话的记忆与经验复用。
 - **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。
@@ -149,6 +151,14 @@ Session 使用 SQLite 原子状态更新避免多个 API worker 重复领取，�
 系统不会自动重跑它，以免重复执行写文件、发邮件或提交计算等有副作用的操作。
 `parent_session_id` 连接 Coordinator 和子 Agent，`compute_jobs.session_id` 连接计算任务与发起它的 Session。
 
+API 同时复刻了 CLI 的其他能力：
+
+- `GET /api/config` / `POST /api/config/set`：查看与修改配置（敏感字段脱敏，值按类型 coercion）
+- `GET /api/conversations/{id}/logs`：按会话读取 Agent 日志
+- `GET /api/sessions?state=...`：跨会话聚合的 Session 列表
+- `GET /api/skills`：可用 Skills
+- `POST .../sessions` 接受 `yolo` 字段（按 Session 自动审批）；`POST .../cancel` 打断 Session
+
 需要局域网访问时必须先配置 Token：
 
 ```bash
@@ -218,6 +228,8 @@ sudo apt-get install -y libdbus-1-dev libwebkit2gtk-4.1-dev \
   libayatana-appindicator3-dev librsvg2-dev libxdo-dev
 ```
 
+（`./install.sh` 的 GUI 段可在 Debian/Ubuntu 上自动完成这些依赖安装与桌面入口注册。）
+
 开发模式启动：
 
 ```bash
@@ -227,6 +239,18 @@ sudo apt-get install -y libdbus-1-dev libwebkit2gtk-4.1-dev \
 也可以直接在 `frontend/` 中运行 `npm run desktop`。如果 Cloudra 安装在非默认
 Python 环境中，通过 `CLOUDRA_PYTHON=/绝对路径/python ./desktop.sh` 指定解释器。
 桌面端支持原生工作目录选择器；Web 版本仍保留手动输入绝对路径的方式。
+
+要分发到**没有 Python 环境**的机器，使用打包脚本产出含独立 Python 运行时的目录：
+
+```bash
+frontend/scripts/package-desktop.sh   # 产物为 frontend/dist-app/，整体拷贝即可运行
+```
+
+脚本会下载 python-build-standalone 运行时、把 Cloudra 及全部依赖装入其中、
+通过 `tauri build` 构建 release 二进制，并组装 `frontend/dist-app/`。
+注意：构建桌面二进制请使用 `npm run desktop:build`（即 `tauri build`），
+直接用 `cargo build --release` 产出的二进制会错误地导航到开发服务器地址，
+表现为白屏/连接拒绝。WSL2 下窗口经 WSLg 显示。
 
 ## 计算化学工作流示例
 
@@ -274,6 +298,10 @@ cloudra/
 ├── subagents/            # Follower Agent 角色
 ├── skills/               # Markdown 格式 Skill 库
 └── prompts/              # Agent Prompt 模板
+frontend/
+├── src/                  # React Web 界面（浏览器与桌面端共用）
+├── src-tauri/            # Tauri 桌面壳（自动拉起后端 sidecar）
+└── scripts/              # package-desktop.sh：独立运行时分发打包
 ```
 
 ## 开发

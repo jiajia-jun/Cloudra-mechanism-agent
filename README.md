@@ -8,7 +8,9 @@ AI Agent collaboration framework for chemical research.
 
 - **Self-Built ReAct Framework**: Not built on LangChain or AutoGPT. A lightweight, custom reasoning-acting loop designed for traceability and full control in scientific workflows.
 - **Human-in-the-Loop by Design**: Destructive or script executions are gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
-- **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines.
+- **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines. In the GUI it is a per-session toggle (contextvar-scoped, propagated to sub-agent processes), not a process-wide switch.
+- **Streaming & Interruption**: Token-level streaming end-to-end (throttled `llm_chunk` events over SSE) for the Coordinator and every sub-agent, with chat-bubble transcripts per session; any session can be interrupted from the GUI or API (`cancel_requested` → graceful exit, SIGTERM fallback).
+- **Desktop App & Web UI**: A Tauri desktop app (embedded backend sidecar, optional standalone Python runtime for zero-dependency distribution) plus a web UI served directly by the API.
 - **Context Compression**: Automatically summarizes older conversation history when context exceeds half of the model window, preventing unbounded growth.
 - **Self-Learning & Case Bank**: Agents can distill successful workflows into a global Case Bank for cross-conversation memory and knowledge reuse.
 - **Scientific Supervisor**: Introduces an independent Supervisor agent to oversee experimental progress and validate scientific rigor.
@@ -118,6 +120,38 @@ python -m cloudra.api
 
 The server binds to `127.0.0.1:8000` by default and serves generated files under `/artifacts`. If you bind to a non-loopback address (`CLOUDRA_API_HOST`), set `CLOUDRA_API_TOKEN` first — `web.sh` enforces this.
 
+Besides the Conversation/Session/approval endpoints, the API also mirrors the CLI:
+
+- `GET /api/config` / `POST /api/config/set` — view and update configuration (keys masked, values type-coerced)
+- `GET /api/conversations/{id}/logs` — per-conversation agent logs
+- `GET /api/sessions?state=...` — aggregated session list across conversations
+- `GET /api/skills` — available skills
+- `GET .../sessions/{id}/events/stream` — SSE stream of session events, including token-level `llm_chunk` deltas
+
+Sessions created via the API accept a `yolo` flag (per-session auto-approval) and can be interrupted via `POST .../cancel`.
+
+## Desktop App & Web UI
+
+The `frontend/` directory contains the shared React UI and a Tauri desktop shell:
+
+```bash
+cd frontend
+npm ci
+npm run desktop   # dev mode: vite + desktop window + embedded backend
+```
+
+The API serves the built web UI at `/` (after `npm run build`), so `python -m cloudra.api` alone gives you the full browser experience.
+
+For a distributable desktop package with a **standalone Python runtime** (target machines need no Python at all):
+
+```bash
+frontend/scripts/package-desktop.sh   # assembles frontend/dist-app/
+```
+
+The script downloads a python-build-standalone runtime, installs Cloudra and all dependencies into it, builds the release binary via `tauri build`, and assembles `frontend/dist-app/` — copy that directory anywhere and run `./cloudra-desktop`. The app spawns its own backend on `127.0.0.1:18473`.
+
+> **Note**: build the desktop binary with `npm run desktop:build` (i.e. `tauri build`), not a bare `cargo build --release` — the latter produces a binary that navigates to the dev server URL and shows a blank/connection-refused window. On Linux, WebKitGTK development packages are required (`./install.sh` can install them on Debian/Ubuntu); under WSL2 the window is displayed through WSLg.
+
 ## Chemistry Workflow Example
 
 ```bash
@@ -164,6 +198,10 @@ cloudra/
 ├── subagents/            # Follower agent roles
 ├── skills/               # Markdown-based skill library
 └── prompts/              # Agent prompt templates
+frontend/
+├── src/                  # React web UI (shared by browser and desktop)
+├── src-tauri/            # Tauri desktop shell (spawns the backend sidecar)
+└── scripts/              # package-desktop.sh: standalone-runtime distribution
 ```
 
 ## Development

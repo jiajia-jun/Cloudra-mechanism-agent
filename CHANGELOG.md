@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.0] - 2026-07-18
+
+### 新增
+- **全链路异步化**：LLM 调用全部迁移到 `AsyncOpenAI`（agent / yolo_guard / supervisor / context_manager / memory），消除同步调用冻结事件循环的问题。
+- **Token 级流式输出**：`reAct` 以节流方式把 LLM 增量写入 `llm_chunk` 事件，前端 SSE 实时渲染；子 Agent（Follower）默认开启流式。
+- **任务打断**：API/前端可请求打断 Session（先置 `cancel_requested` 由 Agent 自行退出，超时 SIGTERM 兜底），支持级联取消子 Agent 与计算任务。
+- **对话式运行视图**：前端运行区改为按 Session 分面板的 transcript（思考/内容/工具气泡），Coordinator 与子 Agent 各自署名；终态后在对话末尾展示唯一"最终结果"总结。
+- **前端对齐 CLI 全部功能**：YOLO 按 Session 勾选（contextvar + 子进程 env 传播）、设置弹窗（`GET/POST /api/config`）、日志查看器（`/logs`）、跨会话 Sessions 监控（`/api/sessions` 聚合）、Skills 列表。
+- **Tauri 桌面端**：`frontend/src-tauri` 原生壳 + sidecar 自动拉起后端；`frontend/scripts/package-desktop.sh` 一键产出含独立 Python 运行时的 `dist-app/` 分发目录（目标机零依赖）。
+- **配置 API**：`GET /api/config`（脱敏）与 `POST /api/config/set`（含类型 coercion），与 `cloudra config set` 共用实现。
+
+### 修复
+- **数据库锁冲突**：遥测写入改异步可丢弃，LLM 调用增加 429/5xx 指数退避重试。
+- **reAct stop 结果**：`session.result` 改为最后一条 assistant 正文，不再保存 stop 工具的原始 JSON 返回。
+- **pip 包缺数据文件**：`pyproject.toml` 补充 package-data（prompts / skills / calculator.sh），修复 wheel 安装后 `_load_prompt` 报错。
+
 ## [1.7.1] - 2026-07-12
 
 ### 新增
