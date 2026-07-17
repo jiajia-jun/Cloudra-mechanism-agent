@@ -1,5 +1,5 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { Approval, Conversation, Message, Session, SessionEvent } from "./types";
+import type { Approval, ConfigDisplay, Conversation, LogFile, Message, Session, SessionEvent, SessionRow, SkillInfo } from "./types";
 
 const TOKEN_KEY = "cloudra_api_token";
 const DESKTOP_API_ORIGIN = "http://127.0.0.1:18473";
@@ -38,9 +38,9 @@ export const api = {
   deleteAllConversations: () => request<{ deleted: number }>("/api/conversations", { method: "DELETE" }),
   messages: (conversationId: string) => request<Message[]>(`/api/conversations/${conversationId}/messages`),
   sessions: (conversationId: string) => request<Session[]>(`/api/conversations/${conversationId}/sessions`),
-  createSession: (conversationId: string, query: string, workingDirectory?: string) => request<Session>(
+  createSession: (conversationId: string, query: string, workingDirectory: string | undefined, yolo: boolean) => request<Session>(
     `/api/conversations/${conversationId}/sessions`,
-    { method: "POST", body: JSON.stringify({ query, working_directory: workingDirectory || null }) }
+    { method: "POST", body: JSON.stringify({ query, working_directory: workingDirectory || null, yolo }) }
   ),
   session: (conversationId: string, sessionId: string) => request<Session>(
     `/api/conversations/${conversationId}/sessions/${sessionId}`
@@ -56,7 +56,17 @@ export const api = {
   decideApproval: (approval: Approval, decision: "approved" | "denied") => request(
     `/api/conversations/${approval.conversation_id}/approvals/${approval.id}/decision`,
     { method: "POST", body: JSON.stringify({ decision, denial_reason: "" }) }
-  )
+  ),
+  getConfig: () => request<ConfigDisplay>("/api/config"),
+  setConfigValue: (key: string, value: string) => request<ConfigDisplay>(
+    "/api/config/set",
+    { method: "POST", body: JSON.stringify({ key, value }) }
+  ),
+  getLogs: (conversationId: string) => request<LogFile[]>(`/api/conversations/${conversationId}/logs`),
+  getAllSessions: (state?: string) => request<SessionRow[]>(
+    `/api/sessions${state ? `?state=${encodeURIComponent(state)}` : ""}`
+  ),
+  getSkills: () => request<SkillInfo[]>("/api/skills")
 };
 
 export async function streamSession(

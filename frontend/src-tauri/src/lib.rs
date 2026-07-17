@@ -16,6 +16,17 @@ fn find_python() -> Option<String> {
         }
     }
 
+    // 优先使用随包携带的独立 Python 运行时（<exe>/runtime/bin/python3）。
+    // 分发场景下目标机无需安装任何 Python 环境。
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let bundled = dir.join("runtime").join("bin").join("python3");
+            if bundled.is_file() {
+                return Some(bundled.to_string_lossy().into_owned());
+            }
+        }
+    }
+
     ["python3", "python"].iter().find_map(|candidate| {
         Command::new(candidate)
             .args(["-c", "import cloudra, fastapi, uvicorn"])

@@ -58,6 +58,9 @@ htmlcov/
 frontend/node_modules/
 frontend/*.tsbuildinfo
 frontend/src-tauri/target/
+# 桌面端分发产物与打包中间产物（scripts/package-desktop.sh 生成）
+frontend/dist-app/
+frontend/runtime-build/
 
 # Chemistry job artifacts (Gaussian etc.)
 fort.*
