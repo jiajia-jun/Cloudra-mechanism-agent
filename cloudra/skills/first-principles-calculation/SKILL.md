@@ -6,6 +6,7 @@ description: Provide domain expertise for periodic DFT / first-principles calcul
 # 1. 本地工具链映射 (Toolchain Mapping)
 在规划与执行周期性第一性原理计算（如 VASP）时，应依托 `CLOUDRA` 的本地环境：
 - **配置文件生成与结构操作**：优先使用 ASE (Atomic Simulation Environment) 库。ASE 的接口高度统一，适合智能体进行程序化调用。通过编写轻量级 Python 脚本使用 ASE 的 `ase.io` 和对应的计算器（Calculators）模块来自动化处理晶体结构和生成 POSCAR、INCAR、KPOINTS。避免使用 shell `echo` 盲目手敲和拼接输入文件，这容易导致参数遗漏和拼写错误；但在极简单的单点测试或一次性调试中，可酌情使用。
+- **写 ASE 脚本前必读参考**：不要凭记忆默写 ASE API。先通过 `getskill("first-principles-calculation", other="ase-guide.md")` 获取完整代码模式库（bulk/surface/adsorbate 建模、FixAtoms 约束、Vasp/GPAW 计算器、BFGS/MD/NEB、结构校验与调试），并通过 `getskill("first-principles-calculation", other="examples")` 查看 `examples/` 下的可运行完整脚本（吸附能 `adsorption_energy.py`、晶格优化 `lattice_optimization.py`、NEB 势垒 `neb_barrier.py`），在其基础上改编。速查可用 `other="ase-quick-reference.md"`。
 - **任务投递**：统一调用 `submit_compute_job`，并将 `job_type` 指定为 `vasp`。因为 VASP 计算通常非常耗时，应设置 `is_async=True`。
 - **结果解析与状态监控**：避免直接 `cat` 读取巨型的 `OUTCAR`。优先使用本地系统中的日志解析器或编写 Python 代码解析 `vasprun.xml` / `OUTCAR`（如读取最终能量、收敛步数、磁矩）；在快速查看收敛状态时，可读取 OUTCAR 的末尾摘要。
 

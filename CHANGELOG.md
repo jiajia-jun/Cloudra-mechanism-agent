@@ -3,6 +3,7 @@
 ## [1.8.0] - 2026-07-18
 
 ### 新增
+- **ASE 建模参考库**：`first-principles-calculation` skill 新增 `references/`（`ase-guide.md`、`ase-quick-reference.md`、3 个可运行示例脚本），内容引自 [jkitchin/skillz](https://github.com/jkitchin/skillz)（MIT，已保留版权声明），写 ASE 脚本前可经 `getskill` 的 `other` 参数按需加载。
 - **全链路异步化**：LLM 调用全部迁移到 `AsyncOpenAI`（agent / yolo_guard / supervisor / context_manager / memory），消除同步调用冻结事件循环的问题。
 - **Token 级流式输出**：`reAct` 以节流方式把 LLM 增量写入 `llm_chunk` 事件，前端 SSE 实时渲染；子 Agent（Follower）默认开启流式。
 - **任务打断**：API/前端可请求打断 Session（先置 `cancel_requested` 由 Agent 自行退出，超时 SIGTERM 兜底），支持级联取消子 Agent 与计算任务。
