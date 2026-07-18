@@ -91,3 +91,67 @@ def test_headless_browser_schema():
     inp = HeadlessBrowser_input_schema(url='https://example.com', action='fetch')
     assert inp.url == 'https://example.com'
     assert inp.action == 'fetch'
+
+
+class TestWebFetcherGuards:
+    """web_fetcher 的 PDF/体积防护。"""
+
+    @staticmethod
+    def _resp(content: bytes, content_type: str, status: int = 200):
+        import types
+        return types.SimpleNamespace(
+            content=content,
+            text=content.decode("utf-8", errors="replace"),
+            headers={"content-type": content_type},
+            status_code=status,
+            raise_for_status=lambda: None,
+        )
+
+    @staticmethod
+    def _client(resp):
+        class _C:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def request(self, **kwargs):
+                return resp
+
+        return _C
+
+    @pytest.mark.asyncio
+    async def test_pdf_rejected_with_guidance(self, monkeypatch):
+        from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
+
+        resp = self._resp(b"%PDF-1.7 fake\n" + b"\x00" * 100, "application/pdf")
+        monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
+        result = await WebFetcher().tool_call(
+            WebFetcher_input_schema(url="https://x.com/a.pdf"), None
+        )
+        assert result.success is False
+        assert "pdf2md" in result.error and "download_path" in result.error
+
+    @pytest.mark.asyncio
+    async def test_pdf_detected_by_magic_bytes(self, monkeypatch):
+        resp = self._resp(b"%PDF-1.3 xxx\n" + b"0" * 50, "application/octet-stream")
+        monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
+        from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
+        result = await WebFetcher().tool_call(
+            WebFetcher_input_schema(url="https://x.com/download?id=1"), None
+        )
+        assert result.success is False and "pdf2md" in result.error
+
+    @pytest.mark.asyncio
+    async def test_giant_html_truncated(self, monkeypatch):
+        html = ("<html><body><p>" + "内容 " * 300000 + "</p></body></html>").encode()
+        resp = self._resp(html, "text/html; charset=utf-8")
+        monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
+        from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
+        result = await WebFetcher().tool_call(
+            WebFetcher_input_schema(url="https://x.com/page"), None
+        )
+        assert result.success is True
+        assert len(result.content) <= 210_000
+        assert "已截断" in result.content

@@ -202,3 +202,33 @@ class TestRepairDanglingToolCalls:
         # 幂等：真实响应不会被覆盖/重复补
         real = [m for m in messages if m.get("tool_call_id") == "call_1"]
         assert len(real) == 1 and real[0]["content"] == "ok"
+
+
+class TestCapMessageSizes:
+    """单条巨型消息（如整份 PDF 乱码文本）必须在渲染期截断，防止上下文爆炸。"""
+
+    @pytest.mark.asyncio
+    async def test_giant_tool_message_capped(self, context_manager):
+        giant = "%PDF-1.3 乱码" * 20000  # ~180k 字符
+        await context_manager.append({"role": "tool", "tool_call_id": "c1", "content": giant})
+        await context_manager.append({"role": "user", "content": "短消息"})
+
+        messages = await context_manager.build_messages()
+        tool_msg = next(m for m in messages if m.get("role") == "tool")
+        assert len(tool_msg["content"]) < 50_000
+        assert "已截断" in tool_msg["content"]
+        assert "原始共" in tool_msg["content"]
+        user_msg = next(m for m in messages if m.get("content") == "短消息")
+        assert user_msg["content"] == "短消息"
+
+    @pytest.mark.asyncio
+    async def test_system_message_not_capped(self, context_manager):
+        # system 消息（身份 prompt）不受硬顶影响
+        long_prompt = "长提示 " * 30000
+        cm = context_manager
+        await cm.replace([
+            {"role": "system", "content": long_prompt},
+            {"role": "user", "content": "hi"},
+        ])
+        messages = await cm.build_messages()
+        assert messages[0]["content"] == long_prompt

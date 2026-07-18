@@ -10,7 +10,8 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通用 HTTP 爬虫/下载工具。可抓取网页 HTML、提取正文文本，或直接下载文件到本地。"
-    "适用于获取在线文献、网页内容、PDF、数据文件等场景。"
+    "适用于获取在线文献、网页内容、数据文件等场景。"
+    "注意：PDF 不能用文本模式抓取（会得到乱码），请用 download_path 下载到本地后交给 pdf2md 处理。"
 )
 
 
@@ -162,6 +163,24 @@ class WebFetcher(Tool):
         content_type = response.headers.get('content-type', '').lower()
         is_html = 'text/html' in content_type
 
+        # PDF/二进制防护：文本模式下返回解码后的二进制毫无意义，
+        # 且动辄数 MB 的乱码会直接把上下文撑爆（百万级 token）。
+        is_pdf = (
+            'application/pdf' in content_type
+            or parsed.path.lower().endswith('.pdf')
+            or response.content[:5] == b'%PDF-'
+        )
+        if is_pdf:
+            return WebFetcher_output_schema(
+                success=False,
+                status_code=response.status_code,
+                error=(
+                    f"目标是 PDF 文件（约 {len(response.content) // 1024} KB），"
+                    "文本抓取不适用于 PDF。请改用 download_path 参数下载到本地后，"
+                    "再用 pdf2md 工具提取内容。"
+                )
+            )
+
         try:
             raw_text = response.text
         except Exception as e:
@@ -185,6 +204,15 @@ class WebFetcher(Tool):
             content = text
         else:
             content = raw_text
+
+        # 体积护栏：超大文本截断，避免一条工具结果撑爆上下文
+        MAX_TEXT_CHARS = 200_000
+        if len(content) > MAX_TEXT_CHARS:
+            content = (
+                content[:MAX_TEXT_CHARS]
+                + f"\n\n[... 内容过长已截断，原始共 {len(content)} 字符，"
+                "如需完整内容请分段抓取或下载到本地处理 ...]"
+            )
 
         return WebFetcher_output_schema(
             success=True,

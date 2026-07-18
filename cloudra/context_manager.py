@@ -239,6 +239,7 @@ class ContextManager:
 
         rendered = self._drop_empty_assistant_messages(rendered)
         rendered = self._repair_dangling_tool_calls(rendered)
+        rendered = self._cap_message_sizes(rendered)
 
         if max_context_tokens is None:
             return rendered
@@ -410,6 +411,52 @@ class ContextManager:
                     })
                     answered.add(call_id)
         return repaired
+
+    # 单条消息内容的硬顶（字符数）：一条巨型工具结果（如整份 PDF 的乱码文本）
+    # 就能撑爆模型上下文，而历史梗概压缩对单条超大消息无解。
+    MAX_MESSAGE_CHARS = 40_000
+
+    @classmethod
+    def _cap_message_sizes(cls, messages: list[dict]) -> list[dict]:
+        """给单条消息的内容加硬顶，超出部分截断并注明原始长度。
+
+        历史压缩（_compress_to_budget）的兜底是"梗概仍超预算就保留原文"，
+        所以一条数百万 token 的巨型消息（典型：PDF 二进制当文本塞进工具结果）
+        会直接越过压缩机制把请求打到 400。这里在渲染期对每条消息截断，
+        system 消息（身份 prompt、梗概）保持不变。
+        """
+        capped = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                capped.append(msg)
+                continue
+            content = msg.get("content")
+            if isinstance(content, str) and len(content) > cls.MAX_MESSAGE_CHARS:
+                msg = dict(msg)
+                msg["content"] = (
+                    content[: cls.MAX_MESSAGE_CHARS]
+                    + f"\n\n[... 内容过长已截断，原始共 {len(content)} 字符 ..."
+                )
+            elif isinstance(content, list):
+                new_parts = []
+                for part in content:
+                    if (
+                        isinstance(part, dict)
+                        and part.get("type") == "text"
+                        and isinstance(part.get("text"), str)
+                        and len(part["text"]) > cls.MAX_MESSAGE_CHARS
+                    ):
+                        part = dict(part)
+                        part["text"] = (
+                            part["text"][: cls.MAX_MESSAGE_CHARS]
+                            + f"\n\n[... 内容过长已截断，原始共 {len(part['text'])} 字符 ..."
+                        )
+                    new_parts.append(part)
+                if new_parts != content:
+                    msg = dict(msg)
+                    msg["content"] = new_parts
+            capped.append(msg)
+        return capped
 
     async def _summarize_history(self, history: list[dict]) -> str:
         """调用 FOLLOWER 配置的大模型把历史消息压缩成一段梗概。"""
