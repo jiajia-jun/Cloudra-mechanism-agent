@@ -157,3 +157,33 @@ def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):
             ("legacy-1",),
         ).fetchone()
     assert row == ("legacy-1", "sleeping", "old result", None, None)
+
+
+class TestApprovalSanitize:
+    """终端粘贴的 GBK 字节会以孤立代理符残留，审批写库前必须净化。"""
+
+    def test_apply_approval_decision_with_surrogate(self, tmp_path):
+        from cloudra.main import _sanitize_db_text, apply_approval_decision
+
+        db = ConversationDB.from_path(str(tmp_path / "t.db")).init()
+        with db.connect() as con:
+            con.execute(
+                "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES ('s1', 'd', 'pending', '')"
+            )
+            con.commit()
+
+        dirty = "直接 跳过\udce8其实塞不下"
+        assert apply_approval_decision(db.path, 1, "denied", dirty) is True
+
+        with db.connect() as con:
+            reason = con.execute("SELECT denial_reason FROM approvals WHERE id=1").fetchone()[0]
+        # 孤立代理符被替换为 U+FFFD，其余字符保留，且字符串可安全 UTF-8 编码
+        assert "\udce8" not in reason
+        assert "跳过" in reason and "塞不下" in reason
+        reason.encode("utf-8")
+
+    def test_sanitize_db_text_passthrough_clean(self):
+        from cloudra.main import _sanitize_db_text
+
+        assert _sanitize_db_text("正常中文 abc 123") == "正常中文 abc 123"
+        assert _sanitize_db_text("") == ""

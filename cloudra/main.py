@@ -65,6 +65,17 @@ def reap_exited_executors(database_path: str, active_processes: dict) -> list[in
         con.commit()
     return reaped
 
+def _sanitize_db_text(text: str) -> str:
+    r"""清理字符串中的孤立代理符（surrogate），避免写库/打印时 UTF-8 编码失败。
+
+    终端（如 WSL 中粘贴 GBK 编码的中文）会把无法按 UTF-8 解码的字节以
+    surrogateescape 保留为 \udcXX；sqlite3 和 stdout 的严格 UTF-8 编码会
+    拒绝这些字符（UnicodeEncodeError: surrogates not allowed）。
+    统一替换为 U+FFFD（�），保证审批等写库路径不被脏字节打死。
+    """
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+
 def apply_approval_decision(database_path: str, req_id: int, state: str, denial_reason: str = '') -> bool:
     """写入审批决定，仅当审批仍处于 pending 时生效。
 
@@ -75,7 +86,7 @@ def apply_approval_decision(database_path: str, req_id: int, state: str, denial_
         cur = con.cursor()
         cur.execute(
             "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ? AND state = 'pending'",
-            (state, denial_reason, req_id),
+            (state, _sanitize_db_text(denial_reason), req_id),
         )
         con.commit()
         return cur.rowcount == 1
@@ -186,7 +197,9 @@ def approval_handler(database_path: str, stop_event: threading.Event = None):
                 if state == 'denied':
                     reason_input = input("拒绝原因（可选，直接回车跳过）: ").strip()
                     if reason_input:
-                        denial_reason = reason_input
+                        # 终端粘贴的 GBK 字节会以孤立代理符残留在字符串里，
+                        # 写库/打印前必须净化，否则审批永远写不进去还反复重问
+                        denial_reason = _sanitize_db_text(reason_input)
 
                 if apply_approval_decision(database_path, req_id, state, denial_reason):
                     status_msg = f"已标记为: {state}"
