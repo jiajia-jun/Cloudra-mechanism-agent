@@ -191,7 +191,7 @@ class Supervisor:
     def compress_timeline(
         self,
         messages: list[dict],
-        max_tokens: int = 1000,
+        max_tokens: int = 3000,
     ) -> str:
         """按时间线压缩最近轨迹为一段话。
 
@@ -206,7 +206,7 @@ class Supervisor:
                 content = " ".join(
                     str(part.get("text", "")) for part in content if isinstance(part, dict)
                 )
-            content = str(content)[:200]  # 单条消息截断
+            content = str(content)[:500]  # 单条消息截断
 
             if role == "system":
                 # 跳过 system prompt、supervisor advice、上下文压缩提示
@@ -221,13 +221,13 @@ class Supervisor:
                     names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
                     events.append(f"Step {idx}: agent decided to call tools: {', '.join(names)}.")
                 elif content:
-                    events.append(f"Step {idx}: agent reasoned '{content[:120]}...'.")
+                    events.append(f"Step {idx}: agent reasoned '{content[:240]}...'.")
             elif role == "tool":
                 tool_name = msg.get("name", "tool")
                 events.append(f"Step {idx}: tool '{tool_name}' returned result.")
 
         # 只保留最近的事件，避免过长
-        summary = " ".join(events[-20:])
+        summary = " ".join(events[-40:])
         if len(summary) > max_tokens * 4:  # 粗略按 1 token ≈ 4 字符估算
             summary = summary[: max_tokens * 4]
         return summary

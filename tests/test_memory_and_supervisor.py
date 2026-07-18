@@ -310,7 +310,7 @@ class TestReActSupervisorIntegration:
         )
         react = reAct(agent)
         assert react.supervisor is not None
-        assert react.supervisor.interval == 5
+        assert react.supervisor.interval == 15
 
 
 class TestSupervisorJsonTruncation:
@@ -417,11 +417,16 @@ class TestSupervisorReviewEndToEnd:
         ))
         await react._supervisor_review()
 
+        # 审查间隔已调为 15 轮
+        assert react.supervisor.interval == 15
+
         ctx = await agent.get_context()
         assert ctx[2]["role"] == "system"
         assert ctx[2]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
         assert ctx[2]["content"].count(SUPERVISOR_ADVICE_MARKER) == 1
         assert "方向正确" in ctx[2]["content"]
+        # 包装层附带了"优先参考"的引导语
+        assert "优先参考" in ctx[2]["content"]
 
         with sqlite3.connect(db_path) as con:
             row = con.execute(
@@ -432,3 +437,20 @@ class TestSupervisorReviewEndToEnd:
         import json
         data = json.loads(row[0])
         assert data["verdict"] == "pass" and data["advice"] == ["继续"]
+
+
+class TestCompressTimelineWindow:
+    """Supervisor 的时间线窗口已加大：保留更多事件与更长的单条内容。"""
+
+    def test_keeps_40_recent_events_and_long_content(self, supervisor):
+        messages = []
+        for i in range(60):
+            messages.append({"role": "user", "content": f"第{i}条事件" + "x" * 20})
+        summary = supervisor.compress_timeline(messages)
+        # 最近 40 条都在（旧窗口只有 20 条）
+        assert "第59条" in summary and "第20条" in summary
+        assert "第19条" not in summary
+        # 单条内容截断放宽到 500 字符（600 字符保留 250 对"数据"；旧逻辑 200 字符只剩 100 对）
+        long_msg = [{"role": "user", "content": "数据" * 300}]  # 600 字符
+        s2 = supervisor.compress_timeline(long_msg)
+        assert s2.count("数据") == 250

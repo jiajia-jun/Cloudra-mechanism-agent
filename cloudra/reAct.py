@@ -185,8 +185,8 @@ class reAct:
 
         # 每轮 ReAct 的步数计数，用于触发 Supervisor 定期审查
         self.step_count = 0
-        # 科学督导模块：默认每 5 轮审查一次方向
-        self.supervisor = get_supervisor(interval=5)
+        # 科学督导模块：默认每 15 轮审查一次方向
+        self.supervisor = get_supervisor(interval=15)
         # tool_call 反查表缓存：仅当真的出现空 name 时才惰性构建（见 _normalize_tool_calls）
         self._tool_arg_maps = None
         # 输出被 max_tokens 截断的重试计数（见 _retry_on_truncation）
@@ -382,7 +382,7 @@ class reAct:
             # 每轮推理前，轮询并注入外部事件
             await self._poll_and_inject_external_events()
 
-            # 每 5 轮触发一次 Supervisor 方向审查
+            # 每 15 轮触发一次 Supervisor 方向审查
             if self._should_use_supervisor() and self.supervisor and self.supervisor.should_review(self.step_count):
                 await self._supervisor_review()
 

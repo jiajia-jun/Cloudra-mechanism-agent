@@ -148,9 +148,14 @@ class ContextManager:
         如果已存在 Supervisor 建议，则替换；否则在索引 2 处插入。
         """
         context = await self.load()
+        # 包装时附上引导语：提醒模型在后续决策中优先参考 Supervisor 的意见
         advice_msg = {
             "role": "system",
-            "content": f"{SUPERVISOR_ADVICE_MARKER}\n{advice_text}",
+            "content": (
+                f"{SUPERVISOR_ADVICE_MARKER}\n{advice_text}\n"
+                "【注意】以上是 Supervisor 对本阶段方向的审查意见，"
+                "请在后续推理、任务拆解与工具选择中优先参考并据此调整。"
+            ),
         }
 
         # 查找现有的 Supervisor 建议消息
