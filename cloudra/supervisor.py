@@ -447,8 +447,13 @@ class Supervisor:
         }
 
     def format_advice(self, review: SupervisorReview) -> str:
-        """把 SupervisorReview 格式化为注入上下文的 system 消息文本。"""
-        lines = [f"[Supervisor] {review.reasoning}"]
+        """把 SupervisorReview 格式化为注入上下文的 system 消息文本。
+
+        注意：不要在文本前加 [Supervisor] 前缀——SUPERVISOR_ADVICE_MARKER
+        由 ContextManager.set_supervisor_advice 在包装时统一添加，
+        否则最终消息会出现双重 marker（"[Supervisor]\n[Supervisor] ..."）。
+        """
+        lines = [str(review.reasoning)]
         if review.advice:
             lines.append("方向建议：")
             for idx, item in enumerate(review.advice, 1):

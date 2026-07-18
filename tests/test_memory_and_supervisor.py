@@ -354,3 +354,81 @@ class TestSupervisorJsonTruncation:
             review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
         assert call.await_args_list[0].args[0]["max_tokens"] == 4096
         assert review.verdict == "pass"
+
+
+class TestSupervisorAdviceSingleMarker:
+    """注入上下文的 supervisor 建议必须只有一个 [Supervisor] marker。"""
+
+    @pytest.mark.asyncio
+    async def test_format_then_inject_single_marker(self, context_manager, supervisor):
+        from cloudra.supervisor import SupervisorReview
+
+        review = SupervisorReview(
+            verdict="redirect",
+            reasoning="方向偏离",
+            advice=["先查文献", "再计算"],
+        )
+        advice_text = supervisor.format_advice(review)
+        # format_advice 自身不带 marker（由注入方统一包装）
+        assert not advice_text.startswith(SUPERVISOR_ADVICE_MARKER)
+
+        await context_manager.set_supervisor_advice(advice_text)
+        context = await context_manager.load()
+        msg = context[2]["content"]
+        assert msg.startswith(SUPERVISOR_ADVICE_MARKER)
+        assert msg.count(SUPERVISOR_ADVICE_MARKER) == 1
+        assert "方向偏离" in msg and "先查文献" in msg
+
+        # 注入后再次渲染：消息完整出现在发给 LLM 的上下文中
+        rendered = await context_manager.build_messages()
+        sup_msgs = [
+            m for m in rendered
+            if m.get("role") == "system" and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
+        ]
+        assert len(sup_msgs) == 1
+
+
+class TestSupervisorReviewEndToEnd:
+    """reAct._supervisor_review：建议注入上下文（index 2、单 marker）且事件落库。"""
+
+    @pytest.mark.asyncio
+    async def test_review_injected_and_event_recorded(self, tmp_path, monkeypatch):
+        import sqlite3
+        from unittest.mock import AsyncMock
+
+        from cloudra.agent import Follower
+        from cloudra.database import ConversationDB
+        from cloudra.reAct import reAct
+        from cloudra.supervisor import SupervisorReview
+
+        db_path = str(tmp_path / "t.db")
+        ConversationDB.from_path(db_path).init()
+        monkeypatch.setattr("cloudra.reAct.get_database_path", lambda _c: db_path)
+
+        agent = Follower(id="a-sup", name="tester", prompt="测试", query="测试任务", conversation_id="sup-e2e")
+        react = reAct(agent)
+        agent._init_context_manager()
+        agent.context_manager.context_file = str(tmp_path / "ctx.json")
+        agent.context_manager.db_path = db_path
+        await agent.get_context()
+
+        react.supervisor.review = AsyncMock(return_value=SupervisorReview(
+            verdict="pass", reasoning="方向正确", advice=["继续"],
+        ))
+        await react._supervisor_review()
+
+        ctx = await agent.get_context()
+        assert ctx[2]["role"] == "system"
+        assert ctx[2]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
+        assert ctx[2]["content"].count(SUPERVISOR_ADVICE_MARKER) == 1
+        assert "方向正确" in ctx[2]["content"]
+
+        with sqlite3.connect(db_path) as con:
+            row = con.execute(
+                "SELECT data FROM session_events WHERE event_type='supervisor_review' AND session_id=?",
+                (react.session.id,),
+            ).fetchone()
+        assert row is not None
+        import json
+        data = json.loads(row[0])
+        assert data["verdict"] == "pass" and data["advice"] == ["继续"]
