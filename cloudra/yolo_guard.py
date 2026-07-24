@@ -118,6 +118,10 @@ async def _format_recent_context_multimodal(agent, limit: int = 5, max_len_per_m
 class YoloGuard:
     """独立的安全判断 Agent。"""
 
+    # 模型未按要求返回审批结论时的内部重试次数。
+    # 这属于 YoloGuard 自己的问题，应在其内部消化，不应暴露给主 Agent。
+    _MAX_ATTEMPTS = 3
+
     def __init__(self):
         cfg = get_config().follower
         self.model = cfg.model
@@ -180,12 +184,12 @@ class YoloGuard:
         }]
 
         client = self._client()
+        messages = [
+            {"role": "system", "content": YOLO_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ]
         request_kwargs = dict(
             model=self.model,
-            messages=[
-                {"role": "system", "content": YOLO_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
             temperature=0.1,
             # thinking 模型思考段会吃掉输出预算，500 可能截断 tool_call 的 JSON
             max_tokens=2000,
@@ -193,24 +197,73 @@ class YoloGuard:
             tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
 
+        for attempt in range(1, self._MAX_ATTEMPTS + 1):
+            response, error = await self._create_with_fallback(client, messages, request_kwargs)
+            if response is None:
+                return False, error
+
+            decision, problem = self._extract_decision(response)
+            if decision is not None:
+                return decision
+
+            # 模型未按要求提交审批结论。这是 YoloGuard 自己需要处理的问题：
+            # 打印到终端供排查，同时在对话内纠正模型后重试，
+            # 不向主 Agent 暴露 "未返回 tool_call" 这类实现细节。
+            print(
+                f"\033[93m[YOLO] 第 {attempt}/{self._MAX_ATTEMPTS} 次审批未得到有效结论"
+                f"（{problem}），正在要求模型重新提交...\033[0m"
+            )
+            message = response.choices[0].message
+            content = message.content
+            if not isinstance(content, str) or not content:
+                content = "(模型未输出任何内容)"
+            # 不保留 assistant 消息上的 tool_calls：其参数已确认无法解析，
+            # 保留会触发 "tool_calls 必须跟随 tool 响应" 的协议校验错误。
+            messages.append({"role": "assistant", "content": content})
+            messages.append({
+                "role": "user",
+                "content": (
+                    "你没有按要求提交审批结论。请立即调用 submit_approval_decision 工具"
+                    '（或仅输出 JSON：{"approved": true/false, "reason": "..."}），'
+                    "不要输出任何其他内容。"
+                ),
+            })
+
+        print(
+            f"\033[91m[YOLO] 连续 {self._MAX_ATTEMPTS} 次未获得有效审批结论，"
+            "已按默认安全策略拒绝本次操作。\033[0m"
+        )
+        return False, "安全审计暂时无法给出结论，本次操作已按默认安全策略拒绝。如确认需要执行，请向用户说明情况后重试。"
+
+    async def _create_with_fallback(
+        self,
+        client: AsyncOpenAI,
+        messages: list,
+        request_kwargs: dict,
+    ) -> tuple[Any, str]:
+        """发起一次审批请求，依次降级尝试受限端点。
+
+        返回 (response, "")；全部失败时返回 (None, 错误说明)。
+        """
+        base = dict(request_kwargs)
+        base["messages"] = messages
+
         # 依次降级尝试，覆盖两类受限端点：
         # 1) 只允许 temperature=1 的 reasoning 模型；
         # 2) 开启 thinking 后拒绝强制 tool_choice 的模型
-        #    （去掉 tool_choice 后由下方 content 解析兜底）。
-        temp1 = dict(request_kwargs)
+        #    （去掉 tool_choice 后由 _extract_decision 的 content 解析兜底）。
+        temp1 = dict(base)
         temp1["temperature"] = 1.0
-        auto_choice = dict(request_kwargs)
+        auto_choice = dict(base)
         auto_choice.pop("tool_choice", None)
         temp1_auto = dict(auto_choice)
         temp1_auto["temperature"] = 1.0
-        candidate_kwargs = [request_kwargs, temp1, auto_choice, temp1_auto]
+        candidate_kwargs = [base, temp1, auto_choice, temp1_auto]
 
-        response = None
         last_error: Exception | None = None
         for kwargs in candidate_kwargs:
             try:
-                response = await client.chat.completions.create(**kwargs)
-                break
+                return await client.chat.completions.create(**kwargs), ""
             except Exception as e:
                 last_error = e
                 msg = str(e).lower()
@@ -226,28 +279,34 @@ class YoloGuard:
                         default_headers={"User-Agent": "curl/7.68.0"}
                     )
                     try:
-                        response = await client2.chat.completions.create(**kwargs)
-                        break
+                        return await client2.chat.completions.create(**kwargs), ""
                     except Exception as e2:
-                        return False, f"YOLO fallback 网络异常: {e2}"
-                return False, f"YOLO 网络异常: {e}"
+                        return None, f"YOLO fallback 网络异常: {e2}"
+                return None, f"YOLO 网络异常: {e}"
 
-        if response is None:
-            return False, f"YOLO 全部降级重试失败: {last_error}"
+        return None, f"YOLO 全部降级重试失败: {last_error}"
 
+    @staticmethod
+    def _extract_decision(response) -> tuple[tuple[bool, str] | None, str]:
+        """从一次响应中提取审批结论。
+
+        返回 ((approved, reason), "")；无法提取时返回 (None, 问题描述)。
+        """
         try:
             # 强制提取 Tool Call 参数，彻底杜绝大模型啰嗦文本导致的解析错误
             message = response.choices[0].message
             # 某些 provider 不返回 tool_calls 而是返回 content，做兼容处理
             if not message.tool_calls:
                 content = message.content or ""
+                if not isinstance(content, str):
+                    content = str(content)
                 # 尝试从 content 中解析 JSON
                 try:
                     result = json.loads(content)
                     approved = bool(result.get("approved", False))
                     raw_reason = result.get("reason")
                     reason = str(raw_reason).strip() if raw_reason is not None else ""
-                    return approved, reason
+                    return (approved, reason), ""
                 except Exception:
                     pass
 
@@ -263,9 +322,9 @@ class YoloGuard:
                 if xml_approved:
                     approved = xml_approved.group(1).lower() == "true"
                     reason = xml_reason.group(1).strip() if xml_reason else ""
-                    return approved, reason
+                    return (approved, reason), ""
 
-                return False, f"YOLO 未返回 tool_call，且 content 无法解析: {content[:200]}"
+                return None, f"未返回 tool_call 且 content 无法解析: {content[:200]}"
 
             tool_call = message.tool_calls[0]
             result = json.loads(tool_call.function.arguments)
@@ -275,6 +334,6 @@ class YoloGuard:
             raw_reason = result.get("reason")
             reason = str(raw_reason).strip() if raw_reason is not None else ""
 
-            return approved, reason
+            return (approved, reason), ""
         except Exception as e:
-            return False, f"YOLO Tool Call 结构提取失败: {e}"
+            return None, f"Tool Call 结构提取失败: {e}"

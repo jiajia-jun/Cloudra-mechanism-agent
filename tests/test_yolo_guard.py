@@ -148,6 +148,8 @@ class TestYoloGuardJudge:
 
     @pytest.mark.asyncio
     async def test_judge_invalid_json(self, fake_agent, monkeypatch):
+        """tool_call 参数无法解析时由 Guard 内部重试，耗尽后默认拒绝，
+        且拒绝原因不向主 Agent 暴露实现细节。"""
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
@@ -158,9 +160,11 @@ class TestYoloGuardJudge:
         mock_tool_call = MagicMock()
         mock_tool_call.function.arguments = "这不是 JSON"
         mock_response.choices[0].message.tool_calls = [mock_tool_call]
+        mock_response.choices[0].message.content = ""
 
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
+            create = AsyncMock(return_value=mock_response)
+            mock_client.return_value.chat.completions.create = create
             approved, reason = await guard.judge(
                 "text_writer",
                 {"path": "/x.txt", "content": "hello"},
@@ -169,7 +173,50 @@ class TestYoloGuardJudge:
             )
 
         assert approved is False
-        assert "结构提取失败" in reason
+        assert create.call_count == guard._MAX_ATTEMPTS
+        assert "结构提取失败" not in reason
+        assert "tool_call" not in reason
+        assert "默认安全策略拒绝" in reason
+
+    @pytest.mark.asyncio
+    async def test_judge_retry_after_missing_tool_call(self, fake_agent, monkeypatch):
+        """首次未返回 tool_call 时，Guard 应自行纠正模型并重试，主 Agent 无感知。"""
+        monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
+        monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
+        monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
+
+        guard = YoloGuard()
+
+        bad_response = MagicMock()
+        bad_response.choices[0].message.tool_calls = []
+        bad_response.choices[0].message.content = "我觉得这个操作没问题"
+
+        good_response = MagicMock()
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.arguments = json.dumps({"approved": True, "reason": "放行"})
+        good_response.choices[0].message.tool_calls = [mock_tool_call]
+
+        with patch.object(guard, "_client") as mock_client:
+            create = AsyncMock(side_effect=[bad_response, good_response])
+            mock_client.return_value.chat.completions.create = create
+            approved, reason = await guard.judge(
+                "text_writer",
+                {"path": "/x.txt", "content": "hello"},
+                fake_agent,
+                None,
+            )
+
+        assert approved is True
+        assert reason == "放行"
+        assert create.call_count == 2
+        # 第二次请求应带上纠正对话：assistant 的错误回复 + 要求重新提交的用户消息
+        messages = create.call_args_list[1].kwargs["messages"]
+        assert len(messages) == 4
+        assert messages[2]["role"] == "assistant"
+        assert messages[2]["content"] == "我觉得这个操作没问题"
+        assert messages[3]["role"] == "user"
+        assert "submit_approval_decision" in messages[3]["content"]
 
     @pytest.mark.asyncio
     async def test_judge_fallback_chain(self, fake_agent, monkeypatch):

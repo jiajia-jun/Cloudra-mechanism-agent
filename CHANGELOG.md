@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### 修复
+- **YOLO 审批不返回 tool_call**：YoloGuard 遇到模型未返回 `submit_approval_decision` tool_call（或参数无法解析）时，不再把 "未返回 tool_call" 这类内部实现错误作为拒绝原因抛给主 Agent，而是在 Guard 内部打印告警、纠正模型并重试（最多 3 次）；耗尽后按默认安全策略拒绝，返回给主 Agent 的是不含实现细节的中性原因。
+
 ## [1.8.0] - 2026-07-18
 
 ### 新增
