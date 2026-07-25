@@ -13,6 +13,8 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 
 class Bashtools_input_schema(input_schema):
     command: str = Field(description='需要执行的命令。')
+
+# TODO: 这个地方根本没有复用吧？还不如做成让llm自行描述指令的任务，方便前端做用户友好性
     terminal_id: str = Field(
         description='命令执行的终端编号，用于区分不同的终端，可自行指定，通过这个功能可以实现并发执行。',
         default_factory=lambda: str(uuid.uuid4())
@@ -22,6 +24,8 @@ class Bashtools_input_schema(input_schema):
 
 class Bashtools_output_schema(output_schema):
     result: str = Field(description='bash工具结果。')
+
+# TODO:同上
     terminal_id: str = Field(description='输入或已默认的uuid。')
     run_command: str = Field(description='调用的bash指令。')
 
@@ -29,6 +33,7 @@ class Bashtools_output_schema(output_schema):
 class Bashtools(Tool):
     tool_id: str = 't-1'
     tool_name: str = 'bashtools'
+# HACK: 至少给出理由这里为什么要用any
     input_schema: Any = Bashtools_input_schema
     output_schema: Any = Bashtools_output_schema
     subagent: Agent = None
@@ -43,6 +48,7 @@ class Bashtools(Tool):
         if subagent is not None:
             availables = self.allowed_tools_lst(subagent)
             tool_str = self._format_tool_list(availables)
+# HACK: 逻辑上合理，但不对None作捕获非常奇怪
             if not tool_str:
                 tool_str = "无可调用工具"
             self.tool_description = f'''
@@ -64,6 +70,7 @@ class Bashtools(Tool):
 
     def has_command_permission(self, command: str) -> bool:
         if self.subagent is None:
+# TODO: 安全漏洞，注入空子agent可以获取完整的权限
             return True
         analysis = BashCommandClassifier.classify(command)
         agent_perms = self.subagent.permission_all()
@@ -81,6 +88,7 @@ class Bashtools(Tool):
         )
 
         if subagent is None:
+# TODO: 同上
             return sorted(all_cmds)
 
         agent_perms = subagent.permission_all()
