@@ -14,10 +14,10 @@ import os
 import time
 from typing import Optional
 
-from openai import AsyncOpenAI
-
+from cloudra import paths
 from cloudra.config import get_config
 from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
+from cloudra.llm_client import LLMClient
 from cloudra.token_estimator import TokenEstimator
 
 # 本地图片扩展名到 MIME 类型的映射
@@ -37,18 +37,11 @@ def _context_file_path(agent_id: str, conversation_id: str, session_id: Optional
     目录下，以 {agent_id}_{session_id}.json 命名，确保同一 conversation 内的不同子任务
     拥有独立的上下文文件，避免任务间相互污染。
     """
-    data_dir = get_config().data_dir
-    if conversation_id and conversation_id != 'default':
-        base = os.path.join(data_dir, 'conversations', conversation_id, 'contexts')
-    else:
-        base = os.path.join(data_dir, 'contexts')
+    base = paths.contexts_dir(conversation_id)
     if session_id:
-        base = os.path.join(base, 'sessions')
-        filename = f"{agent_id}_{session_id}.json"
-    else:
-        filename = f"{agent_id}.json"
+        base = base / 'sessions'
     os.makedirs(base, exist_ok=True)
-    return os.path.join(base, filename)
+    return str(paths.context_path(conversation_id, agent_id, session_id))
 
 
 def _db_path(conversation_id: Optional[str] = None) -> str:
@@ -83,8 +76,8 @@ class ContextManager:
         # 上下文实例缓存：本实例是 context_file 生命周期内的唯一写者，
         # 首次 load 后驻留内存，避免每条消息都全量读盘 + json 解析。
         self._context_cache: Optional[list] = None
-        # 压缩用的 OpenAI 客户端缓存，避免每次压缩都新建连接池。
-        self._openai_client: Optional[OpenAI] = None
+        # 压缩用的 LLM 传输层客户端缓存，避免每次压缩都新建连接池。
+        self._llm_client: Optional[LLMClient] = None
 
     def _initial_context(self) -> list:
         """构造初始上下文：system prompt + user query。"""
@@ -499,10 +492,9 @@ class ContextManager:
             "--- 梗概 ---"
         )
 
-        if self._openai_client is None:
-            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        client = self._openai_client
-        response = await client.chat.completions.create(
+        if self._llm_client is None:
+            self._llm_client = LLMClient(api_key=api_key, base_url=base_url)
+        response = await self._llm_client.create(
             model=model,
             messages=[
                 {"role": "system", "content": "你是一个专门压缩对话历史的助手。"},

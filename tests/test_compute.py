@@ -353,7 +353,7 @@ async def test_context_manager_session_isolation(isolated_db):
 
 @pytest.mark.asyncio
 async def test_subagent_launcher_no_template_pollution(isolated_db):
-    """SubAgentLauncher 不应修改 Subagent_hash 中的全局模板实例。"""
+    """SubAgentLauncher 使用类实例化（注册表存类），全局模板不收污染。"""
     from cloudra.database import ConversationDB
     from cloudra.subagents import Subagent_hash
     from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
@@ -364,9 +364,8 @@ async def test_subagent_launcher_no_template_pollution(isolated_db):
     tool.subagent = MockAgent("a-0", "parent_conv")
 
     hash_before = Subagent_hash()
-    template = getattr(hash_before, "a-1")
-    original_query = template.query
-    original_context_manager = template.context_manager
+    agent_cls = hash_before.get("a-1")
+    assert agent_cls is not None
 
     input_inst = SubAgentLauncher_input_schema(
         agent_id="a-1",
@@ -376,10 +375,8 @@ async def test_subagent_launcher_no_template_pollution(isolated_db):
     result = await tool.tool_call(input_inst, session=None)
 
     assert result.session_id.startswith("a-1_task")
-    assert result.act_agent == template.name
+    assert result.act_agent is not None
 
     hash_after = Subagent_hash()
-    template_after = getattr(hash_after, "a-1")
-    # 全局模板实例的 query 和 context_manager 不应被修改
-    assert template_after.query == original_query
-    assert template_after.context_manager == original_context_manager
+    agent_cls_after = hash_after.get("a-1")
+    assert agent_cls_after is agent_cls

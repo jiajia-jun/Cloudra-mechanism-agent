@@ -1,10 +1,9 @@
-import copy
-import json
 import os
 from typing import Any
 
 from pydantic import Field
 
+from cloudra import session_store
 from cloudra.agent import Agent
 from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
 from cloudra.session_class import Session
@@ -94,10 +93,10 @@ class SubAgentLauncher(Tool):
         # 兼容测试或旧调用中 session 为 None 的情况。
         parent_session_id = getattr(session, "id", None) if session else None
 
-        # 尝试从 hash 中获取子 agent 模板实例
-        template_agent = getattr(agent_hash, agent_id, None)
+        # 从注册表获取 Agent 类并实例化（注册表现在存类而非模板实例）
+        agent_cls = agent_hash.get(agent_id)
 
-        if template_agent is None:
+        if agent_cls is None:
             available_ids = list(agent_hash.subagents_dict.keys())
             result = f"Error: Agent ID '{agent_id}' not found. Available IDs: {available_ids}"
             return SubAgentLauncher_output_schema(
@@ -106,29 +105,16 @@ class SubAgentLauncher(Tool):
                 result=result
             )
 
-        # 核心防御：如果模板实例异常或属性被清空
-        if not hasattr(template_agent, 'temperature'):
-             return SubAgentLauncher_output_schema(
-                session_id="error",
-                act_agent="none",
-                result=f"【系统错误】子 Agent '{agent_id}' 实例异常，缺少必要属性。"
-            )
-
-        # 深拷贝模板实例，避免污染 Subagent_hash 中的全局缓存。
-        # 每个子任务都应拿到一个独立、干净的 Agent 实例。
-        sub_agent = copy.deepcopy(template_agent)
+        conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
+        sub_agent = agent_cls(
+            query=query,
+            conversation_id=conversation_id,
+        )
         sub_agent.temperature = 0.7
-        # 不发送 top_p：k3 等严格端点只接受特定值（如 0.95），留 None 用服务商默认
         sub_agent.top_p = None
         sub_agent.frequency_penalty = 0.0
         sub_agent.presence_penalty = 0.0
-        sub_agent.query = query
         sub_agent.working_directory = getattr(self.subagent, 'working_directory', None)
-        # 保留父 Agent 的 conversation_id，使 _wait_for_subtasks 仍能按 conversation 聚合任务。
-        # 真正的上下文隔离通过 session_id 在 ContextManager 中实现。
-        conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
-        sub_agent.conversation_id = conversation_id
-        # 不在这里初始化 context_manager，避免在 launcher 进程中污染模板实例。
 
         act_agent = sub_agent.name
 
@@ -153,24 +139,14 @@ class SubAgentLauncher(Tool):
 
         if is_wait:
             # 同步模式：标记为 running 并直接启动子进程执行
-            async def create_running_task():
-                async with db.aconnect() as con:
-                    cur = await con.execute(
-                        "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                        ('running', json.dumps(base_payload), conversation_id)
-                    )
-                    task_id = cur.lastrowid
-                    session_id = f"{sub_agent.id}_task{task_id}"
-                    payload = dict(base_payload, session_id=session_id)
-                    await con.execute(
-                        """UPDATE subagent_requests
-                        SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
-                        (json.dumps(payload), session_id, parent_session_id, task_id)
-                    )
-                    await con.commit()
-                    return task_id, session_id, payload
-
-            task_id, session_id, base_payload = await aretry_on_locked(create_running_task)
+            task_id, session_id, base_payload = await session_store.acreate_subagent_request(
+                db,
+                state='running',
+                payload=base_payload,
+                conversation_id=conversation_id,
+                parent_session_id=parent_session_id,
+                session_id_fn=lambda tid: f"{sub_agent.id}_task{tid}",
+            )
             sub_agent.session_id = session_id
 
             import asyncio
@@ -182,7 +158,7 @@ class SubAgentLauncher(Tool):
             if base_payload.get('yolo'):
                 child_env["CLOUDRA_YOLO_MODE"] = "true"
             process = await asyncio.create_subprocess_exec(
-                sys.executable, '-m', 'cloudra.executor', '--task_id', str(task_id), '--db', db_path, '--session_id', session_id,
+                sys.executable, '-m', 'cloudra.runtime.executor', '--task_id', str(task_id), '--db', db_path, '--session_id', session_id,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env=child_env
@@ -216,25 +192,17 @@ class SubAgentLauncher(Tool):
             else:
                 result = f"Task completed, but no explicit result was found in database. Last output lines: {' | '.join(output_lines[-3:])}"
         else:
-            # 异步模式：仅写入 ready，由 main.py 的后台线程 pickup
-            async def create_ready_task():
-                async with db.aconnect() as con:
-                    cur = await con.execute(
-                        "INSERT INTO subagent_requests (state, input_data, conversation_id) VALUES (?, ?, ?)",
-                        ('ready', json.dumps(base_payload), conversation_id)
-                    )
-                    task_id = cur.lastrowid
-                    session_id = f"{sub_agent.id}_task{task_id}"
-                    payload = dict(base_payload, session_id=session_id)
-                    await con.execute(
-                        """UPDATE subagent_requests
-                        SET input_data = ?, session_id = ?, parent_session_id = ? WHERE id = ?""",
-                        (json.dumps(payload), session_id, parent_session_id, task_id)
-                    )
-                    await con.commit()
-                    return task_id, session_id, payload
-
-            task_id, session_id, base_payload = await aretry_on_locked(create_ready_task)
+            # 异步模式：仅写入 ready，由 workers 线程 pickup；事件通知替换轮询
+            task_id, session_id, base_payload = await session_store.acreate_subagent_request(
+                db,
+                state='ready',
+                payload=base_payload,
+                conversation_id=conversation_id,
+                parent_session_id=parent_session_id,
+                session_id_fn=lambda tid: f"{sub_agent.id}_task{tid}",
+            )
+            from cloudra.events import notifier
+            notifier.notify_task_inserted()
             sub_agent.session_id = session_id
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"
 

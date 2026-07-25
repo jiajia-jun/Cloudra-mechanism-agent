@@ -18,6 +18,7 @@ from typing import Optional
 
 import aiosqlite
 
+from cloudra import paths
 from cloudra.config import get_config
 
 
@@ -30,8 +31,7 @@ class CaseBank:
     @staticmethod
     def _default_path() -> str:
         """返回默认全局 case bank 路径。"""
-        data_dir = get_config().data_dir
-        return str(Path(data_dir) / "case_bank.db")
+        return str(paths.case_bank_path(data_dir=get_config().data_dir))
 
     def _ensure_dir(self) -> None:
         """确保数据库所在目录存在。"""

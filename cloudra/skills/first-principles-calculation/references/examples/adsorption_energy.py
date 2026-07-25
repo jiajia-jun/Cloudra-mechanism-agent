@@ -13,11 +13,11 @@ using the formula:
 A negative value indicates favorable (exothermic) adsorption.
 """
 
-from ase.build import fcc111, add_adsorbate
-from ase.calculators.emt import EMT  # Fast calculator for demonstration
-from ase.optimize import BFGS
-from ase.constraints import FixAtoms
 from ase import Atoms
+from ase.build import add_adsorbate, fcc111
+from ase.calculators.emt import EMT  # Fast calculator for demonstration
+from ase.constraints import FixAtoms
+from ase.optimize import BFGS
 
 
 def calculate_adsorption_energy(
@@ -68,7 +68,6 @@ def calculate_adsorption_energy(
 
     # Fix bottom two layers (common practice for surfaces)
     # This simulates the bulk material below
-    n_layers = size[2]
     n_atoms_per_layer = size[0] * size[1]
     fix_indices = list(range(n_atoms_per_layer * 2))  # Fix bottom 2 layers
 
@@ -127,7 +126,7 @@ def calculate_adsorption_energy(
 
         try:
             isolated = molecule(adsorbate)
-        except:
+        except Exception:
             # If not in database, create single atom
             isolated = Atoms(adsorbate, positions=[(0, 0, 0)])
 
@@ -156,10 +155,10 @@ def calculate_adsorption_energy(
     print(f"E_adsorption           = {E_adsorption:.3f} eV")
 
     if E_adsorption < 0:
-        print(f"\nAdsorption is FAVORABLE (exothermic)")
+        print("\nAdsorption is FAVORABLE (exothermic)")
         print(f"Binding strength: {abs(E_adsorption):.3f} eV")
     else:
-        print(f"\nAdsorption is UNFAVORABLE (endothermic)")
+        print("\nAdsorption is UNFAVORABLE (endothermic)")
 
     print("=" * 60)
 

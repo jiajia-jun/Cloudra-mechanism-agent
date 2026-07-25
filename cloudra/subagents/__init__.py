@@ -1,31 +1,45 @@
+"""子 Agent 注册表：按 agent_id 返回 Agent **类**，不含实例。
+
+注册表保存类而非模板实例，调用方通过 ``AgentClass(query=..., conversation_id=...)``
+创建独立实例，取代原先的深拷贝全局模板。
+"""
+
 import importlib.util
 import sys
 from pathlib import Path
 
 CURRENT_DIR = Path(__file__).parent
 
-# 全局缓存，避免每次实例化 Subagent_hash 都重新扫描/导入子 agent 模块
-_SUBAGENTS_DICT_CACHE = None
+_SUBAGENT_CLASSES_CACHE: dict | None = None
 
 
-def get_subagents_lst():
-    '''
-    从 subagents 目录下递归加载子 agent 类，返回一个子 agent 类列表。
-    遍历所有子目录中的 .py 文件，查找并调用 get_class() 获取类。
-    '''
-    subagents = []
+def _get_model_default(cls, field_name: str):
+    """从 Pydantic 类读取字段默认值（兼容 v2 model_fields）。"""
+    fields = getattr(cls, "model_fields", {})
+    field_info = fields.get(field_name)
+    if field_info is not None and field_info.default is not ...:
+        return field_info.default
+    return None
+
+
+def get_subagent_classes() -> dict:
+    """返回 ``{agent_id: AgentClass}`` 映射表，进程内缓存。"""
+    global _SUBAGENT_CLASSES_CACHE
+    if _SUBAGENT_CLASSES_CACHE is not None:
+        return _SUBAGENT_CLASSES_CACHE
+
+    classes = {}
     project_root = str(CURRENT_DIR.parent)
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
+
     for py_file in CURRENT_DIR.rglob("*.py"):
         if py_file.name == "__init__.py":
             continue
 
-        # 把文件路径转成模块名，如 subagents.explorer
         rel_path = py_file.relative_to(CURRENT_DIR.parent)
         module_name = ".".join(rel_path.with_suffix("").parts)
 
-        # 复用已加载的模块，避免重复执行 side-effects
         if module_name in sys.modules:
             module = sys.modules[module_name]
         else:
@@ -36,30 +50,47 @@ def get_subagents_lst():
 
         get_class = getattr(module, "get_class", None)
         if get_class is not None:
-            subagent_class = get_class()
-            # NOTE: subagent 模板实例化时需要 conversation_id，否则 Pydantic 校验失败。
-            # 这里用 'default' 作为占位值，实际运行时会由调用方（如 SubAgentLauncher）覆盖。
-            subagent_instance = subagent_class(query="", conversation_id='default')
-            subagents.append(subagent_instance)
+            agent_cls = get_class()
+            agent_id = _get_model_default(agent_cls, "id") or _get_model_default(agent_cls, "agent_id")
+            if agent_id is None:
+                agent_id = module_name.split(".")[-1]
+            classes[agent_id] = agent_cls
 
-    return subagents
+    _SUBAGENT_CLASSES_CACHE = classes
+    return classes
 
-def get_dict():
-    '''
-    将子agent类加载为json，返回dict。
-    使用模块级缓存，保证同进程内只加载一次。
-    '''
-    global _SUBAGENTS_DICT_CACHE
-    if _SUBAGENTS_DICT_CACHE is None:
-        subagents = get_subagents_lst()
-        _SUBAGENTS_DICT_CACHE = {}
-        for subagent in subagents:
-            _SUBAGENTS_DICT_CACHE[subagent.id] = subagent
-    return _SUBAGENTS_DICT_CACHE
 
 class Subagent_hash:
+    """子 Agent 类注册表的外观包装，维持 dict-like 访问。
 
-     def __init__(self):
-         self.subagents_dict = get_dict()
-         for subagent_id, subagent in self.subagents_dict.items():
-             setattr(self, subagent_id, subagent)
+    原先使用 ``setattr(self, id, template_instance)`` 动态注入属性；
+    现在内部是一个 ``{agent_id: AgentClass}`` 的普通字典。
+    """
+
+    def __init__(self):
+        self._classes = get_subagent_classes()
+
+    @property
+    def subagents_dict(self) -> dict:
+        return self._classes
+
+    def get(self, agent_id: str):
+        """按 agent_id 获取 Agent **类**。"""
+        return self._classes.get(agent_id)
+
+    def __getitem__(self, agent_id: str):
+        cls = self._classes.get(agent_id)
+        if cls is None:
+            raise KeyError(agent_id)
+        return cls
+
+    def __contains__(self, agent_id: str) -> bool:
+        return agent_id in self._classes
+
+    def __getattr__(self, name: str):
+        """保留对 ``agent_hash.a-1`` 的兼容访问（测试与旧调用方使用）。"""
+        if name.startswith("_") or name in ("subagents_dict", "get"):
+            raise AttributeError(name)
+        if name in self._classes:
+            return self._classes[name]
+        raise AttributeError(name)

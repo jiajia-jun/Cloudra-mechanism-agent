@@ -287,7 +287,7 @@ cloudra/
 ├── reAct.py              # ReAct 推理循环
 ├── executor.py           # 工具执行引擎
 ├── context_manager.py    # 消息/上下文渲染
-├── session_manager.py    # SQLite 持久化
+├── database.py           # SQLite 持久化
 ├── supervisor.py         # 科学监督与决策验证
 ├── tools_class.py        # BaseTool 与工具注册
 ├── config.py             # 配置管理

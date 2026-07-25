@@ -3,9 +3,7 @@ Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
 """
 
 import asyncio
-import json
 import os
-import sqlite3
 import sys
 
 import click
@@ -13,10 +11,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from cloudra import __version__
+from cloudra import __version__, conversation_repo, paths
 from cloudra.config import get_config
-from cloudra.database import get_database_path
-from cloudra.service import CloudraService
+from cloudra.service import CloudraService, validate_conversation_id
 
 console = Console()
 APP_NAME = "cloudra"
@@ -107,7 +104,7 @@ def run(query, conv_id, new, dry_run, yolo):
         service = CloudraService()
         # CLI 有终端 stdin，显式启用交互式审批线程（service 层默认为 API 场景的 False）
         asyncio.run(service.run_task(
-            query, conversation_id=active_conv_id, verbose=True, interactive_approval=True,
+            query, conversation_id=active_conv_id, verbose=True, interactive_approval=not yolo,
         ))
 
         # Save the used ID as the last one
@@ -247,29 +244,11 @@ def config_set(key, value):
 @click.option("--limit", default=20, help="最多显示多少条")
 def history(limit):
     """查看历史对话列表。"""
-    data_dir = get_config().data_dir
-    conv_dir = data_dir / "conversations"
-
-    if not conv_dir.exists():
+    conversations = conversation_repo.list_conversations()
+    if not conversations:
         console.print("[yellow]暂无历史对话。[/yellow]")
         return
 
-    conversations = []
-    for entry in conv_dir.iterdir():
-        if entry.is_dir():
-            meta_path = entry / "meta.json"
-            if meta_path.exists():
-                with open(meta_path, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
-                conversations.append({
-                    "id": meta.get("id", entry.name),
-                    "create_time": meta.get("create_time", ""),
-                    "last_active": meta.get("last_active", ""),
-                    "state": meta.get("state", "active"),
-                })
-
-    # Sort by last_active descending
-    conversations.sort(key=lambda x: x["last_active"], reverse=True)
     conversations = conversations[:limit]
 
     table = Table(title="历史对话", show_header=True, header_style="bold magenta")
@@ -279,11 +258,13 @@ def history(limit):
     table.add_column("状态")
 
     for conv in conversations:
+        create_time = conv.get("create_time", "")
+        last_active = conv.get("last_active", "")
         table.add_row(
             conv["id"],
-            conv["create_time"][:19] if conv["create_time"] else "",
-            conv["last_active"][:19] if conv["last_active"] else "",
-            conv["state"],
+            create_time[:19] if create_time else "",
+            last_active[:19] if last_active else "",
+            conv.get("state", "active"),
         )
 
     console.print(table)
@@ -293,8 +274,7 @@ def history(limit):
 @click.argument("conv_id")
 def logs(conv_id):
     """查看某个对话的日志。"""
-    data_dir = get_config().data_dir
-    log_dir = data_dir / "conversations" / conv_id / "logs"
+    log_dir = paths.logs_dir(conv_id)
 
     if not log_dir.exists():
         console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
@@ -342,33 +322,37 @@ def skills():
 @cli.command()
 @click.option("--state", default=None, help="按状态过滤 (sleeping, thinking, acting, killed)")
 def sessions(state):
-    """查看所有 Session 状态。"""
-    db_path = get_database_path()
-
-    if not os.path.exists(db_path):
-        console.print("[yellow]数据库尚未创建。[/yellow]")
-        return
-
-    con = sqlite3.connect(str(db_path))
-    cur = con.cursor()
-
+    """查看所有 Session 状态（跨 conversation 聚合，与 /api/sessions 一致）。"""
+    service = CloudraService()
+    rows = []
+    for conversation in service.list_conversations():
+        conversation_id = conversation.get("id", "")
+        try:
+            validate_conversation_id(conversation_id)
+        except ValueError:
+            continue
+        for record in service.session_runner.list(conversation_id):
+            row = record.to_dict()
+            row["conversation_id"] = conversation_id
+            rows.append(row)
     if state:
-        cur.execute("SELECT session_id, state, result FROM session WHERE state = ? ORDER BY rowid DESC", (state,))
-    else:
-        cur.execute("SELECT session_id, state, result FROM session ORDER BY rowid DESC LIMIT 50")
+        rows = [row for row in rows if row["state"] == state]
+    rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
+    rows = rows[:100]
 
-    rows = cur.fetchall()
-    con.close()
+    if not rows:
+        console.print("[yellow]暂无 Session。[/yellow]")
+        return
 
     table = Table(title="Sessions", show_header=True, header_style="bold magenta")
     table.add_column("Session ID", style="cyan")
+    table.add_column("Conversation")
     table.add_column("State")
     table.add_column("Result", max_width=60)
 
     for row in rows:
-        session_id, st, result = row
-        result = (result or "")[:100]
-        table.add_row(session_id, st, result)
+        result = (row.get("result") or "")[:100]
+        table.add_row(row["session_id"], row["conversation_id"], row["state"], result)
 
     console.print(table)
 

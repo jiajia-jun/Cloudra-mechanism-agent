@@ -10,8 +10,8 @@ This example demonstrates how to find the equilibrium lattice constant
 by fitting an equation of state (EOS) to energy-volume data.
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from ase.build import bulk
 from ase.calculators.emt import EMT  # Fast calculator for demonstration
 from ase.eos import calculate_eos
@@ -57,7 +57,7 @@ def optimize_lattice_constant(
     print("=" * 60)
 
     # Method 1: Manual scan and fitting
-    print(f"\nMethod 1: Manual energy-volume scan")
+    print("\nMethod 1: Manual energy-volume scan")
     print(f"Scanning from a = {a_initial - a_range:.3f} to {a_initial + a_range:.3f} Å")
 
     # Create range of lattice constants to test
@@ -95,14 +95,14 @@ def optimize_lattice_constant(
     volume_per_unit_a3 = atoms_test.get_volume()  # Volume when a=1
     a_optimal = (v0 / volume_per_unit_a3) ** (1 / 3)
 
-    print(f"\nFitted parameters:")
+    print("\nFitted parameters:")
     print(f"  Optimal lattice constant: {a_optimal:.4f} Å")
     print(f"  Optimal volume per atom: {v0:.3f} Å³")
     print(f"  Minimum energy: {e0:.4f} eV")
     print(f"  Bulk modulus: {B / 1e9:.2f} GPa")
 
     # Method 2: Using ASE's built-in calculate_eos
-    print(f"\nMethod 2: Using ASE calculate_eos function")
+    print("\nMethod 2: Using ASE calculate_eos function")
 
     atoms = bulk(element, structure, a=a_initial)
     atoms.calc = EMT()

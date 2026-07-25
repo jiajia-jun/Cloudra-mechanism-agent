@@ -187,7 +187,7 @@ cloudra/
 ├── reAct.py              # ReAct reasoning loop
 ├── executor.py           # Tool execution engine
 ├── context_manager.py    # Message/context rendering
-├── session_manager.py    # SQLite persistence
+├── database.py           # SQLite persistence
 ├── supervisor.py         # Scientific oversight and validation
 ├── tools_class.py        # BaseTool and tool registry
 ├── config.py             # Configuration management

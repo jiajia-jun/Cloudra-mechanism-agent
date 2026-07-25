@@ -1,24 +1,30 @@
 
+import json
+import os
 from datetime import datetime
 
 
 class Session:
+    """内存态会话镜像；数据库（session 表）是唯一持久化事实来源。
+
+    默认不再写 per-session JSON 快照文件；调试时可设置环境变量
+    ``CLOUDRA_DEBUG_SESSION_JSON=1`` 恢复写文件行为（upload_json 仍可显式调用）。
+    """
     id: str
     path: str
     create_time: datetime
     state: str = 'sleeping'
-    tool_calling: dict = {}
+
     def __init__(self, id: str, path: str) -> None:
         self.create_time = datetime.now()
         self.id = id
         self.path = path
         self.state = 'sleeping'
-        # 必须是实例字段，避免不同 Session 共享同一个类级 dict。
-        self.tool_calling = {}
-        session_dict = self.to_json()
-        import json
-        with open(self.path, 'w', encoding='utf-8') as f:
-            json.dump(session_dict, f, ensure_ascii=False, indent=4)
+        if os.environ.get("CLOUDRA_DEBUG_SESSION_JSON") == "1":
+            dir_name = os.path.dirname(self.path)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+            self.upload_json()
 
 
     def to_json(self) -> dict:
@@ -30,14 +36,10 @@ class Session:
             'path': self.path,
             'create_time': create_time,
             'state': self.state,
-            'tool_calling': self.tool_calling
         }
         return json_dict
 
     def upload_json(self):
-        import json
         with open(self.path, 'w', encoding='utf-8') as f:
             json.dump(self.to_json(), f, ensure_ascii=False, indent=4)
-
-
 

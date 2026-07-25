@@ -12,15 +12,17 @@ Supervisor 是一个轻量的元认知模块，不执行工具，不走 ReAct �
 
 from __future__ import annotations
 
-import json
+import logging
 import os
 from typing import Optional
 
 import numpy as np
-from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from cloudra.config import get_config
+from cloudra.llm_client import LLMClient
+
+logger = logging.getLogger("Supervisor")
 
 
 def _load_supervisor_prompt() -> str:
@@ -94,99 +96,22 @@ class Supervisor:
         self.api_key = api_key or cfg.follower.key
         self.interval = max(1, interval)
         self.max_advice_items = max(1, max_advice_items)
-        # OpenAI 客户端缓存：review/extract 每 5 步触发一次，避免重复新建连接池
-        self._openai_client = None
-        self._openai_client_custom = None
+        # LLM 传输层客户端缓存：review/extract 每 5 步触发一次，避免重复新建连接池
+        self._llm_client: Optional[LLMClient] = None
 
-    def _get_client(self, custom_headers: bool = False) -> AsyncOpenAI:
-        """返回缓存的 AsyncOpenAI 客户端（custom_headers 用于中转站 fallback）。"""
-        if custom_headers:
-            if self._openai_client_custom is None:
-                self._openai_client_custom = AsyncOpenAI(
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                    default_headers={"User-Agent": "curl/7.68.0"},
-                )
-            return self._openai_client_custom
-        if self._openai_client is None:
-            self._openai_client = AsyncOpenAI(
+    def _get_client(self) -> LLMClient:
+        """返回缓存的 LLMClient（三级 fallback 由传输层内部处理）。"""
+        if self._llm_client is None:
+            self._llm_client = LLMClient(
                 api_key=self.api_key,
                 base_url=self.base_url,
+                model=self.model,
             )
-        return self._openai_client
-
-    async def _call_model(
-        self,
-        request_kwargs: dict,
-        fallback_label: str = "Supervisor",
-    ) -> Optional[dict]:
-        """统一调用 LLM，处理 temperature 限制等可恢复错误。
-
-        某些 reasoning 模型（如 o1/o3 系列）只支持 temperature=1。
-        如果请求因 temperature 被拒，自动把 temperature 设为 1 重试一次。
-        返回 response 字典或 None（失败时）。
-        """
-        try:
-            client = self._get_client()
-            return await client.chat.completions.create(**request_kwargs)
-        except Exception as e:
-            msg = str(e).lower()
-            # 处理只支持 temperature=1 的模型
-            if "only 1 is allowed" in msg or "temperature" in msg and "1" in msg:
-                print(
-                    f"\033[93m[LLM fallback] {fallback_label} 当前模型只支持 temperature=1，"
-                    f"正在重试...\033[0m"
-                )
-                request_kwargs = dict(request_kwargs)
-                request_kwargs["temperature"] = 1.0
-                try:
-                    client = self._get_client()
-                    return await client.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    print(f"[{fallback_label}] temperature=1 重试失败: {e2}")
-                    return None
-            # 网络/拦截类错误，尝试自定义请求头
-            if any(k in msg for k in ("blocked", "access denied", " forbidden", "too many requests", "rate limit")):
-                print(f"\033[93m[LLM fallback] {fallback_label} 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                client2 = self._get_client(custom_headers=True)
-                try:
-                    return await client2.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    print(f"[{fallback_label}] Fallback 调用失败: {e2}")
-                    return None
-            print(f"[{fallback_label}] LLM 调用失败: {e}")
-            return None
+        return self._llm_client
 
     def should_review(self, step: int) -> bool:
         """判断当前轮次是否应该触发审查。"""
         return step > 0 and step % self.interval == 0
-
-    async def _call_json_model(self, request_kwargs: dict, fallback_label: str):
-        """调用模型并解析 JSON 输出，处理 thinking 模型的 max_tokens 截断。
-
-        首次输出被截断（finish_reason='length'，表现为 JSON Unterminated）时，
-        用加倍的 max_tokens 重试一次。返回 (data, error)；data 为 None 时 error 非空。
-        """
-        response = await self._call_model(request_kwargs, fallback_label)
-        if response is None:
-            return None, "LLM 调用失败"
-        content = response.choices[0].message.content or "{}"
-        finish_reason = getattr(response.choices[0], "finish_reason", None)
-        try:
-            return json.loads(content), None
-        except Exception as exc:
-            if finish_reason != "length":
-                return None, exc
-        # 截断重试一次：thinking 段吃掉了预算，翻倍后 JSON 通常能完整生成
-        retry_kwargs = dict(request_kwargs)
-        retry_kwargs["max_tokens"] = int(request_kwargs.get("max_tokens", 1024)) * 2
-        response = await self._call_model(retry_kwargs, fallback_label)
-        if response is None:
-            return None, "截断重试调用失败"
-        try:
-            return json.loads(response.choices[0].message.content or "{}"), None
-        except Exception as exc:
-            return None, exc
 
     def compress_timeline(
         self,
@@ -242,17 +167,16 @@ class Supervisor:
             return np.zeros(1536, dtype=np.float32)
 
         try:
-            client = self._get_client()
             # 注意：base_url 若指向 OpenAI 兼容服务，embedding 模型名可能不同
             # 这里使用 text-embedding-3-small 作为默认值
-            response = await client.embeddings.create(
+            response = await self._get_client().embed(
+                text[:8000],
                 model="text-embedding-3-small",
-                input=text[:8000],
             )
             vec = np.array(response.data[0].embedding, dtype=np.float32)
             return vec
         except Exception as e:
-            print(f"[Supervisor] embedding 生成失败: {e}")
+            logger.warning("[Supervisor] embedding 生成失败，退化为零向量: %s", e)
             return np.zeros(1536, dtype=np.float32)
 
     def retrieve_relevant_cases(
@@ -360,18 +284,14 @@ class Supervisor:
 
         prompt = self.build_prompt(user_goal, timeline_summary, relevant_cases)
 
-        request_kwargs = dict(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": SUPERVISOR_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=1.0,
+        data, error = await self._get_client().chat_json(
+            SUPERVISOR_SYSTEM_PROMPT,
+            prompt,
             # thinking 模型的思考段会吃掉输出预算，1024 极易截断 JSON
             max_tokens=4096,
+            temperature=1.0,
             response_format={"type": "json_object"},
         )
-        data, error = await self._call_json_model(request_kwargs, "Supervisor")
         if error is not None:
             print(f"[Supervisor] 审查调用/解析失败: {error}")
             return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 审查失败: {error}")
@@ -411,17 +331,13 @@ class Supervisor:
             "--- JSON ---"
         )
 
-        request_kwargs = dict(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "你是一个从任务记录中提取经验教训的助手。"},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=1.0,
+        data, error = await self._get_client().chat_json(
+            "你是一个从任务记录中提取经验教训的助手。",
+            prompt,
             max_tokens=4096,
+            temperature=1.0,
             response_format={"type": "json_object"},
         )
-        data, error = await self._call_json_model(request_kwargs, "Supervisor(extract)")
         if error is not None:
             print(f"[Supervisor] 提取 Case JSON 解析失败: {error}")
             return self._fallback_case_data(timeline_summary, error)

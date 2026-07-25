@@ -94,7 +94,7 @@ def build_guard_cmd(
     return [
         sys.executable,
         "-m",
-        "cloudra.guard",
+        "cloudra.runtime.monitor",
         "--path",
         input_file,
         "--timeout",

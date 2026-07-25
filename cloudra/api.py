@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from cloudra import __version__
+from cloudra import __version__, paths
 from cloudra.config import get_config, set_config_value
 from cloudra.database import ConversationDB
 from cloudra.service import CloudraService, validate_conversation_id
@@ -288,7 +288,7 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
             validate_conversation_id(conversation_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        log_dir = Path(get_config().data_dir) / "conversations" / conversation_id / "logs"
+        log_dir = paths.logs_dir(conversation_id)
         if not log_dir.is_dir():
             return []
         results = []
@@ -334,9 +334,6 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
-
-
 def main() -> None:
     """启动开发服务器。默认只允许本机访问。"""
     import uvicorn
@@ -345,7 +342,7 @@ def main() -> None:
     port = int(os.getenv("CLOUDRA_API_PORT", "8000"))
     if host not in {"127.0.0.1", "localhost", "::1"} and not os.getenv("CLOUDRA_API_TOKEN"):
         raise RuntimeError("对外监听 API 前必须设置 CLOUDRA_API_TOKEN")
-    uvicorn.run("cloudra.api:app", host=host, port=port, reload=False)
+    uvicorn.run("cloudra.api:create_app", host=host, port=port, reload=False, factory=True)
 
 
 if __name__ == "__main__":

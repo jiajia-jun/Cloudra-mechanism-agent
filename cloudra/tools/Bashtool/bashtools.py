@@ -37,6 +37,9 @@ class Bashtools(Tool):
     def __init__(self, subagent: Agent = None, **data) -> None:
         super().__init__(**data)
         self.subagent = subagent
+        # 进行中的终端命令追踪（terminal_id -> command）：挂在工具实例上，
+        # Session 只是内存镜像，不再承载工具运行态。
+        self._terminal_commands: dict = {}
         if subagent is not None:
             availables = self.allowed_tools_lst(subagent)
             tool_str = self._format_tool_list(availables)
@@ -133,7 +136,7 @@ class Bashtools(Tool):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        session.tool_calling[terminal_id] = command
+        self._terminal_commands[terminal_id] = command
 
         def decode_output(data: bytes) -> str:
             if not data:
@@ -159,12 +162,12 @@ class Bashtools(Tool):
         except Exception as e:
             print(e)
             result = f'命令执行失败:{e}'
-            del session.tool_calling[terminal_id]
+            self._terminal_commands.pop(terminal_id, None)
             # Use safer decoding for stderr too
             err_msg = decode_output(stderr) if 'stderr' in locals() else str(e)
             return Bashtools_output_schema(result=err_msg, terminal_id=terminal_id, run_command=command)
 
-        del session.tool_calling[terminal_id]
+        self._terminal_commands.pop(terminal_id, None)
         result = decode_output(stdout)
         if stderr:
             result += "\n" + decode_output(stderr)

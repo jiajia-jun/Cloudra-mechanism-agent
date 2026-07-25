@@ -44,14 +44,14 @@ from cloudra.agent import Coordinator
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
 from cloudra.database import ConversationDB
-from cloudra.main import (
-    Color,
-    _wait_for_background_tasks,
+from cloudra.presentation import Color
+from cloudra.runtime.runner import _wait_for_background_tasks
+from cloudra.runtime.workers import (
     approval_handler,
     check_compute,
     checking_task,
 )
-from cloudra.reAct import Coordinator_reAct
+from cloudra.react import Coordinator_reAct
 
 # Benchmark 子模块
 from benchmarks.chembench.adapter import question_to_query

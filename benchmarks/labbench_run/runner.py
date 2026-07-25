@@ -12,6 +12,10 @@ sys.path.append(os.path.join(ROOT_DIR, "benchmarks", "LAB-Bench"))
 import labbench
 from cloudra.agent import Agent, Coordinator
 from cloudra.conversation_class import Conversation
+from cloudra.tools import register_tool_class
+from benchmarks.bench_tool import BenchTool
+
+register_tool_class(BenchTool)
 
 def format_query(input_data: labbench.AgentInput) -> str:
     choices_str = ""
@@ -57,7 +61,7 @@ async def labbench_agent_fn(input_data: labbench.AgentInput) -> str:
     if image_paths:
         agent.query += "\n\n【附图提示】本题包含以下参考图片：" + ", ".join(image_paths)
 
-    from cloudra.reAct import Coordinator_reAct
+    from cloudra.react import Coordinator_reAct
     
     react = Coordinator_reAct(agent=agent)
     

@@ -16,10 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
+from cloudra import conversation_repo, paths, session_store
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
 from cloudra.database import ConversationDB
-from cloudra.main import run_task_async
+from cloudra.runtime.runner import run_task_async
 
 _CONVERSATION_ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _SESSION_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
@@ -80,16 +81,14 @@ class SessionRunner:
         yolo: bool = False,
     ) -> SessionRecord:
         session_id = f"a-0_run_{uuid.uuid4().hex}"
-        now = datetime.now(timezone.utc).isoformat()
         db = ConversationDB(conversation_id).init()
-        with db.connect() as conn:
-            conn.execute(
-                """INSERT INTO session
-                (session_id, agent_id, agent_type, query, state, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)""",
-                (session_id, "a-0", "coordinator", query, "queued", now),
-            )
-            conn.commit()
+        session_store.insert_queued_session(
+            db,
+            session_id=session_id,
+            agent_id="a-0",
+            agent_type="coordinator",
+            query=query,
+        )
         self._emit(conversation_id, session_id, "queued", {"query": query, "yolo": yolo})
         task = asyncio.create_task(
             self._execute(query, conversation_id, session_id, working_directory, yolo)
@@ -158,15 +157,7 @@ class SessionRunner:
 
     def _claim(self, conversation_id: str, session_id: str, now: str) -> bool:
         db = ConversationDB(conversation_id)
-        with db.connect() as conn:
-            cursor = conn.execute(
-                """UPDATE session SET state='running', pid=?, worker_id=?,
-                started_at=COALESCE(started_at, ?), heartbeat_at=?
-                WHERE session_id=? AND state='queued'""",
-                (os.getpid(), self.worker_id, now, now, session_id),
-            )
-            conn.commit()
-        if cursor.rowcount == 1:
+        if session_store.claim_session(db, session_id, pid=os.getpid(), worker_id=self.worker_id):
             self._emit(conversation_id, session_id, "running", {"worker_id": self.worker_id})
             return True
         return False
@@ -183,25 +174,14 @@ class SessionRunner:
     def _update(self, conversation_id: str, session_id: str, **values) -> None:
         if not values:
             return
-        assignments = ", ".join(f"{name} = ?" for name in values)
         db = ConversationDB(conversation_id)
-        with db.connect() as conn:
-            conn.execute(
-                f"UPDATE session SET {assignments} WHERE session_id = ?",
-                (*values.values(), session_id),
-            )
-            conn.commit()
+        session_store.update_session_fields(db, session_id, values)
 
     def _emit(self, conversation_id: str, session_id: str, event_type: str, data: dict) -> None:
         # 库已在 submit() 时初始化；不要在这里重复 init()——建表+迁移是写事务，
         # 并发子 Agent 高频上报事件时会放大写锁竞争。
         db = ConversationDB(conversation_id)
-        with db.connect() as conn:
-            conn.execute(
-                "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
-                (session_id, event_type, json.dumps(data, ensure_ascii=False), datetime.now(timezone.utc).isoformat()),
-            )
-            conn.commit()
+        session_store.insert_session_event(db, session_id, event_type, data)
 
     def events(self, conversation_id: str, session_id: str, after_id: int = 0, conn=None) -> list[dict]:
         validate_conversation_id(conversation_id)
@@ -234,7 +214,7 @@ class SessionRunner:
             tz=timezone.utc,
         ).isoformat()
         changed = 0
-        root = get_config().data_dir / "conversations"
+        root = paths.conversations_dir()
         for entry in root.iterdir() if root.exists() else []:
             if not entry.is_dir() or not _CONVERSATION_ID.fullmatch(entry.name):
                 continue
@@ -243,31 +223,7 @@ class SessionRunner:
                 continue
             try:
                 db.init()
-                with db.connect() as conn:
-                    cursor = conn.execute(
-                        """UPDATE session SET state='interrupted',
-                        error=COALESCE(error, 'worker heartbeat expired'), finished_at=?
-                        WHERE state='running' AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
-                        (datetime.now(timezone.utc).isoformat(), cutoff),
-                    )
-                    conn.commit()
-                    changed += cursor.rowcount
-                    # 状态一致性：子 Agent 请求若仍挂在 'running'，但其 executor 的
-                    # Session 已死（心跳过期/不存在/非 running），一并标记 failed，
-                    # 避免等待方（_wait_for_background_tasks 等）永久阻塞。
-                    conn.execute(
-                        """UPDATE subagent_requests SET state='failed'
-                        WHERE state='running' AND (
-                            session_id IS NULL
-                            OR session_id NOT IN (SELECT session_id FROM session)
-                            OR session_id IN (
-                                SELECT session_id FROM session
-                                WHERE state != 'running' OR heartbeat_at IS NULL OR heartbeat_at < ?
-                            )
-                        )""",
-                        (cutoff,),
-                    )
-                    conn.commit()
+                changed += session_store.recover_stale(db, cutoff=cutoff)
             except (OSError, sqlite3.Error):
                 continue
         return changed
@@ -339,41 +295,17 @@ class SessionRunner:
     def _cancel_descendants(self, conversation_id: str, parent_session_id: str) -> None:
         """级联打断父 Session 派生的子 Agent 请求、子 Session 和计算任务。"""
         db = ConversationDB(conversation_id)
-        with db.connect() as conn:
-            children = conn.execute(
-                """SELECT session_id, pid FROM session
-                WHERE parent_session_id=? AND state IN ('queued', 'running', 'cancel_requested')""",
-                (parent_session_id,),
-            ).fetchall()
-            for child_id, pid in children:
-                # 先置 cancel_requested，给子进程自行退出的机会
-                conn.execute(
-                    """UPDATE session SET state='cancel_requested'
-                    WHERE session_id=? AND state IN ('queued', 'running')""",
-                    (child_id,),
-                )
-                if pid and pid != os.getpid():
-                    try:
-                        # executor 安装了 SIGTERM 处理器，会自行落 cancelled
-                        os.kill(pid, signal.SIGTERM)
-                    except (ProcessLookupError, PermissionError):
-                        pass
-                conn.execute(
-                    """UPDATE session SET state='cancelled', finished_at=?
-                    WHERE session_id=? AND state NOT IN ('cancelled', 'failed', 'completed')""",
-                    (datetime.now(timezone.utc).isoformat(), child_id),
-                )
-            conn.execute(
-                """UPDATE subagent_requests SET state='cancelled'
-                WHERE parent_session_id=? AND state IN ('ready', 'running')""",
-                (parent_session_id,),
-            )
-            conn.execute(
-                """UPDATE compute_jobs SET state='cancelled'
-                WHERE session_id=? AND state IN ('ready', 'running')""",
-                (parent_session_id,),
-            )
-            conn.commit()
+
+        def terminate(pid: int) -> None:
+            if pid == os.getpid():
+                return
+            try:
+                # executor 安装了 SIGTERM 处理器，会自行落 cancelled
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+        session_store.cancel_descendants(db, parent_session_id, terminate)
 
 
 class CloudraService:
@@ -426,21 +358,11 @@ class CloudraService:
         )
 
     def list_conversations(self) -> list[dict]:
-        root = self.config.data_dir / "conversations"
-        result = []
-        for entry in root.iterdir() if root.exists() else []:
-            meta_path = entry / "meta.json"
-            if not entry.is_dir() or not meta_path.is_file():
-                continue
-            try:
-                result.append(json.loads(meta_path.read_text(encoding="utf-8")))
-            except (OSError, json.JSONDecodeError):
-                continue
-        return sorted(result, key=lambda item: item.get("last_active", ""), reverse=True)
+        return conversation_repo.list_conversations()
 
     def delete_all_conversations(self) -> int:
         """删除所有会话数据（包括消息、Session、审批等）。"""
-        root = self.config.data_dir / "conversations"
+        root = paths.conversations_dir()
         count = 0
         if root.exists():
             for entry in list(root.iterdir()):
@@ -451,13 +373,7 @@ class CloudraService:
 
     def get_conversation_messages(self, conversation_id: str) -> list[dict]:
         validate_conversation_id(conversation_id)
-        path = self.config.data_dir / "conversations" / conversation_id / "contexts" / "a-0.json"
-        if not path.is_file():
-            return []
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, list):
-            raise ValueError("会话消息文件格式错误")
-        return data
+        return conversation_repo.conversation_messages(conversation_id)
 
     async def list_pending_approvals(self) -> list[dict]:
         results = []
@@ -473,12 +389,7 @@ class CloudraService:
             db = ConversationDB(conversation_id)
             if not Path(db.path).is_file():
                 continue
-            async with db.aconnect() as conn:
-                cursor = await conn.execute(
-                    "SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'"
-                )
-                rows = await cursor.fetchall()
-            for row in rows:
+            for row in session_store.list_pending_approvals(db):
                 results.append({
                     "id": row[0],
                     "conversation_id": conversation_id,
@@ -499,10 +410,4 @@ class CloudraService:
         db = ConversationDB(conversation_id)
         if not Path(db.path).is_file():
             return False
-        async with db.aconnect() as conn:
-            cursor = await conn.execute(
-                "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ? AND state = 'pending'",
-                (decision, denial_reason, approval_id),
-            )
-            await conn.commit()
-            return cursor.rowcount == 1
+        return await session_store.adecide_approval(db, approval_id, decision, denial_reason)

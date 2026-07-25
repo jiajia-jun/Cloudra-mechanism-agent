@@ -107,7 +107,7 @@ class TestYoloGuardJudge:
         mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
+            mock_client.return_value.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
                 "text_reader",
                 {"path": "/data.txt"},
@@ -117,7 +117,7 @@ class TestYoloGuardJudge:
 
         assert approved is True
         assert "合理" in reason
-        mock_client.return_value.chat.completions.create.assert_called_once()
+        mock_client.return_value.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_judge_rejected(self, fake_agent, monkeypatch):
@@ -135,7 +135,7 @@ class TestYoloGuardJudge:
         mock_response.choices[0].message.tool_calls = [mock_tool_call]
 
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create = AsyncMock(return_value=mock_response)
+            mock_client.return_value.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
                 "bashtools",
                 {"command": "rm -rf /"},
@@ -164,7 +164,7 @@ class TestYoloGuardJudge:
 
         with patch.object(guard, "_client") as mock_client:
             create = AsyncMock(return_value=mock_response)
-            mock_client.return_value.chat.completions.create = create
+            mock_client.return_value.create = create
             approved, reason = await guard.judge(
                 "text_writer",
                 {"path": "/x.txt", "content": "hello"},
@@ -199,7 +199,7 @@ class TestYoloGuardJudge:
 
         with patch.object(guard, "_client") as mock_client:
             create = AsyncMock(side_effect=[bad_response, good_response])
-            mock_client.return_value.chat.completions.create = create
+            mock_client.return_value.create = create
             approved, reason = await guard.judge(
                 "text_writer",
                 {"path": "/x.txt", "content": "hello"},
@@ -238,7 +238,7 @@ class TestYoloGuardJudge:
             mock_response,
         ])
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create = create
+            mock_client.return_value.create = create
             approved, reason = await guard.judge(
                 "text_writer",
                 {"path": "/x.txt", "content": "hello"},
@@ -263,7 +263,7 @@ class TestYoloGuardJudge:
         guard = YoloGuard()
         create = AsyncMock(side_effect=Exception("Error code: 400 - tool_choice 'specified' is incompatible with thinking enabled"))
         with patch.object(guard, "_client") as mock_client:
-            mock_client.return_value.chat.completions.create = create
+            mock_client.return_value.create = create
             approved, reason = await guard.judge(
                 "text_writer",
                 {"path": "/x.txt", "content": "hello"},

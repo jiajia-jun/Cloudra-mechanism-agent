@@ -10,11 +10,11 @@ from cloudra.database import ConversationDB
 
 def _make_react(tmp_path, monkeypatch, conv_id="test-trunc"):
     from cloudra.agent import Follower
-    from cloudra.reAct import reAct
+    from cloudra.react import reAct
 
     db_path = str(tmp_path / "test.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.reAct.get_database_path", lambda _conv_id: db_path)
+    monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
 
     agent = Follower(
         id="a-test",
@@ -62,7 +62,7 @@ class _TC:
 @pytest.mark.asyncio
 class TestTruncation:
     async def test_retry_then_fail_marks_failed(self, tmp_path, monkeypatch):
-        from cloudra.reAct import LLMOutputTruncated
+        from cloudra.react import LLMOutputTruncated
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         calls = []

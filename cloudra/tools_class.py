@@ -21,17 +21,12 @@ def _tool_db_path(subagent) -> str:
 
 
 def get_tools() -> list[dict]:
-    '''
-    将tools模块中的对象加载为 OpenAI function 格式的 dict 列表。
-    供 agent.py 的 llm_call() 直接传入 tools 参数。
-    '''
-    tools = get_tools_lst()
+    """将工具类加载为 OpenAI function 格式的 dict 列表。"""
+    entries = get_tools_lst()
     tools_list = []
-    for tool in tools:
-        # NOTE: tool_schema_json 已改为实例方法（原为类方法），因此 tool 必须是实例对象。
-        # 这会让 __init__ 中动态拼接的 tool_description 真正进入 LLM 可见的 schema。
-        tool_json = tool.tool_schema_json()
-        tools_list.append(tool_json)
+    for entry in entries:
+        tool_instance = entry.instantiate()
+        tools_list.append(tool_instance.tool_schema_json())
     return tools_list
 
 
@@ -220,22 +215,14 @@ class Tool(BaseModel):
     async def request_approval(self, db_path: str, session_id: str, details: str) -> tuple[bool, str]:
         import asyncio
 
-        db = ConversationDB.from_path(db_path)
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES (?, ?, ?, ?)",
-                (session_id, details, 'pending', '')
-            )
-            approval_id = cur.lastrowid
-            await con.commit()
+        from cloudra import session_store as _ss
 
-        # 轮询等待审批结果
+        db = ConversationDB.from_path(db_path)
+        approval_id = await _ss.ainsert_approval(db, session_id, details)
+
         while True:
             await asyncio.sleep(2)
-            async with db.aconnect() as con:
-                cur = await con.execute("SELECT state, denial_reason FROM approvals WHERE id = ?", (approval_id,))
-                row = await cur.fetchone()
-
+            row = await _ss.aread_approval_status(db, approval_id)
             if row:
                 state, denial_reason = row
                 if state == 'approved':
@@ -248,9 +235,6 @@ class Tool(BaseModel):
                     else:
                         print("\033[91m[安全审计]\033[0m 审批拒绝。")
                     return False, reason
-
-            # 可选：在终端提示等待中
-            # print(".", end="", flush=True)
 
     @classmethod
     def _get_field_default(cls, field_name: str):

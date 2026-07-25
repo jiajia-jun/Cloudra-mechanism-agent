@@ -197,7 +197,7 @@ async def test_decide_approval_is_idempotent(tmp_path, monkeypatch):
 def test_apply_approval_decision_guard(tmp_path, monkeypatch):
     """CLI 侧的审批写入同样具备 pending 守卫。"""
     from cloudra.database import ConversationDB
-    from cloudra.main import apply_approval_decision
+    from cloudra.runtime.workers import apply_approval_decision
 
     _setup_data_dir(tmp_path, monkeypatch)
     db = ConversationDB("conv-cli-approval").init()
@@ -220,7 +220,7 @@ def test_apply_approval_decision_guard(tmp_path, monkeypatch):
 def test_reap_exited_executors(tmp_path, monkeypatch):
     """已退出但未自报终态的 executor 进程被回收，活着的进程不动。"""
     from cloudra.database import ConversationDB
-    from cloudra.main import reap_exited_executors
+    from cloudra.runtime.workers import reap_exited_executors
 
     _setup_data_dir(tmp_path, monkeypatch)
     db = ConversationDB("conv-reap").init()

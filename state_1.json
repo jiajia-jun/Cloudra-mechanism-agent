@@ -1,0 +1,30 @@
+{
+    "atommasses": [
+        15.9949146,
+        1.007825,
+        1.007825
+    ],
+    "atomnos": [
+        8,
+        1,
+        1
+    ],
+    "charge": 0,
+    "coreelectrons": [
+        0,
+        0,
+        0
+    ],
+    "mult": 1,
+    "natom": 3,
+    "nbasis": 19,
+    "nmo": 19,
+    "rotconsts": [
+        [
+            792.8720573,
+            430.1506455,
+            278.8618939
+        ]
+    ],
+    "is_success": false
+}

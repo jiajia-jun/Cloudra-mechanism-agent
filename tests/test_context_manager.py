@@ -232,3 +232,164 @@ class TestCapMessageSizes:
         ])
         messages = await cm.build_messages()
         assert messages[0]["content"] == long_prompt
+
+
+class TestHistoryCompression:
+    """LLM 历史压缩路径（_compress_to_budget / _summarize_history）钉板测试。
+
+    LLMClient 全部 mock，钉住：
+    1. 触发条件：估算总 token > max_context_tokens 才触发。
+    2. 替换方式：system 消息 + 梗概消息 + 最近 10 轮（以 assistant 计数）原样保留。
+    3. 兜底：LLM 失败 / 缺配置 / 梗概仍超预算 时保留原始消息不压缩。
+    """
+
+    @pytest.fixture
+    def mock_llm(self, monkeypatch):
+        """mock LLMClient 与 FOLLOWER 配置，返回 (LLMClient 类 mock, create mock)。"""
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+
+        from cloudra.config import get_config
+
+        follower = get_config().follower
+        monkeypatch.setattr(follower, "model", "fake-model")
+        monkeypatch.setattr(follower, "url", "http://fake-llm")
+        monkeypatch.setattr(follower, "key", "fake-key")
+
+        create = AsyncMock(return_value=SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="压缩梗概"))]
+        ))
+        with patch("cloudra.context_manager.LLMClient") as mock_cls:
+            mock_cls.return_value.create = create
+            yield mock_cls, create
+
+    @staticmethod
+    async def _fill_history(cm, long_rounds=12, recent_rounds=10):
+        """填充 long_rounds 轮长历史 + recent_rounds 轮短近期对话。"""
+        for i in range(long_rounds):
+            await cm.append({"role": "user", "content": f"历史问题 {i}: " + "这是历史消息。" * 30})
+            await cm.append({"role": "assistant", "content": f"历史回复 {i}: " + "这是历史回复。" * 30})
+        for i in range(recent_rounds):
+            await cm.append({"role": "user", "content": f"最近问题 {i}: 短"})
+            await cm.append({"role": "assistant", "content": f"最近回复 {i}: 短"})
+
+    @pytest.mark.asyncio
+    async def test_no_compression_under_budget(self, context_manager, mock_llm):
+        """总 token 不超过预算时不触发压缩，也不调用 LLM。"""
+        _, create = mock_llm
+        await self._fill_history(context_manager, long_rounds=1, recent_rounds=1)
+
+        msgs = await context_manager.build_messages(max_context_tokens=100_000)
+
+        create.assert_not_called()
+        contents = [str(m.get("content", "")) for m in msgs]
+        assert any("历史问题 0" in c for c in contents)
+
+    @pytest.mark.asyncio
+    async def test_compression_replaces_history_with_summary(self, context_manager, mock_llm):
+        """超预算时：历史被梗概替换，system 与最近 10 轮保留。"""
+        mock_cls, create = mock_llm
+        await self._fill_history(context_manager)
+
+        msgs = await context_manager.build_messages(max_context_tokens=1000)
+
+        # LLM 被调用一次，使用 FOLLOWER 配置与固定参数
+        assert create.call_count == 1
+        kwargs = create.call_args.kwargs
+        assert kwargs["model"] == "fake-model"
+        assert kwargs["temperature"] == 0.3
+        assert kwargs["max_tokens"] == 2000
+        # 梗概输入只包含历史（含初始 query），不包含保留的最近轮次。
+        # 注意边界现状：保留窗口以第 10 条 assistant 为锚点截断，该轮对应的
+        # user 消息（"最近问题 0"）被划入历史而非保留区。
+        summary_prompt = kwargs["messages"][1]["content"]
+        assert kwargs["messages"][0] == {"role": "system", "content": "你是一个专门压缩对话历史的助手。"}
+        assert "历史问题 0" in summary_prompt
+        assert "初始问题" in summary_prompt
+        assert "最近问题 0" in summary_prompt  # 第 10 轮的 user 消息被划入历史
+        assert "最近问题 1" not in summary_prompt
+
+        # 结构：原 system prompt + 梗概 system 消息 + 保留尾部（19 条，
+        # 从第 10 条 assistant "最近回复 0" 开始，其 user 消息不在其中）
+        assert len(msgs) == 21
+        assert msgs[0]["role"] == "system"
+        assert msgs[0]["content"] == "你是一个测试助手。"
+        assert msgs[1]["role"] == "system"
+        assert msgs[1]["content"].startswith("[上下文压缩提示]")
+        assert "压缩梗概" in msgs[1]["content"]
+        # 历史不再出现，保留区完整
+        contents = [str(m.get("content", "")) for m in msgs]
+        assert not any("历史问题 0" in c for c in contents)
+        assert not any("最近问题 0" in c for c in contents)
+        assert any("最近回复 0" in c for c in contents)
+        assert any("最近回复 9" in c for c in contents)
+
+    @pytest.mark.asyncio
+    async def test_empty_summary_uses_fallback_text(self, context_manager, mock_llm):
+        """LLM 返回空梗概时，使用固定的兜底文案。"""
+        from types import SimpleNamespace
+
+        _, create = mock_llm
+        create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=""))]
+        )
+        await self._fill_history(context_manager)
+
+        msgs = await context_manager.build_messages(max_context_tokens=1000)
+
+        assert "[历史消息过长，未能生成有效梗概]" in msgs[1]["content"]
+
+    @pytest.mark.asyncio
+    async def test_llm_failure_keeps_original_messages(self, context_manager, mock_llm):
+        """LLM 调用抛异常时保留原始消息，不压缩、不删除。"""
+        _, create = mock_llm
+        create.side_effect = RuntimeError("LLM 不可用")
+        await self._fill_history(context_manager)
+
+        msgs = await context_manager.build_messages(max_context_tokens=1000)
+
+        assert create.call_count == 1
+        contents = [str(m.get("content", "")) for m in msgs]
+        assert any("历史问题 0" in c for c in contents)
+        assert not any("[上下文压缩提示]" in c for c in contents)
+
+    @pytest.mark.asyncio
+    async def test_missing_follower_config_keeps_original(self, context_manager, mock_llm, monkeypatch):
+        """FOLLOWER 配置缺失（key 为空）时不创建 client、不压缩。"""
+        mock_cls, create = mock_llm
+        from cloudra.config import get_config
+
+        monkeypatch.setattr(get_config().follower, "key", "")
+        await self._fill_history(context_manager)
+
+        msgs = await context_manager.build_messages(max_context_tokens=1000)
+
+        mock_cls.assert_not_called()
+        create.assert_not_called()
+        contents = [str(m.get("content", "")) for m in msgs]
+        assert any("历史问题 0" in c for c in contents)
+
+    @pytest.mark.asyncio
+    async def test_summary_still_over_budget_keeps_original(self, context_manager, mock_llm):
+        """梗概替换后仍超预算时，保留完整原始消息（不进一步删除）。"""
+        _, create = mock_llm
+        await self._fill_history(context_manager)
+
+        msgs = await context_manager.build_messages(max_context_tokens=10)
+
+        assert create.call_count == 1  # 仍然尝试了梗概
+        contents = [str(m.get("content", "")) for m in msgs]
+        assert any("历史问题 0" in c for c in contents)
+        assert not any("[上下文压缩提示]" in c for c in contents)
+
+    @pytest.mark.asyncio
+    async def test_openai_client_cached_across_calls(self, context_manager, mock_llm):
+        """压缩用 LLMClient 按实例缓存，多次梗概只构造一次。"""
+        mock_cls, create = mock_llm
+        history = [{"role": "user", "content": "hi"}]
+
+        await context_manager._summarize_history(history)
+        await context_manager._summarize_history(history)
+
+        assert mock_cls.call_count == 1
+        assert create.call_count == 2

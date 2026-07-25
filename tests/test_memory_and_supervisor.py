@@ -271,13 +271,13 @@ class TestReActSupervisorIntegration:
         """普通 Agent 默认启用 Supervisor。"""
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
-        from cloudra.reAct import reAct
+        from cloudra.react import reAct
 
         conv_id = "test-react"
         db_path = str(tmp_path / "test.db")
         db = ConversationDB.from_path(db_path)
         db.init()
-        monkeypatch.setattr("cloudra.reAct.get_database_path", lambda _conv_id: db_path)
+        monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
 
         agent = Follower(
             id="a-test",
@@ -293,13 +293,13 @@ class TestReActSupervisorIntegration:
         """reAct 初始化时应创建 Supervisor 实例。"""
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
-        from cloudra.reAct import reAct
+        from cloudra.react import reAct
 
         conv_id = "test-react"
         db_path = str(tmp_path / "test.db")
         db = ConversationDB.from_path(db_path)
         db.init()
-        monkeypatch.setattr("cloudra.reAct.get_database_path", lambda _conv_id: db_path)
+        monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
 
         agent = Follower(
             id="a-test",
@@ -314,7 +314,11 @@ class TestReActSupervisorIntegration:
 
 
 class TestSupervisorJsonTruncation:
-    """thinking 模型 JSON 输出被 max_tokens 截断时的翻倍重试。"""
+    """thinking 模型 JSON 输出被 max_tokens 截断时的翻倍重试。
+
+    传输层委托给 LLMClient.chat_json，因此 mock 最底层的 create，
+    通过真实的 review 路径验证截断翻倍与预算参数。
+    """
 
     @staticmethod
     def _resp(content: str, finish: str):
@@ -326,33 +330,45 @@ class TestSupervisorJsonTruncation:
             )]
         )
 
+    @staticmethod
+    def _patch_transport(supervisor, **kwargs):
+        """给 supervisor 挂上真实 LLMClient，并 mock 掉最底层 create。"""
+        from cloudra.llm_client import LLMClient
+
+        client = LLMClient(api_key="dummy", base_url="http://dummy", model="dummy")
+        supervisor._llm_client = client
+        return patch.object(client, "create", **kwargs)
+
     @pytest.mark.asyncio
     async def test_truncated_json_retried_with_doubled_budget(self, supervisor):
         truncated = self._resp('{"verdict": "proceed", "reason', "length")
         full = self._resp('{"verdict": "redirect", "reasoning": "ok", "advice": ["a"]}', "stop")
-        with patch.object(supervisor, "_call_model", new=AsyncMock(side_effect=[truncated, full])) as call:
-            data, err = await supervisor._call_json_model({"max_tokens": 4096}, "Supervisor")
-        assert err is None
-        assert data["verdict"] == "redirect"
+        with self._patch_transport(supervisor, new=AsyncMock(side_effect=[truncated, full])) as call, \
+             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=np.zeros(1536))):
+            review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
+        assert review.verdict == "redirect"
         assert call.await_count == 2
         # 重试时 max_tokens 翻倍
-        assert call.await_args_list[1].args[0]["max_tokens"] == 8192
+        assert call.await_args_list[1].kwargs["max_tokens"] == 8192
 
     @pytest.mark.asyncio
     async def test_malformed_json_not_retried(self, supervisor):
         bad = self._resp("这不是 JSON", "stop")
-        with patch.object(supervisor, "_call_model", new=AsyncMock(return_value=bad)) as call:
-            data, err = await supervisor._call_json_model({"max_tokens": 4096}, "Supervisor")
-        assert data is None and err is not None
+        with self._patch_transport(supervisor, new=AsyncMock(return_value=bad)) as call, \
+             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=np.zeros(1536))):
+            review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
         assert call.await_count == 1
+        # 解析失败时退化为 proceed，不中断主流程
+        assert review.verdict == "proceed"
+        assert "审查失败" in review.reasoning
 
     @pytest.mark.asyncio
     async def test_review_uses_raised_budget(self, supervisor):
         full = self._resp('{"verdict": "pass", "reasoning": "ok", "advice": []}', "stop")
-        with patch.object(supervisor, "_call_model", new=AsyncMock(return_value=full)) as call, \
-             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=__import__("numpy").zeros(1536))):
+        with self._patch_transport(supervisor, new=AsyncMock(return_value=full)) as call, \
+             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=np.zeros(1536))):
             review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
-        assert call.await_args_list[0].args[0]["max_tokens"] == 4096
+        assert call.await_args_list[0].kwargs["max_tokens"] == 4096
         assert review.verdict == "pass"
 
 
@@ -398,12 +414,12 @@ class TestSupervisorReviewEndToEnd:
 
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
-        from cloudra.reAct import reAct
+        from cloudra.react import reAct
         from cloudra.supervisor import SupervisorReview
 
         db_path = str(tmp_path / "t.db")
         ConversationDB.from_path(db_path).init()
-        monkeypatch.setattr("cloudra.reAct.get_database_path", lambda _c: db_path)
+        monkeypatch.setattr("cloudra.react.get_database_path", lambda _c: db_path)
 
         agent = Follower(id="a-sup", name="tester", prompt="测试", query="测试任务", conversation_id="sup-e2e")
         react = reAct(agent)

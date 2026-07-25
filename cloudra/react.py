@@ -1,57 +1,21 @@
 import asyncio
 import json
 import os
-import time
-from datetime import datetime, timezone
+from datetime import datetime
 
-import httpx
 import numpy as np
-import openai
 
+from cloudra import session_store
 from cloudra.agent import Agent
 from cloudra.case_bank import get_case_bank
 from cloudra.config import get_config
-from cloudra.database import ConversationDB, aretry_on_locked, get_database_path, retry_on_locked
+from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
 from cloudra.log_class import Log
+from cloudra.presentation import Color
 from cloudra.session_class import Session
+from cloudra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.supervisor import get_supervisor
 from cloudra.tools import get_tools_lst
-
-# 每次 reasoning 前等待外部事件的最长时间（秒）
-EXTERNAL_EVENT_POLL_INTERVAL = 0.5
-
-
-def dynamic_deep_merge(buffer_dict: dict, delta_dict: dict) -> dict:
-    """通用动态拼接工具：不硬编码任何字段名，自动合并字符串，自动递归字典。
-
-    注意：tool_call 中的 'type' 和 'name' 是固定枚举值，收到重复 chunk 时应
-    直接覆盖，而不是字符串累加；否则会出现 'functionfunction...' 这种非法值，
-    导致部分 provider（如 Xiaomi token-plan）返回 400。
-    """
-    # 这些字段在 OpenAI tool_call chunk 中是固定值，不应累加。
-    overwrite_fields = {"type", "name"}
-
-    for key, value in delta_dict.items():
-        if isinstance(value, dict):
-            # 如果是嵌套字典（比如 'function'），递归进去拼接
-            if key not in buffer_dict:
-                buffer_dict[key] = {}
-            dynamic_deep_merge(buffer_dict[key], value)
-
-        elif isinstance(value, str):
-            # 固定值字段直接覆盖，其余字符串字段累加。
-            if key in overwrite_fields:
-                buffer_dict[key] = value
-            else:
-                if key not in buffer_dict:
-                    buffer_dict[key] = ""
-                buffer_dict[key] += value
-
-        else:
-            # 如果是数字或其他类型（比如 'index'），直接覆盖/初始化
-            buffer_dict[key] = value
-
-    return buffer_dict
 
 
 class AgentCancelled(Exception):
@@ -69,88 +33,17 @@ class LLMOutputTruncated(Exception):
     """
 
 
-_STREAM_SENTINEL = object()
-
-
-async def _aiter_chunks(response):
-    """统一异步迭代 LLM chunk。
-
-    AsyncStream（AsyncOpenAI）直接 async 迭代；requests fallback 返回的
-    同步生成器用线程拉取 next()，避免网络阻塞冻结事件循环。
-    """
-    if hasattr(response, "__aiter__"):
-        async for chunk in response:
-            yield chunk
-        return
-    iterator = iter(response)
-    while True:
-        chunk = await asyncio.to_thread(next, iterator, _STREAM_SENTINEL)
-        if chunk is _STREAM_SENTINEL:
-            break
-        yield chunk
-
-
-class _ChunkPumper:
-    """把 LLM token 增量节流落库为 llm_chunk 事件。
-
-    节流规则：单流缓冲满 80 字符，或距上次落库满 0.4s，即flush。
-    目标是兼顾前端流式观感和 SQLite 写入压力（约 2.5 写/秒/Agent）。
-    """
-
-    FLUSH_INTERVAL = 0.4
-    FLUSH_SIZE = 80
-
-    def __init__(self, record):
-        # record: async callable(event_type: str, data: dict)，由 reAct._record_event 提供
-        self._record = record
-        self._buffers: dict[str, list[str]] = {"content": [], "reasoning": []}
-        self._sizes: dict[str, int] = {"content": 0, "reasoning": 0}
-        self._last_flush = time.monotonic()
-
-    async def add(self, stream: str, delta: str) -> None:
-        if not delta:
-            return
-        self._buffers[stream].append(delta)
-        self._sizes[stream] += len(delta)
-        if (
-            self._sizes[stream] >= self.FLUSH_SIZE
-            or (time.monotonic() - self._last_flush) >= self.FLUSH_INTERVAL
-        ):
-            await self.flush(stream)
-
-    async def flush(self, stream: str = None) -> None:
-        targets = (stream,) if stream else ("content", "reasoning")
-        for name in targets:
-            if not self._buffers[name]:
-                continue
-            delta = "".join(self._buffers[name])
-            self._buffers[name].clear()
-            self._sizes[name] = 0
-            await self._record("llm_chunk", {"stream": name, "delta": delta})
-        self._last_flush = time.monotonic()
-
-
-class Color:
-    PURPLE = '\033[95m'
-    CYAN = '\033[96m'
-    DARKCYAN = '\033[36m'
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    END = '\033[0m'
+class _TruncationRetry(Exception):
+    """内部信号：本轮输出被 max_tokens 截断，注入收敛提示后重试（有界循环）。"""
 
 class reAct:
     session: Session
     agent: Agent
     prompt: str
     log: Log
-    _continue : bool = True
-    database_path: str = ''
-    undos: list = []
-    _reset_count: int = 0
+    _continue: bool
+    database_path: str
+    undos: list
 
     def __init__(
         self,
@@ -182,6 +75,10 @@ class reAct:
         self.log = Log(agent.name, log_path=log_path)
         self.log.session = None
         self.session_create(session_id)
+
+        # 运行状态标志与缓冲区：必须是实例字段，避免多个 reAct 实例共享类级可变对象
+        self._continue = True
+        self.undos = []
 
         # 每轮 ReAct 的步数计数，用于触发 Supervisor 定期审查
         self.step_count = 0
@@ -334,17 +231,8 @@ class reAct:
             # 用户打断：落库 cancelled 状态后向上抛，由 executor 统一收尾
             self.session.state = 'cancelled'
             db = ConversationDB.from_path(self.database_path)
-
-            async def mark_cancelled() -> None:
-                async with db.aconnect() as con:
-                    await con.execute(
-                        "UPDATE session SET state='cancelled', finished_at=? WHERE session_id=?",
-                        (datetime.now(timezone.utc).isoformat(), self.session.id),
-                    )
-                    await con.commit()
-
             try:
-                await aretry_on_locked(mark_cancelled)
+                await session_store.afinalize_session(db, self.session.id, 'cancelled')
             except Exception as e:
                 print(f"[reAct] cancelled 状态写入失败: {e}")
             self.log.update_content(f"{Color.YELLOW}[系统] 任务已被用户打断。{Color.END}\n")
@@ -352,18 +240,10 @@ class reAct:
         except LLMOutputTruncated as exc:
             # 输出反复被 max_tokens 截断：明确落库 failed，绝不让工具结果误当最终答案
             self.session.state = 'failed'
+            error_msg = str(exc)
             db = ConversationDB.from_path(self.database_path)
-
-            async def mark_truncated() -> None:
-                async with db.aconnect() as con:
-                    await con.execute(
-                        "UPDATE session SET state='failed', error=?, finished_at=? WHERE session_id=?",
-                        (str(exc), datetime.now(timezone.utc).isoformat(), self.session.id),
-                    )
-                    await con.commit()
-
             try:
-                await aretry_on_locked(mark_truncated)
+                await session_store.afinalize_session(db, self.session.id, 'failed', error=error_msg)
             except Exception as e:
                 print(f"[reAct] truncated 状态写入失败: {e}")
             self.log.update_content(f"{Color.RED}[系统] {exc}{Color.END}\n")
@@ -397,16 +277,7 @@ class reAct:
                     self.session.state = 'completed'
                     # 更新数据库结果
                     db = ConversationDB.from_path(self.database_path)
-
-                    async def mark_completed() -> None:
-                        async with db.aconnect() as con:
-                            await con.execute(
-                                "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
-                                ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id)
-                            )
-                            await con.commit()
-
-                    await aretry_on_locked(mark_completed)
+                    await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
                     # 任务结束前沉淀经验 case
                     await self._persist_case()
                     return content
@@ -428,16 +299,7 @@ class reAct:
                 if not content:
                     content = context[-1].get('content', '任务已完成') if context else '任务已完成'
                 db = ConversationDB.from_path(self.database_path)
-
-                async def mark_stopped() -> None:
-                    async with db.aconnect() as con:
-                        await con.execute(
-                            "UPDATE session SET state = ?, result = ?, finished_at = ? WHERE session_id = ?",
-                            ('completed', content, datetime.now(timezone.utc).isoformat(), self.session.id),
-                        )
-                        await con.commit()
-
-                await aretry_on_locked(mark_stopped)
+                await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
                 # 任务结束前沉淀经验 case
                 await self._persist_case()
                 if self.agent.id != 'a-0':
@@ -448,7 +310,19 @@ class reAct:
     async def reasoning(self) -> list:
         '''
         reAct的推理方法，分析agent的上下文和工具，决定下一步行动。
+
+        输出被 max_tokens 截断时通过有界循环重试（不再递归自调用）；
+        网络瞬时错误的重试统一由 LLMClient 的退避层完成，这里不再兜底。
         '''
+        while True:
+            try:
+                return await self._reasoning_once()
+            except _TruncationRetry:
+                # 注入收敛提示；重试次数耗尽时抛 LLMOutputTruncated
+                await self._retry_on_truncation()
+
+    async def _reasoning_once(self) -> list:
+        '''单轮推理：调用 LLM 并消费响应。输出被截断时抛 _TruncationRetry。'''
         agent = self.agent
         # agent.prompt 是身份 prompt，必须保留，不允许被任务要求覆盖。
         response = await agent.llm_call()
@@ -541,14 +415,6 @@ class reAct:
                         "has_tool_calls": bool(tool_calls),
                     },
                 )
-            except (httpx.HTTPError, openai.APIConnectionError) as e:
-                self.log.update_content(
-                        new_content=f"{Color.RED}[reasoning步骤]出现网络错误：{e}，{2 ** (self._reset_count+1)}秒后重试"
-                        )
-                self._reset_count += 1
-                await asyncio.sleep(2 ** self._reset_count)
-                # 重试，只是网络问题的话让用户自行等待或者切断程序
-                return await self.reasoning()
             except AgentCancelled:
                 # 打断请求：关闭底层流，向上传播由 run() 统一落库 cancelled
                 close = getattr(response, "close", None)
@@ -570,12 +436,12 @@ class reAct:
             # 输出被 max_tokens 截断：finish_reason=='length'，或 tool_call 被拦腰截断。
             # 截断的输出不能按"正常说完"处理（否则上一条工具结果会被误存为最终答案）。
             if last_finish_reason == 'length' or leftover_tool_calls:
-                return await self._retry_on_truncation()
+                raise _TruncationRetry()
 
         else:
             message = response.choices[0].message
             if response.choices[0].finish_reason == 'length':
-                return await self._retry_on_truncation()
+                raise _TruncationRetry()
             final_response = message.content
             if hasattr(message, 'reasoning_content') and message.reasoning_content:
                 reasoning_content = message.reasoning_content
@@ -618,27 +484,26 @@ class reAct:
 
     MAX_TRUNCATION_RETRIES = 2
 
-    async def _retry_on_truncation(self) -> list:
-        """输出被 max_tokens 截断时的处理：注入收敛提示重试，反复截断则抛 LLMOutputTruncated。"""
-        if self._truncation_retries < self.MAX_TRUNCATION_RETRIES:
-            self._truncation_retries += 1
-            self.log.update_content(
-                f"{Color.YELLOW}[系统] 模型输出被 max_tokens 截断，"
-                f"注入收敛提示后重试 ({self._truncation_retries}/{self.MAX_TRUNCATION_RETRIES}){Color.END}\n"
+    async def _retry_on_truncation(self) -> None:
+        """输出被 max_tokens 截断时的处理：注入收敛提示；反复截断则抛 LLMOutputTruncated。"""
+        if self._truncation_retries >= self.MAX_TRUNCATION_RETRIES:
+            raise LLMOutputTruncated(
+                f"模型输出连续 {self.MAX_TRUNCATION_RETRIES + 1} 次被 max_tokens 截断"
+                f"（当前上限 {self.agent.max_tokens} tokens）。"
+                "这通常意味着 thinking 过长，请增大 max_tokens 或拆分任务。"
             )
-            await self.agent.update_context({
-                "role": "system",
-                "content": (
-                    "【系统提示】你上一条输出因 max_tokens 限制被截断，结论或 tool_call 没有完整生成。"
-                    "请立即收敛思考长度，用简洁形式直接给出最终结论，或重新发起必要的工具调用。"
-                ),
-            })
-            return await self.reasoning()
-        raise LLMOutputTruncated(
-            f"模型输出连续 {self.MAX_TRUNCATION_RETRIES + 1} 次被 max_tokens 截断"
-            f"（当前上限 {self.agent.max_tokens} tokens）。"
-            "这通常意味着 thinking 过长，请增大 max_tokens 或拆分任务。"
+        self._truncation_retries += 1
+        self.log.update_content(
+            f"{Color.YELLOW}[系统] 模型输出被 max_tokens 截断，"
+            f"注入收敛提示后重试 ({self._truncation_retries}/{self.MAX_TRUNCATION_RETRIES}){Color.END}\n"
         )
+        await self.agent.update_context({
+            "role": "system",
+            "content": (
+                "【系统提示】你上一条输出因 max_tokens 限制被截断，结论或 tool_call 没有完整生成。"
+                "请立即收敛思考长度，用简洁形式直接给出最终结论，或重新发起必要的工具调用。"
+            ),
+        })
 
     @staticmethod
     def _is_empty_assistant_block(block: dict) -> bool:
@@ -662,18 +527,21 @@ class reAct:
         """
         required_map: dict[frozenset, str] = {}
         full_map: dict[frozenset, str] = {}
-        for tool in get_tools_lst():
+        for entry in get_tools_lst():
             try:
-                schema = tool.input_schema.to_parameters_schema()
+                schema_cls = entry.input_schema
+                if schema_cls is None:
+                    continue
+                schema = schema_cls.to_parameters_schema()
             except Exception:
                 continue
             props = schema.get("properties", {})
             required = frozenset(schema.get("required", []))
             full_keys = frozenset(props.keys())
             if required:
-                required_map.setdefault(required, tool.tool_name)
+                required_map.setdefault(required, entry.tool_name)
             if full_keys:
-                full_map.setdefault(full_keys, tool.tool_name)
+                full_map.setdefault(full_keys, entry.tool_name)
         return required_map, full_map
 
     def _normalize_tool_calls(self, tool_calls: list[dict]) -> list[dict]:
@@ -782,7 +650,7 @@ class reAct:
         返回 bool：是否检测到 stop 工具并请求终止循环。
         '''
         session = self.session
-        tools_list = get_tools_lst()
+        tool_entries = get_tools_lst()
 
         # 并发执行所有工具调用
         acts = []
@@ -797,7 +665,7 @@ class reAct:
 
             # 空 tool name 直接提醒 LLM，避免进入无意义的工具查找/循环
             if not tool_name:
-                available_names = sorted({t.tool_name for t in tools_list})
+                available_names = sorted({e.tool_name for e in tool_entries})
                 example = '{"name": "getskill", "arguments": {"skill_name": "subagent-prompting"}}'
                 err_msg = (
                     "【系统错误】工具调用缺少 function.name。"
@@ -847,13 +715,9 @@ class reAct:
             )
 
             found = False
-            for tool in tools_list:
-                # NOTE: get_tools_lst() 现在返回实例对象（不再是类），因此直接用 tool.tool_name 匹配。
-                if tool.tool_name == tool_name:
-                    # 统一注入当前 agent 到工具实例中，以便工具内部获取上下文和进行安全审计
-                    # 我知道这是很粗糙的设计，因为Agent不应该承载这么多的上下文信息，但不妨把
-                    # Agent看成一个运行状态机，reAct专注过程，Agent专注状态
-                    tool_instance = tool.__class__(subagent=self.agent)
+            for entry in tool_entries:
+                if entry.tool_name == tool_name:
+                    tool_instance = entry.instantiate(subagent=self.agent)
 
                     input_schema_class = tool_instance.input_schema
                     input_instance = input_schema_class(**tool_args)
@@ -928,29 +792,15 @@ class reAct:
         await self._record_event("phase", {"phase": phase})
 
     async def _record_event(self, event_type: str, data: dict) -> None:
-        """写入 session_events 遥测事件。
+        """写入 session_events 遥测事件（经 session_store，附带心跳刷新）。
 
         遥测写入是可丢弃的：多进程并发时 SQLite 写锁竞争激烈，
         重试耗尽后只记录日志，绝不能让日志/事件写入杀死 Agent 主流程。
         使用异步连接 + aretry_on_locked，避免同步 busy_timeout 等待冻结事件循环。
         """
-        now = datetime.now(timezone.utc).isoformat()
         db = ConversationDB.from_path(self.database_path)
-
-        async def write_event() -> None:
-            async with db.aconnect() as con:
-                await con.execute(
-                    "UPDATE session SET heartbeat_at=? WHERE session_id=?",
-                    (now, self.session.id),
-                )
-                await con.execute(
-                    "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
-                    (self.session.id, event_type, json.dumps(data, ensure_ascii=False), now),
-                )
-                await con.commit()
-
         try:
-            await aretry_on_locked(write_event)
+            await session_store.arecord_event(db, self.session.id, event_type, data)
         except Exception as e:
             self.log.update_content(
                 f"{Color.YELLOW}[reAct] 事件写入失败（已忽略）: {event_type}: {e}{Color.END}\n"
@@ -959,8 +809,8 @@ class reAct:
     def session_create(self, session_id: str = None) -> None:
         '''
         创建session，记录agent的整个生命周期。
-        Session 文件放在 agent 所属 conversation 的 sessions/ 目录下。
-        同时写入数据库作为单一事实来源。
+        数据库是唯一事实来源；per-session JSON 快照仅在
+        CLOUDRA_DEBUG_SESSION_JSON=1 时由 Session 自行写出（调试用途）。
         '''
         data_dir = get_config().data_dir
         if not self.database_path:
@@ -972,7 +822,6 @@ class reAct:
             _path = os.path.join(data_dir, 'conversations', conv_id, 'sessions', session_id + '.json')
         else:
             _path = os.path.join(data_dir, 'sessions', session_id + '.json')
-        os.makedirs(os.path.dirname(_path), exist_ok=True)
         os.makedirs(os.path.dirname(self.database_path), exist_ok=True)
         session_ = Session(id=session_id, path=_path)
         self.session = session_
@@ -980,70 +829,16 @@ class reAct:
 
         # 数据库为单一事实来源：创建即入库
         db = ConversationDB.from_path(self.database_path)
-
-        def create_session_record() -> None:
-            with db.connect() as con:
-                con.execute(
-                    """INSERT OR IGNORE INTO session
-                    (session_id, agent_id, agent_type, parent_session_id, query, state, result, pid,
-                     worker_id, created_at, started_at, heartbeat_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        session_.id,
-                        getattr(self.agent, 'id', None),
-                        getattr(self.agent, 'type', None),
-                        self.parent_session_id,
-                        getattr(self.agent, 'query', ''),
-                        'running',
-                        '',
-                        os.getpid(),
-                        f'process:{os.getpid()}',
-                        session_.create_time.isoformat(),
-                        datetime.now(timezone.utc).isoformat(),
-                        datetime.now(timezone.utc).isoformat(),
-                    ),
-                )
-                con.execute(
-                    """UPDATE session SET
-                    agent_id = COALESCE(agent_id, ?),
-                    agent_type = COALESCE(agent_type, ?),
-                    parent_session_id = COALESCE(parent_session_id, ?),
-                    query = COALESCE(query, ?),
-                    state = 'running',
-                    pid = ?,
-                    worker_id = ?,
-                    started_at = COALESCE(started_at, ?)
-                    WHERE session_id = ?""",
-                    (
-                        getattr(self.agent, 'id', None),
-                        getattr(self.agent, 'type', None),
-                        self.parent_session_id,
-                        getattr(self.agent, 'query', ''),
-                        os.getpid(),
-                        f'process:{os.getpid()}',
-                        datetime.now(timezone.utc).isoformat(),
-                        session_.id,
-                    ),
-                )
-                con.commit()
-
-        retry_on_locked(create_session_record)
+        session_store.create_session_record(
+            db,
+            session_id=session_.id,
+            agent_id=getattr(self.agent, 'id', None),
+            agent_type=getattr(self.agent, 'type', None),
+            parent_session_id=self.parent_session_id,
+            query=getattr(self.agent, 'query', ''),
+            created_at=session_.create_time.isoformat(),
+        )
         return
-
-    def kill(self):
-        session = self.session
-        session.state = 'killed'
-        session.upload_json()
-        self._continue = False
-        # 同步数据库
-        db = ConversationDB.from_path(self.database_path)
-        with db.connect() as con:
-            cur = con.cursor()
-            cur.execute(
-                "UPDATE session SET state = ? WHERE session_id = ?",
-                ('killed', session.id)
-            )
-            con.commit()
 
 
 class Coordinator_reAct(reAct):

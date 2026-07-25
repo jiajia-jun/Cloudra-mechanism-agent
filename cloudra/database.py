@@ -18,7 +18,8 @@ from typing import Awaitable, Callable, Optional, TypeVar
 
 import aiosqlite
 
-from cloudra.config import get_config
+from cloudra import paths
+from cloudra.paths import PathLike
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
@@ -75,22 +76,20 @@ class ConversationDB:
     4. 提供同步/异步连接上下文
     """
 
-    def __init__(self, conversation_id: Optional[str] = None):
+    def __init__(self, conversation_id: Optional[str] = None, data_dir: Optional[PathLike] = None):
         self.conversation_id = conversation_id or "default"
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", self.conversation_id):
             raise ValueError("无效的 conversation_id")
-        self.path = self._build_path(self.conversation_id)
-
-    @staticmethod
-    def _build_path(conversation_id: str) -> str:
-        data_dir = get_config().data_dir
-        return str(data_dir / "conversations" / conversation_id / "tasks" / "database.db")
+        # data_dir 覆盖仅供测试/多实例场景注入；默认在构造时经 paths 惰性解析配置
+        self.data_dir = data_dir
+        self.path = str(paths.conversation_db_path(self.conversation_id, data_dir=data_dir))
 
     @classmethod
     def from_path(cls, path: str) -> "ConversationDB":
         """从已有路径构造 ConversationDB 实例（不验证 conversation_id）。"""
         instance = cls.__new__(cls)
         instance.conversation_id = ""
+        instance.data_dir = None
         instance.path = path
         return instance
 

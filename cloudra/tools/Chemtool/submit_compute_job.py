@@ -82,6 +82,8 @@ class SubmitComputeJob(Tool):
                     (conv_id, session_id, f_path, 'ready', user_input.job_type, -1, -1))
                     job_id = cur.lastrowid
                     await con.commit()
+                    from cloudra.events import notifier
+                    notifier.notify_compute_inserted()
                     return SubmitComputeJob_output_schema(
                             is_success=True,
                             job_id=job_id,

@@ -33,6 +33,21 @@ def test_conversation_db_path(isolated_db):
     assert db.path.endswith(expected_suffix)
 
 
+def test_conversation_db_data_dir_override(tmp_path):
+    """显式注入 data_dir 时不读全局配置。"""
+    db = ConversationDB("conv_ovr", data_dir=tmp_path)
+    expected = tmp_path / "conversations" / "conv_ovr" / "tasks" / "database.db"
+    assert db.path == str(expected)
+    db.init()
+    assert os.path.exists(db.path)
+    with db.connect() as con:
+        cur = con.cursor()
+        cur.execute("PRAGMA journal_mode")
+        assert cur.fetchone()[0].upper() == "WAL"
+        cur.execute("PRAGMA busy_timeout")
+        assert cur.fetchone()[0] == 60000
+
+
 def test_get_database_path_default():
     """默认 conversation_id 为 'default'。"""
     path = get_database_path()
@@ -163,7 +178,7 @@ class TestApprovalSanitize:
     """终端粘贴的 GBK 字节会以孤立代理符残留，审批写库前必须净化。"""
 
     def test_apply_approval_decision_with_surrogate(self, tmp_path):
-        from cloudra.main import _sanitize_db_text, apply_approval_decision
+        from cloudra.runtime.workers import apply_approval_decision
 
         db = ConversationDB.from_path(str(tmp_path / "t.db")).init()
         with db.connect() as con:
@@ -183,7 +198,7 @@ class TestApprovalSanitize:
         reason.encode("utf-8")
 
     def test_sanitize_db_text_passthrough_clean(self):
-        from cloudra.main import _sanitize_db_text
+        from cloudra import session_store
 
-        assert _sanitize_db_text("正常中文 abc 123") == "正常中文 abc 123"
-        assert _sanitize_db_text("") == ""
+        assert session_store.sanitize_db_text("正常中文 abc 123") == "正常中文 abc 123"
+        assert session_store.sanitize_db_text("") == ""

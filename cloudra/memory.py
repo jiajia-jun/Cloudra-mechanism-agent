@@ -19,9 +19,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from openai import AsyncOpenAI
-
+from cloudra import paths
 from cloudra.config import get_config
+from cloudra.llm_client import LLMClient
 
 # 默认记忆字数上限（中文字符按 1 个计，英文单词按 1 个计）。
 # 超过此阈值时触发自动压缩。
@@ -44,13 +44,12 @@ class MemoryManager:
         self.word_limit = max(100, word_limit)
         self.compressed_word_limit = max(100, compressed_word_limit)
         self.memory_path = self._resolve_path()
-        # OpenAI 客户端缓存：压缩是低频操作，但没必要每次新建连接池
-        self._openai_client = None
+        # LLM 传输层客户端缓存：压缩是低频操作，但没必要每次新建连接池
+        self._llm_client: Optional[LLMClient] = None
 
     def _resolve_path(self) -> Path:
         """解析记忆文件路径。默认使用全局记忆，跨会话共享。"""
-        data_dir = get_config().data_dir
-        path = Path(data_dir) / "memory" / "MEMORY.md"
+        path = paths.memory_path(data_dir=get_config().data_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -170,10 +169,9 @@ class MemoryManager:
         ).format(limit=self.compressed_word_limit, text=text[:12000])
 
         try:
-            if self._openai_client is None:
-                self._openai_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-            client = self._openai_client
-            response = await client.chat.completions.create(
+            if self._llm_client is None:
+                self._llm_client = LLMClient(api_key=api_key, base_url=base_url)
+            response = await self._llm_client.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": "你是一个专门整理科研助手长期记忆的助手。"},

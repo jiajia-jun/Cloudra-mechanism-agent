@@ -13,19 +13,30 @@ from cloudra.database import ConversationDB
 
 
 async def run_guard(taskid: int, path: str, conv_id: str, time_out: int, db_path: str):
-    '''
-    启动后每 time_out 秒解析一次 log 文档，写入 state.json，
-    更新 compute_jobs 表状态，并向 conv_id 下的 Coordinator 注入事件。
+    """
+    监控 Gaussian 日志文件，解析完成后写入 state.json 并更新数据库。
 
-    path 是 gjf 路径！
-    '''
+    使用文件 mtime 变化检测替代固定间隔 sleep：当日志文件未更新时只做轻量
+    mtime 检查（0.5s 间隔）；检测到变化时才尝试解析。
+    """
     from cloudra.compute_utils import get_log_path
     log_path = Path(get_log_path(path, job_type='gaussian'))
     workdir = os.path.dirname(log_path)
     db = ConversationDB.from_path(db_path)
+    last_mtime = 0.0
 
     while True:
-        await asyncio.sleep(time_out)
+        try:
+            current_mtime = log_path.stat().st_mtime
+        except FileNotFoundError:
+            await asyncio.sleep(0.5)
+            continue
+
+        # 文件未变化时轻量等待（time_out 作为首次解析的最大容忍延迟兜底）
+        if last_mtime and current_mtime == last_mtime:
+            await asyncio.sleep(0.5)
+            continue
+        last_mtime = current_mtime
 
         try:
             data = cclib.io.ccread(log_path)

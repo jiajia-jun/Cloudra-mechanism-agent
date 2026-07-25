@@ -10,15 +10,14 @@ This example demonstrates how to find the minimum energy path and
 activation barrier for a simple surface diffusion process.
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-from ase import Atoms
-from ase.build import fcc111, add_adsorbate
+import numpy as np
+from ase.build import add_adsorbate, fcc111
 from ase.calculators.emt import EMT
-from ase.neb import NEB
-from ase.optimize import BFGS
 from ase.constraints import FixAtoms
 from ase.io import read, write
+from ase.neb import NEB
+from ase.optimize import BFGS
 
 
 def create_initial_state(size=(4, 4, 4), adsorbate_position="fcc"):
@@ -40,7 +39,6 @@ def create_initial_state(size=(4, 4, 4), adsorbate_position="fcc"):
     slab = fcc111("Pt", size=size, vacuum=10.0)
 
     # Fix bottom two layers
-    n_layers = size[2]
     n_atoms_per_layer = size[0] * size[1]
     constraint = FixAtoms(indices=range(n_atoms_per_layer * 2))
     slab.set_constraint(constraint)
@@ -70,7 +68,6 @@ def create_final_state(size=(4, 4, 4), adsorbate_position="hcp"):
     slab = fcc111("Pt", size=size, vacuum=10.0)
 
     # Fix bottom two layers (same as initial)
-    n_layers = size[2]
     n_atoms_per_layer = size[0] * size[1]
     constraint = FixAtoms(indices=range(n_atoms_per_layer * 2))
     slab.set_constraint(constraint)
@@ -210,7 +207,7 @@ def calculate_reaction_barrier(
 
     # Save transition state
     write("transition_state.traj", images[ts_index])
-    print(f"\nTransition state saved to: transition_state.traj")
+    print("\nTransition state saved to: transition_state.traj")
 
     # Plot energy profile
     if plot:
@@ -251,7 +248,7 @@ def calculate_reaction_barrier(
 
         plt.tight_layout()
         plt.savefig("neb_profile.png", dpi=300)
-        print(f"Energy profile saved to: neb_profile.png")
+        print("Energy profile saved to: neb_profile.png")
 
     return {
         "E_initial": E_initial,

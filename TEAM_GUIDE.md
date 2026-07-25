@@ -22,13 +22,13 @@ Cloudra 是一个面向化学科研的 AI Agent 协作框架。本指南帮助�
 | 推理循环 | `reAct.py` (`reAct`) | Thought → Action → Observation 循环，解析工具调用 JSON |
 | 执行引擎 | `executor.py` (`Executor`) | 运行工具类，处理并发与错误捕获 |
 | 上下文管理 | `context_manager.py` (`ContextManager`) | 统一渲染消息、图片 base64、上下文压缩 |
-| 持久化 | `session_manager.py` (`SessionManager`) | SQLite 存储对话、审批、计算任务 |
+| 持久化 | `database.py` (`ConversationDB`) | SQLite 存储对话、审批、计算任务 |
 | 工具协议 | `tools_class.py` (`BaseTool`, `ToolOutput`) | 工具输入 Schema 与注册规范 |
 | 配置 | `config.py` (`CloudraConfig`) | API Key、模型、路径、YOLO 模式等 |
 | CLI/API | `cli.py` / `api.py` | 命令行入口与 FastAPI 服务 |
 | YOLO 守卫 | `yolo_guard.py` (`YoloGuard`) | 自动审批危险操作的独立 LLM Agent |
 
-数据流：`cli.py` 捕获输入 → 实例化 `Coordinator` → 进入 `reAct` 循环 → `Executor` 调用 `tools/` 下工具 → `SessionManager` 持久化 → 输出结果。
+数据流：`cli.py` 捕获输入 → 实例化 `Coordinator` → 进入 `reAct` 循环 → `Executor` 调用 `tools/` 下工具 → `ConversationDB` 持久化 → 输出结果。
 
 ---
 

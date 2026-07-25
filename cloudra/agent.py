@@ -1,54 +1,16 @@
-import asyncio
-import json
 import os
-import random
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Optional
 
-import openai
-import requests
-from openai import AsyncOpenAI, AsyncStream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
 from pydantic import BaseModel
 
 from cloudra.config import get_config
 from cloudra.context_manager import ContextManager
+from cloudra.llm_client import ChatResponse, LLMClient
 from cloudra.memory import get_memory_manager
-from cloudra.tools import get_tools_lst
+from cloudra.tools import ToolEntry, get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
-
-ChatResponse = Union[ChatCompletion, AsyncStream[ChatCompletionChunk]]
-
-
-class _ResponseDictWrapper:
-    """把 requests 返回的 dict 包装成同时支持属性访问和 model_dump 的对象。"""
-
-    __slots__ = ("_data",)
-
-    def __init__(self, data: Any):
-        self._data = data
-
-    def __getattr__(self, name: str) -> Any:
-        try:
-            val = self._data[name]
-        except (KeyError, TypeError):
-            raise AttributeError(name)
-        return self._wrap(val)
-
-    def model_dump(self, **kwargs) -> Any:
-        return self._data
-
-    @classmethod
-    def _wrap(cls, val: Any) -> Any:
-        if isinstance(val, dict):
-            return cls(val)
-        if isinstance(val, list):
-            return [cls._wrap(x) for x in val]
-        return val
-
-    def __repr__(self) -> str:
-        return f"_ResponseDictWrapper({self._data!r})"
 
 
 def load_prompt(agent_name: str) -> str:
@@ -148,15 +110,9 @@ class Agent(BaseModel):
     # API 会话可独立指定目录，避免修改进程级 cwd 导致并发任务互相影响。
     working_directory: Optional[str] = None
 
-    # 兼容被中转站拦截的 OpenAI 客户端：启用后改用 requests 发送请求
-    _curl_mode: bool = False
-
-    # 启用 OpenAI 客户端 + 自定义请求头（比 requests 更规范）
-    _use_custom_headers: bool = False
-
-    # OpenAI 客户端实例级缓存：避免每个推理步骤都新建 httpx 连接池
-    _openai_client: Optional[AsyncOpenAI] = None
-    _openai_client_custom: Optional[AsyncOpenAI] = None
+    # LLM 传输层客户端（实例级缓存，惰性构造）：
+    # 三级 fallback 的级别记忆（_curl_mode/_use_custom_headers）在其中维护
+    _llm_client: Optional[LLMClient] = None
 
     # 工具 schema 列表缓存：工具集与本 Agent 权限在进程内是静态的，
     # 无需每个推理步骤都重新实例化全部工具并重新生成 pydantic schema。
@@ -196,36 +152,21 @@ class Agent(BaseModel):
             self._init_context_manager()
         await self.context_manager.clear()
 
-    def check_permission(self, tool: type[Tool] | Tool) -> bool:
-        '''
-        检查子agent的权限。
-        tool 可以是 Tool 类或已实例化的 Tool 对象。
-        '''
-        # NOTE: 为了兼容 get_tools_lst() 现在返回实例对象，这里先判断是否是已实例化的 Tool。
+    def check_permission(self, tool: ToolEntry | Tool) -> bool:
         if isinstance(tool, Tool):
             tool_instance = tool
         else:
-            tool_instance = tool()
+            tool_instance = tool.instantiate()
         tool_perms = tool_instance.tool_permission_all()
         agent_perms = self.permission_all()
-        return check_permission(agent_perms, tool_perms)    #No its not a recursion
+        return check_permission(agent_perms, tool_perms)
 
 
     def get_available_tools(self) -> list:
-        '''
-        逐个过滤tools父类池，得到子类池，该类的工具权限：
-        is_read [ ]
-        is_write [ ]
-        is_manage [ ]
-        is_script [ ]
-        is_destructive [ ]
-        '''
         tools = get_tools_lst()
         available_tools = []
         for tool in tools:
             if self.check_permission(tool):
-                # NOTE: get_tools_lst() 现已返回实例对象，无需再 tool() 构造。
-                # 需要注入 subagent 的 Bashtools/SubAgentLauncher 已在 reAct.py 中按需重新实例化。
                 available_tools.append(tool)
         return available_tools
 
@@ -273,198 +214,20 @@ class Agent(BaseModel):
             perms |= Permission.DESTRUCTIVE
         return perms
 
-    def _context_path(self) -> str:
-        '''
-        根据 conversation_id 返回上下文文件路径。
-        保留此方法以兼容旧代码，但新代码应优先使用 ContextManager。
-        '''
-        from cloudra.config import get_config
-        data_dir = get_config().data_dir
-        if self.conversation_id and self.conversation_id != 'default':
-            return os.path.join(data_dir, 'conversations', self.conversation_id, 'contexts', self.id + '.json')
-        return os.path.join(data_dir, 'contexts', self.id + '.json')
+    def _get_llm_client(self) -> LLMClient:
+        """返回实例级缓存的 LLM 传输层客户端（构造本身不做任何 I/O）。"""
+        if self._llm_client is None:
+            self._llm_client = LLMClient(api_key=self._api_key, base_url=self.llm_site)
+        return self._llm_client
 
-    def _is_fallback_trigger(self, exc: Exception) -> bool:
-        """判断异常是否由中转站拦截/流控导致，需要切到 requests fallback。"""
-        msg = str(exc).lower()
-        # 常见被拦截/流控关键词
-        blocked_keywords = (
-            "blocked",
-            "your request was blocked",
-            "access denied",
-            " forbidden",
-            "too many requests",
-            "rate limit",
-            "cloudflare",
-            "bad gateway",
-            "connection reset",
-        )
-        return any(k in msg for k in blocked_keywords)
-
-    def _serialize_openai_payload(self, kwargs: dict) -> dict:
-        """把 kwargs 里的 pydantic/model 对象序列化为纯 dict，供 requests 使用。"""
-
-        def _to_dict(obj: Any) -> Any:
-            if hasattr(obj, "model_dump"):
-                return obj.model_dump(exclude_none=True)
-            if hasattr(obj, "dict"):
-                return obj.dict(exclude_none=True)
-            if isinstance(obj, dict):
-                return {k: _to_dict(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [_to_dict(x) for x in obj]
-            return obj
-
-        return _to_dict(kwargs)
-
-    async def _chat_completions_via_requests(self, **kwargs) -> ChatResponse:
-        """异步包装：把同步的 requests 调用放到线程池执行，避免阻塞事件循环。"""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            self._chat_completions_via_requests_sync,
-            kwargs,
-        )
-
-    def _chat_completions_via_requests_sync(self, kwargs: dict) -> ChatResponse:
-        """使用 requests 直接调用 chat completions，模拟 openai 接口返回结构。"""
-        url = f"{self.llm_site.rstrip('/')}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "curl/7.68.0",
-            "Accept": "application/json",
-        }
-        payload = self._serialize_openai_payload(kwargs)
-        stream = payload.get("stream", False)
-
-        if stream:
-            try:
-                resp = requests.post(
-                    url,
-                    headers=headers,
-                    json=payload,
-                    stream=True,
-                    timeout=120,
-                )
-                resp.raise_for_status()
-                return self._stream_response(resp)
-            except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
-                # 部分中转站不支持 SSE，退化为非流式并包装成单 chunk 生成器
-                print("\033[93m[LLM fallback] 流式连接被重置，退化为非流式返回\033[0m")
-                payload["stream"] = False
-                stream = False
-
-        resp = requests.post(url, headers=headers, json=payload, timeout=120)
-        resp.raise_for_status()
-        data = resp.json()
-
-        if stream:
-            return self._json_to_single_chunk_stream(data)
-        return _ResponseDictWrapper(data)
-
-    def _openai_client_with_custom_headers(self) -> AsyncOpenAI:
-        """返回带自定义 User-Agent 的 OpenAI 客户端（实例级缓存），用于二级 fallback。"""
-        if self._openai_client_custom is None:
-            self._openai_client_custom = AsyncOpenAI(
-                api_key=self._api_key,
-                base_url=self.llm_site,
-                default_headers={"User-Agent": "curl/7.68.0"},
-            )
-        return self._openai_client_custom
-
-    def _json_to_single_chunk_stream(self, data: dict):
-        """把非流式响应包装成单 chunk 流生成器，兼容 reAct 的流式消费代码。"""
-        message = data.get("choices", [{}])[0].get("message", {})
-        chunk_data = {
-            "id": data.get("id", ""),
-            "object": "chat.completion.chunk",
-            "created": data.get("created", 0),
-            "model": data.get("model", ""),
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {
-                        "role": "assistant",
-                        "content": message.get("content", ""),
-                        "tool_calls": message.get("tool_calls"),
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
-        }
-        return iter([_ResponseDictWrapper(chunk_data)])
-
-    def _stream_response(self, resp) -> Any:
-        """解析 SSE 流，生成与 openai 兼容的 chunk 对象。"""
-
-        def _iter_chunks():
-            buffer = ""
-            for raw in resp.iter_content(chunk_size=1024):
-                if not raw:
-                    continue
-                buffer += raw.decode("utf-8", errors="replace")
-                while "\n\n" in buffer:
-                    block, buffer = buffer.split("\n\n", 1)
-                    data_line = ""
-                    for line in block.splitlines():
-                        if line.startswith("data:"):
-                            data_line = line[5:].strip()
-                            break
-                    if data_line == "[DONE]":
-                        continue
-                    if data_line:
-                        try:
-                            chunk = json.loads(data_line)
-                        except json.JSONDecodeError:
-                            continue
-                        yield _ResponseDictWrapper(chunk)
-
-        return _iter_chunks()
-
-    async def llm_call(self) -> ChatResponse:
-        '''调用llm接口，带瞬时错误退避重试。
-
-        429（限流/engine overloaded）、5xx、连接/超时错误属于瞬时故障，
-        之前会直接抛出导致整个任务崩溃；这里统一做指数退避重试。
-        其他错误（认证、参数错误等）不重试，直接抛出。
-        '''
-        max_retries = 4
-        for attempt in range(max_retries + 1):
-            try:
-                return await self._llm_call_once()
-            except (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError) as e:
-                retriable, err = True, e
-            except openai.APIStatusError as e:
-                retriable, err = (e.status_code is not None and e.status_code >= 500), e
-            if not retriable or attempt >= max_retries:
-                raise err
-            delay = min(5 * (2 ** attempt), 60) + random.uniform(0, 2)
-            print(f"\033[93m[LLM 重试]\033[0m 瞬时错误（{err}），{delay:.0f} 秒后重试 ({attempt + 1}/{max_retries})")
-            await asyncio.sleep(delay)
-
-    async def _llm_call_once(self) -> ChatResponse:
-        '''
-        调用llm接口。
-        输出：
-        1.若实例的is_stream为True，则返回ChatStream对象(一个文本块生成器)
-        2.若实例的is_stream为False，则返回ChatResponse对象
-
-        新增三级 fallback，用于应对中转站对 OpenAI 客户端请求头的拦截：
-        1. OpenAI 客户端 + 默认请求头
-        2. OpenAI 客户端 + 自定义 User-Agent（curl/7.68.0）
-        3. requests 库 + 自定义 User-Agent（放到线程池执行，避免阻塞事件循环）
-
-        一旦某一级成功，该 Agent 实例会记住这一级，后续调用优先使用。
-        '''
+    async def _build_request_kwargs(self) -> dict:
+        """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。"""
         if self._tools_schema_cache is None:
-            tool_classes = get_tools_lst()
+            tool_entries = get_tools_lst()
             available_tool_classes = []
-            for tool in tool_classes:
-                if self.check_permission(tool):
-                    # 重新实例化并注入当前 Agent，使依赖 subagent 的动态 tool_description 生效。
-                    # 同时避免直接修改 get_tools_lst() 返回的全局缓存实例。
-                    tool_instance = tool.__class__(subagent=self)
+            for entry in tool_entries:
+                if self.check_permission(entry):
+                    tool_instance = entry.instantiate(subagent=self)
                     available_tool_classes.append(tool_instance.tool_schema_json())
             self._tools_schema_cache = available_tool_classes
         available_tool_classes = self._tools_schema_cache
@@ -488,59 +251,25 @@ class Agent(BaseModel):
             request_kwargs["top_p"] = self.top_p
         if available_tool_classes:
             request_kwargs["tools"] = available_tool_classes
+        return request_kwargs
 
-        # 三级 fallback：
-        # 1. OpenAI 客户端默认请求头
-        # 2. OpenAI 客户端 + 自定义 User-Agent
-        # 3. requests 库（同步阻塞，但放在线程池执行）
+    async def llm_call(self) -> ChatResponse:
+        '''调用llm接口。
 
-        # Level 3: requests fallback（已彻底降级）
-        if self._curl_mode:
-            try:
-                return await self._chat_completions_via_requests(**request_kwargs)
-            except Exception as e:
-                print(f"\033[91m[LLM curl 异常]\033[0m {e}")
-                raise
+        输出：
+        1.若实例的is_stream为True，则返回ChatStream对象(一个文本块生成器)
+        2.若实例的is_stream为False，则返回ChatResponse对象
 
-        # Level 2: OpenAI 客户端 + 自定义请求头（之前 fallback 成功过）
-        if self._use_custom_headers:
-            client = self._openai_client_with_custom_headers()
-            try:
-                return await client.chat.completions.create(**request_kwargs)
-            except Exception as e:
-                if self._is_fallback_trigger(e):
-                    print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e}\033[0m")
-                    self._curl_mode = True
-                    return await self._chat_completions_via_requests(**request_kwargs)
-                print(f"\033[91m[LLM 异常]\033[0m {e}")
-                raise
+        三级 fallback（默认请求头 → 自定义 UA → requests shim）与
+        瞬时错误（429/5xx/连接错误）的指数退避重试统一由 LLMClient 完成。
+        '''
+        request_kwargs = await self._build_request_kwargs()
+        return await self._get_llm_client().create_with_retry(**request_kwargs)
 
-        # Level 1: OpenAI 客户端默认请求头（实例级缓存，避免每步新建连接池）
-        if self._openai_client is None:
-            self._openai_client = AsyncOpenAI(
-                api_key=self._api_key,
-                base_url=self.llm_site,
-            )
-        client = self._openai_client
-
-        try:
-            return await client.chat.completions.create(**request_kwargs)
-        except Exception as e:
-            if self._is_fallback_trigger(e):
-                print(f"\033[93m[LLM fallback] OpenAI 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                self._use_custom_headers = True
-                client2 = self._openai_client_with_custom_headers()
-                try:
-                    return await client2.chat.completions.create(**request_kwargs)
-                except Exception as e2:
-                    if self._is_fallback_trigger(e2):
-                        print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e2}\033[0m")
-                        self._curl_mode = True
-                        return await self._chat_completions_via_requests(**request_kwargs)
-                    print(f"\033[91m[LLM 异常]\033[0m {e2}")
-                    raise
-            print(f"\033[91m[LLM 异常]\033[0m {e}")
-            raise
+    async def _llm_call_once(self) -> ChatResponse:
+        '''单次调用llm接口（不做瞬时错误重试；三级 fallback 仍由 LLMClient 完成）。'''
+        request_kwargs = await self._build_request_kwargs()
+        return await self._get_llm_client().create(**request_kwargs)
 
 
 class Coordinator(Agent):
@@ -733,8 +462,3 @@ class Follower(Agent):
         如rm，mkdir等对目录结构进行变化的操作。
         '''
         return False
-
-
-def get_class():
-    """兼容旧导入，返回 Agent 基类。"""
-    return Agent

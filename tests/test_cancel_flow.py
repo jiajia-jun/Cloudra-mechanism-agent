@@ -10,11 +10,11 @@ from cloudra.database import ConversationDB
 def _make_react(tmp_path, monkeypatch, conv_id="test-cancel"):
     """构造一个使用临时 DB 的 reAct 实例。"""
     from cloudra.agent import Follower
-    from cloudra.reAct import reAct
+    from cloudra.react import reAct
 
     db_path = str(tmp_path / "test.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.reAct.get_database_path", lambda _conv_id: db_path)
+    monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
 
     agent = Follower(
         id="a-test",
@@ -30,7 +30,7 @@ def _make_react(tmp_path, monkeypatch, conv_id="test-cancel"):
 @pytest.mark.asyncio
 class TestCancelRequested:
     async def test_check_cancellation_raises(self, tmp_path, monkeypatch):
-        from cloudra.reAct import AgentCancelled
+        from cloudra.react import AgentCancelled
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         # 默认 running：不应触发
@@ -46,7 +46,7 @@ class TestCancelRequested:
             await react._check_cancellation()
 
     async def test_run_marks_cancelled(self, tmp_path, monkeypatch):
-        from cloudra.reAct import AgentCancelled
+        from cloudra.react import AgentCancelled
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         with sqlite3.connect(db_path) as con:
@@ -70,7 +70,7 @@ class TestCancelRequested:
 
 class TestExecutorCancelledFallback:
     def test_mark_cancelled_sync(self, tmp_path):
-        from cloudra.executor import _mark_cancelled_sync
+        from cloudra.runtime.executor import _mark_cancelled_sync
 
         db_path = str(tmp_path / "test.db")
         db = ConversationDB.from_path(db_path).init()

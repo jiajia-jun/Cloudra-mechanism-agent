@@ -14,9 +14,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from openai import AsyncOpenAI
-
 from cloudra.config import get_config
+from cloudra.llm_client import LLMClient
 
 
 def _load_prompt(name: str) -> str:
@@ -128,13 +127,13 @@ class YoloGuard:
         self.base_url = cfg.url
         self.api_key = cfg.key
 
-    def _client(self) -> AsyncOpenAI:
+    def _client(self) -> LLMClient:
         if not self.model or not self.base_url or not self.api_key:
             raise RuntimeError(
                 "YOLO 模式需要 Follower LLM 配置（model / url / key）。"
                 "请运行 `cloudra config init` 进行配置。"
             )
-        return AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        return LLMClient(api_key=self.api_key, base_url=self.base_url)
 
     async def judge(
         self,
@@ -237,7 +236,7 @@ class YoloGuard:
 
     async def _create_with_fallback(
         self,
-        client: AsyncOpenAI,
+        client: LLMClient,
         messages: list,
         request_kwargs: dict,
     ) -> tuple[Any, str]:
@@ -248,7 +247,8 @@ class YoloGuard:
         base = dict(request_kwargs)
         base["messages"] = messages
 
-        # 依次降级尝试，覆盖两类受限端点：
+        # 依次降级尝试，覆盖两类受限端点（参数级降级是调用方关注点，
+        # llm_client 的 fallback 链不覆盖；请求头/限流类拦截由其内部处理）：
         # 1) 只允许 temperature=1 的 reasoning 模型；
         # 2) 开启 thinking 后拒绝强制 tool_choice 的模型
         #    （去掉 tool_choice 后由 _extract_decision 的 content 解析兜底）。
@@ -263,25 +263,13 @@ class YoloGuard:
         last_error: Exception | None = None
         for kwargs in candidate_kwargs:
             try:
-                return await client.chat.completions.create(**kwargs), ""
+                return await client.create(**kwargs), ""
             except Exception as e:
                 last_error = e
                 msg = str(e).lower()
                 # 参数类限制：继续尝试下一个降级变体
                 if any(k in msg for k in ("temperature", "tool_choice", "thinking")):
                     continue
-                # 请求头/限流类拦截：换 UA 重试当前变体
-                if any(k in msg for k in ("blocked", "access denied", "forbidden", "too many requests", "rate limit")):
-                    print(f"\033[93m[LLM fallback] YOLO 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
-                    client2 = AsyncOpenAI(
-                        api_key=self.api_key,
-                        base_url=self.base_url,
-                        default_headers={"User-Agent": "curl/7.68.0"}
-                    )
-                    try:
-                        return await client2.chat.completions.create(**kwargs), ""
-                    except Exception as e2:
-                        return None, f"YOLO fallback 网络异常: {e2}"
                 return None, f"YOLO 网络异常: {e}"
 
         return None, f"YOLO 全部降级重试失败: {last_error}"
