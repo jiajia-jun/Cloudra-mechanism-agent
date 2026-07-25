@@ -100,6 +100,8 @@ def serialize_openai_payload(kwargs: dict) -> dict:
     return _to_dict(kwargs)
 
 
+
+# TODO:从api直接计数token，不要用token估算了
 class LLMClient:
     """OpenAI 兼容端点的传输层客户端。
 
