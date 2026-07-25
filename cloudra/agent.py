@@ -232,6 +232,7 @@ class Agent(BaseModel):
             self._tools_schema_cache = available_tool_classes
         available_tool_classes = self._tools_schema_cache
 
+# HACK:职责混乱，这个函数是干什么的？这些缓存初始化请解耦
         if self.context_manager is None:
             self._init_context_manager()
         messages = await self.context_manager.build_messages(
@@ -271,6 +272,8 @@ class Agent(BaseModel):
         request_kwargs = await self._build_request_kwargs()
         return await self._get_llm_client().create(**request_kwargs)
 
+
+# TODO: 对于Coordinator的Prompt动态构造需要多一点巧思:它至少需要时刻知道子agent的状态
 
 class Coordinator(Agent):
     '''
