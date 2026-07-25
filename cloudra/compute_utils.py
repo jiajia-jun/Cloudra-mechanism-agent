@@ -158,6 +158,7 @@ async def launch_compute_processes(
                 try:
                     await asyncio.wait_for(guard_proc.wait(), timeout=10.0)
                 except asyncio.TimeoutError:
+                    # TODO: 就直接丢掉了？不能吞这个错误，至少要让agent知道下一步要去自己去读文件，另外，timeout长一点
                     pass
 
             # 确保 guard 不会成为僵尸/常驻进程
