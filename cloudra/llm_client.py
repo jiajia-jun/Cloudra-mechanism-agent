@@ -342,7 +342,8 @@ class LLMClient:
         标准 SSE：同一事件块内的多行 data: 用 \\n 拼接后再解析；
         流末尾没有 \\n\\n 结尾的残余事件直接丢弃。
         """
-
+# TODO: 你套这么个函数的意义是什么？
+# TODO: 请确保流式循环被合适的try包裹并有重试机制，防止网络抖动整个main进程崩溃。
         def _iter_chunks():
             buffer = ""
             for raw in resp.iter_content(chunk_size=1024):
