@@ -616,6 +616,8 @@ class ContextManager:
 
         await aretry_on_locked(insert_event)
 
+
+    # TODO: 不要再轮询了，外部事件应该被注入到进程中作为事件触发。目前的性能会影响计算化学任务计算，这是不被允许的。邮件发送后应被注入邮箱，子agent应被直接唤醒
     async def poll_external_events(self) -> list[dict]:
         """轮询属于本 agent 的 pending 外部事件，标记为 delivered 后返回。
 
