@@ -107,6 +107,7 @@ class reAct:
         if state == 'cancel_requested':
             raise AgentCancelled()
 
+    # TODO: 停止保留任何轮询，参考events.py中的review，之所以需要cancel_requested轮询，本质是IPC做得不够彻底
     async def _cancel_watcher(self) -> None:
         """后台轮询 cancel_requested（1s 间隔），命中时置位 _cancel_event。
 
