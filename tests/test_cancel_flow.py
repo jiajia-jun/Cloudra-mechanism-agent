@@ -34,27 +34,18 @@ class TestCancelRequested:
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         # 默认 running：不应触发
-        await react._check_cancellation()
-        # 置为 cancel_requested：应抛出
-        with sqlite3.connect(db_path) as con:
-            con.execute(
-                "UPDATE session SET state='cancel_requested' WHERE session_id=?",
-                (react.session.id,),
-            )
-            con.commit()
+        react._check_cancel_event()
+        # 置位 cancel 事件：应抛出
+        react._cancel_event.set()
         with pytest.raises(AgentCancelled):
-            await react._check_cancellation()
+            react._check_cancel_event()
 
     async def test_run_marks_cancelled(self, tmp_path, monkeypatch):
         from cloudra.react import AgentCancelled
 
         react, db_path = _make_react(tmp_path, monkeypatch)
-        with sqlite3.connect(db_path) as con:
-            con.execute(
-                "UPDATE session SET state='cancel_requested' WHERE session_id=?",
-                (react.session.id,),
-            )
-            con.commit()
+        # IPC 事件驱动：直接置位本地 cancel 事件
+        react._cancel_event.set()
 
         with pytest.raises(AgentCancelled):
             await react.run()

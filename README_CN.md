@@ -16,6 +16,19 @@
 - **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。
 - **化学工具齐全**：覆盖分子绘图、图片转 SMILES、NMR/IR 原始数据处理、Gaussian 输入生成、格式转换、输出日志解析、DFT 任务提交与监控。
 - **多进程安全架构**：Coordinator 与 Follower 在独立进程中运行，基于 SQLite WAL、位标志权限、审批日志以及可选的 YOLO Guard 保障安全。
+- **事件驱动架构（v2.0.0-beta）**：基于按会话隔离的 Unix domain socket 事件总线取代轮询，实现 cancel、外部事件、计算任务、子 Agent 调度的即时唤醒；数据库仍是持久化真相来源，事件仅作为唤醒机制。
+
+## v2.0.0-beta 新特性
+
+这是事件驱动重构的预览版本。
+
+- **彻底消灭轮询**：`cancel_requested`、外部事件、计算任务就绪、子 Agent 请求均通过 `cloudra.ipc`（Unix domain socket）投递，不再轮询 SQLite。
+- **guard 作为 calculator 父进程**：`cloudra.runtime.monitor` 改为 `wait()` 等待 calculator 退出后再解析日志，移除文件 mtime 轮询。
+- **真实 token usage**：`LLMClient` 请求 `stream_options.include_usage` 并暴露 `last_usage`，不再唯一依赖 token 估算。
+- **更安全的默认权限**：无 sub-agent 绑定的 `Bashtools` 默认只允许只读命令，不再放行全部权限。
+- **Coordinator 子 Agent 状态快照**：每次 `_build_messages` 都会附加子 Agent session 的实时状态快照。
+
+> **测试版说明**：公开 Python/CLI/API 接口保持不变，但内部事件总线为新增实现。如发现唤醒丢失或陈旧 IPC socket 残留，请反馈。
 
 ## 环境要求
 

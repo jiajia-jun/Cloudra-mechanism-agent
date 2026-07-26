@@ -12,8 +12,10 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Optional
 
+from cloudra import events
 from cloudra.database import ConversationDB, aretry_on_locked, retry_on_locked
 
 # executor 收尾时 subagent_requests.state → session.state 的映射：
@@ -38,6 +40,63 @@ _SESSION_WRITABLE_COLUMNS = frozenset({
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _conv_id(db: ConversationDB) -> str:
+    """从 ConversationDB 反推 conversation_id（兼容 from_path 构造）。"""
+    if db.conversation_id:
+        return db.conversation_id
+    try:
+        return Path(db.path).parent.parent.name
+    except Exception:
+        return "default"
+
+
+def _emit(kind: str, db: ConversationDB, **payload: Any) -> None:
+    """同步事件投递：失败静默，绝不能阻塞写库。"""
+    try:
+        events.emit(_conv_id(db), kind, **payload)
+    except Exception:
+        pass
+
+
+async def _aemit(kind: str, db: ConversationDB, **payload: Any) -> None:
+    """异步事件投递：失败静默，绝不能阻塞写库。"""
+    try:
+        await events.aemit(_conv_id(db), kind, **payload)
+    except Exception:
+        pass
+
+
+def _emit_session_state(db: ConversationDB, session_id: str, state: str, **extra: Any) -> None:
+    _emit("session_state", db, session_id=session_id, state=state, **extra)
+
+
+async def _aemit_session_state(db: ConversationDB, session_id: str, state: str, **extra: Any) -> None:
+    await _aemit("session_state", db, session_id=session_id, state=state, **extra)
+
+
+def _emit_task_finished(
+    db: ConversationDB,
+    *,
+    task_id: int,
+    kind: str,
+    state: str,
+    session_id: str | None = None,
+) -> None:
+    # 用 task_kind 作为子类型键，避免与 IPC 事件名 kind 冲突
+    _emit("task_finished", db, task_id=task_id, task_kind=kind, state=state, session_id=session_id)
+
+
+async def _aemit_task_finished(
+    db: ConversationDB,
+    *,
+    task_id: int,
+    kind: str,
+    state: str,
+    session_id: str | None = None,
+) -> None:
+    await _aemit("task_finished", db, task_id=task_id, task_kind=kind, state=state, session_id=session_id)
 
 
 def sanitize_db_text(text: str) -> str:
@@ -100,6 +159,7 @@ def create_session_record(
             con.commit()
 
     retry_on_locked(write)
+    _emit_session_state(db, session_id, "running")
 
 
 # finalize_session / finalize_task 的 UPDATE 语句：
@@ -127,6 +187,7 @@ def finalize_session(
             con.commit()
 
     retry_on_locked(write)
+    _emit_session_state(db, session_id, state)
 
 
 async def afinalize_session(
@@ -145,6 +206,7 @@ async def afinalize_session(
             await con.commit()
 
     await aretry_on_locked(write)
+    await _aemit_session_state(db, session_id, state)
 
 
 def update_session_fields(db: ConversationDB, session_id: str, values: dict) -> None:
@@ -165,6 +227,11 @@ def update_session_fields(db: ConversationDB, session_id: str, values: dict) -> 
             con.commit()
 
     retry_on_locked(write)
+    state = values.get("state")
+    if state:
+        _emit_session_state(db, session_id, state)
+        if state == "cancel_requested":
+            _emit("cancel_requested", db, session_id=session_id)
 
 
 async def aheartbeat(db: ConversationDB, session_id: str) -> None:
@@ -203,6 +270,7 @@ async def arecord_event(db: ConversationDB, session_id: str, event_type: str, da
             await con.commit()
 
     await aretry_on_locked(write)
+    await _aemit("session_event", db, session_id=session_id, event_type=event_type, data=data)
 
 
 def insert_session_event(db: ConversationDB, session_id: str, event_type: str, data: dict) -> None:
@@ -217,6 +285,7 @@ def insert_session_event(db: ConversationDB, session_id: str, event_type: str, d
             con.commit()
 
     retry_on_locked(write)
+    _emit("session_event", db, session_id=session_id, event_type=event_type, data=data)
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +337,8 @@ def finalize_task(
         retry_on_locked(write)
     else:
         retry_on_locked(write, retries=retries)
+    _emit_task_finished(db, task_id=task_id, kind="subagent", state=status, session_id=session_id)
+    _emit_session_state(db, session_id, _REQUEST_TO_SESSION_STATE.get(status, status))
 
 
 async def afinalize_task(
@@ -288,6 +359,8 @@ async def afinalize_task(
             await con.commit()
 
     await aretry_on_locked(write)
+    await _aemit_task_finished(db, task_id=task_id, kind="subagent", state=status, session_id=session_id)
+    await _aemit_session_state(db, session_id, _REQUEST_TO_SESSION_STATE.get(status, status))
 
 
 async def acreate_subagent_request(
@@ -322,7 +395,16 @@ async def acreate_subagent_request(
             await con.commit()
             return task_id, session_id, final_payload
 
-    return await aretry_on_locked(write)
+    task_id, session_id, final_payload = await aretry_on_locked(write)
+    if state == "ready":
+        await _aemit(
+            "subagent_request_ready",
+            db,
+            task_id=task_id,
+            session_id=session_id,
+            parent_session_id=parent_session_id,
+        )
+    return task_id, session_id, final_payload
 
 
 def claim_ready_request(db: ConversationDB) -> Optional[tuple[int, Any]]:
@@ -368,6 +450,16 @@ def fail_request(db: ConversationDB, request_id: int) -> None:
             con.commit()
 
     retry_on_locked(write)
+    # 尝试获取 session_id 用于事件投递
+    try:
+        with db.connect() as con:
+            row = con.execute(
+                "SELECT session_id FROM subagent_requests WHERE id=?", (request_id,)
+            ).fetchone()
+        session_id = row[0] if row else None
+    except Exception:
+        session_id = None
+    _emit_task_finished(db, task_id=request_id, kind="subagent", state="failed", session_id=session_id)
 
 
 def reap_exited_requests(db: ConversationDB, request_ids: list[int]) -> list[int]:
@@ -382,12 +474,19 @@ def reap_exited_requests(db: ConversationDB, request_ids: list[int]) -> list[int
     if not request_ids:
         return []
     now = _utc_now()
-    reaped = []
+    reaped: list[int] = []
+    reaped_sessions: list[str] = []
 
     def write() -> None:
         with db.connect() as con:
             cur = con.cursor()
             for rid in request_ids:
+                cur.execute(
+                    "SELECT session_id FROM subagent_requests WHERE id=? AND state='running'",
+                    (rid,),
+                )
+                row = cur.fetchone()
+                session_id = row[0] if row else None
                 cur.execute(
                     "UPDATE subagent_requests SET state='failed' WHERE id=? AND state='running'",
                     (rid,),
@@ -395,17 +494,21 @@ def reap_exited_requests(db: ConversationDB, request_ids: list[int]) -> list[int
                 if not cur.rowcount:
                     continue
                 reaped.append(rid)
+                if session_id:
+                    reaped_sessions.append(session_id)
                 cur.execute(
                     """UPDATE session SET state='failed',
                     error=COALESCE(error, 'executor process exited unexpectedly'), finished_at=?
-                    WHERE state='running' AND session_id=(
-                        SELECT session_id FROM subagent_requests WHERE id=?
-                    )""",
-                    (now, rid),
+                    WHERE state='running' AND session_id=?""",
+                    (now, session_id),
                 )
             con.commit()
 
     retry_on_locked(write)
+    for rid in reaped:
+        _emit_task_finished(db, task_id=rid, kind="subagent", state="failed")
+    for session_id in set(reaped_sessions):
+        _emit_session_state(db, session_id, "failed")
     return reaped
 
 
@@ -417,6 +520,28 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
     now = _utc_now()
     changed = 0
 
+    with db.connect() as con:
+        stale_sessions = [
+            row[0] for row in con.execute(
+                """SELECT session_id FROM session
+                WHERE state='running' AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
+                (cutoff,),
+            ).fetchall()
+        ]
+        orphan_requests = [
+            row[0] for row in con.execute(
+                """SELECT id FROM subagent_requests WHERE state='running' AND (
+                    session_id IS NULL
+                    OR session_id NOT IN (SELECT session_id FROM session)
+                    OR session_id IN (
+                        SELECT session_id FROM session
+                        WHERE state != 'running' OR heartbeat_at IS NULL OR heartbeat_at < ?
+                    )
+                )""",
+                (cutoff,),
+            ).fetchall()
+        ]
+
     def write() -> None:
         nonlocal changed
         with db.connect() as con:
@@ -427,9 +552,6 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
                 (now, cutoff),
             )
             changed = cursor.rowcount
-            # 状态一致性：子 Agent 请求若仍挂在 'running'，但其 executor 的
-            # Session 已死（心跳过期/不存在/非 running），一并标记 failed，
-            # 避免等待方（_wait_for_background_tasks 等）永久阻塞。
             con.execute(
                 """UPDATE subagent_requests SET state='failed'
                 WHERE state='running' AND (
@@ -445,6 +567,10 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
             con.commit()
 
     retry_on_locked(write)
+    for session_id in stale_sessions:
+        _emit_session_state(db, session_id, "interrupted")
+    for rid in orphan_requests:
+        _emit_task_finished(db, task_id=rid, kind="subagent", state="failed")
     return changed
 
 
@@ -460,13 +586,16 @@ def cancel_descendants(
     """
     now = _utc_now()
 
+    with db.connect() as con:
+        children = con.execute(
+            """SELECT session_id, pid FROM session
+            WHERE parent_session_id=? AND state IN ('queued', 'running', 'cancel_requested')""",
+            (parent_session_id,),
+        ).fetchall()
+    children_ids = [child_id for child_id, _pid in children]
+
     def write() -> None:
         with db.connect() as con:
-            children = con.execute(
-                """SELECT session_id, pid FROM session
-                WHERE parent_session_id=? AND state IN ('queued', 'running', 'cancel_requested')""",
-                (parent_session_id,),
-            ).fetchall()
             for child_id, pid in children:
                 con.execute(
                     """UPDATE session SET state='cancel_requested'
@@ -493,6 +622,10 @@ def cancel_descendants(
             con.commit()
 
     retry_on_locked(write)
+    for child_id in children_ids:
+        _emit("cancel_requested", db, session_id=child_id)
+        _emit_session_state(db, child_id, "cancel_requested")
+        _emit_session_state(db, child_id, "cancelled")
 
 
 # ---------------------------------------------------------------------------
@@ -520,6 +653,7 @@ def insert_queued_session(
             con.commit()
 
     retry_on_locked(write)
+    _emit_session_state(db, session_id, "queued")
 
 
 def claim_session(db: ConversationDB, session_id: str, *, pid: int, worker_id: str) -> bool:
@@ -540,6 +674,8 @@ def claim_session(db: ConversationDB, session_id: str, *, pid: int, worker_id: s
             claimed = cursor.rowcount == 1
 
     retry_on_locked(write)
+    if claimed:
+        _emit_session_state(db, session_id, "running")
     return claimed
 
 
@@ -564,7 +700,9 @@ def insert_approval(
             con.commit()
             return cur.lastrowid
 
-    return retry_on_locked(write)
+    approval_id = retry_on_locked(write)
+    _emit("approval_pending", db, approval_id=approval_id, session_id=session_id, agent_name=agent_name)
+    return approval_id
 
 
 async def ainsert_approval(
@@ -584,7 +722,9 @@ async def ainsert_approval(
             await con.commit()
             return cur.lastrowid
 
-    return await aretry_on_locked(write)
+    approval_id = await aretry_on_locked(write)
+    await _aemit("approval_pending", db, approval_id=approval_id, session_id=session_id, agent_name=agent_name)
+    return approval_id
 
 
 def list_pending_approvals(db: ConversationDB) -> list[tuple[int, str, str, str]]:
@@ -632,7 +772,10 @@ def decide_approval(db: ConversationDB, approval_id: int, state: str, denial_rea
             con.commit()
             return cur.rowcount == 1
 
-    return retry_on_locked(write)
+    updated = retry_on_locked(write)
+    if updated:
+        _emit("approval_decided", db, approval_id=approval_id, state=state)
+    return updated
 
 
 async def adecide_approval(db: ConversationDB, approval_id: int, state: str, denial_reason: str = "") -> bool:
@@ -647,4 +790,7 @@ async def adecide_approval(db: ConversationDB, approval_id: int, state: str, den
             await con.commit()
             return cur.rowcount == 1
 
-    return await aretry_on_locked(write)
+    updated = await aretry_on_locked(write)
+    if updated:
+        await _aemit("approval_decided", db, approval_id=approval_id, state=state)
+    return updated

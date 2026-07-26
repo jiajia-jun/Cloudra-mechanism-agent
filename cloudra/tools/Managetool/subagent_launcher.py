@@ -201,8 +201,14 @@ class SubAgentLauncher(Tool):
                 parent_session_id=parent_session_id,
                 session_id_fn=lambda tid: f"{sub_agent.id}_task{tid}",
             )
-            from cloudra.events import notifier
-            notifier.notify_task_inserted()
+            from cloudra import events
+            await events.aemit(
+                conversation_id,
+                "subagent_request_ready",
+                task_id=task_id,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
             sub_agent.session_id = session_id
             result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"
 

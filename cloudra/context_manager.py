@@ -5,7 +5,7 @@ ContextManager 是 Agent 上下文的唯一真相来源，负责：
 2. 提供异步 append/replace 接口
 3. 把原始上下文按模型能力渲染成可直接发给 LLM 的消息列表
 4. 接收外部事件（邮件、计算任务状态变化等）并注入上下文
-5. 轮询待处理的外部事件
+5. 事件驱动：外部事件通过 IPC 直接推送，不再轮询数据库
 """
 
 import base64
@@ -14,7 +14,7 @@ import os
 import time
 from typing import Optional
 
-from cloudra import paths
+from cloudra import events, paths
 from cloudra.config import get_config
 from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
 from cloudra.llm_client import LLMClient
@@ -615,15 +615,17 @@ class ContextManager:
                 await con.commit()
 
         await aretry_on_locked(insert_event)
+        await events.aemit(
+            conversation_id,
+            "external_event",
+            agent_id=agent_id,
+            event_type=event_type,
+            content=content,
+        )
 
 
-    # TODO: 不要再轮询了，外部事件应该被注入到进程中作为事件触发。目前的性能会影响计算化学任务计算，这是不被允许的。邮件发送后应被注入邮箱，子agent应被直接唤醒
-    async def poll_external_events(self) -> list[dict]:
-        """轮询属于本 agent 的 pending 外部事件，标记为 delivered 后返回。
-
-        加锁重试：多进程并发时写锁竞争是常态，轮询路径不能一次失败就炸掉主流程。
-        """
-        events = []
+    async def drain_pending_events(self) -> list[dict]:
+        """读取并消费属于本 agent 的 pending 外部事件（用于离线恢复或启动补拉）。"""
         db = ConversationDB.from_path(self.db_path)
 
         async def poll() -> list[dict]:
@@ -635,16 +637,16 @@ class ContextManager:
                     WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
                     ORDER BY created_at ASC
                     """,
-                    (self.conversation_id, self.agent_id)
+                    (self.conversation_id, self.agent_id),
                 )
                 rows = await cur.fetchall()
                 if rows:
                     event_ids = [r[0] for r in rows]
                     await con.execute(
                         "UPDATE context_events SET state = 'delivered' WHERE id IN ({})".format(
-                            ','.join('?' * len(event_ids))
+                            ",".join("?" * len(event_ids))
                         ),
-                        event_ids
+                        event_ids,
                     )
                     await con.commit()
                     found = [
@@ -653,8 +655,10 @@ class ContextManager:
                     ]
             return found
 
-        events = await aretry_on_locked(poll)
-        return events
+        return await aretry_on_locked(poll)
+
+    # 兼容性别名：旧测试与外部调用仍使用 poll_external_events
+    poll_external_events = drain_pending_events
 
     async def has_pending_events(self) -> bool:
         """检查是否有待处理的外部事件。"""
@@ -667,7 +671,7 @@ class ContextManager:
                     SELECT COUNT(*) FROM context_events
                     WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
                     """,
-                    (self.conversation_id, self.agent_id)
+                    (self.conversation_id, self.agent_id),
                 )
                 row = await cur.fetchone()
                 return row[0] > 0 if row else False

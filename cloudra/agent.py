@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 
 from cloudra.config import get_config
 from cloudra.context_manager import ContextManager
+from cloudra.database import ConversationDB
 from cloudra.llm_client import ChatResponse, LLMClient
 from cloudra.memory import get_memory_manager
 from cloudra.tools import ToolEntry, get_tools_lst
@@ -128,13 +130,17 @@ class Agent(BaseModel):
             session_id=getattr(self, 'session_id', None),
         )
 
+    def _ensure_context_manager(self) -> ContextManager:
+        '''确保上下文管理器已初始化；返回实例。'''
+        if self.context_manager is None:
+            self._init_context_manager()
+        return self.context_manager
+
     async def get_context(self) -> list:
         '''
         加载上下文。ContextManager 是上下文的唯一真相来源。
         '''
-        if self.context_manager is None:
-            self._init_context_manager()
-        return await self.context_manager.load()
+        return await self._ensure_context_manager().load()
 
     async def update_context(self, new_block: dict) -> None:
         '''
@@ -142,15 +148,11 @@ class Agent(BaseModel):
         确保每条消息都有 role 字段。
         文件路径根据 conversation_id 隔离。
         '''
-        if self.context_manager is None:
-            self._init_context_manager()
-        await self.context_manager.append(new_block)
+        await self._ensure_context_manager().append(new_block)
 
     async def clear_context(self) -> None:
         '''清空上下文（通常用于任务结束后释放）。'''
-        if self.context_manager is None:
-            self._init_context_manager()
-        await self.context_manager.clear()
+        await self._ensure_context_manager().clear()
 
     def check_permission(self, tool: ToolEntry | Tool) -> bool:
         if isinstance(tool, Tool):
@@ -220,8 +222,8 @@ class Agent(BaseModel):
             self._llm_client = LLMClient(api_key=self._api_key, base_url=self.llm_site)
         return self._llm_client
 
-    async def _build_request_kwargs(self) -> dict:
-        """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。"""
+    def _get_tools_schema(self) -> list[dict]:
+        """惰性构建并缓存本 Agent 有权限使用的工具 schema 列表。"""
         if self._tools_schema_cache is None:
             tool_entries = get_tools_lst()
             available_tool_classes = []
@@ -230,15 +232,19 @@ class Agent(BaseModel):
                     tool_instance = entry.instantiate(subagent=self)
                     available_tool_classes.append(tool_instance.tool_schema_json())
             self._tools_schema_cache = available_tool_classes
-        available_tool_classes = self._tools_schema_cache
+        return self._tools_schema_cache
 
-# HACK:职责混乱，这个函数是干什么的？这些缓存初始化请解耦
-        if self.context_manager is None:
-            self._init_context_manager()
-        messages = await self.context_manager.build_messages(
+    async def _build_messages(self) -> list[dict]:
+        """构建发给 LLM 的消息列表；子类可重写以注入动态系统消息。"""
+        return await self._ensure_context_manager().build_messages(
             supports_vision=self.supports_vision,
             max_context_tokens=self.context_window // 2 if self.context_window else None,
         )
+
+    async def _build_request_kwargs(self) -> dict:
+        """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。"""
+        available_tool_classes = self._get_tools_schema()
+        messages = await self._build_messages()
 
         request_kwargs = {
             "model": self.model,
@@ -272,8 +278,6 @@ class Agent(BaseModel):
         request_kwargs = await self._build_request_kwargs()
         return await self._get_llm_client().create(**request_kwargs)
 
-
-# TODO: 对于Coordinator的Prompt动态构造需要多一点巧思:它至少需要时刻知道子agent的状态
 
 class Coordinator(Agent):
     '''
@@ -361,6 +365,58 @@ class Coordinator(Agent):
         except Exception as e:
             # 记忆加载失败不应阻止 Coordinator 启动
             print(f"[Coordinator] 加载长期记忆失败: {e}")
+
+    def _build_subagent_status_snapshot(self) -> str:
+        """从 conversation DB 拉取子 Agent 请求与 session 状态快照（供动态 prompt 使用）。"""
+        try:
+            db = ConversationDB(self.conversation_id)
+            with db.connect() as con:
+                rows = con.execute(
+                    """SELECT id, session_id, state, input_data
+                    FROM subagent_requests
+                    WHERE conversation_id = ?
+                    ORDER BY id DESC
+                    LIMIT 20""",
+                    (self.conversation_id,),
+                ).fetchall()
+                if not rows:
+                    return ""
+
+                lines = ["【当前子 Agent 任务状态】"]
+                for task_id, session_id, state, input_data in rows:
+                    agent_id = "unknown"
+                    query = ""
+                    try:
+                        payload = json.loads(input_data or "{}")
+                        agent_id = payload.get("agent_id", "unknown")
+                        query = payload.get("query", "")[:80]
+                    except Exception:
+                        pass
+                    lines.append(f"- task_id={task_id} agent={agent_id} state={state} query={query}")
+
+                session_ids = [row[1] for row in rows if row[1]]
+                if session_ids:
+                    placeholders = ",".join("?" * len(session_ids))
+                    sessions = con.execute(
+                        f"SELECT session_id, state, error FROM session WHERE session_id IN ({placeholders})",
+                        session_ids,
+                    ).fetchall()
+                    if sessions:
+                        lines.append("【子 Agent Session 状态】")
+                        for sid, sstate, error in sessions:
+                            err = f" error={error[:60]}" if error else ""
+                            lines.append(f"- session={sid} state={sstate}{err}")
+                return "\n".join(lines)
+        except Exception:
+            return ""
+
+    async def _build_messages(self) -> list[dict]:
+        """Coordinator 每次推理前附加子 Agent 状态快照，实现动态 prompt。"""
+        messages = await super()._build_messages()
+        snapshot = self._build_subagent_status_snapshot()
+        if snapshot:
+            messages.append({"role": "system", "content": snapshot})
+        return messages
 
     def has_manage_permission(self) -> bool:
         '''

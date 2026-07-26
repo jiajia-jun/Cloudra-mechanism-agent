@@ -27,14 +27,38 @@ def mock_calc_workdir(tmp_path, monkeypatch):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     g16 = bindir / "g16"
-    g16.write_text("#!/bin/bash\necho 'mock g16 running'\nexit 0\n")
+    # mock g16：输出一个 cclib 可解析的最小 Gaussian log
+    g16.write_text("""#!/bin/bash
+INPUT_FILE="$1"
+BASENAME=$(basename "$INPUT_FILE" .gjf)
+WORKDIR=$(cd "$(dirname \"$INPUT_FILE\")" && pwd)
+LOG="$WORKDIR/${BASENAME}.log"
+cat > "$LOG" <<'EOF'
+ Gaussian, Inc.
+                          Gaussian 16:  ES64L-G16RevA.03
+
+ Cite this work as:
+ Gaussian 16, Revision A.03, M. J. Frisch et al.
+
+ SCF Done:  E(RHF) =  -1.1175059892     A.U. after    8 cycles
+            Convg  =    0.2571D-08             -V/T =  2.0031
+ S**2 =   0.0000
+ Population analysis using the SCF density.
+ Orbital energies:
+  1 0.000000
+          1          2
+    1   0.000000   0.000000
+ Normal termination of Gaussian 16 at ...
+EOF
+exit 0
+""")
     g16.chmod(0o755)
     monkeypatch.setenv(
         "PATH",
         str(bindir) + os.pathsep + os.environ.get("PATH", ""),
     )
 
-    # mock calculator.sh：直接通过 PATH 调用 g16
+    # mock calculator.sh：直接通过 PATH 调用 g16，g16 会写出 .log
     script = """#!/bin/bash
 INPUT_FILE=\"$1\"
 JOB_TYPE=\"$2\"

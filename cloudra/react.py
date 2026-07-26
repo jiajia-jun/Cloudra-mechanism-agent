@@ -5,11 +5,11 @@ from datetime import datetime
 
 import numpy as np
 
-from cloudra import session_store
+from cloudra import events, session_store
 from cloudra.agent import Agent
 from cloudra.case_bank import get_case_bank
 from cloudra.config import get_config
-from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
+from cloudra.database import ConversationDB, get_database_path
 from cloudra.log_class import Log
 from cloudra.presentation import Color
 from cloudra.session_class import Session
@@ -35,6 +35,11 @@ class LLMOutputTruncated(Exception):
 
 class _TruncationRetry(Exception):
     """内部信号：本轮输出被 max_tokens 截断，注入收敛提示后重试（有界循环）。"""
+
+
+class _StreamRetry(Exception):
+    """内部信号：流式消费过程中网络抖动，需要重试整轮推理。"""
+
 
 class reAct:
     session: Session
@@ -88,41 +93,84 @@ class reAct:
         self._tool_arg_maps = None
         # 输出被 max_tokens 截断的重试计数（见 _retry_on_truncation）
         self._truncation_retries = 0
-        # 打断（cancel）信号：由 _cancel_watcher 轮询 DB 置位，流式消费循环逐 chunk 检查
+        # 打断（cancel）信号：通过 IPC 订阅 cancel_requested 事件直接置位
         self._cancel_event = asyncio.Event()
+        self._cancel_queue: asyncio.Queue | None = None
+        self._cancel_task: asyncio.Task | None = None
+        # 外部事件队列：通过 IPC 订阅后实时投递
+        self._external_queue: asyncio.Queue | None = None
 
-    async def _check_cancellation(self) -> None:
-        """检查本 session 是否被请求打断；命中则抛出 AgentCancelled。"""
-        db = ConversationDB.from_path(self.database_path)
+    async def _setup_event_subscriptions(self) -> None:
+        """订阅本 session 的 cancel 与外部事件（幂等：只订阅一次）。"""
+        conv_id = getattr(self.agent, "conversation_id", "default") or "default"
+        if self._cancel_queue is None:
+            await events.ensure_listener(conv_id)
+            self._cancel_queue = await events.subscribe_async(conv_id, "cancel_requested")
+            self._external_queue = await events.subscribe_async(conv_id, "external_event")
+            self._cancel_task = asyncio.create_task(self._cancel_consumer())
 
-        async def read_state():
-            async with db.aconnect() as con:
-                cur = await con.execute(
-                    "SELECT state FROM session WHERE session_id=?", (self.session.id,)
-                )
-                row = await cur.fetchone()
-                return row[0] if row else None
-
-        state = await aretry_on_locked(read_state)
-        if state == 'cancel_requested':
-            raise AgentCancelled()
-
-    # TODO: 停止保留任何轮询，参考events.py中的review，之所以需要cancel_requested轮询，本质是IPC做得不够彻底
-    async def _cancel_watcher(self) -> None:
-        """后台轮询 cancel_requested（1s 间隔），命中时置位 _cancel_event。
-
-        流式 LLM 消费循环逐 chunk 检查该事件，实现流式期间的秒级打断。
-        """
+    async def _cancel_consumer(self) -> None:
+        """等待属于本 session 的 cancel_requested 事件并置位。"""
+        if self._cancel_queue is None:
+            return
         while True:
-            await asyncio.sleep(1)
-            try:
-                await self._check_cancellation()
-            except AgentCancelled:
+            msg = await self._cancel_queue.get()
+            if msg.get("session_id") == self.session.id:
                 self._cancel_event.set()
                 return
+
+    def _check_cancel_event(self) -> None:
+        """检查 IPC 投递的 cancel 信号。"""
+        if self._cancel_event.is_set():
+            raise AgentCancelled()
+
+    @staticmethod
+    async def _close_response(response) -> None:
+        """尽力关闭底层流响应。"""
+        close = getattr(response, "close", None)
+        if close is not None:
+            try:
+                maybe_awaitable = close()
+                if asyncio.iscoroutine(maybe_awaitable):
+                    await maybe_awaitable
             except Exception:
-                # 检查本身失败（如锁竞争）不影响主流程，下轮再查
+                pass
+
+    async def _consume_external_events(self) -> int:
+        """Drain IPC 队列 + 持久化 pending 事件并注入上下文；返回注入条数。"""
+        if self.agent.context_manager is None:
+            return 0
+
+        raw_events: list[dict] = []
+        if self._external_queue is not None:
+            while not self._external_queue.empty():
+                raw_events.append(self._external_queue.get_nowait())
+
+        # 同时补拉离线期间落到 DB 的事件
+        persisted = await self.agent.context_manager.drain_pending_events()
+
+        injected = 0
+        for event in raw_events + persisted:
+            # IPC 事件 payload 包含 agent_id/event_type/content
+            agent_id = event.get("agent_id")
+            if agent_id is not None and agent_id != self.agent.id:
                 continue
+            event_type = event.get("event_type", "external")
+            content = event.get("content", "")
+            await self.agent.update_context({
+                "role": "system",
+                "content": f"【{event_type}】{content}",
+            })
+            self.log.update_content(
+                f"{Color.YELLOW}[外部事件] {event_type}: {self._truncate(content, 200)}{Color.END}\n"
+            )
+            injected += 1
+        return injected
+
+    async def drain_pending_external_events(self) -> bool:
+        """供 runner 在等待后台任务后调用：一次性消费所有外部事件。"""
+        await self._setup_event_subscriptions()
+        return await self._consume_external_events() > 0
 
     def _should_use_supervisor(self) -> bool:
         """判断是否启用 Supervisor。
@@ -205,26 +253,13 @@ class reAct:
         except Exception as e:
             print(f"[reAct] Case 沉淀失败: {e}")
 
-    async def _poll_and_inject_external_events(self):
-        """轮询外部事件并注入到当前 Agent 上下文。"""
-        if self.agent.context_manager is None:
-            return
-        events = await self.agent.context_manager.poll_external_events()
-        for event in events:
-            await self.agent.update_context({
-                "role": "system",
-                "content": f"【{event['event_type']}】{event['content']}"
-            })
-            self.log.update_content(
-                f"{Color.YELLOW}[外部事件] {event['event_type']}: {self._truncate(event['content'], 200)}{Color.END}\n"
-            )
-
     async def run(self):
         '''
         reAct的核心方法，执行agent的任务。
         '''
         # 确保上下文管理器已初始化，并加载初始上下文
         await self.agent.get_context()
+        await self._setup_event_subscriptions()
 
         try:
             return await self._run_loop()
@@ -249,6 +284,13 @@ class reAct:
                 print(f"[reAct] truncated 状态写入失败: {e}")
             self.log.update_content(f"{Color.RED}[系统] {exc}{Color.END}\n")
             raise
+        finally:
+            if self._cancel_task is not None and not self._cancel_task.done():
+                self._cancel_task.cancel()
+                try:
+                    await self._cancel_task
+                except asyncio.CancelledError:
+                    pass
 
     async def _run_loop(self):
         '''reAct 的主循环（从 run 拆出以便统一捕获 AgentCancelled）。'''
@@ -257,11 +299,11 @@ class reAct:
             await self._record_phase('thinking')
             self.step_count += 1
 
-            # 每轮循环边界检查一次打断请求（流式期间的打断由 _cancel_watcher 负责）
-            await self._check_cancellation()
+            # 每轮循环边界检查一次打断请求（流式期间也逐 chunk 检查 _cancel_event）
+            self._check_cancel_event()
 
-            # 每轮推理前，轮询并注入外部事件
-            await self._poll_and_inject_external_events()
+            # 每轮推理前，消费 IPC 与持久化外部事件并注入上下文
+            await self._consume_external_events()
 
             # 每 15 轮触发一次 Supervisor 方向审查
             if self._should_use_supervisor() and self.supervisor and self.supervisor.should_review(self.step_count):
@@ -308,19 +350,30 @@ class reAct:
                     print(f"Agent {self.agent.name}上下文已释放！")
                 return content
 
+    MAX_STREAM_RETRIES = 2
+
     async def reasoning(self) -> list:
         '''
         reAct的推理方法，分析agent的上下文和工具，决定下一步行动。
 
         输出被 max_tokens 截断时通过有界循环重试（不再递归自调用）；
-        网络瞬时错误的重试统一由 LLMClient 的退避层完成，这里不再兜底。
+        流式消费遇到网络抖动时丢弃部分输出并重试整轮推理。
         '''
+        stream_errors = 0
         while True:
             try:
                 return await self._reasoning_once()
             except _TruncationRetry:
                 # 注入收敛提示；重试次数耗尽时抛 LLMOutputTruncated
                 await self._retry_on_truncation()
+            except _StreamRetry as exc:
+                stream_errors += 1
+                if stream_errors > self.MAX_STREAM_RETRIES:
+                    raise exc.__cause__ or exc
+                self.log.update_content(
+                    f"{Color.YELLOW}[系统] 流式连接抖动，重试整轮推理 "
+                    f"({stream_errors}/{self.MAX_STREAM_RETRIES}){Color.END}\n"
+                )
 
     async def _reasoning_once(self) -> list:
         '''单轮推理：调用 LLM 并消费响应。输出被截断时抛 _TruncationRetry。'''
@@ -345,8 +398,6 @@ class reAct:
                     {**data, "agent_id": agent.id, "agent_name": agent.name},
                 )
             )
-            # 流式期间的打断监视：cancel_requested 时置位 _cancel_event
-            watcher = asyncio.create_task(self._cancel_watcher())
             self.log.begin_stream()
             try:
                 async for chunk in _aiter_chunks(response):
@@ -418,20 +469,15 @@ class reAct:
                 )
             except AgentCancelled:
                 # 打断请求：关闭底层流，向上传播由 run() 统一落库 cancelled
-                close = getattr(response, "close", None)
-                if close is not None:
-                    try:
-                        maybe_awaitable = close()
-                        if asyncio.iscoroutine(maybe_awaitable):
-                            await maybe_awaitable
-                    except Exception:
-                        pass
+                await self._close_response(response)
                 raise
             except Exception as e:
-                self.log.update_content(new_content=f"{Color.RED}[reasoning步骤]未知的错误：{e}")
-                raise e
+                # 流式消费出现网络/解析等异常：关闭流并请求重试整轮推理，
+                # 避免单次抖动直接打崩主进程。
+                await self._close_response(response)
+                self.log.update_content(new_content=f"{Color.RED}[reasoning步骤]流式消费错误：{e}{Color.END}")
+                raise _StreamRetry() from e
             finally:
-                watcher.cancel()
                 self.log.end_stream()
 
             # 输出被 max_tokens 截断：finish_reason=='length'，或 tool_call 被拦腰截断。

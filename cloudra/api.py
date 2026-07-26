@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from cloudra import __version__, paths
+from cloudra import __version__, events, paths
 from cloudra.config import get_config, set_config_value
 from cloudra.database import ConversationDB
 from cloudra.service import CloudraService, validate_conversation_id
@@ -168,22 +168,44 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
             if not Path(db.path).is_file():
                 # 数据库尚未创建（会话从未启动）：保持原有行为，直接结束空流
                 return
-            # 整个轮询周期复用同一个连接，避免每秒新开两个 SQLite 连接
+
+            await events.ensure_listener(conversation_id)
+            queue = await events.subscribe_async(conversation_id, "session_event")
+
+            terminal_event_types = {"completed", "failed", "cancelled", "killed", "interrupted"}
+            keepalive_interval = 15.0
+
             with db.connect() as conn:
+                # 先补拉订阅前已经落库的事件
+                buffered = service.session_runner.events(conversation_id, session_id, cursor, conn=conn)
+                for event in buffered:
+                    cursor = event["id"]
+                    yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                if any(event["event_type"] in terminal_event_types for event in buffered):
+                    return
+
                 while True:
-                    events = service.session_runner.events(conversation_id, session_id, cursor, conn=conn)
-                    for event in events:
+                    try:
+                        msg = await asyncio.wait_for(queue.get(), timeout=keepalive_interval)
+                    except asyncio.TimeoutError:
+                        yield ": ping\n\n"
+                        continue
+
+                    # 只转发目标 session 的事件
+                    if msg.get("session_id") != session_id:
+                        continue
+
+                    # 可能有多个事件在同一 IPC 消息里（不会，但保险起见做 catch-up）
+                    fresh = service.session_runner.events(conversation_id, session_id, cursor, conn=conn)
+                    for event in fresh:
                         cursor = event["id"]
                         yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                    # 本轮事件里已出现终态事件时直接结束，省去一次 session 状态查询
-                    if any(event["event_type"] in {"completed", "failed", "cancelled"} for event in events):
-                        break
+                    if any(event["event_type"] in terminal_event_types for event in fresh):
+                        return
+
                     record = service.session_runner.get(conversation_id, session_id, conn=conn)
-                    if record is None or record.state in {
-                        "completed", "sleeping", "failed", "cancelled", "killed", "interrupted"
-                    }:
-                        break
-                    await asyncio.sleep(1)
+                    if record is None or record.state in terminal_event_types | {"sleeping"}:
+                        return
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 

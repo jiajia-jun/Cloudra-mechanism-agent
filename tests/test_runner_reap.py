@@ -204,7 +204,7 @@ class TestRunTaskAsyncContract:
 
         with patch("cloudra.runtime.runner.Coordinator_reAct.run", fake_run), \
              patch("cloudra.runtime.runner._wait_for_background_tasks", fake_wait), \
-             patch("cloudra.context_manager.ContextManager.has_pending_events", fake_no_pending):
+             patch("cloudra.runtime.runner.Coordinator_reAct.drain_pending_external_events", fake_no_pending):
             result = await run_task_async(
                 "我的查询", conv_id="conv-contract", verbose=False, interactive_approval=False
             )
@@ -263,7 +263,7 @@ class TestRunTaskAsyncContract:
         patches = [
             patch("cloudra.runtime.runner.Coordinator_reAct.run", fake_run),
             patch("cloudra.runtime.runner._wait_for_background_tasks", fake_wait),
-            patch("cloudra.context_manager.ContextManager.has_pending_events", fake_no_pending),
+            patch("cloudra.runtime.runner.Coordinator_reAct.drain_pending_external_events", fake_no_pending),
         ]
         with patches[0], patches[1], patches[2]:
             await run_task_async("同一查询", conv_id="conv-dup", verbose=False, interactive_approval=False)

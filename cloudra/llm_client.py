@@ -100,8 +100,6 @@ def serialize_openai_payload(kwargs: dict) -> dict:
     return _to_dict(kwargs)
 
 
-
-# TODO:从api直接计数token，不要用token估算了
 class LLMClient:
     """OpenAI 兼容端点的传输层客户端。
 
@@ -141,15 +139,48 @@ class LLMClient:
         # 惰性创建，保证构造本身不做任何 I/O。
         self._openai_client: Optional[AsyncOpenAI] = None
         self._openai_client_custom: Optional[AsyncOpenAI] = None
+        # 记录最近一次调用返回的真实 token usage（流式/非流式均尝试捕获）
+        self._last_usage: Optional[dict] = None
+
+    @property
+    def last_usage(self) -> Optional[dict]:
+        """返回最近一次响应中的 usage 字段（prompt_tokens/completion_tokens/total_tokens）。"""
+        return self._last_usage
 
     # ------------------------------------------------------------------
     # 公开调用入口
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _extract_usage(obj: Any) -> Optional[dict]:
+        """从响应对象或 dict 中提取 usage 字段。"""
+        usage = getattr(obj, "usage", None)
+        if usage is None and isinstance(obj, dict):
+            usage = obj.get("usage")
+        if usage is None:
+            return None
+        if hasattr(usage, "model_dump"):
+            return usage.model_dump(exclude_none=True)
+        if hasattr(usage, "dict"):
+            return usage.dict(exclude_none=True)
+        return dict(usage) if not isinstance(usage, dict) else usage
+
+    async def _wrap_stream(self, stream):
+        """包装 OpenAI AsyncStream，在迭代过程中捕获 usage。"""
+        async for chunk in stream:
+            usage = self._extract_usage(chunk)
+            if usage:
+                self._last_usage = usage
+            yield chunk
+
     async def create(self, **kwargs) -> ChatResponse:
         """单次调用 chat completions，内部完成三级 fallback（不重试瞬时错误）。"""
         if self.model is not None:
             kwargs.setdefault("model", self.model)
+
+        # 流式调用时请求 provider 返回 usage，避免只能 token 估算
+        if kwargs.get("stream"):
+            kwargs.setdefault("stream_options", {"include_usage": True})
 
         # Level 3: requests fallback（已彻底降级）
         if self._curl_mode:
@@ -163,7 +194,11 @@ class LLMClient:
         if self._use_custom_headers:
             client = self._openai_client_with_custom_headers()
             try:
-                return await client.chat.completions.create(**kwargs)
+                response = await client.chat.completions.create(**kwargs)
+                if kwargs.get("stream"):
+                    return self._wrap_stream(response)
+                self._last_usage = self._extract_usage(response)
+                return response
             except Exception as e:
                 if is_fallback_trigger(e):
                     print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e}\033[0m")
@@ -181,14 +216,22 @@ class LLMClient:
         client = self._openai_client
 
         try:
-            return await client.chat.completions.create(**kwargs)
+            response = await client.chat.completions.create(**kwargs)
+            if kwargs.get("stream"):
+                return self._wrap_stream(response)
+            self._last_usage = self._extract_usage(response)
+            return response
         except Exception as e:
             if is_fallback_trigger(e):
                 print(f"\033[93m[LLM fallback] OpenAI 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
                 self._use_custom_headers = True
                 client2 = self._openai_client_with_custom_headers()
                 try:
-                    return await client2.chat.completions.create(**kwargs)
+                    response = await client2.chat.completions.create(**kwargs)
+                    if kwargs.get("stream"):
+                        return self._wrap_stream(response)
+                    self._last_usage = self._extract_usage(response)
+                    return response
                 except Exception as e2:
                     if is_fallback_trigger(e2):
                         print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e2}\033[0m")
@@ -324,6 +367,7 @@ class LLMClient:
         resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
         resp.raise_for_status()
         data = resp.json()
+        self._last_usage = self._extract_usage(data)
         return ResponseDictWrapper(data)
 
     def _openai_client_with_custom_headers(self) -> AsyncOpenAI:
@@ -337,35 +381,39 @@ class LLMClient:
         return self._openai_client_custom
 
     def _stream_response(self, resp) -> Any:
-        """解析 SSE 流，生成与 openai 兼容的 chunk 对象。
+        """解析 SSE 流，生成与 openai 兼容的 chunk 对象，并捕获 usage。"""
+        for chunk in _iter_sse_chunks(resp):
+            usage = self._extract_usage(chunk)
+            if usage:
+                self._last_usage = usage
+            yield chunk
 
-        标准 SSE：同一事件块内的多行 data: 用 \\n 拼接后再解析；
-        流末尾没有 \\n\\n 结尾的残余事件直接丢弃。
-        """
-# TODO: 你套这么个函数的意义是什么？
-# TODO: 请确保流式循环被合适的try包裹并有重试机制，防止网络抖动整个main进程崩溃。
-        def _iter_chunks():
-            buffer = ""
-            for raw in resp.iter_content(chunk_size=1024):
-                if not raw:
-                    continue
-                buffer += raw.decode("utf-8", errors="replace")
-                while "\n\n" in buffer:
-                    block, buffer = buffer.split("\n\n", 1)
-                    data_parts = [
-                        line[5:].strip()
-                        for line in block.splitlines()
-                        if line.startswith("data:")
-                    ]
-                    if not data_parts:
-                        continue
-                    data_line = "\n".join(data_parts)
-                    if data_line == "[DONE]":
-                        continue
-                    try:
-                        chunk = json.loads(data_line)
-                    except json.JSONDecodeError:
-                        continue
-                    yield ResponseDictWrapper(chunk)
 
-        return _iter_chunks()
+def _iter_sse_chunks(resp):
+    """解析 SSE 流，生成 ResponseDictWrapper chunk。
+
+    标准 SSE：同一事件块内的多行 data: 用 \\n 拼接后再解析；
+    流末尾没有 \\n\\n 结尾的残余事件直接丢弃。
+    """
+    buffer = ""
+    for raw in resp.iter_content(chunk_size=1024):
+        if not raw:
+            continue
+        buffer += raw.decode("utf-8", errors="replace")
+        while "\n\n" in buffer:
+            block, buffer = buffer.split("\n\n", 1)
+            data_parts = [
+                line[5:].strip()
+                for line in block.splitlines()
+                if line.startswith("data:")
+            ]
+            if not data_parts:
+                continue
+            data_line = "\n".join(data_parts)
+            if data_line == "[DONE]":
+                continue
+            try:
+                chunk = json.loads(data_line)
+            except json.JSONDecodeError:
+                continue
+            yield ResponseDictWrapper(chunk)

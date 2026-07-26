@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from cloudra import conversation_repo, paths, session_store
+from cloudra import conversation_repo, events, paths, session_store
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
 from cloudra.database import ConversationDB
@@ -24,6 +24,7 @@ from cloudra.runtime.runner import run_task_async
 
 _CONVERSATION_ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _SESSION_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
+_TERMINAL_STATES = frozenset({"completed", "failed", "cancelled", "interrupted", "killed"})
 
 
 def validate_conversation_id(conversation_id: str) -> str:
@@ -259,34 +260,45 @@ class SessionRunner:
             ).fetchall()
         return [SessionRecord(*row) for row in rows]
 
+    async def _wait_terminal(self, conversation_id: str, session_id: str, timeout: float) -> SessionRecord | None:
+        """等待 session 进入终态事件（最多 timeout 秒），返回最新记录。"""
+        await events.ensure_listener(conversation_id)
+        queue = await events.subscribe_async(conversation_id, "session_state")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                msg = await asyncio.wait_for(queue.get(), timeout=remaining)
+            except asyncio.TimeoutError:
+                break
+            if msg.get("session_id") == session_id and msg.get("state") in _TERMINAL_STATES:
+                return self.get(conversation_id, session_id)
+        return self.get(conversation_id, session_id)
+
     async def cancel(self, conversation_id: str, session_id: str) -> SessionRecord | None:
         """请求打断 Session：先置 cancel_requested 让 Agent 自行退出，子进程超时再 SIGTERM。"""
         record = self.get(conversation_id, session_id)
         if record is None:
             return None
         if record.state in ("queued", "running"):
-            # Agent 会在循环边界（reAct.run）和流式期间（cancel watcher）检查该状态
+            # Agent 通过 IPC 订阅 cancel_requested 事件实现即时打断
             self._update(conversation_id, session_id, state="cancel_requested")
             self._emit(conversation_id, session_id, "cancel_requested", {})
         task = self._running.get((conversation_id, session_id))
         if task and not task.done():
             # API 进程内协程任务：取消协程，CancelledError 路径会落 cancelled
             task.cancel()
+            # 给协程一点时间落到终态，但最长 3s
+            record = await self._wait_terminal(conversation_id, session_id, 3.0)
         elif record.pid and record.state in ("queued", "running", "cancel_requested"):
-            # 子进程任务：给 3 秒宽限期让 cancel_requested 生效，未退出再 SIGTERM
-            deadline = time.monotonic() + 3.0
-            while time.monotonic() < deadline:
-                current = self.get(conversation_id, session_id)
-                if current is None or current.state in (
-                    "completed", "failed", "cancelled", "interrupted", "killed"
-                ):
-                    break
-                await asyncio.sleep(0.3)
-            current = self.get(conversation_id, session_id)
+            # 子进程任务：通过事件等待终态，3s 超时后 SIGTERM
+            current = await self._wait_terminal(conversation_id, session_id, 3.0)
             if current is not None and current.state == "cancel_requested":
                 try:
                     os.kill(record.pid, signal.SIGTERM)
-                    # executor 的 SIGTERM 处理器会自行落 cancelled，这里不重复写
+                    # executor 的 SIGTERM 处理器会自行落 cancelled
                 except (ProcessLookupError, PermissionError):
                     self._update(conversation_id, session_id, state="interrupted")
         self._cancel_descendants(conversation_id, session_id)

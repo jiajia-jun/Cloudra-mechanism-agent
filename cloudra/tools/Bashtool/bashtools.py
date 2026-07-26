@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from typing import Any
 
 from pydantic import Field
@@ -13,27 +12,25 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 
 class Bashtools_input_schema(input_schema):
     command: str = Field(description='需要执行的命令。')
-
-# TODO: 这个地方根本没有复用吧？还不如做成让llm自行描述指令的任务，方便前端做用户友好性
-    terminal_id: str = Field(
-        description='命令执行的终端编号，用于区分不同的终端，可自行指定，通过这个功能可以实现并发执行。',
-        default_factory=lambda: str(uuid.uuid4())
+    # review：用 LLM 可理解的一句话描述该命令用途，方便前端展示与审批信息可读性。
+    task_description: str = Field(
+        description='一句话描述这条命令要完成的任务（用于前端展示与审批上下文）。',
+        default='',
     )
     timeout: int = Field(description='', default=60)
 
 
 class Bashtools_output_schema(output_schema):
     result: str = Field(description='bash工具结果。')
-
-# TODO:同上
-    terminal_id: str = Field(description='输入或已默认的uuid。')
+    task_description: str = Field(description='该命令的任务描述。')
     run_command: str = Field(description='调用的bash指令。')
 
 
 class Bashtools(Tool):
     tool_id: str = 't-1'
     tool_name: str = 'bashtools'
-# HACK: 至少给出理由这里为什么要用any
+    # 存放 schema 类对象而非实例；用 Any 是因为基类 Tool 已声明为 Any，
+    # 开启 arbitrary_types_allowed 后 pydantic 不会对类对象做字段校验。
     input_schema: Any = Bashtools_input_schema
     output_schema: Any = Bashtools_output_schema
     subagent: Agent = None
@@ -42,24 +39,23 @@ class Bashtools(Tool):
     def __init__(self, subagent: Agent = None, **data) -> None:
         super().__init__(**data)
         self.subagent = subagent
-        # 进行中的终端命令追踪（terminal_id -> command）：挂在工具实例上，
+        # 进行中的终端命令追踪（task_description -> command）：挂在工具实例上，
         # Session 只是内存镜像，不再承载工具运行态。
         self._terminal_commands: dict = {}
         if subagent is not None:
             availables = self.allowed_tools_lst(subagent)
             tool_str = self._format_tool_list(availables)
-# HACK: 逻辑上合理，但不对None作捕获非常奇怪
-            if not tool_str:
-                tool_str = "无可调用工具"
-            self.tool_description = f'''
-您可调用的工具有：{tool_str}
-请自行书写指令运行，在需要用到bash工具时调用。
-'''
+            # review：显式判断空列表，避免对 None 或空字符串做隐式转换。
+            if availables:
+                desc = f'您可调用的工具有：\n{tool_str}\n请自行书写指令运行，在需要用到bash工具时调用。'
+            else:
+                desc = '当前没有可调用工具。'
+            self.tool_description = desc
 
     def _format_tool_list(self, tools: list[str]) -> str:
         lines = []
         for i in range(0, len(tools), 5):
-            lines.append(' '.join(tools[i:i+5]))
+            lines.append(' '.join(tools[i:i + 5]))
         return '\n'.join(lines)
 
     def tool_permission_all(self) -> Permission:
@@ -69,9 +65,10 @@ class Bashtools(Tool):
         return Permission.NONE
 
     def has_command_permission(self, command: str) -> bool:
+        # review：subagent 为 None 时不能默认放行全部权限，只允许只读命令，堵安全漏洞。
         if self.subagent is None:
-# TODO: 安全漏洞，注入空子agent可以获取完整的权限
-            return True
+            analysis = BashCommandClassifier.classify(command)
+            return analysis.permissions == Permission.READ
         analysis = BashCommandClassifier.classify(command)
         agent_perms = self.subagent.permission_all()
         return check_permission(agent_perms, analysis.permissions)
@@ -87,11 +84,11 @@ class Bashtools(Tool):
             | BashCommandClassifier.DESTRUCTIVE_CMDS
         )
 
+        # review：subagent 为 None 时只允许读命令。
         if subagent is None:
-# TODO: 同上
-            return sorted(all_cmds)
-
-        agent_perms = subagent.permission_all()
+            agent_perms = Permission.READ
+        else:
+            agent_perms = subagent.permission_all()
         allowed = []
 
         for cmd in sorted(all_cmds):
@@ -113,18 +110,18 @@ class Bashtools(Tool):
     async def tool_call(self, input_instance: Bashtools_input_schema, session: Session) -> Bashtools_output_schema:
         command = input_instance.command
         timeout = input_instance.timeout
-        terminal_id = input_instance.terminal_id
+        task_description = input_instance.task_description or command
 
         if not self.has_command_permission(command):
             result = f'没有权限执行该命令: {command}'
-            return Bashtools_output_schema(result=result, terminal_id=terminal_id, run_command=command)
+            return Bashtools_output_schema(result=result, task_description=task_description, run_command=command)
 
         # 触发安全检查
         analysis = BashCommandClassifier.classify(command)
         if analysis.permissions & (Permission.DESTRUCTIVE | Permission.SCRIPT):
             details = (
                 f"【动作】: 执行危险终端命令\n"
-                f"【终端 ID】: {terminal_id}\n"
+                f"【任务描述】: {task_description}\n"
                 f"【执行指令】: {command}"
             )
             approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=input_instance.model_dump(mode="json"))
@@ -134,7 +131,7 @@ class Bashtools(Tool):
                     result_msg += f"\n拒绝原因: {denial_reason}"
                 return Bashtools_output_schema(
                     result=result_msg,
-                    terminal_id=terminal_id,
+                    task_description=task_description,
                     run_command=command
                 )
 
@@ -144,7 +141,7 @@ class Bashtools(Tool):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        self._terminal_commands[terminal_id] = command
+        self._terminal_commands[task_description] = command
 
         def decode_output(data: bytes) -> str:
             if not data:
@@ -166,20 +163,20 @@ class Bashtools(Tool):
         except asyncio.TimeoutError:
             process.kill()
             result = '命令执行超时！'
-            return Bashtools_output_schema(result=result, terminal_id=terminal_id, run_command=command)
+            return Bashtools_output_schema(result=result, task_description=task_description, run_command=command)
         except Exception as e:
             print(e)
             result = f'命令执行失败:{e}'
-            self._terminal_commands.pop(terminal_id, None)
+            self._terminal_commands.pop(task_description, None)
             # Use safer decoding for stderr too
             err_msg = decode_output(stderr) if 'stderr' in locals() else str(e)
-            return Bashtools_output_schema(result=err_msg, terminal_id=terminal_id, run_command=command)
+            return Bashtools_output_schema(result=err_msg, task_description=task_description, run_command=command)
 
-        self._terminal_commands.pop(terminal_id, None)
+        self._terminal_commands.pop(task_description, None)
         result = decode_output(stdout)
         if stderr:
             result += "\n" + decode_output(stderr)
-        return Bashtools_output_schema(result=result, terminal_id=terminal_id, run_command=command)
+        return Bashtools_output_schema(result=result, task_description=task_description, run_command=command)
 
 
 def get_class():
