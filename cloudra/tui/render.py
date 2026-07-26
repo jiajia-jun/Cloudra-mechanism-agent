@@ -10,6 +10,7 @@ session_state、approval_pending。
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
 from rich.console import Console
@@ -28,6 +29,47 @@ _TERMINAL_STATES = {"completed", "failed", "cancelled", "interrupted", "killed"}
 def _truncate(text: str, limit: int) -> str:
     text = (text or "").strip()
     return text if len(text) <= limit else text[:limit] + " …"
+
+
+def _format_args(raw: str) -> str:
+    """工具参数：JSON 字符串转成 `key: value` 形式，解析失败回退原文。"""
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return _truncate(raw, 100)
+    if isinstance(data, dict):
+        parts = [f"{k}: {_truncate(str(v), 60)}" for k, v in data.items()]
+        return _truncate(", ".join(parts), 100)
+    return _truncate(str(data), 100)
+
+
+def _format_result_lines(raw: str, max_lines: int = 4) -> list[str]:
+    """工具结果：尝试 JSON 解析以解码 \\uXXXX 转义并按键展开，否则原样截断。"""
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    text = raw
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            lines = []
+            for k, v in data.items():
+                # 值本身可能还是一段 JSON（二次编码），尽量再解一层
+                if isinstance(v, str) and v[:1] in "{[":
+                    try:
+                        v = json.dumps(json.loads(v), ensure_ascii=False)
+                    except Exception:
+                        pass
+                lines.append(f"{k}: {v}")
+            text = "\n".join(lines)
+        else:
+            text = json.dumps(data, ensure_ascii=False)
+    except Exception:
+        pass
+    return [_truncate(line, 100) for line in text.splitlines()[:max_lines]]
 
 
 class EventRenderer:
@@ -115,18 +157,16 @@ class EventRenderer:
     def _on_tool_started(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
         tool = data.get("tool", "?")
-        args = _truncate(data.get("arguments", ""), 100)
-        suffix = f" [dim]{args}[/dim]" if args else ""
+        args = _format_args(data.get("arguments", ""))
+        suffix = f" [bright_black]{args}[/bright_black]" if args else ""
         self.console.print(f"[yellow]▶ [bold]{tool}[/bold][/yellow]{suffix}")
 
     def _on_tool_finished(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
         tool = data.get("tool", "?")
-        result = _truncate(data.get("result", ""), 300)
         self.console.print(f"[green]√ {tool}[/green]")
-        if result:
-            for line in result.splitlines()[:4]:
-                self.console.print(f"  {line}", style="dim", markup=False, highlight=False)
+        for line in _format_result_lines(data.get("result", "")):
+            self.console.print(f"  {line}", style="bright_black", markup=False, highlight=False)
 
     def _on_phase(self, session_id: str, data: dict) -> None:
         self.app.phase = data.get("phase", "")
