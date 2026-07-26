@@ -43,7 +43,17 @@ class CloudraTUI:
     """Cloudra 终端交互界面主类。"""
 
     def __init__(self) -> None:
-        self.console = Console()
+        # rich 输出经 PromptToolkitWriter 走 prompt_toolkit 渲染管线：
+        # patch_stdout 会把 ESC 转义成 '?'，直接写会丢全部颜色
+        import shutil
+
+        from cloudra.tui.pt_writer import PromptToolkitWriter
+
+        self.console = Console(
+            file=PromptToolkitWriter(),
+            force_terminal=True,
+            width=shutil.get_terminal_size((100, 24)).columns,
+        )
         self.service = CloudraService()
         self.conversation_id: str = ""
         self.session_id: str | None = None
@@ -97,26 +107,45 @@ class CloudraTUI:
 
     # ---- 界面 ----
 
+    _PHASE_LABELS = {"starting": "启动中", "thinking": "思考中", "acting": "执行中"}
+
     def _print_banner(self) -> None:
-        self.console.print(Panel.fit(
-            "[bold cyan]Cloudra[/bold cyan] AI 化学科研助手\n"
-            f"[dim]v{__version__} · 对话 {self.conversation_id}[/dim]\n\n"
+        self.console.print(Panel(
+            "[bold green]Cloudra[/bold green]  [dim]AI 化学科研助手"
+            f" · v{__version__} · 对话 {self.conversation_id}[/dim]\n\n"
             "输入任务回车执行 · 运行中可直接输入补充信息\n"
             "[dim]Esc 打断 · Ctrl+C 退出 · /new 新对话 · exit 退出[/dim]",
-            border_style="cyan",
+            border_style="green",
+            padding=(0, 2),
         ))
 
-    def _toolbar(self) -> HTML:
+    def _toolbar(self):
+        from prompt_toolkit.formatted_text import FormattedText
+
         if self.pending_approval is not None:
-            left = " ⚠ 待审批：y 允许 / n 拒绝（可 n:原因） "
+            dot, dot_style, text = "※", "fg:ansired", "待审批 — y 允许 · n 拒绝（可 n:原因）"
         elif self._pending_questions:
-            left = " ✎ 请回答上方 Agent 的提问 "
+            dot, dot_style, text = "?", "fg:ansiyellow", "请回答上方 Agent 的提问"
         elif self._running():
-            phase = f" · {self.phase}" if self.phase else ""
-            left = f" ● 运行中{phase} — Esc 打断，可直接输入补充 "
+            label = self._PHASE_LABELS.get(self.phase, "运行中")
+            dot, dot_style, text = "●", "fg:ansigreen", f"{label} — Esc 打断 · 可直接输入补充"
         else:
-            left = " ○ 空闲 — 输入任务开始 · /new 新对话 · exit 退出 "
-        return HTML(f"<style bg='ansiblack' fg='ansicyan'>{left}</style>")
+            dot, dot_style, text = "○", "fg:ansigreen", "空闲 — 输入任务开始 · /new 新对话 · exit 退出"
+        right = f"cloudra · {self.conversation_id}"
+        # prompt_toolkit 会裁剪片段尾部空格，因此把 padding 放在左右两段之间
+        try:
+            from prompt_toolkit.application import get_app_or_none
+            from prompt_toolkit.utils import get_cwidth
+            app = get_app_or_none()
+            width = app.output.get_size().columns if app else 100
+            pad = max(1, width - get_cwidth(f" {dot} {text} {right} "))
+        except Exception:
+            pad = 4
+        return FormattedText([
+            ("class:bottom-toolbar", " "),
+            (f"class:bottom-toolbar {dot_style}", dot),
+            ("class:bottom-toolbar", f" {text}" + " " * pad + right + " "),
+        ])
 
     def _build_prompt_session(self, **kwargs) -> PromptSession:
         kb = KeyBindings()
@@ -132,9 +161,12 @@ class CloudraTUI:
                 event.app.exit(exception=KeyboardInterrupt())
 
         return PromptSession(
-            message=HTML("<prompt>❯ </prompt>"),
+            message=HTML("<prompt>» </prompt>"),
             key_bindings=kb,
-            style=Style.from_dict({"prompt": "ansicyan bold"}),
+            style=Style.from_dict({
+                "prompt": "ansigreen bold",
+                "bottom-toolbar": "bg:ansibrightblack ansiwhite",
+            }),
             bottom_toolbar=self._toolbar,
             multiline=False,
             **kwargs,
@@ -179,7 +211,7 @@ class CloudraTUI:
             await ContextManager.inject_event(
                 self.conversation_id, _COORDINATOR_AGENT_ID, "user", text,
             )
-            self.console.print(f"[dim]↪ 已补充给 Agent（下一轮推理生效）: {text}[/dim]")
+            self.console.print("\n[dim]» 已补充给 Agent（下一轮推理生效）[/dim]")
         else:
             self._start_task(text)
 
@@ -212,14 +244,14 @@ class CloudraTUI:
         self._pending_questions.clear()
         self.pending_approval = None
         if task.cancelled():
-            self.console.print("[yellow]⏹ 任务已强制终止。[/yellow]")
+            self.console.print("[yellow]■ 任务已强制终止。[/yellow]")
         elif (exc := task.exception()) is not None:
             if isinstance(exc, AgentCancelled):
-                self.console.print("[yellow]⏹ 任务已打断。[/yellow]")
+                self.console.print("[yellow]■ 任务已打断。[/yellow]")
             else:
-                self.console.print(f"[red]✗ 任务失败: {exc}[/red]")
+                self.console.print(f"[red]× 任务失败: {exc}[/red]")
         else:
-            self.console.print("[green]✓ 任务完成。[/green]")
+            self.console.print("[green]√ 任务完成。[/green]")
         self.invalidate()
 
     # ---- 打断 ----
@@ -265,7 +297,7 @@ class CloudraTUI:
             self.conversation_id, approval["id"], decision, reason,
         )
         if ok:
-            msg = "[green]已允许执行。[/green]" if decision == "approved" else "[yellow]已拒绝。[/yellow]"
+            msg = "[green]√ 已允许执行。[/green]" if decision == "approved" else "[yellow]■ 已拒绝。[/yellow]"
             self.console.print(msg)
         else:
             self.console.print("[dim]该审批已在其他端处理，本次输入忽略。[/dim]")
@@ -278,7 +310,8 @@ class CloudraTUI:
         self._pending_questions.append(future)
         self.console.print(Panel(
             prompt_text,
-            title="[bold yellow]Agent 提问[/bold yellow]",
+            title="[bold yellow]? Agent 提问[/bold yellow]",
+            title_align="left",
             border_style="yellow",
             padding=(0, 1),
         ))

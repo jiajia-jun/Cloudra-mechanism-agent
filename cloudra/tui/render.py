@@ -3,6 +3,9 @@
 替代旧的 Log 终端 print（TUI 模式下由 ``Log.terminal_output = False`` 关闭），
 消费的事件与 Web/API 前端一致：session_event（llm_chunk/tool_*/phase/...）、
 session_state、approval_pending。
+
+字形约定：只用 CJK 等宽字体普遍覆盖的符号（» ● ○ ▶ √ × ※ ─），
+避免用户终端字体缺字时出现豆腐块。
 """
 
 from __future__ import annotations
@@ -34,6 +37,12 @@ class EventRenderer:
         self.console = console
         self.app = app
         self._stream_agent: str | None = None  # 当前正在流式输出的 agent
+        self._stream_buf: str = ""             # 未凑满一行的流式文本
+        self._stream_style: str | None = None  # 缓冲文本对应的样式
+
+    # 流式文本按行缓冲再渲染：run_in_terminal 重绘会抹掉未换行的文本，
+    # 因此只有凑满一行（或流结束）才输出，牺牲少量实时性换取稳定渲染。
+    _STREAM_FLUSH_WIDTH = 88
 
     async def run(self, conversation_id: str) -> None:
         queue = await subscribe_async(
@@ -61,10 +70,29 @@ class EventRenderer:
 
     # ---- session_event 子类型 ----
 
+    def _flush_stream(self) -> None:
+        """把缓冲的流式文本作为完整行输出。"""
+        if self._stream_buf:
+            self.console.print(
+                self._stream_buf, style=self._stream_style, markup=False, highlight=False,
+            )
+            self._stream_buf = ""
+
     def _end_stream_line(self) -> None:
         if self._stream_agent is not None:
-            self.console.print()
+            self._flush_stream()
             self._stream_agent = None
+
+    def _print_stream(self, text: str, style: str | None) -> None:
+        if style != self._stream_style:
+            self._flush_stream()
+            self._stream_style = style
+        self._stream_buf += text
+        while "\n" in self._stream_buf:
+            line, self._stream_buf = self._stream_buf.split("\n", 1)
+            self.console.print(line, style=style, markup=False, highlight=False)
+        if len(self._stream_buf) >= self._STREAM_FLUSH_WIDTH:
+            self._flush_stream()
 
     def _on_llm_chunk(self, session_id: str, data: dict) -> None:
         agent = data.get("agent_name") or "agent"
@@ -73,12 +101,13 @@ class EventRenderer:
             return
         if agent != self._stream_agent:
             self._end_stream_line()
-            self.console.print(f"\n[bold cyan]● {agent}[/bold cyan]")
+            self.console.print(f"\n[bold green]● {agent}[/bold green]")
             self._stream_agent = agent
         if data.get("stream") == "reasoning":
-            self.console.print(delta, end="", style="dim italic", markup=False, highlight=False)
+            # prompt_toolkit 不支持 SGR dim，用亮黑色表达"暗化"
+            self._print_stream(delta, "bright_black italic")
         else:
-            self.console.print(delta, end="", markup=False, highlight=False)
+            self._print_stream(delta, None)
 
     def _on_llm_stream_end(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
@@ -86,17 +115,17 @@ class EventRenderer:
     def _on_tool_started(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
         tool = data.get("tool", "?")
-        args = _truncate(data.get("arguments", ""), 120)
+        args = _truncate(data.get("arguments", ""), 100)
         suffix = f" [dim]{args}[/dim]" if args else ""
-        self.console.print(f"[cyan]▸ {tool}[/cyan]{suffix}")
+        self.console.print(f"[yellow]▶ [bold]{tool}[/bold][/yellow]{suffix}")
 
     def _on_tool_finished(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
         tool = data.get("tool", "?")
         result = _truncate(data.get("result", ""), 300)
-        self.console.print(f"[green]✓ {tool}[/green]")
+        self.console.print(f"[green]√ {tool}[/green]")
         if result:
-            for line in result.splitlines()[:6]:
+            for line in result.splitlines()[:4]:
                 self.console.print(f"  {line}", style="dim", markup=False, highlight=False)
 
     def _on_phase(self, session_id: str, data: dict) -> None:
@@ -109,7 +138,8 @@ class EventRenderer:
         reasoning = _truncate(data.get("reasoning", ""), 400)
         self.console.print(Panel(
             f"[bold]{verdict}[/bold]\n{reasoning}",
-            title="[bold yellow]Supervisor[/bold yellow]",
+            title="[bold yellow]◆ Supervisor[/bold yellow]",
+            title_align="left",
             border_style="yellow",
             padding=(0, 1),
         ))
@@ -121,7 +151,7 @@ class EventRenderer:
             return
         if state == "cancel_requested":
             self._end_stream_line()
-            self.console.print("[yellow]⏹ 正在打断任务…（再按一次 Esc 强制终止）[/yellow]")
+            self.console.print("[yellow]■ 正在打断任务…（再按一次 Esc 强制终止）[/yellow]")
         elif state in _TERMINAL_STATES:
             self._end_stream_line()
         self.app.invalidate()
@@ -141,9 +171,11 @@ class EventRenderer:
             pass
         self.app.pending_approval = {"id": approval_id, "agent_name": agent_name, "details": details}
         self.console.print(Panel(
-            f"来自: [bold]{agent_name}[/bold]\n[bold yellow]{details}[/bold yellow]\n\n"
-            "输入 [bold green]y[/bold green] 允许，[bold red]n[/bold red] 拒绝（可用 n:原因 说明）",
-            title="[bold red]安全审批请求[/bold red]",
-            border_style="red",
+            f"[bold]{details}[/bold]\n"
+            f"[dim]来自 {agent_name} · 输入 y 允许，n 拒绝（可 n:原因）[/dim]",
+            title="[bold yellow]※ 安全审批[/bold yellow]",
+            title_align="left",
+            border_style="yellow",
+            padding=(0, 1),
         ))
         self.app.invalidate()
