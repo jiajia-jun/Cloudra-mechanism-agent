@@ -184,13 +184,13 @@ def test_check_calculator_script_local(mock_calc_workdir):
 
 
 def test_build_calculator_cmd(mock_calc_workdir):
-    """构建 calculator 命令应指向工作目录下的脚本。"""
+    """构建 calculator 命令：[bash, calculator.sh, 输入文件, 任务类型]。"""
     gjf = os.path.join(mock_calc_workdir, "h2.gjf")
     ok, cmd, msg = build_calculator_cmd(gjf, "gaussian")
     assert ok is True
-    assert cmd[0].endswith("calculator.sh")
-    assert cmd[1] == gjf
-    assert cmd[2] == "gaussian"
+    assert cmd[1].endswith("calculator.sh")
+    assert cmd[2] == gjf
+    assert cmd[3] == "gaussian"
 
 
 def test_get_log_path():
