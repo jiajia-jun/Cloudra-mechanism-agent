@@ -40,6 +40,10 @@ def mock_ir_file(tmp_path):
 @pytest.mark.asyncio
 async def test_ir_processor_basic(mock_ir_file, mock_session):
     """测试红外解析器的基本功能和高级参数。"""
+    # spectrochempy 属 chem 额外依赖，且其在 Python 3.10 下引用 datetime.UTC
+    # （3.11 新增）无法工作；CI 的 .[dev] 环境不含它，缺依赖时跳过。
+    pytest.importorskip("spectrochempy", reason="未安装 chem 额外依赖（spectrochempy）")
+
     tool = IRProcessor()
     input_data = IRProcessor_input_schema(
         data_path=mock_ir_file,
