@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from io import StringIO
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pandas as pd

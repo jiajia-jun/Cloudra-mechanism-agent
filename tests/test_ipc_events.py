@@ -57,9 +57,12 @@ async def test_stale_socket_removed_on_ensure(isolated_ipc):
     """listener 启动时会清理本进程在该 conversation 下的陈旧 socket。"""
     conv_id = "conv-stale"
     # 预先伪造一个旧 socket
-    from cloudra.ipc import _socket_path
+    from cloudra.ipc import _listener_addr_files
 
-    stale = _socket_path(conv_id)
+    kind, stale = _listener_addr_files(conv_id)
+    if kind != "unix":
+        pytest.skip("非 POSIX 平台使用 TCP 传输，无 unix socket 可清理")
+
     stale.parent.mkdir(parents=True, exist_ok=True)
     stale.write_text("")
     assert stale.exists()
