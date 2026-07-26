@@ -62,12 +62,17 @@ async def test_wait_for_background_tasks_blocks_on_compute_jobs(isolated_db):
     con.commit()
     con.close()
 
+    # 事件驱动：模拟任务完成后收到 task_finished 事件
+    from cloudra import events
+
+    events.emit(conv_id, "task_finished", task_id=1, task_kind="compute", state="done")
     await asyncio.wait_for(waiter, timeout=2)
 
 
 @pytest.mark.asyncio
 async def test_wait_for_background_tasks_blocks_on_subagent_requests(isolated_db):
     """_wait_for_background_tasks 应阻塞直到 subagent_requests 中无 running 任务。"""
+    from cloudra import events
     from cloudra.runtime.runner import _wait_for_background_tasks
 
     db_path = ConversationDB("test_conv").path
@@ -95,6 +100,7 @@ async def test_wait_for_background_tasks_blocks_on_subagent_requests(isolated_db
     con.commit()
     con.close()
 
+    events.emit(conv_id, "task_finished", task_id=1, task_kind="subagent", state="done")
     await asyncio.wait_for(waiter, timeout=2)
 
 
@@ -115,7 +121,7 @@ async def test_run_task_async_wakes_up_on_compute_event(isolated_db):
         # 后台任务等待函数：立即返回，不阻塞
         pass
 
-    async def fake_has_pending(self):
+    async def fake_drain(self):
         nonlocal pending_event_rounds
         if pending_event_rounds > 0:
             pending_event_rounds -= 1
@@ -124,7 +130,7 @@ async def test_run_task_async_wakes_up_on_compute_event(isolated_db):
 
     with patch("cloudra.runtime.runner.Coordinator_reAct.run", fake_react_run), \
          patch("cloudra.runtime.runner._wait_for_background_tasks", fake_wait), \
-         patch("cloudra.context_manager.ContextManager.has_pending_events", fake_has_pending):
+         patch("cloudra.runtime.runner.Coordinator_reAct.drain_pending_external_events", fake_drain):
         result = await asyncio.wait_for(
             run_task_async("test query", conv_id="wake_test_conv", verbose=False),
             timeout=5,
@@ -149,12 +155,12 @@ async def test_run_task_async_exits_when_no_pending_events(isolated_db):
     async def fake_wait(database, conv_id):
         pass
 
-    async def fake_has_pending(self):
+    async def fake_drain(self):
         return False
 
     with patch("cloudra.runtime.runner.Coordinator_reAct.run", fake_react_run), \
          patch("cloudra.runtime.runner._wait_for_background_tasks", fake_wait), \
-         patch("cloudra.context_manager.ContextManager.has_pending_events", fake_has_pending):
+         patch("cloudra.runtime.runner.Coordinator_reAct.drain_pending_external_events", fake_drain):
         result = await asyncio.wait_for(
             run_task_async("test query", conv_id="no_event_conv", verbose=False),
             timeout=5,

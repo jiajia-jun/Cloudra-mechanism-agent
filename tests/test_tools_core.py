@@ -19,9 +19,10 @@ async def test_bashtools_permission():
     from cloudra.tools.Bashtool.bashtools import Bashtools
     tool = Bashtools()
 
-    # 模拟没有 subagent 的情况（默认全开）
+    # review 修复：subagent 为 None 时不再默认放行全部权限，只允许只读命令，
+    # 防止注入空子 Agent 获得完整执行权限。
     assert tool.has_command_permission("ls -la") is True
-    assert tool.has_command_permission("rm -rf /") is True
+    assert tool.has_command_permission("rm -rf /") is False
 
 def test_text_writer_schema():
     """测试 TextWriter 的 Schema 校验。"""

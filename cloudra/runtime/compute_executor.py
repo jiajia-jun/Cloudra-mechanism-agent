@@ -50,14 +50,14 @@ async def run_compute(task_id: int, dbpath: str):
         await _mark_failed(dbpath, task_id, f"更新任务状态失败：{e}")
         return 1
 
-    # 统一启动 guard 和 calculator
+    # 统一启动 guard（guard 会作为 calculator 的父进程并等待其结束）
     ok, msg = await launch_compute_processes(
         task_id=task_id,
         input_file=data_dic['path'],
         job_type=data_dic['job_type'],
         conv_id=data_dic['conversation_id'],
         db_path=dbpath,
-        wait_for_calculator=False,
+        wait_for_calculator=True,
     )
     if not ok:
         await _mark_failed(dbpath, task_id, msg)

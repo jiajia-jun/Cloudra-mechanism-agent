@@ -8,88 +8,258 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 from cloudra import session_store
 from cloudra.database import ConversationDB
-from cloudra.events import notifier
+from cloudra.events import emit, subscribe_thread
 from cloudra.presentation import Color, pipe_logger
 from cloudra.subagents import Subagent_hash
 
 _WORKERS_LOCK = threading.Lock()
 _WORKERS: dict[str, dict] = {}
 
-_EVENT_TIMEOUT = 30.0
+# 子进程启动宽限期：如果在此时间内退出且任务仍挂在 running，视为启动崩溃。
+_STARTUP_GRACE_SECONDS = 2.0
+
+
+def _conv_id_from_db_path(db_path: str) -> str:
+    try:
+        return Path(db_path).parent.parent.name
+    except Exception:
+        return "default"
 
 
 def reap_exited_executors(database_path: str, active_processes: dict) -> list[int]:
+    """兼容旧测试/调用方：扫描 active_processes 中已退出进程并回收。
+
+    生产主循环已改为 watcher 线程 + IPC 事件驱动，不再主动轮询 proc.poll()。
+    """
     exited = [rid for rid, proc in list(active_processes.items()) if proc.poll() is not None]
-    for rid in exited:
-        active_processes.pop(rid, None)
     if not exited:
         return []
+    # 任何已退出进程都不应再留在 active 表中，无论 DB 是否真正做了状态迁移。
+    for rid in exited:
+        active_processes.pop(rid, None)
     db = ConversationDB.from_path(database_path)
     return session_store.reap_exited_requests(db, exited)
 
 
+def _emit_worker_stop(conv_id: str) -> None:
+    """让同步线程无超时 wait 立即退出。"""
+    try:
+        emit(conv_id, "__worker_stop")
+    except Exception:
+        pass
+
+
+def _watch_subprocess(
+    process: subprocess.Popen,
+    db_path: str,
+    task_id: int,
+    kind: str,
+    label: str,
+) -> None:
+    """守护线程：等待子进程退出，必要时把仍挂 running 的任务标为 failed 并广播事件。"""
+    start = time.monotonic()
+    try:
+        returncode = process.wait()
+    except Exception:
+        returncode = -1
+    elapsed = time.monotonic() - start
+
+    conv_id = _conv_id_from_db_path(db_path)
+    failed = False
+
+    try:
+        db = ConversationDB.from_path(db_path)
+        if kind == "subagent":
+            # 如果 executor 正常结束，它自己已经落库 done/failed；这里只处理未收尾的残迹。
+            reaped = session_store.reap_exited_requests(db, [task_id])
+            if reaped:
+                failed = True
+        else:  # compute
+            with db.connect() as con:
+                row = con.execute(
+                    "SELECT state FROM compute_jobs WHERE id=?", (task_id,)
+                ).fetchone()
+                state = row[0] if row else None
+                if state in ("ready", "running") and (elapsed < _STARTUP_GRACE_SECONDS or returncode != 0):
+                    con.execute(
+                        "UPDATE compute_jobs SET state='failed', end_timestamp=? WHERE id=?",
+                        (time.time(), task_id),
+                    )
+                    con.commit()
+                    failed = True
+                else:
+                    con.commit()
+        if failed:
+            print(
+                f"{Color.RED}[系统错误]{Color.END} {label} (Task {task_id}) 进程异常退出/启动失败! "
+                f"退出码: {returncode}"
+            )
+            if kind == "compute":
+                emit(conv_id, "task_finished", task_id=task_id, task_kind="compute", state="failed")
+        else:
+            # 正常结束：runner 等的是 task_finished 事件；如果 executor 没有 emit（如老版本），这里兜底广播。
+            emit(conv_id, "task_finished", task_id=task_id, task_kind=kind, state="done")
+    except Exception as e:
+        print(f"{Color.RED}[系统错误]{Color.END} {label} 退出回收失败: {e}")
+
+
+def _start_subagent_executor(
+    database_path: str,
+    request_id: int,
+    input_data: dict,
+    active_processes: dict,
+) -> None:
+    """启动一个子 Agent executor 子进程并挂上 watcher。"""
+    agent_id = input_data.get("agent_id")
+    agent_hash = Subagent_hash()
+    agent_cls = agent_hash.get(agent_id)
+    agent_name = agent_cls.model_fields["name"].default if agent_cls else "Unknown"
+
+    if request_id in active_processes:
+        return
+
+    child_env = dict(os.environ)
+    if input_data.get("yolo"):
+        child_env["CLOUDRA_YOLO_MODE"] = "true"
+
+    process = subprocess.Popen(
+        [sys.executable, "-m", "cloudra.runtime.executor", "--task_id", str(request_id), "--db", database_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        env=child_env,
+    )
+    active_processes[request_id] = process
+
+    t = threading.Thread(
+        target=pipe_logger,
+        args=(process, agent_name),
+        daemon=True,
+    )
+    t.start()
+
+    threading.Thread(
+        target=_watch_subprocess,
+        args=(process, database_path, request_id, "subagent", f"Agent {agent_name}"),
+        daemon=True,
+    ).start()
+
+
 def checking_task(database_path: str, stop_event: threading.Event = None):
-    active_processes = {}
-    notifier.clear_task()
+    active_processes: dict[int, subprocess.Popen] = {}
+    conv_id = _conv_id_from_db_path(database_path)
+    sub = subscribe_thread(
+        conv_id,
+        ("subagent_request_ready", "task_finished", "__worker_stop"),
+    )
 
     while True:
         if stop_event and stop_event.is_set():
             break
+        payload = sub.wait(timeout=None)
+        if payload is None:
+            continue
+        if stop_event and stop_event.is_set():
+            break
+
+        kind = payload.get("_kind")
+        if kind == "task_finished":
+            active_processes.pop(payload.get("task_id"), None)
+            continue
+
         try:
-            for rid in reap_exited_executors(database_path, active_processes):
-                print(f"{Color.RED}[系统错误]{Color.END} 子任务 {rid} 的执行进程意外退出，已标记为 failed。")
-                _notify_state_changed()
             db = ConversationDB.from_path(database_path)
-            claimed_task = session_store.claim_ready_request(db)
-
-            if claimed_task:
-                request_id, input_data = claimed_task
-
+            while True:
+                claimed = session_store.claim_ready_request(db)
+                if not claimed:
+                    break
+                request_id, input_data = claimed
                 if isinstance(input_data, str):
-                    input_instance = json.loads(input_data)
-                else:
-                    input_instance = input_data
-
-                agent_id = input_instance.get("agent_id")
-                agent_hash = Subagent_hash()
-                agent_cls = agent_hash.get(agent_id)
-                agent_name = agent_cls.model_fields["name"].default if agent_cls else "Unknown"
-
-                child_env = dict(os.environ)
-                if input_instance.get("yolo"):
-                    child_env["CLOUDRA_YOLO_MODE"] = "true"
-                process = subprocess.Popen(
-                    [sys.executable, "-m", "cloudra.runtime.executor", "--task_id", str(request_id), "--db", database_path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    env=child_env,
-                )
-
-                time.sleep(0.5)
-                if process.poll() is not None:
-                    return_code = process.returncode
-                    print(f"{Color.RED}[系统错误]{Color.END} Agent {agent_name} (Task {request_id}) 启动失败! 退出码: {return_code}")
-                    session_store.fail_request(db, request_id)
-                else:
-                    t = threading.Thread(target=pipe_logger, args=(process, agent_name), daemon=True)
-                    t.start()
-                    active_processes[request_id] = process
-                    _notify_state_changed()
+                    input_data = json.loads(input_data)
+                _start_subagent_executor(database_path, request_id, input_data, active_processes)
         except Exception as e:
             print(f"{Color.RED}[系统错误]{Color.END} checking_task 发生异常: {e}")
 
-        notifier.wait_task(_EVENT_TIMEOUT)
+
+def _start_compute_executor(db_path: str, task_id: int, active_processes: dict) -> None:
+    if task_id in active_processes:
+        return
+    process = subprocess.Popen(
+        [sys.executable, "-m", "cloudra.runtime.compute_executor", "--task_id", str(task_id), "--db_path", db_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    active_processes[task_id] = process
+
+    t = threading.Thread(
+        target=pipe_logger,
+        args=(process, f"compute-{task_id}"),
+        daemon=True,
+    )
+    t.start()
+
+    threading.Thread(
+        target=_watch_subprocess,
+        args=(process, db_path, task_id, "compute", f"compute-{task_id}"),
+        daemon=True,
+    ).start()
 
 
-def _notify_state_changed():
-    """runner 等待后台任务时用：任务插入或进程退出时触发唤醒。"""
-    notifier.notify_task_inserted()
-    notifier.notify_compute_inserted()
+def check_compute(db_path: str, stop_event: threading.Event = None):
+    active_processes: dict[int, subprocess.Popen] = {}
+    conv_id = _conv_id_from_db_path(db_path)
+    sub = subscribe_thread(
+        conv_id,
+        ("compute_job_ready", "task_finished", "__worker_stop"),
+    )
+
+    while True:
+        if stop_event and stop_event.is_set():
+            break
+        payload = sub.wait(timeout=None)
+        if payload is None:
+            continue
+        if stop_event and stop_event.is_set():
+            break
+
+        kind = payload.get("_kind")
+        if kind == "task_finished":
+            active_processes.pop(payload.get("task_id"), None)
+            continue
+
+        try:
+            db = ConversationDB.from_path(db_path)
+            with db.connect() as con:
+                cur = con.cursor()
+                cur.execute("SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1")
+                row = cur.fetchone()
+                if row is None:
+                    con.rollback()
+                    continue
+                cur.execute("""
+                    UPDATE compute_jobs
+                    SET state = 'running'
+                    WHERE id IN (
+                        SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1
+                    )
+                    RETURNING id
+                """)
+                claimed = cur.fetchone()
+                if claimed:
+                    con.commit()
+                    task_id = claimed[0]
+                    _start_compute_executor(db_path, task_id, active_processes)
+                else:
+                    con.rollback()
+        except Exception as e:
+            print(f"{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}")
 
 
 def apply_approval_decision(database_path: str, req_id: int, state: str, denial_reason: str = "") -> bool:
@@ -100,10 +270,21 @@ def apply_approval_decision(database_path: str, req_id: int, state: str, denial_
 def approval_handler(database_path: str, stop_event: threading.Event = None):
     last_error = None
     _unanswerable: set[int] = set()
+    conv_id = _conv_id_from_db_path(database_path)
+    sub = subscribe_thread(
+        conv_id,
+        ("approval_pending", "approval_decided", "__worker_stop"),
+    )
 
     while True:
         if stop_event and stop_event.is_set():
             break
+        payload = sub.wait(timeout=None)
+        if payload is None:
+            continue
+        if stop_event and stop_event.is_set():
+            break
+
         try:
             db = ConversationDB.from_path(database_path)
             requests = session_store.list_pending_approvals(db)
@@ -142,63 +323,6 @@ def approval_handler(database_path: str, stop_event: threading.Event = None):
                 print(f"{Color.RED}[系统错误]{Color.END} approval_handler 发生异常: {err}")
                 last_error = err
 
-        notifier.wait_approval(_EVENT_TIMEOUT)
-
-
-def check_compute(db_path: str, stop_event: threading.Event = None):
-    active_processes = {}
-    notifier.clear_compute()
-
-    while True:
-        if stop_event and stop_event.is_set():
-            break
-        try:
-            db = ConversationDB.from_path(db_path)
-            with db.connect() as con:
-                cur = con.cursor()
-
-                cur.execute("SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1")
-                if cur.fetchone() is not None:
-                    cur.execute("""
-                        UPDATE compute_jobs
-                        SET state = 'running'
-                        WHERE id IN (
-                            SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1
-                        )
-                        RETURNING id
-                    """)
-                    claimed_task = cur.fetchone()
-                else:
-                    claimed_task = None
-
-                if claimed_task:
-                    task_id, = claimed_task
-                    con.commit()
-
-                    process = subprocess.Popen(
-                        [sys.executable, "-m", "cloudra.runtime.compute_executor", "--task_id", str(task_id), "--db_path", db_path],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    time.sleep(0.5)
-                    if process.poll() is not None and process.returncode != 0:
-                        return_code = process.returncode
-                        print(f"{Color.RED}[系统错误]{Color.END} 计算任务 (Task {task_id}) 启动失败! 退出码: {return_code}")
-                        cur.execute("UPDATE compute_jobs SET state = ? WHERE id = ? AND state = 'running'", ("failed", task_id))
-                        con.commit()
-                    else:
-                        t = threading.Thread(target=pipe_logger, args=(process, f"compute-{task_id}"), daemon=True)
-                        t.start()
-                        active_processes[task_id] = process
-                else:
-                    con.rollback()
-        except Exception as e:
-            print(f"{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}")
-
-        notifier.wait_compute(_EVENT_TIMEOUT)
-
 
 def acquire_workers(database: str, interactive_approval: bool) -> None:
     with _WORKERS_LOCK:
@@ -227,6 +351,7 @@ def release_workers(database: str) -> None:
         if entry["refcount"] > 0:
             return
         entry["stop"].set()
+        _emit_worker_stop(_conv_id_from_db_path(database))
         for thread in entry["threads"]:
-            thread.join(timeout=0.2)
+            thread.join(timeout=0.5)
         _WORKERS.pop(database, None)

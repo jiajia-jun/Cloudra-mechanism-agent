@@ -16,6 +16,19 @@ AI Agent collaboration framework for chemical research.
 - **Scientific Supervisor**: Introduces an independent Supervisor agent to oversee experimental progress and validate scientific rigor.
 - **Full Chemistry Toolkit**: Molecule drawing, image-to-SMILES (DECIMER), NMR/IR raw data processing, Gaussian input generation, format conversion, log parsing, and DFT job submission/monitoring.
 - **Multi-Process & Secure**: Coordinator and Follower agents run in isolated processes. SQLite WAL mode, permission bit-flags, audit logs, and an optional YOLO guard keep operations safe.
+- **Event-Driven Architecture (v2.0.0-beta)**: Conversation-scoped Unix domain socket event bus replaces polling for cancellations, external events, compute jobs, and sub-agent scheduling. Database remains the source of truth; events are the wake-up mechanism.
+
+## What's New in 2.0.0-beta
+
+This is a preview release of the event-driven rewrite.
+
+- **No more polling**: `cancel_requested`, external events, compute-job readiness, and sub-agent requests are delivered via `cloudra.ipc` (Unix domain sockets) instead of busy-waiting on SQLite.
+- **Guard becomes parent of calculator**: `cloudra.runtime.monitor` now `wait()`s for the calculator process and parses the log after exit, removing the file-mtime polling loop.
+- **Real token usage**: `LLMClient` requests `stream_options.include_usage` and exposes `last_usage`; token estimation is no longer the only source.
+- **Safer default permissions**: `Bashtools` with no sub-agent only allows read-only commands instead of full access.
+- **Coordinator state snapshot**: every `_build_messages` includes a live snapshot of sub-agent session states.
+
+> **Beta note**: the public Python/CLI/API surface is unchanged, but the internal event bus is new. Please report any missed wake-ups or stale IPC sockets.
 
 ## Requirements
 

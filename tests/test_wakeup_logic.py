@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from cloudra.email_listener import EmailListener
 from cloudra.tools.Interactool.email_reader import EmailMessage

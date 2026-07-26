@@ -8,34 +8,49 @@ from typing import Optional
 from cloudra.agent import Coordinator
 from cloudra.conversation_class import Conversation
 from cloudra.database import ConversationDB
+from cloudra.events import ensure_listener, subscribe_async
 from cloudra.presentation import Color, print_banner
 from cloudra.react import Coordinator_reAct
 from cloudra.runtime import workers
 
 
+async def _count_pending_tasks(db: ConversationDB, conversation_id: str) -> tuple[int, int]:
+    """返回 (subagent ready/running 数, compute ready/running 数)。"""
+    async with db.aconnect() as con:
+        cur = await con.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?)
+            """,
+            (conversation_id, conversation_id),
+        )
+        row = await cur.fetchone()
+    return (row[0] if row else 0, row[1] if row else 0)
+
+
 async def _wait_for_background_tasks(database: str, conversation_id: str) -> None:
-    """异步等待当前 conversation 下所有后台任务完成（事件驱动，不再轮询）。"""
-    from cloudra.events import notifier as _n
-
+    """异步等待当前 conversation 下所有后台任务完成（事件驱动）。"""
     db = ConversationDB.from_path(database)
-    loop = asyncio.get_running_loop()
+    sub = await subscribe_async(
+        conversation_id,
+        ("task_finished", "session_state", "__worker_stop"),
+    )
 
+    # 先查一次：如果已经没有 pending，直接返回。
+    subagent_count, compute_count = await _count_pending_tasks(db, conversation_id)
+    if subagent_count == 0 and compute_count == 0:
+        return
+
+    # 有 pending 则等事件；每被唤醒后只复核一次计数，不再主动轮询。
     while True:
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                """
-                SELECT
-                    (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
-                    (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?)
-                """,
-                (conversation_id, conversation_id),
-            )
-            row = await cur.fetchone()
-            subagent_count = row[0] if row else 0
-            compute_count = row[1] if row else 0
+        try:
+            await asyncio.wait_for(sub.get(), timeout=30.0)
+        except asyncio.TimeoutError:
+            pass
+        subagent_count, compute_count = await _count_pending_tasks(db, conversation_id)
         if subagent_count == 0 and compute_count == 0:
             break
-        await loop.run_in_executor(None, _n.wait_task, 1.0)
 
 
 async def run_task_async(
@@ -82,6 +97,9 @@ async def run_task_async(
 
     father_reAct = Coordinator_reAct(coordinator_agent, session_id=session_id)
 
+    # 先启动 IPC listener，确保 workers 线程订阅前事件总线可用。
+    await ensure_listener(conversation.id)
+
     workers.acquire_workers(database, interactive_approval)
 
     if verbose:
@@ -96,15 +114,13 @@ async def run_task_async(
                 print(f"\n{Color.YELLOW}[系统]{Color.END} 正在等待后台任务完成...")
             await _wait_for_background_tasks(database, conversation.id)
 
-            cm = coordinator_agent.context_manager
-            has_pending = await cm.has_pending_events() if cm else False
+            has_pending = await father_reAct.drain_pending_external_events()
             if not has_pending:
                 break
 
             if verbose:
                 print(f"\n{Color.YELLOW}[系统]{Color.END} 收到外部事件，Coordinator 继续处理...")
             father_reAct._continue = True
-            await father_reAct._poll_and_inject_external_events()
             result = await father_reAct.run()
 
     finally:

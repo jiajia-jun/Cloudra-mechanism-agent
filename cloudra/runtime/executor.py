@@ -6,7 +6,7 @@ import signal
 import sys
 import traceback
 
-from cloudra import session_store
+from cloudra import events, session_store
 from cloudra.context_manager import ContextManager
 from cloudra.database import ConversationDB, aretry_on_locked
 from cloudra.react import AgentCancelled, reAct
@@ -75,6 +75,10 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         return
 
     conv_id = input_data.get('conversation_id', 'default')
+
+    # 启动 IPC listener，使本进程能收到外部事件与 cancel 信号。
+    await events.ensure_listener(conv_id)
+
     sub_agent = agent_cls(
         query=query,
         conversation_id=conv_id,

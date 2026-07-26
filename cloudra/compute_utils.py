@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cloudra.database import ConversationDB
+
 # 各 job_type 所需的任一外部可执行程序（通过系统 PATH 查找）。
 _REQUIRED_BINS = {
     "gaussian": ["g16", "g09", "g26"],
@@ -89,6 +91,7 @@ def build_guard_cmd(
     conv_id: str,
     db_path: str,
     poll_interval: int = GUARD_POLL_INTERVAL,
+    job_type: str = "gaussian",
 ) -> list[str]:
     """构建 guard 子进程命令。"""
     return [
@@ -105,6 +108,8 @@ def build_guard_cmd(
         str(task_id),
         "--db_path",
         db_path,
+        "--job_type",
+        job_type,
     ]
 
 
@@ -118,7 +123,7 @@ async def launch_compute_processes(
     wait_for_calculator: bool = False,
     poll_interval: int = GUARD_POLL_INTERVAL,
 ) -> tuple[bool, str]:
-    """统一启动 guard 和 calculator 子进程。
+    """启动 guard 子进程（guard 内部会启动并等待 calculator，不再由调用方轮询）。
 
     Args:
         task_id: 计算任务在 compute_jobs 表中的 ID
@@ -126,60 +131,50 @@ async def launch_compute_processes(
         job_type: 计算任务类型
         conv_id: 所属 conversation_id
         db_path: 数据库路径
-        wait_for_calculator: 是否在当前协程中等待 calculator 结束
-        poll_interval: guard 轮询间隔
+        wait_for_calculator: 是否在当前协程中等待 guard（含 calculator）结束
+        poll_interval: 作为 guard 的日志解析超时窗口（至少 60s）
 
     Returns:
         (is_ok, message): is_ok 为 True 表示子进程已正常启动/完成；
                          为 False 时 message 为错误信息。
     """
-    ok, calculator_cmd, msg = build_calculator_cmd(input_file, job_type)
-    if not ok:
-        return False, msg
-
     guard_cmd = build_guard_cmd(task_id, input_file, conv_id, db_path, poll_interval)
 
     try:
-        # 先启动 guard，再启动 calculator
-        guard_proc = await asyncio.create_subprocess_exec(*guard_cmd)
-
-        # 短暂等待，检查 guard 是否瞬间崩溃
-        await asyncio.sleep(0.3)
-        if guard_proc.returncode is not None:
-            return False, f"guard 进程启动失败，退出码: {guard_proc.returncode}"
-
         if wait_for_calculator:
-            # 同步阻塞模式：等待 calculator 结束
-            calc_proc = await asyncio.create_subprocess_exec(*calculator_cmd)
-            returncode = await calc_proc.wait()
+            # 同步阻塞模式：等待 guard 完成任务（事件驱动 waitpid）
+            guard_proc = await asyncio.create_subprocess_exec(*guard_cmd)
+            await guard_proc.wait()
 
-            # 给 guard 一段短暂的解析窗口（最多 10 秒）
-            if guard_proc.returncode is None:
-                try:
-                    await asyncio.wait_for(guard_proc.wait(), timeout=10.0)
-                except asyncio.TimeoutError:
-                    # TODO: 就直接丢掉了？不能吞这个错误，至少要让agent知道下一步要去自己去读文件，另外，timeout长一点
-                    pass
-
-            # 确保 guard 不会成为僵尸/常驻进程
-            if guard_proc.returncode is None:
-                guard_proc.kill()
-                await guard_proc.wait()
-
-            if returncode != 0:
-                return False, f"calculator 返回非零退出码: {returncode}"
-            return True, ""
-        else:
-            # 异步后台模式：用 Popen + start_new_session 彻底脱离父进程，
-            # 确保 compute_executor 退出后计算任务仍在运行。
-            subprocess.Popen(
-                calculator_cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,
+            db = ConversationDB.from_path(db_path)
+            async with db.aconnect() as con:
+                cur = await con.execute(
+                    "SELECT state FROM compute_jobs WHERE id=?", (task_id,)
+                )
+                row = await cur.fetchone()
+            final_state = row[0] if row else None
+            if final_state == "done":
+                return True, ""
+            if final_state == "failed":
+                return (
+                    False,
+                    f"task_id={task_id} 计算任务失败或 guard 未能在解析窗口内完成解析，"
+                    f"请让 Agent 自行读取 state_{task_id}.json 或原始日志确认结果。",
+                )
+            return (
+                False,
+                f"task_id={task_id} guard 异常退出且未落库终态，请检查日志。",
             )
-            return True, ""
+
+        # 异步后台模式：guard 与 calculator 脱离当前进程会话，独立运行。
+        subprocess.Popen(
+            guard_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return True, ""
     except Exception as e:
         return False, f"启动计算子进程失败: {e}"
 
