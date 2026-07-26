@@ -348,6 +348,47 @@ class Coordinator(Agent):
 
         # 加载 Coordinator 的长期记忆到身份 prompt
         self._inject_memory_to_prompt()
+        # 加载用户自定义 AGENTS.md 到身份 prompt
+        self._inject_agents_md_to_prompt()
+
+    def _inject_agents_md_to_prompt(self) -> None:
+        """把用户自定义 AGENTS.md 注入 Coordinator 身份 prompt。
+
+        读取两个层级：
+          1. 全局：~/.config/cloudra/AGENTS.md（跨项目通用）
+          2. 项目：working_directory/AGENTS.md（项目专属）
+
+        项目层会覆盖全局层；任一文件缺失都静默跳过。
+        """
+        try:
+            cfg = get_config()
+            config_dir = Path(cfg.config_file).parent
+            cwd = self.working_directory or os.getcwd()
+            agents_files = [
+                ("全局", config_dir / "AGENTS.md"),
+                ("项目", Path(cwd) / "AGENTS.md"),
+            ]
+            injected: list[str] = []
+            for scope, path in agents_files:
+                if path.exists() and path.is_file():
+                    try:
+                        text = path.read_text(encoding="utf-8")
+                    except Exception as e:
+                        print(f"[Coordinator] 读取 {scope} AGENTS.md 失败: {e}")
+                        continue
+                    if text and text.strip():
+                        injected.append(
+                            f"### {scope} AGENTS.md（{path}）\n\n{text.strip()}"
+                        )
+            if injected:
+                self.prompt += (
+                    "\n\n## 用户自定义指令（AGENTS.md）\n\n"
+                    "以下内容来自用户编写的 AGENTS.md，在执行任务时优先遵循：\n\n"
+                    + "\n\n".join(injected)
+                )
+        except Exception as e:
+            # AGENTS.md 加载失败不应阻止 Coordinator 启动
+            print(f"[Coordinator] 加载 AGENTS.md 失败: {e}")
 
     def _inject_memory_to_prompt(self) -> None:
         """把全局 MEMORY.md 的内容注入到 Coordinator 的身份 prompt。"""

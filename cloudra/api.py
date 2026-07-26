@@ -349,10 +349,6 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
         return rows[:100]
 
-    frontend_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-    if frontend_dir.is_dir():
-        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
-
     return app
 
 

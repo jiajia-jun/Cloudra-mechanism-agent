@@ -28,27 +28,45 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "rich>=13.0",
+    "prompt_toolkit>=3.0",
     "platformdirs>=3.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
     "openai>=1.0",
     "arxiv>=1.4",
     "httpx>=0.24",
-    "rdkit>=2023.0",
     "python-frontmatter>=1.0",
-    "nmrglue>=0.10",
-    "spectrochempy>=0.6.0",
-    "playwright>=1.40",
     "ase>=3.28.0",
     "cclib>=1.8.1",
     "aiosqlite>=0.20",
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
-    "chemcoord>=2.1.2",
-    "pymupdf>=1.24.0",
 ]
 
 [project.optional-dependencies]
+gui = [
+    "flet>=0.26.0",
+]
+chem = [
+    "rdkit>=2023.0",
+    "nmrglue>=0.10",
+    "spectrochempy>=0.6.0",
+    "chemcoord>=2.1.2",
+]
+browser = [
+    "playwright>=1.40",
+]
+pdf = [
+    "pymupdf>=1.24.0",
+]
+all = [
+    "rdkit>=2023.0",
+    "nmrglue>=0.10",
+    "spectrochempy>=0.6.0",
+    "chemcoord>=2.1.2",
+    "playwright>=1.40",
+    "pymupdf>=1.24.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.20",

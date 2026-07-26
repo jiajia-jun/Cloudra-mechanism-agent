@@ -10,7 +10,7 @@
 - **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
 - **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。GUI 中为按 Session 生效的勾选项（contextvar 隔离并传播到子 Agent 进程），互不影响。
 - **流式输出与任务打断**：Coordinator 与每个子 Agent 的 LLM 增量以 `llm_chunk` 事件经 SSE 实时渲染，运行区按 Session 分面板展示对话式 transcript；任意 Session 可从 GUI/API 打断（先 `cancel_requested` 优雅退出，超时 SIGTERM 兜底，并级联取消子 Agent 与计算任务）。
-- **桌面端与 Web 界面**：Tauri 桌面壳（内嵌后端 sidecar，可打包含独立 Python 运行时的零依赖分发目录）+ API 直接挂载的 Web 界面。
+- **原生 GUI 与 Linux TUI**：Windows 和 Android 使用基于 Flet 的原生 GUI（无需浏览器），Linux 保留轻量级终端 TUI，通过 `cloudra` / `cloudra run` 进入。
 - **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
 - **自我学习与全局案例库**：Agent 可将成功经验沉淀至全局 Case Bank，支持跨对话的记忆与经验复用。
 - **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。
@@ -39,21 +39,40 @@
 
 ### 一键安装（推荐）
 
+**Linux / macOS：**
+
 ```bash
 ./install.sh
 ```
 
-该脚本会检查 Python 版本、可选地创建虚拟环境、以 editable 模式安装 Cloudra，
-并交互式初始化配置。如果你已有 `.env` 文件，它还可以将 LLM 设置迁移到新的
-YAML 配置中。
+**Windows（PowerShell，建议以管理员身份运行）：**
+
+```powershell
+irm https://your-domain/install.ps1 | iex
+# 或已克隆仓库时：
+.\install.ps1
+```
+
+该脚本会检查 Python 版本、创建虚拟环境、安装完整依赖，
+并交互式初始化配置，同时把 `cloudra` 命令加入 PATH。
+
+如果系统没有 Python，脚本会自动从 python-build-standalone 下载独立 Python
+运行时到项目目录，无需系统级安装或管理员权限。
+无需 Rust 或 Node.js。
 
 ### 手动安装
 
 ```bash
-pip install -e .
+pip install -e ".[all]"
 ```
 
 所有依赖均声明在 `pyproject.toml` 中，不再维护单独的 `requirements.txt`。
+无需 Rust 或 Node.js。
+
+可选依赖：
+- `pip install -e ".[all]"`：安装完整化学/浏览器/PDF 工具链。
+- `pip install -e ".[gui]"`：安装 Flet GUI（Windows/Android）。
+- `pip install -e ".[chem]"` / `"[browser]"` / `"[pdf]"`：单独安装某类工具。
 
 > **集群用户注意**：运行状态保存在数据目录下的按会话 SQLite 数据库中
 > （WAL 模式，默认 `~/.local/share/cloudra`）。WAL 依赖本地文件系统的可靠
@@ -72,6 +91,18 @@ cloudra config init
 
 ```bash
 cloudra run "搜索钙钛矿太阳能电池最新论文并总结关键发现"
+```
+
+交互模式（Linux 为 TUI，Windows/Android 为 GUI）：
+
+```bash
+cloudra
+```
+
+任意平台强制启动 GUI：
+
+```bash
+cloudra gui
 ```
 
 继续上次对话：
@@ -99,11 +130,13 @@ cloudra --version
 cloudra --coordinator-model gpt-4o --coordinator-key $KEY run "..."
 
 # 运行任务
-cloudra run "你的任务"                  # 启动或自动恢复上次对话
-cloudra run "你的任务" --new            # 强制新建对话
-cloudra run "你的任务" --conv-id ID     # 继续指定对话
-cloudra run "你的任务" --dry-run        # 只打印配置，不执行
-cloudra run "你的任务" --yolo           # 由 LLM 自动审批危险操作
+cloudra                                   # 交互式 TUI（Linux）或 GUI（Windows/Android）
+cloudra gui                               # 强制启动 Flet GUI
+cloudra run "你的任务"                    # 启动或自动恢复上次对话
+cloudra run "你的任务" --new              # 强制新建对话
+cloudra run "你的任务" --conv-id ID       # 继续指定对话
+cloudra run "你的任务" --dry-run          # 只打印配置，不执行
+cloudra run "你的任务" --yolo             # 由 LLM 自动审批危险操作
 
 # 配置管理
 cloudra config init                     # 交互式初始化

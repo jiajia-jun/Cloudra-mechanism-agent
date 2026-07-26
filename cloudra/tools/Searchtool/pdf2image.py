@@ -1,7 +1,13 @@
 import os
 from typing import Any
 
-import fitz  # PyMuPDF
+try:
+    import fitz  # PyMuPDF
+    _PYMUPDF_AVAILABLE = True
+except Exception:
+    fitz = None
+    _PYMUPDF_AVAILABLE = False
+
 from pydantic import Field
 
 from cloudra.session_class import Session
@@ -15,7 +21,7 @@ description = (
 
 class pdf2image_input_schema(input_schema):
     pdf_path: str = Field(description="待转换的 PDF 文件的绝对路径")
-    output_dir: str = Field(description="生成的图片输出目录。请务必为每个 PDF 文件分配一个专属且独立的新目录（例如 /tmp/pdf_name_images），切勿将其直接输出在根目录或共享目录，以免大量 PNG 碎片文件造成环境污染。")
+    output_dir: str = Field(description="生成的图片输出目录。请务必为每个 PDF 文件分配一个专属且独立的新目录（例如临时目录下的 pdf_name_images），切勿将其直接输出在根目录或共享目录，以免大量 PNG 碎片文件造成环境污染。")
 
 
 class pdf2image_output_schema(output_schema):
@@ -35,6 +41,13 @@ class pdf2image(Tool):
         return True
 
     async def tool_call(self, user_input: pdf2image_input_schema, session: Session) -> pdf2image_output_schema:
+        if not _PYMUPDF_AVAILABLE:
+            return pdf2image_output_schema(
+                is_success=False,
+                image_paths=[],
+                message="环境未安装 PyMuPDF 库。请执行: pip install 'cloudra[pdf]'"
+            )
+
         pdf_path = user_input.pdf_path
         output_dir = user_input.output_dir
 

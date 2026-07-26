@@ -13,6 +13,7 @@ from cloudra import events
 from cloudra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
 from cloudra.context_manager import ContextManager
 from cloudra.database import ConversationDB
+from cloudra.platform_utils import is_posix
 
 
 async def _parse_log(log_path: Path, parse_timeout: int):
@@ -76,14 +77,16 @@ async def run_guard(
         return
 
     # 启动 calculator；start_new_session 保证 guard 意外退出时 calculator 不被连带杀死。
-    calc_proc = await asyncio.create_subprocess_exec(
-        *calculator_cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        start_new_session=True,
-        cwd=workdir,
-    )
+    # Windows 不支持 start_new_session，仅 POSIX 传入。
+    calc_kwargs = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "stdin": subprocess.DEVNULL,
+        "cwd": workdir,
+    }
+    if is_posix():
+        calc_kwargs["start_new_session"] = True
+    calc_proc = await asyncio.create_subprocess_exec(*calculator_cmd, **calc_kwargs)
     print(f'[guard] calculator 启动 (PID {calc_proc.pid})，等待其结束...')
     returncode = await calc_proc.wait()
     print(f'[guard] calculator 退出，退出码：{returncode}')

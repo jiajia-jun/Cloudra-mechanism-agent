@@ -5,10 +5,12 @@ set -euo pipefail
 # 用途：
 #   1. 校验 Python 版本（>=3.10）
 #   2. 可选创建虚拟环境
-#   3. 以 editable 模式安装 cloudra
-#   4. 将旧的 .env 配置迁移到 cloudra config（YAML）
+#   3. 安装 cloudra 及可选依赖
+#   4. 将旧 .env 迁移到 YAML 配置
 #   5. 交互式初始化 cloudra config
-#   6. 验证安装
+#   6. 把 cloudra 命令加入 PATH（可选）
+#
+# 注意：Cloudra 2.0 使用 Python 原生 Flet GUI，无需 Rust / Node.js / Tauri。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="cloudra"
@@ -31,7 +33,7 @@ version_ge() {
     printf '%s\n%s\n' "$2" "$1" | sort -V -C
 }
 
-# 查找可用的 python 命令
+# 查找可用的 python 命令（优先系统 PATH；也检查脚本目录下的独立 Python）
 find_python() {
     for cmd in python3 python; do
         if command -v "$cmd" >/dev/null 2>&1; then
@@ -39,12 +41,105 @@ find_python() {
             return 0
         fi
     done
+    # 检查之前下载过的 standalone Python
+    local standalone="${SCRIPT_DIR}/.python/python/bin/python3"
+    if [[ -x "$standalone" ]]; then
+        echo "$standalone"
+        return 0
+    fi
     return 1
 }
 
+# 检测 CPU 架构
+detect_arch() {
+    local arch
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64|amd64) echo "x86_64" ;;
+        aarch64|arm64) echo "aarch64" ;;
+        armv7l) echo "armv7l" ;;
+        *) echo "$arch" ;;
+    esac
+}
+
+# 下载 python-build-standalone 到项目目录，无需系统安装
+install_standalone_python() {
+    local os=$1
+    local arch=$2
+    local target_dir="${SCRIPT_DIR}/.python"
+    local triple=""
+
+    case "${os}-${arch}" in
+        Linux-x86_64)  triple="x86_64-unknown-linux-gnu" ;;
+        Linux-aarch64) triple="aarch64-unknown-linux-gnu" ;;
+        Linux-armv7l)  triple="armv7-unknown-linux-gnueabihf" ;;
+        Darwin-x86_64) triple="x86_64-apple-darwin" ;;
+        Darwin-aarch64) triple="aarch64-apple-darwin" ;;
+        *)
+            err "暂不支持自动下载 Python 的平台: ${os}-${arch}"
+            err "请手动安装 Python ${MIN_PYTHON}+ 后重试：https://www.python.org/downloads/"
+            return 1
+            ;;
+    esac
+
+    info "未检测到系统 Python，正在从 python-build-standalone 下载独立运行时 (${triple})..."
+    info "下载目录: ${target_dir}（无需 sudo）"
+
+    local api_url="https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
+    local asset_url
+    asset_url=$(curl -sL "$api_url" | grep -o "\"browser_download_url\": \"[^\"]*cpython-3.13[^\"]*${triple}-install_only\.tar\.gz[^\"]*\"" | head -n1 | cut -d'"' -f4)
+
+    if [[ -z "$asset_url" ]]; then
+        err "无法获取 ${triple} 的独立 Python 下载链接"
+        err "请手动安装 Python ${MIN_PYTHON}+ 后重试：https://www.python.org/downloads/"
+        return 1
+    fi
+
+    mkdir -p "$target_dir"
+    local tmp_tar
+    tmp_tar=$(mktemp)
+    if ! curl -sL -o "$tmp_tar" "$asset_url"; then
+        err "下载独立 Python 失败"
+        rm -f "$tmp_tar"
+        return 1
+    fi
+
+    info "解压独立 Python..."
+    if ! tar -xzf "$tmp_tar" -C "$target_dir"; then
+        err "解压独立 Python 失败"
+        rm -f "$tmp_tar"
+        return 1
+    fi
+    rm -f "$tmp_tar"
+
+    local py_cmd="${target_dir}/python/bin/python3"
+    if [[ ! -x "$py_cmd" ]]; then
+        err "独立 Python 解压后未找到可执行文件: ${py_cmd}"
+        return 1
+    fi
+    echo "$py_cmd"
+}
+
+# 检测操作系统
+OS=$(uname -s)
+info "操作系统: ${OS}"
+
 PYTHON_CMD=$(find_python) || {
-    err "未找到 Python 解释器，请先安装 Python ${MIN_PYTHON}+"
-    exit 1
+    ARCH=$(detect_arch)
+    info "未找到 Python 解释器。"
+    AUTO=""
+    while [[ "$AUTO" != "y" && "$AUTO" != "n" ]]; do
+        read -rp "是否自动下载独立 Python ${MIN_PYTHON}+ 到项目目录（无需 sudo）？[Y/n] " AUTO
+        AUTO=${AUTO:-y}
+        AUTO=$(echo "$AUTO" | tr '[:upper:]' '[:lower:]')
+    done
+    if [[ "$AUTO" == "y" ]]; then
+        PYTHON_CMD=$(install_standalone_python "$OS" "$ARCH") || exit 1
+    else
+        err "未找到 Python 解释器，请先安装 Python ${MIN_PYTHON}+"
+        err "下载地址：https://www.python.org/downloads/"
+        exit 1
+    fi
 }
 
 PYTHON_VERSION=$("$PYTHON_CMD" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
@@ -84,9 +179,27 @@ fi
 info "升级 pip..."
 "$PYTHON_CMD" -m pip install --upgrade pip
 
-# 安装项目
-info "安装 ${PROJECT_NAME}（editable 模式）..."
-"$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}"
+# 是否安装 GUI 依赖（Flet）
+INSTALL_GUI=""
+DEFAULT_GUI="n"
+if [[ "$OS" == "Darwin" ]]; then
+    DEFAULT_GUI="y"
+fi
+while [[ "$INSTALL_GUI" != "y" && "$INSTALL_GUI" != "n" ]]; do
+    read -rp "是否安装 GUI 依赖（Flet，${DEFAULT_GUI}）？[Y/n] " INSTALL_GUI
+    INSTALL_GUI=${INSTALL_GUI:-$DEFAULT_GUI}
+    INSTALL_GUI=$(echo "$INSTALL_GUI" | tr '[:upper:]' '[:lower:]')
+done
+
+if [[ "$INSTALL_GUI" == "y" ]]; then
+    EXTRAS="all,gui"
+    info "安装 ${PROJECT_NAME}（完整工具链 + GUI）..."
+else
+    EXTRAS="all"
+    info "安装 ${PROJECT_NAME}（完整工具链，无 GUI）..."
+fi
+
+"$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}[${EXTRAS}]"
 
 # 如果存在 .env，询问是否迁移到 cloudra config
 ENV_FILE="${SCRIPT_DIR}/.env"
@@ -104,7 +217,6 @@ if [[ -f "$ENV_FILE" ]]; then
 
     if [[ "$MIGRATE" == "y" ]]; then
         info "读取 .env 并准备迁移..."
-        # 读取 .env 中的关键变量
         COORDINATOR_MODEL=$(grep -E '^COORDINATOR_MODEL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
         COORDINATOR_URL=$(grep -E '^COORDINATOR_URL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
         COORDINATOR_KEY=$(grep -E '^COORDINATOR_KEY=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
@@ -112,7 +224,6 @@ if [[ -f "$ENV_FILE" ]]; then
         FOLLOWER_URL=$(grep -E '^FOLLOWER_URL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
         FOLLOWER_KEY=$(grep -E '^FOLLOWER_KEY=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
 
-        # 使用 cloudra config set 写入 YAML 配置
         set +e
         [[ -n "$COORDINATOR_MODEL" ]] && cloudra config set coordinator.model "$COORDINATOR_MODEL"
         [[ -n "$COORDINATOR_URL" ]] && cloudra config set coordinator.url "$COORDINATOR_URL"
@@ -140,78 +251,37 @@ else
     exit 1
 fi
 
-# ---------------------------------------------------------------
-# 可选：Web 前端 + Tauri 桌面端
-# ---------------------------------------------------------------
-INSTALL_GUI=""
-while [[ "$INSTALL_GUI" != "y" && "$INSTALL_GUI" != "n" ]]; do
-    read -rp "是否安装 Web 前端与 Tauri 桌面端？（需要 Node.js 与 Rust，Linux 需 WebKitGTK）[y/N] " INSTALL_GUI
-    INSTALL_GUI=${INSTALL_GUI:-n}
-    INSTALL_GUI=$(echo "$INSTALL_GUI" | tr '[:upper:]' '[:lower:]')
-done
+# 可选：把 cloudra 命令加入 PATH（当使用虚拟环境时，创建一个 wrapper）
+if [[ "$USE_VENV" == "y" ]]; then
+    LOCAL_BIN="${HOME}/.local/bin"
+    WRAPPER="${LOCAL_BIN}/cloudra"
+    mkdir -p "$LOCAL_BIN"
 
-if [[ "$INSTALL_GUI" == "y" ]]; then
-    FRONTEND_DIR="${SCRIPT_DIR}/frontend"
-
-    if ! command -v npm >/dev/null 2>&1; then
-        warn "未找到 npm，跳过前端安装。请先安装 Node.js 18+ 后重新运行本段（或手动 cd frontend && npm ci && npm run build）"
-    elif ! command -v cargo >/dev/null 2>&1; then
-        warn "未找到 cargo，跳过桌面端安装。请先安装 Rust（https://rustup.rs）后重新运行本段"
-    else
-        # Linux 桌面端需要 WebKitGTK 等系统依赖（仅 Debian/Ubuntu 自动安装）
-        if [[ "$(uname -s)" == "Linux" ]] && command -v apt-get >/dev/null 2>&1; then
-            if ! pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
-                info "安装桌面端系统依赖（WebKitGTK 等，需要 sudo）..."
-                sudo apt-get update -y && sudo apt-get install -y \
-                    libwebkit2gtk-4.1-dev libsoup-3.0-dev libgtk-3-dev \
-                    librsvg2-dev libxdo-dev libayatana-appindicator3-dev
-            fi
-        fi
-
-        info "安装前端依赖（npm ci）..."
-        (cd "$FRONTEND_DIR" && npm ci)
-
-        info "构建 Web 前端（API 会直接挂载 frontend/dist）..."
-        (cd "$FRONTEND_DIR" && npm run build)
-
-        # 桌面端二进制（tauri build；找 python 的逻辑会使用刚装好 cloudra 的解释器）
-        BUILD_DESKTOP=""
-        while [[ "$BUILD_DESKTOP" != "y" && "$BUILD_DESKTOP" != "n" ]]; do
-            read -rp "是否编译 Tauri 桌面端二进制？（约 2-5 分钟）[Y/n] " BUILD_DESKTOP
-            BUILD_DESKTOP=${BUILD_DESKTOP:-y}
-            BUILD_DESKTOP=$(echo "$BUILD_DESKTOP" | tr '[:upper:]' '[:lower:]')
-        done
-        if [[ "$BUILD_DESKTOP" == "y" ]]; then
-            info "编译桌面端（tauri build）..."
-            (cd "$FRONTEND_DIR" && npm run desktop:build)
-            ok "桌面端二进制: ${FRONTEND_DIR}/src-tauri/target/release/cloudra-desktop"
-
-            # 注册桌面入口（Linux）
-            if [[ "$(uname -s)" == "Linux" ]]; then
-                DESKTOP_DIR="${HOME}/.local/share/applications"
-                mkdir -p "$DESKTOP_DIR"
-                cat > "${DESKTOP_DIR}/cloudra.desktop" <<EOF
-[Desktop Entry]
-Name=Cloudra
-Comment=AI 化学科研助手桌面端
-Exec=${FRONTEND_DIR}/src-tauri/target/release/cloudra-desktop
-Icon=${FRONTEND_DIR}/src-tauri/icons/icon.png
-Terminal=false
-Type=Application
-Categories=Science;Development;
+    cat > "$WRAPPER" <<EOF
+#!/bin/bash
+# Cloudra wrapper generated by install.sh
+source "${VENV_DIR}/bin/activate"
+exec cloudra "\$@"
 EOF
-                ok "已注册桌面入口: ${DESKTOP_DIR}/cloudra.desktop"
+    chmod +x "$WRAPPER"
+    ok "已创建命令包装器: ${WRAPPER}"
+
+    if [[ ":$PATH:" != *":${LOCAL_BIN}:"* ]]; then
+        warn "${LOCAL_BIN} 不在 PATH 中"
+        for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
+            if [[ -f "$rc" ]]; then
+                echo "export PATH=\"${LOCAL_BIN}:\$PATH\"" >> "$rc"
+                info "已把 ${LOCAL_BIN} 加入 ${rc}，请重新打开终端或 source ${rc}"
             fi
-        fi
-        ok "GUI 安装完成"
+        done
     fi
 fi
 
 ok "安装完成！"
+info "Cloudra 2.0 使用 Python 原生 Flet GUI，无需 Rust / Node.js / Tauri。"
 info "常用命令："
-echo "  cloudra config show       # 查看当前配置"
-echo "  cloudra run 'YOUR TASK'   # 运行任务"
-echo "  cloudra --help            # 查看帮助"
-echo "  python -m cloudra.api     # 启动 API + Web 前端（http://127.0.0.1:8000）"
-echo "  cd frontend && npm run desktop    # 开发模式启动桌面端"
-echo "  frontend/scripts/package-desktop.sh   # 打包含独立 Python 运行时的分发目录 dist-app/"
+echo "  cloudra config show        # 查看当前配置"
+echo "  cloudra run 'YOUR TASK'    # 运行任务"
+echo "  cloudra                    # Linux 进入 TUI，Windows/Android 启动 GUI"
+echo "  cloudra gui                # 强制启动 GUI"
+echo "  cloudra-api                # 启动 REST API（http://127.0.0.1:8000）"

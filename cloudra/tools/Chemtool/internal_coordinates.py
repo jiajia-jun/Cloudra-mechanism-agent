@@ -12,8 +12,12 @@ from pydantic import Field
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
-if TYPE_CHECKING:
+try:
     import chemcoord as cc
+    _CHEMCOORD_AVAILABLE = True
+except Exception:
+    cc = None
+    _CHEMCOORD_AVAILABLE = False
 
 _COVALENT_RADII = {
     'H': 0.31, 'He': 0.28,
@@ -529,6 +533,11 @@ class InternalCoordinates(Tool):
             )
 
     async def tool_call(self, user_input: InternalCoordinates_input_schema, session: Session) -> InternalCoordinates_output_schema:
+        if not _CHEMCOORD_AVAILABLE:
+            return InternalCoordinates_output_schema(
+                is_success=False,
+                message="环境未安装 chemcoord 库。请执行: pip install 'cloudra[chem]'"
+            )
         if user_input.mode == "cartesian_to_zmatrix":
             return self._cartesian_to_zmatrix(user_input)
         return self._zmatrix_to_cartesian(user_input)

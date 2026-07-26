@@ -299,7 +299,7 @@ class SessionRunner:
                 try:
                     os.kill(record.pid, signal.SIGTERM)
                     # executor 的 SIGTERM 处理器会自行落 cancelled
-                except (ProcessLookupError, PermissionError):
+                except (ProcessLookupError, PermissionError, OSError):
                     self._update(conversation_id, session_id, state="interrupted")
         self._cancel_descendants(conversation_id, session_id)
         return self.get(conversation_id, session_id)
@@ -314,7 +314,7 @@ class SessionRunner:
             try:
                 # executor 安装了 SIGTERM 处理器，会自行落 cancelled
                 os.kill(pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
+            except (ProcessLookupError, PermissionError, OSError):
                 pass
 
         session_store.cancel_descendants(db, parent_session_id, terminate)

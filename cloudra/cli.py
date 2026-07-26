@@ -13,6 +13,7 @@ from rich.table import Table
 
 from cloudra import __version__, conversation_repo, paths
 from cloudra.config import get_config
+from cloudra.platform_utils import is_android, is_windows
 from cloudra.service import CloudraService, validate_conversation_id
 
 console = Console()
@@ -37,10 +38,26 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         sys.exit(0)
 
     if ctx.invoked_subcommand is None:
-        console.print("[yellow]请使用子命令，或运行 `cloudra --help` 查看用法。[/yellow]")
+        # 无子命令时：Windows/Android 启动 GUI，Linux 进入交互式 TUI
+        _apply_config_overrides(
+            coordinator_model, coordinator_url, coordinator_key,
+            follower_model, follower_url, follower_key,
+        )
+        if is_windows() or is_android():
+            _launch_gui()
+        else:
+            _interactive_tui()
         sys.exit(0)
 
-    # Apply CLI overrides to config
+    _apply_config_overrides(
+        coordinator_model, coordinator_url, coordinator_key,
+        follower_model, follower_url, follower_key,
+    )
+
+
+def _apply_config_overrides(coordinator_model, coordinator_url, coordinator_key,
+                            follower_model, follower_url, follower_key):
+    """把 CLI 覆盖项写入全局配置。"""
     config = get_config()
     if coordinator_model:
         config.coordinator.model = coordinator_model
@@ -54,6 +71,24 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         config.follower.url = follower_url
     if follower_key:
         config.follower.key = follower_key
+
+
+def _launch_gui():
+    """启动 Flet GUI。"""
+    from cloudra.ui import run_gui
+    run_gui()
+
+
+def _interactive_tui():
+    """Linux 等终端环境下的交互式 TUI（prompt_toolkit 实现，支持 Esc 打断与中途补充）。"""
+    from cloudra.tui import run_tui
+    run_tui()
+
+
+@cli.command(name="gui")
+def gui():
+    """启动 Cloudra 原生 GUI（Windows/Android 默认入口）。"""
+    _launch_gui()
 
 
 @cli.command()
@@ -102,9 +137,13 @@ def run(query, conv_id, new, dry_run, yolo):
     try:
         # CLI 和 HTTP API 共用同一个业务服务层；CLI 只负责终端输入输出。
         service = CloudraService()
+        # 预生成 session_id，Ctrl+C 时才能定位 session 并请求优雅打断
+        from datetime import datetime
+        session_id = f"a-0_{datetime.now().isoformat()}"
         # CLI 有终端 stdin，显式启用交互式审批线程（service 层默认为 API 场景的 False）
         asyncio.run(service.run_task(
-            query, conversation_id=active_conv_id, verbose=True, interactive_approval=not yolo,
+            query, conversation_id=active_conv_id, verbose=True, session_id=session_id,
+            interactive_approval=not yolo,
         ))
 
         # Save the used ID as the last one
@@ -112,6 +151,14 @@ def run(query, conv_id, new, dry_run, yolo):
         config.save()
 
     except KeyboardInterrupt:
+        # 先置 cancel_requested 让 Agent 优雅收尾（落 cancelled 终态），再退出
+        try:
+            from cloudra import session_store
+            from cloudra.database import ConversationDB
+            db = ConversationDB(active_conv_id)
+            session_store.update_session_fields(db, session_id, {"state": "cancel_requested"})
+        except Exception:
+            pass
         console.print("\n[yellow]任务被用户中断。[/yellow]")
         sys.exit(130)
     except Exception as e:

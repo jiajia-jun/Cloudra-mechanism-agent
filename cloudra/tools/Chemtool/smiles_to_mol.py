@@ -5,6 +5,15 @@ from pydantic import Field
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
+try:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    _RDKIT_AVAILABLE = True
+except Exception:
+    Chem = None
+    AllChem = None
+    _RDKIT_AVAILABLE = False
+
 description = (
     "将化学 SMILES 字符串转换为 MOL (MDL MOLfile) 格式的工具。"
     "基于 RDKit，支持生成带 2D 或 3D 坐标的 MOL 文件。"
@@ -46,15 +55,15 @@ class SmilesToMol(Tool):
         return True
 
     async def tool_call(self, user_input: SmilesToMol_input_schema, session: Session) -> SmilesToMol_output_schema:
-        try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
-        except ImportError:
+        if not _RDKIT_AVAILABLE:
             return SmilesToMol_output_schema(
                 is_success=False,
                 mol_content="",
-                message="环境未安装 RDKit 库。"
+                message="环境未安装 RDKit 库。请执行: pip install 'cloudra[chem]'"
             )
+
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
 
         smiles = user_input.smiles
         path = user_input.output_path

@@ -3,8 +3,15 @@ from typing import Any, Literal, Optional
 
 import ase
 from pydantic import Field
-from rdkit import Chem
-from rdkit.Chem import AllChem
+
+try:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    _RDKIT_AVAILABLE = True
+except Exception:
+    Chem = None
+    AllChem = None
+    _RDKIT_AVAILABLE = False
 
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
@@ -193,6 +200,12 @@ class GjfWriter(Tool):
         return "\n".join(sections) + "\n"
 
     async def tool_call(self, user_input: GjfWriter_input_schema, session: Session) -> GjfWriter_output_schema:
+        if not _RDKIT_AVAILABLE:
+            return GjfWriter_output_schema(
+                is_success=False,
+                gjf_path="",
+                message="环境未安装 RDKit 库，无法生成 Gaussian 输入文件。请执行: pip install 'cloudra[chem]'"
+            )
         try:
             coords = self._get_coordinates(user_input.source_type, user_input.source_value)
             gjf_content = self._build_gjf(user_input, coords)

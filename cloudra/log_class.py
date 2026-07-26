@@ -13,6 +13,9 @@ class Log:
     level: int
     is_main: bool
     path: str
+    # 类级开关：TUI 模式置 False，终端输出改由 TUI 事件渲染器负责；
+    # 日志文件写入不受此开关影响。
+    terminal_output: bool = True
 
     def __init__(self, log_name: str = 'default.log', log_path: str = None):
         self.name = log_name
@@ -54,7 +57,7 @@ class Log:
         '''
         更新日志内容，追加新的内容。
         '''
-        if print_to_console and self.is_main:
+        if print_to_console and self.is_main and Log.terminal_output:
             print(new_content, end='', flush=True)
 
         # 流式期间复用已持有的句柄；非流式维持原有一次一开的写法

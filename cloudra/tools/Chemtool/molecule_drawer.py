@@ -6,6 +6,15 @@ from pydantic import Field
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
+try:
+    from rdkit import Chem
+    from rdkit.Chem.Draw import rdMolDraw2D
+    _RDKIT_AVAILABLE = True
+except Exception:
+    Chem = None
+    rdMolDraw2D = None
+    _RDKIT_AVAILABLE = False
+
 description = (
     "利用 RDKit 将化学 SMILES 转换为高度可定制的分子结构图像 (PNG/SVG)。"
     "支持设置尺寸、高亮、原子编号、手性标注、线宽等几乎所有 RDKit 绘图参数。"
@@ -57,8 +66,12 @@ class MoleculeDrawer(Tool):
         return False
 
     async def tool_call(self, user_input: MoleculeDrawer_input_schema, session: Session) -> MoleculeDrawer_output_schema:
-        from rdkit import Chem
-        from rdkit.Chem.Draw import rdMolDraw2D
+        if not _RDKIT_AVAILABLE:
+            return MoleculeDrawer_output_schema(
+                is_success=False,
+                image_path="",
+                message="环境未安装 RDKit 库，无法绘制分子结构图。请执行: pip install 'cloudra[chem]'"
+            )
         smiles = user_input.smiles
         path = user_input.output_path
 

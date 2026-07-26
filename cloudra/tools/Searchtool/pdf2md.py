@@ -2,7 +2,13 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import fitz
+try:
+    import fitz
+    _PYMUPDF_AVAILABLE = True
+except Exception:
+    fitz = None
+    _PYMUPDF_AVAILABLE = False
+
 from pydantic import Field
 
 from cloudra.session_class import Session
@@ -41,6 +47,13 @@ class pdf2md(Tool):
         return True
 
     async def tool_call(self, user_input: pdf2md_input_schema, session: Session) -> pdf2md_output_schema:
+        if not _PYMUPDF_AVAILABLE:
+            return pdf2md_output_schema(
+                is_finished=False,
+                md_path='',
+                content="环境未安装 PyMuPDF 库。请执行: pip install 'cloudra[pdf]'"
+            )
+
         input_path = user_input.input_path
         target_path = user_input.output_path
         timeout = user_input.timeout

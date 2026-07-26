@@ -9,6 +9,7 @@ import traceback
 from cloudra import events, session_store
 from cloudra.context_manager import ContextManager
 from cloudra.database import ConversationDB, aretry_on_locked
+from cloudra.platform_utils import is_posix
 from cloudra.react import AgentCancelled, reAct
 from cloudra.subagents import Subagent_hash
 
@@ -155,8 +156,10 @@ if __name__ == '__main__':
     parser.add_argument('--session_id', type=str, default=None)
     args = parser.parse_args()
 
-    # SIGTERM（如父进程 cancel）→ 抛出 SystemExit，走下方兜底标记 cancelled
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    # SIGTERM（如父进程 cancel）→ 抛出 SystemExit，走下方兜底标记 cancelled。
+    # Windows 上 SIGTERM 不会由系统正常投递，仅 POSIX 注册处理器。
+    if is_posix():
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
     try:
         asyncio.run(run_executor(args.task_id, args.db, args.session_id))

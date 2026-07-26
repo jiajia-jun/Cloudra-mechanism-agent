@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from cloudra.database import ConversationDB
+from cloudra.platform_utils import get_bash_path, is_posix
 
 # 各 job_type 所需的任一外部可执行程序（通过系统 PATH 查找）。
 _REQUIRED_BINS = {
@@ -53,10 +54,15 @@ def check_calculator_script(workdir: str) -> tuple[bool, str]:
 
     优先查找工作目录下的 calculator.sh，允许用户按任务目录定制；
     找不到时回退到项目内置的 calculator.sh。
+    Windows/Android 等没有 shebang 执行语义的环境需要同时找到 bash。
 
     Returns:
         (is_ok, script_path): is_ok 为 False 时 script_path 为空字符串。
     """
+    bash_path = get_bash_path()
+    if bash_path is None:
+        return False, ""
+
     local_script = os.path.join(workdir, "calculator.sh")
     if os.access(local_script, os.X_OK):
         return True, local_script
@@ -75,14 +81,15 @@ def build_calculator_cmd(input_file: str, job_type: str) -> tuple[bool, list[str
         (is_ok, cmd, message): is_ok 为 False 时 cmd 为空列表，message 为错误信息。
     """
     workdir = os.path.dirname(input_file)
+    bash_path = get_bash_path()
     ok, script_path = check_calculator_script(workdir)
-    if not ok:
+    if bash_path is None or not ok:
         return False, [], (
-            f"未找到 calculator.sh，请确认该脚本已安装。"
+            f"未找到 calculator.sh 或可用的 bash，请确认脚本已安装且 bash 在 PATH 中。"
             f"可以在工作目录 {workdir} 下放一个可执行的 calculator.sh，"
             f"或者保留项目内置脚本 { _default_calculator_path() }。"
         )
-    return True, [script_path, input_file, job_type], ""
+    return True, [bash_path, script_path, input_file, job_type], ""
 
 
 def build_guard_cmd(
@@ -167,13 +174,14 @@ async def launch_compute_processes(
             )
 
         # 异步后台模式：guard 与 calculator 脱离当前进程会话，独立运行。
-        subprocess.Popen(
-            guard_cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        popen_kwargs = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "stdin": subprocess.DEVNULL,
+        }
+        if is_posix():
+            popen_kwargs["start_new_session"] = True
+        subprocess.Popen(guard_cmd, **popen_kwargs)
         return True, ""
     except Exception as e:
         return False, f"启动计算子进程失败: {e}"

@@ -1,8 +1,9 @@
-"""Conversation-scoped IPC event bus over Unix domain sockets.
+"""Conversation-scoped IPC event bus over Unix domain sockets or TCP loopback.
 
 设计目标：让跨进程状态变化通过 socket 事件直接投递，数据库只保留持久化事实。
 
-- 每个需要接收事件的进程为每个 conversation 绑定一个 <pid>.sock。
+- 每个需要接收事件的进程为每个 conversation 绑定一个地址：
+  POSIX 下是 <pid>.sock（Unix domain socket），Windows 下是 <pid>.port（TCP 端口文件）。
 - 发送方扫描该 conversation 的 ipc/ 目录，把 JSON 行事件广播给所有 listener。
 - 本进程内的订阅者直接投递，不走 socket（零拷贝、零延迟）。
 - 接收方不在线时，事件静默丢弃；持久化表保证其上线后能从 DB 恢复状态。
@@ -18,11 +19,14 @@ import hashlib
 import json
 import os
 import socket
+import tempfile
 import threading
 import time
 import weakref
 from pathlib import Path
 from typing import Any, Iterable
+
+from cloudra.platform_utils import is_posix, is_windows
 
 __all__ = [
     "ensure_listener",
@@ -36,11 +40,12 @@ __all__ = [
 
 def _runtime_dir() -> Path:
     """返回短路径的 IPC 根目录（避开 Linux 108 字符 sun_path 限制）。"""
-    base = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
     uid = getattr(os, "getuid", lambda: 0)()
     path = Path(base) / f"cloudra-{uid}-{getpass.getuser()}"
     path.mkdir(parents=True, exist_ok=True)
-    path.chmod(0o700)
+    if is_posix():
+        path.chmod(0o700)
     return path
 
 
@@ -49,13 +54,22 @@ def _ipc_dir(conversation_id: str) -> Path:
     conv_hash = hashlib.sha1(conversation_id.encode("utf-8")).hexdigest()[:16]
     path = _runtime_dir() / "ipc" / conv_hash
     path.mkdir(parents=True, exist_ok=True)
-    path.chmod(0o700)
+    if is_posix():
+        path.chmod(0o700)
     return path
 
 
-def _socket_path(conversation_id: str) -> Path:
-    """当前进程在该 conversation 下使用的 listener socket 路径。"""
-    return _ipc_dir(conversation_id) / f"{os.getpid()}.sock"
+def _listener_addr_files(conversation_id: str) -> tuple[str, Path]:
+    """当前进程在该 conversation 下使用的 listener 地址。
+
+    Returns:
+        (transport_kind, address_path): transport_kind 为 "unix" 或 "tcp"；
+        address_path 在 POSIX 下指向 .sock 文件，在 Windows 下指向 .port 文件。
+    """
+    ipc_dir = _ipc_dir(conversation_id)
+    if is_windows():
+        return "tcp", ipc_dir / f"{os.getpid()}.port"
+    return "unix", ipc_dir / f"{os.getpid()}.sock"
 
 
 class ThreadSub:
@@ -94,7 +108,7 @@ class _EventListener:
 
     def __init__(self, conversation_id: str):
         self.conversation_id = conversation_id
-        self.socket_path = _socket_path(conversation_id)
+        self.transport_kind, self.address_path = _listener_addr_files(conversation_id)
         self._server: asyncio.Server | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._subs: dict[str, list[asyncio.Queue | ThreadSub]] = {}
@@ -105,17 +119,36 @@ class _EventListener:
         if self._server is not None:
             return
         self._loop = asyncio.get_running_loop()
-        self.socket_path.parent.mkdir(parents=True, exist_ok=True)
-        # 清理本进程在该 conversation 下可能残留的陈旧 socket
+        self.address_path.parent.mkdir(parents=True, exist_ok=True)
+        # 清理本进程在该 conversation 下可能残留的陈旧地址文件
         try:
-            if self.socket_path.exists():
-                self.socket_path.unlink()
+            if self.address_path.exists():
+                self.address_path.unlink()
         except OSError:
             pass
-        self._server = await asyncio.start_unix_server(
-            self._on_client,
-            path=str(self.socket_path),
-        )
+
+        if is_windows():
+            self._server = await asyncio.start_server(
+                self._on_client,
+                "127.0.0.1",
+                0,
+            )
+            port: int | None = None
+            for sock in self._server.sockets:
+                if sock.family == socket.AF_INET:
+                    port = sock.getsockname()[1]
+                    break
+            if port is None:
+                self._server.close()
+                await self._server.wait_closed()
+                self._server = None
+                raise RuntimeError("无法获取 listener TCP 端口")
+            self.address_path.write_text(str(port), encoding="utf-8")
+        else:
+            self._server = await asyncio.start_unix_server(
+                self._on_client,
+                path=str(self.address_path),
+            )
 
     def close(self) -> None:
         if self._closed:
@@ -128,8 +161,8 @@ class _EventListener:
             if self._loop.is_running():
                 asyncio.run_coroutine_threadsafe(server.wait_closed(), self._loop)
         try:
-            if self.socket_path.exists():
-                self.socket_path.unlink()
+            if self.address_path.exists():
+                self.address_path.unlink()
         except OSError:
             pass
 
@@ -224,7 +257,7 @@ async def ensure_listener(conversation_id: str) -> _EventListener:
 
 
 def shutdown_listener(conversation_id: str) -> None:
-    """关闭并清理当前进程在该 conversation 的 listener socket。"""
+    """关闭并清理当前进程在该 conversation 的 listener 地址文件。"""
     with _listeners_lock:
         listener = _listeners.pop(conversation_id, None)
     if listener is not None:
@@ -248,9 +281,43 @@ def _broadcast_sync(conversation_id: str, message: dict) -> None:
     if not sock_dir.exists():
         return
     data = json.dumps(message, ensure_ascii=False).encode("utf-8") + b"\n"
-    own_sock = _socket_path(conversation_id)
+    own_kind, own_path = _listener_addr_files(conversation_id)
+
+    if is_windows():
+        for entry in sock_dir.iterdir():
+            if entry == own_path or entry.suffix != ".port":
+                continue
+            try:
+                port = int(entry.read_text(encoding="utf-8").strip())
+            except (ValueError, OSError):
+                try:
+                    entry.unlink()
+                except OSError:
+                    pass
+                continue
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.15)
+                    s.connect(("127.0.0.1", port))
+                    s.sendall(data)
+            except (FileNotFoundError, ConnectionRefusedError):
+                try:
+                    entry.unlink()
+                except OSError:
+                    pass
+            except OSError as exc:
+                if exc.errno in (errno.ECONNREFUSED, errno.ENOENT):
+                    try:
+                        entry.unlink()
+                    except OSError:
+                        pass
+            except Exception:
+                pass
+        return
+
+    # POSIX: Unix domain sockets
     for entry in sock_dir.iterdir():
-        if not entry.is_socket() or entry == own_sock:
+        if not entry.is_socket() or entry == own_path:
             continue
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:

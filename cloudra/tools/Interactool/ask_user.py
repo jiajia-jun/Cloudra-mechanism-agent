@@ -1,11 +1,28 @@
 import asyncio
 import re
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from pydantic import Field
 
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
+
+# 可插拔输入处理器：TUI 等前端注册后，ask_user 不再使用裸 input()，
+# 而是把问题交给前端收集答案。签名: async (prompt_text: str) -> str
+_input_handler: Optional[Callable[[str], Awaitable[str]]] = None
+
+
+def set_input_handler(handler: Optional[Callable[[str], Awaitable[str]]]) -> None:
+    """注册/清除 ask_user 的输入处理器（TUI 启动时注册，退出时清除）。"""
+    global _input_handler
+    _input_handler = handler
+
+
+async def _read_input(prompt_text: str) -> str:
+    """优先走已注册的前端处理器，否则退回终端 input()（API/子进程场景）。"""
+    if _input_handler is not None:
+        return await _input_handler(prompt_text)
+    return await asyncio.to_thread(input, prompt_text)
 
 description = (
     "向用户提出问题并等待回答。当 Agent 需要澄清需求、确认操作或收集额外信息时使用。"
@@ -67,8 +84,9 @@ class AskUser(Tool):
         prompt_text = "\n".join(prompt_lines)
 
         try:
-            # input() 是同步阻塞调用，使用 asyncio.to_thread 避免阻塞事件循环
-            raw_answer = await asyncio.to_thread(input, prompt_text + "\n请输入您的回答: ")
+            # input() 是同步阻塞调用，使用 asyncio.to_thread 避免阻塞事件循环；
+            # TUI 注册处理器后则改由前端收集输入。
+            raw_answer = await _read_input(prompt_text + "\n请输入您的回答: ")
             answer = raw_answer.strip()
 
             # 检测拒绝输入：
@@ -89,9 +107,7 @@ class AskUser(Tool):
                 if is_reject:
                     # 如果没有给出原因，再追问一次
                     if not reason:
-                        reason_raw = await asyncio.to_thread(
-                            input, "请说明拒绝原因（可直接回车跳过）: "
-                        )
+                        reason_raw = await _read_input("请说明拒绝原因（可直接回车跳过）: ")
                         reason = reason_raw.strip()
                     return AskUser_output_schema(
                         is_success=False,

@@ -13,6 +13,13 @@ if not hasattr(datetime, "UTC"):
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
+try:
+    import spectrochempy as scp
+    _SPECTROCHEMPY_AVAILABLE = True
+except Exception:
+    scp = None
+    _SPECTROCHEMPY_AVAILABLE = False
+
 description = (
     "专业级红外光谱 (IR) 处理与解析工具：基于 SpectroChemPy 库。"
     "支持 JCAMP-DX, Thermo Nicolet (SPA/SPG), CSV 等格式。"
@@ -57,10 +64,11 @@ class IRProcessor(Tool):
         return True
 
     async def tool_call(self, user_input: IRProcessor_input_schema, session: Session) -> IRProcessor_output_schema:
-        try:
-            import spectrochempy as scp
-        except ImportError:
-            return IRProcessor_output_schema(is_success=False, message="环境未安装 spectrochempy 库。")
+        if not _SPECTROCHEMPY_AVAILABLE:
+            return IRProcessor_output_schema(
+                is_success=False,
+                message="环境未安装 spectrochempy 库。请执行: pip install 'cloudra[chem]'"
+            )
 
         path = user_input.data_path
         if not os.path.exists(path):

@@ -7,6 +7,13 @@ from pydantic import Field
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
+try:
+    import nmrglue as ng
+    _NMRGLUE_AVAILABLE = True
+except Exception:
+    ng = None
+    _NMRGLUE_AVAILABLE = False
+
 description = (
     "科研级 NMR 原始数据处理工具：集成 nmrglue 深度处理流水线。"
     "支持 Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX 格式。"
@@ -53,10 +60,11 @@ class NMRProcessor(Tool):
         return True
 
     async def tool_call(self, user_input: NMRProcessor_input_schema, session: Session) -> NMRProcessor_output_schema:
-        try:
-            import nmrglue as ng
-        except ImportError:
-            return NMRProcessor_output_schema(is_success=False, message="缺少 nmrglue 库。")
+        if not _NMRGLUE_AVAILABLE:
+            return NMRProcessor_output_schema(
+                is_success=False,
+                message="缺少 nmrglue 库。请执行: pip install 'cloudra[chem]'"
+            )
 
         path = user_input.data_path
         if not os.path.exists(path):

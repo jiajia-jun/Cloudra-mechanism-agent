@@ -10,7 +10,7 @@ AI Agent collaboration framework for chemical research.
 - **Human-in-the-Loop by Design**: Destructive or script executions are gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
 - **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines. In the GUI it is a per-session toggle (contextvar-scoped, propagated to sub-agent processes), not a process-wide switch.
 - **Streaming & Interruption**: Token-level streaming end-to-end (throttled `llm_chunk` events over SSE) for the Coordinator and every sub-agent, with chat-bubble transcripts per session; any session can be interrupted from the GUI or API (`cancel_requested` → graceful exit, SIGTERM fallback).
-- **Desktop App & Web UI**: A Tauri desktop app (embedded backend sidecar, optional standalone Python runtime for zero-dependency distribution) plus a web UI served directly by the API.
+- **Native GUI & Linux TUI**: A Flet-based native GUI runs on Windows and Android (no browser required); Linux keeps the lightweight terminal TUI via `cloudra` / `cloudra run`.
 - **Context Compression**: Automatically summarizes older conversation history when context exceeds half of the model window, preventing unbounded growth.
 - **Self-Learning & Case Bank**: Agents can distill successful workflows into a global Case Bank for cross-conversation memory and knowledge reuse.
 - **Scientific Supervisor**: Introduces an independent Supervisor agent to oversee experimental progress and validate scientific rigor.
@@ -39,22 +39,41 @@ This is a preview release of the event-driven rewrite.
 
 ### One-line install (recommended)
 
+**Linux / macOS:**
+
 ```bash
 ./install.sh
 ```
 
-This script checks your Python version, optionally creates a virtual environment,
-installs Cloudra in editable mode, and interactively initializes your config.
-If you have an existing `.env` file, it can migrate the LLM settings into the
-new YAML-based config.
+**Windows (PowerShell, run as Administrator):**
+
+```powershell
+irm https://your-domain/install.ps1 | iex
+# or, if you already cloned the repo:
+.\install.ps1
+```
+
+The script checks your Python version, creates a virtual environment,
+installs Cloudra with all extras, and interactively initializes your config.
+It also adds the `cloudra` command to your PATH.
+
+No Python yet? The script can download a standalone Python runtime into the
+project directory automatically — no system install or admin rights needed.
+No Rust or Node.js is required.
 
 ### Manual install
 
 ```bash
-pip install -e .
+pip install -e ".[all]"
 ```
 
 All dependencies are declared in `pyproject.toml`. There is no separate `requirements.txt`.
+No Rust or Node.js is needed.
+
+Optional extras:
+- `pip install -e ".[all]"` for the full chemistry/browser/pdf toolkit.
+- `pip install -e ".[gui]"` for the Flet GUI (Windows/Android).
+- `pip install -e ".[chem]"` / `"[browser]"` / `"[pdf]"` for individual feature groups.
 
 > **Note (HPC users)**: runtime state lives in per-conversation SQLite databases
 > (WAL mode) under the data directory (`~/.local/share/cloudra` by default).
@@ -74,6 +93,18 @@ Run a task:
 
 ```bash
 cloudra run "Search for recent papers on perovskite solar cells and summarize the key findings"
+```
+
+Interactive mode (Linux TUI / Windows/Android GUI):
+
+```bash
+cloudra
+```
+
+Force the GUI on any platform:
+
+```bash
+cloudra gui
 ```
 
 Resume the last conversation:
@@ -101,11 +132,13 @@ cloudra --version
 cloudra --coordinator-model gpt-4o --coordinator-key $KEY run "..."
 
 # Run tasks
-cloudra run "YOUR TASK"                 # start / resume last conversation
-cloudra run "YOUR TASK" --new           # force new conversation
-cloudra run "YOUR TASK" --conv-id ID    # continue a specific conversation
-cloudra run "YOUR TASK" --dry-run       # print config without executing
-cloudra run "YOUR TASK" --yolo          # auto-approve risky operations via LLM
+cloudra                                   # interactive TUI (Linux) or GUI (Windows/Android)
+cloudra gui                               # force the Flet GUI
+cloudra run "YOUR TASK"                   # start / resume last conversation
+cloudra run "YOUR TASK" --new             # force new conversation
+cloudra run "YOUR TASK" --conv-id ID      # continue a specific conversation
+cloudra run "YOUR TASK" --dry-run         # print config without executing
+cloudra run "YOUR TASK" --yolo            # auto-approve risky operations via LLM
 
 # Configuration
 cloudra config init                     # interactive setup
