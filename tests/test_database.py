@@ -114,6 +114,16 @@ def test_conversation_db_connect_sets_wal_and_busy_timeout(isolated_db):
         assert cur.fetchone()[0] == 20000
 
 
+def test_conversation_db_connect_closes_on_context_exit(isolated_db):
+    """同步连接离开上下文后必须关闭，避免长测试进程耗尽文件描述符。"""
+    db = ConversationDB("conv_close").init()
+    with db.connect() as con:
+        assert con.execute("SELECT 1").fetchone() == (1,)
+
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        con.execute("SELECT 1")
+
+
 @pytest.mark.asyncio
 async def test_conversation_db_aconnect_sets_busy_timeout(isolated_db):
     db = ConversationDB("conv_async_pragma").init()

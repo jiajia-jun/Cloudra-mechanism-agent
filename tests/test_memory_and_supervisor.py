@@ -1,3 +1,4 @@
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -144,6 +145,13 @@ def case_bank(tmp_path, monkeypatch):
 
 
 class TestCaseBank:
+    def test_connect_closes_on_context_exit(self, case_bank):
+        with case_bank.connect() as con:
+            assert con.execute("SELECT 1").fetchone() == (1,)
+
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            con.execute("SELECT 1")
+
     def test_add_and_get_case(self, case_bank):
         emb = np.array([0.1, 0.2, 0.3], dtype=np.float32).tobytes()
         case_id = case_bank.add_case(

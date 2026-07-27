@@ -103,7 +103,9 @@ class ConversationDB:
         self.ensure_dir()
         # journal_mode is persistent.  Switching it on every connection needs a
         # stronger lock and creates avoidable contention between worker processes.
-        with sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT) as con:
+        with contextlib.closing(
+            sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT)
+        ) as con:
             con.execute(f"PRAGMA busy_timeout={int(DEFAULT_BUSY_TIMEOUT * 1000)};")
             con.execute("PRAGMA journal_mode=WAL;")
             con.commit()
@@ -124,14 +126,20 @@ class ConversationDB:
             con.commit()
         return self
 
+    @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
-        """返回一个已配置 WAL/busy_timeout 的同步 SQLite 连接。"""
+        """返回统一配置且退出时显式关闭的同步 SQLite 连接上下文。"""
         self.ensure_dir()
         con = sqlite3.connect(self.path, timeout=timeout)
-        cur = con.cursor()
-        cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
-        cur.execute("PRAGMA synchronous=NORMAL;")
-        return con
+        try:
+            cur = con.cursor()
+            cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            # 保留 sqlite3.Connection 原有的提交/回滚上下文语义。
+            with con:
+                yield con
+        finally:
+            con.close()
 
     @contextlib.asynccontextmanager
     async def aconnect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
