@@ -11,9 +11,11 @@ session_state、approval_pending。
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 
 from cloudra import session_store
@@ -25,6 +27,18 @@ if TYPE_CHECKING:
 
 _TERMINAL_STATES = {"completed", "failed", "cancelled", "interrupted", "killed"}
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
+# 兜底：ESC 字节已被 prompt_toolkit 的 patch_stdout 或 ANSI parser 吃掉，
+# 残留下的裸 [XXm / [XX;XXm 这样的颜色码片段。
+_BARE_ANSI_FRAG_RE = re.compile(r"(?<!\x1b)\[[0-9][0-9;]*[a-zA-Z]")
+
+
+def _strip_ansi(text: str) -> str:
+    """剥离嵌入文本的 ANSI 转义序列（含 ESC 丢失后的裸 [XXm 残片）。"""
+    text = _ANSI_RE.sub("", text)
+    text = _BARE_ANSI_FRAG_RE.sub("", text)
+    return text
+
 
 def _truncate(text: str, limit: int) -> str:
     text = (text or "").strip()
@@ -33,7 +47,7 @@ def _truncate(text: str, limit: int) -> str:
 
 def _format_args(raw: str) -> str:
     """工具参数：JSON 字符串转成 `key: value` 形式，解析失败回退原文。"""
-    raw = (raw or "").strip()
+    raw = _strip_ansi((raw or "").strip())
     if not raw:
         return ""
     try:
@@ -69,7 +83,12 @@ def _format_result_lines(raw: str, max_lines: int = 4) -> list[str]:
             text = json.dumps(data, ensure_ascii=False)
     except Exception:
         pass
-    return [_truncate(line, 100) for line in text.splitlines()[:max_lines]]
+    return [_truncate(_strip_ansi(line), 100) for line in text.splitlines()[:max_lines]]
+
+
+def _diff_preview_lines(diff: str, max_lines: int = 160) -> tuple[list[str], bool]:
+    lines = (diff or "").splitlines()
+    return lines[:max_lines], len(lines) > max_lines
 
 
 class EventRenderer:
@@ -116,7 +135,7 @@ class EventRenderer:
         """把缓冲的流式文本作为完整行输出。"""
         if self._stream_buf:
             self.console.print(
-                self._stream_buf, style=self._stream_style, markup=False, highlight=False,
+                _strip_ansi(self._stream_buf), style=self._stream_style, markup=False, highlight=False,
             )
             self._stream_buf = ""
 
@@ -132,7 +151,7 @@ class EventRenderer:
         self._stream_buf += text
         while "\n" in self._stream_buf:
             line, self._stream_buf = self._stream_buf.split("\n", 1)
-            self.console.print(line, style=style, markup=False, highlight=False)
+            self.console.print(_strip_ansi(line), style=style, markup=False, highlight=False)
         if len(self._stream_buf) >= self._STREAM_FLUSH_WIDTH:
             self._flush_stream()
 
@@ -143,7 +162,7 @@ class EventRenderer:
             return
         if agent != self._stream_agent:
             self._end_stream_line()
-            self.console.print(f"\n[bold green]● {agent}[/bold green]")
+            self.console.print(f"\n[bold green]● {escape(agent)}[/bold green]")
             self._stream_agent = agent
         if data.get("stream") == "reasoning":
             # prompt_toolkit 不支持 SGR dim，用亮黑色表达"暗化"
@@ -158,15 +177,72 @@ class EventRenderer:
         self._end_stream_line()
         tool = data.get("tool", "?")
         args = _format_args(data.get("arguments", ""))
-        suffix = f" [bright_black]{args}[/bright_black]" if args else ""
-        self.console.print(f"[yellow]▶ [bold]{tool}[/bold][/yellow]{suffix}")
+        suffix = f" [bright_black]{escape(_strip_ansi(args))}[/bright_black]" if args else ""
+        self.console.print(f"[yellow]▶ [bold]{escape(_strip_ansi(tool))}[/bold][/yellow]{suffix}")
 
     def _on_tool_finished(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
         tool = data.get("tool", "?")
         self.console.print(f"[green]√ {tool}[/green]")
         for line in _format_result_lines(data.get("result", "")):
-            self.console.print(f"  {line}", style="bright_black", markup=False, highlight=False)
+            self.console.print(f"  {_strip_ansi(line)}", style="bright_black", markup=False, highlight=False)
+
+    def _print_diff(self, diff: str) -> None:
+        lines, truncated = _diff_preview_lines(diff)
+        for line in lines:
+            if line.startswith(("+++", "---")):
+                style = "bold"
+            elif line.startswith("+"):
+                style = "green"
+            elif line.startswith("-"):
+                style = "red"
+            elif line.startswith("@@"):
+                style = "cyan"
+            else:
+                style = "bright_black"
+            self.console.print(line, style=style, markup=False, highlight=False)
+        if truncated:
+            self.console.print("… 终端预览已截断，完整 diff 已保存在 Session 事件中", style="dim")
+
+    def _on_file_change_proposed(self, session_id: str, data: dict) -> None:
+        self._end_stream_line()
+        path = escape(str(data.get("path", "?")))
+        additions = data.get("additions", 0)
+        deletions = data.get("deletions", 0)
+        self.console.print(
+            f"[yellow]※ 候选文件变更 [bold]{path}[/bold] "
+            f"[green]+{additions}[/green] [red]-{deletions}[/red][/yellow]"
+        )
+
+    def _on_file_change_applied(self, session_id: str, data: dict) -> None:
+        self._end_stream_line()
+        path = escape(str(data.get("path", "?")))
+        additions = data.get("additions", 0)
+        deletions = data.get("deletions", 0)
+        self.console.print(
+            f"[green]√ 已写入 [bold]{path}[/bold] +{additions}[/green] "
+            f"[red]-{deletions}[/red]"
+        )
+
+    def _on_file_change_declined(self, session_id: str, data: dict) -> None:
+        self._end_stream_line()
+        path = escape(str(data.get("path", "?")))
+        message = escape(_truncate(str(data.get("message", "")), 200))
+        self.console.print(f"[yellow]○ 已拒绝文件变更 {path}: {message}[/yellow]")
+
+    def _on_file_change_failed(self, session_id: str, data: dict) -> None:
+        self._end_stream_line()
+        path = escape(str(data.get("path", "?")))
+        message = escape(_truncate(str(data.get("message", "")), 200))
+        self.console.print(f"[red]× 文件变更失败 {path}: {message}[/red]")
+
+    def _on_turn_diff_updated(self, session_id: str, data: dict) -> None:
+        self._end_stream_line()
+        diff = data.get("diff", "")
+        if not diff:
+            return
+        self.console.print("[bold cyan]本轮文件差异[/bold cyan]")
+        self._print_diff(diff)
 
     def _on_phase(self, session_id: str, data: dict) -> None:
         self.app.phase = data.get("phase", "")
@@ -174,8 +250,8 @@ class EventRenderer:
 
     def _on_supervisor_review(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
-        verdict = data.get("verdict", "")
-        reasoning = _truncate(data.get("reasoning", ""), 400)
+        verdict = escape(_strip_ansi(data.get("verdict", "")))
+        reasoning = escape(_strip_ansi(_truncate(data.get("reasoning", ""), 400)))
         self.console.print(Panel(
             f"[bold]{verdict}[/bold]\n{reasoning}",
             title="[bold yellow]◆ Supervisor[/bold yellow]",
@@ -211,8 +287,8 @@ class EventRenderer:
             pass
         self.app.pending_approval = {"id": approval_id, "agent_name": agent_name, "details": details}
         self.console.print(Panel(
-            f"[bold]{details}[/bold]\n"
-            f"[dim]来自 {agent_name} · 输入 y 允许，n 拒绝（可 n:原因）[/dim]",
+            f"[bold]{escape(_strip_ansi(details))}[/bold]\n"
+            f"[dim]来自 {escape(_strip_ansi(agent_name))} · 输入 y 允许，n 拒绝（可 n:原因）[/dim]",
             title="[bold yellow]※ 安全审批[/bold yellow]",
             title_align="left",
             border_style="yellow",

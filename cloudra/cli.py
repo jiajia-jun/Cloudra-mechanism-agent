@@ -29,9 +29,10 @@ VERSION = __version__
 @click.option("--follower-model", envvar="CLOUDRA_FOLLOWER_MODEL", help="覆盖 Follower 模型")
 @click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
 @click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
+@click.option("--yolo", is_flag=True, help="启动默认界面时启用 YOLO 全自动模式")
 @click.pass_context
 def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
-        follower_model, follower_url, follower_key):
+        follower_model, follower_url, follower_key, yolo):
     """Cloudra - AI 化学科研助手"""
     if version:
         console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
@@ -46,7 +47,7 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         if is_windows() or is_android():
             _launch_gui()
         else:
-            _interactive_tui()
+            _interactive_tui(yolo=yolo)
         sys.exit(0)
 
     _apply_config_overrides(
@@ -79,10 +80,10 @@ def _launch_gui():
     run_gui()
 
 
-def _interactive_tui():
+def _interactive_tui(yolo: bool = False):
     """Linux 等终端环境下的交互式 TUI（prompt_toolkit 实现，支持 Esc 打断与中途补充）。"""
     from cloudra.tui import run_tui
-    run_tui()
+    run_tui(yolo=yolo)
 
 
 @cli.command(name="gui")

@@ -3,10 +3,12 @@
 设计要点：
 - 输入框常驻底部（运行中也保持激活），用户随时可打字：空闲时提交新任务，
   运行中则作为补充信息注入 Agent 上下文（ContextManager.inject_event）。
-- Esc 中途打断：第一次置 cancel_requested（Agent 优雅退出），3 秒内再按强制取消协程。
+- Esc 中途打断：推理中第一次请求优雅退出、3 秒内再按强制取消；等待提醒时
+  一次即可结束当前等待，独立 watcher 会保留并继续触发 reminder。
 - 审批（approval_pending）与 ask_user 提问统一收口到同一个输入框，
   不再使用裸 input()，避免与 prompt_toolkit 争抢 stdin。
 - 输出渲染全部来自 IPC 事件（见 render.py）；Log 的终端 print 在 TUI 期间关闭。
+- 启动时自动恢复上次对话（/new 新建 · /conv <id> 切换 · /list 查看列表）。
 """
 
 from __future__ import annotations
@@ -23,17 +25,21 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 
 from cloudra import __version__, session_store
+from cloudra.config import get_config
 from cloudra.context_manager import ContextManager
+from cloudra.conversation_class import Conversation
+from cloudra.conversation_repo import list_conversations
 from cloudra.database import ConversationDB
-from cloudra.events import shutdown_all_listeners
+from cloudra.events import shutdown_all_listeners, subscribe_async
 from cloudra.log_class import Log
 from cloudra.react import AgentCancelled
 from cloudra.service import CloudraService
 from cloudra.tools.Interactool import ask_user
-from cloudra.tui.render import EventRenderer
+from cloudra.tui.render import EventRenderer, _strip_ansi
 
 _COORDINATOR_AGENT_ID = "a-0"  # 与 email_listener 的注入先例一致
 _FORCE_CANCEL_WINDOW = 3.0     # 第一次 Esc 后，该时间窗内再按即强制取消
@@ -42,7 +48,7 @@ _FORCE_CANCEL_WINDOW = 3.0     # 第一次 Esc 后，该时间窗内再按即强
 class CloudraTUI:
     """Cloudra 终端交互界面主类。"""
 
-    def __init__(self) -> None:
+    def __init__(self, yolo: bool = False) -> None:
         # rich 输出经 PromptToolkitWriter 走 prompt_toolkit 渲染管线：
         # patch_stdout 会把 ESC 转义成 '?'，直接写会丢全部颜色
         import shutil
@@ -62,8 +68,11 @@ class CloudraTUI:
         self._pending_questions: list[asyncio.Future] = []
         self._running_task: asyncio.Task | None = None
         self._renderer_task: asyncio.Task | None = None
+        self._schedule_task: asyncio.Task | None = None
         self._cancel_at: float | None = None
+        self._cancelled_waiting_tasks: set[asyncio.Task] = set()
         self._prompt: PromptSession | None = None
+        self.yolo = yolo
 
     # ---- 生命周期 ----
 
@@ -75,7 +84,7 @@ class CloudraTUI:
         ask_user.set_input_handler(self._ask_user_handler)
         try:
             with patch_stdout():
-                self._new_conversation()
+                self._startup_conversation()
                 self._print_banner()
                 self._prompt = self._build_prompt_session()
                 await self._input_loop()
@@ -85,6 +94,10 @@ class CloudraTUI:
             await self._shutdown()
 
     async def _shutdown(self) -> None:
+        if self._schedule_task is not None:
+            self._schedule_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._schedule_task
         task = self._running_task
         if task is not None and not task.done():
             task.cancel()
@@ -97,24 +110,54 @@ class CloudraTUI:
         with contextlib.suppress(Exception):
             shutdown_all_listeners()
 
+    def _startup_conversation(self) -> None:
+        config = get_config()
+        if config.last_conversation_id:
+            try:
+                self._load_conversation(config.last_conversation_id)
+                return
+            except Exception:
+                pass
+        self._new_conversation()
+
     def _new_conversation(self) -> None:
         conversation = self.service.create_conversation()
-        self.conversation_id = conversation.id
+        self._activate_conversation(conversation.id)
+
+    def _load_conversation(self, conv_id: str) -> None:
+        Conversation(conv_id)
+        self._activate_conversation(conv_id)
+
+    def _activate_conversation(self, conv_id: str) -> None:
+        self.conversation_id = conv_id
         if self._renderer_task is not None:
             self._renderer_task.cancel()
+        if self._schedule_task is not None:
+            self._schedule_task.cancel()
         renderer = EventRenderer(self.console, self)
         self._renderer_task = asyncio.create_task(renderer.run(self.conversation_id))
+        self._schedule_task = asyncio.create_task(self._watch_schedules(self.conversation_id))
+        self.session_id = None
+        self.phase = ""
+        self.pending_approval = None
+        self._pending_questions.clear()
 
     # ---- 界面 ----
 
-    _PHASE_LABELS = {"starting": "启动中", "thinking": "思考中", "acting": "执行中"}
+    _PHASE_LABELS = {
+        "starting": "启动中",
+        "thinking": "思考中",
+        "acting": "执行中",
+        "waiting": "等待提醒",
+    }
 
     def _print_banner(self) -> None:
         self.console.print(Panel(
             "[bold green]Cloudra[/bold green]  [dim]AI 化学科研助手"
             f" · v{__version__} · 对话 {self.conversation_id}[/dim]\n\n"
             "输入任务回车执行 · 运行中可直接输入补充信息\n"
-            "[dim]Esc 打断 · Ctrl+C 退出 · /new 新对话 · exit 退出[/dim]",
+            f"[dim]当前模式: {'YOLO' if self.yolo else '审批'} · "
+            "Esc 打断 · Ctrl+C 退出 · /yolo on|off · /new · /list · /conv <id> · exit[/dim]",
             border_style="green",
             padding=(0, 2),
         ))
@@ -129,9 +172,12 @@ class CloudraTUI:
         elif self._running():
             label = self._PHASE_LABELS.get(self.phase, "运行中")
             dot, dot_style, text = "●", "fg:ansigreen", f"{label} — Esc 打断 · 可直接输入补充"
+            if self.phase == "waiting":
+                text = f"{label} — 输入可立即唤醒 · Esc 结束等待（提醒保留）"
         else:
-            dot, dot_style, text = "○", "fg:ansigreen", "空闲 — 输入任务开始 · /new 新对话 · exit 退出"
-        right = f"cloudra · {self.conversation_id}"
+            dot, dot_style, text = "○", "fg:ansigreen", "空闲 — 输入任务开始 · /new /list /conv · exit 退出"
+        mode = "YOLO" if self.yolo else "审批"
+        right = f"cloudra · {mode} · {self.conversation_id}"
         # prompt_toolkit 会裁剪片段尾部空格，因此把 padding 放在左右两段之间
         try:
             from prompt_toolkit.application import get_app_or_none
@@ -198,7 +244,75 @@ class CloudraTUI:
                 self._new_conversation()
                 self.console.print(f"[green]已开启新对话: {self.conversation_id}[/green]")
                 continue
+            if text == "/list":
+                self._cmd_list()
+                continue
+            if text == "/yolo" or text.startswith("/yolo "):
+                self._cmd_yolo(text[5:].strip())
+                continue
+            if text.startswith("/conv "):
+                self._cmd_conv(text[6:].strip())
+                continue
             await self._dispatch(text)
+
+    def _cmd_list(self) -> None:
+        convs = list_conversations()
+        if not convs:
+            self.console.print("[yellow]暂无历史对话。[/yellow]")
+            return
+        self.console.print(f"\n[bold]历史对话列表 (共 {len(convs)} 个):[/bold]")
+        for conv in convs[:20]:
+            cid = conv.get("id", "?")
+            state = conv.get("state", "?")
+            last = (conv.get("last_active", "") or "")[:19]
+            marker = " [dim]← 当前[/dim]" if cid == self.conversation_id else ""
+            self.console.print(f"  [cyan]{cid}[/cyan]{marker}  {state}  {last}")
+        if len(convs) > 20:
+            self.console.print(f"  [dim]... 还有 {len(convs) - 20} 条，使用 /conv <id> 切换[/dim]")
+
+    def _cmd_conv(self, conv_id: str) -> None:
+        if not conv_id:
+            self.console.print("[yellow]用法: /conv <对话ID>  示例: /conv conv_20250101_120000_abc123[/yellow]")
+            return
+        if self._running():
+            self.console.print("[yellow]任务运行中，请先 Esc 打断再切换对话。[/yellow]")
+            return
+        convs = list_conversations()
+        matched = [c for c in convs if c.get("id", "").startswith(conv_id)]
+        if len(matched) == 1:
+            try:
+                self._load_conversation(matched[0]["id"])
+                self.console.print(f"[green]已切换到对话: {self.conversation_id}[/green]")
+            except Exception as e:
+                self.console.print(f"[red]无法加载对话 {matched[0]['id']}: {e}[/red]")
+        elif len(matched) > 1:
+            self.console.print("[yellow]多个匹配的对话，请输入更完整的 ID:[/yellow]")
+            for c in matched:
+                self.console.print(f"  [cyan]{c['id']}[/cyan]")
+        else:
+            self.console.print(f"[yellow]未找到对话: {conv_id}，使用 /list 查看所有对话。[/yellow]")
+
+    def _cmd_yolo(self, value: str) -> None:
+        """查看或切换后续 Session 的 YOLO 自动审批模式。"""
+        normalized = value.lower()
+        if not normalized or normalized == "status":
+            state = "已开启" if self.yolo else "未开启"
+            self.console.print(f"[yellow]YOLO 模式{state}。[/yellow]")
+            return
+        if normalized not in ("on", "off"):
+            self.console.print("[yellow]用法: /yolo on、/yolo off 或 /yolo status[/yellow]")
+            return
+        if self._running():
+            self.console.print("[yellow]任务运行中不能切换 YOLO；请先等待完成或 Esc 打断。[/yellow]")
+            return
+        self.yolo = normalized == "on"
+        if self.yolo:
+            self.console.print(
+                "[bold yellow]YOLO 已开启：后续任务的危险操作将由 LLM 自动审批。[/bold yellow]"
+            )
+        else:
+            self.console.print("[green]YOLO 已关闭：后续任务恢复人工审批。[/green]")
+        self.invalidate()
 
     async def _dispatch(self, text: str) -> None:
         if self.pending_approval is not None:
@@ -224,27 +338,43 @@ class CloudraTUI:
         self.session_id = f"{_COORDINATOR_AGENT_ID}_{datetime.now().isoformat()}"
         self._cancel_at = None
         self.phase = "starting"
-        task = asyncio.create_task(self.service.run_task(
-            query,
-            conversation_id=self.conversation_id,
-            session_id=self.session_id,
-            verbose=False,
-            interactive_approval=False,
-        ))
+        task = asyncio.create_task(self._run_task(query))
         task.add_done_callback(self._on_task_done)
         self._running_task = task
 
+    async def _run_task(self, query: str) -> str:
+        """在当前 TUI Session 的独立 context 中运行，避免 YOLO 状态串到其他任务。"""
+        from cloudra.yolo_guard import reset_session_yolo, set_session_yolo
+
+        token = set_session_yolo(self.yolo)
+        try:
+            return await self.service.run_task(
+                query,
+                conversation_id=self.conversation_id,
+                session_id=self.session_id,
+                verbose=False,
+                interactive_approval=False,
+            )
+        finally:
+            reset_session_yolo(token)
+
     def _on_task_done(self, task: asyncio.Task) -> None:
-        self._running_task = None
-        self._cancel_at = None
-        self.phase = ""
-        for future in self._pending_questions:
-            if not future.done():
-                future.cancel()
-        self._pending_questions.clear()
-        self.pending_approval = None
+        cancelled_waiting = task in self._cancelled_waiting_tasks
+        self._cancelled_waiting_tasks.discard(task)
+        if self._running_task is task:
+            self._running_task = None
+            self._cancel_at = None
+            self.phase = ""
+            for future in self._pending_questions:
+                if not future.done():
+                    future.cancel()
+            self._pending_questions.clear()
+            self.pending_approval = None
         if task.cancelled():
-            self.console.print("[yellow]■ 任务已强制终止。[/yellow]")
+            if cancelled_waiting:
+                self.console.print("[yellow]■ 已结束当前等待；定时提醒仍会按时触发。[/yellow]")
+            else:
+                self.console.print("[yellow]■ 任务已强制终止。[/yellow]")
         elif (exc := task.exception()) is not None:
             if isinstance(exc, AgentCancelled):
                 self.console.print("[yellow]■ 任务已打断。[/yellow]")
@@ -252,7 +382,31 @@ class CloudraTUI:
                 self.console.print(f"[red]× 任务失败: {exc}[/red]")
         else:
             self.console.print("[green]√ 任务完成。[/green]")
+        config = get_config()
+        config.last_conversation_id = self.conversation_id
+        config.save()
         self.invalidate()
+
+    async def _watch_schedules(self, conversation_id: str) -> None:
+        """独立守候当前对话的 reminder，避免顶层任务被打断后提醒失去执行者。"""
+        from cloudra.runtime.runner import _fire_due_reminders, _seconds_until_next_reminder
+
+        db = ConversationDB(conversation_id)
+        await db.ainit()
+        changed = await subscribe_async(conversation_id, "schedule_changed")
+        while conversation_id == self.conversation_id:
+            fired = await _fire_due_reminders(db, conversation_id)
+            if fired and not self._running():
+                self._start_task("处理刚刚到期的定时提醒。")
+
+            delay = await _seconds_until_next_reminder(db, conversation_id)
+            if delay is None:
+                await changed.get()
+                continue
+            try:
+                await asyncio.wait_for(changed.get(), timeout=max(0.01, delay))
+            except asyncio.TimeoutError:
+                pass
 
     # ---- 打断 ----
 
@@ -261,6 +415,10 @@ class CloudraTUI:
         task = self._running_task
         if task is None or task.done():
             return False
+        if self.phase == "waiting":
+            self._cancelled_waiting_tasks.add(task)
+            task.cancel()
+            return True
         now = time.monotonic()
         if self._cancel_at is not None and now - self._cancel_at < _FORCE_CANCEL_WINDOW:
             task.cancel()  # 时间窗内再次按下：强制取消协程
@@ -309,7 +467,7 @@ class CloudraTUI:
         future = asyncio.get_running_loop().create_future()
         self._pending_questions.append(future)
         self.console.print(Panel(
-            prompt_text,
+            escape(_strip_ansi(prompt_text)),
             title="[bold yellow]? Agent 提问[/bold yellow]",
             title_align="left",
             border_style="yellow",
@@ -319,6 +477,6 @@ class CloudraTUI:
         return await future
 
 
-def run_tui() -> None:
+def run_tui(yolo: bool = False) -> None:
     """TUI 入口（由 cli._interactive_tui 调用）。"""
-    CloudraTUI().run()
+    CloudraTUI(yolo=yolo).run()

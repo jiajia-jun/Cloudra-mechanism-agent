@@ -10,6 +10,7 @@ from cloudra.context_manager import ContextManager
 from cloudra.database import ConversationDB
 from cloudra.llm_client import ChatResponse, LLMClient
 from cloudra.memory import get_memory_manager
+from cloudra.runtime_profile import filter_tools_for_runtime
 from cloudra.tools import ToolEntry, get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
@@ -164,8 +165,13 @@ class Agent(BaseModel):
         return check_permission(agent_perms, tool_perms)
 
 
-    def get_available_tools(self) -> list:
-        tools = get_tools_lst()
+    def get_available_tools(self, tools: Optional[list] = None) -> list:
+        """Return tools permitted for both this Agent and the runtime.
+
+        ``tools`` is injectable so the reAct dispatcher can apply the exact
+        same checks to its current registry snapshot.
+        """
+        tools = filter_tools_for_runtime(get_tools_lst() if tools is None else tools)
         available_tools = []
         for tool in tools:
             if self.check_permission(tool):
@@ -225,12 +231,10 @@ class Agent(BaseModel):
     def _get_tools_schema(self) -> list[dict]:
         """惰性构建并缓存本 Agent 有权限使用的工具 schema 列表。"""
         if self._tools_schema_cache is None:
-            tool_entries = get_tools_lst()
             available_tool_classes = []
-            for entry in tool_entries:
-                if self.check_permission(entry):
-                    tool_instance = entry.instantiate(subagent=self)
-                    available_tool_classes.append(tool_instance.tool_schema_json())
+            for entry in self.get_available_tools():
+                tool_instance = entry.instantiate(subagent=self)
+                available_tool_classes.append(tool_instance.tool_schema_json())
             self._tools_schema_cache = available_tool_classes
         return self._tools_schema_cache
 
@@ -343,7 +347,8 @@ class Coordinator(Agent):
         self.prompt += (
             f"\n\n当前项目的工作目录是: {cwd}\n"
             f"工作目录顶层内容:\n{listing_str}\n"
-            "在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
+            "分发任务时请明确这个绝对工作目录；任务描述可以引用绝对路径，"
+            "但 text_reader、edit_file、text_writer 的 filepath 必须相对此工作目录。"
         )
 
         # 加载 Coordinator 的长期记忆到身份 prompt
@@ -485,12 +490,12 @@ class Coordinator(Agent):
         '''
         return True
 
-    def get_available_tools(self) -> list:
+    def get_available_tools(self, tools: Optional[list] = None) -> list:
         '''
         Coordinator 实际可见的工具列表。
         简化设计：Coordinator 可以使用所有工具，不再按模块白名单过滤。
         '''
-        return super().get_available_tools()
+        return super().get_available_tools(tools)
 
 
 class Follower(Agent):
@@ -541,6 +546,22 @@ class Follower(Agent):
         self.model = self.model or cfg.model
         self.llm_site = self.llm_site or cfg.url
         self._api_key = self._api_key or cfg.key
+        cwd = self.working_directory or os.getcwd()
+        listing_lines = []
+        try:
+            for name in sorted(os.listdir(cwd)):
+                if name.startswith('.') or name in ('__pycache__', '__init__.py'):
+                    continue
+                full_path = os.path.join(cwd, name)
+                listing_lines.append(f"{name}/" if os.path.isdir(full_path) else name)
+        except Exception:
+            listing_lines = ["<无法读取目录内容>"]
+        listing_str = "\n".join(listing_lines) if listing_lines else "<空目录>"
+        self.prompt += (
+            f"\n\n当前工作目录: {cwd}\n"
+            f"目录内容:\n{listing_str}\n"
+            "使用 text_reader、edit_file、text_writer 时路径必须相对此工作目录。"
+        )
 
     def has_read_permission(self) -> bool:
         return True

@@ -116,6 +116,7 @@ class ConversationDB:
             cur.execute(_CREATE_APPROVALS)
             cur.execute(_CREATE_COMPUTE_JOBS)
             cur.execute(_CREATE_CONTEXT_EVENTS)
+            cur.execute(_CREATE_SCHEDULED_REMINDERS)
             cur.execute(_CREATE_SESSION_EVENTS)
             cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             self._migrate_session_schema(cur)
@@ -164,6 +165,7 @@ class ConversationDB:
             await cur.execute(_CREATE_APPROVALS)
             await cur.execute(_CREATE_COMPUTE_JOBS)
             await cur.execute(_CREATE_CONTEXT_EVENTS)
+            await cur.execute(_CREATE_SCHEDULED_REMINDERS)
             await cur.execute(_CREATE_SESSION_EVENTS)
             await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             await self._amigrate_session_schema(cur)
@@ -293,6 +295,20 @@ _CREATE_CONTEXT_EVENTS = """
         content TEXT,
         state TEXT DEFAULT 'pending',
         created_at REAL
+    )
+"""
+
+_CREATE_SCHEDULED_REMINDERS = """
+    CREATE TABLE IF NOT EXISTS scheduled_reminders(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        session_id TEXT,
+        content TEXT NOT NULL,
+        wake_at REAL NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        created_at REAL NOT NULL,
+        fired_at REAL
     )
 """
 

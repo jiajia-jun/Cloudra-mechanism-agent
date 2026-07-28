@@ -34,7 +34,11 @@ class Bashtools(Tool):
     input_schema: Any = Bashtools_input_schema
     output_schema: Any = Bashtools_output_schema
     subagent: Agent = None
-    tool_description: str = 'bash工具，用于执行终端命令'
+    tool_description: str = (
+        "执行搜索、环境检查、构建和测试等终端命令。"
+        "不要用 Bash、sed、重定向、tee 或临时脚本修改工作区文件；"
+        "已有文件使用 text_reader + edit_file，新建文件使用 text_writer。"
+    )
 
     def __init__(self, subagent: Agent = None, **data) -> None:
         super().__init__(**data)
@@ -47,7 +51,11 @@ class Bashtools(Tool):
             tool_str = self._format_tool_list(availables)
             # review：显式判断空列表，避免对 None 或空字符串做隐式转换。
             if availables:
-                desc = f'您可调用的工具有：\n{tool_str}\n请自行书写指令运行，在需要用到bash工具时调用。'
+                desc = (
+                    f"可执行的命令有：\n{tool_str}\n"
+                    "本工具用于搜索、环境检查、构建和测试。不要用 Bash、sed、"
+                    "重定向、tee 或临时脚本修改工作区文件；请改用 edit_file/text_writer。"
+                )
             else:
                 desc = '当前没有可调用工具。'
             self.tool_description = desc

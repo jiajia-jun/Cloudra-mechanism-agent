@@ -57,6 +57,8 @@ class input_schema(BaseModel):
             "required": schema.get("required", []),
             "additionalProperties": False,
         }
+        if "$defs" in schema:
+            parameters["$defs"] = schema["$defs"]
         return parameters
 
     @classmethod
@@ -193,6 +195,21 @@ class Tool(BaseModel):
 
         db_path = _tool_db_path(self.subagent)
         return await self.request_approval(db_path, session.id, full_details)
+
+    async def record_session_event(
+        self,
+        session: Session,
+        event_type: str,
+        data: dict,
+    ) -> None:
+        """尽力记录工具事件；遥测失败不能反向破坏工具主流程。"""
+        from cloudra import session_store as _ss
+
+        try:
+            db = ConversationDB.from_path(_tool_db_path(self.subagent))
+            await _ss.arecord_event(db, session.id, event_type, data)
+        except Exception:
+            pass
 
     async def _yolo_judge(
         self,

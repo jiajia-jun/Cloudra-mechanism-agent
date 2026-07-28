@@ -1,26 +1,35 @@
-import os
+import asyncio
 from typing import Any
 
 from pydantic import Field
 
 from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.tools.core.workspace_mutation import (
+    WorkspaceMutationOutput,
+    execute_prepared_change,
+    record_preparation_failure,
+    workspace_for_tool,
+)
+from cloudra.tools_class import Tool, input_schema
+from cloudra.workspace import WorkspaceConflictError, WorkspaceError
 
 description = (
-    "以文本形式写入或覆写本地文件，支持 md、txt、json、py、sh 等纯文本格式。"
-    "适用于写入脚本、文档、配置文件等场景。"
+    "在 Agent 工作目录内新建或受保护地整文件覆写 UTF-8 文本。"
+    "新建传 expected_sha256='missing'；覆写前必须先用 text_reader 获取最新 sha256。"
 )
 
 
 class TextWriter_input_schema(input_schema):
-    filepath: str = Field(description="目标文件的绝对路径")
+    filepath: str = Field(description="相对 Agent 工作目录的目标文件路径")
     content: str = Field(description="要写入的文本内容")
+    expected_sha256: str = Field(
+        default="missing",
+        description="新建文件传 missing；覆写已有文件传 text_reader 返回的 sha256",
+    )
 
 
-class TextWriter_output_schema(output_schema):
-    is_written: bool = Field(description="是否写入成功")
-    filepath: str = Field(description="实际写入的文件路径")
-    message: str = Field(default="", description="状态或错误信息")
+class TextWriter_output_schema(WorkspaceMutationOutput):
+    pass
 
 
 class TextWriter(Tool):
@@ -39,33 +48,52 @@ class TextWriter(Tool):
         return False
 
     async def tool_call(self, user_input: TextWriter_input_schema, session: Session) -> TextWriter_output_schema:
-        path = user_input.filepath
-        content = user_input.content
+        service = workspace_for_tool(self)
+        try:
+            change = await asyncio.to_thread(
+                service.prepare_write,
+                user_input.filepath,
+                user_input.content,
+                user_input.expected_sha256,
+            )
+        except WorkspaceConflictError as exc:
+            await record_preparation_failure(
+                self,
+                session,
+                user_input.filepath,
+                "conflict",
+                str(exc),
+            )
+            return TextWriter_output_schema(
+                is_written=False,
+                filepath=user_input.filepath,
+                status="conflict",
+                message=str(exc),
+            )
+        except (OSError, WorkspaceError) as exc:
+            await record_preparation_failure(
+                self,
+                session,
+                user_input.filepath,
+                "failed",
+                str(exc),
+            )
+            return TextWriter_output_schema(
+                is_written=False,
+                filepath=user_input.filepath,
+                status="failed",
+                message=str(exc),
+            )
 
-        # 确保父目录存在
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-
-        # 构造详细的申请信息，将修改内容贴出来给用户看
-        details = (
-            f"【动作】: 写入/覆写文件\n"
-            f"【目标路径】: {path}\n"
-            f"【内容预览】: \n"
-            f"--- START ---\n"
-            f"{content[:1000]}{'...' if len(content) > 1000 else ''}\n"
-            f"--- END ---"
+        return await execute_prepared_change(
+            self,
+            service,
+            change,
+            session,
+            action="新建或整文件覆写文本",
+            tool_args=user_input.model_dump(mode="json"),
+            output_class=TextWriter_output_schema,
         )
-
-        # 触发安全检查
-        approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=user_input.model_dump(mode="json"))
-        if not approved:
-            message = "【安全拦截】写入操作已被拒绝。"
-            if denial_reason:
-                message += f"\n拒绝原因: {denial_reason}"
-            return TextWriter_output_schema(is_written=False, filepath=path, message=message)
-
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        return TextWriter_output_schema(is_written=True, filepath=path)
 
 
 def get_class():

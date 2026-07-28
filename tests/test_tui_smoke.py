@@ -4,6 +4,7 @@
 - 空闲时输入 → 启动任务（session_id 预生成、interactive_approval=False）
 - 运行中输入 → ContextManager.inject_event 注入补充信息
 - Esc 两次 → 第二次在时间窗内强制取消运行中的协程
+- schedule 等待中按一次 Esc → 结束当前等待但保留独立 reminder watcher
 - 渲染器消费 llm_chunk / tool_started 事件不抛异常
 - 退出后 Log.terminal_output 与 ask_user 输入处理器恢复原状
 """
@@ -18,6 +19,27 @@ from cloudra.context_manager import ContextManager
 from cloudra.log_class import Log
 from cloudra.tools.Interactool import ask_user
 from cloudra.tui.app import CloudraTUI
+from cloudra.yolo_guard import is_yolo_enabled
+
+
+@pytest.fixture(autouse=True)
+def isolated_tui_runtime(tmp_path, monkeypatch):
+    """TUI 测试绝不能复用真实配置，否则假 IPC 事件会串进用户正在开的会话。"""
+    from cloudra import events
+    from cloudra.config import get_config, reload_config
+
+    events.shutdown_all_listeners()
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "config.yaml"))
+    reload_config()
+    get_config()._ensure_dirs()
+    try:
+        yield
+    finally:
+        events.shutdown_all_listeners()
+        monkeypatch.undo()
+        reload_config()
 
 
 @pytest.mark.asyncio
@@ -101,3 +123,45 @@ async def test_tui_smoke(monkeypatch):
     # 退出后全局状态恢复
     assert Log.terminal_output is True
     assert ask_user._input_handler is None
+
+
+@pytest.mark.asyncio
+async def test_tui_yolo_is_scoped_to_task(monkeypatch):
+    observed = []
+    tui = CloudraTUI(yolo=True)
+    tui.conversation_id = "tui-yolo"
+    tui.session_id = "a-0_yolo"
+
+    async def fake_run_task(*args, **kwargs):
+        observed.append(is_yolo_enabled())
+        return "done"
+
+    monkeypatch.setattr(tui.service, "run_task", fake_run_task)
+    assert is_yolo_enabled() is False
+    assert await tui._run_task("test") == "done"
+    assert observed == [True]
+    assert is_yolo_enabled() is False
+
+
+@pytest.mark.asyncio
+async def test_one_escape_ends_schedule_wait_but_not_schedule_watcher():
+    tui = CloudraTUI()
+    tui.phase = "waiting"
+
+    async def waiting():
+        await asyncio.sleep(3600)
+
+    task = asyncio.create_task(waiting())
+    tui._running_task = task
+    assert tui.request_cancel() is True
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert task in tui._cancelled_waiting_tasks
+
+
+def test_tui_yolo_command_toggles_when_idle():
+    tui = CloudraTUI()
+    tui._cmd_yolo("on")
+    assert tui.yolo is True
+    tui._cmd_yolo("off")
+    assert tui.yolo is False

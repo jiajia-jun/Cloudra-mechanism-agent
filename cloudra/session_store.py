@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from datetime import datetime, timezone
@@ -61,9 +62,20 @@ def _emit(kind: str, db: ConversationDB, **payload: Any) -> None:
 
 
 async def _aemit(kind: str, db: ConversationDB, **payload: Any) -> None:
-    """异步事件投递：失败静默，绝不能阻塞写库。"""
+    """异步事件投递：失败静默，绝不能阻塞写库。
+
+    用 create_task 而非 await：broadcast_async 内部 run_in_executor
+    可能因线程池耗尽而阻塞，若 await 会导致写库也被拖死。
+    """
     try:
-        await events.aemit(_conv_id(db), kind, **payload)
+        asyncio.create_task(_deliver_and_broadcast(_conv_id(db), kind, payload))
+    except Exception:
+        pass
+
+
+async def _deliver_and_broadcast(conv_id: str, kind: str, payload: dict) -> None:
+    try:
+        await events.aemit(conv_id, kind, **payload)
     except Exception:
         pass
 

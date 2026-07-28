@@ -164,7 +164,7 @@ Cloudra also exposes an HTTP API built with FastAPI:
 python -m cloudra.api
 ```
 
-The server binds to `127.0.0.1:8000` by default and serves generated files under `/artifacts`. If you bind to a non-loopback address (`CLOUDRA_API_HOST`), set `CLOUDRA_API_TOKEN` first — `web.sh` enforces this.
+The server binds to `127.0.0.1:8000` by default and serves generated files under `/artifacts`. If you bind to a non-loopback address (`CLOUDRA_API_HOST`), set `CLOUDRA_API_TOKEN` first.
 
 Besides the Conversation/Session/approval endpoints, the API also mirrors the CLI:
 
@@ -176,27 +176,45 @@ Besides the Conversation/Session/approval endpoints, the API also mirrors the CL
 
 Sessions created via the API accept a `yolo` flag (per-session auto-approval) and can be interrupted via `POST .../cancel`.
 
-## Desktop App & Web UI
+## Flet GUI (Desktop & Mobile)
 
-The `frontend/` directory contains the shared React UI and a Tauri desktop shell:
-
-```bash
-cd frontend
-npm ci
-npm run desktop   # dev mode: vite + desktop window + embedded backend
-```
-
-The API serves the built web UI at `/` (after `npm run build`), so `python -m cloudra.api` alone gives you the full browser experience.
-
-For a distributable desktop package with a **standalone Python runtime** (target machines need no Python at all):
+Cloudra's GUI is built with Flet, a Flutter-Python bridge. The same Python codebase
+powers native desktop (Windows / macOS / Linux) and Android apps. On Windows and
+Android, running `cloudra` automatically starts the GUI; force it on any platform:
 
 ```bash
-frontend/scripts/package-desktop.sh   # assembles frontend/dist-app/
+cloudra gui
 ```
 
-The script downloads a python-build-standalone runtime, installs Cloudra and all dependencies into it, builds the release binary via `tauri build`, and assembles `frontend/dist-app/` — copy that directory anywhere and run `./cloudra-desktop`. The app spawns its own backend on `127.0.0.1:18473`.
+The GUI calls `CloudraService` directly, bypassing the HTTP layer for lower latency.
+The layout is responsive: when the window width drops below 720 px (phone portrait),
+the sidebar collapses into a hamburger menu and the input field scales to fit —
+comfortable for one-handed use.
 
-> **Note**: build the desktop binary with `npm run desktop:build` (i.e. `tauri build`), not a bare `cargo build --release` — the latter produces a binary that navigates to the dev server URL and shows a blank/connection-refused window. On Linux, WebKitGTK development packages are required (`./install.sh` can install them on Debian/Ubuntu); under WSL2 the window is displayed through WSLg.
+**Android packaging:**
+
+```bash
+flet build apk
+```
+
+Flet compiles `flet_app.py` → `cloudra/ui/app.py` and the whole Python stack into
+an APK. Config lives in `[tool.flet.android]` in `pyproject.toml`, targeting
+`arm64-v8a` with `usesCleartextTraffic` enabled for LAN HTTP APIs.
+
+On Android, Cloudra automatically hides tools that require a shell or external
+executables (`bashtools`, `submit_compute_job`, etc.) and launches sub-agents as
+asyncio tasks instead of subprocesses — see `cloudra/runtime_profile.py` and
+`cloudra/runtime/mobile_tasks.py` for details.
+
+**Desktop packaging:**
+
+```bash
+flet build windows   # or macos / linux
+```
+
+Flet-packaged desktop apps bundle an embedded Python runtime — the target machine
+needs no Python at all. The old Tauri + React frontend (`frontend/`) has been
+completely removed. No Rust, Node.js, or npm required.
 
 ## Chemistry Workflow Example
 
@@ -240,14 +258,16 @@ cloudra/
 ├── cli.py                # Command-line interface
 ├── api.py                # FastAPI server
 ├── yolo_guard.py         # YOLO mode safety guard
+├── platform_utils.py     # Platform detection (Windows / Android / Linux)
+├── runtime_profile.py    # Android tool allowlist & runtime capabilities
+├── mobile_storage.py     # Flet-packaged app persistent storage
 ├── tools/                # Tool implementations
 ├── subagents/            # Follower agent roles
 ├── skills/               # Markdown-based skill library
-└── prompts/              # Agent prompt templates
-frontend/
-├── src/                  # React web UI (shared by browser and desktop)
-├── src-tauri/            # Tauri desktop shell (spawns the backend sidecar)
-└── scripts/              # package-desktop.sh: standalone-runtime distribution
+├── prompts/              # Agent prompt templates
+├── runtime/              # Runtime scheduling (workers, mobile_tasks)
+└── ui/                   # Flet GUI (app.py main interface)
+flet_app.py               # Flet packaging entry point (Android APK / desktop)
 ```
 
 ## Development

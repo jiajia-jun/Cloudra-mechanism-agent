@@ -107,6 +107,7 @@ class reAct:
             await events.ensure_listener(conv_id)
             self._cancel_queue = await events.subscribe_async(conv_id, "cancel_requested")
             self._external_queue = await events.subscribe_async(conv_id, "external_event")
+        if self._cancel_task is None or self._cancel_task.done():
             self._cancel_task = asyncio.create_task(self._cancel_consumer())
 
     async def _cancel_consumer(self) -> None:
@@ -149,8 +150,22 @@ class reAct:
         # 同时补拉离线期间落到 DB 的事件
         persisted = await self.agent.context_manager.drain_pending_events()
 
+        # inject_event 会先持久化、再广播同一事件。在线状态下两条通道会同时
+        # 命中，按内容消掉 IPC 副本；仅广播、未持久化的外部事件仍会保留。
+        persisted_counts: dict[tuple[str, str], int] = {}
+        for event in persisted:
+            key = (event.get("event_type", "external"), event.get("content", ""))
+            persisted_counts[key] = persisted_counts.get(key, 0) + 1
+        deduplicated_raw = []
+        for event in raw_events:
+            key = (event.get("event_type", "external"), event.get("content", ""))
+            if persisted_counts.get(key, 0) > 0:
+                persisted_counts[key] -= 1
+            else:
+                deduplicated_raw.append(event)
+
         injected = 0
-        for event in raw_events + persisted:
+        for event in deduplicated_raw + persisted:
             # IPC 事件 payload 包含 agent_id/event_type/content
             agent_id = event.get("agent_id")
             if agent_id is not None and agent_id != self.agent.id:
@@ -574,7 +589,7 @@ class reAct:
         """
         required_map: dict[frozenset, str] = {}
         full_map: dict[frozenset, str] = {}
-        for entry in get_tools_lst():
+        for entry in self.agent.get_available_tools(get_tools_lst()):
             try:
                 schema_cls = entry.input_schema
                 if schema_cls is None:
@@ -697,7 +712,9 @@ class reAct:
         返回 bool：是否检测到 stop 工具并请求终止循环。
         '''
         session = self.session
-        tool_entries = get_tools_lst()
+        # Enforce the same permission/runtime boundary used to build the LLM
+        # schema.  A hallucinated tool name must never bypass a hidden tool.
+        tool_entries = self.agent.get_available_tools(get_tools_lst())
 
         # 并发执行所有工具调用
         acts = []

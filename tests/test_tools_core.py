@@ -8,6 +8,7 @@ def test_tool_loading():
     tools = get_tools_lst()
     assert len(tools) > 0
     assert any(t.tool_name == 'bashtools' for t in tools)
+    assert any(t.tool_name == 'edit_file' for t in tools)
 
     # 测试缓存
     tools_again = get_tools_lst()
@@ -30,12 +31,21 @@ def test_text_writer_schema():
     tool = TextWriter()
 
     # 正确参数
-    input_data = TextWriter_input_schema(filepath="/tmp/test.txt", content="hello")
-    assert input_data.filepath == "/tmp/test.txt"
+    input_data = TextWriter_input_schema(filepath="test.txt", content="hello")
+    assert input_data.filepath == "test.txt"
+    assert input_data.expected_sha256 == "missing"
 
     # 验证 tool 属性
     assert tool.tool_name == 'text_writer'
     assert tool.is_write() is True
+
+
+def test_edit_file_schema_keeps_nested_operation_definition():
+    from cloudra.tools.Writetool.edit_file import EditFile_input_schema
+
+    parameters = EditFile_input_schema.to_parameters_schema()
+    assert parameters["properties"]["edits"]["items"]["$ref"] == "#/$defs/EditOperation"
+    assert parameters["$defs"]["EditOperation"]["additionalProperties"] is False
 
 
 def test_text_writer_multiline_parsing():
@@ -45,7 +55,7 @@ def test_text_writer_multiline_parsing():
     from cloudra.tools.Writetool.text_writer import TextWriter_input_schema
 
     # 模拟 LLM 生成的 arguments 中直接包含换行符（未转义）
-    raw_args = '{"filepath": "/tmp/multi.txt", "content": "line1\nline2\nline3"}'
+    raw_args = '{"filepath": "multi.txt", "content": "line1\nline2\nline3"}'
     parsed = json.loads(raw_args, strict=False)
     input_data = TextWriter_input_schema(**parsed)
     assert input_data.content == "line1\nline2\nline3"
