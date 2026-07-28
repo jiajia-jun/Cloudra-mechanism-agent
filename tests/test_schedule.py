@@ -27,6 +27,14 @@ def schedule_db(tmp_path, monkeypatch):
     events.shutdown_all_listeners()
 
 
+def test_coordinator_can_list_and_cancel_schedules():
+    agent = Coordinator(query="monitor", conversation_id="schedule_test")
+    action_schema = ScheduleInput.model_json_schema()["properties"]["action"]
+
+    assert agent.check_permission(Schedule(subagent=agent))
+    assert set(action_schema["enum"]) == {"create", "list", "cancel"}
+
+
 @pytest.mark.asyncio
 async def test_schedule_create_and_fire_wakes_waiter(schedule_db):
     agent = Coordinator(query="monitor", conversation_id="schedule_test")
@@ -71,6 +79,45 @@ async def test_schedule_cancel_does_not_keep_task_alive(schedule_db):
         _wait_for_background_tasks(schedule_db.path, "schedule_test"),
         timeout=0.5,
     )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_prompt_includes_pending_schedule_and_cancel_guidance(schedule_db):
+    agent = Coordinator(query="monitor", conversation_id="schedule_test")
+    tool = Schedule(subagent=agent)
+    created = await tool.tool_call(
+        ScheduleInput(delay_seconds=3600, message="检查后台计算是否结束"),
+        Session(id="schedule-session", path=str(schedule_db.path) + ".session.json"),
+    )
+
+    messages = await agent._build_messages()
+    schedule_snapshot = next(
+        message["content"]
+        for message in messages
+        if message["role"] == "system" and "【当前待触发 schedule】" in message["content"]
+    )
+
+    assert f"schedule_id={created.schedule_id}" in schedule_snapshot
+    assert "检查后台计算是否结束" in schedule_snapshot
+    assert "schedule(action='cancel', schedule_id=...)" in schedule_snapshot
+
+
+@pytest.mark.asyncio
+async def test_cancelled_schedule_is_removed_from_coordinator_prompt(schedule_db):
+    agent = Coordinator(query="monitor", conversation_id="schedule_test")
+    tool = Schedule(subagent=agent)
+    session = Session(id="schedule-session", path=str(schedule_db.path) + ".session.json")
+    created = await tool.tool_call(
+        ScheduleInput(delay_seconds=3600, message="这条提醒稍后会被替代"),
+        session,
+    )
+    cancelled = await tool.tool_call(
+        ScheduleInput(action="cancel", schedule_id=created.schedule_id),
+        session,
+    )
+
+    assert cancelled.is_success
+    assert "当前待触发 schedule" not in agent._build_schedule_status_snapshot()
 
 
 @pytest.mark.asyncio

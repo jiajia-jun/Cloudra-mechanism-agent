@@ -52,7 +52,8 @@ class Schedule(Tool):
     tool_description: str = (
         "让当前 Agent 在未来自行醒来并收到指定提醒，适合持续监控后台计算或稍后复查状态。"
         "提醒存在时当前任务会在后台保持等待；醒来后可根据新状态再次设置下一次提醒。"
-        "也可以查看或取消尚未触发的提醒。"
+        "使用 list 查看所有尚未触发的提醒，使用 cancel 按 schedule_id 取消过时或已被替代的提醒。"
+        "多个 create 提醒会彼此独立地全部触发，不会自动覆盖。"
     )
     input_schema: Any = ScheduleInput
     output_schema: Any = ScheduleOutput

@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -456,12 +457,47 @@ class Coordinator(Agent):
         except Exception:
             return ""
 
+    def _build_schedule_status_snapshot(self) -> str:
+        """把当前待触发提醒放进动态 prompt，供 Coordinator 管理和去重。"""
+        try:
+            db = ConversationDB(self.conversation_id)
+            with db.connect() as con:
+                rows = con.execute(
+                    """SELECT id, wake_at, content
+                    FROM scheduled_reminders
+                    WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
+                    ORDER BY wake_at, id
+                    LIMIT 20""",
+                    (self.conversation_id, self.id),
+                ).fetchall()
+            if not rows:
+                return ""
+
+            lines = [
+                "【当前待触发 schedule】",
+                "这些提醒彼此独立且都会触发。创建新提醒前先判断旧提醒是否仍有必要；"
+                "已被新安排取代或不再需要的提醒应调用 schedule(action='cancel', schedule_id=...) 取消。",
+            ]
+            for schedule_id, wake_at, content in rows:
+                wake_iso = datetime.fromtimestamp(float(wake_at)).astimezone().isoformat(
+                    timespec="seconds"
+                )
+                summary = " ".join(str(content).split())[:160]
+                lines.append(f"- schedule_id={schedule_id} wake_at={wake_iso} message={summary}")
+            return "\n".join(lines)
+        except Exception:
+            return ""
+
     async def _build_messages(self) -> list[dict]:
-        """Coordinator 每次推理前附加子 Agent 状态快照，实现动态 prompt。"""
+        """Coordinator 每次推理前附加运行状态快照，实现动态 prompt。"""
         messages = await super()._build_messages()
-        snapshot = self._build_subagent_status_snapshot()
-        if snapshot:
-            messages.append({"role": "system", "content": snapshot})
+        snapshots = (
+            self._build_subagent_status_snapshot(),
+            self._build_schedule_status_snapshot(),
+        )
+        for snapshot in snapshots:
+            if snapshot:
+                messages.append({"role": "system", "content": snapshot})
         return messages
 
     def has_manage_permission(self) -> bool:
