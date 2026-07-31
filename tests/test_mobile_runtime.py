@@ -14,11 +14,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # Python 3.10：标准库 tomllib 于 3.11 引入
-    import tomli as tomllib
+import tomllib
 
 from cloudra import session_store
 from cloudra.database import ConversationDB
@@ -162,6 +158,7 @@ def test_android_secret_transport_envelope_hides_and_authenticates_value():
     with pytest.raises(NativeBridgeError, match="校验失败"):
         _open_transport(key, damaged, aad=b"set:credential-a")
 
+    pytest.importorskip("flet", reason="repr 用例依赖 Flet（gui 额外依赖）")
     bridge = CloudraNative()
     bridge._secure_session_id = "session_must_not_be_repr_visible"
     bridge._secure_session_key = bytearray(b"key_must_not_be_repr_visible")
