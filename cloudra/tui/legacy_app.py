@@ -64,7 +64,7 @@ class CloudraTUI:
         self.conversation_id: str = ""
         self.session_id: str | None = None
         self.phase: str = ""
-        self.pending_approval: dict | None = None
+        self._pending_approvals: list[dict] = []
         self._pending_questions: list[asyncio.Future] = []
         self._running_task: asyncio.Task | None = None
         self._renderer_task: asyncio.Task | None = None
@@ -139,7 +139,7 @@ class CloudraTUI:
         self._schedule_task = asyncio.create_task(self._watch_schedules(self.conversation_id))
         self.session_id = None
         self.phase = ""
-        self.pending_approval = None
+        self._pending_approvals.clear()
         self._pending_questions.clear()
 
     # ---- 界面 ----
@@ -157,7 +157,7 @@ class CloudraTUI:
             f" · v{__version__} · 对话 {self.conversation_id}[/dim]\n\n"
             "输入任务回车执行 · 运行中可直接输入补充信息\n"
             f"[dim]当前模式: {'YOLO' if self.yolo else '审批'} · "
-            "Esc 打断 · Ctrl+C 退出 · /yolo on|off · /new · /list · /conv <id> · exit[/dim]",
+            "Esc 打断 · Ctrl+C 退出 · /yolo on|off · /compact · /new · /list · /conv <id> · exit[/dim]",
             border_style="green",
             padding=(0, 2),
         ))
@@ -165,8 +165,10 @@ class CloudraTUI:
     def _toolbar(self):
         from prompt_toolkit.formatted_text import FormattedText
 
-        if self.pending_approval is not None:
-            dot, dot_style, text = "※", "fg:ansired", "待审批 — y 允许 · n 拒绝（可 n:原因）"
+        if self._pending_approvals:
+            count = len(self._pending_approvals)
+            queue_hint = f"（还有 {count - 1} 个待审批）" if count > 1 else ""
+            dot, dot_style, text = "※", "fg:ansired", f"待审批 — y 允许 · n 拒绝（可 n:原因）{queue_hint}"
         elif self._pending_questions:
             dot, dot_style, text = "?", "fg:ansiyellow", "请回答上方 Agent 的提问"
         elif self._running():
@@ -175,7 +177,7 @@ class CloudraTUI:
             if self.phase == "waiting":
                 text = f"{label} — 输入可立即唤醒 · Esc 结束等待（提醒保留）"
         else:
-            dot, dot_style, text = "○", "fg:ansigreen", "空闲 — 输入任务开始 · /new /list /conv · exit 退出"
+            dot, dot_style, text = "○", "fg:ansigreen", "空闲 — 输入任务开始 · /new /list /conv /compact · exit 退出"
         mode = "YOLO" if self.yolo else "审批"
         right = f"cloudra · {mode} · {self.conversation_id}"
         # prompt_toolkit 会裁剪片段尾部空格，因此把 padding 放在左右两段之间
@@ -253,6 +255,10 @@ class CloudraTUI:
             if text.startswith("/conv "):
                 self._cmd_conv(text[6:].strip())
                 continue
+            if text in ("/compact", "/compress") or text.startswith("/compact ") or text.startswith("/compress "):
+                value = text.split(" ", 1)[1].strip() if " " in text else ""
+                await self._cmd_compact(value)
+                continue
             await self._dispatch(text)
 
     def _cmd_list(self) -> None:
@@ -314,8 +320,50 @@ class CloudraTUI:
             self.console.print("[green]YOLO 已关闭：后续任务恢复人工审批。[/green]")
         self.invalidate()
 
+    async def _cmd_compact(self, value: str) -> None:
+        """手动压缩当前对话的 Coordinator 上下文。"""
+        if self._running():
+            self.console.print("[yellow]任务运行中，请先 Esc 打断再压缩上下文。[/yellow]")
+            return
+
+        keep_recent = 4
+        if value:
+            try:
+                keep_recent = int(value)
+                if keep_recent < 1:
+                    raise ValueError
+            except ValueError:
+                self.console.print(
+                    "[yellow]用法: /compact [保留最近N条消息，默认4]  示例: /compact 6[/yellow]"
+                )
+                return
+
+        if not self.conversation_id:
+            self.console.print("[yellow]当前没有激活的对话。[/yellow]")
+            return
+
+        cm = ContextManager(
+            agent_id=_COORDINATOR_AGENT_ID,
+            conversation_id=self.conversation_id,
+            prompt=None,
+            query="",
+        )
+        try:
+            result = await cm.compact(keep_recent=keep_recent)
+        except Exception as e:
+            self.console.print(f"[red]上下文压缩失败: {e}[/red]")
+            return
+
+        if result["compressed"]:
+            self.console.print(
+                f"[green]√ 上下文已压缩: {result['original_count']} 条 → {result['new_count']} 条 "
+                f"(梗概 {result['summary_length']} 字符)[/green]"
+            )
+        else:
+            self.console.print(f"[yellow]{result['reason']}[/yellow]")
+
     async def _dispatch(self, text: str) -> None:
-        if self.pending_approval is not None:
+        if self._pending_approvals:
             await self._resolve_approval(text)
         elif self._pending_questions:
             future = self._pending_questions.pop(0)
@@ -369,7 +417,7 @@ class CloudraTUI:
                 if not future.done():
                     future.cancel()
             self._pending_questions.clear()
-            self.pending_approval = None
+            self._pending_approvals.clear()
         if task.cancelled():
             if cancelled_waiting:
                 self.console.print("[yellow]■ 已结束当前等待；定时提醒仍会按时触发。[/yellow]")
@@ -436,8 +484,51 @@ class CloudraTUI:
 
     # ---- 审批与提问 ----
 
+    @property
+    def current_pending_approval(self) -> dict | None:
+        """当前需要用户处理的审批请求。"""
+        return self._pending_approvals[0] if self._pending_approvals else None
+
+    def push_pending_approval(self, approval: dict) -> None:
+        """由渲染器调用：将新的审批请求加入 FIFO 队列，并在成为当前审批时展示。"""
+        is_first = not self._pending_approvals
+        self._pending_approvals.append(approval)
+        if is_first:
+            self._show_current_approval()
+        self.invalidate()
+
+    def _show_current_approval(self) -> None:
+        """打印当前审批面板；队列非空时才应调用。"""
+        approval = self.current_pending_approval
+        if approval is None:
+            return
+        count = len(self._pending_approvals)
+        title = "[bold yellow]※ 安全审批[/bold yellow]"
+        if count > 1:
+            title = f"[bold yellow]※ 安全审批 ({count})[/bold yellow]"
+        self.console.print(Panel(
+            f"[bold]{escape(_strip_ansi(approval.get('details', '')))}[/bold]\n"
+            f"[dim]来自 {escape(_strip_ansi(approval.get('agent_name', 'agent')))} · "
+            f"输入 y 允许，n 拒绝（可 n:原因）[/dim]",
+            title=title,
+            title_align="left",
+            border_style="yellow",
+            padding=(0, 1),
+        ))
+
+    def _advance_approval(self) -> None:
+        """处理完当前审批后前进到下一个；若队列空则仅刷新 toolbar。"""
+        if self._pending_approvals:
+            self._pending_approvals.pop(0)
+        if self._pending_approvals:
+            self._show_current_approval()
+        self.invalidate()
+
     async def _resolve_approval(self, text: str) -> None:
-        approval = self.pending_approval
+        """处理队列首个审批请求；完成后自动展示下一个。"""
+        approval = self.current_pending_approval
+        if approval is None:
+            return
         decision, reason = None, ""
         low = text.strip().lower()
         if low in ("y", "yes"):
@@ -459,8 +550,7 @@ class CloudraTUI:
             self.console.print(msg)
         else:
             self.console.print("[dim]该审批已在其他端处理，本次输入忽略。[/dim]")
-        self.pending_approval = None
-        self.invalidate()
+        self._advance_approval()
 
     async def _ask_user_handler(self, prompt_text: str) -> str:
         """ask_user 工具的输入处理器：展示问题并挂起，等待主输入框的答案。"""

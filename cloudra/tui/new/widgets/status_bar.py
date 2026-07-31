@@ -1,0 +1,106 @@
+"""底部状态栏 Widget。"""
+
+from __future__ import annotations
+
+import time
+
+from rich.text import Text
+from textual.reactive import reactive
+from textual.widgets import Static
+
+_PHASE_LABELS = {
+    "starting": "启动中",
+    "thinking": "思考中",
+    "acting": "执行中",
+    "waiting": "等待提醒",
+}
+
+_ACTIVE_STATES = {"queued", "running", "cancel_requested"}
+
+_SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+class StatusBar(Static):
+    """显示对话 + 当前任务活动状态：spinner + phase + 计时 + 待处理计数。
+
+    对话（conversation）是持久上下文，状态栏显示对话 id 与共享上下文规模；
+    session_id 仅作内部响应目标（跟踪运行中任务的 phase/state），不在栏上显示。
+    """
+
+    conversation_id = reactive("")
+    session_id = reactive("")
+    session_state = reactive("")
+    yolo = reactive(False)
+    phase = reactive("")
+    pending = reactive(0)
+    # 对话级共享上下文的摘要，如 "42条≈8.2k"；空字符串表示未知
+    context_info = reactive("")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._frame = 0
+        self._started_at: float | None = None
+
+    def on_mount(self) -> None:
+        self.set_interval(0.1, self._tick)
+        self._refresh()
+
+    def watch_conversation_id(self, conversation_id: str) -> None:
+        self._refresh()
+
+    def watch_session_id(self, session_id: str) -> None:
+        self._refresh()
+
+    def watch_session_state(self, state: str) -> None:
+        if state in _ACTIVE_STATES and self._started_at is None:
+            self._started_at = time.monotonic()
+        elif state not in _ACTIVE_STATES:
+            self._started_at = None
+            self.phase = ""
+        self._refresh()
+
+    def watch_yolo(self, yolo: bool) -> None:
+        self._refresh()
+
+    def watch_phase(self, phase: str) -> None:
+        self._refresh()
+
+    def watch_pending(self, pending: int) -> None:
+        self._refresh()
+
+    def watch_context_info(self, context_info: str) -> None:
+        self._refresh()
+
+    def _tick(self) -> None:
+        if self.session_state in _ACTIVE_STATES:
+            self._frame += 1
+            self._refresh()
+
+    def _elapsed(self) -> str:
+        if self._started_at is None:
+            return ""
+        seconds = int(time.monotonic() - self._started_at)
+        return f"{seconds // 60:02d}:{seconds % 60:02d}"
+
+    def _refresh(self) -> None:
+        text = Text()
+        state = self.session_state
+        if state in _ACTIVE_STATES:
+            spinner = _SPINNER_FRAMES[self._frame % len(_SPINNER_FRAMES)]
+            label = _PHASE_LABELS.get(self.phase) or state
+            elapsed = self._elapsed()
+            text.append(f"{spinner} {label}", style="bold green")
+            if elapsed:
+                text.append(f" {elapsed}", style="green")
+        else:
+            text.append(f"○ {state or '空闲'}", style="bright_black")
+
+        if self.conversation_id:
+            text.append(f" | 对话 …{self.conversation_id[-6:]}", style="cyan")
+        if self.context_info:
+            text.append(f" | 记忆 {self.context_info}", style="magenta")
+        mode = "YOLO" if self.yolo else "审批"
+        text.append(f" | {mode}")
+        if self.pending > 0:
+            text.append(f" | ※ {self.pending} 待处理", style="bold red")
+        self.update(text)

@@ -10,15 +10,20 @@
 """
 
 import asyncio
+import contextlib
+import io
 
 import pytest
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
+from rich.console import Console
+from rich.markdown import Markdown
 
 from cloudra.context_manager import ContextManager
 from cloudra.log_class import Log
 from cloudra.tools.Interactool import ask_user
-from cloudra.tui.app import CloudraTUI
+from cloudra.tui.legacy_app import CloudraTUI
+from cloudra.tui.render import EventRenderer
 from cloudra.yolo_guard import is_yolo_enabled
 
 
@@ -165,3 +170,145 @@ def test_tui_yolo_command_toggles_when_idle():
     assert tui.yolo is True
     tui._cmd_yolo("off")
     assert tui.yolo is False
+
+
+@pytest.mark.asyncio
+async def test_tui_compact_command_when_idle(monkeypatch):
+    """/compact 与 /compress 在空闲时压缩当前对话上下文。"""
+    tui = CloudraTUI()
+    tui.conversation_id = "conv-compact"
+
+    compact_calls = []
+
+    async def fake_compact(self, keep_recent):
+        compact_calls.append(keep_recent)
+        return {
+            "original_count": 10,
+            "new_count": 5,
+            "summary_length": 100,
+            "compressed": True,
+        }
+
+    monkeypatch.setattr(ContextManager, "compact", fake_compact)
+
+    await tui._cmd_compact("")
+    assert compact_calls == [4]
+
+    await tui._cmd_compact("6")
+    assert compact_calls == [4, 6]
+
+    await tui._cmd_compact("abc")
+    # 非法参数不调用 compact
+    assert compact_calls == [4, 6]
+
+    # /compress 别名
+    await tui._cmd_compact("")
+    assert compact_calls == [4, 6, 4]
+
+
+@pytest.mark.asyncio
+async def test_tui_compact_command_rejected_while_running():
+    """任务运行中 /compact 应拒绝并提示。"""
+    tui = CloudraTUI()
+    tui.conversation_id = "conv-running"
+
+    async def running():
+        await asyncio.sleep(3600)
+
+    task = asyncio.create_task(running())
+    tui._running_task = task
+    try:
+        await tui._cmd_compact("")
+        assert task.done() is False
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+@pytest.mark.asyncio
+async def test_pending_approval_queue_sequential_resolution(monkeypatch):
+    """多个并发危险命令产生的 approval_pending 在 TUI 中排队，按 FIFO 处理。"""
+    tui = CloudraTUI()
+    tui.conversation_id = "conv-queue"
+    decided = []
+
+    async def fake_decide_approval(conv_id, approval_id, decision, reason):
+        decided.append((approval_id, decision))
+        return True
+
+    monkeypatch.setattr(tui.service, "decide_approval", fake_decide_approval)
+
+    # 模拟渲染器连续收到三个 approval_pending 事件
+    tui.push_pending_approval({"id": 1, "agent_name": "a", "details": "rm A"})
+    tui.push_pending_approval({"id": 2, "agent_name": "b", "details": "rm B"})
+    tui.push_pending_approval({"id": 3, "agent_name": "c", "details": "rm C"})
+
+    assert tui.current_pending_approval["id"] == 1
+    assert len(tui._pending_approvals) == 3
+
+    # 逐一批准
+    await tui._resolve_approval("y")
+    assert tui.current_pending_approval["id"] == 2
+    assert decided == [(1, "approved")]
+
+    await tui._resolve_approval("n")
+    assert tui.current_pending_approval["id"] == 3
+    assert decided == [(1, "approved"), (2, "denied")]
+
+    await tui._resolve_approval("y")
+    assert tui.current_pending_approval is None
+    assert tui._pending_approvals == []
+    assert decided == [(1, "approved"), (2, "denied"), (3, "approved")]
+
+
+def test_markdown_rendering_after_stream_end():
+    """流式助手消息包含 Markdown 标记时，流结束后触发 rich Markdown 渲染。"""
+    printed: list[tuple[tuple, dict]] = []
+
+    class _CapturingConsole(Console):
+        def print(self, *args, **kwargs):
+            printed.append((args, kwargs))
+
+    tui = CloudraTUI()
+    console = _CapturingConsole(file=io.StringIO(), force_terminal=True)
+    renderer = EventRenderer(console, tui)
+
+    renderer._on_llm_chunk(
+        "s-1",
+        {"agent_name": "coordinator", "stream": "content", "delta": "# 结果\n\n- 项 A\n- 项 B\n"},
+    )
+    renderer._on_llm_stream_end("s-1", {})
+
+    markdown_objects = [
+        arg for args, _ in printed for arg in args if isinstance(arg, Markdown)
+    ]
+    assert len(markdown_objects) == 1
+    rendered = markdown_objects[0]
+    assert "结果" in rendered.markup
+    assert "项 A" in rendered.markup
+    assert "项 B" in rendered.markup
+
+
+def test_plain_text_stream_skips_markdown_rendering():
+    """不含 Markdown 标记的纯文本流结束后，不应触发 Markdown 渲染。"""
+    printed: list[tuple[tuple, dict]] = []
+
+    class _CapturingConsole(Console):
+        def print(self, *args, **kwargs):
+            printed.append((args, kwargs))
+
+    tui = CloudraTUI()
+    console = _CapturingConsole(file=io.StringIO(), force_terminal=True)
+    renderer = EventRenderer(console, tui)
+
+    renderer._on_llm_chunk(
+        "s-1",
+        {"agent_name": "coordinator", "stream": "content", "delta": "这是一段普通回答，没有 markdown 标记。"},
+    )
+    renderer._on_llm_stream_end("s-1", {})
+
+    markdown_objects = [
+        arg for args, _ in printed for arg in args if isinstance(arg, Markdown)
+    ]
+    assert len(markdown_objects) == 0

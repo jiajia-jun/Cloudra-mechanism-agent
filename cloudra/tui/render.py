@@ -15,6 +15,7 @@ import re
 from typing import TYPE_CHECKING
 
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.markup import escape
 from rich.panel import Panel
 
@@ -23,7 +24,7 @@ from cloudra.database import ConversationDB
 from cloudra.events import subscribe_async
 
 if TYPE_CHECKING:
-    from cloudra.tui.app import CloudraTUI
+    from cloudra.tui.legacy_app import CloudraTUI
 
 _TERMINAL_STATES = {"completed", "failed", "cancelled", "interrupted", "killed"}
 
@@ -31,6 +32,20 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
 # 兜底：ESC 字节已被 prompt_toolkit 的 patch_stdout 或 ANSI parser 吃掉，
 # 残留下的裸 [XXm / [XX;XXm 这样的颜色码片段。
 _BARE_ANSI_FRAG_RE = re.compile(r"(?<!\x1b)\[[0-9][0-9;]*[a-zA-Z]")
+
+# 轻量 Markdown 探测：命中任一常见标记即可触发 rich Markdown 渲染。
+_MD_MARKERS_RE = re.compile(
+    r"(?:^#{1,6}\s)|"          # 标题
+    r"(?:^>\s)|"               # 引用
+    r"(?:^[-*+]\s)|"           # 无序列表
+    r"(?:^\d+\.\s)|"          # 有序列表
+    r"(?:```)|"                # 代码块
+    r"(?:\[.*?\]\(.*?\))|"   # 链接/图片
+    r"(?:\|.*?\|)|"            # 表格
+    r"(?:\*\*.+?\*\*)|"       # 粗体
+    r"(?:__.+?__)",            # 粗体（下划线）
+    re.MULTILINE,
+)
 
 
 def _strip_ansi(text: str) -> str:
@@ -100,6 +115,7 @@ class EventRenderer:
         self._stream_agent: str | None = None  # 当前正在流式输出的 agent
         self._stream_buf: str = ""             # 未凑满一行的流式文本
         self._stream_style: str | None = None  # 缓冲文本对应的样式
+        self._stream_content: str = ""         # 本次流式输出的完整内容（用于 Markdown 渲染）
 
     # 流式文本按行缓冲再渲染：run_in_terminal 重绘会抹掉未换行的文本，
     # 因此只有凑满一行（或流结束）才输出，牺牲少量实时性换取稳定渲染。
@@ -155,6 +171,26 @@ class EventRenderer:
         if len(self._stream_buf) >= self._STREAM_FLUSH_WIDTH:
             self._flush_stream()
 
+    @staticmethod
+    def _looks_like_markdown(text: str) -> bool:
+        """轻量探测文本是否包含常见 Markdown 标记。"""
+        return bool(_MD_MARKERS_RE.search(text))
+
+    def _maybe_render_markdown(self, text: str) -> None:
+        """若本次流式内容像 Markdown，在下方追加一份格式化渲染。
+
+        流式阶段已按纯文本输出，这里作为补充预览，不影响实时阅读。
+        """
+        text = (text or "").strip()
+        if not text or not self._looks_like_markdown(text):
+            return
+        try:
+            self.console.print("[dim]─ Markdown 预览 ─[/dim]")
+            self.console.print(Markdown(text), markup=False)
+        except Exception:
+            # Markdown 渲染失败不应打断主流程
+            pass
+
     def _on_llm_chunk(self, session_id: str, data: dict) -> None:
         agent = data.get("agent_name") or "agent"
         delta = data.get("delta") or ""
@@ -164,14 +200,19 @@ class EventRenderer:
             self._end_stream_line()
             self.console.print(f"\n[bold green]● {escape(agent)}[/bold green]")
             self._stream_agent = agent
+            self._stream_content = ""
         if data.get("stream") == "reasoning":
             # prompt_toolkit 不支持 SGR dim，用亮黑色表达"暗化"
             self._print_stream(delta, "bright_black italic")
         else:
             self._print_stream(delta, None)
+            self._stream_content += _strip_ansi(delta)
 
     def _on_llm_stream_end(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
+        content = self._stream_content
+        self._stream_content = ""
+        self._maybe_render_markdown(content)
 
     def _on_tool_started(self, session_id: str, data: dict) -> None:
         self._end_stream_line()
@@ -285,13 +326,8 @@ class EventRenderer:
                     break
         except Exception:
             pass
-        self.app.pending_approval = {"id": approval_id, "agent_name": agent_name, "details": details}
-        self.console.print(Panel(
-            f"[bold]{escape(_strip_ansi(details))}[/bold]\n"
-            f"[dim]来自 {escape(_strip_ansi(agent_name))} · 输入 y 允许，n 拒绝（可 n:原因）[/dim]",
-            title="[bold yellow]※ 安全审批[/bold yellow]",
-            title_align="left",
-            border_style="yellow",
-            padding=(0, 1),
-        ))
-        self.app.invalidate()
+        self.app.push_pending_approval({
+            "id": approval_id,
+            "agent_name": agent_name,
+            "details": details,
+        })
