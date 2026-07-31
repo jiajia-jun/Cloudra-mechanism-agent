@@ -1,11 +1,11 @@
-from cloudra.agent import Follower, load_prompt
+from cloudra.agent import Follower
 
 
 class explorer(Follower):
     id: str = 'a-1'
     name: str = 'explorer'
     type: str = 'follower'
-    prompt: str = load_prompt('explorer')
+    prompt_name: str = 'explorer'
 
     def has_read_permission(self) -> bool:
         return True

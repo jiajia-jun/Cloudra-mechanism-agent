@@ -1,11 +1,11 @@
-from cloudra.agent import Follower, load_prompt
+from cloudra.agent import Follower
 
 
-class operator(Follower):
-    id: str = 'a-5'
-    name: str = 'operator'
+class dft(Follower):
+    id: str = 'a-6'
+    name: str = 'dft'
     type: str = 'follower'
-    prompt: str = load_prompt('operator')
+    prompt_name: str = 'dft'
 
     def has_read_permission(self) -> bool:
         return True
@@ -21,4 +21,4 @@ class operator(Follower):
 
 
 def get_class():
-    return operator
+    return dft
