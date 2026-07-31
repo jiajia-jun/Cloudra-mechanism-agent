@@ -152,9 +152,78 @@ cloudra logs CONV_ID                    # 查看某对话日志
 cloudra sessions                        # Session 状态
 cloudra skills                          # 可用 Skills
 
-# 远程邮件唤醒
+# 远程邮件唤醒（详见下方教程）
 python -m cloudra.email_listener
 ```
+
+## 远程邮件唤醒教程
+
+不在电脑旁也能让 Cloudra 干活：往一个"机器人邮箱"发一封邮件，监听器收到后
+自动执行任务，并把结果回邮给你。典型场景：在手机上给服务器/工作站上的
+agent 派活。
+
+工作流程：
+
+1. 监听器每 60 秒通过 IMAP 轮询机器人邮箱的未读邮件；
+2. 主题（或正文首行）以 `CLOUDRA:` 开头的邮件被视为指令，正文会完整传入任务；
+3. 任务在最近活跃的对话中无人值守执行（无需人工审批）；
+4. 执行结果以 `Re: 原主题` 自动回邮给发件人；读过的指令会标记已读，只执行一次。
+
+### 1. 准备邮箱
+
+需要一个支持 IMAP/SMTP 的邮箱作为机器人收件箱。以 QQ 邮箱为例：
+
+- 登录 QQ 邮箱网页版 → 设置 → 账户 → 开启 "IMAP/SMTP 服务"；
+- 按提示验证后得到 16 位**授权码**（不是 QQ 密码）；
+- Gmail 则需开启两步验证后创建"应用专用密码"，服务器用 `smtp.gmail.com` /
+  `imap.gmail.com`（即默认值）。
+
+### 2. 配置
+
+```bash
+cloudra config set email.user 1591794404@qq.com
+cloudra config set email.password <16位授权码>
+cloudra config set email.smtp_server smtp.qq.com
+cloudra config set email.imap_server imap.qq.com
+```
+
+也可以直接编辑 `~/.config/cloudra/config.yaml`：
+
+```yaml
+email:
+  smtp_server: smtp.qq.com
+  smtp_port: 465
+  imap_server: imap.qq.com
+  imap_port: 993
+  user: 1591794404@qq.com
+  password: <16位授权码>
+  sender_name: Cloudra Assistant
+  whitelist:
+    - your-address@qq.com      # 只允许这些发件人下达指令；留空则接受任何人
+```
+
+> 强烈建议配置 `whitelist`：它决定谁有权远程驱动你的 agent。
+
+### 3. 启动监听
+
+```bash
+python -m cloudra.email_listener                            # 前台运行（调试用）
+nohup python -m cloudra.email_listener &                    # 后台常驻
+CLOUDRA_POLL_INTERVAL=30 python -m cloudra.email_listener   # 自定义轮询间隔（秒，默认 60）
+```
+
+运行日志写入启动目录下的 `email_listener.log`，触发、拦截、回邮都有记录。
+
+### 4. 使用
+
+从白名单邮箱向机器人邮箱发信：
+
+- **主题**：`CLOUDRA:查一下最近一周关于固态电解质的预印本并总结`
+- **正文**：随意，会完整拼进任务指令一起交给 agent。
+
+随后你会收到一封 `Re: ...` 回信，正文即任务结果（超过 5000 字会截断，
+完整内容可在 TUI 会话中查看）。如果触发时恰好有对话正在运行，邮件会
+作为事件注入该对话，而不是另起任务。
 
 ## API 服务（前端开发预览）
 

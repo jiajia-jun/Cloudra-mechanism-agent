@@ -154,9 +154,85 @@ cloudra logs CONV_ID                    # view logs for a conversation
 cloudra sessions                        # view agent session states
 cloudra skills                          # list available skills
 
-# Remote email wakeup
+# Remote email wakeup (full tutorial below)
 python -m cloudra.email_listener
 ```
+
+## Remote Email Wakeup Tutorial
+
+You can drive Cloudra without sitting at the machine: send an email to a
+"robot mailbox", the listener picks it up, runs the task unattended, and
+emails the result back to you. Typical scenario: assigning work to an agent
+on a server/workstation from your phone.
+
+How it works:
+
+1. The listener polls the robot mailbox for unread mail via IMAP every 60 seconds;
+2. A message whose subject (or first body line) starts with `CLOUDRA:` is treated
+   as an instruction; the body is passed into the task in full;
+3. The task runs unattended in the most recent active conversation (no manual approvals);
+4. The result is emailed back to the sender as `Re: <original subject>`; processed
+   instructions are marked as read and run exactly once.
+
+### 1. Prepare a mailbox
+
+You need a mailbox with IMAP/SMTP enabled as the robot inbox. For QQ Mail:
+
+- Log in to QQ Mail web → Settings → Account → enable "IMAP/SMTP service";
+- Complete the verification to get a 16-character **authorization code**
+  (not your QQ password);
+- For Gmail, enable 2FA and create an "app password"; the default servers
+  (`smtp.gmail.com` / `imap.gmail.com`) already match.
+
+### 2. Configure
+
+```bash
+cloudra config set email.user 1591794404@qq.com
+cloudra config set email.password <16-char authorization code>
+cloudra config set email.smtp_server smtp.qq.com
+cloudra config set email.imap_server imap.qq.com
+```
+
+Or edit `~/.config/cloudra/config.yaml` directly:
+
+```yaml
+email:
+  smtp_server: smtp.qq.com
+  smtp_port: 465
+  imap_server: imap.qq.com
+  imap_port: 993
+  user: 1591794404@qq.com
+  password: <16-char authorization code>
+  sender_name: Cloudra Assistant
+  whitelist:
+    - your-address@qq.com      # only these senders may issue instructions; empty = accept anyone
+```
+
+> Configuring `whitelist` is strongly recommended: it controls who is allowed
+> to drive your agent remotely.
+
+### 3. Start the listener
+
+```bash
+python -m cloudra.email_listener                            # foreground (debugging)
+nohup python -m cloudra.email_listener &                    # background, persistent
+CLOUDRA_POLL_INTERVAL=30 python -m cloudra.email_listener   # custom poll interval (seconds, default 60)
+```
+
+Logs go to `email_listener.log` in the launch directory — triggers, blocked
+senders, and reply deliveries are all recorded.
+
+### 4. Use it
+
+From a whitelisted address, send mail to the robot mailbox:
+
+- **Subject**: `CLOUDRA:Summarize this week's preprints on solid-state electrolytes`
+- **Body**: anything — it is appended to the instruction and handed to the agent in full.
+
+You will receive a `Re: ...` reply whose body is the task result (truncated
+beyond 5000 characters; the full output is available in the TUI conversation).
+If a conversation happens to be running when the mail arrives, the message is
+injected into that conversation as an event instead of starting a new task.
 
 ## API Server
 
