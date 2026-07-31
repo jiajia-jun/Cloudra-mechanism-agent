@@ -9,8 +9,9 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通用 HTTP 爬虫/下载工具。可抓取网页 HTML、提取正文文本，或直接下载文件到本地。"
-    "适用于获取在线文献、网页内容、数据文件等场景。"
+    "通用 HTTP 抓取/下载工具：抓取网页 HTML 并提取正文文本，或把响应原样下载到本地文件。"
+    "适用：已知 URL 时抓取在线文献页面、网页内容、数据文件；下载二进制文件必须提供 download_path 保存到本地。"
+    "不适用：需要 JavaScript 渲染的动态页面（用 headless_browser）、按关键词找网页（用 web_search）。"
     "注意：PDF 不能用文本模式抓取（会得到乱码），请用 download_path 下载到本地后交给 pdf2md 处理。"
 )
 

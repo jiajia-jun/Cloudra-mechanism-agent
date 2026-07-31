@@ -6,8 +6,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通过 arXiv API 搜索学术论文，返回结构化结果列表。"
-    "支持按相关度、提交时间、更新时间排序，并提供轻量/标准/详细三种展示模式。"
+    "通过 arXiv API 检索学术论文预印本，返回标题、DOI、摘要等结构化结果。"
+    "适用：追踪最新预印本、按提交/更新时间监控某主题进展。"
+    "不适用：正式发表文献的全库检索（用 openalex_searcher）、非学术网页（用 web_search）、"
+    "已定位 PDF 的内容提取（用 web_fetcher 下载后交 pdf2md）。"
 )
 
 

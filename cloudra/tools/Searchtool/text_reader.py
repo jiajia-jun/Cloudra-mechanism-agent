@@ -8,8 +8,11 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 from cloudra.workspace import WorkspaceError, WorkspaceService
 
 description = (
-    "安全读取 Agent 工作目录内的 UTF-8 文本文件，返回内容与完整文件 sha256。"
-    "修改文件前必须先读取最新 sha256；支持指定起始行与结束行进行切片。"
+    "安全读取 Agent 工作目录内的 UTF-8 文本文件，返回内容切片与完整文件 sha256；"
+    "支持指定起始行与结束行进行切片。"
+    "适用：查看代码、日志、配置等文本文件；也是 edit_file / text_writer 修改前的必经步骤。"
+    "不适用：二进制文档（PDF/Word 用 pdf2md）、图片（用 image_reader）。"
+    "注意：修改文件前必须先调用本工具获取最新 sha256。"
 )
 
 

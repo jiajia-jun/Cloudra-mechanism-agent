@@ -213,8 +213,9 @@ export CLOUDRA_API_HOST='0.0.0.0'
 python -m cloudra.api
 ```
 
-客户端请求需携带 `Authorization: Bearer <token>`。生成物只允许放在并访问
-`<data_dir>/artifacts`，不再公开整个 Cloudra 数据目录。
+客户端请求需携带 `Authorization: Bearer <token>`。生成物会复制成不可变快照，
+客户端先从 `/api/v1` 获取元数据和短时下载令牌，再校验大小与 SHA256；服务器
+不会把整个 Cloudra 数据目录或 artifacts 目录作为静态文件目录公开。
 
 ### Flet GUI（原生桌面与移动端）
 
@@ -226,23 +227,52 @@ Cloudra 使用基于 Flutter 的 Flet 框架构建原生 GUI，同一份 Python 
 cloudra gui
 ```
 
-GUI 直接调用 `CloudraService` 业务层，不经过 HTTP 中间层，响应更快。界面是自适应
-布局：窗口宽度低于 720px（手机竖屏）时侧边栏自动折叠成汉堡菜单，输入框宽度自适应，
-移动端单手操作也没问题。
+桌面 GUI 可以直接调用 `CloudraService` 业务层；Android 默认只连接远端
+`/api/v1`，Agent 执行、事件、审批和生成物都以服务器为权威来源。界面是自适应布局：
+窗口宽度低于 720px（手机竖屏）时侧边栏自动折叠成汉堡菜单，输入框宽度自适应。
 
 **Android 打包：**
 
 ```bash
-flet build apk
+.venv/bin/python scripts/build_android.py
 ```
 
-Flet 会把 `flet_app.py` → `cloudra/ui/app.py` 整套 Python 代码编译进 APK。
-打包配置在 `pyproject.toml` 的 `[tool.flet.android]` 段，目标架构 `arm64-v8a`，
-已开启 `usesCleartextTraffic` 以支持你自部署的局域网 HTTP API。
+构建脚本会按 `android/pyproject.toml` 生成一个最小远端控制台，只打包 UI、
+HTTP/SSE 后端和移动端存储边界。服务器 Agent、化学计算、数据库和 API Server
+依赖不会进入 APK。当前目标架构为 `arm64-v8a`；局域网明文 HTTP 仍需在服务器
+配置中显式启用开发模式。
 
-Android 上的 Cloudra 会自动屏蔽 `bashtools`、`submit_compute_job` 等依赖 shell
-或外部可执行文件的工具，子 Agent 也用 asyncio 任务代替了子进程——这些运行时的细节
-都在 `cloudra/runtime_profile.py` 和 `cloudra/runtime/mobile_tasks.py` 里。
+在 Android 的服务器连接对话框中启用后台 Device Runtime 后，服务器 Agent
+可以通过 `device.workspace.*` 和 `device.config.*` 访问 App 私有工作区。
+“Android 设备能力”对话框还可以通过系统 Storage Access Framework 单独持久授权
+一个文档树，`device.documents.*` 始终受这份系统 grant 限制。配对信息一次性且
+短时有效，服务器只保存设备凭据哈希；Android 端的 Server Token 和设备凭据使用
+Android Keystore 保护的 AES-GCM 密文保存，绝不会落入 JSON profile 或
+device-state 文件。选中的 SAF 文档树 URI 也绑定在同一加密存储中，实际权限仍以
+Android 系统保存的 grant 为准。Flet method channel 看到的也只有 RSA-OAEP 包裹的会话密钥和
+带完整性校验的加密信封，因此调试传输日志不会打印明文 Token。
+
+`device.workspace.apply_patch`、`device.config.patch`、SAF 文档写入、通知、
+文件选择、相机和分享都不会静默执行。Android 会先在本机展示目标和精确预览；
+文件修改只有在用户批准且审批后的 SHA/revision 仍一致时才应用。权限拒绝、取消或
+审批期间发生冲突都会返回结构化结果，不会覆盖手机上的新改动。
+
+APK 内置了一个很小的 Kotlin/Flet 扩展，负责 Keystore、持久 SAF grant、系统
+Intent、待审批 deep link 和 `remoteMessaging` Foreground Service。启用 Runtime
+会显示常驻通知，并在嵌入式 Python 执行器存活时提高进程优先级。服务刻意使用
+`START_NOT_STICKY`：若 Android 真正杀死进程，通知会消失，不会假装设备仍在线；
+下次启动 App 时再从 Keystore、event cursor、outbox 和系统 SAF grant 恢复。
+尚未被服务器确认的设备结果会留在持久 outbox 里可靠重放；确认后，文件或相机
+内容会被移除，只保留紧凑的幂等摘要。
+候选版本仍必须完成
+[Phase 7 模拟器/厂商真机矩阵](docs/ANDROID_PHASE7_DEVICE_MATRIX.md)；源码测试和
+APK 编译成功都不能替代这些真机检查。
+
+服务器在每次模型请求前重新装配当前 role、AGENTS.md、MEMORY.md、skill manifest
+和完整工具 schema，并把来源 revision 写入 Session diagnostic。普通工作区文件以及
+Android workspace/config 的变化只进入独立 observation，不会被写回历史，也不会
+改变 Agent 的 identity prompt；旧会话因此保留原始对话，同时立即采用当前策略。
+Android change event 会在本地持久排队，只有服务器 heartbeat 确认后才移除。
 
 **桌面打包：**
 
@@ -271,11 +301,28 @@ cloudra run "解析 /tmp/benzene.out，报告 SCF 能量、HOMO-LUMO 能隙和�
 
 | 类别 | 工具 |
 | :--- | :--- |
-| 化学工具 | `gjf_writer`、`gaussian_log_parser`、`format_converter`、`molecule_drawer`、`image_to_smiles`、`smiles_to_mol`、`nmr_processor`、`ir_processor` |
-| 文献检索 | `paper_searcher`、`chemrxiv_searcher`、`pdf2md`、`text_reader`、`image_reader`、`web_fetcher`、`headless_browser` |
-| 执行协作 | `bashtools`、`text_writer`、`subagent_launcher`、`submit_compute_job` |
+| 化学工具 | `gjf_writer`、`gaussian_log_parser`、`format_converter`、`internal_coordinates`、`molecule_drawer`、`image_to_smiles`、`smiles_to_mol`、`nmr_processor`、`ir_processor` |
+| 文献与网络 | `paper_searcher`、`openalex_searcher`、`web_search`、`pdf2md`、`pdf2image`、`text_reader`、`image_reader`、`web_fetcher`、`headless_browser` |
+| 执行协作 | `bashtools`、`text_writer`、`edit_file`、`subagent_launcher`、`submit_compute_job` |
 | 人机交互 | `ask_user`、`email_sender`、`email_reader` |
-| 流程控制 | `stop`、`getskill`、`get_subagent_report` |
+| 规划与控制 | `todo_write`、`goal_set`、`schedule`、`agent_hub`、`stop`、`getskill`、`get_subagent_report`、`update_memory` |
+
+## 子 Agent 名册
+
+通过 `SubAgentLauncher` 按领域调度的 Follower Agent；并行任务间通过 `agent_hub` 共享发现：
+
+| ID | Agent | 领域 |
+| :--- | :--- | :--- |
+| a-1 | explorer | 项目探索与只读审查（逻辑漏洞、不一致、风险点） |
+| a-2 | writer | 学术论文/报告写作 |
+| a-3 | researcher | 文献检索与方法论拆解 |
+| a-4 | small_mol | 小分子量化计算（Gaussian/ORCA）：构象、过渡态、光谱 |
+| a-5 | md | 分子动力学（GROMACS/LAMMPS）：建模、平衡、采样、分析 |
+| a-6 | dft | 第一性原理周期体系（VASP/QE）：体相、表面、缺陷 |
+| a-7 | experiment | 实验设计：DOE、对照、表征矩阵、安全评估 |
+| a-8 | env | 环境管理：依赖、conda、编译、HPC |
+
+除 explorer（只读）与 writer（读写）外均为全权限；危险操作仍走审批流。
 
 ## 安全模型
 
@@ -286,7 +333,7 @@ Cloudra 使用位标志权限（`READ`、`WRITE`、`SCRIPT`、`DESTRUCTIVE`、`M
 ```
 cloudra/
 ├── agent.py              # Agent 基类与 Coordinator
-├── reAct.py              # ReAct 推理循环
+├── react.py              # ReAct 推理循环
 ├── executor.py           # 工具执行引擎
 ├── context_manager.py    # 消息/上下文渲染
 ├── database.py           # SQLite 持久化
@@ -304,6 +351,7 @@ cloudra/
 ├── skills/               # Markdown 格式 Skill 库
 ├── prompts/              # Agent Prompt 模板
 ├── runtime/              # 运行时调度（workers、mobile_tasks）
+├── tui/                  # Textual 全屏 TUI（run.py 入口）
 └── ui/                   # Flet GUI（app.py 主界面）
 flet_app.py               # Flet 打包入口（Android APK / 桌面应用）
 ```

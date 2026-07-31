@@ -15,9 +15,10 @@ except Exception:
     _NMRGLUE_AVAILABLE = False
 
 description = (
-    "科研级 NMR 原始数据处理工具：集成 nmrglue 深度处理流水线。"
-    "支持 Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX 格式。"
-    "提供从时域到频域的完整变换流程，包含窗函数、补零、傅里叶变换、相位校正及基线校正。"
+    "NMR 原始数据处理：基于 nmrglue，支持 Bruker (fid/1r)、Varian/Agilent、JEOL、NMRPipe、JCAMP-DX 格式，"
+    "提供窗函数、补零、傅里叶变换、相位校正及基线校正的完整时域到频域流程。"
+    "适用：处理实验 NMR 原始数据、获得化学位移谱用于结构解析。"
+    "不适用：红外光谱处理（用 ir_processor）、理论化学位移计算日志的读取（用 log_parser）。"
 )
 
 class NMRProcessor_input_schema(input_schema):

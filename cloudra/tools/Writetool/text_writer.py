@@ -14,8 +14,10 @@ from cloudra.tools_class import Tool, input_schema
 from cloudra.workspace import WorkspaceConflictError, WorkspaceError
 
 description = (
-    "在 Agent 工作目录内新建或受保护地整文件覆写 UTF-8 文本。"
-    "新建传 expected_sha256='missing'；覆写前必须先用 text_reader 获取最新 sha256。"
+    "在 Agent 工作目录内新建或整文件覆写 UTF-8 文本；"
+    "新建传 expected_sha256='missing'，覆写前必须先用 text_reader 获取最新 sha256。"
+    "适用：创建新文件，或对已有文件做整体重写。"
+    "不适用：已有文件的局部修改（用 text_reader + edit_file）；严禁用 bash 重定向代替本工具写文件。"
 )
 
 
@@ -44,7 +46,7 @@ class TextWriter(Tool):
 
     def is_destructive(self) -> bool:
         # 写入文件通常仅需 WRITE 权限。
-        # 之前设为 True 会导致没有 DESTRUCTIVE 权限的 Coder 等 Agent 无法看到此工具。
+        # 之前设为 True 会导致没有 DESTRUCTIVE 权限的 Writer 等 Agent 无法看到此工具。
         return False
 
     async def tool_call(self, user_input: TextWriter_input_schema, session: Session) -> TextWriter_output_schema:

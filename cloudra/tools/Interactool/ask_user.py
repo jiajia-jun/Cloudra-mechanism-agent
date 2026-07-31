@@ -1,5 +1,7 @@
 import asyncio
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Optional
 
 from pydantic import Field
@@ -10,6 +12,9 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 # 可插拔输入处理器：TUI 等前端注册后，ask_user 不再使用裸 input()，
 # 而是把问题交给前端收集答案。签名: async (prompt_text: str) -> str
 _input_handler: Optional[Callable[[str], Awaitable[str]]] = None
+_context_input_handler: ContextVar[
+    Optional[Callable[[str], Awaitable[str]]]
+] = ContextVar("cloudra_ask_user_handler", default=None)
 
 
 def set_input_handler(handler: Optional[Callable[[str], Awaitable[str]]]) -> None:
@@ -18,17 +23,36 @@ def set_input_handler(handler: Optional[Callable[[str], Awaitable[str]]]) -> Non
     _input_handler = handler
 
 
+@contextmanager
+def use_input_handler(handler: Callable[[str], Awaitable[str]]):
+    """Scope an input handler to one Session task.
+
+    API sessions may run concurrently, so a process-global callback would send
+    one Agent's question to another Session. Context variables follow asyncio
+    task boundaries and keep the legacy TUI handler as a fallback.
+    """
+
+    token = _context_input_handler.set(handler)
+    try:
+        yield
+    finally:
+        _context_input_handler.reset(token)
+
+
 async def _read_input(prompt_text: str) -> str:
     """优先走已注册的前端处理器，否则退回终端 input()（API/子进程场景）。"""
+    scoped_handler = _context_input_handler.get()
+    if scoped_handler is not None:
+        return await scoped_handler(prompt_text)
     if _input_handler is not None:
         return await _input_handler(prompt_text)
     return await asyncio.to_thread(input, prompt_text)
 
 description = (
-    "向用户提出问题并等待回答。当 Agent 需要澄清需求、确认操作或收集额外信息时使用。"
-    "调用后会在终端打印问题并阻塞等待用户输入，用户的回答将返回给 Agent 作为上下文。"
-    "如果用户想拒绝回答或拒绝执行某项操作，可以输入 '拒绝:<原因>' 或 'reject:<原因>'，"
-    "工具会返回 rejected=True 并将原因放入 reason/answer 中。"
+    "向用户提出问题并阻塞等待回答，用户的回答返回给 Agent 作为上下文；"
+    "用户可输入 '拒绝:<原因>' 表示拒绝，工具会返回 rejected=True 及原因。"
+    "适用：需求不清需要澄清、关键操作需要用户确认、缺少只有用户知道的信息。"
+    "不适用：任务已完成应结束（用 stop）、能靠自己查证的问题不要打扰用户。"
 )
 
 

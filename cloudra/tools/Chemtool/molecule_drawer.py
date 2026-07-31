@@ -16,8 +16,10 @@ except Exception:
     _RDKIT_AVAILABLE = False
 
 description = (
-    "利用 RDKit 将化学 SMILES 转换为高度可定制的分子结构图像 (PNG/SVG)。"
-    "支持设置尺寸、高亮、原子编号、手性标注、线宽等几乎所有 RDKit 绘图参数。"
+    "利用 RDKit 将化学 SMILES 绘制成分子结构图像（PNG/SVG），"
+    "支持尺寸、高亮、原子编号、手性标注、线宽等几乎所有 RDKit 绘图参数。"
+    "适用：向用户展示分子结构、生成报告插图；画完可用 image_reader 重新查看核对。"
+    "不适用：从图片反推 SMILES（用 image_to_smiles）、生成三维坐标文件（用 smiles_to_mol）。"
 )
 
 class MoleculeDrawer_input_schema(input_schema):

@@ -14,8 +14,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "将 PDF 文件转换为多张图片。"
-    "当 pdf2md 转换失败或返回空内容时，可使用此工具将 PDF 的每一页转成高质量图片，之后再调用 image_reader 或多模态能力去读取图片内容进行分析。"
+    "将 PDF 文件逐页转换为高质量图片（基于 PyMuPDF），保存到指定输出目录。"
+    "适用：pdf2md 转换失败或返回空内容时的兜底方案——转图后再用 image_reader 看图分析。"
+    "不适用：文本型 PDF 的直接提取（首选 pdf2md）；"
+    "每个 PDF 必须分配独立的新输出目录，避免 PNG 碎片文件污染共享目录。"
 )
 
 

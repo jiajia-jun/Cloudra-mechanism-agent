@@ -11,8 +11,9 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "从收件箱读取最新的电子邮件。可以根据发件人过滤，并指定读取的数量。"
-    "适用于查看用户回复、指令更新或远程获取反馈。"
+    "从收件箱读取最新邮件，可按发件人过滤、指定数量、只看未读。"
+    "适用：查看用户的远程回复或指令更新。"
+    "不适用：发送邮件（用 email_sender）。需要在配置中先配好 IMAP 邮箱凭据。"
 )
 
 class EmailReader_input_schema(input_schema):

@@ -49,8 +49,9 @@ class EditFile(Tool):
     tool_id: str = "t-edit"
     tool_name: str = "edit_file"
     tool_description: str = (
-        "精确修改工作目录内已有文本文件。必须先调用 text_reader 获取最新 sha256；"
-        "每个 old_text 默认只能匹配一次。不要使用 Bash、sed、重定向或临时脚本修改文件。"
+        "对已有文本文件做基于旧文本精确匹配的结构化修改；每个 old_text 默认只能匹配一次，多匹配会被拒绝。"
+        "适用：修改已有文件的局部内容——这是改文件的首选工具；必须先调用 text_reader 获取最新 sha256。"
+        "不适用：新建文件或整文件覆写（用 text_writer）；严禁用 Bash、sed、重定向或临时脚本改文件。"
     )
     input_schema: Any = EditFile_input_schema
     output_schema: Any = EditFile_output_schema

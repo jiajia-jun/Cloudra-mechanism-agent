@@ -8,10 +8,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "更新 Coordinator 的长期记忆（MEMORY.md）。当 Coordinator 在任务执行过程中"
-    "获得新的技能提醒、经验教训或最佳实践时，调用此工具将其持久化。"
-    "记忆会在 Coordinator 启动时自动加载到上下文中，帮助后续任务复用经验。"
-    "当记忆字数超过阈值时，系统会自动压缩并归档。"
+    "把任务中获得的经验教训、最佳实践追加到 Coordinator 的长期记忆（MEMORY.md），"
+    "记忆在 Coordinator 启动时自动加载进上下文；字数超阈值时自动压缩归档。"
+    "适用：任务结束后沉淀可复用的经验（如某类计算的踩坑点、某工具的用法要点），供后续任务复用。"
+    "不适用：记录本次任务的临时中间结果（用 text_writer 写工作区文件）、加载已有技能流程（用 getskill）。"
 )
 
 

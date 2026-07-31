@@ -13,8 +13,9 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "发送电子邮件通知。支持发送纯文本或 HTML 内容，并可携带多个文件作为附件。"
-    "适用于向用户发送实验完成通知、分子结构图、数据报表等。"
+    "通过 SMTP 发送电子邮件，支持纯文本或 HTML 正文，并可携带多个本地文件作为附件。"
+    "适用：长任务完成后向用户远程交付结果通知、分子结构图、数据报表等。"
+    "不适用：读取收件箱、查看用户回复（用 email_reader）；需先在配置中配好 SMTP 邮箱凭据。"
 )
 
 class EmailSender_input_schema(input_schema):
