@@ -118,6 +118,43 @@ class TestYoloGuardJudge:
         assert approved is True
         assert "合理" in reason
         mock_client.return_value.create.assert_called_once()
+        assert "tool_choice" not in mock_client.return_value.create.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_guard_prompt_is_reloaded_for_each_judgement(
+        self,
+        fake_agent,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
+        monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
+        monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
+
+        guard = YoloGuard()
+        response = MagicMock()
+        tool_call = MagicMock()
+        tool_call.function.arguments = json.dumps(
+            {"approved": True, "reason": "放行"}
+        )
+        response.choices[0].message.tool_calls = [tool_call]
+
+        with (
+            patch.object(guard, "_client") as mock_client,
+            patch(
+                "cloudra.yolo_guard._load_prompt",
+                side_effect=["第一版安全策略", "第二版安全策略"],
+            ),
+        ):
+            create = AsyncMock(return_value=response)
+            mock_client.return_value.create = create
+            await guard.judge("text_reader", {"path": "a"}, fake_agent, None)
+            await guard.judge("text_reader", {"path": "b"}, fake_agent, None)
+
+        first_messages = create.call_args_list[0].kwargs["messages"]
+        second_messages = create.call_args_list[1].kwargs["messages"]
+        assert first_messages[0]["content"] == "第一版安全策略"
+        assert second_messages[0]["content"] == "第二版安全策略"
 
     @pytest.mark.asyncio
     async def test_judge_rejected(self, fake_agent, monkeypatch):
@@ -234,7 +271,6 @@ class TestYoloGuardJudge:
 
         create = AsyncMock(side_effect=[
             Exception("Error code: 400 - only 1 is allowed for temperature"),
-            Exception("Error code: 400 - tool_choice 'specified' is incompatible with thinking enabled"),
             mock_response,
         ])
         with patch.object(guard, "_client") as mock_client:
@@ -248,9 +284,9 @@ class TestYoloGuardJudge:
 
         assert approved is True
         assert "放行" in reason
-        assert create.call_count == 3
-        # 第三次调用应是不强制 tool_choice 的变体
-        assert "tool_choice" not in create.call_args_list[2].kwargs
+        assert create.call_count == 2
+        assert create.call_args_list[1].kwargs["temperature"] == 1.0
+        assert "tool_choice" not in create.call_args_list[1].kwargs
 
     @pytest.mark.asyncio
     async def test_judge_fallback_exhausted(self, fake_agent, monkeypatch):
@@ -273,7 +309,7 @@ class TestYoloGuardJudge:
 
         assert approved is False
         assert "全部降级重试失败" in reason
-        assert create.call_count == 4
+        assert create.call_count == 2
 
     def test_missing_env(self, fake_agent, monkeypatch):
         monkeypatch.delenv("FOLLOWER_MODEL", raising=False)

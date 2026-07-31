@@ -4,13 +4,15 @@
 
 [English](README.md)
 
+> **状态说明**：目前只有终端 TUI（Textual，`cloudra` / `cloudra run`）经过测试，推荐使用。Flet GUI（Windows/Android）虽随仓库发布，但**当前未经过测试**，暂时不要用于实际工作。
+
 ## 核心亮点
 
 - **自研 ReAct 框架**：不依赖 LangChain、AutoGPT 等重型框架，拥有完全可控的轻量级推理-行动循环，适合需要可追溯性的科研场景。
 - **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
 - **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。GUI 中为按 Session 生效的勾选项（contextvar 隔离并传播到子 Agent 进程），互不影响。
 - **流式输出与任务打断**：Coordinator 与每个子 Agent 的 LLM 增量以 `llm_chunk` 事件经 SSE 实时渲染，运行区按 Session 分面板展示对话式 transcript；任意 Session 可从 GUI/API 打断（先 `cancel_requested` 优雅退出，超时 SIGTERM 兜底，并级联取消子 Agent 与计算任务）。
-- **原生 GUI 与 Linux TUI**：Windows 和 Android 使用基于 Flet 的原生 GUI（无需浏览器），Linux 保留轻量级终端 TUI，通过 `cloudra` / `cloudra run` 进入。
+- **原生 GUI 与 Linux TUI**：Windows 和 Android 使用基于 Flet 的原生 GUI（无需浏览器），Linux 保留终端 TUI，通过 `cloudra` / `cloudra run` 进入。**注意：目前仅 TUI 经过测试，GUI 暂不推荐使用。**
 - **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
 - **自我学习与全局案例库**：Agent 可将成功经验沉淀至全局 Case Bank，支持跨对话的记忆与经验复用。
 - **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。
@@ -213,90 +215,76 @@ export CLOUDRA_API_HOST='0.0.0.0'
 python -m cloudra.api
 ```
 
-客户端请求需携带 `Authorization: Bearer <token>`。生成物只允许放在并访问
-`<data_dir>/artifacts`，不再公开整个 Cloudra 数据目录。
+客户端请求需携带 `Authorization: Bearer <token>`。生成物会复制成不可变快照，
+客户端先从 `/api/v1` 获取元数据和短时下载令牌，再校验大小与 SHA256；服务器
+不会把整个 Cloudra 数据目录或 artifacts 目录作为静态文件目录公开。
 
-### Web 前端
+### Flet GUI（原生桌面与移动端）
 
-最简单的启动方式是在项目根目录运行：
-
-```bash
-./web.sh
-```
-
-脚本会自动检查环境、按需安装或构建前端，然后在
-`http://127.0.0.1:8000` 启动完整界面。开发时可以使用：
+Cloudra 使用基于 Flutter 的 Flet 框架构建原生 GUI，同一份 Python 代码同时覆盖
+桌面（Windows / macOS / Linux）和 Android。Windows 和 Android 上直接运行
+`cloudra` 命令就会自动启动 GUI；任意平台也可以强制启动：
 
 ```bash
-./web.sh dev
+cloudra gui
 ```
 
-更多选项使用 `./web.sh --help` 查看。
+桌面 GUI 可以直接调用 `CloudraService` 业务层；Android 默认只连接远端
+`/api/v1`，Agent 执行、事件、审批和生成物都以服务器为权威来源。界面是自适应布局：
+窗口宽度低于 720px（手机竖屏）时侧边栏自动折叠成汉堡菜单，输入框宽度自适应。
 
-前端位于 `frontend/`，使用 React、TypeScript、Vite、TanStack Query 和
-`@microsoft/fetch-event-source`。首次运行：
+**Android 打包：**
 
 ```bash
-cd frontend
-npm install --registry=https://registry.npmmirror.com
-npm run dev
+.venv/bin/python scripts/build_android.py
 ```
 
-开发服务器默认使用 `http://127.0.0.1:5173`，并把 `/api` 与 `/artifacts`
-转发到 `http://127.0.0.1:8000`。另一个终端需要同时运行：
+构建脚本会按 `android/pyproject.toml` 生成一个最小远端控制台，只打包 UI、
+HTTP/SSE 后端和移动端存储边界。服务器 Agent、化学计算、数据库和 API Server
+依赖不会进入 APK。当前目标架构为 `arm64-v8a`；局域网明文 HTTP 仍需在服务器
+配置中显式启用开发模式。
+
+在 Android 的服务器连接对话框中启用后台 Device Runtime 后，服务器 Agent
+可以通过 `device.workspace.*` 和 `device.config.*` 访问 App 私有工作区。
+“Android 设备能力”对话框还可以通过系统 Storage Access Framework 单独持久授权
+一个文档树，`device.documents.*` 始终受这份系统 grant 限制。配对信息一次性且
+短时有效，服务器只保存设备凭据哈希；Android 端的 Server Token 和设备凭据使用
+Android Keystore 保护的 AES-GCM 密文保存，绝不会落入 JSON profile 或
+device-state 文件。选中的 SAF 文档树 URI 也绑定在同一加密存储中，实际权限仍以
+Android 系统保存的 grant 为准。Flet method channel 看到的也只有 RSA-OAEP 包裹的会话密钥和
+带完整性校验的加密信封，因此调试传输日志不会打印明文 Token。
+
+`device.workspace.apply_patch`、`device.config.patch`、SAF 文档写入、通知、
+文件选择、相机和分享都不会静默执行。Android 会先在本机展示目标和精确预览；
+文件修改只有在用户批准且审批后的 SHA/revision 仍一致时才应用。权限拒绝、取消或
+审批期间发生冲突都会返回结构化结果，不会覆盖手机上的新改动。
+
+APK 内置了一个很小的 Kotlin/Flet 扩展，负责 Keystore、持久 SAF grant、系统
+Intent、待审批 deep link 和 `remoteMessaging` Foreground Service。启用 Runtime
+会显示常驻通知，并在嵌入式 Python 执行器存活时提高进程优先级。服务刻意使用
+`START_NOT_STICKY`：若 Android 真正杀死进程，通知会消失，不会假装设备仍在线；
+下次启动 App 时再从 Keystore、event cursor、outbox 和系统 SAF grant 恢复。
+尚未被服务器确认的设备结果会留在持久 outbox 里可靠重放；确认后，文件或相机
+内容会被移除，只保留紧凑的幂等摘要。
+候选版本仍必须完成
+[Phase 7 模拟器/厂商真机矩阵](docs/ANDROID_PHASE7_DEVICE_MATRIX.md)；源码测试和
+APK 编译成功都不能替代这些真机检查。
+
+服务器在每次模型请求前重新装配当前 role、AGENTS.md、MEMORY.md、skill manifest
+和完整工具 schema，并把来源 revision 写入 Session diagnostic。普通工作区文件以及
+Android workspace/config 的变化只进入独立 observation，不会被写回历史，也不会
+改变 Agent 的 identity prompt；旧会话因此保留原始对话，同时立即采用当前策略。
+Android change event 会在本地持久排队，只有服务器 heartbeat 确认后才移除。
+
+**桌面打包：**
 
 ```bash
-python -m cloudra.api
+flet build windows   # 或 macos / linux
 ```
 
-生产使用时先构建：
-
-```bash
-cd frontend
-npm run build
-cd ..
-python -m cloudra.api
-```
-
-FastAPI 检测到 `frontend/dist` 后会将其挂载到根路径，访问
-`http://127.0.0.1:8000/` 即可打开界面。页面支持 Conversation 切换、
-Session 提交与取消、SSE 实时轨迹、历史消息、危险操作审批和 API Token。
-
-### 桌面 GUI
-
-Cloudra GUI 使用 Tauri 2 封装现有 React 工作台。桌面窗口启动时会自动拉起仅监听
-`127.0.0.1:18473` 的 FastAPI 进程，关闭应用时一并停止，不需要手动打开浏览器或
-运行 `web.sh`。在 Ubuntu 24.04 上首次使用需安装系统依赖：
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libdbus-1-dev libwebkit2gtk-4.1-dev \
-  libayatana-appindicator3-dev librsvg2-dev libxdo-dev
-```
-
-（`./install.sh` 的 GUI 段可在 Debian/Ubuntu 上自动完成这些依赖安装与桌面入口注册。）
-
-开发模式启动：
-
-```bash
-./desktop.sh
-```
-
-也可以直接在 `frontend/` 中运行 `npm run desktop`。如果 Cloudra 安装在非默认
-Python 环境中，通过 `CLOUDRA_PYTHON=/绝对路径/python ./desktop.sh` 指定解释器。
-桌面端支持原生工作目录选择器；Web 版本仍保留手动输入绝对路径的方式。
-
-要分发到**没有 Python 环境**的机器，使用打包脚本产出含独立 Python 运行时的目录：
-
-```bash
-frontend/scripts/package-desktop.sh   # 产物为 frontend/dist-app/，整体拷贝即可运行
-```
-
-脚本会下载 python-build-standalone 运行时、把 Cloudra 及全部依赖装入其中、
-通过 `tauri build` 构建 release 二进制，并组装 `frontend/dist-app/`。
-注意：构建桌面二进制请使用 `npm run desktop:build`（即 `tauri build`），
-直接用 `cargo build --release` 产出的二进制会错误地导航到开发服务器地址，
-表现为白屏/连接拒绝。WSL2 下窗口经 WSLg 显示。
+Flet 打包产出的桌面应用自带嵌入式 Python 运行时，目标机器不需要装 Python。
+旧版 Tauri + React 前端（`frontend/`）已经完全移除，现在不需要 Rust、Node.js、
+npm 这些东西了。
 
 ## 计算化学工作流示例
 
@@ -315,11 +303,28 @@ cloudra run "解析 /tmp/benzene.out，报告 SCF 能量、HOMO-LUMO 能隙和�
 
 | 类别 | 工具 |
 | :--- | :--- |
-| 化学工具 | `gjf_writer`、`gaussian_log_parser`、`format_converter`、`molecule_drawer`、`image_to_smiles`、`smiles_to_mol`、`nmr_processor`、`ir_processor` |
-| 文献检索 | `paper_searcher`、`chemrxiv_searcher`、`pdf2md`、`text_reader`、`image_reader`、`web_fetcher`、`headless_browser` |
-| 执行协作 | `bashtools`、`text_writer`、`subagent_launcher`、`submit_compute_job` |
+| 化学工具 | `gjf_writer`、`gaussian_log_parser`、`format_converter`、`internal_coordinates`、`molecule_drawer`、`image_to_smiles`、`smiles_to_mol`、`nmr_processor`、`ir_processor` |
+| 文献与网络 | `paper_searcher`、`openalex_searcher`、`web_search`、`pdf2md`、`pdf2image`、`text_reader`、`image_reader`、`web_fetcher`、`headless_browser` |
+| 执行协作 | `bashtools`、`text_writer`、`edit_file`、`subagent_launcher`、`submit_compute_job` |
 | 人机交互 | `ask_user`、`email_sender`、`email_reader` |
-| 流程控制 | `stop`、`getskill`、`get_subagent_report` |
+| 规划与控制 | `todo_write`、`goal_set`、`schedule`、`agent_hub`、`stop`、`getskill`、`get_subagent_report`、`update_memory` |
+
+## 子 Agent 名册
+
+通过 `SubAgentLauncher` 按领域调度的 Follower Agent；并行任务间通过 `agent_hub` 共享发现：
+
+| ID | Agent | 领域 |
+| :--- | :--- | :--- |
+| a-1 | explorer | 项目探索与只读审查（逻辑漏洞、不一致、风险点） |
+| a-2 | writer | 学术论文/报告写作 |
+| a-3 | researcher | 文献检索与方法论拆解 |
+| a-4 | small_mol | 小分子量化计算（Gaussian/ORCA）：构象、过渡态、光谱 |
+| a-5 | md | 分子动力学（GROMACS/LAMMPS）：建模、平衡、采样、分析 |
+| a-6 | dft | 第一性原理周期体系（VASP/QE）：体相、表面、缺陷 |
+| a-7 | experiment | 实验设计：DOE、对照、表征矩阵、安全评估 |
+| a-8 | env | 环境管理：依赖、conda、编译、HPC |
+
+除 explorer（只读）与 writer（读写）外均为全权限；危险操作仍走审批流。
 
 ## 安全模型
 
@@ -330,7 +335,7 @@ Cloudra 使用位标志权限（`READ`、`WRITE`、`SCRIPT`、`DESTRUCTIVE`、`M
 ```
 cloudra/
 ├── agent.py              # Agent 基类与 Coordinator
-├── reAct.py              # ReAct 推理循环
+├── react.py              # ReAct 推理循环
 ├── executor.py           # 工具执行引擎
 ├── context_manager.py    # 消息/上下文渲染
 ├── database.py           # SQLite 持久化
@@ -340,14 +345,17 @@ cloudra/
 ├── cli.py                # 命令行入口
 ├── api.py                # FastAPI 服务
 ├── yolo_guard.py         # YOLO 模式安全守卫
+├── platform_utils.py     # 平台检测（Windows / Android / Linux）
+├── runtime_profile.py    # Android 工具白名单与运行时能力画像
+├── mobile_storage.py     # Flet 打包应用持久化存储
 ├── tools/                # 工具实现
 ├── subagents/            # Follower Agent 角色
 ├── skills/               # Markdown 格式 Skill 库
-└── prompts/              # Agent Prompt 模板
-frontend/
-├── src/                  # React Web 界面（浏览器与桌面端共用）
-├── src-tauri/            # Tauri 桌面壳（自动拉起后端 sidecar）
-└── scripts/              # package-desktop.sh：独立运行时分发打包
+├── prompts/              # Agent Prompt 模板
+├── runtime/              # 运行时调度（workers、mobile_tasks）
+├── tui/                  # Textual 全屏 TUI（run.py 入口）
+└── ui/                   # Flet GUI（app.py 主界面）
+flet_app.py               # Flet 打包入口（Android APK / 桌面应用）
 ```
 
 ## 开发

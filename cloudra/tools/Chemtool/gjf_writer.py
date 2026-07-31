@@ -17,10 +17,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "生成 Gaussian 输入文件（.gjf）的工具。"
-    "通过选项卡式参数指定分子来源、计算方法、基组等，"
-    "自动生成完整的 .gjf 文件并保存到指定目录。"
-    "坐标数据从文件或 SMILES 自动生成，不会出现在返回结果中。"
+    "根据分子来源、计算方法、基组等参数自动生成完整的 Gaussian 输入文件（.gjf）并保存到指定目录；"
+    "坐标从文件或 SMILES 自动生成，不会出现在返回结果中。"
+    "适用：准备 Gaussian 计算输入（结构优化、频率、过渡态搜索等），之后可交 submit_compute_job 提交执行。"
+    "不适用：解析计算结果（用 log_parser）、已有结构文件的格式互换（用 format_converter）。"
 )
 
 

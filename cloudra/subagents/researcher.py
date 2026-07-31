@@ -1,23 +1,23 @@
-from cloudra.agent import Follower, load_prompt
+from cloudra.agent import Follower
 
 
 class researcher(Follower):
     id: str = 'a-3'
     name: str = 'researcher'
     type: str = 'follower'
-    prompt: str = load_prompt('researcher')
+    prompt_name: str = 'researcher'
 
     def has_read_permission(self) -> bool:
         return True
 
     def has_write_permission(self) -> bool:
-        return False
+        return True
 
     def script_run_permission(self) -> bool:
         return True
 
     def destructive_permission(self) -> bool:
-        return False
+        return True
 
 
 def get_class():

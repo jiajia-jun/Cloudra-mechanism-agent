@@ -26,10 +26,6 @@ def _load_prompt(name: str) -> str:
         raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
     return prompt_path.read_text(encoding="utf-8")
 
-
-YOLO_SYSTEM_PROMPT = _load_prompt("yolo_guard")
-
-
 # 按 Session 的 YOLO 开关：asyncio task 内设置后只影响该任务及其派生的协程，
 # 进程内并发的其他会话不受影响。缺省回落到进程级环境变量（CLI 路径）。
 _SESSION_YOLO: contextvars.ContextVar[bool] = contextvars.ContextVar(
@@ -40,6 +36,11 @@ _SESSION_YOLO: contextvars.ContextVar[bool] = contextvars.ContextVar(
 def set_session_yolo(enabled: bool) -> contextvars.Token:
     """为当前异步上下文启用/关闭 Session 级 YOLO，返回可复位的 token。"""
     return _SESSION_YOLO.set(enabled)
+
+
+def reset_session_yolo(token: contextvars.Token) -> None:
+    """恢复调用 :func:`set_session_yolo` 前的 Session 级 YOLO 状态。"""
+    _SESSION_YOLO.reset(token)
 
 
 def is_yolo_enabled() -> bool:
@@ -184,7 +185,8 @@ class YoloGuard:
 
         client = self._client()
         messages = [
-            {"role": "system", "content": YOLO_SYSTEM_PROMPT},
+            # 安全策略也必须按请求读取，避免长期运行进程继续使用旧版本。
+            {"role": "system", "content": _load_prompt("yolo_guard")},
             {"role": "user", "content": user_content},
         ]
         request_kwargs = dict(
@@ -193,7 +195,6 @@ class YoloGuard:
             # thinking 模型思考段会吃掉输出预算，500 可能截断 tool_call 的 JSON
             max_tokens=2000,
             tools=tools,
-            tool_choice={"type": "function", "function": {"name": "submit_approval_decision"}}
         )
 
         for attempt in range(1, self._MAX_ATTEMPTS + 1):
@@ -250,15 +251,17 @@ class YoloGuard:
         # 依次降级尝试，覆盖两类受限端点（参数级降级是调用方关注点，
         # llm_client 的 fallback 链不覆盖；请求头/限流类拦截由其内部处理）：
         # 1) 只允许 temperature=1 的 reasoning 模型；
-        # 2) 开启 thinking 后拒绝强制 tool_choice 的模型
-        #    （去掉 tool_choice 后由 _extract_decision 的 content 解析兜底）。
+        # 2) 兼容其他调用方可能传入的强制 tool_choice。YoloGuard 默认不再
+        #    强制选择工具，因为部分 thinking 端点明确拒绝该组合。
         temp1 = dict(base)
         temp1["temperature"] = 1.0
-        auto_choice = dict(base)
-        auto_choice.pop("tool_choice", None)
-        temp1_auto = dict(auto_choice)
-        temp1_auto["temperature"] = 1.0
-        candidate_kwargs = [base, temp1, auto_choice, temp1_auto]
+        candidate_kwargs = [base, temp1]
+        if "tool_choice" in base:
+            auto_choice = dict(base)
+            auto_choice.pop("tool_choice", None)
+            temp1_auto = dict(auto_choice)
+            temp1_auto["temperature"] = 1.0
+            candidate_kwargs.extend((auto_choice, temp1_auto))
 
         last_error: Exception | None = None
         for kwargs in candidate_kwargs:

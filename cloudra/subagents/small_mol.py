@@ -1,24 +1,24 @@
-from cloudra.agent import Follower, load_prompt
+from cloudra.agent import Follower
 
 
-class visionary(Follower):
+class small_mol(Follower):
     id: str = 'a-4'
-    name: str = 'visionary'
+    name: str = 'small_mol'
     type: str = 'follower'
-    prompt: str = load_prompt('visionary')
+    prompt_name: str = 'small_mol'
 
     def has_read_permission(self) -> bool:
         return True
 
     def has_write_permission(self) -> bool:
-        return False
+        return True
 
     def script_run_permission(self) -> bool:
-        return False
+        return True
 
     def destructive_permission(self) -> bool:
-        return False
+        return True
 
 
 def get_class():
-    return visionary
+    return small_mol

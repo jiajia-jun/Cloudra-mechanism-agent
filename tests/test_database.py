@@ -70,6 +70,11 @@ def test_conversation_db_init_creates_tables(isolated_db):
     assert "compute_jobs" in tables
     assert "context_events" in tables
     assert "session_events" in tables
+    assert "client_commands" in tables
+    assert "interactions" in tables
+    assert "artifacts" in tables
+    assert "artifact_download_tokens" in tables
+    assert "hub_posts" in tables
     assert "schema_migrations" in tables
     with sqlite3.connect(db.path) as con:
         session_columns = {row[1] for row in con.execute("PRAGMA table_info(session)")}
@@ -77,10 +82,25 @@ def test_conversation_db_init_creates_tables(isolated_db):
     with sqlite3.connect(db.path) as con:
         compute_columns = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
         subagent_columns = {row[1] for row in con.execute("PRAGMA table_info(subagent_requests)")}
-        version = con.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+        approval_columns = {
+            row[1] for row in con.execute("PRAGMA table_info(approvals)")
+        }
+        version = con.execute(
+            "SELECT MAX(version) FROM schema_migrations"
+        ).fetchone()[0]
     assert "session_id" in compute_columns
     assert {"session_id", "parent_session_id"} <= subagent_columns
-    assert version == 2
+    assert {
+        "tool_name",
+        "normalized_arguments",
+        "risk_summary",
+        "candidate_diff",
+        "requested_at",
+        "expires_at",
+        "decided_by",
+        "decided_at",
+    } <= approval_columns
+    assert version == 6
 
 
 def test_conversation_db_isolation(isolated_db):
@@ -112,6 +132,16 @@ def test_conversation_db_connect_sets_wal_and_busy_timeout(isolated_db):
         assert cur.fetchone()[0].upper() == "WAL"
         cur.execute("PRAGMA busy_timeout")
         assert cur.fetchone()[0] == 20000
+
+
+def test_conversation_db_connect_closes_on_context_exit(isolated_db):
+    """同步连接离开上下文后必须关闭，避免长测试进程耗尽文件描述符。"""
+    db = ConversationDB("conv_close").init()
+    with db.connect() as con:
+        assert con.execute("SELECT 1").fetchone() == (1,)
+
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        con.execute("SELECT 1")
 
 
 @pytest.mark.asyncio

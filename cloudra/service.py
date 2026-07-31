@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -16,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from cloudra import conversation_repo, events, paths, session_store
+from cloudra import control_store, conversation_repo, events, paths, session_store
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
 from cloudra.database import ConversationDB
@@ -80,16 +81,27 @@ class SessionRunner:
         conversation_id: str,
         working_directory: str | None = None,
         yolo: bool = False,
+        session_id: str | None = None,
     ) -> SessionRecord:
-        session_id = f"a-0_run_{uuid.uuid4().hex}"
+        session_id = session_id or f"a-0_run_{uuid.uuid4().hex}"
         db = ConversationDB(conversation_id).init()
-        session_store.insert_queued_session(
-            db,
-            session_id=session_id,
-            agent_id="a-0",
-            agent_type="coordinator",
-            query=query,
-        )
+        existing = self.get(conversation_id, session_id)
+        if existing is not None:
+            return existing
+        try:
+            session_store.insert_queued_session(
+                db,
+                session_id=session_id,
+                agent_id="a-0",
+                agent_type="coordinator",
+                query=query,
+            )
+        except sqlite3.IntegrityError:
+            # A concurrent replay of the same idempotent create command won.
+            existing = self.get(conversation_id, session_id)
+            if existing is not None:
+                return existing
+            raise
         self._emit(conversation_id, session_id, "queued", {"query": query, "yolo": yolo})
         task = asyncio.create_task(
             self._execute(query, conversation_id, session_id, working_directory, yolo)
@@ -113,17 +125,27 @@ class SessionRunner:
             return
         heartbeat = asyncio.create_task(self._heartbeat(conversation_id, session_id))
         try:
-            if working_directory is None:
-                result = await self.service.run_task(
-                    query, conversation_id, session_id=session_id
-                )
-            else:
-                result = await self.service.run_task(
-                    query,
+            from cloudra.tools.Interactool.ask_user import use_input_handler
+
+            async def wait_for_user(prompt: str) -> str:
+                return await self._wait_for_interaction(
                     conversation_id,
-                    session_id=session_id,
-                    working_directory=working_directory,
+                    session_id,
+                    prompt,
                 )
+
+            with use_input_handler(wait_for_user):
+                if working_directory is None:
+                    result = await self.service.run_task(
+                        query, conversation_id, session_id=session_id
+                    )
+                else:
+                    result = await self.service.run_task(
+                        query,
+                        conversation_id,
+                        session_id=session_id,
+                        working_directory=working_directory,
+                    )
             self._update(
                 conversation_id,
                 session_id,
@@ -155,6 +177,23 @@ class SessionRunner:
         finally:
             heartbeat.cancel()
             self._running.pop((conversation_id, session_id), None)
+
+    async def _wait_for_interaction(
+        self,
+        conversation_id: str,
+        session_id: str,
+        prompt: str,
+    ) -> str:
+        """Persist an Agent question and wait for exactly one remote response."""
+
+        from cloudra.interactions import wait_for_user_response
+
+        return await wait_for_user_response(
+            conversation_id=conversation_id,
+            session_id=session_id,
+            agent_id="a-0",
+            prompt=prompt,
+        )
 
     def _claim(self, conversation_id: str, session_id: str, now: str) -> bool:
         db = ConversationDB(conversation_id)
@@ -260,6 +299,21 @@ class SessionRunner:
             ).fetchall()
         return [SessionRecord(*row) for row in rows]
 
+    def list_children(self, conversation_id: str, parent_session_id: str) -> list[SessionRecord]:
+        """查询指定父 Session 的直接子 Session（用于 TUI 绘制 Agent 树）。"""
+        validate_conversation_id(conversation_id)
+        validate_session_id(parent_session_id)
+        db_path = Path(ConversationDB(conversation_id).path)
+        if not db_path.is_file():
+            return []
+        with ConversationDB(conversation_id).connect() as conn:
+            rows = conn.execute(
+                f"""SELECT {_SESSION_COLUMNS} FROM session
+                WHERE parent_session_id = ? ORDER BY created_at ASC""",
+                (parent_session_id,),
+            ).fetchall()
+        return [SessionRecord(*row) for row in rows]
+
     async def _wait_terminal(self, conversation_id: str, session_id: str, timeout: float) -> SessionRecord | None:
         """等待 session 进入终态事件（最多 timeout 秒），返回最新记录。"""
         await events.ensure_listener(conversation_id)
@@ -282,7 +336,13 @@ class SessionRunner:
         record = self.get(conversation_id, session_id)
         if record is None:
             return None
-        if record.state in ("queued", "running"):
+        if record.state in (
+            "queued",
+            "running",
+            "waiting_for_user",
+            "waiting_for_approval",
+            "waiting_for_device",
+        ):
             # Agent 通过 IPC 订阅 cancel_requested 事件实现即时打断
             self._update(conversation_id, session_id, state="cancel_requested")
             self._emit(conversation_id, session_id, "cancel_requested", {})
@@ -292,7 +352,25 @@ class SessionRunner:
             task.cancel()
             # 给协程一点时间落到终态，但最长 3s
             record = await self._wait_terminal(conversation_id, session_id, 3.0)
-        elif record.pid and record.state in ("queued", "running", "cancel_requested"):
+            if record is not None and record.state == "cancel_requested":
+                # 协程卡在不可中断的阻塞点（如线程中的同步调用）时，不能永远
+                # 停在 cancel_requested——否则该会话再也发不出消息（卡死）。
+                self._update(
+                    conversation_id,
+                    session_id,
+                    state="cancelled",
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                )
+                self._emit(conversation_id, session_id, "cancelled", {})
+                record = self.get(conversation_id, session_id)
+        elif record.pid and record.state in (
+            "queued",
+            "running",
+            "waiting_for_user",
+            "waiting_for_approval",
+            "waiting_for_device",
+            "cancel_requested",
+        ):
             # 子进程任务：通过事件等待终态，3s 超时后 SIGTERM
             current = await self._wait_terminal(conversation_id, session_id, 3.0)
             if current is not None and current.state == "cancel_requested":
@@ -324,7 +402,12 @@ class CloudraService:
     """CLI 和 API 共用的 Cloudra 业务入口。"""
 
     def __init__(self) -> None:
+        from cloudra.artifacts import ArtifactService
+        from cloudra.device_broker import DeviceBroker
+
         self.config = get_config()
+        self.artifacts = ArtifactService(Path(self.config.data_dir))
+        self.device_broker = DeviceBroker(Path(self.config.data_dir))
         self.session_runner = SessionRunner(self)
 
     def create_conversation(self) -> Conversation:
@@ -369,6 +452,304 @@ class CloudraService:
             query, conversation_id, working_directory, yolo
         )
 
+    @staticmethod
+    def _command_session_id(command_id: str, prefix: str = "cmd") -> str:
+        digest = hashlib.sha256(command_id.encode("utf-8")).hexdigest()[:32]
+        return f"a-0_{prefix}_{digest}"
+
+    def submit_session_command(
+        self,
+        *,
+        command_id: str,
+        query: str,
+        conversation_id: str,
+        working_directory: str | None = None,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        """Create one Session for an idempotent remote command."""
+
+        validate_conversation_id(conversation_id)
+        session_id = self._command_session_id(command_id)
+        db = ConversationDB(conversation_id).init()
+        command, _ = control_store.receive_command(
+            db,
+            command_id=command_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+            command_type="session.create",
+            payload={
+                "query": query,
+                "workspace_id": "default",
+                "yolo": False,
+            },
+        )
+        if command.state == "failed":
+            raise RuntimeError(command.error or "创建 Session 的控制命令失败")
+        if command.state == "applied":
+            record = self.session_runner.get(conversation_id, session_id)
+            if record is None:
+                raise RuntimeError("控制命令已生效，但对应 Session 不存在")
+            return command, record
+
+        if control_store.claim_command(db, command_id):
+            try:
+                record = self.session_runner.submit(
+                    query,
+                    conversation_id,
+                    working_directory,
+                    False,
+                    session_id=session_id,
+                )
+                self.session_runner._emit(
+                    conversation_id,
+                    session_id,
+                    "client_command_received",
+                    {"command_id": command_id, "command_type": "session.create"},
+                )
+                command = control_store.finish_command(
+                    db,
+                    command_id,
+                    result={"session_id": session_id},
+                )
+                self.session_runner._emit(
+                    conversation_id,
+                    session_id,
+                    "client_command_applied",
+                    {"command_id": command_id, "command_type": "session.create"},
+                )
+                return command, record
+            except Exception as exc:
+                control_store.finish_command(db, command_id, error=str(exc))
+                raise
+
+        # A concurrent replay is already applying the deterministic Session.
+        record = self.session_runner.get(conversation_id, session_id)
+        if record is None:
+            raise RuntimeError("控制命令正在生效，请稍后查询")
+        command = control_store.finish_command(
+            db,
+            command_id,
+            result={"session_id": session_id},
+        )
+        return command, record
+
+    async def append_session_message_command(
+        self,
+        *,
+        command_id: str,
+        conversation_id: str,
+        session_id: str,
+        content: str,
+        working_directory: str | None = None,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        """Inject a supplemental user message once, or wake a terminal task."""
+
+        validate_conversation_id(conversation_id)
+        validate_session_id(session_id)
+        db = ConversationDB(conversation_id).init()
+        target = self.session_runner.get(conversation_id, session_id)
+        if target is None:
+            raise ValueError("Session 不存在")
+        command, _ = control_store.receive_command(
+            db,
+            command_id=command_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+            command_type="session.message.append",
+            payload={"content": content},
+        )
+        if command.state == "failed":
+            raise RuntimeError(command.error or "追加消息失败")
+        if command.state == "applied":
+            result_session_id = (
+                command.result or {}
+            ).get("session_id", session_id)
+            record = self.session_runner.get(conversation_id, result_session_id)
+            if record is None:
+                raise RuntimeError("追加消息已生效，但目标 Session 不存在")
+            return command, record
+        if not control_store.claim_command(db, command_id):
+            raise RuntimeError("控制命令正在生效，请稍后查询")
+
+        self.session_runner._emit(
+            conversation_id,
+            session_id,
+            "client_command_received",
+            {"command_id": command_id, "command_type": "session.message.append"},
+        )
+        try:
+            if target.state in _TERMINAL_STATES:
+                resumed_session_id = self._command_session_id(command_id, "resume")
+                record = self.session_runner.submit(
+                    content,
+                    conversation_id,
+                    working_directory,
+                    False,
+                    session_id=resumed_session_id,
+                )
+                result = {
+                    "session_id": resumed_session_id,
+                    "resumed_from": session_id,
+                }
+            elif target.state == "cancel_requested":
+                raise ValueError("Session 正在取消，不能追加消息")
+            else:
+                from cloudra.context_manager import ContextManager
+
+                agent_id = target.agent_id or "a-0"
+                await ContextManager.inject_event(
+                    conversation_id=conversation_id,
+                    agent_id=agent_id,
+                    event_type="user_message",
+                    content=f"用户从远程控制台补充要求：{content}",
+                    db_path=db.path,
+                )
+                record = target
+                result = {"session_id": session_id}
+            command = control_store.finish_command(
+                db,
+                command_id,
+                result=result,
+            )
+            self.session_runner._emit(
+                conversation_id,
+                record.session_id,
+                "client_command_applied",
+                {
+                    "command_id": command_id,
+                    "command_type": "session.message.append",
+                },
+            )
+            return command, record
+        except Exception as exc:
+            control_store.finish_command(db, command_id, error=str(exc))
+            raise
+
+    async def cancel_session_command(
+        self,
+        *,
+        command_id: str,
+        conversation_id: str,
+        session_id: str,
+    ) -> tuple[control_store.ClientCommand, SessionRecord | None]:
+        db = ConversationDB(conversation_id).init()
+        command, _ = control_store.receive_command(
+            db,
+            command_id=command_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+            command_type="session.cancel",
+            payload={},
+        )
+        if command.state == "applied":
+            return command, self.session_runner.get(conversation_id, session_id)
+        if command.state == "failed":
+            raise RuntimeError(command.error or "取消命令失败")
+        if not control_store.claim_command(db, command_id):
+            return control_store.get_command(db, command_id), self.session_runner.get(
+                conversation_id,
+                session_id,
+            )
+        try:
+            record = await self.session_runner.cancel(conversation_id, session_id)
+            command = control_store.finish_command(
+                db,
+                command_id,
+                result={
+                    "session_id": session_id,
+                    "state": record.state if record is not None else "missing",
+                },
+            )
+            return command, record
+        except Exception as exc:
+            control_store.finish_command(db, command_id, error=str(exc))
+            raise
+
+    def list_pending_interactions(
+        self,
+        conversation_id: str,
+        *,
+        session_id: str | None = None,
+    ) -> list[dict]:
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return []
+        return [
+            interaction.to_dict()
+            for interaction in control_store.list_pending_interactions(
+                db,
+                session_id=session_id,
+            )
+        ]
+
+    async def respond_interaction_command(
+        self,
+        *,
+        command_id: str,
+        conversation_id: str,
+        interaction_id: str,
+        response: str,
+    ) -> tuple[control_store.ClientCommand, control_store.Interaction]:
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id).init()
+        interaction = control_store.get_interaction(db, interaction_id)
+        if interaction is None:
+            raise ValueError("Interaction 不存在")
+        command, _ = control_store.receive_command(
+            db,
+            command_id=command_id,
+            conversation_id=conversation_id,
+            session_id=interaction.session_id,
+            command_type="interaction.respond",
+            payload={"interaction_id": interaction_id, "response": response},
+        )
+        if command.state == "applied":
+            latest = control_store.get_interaction(db, interaction_id)
+            if latest is None:  # pragma: no cover - defensive invariant
+                raise RuntimeError("Interaction 记录意外丢失")
+            return command, latest
+        if command.state == "failed":
+            raise control_store.InteractionConflict(
+                command.error or "Interaction 已被回答"
+            )
+        if not control_store.claim_command(db, command_id):
+            raise RuntimeError("控制命令正在生效，请稍后查询")
+
+        latest, changed = control_store.respond_interaction(
+            db,
+            interaction_id,
+            response,
+        )
+        if latest is None:
+            control_store.finish_command(
+                db,
+                command_id,
+                error="Interaction 不存在",
+            )
+            raise ValueError("Interaction 不存在")
+        if not changed:
+            error = "Interaction 已被回答或已过期"
+            control_store.finish_command(db, command_id, error=error)
+            raise control_store.InteractionConflict(error)
+        command = control_store.finish_command(
+            db,
+            command_id,
+            result={"interaction_id": interaction_id, "state": latest.state},
+        )
+        self.session_runner._emit(
+            conversation_id,
+            latest.session_id,
+            "interaction_responded",
+            latest.to_dict(),
+        )
+        await events.aemit(
+            conversation_id,
+            "interaction_answered",
+            interaction_id=interaction_id,
+            session_id=latest.session_id,
+        )
+        return command, latest
+
     def list_conversations(self) -> list[dict]:
         return conversation_repo.list_conversations()
 
@@ -401,15 +782,23 @@ class CloudraService:
             db = ConversationDB(conversation_id)
             if not Path(db.path).is_file():
                 continue
-            for row in session_store.list_pending_approvals(db):
-                results.append({
-                    "id": row[0],
-                    "conversation_id": conversation_id,
-                    "session_id": row[1],
-                    "agent_name": row[2],
-                    "details": row[3],
-                })
+            for record in session_store.list_pending_approval_records(db):
+                record["conversation_id"] = conversation_id
+                results.append(record)
         return results
+
+    def list_pending_approvals_for_conversation(
+        self,
+        conversation_id: str,
+    ) -> list[dict]:
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return []
+        records = session_store.list_pending_approval_records(db)
+        for record in records:
+            record["conversation_id"] = conversation_id
+        return records
 
     async def decide_approval(
         self,
@@ -423,3 +812,107 @@ class CloudraService:
         if not Path(db.path).is_file():
             return False
         return await session_store.adecide_approval(db, approval_id, decision, denial_reason)
+
+    async def decide_approval_command(
+        self,
+        *,
+        command_id: str,
+        conversation_id: str,
+        approval_id: int,
+        decision: Literal["approved", "denied"],
+        denial_reason: str = "",
+    ) -> tuple[control_store.ClientCommand, dict]:
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id).init()
+        with db.connect() as con:
+            row = con.execute(
+                """SELECT session_id, agent_name, details, state,
+                denial_reason, tool_name, normalized_arguments, risk_summary,
+                candidate_diff, requested_at, expires_at, decided_by,
+                decided_at FROM approvals WHERE id=?""",
+                (approval_id,),
+            ).fetchone()
+        if row is None:
+            raise ValueError("Approval 不存在")
+        (
+            session_id,
+            agent_name,
+            details,
+            approval_state,
+            existing_reason,
+            tool_name,
+            normalized_arguments,
+            risk_summary,
+            candidate_diff,
+            requested_at,
+            expires_at,
+            decided_by,
+            decided_at,
+        ) = row
+        try:
+            normalized_arguments = json.loads(normalized_arguments or "{}")
+        except (TypeError, ValueError):
+            normalized_arguments = {}
+
+        def approval_payload(state: str, reason: str) -> dict:
+            return {
+                "approval_id": approval_id,
+                "conversation_id": conversation_id,
+                "session_id": session_id,
+                "agent_name": agent_name,
+                "details": details,
+                "tool_name": tool_name or "",
+                "normalized_arguments": normalized_arguments,
+                "risk_summary": risk_summary or "",
+                "candidate_diff": candidate_diff or "",
+                "requested_at": requested_at,
+                "expires_at": expires_at,
+                "state": state,
+                "denial_reason": reason or "",
+                "decided_by": decided_by,
+                "decided_at": decided_at,
+            }
+        command, _ = control_store.receive_command(
+            db,
+            command_id=command_id,
+            conversation_id=conversation_id,
+            session_id=session_id,
+            command_type="approval.decide",
+            payload={
+                "approval_id": approval_id,
+                "decision": decision,
+                "denial_reason": denial_reason,
+            },
+        )
+        if command.state == "applied":
+            return command, approval_payload(
+                approval_state,
+                existing_reason,
+            )
+        if command.state == "failed":
+            raise control_store.CommandConflict(
+                command.error or "Approval 已被决定"
+            )
+        if not control_store.claim_command(db, command_id):
+            raise RuntimeError("控制命令正在生效，请稍后查询")
+
+        changed = await session_store.adecide_approval(
+            db,
+            approval_id,
+            decision,
+            denial_reason,
+            decided_by="remote_client",
+        )
+        if not changed:
+            error = "Approval 已被决定或已过期"
+            control_store.finish_command(db, command_id, error=error)
+            raise control_store.CommandConflict(error)
+        command = control_store.finish_command(
+            db,
+            command_id,
+            result={"approval_id": approval_id, "state": decision},
+        )
+        payload = approval_payload(decision, denial_reason)
+        payload["decided_by"] = "remote_client"
+        payload["decided_at"] = datetime.now(timezone.utc).isoformat()
+        return command, payload

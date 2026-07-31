@@ -13,6 +13,9 @@ def _isolated_data_dir(tmp_path, monkeypatch):
     """
     from cloudra.config import get_config
 
+    # 有些测试会 reload_config()，重建单例时 YAML 配置（优先级高于环境变量）
+    # 会把 data_dir 重置回真实目录；把配置文件指到不存在路径，从源头隔离。
+    monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "config.yaml"))
     monkeypatch.setattr(get_config(), "data_dir", tmp_path / "data")
 
 

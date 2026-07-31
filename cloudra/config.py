@@ -41,10 +41,15 @@ DEFAULT_DATA_DIR = Path(user_data_dir(APP_NAME))
 
 class LLMConfig(BaseSettings):
     """LLM provider configuration for a single agent type."""
-    model: str = "mimo-v2.5-ultraspeed"
+    model: str = "deepseek-4-pro"
     url: str = "https://api.deepseek.com/"
     key: str = ""
     supports_vision: bool = False
+    # 模型真实上下文窗口（token 数）：上下文压缩阈值按 window // 2 计算，
+    # 必须与服务商实际窗口一致，否则压缩永远不触发、长任务直接 400
+    context_window: int = 128000
+    # 单次 LLM 请求超时秒数（OpenAI SDK 与 requests shim 共用）
+    timeout: int = 300
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -87,8 +92,9 @@ class CloudraConfig(BaseSettings):
 
     # UI/UX state
     last_conversation_id: Optional[str] = None
+    workspace_dir: Optional[Path] = None
 
-    @field_validator("data_dir", "config_file", mode="before")
+    @field_validator("data_dir", "config_file", "workspace_dir", mode="before")
     @classmethod
     def _coerce_path(cls, v):
         if isinstance(v, str):
@@ -151,6 +157,8 @@ class CloudraConfig(BaseSettings):
                 self.data_dir = Path(data["data_dir"])
             if "last_conversation_id" in data:
                 self.last_conversation_id = data["last_conversation_id"]
+            if "workspace_dir" in data and data["workspace_dir"]:
+                self.workspace_dir = Path(data["workspace_dir"])
         except Exception as e:
             print(f"[Config Warning] Failed to load {cfg_path}: {e}")
 
@@ -170,18 +178,23 @@ class CloudraConfig(BaseSettings):
         data = {
             "data_dir": str(self.data_dir),
             "last_conversation_id": self.last_conversation_id,
+            "workspace_dir": str(self.workspace_dir) if self.workspace_dir else None,
             "llm": {
                 "coordinator": {
                     "model": self.coordinator.model,
                     "url": self.coordinator.url,
                     "key": self.coordinator.key,
                     "supports_vision": self.coordinator.supports_vision,
+                    "context_window": self.coordinator.context_window,
+                    "timeout": self.coordinator.timeout,
                 },
                 "follower": {
                     "model": self.follower.model,
                     "url": self.follower.url,
                     "key": self.follower.key,
                     "supports_vision": self.follower.supports_vision,
+                    "context_window": self.follower.context_window,
+                    "timeout": self.follower.timeout,
                 },
             },
             "email": {
@@ -203,18 +216,23 @@ class CloudraConfig(BaseSettings):
         return {
             "data_dir": str(self.data_dir),
             "config_file": str(self.config_file),
+            "workspace_dir": str(self.workspace_dir) if self.workspace_dir else "(default)",
             "llm": {
                 "coordinator": {
                     "model": self.coordinator.model,
                     "url": self.coordinator.url,
                     "key": "***" if self.coordinator.key else "(not set)",
                     "supports_vision": self.coordinator.supports_vision,
+                    "context_window": self.coordinator.context_window,
+                    "timeout": self.coordinator.timeout,
                 },
                 "follower": {
                     "model": self.follower.model,
                     "url": self.follower.url,
                     "key": "***" if self.follower.key else "(not set)",
                     "supports_vision": self.follower.supports_vision,
+                    "context_window": self.follower.context_window,
+                    "timeout": self.follower.timeout,
                 },
             },
         }

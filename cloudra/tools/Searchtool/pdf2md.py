@@ -15,11 +15,11 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "当用户输入或工具结果中包含 PDF、Word、Excel、PPT 等二进制文档时，"
-    "必须优先调用本工具将其转换为 Markdown。"
-    "本工具使用 PyMuPDF 轻量解析文档，提取文本和图片并保存为 Markdown，"
-    "便于后续进行文献阅读、内容摘要、信息抽取和问答。"
-    "输入为文件绝对路径，输出为 Markdown 文件路径和提取图片列表。"
+    "将 PDF、Word、Excel、PPT 等二进制文档转换为 Markdown（基于 PyMuPDF），"
+    "提取文本和图片，返回 Markdown 文件路径与提取图片列表。"
+    "适用：阅读本地文献、报告、课件——拿到 PDF/Office 文件后应优先用本工具转 Markdown 再做摘要、抽取和问答。"
+    "不适用：转换失败或扫描版 PDF 无文字层时，改用 pdf2image 转图后用 image_reader 看图；"
+    "在线 PDF 需先用 web_fetcher 的 download_path 下载到本地。"
 )
 
 

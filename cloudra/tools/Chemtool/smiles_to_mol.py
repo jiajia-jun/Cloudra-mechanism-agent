@@ -15,9 +15,10 @@ except Exception:
     _RDKIT_AVAILABLE = False
 
 description = (
-    "将化学 SMILES 字符串转换为 MOL (MDL MOLfile) 格式的工具。"
-    "基于 RDKit，支持生成带 2D 或 3D 坐标的 MOL 文件。"
+    "将化学 SMILES 字符串转换为 MOL（MDL MOLfile）格式：基于 RDKit，支持生成带 2D 或 3D 坐标，"
     "可选择保存到文件或直接返回 MOL 文本内容。"
+    "适用：只有 SMILES 时需要生成初始三维结构，作为 gjf_writer 或 format_converter 的输入。"
+    "不适用：已有结构文件的格式互换（用 format_converter）、把 SMILES 画成图片（用 molecule_drawer）。"
 )
 
 

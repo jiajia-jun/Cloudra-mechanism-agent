@@ -44,6 +44,7 @@ def _make_agent():
     agent._tools_schema_cache = []
     cm = MagicMock()
     cm.build_messages = AsyncMock(return_value=[{"role": "user", "content": "你好"}])
+    cm.load = AsyncMock(return_value=[])
     agent.context_manager = cm
     return agent
 
@@ -455,13 +456,41 @@ class TestAgentDelegation:
 
         kwargs = create.call_args.kwargs
         assert kwargs["model"] == agent.model
-        assert kwargs["messages"] == [{"role": "user", "content": "你好"}]
+        assert kwargs["messages"][0] == {"role": "user", "content": "你好"}
+        assert kwargs["messages"][1]["role"] == "system"
+        assert kwargs["messages"][1]["content"].startswith(
+            "【当前工作区 observation】"
+        )
+        identity_messages = agent.context_manager.build_messages.call_args.kwargs[
+            "identity_messages"
+        ]
+        assert len(identity_messages) == 1
+        assert identity_messages[0]["role"] == "system"
+        assert identity_messages[0]["content"].startswith("测试\n\n")
+        assert identity_messages[0]["content"].endswith(
+            "## 当前可用工具\n\n本次请求没有可用工具。"
+        )
         assert kwargs["temperature"] == agent.temperature
         assert kwargs["max_tokens"] == agent.max_tokens
         assert kwargs["stream"] == agent.is_stream
         # 工具缓存为空时不传 tools；top_p=None 时不发送（严格端点只接受特定值）
         assert "tools" not in kwargs
         assert "top_p" not in kwargs
+        diagnostics = agent.get_runtime_diagnostics()
+        assert diagnostics["tool_names"] == []
+        assert diagnostics["trace_id"].startswith("llm_")
+        assert diagnostics["runtime_version"]
+        assert diagnostics["capability_revision"].startswith("sha256:")
+        assert diagnostics["prompt_revision"].startswith("sha256:")
+        assert "api_key" not in diagnostics
+
+    async def test_request_diagnostics_redacts_provider_credentials(self, agent):
+        agent.llm_site = "https://user:secret@example.invalid/v1?api_key=hidden"
+        await agent._build_request_kwargs()
+        diagnostics = agent.get_runtime_diagnostics()
+        assert diagnostics["provider"] == "https://example.invalid"
+        assert "secret" not in str(diagnostics)
+        assert "hidden" not in str(diagnostics)
 
     async def test_top_p_sent_when_set(self, agent):
         agent.top_p = 0.95

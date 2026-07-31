@@ -7,8 +7,11 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "视觉感知工具：读取本地图像文件（PNG/JPG/JPEG/WEBP）并将其载入 Agent 的视觉上下文中。"
-    "调用此工具后，Agent 将能够“看到”图片内容并进行分析、描述或对比。"
+    "视觉感知工具：读取本地图像文件（PNG/JPG/JPEG/WEBP）并将其载入 Agent 的视觉上下文，"
+    "使 Agent 能“看到”图片内容并进行分析、描述或对比。"
+    "适用：分析本地已有图片，如分子结构图、谱图截图、实验装置照片。"
+    "不适用：PDF 页面（先用 pdf2md，失败再 pdf2image 转图后读本工具）、"
+    "从化学结构图反推 SMILES（用 image_to_smiles）。"
 )
 
 class ImageReader_input_schema(input_schema):

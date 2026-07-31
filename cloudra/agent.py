@@ -1,30 +1,31 @@
+import hashlib
 import json
-import os
-from pathlib import Path
-from typing import Optional
+from datetime import datetime
+from typing import Any, Optional
+from urllib.parse import urlsplit
+from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
+from cloudra import __version__
 from cloudra.config import get_config
-from cloudra.context_manager import ContextManager
+from cloudra.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 from cloudra.database import ConversationDB
 from cloudra.llm_client import ChatResponse, LLMClient
-from cloudra.memory import get_memory_manager
+from cloudra.runtime.prompt_assembler import (
+    PromptAssembler,
+    PromptAssembly,
+    load_role_prompt,
+)
+from cloudra.runtime_profile import filter_tools_for_runtime
 from cloudra.tools import ToolEntry, get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
 
 
 def load_prompt(agent_name: str) -> str:
-    """
-    从 prompts/{agent_name}.md 加载对应 Agent 的 prompt。
-    便于将 prompt 与代码分离，统一在 prompts/ 目录下管理。
-    """
-    prompts_dir = Path(__file__).parent / 'prompts'
-    prompt_path = prompts_dir / f"{agent_name}.md"
-    if not prompt_path.exists():
-        raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
-    return prompt_path.read_text(encoding='utf-8')
+    """兼容入口：调用时读取角色 prompt，不做模块级缓存。"""
+    return load_role_prompt(agent_name)
 
 
 class Agent(BaseModel):
@@ -87,8 +88,11 @@ class Agent(BaseModel):
     #agent使用模型存在惩罚
     presence_penalty: float = 0.0
 
-    #agent身份prompt，如：“你是一个多agent协作体系的协调器......”
-    prompt: str
+    # 可选的调用方身份 prompt 覆盖；None 时由 prompt_name 在请求期加载。
+    prompt: Optional[str] = None
+
+    # prompts/{prompt_name}.md 的动态角色来源。
+    prompt_name: Optional[str] = None
 
     #目标赋予prompt，如：“你的任务是......”
     query: str
@@ -119,6 +123,10 @@ class Agent(BaseModel):
     # 工具 schema 列表缓存：工具集与本 Agent 权限在进程内是静态的，
     # 无需每个推理步骤都重新实例化全部工具并重新生成 pydantic schema。
     _tools_schema_cache: Optional[list] = None
+    _tools_schema_revision: Optional[tuple[str, ...]] = None
+
+    _last_prompt_assembly: Optional[PromptAssembly] = PrivateAttr(default=None)
+    _last_request_diagnostics: dict = PrivateAttr(default_factory=dict)
 
     def _init_context_manager(self) -> None:
         '''初始化本 Agent 的 ContextManager。'''
@@ -164,10 +172,35 @@ class Agent(BaseModel):
         return check_permission(agent_perms, tool_perms)
 
 
-    def get_available_tools(self) -> list:
-        tools = get_tools_lst()
+    def get_available_tools(self, tools: Optional[list] = None) -> list:
+        """Return tools permitted for both this Agent and the runtime.
+
+        ``tools`` is injectable so the reAct dispatcher can apply the exact
+        same checks to its current registry snapshot.
+        """
+        tools = filter_tools_for_runtime(get_tools_lst() if tools is None else tools)
+        device_tool_names = {
+            entry.tool_name
+            for entry in tools
+            if entry.tool_name.startswith("device.")
+        }
+        available_device_tools: set[str] = set()
+        if device_tool_names:
+            try:
+                from cloudra.device_broker import DeviceBroker
+
+                available_device_tools = (
+                    DeviceBroker().available_tool_names()
+                )
+            except (OSError, ValueError):
+                available_device_tools = set()
         available_tools = []
         for tool in tools:
+            if (
+                tool.tool_name in device_tool_names
+                and tool.tool_name not in available_device_tools
+            ):
+                continue
             if self.check_permission(tool):
                 available_tools.append(tool)
         return available_tools
@@ -219,32 +252,130 @@ class Agent(BaseModel):
     def _get_llm_client(self) -> LLMClient:
         """返回实例级缓存的 LLM 传输层客户端（构造本身不做任何 I/O）。"""
         if self._llm_client is None:
-            self._llm_client = LLMClient(api_key=self._api_key, base_url=self.llm_site)
+            cfg = get_config()
+            role_cfg = cfg.coordinator if getattr(self, "type", "") == "coordinator" else cfg.follower
+            self._llm_client = LLMClient(
+                api_key=self._api_key,
+                base_url=self.llm_site,
+                timeout=role_cfg.timeout,
+            )
         return self._llm_client
 
     def _get_tools_schema(self) -> list[dict]:
-        """惰性构建并缓存本 Agent 有权限使用的工具 schema 列表。"""
-        if self._tools_schema_cache is None:
-            tool_entries = get_tools_lst()
+        """Cache schemas while invalidating when online device capabilities change."""
+        # Tests and embedders may explicitly inject a fixed schema list.
+        if (
+            self._tools_schema_cache is not None
+            and self._tools_schema_revision is None
+        ):
+            return self._tools_schema_cache
+        available_entries = self.get_available_tools()
+        revision = tuple(sorted(entry.tool_name for entry in available_entries))
+        if (
+            self._tools_schema_cache is None
+            or self._tools_schema_revision != revision
+        ):
             available_tool_classes = []
-            for entry in tool_entries:
-                if self.check_permission(entry):
-                    tool_instance = entry.instantiate(subagent=self)
-                    available_tool_classes.append(tool_instance.tool_schema_json())
+            for entry in available_entries:
+                tool_instance = entry.instantiate(subagent=self)
+                available_tool_classes.append(tool_instance.tool_schema_json())
             self._tools_schema_cache = available_tool_classes
+            self._tools_schema_revision = revision
         return self._tools_schema_cache
 
-    async def _build_messages(self) -> list[dict]:
-        """构建发给 LLM 的消息列表；子类可重写以注入动态系统消息。"""
-        return await self._ensure_context_manager().build_messages(
+    @staticmethod
+    def _tool_names_from_schemas(tool_schemas: list[dict]) -> list[str]:
+        names = []
+        for schema in tool_schemas:
+            function = schema.get("function", {}) if isinstance(schema, dict) else {}
+            name = function.get("name") if isinstance(function, dict) else None
+            if name:
+                names.append(name)
+        return names
+
+    def _prompt_assembler(self) -> PromptAssembler:
+        return PromptAssembler(
+            prompt_name=self.prompt_name or self.name,
+            custom_prompt=self.prompt,
+            conversation_id=self.conversation_id,
+            working_directory=self.working_directory,
+            include_memory=self.type == "coordinator",
+            observer_id=self.id,
+        )
+
+    @staticmethod
+    def _device_prompt_snapshot(tool_names: list[str]) -> list[dict]:
+        """Read a non-secret device snapshot without making it a hard dependency."""
+
+        if not any(name.startswith("device.") for name in tool_names):
+            return []
+        try:
+            from cloudra.device_broker import DeviceBroker
+
+            broker = DeviceBroker()
+            devices = broker.list_devices()
+            observations = broker.recent_observations(limit=50)
+            by_device: dict[str, list[dict]] = {}
+            for observation in observations:
+                by_device.setdefault(
+                    str(observation.get("device_id", "")),
+                    [],
+                ).append(observation)
+            for device in devices:
+                device["recent_observations"] = by_device.get(
+                    str(device.get("device_id", "")),
+                    [],
+                )
+            return devices
+        except Exception:
+            return []
+
+    async def _build_messages(
+        self,
+        tool_schemas: Optional[list[dict]] = None,
+    ) -> list[dict]:
+        """在请求期装配当前身份层、持久历史和环境 observation。"""
+        schemas = self._get_tools_schema() if tool_schemas is None else tool_schemas
+        tool_names = self._tool_names_from_schemas(schemas)
+        assembly = self._prompt_assembler().assemble(
+            tool_names,
+            capability_schemas=schemas,
+            device_snapshot=self._device_prompt_snapshot(tool_names),
+        )
+        self._last_prompt_assembly = assembly
+        messages = await self._ensure_context_manager().build_messages(
             supports_vision=self.supports_vision,
             max_context_tokens=self.context_window // 2 if self.context_window else None,
+            identity_messages=list(assembly.identity_messages),
         )
+        messages.extend(assembly.observation_messages)
+        return messages
+
+    def get_runtime_diagnostics(self) -> dict[str, Any]:
+        """返回最近一次模型请求的非敏感 prompt/tool 诊断。"""
+        return dict(self._last_request_diagnostics)
+
+    @staticmethod
+    def _provider_for_diagnostics(endpoint: Optional[str]) -> str:
+        """只保留 endpoint origin，避免 URL 用户信息、路径和 query 中的凭据落库。"""
+        if not endpoint:
+            return "<unset>"
+        try:
+            parsed = urlsplit(endpoint)
+            if not parsed.scheme or not parsed.hostname:
+                return "<custom-endpoint>"
+            host = parsed.hostname
+            if ":" in host:
+                host = f"[{host}]"
+            port = f":{parsed.port}" if parsed.port is not None else ""
+            return f"{parsed.scheme}://{host}{port}"
+        except (TypeError, ValueError):
+            return "<custom-endpoint>"
 
     async def _build_request_kwargs(self) -> dict:
         """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。"""
         available_tool_classes = self._get_tools_schema()
-        messages = await self._build_messages()
+        messages = await self._build_messages(available_tool_classes)
 
         request_kwargs = {
             "model": self.model,
@@ -258,6 +389,53 @@ class Agent(BaseModel):
             request_kwargs["top_p"] = self.top_p
         if available_tool_classes:
             request_kwargs["tools"] = available_tool_classes
+
+        assembly = self._last_prompt_assembly
+        diagnostics = assembly.diagnostics() if assembly is not None else {}
+        persisted_history = await self._ensure_context_manager().load()
+        history_payload = json.dumps(
+            persisted_history,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        supervisor_payload = json.dumps(
+            [
+                message
+                for message in persisted_history
+                if SUPERVISOR_ADVICE_MARKER
+                in str(message.get("content", ""))
+            ],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
+        diagnostics.update(
+            {
+                "trace_id": f"llm_{uuid4().hex}",
+                "runtime_version": __version__,
+                "model": self.model,
+                "provider": self._provider_for_diagnostics(self.llm_site),
+                "conversation_id": self.conversation_id,
+                "session_id": self.session_id,
+                "agent_id": self.id,
+                "agent_name": self.name,
+                "message_count": len(messages),
+                "history_revision": (
+                    "sha256:"
+                    + hashlib.sha256(history_payload.encode("utf-8")).hexdigest()
+                ),
+                "supervisor_advice_revision": (
+                    "sha256:"
+                    + hashlib.sha256(
+                        supervisor_payload.encode("utf-8")
+                    ).hexdigest()
+                ),
+            }
+        )
+        self._last_request_diagnostics = diagnostics
         return request_kwargs
 
     async def llm_call(self) -> ChatResponse:
@@ -300,7 +478,8 @@ class Coordinator(Agent):
     # k3 等 thinking 模型的思考段极长，8192 常在 reasoning 中途耗尽导致输出被截断
     max_tokens: int = 32768
 
-    context_window: int = 1000000
+    # None = 从全局配置 coordinator.context_window 读取（__init__ 中解析）
+    context_window: Optional[int] = None
 
     top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
 
@@ -308,7 +487,7 @@ class Coordinator(Agent):
 
     presence_penalty: float = 0.0
 
-    prompt: str = load_prompt('coordinator')
+    prompt_name: Optional[str] = "coordinator"
 
     # 由用户输入总任务。
     query: str
@@ -325,87 +504,8 @@ class Coordinator(Agent):
         cfg = get_config().coordinator
         self.model = self.model or cfg.model
         self.llm_site = self.llm_site or cfg.url
+        self.context_window = self.context_window or cfg.context_window
         self._api_key = self._api_key or cfg.key
-        cwd = self.working_directory or os.getcwd()
-        # 列出工作目录顶层内容，帮助 Coordinator 知道当前有哪些文件/文件夹可用
-        listing_lines = []
-        try:
-            for name in sorted(os.listdir(cwd)):
-                # 跳过隐藏目录/文件和常见缓存目录，避免污染 prompt
-                if name.startswith('.') or name in ('__pycache__', '__init__.py'):
-                    continue
-                full_path = os.path.join(cwd, name)
-                listing_lines.append(f"{name}/" if os.path.isdir(full_path) else name)
-        except Exception:
-            listing_lines = ["<无法读取目录内容>"]
-
-        listing_str = "\n".join(listing_lines) if listing_lines else "<空目录>"
-        self.prompt += (
-            f"\n\n当前项目的工作目录是: {cwd}\n"
-            f"工作目录顶层内容:\n{listing_str}\n"
-            "在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
-        )
-
-        # 加载 Coordinator 的长期记忆到身份 prompt
-        self._inject_memory_to_prompt()
-        # 加载用户自定义 AGENTS.md 到身份 prompt
-        self._inject_agents_md_to_prompt()
-
-    def _inject_agents_md_to_prompt(self) -> None:
-        """把用户自定义 AGENTS.md 注入 Coordinator 身份 prompt。
-
-        读取两个层级：
-          1. 全局：~/.config/cloudra/AGENTS.md（跨项目通用）
-          2. 项目：working_directory/AGENTS.md（项目专属）
-
-        项目层会覆盖全局层；任一文件缺失都静默跳过。
-        """
-        try:
-            cfg = get_config()
-            config_dir = Path(cfg.config_file).parent
-            cwd = self.working_directory or os.getcwd()
-            agents_files = [
-                ("全局", config_dir / "AGENTS.md"),
-                ("项目", Path(cwd) / "AGENTS.md"),
-            ]
-            injected: list[str] = []
-            for scope, path in agents_files:
-                if path.exists() and path.is_file():
-                    try:
-                        text = path.read_text(encoding="utf-8")
-                    except Exception as e:
-                        print(f"[Coordinator] 读取 {scope} AGENTS.md 失败: {e}")
-                        continue
-                    if text and text.strip():
-                        injected.append(
-                            f"### {scope} AGENTS.md（{path}）\n\n{text.strip()}"
-                        )
-            if injected:
-                self.prompt += (
-                    "\n\n## 用户自定义指令（AGENTS.md）\n\n"
-                    "以下内容来自用户编写的 AGENTS.md，在执行任务时优先遵循：\n\n"
-                    + "\n\n".join(injected)
-                )
-        except Exception as e:
-            # AGENTS.md 加载失败不应阻止 Coordinator 启动
-            print(f"[Coordinator] 加载 AGENTS.md 失败: {e}")
-
-    def _inject_memory_to_prompt(self) -> None:
-        """把全局 MEMORY.md 的内容注入到 Coordinator 的身份 prompt。"""
-        try:
-            conv_id = getattr(self, 'conversation_id', None)
-            manager = get_memory_manager(conversation_id=conv_id)
-            memory_text = manager.load()
-            if memory_text and memory_text.strip():
-                self.prompt += (
-                    "\n\n## 长期记忆（从过往任务中积累的经验）\n\n"
-                    "以下经验来自 MEMORY.md，在执行任务时优先遵循：\n\n"
-                    f"{memory_text.strip()}\n\n"
-                    "如果你从这些经验中学到了新的可复用原则，请调用 `update_memory` 工具更新记忆。"
-                )
-        except Exception as e:
-            # 记忆加载失败不应阻止 Coordinator 启动
-            print(f"[Coordinator] 加载长期记忆失败: {e}")
 
     def _build_subagent_status_snapshot(self) -> str:
         """从 conversation DB 拉取子 Agent 请求与 session 状态快照（供动态 prompt 使用）。"""
@@ -451,12 +551,50 @@ class Coordinator(Agent):
         except Exception:
             return ""
 
-    async def _build_messages(self) -> list[dict]:
-        """Coordinator 每次推理前附加子 Agent 状态快照，实现动态 prompt。"""
-        messages = await super()._build_messages()
-        snapshot = self._build_subagent_status_snapshot()
-        if snapshot:
-            messages.append({"role": "system", "content": snapshot})
+    def _build_schedule_status_snapshot(self) -> str:
+        """把当前待触发提醒放进动态 prompt，供 Coordinator 管理和去重。"""
+        try:
+            db = ConversationDB(self.conversation_id)
+            with db.connect() as con:
+                rows = con.execute(
+                    """SELECT id, wake_at, content
+                    FROM scheduled_reminders
+                    WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
+                    ORDER BY wake_at, id
+                    LIMIT 20""",
+                    (self.conversation_id, self.id),
+                ).fetchall()
+            if not rows:
+                return ""
+
+            lines = [
+                "【当前待触发 schedule】",
+                "这些提醒彼此独立且都会触发。创建新提醒前先判断旧提醒是否仍有必要；"
+                "已被新安排取代或不再需要的提醒应调用 schedule(action='cancel', schedule_id=...) 取消。",
+            ]
+            for schedule_id, wake_at, content in rows:
+                wake_iso = datetime.fromtimestamp(float(wake_at)).astimezone().isoformat(
+                    timespec="seconds"
+                )
+                summary = " ".join(str(content).split())[:160]
+                lines.append(f"- schedule_id={schedule_id} wake_at={wake_iso} message={summary}")
+            return "\n".join(lines)
+        except Exception:
+            return ""
+
+    async def _build_messages(
+        self,
+        tool_schemas: Optional[list[dict]] = None,
+    ) -> list[dict]:
+        """Coordinator 每次推理前附加运行状态快照，实现动态 prompt。"""
+        messages = await super()._build_messages(tool_schemas)
+        snapshots = (
+            self._build_subagent_status_snapshot(),
+            self._build_schedule_status_snapshot(),
+        )
+        for snapshot in snapshots:
+            if snapshot:
+                messages.append({"role": "system", "content": snapshot})
         return messages
 
     def has_manage_permission(self) -> bool:
@@ -485,12 +623,12 @@ class Coordinator(Agent):
         '''
         return True
 
-    def get_available_tools(self) -> list:
+    def get_available_tools(self, tools: Optional[list] = None) -> list:
         '''
         Coordinator 实际可见的工具列表。
         简化设计：Coordinator 可以使用所有工具，不再按模块白名单过滤。
         '''
-        return super().get_available_tools()
+        return super().get_available_tools(tools)
 
 
 class Follower(Agent):
@@ -514,7 +652,8 @@ class Follower(Agent):
     # writer 类子 Agent 要整篇写文件，4096 极易截断（JSON 参数被拦腰切断）
     max_tokens: int = 16384
 
-    context_window: int = 1000000
+    # None = 从全局配置 follower.context_window 读取（__init__ 中解析）
+    context_window: Optional[int] = None
 
     top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
 
@@ -522,7 +661,7 @@ class Follower(Agent):
 
     presence_penalty: float = 0.0
 
-    prompt: str
+    prompt_name: Optional[str] = None
 
     query: str
 
@@ -541,6 +680,7 @@ class Follower(Agent):
         self.model = self.model or cfg.model
         self.llm_site = self.llm_site or cfg.url
         self._api_key = self._api_key or cfg.key
+        self.context_window = self.context_window or cfg.context_window
 
     def has_read_permission(self) -> bool:
         return True

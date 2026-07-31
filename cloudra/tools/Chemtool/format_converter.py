@@ -7,10 +7,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "化学文件格式转换工具。"
-    "支持 mol、xyz、gjf、pdb、SDF、cif 等常见计算化学文件格式之间的相互转换。"
-    "基于 ASE (Atomic Simulation Environment) 实现，"
+    "基于 ASE 在 mol、xyz、gjf、pdb、SDF、cif 等常见计算化学文件格式之间相互转换；"
     "坐标数据仅在文件之间流转，不会出现在返回结果中。"
+    "适用：已有结构文件需要换格式（如 xyz 转 gjf、cif 转 pdb），以对接下游计算或可视化。"
+    "不适用：从 SMILES 生成初始三维结构（用 smiles_to_mol）、编写 Gaussian 计算输入（用 gjf_writer）。"
 )
 
 

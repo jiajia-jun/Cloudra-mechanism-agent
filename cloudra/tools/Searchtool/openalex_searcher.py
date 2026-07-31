@@ -6,12 +6,12 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通过 OpenAlex 开放 API 搜索 ChemRxiv 及其他学术平台的论文。"
-    "该工具能够绕过复杂的反爬验证，稳定获取化学领域最新的预印本及正式发表论文。"
+    "通过 OpenAlex 开放 API 检索全库学术文献（预印本及正式发表论文）。"
+    "OpenAlex 覆盖 2 亿+ 文献记录，无需 API key，稳定无反爬。"
     "支持按关键词搜索，返回包含标题、DOI、摘要及 PDF 下载链接的结果。"
 )
 
-class ChemRxivSearcher_input_schema(input_schema):
+class OpenAlexSearcher_input_schema(input_schema):
     query: str = Field(description="搜索关键词")
     limit: int = Field(default=10, description="最大返回结果数")
     page: int = Field(default=1, description="页码")
@@ -20,15 +20,15 @@ class ChemRxivSearcher_input_schema(input_schema):
         description="展示模式：light（仅标题、DOI、日期）/ normal（加摘要）/ weight（加作者、PDF 链接等详细信息）"
     )
 
-class ChemRxivSearcher_output_schema(output_schema):
+class OpenAlexSearcher_output_schema(output_schema):
     content: list = Field(description="搜索结果列表，每个元素为一个论文信息字典")
 
-class ChemRxivSearcher(Tool):
+class OpenAlexSearcher(Tool):
     tool_id: str = 't-26'
-    tool_name: str = 'chemrxiv_searcher'
+    tool_name: str = 'openalex_searcher'
     tool_description: str = description
-    input_schema: Any = ChemRxivSearcher_input_schema
-    output_schema: Any = ChemRxivSearcher_output_schema
+    input_schema: Any = OpenAlexSearcher_input_schema
+    output_schema: Any = OpenAlexSearcher_output_schema
 
     def is_read(self) -> bool:
         return True
@@ -51,14 +51,12 @@ class ChemRxivSearcher(Tool):
 
         return " ".join(abstract_list)
 
-    async def tool_call(self, user_input: ChemRxivSearcher_input_schema, session: Session) -> ChemRxivSearcher_output_schema:
+    async def tool_call(self, user_input: OpenAlexSearcher_input_schema, session: Session) -> OpenAlexSearcher_output_schema:
         import httpx
         # OpenAlex API 地址
         api_url = "https://api.openalex.org/works"
 
-        # 构建查询参数
-        # 过滤条件：我们专门指定来源为 ChemRxiv (OpenAlex ID: S4306400032)
-        # 如果你想搜索全网，可以去掉 filter 参数
+        # 构建查询参数：不加来源过滤，直接检索 OpenAlex 全库
         params = {
             "search": user_input.query,
             "per_page": user_input.limit,
@@ -75,7 +73,7 @@ class ChemRxivSearcher(Tool):
                 response = await client.get(api_url, params=params, headers=headers)
 
                 if response.status_code != 200:
-                    return ChemRxivSearcher_output_schema(content=[{
+                    return OpenAlexSearcher_output_schema(content=[{
                         "error": f"OpenAlex API 异常: {response.status_code}",
                         "detail": response.text[:200]
                     }])
@@ -90,7 +88,7 @@ class ChemRxivSearcher(Tool):
                         "title": work.get("display_name"),
                         "doi": work.get("doi"),
                         "published_date": work.get("publication_date"),
-                        "source": "ChemRxiv (via OpenAlex)"
+                        "source": "OpenAlex"
                     }
 
                     # 2. 还原摘要 (normal)
@@ -117,12 +115,12 @@ class ChemRxivSearcher(Tool):
                     results.append(item)
 
                 if not results:
-                    return ChemRxivSearcher_output_schema(content=[{"message": "未找到相关论文。"}])
+                    return OpenAlexSearcher_output_schema(content=[{"message": "未找到相关论文。"}])
 
-                return ChemRxivSearcher_output_schema(content=results)
+                return OpenAlexSearcher_output_schema(content=results)
 
         except Exception as e:
-            return ChemRxivSearcher_output_schema(content=[{"error": f"OpenAlex 访问失败: {str(e)}"}])
+            return OpenAlexSearcher_output_schema(content=[{"error": f"OpenAlex 访问失败: {str(e)}"}])
 
 def get_class():
-    return ChemRxivSearcher
+    return OpenAlexSearcher

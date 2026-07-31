@@ -11,10 +11,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "提交计算任务的工具。"
-    "接收已生成的输入文件路径，在 compute_jobs 表中创建任务记录，"
-    "由框架层的 Compute Executor 自动捞取并执行。"
-    "任务提交后立刻返回 job_id，不会等待计算完成。"
+    "提交计算任务：接收已生成的输入文件路径，在 compute_jobs 表中创建任务记录，"
+    "由框架层的 Compute Executor 自动捞取并执行；提交后立刻返回 job_id，不会等待计算完成。"
+    "适用：Gaussian 等耗时计算的正式提交执行，输入文件需先用 gjf_writer 等工具准备好。"
+    "不适用：生成输入文件（用 gjf_writer）、查看计算结果（算完后用 log_parser 解析日志）。"
 )
 
 

@@ -12,6 +12,7 @@ from cloudra.database import ConversationDB, aretry_on_locked
 from cloudra.platform_utils import is_posix
 from cloudra.react import AgentCancelled, reAct
 from cloudra.subagents import Subagent_hash
+from cloudra.tools.Interactool.ask_user import use_input_handler
 
 
 def _mark_cancelled_sync(database_path: str, task_id: int, session_id: str) -> None:
@@ -35,7 +36,7 @@ async def _finalize_task(db, task_id: int, session_id: str, status: str, error: 
 
 
 async def _wake_coordinator(database_path: str, input_data: dict, content: str) -> None:
-    """注入事件唤醒 Coordinator（可丢弃：失败只打日志）。"""
+    """持久化唤醒事件后再退出，避免 fire-and-forget 随子进程一起丢失。"""
     try:
         conv_id = input_data.get('conversation_id', 'default')
         await ContextManager.inject_event(
@@ -80,12 +81,13 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     # 启动 IPC listener，使本进程能收到外部事件与 cancel 信号。
     await events.ensure_listener(conv_id)
 
+    working_dir = input_data.get('working_directory')
     sub_agent = agent_cls(
         query=query,
         conversation_id=conv_id,
+        working_directory=working_dir,
     )
     sub_agent.session_id = input_data.get('session_id')
-    sub_agent.working_directory = input_data.get('working_directory')
 
     # 如果 payload 中传入了额外的 context，则追加进去
     extra_context = input_data.get('context', [])
@@ -103,8 +105,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     if not session_id:
         session_id = input_data.get('session_id')
 
-    # 子 Agent 的身份 prompt 由 agent.prompt 提供，任务要求由 agent.query 提供，
-    # reAct 不再接收会覆盖身份 prompt 的 prompt 参数。
+    # 子 Agent 身份 prompt 在每次模型请求前动态装配；任务要求由 agent.query 提供。
     sub_reAct = reAct(
         agent=sub_agent,
         session_id=session_id,
@@ -115,7 +116,19 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     # 3. 执行任务
     print(f"--- Agent {sub_agent.name} 启动 (PID: {os.getpid()}) ---")
     try:
-        result = await sub_reAct.run()
+        async def wait_for_user(prompt: str) -> str:
+            from cloudra.interactions import wait_for_user_response
+
+            return await wait_for_user_response(
+                conversation_id=conv_id,
+                session_id=session_id,
+                agent_id=agent_id,
+                prompt=prompt,
+                db_path=database_path,
+            )
+
+        with use_input_handler(wait_for_user):
+            result = await sub_reAct.run()
         print(f"\n[结论] {result}")
         print(f"--- Agent {sub_agent.name} 执行完毕 ---")
 

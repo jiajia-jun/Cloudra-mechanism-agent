@@ -7,9 +7,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "化学结构图像识别工具 (OCSR)：基于 DECIMER 深度学习模型，"
-    "将化学结构图（如 PNG/JPG 截图、手绘结构）转换为 SMILES 字符串。"
-    "支持印刷体、手绘等多种风格的化学结构识别。"
+    "化学结构图像识别（OCSR）：基于 DECIMER 深度学习模型，"
+    "将印刷体或手绘的化学结构图（PNG/JPG 截图等）转换为 SMILES 字符串。"
+    "适用：从文献截图、手绘结构中还原分子，拿到 SMILES 后可接 smiles_to_mol 或 molecule_drawer。"
+    "不适用：只是查看图片内容（用 image_reader）、已有 SMILES 需要画图（用 molecule_drawer）。"
 )
 
 

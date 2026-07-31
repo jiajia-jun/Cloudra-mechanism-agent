@@ -1,0 +1,456 @@
+"""受工作区约束的文本文件读取、变更预览与原子写入。"""
+
+from __future__ import annotations
+
+import codecs
+import difflib
+import hashlib
+import os
+import stat
+import tempfile
+import threading
+from collections import OrderedDict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Sequence
+from uuid import uuid4
+
+MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
+MAX_DIFF_CHARS = 200_000
+
+
+class WorkspaceError(ValueError):
+    """工作区操作不满足路径、文本或编辑约束。"""
+
+
+class WorkspaceConflictError(WorkspaceError):
+    """文件状态与 Agent 读取时不一致，需要重新读取。"""
+
+
+@dataclass(frozen=True)
+class TextEdit:
+    old_text: str
+    new_text: str
+    replace_all: bool = False
+
+
+@dataclass(frozen=True)
+class TextSnapshot:
+    relative_path: str
+    absolute_path: Path
+    content: str
+    sha256: str
+    mode: int
+    newline: str
+    has_utf8_bom: bool
+
+
+@dataclass(frozen=True)
+class PreparedFileChange:
+    change_id: str
+    root: Path
+    relative_path: str
+    absolute_path: Path
+    kind: str
+    before_content: str | None
+    after_content: str
+    before_sha256: str | None
+    after_sha256: str
+    before_mode: int | None
+    newline: str
+    has_utf8_bom: bool
+    diff: str
+    additions: int
+    deletions: int
+
+    def event_data(self, status: str, message: str = "") -> dict:
+        return {
+            "change_id": self.change_id,
+            "path": self.relative_path,
+            "kind": self.kind,
+            "status": status,
+            "before_sha256": self.before_sha256,
+            "after_sha256": self.after_sha256,
+            "additions": self.additions,
+            "deletions": self.deletions,
+            "diff": self.diff,
+            "message": message,
+        }
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _newline_style(text: str) -> str:
+    if "\r\n" in text:
+        return "\r\n"
+    if "\r" in text:
+        return "\r"
+    return "\n"
+
+
+def _normalize_newlines(text: str, newline: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", newline)
+
+
+def _has_final_newline(text: str) -> bool:
+    return text.endswith(("\n", "\r"))
+
+
+def _preserve_final_newline(text: str, had_final_newline: bool, newline: str) -> str:
+    has_final_newline = _has_final_newline(text)
+    if had_final_newline and not has_final_newline:
+        return text + newline
+    if not had_final_newline and has_final_newline:
+        if text.endswith("\r\n"):
+            return text[:-2]
+        return text[:-1]
+    return text
+
+
+def _encode_text(text: str, has_utf8_bom: bool) -> bytes:
+    try:
+        encoded = text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise WorkspaceError("文本包含无法编码为 UTF-8 的字符") from exc
+    return codecs.BOM_UTF8 + encoded if has_utf8_bom else encoded
+
+
+def _unified_diff(relative_path: str, before: str | None, after: str) -> str:
+    before_lines = [] if before is None else before.splitlines(keepends=True)
+    after_lines = after.splitlines(keepends=True)
+    from_file = "/dev/null" if before is None else f"a/{relative_path}"
+    diff_lines = difflib.unified_diff(
+        before_lines,
+        after_lines,
+        fromfile=from_file,
+        tofile=f"b/{relative_path}",
+    )
+    diff = "".join(
+        line if line.endswith(("\n", "\r")) else line + "\n"
+        for line in diff_lines
+    )
+    if len(diff) > MAX_DIFF_CHARS:
+        return diff[:MAX_DIFF_CHARS] + "\n... diff 已截断 ...\n"
+    return diff
+
+
+def _diff_counts(diff: str) -> tuple[int, int]:
+    additions = 0
+    deletions = 0
+    for line in diff.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            additions += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            deletions += 1
+    return additions, deletions
+
+
+class WorkspaceService:
+    """把所有文本文件变更限制在单一工作目录内。"""
+
+    def __init__(self, root: str | os.PathLike[str], max_file_bytes: int = MAX_TEXT_FILE_BYTES):
+        root_path = Path(root).expanduser().resolve()
+        if not root_path.is_dir():
+            raise WorkspaceError(f"工作目录不存在或不是目录: {root_path}")
+        self.root = root_path
+        self.max_file_bytes = max_file_bytes
+
+    def resolve_path(self, relative_path: str) -> Path:
+        if not relative_path or "\x00" in relative_path:
+            raise WorkspaceError("文件路径不能为空或包含 NUL 字符")
+        requested = Path(relative_path)
+        if requested.is_absolute():
+            raise WorkspaceError("文件工具只接受相对工作目录的路径")
+
+        unresolved = self.root / requested
+        current = self.root
+        for part in requested.parts:
+            if part in ("", "."):
+                continue
+            current = current / part
+            if current.exists() and current.is_symlink():
+                raise WorkspaceError(f"不允许通过符号链接修改文件: {relative_path}")
+
+        resolved = unresolved.resolve(strict=False)
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise WorkspaceError(f"路径越过工作目录边界: {relative_path}") from exc
+        if resolved == self.root:
+            raise WorkspaceError("目标必须是工作目录内的文件")
+        return resolved
+
+    def _relative_label(self, absolute_path: Path) -> str:
+        return absolute_path.relative_to(self.root).as_posix()
+
+    def snapshot(self, relative_path: str) -> TextSnapshot:
+        absolute_path = self.resolve_path(relative_path)
+        if not absolute_path.exists():
+            raise WorkspaceError(f"文件不存在: {relative_path}")
+        if not absolute_path.is_file():
+            raise WorkspaceError(f"目标不是普通文件: {relative_path}")
+
+        raw = absolute_path.read_bytes()
+        if len(raw) > self.max_file_bytes:
+            raise WorkspaceError(
+                f"文件过大，拒绝作为文本编辑（{len(raw)} > {self.max_file_bytes} bytes）"
+            )
+        has_utf8_bom = raw.startswith(codecs.BOM_UTF8)
+        body = raw[len(codecs.BOM_UTF8):] if has_utf8_bom else raw
+        if b"\x00" in body:
+            raise WorkspaceError(f"目标看起来是二进制文件: {relative_path}")
+        try:
+            content = body.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise WorkspaceError(f"文件不是有效 UTF-8 文本: {relative_path}") from exc
+
+        return TextSnapshot(
+            relative_path=self._relative_label(absolute_path),
+            absolute_path=absolute_path,
+            content=content,
+            sha256=_sha256(raw),
+            mode=stat.S_IMODE(absolute_path.stat().st_mode),
+            newline=_newline_style(content),
+            has_utf8_bom=has_utf8_bom,
+        )
+
+    def read_text(
+        self,
+        relative_path: str,
+        start_line: int = 0,
+        end_line: int = -1,
+    ) -> tuple[TextSnapshot, str, int, int, int]:
+        snapshot = self.snapshot(relative_path)
+        lines = snapshot.content.splitlines(keepends=True)
+        total_lines = len(lines)
+        actual_start = min(max(start_line, 0), total_lines)
+        actual_end = total_lines if end_line == -1 else min(max(end_line, 0), total_lines)
+        if actual_start > actual_end:
+            raise WorkspaceError(f"切片范围无效: [{actual_start}:{actual_end}]")
+        return snapshot, "".join(lines[actual_start:actual_end]), total_lines, actual_start, actual_end
+
+    def prepare_edit(
+        self,
+        relative_path: str,
+        expected_sha256: str,
+        edits: Sequence[TextEdit],
+    ) -> PreparedFileChange:
+        if not edits:
+            raise WorkspaceError("至少需要一个文本编辑")
+        snapshot = self.snapshot(relative_path)
+        if expected_sha256 != snapshot.sha256:
+            raise WorkspaceConflictError(
+                f"文件已变化，请重新读取后再编辑；当前 sha256={snapshot.sha256}"
+            )
+
+        content = snapshot.content
+        had_final_newline = _has_final_newline(content)
+        for edit in edits:
+            old_text = _normalize_newlines(edit.old_text, snapshot.newline)
+            new_text = _normalize_newlines(edit.new_text, snapshot.newline)
+            if not old_text:
+                raise WorkspaceError("old_text 不能为空")
+            matches = content.count(old_text)
+            if matches == 0:
+                raise WorkspaceConflictError("old_text 未匹配，请重新读取目标文件")
+            if not edit.replace_all and matches != 1:
+                raise WorkspaceConflictError(
+                    f"old_text 匹配了 {matches} 次；请提供更精确的上下文或显式 replace_all"
+                )
+            content = content.replace(old_text, new_text, -1 if edit.replace_all else 1)
+
+        content = _preserve_final_newline(content, had_final_newline, snapshot.newline)
+        return self._prepare_change(snapshot, content)
+
+    def prepare_write(
+        self,
+        relative_path: str,
+        content: str,
+        expected_sha256: str,
+    ) -> PreparedFileChange:
+        absolute_path = self.resolve_path(relative_path)
+        if absolute_path.exists():
+            snapshot = self.snapshot(relative_path)
+            if expected_sha256 == "missing":
+                raise WorkspaceConflictError(
+                    f"文件已经存在，请先读取并传入 sha256={snapshot.sha256}"
+                )
+            if expected_sha256 != snapshot.sha256:
+                raise WorkspaceConflictError(
+                    f"文件已变化，请重新读取后再覆写；当前 sha256={snapshot.sha256}"
+                )
+            normalized = _normalize_newlines(content, snapshot.newline)
+            normalized = _preserve_final_newline(
+                normalized,
+                _has_final_newline(snapshot.content),
+                snapshot.newline,
+            )
+            return self._prepare_change(snapshot, normalized)
+
+        if expected_sha256 != "missing":
+            raise WorkspaceConflictError(
+                "文件不存在；新建文件时 expected_sha256 必须为 'missing'"
+            )
+        normalized = _normalize_newlines(content, "\n")
+        after_bytes = _encode_text(normalized, False)
+        self._check_output_size(after_bytes)
+        diff = _unified_diff(self._relative_label(absolute_path), None, normalized)
+        additions, deletions = _diff_counts(diff)
+        return PreparedFileChange(
+            change_id=uuid4().hex,
+            root=self.root,
+            relative_path=self._relative_label(absolute_path),
+            absolute_path=absolute_path,
+            kind="add",
+            before_content=None,
+            after_content=normalized,
+            before_sha256=None,
+            after_sha256=_sha256(after_bytes),
+            before_mode=None,
+            newline="\n",
+            has_utf8_bom=False,
+            diff=diff,
+            additions=additions,
+            deletions=deletions,
+        )
+
+    def _prepare_change(
+        self,
+        snapshot: TextSnapshot,
+        after_content: str,
+    ) -> PreparedFileChange:
+        if after_content == snapshot.content:
+            raise WorkspaceError("编辑没有产生任何变化")
+        after_bytes = _encode_text(after_content, snapshot.has_utf8_bom)
+        self._check_output_size(after_bytes)
+        diff = _unified_diff(snapshot.relative_path, snapshot.content, after_content)
+        additions, deletions = _diff_counts(diff)
+        return PreparedFileChange(
+            change_id=uuid4().hex,
+            root=self.root,
+            relative_path=snapshot.relative_path,
+            absolute_path=snapshot.absolute_path,
+            kind="update",
+            before_content=snapshot.content,
+            after_content=after_content,
+            before_sha256=snapshot.sha256,
+            after_sha256=_sha256(after_bytes),
+            before_mode=snapshot.mode,
+            newline=snapshot.newline,
+            has_utf8_bom=snapshot.has_utf8_bom,
+            diff=diff,
+            additions=additions,
+            deletions=deletions,
+        )
+
+    def _check_output_size(self, payload: bytes) -> None:
+        if len(payload) > self.max_file_bytes:
+            raise WorkspaceError(
+                f"编辑结果过大，拒绝写入（{len(payload)} > {self.max_file_bytes} bytes）"
+            )
+
+    def _assert_precondition(self, change: PreparedFileChange) -> None:
+        if change.before_sha256 is None:
+            if change.absolute_path.exists():
+                raise WorkspaceConflictError("文件在审批期间已被创建，请重新读取")
+            return
+
+        current = self.snapshot(change.relative_path)
+        if current.sha256 != change.before_sha256:
+            raise WorkspaceConflictError(
+                f"文件在审批期间已变化；当前 sha256={current.sha256}"
+            )
+
+    def apply(self, change: PreparedFileChange) -> None:
+        if change.root != self.root:
+            raise WorkspaceError("变更不属于当前工作目录")
+        absolute_path = self.resolve_path(change.relative_path)
+        if absolute_path != change.absolute_path:
+            raise WorkspaceConflictError("目标路径在审批期间发生变化")
+
+        self._assert_precondition(change)
+
+        parent = absolute_path.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        try:
+            parent.resolve().relative_to(self.root)
+        except ValueError as exc:
+            raise WorkspaceConflictError("父目录在审批期间越过工作区边界") from exc
+
+        payload = _encode_text(change.after_content, change.has_utf8_bom)
+        temp_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix=".cloudra-edit-",
+                dir=parent,
+                delete=False,
+            ) as temp_file:
+                temp_path = temp_file.name
+                temp_file.write(payload)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.chmod(temp_path, change.before_mode if change.before_mode is not None else 0o644)
+            # 临时文件写入可能耗时；替换前再检查一次，缩小覆盖并发用户编辑的窗口。
+            self._assert_precondition(change)
+            os.replace(temp_path, absolute_path)
+            temp_path = None
+            if hasattr(os, "O_DIRECTORY"):
+                try:
+                    directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        os.fsync(directory_fd)
+                    finally:
+                        os.close(directory_fd)
+                except OSError:
+                    # 替换本身已经完成；部分文件系统不支持目录 fsync。
+                    pass
+        finally:
+            if temp_path is not None:
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
+
+
+class TurnDiffTracker:
+    """按 Session 保存首次触碰快照，并生成不混入用户旧改动的聚合 diff。"""
+
+    def __init__(self, max_sessions: int = 128):
+        self.max_sessions = max_sessions
+        self._lock = threading.Lock()
+        self._bases: OrderedDict[tuple[str, str], dict[str, str | None]] = OrderedDict()
+
+    def record_applied(
+        self,
+        session_key: str,
+        service: WorkspaceService,
+        change: PreparedFileChange,
+    ) -> str:
+        key = (str(service.root), session_key)
+        with self._lock:
+            if key not in self._bases and len(self._bases) >= self.max_sessions:
+                self._bases.popitem(last=False)
+            bases = self._bases.setdefault(key, {})
+            bases.setdefault(change.relative_path, change.before_content)
+            self._bases.move_to_end(key)
+            snapshot_bases = dict(bases)
+
+        parts: list[str] = []
+        for relative_path, before_content in sorted(snapshot_bases.items()):
+            try:
+                current_content = service.snapshot(relative_path).content
+            except WorkspaceError:
+                current_content = ""
+            diff = _unified_diff(relative_path, before_content, current_content)
+            if diff:
+                parts.append(diff)
+        aggregate = "".join(parts)
+        if len(aggregate) > MAX_DIFF_CHARS:
+            return aggregate[:MAX_DIFF_CHARS] + "\n... 本轮 diff 已截断 ...\n"
+        return aggregate
+
+
+turn_diff_tracker = TurnDiffTracker()

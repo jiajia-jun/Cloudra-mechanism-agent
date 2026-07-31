@@ -218,6 +218,7 @@ class Supervisor:
         user_goal: str,
         timeline_summary: str,
         cases: list[dict],
+        goal_anchor: str = "",
     ) -> str:
         """构造 Supervisor 的调用 prompt。"""
         case_texts = []
@@ -229,6 +230,11 @@ class Supervisor:
             )
 
         cases_block = "\n".join(case_texts) if case_texts else "（暂无相关历史经验）"
+        goal_block = (
+            f"任务目标锚点（Agent 自行设定，含完成判据，作为主要审查基准）：\n{goal_anchor}\n\n"
+            if goal_anchor
+            else ""
+        )
 
         prompt = (
             "你是 Cloudra 的科学督导导师。你的职责是监督 AI 研究助手是否在战略方向上走偏。\n"
@@ -236,15 +242,17 @@ class Supervisor:
             "审查原则：\n"
             "1. 不要指出具体语法错误或工具 bug；\n"
             "2. 不要给出逐步操作指令；\n"
-            "3. 关注助手是否：\n"
-            "   - 在信息不充分时就开始执行复杂操作；\n"
-            "   - 在研究一个别人已经做过、可以通过文献/数据库查到的 idea；\n"
-            "   - 偏离用户原始目标；\n"
-            "   - 遗漏关键前置步骤（如文献调研、机理确认）。\n"
-            "4. 给出 verdict 和 1-3 条高层次方向建议。\n"
+            "3. 默认 proceed：只有方向明显偏离目标、或继续下去会浪费大量资源时，\n"
+            "   才给出 pause_and_reflect / redirect；拿不准时不要干预。\n"
+            "4. 关注助手是否：\n"
+            "   - 偏离了目标锚点/用户原始目标；\n"
+            "   - 在关键信息缺失时推进高风险步骤；\n"
+            "   - 重复做已有现成答案的工作。\n"
+            "5. 给出 verdict 和 1-3 条高层次方向建议。\n"
             "\n"
             f"用户原始目标：{user_goal}\n"
             "\n"
+            f"{goal_block}"
             f"近期行为时间线：\n{timeline_summary}\n"
             "\n"
             f"相关历史经验：\n{cases_block}\n"
@@ -263,6 +271,7 @@ class Supervisor:
         user_goal: str,
         messages: list[dict],
         cases: Optional[list[dict]] = None,
+        goal_anchor: str = "",
     ) -> SupervisorReview:
         """执行一次战略审查。
 
@@ -270,6 +279,8 @@ class Supervisor:
             user_goal: 用户原始目标。
             messages: 当前 Agent 的完整上下文消息列表。
             cases: 可选的 case bank 列表，每个 case 应包含 embedding 字段。
+            goal_anchor: Agent 通过 goal_set 设定的目标锚点（含完成判据），
+                有锚点时以其为主要审查基准，user_goal 作为背景。
 
         Returns:
             SupervisorReview 对象。
@@ -282,7 +293,7 @@ class Supervisor:
             k=3,
         )
 
-        prompt = self.build_prompt(user_goal, timeline_summary, relevant_cases)
+        prompt = self.build_prompt(user_goal, timeline_summary, relevant_cases, goal_anchor=goal_anchor)
 
         data, error = await self._get_client().chat_json(
             SUPERVISOR_SYSTEM_PROMPT,

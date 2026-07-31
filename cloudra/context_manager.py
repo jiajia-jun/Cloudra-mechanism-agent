@@ -52,6 +52,10 @@ def _db_path(conversation_id: Optional[str] = None) -> str:
 # Supervisor 建议消息在上下文中的标记，用于定位更新
 SUPERVISOR_ADVICE_MARKER = "[Supervisor]"
 
+# 压缩梗概消息的内容前缀：持久化压缩与手动 compact 共用，
+# 用于在下一轮压缩时识别旧梗概并折叠进新梗概（避免梗概无限累积）。
+COMPACT_SUMMARY_MARKER = "[上下文压缩提示]"
+
 
 class ContextManager:
     """管理单个 Agent 的上下文生命周期与外部事件注入。"""
@@ -60,13 +64,14 @@ class ContextManager:
         self,
         agent_id: str,
         conversation_id: str,
-        prompt: str,
+        prompt: Optional[str],
         query: str,
         db_path: Optional[str] = None,
         session_id: Optional[str] = None,
     ):
         self.agent_id = agent_id
         self.conversation_id = conversation_id or 'default'
+        # 仅作为直接使用 ContextManager 时的动态身份层兼容入口；不会持久化。
         self.prompt = prompt
         self.query = query
         self.session_id = session_id
@@ -80,11 +85,38 @@ class ContextManager:
         self._llm_client: Optional[LLMClient] = None
 
     def _initial_context(self) -> list:
-        """构造初始上下文：system prompt + user query。"""
-        return [
-            {"role": "system", "content": self.prompt},
-            {"role": "user", "content": self.query},
-        ]
+        """构造可持久化历史；身份 system prompt 由请求期 assembler 提供。
+
+        query 为空时（状态展示等只读用途构造的 ContextManager）不能落一条
+        空 user 消息——它会留在历史里，导致后续 LLM 请求被严格端点以
+        "user message must not be empty" 拒绝（400）。
+        """
+        if not self.query:
+            return []
+        return [{"role": "user", "content": self.query}]
+
+    @staticmethod
+    def _is_legacy_identity_message(context: list) -> bool:
+        """识别旧格式首条 identity system message。"""
+        if len(context) < 2:
+            return False
+        first, second = context[0], context[1]
+        if first.get("role") != "system" or second.get("role") != "user":
+            return False
+        content = first.get("content", "")
+        if not isinstance(content, str):
+            return False
+        return not (
+            content.startswith(SUPERVISOR_ADVICE_MARKER)
+            or content.startswith("[上下文压缩提示]")
+        )
+
+    async def _migrate_legacy_identity(self, context: list) -> list:
+        if not self._is_legacy_identity_message(context):
+            return context
+        migrated = context[1:]
+        await self.replace(migrated)
+        return migrated
 
     async def load(self) -> list:
         """加载上下文；若文件不存在则初始化并保存。
@@ -98,7 +130,7 @@ class ContextManager:
             try:
                 with open(self.context_file, 'r', encoding='utf-8') as f:
                     self._context_cache = json.load(f)
-                    return self._context_cache
+                return await self._migrate_legacy_identity(self._context_cache)
             except json.JSONDecodeError as e:
                 # 文件损坏时回退到初始上下文，避免直接崩溃
                 print(f"[ContextManager] 上下文文件解析失败，已重置: {self.context_file}, 错误: {e}")
@@ -136,9 +168,8 @@ class ContextManager:
     async def set_supervisor_advice(self, advice_text: str) -> None:
         """设置/更新 Supervisor 建议。
 
-        Supervisor 建议位于身份层（system prompt）和 query 层（user query）之下，
-        事件层/对话历史之上，即上下文列表的第 2 个位置（索引 2）。
-        如果已存在 Supervisor 建议，则替换；否则在索引 2 处插入。
+        Supervisor 建议位于初始 query 之后、事件层/对话历史之前。
+        如果已存在 Supervisor 建议，则替换；否则紧跟初始 query 插入。
         """
         context = await self.load()
         # 包装时附上引导语：提醒模型在后续决策中优先参考 Supervisor 的意见
@@ -163,8 +194,8 @@ class ContextManager:
         if existing_idx is not None:
             context[existing_idx] = advice_msg
         else:
-            # 插入到索引 2：system prompt (0) + user query (1) 之后
-            insert_idx = min(2, len(context))
+            # 身份 prompt 不持久化；初始 query 通常位于索引 0。
+            insert_idx = 1 if context and context[0].get("role") == "user" else 0
             context.insert(insert_idx, advice_msg)
 
         await self.replace(context)
@@ -201,6 +232,8 @@ class ContextManager:
         supports_vision: bool = False,
         vision_history_limit: int = 10,
         max_context_tokens: Optional[int] = None,
+        identity_messages: Optional[list[dict]] = None,
+        _persistent_compress_attempted: bool = False,
     ) -> list[dict]:
         """把原始上下文渲染成可直接发送给 LLM 的消息列表。
 
@@ -210,11 +243,19 @@ class ContextManager:
         为了控制上下文体积：
         1. 只有最近 ``vision_history_limit`` 轮用户消息中的图片会被保留为多模态
            内容；更早的图片会被降级为文本占位符（保留路径/描述）。
-        2. 如果渲染后的总 token 数超过 ``max_context_tokens``，则仅压缩历史消息
-           （最近 10 条 assistant 消息之前的内容）。system prompt 和最近 10 轮
-           对话始终被保留。
+        2. 如果渲染后的总 token 数超过 ``max_context_tokens``，先做一次持久化压缩
+           （历史梗概写回上下文存储，后续轮次不再重复摘要整段历史）；
+           仍超预算时再退回 render-time 压缩（仅作用于当次请求的副本）。
+           system prompt 和最近 10 轮对话始终被保留。
         """
-        raw_context = await self.load()
+        history = await self.load()
+        if identity_messages is None:
+            identity_messages = (
+                [{"role": "system", "content": self.prompt}]
+                if self.prompt is not None
+                else []
+            )
+        raw_context = [dict(message) for message in identity_messages] + list(history)
 
         # 计算需要保留多模态图片的消息索引：最近 N 条 user 消息
         user_indices = [
@@ -236,11 +277,26 @@ class ContextManager:
         ]
 
         rendered = self._drop_empty_assistant_messages(rendered)
+        rendered = self._drop_empty_user_messages(rendered)
         rendered = self._repair_dangling_tool_calls(rendered)
         rendered = self._cap_message_sizes(rendered)
 
         if max_context_tokens is None:
             return rendered
+
+        if (
+            TokenEstimator.estimate_messages(rendered) > max_context_tokens
+            and not _persistent_compress_attempted
+            and await self._compress_persistent()
+        ):
+            # 持久化压缩生效后从存储重渲染；标记避免同一次请求重复压缩
+            return await self.build_messages(
+                supports_vision=supports_vision,
+                vision_history_limit=vision_history_limit,
+                max_context_tokens=max_context_tokens,
+                identity_messages=identity_messages,
+                _persistent_compress_attempted=True,
+            )
 
         return await self._compress_to_budget(
             rendered,
@@ -378,6 +434,40 @@ class ContextManager:
         return cleaned
 
     @staticmethod
+    def _drop_empty_user_messages(messages: list[dict]) -> list[dict]:
+        """过滤掉 user 角色的空消息。
+
+        严格端点（如 kimi-for-coding）会以 400 拒绝 content 为空的 user 消息
+        ("must not be empty")。空 user 消息没有语义价值——历史上曾由只读
+        ContextManager（query=""）意外持久化——直接在请求期丢弃。
+        带图片等多模态部分的 user 消息视为非空。
+        """
+        cleaned = []
+        for msg in messages:
+            if msg.get("role") != "user":
+                cleaned.append(msg)
+                continue
+            content = msg.get("content")
+            if content is None:
+                continue
+            if isinstance(content, str):
+                if content.strip():
+                    cleaned.append(msg)
+                continue
+            if isinstance(content, list):
+                has_parts = any(
+                    (isinstance(part, dict) and part.get("type") == "image_url")
+                    or (isinstance(part, dict) and str(part.get("text", "")).strip())
+                    for part in content
+                )
+                if has_parts:
+                    cleaned.append(msg)
+                continue
+            cleaned.append(msg)
+
+        return cleaned
+
+    @staticmethod
     def _repair_dangling_tool_calls(messages: list[dict]) -> list[dict]:
         """修补悬挂的 tool_calls。
 
@@ -506,6 +596,71 @@ class ContextManager:
         summary = response.choices[0].message.content
         return summary.strip() if summary else "[历史消息过长，未能生成有效梗概]"
 
+    async def _compress_persistent(self) -> bool:
+        """超预算时先做持久化压缩：把历史梗概一次性写回上下文存储。
+
+        旧的 render-time 压缩（_compress_to_budget）只作用于当次请求的消息副本，
+        导致超预算期间每一轮推理都要对整段历史重新做一次 LLM 摘要——每轮摘要
+        内容都不同（KV cache 全灭），延迟与花费随任务长度线性恶化。这里把梗概
+        写回存储，后续轮次从压缩后的上下文出发，只有再次长到超预算时才触发
+        下一次摘要（天然增量）；旧的梗概会被折叠进新梗概，不会无限累积。
+
+        返回是否发生了持久化压缩（无可压缩历史或梗概生成失败时为 False，
+        调用方退回 render-time 压缩兜底）。
+        """
+        context = await self.load()
+
+        # 可压缩内容 = 非 system 消息 + 旧的压缩梗概（折叠进新梗概）；
+        # 其余 system 消息（Supervisor 建议等）原样保留在前面。
+        pinned_system: list[dict] = []
+        compressible: list[dict] = []
+        for msg in context:
+            content = msg.get("content", "")
+            is_summary = (
+                msg.get("role") == "system"
+                and isinstance(content, str)
+                and content.startswith(COMPACT_SUMMARY_MARKER)
+            )
+            if msg.get("role") == "system" and not is_summary:
+                pinned_system.append(msg)
+            else:
+                compressible.append(msg)
+
+        # 与 _compress_to_budget 相同的规则：最近 10 条 assistant 为 tail 原样保留
+        tail_count = 0
+        assistant_seen = 0
+        for msg in reversed(compressible):
+            tail_count += 1
+            if msg.get("role") == "assistant":
+                assistant_seen += 1
+            if assistant_seen >= 10:
+                break
+
+        tail = compressible[-tail_count:] if tail_count else []
+        history = compressible[:-tail_count] if tail_count else compressible
+        if not history:
+            return False
+
+        try:
+            summary = await self._summarize_history(history)
+        except Exception as e:
+            print(
+                f"\033[93m[ContextManager]\033[0m 持久化压缩的梗概生成失败，"
+                f"退回 render-time 压缩: {e}"
+            )
+            return False
+
+        summary_msg = {
+            "role": "system",
+            "content": (
+                f"{COMPACT_SUMMARY_MARKER} 以下是由历史对话生成的梗概，"
+                "保留了关键任务状态、结论和文件路径：\n\n"
+                f"{summary}"
+            ),
+        }
+        await self.replace(pinned_system + [summary_msg] + tail)
+        return True
+
     async def _compress_to_budget(
         self,
         messages: list[dict],
@@ -562,7 +717,7 @@ class ContextManager:
         summary_msg = {
             "role": "system",
             "content": (
-                "[上下文压缩提示] 以下是由历史对话生成的梗概，"
+                f"{COMPACT_SUMMARY_MARKER} 以下是由历史对话生成的梗概，"
                 "保留了关键任务状态、结论和文件路径：\n\n"
                 f"{summary}"
             ),
@@ -578,6 +733,58 @@ class ContextManager:
             f"{max_context_tokens} token 预算，本次请求保留完整上下文。"
         )
         return messages
+
+    async def compact(self, keep_recent: int = 4) -> dict:
+        """手动压缩持久化上下文。
+
+        保留最近 ``keep_recent`` 条消息原样不变，将其余历史通过 FOLLOWER 配置的
+        大模型生成一段梗概，并以 system 消息形式替换到上下文开头。压缩后的上下文
+        会在后续 ``build_messages`` 时正常参与渲染。
+
+        Args:
+            keep_recent: 保留的最近消息条数，必须 >= 1，默认 4。
+
+        Returns:
+            统计字典，包含 ``original_count``、``new_count``、
+            ``summary_length``、``compressed``、可选 ``reason``。
+        """
+        if keep_recent < 1:
+            raise ValueError("keep_recent 必须 >= 1")
+
+        context = await self.load()
+        original_count = len(context)
+
+        if original_count <= keep_recent:
+            return {
+                "original_count": original_count,
+                "new_count": original_count,
+                "summary_length": 0,
+                "compressed": False,
+                "reason": f"上下文仅 {original_count} 条消息，未超过保留窗口 {keep_recent} 条",
+            }
+
+        history = context[:-keep_recent]
+        tail = context[-keep_recent:]
+
+        summary = await self._summarize_history(history)
+
+        summary_msg = {
+            "role": "system",
+            "content": (
+                f"{COMPACT_SUMMARY_MARKER} 以下是由历史对话生成的梗概，"
+                "保留了关键任务状态、结论和文件路径：\n\n"
+                f"{summary}"
+            ),
+        }
+        new_context = [summary_msg] + list(tail)
+        await self.replace(new_context)
+
+        return {
+            "original_count": original_count,
+            "new_count": len(new_context),
+            "summary_length": len(summary),
+            "compressed": True,
+        }
 
     async def clear(self) -> None:
         """清空上下文文件（用于任务结束后释放上下文）。"""

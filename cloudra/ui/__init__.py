@@ -19,4 +19,8 @@ def run_gui() -> None:
 
     from cloudra.ui.app import main
 
-    ft.app(target=main)
+    runner = getattr(ft, "run", None)
+    if runner is not None:
+        runner(main)
+    else:  # pragma: no cover - compatibility with older Flet releases
+        ft.app(target=main)

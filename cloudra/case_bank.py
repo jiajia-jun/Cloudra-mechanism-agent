@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 import time
 from pathlib import Path
@@ -37,16 +38,22 @@ class CaseBank:
         """确保数据库所在目录存在。"""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
 
+    @contextlib.contextmanager
     def connect(self, timeout: float = 30.0):
-        """返回同步 SQLite 连接（WAL 模式）。"""
+        """返回退出时显式关闭的同步 SQLite 连接上下文（WAL 模式）。"""
         self._ensure_dir()
         con = sqlite3.connect(self.db_path, timeout=timeout)
-        cur = con.cursor()
-        cur.execute("PRAGMA journal_mode=WAL;")
-        cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
-        cur.execute("PRAGMA synchronous=NORMAL;")
-        con.commit()
-        return con
+        try:
+            cur = con.cursor()
+            cur.execute("PRAGMA journal_mode=WAL;")
+            cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            con.commit()
+            # 保留 sqlite3.Connection 原有的提交/回滚上下文语义。
+            with con:
+                yield con
+        finally:
+            con.close()
 
     def aconnect(self, timeout: float = 30.0):
         """返回异步 SQLite 连接上下文。"""

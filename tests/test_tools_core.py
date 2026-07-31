@@ -1,6 +1,46 @@
+import ast
+from pathlib import Path
+
 import pytest
 
+from cloudra.subagents.registry import SUBAGENT_REGISTRY
 from cloudra.tools import get_tools_lst
+from cloudra.tools.registry import TOOL_REGISTRY
+
+
+def _modules_with_get_class(package_dir: Path) -> set[str]:
+    project_root = package_dir.parents[1]
+    modules = set()
+    for source_file in package_dir.rglob("*.py"):
+        tree = ast.parse(source_file.read_text(encoding="utf-8"))
+        if any(
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "get_class"
+            for node in tree.body
+        ):
+            relative = source_file.relative_to(project_root).with_suffix("")
+            modules.add(".".join(relative.parts))
+    return modules
+
+
+def test_explicit_builtin_registries_are_complete_and_unique():
+    tool_targets = [(entry.module, entry.class_name) for entry in TOOL_REGISTRY]
+    subagent_ids = [entry.agent_id for entry in SUBAGENT_REGISTRY]
+    subagent_targets = [
+        (entry.module, entry.class_name) for entry in SUBAGENT_REGISTRY
+    ]
+
+    assert len(tool_targets) == len(set(tool_targets))
+    assert len(subagent_ids) == len(set(subagent_ids))
+    assert len(subagent_targets) == len(set(subagent_targets))
+
+    project_root = Path(__file__).resolve().parents[1]
+    assert {target[0] for target in tool_targets} == _modules_with_get_class(
+        project_root / "cloudra" / "tools"
+    )
+    assert {target[0] for target in subagent_targets} == _modules_with_get_class(
+        project_root / "cloudra" / "subagents"
+    )
 
 
 def test_tool_loading():
@@ -8,10 +48,35 @@ def test_tool_loading():
     tools = get_tools_lst()
     assert len(tools) > 0
     assert any(t.tool_name == 'bashtools' for t in tools)
+    assert any(t.tool_name == 'edit_file' for t in tools)
 
     # 测试缓存
     tools_again = get_tools_lst()
     assert tools is tools_again
+
+
+def test_skill_loader_cache_invalidates_when_manifest_changes(
+    tmp_path,
+    monkeypatch,
+):
+    from cloudra import skill_class
+
+    skills = tmp_path / "skills"
+    skill_file = skills / "live" / "SKILL.md"
+    skill_file.parent.mkdir(parents=True)
+    skill_file.write_text(
+        "---\nname: live\ndescription: v1\n---\ncontent-v1",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(skill_class.skill_loader, "base_path", str(skills))
+    skill_class._SKILL_DATAS_CACHE.clear()
+
+    assert skill_class.skill_loader().get_content("live") == "content-v1"
+    skill_file.write_text(
+        "---\nname: live\ndescription: v2\n---\ncontent-v2",
+        encoding="utf-8",
+    )
+    assert skill_class.skill_loader().get_content("live") == "content-v2"
 
 @pytest.mark.asyncio
 async def test_bashtools_permission():
@@ -30,12 +95,21 @@ def test_text_writer_schema():
     tool = TextWriter()
 
     # 正确参数
-    input_data = TextWriter_input_schema(filepath="/tmp/test.txt", content="hello")
-    assert input_data.filepath == "/tmp/test.txt"
+    input_data = TextWriter_input_schema(filepath="test.txt", content="hello")
+    assert input_data.filepath == "test.txt"
+    assert input_data.expected_sha256 == "missing"
 
     # 验证 tool 属性
     assert tool.tool_name == 'text_writer'
     assert tool.is_write() is True
+
+
+def test_edit_file_schema_keeps_nested_operation_definition():
+    from cloudra.tools.Writetool.edit_file import EditFile_input_schema
+
+    parameters = EditFile_input_schema.to_parameters_schema()
+    assert parameters["properties"]["edits"]["items"]["$ref"] == "#/$defs/EditOperation"
+    assert parameters["$defs"]["EditOperation"]["additionalProperties"] is False
 
 
 def test_text_writer_multiline_parsing():
@@ -45,7 +119,7 @@ def test_text_writer_multiline_parsing():
     from cloudra.tools.Writetool.text_writer import TextWriter_input_schema
 
     # 模拟 LLM 生成的 arguments 中直接包含换行符（未转义）
-    raw_args = '{"filepath": "/tmp/multi.txt", "content": "line1\nline2\nline3"}'
+    raw_args = '{"filepath": "multi.txt", "content": "line1\nline2\nline3"}'
     parsed = json.loads(raw_args, strict=False)
     input_data = TextWriter_input_schema(**parsed)
     assert input_data.content == "line1\nline2\nline3"

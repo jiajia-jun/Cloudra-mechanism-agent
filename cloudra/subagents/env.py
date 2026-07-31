@@ -1,11 +1,11 @@
-from cloudra.agent import Follower, load_prompt
+from cloudra.agent import Follower
 
 
-class coder(Follower):
-    id: str = 'a-6'
-    name: str = 'coder'
+class env(Follower):
+    id: str = 'a-8'
+    name: str = 'env'
     type: str = 'follower'
-    prompt: str = load_prompt('coder')
+    prompt_name: str = 'env'
 
     def has_read_permission(self) -> bool:
         return True
@@ -17,8 +17,8 @@ class coder(Follower):
         return True
 
     def destructive_permission(self) -> bool:
-        return False
+        return True
 
 
 def get_class():
-    return coder
+    return env

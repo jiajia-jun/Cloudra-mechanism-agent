@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### 新增
+- **子 Agent 领域化名册**：角色从按权限划分改为按科研领域划分——`explorer`（探索+审查）、`writer`（论文写作）、`researcher`（文献）、`small_mol`（小分子量化）、`md`（分子动力学）、`dft`（第一性原理）、`experiment`（实验设计）、`env`（环境管理），删除 visionary/operator/coder。权限简化：explorer 只读、writer 读写、其余全权限，危险操作统一走审批流。
+- **领域 prompt 方法论**：计算类 prompt 确立"数据可靠性第一准则"（与可靠参照不一致且无法解释 = 错误数据），教 SOP 与翻车直觉而非知识清单，起手经 `getskill` 加载对应 skill。
+- **AgentHub（agent 论坛）**：新增 `hub_posts` 表（schema v6）与 `agent_hub` 工具（post/browse/read/search，支持问答串），并行子 Agent 经共享 SQLite 跨进程交换发现；只读 Agent 亦可发帖。
+- **通用网页搜索**：新增 `web_search` 工具，后端链 Tavily / Brave（需 key）→ Bing / DuckDuckGo（免 key）自动 fallback，与 `web_fetcher` 组成"摘要筛选→全文抓取"两段式。
+- **规划工具**：`todo_write`（多步任务清单，in_progress 唯一）与 `goal_set`（目标锚点，压缩后仍固定在上下文）。
+- **Textual 全屏 TUI**：`cloudra/tui/` 重构为全屏应用——对话式消息渲染、会话（conversation）切换、主/子 Agent 上下文分屏查看与用户介入、绿/黄主题、"Cloudra Research System"横幅。
+- **harness 加固**：context_window/timeout 进配置（废除硬编码）；工具参数校验失败回喂 LLM；LLM 传输层超时与状态事件；bashtools 返回 exit_code 且超长输出首尾截断；主循环死循环检测与步数预算；上下文压缩梗概持久化。
+
+### 变更
+- **`chemrxiv_searcher` 更名 `openalex_searcher`**：如实反映其实际检索 OpenAlex 全库（从未过滤 ChemRxiv）；Android 工具白名单与文档同步。
+- **工具描述统一改写**：全部工具描述改为"功能/适用/不适用（改用谁）/关键纪律"结构，补齐工具间分工边界（搜索链路、PDF 链路、文件修改链路、计算流水线）。
+- CLI 横幅版本号改为读取 `cloudra.__version__`，与 `pyproject.toml` 统一（2.0.0-beta）。
+
 ### 修复
 - **YOLO 审批不返回 tool_call**：YoloGuard 遇到模型未返回 `submit_approval_decision` tool_call（或参数无法解析）时，不再把 "未返回 tool_call" 这类内部实现错误作为拒绝原因抛给主 Agent，而是在 Guard 内部打印告警、纠正模型并重试（最多 3 次）；耗尽后按默认安全策略拒绝，返回给主 Agent 的是不含实现细节的中性原因。
 

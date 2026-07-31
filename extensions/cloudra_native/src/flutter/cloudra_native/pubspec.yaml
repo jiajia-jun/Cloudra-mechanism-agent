@@ -1,0 +1,20 @@
+name: cloudra_native
+description: Cloudra Android Keystore, foreground runtime, SAF and intent bridge.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flet: 0.86.3
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: io.github.yyywaa.cloudra_native
+        pluginClass: CloudraNativePlugin

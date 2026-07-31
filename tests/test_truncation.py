@@ -1,5 +1,6 @@
 """输出被 max_tokens 截断的处理：检测、收敛重试、明确 failed（不落错误答案）。"""
 
+import json
 import sqlite3
 import types
 
@@ -61,6 +62,36 @@ class _TC:
 
 @pytest.mark.asyncio
 class TestTruncation:
+    async def test_failed_transport_still_records_request_diagnostics(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        react, db_path = _make_react(tmp_path, monkeypatch)
+
+        async def failed_llm_call():
+            react.agent._last_request_diagnostics = {
+                "trace_id": "llm_failed",
+                "prompt_revision": "sha256:prompt",
+                "tool_names": ["text_reader"],
+            }
+            raise RuntimeError("network down")
+
+        object.__setattr__(react.agent, "llm_call", failed_llm_call)
+        with pytest.raises(RuntimeError, match="network down"):
+            await react._reasoning_once()
+
+        with sqlite3.connect(db_path) as connection:
+            row = connection.execute(
+                """SELECT data FROM session_events
+                WHERE session_id=? AND event_type='llm_request_diagnostics'""",
+                (react.session.id,),
+            ).fetchone()
+        assert row is not None
+        diagnostics = json.loads(row[0])
+        assert diagnostics["trace_id"] == "llm_failed"
+        assert diagnostics["request_state"] == "transport_error"
+
     async def test_retry_then_fail_marks_failed(self, tmp_path, monkeypatch):
         from cloudra.react import LLMOutputTruncated
 

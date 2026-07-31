@@ -284,15 +284,14 @@ async def test_context_manager_load_and_append(isolated_db):
     )
 
     ctx = await cm.load()
-    assert len(ctx) == 2
-    assert ctx[0]["role"] == "system"
-    assert ctx[1]["role"] == "user"
-    assert ctx[1]["content"] == "hello"
+    assert len(ctx) == 1
+    assert ctx[0]["role"] == "user"
+    assert ctx[0]["content"] == "hello"
 
     await cm.append({"role": "assistant", "content": "hi there"})
     ctx = await cm.load()
-    assert len(ctx) == 3
-    assert ctx[2]["content"] == "hi there"
+    assert len(ctx) == 2
+    assert ctx[1]["content"] == "hi there"
 
 
 @pytest.mark.asyncio
@@ -367,11 +366,10 @@ async def test_context_manager_session_isolation(isolated_db):
     )
     ctx2 = await cm2.load()
 
-    # ctx2 应该是初始上下文 [system, user query]，不包含 task 1 的消息
-    assert len(ctx2) == 2
-    assert ctx2[0]["role"] == "system"
-    assert ctx2[1]["role"] == "user"
-    assert ctx2[1]["content"] == "task 2"
+    # 身份层不持久化；ctx2 只含自己的初始 query，不含 task 1 的消息。
+    assert len(ctx2) == 1
+    assert ctx2[0]["role"] == "user"
+    assert ctx2[0]["content"] == "task 2"
     assert not any("task 1" in str(msg.get("content", "")) for msg in ctx2)
 
 

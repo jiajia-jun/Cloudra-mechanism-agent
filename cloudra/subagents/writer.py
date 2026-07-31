@@ -1,11 +1,11 @@
-from cloudra.agent import Follower, load_prompt
+from cloudra.agent import Follower
 
 
 class writer(Follower):
     id: str = 'a-2'
     name: str = 'writer'
     type: str = 'follower'
-    prompt: str = load_prompt('writer')
+    prompt_name: str = 'writer'
 
     def has_read_permission(self) -> bool:
         return True
@@ -17,7 +17,7 @@ class writer(Follower):
         return False
 
     def destructive_permission(self) -> bool:
-        return True
+        return False
 
 
 def get_class():

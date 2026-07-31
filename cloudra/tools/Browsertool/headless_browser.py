@@ -11,9 +11,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "使用无头浏览器（Playwright Chromium）访问指定 URL，获取渲染后的页面文本、标题或截图。"
-    "适用于需要执行 JavaScript 才能看到内容的动态网页。"
-    "如果浏览器环境未就绪，会降级为静态 HTTP 抓取。"
+    "使用无头浏览器（Playwright Chromium）访问指定 URL，获取渲染后的页面文本、标题或截图；"
+    "浏览器环境未就绪时降级为静态 HTTP 抓取。"
+    "适用：必须执行 JavaScript 才能看到内容的动态网页、SPA 页面，或需要整页截图的场景。"
+    "不适用：普通静态网页抓取和文件下载（用 web_fetcher 更快）、按关键词检索（用 web_search/paper_searcher）。"
 )
 
 

@@ -65,7 +65,11 @@ class GetSkill(Tool):
             skill_metadata_str += skill_str
 
         self.tool_description = f'''
-        通过这个工具获取skills。以下是你能够调用的skills:
+        加载指定 skill 的完整操作规范（SOP）。skill 是领域知识与工作流程的载体：
+        开始任何有对应 skill 的任务（如 dft 计算、分子动力学、论文写作、文献检索）之前，
+        必须先调用本工具加载对应 skill，并严格按其中的流程、完成判据与注意事项执行。
+        当 skill 内容提到 references 时，用 other 参数传入 ref 名字继续读取对应参考文件。
+        以下是你能够调用的 skills:
         {skill_metadata_str}
         '''
 

@@ -15,9 +15,11 @@ class Color:
 
 
 def print_banner() -> None:
+    from cloudra import __version__
+
     print(f"{Color.BLUE}{Color.BOLD}")
     print("  Cloudra - AI 化学科研助手")
-    print(f"  版本: v1.8.0{Color.END}")
+    print(f"  版本: v{__version__}{Color.END}")
     print("-" * 45)
 
 

@@ -4,13 +4,15 @@ AI Agent collaboration framework for chemical research.
 
 [中文版](README_CN.md)
 
+> **Status note**: only the terminal TUI (Textual, `cloudra` / `cloudra run`) is actively tested and recommended at this stage. The Flet GUI (Windows/Android) ships in this repo but is **not currently tested** — do not rely on it for real work yet.
+
 ## Highlights
 
 - **Self-Built ReAct Framework**: Not built on LangChain or AutoGPT. A lightweight, custom reasoning-acting loop designed for traceability and full control in scientific workflows.
 - **Human-in-the-Loop by Design**: Destructive or script executions are gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
 - **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines. In the GUI it is a per-session toggle (contextvar-scoped, propagated to sub-agent processes), not a process-wide switch.
 - **Streaming & Interruption**: Token-level streaming end-to-end (throttled `llm_chunk` events over SSE) for the Coordinator and every sub-agent, with chat-bubble transcripts per session; any session can be interrupted from the GUI or API (`cancel_requested` → graceful exit, SIGTERM fallback).
-- **Native GUI & Linux TUI**: A Flet-based native GUI runs on Windows and Android (no browser required); Linux keeps the lightweight terminal TUI via `cloudra` / `cloudra run`.
+- **Native GUI & Linux TUI**: A Flet-based native GUI runs on Windows and Android (no browser required); Linux keeps the terminal TUI via `cloudra` / `cloudra run`. **Note: only the TUI is currently tested — the GUI is not recommended for now.**
 - **Context Compression**: Automatically summarizes older conversation history when context exceeds half of the model window, preventing unbounded growth.
 - **Self-Learning & Case Bank**: Agents can distill successful workflows into a global Case Bank for cross-conversation memory and knowledge reuse.
 - **Scientific Supervisor**: Introduces an independent Supervisor agent to oversee experimental progress and validate scientific rigor.
@@ -164,7 +166,10 @@ Cloudra also exposes an HTTP API built with FastAPI:
 python -m cloudra.api
 ```
 
-The server binds to `127.0.0.1:8000` by default and serves generated files under `/artifacts`. If you bind to a non-loopback address (`CLOUDRA_API_HOST`), set `CLOUDRA_API_TOKEN` first — `web.sh` enforces this.
+The server binds to `127.0.0.1:8000` by default. Artifacts are immutable
+snapshots downloaded through `/api/v1` metadata plus a short-lived token; the
+data directory is never exposed as a static mount. If you bind to a non-loopback
+address (`CLOUDRA_API_HOST`), set `CLOUDRA_API_TOKEN` first.
 
 Besides the Conversation/Session/approval endpoints, the API also mirrors the CLI:
 
@@ -176,27 +181,86 @@ Besides the Conversation/Session/approval endpoints, the API also mirrors the CL
 
 Sessions created via the API accept a `yolo` flag (per-session auto-approval) and can be interrupted via `POST .../cancel`.
 
-## Desktop App & Web UI
+## Flet GUI (Desktop & Mobile)
 
-The `frontend/` directory contains the shared React UI and a Tauri desktop shell:
-
-```bash
-cd frontend
-npm ci
-npm run desktop   # dev mode: vite + desktop window + embedded backend
-```
-
-The API serves the built web UI at `/` (after `npm run build`), so `python -m cloudra.api` alone gives you the full browser experience.
-
-For a distributable desktop package with a **standalone Python runtime** (target machines need no Python at all):
+Cloudra's GUI is built with Flet, a Flutter-Python bridge. The same Python codebase
+powers native desktop (Windows / macOS / Linux) and Android apps. On Windows and
+Android, running `cloudra` automatically starts the GUI; force it on any platform:
 
 ```bash
-frontend/scripts/package-desktop.sh   # assembles frontend/dist-app/
+cloudra gui
 ```
 
-The script downloads a python-build-standalone runtime, installs Cloudra and all dependencies into it, builds the release binary via `tauri build`, and assembles `frontend/dist-app/` — copy that directory anywhere and run `./cloudra-desktop`. The app spawns its own backend on `127.0.0.1:18473`.
+The desktop GUI can call `CloudraService` directly for lower latency. Android
+defaults to the remote `/api/v1` backend: the server remains authoritative for
+Agent execution, events, approvals, and artifacts.
+The layout is responsive: when the window width drops below 720 px (phone portrait),
+the sidebar collapses into a hamburger menu and the input field scales to fit —
+comfortable for one-handed use.
 
-> **Note**: build the desktop binary with `npm run desktop:build` (i.e. `tauri build`), not a bare `cargo build --release` — the latter produces a binary that navigates to the dev server URL and shows a blank/connection-refused window. On Linux, WebKitGTK development packages are required (`./install.sh` can install them on Debian/Ubuntu); under WSL2 the window is displayed through WSLg.
+**Android packaging:**
+
+```bash
+.venv/bin/python scripts/build_android.py
+```
+
+The build helper stages only the remote UI, HTTP/SSE backend and mobile storage
+boundary described by `android/pyproject.toml`. Server Agent, chemistry, database
+and API-server dependencies are deliberately absent from the APK. The current
+target is `arm64-v8a`; cleartext LAN transport still requires an explicit opt-in
+in the server profile.
+
+In the Android server dialog, enable the background Device Runtime to expose the
+App-private workspace through `device.workspace.*` and `device.config.*`.
+The Android capability dialog can separately grant a document tree through the
+system Storage Access Framework; `device.documents.*` never escapes that
+persisted grant. Pairing secrets are one-time and short-lived, server-side
+device tokens are stored only as hashes, and Android stores the server/device
+credentials as AES-GCM ciphertext protected by an Android Keystore key—never in
+the JSON profile or device-state file. The selected SAF tree URI is bound to
+the same encrypted store; its authority is still the system's persisted grant.
+The Flet method channel also sees only
+RSA-OAEP-wrapped/session-encrypted envelopes, so debug transport logging cannot
+print a plaintext token.
+
+The write capabilities `device.workspace.apply_patch` and
+`device.config.patch`, SAF document writes, notifications, file selection,
+camera capture, and sharing are never silent: Android first shows the target
+and exact local preview. Approval applies file changes only if the SHA/revision
+still matches. Permission denial, cancellation, or an approval-time conflict
+returns a structured result without overwriting local data.
+
+The APK bundles a small Kotlin/Flet extension for Keystore, persistent SAF
+grants, system intents, approval deep links, and a `remoteMessaging` Foreground
+Service. Enabling the runtime shows a persistent notification and raises the
+process priority while the embedded Python executor is alive. It deliberately
+uses `START_NOT_STICKY`: if Android kills the process, the notification
+disappears instead of falsely claiming that the device remains online; the
+Keystore credential, event cursor, outbox, and SAF grant are restored on the
+next App launch. A not-yet-acknowledged device result remains in the durable
+outbox for lossless replay; after server acknowledgement, file/camera payloads
+are removed and only a compact idempotency digest remains.
+Release candidates must still complete the
+[Phase 7 emulator/OEM device matrix](docs/ANDROID_PHASE7_DEVICE_MATRIX.md);
+source tests and a successful APK build are not substitutes for those checks.
+
+Before every model request the server reassembles the current role, AGENTS.md,
+MEMORY.md, skill manifest, and complete tool schemas, then records their
+revisions in the Session diagnostics. Ordinary server files and Android
+workspace/config changes are separate observations: they do not become
+conversation history or alter the Agent identity prompt. Old conversations
+therefore preserve their history while adopting current policy. Android change
+events remain in a durable local outbox until a heartbeat acknowledges them.
+
+**Desktop packaging:**
+
+```bash
+flet build windows   # or macos / linux
+```
+
+Flet-packaged desktop apps bundle an embedded Python runtime — the target machine
+needs no Python at all. The old Tauri + React frontend (`frontend/`) has been
+completely removed. No Rust, Node.js, or npm required.
 
 ## Chemistry Workflow Example
 
@@ -215,11 +279,28 @@ cloudra run "Parse /tmp/benzene.out and report SCF energy, HOMO-LUMO gap, and fr
 
 | Category | Tools |
 | :--- | :--- |
-| Chemistry | `gjf_writer`, `gaussian_log_parser`, `format_converter`, `molecule_drawer`, `image_to_smiles`, `smiles_to_mol`, `nmr_processor`, `ir_processor` |
-| Literature | `paper_searcher`, `chemrxiv_searcher`, `pdf2md`, `text_reader`, `image_reader`, `web_fetcher`, `headless_browser` |
-| Execution | `bashtools`, `text_writer`, `subagent_launcher`, `submit_compute_job` |
+| Chemistry | `gjf_writer`, `gaussian_log_parser`, `format_converter`, `internal_coordinates`, `molecule_drawer`, `image_to_smiles`, `smiles_to_mol`, `nmr_processor`, `ir_processor` |
+| Literature & Web | `paper_searcher`, `openalex_searcher`, `web_search`, `pdf2md`, `pdf2image`, `text_reader`, `image_reader`, `web_fetcher`, `headless_browser` |
+| Execution | `bashtools`, `text_writer`, `edit_file`, `subagent_launcher`, `submit_compute_job` |
 | Interaction | `ask_user`, `email_sender`, `email_reader` |
-| Control | `stop`, `getskill`, `get_subagent_report` |
+| Planning & Control | `todo_write`, `goal_set`, `schedule`, `agent_hub`, `stop`, `getskill`, `get_subagent_report`, `update_memory` |
+
+## Sub-Agent Roster
+
+Domain-scoped follower agents launched via `SubAgentLauncher`; all share findings through `agent_hub`:
+
+| ID | Agent | Domain |
+| :--- | :--- | :--- |
+| a-1 | explorer | Codebase exploration & read-only review (logic flaws, inconsistencies, risks) |
+| a-2 | writer | Academic paper/report writing |
+| a-3 | researcher | Literature search & methodology analysis |
+| a-4 | small_mol | Molecular quantum chemistry (Gaussian/ORCA): conformers, TS, spectra |
+| a-5 | md | Molecular dynamics (GROMACS/LAMMPS): setup, equilibration, sampling, analysis |
+| a-6 | dft | First-principles periodic systems (VASP/QE): bulk, surfaces, defects |
+| a-7 | experiment | Experimental design: DOE, controls, characterization matrix, safety |
+| a-8 | env | Environment management: dependencies, conda, builds, HPC |
+
+All except `explorer` (read-only) and `writer` (read+write) hold full permissions; dangerous operations still go through the approval flow.
 
 ## Security Model
 
@@ -230,7 +311,7 @@ Cloudra uses bit-flag permissions (`READ`, `WRITE`, `SCRIPT`, `DESTRUCTIVE`, `MA
 ```
 cloudra/
 ├── agent.py              # Agent base class and Coordinator
-├── reAct.py              # ReAct reasoning loop
+├── react.py              # ReAct reasoning loop
 ├── executor.py           # Tool execution engine
 ├── context_manager.py    # Message/context rendering
 ├── database.py           # SQLite persistence
@@ -240,14 +321,17 @@ cloudra/
 ├── cli.py                # Command-line interface
 ├── api.py                # FastAPI server
 ├── yolo_guard.py         # YOLO mode safety guard
+├── platform_utils.py     # Platform detection (Windows / Android / Linux)
+├── runtime_profile.py    # Android tool allowlist & runtime capabilities
+├── mobile_storage.py     # Flet-packaged app persistent storage
 ├── tools/                # Tool implementations
 ├── subagents/            # Follower agent roles
 ├── skills/               # Markdown-based skill library
-└── prompts/              # Agent prompt templates
-frontend/
-├── src/                  # React web UI (shared by browser and desktop)
-├── src-tauri/            # Tauri desktop shell (spawns the backend sidecar)
-└── scripts/              # package-desktop.sh: standalone-runtime distribution
+├── prompts/              # Agent prompt templates
+├── runtime/              # Runtime scheduling (workers, mobile_tasks)
+├── tui/                  # Textual full-screen TUI (run.py entry)
+└── ui/                   # Flet GUI (app.py main interface)
+flet_app.py               # Flet packaging entry point (Android APK / desktop)
 ```
 
 ## Development

@@ -103,7 +103,9 @@ class ConversationDB:
         self.ensure_dir()
         # journal_mode is persistent.  Switching it on every connection needs a
         # stronger lock and creates avoidable contention between worker processes.
-        with sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT) as con:
+        with contextlib.closing(
+            sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT)
+        ) as con:
             con.execute(f"PRAGMA busy_timeout={int(DEFAULT_BUSY_TIMEOUT * 1000)};")
             con.execute("PRAGMA journal_mode=WAL;")
             con.commit()
@@ -114,24 +116,41 @@ class ConversationDB:
             cur.execute(_CREATE_APPROVALS)
             cur.execute(_CREATE_COMPUTE_JOBS)
             cur.execute(_CREATE_CONTEXT_EVENTS)
+            cur.execute(_CREATE_SCHEDULED_REMINDERS)
             cur.execute(_CREATE_SESSION_EVENTS)
+            cur.execute(_CREATE_CLIENT_COMMANDS)
+            cur.execute(_CREATE_INTERACTIONS)
+            cur.execute(_CREATE_ARTIFACTS)
+            cur.execute(_CREATE_ARTIFACT_DOWNLOAD_TOKENS)
+            cur.execute(_CREATE_HUB_POSTS)
+            cur.execute(_CREATE_HUB_POSTS_TOPIC_INDEX)
+            cur.execute(_CREATE_HUB_POSTS_PARENT_INDEX)
+            cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
+            cur.execute(_CREATE_INTERACTIONS_INDEX)
+            cur.execute(_CREATE_ARTIFACTS_INDEX)
             cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             self._migrate_session_schema(cur)
             self._migrate_related_schema(cur)
             cur.execute(
-                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'))"
+                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (6, datetime('now'))"
             )
             con.commit()
         return self
 
+    @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
-        """返回一个已配置 WAL/busy_timeout 的同步 SQLite 连接。"""
+        """返回统一配置且退出时显式关闭的同步 SQLite 连接上下文。"""
         self.ensure_dir()
         con = sqlite3.connect(self.path, timeout=timeout)
-        cur = con.cursor()
-        cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
-        cur.execute("PRAGMA synchronous=NORMAL;")
-        return con
+        try:
+            cur = con.cursor()
+            cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            # 保留 sqlite3.Connection 原有的提交/回滚上下文语义。
+            with con:
+                yield con
+        finally:
+            con.close()
 
     @contextlib.asynccontextmanager
     async def aconnect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
@@ -156,12 +175,23 @@ class ConversationDB:
             await cur.execute(_CREATE_APPROVALS)
             await cur.execute(_CREATE_COMPUTE_JOBS)
             await cur.execute(_CREATE_CONTEXT_EVENTS)
+            await cur.execute(_CREATE_SCHEDULED_REMINDERS)
             await cur.execute(_CREATE_SESSION_EVENTS)
+            await cur.execute(_CREATE_CLIENT_COMMANDS)
+            await cur.execute(_CREATE_INTERACTIONS)
+            await cur.execute(_CREATE_ARTIFACTS)
+            await cur.execute(_CREATE_ARTIFACT_DOWNLOAD_TOKENS)
+            await cur.execute(_CREATE_HUB_POSTS)
+            await cur.execute(_CREATE_HUB_POSTS_TOPIC_INDEX)
+            await cur.execute(_CREATE_HUB_POSTS_PARENT_INDEX)
+            await cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
+            await cur.execute(_CREATE_INTERACTIONS_INDEX)
+            await cur.execute(_CREATE_ARTIFACTS_INDEX)
             await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             await self._amigrate_session_schema(cur)
             await self._amigrate_related_schema(cur)
             await cur.execute(
-                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (2, datetime('now'))"
+                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (6, datetime('now'))"
             )
             await con.commit()
         return self
@@ -242,6 +272,16 @@ _RELATED_EXTRA_COLUMNS = {
         "parent_session_id": "TEXT",
     },
     "compute_jobs": {"session_id": "TEXT"},
+    "approvals": {
+        "tool_name": "TEXT DEFAULT ''",
+        "normalized_arguments": "TEXT DEFAULT '{}'",
+        "risk_summary": "TEXT DEFAULT ''",
+        "candidate_diff": "TEXT DEFAULT ''",
+        "requested_at": "TEXT",
+        "expires_at": "TEXT",
+        "decided_by": "TEXT",
+        "decided_at": "TEXT",
+    },
 }
 
 _CREATE_SUBAGENT_REQUESTS = """
@@ -260,7 +300,15 @@ _CREATE_APPROVALS = """
         agent_name TEXT,
         details TEXT,
         state TEXT DEFAULT 'pending',
-        denial_reason TEXT DEFAULT ''
+        denial_reason TEXT DEFAULT '',
+        tool_name TEXT DEFAULT '',
+        normalized_arguments TEXT DEFAULT '{}',
+        risk_summary TEXT DEFAULT '',
+        candidate_diff TEXT DEFAULT '',
+        requested_at TEXT,
+        expires_at TEXT,
+        decided_by TEXT,
+        decided_at TEXT
     )
 """
 
@@ -288,6 +336,20 @@ _CREATE_CONTEXT_EVENTS = """
     )
 """
 
+_CREATE_SCHEDULED_REMINDERS = """
+    CREATE TABLE IF NOT EXISTS scheduled_reminders(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        session_id TEXT,
+        content TEXT NOT NULL,
+        wake_at REAL NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        created_at REAL NOT NULL,
+        fired_at REAL
+    )
+"""
+
 _CREATE_SESSION_EVENTS = """
     CREATE TABLE IF NOT EXISTS session_events(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -296,6 +358,94 @@ _CREATE_SESSION_EVENTS = """
         data TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
     )
+"""
+
+_CREATE_CLIENT_COMMANDS = """
+    CREATE TABLE IF NOT EXISTS client_commands(
+        command_id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        session_id TEXT,
+        command_type TEXT NOT NULL,
+        payload TEXT NOT NULL DEFAULT '{}',
+        state TEXT NOT NULL DEFAULT 'received',
+        result TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        applied_at TEXT
+    )
+"""
+
+_CREATE_CLIENT_COMMANDS_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_client_commands_session
+    ON client_commands(session_id, created_at)
+"""
+
+_CREATE_INTERACTIONS = """
+    CREATE TABLE IF NOT EXISTS interactions(
+        interaction_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        response TEXT,
+        created_at TEXT NOT NULL,
+        responded_at TEXT
+    )
+"""
+
+_CREATE_INTERACTIONS_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_interactions_pending
+    ON interactions(state, session_id, created_at)
+"""
+
+_CREATE_ARTIFACTS = """
+    CREATE TABLE IF NOT EXISTS artifacts(
+        artifact_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        storage_path TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_ARTIFACTS_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_artifacts_session
+    ON artifacts(session_id, created_at)
+"""
+
+_CREATE_ARTIFACT_DOWNLOAD_TOKENS = """
+    CREATE TABLE IF NOT EXISTS artifact_download_tokens(
+        token_hash TEXT PRIMARY KEY,
+        artifact_id TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_HUB_POSTS = """
+    CREATE TABLE IF NOT EXISTS hub_posts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topic TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'finding',
+        author_agent TEXT NOT NULL,
+        author_session TEXT NOT NULL DEFAULT '',
+        parent_id INTEGER,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_HUB_POSTS_TOPIC_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_hub_posts_topic
+    ON hub_posts(topic, created_at)
+"""
+
+_CREATE_HUB_POSTS_PARENT_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_hub_posts_parent
+    ON hub_posts(parent_id)
 """
 
 _CREATE_SCHEMA_MIGRATIONS = """

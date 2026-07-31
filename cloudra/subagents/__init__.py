@@ -1,14 +1,12 @@
-"""子 Agent 注册表：按 agent_id 返回 Agent **类**，不含实例。
+"""子 Agent 注册表：从显式 manifest 按 agent_id 返回 Agent **类**。
 
 注册表保存类而非模板实例，调用方通过 ``AgentClass(query=..., conversation_id=...)``
 创建独立实例，取代原先的深拷贝全局模板。
 """
 
-import importlib.util
-import sys
-from pathlib import Path
+import importlib
 
-CURRENT_DIR = Path(__file__).parent
+from cloudra.subagents.registry import SUBAGENT_REGISTRY
 
 _SUBAGENT_CLASSES_CACHE: dict | None = None
 
@@ -29,32 +27,16 @@ def get_subagent_classes() -> dict:
         return _SUBAGENT_CLASSES_CACHE
 
     classes = {}
-    project_root = str(CURRENT_DIR.parent)
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-
-    for py_file in CURRENT_DIR.rglob("*.py"):
-        if py_file.name == "__init__.py":
-            continue
-
-        rel_path = py_file.relative_to(CURRENT_DIR.parent)
-        module_name = ".".join(rel_path.with_suffix("").parts)
-
-        if module_name in sys.modules:
-            module = sys.modules[module_name]
-        else:
-            spec = importlib.util.spec_from_file_location(module_name, py_file)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-
-        get_class = getattr(module, "get_class", None)
-        if get_class is not None:
-            agent_cls = get_class()
-            agent_id = _get_model_default(agent_cls, "id") or _get_model_default(agent_cls, "agent_id")
-            if agent_id is None:
-                agent_id = module_name.split(".")[-1]
-            classes[agent_id] = agent_cls
+    for registration in SUBAGENT_REGISTRY:
+        module = importlib.import_module(registration.module)
+        agent_cls = getattr(module, registration.class_name)
+        declared_id = _get_model_default(agent_cls, "id") or _get_model_default(agent_cls, "agent_id")
+        if declared_id != registration.agent_id:
+            raise RuntimeError(
+                f"子 Agent 注册 ID 不一致: manifest={registration.agent_id}, "
+                f"class={declared_id}, target={registration.module}:{registration.class_name}"
+            )
+        classes[registration.agent_id] = agent_cls
 
     _SUBAGENT_CLASSES_CACHE = classes
     return classes

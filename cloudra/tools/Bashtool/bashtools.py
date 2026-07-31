@@ -24,6 +24,30 @@ class Bashtools_output_schema(output_schema):
     result: str = Field(description='bash工具结果。')
     task_description: str = Field(description='该命令的任务描述。')
     run_command: str = Field(description='调用的bash指令。')
+    exit_code: int = Field(
+        default=0,
+        description='命令退出码：0 表示成功，非 0 表示失败。'
+        '务必以退出码判断命令成败，不要根据输出文本猜测。',
+    )
+
+
+# 单次命令输出的字符上限：超出部分保留首尾、省略中间。
+# 必须小于 ContextManager 的单消息硬顶（40k），否则截断信息会丢失。
+MAX_OUTPUT_CHARS = 30_000
+
+
+def truncate_output(text: str, max_chars: int = MAX_OUTPUT_CHARS) -> str:
+    """超长输出首尾保留、中间省略，并注明省略的字符数。"""
+    if len(text) <= max_chars:
+        return text
+    head = max_chars * 2 // 3
+    tail = max_chars - head
+    omitted = len(text) - head - tail
+    return (
+        text[:head]
+        + f"\n\n[... 输出过长，中间省略 {omitted} 字符 ...]\n\n"
+        + text[-tail:]
+    )
 
 
 class Bashtools(Tool):
@@ -34,7 +58,12 @@ class Bashtools(Tool):
     input_schema: Any = Bashtools_input_schema
     output_schema: Any = Bashtools_output_schema
     subagent: Agent = None
-    tool_description: str = 'bash工具，用于执行终端命令'
+    tool_description: str = (
+        "执行搜索、环境检查、构建和测试等终端命令，以退出码判断成败。"
+        "适用：运行测试、安装依赖、查看环境信息、调用命令行工具。"
+        "不适用：修改工作区文件——严禁用 Bash、sed、重定向、tee 或临时脚本改文件，"
+        "已有文件用 text_reader + edit_file，新建文件用 text_writer。"
+    )
 
     def __init__(self, subagent: Agent = None, **data) -> None:
         super().__init__(**data)
@@ -47,7 +76,12 @@ class Bashtools(Tool):
             tool_str = self._format_tool_list(availables)
             # review：显式判断空列表，避免对 None 或空字符串做隐式转换。
             if availables:
-                desc = f'您可调用的工具有：\n{tool_str}\n请自行书写指令运行，在需要用到bash工具时调用。'
+                desc = (
+                    f"可执行的命令有：\n{tool_str}\n"
+                    "本工具用于搜索、环境检查、构建和测试。"
+                    "不适用：修改工作区文件——不要用 Bash、sed、重定向、tee 或临时脚本，"
+                    "请改用 edit_file / text_writer。"
+                )
             else:
                 desc = '当前没有可调用工具。'
             self.tool_description = desc
@@ -114,7 +148,7 @@ class Bashtools(Tool):
 
         if not self.has_command_permission(command):
             result = f'没有权限执行该命令: {command}'
-            return Bashtools_output_schema(result=result, task_description=task_description, run_command=command)
+            return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=126)
 
         # 触发安全检查
         analysis = BashCommandClassifier.classify(command)
@@ -132,7 +166,8 @@ class Bashtools(Tool):
                 return Bashtools_output_schema(
                     result=result_msg,
                     task_description=task_description,
-                    run_command=command
+                    run_command=command,
+                    exit_code=126,
                 )
 
         process = await asyncio.create_subprocess_shell(
@@ -163,20 +198,26 @@ class Bashtools(Tool):
         except asyncio.TimeoutError:
             process.kill()
             result = '命令执行超时！'
-            return Bashtools_output_schema(result=result, task_description=task_description, run_command=command)
+            return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=124)
         except Exception as e:
             print(e)
             result = f'命令执行失败:{e}'
             self._terminal_commands.pop(task_description, None)
             # Use safer decoding for stderr too
             err_msg = decode_output(stderr) if 'stderr' in locals() else str(e)
-            return Bashtools_output_schema(result=err_msg, task_description=task_description, run_command=command)
+            return Bashtools_output_schema(result=err_msg, task_description=task_description, run_command=command, exit_code=1)
 
         self._terminal_commands.pop(task_description, None)
-        result = decode_output(stdout)
-        if stderr:
-            result += "\n" + decode_output(stderr)
-        return Bashtools_output_schema(result=result, task_description=task_description, run_command=command)
+        exit_code = process.returncode if process.returncode is not None else 0
+        stdout_text = decode_output(stdout)
+        stderr_text = decode_output(stderr)
+        result = stdout_text
+        if stderr_text:
+            result += ("\n" if result else "") + stderr_text
+        result = truncate_output(result)
+        if exit_code != 0:
+            result = f"【命令失败】exit_code={exit_code}。输出：\n{result}"
+        return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=exit_code)
 
 
 def get_class():

@@ -9,10 +9,10 @@ from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "深度解析 Gaussian 输出日志（.log / .out）的工具。"
-    "从指定的日志文件中提取详细的物理化学性质，"
-    "包括能量、偶极矩、HOMO/LUMO 能级、频率、热力学修正等。"
-    "适用于计算完成后对结果的全面分析。"
+    "深度解析 Gaussian 输出日志（.log / .out），提取能量、偶极矩、HOMO/LUMO 能级、"
+    "频率、热力学修正等物理化学性质。"
+    "适用：Gaussian 计算完成后对结果做全面分析，或检查任务是否正常收敛。"
+    "不适用：提交计算任务（用 submit_compute_job）、实验光谱数据处理（用 ir_processor / nmr_processor）。"
 )
 
 

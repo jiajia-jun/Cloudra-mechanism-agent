@@ -21,9 +21,10 @@ except Exception:
     _SPECTROCHEMPY_AVAILABLE = False
 
 description = (
-    "专业级红外光谱 (IR) 处理与解析工具：基于 SpectroChemPy 库。"
-    "支持 JCAMP-DX, Thermo Nicolet (SPA/SPG), CSV 等格式。"
+    "红外光谱（IR）处理与解析：基于 SpectroChemPy，支持 JCAMP-DX、Thermo Nicolet (SPA/SPG)、CSV 等格式，"
     "提供基线校正、平滑、归一化、二阶导数分析及官能团自动识别。"
+    "适用：处理实验红外原始谱图、指认官能团、与理论计算光谱对比。"
+    "不适用：NMR 谱处理（用 nmr_processor）、Gaussian 频率计算日志的读取（用 log_parser）。"
 )
 
 class IRProcessor_input_schema(input_schema):

@@ -1,10 +1,9 @@
 import json
-import os
 from typing import Any
 
 from pydantic import Field
 
-from cloudra.config import get_config
+from cloudra.paths import context_path
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
@@ -38,10 +37,7 @@ class GetSubAgentReport(Tool):
 
     async def tool_call(self, user_input: GetSubAgentReport_input_schema, session: Session) -> GetSubAgentReport_output_schema:
         session_id = user_input.session_id
-        data_dir = get_config().data_dir
 
-        # 1. 尝试从 session_id 推断路径
-        # session_id 格式通常为 {agent_id}_{timestamp}，如 a-1_20260523...
         parts = session_id.split('_')
         if not parts:
             return GetSubAgentReport_output_schema(is_success=False, message="无效的 Session ID 格式。")
@@ -49,14 +45,12 @@ class GetSubAgentReport(Tool):
         agent_id = parts[0]
         conv_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
 
-        # 尝试定位 context 文件 (最权威的完整历史)
-        context_file = os.path.join(data_dir, 'conversations', conv_id, 'contexts', f"{agent_id}.json")
-        if not os.path.exists(context_file):
-             # 兜底尝试默认路径
-             context_file = os.path.join(data_dir, 'contexts', f"{agent_id}.json")
+        context_file = context_path(conv_id, agent_id, session_id)
+        if not context_file.exists():
+            context_file = context_path(conv_id, agent_id)
 
-        if not os.path.exists(context_file):
-            return GetSubAgentReport_output_schema(is_success=False, message=f"未找到该 Agent ({agent_id}) 的上下文记录。")
+        if not context_file.exists():
+            return GetSubAgentReport_output_schema(is_success=False, message=f"未找到 Agent ({agent_id}) 的上下文记录, session={session_id}。")
 
         try:
             with open(context_file, 'r', encoding='utf-8') as f:

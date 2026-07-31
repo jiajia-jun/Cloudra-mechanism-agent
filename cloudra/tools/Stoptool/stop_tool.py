@@ -32,9 +32,10 @@ class StopTool(Tool):
     tool_id: str = 't-stop'
     tool_name: str = 'stop'
     tool_description: str = (
-        "结束当前任务并停止 ReAct 循环。"
-        "当 agent 判断任务已完成、无需继续推理或行动时调用此工具。"
-        "调用后当前循环轮次内的其他工具仍会执行完毕，随后整个 ReAct 循环终止。"
+        "结束当前任务并停止 ReAct 循环；调用后本轮其余工具仍会执行完毕，随后整个循环终止。"
+        "适用：任务已完成、目标已达成，或确认无法继续推进需要收尾时。"
+        "不适用：还需要向用户提问澄清（用 ask_user）、还有后续步骤没做完时不要提前 stop。"
+        "注意：答题/评测任务务必在 final_answer 里填入最终精简答案。"
     )
     input_schema: Any = StopTool_input_schema
     output_schema: Any = StopTool_output_schema
