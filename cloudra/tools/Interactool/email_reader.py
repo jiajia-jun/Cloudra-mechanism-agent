@@ -61,8 +61,12 @@ class EmailReader(Tool):
         except Exception as e:
             return EmailReader_output_schema(success=False, message=f"读取邮件失败: {str(e)}")
 
-    def _read_imap(self, config, user_input) -> List[EmailMessage]:
-        """同步执行 IMAP 读取"""
+    def _read_imap(self, config, user_input, mark_seen: bool = False) -> List[EmailMessage]:
+        r"""同步执行 IMAP 读取。
+
+        mark_seen=True 时把读取过的邮件显式置 \Seen（部分服务器如 QQ 邮箱
+        不会在 fetch 后自动标记已读，监听器依赖此避免重复触发）。
+        """
         mail = imaplib.IMAP4_SSL(config.imap_server, config.imap_port)
         mail.login(config.user, config.password)
         mail.select("inbox")
@@ -88,6 +92,8 @@ class EmailReader(Tool):
                 continue
 
             raw_email = data[0][1]
+            if mark_seen:
+                mail.store(e_id, '+FLAGS', '\\Seen')
             msg = email.message_from_bytes(raw_email)
 
             # 解码主题
