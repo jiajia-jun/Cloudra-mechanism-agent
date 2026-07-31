@@ -4,13 +4,15 @@
 
 [English](README.md)
 
+> **状态说明**：目前只有终端 TUI（Textual，`cloudra` / `cloudra run`）经过测试，推荐使用。Flet GUI（Windows/Android）虽随仓库发布，但**当前未经过测试**，暂时不要用于实际工作。
+
 ## 核心亮点
 
 - **自研 ReAct 框架**：不依赖 LangChain、AutoGPT 等重型框架，拥有完全可控的轻量级推理-行动循环，适合需要可追溯性的科研场景。
 - **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
 - **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。GUI 中为按 Session 生效的勾选项（contextvar 隔离并传播到子 Agent 进程），互不影响。
 - **流式输出与任务打断**：Coordinator 与每个子 Agent 的 LLM 增量以 `llm_chunk` 事件经 SSE 实时渲染，运行区按 Session 分面板展示对话式 transcript；任意 Session 可从 GUI/API 打断（先 `cancel_requested` 优雅退出，超时 SIGTERM 兜底，并级联取消子 Agent 与计算任务）。
-- **原生 GUI 与 Linux TUI**：Windows 和 Android 使用基于 Flet 的原生 GUI（无需浏览器），Linux 保留轻量级终端 TUI，通过 `cloudra` / `cloudra run` 进入。
+- **原生 GUI 与 Linux TUI**：Windows 和 Android 使用基于 Flet 的原生 GUI（无需浏览器），Linux 保留终端 TUI，通过 `cloudra` / `cloudra run` 进入。**注意：目前仅 TUI 经过测试，GUI 暂不推荐使用。**
 - **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
 - **自我学习与全局案例库**：Agent 可将成功经验沉淀至全局 Case Bank，支持跨对话的记忆与经验复用。
 - **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。

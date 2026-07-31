@@ -4,13 +4,15 @@ AI Agent collaboration framework for chemical research.
 
 [中文版](README_CN.md)
 
+> **Status note**: only the terminal TUI (Textual, `cloudra` / `cloudra run`) is actively tested and recommended at this stage. The Flet GUI (Windows/Android) ships in this repo but is **not currently tested** — do not rely on it for real work yet.
+
 ## Highlights
 
 - **Self-Built ReAct Framework**: Not built on LangChain or AutoGPT. A lightweight, custom reasoning-acting loop designed for traceability and full control in scientific workflows.
 - **Human-in-the-Loop by Design**: Destructive or script executions are gated by an explicit approval flow. Agents can also pause and ask the user via `ask_user` when clarification is needed.
 - **YOLO Mode**: Optional `--yolo` flag lets an independent LLM agent auto-approve risky operations for fully automated pipelines. In the GUI it is a per-session toggle (contextvar-scoped, propagated to sub-agent processes), not a process-wide switch.
 - **Streaming & Interruption**: Token-level streaming end-to-end (throttled `llm_chunk` events over SSE) for the Coordinator and every sub-agent, with chat-bubble transcripts per session; any session can be interrupted from the GUI or API (`cancel_requested` → graceful exit, SIGTERM fallback).
-- **Native GUI & Linux TUI**: A Flet-based native GUI runs on Windows and Android (no browser required); Linux keeps the lightweight terminal TUI via `cloudra` / `cloudra run`.
+- **Native GUI & Linux TUI**: A Flet-based native GUI runs on Windows and Android (no browser required); Linux keeps the terminal TUI via `cloudra` / `cloudra run`. **Note: only the TUI is currently tested — the GUI is not recommended for now.**
 - **Context Compression**: Automatically summarizes older conversation history when context exceeds half of the model window, preventing unbounded growth.
 - **Self-Learning & Case Bank**: Agents can distill successful workflows into a global Case Bank for cross-conversation memory and knowledge reuse.
 - **Scientific Supervisor**: Introduces an independent Supervisor agent to oversee experimental progress and validate scientific rigor.
