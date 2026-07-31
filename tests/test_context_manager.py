@@ -19,6 +19,27 @@ def context_manager(tmp_path):
 
 
 @pytest.fixture
+def mock_llm(monkeypatch):
+    """mock LLMClient 与 FOLLOWER 配置，返回 (LLMClient 类 mock, create mock)。"""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from cloudra.config import get_config
+
+    follower = get_config().follower
+    monkeypatch.setattr(follower, "model", "fake-model")
+    monkeypatch.setattr(follower, "url", "http://fake-llm")
+    monkeypatch.setattr(follower, "key", "fake-key")
+
+    create = AsyncMock(return_value=SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="压缩梗概"))]
+    ))
+    with patch("cloudra.context_manager.LLMClient") as mock_cls:
+        mock_cls.return_value.create = create
+        yield mock_cls, create
+
+
+@pytest.fixture
 def make_image(tmp_path):
     """工厂：创建指定名称的占位 PNG 文件，返回其绝对路径。"""
     def _make(name: str) -> str:
@@ -226,11 +247,10 @@ class TestCapMessageSizes:
         # system 消息（身份 prompt）不受硬顶影响
         long_prompt = "长提示 " * 30000
         cm = context_manager
-        await cm.replace([
-            {"role": "system", "content": long_prompt},
-            {"role": "user", "content": "hi"},
-        ])
-        messages = await cm.build_messages()
+        await cm.replace([{"role": "user", "content": "hi"}])
+        messages = await cm.build_messages(
+            identity_messages=[{"role": "system", "content": long_prompt}]
+        )
         assert messages[0]["content"] == long_prompt
 
 
@@ -242,26 +262,6 @@ class TestHistoryCompression:
     2. 替换方式：system 消息 + 梗概消息 + 最近 10 轮（以 assistant 计数）原样保留。
     3. 兜底：LLM 失败 / 缺配置 / 梗概仍超预算 时保留原始消息不压缩。
     """
-
-    @pytest.fixture
-    def mock_llm(self, monkeypatch):
-        """mock LLMClient 与 FOLLOWER 配置，返回 (LLMClient 类 mock, create mock)。"""
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock
-
-        from cloudra.config import get_config
-
-        follower = get_config().follower
-        monkeypatch.setattr(follower, "model", "fake-model")
-        monkeypatch.setattr(follower, "url", "http://fake-llm")
-        monkeypatch.setattr(follower, "key", "fake-key")
-
-        create = AsyncMock(return_value=SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="压缩梗概"))]
-        ))
-        with patch("cloudra.context_manager.LLMClient") as mock_cls:
-            mock_cls.return_value.create = create
-            yield mock_cls, create
 
     @staticmethod
     async def _fill_history(cm, long_rounds=12, recent_rounds=10):
@@ -348,7 +348,8 @@ class TestHistoryCompression:
 
         msgs = await context_manager.build_messages(max_context_tokens=1000)
 
-        assert create.call_count == 1
+        # 持久化压缩与 render-time 压缩各尝试一次梗概，均失败后保留原文
+        assert create.call_count == 2
         contents = [str(m.get("content", "")) for m in msgs]
         assert any("历史问题 0" in c for c in contents)
         assert not any("[上下文压缩提示]" in c for c in contents)
@@ -371,16 +372,27 @@ class TestHistoryCompression:
 
     @pytest.mark.asyncio
     async def test_summary_still_over_budget_keeps_original(self, context_manager, mock_llm):
-        """梗概替换后仍超预算时，保留完整原始消息（不进一步删除）。"""
+        """梗概替换后仍超预算（预算极端小）时的行为。
+
+        现状：持久化压缩已成功写回存储（历史被梗概替换、不重复摘要），
+        render-time 兜底对压缩后的消息不再进一步删除，原样返回——
+        即使仍超预算。这与旧的"保留完整原文"不同：持久化压缩落地后
+        历史已被梗概替代，压缩状态保留给后续轮次使用。
+        """
         _, create = mock_llm
         await self._fill_history(context_manager)
 
         msgs = await context_manager.build_messages(max_context_tokens=10)
 
-        assert create.call_count == 1  # 仍然尝试了梗概
+        assert create.call_count == 1  # 只做一次持久化梗概
         contents = [str(m.get("content", "")) for m in msgs]
-        assert any("历史问题 0" in c for c in contents)
-        assert not any("[上下文压缩提示]" in c for c in contents)
+        assert any("[上下文压缩提示]" in c for c in contents)
+        assert not any("历史问题 0" in c for c in contents)
+        # 持久化：存储中的上下文也已是梗概形态
+        stored = await context_manager.load()
+        stored_contents = [str(m.get("content", "")) for m in stored]
+        assert any("[上下文压缩提示]" in c for c in stored_contents)
+        assert not any("历史问题 0" in c for c in stored_contents)
 
     @pytest.mark.asyncio
     async def test_openai_client_cached_across_calls(self, context_manager, mock_llm):
@@ -393,3 +405,190 @@ class TestHistoryCompression:
 
         assert mock_cls.call_count == 1
         assert create.call_count == 2
+
+
+class TestManualCompaction:
+    """手动压缩 ``ContextManager.compact`` 钉板测试。"""
+
+    @pytest.mark.asyncio
+    async def test_compact_summarizes_history_and_keeps_tail(self, context_manager, mock_llm):
+        """保留最近 N 条消息，历史生成梗概并持久化。"""
+        _, create = mock_llm
+        # 初始上下文已含 1 条 user 消息
+        for i in range(6):
+            await context_manager.append({"role": "user", "content": f"问题 {i}"})
+            await context_manager.append({"role": "assistant", "content": f"回复 {i}"})
+
+        result = await context_manager.compact(keep_recent=4)
+
+        assert result["compressed"] is True
+        assert result["original_count"] == 13  # 1 + 6*2
+        assert result["new_count"] == 5          # 梗概 + 4 条保留
+        assert result["summary_length"] == len("压缩梗概")
+        create.assert_called_once()
+
+        context = await context_manager.load()
+        assert len(context) == 5
+        assert context[0]["role"] == "system"
+        assert context[0]["content"].startswith("[上下文压缩提示]")
+        assert "压缩梗概" in context[0]["content"]
+        assert context[-1]["content"] == "回复 5"
+        assert context[-2]["content"] == "问题 5"
+
+    @pytest.mark.asyncio
+    async def test_compact_skips_when_below_keep_threshold(self, context_manager, mock_llm):
+        """消息数未超过保留窗口时不调用 LLM。"""
+        _, create = mock_llm
+        await context_manager.append({"role": "user", "content": "你好"})
+
+        result = await context_manager.compact(keep_recent=4)
+
+        assert result["compressed"] is False
+        assert result["original_count"] == 2
+        assert result["new_count"] == 2
+        create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_compact_invalid_keep_recent(self, context_manager):
+        """keep_recent < 1 时抛出 ValueError。"""
+        with pytest.raises(ValueError):
+            await context_manager.compact(keep_recent=0)
+
+    @pytest.mark.asyncio
+    async def test_compact_propagates_summary_failure(self, context_manager, mock_llm):
+        """梗概生成失败时向上抛出异常，不修改上下文。"""
+        _, create = mock_llm
+        create.side_effect = RuntimeError("LLM 不可用")
+        for i in range(4):
+            await context_manager.append({"role": "user", "content": f"问题 {i}"})
+            await context_manager.append({"role": "assistant", "content": f"回复 {i}"})
+
+        with pytest.raises(RuntimeError, match="LLM 不可用"):
+            await context_manager.compact(keep_recent=2)
+
+        # 原始上下文未被修改
+        context = await context_manager.load()
+        assert len(context) == 9
+        assert context[-1]["content"] == "回复 3"
+
+
+class TestCoordinatorContextSharing:
+    """回归：同一对话的多个 Coordinator 任务（session）共享一份上下文。
+
+    规则（react.py / executor.py）：
+    - Coordinator 的 agent_id 是 'a-0'，Agent.session_id 为 None
+      → 上下文文件是对话级 contexts/a-0.json，跨任务延续；
+    - 子 Agent 的 Agent.session_id 被赋值 → 上下文按 session 隔离，
+      且任务结束即清空（react.py 中仅对非 a-0 调用 clear_context）。
+    """
+
+    def test_coordinator_context_is_conversation_scoped(self, tmp_path, monkeypatch):
+        """Coordinator 实例不带 session_id，上下文文件路径不含 sessions/ 子目录。"""
+        from cloudra.agent import Coordinator
+
+        monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
+        from cloudra.config import reload_config
+        reload_config()
+
+        agent = Coordinator(query="测试", conversation_id="conv_x")
+        assert agent.id == "a-0"
+        assert agent.session_id is None
+
+        agent._init_context_manager()
+        path = agent.context_manager.context_file
+        assert "sessions" not in path
+        assert path.endswith("a-0.json")
+
+    @pytest.mark.asyncio
+    async def test_two_sessions_share_one_context(self, tmp_path, monkeypatch):
+        """任务1 写入的上下文，任务2（新 ContextManager 实例）能读到。"""
+        monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
+        from cloudra.config import reload_config
+        reload_config()
+
+        cm1 = ContextManager(
+            agent_id="a-0", conversation_id="conv_share", prompt=None, query="任务1"
+        )
+        await cm1.append({"role": "assistant", "content": "任务1 的回答"})
+
+        # 模拟任务2：同一对话、同一 Coordinator agent，新的 ContextManager 实例
+        cm2 = ContextManager(
+            agent_id="a-0", conversation_id="conv_share", prompt=None, query="任务2"
+        )
+        context = await cm2.load()
+        contents = [m.get("content") for m in context]
+        assert "任务1 的回答" in contents
+
+    def test_subagent_context_is_session_scoped(self, tmp_path, monkeypatch):
+        """子 Agent 上下文按 session 隔离：不同 session_id 是不同文件。"""
+        monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
+        from cloudra.config import reload_config
+        reload_config()
+
+        cm_a = ContextManager(
+            agent_id="a-1", conversation_id="conv_iso", prompt=None, query="q",
+            session_id="a-1_run_aaa",
+        )
+        cm_b = ContextManager(
+            agent_id="a-1", conversation_id="conv_iso", prompt=None, query="q",
+            session_id="a-1_run_bbb",
+        )
+        assert cm_a.context_file != cm_b.context_file
+        assert "sessions" in cm_a.context_file
+
+
+class TestEmptyUserMessageGuard:
+    """回归：空 user 消息不能进入 LLM 请求。
+
+    只读用途的 ContextManager（query=""，如 TUI 状态栏的记忆指示）曾经在
+    load() 时把 [{"role": "user", "content": ""}] 持久化进上下文文件，
+    之后每次真实请求 position 1 都是这条空 user 消息，被严格端点以
+    400 "user message must not be empty" 拒绝——表现为 agent 完全不回答。
+    """
+
+    @pytest.mark.asyncio
+    async def test_readonly_load_does_not_persist_empty_user(self, tmp_path, monkeypatch):
+        """query="" 的 load() 初始化为空列表，不落空 user 消息。"""
+        import json
+
+        monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
+        from cloudra.config import reload_config
+        reload_config()
+
+        cm = ContextManager(
+            agent_id="a-0", conversation_id="conv_ro", prompt=None, query=""
+        )
+        context = await cm.load()
+        assert context == []
+        with open(cm.context_file, encoding="utf-8") as f:
+            assert json.load(f) == []
+
+    @pytest.mark.asyncio
+    async def test_build_messages_drops_empty_user(self, tmp_path, monkeypatch):
+        """历史里已存在的空 user 消息在请求装配时被过滤（修复存量污染文件）。"""
+        monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
+        from cloudra.config import reload_config
+        reload_config()
+
+        cm = ContextManager(
+            agent_id="a-0", conversation_id="conv_poison", prompt=None, query=""
+        )
+        # 模拟被旧版本污染的历史：空 user 在最前面
+        await cm.replace([
+            {"role": "user", "content": ""},
+            {"role": "user", "content": "  "},
+            {"role": "user", "content": "真实问题"},
+            {"role": "assistant", "content": "真实回答"},
+            {"role": "user", "content": [{"type": "text", "text": ""}]},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,xx"}}
+            ]},
+        ])
+        messages = await cm.build_messages()
+        user_contents = [m["content"] for m in messages if m.get("role") == "user"]
+        assert "真实问题" in user_contents
+        assert "" not in user_contents
+        assert "  " not in user_contents
+        assert [{"type": "text", "text": ""}] not in user_contents
+        # 带图片部分的 user 消息保留（无视觉模型时降级为文本占位符）
+        assert any("[图片:" in str(c) for c in user_contents)

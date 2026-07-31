@@ -7,15 +7,16 @@ API 是应用服务层的 HTTP 适配器。默认仅监听本机；如需局域�
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from cloudra import __version__, events, paths
@@ -57,6 +58,11 @@ class ApprovalDecision(BaseModel):
     denial_reason: str = Field(default="", max_length=2_000)
 
 
+class SessionMessageAppend(BaseModel):
+    content: str = Field(min_length=1, max_length=20_000)
+    working_directory: str | None = Field(default=None, max_length=4_096)
+
+
 def _allowed_origins() -> list[str]:
     raw = os.getenv(
         "CLOUDRA_API_ORIGINS",
@@ -64,6 +70,11 @@ def _allowed_origins() -> list[str]:
         "tauri://localhost,http://tauri.localhost,https://tauri.localhost",
     )
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+def _registry_revision(names: list[str]) -> str:
+    payload = json.dumps(sorted(names), ensure_ascii=False, separators=(",", ":"))
+    return f"sha256:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
 
 def create_app(service: CloudraService | None = None) -> FastAPI:
@@ -84,17 +95,15 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         allow_origins=_allowed_origins(),
         allow_credentials=False,
         allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "X-Cloudra-Client-Version",
+            "X-Cloudra-Download-Token",
+            "X-Cloudra-Protocol-Version",
+        ],
     )
-
-    artifacts_dir = Path(get_config().data_dir) / "artifacts"
-    try:
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        # 只读环境仍应能导入 API；此时仅禁用产物下载路由。
-        pass
-    if artifacts_dir.is_dir():
-        app.mount("/artifacts", StaticFiles(directory=artifacts_dir), name="artifacts")
 
     async def authorize(authorization: str | None = Header(default=None)) -> None:
         # 本机开发时可以不设 token；对外监听时启动函数会强制要求 token。
@@ -112,6 +121,30 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     @app.get("/api/health")
     async def health() -> dict:
         return {"status": "ok", "version": __version__}
+
+    @app.get("/api/runtime/diagnostics", dependencies=protected)
+    async def runtime_diagnostics() -> dict:
+        """返回当前进程实际加载的静态能力，不暴露配置凭据。"""
+        from cloudra.runtime_profile import filter_tools_for_runtime, is_mobile_runtime
+        from cloudra.subagents import Subagent_hash
+        from cloudra.tools import get_tool_load_errors, get_tools_lst
+
+        tool_entries = filter_tools_for_runtime(get_tools_lst())
+        tool_names = sorted(entry.tool_name for entry in tool_entries)
+        subagent_ids = sorted(Subagent_hash().subagents_dict)
+        return {
+            "server_version": __version__,
+            "runtime_profile": "android" if is_mobile_runtime() else "server",
+            "tools": {
+                "revision": _registry_revision(tool_names),
+                "names": tool_names,
+                "load_errors": get_tool_load_errors(),
+            },
+            "subagents": {
+                "revision": _registry_revision(subagent_ids),
+                "agent_ids": subagent_ids,
+            },
+        }
 
     @app.post("/api/conversations", status_code=status.HTTP_201_CREATED, dependencies=protected)
     async def create_conversation() -> dict:
@@ -152,6 +185,34 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
             return service.session_runner.events(conversation_id, session_id, after_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get(
+        "/api/conversations/{conversation_id}/sessions/{session_id}/diagnostics",
+        dependencies=protected,
+    )
+    async def get_session_diagnostics(
+        conversation_id: str,
+        session_id: str,
+    ) -> dict:
+        """读取该 Session 最近一次实际 LLM 请求的 prompt/tool 诊断。"""
+        try:
+            session = service.session_runner.get(conversation_id, session_id)
+            session_events = service.session_runner.events(conversation_id, session_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session 不存在")
+        requests = [
+            event
+            for event in session_events
+            if event.get("event_type") == "llm_request_diagnostics"
+        ]
+        return {
+            "server_version": __version__,
+            "conversation_id": conversation_id,
+            "session_id": session_id,
+            "latest_request": requests[-1]["data"] if requests else None,
+        }
 
     @app.get(
         "/api/conversations/{conversation_id}/sessions/{session_id}/events/stream",
@@ -238,6 +299,50 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         if record is None:
             raise HTTPException(status_code=404, detail="Session 不存在")
         return record.to_dict()
+
+    @app.get(
+        "/api/conversations/{conversation_id}/sessions/{session_id}/children",
+        dependencies=protected,
+    )
+    async def list_session_children(conversation_id: str, session_id: str) -> list[dict]:
+        try:
+            return [
+                record.to_dict()
+                for record in service.session_runner.list_children(conversation_id, session_id)
+            ]
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/conversations/{conversation_id}/sessions/{session_id}/messages",
+        dependencies=protected,
+    )
+    async def append_session_message(
+        conversation_id: str,
+        session_id: str,
+        request: SessionMessageAppend,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> dict:
+        command_id = idempotency_key or f"api-msg-{uuid.uuid4().hex}"
+        try:
+            working_directory = _validate_working_directory(request.working_directory)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        try:
+            command, record = await service.append_session_message_command(
+                command_id=command_id,
+                conversation_id=conversation_id,
+                session_id=session_id,
+                content=request.content,
+                working_directory=working_directory,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "command_id": command.command_id,
+            "state": command.state,
+            "session": record.to_dict(),
+        }
 
     @app.get("/api/conversations", dependencies=protected)
     async def list_conversations() -> list[dict]:
@@ -349,6 +454,10 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
         return rows[:100]
 
+    # Android/remote clients use only the stable, versioned control surface.
+    from cloudra.api_v1 import create_v1_router
+
+    app.include_router(create_v1_router(service, authorize))
     return app
 
 

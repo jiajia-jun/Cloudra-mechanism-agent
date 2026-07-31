@@ -45,6 +45,11 @@ class LLMConfig(BaseSettings):
     url: str = "https://api.deepseek.com/"
     key: str = ""
     supports_vision: bool = False
+    # 模型真实上下文窗口（token 数）：上下文压缩阈值按 window // 2 计算，
+    # 必须与服务商实际窗口一致，否则压缩永远不触发、长任务直接 400
+    context_window: int = 128000
+    # 单次 LLM 请求超时秒数（OpenAI SDK 与 requests shim 共用）
+    timeout: int = 300
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -180,12 +185,16 @@ class CloudraConfig(BaseSettings):
                     "url": self.coordinator.url,
                     "key": self.coordinator.key,
                     "supports_vision": self.coordinator.supports_vision,
+                    "context_window": self.coordinator.context_window,
+                    "timeout": self.coordinator.timeout,
                 },
                 "follower": {
                     "model": self.follower.model,
                     "url": self.follower.url,
                     "key": self.follower.key,
                     "supports_vision": self.follower.supports_vision,
+                    "context_window": self.follower.context_window,
+                    "timeout": self.follower.timeout,
                 },
             },
             "email": {
@@ -214,12 +223,16 @@ class CloudraConfig(BaseSettings):
                     "url": self.coordinator.url,
                     "key": "***" if self.coordinator.key else "(not set)",
                     "supports_vision": self.coordinator.supports_vision,
+                    "context_window": self.coordinator.context_window,
+                    "timeout": self.coordinator.timeout,
                 },
                 "follower": {
                     "model": self.follower.model,
                     "url": self.follower.url,
                     "key": "***" if self.follower.key else "(not set)",
                     "supports_vision": self.follower.supports_vision,
+                    "context_window": self.follower.context_window,
+                    "timeout": self.follower.timeout,
                 },
             },
         }

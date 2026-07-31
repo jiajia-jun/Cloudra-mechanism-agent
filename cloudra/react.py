@@ -16,6 +16,7 @@ from cloudra.session_class import Session
 from cloudra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.supervisor import get_supervisor
 from cloudra.tools import get_tools_lst
+from cloudra.tools.Plantool.goal import GOAL_MARKER
 
 
 class AgentCancelled(Exception):
@@ -31,6 +32,17 @@ class LLMOutputTruncated(Exception):
     截断的输出绝不能被当成"正常说完"：否则上一条工具结果会被误存为最终答案，
     session 表现为"调用完工具就提前结束"。
     """
+
+
+class AgentStuckLoop(Exception):
+    """检测到死循环：同一工具以完全相同的参数连续调用多次仍无进展。
+
+    与 LLMOutputTruncated 一样落库 failed，防止无意义重复调用烧 token。
+    """
+
+
+class MaxStepsExceeded(Exception):
+    """超过最大步数预算，强制终止任务，避免主循环失控。"""
 
 
 class _TruncationRetry(Exception):
@@ -93,6 +105,12 @@ class reAct:
         self._tool_arg_maps = None
         # 输出被 max_tokens 截断的重试计数（见 _retry_on_truncation）
         self._truncation_retries = 0
+        # 死循环检测：最近若干次工具调用的签名（tool_name + 稳定序列化参数）
+        self._recent_tool_sigs: list[str] = []
+        # 步数预算耗尽警告只注入一次
+        self._steps_warned = False
+        # 本 session 的累计 token usage（真实 usage 逐轮累加，供前端展示成本）
+        self._usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         # 打断（cancel）信号：通过 IPC 订阅 cancel_requested 事件直接置位
         self._cancel_event = asyncio.Event()
         self._cancel_queue: asyncio.Queue | None = None
@@ -204,6 +222,14 @@ class reAct:
             user_goal = self.agent.query or ""
             messages = await self.agent.get_context()
 
+            # 提取最新的 goal 锚点（goal_set 工具写入），让审查对准可验证的完成判据
+            goal_anchor = ""
+            for msg in reversed(messages):
+                content = str(msg.get("content", ""))
+                if msg.get("role") == "system" and content.startswith(GOAL_MARKER):
+                    goal_anchor = content
+                    break
+
             # 从全局 Case Bank 检索历史经验（跨 conversation 共享）
             case_bank = get_case_bank()
             cases = case_bank.get_cases(limit=50)
@@ -212,6 +238,7 @@ class reAct:
                 user_goal=user_goal,
                 messages=messages,
                 cases=cases,
+                goal_anchor=goal_anchor,
             )
             advice_text = self.supervisor.format_advice(review)
             await self.agent.context_manager.set_supervisor_advice(advice_text)
@@ -275,6 +302,11 @@ class reAct:
         # 确保上下文管理器已初始化，并加载初始上下文
         await self.agent.get_context()
         await self._setup_event_subscriptions()
+        # 把 LLM 传输层状态（重试/fallback/异常）桥接为 session 事件：
+        # 全屏 TUI 下 print 不可见，没有这些事件用户只能看到"卡住"
+        self.agent._get_llm_client().on_status = (
+            lambda event, data: self._record_event("llm_status", {"kind": event, **data})
+        )
 
         try:
             return await self._run_loop()
@@ -288,15 +320,17 @@ class reAct:
                 print(f"[reAct] cancelled 状态写入失败: {e}")
             self.log.update_content(f"{Color.YELLOW}[系统] 任务已被用户打断。{Color.END}\n")
             raise
-        except LLMOutputTruncated as exc:
-            # 输出反复被 max_tokens 截断：明确落库 failed，绝不让工具结果误当最终答案
+        except (LLMOutputTruncated, AgentStuckLoop, MaxStepsExceeded) as exc:
+            # 输出反复被 max_tokens 截断 / 死循环 / 超步数预算：
+            # 明确落库 failed，绝不让工具结果误当最终答案
             self.session.state = 'failed'
             error_msg = str(exc)
             db = ConversationDB.from_path(self.database_path)
             try:
                 await session_store.afinalize_session(db, self.session.id, 'failed', error=error_msg)
             except Exception as e:
-                print(f"[reAct] truncated 状态写入失败: {e}")
+                print(f"[reAct] failed 状态写入失败: {e}")
+            await self._record_event("task_aborted", {"reason": error_msg})
             self.log.update_content(f"{Color.RED}[系统] {exc}{Color.END}\n")
             raise
         finally:
@@ -307,12 +341,35 @@ class reAct:
                 except asyncio.CancelledError:
                     pass
 
+    # 步数预算：防止主循环失控空转烧 token（对齐 OpenHands 默认的 100 步）
+    MAX_STEPS = 100
+    # 预算接近耗尽时提前警告一次，让模型收敛到结论而不是被硬切断
+    STEPS_WARN_AT = 80
+    # 死循环检测阈值：相同（工具名+参数）签名连续出现次数，先警告、再终止
+    LOOP_WARN_THRESHOLD = 3
+    LOOP_ABORT_THRESHOLD = 5
+
     async def _run_loop(self):
         '''reAct 的主循环（从 run 拆出以便统一捕获 AgentCancelled）。'''
         while self._continue:
             self.session.state = 'thinking'
             await self._record_phase('thinking')
             self.step_count += 1
+
+            # 步数预算：接近上限时注入一次收敛提示，超限则硬终止
+            if self.step_count >= self.STEPS_WARN_AT and not self._steps_warned:
+                self._steps_warned = True
+                await self.agent.update_context({
+                    "role": "system",
+                    "content": (
+                        f"【系统提示】步数预算即将耗尽（{self.step_count}/{self.MAX_STEPS}）。"
+                        "请停止扩展新的调查方向，基于已获得的信息收敛并给出最终结论。"
+                    ),
+                })
+            if self.step_count > self.MAX_STEPS:
+                raise MaxStepsExceeded(
+                    f"已达到最大步数 {self.MAX_STEPS}，任务被强制终止以避免失控空转。"
+                )
 
             # 每轮循环边界检查一次打断请求（流式期间也逐 chunk 检查 _cancel_event）
             self._check_cancel_event()
@@ -393,8 +450,37 @@ class reAct:
     async def _reasoning_once(self) -> list:
         '''单轮推理：调用 LLM 并消费响应。输出被截断时抛 _TruncationRetry。'''
         agent = self.agent
-        # agent.prompt 是身份 prompt，必须保留，不允许被任务要求覆盖。
-        response = await agent.llm_call()
+        # 身份 prompt 在 Agent.llm_call 内按当前文件与策略动态装配。
+        try:
+            response = await agent.llm_call()
+        except Exception:
+            diagnostics = agent.get_runtime_diagnostics()
+            if diagnostics:
+                await self._record_event(
+                    "llm_request_diagnostics",
+                    {**diagnostics, "request_state": "transport_error"},
+                )
+            raise
+        diagnostics = agent.get_runtime_diagnostics()
+        if diagnostics:
+            await self._record_event(
+                "llm_request_diagnostics",
+                {**diagnostics, "request_state": "response_received"},
+            )
+        # 累计真实 token usage 并广播：前端据此展示成本，不再完全黑盒
+        usage = agent._get_llm_client().last_usage
+        if usage:
+            for key in self._usage_totals:
+                self._usage_totals[key] += int(usage.get(key) or 0)
+            await self._record_event(
+                "token_usage",
+                {
+                    "agent_id": agent.id,
+                    "agent_name": agent.name,
+                    "last": usage,
+                    "total": dict(self._usage_totals),
+                },
+            )
         final_response = ''
         reasoning_content = ''
         tool_calls = []
@@ -767,6 +853,36 @@ class reAct:
                 self.log.update_content(f"{Color.RED}参数解析失败: {tool_name}{Color.END}\n")
                 continue
 
+            # 死循环检测：记录调用签名（工具名 + 稳定序列化参数），
+            # 同一签名连续出现 LOOP_WARN_THRESHOLD 次注入警告，
+            # 达到 LOOP_ABORT_THRESHOLD 次直接终止任务（在本次调用执行前拦截）。
+            sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True, ensure_ascii=False, default=str)}"
+            self._recent_tool_sigs.append(sig)
+            del self._recent_tool_sigs[:-20]
+            repeat = 0
+            for recent_sig in reversed(self._recent_tool_sigs):
+                if recent_sig == sig:
+                    repeat += 1
+                else:
+                    break
+            if repeat >= self.LOOP_ABORT_THRESHOLD:
+                raise AgentStuckLoop(
+                    f"检测到死循环：工具 `{tool_name}` 以完全相同的参数连续调用 {repeat} 次，"
+                    "任务被强制终止。"
+                )
+            if repeat == self.LOOP_WARN_THRESHOLD:
+                warn_msg = (
+                    f"【系统提示】检测到你可能陷入循环：工具 `{tool_name}` 已连续 {repeat} 次"
+                    "以完全相同的参数被调用。请先仔细阅读前几次的返回结果，改变策略或参数；"
+                    "如果目的是等待/轮询，请说明原因并换用更长间隔的方式。不要无意义地重复相同调用。"
+                )
+                await self._commit_undos()
+                await self.agent.update_context({"role": "system", "content": warn_msg})
+                await self._record_event("loop_detected", {"tool": tool_name, "repeat": repeat})
+                self.log.update_content(
+                    f"{Color.YELLOW}[系统] 检测到重复工具调用: {tool_name} x{repeat}{Color.END}\n"
+                )
+
             if tool_name == 'stop':
                 self._continue = False
                 stop_requested = True
@@ -781,15 +897,39 @@ class reAct:
             found = False
             for entry in tool_entries:
                 if entry.tool_name == tool_name:
+                    found = True
                     tool_instance = entry.instantiate(subagent=self.agent)
 
                     input_schema_class = tool_instance.input_schema
-                    input_instance = input_schema_class(**tool_args)
+                    try:
+                        input_instance = input_schema_class(**tool_args)
+                    except Exception as e:
+                        # 参数通不过 Pydantic 校验（类型错误/缺必填字段等）：
+                        # 把校验错误作为工具结果回喂 LLM 让它自行修正，
+                        # 绝不能让 ValidationError 穿透主循环直接打崩整个任务。
+                        err_msg = (
+                            f"【系统错误】工具 `{tool_name}` 参数校验失败: {e}。"
+                            "请对照该工具的参数 schema 修正参数类型与必填字段后重新调用。"
+                        )
+                        await self._commit_undos()
+                        await self.agent.update_context({
+                            'role': 'tool',
+                            'tool_call_id': tool_call_id,
+                            'content': err_msg,
+                        })
+                        await self._record_event(
+                            "tool_finished",
+                            {"tool": tool_name, "result": err_msg},
+                        )
+                        self.log.update_content(
+                            f"{Color.RED}参数校验失败: {tool_name}: {e}{Color.END}\n"
+                        )
+                        break
+
                     session.state = 'waiting'
                     acts.append(tool_instance.safe_call(input_instance, session))
                     tool_call_ids.append(tool_call_id)
                     tool_names.append(tool_name)
-                    found = True
                     break
 
             if not found:

@@ -107,7 +107,7 @@ class LLMClient:
         api_key: LLM API key。
         base_url: LLM API base URL。
         model: 默认模型名（create/chat_json 未显式传 model 时使用）。
-        timeout: requests shim 的 HTTP 超时秒数。
+        timeout: 单次请求超时秒数（OpenAI SDK 与 requests shim 共用）。
         max_retries: 瞬时错误的最大重试次数（初次调用不计）。
 
     三级 fallback，用于应对中转站对 OpenAI 客户端请求头的拦截：
@@ -116,6 +116,10 @@ class LLMClient:
     3. requests 库 + 自定义 User-Agent（放到线程池执行，避免阻塞事件循环）
 
     一旦某一级成功，该实例会记住这一级，后续调用优先使用。
+
+    on_status: 可选异步/同步回调 ``(event, data)``，在重试/fallback/传输
+    异常时触发，供上层（reAct）把传输层状态写入 session_events，避免
+    全屏 TUI 下用户对长时间重试完全无感知。
     """
 
     def __init__(
@@ -123,7 +127,7 @@ class LLMClient:
         api_key: str,
         base_url: str,
         model: Optional[str] = None,
-        timeout: int = 120,
+        timeout: int = 300,
         max_retries: int = 4,
     ):
         self.api_key = api_key
@@ -131,6 +135,8 @@ class LLMClient:
         self.model = model
         self.timeout = timeout
         self.max_retries = max_retries
+        # 传输层状态回调（见类 docstring）；由 reAct 在任务启动时挂接
+        self.on_status = None
         # 兼容被中转站拦截的 OpenAI 客户端：启用后改用 requests 发送请求
         self._curl_mode = False
         # 启用 OpenAI 客户端 + 自定义请求头（比 requests 更规范）
@@ -146,6 +152,18 @@ class LLMClient:
     def last_usage(self) -> Optional[dict]:
         """返回最近一次响应中的 usage 字段（prompt_tokens/completion_tokens/total_tokens）。"""
         return self._last_usage
+
+    async def _emit_status(self, event: str, **data) -> None:
+        """触发传输层状态回调；回调异常绝不外抛，传输层不因遥测失败。"""
+        hook = self.on_status
+        if hook is None:
+            return
+        try:
+            result = hook(event, data)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # 公开调用入口
@@ -188,6 +206,7 @@ class LLMClient:
                 return await self._chat_completions_via_requests(**kwargs)
             except Exception as e:
                 print(f"\033[91m[LLM curl 异常]\033[0m {e}")
+                await self._emit_status("llm_error", error=str(e), level="requests")
                 raise
 
         # Level 2: OpenAI 客户端 + 自定义请求头（之前 fallback 成功过）
@@ -202,16 +221,22 @@ class LLMClient:
             except Exception as e:
                 if is_fallback_trigger(e):
                     print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e}\033[0m")
+                    await self._emit_status("llm_fallback", error=str(e), level="requests")
                     self._curl_mode = True
                     return await self._chat_completions_via_requests(**kwargs)
                 print(f"\033[91m[LLM 异常]\033[0m {e}")
+                await self._emit_status("llm_error", error=str(e), level="custom_headers")
                 raise
 
         # Level 1: OpenAI 客户端默认请求头（实例级缓存，避免每步新建连接池）
+        # max_retries=0：SDK 自带的静默重试关掉，瞬时错误统一交给
+        # create_with_retry 处理，保证每次重试都有事件/日志可见。
         if self._openai_client is None:
             self._openai_client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
+                timeout=self.timeout,
+                max_retries=0,
             )
         client = self._openai_client
 
@@ -224,6 +249,7 @@ class LLMClient:
         except Exception as e:
             if is_fallback_trigger(e):
                 print(f"\033[93m[LLM fallback] OpenAI 默认请求头被拦截，尝试自定义请求头: {e}\033[0m")
+                await self._emit_status("llm_fallback", error=str(e), level="custom_headers")
                 self._use_custom_headers = True
                 client2 = self._openai_client_with_custom_headers()
                 try:
@@ -235,11 +261,14 @@ class LLMClient:
                 except Exception as e2:
                     if is_fallback_trigger(e2):
                         print(f"\033[93m[LLM fallback] 自定义请求头仍被拦截，切到 requests: {e2}\033[0m")
+                        await self._emit_status("llm_fallback", error=str(e2), level="requests")
                         self._curl_mode = True
                         return await self._chat_completions_via_requests(**kwargs)
                     print(f"\033[91m[LLM 异常]\033[0m {e2}")
+                    await self._emit_status("llm_error", error=str(e2), level="custom_headers")
                     raise
             print(f"\033[91m[LLM 异常]\033[0m {e}")
+            await self._emit_status("llm_error", error=str(e), level="default")
             raise
 
     async def create_with_retry(self, **kwargs) -> ChatResponse:
@@ -259,6 +288,13 @@ class LLMClient:
                 raise err
             delay = min(5 * (2 ** attempt), 60) + random.uniform(0, 2)
             print(f"\033[93m[LLM 重试]\033[0m 瞬时错误（{err}），{delay:.0f} 秒后重试 ({attempt + 1}/{self.max_retries})")
+            await self._emit_status(
+                "llm_retry",
+                error=str(err),
+                attempt=attempt + 1,
+                max_retries=self.max_retries,
+                delay=round(delay, 1),
+            )
             await asyncio.sleep(delay)
 
     async def embed(self, input: str, *, model: str):
@@ -271,6 +307,8 @@ class LLMClient:
             self._openai_client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
+                timeout=self.timeout,
+                max_retries=0,
             )
         return await self._openai_client.embeddings.create(model=model, input=input)
 
@@ -377,6 +415,8 @@ class LLMClient:
                 api_key=self.api_key,
                 base_url=self.base_url,
                 default_headers={"User-Agent": FALLBACK_USER_AGENT},
+                timeout=self.timeout,
+                max_retries=0,
             )
         return self._openai_client_custom
 

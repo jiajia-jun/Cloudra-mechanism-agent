@@ -194,7 +194,27 @@ class Tool(BaseModel):
             return await self._yolo_judge(session, tool_args or {}, guard)
 
         db_path = _tool_db_path(self.subagent)
-        return await self.request_approval(db_path, session.id, full_details)
+        risk_summary = next(
+            (
+                line.partition(":")[2].strip()
+                for line in details.splitlines()
+                if line.startswith("【动作】")
+            ),
+            details.splitlines()[0] if details.splitlines() else "危险工具调用",
+        )
+        candidate_diff = ""
+        diff_marker = "【Unified Diff】:\n"
+        if diff_marker in details:
+            candidate_diff = details.partition(diff_marker)[2]
+        return await self.request_approval(
+            db_path,
+            session.id,
+            full_details,
+            tool_name=self.tool_name,
+            normalized_arguments=tool_args or {},
+            risk_summary=risk_summary,
+            candidate_diff=candidate_diff,
+        )
 
     async def record_session_event(
         self,
@@ -229,29 +249,86 @@ class Tool(BaseModel):
             print(f"\033[91m[安全审计/YOLO]\033[0m 自动审批拒绝。原因: {reason_text}")
             return False, reason_text
 
-    async def request_approval(self, db_path: str, session_id: str, details: str) -> tuple[bool, str]:
+    async def request_approval(
+        self,
+        db_path: str,
+        session_id: str,
+        details: str,
+        *,
+        tool_name: str = "",
+        normalized_arguments: dict | None = None,
+        risk_summary: str = "",
+        candidate_diff: str = "",
+    ) -> tuple[bool, str]:
         import asyncio
 
         from cloudra import session_store as _ss
 
         db = ConversationDB.from_path(db_path)
-        approval_id = await _ss.ainsert_approval(db, session_id, details)
-
-        while True:
-            await asyncio.sleep(2)
-            row = await _ss.aread_approval_status(db, approval_id)
-            if row:
-                state, denial_reason = row
-                if state == 'approved':
-                    print("\033[92m[安全审计]\033[0m 审批通过。")
-                    return True, ''
-                elif state == 'denied':
-                    reason = denial_reason or ''
-                    if reason:
-                        print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
-                    else:
-                        print("\033[91m[安全审计]\033[0m 审批拒绝。")
-                    return False, reason
+        approval_id = await _ss.ainsert_approval(
+            db,
+            session_id,
+            details,
+            agent_name=(
+                self.subagent.name if self.subagent else "Unknown Agent"
+            ),
+            tool_name=tool_name,
+            normalized_arguments=normalized_arguments,
+            risk_summary=risk_summary,
+            candidate_diff=candidate_diff,
+        )
+        changed = _ss.transition_session_state(
+            db,
+            session_id,
+            expected={"running"},
+            target="waiting_for_approval",
+        )
+        if changed:
+            _ss.insert_session_event(
+                db,
+                session_id,
+                "waiting_for_approval",
+                {
+                    "approval_id": approval_id,
+                    "state": "waiting_for_approval",
+                },
+            )
+        try:
+            while True:
+                await asyncio.sleep(2)
+                row = await _ss.aread_approval_status(db, approval_id)
+                if row:
+                    state, denial_reason = row
+                    if state == 'approved':
+                        print("\033[92m[安全审计]\033[0m 审批通过。")
+                        return True, ''
+                    elif state == 'denied':
+                        reason = denial_reason or ''
+                        if reason:
+                            print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
+                        else:
+                            print("\033[91m[安全审计]\033[0m 审批拒绝。")
+                        return False, reason
+                    elif state == "expired":
+                        print("\033[91m[安全审计]\033[0m 审批已过期。")
+                        return False, "审批已过期"
+        finally:
+            restored = _ss.transition_session_state(
+                db,
+                session_id,
+                expected={"waiting_for_approval"},
+                target="running",
+            )
+            if restored:
+                _ss.insert_session_event(
+                    db,
+                    session_id,
+                    "running",
+                    {
+                        "approval_id": approval_id,
+                        "state": "running",
+                    },
+                )
 
     @classmethod
     def _get_field_default(cls, field_name: str):

@@ -1,20 +1,20 @@
-"""工具注册表：加载所有工具类，按调用方实例化。
+"""工具注册表：从显式 manifest 加载工具类，按调用方实例化。
 
 每个条目是 ``ToolEntry(cls, tool_name, tool_id, input_schema)``，
 包装原始 Pydantic 类并提供预解析的属性，避免在类级别直接访问
 Pydantic v2 model_fields（类属性访问被 pydantic 拦截导致 AttributeError）。
 """
 
-import importlib.util
+import importlib
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-CURRENT_DIR = Path(__file__).parent
+from cloudra.tools.registry import TOOL_REGISTRY
 
 _TOOL_ENTRIES_CACHE: list | None = None
 _EXTRA_ENTRIES: list = []
+_TOOL_LOAD_ERRORS: dict[str, str] = {}
 
 
 @dataclass
@@ -47,46 +47,52 @@ def _make_entry(tool_cls: type) -> ToolEntry:
 
 
 def get_tools_lst() -> list[ToolEntry]:
-    """返回所有已发现的工具条目列表，进程内缓存。"""
+    """返回显式注册且在当前依赖环境中可导入的工具，进程内缓存。"""
     global _TOOL_ENTRIES_CACHE
     if _TOOL_ENTRIES_CACHE is not None:
         return _TOOL_ENTRIES_CACHE
 
     entries = []
-    project_root = str(CURRENT_DIR.parent)
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-
-    for py_file in CURRENT_DIR.rglob("*.py"):
-        if py_file.name == "__init__.py" or "__pycache__" in str(py_file) or "core" in py_file.parts:
+    _TOOL_LOAD_ERRORS.clear()
+    for registration in TOOL_REGISTRY:
+        try:
+            module = importlib.import_module(registration.module)
+        except ModuleNotFoundError as e:
+            if e.name == registration.module or registration.module.startswith(f"{e.name}."):
+                raise RuntimeError(f"显式工具注册模块不存在: {registration.module}") from e
+            error = f"{type(e).__name__}: {e}"
+            _TOOL_LOAD_ERRORS[registration.module] = error
+            print(f"警告: 加载显式工具 {registration.module}:{registration.class_name} 失败: {error}", file=sys.stderr)
             continue
+        except ImportError as e:
+            error = f"{type(e).__name__}: {e}"
+            _TOOL_LOAD_ERRORS[registration.module] = error
+            print(f"警告: 加载显式工具 {registration.module}:{registration.class_name} 失败: {error}", file=sys.stderr)
+            continue
+        except Exception as e:
+            raise RuntimeError(
+                f"显式工具模块加载异常: {registration.module}:{registration.class_name}"
+            ) from e
 
         try:
-            rel_path = py_file.relative_to(CURRENT_DIR.parent)
-            module_name = ".".join(rel_path.with_suffix("").parts)
-
-            spec = importlib.util.spec_from_file_location(module_name, py_file)
-            if spec is None or spec.loader is None:
-                continue
-
-            module = importlib.util.module_from_spec(spec)
-            if module_name not in sys.modules:
-                sys.modules[module_name] = module
-                spec.loader.exec_module(module)
-            else:
-                module = sys.modules[module_name]
-
-            get_class_func = getattr(module, "get_class", None)
-            if get_class_func is not None:
-                entries.append(_make_entry(get_class_func()))
-        except Exception as e:
-            print(f"警告: 加载工具 {py_file} 失败: {e}")
+            tool_cls = getattr(module, registration.class_name)
+        except AttributeError as e:
+            raise RuntimeError(
+                f"显式工具注册类不存在: {registration.module}:{registration.class_name}"
+            ) from e
+        entries.append(_make_entry(tool_cls))
 
     _TOOL_ENTRIES_CACHE = entries
     if _EXTRA_ENTRIES:
         _TOOL_ENTRIES_CACHE.extend(_EXTRA_ENTRIES)
         _EXTRA_ENTRIES.clear()
     return entries
+
+
+def get_tool_load_errors() -> dict[str, str]:
+    """返回当前依赖环境中显式工具的导入失败诊断。"""
+    get_tools_lst()
+    return dict(_TOOL_LOAD_ERRORS)
 
 
 def register_tool_class(tool_cls) -> None:

@@ -1,10 +1,11 @@
+import hashlib
 import os
 
 import frontmatter as frt
 
-# 模块级缓存：skills 目录内容在进程生命周期内不变，而 GetSkill 每个 LLM 步骤
-# 都会实例化 skill_loader，缓存可避免每步对所有 SKILL.md 做全量打开+解析
-_SKILL_DATAS_CACHE: dict[str, list[dict]] = {}
+# 模块级缓存按 SKILL.md 内容 revision 失效。Phase 6 后 skill manifest
+# 允许在进程运行期间更新，不能再假设目录在整个进程生命周期中静态不变。
+_SKILL_DATAS_CACHE: dict[str, tuple[str, list[dict]]] = {}
 
 # NOTE: Skills 模型仅作为 skill frontmatter 的字段参照，当前未被实例化使用。
 # 若后续需要校验 skill 元数据，可取消注释并补全默认值。
@@ -30,7 +31,17 @@ class skill_loader:
         self.md_pathlst = [os.path.join(path,'SKILL.md') for path in self.pathlst if os.path.isdir(path)]
 
     def skill_datas_get(self) -> list[dict]:
-        if self.base_path not in _SKILL_DATAS_CACHE:
+        revision_hash = hashlib.sha256()
+        for md in sorted(self.md_pathlst):
+            revision_hash.update(md.encode("utf-8"))
+            try:
+                with open(md, "rb") as stream:
+                    revision_hash.update(stream.read())
+            except OSError:
+                continue
+        revision = revision_hash.hexdigest()
+        cached = _SKILL_DATAS_CACHE.get(self.base_path)
+        if cached is None or cached[0] != revision:
             mds = self.md_pathlst
             datas = []
             for md in mds:
@@ -44,9 +55,9 @@ class skill_loader:
                     metadata['content'] = content
                     datas.append(metadata)
 
-            _SKILL_DATAS_CACHE[self.base_path] = datas
+            _SKILL_DATAS_CACHE[self.base_path] = (revision, datas)
 
-        return _SKILL_DATAS_CACHE[self.base_path]
+        return _SKILL_DATAS_CACHE[self.base_path][1]
 
     def get_reference(self, skill_name, ref_name) -> str:
         # 支持多种可能的资料文件夹命名约定
@@ -70,8 +81,6 @@ class skill_loader:
             if data['name'] == skill_name:
                 return data['content']
         return 'skill不存在。'
-
-
 
 
 

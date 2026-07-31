@@ -45,6 +45,19 @@ def configure_app_storage() -> AppStorage:
     os.environ["CLOUDRA_DATA_DIR"] = str(data_dir)
     os.environ["CLOUDRA_CONFIG_FILE"] = str(config_file)
 
+    # The Android package is a remote console and intentionally does not ship
+    # Cloudra's server-side config stack. Its local state is limited to the
+    # remote profile/cursor store managed by RemoteStateStore.
+    from cloudra.runtime_profile import is_mobile_runtime
+
+    if is_mobile_runtime():
+        return AppStorage(
+            data_dir=data_dir,
+            config_file=config_file,
+            workspace=default_workspace.resolve(),
+            packaged=True,
+        )
+
     from cloudra.config import reload_config
 
     config = reload_config()

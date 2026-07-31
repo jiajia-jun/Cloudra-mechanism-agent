@@ -148,7 +148,7 @@ async def test_user_event_wakes_waiter_without_cancelling_schedule(schedule_db):
 async def test_tui_watcher_fires_schedule_after_wait_is_cancelled(
     schedule_db, monkeypatch
 ):
-    from cloudra.tui.app import CloudraTUI
+    from cloudra.tui.legacy_app import CloudraTUI
 
     agent = Coordinator(query="monitor", conversation_id="schedule_test")
     created = await Schedule(subagent=agent).tool_call(

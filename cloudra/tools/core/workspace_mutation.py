@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import TypeVar
 
 from pydantic import Field
@@ -154,6 +155,29 @@ async def execute_prepared_change(
         change.event_data("applied"),
     )
     conversation_id = getattr(tool.subagent, "conversation_id", "default")
+    from cloudra.database import ConversationDB
+
+    if Path(ConversationDB(conversation_id).path).is_file():
+        try:
+            from cloudra.artifacts import ArtifactService
+
+            await asyncio.to_thread(
+                ArtifactService().register_file,
+                conversation_id=conversation_id,
+                session_id=session.id,
+                source=change.absolute_path,
+                allowed_root=service.root,
+                name=change.relative_path,
+            )
+        except (OSError, ValueError) as exc:
+            await tool.record_session_event(
+                session,
+                "artifact_registration_failed",
+                {
+                    "path": change.relative_path,
+                    "message": str(exc),
+                },
+            )
     session_key = f"{conversation_id}:{session.id}"
     aggregate_diff = turn_diff_tracker.record_applied(session_key, service, change)
     await tool.record_session_event(

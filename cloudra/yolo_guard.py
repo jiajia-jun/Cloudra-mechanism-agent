@@ -26,10 +26,6 @@ def _load_prompt(name: str) -> str:
         raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
     return prompt_path.read_text(encoding="utf-8")
 
-
-YOLO_SYSTEM_PROMPT = _load_prompt("yolo_guard")
-
-
 # 按 Session 的 YOLO 开关：asyncio task 内设置后只影响该任务及其派生的协程，
 # 进程内并发的其他会话不受影响。缺省回落到进程级环境变量（CLI 路径）。
 _SESSION_YOLO: contextvars.ContextVar[bool] = contextvars.ContextVar(
@@ -189,7 +185,8 @@ class YoloGuard:
 
         client = self._client()
         messages = [
-            {"role": "system", "content": YOLO_SYSTEM_PROMPT},
+            # 安全策略也必须按请求读取，避免长期运行进程继续使用旧版本。
+            {"role": "system", "content": _load_prompt("yolo_guard")},
             {"role": "user", "content": user_content},
         ]
         request_kwargs = dict(

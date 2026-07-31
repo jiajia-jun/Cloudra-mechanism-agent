@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -244,6 +244,36 @@ def update_session_fields(db: ConversationDB, session_id: str, values: dict) -> 
         _emit_session_state(db, session_id, state)
         if state == "cancel_requested":
             _emit("cancel_requested", db, session_id=session_id)
+
+
+def transition_session_state(
+    db: ConversationDB,
+    session_id: str,
+    *,
+    expected: set[str],
+    target: str,
+) -> bool:
+    """Compare-and-set a non-terminal Session state without clobbering cancel."""
+
+    if not expected:
+        return False
+    placeholders = ",".join("?" for _ in expected)
+    expected_values = sorted(expected)
+
+    def write() -> bool:
+        with db.connect() as con:
+            cursor = con.execute(
+                f"""UPDATE session SET state=?
+                WHERE session_id=? AND state IN ({placeholders})""",
+                (target, session_id, *expected_values),
+            )
+            con.commit()
+            return cursor.rowcount == 1
+
+    changed = retry_on_locked(write)
+    if changed:
+        _emit_session_state(db, session_id, target)
+    return changed
 
 
 async def aheartbeat(db: ConversationDB, session_id: str) -> None:
@@ -525,7 +555,7 @@ def reap_exited_requests(db: ConversationDB, request_ids: list[int]) -> list[int
 
 
 def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
-    """把失去心跳的 running Session 标为 interrupted，并回收其孤儿 running 请求。
+    """把失去心跳的活动 Session 标为 interrupted，并回收孤儿请求。
 
     返回被标记 interrupted 的 Session 数。``cutoff`` 为心跳过期阈值（ISO 时间串）。
     """
@@ -536,7 +566,9 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
         stale_sessions = [
             row[0] for row in con.execute(
                 """SELECT session_id FROM session
-                WHERE state='running' AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
+                WHERE state IN ('running', 'waiting_for_user',
+                'waiting_for_device', 'waiting_for_approval')
+                AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
                 (cutoff,),
             ).fetchall()
         ]
@@ -547,7 +579,9 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
                     OR session_id NOT IN (SELECT session_id FROM session)
                     OR session_id IN (
                         SELECT session_id FROM session
-                        WHERE state != 'running' OR heartbeat_at IS NULL OR heartbeat_at < ?
+                        WHERE state NOT IN ('running', 'waiting_for_user',
+                        'waiting_for_device', 'waiting_for_approval')
+                        OR heartbeat_at IS NULL OR heartbeat_at < ?
                     )
                 )""",
                 (cutoff,),
@@ -560,7 +594,9 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
             cursor = con.execute(
                 """UPDATE session SET state='interrupted',
                 error=COALESCE(error, 'worker heartbeat expired'), finished_at=?
-                WHERE state='running' AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
+                WHERE state IN ('running', 'waiting_for_user',
+                'waiting_for_device', 'waiting_for_approval')
+                AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
                 (now, cutoff),
             )
             changed = cursor.rowcount
@@ -571,7 +607,9 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
                     OR session_id NOT IN (SELECT session_id FROM session)
                     OR session_id IN (
                         SELECT session_id FROM session
-                        WHERE state != 'running' OR heartbeat_at IS NULL OR heartbeat_at < ?
+                        WHERE state NOT IN ('running', 'waiting_for_user',
+                        'waiting_for_device', 'waiting_for_approval')
+                        OR heartbeat_at IS NULL OR heartbeat_at < ?
                     )
                 )""",
                 (cutoff,),
@@ -601,7 +639,10 @@ def cancel_descendants(
     with db.connect() as con:
         children = con.execute(
             """SELECT session_id, pid FROM session
-            WHERE parent_session_id=? AND state IN ('queued', 'running', 'cancel_requested')""",
+            WHERE parent_session_id=? AND state IN
+            ('queued', 'running', 'waiting_for_user',
+             'waiting_for_approval', 'waiting_for_device',
+             'cancel_requested')""",
             (parent_session_id,),
         ).fetchall()
     children_ids = [child_id for child_id, _pid in children]
@@ -611,7 +652,9 @@ def cancel_descendants(
             for child_id, pid in children:
                 con.execute(
                     """UPDATE session SET state='cancel_requested'
-                    WHERE session_id=? AND state IN ('queued', 'running')""",
+                    WHERE session_id=? AND state IN
+                    ('queued', 'running', 'waiting_for_user',
+                     'waiting_for_approval', 'waiting_for_device')""",
                     (child_id,),
                 )
                 if pid:
@@ -700,20 +743,73 @@ def insert_approval(
     session_id: str,
     details: str,
     agent_name: Optional[str] = None,
+    *,
+    tool_name: str = "",
+    normalized_arguments: dict | None = None,
+    risk_summary: str = "",
+    candidate_diff: str = "",
+    ttl_seconds: int = 86_400,
 ) -> int:
     """插入一条 pending 审批记录，返回 approval_id；details 写库前做孤立代理符净化。"""
+
+    requested_at = datetime.now(timezone.utc)
+    expires_at = requested_at + timedelta(
+        seconds=min(max(int(ttl_seconds), 1), 604_800)
+    )
+    safe_details = sanitize_db_text(details)
+    safe_arguments = sanitize_db_text(
+        json.dumps(normalized_arguments or {}, ensure_ascii=False, sort_keys=True)
+    )
+    safe_risk = sanitize_db_text(risk_summary)
+    safe_diff = sanitize_db_text(candidate_diff)
 
     def write() -> int:
         with db.connect() as con:
             cur = con.execute(
-                "INSERT INTO approvals (session_id, agent_name, details, state) VALUES (?, ?, ?, 'pending')",
-                (session_id, agent_name, sanitize_db_text(details)),
+                """INSERT INTO approvals
+                (session_id, agent_name, details, state, tool_name,
+                 normalized_arguments, risk_summary, candidate_diff,
+                 requested_at, expires_at)
+                VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)""",
+                (
+                    session_id,
+                    agent_name,
+                    safe_details,
+                    tool_name,
+                    safe_arguments,
+                    safe_risk,
+                    safe_diff,
+                    requested_at.isoformat(),
+                    expires_at.isoformat(),
+                ),
             )
             con.commit()
             return cur.lastrowid
 
     approval_id = retry_on_locked(write)
-    _emit("approval_pending", db, approval_id=approval_id, session_id=session_id, agent_name=agent_name)
+    payload = {
+        "approval_id": approval_id,
+        "agent_name": agent_name,
+        "details": safe_details,
+        "tool_name": tool_name,
+        "normalized_arguments": normalized_arguments or {},
+        "risk_summary": safe_risk,
+        "candidate_diff": safe_diff,
+        "requested_at": requested_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+    }
+    _emit(
+        "approval_pending",
+        db,
+        session_id=session_id,
+        **payload,
+    )
+    insert_session_event(
+        db,
+        session_id,
+        "approval_pending",
+        payload,
+    )
     return approval_id
 
 
@@ -722,20 +818,73 @@ async def ainsert_approval(
     session_id: str,
     details: str,
     agent_name: Optional[str] = None,
+    *,
+    tool_name: str = "",
+    normalized_arguments: dict | None = None,
+    risk_summary: str = "",
+    candidate_diff: str = "",
+    ttl_seconds: int = 86_400,
 ) -> int:
     """异步插入一条 pending 审批记录，返回 approval_id；语义同 :func:`insert_approval`。"""
+
+    requested_at = datetime.now(timezone.utc)
+    expires_at = requested_at + timedelta(
+        seconds=min(max(int(ttl_seconds), 1), 604_800)
+    )
+    safe_details = sanitize_db_text(details)
+    safe_arguments = sanitize_db_text(
+        json.dumps(normalized_arguments or {}, ensure_ascii=False, sort_keys=True)
+    )
+    safe_risk = sanitize_db_text(risk_summary)
+    safe_diff = sanitize_db_text(candidate_diff)
 
     async def write() -> int:
         async with db.aconnect() as con:
             cur = await con.execute(
-                "INSERT INTO approvals (session_id, agent_name, details, state) VALUES (?, ?, ?, 'pending')",
-                (session_id, agent_name, sanitize_db_text(details)),
+                """INSERT INTO approvals
+                (session_id, agent_name, details, state, tool_name,
+                 normalized_arguments, risk_summary, candidate_diff,
+                 requested_at, expires_at)
+                VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)""",
+                (
+                    session_id,
+                    agent_name,
+                    safe_details,
+                    tool_name,
+                    safe_arguments,
+                    safe_risk,
+                    safe_diff,
+                    requested_at.isoformat(),
+                    expires_at.isoformat(),
+                ),
             )
             await con.commit()
             return cur.lastrowid
 
     approval_id = await aretry_on_locked(write)
-    await _aemit("approval_pending", db, approval_id=approval_id, session_id=session_id, agent_name=agent_name)
+    payload = {
+        "approval_id": approval_id,
+        "agent_name": agent_name,
+        "details": safe_details,
+        "tool_name": tool_name,
+        "normalized_arguments": normalized_arguments or {},
+        "risk_summary": safe_risk,
+        "candidate_diff": safe_diff,
+        "requested_at": requested_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+    }
+    await _aemit(
+        "approval_pending",
+        db,
+        session_id=session_id,
+        **payload,
+    )
+    insert_session_event(
+        db,
+        session_id,
+        "approval_pending",
+        payload,
+    )
     return approval_id
 
 
@@ -744,6 +893,8 @@ def list_pending_approvals(db: ConversationDB) -> list[tuple[int, str, str, str]
 
     返回 ``(id, session_id, agent_name, details)`` 元组列表。
     """
+
+    expire_pending_approvals(db)
 
     def read() -> list:
         with db.connect() as con:
@@ -755,8 +906,152 @@ def list_pending_approvals(db: ConversationDB) -> list[tuple[int, str, str, str]
     return retry_on_locked(read)
 
 
+def list_pending_approval_records(db: ConversationDB) -> list[dict]:
+    """返回远程客户端需要的结构化审批记录。"""
+
+    expire_pending_approvals(db)
+
+    def read() -> list:
+        with db.connect() as con:
+            return con.execute(
+                """SELECT id, session_id, agent_name, details, tool_name,
+                normalized_arguments, risk_summary, candidate_diff,
+                requested_at, expires_at FROM approvals
+                WHERE state='pending' ORDER BY id"""
+            ).fetchall()
+
+    records = []
+    for row in retry_on_locked(read):
+        try:
+            arguments = json.loads(row[5] or "{}")
+        except (TypeError, ValueError):
+            arguments = {}
+        records.append(
+            {
+                "id": row[0],
+                "approval_id": row[0],
+                "session_id": row[1],
+                "agent_name": row[2],
+                "details": row[3],
+                "tool_name": row[4] or "",
+                "normalized_arguments": (
+                    arguments if isinstance(arguments, dict) else {}
+                ),
+                "risk_summary": row[6] or "",
+                "candidate_diff": row[7] or "",
+                "requested_at": row[8],
+                "expires_at": row[9],
+                "state": "pending",
+            }
+        )
+    return records
+
+
+def expire_pending_approvals(
+    db: ConversationDB,
+    *,
+    approval_id: int | None = None,
+) -> list[int]:
+    """将到期审批持久化为 expired，并产生可恢复事件。"""
+
+    now = _utc_now()
+
+    def write() -> list[tuple[int, str]]:
+        with db.connect() as con:
+            query = (
+                """SELECT id, session_id FROM approvals
+                WHERE state='pending' AND expires_at IS NOT NULL
+                AND expires_at<=?"""
+            )
+            params: list[Any] = [now]
+            if approval_id is not None:
+                query += " AND id=?"
+                params.append(approval_id)
+            rows = con.execute(query, params).fetchall()
+            expired = []
+            for row_id, session_id in rows:
+                cursor = con.execute(
+                    """UPDATE approvals SET state='expired', decided_at=?
+                    WHERE id=? AND state='pending'""",
+                    (now, row_id),
+                )
+                if cursor.rowcount == 1:
+                    expired.append((row_id, session_id))
+            con.commit()
+            return expired
+
+    expired = retry_on_locked(write)
+    for row_id, session_id in expired:
+        _emit(
+            "approval_expired",
+            db,
+            approval_id=row_id,
+            session_id=session_id,
+        )
+        if session_id:
+            insert_session_event(
+                db,
+                session_id,
+                "approval_expired",
+                {"approval_id": row_id, "state": "expired"},
+            )
+    return [row_id for row_id, _ in expired]
+
+
+async def aexpire_pending_approvals(
+    db: ConversationDB,
+    *,
+    approval_id: int | None = None,
+) -> list[int]:
+    now = _utc_now()
+
+    async def write() -> list[tuple[int, str]]:
+        async with db.aconnect() as con:
+            query = (
+                """SELECT id, session_id FROM approvals
+                WHERE state='pending' AND expires_at IS NOT NULL
+                AND expires_at<=?"""
+            )
+            params: list[Any] = [now]
+            if approval_id is not None:
+                query += " AND id=?"
+                params.append(approval_id)
+            cursor = await con.execute(query, params)
+            rows = await cursor.fetchall()
+            expired = []
+            for row_id, session_id in rows:
+                cursor = await con.execute(
+                    """UPDATE approvals SET state='expired', decided_at=?
+                    WHERE id=? AND state='pending'""",
+                    (now, row_id),
+                )
+                if cursor.rowcount == 1:
+                    expired.append((row_id, session_id))
+            await con.commit()
+            return expired
+
+    expired = await aretry_on_locked(write)
+    for row_id, session_id in expired:
+        await _aemit(
+            "approval_expired",
+            db,
+            approval_id=row_id,
+            session_id=session_id,
+        )
+        if session_id:
+            insert_session_event(
+                db,
+                session_id,
+                "approval_expired",
+                {"approval_id": row_id, "state": "expired"},
+            )
+    return [row_id for row_id, _ in expired]
+
+
 async def aread_approval_status(db: ConversationDB, approval_id: int) -> Optional[tuple[str, str]]:
     """异步读取单条审批的 ``(state, denial_reason)``；不存在时返回 None。"""
+
+    await aexpire_pending_approvals(db, approval_id=approval_id)
 
     async def read() -> Optional[tuple]:
         async with db.aconnect() as con:
@@ -768,41 +1063,131 @@ async def aread_approval_status(db: ConversationDB, approval_id: int) -> Optiona
     return await aretry_on_locked(read)
 
 
-def decide_approval(db: ConversationDB, approval_id: int, state: str, denial_reason: str = "") -> bool:
+def decide_approval(
+    db: ConversationDB,
+    approval_id: int,
+    state: str,
+    denial_reason: str = "",
+    *,
+    decided_by: str = "local_user",
+) -> bool:
     """写入审批决定（同步），仅当审批仍处于 pending 时生效。
 
     防止 CLI 与 Web/API 双通道同时审批时互相覆盖而不自知。
     denial_reason 写库前统一做孤立代理符净化。
     """
 
+    if state not in {"approved", "denied"}:
+        raise ValueError("无效的审批决定")
+    expire_pending_approvals(db, approval_id=approval_id)
+    decided_at = _utc_now()
+
     def write() -> bool:
         with db.connect() as con:
             cur = con.execute(
-                "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ? AND state = 'pending'",
-                (state, sanitize_db_text(denial_reason), approval_id),
+                """UPDATE approvals SET state=?, denial_reason=?,
+                decided_by=?, decided_at=?
+                WHERE id=? AND state='pending'""",
+                (
+                    state,
+                    sanitize_db_text(denial_reason),
+                    sanitize_db_text(decided_by),
+                    decided_at,
+                    approval_id,
+                ),
             )
             con.commit()
             return cur.rowcount == 1
 
     updated = retry_on_locked(write)
     if updated:
-        _emit("approval_decided", db, approval_id=approval_id, state=state)
+        _emit(
+            "approval_decided",
+            db,
+            approval_id=approval_id,
+            state=state,
+            decided_by=decided_by,
+            decided_at=decided_at,
+        )
+        with db.connect() as con:
+            row = con.execute(
+                "SELECT session_id FROM approvals WHERE id=?",
+                (approval_id,),
+            ).fetchone()
+        if row and row[0]:
+            insert_session_event(
+                db,
+                row[0],
+                "approval_decided",
+                {
+                    "approval_id": approval_id,
+                    "state": state,
+                    "denial_reason": sanitize_db_text(denial_reason),
+                    "decided_by": sanitize_db_text(decided_by),
+                    "decided_at": decided_at,
+                },
+            )
     return updated
 
 
-async def adecide_approval(db: ConversationDB, approval_id: int, state: str, denial_reason: str = "") -> bool:
+async def adecide_approval(
+    db: ConversationDB,
+    approval_id: int,
+    state: str,
+    denial_reason: str = "",
+    *,
+    decided_by: str = "local_user",
+) -> bool:
     """写入审批决定（异步），语义同 :func:`decide_approval`。"""
+
+    if state not in {"approved", "denied"}:
+        raise ValueError("无效的审批决定")
+    await aexpire_pending_approvals(db, approval_id=approval_id)
+    decided_at = _utc_now()
 
     async def write() -> bool:
         async with db.aconnect() as con:
             cur = await con.execute(
-                "UPDATE approvals SET state = ?, denial_reason = ? WHERE id = ? AND state = 'pending'",
-                (state, sanitize_db_text(denial_reason), approval_id),
+                """UPDATE approvals SET state=?, denial_reason=?,
+                decided_by=?, decided_at=?
+                WHERE id=? AND state='pending'""",
+                (
+                    state,
+                    sanitize_db_text(denial_reason),
+                    sanitize_db_text(decided_by),
+                    decided_at,
+                    approval_id,
+                ),
             )
             await con.commit()
             return cur.rowcount == 1
 
     updated = await aretry_on_locked(write)
     if updated:
-        await _aemit("approval_decided", db, approval_id=approval_id, state=state)
+        await _aemit(
+            "approval_decided",
+            db,
+            approval_id=approval_id,
+            state=state,
+            decided_by=decided_by,
+            decided_at=decided_at,
+        )
+        with db.connect() as con:
+            row = con.execute(
+                "SELECT session_id FROM approvals WHERE id=?",
+                (approval_id,),
+            ).fetchone()
+        if row and row[0]:
+            insert_session_event(
+                db,
+                row[0],
+                "approval_decided",
+                {
+                    "approval_id": approval_id,
+                    "state": state,
+                    "denial_reason": sanitize_db_text(denial_reason),
+                    "decided_by": sanitize_db_text(decided_by),
+                    "decided_at": decided_at,
+                },
+            )
     return updated

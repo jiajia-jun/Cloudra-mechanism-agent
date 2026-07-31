@@ -66,22 +66,20 @@ def context_manager(tmp_path):
 
 @pytest.mark.asyncio
 class TestSupervisorAdviceInsertion:
-    async def test_advice_inserted_at_index_2(self, context_manager):
+    async def test_advice_inserted_after_query(self, context_manager):
         await context_manager.set_supervisor_advice("先查文献再计算。")
         context = await context_manager.load()
-        assert context[0]["role"] == "system"
-        assert "你是一个测试助手" in context[0]["content"]
-        assert context[1]["role"] == "user"
-        assert context[1]["content"] == "初始问题"
-        assert context[2]["role"] == "system"
-        assert context[2]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
-        assert "先查文献再计算" in context[2]["content"]
+        assert context[0]["role"] == "user"
+        assert context[0]["content"] == "初始问题"
+        assert context[1]["role"] == "system"
+        assert context[1]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
+        assert "先查文献再计算" in context[1]["content"]
 
     async def test_advice_replaces_existing(self, context_manager):
         await context_manager.set_supervisor_advice("旧建议")
         await context_manager.set_supervisor_advice("新建议")
         context = await context_manager.load()
-        # 应仍只有一条 supervisor advice，且位于索引 2
+        # 应仍只有一条 supervisor advice，且紧跟初始 query。
         advice_msgs = [
             m for m in context
             if m["role"] == "system" and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
@@ -231,22 +229,35 @@ class TestUpdateMemoryTool:
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 class TestCoordinatorMemoryLoading:
-    async def test_coordinator_prompt_includes_memory(self, tmp_path, monkeypatch):
-        """Coordinator 初始化时，若 MEMORY.md 存在，应自动注入到身份 prompt。"""
+    async def test_coordinator_request_prompt_includes_memory(self, tmp_path, monkeypatch):
+        """Coordinator 每次请求时读取 MEMORY.md 并注入身份层。"""
         from cloudra.agent import Coordinator
 
         cfg = MagicMock()
         cfg.data_dir = tmp_path
+        cfg.config_file = tmp_path / "config.toml"
         monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
+        monkeypatch.setattr("cloudra.runtime.prompt_assembler.get_config", lambda: cfg)
 
         # 预写入记忆
         manager = MemoryManager(conversation_id="test-conv")
         manager.memory_path = tmp_path / "memory" / "MEMORY.md"
         await manager.append_lesson("VASP 磁性体系必须设置 ISPIN=2。", source="test")
 
-        agent = Coordinator(query="test", conversation_id="test-conv")
-        assert "长期记忆" in agent.prompt
-        assert "ISPIN=2" in agent.prompt
+        agent = Coordinator(
+            query="test",
+            conversation_id="test-conv",
+            working_directory=str(tmp_path),
+        )
+        agent._tools_schema_cache = []
+        messages = await agent._build_messages()
+        identity = messages[0]["content"]
+        assert "长期记忆" in identity
+        assert "ISPIN=2" in identity
+        assert any(
+            source["kind"] == "memory"
+            for source in agent._last_prompt_assembly.diagnostics()["prompt_sources"]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +409,7 @@ class TestSupervisorAdviceSingleMarker:
 
         await context_manager.set_supervisor_advice(advice_text)
         context = await context_manager.load()
-        msg = context[2]["content"]
+        msg = context[1]["content"]
         assert msg.startswith(SUPERVISOR_ADVICE_MARKER)
         assert msg.count(SUPERVISOR_ADVICE_MARKER) == 1
         assert "方向偏离" in msg and "先查文献" in msg
@@ -413,7 +424,7 @@ class TestSupervisorAdviceSingleMarker:
 
 
 class TestSupervisorReviewEndToEnd:
-    """reAct._supervisor_review：建议注入上下文（index 2、单 marker）且事件落库。"""
+    """reAct._supervisor_review：建议紧跟 query、单 marker 且事件落库。"""
 
     @pytest.mark.asyncio
     async def test_review_injected_and_event_recorded(self, tmp_path, monkeypatch):
@@ -445,12 +456,12 @@ class TestSupervisorReviewEndToEnd:
         assert react.supervisor.interval == 15
 
         ctx = await agent.get_context()
-        assert ctx[2]["role"] == "system"
-        assert ctx[2]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
-        assert ctx[2]["content"].count(SUPERVISOR_ADVICE_MARKER) == 1
-        assert "方向正确" in ctx[2]["content"]
+        assert ctx[1]["role"] == "system"
+        assert ctx[1]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
+        assert ctx[1]["content"].count(SUPERVISOR_ADVICE_MARKER) == 1
+        assert "方向正确" in ctx[1]["content"]
         # 包装层附带了"优先参考"的引导语
-        assert "优先参考" in ctx[2]["content"]
+        assert "优先参考" in ctx[1]["content"]
 
         with sqlite3.connect(db_path) as con:
             row = con.execute(

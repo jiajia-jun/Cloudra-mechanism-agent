@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloudra-android"
+version = "2.0.0-beta"
+description = "Cloudra Android remote console"
+requires-python = ">=3.10"
+dependencies = [
+    "certifi>=2024",
+    "cloudra-native==0.1.0",
+    "httpx>=0.24",
+]
+
+[tool.flet]
+org = "io.github.yyywaa"
+product = "Cloudra"
+company = "Cloudra"
+bundle_id = "io.github.yyywaa.cloudra"
+
+[tool.flet.app]
+module = "flet_app"
+path = "."
+
+[tool.flet.android]
+# Keep the embedded Python client in lockstep with the Flutter Flet template.
+dependencies = ["flet==0.86.3"]
+target_arch = ["arm64-v8a"]
+split_per_abi = false
+
+[tool.flet.android.dev_packages]
+"cloudra-native" = "extensions/cloudra_native"
+
+[tool.flet.android.deep_linking]
+scheme = "cloudra"
+host = "runtime"
+
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+"android.permission.FOREGROUND_SERVICE" = true
+"android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" = true
+"android.permission.POST_NOTIFICATIONS" = true

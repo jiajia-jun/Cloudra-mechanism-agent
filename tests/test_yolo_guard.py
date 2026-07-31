@@ -121,6 +121,42 @@ class TestYoloGuardJudge:
         assert "tool_choice" not in mock_client.return_value.create.call_args.kwargs
 
     @pytest.mark.asyncio
+    async def test_guard_prompt_is_reloaded_for_each_judgement(
+        self,
+        fake_agent,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
+        monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
+        monkeypatch.setenv("FOLLOWER_KEY", "test-key")
+        reload_config()
+
+        guard = YoloGuard()
+        response = MagicMock()
+        tool_call = MagicMock()
+        tool_call.function.arguments = json.dumps(
+            {"approved": True, "reason": "放行"}
+        )
+        response.choices[0].message.tool_calls = [tool_call]
+
+        with (
+            patch.object(guard, "_client") as mock_client,
+            patch(
+                "cloudra.yolo_guard._load_prompt",
+                side_effect=["第一版安全策略", "第二版安全策略"],
+            ),
+        ):
+            create = AsyncMock(return_value=response)
+            mock_client.return_value.create = create
+            await guard.judge("text_reader", {"path": "a"}, fake_agent, None)
+            await guard.judge("text_reader", {"path": "b"}, fake_agent, None)
+
+        first_messages = create.call_args_list[0].kwargs["messages"]
+        second_messages = create.call_args_list[1].kwargs["messages"]
+        assert first_messages[0]["content"] == "第一版安全策略"
+        assert second_messages[0]["content"] == "第二版安全策略"
+
+    @pytest.mark.asyncio
     async def test_judge_rejected(self, fake_agent, monkeypatch):
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
