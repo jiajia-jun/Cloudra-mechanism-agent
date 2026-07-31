@@ -24,11 +24,12 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 ANDROID_TOOL_ALLOWLIST = frozenset(
     {
         "SubAgentLauncher",
-        "chemrxiv_searcher",
+        "agent_hub",
         "edit_file",
         "get_subagent_report",
         "getskill",
         "image_reader",
+        "openalex_searcher",
         "paper_searcher",
         "schedule",
         "stop",
@@ -36,6 +37,7 @@ ANDROID_TOOL_ALLOWLIST = frozenset(
         "text_writer",
         "update_memory",
         "web_fetcher",
+        "web_search",
     }
 )
 
