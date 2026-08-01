@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import contextlib
 import json
 import re
@@ -49,6 +50,7 @@ _FILE_EVENT_TITLES = {
     "turn_diff_updated": "本轮文件差异",
 }
 _MAX_UI_DIFF_CHARS = 80_000
+_MAX_TOOL_RESULT_CHARS = 8_000
 _COMPACT_WIDTH = 720
 
 
@@ -90,6 +92,32 @@ def _markdown_diff_block(diff: str) -> str:
     longest_run = max((len(run) for run in re.findall(r"`+", diff)), default=0)
     fence = "`" * max(3, longest_run + 1)
     return f"{fence}diff\n{diff.rstrip()}\n{fence}"
+
+
+def _render_tool_result(value) -> str:
+    """把工具返回结果渲染成可读的字符串：JSON 美化，其他类型原样返回。"""
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except (TypeError, ValueError):
+            return str(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped and stripped[0] in ("{", "["):
+            try:
+                parsed = json.loads(stripped)
+                return json.dumps(parsed, ensure_ascii=False, indent=2)
+            except json.JSONDecodeError:
+                pass
+            # 兼容后端把 dict/list 用 str() 转成单引号表示的情况
+            try:
+                parsed = ast.literal_eval(stripped)
+                if isinstance(parsed, (dict, list)):
+                    return json.dumps(parsed, ensure_ascii=False, indent=2, default=str)
+            except (ValueError, SyntaxError):
+                pass
+        return value
+    return str(value)
 
 
 def _format_file_event(event_type: str, data: dict) -> str | None:
@@ -137,9 +165,12 @@ def _format_event_content(event_type: str, data: dict) -> str:
         result = data.get("result", "")
         lines = [f"✅ `{tool}`"]
         if result:
-            result_str = str(result)
-            if len(result_str) > 200:
-                result_str = result_str[:200] + "…"
+            result_str = _render_tool_result(result)
+            if len(result_str) > _MAX_TOOL_RESULT_CHARS:
+                result_str = (
+                    result_str[:_MAX_TOOL_RESULT_CHARS]
+                    + "\n… 结果预览已截断 …"
+                )
             lines.append("```\n" + result_str + "\n```")
         return "\n".join(lines)
 
@@ -175,7 +206,7 @@ def _format_event_content(event_type: str, data: dict) -> str:
     if event_type in ("completed", "failed", "cancelled", "killed", "interrupted"):
         details = data.get("result") or data.get("error") or ""
         if details:
-            details = str(details)
+            details = _render_tool_result(details)
             if len(details) > 20_000:
                 details = details[:20_000] + "\n… 结果预览已截断 …"
             return f"**{event_type}**\n\n{details}"
@@ -1777,6 +1808,17 @@ class CloudraUI:
             return
         self._shown_interactions.add(interaction_id)
         prompt = str(payload.get("prompt", "Agent 正在等待你的回答"))
+        prompt_field = ft.TextField(
+            value=prompt,
+            read_only=True,
+            multiline=True,
+            min_lines=1,
+            max_lines=12,
+            border=ft.InputBorder.NONE,
+            bgcolor="transparent",
+            text_size=14,
+            selectable=True,
+        )
         answer_field = ft.TextField(
             label="回答",
             multiline=True,
@@ -1805,7 +1847,7 @@ class CloudraUI:
             title=ft.Text("Agent 需要你的回答"),
             content=ft.Column(
                 [
-                    ft.Text(prompt, selectable=True),
+                    prompt_field,
                     answer_field,
                 ],
                 tight=True,

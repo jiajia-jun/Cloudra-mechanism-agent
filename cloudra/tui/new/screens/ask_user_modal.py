@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import ComposeResult
-from textual.containers import Grid
+from textual.containers import Grid, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Static
 
@@ -32,7 +32,8 @@ class AskUserModal(ModalScreen[str | None]):
         with Grid(id="ask-dialog"):
             yield Label("? Agent 提问", id="ask-title")
             yield Static(f"来自: {self.agent_name}", id="ask-agent")
-            yield Static(self.prompt, id="ask-prompt")
+            with VerticalScroll(id="ask-prompt-scroll"):
+                yield Static(self.prompt, id="ask-prompt", markup=False)
             yield Input(
                 value=self.default_answer,
                 placeholder="请输入回答…",

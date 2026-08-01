@@ -36,12 +36,40 @@ _WELCOME_TEXT = """\
 _TOOL_COLLAPSE_LINES = 8
 
 
+def _flatten_value(value, indent: int = 0) -> list[str]:
+    """把 dict/list 递归摊平成 key: value / - value 行列表，不保留大括号。"""
+    prefix = "  " * indent
+    lines: list[str] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if isinstance(v, (dict, list)) and v:
+                lines.append(f"{prefix}{k}:")
+                lines.extend(_flatten_value(v, indent + 1))
+            else:
+                lines.append(f"{prefix}{k}: {v}")
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            if isinstance(v, (dict, list)) and v:
+                lines.append(f"{prefix}{i}:")
+                lines.extend(_flatten_value(v, indent + 1))
+            else:
+                lines.append(f"{prefix}- {v}")
+    else:
+        lines.append(f"{prefix}{value}")
+    return lines
+
+
 def _format_tool_payload(text: str, *, is_result: bool = False) -> str:
-    """工具参数/结果多为 JSON 字符串：解析后美化，非 JSON 原样返回。
+    """工具参数/结果多为 JSON 字符串：解析后摊平成 key: value，非 JSON 原样返回。
 
     结果若是 {"result": ..., ...meta} 包装（如 SubAgentLauncher），
-    把核心 result 文本提出来展示，其余字段压成一行元信息。
+    把核心 result 文本提出来展示，其余字段同样摊平。
     """
+    if not isinstance(text, str):
+        try:
+            text = json.dumps(text, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            text = str(text)
     text = (text or "").strip()
     if not text or text[0] not in "[{":
         return text
@@ -49,22 +77,15 @@ def _format_tool_payload(text: str, *, is_result: bool = False) -> str:
         parsed = json.loads(text)
     except Exception:
         return text
-    if (
-        is_result
-        and isinstance(parsed, dict)
-        and isinstance(parsed.get("result"), str)
-    ):
-        inner = parsed["result"].strip()
+    if is_result and isinstance(parsed, dict) and "result" in parsed:
+        inner = _format_tool_payload(parsed["result"], is_result=False)
         meta = {k: v for k, v in parsed.items() if k != "result"}
         if meta:
-            meta_line = json.dumps(meta, ensure_ascii=False)
-            return f"{inner}\n—— {meta_line}" if inner else meta_line
+            meta_lines = _flatten_value(meta)
+            return f"{inner}\n——\n" + "\n".join(meta_lines) if inner else "\n".join(meta_lines)
         return inner
     if isinstance(parsed, (dict, list)):
-        compact = json.dumps(parsed, ensure_ascii=False)
-        if len(compact) <= 100:
-            return compact
-        return json.dumps(parsed, ensure_ascii=False, indent=2)
+        return "\n".join(_flatten_value(parsed))
     return text
 
 
@@ -96,7 +117,7 @@ class ToolCard(Static):
             body = f"{self._collapsed_body}\n{self._collapsed_hint}"
         else:
             body = self._full_body
-        self.update(Panel(body, title=f"{icon} {self._tool}", border_style=style))
+        self.update(Panel(Text(body), title=f"{icon} {self._tool}", border_style=style))
 
     def on_click(self) -> None:
         if self._collapsed_body is None:
@@ -201,7 +222,8 @@ class ChatLog(VerticalScroll):
         """追加一条告警卡片（任务失败/取消等终态提示）。"""
         self.ensure_session(session_id)
         if body:
-            widget = Static(Panel(body, title=title, border_style=style))
+            body = _format_tool_payload(body)
+            widget = Static(Panel(Text(body), title=title, border_style=style))
         else:
             widget = Static(Panel(title, border_style=style))
         self._add_widget(session_id, widget)
@@ -342,6 +364,14 @@ class ChatLog(VerticalScroll):
     def _build_message_widgets(self, content: str) -> list:
         """把内容拆分为文本/代码块，分别用 Markdown 或 CodeBlock 渲染。"""
         widgets: list[Static] = []
+        stripped = content.strip()
+        if stripped and stripped[0] in ("{", "["):
+            try:
+                parsed = json.loads(stripped)
+                widgets.append(Static(Text("\n".join(_flatten_value(parsed)))))
+                return widgets
+            except json.JSONDecodeError:
+                pass
         if "```" not in content:
             if self._looks_like_markdown(content):
                 widgets.append(Static(Markdown(content)))

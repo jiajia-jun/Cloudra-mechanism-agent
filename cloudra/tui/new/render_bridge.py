@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from cloudra import events
 
@@ -22,6 +23,18 @@ _CANCEL_LABELS = {
     "interrupted": "已打断",
     "killed": "已终止",
 }
+
+
+def _display_text(value) -> str:
+    """把任意工具参数/结果转成可展示的字符串：字符串原样返回，其他序列化为 JSON。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 class RenderBridge:
@@ -132,7 +145,10 @@ class RenderBridge:
         elif event_type == "failed":
             # 失败必须可见：否则用户看到的是"agent 不回答"
             self.chat_log.append_alert(
-                session_id, "任务失败", data.get("error") or "未知错误", style="red"
+                session_id,
+                "任务失败",
+                _display_text(data.get("error") or "未知错误"),
+                style="red",
             )
         elif event_type in _CANCEL_LABELS:
             self.chat_log.append_alert(
@@ -142,7 +158,7 @@ class RenderBridge:
             # 流式正文已上屏则不重复；无流式输出（如空回复/纯工具任务）时
             # 补显示 result，避免"完成了但什么都看不到"。
             if session_id not in self._streamed:
-                result = (data.get("result") or "").strip()
+                result = _display_text(data.get("result")).strip()
                 if result:
                     self.chat_log.start_stream(session_id, data.get("agent_name", "Agent"))
                     self.chat_log.append_stream_chunk(session_id, result)
@@ -153,15 +169,15 @@ class RenderBridge:
             self.chat_log.append_tool(
                 session_id,
                 tool=data.get("tool", "tool"),
-                arguments=str(data.get("arguments", "")),
+                arguments=_display_text(data.get("arguments", "")),
             )
         elif event_type == "tool_finished":
             self.chat_log.append_tool(
                 session_id,
                 tool=data.get("tool", "tool"),
-                arguments=str(data.get("arguments", "")),
+                arguments=_display_text(data.get("arguments", "")),
                 finished=True,
-                result=data.get("result"),
+                result=_display_text(data.get("result")),
             )
         elif event_type == "file_change_proposed":
             self.chat_log.append_file_change(

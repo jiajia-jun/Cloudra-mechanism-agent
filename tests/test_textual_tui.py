@@ -1176,17 +1176,17 @@ async def test_command_suggest_escape_dismisses_without_sending():
 
 
 def test_format_tool_payload_plain_and_json():
-    """非 JSON 原样；JSON 美化；{result: ...} 包装提取核心文本。"""
+    """非 JSON 原样；JSON 摊平成 key: value；{result: ...} 包装提取核心文本。"""
     from cloudra.tui.new.widgets.chat_log import _format_tool_payload
 
     assert _format_tool_payload("plain text") == "plain text"
-    assert _format_tool_payload('{"a": 1}') == '{"a": 1}'
+    assert _format_tool_payload('{"a": 1}') == "a: 1"
     wrapped = '{"session_id": "a-3_task2", "result": "我完成了调研"}'
     out = _format_tool_payload(wrapped, is_result=True)
     assert "我完成了调研" in out
     assert "session_id" in out  # 其余字段压成元信息行
-    long_json = '{"' + 'k' * 120 + '": 1}'
-    assert "\n" in _format_tool_payload(long_json)
+    nested_json = '{"outer": {"inner": 1}}'
+    assert "\n" in _format_tool_payload(nested_json)
 
 
 @pytest.mark.asyncio

@@ -139,6 +139,13 @@ ApprovalModal, AskUserModal {
     margin: 1 0;
 }
 
+#ask-prompt-scroll {
+    height: auto;
+    max-height: 20;
+    margin: 1 0;
+    overflow-y: auto;
+}
+
 #approval-buttons, #ask-buttons {
     grid-size: 3;
     height: auto;
