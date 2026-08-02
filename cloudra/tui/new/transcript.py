@@ -200,8 +200,14 @@ class TranscriptStore:
             self._last_change = TranscriptChange()
             return self._last_change
 
+        old_agent_id = self._agent_id(old_session_id)
+        new_agent_id = self._agent_id(new_session_id)
         for record_id in record_ids:
-            self._replace(record_id, session_id=new_session_id)
+            record = self.get(record_id)
+            changes: dict[str, object] = {"session_id": new_session_id}
+            if record.agent_id == old_agent_id:
+                changes["agent_id"] = new_agent_id
+            self._replace(record_id, **changes)
         self._rebuild_indexes()
         self._last_change = TranscriptChange(record_ids, visibility_changed=True)
         return self._last_change

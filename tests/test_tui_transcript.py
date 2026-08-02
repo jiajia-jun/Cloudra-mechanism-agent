@@ -1,6 +1,18 @@
 from cloudra.tui.new.transcript import TranscriptStore
 
 
+def test_renaming_pending_session_derives_its_formal_agent_id():
+    store = TranscriptStore()
+    pending = store.append_user("_pending", "主消息")
+
+    store.rename_session("_pending", "a-0_run_1")
+
+    assert store.get(pending).agent_id == "a-0"
+    assert [record.record_id for record in store.visible_records(agent_prefix="a-0")] == [
+        pending.record_id
+    ]
+
+
 def test_store_preserves_order_and_filters_without_copying_payloads():
     store = TranscriptStore()
     first = store.append_user("a-0_run_1", "主消息", message_id="m-1")
