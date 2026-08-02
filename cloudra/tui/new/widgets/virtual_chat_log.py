@@ -8,8 +8,6 @@ Textual child widgets.
 from __future__ import annotations
 
 import asyncio
-import shutil
-import subprocess
 import weakref
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -17,7 +15,7 @@ from typing import Iterator
 
 from rich.console import Console
 from textual.events import Click, Key, Resize
-from textual.geometry import Region, Size
+from textual.geometry import Size
 from textual.scroll_view import ScrollView
 from textual.strip import Strip
 
@@ -743,7 +741,6 @@ class ChatLog(ScrollView, can_focus=True):
             compiled = self._rebuild_compiled_record(record_id, width)
             if compiled is None:
                 continue
-            record_start = self._heights.row_start(index)
             for region in compiled.regions:
                 regions.append(
                     (record_id, region)

@@ -9,7 +9,6 @@ from __future__ import annotations
 import shutil
 import subprocess
 
-
 _COMMANDS: tuple[tuple[str, ...], ...] = (
     ("xclip", "-selection", "clipboard"),
     ("xsel", "--clipboard", "--input"),

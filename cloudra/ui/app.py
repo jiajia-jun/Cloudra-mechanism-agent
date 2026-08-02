@@ -1148,7 +1148,7 @@ class CloudraUI:
             try:
                 if self._device_runtime is None:
                     identity = self._device_state_store.identity(
-                        backend.profile.profile_id
+                        self.backend.profile.profile_id
                     )
                     if identity:
                         try:

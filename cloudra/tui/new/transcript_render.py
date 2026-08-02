@@ -24,7 +24,6 @@ from textual.strip import Strip
 from cloudra.tool_presentation import format_tool_payload
 from cloudra.tui.new.transcript import RecordKind, TranscriptRecord
 
-
 _TOOL_COLLAPSE_LINES = 8
 _STREAM_CONTENT_WINDOW = 2_000
 _STREAM_REASONING_WINDOW = 800

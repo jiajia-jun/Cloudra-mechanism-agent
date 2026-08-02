@@ -9,8 +9,8 @@ import shlex
 import shutil
 import subprocess
 import time
-from pathlib import Path
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from cloudra import events
 from cloudra.compute_utils import build_calculator_cmd
