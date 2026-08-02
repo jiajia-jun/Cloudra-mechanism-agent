@@ -661,3 +661,39 @@ async def test_virtual_optimistic_user_reveal_scrolls_into_view():
         assert handle.record_id in chat.visible_record_ids
         row_start = chat._heights.row_start(chat._positions[handle.record_id])
         assert row_start <= int(chat.scroll_y) + chat.scrollable_content_region.height
+
+
+from scripts.profile_textual_tui import run_profile
+
+
+@pytest.mark.asyncio
+async def test_reference_workload_meets_virtual_tui_contract():
+    """The reference profile must keep history out of the DOM and remain bounded."""
+    result = await run_profile(history_count=1_000, stream_count=16, rounds=30)
+
+    assert result.child_count == 0
+    assert result.record_count >= 1_016
+    # Latency thresholds are generous to stay stable across CI machines; the
+    # enforced contract is bounded latency and zero DOM growth.
+    assert result.max_commit_seconds < 0.8
+    assert result.input_p95_seconds < 0.8
+    assert result.elapsed_seconds < 15.0
+
+
+@pytest.mark.asyncio
+async def test_active_stream_count_matches_the_number_of_sources():
+    """16 concurrent streams must produce 16 mutable records, not hundreds of widgets."""
+    app = ChatOnlyApp()
+    async with app.run_test(size=(100, 36)) as pilot:
+        chat = app.query_one("#chat-log", VirtualChatLog)
+        for round_index in range(10):
+            for stream_index in range(16):
+                chat.append_stream_chunk(f"stream-{stream_index}", f"r{round_index} ")
+        await pilot.pause()
+
+        active_records = [
+            record for record in chat.store.records if record.status == "streaming"
+        ]
+        assert len(active_records) == 16
+        assert len(chat.children) <= 4
+        assert len(chat._compile_tasks) + len(chat._compile_queue) <= 20

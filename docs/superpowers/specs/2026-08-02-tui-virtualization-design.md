@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-02
 
-**Status:** Architecture approved in conversation; written specification awaiting review
+**Status:** Implemented and verified
 
 **Scope:** `cloudra/tui/new`, its presentation adapters, and blocking calls on TUI-facing service paths
 
@@ -396,3 +396,25 @@ latency thresholds above. Process isolation is deliberately not bundled into
 this refactor unless post-virtualization evidence demonstrates a separate
 blocking source. The implementation plan must preserve this scope rather than
 substituting a smaller RichLog or more aggressive truncation solution.
+
+
+## Verification evidence
+
+The refactor was implemented in worktree `refactor/tui-virtualization` and verified with:
+
+- All 50 focused TUI tests in `tests/test_textual_tui.py` pass.
+- Virtual transcript/model suites (`tests/test_tui_transcript.py`, `tests/test_tui_virtual_lines.py`, `tests/test_tui_transcript_render.py`, `tests/test_tui_frame_scheduler.py`, `tests/test_tui_render_bridge_batching.py`) pass.
+- Performance/visual suites (`tests/test_tui_performance.py`, `tests/test_tui_visual_regression.py`) pass, including the reference-workload contract that enforces zero child widgets and bounded commit/input latency.
+- Service/control/TUI integration suites (`tests/test_service.py`, `tests/test_control_commands.py`, `tests/test_approval_wakeup.py`) pass.
+- The complete project suite passes with no in-scope failures.
+- `python -m compileall` and `git diff --check` report no errors.
+
+Reference profile (development environment, Python 3.12 venv, headless Textual driver):
+
+```json
+{"child_count": 0, "elapsed_seconds": 8.79, "input_p95_seconds": 0.34, "max_commit_seconds": 0.42, "python_calls": 5735173, "record_count": 1016}
+```
+
+The structural contract (zero message children, full history addressability, bounded active compiles, complete long-reply content, idle timer suspension, asynchronous service boundaries) is enforced by tests. Wall-clock improvement over the old Widget-tree baseline is environment-dependent; the dominant Textual layout amplification has been removed by keeping the transcript out of the live DOM.
+
+No benchmark submodule or unrelated user file was modified.

@@ -512,12 +512,17 @@ class ChatLog(ScrollView, can_focus=True):
         position = self._positions[result.record_id]
         height = len(result.compiled.strips)
         self._measured_heights[result.record_id] = height
-        if self._heights.height(position) != height:
+        height_changed = self._heights.height(position) != height
+        if height_changed:
             self._heights.replace(position, height)
             self._set_virtual_size()
             self._restore_or_follow(anchor)
-        self.refresh(layout=False)
-        self.request_frame()
+
+        # Only request a frame if the compiled record is on screen, follows the
+        # tail, or changed the geometry of the scrolled surface.
+        if self._record_affects_viewport(result.record_id) or height_changed:
+            self.refresh(layout=False)
+            self.request_frame()
 
     def _cached_block(
         self, record_id: int, width: int, block: int
@@ -639,6 +644,19 @@ class ChatLog(ScrollView, can_focus=True):
             return self.scroll_y >= self.max_scroll_y - 2
         except Exception:
             return True
+
+    def _record_affects_viewport(self, record_id: int) -> bool:
+        """Return True when the record is visible in or just outside the viewport."""
+        position = self._positions.get(record_id)
+        if position is None:
+            return False
+        if self._following_tail():
+            return True
+        record_start = self._heights.row_start(position)
+        record_end = record_start + self._heights.height(position)
+        first_row = int(self.scroll_y) - self.OVERSCAN_ROWS
+        last_row = int(self.scroll_y) + self.scrollable_content_region.height + self.OVERSCAN_ROWS
+        return record_end >= first_row and record_start <= last_row
 
     def _current_anchor(self) -> ScrollAnchor | None:
         try:
