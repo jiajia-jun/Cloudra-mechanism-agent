@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
+
 import pytest
 from rich.console import Console
 
 from cloudra.tui.new.transcript import RecordKind, TranscriptStore
+from cloudra.tui.new import transcript_render
 from cloudra.tui.new.transcript_render import (
     InteractionAction,
     PresentationCompiler,
@@ -186,3 +190,129 @@ async def test_compilation_result_carries_stale_rejection_identity():
         7,
     )
     await compiler.close()
+
+
+@pytest.mark.asyncio
+async def test_compiler_rejects_distinct_jobs_after_its_pending_bound(monkeypatch):
+    """A full compiler applies backpressure before another executor submission."""
+    store = TranscriptStore()
+    first = store.append_user("s1", "first")
+    second = store.append_user("s1", "second")
+    started, finished, release = threading.Event(), threading.Event(), threading.Event()
+    original = transcript_render.compile_record
+    calls = []
+
+    def blocked_compile(record, width, context):
+        calls.append(record.record_id)
+        started.set()
+        release.wait()
+        compiled = original(record, width, context)
+        finished.set()
+        return compiled
+
+    monkeypatch.setattr(transcript_render, "compile_record", blocked_compile)
+    compiler = PresentationCompiler(max_workers=1, max_pending=1)
+    first_task = asyncio.create_task(compiler.compile(store.get(first), 80, render_context(), 1))
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert started.wait(timeout=1)
+
+    with pytest.raises(RuntimeError, match="at capacity"):
+        await compiler.compile(store.get(second), 80, render_context(), 1)
+    assert calls == [store.get(first).record_id]
+
+    release.set()
+    assert finished.wait(timeout=1)
+    await first_task
+    await compiler.close()
+
+
+@pytest.mark.asyncio
+async def test_compiler_shares_one_inflight_result_for_an_identical_key(monkeypatch):
+    """Identical requests use one worker call and return the same result object."""
+    store = TranscriptStore()
+    handle = store.append_user("s1", "deduplicate")
+    record = store.get(handle)
+    started, finished, release = threading.Event(), threading.Event(), threading.Event()
+    original = transcript_render.compile_record
+    calls = []
+
+    def blocked_compile(*args):
+        calls.append("compile")
+        started.set()
+        release.wait()
+        compiled = original(*args)
+        finished.set()
+        return compiled
+
+    monkeypatch.setattr(transcript_render, "compile_record", blocked_compile)
+    compiler = PresentationCompiler(max_workers=1, max_pending=1)
+    first = asyncio.create_task(compiler.compile(record, 80, render_context(), 4))
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert started.wait(timeout=1)
+    second = asyncio.create_task(compiler.compile(record, 80, render_context(), 4))
+    await asyncio.sleep(0)
+    release.set()
+    assert finished.wait(timeout=1)
+
+    first_result, second_result = await asyncio.gather(first, second)
+    assert calls == ["compile"] and first_result is second_result
+    await compiler.close()
+
+
+@pytest.mark.asyncio
+async def test_compiler_shares_one_inflight_exception_for_an_identical_key(monkeypatch):
+    """Identical callers observe the one failed compilation rather than retries."""
+    store = TranscriptStore()
+    handle = store.append_user("s1", "deduplicate failure")
+    record = store.get(handle)
+    calls = []
+
+    def failing_compile(*_):
+        calls.append("compile")
+        raise ValueError("bad render")
+
+    monkeypatch.setattr(transcript_render, "compile_record", failing_compile)
+    compiler = PresentationCompiler(max_workers=1, max_pending=1)
+    first = asyncio.create_task(compiler.compile(record, 80, render_context(), 4))
+    second = asyncio.create_task(compiler.compile(record, 80, render_context(), 4))
+
+    first_error, second_error = await asyncio.gather(first, second, return_exceptions=True)
+    assert calls == ["compile"]
+    assert isinstance(first_error, ValueError) and first_error is second_error
+    await compiler.close()
+
+
+@pytest.mark.asyncio
+async def test_compiler_close_keeps_the_loop_running_until_active_work_finishes(monkeypatch):
+    """Close awaits active work without freezing the loop, then leaves no render thread."""
+    store = TranscriptStore()
+    handle = store.append_user("s1", "close safely")
+    started, finished, release = threading.Event(), threading.Event(), threading.Event()
+    original = transcript_render.compile_record
+
+    def blocked_compile(*args):
+        started.set()
+        release.wait()
+        compiled = original(*args)
+        finished.set()
+        return compiled
+
+    monkeypatch.setattr(transcript_render, "compile_record", blocked_compile)
+    compiler = PresentationCompiler(max_workers=1, max_pending=1)
+    compile_task = asyncio.create_task(compiler.compile(store.get(handle), 80, render_context(), 1))
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert started.wait(timeout=1)
+
+    close_task = asyncio.create_task(compiler.close())
+    progressed = []
+    asyncio.get_running_loop().call_soon(progressed.append, "tick")
+    await asyncio.sleep(0)
+
+    assert progressed == ["tick"] and not close_task.done()
+    release.set()
+    assert finished.wait(timeout=1)
+    await asyncio.gather(compile_task, close_task)
+    assert not any(thread.name.startswith("cloudra-tui-render") for thread in threading.enumerate())

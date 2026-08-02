@@ -101,13 +101,16 @@ class CompilationResult:
 class PresentationCompiler:
     """Bound off-thread compiler for immutable presentation rows."""
 
-    def __init__(self, max_workers: int = 2) -> None:
-        if max_workers < 1:
-            raise ValueError("max_workers must be positive")
+    def __init__(self, max_workers: int = 2, max_pending: int | None = None) -> None:
+        if max_workers < 1 or (max_pending is not None and max_pending < 1):
+            raise ValueError("worker and pending limits must be positive")
+        self._max_pending = max_workers if max_pending is None else max_pending
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers, thread_name_prefix="cloudra-tui-render"
         )
         self._closed = False
+        self._inflight: dict[tuple[int, int, int, int], asyncio.Task[CompilationResult]] = {}
+        self._close_task: asyncio.Task[None] | None = None
 
     async def compile(
         self,
@@ -116,16 +119,51 @@ class PresentationCompiler:
         context: RenderContext,
         generation: int,
     ) -> CompilationResult:
+        loop = asyncio.get_running_loop()
+        key = (record.record_id, record.revision, width, generation)
+        shared = self._inflight.get(key)
+        if shared is not None:
+            return await asyncio.shield(shared)
         if self._closed:
             raise RuntimeError("presentation compiler is closed")
-        loop = asyncio.get_running_loop()
-        compiled = await loop.run_in_executor(
-            self._executor, compile_record, record, width, context.for_worker()
-        )
-        return CompilationResult(compiled=compiled, generation=generation)
+        if len(self._inflight) >= self._max_pending:
+            raise RuntimeError("presentation compiler is at capacity")
+        task = loop.create_task(self._compile_one(key, record, width, context, generation))
+        self._inflight[key] = task
+        return await asyncio.shield(task)
 
     async def close(self) -> None:
-        self._closed = True
+        if self._close_task is None:
+            self._closed = True
+            self._close_task = asyncio.get_running_loop().create_task(self._finish_close())
+        await asyncio.shield(self._close_task)
+
+    async def _compile_one(
+        self,
+        key: tuple[int, int, int, int],
+        record: TranscriptRecord,
+        width: int,
+        context: RenderContext,
+        generation: int,
+    ) -> CompilationResult:
+        try:
+            if self._closed:
+                raise RuntimeError("presentation compiler is closed")
+            loop = asyncio.get_running_loop()
+            compiled = await loop.run_in_executor(
+                self._executor, compile_record, record, width, context.for_worker()
+            )
+            return CompilationResult(compiled=compiled, generation=generation)
+        finally:
+            self._inflight.pop(key, None)
+
+    async def _finish_close(self) -> None:
+        active = tuple(self._inflight.values())
+        if active:
+            await asyncio.gather(
+                *(asyncio.shield(task) for task in active), return_exceptions=True
+            )
+        # Every submitted job has resolved, so shutdown only releases idle workers.
         self._executor.shutdown(wait=True, cancel_futures=True)
 
 
