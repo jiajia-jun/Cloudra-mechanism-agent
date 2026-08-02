@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
@@ -11,6 +9,7 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from cloudra.tui.new.widgets.code_block import CodeBlock
+from cloudra.tool_presentation import format_tool_payload
 
 _WELCOME_TEXT = """\
 [bold green]Cloudra[/bold green]  [dim]AI 化学科研助手[/dim]
@@ -36,57 +35,9 @@ _WELCOME_TEXT = """\
 _TOOL_COLLAPSE_LINES = 8
 
 
-def _flatten_value(value, indent: int = 0) -> list[str]:
-    """把 dict/list 递归摊平成 key: value / - value 行列表，不保留大括号。"""
-    prefix = "  " * indent
-    lines: list[str] = []
-    if isinstance(value, dict):
-        for k, v in value.items():
-            if isinstance(v, (dict, list)) and v:
-                lines.append(f"{prefix}{k}:")
-                lines.extend(_flatten_value(v, indent + 1))
-            else:
-                lines.append(f"{prefix}{k}: {v}")
-    elif isinstance(value, list):
-        for i, v in enumerate(value):
-            if isinstance(v, (dict, list)) and v:
-                lines.append(f"{prefix}{i}:")
-                lines.extend(_flatten_value(v, indent + 1))
-            else:
-                lines.append(f"{prefix}- {v}")
-    else:
-        lines.append(f"{prefix}{value}")
-    return lines
-
-
 def _format_tool_payload(text: str, *, is_result: bool = False) -> str:
-    """工具参数/结果多为 JSON 字符串：解析后摊平成 key: value，非 JSON 原样返回。
-
-    结果若是 {"result": ..., ...meta} 包装（如 SubAgentLauncher），
-    把核心 result 文本提出来展示，其余字段同样摊平。
-    """
-    if not isinstance(text, str):
-        try:
-            text = json.dumps(text, ensure_ascii=False, indent=2, default=str)
-        except Exception:
-            text = str(text)
-    text = (text or "").strip()
-    if not text or text[0] not in "[{":
-        return text
-    try:
-        parsed = json.loads(text)
-    except Exception:
-        return text
-    if is_result and isinstance(parsed, dict) and "result" in parsed:
-        inner = _format_tool_payload(parsed["result"], is_result=False)
-        meta = {k: v for k, v in parsed.items() if k != "result"}
-        if meta:
-            meta_lines = _flatten_value(meta)
-            return f"{inner}\n——\n" + "\n".join(meta_lines) if inner else "\n".join(meta_lines)
-        return inner
-    if isinstance(parsed, (dict, list)):
-        return "\n".join(_flatten_value(parsed))
-    return text
+    """兼容旧调用点；实际展示规则由共享格式化器统一管理。"""
+    return format_tool_payload(text, is_result=is_result)
 
 
 class ToolCard(Static):
@@ -125,6 +76,21 @@ class ToolCard(Static):
         self._collapsed = not self._collapsed
         self._refresh()
 
+    def finish(
+        self,
+        body: str,
+        *,
+        collapsed_hint: str | None = None,
+        full_body: str | None = None,
+    ) -> None:
+        """Finish a running card in place instead of mounting a duplicate."""
+        self._finished = True
+        self._full_body = full_body or body
+        self._collapsed = collapsed_hint is not None
+        self._collapsed_body = body if self._collapsed else None
+        self._collapsed_hint = collapsed_hint
+        self._refresh()
+
 
 class ChatLog(VerticalScroll):
     """统一对话视图：默认按时间顺序显示所有 session 的输出（像旧 TUI），
@@ -134,7 +100,11 @@ class ChatLog(VerticalScroll):
 
     # 流式渲染节流间隔（秒）：chunk 先累积进缓冲区，到点统一刷新 widget，
     # 避免每个 token 都触发一次整段文本的重绘和滚动。
-    STREAM_FLUSH_INTERVAL = 0.12
+    STREAM_FLUSH_INTERVAL = 0.50
+    STREAM_CONTENT_WINDOW = 2_000
+    STREAM_REASONING_WINDOW = 800
+    MAX_WIDGETS = 320
+    SCROLL_FLUSH_INTERVAL = 0.20
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -145,11 +115,15 @@ class ChatLog(VerticalScroll):
         # session_id -> current streaming message widget (assistant)
         self._stream_widget: dict[str, Static | None] = {}
         # session_id -> accumulated streaming text（正文与 reasoning 分开）
-        self._stream_content: dict[str, str] = {}
-        self._stream_reasoning: dict[str, str] = {}
+        self._stream_content: dict[str, list[str]] = {}
+        self._stream_reasoning: dict[str, list[str]] = {}
         # 有待刷新内容的流式 session
         self._dirty_streams: set[str] = set()
         self._flush_scheduled = False
+        self._scroll_scheduled = False
+        # Durable user-message event id -> (session_id, widget). Optimistic
+        # local echo and IPC replay share the id, so one message is shown once.
+        self._user_message_widgets: dict[str, tuple[str, Static]] = {}
         # None = 显示全部 session（默认）
         self._view_session_id: str | None = None
         # None = 不按 agent 过滤；设为 "a-3" 时只显示该 agent 的所有 session
@@ -186,8 +160,8 @@ class ChatLog(VerticalScroll):
         if session_id not in self._messages:
             self._messages[session_id] = []
             self._stream_widget[session_id] = None
-            self._stream_content[session_id] = ""
-            self._stream_reasoning[session_id] = ""
+            self._stream_content[session_id] = []
+            self._stream_reasoning[session_id] = []
 
     def _is_visible(self, session_id: str) -> bool:
         if self._view_session_id is not None:
@@ -204,10 +178,20 @@ class ChatLog(VerticalScroll):
         self._add_widget(session_id, widget)
         return widget
 
-    def append_user(self, session_id: str, content: str) -> Static:
+    def append_user(
+        self,
+        session_id: str,
+        content: str,
+        *,
+        message_id: str | None = None,
+    ) -> Static:
         """追加一条用户消息（返回 widget，便于失败时标记）。"""
         self.ensure_session(session_id)
+        if message_id and message_id in self._user_message_widgets:
+            return self._user_message_widgets[message_id][1]
         widget = Static(Text(f"» {content}", style="bold green"))
+        if message_id:
+            self._user_message_widgets[message_id] = (session_id, widget)
         self._add_widget(session_id, widget)
         return widget
 
@@ -244,7 +228,7 @@ class ChatLog(VerticalScroll):
         self.ensure_session(session_id)
         if self._stream_widget.get(session_id) is None:
             self.start_stream(session_id, agent_name or "Agent")
-        self._stream_content[session_id] += delta
+        self._stream_content[session_id].append(delta)
         self._dirty_streams.add(session_id)
         self._schedule_stream_flush()
 
@@ -253,7 +237,7 @@ class ChatLog(VerticalScroll):
         self.ensure_session(session_id)
         if self._stream_widget.get(session_id) is None:
             self.start_stream(session_id, agent_name or "Agent")
-        self._stream_reasoning[session_id] += delta
+        self._stream_reasoning[session_id].append(delta)
         self._dirty_streams.add(session_id)
         self._schedule_stream_flush()
 
@@ -270,20 +254,46 @@ class ChatLog(VerticalScroll):
         self._dirty_streams = set()
         for session_id in dirty:
             widget = self._stream_widget.get(session_id)
-            if widget is None:
+            if widget is None or not self._is_visible(session_id):
                 continue
             widget.update(self._combined_stream_text(session_id))
         if any(self._is_visible(sid) for sid in dirty):
             self._maybe_scroll_end()
 
     def _combined_stream_text(self, session_id: str) -> Text:
-        reasoning = self._stream_reasoning.get(session_id, "")
-        content = self._stream_content.get(session_id, "")
+        reasoning, reasoning_clipped = self._tail_text(
+            self._stream_reasoning.get(session_id, []),
+            self.STREAM_REASONING_WINDOW,
+        )
+        content, content_clipped = self._tail_text(
+            self._stream_content.get(session_id, []),
+            self.STREAM_CONTENT_WINDOW,
+        )
         text = Text()
         if reasoning:
+            if reasoning_clipped:
+                text.append("… 较早的思考过程已暂时折叠 …\n", style="bright_black")
             text.append(f"[思考] {reasoning}\n", style="bright_black italic")
+        if content_clipped:
+            text.append("… 正在生成，仅显示末尾 …\n", style="bright_black")
         text.append(content)
         return text
+
+    @staticmethod
+    def _tail_text(chunks: list[str], limit: int) -> tuple[str, bool]:
+        """Join at most ``limit`` trailing characters without joining full history."""
+        if not chunks:
+            return "", False
+        selected: list[str] = []
+        size = 0
+        for chunk in reversed(chunks):
+            selected.append(chunk)
+            size += len(chunk)
+            if size >= limit:
+                break
+        text = "".join(reversed(selected))
+        clipped = len(selected) < len(chunks) or len(text) > limit
+        return text[-limit:], clipped
 
     def end_stream(self, session_id: str) -> None:
         """结束流式消息：reasoning 单独成块，正文做 Markdown/代码块渲染。
@@ -295,8 +305,8 @@ class ChatLog(VerticalScroll):
         widget = self._stream_widget.get(session_id)
         if widget is None:
             return
-        reasoning = self._stream_reasoning.get(session_id, "")
-        content = self._stream_content.get(session_id, "")
+        reasoning = "".join(self._stream_reasoning.get(session_id, []))
+        content = "".join(self._stream_content.get(session_id, []))
         if not content and not reasoning:
             return
 
@@ -314,8 +324,8 @@ class ChatLog(VerticalScroll):
         if widget in self.children:
             widget.remove()
         self._stream_widget[session_id] = None
-        self._stream_content[session_id] = ""
-        self._stream_reasoning[session_id] = ""
+        self._stream_content[session_id] = []
+        self._stream_reasoning[session_id] = []
         self._dirty_streams.discard(session_id)
 
         new_widgets: list = []
@@ -360,18 +370,17 @@ class ChatLog(VerticalScroll):
                 self.mount(w)
         if self._is_visible(session_id):
             self._maybe_scroll_end()
+        self._prune_widgets()
 
     def _build_message_widgets(self, content: str) -> list:
         """把内容拆分为文本/代码块，分别用 Markdown 或 CodeBlock 渲染。"""
         widgets: list[Static] = []
         stripped = content.strip()
         if stripped and stripped[0] in ("{", "["):
-            try:
-                parsed = json.loads(stripped)
-                widgets.append(Static(Text("\n".join(_flatten_value(parsed)))))
+            rendered = format_tool_payload(stripped)
+            if rendered != stripped:
+                widgets.append(Static(Text(rendered)))
                 return widgets
-            except json.JSONDecodeError:
-                pass
         if "```" not in content:
             if self._looks_like_markdown(content):
                 widgets.append(Static(Markdown(content)))
@@ -425,6 +434,21 @@ class ChatLog(VerticalScroll):
             else:
                 body = full_body
                 full_body = None
+        if finished:
+            # tool_started/tool_finished describe one operation. Updating the
+            # latest matching card avoids doubling the DOM during long runs.
+            for candidate in reversed(self._messages.get(session_id, [])):
+                if (
+                    isinstance(candidate, ToolCard)
+                    and candidate._tool == tool
+                    and not candidate._finished
+                ):
+                    candidate.finish(
+                        body,
+                        collapsed_hint=collapsed_hint,
+                        full_body=full_body,
+                    )
+                    return
         widget = ToolCard(
             tool,
             body,
@@ -477,6 +501,8 @@ class ChatLog(VerticalScroll):
             visible = self._is_visible(sid)
             widget.display = visible
             any_visible = any_visible or visible
+            if visible and widget is self._stream_widget.get(sid):
+                widget.update(self._combined_stream_text(sid))
         if not self._order:
             self._show_welcome_if_empty()
         self.scroll_end(animate=False)
@@ -505,8 +531,8 @@ class ChatLog(VerticalScroll):
             (new_id if sid == old_id else sid, w) for sid, w in self._order
         ]
         self._stream_widget[new_id] = self._stream_widget.pop(old_id, None)
-        self._stream_content[new_id] = self._stream_content.pop(old_id, "")
-        self._stream_reasoning[new_id] = self._stream_reasoning.pop(old_id, "")
+        self._stream_content[new_id] = self._stream_content.pop(old_id, [])
+        self._stream_reasoning[new_id] = self._stream_reasoning.pop(old_id, [])
         if self._view_session_id == old_id:
             self._view_session_id = new_id
             self.refresh_view()
@@ -518,6 +544,11 @@ class ChatLog(VerticalScroll):
         self._stream_widget.pop(session_id, None)
         self._stream_content.pop(session_id, None)
         self._stream_reasoning.pop(session_id, None)
+        self._user_message_widgets = {
+            key: value
+            for key, value in self._user_message_widgets.items()
+            if value[0] != session_id
+        }
 
     def clear_all(self) -> None:
         """清空所有 session 的消息（切换对话时用）。"""
@@ -527,6 +558,7 @@ class ChatLog(VerticalScroll):
         self._stream_content.clear()
         self._stream_reasoning.clear()
         self._dirty_streams.clear()
+        self._user_message_widgets.clear()
         self._view_session_id = None
         self._view_agent_prefix = None
         self.remove_children()
@@ -538,16 +570,50 @@ class ChatLog(VerticalScroll):
         self._remove_welcome()
         widget.display = self._is_visible(session_id)
         self.mount(widget)
+        self._prune_widgets()
         if widget.display:
             self._maybe_scroll_end()
 
+    def _prune_widgets(self) -> None:
+        """Keep Textual's live DOM bounded during long multi-Agent runs."""
+        while len(self._order) > self.MAX_WIDGETS:
+            remove_idx = next(
+                (
+                    index
+                    for index, (sid, candidate) in enumerate(self._order)
+                    if candidate is not self._stream_widget.get(sid)
+                ),
+                None,
+            )
+            if remove_idx is None:
+                return
+            sid, candidate = self._order.pop(remove_idx)
+            messages = self._messages.get(sid, [])
+            if candidate in messages:
+                messages.remove(candidate)
+            self._user_message_widgets = {
+                key: value
+                for key, value in self._user_message_widgets.items()
+                if value[1] is not candidate
+            }
+            if candidate in self.children:
+                candidate.remove()
+
     def _maybe_scroll_end(self) -> None:
-        """用户已上翻阅读时不强制滚到底。"""
+        """用户已上翻时不追尾；连续更新只安排一次滚动。"""
         try:
-            if self.scroll_y >= self.max_scroll_y - 2:
-                self.scroll_end(animate=False)
+            should_follow = self.scroll_y >= self.max_scroll_y - 2
         except Exception:
+            should_follow = True
+        if not should_follow or self._scroll_scheduled:
+            return
+        self._scroll_scheduled = True
+
+        def scroll_once() -> None:
+            self._scroll_scheduled = False
             self.scroll_end(animate=False)
+
+        self.set_timer(self.SCROLL_FLUSH_INTERVAL, scroll_once)
 
     def _show_welcome_if_empty(self) -> None:
         if self._order:

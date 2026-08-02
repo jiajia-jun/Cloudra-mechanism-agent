@@ -18,6 +18,9 @@ _PHASE_LABELS = {
 _ACTIVE_STATES = {"queued", "running", "cancel_requested"}
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+# Elapsed time is displayed to whole seconds; refreshing the spinner four times
+# per second only keeps WSL/terminal compositors busy without adding information.
+_REFRESH_INTERVAL = 1.0
 
 
 class StatusBar(Static):
@@ -35,14 +38,16 @@ class StatusBar(Static):
     pending = reactive(0)
     # 对话级共享上下文的摘要，如 "42条≈8.2k"；空字符串表示未知
     context_info = reactive("")
+    compaction_info = reactive("")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._frame = 0
         self._started_at: float | None = None
+        self._last_render_key: tuple | None = None
 
     def on_mount(self) -> None:
-        self.set_interval(0.1, self._tick)
+        self.set_interval(_REFRESH_INTERVAL, self._tick)
         self._refresh()
 
     def watch_conversation_id(self, conversation_id: str) -> None:
@@ -71,8 +76,11 @@ class StatusBar(Static):
     def watch_context_info(self, context_info: str) -> None:
         self._refresh()
 
+    def watch_compaction_info(self, compaction_info: str) -> None:
+        self._refresh()
+
     def _tick(self) -> None:
-        if self.session_state in _ACTIVE_STATES:
+        if self.session_state in _ACTIVE_STATES or self.compaction_info:
             self._frame += 1
             self._refresh()
 
@@ -83,12 +91,30 @@ class StatusBar(Static):
         return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
     def _refresh(self) -> None:
-        text = Text()
         state = self.session_state
-        if state in _ACTIVE_STATES:
+        elapsed = self._elapsed() if state in _ACTIVE_STATES else ""
+        render_key = (
+            state,
+            self.phase,
+            self._frame % len(_SPINNER_FRAMES) if state in _ACTIVE_STATES else -1,
+            elapsed,
+            self.conversation_id,
+            self.context_info,
+            self.yolo,
+            self.pending,
+            self.compaction_info,
+        )
+        if render_key == self._last_render_key:
+            return
+        self._last_render_key = render_key
+
+        text = Text()
+        if self.compaction_info:
+            spinner = _SPINNER_FRAMES[self._frame % len(_SPINNER_FRAMES)]
+            text.append(f"{spinner} {self.compaction_info}", style="bold magenta")
+        elif state in _ACTIVE_STATES:
             spinner = _SPINNER_FRAMES[self._frame % len(_SPINNER_FRAMES)]
             label = _PHASE_LABELS.get(self.phase) or state
-            elapsed = self._elapsed()
             text.append(f"{spinner} {label}", style="bold green")
             if elapsed:
                 text.append(f" {elapsed}", style="green")

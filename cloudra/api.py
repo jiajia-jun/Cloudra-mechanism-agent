@@ -122,6 +122,14 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     async def health() -> dict:
         return {"status": "ok", "version": __version__}
 
+    @app.get("/api/operations/status", dependencies=protected)
+    async def operations_status() -> dict:
+        """Low-cardinality operational counters; never returns prompts or tokens."""
+        from cloudra.operations import operational_status
+
+        minimum = int(os.getenv("CLOUDRA_MIN_FREE_BYTES", str(1024**3)))
+        return operational_status(Path(get_config().data_dir), min_free_bytes=minimum)
+
     @app.get("/api/runtime/diagnostics", dependencies=protected)
     async def runtime_diagnostics() -> dict:
         """返回当前进程实际加载的静态能力，不暴露配置凭据。"""

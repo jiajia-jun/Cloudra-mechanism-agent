@@ -5,6 +5,7 @@ Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -402,8 +403,132 @@ def sessions(state):
     for row in rows:
         result = (row.get("result") or "")[:100]
         table.add_row(row["session_id"], row["conversation_id"], row["state"], result)
-
     console.print(table)
+
+
+@cli.group(name="backup")
+def backup_cmd():
+    """创建、校验和恢复 Cloudra 数据备份。"""
+    pass
+
+
+@backup_cmd.command(name="create")
+@click.argument("destination", type=click.Path(path_type=Path))
+def backup_create(destination: Path):
+    """在线快照 SQLite，并创建带 SHA-256 清单的备份。"""
+    from cloudra.operations import BackupError, create_backup
+
+    try:
+        manifest = create_backup(Path(get_config().data_dir), destination)
+    except BackupError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(
+        f"[green]备份完成:[/green] {destination.resolve()} "
+        f"({len(manifest['files'])} files)"
+    )
+
+
+@backup_cmd.command(name="verify")
+@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def backup_verify(archive: Path):
+    """校验备份清单、成员范围与全部 SHA-256。"""
+    from cloudra.operations import BackupError, verify_backup
+
+    try:
+        manifest = verify_backup(archive)
+    except BackupError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(f"[green]备份有效[/green] ({len(manifest['files'])} files)")
+
+
+@backup_cmd.command(name="restore")
+@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("destination", type=click.Path(path_type=Path))
+def backup_restore(archive: Path, destination: Path):
+    """恢复到不存在或空的目录；不会覆盖现有数据。"""
+    from cloudra.operations import BackupError, restore_backup
+
+    try:
+        manifest = restore_backup(archive, destination)
+    except BackupError as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(
+        f"[green]恢复完成:[/green] {destination.resolve()} "
+        f"({len(manifest['files'])} files)"
+    )
+
+
+@cli.group(name="devices")
+def devices_cmd():
+    """列出或撤销已配对 Android 设备。"""
+    pass
+
+
+@devices_cmd.command(name="list")
+@click.option("--all", "include_revoked", is_flag=True, help="包含已撤销设备")
+def devices_list(include_revoked: bool):
+    from cloudra.device_broker import DeviceBroker
+
+    rows = DeviceBroker().list_devices(include_revoked=include_revoked)
+    table = Table(title="Android Devices", show_header=True)
+    table.add_column("Device ID", style="cyan")
+    table.add_column("Name")
+    table.add_column("State")
+    table.add_column("Last seen")
+    for row in rows:
+        table.add_row(
+            row["device_id"], row["display_name"], row["state"], row["last_seen_at"]
+        )
+    console.print(table if rows else "[yellow]暂无已配对设备。[/yellow]")
+
+
+@devices_cmd.command(name="revoke")
+@click.argument("device_id")
+@click.option("--yes", is_flag=True, help="跳过确认")
+def devices_revoke(device_id: str, yes: bool):
+    """立即撤销设备 token；设备需要重新配对才能上线。"""
+    from cloudra.device_broker import DeviceBroker
+
+    if not yes and not click.confirm(f"撤销设备 {device_id}？"):
+        return
+    try:
+        revoked = DeviceBroker().revoke(device_id)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    if not revoked:
+        raise click.ClickException("设备不存在或已经撤销")
+    console.print(f"[green]设备已撤销:[/green] {device_id}")
+
+
+@cli.group(name="android")
+def android_cmd():
+    """Android 构建和发布门禁。"""
+    pass
+
+
+@android_cmd.command(name="audit-apk")
+@click.argument("apk", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--expected-cert-sha256",
+    envvar="CLOUDRA_ANDROID_CERT_SHA256",
+    help="生产签名证书 SHA-256 指纹；可通过环境变量提供",
+)
+@click.option("--allow-debug", is_flag=True, help="仅本地安装验证时允许 debug 证书")
+def android_audit_apk(apk: Path, expected_cert_sha256: str | None, allow_debug: bool):
+    from cloudra.android_build import audit_apk_signature
+
+    try:
+        result = audit_apk_signature(
+            apk,
+            expected_cert_sha256=expected_cert_sha256,
+            allow_debug=allow_debug,
+        )
+    except (OSError, RuntimeError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    console.print(
+        f"[green]APK 签名验证通过[/green] SHA-256="
+        f"{result['certificate_sha256']}"
+    )
 
 
 def main():

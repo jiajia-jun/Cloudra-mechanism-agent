@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import asyncio
-import ast
 import contextlib
 import json
 import re
@@ -30,6 +29,7 @@ from cloudra.native_bridge import (
     credential_key,
 )
 from cloudra.runtime_profile import is_mobile_runtime
+from cloudra.tool_presentation import format_tool_payload
 
 try:
     import flet as ft
@@ -95,29 +95,8 @@ def _markdown_diff_block(diff: str) -> str:
 
 
 def _render_tool_result(value) -> str:
-    """把工具返回结果渲染成可读的字符串：JSON 美化，其他类型原样返回。"""
-    if isinstance(value, (dict, list)):
-        try:
-            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
-        except (TypeError, ValueError):
-            return str(value)
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped and stripped[0] in ("{", "["):
-            try:
-                parsed = json.loads(stripped)
-                return json.dumps(parsed, ensure_ascii=False, indent=2)
-            except json.JSONDecodeError:
-                pass
-            # 兼容后端把 dict/list 用 str() 转成单引号表示的情况
-            try:
-                parsed = ast.literal_eval(stripped)
-                if isinstance(parsed, (dict, list)):
-                    return json.dumps(parsed, ensure_ascii=False, indent=2, default=str)
-            except (ValueError, SyntaxError):
-                pass
-        return value
-    return str(value)
+    """把工具返回值渲染成脱敏、无裸 JSON 的有限长度摘要。"""
+    return format_tool_payload(value, is_result=True, max_chars=_MAX_TOOL_RESULT_CHARS)
 
 
 def _format_file_event(event_type: str, data: dict) -> str | None:
@@ -171,7 +150,7 @@ def _format_event_content(event_type: str, data: dict) -> str:
                     result_str[:_MAX_TOOL_RESULT_CHARS]
                     + "\n… 结果预览已截断 …"
                 )
-            lines.append("```\n" + result_str + "\n```")
+            lines.append(result_str)
         return "\n".join(lines)
 
     if event_type == "supervisor_review":
@@ -298,6 +277,8 @@ class CloudraUI:
         self._event_task: asyncio.Task | None = None
         self._approval_task: asyncio.Task | None = None
         self._interaction_task: asyncio.Task | None = None
+        self._displayed_approvals: set[int] = set()
+        self._pending_user_echoes: list[str] = []
         self._device_task: asyncio.Task | None = None
         self._device_runtime: DeviceRuntime | None = None
         self._device_state_store = DeviceStateStore(
@@ -492,7 +473,10 @@ class CloudraUI:
                 or self.backend.profile.server_url
                 or "尚未配置服务器"
             )
-            return f"远程服务器：{target}"
+            route = self.backend.profile.workspace_id or "default"
+            if self.backend.profile.node_id:
+                route = f"{self.backend.profile.node_id} / {route}"
+            return f"远程服务器：{target} · {route}"
         path = Path(self.working_directory)
         return f"本地工作区：{path.name or path}"
 
@@ -763,6 +747,19 @@ class CloudraUI:
         if not isinstance(backend, RemoteCloudraBackend):
             return
         profile = backend.profile
+        registered = backend.state_store.load_profiles()
+        profile_selector = ft.Dropdown(
+            label="已注册服务器",
+            value=profile.profile_id if profile.server_url else None,
+            options=[
+                ft.DropdownOption(
+                    key=item.profile_id,
+                    text=f"{item.display_name} · {item.server_url}",
+                )
+                for item in registered
+            ],
+            visible=bool(registered),
+        )
         server_url = ft.TextField(
             label="Cloudra Server 地址",
             value=profile.server_url,
@@ -798,7 +795,57 @@ class CloudraUI:
             label="保持 Android 设备 Runtime 后台在线（显示常驻通知）",
             value=self._device_state_store.runtime_enabled(),
         )
+        route_records: dict[str, tuple[str, str]] = {}
+        try:
+            nodes, workspaces = await asyncio.gather(
+                backend.list_nodes(),
+                backend.list_workspaces(),
+            )
+            node_names = {
+                str(item.get("node_id", "")): str(
+                    item.get("display_name") or item.get("node_id") or "节点"
+                )
+                for item in nodes
+            }
+            for item in workspaces:
+                node_id = str(item.get("node_id", ""))
+                workspace_id = str(item.get("workspace_id", ""))
+                if not node_id or not workspace_id:
+                    continue
+                key = f"{node_id}\n{workspace_id}"
+                route_records[key] = (node_id, workspace_id)
+        except BackendError:
+            pass
+        selected_route = f"{profile.node_id}\n{profile.workspace_id}"
+        route_selector = ft.Dropdown(
+            label="节点 / 工作区",
+            value=selected_route if selected_route in route_records else None,
+            options=[
+                ft.DropdownOption(
+                    key=key,
+                    text=f"{node_names.get(node_id, node_id)} · {workspace_id}",
+                )
+                for key, (node_id, workspace_id) in route_records.items()
+            ],
+            visible=bool(route_records),
+        )
         dialog = None
+
+        def choose_registered_server(event):
+            selected = backend.state_store.load_profile(event.control.value)
+            server_url.value = selected.server_url
+            allow_http.value = selected.allow_insecure_http
+            clear_token.value = False
+            selected_key = f"{selected.node_id}\n{selected.workspace_id}"
+            route_selector.value = (
+                selected_key if selected_key in route_records else None
+            )
+            server_url.update()
+            allow_http.update()
+            clear_token.update()
+            route_selector.update()
+
+        profile_selector.on_select = choose_registered_server
 
         async def save_remote_settings():
             entered_token = token.value.strip()
@@ -817,15 +864,43 @@ class CloudraUI:
                 selected_token = entered_token
             elif same_origin:
                 selected_token = profile.token
+            elif self._native_bridge is not None and new_server_url:
+                try:
+                    selected_token = await self._native_bridge.secure_get(
+                        credential_key("server", new_server_url)
+                    )
+                except NativeBridgeError as exc:
+                    self.status_text.value = f"无法读取服务器 Token：{exc}"
+                    self.page.update()
+                    return
             else:
                 # A credential is origin-bound. An empty field while changing
                 # servers must never carry the old server's token forward.
                 selected_token = ""
+            selected_node = profile.node_id
+            selected_workspace = profile.workspace_id
+            if route_selector.value in route_records:
+                selected_node, selected_workspace = route_records[
+                    route_selector.value
+                ]
+            stored_profile = next(
+                (
+                    item
+                    for item in registered
+                    if item.server_url.rstrip("/") == new_server_url.rstrip("/")
+                ),
+                None,
+            )
+            if not same_origin and stored_profile is not None:
+                selected_node = stored_profile.node_id
+                selected_workspace = stored_profile.workspace_id
             new_profile = ServerProfile(
                 server_url=new_server_url,
                 display_name=profile.display_name,
                 token=selected_token,
                 allow_insecure_http=bool(allow_http.value),
+                node_id=selected_node,
+                workspace_id=selected_workspace,
             )
             # Stop the old device transport before changing origins so an
             # existing device credential can never be sent to a newly entered
@@ -835,6 +910,11 @@ class CloudraUI:
                 await backend.reconfigure(new_profile)
                 server = await backend.probe()
             except BackendError as exc:
+                # reconfigure persists the candidate before probing. Roll the
+                # active route back so a typo or offline node cannot strand the
+                # next app launch on a half-configured server.
+                with contextlib.suppress(BackendError):
+                    await backend.reconfigure(profile)
                 self.status_text.value = str(exc)
                 self.page.update()
                 return
@@ -861,24 +941,10 @@ class CloudraUI:
                         secret_message = " · 已删除 Keystore Token"
                     elif same_origin and profile.token:
                         secret_message = " · Keystore Token 已保留"
+                    elif selected_token:
+                        secret_message = " · 已恢复该服务器的 Keystore Token"
                     else:
                         await self._native_bridge.secure_remove(server_key)
-                    if old_server_url and not same_origin:
-                        await self._native_bridge.secure_remove(
-                            credential_key("server", old_server_url)
-                        )
-                        old_identity = self._device_state_store.identity()
-                        old_device_id = str(
-                            old_identity.get("device_id", "")
-                        ).strip()
-                        if old_device_id:
-                            await self._native_bridge.secure_remove(
-                                credential_key(
-                                    "device",
-                                    old_server_url,
-                                    old_device_id,
-                                )
-                            )
                 except NativeBridgeError as exc:
                     self.status_text.value = (
                         f"服务器连接成功，但 Token 无法安全保存：{exc}"
@@ -906,15 +972,82 @@ class CloudraUI:
             await self._load_sidebar()
             self.page.update()
 
+        async def remove_registered_server():
+            selected = next(
+                (
+                    item
+                    for item in backend.state_store.load_profiles()
+                    if item.server_url.rstrip("/") == server_url.value.strip().rstrip("/")
+                ),
+                None,
+            )
+            if selected is None:
+                self.status_text.value = "当前地址尚未注册，无需移除"
+                self.page.update()
+                return
+            identity = self._device_state_store.identity(selected.profile_id)
+            remote_revoked = False
+            if (
+                selected.profile_id == backend.profile.profile_id
+                and identity.get("device_id")
+            ):
+                try:
+                    await backend.revoke_device(str(identity["device_id"]))
+                    remote_revoked = True
+                except BackendError:
+                    # Local credentials must still be removable while offline;
+                    # the server-side record remains visible to an operator.
+                    pass
+            await self._stop_device_runtime(explicit=True)
+            if self._native_bridge is not None:
+                try:
+                    await self._native_bridge.secure_remove(
+                        credential_key("server", selected.server_url)
+                    )
+                    if identity.get("device_id"):
+                        await self._native_bridge.secure_remove(
+                            credential_key(
+                                "device",
+                                selected.server_url,
+                                str(identity["device_id"]),
+                            )
+                        )
+                except NativeBridgeError as exc:
+                    self.status_text.value = f"无法删除 Keystore 凭据：{exc}"
+                    self.page.update()
+                    return
+            self._device_state_store.remove_identity(selected.profile_id)
+            backend.state_store.remove_profile(selected.profile_id)
+            await backend.close()
+            remaining = backend.state_store.load_profiles()
+            if remaining:
+                next_profile = backend.state_store.load_profile()
+                if self._native_bridge is not None:
+                    next_profile.token = await self._native_bridge.secure_get(
+                        credential_key("server", next_profile.server_url)
+                    )
+                backend.profile = next_profile
+            else:
+                backend.profile = ServerProfile()
+            self.workspace_text.value = self._workspace_label()
+            self.workspace_text.tooltip = backend.profile.server_url or None
+            suffix = " · 设备已在服务器撤销" if remote_revoked else ""
+            self.status_text.value = f"已移除服务器：{selected.display_name}{suffix}"
+            _close_dialog(self.page, dialog)
+            await self._load_sidebar()
+            self.page.update()
+
         dialog = ft.AlertDialog(
             title=ft.Text("服务器连接"),
             content=ft.Container(
                 content=ft.Column(
                     [
+                        profile_selector,
                         server_url,
                         token,
                         clear_token,
                         allow_http,
+                        route_selector,
                         enable_device,
                         ft.Text(
                             "Android 不保存也不需要模型 API Key。"
@@ -931,6 +1064,11 @@ class CloudraUI:
                 width=440,
             ),
             actions=[
+                ft.TextButton(
+                    "移除此服务器",
+                    on_click=lambda _: self.page.run_task(remove_registered_server),
+                    visible=bool(registered),
+                ),
                 ft.Button(
                     "连接",
                     on_click=lambda _: self.page.run_task(
@@ -1009,7 +1147,9 @@ class CloudraUI:
         async def enable_runtime():
             try:
                 if self._device_runtime is None:
-                    identity = self._device_state_store.identity()
+                    identity = self._device_state_store.identity(
+                        backend.profile.profile_id
+                    )
                     if identity:
                         try:
                             await self._restore_device_runtime()
@@ -1217,7 +1357,9 @@ class CloudraUI:
             or self._native_bridge is None
         ):
             return
-        identity = self._device_state_store.identity()
+        identity = self._device_state_store.identity(
+            self.backend.profile.profile_id
+        )
         device_id = str(identity.get("device_id", "")).strip()
         if not device_id:
             self._device_state_store.set_runtime_enabled(False)
@@ -1471,6 +1613,7 @@ class CloudraUI:
         self.current_session_id = None
         self._stop_event_listener()
         self.messages.controls = []
+        self._pending_user_echoes.clear()
 
         try:
             history = await self.backend.get_conversation_messages(
@@ -1526,6 +1669,16 @@ class CloudraUI:
         self.page.update()
 
     def _add_event_message(self, event_type: str, data: dict):
+        if event_type == "user_message":
+            content = str(data.get("content") or "").strip()
+            if not content:
+                return
+            if content in self._pending_user_echoes:
+                self._pending_user_echoes.remove(content)
+                return
+            self.messages.controls.append(_MessageBubble("user", content))
+            self.messages.update()
+            return
         if event_type == "llm_chunk":
             delta = data.get("delta", "")
             if not delta:
@@ -1575,6 +1728,8 @@ class CloudraUI:
         self._streaming_bubble = None
         self._streaming_text = ""
         self.messages.controls.append(_MessageBubble("user", query))
+        self._pending_user_echoes.append(query)
+        self._pending_user_echoes = self._pending_user_echoes[-32:]
         self.messages.update()
 
         self.status_text.value = "命令已发送"
@@ -1598,6 +1753,8 @@ class CloudraUI:
                     ),
                 )
         except BackendError as exc:
+            if query in self._pending_user_echoes:
+                self._pending_user_echoes.remove(query)
             self.status_text.value = str(exc)
             self.page.update()
             return
@@ -1694,6 +1851,7 @@ class CloudraUI:
                 elif event.event_type == "waiting_for_approval":
                     self._set_running_state(True)
                     self.status_text.value = "等待危险操作审批"
+                    await self._check_pending_approvals()
                 elif event.event_type == "waiting_for_device":
                     self._set_running_state(True)
                     self.status_text.value = "等待 Android 设备工具"
@@ -1739,7 +1897,7 @@ class CloudraUI:
         self._finish_event_listener()
 
     async def _approval_loop(self, conversation_id: str):
-        """轮询服务器持久化审批；断线重连后仍可重新发现。"""
+        """Low-frequency durable fallback for child-Agent approval events."""
         displayed: set[int] = set()
         while True:
             try:
@@ -1759,10 +1917,10 @@ class CloudraUI:
                 ):
                     displayed.add(approval_id)
                     await self._show_approval_dialog(approval)
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
 
     async def _interaction_loop(self, conversation_id: str):
-        """Poll the durable interaction inbox, including child-Agent questions."""
+        """Low-frequency durable fallback for child-Agent questions."""
 
         while True:
             try:
@@ -1776,7 +1934,7 @@ class CloudraUI:
                 continue
             for interaction in interactions:
                 await self._show_interaction_dialog(interaction)
-            await asyncio.sleep(1)
+            await asyncio.sleep(30)
 
     async def _check_pending_approvals(self):
         if self.current_conversation_id is None:
@@ -1953,6 +2111,9 @@ class CloudraUI:
 
     async def _show_approval_dialog(self, payload: dict):
         approval_id = payload.get("approval_id") or payload.get("id")
+        if approval_id in self._displayed_approvals:
+            return
+        self._displayed_approvals.add(approval_id)
         details = payload.get("details", "")
         agent_name = payload.get("agent_name", "未知 Agent")
         tool_name = payload.get("tool_name") or "未知工具"
@@ -1982,14 +2143,17 @@ class CloudraUI:
                     ),
                 )
             except BackendError as exc:
+                self._displayed_approvals.discard(approval_id)
                 self.status_text.value = str(exc)
                 self.page.update()
                 return
             if not changed:
+                self._displayed_approvals.discard(approval_id)
                 self.status_text.value = "这条审批已决定或已过期"
                 self.page.update()
                 return
             _close_dialog(self.page, dialog)
+            self._displayed_approvals.discard(approval_id)
             self.status_text.value = (
                 "审批已批准" if decision == "approved" else "审批已拒绝"
             )

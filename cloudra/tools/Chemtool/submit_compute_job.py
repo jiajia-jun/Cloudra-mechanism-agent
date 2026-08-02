@@ -1,5 +1,7 @@
+import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field
@@ -30,6 +32,13 @@ class SubmitComputeJob_input_schema(input_schema):
         default=False,
         description="是否异步运行该任务，若任务时长较久，建议异步运行"
             )
+    execution_backend: Literal["auto", "local", "slurm"] = Field(
+        default="auto",
+        description=(
+            "执行后端。auto 根据 Phase 8 node registry 中输入文件所属 workspace "
+            "选择 local/slurm；Slurm 任务始终异步提交。"
+        ),
+    )
 
 
 class SubmitComputeJob_output_schema(output_schema):
@@ -63,8 +72,34 @@ class SubmitComputeJob(Tool):
                     is_success=False,
                     message="文件或目录不存在。")
 
-        # 2. 校验当前环境是否具备对应的计算程序
-        ok, msg = check_job_type(user_input.job_type, workdir)
+        scheduler = user_input.execution_backend
+        scheduler_options: dict = {"type": scheduler}
+        if scheduler == "auto":
+            try:
+                from cloudra.nodes import NodeRegistry
+
+                node, _workspace = NodeRegistry.from_environment().route_for_path(
+                    Path(f_path)
+                )
+                scheduler_options = dict(node.scheduler)
+                scheduler = str(scheduler_options.get("type", "local"))
+            except Exception as exc:
+                if os.getenv("CLOUDRA_NODE_REGISTRY_FILE"):
+                    return SubmitComputeJob_output_schema(
+                        is_success=False,
+                        message=f"无法为输入文件解析 node scheduler：{exc}",
+                    )
+                scheduler = "local"
+                scheduler_options = {"type": "local"}
+
+        if scheduler == "local":
+            ok, msg = check_job_type(user_input.job_type, workdir)
+        elif scheduler == "slurm":
+            from cloudra.slurm import check_slurm_tools
+
+            ok, msg = check_slurm_tools()
+        else:
+            ok, msg = False, f"不支持的执行后端: {scheduler}"
         if not ok:
             return SubmitComputeJob_output_schema(is_success=False, message=msg)
 
@@ -72,15 +107,20 @@ class SubmitComputeJob(Tool):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         db = ConversationDB(conv_id)
 
-        if user_input.is_async:
+        if user_input.is_async or scheduler == "slurm":
             try:
                 async with db.aconnect() as con:
                     cur = await con.execute('''
                     INSERT INTO compute_jobs
-                    (conversation_id, session_id, path, state, jobtype, start_timestamp, end_timestamp)
-                    VALUES (?,?,?,?,?,?,?)
+                    (conversation_id, session_id, path, state, jobtype,
+                     start_timestamp, end_timestamp, scheduler, scheduler_options)
+                    VALUES (?,?,?,?,?,?,?,?,?)
                             ''',
-                    (conv_id, session_id, f_path, 'ready', user_input.job_type, -1, -1))
+                    (
+                        conv_id, session_id, f_path, 'ready', user_input.job_type,
+                        -1, -1, scheduler,
+                        json.dumps(scheduler_options, ensure_ascii=False),
+                    ))
                     job_id = cur.lastrowid
                     await con.commit()
                     await events.aemit(
@@ -94,7 +134,9 @@ class SubmitComputeJob(Tool):
                             job_id=job_id,
                             job_dir=workdir,
                             state="ready",
-                            message="任务提交成功，将会定时唤醒你去监测任务。")
+                            message=(
+                                f"任务已提交到 {scheduler} 后端，将会在终态时唤醒。"
+                            ))
 
             except Exception as e:
                 return SubmitComputeJob_output_schema(
@@ -108,10 +150,15 @@ class SubmitComputeJob(Tool):
                     now = time.time()
                     cur = await con.execute('''
                     INSERT INTO compute_jobs
-                    (conversation_id, session_id, path, state, jobtype, start_timestamp, end_timestamp)
-                    VALUES (?,?,?,?,?,?,?)
+                    (conversation_id, session_id, path, state, jobtype,
+                     start_timestamp, end_timestamp, scheduler, scheduler_options)
+                    VALUES (?,?,?,?,?,?,?,?,?)
                             ''',
-                    (conv_id, session_id, f_path, 'running', user_input.job_type, now, -1))
+                    (
+                        conv_id, session_id, f_path, 'running', user_input.job_type,
+                        now, -1, scheduler,
+                        json.dumps(scheduler_options, ensure_ascii=False),
+                    ))
                     job_id = cur.lastrowid
                     await con.commit()
                     # 任务提交是昂贵的，必须在数据库留痕才允许进行。

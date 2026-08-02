@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import compileall
+import io
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ from typing import Any
 
 import pytest
 import tomllib
+import zipfile
 
 from cloudra import session_store
 from cloudra.database import ConversationDB
@@ -295,6 +297,28 @@ def test_android_build_stage_preserves_only_generated_build_cache(tmp_path):
         shutil.rmtree(stage, ignore_errors=True)
 
 
+def test_built_apk_contains_current_pyc_only_remote_runtime():
+    """Regression gate against shipping stale source or server modules."""
+    root = Path(__file__).resolve().parents[1]
+    apk = root / "build" / "apk" / "cloudra-android.apk"
+    if not apk.is_file():
+        pytest.skip("APK is not built in this checkout")
+    with zipfile.ZipFile(apk) as outer:
+        assert "assets/app.zip" in outer.namelist()
+        with zipfile.ZipFile(io.BytesIO(outer.read("assets/app.zip"))) as app:
+            names = set(app.namelist())
+            assert "cloudra/ui/app.pyc" in names
+            assert "cloudra/backends.pyc" in names
+            assert "cloudra/device/runtime.pyc" in names
+            assert not any(name.endswith(".py") for name in names)
+            assert "cloudra/agent.pyc" not in names
+            assert "cloudra/service.pyc" not in names
+            assert "cloudra/config.pyc" not in names
+            ui_bytecode = app.read("cloudra/ui/app.pyc")
+            assert "移除此服务器".encode() in ui_bytecode
+            assert "已移除服务器".encode() in ui_bytecode
+
+
 def test_bundled_android_extension_has_phase7_native_boundaries():
     root = Path(__file__).resolve().parents[1]
     extension = root / "extensions" / "cloudra_native"
@@ -340,6 +364,9 @@ def test_bundled_android_extension_has_phase7_native_boundaries():
     assert "FOREGROUND_SERVICE_REMOTE_MESSAGING" in manifest
     assert "io.github.yyywaa.cloudra/native" in dart_service
     assert "value=profile.token" not in mobile_ui
+    assert "remove_registered_server" in mobile_ui
+    assert "await backend.revoke_device" in mobile_ui
+    assert 'credential_key("server", selected.server_url)' in mobile_ui
 
 
 def test_mobile_ui_import_does_not_load_agent_or_local_service(tmp_path):

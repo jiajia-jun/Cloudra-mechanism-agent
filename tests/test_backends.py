@@ -62,6 +62,86 @@ def test_remote_state_store_never_persists_token_and_cursor_is_monotonic(tmp_pat
     ) == 9
 
 
+def test_remote_state_store_migrates_legacy_profile_to_multi_server_registry(
+    tmp_path,
+):
+    path = tmp_path / "remote-state.json"
+    path.write_text(
+        json.dumps(
+            {
+                "profile": {
+                    "server_url": "https://legacy.cloudra.test",
+                    "display_name": "Legacy",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    store = RemoteStateStore(path)
+    legacy = store.load_profile()
+    second = ServerProfile(
+        server_url="https://hpc.cloudra.test",
+        display_name="HPC",
+        node_id="login-1",
+        workspace_id="project-a",
+        token="never-persist-this",
+    )
+
+    store.save_profile(legacy)
+    store.save_profile(second)
+    assert {profile.server_url for profile in store.load_profiles()} == {
+        "https://legacy.cloudra.test",
+        "https://hpc.cloudra.test",
+    }
+    assert store.load_profile().profile_id == second.profile_id
+    assert store.select_profile(legacy.profile_id).server_url == legacy.server_url
+    assert "never-persist-this" not in path.read_text(encoding="utf-8")
+
+    store.save_cursor(legacy.server_url, "conv", "session", 7)
+    store.save_cursor(second.server_url, "conv", "session", 9)
+    store.remove_profile(legacy.profile_id)
+    assert store.load_profile().profile_id == second.profile_id
+    assert store.load_cursor(legacy.server_url, "conv", "session") == 0
+    assert store.load_cursor(second.server_url, "conv", "session") == 9
+
+
+def test_remote_cursor_is_isolated_by_node_and_workspace(tmp_path):
+    store = RemoteStateStore(tmp_path / "remote-state.json")
+    store.save_cursor(
+        "https://cloudra.test",
+        "conv",
+        "session",
+        12,
+        "node-a\nworkspace-a",
+    )
+
+    assert store.load_cursor(
+        "https://cloudra.test",
+        "conv",
+        "session",
+        "node-a\nworkspace-a",
+    ) == 12
+    assert store.load_cursor(
+        "https://cloudra.test",
+        "conv",
+        "session",
+        "node-b\nworkspace-a",
+    ) == 0
+
+    legacy_key = "https://legacy.test\nconv\nsession"
+    legacy_store = RemoteStateStore(tmp_path / "legacy-cursor.json")
+    legacy_store.path.write_text(
+        json.dumps({"cursors": {legacy_key: 7}}),
+        encoding="utf-8",
+    )
+    assert legacy_store.load_cursor(
+        "https://legacy.test",
+        "conv",
+        "session",
+        "node-local\ndefault",
+    ) == 7
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "server_url",
@@ -139,6 +219,89 @@ async def test_remote_backend_uses_v1_and_sends_only_server_token(tmp_path):
     }
     assert "model" not in submitted
     assert "api_key" not in submitted
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_remote_backend_revokes_device_with_server_not_device_token(tmp_path):
+    captured = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={"device_id": "dev_123456789012", "state": "revoked"},
+        )
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://cloudra.test",
+    )
+    backend = RemoteCloudraBackend(
+        ServerProfile(server_url="https://cloudra.test", token="server-token"),
+        RemoteStateStore(tmp_path / "state.json"),
+        client=client,
+    )
+    result = await backend.revoke_device("dev_123456789012")
+    assert result["state"] == "revoked"
+    assert captured[0].method == "DELETE"
+    assert captured[0].url.path == "/api/v1/devices/dev_123456789012"
+    assert captured[0].headers["Authorization"] == "Bearer server-token"
+    assert not captured[0].headers["Authorization"].startswith("Device ")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_remote_backend_validates_and_routes_selected_node_workspace(
+    tmp_path,
+):
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/api/v1/nodes":
+            return httpx.Response(
+                200,
+                json=[{"node_id": "hpc-login", "state": "online"}],
+            )
+        if request.url.path == "/api/v1/workspaces":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "node_id": "hpc-login",
+                        "workspace_id": "project-a",
+                    }
+                ],
+            )
+        if request.url.path.endswith("/sessions"):
+            return httpx.Response(
+                202,
+                json={"session_id": "session_hpc", "state": "queued"},
+            )
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://cloudra.test",
+    )
+    store = RemoteStateStore(tmp_path / "state.json")
+    backend = RemoteCloudraBackend(
+        ServerProfile(server_url="https://cloudra.test"),
+        store,
+        client=client,
+    )
+
+    await backend.select_node_workspace("hpc-login", "project-a")
+    _, record = await backend.submit_session("运行计算", "conv_hpc")
+
+    assert record["session_id"] == "session_hpc"
+    submitted = json.loads(requests[-1].content)
+    assert submitted["workspace_id"] == "project-a"
+    assert requests[-1].headers["X-Cloudra-Node-ID"] == "hpc-login"
+    persisted = store.load_profile()
+    assert persisted.node_id == "hpc-login"
+    assert persisted.workspace_id == "project-a"
     await client.aclose()
 
 

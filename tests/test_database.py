@@ -100,7 +100,7 @@ def test_conversation_db_init_creates_tables(isolated_db):
         "decided_by",
         "decided_at",
     } <= approval_columns
-    assert version == 6
+    assert version == 7
 
 
 def test_conversation_db_isolation(isolated_db):

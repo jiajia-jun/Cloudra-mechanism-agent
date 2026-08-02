@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from cloudra.api import create_app
+from cloudra.config import get_config
 
 
 class _Record:
@@ -44,6 +45,7 @@ class FakeService:
         self.pending_interactions = []
         self.pending_approvals = []
         self.last_approval = None
+        self.last_route = None
 
     def create_conversation(self):
         return type("Conversation", (), {"id": "conv_1", "state": "active"})()
@@ -64,6 +66,8 @@ class FakeService:
         query,
         conversation_id,
         working_directory=None,
+        node_id="node-local",
+        workspace_id="default",
     ):
         self.last_command_id = command_id
         self.last_submit = {
@@ -72,6 +76,7 @@ class FakeService:
             "working_directory": working_directory,
             "yolo": False,
         }
+        self.last_route = (node_id, workspace_id)
         command = _Command()
         command.command_id = command_id
         return command, _Record()
@@ -134,6 +139,26 @@ async def test_health_is_public(monkeypatch):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/health")
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_operations_status_is_protected_and_contains_no_credentials(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "secret-token")
+    monkeypatch.setenv("CLOUDRA_MIN_FREE_BYTES", "0")
+    monkeypatch.setattr(get_config(), "data_dir", tmp_path)
+    transport = httpx.ASGITransport(app=create_app(FakeService()))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        denied = await client.get("/api/operations/status")
+        response = await client.get(
+            "/api/operations/status",
+            headers={"Authorization": "Bearer secret-token"},
+        )
+    assert denied.status_code == 401
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert "secret-token" not in response.text
 
 
 @pytest.mark.asyncio
@@ -256,6 +281,24 @@ async def test_v1_rejects_incompatible_protocol(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_v1_rejects_requests_routed_to_a_different_node(monkeypatch):
+    monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+    monkeypatch.setenv("CLOUDRA_NODE_ID", "node-local")
+    transport = httpx.ASGITransport(app=create_app(FakeService()))
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
+        response = await client.get(
+            "/api/v1/profile",
+            headers={**_v1_headers(), "X-Cloudra-Node-ID": "node-other"},
+        )
+
+    assert response.status_code == 409
+    assert "unknown node" in response.json()["detail"]["error"]
+
+
+@pytest.mark.asyncio
 async def test_v1_session_creation_uses_server_workspace(monkeypatch, tmp_path):
     monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
     from cloudra.config import get_config
@@ -281,7 +324,66 @@ async def test_v1_session_creation_uses_server_workspace(monkeypatch, tmp_path):
         "yolo": False,
     }
     assert service.last_command_id == "cmd_create_api_12345678"
+    assert service.last_route == ("node-local", "default")
     assert response.json()["command"]["state"] == "applied"
+
+
+@pytest.mark.asyncio
+async def test_v1_session_creation_routes_configured_node_workspace(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+    workspace = tmp_path / "project-a"
+    workspace.mkdir()
+    registry_file = tmp_path / "nodes.json"
+    registry_file.write_text(
+        json.dumps(
+            {
+                "default_node_id": "login-a",
+                "nodes": [
+                    {
+                        "node_id": "login-a",
+                        "display_name": "HPC Login",
+                        "workspaces": [
+                            {
+                                "workspace_id": "project-a",
+                                "path": str(workspace),
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CLOUDRA_NODE_REGISTRY_FILE", str(registry_file))
+    service = FakeService()
+    transport = httpx.ASGITransport(app=create_app(service))
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    ) as client:
+        nodes = await client.get("/api/v1/nodes", headers=_v1_headers())
+        workspaces = await client.get(
+            "/api/v1/workspaces",
+            headers={**_v1_headers(), "X-Cloudra-Node-ID": "login-a"},
+        )
+        response = await client.post(
+            "/api/v1/conversations/conv_1/sessions",
+            headers={
+                **_v1_headers(),
+                "X-Cloudra-Node-ID": "login-a",
+                "Idempotency-Key": "cmd_hpc_api_12345678",
+            },
+            json={"query": "运行计算", "workspace_id": "project-a"},
+        )
+
+    assert nodes.json()[0]["node_id"] == "login-a"
+    assert workspaces.json()[0]["workspace_id"] == "project-a"
+    assert response.status_code == 202
+    assert service.last_submit["working_directory"] == str(workspace.resolve())
+    assert service.last_route == ("login-a", "project-a")
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -9,6 +10,44 @@ from cloudra.service import CloudraService, SessionRunner, validate_conversation
 def test_validate_conversation_id_rejects_path_traversal():
     with pytest.raises(ValueError):
         validate_conversation_id("../../outside")
+
+
+def test_session_reads_migrate_legacy_database_before_select(tmp_path, monkeypatch):
+    """TUI startup must open pre-route-schema conversations without crashing."""
+    from cloudra.config import get_config, reload_config
+    from cloudra.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    db = ConversationDB("conv_legacy_tui").ensure_dir()
+    with sqlite3.connect(db.path) as con:
+        con.execute(
+            "CREATE TABLE session(session_id TEXT PRIMARY KEY, state TEXT, result TEXT)"
+        )
+        con.execute(
+            "CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT)"
+        )
+        con.execute("INSERT INTO schema_migrations VALUES (6, datetime('now'))")
+        con.execute(
+            "INSERT INTO session VALUES ('legacy-1', 'completed', 'old result')"
+        )
+        con.commit()
+
+    runner = SessionRunner(object())
+    records = runner.list("conv_legacy_tui")
+    assert len(records) == 1
+    assert records[0].session_id == "legacy-1"
+    assert records[0].result == "old result"
+    assert records[0].node_id is None
+    assert runner.get("conv_legacy_tui", "legacy-1") == records[0]
+    assert runner.events("conv_legacy_tui", "legacy-1") == []
+    with sqlite3.connect(db.path) as con:
+        columns = {row[1] for row in con.execute("PRAGMA table_info(session)")}
+        version = con.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+    assert {"node_id", "workspace_id", "working_directory"} <= columns
+    assert version == 7
 
 
 @pytest.mark.asyncio

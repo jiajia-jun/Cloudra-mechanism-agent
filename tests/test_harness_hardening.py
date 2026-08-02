@@ -135,6 +135,49 @@ class TestContextWindowConfig:
         assert reloaded.coordinator.context_window == 200000
         assert reloaded.coordinator.timeout == 45
 
+    @pytest.mark.asyncio
+    async def test_half_window_budget_includes_tools_and_observations(
+        self, monkeypatch
+    ):
+        """Schema/observation 必须在 50% 自动压缩阈值内，而非事后追加。"""
+        from types import SimpleNamespace
+
+        from cloudra.agent import Coordinator
+        from cloudra.token_estimator import TokenEstimator
+
+        agent = Coordinator(
+            prompt="p",
+            query="q",
+            conversation_id="budget-overhead",
+            context_window=20_000,
+        )
+        schemas = [{"type": "function", "function": {"description": "s" * 4_000}}]
+        observations = ({"role": "system", "content": "o" * 4_000},)
+        assembly = SimpleNamespace(
+            identity_messages=({"role": "system", "content": "identity"},),
+            observation_messages=observations,
+        )
+        captured = {}
+
+        class FakeCM:
+            async def build_messages(self, **kwargs):
+                captured.update(kwargs)
+                return list(assembly.identity_messages)
+
+        monkeypatch.setattr(type(agent), "_get_tools_schema", lambda self: schemas)
+        monkeypatch.setattr(
+            type(agent),
+            "_prompt_assembler",
+            lambda self: SimpleNamespace(assemble=lambda *args, **kwargs: assembly),
+        )
+        monkeypatch.setattr(type(agent), "_ensure_context_manager", lambda self: FakeCM())
+
+        messages = await agent._build_messages()
+        overhead = TokenEstimator.estimate_text(json.dumps(schemas, ensure_ascii=False))
+        overhead += TokenEstimator.estimate_messages(list(observations))
+        assert captured["max_context_tokens"] == 10_000 - overhead
+        assert messages[-1] == observations[0]
+
 
 # ---------------------------------------------------------------------------
 # 2. 参数校验失败回喂 LLM

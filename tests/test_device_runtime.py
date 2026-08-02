@@ -46,6 +46,22 @@ from cloudra.tools.DeviceTool.device_tools import (
 )
 
 
+def test_device_identity_is_scoped_per_server_profile(tmp_path):
+    store = DeviceStateStore(tmp_path / "device-state.json")
+    store.save_identity("legacy-device", "Legacy")
+    assert store.identity("server-a")["device_id"] == "legacy-device"
+
+    store.save_identity("device-a", "Server A", "server-a")
+    assert store.identity("server-a")["device_id"] == "device-a"
+    assert store.identity("server-b") == {}
+    store.save_identity("device-b", "Server B", "server-b")
+    assert store.identity("server-a")["device_id"] == "device-a"
+    assert store.identity("server-b")["device_id"] == "device-b"
+    store.remove_identity("server-a")
+    assert store.identity("server-a") == {}
+    assert store.identity("server-b")["device_id"] == "device-b"
+
+
 @pytest.fixture
 def device_environment(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"

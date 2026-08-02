@@ -11,7 +11,6 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Awaitable, Callable, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -19,8 +18,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from cloudra import __version__, control_store
-from cloudra.config import get_config
 from cloudra.database import ConversationDB
+from cloudra.nodes import NodeRegistry, NodeRegistryError
 from cloudra.service import validate_conversation_id
 
 PROTOCOL_NAME = "cloudra-control"
@@ -133,16 +132,6 @@ class V1DeviceToolResult(BaseModel):
     error: str = Field(default="", max_length=2_000)
 
 
-def _default_workspace() -> Path:
-    configured = getattr(get_config(), "workspace_dir", None)
-    candidate = Path(configured).expanduser() if configured else Path.cwd()
-    try:
-        resolved = candidate.resolve(strict=True)
-    except OSError:
-        resolved = Path.cwd().resolve()
-    return resolved if resolved.is_dir() else Path.cwd().resolve()
-
-
 def _event_envelope(
     conversation_id: str,
     session_id: str,
@@ -208,6 +197,10 @@ def create_v1_router(
             default="unknown",
             alias="X-Cloudra-Client-Version",
         ),
+        node_id: str | None = Header(
+            default=None,
+            alias="X-Cloudra-Node-ID",
+        ),
     ) -> None:
         await authorize(authorization)
         try:
@@ -226,7 +219,24 @@ def create_v1_router(
                 },
                 headers={"X-Cloudra-Protocol-Version": str(PROTOCOL_VERSION)},
             )
+        try:
+            registry = NodeRegistry.from_environment()
+            selected_node = registry.node(node_id)
+        except NodeRegistryError as exc:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_409_CONFLICT
+                    if node_id
+                    else status.HTTP_503_SERVICE_UNAVAILABLE
+                ),
+                detail={
+                    "message": "Cloudra 节点路由不可用",
+                    "requested_node_id": (node_id or "")[:100],
+                    "error": str(exc),
+                },
+            ) from exc
         request.state.cloudra_client_version = client_version[:100]
+        request.state.cloudra_node_id = selected_node.node_id
 
     async def require_protocol(
         protocol_version: str = Header(
@@ -288,38 +298,18 @@ def create_v1_router(
             "protocol": PROTOCOL_NAME,
             "protocol_version": PROTOCOL_VERSION,
             "server_version": __version__,
-            "node_id": os.getenv("CLOUDRA_NODE_ID", "node-local"),
+            "node_id": request.state.cloudra_node_id,
             "display_name": os.getenv("CLOUDRA_SERVER_NAME", "Cloudra Server"),
             "client_version": request.state.cloudra_client_version,
         }
 
     @router.get("/nodes", dependencies=protected)
     async def list_nodes() -> list[dict]:
-        return [
-            {
-                "node_id": os.getenv("CLOUDRA_NODE_ID", "node-local"),
-                "display_name": os.getenv(
-                    "CLOUDRA_SERVER_NAME",
-                    "Cloudra Server",
-                ),
-                "state": "online",
-                "server_version": __version__,
-                "protocol_version": PROTOCOL_VERSION,
-            }
-        ]
+        return NodeRegistry.from_environment().public_nodes()
 
     @router.get("/workspaces", dependencies=protected)
     async def list_workspaces() -> list[dict]:
-        workspace = _default_workspace()
-        return [
-            {
-                "workspace_id": "default",
-                "node_id": os.getenv("CLOUDRA_NODE_ID", "node-local"),
-                "display_name": workspace.name or str(workspace),
-                "path": str(workspace),
-                "access": "read_write",
-            }
-        ]
+        return NodeRegistry.from_environment().public_workspaces()
 
     @router.post("/pairing/start", dependencies=protected)
     async def start_pairing(body: V1PairingStart) -> dict:
@@ -554,6 +544,7 @@ def create_v1_router(
         dependencies=protected,
     )
     async def create_session(
+        request: Request,
         conversation_id: str,
         body: V1SessionCreate,
         idempotency_key: str | None = Header(
@@ -561,8 +552,18 @@ def create_v1_router(
             alias="Idempotency-Key",
         ),
     ) -> dict:
-        if body.workspace_id != "default":
-            raise HTTPException(status_code=404, detail="Workspace 不存在")
+        try:
+            workspace = NodeRegistry.from_environment().workspace(
+                request.state.cloudra_node_id,
+                body.workspace_id,
+            )
+        except NodeRegistryError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if workspace.access != "read_write":
+            raise HTTPException(
+                status_code=403,
+                detail="Workspace 是只读的，不能启动 Agent Session",
+            )
         if body.yolo:
             raise HTTPException(
                 status_code=422,
@@ -573,7 +574,9 @@ def create_v1_router(
                 command_id=idempotency_key or control_store.new_command_id(),
                 query=body.query,
                 conversation_id=conversation_id,
-                working_directory=str(_default_workspace()),
+                working_directory=str(workspace.path),
+                node_id=workspace.node_id,
+                workspace_id=workspace.workspace_id,
             )
         except control_store.CommandConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -658,7 +661,6 @@ def create_v1_router(
                 conversation_id=conversation_id,
                 session_id=session_id,
                 content=body.content,
-                working_directory=str(_default_workspace()),
             )
         except control_store.CommandConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -741,8 +743,14 @@ def create_v1_router(
         conversation_id: str = Query(min_length=1, max_length=100),
     ) -> list[dict]:
         try:
-            return service.list_pending_approvals_for_conversation(
-                conversation_id
+            async_reader = getattr(
+                service, "alist_pending_approvals_for_conversation", None
+            )
+            if async_reader is not None:
+                return await async_reader(conversation_id)
+            return await asyncio.to_thread(
+                service.list_pending_approvals_for_conversation,
+                conversation_id,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

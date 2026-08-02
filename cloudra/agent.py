@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, PrivateAttr
 
-from cloudra import __version__
+from cloudra import __version__, events
 from cloudra.config import get_config
 from cloudra.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 from cloudra.database import ConversationDB
@@ -21,6 +21,7 @@ from cloudra.runtime_profile import filter_tools_for_runtime
 from cloudra.tools import ToolEntry, get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
+from cloudra.token_estimator import TokenEstimator
 
 
 def load_prompt(agent_name: str) -> str:
@@ -136,6 +137,18 @@ class Agent(BaseModel):
             prompt=self.prompt,
             query=self.query,
             session_id=getattr(self, 'session_id', None),
+            on_compaction_progress=self._report_compaction_progress,
+        )
+
+    async def _report_compaction_progress(self, progress: dict) -> None:
+        """Broadcast non-durable compression progress without touching SQLite."""
+        await events.aemit(
+            self.conversation_id,
+            "context_compaction",
+            agent_id=self.id,
+            agent_name=self.name,
+            session_id=getattr(self, "session_id", None),
+            **progress,
         )
 
     def _ensure_context_manager(self) -> ContextManager:
@@ -343,9 +356,26 @@ class Agent(BaseModel):
             device_snapshot=self._device_prompt_snapshot(tool_names),
         )
         self._last_prompt_assembly = assembly
+        target_tokens = self.context_window // 2 if self.context_window else None
+        if target_tokens is not None:
+            # Tool schemas and runtime observations are part of the provider's
+            # prompt too. Previously they were appended after ContextManager's
+            # threshold check, so actual requests could pass 50% unnoticed.
+            schema_tokens = TokenEstimator.estimate_text(
+                json.dumps(schemas, ensure_ascii=False, default=str)
+            )
+            observation_tokens = TokenEstimator.estimate_messages(
+                list(assembly.observation_messages)
+            )
+            history_budget = max(
+                1_024,
+                target_tokens - schema_tokens - observation_tokens,
+            )
+        else:
+            history_budget = None
         messages = await self._ensure_context_manager().build_messages(
             supports_vision=self.supports_vision,
-            max_context_tokens=self.context_window // 2 if self.context_window else None,
+            max_context_tokens=history_budget,
             identity_messages=list(assembly.identity_messages),
         )
         messages.extend(assembly.observation_messages)
@@ -423,6 +453,19 @@ class Agent(BaseModel):
                 "agent_id": self.id,
                 "agent_name": self.name,
                 "message_count": len(messages),
+                "estimated_prompt_tokens": (
+                    TokenEstimator.estimate_messages(messages)
+                    + TokenEstimator.estimate_text(
+                        json.dumps(
+                            available_tool_classes,
+                            ensure_ascii=False,
+                            default=str,
+                        )
+                    )
+                ),
+                "auto_compact_target_tokens": (
+                    self.context_window // 2 if self.context_window else None
+                ),
                 "history_revision": (
                     "sha256:"
                     + hashlib.sha256(history_payload.encode("utf-8")).hexdigest()

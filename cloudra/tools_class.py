@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
@@ -262,9 +263,14 @@ class Tool(BaseModel):
     ) -> tuple[bool, str]:
         import asyncio
 
+        from cloudra import events
         from cloudra import session_store as _ss
 
         db = ConversationDB.from_path(db_path)
+        conversation_id = getattr(self.subagent, "conversation_id", None)
+        if not conversation_id:
+            conversation_id = Path(db_path).parent.parent.name
+        decisions = await events.subscribe_async(conversation_id, "approval_decided")
         approval_id = await _ss.ainsert_approval(
             db,
             session_id,
@@ -277,14 +283,14 @@ class Tool(BaseModel):
             risk_summary=risk_summary,
             candidate_diff=candidate_diff,
         )
-        changed = _ss.transition_session_state(
+        changed = await _ss.atransition_session_state(
             db,
             session_id,
             expected={"running"},
             target="waiting_for_approval",
         )
         if changed:
-            _ss.insert_session_event(
+            await _ss.ainsert_session_event(
                 db,
                 session_id,
                 "waiting_for_approval",
@@ -295,7 +301,18 @@ class Tool(BaseModel):
             )
         try:
             while True:
-                await asyncio.sleep(2)
+                try:
+                    message = await asyncio.wait_for(decisions.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    message = None
+                if message and message.get("approval_id") == approval_id:
+                    state = message.get("state")
+                    denial_reason = message.get("denial_reason", "")
+                    if state == "approved":
+                        print("\033[92m[安全审计]\033[0m 审批通过。")
+                        return True, ""
+                    if state == "denied":
+                        return False, denial_reason
                 row = await _ss.aread_approval_status(db, approval_id)
                 if row:
                     state, denial_reason = row
@@ -313,14 +330,14 @@ class Tool(BaseModel):
                         print("\033[91m[安全审计]\033[0m 审批已过期。")
                         return False, "审批已过期"
         finally:
-            restored = _ss.transition_session_state(
+            restored = await _ss.atransition_session_state(
                 db,
                 session_id,
                 expected={"waiting_for_approval"},
                 target="running",
             )
             if restored:
-                _ss.insert_session_event(
+                await _ss.ainsert_session_event(
                     db,
                     session_id,
                     "running",

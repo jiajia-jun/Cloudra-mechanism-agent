@@ -51,6 +51,7 @@ class RenderBridge:
         on_session_state=None,
         on_token_usage=None,
         on_plan_dirty=None,
+        on_compaction_progress=None,
     ):
         self.conversation_id = conversation_id
         self.chat_log = chat_log
@@ -65,6 +66,7 @@ class RenderBridge:
         self.on_token_usage = on_token_usage
         # todo_write / goal_set 更新了计划文件时触发
         self.on_plan_dirty = on_plan_dirty
+        self.on_compaction_progress = on_compaction_progress
         # 已经有流式正文上屏的 session（completed 事件据此决定是否补显示 result）
         self._streamed: set[str] = set()
         self._known_sessions: set[str] = set()
@@ -75,7 +77,13 @@ class RenderBridge:
         """启动事件监听循环。"""
         self._queue = await events.subscribe_async(
             self.conversation_id,
-            ("session_event", "session_state", "approval_pending", "interaction_requested"),
+            (
+                "session_event",
+                "session_state",
+                "approval_pending",
+                "interaction_requested",
+                "context_compaction",
+            ),
         )
         self._task = asyncio.create_task(self._loop())
 
@@ -107,6 +115,9 @@ class RenderBridge:
             self._on_approval_pending(msg)
         elif kind == "interaction_requested":
             self._on_interaction(msg)
+        elif kind == "context_compaction":
+            if self.on_compaction_progress:
+                self.on_compaction_progress(msg)
 
     def replay_event(self, session_id: str, event_type: str, data: dict) -> None:
         """回放一条历史事件到 ChatLog（不触碰状态栏/审批弹窗）。"""
@@ -179,6 +190,14 @@ class RenderBridge:
                 finished=True,
                 result=_display_text(data.get("result")),
             )
+        elif event_type == "user_message":
+            content = _display_text(data.get("content", "")).strip()
+            if content:
+                self.chat_log.append_user(
+                    session_id,
+                    content,
+                    message_id=data.get("message_id") or data.get("command_id"),
+                )
         elif event_type == "file_change_proposed":
             self.chat_log.append_file_change(
                 session_id,

@@ -1,8 +1,11 @@
+import asyncio
 from unittest.mock import patch
 
 import pytest
 
 from cloudra.context_manager import ContextManager
+from cloudra.config import get_config
+from cloudra.token_estimator import TokenEstimator
 
 
 @pytest.fixture
@@ -259,7 +262,7 @@ class TestHistoryCompression:
 
     LLMClient 全部 mock，钉住：
     1. 触发条件：估算总 token > max_context_tokens 才触发。
-    2. 替换方式：system 消息 + 梗概消息 + 最近 10 轮（以 assistant 计数）原样保留。
+    2. 替换方式：system 消息 + 梗概消息 + 最近 4 个 assistant 回合原样保留。
     3. 兜底：LLM 失败 / 缺配置 / 梗概仍超预算 时保留原始消息不压缩。
     """
 
@@ -287,31 +290,31 @@ class TestHistoryCompression:
 
     @pytest.mark.asyncio
     async def test_compression_replaces_history_with_summary(self, context_manager, mock_llm):
-        """超预算时：历史被梗概替换，system 与最近 10 轮保留。"""
+        """超预算时：历史被梗概替换，system 与最近 4 个回合保留。"""
         mock_cls, create = mock_llm
         await self._fill_history(context_manager)
 
         msgs = await context_manager.build_messages(max_context_tokens=1000)
 
-        # LLM 被调用一次，使用 FOLLOWER 配置与固定参数
+        # LLM 被调用一次；除 temperature=1 外不覆盖服务商默认生成参数。
         assert create.call_count == 1
         kwargs = create.call_args.kwargs
         assert kwargs["model"] == "fake-model"
-        assert kwargs["temperature"] == 0.3
-        assert kwargs["max_tokens"] == 2000
+        assert kwargs["temperature"] == 1.0
+        assert "max_tokens" not in kwargs
         # 梗概输入只包含历史（含初始 query），不包含保留的最近轮次。
-        # 注意边界现状：保留窗口以第 10 条 assistant 为锚点截断，该轮对应的
-        # user 消息（"最近问题 0"）被划入历史而非保留区。
+        # 保留窗口以第 4 条 assistant 为锚点截断，该轮对应的 user 消息
+        # （"最近问题 6"）被划入历史而非保留区。
         summary_prompt = kwargs["messages"][1]["content"]
         assert kwargs["messages"][0] == {"role": "system", "content": "你是一个专门压缩对话历史的助手。"}
         assert "历史问题 0" in summary_prompt
         assert "初始问题" in summary_prompt
-        assert "最近问题 0" in summary_prompt  # 第 10 轮的 user 消息被划入历史
-        assert "最近问题 1" not in summary_prompt
+        assert "最近问题 6" in summary_prompt
+        assert "最近问题 7" not in summary_prompt
 
-        # 结构：原 system prompt + 梗概 system 消息 + 保留尾部（19 条，
-        # 从第 10 条 assistant "最近回复 0" 开始，其 user 消息不在其中）
-        assert len(msgs) == 21
+        # 结构：原 system prompt + 梗概 system 消息 + 保留尾部（7 条，
+        # 从第 4 条 assistant "最近回复 6" 开始，其 user 消息不在其中）
+        assert len(msgs) == 9
         assert msgs[0]["role"] == "system"
         assert msgs[0]["content"] == "你是一个测试助手。"
         assert msgs[1]["role"] == "system"
@@ -320,9 +323,86 @@ class TestHistoryCompression:
         # 历史不再出现，保留区完整
         contents = [str(m.get("content", "")) for m in msgs]
         assert not any("历史问题 0" in c for c in contents)
-        assert not any("最近问题 0" in c for c in contents)
-        assert any("最近回复 0" in c for c in contents)
+        assert not any("最近问题 6" in c for c in contents)
+        assert any("最近回复 6" in c for c in contents)
         assert any("最近回复 9" in c for c in contents)
+
+    @pytest.mark.asyncio
+    async def test_persistent_compaction_caps_oversized_summary_input(
+        self, context_manager, mock_llm
+    ):
+        """巨型原始工具结果不会让摘要请求自身超窗并永久失效。"""
+        _, create = mock_llm
+        await context_manager.append(
+            {"role": "tool", "content": "BEGIN-" + "x" * 60_000 + "-END"}
+        )
+        for index in range(5):
+            await context_manager.append(
+                {"role": "assistant", "content": f"近期回复 {index}"}
+            )
+            await context_manager.append(
+                {"role": "user", "content": f"近期问题 {index}"}
+            )
+
+        assert await context_manager._compress_persistent() is True
+        summary_prompt = create.call_args.kwargs["messages"][1]["content"]
+        assert "BEGIN-" in summary_prompt
+        assert "-END" not in summary_prompt
+        assert "内容过长已截断" in summary_prompt
+
+    @pytest.mark.asyncio
+    async def test_oversized_history_uses_hierarchical_summary(
+        self, context_manager, mock_llm, monkeypatch
+    ):
+        """摘要输入自身超过 FOLLOWER 半窗时分块并最终归并为一条。"""
+        _, create = mock_llm
+        monkeypatch.setattr(get_config().follower, "context_window", 32_000)
+        history = [
+            {"role": "tool", "content": f"块 {index}: " + "中" * 30_000}
+            for index in range(4)
+        ]
+        summary = await context_manager._summarize_history(history)
+        assert summary == "压缩梗概"
+        assert create.call_count > 1
+        for call in create.call_args_list:
+            prompt = call.kwargs["messages"][1]["content"]
+            assert TokenEstimator.estimate_text(prompt) < 20_000
+
+    @pytest.mark.asyncio
+    async def test_summary_chunks_use_bounded_parallelism_and_report_progress(
+        self, context_manager, mock_llm, monkeypatch
+    ):
+        """同层摘要并发执行但不超过上限，并报告可展示的进度。"""
+        from types import SimpleNamespace
+
+        _, create = mock_llm
+        monkeypatch.setattr(get_config().follower, "context_window", 16_000)
+        active = 0
+        peak = 0
+        progress = []
+
+        async def slow_summary(**kwargs):
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0.01)
+            active -= 1
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="分段梗概"))]
+            )
+
+        create.side_effect = slow_summary
+        context_manager._on_compaction_progress = progress.append
+        history = [
+            {"role": "tool", "content": f"块 {index}: " + "中" * 20_000}
+            for index in range(6)
+        ]
+
+        assert await context_manager._summarize_history(history) == "分段梗概"
+        assert 1 < peak <= 3
+        assert progress[0]["stage"] == "started"
+        assert any(item["stage"] == "progress" for item in progress)
+        assert progress[-1]["stage"] == "completed"
 
     @pytest.mark.asyncio
     async def test_empty_summary_uses_fallback_text(self, context_manager, mock_llm):

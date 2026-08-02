@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 from cloudra import session_store
@@ -21,6 +22,7 @@ _WORKERS: dict[str, dict] = {}
 
 # 子进程启动宽限期：如果在此时间内退出且任务仍挂在 running，视为启动崩溃。
 _STARTUP_GRACE_SECONDS = 2.0
+_LEASE_SECONDS = 60
 
 
 def _conv_id_from_db_path(db_path: str) -> str:
@@ -107,11 +109,39 @@ def _watch_subprocess(
         print(f"{Color.RED}[系统错误]{Color.END} {label} 退出回收失败: {e}")
 
 
+def _maintain_lease(
+    process: subprocess.Popen,
+    db_path: str,
+    table: str,
+    task_id: int,
+    worker_id: str,
+) -> None:
+    """Refresh ownership while the executor lives; stop if ownership changes."""
+    db = ConversationDB.from_path(db_path)
+    interval = max(5, _LEASE_SECONDS // 3)
+    while process.poll() is None:
+        try:
+            if not session_store.renew_task_lease(
+                db,
+                table=table,
+                task_id=task_id,
+                worker_id=worker_id,
+                lease_seconds=_LEASE_SECONDS,
+            ):
+                return
+        except Exception:
+            # A transient SQLite lock is covered by retry_on_locked. Any longer
+            # outage lets the lease expire so another healthy worker can claim.
+            return
+        time.sleep(interval)
+
+
 def _start_subagent_executor(
     database_path: str,
     request_id: int,
     input_data: dict,
     active_processes: dict,
+    worker_id: str = "legacy-worker",
 ) -> None:
     """启动一个子 Agent executor 子进程并挂上 watcher。"""
     agent_id = input_data.get("agent_id")
@@ -148,15 +178,49 @@ def _start_subagent_executor(
         args=(process, database_path, request_id, "subagent", f"Agent {agent_name}"),
         daemon=True,
     ).start()
+    threading.Thread(
+        target=_maintain_lease,
+        args=(process, database_path, "subagent_requests", request_id, worker_id),
+        daemon=True,
+    ).start()
 
 
 def checking_task(database_path: str, stop_event: threading.Event = None):
     active_processes: dict[int, subprocess.Popen] = {}
+    worker_id = f"subagent-{os.getpid()}-{uuid.uuid4().hex}"
     conv_id = _conv_id_from_db_path(database_path)
     sub = subscribe_thread(
         conv_id,
         ("subagent_request_ready", "task_finished", "__worker_stop"),
     )
+
+    def drain_ready_requests() -> None:
+        db = ConversationDB.from_path(database_path)
+        session_store.reap_exhausted_leases(db)
+        while True:
+            claimed = session_store.claim_ready_request(
+                db, worker_id=worker_id, lease_seconds=_LEASE_SECONDS
+            )
+            if not claimed:
+                break
+            request_id, input_data = claimed
+            if isinstance(input_data, str):
+                input_data = json.loads(input_data)
+            _start_subagent_executor(
+                database_path,
+                request_id,
+                input_data,
+                active_processes,
+                worker_id,
+            )
+
+    # Events are edge-triggered and are not replayed after a server restart.
+    # Drain durable ready rows once before waiting so persisted work is not
+    # stranded forever merely because its original notification was lost.
+    try:
+        drain_ready_requests()
+    except Exception as e:
+        print(f"{Color.RED}[系统错误]{Color.END} checking_task 启动恢复失败: {e}")
 
     while True:
         if stop_event and stop_event.is_set():
@@ -173,20 +237,17 @@ def checking_task(database_path: str, stop_event: threading.Event = None):
             continue
 
         try:
-            db = ConversationDB.from_path(database_path)
-            while True:
-                claimed = session_store.claim_ready_request(db)
-                if not claimed:
-                    break
-                request_id, input_data = claimed
-                if isinstance(input_data, str):
-                    input_data = json.loads(input_data)
-                _start_subagent_executor(database_path, request_id, input_data, active_processes)
+            drain_ready_requests()
         except Exception as e:
             print(f"{Color.RED}[系统错误]{Color.END} checking_task 发生异常: {e}")
 
 
-def _start_compute_executor(db_path: str, task_id: int, active_processes: dict) -> None:
+def _start_compute_executor(
+    db_path: str,
+    task_id: int,
+    active_processes: dict,
+    worker_id: str = "legacy-worker",
+) -> None:
     if task_id in active_processes:
         return
     process = subprocess.Popen(
@@ -210,15 +271,42 @@ def _start_compute_executor(db_path: str, task_id: int, active_processes: dict) 
         args=(process, db_path, task_id, "compute", f"compute-{task_id}"),
         daemon=True,
     ).start()
+    threading.Thread(
+        target=_maintain_lease,
+        args=(process, db_path, "compute_jobs", task_id, worker_id),
+        daemon=True,
+    ).start()
 
 
 def check_compute(db_path: str, stop_event: threading.Event = None):
     active_processes: dict[int, subprocess.Popen] = {}
+    worker_id = f"compute-{os.getpid()}-{uuid.uuid4().hex}"
     conv_id = _conv_id_from_db_path(db_path)
     sub = subscribe_thread(
         conv_id,
         ("compute_job_ready", "task_finished", "__worker_stop"),
     )
+
+    def drain_ready_jobs() -> None:
+        db = ConversationDB.from_path(db_path)
+        session_store.reap_exhausted_leases(db)
+        while True:
+            task_id = session_store.claim_ready_compute_job(
+                db, worker_id=worker_id, lease_seconds=_LEASE_SECONDS
+            )
+            if task_id is None:
+                return
+            _start_compute_executor(
+                db_path,
+                task_id,
+                active_processes,
+                worker_id,
+            )
+
+    try:
+        drain_ready_jobs()
+    except Exception as e:
+        print(f"{Color.RED}[系统错误]{Color.END} check_compute 启动恢复失败: {e}")
 
     while True:
         if stop_event and stop_event.is_set():
@@ -235,29 +323,7 @@ def check_compute(db_path: str, stop_event: threading.Event = None):
             continue
 
         try:
-            db = ConversationDB.from_path(db_path)
-            with db.connect() as con:
-                cur = con.cursor()
-                cur.execute("SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1")
-                row = cur.fetchone()
-                if row is None:
-                    con.rollback()
-                    continue
-                cur.execute("""
-                    UPDATE compute_jobs
-                    SET state = 'running'
-                    WHERE id IN (
-                        SELECT id FROM compute_jobs WHERE state = 'ready' LIMIT 1
-                    )
-                    RETURNING id
-                """)
-                claimed = cur.fetchone()
-                if claimed:
-                    con.commit()
-                    task_id = claimed[0]
-                    _start_compute_executor(db_path, task_id, active_processes)
-                else:
-                    con.rollback()
+            drain_ready_jobs()
         except Exception as e:
             print(f"{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}")
 

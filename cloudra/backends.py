@@ -54,6 +54,19 @@ class ServerProfile:
     display_name: str = "Cloudra Server"
     token: str = field(default="", repr=False)
     allow_insecure_http: bool = False
+    node_id: str = ""
+    workspace_id: str = "default"
+
+    @property
+    def profile_id(self) -> str:
+        """Stable, non-secret identity used by the Android node registry."""
+        raw = self.server_url.strip().rstrip("/")
+        parsed = urlsplit(raw)
+        normalized = parsed._replace(
+            scheme=parsed.scheme.lower(),
+            netloc=parsed.netloc.lower(),
+        ).geturl()
+        return "server_" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:20]
 
     def persisted(self) -> dict:
         # Android credentials are persisted only by the native Keystore bridge.
@@ -62,6 +75,8 @@ class ServerProfile:
             "server_url": self.server_url,
             "display_name": self.display_name,
             "allow_insecure_http": self.allow_insecure_http,
+            "node_id": self.node_id,
+            "workspace_id": self.workspace_id or "default",
         }
 
 
@@ -87,15 +102,41 @@ class RemoteStateStore:
         )
         os.replace(temporary, self.path)
 
-    def load_profile(self) -> ServerProfile:
-        raw = self._load().get("profile", {})
+    @staticmethod
+    def _profile_from_raw(raw: object) -> ServerProfile:
         if not isinstance(raw, dict):
             raw = {}
         return ServerProfile(
             server_url=str(raw.get("server_url", "")),
             display_name=str(raw.get("display_name", "Cloudra Server")),
             allow_insecure_http=bool(raw.get("allow_insecure_http", False)),
+            node_id=str(raw.get("node_id", "")),
+            workspace_id=str(raw.get("workspace_id", "default")) or "default",
         )
+
+    def load_profiles(self) -> list[ServerProfile]:
+        """Load all registered servers, including the legacy single profile."""
+        data = self._load()
+        profiles = data.get("profiles", {})
+        loaded: list[ServerProfile] = []
+        if isinstance(profiles, dict):
+            for raw in profiles.values():
+                profile = self._profile_from_raw(raw)
+                if profile.server_url:
+                    loaded.append(profile)
+        if loaded:
+            return sorted(loaded, key=lambda item: item.display_name.casefold())
+        legacy = self._profile_from_raw(data.get("profile", {}))
+        return [legacy] if legacy.server_url else []
+
+    def load_profile(self, profile_id: str | None = None) -> ServerProfile:
+        data = self._load()
+        profiles = data.get("profiles", {})
+        selected_id = profile_id or str(data.get("active_profile_id", ""))
+        if isinstance(profiles, dict) and selected_id in profiles:
+            return self._profile_from_raw(profiles[selected_id])
+        loaded = self.load_profiles()
+        return loaded[0] if loaded else ServerProfile()
 
     def save_profile(self, profile: ServerProfile) -> None:
         raw_url = profile.server_url.strip()
@@ -111,26 +152,78 @@ class RemoteStateStore:
                 "refusing to persist a Server URL with embedded credentials"
             )
         data = self._load()
+        profiles = data.setdefault("profiles", {})
+        if not isinstance(profiles, dict):
+            profiles = {}
+            data["profiles"] = profiles
+        profiles[profile.profile_id] = profile.persisted()
+        data["active_profile_id"] = profile.profile_id
+        # Keep the legacy key during the migration window so older APKs can
+        # still open the most recently selected server.
         data["profile"] = profile.persisted()
         self._save(data)
 
+    def select_profile(self, profile_id: str) -> ServerProfile:
+        profile = self.load_profile(profile_id)
+        if not profile.server_url or profile.profile_id != profile_id:
+            raise KeyError(f"unknown server profile: {profile_id}")
+        data = self._load()
+        data["active_profile_id"] = profile_id
+        data["profile"] = profile.persisted()
+        self._save(data)
+        return profile
+
+    def remove_profile(self, profile_id: str) -> None:
+        data = self._load()
+        profiles = data.get("profiles", {})
+        if not isinstance(profiles, dict) or profile_id not in profiles:
+            return
+        removed = profiles.get(profile_id, {})
+        removed_url = str(removed.get("server_url", "")).rstrip("/")
+        profiles.pop(profile_id, None)
+        cursors = data.get("cursors", {})
+        if removed_url and isinstance(cursors, dict):
+            prefix = f"{removed_url}\n"
+            data["cursors"] = {
+                key: value
+                for key, value in cursors.items()
+                if not str(key).startswith(prefix)
+            }
+        if data.get("active_profile_id") == profile_id:
+            next_id = next(iter(profiles), "")
+            data["active_profile_id"] = next_id
+            data["profile"] = profiles.get(next_id, {})
+        self._save(data)
+
     @staticmethod
-    def _cursor_key(server_url: str, conversation_id: str, session_id: str) -> str:
-        return "\n".join((server_url.rstrip("/"), conversation_id, session_id))
+    def _cursor_key(
+        server_url: str,
+        conversation_id: str,
+        session_id: str,
+        route: str = "",
+    ) -> str:
+        return "\n".join(
+            (server_url.rstrip("/"), route, conversation_id, session_id)
+        )
 
     def load_cursor(
         self,
         server_url: str,
         conversation_id: str,
         session_id: str,
+        route: str = "",
     ) -> int:
         cursors = self._load().get("cursors", {})
         if not isinstance(cursors, dict):
             return 0
-        value = cursors.get(
-            self._cursor_key(server_url, conversation_id, session_id),
-            0,
-        )
+        key = self._cursor_key(server_url, conversation_id, session_id, route)
+        value = cursors.get(key)
+        if value is None and route:
+            # One-time compatibility read for state written by Phase 0-7 APKs.
+            legacy_key = "\n".join(
+                (server_url.rstrip("/"), conversation_id, session_id)
+            )
+            value = cursors.get(legacy_key, 0)
         try:
             return max(0, int(value))
         except (TypeError, ValueError):
@@ -142,13 +235,14 @@ class RemoteStateStore:
         conversation_id: str,
         session_id: str,
         cursor: int,
+        route: str = "",
     ) -> None:
         data = self._load()
         cursors = data.setdefault("cursors", {})
         if not isinstance(cursors, dict):
             cursors = {}
             data["cursors"] = cursors
-        key = self._cursor_key(server_url, conversation_id, session_id)
+        key = self._cursor_key(server_url, conversation_id, session_id, route)
         try:
             current = int(cursors.get(key, 0))
         except (TypeError, ValueError):
@@ -383,12 +477,16 @@ class LocalCloudraBackend:
         session_id: str,
         after_cursor: int = 0,
     ) -> AsyncIterator[BackendEvent]:
+        from cloudra import events
+
         cursor = after_cursor
+        subscription = await events.subscribe_async(
+            conversation_id, ("session_event", "session_state")
+        )
         while True:
-            rows = self.service.session_runner.events(
-                conversation_id,
-                session_id,
-                cursor,
+            rows = await asyncio.to_thread(
+                self.service.session_runner.events,
+                conversation_id, session_id, cursor,
             )
             for row in rows:
                 cursor = int(row["id"])
@@ -398,13 +496,19 @@ class LocalCloudraBackend:
                     data=row["data"],
                     created_at=row.get("created_at"),
                 )
-            record = self.service.session_runner.get(
-                conversation_id,
-                session_id,
+            record = await asyncio.to_thread(
+                self.service.session_runner.get, conversation_id, session_id,
             )
             if record is None or (record.state in TERMINAL_STATES and not rows):
                 return
-            await asyncio.sleep(0.25)
+            try:
+                while True:
+                    message = await asyncio.wait_for(subscription.get(), timeout=30.0)
+                    if message.get("session_id") == session_id:
+                        break
+            except asyncio.TimeoutError:
+                # Durable recovery check for a missed process-boundary event.
+                pass
 
     def load_cursor(self, conversation_id: str, session_id: str) -> int:
         return 0
@@ -561,6 +665,8 @@ class RemoteCloudraBackend:
         }
         if self.profile.token:
             headers["Authorization"] = f"Bearer {self.profile.token}"
+        if self.profile.node_id:
+            headers["X-Cloudra-Node-ID"] = self.profile.node_id
         return headers
 
     def _client(self) -> httpx.AsyncClient:
@@ -647,6 +753,50 @@ class RemoteCloudraBackend:
     async def probe(self) -> dict:
         return (await self._request("GET", "/api/v1/profile")).json()
 
+    async def list_nodes(self) -> list[dict]:
+        payload = (await self._request("GET", "/api/v1/nodes")).json()
+        if not isinstance(payload, list):
+            raise BackendProtocolError("Server 返回了无效的节点注册表")
+        return payload
+
+    async def list_workspaces(self) -> list[dict]:
+        payload = (await self._request("GET", "/api/v1/workspaces")).json()
+        if not isinstance(payload, list):
+            raise BackendProtocolError("Server 返回了无效的工作区注册表")
+        return payload
+
+    async def revoke_device(self, device_id: str) -> dict:
+        """Revoke a paired Android identity with the server credential."""
+        return (
+            await self._request("DELETE", f"/api/v1/devices/{device_id}")
+        ).json()
+
+    async def select_node_workspace(
+        self,
+        node_id: str,
+        workspace_id: str,
+    ) -> None:
+        """Persist a validated node/workspace route for subsequent commands."""
+        nodes, workspaces = await asyncio.gather(
+            self.list_nodes(),
+            self.list_workspaces(),
+        )
+        node_ids = {str(item.get("node_id", "")) for item in nodes}
+        if node_id not in node_ids:
+            raise BackendProtocolError(f"Server 不再提供节点 {node_id}")
+        valid_workspace = any(
+            str(item.get("workspace_id", "")) == workspace_id
+            and str(item.get("node_id", "")) == node_id
+            for item in workspaces
+        )
+        if not valid_workspace:
+            raise BackendProtocolError(
+                f"节点 {node_id} 不提供工作区 {workspace_id}"
+            )
+        self.profile.node_id = node_id
+        self.profile.workspace_id = workspace_id
+        self.state_store.save_profile(self.profile)
+
     async def list_conversations(self) -> list[dict]:
         return (await self._request("GET", "/api/v1/conversations")).json()
 
@@ -685,7 +835,7 @@ class RemoteCloudraBackend:
                 f"/api/v1/conversations/{conversation_id}/sessions",
                 json={
                     "query": query,
-                    "workspace_id": "default",
+                    "workspace_id": self.profile.workspace_id or "default",
                     "yolo": False,
                 },
             )
@@ -876,6 +1026,7 @@ class RemoteCloudraBackend:
             self.profile.server_url,
             conversation_id,
             session_id,
+            "\n".join((self.profile.node_id, self.profile.workspace_id)),
         )
 
     def save_cursor(
@@ -889,6 +1040,7 @@ class RemoteCloudraBackend:
             conversation_id,
             session_id,
             cursor,
+            "\n".join((self.profile.node_id, self.profile.workspace_id)),
         )
 
     async def list_pending_approvals(

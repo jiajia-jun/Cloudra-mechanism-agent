@@ -42,16 +42,47 @@ class DeviceStateStore:
         )
         os.replace(temporary, self.path)
 
-    def identity(self) -> dict:
-        raw = self._load().get("identity", {})
+    def identity(self, scope: str = "") -> dict:
+        data = self._load()
+        identities = data.get("identities")
+        if scope and isinstance(identities, dict):
+            raw = identities.get(scope, {})
+        else:
+            # Phase 0-7 stored one identity. It is offered only until the first
+            # scoped identity is saved; unknown servers then pair separately.
+            raw = data.get("identity", {})
         return raw if isinstance(raw, dict) else {}
 
-    def save_identity(self, device_id: str, display_name: str) -> None:
+    def save_identity(
+        self,
+        device_id: str,
+        display_name: str,
+        scope: str = "",
+    ) -> None:
         data = self._load()
-        data["identity"] = {
+        identity = {
             "device_id": device_id,
             "display_name": display_name,
         }
+        if scope:
+            identities = data.setdefault("identities", {})
+            if not isinstance(identities, dict):
+                identities = {}
+                data["identities"] = identities
+            identities[scope] = identity
+            data.pop("identity", None)
+        else:
+            data["identity"] = identity
+        self._save(data)
+
+    def remove_identity(self, scope: str) -> None:
+        """Forget non-secret identity metadata for one server profile."""
+        data = self._load()
+        identities = data.get("identities")
+        if isinstance(identities, dict):
+            identities.pop(scope, None)
+            if not identities:
+                data.pop("identities", None)
         self._save(data)
 
     def runtime_enabled(self) -> bool:
@@ -473,6 +504,9 @@ class DeviceRuntime:
         self.approval_handler = approval_handler
         self.native_bridge = native_bridge
         self.credential_handler = credential_handler
+        self.identity_scope = str(
+            getattr(getattr(backend, "profile", None), "profile_id", "")
+        )
         self.device_id = ""
         self._device_token = ""
         self._announced = False
@@ -512,7 +546,11 @@ class DeviceRuntime:
                 self.device_id,
                 self._device_token,
             )
-        self.state_store.save_identity(self.device_id, self.display_name)
+        self.state_store.save_identity(
+            self.device_id,
+            self.display_name,
+            self.identity_scope,
+        )
         self._announced = False
         self._announced_capability_revision = None
         self._status("设备已配对")
@@ -774,6 +812,7 @@ class DeviceRuntime:
                 self.state_store.save_identity(
                     self.device_id,
                     self.display_name,
+                    self.identity_scope,
                 )
                 self._announced = False
         self.state_store.record_completed(tool_call_id, payload)

@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -172,3 +173,29 @@ async def test_cancel_event_reaches_react(isolated_ipc, tmp_path, monkeypatch):
             await react._cancel_task
         except asyncio.CancelledError:
             pass
+
+
+def test_broadcast_pump_is_bounded_and_coalesces_stream_chunks(monkeypatch):
+    """Slow peers cannot create one thread/executor job per streamed chunk."""
+    import cloudra.ipc as ipc
+
+    gate = threading.Event()
+    monkeypatch.setattr(ipc, "_broadcast_sync", lambda *_args: gate.wait(1))
+    pump = ipc._BroadcastPump("bounded")
+    try:
+        for index in range(2_000):
+            pump.enqueue(
+                {
+                    "kind": "session_event",
+                    "payload": {
+                        "session_id": f"s-{index % 4}",
+                        "event_type": "llm_chunk",
+                        "data": {"stream": "content", "delta": "x"},
+                    },
+                }
+            )
+        with pump._condition:
+            assert len(pump._pending) <= pump.MAX_PENDING
+    finally:
+        gate.set()
+        pump.close()

@@ -1,446 +1,172 @@
 # Cloudra
 
-专为化学科研设计的 AI Agent 协作框架。
+### 面向计算化学科研的持久、可审计 Agent Runtime
 
-[English](README.md)
+[English](README.md) · [Android 使用教程](docs/ANDROID_USER_GUIDE.md) · [架构说明](docs/PHASE8_NODE_REGISTRY.md) · [生产运维](docs/PHASE8_OPERATIONS.md)
 
-> **状态说明**：目前只有终端 TUI（Textual，`cloudra` / `cloudra run`）经过测试，推荐使用。Flet GUI（Windows/Android）虽随仓库发布，但**当前未经过测试**，暂时不要用于实际工作。
+Cloudra 不是问“怎么让 LLM 多调几个工具”，而是在问：**单次对话结束后，Agent 工作流还能不能控制、检查和恢复？**
 
-## 核心亮点
+在 Cloudra 里，文献调研、分子建模、电子结构计算、数据分析、报告写作都以长期 Session 的形式运行。Agent 会指派不同领域角色，等待实验证据或用户决策，向本地机器或 Slurm 集群提交任务，用户离线后也能继续跑。终端和 Android 只是控制界面，真正的状态存在后端。
 
-- **自研 ReAct 框架**：不依赖 LangChain、AutoGPT 等重型框架，拥有完全可控的轻量级推理-行动循环，适合需要可追溯性的科研场景。
-- **人机协同闭环**：高危/脚本操作强制进入人工审批流；Agent 可通过 `ask_user` 主动暂停任务、向用户澄清需求。
-- **YOLO 全自动模式**：通过 `--yolo` 标志，可由独立的 LLM Agent 自动审批危险操作，实现无人值守流水线。GUI 中为按 Session 生效的勾选项（contextvar 隔离并传播到子 Agent 进程），互不影响。
-- **流式输出与任务打断**：Coordinator 与每个子 Agent 的 LLM 增量以 `llm_chunk` 事件经 SSE 实时渲染，运行区按 Session 分面板展示对话式 transcript；任意 Session 可从 GUI/API 打断（先 `cancel_requested` 优雅退出，超时 SIGTERM 兜底，并级联取消子 Agent 与计算任务）。
-- **原生 GUI 与 Linux TUI**：Windows 和 Android 使用基于 Flet 的原生 GUI（无需浏览器），Linux 保留终端 TUI，通过 `cloudra` / `cloudra run` 进入。**注意：目前仅 TUI 经过测试，GUI 暂不推荐使用。**
-- **上下文压缩**：当上下文超过模型上下文窗口一半时，自动对较早的历史消息进行摘要，避免无限增长。
-- **自我学习与全局案例库**：Agent 可将成功经验沉淀至全局 Case Bank，支持跨对话的记忆与经验复用。
-- **科研监督员**：引入独立的 Supervisor 角色，用于监督实验过程并验证结果的科学严谨性。
-- **化学工具齐全**：覆盖分子绘图、图片转 SMILES、NMR/IR 原始数据处理、Gaussian 输入生成、格式转换、输出日志解析、DFT 任务提交与监控。
-- **多进程安全架构**：Coordinator 与 Follower 在独立进程中运行，基于 SQLite WAL、位标志权限、审批日志以及可选的 YOLO Guard 保障安全。
-- **事件驱动架构（v2.0.0-beta）**：基于按会话隔离的 Unix domain socket 事件总线取代轮询，实现 cancel、外部事件、计算任务、子 Agent 调度的即时唤醒；数据库仍是持久化真相来源，事件仅作为唤醒机制。
+Cloudra 仍在开发。目前仓库搭好了用于评测的基础设施和验证基础，但不敢声称系统已经能自主保证科研正确、跑赢 benchmark 或可以直接生产上线。
 
-## v2.0.0-beta 新特性
+## 研究动机
 
-这是事件驱动重构的预览版本。
+很多 Agent 演示关心一次运行能不能完成一个小任务。科研工作暴露的是另一组问题：
 
-- **彻底消灭轮询**：`cancel_requested`、外部事件、计算任务就绪、子 Agent 请求均通过 `cloudra.ipc`（Unix domain socket）投递，不再轮询 SQLite。
-- **guard 作为 calculator 父进程**：`cloudra.runtime.monitor` 改为 `wait()` 等待 calculator 退出后再解析日志，移除文件 mtime 轮询。
-- **真实 token usage**：`LLMClient` 请求 `stream_options.include_usage` 并暴露 `last_usage`，不再唯一依赖 token 估算。
-- **更安全的默认权限**：无 sub-agent 绑定的 `Bashtools` 默认只允许只读命令，不再放行全部权限。
-- **Coordinator 子 Agent 状态快照**：每次 `_build_messages` 都会附加子 Agent session 的实时状态快照。
+- 计算任务可能比模型请求、客户端连接甚至服务器进程活得更久；
+- 一个听起来合理的回答不能替代可追溯的输入、artifact、日志和计算状态；
+- 工具跨越工作站、HPC 调度器和个人设备，不同位置信任边界和资源不同；
+- 澄清、审批和中断是科研流程的一部分，不是 UI 偶发异常；
+- prompt、工具 schema、文件和软件环境的变化会悄悄破坏可复现性。
 
-> **测试版说明**：公开 Python/CLI/API 接口保持不变，但内部事件总线为新增实现。如发现唤醒丢失或陈旧 IPC socket 残留，请反馈。
+Cloudra 从这些约束开始设计系统，而不是在通用聊天机器人外面不断打补丁。
 
-## 环境要求
+## 设计思路
 
-- Python 3.10+
-- 一个 OpenAI 兼容的 API Key，供 Coordinator 使用（Follower 可复用同一 Key，也可单独配置）
+### 持久化的研究 Session
 
-## 安装
+Conversation、Agent Session、工具调用、审批、交互、artifact 和计算任务都持久记录。事件负责唤醒 worker 和流式更新，数据库仍是权威事实。幂等命令和 event cursor 让客户端断线重连时不会重复执行已经生效的操作。Worker 使用带所有者、过期时间和重试上限的持久 lease；失败必须进入可审计终态，不能一直假装 running。
 
-### 一键安装（推荐）
+### 以证据为中心的协作
 
-**Linux / macOS：**
+Coordinator 把研究目标拆给文献、分子量化、周期 DFT、分子动力学、实验、环境管理和写作等领域角色。Supervisor 审阅轨迹并提取可复用案例。研究结果保留与 Session 事件、工具输出、计算文件和不可变 artifact 的关联，而不是只剩一段最终回答。
 
-```bash
-./install.sh
+### 上下文组装保证可复现
+
+每次模型请求前，系统重新组装当前角色、项目策略、记忆、选中技能和完整工具 schema，并在诊断信息里记录 revision。环境 observation 和文件变化不会混入身份 prompt 或篡改旧对话历史。这样 prompt drift 可见，也避免 runtime 更新后悄悄重写过去的实验语义。
+
+### 按能力和位置路由任务
+
+工具和子 Agent 来自显式注册表，无源码的 Android `.pyc` 包里也保持一致。经过验证的 node registry 描述工作区、调度器和命名空间能力。计算可以在本机或 Slurm 执行；Android 则可独立注册能力受限的设备端操作。真正执行操作的一端保留最终拒绝权，可以阻止越权写入、过期 revision 和未授权调用。
+
+### 把人机交互当作状态流转
+
+提问、审批、取消、等待设备和进程中断都是 Session 的一等状态。高风险操作会带着明确目标、参数或 diff 暂停。Android 文件写入、文档访问、相机和分享必须在设备本地授权，服务器 Agent 不能靠构造特殊参数绕过边界。
+
+## 系统概览
+
+```mermaid
+flowchart LR
+    U["科研人员"] --> C["TUI / Android 远程控制台"]
+    C <-->|"幂等命令 + 可恢复事件"| G["Gateway API"]
+    G --> S["持久 Session 与事件存储"]
+    S <--> A["Coordinator + 领域 Agent"]
+    A --> P["Prompt / Skill / Policy Assembler"]
+    A --> T["科研工具 Dispatcher"]
+    T --> L["本地工作站"]
+    T --> H["Slurm / HPC 节点"]
+    T <-->|"带 lease 的设备调用"| D["Android Device Runtime"]
+    L --> R["Artifacts 与科研证据"]
+    H --> R
+    D --> R
+    R --> S
 ```
 
-**Windows（PowerShell，建议以管理员身份运行）：**
+系统把三个平面分开：控制面负责用户命令、审批和取消；科研 runtime 负责推理、委派、状态和证据；执行面在真正干活的地方跑。手机断线不会取消服务器计算，设备离线也不耽误 Agent 使用服务器工具。
 
-```powershell
-irm https://your-domain/install.ps1 | iex
-# 或已克隆仓库时：
-.\install.ps1
-```
+## 覆盖范围
 
-该脚本会检查 Python 版本、创建虚拟环境、安装完整依赖，
-并交互式初始化配置，同时把 `cloudra` 命令加入 PATH。
+当前工具与技能生态覆盖：
 
-如果系统没有 Python，脚本会自动从 python-build-standalone 下载独立 Python
-运行时到项目目录，无需系统级安装或管理员权限。
-无需 Rust 或 Node.js。
+- 文献检索、文档转换、证据整合与学术写作；
+- 分子结构准备、格式转换、可视化和图像到结构工作流；
+- Gaussian 输入生成、异步计算提交、状态监控和输出解析；
+- NMR 与 IR 数据处理；
+- 分子动力学、周期第一性原理、实验设计和科研软件环境的领域规划。
 
-### 手动安装
+“有工具”不等于“结论正确”。方法选择、收敛性、对照、不确定性与结果解释仍需研究者负责。Cloudra 的目标是保留完成这些审阅所需的证据。
 
-```bash
-pip install -e ".[all]"
-```
+## 已经验证的部分
 
-所有依赖均声明在 `pyproject.toml` 中，不再维护单独的 `requirements.txt`。
-无需 Rust 或 Node.js。
+现有自动化测试覆盖显式注册表、prompt 组装、命令幂等、event cursor、Session 状态机、artifact 边界、权限、设备配对与撤销、worker lease、节点路由、Slurm 命令构造、备份恢复及无源码 Android 打包。
 
-可选依赖：
-- `pip install -e ".[all]"`：安装完整化学/浏览器/PDF 工具链。
-- `pip install -e ".[gui]"`：安装 Flet GUI（Windows/Android）。
-- `pip install -e ".[chem]"` / `"[browser]"` / `"[pdf]"`：单独安装某类工具。
+ARM64 开发包位于 `build/apk/cloudra-android.apk`，已检查 ABI、SDK、`.pyc`-only 边界和 APK v2 签名。它使用 Android Debug 证书，不是正式发布身份。
 
-> **集群用户注意**：运行状态保存在数据目录下的按会话 SQLite 数据库中
-> （WAL 模式，默认 `~/.local/share/cloudra`）。WAL 依赖本地文件系统的可靠
-> 文件锁——如果你的 home 目录挂载在 NFS/Lustre 上（集群常见），请把
-> `CLOUDRA_DATA_DIR` 指向本地磁盘（如 `/tmp` 或本地 SSD）。
+以下证据仍然缺失，因此项目**不作对应声明**：
+
+- 与其他 Agent 或人类基线对比的科研 benchmark 结果；
+- Android 真机、厂商后台限制和原生权限矩阵的端到端验收；
+- 真实 Slurm 集群上的提交、取消和恢复实验；
+- 公网部署、生产签名和长周期运维可靠性。
+
+Android 联调不强制需要公网服务器，同一可信局域网即可。公网访问应使用 HTTPS 或私网组网，不能直接暴露明文开发接口。具体步骤与限制见 [Android 使用教程](docs/ANDROID_USER_GUIDE.md)。
 
 ## 快速开始
 
-初始化配置：
+Cloudra 需要 Python 3.11 或更新版本，以及 OpenAI 兼容的模型服务。
 
 ```bash
+git clone https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists.git
+cd Cloudra-an-ai-agent-for-chemists
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[all]"
 cloudra config init
+cloudra run "为这个分子设计一个可复现的构象研究方案"
 ```
 
-运行任务：
+开发 checkout 也可以用一键安装脚本：
 
 ```bash
-cloudra run "搜索钙钛矿太阳能电池最新论文并总结关键发现"
+./install.sh                 # Linux / macOS
+# .\install.ps1              # Windows PowerShell
 ```
 
-交互模式（Linux 为 TUI，Windows/Android 为 GUI）：
+如果集群 home 位于 NFS/Lustre，应把 `CLOUDRA_DATA_DIR` 放到具有可靠文件锁的本地磁盘；SQLite WAL 不能充当多主机共享数据库。
+
+## 使用入口
 
 ```bash
-cloudra
+cloudra                              # Linux 交互式 TUI
+cloudra run "TASK"                  # 运行或继续研究任务
+cloudra sessions                    # 检查持久 Session 状态
+cloudra history                     # 查看 Conversation
+cloudra gui                         # 实验性 Flet GUI（未充分测试，推荐 TUI）
+cloudra-api                         # API Server，默认只监听本机
 ```
 
-任意平台强制启动 GUI：
+Android 远程控制请按 [`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md) 操作。备份恢复、设备撤销和 APK 签名检查见 [`docs/PHASE8_OPERATIONS.md`](docs/PHASE8_OPERATIONS.md)，命令与接口速查见 [`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md)。
+
+## 可复现计算示例
 
 ```bash
-cloudra gui
+cloudra run "在当前工作区生成苯的 B3LYP/6-31G(d) Gaussian 输入，并记录方法设置"
+cloudra run "异步提交苯的输入文件，并报告 scheduler job identity"
+cloudra run "计算结束后解析日志，给出能量、轨道能隙、频率、警告和文件引用"
 ```
 
-继续上次对话：
+真实计算需要对应科研软件及许可证。Slurm 节点通过验证后的注册表声明，示例见 [`deploy/node-registry.example.json`](deploy/node-registry.example.json)。
 
-```bash
-cloudra run "继续之前的分析"
-```
-
-## 记忆机制与全局案例库 (Self-Learning & Case Bank)
-
-Cloudra 设计了一套跨对话的记忆与自我学习机制，核心围绕 **全局案例库 (Case Bank)** 和 **科研监督员 (Supervisor)** 展开：
-
-1. **经验提取 (Extraction)**：在每次任务结束（或暂停与用户确认）时，独立的 Supervisor Agent 会自动阅读整个对话的行动轨迹 (Trajectory)。它负责总结任务目标、最终结果、成功/失败的原因，并提炼出可供未来参考的“经验教训 (Lesson)”。
-2. **全局持久化 (Persistence)**：提取出的结构化知识将被写入全局层面的 SQLite 数据库（`case_bank.db`），打破了单次对话 (Conversation) 的生命周期隔离。
-3. **经验复用 (Retrieval)**：在启动新的科研任务时，Coordinator 会自动从 Case Bank 检索历史案例，并将其注入到 System Prompt 的上下文中。
-4. **自我进化**：通过该机制，系统能自动避开曾经踩过的坑（如容易报错的参数组合），并优先采用验证过的成功路径，实现真正的“越用越聪明”。
-
-> **⚠️ 严重事故警示（影响 v1.7.0–v1.7.1，已在当前代码修复）**：Supervisor 模块的 `_get_client()` 曾因一处笔误自我递归调用（`self._openai_client = self._get_client()`）。由于 Case Bank 的经验沉淀（`_persist_case` → `extract_case`）在**每次**任务结束后都会执行，该递归在每次运行时都会被触发——哪怕只是发一句“你好”。在 Python 3.13 上此递归不会抛出 `RecursionError`，栈帧以约 500MB/s 的速度持续占用内存，约 30 秒内即可耗尽整机 RAM（实测单进程 anon-rss 达 7.5GB），最终被内核 OOM killer 杀死。由于发生在任务输出打印完之后，表象为“任务结束、程序待机，随后内存被写爆”。**当前代码已改为直接构造 OpenAI 客户端、彻底消除递归；如果你在使用旧版本代码，请务必升级后再运行。**
-
-## CLI 命令参考
-
-```bash
-# 顶层选项
-cloudra --version
-cloudra --coordinator-model gpt-4o --coordinator-key $KEY run "..."
-
-# 运行任务
-cloudra                                   # 交互式 TUI（Linux）或 GUI（Windows/Android）
-cloudra gui                               # 强制启动 Flet GUI
-cloudra run "你的任务"                    # 启动或自动恢复上次对话
-cloudra run "你的任务" --new              # 强制新建对话
-cloudra run "你的任务" --conv-id ID       # 继续指定对话
-cloudra run "你的任务" --dry-run          # 只打印配置，不执行
-cloudra run "你的任务" --yolo             # 由 LLM 自动审批危险操作
-
-# 配置管理
-cloudra config init                     # 交互式初始化
-cloudra config show                     # 查看当前配置（敏感信息脱敏）
-cloudra config get coordinator.model
-cloudra config set follower.model gpt-4o
-
-# 状态查看
-cloudra history                         # 历史对话列表
-cloudra logs CONV_ID                    # 查看某对话日志
-cloudra sessions                        # Session 状态
-cloudra skills                          # 可用 Skills
-
-# 远程邮件唤醒（详见下方教程）
-python -m cloudra.email_listener
-```
-
-## 远程邮件唤醒教程
-
-不在电脑旁也能让 Cloudra 干活：往一个"机器人邮箱"发一封邮件，监听器收到后
-自动执行任务，并把结果回邮给你。典型场景：在手机上给服务器/工作站上的
-agent 派活。
-
-工作流程：
-
-1. 监听器每 60 秒通过 IMAP 轮询机器人邮箱的未读邮件；
-2. 主题（或正文首行）以 `CLOUDRA:` 开头的邮件被视为指令，正文会完整传入任务；
-3. 任务在最近活跃的对话中无人值守执行（无需人工审批）；
-4. 执行结果以 `Re: 原主题` 自动回邮给发件人；读过的指令会标记已读，只执行一次。
-
-### 1. 准备邮箱
-
-需要一个支持 IMAP/SMTP 的邮箱作为机器人收件箱。以 QQ 邮箱为例：
-
-- 登录 QQ 邮箱网页版 → 设置 → 账户 → 开启 "IMAP/SMTP 服务"；
-- 按提示验证后得到 16 位**授权码**（不是 QQ 密码）；
-- Gmail 则需开启两步验证后创建"应用专用密码"，服务器用 `smtp.gmail.com` /
-  `imap.gmail.com`（即默认值）。
-
-### 2. 配置
-
-```bash
-cloudra config set email.user 1591794404@qq.com
-cloudra config set email.password <16位授权码>
-cloudra config set email.smtp_server smtp.qq.com
-cloudra config set email.imap_server imap.qq.com
-```
-
-也可以直接编辑 `~/.config/cloudra/config.yaml`：
-
-```yaml
-email:
-  smtp_server: smtp.qq.com
-  smtp_port: 465
-  imap_server: imap.qq.com
-  imap_port: 993
-  user: 1591794404@qq.com
-  password: <16位授权码>
-  sender_name: Cloudra Assistant
-  whitelist:
-    - your-address@qq.com      # 只允许这些发件人下达指令；留空则接受任何人
-```
-
-> 强烈建议配置 `whitelist`：它决定谁有权远程驱动你的 agent。
-
-### 3. 启动监听
-
-```bash
-python -m cloudra.email_listener                            # 前台运行（调试用）
-nohup python -m cloudra.email_listener &                    # 后台常驻
-CLOUDRA_POLL_INTERVAL=30 python -m cloudra.email_listener   # 自定义轮询间隔（秒，默认 60）
-```
-
-运行日志写入启动目录下的 `email_listener.log`，触发、拦截、回邮都有记录。
-
-### 4. 使用
-
-从白名单邮箱向机器人邮箱发信：
-
-- **主题**：`CLOUDRA:查一下最近一周关于固态电解质的预印本并总结`
-- **正文**：随意，会完整拼进任务指令一起交给 agent。
-
-随后你会收到一封 `Re: ...` 回信，正文即任务结果（超过 5000 字会截断，
-完整内容可在 TUI 会话中查看）。如果触发时恰好有对话正在运行，邮件会
-作为事件注入该对话，而不是另起任务。
-
-## API 服务（前端开发预览）
-
-Cloudra 提供基于 FastAPI 的 HTTP API。API 与 CLI 共用 `CloudraService`
-业务层。前端的一次请求对应 conversation 数据库中的一个 Coordinator Session；
-Session 保存 query、状态、结果、错误和运行时间等信息。服务重启后仍能查询记录，
-但正在执行的 Session 目前不会自动恢复。
-
-```bash
-python -m cloudra.api
-```
-
-服务默认只监听 `127.0.0.1:8000`。打开 `http://127.0.0.1:8000/docs`
-可以使用 FastAPI 自动生成的交互式接口文档。
-
-先创建 Conversation：
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/conversations
-```
-
-然后在该 Conversation 中启动 Session：
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/conversations/CONV_ID/sessions \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"总结水分解催化剂的研究进展"}'
-```
-
-接口会立即返回 `session_id`；随后通过
-`GET /api/conversations/{conversation_id}/sessions/{session_id}` 查询运行状态。
-`subagent_requests` 和 `compute_jobs` 仍表示 Session 执行期间派生的内部工作。
-
-实时事件可通过 SSE 订阅：
+## 仓库结构
 
 ```text
-GET /api/conversations/{conversation_id}/sessions/{session_id}/events/stream
-```
-
-Session 使用 SQLite 原子状态更新避免多个 API worker 重复领取，运行期间定时写入
-`heartbeat_at`。服务启动时，失去心跳的旧 `running` Session 会变为 `interrupted`；
-系统不会自动重跑它，以免重复执行写文件、发邮件或提交计算等有副作用的操作。
-`parent_session_id` 连接 Coordinator 和子 Agent，`compute_jobs.session_id` 连接计算任务与发起它的 Session。
-
-API 同时复刻了 CLI 的其他能力：
-
-- `GET /api/config` / `POST /api/config/set`：查看与修改配置（敏感字段脱敏，值按类型 coercion）
-- `GET /api/conversations/{id}/logs`：按会话读取 Agent 日志
-- `GET /api/sessions?state=...`：跨会话聚合的 Session 列表
-- `GET /api/skills`：可用 Skills
-- `POST .../sessions` 接受 `yolo` 字段（按 Session 自动审批）；`POST .../cancel` 打断 Session
-
-需要局域网访问时必须先配置 Token：
-
-```bash
-export CLOUDRA_API_TOKEN='请替换为足够长的随机字符串'
-export CLOUDRA_API_HOST='0.0.0.0'
-python -m cloudra.api
-```
-
-客户端请求需携带 `Authorization: Bearer <token>`。生成物会复制成不可变快照，
-客户端先从 `/api/v1` 获取元数据和短时下载令牌，再校验大小与 SHA256；服务器
-不会把整个 Cloudra 数据目录或 artifacts 目录作为静态文件目录公开。
-
-### Flet GUI（原生桌面与移动端）
-
-Cloudra 使用基于 Flutter 的 Flet 框架构建原生 GUI，同一份 Python 代码同时覆盖
-桌面（Windows / macOS / Linux）和 Android。Windows 和 Android 上直接运行
-`cloudra` 命令就会自动启动 GUI；任意平台也可以强制启动：
-
-```bash
-cloudra gui
-```
-
-桌面 GUI 可以直接调用 `CloudraService` 业务层；Android 默认只连接远端
-`/api/v1`，Agent 执行、事件、审批和生成物都以服务器为权威来源。界面是自适应布局：
-窗口宽度低于 720px（手机竖屏）时侧边栏自动折叠成汉堡菜单，输入框宽度自适应。
-
-**Android 打包：**
-
-```bash
-.venv/bin/python scripts/build_android.py
-```
-
-构建脚本会按 `android/pyproject.toml` 生成一个最小远端控制台，只打包 UI、
-HTTP/SSE 后端和移动端存储边界。服务器 Agent、化学计算、数据库和 API Server
-依赖不会进入 APK。当前目标架构为 `arm64-v8a`；局域网明文 HTTP 仍需在服务器
-配置中显式启用开发模式。
-
-在 Android 的服务器连接对话框中启用后台 Device Runtime 后，服务器 Agent
-可以通过 `device.workspace.*` 和 `device.config.*` 访问 App 私有工作区。
-“Android 设备能力”对话框还可以通过系统 Storage Access Framework 单独持久授权
-一个文档树，`device.documents.*` 始终受这份系统 grant 限制。配对信息一次性且
-短时有效，服务器只保存设备凭据哈希；Android 端的 Server Token 和设备凭据使用
-Android Keystore 保护的 AES-GCM 密文保存，绝不会落入 JSON profile 或
-device-state 文件。选中的 SAF 文档树 URI 也绑定在同一加密存储中，实际权限仍以
-Android 系统保存的 grant 为准。Flet method channel 看到的也只有 RSA-OAEP 包裹的会话密钥和
-带完整性校验的加密信封，因此调试传输日志不会打印明文 Token。
-
-`device.workspace.apply_patch`、`device.config.patch`、SAF 文档写入、通知、
-文件选择、相机和分享都不会静默执行。Android 会先在本机展示目标和精确预览；
-文件修改只有在用户批准且审批后的 SHA/revision 仍一致时才应用。权限拒绝、取消或
-审批期间发生冲突都会返回结构化结果，不会覆盖手机上的新改动。
-
-APK 内置了一个很小的 Kotlin/Flet 扩展，负责 Keystore、持久 SAF grant、系统
-Intent、待审批 deep link 和 `remoteMessaging` Foreground Service。启用 Runtime
-会显示常驻通知，并在嵌入式 Python 执行器存活时提高进程优先级。服务刻意使用
-`START_NOT_STICKY`：若 Android 真正杀死进程，通知会消失，不会假装设备仍在线；
-下次启动 App 时再从 Keystore、event cursor、outbox 和系统 SAF grant 恢复。
-尚未被服务器确认的设备结果会留在持久 outbox 里可靠重放；确认后，文件或相机
-内容会被移除，只保留紧凑的幂等摘要。
-候选版本仍必须完成
-[Phase 7 模拟器/厂商真机矩阵](docs/ANDROID_PHASE7_DEVICE_MATRIX.md)；源码测试和
-APK 编译成功都不能替代这些真机检查。
-
-服务器在每次模型请求前重新装配当前 role、AGENTS.md、MEMORY.md、skill manifest
-和完整工具 schema，并把来源 revision 写入 Session diagnostic。普通工作区文件以及
-Android workspace/config 的变化只进入独立 observation，不会被写回历史，也不会
-改变 Agent 的 identity prompt；旧会话因此保留原始对话，同时立即采用当前策略。
-Android change event 会在本地持久排队，只有服务器 heartbeat 确认后才移除。
-
-**桌面打包：**
-
-```bash
-flet build windows   # 或 macos / linux
-```
-
-Flet 打包产出的桌面应用自带嵌入式 Python 运行时，目标机器不需要装 Python。
-旧版 Tauri + React 前端（`frontend/`）已经完全移除，现在不需要 Rust、Node.js、
-npm 这些东西了。
-
-## 计算化学工作流示例
-
-```bash
-# 1. 生成 Gaussian 输入文件
-cloudra run "为苯分子生成 B3LYP/6-31g(d) 的 gjf，保存到 /tmp/benzene.gjf"
-
-# 2. 提交计算任务（同步阻塞或异步后台）
-cloudra run "提交 /tmp/benzene.gjf 作为 Gaussian 任务并等待完成"
-
-# 3. 解析输出
-cloudra run "解析 /tmp/benzene.out，报告 SCF 能量、HOMO-LUMO 能隙和振动频率"
-```
-
-## 工具一览
-
-| 类别 | 工具 |
-| :--- | :--- |
-| 化学工具 | `gjf_writer`、`gaussian_log_parser`、`format_converter`、`internal_coordinates`、`molecule_drawer`、`image_to_smiles`、`smiles_to_mol`、`nmr_processor`、`ir_processor` |
-| 文献与网络 | `paper_searcher`、`openalex_searcher`、`web_search`、`pdf2md`、`pdf2image`、`text_reader`、`image_reader`、`web_fetcher`、`headless_browser` |
-| 执行协作 | `bashtools`、`text_writer`、`edit_file`、`subagent_launcher`、`submit_compute_job` |
-| 人机交互 | `ask_user`、`email_sender`、`email_reader` |
-| 规划与控制 | `todo_write`、`goal_set`、`schedule`、`agent_hub`、`stop`、`getskill`、`get_subagent_report`、`update_memory` |
-
-## 子 Agent 名册
-
-通过 `SubAgentLauncher` 按领域调度的 Follower Agent；并行任务间通过 `agent_hub` 共享发现：
-
-| ID | Agent | 领域 |
-| :--- | :--- | :--- |
-| a-1 | explorer | 项目探索与只读审查（逻辑漏洞、不一致、风险点） |
-| a-2 | writer | 学术论文/报告写作 |
-| a-3 | researcher | 文献检索与方法论拆解 |
-| a-4 | small_mol | 小分子量化计算（Gaussian/ORCA）：构象、过渡态、光谱 |
-| a-5 | md | 分子动力学（GROMACS/LAMMPS）：建模、平衡、采样、分析 |
-| a-6 | dft | 第一性原理周期体系（VASP/QE）：体相、表面、缺陷 |
-| a-7 | experiment | 实验设计：DOE、对照、表征矩阵、安全评估 |
-| a-8 | env | 环境管理：依赖、conda、编译、HPC |
-
-除 explorer（只读）与 writer（读写）外均为全权限；危险操作仍走审批流。
-
-## 安全模型
-
-Cloudra 使用位标志权限（`READ`、`WRITE`、`SCRIPT`、`DESTRUCTIVE`、`MANAGE`）。危险操作会被挂起并写入 `approvals` 表，等待用户在 CLI/API 中显式通过或驳回。启用 `--yolo` 后，由独立的 LLM Guard（`cloudra/yolo_guard.py`）代替人工审批；请只在受信任的环境中使用。
-
-## 项目结构
-
-```
 cloudra/
-├── agent.py              # Agent 基类与 Coordinator
-├── react.py              # ReAct 推理循环
-├── executor.py           # 工具执行引擎
-├── context_manager.py    # 消息/上下文渲染
-├── database.py           # SQLite 持久化
-├── supervisor.py         # 科学监督与决策验证
-├── tools_class.py        # BaseTool 与工具注册
-├── config.py             # 配置管理
-├── cli.py                # 命令行入口
-├── api.py                # FastAPI 服务
-├── yolo_guard.py         # YOLO 模式安全守卫
-├── platform_utils.py     # 平台检测（Windows / Android / Linux）
-├── runtime_profile.py    # Android 工具白名单与运行时能力画像
-├── mobile_storage.py     # Flet 打包应用持久化存储
-├── tools/                # 工具实现
-├── subagents/            # Follower Agent 角色
-├── skills/               # Markdown 格式 Skill 库
-├── prompts/              # Agent Prompt 模板
-├── runtime/              # 运行时调度（workers、mobile_tasks）
-├── tui/                  # Textual 全屏 TUI（run.py 入口）
-└── ui/                   # Flet GUI（app.py 主界面）
-flet_app.py               # Flet 打包入口（Android APK / 桌面应用）
+├── agent.py, react.py          推理与协作编排
+├── runtime/                    Session runner、worker 与 prompt 组装
+├── session_store.py            持久状态迁移与 lease
+├── api.py, api_v1.py           本地和远程控制面
+├── nodes.py, slurm.py          能力路由与 HPC 执行
+├── artifacts.py                不可变科研产物
+├── device/                     Android 能力注册与 runtime
+├── tools/, subagents/          显式科研能力与领域角色
+├── skills/, prompts/           科研方法与角色策略
+└── ui/, tui/                   人类控制界面
 ```
 
-## 开发
+全部专题文档见 [`docs/`](docs/README.md)。
 
-运行测试：
+## 开发、复现与引用
 
 ```bash
 pytest tests -q
-```
-
-检查代码风格：
-
-```bash
 ruff check cloudra tests
 ```
 
+部分异步 SQLite 测试会暴露特定宿主上的线程回调问题，应分别报告隔离测试与真实 runtime 证据，不能把未正常结束的测试进程当作成功。
+
+Cloudra 目前没有归档 release 或 citation record。用于科研时，请固定 commit hash，并记录模型、prompt、工具 revision、软件环境和计算输入。只有完成对应评测的版本才会加入 citation 文件和 benchmark 报告。
+
 ## 许可证
 
-MIT。完整许可证文本见 `pyproject.toml`。
+MIT，见 [`pyproject.toml`](pyproject.toml)。

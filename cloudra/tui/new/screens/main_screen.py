@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from uuid import uuid4
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -36,8 +37,9 @@ _COORDINATOR_AGENT_ID = "a-0"
 _PENDING_SESSION = "_pending"
 
 # 历史回放上限：最近 N 个任务、每个 session 最多 M 条事件
-_HISTORY_TASK_LIMIT = 10
-_HISTORY_EVENT_LIMIT = 300
+_HISTORY_TASK_LIMIT = 5
+_HISTORY_EVENT_LIMIT = 120
+_HISTORY_TOTAL_EVENT_LIMIT = 480
 
 
 def _format_tokens(n: int) -> str:
@@ -74,6 +76,8 @@ class MainScreen(Screen):
         # 各 agent 的累计 token usage（token_usage 事件驱动），计划面板展示用
         self._token_by_agent: dict[str, dict] = {}
         self._plan_refresh_scheduled = False
+        self._compact_task: asyncio.Task | None = None
+        self._compactions: dict[str, str] = {}
 
     def _startup_conversation(self) -> str:
         """恢复上次对话或新建。"""
@@ -87,7 +91,9 @@ class MainScreen(Screen):
         return self.service.create_conversation().id
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        # StatusBar already owns the only useful periodic refresh.  A second
+        # clock timer keeps remote/WSL terminals repainting while otherwise idle.
+        yield Header(show_clock=False)
         with Horizontal(id="main-body"):
             with Vertical(id="chat-area"):
                 yield ChatLog(id="chat-log")
@@ -114,6 +120,7 @@ class MainScreen(Screen):
             on_session_state=self._on_session_state_update,
             on_token_usage=self._on_token_usage,
             on_plan_dirty=self._on_plan_dirty,
+            on_compaction_progress=self._on_compaction_progress,
         )
         await self._render_bridge.start()
 
@@ -135,8 +142,40 @@ class MainScreen(Screen):
         input_bar.focus_input()
 
     async def on_unmount(self) -> None:
+        if self._compact_task is not None and not self._compact_task.done():
+            self._compact_task.cancel()
+            try:
+                await self._compact_task
+            except asyncio.CancelledError:
+                pass
         if self._render_bridge is not None:
             await self._render_bridge.stop()
+
+    def _on_compaction_progress(self, progress: dict) -> None:
+        """Render bounded map/reduce progress without adding chat messages."""
+        status_bar = self.query_one("#status-bar", StatusBar)
+        key = str(
+            progress.get("session_id")
+            or progress.get("agent_id")
+            or "manual"
+        )
+        stage = progress.get("stage")
+        if stage in ("completed", "failed"):
+            self._compactions.pop(key, None)
+        else:
+            level = int(progress.get("level") or 1)
+            completed = int(progress.get("completed") or 0)
+            total = int(progress.get("total") or 0)
+            label = f"压缩上下文 L{level}"
+            if total:
+                label += f" {completed}/{total}"
+            self._compactions[key] = label
+        if not self._compactions:
+            status_bar.compaction_info = ""
+        elif len(self._compactions) == 1:
+            status_bar.compaction_info = next(iter(self._compactions.values()))
+        else:
+            status_bar.compaction_info = f"{len(self._compactions)} 个 Agent 正在压缩"
 
     def _track_session(self, session_id: str, state: str = "") -> None:
         """内部跟踪当前任务（不向用户暴露 session id）。
@@ -193,6 +232,10 @@ class MainScreen(Screen):
         chat_log = self.query_one("#chat-log", ChatLog)
         input_bar = self.query_one("#input-bar", InputBar)
 
+        if self._compact_task is not None and not self._compact_task.done():
+            self.notify("上下文正在压缩，请等待完成后再发送任务", severity="warning")
+            return
+
         # 定向到指定子 Agent：注入它的运行中 session
         target = self._target_agent_id
         if target and target != _COORDINATOR_AGENT_ID:
@@ -202,9 +245,15 @@ class MainScreen(Screen):
                     "该 Agent 当前没有运行中的任务，无法插入指令", severity="warning"
                 )
                 return
-            widget = chat_log.append_user(record.session_id, content)
+            command_id = f"tui-msg-{uuid4().hex}"
+            widget = chat_log.append_user(
+                record.session_id, content, message_id=command_id
+            )
+            await self._present_user_echo(chat_log, widget)
             try:
-                await self._append_message(record.session_id, content)
+                await self._append_message(
+                    record.session_id, content, command_id=command_id
+                )
             except Exception:
                 widget.add_class("send-failed")
                 raise
@@ -214,9 +263,15 @@ class MainScreen(Screen):
 
         if record is not None:
             # 运行中任务：先上屏再注入，用户立刻看到自己发了什么
-            widget = chat_log.append_user(record.session_id, content)
+            command_id = f"tui-msg-{uuid4().hex}"
+            widget = chat_log.append_user(
+                record.session_id, content, message_id=command_id
+            )
+            await self._present_user_echo(chat_log, widget)
             try:
-                await self._append_message(record.session_id, content)
+                await self._append_message(
+                    record.session_id, content, command_id=command_id
+                )
             except Exception:
                 widget.add_class("send-failed")
                 raise
@@ -231,6 +286,7 @@ class MainScreen(Screen):
                 f"── 新任务（同一对话 …{self.conversation_id[-6:]}，上下文延续）──",
             )
         widget = chat_log.append_user(_PENDING_SESSION, content)
+        await self._present_user_echo(chat_log, widget)
         try:
             await self._start_coordinator_task(content)
         except Exception:
@@ -320,7 +376,39 @@ class MainScreen(Screen):
                 f"…… 仅显示最近 {len(tasks)} 个任务，共 {len(tasks) + hidden} 个",
             )
 
+        # 先读取、再从最旧端裁掉。仅有 per-session 上限仍可能在多 Agent
+        # 对话中挂载几千个控件，启动阶段就把 Textual 主线程压死。
+        history: list[tuple[list, list[tuple[str, dict]]]] = []
         for task in tasks:
+            entries: list[tuple[str, dict]] = []
+            for rec in task:
+                try:
+                    session_events = await asyncio.to_thread(
+                        self.service.session_runner.events,
+                        self.conversation_id,
+                        rec.session_id,
+                    )
+                except Exception:
+                    continue
+                entries.extend(
+                    (rec.session_id, ev)
+                    for ev in session_events[-_HISTORY_EVENT_LIMIT:]
+                )
+            history.append((task, entries))
+
+        overflow = max(
+            0,
+            sum(len(entries) for _, entries in history)
+            - _HISTORY_TOTAL_EVENT_LIMIT,
+        )
+        for _, entries in history:
+            if overflow <= 0:
+                break
+            drop = min(overflow, len(entries))
+            del entries[:drop]
+            overflow -= drop
+
+        for task, entries in history:
             root = task[0]
             # 分隔线只展示任务状态和时间，不暴露内部 session id
             when = (root.created_at or "")[5:16].replace("T", " ")
@@ -331,25 +419,36 @@ class MainScreen(Screen):
             chat_log.append_divider(root.session_id, label)
             if root.query:
                 chat_log.append_user(root.session_id, root.query)
-            for rec in task:
-                try:
-                    events = await asyncio.to_thread(
-                        self.service.session_runner.events,
-                        self.conversation_id,
-                        rec.session_id,
-                    )
-                except Exception:
-                    continue
-                for ev in events[-_HISTORY_EVENT_LIMIT:]:
-                    self._render_bridge.replay_event(
-                        rec.session_id, ev["event_type"], ev["data"] or {}
-                    )
+            for session_id, ev in entries:
+                self._render_bridge.replay_event(
+                    session_id, ev["event_type"], ev["data"] or {}
+                )
 
         chat_log.scroll_end(animate=False)
 
-    async def _append_message(self, session_id: str, content: str) -> None:
+    @staticmethod
+    async def _present_user_echo(chat_log: ChatLog, widget) -> None:
+        """Mount and reveal local input before backend/SQLite command work."""
+        await asyncio.sleep(0)
+        # A mounted widget can still sit below the viewport.  Explicitly reveal
+        # the user's own message; this is intentionally stronger than smart
+        # follow-scroll used for background Agent output.
+        widget.scroll_visible(
+            animate=False,
+            force=True,
+            immediate=True,
+        )
+        await asyncio.sleep(0)
+
+    async def _append_message(
+        self,
+        session_id: str,
+        content: str,
+        *,
+        command_id: str | None = None,
+    ) -> None:
         """向运行中的任务追加用户补充消息。"""
-        command_id = f"tui-msg-{asyncio.get_event_loop().time()}"
+        command_id = command_id or f"tui-msg-{uuid4().hex}"
         await self.service.append_session_message_command(
             command_id=command_id,
             conversation_id=self.conversation_id,
@@ -460,10 +559,11 @@ class MainScreen(Screen):
 
     async def _cmd_compact(self, arg: str) -> None:
         """手动压缩当前对话的 Coordinator 上下文。"""
-        chat_log = self.query_one("#chat-log", ChatLog)
-        target = self.current_session_id or "_system"
         if self._has_active_session():
             self.notify("任务运行中，请先 Esc 打断再压缩上下文", severity="warning")
+            return
+        if self._compact_task is not None and not self._compact_task.done():
+            self.notify("上下文压缩已经在进行中", severity="information")
             return
         keep_recent = 4
         if arg:
@@ -480,12 +580,43 @@ class MainScreen(Screen):
             conversation_id=self.conversation_id,
             prompt=None,
             query="",
+            on_compaction_progress=lambda progress: self._on_compaction_progress(
+                {"agent_id": _COORDINATOR_AGENT_ID, **progress}
+            ),
         )
+        self._on_compaction_progress(
+            {
+                "agent_id": _COORDINATOR_AGENT_ID,
+                "stage": "started",
+                "level": 1,
+                "completed": 0,
+                "total": 0,
+            }
+        )
+        # Return control to Textual immediately.  The model request remains
+        # asynchronous, while large pre-processing/file work is offloaded by
+        # ContextManager, so keyboard input and rendering keep moving.
+        self._compact_task = asyncio.create_task(
+            self._run_manual_compact(cm, keep_recent=keep_recent)
+        )
+
+    async def _run_manual_compact(
+        self,
+        cm: ContextManager,
+        *,
+        keep_recent: int,
+    ) -> None:
+        chat_log = self.query_one("#chat-log", ChatLog)
+        target = self.current_session_id or "_system"
         try:
             result = await cm.compact(keep_recent=keep_recent)
         except Exception as exc:
             self.notify(f"上下文压缩失败: {exc}", severity="error")
             return
+        finally:
+            self._compactions.pop(_COORDINATOR_AGENT_ID, None)
+            self.query_one("#status-bar", StatusBar).compaction_info = ""
+            self._compact_task = None
 
         if result.get("compressed"):
             chat_log.append_system(

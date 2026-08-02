@@ -23,6 +23,7 @@ from cloudra.paths import PathLike
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
+SCHEMA_VERSION = 7
 _T = TypeVar("_T")
 
 
@@ -132,10 +133,34 @@ class ConversationDB:
             self._migrate_session_schema(cur)
             self._migrate_related_schema(cur)
             cur.execute(
-                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (6, datetime('now'))"
+                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))",
+                (SCHEMA_VERSION,),
             )
             con.commit()
         return self
+
+    def migrate_if_needed(self) -> bool:
+        """Upgrade an existing database once; return False when it does not exist.
+
+        Read paths use this before selecting newly added columns. Checking the
+        version is read-only and avoids turning every TUI refresh into a schema
+        write transaction.
+        """
+        if not os.path.isfile(self.path):
+            return False
+        try:
+            with contextlib.closing(
+                sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT)
+            ) as con:
+                row = con.execute(
+                    "SELECT MAX(version) FROM schema_migrations"
+                ).fetchone()
+                version = int(row[0] or 0) if row else 0
+        except (sqlite3.Error, TypeError, ValueError):
+            version = 0
+        if version < SCHEMA_VERSION:
+            self.init()
+        return True
 
     @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
@@ -191,7 +216,8 @@ class ConversationDB:
             await self._amigrate_session_schema(cur)
             await self._amigrate_related_schema(cur)
             await cur.execute(
-                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (6, datetime('now'))"
+                "INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))",
+                (SCHEMA_VERSION,),
             )
             await con.commit()
         return self
@@ -247,7 +273,10 @@ _CREATE_SESSION = """
         started_at TEXT,
         heartbeat_at TEXT,
         finished_at TEXT,
-        exit_code INTEGER
+        exit_code INTEGER,
+        node_id TEXT,
+        workspace_id TEXT,
+        working_directory TEXT
     )
 """
 
@@ -264,14 +293,31 @@ _SESSION_EXTRA_COLUMNS = {
     "heartbeat_at": "TEXT",
     "finished_at": "TEXT",
     "exit_code": "INTEGER",
+    "node_id": "TEXT",
+    "workspace_id": "TEXT",
+    "working_directory": "TEXT",
 }
 
 _RELATED_EXTRA_COLUMNS = {
     "subagent_requests": {
         "session_id": "TEXT",
         "parent_session_id": "TEXT",
+        "lease_owner": "TEXT",
+        "lease_expires_at": "REAL",
+        "attempt_count": "INTEGER DEFAULT 0",
     },
-    "compute_jobs": {"session_id": "TEXT"},
+    "compute_jobs": {
+        "session_id": "TEXT",
+        "scheduler": "TEXT DEFAULT 'local'",
+        "scheduler_options": "TEXT DEFAULT '{}'",
+        "scheduler_job_id": "TEXT",
+        "scheduler_state": "TEXT",
+        "scheduler_script": "TEXT",
+        "last_error": "TEXT",
+        "lease_owner": "TEXT",
+        "lease_expires_at": "REAL",
+        "attempt_count": "INTEGER DEFAULT 0",
+    },
     "approvals": {
         "tool_name": "TEXT DEFAULT ''",
         "normalized_arguments": "TEXT DEFAULT '{}'",
@@ -289,7 +335,10 @@ _CREATE_SUBAGENT_REQUESTS = """
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         state TEXT,
         input_data TEXT,
-        conversation_id TEXT
+        conversation_id TEXT,
+        lease_owner TEXT,
+        lease_expires_at REAL,
+        attempt_count INTEGER DEFAULT 0
     )
 """
 
@@ -320,7 +369,16 @@ _CREATE_COMPUTE_JOBS = """
         path TEXT,
         start_timestamp INTEGER,
         end_timestamp INTEGER DEFAULT -1,
-        jobtype TEXT DEFAULT 'gaussian'
+        jobtype TEXT DEFAULT 'gaussian',
+        scheduler TEXT DEFAULT 'local',
+        scheduler_options TEXT DEFAULT '{}',
+        scheduler_job_id TEXT,
+        scheduler_state TEXT,
+        scheduler_script TEXT,
+        last_error TEXT,
+        lease_owner TEXT,
+        lease_expires_at REAL,
+        attempt_count INTEGER DEFAULT 0
     )
 """
 

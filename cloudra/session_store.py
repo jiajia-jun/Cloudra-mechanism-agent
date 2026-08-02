@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -62,13 +63,9 @@ def _emit(kind: str, db: ConversationDB, **payload: Any) -> None:
 
 
 async def _aemit(kind: str, db: ConversationDB, **payload: Any) -> None:
-    """异步事件投递：失败静默，绝不能阻塞写库。
-
-    用 create_task 而非 await：broadcast_async 内部 run_in_executor
-    可能因线程池耗尽而阻塞，若 await 会导致写库也被拖死。
-    """
+    """Deliver locally and enqueue bounded network broadcast before returning."""
     try:
-        asyncio.create_task(_deliver_and_broadcast(_conv_id(db), kind, payload))
+        await _deliver_and_broadcast(_conv_id(db), kind, payload)
     except Exception:
         pass
 
@@ -276,6 +273,35 @@ def transition_session_state(
     return changed
 
 
+async def atransition_session_state(
+    db: ConversationDB,
+    session_id: str,
+    *,
+    expected: set[str],
+    target: str,
+) -> bool:
+    """Async compare-and-set counterpart without blocking the caller's loop."""
+    if not expected:
+        return False
+    placeholders = ",".join("?" for _ in expected)
+    expected_values = sorted(expected)
+
+    async def write() -> bool:
+        async with db.aconnect() as con:
+            cursor = await con.execute(
+                f"""UPDATE session SET state=?
+                WHERE session_id=? AND state IN ({placeholders})""",
+                (target, session_id, *expected_values),
+            )
+            await con.commit()
+            return cursor.rowcount == 1
+
+    changed = await aretry_on_locked(write)
+    if changed:
+        await _aemit_session_state(db, session_id, target)
+    return changed
+
+
 async def aheartbeat(db: ConversationDB, session_id: str) -> None:
     """刷新 Session 心跳（异步）。"""
     now = _utc_now()
@@ -296,11 +322,15 @@ async def aheartbeat(db: ConversationDB, session_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 async def arecord_event(db: ConversationDB, session_id: str, event_type: str, data: dict) -> None:
-    """写入遥测事件并刷新心跳（reAct._record_event 的语义：同事务、同时间戳）。"""
+    """Write best-effort telemetry without waiting behind long user transactions.
+
+    The caller already treats telemetry as droppable. A 60-second SQLite busy
+    timeout here used to stall every streaming Agent behind one writer.
+    """
     now = _utc_now()
 
     async def write() -> None:
-        async with db.aconnect() as con:
+        async with db.aconnect(timeout=0.5) as con:
             await con.execute(
                 "UPDATE session SET heartbeat_at=? WHERE session_id=?",
                 (now, session_id),
@@ -311,7 +341,7 @@ async def arecord_event(db: ConversationDB, session_id: str, event_type: str, da
             )
             await con.commit()
 
-    await aretry_on_locked(write)
+    await aretry_on_locked(write, retries=2, base_delay=0.05)
     await _aemit("session_event", db, session_id=session_id, event_type=event_type, data=data)
 
 
@@ -328,6 +358,22 @@ def insert_session_event(db: ConversationDB, session_id: str, event_type: str, d
 
     retry_on_locked(write)
     _emit("session_event", db, session_id=session_id, event_type=event_type, data=data)
+
+
+async def ainsert_session_event(
+    db: ConversationDB, session_id: str, event_type: str, data: dict
+) -> None:
+    """Async event insertion for API/Agent hot paths."""
+    async def write() -> None:
+        async with db.aconnect() as con:
+            await con.execute(
+                "INSERT INTO session_events (session_id, event_type, data, created_at) VALUES (?, ?, ?, ?)",
+                (session_id, event_type, json.dumps(data, ensure_ascii=False), _utc_now()),
+            )
+            await con.commit()
+
+    await aretry_on_locked(write)
+    await _aemit("session_event", db, session_id=session_id, event_type=event_type, data=data)
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +495,13 @@ async def acreate_subagent_request(
     return task_id, session_id, final_payload
 
 
-def claim_ready_request(db: ConversationDB) -> Optional[tuple[int, Any]]:
+def claim_ready_request(
+    db: ConversationDB,
+    *,
+    worker_id: str = "legacy-worker",
+    lease_seconds: int = 60,
+    max_attempts: int = 3,
+) -> Optional[tuple[int, Any]]:
     """原子抢占一个 ready 子任务（乐观锁），返回 (id, input_data)；没有则返回 None。
 
     空闲降级：先只读探测，没有 ready 任务就不发起写事务，
@@ -457,9 +509,16 @@ def claim_ready_request(db: ConversationDB) -> Optional[tuple[int, Any]]:
     """
 
     def write() -> Optional[tuple[int, Any]]:
+        now = time.time()
+        expires = now + max(10, int(lease_seconds))
         with db.connect() as con:
             cur = con.cursor()
-            cur.execute("SELECT id FROM subagent_requests WHERE state = 'ready' LIMIT 1")
+            cur.execute(
+                """SELECT id FROM subagent_requests
+                WHERE (state='ready' OR (state='running' AND lease_expires_at<?))
+                AND COALESCE(attempt_count, 0) < ? ORDER BY id LIMIT 1""",
+                (now, max_attempts),
+            )
             if cur.fetchone() is None:
                 con.rollback()
                 return None
@@ -467,12 +526,15 @@ def claim_ready_request(db: ConversationDB) -> Optional[tuple[int, Any]]:
             # 如果别的线程已经改了，这个 UPDATE 就会返回空，从而避免冲突。
             cur.execute("""
                 UPDATE subagent_requests
-                SET state = 'running'
+                SET state='running', lease_owner=?, lease_expires_at=?,
+                    attempt_count=COALESCE(attempt_count, 0)+1
                 WHERE id IN (
-                    SELECT id FROM subagent_requests WHERE state = 'ready' LIMIT 1
+                    SELECT id FROM subagent_requests
+                    WHERE (state='ready' OR (state='running' AND lease_expires_at<?))
+                    AND COALESCE(attempt_count, 0) < ? ORDER BY id LIMIT 1
                 )
                 RETURNING id, input_data
-            """)
+            """, (worker_id, expires, now, max_attempts))
             claimed = cur.fetchone()
             if claimed:
                 con.commit()  # 确认修改
@@ -481,6 +543,121 @@ def claim_ready_request(db: ConversationDB) -> Optional[tuple[int, Any]]:
             return claimed
 
     return retry_on_locked(write)
+
+
+def claim_ready_compute_job(
+    db: ConversationDB,
+    *,
+    worker_id: str,
+    lease_seconds: int = 60,
+    max_attempts: int = 3,
+) -> Optional[int]:
+    """Atomically claim ready or lease-expired compute work."""
+    def write() -> Optional[int]:
+        now = time.time()
+        expires = now + max(10, int(lease_seconds))
+        with db.connect() as con:
+            row = con.execute(
+                """UPDATE compute_jobs SET state='running', lease_owner=?,
+                lease_expires_at=?, attempt_count=COALESCE(attempt_count, 0)+1
+                WHERE id IN (SELECT id FROM compute_jobs
+                    WHERE (state='ready' OR (state='running' AND lease_expires_at<?))
+                    AND COALESCE(attempt_count, 0) < ? ORDER BY id LIMIT 1)
+                RETURNING id""",
+                (worker_id, expires, now, max_attempts),
+            ).fetchone()
+            con.commit()
+            return int(row[0]) if row else None
+
+    return retry_on_locked(write)
+
+
+def renew_task_lease(
+    db: ConversationDB,
+    *,
+    table: str,
+    task_id: int,
+    worker_id: str,
+    lease_seconds: int = 60,
+) -> bool:
+    """Renew only the current owner's live lease; stale owners fail closed."""
+    if table not in {"subagent_requests", "compute_jobs"}:
+        raise ValueError("unsupported lease table")
+    renewed = False
+
+    def write() -> None:
+        nonlocal renewed
+        with db.connect() as con:
+            cursor = con.execute(
+                f"""UPDATE {table} SET lease_expires_at=?
+                WHERE id=? AND state='running' AND lease_owner=?""",
+                (time.time() + max(10, int(lease_seconds)), task_id, worker_id),
+            )
+            renewed = cursor.rowcount == 1
+            con.commit()
+
+    retry_on_locked(write)
+    return renewed
+
+
+def reap_exhausted_leases(
+    db: ConversationDB,
+    *,
+    max_attempts: int = 3,
+) -> tuple[list[int], list[int]]:
+    """Fail expired work that consumed its retry budget and emit terminal events."""
+    now = time.time()
+    subagent_ids: list[int] = []
+    compute_ids: list[int] = []
+    session_ids: list[str] = []
+
+    def write() -> None:
+        with db.connect() as con:
+            subagent_rows = con.execute(
+                """SELECT id, session_id FROM subagent_requests
+                WHERE state='running' AND lease_expires_at<?
+                AND COALESCE(attempt_count, 0)>=?""",
+                (now, max_attempts),
+            ).fetchall()
+            compute_rows = con.execute(
+                """SELECT id FROM compute_jobs WHERE state='running'
+                AND lease_expires_at<? AND COALESCE(attempt_count, 0)>=?""",
+                (now, max_attempts),
+            ).fetchall()
+            subagent_ids.extend(int(row[0]) for row in subagent_rows)
+            session_ids.extend(str(row[1]) for row in subagent_rows if row[1])
+            compute_ids.extend(int(row[0]) for row in compute_rows)
+            con.execute(
+                """UPDATE subagent_requests SET state='failed'
+                WHERE state='running' AND lease_expires_at<?
+                AND COALESCE(attempt_count, 0)>=?""",
+                (now, max_attempts),
+            )
+            con.execute(
+                """UPDATE compute_jobs SET state='failed', end_timestamp=?,
+                last_error='worker lease retry budget exhausted'
+                WHERE state='running' AND lease_expires_at<?
+                AND COALESCE(attempt_count, 0)>=?""",
+                (now, now, max_attempts),
+            )
+            for session_id in session_ids:
+                con.execute(
+                    """UPDATE session SET state='failed', finished_at=?,
+                    error=COALESCE(error, 'worker lease retry budget exhausted')
+                    WHERE session_id=? AND state NOT IN
+                    ('completed','failed','cancelled','killed','interrupted')""",
+                    (_utc_now(), session_id),
+                )
+            con.commit()
+
+    retry_on_locked(write)
+    for task_id in subagent_ids:
+        _emit_task_finished(db, task_id=task_id, kind="subagent", state="failed")
+    for task_id in compute_ids:
+        _emit_task_finished(db, task_id=task_id, kind="compute", state="failed")
+    for session_id in session_ids:
+        _emit_session_state(db, session_id, "failed")
+    return subagent_ids, compute_ids
 
 
 def fail_request(db: ConversationDB, request_id: int) -> None:
@@ -555,7 +732,7 @@ def reap_exited_requests(db: ConversationDB, request_ids: list[int]) -> list[int
 
 
 def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
-    """把失去心跳的活动 Session 标为 interrupted，并回收孤儿请求。
+    """把失去心跳或未被认领的 Session 标为 interrupted。
 
     返回被标记 interrupted 的 Session 数。``cutoff`` 为心跳过期阈值（ISO 时间串）。
     """
@@ -566,10 +743,31 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
         stale_sessions = [
             row[0] for row in con.execute(
                 """SELECT session_id FROM session
-                WHERE state IN ('running', 'waiting_for_user',
-                'waiting_for_device', 'waiting_for_approval')
-                AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
-                (cutoff,),
+                WHERE (
+                    state IN ('running', 'waiting_for_user',
+                    'waiting_for_device', 'waiting_for_approval')
+                    AND (heartbeat_at IS NULL OR heartbeat_at < ?)
+                ) OR (
+                    state='queued'
+                    AND (created_at IS NULL OR created_at < ?)
+                )""",
+                (cutoff, cutoff),
+            ).fetchall()
+        ]
+        stale_compute_jobs = [
+            row[0] for row in con.execute(
+                """SELECT id FROM compute_jobs
+                WHERE state IN ('ready', 'running') AND session_id IN (
+                    SELECT session_id FROM session WHERE (
+                        state IN ('running', 'waiting_for_user',
+                        'waiting_for_device', 'waiting_for_approval')
+                        AND (heartbeat_at IS NULL OR heartbeat_at < ?)
+                    ) OR (
+                        state='queued'
+                        AND (created_at IS NULL OR created_at < ?)
+                    )
+                )""",
+                (cutoff, cutoff),
             ).fetchall()
         ]
         orphan_requests = [
@@ -594,10 +792,15 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
             cursor = con.execute(
                 """UPDATE session SET state='interrupted',
                 error=COALESCE(error, 'worker heartbeat expired'), finished_at=?
-                WHERE state IN ('running', 'waiting_for_user',
-                'waiting_for_device', 'waiting_for_approval')
-                AND (heartbeat_at IS NULL OR heartbeat_at < ?)""",
-                (now, cutoff),
+                WHERE (
+                    state IN ('running', 'waiting_for_user',
+                    'waiting_for_device', 'waiting_for_approval')
+                    AND (heartbeat_at IS NULL OR heartbeat_at < ?)
+                ) OR (
+                    state='queued'
+                    AND (created_at IS NULL OR created_at < ?)
+                )""",
+                (now, cutoff, cutoff),
             )
             changed = cursor.rowcount
             con.execute(
@@ -614,6 +817,15 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
                 )""",
                 (cutoff,),
             )
+            con.execute(
+                """UPDATE compute_jobs SET state='failed', end_timestamp=?,
+                last_error=COALESCE(last_error, 'parent session heartbeat expired')
+                WHERE state IN ('ready', 'running') AND session_id IN (
+                    SELECT session_id FROM session WHERE state='interrupted'
+                    AND finished_at=?
+                )""",
+                (time.time(), now),
+            )
             con.commit()
 
     retry_on_locked(write)
@@ -621,6 +833,8 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
         _emit_session_state(db, session_id, "interrupted")
     for rid in orphan_requests:
         _emit_task_finished(db, task_id=rid, kind="subagent", state="failed")
+    for job_id in stale_compute_jobs:
+        _emit_task_finished(db, task_id=job_id, kind="compute", state="failed")
     return changed
 
 
@@ -694,6 +908,9 @@ def insert_queued_session(
     agent_id: str,
     agent_type: str,
     query: str,
+    node_id: str | None = None,
+    workspace_id: str | None = None,
+    working_directory: str | None = None,
 ) -> None:
     """SessionRunner.submit：先入队一条 queued Session。"""
 
@@ -701,9 +918,13 @@ def insert_queued_session(
         with db.connect() as con:
             con.execute(
                 """INSERT INTO session
-                (session_id, agent_id, agent_type, query, state, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)""",
-                (session_id, agent_id, agent_type, query, "queued", _utc_now()),
+                (session_id, agent_id, agent_type, query, state, created_at,
+                 node_id, workspace_id, working_directory)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    session_id, agent_id, agent_type, query, "queued", _utc_now(),
+                    node_id, workspace_id, working_directory,
+                ),
             )
             con.commit()
 
@@ -879,7 +1100,7 @@ async def ainsert_approval(
         session_id=session_id,
         **payload,
     )
-    insert_session_event(
+    await ainsert_session_event(
         db,
         session_id,
         "approval_pending",
@@ -1039,13 +1260,53 @@ async def aexpire_pending_approvals(
             session_id=session_id,
         )
         if session_id:
-            insert_session_event(
+            await ainsert_session_event(
                 db,
                 session_id,
                 "approval_expired",
                 {"approval_id": row_id, "state": "expired"},
             )
     return [row_id for row_id, _ in expired]
+
+
+async def alist_pending_approval_records(db: ConversationDB) -> list[dict]:
+    """Async structured approval inbox used by HTTP/UI event loops."""
+    await aexpire_pending_approvals(db)
+
+    async def read() -> list:
+        async with db.aconnect() as con:
+            cursor = await con.execute(
+                """SELECT id, session_id, agent_name, details, tool_name,
+                normalized_arguments, risk_summary, candidate_diff,
+                requested_at, expires_at FROM approvals
+                WHERE state='pending' ORDER BY id"""
+            )
+            return await cursor.fetchall()
+
+    rows = await aretry_on_locked(read)
+    records = []
+    for row in rows:
+        try:
+            arguments = json.loads(row[5] or "{}")
+        except (TypeError, ValueError):
+            arguments = {}
+        records.append(
+            {
+                "id": row[0],
+                "approval_id": row[0],
+                "session_id": row[1],
+                "agent_name": row[2],
+                "details": row[3],
+                "tool_name": row[4] or "",
+                "normalized_arguments": arguments if isinstance(arguments, dict) else {},
+                "risk_summary": row[6] or "",
+                "candidate_diff": row[7] or "",
+                "requested_at": row[8],
+                "expires_at": row[9],
+                "state": "pending",
+            }
+        )
+    return records
 
 
 async def aread_approval_status(db: ConversationDB, approval_id: int) -> Optional[tuple[str, str]]:
@@ -1108,6 +1369,7 @@ def decide_approval(
             state=state,
             decided_by=decided_by,
             decided_at=decided_at,
+            denial_reason=sanitize_db_text(denial_reason),
         )
         with db.connect() as con:
             row = con.execute(
@@ -1171,14 +1433,16 @@ async def adecide_approval(
             state=state,
             decided_by=decided_by,
             decided_at=decided_at,
+            denial_reason=sanitize_db_text(denial_reason),
         )
-        with db.connect() as con:
-            row = con.execute(
+        async with db.aconnect() as con:
+            cursor = await con.execute(
                 "SELECT session_id FROM approvals WHERE id=?",
                 (approval_id,),
-            ).fetchone()
+            )
+            row = await cursor.fetchone()
         if row and row[0]:
-            insert_session_event(
+            await ainsert_session_event(
                 db,
                 row[0],
                 "approval_decided",

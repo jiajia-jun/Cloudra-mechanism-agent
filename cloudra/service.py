@@ -57,6 +57,9 @@ class SessionRecord:
     heartbeat_at: str | None
     finished_at: str | None
     exit_code: int | None
+    node_id: str | None = None
+    workspace_id: str | None = None
+    working_directory: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -64,7 +67,7 @@ class SessionRecord:
 
 _SESSION_COLUMNS = """session_id, agent_id, agent_type, parent_session_id, query,
 state, result, error, pid, worker_id, created_at, started_at, heartbeat_at,
-finished_at, exit_code"""
+finished_at, exit_code, node_id, workspace_id, working_directory"""
 
 
 class SessionRunner:
@@ -82,6 +85,8 @@ class SessionRunner:
         working_directory: str | None = None,
         yolo: bool = False,
         session_id: str | None = None,
+        node_id: str | None = None,
+        workspace_id: str | None = None,
     ) -> SessionRecord:
         session_id = session_id or f"a-0_run_{uuid.uuid4().hex}"
         db = ConversationDB(conversation_id).init()
@@ -95,6 +100,9 @@ class SessionRunner:
                 agent_id="a-0",
                 agent_type="coordinator",
                 query=query,
+                node_id=node_id,
+                workspace_id=workspace_id,
+                working_directory=working_directory,
             )
         except sqlite3.IntegrityError:
             # A concurrent replay of the same idempotent create command won.
@@ -242,7 +250,7 @@ class SessionRunner:
             # 复用调用方持有的连接（如 SSE 轮询），跳过路径检查、不新开连接
             return _fetch(conn)
         db = ConversationDB(conversation_id)
-        if not Path(db.path).is_file():
+        if not db.migrate_if_needed():
             return []
         with db.connect() as owned:
             return _fetch(owned)
@@ -264,6 +272,9 @@ class SessionRunner:
             try:
                 db.init()
                 changed += session_store.recover_stale(db, cutoff=cutoff)
+                from cloudra.slurm import cancel_interrupted_jobs
+
+                cancel_interrupted_jobs(db)
             except (OSError, sqlite3.Error):
                 continue
         return changed
@@ -282,18 +293,18 @@ class SessionRunner:
         if conn is not None:
             # 复用调用方持有的连接（如 SSE 轮询），跳过路径检查、不新开连接
             return _fetch(conn)
-        db_path = Path(ConversationDB(conversation_id).path)
-        if not db_path.is_file():
+        db = ConversationDB(conversation_id)
+        if not db.migrate_if_needed():
             return None
-        with ConversationDB(conversation_id).connect() as owned:
+        with db.connect() as owned:
             return _fetch(owned)
 
     def list(self, conversation_id: str) -> list[SessionRecord]:
         validate_conversation_id(conversation_id)
-        db_path = Path(ConversationDB(conversation_id).path)
-        if not db_path.is_file():
+        db = ConversationDB(conversation_id)
+        if not db.migrate_if_needed():
             return []
-        with ConversationDB(conversation_id).connect() as conn:
+        with db.connect() as conn:
             rows = conn.execute(
                 f"SELECT {_SESSION_COLUMNS} FROM session ORDER BY created_at DESC"
             ).fetchall()
@@ -303,10 +314,10 @@ class SessionRunner:
         """查询指定父 Session 的直接子 Session（用于 TUI 绘制 Agent 树）。"""
         validate_conversation_id(conversation_id)
         validate_session_id(parent_session_id)
-        db_path = Path(ConversationDB(conversation_id).path)
-        if not db_path.is_file():
+        db = ConversationDB(conversation_id)
+        if not db.migrate_if_needed():
             return []
-        with ConversationDB(conversation_id).connect() as conn:
+        with db.connect() as conn:
             rows = conn.execute(
                 f"""SELECT {_SESSION_COLUMNS} FROM session
                 WHERE parent_session_id = ? ORDER BY created_at ASC""",
@@ -464,6 +475,8 @@ class CloudraService:
         query: str,
         conversation_id: str,
         working_directory: str | None = None,
+        node_id: str = "node-local",
+        workspace_id: str = "default",
     ) -> tuple[control_store.ClientCommand, SessionRecord]:
         """Create one Session for an idempotent remote command."""
 
@@ -478,7 +491,8 @@ class CloudraService:
             command_type="session.create",
             payload={
                 "query": query,
-                "workspace_id": "default",
+                "node_id": node_id,
+                "workspace_id": workspace_id,
                 "yolo": False,
             },
         )
@@ -498,6 +512,8 @@ class CloudraService:
                     working_directory,
                     False,
                     session_id=session_id,
+                    node_id=node_id,
+                    workspace_id=workspace_id,
                 )
                 self.session_runner._emit(
                     conversation_id,
@@ -582,9 +598,11 @@ class CloudraService:
                 record = self.session_runner.submit(
                     content,
                     conversation_id,
-                    working_directory,
+                    working_directory or target.working_directory,
                     False,
                     session_id=resumed_session_id,
+                    node_id=target.node_id,
+                    workspace_id=target.workspace_id,
                 )
                 result = {
                     "session_id": resumed_session_id,
@@ -602,6 +620,17 @@ class CloudraService:
                     event_type="user_message",
                     content=f"用户从远程控制台补充要求：{content}",
                     db_path=db.path,
+                )
+                self.session_runner._emit(
+                    conversation_id,
+                    session_id,
+                    "user_message",
+                    {
+                        "message_id": command_id,
+                        "command_id": command_id,
+                        "content": content,
+                        "agent_id": agent_id,
+                    },
                 )
                 record = target
                 result = {"session_id": session_id}
@@ -770,7 +799,8 @@ class CloudraService:
 
     async def list_pending_approvals(self) -> list[dict]:
         results = []
-        for conversation in self.list_conversations():
+        conversations = await asyncio.to_thread(self.list_conversations)
+        for conversation in conversations:
             # 非 running 的会话不可能产生新的 pending 审批，跳过以省去开库查询
             if conversation.get("state") != "running":
                 continue
@@ -782,7 +812,7 @@ class CloudraService:
             db = ConversationDB(conversation_id)
             if not Path(db.path).is_file():
                 continue
-            for record in session_store.list_pending_approval_records(db):
+            for record in await session_store.alist_pending_approval_records(db):
                 record["conversation_id"] = conversation_id
                 results.append(record)
         return results
@@ -796,6 +826,18 @@ class CloudraService:
         if not Path(db.path).is_file():
             return []
         records = session_store.list_pending_approval_records(db)
+        for record in records:
+            record["conversation_id"] = conversation_id
+        return records
+
+    async def alist_pending_approvals_for_conversation(
+        self, conversation_id: str
+    ) -> list[dict]:
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return []
+        records = await session_store.alist_pending_approval_records(db)
         for record in records:
             record["conversation_id"] = conversation_id
         return records
@@ -823,15 +865,16 @@ class CloudraService:
         denial_reason: str = "",
     ) -> tuple[control_store.ClientCommand, dict]:
         validate_conversation_id(conversation_id)
-        db = ConversationDB(conversation_id).init()
-        with db.connect() as con:
-            row = con.execute(
+        db = await asyncio.to_thread(ConversationDB(conversation_id).init)
+        async with db.aconnect() as con:
+            cursor = await con.execute(
                 """SELECT session_id, agent_name, details, state,
                 denial_reason, tool_name, normalized_arguments, risk_summary,
                 candidate_diff, requested_at, expires_at, decided_by,
                 decided_at FROM approvals WHERE id=?""",
                 (approval_id,),
-            ).fetchone()
+            )
+            row = await cursor.fetchone()
         if row is None:
             raise ValueError("Approval 不存在")
         (
@@ -872,17 +915,14 @@ class CloudraService:
                 "decided_by": decided_by,
                 "decided_at": decided_at,
             }
-        command, _ = control_store.receive_command(
+        command, _ = await asyncio.to_thread(
+            control_store.receive_command,
             db,
             command_id=command_id,
             conversation_id=conversation_id,
             session_id=session_id,
             command_type="approval.decide",
-            payload={
-                "approval_id": approval_id,
-                "decision": decision,
-                "denial_reason": denial_reason,
-            },
+            payload={"approval_id": approval_id, "decision": decision, "denial_reason": denial_reason},
         )
         if command.state == "applied":
             return command, approval_payload(
@@ -893,7 +933,7 @@ class CloudraService:
             raise control_store.CommandConflict(
                 command.error or "Approval 已被决定"
             )
-        if not control_store.claim_command(db, command_id):
+        if not await asyncio.to_thread(control_store.claim_command, db, command_id):
             raise RuntimeError("控制命令正在生效，请稍后查询")
 
         changed = await session_store.adecide_approval(
@@ -905,11 +945,10 @@ class CloudraService:
         )
         if not changed:
             error = "Approval 已被决定或已过期"
-            control_store.finish_command(db, command_id, error=error)
+            await asyncio.to_thread(control_store.finish_command, db, command_id, error=error)
             raise control_store.CommandConflict(error)
-        command = control_store.finish_command(
-            db,
-            command_id,
+        command = await asyncio.to_thread(
+            control_store.finish_command, db, command_id,
             result={"approval_id": approval_id, "state": decision},
         )
         payload = approval_payload(decision, denial_reason)

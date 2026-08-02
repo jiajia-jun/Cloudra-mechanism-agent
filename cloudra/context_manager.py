@@ -8,10 +8,13 @@ ContextManager 是 Agent 上下文的唯一真相来源，负责：
 5. 事件驱动：外部事件通过 IPC 直接推送，不再轮询数据库
 """
 
+import asyncio
 import base64
+import inspect
 import json
 import os
 import time
+from collections.abc import Awaitable, Callable
 from typing import Optional
 
 from cloudra import events, paths
@@ -56,6 +59,17 @@ SUPERVISOR_ADVICE_MARKER = "[Supervisor]"
 # 用于在下一轮压缩时识别旧梗概并折叠进新梗概（避免梗概无限累积）。
 COMPACT_SUMMARY_MARKER = "[上下文压缩提示]"
 
+# Auto-compaction keeps a small completed-turn tail. Ten assistant turns can
+# itself occupy most of a 64k half-window in tool-heavy sessions, leaving the
+# compressor above budget immediately after it runs.
+AUTO_COMPACT_KEEP_ASSISTANT = 4
+
+# Parallelize independent map chunks, but keep the fan-out conservative so one
+# long conversation cannot monopolize the FOLLOWER endpoint.
+COMPACTION_CONCURRENCY = 3
+
+CompactionProgress = Callable[[dict], Awaitable[None] | None]
+
 
 class ContextManager:
     """管理单个 Agent 的上下文生命周期与外部事件注入。"""
@@ -68,6 +82,7 @@ class ContextManager:
         query: str,
         db_path: Optional[str] = None,
         session_id: Optional[str] = None,
+        on_compaction_progress: Optional[CompactionProgress] = None,
     ):
         self.agent_id = agent_id
         self.conversation_id = conversation_id or 'default'
@@ -83,6 +98,19 @@ class ContextManager:
         self._context_cache: Optional[list] = None
         # 压缩用的 LLM 传输层客户端缓存，避免每次压缩都新建连接池。
         self._llm_client: Optional[LLMClient] = None
+        self._on_compaction_progress = on_compaction_progress
+
+    async def _report_compaction(self, **payload) -> None:
+        """Best-effort progress callback; telemetry must never break compact."""
+        callback = self._on_compaction_progress
+        if callback is None:
+            return
+        try:
+            result = callback(payload)
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            pass
 
     def _initial_context(self) -> list:
         """构造可持久化历史；身份 system prompt 由请求期 assembler 提供。
@@ -128,8 +156,11 @@ class ContextManager:
             return self._context_cache
         if os.path.isfile(self.context_file):
             try:
-                with open(self.context_file, 'r', encoding='utf-8') as f:
-                    self._context_cache = json.load(f)
+                def read_context() -> list:
+                    with open(self.context_file, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+
+                self._context_cache = await asyncio.to_thread(read_context)
                 return await self._migrate_legacy_identity(self._context_cache)
             except json.JSONDecodeError as e:
                 # 文件损坏时回退到初始上下文，避免直接崩溃
@@ -142,8 +173,12 @@ class ContextManager:
     async def replace(self, context: list) -> None:
         """全量替换上下文并持久化到文件（同时刷新实例缓存）。"""
         self._context_cache = context
-        with open(self.context_file, 'w', encoding='utf-8') as f:
-            json.dump(context, f, ensure_ascii=False, indent=4)
+
+        def write_context() -> None:
+            with open(self.context_file, 'w', encoding='utf-8') as f:
+                json.dump(context, f, ensure_ascii=False, indent=4)
+
+        await asyncio.to_thread(write_context)
 
     async def append(self, new_block: dict) -> None:
         """追加一条消息到上下文，并持久化。"""
@@ -279,13 +314,19 @@ class ContextManager:
         rendered = self._drop_empty_assistant_messages(rendered)
         rendered = self._drop_empty_user_messages(rendered)
         rendered = self._repair_dangling_tool_calls(rendered)
-        rendered = self._cap_message_sizes(rendered)
+        # Very large tool results make capping and token estimation measurable
+        # CPU work.  They must not run on the TUI/Agent event-loop thread.
+        rendered = await asyncio.to_thread(self._cap_message_sizes, rendered)
 
         if max_context_tokens is None:
             return rendered
 
+        rendered_tokens = await asyncio.to_thread(
+            TokenEstimator.estimate_messages,
+            rendered,
+        )
         if (
-            TokenEstimator.estimate_messages(rendered) > max_context_tokens
+            rendered_tokens > max_context_tokens
             and not _persistent_compress_attempted
             and await self._compress_persistent()
         ):
@@ -547,7 +588,7 @@ class ContextManager:
         return capped
 
     async def _summarize_history(self, history: list[dict]) -> str:
-        """调用 FOLLOWER 配置的大模型把历史消息压缩成一段梗概。"""
+        """Summarize history, using hierarchical chunks when history is oversized."""
         cfg = get_config().follower
         model = cfg.model
         base_url = cfg.url
@@ -559,42 +600,152 @@ class ContextManager:
                 "无法生成历史消息梗概。请运行 `cloudra config init` 进行配置。"
             )
 
-        # 把历史消息转为纯文本摘要输入
-        lines = []
-        for msg in history:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                text_parts = [
-                    str(p.get("text", "")) for p in content if isinstance(p, dict) and p.get("type") == "text"
+        input_limit = max(8_000, min(64_000, int(cfg.context_window or 128_000) // 2))
+
+        def partition(items: list[str]) -> list[list[str]]:
+            expanded: list[str] = []
+            for item in items:
+                if TokenEstimator.estimate_text(item) <= input_limit:
+                    expanded.append(item)
+                    continue
+                # A single CJK-heavy message can exceed the token budget even
+                # after the general 40k-character cap. Splitting at at most
+                # input_limit characters is conservative for all estimator
+                # character classes and keeps each summary request valid.
+                expanded.extend(
+                    item[offset : offset + input_limit]
+                    for offset in range(0, len(item), input_limit)
+                )
+            chunks: list[list[str]] = []
+            current: list[str] = []
+            current_tokens = 0
+            for item in expanded:
+                item_tokens = TokenEstimator.estimate_text(item) + 2
+                if current and current_tokens + item_tokens > input_limit:
+                    chunks.append(current)
+                    current = []
+                    current_tokens = 0
+                current.append(item)
+                current_tokens += item_tokens
+            if current:
+                chunks.append(current)
+            return chunks
+
+        def prepare_chunks() -> list[list[str]]:
+            # Apply the same per-message safety cap even for manual compact
+            # callers, then turn messages into summary input.  Both operations
+            # may scan hundreds of thousands of characters.
+            capped_history = self._cap_message_sizes(
+                [dict(msg) for msg in history]
+            )
+            lines: list[str] = []
+            for msg in capped_history:
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    text_parts = [
+                        str(part.get("text", ""))
+                        for part in content
+                        if isinstance(part, dict) and part.get("type") == "text"
+                    ]
+                    content = "\n".join(text_parts)
+                lines.append(f"[{role}] {content}")
+            return partition(lines)
+
+        async def summarize_text(history_text: str) -> str:
+            prompt = (
+                "请将以下对话历史压缩成一段简洁的梗概，保留关键信息（如任务目标、"
+                "已完成的子任务、重要结论、文件路径、失败原因等），丢弃细节和重复内容。"
+                "梗概将用于替代原始历史消息发送给后续模型，因此必须让后续模型理解当前状态。"
+                "\n\n--- 历史对话 ---\n\n"
+                f"{history_text}\n\n"
+                "--- 梗概 ---"
+            )
+
+            if self._llm_client is None:
+                self._llm_client = LLMClient(api_key=api_key, base_url=base_url)
+            response = await self._llm_client.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "你是一个专门压缩对话历史的助手。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=1.0,
+            )
+            summary = response.choices[0].message.content
+            return summary.strip() if summary else "[历史消息过长，未能生成有效梗概]"
+
+        limiter = asyncio.Semaphore(COMPACTION_CONCURRENCY)
+
+        async def summarize_layer(
+            chunks: list[list[str]],
+            *,
+            level: int,
+        ) -> list[str]:
+            total = len(chunks)
+            completed = 0
+            await self._report_compaction(
+                stage="started" if level == 1 else "reducing",
+                level=level,
+                completed=0,
+                total=total,
+            )
+
+            async def run_chunk(chunk: list[str]) -> str:
+                nonlocal completed
+                async with limiter:
+                    result = await summarize_text("\n\n".join(chunk))
+                completed += 1
+                await self._report_compaction(
+                    stage="progress",
+                    level=level,
+                    completed=completed,
+                    total=total,
+                )
+                return result
+
+            tasks = [asyncio.create_task(run_chunk(chunk)) for chunk in chunks]
+            try:
+                # gather preserves chunk order even though requests complete out
+                # of order, so the reduction prompt remains deterministic.
+                return await asyncio.gather(*tasks)
+            except BaseException:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+
+        try:
+            chunks = await asyncio.to_thread(prepare_chunks)
+            summaries = await summarize_layer(chunks, level=1)
+            # Map-reduce: levels depend on the previous level, while chunks in
+            # one level are independent and safely run with bounded concurrency.
+            level = 1
+            while len(summaries) > 1:
+                level += 1
+                reduction_lines = [
+                    f"[分段梗概 {index + 1}] {summary}"
+                    for index, summary in enumerate(summaries)
                 ]
-                content = "\n".join(text_parts)
-            lines.append(f"[{role}] {content}")
-
-        history_text = "\n\n".join(lines)
-
-        prompt = (
-            "请将以下对话历史压缩成一段简洁的梗概，保留关键信息（如任务目标、"
-            "已完成的子任务、重要结论、文件路径、失败原因等），丢弃细节和重复内容。"
-            "梗概将用于替代原始历史消息发送给后续模型，因此必须让后续模型理解当前状态。"
-            "\n\n--- 历史对话 ---\n\n"
-            f"{history_text}\n\n"
-            "--- 梗概 ---"
-        )
-
-        if self._llm_client is None:
-            self._llm_client = LLMClient(api_key=api_key, base_url=base_url)
-        response = await self._llm_client.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "你是一个专门压缩对话历史的助手。"},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
-            max_tokens=2000,
-        )
-        summary = response.choices[0].message.content
-        return summary.strip() if summary else "[历史消息过长，未能生成有效梗概]"
+                reduction_chunks = await asyncio.to_thread(
+                    partition,
+                    reduction_lines,
+                )
+                summaries = await summarize_layer(reduction_chunks, level=level)
+            await self._report_compaction(
+                stage="completed",
+                level=level,
+                completed=1,
+                total=1,
+            )
+            return summaries[0] if summaries else "[没有可压缩的历史消息]"
+        except BaseException as exc:
+            await self._report_compaction(
+                stage="failed",
+                error=str(exc),
+            )
+            raise
 
     async def _compress_persistent(self) -> bool:
         """超预算时先做持久化压缩：把历史梗概一次性写回上下文存储。
@@ -626,14 +777,15 @@ class ContextManager:
             else:
                 compressible.append(msg)
 
-        # 与 _compress_to_budget 相同的规则：最近 10 条 assistant 为 tail 原样保留
+        # 自动压缩只保护最近几个 assistant 回合。完整上下文仍在压缩前持久化，
+        # 梗概保留旧任务状态；较小的尾窗避免工具密集型会话压完仍超过半窗。
         tail_count = 0
         assistant_seen = 0
         for msg in reversed(compressible):
             tail_count += 1
             if msg.get("role") == "assistant":
                 assistant_seen += 1
-            if assistant_seen >= 10:
+            if assistant_seen >= AUTO_COMPACT_KEEP_ASSISTANT:
                 break
 
         tail = compressible[-tail_count:] if tail_count else []
@@ -642,6 +794,10 @@ class ContextManager:
             return False
 
         try:
+            # Rendering already refuses to send an unbounded individual tool
+            # result to the main model. Apply the same cap before asking the
+            # summary model, otherwise an oversized raw result can make compact
+            # fail forever precisely when it is most needed.
             summary = await self._summarize_history(history)
         except Exception as e:
             print(
@@ -677,7 +833,10 @@ class ContextManager:
         if not messages:
             return messages
 
-        total = TokenEstimator.estimate_messages(messages)
+        total = await asyncio.to_thread(
+            TokenEstimator.estimate_messages,
+            messages,
+        )
         if total <= max_context_tokens:
             return messages
 
@@ -724,7 +883,11 @@ class ContextManager:
         }
         candidate = system_messages + [summary_msg] + tail
 
-        if TokenEstimator.estimate_messages(candidate) <= max_context_tokens:
+        candidate_tokens = await asyncio.to_thread(
+            TokenEstimator.estimate_messages,
+            candidate,
+        )
+        if candidate_tokens <= max_context_tokens:
             return candidate
 
         # 如果梗概仍然超长，返回原始消息（不进一步删除或兜底）

@@ -1,5 +1,7 @@
 """新 Textual TUI 的基础测试。"""
 
+import asyncio
+
 import pytest
 from textual.app import App
 from textual.css.query import NoMatches
@@ -399,6 +401,82 @@ async def test_send_echoes_user_message_before_submit(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_running_followup_is_visible_before_backend_finishes(tmp_path, monkeypatch):
+    """运行中补充消息先完成本地绘制，不能被慢数据库命令挡住。"""
+    from types import SimpleNamespace
+
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        chat_log = screen.query_one("#chat-log", ChatLog)
+        record = SimpleNamespace(
+            session_id="a-0_run_live",
+            state="running",
+            parent_session_id=None,
+            agent_id="a-0",
+        )
+
+        async def active(agent_id=None):
+            return record
+
+        release = asyncio.Event()
+
+        async def slow_append(session_id, content, *, command_id=None):
+            await release.wait()
+
+        screen._find_active_record = active
+        screen._append_message = slow_append
+        reveal_calls = []
+        original_append_user = chat_log.append_user
+
+        def append_user_with_reveal_probe(*args, **kwargs):
+            widget = original_append_user(*args, **kwargs)
+            widget.scroll_visible = lambda *a, **k: reveal_calls.append(k)
+            return widget
+
+        chat_log.append_user = append_user_with_reveal_probe
+        sending = asyncio.create_task(screen._handle_send("中途补充条件"))
+        await pilot.pause()
+
+        visible = [_widget_text(w) for w in chat_log.children if w.display]
+        assert any("中途补充条件" in text for text in visible)
+        assert reveal_calls == [
+            {"animate": False, "force": True, "immediate": True}
+        ]
+        assert not sending.done()
+        release.set()
+        await sending
+
+
+@pytest.mark.asyncio
+async def test_user_message_event_deduplicates_optimistic_echo():
+    """本地乐观回显与后端持久事件使用同一 ID 时只显示一次。"""
+    from textual.app import App
+
+    from cloudra.tui.new.render_bridge import RenderBridge
+
+    class TestApp(App):
+        def compose(self):
+            yield ChatLog(id="chat-log")
+
+    app = TestApp()
+    async with app.run_test():
+        chat_log = app.query_one("#chat-log", ChatLog)
+        chat_log.append_user("s1", "补充要求", message_id="cmd-1")
+        bridge = RenderBridge("conv", chat_log)
+        bridge._dispatch(
+            {
+                "kind": "session_event",
+                "session_id": "s1",
+                "event_type": "user_message",
+                "data": {"message_id": "cmd-1", "content": "补充要求"},
+            }
+        )
+        texts = [_widget_text(w) for w in chat_log._messages["s1"]]
+        assert sum("补充要求" in text for text in texts) == 1
+
+
+@pytest.mark.asyncio
 async def test_phase_event_updates_status_bar(tmp_path, monkeypatch):
     """phase 事件经 RenderBridge 更新状态栏文案。"""
     app = _make_app(tmp_path, monkeypatch)
@@ -450,6 +528,47 @@ async def test_compact_command_outputs_result(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_compact_command_returns_control_while_model_is_running(
+    tmp_path, monkeypatch
+):
+    """手动压缩在后台执行，Textual 命令处理器不能等待模型返回。"""
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class SlowCM:
+            def __init__(self, *args, **kwargs):
+                self.progress = kwargs.get("on_compaction_progress")
+
+            async def compact(self, keep_recent=4):
+                started.set()
+                await release.wait()
+                return {
+                    "compressed": True,
+                    "original_count": 20,
+                    "new_count": 5,
+                    "summary_length": 300,
+                }
+
+        monkeypatch.setattr(
+            "cloudra.tui.new.screens.main_screen.ContextManager", SlowCM
+        )
+
+        await asyncio.wait_for(screen._run_command("compact", ""), timeout=0.5)
+        await started.wait()
+        assert screen._compact_task is not None
+        assert not screen._compact_task.done()
+        assert screen.query_one("#status-bar", StatusBar).compaction_info
+
+        release.set()
+        await screen._compact_task
+        await pilot.pause()
+        assert screen.query_one("#status-bar", StatusBar).compaction_info == ""
+
+
+@pytest.mark.asyncio
 async def test_smart_scroll_not_forced_when_scrolled_up():
     """用户上翻后新消息不强制滚到底。"""
     from textual.app import App
@@ -482,6 +601,112 @@ async def test_smart_scroll_not_forced_when_scrolled_up():
             assert scroll_calls == []
         finally:
             type(chat_log).max_scroll_y = original_prop
+
+
+@pytest.mark.asyncio
+async def test_stream_preview_is_bounded_but_final_message_is_complete():
+    """流式占位只绘制尾窗，即使超长终稿也必须保留完整正文。"""
+    from textual.app import App
+
+    class TestApp(App):
+        def compose(self):
+            yield ChatLog(id="chat-log")
+
+    app = TestApp()
+    async with app.run_test():
+        chat_log = app.query_one("#chat-log", ChatLog)
+        content = "BEGIN-" + "x" * 25_000 + "-END"
+        chat_log.append_stream_chunk("s1", content, "Agent")
+        preview = str(chat_log._combined_stream_text("s1"))
+        assert "BEGIN-" not in preview
+        assert "仅显示末尾" in preview
+        assert preview.endswith("-END")
+
+        chat_log.end_stream("s1")
+        rendered = "\n".join(_widget_text(w) for w in chat_log._messages["s1"])
+        assert "BEGIN-" in rendered
+        assert "-END" in rendered
+        assert rendered.count("BEGIN-") == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_log_prunes_old_widgets_under_long_runs():
+    """长时间多 Agent 输出不能让 Textual DOM 无界增长。"""
+    from textual.app import App
+
+    class TestApp(App):
+        def compose(self):
+            yield ChatLog(id="chat-log")
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        chat_log = app.query_one("#chat-log", ChatLog)
+        for index in range(ChatLog.MAX_WIDGETS + 40):
+            chat_log.append_system(f"s-{index % 8}", f"event-{index}")
+        await pilot.pause()
+
+        assert len(chat_log._order) == ChatLog.MAX_WIDGETS
+        assert sum(len(items) for items in chat_log._messages.values()) == ChatLog.MAX_WIDGETS
+        assert len(chat_log.children) <= ChatLog.MAX_WIDGETS
+
+
+@pytest.mark.asyncio
+async def test_tool_finished_updates_started_card_in_place():
+    """工具开始/完成是同一张卡，避免每次调用制造两个控件。"""
+    from textual.app import App
+
+    class TestApp(App):
+        def compose(self):
+            yield ChatLog(id="chat-log")
+
+    app = TestApp()
+    async with app.run_test():
+        chat_log = app.query_one("#chat-log", ChatLog)
+        chat_log.append_tool("s1", "Bash", "pwd")
+        card = chat_log._messages["s1"][0]
+        chat_log.append_tool("s1", "Bash", "pwd", finished=True, result="/tmp")
+
+        assert chat_log._messages["s1"] == [card]
+        assert card._finished is True
+        assert "/tmp" in card._full_body
+
+
+@pytest.mark.asyncio
+async def test_hidden_stream_skips_live_widget_update():
+    """筛选视图外的 Agent 累计完整内容，但不触发实时重绘。"""
+    from textual.app import App
+
+    class TestApp(App):
+        def compose(self):
+            yield ChatLog(id="chat-log")
+
+    app = TestApp()
+    async with app.run_test():
+        chat_log = app.query_one("#chat-log", ChatLog)
+        chat_log.show_agent("a-0")
+        chat_log.append_stream_chunk("a-1_task1", "后台输出", "worker")
+        widget = chat_log._stream_widget["a-1_task1"]
+        calls = []
+        original = widget.update
+
+        def counting_update(value=""):
+            calls.append(value)
+            return original(value)
+
+        widget.update = counting_update
+        chat_log._flush_streams()
+        assert calls == []
+        assert "后台输出" == "".join(chat_log._stream_content["a-1_task1"])
+
+
+def test_status_bar_skips_identical_render():
+    """多个 reactive watcher 命中同一状态时不重复提交绘制。"""
+    bar = StatusBar()
+    updates = []
+    bar.update = lambda value="": updates.append(value)
+    bar._refresh()
+    bar._refresh()
+    assert len(updates) == 1
 
 
 @pytest.mark.asyncio
@@ -1070,7 +1295,7 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
         # 子 agent 无运行中任务：拒绝注入
         sent = []
 
-        async def fake_append(session_id, content):
+        async def fake_append(session_id, content, *, command_id=None):
             sent.append((session_id, content))
 
         screen._append_message = fake_append

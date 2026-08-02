@@ -103,6 +103,11 @@ async def test_supplemental_message_replay_is_injected_once(isolated_service):
         command_count = con.execute(
             "SELECT COUNT(*) FROM client_commands"
         ).fetchone()[0]
+        user_events = con.execute(
+            """SELECT data FROM session_events
+            WHERE session_id=? AND event_type='user_message'""",
+            (session_id,),
+        ).fetchall()
     assert pending == [
         (
             "user_message",
@@ -110,6 +115,8 @@ async def test_supplemental_message_replay_is_injected_once(isolated_service):
         )
     ]
     assert command_count == 1
+    assert len(user_events) == 1
+    assert '"content": "补充要求"' in user_events[0][0]
 
 
 @pytest.mark.asyncio
@@ -198,6 +205,8 @@ def test_session_create_command_replay_returns_same_session(
         working_directory=None,
         yolo=False,
         session_id=None,
+        node_id=None,
+        workspace_id=None,
     ):
         calls.append(session_id)
         db = ConversationDB(conversation_id).init()
@@ -249,6 +258,9 @@ async def test_message_to_terminal_session_wakes_one_new_session(
         agent_id="a-0",
         agent_type="coordinator",
         query="旧任务",
+        node_id="hpc-login",
+        workspace_id="project-a",
+        working_directory="/shared/project-a",
     )
     session_store.finalize_session(
         db,
@@ -264,14 +276,21 @@ async def test_message_to_terminal_session_wakes_one_new_session(
         working_directory=None,
         yolo=False,
         session_id=None,
+        node_id=None,
+        workspace_id=None,
     ):
-        submitted.append((query, session_id))
+        submitted.append(
+            (query, session_id, working_directory, node_id, workspace_id)
+        )
         session_store.insert_queued_session(
             db,
             session_id=session_id,
             agent_id="a-0",
             agent_type="coordinator",
             query=query,
+            node_id=node_id,
+            workspace_id=workspace_id,
+            working_directory=working_directory,
         )
         return isolated_service.session_runner.get(conversation_id, session_id)
 
@@ -297,7 +316,17 @@ async def test_message_to_terminal_session_wakes_one_new_session(
         "session_id": record.session_id,
         "resumed_from": old_session_id,
     }
-    assert submitted == [("继续检查溶剂效应", record.session_id)]
+    assert submitted == [
+        (
+            "继续检查溶剂效应",
+            record.session_id,
+            "/shared/project-a",
+            "hpc-login",
+            "project-a",
+        )
+    ]
+    assert record.node_id == "hpc-login"
+    assert record.workspace_id == "project-a"
 
 
 @pytest.mark.asyncio

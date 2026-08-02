@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,7 @@ ANDROID_RUNTIME_FILES = (
     "cloudra/native_bridge.py",
     "cloudra/platform_utils.py",
     "cloudra/runtime_profile.py",
+    "cloudra/tool_presentation.py",
     "cloudra/ui/__init__.py",
     "cloudra/ui/app.py",
     "cloudra/workspace.py",
@@ -36,6 +38,62 @@ ANDROID_RUNTIME_FILES = (
 ANDROID_EXTENSION_DIRS = (
     "extensions/cloudra_native",
 )
+
+_CERT_SHA256 = re.compile(r"certificate SHA-256 digest:\s*([0-9A-Fa-f:]{64,95})")
+
+
+def audit_apk_signature(
+    apk_path: Path,
+    *,
+    expected_cert_sha256: str | None = None,
+    allow_debug: bool = False,
+    apksigner: str | None = None,
+) -> dict:
+    """Verify APK signatures and fail closed for production certificate drift."""
+    apk = apk_path.expanduser().resolve(strict=True)
+    executable = apksigner or shutil.which("apksigner")
+    if not executable:
+        raise RuntimeError("apksigner was not found")
+    completed = subprocess.run(
+        [executable, "verify", "--verbose", "--print-certs", str(apk)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    output = f"{completed.stdout}\n{completed.stderr}"
+    if completed.returncode != 0:
+        raise RuntimeError(f"APK signature verification failed: {output[-2000:]}")
+    match = _CERT_SHA256.search(output)
+    if not match:
+        raise RuntimeError("apksigner did not report a signer SHA-256 digest")
+    fingerprint = match.group(1).replace(":", "").lower()
+    debug_certificate = "android debug" in output.lower()
+    if debug_certificate and not allow_debug:
+        raise RuntimeError("production APK must not use the Android Debug certificate")
+    expected = (expected_cert_sha256 or "").replace(":", "").strip().lower()
+    if expected and fingerprint != expected:
+        raise RuntimeError("APK signer certificate does not match the pinned fingerprint")
+    if not allow_debug and not expected:
+        raise RuntimeError("production audit requires a pinned signer SHA-256 fingerprint")
+    schemes = {
+        version: bool(
+            re.search(
+                rf"^Verified using v{version} scheme \([^\n]+\): true$",
+                output,
+                flags=re.MULTILINE,
+            )
+        )
+        for version in (1, 2, 3, 4)
+    }
+    if not any(schemes.values()):
+        raise RuntimeError("APK has no accepted signature scheme")
+    return {
+        "apk": str(apk),
+        "certificate_sha256": fingerprint,
+        "debug_certificate": debug_certificate,
+        "signature_schemes": schemes,
+    }
 
 
 def _project_version(pyproject_path: Path) -> str:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import copy
 import errno
 import getpass
 import hashlib
@@ -23,6 +24,7 @@ import tempfile
 import threading
 import time
 import weakref
+from collections import deque
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -229,6 +231,111 @@ _listeners: dict[str, _EventListener] = {}
 _listeners_lock = threading.Lock()
 
 
+def _stream_key(message: dict) -> tuple[str, str] | None:
+    """Return the coalescing key for lossy LLM stream telemetry."""
+    if message.get("kind") != "session_event":
+        return None
+    payload = message.get("payload") or {}
+    if payload.get("event_type") != "llm_chunk":
+        return None
+    data = payload.get("data") or {}
+    return str(payload.get("session_id", "")), str(data.get("stream", "content"))
+
+
+class _BroadcastPump:
+    """One bounded network broadcaster shared by all conversations.
+
+    Local subscribers are still notified synchronously. Cross-process traffic is
+    serialized here so token streaming cannot create an unbounded number of
+    executor jobs. Adjacent chunks for one session/stream are merged.
+    """
+
+    MAX_PENDING = 256
+
+    def __init__(self, conversation_id: str | None = None):
+        self.conversation_id = conversation_id
+        self._pending: deque[tuple[str, dict]] = deque()
+        self._condition = threading.Condition()
+        self._closed = False
+        self._thread = threading.Thread(
+            target=self._run,
+            name="cloudra-ipc-broadcast",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def enqueue(self, message: dict, *, conversation_id: str | None = None) -> None:
+        # Coalescing mutates queued deltas; detach them from in-process Queue
+        # payloads that have already been delivered to UI consumers.
+        message = copy.deepcopy(message)
+        target = conversation_id or self.conversation_id
+        if not target:
+            raise ValueError("conversation_id is required")
+        stream_key = (target, _stream_key(message)) if _stream_key(message) else None
+        with self._condition:
+            if self._closed:
+                return
+            if stream_key and self._pending:
+                previous_target, previous = self._pending[-1]
+                previous_key = _stream_key(previous)
+                if previous_key and (previous_target, previous_key) == stream_key:
+                    previous_data = previous["payload"]["data"]
+                    new_data = message["payload"]["data"]
+                    previous_data["delta"] = (
+                        str(previous_data.get("delta", ""))
+                        + str(new_data.get("delta", ""))
+                    )
+                    return
+            if len(self._pending) >= self.MAX_PENDING:
+                # Prefer discarding an old recoverable stream chunk. Durable
+                # state/approval events remain recoverable from SQLite too, but
+                # should only be displaced when the queue contains no chunks.
+                drop_index = next(
+                    (
+                        i
+                        for i, (_target, item) in enumerate(self._pending)
+                        if _stream_key(item)
+                    ),
+                    None,
+                )
+                if stream_key and drop_index is None:
+                    return
+                if drop_index is None:
+                    self._pending.popleft()
+                else:
+                    del self._pending[drop_index]
+            self._pending.append((target, message))
+            self._condition.notify()
+
+    def _run(self) -> None:
+        while True:
+            with self._condition:
+                self._condition.wait_for(lambda: self._pending or self._closed)
+                if not self._pending and self._closed:
+                    return
+                target, message = self._pending.popleft()
+            _broadcast_sync(target, message)
+
+    def close(self) -> None:
+        with self._condition:
+            self._closed = True
+            self._condition.notify_all()
+        self._thread.join(timeout=0.5)
+
+
+_broadcast_pump: _BroadcastPump | None = None
+_broadcast_pumps_lock = threading.Lock()
+
+
+def _enqueue_broadcast(conversation_id: str, message: dict) -> None:
+    global _broadcast_pump
+    with _broadcast_pumps_lock:
+        if _broadcast_pump is None:
+            _broadcast_pump = _BroadcastPump()
+        pump = _broadcast_pump
+    pump.enqueue(message, conversation_id=conversation_id)
+
+
 def _get_listener(conversation_id: str) -> _EventListener:
     with _listeners_lock:
         listener = _listeners.get(conversation_id)
@@ -265,11 +372,17 @@ def shutdown_listener(conversation_id: str) -> None:
 
 
 def shutdown_all_listeners() -> None:
+    global _broadcast_pump
     with _listeners_lock:
         listeners = list(_listeners.values())
         _listeners.clear()
     for listener in listeners:
         listener.close()
+    with _broadcast_pumps_lock:
+        pump = _broadcast_pump
+        _broadcast_pump = None
+    if pump is not None:
+        pump.close()
 
 
 atexit.register(shutdown_all_listeners)
@@ -339,28 +452,19 @@ def _broadcast_sync(conversation_id: str, message: dict) -> None:
             pass
 
 
-async def _broadcast_async(conversation_id: str, message: dict) -> None:
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _broadcast_sync, conversation_id, message)
-
-
 def emit(conversation_id: str, kind: str, **payload: Any) -> None:
     """同步发送事件：本进程订阅者立即收到，跨进程投递在后台线程完成。"""
     listener = _get_listener(conversation_id)
     listener._deliver(kind, payload)
     message = {"kind": kind, "payload": payload}
-    threading.Thread(
-        target=_broadcast_sync,
-        args=(conversation_id, message),
-        daemon=True,
-    ).start()
+    _enqueue_broadcast(conversation_id, message)
 
 
 async def aemit(conversation_id: str, kind: str, **payload: Any) -> None:
-    """异步发送事件：本进程订阅者立即收到，跨进程投递异步执行。"""
+    """异步发送事件；入有界广播队列后立即返回，不占用默认线程池。"""
     listener = _get_listener(conversation_id)
     listener._deliver(kind, payload)
-    await _broadcast_async(conversation_id, {"kind": kind, "payload": payload})
+    _enqueue_broadcast(conversation_id, {"kind": kind, "payload": payload})
 
 
 async def subscribe_async(
