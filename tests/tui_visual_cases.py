@@ -269,7 +269,9 @@ def semantic_snapshot(app: VisualCaseApp) -> list[dict[str, Any]]:
 
 
 def write_snapshot(path: Path, snapshots: dict[str, list[dict[str, Any]]]) -> None:
-    """Write a baseline explicitly; normal pytest never calls this function."""
+    """Write a baseline only when the explicit update opt-in is present."""
+    if os.environ.get("CLOUDRA_UPDATE_TUI_SNAPSHOT") != "1":
+        raise PermissionError("Set CLOUDRA_UPDATE_TUI_SNAPSHOT=1 to update the visual baseline.")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(snapshots, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
