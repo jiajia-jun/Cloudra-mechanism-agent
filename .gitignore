@@ -54,6 +54,7 @@ Thumbs.db
 .coverage
 htmlcov/
 .tox/
+.worktrees/
 
 # Frontend
 frontend/node_modules/
