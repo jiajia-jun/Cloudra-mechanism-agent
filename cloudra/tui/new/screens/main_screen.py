@@ -73,10 +73,11 @@ class MainScreen(Screen):
         self._render_bridge: RenderBridge | None = None
         # 输入定向：None = 自动（主 Agent）；否则为选中的 agent_id
         self._target_agent_id: str | None = None
-        self._sidebar_refresh_scheduled = False
+        self._view_generation = 0
+        self._sidebar_refresh_task: asyncio.Task | None = None
         # 各 agent 的累计 token usage（token_usage 事件驱动），计划面板展示用
         self._token_by_agent: dict[str, dict] = {}
-        self._plan_refresh_scheduled = False
+        self._plan_refresh_task: asyncio.Task | None = None
         self._compact_task: asyncio.Task | None = None
         self._compactions: dict[str, str] = {}
 
@@ -149,6 +150,10 @@ class MainScreen(Screen):
                 await self._compact_task
             except asyncio.CancelledError:
                 pass
+        if self._sidebar_refresh_task is not None and not self._sidebar_refresh_task.done():
+            self._sidebar_refresh_task.cancel()
+        if self._plan_refresh_task is not None and not self._plan_refresh_task.done():
+            self._plan_refresh_task.cancel()
         if self._render_bridge is not None:
             await self._render_bridge.stop()
 
@@ -632,6 +637,11 @@ class MainScreen(Screen):
         """切换到另一个对话：重建事件桥和聊天区。"""
         if self._render_bridge is not None:
             await self._render_bridge.stop()
+        self._view_generation += 1
+        if self._sidebar_refresh_task is not None and not self._sidebar_refresh_task.done():
+            self._sidebar_refresh_task.cancel()
+        if self._plan_refresh_task is not None and not self._plan_refresh_task.done():
+            self._plan_refresh_task.cancel()
         self.conversation_id = conv_id
         self.current_session_id = None
         self._target_agent_id = None
@@ -694,16 +704,17 @@ class MainScreen(Screen):
 
     def _on_session_state_update(self, session_id: str, state: str | None) -> None:
         """session 状态变化/新 session 出现时，节流刷新侧栏 Agent 列表。"""
-        if self._sidebar_refresh_scheduled:
+        if self._sidebar_refresh_task is not None and not self._sidebar_refresh_task.done():
             return
-        self._sidebar_refresh_scheduled = True
+        generation = self._view_generation
 
         async def _later() -> None:
             await asyncio.sleep(0.3)
-            self._sidebar_refresh_scheduled = False
+            if generation != self._view_generation or not self.is_mounted:
+                return
             await self._refresh_agents()
 
-        asyncio.create_task(_later())
+        self._sidebar_refresh_task = asyncio.create_task(_later())
 
     async def _refresh_agents(self) -> None:
         """从 session 记录重建侧栏的 Agent 与对话列表。"""
@@ -754,16 +765,17 @@ class MainScreen(Screen):
 
     def _schedule_plan_refresh(self) -> None:
         """节流刷新计划面板（token 事件每轮一次，避免频繁 IO）。"""
-        if self._plan_refresh_scheduled:
+        if self._plan_refresh_task is not None and not self._plan_refresh_task.done():
             return
-        self._plan_refresh_scheduled = True
+        generation = self._view_generation
 
         async def _later() -> None:
             await asyncio.sleep(0.3)
-            self._plan_refresh_scheduled = False
+            if generation != self._view_generation or not self.is_mounted:
+                return
             await self._refresh_plan()
 
-        asyncio.create_task(_later())
+        self._plan_refresh_task = asyncio.create_task(_later())
 
     def _load_plan_files(self, agent_id: str) -> tuple[list, dict]:
         """读取当前选中 agent 的 todo/goal 存储文件（同步，供 to_thread 调用）。"""
@@ -806,15 +818,21 @@ class MainScreen(Screen):
 
     async def _refresh_plan(self) -> None:
         """重建侧栏「计划」区：显示当前选中 agent（默认主 Agent）的计划。"""
-        panel = self.query_one("#side-panel", SidePanel)
-        if not panel.display:
+        try:
+            panel = self.query_one("#side-panel", SidePanel)
+        except Exception:
+            return
+        if not panel.is_mounted or not panel.display:
             return
         agent_id = self._target_agent_id or _COORDINATOR_AGENT_ID
         try:
             todos, goal = await asyncio.to_thread(self._load_plan_files, agent_id)
         except Exception:
             todos, goal = [], {}
-        panel.set_plan(self._format_plan(agent_id, todos, goal))
+        try:
+            panel.set_plan(self._format_plan(agent_id, todos, goal))
+        except Exception:
+            pass
 
     @staticmethod
     def _agent_display_name(agent_id: str, agent_type: str) -> str:

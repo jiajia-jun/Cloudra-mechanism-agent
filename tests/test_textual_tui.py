@@ -1602,3 +1602,85 @@ async def test_render_bridge_routes_token_and_plan_events():
 
         assert token_events == [("s1", {"agent_id": "a-0", "total": {"total_tokens": 100}})]
         assert len(plan_dirty) == 2
+
+
+from cloudra.tui.new.widgets.side_panel import SidePanel
+from cloudra.tui.new.widgets.status_bar import StatusBar
+from textual.widgets import Label
+
+
+class SidePanelApp(App):
+    def compose(self):
+        yield SidePanel(id="side-panel")
+
+
+class StatusApp(App):
+    def compose(self):
+        yield StatusBar(id="status-bar")
+
+
+@pytest.mark.asyncio
+async def test_side_panel_keeps_row_when_only_state_changes():
+    """Only the label text should update when an agent's state changes."""
+    app = SidePanelApp()
+    async with app.run_test() as pilot:
+        panel = app.query_one("#side-panel", SidePanel)
+        panel.set_agents(
+            [{"agent_id": "a-1", "name": "worker", "state": "queued"}]
+        )
+        await pilot.pause()
+        original = panel.agent_item("a-1")
+        assert original is not None
+
+        panel.set_agents(
+            [{"agent_id": "a-1", "name": "worker", "state": "running"}]
+        )
+        await pilot.pause()
+
+        assert panel.agent_item("a-1") is original
+        assert "运行中" in str(original.query_one(Label).content)
+
+
+@pytest.mark.asyncio
+async def test_status_timer_pauses_while_idle():
+    """The status spinner timer must be paused when no task is active."""
+    app = StatusApp()
+    async with app.run_test():
+        bar = app.query_one("#status-bar", StatusBar)
+        assert not bar._timer._active.is_set()
+
+        bar.session_state = "running"
+        assert bar._timer._active.is_set()
+
+        bar.session_state = "completed"
+        assert not bar._timer._active.is_set()
+
+        bar.compaction_info = "压缩中"
+        assert bar._timer._active.is_set()
+
+        bar.compaction_info = ""
+        assert not bar._timer._active.is_set()
+
+
+@pytest.mark.asyncio
+async def test_conversation_switch_cancels_stale_sidebar_refresh(
+    tmp_path, monkeypatch
+):
+    """A pending sidebar refresh from an old conversation must not touch the new one."""
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        first_conv = screen.conversation_id
+
+        # Schedule a delayed sidebar refresh and immediately switch conversations.
+        screen._on_session_state_update("s1", "running")
+        old_task = screen._sidebar_refresh_task
+        assert old_task is not None
+
+        new_conv = await asyncio.to_thread(screen.service.create_conversation)
+        await screen._activate_conversation(new_conv.id)
+        await pilot.pause()
+
+        assert screen.conversation_id == new_conv.id
+        # The old task should have been cancelled or completed without mutating state.
+        assert old_task.cancelled() or old_task.done()

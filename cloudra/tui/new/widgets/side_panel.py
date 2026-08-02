@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Label, ListItem, ListView, Static
@@ -17,6 +19,12 @@ _STATE_ICONS = {
     "cancel_requested": "◐",
 }
 _ACTIVE_STATES = set(_STATE_ICONS)
+
+
+@dataclass(frozen=True)
+class _RowSpec:
+    key: str | None
+    text: str
 
 
 class SidePanel(Vertical):
@@ -40,6 +48,12 @@ class SidePanel(Vertical):
     class NewConversationRequested(Message):
         """用户点击了「新建对话」。"""
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._agent_items: dict[str | None, ListItem] = {}
+        self._conv_items: dict[str | None, ListItem] = {}
+        self._last_plan: str | None = None
+
     def compose(self):
         yield Static("Agent", classes="side-title")
         yield ListView(id="agent-list")
@@ -59,52 +73,81 @@ class SidePanel(Vertical):
         首项固定为「全部」。选中项尽量保持在原来的 agent 上。
         """
         agent_list = self.query_one("#agent-list", ListView)
-        items: list[ListItem] = [self._agent_item(None, "全部", "")]
+        specs: list[_RowSpec] = [_RowSpec(None, "全部")]
         for agent in agents:
             state = agent.get("state") or ""
             icon = _STATE_ICONS.get(state, "○")
             label = f"{agent.get('name') or agent.get('agent_id')} ({agent.get('agent_id')})"
             suffix = " 运行中" if state in _ACTIVE_STATES else ""
-            items.append(self._agent_item(agent["agent_id"], f"{icon} {label}", suffix))
-        self._replace_items(agent_list, items, target_attr="agent_id", selected=selected)
+            specs.append(_RowSpec(agent["agent_id"], f"{icon} {label}{suffix}"))
+        self._reconcile(agent_list, specs, self._agent_items, selected, "agent_id")
 
-    def set_conversations(self, convs: list[dict], current_id: str | None) -> None:
+    def set_conversations(
+        self, convs: list[dict], current_id: str | None
+    ) -> None:
         """重建对话列表；首项为「新建对话」。"""
         conv_list = self.query_one("#conv-list", ListView)
-        new_item = ListItem(Label("＋ 新建对话"))
-        new_item.conv_id = "__new__"
-        items: list[ListItem] = [new_item]
+        specs: list[_RowSpec] = [_RowSpec("__new__", "＋ 新建对话")]
         for conv in convs:
             cid = conv.get("id", "?")
             state = conv.get("state", "?")
             last = (conv.get("last_active") or "")[5:16].replace("T", " ")
             marker = " ← 当前" if cid == current_id else ""
-            item = ListItem(Label(f"{cid[-12:]}  {state}  {last}{marker}"))
-            item.conv_id = cid
-            items.append(item)
-        self._replace_items(conv_list, items, target_attr="conv_id", selected=current_id)
+            specs.append(_RowSpec(cid, f"{cid[-12:]}  {state}  {last}{marker}"))
+        self._reconcile(conv_list, specs, self._conv_items, current_id, "conv_id")
 
     def set_plan(self, text: str) -> None:
         """更新「计划」区文本（目标锚点 + todo 清单 + token 用量）。"""
-        self.query_one("#plan-view", Static).update(text or "（暂无计划）")
+        plan = text or "（暂无计划）"
+        if plan == self._last_plan:
+            return
+        self._last_plan = plan
+        self.query_one("#plan-view", Static).update(plan)
+
+    def agent_item(self, agent_id: str | None) -> ListItem | None:
+        """Return the existing ListItem for ``agent_id`` if present."""
+        for item in self.query_one("#agent-list", ListView).children:
+            if getattr(item, "row_key", None) == agent_id:
+                return item
+        return None
 
     @staticmethod
-    def _agent_item(agent_id: str | None, text: str, suffix: str) -> ListItem:
-        item = ListItem(Label(f"{text}{suffix}"))
-        item.agent_id = agent_id
+    def _make_item(spec: _RowSpec, id_attr: str) -> ListItem:
+        item = ListItem(Label(spec.text))
+        item.row_key = spec.key
+        setattr(item, id_attr, spec.key)
         return item
 
-    @staticmethod
-    def _replace_items(
-        list_view: ListView, items: list[ListItem], *, target_attr: str, selected
+    def _reconcile(
+        self,
+        list_view: ListView,
+        specs: list[_RowSpec],
+        cache: dict[str | None, ListItem],
+        selected: str | None,
+        id_attr: str,
     ) -> None:
-        list_view.clear()
+        """Keep rows with stable keys and only rebuild when the key order changes."""
+        incoming = [spec.key for spec in specs]
+        current = [getattr(item, "row_key", None) for item in list_view.children]
+        if incoming != current:
+            # Structural rebuild: create fresh items; old ones may have been destroyed.
+            items = [self._make_item(spec, id_attr) for spec in specs]
+            list_view.index = None
+            list_view.clear()
+            list_view.extend(items)
+        else:
+            for index, spec in enumerate(specs):
+                item = list_view.children[index]
+                label = item.query_one(Label)
+                if str(label.content) != spec.text:
+                    label.update(spec.text)
+
         highlight_index = 0
-        for i, item in enumerate(items):
-            list_view.append(item)
-            if selected is not None and getattr(item, target_attr, None) == selected:
-                highlight_index = i
-        if items:
+        for index, spec in enumerate(specs):
+            if selected is not None and spec.key == selected:
+                highlight_index = index
+                break
+        if list_view.children:
             list_view.index = highlight_index
 
     # ------------------------------------------------------------------
@@ -114,11 +157,11 @@ class SidePanel(Vertical):
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item = event.item
         if event.list_view.id == "agent-list":
-            agent_id = getattr(item, "agent_id", None)
+            agent_id = getattr(item, "row_key", None)
             label = "全部" if agent_id is None else item.query_one(Label).content
             self.post_message(self.AgentSelected(agent_id, str(label).strip()))
         elif event.list_view.id == "conv-list":
-            conv_id = getattr(item, "conv_id", None)
+            conv_id = getattr(item, "row_key", None)
             if conv_id == "__new__":
                 self.post_message(self.NewConversationRequested())
             elif conv_id:

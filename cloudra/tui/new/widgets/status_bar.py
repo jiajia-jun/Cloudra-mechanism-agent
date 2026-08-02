@@ -45,10 +45,18 @@ class StatusBar(Static):
         self._frame = 0
         self._started_at: float | None = None
         self._last_render_key: tuple | None = None
+        self._timer = None
 
     def on_mount(self) -> None:
-        self.set_interval(_REFRESH_INTERVAL, self._tick)
+        self._timer = self.set_interval(_REFRESH_INTERVAL, self._tick, pause=True)
+        self._sync_timer()
         self._refresh()
+
+    def _sync_timer(self) -> None:
+        if self._timer is None:
+            return
+        active = self.session_state in _ACTIVE_STATES or bool(self.compaction_info)
+        (self._timer.resume if active else self._timer.pause)()
 
     def watch_conversation_id(self, conversation_id: str) -> None:
         self._refresh()
@@ -62,6 +70,7 @@ class StatusBar(Static):
         elif state not in _ACTIVE_STATES:
             self._started_at = None
             self.phase = ""
+        self._sync_timer()
         self._refresh()
 
     def watch_yolo(self, yolo: bool) -> None:
@@ -77,6 +86,7 @@ class StatusBar(Static):
         self._refresh()
 
     def watch_compaction_info(self, compaction_info: str) -> None:
+        self._sync_timer()
         self._refresh()
 
     def _tick(self) -> None:
