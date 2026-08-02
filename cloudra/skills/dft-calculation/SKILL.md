@@ -66,7 +66,7 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 **Step 1: 建模与精准初猜 (Modeling & Initial Guess)**
 - 过渡态搜索对初猜严格。优先从网络或数据库获取核心分子的 SMILES，使用系统工具转换为坐标。
 - **结构洞察与拖拽**：调用 `internal_coordinates` 工具作为你的“眼睛”。将坐标转为 Z-matrix，通过 `Anomalies` 检测敏锐捕捉处于 1.3~2.0 倍共价半径之间的可疑原子对（注意甄别普通的 1-3 相互作用）。像人类在 GaussView 中拖拉结构一样，你可以直接编辑 Z-matrix 文本，人为拉长反应物中将要断裂的键，缩短将要形成的键，然后用该工具将其转回笛卡尔坐标，从而手工捏出一个高质量的 TS 初猜。
-- 基于分子结构对反应坐标进行柔性扫描。为节省算力，可先用半经验方法（如 xtb）扫描。
+- 基于分子结构对反应坐标进行柔性扫描。为节省算力，可先用半经验方法（如 xtb）扫描。**请注意，xtb在较大分子的过渡态面前的精度可能比较差，扫出了奇异的结果建议再使用优化级别扫一遍**
 - 提取势能较高且梯度较小的点作为 TS 初猜。找到初猜后，建议先将结构展示给用户确认，再开启正式搜索。
 
 **Step 2: 任务构建与投递 (Build & Submit)**
@@ -80,8 +80,10 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 
 **Step 4: 运行与验证 IRC (IRC Validation)**
 - 计算级别建议与 TS 搜索一致，构建参数如 `irc=(lqa,calcfc,maxpoint=80)`。
-- *逻辑验证*：作 IRC 曲线。如果曲线不平滑（有平台或噪声），说明过渡态精度不够或位置不对。
+- *逻辑验证*：作 IRC 曲线。如果曲线不平滑（有平台或噪声），说明过渡态精度不够或位置不对。但不必执着于整条irc曲线的完整性，只要两端能够优化到反应物和产物即可。
 - *重搜策略*：此时不仅要加上 `maxstep=10`，还应该加上积分格点精度参数（如 `int=ultrafine` 或 `int=superfine`）重新计算 TS。
+
+过渡态搜索任务一般伴随着机理寻找的任务，一般策略是：**以过渡态为中心，搜索并跑出irc后对两端进行优化得到中间体，以此找到完整的能垒**
 
 # 5. 异常诊断与排障断路器 (Circuit Breakers)
 如果 `submit_compute_job` 失败，或 `log_parser` 返回解析异常，请在重试前比对以下错误：
@@ -92,5 +94,4 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 4. **IRC 异常终止**：若只跑了几步就 normal termination：
    - 过渡态不够平滑：需增加精度重算高精度 TS（见 Step 4 重搜策略）。
    - 反应能垒过平：尝试在 gjf_writer 中追加 `extra_keywords="IOp(1/108=-1)"` 取消收敛判断。
-
-*重要：如果连续 2 次修改输入文件仍报同样的物理/化学错误，应停止自动重试，收集 `log_parser` 的输出摘要向用户请求协助。*
+5. **freq数值崩溃**：有时freq突然崩溃并不是物理上的问题，在排查了无不合理距离等问题后，可以考虑读取已经算过的几何优化文件中的频率数据：geom=allcheck guess=read freq
