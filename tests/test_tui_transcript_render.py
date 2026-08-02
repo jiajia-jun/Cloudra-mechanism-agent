@@ -8,6 +8,7 @@ from rich.console import Console
 from cloudra.tui.new.transcript import RecordKind, TranscriptStore
 from cloudra.tui.new.transcript_render import (
     InteractionAction,
+    PresentationCompiler,
     RenderContext,
     compile_record,
     semantic_segments,
@@ -165,3 +166,23 @@ def test_compiled_rows_are_immutable_128_row_blocks_after_a_large_result():
     assert tuple(len(block) for block in compiled.blocks[:-1]) == (128, 128)
     assert compiled.row(299).text.strip() == "line 299"
     assert store.get(handle) == record
+
+
+@pytest.mark.asyncio
+async def test_compilation_result_carries_stale_rejection_identity():
+    """Callers can reject an old result after a record or width changes."""
+    store = TranscriptStore()
+    handle = store.append_user("s1", "hello")
+    record = store.get(handle)
+    context = RenderContext(Console(width=80, force_terminal=True, color_system="truecolor"))
+    compiler = PresentationCompiler(max_workers=2)
+
+    result = await compiler.compile(record, 80, context, generation=7)
+
+    assert (result.record_id, result.revision, result.width, result.generation) == (
+        record.record_id,
+        record.revision,
+        80,
+        7,
+    )
+    await compiler.close()

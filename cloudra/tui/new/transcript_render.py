@@ -7,6 +7,8 @@ whenever a width or record revision changes.
 
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -74,6 +76,57 @@ class CompiledRecord:
     def row(self, index: int) -> Strip:
         block, offset = divmod(index, _ROW_BLOCK_SIZE)
         return self.blocks[block][offset]
+
+
+@dataclass(frozen=True, slots=True)
+class CompilationResult:
+    """A compiled record with the caller's stale-result rejection token."""
+
+    compiled: CompiledRecord
+    generation: int
+
+    @property
+    def record_id(self) -> int:
+        return self.compiled.record_id
+
+    @property
+    def revision(self) -> int:
+        return self.compiled.revision
+
+    @property
+    def width(self) -> int:
+        return self.compiled.width
+
+
+class PresentationCompiler:
+    """Bound off-thread compiler for immutable presentation rows."""
+
+    def __init__(self, max_workers: int = 2) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be positive")
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers, thread_name_prefix="cloudra-tui-render"
+        )
+        self._closed = False
+
+    async def compile(
+        self,
+        record: TranscriptRecord,
+        width: int,
+        context: RenderContext,
+        generation: int,
+    ) -> CompilationResult:
+        if self._closed:
+            raise RuntimeError("presentation compiler is closed")
+        loop = asyncio.get_running_loop()
+        compiled = await loop.run_in_executor(
+            self._executor, compile_record, record, width, context.for_worker()
+        )
+        return CompilationResult(compiled=compiled, generation=generation)
+
+    async def close(self) -> None:
+        self._closed = True
+        self._executor.shutdown(wait=True, cancel_futures=True)
 
 
 def render_rows(
