@@ -93,6 +93,21 @@ def test_tool_finish_updates_one_record_and_toggle_revisions_it():
     assert store.get(handle).revision == 2
 
 
+def test_tool_finish_matches_the_running_call_arguments_when_names_overlap():
+    store = TranscriptStore()
+    first = store.append_tool("s1", "Bash", "first")
+    second = store.append_tool("s1", "Bash", "second")
+
+    assert store.append_tool("s1", "Bash", "first", finished=True, result="/one") == first
+
+    assert store.get(first).status == "finished"
+    assert store.get(first).arguments == "first"
+    assert store.get(first).result == "/one"
+    assert store.get(second).status == "running"
+    assert store.get(second).arguments == "second"
+    assert store.get(second).result is None
+
+
 def test_unknown_stream_end_is_ignored_and_chunks_start_a_single_active_record():
     store = TranscriptStore()
 
@@ -119,6 +134,23 @@ def test_implicit_stream_start_reports_insertion_and_duplicate_end_is_ignored():
     revision = store.get(handle).revision
     assert store.end_stream("s1") is None
     assert store.get(handle).revision == revision
+
+
+def test_renaming_active_stream_onto_active_session_keeps_only_one_reachable_stream():
+    store = TranscriptStore()
+    renamed = store.start_stream("old", "old agent")
+    existing = store.start_stream("new", "new agent")
+
+    store.rename_session("old", "new")
+
+    assert store.active_stream("new") == renamed
+    assert store.get(existing).session_id == "new"
+    assert store.get(existing).status == "finished"
+    assert store.get(renamed).session_id == "new"
+    assert store.get(renamed).status == "streaming"
+    assert store.end_stream("new") == renamed
+    assert all(record.status == "finished" for record in store.records)
+    assert store.active_stream("new") is None
 
 
 def test_unmatched_finished_tool_is_retained_and_long_result_starts_collapsed():

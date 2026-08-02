@@ -245,6 +245,7 @@ class TranscriptStore:
                 if (
                     record.kind is RecordKind.TOOL
                     and record.tool_name == tool
+                    and record.arguments == arguments
                     and record.status == "running"
                 ):
                     self._replace(
@@ -324,6 +325,13 @@ class TranscriptStore:
             self._publish_change(TranscriptChange())
             return self._last_change
 
+        active_stream = self._active_streams.pop(old_session_id, None)
+        replaced_active_stream = self._active_streams.pop(new_session_id, None)
+        affected_ids = record_ids
+        if active_stream is not None and replaced_active_stream is not None:
+            self._replace(replaced_active_stream, status="finished")
+            affected_ids += (replaced_active_stream,)
+
         new_agent_id = self._agent_id(new_session_id)
         for record_id in record_ids:
             changes: dict[str, object] = {"session_id": new_session_id}
@@ -331,10 +339,11 @@ class TranscriptStore:
                 changes["agent_id"] = new_agent_id
             self._replace(record_id, **changes)
         self._rebuild_indexes()
-        active_stream = self._active_streams.pop(old_session_id, None)
         if active_stream is not None:
             self._active_streams[new_session_id] = active_stream
-        self._publish_change(TranscriptChange(record_ids, visibility_changed=True))
+        elif replaced_active_stream is not None:
+            self._active_streams[new_session_id] = replaced_active_stream
+        self._publish_change(TranscriptChange(affected_ids, visibility_changed=True))
         return self._last_change
 
     def mark_send_failed(self, handle: TranscriptHandle | int) -> TranscriptChange:
