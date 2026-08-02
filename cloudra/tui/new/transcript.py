@@ -56,6 +56,7 @@ class TranscriptStore:
         self._positions: dict[int, int] = {}
         self._session_ids: dict[str, list[int]] = {}
         self._message_ids: dict[str, int] = {}
+        self._derived_agent_ids: set[int] = set()
         self._next_record_id = 1
         self._last_change = TranscriptChange()
 
@@ -92,10 +93,11 @@ class TranscriptStore:
 
         record_id = self._next_record_id
         self._next_record_id += 1
+        derived_agent_id = agent_id is None
         record = TranscriptRecord(
             record_id=record_id,
             session_id=session_id,
-            agent_id=self._agent_id(session_id) if agent_id is None else agent_id,
+            agent_id=self._agent_id(session_id) if derived_agent_id else agent_id,
             kind=kind,
             content=content,
             reasoning=reasoning,
@@ -111,6 +113,8 @@ class TranscriptStore:
         self._positions[record_id] = len(self._records)
         self._records.append(record)
         self._session_ids.setdefault(session_id, []).append(record_id)
+        if derived_agent_id:
+            self._derived_agent_ids.add(record_id)
         if message_id is not None:
             self._message_ids[message_id] = record_id
         self._last_change = TranscriptChange((record_id,), order_changed=True, visibility_changed=True)
@@ -200,12 +204,10 @@ class TranscriptStore:
             self._last_change = TranscriptChange()
             return self._last_change
 
-        old_agent_id = self._agent_id(old_session_id)
         new_agent_id = self._agent_id(new_session_id)
         for record_id in record_ids:
-            record = self.get(record_id)
             changes: dict[str, object] = {"session_id": new_session_id}
-            if record.agent_id == old_agent_id:
+            if record_id in self._derived_agent_ids:
                 changes["agent_id"] = new_agent_id
             self._replace(record_id, **changes)
         self._rebuild_indexes()
@@ -238,6 +240,7 @@ class TranscriptStore:
         self._positions.clear()
         self._session_ids.clear()
         self._message_ids.clear()
+        self._derived_agent_ids.clear()
         self._last_change = TranscriptChange(
             removed_ids, order_changed=bool(removed_ids), visibility_changed=bool(removed_ids)
         )
@@ -259,6 +262,7 @@ class TranscriptStore:
             self._session_ids.setdefault(record.session_id, []).append(record.record_id)
             if record.message_id is not None:
                 self._message_ids[record.message_id] = record.record_id
+        self._derived_agent_ids.intersection_update(self._positions)
 
     @staticmethod
     def _agent_id(session_id: str) -> str | None:

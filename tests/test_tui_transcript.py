@@ -1,4 +1,4 @@
-from cloudra.tui.new.transcript import TranscriptStore
+from cloudra.tui.new.transcript import RecordKind, TranscriptStore
 
 
 def test_renaming_pending_session_derives_its_formal_agent_id():
@@ -10,6 +10,23 @@ def test_renaming_pending_session_derives_its_formal_agent_id():
     assert store.get(pending).agent_id == "a-0"
     assert [record.record_id for record in store.visible_records(agent_prefix="a-0")] == [
         pending.record_id
+    ]
+
+
+def test_renaming_session_preserves_an_explicit_agent_id():
+    store = TranscriptStore()
+    record = store.append(
+        "a-0_run_1",
+        RecordKind.USER,
+        agent_id="a-0",
+        content="主消息",
+    )
+
+    store.rename_session("a-0_run_1", "a-1_run_1")
+
+    assert store.get(record).agent_id == "a-0"
+    assert [item.record_id for item in store.visible_records(agent_prefix="a-0")] == [
+        record.record_id
     ]
 
 
