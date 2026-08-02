@@ -17,6 +17,7 @@ from textual.widgets import Button, Input, Label, Static
 
 from cloudra.tui.new.screens.approval_modal import ApprovalModal
 from cloudra.tui.new.screens.ask_user_modal import AskUserModal
+from cloudra.tui.new.transcript_render import InteractionAction, RenderContext, compile_record
 from cloudra.tui.new.widgets.chat_log import ChatLog
 from cloudra.tui.new.widgets.side_panel import SidePanel
 from cloudra.tui.new.widgets.status_bar import StatusBar
@@ -69,9 +70,10 @@ def _user(app: VisualCaseApp) -> None:
     app.capture(chat)
 
 
-def _failed_user(app: VisualCaseApp) -> None:
+async def _failed_user(app: VisualCaseApp) -> None:
     chat = _chat(app)
-    chat.append_user("s1", "这条消息发送失败。").add_class("send-failed")
+    handle = chat.append_user("s1", "这条消息发送失败。")
+    chat.mark_send_failed(handle)
     app.capture(chat)
 
 
@@ -116,11 +118,11 @@ def _tool_collapsed(app: VisualCaseApp) -> None:
     app.capture(chat)
 
 
-def _tool_expanded(app: VisualCaseApp) -> None:
+async def _tool_expanded(app: VisualCaseApp) -> None:
     chat = _chat(app)
     result = "\n".join(f"line {index}" for index in range(12))
-    chat.append_tool("s1", "Bash", "pytest", finished=True, result=result)
-    chat._messages["s1"][-1].on_click()
+    handle = chat.append_tool("s1", "Bash", "pytest", finished=True, result=result)
+    await chat.activate_region(handle, InteractionAction.TOGGLE_TOOL)
     app.capture(chat)
 
 
@@ -159,9 +161,9 @@ def _alert(app: VisualCaseApp) -> None:
 
 def _stream_preview(app: VisualCaseApp) -> None:
     chat = _chat(app)
-    chat.append_reasoning_chunk("s1", "r" * (ChatLog.STREAM_REASONING_WINDOW + 24), "coordinator")
-    chat.append_stream_chunk("s1", "c" * (ChatLog.STREAM_CONTENT_WINDOW + 24), "coordinator")
-    chat._flush_streams()
+    # 超过流式窗口阈值即可触发预览裁剪，无需手动 flush
+    chat.append_reasoning_chunk("s1", "r" * 3000, "coordinator")
+    chat.append_stream_chunk("s1", "c" * 5000, "coordinator")
     app.capture(chat)
 
 
@@ -253,18 +255,44 @@ def _render_rows(widget: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _chat_log_rows(chat_log: ChatLog) -> list[dict[str, Any]]:
+    """Capture the virtual ChatLog as deterministic text/style rows."""
+    # Use the same 100-column reference width as the compiled-semantics tests
+    # so the visual baseline stays comparable across implementations.
+    width = 100
+    context = RenderContext(Console(width=width, force_terminal=False, color_system=None))
+    label = f"ChatLog#{chat_log.id or ''}"
+    rows: list[dict[str, Any]] = []
+    for record_id in chat_log.visible_record_ids:
+        record = chat_log.store.get(record_id)
+        compiled = compile_record(record, width, context)
+        for strip in compiled.strips:
+            segments = [
+                {"text": segment.text, "style": str(segment.style or "")}
+                for segment in strip
+                if segment.text
+            ]
+            if segments:
+                rows.append({"widget": label, "segments": segments})
+    return rows
+
+
 def semantic_snapshot(app: VisualCaseApp) -> list[dict[str, Any]]:
     """Return deterministic text/style rows for the current visual case.
 
     The capture is semantic rather than pixel-based: it preserves the Rich text
     segments, including panel borders and syntax colours, while omitting terminal
-    cursor and blink state.
+    cursor and blink state.  ChatLog is virtual, so it is rendered through the
+    transcript compiler instead of its child widget tree.
     """
     roots = [app.screen] if app._capture_screen else app._capture_roots
     snapshot: list[dict[str, Any]] = []
     for root in roots:
-        for widget in _leaf_widgets(root):
-            snapshot.extend(_render_rows(widget))
+        if isinstance(root, ChatLog):
+            snapshot.extend(_chat_log_rows(root))
+        else:
+            for widget in _leaf_widgets(root):
+                snapshot.extend(_render_rows(widget))
     return snapshot
 
 

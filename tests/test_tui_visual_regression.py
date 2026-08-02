@@ -69,23 +69,12 @@ def _fixture_semantics(name, snapshot):
     )
     context = RenderContext(Console(width=100, force_terminal=False, color_system=None))
     rendered = []
-    for index, row in enumerate(rows):
-        if name == "code_copy" and index == len(rows) - 1:
-            rendered.extend(
-                render_rows(Text("复制", style="bold white on #0178D4", justify="right"), 100, context)
-            )
-            continue
+    for row in rows:
         text = Text()
         for segment_text, style in row:
             resolved_style = Style.parse(style.replace("color(8)", "bright_black")) if style else None
             text.append(segment_text, resolved_style)
         rendered.extend(render_rows(text, 100, context))
-        # The frozen Textual snapshot intentionally omitted the visually blank
-        # Markdown paragraph row, while the virtual surface must retain its
-        # height.  Reconstruct that known row from the fixture's heading/list
-        # boundary instead of flattening rows during comparison.
-        if name == "markdown" and index == 0:
-            rendered.append(Strip.blank(100))
     return semantic_segments_from_strips(tuple(rendered))
 
 
@@ -185,7 +174,8 @@ async def test_profile_harness_reports_a_bounded_workload():
     assert result.python_calls > 0
     assert result.max_commit_seconds >= 0
     assert result.input_p95_seconds >= 0
-    assert result.child_count > 0
+    # 虚拟 ChatLog 不再为每条消息创建子 widget，children 应保持很小
+    assert result.child_count <= 4
     assert result.record_count == 4
 
 

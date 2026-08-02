@@ -1,6 +1,8 @@
+import asyncio
 import os
 
 import pytest
+import pytest_asyncio
 
 from cloudra.session_class import Session
 
@@ -27,3 +29,22 @@ def mock_session(tmp_path):
 @pytest.fixture
 def project_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _drain_virtual_chat_surfaces():
+    """Wait for any pending ChatLog compiler shutdowns before the next test.
+
+    The virtual transcript starts an async close task in ``on_unmount``; this
+    fixture drains those tasks so worker threads do not leak between tests.
+    """
+    yield
+    from cloudra.tui.new.widgets.virtual_chat_log import ChatLog
+
+    for surface in list(ChatLog._instances):
+        task = surface._close_task
+        if task is not None and not task.done():
+            try:
+                await task
+            except Exception:
+                pass

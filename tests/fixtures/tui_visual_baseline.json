@@ -23,7 +23,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -52,7 +52,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -61,7 +61,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "approval": [
@@ -247,9 +247,13 @@
         {
           "style": "",
           "text": "普通 assistant 回复。"
+        },
+        {
+          "style": "",
+          "text": "                                                                               "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "code_copy": [
@@ -268,7 +272,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#code-static"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -317,7 +321,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#code-static"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -326,16 +330,16 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#code-static"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
         {
-          "style": "",
-          "text": "复制"
+          "style": "bold white on #0178d4",
+          "text": "                                                                                                复制"
         }
       ],
-      "widget": "Button#copy-button"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "decoded_json": [
@@ -344,29 +348,41 @@
         {
           "style": "",
           "text": "energy: -154.23"
+        },
+        {
+          "style": "",
+          "text": "                                                                                     "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
         {
           "style": "",
           "text": "unit: kcal/mol"
+        },
+        {
+          "style": "",
+          "text": "                                                                                      "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "failed_user": [
     {
       "segments": [
         {
-          "style": "bold #008000",
+          "style": "bold dim strike green",
           "text": "» 这条消息发送失败。"
+        },
+        {
+          "style": "",
+          "text": "                                                                                "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "file_states": [
@@ -393,7 +409,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -422,7 +438,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -431,7 +447,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -456,7 +472,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -485,7 +501,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -494,7 +510,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -519,7 +535,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -548,7 +564,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -557,7 +573,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -582,7 +598,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -611,7 +627,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -620,7 +636,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "markdown": [
@@ -639,7 +655,16 @@
           "text": "                                                "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "                                                                                                    "
+        }
+      ],
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -652,7 +677,7 @@
           "text": "能量降低                                                                                         "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -665,7 +690,7 @@
           "text": "构象稳定                                                                                         "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "reasoning": [
@@ -692,7 +717,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -721,7 +746,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -730,16 +755,20 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
         {
           "style": "",
           "text": "计算已完成。"
+        },
+        {
+          "style": "",
+          "text": "                                                                                        "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "sidebar": [
@@ -869,38 +898,293 @@
     {
       "segments": [
         {
-          "style": "color(8)",
+          "style": "bright_black",
           "text": "… 较早的思考过程已暂时折叠 …"
+        },
+        {
+          "style": "",
+          "text": "                                                                        "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
         {
-          "style": "italic color(8)",
-          "text": "[思考] rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+          "style": "italic bright_black",
+          "text": "[思考] "
+        },
+        {
+          "style": "",
+          "text": "                                                                                             "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
         {
-          "style": "color(8)",
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "italic bright_black",
+          "text": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "bright_black",
           "text": "… 正在生成，仅显示末尾 …"
+        },
+        {
+          "style": "",
+          "text": "                                                                            "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
         {
           "style": "",
-          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "widget": "ChatLog#chat-log"
     }
   ],
   "supervisor": [
@@ -927,7 +1211,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -956,7 +1240,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -985,7 +1269,7 @@
           "text": "│"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -994,7 +1278,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "tool_collapsed": [
@@ -1021,7 +1305,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1050,7 +1334,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1075,7 +1359,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1104,7 +1388,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1133,7 +1417,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1162,7 +1446,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1191,7 +1475,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1220,7 +1504,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1249,7 +1533,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1278,7 +1562,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1307,7 +1591,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1336,7 +1620,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1345,7 +1629,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "tool_expanded": [
@@ -1372,7 +1656,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1401,7 +1685,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1426,7 +1710,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1455,7 +1739,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1484,7 +1768,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1513,7 +1797,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1542,7 +1826,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1571,7 +1855,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1600,7 +1884,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1629,7 +1913,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1658,7 +1942,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1687,7 +1971,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1716,7 +2000,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1745,7 +2029,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1774,7 +2058,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1783,7 +2067,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "tool_finished": [
@@ -1810,7 +2094,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1839,7 +2123,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1864,7 +2148,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1893,7 +2177,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1902,7 +2186,7 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "tool_running": [
@@ -1929,7 +2213,7 @@
           "text": "─╮"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1958,7 +2242,7 @@
           "text": "│"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     },
     {
       "segments": [
@@ -1967,161 +2251,23 @@
           "text": "╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
         }
       ],
-      "widget": "ToolCard#"
+      "widget": "ChatLog#chat-log"
     }
   ],
   "user": [
     {
       "segments": [
         {
-          "style": "bold #008000",
+          "style": "bold green",
           "text": "» 请计算乙醇的构象。"
+        },
+        {
+          "style": "",
+          "text": "                                                                                "
         }
       ],
-      "widget": "Static#"
+      "widget": "ChatLog#chat-log"
     }
   ],
-  "welcome": [
-    {
-      "segments": [
-        {
-          "style": "bold #008000",
-          "text": "Cloudra"
-        },
-        {
-          "style": "",
-          "text": "  "
-        },
-        {
-          "style": "dim",
-          "text": "AI 化学科研助手"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "输入任务，Enter 发送 · Ctrl+Enter 换行 · 输入 / 自动补全命令"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "运行中可直接输入补充要求，Esc 打断当前任务"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "bold",
-          "text": "两个概念"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "  "
-        },
-        {
-          "style": "#00ffff",
-          "text": "对话"
-        },
-        {
-          "style": "",
-          "text": " = 持久上下文，多次任务共享记忆（/conv 切换、/new 新建）"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "  "
-        },
-        {
-          "style": "#00ffff",
-          "text": "任务"
-        },
-        {
-          "style": "",
-          "text": " = 一次执行；任务完成后再输入，会在同一对话里开启新任务"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "bold",
-          "text": "侧栏（Ctrl+B 或 /agents）"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "  Agent 列表：切换查看主 Agent / 各子 Agent 的独立输出，"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "            选中某个 Agent 后输入会直接插入它的运行上下文"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "  对话列表：点击切换或新建对话"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "bold",
-          "text": "斜杠命令"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "  /conv <id> 切换对话 · /compact 压缩上下文 · /yolo 自动审批"
-        }
-      ],
-      "widget": "Static#welcome"
-    },
-    {
-      "segments": [
-        {
-          "style": "",
-          "text": "  /help 完整帮助"
-        }
-      ],
-      "widget": "Static#welcome"
-    }
-  ]
+  "welcome": []
 }

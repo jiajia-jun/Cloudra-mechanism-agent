@@ -23,6 +23,7 @@ from cloudra.tui.new.screens.approval_modal import ApprovalModal
 from cloudra.tui.new.screens.ask_user_modal import AskUserModal
 from cloudra.tui.new.screens.context_screen import ContextScreen
 from cloudra.tui.new.screens.help_screen import HelpScreen
+from cloudra.tui.new.transcript import TranscriptHandle
 from cloudra.tui.new.widgets.chat_log import ChatLog
 from cloudra.tui.new.widgets.input_bar import InputBar
 from cloudra.tui.new.widgets.side_panel import SidePanel
@@ -246,16 +247,16 @@ class MainScreen(Screen):
                 )
                 return
             command_id = f"tui-msg-{uuid4().hex}"
-            widget = chat_log.append_user(
+            handle = chat_log.append_user(
                 record.session_id, content, message_id=command_id
             )
-            await self._present_user_echo(chat_log, widget)
+            await self._present_user_echo(chat_log, handle)
             try:
                 await self._append_message(
                     record.session_id, content, command_id=command_id
                 )
             except Exception:
-                widget.add_class("send-failed")
+                chat_log.mark_send_failed(handle)
                 raise
             return
 
@@ -264,33 +265,33 @@ class MainScreen(Screen):
         if record is not None:
             # 运行中任务：先上屏再注入，用户立刻看到自己发了什么
             command_id = f"tui-msg-{uuid4().hex}"
-            widget = chat_log.append_user(
+            handle = chat_log.append_user(
                 record.session_id, content, message_id=command_id
             )
-            await self._present_user_echo(chat_log, widget)
+            await self._present_user_echo(chat_log, handle)
             try:
                 await self._append_message(
                     record.session_id, content, command_id=command_id
                 )
             except Exception:
-                widget.add_class("send-failed")
+                chat_log.mark_send_failed(handle)
                 raise
             return
 
         # 无运行中任务：启动新 Coordinator 任务，消息先上屏到 pending 组
         input_bar.follow_up = False
-        if chat_log._order:
+        if chat_log.has_records:
             # 同一对话里开启新任务，加分隔线避免误认为切换了对话
             chat_log.append_divider(
                 _PENDING_SESSION,
                 f"── 新任务（同一对话 …{self.conversation_id[-6:]}，上下文延续）──",
             )
-        widget = chat_log.append_user(_PENDING_SESSION, content)
-        await self._present_user_echo(chat_log, widget)
+        handle = chat_log.append_user(_PENDING_SESSION, content)
+        await self._present_user_echo(chat_log, handle)
         try:
             await self._start_coordinator_task(content)
         except Exception:
-            widget.add_class("send-failed")
+            chat_log.mark_send_failed(handle)
             raise
 
     async def _start_coordinator_task(self, query: str) -> None:
@@ -408,36 +409,35 @@ class MainScreen(Screen):
             del entries[:drop]
             overflow -= drop
 
-        for task, entries in history:
-            root = task[0]
-            # 分隔线只展示任务状态和时间，不暴露内部 session id
-            when = (root.created_at or "")[5:16].replace("T", " ")
-            label = f"── 历史任务 [{root.state or '?'}]"
-            if when:
-                label += f" · {when}"
-            label += " ──"
-            chat_log.append_divider(root.session_id, label)
-            if root.query:
-                chat_log.append_user(root.session_id, root.query)
-            for session_id, ev in entries:
-                self._render_bridge.replay_event(
-                    session_id, ev["event_type"], ev["data"] or {}
-                )
+        with chat_log.batch_update():
+            for task, entries in history:
+                root = task[0]
+                # 分隔线只展示任务状态和时间，不暴露内部 session id
+                when = (root.created_at or "")[5:16].replace("T", " ")
+                label = f"── 历史任务 [{root.state or '?'}]"
+                if when:
+                    label += f" · {when}"
+                label += " ──"
+                chat_log.append_divider(root.session_id, label)
+                if root.query:
+                    chat_log.append_user(root.session_id, root.query)
+                for session_id, ev in entries:
+                    self._render_bridge.replay_event(
+                        session_id, ev["event_type"], ev["data"] or {}
+                    )
 
-        chat_log.scroll_end(animate=False)
+        chat_log.request_frame(immediate=True)
+        chat_log.scroll_end(animate=False, immediate=True, x_axis=False)
 
     @staticmethod
-    async def _present_user_echo(chat_log: ChatLog, widget) -> None:
-        """Mount and reveal local input before backend/SQLite command work."""
+    async def _present_user_echo(
+        chat_log: ChatLog, handle: TranscriptHandle
+    ) -> None:
+        """Reveal local input before backend/SQLite command work."""
         await asyncio.sleep(0)
-        # A mounted widget can still sit below the viewport.  Explicitly reveal
-        # the user's own message; this is intentionally stronger than smart
-        # follow-scroll used for background Agent output.
-        widget.scroll_visible(
-            animate=False,
-            force=True,
-            immediate=True,
-        )
+        # The user's own message is explicitly revealed; this is intentionally
+        # stronger than the smart follow-scroll used for background Agent output.
+        await chat_log.reveal(handle.record_id, force=True)
         await asyncio.sleep(0)
 
     async def _append_message(

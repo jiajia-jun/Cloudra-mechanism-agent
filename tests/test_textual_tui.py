@@ -8,6 +8,7 @@ from textual.css.query import NoMatches
 
 from cloudra.tui.new.app import CloudraTextualApp
 from cloudra.tui.new.screens.main_screen import MainScreen
+from cloudra.tui.new.transcript_render import InteractionAction
 from cloudra.tui.new.widgets.chat_log import ChatLog
 from cloudra.tui.new.widgets.input_bar import InputBar
 from cloudra.tui.new.widgets.status_bar import StatusBar
@@ -117,7 +118,7 @@ async def test_chat_log_switches_sessions():
 
 @pytest.mark.asyncio
 async def test_chat_log_renders_code_block():
-    """ChatLog 能解析并高亮代码块。"""
+    """ChatLog 能解析并高亮代码块，并提供代码复制交互区。"""
     from textual.app import App
 
     class TestApp(App):
@@ -132,9 +133,13 @@ async def test_chat_log_renders_code_block():
         chat_log.append_stream_chunk("s1", "```python\nprint('hi')\n```", "Agent")
         chat_log.end_stream("s1")
 
-        from cloudra.tui.new.widgets.code_block import CodeBlock
-        code_blocks = list(app.query(CodeBlock))
-        assert len(code_blocks) == 1
+        records = chat_log.records_for_session("s1")
+        assert len(records) == 1
+        compiled = await chat_log.ensure_compiled(records[0].record_id)
+        assert compiled is not None
+        text = await _compiled_text(chat_log, records[0].record_id)
+        assert "print('hi')" in text
+        assert any(region.action is InteractionAction.COPY_CODE for region in compiled.regions)
 
 
 @pytest.mark.asyncio
@@ -181,6 +186,37 @@ def _widget_text(w) -> str:
     if hasattr(inner, "renderable"):  # rich Panel
         return f"{getattr(inner, 'title', '') or ''}\n{inner.renderable}"
     return str(inner)
+
+
+async def _compiled_text(chat_log, record_id: int) -> str:
+    """编译并返回一条记录的纯文本表示。"""
+    compiled = await chat_log.ensure_compiled(record_id)
+    if compiled is None:
+        return ""
+    return "\n".join(
+        "".join(segment.text for segment in strip)
+        for strip in compiled.strips
+    )
+
+
+async def _rendered_texts(chat_log, session_id: str) -> list[str]:
+    """提取某 session 下所有记录的渲染后纯文本。"""
+    texts = []
+    for record in chat_log.records_for_session(session_id):
+        text = await _compiled_text(chat_log, record.record_id)
+        if text:
+            texts.append(text)
+    return texts
+
+
+async def _visible_texts(chat_log) -> list[str]:
+    """提取当前视口内所有可见记录的渲染后纯文本。"""
+    texts = []
+    for record_id in chat_log.visible_record_ids:
+        text = await _compiled_text(chat_log, record_id)
+        if text:
+            texts.append(text)
+    return texts
 
 
 @pytest.mark.asyncio
@@ -235,8 +271,11 @@ async def test_render_bridge_dispatches_session_events():
             "data": {"result": "你好"},
         })
 
-        # ChatLog 中至少有两个 session s1 的消息（assistant + tool）
-        s1_texts = [_widget_text(w) for w in chat_log._messages.get("s1", [])]
+        # 解除 session 过滤以便检查所有分发出去的记录
+        chat_log.current_session_id = None
+
+        # ChatLog 中至少有两个 session s1 的记录（assistant + tool）
+        s1_texts = await _rendered_texts(chat_log, "s1")
         assert len(s1_texts) >= 2
         assert sum("你好" in t for t in s1_texts) == 1  # result 未重复显示
 
@@ -247,7 +286,7 @@ async def test_render_bridge_dispatches_session_events():
             "event_type": "completed",
             "data": {"result": "纯结果答案"},
         })
-        s2_texts = [_widget_text(w) for w in chat_log._messages.get("s2", [])]
+        s2_texts = await _rendered_texts(chat_log, "s2")
         assert any("纯结果答案" in t for t in s2_texts)
 
         # failed：错误必须上屏（否则用户看到的是"agent 不回答"）
@@ -257,7 +296,7 @@ async def test_render_bridge_dispatches_session_events():
             "event_type": "failed",
             "data": {"error": "Error code: 400"},
         })
-        s3_texts = [_widget_text(w) for w in chat_log._messages.get("s3", [])]
+        s3_texts = await _rendered_texts(chat_log, "s3")
         assert any("Error code: 400" in t for t in s3_texts)
 
         # cancelled：提示上屏
@@ -267,7 +306,7 @@ async def test_render_bridge_dispatches_session_events():
             "event_type": "cancelled",
             "data": {},
         })
-        s4_texts = [_widget_text(w) for w in chat_log._messages.get("s4", [])]
+        s4_texts = await _rendered_texts(chat_log, "s4")
         assert any("已取消" in t for t in s4_texts)
 
 
@@ -385,8 +424,8 @@ async def test_send_echoes_user_message_before_submit(tmp_path, monkeypatch):
                 return {"session_id": self.session_id, "state": self.state}
 
         def checking_submit(*args, **kwargs):
-            # submit 被调用时，用户消息必须已经上屏到 pending 组
-            echoed_at_submit.append(len(chat_log._messages.get("_pending", [])))
+            # submit 被调用时，用户消息必须已经写入 _pending session
+            echoed_at_submit.append(len(chat_log.records_for_session("_pending")))
             return screen.conversation_id, FakeRecord()
 
         screen.service.submit_session = checking_submit
@@ -395,14 +434,14 @@ async def test_send_echoes_user_message_before_submit(tmp_path, monkeypatch):
 
         assert echoed_at_submit == [1]
         # submit 返回后 pending 消息归到真实 session
-        assert "_pending" not in chat_log._messages
-        assert len(chat_log._messages.get("a-0_run_test123", [])) >= 1
+        assert not chat_log.records_for_session("_pending")
+        assert len(chat_log.records_for_session("a-0_run_test123")) >= 1
         assert screen.current_session_id == "a-0_run_test123"
 
 
 @pytest.mark.asyncio
 async def test_running_followup_is_visible_before_backend_finishes(tmp_path, monkeypatch):
-    """运行中补充消息先完成本地绘制，不能被慢数据库命令挡住。"""
+    """运行中补充消息先完成本地存储并滚动Reveal，不能被慢数据库命令挡住。"""
     from types import SimpleNamespace
 
     app = _make_app(tmp_path, monkeypatch)
@@ -427,22 +466,20 @@ async def test_running_followup_is_visible_before_backend_finishes(tmp_path, mon
         screen._find_active_record = active
         screen._append_message = slow_append
         reveal_calls = []
-        original_append_user = chat_log.append_user
+        original_reveal = chat_log.reveal
 
-        def append_user_with_reveal_probe(*args, **kwargs):
-            widget = original_append_user(*args, **kwargs)
-            widget.scroll_visible = lambda *a, **k: reveal_calls.append(k)
-            return widget
+        async def reveal_probe(record_id, *, force=True):
+            reveal_calls.append({"record_id": record_id, "force": force})
+            return await original_reveal(record_id, force=force)
 
-        chat_log.append_user = append_user_with_reveal_probe
+        chat_log.reveal = reveal_probe
         sending = asyncio.create_task(screen._handle_send("中途补充条件"))
         await pilot.pause()
 
-        visible = [_widget_text(w) for w in chat_log.children if w.display]
-        assert any("中途补充条件" in text for text in visible)
-        assert reveal_calls == [
-            {"animate": False, "force": True, "immediate": True}
-        ]
+        records = chat_log.records_for_session("a-0_run_live")
+        assert any("中途补充条件" in r.content for r in records)
+        user_record = next(r for r in records if "中途补充条件" in r.content)
+        assert reveal_calls == [{"record_id": user_record.record_id, "force": True}]
         assert not sending.done()
         release.set()
         await sending
@@ -472,7 +509,7 @@ async def test_user_message_event_deduplicates_optimistic_echo():
                 "data": {"message_id": "cmd-1", "content": "补充要求"},
             }
         )
-        texts = [_widget_text(w) for w in chat_log._messages["s1"]]
+        texts = [r.content for r in chat_log.records_for_session("s1")]
         assert sum("补充要求" in text for text in texts) == 1
 
 
@@ -523,8 +560,9 @@ async def test_compact_command_outputs_result(tmp_path, monkeypatch):
         await screen._run_command("compact", "")
         await pilot.pause()
 
-        msgs = chat_log._messages.get("_system", [])
+        msgs = chat_log.records_for_session("_system")
         assert len(msgs) == 1
+        assert "20" in msgs[0].content and "5" in msgs[0].content
 
 
 @pytest.mark.asyncio
@@ -617,21 +655,24 @@ async def test_stream_preview_is_bounded_but_final_message_is_complete():
         chat_log = app.query_one("#chat-log", ChatLog)
         content = "BEGIN-" + "x" * 25_000 + "-END"
         chat_log.append_stream_chunk("s1", content, "Agent")
-        preview = str(chat_log._combined_stream_text("s1"))
+        stream_record = chat_log.records_for_session("s1")[0]
+        preview = await _compiled_text(chat_log, stream_record.record_id)
         assert "BEGIN-" not in preview
         assert "仅显示末尾" in preview
-        assert preview.endswith("-END")
+        assert preview.rstrip().endswith("-END")
 
         chat_log.end_stream("s1")
-        rendered = "\n".join(_widget_text(w) for w in chat_log._messages["s1"])
-        assert "BEGIN-" in rendered
-        assert "-END" in rendered
-        assert rendered.count("BEGIN-") == 1
+        final_record = chat_log.records_for_session("s1")[0]
+        # 终稿保留完整正文（不依赖流式预览的裁剪窗口）
+        assert final_record.content == content
+        assert "BEGIN-" in final_record.content
+        assert "-END" in final_record.content
+        assert final_record.content.count("BEGIN-") == 1
 
 
 @pytest.mark.asyncio
 async def test_chat_log_prunes_old_widgets_under_long_runs():
-    """长时间多 Agent 输出不能让 Textual DOM 无界增长。"""
+    """长时间多 Agent 输出不能让 Textual DOM 无界增长（虚拟列表不创建消息控件）。"""
     from textual.app import App
 
     class TestApp(App):
@@ -641,18 +682,21 @@ async def test_chat_log_prunes_old_widgets_under_long_runs():
     app = TestApp()
     async with app.run_test() as pilot:
         chat_log = app.query_one("#chat-log", ChatLog)
-        for index in range(ChatLog.MAX_WIDGETS + 40):
+        total = 250
+        for index in range(total):
             chat_log.append_system(f"s-{index % 8}", f"event-{index}")
         await pilot.pause()
 
-        assert len(chat_log._order) == ChatLog.MAX_WIDGETS
-        assert sum(len(items) for items in chat_log._messages.values()) == ChatLog.MAX_WIDGETS
-        assert len(chat_log.children) <= ChatLog.MAX_WIDGETS
+        # 虚拟 surface 保留全部历史记录
+        assert chat_log.record_count == total
+        assert len(chat_log.visible_record_ids) == total
+        # 但真实 Textual DOM 子节点只有 ScrollView 内部结构，不会随消息增长
+        assert len(chat_log.children) <= 4
 
 
 @pytest.mark.asyncio
 async def test_tool_finished_updates_started_card_in_place():
-    """工具开始/完成是同一张卡，避免每次调用制造两个控件。"""
+    """工具开始/完成更新同一条记录，避免每次调用制造两条记录。"""
     from textual.app import App
 
     class TestApp(App):
@@ -663,17 +707,22 @@ async def test_tool_finished_updates_started_card_in_place():
     async with app.run_test():
         chat_log = app.query_one("#chat-log", ChatLog)
         chat_log.append_tool("s1", "Bash", "pwd")
-        card = chat_log._messages["s1"][0]
-        chat_log.append_tool("s1", "Bash", "pwd", finished=True, result="/tmp")
+        records = chat_log.records_for_session("s1")
+        assert len(records) == 1
 
-        assert chat_log._messages["s1"] == [card]
-        assert card._finished is True
-        assert "/tmp" in card._full_body
+        chat_log.append_tool("s1", "Bash", "pwd", finished=True, result="/tmp")
+        records = chat_log.records_for_session("s1")
+        assert len(records) == 1
+        record = records[0]
+        assert record.status == "finished"
+        assert record.result == "/tmp"
+        text = await _compiled_text(chat_log, record.record_id)
+        assert "/tmp" in text
 
 
 @pytest.mark.asyncio
 async def test_hidden_stream_skips_live_widget_update():
-    """筛选视图外的 Agent 累计完整内容，但不触发实时重绘。"""
+    """筛选视图外的 Agent 累计完整内容，且不为其调度实时编译/重绘。"""
     from textual.app import App
 
     class TestApp(App):
@@ -681,22 +730,24 @@ async def test_hidden_stream_skips_live_widget_update():
             yield ChatLog(id="chat-log")
 
     app = TestApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         chat_log = app.query_one("#chat-log", ChatLog)
         chat_log.show_agent("a-0")
         chat_log.append_stream_chunk("a-1_task1", "后台输出", "worker")
-        widget = chat_log._stream_widget["a-1_task1"]
-        calls = []
-        original = widget.update
+        await pilot.pause()
 
-        def counting_update(value=""):
-            calls.append(value)
-            return original(value)
+        record = chat_log.records_for_session("a-1_task1")[0]
+        assert "后台输出" in record.content
+        # 非当前选中 agent 的记录不在可见列表，也不应触发编译任务
+        assert record.record_id not in chat_log.visible_record_ids
+        assert record.record_id not in chat_log._compile_tasks
 
-        widget.update = counting_update
-        chat_log._flush_streams()
-        assert calls == []
-        assert "后台输出" == "".join(chat_log._stream_content["a-1_task1"])
+        # 切回全部视图后，之前累计的内容应完整呈现
+        chat_log.show_agent(None)
+        await pilot.pause()
+        assert record.record_id in chat_log.visible_record_ids
+        text = await _compiled_text(chat_log, record.record_id)
+        assert "后台输出" in text
 
 
 def test_status_bar_skips_identical_render():
@@ -749,10 +800,8 @@ async def test_followup_send_stays_in_same_conversation(tmp_path, monkeypatch):
         assert create_calls == []  # 发送期间没有新建对话
         assert screen.current_session_id == "a-0_run_002"
         # 出现了"新任务（同一对话）"分隔线
-        divider_texts = [
-            w for sid, w in chat_log._order if sid == "a-0_run_002"
-        ]
-        assert len(divider_texts) >= 2  # 分隔线 + 用户消息
+        run_records = chat_log.records_for_session("a-0_run_002")
+        assert len(run_records) >= 2  # 分隔线 + 用户消息
 
         # 状态栏显示对话；内部跟踪当前任务（不在 UI 显示 session）
         status_bar = screen.query_one("#status-bar", StatusBar)
@@ -852,11 +901,6 @@ def _seed_history_conversation(monkeypatch, tmp_path, conv_id=None):
     return conv_id
 
 
-def _rendered_texts(chat_log, session_id):
-    """提取某 session 组里所有 widget 的纯文本。"""
-    return [_widget_text(w) for w in chat_log._messages.get(session_id, [])]
-
-
 @pytest.mark.asyncio
 async def test_history_replay_on_startup(tmp_path, monkeypatch):
     """启动时回放当前对话的历史任务：分隔线 + 用户提问 + agent 回答重新上屏。"""
@@ -872,7 +916,7 @@ async def test_history_replay_on_startup(tmp_path, monkeypatch):
         assert screen.conversation_id == conv_id
         chat_log = screen.query_one("#chat-log", ChatLog)
 
-        root_texts = _rendered_texts(chat_log, "a-0_run_h1")
+        root_texts = await _rendered_texts(chat_log, "a-0_run_h1")
         # 分隔线 + 用户消息 + 流式回答 + 工具卡片
         assert len(root_texts) >= 3
         assert any("历史任务" in t and "[queued]" in t for t in root_texts)
@@ -881,7 +925,7 @@ async def test_history_replay_on_startup(tmp_path, monkeypatch):
         assert any("历史问题" in t for t in root_texts)
         assert any("历史回答" in t for t in root_texts)
 
-        child_texts = _rendered_texts(chat_log, "a-1_run_h1")
+        child_texts = await _rendered_texts(chat_log, "a-1_run_h1")
         assert any("子agent输出" in t for t in child_texts)
         # 子 agent 的委派 query 不渲染为用户消息
         assert not any("委派的子任务" in t for t in child_texts)
@@ -909,7 +953,7 @@ async def test_history_replay_on_conversation_switch(tmp_path, monkeypatch):
 
         assert screen.conversation_id == target_conv
         chat_log = screen.query_one("#chat-log", ChatLog)
-        root_texts = _rendered_texts(chat_log, "a-0_run_h1")
+        root_texts = await _rendered_texts(chat_log, "a-0_run_h1")
         assert any("历史问题" in t for t in root_texts)
         assert any("历史回答" in t for t in root_texts)
 
@@ -1156,14 +1200,19 @@ async def test_tool_card_click_toggles_collapse():
     async with app.run_test():
         chat_log = app.query_one("#chat-log", ChatLog)
         long_result = "\n".join(f"line{i}" for i in range(30))
-        chat_log.append_tool("s1", "Bash", "ls", finished=True, result=long_result)
-        card = chat_log._messages["s1"][-1]
-        assert card._collapsed is True
+        handle = chat_log.append_tool("s1", "Bash", "ls", finished=True, result=long_result)
+        record = chat_log.store.get(handle)
+        assert record.collapsed is True
 
-        card.on_click()
-        assert card._collapsed is False
-        card.on_click()
-        assert card._collapsed is True
+        await chat_log.activate_region(handle, InteractionAction.TOGGLE_TOOL)
+        record = chat_log.store.get(handle)
+        assert record.collapsed is False
+        expanded_text = await _compiled_text(chat_log, handle.record_id)
+        assert "line0" in expanded_text
+
+        await chat_log.activate_region(handle, InteractionAction.TOGGLE_TOOL)
+        record = chat_log.store.get(handle)
+        assert record.collapsed is True
 
 
 @pytest.mark.asyncio
@@ -1285,7 +1334,7 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
         await pilot.pause()
 
         assert chat_log.view_agent_prefix == "a-3"
-        texts = [_widget_text(w) for w in chat_log.children if w.display]
+        texts = await _visible_texts(chat_log)
         assert any("子 agent 消息" in t for t in texts)
         assert not any("主 agent 消息" in t for t in texts)
 
@@ -1327,7 +1376,7 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
         await pilot.pause()
         assert chat_log.view_agent_prefix is None
         assert input_bar.target_name is None
-        texts = [_widget_text(w) for w in chat_log.children]
+        texts = await _visible_texts(chat_log)
         assert any("主 agent 消息" in t for t in texts)
 
 
@@ -1419,8 +1468,6 @@ async def test_tool_card_renders_parsed_json_result():
     """工具卡片展示解析后的结果文本，而不是裸 JSON。"""
     from textual.app import App
 
-    from cloudra.tui.new.widgets.chat_log import ToolCard
-
     class TestApp(App):
         def compose(self):
             yield ChatLog(id="chat-log")
@@ -1435,9 +1482,8 @@ async def test_tool_card_renders_parsed_json_result():
             finished=True,
             result='{"session_id": "a-3_task2", "result": "我完成了调研，共 8 篇文献"}',
         )
-        card = chat_log._messages["s1"][-1]
-        assert isinstance(card, ToolCard)
-        text = _widget_text(card)
+        record = chat_log.records_for_session("s1")[0]
+        text = await _compiled_text(chat_log, record.record_id)
         assert "我完成了调研，共 8 篇文献" in text
         assert "\\u" not in text
 

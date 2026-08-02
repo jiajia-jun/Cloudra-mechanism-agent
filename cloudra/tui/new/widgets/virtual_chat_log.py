@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 import subprocess
+import weakref
 from collections import OrderedDict
 from contextlib import contextmanager
 from typing import Iterator
@@ -43,6 +44,9 @@ class ChatLog(ScrollView, can_focus=True):
 
     MAX_CACHED_ROWS = 4_096
     OVERSCAN_ROWS = 24
+
+    # Tracks mounted surfaces so tests can drain async compiler shutdown.
+    _instances: weakref.WeakSet[ChatLog] = weakref.WeakSet()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -110,6 +114,7 @@ class ChatLog(ScrollView, can_focus=True):
 
     def on_mount(self) -> None:
         super().on_mount()
+        ChatLog._instances.add(self)
         self._mounted = True
         self._rebuild_visible(preserve_anchor=False)
 

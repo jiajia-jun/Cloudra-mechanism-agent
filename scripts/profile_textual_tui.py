@@ -97,7 +97,6 @@ async def run_profile(
                     f"round {round_index} from stream {stream_index}\n",
                     f"agent-{stream_index}",
                 )
-            chat_log._flush_streams()
             latencies.append(await _input_submission_latency(pilot, app, input_widget, round_index))
             await pilot.pause()
             max_commit_seconds = max(max_commit_seconds, perf_counter() - commit_started)
@@ -109,7 +108,7 @@ async def run_profile(
         elapsed_seconds = perf_counter() - started
         profiler.disable()
         child_count = len(chat_log.children)
-        record_count = sum(len(records) for records in chat_log._messages.values())
+        record_count = chat_log.record_count
 
     python_calls = pstats.Stats(profiler).total_calls
     return ProfileResult(
