@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
+import logging
+from typing import Iterable
 
 from cloudra import events
+
+logger = logging.getLogger(__name__)
 
 # 回放历史时跳过的事件类型（内部状态/命令，无可显示内容）
 _REPLAY_SKIP = {
@@ -37,8 +42,43 @@ def _display_text(value) -> str:
         return str(value)
 
 
+MAX_BATCH_SECONDS = 0.004
+MAX_BATCH_MESSAGES = 256
+
+
+def stream_key(message: dict) -> tuple[str, str, str] | None:
+    """Return the key for adjacent chunk merging, or None for non-chunk events."""
+    if message.get("kind") != "session_event" or message.get("event_type") != "llm_chunk":
+        return None
+    data = message.get("data") or {}
+    return (
+        str(message.get("session_id") or ""),
+        str(data.get("stream") or "content"),
+        str(data.get("agent_name") or "Agent"),
+    )
+
+
+def reduce_event_batch(messages: Iterable[dict]) -> list[dict]:
+    """Merge adjacent compatible stream deltas while preserving all ordering boundaries."""
+    reduced: list[dict] = []
+    for message in messages:
+        key = stream_key(message)
+        if reduced and key is not None and stream_key(reduced[-1]) == key:
+            merged = copy.deepcopy(reduced[-1])
+            merged["data"]["delta"] = str(merged["data"].get("delta", "")) + str(
+                (message.get("data") or {}).get("delta", "")
+            )
+            reduced[-1] = merged
+        else:
+            reduced.append(message)
+    return reduced
+
+
 class RenderBridge:
     """订阅 conversation 级 IPC 事件，并按 session_id 分发给对应 widget。"""
+
+    MAX_BATCH_SECONDS = MAX_BATCH_SECONDS
+    MAX_BATCH_MESSAGES = MAX_BATCH_MESSAGES
 
     def __init__(
         self,
@@ -70,7 +110,7 @@ class RenderBridge:
         # 已经有流式正文上屏的 session（completed 事件据此决定是否补显示 result）
         self._streamed: set[str] = set()
         self._known_sessions: set[str] = set()
-        self._queue = None
+        self._queue: asyncio.Queue | None = None
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
@@ -89,21 +129,42 @@ class RenderBridge:
 
     async def stop(self) -> None:
         """停止事件监听。"""
-        if self._task is not None:
-            self._task.cancel()
+        task = self._task
+        self._task = None
+        self._queue = None
+        if task is not None:
+            task.cancel()
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
 
     async def _loop(self) -> None:
         while True:
-            msg = await self._queue.get()
-            try:
-                self._dispatch(msg)
-            except Exception:
-                # 事件处理不应让监听循环崩溃
-                pass
+            queue = self._queue
+            if queue is None:
+                return
+            batch = [await queue.get()]
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self.MAX_BATCH_SECONDS
+            while len(batch) < self.MAX_BATCH_MESSAGES and loop.time() < deadline:
+                try:
+                    batch.append(queue.get_nowait())
+                except asyncio.QueueEmpty:
+                    break
+            for message in reduce_event_batch(batch):
+                try:
+                    self._dispatch(message)
+                except Exception:
+                    logger.exception(
+                        "TUI event dispatch failed: %s",
+                        message.get("event_type") or message.get("kind"),
+                    )
+            if queue.empty():
+                await asyncio.sleep(0)
+            else:
+                # Yield control so key/mouse/cancellation events are serviced.
+                await asyncio.sleep(0)
 
     def _dispatch(self, msg: dict) -> None:
         kind = msg.get("kind")
