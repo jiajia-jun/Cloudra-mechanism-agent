@@ -270,7 +270,7 @@ async def test_message_to_terminal_session_wakes_one_new_session(
     )
     submitted = []
 
-    def fake_submit(
+    async def fake_submit(
         query,
         conversation_id,
         working_directory=None,
@@ -294,7 +294,9 @@ async def test_message_to_terminal_session_wakes_one_new_session(
         )
         return isolated_service.session_runner.get(conversation_id, session_id)
 
-    monkeypatch.setattr(isolated_service.session_runner, "submit", fake_submit)
+    monkeypatch.setattr(
+        isolated_service.session_runner, "submit_async", fake_submit
+    )
 
     command, record = await isolated_service.append_session_message_command(
         command_id="cmd_wake_12345678",

@@ -423,12 +423,12 @@ async def test_send_echoes_user_message_before_submit(tmp_path, monkeypatch):
             def to_dict(self):
                 return {"session_id": self.session_id, "state": self.state}
 
-        def checking_submit(*args, **kwargs):
-            # submit 被调用时，用户消息必须已经写入 _pending session
+        async def checking_submit(*args, **kwargs):
+            # submit_session_async 被调用时，用户消息必须已经写入 _pending session
             echoed_at_submit.append(len(chat_log.records_for_session("_pending")))
             return screen.conversation_id, FakeRecord()
 
-        screen.service.submit_session = checking_submit
+        screen.service.submit_session_async = checking_submit
 
         await screen._handle_send("我的任务")
 
@@ -783,17 +783,21 @@ async def test_followup_send_stays_in_same_conversation(tmp_path, monkeypatch):
 
         # 第一次发送 → 任务1
         r1 = FakeRecord("a-0_run_001", "queued")
-        screen.service.submit_session = (
-            lambda q, conversation_id=None, yolo=False: (conversation_id, r1)
-        )
+
+        async def fake_submit1(q, conversation_id=None, yolo=False):
+            return (conversation_id, r1)
+
+        screen.service.submit_session_async = fake_submit1
         await screen._handle_send("第一条消息")
         assert screen.conversation_id == conv_at_start
 
         # 任务1结束后第二次发送 → 任务2，仍同一对话
         r2 = FakeRecord("a-0_run_002", "queued")
-        screen.service.submit_session = (
-            lambda q, conversation_id=None, yolo=False: (conversation_id, r2)
-        )
+
+        async def fake_submit2(q, conversation_id=None, yolo=False):
+            return (conversation_id, r2)
+
+        screen.service.submit_session_async = fake_submit2
         await screen._handle_send("第二条消息")
 
         assert screen.conversation_id == conv_at_start
@@ -1075,11 +1079,11 @@ async def test_send_not_blocked_by_cancel_requested(tmp_path, monkeypatch):
             session_id = "a-0_run_new"
             state = "queued"
 
-        def fake_submit(q, conversation_id=None, yolo=False):
+        async def fake_submit(q, conversation_id=None, yolo=False):
             submitted.append(q)
             return conversation_id, FakeRecord()
 
-        screen.service.submit_session = fake_submit
+        screen.service.submit_session_async = fake_submit
         await screen._handle_send("取消后的新消息")
         assert submitted == ["取消后的新消息"]
         assert screen.current_session_id == "a-0_run_new"

@@ -65,6 +65,42 @@ class SessionRecord:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedAppend:
+    conversation_id: str
+    session_id: str
+    agent_id: str
+    command_id: str
+    mode: Literal["inject", "resume", "cancel", "existing"]
+    content: str
+    working_directory: str | None
+    node_id: str | None
+    workspace_id: str | None
+    command: control_store.ClientCommand | None = None
+    existing_record: SessionRecord | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedCancel:
+    conversation_id: str
+    session_id: str
+    command_id: str
+    command: control_store.ClientCommand
+    record: SessionRecord | None
+    skip: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedInteraction:
+    conversation_id: str
+    command_id: str
+    interaction_id: str
+    response: str
+    command: control_store.ClientCommand
+    latest: control_store.Interaction | None
+    skip: bool
+
+
 _SESSION_COLUMNS = """session_id, agent_id, agent_type, parent_session_id, query,
 state, result, error, pid, worker_id, created_at, started_at, heartbeat_at,
 finished_at, exit_code, node_id, workspace_id, working_directory"""
@@ -78,6 +114,70 @@ class SessionRunner:
         self._running: dict[tuple[str, str], asyncio.Task] = {}
         self.worker_id = f"api:{os.getpid()}:{uuid.uuid4().hex[:8]}"
 
+    def _prepare_submission(
+        self,
+        query: str,
+        conversation_id: str,
+        session_id: str,
+        **route,
+    ) -> tuple[SessionRecord, bool]:
+        """Synchronous DB/control-store phase of submission.
+
+        Returns ``(record, created)``.  When ``created`` is ``False`` the caller
+        must not schedule a new execution task.
+        """
+        db = ConversationDB(conversation_id).init()
+        existing = self.get(conversation_id, session_id)
+        if existing is not None:
+            return existing, False
+        try:
+            session_store.insert_queued_session(
+                db,
+                session_id=session_id,
+                agent_id="a-0",
+                agent_type="coordinator",
+                query=query,
+                node_id=route.get("node_id"),
+                workspace_id=route.get("workspace_id"),
+                working_directory=route.get("working_directory"),
+            )
+        except sqlite3.IntegrityError:
+            # A concurrent replay of the same idempotent create command won.
+            existing = self.get(conversation_id, session_id)
+            if existing is not None:
+                return existing, False
+            raise
+        self._emit(
+            conversation_id,
+            session_id,
+            "queued",
+            {"query": query, "yolo": route.get("yolo", False)},
+        )
+        return self.get(conversation_id, session_id), True
+
+    async def submit_async(
+        self,
+        query: str,
+        conversation_id: str,
+        **kwargs,
+    ) -> SessionRecord:
+        session_id = kwargs.pop("session_id", None) or f"a-0_run_{uuid.uuid4().hex}"
+        record, created = await asyncio.to_thread(
+            self._prepare_submission, query, conversation_id, session_id, **kwargs
+        )
+        if created:
+            task = asyncio.create_task(
+                self._execute(
+                    query,
+                    conversation_id,
+                    session_id,
+                    kwargs.get("working_directory"),
+                    kwargs.get("yolo", False),
+                )
+            )
+            self._running[(conversation_id, session_id)] = task
+        return record
+
     def submit(
         self,
         query: str,
@@ -89,33 +189,21 @@ class SessionRunner:
         workspace_id: str | None = None,
     ) -> SessionRecord:
         session_id = session_id or f"a-0_run_{uuid.uuid4().hex}"
-        db = ConversationDB(conversation_id).init()
-        existing = self.get(conversation_id, session_id)
-        if existing is not None:
-            return existing
-        try:
-            session_store.insert_queued_session(
-                db,
-                session_id=session_id,
-                agent_id="a-0",
-                agent_type="coordinator",
-                query=query,
-                node_id=node_id,
-                workspace_id=workspace_id,
-                working_directory=working_directory,
-            )
-        except sqlite3.IntegrityError:
-            # A concurrent replay of the same idempotent create command won.
-            existing = self.get(conversation_id, session_id)
-            if existing is not None:
-                return existing
-            raise
-        self._emit(conversation_id, session_id, "queued", {"query": query, "yolo": yolo})
-        task = asyncio.create_task(
-            self._execute(query, conversation_id, session_id, working_directory, yolo)
+        record, created = self._prepare_submission(
+            query,
+            conversation_id,
+            session_id,
+            working_directory=working_directory,
+            yolo=yolo,
+            node_id=node_id,
+            workspace_id=workspace_id,
         )
-        self._running[(conversation_id, session_id)] = task
-        return self.get(conversation_id, session_id)
+        if created:
+            task = asyncio.create_task(
+                self._execute(query, conversation_id, session_id, working_directory, yolo)
+            )
+            self._running[(conversation_id, session_id)] = task
+        return record
 
     async def _execute(
         self,
@@ -463,6 +551,26 @@ class CloudraService:
             query, conversation_id, working_directory, yolo
         )
 
+    async def submit_session_async(
+        self,
+        query: str,
+        conversation_id: str | None = None,
+        working_directory: str | None = None,
+        yolo: bool = False,
+    ) -> tuple[str, SessionRecord]:
+        if conversation_id is None:
+            conversation = await asyncio.to_thread(self.create_conversation)
+            conversation_id = conversation.id
+        else:
+            validate_conversation_id(conversation_id)
+        record = await self.session_runner.submit_async(
+            query,
+            conversation_id,
+            working_directory=working_directory,
+            yolo=yolo,
+        )
+        return conversation_id, record
+
     @staticmethod
     def _command_session_id(command_id: str, prefix: str = "cmd") -> str:
         digest = hashlib.sha256(command_id.encode("utf-8")).hexdigest()[:32]
@@ -548,6 +656,135 @@ class CloudraService:
         )
         return command, record
 
+    def _prepare_append_message(
+        self,
+        request: dict,
+    ) -> PreparedAppend:
+        validate_conversation_id(request["conversation_id"])
+        validate_session_id(request["session_id"])
+        db = ConversationDB(request["conversation_id"]).init()
+        target = self.session_runner.get(
+            request["conversation_id"], request["session_id"]
+        )
+        if target is None:
+            raise ValueError("Session 不存在")
+        command, _ = control_store.receive_command(
+            db,
+            command_id=request["command_id"],
+            conversation_id=request["conversation_id"],
+            session_id=request["session_id"],
+            command_type="session.message.append",
+            payload={"content": request["content"]},
+        )
+        if command.state == "failed":
+            raise RuntimeError(command.error or "追加消息失败")
+        if command.state == "applied":
+            result_session_id = (command.result or {}).get(
+                "session_id", request["session_id"]
+            )
+            record = self.session_runner.get(
+                request["conversation_id"], result_session_id
+            )
+            if record is None:
+                raise RuntimeError("追加消息已生效，但目标 Session 不存在")
+            return PreparedAppend(
+                conversation_id=request["conversation_id"],
+                session_id=request["session_id"],
+                agent_id=target.agent_id or "a-0",
+                command_id=request["command_id"],
+                mode="existing",
+                content=request["content"],
+                working_directory=request.get("working_directory")
+                or target.working_directory,
+                node_id=target.node_id,
+                workspace_id=target.workspace_id,
+                command=command,
+                existing_record=record,
+            )
+        if not control_store.claim_command(db, request["command_id"]):
+            raise RuntimeError("控制命令正在生效，请稍后查询")
+
+        self.session_runner._emit(
+            request["conversation_id"],
+            request["session_id"],
+            "client_command_received",
+            {
+                "command_id": request["command_id"],
+                "command_type": "session.message.append",
+            },
+        )
+        if target.state == "cancel_requested":
+            return PreparedAppend(
+                conversation_id=request["conversation_id"],
+                session_id=request["session_id"],
+                agent_id=target.agent_id or "a-0",
+                command_id=request["command_id"],
+                mode="cancel",
+                content=request["content"],
+                working_directory=request.get("working_directory")
+                or target.working_directory,
+                node_id=target.node_id,
+                workspace_id=target.workspace_id,
+            )
+        mode: Literal["inject", "resume"] = (
+            "resume" if target.state in _TERMINAL_STATES else "inject"
+        )
+        return PreparedAppend(
+            conversation_id=request["conversation_id"],
+            session_id=request["session_id"],
+            agent_id=target.agent_id or "a-0",
+            command_id=request["command_id"],
+            mode=mode,
+            content=request["content"],
+            working_directory=request.get("working_directory")
+            or target.working_directory,
+            node_id=target.node_id,
+            workspace_id=target.workspace_id,
+        )
+
+    def _existing_append_result(
+        self,
+        prepared: PreparedAppend,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        assert prepared.command is not None
+        assert prepared.existing_record is not None
+        return prepared.command, prepared.existing_record
+
+    def _finish_append_message(
+        self,
+        prepared: PreparedAppend,
+        record: SessionRecord,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        db = ConversationDB(prepared.conversation_id).init()
+        try:
+            if prepared.mode == "cancel":
+                raise ValueError("Session 正在取消，不能追加消息")
+            if prepared.mode == "resume":
+                result = {
+                    "session_id": record.session_id,
+                    "resumed_from": prepared.session_id,
+                }
+            else:
+                result = {"session_id": prepared.session_id}
+            command = control_store.finish_command(
+                db,
+                prepared.command_id,
+                result=result,
+            )
+            self.session_runner._emit(
+                prepared.conversation_id,
+                record.session_id,
+                "client_command_applied",
+                {
+                    "command_id": prepared.command_id,
+                    "command_type": "session.message.append",
+                },
+            )
+            return command, record
+        except Exception as exc:
+            control_store.finish_command(db, prepared.command_id, error=str(exc))
+            raise
+
     async def append_session_message_command(
         self,
         *,
@@ -559,107 +796,69 @@ class CloudraService:
     ) -> tuple[control_store.ClientCommand, SessionRecord]:
         """Inject a supplemental user message once, or wake a terminal task."""
 
-        validate_conversation_id(conversation_id)
-        validate_session_id(session_id)
-        db = ConversationDB(conversation_id).init()
-        target = self.session_runner.get(conversation_id, session_id)
-        if target is None:
-            raise ValueError("Session 不存在")
-        command, _ = control_store.receive_command(
-            db,
-            command_id=command_id,
-            conversation_id=conversation_id,
-            session_id=session_id,
-            command_type="session.message.append",
-            payload={"content": content},
-        )
-        if command.state == "failed":
-            raise RuntimeError(command.error or "追加消息失败")
-        if command.state == "applied":
-            result_session_id = (
-                command.result or {}
-            ).get("session_id", session_id)
-            record = self.session_runner.get(conversation_id, result_session_id)
-            if record is None:
-                raise RuntimeError("追加消息已生效，但目标 Session 不存在")
-            return command, record
-        if not control_store.claim_command(db, command_id):
-            raise RuntimeError("控制命令正在生效，请稍后查询")
+        request = {
+            "command_id": command_id,
+            "conversation_id": conversation_id,
+            "session_id": session_id,
+            "content": content,
+            "working_directory": working_directory,
+        }
+        prepared = await asyncio.to_thread(self._prepare_append_message, request)
+        if prepared.mode == "existing":
+            return await asyncio.to_thread(self._existing_append_result, prepared)
+        if prepared.mode == "resume":
+            record = await self.session_runner.submit_async(
+                prepared.content,
+                prepared.conversation_id,
+                session_id=self._command_session_id(
+                    prepared.command_id, "resume"
+                ),
+                working_directory=prepared.working_directory,
+                node_id=prepared.node_id,
+                workspace_id=prepared.workspace_id,
+            )
+        elif prepared.mode == "inject":
+            from cloudra.context_manager import ContextManager
 
-        self.session_runner._emit(
-            conversation_id,
-            session_id,
-            "client_command_received",
-            {"command_id": command_id, "command_type": "session.message.append"},
-        )
-        try:
-            if target.state in _TERMINAL_STATES:
-                resumed_session_id = self._command_session_id(command_id, "resume")
-                record = self.session_runner.submit(
-                    content,
-                    conversation_id,
-                    working_directory or target.working_directory,
-                    False,
-                    session_id=resumed_session_id,
-                    node_id=target.node_id,
-                    workspace_id=target.workspace_id,
-                )
-                result = {
-                    "session_id": resumed_session_id,
-                    "resumed_from": session_id,
-                }
-            elif target.state == "cancel_requested":
-                raise ValueError("Session 正在取消，不能追加消息")
-            else:
-                from cloudra.context_manager import ContextManager
-
-                agent_id = target.agent_id or "a-0"
-                await ContextManager.inject_event(
-                    conversation_id=conversation_id,
-                    agent_id=agent_id,
-                    event_type="user_message",
-                    content=f"用户从远程控制台补充要求：{content}",
-                    db_path=db.path,
-                )
-                self.session_runner._emit(
-                    conversation_id,
-                    session_id,
-                    "user_message",
-                    {
-                        "message_id": command_id,
-                        "command_id": command_id,
-                        "content": content,
-                        "agent_id": agent_id,
-                    },
-                )
-                record = target
-                result = {"session_id": session_id}
-            command = control_store.finish_command(
-                db,
-                command_id,
-                result=result,
+            await ContextManager.inject_event(
+                conversation_id=prepared.conversation_id,
+                agent_id=prepared.agent_id,
+                event_type="user_message",
+                content=f"用户从远程控制台补充要求：{prepared.content}",
+                db_path=ConversationDB(prepared.conversation_id).path,
             )
             self.session_runner._emit(
-                conversation_id,
-                record.session_id,
-                "client_command_applied",
+                prepared.conversation_id,
+                prepared.session_id,
+                "user_message",
                 {
-                    "command_id": command_id,
-                    "command_type": "session.message.append",
+                    "message_id": prepared.command_id,
+                    "command_id": prepared.command_id,
+                    "content": prepared.content,
+                    "agent_id": prepared.agent_id,
                 },
             )
-            return command, record
-        except Exception as exc:
-            control_store.finish_command(db, command_id, error=str(exc))
-            raise
+            record = await asyncio.to_thread(
+                self.session_runner.get,
+                prepared.conversation_id,
+                prepared.session_id,
+            )
+        else:  # cancel
+            record = await asyncio.to_thread(
+                self.session_runner.get,
+                prepared.conversation_id,
+                prepared.session_id,
+            )
+        return await asyncio.to_thread(self._finish_append_message, prepared, record)
 
-    async def cancel_session_command(
+    def _prepare_cancel_command(
         self,
-        *,
         command_id: str,
         conversation_id: str,
         session_id: str,
-    ) -> tuple[control_store.ClientCommand, SessionRecord | None]:
+    ) -> PreparedCancel:
+        validate_conversation_id(conversation_id)
+        validate_session_id(session_id)
         db = ConversationDB(conversation_id).init()
         command, _ = control_store.receive_command(
             db,
@@ -670,27 +869,84 @@ class CloudraService:
             payload={},
         )
         if command.state == "applied":
-            return command, self.session_runner.get(conversation_id, session_id)
+            return PreparedCancel(
+                conversation_id=conversation_id,
+                session_id=session_id,
+                command_id=command_id,
+                command=command,
+                record=self.session_runner.get(conversation_id, session_id),
+                skip=True,
+            )
         if command.state == "failed":
             raise RuntimeError(command.error or "取消命令失败")
         if not control_store.claim_command(db, command_id):
-            return control_store.get_command(db, command_id), self.session_runner.get(
-                conversation_id,
-                session_id,
+            return PreparedCancel(
+                conversation_id=conversation_id,
+                session_id=session_id,
+                command_id=command_id,
+                command=control_store.get_command(db, command_id),
+                record=self.session_runner.get(conversation_id, session_id),
+                skip=True,
             )
+        return PreparedCancel(
+            conversation_id=conversation_id,
+            session_id=session_id,
+            command_id=command_id,
+            command=command,
+            record=None,
+            skip=False,
+        )
+
+    def _finish_cancel_command(
+        self,
+        prepared: PreparedCancel,
+        record: SessionRecord | None,
+    ) -> tuple[control_store.ClientCommand, SessionRecord | None]:
+        db = ConversationDB(prepared.conversation_id).init()
+        command = control_store.finish_command(
+            db,
+            prepared.command_id,
+            result={
+                "session_id": prepared.session_id,
+                "state": record.state if record is not None else "missing",
+            },
+        )
+        return command, record
+
+    def _finish_cancel_command_error(
+        self,
+        prepared: PreparedCancel,
+        error: str,
+    ) -> None:
+        db = ConversationDB(prepared.conversation_id).init()
+        control_store.finish_command(db, prepared.command_id, error=error)
+
+    async def cancel_session_command(
+        self,
+        *,
+        command_id: str,
+        conversation_id: str,
+        session_id: str,
+    ) -> tuple[control_store.ClientCommand, SessionRecord | None]:
+        prepared = await asyncio.to_thread(
+            self._prepare_cancel_command,
+            command_id,
+            conversation_id,
+            session_id,
+        )
+        if prepared.skip:
+            return prepared.command, prepared.record
         try:
-            record = await self.session_runner.cancel(conversation_id, session_id)
-            command = control_store.finish_command(
-                db,
-                command_id,
-                result={
-                    "session_id": session_id,
-                    "state": record.state if record is not None else "missing",
-                },
+            record = await self.session_runner.cancel(
+                prepared.conversation_id, prepared.session_id
             )
-            return command, record
+            return await asyncio.to_thread(
+                self._finish_cancel_command, prepared, record
+            )
         except Exception as exc:
-            control_store.finish_command(db, command_id, error=str(exc))
+            await asyncio.to_thread(
+                self._finish_cancel_command_error, prepared, str(exc)
+            )
             raise
 
     def list_pending_interactions(
@@ -711,14 +967,13 @@ class CloudraService:
             )
         ]
 
-    async def respond_interaction_command(
+    def _prepare_respond_interaction(
         self,
-        *,
         command_id: str,
         conversation_id: str,
         interaction_id: str,
         response: str,
-    ) -> tuple[control_store.ClientCommand, control_store.Interaction]:
+    ) -> PreparedInteraction:
         validate_conversation_id(conversation_id)
         db = ConversationDB(conversation_id).init()
         interaction = control_store.get_interaction(db, interaction_id)
@@ -736,45 +991,93 @@ class CloudraService:
             latest = control_store.get_interaction(db, interaction_id)
             if latest is None:  # pragma: no cover - defensive invariant
                 raise RuntimeError("Interaction 记录意外丢失")
-            return command, latest
+            return PreparedInteraction(
+                conversation_id=conversation_id,
+                command_id=command_id,
+                interaction_id=interaction_id,
+                response=response,
+                command=command,
+                latest=latest,
+                skip=True,
+            )
         if command.state == "failed":
             raise control_store.InteractionConflict(
                 command.error or "Interaction 已被回答"
             )
         if not control_store.claim_command(db, command_id):
             raise RuntimeError("控制命令正在生效，请稍后查询")
+        return PreparedInteraction(
+            conversation_id=conversation_id,
+            command_id=command_id,
+            interaction_id=interaction_id,
+            response=response,
+            command=command,
+            latest=None,
+            skip=False,
+        )
 
+    def _apply_respond_interaction(
+        self,
+        prepared: PreparedInteraction,
+    ) -> tuple[control_store.ClientCommand, control_store.Interaction]:
+        db = ConversationDB(prepared.conversation_id).init()
         latest, changed = control_store.respond_interaction(
             db,
-            interaction_id,
-            response,
+            prepared.interaction_id,
+            prepared.response,
         )
         if latest is None:
             control_store.finish_command(
                 db,
-                command_id,
+                prepared.command_id,
                 error="Interaction 不存在",
             )
             raise ValueError("Interaction 不存在")
         if not changed:
             error = "Interaction 已被回答或已过期"
-            control_store.finish_command(db, command_id, error=error)
+            control_store.finish_command(db, prepared.command_id, error=error)
             raise control_store.InteractionConflict(error)
         command = control_store.finish_command(
             db,
-            command_id,
-            result={"interaction_id": interaction_id, "state": latest.state},
+            prepared.command_id,
+            result={
+                "interaction_id": prepared.interaction_id,
+                "state": latest.state,
+            },
         )
         self.session_runner._emit(
-            conversation_id,
+            prepared.conversation_id,
             latest.session_id,
             "interaction_responded",
             latest.to_dict(),
         )
-        await events.aemit(
+        return command, latest
+
+    async def respond_interaction_command(
+        self,
+        *,
+        command_id: str,
+        conversation_id: str,
+        interaction_id: str,
+        response: str,
+    ) -> tuple[control_store.ClientCommand, control_store.Interaction]:
+        prepared = await asyncio.to_thread(
+            self._prepare_respond_interaction,
+            command_id,
             conversation_id,
+            interaction_id,
+            response,
+        )
+        if prepared.skip:
+            assert prepared.latest is not None
+            return prepared.command, prepared.latest
+        command, latest = await asyncio.to_thread(
+            self._apply_respond_interaction, prepared
+        )
+        await events.aemit(
+            prepared.conversation_id,
             "interaction_answered",
-            interaction_id=interaction_id,
+            interaction_id=prepared.interaction_id,
             session_id=latest.session_id,
         )
         return command, latest
@@ -842,6 +1145,16 @@ class CloudraService:
             record["conversation_id"] = conversation_id
         return records
 
+    def _approval_db(
+        self,
+        conversation_id: str,
+    ) -> ConversationDB | None:
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return None
+        return db
+
     async def decide_approval(
         self,
         conversation_id: str,
@@ -849,11 +1162,12 @@ class CloudraService:
         decision: Literal["approved", "denied"],
         denial_reason: str = "",
     ) -> bool:
-        validate_conversation_id(conversation_id)
-        db = ConversationDB(conversation_id)
-        if not Path(db.path).is_file():
+        db = await asyncio.to_thread(self._approval_db, conversation_id)
+        if db is None:
             return False
-        return await session_store.adecide_approval(db, approval_id, decision, denial_reason)
+        return await session_store.adecide_approval(
+            db, approval_id, decision, denial_reason
+        )
 
     async def decide_approval_command(
         self,

@@ -301,9 +301,9 @@ class MainScreen(Screen):
 
     async def _start_coordinator_task(self, query: str) -> None:
         """启动新的 Coordinator Session。"""
-        # 注意：submit 内部用 asyncio.create_task 调度执行任务，
-        # 必须在主事件循环线程调用；它本身只有轻量 DB 写入，不会阻塞 UI。
-        _, record = self.service.submit_session(
+        # 注意：submit_async 内部用 asyncio.create_task 调度执行任务，
+        # 必须在主事件循环线程调用；同步 DB 写入已 offload 到线程，不阻塞 UI。
+        _, record = await self.service.submit_session_async(
             query,
             conversation_id=self.conversation_id,
             yolo=self.yolo,
@@ -476,7 +476,7 @@ class MainScreen(Screen):
         elif cmd == "new":
             await self._cmd_new()
         elif cmd == "list":
-            self._cmd_list()
+            await self._cmd_list()
         elif cmd == "conv":
             if arg:
                 await self._cmd_conv(arg)
@@ -485,7 +485,7 @@ class MainScreen(Screen):
         elif cmd == "agents":
             self.action_toggle_sidebar()
         elif cmd == "yolo":
-            self._cmd_yolo(arg)
+            await self._cmd_yolo(arg)
         elif cmd == "compact":
             await self._cmd_compact(arg)
         elif cmd in ("context", "tokens"):
@@ -495,20 +495,22 @@ class MainScreen(Screen):
         elif cmd == "quit":
             self.app.exit()
 
-    def _has_active_session(self) -> bool:
-        records = self.service.session_runner.list(self.conversation_id)
+    async def _has_active_session(self) -> bool:
+        records = await asyncio.to_thread(
+            self.service.session_runner.list, self.conversation_id
+        )
         return any(r.state in _ACTIVE_STATES for r in records)
 
     async def _cmd_new(self) -> None:
-        if self._has_active_session():
+        if await self._has_active_session():
             self.notify("任务运行中，请先 Esc 打断再开新对话", severity="warning")
             return
         conversation = await asyncio.to_thread(self.service.create_conversation)
         await self._activate_conversation(conversation.id)
         self.notify(f"已开启新对话: {conversation.id}", severity="information")
 
-    def _cmd_list(self) -> None:
-        convs = list_conversations()
+    async def _cmd_list(self) -> None:
+        convs = await asyncio.to_thread(list_conversations)
         chat_log = self.query_one("#chat-log", ChatLog)
         if not convs:
             chat_log.append_system(self.current_session_id or "_system", "暂无历史对话")
@@ -528,10 +530,10 @@ class MainScreen(Screen):
         if not arg:
             self.notify("用法: /conv <对话ID>", severity="warning")
             return
-        if self._has_active_session():
+        if await self._has_active_session():
             self.notify("任务运行中，请先 Esc 打断再切换对话", severity="warning")
             return
-        convs = list_conversations()
+        convs = await asyncio.to_thread(list_conversations)
         matched = [c for c in convs if c.get("id", "").startswith(arg)]
         if len(matched) == 1:
             await self._activate_conversation(matched[0]["id"])
@@ -542,7 +544,7 @@ class MainScreen(Screen):
             ids = ", ".join(c["id"] for c in matched)
             self.notify(f"多个匹配，请输入更完整的 ID: {ids}", severity="warning")
 
-    def _cmd_yolo(self, arg: str) -> None:
+    async def _cmd_yolo(self, arg: str) -> None:
         normalized = arg.lower()
         status_bar = self.query_one("#status-bar", StatusBar)
         if not normalized or normalized == "status":
@@ -552,7 +554,7 @@ class MainScreen(Screen):
         if normalized not in ("on", "off"):
             self.notify("用法: /yolo on、/yolo off 或 /yolo status", severity="warning")
             return
-        if self._has_active_session():
+        if await self._has_active_session():
             self.notify("任务运行中不能切换 YOLO；请先等待完成或 Esc 打断", severity="warning")
             return
         self.yolo = normalized == "on"
@@ -564,7 +566,7 @@ class MainScreen(Screen):
 
     async def _cmd_compact(self, arg: str) -> None:
         """手动压缩当前对话的 Coordinator 上下文。"""
-        if self._has_active_session():
+        if await self._has_active_session():
             self.notify("任务运行中，请先 Esc 打断再压缩上下文", severity="warning")
             return
         if self._compact_task is not None and not self._compact_task.done():
@@ -870,7 +872,7 @@ class MainScreen(Screen):
         """切换对话；任务运行中拒绝。"""
         if event.conversation_id == self.conversation_id:
             return
-        if self._has_active_session():
+        if await self._has_active_session():
             self.notify("任务运行中，请先 Esc 打断再切换对话", severity="warning")
             return
         await self._activate_conversation(event.conversation_id)

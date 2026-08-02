@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -235,3 +236,244 @@ async def test_append_session_message_uses_target_agent_id(tmp_path, monkeypatch
     assert agent_id == "a-1"
     assert event_type == "user_message"
     assert "请在子 Agent 里补充这个" in content
+
+
+
+@pytest.mark.asyncio
+async def test_submit_session_async_does_not_block_event_loop(tmp_path, monkeypatch):
+    """submit_session_async 的同步 DB/控制存储阶段不能阻塞事件循环。"""
+    from cloudra.config import get_config, reload_config
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    service = CloudraService()
+    original = service.session_runner._prepare_submission
+
+    def slow_prepare(*args, **kwargs):
+        time.sleep(0.15)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service.session_runner, "_prepare_submission", slow_prepare)
+
+    progressed = asyncio.Event()
+    asyncio.get_running_loop().call_later(0.02, progressed.set)
+
+    _, record = await asyncio.wait_for(
+        service.submit_session_async("hello", "conv_async"),
+        timeout=1.0,
+    )
+    await asyncio.wait_for(progressed.wait(), timeout=0.08)
+    assert record.session_id.startswith("a-0_run_")
+
+
+@pytest.mark.asyncio
+async def test_append_session_message_async_does_not_block_event_loop(
+    tmp_path, monkeypatch
+):
+    """append_session_message_command 的同步准备阶段不能阻塞事件循环。"""
+    from cloudra import session_store
+    from cloudra.config import get_config, reload_config
+    from cloudra.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    conversation_id = "conv_append_block"
+    session_id = "a-0_run_append_block"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="任务",
+    )
+    session_store.update_session_fields(db, session_id, {"state": "running"})
+
+    service = CloudraService()
+    original = service._prepare_append_message
+
+    def slow_prepare(request):
+        time.sleep(0.15)
+        return original(request)
+
+    monkeypatch.setattr(service, "_prepare_append_message", slow_prepare)
+
+    progressed = asyncio.Event()
+    asyncio.get_running_loop().call_later(0.02, progressed.set)
+
+    command, record = await asyncio.wait_for(
+        service.append_session_message_command(
+            command_id="cmd_append_block",
+            conversation_id=conversation_id,
+            session_id=session_id,
+            content="补充",
+        ),
+        timeout=1.0,
+    )
+    await asyncio.wait_for(progressed.wait(), timeout=0.08)
+    assert record.session_id == session_id
+    assert command.state == "applied"
+
+
+@pytest.mark.asyncio
+async def test_cancel_session_command_async_does_not_block_event_loop(
+    tmp_path, monkeypatch
+):
+    """cancel_session_command 的同步准备阶段不能阻塞事件循环。"""
+    from cloudra import session_store
+    from cloudra.config import get_config, reload_config
+    from cloudra.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    conversation_id = "conv_cancel_block"
+    session_id = "a-0_run_cancel_block"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="任务",
+    )
+    session_store.finalize_session(db, session_id, "completed", result="done")
+
+    service = CloudraService()
+    original = service._prepare_cancel_command
+
+    def slow_prepare(*args):
+        time.sleep(0.15)
+        return original(*args)
+
+    monkeypatch.setattr(service, "_prepare_cancel_command", slow_prepare)
+
+    progressed = asyncio.Event()
+    asyncio.get_running_loop().call_later(0.02, progressed.set)
+
+    command, record = await asyncio.wait_for(
+        service.cancel_session_command(
+            command_id="cmd_cancel_block",
+            conversation_id=conversation_id,
+            session_id=session_id,
+        ),
+        timeout=1.0,
+    )
+    await asyncio.wait_for(progressed.wait(), timeout=0.08)
+    assert command.state == "applied"
+    assert record is not None
+    assert record.state == "completed"
+
+
+@pytest.mark.asyncio
+async def test_respond_interaction_command_async_does_not_block_event_loop(
+    tmp_path, monkeypatch
+):
+    """respond_interaction_command 的同步准备阶段不能阻塞事件循环。"""
+    from cloudra import control_store, session_store
+    from cloudra.config import get_config, reload_config
+    from cloudra.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    conversation_id = "conv_interaction_block"
+    session_id = "a-0_run_interaction_block"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="任务",
+    )
+    session_store.update_session_fields(db, session_id, {"state": "running"})
+    interaction = control_store.create_interaction(
+        db, session_id=session_id, agent_id="a-0", prompt="请选择"
+    )
+
+    service = CloudraService()
+    original = service._prepare_respond_interaction
+
+    def slow_prepare(*args):
+        time.sleep(0.15)
+        return original(*args)
+
+    monkeypatch.setattr(service, "_prepare_respond_interaction", slow_prepare)
+
+    progressed = asyncio.Event()
+    asyncio.get_running_loop().call_later(0.02, progressed.set)
+
+    command, latest = await asyncio.wait_for(
+        service.respond_interaction_command(
+            command_id="cmd_interaction_block",
+            conversation_id=conversation_id,
+            interaction_id=interaction.interaction_id,
+            response="A",
+        ),
+        timeout=1.0,
+    )
+    await asyncio.wait_for(progressed.wait(), timeout=0.08)
+    assert command.state == "applied"
+    assert latest.state == "answered"
+
+
+@pytest.mark.asyncio
+async def test_decide_approval_async_does_not_block_event_loop(tmp_path, monkeypatch):
+    """decide_approval 的首段同步 DB 工作不能阻塞事件循环。"""
+    from cloudra import session_store
+    from cloudra.config import get_config, reload_config
+    from cloudra.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    conversation_id = "conv_approval_block"
+    session_id = "a-0_run_approval_block"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="危险操作",
+    )
+    approval_id = session_store.insert_approval(
+        db, session_id, "【动作】: 执行", "Coordinator"
+    )
+
+    service = CloudraService()
+    original = service._approval_db
+
+    def slow_approval_db(cid):
+        time.sleep(0.15)
+        return original(cid)
+
+    monkeypatch.setattr(service, "_approval_db", slow_approval_db)
+
+    progressed = asyncio.Event()
+    asyncio.get_running_loop().call_later(0.02, progressed.set)
+
+    ok = await asyncio.wait_for(
+        service.decide_approval(conversation_id, approval_id, "approved"),
+        timeout=1.0,
+    )
+    await asyncio.wait_for(progressed.wait(), timeout=0.08)
+    assert ok is True
