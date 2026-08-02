@@ -57,6 +57,10 @@ def test_code_block_has_highlighted_rows_and_copy_region():
     assert "#272822" in rendered_styles(compiled)
     regions = [region for region in compiled.regions if region.action is InteractionAction.COPY_CODE]
     assert len(regions) == 1 and regions[0].payload == "print('hi')"
+    copy_region = regions[0]
+    copy_row = compiled.row(copy_region.y)
+    assert "复制" in copy_row.text
+    assert copy_region.x == compiled.width - 4 and copy_region.width == 4
 
 
 def test_system_user_divider_and_alert_keep_their_legacy_semantics():

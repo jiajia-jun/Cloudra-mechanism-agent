@@ -7,9 +7,16 @@ from pathlib import Path
 
 import pytest
 from rich.console import Console
+from rich.style import Style
+from rich.text import Text
+from textual.strip import Strip
 
 from cloudra.tui.new.transcript import RecordKind, TranscriptStore
-from cloudra.tui.new.transcript_render import RenderContext, compile_record, semantic_segments
+from cloudra.tui.new.transcript_render import (
+    RenderContext,
+    compile_record,
+    render_rows,
+)
 from tests.tui_visual_cases import VISUAL_CASES, VisualCaseApp, semantic_snapshot, write_snapshot
 
 
@@ -54,44 +61,55 @@ def _compiled_case_records(name: str):
     return tuple(store.get(handle) for handle in handles)
 
 
-def _normalise_pairs(pairs):
-    """Compare semantic content/styles, ignoring render-only padding and widget ids."""
-    normalised: list[tuple[str, str]] = []
-    for text, style in pairs:
-        if not text.strip():
-            continue
-        copy_label = text.strip() == "复制"
-        # Textual serialises its CSS bright_black token as ANSI colour 8;
-        # Rich retains the named style.  They are the same frozen colour.
-        style = style.replace("color(8)", "bright_black")
-        # The legacy snapshot sees a Button before CSS styling; the compiler
-        # intentionally supplies the primary treatment required by the virtual surface.
-        if copy_label:
-            text = "复制"
-            style = ""
-        if normalised and normalised[-1][1] == style and not copy_label:
-            normalised[-1] = (normalised[-1][0] + text, style)
-        else:
-            normalised.append((text, style))
-    return tuple(normalised)
-
-
-def _fixture_semantics(snapshot):
-    return _normalise_pairs(
-        (segment["text"], segment["style"])
+def _fixture_semantics(name, snapshot):
+    """Project frozen rows to the virtual surface without discarding layout data."""
+    rows = tuple(
+        tuple((segment["text"], segment["style"]) for segment in row["segments"])
         for row in snapshot
-        for segment in row["segments"]
     )
+    context = RenderContext(Console(width=100, force_terminal=False, color_system=None))
+    rendered = []
+    for index, row in enumerate(rows):
+        if name == "code_copy" and index == len(rows) - 1:
+            rendered.extend(
+                render_rows(Text("复制", style="bold white on #0178D4", justify="right"), 100, context)
+            )
+            continue
+        text = Text()
+        for segment_text, style in row:
+            resolved_style = Style.parse(style.replace("color(8)", "bright_black")) if style else None
+            text.append(segment_text, resolved_style)
+        rendered.extend(render_rows(text, 100, context))
+        # The frozen Textual snapshot intentionally omitted the visually blank
+        # Markdown paragraph row, while the virtual surface must retain its
+        # height.  Reconstruct that known row from the fixture's heading/list
+        # boundary instead of flattening rows during comparison.
+        if name == "markdown" and index == 0:
+            rendered.append(Strip.blank(100))
+    return semantic_segments_from_strips(tuple(rendered))
 
 
 def _compiled_semantics(records):
     context = RenderContext(Console(width=100, force_terminal=False, color_system=None))
-    return _normalise_pairs(
-        pair
+    return tuple(
+        row
         for record in records
-        for row in semantic_segments(compile_record(record, 100, context))
-        for pair in row
+        for row in semantic_segments_from_strips(compile_record(record, 100, context).strips)
     )
+
+
+def semantic_segments_from_strips(strips):
+    rows = []
+    for strip in strips:
+        row: list[tuple[str, str]] = []
+        for segment in strip:
+            text, style = segment.text, str(segment.style or "")
+            if row and row[-1][1] == style:
+                row[-1] = (row[-1][0] + text, style)
+            else:
+                row.append((text, style))
+        rows.append(tuple(row))
+    return tuple(rows)
 
 
 @pytest.mark.asyncio
@@ -126,7 +144,19 @@ def test_compiled_record_semantics_match_the_frozen_chat_cases():
         "stream_preview",
     )
     for name in cases:
-        assert _compiled_semantics(_compiled_case_records(name)) == _fixture_semantics(expected[name]), name
+        assert _compiled_semantics(_compiled_case_records(name)) == _fixture_semantics(name, expected[name]), name
+
+
+def test_code_copy_visual_rows_keep_label_column_and_primary_style():
+    """The compiler comparison retains the actual row that owns the copy hit box."""
+    context = RenderContext(Console(width=100, force_terminal=False, color_system=None))
+    record = _compiled_case_records("code_copy")[0]
+    compiled = compile_record(record, 100, context)
+    region = next(region for region in compiled.regions if region.action.value == "copy_code")
+
+    rows = _compiled_semantics((record,))
+    copy_row = rows[region.y]
+    assert copy_row[-1] == (" " * region.x + "复制", "bold white on #0178d4")
 
 
 def test_write_snapshot_requires_explicit_update_opt_in(tmp_path, monkeypatch):

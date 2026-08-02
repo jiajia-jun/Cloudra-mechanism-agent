@@ -207,17 +207,18 @@ def _compile_message(
             continue
         language, separator, code = part.partition("\n")
         code = (code if separator else "").rstrip("`").rstrip()
-        panel_start = append(
+        append(
             Panel(Syntax(code, language.strip() or "text", theme="monokai", word_wrap=True), title=language.strip() or "code")
         )
         # The virtual surface has no Button widget.  Place its primary-coloured
         # label in the old right-side affordance area and expose an exact hit box.
+        label_y = len(rendered)
         append(Text("复制", style="bold white on #0178D4", justify="right"))
         regions.append(
             InteractionRegion(
                 InteractionAction.COPY_CODE,
                 max(0, width - 4),
-                panel_start,
+                label_y,
                 min(4, width),
                 1,
                 code,
