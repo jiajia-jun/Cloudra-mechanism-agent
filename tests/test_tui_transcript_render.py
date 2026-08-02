@@ -316,3 +316,34 @@ async def test_compiler_close_keeps_the_loop_running_until_active_work_finishes(
     assert finished.wait(timeout=1)
     await asyncio.gather(compile_task, close_task)
     assert not any(thread.name.startswith("cloudra-tui-render") for thread in threading.enumerate())
+
+
+@pytest.mark.asyncio
+async def test_close_waits_for_an_admitted_compile_that_has_not_started():
+    """Close cannot reject work already admitted before either task gets a turn."""
+    store = TranscriptStore()
+    handle = store.append_user("s1", "admitted before close")
+    compiler = PresentationCompiler(max_workers=1, max_pending=1)
+    compile_task = asyncio.create_task(compiler.compile(store.get(handle), 80, render_context(), 1))
+    progressed = []
+    asyncio.get_running_loop().call_soon(progressed.append, "tick")
+
+    await compiler.close()
+
+    result = await compile_task
+    assert result.record_id == store.get(handle).record_id
+    assert progressed == ["tick"]
+    assert not any(thread.name.startswith("cloudra-tui-render") for thread in threading.enumerate())
+
+
+@pytest.mark.asyncio
+async def test_close_rejects_new_compile_requests():
+    """Admission closes before a new record can allocate an executor task."""
+    store = TranscriptStore()
+    handle = store.append_user("s1", "too late")
+    compiler = PresentationCompiler(max_workers=1, max_pending=1)
+
+    await compiler.close()
+
+    with pytest.raises(RuntimeError, match="presentation compiler is closed"):
+        compiler.compile(store.get(handle), 80, render_context(), 1)

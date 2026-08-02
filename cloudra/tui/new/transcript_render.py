@@ -8,6 +8,7 @@ whenever a width or record revision changes.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
@@ -112,25 +113,25 @@ class PresentationCompiler:
         self._inflight: dict[tuple[int, int, int, int], asyncio.Task[CompilationResult]] = {}
         self._close_task: asyncio.Task[None] | None = None
 
-    async def compile(
+    def compile(
         self,
         record: TranscriptRecord,
         width: int,
         context: RenderContext,
         generation: int,
-    ) -> CompilationResult:
+    ) -> Awaitable[CompilationResult]:
         loop = asyncio.get_running_loop()
         key = (record.record_id, record.revision, width, generation)
-        shared = self._inflight.get(key)
-        if shared is not None:
-            return await asyncio.shield(shared)
         if self._closed:
             raise RuntimeError("presentation compiler is closed")
+        shared = self._inflight.get(key)
+        if shared is not None:
+            return self._wait_for(shared)
         if len(self._inflight) >= self._max_pending:
             raise RuntimeError("presentation compiler is at capacity")
         task = loop.create_task(self._compile_one(key, record, width, context, generation))
         self._inflight[key] = task
-        return await asyncio.shield(task)
+        return self._wait_for(task)
 
     async def close(self) -> None:
         if self._close_task is None:
@@ -147,8 +148,6 @@ class PresentationCompiler:
         generation: int,
     ) -> CompilationResult:
         try:
-            if self._closed:
-                raise RuntimeError("presentation compiler is closed")
             loop = asyncio.get_running_loop()
             compiled = await loop.run_in_executor(
                 self._executor, compile_record, record, width, context.for_worker()
@@ -156,6 +155,9 @@ class PresentationCompiler:
             return CompilationResult(compiled=compiled, generation=generation)
         finally:
             self._inflight.pop(key, None)
+
+    async def _wait_for(self, task: asyncio.Task[CompilationResult]) -> CompilationResult:
+        return await asyncio.shield(task)
 
     async def _finish_close(self) -> None:
         active = tuple(self._inflight.values())
