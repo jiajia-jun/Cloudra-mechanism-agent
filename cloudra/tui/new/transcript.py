@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from typing import Iterator
 
 
 class RecordKind(StrEnum):
@@ -57,8 +59,13 @@ class TranscriptStore:
         self._session_ids: dict[str, list[int]] = {}
         self._message_ids: dict[str, int] = {}
         self._derived_agent_ids: set[int] = set()
+        self._active_streams: dict[str, int] = {}
         self._next_record_id = 1
         self._last_change = TranscriptChange()
+        self._batch_depth = 0
+        self._batched_record_ids: list[int] = []
+        self._batched_order_changed = False
+        self._batched_visibility_changed = False
 
     @property
     def records(self) -> tuple[TranscriptRecord, ...]:
@@ -88,7 +95,7 @@ class TranscriptStore:
         if message_id is not None:
             existing_id = self._message_ids.get(message_id)
             if existing_id is not None:
-                self._last_change = TranscriptChange()
+                self._publish_change(TranscriptChange())
                 return TranscriptHandle(existing_id)
 
         record_id = self._next_record_id
@@ -117,7 +124,9 @@ class TranscriptStore:
             self._derived_agent_ids.add(record_id)
         if message_id is not None:
             self._message_ids[message_id] = record_id
-        self._last_change = TranscriptChange((record_id,), order_changed=True, visibility_changed=True)
+        self._publish_change(
+            TranscriptChange((record_id,), order_changed=True, visibility_changed=True)
+        )
         return TranscriptHandle(record_id)
 
     def append_system(self, session_id: str, content: str) -> TranscriptHandle:
@@ -173,6 +182,117 @@ class TranscriptStore:
             status=conclusion,
         )
 
+    def start_stream(self, session_id: str, agent_name: str = "Agent") -> TranscriptHandle:
+        with self.batch():
+            self.end_stream(session_id)
+            handle = self.append(
+                session_id,
+                RecordKind.ASSISTANT,
+                title=agent_name,
+                status="streaming",
+            )
+        self._active_streams[session_id] = handle.record_id
+        return handle
+
+    def active_stream(self, session_id: str) -> TranscriptHandle | None:
+        record_id = self._active_streams.get(session_id)
+        return TranscriptHandle(record_id) if record_id is not None else None
+
+    def append_stream_chunk(
+        self, session_id: str, delta: str, agent_name: str = "Agent"
+    ) -> TranscriptHandle:
+        with self.batch():
+            record_id = self._active_streams.get(session_id)
+            if record_id is None:
+                record_id = self.start_stream(session_id, agent_name).record_id
+            record = self.get(record_id)
+            self._replace(record_id, content=record.content + delta)
+            self._publish_change(TranscriptChange((record_id,)))
+        return TranscriptHandle(record_id)
+
+    def append_reasoning_chunk(
+        self, session_id: str, delta: str, agent_name: str = "Agent"
+    ) -> TranscriptHandle:
+        with self.batch():
+            record_id = self._active_streams.get(session_id)
+            if record_id is None:
+                record_id = self.start_stream(session_id, agent_name).record_id
+            record = self.get(record_id)
+            self._replace(record_id, reasoning=record.reasoning + delta)
+            self._publish_change(TranscriptChange((record_id,)))
+        return TranscriptHandle(record_id)
+
+    def end_stream(self, session_id: str) -> TranscriptHandle | None:
+        record_id = self._active_streams.pop(session_id, None)
+        if record_id is None:
+            self._publish_change(TranscriptChange())
+            return None
+        self._replace(record_id, status="finished")
+        self._publish_change(TranscriptChange((record_id,)))
+        return TranscriptHandle(record_id)
+
+    def append_tool(
+        self,
+        session_id: str,
+        tool: str,
+        arguments: str,
+        finished: bool = False,
+        result: str | None = None,
+    ) -> TranscriptHandle:
+        if finished:
+            for record_id in reversed(self._session_ids.get(session_id, ())):
+                record = self.get(record_id)
+                if (
+                    record.kind is RecordKind.TOOL
+                    and record.tool_name == tool
+                    and record.status == "running"
+                ):
+                    self._replace(
+                        record_id,
+                        arguments=arguments,
+                        result=result,
+                        status="finished",
+                        collapsed=self._tool_result_is_collapsible(result),
+                    )
+                    self._publish_change(TranscriptChange((record_id,)))
+                    return TranscriptHandle(record_id)
+
+        return self.append(
+            session_id,
+            RecordKind.TOOL,
+            tool_name=tool,
+            arguments=arguments,
+            result=result,
+            status="finished" if finished else "running",
+            collapsed=finished and self._tool_result_is_collapsible(result),
+        )
+
+    def toggle_collapsed(self, handle: TranscriptHandle | int) -> TranscriptChange:
+        record_id = self._record_id(handle)
+        record = self.get(record_id)
+        self._replace(record_id, collapsed=not record.collapsed)
+        change = TranscriptChange((record_id,))
+        self._publish_change(change)
+        return change
+
+    @contextmanager
+    def batch(self) -> Iterator[TranscriptStore]:
+        if self._batch_depth == 0:
+            self._batched_record_ids.clear()
+            self._batched_order_changed = False
+            self._batched_visibility_changed = False
+        self._batch_depth += 1
+        try:
+            yield self
+        finally:
+            self._batch_depth -= 1
+            if self._batch_depth == 0:
+                self._last_change = TranscriptChange(
+                    tuple(self._batched_record_ids),
+                    order_changed=self._batched_order_changed,
+                    visibility_changed=self._batched_visibility_changed,
+                )
+
     def get(self, handle: TranscriptHandle | int) -> TranscriptRecord:
         record_id = self._record_id(handle)
         return self._records[self._positions[record_id]]
@@ -201,7 +321,7 @@ class TranscriptStore:
     def rename_session(self, old_session_id: str, new_session_id: str) -> TranscriptChange:
         record_ids = tuple(self._session_ids.get(old_session_id, ()))
         if old_session_id == new_session_id or not record_ids:
-            self._last_change = TranscriptChange()
+            self._publish_change(TranscriptChange())
             return self._last_change
 
         new_agent_id = self._agent_id(new_session_id)
@@ -211,26 +331,30 @@ class TranscriptStore:
                 changes["agent_id"] = new_agent_id
             self._replace(record_id, **changes)
         self._rebuild_indexes()
-        self._last_change = TranscriptChange(record_ids, visibility_changed=True)
+        active_stream = self._active_streams.pop(old_session_id, None)
+        if active_stream is not None:
+            self._active_streams[new_session_id] = active_stream
+        self._publish_change(TranscriptChange(record_ids, visibility_changed=True))
         return self._last_change
 
     def mark_send_failed(self, handle: TranscriptHandle | int) -> TranscriptChange:
         record_id = self._record_id(handle)
         self._replace(record_id, send_failed=True)
-        self._last_change = TranscriptChange((record_id,))
+        self._publish_change(TranscriptChange((record_id,)))
         return self._last_change
 
     def clear_session(self, session_id: str) -> TranscriptChange:
         removed_ids = tuple(self._session_ids.get(session_id, ()))
         if not removed_ids:
-            self._last_change = TranscriptChange()
+            self._publish_change(TranscriptChange())
             return self._last_change
 
         removed = set(removed_ids)
         self._records = [record for record in self._records if record.record_id not in removed]
         self._rebuild_indexes()
-        self._last_change = TranscriptChange(
-            removed_ids, order_changed=True, visibility_changed=True
+        self._active_streams.pop(session_id, None)
+        self._publish_change(
+            TranscriptChange(removed_ids, order_changed=True, visibility_changed=True)
         )
         return self._last_change
 
@@ -241,8 +365,11 @@ class TranscriptStore:
         self._session_ids.clear()
         self._message_ids.clear()
         self._derived_agent_ids.clear()
-        self._last_change = TranscriptChange(
-            removed_ids, order_changed=bool(removed_ids), visibility_changed=bool(removed_ids)
+        self._active_streams.clear()
+        self._publish_change(
+            TranscriptChange(
+                removed_ids, order_changed=bool(removed_ids), visibility_changed=bool(removed_ids)
+            )
         )
         return self._last_change
 
@@ -252,6 +379,22 @@ class TranscriptStore:
         updated = replace(record, revision=record.revision + 1, **changes)
         self._records[position] = updated
         return updated
+
+    def _publish_change(self, change: TranscriptChange) -> None:
+        if self._batch_depth == 0:
+            self._last_change = change
+            return
+        for record_id in change.record_ids:
+            if record_id not in self._batched_record_ids:
+                self._batched_record_ids.append(record_id)
+        self._batched_order_changed = self._batched_order_changed or change.order_changed
+        self._batched_visibility_changed = (
+            self._batched_visibility_changed or change.visibility_changed
+        )
+
+    @staticmethod
+    def _tool_result_is_collapsible(result: str | None) -> bool:
+        return result is not None and len(result.splitlines()) > 8
 
     def _rebuild_indexes(self) -> None:
         self._positions.clear()
