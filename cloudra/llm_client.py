@@ -15,6 +15,7 @@ import asyncio
 import json
 import random
 import re
+from types import SimpleNamespace
 from typing import Any, Optional, Union
 
 import openai
@@ -44,7 +45,13 @@ class ResponseDictWrapper:
         return self._wrap(val)
 
     def model_dump(self, **kwargs) -> Any:
-        return self._data
+        data = self._data
+        # 与 pydantic 语义一致：exclude_none=True 时剔除 None 值。
+        # reAct 用 message.model_dump(exclude_none=True) 写上下文，
+        # 不能把 content/tool_calls=None 的占位 key 落库。
+        if kwargs.get("exclude_none") and isinstance(data, dict):
+            return {k: v for k, v in data.items() if v is not None}
+        return data
 
     @classmethod
     def _wrap(cls, val: Any) -> Any:
@@ -84,7 +91,11 @@ def is_fallback_trigger(exc: Exception) -> bool:
 
 
 def serialize_openai_payload(kwargs: dict) -> dict:
-    """把 kwargs 里的 pydantic/model 对象序列化为纯 dict，供 requests 使用。"""
+    """把 kwargs 里的 pydantic/model 对象序列化为纯 dict，供 requests 使用。
+
+    OpenAI SDK 的 ``extra_body`` 会被平铺进请求体顶层；requests shim 需要
+    做同样的处理，否则 extra_body 会作为嵌套字段原样发送被服务商拒绝。
+    """
 
     def _to_dict(obj: Any) -> Any:
         if hasattr(obj, "model_dump"):
@@ -97,7 +108,11 @@ def serialize_openai_payload(kwargs: dict) -> dict:
             return [_to_dict(x) for x in obj]
         return obj
 
-    return _to_dict(kwargs)
+    payload = _to_dict(kwargs)
+    extra_body = payload.pop("extra_body", None)
+    if isinstance(extra_body, dict):
+        payload.update(extra_body)
+    return payload
 
 
 class LLMClient:
@@ -361,6 +376,128 @@ class LLMClient:
             return None, exc
 
     # ------------------------------------------------------------------
+    # Responses API 传输层（DeepSeek 原生联网搜索走 /responses）
+    # ------------------------------------------------------------------
+
+    async def create_responses(
+        self,
+        **kwargs,
+    ) -> ChatResponse:
+        """OpenAI Responses API 调用入口（chat.completions 风格 kwargs 进）。
+
+        把 ``messages`` / ``tools`` / ``extra_body`` 等翻译成 Responses API
+        请求体（POST ``{base_url}/responses``），再把响应翻译回 reAct 期望的
+        Chat Completions 形状。DeepSeek 原生 ``web_search`` 工具只在
+        ``/responses`` 支持，因此走此路径。
+        """
+        if self.model is not None:
+            kwargs.setdefault("model", self.model)
+        if kwargs.get("stream"):
+            kwargs.setdefault("stream_options", {"include_usage": True})
+
+        payload = _build_responses_payload(kwargs)
+        stream = bool(payload.get("stream"))
+        url = f"{_responses_base_url(self.base_url)}/responses"
+
+        try:
+            if stream:
+                events = await asyncio.to_thread(
+                    self._responses_start_stream, url, payload
+                )
+                return self._wrap_responses_stream(events)
+            result = await asyncio.to_thread(
+                self._responses_non_stream, url, payload
+            )
+            web = getattr(getattr(result, "_data", None), "get", lambda *a: None)("_web_search")
+            for w in web or []:
+                await self._emit_status("web_search", query=w.get("query"))
+            return result
+        except Exception as e:
+            await self._emit_status("llm_error", error=str(e), level="responses")
+            raise
+
+    def _responses_non_stream(self, url: str, payload: dict) -> ChatResponse:
+        """非流式：POST /responses，翻译为 Chat Completions 形状。"""
+        resp = requests.post(
+            url,
+            headers=_responses_headers(self.api_key),
+            json=payload,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        self._last_usage = _translate_responses_usage(data)
+        return ResponseDictWrapper(_translate_responses_completion(data))
+
+    def _responses_start_stream(self, url: str, payload: dict):
+        """流式：发起 POST /responses 并返回 (事件翻译生成器, 状态收集器)。"""
+        resp = requests.post(
+            url,
+            headers=_responses_headers(self.api_key),
+            json=payload,
+            stream=True,
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        holder = SimpleNamespace(web_search_log=[], usage=None)
+        return _responses_stream_events(resp, holder), holder
+
+    def _wrap_responses_stream(self, events_holder):
+        """异步包装流式事件生成器：翻译已在生成器内完成。
+
+        联网搜索事件在流中段到达：逐条通过 on_status 上抛（此时 reasoning
+        流仍开着），前端可把它并入「思考过程」，而不是等整条流结束后才补一个
+        孤立的系统面板。
+        """
+        events, holder = events_holder
+
+        async def _iterate():
+            sentinel = object()
+            emitted = 0
+            while True:
+                chunk = await asyncio.to_thread(next, events, sentinel)
+                if chunk is sentinel:
+                    break
+                yield ResponseDictWrapper(chunk["completion"])
+                emitted = await self._emit_new_web_searches(holder, emitted)
+            emitted = await self._emit_new_web_searches(holder, emitted)
+            if holder.usage:
+                self._last_usage = self._extract_usage(holder.usage)
+
+        return _iterate()
+
+    async def _emit_new_web_searches(self, holder, emitted: int) -> int:
+        """把 holder 里新增的 web_search_call 事件逐条上报（返回已上报数）。"""
+        web = holder.web_search_log
+        for query, _stage in web[emitted:]:
+            await self._emit_status("web_search", query=query)
+        return len(web)
+
+    async def create_responses_with_retry(self, **kwargs) -> ChatResponse:
+        """Responses API 调用，带瞬时错误退避重试（语义同 create_with_retry）。"""
+        for attempt in range(self.max_retries + 1):
+            try:
+                return await self.create_responses(**kwargs)
+            except (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError) as e:
+                retriable, err = True, e
+            except openai.APIStatusError as e:
+                retriable, err = (e.status_code is not None and e.status_code >= 500), e
+            except (requests.exceptions.RequestException,) as e:
+                retriable, err = True, e
+            if not retriable or attempt >= self.max_retries:
+                raise err
+            delay = min(5 * (2 ** attempt), 60) + random.uniform(0, 2)
+            print(f"\033[93m[LLM 重试]\033[0m Responses 瞬时错误（{err}），{delay:.0f} 秒后重试 ({attempt + 1}/{self.max_retries})")
+            await self._emit_status(
+                "llm_retry",
+                error=str(err),
+                attempt=attempt + 1,
+                max_retries=self.max_retries,
+                delay=round(delay, 1),
+            )
+            await asyncio.sleep(delay)
+
+    # ------------------------------------------------------------------
     # requests shim（Level 3）
     # ------------------------------------------------------------------
 
@@ -457,3 +594,302 @@ def _iter_sse_chunks(resp):
             except json.JSONDecodeError:
                 continue
             yield ResponseDictWrapper(chunk)
+
+
+# ---------------------------------------------------------------------------
+# Responses API 翻译（DeepSeek 原生联网搜索走 /responses）
+# ---------------------------------------------------------------------------
+
+
+def _responses_headers(api_key: str) -> dict:
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": FALLBACK_USER_AGENT,
+        "Accept": "application/json",
+    }
+
+
+def _responses_base_url(base_url: str) -> str:
+    """返回 Responses API 的 base_url（去掉尾部的 /v1）。
+
+    DeepSeek 文档里 Responses API 挂在裸 host 上（POST /responses），而 OpenAI
+    兼容的 base_url 常写成 .../v1。chat/completions 两者都能用，/responses 只
+    在裸 host 可用，这里做兼容处理。
+    """
+    base = base_url.rstrip("/")
+    if base.endswith("/v1"):
+        base = base[: -len("/v1")]
+    return base
+
+
+def _build_responses_payload(kwargs: dict) -> dict:
+    """把 chat.completions 风格的 kwargs 翻译成 Responses API 请求体。
+
+    - ``messages`` → ``input``（message / function_call / function_call_output /
+      reasoning 条目，DeepSeek 会把相邻条目合并回 assistant）
+    - 第一条 system → ``instructions``
+    - ``tools``（function schema）+ ``extra_body.tools``（非 function 的原生
+      工具如 web_search）→ ``tools``
+    - ``max_tokens`` → ``max_output_tokens``；其余 extra_body 字段透传
+    """
+    payload: dict[str, Any] = {}
+    if kwargs.get("model"):
+        payload["model"] = kwargs["model"]
+    if kwargs.get("stream") is not None:
+        payload["stream"] = bool(kwargs["stream"])
+    if kwargs.get("temperature") is not None:
+        payload["temperature"] = kwargs["temperature"]
+    if kwargs.get("top_p") is not None:
+        payload["top_p"] = kwargs["top_p"]
+    if kwargs.get("max_tokens"):
+        payload["max_output_tokens"] = kwargs["max_tokens"]
+
+    instructions = ""
+    input_items: list[dict] = []
+    for msg in kwargs.get("messages") or []:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role == "system":
+            if not instructions and content:
+                instructions = content if isinstance(content, str) else str(content)
+            continue
+        if role in ("user", "assistant", "developer"):
+            reasoning = msg.get("reasoning_content")
+            if role == "assistant" and reasoning:
+                input_items.append(
+                    {
+                        "type": "reasoning",
+                        "content": [{"type": "reasoning_text", "text": str(reasoning)}],
+                    }
+                )
+            input_items.append(
+                {
+                    "type": "message",
+                    "role": "user" if role == "developer" else role,
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": content if isinstance(content, str) else str(content or ""),
+                        }
+                    ],
+                }
+            )
+            for tc in msg.get("tool_calls") or []:
+                fn = tc.get("function") or {}
+                input_items.append(
+                    {
+                        "type": "function_call",
+                        "name": fn.get("name", ""),
+                        "arguments": fn.get("arguments") or "",
+                        "call_id": tc.get("id") or f"call_{len(input_items)}",
+                    }
+                )
+        elif role == "tool":
+            input_items.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": msg.get("tool_call_id") or "",
+                    "output": content if isinstance(content, str) else str(content or ""),
+                }
+            )
+    if instructions:
+        payload["instructions"] = instructions
+    if input_items:
+        payload["input"] = input_items
+    elif kwargs.get("messages"):
+        payload["input"] = [
+            {"type": "message", "role": "user", "content": [{"type": "input_text", "text": ""}]}
+        ]
+
+    tools: list[dict] = []
+    for tool in kwargs.get("tools") or []:
+        if not isinstance(tool, dict) or tool.get("type") != "function":
+            continue
+        fn = tool.get("function") or {}
+        entry: dict[str, Any] = {"type": "function", "name": fn.get("name", "")}
+        if fn.get("description"):
+            entry["description"] = fn["description"]
+        if fn.get("parameters"):
+            entry["parameters"] = fn["parameters"]
+        tools.append(entry)
+    extra = kwargs.get("extra_body") or {}
+    for tool in extra.get("tools") or []:
+        if not isinstance(tool, dict):
+            continue
+        if tool.get("type") != "function":
+            # 只追加非 function 的原生工具（如 web_search），避免重复 function schema
+            tools.append(tool)
+    if tools:
+        payload["tools"] = tools
+        payload.setdefault("tool_choice", "auto")
+    for key, value in extra.items():
+        if key != "tools":
+            payload.setdefault(key, value)
+    return payload
+
+
+def _translate_responses_usage(data: dict) -> dict:
+    usage = data.get("usage") or {}
+    return {
+        "prompt_tokens": usage.get("input_tokens"),
+        "completion_tokens": usage.get("output_tokens"),
+        "total_tokens": (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0),
+    }
+
+
+def _translate_responses_completion(data: dict) -> dict:
+    """把 Responses API 非流式响应翻译成 Chat Completions 形状（reAct 可消费）。"""
+    output = data.get("output") or []
+    text_parts: list[str] = []
+    reasoning_parts: list[str] = []
+    tool_calls: list[dict] = []
+    web_search: list[dict] = []
+    for item in output:
+        itype = item.get("type")
+        if itype == "message":
+            for part in item.get("content") or []:
+                if part.get("type") in ("output_text", "text"):
+                    text_parts.append(part.get("text", ""))
+        elif itype == "reasoning":
+            for part in item.get("content") or []:
+                if part.get("type") == "reasoning_text":
+                    reasoning_parts.append(part.get("text", ""))
+        elif itype == "function_call":
+            tool_calls.append(
+                {
+                    "id": item.get("call_id") or item.get("id") or f"call_{len(tool_calls)}",
+                    "type": "function",
+                    "function": {
+                        "name": item.get("name", ""),
+                        "arguments": item.get("arguments") or "",
+                    },
+                }
+            )
+        elif itype == "web_search_call":
+            web_search.append(
+                {
+                    "query": (item.get("action") or {}).get("query"),
+                    "status": item.get("status"),
+                }
+            )
+
+    status = (data.get("status") or "").lower()
+    if status in ("incomplete", "truncated"):
+        finish_reason = "length"
+    elif tool_calls:
+        finish_reason = "tool_calls"
+    else:
+        finish_reason = "stop"
+
+    # reAct 直接属性访问 message.content / message.tool_calls，三个 key 必须常驻
+    # （无值时 None）；写上下文时由 model_dump(exclude_none=True) 剔除。
+    message: dict[str, Any] = {
+        "role": "assistant",
+        "content": "".join(text_parts) or None,
+        "reasoning_content": "".join(reasoning_parts) or None,
+        "tool_calls": tool_calls or None,
+    }
+    completion = {
+        "id": data.get("id"),
+        "object": "chat.completion",
+        "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": _translate_responses_usage(data),
+    }
+    completion["_web_search"] = web_search
+    return completion
+
+
+def _responses_stream_events(resp, holder=None):
+    """把 Responses API 的 SSE 事件翻译成 Chat Completion chunk（同步生成器）。
+
+    DeepSeek 的流以 ``response.completed`` / ``response.incomplete`` /
+    ``response.failed`` 结束（无 ``data: [DONE]``）。web_search_call 事件收集到
+    ``holder.web_search_log``，usage 收集到 ``holder.usage``，供异步包装层上报。
+    """
+    events = _iter_sse_chunks(resp)
+    tool_state: dict[int, dict] = {}
+    tool_first_done: set[int] = set()
+    if holder is None:
+        holder = SimpleNamespace(web_search_log=[], usage=None)
+
+    def _tool_chunk(idx: int, *, first: bool, arguments: str) -> dict:
+        state = tool_state[idx]
+        chunk: dict[str, Any] = {"index": idx, "type": "function"}
+        if first:
+            chunk["id"] = state["call_id"]
+            chunk["function"] = {"name": state["name"], "arguments": arguments}
+        else:
+            chunk["function"] = {"arguments": arguments}
+        return chunk
+
+    # reAct 逐 chunk 直接访问 delta.content / delta.tool_calls，三个 key 必须常驻。
+    def _emit(delta: dict, finish_reason: Any = None) -> dict:
+        return {
+            "completion": {
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "content": delta.get("content"),
+                            "reasoning_content": delta.get("reasoning_content"),
+                            "tool_calls": delta.get("tool_calls"),
+                        },
+                        "finish_reason": finish_reason,
+                    }
+                ]
+            }
+        }
+
+    for raw in events:
+        ev = raw._data
+        etype = ev.get("type") or ev.get("event") or ""
+        if etype == "response.output_item.added":
+            item = ev.get("item") or {}
+            if item.get("type") == "function_call":
+                idx = ev.get("output_index") if ev.get("output_index") is not None else len(tool_state)
+                tool_state[idx] = {
+                    "call_id": item.get("call_id") or item.get("id") or f"call_{idx}",
+                    "name": item.get("name", ""),
+                }
+                yield _emit({"tool_calls": [_tool_chunk(idx, first=True, arguments="")]})
+                tool_first_done.add(idx)
+        elif etype == "response.function_call_arguments.delta":
+            idx = ev.get("output_index")
+            if idx is not None and idx in tool_state:
+                delta = ev.get("delta", "") or ""
+                first = idx not in tool_first_done
+                tool_first_done.add(idx)
+                yield _emit({"tool_calls": [_tool_chunk(idx, first=first, arguments=delta)]})
+        elif etype == "response.output_text.delta":
+            yield _emit({"content": ev.get("delta", "") or ""})
+        elif etype == "response.reasoning_text.delta":
+            yield _emit({"reasoning_content": ev.get("delta", "") or ""})
+        elif etype.startswith("response.web_search_call."):
+            # 查询词在事件里的位置因服务商而异：顶层 action / item.action / query 字段
+            item = ev.get("item") or {}
+            action = ev.get("action") or item.get("action") or {}
+            if not isinstance(action, dict):
+                action = {}
+            query = action.get("query") or ev.get("query") or item.get("query")
+            holder.web_search_log.append((query, etype.rsplit(".", 1)[-1]))
+        elif etype in ("response.completed", "response.incomplete", "response.failed"):
+            full = ev.get("response") or {}
+            if full:
+                holder.usage = _translate_responses_usage(full)
+                output = full.get("output") or []
+                has_fn = any(i.get("type") == "function_call" for i in output)
+                status = (full.get("status") or "").lower()
+                if status in ("incomplete", "truncated") or etype == "response.incomplete":
+                    finish_reason = "length"
+                elif has_fn:
+                    finish_reason = "tool_calls"
+                else:
+                    finish_reason = "stop"
+                if etype == "response.failed":
+                    error = full.get("error") or {}
+                    raise RuntimeError(f"Responses 流失败: {error.get('message') or error or full}")
+            else:
+                finish_reason = "length" if etype == "response.incomplete" else "stop"
+            yield _emit({}, finish_reason=finish_reason)
+            break

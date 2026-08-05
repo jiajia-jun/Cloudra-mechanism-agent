@@ -1,0 +1,308 @@
+"""Responses API 传输层测试（DeepSeek 原生联网搜索走 /responses）。
+
+覆盖：chat.completions kwargs → Responses 请求体翻译、非流式响应翻译、
+SSE 流式事件翻译（含 web_search_call 捕获与 tool_call 增量合并）、
+以及 Agent 的 Responses 传输路由。
+"""
+
+from __future__ import annotations
+
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from cloudra.llm_client import (
+    _build_responses_payload,
+    _responses_stream_events,
+    _translate_responses_completion,
+    _translate_responses_usage,
+)
+
+
+class _FakeResp:
+    """模拟 requests.Response：按 chunk 输出 SSE 字节。"""
+
+    def __init__(self, events: list[dict]) -> None:
+        body = "".join(
+            f"data: {json.dumps(event)}\n\n"
+            for event in events
+        )
+        self._body = body.encode("utf-8")
+
+    def iter_content(self, chunk_size: int = 1024):
+        for i in range(0, len(self._body), chunk_size):
+            yield self._body[i : i + chunk_size]
+
+
+def _kwargs(**overrides) -> dict:
+    base = {
+        "model": "deepseek-v4-flash",
+        "stream": False,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "messages": [
+            {"role": "system", "content": "You are helpful"},
+            {"role": "user", "content": "hi"},
+        ],
+        "tools": [
+            {"type": "function", "function": {"name": "bashtools", "description": "d", "parameters": {}}}
+        ],
+        "extra_body": {"tools": [{"type": "web_search"}]},
+    }
+    base.update(overrides)
+    return base
+
+
+def test_build_responses_payload_translates_kwargs():
+    payload = _build_responses_payload(_kwargs())
+    assert payload["model"] == "deepseek-v4-flash"
+    assert payload["instructions"] == "You are helpful"
+    assert payload["max_output_tokens"] == 4096
+    assert payload["temperature"] == 0.7
+    assert payload["stream"] is False
+    assert payload["tool_choice"] == "auto"
+    # function 工具 + extra_body 里的原生 web_search 工具合并（不重复 function）
+    assert payload["tools"] == [
+        {"type": "function", "name": "bashtools", "description": "d"},
+        {"type": "web_search"},
+    ]
+    assert payload["input"] == [
+        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}
+    ]
+
+
+def test_build_responses_payload_roundtrips_tool_turn():
+    """带 reasoning/tool_calls/tool 结果的往返消息应翻译为相邻条目。"""
+    payload = _build_responses_payload(
+        _kwargs(
+            messages=[
+                {"role": "system", "content": "s"},
+                {"role": "user", "content": "u"},
+                {
+                    "role": "assistant",
+                    "content": "let me",
+                    "reasoning_content": "think",
+                    "tool_calls": [
+                        {"id": "c1", "type": "function", "function": {"name": "bashtools", "arguments": "{}"}}
+                    ],
+                },
+                {"role": "tool", "tool_call_id": "c1", "content": "ok"},
+            ]
+        )
+    )
+    types = [item["type"] for item in payload["input"]]
+    assert types == ["message", "reasoning", "message", "function_call", "function_call_output"]
+    assert payload["input"][1]["content"][0]["text"] == "think"
+    assert payload["input"][3]["name"] == "bashtools"
+    assert payload["input"][4]["call_id"] == "c1"
+
+
+def test_translate_responses_completion_non_stream():
+    data = {
+        "id": "r1",
+        "status": "completed",
+        "output": [
+            {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "think"}]},
+            {"type": "message", "content": [{"type": "output_text", "text": "answer"}]},
+            {"type": "function_call", "name": "bashtools", "arguments": "{}", "call_id": "call_1"},
+            {"type": "web_search_call", "status": "completed", "action": {"query": "q1"}},
+        ],
+        "usage": {"input_tokens": 10, "output_tokens": 20},
+    }
+    completion = _translate_responses_completion(data)
+    message = completion["choices"][0]["message"]
+    assert message["content"] == "answer"
+    assert message["reasoning_content"] == "think"
+    assert message["tool_calls"][0]["function"]["name"] == "bashtools"
+    assert completion["choices"][0]["finish_reason"] == "tool_calls"
+    assert completion["_web_search"] == [{"query": "q1", "status": "completed"}]
+    assert completion["usage"] == {
+        "prompt_tokens": 10,
+        "completion_tokens": 20,
+        "total_tokens": 30,
+    }
+
+
+def test_translate_responses_completion_stop_without_tools():
+    completion = _translate_responses_completion(
+        {
+            "status": "completed",
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": "hi"}]}],
+            "usage": {},
+        }
+    )
+    assert completion["choices"][0]["finish_reason"] == "stop"
+    assert completion["choices"][0]["message"]["content"] == "hi"
+
+
+def test_completion_message_supports_react_attribute_access():
+    """reAct 直接访问 message.content / message.tool_calls，缺 key 会 AttributeError。"""
+    from cloudra.llm_client import ResponseDictWrapper
+
+    completion = ResponseDictWrapper(
+        _translate_responses_completion(
+            {
+                "status": "completed",
+                "output": [{"type": "message", "content": [{"type": "output_text", "text": "hi"}]}],
+                "usage": {},
+            }
+        )
+    )
+    message = completion.choices[0].message
+    assert message.content == "hi"
+    assert message.tool_calls is None  # 无工具时 key 常驻且为 None
+    assert hasattr(message, "reasoning_content")
+    # 写上下文时 model_dump(exclude_none=True) 应剔除 None 占位 key
+    block = message.model_dump(exclude_none=True)
+    assert block == {"role": "assistant", "content": "hi"}
+    assert "tool_calls" not in block
+    assert "reasoning_content" not in block
+
+
+def test_stream_chunks_support_react_delta_attribute_access():
+    """每个 chunk 的 delta 必须常驻 content/reasoning_content/tool_calls，避免 AttributeError。"""
+    from cloudra.llm_client import ResponseDictWrapper
+
+    events = [
+        {"type": "response.output_text.delta", "delta": "A"},
+        {"type": "response.reasoning_text.delta", "delta": "think"},
+        {"type": "response.completed", "response": {"status": "completed", "output": [], "usage": {}}},
+    ]
+    holder = SimpleNamespace(web_search_log=[], usage=None)
+    chunks = [
+        ResponseDictWrapper(c["completion"])
+        for c in _responses_stream_events(_FakeResp(events), holder)
+    ]
+    for chunk in chunks:
+        delta = chunk.choices[0].delta
+        # 这三个属性直接访问必须不抛异常
+        assert delta.content is not None or delta.tool_calls is not None or delta.content is None
+        _ = delta.tool_calls
+        _ = delta.content
+    assert chunks[0].choices[0].delta.content == "A"
+    assert chunks[1].choices[0].delta.reasoning_content == "think"
+
+
+def test_stream_events_translate_chunks_and_capture_web_search():
+    events = [
+        {
+            "type": "response.output_item.added",
+            "output_index": 0,
+            "item": {"type": "function_call", "name": "bashtools", "call_id": "call_1"},
+        },
+        {"type": "response.function_call_arguments.delta", "output_index": 0, "delta": '{"a":1}'},
+        {"type": "response.reasoning_text.delta", "delta": "think "},
+        {"type": "response.output_text.delta", "delta": "hello"},
+        {"type": "response.web_search_call.completed", "action": {"query": "q1"}},
+        {
+            "type": "response.completed",
+            "response": {
+                "status": "completed",
+                "output": [{"type": "function_call", "name": "bashtools"}],
+                "usage": {"input_tokens": 5, "output_tokens": 7},
+            },
+        },
+    ]
+    holder = SimpleNamespace(web_search_log=[], usage=None)
+    gen = _responses_stream_events(_FakeResp(events), holder)
+    chunks = [chunk["completion"] for chunk in gen]
+
+    # tool_call 首帧带 id/name，后续只带 arguments 增量（避免 id 被拼接）
+    tool_chunks = [
+        chunk["choices"][0]["delta"]["tool_calls"][0]
+        for chunk in chunks
+        if chunk["choices"][0]["delta"].get("tool_calls")
+    ]
+    assert tool_chunks[0]["id"] == "call_1"
+    assert tool_chunks[0]["function"]["name"] == "bashtools"
+    assert tool_chunks[0]["function"]["arguments"] == ""
+    assert tool_chunks[1]["function"]["arguments"] == '{"a":1}'
+    assert "id" not in tool_chunks[1]
+
+    reasoning = [c["choices"][0]["delta"]["reasoning_content"] for c in chunks if c["choices"][0]["delta"].get("reasoning_content")]
+    assert reasoning == ["think "]
+
+    content = "".join(
+        c["choices"][0]["delta"]["content"]
+        for c in chunks
+        if c["choices"][0]["delta"].get("content")
+    )
+    assert content == "hello"
+
+    assert holder.web_search_log == [("q1", "completed")]
+    assert holder.usage == {"prompt_tokens": 5, "completion_tokens": 7, "total_tokens": 12}
+    # 结束帧给出 tool_calls finish_reason
+    assert chunks[-1]["choices"][0]["finish_reason"] == "tool_calls"
+
+
+def test_stream_events_incomplete_maps_to_length():
+    events = [
+        {"type": "response.incomplete", "response": {"status": "incomplete", "output": [], "usage": {}}}
+    ]
+    holder = SimpleNamespace(web_search_log=[], usage=None)
+    chunks = list(_responses_stream_events(_FakeResp(events), holder))
+    assert chunks[-1]["completion"]["choices"][0]["finish_reason"] == "length"
+
+
+@pytest.mark.asyncio
+async def test_stream_emits_web_search_status_mid_stream():
+    """web_search_call 事件应在流中段逐条上抛（query 从 item.action 提取）。"""
+    from cloudra.llm_client import LLMClient
+
+    client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
+    statuses = []
+    client.on_status = lambda event, data: statuses.append((event, data))
+
+    events = [
+        {"type": "response.reasoning_text.delta", "delta": "搜 "},
+        {
+            "type": "response.web_search_call.completed",
+            "item": {"action": {"type": "search", "query": "光子时间晶体 2026"}},
+        },
+        {"type": "response.reasoning_text.delta", "delta": "到了"},
+        {"type": "response.completed", "response": {"status": "completed", "output": [], "usage": {}}},
+    ]
+    holder = SimpleNamespace(web_search_log=[], usage=None)
+    gen = _responses_stream_events(_FakeResp(events), holder)
+
+    async for chunk in client._wrap_responses_stream((gen, holder)):
+        pass
+
+    assert statuses == [("web_search", {"query": "光子时间晶体 2026"})]
+
+
+def test_translate_responses_usage():
+    assert _translate_responses_usage({"usage": {"input_tokens": 3, "output_tokens": 4}}) == {
+        "prompt_tokens": 3,
+        "completion_tokens": 4,
+        "total_tokens": 7,
+    }
+
+
+@pytest.mark.asyncio
+async def test_agent_routes_deepseek_native_search_to_responses(monkeypatch):
+    """DeepSeek 原生搜索（默认 auto、无需 params）应走 Responses 传输；OpenRouter 走 chat。"""
+    from cloudra.agent import Coordinator
+    from cloudra.config import get_config
+
+    cfg = get_config()
+    monkeypatch.setattr(cfg.coordinator, "native_search", "auto")
+    monkeypatch.setattr(cfg.coordinator, "native_search_params", {})
+    monkeypatch.setattr(cfg.coordinator, "url", "https://api.deepseek.com")
+
+    agent = Coordinator(query="t", conversation_id="c")
+    assert agent._uses_responses_transport() is True
+
+    monkeypatch.setattr(cfg.coordinator, "native_search", "openrouter")
+    monkeypatch.setattr(cfg.coordinator, "url", "https://openrouter.ai/api/v1")
+    agent2 = Coordinator(query="t", conversation_id="c2")
+    assert agent2._uses_responses_transport() is False
+
+
+def test_responses_base_url_strips_v1():
+    from cloudra.llm_client import _responses_base_url
+
+    assert _responses_base_url("https://api.deepseek.com/v1") == "https://api.deepseek.com"
+    assert _responses_base_url("https://api.deepseek.com/v1/") == "https://api.deepseek.com"
+    assert _responses_base_url("https://api.deepseek.com") == "https://api.deepseek.com"

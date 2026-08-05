@@ -66,8 +66,10 @@ This separation lets a phone disconnect without cancelling a calculation and let
 The current tools and skills cover workflows such as:
 
 - literature retrieval, document conversion, evidence synthesis, and academic writing;
+- web search: provider-native search (OpenAI / DeepSeek / OpenRouter server-side `web_search`) or the external `web_search` tool, paired with `web_fetcher` for two-step evidence gathering, citations with source URLs;
+- planning and goals: `todo_write` / `todo_read` / `goal_set` track multi-step progress, and the TUI `/goal` command sets a goal anchor (with a goal set, a task can only end via the `stop` tool and each round is reminded to confirm progress);
 - molecular structure preparation, format conversion, visualization, and image-to-structure workflows;
-- Gaussian input generation, asynchronous calculation submission, state monitoring, and output parsing;
+- Gaussian / CP2K input generation, asynchronous calculation submission, state monitoring, and output parsing;
 - NMR and IR processing;
 - domain planning for molecular dynamics, periodic first-principles modelling, experimental design, and scientific software environments.
 
@@ -110,6 +112,21 @@ The one-line installers remain available for development checkouts:
 ```
 
 For cluster homes on NFS or Lustre, place `CLOUDRA_DATA_DIR` on a local filesystem with reliable locking. SQLite WAL should not be used as a shared multi-host database.
+
+### Web search configuration
+
+`native_search` defaults to `auto`: the provider is detected from `base_url` + `model` and
+its server-side search is enabled automatically (e.g. DeepSeek uses the Responses API
+`web_search` tool, OpenRouter the `web` plugin). Override via environment variables:
+
+```bash
+export CLOUDRA_COORDINATOR__NATIVE_SEARCH=auto        # off / auto / openai / openrouter / deepseek / gemini / custom
+export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # custom injection params (relays)
+```
+
+When native search is off, the agent falls back to the external `web_search` tool
+(Tavily / Brave / Bing / DuckDuckGo). When on, the external tool is removed to avoid
+double searching.
 
 ## Interfaces
 

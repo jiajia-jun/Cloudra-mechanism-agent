@@ -15,6 +15,12 @@ _CLOUDRA_THEME = Theme(
     accent="#a3e635",
     success="#22c55e",
     warning="#eab308",
+    variables={
+        # 缺省时 Textual 会把前景/背景都回退成 primary，选中的文本直接隐形。
+        # 白底黑字，对比最直白。
+        "screen-selection-background": "#ffffff",
+        "screen-selection-foreground": "#000000",
+    },
 )
 
 

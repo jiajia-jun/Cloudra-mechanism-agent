@@ -111,6 +111,7 @@ class MainScreen(Screen):
         # 启动 IPC 事件桥
         status_bar = self.query_one("#status-bar", StatusBar)
         status_bar.yolo = self.yolo
+        status_bar.native_search = self._native_search_label()
         status_bar.conversation_id = self.conversation_id
         self._render_bridge = RenderBridge(
             self.conversation_id,
@@ -194,6 +195,28 @@ class MainScreen(Screen):
         if state:
             status_bar.session_state = state
         self.query_one("#input-bar", InputBar).follow_up = True
+
+    @staticmethod
+    def _native_search_label() -> str:
+        """解析 Coordinator 是否启用了模型原生网页搜索，返回适配器名或空串。
+
+        空串 = 未启用（传统 web_search 工具仍然可用）；否则状态栏显示「联网」。
+        """
+        try:
+            cfg = get_config().coordinator
+            if not cfg.native_search or cfg.native_search == "off":
+                return ""
+            from cloudra.web_search_native import resolve_native_search
+
+            adapter = resolve_native_search(
+                base_url=cfg.url,
+                model=cfg.model,
+                mode=cfg.native_search,
+                params=cfg.native_search_params,
+            )
+            return adapter.name if adapter is not None else ""
+        except Exception:
+            return ""
 
     async def _find_active_record(self, agent_id: str | None = None):
         """当前对话中最新一个运行中的任务；没有则 None。
@@ -344,7 +367,7 @@ class MainScreen(Screen):
             )
             context = await cm.load()
             tokens = TokenEstimator.estimate_messages(context)
-            status_bar.context_info = f"{len(context)}条≈{_format_tokens(tokens)}"
+            status_bar.context_info = f"{len(context)}条消息≈{_format_tokens(tokens)} tokens"
         except Exception:
             status_bar.context_info = ""
 
@@ -486,6 +509,8 @@ class MainScreen(Screen):
             self.action_toggle_sidebar()
         elif cmd == "yolo":
             await self._cmd_yolo(arg)
+        elif cmd == "goal":
+            await self._cmd_goal(arg)
         elif cmd == "compact":
             await self._cmd_compact(arg)
         elif cmd in ("context", "tokens"):
@@ -563,6 +588,73 @@ class MainScreen(Screen):
             self.notify("YOLO 已开启：危险操作将由 LLM 自动审批", severity="warning")
         else:
             self.notify("YOLO 已关闭：恢复人工审批", severity="information")
+
+    async def _cmd_goal(self, arg: str) -> None:
+        """/goal <目标文本>：为 Coordinator 设置目标锚点；/goal pause：暂停当前任务；
+        /goal（无参）：显示当前目标与用法。"""
+        if arg.lower() == "pause":
+            await self.action_cancel_current()
+            return
+        if not arg:
+            await self._show_goal()
+            return
+
+        from types import SimpleNamespace
+
+        from cloudra.tools.Plantool._store import agent_store_path, save_json
+        from cloudra.tools.Plantool.goal import GOAL_MARKER, GoalSet
+
+        agent = SimpleNamespace(
+            id=_COORDINATOR_AGENT_ID, conversation_id=self.conversation_id
+        )
+        goal = {"objective": arg, "completion_criteria": "", "current_focus": ""}
+        save_json(agent_store_path(agent, "goal.json"), goal)
+
+        # 固定到 Coordinator 上下文：让运行中的/后续任务都能看到目标
+        try:
+            cm = ContextManager(
+                agent_id=_COORDINATOR_AGENT_ID,
+                conversation_id=self.conversation_id,
+                prompt=None,
+                query="",
+            )
+            context = await cm.load()
+            context = [
+                msg
+                for msg in context
+                if not (
+                    msg.get("role") == "system"
+                    and str(msg.get("content", "")).startswith(GOAL_MARKER)
+                )
+            ]
+            context.append({"role": "system", "content": GoalSet._format(goal)})
+            await cm.replace(context)
+        except Exception as exc:
+            self.notify(f"目标已保存但注入上下文失败: {exc}", severity="warning")
+
+        asyncio.create_task(self._refresh_plan())
+        self.notify(f"目标已设置: {arg}", severity="information")
+
+    async def _show_goal(self) -> None:
+        """在聊天区展示当前 Coordinator 目标锚点。"""
+        from types import SimpleNamespace
+
+        from cloudra.tools.Plantool._store import agent_store_path, load_json
+        from cloudra.tools.Plantool.goal import GoalSet
+
+        agent = SimpleNamespace(
+            id=_COORDINATOR_AGENT_ID, conversation_id=self.conversation_id
+        )
+        goal = load_json(agent_store_path(agent, "goal.json"), default={})
+        chat_log = self.query_one("#chat-log", ChatLog)
+        target = self.current_session_id or "_system"
+        if goal:
+            chat_log.append_system(target, GoalSet._format(goal))
+        else:
+            chat_log.append_system(
+                target,
+                "当前未设置目标。\n用法: /goal <目标文本> 设置目标；/goal pause 暂停当前任务。",
+            )
 
     async def _cmd_compact(self, arg: str) -> None:
         """手动压缩当前对话的 Coordinator 上下文。"""
@@ -696,6 +788,15 @@ class MainScreen(Screen):
     # ------------------------------------------------------------------
     # 侧栏（Agent / 对话列表）
     # ------------------------------------------------------------------
+
+    def action_copy_text(self) -> None:
+        """复制当前文本选择（Screen 内建 ctrl+c），给出反馈并清除高亮。"""
+        selection = self.get_selected_text()
+        super().action_copy_text()
+        if not selection:
+            return
+        self.clear_selection()
+        self.notify(f"已复制 {len(selection)} 个字符", severity="information", timeout=2)
 
     def action_toggle_sidebar(self) -> None:
         """打开/收起侧栏；打开时刷新数据。"""
@@ -984,7 +1085,7 @@ class MainScreen(Screen):
         self.app.push_screen(
             AskUserModal(
                 interaction_id=interaction_id,
-                agent_name=msg.get("agent_name", "Agent"),
+                agent_name=msg.get("agent_name") or msg.get("agent_id") or "Agent",
                 prompt=msg.get("prompt", ""),
             ),
             callback=on_answer,

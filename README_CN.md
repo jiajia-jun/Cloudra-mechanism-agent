@@ -70,8 +70,10 @@ flowchart LR
 当前工具与技能生态覆盖：
 
 - 文献检索、文档转换、证据整合与学术写作；
+- 联网搜索：模型原生搜索（OpenAI / DeepSeek / OpenRouter 等服务商侧 `web_search`）或外部 `web_search` 工具，配合 `web_fetcher` 两段式取证，引用带来源 URL；
+- 计划与目标：`todo_write` / `todo_read` / `goal_set` 跟踪多步任务进度，TUI 可用 `/goal` 设定目标锚点（有目标后任务只有 `stop` 才能结束，每轮会提醒确认进度）；
 - 分子结构准备、格式转换、可视化和图像到结构工作流；
-- Gaussian 输入生成、异步计算提交、状态监控和输出解析；
+- Gaussian / CP2K 输入生成、异步计算提交、状态监控和输出解析；
 - NMR 与 IR 数据处理；
 - 分子动力学、周期第一性原理、实验设计和科研软件环境的领域规划。
 
@@ -114,6 +116,20 @@ cloudra run "为这个分子设计一个可复现的构象研究方案"
 ```
 
 如果集群 home 位于 NFS/Lustre，应把 `CLOUDRA_DATA_DIR` 放到具有可靠文件锁的本地磁盘；SQLite WAL 不能充当多主机共享数据库。
+
+### 联网搜索配置
+
+默认 `native_search=auto`：按 `base_url` + `model` 自动识别并启用服务商侧原生搜索
+（如 DeepSeek 走 Responses API 的 `web_search` 工具，OpenRouter 走 `web` 插件）。
+需要时可用环境变量覆盖：
+
+```bash
+export CLOUDRA_COORDINATOR__NATIVE_SEARCH=auto        # off / auto / openai / openrouter / deepseek / gemini / custom
+export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # 自定义注入参数（自建中转站用）
+```
+
+未启用原生搜索时，Agent 使用外部 `web_search` 工具（Tavily / Brave / Bing / DuckDuckGo）
+作为免 key 兜底。启用后外部工具会被剔除，避免双重搜索。
 
 ## 使用入口
 

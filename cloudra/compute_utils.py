@@ -15,6 +15,7 @@ _REQUIRED_BINS = {
     "gaussian": ["g16", "g09", "g26"],
     "vasp": ["vasp_std", "vasp_gam", "vasp_ncl"],
     "orca": ["orca"],
+    "cp2k": ["cp2k.popt", "cp2k.ssmp", "cp2k.psmp", "cp2k"],
 }
 
 # guard 轮询间隔（秒）
@@ -145,7 +146,9 @@ async def launch_compute_processes(
         (is_ok, message): is_ok 为 True 表示子进程已正常启动/完成；
                          为 False 时 message 为错误信息。
     """
-    guard_cmd = build_guard_cmd(task_id, input_file, conv_id, db_path, poll_interval)
+    guard_cmd = build_guard_cmd(
+        task_id, input_file, conv_id, db_path, poll_interval, job_type=job_type
+    )
 
     try:
         if wait_for_calculator:
@@ -191,7 +194,7 @@ def get_log_path(input_file: str, job_type: str = "gaussian") -> str:
     """根据输入文件路径推导计算软件生成的日志文件路径。
 
     Gaussian 默认生成与输入文件同名但后缀为 .log 的文件；
-    ORCA 生成 .out；VASP 的日志命名不固定，默认仍按 .out 处理。
+    ORCA、CP2K 生成 .out；VASP 的日志命名不固定，默认仍按 .out 处理。
     """
     path = Path(input_file)
     if job_type == "gaussian":

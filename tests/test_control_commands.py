@@ -193,6 +193,42 @@ async def test_persistent_interaction_answer_wakes_session_once(isolated_service
         )
 
 
+@pytest.mark.asyncio
+async def test_interaction_request_broadcasts_ipc_kind(isolated_service):
+    """TUI 弹窗订阅的是 kind="interaction_requested" 的 IPC 事件；回归保证
+    wait_for_user_response 不只写 session_event 历史，还会实时广播该 kind。"""
+    conversation_id = "conv_interaction_ipc"
+    session_id = "a-0_run_interaction_ipc"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="需要澄清",
+    )
+    session_store.update_session_fields(db, session_id, {"state": "running"})
+
+    queue = await events.subscribe_async(conversation_id, "interaction_requested")
+    waiter = asyncio.create_task(
+        isolated_service.session_runner._wait_for_interaction(
+            conversation_id,
+            session_id,
+            "请选择计算方法",
+        )
+    )
+    try:
+        message = await asyncio.wait_for(queue.get(), timeout=2)
+        assert message["kind"] == "interaction_requested"
+        assert message["session_id"] == session_id
+        assert message["prompt"] == "请选择计算方法"
+        assert message["interaction_id"].startswith("int_")
+    finally:
+        waiter.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiter
+
+
 def test_session_create_command_replay_returns_same_session(
     isolated_service,
     monkeypatch,

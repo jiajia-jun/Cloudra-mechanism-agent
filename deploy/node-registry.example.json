@@ -1,0 +1,47 @@
+{
+  "default_node_id": "workstation",
+  "nodes": [
+    {
+      "node_id": "workstation",
+      "display_name": "Lab Workstation",
+      "state": "online",
+      "capabilities": ["agent.session", "artifact.download", "compute.local"],
+      "workspaces": [
+        {
+          "workspace_id": "default",
+          "display_name": "Cloudra Workspace",
+          "path": "/srv/cloudra/workspace",
+          "access": "read_write"
+        }
+      ]
+    },
+    {
+      "node_id": "hpc-login",
+      "display_name": "HPC Login Node",
+      "state": "online",
+      "capabilities": ["agent.session", "artifact.download", "compute.slurm"],
+      "scheduler": {
+        "type": "slurm",
+        "partition": "compute",
+        "time_limit": "1-00:00:00",
+        "cpus": 8,
+        "memory": "32G",
+        "poll_seconds": 15
+      },
+      "workspaces": [
+        {
+          "workspace_id": "project-a",
+          "display_name": "Project A",
+          "path": "/shared/projects/project-a",
+          "access": "read_write"
+        },
+        {
+          "workspace_id": "archive",
+          "display_name": "Read-only Archive",
+          "path": "/shared/archive",
+          "access": "read_only"
+        }
+      ]
+    }
+  ]
+}

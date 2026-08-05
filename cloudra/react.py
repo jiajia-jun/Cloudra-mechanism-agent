@@ -41,10 +41,6 @@ class AgentStuckLoop(Exception):
     """
 
 
-class MaxStepsExceeded(Exception):
-    """超过最大步数预算，强制终止任务，避免主循环失控。"""
-
-
 class _TruncationRetry(Exception):
     """内部信号：本轮输出被 max_tokens 截断，注入收敛提示后重试（有界循环）。"""
 
@@ -107,8 +103,6 @@ class reAct:
         self._truncation_retries = 0
         # 死循环检测：最近若干次工具调用的签名（tool_name + 稳定序列化参数）
         self._recent_tool_sigs: list[str] = []
-        # 步数预算耗尽警告只注入一次
-        self._steps_warned = False
         # 本 session 的累计 token usage（真实 usage 逐轮累加，供前端展示成本）
         self._usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         # 打断（cancel）信号：通过 IPC 订阅 cancel_requested 事件直接置位
@@ -250,6 +244,12 @@ class reAct:
             })
 
             if review.verdict in ('redirect', 'pause_and_reflect'):
+                # Supervisor 提出反对：下一轮强制注入 todo 提醒，让模型重新
+                # 对照任务清单校正方向（见 Agent._should_inject_todo_reminder）。
+                try:
+                    self.agent._todo_reminder_force = True
+                except Exception:
+                    pass
                 self.log.update_content(
                     f"{Color.YELLOW}[Supervisor] {review.verdict.upper()}: {review.reasoning}{Color.END}\n"
                 )
@@ -320,8 +320,8 @@ class reAct:
                 print(f"[reAct] cancelled 状态写入失败: {e}")
             self.log.update_content(f"{Color.YELLOW}[系统] 任务已被用户打断。{Color.END}\n")
             raise
-        except (LLMOutputTruncated, AgentStuckLoop, MaxStepsExceeded) as exc:
-            # 输出反复被 max_tokens 截断 / 死循环 / 超步数预算：
+        except (LLMOutputTruncated, AgentStuckLoop) as exc:
+            # 输出反复被 max_tokens 截断 / 死循环：
             # 明确落库 failed，绝不让工具结果误当最终答案
             self.session.state = 'failed'
             error_msg = str(exc)
@@ -341,35 +341,20 @@ class reAct:
                 except asyncio.CancelledError:
                     pass
 
-    # 步数预算：防止主循环失控空转烧 token（对齐 OpenHands 默认的 100 步）
-    MAX_STEPS = 100
-    # 预算接近耗尽时提前警告一次，让模型收敛到结论而不是被硬切断
-    STEPS_WARN_AT = 80
     # 死循环检测阈值：相同（工具名+参数）签名连续出现次数，先警告、再终止
     LOOP_WARN_THRESHOLD = 3
     LOOP_ABORT_THRESHOLD = 5
 
     async def _run_loop(self):
-        '''reAct 的主循环（从 run 拆出以便统一捕获 AgentCancelled）。'''
+        '''reAct 的主循环（从 run 拆出以便统一捕获 AgentCancelled）。
+
+        循环只会在以下情况结束：调用了 stop 工具、任务被取消，或检测到
+        死循环（AgentStuckLoop）。不设步数上限——任务何时算完成由 stop 决定。
+        '''
         while self._continue:
             self.session.state = 'thinking'
             await self._record_phase('thinking')
             self.step_count += 1
-
-            # 步数预算：接近上限时注入一次收敛提示，超限则硬终止
-            if self.step_count >= self.STEPS_WARN_AT and not self._steps_warned:
-                self._steps_warned = True
-                await self.agent.update_context({
-                    "role": "system",
-                    "content": (
-                        f"【系统提示】步数预算即将耗尽（{self.step_count}/{self.MAX_STEPS}）。"
-                        "请停止扩展新的调查方向，基于已获得的信息收敛并给出最终结论。"
-                    ),
-                })
-            if self.step_count > self.MAX_STEPS:
-                raise MaxStepsExceeded(
-                    f"已达到最大步数 {self.MAX_STEPS}，任务被强制终止以避免失控空转。"
-                )
 
             # 每轮循环边界检查一次打断请求（流式期间也逐 chunk 检查 _cancel_event）
             self._check_cancel_event()
@@ -383,19 +368,26 @@ class reAct:
 
             tool_calls = await self.reasoning()
 
-            # 如果没有工具调用且有内容，或者已经停止
             if not tool_calls:
-                # 检查最后一条消息内容
-                context = await self.agent.get_context()
-                content = context[-1].get('content', '') if context else ''
-                if content:
-                    self.session.state = 'completed'
-                    # 更新数据库结果
-                    db = ConversationDB.from_path(self.database_path)
-                    await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
-                    # 任务结束前沉淀经验 case
-                    await self._persist_case()
-                    return content
+                # 未调用任何工具：模型可能以为任务已结束。
+                # 无目标锚点（没设 goal）→ 保持传统语义：有正文即视为完成；
+                # 有目标锚点 → 严格模式：只有 stop 才能结束，注入"确认 goal 是否
+                # 完成"的提醒后进入下一轮。
+                if not self.agent._has_goal_anchor():
+                    context = await self.agent.get_context()
+                    content = context[-1].get('content', '') if context else ''
+                    if content:
+                        self.session.state = 'completed'
+                        db = ConversationDB.from_path(self.database_path)
+                        await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
+                        await self._persist_case()
+                        return content
+                else:
+                    try:
+                        self.agent._goal_confirm_force = True
+                    except Exception:
+                        pass
+                    continue
 
             self.session.state = 'acting'
             await self._record_phase('acting')

@@ -35,6 +35,69 @@ async def test_main_screen_composes_widgets(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_status_bar_shows_native_search_label(tmp_path, monkeypatch):
+    """启用模型原生搜索时，状态栏显示「联网·<适配器名>」。"""
+    from cloudra.config import get_config, reload_config
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    cfg = get_config()
+    cfg._ensure_dirs()
+    monkeypatch.setattr(cfg.coordinator, "native_search", "deepseek")
+    monkeypatch.setattr(cfg.coordinator, "url", "https://api.deepseek.com")
+
+    app = CloudraTextualApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.screen.query_one("#status-bar", StatusBar)
+        assert bar.native_search == "deepseek"
+        assert "联网·deepseek" in str(bar.render())
+
+
+@pytest.mark.asyncio
+async def test_status_bar_shows_native_search_by_default_auto(tmp_path, monkeypatch):
+    """默认 native_search=auto：OpenRouter 端点自动启用，状态栏显示「联网·openrouter」。"""
+    from cloudra.config import get_config, reload_config
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    cfg = get_config()
+    cfg._ensure_dirs()
+    monkeypatch.setattr(cfg.coordinator, "native_search", "auto")
+    monkeypatch.setattr(cfg.coordinator, "url", "https://openrouter.ai/api/v1")
+    monkeypatch.setattr(cfg.coordinator, "model", "openai/gpt-4.1")
+
+    app = CloudraTextualApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.screen.query_one("#status-bar", StatusBar)
+        assert bar.native_search == "openrouter"
+        assert "联网·openrouter" in str(bar.render())
+
+
+@pytest.mark.asyncio
+async def test_status_bar_native_search_off_hides_indicator(tmp_path, monkeypatch):
+    """native_search=off 时状态栏不显示联网标记。"""
+    from cloudra.config import get_config, reload_config
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    cfg = get_config()
+    cfg._ensure_dirs()
+    monkeypatch.setattr(cfg.coordinator, "native_search", "off")
+
+    app = CloudraTextualApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.screen.query_one("#status-bar", StatusBar)
+        assert bar.native_search == ""
+        assert "联网" not in str(bar.render())
+
+
+@pytest.mark.asyncio
 async def test_input_bar_enter_sends_message():
     """Enter 键直接发送消息（回归：TextArea 默认 Enter 只是换行）。"""
     from textual.app import App
@@ -164,6 +227,40 @@ async def test_approval_modal_returns_decision():
 
 
 @pytest.mark.asyncio
+async def test_approval_modal_renders_markup_unsafe_content():
+    """审批详情/参数来自工具调用，含 [ ] \" 等字符，必须禁用 markup 渲染。
+
+    回归：Textual 对含未转义方括号的字符串按 console markup 解析会抛
+    MarkupError（不同 Textual 版本触发点不同），弹窗直接崩溃。
+    """
+    from cloudra.tui.new.screens.approval_modal import ApprovalModal
+
+    details = "【执行指令】: python3 -c \"print(['a', 'b'])\"\n"
+    arguments = "{'cmd': ['a', 'b']}"
+    risk = "高风险 [RM] 操作"
+
+    class TestApp(App):
+        def on_mount(self):
+            self.push_screen(
+                ApprovalModal(
+                    7,
+                    agent_name="a-3 [web]",
+                    details=details,
+                    tool_name="run_thing",
+                    arguments=arguments,
+                    risk_summary=risk,
+                ),
+            )
+
+    app = TestApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        for widget_id in ("approval-agent", "approval-details", "approval-tool", "approval-args", "approval-risk"):
+            widget = app.screen.query_one(f"#{widget_id}")
+            assert widget._render_markup is False, f"{widget_id} 必须 markup=False"
+
+
+@pytest.mark.asyncio
 async def test_help_screen_dismisses():
     """HelpScreen 可以关闭。"""
     from cloudra.tui.new.screens.help_screen import HelpScreen
@@ -217,6 +314,48 @@ async def _visible_texts(chat_log) -> list[str]:
         if text:
             texts.append(text)
     return texts
+
+
+@pytest.mark.asyncio
+async def test_render_bridge_web_search_merges_into_reasoning():
+    """联网搜索状态应并入流式「思考过程」；无流时退化为系统提示。"""
+    from textual.app import App
+
+    from cloudra.tui.new.render_bridge import RenderBridge
+
+    class TestApp(App):
+        def compose(self):
+            yield ChatLog(id="chat-log")
+
+    app = TestApp()
+    async with app.run_test():
+        chat_log = app.query_one("#chat-log", ChatLog)
+        bridge = RenderBridge("conv-test", chat_log)
+
+        # 流式进行中：联网搜索并入 reasoning
+        bridge._dispatch({
+            "kind": "session_event", "session_id": "s1",
+            "event_type": "llm_chunk",
+            "data": {"agent_name": "coordinator", "stream": "reasoning", "delta": "先搜一下"},
+        })
+        bridge._dispatch({
+            "kind": "session_event", "session_id": "s1",
+            "event_type": "llm_status",
+            "data": {"kind": "web_search", "query": "钙钛矿太阳能电池"},
+        })
+        records = chat_log.records_for_session("s1")
+        streaming = [r for r in records if r.status == "streaming"]
+        assert streaming, "应存在活跃流"
+        assert "[联网搜索] 钙钛矿太阳能电池" in streaming[0].reasoning
+
+        # 无活跃流时退化为系统提示，不产生孤立的空流
+        bridge._dispatch({
+            "kind": "session_event", "session_id": "s2",
+            "event_type": "llm_status",
+            "data": {"kind": "web_search", "query": "无流查询"},
+        })
+        s2 = chat_log.records_for_session("s2")
+        assert any("[联网搜索] 无流查询" in (r.content or "") for r in s2)
 
 
 @pytest.mark.asyncio
@@ -325,6 +464,8 @@ def test_parse_command_basic():
     assert parse_command("/use abc123") == ("use", "abc123")
     assert parse_command("/compact 6") == ("compact", "6")
     assert parse_command("/yolo on") == ("yolo", "on")
+    assert parse_command("/goal 完成 DFT 计算") == ("goal", "完成 DFT 计算")
+    assert parse_command("/goal pause") == ("goal", "pause")
     # 别名归一化
     assert parse_command("/compress") == ("compact", "")
     assert parse_command("/exit") == ("quit", "")
@@ -332,6 +473,52 @@ def test_parse_command_basic():
     assert parse_command("hello") is None
     assert parse_command("") is None
     assert parse_command("/") is None
+
+
+@pytest.mark.asyncio
+async def test_goal_command_sets_anchor_and_pins_context(tmp_path, monkeypatch):
+    """/goal <文本> 写入 Coordinator 目标锚点并固定到上下文。"""
+    import json as _json
+
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        await screen._cmd_goal("完成乙醇的 DFT 计算")
+        await pilot.pause()
+
+        from types import SimpleNamespace
+
+        from cloudra.tools.Plantool._store import agent_store_path
+
+        agent = SimpleNamespace(id="a-0", conversation_id=screen.conversation_id)
+        goal = _json.load(open(agent_store_path(agent, "goal.json"), encoding="utf-8"))
+        assert goal["objective"] == "完成乙醇的 DFT 计算"
+
+        # 目标锚点应注入 Coordinator 上下文
+        cm = __import__("cloudra.context_manager", fromlist=["ContextManager"]).ContextManager(
+            agent_id="a-0", conversation_id=screen.conversation_id, prompt=None, query=""
+        )
+        context = await cm.load()
+        assert any(
+            m.get("role") == "system" and "【任务目标】" in str(m.get("content", ""))
+            for m in context
+        )
+
+
+@pytest.mark.asyncio
+async def test_goal_command_pause_cancels_current_task(tmp_path, monkeypatch):
+    """/goal pause 路由到取消当前任务。"""
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        cancelled = []
+        async def fake_cancel():
+            cancelled.append(True)
+        screen.action_cancel_current = fake_cancel
+
+        await screen._cmd_goal("pause")
+        await pilot.pause()
+        assert cancelled == [True]
 
 
 # ------------------------------------------------------------------
@@ -815,7 +1002,7 @@ async def test_followup_send_stays_in_same_conversation(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
-    """状态栏常驻显示对话级共享上下文规模（记忆 N条≈Tk）。"""
+    """状态栏常驻显示对话级共享上下文规模（上下文 N条消息≈Xk tokens）。"""
     import asyncio as _asyncio
 
     app = _make_app(tmp_path, monkeypatch)
@@ -824,7 +1011,8 @@ async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
         status_bar = screen.query_one("#status-bar", StatusBar)
 
         # on_mount 已刷新过一次
-        assert "条≈" in status_bar.context_info
+        assert "条消息≈" in status_bar.context_info
+        assert "tokens" in status_bar.context_info
 
         # Coordinator 流式结束 → 触发再次刷新
         bridge = screen._render_bridge
@@ -836,7 +1024,8 @@ async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
         })
         await _asyncio.sleep(0.2)
         await pilot.pause()
-        assert "条≈" in status_bar.context_info
+        assert "条消息≈" in status_bar.context_info
+        assert "tokens" in status_bar.context_info
 
 
 # ------------------------------------------------------------------

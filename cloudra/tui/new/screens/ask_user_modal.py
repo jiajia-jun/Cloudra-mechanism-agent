@@ -5,7 +5,9 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Grid, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Input, Label
+
+from cloudra.tui.new.widgets.safe_static import SafeStatic
 
 
 class AskUserModal(ModalScreen[str | None]):
@@ -31,9 +33,9 @@ class AskUserModal(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Grid(id="ask-dialog"):
             yield Label("? Agent 提问", id="ask-title")
-            yield Static(f"来自: {self.agent_name}", id="ask-agent")
+            yield SafeStatic(f"来自: {self.agent_name}", id="ask-agent", markup=False)
             with VerticalScroll(id="ask-prompt-scroll"):
-                yield Static(self.prompt, id="ask-prompt", markup=False)
+                yield SafeStatic(self.prompt, id="ask-prompt", markup=False)
             yield Input(
                 value=self.default_answer,
                 placeholder="请输入回答…",
@@ -42,6 +44,10 @@ class AskUserModal(ModalScreen[str | None]):
             with Grid(id="ask-buttons"):
                 yield Button("提交", variant="primary", id="submit")
                 yield Button("关闭", variant="default", id="close")
+
+    def on_mount(self) -> None:
+        # 弹窗一打开就把焦点放进输入框，用户无需先点击/Tab 即可直接输入
+        self.query_one("#ask-input", Input).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "submit":

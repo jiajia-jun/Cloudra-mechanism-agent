@@ -5,7 +5,9 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.containers import Grid
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Static
+from textual.widgets import Button, Label
+
+from cloudra.tui.new.widgets.safe_static import SafeStatic
 
 
 class ApprovalModal(ModalScreen[str | None]):
@@ -37,14 +39,16 @@ class ApprovalModal(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Grid(id="approval-dialog"):
             yield Label("※ 安全审批", id="approval-title")
-            yield Static(f"来自: {self.agent_name}", id="approval-agent")
-            yield Static(self.details, id="approval-details")
+            # 详情/参数/风险评估来自工具调用，可能含 [ ] " 等字符；
+            # 用 SafeStatic + markup=False：正常走纯文本，渲染失败也有兜底不崩溃。
+            yield SafeStatic(f"来自: {self.agent_name}", id="approval-agent", markup=False)
+            yield SafeStatic(self.details, id="approval-details", markup=False)
             if self.tool_name:
-                yield Static(f"工具: {self.tool_name}", id="approval-tool")
+                yield SafeStatic(f"工具: {self.tool_name}", id="approval-tool", markup=False)
             if self.arguments:
-                yield Static(f"参数: {self.arguments}", id="approval-args")
+                yield SafeStatic(f"参数: {self.arguments}", id="approval-args", markup=False)
             if self.risk_summary:
-                yield Static(f"风险评估: {self.risk_summary}", id="approval-risk")
+                yield SafeStatic(f"风险评估: {self.risk_summary}", id="approval-risk", markup=False)
             with Grid(id="approval-buttons"):
                 yield Button("允许 (Y)", variant="success", id="approve")
                 yield Button("拒绝 (N)", variant="error", id="deny")

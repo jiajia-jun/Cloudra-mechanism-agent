@@ -537,14 +537,57 @@ async def test_cancelled_compile_cannot_request_a_frame_after_the_closing_gate()
 from cloudra.tui.new.transcript_render import InteractionAction
 
 
+class PaddedChatOnlyApp(ChatOnlyApp):
+    """Same surface as ChatOnlyApp but with a border + padding, so content is
+    offset from the widget origin by a gutter (the production layout)."""
+
+    CSS = """
+    #chat-log {
+        border: solid green;
+        padding: 1;
+    }
+    """
+
+
 @pytest.mark.asyncio
-async def test_virtual_tool_toggle_and_code_copy(monkeypatch):
+async def test_virtual_code_copy_hit_box_respects_widget_gutter():
+    """Clicking the visible code-copy label must copy even with a border+padding.
+
+    Regression: the compiled interaction regions use content coordinates while
+    Click.offset is widget-local, so without subtracting the gutter the tiny
+    ``复制`` hit box never matches in the real (bordered) layout.
+    """
+    copied: list[str] = []
+    app = PaddedChatOnlyApp()
+    app.copy_to_clipboard = copied.append  # type: ignore[method-assign]
+    async with app.run_test(size=(100, 36)) as pilot:
+        chat = app.query_one("#chat-log", VirtualChatLog)
+        code = chat.start_stream("s1", "Agent")
+        chat.append_stream_chunk("s1", "```python\nprint('hi')\n```")
+        chat.end_stream("s1")
+        await chat.ensure_compiled(code.record_id)
+        await pilot.pause()
+
+        gutter_x, gutter_y = chat.gutter.top_left
+        assert (gutter_x, gutter_y) == (2, 2)
+        row, text = next(
+            (y, chat.render_line(y).text)
+            for y in range(chat._heights.total)
+            if "复制" in chat.render_line(y).text
+        )
+        col = text.rstrip().find("复制")
+        visible_row = row - int(chat.scroll_y)
+        await pilot.click(chat, offset=(col + gutter_x, visible_row + gutter_y))
+        await pilot.pause()
+        assert copied == ["print('hi')"]
+
+
+@pytest.mark.asyncio
+async def test_virtual_tool_toggle_and_code_copy():
     """Compiled interaction regions must drive tool expansion and code copying."""
     copied: list[str] = []
-    monkeypatch.setattr(
-        "cloudra.tui.new.widgets.virtual_chat_log.copy_to_clipboard", copied.append
-    )
     app = ChatOnlyApp()
+    app.copy_to_clipboard = copied.append  # type: ignore[method-assign]
     async with app.run_test(size=(100, 36)) as pilot:
         chat = app.query_one("#chat-log", VirtualChatLog)
         tool = chat.append_tool(

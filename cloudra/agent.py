@@ -23,6 +23,16 @@ from cloudra.tools import ToolEntry, get_tools_lst
 from cloudra.tools.core.permission_model import Permission, check_permission
 from cloudra.tools_class import Tool
 
+# todo 提醒注入间隔（推理轮数）：每 N 轮提醒一次模型读取任务清单
+_TODO_REMIND_EVERY = 10
+
+# 模型给出结论但未调用 stop 时，注入一次目标确认提醒（一次性 force）
+_GOAL_CONFIRM_REMINDER = (
+    "【系统】你刚刚给出了结论但没有调用 stop 工具。注意：任务只有在调用 stop "
+    "工具后才会真正结束。请用 goal_set 重新确认目标与完成判据，或 todo_read 查看任务清单，"
+    "判断目标是否真正达成：若已完成，调用 stop 并填入最终答案收尾；若未完成，继续推进。"
+)
+
 
 def load_prompt(agent_name: str) -> str:
     """兼容入口：调用时读取角色 prompt，不做模块级缓存。"""
@@ -128,6 +138,12 @@ class Agent(BaseModel):
 
     _last_prompt_assembly: Optional[PromptAssembly] = PrivateAttr(default=None)
     _last_request_diagnostics: dict = PrivateAttr(default_factory=dict)
+
+    # todo 提醒节流：每 _TODO_REMIND_EVERY 轮注入一次；supervisor 反对时强制注入一次
+    _reasoning_round: int = 0
+    _todo_reminder_force: bool = False
+    # 模型给出结论但未调用 stop 时，一次性强制注入目标确认提醒
+    _goal_confirm_force: bool = False
 
     def _init_context_manager(self) -> None:
         '''初始化本 Agent 的 ContextManager。'''
@@ -274,6 +290,78 @@ class Agent(BaseModel):
             )
         return self._llm_client
 
+    def _role_llm_config(self):
+        """返回本 Agent 所属角色（coordinator/follower）的 LLM 配置。"""
+        cfg = get_config()
+        return cfg.coordinator if getattr(self, "type", "") == "coordinator" else cfg.follower
+
+    def _native_search_adapter(self):
+        """解析本 Agent 的模型原生网页搜索适配器（None = 关闭/不可用）。"""
+        from cloudra.web_search_native import resolve_native_search
+
+        role_cfg = self._role_llm_config()
+        return resolve_native_search(
+            base_url=self.llm_site or "",
+            model=self.model or "",
+            mode=role_cfg.native_search,
+            params=role_cfg.native_search_params,
+        )
+
+    def _uses_responses_transport(self) -> bool:
+        """原生搜索需要走 Responses API（如 DeepSeek）时返回 True。"""
+        adapter = self._native_search_adapter()
+        return adapter is not None and adapter.transport == "responses"
+
+    def _todo_reminder(self) -> str:
+        """返回 todo 提醒文案；该 agent 未建过清单时为空串（纯查询，不做节流）。"""
+        try:
+            from cloudra.tools.Plantool._store import agent_store_path, load_json
+
+            if load_json(agent_store_path(self, "todos.json"), default=None):
+                return (
+                    "【系统】你正在维护一份任务清单（todo list）。本轮开始前请先调用 "
+                    "todo_read 查看当前清单，确认哪一项处于进行中，再决定下一步；"
+                    "完成某项后立即用 todo_write 更新状态。"
+                )
+        except Exception:
+            pass
+        return ""
+
+    def _should_inject_todo_reminder(self) -> bool:
+        """todo 提醒注入节奏：每 _TODO_REMIND_EVERY 轮一次，或 supervisor
+        反对后强制注入一次（supervisor 反对是重要转向节点，模型需要重新
+        对照清单校正方向）。"""
+        self._reasoning_round += 1
+        force = self._todo_reminder_force
+        self._todo_reminder_force = False
+        return force or (self._reasoning_round % _TODO_REMIND_EVERY == 0)
+
+    def _has_goal_anchor(self) -> bool:
+        """该 agent 是否设过目标锚点（调用过 goal_set）。"""
+        try:
+            from cloudra.tools.Plantool._store import agent_store_path, load_json
+
+            return bool(load_json(agent_store_path(self, "goal.json"), default=None))
+        except Exception:
+            return False
+
+    def _goal_confirm_reminder(self) -> str:
+        """一次性目标确认提醒：仅当该 agent 设过目标锚点（goal_set）时有效。
+
+        reAct 在「无工具调用」轮置 force 后，下一轮请求注入——即首次出现
+        无工具轮时提醒模型确认 goal 是否完成、决定 stop 还是继续。
+        没设过 goal 时返回空串（无目标可确认，不注入）。
+        """
+        if not self._goal_confirm_force:
+            return ""
+        self._goal_confirm_force = False
+        return _GOAL_CONFIRM_REMINDER if self._has_goal_anchor() else ""
+
+    @staticmethod
+    def _tool_name_of(schema: dict) -> str:
+        function = schema.get("function", {}) if isinstance(schema, dict) else {}
+        return function.get("name") if isinstance(function, dict) else None
+
     def _get_tools_schema(self) -> list[dict]:
         """Cache schemas while invalidating when online device capabilities change."""
         # Tests and embedders may explicitly inject a fixed schema list.
@@ -350,10 +438,15 @@ class Agent(BaseModel):
         """在请求期装配当前身份层、持久历史和环境 observation。"""
         schemas = self._get_tools_schema() if tool_schemas is None else tool_schemas
         tool_names = self._tool_names_from_schemas(schemas)
+        # 有联网搜索能力：原生搜索（服务端工具不在 function 列表里）或外部 web_search 工具
+        web_search_available = (
+            self._native_search_adapter() is not None or "web_search" in tool_names
+        )
         assembly = self._prompt_assembler().assemble(
             tool_names,
             capability_schemas=schemas,
             device_snapshot=self._device_prompt_snapshot(tool_names),
+            web_search_available=web_search_available,
         )
         self._last_prompt_assembly = assembly
         target_tokens = self.context_window // 2 if self.context_window else None
@@ -403,9 +496,29 @@ class Agent(BaseModel):
             return "<custom-endpoint>"
 
     async def _build_request_kwargs(self) -> dict:
-        """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。"""
+        """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。
+
+        启用模型原生网页搜索时，剔除外置 ``web_search`` 工具（避免模型既走
+        function call 转第三方搜索、又走 provider 端原生搜索），并通过
+        ``extra_body`` 注入服务商的原生搜索参数。
+        """
         available_tool_classes = self._get_tools_schema()
+        native_adapter = self._native_search_adapter()
+        native_name = native_adapter.name if native_adapter is not None else None
+        if native_name is not None:
+            available_tool_classes = [
+                schema
+                for schema in available_tool_classes
+                if self._tool_name_of(schema) != "web_search"
+            ]
         messages = await self._build_messages(available_tool_classes)
+        if self._should_inject_todo_reminder():
+            reminder = self._todo_reminder()
+            if reminder:
+                messages = [*messages, {"role": "system", "content": reminder}]
+        goal_confirm = self._goal_confirm_reminder()
+        if goal_confirm:
+            messages = [*messages, {"role": "system", "content": goal_confirm}]
 
         request_kwargs = {
             "model": self.model,
@@ -419,6 +532,12 @@ class Agent(BaseModel):
             request_kwargs["top_p"] = self.top_p
         if available_tool_classes:
             request_kwargs["tools"] = available_tool_classes
+
+        if native_adapter is not None:
+            role_cfg = self._role_llm_config()
+            request_kwargs = native_adapter.inject(
+                request_kwargs, role_cfg.native_search_params
+            )
 
         assembly = self._last_prompt_assembly
         diagnostics = assembly.diagnostics() if assembly is not None else {}
@@ -448,6 +567,7 @@ class Agent(BaseModel):
                 "runtime_version": __version__,
                 "model": self.model,
                 "provider": self._provider_for_diagnostics(self.llm_site),
+                "native_search": native_name or "off",
                 "conversation_id": self.conversation_id,
                 "session_id": self.session_id,
                 "agent_id": self.id,
@@ -492,12 +612,18 @@ class Agent(BaseModel):
         瞬时错误（429/5xx/连接错误）的指数退避重试统一由 LLMClient 完成。
         '''
         request_kwargs = await self._build_request_kwargs()
-        return await self._get_llm_client().create_with_retry(**request_kwargs)
+        client = self._get_llm_client()
+        if self._uses_responses_transport():
+            return await client.create_responses_with_retry(**request_kwargs)
+        return await client.create_with_retry(**request_kwargs)
 
     async def _llm_call_once(self) -> ChatResponse:
-        '''单次调用llm接口（不做瞬时错误重试；三级 fallback 仍由 LLMClient 完成）。'''
+        '''单次调用llm接口（不做瞬时错误重试；传输层 fallback 仍由 LLMClient 完成）。'''
         request_kwargs = await self._build_request_kwargs()
-        return await self._get_llm_client().create(**request_kwargs)
+        client = self._get_llm_client()
+        if self._uses_responses_transport():
+            return await client.create_responses(**request_kwargs)
+        return await client.create(**request_kwargs)
 
 
 class Coordinator(Agent):

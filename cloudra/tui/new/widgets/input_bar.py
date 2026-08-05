@@ -76,6 +76,17 @@ class SubmitTextArea(TextArea):
                 if asyncio.iscoroutine(result):
                     asyncio.create_task(result)
 
+    def action_copy(self) -> None:
+        """输入框有自己的选区就复制它，否则委托给屏幕（复制聊天区拖选）。
+
+        TextArea 的 ctrl+c 绑定优先于 Screen 的 copy_text，输入框又常是默认
+        焦点，不转发的话聊天区拖选后按 Ctrl+C 会被这里静默吞掉。
+        """
+        if self.selected_text:
+            super().action_copy()
+        else:
+            self.screen.action_copy_text()
+
 
 class InputBar(Vertical):
     """命令补全弹层 + 输入框 + 发送按钮。Enter 发送，Ctrl+Enter 换行。"""
@@ -100,7 +111,7 @@ class InputBar(Vertical):
         yield suggest
         with Horizontal(id="input-row"):
             yield Static("新任务", id="session-label")
-            yield SubmitTextArea(placeholder="输入任务或补充要求… (Enter 发送, Ctrl+Enter 换行, / 补全命令)", id="message-input")
+            yield SubmitTextArea(placeholder="输入任务或补充要求… (方向键移动光标, Enter 发送, Ctrl+Enter 换行, / 补全命令)", id="message-input")
             yield Button("发送", id="send-button", variant="primary")
 
     # ------------------------------------------------------------------

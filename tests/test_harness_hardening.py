@@ -21,7 +21,7 @@ import pytest
 from cloudra.config import get_config
 from cloudra.database import ConversationDB
 from cloudra.llm_client import LLMClient
-from cloudra.react import AgentStuckLoop, MaxStepsExceeded
+from cloudra.react import AgentStuckLoop
 from cloudra.tools import ToolEntry
 from cloudra.tools_class import Tool, input_schema, output_schema
 
@@ -327,6 +327,57 @@ class TestTruncateOutput:
 
 @pytest.mark.asyncio
 class TestLoopDetection:
+    def _stub_loop_side_effects(self, react):
+        """屏蔽循环里的 DB 遥测/外部事件，聚焦 reasoning + 完成决策。"""
+        from unittest.mock import AsyncMock
+
+        react._record_phase = AsyncMock()
+        react._consume_external_events = AsyncMock(return_value=0)
+        react.supervisor = None
+        return react
+
+    async def test_no_goal_completes_on_content_without_tool(self, tmp_path, monkeypatch):
+        """无目标锚点：模型给出正文且未调工具时直接完成，不进入严格循环。"""
+        from unittest.mock import AsyncMock
+
+        react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool])
+        self._stub_loop_side_effects(react)
+        await agent.update_context({"role": "assistant", "content": "答案"})
+        react.reasoning = AsyncMock(return_value=[])
+
+        result = await react._run_loop()
+        assert result == "答案"
+        assert react.session.state == "completed"
+        # 无工具轮不应置 force（无 goal，不进入严格模式）
+        assert agent._goal_confirm_force is False
+
+    async def test_goal_strict_mode_does_not_complete_without_stop(self, tmp_path, monkeypatch, mock_session):
+        """有目标锚点：无工具轮不完成，置 force 提醒确认 goal 后继续。"""
+        from cloudra.tools.Plantool.goal import GoalSet, GoalSet_input_schema
+
+        react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool])
+        self._stub_loop_side_effects(react)
+        await GoalSet(subagent=agent).tool_call(GoalSet_input_schema(objective="完成计算"), mock_session)
+
+        class _RoundTwo(Exception):
+            pass
+
+        calls = {"n": 0}
+
+        async def fake_reasoning():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return []  # 第一轮无工具
+            raise _RoundTwo()  # 第二轮打断，证明第一轮未完成
+
+        react.reasoning = fake_reasoning
+
+        with pytest.raises(_RoundTwo):
+            await react._run_loop()
+        # 第一轮无工具 → 置 force（下一轮请求注入确认提醒）
+        assert agent._goal_confirm_force is True
+        assert react.session.state != "completed"
+
     async def test_warn_on_third_identical_call(self, tmp_path, monkeypatch):
         """相同（工具名+参数）签名连续第 3 次调用时注入系统警告。"""
         react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool])
@@ -358,29 +409,6 @@ class TestLoopDetection:
         context = await agent.get_context()
         system_msgs = [m for m in context if m.get("role") == "system"]
         assert not any("陷入循环" in str(m.get("content", "")) for m in system_msgs)
-
-    async def test_max_steps_raises(self, tmp_path, monkeypatch):
-        """步数超过预算上限时抛 MaxStepsExceeded。"""
-        react, _ = _make_react(tmp_path, monkeypatch, [_EchoTool])
-        react.step_count = react.MAX_STEPS
-
-        with pytest.raises(MaxStepsExceeded, match="最大步数"):
-            await react._run_loop()
-
-    async def test_steps_warning_injected_once(self, tmp_path, monkeypatch):
-        """接近预算上限时注入一次收敛警告（不重复）。"""
-        react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool])
-        react.step_count = react.MAX_STEPS  # 下一步即触发警告 + 超限
-
-        with pytest.raises(MaxStepsExceeded):
-            await react._run_loop()
-
-        context = await agent.get_context()
-        warnings = [
-            m for m in context
-            if m.get("role") == "system" and "步数预算" in str(m.get("content", ""))
-        ]
-        assert len(warnings) == 1
 
 
 # ---------------------------------------------------------------------------

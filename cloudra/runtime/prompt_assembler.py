@@ -23,6 +23,31 @@ from cloudra.runtime.environment_observer import observe_workspace
 PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 
+# 有联网搜索能力（原生搜索或 web_search 工具）时注入的引导，防止模型凭记忆作答
+_WEB_SEARCH_GUIDANCE = (
+    "## 联网搜索（重要）\n"
+    "你具备联网搜索能力。当任务依赖**实时/最新或外部**信息时，**必须先联网搜索**，"
+    "不要凭训练记忆作答。典型场景：\n"
+    "- 近期新闻、最新软件/模型版本、当前价格/参数、榜单/政策/规范；\n"
+    "- 官方文档、论坛讨论、数据库页面、具体机构/产品的最新信息；\n"
+    "- 你的知识可能过时或不确定，而答案会影响结论或决策。\n"
+    "搜索后基于结果作答，并附来源 URL。联网搜索不是可选项——只要任务需要当前/"
+    "外部事实，就先搜再答。"
+)
+
+# 有 agent_hub 工具（所有并行 Agent）时注入的引导，鼓励主动共享/复用
+_AGENT_HUB_GUIDANCE = (
+    "## AgentHub 协作（并行共享）\n"
+    "系统提供 `agent_hub` 工具：所有并行 Agent 共享的论坛，是彼此间唯一的横向信道。"
+    "使用纪律：\n"
+    "- 开工前先 `browse`/`search` 看别人是否已做过相关主题，避免重复劳动；"
+    "与其他 Agent 并行、可能重叠的任务**尤其要主动查**。\n"
+    "- 拿到可复用的关键结论（参数、数据、坑）后，用 `post` 发布到对应主题；"
+    "帖子要自包含——别人没有你的上下文。\n"
+    "- 其他 Agent 的帖子是你结论的交叉验证来源：遇到可疑/矛盾的发现时，"
+    "`read`/`search` 查一下 hub 是否有相关记录再下结论。"
+)
+
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -307,6 +332,7 @@ class PromptAssembler:
         *,
         capability_schemas: Iterable[dict] | None = None,
         device_snapshot: Iterable[dict] = (),
+        web_search_available: bool = False,
     ) -> PromptAssembly:
         tool_names = tuple(sorted({name for name in capability_names if name}))
         normalized_schemas = list(capability_schemas or ())
@@ -403,6 +429,24 @@ class PromptAssembler:
                 revision=capability_revision,
             )
         )
+
+        if web_search_available:
+            identity_sections.append(_WEB_SEARCH_GUIDANCE)
+            sources.append(
+                PromptSource(
+                    kind="web_search_guidance",
+                    revision=f"sha256:{_sha256_text(_WEB_SEARCH_GUIDANCE)}",
+                )
+            )
+
+        if "agent_hub" in tool_names:
+            identity_sections.append(_AGENT_HUB_GUIDANCE)
+            sources.append(
+                PromptSource(
+                    kind="agent_hub_guidance",
+                    revision=f"sha256:{_sha256_text(_AGENT_HUB_GUIDANCE)}",
+                )
+            )
 
         revision_payload = json.dumps(
             [source.to_dict() for source in sources],

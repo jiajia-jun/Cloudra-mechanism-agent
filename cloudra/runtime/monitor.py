@@ -16,7 +16,7 @@ from cloudra.database import ConversationDB
 from cloudra.platform_utils import is_posix
 
 
-async def _parse_log(log_path: Path, parse_timeout: int):
+async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian"):
     """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示超时/失败。
 
     若 calculator 已退出但日志文件不存在或为空，说明计算未产生有效输出，
@@ -25,6 +25,10 @@ async def _parse_log(log_path: Path, parse_timeout: int):
     if not log_path.exists() or log_path.stat().st_size == 0:
         print(f'日志文件不存在或为空：{log_path}')
         return None, None
+
+    if job_type == "cp2k":
+        # cclib 1.8.x 已移除 CP2K 解析器，这里用轻量文本解析兜底。
+        return _parse_cp2k_log(log_path)
 
     deadline = time.monotonic() + parse_timeout
     last_error = None
@@ -43,6 +47,48 @@ async def _parse_log(log_path: Path, parse_timeout: int):
             await asyncio.sleep(1.0)
     print(f'日志解析失败或超时：{last_error}')
     return None, None
+
+
+def _parse_cp2k_log(log_path: Path) -> tuple[dict, bool] | None:
+    """轻量解析 CP2K 输出日志（.out）。
+
+    成功判据：日志包含 ``PROGRAM ENDED`` 且未出现 ``PROGRAM FAILED`` /
+    ``ABORT`` 等终止标记；并提取最后一次 FORCE_EVAL 总能量。
+    """
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        print(f'读取 CP2K 日志失败：{e}')
+        return None
+    if not text.strip():
+        return None
+
+    normal = "PROGRAM ENDED" in text
+    aborted = any(
+        marker in text
+        for marker in ("PROGRAM FAILED", "ABORT", "PROGRAM TERMINATED")
+    )
+    is_success = normal and not aborted
+
+    energy = None
+    for line in reversed(text.splitlines()):
+        if "ENERGY| Total FORCE_EVAL" in line and "energy [a.u.]" in line:
+            tokens = line.split()
+            if tokens:
+                try:
+                    energy = float(tokens[-1])
+                except ValueError:
+                    pass
+            break
+
+    data_dic: dict = {
+        "is_success": is_success,
+        "total_energy_hartree": energy,
+    }
+    if energy is not None:
+        data_dic["scf_energy_hartree"] = energy
+        data_dic["scf_energy_ev"] = energy * 27.211386245988
+    return data_dic, is_success
 
 
 async def run_guard(
@@ -91,7 +137,7 @@ async def run_guard(
     returncode = await calc_proc.wait()
     print(f'[guard] calculator 退出，退出码：{returncode}')
 
-    data_dic, is_success = await _parse_log(log_path, parse_timeout)
+    data_dic, is_success = await _parse_log(log_path, parse_timeout, job_type=job_type)
     if data_dic is None:
         await _mark_failed(
             db,

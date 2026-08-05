@@ -13,13 +13,15 @@ from collections import OrderedDict
 from contextlib import contextmanager
 from typing import Iterator
 
+from rich.cells import cell_len
 from rich.console import Console
-from textual.events import Click, Key, Resize
-from textual.geometry import Size
+from rich.segment import Segment
+from textual.events import Click, MouseDown, Resize
+from textual.geometry import Offset, Size
 from textual.scroll_view import ScrollView
+from textual.selection import Selection
 from textual.strip import Strip
 
-from cloudra.tui.new.clipboard import copy_to_clipboard
 from cloudra.tui.new.frame_scheduler import FrameScheduler
 from cloudra.tui.new.transcript import (
     TranscriptChange,
@@ -75,8 +77,6 @@ class ChatLog(ScrollView, can_focus=True):
         self._mounted = False
         self._surface_closing = False
         self._frame_scheduler = FrameScheduler(self, self._flush_frame, max_fps=20)
-        self._focus_regions: list[tuple[int, InteractionRegion]] = []
-        self._focus_index: int | None = None
 
     @property
     def has_records(self) -> bool:
@@ -178,13 +178,81 @@ class ChatLog(ScrollView, can_focus=True):
         try:
             index, row = self._heights.locate(absolute_y)
         except IndexError:
-            return Strip.blank(width, self.rich_style)
-        record_id = self._visible_ids[index]
-        strip = self._cached_row(record_id, width, row)
-        if strip is None:
-            self._schedule_record(record_id, row=row)
-            return Strip.blank(width, self.rich_style)
-        return strip.apply_style(self.rich_style).crop_extend(0, width, self.rich_style)
+            strip = Strip.blank(width, self.rich_style)
+        else:
+            record_id = self._visible_ids[index]
+            strip = self._cached_row(record_id, width, row)
+            if strip is None:
+                self._schedule_record(record_id, row=row)
+                strip = Strip.blank(width, self.rich_style)
+            else:
+                strip = strip.crop_extend(0, width, self.rich_style)
+        strip = self._apply_selection(strip, absolute_y, width)
+        # Tag every cell with its content offset so the compositor can map the
+        # pointer back to text coordinates for Textual's built-in selection.
+        return strip.apply_offsets(0, absolute_y)
+
+    def _apply_selection(self, strip: Strip, absolute_y: int, width: int) -> Strip:
+        """Overlay the selection highlight on the selected span of one row."""
+        selection = self.text_selection
+        if selection is None:
+            return strip
+        span = selection.get_span(absolute_y)
+        if span is None:
+            return strip
+        text = strip.text
+        start, end = span  # character offsets (the offset metadata is char-based)
+        if end == -1:
+            end = len(text)
+        start = max(0, min(start, len(text)))
+        end = max(start, min(end, len(text)))
+        if start == end:
+            return strip
+        # Strip cuts are cell-based; wide (CJK) characters make char != cell,
+        # so convert before dividing or the highlight lands on the wrong text.
+        cell_start = cell_len(text[:start])
+        cell_end = cell_len(text[:end])
+        selection_style = self.screen.get_component_rich_style("screen--selection")
+        # Strip.divide yields one piece PER CUT (no trailing remainder), so the
+        # strip's own length must be the final cut or the tail is dropped.
+        head, selected, tail = strip.divide([cell_start, cell_end, strip.cell_length])
+        # post_style puts the selection colors ON TOP of per-segment styles:
+        # record/syntax colors can never override them and hide selected text.
+        highlighted = Strip(
+            Segment.apply_style(list(selected), post_style=selection_style),
+            selected.cell_length,
+        )
+        return Strip.join([head, highlighted, tail])
+
+    def get_selection(self, selection: Selection) -> tuple[str, str] | None:
+        """Extract the plain text under a text selection (virtual row space)."""
+        total = self._heights.total
+        if total < 1:
+            return None
+        start_y = 0 if selection.start is None else max(0, selection.start.y)
+        end_y = total - 1 if selection.end is None else min(selection.end.y, total - 1)
+        if start_y > end_y:
+            return None
+        width = self._content_width()
+        lines: list[str] = []
+        for absolute_y in range(start_y, end_y + 1):
+            try:
+                index, row = self._heights.locate(absolute_y)
+            except IndexError:
+                lines.append("")
+                continue
+            strip = self._cached_row(self._visible_ids[index], width, row)
+            lines.append("" if strip is None else strip.text.rstrip())
+        text = "\n".join(lines)
+        shifted = Selection(
+            None if selection.start is None else Offset(selection.start.x, 0),
+            None if selection.end is None else Offset(selection.end.x, end_y - start_y),
+        )
+        return shifted.extract(text), "\n"
+
+    def selection_updated(self, selection: Selection | None) -> None:
+        # The highlight is applied at render time, so a plain repaint suffices.
+        self.refresh(layout=False)
 
     def ensure_session(self, session_id: str) -> None:
         """Compatibility no-op: sessions exist as soon as their first record does."""
@@ -702,17 +770,38 @@ class ChatLog(ScrollView, can_focus=True):
             await self._copy_code(region.payload)
 
     async def _copy_code(self, text: str) -> None:
-        try:
-            await asyncio.to_thread(copy_to_clipboard, text)
-        except RuntimeError as exc:
-            self.app.notify(str(exc), severity="error", timeout=4)
-        else:
-            self.app.notify("已复制到剪贴板", severity="information", timeout=2)
+        # Textual writes the OSC52 escape sequence, so copying needs no
+        # external clipboard tool (xclip/xsel/pbcopy/clip).
+        self.app.copy_to_clipboard(text)
+        self.app.notify("已复制到剪贴板", severity="information", timeout=2)
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        """右键复制当前选择并清除高亮（与终端常见的右键复制习惯一致）。
+
+        在 MouseDown 处理而不是 MouseUp：Screen 会在原地点击的 MouseUp 上
+        先清掉选择，那时再复制就晚了。
+        """
+        if event.button != 3 or not self.screen.selections:
+            return
+        text = self.screen.get_selected_text()
+        self.screen.clear_selection()
+        event.stop()
+        event.prevent_default()
+        if text:
+            self.app.copy_to_clipboard(text)
+            self.app.notify(f"已复制 {len(text)} 个字符", severity="information", timeout=2)
 
     async def on_click(self, event: Click) -> None:
-        if not self._visible_ids or self._content_width() < 1:
+        if event.button != 1 or not self._visible_ids or self._content_width() < 1:
             return
-        virtual_row = event.offset.y + int(self.scroll_y)
+        # event.offset is widget-local (includes border + padding); the compiled
+        # interaction regions use content coordinates, so drop the gutter first.
+        gutter_x, gutter_y = self.gutter.top_left
+        content_x = event.offset.x - gutter_x
+        content_y = event.offset.y - gutter_y
+        if content_x < 0 or content_y < 0:
+            return
+        virtual_row = content_y + int(self.scroll_y)
         try:
             index, _ = self._heights.locate(virtual_row)
         except IndexError:
@@ -723,7 +812,7 @@ class ChatLog(ScrollView, can_focus=True):
             return
         record_start = self._heights.row_start(index)
         rel_y = virtual_row - record_start
-        rel_x = event.offset.x
+        rel_x = content_x
         for region in compiled.regions:
             if (
                 region.x <= rel_x < region.x + region.width
@@ -732,39 +821,6 @@ class ChatLog(ScrollView, can_focus=True):
                 await self.activate_region(record_id, region.action)
                 event.stop()
                 return
-
-    def _refresh_focus_regions(self) -> None:
-        """Rebuild the ordered list of visible interaction regions."""
-        regions: list[tuple[int, InteractionRegion]] = []
-        width = self._content_width()
-        for index, record_id in enumerate(self._visible_ids):
-            compiled = self._rebuild_compiled_record(record_id, width)
-            if compiled is None:
-                continue
-            for region in compiled.regions:
-                regions.append(
-                    (record_id, region)
-                )
-        self._focus_regions = regions
-        if self._focus_index is None or self._focus_index >= len(regions):
-            self._focus_index = 0 if regions else None
-
-    async def on_key(self, event: Key) -> None:
-        if not self.has_focus or not self._visible_ids:
-            return
-        if event.key in ("tab", "shift+tab"):
-            self._refresh_focus_regions()
-            if self._focus_index is None:
-                return
-            if event.key == "tab":
-                self._focus_index = (self._focus_index + 1) % len(self._focus_regions)
-            else:
-                self._focus_index = (self._focus_index - 1) % len(self._focus_regions)
-            event.stop()
-        elif event.key == "enter" and self._focus_index is not None:
-            record_id, region = self._focus_regions[self._focus_index]
-            await self.activate_region(record_id, region.action)
-            event.stop()
 
     @staticmethod
     def _merge_changes(

@@ -55,7 +55,12 @@ def client():
 
 
 @pytest.fixture
-def agent():
+def agent(monkeypatch):
+    # 这些用例验证的是 Agent → LLMClient 的 chat 传输委托；
+    # 关闭默认的 DeepSeek 原生搜索，避免请求被路由到 Responses 传输。
+    from cloudra.config import get_config
+
+    monkeypatch.setattr(get_config().follower, "native_search", "off")
     return _make_agent()
 
 

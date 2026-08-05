@@ -6,7 +6,7 @@
 # 用法：
 #   calculator.sh <input_file> <job_type>
 #
-# 其中 job_type 支持：gaussian, vasp, orca
+# 其中 job_type 支持：gaussian, vasp, orca, cp2k
 #
 # 注意：
 # - 本脚本不捕获/重定向 stdout/stderr，计算软件自身会写日志。
@@ -69,6 +69,26 @@ run_vasp() {
     fi
 }
 
+run_cp2k() {
+    # CP2K 统一通过系统 PATH 查找可执行文件（cp2k.popt/cp2k.ssmp/cp2k.psmp/cp2k），
+    # 不依赖工作目录下的本地副本。输出写入与输入文件同名的 .out，
+    # 与 compute_utils.get_log_path 的推导保持一致。
+    local cp2k_bin=""
+    for candidate in cp2k.popt cp2k.ssmp cp2k.psmp cp2k; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            cp2k_bin="$candidate"
+            break
+        fi
+    done
+    if [ -z "$cp2k_bin" ]; then
+        echo "系统 PATH 中未找到 CP2K 可执行文件（cp2k.popt/cp2k.ssmp/cp2k.psmp/cp2k）。" \
+             "请安装 CP2K 并确保对应命令在 PATH 中可用。" >&2
+        exit 1
+    fi
+    local output="${INPUT_FILE%.*}.out"
+    "$cp2k_bin" -i "$INPUT_FILE" -o "$output"
+}
+
 case "$JOB_TYPE" in
     gaussian)
         run_gaussian
@@ -78,6 +98,9 @@ case "$JOB_TYPE" in
         ;;
     vasp)
         run_vasp
+        ;;
+    cp2k)
+        run_cp2k
         ;;
     *)
         echo "不支持的 job_type: $JOB_TYPE" >&2

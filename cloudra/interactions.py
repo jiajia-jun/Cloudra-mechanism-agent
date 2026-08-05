@@ -64,6 +64,17 @@ async def wait_for_user_response(
         "waiting_for_user",
         event_data={"interaction_id": interaction.interaction_id},
     )
+    # 与审批同款的双通道：实时事件走 kind="interaction_requested"（TUI 弹窗
+    # 订阅的是这个 kind），历史回放靠下面的 session_event。只发 session_event
+    # 时订阅 kind 的前端（Textual TUI）永远收不到，弹窗不会打开。
+    try:
+        events.emit(
+            conversation_id,
+            "interaction_requested",
+            **interaction.to_dict(),
+        )
+    except Exception:
+        pass
     session_store.insert_session_event(
         db,
         session_id,

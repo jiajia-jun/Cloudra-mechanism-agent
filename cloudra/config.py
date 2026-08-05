@@ -45,6 +45,13 @@ class LLMConfig(BaseSettings):
     url: str = "https://api.deepseek.com/"
     key: str = ""
     supports_vision: bool = False
+    # 模型原生网页搜索：off / auto / openai / openrouter / deepseek / gemini / custom。
+    # 默认 auto：按 base_url+model 自动识别并启用服务商侧搜索；
+    # off 时保持传统 web_search 工具调用。
+    native_search: str = "auto"
+    # 原生搜索注入参数（verbatim 写入 extra_body）。custom 与无原生搜索的服务商
+    # （如中转站 DeepSeek）用它指定 {plugins/ web_search_options / tools} 等字段。
+    native_search_params: dict = Field(default_factory=dict)
     # 模型真实上下文窗口（token 数）：上下文压缩阈值按 window // 2 计算，
     # 必须与服务商实际窗口一致，否则压缩永远不触发、长任务直接 400
     context_window: int = 128000

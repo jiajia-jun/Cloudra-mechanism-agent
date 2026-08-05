@@ -296,6 +296,16 @@ class RenderBridge:
             # phase 只更新状态栏，不显示在聊天区
             if self.status_bar is not None and self.status_bar.session_id == session_id:
                 self.status_bar.phase = data.get("phase", "")
+        elif event_type == "llm_status":
+            kind = data.get("kind")
+            if kind == "web_search":
+                query = data.get("query")
+                line = f"[联网搜索] {query}" if query else "[联网搜索]"
+                # 流式进行中：并入「思考过程」面板；否则退化为系统提示，避免孤立的空流。
+                if self.chat_log.store.active_stream(session_id) is not None:
+                    self.chat_log.append_reasoning_chunk(session_id, f"\n{line}")
+                else:
+                    self.chat_log.append_system(session_id, line)
         elif event_type == "token_usage":
             if self.on_token_usage:
                 self.on_token_usage(session_id, data)

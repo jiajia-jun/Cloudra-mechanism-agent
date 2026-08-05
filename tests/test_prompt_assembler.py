@@ -83,6 +83,74 @@ async def test_role_prompt_change_applies_to_next_request(
     assert persisted == [{"role": "user", "content": "继续任务"}]
 
 
+def test_web_search_guidance_gated_by_availability(isolated_prompt_sources):
+    """联网搜索引导仅在声明有搜索能力时注入。"""
+    from cloudra.runtime.prompt_assembler import PromptAssembler
+
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("# 角色", encoding="utf-8")
+    assembler = PromptAssembler(
+        prompt_name="probe",
+        custom_prompt=None,
+        conversation_id="c",
+        working_directory=str(workspace),
+        include_memory=False,
+    )
+
+    with_guidance = assembler.assemble(
+        ["web_search"], web_search_available=True
+    )
+    assert "联网搜索" in with_guidance.identity_messages[0]["content"]
+
+    without = assembler.assemble(
+        ["web_search"], web_search_available=False
+    )
+    assert "联网搜索" not in without.identity_messages[0]["content"]
+
+
+def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
+    """有 agent_hub 工具时注入并行共享引导，否则不注入。"""
+    from cloudra.runtime.prompt_assembler import PromptAssembler
+
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("# 角色", encoding="utf-8")
+    assembler = PromptAssembler(
+        prompt_name="probe",
+        custom_prompt=None,
+        conversation_id="c",
+        working_directory=str(workspace),
+        include_memory=False,
+    )
+
+    with_hub = assembler.assemble(["bashtools", "agent_hub"])
+    assert "AgentHub" in with_hub.identity_messages[0]["content"]
+    assert "agent_hub" in with_hub.identity_messages[0]["content"]
+
+    without_hub = assembler.assemble(["bashtools"])
+    assert "AgentHub" not in without_hub.identity_messages[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_agent_injects_web_search_guidance_when_search_available(
+    tmp_path, isolated_prompt_sources, monkeypatch
+):
+    """原生搜索启用（默认 deepseek+auto）时，请求的 system prompt 带联网搜索引导。"""
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("# 角色", encoding="utf-8")
+    agent = _agent(tmp_path, workspace, prompt_name="probe")
+
+    kwargs = await agent._build_request_kwargs()
+    assert "联网搜索" in kwargs["messages"][0]["content"]
+
+    # 关闭原生搜索且无 web_search 工具时，不注入引导
+    from cloudra.config import get_config
+
+    monkeypatch.setattr(get_config().follower, "native_search", "off")
+    agent2 = _agent(tmp_path, workspace, prompt_name="probe")
+    kwargs2 = await agent2._build_request_kwargs()
+    assert "联网搜索" not in kwargs2["messages"][0]["content"]
+
+
 @pytest.mark.asyncio
 async def test_agents_md_change_applies_to_existing_conversation(
     tmp_path,

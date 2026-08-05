@@ -60,7 +60,7 @@ class SidePanel(Vertical):
         yield Static("对话", classes="side-title")
         yield ListView(id="conv-list")
         yield Static("计划", classes="side-title")
-        yield Static("（暂无计划）", id="plan-view")
+        yield Static("（暂无计划）", id="plan-view", markup=False)
 
     # ------------------------------------------------------------------
     # 数据填充

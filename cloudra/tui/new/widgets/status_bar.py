@@ -39,6 +39,8 @@ class StatusBar(Static):
     # 对话级共享上下文的摘要，如 "42条≈8.2k"；空字符串表示未知
     context_info = reactive("")
     compaction_info = reactive("")
+    # 模型原生网页搜索适配器名（空 = 未启用，走传统 web_search 工具）
+    native_search = reactive("")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -89,6 +91,9 @@ class StatusBar(Static):
         self._sync_timer()
         self._refresh()
 
+    def watch_native_search(self, native_search: str) -> None:
+        self._refresh()
+
     def _tick(self) -> None:
         if self.session_state in _ACTIVE_STATES or self.compaction_info:
             self._frame += 1
@@ -113,6 +118,7 @@ class StatusBar(Static):
             self.yolo,
             self.pending,
             self.compaction_info,
+            self.native_search,
         )
         if render_key == self._last_render_key:
             return
@@ -134,7 +140,9 @@ class StatusBar(Static):
         if self.conversation_id:
             text.append(f" | 对话 …{self.conversation_id[-6:]}", style="cyan")
         if self.context_info:
-            text.append(f" | 记忆 {self.context_info}", style="magenta")
+            text.append(f" | 上下文 {self.context_info}", style="magenta")
+        if self.native_search:
+            text.append(f" | 联网·{self.native_search}", style="bold yellow")
         mode = "YOLO" if self.yolo else "审批"
         text.append(f" | {mode}")
         if self.pending > 0:

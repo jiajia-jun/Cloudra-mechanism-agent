@@ -35,7 +35,7 @@ class ContextScreen(Screen):
         yield Header(show_clock=True)
         with VerticalScroll(id="context-scroll"):
             yield Label("上下文统计", id="context-title")
-            yield Static("加载中…", id="context-content")
+            yield Static("加载中…", id="context-content", markup=False)
         yield Footer()
 
     async def on_mount(self) -> None:

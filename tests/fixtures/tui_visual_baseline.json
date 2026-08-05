@@ -81,7 +81,7 @@
           "text": "来自: coordinator"
         }
       ],
-      "widget": "Static#approval-agent"
+      "widget": "SafeStatic#approval-agent"
     },
     {
       "segments": [
@@ -90,7 +90,7 @@
           "text": "允许读取结果文件？"
         }
       ],
-      "widget": "Static#approval-details"
+      "widget": "SafeStatic#approval-details"
     },
     {
       "segments": [
@@ -99,7 +99,7 @@
           "text": "工具: Bash"
         }
       ],
-      "widget": "Static#approval-tool"
+      "widget": "SafeStatic#approval-tool"
     },
     {
       "segments": [
@@ -108,7 +108,7 @@
           "text": "参数: cat result.log"
         }
       ],
-      "widget": "Static#approval-args"
+      "widget": "SafeStatic#approval-args"
     },
     {
       "segments": [
@@ -117,7 +117,7 @@
           "text": "风险评估: 只读操作"
         }
       ],
-      "widget": "Static#approval-risk"
+      "widget": "SafeStatic#approval-risk"
     },
     {
       "segments": [
@@ -164,7 +164,7 @@
           "text": "来自: coordinator"
         }
       ],
-      "widget": "Static#ask-agent"
+      "widget": "SafeStatic#ask-agent"
     },
     {
       "segments": [
@@ -173,7 +173,7 @@
           "text": "要使用哪种溶剂？"
         }
       ],
-      "widget": "Static#ask-prompt"
+      "widget": "SafeStatic#ask-prompt"
     },
     {
       "segments": [
@@ -880,7 +880,7 @@
         },
         {
           "style": "color(5)",
-          "text": " | 记忆 42条≈8.2k"
+          "text": " | 上下文 42条消息≈8.2k tokens"
         },
         {
           "style": "",

@@ -10,14 +10,27 @@
 - 规划工具：加 `todo_write`（多步清单，同一时刻只能有一个 in_progress）和 `goal_set`（目标锚点，压缩后仍钉在上下文里）。
 - Textual 全屏 TUI：`cloudra/tui/` 重写成全屏应用，支持对话消息渲染、会话切换、主/子 Agent 上下文分屏、绿/黄主题。
 - harness 加固：`context_window`/`timeout` 进配置（不再硬编码）；工具参数校验失败会反馈给 LLM；传输层加超时和状态事件；`bashtools` 返回 `exit_code` 且截断超长首尾输出；主循环死循环检测；上下文压缩概要持久化。
+- 模型原生联网搜索：`LLMConfig.native_search`（默认 `auto`）+ `native_search_params`。按 base_url/model 自动识别适配器（openai 搜索模型 / openrouter `web` 插件 / deepseek / gemini / custom），启用后在请求里注入服务商侧搜索工具、剔除外部 `web_search` 函数工具，避免双重搜索；结果以内联引用返回。状态栏显示「联网·<provider>」，聊天区把 `web_search_call` 事件并入「思考过程」。
+- DeepSeek 原生搜索走 Responses API：新增 `LLMClient.create_responses`（POST `/responses`），把 chat.completions 风格的 kwargs/响应翻译成 Responses 形状（含流式 SSE 与 tool_call 增量合并），reAct 层零改动；base_url 尾部 `/v1` 自动兼容。
+- 联网搜索引导：有搜索能力（原生或 `web_search` 工具）时，在 system prompt 注入「联网搜索（重要）」段落，要求任务依赖实时/外部信息时先搜再答。
+- `todo_read` 工具：与 `todo_write`/`goal_set` 配对，随时读取当前任务清单与目标锚点；每 10 轮或 supervisor 反对时注入提醒，让 todo 真正驱动每轮行为。
+- 目标严格模式与 `/goal` 命令：TUI 新增 `/goal <目标>`（设置目标锚点并固定到 Coordinator 上下文）、`/goal pause`（暂停当前任务）、`/goal`（查看）。设置目标后任务只有调用 `stop` 才能结束，无工具轮会注入「确认 goal 是否完成」提醒；未设目标时保持传统语义（有正文即完成）。
+- 移除 `MAX_STEPS` 步数上限：循环结束由 `stop`/取消/死循环检测决定，不再有硬性步数天花板。
+- `submit_compute_job` 支持 CP2K：新增 `cp2k` job_type（`calculator.sh` 分支、PATH 检查、`.out` 日志路径），guard 用轻量文本解析 CP2K 输出（cclib 已移除 CP2K 解析器）；顺带修复 guard 未透传 job_type 导致非 Gaussian 日志路径错配的问题。
 
 ### 变更
 - `chemrxiv_searcher` 改名叫 `openalex_searcher`，它其实一直检索整个 OpenAlex，没过滤过 ChemRxiv；Android 工具白名单和文档同步更新。
 - 所有工具描述统一成“功能/适用/不适用/关键纪律”结构，把搜索、PDF、文件修改、计算流水线之间的分工边界写清楚。
 - CLI 横幅版本号从 `cloudra.__version__` 读取，和 `pyproject.toml` 一致为 2.0.0-beta。
+- 死循环检测与步数预算：移除步数预算相关逻辑，保留 `AgentStuckLoop`（相同工具+参数连续调用）作为防空转兜底。
+- 联网搜索展示：`web_search_call` 状态事件改为流中段逐条上报，并入「思考过程」面板而非孤立系统框。
 
 ### 修复
 - YOLO 审批时模型没返回 `submit_approval_decision` tool_call 或参数解析失败，不再把“未返回 tool_call”这种内部实现错误当拒绝理由甩给主 Agent，而是在 Guard 内部告警、纠偏并重试（最多 3 次）；耗尽后按默认安全策略拒绝，返回给主 Agent 的是不含实现细节的中性原因。
+- TUI 代码块「复制」按钮失效：`on_click` 命中检测未减去边框/内边距 gutter，4×1 热区永远点不中；修复并加回归测试。
+- 审批/提问弹窗 `MarkupError` 崩溃：动态内容（工具参数、命令输出）按 console markup 解析遇 `[` 抛错打崩整个 TUI；改为 `SafeStatic`（markup 解析失败自动降级纯文本）+ `markup=False`。
+- DeepSeek Responses 流式翻译缺 key：chunk 的 `delta`/`message` 未常驻 `content`/`tool_calls`，reAct 直接属性访问抛 `AttributeError('tool_calls')`；统一补齐占位 key，`ResponseDictWrapper.model_dump` 尊重 `exclude_none`。
+- DeepSeek Chat Completions 注入 `web_search` 工具被 400 拒绝（`tools[..].type: unknown variant`）：原生搜索一律走 `/responses`，chat 路径不再注入。
 
 ## [1.8.0] - 2026-07-18
 

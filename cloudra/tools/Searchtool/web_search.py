@@ -23,7 +23,9 @@ description = (
     "两段式纪律：本工具只给摘要，用于筛选；选中 1-3 条最相关的结果后，用 web_fetcher 抓取全文。"
     "引用结论时必须附上来源 URL。\n"
     "后端自动选择：配置了 TAVILY_API_KEY 或 BRAVE_SEARCH_API_KEY 时优先使用对应 API，"
-    "否则回退到免 key 的 Bing / DuckDuckGo。"
+    "否则回退到免 key 的 Bing / DuckDuckGo。\n"
+    "注意：若 LLM 配置已启用模型原生网页搜索（native_search），该搜索由服务商侧完成、"
+    "结果以内联引用直接出现在模型回复中，Agent 无需也不应再调用本工具。"
 )
 
 _UA = (

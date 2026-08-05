@@ -50,6 +50,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration("cloudra.tools.Managetool.subagent_launcher", "SubAgentLauncher"),
     ToolRegistration("cloudra.tools.Plantool.goal", "GoalSet"),
     ToolRegistration("cloudra.tools.Plantool.todo", "TodoWrite"),
+    ToolRegistration("cloudra.tools.Plantool.todo_read", "TodoRead"),
     ToolRegistration("cloudra.tools.Searchtool.openalex_searcher", "OpenAlexSearcher"),
     ToolRegistration("cloudra.tools.Searchtool.image_reader", "ImageReader"),
     ToolRegistration("cloudra.tools.Searchtool.paper_searcher", "PaperSearcher"),

@@ -15,7 +15,8 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 description = (
     "提交计算任务：接收已生成的输入文件路径，在 compute_jobs 表中创建任务记录，"
     "由框架层的 Compute Executor 自动捞取并执行；提交后立刻返回 job_id，不会等待计算完成。"
-    "适用：Gaussian 等耗时计算的正式提交执行，输入文件需先用 gjf_writer 等工具准备好。"
+    "适用：Gaussian、CP2K、VASP、ORCA 等耗时计算的正式提交执行，"
+    "输入文件需先用 gjf_writer 等工具（CP2K 为 .inp）准备好。"
     "不适用：生成输入文件（用 gjf_writer）、查看计算结果（算完后用 log_parser 解析日志）。"
 )
 
@@ -24,9 +25,9 @@ class SubmitComputeJob_input_schema(input_schema):
     input_file: str = Field(
         description="输入文件的绝对路径（如 .gjf 文件）。"
     )
-    job_type: Literal["gaussian", "vasp", "orca"] = Field(
+    job_type: Literal["gaussian", "vasp", "orca", "cp2k"] = Field(
         default="gaussian",
-        description="计算任务类型。当前支持 'gaussian'，'vasp' 和 'orca' 为预留选项。"
+        description="计算任务类型。当前支持 'gaussian'，'vasp'，'orca' 和 'cp2k'。"
     )
     is_async: bool = Field(
         default=False,
