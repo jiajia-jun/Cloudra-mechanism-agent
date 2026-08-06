@@ -13,8 +13,6 @@ Textual 的 ``Static`` 默认按 Rich console markup 解析内容。当内容是
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.errors import MarkupError
 from textual.visual import Visual, VisualType
 from textual.widgets import Static
