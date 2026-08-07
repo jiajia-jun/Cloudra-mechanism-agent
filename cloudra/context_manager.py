@@ -20,6 +20,7 @@ from typing import Optional
 from cloudra import events, paths
 from cloudra.config import get_config
 from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
+from cloudra.fs_utils import atomic_write_json
 from cloudra.llm_client import LLMClient
 from cloudra.token_estimator import TokenEstimator
 
@@ -151,6 +152,11 @@ class ContextManager:
 
         首次读取后驻留实例缓存（本实例是该文件的唯一写者），
         后续 load 不再触碰磁盘。
+
+        解析失败时只读返回空、绝不回写磁盘：TUI 状态栏等只读实例以
+        query="" 构造，若在解析失败分支里执行 replace(_initial_context())，
+        会把 [] 覆盖回上下文文件，一次性冲掉整段对话历史（历史故障根因，
+        见 _drop_empty_user_messages 的回归说明）。
         """
         if self._context_cache is not None:
             return self._context_cache
@@ -163,20 +169,30 @@ class ContextManager:
                 self._context_cache = await asyncio.to_thread(read_context)
                 return await self._migrate_legacy_identity(self._context_cache)
             except json.JSONDecodeError as e:
-                # 文件损坏时回退到初始上下文，避免直接崩溃
-                print(f"[ContextManager] 上下文文件解析失败，已重置: {self.context_file}, 错误: {e}")
+                # 文件损坏或与并发写入竞争读到半截：只读返回空并告警，
+                # 恢复由调用方通过正常 append 路径完成，禁止直接回写。
+                print(
+                    f"[ContextManager] 上下文文件解析失败（只读返回空，不回写）: "
+                    f"{self.context_file}, 错误: {e}"
+                )
+                self._context_cache = []
+                return self._context_cache
 
         self._context_cache = self._initial_context()
         await self.replace(self._context_cache)
         return self._context_cache
 
     async def replace(self, context: list) -> None:
-        """全量替换上下文并持久化到文件（同时刷新实例缓存）。"""
+        """全量替换上下文并持久化到文件（同时刷新实例缓存）。
+
+        写入采用临时文件 + 原子改名（``os.replace``），保证外部只读进程
+        （TUI 状态栏、ContextScreen 等）并发读取时永远读到完整内容，
+        不会因看到写入中的半截文件而解析失败。
+        """
         self._context_cache = context
 
         def write_context() -> None:
-            with open(self.context_file, 'w', encoding='utf-8') as f:
-                json.dump(context, f, ensure_ascii=False, indent=4)
+            atomic_write_json(self.context_file, context, indent=4)
 
         await asyncio.to_thread(write_context)
 

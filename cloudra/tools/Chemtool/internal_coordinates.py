@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from pydantic import Field
 
+from cloudra.fs_utils import atomic_write_text
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
@@ -338,8 +339,7 @@ class InternalCoordinates(Tool):
             output_path = ""
             if user_input.output_path:
                 os.makedirs(os.path.dirname(user_input.output_path) or ".", exist_ok=True)
-                with open(user_input.output_path, "w", encoding="utf-8") as f:
-                    f.write(zmatrix_text)
+                atomic_write_text(user_input.output_path, zmatrix_text)
                 output_path = user_input.output_path
 
             return InternalCoordinates_output_schema(
@@ -516,8 +516,7 @@ class InternalCoordinates(Tool):
             output_path = ""
             if user_input.output_path:
                 os.makedirs(os.path.dirname(user_input.output_path) or ".", exist_ok=True)
-                with open(user_input.output_path, "w", encoding="utf-8") as f:
-                    f.write(xyz_text)
+                atomic_write_text(user_input.output_path, xyz_text)
                 output_path = user_input.output_path
 
             return InternalCoordinates_output_schema(

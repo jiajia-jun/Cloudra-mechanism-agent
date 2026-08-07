@@ -2,6 +2,7 @@ from typing import Any, Optional
 
 from pydantic import Field
 
+from cloudra.fs_utils import atomic_write_text
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
@@ -111,8 +112,7 @@ class SmilesToMol(Tool):
                 dir_name = os.path.dirname(path)
                 if dir_name and not os.path.exists(dir_name):
                     os.makedirs(dir_name, exist_ok=True)
-                with open(path, 'w') as f:
-                    f.write(mol_block)
+                atomic_write_text(path, mol_block)
                 saved_path = path
 
             return SmilesToMol_output_schema(

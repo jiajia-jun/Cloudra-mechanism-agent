@@ -13,6 +13,7 @@ except Exception:
     AllChem = None
     _RDKIT_AVAILABLE = False
 
+from cloudra.fs_utils import atomic_write_text
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
@@ -215,8 +216,7 @@ class GjfWriter(Tool):
                 os.makedirs(output_dir, exist_ok=True)
             gjf_path = user_input.output_dir
 
-            with open(gjf_path, "w", encoding="utf-8") as f:
-                f.write(gjf_content)
+            atomic_write_text(gjf_path, gjf_content)
 
             return GjfWriter_output_schema(
                 is_success=True,

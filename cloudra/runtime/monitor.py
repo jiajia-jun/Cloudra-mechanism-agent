@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import io
-import json
 import os
 import subprocess
 import time
@@ -13,6 +12,7 @@ from cloudra import events
 from cloudra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
 from cloudra.context_manager import ContextManager
 from cloudra.database import ConversationDB
+from cloudra.fs_utils import atomic_write_json
 from cloudra.platform_utils import is_posix
 
 
@@ -149,8 +149,7 @@ async def run_guard(
     json_nm = f'state_{taskid}.json'
     json_path = os.path.join(workdir, json_nm)
     try:
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data_dic, f, ensure_ascii=False, indent=4)
+        atomic_write_json(json_path, data_dic, indent=4)
     except Exception as e:
         print(f'写入 json 失败：{e}')
         await _mark_failed(db, taskid, f"写入 state json 失败：{e}")

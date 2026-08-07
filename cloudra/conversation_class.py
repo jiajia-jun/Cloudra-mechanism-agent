@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 
 from cloudra import paths
+from cloudra.fs_utils import atomic_write_json
 
 
 class Conversation:
@@ -60,13 +61,15 @@ class Conversation:
         return os.path.join(self.path, 'meta.json')
 
     def _save_meta(self):
-        with open(self._meta_path(), 'w', encoding='utf-8') as f:
-            json.dump({
+        atomic_write_json(
+            self._meta_path(),
+            {
                 'id': self.id,
                 'create_time': self.create_time.isoformat(),
                 'last_active': self.last_active.isoformat(),
                 'state': self.state,
-            }, f, ensure_ascii=False, indent=4)
+            },
+        )
 
     def _load_meta(self):
         meta_path = self._meta_path()

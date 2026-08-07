@@ -9,6 +9,7 @@ import os
 from typing import Any
 
 from cloudra.config import get_config
+from cloudra.fs_utils import atomic_write_json
 
 
 def agent_store_path(subagent, filename: str) -> str:
@@ -31,7 +32,4 @@ def load_json(path: str, default: Any) -> Any:
 
 def save_json(path: str, data: Any) -> None:
     """原子写入 JSON 存储（临时文件 + rename，避免并发截断）。"""
-    tmp_path = path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp_path, path)
+    atomic_write_json(path, data, indent=2)

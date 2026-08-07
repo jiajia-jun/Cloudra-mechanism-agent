@@ -3,6 +3,7 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
+from cloudra.fs_utils import atomic_write_bytes, atomic_write_text
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
@@ -132,12 +133,11 @@ class MoleculeDrawer(Tool):
             drawer.FinishDrawing()
 
             # 5. 保存文件
-            with open(path, 'wb' if ext != '.svg' else 'w') as f:
-                content = drawer.GetDrawingText()
-                if isinstance(content, str) and ext != '.svg':
-                    f.write(content.encode())
-                else:
-                    f.write(content)
+            content = drawer.GetDrawingText()
+            if isinstance(content, str):
+                atomic_write_text(path, content)
+            else:
+                atomic_write_bytes(path, content)
 
             return MoleculeDrawer_output_schema(is_success=True, image_path=path, message="图像生成成功。")
 

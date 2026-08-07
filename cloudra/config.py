@@ -23,6 +23,8 @@ import yaml
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from cloudra.fs_utils import atomic_write_text
+
 # Try platformdirs, fallback to appdirs or manual
 try:
     from platformdirs import user_config_dir, user_data_dir
@@ -215,8 +217,13 @@ class CloudraConfig(BaseSettings):
                 "whitelist": self.email.whitelist,
             }
         }
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        text = yaml.dump(
+            data,
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False,
+        )
+        atomic_write_text(str(cfg_path), text)
 
     def to_display_dict(self) -> dict:
         """Return a dict for display, masking sensitive keys."""

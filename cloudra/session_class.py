@@ -1,7 +1,8 @@
 
-import json
 import os
 from datetime import datetime
+
+from cloudra.fs_utils import atomic_write_json
 
 
 class Session:
@@ -40,6 +41,5 @@ class Session:
         return json_dict
 
     def upload_json(self):
-        with open(self.path, 'w', encoding='utf-8') as f:
-            json.dump(self.to_json(), f, ensure_ascii=False, indent=4)
+        atomic_write_json(self.path, self.to_json())
 
