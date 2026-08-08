@@ -70,3 +70,6 @@ fort.*
 *.gjf
 *.log
 *.out
+# 测试用的真实 Gaussian 输出样本仍需入库
+!tests/fixtures/gaussian/*.log
+!tests/fixtures/gaussian/*.out
