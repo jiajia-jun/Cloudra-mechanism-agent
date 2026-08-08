@@ -272,8 +272,8 @@ class TestRunTaskAsyncContract:
         ctx_path = os.path.join(
             str(tmp_path / "data"), "conversations", "conv-dup", "contexts", "a-0.json"
         )
-        with open(ctx_path, encoding="utf-8") as f:
-            context = json.load(f)
+        from cloudra.context_manager import read_context_file
+        context = read_context_file(ctx_path)
         occurrences = sum(
             1 for m in context if m.get("role") == "user" and m.get("content") == "同一查询"
         )

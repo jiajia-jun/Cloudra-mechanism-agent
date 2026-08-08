@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import numpy as np
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    # 仅用于类型注解；运行时在使用点惰性导入。
+    import numpy as np
 
 from cloudra.config import get_config
 from cloudra.llm_client import LLMClient
@@ -162,6 +165,9 @@ class Supervisor:
 
         默认使用 OpenAI embedding API。如果未配置，返回零向量（退化 gracefully）。
         """
+        # numpy 仅在 embedding/检索路径使用，惰性导入以避免拖慢模块加载。
+        import numpy as np
+
         if not all([self.model, self.base_url, self.api_key]):
             # 未配置时返回零向量，避免阻塞
             return np.zeros(1536, dtype=np.float32)
@@ -189,6 +195,8 @@ class Supervisor:
 
         兼容从数据库读取的 embedding（bytes）和内存中的 embedding（list）。
         """
+        import numpy as np
+
         if not cases or np.all(query_vec == 0):
             return []
 

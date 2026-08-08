@@ -6,8 +6,6 @@ import subprocess
 import time
 from pathlib import Path
 
-import cclib
-
 from cloudra import events
 from cloudra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
 from cloudra.context_manager import ContextManager
@@ -29,6 +27,9 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
     if job_type == "cp2k":
         # cclib 1.8.x 已移除 CP2K 解析器，这里用轻量文本解析兜底。
         return _parse_cp2k_log(log_path)
+
+    # cclib 为重依赖且 CP2K 路径不需要它，惰性导入。
+    import cclib
 
     deadline = time.monotonic() + parse_timeout
     last_error = None

@@ -1,8 +1,8 @@
-import json
 from typing import Any
 
 from pydantic import Field
 
+from cloudra.context_manager import read_context_file
 from cloudra.paths import context_path
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
@@ -53,8 +53,8 @@ class GetSubAgentReport(Tool):
             return GetSubAgentReport_output_schema(is_success=False, message=f"未找到 Agent ({agent_id}) 的上下文记录, session={session_id}。")
 
         try:
-            with open(context_file, 'r', encoding='utf-8') as f:
-                context_data = json.load(f)
+            # 同时支持 JSONL 新格式与旧版单 JSON 数组格式
+            context_data = read_context_file(str(context_file))
 
             # 根据详细程度过滤内容
             report_lines = []

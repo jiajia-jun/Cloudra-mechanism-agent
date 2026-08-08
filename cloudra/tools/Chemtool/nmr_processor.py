@@ -1,7 +1,6 @@
 import os
 from typing import Any, Dict, List
 
-import numpy as np
 from pydantic import Field
 
 from cloudra.session_class import Session
@@ -70,6 +69,8 @@ class NMRProcessor(Tool):
         path = user_input.data_path
         if not os.path.exists(path):
             return NMRProcessor_output_schema(is_success=False, message="输入路径不存在。")
+
+        import numpy as np
 
         try:
             # 1. 动态加载读取器

@@ -1,5 +1,7 @@
+import asyncio
 import hashlib
 import json
+import os
 from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import urlsplit
@@ -35,7 +37,7 @@ _GOAL_CONFIRM_REMINDER = (
 
 
 def load_prompt(agent_name: str) -> str:
-    """兼容入口：调用时读取角色 prompt，不做模块级缓存。"""
+    """兼容入口：读取角色 prompt（按 mtime 缓存，文件变更立即生效）。"""
     return load_role_prompt(agent_name)
 
 
@@ -135,6 +137,9 @@ class Agent(BaseModel):
     # 无需每个推理步骤都重新实例化全部工具并重新生成 pydantic schema。
     _tools_schema_cache: Optional[list] = None
     _tools_schema_revision: Optional[tuple[str, ...]] = None
+    # 工具 schema 的 token 估算缓存：(revision, 名称列表) -> tokens，
+    # 随 schema 缓存一起失效（schema 不变则估算不变）。
+    _tools_schema_tokens_cache: Optional[tuple] = None
 
     _last_prompt_assembly: Optional[PromptAssembly] = PrivateAttr(default=None)
     _last_request_diagnostics: dict = PrivateAttr(default_factory=dict)
@@ -382,7 +387,29 @@ class Agent(BaseModel):
                 available_tool_classes.append(tool_instance.tool_schema_json())
             self._tools_schema_cache = available_tool_classes
             self._tools_schema_revision = revision
+            self._tools_schema_tokens_cache = None
         return self._tools_schema_cache
+
+    def _estimate_tools_schema_tokens(self, schemas: list[dict]) -> int:
+        """工具 schema 的 token 估算，随 ``_tools_schema_cache`` 一起缓存。
+
+        仅在 schema 列表由 ``_get_tools_schema`` 缓存构建（revision 非 None）
+        时复用估算结果；调用方直接注入的 schema 列表每次重新估算，避免
+        测试/嵌入方原地修改 schema 后读到过期值。
+        """
+        cache_key = (
+            self._tools_schema_revision,
+            tuple(self._tool_names_from_schemas(schemas)),
+        )
+        cached = self._tools_schema_tokens_cache
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+        tokens = TokenEstimator.estimate_text(
+            json.dumps(schemas, ensure_ascii=False, default=str)
+        )
+        if self._tools_schema_revision is not None:
+            self._tools_schema_tokens_cache = (cache_key, tokens)
+        return tokens
 
     @staticmethod
     def _tool_names_from_schemas(tool_schemas: list[dict]) -> list[str]:
@@ -442,11 +469,16 @@ class Agent(BaseModel):
         web_search_available = (
             self._native_search_adapter() is not None or "web_search" in tool_names
         )
-        assembly = self._prompt_assembler().assemble(
-            tool_names,
-            capability_schemas=schemas,
-            device_snapshot=self._device_prompt_snapshot(tool_names),
-            web_search_available=web_search_available,
+        # assemble 每轮要读 prompt/MEMORY/AGENTS.md、扫 skills 与工作区，
+        # 是同步 IO+CPU 开销，移出事件循环（参照 ContextManager 的 to_thread 模式）。
+        # PromptAssembler 实例每次新建、无可变共享状态，assemble 内部无 async 调用。
+        assembly = await asyncio.to_thread(
+            lambda: self._prompt_assembler().assemble(
+                tool_names,
+                capability_schemas=schemas,
+                device_snapshot=self._device_prompt_snapshot(tool_names),
+                web_search_available=web_search_available,
+            )
         )
         self._last_prompt_assembly = assembly
         target_tokens = self.context_window // 2 if self.context_window else None
@@ -454,9 +486,7 @@ class Agent(BaseModel):
             # Tool schemas and runtime observations are part of the provider's
             # prompt too. Previously they were appended after ContextManager's
             # threshold check, so actual requests could pass 50% unnoticed.
-            schema_tokens = TokenEstimator.estimate_text(
-                json.dumps(schemas, ensure_ascii=False, default=str)
-            )
+            schema_tokens = self._estimate_tools_schema_tokens(schemas)
             observation_tokens = TokenEstimator.estimate_messages(
                 list(assembly.observation_messages)
             )
@@ -542,13 +572,10 @@ class Agent(BaseModel):
         assembly = self._last_prompt_assembly
         diagnostics = assembly.diagnostics() if assembly is not None else {}
         persisted_history = await self._ensure_context_manager().load()
-        history_payload = json.dumps(
-            persisted_history,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-        )
+        # supervisor 建议 revision 只哈希带标记的消息（量小），保持
+        # "建议变化则 revision 变化" 的语义；全量历史的 sha256 与逐条 token
+        # 估算只是诊断元数据，默认用廉价近似值，设 CLOUDRA_DEBUG_DIAGNOSTICS
+        # 后才做精确计算。
         supervisor_payload = json.dumps(
             [
                 message
@@ -561,6 +588,49 @@ class Agent(BaseModel):
             separators=(",", ":"),
             default=str,
         )
+        schema_tokens = self._estimate_tools_schema_tokens(available_tool_classes)
+        if os.environ.get("CLOUDRA_DEBUG_DIAGNOSTICS", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            history_payload = json.dumps(
+                persisted_history,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            )
+            history_revision = (
+                "sha256:"
+                + hashlib.sha256(history_payload.encode("utf-8")).hexdigest()
+            )
+            estimated_prompt_tokens = (
+                TokenEstimator.estimate_messages(messages) + schema_tokens
+            )
+        else:
+            # 廉价 revision：历史长度 + 最后一条消息的哈希。追加/截断/改尾条
+            # 都会变化，足以在事件日志里区分不同历史版本。
+            if persisted_history:
+                tail_payload = json.dumps(
+                    persisted_history[-1],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                )
+                tail_digest = hashlib.sha256(
+                    tail_payload.encode("utf-8")
+                ).hexdigest()[:16]
+                history_revision = (
+                    f"rev:{len(persisted_history)}:{tail_digest}"
+                )
+            else:
+                history_revision = "rev:0"
+            estimated_prompt_tokens = schema_tokens + sum(
+                len(str(message.get("content") or "")) for message in messages
+            ) // 4
         diagnostics.update(
             {
                 "trace_id": f"llm_{uuid4().hex}",
@@ -573,23 +643,11 @@ class Agent(BaseModel):
                 "agent_id": self.id,
                 "agent_name": self.name,
                 "message_count": len(messages),
-                "estimated_prompt_tokens": (
-                    TokenEstimator.estimate_messages(messages)
-                    + TokenEstimator.estimate_text(
-                        json.dumps(
-                            available_tool_classes,
-                            ensure_ascii=False,
-                            default=str,
-                        )
-                    )
-                ),
+                "estimated_prompt_tokens": estimated_prompt_tokens,
                 "auto_compact_target_tokens": (
                     self.context_window // 2 if self.context_window else None
                 ),
-                "history_revision": (
-                    "sha256:"
-                    + hashlib.sha256(history_payload.encode("utf-8")).hexdigest()
-                ),
+                "history_revision": history_revision,
                 "supervisor_advice_revision": (
                     "sha256:"
                     + hashlib.sha256(

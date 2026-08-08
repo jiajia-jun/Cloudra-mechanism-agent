@@ -3,8 +3,6 @@ import json
 import os
 from datetime import datetime
 
-import numpy as np
-
 from cloudra import events, session_store
 from cloudra.agent import Agent
 from cloudra.case_bank import get_case_bank
@@ -278,6 +276,8 @@ class reAct:
                 return
 
             embedding = await self.supervisor.embed_text(task_summary)
+            # numpy 仅此处使用，惰性导入以避免拖慢模块加载。
+            import numpy as np
             embedding_bytes = embedding.astype(np.float32).tobytes()
 
             case_bank = get_case_bank()

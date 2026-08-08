@@ -1,8 +1,6 @@
 import os
 from typing import Any, Optional
 
-import cclib
-import numpy as np
 from pydantic import Field
 
 from cloudra.session_class import Session
@@ -103,7 +101,10 @@ class LogParser(Tool):
             )
 
         try:
-            # 2. 使用 cclib 解析日志
+            # 2. 使用 cclib 解析日志（重依赖惰性导入，避免拖慢工具模块加载）
+            import cclib
+            import numpy as np
+
             data = cclib.io.ccread(log_path)
             if data is None:
                 return LogParser_output_schema(

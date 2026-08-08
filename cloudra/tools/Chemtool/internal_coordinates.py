@@ -3,11 +3,13 @@ from __future__ import annotations
 import os
 import re
 from io import StringIO
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
-import numpy as np
-import pandas as pd
 from pydantic import Field
+
+if TYPE_CHECKING:
+    # 仅用于类型注解；运行时在使用点惰性导入。
+    import pandas as pd
 
 from cloudra.fs_utils import atomic_write_text
 from cloudra.session_class import Session
@@ -149,6 +151,8 @@ class InternalCoordinates(Tool):
         返回 [(i, j, distance, expected_bond_length, status), ...]
         其中 status 为 'normal' / 'too_short' / 'too_long' / 'missing'
         """
+        import numpy as np
+
         positions = atoms.get_positions()
         symbols = atoms.get_chemical_symbols()
         n = len(atoms)
@@ -182,6 +186,7 @@ class InternalCoordinates(Tool):
     def _ase_to_chemcoord_cart(atoms) -> "cc.Cartesian":
         """把 ASE Atoms 转成 chemcoord.Cartesian（1-based index）。"""
         import chemcoord as cc
+        import pandas as pd
 
         pos = atoms.get_positions()
         syms = atoms.get_chemical_symbols()
@@ -199,6 +204,9 @@ class InternalCoordinates(Tool):
         _build_zmat 用 np.empty(..., dtype=str) 创建列，无法接受 mixed int/str 的 construction table。
         这里显式用 object dtype 构造 Zmat DataFrame。
         """
+        import numpy as np
+        import pandas as pd
+
         n = len(c_table)
         dtypes = [
             ('atom', 'O'), ('b', 'O'), ('bond', float),
@@ -217,6 +225,8 @@ class InternalCoordinates(Tool):
                         atoms,
                         bonds: list[tuple[int, int, float, float, str]]) -> str:
         """渲染成大模型友好的 Z-matrix 文本，并标注异常键长。父原子用原子名（如 C2）表示，便于反向解析。"""
+        import pandas as pd
+
         bond_status_by_pair = {}
         for i, j, _, _, status in bonds:
             bond_status_by_pair[(i, j)] = status
@@ -368,6 +378,9 @@ class InternalCoordinates(Tool):
         列：atom(str), b(str), bond(float), a(str), angle(float), d(str), dihedral(float)
         行索引：1-based 原子序号（Z-matrix 顺序）。
         """
+        import numpy as np
+        import pandas as pd
+
         lines = [ln for ln in zmatrix_text.splitlines()
                  if ln.strip() and not ln.strip().startswith("#")]
 
@@ -444,6 +457,8 @@ class InternalCoordinates(Tool):
         """
         import chemcoord.constants as constants
         import chemcoord.internal_coordinates._zmat_transformation as tr
+        import numpy as np
+        import pandas as pd
         from chemcoord.utilities._temporary_deprecation_workarounds import replace_without_warn
 
         c_table = zmat_frame.loc[:, ['b', 'a', 'd']].copy()

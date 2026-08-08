@@ -1,7 +1,6 @@
 import os
 from typing import Any, Literal, Optional
 
-import ase
 from pydantic import Field
 
 try:
@@ -127,7 +126,9 @@ class GjfWriter(Tool):
             # XYZ 格式前两行为原子数与标题，从第三行开始为坐标
             return "\n".join(xyz_block.strip().split("\n")[2:])
 
-        # xyz_file / mol_file 统一通过 ase 读取
+        # xyz_file / mol_file 统一通过 ase 读取（惰性导入，避免拖慢工具模块加载）
+        import ase.io
+
         atoms = ase.io.read(source_value)
         lines = []
         for symbol, position in zip(atoms.symbols, atoms.positions):

@@ -534,12 +534,14 @@ async def test_context_manager_session_isolation(isolated_db):
 
 
 @pytest.mark.asyncio
-async def test_subagent_launcher_no_template_pollution(isolated_db):
+async def test_subagent_launcher_no_template_pollution(isolated_db, monkeypatch):
     """SubAgentLauncher 使用类实例化（注册表存类），全局模板不收污染。"""
     from cloudra.database import ConversationDB
     from cloudra.subagents import Subagent_hash
     from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
 
+    # 本子测试只关心注册表不被污染，固定子进程模式以避免真的调度后台子任务。
+    monkeypatch.setenv("CLOUDRA_SUBAGENT_MODE", "subprocess")
     ConversationDB("parent_conv").init()
 
     tool = SubAgentLauncher()

@@ -195,8 +195,9 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
 
     migrated = await manager.load()
     assert migrated == legacy[1:]
-    with open(manager.context_file, "r", encoding="utf-8") as stream:
-        assert json.load(stream) == legacy[1:]
+    # 磁盘已迁移为 JSONL；用双格式读取器验证内容完整
+    from cloudra.context_manager import read_context_file
+    assert read_context_file(manager.context_file) == legacy[1:]
 
     messages = await manager.build_messages(
         identity_messages=[{"role": "system", "content": "当前身份"}]
@@ -232,8 +233,8 @@ async def test_agent_replays_legacy_history_with_current_identity(
     assert any("分析旧样品" in content for content in contents)
     assert any("旧会话已经完成第一步" in content for content in contents)
     assert any("继续第二步" in content for content in contents)
-    with open(agent.context_manager.context_file, "r", encoding="utf-8") as stream:
-        assert json.load(stream) == legacy_history[1:]
+    from cloudra.context_manager import read_context_file
+    assert read_context_file(agent.context_manager.context_file) == legacy_history[1:]
 
 
 @pytest.mark.asyncio

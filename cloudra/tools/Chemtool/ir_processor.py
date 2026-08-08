@@ -4,7 +4,6 @@ import datetime
 import os
 from typing import Any, Dict, List
 
-import numpy as np
 from pydantic import Field
 
 if not hasattr(datetime, "UTC"):
@@ -13,12 +12,14 @@ if not hasattr(datetime, "UTC"):
 from cloudra.session_class import Session
 from cloudra.tools_class import Tool, input_schema, output_schema
 
-try:
-    import spectrochempy as scp
-    _SPECTROCHEMPY_AVAILABLE = True
-except Exception:
-    scp = None
-    _SPECTROCHEMPY_AVAILABLE = False
+
+def _import_spectrochempy():
+    """惰性导入 spectrochempy（重依赖），未安装时返回 None。"""
+    try:
+        import spectrochempy as scp
+        return scp
+    except Exception:
+        return None
 
 description = (
     "红外光谱（IR）处理与解析：基于 SpectroChemPy，支持 JCAMP-DX、Thermo Nicolet (SPA/SPG)、CSV 等格式，"
@@ -65,11 +66,14 @@ class IRProcessor(Tool):
         return True
 
     async def tool_call(self, user_input: IRProcessor_input_schema, session: Session) -> IRProcessor_output_schema:
-        if not _SPECTROCHEMPY_AVAILABLE:
+        scp = _import_spectrochempy()
+        if scp is None:
             return IRProcessor_output_schema(
                 is_success=False,
                 message="环境未安装 spectrochempy 库。请执行: pip install 'cloudra[chem]'"
             )
+
+        import numpy as np
 
         path = user_input.data_path
         if not os.path.exists(path):

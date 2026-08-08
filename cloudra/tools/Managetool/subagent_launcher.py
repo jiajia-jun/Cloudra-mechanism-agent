@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any
 
@@ -6,10 +7,39 @@ from pydantic import Field
 from cloudra import session_store
 from cloudra.agent import Agent
 from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
-from cloudra.runtime_profile import is_mobile_runtime
+from cloudra.runtime_profile import subagent_execution_mode
 from cloudra.session_class import Session
 from cloudra.subagents import Subagent_hash
 from cloudra.tools_class import Tool, input_schema, output_schema
+
+
+async def _run_subagent_in_process(task_id: int, db_path: str, session_id: str) -> None:
+    """进程内执行子任务：异常一律落库 failed/cancelled，绝不传播到父 Agent 的事件循环。
+
+    run_executor 内部已捕获执行期异常（done/failed/cancelled 单一路径收尾）；
+    这里兜底它启动阶段（取任务、实例化 Agent 等）可能抛出的异常，
+    否则任务状态会永远挂在 running。
+    """
+    from cloudra.runtime.executor import run_executor
+
+    try:
+        await run_executor(task_id, db_path, session_id)
+    except asyncio.CancelledError:
+        # 父任务被取消：对齐子进程路径 SIGTERM 的兜底语义，尽力标记 cancelled 后继续传播。
+        try:
+            db = ConversationDB.from_path(db_path)
+            await session_store.afinalize_task(db, task_id, session_id, 'cancelled')
+        except Exception as mark_err:
+            print(f"[系统错误] 子任务取消状态回写失败: {mark_err}")
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            db = ConversationDB.from_path(db_path)
+            await session_store.afinalize_task(db, task_id, session_id, 'failed', error=str(e))
+        except Exception as mark_err:
+            print(f"[系统错误] 子任务收尾状态回写失败: {mark_err}")
 
 description = (
     "启动子 Agent 执行特定任务。Coordinator 可将复杂任务拆分为多个子任务。\n"
@@ -144,7 +174,9 @@ class SubAgentLauncher(Tool):
         }
 
         if is_wait:
-            # 同步模式：桌面端启动子进程；Android 在当前 Python 进程内执行。
+            # 同步模式：默认在当前 Python 进程内执行（Android 唯一支持的方式）；
+            # CLOUDRA_SUBAGENT_MODE=subprocess 可切回每任务一个子进程的旧行为。
+            in_process = subagent_execution_mode() == "inprocess"
             task_id, session_id, base_payload = await session_store.acreate_subagent_request(
                 db,
                 state='running',
@@ -157,12 +189,9 @@ class SubAgentLauncher(Tool):
 
             output_lines = []
             print(f"\n[系统] 正在同步执行子任务 (Task ID: {task_id})... 请稍候。")
-            if is_mobile_runtime():
-                from cloudra.runtime.executor import run_executor
-
-                await run_executor(task_id, db_path, session_id)
+            if in_process:
+                await _run_subagent_in_process(task_id, db_path, session_id)
             else:
-                import asyncio
                 import sys
 
                 # Session 级 YOLO 通过 env 显式传给子进程。
@@ -202,8 +231,10 @@ class SubAgentLauncher(Tool):
             else:
                 result = f"Task completed, but no explicit result was found in database. Last output lines: {' | '.join(output_lines[-3:])}"
         else:
-            # Android 没有 worker 子进程，任务创建后直接作为同进程协程运行。
-            request_state = 'running' if is_mobile_runtime() else 'ready'
+            # 进程内执行时任务创建后直接作为同进程协程运行（state=running）；
+            # 子进程模式下挂 ready，由 worker 线程认领并 spawn executor 子进程。
+            in_process = subagent_execution_mode() == "inprocess"
+            request_state = 'running' if in_process else 'ready'
             task_id, session_id, base_payload = await session_store.acreate_subagent_request(
                 db,
                 state=request_state,
@@ -213,11 +244,10 @@ class SubAgentLauncher(Tool):
                 session_id_fn=lambda tid: f"{sub_agent.id}_task{tid}",
             )
             sub_agent.session_id = session_id
-            if is_mobile_runtime():
-                from cloudra.runtime.executor import run_executor
+            if in_process:
                 from cloudra.runtime.mobile_tasks import create_mobile_task
 
-                create_mobile_task(run_executor(task_id, db_path, session_id))
+                create_mobile_task(_run_subagent_in_process(task_id, db_path, session_id))
             else:
                 from cloudra import events
 

@@ -1,8 +1,10 @@
 """Deterministic, request-time system prompt assembly.
 
-Identity and policy sources are read for every model request. Conversation
-history never owns these messages, so an existing conversation can pick up a
-changed role prompt, MEMORY.md, AGENTS.md, or capability manifest immediately.
+Identity and policy sources are re-validated for every model request via file
+mtime/size signatures: unchanged files are served from a module-level cache,
+changed files are re-read immediately. Conversation history never owns these
+messages, so an existing conversation can pick up a changed role prompt,
+MEMORY.md, AGENTS.md, or capability manifest immediately.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
@@ -53,6 +56,31 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+# 按 (mtime_ns, size) 签名的文件内容缓存：签名不变直接复用，变了立即重读。
+# assemble 已移入工作线程，多 Agent 并发时靠锁保证缓存读写一致。
+_FILE_CACHE_LOCK = threading.Lock()
+_FILE_CONTENT_CACHE: dict[str, tuple[tuple[int, int], str]] = {}
+# skills 目录签名 -> (manifest, source)；签名含每个 SKILL.md 的 mtime/size。
+_SKILL_MANIFEST_CACHE: dict[
+    str, tuple[tuple[tuple[str, int, int], ...], tuple[list[dict], "PromptSource"]]
+] = {}
+
+
+def _read_file_cached(path: Path) -> str:
+    """读取文本文件，(mtime_ns, size) 签名不变时复用缓存内容。"""
+    stat = path.stat()
+    signature = (stat.st_mtime_ns, stat.st_size)
+    key = str(path)
+    with _FILE_CACHE_LOCK:
+        cached = _FILE_CONTENT_CACHE.get(key)
+        if cached is not None and cached[0] == signature:
+            return cached[1]
+    content = path.read_text(encoding="utf-8")
+    with _FILE_CACHE_LOCK:
+        _FILE_CONTENT_CACHE[key] = (signature, content)
+    return content
+
+
 @dataclass(frozen=True)
 class PromptSource:
     kind: str
@@ -92,7 +120,7 @@ def load_role_prompt(prompt_name: str) -> str:
     prompt_path = PROMPTS_DIR / f"{prompt_name}.md"
     if not prompt_path.is_file():
         raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
-    return prompt_path.read_text(encoding="utf-8")
+    return _read_file_cached(prompt_path)
 
 
 class PromptAssembler:
@@ -149,7 +177,7 @@ class PromptAssembler:
                 continue
             seen_paths.add(resolved)
             try:
-                content = resolved.read_text(encoding="utf-8")
+                content = _read_file_cached(resolved)
             except Exception as exc:
                 print(f"[PromptAssembler] 读取 {label} AGENTS.md 失败: {exc}")
                 continue
@@ -163,16 +191,53 @@ class PromptAssembler:
         if not self.include_memory:
             return None
         manager = get_memory_manager(conversation_id=self.conversation_id)
-        content = manager.load()
+        if not manager.memory_path.exists():
+            return None
+        try:
+            content = _read_file_cached(manager.memory_path)
+        except Exception as exc:
+            print(f"[PromptAssembler] 读取 MEMORY.md 失败: {exc}")
+            return None
         if not content.strip():
             return None
         return content.strip(), self._source("memory", content, manager.memory_path)
 
     def _skill_manifest(self) -> tuple[list[dict], PromptSource] | None:
-        """Read skill metadata at request time and revision the full SKILL.md files."""
+        """Read skill metadata at request time and revision the full SKILL.md files.
+
+        逐个 read_text + YAML 解析 + sha256 开销大，按目录签名缓存：
+        任一 SKILL.md 的 (path, mtime_ns, size) 变化才重新解析。
+        """
 
         if not SKILLS_DIR.is_dir():
             return None
+        signature_entries = []
+        for skill_file in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+            try:
+                stat = skill_file.stat()
+            except OSError:
+                continue
+            signature_entries.append(
+                (
+                    skill_file.relative_to(SKILLS_DIR).as_posix(),
+                    stat.st_mtime_ns,
+                    stat.st_size,
+                )
+            )
+        signature = tuple(signature_entries)
+        cache_key = str(SKILLS_DIR)
+        with _FILE_CACHE_LOCK:
+            cached = _SKILL_MANIFEST_CACHE.get(cache_key)
+            if cached is not None and cached[0] == signature:
+                return cached[1]
+        result = self._build_skill_manifest()
+        if result is not None:
+            with _FILE_CACHE_LOCK:
+                _SKILL_MANIFEST_CACHE[cache_key] = (signature, result)
+        return result
+
+    def _build_skill_manifest(self) -> tuple[list[dict], PromptSource] | None:
+        """逐文件解析 skills 目录，构建 manifest 与 revision source。"""
         manifest = []
         revision_inputs = []
         for skill_file in sorted(SKILLS_DIR.glob("*/SKILL.md")):
@@ -465,7 +530,7 @@ class PromptAssembler:
         config_path = Path(get_config().config_file)
         try:
             config_revision = (
-                f"sha256:{_sha256_text(config_path.read_text(encoding='utf-8'))}"
+                f"sha256:{_sha256_text(_read_file_cached(config_path))}"
             )
         except OSError:
             config_revision = "missing"

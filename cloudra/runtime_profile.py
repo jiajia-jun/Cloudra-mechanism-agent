@@ -55,6 +55,27 @@ def is_mobile_runtime() -> bool:
     return is_android() or override.strip().lower() in _TRUTHY
 
 
+def subagent_execution_mode() -> str:
+    """Return how sub-agent tasks are executed: ``"inprocess"`` or ``"subprocess"``.
+
+    In-process asyncio tasks are the default on every platform (they are the
+    only option on Android).  ``CLOUDRA_SUBAGENT_MODE=subprocess`` restores the
+    legacy per-task subprocess as an escape hatch on desktop; it never applies
+    to the mobile runtime, which cannot spawn subprocesses.
+
+    This switch only selects the execution vehicle.  Tool visibility stays
+    governed by :func:`filter_tools_for_runtime` / :func:`is_mobile_runtime`,
+    so a desktop in-process sub-agent keeps the full tool set.
+    """
+
+    if is_mobile_runtime():
+        return "inprocess"
+    override = os.environ.get("CLOUDRA_SUBAGENT_MODE", "")
+    if override.strip().lower() == "subprocess":
+        return "subprocess"
+    return "inprocess"
+
+
 def filter_tools_for_runtime(entries: Iterable[_Entry]) -> list[_Entry]:
     """Filter tool entries to those executable in the current runtime."""
 

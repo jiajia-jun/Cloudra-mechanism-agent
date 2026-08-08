@@ -11,7 +11,7 @@
 import json
 import os
 import tempfile
-from typing import Any
+from typing import Any, Iterable
 
 
 def atomic_write_bytes(path: str, data: bytes) -> None:
@@ -54,4 +54,10 @@ def atomic_write_json(
 ) -> None:
     """原子写入 JSON 数据到 ``path``。"""
     text = json.dumps(data, ensure_ascii=ensure_ascii, indent=indent)
+    atomic_write_text(path, text)
+
+
+def atomic_write_jsonl(path: str, items: Iterable[Any]) -> None:
+    """原子写入 JSONL（每行一个 JSON 值，不带缩进）到 ``path``。"""
+    text = "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in items)
     atomic_write_text(path, text)

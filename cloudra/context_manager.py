@@ -1,7 +1,7 @@
 """统一的 Agent 上下文管理器。
 
 ContextManager 是 Agent 上下文的唯一真相来源，负责：
-1. 从 JSON 文件加载/持久化上下文
+1. 从上下文文件加载/持久化上下文（JSONL 追加式；兼容旧的单 JSON 数组格式）
 2. 提供异步 append/replace 接口
 3. 把原始上下文按模型能力渲染成可直接发给 LLM 的消息列表
 4. 接收外部事件（邮件、计算任务状态变化等）并注入上下文
@@ -20,7 +20,7 @@ from typing import Optional
 from cloudra import events, paths
 from cloudra.config import get_config
 from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
-from cloudra.fs_utils import atomic_write_json
+from cloudra.fs_utils import atomic_write_jsonl
 from cloudra.llm_client import LLMClient
 from cloudra.token_estimator import TokenEstimator
 
@@ -51,6 +51,49 @@ def _context_file_path(agent_id: str, conversation_id: str, session_id: Optional
 def _db_path(conversation_id: Optional[str] = None) -> str:
     """返回指定 conversation 的任务数据库路径。"""
     return get_database_path(conversation_id)
+
+
+def parse_context_text(text: str) -> tuple[list, bool]:
+    """解析上下文文件内容，返回 ``(blocks, is_legacy_json)``。
+
+    磁盘格式：
+    - 新格式 JSONL：每行一个 block（``json.dumps(block)``，不带缩进）；
+    - 旧格式：单个缩进 JSON 数组（历史版本全量重写整个文件，O(N²) 写放大）。
+
+    JSONL 下无法解析的行（典型：进程崩溃在文件尾部留下的半行）跳过并告警，
+    不让一条坏行毁掉整段历史。
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return [], False
+    if stripped.startswith("["):
+        return json.loads(text), True
+    blocks: list = []
+    skipped = 0
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            blocks.append(json.loads(line))
+        except json.JSONDecodeError:
+            skipped += 1
+    if skipped:
+        print(
+            f"[ContextManager] 上下文文件有 {skipped} 行无法解析"
+            "（疑似崩溃遗留的半行），已跳过"
+        )
+    return blocks, False
+
+
+def read_context_file(path: str) -> list:
+    """读取上下文文件（新旧两种格式均可），返回 block 列表。
+
+    供 ContextManager 之外的只读消费者（如 GetSubAgentReport、测试断言）使用。
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        blocks, _ = parse_context_text(f.read())
+    return blocks
 
 
 # Supervisor 建议消息在上下文中的标记，用于定位更新
@@ -97,6 +140,9 @@ class ContextManager:
         # 上下文实例缓存：本实例是 context_file 生命周期内的唯一写者，
         # 首次 load 后驻留内存，避免每条消息都全量读盘 + json 解析。
         self._context_cache: Optional[list] = None
+        # 首次 load 时探测到的磁盘格式：True 表示旧版单 JSON 数组，
+        # 下一次 append/replace 会先迁移为 JSONL 再写入。
+        self._file_is_legacy = False
         # 压缩用的 LLM 传输层客户端缓存，避免每次压缩都新建连接池。
         self._llm_client: Optional[LLMClient] = None
         self._on_compaction_progress = on_compaction_progress
@@ -150,6 +196,10 @@ class ContextManager:
     async def load(self) -> list:
         """加载上下文；若文件不存在则初始化并保存。
 
+        同时支持新旧两种磁盘格式（见 ``parse_context_text``）：读到旧版
+        单 JSON 数组格式时正常返回内容，并标记 ``_file_is_legacy``，
+        下一次写（append/replace）会迁移为 JSONL——旧会话永远不会读不出。
+
         首次读取后驻留实例缓存（本实例是该文件的唯一写者），
         后续 load 不再触碰磁盘。
 
@@ -162,11 +212,11 @@ class ContextManager:
             return self._context_cache
         if os.path.isfile(self.context_file):
             try:
-                def read_context() -> list:
+                def read_context() -> tuple[list, bool]:
                     with open(self.context_file, 'r', encoding='utf-8') as f:
-                        return json.load(f)
+                        return parse_context_text(f.read())
 
-                self._context_cache = await asyncio.to_thread(read_context)
+                self._context_cache, self._file_is_legacy = await asyncio.to_thread(read_context)
                 return await self._migrate_legacy_identity(self._context_cache)
             except json.JSONDecodeError as e:
                 # 文件损坏或与并发写入竞争读到半截：只读返回空并告警，
@@ -185,19 +235,26 @@ class ContextManager:
     async def replace(self, context: list) -> None:
         """全量替换上下文并持久化到文件（同时刷新实例缓存）。
 
-        写入采用临时文件 + 原子改名（``os.replace``），保证外部只读进程
-        （TUI 状态栏、ContextScreen 等）并发读取时永远读到完整内容，
-        不会因看到写入中的半截文件而解析失败。
+        磁盘格式为 JSONL（每行一个 block）。写入采用临时文件 + 原子改名
+        （``os.replace``），保证外部只读进程（TUI 状态栏、ContextScreen 等）
+        并发读取时永远读到完整内容，不会因看到写入中的半截文件而解析失败。
         """
         self._context_cache = context
+        self._file_is_legacy = False
 
         def write_context() -> None:
-            atomic_write_json(self.context_file, context, indent=4)
+            atomic_write_jsonl(self.context_file, context)
 
         await asyncio.to_thread(write_context)
 
     async def append(self, new_block: dict) -> None:
-        """追加一条消息到上下文，并持久化。"""
+        """追加一条消息到上下文，并持久化。
+
+        正常路径只向文件追加一行 JSON（一个 block 一行），不再像旧实现那样
+        每次全量重写整个文件（长会话下总写入量从 O(N²) 降为 O(N)）。
+        例外走全量 ``replace``：磁盘上仍是旧版单 JSON 数组格式（先迁移为
+        JSONL），或文件已被外部删除（重建完整内容）。
+        """
         if 'role' not in new_block:
             new_block['role'] = 'user'
 
@@ -214,7 +271,25 @@ class ContextManager:
 
         context = await self.load()
         context.append(new_block)
-        await self.replace(context)
+
+        if self._file_is_legacy or not os.path.isfile(self.context_file):
+            await self.replace(context)
+            return
+
+        def append_line() -> None:
+            line = json.dumps(new_block, ensure_ascii=False) + "\n"
+            with open(self.context_file, "r+b") as f:
+                # 自愈：上次追加若崩溃留下半行（文件末尾无换行），先补一个
+                # 换行把半行隔离成一条会被 load 跳过的坏行，再写新行，
+                # 避免新旧两行黏在一起导致新行也无法解析。
+                f.seek(0, os.SEEK_END)
+                if f.tell() > 0:
+                    f.seek(-1, os.SEEK_END)
+                    if f.read(1) != b"\n":
+                        f.write(b"\n")
+                f.write(line.encode("utf-8"))
+
+        await asyncio.to_thread(append_line)
 
     async def set_supervisor_advice(self, advice_text: str) -> None:
         """设置/更新 Supervisor 建议。

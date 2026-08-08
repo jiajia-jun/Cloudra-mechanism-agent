@@ -629,8 +629,6 @@ class TestEmptyUserMessageGuard:
     @pytest.mark.asyncio
     async def test_readonly_load_does_not_persist_empty_user(self, tmp_path, monkeypatch):
         """query="" 的 load() 初始化为空列表，不落空 user 消息。"""
-        import json
-
         monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
         from cloudra.config import reload_config
         reload_config()
@@ -640,8 +638,8 @@ class TestEmptyUserMessageGuard:
         )
         context = await cm.load()
         assert context == []
-        with open(cm.context_file, encoding="utf-8") as f:
-            assert json.load(f) == []
+        from cloudra.context_manager import read_context_file
+        assert read_context_file(cm.context_file) == []
 
     @pytest.mark.asyncio
     async def test_build_messages_drops_empty_user(self, tmp_path, monkeypatch):
