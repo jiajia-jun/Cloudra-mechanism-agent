@@ -221,10 +221,10 @@ class Agent(BaseModel):
         available_device_tools: set[str] = set()
         if device_tool_names:
             try:
-                from cloudra.device_broker import DeviceBroker
+                from cloudra.device_broker import get_device_broker
 
                 available_device_tools = (
-                    DeviceBroker().available_tool_names()
+                    get_device_broker().available_tool_names()
                 )
             except (OSError, ValueError):
                 available_device_tools = set()
@@ -438,9 +438,9 @@ class Agent(BaseModel):
         if not any(name.startswith("device.") for name in tool_names):
             return []
         try:
-            from cloudra.device_broker import DeviceBroker
+            from cloudra.device_broker import get_device_broker
 
-            broker = DeviceBroker()
+            broker = get_device_broker()
             devices = broker.list_devices()
             observations = broker.recent_observations(limit=50)
             by_device: dict[str, list[dict]] = {}
@@ -815,9 +815,10 @@ class Coordinator(Agent):
     ) -> list[dict]:
         """Coordinator 每次推理前附加运行状态快照，实现动态 prompt。"""
         messages = await super()._build_messages(tool_schemas)
-        snapshots = (
-            self._build_subagent_status_snapshot(),
-            self._build_schedule_status_snapshot(),
+        # 快照各开一次同步 SQLite 连接（makedirs + PRAGMA），移出事件循环
+        snapshots = await asyncio.gather(
+            asyncio.to_thread(self._build_subagent_status_snapshot),
+            asyncio.to_thread(self._build_schedule_status_snapshot),
         )
         for snapshot in snapshots:
             if snapshot:

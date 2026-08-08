@@ -28,6 +28,15 @@ _AVAILABLE_PROPERTIES = {
     ],
     "mulliken_charges": ["mulliken_charges"],
     "convergence": ["normal_termination"],
+    "job_type": ["job_types"],
+    "scan": ["scan_parameter", "scan_energies_ev"],
+    "irc": [
+        "irc_num_points_forward",
+        "irc_num_points_backward",
+        "irc_rx_coord_range",
+        "irc_endpoint_energies_hartree",
+        "irc_both_directions_converged",
+    ],
 }
 
 
@@ -39,7 +48,9 @@ class LogParser_input_schema(input_schema):
         default=None,
         description="需要提取的物理量列表。可选值: "
                     "'energy', 'homo_lumo', 'dipole', 'frequencies', "
-                    "'thermochemistry', 'mulliken_charges', 'convergence'。"
+                    "'thermochemistry', 'mulliken_charges', 'convergence', "
+                    "'job_type'（任务类型识别）, 'scan'（扫描参数与能量序列）, "
+                    "'irc'（IRC 路径摘要）。"
                     "为 None 时提取所有可用物理量。"
     )
 
@@ -60,6 +71,14 @@ class LogParser_output_schema(output_schema):
     gibbs_free_energy_hartree: Optional[float] = Field(default=None, description="吉布斯自由能校正 (Hartree)")
     mulliken_charges: Optional[dict] = Field(default=None, description="Mulliken 电荷分布 {原子序号: 电荷}")
     normal_termination: Optional[bool] = Field(default=None, description="Gaussian 是否正常终止")
+    job_types: Optional[list[str]] = Field(default=None, description="识别到的任务类型（opt/ts/freq/scan/irc/sp 的子集，升序）")
+    scan_parameter: Optional[list[float]] = Field(default=None, description="扫描参数值序列（relaxed PES scan）")
+    scan_energies_ev: Optional[list[float]] = Field(default=None, description="各扫描点能量 (eV)")
+    irc_num_points_forward: Optional[int] = Field(default=None, description="IRC 正向路径点数（不含 TS）")
+    irc_num_points_backward: Optional[int] = Field(default=None, description="IRC 反向路径点数（不含 TS）")
+    irc_rx_coord_range: Optional[list[float]] = Field(default=None, description="IRC 反应坐标范围 [min, max]")
+    irc_endpoint_energies_hartree: Optional[list[float]] = Field(default=None, description="IRC 两端点能量 (Hartree)，按反应坐标从小到大")
+    irc_both_directions_converged: Optional[bool] = Field(default=None, description="IRC 两个方向是否都收敛到极小点")
     message: str = Field(default="", description="状态或错误信息")
 
 
@@ -180,6 +199,42 @@ class LogParser(Tool):
                     result["normal_termination"] = bool(data.metadata.get("success", False))
                 elif hasattr(data, "optdone"):
                     result["normal_termination"] = bool(data.optdone)
+
+            # job_type / scan / irc 摘要（IRC 逐点解析在 core.gaussian_frames 中自写实现）
+            want_gaussian_frames = "job_types" in requested or any(
+                f.startswith("irc_") for f in requested
+            )
+            if want_gaussian_frames:
+                from cloudra.tools.core import gaussian_frames
+
+            if "job_types" in requested:
+                result["job_types"] = sorted(gaussian_frames.detect_job_types(log_path))
+
+            if {"scan_parameter", "scan_energies_ev"} & requested:
+                scanparm = getattr(data, "scanparm", None)
+                scanenergies = getattr(data, "scanenergies", None)
+                if scanparm is not None and len(scanparm) > 0:
+                    result["scan_parameter"] = [float(v) for v in np.asarray(scanparm[0], dtype=float)]
+                if scanenergies is not None and len(scanenergies) > 0:
+                    result["scan_energies_ev"] = [float(v) for v in np.asarray(list(scanenergies), dtype=float)]
+
+            if any(f.startswith("irc_") for f in requested):
+                if "irc" in gaussian_frames.detect_job_types(log_path):
+                    try:
+                        _irc_frames, irc_meta = gaussian_frames.extract_irc(log_path)
+                        result["irc_num_points_forward"] = irc_meta["num_points_forward"]
+                        result["irc_num_points_backward"] = irc_meta["num_points_backward"]
+                        if irc_meta["rx_coord_range"] is not None:
+                            result["irc_rx_coord_range"] = [float(v) for v in irc_meta["rx_coord_range"]]
+                        if irc_meta["endpoint_energies_hartree"] is not None:
+                            result["irc_endpoint_energies_hartree"] = [
+                                float(v) for v in irc_meta["endpoint_energies_hartree"]
+                            ]
+                        result["irc_both_directions_converged"] = bool(
+                            irc_meta["forward_converged"] and irc_meta["backward_converged"]
+                        )
+                    except ValueError as e:
+                        result["message"] = f"日志解析成功；IRC 摘要提取失败: {e}"
 
             return LogParser_output_schema(**result)
 

@@ -9,7 +9,10 @@ from cloudra.tools_class import Tool, input_schema, output_schema
 description = (
     "基于 ASE 在 mol、xyz、gjf、pdb、SDF、cif 等常见计算化学文件格式之间相互转换；"
     "坐标数据仅在文件之间流转，不会出现在返回结果中。"
-    "适用：已有结构文件需要换格式（如 xyz 转 gjf、cif 转 pdb），以对接下游计算或可视化。"
+    "也支持 Gaussian 日志（input_format='log'）提取关键帧为 CSV（output_format='csv'）："
+    "优化轨迹、扫描曲线、IRC 反应路径逐点的结构/能量/反应坐标，供程序化分析。"
+    "适用：已有结构文件需要换格式（如 xyz 转 gjf、cif 转 pdb）以对接下游计算或可视化；"
+    "IRC/扫描曲线分析时把日志转成 CSV 后用 pandas 等程序化读取。"
     "不适用：从 SMILES 生成初始三维结构（用 smiles_to_mol）、编写 Gaussian 计算输入（用 gjf_writer）。"
 )
 
@@ -25,11 +28,11 @@ class FormatConverter_input_schema(input_schema):
     input_path: str = Field(
         description="输入文件的绝对路径。"
     )
-    input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf"] = Field(
-        description="输入文件格式。"
+    input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log"] = Field(
+        description="输入文件格式。log 表示 Gaussian 输出日志（.log/.out），此时输出必须为 csv。"
     )
-    output_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf"] = Field(
-        description="目标输出格式。"
+    output_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "csv"] = Field(
+        description="目标输出格式。csv 仅用于 log→关键帧表。"
     )
     output_path: str = Field(
         description="输出文件的绝对路径。"
@@ -57,9 +60,64 @@ class FormatConverter(Tool):
         """将用户格式名映射为 ASE 可识别的格式名。"""
         return _ASE_FORMAT_MAP.get(fmt, fmt)
 
+    @staticmethod
+    def _convert_log_to_csv(user_input: "FormatConverter_input_schema") -> FormatConverter_output_schema:
+        """Gaussian 日志 → 关键帧 CSV（优化轨迹/扫描/IRC 曲线）。"""
+        if user_input.input_format != "log":
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message="output_format='csv' 仅支持 Gaussian 日志输入（input_format='log'）。"
+            )
+        if user_input.output_format != "csv":
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message="input_format='log' 时输出格式必须为 'csv'（关键帧表）。"
+            )
+        if not os.path.isfile(user_input.input_path):
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message=f"输入文件不存在: {user_input.input_path}"
+            )
+        try:
+            from cloudra.tools.core.gaussian_frames import (
+                detect_job_types,
+                extract_frames,
+                frames_to_csv,
+            )
+
+            job_types = detect_job_types(user_input.input_path)
+            frames = extract_frames(user_input.input_path)
+            # 按规范顺序展示（opt+ts+freq 风格，而非字母序）
+            ordered = [j for j in ("opt", "ts", "freq", "scan", "irc", "sp") if j in job_types]
+            if not frames:
+                return FormatConverter_output_schema(
+                    is_success=False,
+                    output_path="",
+                    message=f"未能从日志中提取任何关键帧（识别为 {'+'.join(ordered) or '未知'}）: {user_input.input_path}"
+                )
+            frames_to_csv(frames, user_input.output_path)
+            return FormatConverter_output_schema(
+                is_success=True,
+                output_path=user_input.output_path,
+                message=f"识别为 {'+'.join(ordered)}，写出 {len(frames)} 帧 → {user_input.output_path}"
+            )
+        except Exception as e:
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message=f"日志关键帧提取失败: {str(e)}"
+            )
+
     async def tool_call(self, user_input: FormatConverter_input_schema, session: Session) -> FormatConverter_output_schema:
         input_path = user_input.input_path
         output_path = user_input.output_path
+
+        # 0. log→csv 走 Gaussian 关键帧提取，与 ASE 格式转换分流
+        if user_input.input_format == "log" or user_input.output_format == "csv":
+            return self._convert_log_to_csv(user_input)
 
         # 1. 校验输入文件是否存在
         if not os.path.isfile(input_path):

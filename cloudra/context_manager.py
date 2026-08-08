@@ -108,6 +108,9 @@ COMPACT_SUMMARY_MARKER = "[上下文压缩提示]"
 # compressor above budget immediately after it runs.
 AUTO_COMPACT_KEEP_ASSISTANT = 4
 
+# render-time 压缩（_compress_to_budget）保留的最近 assistant 回合数。
+RENDER_COMPACT_KEEP_ASSISTANT = 10
+
 # Parallelize independent map chunks, but keep the fan-out conservative so one
 # long conversation cannot monopolize the FOLLOWER endpoint.
 COMPACTION_CONCURRENCY = 3
@@ -404,7 +407,7 @@ class ContextManager:
 
         rendered = self._drop_empty_assistant_messages(rendered)
         rendered = self._drop_empty_user_messages(rendered)
-        rendered = self._repair_dangling_tool_calls(rendered)
+        rendered = self._repair_tool_pairing(rendered)
         # Very large tool results make capping and token estimation measurable
         # CPU work.  They must not run on the TUI/Agent event-loop thread.
         rendered = await asyncio.to_thread(self._cap_message_sizes, rendered)
@@ -600,36 +603,64 @@ class ContextManager:
         return cleaned
 
     @staticmethod
-    def _repair_dangling_tool_calls(messages: list[dict]) -> list[dict]:
-        """修补悬挂的 tool_calls。
+    def _repair_tool_pairing(messages: list[dict]) -> list[dict]:
+        """修复 tool_calls 与 tool 结果的配对（两个方向）。
 
-        OpenAI 协议要求：带 tool_calls 的 assistant 消息，其后必须紧跟与每个
-        tool_call_id 对应的 tool 响应，否则端点会拒绝整个请求（400）。
-        Session 在"assistant 发起调用"与"结果写回上下文"之间被打断/取消时，
-        上下文会留下没有响应的 tool_calls，导致该对话后续所有请求都 400。
-        这里为缺失响应的 tool_call 补一条说明性的 tool 消息（幂等：已被响应
-        覆盖的 id 不会重复补）。
+        OpenAI 协议要求带 tool_calls 的 assistant 消息与对应 tool 结果严格
+        配对，严格端点（如 DeepSeek /responses）对任一方向的失配都会以 400
+        拒绝整个请求，且之后每轮请求都带着这条坏消息——会话永久变砖。
+
+        1. 孤儿 tool 结果：tool 消息的 ``tool_call_id`` 在消息列表中任何
+           assistant 的 tool_calls 里找不到（典型来源：上下文压缩把带
+           tool_calls 的 assistant 梗概掉，却把它的 tool 结果留在了保留
+           尾部）→ 直接丢弃该 tool 消息。
+        2. 无结果的 tool_calls：assistant 发起调用与结果写回之间被打断/
+           取消，或结果在压缩中丢失 → 在该 assistant 消息（及其后连续的
+           tool 结果组）之后补一条占位 tool 消息（幂等：已被响应覆盖的
+           id 不会重复补）。
         """
+        declared: set[str] = set()
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+            for call in msg.get("tool_calls") or []:
+                call_id = call.get("id") if isinstance(call, dict) else None
+                if call_id:
+                    declared.add(call_id)
+
         answered = {
             msg.get("tool_call_id")
             for msg in messages
             if msg.get("role") == "tool" and msg.get("tool_call_id")
         }
-        repaired = []
+
+        repaired: list[dict] = []
+        # 缺失结果的占位 tool 消息：等当前 assistant 的 tool 结果组结束后再插入
+        pending: list[dict] = []
         for msg in messages:
-            repaired.append(msg)
-            if msg.get("role") != "assistant":
+            role = msg.get("role")
+            if role == "tool":
+                call_id = msg.get("tool_call_id")
+                if call_id and call_id not in declared:
+                    continue  # 孤儿 tool 结果：丢弃
+                repaired.append(msg)
                 continue
-            tool_calls = msg.get("tool_calls") or []
-            for call in tool_calls:
+            # tool 结果组结束：先把上一个 assistant 缺失结果的占位补上
+            repaired.extend(pending)
+            pending.clear()
+            repaired.append(msg)
+            if role != "assistant":
+                continue
+            for call in msg.get("tool_calls") or []:
                 call_id = call.get("id") if isinstance(call, dict) else None
                 if call_id and call_id not in answered:
-                    repaired.append({
+                    pending.append({
                         "role": "tool",
                         "tool_call_id": call_id,
-                        "content": "【系统提示】该工具调用在执行完成前被打断/取消，没有返回结果。",
+                        "content": "[工具结果缺失：可能在上下文压缩中丢失]",
                     })
                     answered.add(call_id)
+        repaired.extend(pending)
         return repaired
 
     # 单条消息内容的硬顶（字符数）：一条巨型工具结果（如整份 PDF 的乱码文本）
@@ -838,6 +869,33 @@ class ContextManager:
             )
             raise
 
+    @staticmethod
+    def _split_tail_keep_tool_pairs(
+        compressible: list[dict], tail_count: int
+    ) -> tuple[list[dict], list[dict]]:
+        """按条数切出保留尾部，并把切口对齐到 tool_calls 配对边界。
+
+        若切口恰好落在「带 tool_calls 的 assistant 消息」与其 tool 结果之间，
+        尾部首条会是没有匹配 function_call 的孤儿 function_call_output，
+        严格端点（如 DeepSeek /responses）会以 400 拒绝之后整个会话的所有
+        请求。这里在尾部首条为 tool 消息时把切口左移一条（把它前面的消息
+        拉进尾部），直到首条不再是 tool 或 history 耗尽；耗尽时（找不到
+        配对的 assistant）丢弃尾部开头的孤儿 tool 消息。
+
+        返回 (history, tail)。
+        """
+        if tail_count <= 0:
+            return list(compressible), []
+        history = list(compressible[:-tail_count])
+        tail = list(compressible[-tail_count:])
+        while tail and tail[0].get("role") == "tool":
+            if history:
+                tail.insert(0, history.pop())
+            else:
+                # 配对的 assistant 不在上下文里：孤儿 tool 结果直接丢弃
+                tail.pop(0)
+        return history, tail
+
     async def _compress_persistent(self) -> bool:
         """超预算时先做持久化压缩：把历史梗概一次性写回上下文存储。
 
@@ -846,6 +904,7 @@ class ContextManager:
         内容都不同（KV cache 全灭），延迟与花费随任务长度线性恶化。这里把梗概
         写回存储，后续轮次从压缩后的上下文出发，只有再次长到超预算时才触发
         下一次摘要（天然增量）；旧的梗概会被折叠进新梗概，不会无限累积。
+        保留尾部的切口会对齐到 tool_calls 配对边界（见 _split_tail_keep_tool_pairs）。
 
         返回是否发生了持久化压缩（无可压缩历史或梗概生成失败时为 False，
         调用方退回 render-time 压缩兜底）。
@@ -879,8 +938,7 @@ class ContextManager:
             if assistant_seen >= AUTO_COMPACT_KEEP_ASSISTANT:
                 break
 
-        tail = compressible[-tail_count:] if tail_count else []
-        history = compressible[:-tail_count] if tail_count else compressible
+        history, tail = self._split_tail_keep_tool_pairs(compressible, tail_count)
         if not history:
             return False
 
@@ -944,11 +1002,11 @@ class ContextManager:
             tail_count += 1
             if msg.get("role") == "assistant":
                 assistant_seen += 1
-            if assistant_seen >= 10:
+            if assistant_seen >= RENDER_COMPACT_KEEP_ASSISTANT:
                 break
 
-        tail = non_system[-tail_count:] if tail_count else []
-        history = non_system[:-tail_count] if tail_count else non_system
+        # 切口对齐 tool_calls 配对边界，避免孤儿 tool 结果把后续请求打到 400
+        history, tail = self._split_tail_keep_tool_pairs(non_system, tail_count)
 
         if not history:
             # 没有可压缩的历史，直接返回原消息
@@ -993,7 +1051,9 @@ class ContextManager:
 
         保留最近 ``keep_recent`` 条消息原样不变，将其余历史通过 FOLLOWER 配置的
         大模型生成一段梗概，并以 system 消息形式替换到上下文开头。压缩后的上下文
-        会在后续 ``build_messages`` 时正常参与渲染。
+        会在后续 ``build_messages`` 时正常参与渲染。保留窗口的切口会向
+        tool_calls 配对边界对齐（见 _split_tail_keep_tool_pairs），避免留下
+        孤儿 tool 结果导致后续请求被严格端点以 400 拒绝。
 
         Args:
             keep_recent: 保留的最近消息条数，必须 >= 1，默认 4。
@@ -1017,8 +1077,15 @@ class ContextManager:
                 "reason": f"上下文仅 {original_count} 条消息，未超过保留窗口 {keep_recent} 条",
             }
 
-        history = context[:-keep_recent]
-        tail = context[-keep_recent:]
+        history, tail = self._split_tail_keep_tool_pairs(context, keep_recent)
+        if not history:
+            return {
+                "original_count": original_count,
+                "new_count": original_count,
+                "summary_length": 0,
+                "compressed": False,
+                "reason": "保留窗口向 tool_calls 配对边界对齐后没有可压缩的历史",
+            }
 
         summary = await self._summarize_history(history)
 

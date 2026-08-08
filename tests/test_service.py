@@ -8,6 +8,17 @@ import pytest
 from cloudra.service import CloudraService, SessionRunner, validate_conversation_id
 
 
+async def _wait_terminal_state(runner, conversation_id, session_id, timeout=5.0):
+    """等待 _execute 协程落终态（DB 写已移入线程，不能假设固定 sleep 次数）。"""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        record = runner.get(conversation_id, session_id)
+        if record is not None and record.state not in {"queued", "running"}:
+            return record
+        await asyncio.sleep(0.01)
+    return runner.get(conversation_id, session_id)
+
+
 def test_validate_conversation_id_rejects_path_traversal():
     with pytest.raises(ValueError):
         validate_conversation_id("../../outside")
@@ -69,8 +80,7 @@ async def test_session_runner_persists_completed_result(tmp_path, monkeypatch):
 
     runner = SessionRunner(Service())
     record = runner.submit("hello", conversation.id)
-    await asyncio.sleep(0)
-    await asyncio.sleep(0)
+    await _wait_terminal_state(runner, conversation.id, record.session_id)
 
     reloaded = SessionRunner(Service()).get(conversation.id, record.session_id)
     assert reloaded is not None
@@ -97,10 +107,8 @@ async def test_session_runner_tracks_failure(tmp_path, monkeypatch):
 
     runner = SessionRunner(Service())
     record = runner.submit("hello", conversation.id)
-    await asyncio.sleep(0)
-    await asyncio.sleep(0)
+    saved = await _wait_terminal_state(runner, conversation.id, record.session_id)
 
-    saved = runner.get(conversation.id, record.session_id)
     assert saved is not None
     assert saved.state == "failed"
     assert saved.error == "boom"

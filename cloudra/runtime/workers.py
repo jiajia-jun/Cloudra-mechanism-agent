@@ -55,6 +55,16 @@ def _emit_worker_stop(conv_id: str) -> None:
         pass
 
 
+def _close_thread_sub(sub) -> None:
+    """线程退出前退订 ThreadSub；兼容测试里 duck-typed 的假订阅对象。"""
+    close = getattr(sub, "close", None)
+    if callable(close):
+        try:
+            close()
+        except Exception:
+            pass
+
+
 def _watch_subprocess(
     process: subprocess.Popen,
     db_path: str,
@@ -222,24 +232,27 @@ def checking_task(database_path: str, stop_event: threading.Event = None):
     except Exception as e:
         print(f"{Color.RED}[系统错误]{Color.END} checking_task 启动恢复失败: {e}")
 
-    while True:
-        if stop_event and stop_event.is_set():
-            break
-        payload = sub.wait(timeout=None)
-        if payload is None:
-            continue
-        if stop_event and stop_event.is_set():
-            break
+    try:
+        while True:
+            if stop_event and stop_event.is_set():
+                break
+            payload = sub.wait(timeout=None)
+            if payload is None:
+                continue
+            if stop_event and stop_event.is_set():
+                break
 
-        kind = payload.get("_kind")
-        if kind == "task_finished":
-            active_processes.pop(payload.get("task_id"), None)
-            continue
+            kind = payload.get("_kind")
+            if kind == "task_finished":
+                active_processes.pop(payload.get("task_id"), None)
+                continue
 
-        try:
-            drain_ready_requests()
-        except Exception as e:
-            print(f"{Color.RED}[系统错误]{Color.END} checking_task 发生异常: {e}")
+            try:
+                drain_ready_requests()
+            except Exception as e:
+                print(f"{Color.RED}[系统错误]{Color.END} checking_task 发生异常: {e}")
+    finally:
+        _close_thread_sub(sub)
 
 
 def _start_compute_executor(
@@ -308,24 +321,27 @@ def check_compute(db_path: str, stop_event: threading.Event = None):
     except Exception as e:
         print(f"{Color.RED}[系统错误]{Color.END} check_compute 启动恢复失败: {e}")
 
-    while True:
-        if stop_event and stop_event.is_set():
-            break
-        payload = sub.wait(timeout=None)
-        if payload is None:
-            continue
-        if stop_event and stop_event.is_set():
-            break
+    try:
+        while True:
+            if stop_event and stop_event.is_set():
+                break
+            payload = sub.wait(timeout=None)
+            if payload is None:
+                continue
+            if stop_event and stop_event.is_set():
+                break
 
-        kind = payload.get("_kind")
-        if kind == "task_finished":
-            active_processes.pop(payload.get("task_id"), None)
-            continue
+            kind = payload.get("_kind")
+            if kind == "task_finished":
+                active_processes.pop(payload.get("task_id"), None)
+                continue
 
-        try:
-            drain_ready_jobs()
-        except Exception as e:
-            print(f"{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}")
+            try:
+                drain_ready_jobs()
+            except Exception as e:
+                print(f"{Color.RED}[系统错误]{Color.END} check_compute 发生异常: {e}")
+    finally:
+        _close_thread_sub(sub)
 
 
 def apply_approval_decision(database_path: str, req_id: int, state: str, denial_reason: str = "") -> bool:
@@ -342,52 +358,55 @@ def approval_handler(database_path: str, stop_event: threading.Event = None):
         ("approval_pending", "approval_decided", "__worker_stop"),
     )
 
-    while True:
-        if stop_event and stop_event.is_set():
-            break
-        payload = sub.wait(timeout=None)
-        if payload is None:
-            continue
-        if stop_event and stop_event.is_set():
-            break
+    try:
+        while True:
+            if stop_event and stop_event.is_set():
+                break
+            payload = sub.wait(timeout=None)
+            if payload is None:
+                continue
+            if stop_event and stop_event.is_set():
+                break
 
-        try:
-            db = ConversationDB.from_path(database_path)
-            requests = session_store.list_pending_approvals(db)
+            try:
+                db = ConversationDB.from_path(database_path)
+                requests = session_store.list_pending_approvals(db)
 
-            for req_id, session_id, _agent_name, details in requests:
-                if req_id in _unanswerable:
-                    continue
-                print(f"\n{Color.RED}{Color.BOLD}[安全审批请求]{Color.END}")
-                print(f"来自会话: {session_id}")
-                print(f"操作详情: {Color.YELLOW}{details}{Color.END}")
+                for req_id, session_id, _agent_name, details in requests:
+                    if req_id in _unanswerable:
+                        continue
+                    print(f"\n{Color.RED}{Color.BOLD}[安全审批请求]{Color.END}")
+                    print(f"来自会话: {session_id}")
+                    print(f"操作详情: {Color.YELLOW}{details}{Color.END}")
 
-                try:
-                    user_input = input("是否允许执行？(y/n): ").strip().lower()
-                except EOFError:
-                    _unanswerable.add(req_id)
-                    continue
+                    try:
+                        user_input = input("是否允许执行？(y/n): ").strip().lower()
+                    except EOFError:
+                        _unanswerable.add(req_id)
+                        continue
 
-                state = "approved" if user_input == "y" else "denied"
-                denial_reason = ""
-                if state == "denied":
-                    reason_input = input("拒绝原因（可选，直接回车跳过）: ").strip()
-                    if reason_input:
-                        denial_reason = session_store.sanitize_db_text(reason_input)
+                    state = "approved" if user_input == "y" else "denied"
+                    denial_reason = ""
+                    if state == "denied":
+                        reason_input = input("拒绝原因（可选，直接回车跳过）: ").strip()
+                        if reason_input:
+                            denial_reason = session_store.sanitize_db_text(reason_input)
 
-                if apply_approval_decision(database_path, req_id, state, denial_reason):
-                    status_msg = f"已标记为: {state}"
-                    if state == "denied" and denial_reason:
-                        status_msg += f"，原因: {denial_reason}"
-                    print(f"{Color.GREEN}{status_msg}{Color.END}\n")
-                else:
-                    print(f"{Color.YELLOW}[系统]{Color.END} 审批 {req_id} 已在其他端处理，本次输入忽略。\n")
+                    if apply_approval_decision(database_path, req_id, state, denial_reason):
+                        status_msg = f"已标记为: {state}"
+                        if state == "denied" and denial_reason:
+                            status_msg += f"，原因: {denial_reason}"
+                        print(f"{Color.GREEN}{status_msg}{Color.END}\n")
+                    else:
+                        print(f"{Color.YELLOW}[系统]{Color.END} 审批 {req_id} 已在其他端处理，本次输入忽略。\n")
 
-        except Exception as e:
-            err = str(e)
-            if err != last_error:
-                print(f"{Color.RED}[系统错误]{Color.END} approval_handler 发生异常: {err}")
-                last_error = err
+            except Exception as e:
+                err = str(e)
+                if err != last_error:
+                    print(f"{Color.RED}[系统错误]{Color.END} approval_handler 发生异常: {err}")
+                    last_error = err
+    finally:
+        _close_thread_sub(sub)
 
 
 def acquire_workers(database: str, interactive_approval: bool) -> None:

@@ -9,6 +9,7 @@ import json
 import re
 import secrets
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -926,3 +927,27 @@ class DeviceBroker:
             "started_at": row["started_at"],
             "completed_at": row["completed_at"],
         }
+
+
+# 进程级缓存：每个数据目录（即每个 device-broker.db 文件）一个实例。
+# DeviceBroker.__init__ 每次都会 mkdir + 切 WAL + 全量 DDL 写事务；推理热路径
+# （get_available_tools）每轮多次构造会让并发 Agent 在同一数据库文件上互等
+# 写锁。DDL 全部是 CREATE TABLE/INDEX IF NOT EXISTS（幂等），每个库文件初始化
+# 一次即可，后续调用复用同一实例，查询语义（实时 list_devices）不变。
+_BROKER_CACHE: dict[str, DeviceBroker] = {}
+_BROKER_CACHE_LOCK = threading.Lock()
+
+
+def get_device_broker(data_dir: Path | None = None) -> DeviceBroker:
+    """返回按数据目录缓存的 DeviceBroker 实例（线程安全，一次性初始化）。"""
+    configured = data_dir or Path(get_config().data_dir)
+    key = str(Path(configured).expanduser().resolve())
+    broker = _BROKER_CACHE.get(key)
+    if broker is None:
+        with _BROKER_CACHE_LOCK:
+            # 双重检查：构造（含 _init DDL）只发生一次，即使在多线程下
+            broker = _BROKER_CACHE.get(key)
+            if broker is None:
+                broker = DeviceBroker(Path(key))
+                _BROKER_CACHE[key] = broker
+    return broker

@@ -215,7 +215,7 @@ class TestRepairDanglingToolCalls:
         assert "call_2" in answered
         synthetic = [m for m in messages if m.get("tool_call_id") == "call_2"]
         assert len(synthetic) == 1
-        assert "打断" in synthetic[0]["content"]
+        assert "工具结果缺失" in synthetic[0]["content"]
 
         # 不变式：每个 assistant 的 tool_call 都有响应（端点 400 的充要条件）
         for msg in messages:
@@ -234,6 +234,9 @@ class TestCapMessageSizes:
     @pytest.mark.asyncio
     async def test_giant_tool_message_capped(self, context_manager):
         giant = "%PDF-1.3 乱码" * 20000  # ~180k 字符
+        await context_manager.append({"role": "assistant", "content": "调用工具", "tool_calls": [
+            {"id": "c1", "type": "function", "function": {"name": "bashtools", "arguments": "{}"}},
+        ]})
         await context_manager.append({"role": "tool", "tool_call_id": "c1", "content": giant})
         await context_manager.append({"role": "user", "content": "短消息"})
 
@@ -670,3 +673,199 @@ class TestEmptyUserMessageGuard:
         assert [{"type": "text", "text": ""}] not in user_contents
         # 带图片部分的 user 消息保留（无视觉模型时降级为文本占位符）
         assert any("[图片:" in str(c) for c in user_contents)
+
+
+def _assistant_with_tool_calls(*call_ids: str) -> dict:
+    """构造一条带 tool_calls 的 assistant 消息。"""
+    return {
+        "role": "assistant",
+        "content": "调用工具",
+        "tool_calls": [
+            {
+                "id": call_id,
+                "type": "function",
+                "function": {"name": "bash", "arguments": "{}"},
+            }
+            for call_id in call_ids
+        ],
+    }
+
+
+def _tool_result(call_id: str, content: str = "工具输出") -> dict:
+    return {"role": "tool", "tool_call_id": call_id, "content": content}
+
+
+def _assert_tool_pairing(messages: list[dict]) -> None:
+    """断言消息列表中无孤儿 tool 结果（每个 tool_call_id 都有匹配的 tool_call）。"""
+    declared = {
+        call["id"]
+        for msg in messages
+        if msg.get("role") == "assistant"
+        for call in (msg.get("tool_calls") or [])
+    }
+    for msg in messages:
+        if msg.get("role") == "tool":
+            assert msg.get("tool_call_id") in declared
+
+
+class TestToolPairingRepair:
+    """_repair_tool_pairing：build_messages 清洗链的 tool_calls 配对兜底。
+
+    背景：上下文压缩曾把带 tool_calls 的 assistant 梗概掉、却把它的 tool
+    结果留在保留尾部，压缩后的上下文带一个无匹配 function_call 的
+    function_call_output，严格端点（DeepSeek /responses）以 400 拒绝之后
+    所有请求，会话永久变砖。渲染期配对清洗同时救活这类存量污染会话。
+    """
+
+    def test_orphan_tool_result_dropped(self):
+        """tool_call_id 找不到匹配 assistant tool_call 的 tool 消息被丢弃。"""
+        messages = [
+            {"role": "system", "content": "[上下文压缩提示] 梗概"},
+            _tool_result("call_orphan"),
+            _assistant_with_tool_calls("call_a", "call_b"),
+            _tool_result("call_a"),
+            _tool_result("call_b"),
+            {"role": "user", "content": "继续"},
+        ]
+        repaired = ContextManager._repair_tool_pairing(messages)
+        assert len(repaired) == len(messages) - 1
+        assert all(m.get("tool_call_id") != "call_orphan" for m in repaired)
+        _assert_tool_pairing(repaired)
+
+    def test_missing_result_gets_placeholder(self):
+        """无结果的 tool_call 在其 assistant 的 tool 结果组之后补占位消息。"""
+        assistant = _assistant_with_tool_calls("call_a", "call_b")
+        messages = [
+            {"role": "user", "content": "查一下"},
+            assistant,
+            _tool_result("call_a"),
+            {"role": "assistant", "content": "最终回复"},
+        ]
+        repaired = ContextManager._repair_tool_pairing(messages)
+        assert len(repaired) == len(messages) + 1
+        placeholder = next(
+            m for m in repaired
+            if m.get("role") == "tool" and m.get("tool_call_id") == "call_b"
+        )
+        assert "工具结果缺失" in placeholder["content"]
+        # 占位补在该 assistant（及其后连续的 tool 结果组）之后、下一条 assistant 之前
+        assert repaired.index(assistant) < repaired.index(placeholder)
+        assert repaired.index(placeholder) < repaired.index(messages[3])
+        _assert_tool_pairing(repaired)
+
+    def test_wellformed_pairing_untouched(self):
+        """正常配对的消息列表原样不动。"""
+        messages = [
+            {"role": "user", "content": "查一下"},
+            _assistant_with_tool_calls("call_a"),
+            _tool_result("call_a"),
+            {"role": "assistant", "content": "回复"},
+        ]
+        assert ContextManager._repair_tool_pairing(messages) == messages
+
+
+class TestTailCutAlignment:
+    """压缩切口对齐 tool_calls 配对边界（_split_tail_keep_tool_pairs）。"""
+
+    def test_cut_on_tool_result_shifts_left(self):
+        """切口恰好落在 tool 结果上时左移，把配对的 assistant 拉进尾部。"""
+        messages = [
+            {"role": "user", "content": "旧问题"},
+            _assistant_with_tool_calls("call_a"),
+            _tool_result("call_a"),
+            {"role": "assistant", "content": "近期回复"},
+        ]
+        # tail_count=2 的切口恰好落在 tool 结果上
+        history, tail = ContextManager._split_tail_keep_tool_pairs(messages, 2)
+        assert history == messages[:1]
+        assert tail == messages[1:]
+        assert tail[0]["role"] == "assistant"
+        _assert_tool_pairing(tail)
+
+    def test_orphan_dropped_when_history_exhausted(self):
+        """history 耗尽仍找不到配对的 assistant 时，丢弃尾部开头的孤儿 tool。"""
+        messages = [
+            _tool_result("call_a"),
+            _tool_result("call_b"),
+            {"role": "assistant", "content": "近期回复"},
+        ]
+        history, tail = ContextManager._split_tail_keep_tool_pairs(messages, 3)
+        assert history == []
+        assert [m["role"] for m in tail] == ["assistant"]
+
+    @pytest.mark.asyncio
+    async def test_compress_persistent_cut_aligned(
+        self, context_manager, mock_llm, monkeypatch
+    ):
+        """持久化压缩切口落在 tool 结果上时左移对齐，压缩结果无孤儿 tool。"""
+        monkeypatch.setattr(
+            "cloudra.context_manager.AUTO_COMPACT_KEEP_ASSISTANT", 0
+        )
+        await context_manager.replace(
+            [
+                {"role": "user", "content": f"旧问题 {i}"}
+                for i in range(3)
+            ]
+            + [
+                {"role": "assistant", "content": "旧回复"},
+                _assistant_with_tool_calls("call_a"),
+                _tool_result("call_a"),
+            ]
+        )
+
+        assert await context_manager._compress_persistent() is True
+        stored = await context_manager.load()
+        _assert_tool_pairing(stored)
+        # 带 tool_calls 的 assistant 与它的 tool 结果一起保留在尾部
+        assert any(
+            m.get("role") == "assistant" and m.get("tool_calls") for m in stored
+        )
+        assert any(m.get("tool_call_id") == "call_a" for m in stored)
+
+    @pytest.mark.asyncio
+    async def test_compress_to_budget_cut_aligned(
+        self, context_manager, mock_llm, monkeypatch
+    ):
+        """render-time 压缩切口落在 tool 结果上时左移对齐，结果无孤儿 tool。"""
+        monkeypatch.setattr(
+            "cloudra.context_manager.RENDER_COMPACT_KEEP_ASSISTANT", 0
+        )
+        messages = [
+            {"role": "system", "content": "身份"},
+            {"role": "user", "content": "旧问题 " + "长" * 500},
+            {"role": "assistant", "content": "旧回复 " + "长" * 500},
+            _assistant_with_tool_calls("call_a"),
+            _tool_result("call_a"),
+        ]
+
+        compressed = await context_manager._compress_to_budget(
+            messages, max_context_tokens=200
+        )
+
+        _assert_tool_pairing(compressed)
+        # 历史被梗概替换，tool 链完整保留在尾部
+        assert any(
+            str(m.get("content", "")).startswith("[上下文压缩提示]")
+            for m in compressed
+        )
+        assert any(m.get("tool_call_id") == "call_a" for m in compressed)
+
+    @pytest.mark.asyncio
+    async def test_manual_compact_cut_aligned(self, context_manager, mock_llm):
+        """手动 compact 的 keep_recent 切口落在 tool 结果上时左移对齐。"""
+        await context_manager.replace([
+            {"role": "user", "content": "旧问题"},
+            {"role": "assistant", "content": "旧回复"},
+            _assistant_with_tool_calls("call_a"),
+            _tool_result("call_a"),
+            {"role": "assistant", "content": "近期回复"},
+        ])
+
+        stats = await context_manager.compact(keep_recent=2)
+
+        assert stats["compressed"] is True
+        stored = await context_manager.load()
+        _assert_tool_pairing(stored)
+        # 切口左移：梗概 + assistant(tool_calls) + tool + 近期回复
+        assert stats["new_count"] == 4
+        assert stored[0]["content"].startswith("[上下文压缩提示]")

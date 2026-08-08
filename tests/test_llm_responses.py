@@ -7,10 +7,13 @@ SSE 流式事件翻译（含 web_search_call 捕获与 tool_call 增量合并）
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import requests
 
 from cloudra.llm_client import (
     _build_responses_payload,
@@ -306,3 +309,74 @@ def test_responses_base_url_strips_v1():
     assert _responses_base_url("https://api.deepseek.com/v1") == "https://api.deepseek.com"
     assert _responses_base_url("https://api.deepseek.com/v1/") == "https://api.deepseek.com"
     assert _responses_base_url("https://api.deepseek.com") == "https://api.deepseek.com"
+
+
+def _error_response(status: int, body: str):
+    """模拟 requests.Response 的错误响应（非 2xx）。"""
+    return SimpleNamespace(
+        ok=False,
+        status_code=status,
+        text=body,
+        url="https://api.deepseek.com/responses",
+    )
+
+
+@pytest.mark.asyncio
+class TestResponsesHttpErrors:
+    """Responses 传输的 HTTP 错误处理。
+
+    背景：DeepSeek 对孤儿 function_call_output 返回确定性 400，旧代码
+    一方面把错误 body 丢掉（日志只有 "400 Client Error" 无从诊断），
+    另一方面把 requests 的 HTTPError 当瞬时错误白重试 4 次（~80 秒）。
+    """
+
+    async def test_400_not_retried_and_error_contains_body(self, monkeypatch):
+        """400 是确定性客户端错误：只调用 1 次不重试，异常消息带响应 body。"""
+        from cloudra.llm_client import LLMClient
+
+        client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
+        post = MagicMock(return_value=_error_response(
+            400, '{"error": {"message": "Invalid request: orphan function_call_output"}}'
+        ))
+        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        sleep = AsyncMock()
+        monkeypatch.setattr(asyncio, "sleep", sleep)
+
+        with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+            await client.create_responses_with_retry(
+                model="m", messages=[{"role": "user", "content": "hi"}]
+            )
+
+        assert post.call_count == 1
+        sleep.assert_not_awaited()
+        assert "orphan function_call_output" in str(exc_info.value)
+        assert exc_info.value.response.status_code == 400
+
+    async def test_500_retried_until_exhausted(self, monkeypatch):
+        """5xx 仍按原逻辑重试（初次 + max_retries 次）。"""
+        from cloudra.llm_client import LLMClient
+
+        client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
+        post = MagicMock(return_value=_error_response(500, '{"error": "internal"}'))
+        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        sleep = AsyncMock()
+        monkeypatch.setattr(asyncio, "sleep", sleep)
+
+        with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+            await client.create_responses_with_retry(
+                model="m", messages=[{"role": "user", "content": "hi"}]
+            )
+
+        assert post.call_count == client.max_retries + 1
+        assert sleep.await_count == client.max_retries
+        assert "internal" in str(exc_info.value)
+
+    async def test_error_body_truncated(self):
+        """超长错误 body 截断到 ~800 字符。"""
+        from cloudra.llm_client import LLMClient
+
+        resp = _error_response(400, "x" * 5000)
+        with pytest.raises(requests.exceptions.HTTPError) as exc_info:
+            LLMClient._raise_for_status_with_body(resp)
+        assert "x" * 800 in str(exc_info.value)
+        assert "x" * 801 not in str(exc_info.value)

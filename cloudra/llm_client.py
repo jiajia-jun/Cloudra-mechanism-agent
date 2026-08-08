@@ -416,6 +416,22 @@ class LLMClient:
             await self._emit_status("llm_error", error=str(e), level="responses")
             raise
 
+    @staticmethod
+    def _raise_for_status_with_body(resp) -> None:
+        """非 2xx 时抛出带响应体的 HTTPError（body 截断到 ~800 字符）。
+
+        resp.raise_for_status() 只带状态码一行（"400 Client Error"），把
+        DeepSeek 返回的错误 body 丢掉了，日志无从诊断。保持
+        requests.exceptions.HTTPError 类型，方便重试层按 status_code 分类。
+        """
+        if resp.ok:
+            return
+        body = (resp.text or "")[:800]
+        raise requests.exceptions.HTTPError(
+            f"{resp.status_code} Error for url {resp.url}: {body}",
+            response=resp,
+        )
+
     def _responses_non_stream(self, url: str, payload: dict) -> ChatResponse:
         """非流式：POST /responses，翻译为 Chat Completions 形状。"""
         resp = requests.post(
@@ -424,7 +440,7 @@ class LLMClient:
             json=payload,
             timeout=self.timeout,
         )
-        resp.raise_for_status()
+        self._raise_for_status_with_body(resp)
         data = resp.json()
         self._last_usage = _translate_responses_usage(data)
         return ResponseDictWrapper(_translate_responses_completion(data))
@@ -438,7 +454,7 @@ class LLMClient:
             stream=True,
             timeout=self.timeout,
         )
-        resp.raise_for_status()
+        self._raise_for_status_with_body(resp)
         holder = SimpleNamespace(web_search_log=[], usage=None)
         return _responses_stream_events(resp, holder), holder
 
@@ -483,7 +499,14 @@ class LLMClient:
             except openai.APIStatusError as e:
                 retriable, err = (e.status_code is not None and e.status_code >= 500), e
             except (requests.exceptions.RequestException,) as e:
-                retriable, err = True, e
+                # requests 的 HTTPError 4xx 是确定性客户端错误（语义同上面的
+                # openai.APIStatusError 分支），白重试只会拖延失败；连接/
+                # 超时类错误仍可重试。
+                retriable, err = not (
+                    isinstance(e, requests.exceptions.HTTPError)
+                    and e.response is not None
+                    and e.response.status_code < 500
+                ), e
             if not retriable or attempt >= self.max_retries:
                 raise err
             delay = min(5 * (2 ** attempt), 60) + random.uniform(0, 2)

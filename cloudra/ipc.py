@@ -82,6 +82,16 @@ class ThreadSub:
         self._event = threading.Event()
         self._payloads: list[dict] = []
         self._lock = threading.Lock()
+        # 由 subscribe_thread 绑定；用于 close() 时从 listener 摘除，
+        # 避免线程退出后订阅残留、payload 无界堆积。
+        self._listener: "_EventListener | None" = None
+
+    def close(self) -> None:
+        """从 listener 退订（幂等）。停止中的线程退出前必须调用。"""
+        listener = self._listener
+        self._listener = None
+        if listener is not None:
+            listener._unsubscribe(self)
 
     def wait(self, timeout: float | None = None) -> dict | None:
         """阻塞等待，返回一个 pending payload；超时返回 None。"""
@@ -498,6 +508,7 @@ def subscribe_thread(
     # 调用方通常已经持有 loop（如 acquire_workers 在 main 线程时），这里不自动启动 loop。
     listener = _get_listener(conversation_id)
     sub = ThreadSub(tuple(kinds))
+    sub._listener = listener
     listener._subscribe(kinds, sub)
     return sub
 

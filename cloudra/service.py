@@ -217,7 +217,8 @@ class SessionRunner:
         from cloudra.yolo_guard import set_session_yolo
         set_session_yolo(yolo)
         now = datetime.now(timezone.utc).isoformat()
-        if not self._claim(conversation_id, session_id, now):
+        # 同步 SQLite 写（含 time.sleep 锁退避）一律进线程，避免卡住事件循环
+        if not await asyncio.to_thread(self._claim, conversation_id, session_id, now):
             return
         heartbeat = asyncio.create_task(self._heartbeat(conversation_id, session_id))
         try:
@@ -242,7 +243,8 @@ class SessionRunner:
                         session_id=session_id,
                         working_directory=working_directory,
                     )
-            self._update(
+            await asyncio.to_thread(
+                self._update,
                 conversation_id,
                 session_id,
                 state="completed",
@@ -250,18 +252,24 @@ class SessionRunner:
                 finished_at=datetime.now(timezone.utc).isoformat(),
                 exit_code=0,
             )
-            self._emit(conversation_id, session_id, "completed", {"result": result})
+            await asyncio.to_thread(
+                self._emit, conversation_id, session_id, "completed", {"result": result}
+            )
         except asyncio.CancelledError:
-            self._update(
+            await asyncio.to_thread(
+                self._update,
                 conversation_id,
                 session_id,
                 state="cancelled",
                 finished_at=datetime.now(timezone.utc).isoformat(),
             )
-            self._emit(conversation_id, session_id, "cancelled", {})
+            await asyncio.to_thread(
+                self._emit, conversation_id, session_id, "cancelled", {}
+            )
             raise
         except Exception as exc:
-            self._update(
+            await asyncio.to_thread(
+                self._update,
                 conversation_id,
                 session_id,
                 state="failed",
@@ -269,7 +277,9 @@ class SessionRunner:
                 finished_at=datetime.now(timezone.utc).isoformat(),
                 exit_code=1,
             )
-            self._emit(conversation_id, session_id, "failed", {"error": str(exc)})
+            await asyncio.to_thread(
+                self._emit, conversation_id, session_id, "failed", {"error": str(exc)}
+            )
         finally:
             heartbeat.cancel()
             self._running.pop((conversation_id, session_id), None)
@@ -301,7 +311,8 @@ class SessionRunner:
     async def _heartbeat(self, conversation_id: str, session_id: str) -> None:
         while True:
             await asyncio.sleep(5)
-            self._update(
+            await asyncio.to_thread(
+                self._update,
                 conversation_id,
                 session_id,
                 heartbeat_at=datetime.now(timezone.utc).isoformat(),
@@ -443,8 +454,12 @@ class SessionRunner:
             "waiting_for_device",
         ):
             # Agent 通过 IPC 订阅 cancel_requested 事件实现即时打断
-            self._update(conversation_id, session_id, state="cancel_requested")
-            self._emit(conversation_id, session_id, "cancel_requested", {})
+            await asyncio.to_thread(
+                self._update, conversation_id, session_id, state="cancel_requested"
+            )
+            await asyncio.to_thread(
+                self._emit, conversation_id, session_id, "cancel_requested", {}
+            )
         task = self._running.get((conversation_id, session_id))
         if task and not task.done():
             # API 进程内协程任务：取消协程，CancelledError 路径会落 cancelled
@@ -454,13 +469,16 @@ class SessionRunner:
             if record is not None and record.state == "cancel_requested":
                 # 协程卡在不可中断的阻塞点（如线程中的同步调用）时，不能永远
                 # 停在 cancel_requested——否则该会话再也发不出消息（卡死）。
-                self._update(
+                await asyncio.to_thread(
+                    self._update,
                     conversation_id,
                     session_id,
                     state="cancelled",
                     finished_at=datetime.now(timezone.utc).isoformat(),
                 )
-                self._emit(conversation_id, session_id, "cancelled", {})
+                await asyncio.to_thread(
+                    self._emit, conversation_id, session_id, "cancelled", {}
+                )
                 record = self.get(conversation_id, session_id)
         elif record.pid and record.state in (
             "queued",
@@ -477,8 +495,12 @@ class SessionRunner:
                     os.kill(record.pid, signal.SIGTERM)
                     # executor 的 SIGTERM 处理器会自行落 cancelled
                 except (ProcessLookupError, PermissionError, OSError):
-                    self._update(conversation_id, session_id, state="interrupted")
-        self._cancel_descendants(conversation_id, session_id)
+                    await asyncio.to_thread(
+                        self._update, conversation_id, session_id, state="interrupted"
+                    )
+        await asyncio.to_thread(
+            self._cancel_descendants, conversation_id, session_id
+        )
         return self.get(conversation_id, session_id)
 
     def _cancel_descendants(self, conversation_id: str, parent_session_id: str) -> None:

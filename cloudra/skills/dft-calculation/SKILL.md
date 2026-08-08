@@ -12,7 +12,7 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 - **生成输入文件**：推荐调用 `gjf_writer` 生成 `.gjf`，减少手写格式错误。尽量避免在输入文件正文中写注释，以减少解析风险。
 - **结构洞察与微调**：调用 `internal_coordinates` 作为你的“眼睛”和“双手”。当你需要像人类在 GaussView 中那样审视或修改分子骨架时，用它将笛卡尔坐标转换为 Z-matrix。你可以阅读 Z-matrix 和其附带的 `Anomalies` 异常键长报告来发现过渡态断键/成键位点；也可以通过直接修改 Z-matrix 文本中的键长、键角、二面角数值，再将其转回 xyz 坐标，实现结构的“手工拖拽”。
 - **任务投递**：统一调用 `submit_compute_job`。长耗时任务建议设置 `is_async=True` 异步执行。
-- **结果解析**：优先调用 `log_parser` 等工具提取能量、频率、收敛状态；避免直接用 `cat` 读取巨型日志。
+- **结果解析**：优先调用 `log_parser` 等工具提取能量、频率、收敛状态；避免直接用 `cat` 读取巨型日志。IRC/扫描曲线分析用 `format_converter` 将日志 log→csv 后程序化读取（pandas/csv），不要手写正则解析日志。
 
 # 2. 限制与例外 (Constraints & Exceptions)
 以下规则是常见最佳实践，但存在合理例外。遇到矛盾时，优先以**具体体系、目标性质和最新文献**为准。
