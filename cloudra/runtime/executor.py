@@ -106,7 +106,12 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         session_id = input_data.get('session_id')
 
     # 子 Agent 身份 prompt 在每次模型请求前动态装配；任务要求由 agent.query 提供。
-    sub_reAct = reAct(
+    # reAct.__init__ 里的 session_create 走同步 sqlite 写入（busy_timeout 会阻塞
+    # 等待写锁）：进程内并发执行多个子任务（swarm）时，若在事件循环线程直接构造，
+    # 一旦与其他协程的异步写事务竞争，同步 busy 等待会冻结整个事件循环直至超时
+    # （异步持锁方需要事件循环才能提交）。放到工作线程构造，锁等待不再阻塞循环。
+    sub_reAct = await asyncio.to_thread(
+        reAct,
         agent=sub_agent,
         session_id=session_id,
         parent_session_id=input_data.get('parent_session_id'),

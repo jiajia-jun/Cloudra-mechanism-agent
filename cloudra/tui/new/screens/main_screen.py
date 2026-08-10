@@ -22,6 +22,7 @@ from cloudra.tui.new.render_bridge import RenderBridge
 from cloudra.tui.new.screens.approval_modal import ApprovalModal
 from cloudra.tui.new.screens.ask_user_modal import AskUserModal
 from cloudra.tui.new.screens.context_screen import ContextScreen
+from cloudra.tui.new.screens.dag_screen import DagScreen, format_dag_summary
 from cloudra.tui.new.screens.help_screen import HelpScreen
 from cloudra.tui.new.transcript import TranscriptHandle
 from cloudra.tui.new.widgets.chat_log import ChatLog
@@ -36,6 +37,21 @@ _COORDINATOR_AGENT_ID = "a-0"
 
 # 发送后、真实 session_id 返回前的临时消息分组
 _PENDING_SESSION = "_pending"
+
+# /mode 命令的编排模式别名与展示名（session 创建时生效，创建后不可变）
+_MODE_ALIASES = {
+    "off": "standard",
+    "standard": "standard",
+    "record": "dag_record",
+    "dag_record": "dag_record",
+    "guided": "dag_guided",
+    "dag_guided": "dag_guided",
+}
+_MODE_LABELS = {
+    "standard": "标准（DAG 关闭）",
+    "dag_record": "DAG 记录（只记录图，Supervisor 不干预）",
+    "dag_guided": "DAG 引导（记录 + Supervisor 引导）",
+}
 
 # 历史回放上限：最近 N 个任务、每个 session 最多 M 条事件
 _HISTORY_TASK_LIMIT = 5
@@ -61,22 +77,27 @@ class MainScreen(Screen):
         ("q", "quit", "退出"),
         ("?", "show_help", "帮助"),
         ("ctrl+t", "show_context", "上下文统计"),
+        ("ctrl+g", "show_dag", "DAG 编排"),
         ("ctrl+b", "toggle_sidebar", "侧栏"),
     ]
 
     def __init__(self, yolo: bool = False, conversation_id: str | None = None) -> None:
         super().__init__()
         self.yolo = yolo
+        # 编排模式：standard / dag_record / dag_guided，对下一个新任务生效
+        self.orchestration_mode = "standard"
         self.service = CloudraService()
         self.conversation_id = conversation_id or self._startup_conversation()
         self.current_session_id: str | None = None
         self._render_bridge: RenderBridge | None = None
-        # 输入定向：None = 自动（主 Agent）；否则为选中的 agent_id
+        # 输入定向：None = 自动（主 Agent）；否则为选中实例的 session_id / agent_id
+        # （同角色并行实例按 session_id 区分）
+        self._target_session_id: str | None = None
         self._target_agent_id: str | None = None
         self._view_generation = 0
         self._sidebar_refresh_task: asyncio.Task | None = None
-        # 各 agent 的累计 token usage（token_usage 事件驱动），计划面板展示用
-        self._token_by_agent: dict[str, dict] = {}
+        # 各 session 的累计 token usage（token_usage 事件驱动），计划面板展示用
+        self._token_by_session: dict[str, dict] = {}
         self._plan_refresh_task: asyncio.Task | None = None
         self._compact_task: asyncio.Task | None = None
         self._compactions: dict[str, str] = {}
@@ -111,6 +132,7 @@ class MainScreen(Screen):
         # 启动 IPC 事件桥
         status_bar = self.query_one("#status-bar", StatusBar)
         status_bar.yolo = self.yolo
+        status_bar.orch_mode = self.orchestration_mode
         status_bar.native_search = self._native_search_label()
         status_bar.conversation_id = self.conversation_id
         self._render_bridge = RenderBridge(
@@ -218,11 +240,13 @@ class MainScreen(Screen):
         except Exception:
             return ""
 
-    async def _find_active_record(self, agent_id: str | None = None):
+    async def _find_active_record(
+        self, agent_id: str | None = None, session_id: str | None = None
+    ):
         """当前对话中最新一个运行中的任务；没有则 None。
 
-        agent_id 为 None 时只找根任务（Coordinator）；指定时找该 agent
-        的运行中 session（含子 agent）。
+        session_id 指定时按实例精确定位（并行实例各自独立）；agent_id 指定时
+        找该角色的运行中 session；都为 None 时只找根任务（Coordinator）。
         """
         records = await asyncio.to_thread(
             self.service.session_runner.list, self.conversation_id
@@ -230,7 +254,10 @@ class MainScreen(Screen):
         for record in records:  # list() 按 created_at DESC
             if record.state not in _ACTIVE_STATES:
                 continue
-            if agent_id is None:
+            if session_id is not None:
+                if record.session_id == session_id:
+                    return record
+            elif agent_id is None:
                 if record.parent_session_id is None:
                     return record
             elif record.agent_id == agent_id:
@@ -265,10 +292,10 @@ class MainScreen(Screen):
             self.notify("上下文正在压缩，请等待完成后再发送任务", severity="warning")
             return
 
-        # 定向到指定子 Agent：注入它的运行中 session
-        target = self._target_agent_id
-        if target and target != _COORDINATOR_AGENT_ID:
-            record = await self._find_active_record(agent_id=target)
+        # 定向到指定子 Agent 实例：注入它（按 session 精确定位）的运行中 session
+        target = self._target_session_id
+        if target and self._target_agent_id != _COORDINATOR_AGENT_ID:
+            record = await self._find_active_record(session_id=target)
             if record is None:
                 self.notify(
                     "该 Agent 当前没有运行中的任务，无法插入指令", severity="warning"
@@ -330,6 +357,7 @@ class MainScreen(Screen):
             query,
             conversation_id=self.conversation_id,
             yolo=self.yolo,
+            orchestration_mode=self.orchestration_mode,
         )
         chat_log = self.query_one("#chat-log", ChatLog)
         # 把 pending 消息归到真实 session，再切换视图
@@ -509,12 +537,16 @@ class MainScreen(Screen):
             self.action_toggle_sidebar()
         elif cmd == "yolo":
             await self._cmd_yolo(arg)
+        elif cmd == "mode":
+            await self._cmd_mode(arg)
         elif cmd == "goal":
             await self._cmd_goal(arg)
         elif cmd == "compact":
             await self._cmd_compact(arg)
         elif cmd in ("context", "tokens"):
             await self.action_show_context()
+        elif cmd == "dag":
+            self.action_show_dag()
         elif cmd == "cancel":
             await self.action_cancel_current()
         elif cmd == "quit":
@@ -588,6 +620,38 @@ class MainScreen(Screen):
             self.notify("YOLO 已开启：危险操作将由 LLM 自动审批", severity="warning")
         else:
             self.notify("YOLO 已关闭：恢复人工审批", severity="information")
+
+    async def _cmd_mode(self, arg: str) -> None:
+        """/mode off|record|guided：切换下一个新任务的编排模式（消融开关）。
+
+        模式在 session 创建时写入、创建后不可变，因此运行中的任务不受影响，
+        切换只作用于之后启动的任务。
+        """
+        normalized = arg.lower()
+        if not normalized or normalized == "status":
+            self.notify(
+                f"当前编排模式: {_MODE_LABELS[self.orchestration_mode]}",
+                severity="information",
+            )
+            return
+        target = _MODE_ALIASES.get(normalized)
+        if target is None:
+            self.notify(
+                "用法: /mode off（标准）、/mode record（只记录）、/mode guided（引导）或 /mode status",
+                severity="warning",
+            )
+            return
+        if await self._has_active_session():
+            self.notify(
+                "任务运行中不能切换编排模式；请先等待完成或 Esc 打断", severity="warning"
+            )
+            return
+        self.orchestration_mode = target
+        self.query_one("#status-bar", StatusBar).orch_mode = target
+        self.notify(
+            f"编排模式已切换: {_MODE_LABELS[target]}（对下一个新任务生效）",
+            severity="information",
+        )
 
     async def _cmd_goal(self, arg: str) -> None:
         """/goal <目标文本>：为 Coordinator 设置目标锚点；/goal pause：暂停当前任务；
@@ -738,9 +802,10 @@ class MainScreen(Screen):
             self._plan_refresh_task.cancel()
         self.conversation_id = conv_id
         self.current_session_id = None
+        self._target_session_id = None
         self._target_agent_id = None
         # token 统计按对话隔离；回放历史时会从事件重建
-        self._token_by_agent = {}
+        self._token_by_session = {}
 
         chat_log = self.query_one("#chat-log", ChatLog)
         chat_log.clear_all()
@@ -828,21 +893,18 @@ class MainScreen(Screen):
         except Exception:
             records = []
         agents: list[dict] = []
-        seen: set[str] = set()
-        for rec in records:  # 按 created_at DESC，首个即为该 agent 最新状态
-            if rec.agent_id in seen:
-                continue
-            seen.add(rec.agent_id)
+        for rec in records:  # 按 created_at DESC；同角色并行实例各占一行（按 session 区分）
             agents.append(
                 {
                     "agent_id": rec.agent_id,
+                    "session_id": rec.session_id,
                     "name": self._agent_display_name(rec.agent_id, rec.agent_type),
                     "state": rec.state or "",
                 }
             )
-        agents.sort(key=lambda a: a["agent_id"])
+        agents.sort(key=lambda a: (a["agent_id"], a["session_id"] or ""))
         panel = self.query_one("#side-panel", SidePanel)
-        panel.set_agents(agents, selected=self._target_agent_id)
+        panel.set_agents(agents, selected=self._target_session_id)
         try:
             convs = await asyncio.to_thread(list_conversations)
         except Exception:
@@ -855,11 +917,11 @@ class MainScreen(Screen):
     # ------------------------------------------------------------------
 
     def _on_token_usage(self, session_id: str, data: dict) -> None:
-        """累计各 agent 的 token usage 并刷新计划面板。"""
+        """累计各 session 的 token usage 并刷新计划面板。"""
         total = data.get("total")
         if isinstance(total, dict):
-            agent_id = data.get("agent_id") or _COORDINATOR_AGENT_ID
-            self._token_by_agent[agent_id] = total
+            # 按 session_id 键控：同角色并行实例各自累计，互不覆盖
+            self._token_by_session[session_id] = total
         self._schedule_plan_refresh()
 
     def _on_plan_dirty(self) -> None:
@@ -880,9 +942,17 @@ class MainScreen(Screen):
 
         self._plan_refresh_task = asyncio.create_task(_later())
 
-    def _load_plan_files(self, agent_id: str) -> tuple[list, dict]:
-        """读取当前选中 agent 的 todo/goal 存储文件（同步，供 to_thread 调用）。"""
+    def _load_plan_files(
+        self, agent_id: str, session_id: str | None = None
+    ) -> tuple[list, dict]:
+        """读取当前选中 agent 实例的 todo/goal 存储文件（同步，供 to_thread 调用）。
+
+        键控镜像写侧（tools/Plantool/_store.py）：有 session_id 时读
+        ``{agent_id}_{session_id}_*.json``（并行实例各自独立）；无 session_id
+        （Coordinator / 旧行为）保持 ``{agent_id}_*.json``。
+        """
         base = get_config().data_dir / "conversations" / self.conversation_id / "plan"
+        key = f"{agent_id}_{session_id}" if session_id else agent_id
 
         def _read(name: str):
             try:
@@ -891,9 +961,11 @@ class MainScreen(Screen):
             except Exception:
                 return None
 
-        return _read(f"{agent_id}_todos.json") or [], _read(f"{agent_id}_goal.json") or {}
+        return _read(f"{key}_todos.json") or [], _read(f"{key}_goal.json") or {}
 
-    def _format_plan(self, agent_id: str, todos: list, goal: dict) -> str:
+    def _format_plan(
+        self, todos: list, goal: dict, session_id: str | None
+    ) -> str:
         """把目标锚点、todo 清单、token 用量渲染成面板文本。"""
         lines: list[str] = []
         objective = (goal or {}).get("objective") or ""
@@ -910,7 +982,7 @@ class MainScreen(Screen):
                 )
             done = sum(1 for t in todos if t.get("status") == "done")
             lines.append(f"进度: {done}/{len(todos)}")
-        usage = self._token_by_agent.get(agent_id)
+        usage = self._token_by_session.get(session_id) if session_id else None
         if usage:
             lines.append(
                 f"Token: {_format_tokens(usage.get('total_tokens', 0))}"
@@ -920,7 +992,7 @@ class MainScreen(Screen):
         return "\n".join(lines) if lines else "（暂无计划）"
 
     async def _refresh_plan(self) -> None:
-        """重建侧栏「计划」区：显示当前选中 agent（默认主 Agent）的计划。"""
+        """重建侧栏「计划」区：显示当前选中实例（默认主 Agent）的计划。"""
         try:
             panel = self.query_one("#side-panel", SidePanel)
         except Exception:
@@ -928,12 +1000,43 @@ class MainScreen(Screen):
         if not panel.is_mounted or not panel.display:
             return
         agent_id = self._target_agent_id or _COORDINATOR_AGENT_ID
+        # 计划文件键控镜像写侧：只有子 Agent 实例按 session 键控；
+        # Coordinator（无 session_id 注入）保持 agent_id 旧路径
+        plan_session = (
+            self._target_session_id
+            if self._target_agent_id and self._target_agent_id != _COORDINATOR_AGENT_ID
+            else None
+        )
         try:
-            todos, goal = await asyncio.to_thread(self._load_plan_files, agent_id)
+            todos, goal = await asyncio.to_thread(
+                self._load_plan_files, agent_id, plan_session
+            )
         except Exception:
             todos, goal = [], {}
+        # token 用量按 session 键控；未选中实例时回退到当前跟踪的根 session
+        token_session = self._target_session_id or self.current_session_id
         try:
-            panel.set_plan(self._format_plan(agent_id, todos, goal))
+            panel.set_plan(self._format_plan(todos, goal, token_session))
+        except Exception:
+            pass
+        await self._refresh_dag()
+
+    async def _refresh_dag(self) -> None:
+        """重建侧栏「DAG」区：双图 revision、frontier、阻塞与机理缺口计数。"""
+        try:
+            panel = self.query_one("#side-panel", SidePanel)
+        except Exception:
+            return
+        if not panel.is_mounted or not panel.display:
+            return
+        try:
+            projection = await asyncio.to_thread(
+                self.service.dag_projection, self.conversation_id
+            )
+        except Exception:
+            projection = None
+        try:
+            panel.set_dag(format_dag_summary(projection))
         except Exception:
             pass
 
@@ -953,18 +1056,19 @@ class MainScreen(Screen):
         return agent_type or agent_id
 
     def on_side_panel_agent_selected(self, event: SidePanel.AgentSelected) -> None:
-        """切换聊天区视图与输入定向到选中的 Agent。"""
+        """切换聊天区视图与输入定向到选中的 Agent 实例（按 session 过滤）。"""
+        self._target_session_id = event.session_id
         self._target_agent_id = event.agent_id
         chat_log = self.query_one("#chat-log", ChatLog)
-        chat_log.show_agent(event.agent_id)
+        chat_log.show_session(event.session_id)
         input_bar = self.query_one("#input-bar", InputBar)
-        if event.agent_id is None:
+        if event.session_id is None:
             input_bar.target_name = None
             input_bar.follow_up = self.current_session_id is not None
         else:
             input_bar.target_name = event.label
         input_bar.focus_input()
-        # 计划面板跟随选中 agent 切换
+        # 计划面板跟随选中实例切换
         asyncio.create_task(self._refresh_plan())
 
     async def on_side_panel_conversation_selected(
@@ -1019,6 +1123,12 @@ class MainScreen(Screen):
                 session_id=None,
                 agent_id=_COORDINATOR_AGENT_ID,
             )
+        )
+
+    def action_show_dag(self) -> None:
+        """打开 DAG 编排查看/编辑页面。"""
+        self.app.push_screen(
+            DagScreen(self.service, conversation_id=self.conversation_id)
         )
 
     # ------------------------------------------------------------------

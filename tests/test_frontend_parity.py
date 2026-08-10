@@ -58,8 +58,21 @@ class FakeService:
     def create_conversation(self):
         return type("Conversation", (), {"id": "conv_1", "state": "active"})()
 
-    def submit_session(self, query, conversation_id=None, working_directory=None, yolo=False):
-        self.submitted.append({"query": query, "conversation_id": conversation_id, "yolo": yolo})
+    def submit_session(
+        self,
+        query,
+        conversation_id=None,
+        working_directory=None,
+        yolo=False,
+        orchestration_mode="standard",
+    ):
+        mode_value = getattr(orchestration_mode, "value", str(orchestration_mode))
+        self.submitted.append({
+            "query": query,
+            "conversation_id": conversation_id,
+            "yolo": yolo,
+            "orchestration_mode": mode_value,
+        })
         return conversation_id, _Record()
 
     def list_conversations(self):
@@ -141,7 +154,15 @@ class TestYoloFlag:
         runner._emit = lambda *args, **kwargs: None
         runner.get = lambda *args: None
 
-        async def fake_execute(query, conversation_id, session_id, working_directory=None, yolo=False):
+        async def fake_execute(
+            query,
+            conversation_id,
+            session_id,
+            working_directory=None,
+            yolo=False,
+            orchestration_mode="standard",
+            orchestration_config=None,
+        ):
             captured["yolo"] = yolo
 
         runner._execute = fake_execute
@@ -152,6 +173,36 @@ class TestYoloFlag:
 
         asyncio.run(run())
         assert captured["yolo"] is True
+
+
+class TestOrchestrationMode:
+    @pytest.mark.asyncio
+    async def test_api_passes_explicit_mode_and_defaults_to_standard(self, monkeypatch):
+        monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+        service = FakeService()
+        async with _client(service) as client:
+            guided = await client.post(
+                "/api/conversations/conv_1/sessions",
+                json={"query": "mechanism", "orchestration_mode": "dag_guided"},
+            )
+            ordinary = await client.post(
+                "/api/conversations/conv_1/sessions",
+                json={"query": "ordinary"},
+            )
+        assert guided.status_code == 202
+        assert ordinary.status_code == 202
+        assert service.submitted[0]["orchestration_mode"] == "dag_guided"
+        assert service.submitted[1]["orchestration_mode"] == "standard"
+
+    @pytest.mark.asyncio
+    async def test_api_rejects_unknown_orchestration_mode(self, monkeypatch):
+        monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+        async with _client(FakeService()) as client:
+            response = await client.post(
+                "/api/conversations/conv_1/sessions",
+                json={"query": "mechanism", "orchestration_mode": "on"},
+            )
+        assert response.status_code == 422
 
 
 class TestConfigApi:
@@ -276,3 +327,81 @@ class TestSessionsAggregate:
             response = await client.get("/api/sessions")
         assert response.status_code == 200
         assert [row["session_id"] for row in response.json()] == ["s-1"]
+
+
+@pytest.mark.asyncio
+class TestDagUserMutationApi:
+    """用户经 API 编辑 DAG：POST /api/conversations/{id}/dag/mutations。"""
+
+    async def test_mutation_request_is_forwarded_and_returned(self, monkeypatch):
+        monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+        service = FakeService()
+        captured = {}
+
+        def fake_apply(conversation_id, operations, base_revisions, rationale=""):
+            captured.update(
+                conversation_id=conversation_id,
+                operations=operations,
+                base_revisions=base_revisions,
+                rationale=rationale,
+            )
+            return {
+                "accepted": True,
+                "revisions": {"process": 1, "delivery": 0},
+                "rejection_code": None,
+            }
+
+        service.dag_apply_user_mutation = fake_apply
+        operations = [
+            {
+                "op": "update_node",
+                "graph": "process",
+                "data": {"node_id": "w1", "changes": {"status": "skipped", "reason": "用户跳过"}},
+            }
+        ]
+        async with _client(service) as client:
+            response = await client.post(
+                "/api/conversations/conv_1/dag/mutations",
+                json={
+                    "operations": operations,
+                    "base_revisions": {"process": 0, "delivery": 0},
+                    "rationale": "manual skip",
+                },
+            )
+        assert response.status_code == 200
+        assert response.json()["accepted"] is True
+        assert captured["operations"] == operations
+        assert captured["base_revisions"] == {"process": 0, "delivery": 0}
+        assert captured["rationale"] == "manual skip"
+
+    async def test_mutation_returns_404_without_bundle(self, monkeypatch):
+        monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+        service = FakeService()
+        service.dag_apply_user_mutation = lambda *args, **kwargs: None
+        async with _client(service) as client:
+            response = await client.post(
+                "/api/conversations/conv_none/dag/mutations",
+                json={
+                    "operations": [],
+                    "base_revisions": {"process": 0, "delivery": 0},
+                },
+            )
+        assert response.status_code == 404
+
+    async def test_mutation_validation_error_is_422(self, monkeypatch):
+        monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+        service = FakeService()
+
+        def fake_apply(*args, **kwargs):
+            raise ValueError("invalid_operation: bad op")
+
+        service.dag_apply_user_mutation = fake_apply
+        async with _client(service) as client:
+            response = await client.post(
+                "/api/conversations/conv_1/dag/mutations",
+                json={
+                    "operations": [{"op": "nope"}],
+                    "base_revisions": {"process": 0, "delivery": 0},
+                },
+            )
+        assert response.status_code == 422

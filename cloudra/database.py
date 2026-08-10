@@ -23,7 +23,7 @@ from cloudra.paths import PathLike
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 10
 _T = TypeVar("_T")
 
 
@@ -126,6 +126,15 @@ class ConversationDB:
             cur.execute(_CREATE_HUB_POSTS)
             cur.execute(_CREATE_HUB_POSTS_TOPIC_INDEX)
             cur.execute(_CREATE_HUB_POSTS_PARENT_INDEX)
+            cur.execute(_CREATE_DAG_GRAPHS)
+            cur.execute(_CREATE_DAG_SPECIES)
+            cur.execute(_CREATE_DAG_NODES)
+            cur.execute(_CREATE_DAG_EDGES)
+            cur.execute(_CREATE_DAG_LINKS)
+            cur.execute(_CREATE_DAG_EVIDENCE)
+            cur.execute(_CREATE_DAG_MUTATIONS)
+            cur.execute(_CREATE_DAG_COVERAGE)
+            cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
             cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
             cur.execute(_CREATE_INTERACTIONS_INDEX)
             cur.execute(_CREATE_ARTIFACTS_INDEX)
@@ -209,6 +218,15 @@ class ConversationDB:
             await cur.execute(_CREATE_HUB_POSTS)
             await cur.execute(_CREATE_HUB_POSTS_TOPIC_INDEX)
             await cur.execute(_CREATE_HUB_POSTS_PARENT_INDEX)
+            await cur.execute(_CREATE_DAG_GRAPHS)
+            await cur.execute(_CREATE_DAG_SPECIES)
+            await cur.execute(_CREATE_DAG_NODES)
+            await cur.execute(_CREATE_DAG_EDGES)
+            await cur.execute(_CREATE_DAG_LINKS)
+            await cur.execute(_CREATE_DAG_EVIDENCE)
+            await cur.execute(_CREATE_DAG_MUTATIONS)
+            await cur.execute(_CREATE_DAG_COVERAGE)
+            await cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
             await cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
             await cur.execute(_CREATE_INTERACTIONS_INDEX)
             await cur.execute(_CREATE_ARTIFACTS_INDEX)
@@ -276,7 +294,9 @@ _CREATE_SESSION = """
         exit_code INTEGER,
         node_id TEXT,
         workspace_id TEXT,
-        working_directory TEXT
+        working_directory TEXT,
+        orchestration_mode TEXT NOT NULL DEFAULT 'standard',
+        orchestration_config TEXT NOT NULL DEFAULT '{}'
     )
 """
 
@@ -296,6 +316,8 @@ _SESSION_EXTRA_COLUMNS = {
     "node_id": "TEXT",
     "workspace_id": "TEXT",
     "working_directory": "TEXT",
+    "orchestration_mode": "TEXT NOT NULL DEFAULT 'standard'",
+    "orchestration_config": "TEXT NOT NULL DEFAULT '{}'",
 }
 
 _RELATED_EXTRA_COLUMNS = {
@@ -327,6 +349,15 @@ _RELATED_EXTRA_COLUMNS = {
         "expires_at": "TEXT",
         "decided_by": "TEXT",
         "decided_at": "TEXT",
+    },
+    "dag_mutations": {
+        "session_id": "TEXT NOT NULL DEFAULT ''",
+        "rationale": "TEXT NOT NULL DEFAULT ''",
+        "base_revisions": "TEXT NOT NULL DEFAULT '{}'",
+        "resulting_revisions": "TEXT NOT NULL DEFAULT '{}'",
+        "accepted": "INTEGER NOT NULL DEFAULT 1",
+        "rejection_code": "TEXT",
+        "rejection_reason": "TEXT",
     },
 }
 
@@ -504,6 +535,127 @@ _CREATE_HUB_POSTS_TOPIC_INDEX = """
 _CREATE_HUB_POSTS_PARENT_INDEX = """
     CREATE INDEX IF NOT EXISTS idx_hub_posts_parent
     ON hub_posts(parent_id)
+"""
+
+_CREATE_DAG_GRAPHS = """
+    CREATE TABLE IF NOT EXISTS dag_graphs(
+        graph_id TEXT PRIMARY KEY,
+        graph_kind TEXT NOT NULL UNIQUE CHECK(graph_kind IN ('process', 'delivery')),
+        revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0),
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_DAG_SPECIES = """
+    CREATE TABLE IF NOT EXISTS dag_species(
+        species_id TEXT PRIMARY KEY,
+        canonical_key TEXT NOT NULL UNIQUE,
+        charge INTEGER NOT NULL,
+        multiplicity INTEGER NOT NULL CHECK(multiplicity >= 1),
+        identifiers TEXT NOT NULL DEFAULT '{}',
+        metadata TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_DAG_NODES = """
+    CREATE TABLE IF NOT EXISTS dag_nodes(
+        graph_id TEXT NOT NULL,
+        node_id TEXT NOT NULL,
+        node_type TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        refs TEXT NOT NULL DEFAULT '[]',
+        payload TEXT NOT NULL DEFAULT '{}',
+        created_revision INTEGER NOT NULL,
+        updated_revision INTEGER NOT NULL,
+        PRIMARY KEY(graph_id, node_id),
+        FOREIGN KEY(graph_id) REFERENCES dag_graphs(graph_id)
+    )
+"""
+
+_CREATE_DAG_EDGES = """
+    CREATE TABLE IF NOT EXISTS dag_edges(
+        graph_id TEXT NOT NULL,
+        edge_id TEXT NOT NULL,
+        source_node_id TEXT NOT NULL,
+        target_node_id TEXT NOT NULL,
+        edge_type TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        refs TEXT NOT NULL DEFAULT '[]',
+        payload TEXT NOT NULL DEFAULT '{}',
+        created_revision INTEGER NOT NULL,
+        updated_revision INTEGER NOT NULL,
+        PRIMARY KEY(graph_id, edge_id),
+        FOREIGN KEY(graph_id) REFERENCES dag_graphs(graph_id)
+    )
+"""
+
+_CREATE_DAG_LINKS = """
+    CREATE TABLE IF NOT EXISTS dag_links(
+        link_id TEXT PRIMARY KEY,
+        process_node_id TEXT NOT NULL,
+        delivery_element_type TEXT NOT NULL CHECK(delivery_element_type IN ('node', 'edge')),
+        delivery_element_id TEXT NOT NULL,
+        payload TEXT NOT NULL DEFAULT '{}',
+        created_revision INTEGER NOT NULL
+    )
+"""
+
+_CREATE_DAG_EVIDENCE = """
+    CREATE TABLE IF NOT EXISTS dag_evidence(
+        evidence_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(source_type, source_name, content_hash)
+    )
+"""
+
+_CREATE_DAG_MUTATIONS = """
+    CREATE TABLE IF NOT EXISTS dag_mutations(
+        mutation_id TEXT PRIMARY KEY,
+        graph_id TEXT NOT NULL,
+        base_revision INTEGER NOT NULL,
+        resulting_revision INTEGER NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        session_id TEXT NOT NULL DEFAULT '',
+        rationale TEXT NOT NULL DEFAULT '',
+        base_revisions TEXT NOT NULL DEFAULT '{}',
+        resulting_revisions TEXT NOT NULL DEFAULT '{}',
+        operations TEXT NOT NULL,
+        accepted INTEGER NOT NULL DEFAULT 1,
+        rejection_code TEXT,
+        rejection_reason TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(graph_id) REFERENCES dag_graphs(graph_id)
+    )
+"""
+
+_CREATE_DAG_COVERAGE = """
+    CREATE TABLE IF NOT EXISTS dag_coverage(
+        graph_id TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL DEFAULT 0,
+        coverage TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(graph_id) REFERENCES dag_graphs(graph_id)
+    )
+"""
+
+_CREATE_DAG_DELIVERY_DISPOSITIONS = """
+    CREATE TABLE IF NOT EXISTS dag_delivery_dispositions(
+        disposition_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        disposition TEXT NOT NULL CHECK(disposition IN ('complete', 'partial', 'user_terminated')),
+        graph_revision INTEGER NOT NULL,
+        report TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
 """
 
 _CREATE_SCHEMA_MIGRATIONS = """

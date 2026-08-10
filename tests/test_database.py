@@ -7,6 +7,7 @@ import pytest
 
 from cloudra.config import get_config, reload_config
 from cloudra.database import (
+    SCHEMA_VERSION,
     ConversationDB,
     aretry_on_locked,
     get_database_path,
@@ -100,7 +101,7 @@ def test_conversation_db_init_creates_tables(isolated_db):
         "decided_by",
         "decided_at",
     } <= approval_columns
-    assert version == 7
+    assert version == SCHEMA_VERSION
 
 
 def test_conversation_db_isolation(isolated_db):

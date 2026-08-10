@@ -46,11 +46,24 @@ class FakeService:
         self.pending_approvals = []
         self.last_approval = None
         self.last_route = None
+        self.last_orchestration_mode = None
 
     def create_conversation(self):
         return type("Conversation", (), {"id": "conv_1", "state": "active"})()
 
-    def submit_session(self, query, conversation_id=None, working_directory=None, yolo=False):
+    def submit_session(
+        self,
+        query,
+        conversation_id=None,
+        working_directory=None,
+        yolo=False,
+        orchestration_mode="standard",
+    ):
+        self.last_orchestration_mode = getattr(
+            orchestration_mode,
+            "value",
+            orchestration_mode,
+        )
         self.last_submit = {
             "query": query,
             "conversation_id": conversation_id,
@@ -68,7 +81,13 @@ class FakeService:
         working_directory=None,
         node_id="node-local",
         workspace_id="default",
+        orchestration_mode="standard",
     ):
+        self.last_orchestration_mode = getattr(
+            orchestration_mode,
+            "value",
+            orchestration_mode,
+        )
         self.last_command_id = command_id
         self.last_submit = {
             "query": query,
@@ -313,7 +332,11 @@ async def test_v1_session_creation_uses_server_workspace(monkeypatch, tmp_path):
                 **_v1_headers(),
                 "Idempotency-Key": "cmd_create_api_12345678",
             },
-            json={"query": "服务器执行", "workspace_id": "default"},
+            json={
+                "query": "服务器执行",
+                "workspace_id": "default",
+                "orchestration_mode": "dag_guided",
+            },
         )
 
     assert response.status_code == 202
@@ -325,6 +348,7 @@ async def test_v1_session_creation_uses_server_workspace(monkeypatch, tmp_path):
     }
     assert service.last_command_id == "cmd_create_api_12345678"
     assert service.last_route == ("node-local", "default")
+    assert service.last_orchestration_mode == "dag_guided"
     assert response.json()["command"]["state"] == "applied"
 
 

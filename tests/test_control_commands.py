@@ -243,6 +243,7 @@ def test_session_create_command_replay_returns_same_session(
         session_id=None,
         node_id=None,
         workspace_id=None,
+        **_kwargs,
     ):
         calls.append(session_id)
         db = ConversationDB(conversation_id).init()
@@ -314,6 +315,7 @@ async def test_message_to_terminal_session_wakes_one_new_session(
         session_id=None,
         node_id=None,
         workspace_id=None,
+        **_kwargs,
     ):
         submitted.append(
             (query, session_id, working_directory, node_id, workspace_id)

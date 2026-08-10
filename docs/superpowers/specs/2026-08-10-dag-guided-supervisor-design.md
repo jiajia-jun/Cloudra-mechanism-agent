@@ -128,19 +128,32 @@ applicable.
 ## Supervisor responsibility and flexibility
 
 The legacy "review every 15 ReAct steps and inject free-text advice" path is
-retired from ordinary execution. In `dag_guided`, the Supervisor receives a
-bounded graph projection and returns typed mutation proposals rather than an
-unstructured verdict. It is invoked by meaningful events: graph initialization,
-new evidence, a failed or repeatedly retried process node, an empty process
-frontier while delivery remains incomplete, a user request to replan, or a
-pre-delivery audit.
+retired from ordinary execution. In `dag_guided`, the Supervisor is a persistent
+graph-planning agent: it reuses the harness `Agent` class, holds only the
+`dag_graph` tool (permission class MANAGE), and keeps a conversation-scoped
+context that is never cleared between triggers, sessions, or process restarts.
+It reads both graphs through the tool's bounded views and submits typed
+mutation batches through the same validated path rather than returning an
+unstructured verdict.
 
-Permitted process-DAG operations include adding and splitting work, adding or
-removing non-executed dependencies, changing priority, blocking, reopening,
-skipping with a reason, and superseding obsolete work. Permitted delivery-DAG
-operations include adding pathway occurrences or alternative elementary steps,
-linking existing evidence, marking a hypothesis unsupported or stale, and
-requesting evidence that creates process work.
+Ownership of the two graphs is split. The Coordinator designs the delivery
+(mechanism) DAG: after reaction mapping it submits pathway hypotheses —
+intermediate occurrences and candidate elementary steps at level `proposed` —
+through `dag_graph` mutations, and later extends branches or marks them
+`rejected`/`inconclusive`. The Supervisor is strictly read-only on the delivery
+DAG; when it doubts a hypothesis, its only recourse is scheduling process work
+that produces new evidence. The Supervisor owns the process DAG: adding and
+splitting work, adding or removing non-executed dependencies, changing
+priority, blocking, reopening, skipping with a reason, and superseding obsolete
+work. The Coordinator is read-only on the process DAG; its accepted delivery
+mutations automatically wake the Supervisor (`delivery_updated`) with its
+rationale, which is how mechanism design turns into scheduled computation.
+
+The Supervisor is invoked by meaningful events: graph initialization on a
+resumed session with existing delivery content, an accepted Coordinator
+delivery mutation (`delivery_updated`), new evidence, a failed or repeatedly
+retried process node, an empty process frontier while delivery remains
+incomplete, a user request to replan, or a pre-delivery audit.
 
 Flexibility is bounded by invariants. The Supervisor cannot delete evidence,
 rewrite immutable artifacts or tool results, create a dangling reference,
@@ -150,20 +163,27 @@ stricter checks. Changes to the user's top-level goal or acceptance boundary are
 returned as proposals requiring user approval.
 
 Mutation proposals are batches with a base graph revision. The graph engine
-validates the entire batch before applying it atomically. Rejected proposals are
-recorded with a machine-readable reason and may be revised once; repeated
-rejection falls back to the existing valid frontier instead of entering a repair
-loop.
+validates the entire batch before applying it atomically. Rejections come back
+to the Supervisor as tool results with a machine-readable reason; it re-reads
+the current graph and may revise within the same run, but repeated rejection
+leaves the existing valid frontier untouched instead of entering a repair loop.
 
 ## Harness data flow
 
 On DAG-session creation, the harness loads or initializes both graphs and the
-coverage contract, then derives a compact initial frontier. Tool execution
-remains stateless. When a tool or compute job finishes, a deterministic adapter
-registers immutable outputs, emits evidence references, updates affected process
-nodes, and recomputes delivery evidence levels. In `dag_record` this deterministic
-path is the whole graph behavior. In `dag_guided`, qualifying changes may also
-trigger a Supervisor mutation proposal before the next agent turn.
+coverage contract. On a fresh session both graphs start empty and the
+Supervisor is not woken; on a resumed session with existing delivery content,
+graph initialization triggers the Supervisor so it can reconcile the process
+frontier with the recorded mechanism. Tool execution remains stateless. When a
+tool or compute job finishes, a deterministic adapter registers immutable
+outputs, emits evidence references, updates affected process nodes, and
+recomputes delivery evidence levels. In `dag_record` this deterministic path,
+plus the Coordinator's own delivery design mutations, is the whole graph
+behavior. In `dag_guided`, qualifying changes wake the Supervisor before the
+next agent turn: an accepted Coordinator `dag_graph` delivery mutation fires
+`delivery_updated` with the Coordinator's rationale, other tools fire
+`new_evidence` or `process_failed`, and an empty frontier with incomplete
+delivery fires `empty_frontier`; at most one wake per finished tool.
 
 The prompt assembler injects only the current mode, graph revisions, process
 frontier, blockers, delivery gaps, and recent accepted graph changes. The agent

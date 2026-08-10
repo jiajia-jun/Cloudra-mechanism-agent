@@ -77,6 +77,17 @@ Screen {
     overflow-y: auto;
 }
 
+/* DAG 区：模式 + 双图 revision + frontier + 阻塞/缺口计数 */
+#dag-view {
+    height: auto;
+    max-height: 30%;
+    border: solid $secondary;
+    padding: 0 1;
+    margin-top: 1;
+    color: $text;
+    overflow-y: auto;
+}
+
 #session-label {
     width: auto;
     min-width: 10;
@@ -115,7 +126,7 @@ Screen {
 }
 
 /* Modal 弹窗 */
-ApprovalModal, AskUserModal {
+ApprovalModal, AskUserModal, DagEditModal {
     align: center middle;
 }
 
@@ -127,6 +138,39 @@ ApprovalModal, AskUserModal {
     border: thick $background 80%;
     background: $surface;
     padding: 1 2;
+}
+
+/* DAG 编辑表单：多行输入框，纵向堆叠 */
+#dag-edit-dialog {
+    width: 80;
+    max-width: 90%;
+    height: auto;
+    max-height: 90%;
+    border: thick $background 80%;
+    background: $surface;
+    padding: 1 2;
+    grid-size: 1;
+    grid-rows: auto;
+}
+
+#dag-edit-dialog Input, #dag-edit-dialog Select {
+    margin-bottom: 1;
+}
+
+#dag-edit-title {
+    text-align: center;
+    text-style: bold;
+}
+
+#edit-error {
+    color: $error;
+    height: auto;
+}
+
+#dag-edit-buttons {
+    grid-size: 2;
+    height: auto;
+    margin-top: 1;
 }
 
 #approval-title, #ask-title {

@@ -5,12 +5,14 @@ import asyncio
 import pytest
 from textual.app import App
 from textual.css.query import NoMatches
+from textual.widgets import Label
 
 from cloudra.tui.new.app import CloudraTextualApp
 from cloudra.tui.new.screens.main_screen import MainScreen
 from cloudra.tui.new.transcript_render import InteractionAction
 from cloudra.tui.new.widgets.chat_log import ChatLog
 from cloudra.tui.new.widgets.input_bar import InputBar
+from cloudra.tui.new.widgets.side_panel import SidePanel
 from cloudra.tui.new.widgets.status_bar import StatusBar
 
 
@@ -971,7 +973,7 @@ async def test_followup_send_stays_in_same_conversation(tmp_path, monkeypatch):
         # 第一次发送 → 任务1
         r1 = FakeRecord("a-0_run_001", "queued")
 
-        async def fake_submit1(q, conversation_id=None, yolo=False):
+        async def fake_submit1(q, conversation_id=None, yolo=False, **_kwargs):
             return (conversation_id, r1)
 
         screen.service.submit_session_async = fake_submit1
@@ -981,7 +983,7 @@ async def test_followup_send_stays_in_same_conversation(tmp_path, monkeypatch):
         # 任务1结束后第二次发送 → 任务2，仍同一对话
         r2 = FakeRecord("a-0_run_002", "queued")
 
-        async def fake_submit2(q, conversation_id=None, yolo=False):
+        async def fake_submit2(q, conversation_id=None, yolo=False, **_kwargs):
             return (conversation_id, r2)
 
         screen.service.submit_session_async = fake_submit2
@@ -1268,7 +1270,7 @@ async def test_send_not_blocked_by_cancel_requested(tmp_path, monkeypatch):
             session_id = "a-0_run_new"
             state = "queued"
 
-        async def fake_submit(q, conversation_id=None, yolo=False):
+        async def fake_submit(q, conversation_id=None, yolo=False, **_kwargs):
             submitted.append(q)
             return conversation_id, FakeRecord()
 
@@ -1509,7 +1511,7 @@ async def test_sidebar_new_conversation_button(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, monkeypatch):
-    """选中子 Agent：聊天区只显示它的 session，输入定向注入它的运行上下文。"""
+    """选中子 Agent 实例：聊天区只显示它的 session，输入定向注入它的运行上下文。"""
     from types import SimpleNamespace
 
     from cloudra.tui.new.widgets.side_panel import SidePanel
@@ -1522,17 +1524,17 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
         chat_log.append_user("a-3_task1", "子 agent 消息")
 
         screen.on_side_panel_agent_selected(
-            SidePanel.AgentSelected("a-3", "researcher (a-3)")
+            SidePanel.AgentSelected("a-3_task1", "a-3", "researcher (a-3·task1)")
         )
         await pilot.pause()
 
-        assert chat_log.view_agent_prefix == "a-3"
+        assert chat_log.view_session_id == "a-3_task1"
         texts = await _visible_texts(chat_log)
         assert any("子 agent 消息" in t for t in texts)
         assert not any("主 agent 消息" in t for t in texts)
 
         input_bar = screen.query_one("#input-bar", InputBar)
-        assert input_bar.target_name == "researcher (a-3)"
+        assert input_bar.target_name == "researcher (a-3·task1)"
 
         # 子 agent 无运行中任务：拒绝注入
         sent = []
@@ -1542,7 +1544,7 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
 
         screen._append_message = fake_append
 
-        async def find_none(agent_id=None):
+        async def find_none(agent_id=None, session_id=None):
             return None
 
         screen._find_active_record = find_none
@@ -1557,20 +1559,93 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
             parent_session_id="a-0_run_x",
         )
 
-        async def find_rec(agent_id=None):
-            return rec if agent_id == "a-3" else None
+        async def find_rec(agent_id=None, session_id=None):
+            return rec if session_id == "a-3_task1" else None
 
         screen._find_active_record = find_rec
         await screen._handle_send("加两篇近三年的")
         assert sent == [("a-3_task1", "加两篇近三年的")]
 
         # 选回「全部」：视图与定向都复位
-        screen.on_side_panel_agent_selected(SidePanel.AgentSelected(None, "全部"))
+        screen.on_side_panel_agent_selected(SidePanel.AgentSelected(None, None, "全部"))
         await pilot.pause()
-        assert chat_log.view_agent_prefix is None
+        assert chat_log.view_session_id is None
         assert input_bar.target_name is None
         texts = await _visible_texts(chat_log)
         assert any("主 agent 消息" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_sidebar_parallel_instances_same_role(tmp_path, monkeypatch):
+    """同角色并行实例（swarm）在侧栏各占一行，选中后聊天区按 session 精确过滤。"""
+    from types import SimpleNamespace
+
+    from textual.widgets import ListItem, ListView
+
+    from cloudra.tui.new.widgets.side_panel import SidePanel
+
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+
+        records = [
+            SimpleNamespace(
+                session_id="a-0_run_x",
+                agent_id="a-0",
+                agent_type="coordinator",
+                state="running",
+                parent_session_id=None,
+            ),
+            SimpleNamespace(
+                session_id="a-1_task1",
+                agent_id="a-1",
+                agent_type="follower",
+                state="running",
+                parent_session_id="a-0_run_x",
+            ),
+            SimpleNamespace(
+                session_id="a-1_task2",
+                agent_id="a-1",
+                agent_type="follower",
+                state="running",
+                parent_session_id="a-0_run_x",
+            ),
+        ]
+
+        def fake_list(conversation_id):
+            return records
+
+        monkeypatch.setattr(screen.service.session_runner, "list", fake_list)
+        monkeypatch.setattr(
+            screen, "_agent_display_name", lambda agent_id, agent_type: "worker"
+        )
+
+        screen.action_toggle_sidebar()
+        await screen._refresh_agents()
+        await pilot.pause()
+
+        panel = screen.query_one("#side-panel", SidePanel)
+        agent_list = panel.query_one("#agent-list", ListView)
+        keys = [getattr(i, "row_key", None) for i in agent_list.query(ListItem)]
+        assert keys == [None, "a-0_run_x", "a-1_task1", "a-1_task2"]
+        item1 = panel.agent_item("a-1_task1")
+        item2 = panel.agent_item("a-1_task2")
+        assert item1 is not None and item2 is not None and item1 is not item2
+        assert "a-1·task1" in str(item1.query_one(Label).content)
+        assert "a-1·task2" in str(item2.query_one(Label).content)
+
+        # 同角色两个实例的输出在「全部」视图混杂，选中实例后精确过滤
+        chat_log = screen.query_one("#chat-log", ChatLog)
+        chat_log.append_user("a-1_task1", "实例一的消息")
+        chat_log.append_user("a-1_task2", "实例二的消息")
+
+        screen.on_side_panel_agent_selected(
+            SidePanel.AgentSelected("a-1_task2", "a-1", "worker (a-1·task2)")
+        )
+        await pilot.pause()
+        texts = await _visible_texts(chat_log)
+        assert any("实例二的消息" in t for t in texts)
+        assert not any("实例一的消息" in t for t in texts)
 
 
 # ------------------------------------------------------------------
@@ -1716,6 +1791,8 @@ async def test_plan_panel_shows_goal_todos_and_tokens(tmp_path, monkeypatch):
             "agent_id": "a-0",
             "total": {"prompt_tokens": 8000, "completion_tokens": 2345, "total_tokens": 10345},
         })
+        # token 用量按 session 键控：未选中实例时跟随当前跟踪的根 session
+        screen.current_session_id = "sess1"
 
         screen.action_toggle_sidebar()
         await screen._refresh_plan()
@@ -1765,6 +1842,57 @@ async def test_plan_panel_empty_state_and_agent_switch(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_plan_panel_reads_session_keyed_files(tmp_path, monkeypatch):
+    """选中并行实例时，计划面板读该实例 session 键控的计划文件与 token 用量。"""
+    import json as _json
+
+    from textual.widgets import Static
+
+    app = _make_app(tmp_path, monkeypatch)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        from cloudra.config import get_config
+
+        plan_dir = (
+            get_config().data_dir / "conversations" / screen.conversation_id / "plan"
+        )
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        # 写侧键控（Plantool/_store.py）：{agent_id}_{session_id}_todos.json
+        (plan_dir / "a-1_a-1_task1_todos.json").write_text(_json.dumps([
+            {"id": "t1", "content": "实例一的任务", "status": "done"},
+        ]), encoding="utf-8")
+        (plan_dir / "a-1_a-1_task2_todos.json").write_text(_json.dumps([
+            {"id": "t1", "content": "实例二的任务", "status": "pending"},
+        ]), encoding="utf-8")
+
+        screen._on_token_usage("a-1_task1", {
+            "agent_id": "a-1",
+            "total": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+        })
+        screen._on_token_usage("a-1_task2", {
+            "agent_id": "a-1",
+            "total": {"prompt_tokens": 2000, "completion_tokens": 1000, "total_tokens": 3000},
+        })
+
+        screen.action_toggle_sidebar()
+        screen._target_agent_id = "a-1"
+        screen._target_session_id = "a-1_task1"
+        await screen._refresh_plan()
+        await pilot.pause()
+        text = _widget_text(screen.query_one("#plan-view", Static))
+        assert "实例一的任务" in text
+        assert "实例二的任务" not in text
+        assert "Token: 150" in text
+
+        screen._target_session_id = "a-1_task2"
+        await screen._refresh_plan()
+        await pilot.pause()
+        text = _widget_text(screen.query_one("#plan-view", Static))
+        assert "实例二的任务" in text
+        assert "Token: 3.0k" in text
+
+
+@pytest.mark.asyncio
 async def test_render_bridge_routes_token_and_plan_events():
     """RenderBridge 把 token_usage / todo_updated / goal_updated 事件路由给回调。"""
     from textual.app import App
@@ -1795,11 +1923,6 @@ async def test_render_bridge_routes_token_and_plan_events():
 
         assert token_events == [("s1", {"agent_id": "a-0", "total": {"total_tokens": 100}})]
         assert len(plan_dirty) == 2
-
-
-from cloudra.tui.new.widgets.side_panel import SidePanel
-from cloudra.tui.new.widgets.status_bar import StatusBar
-from textual.widgets import Label
 
 
 class SidePanelApp(App):
@@ -1863,7 +1986,6 @@ async def test_conversation_switch_cancels_stale_sidebar_refresh(
     app = _make_app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         screen = app.screen
-        first_conv = screen.conversation_id
 
         # Schedule a delayed sidebar refresh and immediately switch conversations.
         screen._on_session_state_update("s1", "running")

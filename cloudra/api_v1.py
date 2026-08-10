@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from cloudra import __version__, control_store
+from cloudra.dag.models import OrchestrationMode
 from cloudra.database import ConversationDB
 from cloudra.nodes import NodeRegistry, NodeRegistryError
 from cloudra.service import validate_conversation_id
@@ -68,6 +69,7 @@ class V1SessionCreate(BaseModel):
     workspace_id: str = Field(default="default", min_length=1, max_length=100)
     # Remote Phase 1 deliberately cannot silently enable automatic approval.
     yolo: bool = False
+    orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
 
 
 class V1MessageAppend(BaseModel):
@@ -577,6 +579,7 @@ def create_v1_router(
                 working_directory=str(workspace.path),
                 node_id=workspace.node_id,
                 workspace_id=workspace.workspace_id,
+                orchestration_mode=body.orchestration_mode,
             )
         except control_store.CommandConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc

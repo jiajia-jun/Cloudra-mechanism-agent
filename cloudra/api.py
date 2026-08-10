@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from cloudra import __version__, events, paths
 from cloudra.config import get_config, set_config_value
+from cloudra.dag.models import OrchestrationMode
 from cloudra.database import ConversationDB
 from cloudra.service import CloudraService, validate_conversation_id
 from cloudra.skill_class import skill_loader
@@ -31,6 +32,7 @@ class SessionCreate(BaseModel):
     working_directory: str | None = Field(default=None, max_length=4_096)
     # 按 Session 启用 YOLO 全自动审批（等价 CLI 的 --yolo，但只作用于本会话）
     yolo: bool = False
+    orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
 
 
 class ConfigSet(BaseModel):
@@ -60,6 +62,12 @@ class ApprovalDecision(BaseModel):
 
 class SessionMessageAppend(BaseModel):
     content: str = Field(min_length=1, max_length=20_000)
+
+
+class DagMutationRequest(BaseModel):
+    operations: list[dict]
+    base_revisions: dict[str, int]
+    rationale: str = ""
     working_directory: str | None = Field(default=None, max_length=4_096)
 
 
@@ -168,13 +176,19 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         try:
             working_directory = _validate_working_directory(request.working_directory)
             if working_directory is None:
-                _, record = service.submit_session(request.query, conversation_id, yolo=request.yolo)
+                _, record = service.submit_session(
+                    request.query,
+                    conversation_id,
+                    yolo=request.yolo,
+                    orchestration_mode=request.orchestration_mode,
+                )
             else:
                 _, record = service.submit_session(
                     request.query,
                     conversation_id,
                     working_directory=working_directory,
                     yolo=request.yolo,
+                    orchestration_mode=request.orchestration_mode,
                 )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -442,6 +456,84 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
             except OSError:
                 continue
         return results
+
+    @app.get(
+        "/api/conversations/{conversation_id}/dag/projection",
+        dependencies=protected,
+    )
+    async def get_dag_projection(conversation_id: str) -> dict:
+        try:
+            result = service.dag_projection(conversation_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="DAG bundle 不存在")
+        return result
+
+    @app.get(
+        "/api/conversations/{conversation_id}/dag/graphs/{graph_kind}",
+        dependencies=protected,
+    )
+    async def get_dag_graph(conversation_id: str, graph_kind: str) -> dict:
+        try:
+            result = service.dag_graph(conversation_id, graph_kind)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="DAG bundle 不存在")
+        return result
+
+    @app.get(
+        "/api/conversations/{conversation_id}/dag/delivery-report",
+        dependencies=protected,
+    )
+    async def get_dag_delivery_report(conversation_id: str) -> dict:
+        try:
+            result = service.dag_delivery_report(conversation_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="DAG bundle 不存在")
+        return result
+
+    @app.get(
+        "/api/conversations/{conversation_id}/dag/history",
+        dependencies=protected,
+    )
+    async def get_dag_history(
+        conversation_id: str,
+        after_revision: int = 0,
+    ) -> list[dict]:
+        try:
+            result = service.dag_history(
+                conversation_id,
+                after_revision=max(0, after_revision),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="DAG bundle 不存在")
+        return result
+
+    @app.post(
+        "/api/conversations/{conversation_id}/dag/mutations",
+        dependencies=protected,
+    )
+    async def apply_dag_mutation(
+        conversation_id: str, payload: DagMutationRequest
+    ) -> dict:
+        try:
+            result = service.dag_apply_user_mutation(
+                conversation_id,
+                payload.operations,
+                payload.base_revisions,
+                payload.rationale,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if result is None:
+            raise HTTPException(status_code=404, detail="DAG bundle 不存在")
+        return result
 
     @app.get("/api/sessions", dependencies=protected)
     async def list_all_sessions(state: str | None = None) -> list[dict]:

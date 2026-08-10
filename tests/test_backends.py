@@ -7,10 +7,69 @@ import pytest
 from cloudra.backends import (
     BackendProtocolError,
     BackendUnavailable,
+    LocalCloudraBackend,
     RemoteCloudraBackend,
     RemoteStateStore,
     ServerProfile,
 )
+
+
+@pytest.mark.asyncio
+async def test_local_backend_exposes_dag_read_surface():
+    class Service:
+        def dag_projection(self, conversation_id):
+            return {"conversation_id": conversation_id, "frontier": []}
+
+        def dag_graph(self, conversation_id, graph_kind):
+            return {"conversation_id": conversation_id, "graph_kind": graph_kind}
+
+        def dag_delivery_report(self, conversation_id):
+            return {"conversation_id": conversation_id, "complete": False}
+
+        def dag_history(self, conversation_id, after_revision=0):
+            return [{"conversation_id": conversation_id, "after": after_revision}]
+
+    backend = LocalCloudraBackend(Service())
+
+    assert (await backend.get_dag_projection("conv"))["frontier"] == []
+    assert (await backend.get_dag_graph("conv", "delivery"))["graph_kind"] == "delivery"
+    assert (await backend.get_dag_delivery_report("conv"))["complete"] is False
+    assert (await backend.get_dag_history("conv", after_revision=3))[0]["after"] == 3
+
+
+@pytest.mark.asyncio
+async def test_remote_backend_exposes_dag_read_surface(tmp_path):
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.path, dict(request.url.params)))
+        path = request.url.path
+        if path.endswith("/projection"):
+            return httpx.Response(200, json={"frontier": []})
+        if path.endswith("/graphs/process"):
+            return httpx.Response(200, json={"graph_kind": "process"})
+        if path.endswith("/delivery-report"):
+            return httpx.Response(200, json={"complete": False})
+        if path.endswith("/history"):
+            return httpx.Response(200, json=[{"mutation_id": "mut_1"}])
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://cloudra.test",
+    )
+    backend = RemoteCloudraBackend(
+        ServerProfile(server_url="https://cloudra.test"),
+        RemoteStateStore(tmp_path / "state.json"),
+        client=client,
+    )
+
+    assert (await backend.get_dag_projection("conv"))["frontier"] == []
+    assert (await backend.get_dag_graph("conv", "process"))["graph_kind"] == "process"
+    assert (await backend.get_dag_delivery_report("conv"))["complete"] is False
+    assert (await backend.get_dag_history("conv", after_revision=2))[0]["mutation_id"] == "mut_1"
+    assert requests[-1][1] == {"after_revision": "2"}
+    await client.aclose()
 
 
 def _envelope(cursor: int, event_type: str, data: dict) -> dict:
@@ -199,7 +258,11 @@ async def test_remote_backend_uses_v1_and_sends_only_server_token(tmp_path):
 
     assert await backend.list_conversations() == [{"id": "conv_1"}]
     assert (await backend.create_conversation())["id"] == "conv_2"
-    _, session = await backend.submit_session("分析", "conv_1")
+    _, session = await backend.submit_session(
+        "分析",
+        "conv_1",
+        orchestration_mode="dag_guided",
+    )
     assert session["session_id"] == "session_1"
 
     assert all(
@@ -216,6 +279,7 @@ async def test_remote_backend_uses_v1_and_sends_only_server_token(tmp_path):
         "query": "分析",
         "workspace_id": "default",
         "yolo": False,
+        "orchestration_mode": "dag_guided",
     }
     assert "model" not in submitted
     assert "api_key" not in submitted
@@ -623,3 +687,80 @@ def test_remote_backend_rejects_unknown_event_protocol(tmp_path):
     envelope["version"] = 2
     with pytest.raises(BackendProtocolError, match="不兼容"):
         backend._decode_event(envelope)
+
+
+@pytest.mark.asyncio
+async def test_local_backend_applies_dag_mutation():
+    class Service:
+        def dag_apply_user_mutation(
+            self, conversation_id, operations, base_revisions, rationale=""
+        ):
+            return {
+                "conversation_id": conversation_id,
+                "accepted": True,
+                "operations": operations,
+                "base_revisions": base_revisions,
+                "rationale": rationale,
+            }
+
+    backend = LocalCloudraBackend(Service())
+    result = await backend.apply_dag_mutation(
+        "conv",
+        [{"op": "update_node", "graph": "process", "data": {"node_id": "w1", "changes": {"priority": 5}}}],
+        {"process": 0, "delivery": 0},
+        "manual edit",
+    )
+    assert result["accepted"] is True
+    assert result["rationale"] == "manual edit"
+
+
+@pytest.mark.asyncio
+async def test_remote_backend_applies_dag_mutation(tmp_path):
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/dag/mutations"):
+            seen["json"] = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(200, json={"accepted": True})
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="https://cloudra.test",
+    )
+    backend = RemoteCloudraBackend(
+        ServerProfile(server_url="https://cloudra.test"),
+        RemoteStateStore(tmp_path / "state.json"),
+        client=client,
+    )
+
+    result = await backend.apply_dag_mutation(
+        "conv",
+        [{"op": "add_link", "graph": "process", "data": {"link_id": "l1"}}],
+        {"process": 2, "delivery": 1},
+        "link work to mechanism",
+    )
+    assert result == {"accepted": True}
+    assert seen["json"]["base_revisions"] == {"process": 2, "delivery": 1}
+    assert seen["json"]["rationale"] == "link work to mechanism"
+
+    def not_found(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"detail": "DAG bundle 不存在"})
+
+    client_missing = httpx.AsyncClient(
+        transport=httpx.MockTransport(not_found),
+        base_url="https://cloudra.test",
+    )
+    backend_missing = RemoteCloudraBackend(
+        ServerProfile(server_url="https://cloudra.test"),
+        RemoteStateStore(tmp_path / "state2.json"),
+        client=client_missing,
+    )
+    assert (
+        await backend_missing.apply_dag_mutation(
+            "conv", [], {"process": 0, "delivery": 0}
+        )
+        is None
+    )
+    await client.aclose()
+    await client_missing.aclose()

@@ -94,17 +94,14 @@ class TestSupervisorAdviceInsertion:
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def supervisor():
-    return Supervisor(model="dummy", base_url="http://dummy", api_key="dummy", interval=5)
+    return Supervisor(model="dummy", base_url="http://dummy", api_key="dummy")
 
 
 class TestSupervisor:
-    def test_should_review_every_n_steps(self, supervisor):
-        assert not supervisor.should_review(0)
-        assert not supervisor.should_review(1)
-        assert not supervisor.should_review(4)
-        assert supervisor.should_review(5)
-        assert supervisor.should_review(10)
-        assert not supervisor.should_review(11)
+    def test_has_no_periodic_review_or_free_text_api(self, supervisor):
+        assert not hasattr(supervisor, "should_review")
+        assert not hasattr(supervisor, "review")
+        assert not hasattr(supervisor, "format_advice")
 
     def test_retrieve_relevant_cases_with_bytes_embedding(self, supervisor):
         vec_a = np.array([1.0, 0.0, 0.0], dtype=np.float32)
@@ -286,8 +283,7 @@ class TestMemoryCompressionFallback:
 # reAct Supervisor integration tests
 # ---------------------------------------------------------------------------
 class TestReActSupervisorIntegration:
-    def test_should_use_supervisor_default(self, tmp_path, monkeypatch):
-        """普通 Agent 默认启用 Supervisor。"""
+    def test_standard_has_no_supervisor_or_legacy_review_hook(self, tmp_path, monkeypatch):
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
         from cloudra.react import reAct
@@ -306,10 +302,12 @@ class TestReActSupervisorIntegration:
             conversation_id=conv_id,
         )
         react = reAct(agent)
-        assert react._should_use_supervisor() is True
+        assert react.supervisor is None
+        assert not hasattr(react, "_should_use_supervisor")
+        assert not hasattr(react, "_supervisor_review")
 
     def test_supervisor_instance_created(self, tmp_path, monkeypatch):
-        """reAct 初始化时应创建 Supervisor 实例。"""
+        """Only DAG-guided reAct creates the graph Supervisor."""
         from cloudra.agent import Follower
         from cloudra.database import ConversationDB
         from cloudra.react import reAct
@@ -326,152 +324,11 @@ class TestReActSupervisorIntegration:
             prompt="测试",
             query="测试问题",
             conversation_id=conv_id,
+            orchestration_mode="dag_guided",
         )
         react = reAct(agent)
         assert react.supervisor is not None
-        assert react.supervisor.interval == 15
-
-
-class TestSupervisorJsonTruncation:
-    """thinking 模型 JSON 输出被 max_tokens 截断时的翻倍重试。
-
-    传输层委托给 LLMClient.chat_json，因此 mock 最底层的 create，
-    通过真实的 review 路径验证截断翻倍与预算参数。
-    """
-
-    @staticmethod
-    def _resp(content: str, finish: str):
-        import types
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(
-                message=types.SimpleNamespace(content=content),
-                finish_reason=finish,
-            )]
-        )
-
-    @staticmethod
-    def _patch_transport(supervisor, **kwargs):
-        """给 supervisor 挂上真实 LLMClient，并 mock 掉最底层 create。"""
-        from cloudra.llm_client import LLMClient
-
-        client = LLMClient(api_key="dummy", base_url="http://dummy", model="dummy")
-        supervisor._llm_client = client
-        return patch.object(client, "create", **kwargs)
-
-    @pytest.mark.asyncio
-    async def test_truncated_json_retried_with_doubled_budget(self, supervisor):
-        truncated = self._resp('{"verdict": "proceed", "reason', "length")
-        full = self._resp('{"verdict": "redirect", "reasoning": "ok", "advice": ["a"]}', "stop")
-        with self._patch_transport(supervisor, new=AsyncMock(side_effect=[truncated, full])) as call, \
-             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=np.zeros(1536))):
-            review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
-        assert review.verdict == "redirect"
-        assert call.await_count == 2
-        # 重试时 max_tokens 翻倍
-        assert call.await_args_list[1].kwargs["max_tokens"] == 8192
-
-    @pytest.mark.asyncio
-    async def test_malformed_json_not_retried(self, supervisor):
-        bad = self._resp("这不是 JSON", "stop")
-        with self._patch_transport(supervisor, new=AsyncMock(return_value=bad)) as call, \
-             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=np.zeros(1536))):
-            review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
-        assert call.await_count == 1
-        # 解析失败时退化为 proceed，不中断主流程
-        assert review.verdict == "proceed"
-        assert "审查失败" in review.reasoning
-
-    @pytest.mark.asyncio
-    async def test_review_uses_raised_budget(self, supervisor):
-        full = self._resp('{"verdict": "pass", "reasoning": "ok", "advice": []}', "stop")
-        with self._patch_transport(supervisor, new=AsyncMock(return_value=full)) as call, \
-             patch.object(supervisor, "embed_text", new=AsyncMock(return_value=np.zeros(1536))):
-            review = await supervisor.review("目标", [{"role": "user", "content": "你好"}])
-        assert call.await_args_list[0].kwargs["max_tokens"] == 4096
-        assert review.verdict == "pass"
-
-
-class TestSupervisorAdviceSingleMarker:
-    """注入上下文的 supervisor 建议必须只有一个 [Supervisor] marker。"""
-
-    @pytest.mark.asyncio
-    async def test_format_then_inject_single_marker(self, context_manager, supervisor):
-        from cloudra.supervisor import SupervisorReview
-
-        review = SupervisorReview(
-            verdict="redirect",
-            reasoning="方向偏离",
-            advice=["先查文献", "再计算"],
-        )
-        advice_text = supervisor.format_advice(review)
-        # format_advice 自身不带 marker（由注入方统一包装）
-        assert not advice_text.startswith(SUPERVISOR_ADVICE_MARKER)
-
-        await context_manager.set_supervisor_advice(advice_text)
-        context = await context_manager.load()
-        msg = context[1]["content"]
-        assert msg.startswith(SUPERVISOR_ADVICE_MARKER)
-        assert msg.count(SUPERVISOR_ADVICE_MARKER) == 1
-        assert "方向偏离" in msg and "先查文献" in msg
-
-        # 注入后再次渲染：消息完整出现在发给 LLM 的上下文中
-        rendered = await context_manager.build_messages()
-        sup_msgs = [
-            m for m in rendered
-            if m.get("role") == "system" and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
-        ]
-        assert len(sup_msgs) == 1
-
-
-class TestSupervisorReviewEndToEnd:
-    """reAct._supervisor_review：建议紧跟 query、单 marker 且事件落库。"""
-
-    @pytest.mark.asyncio
-    async def test_review_injected_and_event_recorded(self, tmp_path, monkeypatch):
-        import sqlite3
-        from unittest.mock import AsyncMock
-
-        from cloudra.agent import Follower
-        from cloudra.database import ConversationDB
-        from cloudra.react import reAct
-        from cloudra.supervisor import SupervisorReview
-
-        db_path = str(tmp_path / "t.db")
-        ConversationDB.from_path(db_path).init()
-        monkeypatch.setattr("cloudra.react.get_database_path", lambda _c: db_path)
-
-        agent = Follower(id="a-sup", name="tester", prompt="测试", query="测试任务", conversation_id="sup-e2e")
-        react = reAct(agent)
-        agent._init_context_manager()
-        agent.context_manager.context_file = str(tmp_path / "ctx.json")
-        agent.context_manager.db_path = db_path
-        await agent.get_context()
-
-        react.supervisor.review = AsyncMock(return_value=SupervisorReview(
-            verdict="pass", reasoning="方向正确", advice=["继续"],
-        ))
-        await react._supervisor_review()
-
-        # 审查间隔已调为 15 轮
-        assert react.supervisor.interval == 15
-
-        ctx = await agent.get_context()
-        assert ctx[1]["role"] == "system"
-        assert ctx[1]["content"].startswith(SUPERVISOR_ADVICE_MARKER)
-        assert ctx[1]["content"].count(SUPERVISOR_ADVICE_MARKER) == 1
-        assert "方向正确" in ctx[1]["content"]
-        # 包装层附带了"优先参考"的引导语
-        assert "优先参考" in ctx[1]["content"]
-
-        with sqlite3.connect(db_path) as con:
-            row = con.execute(
-                "SELECT data FROM session_events WHERE event_type='supervisor_review' AND session_id=?",
-                (react.session.id,),
-            ).fetchone()
-        assert row is not None
-        import json
-        data = json.loads(row[0])
-        assert data["verdict"] == "pass" and data["advice"] == ["继续"]
+        assert not hasattr(react.supervisor, "interval")
 
 
 class TestCompressTimelineWindow:

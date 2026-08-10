@@ -133,22 +133,35 @@ def create_session_record(
     created_at: str,
     pid: Optional[int] = None,
     worker_id: Optional[str] = None,
+    orchestration_mode: str = "standard",
+    orchestration_config: dict | None = None,
 ) -> None:
     """创建即入库（reAct.session_create）：INSERT OR IGNORE + COALESCE 补齐元数据。"""
+    from cloudra.dag.models import normalize_orchestration_mode
+
     pid = os.getpid() if pid is None else pid
     worker_id = worker_id or f"process:{pid}"
     now = _utc_now()
+    normalized_mode = normalize_orchestration_mode(orchestration_mode).value
+    serialized_config = json.dumps(
+        orchestration_config or {},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
     def write() -> None:
         with db.connect() as con:
             con.execute(
                 """INSERT OR IGNORE INTO session
                 (session_id, agent_id, agent_type, parent_session_id, query, state, result, pid,
-                 worker_id, created_at, started_at, heartbeat_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 worker_id, created_at, started_at, heartbeat_at,
+                 orchestration_mode, orchestration_config)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     session_id, agent_id, agent_type, parent_session_id, query,
                     "running", "", pid, worker_id, created_at, now, now,
+                    normalized_mode, serialized_config,
                 ),
             )
             con.execute(
@@ -910,19 +923,33 @@ def insert_queued_session(
     node_id: str | None = None,
     workspace_id: str | None = None,
     working_directory: str | None = None,
+    orchestration_mode: str = "standard",
+    orchestration_config: dict | None = None,
 ) -> None:
     """SessionRunner.submit：先入队一条 queued Session。"""
+
+    from cloudra.dag.models import normalize_orchestration_mode
+
+    normalized_mode = normalize_orchestration_mode(orchestration_mode).value
+    serialized_config = json.dumps(
+        orchestration_config or {},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
     def write() -> None:
         with db.connect() as con:
             con.execute(
                 """INSERT INTO session
                 (session_id, agent_id, agent_type, query, state, created_at,
-                 node_id, workspace_id, working_directory)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 node_id, workspace_id, working_directory,
+                 orchestration_mode, orchestration_config)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     session_id, agent_id, agent_type, query, "queued", _utc_now(),
                     node_id, workspace_id, working_directory,
+                    normalized_mode, serialized_config,
                 ),
             )
             con.commit()

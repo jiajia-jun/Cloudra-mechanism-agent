@@ -1,28 +1,38 @@
 """科学督导 Agent（Supervisor）。
 
-Supervisor 是一个轻量的元认知模块，不执行工具，不走 ReAct 循环。
-它定期审查当前 Agent 的行为轨迹，判断其是否在战略方向上走偏，
-并从历史 case bank 中检索最相关的经验作为语料，给出高层次方向建议。
+包含两个部分：
+
+1. ``Supervisor``：case-bank 提取（任务结束后的经验沉淀），不干预在线执行。
+2. ``SupervisorAgent`` + ``GraphSupervisor``：dag_guided 模式下的图规划 agent。
+   它复用 Agent 基类与持久 ContextManager（conversation 级上下文，跨触发、
+   跨 session、跨进程重启连续），只持有 ``dag_graph`` 工具：用 view /
+   delivery_report 自助读图，用 mutate 维护 process DAG。delivery/机理 DAG
+   由 Coordinator 设计，Supervisor 对其只读（engine 按 actor 强制）。
 
 核心设计：
-- 单次思维链推理，输出 verdict + advice；
-- 直接对接 ContextManager，每 N 轮 reAct 被调用一次；
-- 建议被注入到 Agent 上下文中（位于 identity/query 之下，events 之上）。
+- 不按 ReAct 步数轮询；仅由图事件触发；
+- 不向 Coordinator 上下文注入自由文本建议；
+- 所有在线影响必须经过 DAG engine 的权限、revision 与无环校验；
+- 上下文每次触发不清空，只追加触发消息。
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     # 仅用于类型注解；运行时在使用点惰性导入。
     import numpy as np
 
+from cloudra.agent import Agent
 from cloudra.config import get_config
+from cloudra.dag.models import OrchestrationMode
 from cloudra.llm_client import LLMClient
 
 logger = logging.getLogger("Supervisor")
@@ -49,39 +59,204 @@ class TimelineEvent(BaseModel):
     details: dict = Field(default_factory=dict)
 
 
-class SupervisorReview(BaseModel):
-    """Supervisor 审查结果。"""
-    verdict: str = Field(
-        ...,
-        description="判断结果：proceed / pause_and_reflect / redirect",
-    )
-    reasoning: str = Field(
-        default="",
-        description="思维链：为什么给出这个判断",
-    )
-    advice: list[str] = Field(
-        default_factory=list,
-        description="方向性建议，最多 3 条",
-    )
-    suggested_direction: Optional[str] = Field(
-        default=None,
-        description="可选：建议转向的大方向",
-    )
-    relevant_cases: list[str] = Field(
-        default_factory=list,
-        description="引用的 case id 列表",
-    )
+class SupervisorAgent(Agent):
+    """dag_guided 下的图规划 agent：只持有 dag_graph 工具，上下文持久。
+
+    权限为 READ|MANAGE（dag_graph 的权限类别为 MANAGE），写安全由 DAG
+    engine 按 actor=SUPERVISOR 强制：process DAG 可维护，delivery DAG 只读。
+    """
+
+    id: str = "supervisor"
+    name: str = "supervisor"
+    type: str = "supervisor"
+
+    model: Optional[str] = None
+    llm_site: Optional[str] = None
+    _api_key: Optional[str] = None
+    temperature: float = 1.0
+    max_tokens: int = 8192
+    context_window: Optional[int] = None
+
+    prompt_name: Optional[str] = "supervisor"
+    query: str = ""
+    is_stream: bool = False
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        cfg = get_config().follower
+        self.model = self.model or cfg.model
+        self.llm_site = self.llm_site or cfg.url
+        self._api_key = self._api_key or cfg.key
+        self.context_window = self.context_window or cfg.context_window
+
+    def has_read_permission(self) -> bool:
+        return True
+
+    def has_manage_permission(self) -> bool:
+        return True
+
+    def get_available_tools(self, tools: Optional[list] = None) -> list:
+        """白名单：只有 dag_graph。读两张图、维护 process DAG 都经它。"""
+        return [
+            entry
+            for entry in super().get_available_tools(tools)
+            if entry.tool_name == "dag_graph"
+        ]
+
+
+class GraphSupervisorResult(BaseModel):
+    """一次 Supervisor 触发的结构化结果。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    trigger: str
+    rounds: int = 0
+    mutations: list[dict] = Field(default_factory=list)
+    note: str = ""
+
+
+class GraphSupervisor:
+    """SupervisorAgent 的触发驱动器：每次图事件运行一轮 agent 循环。
+
+    上下文由 SupervisorAgent 的 ContextManager 持久化（conversation 级，
+    session_id=None），跨触发/session/重启连续；本类与任何调用方都不得
+    对其调用 clear_context。
+    """
+
+    MAX_ROUNDS = 8
+
+    def __init__(
+        self,
+        *,
+        conversation_id: str,
+        working_directory: Optional[str] = None,
+    ):
+        self.conversation_id = conversation_id
+        self.working_directory = working_directory
+        self._agent: Optional[SupervisorAgent] = None
+
+    def _ensure_agent(self) -> SupervisorAgent:
+        if self._agent is None:
+            self._agent = SupervisorAgent(
+                conversation_id=self.conversation_id,
+                working_directory=self.working_directory,
+                orchestration_mode=OrchestrationMode.DAG_GUIDED,
+                session_id=None,
+            )
+        return self._agent
+
+    @staticmethod
+    def _trigger_message(trigger: str, coordinator_request: Optional[str]) -> str:
+        parts = [f"【图事件触发】{trigger}"]
+        if coordinator_request:
+            parts.append(f"【Coordinator 机理变更说明】{coordinator_request}")
+        parts.append(
+            "请用 dag_graph 的 view/delivery_report 查看当前两张图，"
+            "仅在确有必要时用 mutate 维护 process DAG；无事可做时直接结束，"
+            "不要再调用工具。"
+        )
+        return "\n".join(parts)
+
+    async def run(
+        self,
+        trigger: str,
+        coordinator_request: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> GraphSupervisorResult:
+        """追加一条触发消息并运行 Supervisor 的工具循环（至多 MAX_ROUNDS 轮）。"""
+        # 惰性导入，避免模块级依赖 tools 包。
+        from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
+
+        agent = self._ensure_agent()
+        await agent.update_context(
+            {"role": "user", "content": self._trigger_message(trigger, coordinator_request)}
+        )
+        # DagGraph 只读取 session.id 作为 mutation 的 session 归属。
+        session = SimpleNamespace(id=session_id or "supervisor")
+        mutations: list[dict] = []
+        rounds = 0
+        note = ""
+
+        for _ in range(self.MAX_ROUNDS):
+            try:
+                response = await agent.llm_call()
+            except Exception as exc:  # LLM 故障不炸任务：Supervisor 是顾问角色
+                logger.warning("[Supervisor] llm_call failed: %s", exc)
+                note = f"llm_call failed: {exc}"
+                break
+            message = response.choices[0].message
+            raw_tool_calls = message.tool_calls or []
+            tool_calls = [tc.model_dump(exclude_none=True) for tc in raw_tool_calls]
+            block = {"role": "assistant", "content": message.content or ""}
+            if tool_calls:
+                block["tool_calls"] = tool_calls
+            await agent.update_context(block)
+            if not tool_calls:
+                break
+            rounds += 1
+            for tool_call in tool_calls:
+                tool_call_id = tool_call.get("id")
+                name = tool_call.get("function", {}).get("name", "")
+                raw_args = tool_call.get("function", {}).get("arguments") or "{}"
+                if isinstance(raw_args, str):
+                    try:
+                        args = json.loads(raw_args, strict=False)
+                    except json.JSONDecodeError as exc:
+                        await agent.update_context({
+                            "role": "tool",
+                            "tool_call_id": tool_call_id,
+                            "content": f"【系统错误】工具参数解析失败: {exc}",
+                        })
+                        continue
+                else:
+                    args = raw_args
+                if name != "dag_graph":
+                    await agent.update_context({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": f"【系统错误】工具 {name!r} 不可用；你只有 dag_graph。",
+                    })
+                    continue
+                try:
+                    input_obj = DagGraphInput(**args)
+                except ValueError as exc:
+                    await agent.update_context({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": f"【系统错误】dag_graph 参数校验失败: {exc}",
+                    })
+                    continue
+                output = await DagGraph(subagent=agent).tool_call(input_obj, session)
+                payload = output.model_dump(mode="json")
+                if input_obj.action == "mutate":
+                    mutations.append({
+                        "accepted": output.accepted,
+                        "rejection_code": output.rejection_code,
+                        "revisions": payload.get("result", {}).get("revisions"),
+                    })
+                await agent.update_context({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": json.dumps(payload, ensure_ascii=False, default=str)[:4000],
+                })
+        else:
+            note = f"reached MAX_ROUNDS ({self.MAX_ROUNDS})"
+
+        return GraphSupervisorResult(
+            trigger=trigger,
+            rounds=rounds,
+            mutations=mutations,
+            note=note,
+        )
 
 
 class Supervisor:
-    """科学督导器。
+    """case-bank 提取器（任务结束后的经验沉淀，不参与在线图规划）。
 
     Args:
         model: 使用的 LLM 名称。
         base_url: LLM API base URL。
         api_key: LLM API key。
-        interval: 每 N 轮 reAct 调用一次 review。
-        max_advice_items: 最多输出几条建议。
     """
 
     def __init__(
@@ -89,17 +264,13 @@ class Supervisor:
         model: Optional[str] = None,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        interval: int = 5,
-        max_advice_items: int = 3,
     ):
         cfg = get_config()
         # 默认使用 follower 配置，但允许单独指定
         self.model = model or cfg.follower.model
         self.base_url = base_url or cfg.follower.url
         self.api_key = api_key or cfg.follower.key
-        self.interval = max(1, interval)
-        self.max_advice_items = max(1, max_advice_items)
-        # LLM 传输层客户端缓存：review/extract 每 5 步触发一次，避免重复新建连接池
+        # LLM 传输层客户端缓存，供独立的 case extraction 复用。
         self._llm_client: Optional[LLMClient] = None
 
     def _get_client(self) -> LLMClient:
@@ -111,10 +282,6 @@ class Supervisor:
                 model=self.model,
             )
         return self._llm_client
-
-    def should_review(self, step: int) -> bool:
-        """判断当前轮次是否应该触发审查。"""
-        return step > 0 and step % self.interval == 0
 
     def compress_timeline(
         self,
@@ -221,114 +388,6 @@ class Supervisor:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [case for _, case in scored[:k]]
 
-    def build_prompt(
-        self,
-        user_goal: str,
-        timeline_summary: str,
-        cases: list[dict],
-        goal_anchor: str = "",
-    ) -> str:
-        """构造 Supervisor 的调用 prompt。"""
-        case_texts = []
-        for case in cases:
-            case_texts.append(
-                f"- Case {case.get('id', 'unknown')}: {case.get('task_summary', '')}\n"
-                f"  结果: {case.get('outcome', 'unknown')} — {case.get('outcome_reason', '')}\n"
-                f"  教训: {case.get('lesson', '')}"
-            )
-
-        cases_block = "\n".join(case_texts) if case_texts else "（暂无相关历史经验）"
-        goal_block = (
-            f"任务目标锚点（Agent 自行设定，含完成判据，作为主要审查基准）：\n{goal_anchor}\n\n"
-            if goal_anchor
-            else ""
-        )
-
-        prompt = (
-            "你是 Cloudra 的科学督导导师。你的职责是监督 AI 研究助手是否在战略方向上走偏。\n"
-            "\n"
-            "审查原则：\n"
-            "1. 不要指出具体语法错误或工具 bug；\n"
-            "2. 不要给出逐步操作指令；\n"
-            "3. 默认 proceed：只有方向明显偏离目标、或继续下去会浪费大量资源时，\n"
-            "   才给出 pause_and_reflect / redirect；拿不准时不要干预。\n"
-            "4. 关注助手是否：\n"
-            "   - 偏离了目标锚点/用户原始目标；\n"
-            "   - 在关键信息缺失时推进高风险步骤；\n"
-            "   - 重复做已有现成答案的工作。\n"
-            "5. 给出 verdict 和 1-3 条高层次方向建议。\n"
-            "\n"
-            f"用户原始目标：{user_goal}\n"
-            "\n"
-            f"{goal_block}"
-            f"近期行为时间线：\n{timeline_summary}\n"
-            "\n"
-            f"相关历史经验：\n{cases_block}\n"
-            "\n"
-            "请以 JSON 格式输出，字段包括：\n"
-            '- verdict: "proceed" | "pause_and_reflect" | "redirect"\n'
-            '- reasoning: 简短思维链\n'
-            '- advice: 字符串数组，最多 3 条方向建议\n'
-            '- suggested_direction: 可选，建议转向的大方向\n'
-            '- relevant_cases: 引用的 case id 数组'
-        )
-        return prompt
-
-    async def review(
-        self,
-        user_goal: str,
-        messages: list[dict],
-        cases: Optional[list[dict]] = None,
-        goal_anchor: str = "",
-    ) -> SupervisorReview:
-        """执行一次战略审查。
-
-        Args:
-            user_goal: 用户原始目标。
-            messages: 当前 Agent 的完整上下文消息列表。
-            cases: 可选的 case bank 列表，每个 case 应包含 embedding 字段。
-            goal_anchor: Agent 通过 goal_set 设定的目标锚点（含完成判据），
-                有锚点时以其为主要审查基准，user_goal 作为背景。
-
-        Returns:
-            SupervisorReview 对象。
-        """
-        timeline_summary = self.compress_timeline(messages)
-        query_vec = await self.embed_text(timeline_summary)
-        relevant_cases = self.retrieve_relevant_cases(
-            query_vec,
-            cases or [],
-            k=3,
-        )
-
-        prompt = self.build_prompt(user_goal, timeline_summary, relevant_cases, goal_anchor=goal_anchor)
-
-        data, error = await self._get_client().chat_json(
-            SUPERVISOR_SYSTEM_PROMPT,
-            prompt,
-            # thinking 模型的思考段会吃掉输出预算，1024 极易截断 JSON
-            max_tokens=4096,
-            temperature=1.0,
-            response_format={"type": "json_object"},
-        )
-        if error is not None:
-            print(f"[Supervisor] 审查调用/解析失败: {error}")
-            return SupervisorReview(verdict="proceed", reasoning=f"Supervisor 审查失败: {error}")
-
-        # 限制 advice 数量
-        advice = data.get("advice", [])
-        if isinstance(advice, str):
-            advice = [advice]
-        advice = advice[: self.max_advice_items]
-
-        return SupervisorReview(
-            verdict=data.get("verdict", "proceed"),
-            reasoning=data.get("reasoning", ""),
-            advice=advice,
-            suggested_direction=data.get("suggested_direction"),
-            relevant_cases=[str(c.get("id", "")) for c in relevant_cases],
-        )
-
     async def extract_case(self, messages: list[dict]) -> dict:
         """从完整 trajectory 中提取结构化 case。
 
@@ -381,33 +440,14 @@ class Supervisor:
             "lesson": "",
         }
 
-    def format_advice(self, review: SupervisorReview) -> str:
-        """把 SupervisorReview 格式化为注入上下文的 system 消息文本。
-
-        注意：不要在文本前加 [Supervisor] 前缀——SUPERVISOR_ADVICE_MARKER
-        由 ContextManager.set_supervisor_advice 在包装时统一添加，
-        否则最终消息会出现双重 marker（"[Supervisor]\n[Supervisor] ..."）。
-        """
-        lines = [str(review.reasoning)]
-        if review.advice:
-            lines.append("方向建议：")
-            for idx, item in enumerate(review.advice, 1):
-                lines.append(f"{idx}. {item}")
-        if review.suggested_direction:
-            lines.append(f"建议转向：{review.suggested_direction}")
-        return "\n".join(lines)
-
-
 def get_supervisor(
     model: Optional[str] = None,
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
-    interval: int = 5,
 ) -> Supervisor:
     """工厂函数，便于从配置创建 Supervisor 实例。"""
     return Supervisor(
         model=model,
         base_url=base_url,
         api_key=api_key,
-        interval=interval,
     )

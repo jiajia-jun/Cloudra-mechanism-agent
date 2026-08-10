@@ -9,6 +9,11 @@ from typing import Optional
 from cloudra.agent import Coordinator
 from cloudra.context_manager import ContextManager
 from cloudra.conversation_class import Conversation
+from cloudra.dag.models import (
+    OrchestrationMode,
+    build_orchestration_config,
+    normalize_orchestration_mode,
+)
 from cloudra.database import ConversationDB
 from cloudra.events import ensure_listener, subscribe_async
 from cloudra.presentation import Color, print_banner
@@ -132,6 +137,8 @@ async def run_task_async(
     session_id: Optional[str] = None,
     working_directory: Optional[str] = None,
     interactive_approval: bool = True,
+    orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+    orchestration_config: Optional[dict] = None,
 ) -> str:
     """执行一个 Cloudra 任务（异步版本）。
 
@@ -145,6 +152,10 @@ async def run_task_async(
     Returns:
         Coordinator 的最终结果字符串
     """
+    orchestration_mode = normalize_orchestration_mode(orchestration_mode)
+    if orchestration_config is None:
+        orchestration_config = build_orchestration_config(orchestration_mode)
+
     if verbose:
         print_banner()
         print(f"{Color.GREEN}[系统]{Color.END} 正在启动任务: {Color.BOLD}{query}{Color.END}")
@@ -162,6 +173,8 @@ async def run_task_async(
         query=query,
         conversation_id=conversation.id,
         working_directory=working_directory,
+        orchestration_mode=orchestration_mode,
+        orchestration_config=orchestration_config,
     )
     context = await coordinator_agent.get_context()
     if not context or context[-1].get("content") != query:

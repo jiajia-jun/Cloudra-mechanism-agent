@@ -861,6 +861,24 @@
         }
       ],
       "widget": "Static#plan-view"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "DAG"
+        }
+      ],
+      "widget": "Static#"
+    },
+    {
+      "segments": [
+        {
+          "style": "",
+          "text": "standard（无 DAG）"
+        }
+      ],
+      "widget": "Static#dag-view"
     }
   ],
   "status": [

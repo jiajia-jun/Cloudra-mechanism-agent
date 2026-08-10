@@ -592,48 +592,17 @@ class TestTokenUsageEvents:
 
 
 # ---------------------------------------------------------------------------
-# 8. Supervisor 读取 goal 锚点
+# 8. Supervisor 遗留自由文本审阅入口已退役
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-class TestSupervisorGoalAnchor:
-    def test_build_prompt_includes_goal_anchor(self):
-        """有锚点时 prompt 以锚点为主要审查基准；无锚点时不含该块。"""
+
+class TestSupervisorDagBoundary:
+    def test_legacy_advice_surface_is_not_available(self):
+        """防止周期 review/自由文本 advice 绕过 DAG mutation 校验。"""
         from cloudra.supervisor import Supervisor
 
         supervisor = Supervisor()
-        prompt = supervisor.build_prompt(
-            "用户目标", "时间线", [], goal_anchor="【任务目标】完成 DFT 计算\n完成判据: 能量收敛"
-        )
-        assert "【任务目标】完成 DFT 计算" in prompt
-        assert "主要审查基准" in prompt
 
-        prompt_without = supervisor.build_prompt("用户目标", "时间线", [])
-        assert "主要审查基准" not in prompt_without
-
-    async def test_review_extracts_anchor_from_context(self, tmp_path, monkeypatch):
-        """_supervisor_review 从上下文提取最新 GOAL_MARKER 消息传给 Supervisor。"""
-        from types import SimpleNamespace
-
-        from cloudra.tools.Plantool.goal import GOAL_MARKER
-
-        react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool])
-        await agent.get_context()
-        await agent.update_context({"role": "system", "content": f"{GOAL_MARKER} 旧目标"})
-        await agent.update_context({"role": "user", "content": "干活"})
-        await agent.update_context({"role": "system", "content": f"{GOAL_MARKER} 新目标"})
-
-        captured = {}
-
-        async def fake_review(user_goal, messages, cases=None, goal_anchor=""):
-            captured["goal_anchor"] = goal_anchor
-            return SimpleNamespace(verdict="proceed", reasoning="ok", advice=[])
-
-        monkeypatch.setattr(react.supervisor, "review", fake_review)
-        monkeypatch.setattr(react.supervisor, "format_advice", lambda review: "建议")
-
-        await react._supervisor_review()
-
-        assert captured["goal_anchor"].startswith(GOAL_MARKER)
-        assert "新目标" in captured["goal_anchor"]
-        assert "旧目标" not in captured["goal_anchor"]
+        assert not hasattr(supervisor, "build_prompt")
+        assert not hasattr(supervisor, "review")
+        assert not hasattr(supervisor, "format_advice")

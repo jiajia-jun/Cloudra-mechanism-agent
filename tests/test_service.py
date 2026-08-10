@@ -27,7 +27,7 @@ def test_validate_conversation_id_rejects_path_traversal():
 def test_session_reads_migrate_legacy_database_before_select(tmp_path, monkeypatch):
     """TUI startup must open pre-route-schema conversations without crashing."""
     from cloudra.config import get_config, reload_config
-    from cloudra.database import ConversationDB
+    from cloudra.database import SCHEMA_VERSION, ConversationDB
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -59,7 +59,7 @@ def test_session_reads_migrate_legacy_database_before_select(tmp_path, monkeypat
         columns = {row[1] for row in con.execute("PRAGMA table_info(session)")}
         version = con.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
     assert {"node_id", "workspace_id", "working_directory"} <= columns
-    assert version == 7
+    assert version == SCHEMA_VERSION
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_session_runner_persists_completed_result(tmp_path, monkeypatch):
     conversation = Conversation()
 
     class Service:
-        async def run_task(self, query, conversation_id, session_id=None):
+        async def run_task(self, query, conversation_id, session_id=None, **_kwargs):
             return "saved"
 
     runner = SessionRunner(Service())
@@ -102,7 +102,7 @@ async def test_session_runner_tracks_failure(tmp_path, monkeypatch):
     conversation = Conversation()
 
     class Service:
-        async def run_task(self, query, conversation_id, session_id=None):
+        async def run_task(self, query, conversation_id, session_id=None, **_kwargs):
             raise RuntimeError("boom")
 
     runner = SessionRunner(Service())

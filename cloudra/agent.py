@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import inspect
 import json
 import os
 from datetime import datetime
@@ -7,11 +8,12 @@ from typing import Any, Optional
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr
 
 from cloudra import __version__, events
 from cloudra.config import get_config
 from cloudra.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
 from cloudra.database import ConversationDB
 from cloudra.llm_client import ChatResponse, LLMClient
 from cloudra.runtime.prompt_assembler import (
@@ -129,6 +131,9 @@ class Agent(BaseModel):
     # API 会话可独立指定目录，避免修改进程级 cwd 导致并发任务互相影响。
     working_directory: Optional[str] = None
 
+    orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
+    orchestration_config: dict = Field(default_factory=dict)
+
     # LLM 传输层客户端（实例级缓存，惰性构造）：
     # 三级 fallback 的级别记忆（_curl_mode/_use_custom_headers）在其中维护
     _llm_client: Optional[LLMClient] = None
@@ -143,6 +148,7 @@ class Agent(BaseModel):
 
     _last_prompt_assembly: Optional[PromptAssembly] = PrivateAttr(default=None)
     _last_request_diagnostics: dict = PrivateAttr(default_factory=dict)
+    _dag_projection_provider: Any = PrivateAttr(default=None)
 
     # todo 提醒节流：每 _TODO_REMIND_EVERY 轮注入一次；supervisor 反对时强制注入一次
     _reasoning_round: int = 0
@@ -213,6 +219,8 @@ class Agent(BaseModel):
         same checks to its current registry snapshot.
         """
         tools = filter_tools_for_runtime(get_tools_lst() if tools is None else tools)
+        if normalize_orchestration_mode(self.orchestration_mode) is OrchestrationMode.STANDARD:
+            tools = [entry for entry in tools if entry.tool_name != "dag_graph"]
         device_tool_names = {
             entry.tool_name
             for entry in tools
@@ -431,6 +439,10 @@ class Agent(BaseModel):
             observer_id=self.id,
         )
 
+    def set_dag_projection_provider(self, provider) -> None:
+        """Attach a request-time provider; graph state is never cached in prompts."""
+        self._dag_projection_provider = provider
+
     @staticmethod
     def _device_prompt_snapshot(tool_names: list[str]) -> list[dict]:
         """Read a non-secret device snapshot without making it a hard dependency."""
@@ -502,6 +514,12 @@ class Agent(BaseModel):
             identity_messages=list(assembly.identity_messages),
         )
         messages.extend(assembly.observation_messages)
+        if self._dag_projection_provider is not None:
+            projection = self._dag_projection_provider()
+            if inspect.isawaitable(projection):
+                projection = await projection
+            if projection:
+                messages.append({"role": "system", "content": str(projection)})
         return messages
 
     def get_runtime_diagnostics(self) -> dict[str, Any]:

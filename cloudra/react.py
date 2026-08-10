@@ -7,14 +7,15 @@ from cloudra import events, session_store
 from cloudra.agent import Agent
 from cloudra.case_bank import get_case_bank
 from cloudra.config import get_config
+from cloudra.dag.controller import DagController
+from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
 from cloudra.database import ConversationDB, get_database_path
 from cloudra.log_class import Log
 from cloudra.presentation import Color
 from cloudra.session_class import Session
 from cloudra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
-from cloudra.supervisor import get_supervisor
+from cloudra.supervisor import GraphSupervisor, get_supervisor
 from cloudra.tools import get_tools_lst
-from cloudra.tools.Plantool.goal import GOAL_MARKER
 
 
 class AgentCancelled(Exception):
@@ -91,10 +92,39 @@ class reAct:
         self._continue = True
         self.undos = []
 
-        # 每轮 ReAct 的步数计数，用于触发 Supervisor 定期审查
+        # 轮次仍用于其他循环诊断；图规划 Supervisor 仅在 DAG-guided 下启用。
         self.step_count = 0
-        # 科学督导模块：默认每 15 轮审查一次方向
-        self.supervisor = get_supervisor(interval=15)
+        self.orchestration_mode = normalize_orchestration_mode(
+            getattr(agent, "orchestration_mode", None)
+        )
+        # case-bank 提取器（任务结束后的经验沉淀）。
+        self.supervisor = (
+            get_supervisor()
+            if self.orchestration_mode is OrchestrationMode.DAG_GUIDED
+            else None
+        )
+        # 图规划 agent：复用 Agent 类，持 dag_graph 工具，上下文跨触发持久。
+        self.graph_supervisor = (
+            GraphSupervisor(
+                conversation_id=conv_id,
+                working_directory=getattr(agent, "working_directory", None),
+            )
+            if self.orchestration_mode is OrchestrationMode.DAG_GUIDED
+            else None
+        )
+        self.dag_controller = DagController(
+            ConversationDB.from_path(self.database_path),
+            self.session.id,
+            self.orchestration_mode,
+            conversation_id=conv_id,
+            working_directory=getattr(agent, "working_directory", None),
+            artifact_data_dir=data_dir,
+            supervisor=self.graph_supervisor,
+        )
+        if self.orchestration_mode is not OrchestrationMode.STANDARD:
+            self.agent.set_dag_projection_provider(
+                self.dag_controller.prompt_projection
+            )
         # tool_call 反查表缓存：仅当真的出现空 name 时才惰性构建（见 _normalize_tool_calls）
         self._tool_arg_maps = None
         # 输出被 max_tokens 截断的重试计数（见 _retry_on_truncation）
@@ -197,69 +227,6 @@ class reAct:
         await self._setup_event_subscriptions()
         return await self._consume_external_events() > 0
 
-    def _should_use_supervisor(self) -> bool:
-        """判断是否启用 Supervisor。
-
-        默认启用；如果 Supervisor 未配置有效 LLM，则后续 review 会退化，
-        这里仍保留实例以便统一日志。
-        """
-        return getattr(self.agent, 'type', '') != 'yolo_guard'
-
-    async def _supervisor_review(self) -> None:
-        """调用 Supervisor 审查当前方向，并将建议写入上下文。"""
-        if not self.supervisor or not self.agent.context_manager:
-            return
-
-        try:
-            user_goal = self.agent.query or ""
-            messages = await self.agent.get_context()
-
-            # 提取最新的 goal 锚点（goal_set 工具写入），让审查对准可验证的完成判据
-            goal_anchor = ""
-            for msg in reversed(messages):
-                content = str(msg.get("content", ""))
-                if msg.get("role") == "system" and content.startswith(GOAL_MARKER):
-                    goal_anchor = content
-                    break
-
-            # 从全局 Case Bank 检索历史经验（跨 conversation 共享）
-            case_bank = get_case_bank()
-            cases = case_bank.get_cases(limit=50)
-
-            review = await self.supervisor.review(
-                user_goal=user_goal,
-                messages=messages,
-                cases=cases,
-                goal_anchor=goal_anchor,
-            )
-            advice_text = self.supervisor.format_advice(review)
-            await self.agent.context_manager.set_supervisor_advice(advice_text)
-            # 遥测事件：前端边栏据此展示当前阶段的 Supervisor 意见
-            await self._record_event("supervisor_review", {
-                "verdict": review.verdict,
-                "reasoning": review.reasoning,
-                "advice": [str(item) for item in review.advice],
-            })
-
-            if review.verdict in ('redirect', 'pause_and_reflect'):
-                # Supervisor 提出反对：下一轮强制注入 todo 提醒，让模型重新
-                # 对照任务清单校正方向（见 Agent._should_inject_todo_reminder）。
-                try:
-                    self.agent._todo_reminder_force = True
-                except Exception:
-                    pass
-                self.log.update_content(
-                    f"{Color.YELLOW}[Supervisor] {review.verdict.upper()}: {review.reasoning}{Color.END}\n"
-                )
-                for item in review.advice:
-                    self.log.update_content(f"{Color.YELLOW}  - {item}{Color.END}\n")
-            else:
-                self.log.update_content(
-                    f"{Color.BLUE}[Supervisor] 审查通过: {review.reasoning}{Color.END}\n"
-                )
-        except Exception as e:
-            print(f"[reAct] Supervisor 审查失败: {e}")
-
     async def _persist_case(self) -> None:
         """任务结束时把 trajectory 沉淀为结构化 case 到全局 Case Bank。"""
         if not self.supervisor or not self.agent.context_manager:
@@ -301,6 +268,7 @@ class reAct:
         '''
         # 确保上下文管理器已初始化，并加载初始上下文
         await self.agent.get_context()
+        await self.dag_controller.initialize()
         await self._setup_event_subscriptions()
         # 把 LLM 传输层状态（重试/fallback/异常）桥接为 session 事件：
         # 全屏 TUI 下 print 不可见，没有这些事件用户只能看到"卡住"
@@ -362,10 +330,6 @@ class reAct:
             # 每轮推理前，消费 IPC 与持久化外部事件并注入上下文
             await self._consume_external_events()
 
-            # 每 15 轮触发一次 Supervisor 方向审查
-            if self._should_use_supervisor() and self.supervisor and self.supervisor.should_review(self.step_count):
-                await self._supervisor_review()
-
             tool_calls = await self.reasoning()
 
             if not tool_calls:
@@ -377,6 +341,32 @@ class reAct:
                     context = await self.agent.get_context()
                     content = context[-1].get('content', '') if context else ''
                     if content:
+                        allowed, report = await self.dag_controller.audit_stop(
+                            "complete"
+                        )
+                        if not allowed:
+                            gaps = [
+                                gate.model_dump(mode="json")
+                                for gate in [
+                                    *report.unresolved,
+                                    *report.inconclusive,
+                                ]
+                            ]
+                            err_msg = (
+                                "【交付审计未通过】普通正文不能绕过 DAG 交付审计；"
+                                "当前机理证据仍有缺口："
+                                + json.dumps(gaps, ensure_ascii=False)
+                                + "。请继续补证，或显式调用 stop 并选择 partial / "
+                                "user_terminated。"
+                            )
+                            await self.agent.update_context(
+                                {"role": "system", "content": err_msg}
+                            )
+                            await self._record_event(
+                                "delivery_stop_rejected",
+                                {"gaps": gaps, "implicit_completion": True},
+                            )
+                            continue
                         self.session.state = 'completed'
                         db = ConversationDB.from_path(self.database_path)
                         await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
@@ -790,6 +780,7 @@ class reAct:
         返回 bool：是否检测到 stop 工具并请求终止循环。
         '''
         session = self.session
+        await self.dag_controller.initialize()
         # Enforce the same permission/runtime boundary used to build the LLM
         # schema.  A hallucinated tool name must never bypass a hidden tool.
         tool_entries = self.agent.get_available_tools(get_tools_lst())
@@ -798,6 +789,7 @@ class reAct:
         acts = []
         tool_call_ids = []
         tool_names = []
+        tool_arguments = {}
         stop_requested = False
 
         for tool_call in tool_calls:
@@ -875,7 +867,10 @@ class reAct:
                     f"{Color.YELLOW}[系统] 检测到重复工具调用: {tool_name} x{repeat}{Color.END}\n"
                 )
 
-            if tool_name == 'stop':
+            # stop 判定保持在工具查找之前（历史语义）：即使工具表里没有 stop，
+            # 也标记终止请求，找不到工具的错误照常回喂；DAG 交付审计若拒绝，
+            # 会在下方 found 分支里把这两个标记重置回去。
+            if tool_name == "stop":
                 self._continue = False
                 stop_requested = True
 
@@ -918,10 +913,52 @@ class reAct:
                         )
                         break
 
+                    if tool_name == "stop":
+                        # 自定义 stop 类工具可能没有 delivery_disposition 字段，
+                        # 缺省按 complete 走交付审计（standard 模式下 audit_stop 直接放行）
+                        allowed, report = await self.dag_controller.audit_stop(
+                            getattr(input_instance, "delivery_disposition", "complete")
+                        )
+                        if not allowed:
+                            gaps = [
+                                gate.model_dump(mode="json")
+                                for gate in [*report.unresolved, *report.inconclusive]
+                            ]
+                            err_msg = (
+                                "【交付审计未通过】delivery_disposition=complete，"
+                                "当前机理证据仍有缺口："
+                                + json.dumps(gaps, ensure_ascii=False)
+                            )
+                            await self._commit_undos()
+                            await self.agent.update_context({
+                                "role": "tool",
+                                "tool_call_id": tool_call_id,
+                                "content": err_msg,
+                            })
+                            await self._record_event(
+                                "delivery_stop_rejected",
+                                {"gaps": gaps},
+                            )
+                            self.log.update_content(
+                                f"{Color.YELLOW}{err_msg}{Color.END}\n"
+                            )
+                            # 审计拒绝：撤销上方早判块置上的终止标记，继续补证
+                            self._continue = True
+                            stop_requested = False
+                            break
+                        self._continue = False
+                        stop_requested = True
+
                     session.state = 'waiting'
+                    await self.dag_controller.on_tool_started(
+                        tool_call_id,
+                        tool_name,
+                        tool_args,
+                    )
                     acts.append(tool_instance.safe_call(input_instance, session))
                     tool_call_ids.append(tool_call_id)
                     tool_names.append(tool_name)
+                    tool_arguments[tool_call_id] = tool_args
                     break
 
             if not found:
@@ -952,9 +989,25 @@ class reAct:
                 if isinstance(tool_result, Exception):
                     # 如果工具执行抛出了异常，将错误信息反馈给 Agent
                     content = f"【系统错误】工具执行发生异常: {str(tool_result)}"
+                    result_dict = {
+                        "is_success": False,
+                        "error": str(tool_result),
+                    }
+                    await self.dag_controller.on_tool_finished(
+                        tool_call_id,
+                        tool_name,
+                        tool_arguments.get(tool_call_id, {}),
+                        result_dict,
+                    )
                     self.log.update_content(f"{Color.RED}工具异常: {tool_name}: {str(tool_result)}{Color.END}\n")
                 else:
                     result_dict = tool_result.toJson()
+                    await self.dag_controller.on_tool_finished(
+                        tool_call_id,
+                        tool_name,
+                        tool_arguments.get(tool_call_id, {}),
+                        result_dict,
+                    )
                     content = json.dumps(result_dict)
                     # 自动提取图片路径（如果工具输出中包含该字段）
                     if result_dict.get('image_path'):
@@ -1033,6 +1086,16 @@ class reAct:
             parent_session_id=self.parent_session_id,
             query=getattr(self.agent, 'query', ''),
             created_at=session_.create_time.isoformat(),
+            orchestration_mode=getattr(
+                self.agent,
+                "orchestration_mode",
+                OrchestrationMode.STANDARD,
+            ),
+            orchestration_config=getattr(
+                self.agent,
+                "orchestration_config",
+                {},
+            ),
         )
         return
 

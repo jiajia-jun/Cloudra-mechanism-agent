@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -14,6 +14,13 @@ class StopTool_input_schema(input_schema):
     final_answer: str = Field(
         default="",
         description="【非常重要】如果是答题/评测任务，请务必在这里填入你的最终精简答案（例如 A,B 或 245.8）。工具会自动将其包裹为 [ANSWER] 标签。"
+    )
+    delivery_disposition: Literal["complete", "partial", "user_terminated"] = Field(
+        default="complete",
+        description=(
+            "DAG 模式交付声明：complete 必须通过 evidence-derived coverage；"
+            "partial 保留缺口后收尾；user_terminated 表示用户要求停止。"
+        ),
     )
 
 

@@ -83,6 +83,38 @@ async def test_role_prompt_change_applies_to_next_request(
     assert persisted == [{"role": "user", "content": "继续任务"}]
 
 
+@pytest.mark.asyncio
+async def test_dag_projection_provider_is_fresh_and_standard_has_no_marker(
+    tmp_path,
+    isolated_prompt_sources,
+):
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("# 角色", encoding="utf-8")
+    standard = _agent(tmp_path, workspace, prompt_name="probe")
+
+    ordinary = await standard._build_request_kwargs()
+    assert not any(
+        "DAG projection" in str(message.get("content", ""))
+        for message in ordinary["messages"]
+    )
+
+    calls = 0
+
+    async def projection():
+        nonlocal calls
+        calls += 1
+        return f"DAG projection revision={calls}; no evidence bodies"
+
+    guided = _agent(tmp_path, workspace, prompt_name="probe")
+    guided.set_dag_projection_provider(projection)
+    first = await guided._build_request_kwargs()
+    second = await guided._build_request_kwargs()
+
+    assert calls == 2
+    assert first["messages"][-1]["content"].endswith("revision=1; no evidence bodies")
+    assert second["messages"][-1]["content"].endswith("revision=2; no evidence bodies")
+
+
 def test_web_search_guidance_gated_by_availability(isolated_prompt_sources):
     """联网搜索引导仅在声明有搜索能力时注入。"""
     from cloudra.runtime.prompt_assembler import PromptAssembler

@@ -41,6 +41,8 @@ class StatusBar(Static):
     compaction_info = reactive("")
     # 模型原生网页搜索适配器名（空 = 未启用，走传统 web_search 工具）
     native_search = reactive("")
+    # 编排模式：standard / dag_record / dag_guided（standard 不额外显示）
+    orch_mode = reactive("standard")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -94,6 +96,9 @@ class StatusBar(Static):
     def watch_native_search(self, native_search: str) -> None:
         self._refresh()
 
+    def watch_orch_mode(self, orch_mode: str) -> None:
+        self._refresh()
+
     def _tick(self) -> None:
         if self.session_state in _ACTIVE_STATES or self.compaction_info:
             self._frame += 1
@@ -119,6 +124,7 @@ class StatusBar(Static):
             self.pending,
             self.compaction_info,
             self.native_search,
+            self.orch_mode,
         )
         if render_key == self._last_render_key:
             return
@@ -143,6 +149,11 @@ class StatusBar(Static):
             text.append(f" | 上下文 {self.context_info}", style="magenta")
         if self.native_search:
             text.append(f" | 联网·{self.native_search}", style="bold yellow")
+        if self.orch_mode != "standard":
+            orch_label = {"dag_record": "DAG·记录", "dag_guided": "DAG·引导"}.get(
+                self.orch_mode, self.orch_mode
+            )
+            text.append(f" | {orch_label}", style="bold cyan")
         mode = "YOLO" if self.yolo else "审批"
         text.append(f" | {mode}")
         if self.pending > 0:

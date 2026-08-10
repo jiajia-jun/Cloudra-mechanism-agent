@@ -100,7 +100,14 @@ def gui():
 @click.option("--new", is_flag=True, help="启动新对话，不自动恢复")
 @click.option("--dry-run", is_flag=True, help="只显示配置，不实际执行")
 @click.option("--yolo", is_flag=True, help="启用 YOLO 全自动模式（危险操作由 LLM 自动审批）")
-def run(query, conv_id, new, dry_run, yolo):
+@click.option(
+    "--orchestration-mode",
+    type=click.Choice(["standard", "dag_record", "dag_guided"]),
+    default="standard",
+    show_default=True,
+    help="任务编排模式；DAG 模式按会话启用并持久化机理研究图。",
+)
+def run(query, conv_id, new, dry_run, yolo, orchestration_mode):
     """运行一个 Cloudra 任务。"""
     if yolo:
         os.environ["CLOUDRA_YOLO_MODE"] = "true"
@@ -128,6 +135,7 @@ def run(query, conv_id, new, dry_run, yolo):
         console.print(f"Data Dir: {config.data_dir}")
         console.print(f"Coordinator Model: {config.coordinator.model}")
         console.print(f"Follower Model: {config.follower.model}")
+        console.print(f"Orchestration Mode: {orchestration_mode}")
         return
 
 
@@ -147,6 +155,7 @@ def run(query, conv_id, new, dry_run, yolo):
         asyncio.run(service.run_task(
             query, conversation_id=active_conv_id, verbose=True, session_id=session_id,
             interactive_approval=not yolo,
+            orchestration_mode=orchestration_mode,
         ))
 
         # Save the used ID as the last one

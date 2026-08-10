@@ -1,0 +1,851 @@
+"""Transactional, permission-checked mutations for the two canonical DAGs."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+import uuid
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Any
+
+from cloudra.dag.models import (
+    CoverageContract,
+    CoverageWaiver,
+    DagEdge,
+    DagNode,
+    GraphActor,
+    GraphKind,
+    GraphOperation,
+    GraphRef,
+    GraphSnapshot,
+    MutationBatch,
+    MutationResult,
+)
+from cloudra.dag.store import DagCorruptionError, DagStore, _canonical_json
+from cloudra.database import retry_on_locked
+
+
+class _Rejected(ValueError):
+    def __init__(self, code: str, reason: str):
+        super().__init__(reason)
+        self.code = code
+        self.reason = reason
+
+
+@dataclass
+class _GraphState:
+    graph_id: str
+    kind: GraphKind
+    revision: int
+    metadata: dict[str, Any]
+    nodes: dict[str, DagNode] = field(default_factory=dict)
+    edges: dict[str, DagEdge] = field(default_factory=dict)
+    node_created: dict[str, int] = field(default_factory=dict)
+    edge_created: dict[str, int] = field(default_factory=dict)
+
+
+_MODEL_UPDATE_FIELDS = {
+    "status",
+    "priority",
+    "label",
+    "annotations",
+    "reason",
+    "blocked_reason",
+    "evidence_level",
+    "supersedes",
+    "required",
+}
+_IMMUTABLE_UPDATE_FIELDS = {
+    "node_id",
+    "edge_id",
+    "source_node_id",
+    "target_node_id",
+    "node_type",
+    "edge_type",
+    "refs",
+}
+_MODEL_ACTORS = {GraphActor.SUPERVISOR, GraphActor.AGENT}
+_MODEL_SETTABLE_EVIDENCE_LEVELS = {"proposed", "rejected", "inconclusive"}
+_DERIVED_EVIDENCE_FIELDS = {
+    "saddle_supported",
+    "short_irc_supported",
+    "endpoint_a_minimum_supported",
+    "endpoint_b_minimum_supported",
+    "endpoint_direction_consistent",
+    "endpoint_identity_matched",
+    "thermochemistry_supported",
+}
+
+
+def _contains_key(value: Any, forbidden: str) -> bool:
+    if isinstance(value, dict):
+        return forbidden in value or any(
+            _contains_key(item, forbidden) for item in value.values()
+        )
+    if isinstance(value, list):
+        return any(_contains_key(item, forbidden) for item in value)
+    return False
+
+
+class DagEngine:
+    def __init__(self, store: DagStore):
+        self.store = store
+
+    def snapshot(self) -> GraphSnapshot:
+        return self.store.load_snapshot()
+
+    def history(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self.store.db.connect() as con:
+            rows = con.execute(
+                """
+                SELECT mutation_id, session_id, actor_type, actor_id, rationale,
+                       base_revisions, resulting_revisions, operations, accepted,
+                       rejection_code, rejection_reason, created_at
+                FROM dag_mutations ORDER BY created_at DESC, rowid DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "mutation_id": row[0],
+                "session_id": row[1],
+                "actor": row[2],
+                "actor_id": row[3],
+                "rationale": row[4],
+                "base_revisions": json.loads(row[5]),
+                "resulting_revisions": json.loads(row[6]),
+                "operations": json.loads(row[7]),
+                "accepted": bool(row[8]),
+                "rejection_code": row[9],
+                "rejection_reason": row[10],
+                "created_at": row[11],
+            }
+            for row in rows
+        ]
+
+    def rebuild_materialized(self) -> GraphSnapshot:
+        """Replay accepted mutations into fresh in-memory state, then swap atomically."""
+
+        def operation() -> None:
+            with self.store.db.connect() as con:
+                con.execute("BEGIN IMMEDIATE")
+                graph_rows = con.execute(
+                    "SELECT graph_id, graph_kind, revision, metadata FROM dag_graphs"
+                ).fetchall()
+                if {row[1] for row in graph_rows} != {"process", "delivery"}:
+                    raise DagCorruptionError("the canonical graph pair is incomplete")
+                existing_revisions = {row[1]: row[2] for row in graph_rows}
+                states = {
+                    GraphKind(row[1]): _GraphState(
+                        graph_id=row[0],
+                        kind=GraphKind(row[1]),
+                        revision=0,
+                        metadata=json.loads(row[3]),
+                    )
+                    for row in graph_rows
+                }
+                links: dict[str, Any] = {"dirty": False, "items": {}}
+                con.execute(
+                    """
+                    UPDATE dag_coverage
+                    SET revision = 0, coverage = '{}', updated_at = datetime('now')
+                    """
+                )
+                rows = con.execute(
+                    """
+                    SELECT actor_type, base_revisions, resulting_revisions, operations
+                    FROM dag_mutations WHERE accepted = 1 ORDER BY rowid
+                    """
+                ).fetchall()
+                if not rows and any(existing_revisions.values()):
+                    raise DagCorruptionError(
+                        "materialized revisions are nonzero but the accepted journal is empty"
+                    )
+                try:
+                    for raw_actor, raw_base, raw_result, raw_operations in rows:
+                        base = json.loads(raw_base)
+                        expected_base = {
+                            kind.value: state.revision for kind, state in states.items()
+                        }
+                        if base != expected_base:
+                            raise DagCorruptionError(
+                                f"journal base revision mismatch: {base} != {expected_base}"
+                            )
+                        actor = GraphActor(raw_actor)
+                        touched: set[GraphKind] = set()
+                        for raw_operation in json.loads(raw_operations):
+                            self._apply_operation(
+                                con,
+                                states,
+                                links,
+                                touched,
+                                actor,
+                                GraphOperation.model_validate(raw_operation),
+                            )
+                        for state in states.values():
+                            self._validate_structure(con, state)
+                        calculated = dict(expected_base)
+                        for kind in touched:
+                            states[kind].revision += 1
+                            calculated[kind.value] = states[kind].revision
+                        recorded = json.loads(raw_result)
+                        if recorded != calculated:
+                            raise DagCorruptionError(
+                                f"journal resulting revision mismatch: {recorded} != {calculated}"
+                            )
+                except DagCorruptionError:
+                    raise
+                except (TypeError, ValueError, json.JSONDecodeError, _Rejected) as exc:
+                    raise DagCorruptionError(f"mutation journal cannot be replayed: {exc}") from exc
+
+                for state in states.values():
+                    self._validate_structure(con, state)
+                    self._write_graph(con, state)
+                self._write_links(
+                    con,
+                    links["items"],
+                    max((state.revision for state in states.values()), default=0),
+                )
+
+        retry_on_locked(operation)
+        return self.snapshot()
+
+    def apply_batch(self, batch: MutationBatch) -> MutationResult:
+        mutation_id = "mut_" + uuid.uuid4().hex
+        try:
+            revisions = retry_on_locked(
+                lambda: self._apply_transaction(mutation_id, batch)
+            )
+        except _Rejected as exc:
+            # except 块退出后 exc 会被解释器删除，先绑定到普通局部变量，
+            # 供 retry_on_locked 的重试闭包安全引用
+            rejection = exc
+            revisions = self.store.load_bundle().revisions
+            retry_on_locked(
+                lambda: self._record_rejection(mutation_id, batch, revisions, rejection)
+            )
+            return MutationResult(
+                accepted=False,
+                mutation_id=mutation_id,
+                revisions=revisions,
+                rejection_code=exc.code,
+                rejection_reason=exc.reason,
+            )
+        return MutationResult(
+            accepted=True,
+            mutation_id=mutation_id,
+            revisions=revisions,
+        )
+
+    def _apply_transaction(
+        self,
+        mutation_id: str,
+        batch: MutationBatch,
+    ) -> dict[str, int]:
+        with self.store.db.connect() as con:
+            con.execute("BEGIN IMMEDIATE")
+            states = self._load_states(con)
+            current = {kind.value: state.revision for kind, state in states.items()}
+            if batch.base_revisions != current:
+                raise _Rejected(
+                    "stale_revision",
+                    f"expected revisions {current}, received {batch.base_revisions}",
+                )
+
+            links = self._load_links(con)
+            touched: set[GraphKind] = set()
+            for operation in batch.operations:
+                self._apply_operation(con, states, links, touched, batch.actor, operation)
+
+            for state in states.values():
+                self._validate_structure(con, state)
+
+            resulting = dict(current)
+            for kind in touched:
+                state = states[kind]
+                state.revision += 1
+                resulting[kind.value] = state.revision
+                self._write_graph(con, state)
+            if links["dirty"]:
+                self._write_links(con, links["items"], max(resulting.values()))
+
+            self._insert_journal(
+                con,
+                mutation_id=mutation_id,
+                batch=batch,
+                base_revisions=current,
+                resulting_revisions=resulting,
+                accepted=True,
+            )
+            return resulting
+
+    def _load_states(self, con: sqlite3.Connection) -> dict[GraphKind, _GraphState]:
+        graph_rows = con.execute(
+            "SELECT graph_id, graph_kind, revision, metadata FROM dag_graphs"
+        ).fetchall()
+        states: dict[GraphKind, _GraphState] = {}
+        for graph_id, raw_kind, revision, metadata in graph_rows:
+            kind = GraphKind(raw_kind)
+            states[kind] = _GraphState(
+                graph_id=graph_id,
+                kind=kind,
+                revision=revision,
+                metadata=json.loads(metadata),
+            )
+        if set(states) != {GraphKind.PROCESS, GraphKind.DELIVERY}:
+            raise _Rejected("graph_missing", "the canonical graph pair is incomplete")
+
+        for state in states.values():
+            for row in con.execute(
+                """
+                SELECT node_id, node_type, label, refs, payload, created_revision
+                FROM dag_nodes WHERE graph_id = ?
+                """,
+                (state.graph_id,),
+            ).fetchall():
+                node = DagNode(
+                    node_id=row[0],
+                    node_type=row[1],
+                    label=row[2],
+                    refs=json.loads(row[3]),
+                    payload=json.loads(row[4]),
+                )
+                state.nodes[node.node_id] = node
+                state.node_created[node.node_id] = row[5]
+            for row in con.execute(
+                """
+                SELECT edge_id, source_node_id, target_node_id, edge_type,
+                       label, refs, payload, created_revision
+                FROM dag_edges WHERE graph_id = ?
+                """,
+                (state.graph_id,),
+            ).fetchall():
+                edge = DagEdge(
+                    edge_id=row[0],
+                    source_node_id=row[1],
+                    target_node_id=row[2],
+                    edge_type=row[3],
+                    label=row[4],
+                    refs=json.loads(row[5]),
+                    payload=json.loads(row[6]),
+                )
+                state.edges[edge.edge_id] = edge
+                state.edge_created[edge.edge_id] = row[7]
+        return states
+
+    @staticmethod
+    def _load_links(con: sqlite3.Connection) -> dict[str, Any]:
+        rows = con.execute(
+            """
+            SELECT link_id, process_node_id, delivery_element_type,
+                   delivery_element_id, payload, created_revision
+            FROM dag_links
+            """
+        ).fetchall()
+        return {
+            "dirty": False,
+            "items": {
+                row[0]: {
+                    "link_id": row[0],
+                    "process_node_id": row[1],
+                    "delivery_element_type": row[2],
+                    "delivery_element_id": row[3],
+                    "payload": json.loads(row[4]),
+                    "created_revision": row[5],
+                }
+                for row in rows
+            },
+        }
+
+    def _apply_operation(
+        self,
+        con: sqlite3.Connection,
+        states: dict[GraphKind, _GraphState],
+        links: dict[str, Any],
+        touched: set[GraphKind],
+        actor: GraphActor,
+        operation: GraphOperation,
+    ) -> None:
+        if operation.op == "waive_gate":
+            if actor is not GraphActor.USER:
+                raise _Rejected("actor_forbidden", "only the user may waive a coverage gate")
+            try:
+                waiver = CoverageWaiver.model_validate(operation.data)
+            except ValueError as exc:
+                raise _Rejected("invalid_operation", f"invalid coverage waiver: {exc}") from exc
+            contract = self._load_contract(con, states[GraphKind.DELIVERY].graph_id)
+            if waiver not in contract.waivers:
+                contract = contract.model_copy(
+                    update={"waivers": [*contract.waivers, waiver]}
+                )
+                self._write_contract(
+                    con,
+                    states[GraphKind.DELIVERY].graph_id,
+                    states[GraphKind.DELIVERY].revision + 1,
+                    contract,
+                )
+            touched.add(GraphKind.DELIVERY)
+            return
+        if operation.op == "set_coverage_contract":
+            try:
+                proposed = CoverageContract.model_validate(operation.data.get("contract"))
+            except ValueError as exc:
+                raise _Rejected("invalid_operation", f"invalid coverage contract: {exc}") from exc
+            current = self._load_contract(con, states[GraphKind.DELIVERY].graph_id)
+            if actor is not GraphActor.USER and not self._coverage_not_weaker(
+                current, proposed
+            ):
+                raise _Rejected(
+                    "actor_forbidden",
+                    "only the user may remove or lower a coverage requirement",
+                )
+            self._write_contract(
+                con,
+                states[GraphKind.DELIVERY].graph_id,
+                states[GraphKind.DELIVERY].revision + 1,
+                proposed,
+            )
+            touched.add(GraphKind.DELIVERY)
+            return
+        if operation.graph is None:
+            raise _Rejected("invalid_operation", f"{operation.op} requires a graph")
+        state = states[operation.graph]
+        data = operation.data
+
+        # 按图分权：机理 DAG 由 Coordinator 设计，流程 DAG 由 Supervisor 维护；
+        # add_link 是跨图簿记，对两个 model actor 都开放。
+        if operation.op != "add_link":
+            if actor is GraphActor.SUPERVISOR and state.kind is GraphKind.DELIVERY:
+                raise _Rejected(
+                    "actor_forbidden",
+                    "the supervisor is read-only on the delivery DAG",
+                )
+            if actor is GraphActor.AGENT and state.kind is GraphKind.PROCESS:
+                raise _Rejected(
+                    "actor_forbidden",
+                    "the coordinator is read-only on the process DAG",
+                )
+
+        if (
+            actor is not GraphActor.HARNESS
+            and state.kind is GraphKind.DELIVERY
+            and operation.op in {"add_node", "add_edge"}
+        ):
+            payload = data.get("payload", {})
+            if not isinstance(payload, dict):
+                raise _Rejected("invalid_operation", "delivery payload must be an object")
+            level = payload.get("evidence_level", "proposed")
+            if level not in _MODEL_SETTABLE_EVIDENCE_LEVELS or (
+                set(payload) & _DERIVED_EVIDENCE_FIELDS
+            ):
+                raise _Rejected(
+                    "actor_forbidden",
+                    "only deterministic harness adapters may create evidence-derived claims",
+                )
+
+        if _contains_key(data, "overall_complete"):
+            code = "actor_forbidden" if actor is GraphActor.SUPERVISOR else "invalid_operation"
+            raise _Rejected(code, "overall completion is derived, never set by a mutation")
+
+        if operation.op == "add_node":
+            node = self._parse_node(data)
+            if node.node_id in state.nodes:
+                raise _Rejected("duplicate_id", f"node {node.node_id!r} already exists")
+            state.nodes[node.node_id] = node
+            state.node_created[node.node_id] = state.revision + 1
+            touched.add(state.kind)
+            return
+        if operation.op == "add_edge":
+            edge = self._parse_edge(data)
+            if edge.edge_id in state.edges:
+                raise _Rejected("duplicate_id", f"edge {edge.edge_id!r} already exists")
+            state.edges[edge.edge_id] = edge
+            state.edge_created[edge.edge_id] = state.revision + 1
+            touched.add(state.kind)
+            return
+        if operation.op in {"update_node", "update_edge"}:
+            self._apply_update(state, actor, operation)
+            touched.add(state.kind)
+            return
+        if operation.op == "attach_ref":
+            self._attach_ref(state, operation)
+            touched.add(state.kind)
+            return
+        if operation.op == "add_link":
+            self._add_link(states, links, data)
+            touched.update({GraphKind.PROCESS, GraphKind.DELIVERY})
+            return
+        raise _Rejected("invalid_operation", f"unsupported operation {operation.op}")
+
+    @staticmethod
+    def _load_contract(con: sqlite3.Connection, graph_id: str) -> CoverageContract:
+        row = con.execute(
+            "SELECT coverage FROM dag_coverage WHERE graph_id = ?",
+            (graph_id,),
+        ).fetchone()
+        if row is None or not row[0] or json.loads(row[0]) == {}:
+            return CoverageContract.mechanism_default()
+        try:
+            return CoverageContract.model_validate_json(row[0])
+        except ValueError as exc:
+            raise _Rejected("coverage_corrupt", f"invalid persisted contract: {exc}") from exc
+
+    @staticmethod
+    def _write_contract(
+        con: sqlite3.Connection,
+        graph_id: str,
+        revision: int,
+        contract: CoverageContract,
+    ) -> None:
+        con.execute(
+            """
+            INSERT INTO dag_coverage(graph_id, revision, coverage, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(graph_id) DO UPDATE SET
+                revision=excluded.revision,
+                coverage=excluded.coverage,
+                updated_at=excluded.updated_at
+            """,
+            (graph_id, revision, _canonical_json(contract.model_dump(mode="json"))),
+        )
+
+    @staticmethod
+    def _coverage_not_weaker(
+        current: CoverageContract,
+        proposed: CoverageContract,
+    ) -> bool:
+        ranks = {
+            "proposed": 0,
+            "structure_supported": 1,
+            "saddle_supported": 2,
+            "endpoint_supported": 3,
+            "thermo_annotated": 4,
+        }
+        if ranks.get(proposed.required_node_level, -1) < ranks.get(
+            current.required_node_level, 10_000
+        ):
+            return False
+        if ranks.get(proposed.required_edge_level, -1) < ranks.get(
+            current.required_edge_level, 10_000
+        ):
+            return False
+        if current.require_branch_disposition and not proposed.require_branch_disposition:
+            return False
+        if current.require_thermochemistry and not proposed.require_thermochemistry:
+            return False
+        return proposed.waivers == current.waivers
+
+    @staticmethod
+    def _parse_node(data: dict[str, Any]) -> DagNode:
+        try:
+            _canonical_json(data)
+            return DagNode(**data)
+        except (TypeError, ValueError) as exc:
+            raise _Rejected("invalid_operation", f"invalid node: {exc}") from exc
+
+    @staticmethod
+    def _parse_edge(data: dict[str, Any]) -> DagEdge:
+        try:
+            _canonical_json(data)
+            return DagEdge(**data)
+        except (TypeError, ValueError) as exc:
+            raise _Rejected("invalid_operation", f"invalid edge: {exc}") from exc
+
+    def _apply_update(
+        self,
+        state: _GraphState,
+        actor: GraphActor,
+        operation: GraphOperation,
+    ) -> None:
+        is_node = operation.op == "update_node"
+        id_key = "node_id" if is_node else "edge_id"
+        element_id = operation.data.get(id_key)
+        changes = operation.data.get("changes")
+        elements = state.nodes if is_node else state.edges
+        if element_id not in elements:
+            raise _Rejected("missing_target", f"{id_key} {element_id!r} does not exist")
+        if not isinstance(changes, dict) or not changes:
+            raise _Rejected("invalid_operation", "update requires non-empty changes")
+        forbidden = set(changes) & _IMMUTABLE_UPDATE_FIELDS
+        if forbidden:
+            code = "actor_forbidden" if actor is GraphActor.SUPERVISOR else "immutable_field"
+            raise _Rejected(code, f"immutable graph fields cannot change: {sorted(forbidden)}")
+        if actor in _MODEL_ACTORS and not set(changes) <= _MODEL_UPDATE_FIELDS:
+            raise _Rejected("actor_forbidden", "model update exceeds its mutable fields")
+        if actor in _MODEL_ACTORS and changes.get("required") is False:
+            raise _Rejected("actor_forbidden", "a model cannot lower a requirement")
+        if actor is not GraphActor.HARNESS and "evidence_level" in changes:
+            if changes["evidence_level"] not in {"proposed", "rejected", "inconclusive"}:
+                raise _Rejected(
+                    "actor_forbidden",
+                    "only deterministic harness adapters may promote an evidence-derived level",
+                )
+        _canonical_json(changes)
+        current = elements[element_id]
+        serialized = current.model_dump(mode="json")
+        payload = dict(serialized.get("payload", {}))
+        if "label" in changes:
+            serialized["label"] = changes["label"]
+        payload.update({key: value for key, value in changes.items() if key != "label"})
+        serialized["payload"] = payload
+        elements[element_id] = DagNode(**serialized) if is_node else DagEdge(**serialized)
+
+    @staticmethod
+    def _attach_ref(state: _GraphState, operation: GraphOperation) -> None:
+        target_type = operation.data.get("target_type")
+        target_id = operation.data.get("target_id")
+        try:
+            ref = GraphRef.model_validate(operation.data.get("ref"))
+        except (TypeError, ValueError) as exc:
+            raise _Rejected("invalid_reference", str(exc)) from exc
+        if target_type == "node":
+            elements = state.nodes
+            cls = DagNode
+        elif target_type == "edge":
+            elements = state.edges
+            cls = DagEdge
+        else:
+            raise _Rejected("invalid_operation", "attach_ref target_type must be node or edge")
+        if target_id not in elements:
+            raise _Rejected("missing_target", f"target {target_id!r} does not exist")
+        serialized = elements[target_id].model_dump(mode="json")
+        refs = [GraphRef.model_validate(item) for item in serialized["refs"]]
+        if ref not in refs:
+            refs.append(ref)
+        serialized["refs"] = [item.model_dump(mode="json") for item in refs]
+        elements[target_id] = cls(**serialized)
+
+    @staticmethod
+    def _add_link(
+        states: dict[GraphKind, _GraphState],
+        links: dict[str, Any],
+        data: dict[str, Any],
+    ) -> None:
+        required = {"link_id", "process_node_id", "delivery_element_type", "delivery_element_id"}
+        if not required <= set(data):
+            raise _Rejected("invalid_operation", "add_link is missing required fields")
+        if data["link_id"] in links["items"]:
+            raise _Rejected("duplicate_id", f"link {data['link_id']!r} already exists")
+        if data["process_node_id"] not in states[GraphKind.PROCESS].nodes:
+            raise _Rejected("dangling_link", "process link target does not exist")
+        delivery = states[GraphKind.DELIVERY]
+        element_type = data["delivery_element_type"]
+        collection = delivery.nodes if element_type == "node" else delivery.edges if element_type == "edge" else None
+        if collection is None or data["delivery_element_id"] not in collection:
+            raise _Rejected("dangling_link", "delivery link target does not exist")
+        links["items"][data["link_id"]] = {
+            **data,
+            "payload": data.get("payload", {}),
+            "created_revision": max(state.revision for state in states.values()) + 1,
+        }
+        links["dirty"] = True
+
+    def _validate_structure(self, con: sqlite3.Connection, state: _GraphState) -> None:
+        for edge in state.edges.values():
+            if edge.source_node_id not in state.nodes or edge.target_node_id not in state.nodes:
+                raise _Rejected("dangling_edge", f"edge {edge.edge_id!r} has a missing endpoint")
+        for node in state.nodes.values():
+            for ref in node.refs:
+                self._validate_ref(con, ref)
+        for edge in state.edges.values():
+            for ref in edge.refs:
+                self._validate_ref(con, ref)
+        self._validate_acyclic(state)
+
+    @staticmethod
+    def _validate_ref(con: sqlite3.Connection, ref: GraphRef) -> None:
+        if ref.ref_type == "species":
+            row = con.execute(
+                "SELECT 1 FROM dag_species WHERE species_id = ?", (ref.ref_id,)
+            ).fetchone()
+        elif ref.ref_type == "tool_result":
+            row = con.execute(
+                "SELECT content_hash FROM dag_evidence WHERE evidence_id = ?", (ref.ref_id,)
+            ).fetchone()
+            if row is not None and (not ref.content_hash or ref.content_hash != row[0]):
+                row = None
+        elif ref.ref_type == "artifact":
+            row = con.execute(
+                "SELECT sha256 FROM artifacts WHERE artifact_id = ?", (ref.ref_id,)
+            ).fetchone()
+            if row is not None and (
+                not ref.content_hash or ref.content_hash not in {row[0], f"sha256:{row[0]}"}
+            ):
+                row = None
+        elif ref.ref_type == "compute_job":
+            try:
+                job_id = int(ref.ref_id)
+            except (TypeError, ValueError):
+                row = None
+            else:
+                row = con.execute("SELECT 1 FROM compute_jobs WHERE id = ?", (job_id,)).fetchone()
+        else:  # GraphRef validation should make this unreachable.
+            row = None
+        if row is None:
+            raise _Rejected(
+                "invalid_reference",
+                f"{ref.ref_type} reference {ref.ref_id!r} does not resolve",
+            )
+
+    @staticmethod
+    def _validate_acyclic(state: _GraphState) -> None:
+        indegree = {node_id: 0 for node_id in state.nodes}
+        outgoing: dict[str, list[str]] = {node_id: [] for node_id in state.nodes}
+        for edge in state.edges.values():
+            indegree[edge.target_node_id] += 1
+            outgoing[edge.source_node_id].append(edge.target_node_id)
+        ready = deque(node_id for node_id, degree in indegree.items() if degree == 0)
+        visited = 0
+        while ready:
+            node_id = ready.popleft()
+            visited += 1
+            for target in outgoing[node_id]:
+                indegree[target] -= 1
+                if indegree[target] == 0:
+                    ready.append(target)
+        if visited != len(state.nodes):
+            raise _Rejected("cycle", f"{state.kind.value} graph would contain a cycle")
+
+    @staticmethod
+    def _write_graph(con: sqlite3.Connection, state: _GraphState) -> None:
+        con.execute("DELETE FROM dag_edges WHERE graph_id = ?", (state.graph_id,))
+        con.execute("DELETE FROM dag_nodes WHERE graph_id = ?", (state.graph_id,))
+        for node in state.nodes.values():
+            con.execute(
+                """
+                INSERT INTO dag_nodes(
+                    graph_id, node_id, node_type, label, refs, payload,
+                    created_revision, updated_revision
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    state.graph_id,
+                    node.node_id,
+                    node.node_type,
+                    node.label,
+                    _canonical_json([ref.model_dump(mode="json") for ref in node.refs]),
+                    _canonical_json(node.payload),
+                    state.node_created[node.node_id],
+                    state.revision,
+                ),
+            )
+        for edge in state.edges.values():
+            con.execute(
+                """
+                INSERT INTO dag_edges(
+                    graph_id, edge_id, source_node_id, target_node_id, edge_type,
+                    label, refs, payload, created_revision, updated_revision
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    state.graph_id,
+                    edge.edge_id,
+                    edge.source_node_id,
+                    edge.target_node_id,
+                    edge.edge_type,
+                    edge.label,
+                    _canonical_json([ref.model_dump(mode="json") for ref in edge.refs]),
+                    _canonical_json(edge.payload),
+                    state.edge_created[edge.edge_id],
+                    state.revision,
+                ),
+            )
+        con.execute(
+            "UPDATE dag_graphs SET revision = ?, updated_at = datetime('now') WHERE graph_id = ?",
+            (state.revision, state.graph_id),
+        )
+
+    @staticmethod
+    def _write_links(con: sqlite3.Connection, links: dict[str, dict[str, Any]], revision: int) -> None:
+        con.execute("DELETE FROM dag_links")
+        for link in links.values():
+            con.execute(
+                """
+                INSERT INTO dag_links(
+                    link_id, process_node_id, delivery_element_type,
+                    delivery_element_id, payload, created_revision
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    link["link_id"],
+                    link["process_node_id"],
+                    link["delivery_element_type"],
+                    link["delivery_element_id"],
+                    _canonical_json(link.get("payload", {})),
+                    link.get("created_revision", revision),
+                ),
+            )
+
+    def _record_rejection(
+        self,
+        mutation_id: str,
+        batch: MutationBatch,
+        revisions: dict[str, int],
+        rejection: _Rejected,
+    ) -> None:
+        with self.store.db.connect() as con:
+            self._insert_journal(
+                con,
+                mutation_id=mutation_id,
+                batch=batch,
+                base_revisions=batch.base_revisions,
+                resulting_revisions=revisions,
+                accepted=False,
+                rejection=rejection,
+            )
+
+    def _insert_journal(
+        self,
+        con: sqlite3.Connection,
+        *,
+        mutation_id: str,
+        batch: MutationBatch,
+        base_revisions: dict[str, int],
+        resulting_revisions: dict[str, int],
+        accepted: bool,
+        rejection: _Rejected | None = None,
+    ) -> None:
+        bundle = self.store.load_bundle() if not con.in_transaction else None
+        graph_id = (
+            next(
+                (
+                    self.store._GRAPH_IDS[operation.graph]
+                    for operation in batch.operations
+                    if operation.graph is not None
+                ),
+                self.store._GRAPH_IDS[GraphKind.PROCESS],
+            )
+            if bundle is None
+            else bundle.process_graph_id
+        )
+        graph_kind = next(
+            (operation.graph for operation in batch.operations if operation.graph is not None),
+            GraphKind.PROCESS,
+        )
+        con.execute(
+            """
+            INSERT INTO dag_mutations(
+                mutation_id, graph_id, base_revision, resulting_revision,
+                actor_type, actor_id, session_id, rationale, base_revisions,
+                resulting_revisions, operations, accepted, rejection_code,
+                rejection_reason, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (
+                mutation_id,
+                graph_id,
+                base_revisions.get(graph_kind.value, 0),
+                resulting_revisions.get(graph_kind.value, 0),
+                batch.actor.value,
+                batch.actor_id,
+                batch.session_id,
+                batch.rationale,
+                _canonical_json(base_revisions),
+                _canonical_json(resulting_revisions),
+                _canonical_json([operation.model_dump(mode="json") for operation in batch.operations]),
+                int(accepted),
+                rejection.code if rejection else None,
+                rejection.reason if rejection else None,
+            ),
+        )

@@ -20,6 +20,11 @@ from typing import Literal
 from cloudra import control_store, conversation_repo, events, paths, session_store
 from cloudra.config import get_config
 from cloudra.conversation_class import Conversation
+from cloudra.dag.models import (
+    OrchestrationMode,
+    build_orchestration_config,
+    normalize_orchestration_mode,
+)
 from cloudra.database import ConversationDB
 from cloudra.runtime.runner import run_task_async
 
@@ -60,6 +65,8 @@ class SessionRecord:
     node_id: str | None = None
     workspace_id: str | None = None
     working_directory: str | None = None
+    orchestration_mode: str = OrchestrationMode.STANDARD.value
+    orchestration_config: str = "{}"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -104,6 +111,7 @@ class PreparedInteraction:
 _SESSION_COLUMNS = """session_id, agent_id, agent_type, parent_session_id, query,
 state, result, error, pid, worker_id, created_at, started_at, heartbeat_at,
 finished_at, exit_code, node_id, workspace_id, working_directory"""
+_SESSION_COLUMNS += ", orchestration_mode, orchestration_config"
 
 
 class SessionRunner:
@@ -127,6 +135,10 @@ class SessionRunner:
         must not schedule a new execution task.
         """
         db = ConversationDB(conversation_id).init()
+        mode = normalize_orchestration_mode(route.get("orchestration_mode"))
+        orchestration_config = route.get("orchestration_config")
+        if orchestration_config is None:
+            orchestration_config = build_orchestration_config(mode)
         existing = self.get(conversation_id, session_id)
         if existing is not None:
             return existing, False
@@ -140,6 +152,8 @@ class SessionRunner:
                 node_id=route.get("node_id"),
                 workspace_id=route.get("workspace_id"),
                 working_directory=route.get("working_directory"),
+                orchestration_mode=mode.value,
+                orchestration_config=orchestration_config,
             )
         except sqlite3.IntegrityError:
             # A concurrent replay of the same idempotent create command won.
@@ -151,7 +165,11 @@ class SessionRunner:
             conversation_id,
             session_id,
             "queued",
-            {"query": query, "yolo": route.get("yolo", False)},
+            {
+                "query": query,
+                "yolo": route.get("yolo", False),
+                "orchestration_mode": mode.value,
+            },
         )
         return self.get(conversation_id, session_id), True
 
@@ -162,6 +180,10 @@ class SessionRunner:
         **kwargs,
     ) -> SessionRecord:
         session_id = kwargs.pop("session_id", None) or f"a-0_run_{uuid.uuid4().hex}"
+        mode = normalize_orchestration_mode(kwargs.get("orchestration_mode"))
+        kwargs["orchestration_mode"] = mode
+        if kwargs.get("orchestration_config") is None:
+            kwargs["orchestration_config"] = build_orchestration_config(mode)
         record, created = await asyncio.to_thread(
             self._prepare_submission, query, conversation_id, session_id, **kwargs
         )
@@ -173,6 +195,8 @@ class SessionRunner:
                     session_id,
                     kwargs.get("working_directory"),
                     kwargs.get("yolo", False),
+                    kwargs.get("orchestration_mode", OrchestrationMode.STANDARD),
+                    kwargs.get("orchestration_config"),
                 )
             )
             self._running[(conversation_id, session_id)] = task
@@ -187,8 +211,13 @@ class SessionRunner:
         session_id: str | None = None,
         node_id: str | None = None,
         workspace_id: str | None = None,
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
     ) -> SessionRecord:
         session_id = session_id or f"a-0_run_{uuid.uuid4().hex}"
+        mode = normalize_orchestration_mode(orchestration_mode)
+        if orchestration_config is None:
+            orchestration_config = build_orchestration_config(mode)
         record, created = self._prepare_submission(
             query,
             conversation_id,
@@ -197,10 +226,20 @@ class SessionRunner:
             yolo=yolo,
             node_id=node_id,
             workspace_id=workspace_id,
+            orchestration_mode=mode,
+            orchestration_config=orchestration_config,
         )
         if created:
             task = asyncio.create_task(
-                self._execute(query, conversation_id, session_id, working_directory, yolo)
+                self._execute(
+                    query,
+                    conversation_id,
+                    session_id,
+                    working_directory,
+                    yolo,
+                    mode,
+                    orchestration_config,
+                )
             )
             self._running[(conversation_id, session_id)] = task
         return record
@@ -212,6 +251,8 @@ class SessionRunner:
         session_id: str,
         working_directory: str | None = None,
         yolo: bool = False,
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
     ) -> None:
         # Session 级 YOLO 开关：只作用于本会话任务及其派生协程
         from cloudra.yolo_guard import set_session_yolo
@@ -234,7 +275,11 @@ class SessionRunner:
             with use_input_handler(wait_for_user):
                 if working_directory is None:
                     result = await self.service.run_task(
-                        query, conversation_id, session_id=session_id
+                        query,
+                        conversation_id,
+                        session_id=session_id,
+                        orchestration_mode=orchestration_mode,
+                        orchestration_config=orchestration_config,
                     )
                 else:
                     result = await self.service.run_task(
@@ -242,6 +287,8 @@ class SessionRunner:
                         conversation_id,
                         session_id=session_id,
                         working_directory=working_directory,
+                        orchestration_mode=orchestration_mode,
+                        orchestration_config=orchestration_config,
                     )
             await asyncio.to_thread(
                 self._update,
@@ -534,6 +581,114 @@ class CloudraService:
     def create_conversation(self) -> Conversation:
         return Conversation()
 
+    def _dag_read_context(self, conversation_id: str):
+        """Return existing DAG objects without creating a bundle on a read path."""
+        from cloudra.dag.engine import DagEngine
+        from cloudra.dag.store import DagStore, GraphBundleNotFound
+
+        validate_conversation_id(conversation_id)
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return None
+        db.migrate_if_needed()
+        store = DagStore(db)
+        try:
+            store.load_bundle()
+        except GraphBundleNotFound:
+            return None
+        return store, DagEngine(store)
+
+    def dag_projection(self, conversation_id: str) -> dict | None:
+        from cloudra.dag.completion import build_projection
+
+        context = self._dag_read_context(conversation_id)
+        if context is None:
+            return None
+        store, engine = context
+        projection = build_projection(
+            engine.snapshot(),
+            mode="dag_record",
+            contract=store.load_coverage_contract(),
+            history=engine.history(limit=8),
+        )
+        return projection.model_dump(mode="json")
+
+    def dag_graph(self, conversation_id: str, graph_kind: str) -> dict | None:
+        from cloudra.dag.models import GraphKind
+
+        kind = GraphKind(graph_kind)
+        context = self._dag_read_context(conversation_id)
+        if context is None:
+            return None
+        _store, engine = context
+        snapshot = engine.snapshot()
+        graph = snapshot.process if kind is GraphKind.PROCESS else snapshot.delivery
+        return graph.model_dump(mode="json")
+
+    def dag_delivery_report(self, conversation_id: str) -> dict | None:
+        from cloudra.dag.completion import evaluate_delivery
+
+        context = self._dag_read_context(conversation_id)
+        if context is None:
+            return None
+        store, engine = context
+        report = evaluate_delivery(
+            engine.snapshot().delivery,
+            store.load_coverage_contract(),
+        )
+        return report.model_dump(mode="json")
+
+    def dag_history(
+        self,
+        conversation_id: str,
+        *,
+        after_revision: int = 0,
+    ) -> list[dict] | None:
+        context = self._dag_read_context(conversation_id)
+        if context is None:
+            return None
+        _store, engine = context
+        rows = engine.history(limit=500)
+        if after_revision <= 0:
+            return rows
+        return [
+            row
+            for row in rows
+            if max(row.get("resulting_revisions", {}).values(), default=0)
+            > after_revision
+        ]
+
+    def dag_apply_user_mutation(
+        self,
+        conversation_id: str,
+        operations: list[dict],
+        base_revisions: dict[str, int],
+        rationale: str = "",
+    ) -> dict | None:
+        """Apply one user-initiated mutation batch (actor=USER) via the engine.
+
+        Returns the MutationResult dump, or None when no DAG bundle exists.
+        The engine enforces atomicity, acyclicity, reference resolution, and
+        the user privilege boundary (only users may waive gates or lower
+        coverage requirements; evidence-derived levels stay harness-only).
+        """
+        from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+
+        context = self._dag_read_context(conversation_id)
+        if context is None:
+            return None
+        _store, engine = context
+        batch = MutationBatch(
+            session_id="user",
+            actor=GraphActor.USER,
+            actor_id="user",
+            base_revisions=base_revisions,
+            operations=[GraphOperation(**op) for op in operations],
+            rationale=rationale,
+        )
+        result = engine.apply_batch(batch)
+        return result.model_dump(mode="json")
+
     async def run_task(
         self,
         query: str,
@@ -542,6 +697,8 @@ class CloudraService:
         session_id: str | None = None,
         working_directory: str | None = None,
         interactive_approval: bool = False,
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
     ) -> str:
         if conversation_id is not None:
             validate_conversation_id(conversation_id)
@@ -556,6 +713,8 @@ class CloudraService:
             session_id=session_id,
             working_directory=working_directory,
             interactive_approval=interactive_approval,
+            orchestration_mode=orchestration_mode,
+            orchestration_config=orchestration_config,
         )
 
     def submit_session(
@@ -564,13 +723,20 @@ class CloudraService:
         conversation_id: str | None = None,
         working_directory: str | None = None,
         yolo: bool = False,
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
     ) -> tuple[str, SessionRecord]:
         if conversation_id is None:
             conversation_id = self.create_conversation().id
         else:
             validate_conversation_id(conversation_id)
         return conversation_id, self.session_runner.submit(
-            query, conversation_id, working_directory, yolo
+            query,
+            conversation_id,
+            working_directory=working_directory,
+            yolo=yolo,
+            orchestration_mode=orchestration_mode,
+            orchestration_config=orchestration_config,
         )
 
     async def submit_session_async(
@@ -579,6 +745,8 @@ class CloudraService:
         conversation_id: str | None = None,
         working_directory: str | None = None,
         yolo: bool = False,
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
     ) -> tuple[str, SessionRecord]:
         if conversation_id is None:
             conversation = await asyncio.to_thread(self.create_conversation)
@@ -590,6 +758,8 @@ class CloudraService:
             conversation_id,
             working_directory=working_directory,
             yolo=yolo,
+            orchestration_mode=orchestration_mode,
+            orchestration_config=orchestration_config,
         )
         return conversation_id, record
 
@@ -607,10 +777,15 @@ class CloudraService:
         working_directory: str | None = None,
         node_id: str = "node-local",
         workspace_id: str = "default",
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
     ) -> tuple[control_store.ClientCommand, SessionRecord]:
         """Create one Session for an idempotent remote command."""
 
         validate_conversation_id(conversation_id)
+        mode = normalize_orchestration_mode(orchestration_mode)
+        if orchestration_config is None:
+            orchestration_config = build_orchestration_config(mode)
         session_id = self._command_session_id(command_id)
         db = ConversationDB(conversation_id).init()
         command, _ = control_store.receive_command(
@@ -624,6 +799,8 @@ class CloudraService:
                 "node_id": node_id,
                 "workspace_id": workspace_id,
                 "yolo": False,
+                "orchestration_mode": mode.value,
+                "orchestration_config": orchestration_config,
             },
         )
         if command.state == "failed":
@@ -639,11 +816,13 @@ class CloudraService:
                 record = self.session_runner.submit(
                     query,
                     conversation_id,
-                    working_directory,
-                    False,
+                    working_directory=working_directory,
+                    yolo=False,
                     session_id=session_id,
                     node_id=node_id,
                     workspace_id=workspace_id,
+                    orchestration_mode=mode,
+                    orchestration_config=orchestration_config,
                 )
                 self.session_runner._emit(
                     conversation_id,

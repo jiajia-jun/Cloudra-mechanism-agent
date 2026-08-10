@@ -273,6 +273,7 @@ class CloudraBackend(Protocol):
         conversation_id: str,
         *,
         working_directory: str | None = None,
+        orchestration_mode: str = "standard",
     ) -> tuple[str, dict]: ...
 
     async def get_session(
@@ -351,6 +352,34 @@ class CloudraBackend(Protocol):
         target_dir: Path,
     ) -> Path: ...
 
+    async def get_dag_projection(self, conversation_id: str) -> dict | None: ...
+
+    async def get_dag_graph(
+        self,
+        conversation_id: str,
+        graph_kind: str,
+    ) -> dict | None: ...
+
+    async def get_dag_delivery_report(
+        self,
+        conversation_id: str,
+    ) -> dict | None: ...
+
+    async def get_dag_history(
+        self,
+        conversation_id: str,
+        *,
+        after_revision: int = 0,
+    ) -> list[dict] | None: ...
+
+    async def apply_dag_mutation(
+        self,
+        conversation_id: str,
+        operations: list[dict],
+        base_revisions: dict[str, int],
+        rationale: str = "",
+    ) -> dict | None: ...
+
 
 class LocalCloudraBackend:
     """Desktop adapter preserving the existing in-process service."""
@@ -384,18 +413,61 @@ class LocalCloudraBackend:
             for record in self.service.session_runner.list(conversation_id)
         ]
 
+    async def get_dag_projection(self, conversation_id: str) -> dict | None:
+        return self.service.dag_projection(conversation_id)
+
+    async def get_dag_graph(
+        self,
+        conversation_id: str,
+        graph_kind: str,
+    ) -> dict | None:
+        return self.service.dag_graph(conversation_id, graph_kind)
+
+    async def get_dag_delivery_report(
+        self,
+        conversation_id: str,
+    ) -> dict | None:
+        return self.service.dag_delivery_report(conversation_id)
+
+    async def get_dag_history(
+        self,
+        conversation_id: str,
+        *,
+        after_revision: int = 0,
+    ) -> list[dict] | None:
+        return self.service.dag_history(
+            conversation_id,
+            after_revision=after_revision,
+        )
+
+    async def apply_dag_mutation(
+        self,
+        conversation_id: str,
+        operations: list[dict],
+        base_revisions: dict[str, int],
+        rationale: str = "",
+    ) -> dict | None:
+        return self.service.dag_apply_user_mutation(
+            conversation_id,
+            operations,
+            base_revisions,
+            rationale,
+        )
+
     async def submit_session(
         self,
         query: str,
         conversation_id: str,
         *,
         working_directory: str | None = None,
+        orchestration_mode: str = "standard",
     ) -> tuple[str, dict]:
         _, record = self.service.submit_session_command(
             command_id=f"cmd_{uuid.uuid4().hex}",
             query=query,
             conversation_id=conversation_id,
             working_directory=working_directory,
+            orchestration_mode=orchestration_mode,
         )
         return conversation_id, record.to_dict()
 
@@ -822,12 +894,97 @@ class RemoteCloudraBackend:
             )
         ).json()
 
+    async def get_dag_projection(self, conversation_id: str) -> dict | None:
+        try:
+            response = await self._request(
+                "GET",
+                f"/api/conversations/{conversation_id}/dag/projection",
+            )
+        except BackendError as exc:
+            if "(404)" in str(exc):
+                return None
+            raise
+        return response.json()
+
+    async def get_dag_graph(
+        self,
+        conversation_id: str,
+        graph_kind: str,
+    ) -> dict | None:
+        try:
+            response = await self._request(
+                "GET",
+                f"/api/conversations/{conversation_id}/dag/graphs/{graph_kind}",
+            )
+        except BackendError as exc:
+            if "(404)" in str(exc):
+                return None
+            raise
+        return response.json()
+
+    async def get_dag_delivery_report(
+        self,
+        conversation_id: str,
+    ) -> dict | None:
+        try:
+            response = await self._request(
+                "GET",
+                f"/api/conversations/{conversation_id}/dag/delivery-report",
+            )
+        except BackendError as exc:
+            if "(404)" in str(exc):
+                return None
+            raise
+        return response.json()
+
+    async def get_dag_history(
+        self,
+        conversation_id: str,
+        *,
+        after_revision: int = 0,
+    ) -> list[dict] | None:
+        try:
+            response = await self._request(
+                "GET",
+                f"/api/conversations/{conversation_id}/dag/history",
+                params={"after_revision": max(0, int(after_revision))},
+            )
+        except BackendError as exc:
+            if "(404)" in str(exc):
+                return None
+            raise
+        return response.json()
+
+    async def apply_dag_mutation(
+        self,
+        conversation_id: str,
+        operations: list[dict],
+        base_revisions: dict[str, int],
+        rationale: str = "",
+    ) -> dict | None:
+        try:
+            response = await self._request(
+                "POST",
+                f"/api/conversations/{conversation_id}/dag/mutations",
+                json={
+                    "operations": operations,
+                    "base_revisions": base_revisions,
+                    "rationale": rationale,
+                },
+            )
+        except BackendError as exc:
+            if "(404)" in str(exc):
+                return None
+            raise
+        return response.json()
+
     async def submit_session(
         self,
         query: str,
         conversation_id: str,
         *,
         working_directory: str | None = None,
+        orchestration_mode: str = "standard",
     ) -> tuple[str, dict]:
         record = (
             await self._command_request(
@@ -837,6 +994,7 @@ class RemoteCloudraBackend:
                     "query": query,
                     "workspace_id": self.profile.workspace_id or "default",
                     "yolo": False,
+                    "orchestration_mode": orchestration_mode,
                 },
             )
         ).json()
