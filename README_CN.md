@@ -160,6 +160,8 @@ cloudra run "计算结束后解析日志，给出能量、轨道能隙、频率�
 cloudra/
 ├── agent.py, react.py          推理与协作编排
 ├── runtime/                    Session runner、worker 与 prompt 组装
+├── dag/                        DAG 引导编排（可选，按会话开启）
+├── service.py                  应用服务层（CLI/API 共用）
 ├── session_store.py            持久状态迁移与 lease
 ├── api.py, api_v1.py           本地和远程控制面
 ├── nodes.py, slurm.py          能力路由与 HPC 执行
