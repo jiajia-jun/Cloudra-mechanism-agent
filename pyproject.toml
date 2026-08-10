@@ -52,7 +52,9 @@ chem = [
     "rdkit>=2023.0",
     "nmrglue>=0.10",
     "spectrochempy>=0.6.0",
-    "chemcoord>=2.1.2",
+    # chemcoord 2.2 改了内部模块结构，internal_coordinates 依赖其私有 API，钉在 2.1.x
+    "chemcoord~=2.1.2",
+    "pyscf>=2.4",
 ]
 browser = [
     "playwright>=1.40",
@@ -64,7 +66,8 @@ all = [
     "rdkit>=2023.0",
     "nmrglue>=0.10",
     "spectrochempy>=0.6.0",
-    "chemcoord>=2.1.2",
+    "chemcoord~=2.1.2",
+    "pyscf>=2.4",
     "playwright>=1.40",
     "pymupdf>=1.24.0",
 ]

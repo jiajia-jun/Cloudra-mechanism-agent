@@ -1,0 +1,696 @@
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+from typing import Any, Literal, Optional
+
+from pydantic import Field
+
+from cloudra.fs_utils import atomic_write_text
+from cloudra.session_class import Session
+from cloudra.tools.Chemtool.internal_coordinates import _COVALENT_RADII
+from cloudra.tools_class import Tool, input_schema, output_schema
+
+try:
+    from pyscf import gto, lo, scf
+    from pyscf.lo import iao, ibo
+    from pyscf.tools import molden
+    _PYSCF_AVAILABLE = True
+except Exception:
+    gto = None
+    lo = None
+    scf = None
+    iao = None
+    ibo = None
+    molden = None
+    _PYSCF_AVAILABLE = False
+
+_HARTREE_TO_EV = 27.211386245988
+
+description = (
+    "电子结构分析：对 xyz 结构做单点计算（PySCF 或 xTB），提取 agent 可读的电子结构事实——"
+    "总能量、HOMO/LUMO/能隙、偶极矩、原子电荷（Mulliken 与 meta-Löwdin 对照）、Mayer 键级（识别过渡态的部分键与"
+    "正在形成的 incipient bond）、IBO 定域轨道 Lewis 图像（孤对电子与 2c-2e 键，NBO 的开源替代）。"
+    "支持开壳层（spin>1 自动走 UHF/UKS）：输出 <S^2> 自旋污染检查与 Mulliken 自旋布居，可定位自由基中心。"
+    "全部输出为数值/文本表，坐标不进上下文。"
+    "适用：反应物/中间体/过渡态（含自由基）的电子结构感知，判断反应进行程度（部分键、incipient bond）。"
+    "不适用：几何优化或过渡态搜索本身（用 submit_compute_job）、构象搜索（用 conformer_search）。"
+)
+
+
+class ElectronicAnalysis_input_schema(input_schema):
+    input_path: Optional[str] = Field(
+        default=None, description="输入结构文件路径（xyz 格式）。与 input_text 二选一，优先读文件。"
+    )
+    input_text: Optional[str] = Field(
+        default=None, description="直接传入 xyz 坐标文本。提供 input_path 时优先读取文件。"
+    )
+    charge: int = Field(default=0, description="分子总电荷。")
+    spin: int = Field(default=1, description="自旋多重度（2S+1）。闭壳层为 1。")
+    backend: Literal["pyscf", "xtb"] = Field(
+        default="pyscf",
+        description="计算后端。pyscf：HF/DFT 全分析；xtb：调用外部 xTB 程序（GFN2-xTB 半经验，仅能量/能隙/电荷/偶极）。"
+    )
+    method: str = Field(
+        default="b3lyp",
+        description="PySCF 后端的泛函（如 b3lyp、pbe0、wb97x）。填 'hf' 走 HF。spin>1 时自动切换非限制性（UHF/UKS）。"
+    )
+    basis: str = Field(default="def2-svp", description="PySCF 后端的基组（如 def2-svp、sto-3g、cc-pvdz）。")
+    density_fitting: bool = Field(
+        default=True,
+        description="是否启用密度拟合（DF/RI）加速 SCF。对电荷/键级等布居分析精度损失可忽略，成本显著下降，默认开启。"
+    )
+    scf_conv_tol: float = Field(
+        default=1e-7, description="SCF 能量收敛阈值（Eh）。感知用途 1e-7 足够；需要发表级能量时收紧到 1e-9。"
+    )
+    reactive_atoms: list[int] = Field(
+        default_factory=list,
+        description="反应关键原子序号（1-based）。提供后，电荷/键级/IBO 报告聚焦这些原子及其成键邻居。"
+    )
+    output_dir: Optional[str] = Field(
+        default=None, description="输出目录。提供时将 molden 轨道文件与计算日志落盘并返回路径。"
+    )
+    timeout: int = Field(default=1200, description="xTB 后端的子进程超时时间（秒）。")
+
+
+class ElectronicAnalysis_output_schema(output_schema):
+    is_success: bool = Field(description="分析是否成功")
+    report: str = Field(default="", description="电子结构文本报告（Summary/Frontier Orbitals/Charges/Bond Orders/IBO Lewis Picture/Notes）")
+    summary: dict = Field(
+        default_factory=dict,
+        description="数值摘要：total_energy_eh/homo_eh/lumo_eh/gap_ev/dipole_debye 等"
+    )
+    molden_path: str = Field(default="", description="molden 轨道文件路径（output_dir 提供时）")
+    log_path: str = Field(default="", description="计算日志文件路径（output_dir 提供时）")
+    message: str = Field(default="", description="状态或错误信息")
+
+
+def _load_xyz_text(user_input: ElectronicAnalysis_input_schema) -> str:
+    if user_input.input_path:
+        if not os.path.isfile(user_input.input_path):
+            raise ValueError(f"输入文件不存在: {user_input.input_path}")
+        with open(user_input.input_path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    if user_input.input_text:
+        return user_input.input_text
+    raise ValueError("必须提供 input_path 或 input_text 之一")
+
+
+def _parse_xyz(xyz_text: str) -> tuple[list[str], list[list[float]]]:
+    """解析 xyz 文本，返回 (元素符号, 坐标)。容忍多余空行与注释行。"""
+    lines = [ln for ln in xyz_text.splitlines() if ln.strip()]
+    if not lines:
+        raise ValueError("xyz 文本为空")
+    try:
+        natoms = int(lines[0].split()[0])
+        start = 2
+    except ValueError:
+        # 没有原子数头，直接按 "符号 x y z" 逐行解析
+        natoms = None
+        start = 0
+    symbols, coords = [], []
+    for ln in lines[start:]:
+        parts = ln.split()
+        if len(parts) < 4:
+            continue
+        symbols.append(parts[0])
+        coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
+    if natoms is not None and len(symbols) != natoms:
+        raise ValueError(f"xyz 声明 {natoms} 个原子，实际解析到 {len(symbols)} 个")
+    if not symbols:
+        raise ValueError("xyz 文本中未解析到任何原子")
+    return symbols, coords
+
+
+class ElectronicAnalysis(Tool):
+    tool_id: str = 't-44'
+    tool_name: str = 'electronic_analysis'
+    tool_description: str = description
+    input_schema: Any = ElectronicAnalysis_input_schema
+    output_schema: Any = ElectronicAnalysis_output_schema
+
+    def is_write(self) -> bool:
+        return True
+
+    # ---------- 几何/连通性 ----------
+
+    @staticmethod
+    def _bond_pairs(symbols: list[str], coords) -> list[tuple[int, int, float]]:
+        """共价半径距离判据的成键对：[(i, j, distance)]，0-based。"""
+        import numpy as np
+
+        pos = np.asarray(coords, dtype=float)
+        pairs = []
+        for i in range(len(symbols)):
+            ri = _COVALENT_RADII.get(symbols[i], 1.2)
+            for j in range(i + 1, len(symbols)):
+                rj = _COVALENT_RADII.get(symbols[j], 1.2)
+                d = float(np.linalg.norm(pos[i] - pos[j]))
+                if d <= 1.3 * (ri + rj):
+                    pairs.append((i, j, d))
+        return pairs
+
+    @staticmethod
+    def _focus_set(user_input: ElectronicAnalysis_input_schema,
+                   bonds: list[tuple[int, int, float]], natoms: int) -> Optional[set[int]]:
+        """reactive_atoms 及其成键邻居（0-based）。未指定 reactive_atoms 时返回 None（不聚焦）。"""
+        if not user_input.reactive_atoms:
+            return None
+        focus = set()
+        for a in user_input.reactive_atoms:
+            if 1 <= a <= natoms:
+                focus.add(a - 1)
+        for i, j, _ in bonds:
+            if i in focus or j in focus:
+                focus.add(i)
+                focus.add(j)
+        return focus
+
+    # ---------- PySCF 后端 ----------
+
+    @staticmethod
+    def _mayer_bond_orders(dm, ovlp, ao_slices, natoms: int):
+        """闭壳层 Mayer 键级：BO(A,B) = sum_{μ∈A} sum_{ν∈B} (PS)_{μν}(PS)_{νμ}。"""
+        import numpy as np
+
+        ps = np.asarray(dm) @ np.asarray(ovlp)
+        bo = np.zeros((natoms, natoms))
+        for a in range(natoms):
+            pa = slice(ao_slices[a, 2], ao_slices[a, 3])
+            for b in range(a + 1, natoms):
+                pb = slice(ao_slices[b, 2], ao_slices[b, 3])
+                block = ps[pa, pb] * ps[pb, pa].T
+                bo[a, b] = bo[b, a] = float(block.sum())
+        return bo
+
+    @staticmethod
+    def _core_orbital_count(symbol: str) -> int:
+        """该元素核芯轨道数（闭壳层空间轨道）：H/He 0，第一周期 1（1s），第二周期 5（1s2s2p）。"""
+        z = gto.charge(symbol)
+        if z <= 2:
+            return 0
+        if z <= 10:
+            return 1
+        if z <= 18:
+            return 5
+        return 9
+
+    @staticmethod
+    def _ibo_analysis(mol, mf, ovlp, symbols: list[str], spin_channel: Optional[int] = None):
+        """
+        IBO 定域占据轨道 + IAO 原子投影。spin_channel=None 为闭壳层；0/1 为 UHF/UKS 的 α/β 通道。
+        返回 list[dict]：每个定域轨道的 kind（core/lone_pair/bond/delocalized）、
+        主导原子（1-based）与份额、Fock 期望能量（Eh）、spin 标签（"α"/"β"/""）。
+        core 判定：同一原子上的单中心轨道按能量升序，前 n_core(元素) 个为核芯。
+        """
+        import numpy as np
+
+        if spin_channel is None:
+            mo_occ = mf.mo_coeff[:, mf.mo_occ > 0]
+            fock = mf.get_fock()
+            spin_tag = ""
+        else:
+            mo_occ = mf.mo_coeff[spin_channel][:, mf.mo_occ[spin_channel] > 0]
+            fock = mf.get_fock()[spin_channel]
+            spin_tag = "α" if spin_channel == 0 else "β"
+        if mo_occ.shape[1] == 0:
+            return []
+        c_loc = ibo.ibo(mol, mo_occ, verbose=0)
+        c_iao = iao.iao(mol, mo_occ)
+        # iao.iao 返回的 IAO 不保证 S-正交，需 Löwdin 正交化后再做投影
+        c_iao = lo.vec_lowdin(c_iao, ovlp)
+        ref_mol = iao.reference_mol(mol)
+        ref_slices = ref_mol.aoslice_by_atom()
+
+        proj = c_iao.T @ ovlp @ c_loc
+        weights = proj ** 2  # (n_iao, n_loc)
+
+        results = []
+        single_center = []  # (atom_idx, energy, pop, 结果索引)
+        for i in range(c_loc.shape[1]):
+            atom_pops = np.array([
+                weights[ref_slices[a, 2]:ref_slices[a, 3], i].sum()
+                for a in range(mol.natm)
+            ])
+            total = atom_pops.sum()
+            if total > 0:
+                atom_pops = atom_pops / total
+            order = np.argsort(atom_pops)[::-1]
+            e_orb = float(c_loc[:, i] @ fock @ c_loc[:, i])
+            top1, top2 = int(order[0]), int(order[1]) if len(order) > 1 else None
+            p1 = float(atom_pops[top1])
+            p2 = float(atom_pops[top2]) if top2 is not None else 0.0
+
+            if p1 >= 0.8:
+                entry = {
+                    "kind": "lone_pair", "atoms": [top1 + 1], "shares": [round(p1 * 100, 1)],
+                    "symbols": [symbols[top1]], "energy_eh": e_orb, "spin": spin_tag,
+                }
+                single_center.append((top1, e_orb, len(results)))
+                results.append(entry)
+            elif top2 is not None and (p1 + p2) >= 0.7:
+                share_sum = p1 + p2
+                results.append({
+                    "kind": "bond", "atoms": sorted([top1 + 1, top2 + 1]),
+                    "shares": [round(p1 / share_sum * 100, 1), round(p2 / share_sum * 100, 1)],
+                    "symbols": [symbols[top1], symbols[top2]], "energy_eh": e_orb, "spin": spin_tag,
+                })
+            else:
+                top = [int(a) + 1 for a in order[:3]]
+                results.append({
+                    "kind": "delocalized", "atoms": top,
+                    "shares": [round(float(atom_pops[a - 1]) * 100, 1) for a in top],
+                    "symbols": [symbols[a - 1] for a in top], "energy_eh": e_orb, "spin": spin_tag,
+                })
+
+        # 单中心轨道按原子分组，能量最低的前 n_core 个改判为核芯轨道
+        by_atom: dict[int, list[tuple[float, int]]] = {}
+        for atom_idx, e_orb, res_idx in single_center:
+            by_atom.setdefault(atom_idx, []).append((e_orb, res_idx))
+        for atom_idx, entries in by_atom.items():
+            entries.sort()
+            n_core = ElectronicAnalysis._core_orbital_count(symbols[atom_idx])
+            for _, res_idx in entries[:n_core]:
+                results[res_idx]["kind"] = "core"
+
+        results.sort(key=lambda r: r["energy_eh"])
+        return results
+
+    def _run_pyscf(self, user_input: ElectronicAnalysis_input_schema,
+                   xyz_text: str) -> ElectronicAnalysis_output_schema:
+        import numpy as np
+
+        symbols, coords = _parse_xyz(xyz_text)
+        natoms = len(symbols)
+        bonds = self._bond_pairs(symbols, coords)
+        focus = self._focus_set(user_input, bonds, natoms)
+
+        atom_str = "; ".join(
+            f"{sym} {c[0]:.10f} {c[1]:.10f} {c[2]:.10f}" for sym, c in zip(symbols, coords)
+        )
+        mol = gto.Mole()
+        mol.build(atom=atom_str, basis=user_input.basis,
+                  charge=user_input.charge, spin=user_input.spin - 1, verbose=0)
+
+        open_shell = user_input.spin > 1
+        is_hf = user_input.method.strip().lower() == "hf"
+        if is_hf:
+            mf = scf.UHF(mol) if open_shell else scf.RHF(mol)
+        else:
+            mf = scf.UKS(mol) if open_shell else scf.RKS(mol)
+            mf.xc = user_input.method.strip().lower()
+        mf.conv_tol = user_input.scf_conv_tol
+        if user_input.density_fitting:
+            # 密度拟合近似：对布居分析精度损失可忽略，SCF 成本显著下降
+            mf = mf.density_fit()
+        e_tot = float(mf.kernel())
+        dm = mf.make_rdm1()
+        ovlp = mf.get_ovlp()
+        # 自旋分辨密度矩阵：UHF/UKS 的 make_rdm1 返回 (2, nao, nao)
+        if open_shell and np.asarray(dm).ndim == 3:
+            dma, dmb = dm[0], dm[1]
+            dm_tot = dma + dmb
+            dm_spin = dma - dmb
+        else:
+            dm_tot = np.asarray(dm)
+            dm_spin = None
+
+        # 前线轨道（开壳层取 α/β 两通道的全体 HOMO/LUMO）
+        if dm_spin is not None:
+            na, nb = mol.nelec
+            mo_ea, mo_eb = mf.mo_energy[0], mf.mo_energy[1]
+            homo_eh = max(float(mo_ea[na - 1]), float(mo_eb[nb - 1]))
+            lumo_cands = []
+            if na < len(mo_ea):
+                lumo_cands.append(float(mo_ea[na]))
+            if nb < len(mo_eb):
+                lumo_cands.append(float(mo_eb[nb]))
+            lumo_eh = min(lumo_cands) if lumo_cands else float("nan")
+        else:
+            nocc = int(mol.nelectron // 2)
+            mo_e = mf.mo_energy
+            homo_eh = float(mo_e[nocc - 1])
+            lumo_eh = float(mo_e[nocc]) if nocc < len(mo_e) else float("nan")
+        gap_ev = (lumo_eh - homo_eh) * _HARTREE_TO_EV
+
+        # 偶极矩（Debye）
+        dip_vec = mf.dip_moment(mol, dm, verbose=0)
+        dip_norm = float(np.linalg.norm(dip_vec))
+
+        # meta-Löwdin 原子电荷（基于总密度）
+        _, chg = mf.mulliken_meta(mol, dm_tot, s=ovlp, verbose=0)
+        chg = np.asarray(chg, dtype=float)
+        # Mulliken 原子电荷（对基组敏感、大基组下不可靠，仅作对照参考）
+        _, chg_mul = mf.mulliken_pop(mol, dm_tot, s=ovlp, verbose=0)
+        chg_mul = np.asarray(chg_mul, dtype=float)
+        # Mulliken 自旋布居（开壳层）：Σ_{μ∈A}(P_spin·S)μμ，正值为 α 自旋富集，定位自由基中心
+        spin_pop = None
+        if dm_spin is not None:
+            ps_spin = dm_spin @ ovlp
+            ao_slices_spin = mol.aoslice_by_atom()
+            spin_pop = np.array([
+                np.trace(ps_spin[ao_slices_spin[a, 2]:ao_slices_spin[a, 3],
+                                 ao_slices_spin[a, 2]:ao_slices_spin[a, 3]])
+                for a in range(natoms)
+            ], dtype=float)
+
+        # Mayer 键级（总密度定义，开壳层同样适用：实测 O2 三重态 BO≈1.5、CH3· C-H BO≈1.0）
+        ao_slices = mol.aoslice_by_atom()
+        bo = self._mayer_bond_orders(dm_tot, ovlp, ao_slices, natoms)
+
+        # IBO Lewis 图像（开壳层按自旋通道分别定域）
+        if dm_spin is not None:
+            ibo_orbitals = (self._ibo_analysis(mol, mf, ovlp, symbols, spin_channel=0)
+                            + self._ibo_analysis(mol, mf, ovlp, symbols, spin_channel=1))
+        else:
+            ibo_orbitals = self._ibo_analysis(mol, mf, ovlp, symbols)
+
+        # ---------- 组装报告 ----------
+        atom_label = [f"{symbols[a]}{a + 1}" for a in range(natoms)]
+        lines = []
+
+        lines.append("=== Summary ===")
+        shell = "U" if dm_spin is not None else "R"
+        method_str = f"{shell}HF" if is_hf else f"{shell}KS/{user_input.method}"
+        if user_input.density_fitting:
+            method_str += " (DF/RI)"
+        lines.append(f"Backend        : PySCF ({method_str})")
+        lines.append(f"Basis          : {user_input.basis}")
+        lines.append(f"Charge / Spin  : {user_input.charge} / {user_input.spin}")
+        lines.append(f"Total energy   : {e_tot:.8f} Eh")
+        lines.append(f"SCF converged  : {bool(mf.converged)}")
+        s2_val = None
+        if dm_spin is not None:
+            s2_val, mult_est = mf.spin_square()
+            s2_ideal = (user_input.spin - 1) / 2 * ((user_input.spin - 1) / 2 + 1)
+            lines.append(f"<S^2>          : {float(s2_val):.4f} (ideal {s2_ideal:.4f}; 偏差>0.1 提示自旋污染)")
+        lines.append(f"Dipole moment  : {dip_norm:.4f} Debye  (vector: {dip_vec[0]:.3f}, {dip_vec[1]:.3f}, {dip_vec[2]:.3f})")
+        lines.append("")
+
+        lines.append("=== Frontier Orbitals ===")
+        lines.append(f"HOMO           : {homo_eh:.6f} Eh  ({homo_eh * _HARTREE_TO_EV:.3f} eV)")
+        lines.append(f"LUMO           : {lumo_eh:.6f} Eh  ({lumo_eh * _HARTREE_TO_EV:.3f} eV)")
+        lines.append(f"HOMO-LUMO gap  : {gap_ev:.3f} eV")
+        lines.append("")
+
+        lines.append("=== Charges (Mulliken / meta-Löwdin) ===")
+        if spin_pop is not None:
+            lines.append("（spin 列为 Mulliken 自旋布居：|值|大者即自由基/未成对电子中心）")
+
+        def _charge_row(a: int) -> str:
+            row = f"{atom_label[a]:>6} {chg_mul[a]:>10.4f} {chg[a]:>12.4f}"
+            if spin_pop is not None:
+                row += f" {spin_pop[a]:>10.4f}"
+            return row
+
+        if natoms <= 30:
+            header = f"{'atom':>6} {'Mulliken':>10} {'meta-Lowdin':>12}"
+            if spin_pop is not None:
+                header += f" {'spin':>10}"
+            lines.append(header)
+            for a in range(natoms):
+                lines.append(_charge_row(a))
+        else:
+            order = np.argsort(chg)
+            lines.append("Most negative 5 (by meta-Löwdin):")
+            for a in order[:5]:
+                lines.append("  " + _charge_row(a))
+            lines.append("Most positive 5 (by meta-Löwdin):")
+            for a in order[-5:][::-1]:
+                lines.append("  " + _charge_row(a))
+        if focus is not None:
+            lines.append("Reactive atoms and bonded neighbors:")
+            for a in sorted(focus):
+                lines.append("  " + _charge_row(a))
+        if spin_pop is not None:
+            radical_order = np.argsort(-np.abs(spin_pop))[:3]
+            top = ", ".join(f"{atom_label[a]} ({spin_pop[a]:+.3f})" for a in radical_order)
+            lines.append(f"Spin population top-3 (自由基中心): {top}")
+        lines.append("")
+
+        lines.append("=== Bond Orders (Mayer) ===")
+        partial_notes = []
+        lines.append("Bonded pairs (covalent-radius connectivity):")
+        for i, j, d in bonds:
+            if focus is not None and i not in focus and j not in focus:
+                continue
+            bo_ij = bo[i, j]
+            tag = ""
+            if 0.3 < bo_ij < 1.7 and abs(bo_ij - 1.0) > 0.3:
+                tag = "  <- partial bond (TS-like)"
+                partial_notes.append(f"{atom_label[i]}-{atom_label[j]}")
+            lines.append(f"  {atom_label[i]:>6}-{atom_label[j]:<6} r={d:.3f} Å  BO={bo_ij:.3f}{tag}")
+        bonded_set = {(i, j) for i, j, _ in bonds}
+        incipient = []
+        for i in range(natoms):
+            for j in range(i + 1, natoms):
+                if (i, j) in bonded_set:
+                    continue
+                if focus is not None and i not in focus and j not in focus:
+                    continue
+                if bo[i, j] > 0.3:
+                    d = float(np.linalg.norm(np.asarray(coords[i]) - np.asarray(coords[j])))
+                    incipient.append((i, j, d, bo[i, j]))
+        if incipient:
+            lines.append("Non-bonded pairs with BO > 0.3 (incipient bond, 正在形成的键):")
+            for i, j, d, b in incipient:
+                lines.append(f"  {atom_label[i]:>6}-{atom_label[j]:<6} r={d:.3f} Å  BO={b:.3f}  <- incipient bond")
+        lines.append("")
+
+        lines.append("=== IBO Lewis Picture ===")
+        lone_pairs = [o for o in ibo_orbitals if o["kind"] == "lone_pair"]
+        cores = [o for o in ibo_orbitals if o["kind"] == "core"]
+        ibo_bonds = [o for o in ibo_orbitals if o["kind"] == "bond"]
+        deloc = [o for o in ibo_orbitals if o["kind"] == "delocalized"]
+
+        def _spin_prefix(o: dict) -> str:
+            return f"({o['spin']}) " if o.get("spin") else " "
+
+        if lone_pairs:
+            lines.append("Lone pairs:")
+            for o in lone_pairs:
+                lines.append(f"  LP{_spin_prefix(o)}on {atom_label[o['atoms'][0] - 1]}  ({o['shares'][0]:.0f}%, E={o['energy_eh']:.3f} Eh)")
+        if cores:
+            lines.append("Core orbitals:")
+            for o in cores:
+                lines.append(f"  core{_spin_prefix(o)}on {atom_label[o['atoms'][0] - 1]}  (E={o['energy_eh']:.3f} Eh)")
+        if ibo_bonds:
+            lines.append("2c-2e bonds:")
+            for o in ibo_bonds:
+                a1, a2 = o["atoms"][0] - 1, o["atoms"][1] - 1
+                if focus is not None and a1 not in focus and a2 not in focus:
+                    continue
+                s1, s2 = o["shares"]
+                lines.append(f"  {atom_label[a1]}-{atom_label[a2]}{_spin_prefix(o)} ({s1:.0f}% / {s2:.0f}%, E={o['energy_eh']:.3f} Eh)")
+        if deloc:
+            lines.append("Delocalized orbitals (离域，未归入经典 Lewis 图像):")
+            for o in deloc:
+                share_str = "/".join(f"{s:.0f}%" for s in o["shares"])
+                labels = "-".join(atom_label[a - 1] for a in o["atoms"])
+                lines.append(f"  {labels}{_spin_prefix(o)} ({share_str})")
+        lines.append("")
+
+        lines.append("=== Notes ===")
+        lines.append("电荷以 meta-Löwdin 为准：Mulliken 电荷对基组敏感（大基组下可失真），仅作对照；"
+                     "两者符号冲突时结论取 meta-Löwdin。")
+        lines.append("部分键（partial bond, 0.3 < BO 且偏离整数键级 > 0.3）与 incipient bond 是反应进行中的信号："
+                     "过渡态附近断裂/形成的键通常表现为非整数键级。")
+        if partial_notes:
+            lines.append(f"检测到 partial bond (TS-like): {', '.join(partial_notes)}。")
+        if incipient:
+            lines.append(f"检测到 {len(incipient)} 对 incipient bond（非键但 BO>0.3），提示键正在形成。")
+        if spin_pop is not None:
+            lines.append("开壳层体系：自旋布居（Charges 表 spin 列）定位自由基中心；"
+                         "α 通道独有的单中心 IBO 近似对应单占据轨道（SOMO）。"
+                         "UHF/UKS 有自旋污染风险，<S^2> 偏差大时能量与键级需谨慎解读。")
+        if not mf.converged:
+            lines.append("【警告】SCF 未收敛，以上数值不可信，请检查结构/电荷/自旋设置。")
+        lines.append("坐标不在上下文中；如需轨道可视化，使用返回的 molden_path。")
+
+        report = "\n".join(lines)
+        summary = {
+            "total_energy_eh": round(e_tot, 8),
+            "homo_eh": round(homo_eh, 6),
+            "lumo_eh": round(lumo_eh, 6),
+            "homo_ev": round(homo_eh * _HARTREE_TO_EV, 3),
+            "lumo_ev": round(lumo_eh * _HARTREE_TO_EV, 3),
+            "gap_ev": round(gap_ev, 3),
+            "dipole_debye": round(dip_norm, 4),
+            "scf_converged": bool(mf.converged),
+            "partial_bonds": partial_notes,
+            "incipient_bond_count": len(incipient),
+        }
+        if s2_val is not None:
+            summary["spin_squared"] = round(float(s2_val), 4)
+            summary["spin_population"] = {atom_label[a]: round(float(spin_pop[a]), 4) for a in range(natoms)}
+
+        molden_path = ""
+        log_path = ""
+        if user_input.output_dir:
+            os.makedirs(user_input.output_dir, exist_ok=True)
+            try:
+                molden_path = os.path.join(user_input.output_dir, "orbitals.molden")
+                with open(molden_path, "w", encoding="utf-8") as f:
+                    molden.header(mol, f)
+                    if dm_spin is not None:
+                        # molden 单文件只写一套轨道，开壳层写 α 通道
+                        molden.orbital_coeff(mol, f, mf.mo_coeff[0], ene=mf.mo_energy[0], occ=mf.mo_occ[0])
+                    else:
+                        molden.orbital_coeff(mol, f, mf.mo_coeff, ene=mf.mo_energy, occ=mf.mo_occ)
+            except Exception as e:
+                molden_path = ""
+                lines_note = f"（molden 轨道文件写入失败：{e}）"
+            else:
+                lines_note = ""
+            log_path = os.path.join(user_input.output_dir, "electronic_analysis.log")
+            atomic_write_text(log_path, report + ("\n" + lines_note if lines_note else "") + "\n")
+
+        return ElectronicAnalysis_output_schema(
+            is_success=True,
+            report=report,
+            summary=summary,
+            molden_path=molden_path,
+            log_path=log_path,
+            message="电子结构分析完成（PySCF）。报告不含坐标；molden 与日志见返回路径。",
+        )
+
+    # ---------- xTB 后端 ----------
+
+    @staticmethod
+    def _parse_xtb_stdout(stdout: str) -> dict:
+        data = {}
+        m = re.search(r"::\s*total energy\s+(-?\d+\.\d+)", stdout)
+        if not m:
+            m = re.search(r"TOTAL ENERGY\s+(-?\d+\.\d+)", stdout)
+        if m:
+            data["total_energy_eh"] = float(m.group(1))
+        m = re.search(r"HOMO-LUMO GAP\s+(-?\d+\.\d+)", stdout, re.IGNORECASE)
+        if m:
+            data["gap_ev"] = float(m.group(1))
+        m = re.search(r"full:\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)", stdout)
+        if m:
+            data["dipole_debye"] = float(m.group(4))
+        return data
+
+    def _run_xtb(self, user_input: ElectronicAnalysis_input_schema,
+                 xyz_text: str) -> ElectronicAnalysis_output_schema:
+        if shutil.which("xtb") is None:
+            return ElectronicAnalysis_output_schema(
+                is_success=False,
+                message="未找到 xtb 可执行程序。请安装 xTB（https://xtb-docs.readthedocs.io/）"
+                        "并确保其在 PATH 中，或改用 backend='pyscf'。"
+            )
+
+        symbols, _ = _parse_xyz(xyz_text)
+        natoms = len(symbols)
+
+        with tempfile.TemporaryDirectory(prefix="xtb_") as workdir:
+            input_xyz = os.path.join(workdir, "input.xyz")
+            atomic_write_text(input_xyz, xyz_text)
+            try:
+                proc = subprocess.run(
+                    ["xtb", "input.xyz", "--sp",
+                     "--chrg", str(user_input.charge),
+                     "--uhf", str(user_input.spin - 1)],
+                    cwd=workdir, capture_output=True, text=True, timeout=user_input.timeout,
+                )
+            except subprocess.TimeoutExpired:
+                return ElectronicAnalysis_output_schema(
+                    is_success=False,
+                    message=f"xTB 运行超时（>{user_input.timeout}s）。"
+                )
+
+            stdout = proc.stdout or ""
+            data = self._parse_xtb_stdout(stdout)
+            if "total_energy_eh" not in data:
+                tail = stdout[-2000:]
+                err_tail = (proc.stderr or "")[-1000:]
+                return ElectronicAnalysis_output_schema(
+                    is_success=False,
+                    message=f"未能从 xTB 输出解析总能量（returncode={proc.returncode}）。\n"
+                            f"stdout 尾部:\n{tail}\nstderr 尾部:\n{err_tail}"
+                )
+
+            # Mulliken 电荷（charges 文件：每行一个电荷值）
+            charges = []
+            charges_file = os.path.join(workdir, "charges")
+            if os.path.isfile(charges_file):
+                with open(charges_file, encoding="utf-8", errors="replace") as f:
+                    for ln in f:
+                        ln = ln.strip()
+                        if ln:
+                            try:
+                                charges.append(float(ln.split()[0]))
+                            except ValueError:
+                                pass
+            if len(charges) != natoms:
+                charges = []
+
+            if user_input.output_dir:
+                os.makedirs(user_input.output_dir, exist_ok=True)
+                log_path = os.path.join(user_input.output_dir, "xtb_stdout.log")
+                atomic_write_text(log_path, stdout)
+            else:
+                log_path = ""
+
+        atom_label = [f"{symbols[a]}{a + 1}" for a in range(natoms)]
+        lines = ["=== Summary ===",
+                 "Backend        : xTB (GFN2-xTB, --sp)",
+                 f"Charge / Spin  : {user_input.charge} / {user_input.spin}",
+                 f"Total energy   : {data['total_energy_eh']:.8f} Eh"]
+        if "dipole_debye" in data:
+            lines.append(f"Dipole moment  : {data['dipole_debye']:.4f} Debye")
+        lines.append("")
+        lines.append("=== Frontier Orbitals ===")
+        if "gap_ev" in data:
+            lines.append(f"HOMO-LUMO gap  : {data['gap_ev']:.3f} eV")
+        else:
+            lines.append("HOMO-LUMO gap  : 未从输出解析到")
+        lines.append("")
+        if charges:
+            lines.append("=== Charges (Mulliken, xTB) ===")
+            lines.append(f"{'atom':>6} {'charge':>10}")
+            for a in range(natoms):
+                lines.append(f"{atom_label[a]:>6} {charges[a]:>10.4f}")
+            lines.append("")
+        lines.append("=== Notes ===")
+        lines.append("xTB 后端为半经验 GFN2-xTB，仅提供能量/能隙/电荷/偶极；"
+                     "Mayer 键级与 IBO Lewis 图像请用 backend='pyscf'。")
+        report = "\n".join(lines)
+
+        summary = dict(data)
+        summary["scf_converged"] = proc.returncode == 0
+        return ElectronicAnalysis_output_schema(
+            is_success=True,
+            report=report,
+            summary=summary,
+            log_path=log_path,
+            message="电子结构分析完成（xTB/GFN2-xTB）。报告不含坐标。",
+        )
+
+    async def tool_call(self, user_input: ElectronicAnalysis_input_schema, session: Session) -> ElectronicAnalysis_output_schema:
+        try:
+            xyz_text = _load_xyz_text(user_input)
+        except Exception as e:
+            return ElectronicAnalysis_output_schema(is_success=False, message=f"读取输入结构失败: {e}")
+
+        if user_input.backend == "xtb":
+            try:
+                return self._run_xtb(user_input, xyz_text)
+            except Exception as e:
+                return ElectronicAnalysis_output_schema(is_success=False, message=f"xTB 后端失败: {e}")
+
+        if not _PYSCF_AVAILABLE:
+            return ElectronicAnalysis_output_schema(
+                is_success=False,
+                message="环境未安装 PySCF 库。请执行: pip install pyscf 或 pip install 'cloudra[chem]'"
+            )
+        try:
+            return self._run_pyscf(user_input, xyz_text)
+        except Exception as e:
+            return ElectronicAnalysis_output_schema(is_success=False, message=f"PySCF 后端失败: {e}")
+
+
+def get_class():
+    return ElectronicAnalysis

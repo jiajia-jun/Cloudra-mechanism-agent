@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Any, Optional
 
 from pydantic import Field
@@ -21,6 +22,14 @@ _AVAILABLE_PROPERTIES = {
     "dipole": ["dipole_moment_debye"],
     "frequencies": ["frequencies_cm", "imaginary_frequencies"],
     "thermochemistry": [
+        "zero_point_correction_hartree",
+        "thermal_energy_correction_hartree",
+        "thermal_enthalpy_correction_hartree",
+        "thermal_gibbs_correction_hartree",
+        "total_zero_point_energy_hartree",
+        "total_thermal_energy_hartree",
+        "total_enthalpy_hartree",
+        "total_gibbs_free_energy_hartree",
         "zero_point_energy_hartree",
         "thermal_energy_hartree",
         "enthalpy_hartree",
@@ -38,6 +47,45 @@ _AVAILABLE_PROPERTIES = {
         "irc_both_directions_converged",
     ],
 }
+
+
+_GAUSSIAN_FLOAT = r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?)"
+_THERMO_PATTERNS = {
+    "zero_point_correction_hartree": rf"Zero-point correction=\s*{_GAUSSIAN_FLOAT}",
+    "thermal_energy_correction_hartree": rf"Thermal correction to Energy=\s*{_GAUSSIAN_FLOAT}",
+    "thermal_enthalpy_correction_hartree": rf"Thermal correction to Enthalpy=\s*{_GAUSSIAN_FLOAT}",
+    "thermal_gibbs_correction_hartree": rf"Thermal correction to Gibbs Free Energy=\s*{_GAUSSIAN_FLOAT}",
+    "total_zero_point_energy_hartree": rf"Sum of electronic and zero-point Energies=\s*{_GAUSSIAN_FLOAT}",
+    "total_thermal_energy_hartree": rf"Sum of electronic and thermal Energies=\s*{_GAUSSIAN_FLOAT}",
+    "total_enthalpy_hartree": rf"Sum of electronic and thermal Enthalpies=\s*{_GAUSSIAN_FLOAT}",
+    "total_gibbs_free_energy_hartree": rf"Sum of electronic and thermal Free Energies=\s*{_GAUSSIAN_FLOAT}",
+}
+
+
+def _extract_gaussian_thermochemistry(log_path: str) -> dict[str, float]:
+    """Extract the last complete Gaussian thermochemistry block without changing units."""
+    with open(log_path, encoding="utf-8", errors="replace") as handle:
+        text = handle.read()
+
+    starts = [match.start() for match in re.finditer(r"Zero-point correction=", text)]
+    chunks = (
+        [text[start:(starts[index + 1] if index + 1 < len(starts) else len(text))]
+         for index, start in enumerate(starts)]
+        if starts else [text]
+    )
+    parsed_blocks: list[dict[str, float]] = []
+    for chunk in chunks:
+        values: dict[str, float] = {}
+        for field, pattern in _THERMO_PATTERNS.items():
+            match = re.search(pattern, chunk)
+            if match:
+                values[field] = float(match.group(1).replace("D", "E").replace("d", "e"))
+        if values:
+            parsed_blocks.append(values)
+    if not parsed_blocks:
+        return {}
+    complete = [block for block in parsed_blocks if len(block) == len(_THERMO_PATTERNS)]
+    return complete[-1] if complete else parsed_blocks[-1]
 
 
 class LogParser_input_schema(input_schema):
@@ -65,10 +113,30 @@ class LogParser_output_schema(output_schema):
     dipole_moment_debye: Optional[float] = Field(default=None, description="偶极矩 (Debye)")
     frequencies_cm: Optional[list[float]] = Field(default=None, description="振动频率列表 (cm⁻¹)")
     imaginary_frequencies: Optional[list[float]] = Field(default=None, description="虚频列表 (cm⁻¹)，用于判断过渡态")
-    zero_point_energy_hartree: Optional[float] = Field(default=None, description="零点能校正 (Hartree)")
-    thermal_energy_hartree: Optional[float] = Field(default=None, description="热力学能校正 (Hartree)")
-    enthalpy_hartree: Optional[float] = Field(default=None, description="焓校正 (Hartree)")
-    gibbs_free_energy_hartree: Optional[float] = Field(default=None, description="吉布斯自由能校正 (Hartree)")
+    zero_point_correction_hartree: Optional[float] = Field(default=None, description="零点能校正 (Hartree)")
+    thermal_energy_correction_hartree: Optional[float] = Field(default=None, description="热能校正 (Hartree)")
+    thermal_enthalpy_correction_hartree: Optional[float] = Field(default=None, description="热焓校正 (Hartree)")
+    thermal_gibbs_correction_hartree: Optional[float] = Field(default=None, description="热 Gibbs 自由能校正 (Hartree)")
+    total_zero_point_energy_hartree: Optional[float] = Field(default=None, description="电子能与零点能之和 (Hartree)")
+    total_thermal_energy_hartree: Optional[float] = Field(default=None, description="电子能与热能之和 (Hartree)")
+    total_enthalpy_hartree: Optional[float] = Field(default=None, description="电子能与热焓之和 (Hartree)")
+    total_gibbs_free_energy_hartree: Optional[float] = Field(default=None, description="电子能与热 Gibbs 自由能之和 (Hartree)")
+    zero_point_energy_hartree: Optional[float] = Field(
+        default=None,
+        description="兼容字段：zero_point_correction_hartree 的别名 (Hartree)",
+    )
+    thermal_energy_hartree: Optional[float] = Field(
+        default=None,
+        description="兼容字段：thermal_energy_correction_hartree 的别名 (Hartree)",
+    )
+    enthalpy_hartree: Optional[float] = Field(
+        default=None,
+        description="兼容字段：total_enthalpy_hartree 的别名；这是总焓，不是焓校正 (Hartree)",
+    )
+    gibbs_free_energy_hartree: Optional[float] = Field(
+        default=None,
+        description="兼容字段：total_gibbs_free_energy_hartree 的别名；这是总自由能，不是校正项 (Hartree)",
+    )
     mulliken_charges: Optional[dict] = Field(default=None, description="Mulliken 电荷分布 {原子序号: 电荷}")
     normal_termination: Optional[bool] = Field(default=None, description="Gaussian 是否正常终止")
     job_types: Optional[list[str]] = Field(default=None, description="识别到的任务类型（opt/ts/freq/scan/irc/sp 的子集，升序）")
@@ -173,17 +241,37 @@ class LogParser(Tool):
                     result["frequencies_cm"] = [float(f) for f in freqs if f >= 0]
                     result["imaginary_frequencies"] = [float(abs(f)) for f in freqs if f < 0]
 
-            thermo_map = {
-                "zero_point_energy_hartree": "zpve",
-                "thermal_energy_hartree": "enthalpy",
-                "enthalpy_hartree": "enthalpy",
-                "gibbs_free_energy_hartree": "freeenergy",
-            }
-            for out_key, ccib_attr in thermo_map.items():
-                if out_key in requested and hasattr(data, ccib_attr):
-                    value = getattr(data, ccib_attr)
+            thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
+            if thermo_fields & requested:
+                thermo = _extract_gaussian_thermochemistry(log_path)
+
+                # cclib correctly exposes these as total quantities. Prefer the
+                # literal Gaussian summary when present and use cclib as fallback.
+                if "total_enthalpy_hartree" not in thermo:
+                    value = getattr(data, "enthalpy", None)
                     if value is not None:
-                        result[out_key] = float(value)
+                        thermo["total_enthalpy_hartree"] = float(value)
+                if "total_gibbs_free_energy_hartree" not in thermo:
+                    value = getattr(data, "freeenergy", None)
+                    if value is not None:
+                        thermo["total_gibbs_free_energy_hartree"] = float(value)
+                if "zero_point_correction_hartree" not in thermo:
+                    value = getattr(data, "zpve", None)
+                    if value is not None:
+                        thermo["zero_point_correction_hartree"] = float(value)
+
+                aliases = {
+                    "zero_point_energy_hartree": "zero_point_correction_hartree",
+                    "thermal_energy_hartree": "thermal_energy_correction_hartree",
+                    "enthalpy_hartree": "total_enthalpy_hartree",
+                    "gibbs_free_energy_hartree": "total_gibbs_free_energy_hartree",
+                }
+                for field in thermo_fields:
+                    if field in requested and field in thermo:
+                        result[field] = thermo[field]
+                for alias, canonical in aliases.items():
+                    if alias in requested and canonical in thermo:
+                        result[alias] = thermo[canonical]
 
             if "mulliken_charges" in requested:
                 if hasattr(data, "atomcharges") and data.atomcharges is not None:
