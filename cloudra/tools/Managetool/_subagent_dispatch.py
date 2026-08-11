@@ -10,9 +10,20 @@ import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from cloudra import session_store
-from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
-from cloudra.runtime_profile import subagent_execution_mode
+from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
+from cloudra.infra.runtime_profile import subagent_execution_mode
+from cloudra.persistence.database import ConversationDB, aretry_on_locked, get_database_path
+from cloudra.services import session_store
+
+
+def _subagent_orchestration_mode(parent_mode: Any) -> OrchestrationMode:
+    """DAG 会话的子 Agent 以 dag_record 运行：确定性 harness 负责登记工具证据，
+    子 Agent 不触发 Supervisor（guided 只属 Coordinator 会话）。standard 会话
+    的子 Agent 保持 standard，零图开销。
+    """
+    if normalize_orchestration_mode(parent_mode) is OrchestrationMode.STANDARD:
+        return OrchestrationMode.STANDARD
+    return OrchestrationMode.DAG_RECORD
 
 
 async def run_subagent_in_process(task_id: int, db_path: str, session_id: str) -> None:
@@ -64,6 +75,7 @@ async def dispatch_subagent(
     conversation_id: str,
     working_directory: Optional[str],
     parent_session_id: Optional[str],
+    parent_orchestration_mode: Any = OrchestrationMode.STANDARD,
     semaphore: Optional[asyncio.Semaphore] = None,
 ) -> SubagentDispatchResult:
     """实例化子 Agent、落库 subagent_requests、按运行模式执行并回取结果。
@@ -81,6 +93,8 @@ async def dispatch_subagent(
     sub_agent.frequency_penalty = 0.0
     sub_agent.presence_penalty = 0.0
     sub_agent.working_directory = working_directory
+    sub_mode = _subagent_orchestration_mode(parent_orchestration_mode)
+    sub_agent.orchestration_mode = sub_mode
 
     act_agent = sub_agent.name
 
@@ -92,7 +106,7 @@ async def dispatch_subagent(
     # session_id 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
     # yolo 标志随 payload 落库：子 Agent 子进程启动时据此注入 CLOUDRA_YOLO_MODE，
     # 使 Session 级 YOLO 能跨进程传播（CLI 进程级 env 则天然继承）。
-    from cloudra.yolo_guard import is_yolo_enabled
+    from cloudra.infra.yolo_guard import is_yolo_enabled
     base_payload = {
         'agent_id': agent_id,
         'query': query,
@@ -100,6 +114,7 @@ async def dispatch_subagent(
         'conversation_id': conversation_id,
         'parent_session_id': parent_session_id,
         'working_directory': sub_agent.working_directory,
+        'orchestration_mode': sub_mode.value,
         'yolo': is_yolo_enabled(),
     }
 
@@ -187,7 +202,7 @@ async def dispatch_subagent(
 
             create_mobile_task(run_subagent_in_process(task_id, db_path, session_id))
         else:
-            from cloudra import events
+            from cloudra.infra import events
 
             await events.aemit(
                 conversation_id,

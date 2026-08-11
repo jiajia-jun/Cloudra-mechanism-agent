@@ -1,4 +1,4 @@
-from cloudra.agent import Follower
+from cloudra.core.agent import Follower
 
 
 class small_mol(Follower):

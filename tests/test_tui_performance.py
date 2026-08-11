@@ -9,13 +9,13 @@ from contextlib import asynccontextmanager
 import pytest
 from rich.segment import Segment
 from textual.app import App, ComposeResult
-from textual.events import Resize
-from textual.geometry import Size
 from textual.strip import Strip
 
 from cloudra.tui.new import transcript_render
+from cloudra.tui.new.transcript_render import InteractionAction
 from cloudra.tui.new.virtual_lines import restore_anchor
 from cloudra.tui.new.widgets.virtual_chat_log import ChatLog as VirtualChatLog
+from scripts.profile_textual_tui import run_profile
 
 
 class ChatOnlyApp(App[None]):
@@ -198,7 +198,7 @@ async def test_virtual_chat_queues_compilation_when_the_viewport_scrolls():
 async def test_virtual_chat_limits_active_compiles_and_queues_the_rest():
     """Viewport work must remain in a surface queue instead of spawning one task per row."""
     app = ChatOnlyApp()
-    async with app.run_test(size=(100, 400)) as pilot:
+    async with app.run_test(size=(100, 400)):
         chat = app.query_one("#chat-log", VirtualChatLog)
         for index in range(100):
             chat.append_system("s1", f"event-{index}")
@@ -305,7 +305,7 @@ async def test_virtual_chat_drains_latest_revision_after_a_cancelled_admission(m
 
     monkeypatch.setattr(transcript_render, "compile_record", blocked_compile)
     app = ChatOnlyApp()
-    async with app.run_test(size=(100, 36)) as pilot:
+    async with app.run_test(size=(100, 36)):
         chat = app.query_one("#chat-log", VirtualChatLog)
         handle = chat.append_stream_chunk("s1", "old")
         chat._flush_frame()
@@ -534,7 +534,6 @@ async def test_cancelled_compile_cannot_request_a_frame_after_the_closing_gate()
     assert calls == []
 
 
-from cloudra.tui.new.transcript_render import InteractionAction
 
 
 class PaddedChatOnlyApp(ChatOnlyApp):
@@ -588,7 +587,7 @@ async def test_virtual_tool_toggle_and_code_copy():
     copied: list[str] = []
     app = ChatOnlyApp()
     app.copy_to_clipboard = copied.append  # type: ignore[method-assign]
-    async with app.run_test(size=(100, 36)) as pilot:
+    async with app.run_test(size=(100, 36)):
         chat = app.query_one("#chat-log", VirtualChatLog)
         tool = chat.append_tool(
             "s1", "Bash", "ls", finished=True, result="\n".join(map(str, range(30)))
@@ -706,7 +705,7 @@ async def test_virtual_optimistic_user_reveal_scrolls_into_view():
         assert row_start <= int(chat.scroll_y) + chat.scrollable_content_region.height
 
 
-from scripts.profile_textual_tui import run_profile
+
 
 
 @pytest.mark.asyncio

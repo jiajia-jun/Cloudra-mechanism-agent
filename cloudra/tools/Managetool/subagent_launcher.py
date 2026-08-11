@@ -2,14 +2,14 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
 from cloudra.subagents import Subagent_hash
 from cloudra.tools.Managetool._subagent_dispatch import (
     dispatch_subagent,
     run_subagent_in_process,
 )
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 # 向后兼容：历史实现中该协程定义在本模块，保留别名以防外部引用。
 _run_subagent_in_process = run_subagent_in_process
@@ -20,7 +20,7 @@ description = (
     "- **绝对路径**: 必须在 query 或 context 中提供工作目录的绝对路径。\n"
     "- **安全提示**: 系统已开启【安全审计】。除 explorer 外所有子 Agent 均可执行写入/脚本/删除操作，请指导它们在 Thought 中详细说明意图、影响范围与回滚方案以辅助审批。\n"
     "- **任务定义**: 任务描述需极其明确，指定要使用的工具，并明确禁止子 Agent 使用与其任务无关的工具。\n"
-    "- **AgentHub**: 子 Agent 可通过 `agent_hub` 工具与其他并行 Agent 共享发现/提问/回答。并行派发有重叠风险的任务时，提醒它们先查 hub、结论发 hub。\n"
+    "- **AgentHub**: 子 Agent 可通过 `agent_hub` 工具与其他并行 Agent 共享发现/提问/回答，也可用 to_agent 点名留言（帖子公开，被点名/被回复者会收到通知）。并行派发有重叠风险的任务时，提醒它们先查 hub、结论发 hub。\n"
     "- **agent_id 必须是唯一标识符**: 调用时只能传入类似 a-1、a-2 的 id，不能传 explorer、writer 等名称；同一 agent_id 可以对不同任务重复派发以实现并行；批量并行建议用 SubAgentSwarm（t-47）。\n"
     "可用的子 Agent:\n"
     "1. explorer (a-1): 探索+审查。摸清项目结构、定位文件；只读审查代码/文档/数据，输出带证据的审查报告。只读。\n"
@@ -111,6 +111,7 @@ class SubAgentLauncher(Tool):
 
         conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
         working_directory = getattr(self.subagent, 'working_directory', None)
+        parent_mode = getattr(self.subagent, 'orchestration_mode', 'standard')
 
         dispatched = await dispatch_subagent(
             agent_cls,
@@ -121,6 +122,7 @@ class SubAgentLauncher(Tool):
             conversation_id=conversation_id,
             working_directory=working_directory,
             parent_session_id=parent_session_id,
+            parent_orchestration_mode=parent_mode,
         )
 
         return SubAgentLauncher_output_schema(

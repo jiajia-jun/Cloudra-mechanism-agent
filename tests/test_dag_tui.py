@@ -73,7 +73,65 @@ def test_build_operation_update_ops_wrap_changes():
     )
     assert edge_op["data"] == {"edge_id": "chair", "changes": {"label": "boat"}}
     with pytest.raises(ValueError):
-        build_operation("process", "waive_gate", node_id="x")
+        build_operation("process", "attach_ref", node_id="x")
+
+
+def test_edit_ops_include_new_user_ops():
+    """编辑弹窗词表：删边、挂 link、豁免 gate 都对用户开放。"""
+    from cloudra.tui.new.screens.dag_screen import _EDIT_OPS
+
+    assert {"remove_edge", "add_link", "waive_gate"} <= set(_EDIT_OPS)
+
+
+def test_build_operation_remove_edge():
+    op = build_operation("delivery", "remove_edge", edge_id="chair")
+    assert op == {"op": "remove_edge", "graph": "delivery", "data": {"edge_id": "chair"}}
+
+
+def test_build_operation_add_link_and_waive_gate_carry_full_data():
+    """add_link / waive_gate 的 JSON 即完整 data，graph 置 None（跨图/契约操作）。"""
+    link = build_operation(
+        "process",
+        "add_link",
+        json_data={
+            "link_id": "l1",
+            "process_node_id": "opt-ts",
+            "delivery_element_type": "edge",
+            "delivery_element_id": "chair",
+        },
+    )
+    assert link["graph"] is None
+    assert link["data"]["link_id"] == "l1"
+    assert link["data"]["delivery_element_id"] == "chair"
+
+    waiver = build_operation(
+        "delivery",
+        "waive_gate",
+        json_data={
+            "gate_code": "missing_thermochemistry",
+            "target_type": "edge",
+            "target_id": "chair",
+            "user_id": "user",
+            "session_id": "user",
+            "rationale": "能量非关键路径",
+        },
+    )
+    assert waiver["graph"] is None
+    assert waiver["data"]["gate_code"] == "missing_thermochemistry"
+    assert waiver["data"]["rationale"] == "能量非关键路径"
+
+
+def test_json_template_new_ops_prefill_required_keys():
+    """新操作的 JSON 模板预填引擎要求的必填键。"""
+    link = json.loads(json_template("add_link"))
+    assert {
+        "link_id",
+        "process_node_id",
+        "delivery_element_type",
+        "delivery_element_id",
+    } <= set(link)
+    waiver = json.loads(json_template("waive_gate"))
+    assert {"gate_code", "target_type", "target_id", "rationale"} <= set(waiver)
 
 
 def test_format_dag_summary_without_dag():
@@ -180,12 +238,12 @@ def test_format_history_renders_actor_and_acceptance():
 
 def test_format_dag_content_with_real_service_graph(tmp_path, monkeypatch):
     """用临时目录 + 真实 CloudraService/DagStore 造小图，校验渲染输出含关键 id。"""
-    from cloudra.config import get_config, reload_config
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
     from cloudra.dag.store import DagStore
-    from cloudra.database import ConversationDB
-    from cloudra.service import CloudraService
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services.service import CloudraService
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path / "data"))
     reload_config()
@@ -272,7 +330,7 @@ def test_mode_command_registered_and_parsed():
 
 
 def _make_app(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
     from cloudra.tui.new.app import CloudraTextualApp
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path / "data"))

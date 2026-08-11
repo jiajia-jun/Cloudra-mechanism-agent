@@ -7,8 +7,8 @@ import time
 
 import pytest
 
-from cloudra import events, ipc
-from cloudra.database import ConversationDB
+from cloudra.infra import events, ipc
+from cloudra.persistence.database import ConversationDB
 from cloudra.runtime import workers
 
 

@@ -16,22 +16,53 @@ from textual.containers import Grid, VerticalScroll
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Select
 
-from cloudra.service import CloudraService
+from cloudra.services.service import CloudraService
 from cloudra.tui.new.widgets.safe_static import SafeStatic
 
 # 编辑弹窗支持的操作类型
-_EDIT_OPS = ("add_node", "add_edge", "update_node", "update_edge")
+_EDIT_OPS = (
+    "add_node",
+    "add_edge",
+    "update_node",
+    "update_edge",
+    "remove_edge",
+    "add_link",
+    "waive_gate",
+)
 
-# 各操作对应的 payload / changes JSON 默认值模板（表单预填，便于用户在其上修改）
+# 各操作对应的 payload / changes / data JSON 默认值模板（表单预填，便于用户在其上修改）
 _JSON_TEMPLATES = {
     "add_node": {"status": "proposed", "priority": 0, "evidence_level": "proposed"},
     "add_edge": {},
     "update_node": {"status": "skipped", "reason": ""},
     "update_edge": {"label": ""},
+    "remove_edge": {},
+    "add_link": {
+        "link_id": "",
+        "process_node_id": "",
+        "delivery_element_type": "node",
+        "delivery_element_id": "",
+    },
+    "waive_gate": {
+        "gate_code": "",
+        "target_type": "edge",
+        "target_id": "",
+        "user_id": "user",
+        "session_id": "user",
+        "rationale": "",
+    },
 }
 
-# update_* 操作的 JSON 文本框语义是 changes，其余是 payload
+# update_* 操作的 JSON 文本框语义是 changes，add_link/waive_gate 是完整 data，
+# 其余是 payload
 _CHANGES_OPS = ("update_node", "update_edge")
+_DATA_OPS = ("add_link", "waive_gate")
+
+# add_link / waive_gate 的 data JSON 必填键（客户端预校验，引擎还会再校验一次）
+_DATA_REQUIRED_KEYS = {
+    "add_link": ("link_id", "process_node_id", "delivery_element_type", "delivery_element_id"),
+    "waive_gate": ("gate_code", "target_type", "target_id", "user_id", "session_id", "rationale"),
+}
 
 
 def json_template(op_name: str) -> str:
@@ -57,6 +88,8 @@ def build_operation(
     add_* 操作的 ``json_data`` 是节点/边的 payload；update_* 操作的是
     changes（可改 status/priority/label/annotations/reason/blocked_reason/
     evidence_level/required 等，不能改 refs/id/node_type）。
+    add_link / waive_gate 是跨图/契约操作，``json_data`` 即完整 data，
+    graph 字段置 None。
     """
     data: dict = {}
     if op_name == "add_node":
@@ -77,6 +110,11 @@ def build_operation(
     elif op_name == "update_edge":
         data["edge_id"] = edge_id
         data["changes"] = dict(json_data or {})
+    elif op_name == "remove_edge":
+        data["edge_id"] = edge_id
+    elif op_name in _DATA_OPS:
+        # 跨图簿记（add_link）与契约豁免（waive_gate）不属于单张图
+        return {"op": op_name, "graph": None, "data": dict(json_data or {})}
     else:
         raise ValueError(f"不支持的操作类型: {op_name}")
     return {"op": op_name, "graph": graph, "data": data}
@@ -247,7 +285,10 @@ class DagEditModal(ModalScreen[dict | None]):
             yield Input(
                 placeholder="node_type（add_node，默认 work）", id="edit-node-type"
             )
-            yield Input(placeholder="edge_id（add_edge/update_edge 必填）", id="edit-edge-id")
+            yield Input(
+                placeholder="edge_id（add_edge/update_edge/remove_edge 必填）",
+                id="edit-edge-id",
+            )
             yield Input(placeholder="source_node_id（add_edge 必填）", id="edit-source")
             yield Input(placeholder="target_node_id（add_edge 必填）", id="edit-target")
             yield Input(
@@ -291,7 +332,12 @@ class DagEditModal(ModalScreen[dict | None]):
             if not isinstance(json_data, dict):
                 raise ValueError("JSON 必须是对象")
         except ValueError as exc:
-            kind = "changes" if op_name in _CHANGES_OPS else "payload"
+            if op_name in _CHANGES_OPS:
+                kind = "changes"
+            elif op_name in _DATA_OPS:
+                kind = "data"
+            else:
+                kind = "payload"
             self._error(f"{kind} JSON 解析失败: {exc}")
             return
 
@@ -309,14 +355,26 @@ class DagEditModal(ModalScreen[dict | None]):
             "add_edge": ("edge_id", "source_node_id", "target_node_id"),
             "update_node": ("node_id",),
             "update_edge": ("edge_id",),
-        }[op_name]
+            "remove_edge": ("edge_id",),
+        }.get(op_name, ())
         missing = [name for name in required if not fields[name]]
         if missing:
             self._error(f"缺少必填字段: {', '.join(missing)}")
             return
 
-        operation = build_operation(graph, op_name, json_data=json_data, **fields)
+        data_required = _DATA_REQUIRED_KEYS.get(op_name, ())
+        data_missing = [key for key in data_required if not json_data.get(key)]
+        if data_missing:
+            self._error(f"data JSON 缺少必填键: {', '.join(data_missing)}")
+            return
+
         rationale = self.query_one("#edit-rationale", Input).value.strip()
+        # 引擎强制 remove_edge 批次必须带 rationale，客户端先拦一次
+        if op_name == "remove_edge" and not rationale:
+            self._error("remove_edge 必须填写修改理由（rationale）")
+            return
+
+        operation = build_operation(graph, op_name, json_data=json_data, **fields)
         self.dismiss({"operation": operation, "rationale": rationale})
 
     def action_close(self) -> None:
@@ -326,7 +384,8 @@ class DagEditModal(ModalScreen[dict | None]):
 class DagScreen(Screen):
     """全屏 DAG 视图：双图节点/边、delivery 覆盖报告、近期变更历史。
 
-    r 刷新；e 打开编辑弹窗（修改经引擎原子校验后生效）。
+    r 刷新；e 打开编辑弹窗（修改经引擎原子校验后生效）；
+    p 请求 Supervisor 重新规划（仅 dag_guided 会话）。
     """
 
     BINDINGS = [
@@ -334,6 +393,7 @@ class DagScreen(Screen):
         ("q", "dismiss", "关闭"),
         ("r", "refresh", "刷新"),
         ("e", "edit", "编辑"),
+        ("p", "replan", "重新规划"),
     ]
 
     def __init__(self, service: CloudraService, conversation_id: str) -> None:
@@ -426,6 +486,44 @@ class DagScreen(Screen):
                 f" {mutation.get('rejection_reason') or ''}",
                 severity="error",
             )
+
+    def action_replan(self) -> None:
+        asyncio.create_task(self._request_replan())
+
+    async def _request_replan(self) -> None:
+        """请求 Supervisor 重新规划（user_replan）；仅 dag_guided 会话可用。"""
+        try:
+            projection = await asyncio.to_thread(
+                self.service.dag_projection, self.conversation_id
+            )
+        except Exception as exc:
+            self.notify(f"读取 DAG 失败: {exc}", severity="error")
+            return
+        if projection is None:
+            self.notify("当前对话没有 DAG，无法重新规划", severity="warning")
+            return
+        if projection.get("mode") != "dag_guided":
+            self.notify(
+                f"重新规划仅在 dag_guided 模式可用（当前: {projection.get('mode')}）",
+                severity="warning",
+            )
+            return
+        try:
+            result = await self.service.dag_request_replan(self.conversation_id)
+        except ValueError as exc:
+            self.notify(str(exc), severity="warning")
+            return
+        except Exception as exc:
+            self.notify(f"重新规划失败: {exc}", severity="error")
+            return
+        if result is None:
+            self.notify("当前对话没有 DAG，无法重新规划", severity="warning")
+            return
+        self.notify(
+            f"重新规划完成: {result.get('summary') or ''}",
+            severity="information",
+        )
+        await self.action_refresh()
 
     def action_dismiss(self) -> None:
         self.dismiss()

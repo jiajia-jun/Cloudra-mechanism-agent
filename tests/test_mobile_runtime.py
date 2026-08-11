@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,13 +17,12 @@ from typing import Any
 
 import pytest
 import tomllib
-import zipfile
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
-from cloudra.runtime_profile import filter_tools_for_runtime, is_mobile_runtime
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.infra.runtime_profile import filter_tools_for_runtime, is_mobile_runtime
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 from cloudra.tools import ToolEntry
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 
 class _NoArgs(input_schema):
@@ -83,8 +83,8 @@ def test_desktop_runtime_keeps_registered_tools(monkeypatch):
 
 
 def test_packaged_app_uses_durable_flet_storage(tmp_path, monkeypatch):
-    from cloudra.config import get_config
-    from cloudra.mobile_storage import configure_app_storage
+    from cloudra.infra.config import get_config
+    from cloudra.infra.mobile_storage import configure_app_storage
 
     monkeypatch.setenv("FLET_APP_STORAGE_DATA", str(tmp_path))
     storage = configure_app_storage()
@@ -100,8 +100,8 @@ def test_packaged_app_defaults_to_remote_backend_without_local_service(
     tmp_path,
     monkeypatch,
 ):
-    from cloudra.backends import RemoteCloudraBackend, create_default_backend
-    from cloudra.mobile_storage import AppStorage
+    from cloudra.infra.mobile_storage import AppStorage
+    from cloudra.services.backends import RemoteCloudraBackend, create_default_backend
 
     monkeypatch.setenv("CLOUDRA_SERVER_URL", "https://cloudra.example.test")
     storage = AppStorage(
@@ -119,7 +119,7 @@ def test_packaged_app_defaults_to_remote_backend_without_local_service(
 
 
 def test_android_credential_keys_are_origin_scoped_and_non_secret():
-    from cloudra.native_bridge import credential_key
+    from cloudra.infra.native_bridge import credential_key
 
     first = credential_key("server", "HTTPS://Cloudra.Example/api/")
     same = credential_key("server", "https://cloudra.example/api")
@@ -137,7 +137,7 @@ def test_android_credential_keys_are_origin_scoped_and_non_secret():
 
 
 def test_android_secret_transport_envelope_hides_and_authenticates_value():
-    from cloudra.native_bridge import (
+    from cloudra.infra.native_bridge import (
         CloudraNative,
         NativeBridgeError,
         _open_transport,
@@ -172,7 +172,7 @@ def test_android_secret_transport_envelope_hides_and_authenticates_value():
 def test_android_build_stage_is_remote_only_and_sourceless_importable(
     tmp_path,
 ):
-    from cloudra.android_build import (
+    from cloudra.infra.android_build import (
         ANDROID_EXTENSION_DIRS,
         ANDROID_RUNTIME_FILES,
         prepare_stage,
@@ -232,16 +232,16 @@ import os
 import sys
 os.environ["CLOUDRA_MOBILE_MODE"] = "true"
 os.environ["FLET_APP_STORAGE_DATA"] = os.environ["CLOUDRA_TEST_STORAGE"]
-from cloudra.backends import RemoteCloudraBackend, create_default_backend
-from cloudra.mobile_storage import configure_app_storage
+from cloudra.services.backends import RemoteCloudraBackend, create_default_backend
+from cloudra.infra.mobile_storage import configure_app_storage
 import cloudra.ui.app
 storage = configure_app_storage()
 backend = create_default_backend(storage)
 print(json.dumps({
     "remote": isinstance(backend, RemoteCloudraBackend),
-    "agent_loaded": "cloudra.agent" in sys.modules,
-    "service_loaded": "cloudra.service" in sys.modules,
-    "config_loaded": "cloudra.config" in sys.modules,
+    "agent_loaded": "cloudra.core.agent" in sys.modules,
+    "service_loaded": "cloudra.services.service" in sys.modules,
+    "config_loaded": "cloudra.infra.config" in sys.modules,
     "workspace_exists": storage.workspace.is_dir(),
 }))
 """
@@ -270,7 +270,7 @@ print(json.dumps({
 
 
 def test_android_build_stage_preserves_only_generated_build_cache(tmp_path):
-    from cloudra.android_build import (
+    from cloudra.infra.android_build import (
         ANDROID_EXTENSION_DIRS,
         ANDROID_RUNTIME_FILES,
         prepare_stage,
@@ -375,8 +375,8 @@ import json
 import sys
 import cloudra.ui.app
 print(json.dumps({
-    "agent_loaded": "cloudra.agent" in sys.modules,
-    "service_loaded": "cloudra.service" in sys.modules,
+    "agent_loaded": "cloudra.core.agent" in sys.modules,
+    "service_loaded": "cloudra.services.service" in sys.modules,
 }))
 """
     env = os.environ.copy()
@@ -400,15 +400,15 @@ print(json.dumps({
 async def test_dispatcher_cannot_execute_mobile_hidden_tool(tmp_path, monkeypatch):
     """Hiding a schema is insufficient: the dispatcher must reject it too."""
 
-    from cloudra.agent import Follower
-    from cloudra.config import get_config
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
+    from cloudra.infra.config import get_config
 
     monkeypatch.setenv("CLOUDRA_MOBILE_MODE", "true")
     db_path = str(tmp_path / "mobile.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid: db_path)
-    monkeypatch.setattr("cloudra.react.get_tools_lst", lambda: [_entry(_ForbiddenBash)])
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_tools_lst", lambda: [_entry(_ForbiddenBash)])
     monkeypatch.setattr(get_config(), "data_dir", tmp_path)
 
     agent = Follower(
@@ -521,7 +521,7 @@ print(json.dumps(payload, ensure_ascii=False))
 async def test_waiting_subagent_runs_in_current_process(tmp_path, monkeypatch):
     """The Android launcher directly awaits run_executor; it never calls subprocess."""
 
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
     from cloudra.tools.Managetool.subagent_launcher import (
         SubAgentLauncher,
         SubAgentLauncher_input_schema,

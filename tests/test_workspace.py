@@ -5,7 +5,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool
+from cloudra.persistence.workspace import (
+    TextEdit,
+    TurnDiffTracker,
+    WorkspaceConflictError,
+    WorkspaceError,
+    WorkspaceService,
+)
 from cloudra.tools.Searchtool.text_reader import (
     TextReader,
     TextReader_input_schema,
@@ -17,14 +25,6 @@ from cloudra.tools.Writetool.edit_file import (
 from cloudra.tools.Writetool.text_writer import (
     TextWriter,
     TextWriter_input_schema,
-)
-from cloudra.tools_class import Tool
-from cloudra.workspace import (
-    TextEdit,
-    TurnDiffTracker,
-    WorkspaceConflictError,
-    WorkspaceError,
-    WorkspaceService,
 )
 
 

@@ -2,10 +2,10 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.session_class import Session
-from cloudra.skill_class import skill_loader
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.skill_class import skill_loader
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
 
 
 class GetSkill_input_schema(input_schema):

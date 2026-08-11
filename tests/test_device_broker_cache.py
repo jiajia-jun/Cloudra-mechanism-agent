@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from cloudra.device_broker import DeviceBroker, get_device_broker
+from cloudra.services.device_broker import DeviceBroker, get_device_broker
 
 
 def test_get_device_broker_caches_per_data_dir(tmp_path):

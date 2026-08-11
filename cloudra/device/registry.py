@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from cloudra.workspace import (
+from cloudra.persistence.workspace import (
     TextEdit,
     WorkspaceConflictError,
     WorkspaceService,

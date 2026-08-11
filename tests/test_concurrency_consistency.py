@@ -21,7 +21,7 @@ import pytest
 
 
 def _setup_data_dir(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -37,7 +37,7 @@ def _utc_now():
 
 def test_concurrent_writers_no_lock_errors(tmp_path, monkeypatch):
     """8 个 worker 并发抢占/写事件/写心跳：无锁错误，任务不重复抢占。"""
-    from cloudra.database import ConversationDB, retry_on_locked
+    from cloudra.persistence.database import ConversationDB, retry_on_locked
 
     _setup_data_dir(tmp_path, monkeypatch)
     db = ConversationDB("stress").init()
@@ -115,8 +115,8 @@ def test_concurrent_writers_no_lock_errors(tmp_path, monkeypatch):
 
 def test_recover_stale_sessions_reaps_orphan_requests(tmp_path, monkeypatch):
     """心跳过期的 running Session，其关联的 running 子任务被标记 failed。"""
-    from cloudra.database import ConversationDB
-    from cloudra.service import SessionRunner
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services.service import SessionRunner
 
     _setup_data_dir(tmp_path, monkeypatch)
     db = ConversationDB("conv-orphan").init()
@@ -169,8 +169,8 @@ def test_recover_stale_sessions_reaps_orphan_requests(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_decide_approval_is_idempotent(tmp_path, monkeypatch):
     """同一个审批只能被决定一次；双通道第二次决定返回 False 且不覆盖。"""
-    from cloudra.database import ConversationDB
-    from cloudra.service import CloudraService
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services.service import CloudraService
 
     _setup_data_dir(tmp_path, monkeypatch)
     db = ConversationDB("conv-approval").init()
@@ -196,7 +196,7 @@ async def test_decide_approval_is_idempotent(tmp_path, monkeypatch):
 
 def test_apply_approval_decision_guard(tmp_path, monkeypatch):
     """CLI 侧的审批写入同样具备 pending 守卫。"""
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
     from cloudra.runtime.workers import apply_approval_decision
 
     _setup_data_dir(tmp_path, monkeypatch)
@@ -219,7 +219,7 @@ def test_apply_approval_decision_guard(tmp_path, monkeypatch):
 
 def test_reap_exited_executors(tmp_path, monkeypatch):
     """已退出但未自报终态的 executor 进程被回收，活着的进程不动。"""
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
     from cloudra.runtime.workers import reap_exited_executors
 
     _setup_data_dir(tmp_path, monkeypatch)

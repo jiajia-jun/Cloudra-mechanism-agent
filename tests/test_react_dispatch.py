@@ -17,12 +17,12 @@ from typing import Any, ClassVar
 
 import pytest
 
-from cloudra.config import get_config
-from cloudra.database import ConversationDB
-from cloudra.react import AgentCancelled
-from cloudra.streaming import dynamic_deep_merge
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.react import AgentCancelled
+from cloudra.infra.config import get_config
+from cloudra.infra.streaming import dynamic_deep_merge
+from cloudra.persistence.database import ConversationDB
 from cloudra.tools import ToolEntry
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 # ---------------------------------------------------------------------------
 # 测试用最小工具
@@ -126,13 +126,13 @@ def _make_react(tmp_path, monkeypatch, tool_classes, conv_id="test-dispatch"):
     """构造一个使用临时 DB / 临时 data_dir 的 reAct 实例（同 test_cancel_flow 模式）。
     tool_classes 接收 Tool **类**（非实例），内部包装为 ToolEntry。
     """
-    from cloudra.agent import Follower
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
 
     db_path = str(tmp_path / "test.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid: db_path)
-    monkeypatch.setattr("cloudra.react.get_tools_lst", lambda: [ToolEntry(
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_tools_lst", lambda: [ToolEntry(
         cls=cls,
         tool_name=cls._get_field_default("tool_name") or "",
         tool_id=cls._get_field_default("tool_id") or "",
@@ -402,3 +402,72 @@ class TestActResultCancellation:
         assert stopped is False
         messages = await _tool_messages(agent)
         assert "echo:hi" in messages[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_context_retained_after_stop(tmp_path, monkeypatch):
+    """回归：子 Agent 经 stop 结束后上下文保留（不再 clear_context）——
+    上下文已按 session 隔离，新任务不会串，旧上下文留档供事后审查。"""
+    react, agent, db_path = _make_react(tmp_path, monkeypatch, [_EchoTool, _StopTool])
+    # ContextManager 的事件表走 data_dir 解析的库（不经 cloudra.core.react.get_database_path），
+    # 单独初始化，避免 drain_pending_events 打到无表的新库。
+    cm = agent._ensure_context_manager()
+    ConversationDB.from_path(cm.db_path).init()
+    await agent.update_context({"role": "assistant", "content": "历史推理留档"})
+
+    rounds = 0
+
+    async def fake_reasoning():
+        nonlocal rounds
+        rounds += 1
+        if rounds == 1:
+            return [_tc("c1", "echo_tool", '{"text": "hi"}')]
+        return [_tc("c2", "stop", '{"reason": "done"}')]
+
+    monkeypatch.setattr(react, "reasoning", fake_reasoning)
+
+    result = await react.run()
+
+    assert result
+    context = await agent.get_context()
+    contents = [str(m.get("content", "")) for m in context]
+    assert any("历史推理留档" in c for c in contents)
+    assert any(m.get("role") == "tool" for m in context)  # 工具记录也还在
+
+
+@pytest.mark.asyncio
+async def test_revive_after_stop_keeps_context(tmp_path, monkeypatch):
+    """回归：schedule 提醒复活场景——executor 在同一 reAct 实例上置 _continue=True
+    再次 run()，第一轮留下的上下文必须仍然可见（此前 stop 会 clear_context，
+    复活后 agent 完全失忆）。"""
+    react, agent, db_path = _make_react(tmp_path, monkeypatch, [_EchoTool, _StopTool])
+    cm = agent._ensure_context_manager()
+    ConversationDB.from_path(cm.db_path).init()
+
+    rounds = 0
+
+    async def fake_reasoning():
+        nonlocal rounds
+        rounds += 1
+        if rounds == 1:
+            return [_tc("c1", "echo_tool", '{"text": "第一轮的计算结果"}')]
+        if rounds == 2:
+            return [_tc("c2", "stop", '{"reason": "等待计算"}')]
+        # 复活后：直接给正文收尾
+        return []
+
+    monkeypatch.setattr(react, "reasoning", fake_reasoning)
+
+    first = await react.run()
+    assert first
+
+    # 模拟 executor._run_with_reminder_waits 的复活路径
+    react._continue = True
+    second = await react.run()
+    assert second
+
+    context = await agent.get_context()
+    # 工具结果以 JSON 存进上下文，非 ASCII 会被转义，按转义形式匹配
+    marker = json.dumps("第一轮的计算结果", ensure_ascii=True)[1:-1]
+    contents = [str(m.get("content", "")) for m in context]
+    assert any(marker in c for c in contents)

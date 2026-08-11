@@ -3,9 +3,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 from cloudra.runtime import workers
+from cloudra.services import session_store
 
 
 class _NeverWait:
@@ -103,6 +103,11 @@ def test_task_leases_are_exclusive_renewable_and_reclaim_expired(tmp_path):
     assert session_store.claim_ready_compute_job(db, worker_id="worker-a") == 1
     assert session_store.claim_ready_compute_job(db, worker_id="worker-b") is None
     with db.connect() as con:
+        # claim 时填入开始时间（此前为 NULL）
+        first_start = con.execute(
+            "SELECT start_timestamp FROM compute_jobs WHERE id=1"
+        ).fetchone()[0]
+        assert first_start is not None and first_start > 0
         con.execute(
             "UPDATE compute_jobs SET lease_expires_at=0 WHERE id=1"
         )
@@ -112,6 +117,10 @@ def test_task_leases_are_exclusive_renewable_and_reclaim_expired(tmp_path):
         assert con.execute(
             "SELECT lease_owner, attempt_count FROM compute_jobs WHERE id=1"
         ).fetchone() == ("worker-b", 2)
+        # 重新 claim（lease 过期重试）不重置开始时间
+        assert con.execute(
+            "SELECT start_timestamp FROM compute_jobs WHERE id=1"
+        ).fetchone()[0] == first_start
 
 
 def test_exhausted_worker_lease_becomes_auditable_failure(tmp_path):
@@ -185,3 +194,47 @@ def test_recovery_interrupts_unclaimed_session_and_its_compute_job(tmp_path):
         ).fetchone()[0]
     assert session_state == "interrupted"
     assert compute_state == "failed"
+
+
+def test_session_state_emit_touches_meta_last_active(tmp_path):
+    """session 状态迁移时 best-effort 刷新 meta.json 的 last_active（节流每分钟一次）。"""
+    conv_dir = tmp_path / "conversations" / "conv-meta"
+    conv_dir.mkdir(parents=True)
+    meta_path = conv_dir / "meta.json"
+    meta_path.write_text(json.dumps({
+        "id": "conv-meta",
+        "create_time": "2000-01-01T00:00:00",
+        "last_active": "2000-01-01T00:00:00",
+        "state": "running",
+    }))
+    db = ConversationDB("conv-meta", data_dir=tmp_path).init()
+    session_store._last_meta_touch.clear()
+
+    def create_session(sid):
+        session_store.create_session_record(
+            db,
+            session_id=sid,
+            agent_id="a-0",
+            agent_type="coordinator",
+            parent_session_id=None,
+            query="q",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+    create_session("s1")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["last_active"] != "2000-01-01T00:00:00"
+    assert meta["state"] == "running"  # 只动 last_active，其他字段保留
+
+    # 节流窗口内的第二次写不再触碰 meta
+    meta_path.write_text(json.dumps({**meta, "last_active": "2001-01-01T00:00:00"}))
+    create_session("s2")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["last_active"] == "2001-01-01T00:00:00"
+
+    # 节流窗口过后再次刷新
+    key = str(meta_path)
+    session_store._last_meta_touch[key] -= session_store._META_TOUCH_INTERVAL_SECONDS + 1
+    create_session("s3")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["last_active"] != "2001-01-01T00:00:00"

@@ -13,14 +13,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 
 
 @pytest.fixture
 def isolated_runtime(tmp_path, monkeypatch):
     """隔离数据目录，并强制桌面 in-process 模式（屏蔽外部环境变量）。"""
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     monkeypatch.setenv("CLOUDRA_MOBILE_MODE", "false")
     monkeypatch.delenv("CLOUDRA_SUBAGENT_MODE", raising=False)
@@ -234,7 +234,7 @@ class TestPlanStoreSessionIsolation:
     """同角色并行实例（不同 session_id）的 todos/goal 互不覆盖；无 session_id 保持旧路径。"""
 
     def _make_agent(self, session_id):
-        from cloudra.agent import Follower
+        from cloudra.core.agent import Follower
 
         agent = Follower(
             id="a-6",

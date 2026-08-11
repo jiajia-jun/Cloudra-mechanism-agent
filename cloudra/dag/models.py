@@ -104,6 +104,7 @@ class GraphActor(str, Enum):
 OperationName = Literal[
     "add_node",
     "add_edge",
+    "remove_edge",
     "update_node",
     "update_edge",
     "attach_ref",
@@ -195,6 +196,36 @@ class DeliveryReport(BaseModel):
     waived: list[CoverageGateResult] = Field(default_factory=list)
 
 
+# 投影头部的模式横幅与行为纪律：让 agent 明确自己处在哪种编排模式、
+# 该模式下能做什么、必须走什么流程（SOP 遵循与 Supervisor 拍板）。
+_MODE_GUIDANCE = {
+    OrchestrationMode.DAG_RECORD: (
+        "当前编排模式: dag_record（DAG 由系统记录，Supervisor 不在线）\n"
+        "- 按正常流程执行任务即可；工具与计算结果会被自动记入两张 DAG。\n"
+        "- 若投影里出现 payload.assignee 等于你 agent id 的 process 节点，那是指派给你的"
+        "工作：完成后立即用 dag_graph(action=mutate) 的 update_node 回报 status/reason"
+        "（失败写 blocked_reason），不要等别人来问。\n"
+        "- 你先于排产完成的计算已登记为证据；需要把它计入机理图时，用 attach_ref 挂到对应"
+        "delivery 元素并带 evidence_role（8 个角色词见工具描述），系统会自动重算证据等级。"
+    ),
+    OrchestrationMode.DAG_GUIDED: (
+        "当前编排模式: dag_guided（DAG 引导编排，Supervisor 在线）\n"
+        "你必须遵守的编排纪律：\n"
+        "1. 机理假设与计算方案由你设计，但方案出来必须先找 Supervisor 拍板："
+        "用 dag_graph(action=mutate) 把机理假设（中间体、基元步骤）写入 delivery 图，"
+        "并在 rationale 中说清拟开展的计算方案；变更被接受后 Supervisor 会被自动唤醒，"
+        "审核方案并把计算工作排入 process 流程图。\n"
+        "2. 只执行下方 frontier 中 status=ready 的计算任务；未经 Supervisor 排产的工作"
+        "不要绕开流程图自行开算。\n"
+        "3. 遵循机理研究 SOP，不跳步：反应映射 → TS 猜测 → TS 优化 + 唯一虚频确认 → "
+        "IRC → 端点优化与匹配 → 热化学分析。\n"
+        "4. 交付完成由图上证据决定，不由你的声明决定；stop(delivery_disposition=complete) "
+        "之前先用 dag_graph(action=delivery_report) 自查，有缺口就继续补证或显式选 "
+        "partial / user_terminated。"
+    ),
+}
+
+
 class DagProjection(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -208,12 +239,19 @@ class DagProjection(BaseModel):
     def to_prompt_text(self) -> str:
         import json
 
+        guidance = _MODE_GUIDANCE.get(
+            self.mode, "当前编排模式: standard（无 DAG 编排，dag_graph 工具不可用）"
+        )
         payload = self.model_dump(mode="json")
-        return "DAG projection (bounded, references only):\n" + json.dumps(
-            payload,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
+        return (
+            f"【DAG 编排】{guidance}\n"
+            "图投影（有界，仅稳定引用，不含计算正文）:\n"
+            + json.dumps(
+                payload,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
         )
 
 
@@ -241,8 +279,8 @@ def build_orchestration_config(
         return snapshot
     snapshot["graph_policy_revision"] = GRAPH_POLICY_REVISION
     if normalized is OrchestrationMode.DAG_GUIDED:
-        from cloudra.config import get_config
-        from cloudra.supervisor import SUPERVISOR_SYSTEM_PROMPT
+        from cloudra.core.supervisor import SUPERVISOR_SYSTEM_PROMPT
+        from cloudra.infra.config import get_config
 
         snapshot["supervisor_model"] = get_config().follower.model
         snapshot["supervisor_prompt_revision"] = "sha256:" + hashlib.sha256(

@@ -1,9 +1,8 @@
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from cloudra.android_build import audit_apk_signature
+from cloudra.infra.android_build import audit_apk_signature
 
 
 def _result(subject: str, fingerprint: str = "ab" * 32):
@@ -23,7 +22,7 @@ def test_release_audit_requires_pinned_non_debug_certificate(tmp_path, monkeypat
     apk = tmp_path / "cloudra.apk"
     apk.write_bytes(b"apk")
     monkeypatch.setattr(
-        "cloudra.android_build.subprocess.run",
+        "cloudra.infra.android_build.subprocess.run",
         lambda *_args, **_kwargs: _result("CN=Cloudra Release"),
     )
     result = audit_apk_signature(
@@ -40,7 +39,7 @@ def test_release_audit_rejects_debug_certificate(tmp_path, monkeypatch):
     apk = tmp_path / "cloudra.apk"
     apk.write_bytes(b"apk")
     monkeypatch.setattr(
-        "cloudra.android_build.subprocess.run",
+        "cloudra.infra.android_build.subprocess.run",
         lambda *_args, **_kwargs: _result("CN=Android Debug,O=Android,C=US"),
     )
     with pytest.raises(RuntimeError, match="Debug"):

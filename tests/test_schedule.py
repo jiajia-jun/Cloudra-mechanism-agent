@@ -3,18 +3,18 @@ import sqlite3
 
 import pytest
 
-from cloudra.agent import Coordinator
-from cloudra.context_manager import ContextManager
-from cloudra.database import ConversationDB
+from cloudra.base.session_class import Session
+from cloudra.core.agent import Coordinator
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.persistence.database import ConversationDB
 from cloudra.runtime.runner import _wait_for_background_tasks
-from cloudra.session_class import Session
 from cloudra.tools.Managetool.schedule import Schedule, ScheduleInput
 
 
 @pytest.fixture
 def schedule_db(tmp_path, monkeypatch):
-    from cloudra import events
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra import events
+    from cloudra.infra.config import get_config, reload_config
 
     events.shutdown_all_listeners()
     data_dir = tmp_path / "data"
@@ -33,6 +33,20 @@ def test_coordinator_can_list_and_cancel_schedules():
 
     assert agent.check_permission(Schedule(subagent=agent))
     assert set(action_schema["enum"]) == {"create", "list", "cancel"}
+
+
+def test_schedule_visible_to_all_subagents():
+    """schedule 是全体 Agent 的时间通道：只读的 explorer 与计算类子 Agent 都应可用。"""
+    from cloudra.core.agent import Follower
+    from cloudra.subagents.explorer import explorer
+
+    for agent in (
+        explorer(query="q", conversation_id="schedule_test"),
+        Follower(id="a-4", name="small_mol", prompt="p", query="q", conversation_id="schedule_test"),
+    ):
+        assert agent.check_permission(Schedule(subagent=agent)), agent.name
+        names = {t.tool_name for t in agent.get_available_tools()}
+        assert "schedule" in names
 
 
 @pytest.mark.asyncio
@@ -59,7 +73,12 @@ async def test_schedule_create_and_fire_wakes_waiter(schedule_db):
             ("schedule_test",),
         ).fetchone()
     assert state == "fired"
-    assert event == ("scheduled_reminder", f"[提醒 #{result.schedule_id}] 检查后台计算")
+    event_type, event_content = event
+    assert event_type == "scheduled_reminder"
+    assert event_content.startswith(f"[提醒 #{result.schedule_id}] 检查后台计算")
+    # 唤醒事件须携带自提示引导：提醒不是新任务、无事可做就 stop
+    assert "为自己设定的定时提醒" in event_content
+    assert "stop" in event_content
 
 
 @pytest.mark.asyncio

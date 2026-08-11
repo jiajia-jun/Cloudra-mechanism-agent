@@ -1,9 +1,8 @@
-from pathlib import Path
 
 import pytest
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 
 
 def _controller_api():
@@ -85,7 +84,7 @@ async def test_record_mode_persists_full_result_before_context_truncation(tmp_pa
 
 @pytest.mark.asyncio
 async def test_output_file_is_snapshotted_as_artifact_pointer(tmp_path):
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     DagController, OrchestrationMode = _controller_api()
     get_config().data_dir = tmp_path
@@ -261,11 +260,11 @@ async def test_react_sends_full_result_to_controller_in_execution_order(
 ):
     from typing import Any
 
-    from cloudra.agent import Follower
-    from cloudra.config import get_config
-    from cloudra.react import reAct
+    from cloudra.base.tools_class import Tool, input_schema, output_schema
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
+    from cloudra.infra.config import get_config
     from cloudra.tools import ToolEntry
-    from cloudra.tools_class import Tool, input_schema, output_schema
 
     events = []
 
@@ -301,7 +300,7 @@ async def test_react_sends_full_result_to_controller_in_execution_order(
 
     db_path = str(tmp_path / "react.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid: db_path)
     monkeypatch.setattr(get_config(), "data_dir", tmp_path)
     entry = ToolEntry(
         cls=ProbeTool,
@@ -309,7 +308,7 @@ async def test_react_sends_full_result_to_controller_in_execution_order(
         tool_id="t-dag-probe",
         input_schema=ProbeInput,
     )
-    monkeypatch.setattr("cloudra.react.get_tools_lst", lambda: [entry])
+    monkeypatch.setattr("cloudra.core.react.get_tools_lst", lambda: [entry])
     agent = Follower(
         id="a-probe",
         name="probe",
@@ -335,3 +334,175 @@ async def test_react_sends_full_result_to_controller_in_execution_order(
     )
 
     assert events == ["started", "executed", "finished"]
+
+
+@pytest.mark.asyncio
+async def test_dag_graph_calls_not_observed_but_trigger_supervisor(tmp_path):
+    DagController, OrchestrationMode = _controller_api()
+    db = _db_with_session(tmp_path, "controller-exempt", "dag_guided")
+    calls = []
+
+    class _MockSupervisor:
+        async def run(self, trigger, coordinator_request=None, session_id=None, **_kwargs):
+            calls.append({"trigger": trigger, "request": coordinator_request})
+            return None
+
+    controller = DagController(db, "s1", OrchestrationMode.DAG_GUIDED, supervisor=_MockSupervisor())
+    await controller.initialize()
+
+    view_args = {"action": "view"}
+    await controller.on_tool_started("tc-view", "dag_graph", view_args)
+    ref = await controller.on_tool_finished(
+        "tc-view", "dag_graph", view_args, {"success": True, "action": "view", "result": {}}
+    )
+    assert ref is None
+    assert controller.engine.snapshot().process.nodes == []
+    assert calls == []  # view 不触发 Supervisor
+
+    mutate_args = {
+        "action": "mutate",
+        "operations": [{"op": "add_node", "graph": "delivery"}],
+        "rationale": "机理假设",
+    }
+    await controller.on_tool_finished("tc-mut", "dag_graph", mutate_args, {"success": True, "accepted": True})
+    assert calls and calls[0]["trigger"] == "delivery_updated"
+
+
+@pytest.mark.asyncio
+async def test_bound_tool_outcomes_trigger_supervisor(tmp_path):
+    """绑定到 delivery 目标的工具：成功 → new_evidence，失败 → process_node_failed；
+    未绑定的普通工具不触发。"""
+    DagController, OrchestrationMode = _controller_api()
+    from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+    from cloudra.dag.store import DagStore
+
+    db = _db_with_session(tmp_path, "controller-bound-triggers", "dag_guided")
+    calls = []
+
+    class _MockSupervisor:
+        async def run(self, trigger, coordinator_request=None, session_id=None, **_kwargs):
+            calls.append(trigger)
+            return None
+
+    controller = DagController(
+        db, "s1", OrchestrationMode.DAG_GUIDED, supervisor=_MockSupervisor()
+    )
+    await controller.initialize()
+    store = DagStore(db)
+    seeded = controller.engine.apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.HARNESS,
+            actor_id="test",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed planned bound nodes",
+            operations=[
+                GraphOperation(
+                    op="add_node",
+                    graph="delivery",
+                    data={
+                        "node_id": "poz",
+                        "node_type": "occurrence",
+                        "label": "POZ",
+                        "payload": {"role": "intermediate", "evidence_level": "proposed"},
+                    },
+                ),
+                GraphOperation(
+                    op="add_node",
+                    graph="process",
+                    data={
+                        "node_id": "plan-thermo",
+                        "node_type": "planned_tool_call",
+                        "label": "thermo",
+                        "payload": {
+                            "status": "ready",
+                            "tool_name": "thermo_analysis",
+                            "delivery_target_type": "node",
+                            "delivery_target_id": "poz",
+                            "evidence_role": "thermochemistry",
+                        },
+                    },
+                ),
+                GraphOperation(
+                    op="add_node",
+                    graph="process",
+                    data={
+                        "node_id": "plan-parse",
+                        "node_type": "planned_tool_call",
+                        "label": "parse",
+                        "payload": {
+                            "status": "ready",
+                            "tool_name": "gaussian_log_parser",
+                            "delivery_target_type": "node",
+                            "delivery_target_id": "poz",
+                            "evidence_role": "intermediate_optimization",
+                        },
+                    },
+                ),
+            ],
+        )
+    )
+    assert seeded.accepted
+
+    # 绑定的 thermo_analysis 成功 → new_evidence（不再只认 gaussian_log_parser）
+    await controller.on_tool_finished(
+        "tc-thermo", "thermo_analysis", {"dir": "x"}, {"is_success": True}
+    )
+    assert calls == ["new_evidence"]
+
+    # 绑定的调用失败 → process_node_failed
+    await controller.on_tool_finished(
+        "tc-parse", "gaussian_log_parser", {"file": "x.log"}, {"is_success": False}
+    )
+    assert calls == ["new_evidence", "process_node_failed"]
+
+    # 未绑定的普通工具成功 → 不触发
+    await controller.on_tool_finished(
+        "tc-free", "thermo_analysis", {"dir": "y"}, {"is_success": True}
+    )
+    assert calls == ["new_evidence", "process_node_failed"]
+
+
+@pytest.mark.asyncio
+async def test_rejected_remove_edge_wakes_supervisor_for_review(tmp_path):
+    """agent 的删边请求被转交时，Supervisor 收到 edge_removal_requested 与理由。"""
+    DagController, OrchestrationMode = _controller_api()
+    db = _db_with_session(tmp_path, "controller-removal-review", "dag_guided")
+    calls = []
+
+    class _MockSupervisor:
+        async def run(self, trigger, coordinator_request=None, session_id=None, **_kwargs):
+            calls.append({"trigger": trigger, "request": coordinator_request})
+            return None
+
+    controller = DagController(
+        db, "s1", OrchestrationMode.DAG_GUIDED, supervisor=_MockSupervisor()
+    )
+    await controller.initialize()
+
+    await controller.on_tool_finished(
+        "tc-rm",
+        "dag_graph",
+        {
+            "action": "mutate",
+            "operations": [
+                {"op": "remove_edge", "graph": "process", "data": {"edge_id": "dep_ab"}}
+            ],
+            "rationale": "dep_ab 已被人工合并",
+        },
+        {
+            "success": False,
+            "accepted": False,
+            "rejection_code": "edge_removal_requires_supervisor",
+        },
+    )
+
+    assert calls == [
+        {
+            "trigger": "edge_removal_requested",
+            "request": (
+                "edge removal requested — rationale: dep_ab 已被人工合并\n"
+                "operations: remove_edge:process:dep_ab"
+            ),
+        }
+    ]

@@ -14,8 +14,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通用网页搜索。返回标题、URL 与摘要，适用于查找文档、论坛讨论、数据页等非论文信源"

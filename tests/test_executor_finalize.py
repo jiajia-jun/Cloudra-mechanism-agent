@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 class _FakeAgent:
@@ -140,7 +140,7 @@ class TestMarkDone:
 @pytest.mark.asyncio
 class TestMarkCancelled:
     async def test_db_state_and_wakeup_event(self, tmp_path, monkeypatch):
-        from cloudra.react import AgentCancelled
+        from cloudra.core.react import AgentCancelled
         from cloudra.runtime.executor import run_executor
 
         db_path = _setup_executor_env(tmp_path, monkeypatch, run_exc=AgentCancelled("取消"))
@@ -159,7 +159,7 @@ class TestMarkCancelled:
 
     async def test_finished_at_is_coalesced(self, tmp_path, monkeypatch):
         """cancelled 路径用 COALESCE：已有 finished_at 不被覆盖。"""
-        from cloudra.react import AgentCancelled
+        from cloudra.core.react import AgentCancelled
         from cloudra.runtime.executor import run_executor
 
         db_path = _setup_executor_env(tmp_path, monkeypatch, run_exc=AgentCancelled("取消"))

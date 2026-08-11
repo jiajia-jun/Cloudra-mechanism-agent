@@ -3,19 +3,20 @@ import pytest
 
 def _load_completion_api():
     try:
-        from cloudra.dag.completion import build_projection, evaluate_delivery
-        from cloudra.dag.models import (
-            CoverageContract,
-            CoverageWaiver,
-            DagEdge,
-            DagNode,
-            GraphBundle,
-            GraphData,
-            GraphSnapshot,
-        )
+        from cloudra.dag import completion, models
     except (ImportError, ModuleNotFoundError) as exc:
         pytest.fail(f"DAG completion API is missing: {exc}")
-    return locals()
+    return {
+        "build_projection": completion.build_projection,
+        "evaluate_delivery": completion.evaluate_delivery,
+        "CoverageContract": models.CoverageContract,
+        "CoverageWaiver": models.CoverageWaiver,
+        "DagEdge": models.DagEdge,
+        "DagNode": models.DagNode,
+        "GraphBundle": models.GraphBundle,
+        "GraphData": models.GraphData,
+        "GraphSnapshot": models.GraphSnapshot,
+    }
 
 
 def _delivery(api, node_levels, edge_levels, *, edge_payloads=None):
@@ -245,6 +246,39 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
     assert '"process": 4' in text
     assert "missing_endpoint_evidence" in text
     assert "SECRET-HEAVY-ATOM-MAP" not in text
+
+
+def test_projection_prompt_text_carries_mode_banner_and_discipline():
+    """投影头部必须明确告诉 agent 当前模式与编排纪律（SOP / Supervisor 拍板）。"""
+    api = _load_completion_api()
+    snapshot = api["GraphSnapshot"](
+        bundle=api["GraphBundle"](
+            process_graph_id="dag_process",
+            delivery_graph_id="dag_delivery",
+            revisions={"process": 0, "delivery": 0},
+        ),
+        process=api["GraphData"](graph_id="dag_process", graph_kind="process", revision=0),
+        delivery=api["GraphData"](graph_id="dag_delivery", graph_kind="delivery", revision=0),
+    )
+
+    guided = api["build_projection"](
+        snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
+    ).to_prompt_text()
+    assert "当前编排模式: dag_guided" in guided
+    assert "Supervisor 拍板" in guided
+    assert "status=ready" in guided
+    assert "SOP" in guided
+    assert "delivery_report" in guided
+
+    record = api["build_projection"](
+        snapshot, mode="dag_record", contract=api["CoverageContract"].mechanism_default()
+    ).to_prompt_text()
+    assert "当前编排模式: dag_record" in record
+    assert "Supervisor 不在线" in record
+    # record 模式子 agent 的自管理职责：回报指派节点、补挂证据带 role
+    assert "assignee" in record
+    assert "evidence_role" in record
+    assert "拍板" not in record
 
 
 def test_superseded_process_dependency_no_longer_blocks_frontier():

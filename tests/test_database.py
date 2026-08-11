@@ -5,8 +5,8 @@ import sqlite3
 
 import pytest
 
-from cloudra.config import get_config, reload_config
-from cloudra.database import (
+from cloudra.infra.config import get_config, reload_config
+from cloudra.persistence.database import (
     SCHEMA_VERSION,
     ConversationDB,
     aretry_on_locked,
@@ -229,7 +229,7 @@ class TestApprovalSanitize:
         reason.encode("utf-8")
 
     def test_sanitize_db_text_passthrough_clean(self):
-        from cloudra import session_store
+        from cloudra.services import session_store
 
         assert session_store.sanitize_db_text("正常中文 abc 123") == "正常中文 abc 123"
         assert session_store.sanitize_db_text("") == ""

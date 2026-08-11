@@ -7,15 +7,15 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema
+from cloudra.persistence.workspace import TextEdit, WorkspaceConflictError, WorkspaceError
 from cloudra.tools.core.workspace_mutation import (
     WorkspaceMutationOutput,
     execute_prepared_change,
     record_preparation_failure,
     workspace_for_tool,
 )
-from cloudra.tools_class import Tool, input_schema
-from cloudra.workspace import TextEdit, WorkspaceConflictError, WorkspaceError
 
 
 class EditOperation(BaseModel):

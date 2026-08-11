@@ -3,7 +3,7 @@
 from textual.app import App
 from textual.theme import Theme
 
-from cloudra.log_class import Log
+from cloudra.base.log_class import Log
 from cloudra.tui.new.screens.main_screen import MainScreen
 
 # 主题：绿色主色 + 黄色辅色

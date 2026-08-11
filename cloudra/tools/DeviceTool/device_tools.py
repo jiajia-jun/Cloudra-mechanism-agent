@@ -7,11 +7,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
-from cloudra.device_broker import DeviceBroker
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
+from cloudra.services.device_broker import DeviceBroker
 
 
 async def _invoke_device(

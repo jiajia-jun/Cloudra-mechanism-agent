@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from cloudra.case_bank import CaseBank
-from cloudra.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
-from cloudra.memory import MemoryManager
-from cloudra.supervisor import Supervisor
+from cloudra.core.supervisor import Supervisor
+from cloudra.persistence.case_bank import CaseBank
+from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+from cloudra.persistence.memory import MemoryManager
 
 
 # ---------------------------------------------------------------------------
@@ -18,7 +18,7 @@ def memory_manager(tmp_path, monkeypatch):
     """提供一个使用临时目录的 MemoryManager 实例。"""
     cfg = MagicMock()
     cfg.data_dir = tmp_path
-    monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
+    monkeypatch.setattr("cloudra.persistence.memory.get_config", lambda: cfg)
     return MemoryManager(word_limit=50, compressed_word_limit=30)
 
 
@@ -135,7 +135,7 @@ def case_bank(tmp_path, monkeypatch):
     """提供一个使用临时文件的全局 CaseBank 实例。"""
     cfg = MagicMock()
     cfg.data_dir = tmp_path
-    monkeypatch.setattr("cloudra.case_bank.get_config", lambda: cfg)
+    monkeypatch.setattr("cloudra.persistence.case_bank.get_config", lambda: cfg)
     return CaseBank(str(tmp_path / "case_bank.db")).init()
 
 
@@ -182,12 +182,12 @@ class TestCaseBank:
 @pytest.mark.asyncio
 class TestUpdateMemoryTool:
     async def test_update_memory_writes_file(self, tmp_path, monkeypatch):
-        from cloudra.agent import Coordinator
+        from cloudra.core.agent import Coordinator
         from cloudra.tools.Writetool.update_memory import UpdateMemory
 
         cfg = MagicMock()
         cfg.data_dir = tmp_path
-        monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
+        monkeypatch.setattr("cloudra.persistence.memory.get_config", lambda: cfg)
 
         agent = Coordinator(query="test", conversation_id="test-conv")
         tool = UpdateMemory(subagent=agent)
@@ -210,11 +210,11 @@ class TestUpdateMemoryTool:
 
     async def test_update_memory_available_to_coordinator(self, tmp_path, monkeypatch):
         """update_memory 工具必须在 Coordinator 的可用工具列表中。"""
-        from cloudra.agent import Coordinator
+        from cloudra.core.agent import Coordinator
 
         cfg = MagicMock()
         cfg.data_dir = tmp_path
-        monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
+        monkeypatch.setattr("cloudra.persistence.memory.get_config", lambda: cfg)
 
         agent = Coordinator(query="test", conversation_id="test-conv")
         tool_names = {t.tool_name for t in agent.get_available_tools()}
@@ -228,12 +228,12 @@ class TestUpdateMemoryTool:
 class TestCoordinatorMemoryLoading:
     async def test_coordinator_request_prompt_includes_memory(self, tmp_path, monkeypatch):
         """Coordinator 每次请求时读取 MEMORY.md 并注入身份层。"""
-        from cloudra.agent import Coordinator
+        from cloudra.core.agent import Coordinator
 
         cfg = MagicMock()
         cfg.data_dir = tmp_path
         cfg.config_file = tmp_path / "config.toml"
-        monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
+        monkeypatch.setattr("cloudra.persistence.memory.get_config", lambda: cfg)
         monkeypatch.setattr("cloudra.runtime.prompt_assembler.get_config", lambda: cfg)
 
         # 预写入记忆
@@ -266,7 +266,7 @@ class TestMemoryCompressionFallback:
         """未配置 LLM 时，压缩应退化为保留最近内容，且不超出限制。"""
         cfg = MagicMock()
         cfg.data_dir = tmp_path
-        monkeypatch.setattr("cloudra.memory.get_config", lambda: cfg)
+        monkeypatch.setattr("cloudra.persistence.memory.get_config", lambda: cfg)
 
         manager = MemoryManager(word_limit=30, compressed_word_limit=20)
         # 写入多条经验，触发压缩；此时 LLM 未配置，会走 fallback
@@ -284,15 +284,15 @@ class TestMemoryCompressionFallback:
 # ---------------------------------------------------------------------------
 class TestReActSupervisorIntegration:
     def test_standard_has_no_supervisor_or_legacy_review_hook(self, tmp_path, monkeypatch):
-        from cloudra.agent import Follower
-        from cloudra.database import ConversationDB
-        from cloudra.react import reAct
+        from cloudra.core.agent import Follower
+        from cloudra.core.react import reAct
+        from cloudra.persistence.database import ConversationDB
 
         conv_id = "test-react"
         db_path = str(tmp_path / "test.db")
         db = ConversationDB.from_path(db_path)
         db.init()
-        monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
+        monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _conv_id: db_path)
 
         agent = Follower(
             id="a-test",
@@ -308,15 +308,15 @@ class TestReActSupervisorIntegration:
 
     def test_supervisor_instance_created(self, tmp_path, monkeypatch):
         """Only DAG-guided reAct creates the graph Supervisor."""
-        from cloudra.agent import Follower
-        from cloudra.database import ConversationDB
-        from cloudra.react import reAct
+        from cloudra.core.agent import Follower
+        from cloudra.core.react import reAct
+        from cloudra.persistence.database import ConversationDB
 
         conv_id = "test-react"
         db_path = str(tmp_path / "test.db")
         db = ConversationDB.from_path(db_path)
         db.init()
-        monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
+        monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _conv_id: db_path)
 
         agent = Follower(
             id="a-test",

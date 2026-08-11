@@ -1,7 +1,7 @@
 """Explicit built-in tool manifest.
 
-Keep this module dependency-free: :mod:`cloudra.agent` imports
-``cloudra.tools`` while several tool implementations import ``cloudra.agent``.
+Keep this module dependency-free: :mod:`cloudra.core.agent` imports
+``cloudra.tools`` while several tool implementations import ``cloudra.core.agent``.
 The registry therefore stores import paths instead of importing tool classes at
 module import time.
 """
@@ -30,6 +30,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration("cloudra.tools.Chemtool.molecule_drawer", "MoleculeDrawer"),
     ToolRegistration("cloudra.tools.Chemtool.name_to_structure", "NameToStructure"),
     ToolRegistration("cloudra.tools.Chemtool.nmr_processor", "NMRProcessor"),
+    ToolRegistration("cloudra.tools.Chemtool.query_compute_job", "QueryComputeJob"),
     ToolRegistration("cloudra.tools.Chemtool.reaction_mapping", "ReactionMapping"),
     ToolRegistration("cloudra.tools.Chemtool.smiles_to_mol", "SmilesToMol"),
     ToolRegistration("cloudra.tools.Chemtool.submit_compute_job", "SubmitComputeJob"),

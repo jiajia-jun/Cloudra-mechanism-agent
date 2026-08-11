@@ -6,9 +6,9 @@ from urllib.parse import urlparse
 
 from pydantic import Field
 
-from cloudra.config import get_config
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.infra.config import get_config
 
 description = (
     "使用无头浏览器（Playwright Chromium）访问指定 URL，获取渲染后的页面文本、标题或截图；"

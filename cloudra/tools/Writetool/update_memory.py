@@ -2,10 +2,10 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.memory import get_memory_manager
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
+from cloudra.persistence.memory import get_memory_manager
 
 description = (
     "把任务中获得的经验教训、最佳实践追加到 Coordinator 的长期记忆（MEMORY.md），"

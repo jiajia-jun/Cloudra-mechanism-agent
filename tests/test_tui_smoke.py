@@ -19,19 +19,19 @@ from prompt_toolkit.output import DummyOutput
 from rich.console import Console
 from rich.markdown import Markdown
 
-from cloudra.context_manager import ContextManager
-from cloudra.log_class import Log
+from cloudra.base.log_class import Log
+from cloudra.infra.yolo_guard import is_yolo_enabled
+from cloudra.persistence.context_manager import ContextManager
 from cloudra.tools.Interactool import ask_user
 from cloudra.tui.legacy_app import CloudraTUI
 from cloudra.tui.render import EventRenderer
-from cloudra.yolo_guard import is_yolo_enabled
 
 
 @pytest.fixture(autouse=True)
 def isolated_tui_runtime(tmp_path, monkeypatch):
     """TUI 测试绝不能复用真实配置，否则假 IPC 事件会串进用户正在开的会话。"""
-    from cloudra import events
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra import events
+    from cloudra.infra.config import get_config, reload_config
 
     events.shutdown_all_listeners()
     data_dir = tmp_path / "data"
@@ -61,8 +61,8 @@ async def test_tui_smoke(monkeypatch):
     )
 
     async def fake_run_task(query, **kwargs):
-        from cloudra import events
-        from cloudra.database import ConversationDB
+        from cloudra.infra import events
+        from cloudra.persistence.database import ConversationDB
 
         run_calls.append((query, kwargs))
         conv_id = kwargs["conversation_id"]

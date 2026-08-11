@@ -10,8 +10,8 @@ except Exception:
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "将 PDF 文件逐页转换为高质量图片（基于 PyMuPDF），保存到指定输出目录。"

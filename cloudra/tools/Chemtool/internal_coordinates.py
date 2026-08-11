@@ -13,9 +13,9 @@ if TYPE_CHECKING:
     # 仅用于类型注解；运行时在使用点惰性导入。
     import pandas as pd
 
-from cloudra.fs_utils import atomic_write_text
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.fs_utils import atomic_write_text
 
 try:
     from rdkit import Chem
@@ -1182,14 +1182,19 @@ class InternalCoordinates(Tool):
     @staticmethod
     def _zmat_dataframe_to_xyz(zmat_frame: pd.DataFrame) -> str:
         """
-        绕开 chemcoord Zmat.get_cartesian 的只读数组 bug，直接用底层 transformation.get_X
-        从 Z-matrix 重建 Cartesian，返回 xyz 文本。
+        从 Z-matrix DataFrame 逐行重建笛卡尔坐标（与 chemcoord get_X 同一套
+        变换语义，但不走其只读数组路径）。d 参考与 a-b 轴共线时二面角数学上
+        未定义——此时绕 a-b 轴旋转任意，换成第一个非共线的 magic 参考
+        （e_x/e_y/e_z）继续重建，与 analyze 方向的 _fix_collinear_dihedral_refs
+        处理一致；只有 b 与 a 位置重合才是真正无效的参考。
         """
-        import chemcoord.constants as constants
-        import chemcoord.internal_coordinates._zmat_transformation as tr
         import numpy as np
         import pandas as pd
-        from chemcoord.utilities._temporary_deprecation_workarounds import replace_without_warn
+
+        dummy = {
+            'origin': np.zeros(3), 'e_x': np.array([1.0, 0.0, 0.0]),
+            'e_y': np.array([0.0, 1.0, 0.0]), 'e_z': np.array([0.0, 0.0, 1.0]),
+        }
 
         c_table = zmat_frame.loc[:, ['b', 'a', 'd']].copy()
 
@@ -1215,38 +1220,68 @@ class InternalCoordinates(Tool):
         # 剩余 NaN（如多碎片根的 magic 参考未被解析到时）回退绝对参考
         c_table = c_table.fillna({'b': 'origin', 'a': 'e_z', 'd': 'e_x'})
 
-        # 把父原子名/序号替换为 chemcoord 内部 magic label，再映射到 0-based 列索引
-        int_label = constants.int_label
-        magic = set(_MAGIC_REFS)
         name_to_col = {idx: col for col, idx in enumerate(zmat_frame.index)}
 
-        def convert_cell(x):
+        def to_ref(x):
             s = str(x) if pd.notna(x) else 'origin'
-            if s in magic:
+            if s in dummy:
                 return s
-            return name_to_col.get(int(s), -1)
+            col = name_to_col.get(int(s), -1)
+            if col < 0:
+                raise ValueError(f"无法解析参考原子: {s}")
+            return col
 
-        c_table_conv = c_table.map(convert_cell)
-        c_table_conv = (replace_without_warn(c_table_conv, int_label)
-                        .astype('i8')
-                        .values
-                        .T)
+        n = len(zmat_frame)
+        positions = np.zeros((n, 3))
+        values = zmat_frame.loc[:, ['bond', 'angle', 'dihedral']].to_numpy(dtype=float)
 
-        values = zmat_frame.loc[:, ['bond', 'angle', 'dihedral']].to_numpy(dtype=float).T.copy()
-        values[[1, 2], :] = np.radians(values[[1, 2], :])
+        for j in range(n):
+            b_ref = to_ref(c_table.iloc[j]['b'])
+            a_ref = to_ref(c_table.iloc[j]['a'])
+            d_ref = to_ref(c_table.iloc[j]['d'])
 
-        err, row, X = tr.get_X(values, c_table_conv)
-        if err != 0:
-            raise ValueError(f"Z-matrix 第 {row + 1} 行参考原子无效，无法重建坐标")
+            def pos(ref):
+                return dummy[ref] if isinstance(ref, str) else positions[ref]
 
-        positions = X.T  # shape (n, 3)，顺序与 zmat_frame.index 一致
+            pb, pa = pos(b_ref), pos(a_ref)
+            ba = pa - pb
+            norm_ba = np.linalg.norm(ba)
+            if norm_ba < 1e-9:
+                raise ValueError(
+                    f"Z-matrix 第 {j + 1} 行的键长参考与键角参考位置重合，无法定义坐标系"
+                )
+            normal = np.cross(pos(d_ref) - pa, ba)
+            if np.linalg.norm(normal) < 1e-9:
+                # d-a-b 共线：二面角未定义，换非共线的 magic 参考（旋转任意）
+                for cand in ('e_x', 'e_y', 'e_z'):
+                    normal = np.cross(dummy[cand] - pa, ba)
+                    if np.linalg.norm(normal) >= 1e-9:
+                        break
+            basis = np.empty((3, 3))
+            basis[:, 2] = -ba / norm_ba
+            basis[:, 1] = normal / np.linalg.norm(normal)
+            basis[:, 0] = np.cross(basis[:, 1], basis[:, 2])
+
+            r, alpha, delta = values[j]
+            alpha, delta = np.radians(alpha), np.radians(delta)
+            if np.isclose(alpha, np.pi):
+                s = np.array([0.0, 0.0, r])
+            elif np.isclose(alpha, 0.0):
+                s = np.array([0.0, 0.0, -r])
+            else:
+                s = np.array([
+                    r * np.sin(alpha) * np.cos(delta),
+                    -r * np.sin(alpha) * np.sin(delta),
+                    -r * np.cos(alpha),
+                ])
+            positions[j] = basis @ s + pb
 
         # 按原始原子序号（index）排序输出 xyz
         ordered = sorted(zip(zmat_frame.index, zmat_frame['atom'], positions), key=lambda x: x[0])
 
         xyz_lines = [str(len(zmat_frame)), "Generated from Z-matrix"]
-        for idx, sym, pos in ordered:
-            xyz_lines.append(f"{str(sym):<4} {pos[0]:>14.8f} {pos[1]:>14.8f} {pos[2]:>14.8f}")
+        for idx, sym, p in ordered:
+            xyz_lines.append(f"{str(sym):<4} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}")
 
         return "\n".join(xyz_lines) + "\n"
 

@@ -10,6 +10,8 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
   - 若用户只给出了一张化学结构图，优先调用 `image_to_smiles` 识别 SMILES。
   - 若需将 SMILES 转为 3D 坐标，调用 `smiles_to_mol` 并设置 `generate_3d=True`。
   - 若只需生成高斯输入文件，可直接在调用 `gjf_writer` 时设置 `source_type="smiles"`。
+  - **严禁手写坐标**：不得凭空逐原子键入笛卡尔坐标，也不得凭记忆写键长/键角搭建分子——**没有例外**，哪怕只是"微调几个原子"或自觉比工具快。坐标只允许来自上述工具、数据库，或经 `format_converter`/`log_parser` 从既有日志中提取；手工干预仅限 `internal_coordinates` 的 Z-matrix 数值微调后转回笛卡尔。
+- **多分子复合物/双分子体系建模**：把两个（或多个）分子组装成反应复合物时，**不要手摆相对取向**——手摆既慢又几乎必然不合理。正确路径：粗略放近（质心间距略大于成键距离即可）后，用 `conformer_search` 加 `distance_filters` 锁定反应原子对采样取向，或用 xtb/力场对复合物做预优化弛豫到合理构型，再交给 DFT 级别。预组织取向对双分子 TS 搜索的成功率影响极大，值得在这里花算力而不是在手摆坐标上花时间。
 - **反应原子映射**：拿到反应物/产物两个 SMILES 后，先调用 `reaction_mapping`，再生成插值路径。未标号 SMILES 可能给出多个近似候选；`ambiguous` 时要结合机理选择，不能把排名第一当成原子身份真值。工具同时保留 SMILES 序号的 `graph_watch_pairs`，并在具体结构绑定成功后把顶层 `watch_pairs` 翻译成反应物坐标序号。已有 mol/sdf/xyz 要求 `binding_status=complete` 且 `binding_source=concrete` 才把全原子 `atom_map` 直接传给 `ts_guess interpolate`；`binding_source=internal_generated` 的映射只对应工具内部 RDKit `AddHs` 顺序，不能套到任意外部 XYZ。
 - **生成输入文件**：推荐调用 `gjf_writer` 生成 `.gjf`，减少手写格式错误。尽量避免在输入文件正文中写注释，以减少解析风险。
 - **结构洞察与微调**：调用 `internal_coordinates` 作为你的“眼睛”和“双手”。`mode=analyze` 返回键级感知的结构报告（异常键长/键角、可旋转二面角分类、立体化学 R/S 与 E/Z、环与 Cremer–Pople 褶皱、等价原子），用 `reactive_atoms`/`watch_pairs` 可聚焦反应中心（如成键距离与进攻角）；完整 Z-matrix 自动写入 `.zmat` 文件不进上下文。需要像 GaussView 中那样“手工拖拽”结构时，仍可修改 Z-matrix 文本后用 `mode=zmatrix_to_cartesian` 转回坐标。
@@ -76,6 +78,7 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 - 若给定反应物/产物 SMILES，先用 `reaction_mapping` 确定或显式选择原子映射候选，再把具体结构绑定得到的全原子 `atom_map` 交给插值；映射歧义本身是需要保留的机理不确定性。
 - **结构洞察与拖拽**：调用 `internal_coordinates`（mode=analyze）作为你的“眼睛”：结构报告中的异常键（elongated / forming_candidate / clash）、可旋转二面角与 Reactive Center 块直接指出断键/成键位点；也可用 `mode=zmatrix_to_cartesian` 编辑 Z-matrix 数值后转回坐标，手工拉长将断的键、缩短将成的键，捏出高质量 TS 初猜。
 - 初猜的两条主路线（详见 mechanism-elucidation-sop.md）：① 端点已知时用 `ts_guess` interpolate 做 IDPP 插值取候选帧；② 用 `ts_guess` scan_prepare 生成约束扫描输入（坐标选择查 reaction-class-geometry.md），提交后用 scan_parse 读剖面判定并自动提取 TS 初猜。为节省算力可先用半经验方法（如 xtb）扫描。**请注意，xtb在较大分子的过渡态面前的精度可能比较差，扫出了奇异的结果建议再使用优化级别扫一遍**
+- **扫描成本纪律**：扫描是探索工具，成本随维度爆炸——一维扫描 ~10–30 个单点，二维扫描是 N×M（轻易数百个单点）。默认只做一维，沿最关键的那条反应坐标；二维扫描只有在确证两个坐标强耦合、一维无法回答时才用，且先用 xtb 预扫再决定要不要上 DFT 级别，并在报告中写明理由与成本估计。
 - 提取势能较高且梯度较小的点作为 TS 初猜。找到初猜后，建议先将结构展示给用户确认，再开启正式搜索。
 
 **Step 2: 任务构建与投递 (Build & Submit)**

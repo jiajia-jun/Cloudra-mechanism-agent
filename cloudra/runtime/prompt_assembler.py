@@ -19,8 +19,8 @@ from typing import Iterable, Optional
 
 import yaml
 
-from cloudra.config import get_config
-from cloudra.memory import get_memory_manager
+from cloudra.infra.config import get_config
+from cloudra.persistence.memory import get_memory_manager
 from cloudra.runtime.environment_observer import observe_workspace
 
 PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"

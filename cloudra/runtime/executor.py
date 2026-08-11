@@ -4,13 +4,15 @@ import json
 import os
 import signal
 import sys
+import time
 import traceback
 
-from cloudra import events, session_store
-from cloudra.context_manager import ContextManager
-from cloudra.database import ConversationDB, aretry_on_locked
-from cloudra.platform_utils import is_posix
-from cloudra.react import AgentCancelled, reAct
+from cloudra.core.react import AgentCancelled, reAct
+from cloudra.infra import events
+from cloudra.infra.platform_utils import is_posix
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.persistence.database import ConversationDB, aretry_on_locked
+from cloudra.services import session_store
 from cloudra.subagents import Subagent_hash
 from cloudra.tools.Interactool.ask_user import use_input_handler
 
@@ -48,6 +50,86 @@ async def _wake_coordinator(database_path: str, input_data: dict, content: str) 
         )
     except Exception as e:
         print(f"[executor] 事件注入失败: {e}")
+
+
+async def _pending_reminder_count(db: ConversationDB, conv_id: str, agent_id: str, session_id: str = None) -> int:
+    """本 Agent 本 session 仍待触发的 schedule 提醒数（含无 session 的旧提醒）。"""
+
+    if session_id is not None:
+        where = ("conversation_id=? AND agent_id=? AND state='pending' "
+                 "AND (session_id IS NULL OR session_id=?)")
+        params = (conv_id, agent_id, session_id)
+    else:
+        where = "conversation_id=? AND agent_id=? AND state='pending'"
+        params = (conv_id, agent_id)
+
+    async def query() -> int:
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                f"SELECT COUNT(*) FROM scheduled_reminders WHERE {where}",
+                params,
+            )
+            row = await cur.fetchone()
+            return int(row[0]) if row else 0
+
+    return await aretry_on_locked(query)
+
+
+async def _seconds_until_own_reminder(db: ConversationDB, conv_id: str, agent_id: str, session_id: str = None) -> float | None:
+    """本 Agent 本 session 下一次提醒到期距现在的秒数（无提醒返回 None）。"""
+
+    if session_id is not None:
+        where = ("conversation_id=? AND agent_id=? AND state='pending' "
+                 "AND (session_id IS NULL OR session_id=?)")
+        params = (conv_id, agent_id, session_id)
+    else:
+        where = "conversation_id=? AND agent_id=? AND state='pending'"
+        params = (conv_id, agent_id)
+
+    async def query():
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                f"SELECT MIN(wake_at) FROM scheduled_reminders WHERE {where}",
+                params,
+            )
+            return await cur.fetchone()
+
+    row = await aretry_on_locked(query)
+    if not row or row[0] is None:
+        return None
+    return max(0.0, float(row[0]) - time.time())
+
+
+async def _run_with_reminder_waits(sub_reAct, db: ConversationDB, conv_id: str, agent_id: str):
+    """跑子 Agent 主循环；结束后若本 Agent 仍有 pending schedule 提醒，挂起等待。
+
+    子 Agent 的 ReAct 一旦以正文/stop 收尾就会 return；但它可能刚用 schedule
+    安排了自唤醒（例如监控异步计算任务）。此时不能放任 session 结束——
+    挂起进程，等提醒到期（自己原子认领触发，与主 runner 并发安全）或收到
+    外部事件后，复活循环续跑。没有 pending 提醒时立即返回，行为与原来一致。
+    """
+    from cloudra.runtime.runner import _fire_due_reminders
+
+    # 并行子任务可能复用同一个 agent_id（如多个 a-4），等待与复活都必须
+    # 限定在本 session 的提醒上，否则会互相唤醒、互相续命。
+    session_id = getattr(getattr(sub_reAct, "session", None), "id", None)
+
+    result = await sub_reAct.run()
+    while await _pending_reminder_count(db, conv_id, agent_id, session_id) > 0:
+        sub = await events.subscribe_async(conv_id, "external_event")
+        delay = await _seconds_until_own_reminder(db, conv_id, agent_id, session_id)
+        timeout = min(30.0, delay) if delay is not None else 30.0
+        try:
+            await asyncio.wait_for(sub.get(), timeout=max(0.05, timeout))
+        except asyncio.TimeoutError:
+            pass
+        # 自己触发到期提醒（原子认领，主 runner 同时触发也不会重复）
+        await _fire_due_reminders(db, conv_id)
+        if not await sub_reAct.drain_pending_external_events():
+            continue  # 唤醒但没有本 Agent 的事件（如别人的广播），继续等
+        sub_reAct._continue = True
+        result = await sub_reAct.run()
+    return result
 
 
 async def run_executor(task_id: int, database_path: str, session_id: str = None):
@@ -88,6 +170,13 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         working_directory=working_dir,
     )
     sub_agent.session_id = input_data.get('session_id')
+    # DAG 会话的子 Agent 以 dag_record 运行（派发时写入 payload），
+    # 让 harness 登记它们的工具证据；缺省/standard 保持零图开销。
+    from cloudra.dag.models import normalize_orchestration_mode
+
+    sub_agent.orchestration_mode = normalize_orchestration_mode(
+        input_data.get('orchestration_mode', 'standard')
+    )
 
     # 如果 payload 中传入了额外的 context，则追加进去
     extra_context = input_data.get('context', [])
@@ -122,7 +211,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
     print(f"--- Agent {sub_agent.name} 启动 (PID: {os.getpid()}) ---")
     try:
         async def wait_for_user(prompt: str) -> str:
-            from cloudra.interactions import wait_for_user_response
+            from cloudra.services.interactions import wait_for_user_response
 
             return await wait_for_user_response(
                 conversation_id=conv_id,
@@ -133,7 +222,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
             )
 
         with use_input_handler(wait_for_user):
-            result = await sub_reAct.run()
+            result = await _run_with_reminder_waits(sub_reAct, db, conv_id, agent_id)
         print(f"\n[结论] {result}")
         print(f"--- Agent {sub_agent.name} 执行完毕 ---")
 

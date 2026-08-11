@@ -79,7 +79,7 @@ dev = [
 
 [project.scripts]
 cloudra = "cloudra.cli:main"
-cloudra-api = "cloudra.api:main"
+cloudra-api = "cloudra.services.api:main"
 
 [project.urls]
 Homepage = "https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists"

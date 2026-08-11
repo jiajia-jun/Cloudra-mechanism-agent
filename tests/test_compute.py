@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from cloudra.compute_utils import (
+from cloudra.infra.compute_utils import (
     build_calculator_cmd,
     check_calculator_script,
     check_job_type,
     get_log_path,
 )
-from cloudra.context_manager import ContextManager
+from cloudra.persistence.context_manager import ContextManager
 from cloudra.tools.Chemtool.submit_compute_job import (
     SubmitComputeJob,
     SubmitComputeJob_input_schema,
@@ -171,7 +171,7 @@ def isolated_db(tmp_path, monkeypatch):
     data_dir = tmp_path / "cloudra_data"
     data_dir.mkdir()
 
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     # 强制重新加载配置，指向临时目录
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -180,7 +180,7 @@ def isolated_db(tmp_path, monkeypatch):
     cfg.data_dir = data_dir
     cfg._ensure_dirs()
 
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
 
     # 初始化 conversation-scoped 数据库
     ConversationDB("test_conv").init()
@@ -199,7 +199,7 @@ def test_check_job_type_missing_executable(tmp_path, monkeypatch):
     """工作目录和系统 PATH 都缺少计算程序时应返回失败。"""
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
-    monkeypatch.setattr("cloudra.compute_utils.shutil.which", lambda _bin: None)
+    monkeypatch.setattr("cloudra.infra.compute_utils.shutil.which", lambda _bin: None)
     ok, msg = check_job_type("gaussian", str(empty_dir))
     assert ok is False
     assert "缺少" in msg
@@ -213,7 +213,7 @@ def test_check_job_type_gaussian_in_path(tmp_path, monkeypatch):
     def fake_which(name):
         return "/usr/bin/g16" if name == "g16" else None
 
-    monkeypatch.setattr("cloudra.compute_utils.shutil.which", fake_which)
+    monkeypatch.setattr("cloudra.infra.compute_utils.shutil.which", fake_which)
     ok, msg = check_job_type("gaussian", str(empty_dir))
     assert ok is True
     assert msg == ""
@@ -259,7 +259,7 @@ def test_check_job_type_cp2k_in_path(tmp_path, monkeypatch):
     def fake_which(name):
         return "/opt/cp2k/bin/cp2k.popt" if name == "cp2k.popt" else None
 
-    monkeypatch.setattr("cloudra.compute_utils.shutil.which", fake_which)
+    monkeypatch.setattr("cloudra.infra.compute_utils.shutil.which", fake_which)
     ok, msg = check_job_type("cp2k", str(empty_dir))
     assert ok is True
     assert msg == ""
@@ -351,7 +351,7 @@ async def test_submit_compute_job_missing_executable(isolated_db, tmp_path, monk
     gjf = workdir / "h2.gjf"
     gjf.write_text("#p HF/3-21G\n\nH2\n\n0 1\nH 0 0 0\nH 0 0 0.74\n")
 
-    monkeypatch.setattr("cloudra.compute_utils.shutil.which", lambda _bin: None)
+    monkeypatch.setattr("cloudra.infra.compute_utils.shutil.which", lambda _bin: None)
 
     tool = SubmitComputeJob()
     tool.subagent = MockAgent("a-0", "test_conv")
@@ -380,6 +380,66 @@ async def test_submit_compute_job_async_creates_record(isolated_db, mock_calc_wo
     assert result.is_success is True
     assert result.state == "ready"
     assert result.job_id > 0
+
+
+@pytest.mark.asyncio
+async def test_query_compute_job_by_id(isolated_db, mock_calc_workdir):
+    """按 job_id 查询：返回状态、路径与日志路径推导。"""
+    from cloudra.tools.Chemtool.query_compute_job import (
+        QueryComputeJob,
+        QueryComputeJob_input_schema,
+    )
+
+    gjf = os.path.join(mock_calc_workdir, "h2.gjf")
+    submit = SubmitComputeJob()
+    submit.subagent = MockAgent("a-0", "test_conv")
+    submitted = await submit.tool_call(
+        SubmitComputeJob_input_schema(input_file=gjf, job_type="gaussian", is_async=True),
+        session=None,
+    )
+    assert submitted.is_success is True
+
+    query = QueryComputeJob()
+    query.subagent = MockAgent("a-0", "test_conv")
+    result = await query.tool_call(
+        QueryComputeJob_input_schema(job_id=submitted.job_id), session=None,
+    )
+
+    assert result.is_success is True
+    assert len(result.jobs) == 1
+    job = result.jobs[0]
+    assert job["job_id"] == submitted.job_id
+    assert job["state"] == "ready"
+    assert job["path"] == gjf
+    assert job["log_path"].endswith("h2.log")
+
+
+@pytest.mark.asyncio
+async def test_query_compute_job_list_and_missing(isolated_db, mock_calc_workdir):
+    """不传 job_id 列出最近任务；查询不存在的 id 返回失败。"""
+    from cloudra.tools.Chemtool.query_compute_job import (
+        QueryComputeJob,
+        QueryComputeJob_input_schema,
+    )
+
+    gjf = os.path.join(mock_calc_workdir, "h2.gjf")
+    submit = SubmitComputeJob()
+    submit.subagent = MockAgent("a-0", "test_conv")
+    await submit.tool_call(
+        SubmitComputeJob_input_schema(input_file=gjf, job_type="gaussian", is_async=True),
+        session=None,
+    )
+
+    query = QueryComputeJob()
+    query.subagent = MockAgent("a-0", "test_conv")
+
+    listed = await query.tool_call(QueryComputeJob_input_schema(), session=None)
+    assert listed.is_success is True
+    assert len(listed.jobs) >= 1
+
+    missing = await query.tool_call(QueryComputeJob_input_schema(job_id=99999), session=None)
+    assert missing.is_success is False
+    assert "未找到" in missing.message
 
 
 @pytest.mark.asyncio
@@ -536,7 +596,7 @@ async def test_context_manager_session_isolation(isolated_db):
 @pytest.mark.asyncio
 async def test_subagent_launcher_no_template_pollution(isolated_db, monkeypatch):
     """SubAgentLauncher 使用类实例化（注册表存类），全局模板不收污染。"""
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
     from cloudra.subagents import Subagent_hash
     from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
 
@@ -564,3 +624,54 @@ async def test_subagent_launcher_no_template_pollution(isolated_db, monkeypatch)
     hash_after = Subagent_hash()
     agent_cls_after = hash_after.get("a-1")
     assert agent_cls_after is agent_cls
+
+
+@pytest.mark.asyncio
+async def test_dag_session_subagent_inherits_record_mode(isolated_db, monkeypatch):
+    """DAG 会话派发的子 Agent 必须以 dag_record 落库（证据登记靠它）；
+    standard 会话的子 Agent 保持 standard。"""
+    import json as _json
+
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.tools.Managetool._subagent_dispatch import _subagent_orchestration_mode
+    from cloudra.tools.Managetool.subagent_launcher import (
+        SubAgentLauncher,
+        SubAgentLauncher_input_schema,
+    )
+
+    # 映射：guided/record → record；standard → standard
+    assert _subagent_orchestration_mode("dag_guided").value == "dag_record"
+    assert _subagent_orchestration_mode("dag_record").value == "dag_record"
+    assert _subagent_orchestration_mode("standard").value == "standard"
+
+    # 固定子进程模式：只落库，不真的调度后台子任务
+    monkeypatch.setenv("CLOUDRA_SUBAGENT_MODE", "subprocess")
+    ConversationDB("parent_conv").init()
+
+    async def launch(mode):
+        tool = SubAgentLauncher()
+        tool.subagent = MockAgent("a-0", "parent_conv")
+        tool.subagent.orchestration_mode = mode
+        result = await tool.tool_call(
+            SubAgentLauncher_input_schema(
+                agent_id="a-1", query=f"task in {mode}", is_wait=False,
+            ),
+            session=None,
+        )
+        return result.session_id
+
+    guided_sid = await launch("dag_guided")
+    standard_sid = await launch("standard")
+
+    db = ConversationDB("parent_conv")
+    with db.connect() as con:
+        payloads = con.execute(
+            "SELECT input_data FROM subagent_requests ORDER BY id"
+        ).fetchall()
+    by_session = {}
+    for (raw,) in payloads:
+        data = _json.loads(raw)
+        # payload 里的 session_id 由 acreate_subagent_request 回写
+        by_session[data["session_id"]] = data["orchestration_mode"]
+    assert by_session[guided_sid] == "dag_record"
+    assert by_session[standard_sid] == "standard"

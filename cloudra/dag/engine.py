@@ -23,7 +23,7 @@ from cloudra.dag.models import (
     MutationResult,
 )
 from cloudra.dag.store import DagCorruptionError, DagStore, _canonical_json
-from cloudra.database import retry_on_locked
+from cloudra.persistence.database import retry_on_locked
 
 
 class _Rejected(ValueError):
@@ -154,7 +154,7 @@ class DagEngine:
                 )
                 rows = con.execute(
                     """
-                    SELECT actor_type, base_revisions, resulting_revisions, operations
+                    SELECT actor_type, actor_id, base_revisions, resulting_revisions, operations
                     FROM dag_mutations WHERE accepted = 1 ORDER BY rowid
                     """
                 ).fetchall()
@@ -163,7 +163,7 @@ class DagEngine:
                         "materialized revisions are nonzero but the accepted journal is empty"
                     )
                 try:
-                    for raw_actor, raw_base, raw_result, raw_operations in rows:
+                    for raw_actor, raw_actor_id, raw_base, raw_result, raw_operations in rows:
                         base = json.loads(raw_base)
                         expected_base = {
                             kind.value: state.revision for kind, state in states.items()
@@ -181,6 +181,7 @@ class DagEngine:
                                 links,
                                 touched,
                                 actor,
+                                raw_actor_id,
                                 GraphOperation.model_validate(raw_operation),
                             )
                         for state in states.values():
@@ -238,6 +239,25 @@ class DagEngine:
             revisions=revisions,
         )
 
+    @staticmethod
+    def _batch_target_graphs(batch: MutationBatch) -> set[GraphKind]:
+        """批次实际触及的图集合——base revision 只校验这些图。
+
+        与 ``_apply_operation`` 的 touch 规则保持一致：waive_gate /
+        set_coverage_contract 触及 delivery，add_link 跨两张图，其余按
+        operation.graph。graph=None 的节点/边操作会在应用阶段以
+        invalid_operation 拒绝，这里不预校验。
+        """
+        targets: set[GraphKind] = set()
+        for operation in batch.operations:
+            if operation.op in {"waive_gate", "set_coverage_contract"}:
+                targets.add(GraphKind.DELIVERY)
+            elif operation.op == "add_link":
+                targets.update({GraphKind.PROCESS, GraphKind.DELIVERY})
+            elif operation.graph is not None:
+                targets.add(operation.graph)
+        return targets
+
     def _apply_transaction(
         self,
         mutation_id: str,
@@ -247,16 +267,37 @@ class DagEngine:
             con.execute("BEGIN IMMEDIATE")
             states = self._load_states(con)
             current = {kind.value: state.revision for kind, state in states.items()}
-            if batch.base_revisions != current:
+            # 按图校验：harness 观察每次工具调用都会推进 process revision，
+            # 若要求 delivery-only 批次携带最新 process 版本，Coordinator 的
+            # 机理变更将永远无法通过（自己的每次 view/mutate 都在抬高 process）。
+            stale = [
+                kind.value
+                for kind in self._batch_target_graphs(batch)
+                if batch.base_revisions.get(kind.value) != current[kind.value]
+            ]
+            if stale:
                 raise _Rejected(
                     "stale_revision",
-                    f"expected revisions {current}, received {batch.base_revisions}",
+                    f"expected revisions {current}, received {batch.base_revisions}"
+                    f" (stale graphs: {sorted(stale)})",
                 )
 
             links = self._load_links(con)
+            # 删边必须给理由：删除要能在变更日志里被人读懂，空 rationale 的
+            # remove_edge 批次直接拒绝。理由是否成立由 Supervisor/用户判断。
+            if (
+                any(op.op == "remove_edge" for op in batch.operations)
+                and not batch.rationale.strip()
+            ):
+                raise _Rejected(
+                    "rationale_required",
+                    "remove_edge requires a non-empty rationale explaining the deletion",
+                )
             touched: set[GraphKind] = set()
             for operation in batch.operations:
-                self._apply_operation(con, states, links, touched, batch.actor, operation)
+                self._apply_operation(
+                    con, states, links, touched, batch.actor, batch.actor_id, operation
+                )
 
             for state in states.values():
                 self._validate_structure(con, state)
@@ -365,6 +406,7 @@ class DagEngine:
         links: dict[str, Any],
         touched: set[GraphKind],
         actor: GraphActor,
+        actor_id: str,
         operation: GraphOperation,
     ) -> None:
         if operation.op == "waive_gate":
@@ -414,7 +456,8 @@ class DagEngine:
         data = operation.data
 
         # 按图分权：机理 DAG 由 Coordinator 设计，流程 DAG 由 Supervisor 维护；
-        # add_link 是跨图簿记，对两个 model actor 都开放。
+        # add_link 是跨图簿记，对两个 model actor 都开放。子 agent 对指派给
+        # 自己的 process 节点有受限的回报权限（见 _check_agent_process_access）。
         if operation.op != "add_link":
             if actor is GraphActor.SUPERVISOR and state.kind is GraphKind.DELIVERY:
                 raise _Rejected(
@@ -422,10 +465,7 @@ class DagEngine:
                     "the supervisor is read-only on the delivery DAG",
                 )
             if actor is GraphActor.AGENT and state.kind is GraphKind.PROCESS:
-                raise _Rejected(
-                    "actor_forbidden",
-                    "the coordinator is read-only on the process DAG",
-                )
+                self._check_agent_process_access(state, actor_id, operation)
 
         if (
             actor is not GraphActor.HARNESS
@@ -464,6 +504,10 @@ class DagEngine:
             state.edge_created[edge.edge_id] = state.revision + 1
             touched.add(state.kind)
             return
+        if operation.op == "remove_edge":
+            self._remove_edge(state, operation)
+            touched.add(state.kind)
+            return
         if operation.op in {"update_node", "update_edge"}:
             self._apply_update(state, actor, operation)
             touched.add(state.kind)
@@ -477,6 +521,51 @@ class DagEngine:
             touched.update({GraphKind.PROCESS, GraphKind.DELIVERY})
             return
         raise _Rejected("invalid_operation", f"unsupported operation {operation.op}")
+
+    @staticmethod
+    def _check_agent_process_access(
+        state: "_GraphState", actor_id: str, operation: GraphOperation
+    ) -> None:
+        """agent（Coordinator/子 agent）对 process 图的受限权限。
+
+        - remove_edge：删边一律由 Supervisor 执行。请求连同 rationale 记入
+          变更日志（拒绝也是日志），harness 随后唤醒 Supervisor 复核——理由
+          充分由它代为删除。
+        - update_node / attach_ref：只允许落在 payload.assignee 等于自己的
+          节点上，且 update 只能写状态回报字段（status/reason/blocked_reason/
+          annotations），让子 agent 完成任务后即时管理自己负责的部分。
+        - 其余结构性操作（add_node/add_edge/update_edge 等）不开放。
+        """
+        if operation.op == "remove_edge":
+            raise _Rejected(
+                "edge_removal_requires_supervisor",
+                "process edges are added/removed by the supervisor; this request and "
+                "its rationale have been journaled and the supervisor will be woken "
+                "to review it",
+            )
+        if operation.op in {"update_node", "attach_ref"}:
+            target_id = operation.data.get("node_id") or operation.data.get("target_id")
+            node = state.nodes.get(target_id)
+            if node is not None and node.payload.get("assignee") == actor_id:
+                if operation.op == "update_node":
+                    changes = operation.data.get("changes") or {}
+                    allowed = {"status", "reason", "blocked_reason", "annotations"}
+                    if not set(changes) <= allowed:
+                        raise _Rejected(
+                            "actor_forbidden",
+                            "an agent may only report status/reason/blocked_reason/"
+                            "annotations on its assigned process nodes",
+                        )
+                return
+            raise _Rejected(
+                "actor_forbidden",
+                "process node is not assigned to this agent; the process DAG is "
+                "maintained by the supervisor",
+            )
+        raise _Rejected(
+            "actor_forbidden",
+            "agents are read-only on the process DAG except for their assigned nodes",
+        )
 
     @staticmethod
     def _load_contract(con: sqlite3.Connection, graph_id: str) -> CoverageContract:
@@ -590,6 +679,18 @@ class DagEngine:
         payload.update({key: value for key, value in changes.items() if key != "label"})
         serialized["payload"] = payload
         elements[element_id] = DagNode(**serialized) if is_node else DagEdge(**serialized)
+
+    @staticmethod
+    def _remove_edge(state: _GraphState, operation: GraphOperation) -> None:
+        # 删边已完全放开（两张图、任意端点状态），但批次必须带 rationale
+        # （在 _apply_transaction 入口强制），被删的边留在变更日志里供审计。
+        # agent 对 process 图的删边请求在 _check_agent_process_access 被拦下，
+        # 转交 Supervisor 复核后由它代为执行，因此到得了这里的调用都已授权。
+        edge_id = operation.data.get("edge_id")
+        if edge_id not in state.edges:
+            raise _Rejected("missing_target", f"edge {edge_id!r} does not exist")
+        del state.edges[edge_id]
+        state.edge_created.pop(edge_id, None)
 
     @staticmethod
     def _attach_ref(state: _GraphState, operation: GraphOperation) -> None:

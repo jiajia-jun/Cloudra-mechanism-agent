@@ -19,9 +19,9 @@ from rich.markdown import Markdown
 from rich.markup import escape
 from rich.panel import Panel
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
-from cloudra.events import subscribe_async
+from cloudra.infra.events import subscribe_async
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 
 if TYPE_CHECKING:
     from cloudra.tui.legacy_app import CloudraTUI

@@ -59,7 +59,7 @@ def test_skill_loader_cache_invalidates_when_manifest_changes(
     tmp_path,
     monkeypatch,
 ):
-    from cloudra import skill_class
+    from cloudra.base import skill_class
 
     skills = tmp_path / "skills"
     skill_file = skills / "live" / "SKILL.md"

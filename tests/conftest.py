@@ -1,10 +1,9 @@
-import asyncio
 import os
 
 import pytest
 import pytest_asyncio
 
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +12,7 @@ def _isolated_data_dir(tmp_path, monkeypatch):
     避免测试在真实用户数据目录（~/.local/share/cloudra）累积垃圾文件。
     需要自定义数据目录的测试可在测试内再 monkeypatch 覆盖（后应用者生效）。
     """
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     # 有些测试会 reload_config()，重建单例时 YAML 配置（优先级高于环境变量）
     # 会把 data_dir 重置回真实目录；把配置文件指到不存在路径，从源头隔离。

@@ -9,7 +9,6 @@ import pytest
 from rich.console import Console
 from rich.style import Style
 from rich.text import Text
-from textual.strip import Strip
 
 from cloudra.tui.new.transcript import RecordKind, TranscriptStore
 from cloudra.tui.new.transcript_render import (
@@ -18,7 +17,6 @@ from cloudra.tui.new.transcript_render import (
     render_rows,
 )
 from tests.tui_visual_cases import VISUAL_CASES, VisualCaseApp, semantic_snapshot, write_snapshot
-
 
 FIXTURE = Path(__file__).parent / "fixtures" / "tui_visual_baseline.json"
 

@@ -8,15 +8,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
-from cloudra.runtime_profile import subagent_execution_mode
+from cloudra.infra.runtime_profile import subagent_execution_mode
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 
 
 @pytest.fixture
 def isolated_runtime(tmp_path, monkeypatch):
     """隔离数据目录，并强制桌面 runtime（屏蔽外部环境变量）。"""
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     monkeypatch.setenv("CLOUDRA_MOBILE_MODE", "false")
     monkeypatch.delenv("CLOUDRA_SUBAGENT_MODE", raising=False)
@@ -194,7 +194,7 @@ async def test_async_subagent_subprocess_override_emits_ready(isolated_runtime, 
     async def fake_aemit(conversation_id, kind, **kwargs):
         emitted.append((conversation_id, kind, kwargs))
 
-    monkeypatch.setattr("cloudra.events.aemit", fake_aemit)
+    monkeypatch.setattr("cloudra.infra.events.aemit", fake_aemit)
 
     tool = _make_tool()
     result = await tool.tool_call(

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def isolated_db(tmp_path, monkeypatch):
     data_dir = tmp_path / "cloudra_data"
     data_dir.mkdir()
 
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
     reload_config()
@@ -23,7 +23,7 @@ def isolated_db(tmp_path, monkeypatch):
     cfg.data_dir = data_dir
     cfg._ensure_dirs()
 
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
 
     # 初始化 conversation-scoped 数据库
     ConversationDB("test_conv").init()
@@ -34,7 +34,7 @@ def isolated_db(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_wait_for_background_tasks_blocks_on_compute_jobs(isolated_db):
     """_wait_for_background_tasks 应阻塞直到 compute_jobs 中无 running 任务。"""
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
     from cloudra.runtime.runner import _wait_for_background_tasks
 
     db_path = ConversationDB("test_conv").path
@@ -63,7 +63,7 @@ async def test_wait_for_background_tasks_blocks_on_compute_jobs(isolated_db):
     con.close()
 
     # 事件驱动：模拟任务完成后收到 task_finished 事件
-    from cloudra import events
+    from cloudra.infra import events
 
     events.emit(conv_id, "task_finished", task_id=1, task_kind="compute", state="done")
     await asyncio.wait_for(waiter, timeout=2)
@@ -72,7 +72,7 @@ async def test_wait_for_background_tasks_blocks_on_compute_jobs(isolated_db):
 @pytest.mark.asyncio
 async def test_wait_for_background_tasks_blocks_on_subagent_requests(isolated_db):
     """_wait_for_background_tasks 应阻塞直到 subagent_requests 中无 running 任务。"""
-    from cloudra import events
+    from cloudra.infra import events
     from cloudra.runtime.runner import _wait_for_background_tasks
 
     db_path = ConversationDB("test_conv").path
@@ -107,7 +107,7 @@ async def test_wait_for_background_tasks_blocks_on_subagent_requests(isolated_db
 @pytest.mark.asyncio
 async def test_run_task_async_wakes_up_on_compute_event(isolated_db):
     """Coordinator 第一轮结束后应休息，收到 guard 事件后再次运行。"""
-    from cloudra.main import run_task_async
+    from cloudra.core.main import run_task_async
 
     call_count = 0
     pending_event_rounds = 1  # 第一次等待后有 pending 事件，第二次没有
@@ -143,7 +143,7 @@ async def test_run_task_async_wakes_up_on_compute_event(isolated_db):
 @pytest.mark.asyncio
 async def test_run_task_async_exits_when_no_pending_events(isolated_db):
     """后台任务完成后没有 pending 事件，Coordinator 应直接结束。"""
-    from cloudra.main import run_task_async
+    from cloudra.core.main import run_task_async
 
     call_count = 0
 

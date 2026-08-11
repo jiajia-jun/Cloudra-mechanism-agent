@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cloudra.config import reload_config
-from cloudra.yolo_guard import (
+from cloudra.infra.config import reload_config
+from cloudra.infra.yolo_guard import (
     YoloGuard,
     _format_content,
     _format_recent_context_multimodal,
@@ -52,7 +52,7 @@ class TestFormatContent:
 class TestFormatRecentContext:
     @pytest.fixture
     def fake_agent(self, tmp_path):
-        from cloudra.context_manager import ContextManager
+        from cloudra.persistence.context_manager import ContextManager
 
         cm = ContextManager(
             agent_id="test-agent",
@@ -142,7 +142,7 @@ class TestYoloGuardJudge:
         with (
             patch.object(guard, "_client") as mock_client,
             patch(
-                "cloudra.yolo_guard._load_prompt",
+                "cloudra.infra.yolo_guard._load_prompt",
                 side_effect=["第一版安全策略", "第二版安全策略"],
             ),
         ):
@@ -321,7 +321,7 @@ class TestYoloGuardJudge:
         mock_cfg.follower.url = ""
         mock_cfg.follower.key = ""
 
-        with patch("cloudra.yolo_guard.get_config", return_value=mock_cfg):
+        with patch("cloudra.infra.yolo_guard.get_config", return_value=mock_cfg):
             guard = YoloGuard()
             with pytest.raises(RuntimeError):
                 guard._client()

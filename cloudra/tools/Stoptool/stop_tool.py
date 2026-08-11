@@ -2,8 +2,8 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 
 class StopTool_input_schema(input_schema):

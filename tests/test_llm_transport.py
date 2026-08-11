@@ -17,8 +17,8 @@ import httpx
 import openai
 import pytest
 
-from cloudra.agent import Follower
-from cloudra.llm_client import (
+from cloudra.core.agent import Follower
+from cloudra.infra.llm_client import (
     FALLBACK_USER_AGENT,
     LLMClient,
     ResponseDictWrapper,
@@ -58,7 +58,7 @@ def client():
 def agent(monkeypatch):
     # 这些用例验证的是 Agent → LLMClient 的 chat 传输委托；
     # 关闭默认的 DeepSeek 原生搜索，避免请求被路由到 Responses 传输。
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     monkeypatch.setattr(get_config().follower, "native_search", "off")
     return _make_agent()
@@ -74,10 +74,10 @@ def _mock_client(create):
 class TestNoConfigConstruction:
     def test_construct_without_global_config(self, monkeypatch):
         # llm_client 不读全局配置：get_config 被禁用时仍可正常构造
-        import cloudra.config
+        import cloudra.infra.config
 
         monkeypatch.setattr(
-            cloudra.config, "get_config",
+            cloudra.infra.config, "get_config",
             MagicMock(side_effect=RuntimeError("config 不可用")),
         )
         client = LLMClient(api_key="sk-x", base_url="https://example.invalid/v1", model="m")
@@ -246,7 +246,7 @@ class _FakeHttpResp:
 class TestRequestsShim:
     def test_non_stream_returns_wrapped_dict(self, client, monkeypatch):
         post = MagicMock(return_value=_FakeHttpResp(data={"choices": []}))
-        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        monkeypatch.setattr("cloudra.infra.llm_client.requests.post", post)
 
         result = client._chat_completions_via_requests_sync({"model": "m", "stream": False})
 
@@ -260,7 +260,7 @@ class TestRequestsShim:
 
     def test_stream_returns_sse_chunk_generator(self, client, monkeypatch):
         resp = _FakeHttpResp(chunks=[b'data: {"a": 1}\n\ndata: [DONE]\n\n'])
-        monkeypatch.setattr("cloudra.llm_client.requests.post", MagicMock(return_value=resp))
+        monkeypatch.setattr("cloudra.infra.llm_client.requests.post", MagicMock(return_value=resp))
 
         result = client._chat_completions_via_requests_sync({"model": "m", "stream": True})
         chunks = list(result)
@@ -276,7 +276,7 @@ class TestRequestsShim:
             "choices": [{"message": {"content": "降级回复"}}],
         })
         post = MagicMock(side_effect=[real_requests.exceptions.ConnectionError("reset"), ok_resp])
-        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        monkeypatch.setattr("cloudra.infra.llm_client.requests.post", post)
 
         result = client._chat_completions_via_requests_sync({"model": "m", "stream": True})
 
@@ -289,7 +289,7 @@ class TestRequestsShim:
     @pytest.mark.asyncio
     async def test_async_wrapper_runs_in_executor(self, client, monkeypatch):
         post = MagicMock(return_value=_FakeHttpResp(data={"ok": True}))
-        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        monkeypatch.setattr("cloudra.infra.llm_client.requests.post", post)
         result = await client._chat_completions_via_requests(model="m", stream=False)
         assert isinstance(result, ResponseDictWrapper)
         assert result.ok is True

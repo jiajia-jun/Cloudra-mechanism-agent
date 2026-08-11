@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通用 HTTP 抓取/下载工具：抓取网页 HTML 并提取正文文本，或把响应原样下载到本地文件。"

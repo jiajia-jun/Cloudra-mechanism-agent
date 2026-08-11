@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
+from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 
 
 class TestDynamicDeepMerge:

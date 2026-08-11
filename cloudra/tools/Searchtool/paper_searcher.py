@@ -2,8 +2,8 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通过 arXiv API 检索学术论文预印本，返回标题、DOI、摘要等结构化结果。"

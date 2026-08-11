@@ -6,16 +6,16 @@ import types
 
 import pytest
 
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 def _make_react(tmp_path, monkeypatch, conv_id="test-trunc"):
-    from cloudra.agent import Follower
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
 
     db_path = str(tmp_path / "test.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _conv_id: db_path)
 
     agent = Follower(
         id="a-test",
@@ -93,7 +93,7 @@ class TestTruncation:
         assert diagnostics["request_state"] == "transport_error"
 
     async def test_retry_then_fail_marks_failed(self, tmp_path, monkeypatch):
-        from cloudra.react import LLMOutputTruncated
+        from cloudra.core.react import LLMOutputTruncated
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         calls = []
@@ -177,7 +177,7 @@ class TestTruncation:
 
 def test_max_tokens_defaults_raised():
     """k3 长 thinking 需要更大的输出预算。"""
-    from cloudra.agent import Coordinator, Follower
+    from cloudra.core.agent import Coordinator, Follower
 
     assert Coordinator(query="t", conversation_id="t").max_tokens == 32768
     assert Follower(

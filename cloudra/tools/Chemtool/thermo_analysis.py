@@ -8,9 +8,9 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.tools.Chemtool.log_parser import _extract_gaussian_thermochemistry
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 _EH_TO_KCAL = 627.5094740631
 _R_J_MOL_K = 8.31446261815324

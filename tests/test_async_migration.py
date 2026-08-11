@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from cloudra.llm_client import LLMClient
+from cloudra.infra.llm_client import LLMClient
 
 
 @pytest.mark.asyncio

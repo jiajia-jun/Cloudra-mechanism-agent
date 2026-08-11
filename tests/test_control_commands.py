@@ -2,11 +2,12 @@ import asyncio
 
 import pytest
 
-from cloudra import control_store, events, session_store
-from cloudra.config import get_config, reload_config
-from cloudra.database import ConversationDB
-from cloudra.interactions import wait_for_user_response
-from cloudra.service import CloudraService
+from cloudra.infra import events
+from cloudra.infra.config import get_config, reload_config
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import control_store, session_store
+from cloudra.services.interactions import wait_for_user_response
+from cloudra.services.service import CloudraService
 
 
 @pytest.fixture

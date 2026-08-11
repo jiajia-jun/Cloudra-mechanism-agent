@@ -4,8 +4,8 @@ from typing import Any, Optional
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "深度解析 Gaussian 输出日志（.log / .out），提取能量、偶极矩、HOMO/LUMO 能级、"

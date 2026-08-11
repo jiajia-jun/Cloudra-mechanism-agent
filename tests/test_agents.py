@@ -1,4 +1,4 @@
-from cloudra.agent import Coordinator
+from cloudra.core.agent import Coordinator
 from cloudra.tools.core.permission_model import Permission
 
 

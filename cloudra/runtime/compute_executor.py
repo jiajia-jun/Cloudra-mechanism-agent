@@ -5,8 +5,8 @@ import os
 import sys
 import time
 
-from cloudra.compute_utils import check_job_type, launch_compute_processes
-from cloudra.database import ConversationDB
+from cloudra.infra.compute_utils import check_job_type, launch_compute_processes
+from cloudra.persistence.database import ConversationDB
 
 
 async def _mark_failed(dbpath: str, task_id: int, message: str):
@@ -61,7 +61,7 @@ async def run_compute(task_id: int, dbpath: str):
     workdir = os.path.dirname(data_dic['path'])
 
     if data_dic['scheduler'] == 'slurm':
-        from cloudra.slurm import run_slurm_compute
+        from cloudra.infra.slurm import run_slurm_compute
 
         try:
             return await run_slurm_compute(
@@ -86,10 +86,17 @@ async def run_compute(task_id: int, dbpath: str):
         await _mark_failed(dbpath, task_id, msg)
         return 1
 
-    # 正常情况下main已经改过state了，这里再确认一次
+    # 正常情况下main已经改过state了，这里再确认一次；start_timestamp 只补空值，
+    # 以 claim 时写入的开始时间为准。
     try:
         async with db.aconnect() as con:
-            await con.execute("UPDATE compute_jobs SET state=? WHERE id=?", ("running", task_id))
+            await con.execute(
+                """UPDATE compute_jobs SET state=?,
+                start_timestamp=CASE WHEN start_timestamp IS NULL OR start_timestamp<=0
+                    THEN ? ELSE start_timestamp END
+                WHERE id=?""",
+                ("running", time.time(), task_id),
+            )
             await con.commit()
     except Exception as e:
         await _mark_failed(dbpath, task_id, f"更新任务状态失败：{e}")

@@ -8,9 +8,9 @@ from typing import TypeVar
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, output_schema
-from cloudra.workspace import (
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, output_schema
+from cloudra.persistence.workspace import (
     PreparedFileChange,
     WorkspaceConflictError,
     WorkspaceError,
@@ -155,11 +155,11 @@ async def execute_prepared_change(
         change.event_data("applied"),
     )
     conversation_id = getattr(tool.subagent, "conversation_id", "default")
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
 
     if Path(ConversationDB(conversation_id).path).is_file():
         try:
-            from cloudra.artifacts import ArtifactService
+            from cloudra.persistence.artifacts import ArtifactService
 
             await asyncio.to_thread(
                 ArtifactService().register_file,

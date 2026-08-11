@@ -1,0 +1,395 @@
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel
+from pydantic_core import PydanticUndefined
+
+from cloudra.base.session_class import Session
+from cloudra.persistence.database import ConversationDB, get_database_path
+
+# HACK: 这里原本缺少 import，属于历史遗留问题；get_tools_lst 定义在 tools/__init__.py
+from cloudra.tools import get_tools_lst
+from cloudra.tools.core.permission_model import Permission
+
+if TYPE_CHECKING:
+    from cloudra.infra.yolo_guard import YoloGuard
+
+
+def _tool_db_path(subagent) -> str:
+    """根据 tool 关联的 Agent 返回对应 conversation 的数据库路径。"""
+    conv_id = getattr(subagent, 'conversation_id', 'default') if subagent else 'default'
+    return get_database_path(conv_id)
+
+
+def get_tools() -> list[dict]:
+    """将工具类加载为 OpenAI function 格式的 dict 列表。"""
+    entries = get_tools_lst()
+    tools_list = []
+    for entry in entries:
+        tool_instance = entry.instantiate()
+        tools_list.append(tool_instance.tool_schema_json())
+    return tools_list
+
+
+class input_schema(BaseModel):
+    '''
+    工具输入模式基类，定义工具需要的输入参数和格式。
+
+    子类用法示例：
+        class MyInput(input_schema):
+            query: str = Field(description="搜索关键词")
+            max_results: int = Field(default=10, description="最大返回条数")
+
+    通过 to_parameters_schema() 可自动生成符合 OpenAI Function Calling 规范的 parameters 字典。
+    '''
+
+    @classmethod
+    def to_parameters_schema(cls) -> dict:
+        '''
+        生成符合 OpenAI Function Calling 的 parameters 字典。
+        基于 Pydantic model_json_schema() 微调：
+        - properties / required 已由 Pydantic 根据字段声明自动生成
+        - 强制附加 additionalProperties: false，防止 LLM 传入未定义字段
+        '''
+        schema = cls.model_json_schema()
+        parameters = {
+            "type": "object",
+            "properties": schema.get("properties", {}),
+            "required": schema.get("required", []),
+            "additionalProperties": False,
+        }
+        if "$defs" in schema:
+            parameters["$defs"] = schema["$defs"]
+        return parameters
+
+    @classmethod
+    def from_args(cls, arg_dict: dict) -> "input_schema":
+        '''从 LLM 返回的 arguments dict 构造输入实例，带 Pydantic 类型校验。'''
+        return cls(**arg_dict)
+
+    def toClass(self, arg_dict: dict) -> "input_schema":
+        '''
+        兼容旧接口，供 reAct.py 调用。
+        实际调用链通常为 tool.input_schema.toClass(tool_args)，此时 self 为 input_schema 子类本身。
+        '''
+        # 当通过类调用时（如 TextReader_input_schema.toClass(args)），self 即为类对象
+        if isinstance(self, type) and issubclass(self, input_schema):
+            return self(**arg_dict)
+        return self.__class__(**arg_dict)
+
+    def toJson(self) -> dict:
+        '''实例序列化为 dict，用于日志或上下文回传。'''
+        return self.model_dump(mode="json")
+
+
+class output_schema(BaseModel):
+    '''
+    工具输出模式基类，定义工具输出的格式。
+    子类按普通 Pydantic Model 声明字段即可。
+    '''
+
+    def toJson(self) -> dict:
+        return self.model_dump(mode="json")
+
+
+class Tool(BaseModel):
+    '''
+    工具基类。所有具体工具应继承此类。
+
+    关于 input_schema / output_schema：
+    - 这里存放的是具体的 schema 类（如 TextReader_input_schema），而非实例。
+    - 使用 Any 类型并开启 arbitrary_types_allowed，避免 Pydantic 对类对象做字段校验。
+    - 子模块中覆盖时必须带类型注解，例如：
+          input_schema: Any = TextReader_input_schema
+    '''
+    model_config = {"arbitrary_types_allowed": True}
+
+    # 唯一标识符
+    tool_id: str = ''
+
+    # 工具名称（即 OpenAI function.name）
+    tool_name: str = ''
+
+    # 工具描述。改造后应仅保留【功能描述】+【使用场景】，不再包含参数细节。
+    # 参数说明通过 input_schema 的 Field(description="...") 提供，自动生成到 parameters 中。
+    tool_description: str = ''
+
+    # 工具的输入模式类（存放类对象，非实例）
+    input_schema: Any = input_schema
+
+    # 工具的输出模式类（存放类对象，非实例）
+    output_schema: Any = output_schema
+
+    # 引用调用该工具的 Agent 实例
+    subagent: Any = None
+
+    def is_read(self) -> bool:
+        return False
+
+    def is_write(self) -> bool:
+        return False
+
+    def is_manage(self) -> bool:
+        return False
+
+    def is_script(self) -> bool:
+        return False
+
+    def is_destructive(self) -> bool:
+        return False
+
+    def tool_permission_all(self) -> Permission:
+        """Return Permission flags for this tool."""
+        perms = Permission.NONE
+        if self.is_read():
+            perms |= Permission.READ
+        if self.is_write():
+            perms |= Permission.WRITE
+        if self.is_manage():
+            perms |= Permission.MANAGE
+        if self.is_script():
+            perms |= Permission.SCRIPT
+        if self.is_destructive():
+            perms |= Permission.DESTRUCTIVE
+        return perms
+
+    async def tool_call(self, user_input: input_schema, session: Session) -> output_schema:
+        '''
+        调用工具。子类必须重写此方法。
+        执行结果以 output_schema 实例返回。
+        '''
+        raise NotImplementedError("子类必须实现 tool_call 方法")
+
+    async def safe_call(self, user_input: input_schema, session: Session) -> output_schema:
+        '''
+        带有通用异常捕获的工具调用包装器。
+        工具执行失败时抛出包含工具名的 RuntimeError，由 reAct.act_result() 统一捕获并回传给 LLM。
+        '''
+        try:
+            return await self.tool_call(user_input, session)
+        except Exception as e:
+            error_msg = f"【工具执行异常】{self.tool_name}: {str(e)}"
+            raise RuntimeError(error_msg) from e
+
+    async def ensure_safety(
+        self,
+        session: Session,
+        details: str,
+        tool_args: dict | None = None,
+    ) -> tuple[bool, str]:
+        '''
+        安全检查：如果工具被标记为 destructive，则必须经过审批。
+        默认通过数据库等待用户审批；若启用了 YOLO 模式，则调用独立 Agent 自动判断。
+        返回 (是否通过, 拒绝原因)。通过时拒绝原因为空字符串。
+        '''
+        from cloudra.infra.yolo_guard import YoloGuard, is_yolo_enabled
+
+        # 获取当前 Agent 名称
+        agent_name = self.subagent.name if self.subagent else "Unknown Agent"
+        full_details = f"【发起 Agent】: {agent_name}\n{details}"
+
+        print(f"\n\033[91m[安全审计]\033[0m 正在申请危险操作审批...\n{full_details}")
+
+        if is_yolo_enabled():
+            guard = YoloGuard()
+            return await self._yolo_judge(session, tool_args or {}, guard)
+
+        db_path = _tool_db_path(self.subagent)
+        risk_summary = next(
+            (
+                line.partition(":")[2].strip()
+                for line in details.splitlines()
+                if line.startswith("【动作】")
+            ),
+            details.splitlines()[0] if details.splitlines() else "危险工具调用",
+        )
+        candidate_diff = ""
+        diff_marker = "【Unified Diff】:\n"
+        if diff_marker in details:
+            candidate_diff = details.partition(diff_marker)[2]
+        return await self.request_approval(
+            db_path,
+            session.id,
+            full_details,
+            tool_name=self.tool_name,
+            normalized_arguments=tool_args or {},
+            risk_summary=risk_summary,
+            candidate_diff=candidate_diff,
+        )
+
+    async def record_session_event(
+        self,
+        session: Session,
+        event_type: str,
+        data: dict,
+    ) -> None:
+        """尽力记录工具事件；遥测失败不能反向破坏工具主流程。"""
+        from cloudra.services import session_store as _ss
+
+        try:
+            db = ConversationDB.from_path(_tool_db_path(self.subagent))
+            await _ss.arecord_event(db, session.id, event_type, data)
+        except Exception:
+            pass
+
+    async def _yolo_judge(
+        self,
+        session: Session,
+        tool_args: dict,
+        guard: 'YoloGuard',
+    ) -> tuple[bool, str]:
+        """调用 YoloGuard 做自动判断。"""
+        approved, reason = await guard.judge(
+            self.tool_name, tool_args, self.subagent, session
+        )
+        if approved:
+            print("\033[92m[安全审计/YOLO]\033[0m 自动审批通过。")
+            return True, ""
+        else:
+            reason_text = reason or "YOLO Agent 认为该操作存在风险"
+            print(f"\033[91m[安全审计/YOLO]\033[0m 自动审批拒绝。原因: {reason_text}")
+            return False, reason_text
+
+    async def request_approval(
+        self,
+        db_path: str,
+        session_id: str,
+        details: str,
+        *,
+        tool_name: str = "",
+        normalized_arguments: dict | None = None,
+        risk_summary: str = "",
+        candidate_diff: str = "",
+    ) -> tuple[bool, str]:
+        import asyncio
+
+        from cloudra.infra import events
+        from cloudra.services import session_store as _ss
+
+        db = ConversationDB.from_path(db_path)
+        conversation_id = getattr(self.subagent, "conversation_id", None)
+        if not conversation_id:
+            conversation_id = Path(db_path).parent.parent.name
+        decisions = await events.subscribe_async(conversation_id, "approval_decided")
+        approval_id = await _ss.ainsert_approval(
+            db,
+            session_id,
+            details,
+            agent_name=(
+                self.subagent.name if self.subagent else "Unknown Agent"
+            ),
+            tool_name=tool_name,
+            normalized_arguments=normalized_arguments,
+            risk_summary=risk_summary,
+            candidate_diff=candidate_diff,
+        )
+        changed = await _ss.atransition_session_state(
+            db,
+            session_id,
+            expected={"running"},
+            target="waiting_for_approval",
+        )
+        if changed:
+            await _ss.ainsert_session_event(
+                db,
+                session_id,
+                "waiting_for_approval",
+                {
+                    "approval_id": approval_id,
+                    "state": "waiting_for_approval",
+                },
+            )
+        try:
+            while True:
+                try:
+                    message = await asyncio.wait_for(decisions.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    message = None
+                if message and message.get("approval_id") == approval_id:
+                    state = message.get("state")
+                    denial_reason = message.get("denial_reason", "")
+                    if state == "approved":
+                        print("\033[92m[安全审计]\033[0m 审批通过。")
+                        return True, ""
+                    if state == "denied":
+                        return False, denial_reason
+                row = await _ss.aread_approval_status(db, approval_id)
+                if row:
+                    state, denial_reason = row
+                    if state == 'approved':
+                        print("\033[92m[安全审计]\033[0m 审批通过。")
+                        return True, ''
+                    elif state == 'denied':
+                        reason = denial_reason or ''
+                        if reason:
+                            print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
+                        else:
+                            print("\033[91m[安全审计]\033[0m 审批拒绝。")
+                        return False, reason
+                    elif state == "expired":
+                        print("\033[91m[安全审计]\033[0m 审批已过期。")
+                        return False, "审批已过期"
+        finally:
+            restored = await _ss.atransition_session_state(
+                db,
+                session_id,
+                expected={"waiting_for_approval"},
+                target="running",
+            )
+            if restored:
+                await _ss.ainsert_session_event(
+                    db,
+                    session_id,
+                    "running",
+                    {
+                        "approval_id": approval_id,
+                        "state": "running",
+                    },
+                )
+
+    @classmethod
+    def _get_field_default(cls, field_name: str):
+        '''获取类字段的默认值，兼容 Pydantic v2（类级别无法直接访问普通字段）。'''
+        field = cls.model_fields.get(field_name)
+        if field and field.default is not PydanticUndefined:
+            return field.default
+        return None
+
+    def tool_schema_json(self) -> dict:
+        '''
+        返回标准 OpenAI function 格式，可直接用于 client.chat.completions.create(..., tools=[...])。
+        优先读取实例级别的 tool_description，使动态生成的描述能够生效。
+        '''
+        # HACK: 这里用 getattr + or fallback 链是因为 Pydantic v2 的类字段默认值在实例上可能
+        # 被 shadow，但某些情况下实例属性又还没覆盖。动态 description（如 Bashtools 的权限列表、
+        # GetSkill 的 skills 列表）必须在 __init__ 之后才能确定，因此必须是实例方法而非类方法。
+        # 如果后续有更好方式（如 descriptor / property），可替换掉这个 ugly fallback。
+        description = getattr(self, 'tool_description', '') or self._get_field_default('tool_description') or ''
+        return {
+            "type": "function",
+            "function": {
+                "name": getattr(self, 'tool_name', '') or self._get_field_default('tool_name') or '',
+                "description": description,
+                "parameters": (self._get_field_default('input_schema') or input_schema).to_parameters_schema(),
+            }
+        }
+
+    def toJson(self) -> dict:
+        '''
+        实例级序列化，主要用于日志或调试。
+        若需获取 OpenAI schema，请使用类方法 tool_schema_json()。
+        '''
+        return {
+            "tool_id": self.tool_id,
+            "tool_name": self.tool_name,
+            "tool_description": self.tool_description,
+        }
+
+    @classmethod
+    def build_input(cls, arg_dict: dict) -> input_schema:
+        '''
+        将 LLM 返回的参数字典转换为 input_schema 实例。
+        供 reAct.py 调用，替代原有的 tool.input_schema.toClass(tool_args)。
+        '''
+        schema_cls = cls._get_field_default('input_schema') or input_schema
+        return schema_cls.from_args(arg_dict)

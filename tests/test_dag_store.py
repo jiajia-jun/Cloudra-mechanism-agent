@@ -2,15 +2,15 @@ import math
 
 import pytest
 
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 def _load_store_api():
     try:
         from cloudra.dag.models import GraphKind, GraphRef
         from cloudra.dag.store import (
-            DagStore,
             DagCorruptionError,
+            DagStore,
             EvidencePayloadError,
             InvalidGraphReference,
             SpeciesConflictError,

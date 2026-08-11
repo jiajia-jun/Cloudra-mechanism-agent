@@ -5,9 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra import session_store
-from cloudra.database import ConversationDB
-from cloudra.tools_class import Tool
+from cloudra.base.tools_class import Tool
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 
 
 @pytest.mark.asyncio

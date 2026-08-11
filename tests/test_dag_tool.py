@@ -1,9 +1,9 @@
 import pytest
 
-from cloudra.agent import Coordinator
-from cloudra.config import get_config
-from cloudra.database import ConversationDB
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.core.agent import Coordinator
+from cloudra.infra.config import get_config
+from cloudra.persistence.database import ConversationDB
 
 
 def _agent(conversation_id, mode):
@@ -148,8 +148,8 @@ async def test_coordinator_cannot_mutate_process_graph(tmp_path):
 @pytest.mark.asyncio
 async def test_supervisor_actor_can_mutate_process_but_not_delivery(tmp_path):
     """type=supervisor 的调用者被派生为 actor=SUPERVISOR：可写 process，delivery 只读。"""
+    from cloudra.core.supervisor import SupervisorAgent
     from cloudra.dag.models import GraphOperation
-    from cloudra.supervisor import SupervisorAgent
     from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
 
     get_config().data_dir = tmp_path
@@ -321,3 +321,199 @@ async def test_delivery_report_uses_the_persisted_coverage_contract(tmp_path):
     assert "missing_thermochemistry" in {
         gap["code"] for gap in report.result["unresolved"]
     }
+
+
+@pytest.mark.asyncio
+async def test_init_from_template_seeds_skeleton_only_on_empty_graphs(tmp_path):
+    from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
+
+    get_config().data_dir = tmp_path
+    agent = _agent("tool-template", "dag_guided")
+    tool = DagGraph(subagent=agent)
+    session = Session("s1", str(tmp_path / "session.json"))
+
+    seeded = await tool.tool_call(
+        DagGraphInput(action="init_from_template", rationale="start Claisen study"),
+        session,
+    )
+    assert seeded.success
+    view = await tool.tool_call(
+        DagGraphInput(action="view", graph_kind="process"), session
+    )
+    node_ids = {node["node_id"] for node in view.result["nodes"]}
+    assert {"p_analyze", "p_skill", "p_literature", "p_delivery_design"} <= node_ids
+    delivery = await tool.tool_call(
+        DagGraphInput(action="view", graph_kind="delivery"), session
+    )
+    roles = {node["payload"]["role"] for node in delivery.result["nodes"]}
+    assert roles == {"reactant", "product"}
+
+    # 图已非空：再次初始化被拒绝，已有骨架不被覆盖
+    again = await tool.tool_call(
+        DagGraphInput(action="init_from_template"), session
+    )
+    assert not again.success
+    assert "empty" in again.error
+
+
+@pytest.mark.asyncio
+async def test_retro_attach_with_role_rederives_evidence_level(tmp_path):
+    """先算后建图：补挂已登记证据并带 evidence_role 时，等级确定性重算。"""
+    from cloudra.dag.models import GraphOperation
+    from cloudra.dag.store import DagStore
+    from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
+
+    get_config().data_dir = tmp_path
+    agent = _agent("tool-retro-derive", "dag_record")
+    tool = DagGraph(subagent=agent)
+    session = Session("s1", str(tmp_path / "session.json"))
+    db = ConversationDB(agent.conversation_id).init()
+    store = DagStore(db)
+    store.ensure_bundle(session.id)
+
+    # 模拟一次先于计划完成的中间体优化解析（未绑定任何 planned node）
+    ref = store.register_evidence(
+        session.id,
+        "gaussian_log_parser",
+        {
+            "tool_call_id": "call-early",
+            "arguments": {"file": "poz_optfreq.log"},
+            "result": {"imaginary_frequencies": [], "normal_termination": True},
+        },
+    )
+
+    out = await tool.tool_call(
+        DagGraphInput(
+            action="mutate",
+            base_revisions={"process": 0, "delivery": 0},
+            rationale="late-built graph claims the earlier optimization",
+            operations=[
+                GraphOperation(
+                    op="add_node",
+                    graph="delivery",
+                    data={
+                        "node_id": "poz",
+                        "node_type": "occurrence",
+                        "label": "POZ",
+                        "payload": {"role": "intermediate", "evidence_level": "proposed"},
+                    },
+                ),
+                GraphOperation(
+                    op="attach_ref",
+                    graph="delivery",
+                    data={
+                        "target_type": "node",
+                        "target_id": "poz",
+                        "ref": ref.model_dump(mode="json"),
+                        "evidence_role": "intermediate_optimization",
+                    },
+                ),
+            ],
+        ),
+        session,
+    )
+
+    assert out.accepted
+    assert out.result["derived"] == [
+        {
+            "target_type": "node",
+            "target_id": "poz",
+            "changes": {"evidence_level": "structure_supported"},
+        }
+    ]
+    view = await tool.tool_call(
+        DagGraphInput(action="view", graph_kind="delivery"), session
+    )
+    poz = next(n for n in view.result["nodes"] if n["node_id"] == "poz")
+    assert poz["payload"]["evidence_level"] == "structure_supported"
+
+    # 不带 evidence_role 的补挂：只挂引用，不重算
+    ref2 = store.register_evidence(
+        session.id,
+        "gaussian_log_parser",
+        {
+            "tool_call_id": "call-early-2",
+            "arguments": {"file": "soz_optfreq.log"},
+            "result": {"imaginary_frequencies": [], "normal_termination": True},
+        },
+    )
+    # 第一次 mutate 后 harness 的派生批次把 delivery revision 又推进了一位，
+    # 重新读最新版本再提交。
+    revisions = store.load_bundle().revisions
+    plain = await tool.tool_call(
+        DagGraphInput(
+            action="mutate",
+            base_revisions=revisions,
+            rationale="attach raw evidence without claiming a role",
+            operations=[
+                GraphOperation(
+                    op="add_node",
+                    graph="delivery",
+                    data={
+                        "node_id": "soz",
+                        "node_type": "occurrence",
+                        "label": "SOZ",
+                        "payload": {"role": "product", "evidence_level": "proposed"},
+                    },
+                ),
+                GraphOperation(
+                    op="attach_ref",
+                    graph="delivery",
+                    data={
+                        "target_type": "node",
+                        "target_id": "soz",
+                        "ref": ref2.model_dump(mode="json"),
+                    },
+                ),
+            ],
+        ),
+        session,
+    )
+    assert plain.accepted
+    assert "derived" not in plain.result
+
+
+@pytest.mark.asyncio
+async def test_view_pagination_reports_total_and_offset(tmp_path):
+    from cloudra.dag.models import GraphOperation
+    from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
+
+    get_config().data_dir = tmp_path
+    agent = _agent("tool-view-pagination", "dag_record")
+    tool = DagGraph(subagent=agent)
+    session = Session("s1", str(tmp_path / "session.json"))
+
+    await tool.tool_call(
+        DagGraphInput(
+            action="mutate",
+            base_revisions={"process": 0, "delivery": 0},
+            rationale="three candidates",
+            operations=[
+                GraphOperation(
+                    op="add_node",
+                    graph="delivery",
+                    data={
+                        "node_id": f"n{i}",
+                        "node_type": "occurrence",
+                        "label": f"candidate {i}",
+                        "payload": {"role": "intermediate", "evidence_level": "proposed"},
+                    },
+                )
+                for i in range(3)
+            ],
+        ),
+        session,
+    )
+
+    first = await tool.tool_call(
+        DagGraphInput(action="view", graph_kind="delivery"), session
+    )
+    assert first.result["total_nodes"] == 3
+    assert len(first.result["nodes"]) == 3
+
+    tail = await tool.tool_call(
+        DagGraphInput(action="view", graph_kind="delivery", offset=2), session
+    )
+    assert tail.result["total_nodes"] == 3
+    assert tail.result["offset"] == 2
+    assert len(tail.result["nodes"]) == 1

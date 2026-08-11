@@ -7,9 +7,9 @@ from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Label, Static
 
-from cloudra.context_manager import ContextManager
-from cloudra.service import CloudraService
-from cloudra.token_estimator import TokenEstimator
+from cloudra.infra.token_estimator import TokenEstimator
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.services.service import CloudraService
 
 
 class ContextScreen(Screen):
@@ -51,10 +51,11 @@ class ContextScreen(Screen):
             record = service.session_runner.get(self.conversation_id, self.session_id)
             state = record.state if record else "未知"
 
-        # 与后端一致：Coordinator（a-0）的上下文是对话级共享的（不按 session 隔离，
-        # 任务结束也不清空，见 react.py 的 clear_context 分支）；
-        # 只有子 Agent（非 a-0）的上下文按 session 隔离。
-        shared = self.agent_id == "a-0"
+        # 与后端一致：Coordinator（a-0）与 Supervisor 的上下文是对话级共享的
+        # （不按 session 隔离，任务结束也不清空；Supervisor 跨触发延续同一份，
+        # 见 supervisor.py 的 GraphSupervisor 说明）；只有子 Agent（普通 follower）
+        # 的上下文按 session 隔离。
+        shared = self.agent_id in ("a-0", "supervisor")
         scoped_session = None if shared else self.session_id
 
         cm = ContextManager(
@@ -69,12 +70,15 @@ class ContextScreen(Screen):
         except Exception as exc:
             return f"无法加载上下文: {exc}"
 
-        scope_label = (
-            "对话级共享（同一对话的所有 Coordinator 任务延续此上下文）"
-            if shared
-            else "任务级独立（子 Agent 任务结束后上下文会被释放）"
-        )
-        released = not shared and not os.path.exists(cm.context_file)
+        if shared:
+            scope_label = (
+                "对话级共享（同一对话的所有 Coordinator 任务延续此上下文）"
+                if self.agent_id == "a-0"
+                else "对话级持久（Supervisor 跨触发/session/重启延续此上下文）"
+            )
+        else:
+            scope_label = "任务级独立（按 session 隔离，任务结束后保留供审查）"
+        empty = not shared and not os.path.exists(cm.context_file)
 
         token_count = TokenEstimator.estimate_messages(context)
         lines = [
@@ -85,8 +89,8 @@ class ContextScreen(Screen):
             f"Estimated tokens: {token_count}",
             "",
         ]
-        if released:
-            lines.append("（该子 Agent 的上下文文件已释放，以下为初始状态）")
+        if empty:
+            lines.append("（该子 Agent 尚未写入任何上下文）")
             lines.append("")
         lines.append("--- Messages ---")
         for i, msg in enumerate(context, 1):

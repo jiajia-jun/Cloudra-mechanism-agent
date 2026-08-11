@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from cloudra import conversation_repo
+from cloudra.persistence import conversation_repo
 
 
 def _write_meta(data_dir, conv_id, **meta):
@@ -47,7 +47,7 @@ def test_list_conversations_empty(tmp_path):
 
 
 def test_latest_active_conversation_prefers_config(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
     reload_config()
@@ -59,7 +59,7 @@ def test_latest_active_conversation_prefers_config(tmp_path, monkeypatch):
 
 
 def test_latest_active_conversation_picks_newest_non_archived(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
     reload_config()
@@ -75,7 +75,7 @@ def test_latest_active_conversation_picks_newest_non_archived(tmp_path, monkeypa
 
 
 def test_latest_active_conversation_none_when_all_archived(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
     reload_config()

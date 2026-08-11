@@ -9,7 +9,7 @@ import pytest
 
 
 def _setup_data_dir(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -20,7 +20,7 @@ def _setup_data_dir(tmp_path, monkeypatch):
 
 
 def _make_pending_approval(conv_id="conv-parity"):
-    from cloudra.database import ConversationDB
+    from cloudra.persistence.database import ConversationDB
 
     db = ConversationDB(conv_id).init()
     with db.connect() as con:
@@ -58,7 +58,7 @@ class TestCleanTextParity:
 
     @pytest.mark.asyncio
     async def test_service_channel_writes_decision(self, tmp_path, monkeypatch):
-        from cloudra.service import CloudraService
+        from cloudra.services.service import CloudraService
 
         _setup_data_dir(tmp_path, monkeypatch)
         db, req_id = _make_pending_approval()
@@ -70,7 +70,7 @@ class TestCleanTextParity:
     async def test_both_channels_guard_non_pending(self, tmp_path, monkeypatch):
         """两条通道都有 pending 守卫：已决定的审批返回 False 且不覆盖。"""
         from cloudra.runtime.workers import apply_approval_decision
-        from cloudra.service import CloudraService
+        from cloudra.services.service import CloudraService
 
         _setup_data_dir(tmp_path, monkeypatch)
         db, req_id = _make_pending_approval()
@@ -95,7 +95,7 @@ class TestSurrogateParity:
 
     @pytest.mark.asyncio
     async def test_service_channel_sanitizes_and_writes(self, tmp_path, monkeypatch):
-        from cloudra.service import CloudraService
+        from cloudra.services.service import CloudraService
 
         _setup_data_dir(tmp_path, monkeypatch)
         db, req_id = _make_pending_approval()

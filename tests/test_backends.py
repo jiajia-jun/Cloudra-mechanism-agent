@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from cloudra.backends import (
+from cloudra.services.backends import (
     BackendProtocolError,
     BackendUnavailable,
     LocalCloudraBackend,

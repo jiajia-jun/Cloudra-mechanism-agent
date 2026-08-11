@@ -9,12 +9,12 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
 from cloudra.tools.Plantool._store import agent_store_path, load_json
 from cloudra.tools.Plantool.goal import GoalSet
 from cloudra.tools.Plantool.todo import TodoWrite
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 
 class TodoRead_input_schema(input_schema):

@@ -1,15 +1,15 @@
 """实例字段隔离回归：reAct / Session 的类级可变默认值会导致实例间共享状态。"""
 
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 def _make_react(tmp_path, monkeypatch, agent_id, conv_id):
-    from cloudra.agent import Follower
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
 
     db_path = str(tmp_path / f"{conv_id}.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid, _db=db_path: _db)
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid, _db=db_path: _db)
 
     agent = Follower(
         id=agent_id,
@@ -42,7 +42,7 @@ def test_sessions_do_not_share_tool_calling(tmp_path):
 
     Session 现在是纯内存镜像（数据库是唯一事实来源），不再携带 tool_calling。
     """
-    from cloudra.session_class import Session
+    from cloudra.base.session_class import Session
     from cloudra.tools.Bashtool.bashtools import Bashtools
 
     session_a = Session(id="s-1", path=str(tmp_path / "s1.json"))

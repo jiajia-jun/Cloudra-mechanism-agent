@@ -1,8 +1,7 @@
-from pathlib import Path
-from types import SimpleNamespace
-
 import json
 import math
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,7 +11,6 @@ from cloudra.tools.Chemtool.thermo_analysis import (
     ThermoAnalysis_input_schema,
     ThermoSpecies,
 )
-
 
 FIXTURES = Path(__file__).parent / "fixtures" / "gaussian"
 WATER_FREQ = FIXTURES / "water_opt_freq_g16.out"

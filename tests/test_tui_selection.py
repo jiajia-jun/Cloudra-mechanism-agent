@@ -316,7 +316,7 @@ def test_cloudra_theme_defines_readable_selection_colors():
 async def test_ctrl_c_with_input_focused_copies_chat_selection(tmp_path, monkeypatch):
     """The input box owns ctrl+c when focused; it must fall through to the chat
     selection when the input itself has no selection, then clear the highlight."""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
     from cloudra.tui.new.app import CloudraTextualApp
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path / "data"))

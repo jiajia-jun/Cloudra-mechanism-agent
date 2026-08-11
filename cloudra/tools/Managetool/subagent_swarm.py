@@ -9,15 +9,15 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.database import ConversationDB
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
+from cloudra.persistence.database import ConversationDB
 from cloudra.subagents import Subagent_hash
 from cloudra.tools.Managetool._subagent_dispatch import (
     dispatch_subagent,
     fetch_subagent_outcome,
 )
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 MIN_ITEMS = 2
 MAX_ITEMS = 128
@@ -33,7 +33,7 @@ description = (
     "重要指南：\n"
     "- **占位符**: prompt_template 必须包含 {{item}} 占位符，每项任务用它展开；展开后的任务描述必须两两不同。\n"
     "- **绝对路径与工具边界**: 必须在模板或 context 中指明工作目录的绝对路径，并明确允许使用的工具与禁止使用的工具。\n"
-    "- **AgentHub**: 并行子任务可通过 `agent_hub` 工具互通发现/提问/回答；派发有重叠风险的任务时，提醒它们先查 hub、结论发 hub。\n"
+    "- **AgentHub**: 并行子任务可通过 `agent_hub` 工具互通发现/提问/回答，也可用 to_agent 点名留言（帖子公开，被点名/被回复者会收到通知）；派发有重叠风险的任务时，提醒它们先查 hub、结论发 hub。\n"
     "- **并发上限**: max_concurrency > 0 时限制同时运行的子 Agent 实例数，默认 0 表示不限。\n"
     "- **agent_id**: 只能传入类似 a-1、a-2 的 id，不能传 explorer、writer 等名称；同一 agent_id 的多个实例并行运行，各自持有独立的会话与规划存储。\n"
     "可用的子 Agent:\n"
@@ -152,21 +152,22 @@ class SubAgentSwarm(Tool):
         parent_session_id = getattr(session, "id", None) if session else None
         conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
         working_directory = getattr(self.subagent, 'working_directory', None)
+        parent_mode = getattr(self.subagent, 'orchestration_mode', 'standard')
 
         # ---- 派发 ----
         if input_instance.is_wait:
             return await self._run_waiting(
                 agent_cls, agent_id, items, prompts, input_instance,
-                conversation_id, working_directory, parent_session_id,
+                conversation_id, working_directory, parent_session_id, parent_mode,
             )
         return await self._run_fire_and_forget(
             agent_cls, agent_id, items, prompts, input_instance,
-            conversation_id, working_directory, parent_session_id,
+            conversation_id, working_directory, parent_session_id, parent_mode,
         )
 
     async def _run_waiting(
         self, agent_cls, agent_id, items, prompts, input_instance,
-        conversation_id, working_directory, parent_session_id,
+        conversation_id, working_directory, parent_session_id, parent_mode,
     ) -> SubAgentSwarm_output_schema:
         max_concurrency = int(input_instance.max_concurrency or 0)
         semaphore = asyncio.Semaphore(max_concurrency) if max_concurrency > 0 else None
@@ -184,6 +185,7 @@ class SubAgentSwarm(Tool):
                     conversation_id=conversation_id,
                     working_directory=working_directory,
                     parent_session_id=parent_session_id,
+                    parent_orchestration_mode=parent_mode,
                     semaphore=semaphore,
                 )
             except Exception as e:
@@ -222,7 +224,7 @@ class SubAgentSwarm(Tool):
 
     async def _run_fire_and_forget(
         self, agent_cls, agent_id, items, prompts, input_instance,
-        conversation_id, working_directory, parent_session_id,
+        conversation_id, working_directory, parent_session_id, parent_mode,
     ) -> SubAgentSwarm_output_schema:
         session_ids: list[str] = []
         task_ids: list[int] = []
@@ -238,6 +240,7 @@ class SubAgentSwarm(Tool):
                     conversation_id=conversation_id,
                     working_directory=working_directory,
                     parent_session_id=parent_session_id,
+                    parent_orchestration_mode=parent_mode,
                 )
                 session_ids.append(dispatched.session_id)
                 task_ids.append(dispatched.task_id)

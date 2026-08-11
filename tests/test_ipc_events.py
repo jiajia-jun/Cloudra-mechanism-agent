@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudra import events
+from cloudra.infra import events
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ async def test_stale_socket_removed_on_ensure(isolated_ipc):
     """listener 启动时会清理本进程在该 conversation 下的陈旧 socket。"""
     conv_id = "conv-stale"
     # 预先伪造一个旧 socket
-    from cloudra.ipc import _listener_addr_files
+    from cloudra.infra.ipc import _listener_addr_files
 
     kind, stale = _listener_addr_files(conv_id)
     if kind != "unix":
@@ -88,7 +88,7 @@ import time
 from pathlib import Path
 sys.path.insert(0, {os.getcwd()!r})
 
-from cloudra import events
+from cloudra.infra import events
 
 conv_id = {conv_id!r}
 result_path = Path({str(result_file)!r})
@@ -142,14 +142,14 @@ async def test_cancel_event_reaches_react(isolated_ipc, tmp_path, monkeypatch):
     """cancel_requested 事件通过 IPC 投递到 reAct 实例并置位 cancel 事件。"""
     import asyncio
 
-    from cloudra.agent import Follower
-    from cloudra.database import ConversationDB
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
+    from cloudra.persistence.database import ConversationDB
 
     conv_id = "conv-cancel-ipc"
     db_path = str(tmp_path / "cancel_ipc.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid: db_path)
 
     agent = Follower(
         id="a-test",
@@ -177,7 +177,7 @@ async def test_cancel_event_reaches_react(isolated_ipc, tmp_path, monkeypatch):
 
 def test_broadcast_pump_is_bounded_and_coalesces_stream_chunks(monkeypatch):
     """Slow peers cannot create one thread/executor job per streamed chunk."""
-    import cloudra.ipc as ipc
+    import cloudra.infra.ipc as ipc
 
     gate = threading.Event()
     monkeypatch.setattr(ipc, "_broadcast_sync", lambda *_args: gate.wait(1))

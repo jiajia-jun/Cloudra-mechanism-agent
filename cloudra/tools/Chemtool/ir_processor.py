@@ -9,8 +9,8 @@ from pydantic import Field
 if not hasattr(datetime, "UTC"):
     datetime.UTC = datetime.timezone.utc
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 
 def _import_spectrochempy():

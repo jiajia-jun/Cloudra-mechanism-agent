@@ -4,17 +4,17 @@ import sqlite3
 
 import pytest
 
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 def _make_react(tmp_path, monkeypatch, conv_id="test-cancel"):
     """构造一个使用临时 DB 的 reAct 实例。"""
-    from cloudra.agent import Follower
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
 
     db_path = str(tmp_path / "test.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _conv_id: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _conv_id: db_path)
 
     agent = Follower(
         id="a-test",
@@ -30,7 +30,7 @@ def _make_react(tmp_path, monkeypatch, conv_id="test-cancel"):
 @pytest.mark.asyncio
 class TestCancelRequested:
     async def test_check_cancellation_raises(self, tmp_path, monkeypatch):
-        from cloudra.react import AgentCancelled
+        from cloudra.core.react import AgentCancelled
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         # 默认 running：不应触发
@@ -41,7 +41,7 @@ class TestCancelRequested:
             react._check_cancel_event()
 
     async def test_run_marks_cancelled(self, tmp_path, monkeypatch):
-        from cloudra.react import AgentCancelled
+        from cloudra.core.react import AgentCancelled
 
         react, db_path = _make_react(tmp_path, monkeypatch)
         # IPC 事件驱动：直接置位本地 cancel 事件
@@ -87,7 +87,7 @@ class TestServiceCancel:
         """API 进程内任务：cancel 先落 cancel_requested，再取消协程。"""
         import asyncio
 
-        from cloudra.service import CloudraService
+        from cloudra.services.service import CloudraService
 
         service = CloudraService()
         conv_id = "test-cancel-svc"
@@ -113,7 +113,7 @@ class TestServiceCancel:
 
         # 让 runner 的 DB 操作都指向临时库
         monkeypatch.setattr(
-            "cloudra.service.ConversationDB",
+            "cloudra.services.service.ConversationDB",
             lambda _cid: ConversationDB.from_path(db_path),
         )
         task = asyncio.create_task(fake_task())

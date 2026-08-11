@@ -6,12 +6,12 @@ import subprocess
 import time
 from pathlib import Path
 
-from cloudra import events
-from cloudra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
-from cloudra.context_manager import ContextManager
-from cloudra.database import ConversationDB
-from cloudra.fs_utils import atomic_write_json
-from cloudra.platform_utils import is_posix
+from cloudra.infra import events
+from cloudra.infra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
+from cloudra.infra.platform_utils import is_posix
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.fs_utils import atomic_write_json
 
 
 async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian"):
@@ -169,27 +169,85 @@ async def run_guard(
         print(f'[guard] 更新数据库失败：{e}')
         return
 
-    event_content = (
-        f'task_id为{taskid}的任务的state已更新为{state}，请前去监测任务状态！'
-        f'若出现问题，请发邮件联系用户。'
-    )
-    try:
-        await ContextManager.inject_event(
-            conversation_id=conv_id,
-            agent_id='a-0',
-            event_type='compute_job',
-            content=event_content,
-            db_path=db_path,
+    # 终态事件路由给任务的提交者，而不是一律发给 Coordinator：
+    # 子 Agent 提交的任务由子 Agent 自己跟进；查不到时回退 Coordinator。
+    info = await _resolve_submission_info(db, taskid)
+    submitter = info["agent_id"]
+
+    if state == 'done':
+        guidance = "下一步：用 log_parser 解析日志提取能量/频率等结果。"
+    else:
+        guidance = (
+            "下一步：用 query_compute_job 查看 last_error，并直接查看日志定位失败原因；"
+            "必要时修正输入文件后重新 submit_compute_job。若无法自行解决，发邮件联系用户。"
         )
-        print(f'[guard] 已向 Coordinator 注入计算任务事件: task_id={taskid}')
-    except Exception as e:
-        print(f'[guard] 注入上下文事件失败：{e}')
+    event_content = (
+        f"计算任务 task_id={taskid} 已结束，state={state}。\n"
+        f"输入文件：{info['path']}\n"
+        f"日志文件：{log_path}\n"
+        f"结构化结果：{json_path}\n"
+        f"{guidance}"
+    )
+    # 提交者不是 Coordinator 时，两边都通知：提交者跟进结果（定向到其 session，
+    # 避免并行同 agent_id 的兄弟 session 被误唤醒），Coordinator 保有全局视野。
+    targets = {submitter: info["session_id"], 'a-0': None}
+    for target, target_session in targets.items():
+        try:
+            await ContextManager.inject_event(
+                conversation_id=conv_id,
+                agent_id=target,
+                event_type='compute_job',
+                content=event_content,
+                db_path=db_path,
+                session_id=target_session,
+            )
+            print(f'[guard] 已向 {target} 注入计算任务事件: task_id={taskid}')
+        except Exception as e:
+            print(f'[guard] 注入上下文事件失败 ({target}): {e}')
 
     # 广播事件，让等待方立即被唤醒
     try:
         events.emit(conv_id, "task_finished", task_id=taskid, task_kind="compute", state=state)
     except Exception:
         pass
+
+
+async def _resolve_submission_info(db: ConversationDB, taskid: int) -> dict:
+    """查询任务的提交信息：{"agent_id", "session_id", "path"}。
+
+    agent_id 查不到（无 session、老任务、表结构差异）时回退 'a-0'，
+    保证终态事件至少送达 Coordinator；session_id 用于把事件定向到提交者的
+    session，path 是输入文件路径。
+    """
+    info = {"agent_id": 'a-0', "session_id": None, "path": ""}
+    try:
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                "SELECT session_id, path FROM compute_jobs WHERE id=?", (taskid,)
+            )
+            row = await cur.fetchone()
+            if row:
+                info["session_id"] = row[0]
+                info["path"] = row[1] or ""
+            if row and row[0]:
+                cur = await con.execute(
+                    "SELECT agent_id FROM session WHERE session_id=?", (row[0],)
+                )
+                agent_row = await cur.fetchone()
+                if agent_row and agent_row[0]:
+                    info["agent_id"] = agent_row[0]
+    except Exception as e:
+        print(f'[guard] 查询任务提交者失败（回退 a-0）：{e}')
+    return info
+
+
+async def _resolve_submitter(db: ConversationDB, taskid: int) -> str:
+    """查询任务的提交者 agent_id（compute_jobs.session_id → session.agent_id）。
+
+    查不到（无 session、老任务、表结构差异）时回退 'a-0'，保证终态事件
+    至少送达 Coordinator。
+    """
+    return (await _resolve_submission_info(db, taskid))["agent_id"]
 
 
 async def _mark_failed(db: ConversationDB, taskid: int, message: str):

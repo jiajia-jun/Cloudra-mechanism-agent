@@ -4,8 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from cloudra import session_store
-from cloudra.config import get_config
 from cloudra.dag.engine import DagEngine
 from cloudra.dag.models import (
     CoverageContract,
@@ -14,13 +12,15 @@ from cloudra.dag.models import (
     MutationBatch,
 )
 from cloudra.dag.store import DagStore
-from cloudra.database import ConversationDB
+from cloudra.infra.config import get_config
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
 
 
 def _api():
     try:
+        from cloudra.core.supervisor import GraphSupervisor, GraphSupervisorResult
         from cloudra.dag.controller import DagController
-        from cloudra.supervisor import GraphSupervisor, GraphSupervisorResult
     except (ImportError, ModuleNotFoundError) as exc:
         pytest.fail(f"DAG Supervisor API is missing: {exc}")
     return DagController, GraphSupervisor, GraphSupervisorResult
@@ -47,14 +47,15 @@ class FakeSupervisor:
     def __init__(self):
         self.calls = []
 
-    async def run(self, trigger, coordinator_request=None, session_id=None):
-        from cloudra.supervisor import GraphSupervisorResult
+    async def run(self, trigger, coordinator_request=None, session_id=None, event_sink=None):
+        from cloudra.core.supervisor import GraphSupervisorResult
 
         self.calls.append(
             {
                 "trigger": trigger,
                 "coordinator_request": coordinator_request,
                 "session_id": session_id,
+                "event_sink": event_sink,
             }
         )
         return GraphSupervisorResult(trigger=trigger)
@@ -227,10 +228,10 @@ async def test_process_only_or_read_dag_tool_calls_do_not_trigger(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_empty_frontier_trigger_after_unplanned_tool(tmp_path):
-    """工具成功但流程前沿为空且交付未完成 → empty_frontier。"""
+async def test_ordinary_tool_success_does_not_trigger(tmp_path):
+    """普通工具成功（即使是空前沿）不再触发 Supervisor——触发口只有 log_parser 与图修改。"""
     DagController, _, _ = _api()
-    db = _db(tmp_path, "supervisor-empty-frontier", "dag_guided")
+    db = _db(tmp_path, "supervisor-ordinary-quiet", "dag_guided")
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
@@ -241,42 +242,43 @@ async def test_empty_frontier_trigger_after_unplanned_tool(tmp_path):
         {"is_success": True, "mapping_status": "unique"},
     )
 
-    assert [call["trigger"] for call in supervisor.calls] == ["empty_frontier"]
+    assert supervisor.calls == []
 
 
 @pytest.mark.asyncio
-async def test_new_evidence_trigger_when_frontier_alive(tmp_path):
-    """前沿仍有就绪工作时，成功的普通工具触发 new_evidence。"""
+async def test_log_parser_success_triggers_new_evidence(tmp_path):
+    """gaussian_log_parser 成功落地新证据 → new_evidence。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-new-evidence", "dag_guided")
-    store = DagStore(db)
-    store.ensure_bundle("s1")
-    _seed_ready_work(store, tool_name="ts_guess")
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
     await controller.on_tool_finished(
         "tc-2",
-        "reaction_mapping",
-        {"reactant_smiles": "C=COCC=C"},
-        {"is_success": True, "mapping_status": "unique"},
+        "gaussian_log_parser",
+        {"log_path": "ts1.log"},
+        {"success": True, "normal_termination": True, "scf_energy": -303.65},
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["new_evidence"]
 
 
 @pytest.mark.asyncio
-async def test_process_failed_trigger(tmp_path):
+async def test_log_parser_failure_and_tool_failure_do_not_trigger(tmp_path):
+    """log_parser 失败、任意工具失败都不触发 Supervisor。"""
     DagController, _, _ = _api()
-    db = _db(tmp_path, "supervisor-process-failed", "dag_guided")
+    db = _db(tmp_path, "supervisor-failure-quiet", "dag_guided")
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
     await controller.on_tool_finished(
-        "tc-3", "ts_guess", {}, {"is_success": False, "error": "scf failed"}
+        "tc-3", "gaussian_log_parser", {"log_path": "bad.log"}, {"success": False, "error": "parse error"}
+    )
+    await controller.on_tool_finished(
+        "tc-4", "ts_guess", {}, {"is_success": False, "error": "scf failed"}
     )
 
-    assert [call["trigger"] for call in supervisor.calls] == ["process_failed"]
+    assert supervisor.calls == []
 
 
 def test_supervisor_may_strengthen_but_not_lower_coverage(tmp_path):
@@ -362,7 +364,7 @@ def _response(tool_calls=None, content=""):
 async def test_graph_supervisor_agent_loop_schedules_process_work(tmp_path):
     """Supervisor 用 dag_graph 自助读图后提交 process 变更，actor=supervisor 落库。"""
     _, GraphSupervisor, _ = _api()
-    from cloudra.supervisor import SupervisorAgent
+    from cloudra.core.supervisor import SupervisorAgent
 
     get_config().data_dir = tmp_path
     db = ConversationDB("supervisor-loop", data_dir=tmp_path).init()
@@ -534,3 +536,172 @@ async def test_graph_supervisor_llm_failure_returns_no_change(tmp_path):
 
     assert result.mutations == []
     assert "llm_call failed" in result.note
+
+
+
+@pytest.mark.asyncio
+async def test_supervisor_run_registers_session_record(tmp_path):
+    """guided 下每次触发登记一条 supervisor 子 Agent 会话并流转到 finished。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-session-record", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    result = await controller.maybe_supervise("new_evidence")
+
+    assert result is not None
+    with db.connect() as con:
+        rows = con.execute(
+            "SELECT session_id, agent_id, agent_type, parent_session_id, state, query, result"
+            " FROM session WHERE agent_id = 'supervisor'"
+        ).fetchall()
+    assert len(rows) == 1
+    session_id, agent_id, agent_type, parent, state, query, summary = rows[0]
+    assert session_id.startswith("supervisor_")
+    assert agent_type == "supervisor"
+    assert parent == "s1"
+    assert state == "finished"
+    assert "new_evidence" in query
+    assert "trigger=new_evidence" in summary
+
+
+@pytest.mark.asyncio
+async def test_supervisor_exception_finalizes_failed_without_propagating(tmp_path):
+    """Supervisor 是顾问角色：run 抛错不炸 Coordinator，会话落 failed。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-run-crash", "dag_guided")
+
+    class CrashingSupervisor:
+        async def run(self, trigger, coordinator_request=None, session_id=None, **_kwargs):
+            raise RuntimeError("boom")
+
+    controller = DagController(db, "s1", "dag_guided", supervisor=CrashingSupervisor())
+
+    result = await controller.maybe_supervise("new_evidence")
+
+    assert result is None
+    with db.connect() as con:
+        rows = con.execute(
+            "SELECT state, error FROM session WHERE agent_id = 'supervisor'"
+        ).fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "failed"
+    assert "boom" in rows[0][1]
+
+
+
+@pytest.mark.asyncio
+async def test_graph_view_result_not_truncated_at_4000(tmp_path):
+    """回归：process 视图超过旧 4000 字符上限时必须完整进入 Supervisor 上下文，
+    否则它读到残缺 JSON 后会反复重查同一视图、零产出结束。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-view-truncation", data_dir=tmp_path).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    engine = DagEngine(store)
+    seeded = engine.apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.SUPERVISOR,
+            actor_id="supervisor",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed many work nodes",
+            operations=[
+                GraphOperation(
+                    op="add_node",
+                    graph="process",
+                    data={
+                        "node_id": f"work-{i:02d}",
+                        "node_type": "calculation",
+                        "label": f"calculation {i} " + "x" * 100,
+                        "payload": {"status": "ready", "priority": i},
+                    },
+                )
+                for i in range(30)
+            ],
+        )
+    )
+    assert seeded.accepted
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-view-truncation")
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c-view", {"action": "view", "graph_kind": "process"})]),
+                _response(content="看完了。"),
+            ]
+        ),
+    )
+
+    await supervisor.run("new_evidence", session_id="s1")
+
+    tool_contents = [
+        str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
+    ]
+    assert any(len(c) > 4000 for c in tool_contents)
+    assert not any("结果过长被截断" in c for c in tool_contents)
+
+
+
+@pytest.mark.asyncio
+async def test_maybe_supervise_passes_event_sink(tmp_path):
+    """session 登记成功时，controller 必须给 supervisor.run 带上事件出口。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-event-sink", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.maybe_supervise("new_evidence")
+
+    assert supervisor.calls[0]["event_sink"] is not None
+
+
+@pytest.mark.asyncio
+async def test_graph_supervisor_emits_render_events(tmp_path):
+    """Supervisor 的运行过程经 event_sink 发出渲染事件：
+    触发消息、推理正文、dag_graph 调用与结果——TUI 窗口据此可见。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-render-events", data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-render-events")
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response(
+                    [_tool_call("c-view", {"action": "view"})],
+                    content="先看看两张图的状态。",
+                ),
+                _response(content="前沿为空，需要安排构象搜索。"),
+            ]
+        ),
+    )
+    emitted = []
+
+    async def sink(event_type, data):
+        emitted.append((event_type, data))
+
+    await supervisor.run("delivery_updated", session_id="s1", event_sink=sink)
+
+    kinds = [k for k, _ in emitted]
+    assert kinds[0] == "user_message"
+    assert "delivery_updated" in emitted[0][1]["content"]
+    assert "llm_chunk" in kinds
+    chunk = next(d for k, d in emitted if k == "llm_chunk")
+    assert chunk["delta"] == "先看看两张图的状态。"
+    assert chunk["agent_name"] == "supervisor"
+    assert "llm_stream_end" in kinds
+    assert "tool_started" in kinds and "tool_finished" in kinds
+    finished = next(d for k, d in emitted if k == "tool_finished")
+    assert finished["tool"] == "dag_graph"
+    assert finished["result"]

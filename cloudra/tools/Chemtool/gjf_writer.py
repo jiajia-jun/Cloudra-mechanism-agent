@@ -12,9 +12,9 @@ except Exception:
     AllChem = None
     _RDKIT_AVAILABLE = False
 
-from cloudra.fs_utils import atomic_write_text
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.fs_utils import atomic_write_text
 
 description = (
     "根据分子来源、计算方法、基组等参数自动生成完整的 Gaussian 输入文件（.gjf）并保存到指定目录；"

@@ -3,8 +3,8 @@ import json
 import httpx
 import pytest
 
-from cloudra.api import create_app
-from cloudra.config import get_config
+from cloudra.infra.config import get_config
+from cloudra.services.api import create_app
 
 
 class _Record:
@@ -149,6 +149,47 @@ class FakeService:
             "state": kwargs["decision"],
             "denial_reason": kwargs["denial_reason"],
         }
+
+    async def dag_request_replan(self, conversation_id, note="", **_kwargs):
+        self.last_replan = {"conversation_id": conversation_id, "note": note}
+        if self.replan_error is not None:
+            raise self.replan_error
+        return {"trigger": "user_replan", "supervised": True, "summary": "rounds=1"}
+
+
+@pytest.mark.asyncio
+async def test_dag_replan_endpoint(monkeypatch):
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "secret")
+    service = FakeService()
+    service.replan_error = None
+    transport = httpx.ASGITransport(app=create_app(service))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        path = "/api/conversations/conv_1/dag/replan"
+        assert (await client.post(path, json={})).status_code == 401
+        response = await client.post(
+            path,
+            json={"note": "请重排"},
+            headers={"Authorization": "Bearer secret"},
+        )
+    assert response.status_code == 200
+    assert response.json()["trigger"] == "user_replan"
+    assert service.last_replan == {"conversation_id": "conv_1", "note": "请重排"}
+
+
+@pytest.mark.asyncio
+async def test_dag_replan_endpoint_maps_mode_error_to_422(monkeypatch):
+    monkeypatch.setenv("CLOUDRA_API_TOKEN", "secret")
+    service = FakeService()
+    service.replan_error = ValueError("重新规划仅在 dag_guided 模式可用")
+    transport = httpx.ASGITransport(app=create_app(service))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/conversations/conv_1/dag/replan",
+            json={},
+            headers={"Authorization": "Bearer secret"},
+        )
+    assert response.status_code == 422
+    assert "dag_guided" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -320,7 +361,7 @@ async def test_v1_rejects_requests_routed_to_a_different_node(monkeypatch):
 @pytest.mark.asyncio
 async def test_v1_session_creation_uses_server_workspace(monkeypatch, tmp_path):
     monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     monkeypatch.setattr(get_config(), "workspace_dir", tmp_path)
     service = FakeService()

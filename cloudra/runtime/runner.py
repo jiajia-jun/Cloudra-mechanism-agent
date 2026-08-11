@@ -6,34 +6,38 @@ import asyncio
 import time
 from typing import Optional
 
-from cloudra.agent import Coordinator
-from cloudra.context_manager import ContextManager
-from cloudra.conversation_class import Conversation
+from cloudra.base.conversation_class import Conversation
+from cloudra.core.agent import Coordinator
+from cloudra.core.react import Coordinator_reAct
 from cloudra.dag.models import (
     OrchestrationMode,
     build_orchestration_config,
     normalize_orchestration_mode,
 )
-from cloudra.database import ConversationDB
-from cloudra.events import ensure_listener, subscribe_async
-from cloudra.presentation import Color, print_banner
-from cloudra.react import Coordinator_reAct
-from cloudra.runtime_profile import is_mobile_runtime
+from cloudra.infra.events import ensure_listener, subscribe_async
+from cloudra.infra.presentation import Color, print_banner
+from cloudra.infra.runtime_profile import is_mobile_runtime
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.persistence.database import ConversationDB, aretry_on_locked
 
 
 async def _count_pending_tasks(db: ConversationDB, conversation_id: str) -> tuple[int, int, int]:
     """返回 (subagent, compute, scheduled reminder 的 pending 数)。"""
-    async with db.aconnect() as con:
-        cur = await con.execute(
-            """
-            SELECT
-                (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
-                (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?),
-                (SELECT COUNT(*) FROM scheduled_reminders WHERE state = 'pending' AND conversation_id = ?)
-            """,
-            (conversation_id, conversation_id, conversation_id),
-        )
-        row = await cur.fetchone()
+
+    async def query():
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                    (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                    (SELECT COUNT(*) FROM scheduled_reminders WHERE state = 'pending' AND conversation_id = ?)
+                """,
+                (conversation_id, conversation_id, conversation_id),
+            )
+            return await cur.fetchone()
+
+    row = await aretry_on_locked(query)
     return (
         row[0] if row else 0,
         row[1] if row else 0,
@@ -44,47 +48,64 @@ async def _count_pending_tasks(db: ConversationDB, conversation_id: str) -> tupl
 async def _fire_due_reminders(db: ConversationDB, conversation_id: str) -> int:
     """原子认领已到期提醒，持久化事件并唤醒目标 Agent。"""
     now = time.time()
-    async with db.aconnect() as con:
-        await con.execute("BEGIN IMMEDIATE")
-        cur = await con.execute(
-            """
-            SELECT id, agent_id, content FROM scheduled_reminders
-            WHERE conversation_id=? AND state='pending' AND wake_at<=?
-            ORDER BY wake_at, id
-            """,
-            (conversation_id, now),
-        )
-        rows = await cur.fetchall()
-        if rows:
-            ids = [row[0] for row in rows]
-            await con.execute(
-                "UPDATE scheduled_reminders SET state='fired', fired_at=? "
-                f"WHERE id IN ({','.join('?' * len(ids))}) AND state='pending'",
-                (now, *ids),
-            )
-        await con.commit()
 
-    for schedule_id, agent_id, content in rows:
+    async def claim() -> list:
+        async with db.aconnect() as con:
+            await con.execute("BEGIN IMMEDIATE")
+            cur = await con.execute(
+                """
+                SELECT id, agent_id, session_id, content FROM scheduled_reminders
+                WHERE conversation_id=? AND state='pending' AND wake_at<=?
+                ORDER BY wake_at, id
+                """,
+                (conversation_id, now),
+            )
+            rows = await cur.fetchall()
+            if rows:
+                ids = [row[0] for row in rows]
+                await con.execute(
+                    "UPDATE scheduled_reminders SET state='fired', fired_at=? "
+                    f"WHERE id IN ({','.join('?' * len(ids))}) AND state='pending'",
+                    (now, *ids),
+                )
+            await con.commit()
+            return rows
+
+    # 写事务必须带锁重试：等待循环每 ≤30s 走一次这里，多进程高峰期的
+    # 瞬时锁竞争不应穿透出去杀死整个任务。
+    rows = await aretry_on_locked(claim)
+
+    for schedule_id, agent_id, session_id, content in rows:
         await ContextManager.inject_event(
             conversation_id=conversation_id,
             agent_id=agent_id,
             event_type="scheduled_reminder",
-            content=f"[提醒 #{schedule_id}] {content}",
+            content=(
+                f"[提醒 #{schedule_id}] {content}\n"
+                "【系统提示】这是你此前为自己设定的定时提醒，不是新任务。请按提醒内容逐项检查："
+                "事项已完成的，清理不再需要的旧提醒后直接调用 stop 静默收尾；"
+                "未完成或发现新情况的，继续推进，需要继续监控时再设下一次提醒。"
+                "不要只回一段正文确认收到——没有行动的输出不会让任何工作推进。"
+            ),
             db_path=db.path,
+            session_id=session_id,
         )
     return len(rows)
 
 
 async def _seconds_until_next_reminder(db: ConversationDB, conversation_id: str) -> float | None:
-    async with db.aconnect() as con:
-        cur = await con.execute(
-            """
-            SELECT MIN(wake_at) FROM scheduled_reminders
-            WHERE conversation_id=? AND state='pending'
-            """,
-            (conversation_id,),
-        )
-        row = await cur.fetchone()
+    async def query():
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                """
+                SELECT MIN(wake_at) FROM scheduled_reminders
+                WHERE conversation_id=? AND state='pending'
+                """,
+                (conversation_id,),
+            )
+            return await cur.fetchone()
+
+    row = await aretry_on_locked(query)
     if not row or row[0] is None:
         return None
     return max(0.0, float(row[0]) - time.time())

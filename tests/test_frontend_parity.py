@@ -3,9 +3,9 @@
 import httpx
 import pytest
 
-from cloudra.api import create_app
-from cloudra.config import get_config
-from cloudra.service import SessionRecord
+from cloudra.infra.config import get_config
+from cloudra.services.api import create_app
+from cloudra.services.service import SessionRecord
 
 
 class _Record:
@@ -105,7 +105,7 @@ class TestYoloFlag:
         assert service.submitted[1]["yolo"] is False
 
     def test_session_level_yolo_contextvar(self, monkeypatch):
-        from cloudra.yolo_guard import is_yolo_enabled, set_session_yolo
+        from cloudra.infra.yolo_guard import is_yolo_enabled, set_session_yolo
 
         monkeypatch.delenv("CLOUDRA_YOLO_MODE", raising=False)
         assert not is_yolo_enabled()
@@ -121,7 +121,7 @@ class TestYoloFlag:
         """SessionRunner.submit 应把 yolo 参数原样传给 _execute 协程。"""
         import asyncio
 
-        from cloudra.service import SessionRunner
+        from cloudra.services.service import SessionRunner
 
         class _FakeConn:
             def __enter__(self):
@@ -146,7 +146,7 @@ class TestYoloFlag:
             def connect(self):
                 return _FakeConn()
 
-        monkeypatch.setattr("cloudra.service.ConversationDB", _FakeDB)
+        monkeypatch.setattr("cloudra.services.service.ConversationDB", _FakeDB)
         captured = {}
 
         runner = SessionRunner.__new__(SessionRunner)
@@ -250,7 +250,7 @@ class TestConfigApi:
 
     def test_set_config_value_fallback_resolution(self, tmp_path, monkeypatch):
         """与 CLI 一致的三级回退：裸 key 依次尝试原样 → coordinator. → follower.。"""
-        from cloudra.config import set_config_value
+        from cloudra.infra.config import set_config_value
 
         cfg = get_config()
         monkeypatch.setattr(cfg, "config_file", tmp_path / "config.yaml")

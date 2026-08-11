@@ -3,9 +3,9 @@ from unittest.mock import patch
 
 import pytest
 
-from cloudra.context_manager import ContextManager
-from cloudra.config import get_config
-from cloudra.token_estimator import TokenEstimator
+from cloudra.infra.config import get_config
+from cloudra.infra.token_estimator import TokenEstimator
+from cloudra.persistence.context_manager import ContextManager
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def mock_llm(monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     follower = get_config().follower
     monkeypatch.setattr(follower, "model", "fake-model")
@@ -37,7 +37,7 @@ def mock_llm(monkeypatch):
     create = AsyncMock(return_value=SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="压缩梗概"))]
     ))
-    with patch("cloudra.context_manager.LLMClient") as mock_cls:
+    with patch("cloudra.persistence.context_manager.LLMClient") as mock_cls:
         mock_cls.return_value.create = create
         yield mock_cls, create
 
@@ -441,7 +441,7 @@ class TestHistoryCompression:
     async def test_missing_follower_config_keeps_original(self, context_manager, mock_llm, monkeypatch):
         """FOLLOWER 配置缺失（key 为空）时不创建 client、不压缩。"""
         mock_cls, create = mock_llm
-        from cloudra.config import get_config
+        from cloudra.infra.config import get_config
 
         monkeypatch.setattr(get_config().follower, "key", "")
         await self._fill_history(context_manager)
@@ -561,16 +561,16 @@ class TestCoordinatorContextSharing:
     规则（react.py / executor.py）：
     - Coordinator 的 agent_id 是 'a-0'，Agent.session_id 为 None
       → 上下文文件是对话级 contexts/a-0.json，跨任务延续；
-    - 子 Agent 的 Agent.session_id 被赋值 → 上下文按 session 隔离，
-      且任务结束即清空（react.py 中仅对非 a-0 调用 clear_context）。
+    - 子 Agent 的 Agent.session_id 被赋值 → 上下文按 session 隔离；
+      任务结束后上下文保留（不再 clear_context），供事后审查。
     """
 
     def test_coordinator_context_is_conversation_scoped(self, tmp_path, monkeypatch):
         """Coordinator 实例不带 session_id，上下文文件路径不含 sessions/ 子目录。"""
-        from cloudra.agent import Coordinator
+        from cloudra.core.agent import Coordinator
 
         monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
-        from cloudra.config import reload_config
+        from cloudra.infra.config import reload_config
         reload_config()
 
         agent = Coordinator(query="测试", conversation_id="conv_x")
@@ -586,7 +586,7 @@ class TestCoordinatorContextSharing:
     async def test_two_sessions_share_one_context(self, tmp_path, monkeypatch):
         """任务1 写入的上下文，任务2（新 ContextManager 实例）能读到。"""
         monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
-        from cloudra.config import reload_config
+        from cloudra.infra.config import reload_config
         reload_config()
 
         cm1 = ContextManager(
@@ -605,7 +605,7 @@ class TestCoordinatorContextSharing:
     def test_subagent_context_is_session_scoped(self, tmp_path, monkeypatch):
         """子 Agent 上下文按 session 隔离：不同 session_id 是不同文件。"""
         monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
-        from cloudra.config import reload_config
+        from cloudra.infra.config import reload_config
         reload_config()
 
         cm_a = ContextManager(
@@ -633,7 +633,7 @@ class TestEmptyUserMessageGuard:
     async def test_readonly_load_does_not_persist_empty_user(self, tmp_path, monkeypatch):
         """query="" 的 load() 初始化为空列表，不落空 user 消息。"""
         monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
-        from cloudra.config import reload_config
+        from cloudra.infra.config import reload_config
         reload_config()
 
         cm = ContextManager(
@@ -641,14 +641,14 @@ class TestEmptyUserMessageGuard:
         )
         context = await cm.load()
         assert context == []
-        from cloudra.context_manager import read_context_file
+        from cloudra.persistence.context_manager import read_context_file
         assert read_context_file(cm.context_file) == []
 
     @pytest.mark.asyncio
     async def test_build_messages_drops_empty_user(self, tmp_path, monkeypatch):
         """历史里已存在的空 user 消息在请求装配时被过滤（修复存量污染文件）。"""
         monkeypatch.setenv("CLOUDRA_DATA_DIR", str(tmp_path))
-        from cloudra.config import reload_config
+        from cloudra.infra.config import reload_config
         reload_config()
 
         cm = ContextManager(
@@ -799,7 +799,7 @@ class TestTailCutAlignment:
     ):
         """持久化压缩切口落在 tool 结果上时左移对齐，压缩结果无孤儿 tool。"""
         monkeypatch.setattr(
-            "cloudra.context_manager.AUTO_COMPACT_KEEP_ASSISTANT", 0
+            "cloudra.persistence.context_manager.AUTO_COMPACT_KEEP_ASSISTANT", 0
         )
         await context_manager.replace(
             [
@@ -828,7 +828,7 @@ class TestTailCutAlignment:
     ):
         """render-time 压缩切口落在 tool 结果上时左移对齐，结果无孤儿 tool。"""
         monkeypatch.setattr(
-            "cloudra.context_manager.RENDER_COMPACT_KEEP_ASSISTANT", 0
+            "cloudra.persistence.context_manager.RENDER_COMPACT_KEEP_ASSISTANT", 0
         )
         messages = [
             {"role": "system", "content": "身份"},

@@ -19,7 +19,7 @@ from cloudra.tui.new.widgets.status_bar import StatusBar
 @pytest.mark.asyncio
 async def test_main_screen_composes_widgets(tmp_path, monkeypatch):
     """MainScreen 能正确组合所有基础 widgets；session 侧栏已从 UI 移除。"""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -39,7 +39,7 @@ async def test_main_screen_composes_widgets(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_status_bar_shows_native_search_label(tmp_path, monkeypatch):
     """启用模型原生搜索时，状态栏显示「联网·<适配器名>」。"""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -60,7 +60,7 @@ async def test_status_bar_shows_native_search_label(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_status_bar_shows_native_search_by_default_auto(tmp_path, monkeypatch):
     """默认 native_search=auto：OpenRouter 端点自动启用，状态栏显示「联网·openrouter」。"""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -82,7 +82,7 @@ async def test_status_bar_shows_native_search_by_default_auto(tmp_path, monkeypa
 @pytest.mark.asyncio
 async def test_status_bar_native_search_off_hides_indicator(tmp_path, monkeypatch):
     """native_search=off 时状态栏不显示联网标记。"""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -497,7 +497,7 @@ async def test_goal_command_sets_anchor_and_pins_context(tmp_path, monkeypatch):
         assert goal["objective"] == "完成乙醇的 DFT 计算"
 
         # 目标锚点应注入 Coordinator 上下文
-        cm = __import__("cloudra.context_manager", fromlist=["ContextManager"]).ContextManager(
+        cm = __import__("cloudra.persistence.context_manager", fromlist=["ContextManager"]).ContextManager(
             agent_id="a-0", conversation_id=screen.conversation_id, prompt=None, query=""
         )
         context = await cm.load()
@@ -529,7 +529,7 @@ async def test_goal_command_pause_cancels_current_task(tmp_path, monkeypatch):
 
 
 def _make_app(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -1037,10 +1037,10 @@ async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
 
 def _seed_history_conversation(monkeypatch, tmp_path, conv_id=None):
     """造一个带历史任务的对话，返回 conversation_id。"""
-    from cloudra import session_store
-    from cloudra.config import get_config, reload_config
-    from cloudra.database import ConversationDB
-    from cloudra.service import CloudraService
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
+    from cloudra.services.service import CloudraService
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -1099,7 +1099,7 @@ def _seed_history_conversation(monkeypatch, tmp_path, conv_id=None):
 @pytest.mark.asyncio
 async def test_history_replay_on_startup(tmp_path, monkeypatch):
     """启动时回放当前对话的历史任务：分隔线 + 用户提问 + agent 回答重新上屏。"""
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     conv_id = _seed_history_conversation(monkeypatch, tmp_path)
     get_config().last_conversation_id = conv_id
@@ -1129,7 +1129,7 @@ async def test_history_replay_on_startup(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_history_replay_on_conversation_switch(tmp_path, monkeypatch):
     """/conv 切换对话后，目标对话的历史也会回放进聊天区。"""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -1771,7 +1771,7 @@ async def test_plan_panel_shows_goal_todos_and_tokens(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         screen = app.screen
-        from cloudra.config import get_config
+        from cloudra.infra.config import get_config
 
         plan_dir = (
             get_config().data_dir / "conversations" / screen.conversation_id / "plan"
@@ -1817,7 +1817,7 @@ async def test_plan_panel_empty_state_and_agent_switch(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         screen = app.screen
-        from cloudra.config import get_config
+        from cloudra.infra.config import get_config
 
         plan_dir = (
             get_config().data_dir / "conversations" / screen.conversation_id / "plan"
@@ -1851,7 +1851,7 @@ async def test_plan_panel_reads_session_keyed_files(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch)
     async with app.run_test() as pilot:
         screen = app.screen
-        from cloudra.config import get_config
+        from cloudra.infra.config import get_config
 
         plan_dir = (
             get_config().data_dir / "conversations" / screen.conversation_id / "plan"

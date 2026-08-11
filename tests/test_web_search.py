@@ -7,7 +7,7 @@
 
 import pytest
 
-from cloudra.agent import Follower
+from cloudra.core.agent import Follower
 from cloudra.tools import get_tools_lst
 from cloudra.tools.Searchtool.web_search import (
     WebSearch,

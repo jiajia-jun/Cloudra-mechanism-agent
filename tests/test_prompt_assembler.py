@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra.agent import Follower
-from cloudra.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+from cloudra.core.agent import Follower
+from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 
 
 def _context_manager(tmp_path, *, agent_id="a-prompt", query="继续任务"):
@@ -175,7 +175,7 @@ async def test_agent_injects_web_search_guidance_when_search_available(
     assert "联网搜索" in kwargs["messages"][0]["content"]
 
     # 关闭原生搜索且无 web_search 工具时，不注入引导
-    from cloudra.config import get_config
+    from cloudra.infra.config import get_config
 
     monkeypatch.setattr(get_config().follower, "native_search", "off")
     agent2 = _agent(tmp_path, workspace, prompt_name="probe")
@@ -228,7 +228,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
     migrated = await manager.load()
     assert migrated == legacy[1:]
     # 磁盘已迁移为 JSONL；用双格式读取器验证内容完整
-    from cloudra.context_manager import read_context_file
+    from cloudra.persistence.context_manager import read_context_file
     assert read_context_file(manager.context_file) == legacy[1:]
 
     messages = await manager.build_messages(
@@ -265,7 +265,7 @@ async def test_agent_replays_legacy_history_with_current_identity(
     assert any("分析旧样品" in content for content in contents)
     assert any("旧会话已经完成第一步" in content for content in contents)
     assert any("继续第二步" in content for content in contents)
-    from cloudra.context_manager import read_context_file
+    from cloudra.persistence.context_manager import read_context_file
     assert read_context_file(agent.context_manager.context_file) == legacy_history[1:]
 
 

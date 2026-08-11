@@ -19,7 +19,7 @@ from cloudra.dag.models import (
     GraphSnapshot,
     SpeciesRecord,
 )
-from cloudra.database import ConversationDB, retry_on_locked
+from cloudra.persistence.database import ConversationDB, retry_on_locked
 
 
 class EvidencePayloadError(ValueError):
@@ -283,6 +283,24 @@ class DagStore:
         if row is None or (ref.content_hash is not None and ref.content_hash != row[0]):
             raise InvalidGraphReference("evidence reference is missing or has the wrong hash")
         return json.loads(row[1])
+
+    def resolve_evidence_with_source(self, ref: GraphRef) -> tuple[str, Any]:
+        """返回 (source_name, payload)；缺失或哈希不符抛 InvalidGraphReference。
+
+        事后认领通道用：模型把已登记的证据补挂到 delivery 元素时，需要
+        知道产生它的工具名才能重跑确定性派生。
+        """
+        if ref.ref_type != "tool_result":
+            raise InvalidGraphReference("reference does not point to tool-result evidence")
+        with self.db.connect() as con:
+            row = con.execute(
+                "SELECT content_hash, source_name, payload FROM dag_evidence "
+                "WHERE evidence_id = ?",
+                (ref.ref_id,),
+            ).fetchone()
+        if row is None or (ref.content_hash is not None and ref.content_hash != row[0]):
+            raise InvalidGraphReference("evidence reference is missing or has the wrong hash")
+        return row[1], json.loads(row[2])
 
     def upsert_species(
         self,

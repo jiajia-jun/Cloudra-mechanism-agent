@@ -3,15 +3,15 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from cloudra import session_store
-from cloudra.api import create_app
-from cloudra.artifacts import (
+from cloudra.infra.config import get_config, reload_config
+from cloudra.persistence.artifacts import (
     ArtifactDownloadDenied,
     ArtifactService,
 )
-from cloudra.config import get_config, reload_config
-from cloudra.database import ConversationDB
-from cloudra.service import CloudraService
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
+from cloudra.services.api import create_app
+from cloudra.services.service import CloudraService
 
 
 @pytest.fixture

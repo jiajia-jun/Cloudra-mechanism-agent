@@ -1,6 +1,6 @@
 import pytest
 
-from cloudra.nodes import NodeRegistry, NodeRegistryError
+from cloudra.services.nodes import NodeRegistry, NodeRegistryError
 
 
 def test_node_registry_validates_and_resolves_workspace_routes(tmp_path):

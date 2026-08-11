@@ -21,7 +21,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from textual.strip import Strip
 
-from cloudra.tool_presentation import format_tool_payload
+from cloudra.infra.tool_presentation import format_tool_payload
 from cloudra.tui.new.transcript import RecordKind, TranscriptRecord
 
 _TOOL_COLLAPSE_LINES = 8

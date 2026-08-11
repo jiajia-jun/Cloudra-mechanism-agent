@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from cloudra.agent import Follower
+from cloudra.core.agent import Follower
 from cloudra.tools import get_tools_lst
 from cloudra.tools.Plantool._store import agent_store_path
 from cloudra.tools.Plantool.goal import GOAL_MARKER, GoalSet, GoalSet_input_schema
@@ -240,6 +240,39 @@ class TestGoalConfirm:
         assert any(
             m.get("role") == "system" and "stop" in str(m.get("content", ""))
             for m in kwargs["messages"]
+        )
+
+    async def test_revived_after_stop_notice_injected(self, agent):
+        """stop 后被唤醒的复核轮：每轮请求都带"无事可做就再次 stop"的提示。"""
+        from unittest.mock import AsyncMock
+
+        agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
+        agent._get_tools_schema = lambda: []
+        agent._revived_after_stop = True
+
+        kwargs = await agent._build_request_kwargs()
+        notices = [
+            m for m in kwargs["messages"]
+            if m.get("role") == "system" and "再次调用 stop" in str(m.get("content", ""))
+        ]
+        assert notices
+        # 非一次性：下一轮仍应注入（直到模型再次 stop）
+        kwargs2 = await agent._build_request_kwargs()
+        assert any(
+            m.get("role") == "system" and "再次调用 stop" in str(m.get("content", ""))
+            for m in kwargs2["messages"]
+        )
+
+    async def test_revived_after_stop_notice_absent_by_default(self, agent):
+        """未 stop 过的正常轮次不注入复核轮提示。"""
+        from unittest.mock import AsyncMock
+
+        agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
+        agent._get_tools_schema = lambda: []
+
+        kwargs = await agent._build_request_kwargs()
+        assert not any(
+            "再次调用 stop" in str(m.get("content", "")) for m in kwargs["messages"]
         )
 
 

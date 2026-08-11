@@ -127,7 +127,7 @@ async def test_bridge_loop_yields_between_batches():
     bridge._queue = FakeQueue()
     bridge.MAX_BATCH_MESSAGES = 3
     bridge.MAX_BATCH_SECONDS = 0.001
-    task = asyncio.create_task(bridge._loop())
+    asyncio.create_task(bridge._loop())
     await asyncio.sleep(0.05)
     await bridge.stop()
     assert dispatched

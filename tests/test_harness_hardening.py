@@ -18,12 +18,12 @@ import httpx
 import openai
 import pytest
 
-from cloudra.config import get_config
-from cloudra.database import ConversationDB
-from cloudra.llm_client import LLMClient
-from cloudra.react import AgentStuckLoop
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.react import AgentStuckLoop
+from cloudra.infra.config import get_config
+from cloudra.infra.llm_client import LLMClient
+from cloudra.persistence.database import ConversationDB
 from cloudra.tools import ToolEntry
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 # ---------------------------------------------------------------------------
 # react 测试夹具（与 test_react_dispatch 同模式）
@@ -65,13 +65,13 @@ class _CountTool(Tool):
 
 
 def _make_react(tmp_path, monkeypatch, tool_classes, conv_id="test-hardening"):
-    from cloudra.agent import Follower
-    from cloudra.react import reAct
+    from cloudra.core.agent import Follower
+    from cloudra.core.react import reAct
 
     db_path = str(tmp_path / "test.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid: db_path)
-    monkeypatch.setattr("cloudra.react.get_tools_lst", lambda: [ToolEntry(
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_tools_lst", lambda: [ToolEntry(
         cls=cls,
         tool_name=cls._get_field_default("tool_name") or "",
         tool_id=cls._get_field_default("tool_id") or "",
@@ -98,7 +98,7 @@ def _tc(call_id, name, arguments):
 
 class TestContextWindowConfig:
     def test_window_and_timeout_come_from_config(self, monkeypatch):
-        from cloudra.agent import Coordinator, Follower
+        from cloudra.core.agent import Coordinator, Follower
 
         cfg = get_config()
         monkeypatch.setattr(cfg.coordinator, "context_window", 64000)
@@ -113,7 +113,7 @@ class TestContextWindowConfig:
         assert coordinator._get_llm_client().timeout == 77
 
     def test_explicit_window_overrides_config(self, monkeypatch):
-        from cloudra.agent import Follower
+        from cloudra.core.agent import Follower
 
         monkeypatch.setattr(get_config().follower, "context_window", 32000)
         follower = Follower(
@@ -123,7 +123,7 @@ class TestContextWindowConfig:
         assert follower.context_window == 999
 
     def test_yaml_roundtrip_keeps_new_fields(self, tmp_path, monkeypatch):
-        import cloudra.config as config_mod
+        import cloudra.infra.config as config_mod
 
         monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "config.yaml"))
         cfg = config_mod.reload_config()
@@ -142,8 +142,8 @@ class TestContextWindowConfig:
         """Schema/observation 必须在 50% 自动压缩阈值内，而非事后追加。"""
         from types import SimpleNamespace
 
-        from cloudra.agent import Coordinator
-        from cloudra.token_estimator import TokenEstimator
+        from cloudra.core.agent import Coordinator
+        from cloudra.infra.token_estimator import TokenEstimator
 
         agent = Coordinator(
             prompt="p",
@@ -233,7 +233,7 @@ class TestTransportStatus:
             client.chat.completions.create = AsyncMock(return_value=MagicMock(usage=None))
             return client
 
-        monkeypatch.setattr("cloudra.llm_client.AsyncOpenAI", _fake_openai)
+        monkeypatch.setattr("cloudra.infra.llm_client.AsyncOpenAI", _fake_openai)
         client = LLMClient(api_key="sk-x", base_url="https://example.invalid/v1", timeout=123)
         await client.create(model="m", messages=[{"role": "user", "content": "hi"}])
 
@@ -242,7 +242,7 @@ class TestTransportStatus:
 
     async def test_retry_emits_status_event(self, monkeypatch):
         """瞬时错误重试时触发 on_status('llm_retry')，携带次数与延迟信息。"""
-        monkeypatch.setattr("cloudra.llm_client.asyncio.sleep", AsyncMock())
+        monkeypatch.setattr("cloudra.infra.llm_client.asyncio.sleep", AsyncMock())
         client = LLMClient(api_key="sk-x", base_url="https://example.invalid/v1", max_retries=1)
         statuses = []
         client.on_status = lambda event, data: statuses.append((event, data))
@@ -378,6 +378,33 @@ class TestLoopDetection:
         assert agent._goal_confirm_force is True
         assert react.session.state != "completed"
 
+    async def test_stop_then_resurrection_allows_text_completion(self, tmp_path, monkeypatch, mock_session):
+        """首次 stop 后 runner 因外部事件复活循环：goal 严格模式不再逼模型重复 stop。
+
+        复活轮里模型常误以为"stop 已调用过"而只回正文；此前这种情况下严格模式
+        会无限置 force 空转，直到用户 cancel（线上日志复现）。
+        """
+        from cloudra.tools.Plantool.goal import GoalSet, GoalSet_input_schema
+        from cloudra.tools.Stoptool.stop_tool import StopTool
+
+        react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool, StopTool])
+        self._stub_loop_side_effects(react)
+        await GoalSet(subagent=agent).tool_call(GoalSet_input_schema(objective="完成计算"), mock_session)
+
+        react.reasoning = AsyncMock(return_value=[_tc("c1", "stop", '{"reason": "任务完成"}')])
+        await react._run_loop()
+        assert react._stopped_via_tool is True
+        assert react.session.state == "completed"
+
+        # 模拟 runner 复活路径：外部事件到达 → _continue 复位后重新进入 run
+        react._continue = True
+        await agent.update_context({"role": "assistant", "content": "已收工，无新增事项"})
+        react.reasoning = AsyncMock(return_value=[])
+
+        result = await react._run_loop()
+        assert result == "已收工，无新增事项"
+        assert react.session.state == "completed"
+
     async def test_warn_on_third_identical_call(self, tmp_path, monkeypatch):
         """相同（工具名+参数）签名连续第 3 次调用时注入系统警告。"""
         react, agent = _make_react(tmp_path, monkeypatch, [_EchoTool])
@@ -419,7 +446,7 @@ class TestLoopDetection:
 class TestPersistentCompression:
     @staticmethod
     def _make_cm(tmp_path):
-        from cloudra.context_manager import ContextManager
+        from cloudra.persistence.context_manager import ContextManager
 
         cm = ContextManager(
             agent_id="test-agent",
@@ -442,7 +469,7 @@ class TestPersistentCompression:
         create = AsyncMock(return_value=SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=text))]
         ))
-        monkeypatch.setattr("cloudra.context_manager.LLMClient", MagicMock(
+        monkeypatch.setattr("cloudra.persistence.context_manager.LLMClient", MagicMock(
             return_value=SimpleNamespace(create=create),
         ))
         return create
@@ -599,7 +626,7 @@ class TestTokenUsageEvents:
 class TestSupervisorDagBoundary:
     def test_legacy_advice_surface_is_not_available(self):
         """防止周期 review/自由文本 advice 绕过 DAG mutation 校验。"""
-        from cloudra.supervisor import Supervisor
+        from cloudra.core.supervisor import Supervisor
 
         supervisor = Supervisor()
 

@@ -1,24 +1,23 @@
 import json
-from typing import Any
 
 import httpx
 import pytest
 
-from cloudra.agent import Follower
-from cloudra.api import create_app
-from cloudra.config import get_config
-from cloudra.database import ConversationDB
-from cloudra.service import CloudraService
+from cloudra.core.agent import Follower
+from cloudra.infra.config import get_config
+from cloudra.persistence.database import ConversationDB
+from cloudra.services.api import create_app
+from cloudra.services.service import CloudraService
 from cloudra.tools import ToolEntry
 from cloudra.tools.Stoptool.stop_tool import StopTool
 
 
 def _stop_react(tmp_path, monkeypatch, mode):
-    from cloudra.react import reAct
+    from cloudra.core.react import reAct
 
     db_path = str(tmp_path / f"{mode}.db")
     ConversationDB.from_path(db_path).init()
-    monkeypatch.setattr("cloudra.react.get_database_path", lambda _cid: db_path)
+    monkeypatch.setattr("cloudra.core.react.get_database_path", lambda _cid: db_path)
     monkeypatch.setattr(get_config(), "data_dir", tmp_path)
     entry = ToolEntry(
         cls=StopTool,
@@ -26,7 +25,7 @@ def _stop_react(tmp_path, monkeypatch, mode):
         tool_id="t-stop",
         input_schema=StopTool._get_field_default("input_schema"),
     )
-    monkeypatch.setattr("cloudra.react.get_tools_lst", lambda: [entry])
+    monkeypatch.setattr("cloudra.core.react.get_tools_lst", lambda: [entry])
     agent = Follower(
         id="a-stop",
         name="stop-test",

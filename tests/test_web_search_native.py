@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from cloudra.llm_client import serialize_openai_payload
-from cloudra.web_search_native import (
+from cloudra.infra.llm_client import serialize_openai_payload
+from cloudra.infra.web_search_native import (
     NativeSearchAdapter,
     apply_native_search,
     register,
@@ -224,7 +224,7 @@ def test_register_custom_adapter_extension_point():
         )
         assert adapter is custom
     finally:
-        from cloudra.web_search_native import _REGISTRY
+        from cloudra.infra.web_search_native import _REGISTRY
 
         _REGISTRY.remove(custom)
 
@@ -247,8 +247,8 @@ async def test_agent_request_kwargs_use_native_search(monkeypatch):
     """启用 native_search 后，请求剔除 web_search 工具并注入 extra_body。"""
     from unittest.mock import AsyncMock
 
-    from cloudra.agent import Coordinator
-    from cloudra.config import get_config
+    from cloudra.core.agent import Coordinator
+    from cloudra.infra.config import get_config
 
     cfg = get_config()
     monkeypatch.setattr(cfg.coordinator, "native_search", "custom")
@@ -278,8 +278,8 @@ async def test_agent_request_kwargs_keep_web_search_when_off(monkeypatch):
     """native_search=off（默认）时保持传统 web_search 工具，不注入 extra_body。"""
     from unittest.mock import AsyncMock
 
-    from cloudra.agent import Coordinator
-    from cloudra.config import get_config
+    from cloudra.core.agent import Coordinator
+    from cloudra.infra.config import get_config
 
     cfg = get_config()
     monkeypatch.setattr(cfg.coordinator, "native_search", "off")

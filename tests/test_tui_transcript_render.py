@@ -8,8 +8,8 @@ import threading
 import pytest
 from rich.console import Console
 
-from cloudra.tui.new.transcript import RecordKind, TranscriptStore
 from cloudra.tui.new import transcript_render
+from cloudra.tui.new.transcript import RecordKind, TranscriptStore
 from cloudra.tui.new.transcript_render import (
     InteractionAction,
     PresentationCompiler,

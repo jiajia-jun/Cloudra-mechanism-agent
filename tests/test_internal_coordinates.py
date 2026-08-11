@@ -279,3 +279,36 @@ async def test_zmatrix_text_input(mock_session):
     # O-H 键长应约 0.957
     assert abs(np.linalg.norm(pos[1] - pos[0]) - 0.957) < 1e-3
     assert abs(np.linalg.norm(pos[2] - pos[0]) - 0.957) < 1e-3
+
+
+@pytest.mark.asyncio
+async def test_zmatrix_collinear_dihedral_ref_recovers(mock_session):
+    """回归：d 参考与 a-b 轴共线时（二面角数学上未定义）不应报"参考原子无效"，
+    换成非共线 magic 参考继续重建，键长/键角保持精确。"""
+    # C2 落在 x 轴上，第 3 行的 d=e_x 与 O1-C2 轴共线——旧实现在此报
+    # "第 3 行参考原子无效，无法重建坐标"。
+    zmatrix_text = """# Z-matrix collinear case
+  1  O1    | origin   r=0.0000 | e_z    a=0.00   | e_x    d=0.00
+  2  C2    | O1       r=1.2000 | e_z    a=90.00  | e_x    d=0.00
+  3  H3    | C2       r=1.0900 | O1     a=109.50 | e_x    d=180.00
+"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="zmatrix_to_cartesian", zmatrix_text=zmatrix_text,
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+    atoms = _parse_xyz_positions(result.xyz_text)
+    import numpy as np
+
+    pos = np.array([p for _, p in atoms])
+    assert abs(np.linalg.norm(pos[1] - pos[0]) - 1.20) < 1e-3
+    assert abs(np.linalg.norm(pos[2] - pos[1]) - 1.09) < 1e-3
+    # ∠O-C-H = 109.5°
+    v1 = pos[0] - pos[1]
+    v2 = pos[2] - pos[1]
+    cos = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+    angle = float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
+    assert abs(angle - 109.5) < 0.1

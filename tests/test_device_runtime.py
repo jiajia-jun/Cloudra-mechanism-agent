@@ -7,17 +7,8 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from cloudra import session_store
-from cloudra.agent import Coordinator
-from cloudra.api import create_app
-from cloudra.backends import (
-    BackendUnavailable,
-    RemoteCloudraBackend,
-    RemoteStateStore,
-    ServerProfile,
-)
-from cloudra.config import get_config, reload_config
-from cloudra.database import ConversationDB
+from cloudra.base.session_class import Session
+from cloudra.core.agent import Coordinator
 from cloudra.device.registry import (
     DEVICE_TOOLS,
     DeviceToolContext,
@@ -27,16 +18,25 @@ from cloudra.device.registry import (
     capability_revision,
 )
 from cloudra.device.runtime import DeviceRuntime, DeviceStateStore
-from cloudra.device_broker import (
+from cloudra.infra.config import get_config, reload_config
+from cloudra.infra.native_bridge import NativeBridgeError
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
+from cloudra.services.api import create_app
+from cloudra.services.backends import (
+    BackendUnavailable,
+    RemoteCloudraBackend,
+    RemoteStateStore,
+    ServerProfile,
+)
+from cloudra.services.device_broker import (
     DeviceAuthenticationError,
     DeviceBroker,
     DeviceInvocationConflict,
     DeviceInvocationError,
     PairingError,
 )
-from cloudra.native_bridge import NativeBridgeError
-from cloudra.service import CloudraService
-from cloudra.session_class import Session
+from cloudra.services.service import CloudraService
 from cloudra.tools.DeviceTool.device_tools import (
     DeviceTextEdit,
     DeviceWorkspaceApplyPatch,

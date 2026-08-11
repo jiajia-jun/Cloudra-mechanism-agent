@@ -1,9 +1,8 @@
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from cloudra.slurm import (
+from cloudra.infra.slurm import (
     SlurmError,
     build_batch_script,
     cancel_interrupted_jobs,
@@ -11,7 +10,7 @@ from cloudra.slurm import (
     query_job,
     submit_batch,
 )
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 def test_batch_script_uses_validated_directives_and_shell_quoting(
@@ -21,7 +20,7 @@ def test_batch_script_uses_validated_directives_and_shell_quoting(
     input_file = tmp_path / "h2 molecule.gjf"
     input_file.write_text("# test\n", encoding="utf-8")
     monkeypatch.setattr(
-        "cloudra.slurm.build_calculator_cmd",
+        "cloudra.infra.slurm.build_calculator_cmd",
         lambda path, job_type: (True, ["/bin/bash", "/opt/cloudra/calculator.sh", path, job_type], ""),
     )
     script = build_batch_script(
@@ -51,7 +50,7 @@ def test_batch_script_rejects_directive_injection(tmp_path, monkeypatch):
     input_file = tmp_path / "h2.gjf"
     input_file.write_text("# test\n", encoding="utf-8")
     monkeypatch.setattr(
-        "cloudra.slurm.build_calculator_cmd",
+        "cloudra.infra.slurm.build_calculator_cmd",
         lambda path, job_type: (True, ["/bin/bash", "calculator.sh", path, job_type], ""),
     )
     with pytest.raises(SlurmError, match="partition"):
@@ -77,7 +76,7 @@ def test_slurm_commands_use_argument_arrays_and_validate_job_ids(
             return SimpleNamespace(returncode=0, stdout="COMPLETED|0:0\n", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr("cloudra.slurm.subprocess.run", fake_run)
+    monkeypatch.setattr("cloudra.infra.slurm.subprocess.run", fake_run)
     script = tmp_path / "job.sh"
     script.write_text("#!/bin/bash\n", encoding="utf-8")
 
@@ -106,7 +105,7 @@ def test_recovery_cancels_orphaned_slurm_job(tmp_path, monkeypatch):
         )
         con.commit()
     cancelled = []
-    monkeypatch.setattr("cloudra.slurm.cancel_job", cancelled.append)
+    monkeypatch.setattr("cloudra.infra.slurm.cancel_job", cancelled.append)
 
     assert cancel_interrupted_jobs(db) == 1
     assert cancelled == ["9988"]

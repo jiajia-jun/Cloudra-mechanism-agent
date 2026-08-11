@@ -3,9 +3,9 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
-from cloudra.workspace import WorkspaceError, WorkspaceService
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import WorkspaceError, WorkspaceService
 
 description = (
     "安全读取 Agent 工作目录内的 UTF-8 文本文件，返回内容切片与完整文件 sha256；"

@@ -1,4 +1,4 @@
-from cloudra.tool_presentation import format_tool_payload
+from cloudra.infra.tool_presentation import format_tool_payload
 
 
 def test_decodes_unicode_and_nested_json_strings():

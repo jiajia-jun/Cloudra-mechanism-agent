@@ -2,8 +2,8 @@ from typing import Any, Dict, List
 
 from pydantic import Field
 
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "通过 OpenAlex 开放 API 检索全库学术文献（预印本及正式发表论文）。"

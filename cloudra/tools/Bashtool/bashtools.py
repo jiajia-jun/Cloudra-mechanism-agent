@@ -3,11 +3,11 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
 from cloudra.tools.core.command_analyzer import BashCommandClassifier
 from cloudra.tools.core.permission_model import Permission, check_permission
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 
 class Bashtools_input_schema(input_schema):

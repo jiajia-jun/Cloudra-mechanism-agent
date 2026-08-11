@@ -1,10 +1,9 @@
 import sqlite3
 import zipfile
-from pathlib import Path
 
 import pytest
 
-from cloudra.operations import (
+from cloudra.infra.operations import (
     BackupError,
     create_backup,
     operational_status,

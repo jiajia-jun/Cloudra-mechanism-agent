@@ -16,7 +16,6 @@ from textual.widgets import Input
 
 from cloudra.tui.new.widgets.chat_log import ChatLog
 
-
 _STYLES = Path(__file__).parents[1] / "cloudra" / "tui" / "new" / "styles.tcss"
 
 

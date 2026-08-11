@@ -19,7 +19,7 @@ import pytest
 
 
 def _setup_data_dir(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -47,7 +47,7 @@ def _insert_running(db, req_id, session_id, req_state="running", sess_state="run
 class TestReapExitedExecutors:
     def test_only_running_rows_are_reaped(self, tmp_path, monkeypatch):
         """已退出进程：running 请求 → failed；非 running 请求原样保留且不进返回列表。"""
-        from cloudra.database import ConversationDB
+        from cloudra.persistence.database import ConversationDB
         from cloudra.runtime.workers import reap_exited_executors
 
         _setup_data_dir(tmp_path, monkeypatch)
@@ -78,7 +78,7 @@ class TestReapExitedExecutors:
         无条件把 running Session 标 failed——历史实现不看请求回收结果、
         无条件标 Session 的怪癖已随统一修正。
         """
-        from cloudra.database import ConversationDB
+        from cloudra.persistence.database import ConversationDB
         from cloudra.runtime.workers import reap_exited_executors
 
         _setup_data_dir(tmp_path, monkeypatch)
@@ -98,7 +98,7 @@ class TestReapExitedExecutors:
 
     def test_existing_session_error_preserved(self, tmp_path, monkeypatch):
         """session.error 用 COALESCE：已有错误信息不被默认文案覆盖。"""
-        from cloudra.database import ConversationDB
+        from cloudra.persistence.database import ConversationDB
         from cloudra.runtime.workers import reap_exited_executors
 
         _setup_data_dir(tmp_path, monkeypatch)
@@ -121,7 +121,7 @@ class TestReapExitedExecutors:
 
     def test_no_exited_processes_is_noop(self, tmp_path, monkeypatch):
         """没有退出进程时不触碰数据库，active 原样保留。"""
-        from cloudra.database import ConversationDB
+        from cloudra.persistence.database import ConversationDB
         from cloudra.runtime.workers import reap_exited_executors
 
         _setup_data_dir(tmp_path, monkeypatch)
@@ -138,7 +138,7 @@ class TestReapExitedExecutors:
 
 class TestApplyApprovalDecision:
     def _make_pending(self, tmp_path, monkeypatch):
-        from cloudra.database import ConversationDB
+        from cloudra.persistence.database import ConversationDB
 
         _setup_data_dir(tmp_path, monkeypatch)
         db = ConversationDB("conv-appr").init()
@@ -188,8 +188,8 @@ class TestApplyApprovalDecision:
 class TestRunTaskAsyncContract:
     async def test_session_conversation_and_return_value(self, tmp_path, monkeypatch):
         """pin 外层契约：conversation 恢复/创建、session 入库、状态迁移、返回值。"""
-        from cloudra.database import ConversationDB
-        from cloudra.main import run_task_async
+        from cloudra.core.main import run_task_async
+        from cloudra.persistence.database import ConversationDB
 
         data_dir = _setup_data_dir(tmp_path, monkeypatch)
 
@@ -229,8 +229,8 @@ class TestRunTaskAsyncContract:
 
     async def test_failed_run_still_releases_conversation_to_sleeping(self, tmp_path, monkeypatch):
         """reAct.run 抛异常时异常向外传播，但 conversation 仍被置回 sleeping。"""
-        from cloudra.conversation_class import Conversation
-        from cloudra.main import run_task_async
+        from cloudra.base.conversation_class import Conversation
+        from cloudra.core.main import run_task_async
 
         _setup_data_dir(tmp_path, monkeypatch)
 
@@ -247,7 +247,7 @@ class TestRunTaskAsyncContract:
 
     async def test_query_not_duplicated_in_context(self, tmp_path, monkeypatch):
         """同一 query 连续两次调用：上下文中只出现一次（去重逻辑钉板）。"""
-        from cloudra.main import run_task_async
+        from cloudra.core.main import run_task_async
 
         _setup_data_dir(tmp_path, monkeypatch)
 
@@ -272,7 +272,7 @@ class TestRunTaskAsyncContract:
         ctx_path = os.path.join(
             str(tmp_path / "data"), "conversations", "conv-dup", "contexts", "a-0.json"
         )
-        from cloudra.context_manager import read_context_file
+        from cloudra.persistence.context_manager import read_context_file
         context = read_context_file(ctx_path)
         occurrences = sum(
             1 for m in context if m.get("role") == "user" and m.get("content") == "同一查询"

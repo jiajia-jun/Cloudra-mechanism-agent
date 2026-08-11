@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from cloudra.service import CloudraService, SessionRunner, validate_conversation_id
+from cloudra.services.service import CloudraService, SessionRunner, validate_conversation_id
 
 
 async def _wait_terminal_state(runner, conversation_id, session_id, timeout=5.0):
@@ -26,8 +26,8 @@ def test_validate_conversation_id_rejects_path_traversal():
 
 def test_session_reads_migrate_legacy_database_before_select(tmp_path, monkeypatch):
     """TUI startup must open pre-route-schema conversations without crashing."""
-    from cloudra.config import get_config, reload_config
-    from cloudra.database import SCHEMA_VERSION, ConversationDB
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import SCHEMA_VERSION, ConversationDB
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -64,8 +64,8 @@ def test_session_reads_migrate_legacy_database_before_select(tmp_path, monkeypat
 
 @pytest.mark.asyncio
 async def test_session_runner_persists_completed_result(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
-    from cloudra.conversation_class import Conversation
+    from cloudra.base.conversation_class import Conversation
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -91,8 +91,8 @@ async def test_session_runner_persists_completed_result(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_session_runner_tracks_failure(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
-    from cloudra.conversation_class import Conversation
+    from cloudra.base.conversation_class import Conversation
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -115,9 +115,9 @@ async def test_session_runner_tracks_failure(tmp_path, monkeypatch):
 
 
 def test_stale_session_recovery_and_events(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
-    from cloudra.conversation_class import Conversation
-    from cloudra.database import ConversationDB
+    from cloudra.base.conversation_class import Conversation
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -151,9 +151,9 @@ def test_stale_session_recovery_and_events(tmp_path, monkeypatch):
 
 
 def test_session_runner_list_children(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
-    from cloudra.conversation_class import Conversation
-    from cloudra.database import ConversationDB
+    from cloudra.base.conversation_class import Conversation
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -201,10 +201,10 @@ def test_session_runner_list_children(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_append_session_message_uses_target_agent_id(tmp_path, monkeypatch):
     """向子 Agent Session 追加消息时，inject_event 应使用子 Agent 的 agent_id。"""
-    from cloudra.config import get_config, reload_config
-    from cloudra.context_manager import ContextManager
-    from cloudra.conversation_class import Conversation
-    from cloudra.database import ConversationDB
+    from cloudra.base.conversation_class import Conversation
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.context_manager import ContextManager
+    from cloudra.persistence.database import ConversationDB
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -250,7 +250,7 @@ async def test_append_session_message_uses_target_agent_id(tmp_path, monkeypatch
 @pytest.mark.asyncio
 async def test_submit_session_async_does_not_block_event_loop(tmp_path, monkeypatch):
     """submit_session_async 的同步 DB/控制存储阶段不能阻塞事件循环。"""
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -283,9 +283,9 @@ async def test_append_session_message_async_does_not_block_event_loop(
     tmp_path, monkeypatch
 ):
     """append_session_message_command 的同步准备阶段不能阻塞事件循环。"""
-    from cloudra import session_store
-    from cloudra.config import get_config, reload_config
-    from cloudra.database import ConversationDB
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -336,9 +336,9 @@ async def test_cancel_session_command_async_does_not_block_event_loop(
     tmp_path, monkeypatch
 ):
     """cancel_session_command 的同步准备阶段不能阻塞事件循环。"""
-    from cloudra import session_store
-    from cloudra.config import get_config, reload_config
-    from cloudra.database import ConversationDB
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -389,9 +389,9 @@ async def test_respond_interaction_command_async_does_not_block_event_loop(
     tmp_path, monkeypatch
 ):
     """respond_interaction_command 的同步准备阶段不能阻塞事件循环。"""
-    from cloudra import control_store, session_store
-    from cloudra.config import get_config, reload_config
-    from cloudra.database import ConversationDB
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import control_store, session_store
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -443,9 +443,9 @@ async def test_respond_interaction_command_async_does_not_block_event_loop(
 @pytest.mark.asyncio
 async def test_decide_approval_async_does_not_block_event_loop(tmp_path, monkeypatch):
     """decide_approval 的首段同步 DB 工作不能阻塞事件循环。"""
-    from cloudra import session_store
-    from cloudra.config import get_config, reload_config
-    from cloudra.database import ConversationDB
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
@@ -485,3 +485,150 @@ async def test_decide_approval_async_does_not_block_event_loop(tmp_path, monkeyp
     )
     await asyncio.wait_for(progressed.wait(), timeout=0.08)
     assert ok is True
+
+
+# ------------------------------------------------------------------
+# DAG 投影模式与 user_replan 督导触发
+# ------------------------------------------------------------------
+
+
+def _make_dag_conversation(
+    tmp_path,
+    monkeypatch,
+    *,
+    conversation_id="svc_dag",
+    orchestration_mode=None,
+):
+    """造一个带空 DAG bundle 的会话；orchestration_mode 为 None 时不建 session 记录。"""
+    from cloudra.dag.store import DagStore
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    db = ConversationDB(conversation_id).init()
+    DagStore(db).ensure_bundle("s1")
+    if orchestration_mode is not None:
+        session_store.create_session_record(
+            db,
+            session_id="s1",
+            agent_id="a-0",
+            agent_type="coordinator",
+            parent_session_id=None,
+            query="研究 Claisen 重排",
+            created_at="2026-08-11T00:00:00",
+            orchestration_mode=orchestration_mode,
+        )
+    return conversation_id
+
+
+def test_dag_projection_uses_session_orchestration_mode(tmp_path, monkeypatch):
+    """投影 banner 反映会话真实模式：guided 会话显示 dag_guided。"""
+    cid = _make_dag_conversation(
+        tmp_path, monkeypatch, orchestration_mode="dag_guided"
+    )
+    projection = CloudraService().dag_projection(cid)
+    assert projection is not None
+    assert projection["mode"] == "dag_guided"
+
+
+def test_dag_projection_without_session_keeps_record_default(tmp_path, monkeypatch):
+    """无 session 记录的图（如测试直接建图）保持历史默认 dag_record。"""
+    cid = _make_dag_conversation(tmp_path, monkeypatch, orchestration_mode=None)
+    projection = CloudraService().dag_projection(cid)
+    assert projection is not None
+    assert projection["mode"] == "dag_record"
+
+
+def test_dag_projection_standard_conversation_has_no_bundle(tmp_path, monkeypatch):
+    """standard 会话语义不变：不建图，投影返回 None。"""
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+    ConversationDB("svc_std").init()
+    assert CloudraService().dag_projection("svc_std") is None
+
+
+@pytest.mark.asyncio
+async def test_dag_request_replan_rejects_non_guided(tmp_path, monkeypatch):
+    """非 dag_guided 会话请求重新规划：返回清晰的 ValueError。"""
+    for mode in ("standard", "dag_record"):
+        cid = _make_dag_conversation(
+            tmp_path,
+            monkeypatch,
+            conversation_id=f"svc_replan_{mode}",
+            orchestration_mode=mode,
+        )
+        with pytest.raises(ValueError, match="dag_guided"):
+            await CloudraService().dag_request_replan(cid, note="重排")
+
+
+@pytest.mark.asyncio
+async def test_dag_request_replan_without_bundle_returns_none(tmp_path, monkeypatch):
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+    ConversationDB("svc_replan_none").init()
+    assert await CloudraService().dag_request_replan("svc_replan_none") is None
+
+
+@pytest.mark.asyncio
+async def test_dag_request_replan_invokes_supervisor(tmp_path, monkeypatch):
+    """guided 会话：触发 maybe_supervise('user_replan') 并汇总 Supervisor 结果。"""
+    import cloudra.core.supervisor as supervisor_module
+    from cloudra.core.supervisor import GraphSupervisorResult
+
+    cid = _make_dag_conversation(
+        tmp_path,
+        monkeypatch,
+        conversation_id="svc_replan_guided",
+        orchestration_mode="dag_guided",
+    )
+    calls = []
+
+    class FakeGraphSupervisor:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        async def run(
+            self, trigger, coordinator_request=None, session_id=None, event_sink=None
+        ):
+            calls.append(
+                {"trigger": trigger, "coordinator_request": coordinator_request}
+            )
+            return GraphSupervisorResult(
+                trigger=trigger,
+                rounds=1,
+                mutations=[{"accepted": True}],
+                note="replanned",
+            )
+
+    monkeypatch.setattr(supervisor_module, "GraphSupervisor", FakeGraphSupervisor)
+
+    result = await CloudraService().dag_request_replan(
+        cid, note="请重排 TS 搜索顺序"
+    )
+    assert calls == [
+        {"trigger": "user_replan", "coordinator_request": "请重排 TS 搜索顺序"}
+    ]
+    assert result["supervised"] is True
+    assert result["rounds"] == 1
+    assert result["mutations_accepted"] == 1
+    assert result["mutations_total"] == 1
+    assert result["note"] == "replanned"
+    assert "user_replan" in result["trigger"]

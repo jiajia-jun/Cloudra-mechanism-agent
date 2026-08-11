@@ -6,9 +6,9 @@ from typing import Any, List, Optional
 
 from pydantic import Field
 
-from cloudra.config import get_config
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.infra.config import get_config
 
 description = (
     "从收件箱读取最新邮件，可按发件人过滤、指定数量、只看未读。"

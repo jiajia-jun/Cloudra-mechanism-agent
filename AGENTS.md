@@ -12,19 +12,21 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI 视觉基线
 ```
 
-入口：`cloudra`（CLI，`cloudra/cli.py`）、`cloudra-api`（FastAPI 控制面，`cloudra/api.py`）、`flet_app.py`（GUI/APK 打包入口）。Python >= 3.11。
+入口：`cloudra`（CLI，`cloudra/cli.py`）、`cloudra-api`（FastAPI 控制面，`cloudra/services/api.py`）、`flet_app.py`（GUI/APK 打包入口）。Python >= 3.11。
 
 ## 模块地图（cloudra/ 包）
 
-**核心运行时（推理与编排）**
+根目录只留 `cli.py` / `__main__.py` / `__init__.py`（惰性兼容导出）；实现按职责分五个子包：
+
+**`core/` — 核心运行时（推理与编排）**
 
 - `react.py` — ReAct 推理循环主体（流式 LLM、工具调度、取消/重试）。
 - `agent.py` — `Agent`/`Coordinator`/`Follower` 角色与 prompt 加载。
 - `supervisor.py` — 科学督导（SupervisorAgent、GraphSupervisor），只在 `dag_guided` 模式有写图权限。
 - `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装）、`environment_observer.py`（工作区快照）。
-- `dag/` — DAG 引导编排子系统，见下节。
+- `dag/` — DAG 引导编排子系统（仍在包根一级），见下节。
 
-**服务层 / 控制面**
+**`services/` — 服务层 / 控制面**
 
 - `service.py` — 应用服务层，CLI 与 HTTP API 共用（Session 提交、审批、取消、DAG 用户变更）。
 - `api.py` / `api_v1.py` — FastAPI 路由；v1 为远程控制（SSE、审批、产物）。
@@ -33,22 +35,27 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 - `control_store.py` — 幂等远程控制命令持久化；`interactions.py` — 非审批类用户交互等待。
 - `nodes.py` — 多节点/工作区注册表路由；`device_broker.py` — Android 设备配对与调用。
 
-**持久化 / 状态**
+**`persistence/` — 持久化 / 状态**
 
 - `database.py` — 会话级 SQLite（ConversationDB）；`conversation_repo.py` — 会话查询唯一入口。
 - `artifacts.py` — 不可变产物快照（ArtifactService）与短期下载授权。
 - `memory.py`（长期记忆 MEMORY.md）、`case_bank.py`（经验案例库）、`context_manager.py`（Agent 上下文）。
 - `paths.py` — data_dir 下所有路径的**唯一事实来源**；`fs_utils.py` — 原子写；`workspace.py` — 工作区受限读写。
 
-**支撑设施**
+**`base/` — 数据类与基类**
+
+- `skill_class.py` / `tools_class.py` — 加载器与基类。
+- `session_class.py` / `conversation_class.py` / `log_class.py` — 数据类。
+
+**`infra/` — 支撑设施**
 
 - `config.py`（LLMConfig/CloudraConfig）、`llm_client.py`（OpenAI 兼容传输层）、`web_search_native.py`。
 - `events.py`（进程内/间事件门面）、`ipc.py`（会话级事件总线）、`streaming.py`、`token_estimator.py`。
 - `slurm.py`、`compute_utils.py`、`operations.py`（数据目录备份/恢复）、`yolo_guard.py`（自动审批安全守卫）。
 - `presentation.py` / `tool_presentation.py`、`platform_utils.py`、`runtime_profile.py`（mobile 能力 profile）。
-- `skill_class.py` / `tools_class.py`（加载器与基类）、`session_class.py` / `conversation_class.py` / `log_class.py`（数据类）。
 - `email_listener.py`、`mobile_storage.py`、`native_bridge.py`、`android_build.py`。
-- `cli.py` / `__main__.py` — CLI 入口。
+
+**包根一级子包（未动）**：`dag/`、`runtime/`、`tools/`、`subagents/`、`tui/`、`ui/`、`device/`、`prompts/`、`skills/`。
 
 **UI 前端**
 
@@ -68,11 +75,11 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 
 - `models.py` — 共享类型（OrchestrationMode、GraphKind、DagNode、SpeciesRecord）与 `build_orchestration_config()`。
 - `store.py` — 双 DAG（process 流程图 + delivery 机理图）持久存储，变更日志 + 物化视图。
-- `engine.py` — 事务化变更引擎 `DagEngine`：原子批次、乐观 revision、按图分权（Supervisor 只读 delivery、agent 只读 process）、无环校验。
+- `engine.py` — 事务化变更引擎 `DagEngine`：原子批次、乐观 revision、无环校验。按图分权：Supervisor 只读 delivery、维护 process；agent（Coordinator/子 agent）设计 delivery，process 侧只能回报 `payload.assignee` 等于自己的节点（status/reason/blocked_reason/annotations）。`remove_edge` 两张图都放开但批次必须带 rationale；agent 对 process 的删边请求以 `edge_removal_requires_supervisor` 拒绝并记日志，由 Supervisor 复核后代为执行。
 - `completion.py` — 交付覆盖率确定性评估 `evaluate_delivery()` 与 prompt 投影。
-- `controller.py` — harness 集成 `DagController`：工具证据持久化、DAG prompt 注入、Supervisor 触发。
+- `controller.py` — harness 集成 `DagController`：工具证据持久化、DAG prompt 注入、Supervisor 触发（机理变更/绑定计算的成败/删边请求/交付前审计）、`rederive_delivery_element()` 事后补挂重算。
 
-关键不变量：图存储是权威（不在模型上下文里）；证据是不可变记录/产物的类型化引用；失败是证据不是删除；模型声明不能标记交付完成。
+关键不变量：图存储是权威（不在模型上下文里）；证据是不可变记录/产物的类型化引用；删除必须带理由且留在变更日志；模型声明不能标记交付完成，证据等级由 harness 确定性派生。
 
 ## 测试约定（tests/）
 

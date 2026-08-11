@@ -28,16 +28,17 @@ from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 
-from cloudra import __version__, session_store
-from cloudra.config import get_config
-from cloudra.context_manager import ContextManager
-from cloudra.conversation_class import Conversation
-from cloudra.conversation_repo import list_conversations
-from cloudra.database import ConversationDB
-from cloudra.events import shutdown_all_listeners, subscribe_async
-from cloudra.log_class import Log
-from cloudra.react import AgentCancelled
-from cloudra.service import CloudraService
+from cloudra import __version__
+from cloudra.base.conversation_class import Conversation
+from cloudra.base.log_class import Log
+from cloudra.core.react import AgentCancelled
+from cloudra.infra.config import get_config
+from cloudra.infra.events import shutdown_all_listeners, subscribe_async
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.persistence.conversation_repo import list_conversations
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
+from cloudra.services.service import CloudraService
 from cloudra.tools.Interactool import ask_user
 from cloudra.tui.render import EventRenderer, _strip_ansi
 
@@ -392,7 +393,7 @@ class CloudraTUI:
 
     async def _run_task(self, query: str) -> str:
         """在当前 TUI Session 的独立 context 中运行，避免 YOLO 状态串到其他任务。"""
-        from cloudra.yolo_guard import reset_session_yolo, set_session_yolo
+        from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
 
         token = set_session_yolo(self.yolo)
         try:

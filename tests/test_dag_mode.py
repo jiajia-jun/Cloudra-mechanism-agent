@@ -3,12 +3,12 @@ import json
 import pytest
 from click.testing import CliRunner
 
-from cloudra import session_store
-from cloudra.agent import Coordinator
 from cloudra.cli import cli
-from cloudra.config import get_config
-from cloudra.database import ConversationDB
-from cloudra.service import CloudraService, SessionRunner
+from cloudra.core.agent import Coordinator
+from cloudra.infra.config import get_config
+from cloudra.persistence.database import ConversationDB
+from cloudra.services import session_store
+from cloudra.services.service import CloudraService, SessionRunner
 
 
 def test_orchestration_mode_defaults_and_rejects_booleanish_aliases():
@@ -347,7 +347,7 @@ async def test_service_run_task_threads_mode_to_runtime(monkeypatch):
         captured.update(kwargs)
         return "done"
 
-    monkeypatch.setattr("cloudra.service.run_task_async", fake_run_task_async)
+    monkeypatch.setattr("cloudra.services.service.run_task_async", fake_run_task_async)
     service = CloudraService.__new__(CloudraService)
 
     result = await service.run_task(
@@ -479,7 +479,7 @@ def test_react_constructs_supervisor_only_in_guided_mode(
     tmp_path,
     monkeypatch,
 ):
-    from cloudra import react as react_module
+    from cloudra.core import react as react_module
 
     monkeypatch.setattr(get_config(), "data_dir", tmp_path)
     calls = []
@@ -515,7 +515,7 @@ def test_react_constructs_supervisor_only_in_guided_mode(
 async def test_guided_react_does_not_poll_supervisor_by_step_count(monkeypatch):
     from types import SimpleNamespace
 
-    from cloudra import react as react_module
+    from cloudra.core import react as react_module
 
     class NoPeriodicSupervisor:
         def should_review(self, step):

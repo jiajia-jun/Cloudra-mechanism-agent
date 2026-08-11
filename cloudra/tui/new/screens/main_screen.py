@@ -11,12 +11,12 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header
 
-from cloudra.config import get_config
-from cloudra.context_manager import ContextManager
-from cloudra.conversation_class import Conversation
-from cloudra.conversation_repo import list_conversations
-from cloudra.service import CloudraService
-from cloudra.token_estimator import TokenEstimator
+from cloudra.base.conversation_class import Conversation
+from cloudra.infra.config import get_config
+from cloudra.infra.token_estimator import TokenEstimator
+from cloudra.persistence.context_manager import ContextManager
+from cloudra.persistence.conversation_repo import list_conversations
+from cloudra.services.service import CloudraService
 from cloudra.tui.new.commands import KNOWN_COMMANDS, parse_command
 from cloudra.tui.new.render_bridge import RenderBridge
 from cloudra.tui.new.screens.approval_modal import ApprovalModal
@@ -228,7 +228,7 @@ class MainScreen(Screen):
             cfg = get_config().coordinator
             if not cfg.native_search or cfg.native_search == "off":
                 return ""
-            from cloudra.web_search_native import resolve_native_search
+            from cloudra.infra.web_search_native import resolve_native_search
 
             adapter = resolve_native_search(
                 base_url=cfg.url,
@@ -1042,9 +1042,12 @@ class MainScreen(Screen):
 
     @staticmethod
     def _agent_display_name(agent_id: str, agent_type: str) -> str:
-        """session 记录里的 agent_type 只有 coordinator/follower，友好名从注册表取。"""
+        """session 记录里的 agent_type 只有 coordinator/follower/supervisor，
+        follower 的友好名从注册表取。"""
         if agent_id == _COORDINATOR_AGENT_ID or agent_type == "coordinator":
             return "coordinator"
+        if agent_id == "supervisor" or agent_type == "supervisor":
+            return "supervisor"
         try:
             from cloudra.subagents import _get_model_default, get_subagent_classes
 
@@ -1116,12 +1119,16 @@ class MainScreen(Screen):
         self.app.push_screen(HelpScreen())
 
     async def action_show_context(self) -> None:
-        """显示对话级共享上下文（Coordinator 记忆）的统计。"""
+        """显示上下文统计：侧栏选中子 Agent（含 Supervisor）时看它，否则看 Coordinator。"""
+        session_id = self._target_session_id
+        agent_id = self._target_agent_id or _COORDINATOR_AGENT_ID
+        if session_id is None:
+            agent_id = _COORDINATOR_AGENT_ID
         self.app.push_screen(
             ContextScreen(
                 conversation_id=self.conversation_id,
-                session_id=None,
-                agent_id=_COORDINATOR_AGENT_ID,
+                session_id=session_id,
+                agent_id=agent_id,
             )
         )
 

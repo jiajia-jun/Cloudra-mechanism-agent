@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Iterable
 
-from cloudra import events
+from cloudra.infra import events
 
 logger = logging.getLogger(__name__)
 

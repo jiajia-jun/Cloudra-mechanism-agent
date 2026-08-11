@@ -12,10 +12,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from cloudra import __version__, conversation_repo, paths
-from cloudra.config import get_config
-from cloudra.platform_utils import is_android, is_windows
-from cloudra.service import CloudraService, validate_conversation_id
+from cloudra import __version__
+from cloudra.infra.config import get_config
+from cloudra.infra.platform_utils import is_android, is_windows
+from cloudra.persistence import conversation_repo, paths
+from cloudra.services.service import CloudraService, validate_conversation_id
 
 console = Console()
 APP_NAME = "cloudra"
@@ -124,7 +125,7 @@ def run(query, conv_id, new, dry_run, yolo, orchestration_mode):
             console.print(f"[dim]自动恢复上次对话: {active_conv_id}[/dim]")
 
     # Resolve actual ID (creates directory if new, but we need it for consistency)
-    from cloudra.conversation_class import Conversation
+    from cloudra.base.conversation_class import Conversation
     temp_conv = Conversation(active_conv_id)
     active_conv_id = temp_conv.id
 
@@ -165,8 +166,8 @@ def run(query, conv_id, new, dry_run, yolo, orchestration_mode):
     except KeyboardInterrupt:
         # 先置 cancel_requested 让 Agent 优雅收尾（落 cancelled 终态），再退出
         try:
-            from cloudra import session_store
-            from cloudra.database import ConversationDB
+            from cloudra.persistence.database import ConversationDB
+            from cloudra.services import session_store
             db = ConversationDB(active_conv_id)
             session_store.update_session_fields(db, session_id, {"state": "cancel_requested"})
         except Exception:
@@ -254,8 +255,8 @@ def config_show():
 
 
 def _resolve_config_attr(cfg, key: str):
-    """Backward-compatible alias; 实现已下沉到 cloudra.config 供 API 复用。"""
-    from cloudra.config import resolve_config_attr
+    """Backward-compatible alias; 实现已下沉到 cloudra.infra.config 供 API 复用。"""
+    from cloudra.infra.config import resolve_config_attr
     return resolve_config_attr(cfg, key)
 
 
@@ -289,7 +290,7 @@ def config_get(key):
 @click.argument("value")
 def config_set(key, value):
     """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
-    from cloudra.config import set_config_value
+    from cloudra.infra.config import set_config_value
 
     try:
         set_config_value(key, value)
@@ -356,7 +357,7 @@ def logs(conv_id):
 @cli.command()
 def skills():
     """列出可用的 Skills。"""
-    from cloudra.skill_class import skill_loader
+    from cloudra.base.skill_class import skill_loader
 
     loader = skill_loader()
     skills_data = loader.skill_datas_get()
@@ -425,7 +426,7 @@ def backup_cmd():
 @click.argument("destination", type=click.Path(path_type=Path))
 def backup_create(destination: Path):
     """在线快照 SQLite，并创建带 SHA-256 清单的备份。"""
-    from cloudra.operations import BackupError, create_backup
+    from cloudra.infra.operations import BackupError, create_backup
 
     try:
         manifest = create_backup(Path(get_config().data_dir), destination)
@@ -441,7 +442,7 @@ def backup_create(destination: Path):
 @click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 def backup_verify(archive: Path):
     """校验备份清单、成员范围与全部 SHA-256。"""
-    from cloudra.operations import BackupError, verify_backup
+    from cloudra.infra.operations import BackupError, verify_backup
 
     try:
         manifest = verify_backup(archive)
@@ -455,7 +456,7 @@ def backup_verify(archive: Path):
 @click.argument("destination", type=click.Path(path_type=Path))
 def backup_restore(archive: Path, destination: Path):
     """恢复到不存在或空的目录；不会覆盖现有数据。"""
-    from cloudra.operations import BackupError, restore_backup
+    from cloudra.infra.operations import BackupError, restore_backup
 
     try:
         manifest = restore_backup(archive, destination)
@@ -476,7 +477,7 @@ def devices_cmd():
 @devices_cmd.command(name="list")
 @click.option("--all", "include_revoked", is_flag=True, help="包含已撤销设备")
 def devices_list(include_revoked: bool):
-    from cloudra.device_broker import DeviceBroker
+    from cloudra.services.device_broker import DeviceBroker
 
     rows = DeviceBroker().list_devices(include_revoked=include_revoked)
     table = Table(title="Android Devices", show_header=True)
@@ -496,7 +497,7 @@ def devices_list(include_revoked: bool):
 @click.option("--yes", is_flag=True, help="跳过确认")
 def devices_revoke(device_id: str, yes: bool):
     """立即撤销设备 token；设备需要重新配对才能上线。"""
-    from cloudra.device_broker import DeviceBroker
+    from cloudra.services.device_broker import DeviceBroker
 
     if not yes and not click.confirm(f"撤销设备 {device_id}？"):
         return
@@ -524,7 +525,7 @@ def android_cmd():
 )
 @click.option("--allow-debug", is_flag=True, help="仅本地安装验证时允许 debug 证书")
 def android_audit_apk(apk: Path, expected_cert_sha256: str | None, allow_debug: bool):
-    from cloudra.android_build import audit_apk_signature
+    from cloudra.infra.android_build import audit_apk_signature
 
     try:
         result = audit_apk_signature(

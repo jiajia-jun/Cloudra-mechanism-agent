@@ -7,9 +7,9 @@ from typing import Any, Literal, Optional
 
 from pydantic import Field
 
-from cloudra.fs_utils import atomic_write_text
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.fs_utils import atomic_write_text
 
 try:
     from rdkit import Chem

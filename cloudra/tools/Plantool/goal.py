@@ -9,10 +9,10 @@ from typing import Any
 
 from pydantic import Field
 
-from cloudra.agent import Agent
-from cloudra.session_class import Session
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.core.agent import Agent
 from cloudra.tools.Plantool._store import agent_store_path, save_json
-from cloudra.tools_class import Tool, input_schema, output_schema
 
 # 目标锚点消息的内容前缀：重复设定时据此识别并替换旧锚点
 GOAL_MARKER = "【任务目标】"

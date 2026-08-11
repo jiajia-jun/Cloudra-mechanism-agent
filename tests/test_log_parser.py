@@ -8,7 +8,6 @@ from cloudra.tools.Chemtool.log_parser import (
     _extract_gaussian_thermochemistry,
 )
 
-
 FIXTURE = Path(__file__).parent / "fixtures" / "gaussian" / "water_opt_freq_g16.out"
 
 

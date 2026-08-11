@@ -5,11 +5,11 @@ import json
 from click.testing import CliRunner
 
 from cloudra.cli import cli
-from cloudra.database import ConversationDB
+from cloudra.persistence.database import ConversationDB
 
 
 def _setup_data_dir(tmp_path, monkeypatch):
-    from cloudra.config import get_config, reload_config
+    from cloudra.infra.config import get_config, reload_config
 
     data_dir = tmp_path / "data"
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))

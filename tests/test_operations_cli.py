@@ -1,8 +1,8 @@
 from click.testing import CliRunner
 
 from cloudra.cli import cli
-from cloudra.config import get_config
-from cloudra.device_broker import DeviceBroker
+from cloudra.infra.config import get_config
+from cloudra.services.device_broker import DeviceBroker
 
 
 def test_backup_cli_create_verify_and_restore(tmp_path, monkeypatch):

@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import requests
 
-from cloudra.llm_client import (
+from cloudra.infra.llm_client import (
     _build_responses_payload,
     _responses_stream_events,
     _translate_responses_completion,
@@ -141,7 +141,7 @@ def test_translate_responses_completion_stop_without_tools():
 
 def test_completion_message_supports_react_attribute_access():
     """reAct 直接访问 message.content / message.tool_calls，缺 key 会 AttributeError。"""
-    from cloudra.llm_client import ResponseDictWrapper
+    from cloudra.infra.llm_client import ResponseDictWrapper
 
     completion = ResponseDictWrapper(
         _translate_responses_completion(
@@ -165,7 +165,7 @@ def test_completion_message_supports_react_attribute_access():
 
 def test_stream_chunks_support_react_delta_attribute_access():
     """每个 chunk 的 delta 必须常驻 content/reasoning_content/tool_calls，避免 AttributeError。"""
-    from cloudra.llm_client import ResponseDictWrapper
+    from cloudra.infra.llm_client import ResponseDictWrapper
 
     events = [
         {"type": "response.output_text.delta", "delta": "A"},
@@ -251,7 +251,7 @@ def test_stream_events_incomplete_maps_to_length():
 @pytest.mark.asyncio
 async def test_stream_emits_web_search_status_mid_stream():
     """web_search_call 事件应在流中段逐条上抛（query 从 item.action 提取）。"""
-    from cloudra.llm_client import LLMClient
+    from cloudra.infra.llm_client import LLMClient
 
     client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
     statuses = []
@@ -286,8 +286,8 @@ def test_translate_responses_usage():
 @pytest.mark.asyncio
 async def test_agent_routes_deepseek_native_search_to_responses(monkeypatch):
     """DeepSeek 原生搜索（默认 auto、无需 params）应走 Responses 传输；OpenRouter 走 chat。"""
-    from cloudra.agent import Coordinator
-    from cloudra.config import get_config
+    from cloudra.core.agent import Coordinator
+    from cloudra.infra.config import get_config
 
     cfg = get_config()
     monkeypatch.setattr(cfg.coordinator, "native_search", "auto")
@@ -304,7 +304,7 @@ async def test_agent_routes_deepseek_native_search_to_responses(monkeypatch):
 
 
 def test_responses_base_url_strips_v1():
-    from cloudra.llm_client import _responses_base_url
+    from cloudra.infra.llm_client import _responses_base_url
 
     assert _responses_base_url("https://api.deepseek.com/v1") == "https://api.deepseek.com"
     assert _responses_base_url("https://api.deepseek.com/v1/") == "https://api.deepseek.com"
@@ -332,13 +332,13 @@ class TestResponsesHttpErrors:
 
     async def test_400_not_retried_and_error_contains_body(self, monkeypatch):
         """400 是确定性客户端错误：只调用 1 次不重试，异常消息带响应 body。"""
-        from cloudra.llm_client import LLMClient
+        from cloudra.infra.llm_client import LLMClient
 
         client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
         post = MagicMock(return_value=_error_response(
             400, '{"error": {"message": "Invalid request: orphan function_call_output"}}'
         ))
-        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        monkeypatch.setattr("cloudra.infra.llm_client.requests.post", post)
         sleep = AsyncMock()
         monkeypatch.setattr(asyncio, "sleep", sleep)
 
@@ -354,11 +354,11 @@ class TestResponsesHttpErrors:
 
     async def test_500_retried_until_exhausted(self, monkeypatch):
         """5xx 仍按原逻辑重试（初次 + max_retries 次）。"""
-        from cloudra.llm_client import LLMClient
+        from cloudra.infra.llm_client import LLMClient
 
         client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
         post = MagicMock(return_value=_error_response(500, '{"error": "internal"}'))
-        monkeypatch.setattr("cloudra.llm_client.requests.post", post)
+        monkeypatch.setattr("cloudra.infra.llm_client.requests.post", post)
         sleep = AsyncMock()
         monkeypatch.setattr(asyncio, "sleep", sleep)
 
@@ -373,7 +373,7 @@ class TestResponsesHttpErrors:
 
     async def test_error_body_truncated(self):
         """超长错误 body 截断到 ~800 字符。"""
-        from cloudra.llm_client import LLMClient
+        from cloudra.infra.llm_client import LLMClient
 
         resp = _error_response(400, "x" * 5000)
         with pytest.raises(requests.exceptions.HTTPError) as exc_info:

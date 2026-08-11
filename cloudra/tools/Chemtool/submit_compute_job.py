@@ -6,18 +6,19 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from cloudra import events
-from cloudra.compute_utils import check_job_type, launch_compute_processes
-from cloudra.database import ConversationDB, get_database_path
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.infra import events
+from cloudra.infra.compute_utils import check_job_type, launch_compute_processes
+from cloudra.persistence.database import ConversationDB, get_database_path
 
 description = (
     "提交计算任务：接收已生成的输入文件路径，在 compute_jobs 表中创建任务记录，"
     "由框架层的 Compute Executor 自动捞取并执行；提交后立刻返回 job_id，不会等待计算完成。"
     "适用：Gaussian、CP2K、VASP、ORCA 等耗时计算的正式提交执行，"
     "输入文件需先用 gjf_writer 等工具（CP2K 为 .inp）准备好。"
-    "不适用：生成输入文件（用 gjf_writer）、查看计算结果（算完后用 log_parser 解析日志）。"
+    "不适用：生成输入文件（用 gjf_writer）、查询任务进度（用 query_compute_job）、"
+    "查看计算结果（算完后用 log_parser 解析日志）。"
 )
 
 
@@ -44,7 +45,7 @@ class SubmitComputeJob_input_schema(input_schema):
 
 class SubmitComputeJob_output_schema(output_schema):
     is_success: bool = Field(description="提交是否成功")
-    job_id: int = Field(default=-1, description="计算任务 ID，后续用于查询状态")
+    job_id: int = Field(default=-1, description="计算任务 ID，用 query_compute_job 查询其状态")
     job_dir: str = Field(default="", description="计算任务的工作目录绝对路径")
     state: str = Field(default="", description="任务初始状态（正常为 'ready'）")
     message: str = Field(default="", description="状态或错误信息")
@@ -77,7 +78,7 @@ class SubmitComputeJob(Tool):
         scheduler_options: dict = {"type": scheduler}
         if scheduler == "auto":
             try:
-                from cloudra.nodes import NodeRegistry
+                from cloudra.services.nodes import NodeRegistry
 
                 node, _workspace = NodeRegistry.from_environment().route_for_path(
                     Path(f_path)
@@ -96,7 +97,7 @@ class SubmitComputeJob(Tool):
         if scheduler == "local":
             ok, msg = check_job_type(user_input.job_type, workdir)
         elif scheduler == "slurm":
-            from cloudra.slurm import check_slurm_tools
+            from cloudra.infra.slurm import check_slurm_tools
 
             ok, msg = check_slurm_tools()
         else:

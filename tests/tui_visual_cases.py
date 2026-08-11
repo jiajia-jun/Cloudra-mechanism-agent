@@ -22,7 +22,6 @@ from cloudra.tui.new.widgets.chat_log import ChatLog
 from cloudra.tui.new.widgets.side_panel import SidePanel
 from cloudra.tui.new.widgets.status_bar import StatusBar
 
-
 _FIXTURE = Path(__file__).parent / "fixtures" / "tui_visual_baseline.json"
 _STYLES = Path(__file__).parents[1] / "cloudra" / "tui" / "new" / "styles.tcss"
 CaseBuilder = Callable[["VisualCaseApp"], Awaitable[None] | None]

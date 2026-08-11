@@ -1,4 +1,4 @@
-"""Coordinator 自唤醒工具。提醒持久化在 conversation 数据库中。"""
+"""Agent 自唤醒工具。提醒持久化在 conversation 数据库中。"""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from typing import Any, Literal, Optional
 
 from pydantic import Field
 
-from cloudra import events
-from cloudra.database import ConversationDB, aretry_on_locked, get_database_path
-from cloudra.session_class import Session
-from cloudra.tools_class import Tool, input_schema, output_schema
+from cloudra.base.session_class import Session
+from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.infra import events
+from cloudra.persistence.database import ConversationDB, aretry_on_locked, get_database_path
 
 
 class ScheduleInput(input_schema):
@@ -21,7 +21,11 @@ class ScheduleInput(input_schema):
     )
     message: Optional[str] = Field(
         default=None,
-        description="醒来时送回给 Agent 的提醒内容。create 时必填，应包含醒来后要检查什么。",
+        description=(
+            "醒来时送回给 Agent 的提醒内容。create 时必填。请写成给未来的自己的操作指引："
+            "要检查哪些具体事项（日志路径、job_id、子 agent 会话）、怎样算完成、"
+            "完成后应取消哪些旧提醒。空泛的'检查一下'会让醒来时无从下手。"
+        ),
     )
     wake_at: Optional[str] = Field(
         default=None,
@@ -52,13 +56,17 @@ class Schedule(Tool):
     tool_description: str = (
         "让当前 Agent 在未来自行醒来并收到指定提醒，适合持续监控后台计算或稍后复查状态。"
         "提醒存在时当前任务会在后台保持等待；醒来后可根据新状态再次设置下一次提醒。"
+        "message 是写给自己的备忘录：醒来时只有它和当时的运行状态可用，"
+        "必须写清要检查什么、完成判据和后续动作。"
         "使用 list 查看所有尚未触发的提醒，使用 cancel 按 schedule_id 取消过时或已被替代的提醒。"
         "多个 create 提醒会彼此独立地全部触发，不会自动覆盖。"
     )
     input_schema: Any = ScheduleInput
     output_schema: Any = ScheduleOutput
 
-    def is_manage(self) -> bool:
+    def is_read(self) -> bool:
+        # 自唤醒是 Agent 的时间通道：不触碰文件系统/系统状态，
+        # 只写 conversation 库里的提醒表，全体 Agent（含只读 explorer）都可用。
         return True
 
     def _identity(self) -> tuple[str, str]:
@@ -84,14 +92,24 @@ class Schedule(Tool):
         await db.ainit()
 
         if user_input.action == "list":
+            session_id = getattr(session, "id", None)
+            # 有 session 身份时只看本 session 的提醒（含无 session 的旧提醒）；
+            # 无身份（测试/旧调用）保持原行为，列出本 agent 全部。
+            if session_id is not None:
+                where = ("conversation_id=? AND agent_id=? AND state='pending' "
+                         "AND (session_id IS NULL OR session_id=?)")
+                params = (conversation_id, agent_id, session_id)
+            else:
+                where = "conversation_id=? AND agent_id=? AND state='pending'"
+                params = (conversation_id, agent_id)
             async with db.aconnect() as con:
                 cur = await con.execute(
-                    """
+                    f"""
                     SELECT id, content, wake_at FROM scheduled_reminders
-                    WHERE conversation_id=? AND agent_id=? AND state='pending'
+                    WHERE {where}
                     ORDER BY wake_at
                     """,
-                    (conversation_id, agent_id),
+                    params,
                 )
                 rows = await cur.fetchall()
             schedules = [
@@ -113,13 +131,18 @@ class Schedule(Tool):
                 return ScheduleOutput(is_success=False, message="cancel 必须提供 schedule_id。")
 
             async def cancel() -> int:
+                session_id = getattr(session, "id", None)
+                if session_id is not None:
+                    where = ("id=? AND conversation_id=? AND agent_id=? AND state='pending' "
+                             "AND (session_id IS NULL OR session_id=?)")
+                    params = (user_input.schedule_id, conversation_id, agent_id, session_id)
+                else:
+                    where = "id=? AND conversation_id=? AND agent_id=? AND state='pending'"
+                    params = (user_input.schedule_id, conversation_id, agent_id)
                 async with db.aconnect() as con:
                     cur = await con.execute(
-                        """
-                        UPDATE scheduled_reminders SET state='cancelled'
-                        WHERE id=? AND conversation_id=? AND agent_id=? AND state='pending'
-                        """,
-                        (user_input.schedule_id, conversation_id, agent_id),
+                        f"UPDATE scheduled_reminders SET state='cancelled' WHERE {where}",
+                        params,
                     )
                     await con.commit()
                     return cur.rowcount
