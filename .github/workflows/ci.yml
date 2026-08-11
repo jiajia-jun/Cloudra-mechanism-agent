@@ -39,4 +39,11 @@ jobs:
       - name: Check imports
         run: |
           python -c "import cloudra; print(cloudra.__version__)"
-          python -c "from cloudra import cli, api, agent, react, context_manager, runtime"
+          python -c "from cloudra import cli, runtime"
+          python -c "from cloudra.core import agent, react, supervisor"
+          python -c "from cloudra.services import api, service, session_store"
+          python -c "from cloudra.persistence import database, context_manager"
+          python -c "from cloudra.base import session_class, tools_class"
+          python -c "from cloudra.infra import config, events, llm_client"
+          # 兼容垫片：重排前的老导入路径必须继续可用
+          python -c "from cloudra import api as legacy_api, agent as legacy_agent"
