@@ -1,6 +1,6 @@
 # Cloudra
 
-**An evidence-graph-guided agent runtime for computational-chemistry mechanism studies**
+**An agent runtime for small-molecule mechanism discovery: geometric & electronic perception, driven by an evidence-graph harness**
 
 [![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
@@ -12,58 +12,92 @@
 > scientific validity or benchmark superiority. The verified scope and the explicitly
 > un-claimed evidence are listed under [Evaluation status](#evaluation-status).
 
-## Overview
+## The gap
 
-LLM agents can call chemistry tools, but a mechanism study is not finished when the
-model says so — it is finished when the evidence says so. Cloudra is built around
-that distinction. It runs long-horizon computational-chemistry research as durable,
-multi-agent sessions, and it answers the two questions a mechanism study must answer
-with **persistent, auditable graphs rather than chat history**:
+Small-molecule mechanism elucidation is a long chain of interdependent calculations:
+atom mapping, conformer sampling, transition-state search, frequencies, IRC,
+endpoint optimization, thermochemistry. Today's LLM agents handle chemistry mostly
+as *tool calls plus prose*, and they fail such studies in two characteristic ways:
 
-- a **process DAG** records *what should be done next* — planned and completed work,
-  its dependencies, blockers, and failures;
-- a **delivery DAG** records *what has actually been established* — the investigated
-  mechanism itself, whose intermediates and elementary steps carry typed references
-  to immutable calculation records.
+1. **No reliable perception of molecules.** Left to itself, a model hand-writes
+   coordinates, guesses at molecular orientations, and recites numbers from a
+   drifting memory of earlier tool output. Geometry and electronic structure — the
+   very objects a mechanism is made of — are exactly what a language model cannot
+   see.
+2. **Completion is declared, not derived.** Whether a mechanism has actually been
+   established is judged by the model's own summary. A plausible paragraph stands
+   in for an IRC-linked endpoint; nothing durable records which step rests on
+   which evidence.
 
-Whether the study is complete is **derived deterministically from referenced
-evidence**, never from model claims. A transition state counts only when its
-optimization, frequency, IRC, and endpoint evidence are all attached to the graph;
-a plausible paragraph counts for nothing.
+Cloudra attacks these two failure modes with two matching pillars: a **geometric
+and electronic perception layer** that gives agents real eyes and hands on
+molecules, and a **DAG-driven harness** that turns a mechanism hypothesis into an
+auditable evidence graph whose completion is computed, not asserted.
 
-This substrate has carried a **complete ozonolysis mechanism study end-to-end**
-(see [Demonstrated capability](#demonstrated-capability)).
+This stack has carried a **complete ethylene ozonolysis mechanism study
+end-to-end** (see [Demonstrated capability](#demonstrated-capability)).
 
-## What is new
+## Pillar 1 — Geometric and electronic perception
 
-1. **The mechanism graph as an auditable research object.** The investigated
-   pathway lives in a durable delivery DAG, not in model context. Nodes are
-   intermediate *occurrences* — catalytic cycles and reversible steps stay acyclic
-   by giving `Cat@entry` and `Cat@return` distinct nodes that share one canonical
-   species record. Every node and edge carries typed references
-   (`artifact` / `compute_job` / `tool_result` / `species`) to immutable records;
-   a bare file path or a prose claim is not evidence.
-2. **Evidence-derived completion, not model-declared completion.** Graph elements
-   carry evidence levels (`proposed` → `structure_supported` → `saddle_supported`
-   → `endpoint_supported` → `thermo_annotated`, plus `rejected`/`inconclusive`)
-   that only the deterministic harness can promote, from the structured results
-   actually referenced. Advisory outputs (a TS guess, a scan) cannot promote an
-   edge. A coverage contract evaluated over the graph decides whether the study
-   may be delivered; only the human user can waive a gate.
-3. **Event-driven Supervisor orchestration.** In guided mode a Supervisor owns the
-   process DAG: it schedules tool-level work bound to specific mechanism elements,
-   reacts to new evidence and failures, arbitrates edge-removal requests, and
-   audits before delivery. It cannot touch the mechanism graph, cannot promote
-   evidence, and cannot mark the study complete.
-4. **A three-mode ablation boundary.** `standard` (no graph cost), `dag_record`
-   (deterministic graph bookkeeping, no Supervisor influence), and `dag_guided`
-   (bookkeeping + Supervisor control) are per-session, immutable choices — so the
-   effect of graph bookkeeping and the effect of Supervisor control can be measured
-   separately.
-5. **A durable session substrate underneath.** Idempotent commands, resumable event
-   cursors, leased workers with auditable terminal states, immutable artifacts, and
-   recorded prompt-assembly revisions keep hour- to day-long experiments
-   controllable and reproducible across client, server, and process restarts.
+Agents in Cloudra never type coordinates or transcribe energies from memory; they
+*perceive* molecules through structured tools and quote the current tool output
+verbatim:
+
+- **Atom mapping** (`reaction_mapping`): reactant/product atom maps with explicit
+  binding status and reaction-center watch pairs that follow the atoms through
+  concrete 3D structures.
+- **Bond-order-aware structure perception** (`internal_coordinates`): anomaly
+  reports on bond lengths/angles, rotatable-bond classification, stereochemistry,
+  and Z-matrix editing focused on the reaction center — the agent's "eyes and
+  hands" instead of a GUI.
+- **Orientation without hand-placing** (`conformer_search`): reacting atom pairs
+  are locked by distance filters and the ensemble is sampled, so bimolecular
+  approaches are found by force-field/xtb relaxation rather than guessed.
+- **Electronic-structure perception** (`electronic_analysis`): atomic charges,
+  Mayer bond orders (incipient/partial bonds), IBO Lewis pictures, and spin
+  population with ⟨S²⟩ checks for open shells.
+- **Reaction-path tooling**: TS interpolation guesses, scan preparation/parsing,
+  strict IRC-direction verification, and log parsers that return structured
+  energies, frequencies, and convergence status.
+
+Hand-written coordinates are forbidden by policy across all roles — no exceptions
+for "just adjusting a few atoms".
+
+## Pillar 2 — DAG-driven harness
+
+- **The mechanism graph as an auditable research object.** The investigated
+  pathway is a persistent **delivery DAG**, not chat context. Nodes are
+  intermediate *occurrences* — catalytic cycles and reversible steps stay acyclic
+  by giving `Cat@entry` and `Cat@return` distinct nodes sharing one canonical
+  species record. Every node and edge carries typed references
+  (`artifact` / `compute_job` / `tool_result` / `species`) to immutable records;
+  a bare file path or a prose claim is not evidence.
+- **A process DAG that answers "what next".** Planned and completed work, its
+  dependencies, blockers, and failures live in a second persistent graph. Failure
+  is evidence, not deletion; replacements supersede while preserving the audit
+  chain.
+- **Evidence-derived completion.** Graph elements carry evidence levels
+  (`proposed` → `structure_supported` → `saddle_supported` → `endpoint_supported`
+  → `thermo_annotated`, plus `rejected`/`inconclusive`) that only the deterministic
+  harness can promote, from the structured results actually referenced. Advisory
+  outputs (a TS guess, a scan) cannot promote an edge. A coverage contract
+  evaluated over the graph decides whether the study may be delivered; only the
+  human user can waive a gate.
+- **Event-driven Supervisor.** In guided mode a Supervisor owns the process DAG:
+  it schedules tool-level work bound to specific mechanism elements, reacts to new
+  evidence and failures, arbitrates edge-removal requests, and audits before
+  delivery. It cannot touch the mechanism graph, cannot promote evidence, and
+  cannot mark the study complete.
+- **A three-mode ablation boundary.** `standard` (no graph cost), `dag_record`
+  (deterministic graph bookkeeping, no Supervisor influence), and `dag_guided`
+  (bookkeeping + Supervisor control) are per-session, immutable choices — the
+  effect of graph bookkeeping and the effect of Supervisor control can be measured
+  separately.
+
+Underneath both pillars sits a durable session substrate: idempotent commands,
+resumable event cursors, leased workers with auditable terminal states, immutable
+artifacts, and recorded prompt-assembly revisions keep hour- to day-long
+experiments controllable across client, server, and process restarts.
 
 ## Demonstrated capability
 
@@ -95,16 +129,13 @@ flowchart LR
     C <-->|"idempotent commands + resumable events"| G["Gateway API"]
     G --> S["Durable Session and Event Store"]
     S <--> A["Coordinator + Domain Agents"]
-    A --> P["Prompt / Skill / Policy Assembler"]
-    A --> T["Scientific Tool Dispatcher"]
+    A --> P["Perception Tools<br/>(geometry / electronic)"]
     A <--> D2["Process DAG + Delivery DAG"]
     SV["Supervisor"] <--> D2
-    T --> L["Local workstation"]
-    T --> H["Slurm / HPC node"]
-    T <-->|"leased device invocation"| D["Android Device Runtime"]
+    P --> L["Local workstation"]
+    P --> H["Slurm / HPC node"]
     L --> R["Artifacts and evidence"]
     H --> R
-    D --> R
     R --> D2
     R --> S
 ```
@@ -119,14 +150,13 @@ actually occurs. Details and invariants are documented in
 
 The current tools and skills cover workflows such as:
 
-- literature retrieval, document conversion, evidence synthesis, and academic writing;
-- web search: provider-native search (OpenAI / DeepSeek / OpenRouter server-side
-  `web_search`) or the external `web_search` tool, paired with `web_fetcher` for
-  two-step evidence gathering, citations with source URLs;
-- molecular structure preparation, conformer search, format conversion,
-  visualization, and image-to-structure workflows;
-- Gaussian / CP2K input generation, asynchronous calculation submission, state
-  monitoring, and output parsing; TS guessing, scans, and IRC support tooling;
+- small-molecule quantum chemistry: structure preparation, conformer search,
+  TS/IRC workflows, Gaussian / ORCA input generation, asynchronous submission,
+  state monitoring, and log parsing;
+- electronic-structure analysis, atom mapping, format conversion, visualization,
+  and image-to-structure workflows;
+- literature retrieval, document conversion, evidence synthesis, and academic
+  writing, with provider-native or external web search and cited sources;
 - NMR and IR processing;
 - domain planning for molecular dynamics, periodic first-principles modelling,
   experimental design, and scientific software environments.
@@ -140,15 +170,17 @@ interpretation. Cloudra is designed to preserve the evidence needed for that rev
 Automated tests cover the graph store and mutation engine (acyclicity, occurrence
 nodes, immutable evidence references, atomic batches, optimistic revisions,
 permission boundaries), deterministic delivery completion, mode isolation, session
-persistence and restart recovery, prompt assembly, command idempotency, artifact
-boundaries, device pairing, worker leases, node routing, Slurm command construction,
-backup/restore, and sourceless Android packaging. CI runs the suite on CPython
-3.11–3.13. The ozonolysis study above is a demonstrated end-to-end run, not a
-benchmark.
+persistence and restart recovery, the perception tools (atom mapping, internal
+coordinates, conformer search, TS/scan parsing, log parsing), prompt assembly,
+command idempotency, artifact boundaries, device pairing, worker leases, node
+routing, Slurm command construction, backup/restore, and sourceless Android
+packaging. CI runs the suite on CPython 3.11–3.13. The ozonolysis study above is a
+demonstrated end-to-end run, not a benchmark.
 
 The following evidence is still missing and is therefore **not claimed**:
 
 - comparative scientific benchmark results against other agents or human baselines;
+- systematic multi-reaction evaluation of mechanism-discovery success rates;
 - end-to-end validation on a physical Android device and OEM background-policy matrix;
 - submission and recovery trials on a real Slurm cluster;
 - public-network deployment, production signing, and long-duration operational reliability.
@@ -248,10 +280,10 @@ cloudra/
 ├── persistence/                SQLite store, artifacts, memory, paths
 ├── base/                       dataclasses and loader base types
 ├── infra/                      config, LLM transport, events, platform support
-├── dag/                        DAG-guided orchestration (opt-in per session)
+├── dag/                        DAG-driven harness (opt-in per session)
 ├── runtime/                    session runners, workers, prompt assembly
 ├── device/                     Android capability registry and runtime
-├── tools/, subagents/          explicit scientific capabilities and roles
+├── tools/, subagents/          perception tools, scientific capabilities, domain roles
 ├── skills/, prompts/           research methods and role policies
 └── ui/, tui/                   human control surfaces
 ```
@@ -270,7 +302,7 @@ repository together with the exact commit you used:
 
 ```bibtex
 @misc{cloudra,
-  title  = {Cloudra: An Evidence-Graph-Guided Agent Runtime for Computational-Chemistry Mechanism Studies},
+  title  = {Cloudra: An Agent Runtime for Small-Molecule Mechanism Discovery},
   author = {{Cloudra Developers}},
   year   = {2026},
   url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},

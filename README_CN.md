@@ -1,6 +1,6 @@
 # Cloudra
 
-**证据图驱动的计算化学机理研究 Agent Runtime**
+**面向小分子机理发现的 Agent Runtime：分子的几何与电子感知 × DAG 驱动 harness**
 
 [![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
@@ -11,44 +11,70 @@
 > Cloudra 仍在开发。目前不声称系统能自主保证科研正确或跑赢 benchmark。已验证
 > 范围与明确不作声明的证据见[验证现状](#验证现状)。
 
-## 概述
+## 空缺在哪
 
-LLM Agent 会调化学工具，但机理研究不是模型说做完了就做完了——**证据说了算**。
-Cloudra 围绕这个区别构建：它把长周期的计算化学研究跑成持久的多 Agent 会话，
-并且用**持久、可审计的图**而不是聊天记录来回答机理研究必须回答的两个问题：
+小分子机理阐明是一条环环相扣的长计算链：原子映射、构象采样、过渡态搜索、
+频率、IRC、端点优化、热化学。今天的 LLM Agent 大多把化学当成"调工具 + 写散文"，
+在这类研究上有两种典型失败：
 
-- **process DAG** 记录*下一步该做什么*——计划与已完成的工作、依赖、阻塞和失败；
-- **delivery DAG（机理图）** 记录*已经确立了什么*——被研究的机理本身，每个
-  中间体和基元步都携带指向不可变计算记录的类型化引用。
+1. **感知不到分子。** 放任自流时，模型会手写坐标、凭感觉摆分子取向、凭逐渐
+   漂移的记忆转述工具输出的数值。而几何与电子结构——机理恰恰由它们构成——
+   正是语言模型看不见的东西。
+2. **完成靠宣布，不靠派生。** 机理是否真正确立，由模型自己的总结来判断。
+   一段读起来合理的文字代替了 IRC 链接的端点；没有任何持久记录说明哪一步
+   建立在哪份证据上。
 
-研究是否完成由**引用证据确定性派生**，不由模型声明。一个过渡态只有在优化、
-频率、IRC 和端点证据全部挂到图上才算数；一段读起来合理的文字不算数。
+Cloudra 用两根互相咬合的支柱对症这两种失败：**几何与电子感知层**给 Agent
+装上真正作用于分子的眼睛和手；**DAG 驱动 harness** 把机理假设变成可审计的
+证据图，完成度算出来，而不是说出来。
 
-这套底座已经**完整跑通了一整个乙烯臭氧化机理寻找**（见[已验证的端到端能力](#已验证的端到端能力)）。
+这套组合已经**完整跑通了一整个乙烯臭氧化机理寻找**（见
+[已验证的端到端能力](#已验证的端到端能力)）。
 
-## 新意所在
+## 支柱一 —— 分子的几何与电子感知
 
-1. **机理图成为可审计的研究对象。** 被研究的路径生活在持久的 delivery DAG 里，
-   而不是模型上下文里。节点是中间体的 *occurrence*——催化循环和可逆步通过让
-   `Cat@entry` 与 `Cat@return` 成为共享同一份 canonical species 记录的不同节点
-   来保持图无环。每个节点和边携带类型化引用（`artifact` / `compute_job` /
-   `tool_result` / `species`），指向不可变记录；裸文件路径和散文声明都不是证据。
-2. **完成度由证据派生，不由模型宣布。** 图元素携带证据级别（`proposed` →
-   `structure_supported` → `saddle_supported` → `endpoint_supported` →
-   `thermo_annotated`，另有 `rejected` / `inconclusive`），只有确定性 harness 能
-   根据实际引用的结构化结果提升级别。探索性输出（TS 初猜、扫描）不能提升一条边。
-   覆盖契约（coverage contract）在图上评估研究能否交付；只有用户本人能豁免 gate。
-3. **事件驱动的 Supervisor 编排。** 引导模式下 Supervisor 拥有 process DAG：
-   它把工具级工作绑定到具体机理图元素上排产，对新证据和计算失败做出反应，
-   裁决删边申请，交付前审计。它不能碰机理图、不能提升证据级别、不能宣布研究
-   完成。
-4. **三模式消融边界。** `standard`（零图成本）、`dag_record`（只有确定性图
-   簿记，无 Supervisor 影响）、`dag_guided`（簿记 + Supervisor 控制）是按会话
-   选择、选定后不可变的模式——图簿记本身的效果和 Supervisor 控制的效果可以
-   分开测量。
-5. **底层是持久会话基座。** 幂等命令、可恢复事件游标、带可审计终态的 lease
-   worker、不可变 artifact、记录在案的 prompt 组装 revision，让以小时到天计的
-   实验跨过客户端、服务器和进程重启仍然可控、可复现。
+Cloudra 里的 Agent 从不手写坐标、也不凭记忆转述能量；它们通过结构化工具
+*感知*分子，并逐字引用当次工具输出：
+
+- **原子映射**（`reaction_mapping`）：反应物/产物原子映射，带显式绑定状态和
+  跟随具体 3D 结构的反应中心 watch pairs。
+- **键级感知的结构感知**（`internal_coordinates`）：键长键角异常报告、可旋转
+  键分类、立体化学识别、聚焦反应中心的 Z-matrix 编辑——代替 GUI 的"眼睛和手"。
+- **不手摆的取向采样**（`conformer_search`）：用 distance filters 锁定反应原子
+  对后采样构象系综，双分子接近取向由力场/xtb 弛豫找到，而不是猜出来。
+- **电子结构感知**（`electronic_analysis`）：原子电荷、Mayer 键级（识别
+  部分成键/初生键）、IBO Lewis 图像、开壳层体系的自旋布居与 ⟨S²⟩ 检查。
+- **反应路径工具**：IDPP 插值 TS 初猜、扫描准备/解析、严格 IRC 方向验证，
+  以及返回结构化能量、频率和收敛状态的日志解析器。
+
+所有角色都执行同一条硬规则：**禁止手写坐标**——"只是微调几个原子"也没有例外。
+
+## 支柱二 —— DAG 驱动 harness
+
+- **机理图成为可审计的研究对象。** 被研究的路径是持久的 **delivery DAG**，
+  不是聊天上下文。节点是中间体的 *occurrence*——催化循环和可逆步通过让
+  `Cat@entry` 与 `Cat@return` 成为共享同一份 canonical species 记录的不同
+  节点来保持图无环。每个节点和边携带类型化引用（`artifact` / `compute_job` /
+  `tool_result` / `species`），指向不可变记录；裸文件路径和散文声明都不是证据。
+- **回答"下一步做什么"的 process DAG。** 计划与已完成的工作、依赖、阻塞和
+  失败都在第二张持久图里。失败是证据，不是删除；替代计算以 supersede 方式
+  保留完整审计链。
+- **完成度由证据派生。** 图元素携带证据级别（`proposed` →
+  `structure_supported` → `saddle_supported` → `endpoint_supported` →
+  `thermo_annotated`，另有 `rejected` / `inconclusive`），只有确定性 harness 能
+  根据实际引用的结构化结果提升级别。探索性输出（TS 初猜、扫描）不能提升一条边。
+  覆盖契约（coverage contract）在图上评估研究能否交付；只有用户本人能豁免 gate。
+- **事件驱动的 Supervisor。** 引导模式下 Supervisor 拥有 process DAG：它把
+  工具级工作绑定到具体机理图元素上排产，对新证据和计算失败做出反应，裁决
+  删边申请，交付前审计。它不能碰机理图、不能提升证据级别、不能宣布研究完成。
+- **三模式消融边界。** `standard`（零图成本）、`dag_record`（只有确定性图
+  簿记，无 Supervisor 影响）、`dag_guided`（簿记 + Supervisor 控制）是按会话
+  选择、选定后不可变的模式——图簿记本身的效果和 Supervisor 控制的效果可以
+  分开测量。
+
+两根支柱之下是持久会话基座：幂等命令、可恢复事件游标、带可审计终态的 lease
+worker、不可变 artifact、记录在案的 prompt 组装 revision，让以小时到天计的
+实验跨过客户端、服务器和进程重启仍然可控、可复现。
 
 ## 已验证的端到端能力
 
@@ -75,16 +101,13 @@ flowchart LR
     C <-->|"幂等命令 + 可恢复事件"| G["Gateway API"]
     G --> S["持久 Session 与事件存储"]
     S <--> A["Coordinator + 领域 Agent"]
-    A --> P["Prompt / Skill / Policy Assembler"]
-    A --> T["科研工具 Dispatcher"]
+    A --> P["感知工具<br/>（几何 / 电子）"]
     A <--> D2["Process DAG + Delivery DAG"]
     SV["Supervisor"] <--> D2
-    T --> L["本地工作站"]
-    T --> H["Slurm / HPC 节点"]
-    T <-->|"带 lease 的设备调用"| D["Android Device Runtime"]
+    P --> L["本地工作站"]
+    P --> H["Slurm / HPC 节点"]
     L --> R["Artifacts 与科研证据"]
     H --> R
-    D --> R
     R --> D2
     R --> S
 ```
@@ -97,12 +120,11 @@ flowchart LR
 
 当前工具与技能生态覆盖：
 
-- 文献检索、文档转换、证据整合与学术写作；
-- 联网搜索：模型原生搜索（OpenAI / DeepSeek / OpenRouter 等服务商侧 `web_search`）
-  或外部 `web_search` 工具，配合 `web_fetcher` 两段式取证，引用带来源 URL；
-- 分子结构准备、构象搜索、格式转换、可视化和图像到结构工作流；
-- Gaussian / CP2K 输入生成、异步计算提交、状态监控和输出解析；TS 初猜、扫描
-  与 IRC 支持工具；
+- 小分子量子化学：结构准备、构象搜索、TS/IRC 工作流、Gaussian / ORCA 输入
+  生成、异步提交、状态监控和日志解析；
+- 电子结构分析、原子映射、格式转换、可视化和图像到结构工作流；
+- 文献检索、文档转换、证据整合与学术写作，联网搜索（服务商原生或外部工具）
+  并附来源引用；
 - NMR 与 IR 数据处理；
 - 分子动力学、周期第一性原理、实验设计和科研软件环境的领域规划。
 
@@ -113,13 +135,15 @@ flowchart LR
 
 自动化测试覆盖图存储与变更引擎（无环性、occurrence 节点、不可变证据引用、
 原子批次、乐观 revision、分权边界）、确定性交付完成度、模式隔离、会话持久化与
-重启恢复、prompt 组装、命令幂等、artifact 边界、设备配对、worker lease、节点
-路由、Slurm 命令构造、备份恢复和无源码 Android 打包。CI 在 CPython 3.11–3.13
-上运行全套测试。上述臭氧化研究是一次已演示的端到端运行，不是 benchmark。
+重启恢复、感知工具（原子映射、内坐标、构象搜索、TS/扫描解析、日志解析）、
+prompt 组装、命令幂等、artifact 边界、设备配对、worker lease、节点路由、Slurm
+命令构造、备份恢复和无源码 Android 打包。CI 在 CPython 3.11–3.13 上运行全套
+测试。上述臭氧化研究是一次已演示的端到端运行，不是 benchmark。
 
 以下证据仍然缺失，因此项目**不作对应声明**：
 
 - 与其他 Agent 或人类基线对比的科研 benchmark 结果；
+- 多反应体系上机理发现成功率的系统性评测；
 - Android 真机、厂商后台限制和原生权限矩阵的端到端验收；
 - 真实 Slurm 集群上的提交、取消和恢复实验；
 - 公网部署、生产签名和长周期运维可靠性。
@@ -214,10 +238,10 @@ cloudra/
 ├── persistence/                SQLite 持久化、artifact、记忆、路径
 ├── base/                       数据类与加载器基类
 ├── infra/                      配置、LLM 传输、事件、平台支撑
-├── dag/                        DAG 引导编排（可选，按会话开启）
+├── dag/                        DAG 驱动 harness（可选，按会话开启）
 ├── runtime/                    Session runner、worker 与 prompt 组装
 ├── device/                     Android 能力注册与 runtime
-├── tools/, subagents/          显式科研能力与领域角色
+├── tools/, subagents/          感知工具、科研能力与领域角色
 ├── skills/, prompts/           科研方法与角色策略
 └── ui/, tui/                   人类控制界面
 ```
@@ -236,7 +260,7 @@ Cloudra 目前没有归档 release。在归档版本发布前，请连同使用�
 
 ```bibtex
 @misc{cloudra,
-  title  = {Cloudra: An Evidence-Graph-Guided Agent Runtime for Computational-Chemistry Mechanism Studies},
+  title  = {Cloudra: An Agent Runtime for Small-Molecule Mechanism Discovery},
   author = {{Cloudra Developers}},
   year   = {2026},
   url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},
