@@ -1,50 +1,73 @@
 # Cloudra
 
-### 面向计算化学科研的持久、可审计 Agent Runtime
+**证据图驱动的计算化学机理研究 Agent Runtime**
 
-[English](README.md) · [Android 使用教程](docs/ANDROID_USER_GUIDE.md) · [架构说明](docs/PHASE8_NODE_REGISTRY.md) · [生产运维](docs/PHASE8_OPERATIONS.md)
+[![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
+[![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-Cloudra 不是问“怎么让 LLM 多调几个工具”，而是在问：**单次对话结束后，Agent 工作流还能不能控制、检查和恢复？**
+[English](README.md) · [文档索引](docs/README.md) · [DAG 编排](docs/DAG_ORCHESTRATION.md) · [Android 使用教程](docs/ANDROID_USER_GUIDE.md)
 
-在 Cloudra 里，文献调研、分子建模、电子结构计算、数据分析、报告写作都以长期 Session 的形式运行。Agent 会指派不同领域角色，等待实验证据或用户决策，向本地机器或 Slurm 集群提交任务，用户离线后也能继续跑。终端和 Android 只是控制界面，真正的状态存在后端。
+> Cloudra 仍在开发。目前不声称系统能自主保证科研正确或跑赢 benchmark。已验证
+> 范围与明确不作声明的证据见[验证现状](#验证现状)。
 
-Cloudra 仍在开发。目前仓库搭好了用于评测的基础设施和验证基础，但不敢声称系统已经能自主保证科研正确、跑赢 benchmark 或可以直接生产上线。
+## 概述
 
-## 研究动机
+LLM Agent 会调化学工具，但机理研究不是模型说做完了就做完了——**证据说了算**。
+Cloudra 围绕这个区别构建：它把长周期的计算化学研究跑成持久的多 Agent 会话，
+并且用**持久、可审计的图**而不是聊天记录来回答机理研究必须回答的两个问题：
 
-很多 Agent 演示关心一次运行能不能完成一个小任务。科研工作暴露的是另一组问题：
+- **process DAG** 记录*下一步该做什么*——计划与已完成的工作、依赖、阻塞和失败；
+- **delivery DAG（机理图）** 记录*已经确立了什么*——被研究的机理本身，每个
+  中间体和基元步都携带指向不可变计算记录的类型化引用。
 
-- 计算任务可能比模型请求、客户端连接甚至服务器进程活得更久；
-- 一个听起来合理的回答不能替代可追溯的输入、artifact、日志和计算状态；
-- 工具跨越工作站、HPC 调度器和个人设备，不同位置信任边界和资源不同；
-- 澄清、审批和中断是科研流程的一部分，不是 UI 偶发异常；
-- prompt、工具 schema、文件和软件环境的变化会悄悄破坏可复现性。
+研究是否完成由**引用证据确定性派生**，不由模型声明。一个过渡态只有在优化、
+频率、IRC 和端点证据全部挂到图上才算数；一段读起来合理的文字不算数。
 
-Cloudra 从这些约束开始设计系统，而不是在通用聊天机器人外面不断打补丁。
+这套底座已经**完整跑通了一整个乙烯臭氧化机理寻找**（见[已验证的端到端能力](#已验证的端到端能力)）。
 
-## 设计思路
+## 新意所在
 
-### 持久化的研究 Session
+1. **机理图成为可审计的研究对象。** 被研究的路径生活在持久的 delivery DAG 里，
+   而不是模型上下文里。节点是中间体的 *occurrence*——催化循环和可逆步通过让
+   `Cat@entry` 与 `Cat@return` 成为共享同一份 canonical species 记录的不同节点
+   来保持图无环。每个节点和边携带类型化引用（`artifact` / `compute_job` /
+   `tool_result` / `species`），指向不可变记录；裸文件路径和散文声明都不是证据。
+2. **完成度由证据派生，不由模型宣布。** 图元素携带证据级别（`proposed` →
+   `structure_supported` → `saddle_supported` → `endpoint_supported` →
+   `thermo_annotated`，另有 `rejected` / `inconclusive`），只有确定性 harness 能
+   根据实际引用的结构化结果提升级别。探索性输出（TS 初猜、扫描）不能提升一条边。
+   覆盖契约（coverage contract）在图上评估研究能否交付；只有用户本人能豁免 gate。
+3. **事件驱动的 Supervisor 编排。** 引导模式下 Supervisor 拥有 process DAG：
+   它把工具级工作绑定到具体机理图元素上排产，对新证据和计算失败做出反应，
+   裁决删边申请，交付前审计。它不能碰机理图、不能提升证据级别、不能宣布研究
+   完成。
+4. **三模式消融边界。** `standard`（零图成本）、`dag_record`（只有确定性图
+   簿记，无 Supervisor 影响）、`dag_guided`（簿记 + Supervisor 控制）是按会话
+   选择、选定后不可变的模式——图簿记本身的效果和 Supervisor 控制的效果可以
+   分开测量。
+5. **底层是持久会话基座。** 幂等命令、可恢复事件游标、带可审计终态的 lease
+   worker、不可变 artifact、记录在案的 prompt 组装 revision，让以小时到天计的
+   实验跨过客户端、服务器和进程重启仍然可控、可复现。
 
-Conversation、Agent Session、工具调用、审批、交互、artifact 和计算任务都持久记录。事件负责唤醒 worker 和流式更新，数据库仍是权威事实。幂等命令和 event cursor 让客户端断线重连时不会重复执行已经生效的操作。Worker 使用带所有者、过期时间和重试上限的持久 lease；失败必须进入可审计终态，不能一直假装 running。
+## 已验证的端到端能力
 
-### 以证据为中心的协作
+Cloudra 已在引导模式下**完整跑通乙烯臭氧化（C₂H₄ + O₃）机理研究**：
 
-Coordinator 把研究目标拆给文献、分子量化、周期 DFT、分子动力学、实验、环境管理和写作等领域角色。会话可以按任务开启 DAG 引导编排：harness 持久化一张 process DAG（下一步该做什么）和一张 delivery/机理 DAG（已经确立了什么），Supervisor 维护 process DAG，交付完成度由引用证据确定性派生，而不是由模型声明。研究结果保留与 Session 事件、工具输出、计算文件和不可变 artifact 的关联，而不是只剩一段最终回答。
+- Coordinator 拆解目标，派出文献与领域子 Agent，并把候选机理设计为 delivery DAG；
+- Supervisor 针对每个机理图元素排产工具级工作——反应映射、构象采样、TS 搜索、
+  优化+频率、短双向 IRC、端点优化、端点匹配、热化学——对每一个落地的结果和
+  每一次失败做出反应；
+- 确定性适配器把每个计算的证据绑定到图元素上，推动中间体和基元步逐级提升
+  证据级别；运行中暴露的 O₃ 强多参考特征和方法敏感性问题被记为图注解，
+  而不是被一笔带过；
+- 最终交付由确定性覆盖报告把关：声称的基元步达到 endpoint-supported，端点
+  经 IRC 链接并完成优化，报告的能量带有明确的级别（level-of-theory）来源说明。
 
-### 上下文组装保证可复现
+完整轨迹——每一次图变更、操作者、理由和证据引用——都持久化在会话数据库里，
+事后可审计。
 
-每次模型请求前，系统重新组装当前角色、项目策略、记忆、选中技能和完整工具 schema，并在诊断信息里记录 revision。环境 observation 和文件变化不会混入身份 prompt 或篡改旧对话历史。这样 prompt drift 可见，也避免 runtime 更新后悄悄重写过去的实验语义。
-
-### 按能力和位置路由任务
-
-工具和子 Agent 来自显式注册表，无源码的 Android `.pyc` 包里也保持一致。经过验证的 node registry 描述工作区、调度器和命名空间能力。计算可以在本机或 Slurm 执行；Android 则可独立注册能力受限的设备端操作。真正执行操作的一端保留最终拒绝权，可以阻止越权写入、过期 revision 和未授权调用。
-
-### 把人机交互当作状态流转
-
-提问、审批、取消、等待设备和进程中断都是 Session 的一等状态。高风险操作会带着明确目标、参数或 diff 暂停。Android 文件写入、文档访问、相机和分享必须在设备本地授权，服务器 Agent 不能靠构造特殊参数绕过边界。
-
-## 系统概览
+## 工作方式
 
 ```mermaid
 flowchart LR
@@ -54,36 +77,45 @@ flowchart LR
     S <--> A["Coordinator + 领域 Agent"]
     A --> P["Prompt / Skill / Policy Assembler"]
     A --> T["科研工具 Dispatcher"]
+    A <--> D2["Process DAG + Delivery DAG"]
+    SV["Supervisor"] <--> D2
     T --> L["本地工作站"]
     T --> H["Slurm / HPC 节点"]
     T <-->|"带 lease 的设备调用"| D["Android Device Runtime"]
     L --> R["Artifacts 与科研证据"]
     H --> R
     D --> R
+    R --> D2
     R --> S
 ```
 
-系统把三个平面分开：控制面负责用户命令、审批和取消；科研 runtime 负责推理、委派、状态和证据；执行面在真正干活的地方跑。手机断线不会取消服务器计算，设备离线也不耽误 Agent 使用服务器工具。
+三个平面保持分离：控制面负责用户命令、审批和取消；科研 runtime 负责推理、
+委派、图状态和证据；执行面在真正干活的地方强制能力边界。细节与不变量见
+[`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md)。
 
 ## 覆盖范围
 
 当前工具与技能生态覆盖：
 
 - 文献检索、文档转换、证据整合与学术写作；
-- 联网搜索：模型原生搜索（OpenAI / DeepSeek / OpenRouter 等服务商侧 `web_search`）或外部 `web_search` 工具，配合 `web_fetcher` 两段式取证，引用带来源 URL；
-- 计划与目标：`todo_write` / `todo_read` / `goal_set` 跟踪多步任务进度，TUI 可用 `/goal` 设定目标锚点（有目标后任务只有 `stop` 才能结束，每轮会提醒确认进度）；
-- 分子结构准备、格式转换、可视化和图像到结构工作流；
-- Gaussian / CP2K 输入生成、异步计算提交、状态监控和输出解析；
+- 联网搜索：模型原生搜索（OpenAI / DeepSeek / OpenRouter 等服务商侧 `web_search`）
+  或外部 `web_search` 工具，配合 `web_fetcher` 两段式取证，引用带来源 URL；
+- 分子结构准备、构象搜索、格式转换、可视化和图像到结构工作流；
+- Gaussian / CP2K 输入生成、异步计算提交、状态监控和输出解析；TS 初猜、扫描
+  与 IRC 支持工具；
 - NMR 与 IR 数据处理；
 - 分子动力学、周期第一性原理、实验设计和科研软件环境的领域规划。
 
-“有工具”不等于“结论正确”。方法选择、收敛性、对照、不确定性与结果解释仍需研究者负责。Cloudra 的目标是保留完成这些审阅所需的证据。
+"有工具"不等于"结论正确"。方法选择、收敛性、对照、不确定性与结果解释仍需研究者
+负责。Cloudra 的目标是保留完成这些审阅所需的证据。
 
-## 已经验证的部分
+## 验证现状
 
-现有自动化测试覆盖显式注册表、prompt 组装、命令幂等、event cursor、Session 状态机、artifact 边界、权限、设备配对与撤销、worker lease、节点路由、Slurm 命令构造、备份恢复及无源码 Android 打包。
-
-ARM64 开发包位于 `build/apk/cloudra-android.apk`，已检查 ABI、SDK、`.pyc`-only 边界和 APK v2 签名。它使用 Android Debug 证书，不是正式发布身份。
+自动化测试覆盖图存储与变更引擎（无环性、occurrence 节点、不可变证据引用、
+原子批次、乐观 revision、分权边界）、确定性交付完成度、模式隔离、会话持久化与
+重启恢复、prompt 组装、命令幂等、artifact 边界、设备配对、worker lease、节点
+路由、Slurm 命令构造、备份恢复和无源码 Android 打包。CI 在 CPython 3.11–3.13
+上运行全套测试。上述臭氧化研究是一次已演示的端到端运行，不是 benchmark。
 
 以下证据仍然缺失，因此项目**不作对应声明**：
 
@@ -92,9 +124,7 @@ ARM64 开发包位于 `build/apk/cloudra-android.apk`，已检查 ABI、SDK、`.
 - 真实 Slurm 集群上的提交、取消和恢复实验；
 - 公网部署、生产签名和长周期运维可靠性。
 
-Android 联调不强制需要公网服务器，同一可信局域网即可。公网访问应使用 HTTPS 或私网组网，不能直接暴露明文开发接口。具体步骤与限制见 [Android 使用教程](docs/ANDROID_USER_GUIDE.md)。
-
-## 快速开始
+## 安装
 
 Cloudra 需要 Python 3.11 或更新版本，以及 OpenAI 兼容的模型服务。
 
@@ -105,7 +135,6 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[all]"
 cloudra config init
-cloudra run "为这个分子设计一个可复现的构象研究方案"
 ```
 
 开发 checkout 也可以用一键安装脚本：
@@ -115,36 +144,38 @@ cloudra run "为这个分子设计一个可复现的构象研究方案"
 # .\install.ps1              # Windows PowerShell
 ```
 
-如果集群 home 位于 NFS/Lustre，应把 `CLOUDRA_DATA_DIR` 放到具有可靠文件锁的本地磁盘；SQLite WAL 不能充当多主机共享数据库。
+如果集群 home 位于 NFS/Lustre，应把 `CLOUDRA_DATA_DIR` 放到具有可靠文件锁的本地
+磁盘；SQLite WAL 不能充当多主机共享数据库。
 
 ### 联网搜索配置
 
-默认 `native_search=auto`：按 `base_url` + `model` 自动识别并启用服务商侧原生搜索
-（如 DeepSeek 走 Responses API 的 `web_search` 工具，OpenRouter 走 `web` 插件）。
-需要时可用环境变量覆盖：
+默认 `native_search=auto`：按 `base_url` + `model` 自动识别并启用服务商侧原生
+搜索。需要时可用环境变量覆盖：
 
 ```bash
 export CLOUDRA_COORDINATOR__NATIVE_SEARCH=auto        # off / auto / openai / openrouter / deepseek / gemini / custom
 export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # 自定义注入参数（自建中转站用）
 ```
 
-未启用原生搜索时，Agent 使用外部 `web_search` 工具（Tavily / Brave / Bing / DuckDuckGo）
-作为免 key 兜底。启用后外部工具会被剔除，避免双重搜索。
+未启用原生搜索时，Agent 使用外部 `web_search` 工具（Tavily / Brave / Bing /
+DuckDuckGo）作为免 key 兜底。启用后外部工具会被剔除，避免双重搜索。
 
 ## 使用入口
 
 ```bash
 cloudra                              # Linux 交互式 TUI
 cloudra run "TASK"                  # 运行或继续研究任务
+cloudra run "阐明……的反应机理" --orchestration-mode dag_guided
 cloudra sessions                    # 检查持久 Session 状态
 cloudra history                     # 查看 Conversation
 cloudra gui                         # 实验性 Flet GUI（未充分测试，推荐 TUI）
 cloudra-api                         # API Server，默认只监听本机
 ```
 
-Android 远程控制请按 [`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md) 操作。备份恢复、设备撤销和 APK 签名检查见 [`docs/PHASE8_OPERATIONS.md`](docs/PHASE8_OPERATIONS.md)，命令与接口速查见 [`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md)。
+编排模式按会话选择、选定后不可变：`standard`（默认）、`dag_record`、
+`dag_guided`。TUI 里用 `/mode` 选择模式，DAG 屏幕可以查看并编辑两张图。
 
-## 可复现计算示例
+一个最小的 DAG 模式计算流程：
 
 ```bash
 cloudra run "在当前工作区生成苯的 B3LYP/6-31G(d) Gaussian 输入，并记录方法设置"
@@ -152,7 +183,27 @@ cloudra run "异步提交苯的输入文件，并报告 scheduler job identity"
 cloudra run "计算结束后解析日志，给出能量、轨道能隙、频率、警告和文件引用"
 ```
 
-真实计算需要对应科研软件及许可证。Slurm 节点通过验证后的注册表声明，示例见 [`deploy/node-registry.example.json`](deploy/node-registry.example.json)。
+真实计算需要对应科研软件及许可证。Android 远程控制见
+[`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md)，命令与接口速查见
+[`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md)。
+
+## 可复现性
+
+用于科研时，请固定 commit hash，并记录模型、prompt、工具 revision、软件环境和
+计算输入。runtime 会记录每次 prompt 组装的 revision；DAG 会话还会随 session 保存
+Supervisor 模型、prompt revision 与图策略 revision 的快照；每一次图变更的操作者、
+理由和 base revision 都留在 append-only 变更日志里。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md) | DAG 引导编排：双图模型、模式、分权、证据派生 |
+| [`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md) | CLI 命令与 API 端点速查 |
+| [`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md) | API Server、局域网配置、APK 安装、设备端 runtime、故障排查 |
+| [`docs/PHASE8_NODE_REGISTRY.md`](docs/PHASE8_NODE_REGISTRY.md) | 多节点 profile、工作区路由、worker lease、Slurm 语义 |
+| [`docs/PHASE8_OPERATIONS.md`](docs/PHASE8_OPERATIONS.md) | 备份恢复、设备撤销、APK 签名、数据库迁移 |
+| [`AGENTS.md`](AGENTS.md) | 仓库地图与开发约定（面向贡献者） |
 
 ## 仓库结构
 
@@ -171,18 +222,29 @@ cloudra/
 └── ui/, tui/                   人类控制界面
 ```
 
-全部专题文档见 [`docs/`](docs/README.md)。
-
-## 开发、复现与引用
+## 开发
 
 ```bash
-pytest tests -q
-ruff check cloudra tests
+uv run pytest -q tests/            # 全套测试
+uv run ruff check cloudra tests    # lint（line-length 120）
 ```
 
-部分异步 SQLite 测试会暴露特定宿主上的线程回调问题，应分别报告隔离测试与真实 runtime 证据，不能把未正常结束的测试进程当作成功。
+## 引用
 
-Cloudra 目前没有归档 release 或 citation record。用于科研时，请固定 commit hash，并记录模型、prompt、工具 revision、软件环境和计算输入。只有完成对应评测的版本才会加入 citation 文件和 benchmark 报告。
+Cloudra 目前没有归档 release。在归档版本发布前，请连同使用的确切 commit 一起
+引用本仓库：
+
+```bibtex
+@misc{cloudra,
+  title  = {Cloudra: An Evidence-Graph-Guided Agent Runtime for Computational-Chemistry Mechanism Studies},
+  author = {{Cloudra Developers}},
+  year   = {2026},
+  url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},
+  note   = {Commit-pinned research software; see repository README for evaluation status}
+}
+```
+
+只有完成对应评测的版本才会加入正式 citation 文件和 benchmark 报告。
 
 ## 许可证
 
