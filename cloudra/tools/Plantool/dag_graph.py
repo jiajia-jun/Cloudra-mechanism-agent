@@ -94,60 +94,33 @@ class DagGraph(Tool):
     tool_id: str = "t-42"
     tool_name: str = "dag_graph"
     tool_description: str = (
-        "Read or submit validated changes to the persistent process DAG and delivery/mechanism DAG. "
-        "Use only in dag_record or dag_guided sessions. The Coordinator designs the delivery/mechanism "
-        "DAG with mutate; the Supervisor reads both graphs and maintains the process DAG; accepted "
-        "delivery mutations automatically wake the Supervisor to review the plan (拍板) and schedule "
-        "work — only tasks the Supervisor has marked ready in the process frontier may be executed. "
-        "Graph records contain durable pointers, not raw calculation bodies; delivery completion "
-        "remains evidence-derived.\n"
-        "mutate submits one atomic batch: operations are applied in order and validated together, "
-        "so an edge may reference nodes created earlier in the same batch. Each operation is "
-        '{"op": ..., "graph": "process"|"delivery"|null, "data": {...}} with these data shapes:\n'
-        '- add_node: full node — {"node_id", "node_type", "label", "payload"?, "refs"?}. Custom '
-        "attributes (smiles, role, status...) belong in payload; unknown top-level fields are "
-        'rejected. Delivery convention: node_type="occurrence", payload={"role": '
-        '"reactant"|"intermediate"|"product", "smiles": ..., "evidence_level": "proposed"}. '
-        "Process planned-node convention (Supervisor scheduling): payload carries tool_name "
-        "(the exact tool whose call this node schedules), delivery_target_type + "
-        "delivery_target_id (the delivery element its result serves) and evidence_role "
-        "(intermediate_optimization/ts_optimization_frequency/short_irc/endpoint_a_optimization/"
-        "endpoint_b_optimization/endpoint_direction_check/endpoint_identity_match/thermochemistry) "
-        "— only calls bound to such a planned node feed evidence back into the delivery DAG; "
-        "unbound calls stay observed_tool_call records.\n"
-        '- add_edge: full edge — {"edge_id", "source_node_id", "target_node_id", "edge_type", '
-        '"label"?, "payload"?, "refs"?}; both endpoints must exist. Delivery convention: '
-        'edge_type="elementary_step", payload={"evidence_level": "proposed"}.\n'
-        '- remove_edge: {"edge_id"} — both graphs, any endpoint status, but the batch '
-        "rationale is mandatory (the deletion stays in the mutation journal for audit). "
-        "Process-graph removal is executed by the Supervisor: an agent's remove_edge "
-        "request on the process graph is journaled and the Supervisor is woken to "
-        "review it — convince it with your rationale. On the delivery graph the "
-        "designing agent may remove its own edges directly (with rationale).\n"
-        '- update_node / update_edge: {"node_id"|"edge_id", "changes": {...}} on mutable fields '
-        "(label/payload); as a model you may set evidence_level only to proposed/rejected/"
-        "inconclusive — higher levels are derived by the harness from referenced evidence. "
-        "On the process graph an agent may also report status/reason/blocked_reason/"
-        "annotations on nodes whose payload.assignee equals its own agent id.\n"
-        '- attach_ref: {"target_type": "node"|"edge", "target_id": ..., "ref": {"ref_type": '
-        '"artifact"|"compute_job"|"tool_result"|"species", "ref_id": ..., "content_hash": ...}, '
-        '"evidence_role"?}. '
-        "ref_id must be copied from real evidence in this conversation (view output or tool "
-        "results); invented ids are rejected as invalid_reference. When attaching a "
-        "tool_result ref to a delivery element, include evidence_role (the same 8-role "
-        "vocabulary as planned-node binding): the harness then re-runs deterministic "
-        "derivation so retro-attached evidence upgrades the element's evidence_level — "
-        "this is the way to claim evidence produced before the plan existed.\n"
-        '- add_link: {"link_id", "process_node_id", "delivery_element_type": "node"|"edge", '
-        '"delivery_element_id"} with graph=null — links a process task to the delivery element '
-        "it serves.\n"
-        "init_from_template seeds the standard mechanism-study skeleton (allowed only while "
-        "both graphs are empty): process nodes for requirement analysis → skill lookup → "
-        "literature/domain-consensus search → mechanism design, plus reactant/product "
-        "placeholder occurrences on the delivery graph. Fill in species with update_node, "
-        "then add intermediates and elementary steps with mutate.\n"
-        "base_revisions come from your latest view; only the graphs your operations actually "
-        "touch are checked — delivery-only batches may omit process."
+        "Read or submit validated changes to the persistent process DAG and delivery/mechanism "
+        "DAG (dag_record/dag_guided sessions only). The Coordinator designs the delivery DAG; "
+        "the Supervisor maintains the process DAG; accepted delivery mutations wake the "
+        "Supervisor to schedule work — only Supervisor-ready frontier tasks may be executed. "
+        "Graph records hold durable pointers, not calculation bodies; completion is "
+        "evidence-derived.\n"
+        "mutate submits one atomic batch applied in order and validated together, so an edge "
+        "may reference nodes created earlier in the same batch. Each operation is "
+        '{"op": ..., "graph": "process"|"delivery"|null, "data": {...}}; ops: add_node / '
+        "add_edge / remove_edge / update_node / update_edge / attach_ref / add_link. Full "
+        'data shapes: getskill("dag-operations"); a rejected call returns the correct shape '
+        "with the error.\n"
+        "Key constraints:\n"
+        "- evidence_level is harness-derived; a model may only set proposed/rejected/"
+        "inconclusive. Planned nodes whose payload carries tool_name + delivery_target_type + "
+        "delivery_target_id + evidence_role bind tool calls to delivery elements; unbound "
+        "calls stay observed_tool_call records.\n"
+        "- attach_ref ref_ids must be copied from real evidence in this conversation; invented "
+        "ids are rejected. Attach a tool_result to a delivery element with evidence_role to "
+        "claim pre-plan evidence (the harness re-derives the element's level).\n"
+        "- remove_edge works on both graphs but the batch rationale is mandatory; on the "
+        "process graph the Supervisor executes the removal after reviewing your rationale.\n"
+        "- base_revisions come from your latest view; only touched graphs are checked — "
+        "delivery-only batches may omit process.\n"
+        "init_from_template seeds the standard mechanism-study skeleton on empty graphs "
+        "(analysis → skill lookup → literature → mechanism design, plus reactant/product "
+        "slots); fill species with update_node, then extend with mutate."
     )
     input_schema: Any = DagGraphInput
     output_schema: Any = DagGraphOutput

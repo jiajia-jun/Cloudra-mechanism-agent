@@ -30,7 +30,7 @@ Conversation、Agent Session、工具调用、审批、交互、artifact 和计�
 
 ### 以证据为中心的协作
 
-Coordinator 把研究目标拆给文献、分子量化、周期 DFT、分子动力学、实验、环境管理和写作等领域角色。Supervisor 审阅轨迹并提取可复用案例。研究结果保留与 Session 事件、工具输出、计算文件和不可变 artifact 的关联，而不是只剩一段最终回答。
+Coordinator 把研究目标拆给文献、分子量化、周期 DFT、分子动力学、实验、环境管理和写作等领域角色。会话可以按任务开启 DAG 引导编排：harness 持久化一张 process DAG（下一步该做什么）和一张 delivery/机理 DAG（已经确立了什么），Supervisor 维护 process DAG，交付完成度由引用证据确定性派生，而不是由模型声明。研究结果保留与 Session 事件、工具输出、计算文件和不可变 artifact 的关联，而不是只剩一段最终回答。
 
 ### 上下文组装保证可复现
 
@@ -158,14 +158,13 @@ cloudra run "计算结束后解析日志，给出能量、轨道能隙、频率�
 
 ```text
 cloudra/
-├── agent.py, react.py          推理与协作编排
-├── runtime/                    Session runner、worker 与 prompt 组装
+├── core/                       推理循环、Agent 角色、Supervisor
+├── services/                   应用服务层与 FastAPI 控制面
+├── persistence/                SQLite 持久化、artifact、记忆、路径
+├── base/                       数据类与加载器基类
+├── infra/                      配置、LLM 传输、事件、平台支撑
 ├── dag/                        DAG 引导编排（可选，按会话开启）
-├── service.py                  应用服务层（CLI/API 共用）
-├── session_store.py            持久状态迁移与 lease
-├── api.py, api_v1.py           本地和远程控制面
-├── nodes.py, slurm.py          能力路由与 HPC 执行
-├── artifacts.py                不可变科研产物
+├── runtime/                    Session runner、worker 与 prompt 组装
 ├── device/                     Android 能力注册与 runtime
 ├── tools/, subagents/          显式科研能力与领域角色
 ├── skills/, prompts/           科研方法与角色策略

@@ -16,6 +16,7 @@
 | 文档 | 内容 | 当前状态 |
 | --- | --- | --- |
 | [`PHASE8_NODE_REGISTRY.md`](PHASE8_NODE_REGISTRY.md) | 多服务器 profile、节点/工作区路由、能力命名空间、worker lease、Slurm 恢复语义 | 当前实现说明；物理多节点 gateway 待后续验证 |
+| [`DAG_ORCHESTRATION.md`](DAG_ORCHESTRATION.md) | DAG 引导编排：双图模型、三模式消融边界、分权与证据派生、Supervisor 触发 | 当前实现说明；按会话 opt-in |
 | `CLOUDRA_CLOUD_ANDROID_ARCHITECTURE_PLAN.md`（当前开发环境次要目录） | Cloud Agent 与 Android 重构的完整设计和 Phase 0-8 路线 | 尚未纳入仓库；并非全部条目都代表已验收 |
 
 那份架构计划还在开发环境的次要目录，不会随 Python 包一起发布。如果要放到公开仓库引用，先整理成仓库内的稳定文档，不要引用某台机器上的绝对路径。

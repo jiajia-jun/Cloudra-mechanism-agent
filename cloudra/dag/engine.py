@@ -451,7 +451,11 @@ class DagEngine:
             touched.add(GraphKind.DELIVERY)
             return
         if operation.graph is None:
-            raise _Rejected("invalid_operation", f"{operation.op} requires a graph")
+            raise _Rejected(
+                "invalid_operation",
+                f"{operation.op} requires a graph ('process' or 'delivery'; "
+                "only add_link uses graph=null)",
+            )
         state = states[operation.graph]
         data = operation.data
 
@@ -520,7 +524,12 @@ class DagEngine:
             self._add_link(states, links, data)
             touched.update({GraphKind.PROCESS, GraphKind.DELIVERY})
             return
-        raise _Rejected("invalid_operation", f"unsupported operation {operation.op}")
+        raise _Rejected(
+            "invalid_operation",
+            f"unsupported operation {operation.op}; supported: add_node, add_edge, "
+            "remove_edge, update_node, update_edge, attach_ref, add_link "
+            '(data shapes: getskill("dag-operations"))',
+        )
 
     @staticmethod
     def _check_agent_process_access(
@@ -631,7 +640,12 @@ class DagEngine:
             _canonical_json(data)
             return DagNode(**data)
         except (TypeError, ValueError) as exc:
-            raise _Rejected("invalid_operation", f"invalid node: {exc}") from exc
+            raise _Rejected(
+                "invalid_operation",
+                f"invalid node: {exc}. add_node data shape: "
+                '{"node_id", "node_type", "label", "payload"?, "refs"?} — custom '
+                "attributes belong in payload; unknown top-level fields are rejected.",
+            ) from exc
 
     @staticmethod
     def _parse_edge(data: dict[str, Any]) -> DagEdge:
@@ -639,7 +653,12 @@ class DagEngine:
             _canonical_json(data)
             return DagEdge(**data)
         except (TypeError, ValueError) as exc:
-            raise _Rejected("invalid_operation", f"invalid edge: {exc}") from exc
+            raise _Rejected(
+                "invalid_operation",
+                f"invalid edge: {exc}. add_edge data shape: "
+                '{"edge_id", "source_node_id", "target_node_id", "edge_type", '
+                '"label"?, "payload"?, "refs"?} — both endpoints must exist.',
+            ) from exc
 
     def _apply_update(
         self,
@@ -655,7 +674,11 @@ class DagEngine:
         if element_id not in elements:
             raise _Rejected("missing_target", f"{id_key} {element_id!r} does not exist")
         if not isinstance(changes, dict) or not changes:
-            raise _Rejected("invalid_operation", "update requires non-empty changes")
+            raise _Rejected(
+                "invalid_operation",
+                "update requires non-empty changes, e.g. "
+                f'{{"{id_key}": ..., "changes": {{"label": ..., "<payload-key>": ...}}}}',
+            )
         forbidden = set(changes) & _IMMUTABLE_UPDATE_FIELDS
         if forbidden:
             code = "actor_forbidden" if actor is GraphActor.SUPERVISOR else "immutable_field"
@@ -699,7 +722,13 @@ class DagEngine:
         try:
             ref = GraphRef.model_validate(operation.data.get("ref"))
         except (TypeError, ValueError) as exc:
-            raise _Rejected("invalid_reference", str(exc)) from exc
+            raise _Rejected(
+                "invalid_reference",
+                f"{exc}. ref shape: "
+                '{"ref_type": "artifact"|"compute_job"|"tool_result"|"species", '
+                '"ref_id": <copied from real evidence in this conversation>, '
+                '"content_hash": ...}.',
+            ) from exc
         if target_type == "node":
             elements = state.nodes
             cls = DagNode
@@ -707,7 +736,12 @@ class DagEngine:
             elements = state.edges
             cls = DagEdge
         else:
-            raise _Rejected("invalid_operation", "attach_ref target_type must be node or edge")
+            raise _Rejected(
+                "invalid_operation",
+                "attach_ref data shape: "
+                '{"target_type": "node"|"edge", "target_id": ..., "ref": {...}, '
+                '"evidence_role"?} — target_type must be node or edge.',
+            )
         if target_id not in elements:
             raise _Rejected("missing_target", f"target {target_id!r} does not exist")
         serialized = elements[target_id].model_dump(mode="json")
@@ -725,7 +759,12 @@ class DagEngine:
     ) -> None:
         required = {"link_id", "process_node_id", "delivery_element_type", "delivery_element_id"}
         if not required <= set(data):
-            raise _Rejected("invalid_operation", "add_link is missing required fields")
+            raise _Rejected(
+                "invalid_operation",
+                "add_link is missing required fields: link_id, process_node_id, "
+                'delivery_element_type ("node"|"edge"), delivery_element_id '
+                "(graph=null).",
+            )
         if data["link_id"] in links["items"]:
             raise _Rejected("duplicate_id", f"link {data['link_id']!r} already exists")
         if data["process_node_id"] not in states[GraphKind.PROCESS].nodes:

@@ -9,6 +9,7 @@ cloudra --version
 cloudra                       # Linux TUI；Windows/Android 默认 GUI
 cloudra gui
 cloudra run "TASK" [--new] [--conv-id ID] [--dry-run] [--yolo]
+                   [--orchestration-mode standard|dag_record|dag_guided]
 
 cloudra config init
 cloudra config show
@@ -48,6 +49,13 @@ cloudra-api
 
 - `/api/v1/profile`、`/api/v1/nodes`、`/api/v1/workspaces`；
 - `/api/v1/conversations` 与其 Session、消息和 event stream；
+- DAG 编排（会话创建时以 `orchestration_mode` 选择，之后不可变）：
+  `/api/conversations/{id}/dag/projection`（有界投影）、
+  `/api/conversations/{id}/dag/graphs/{process|delivery}`（子图）、
+  `/api/conversations/{id}/dag/delivery-report`（交付覆盖报告）、
+  `/api/conversations/{id}/dag/history`（变更日志）、
+  `/api/conversations/{id}/dag/mutations`（用户变更批次）、
+  `/api/conversations/{id}/dag/replan`（请求重新规划，仅 dag_guided）；
 - interactions、approvals、artifacts 及短期下载 token；
 - pairing、devices、heartbeat 和 device tool invocation；
 - `/api/operations/status` 的低基数运维状态。

@@ -26,7 +26,7 @@ Cloudra is built around these constraints instead of being layered on top of a g
 
 Cloudra treats each research objective as a durable Session. Conversation history, tool invocations, approvals, interactions, artifacts, and compute jobs are stored as records. Events wake workers and stream updates, but the database remains authoritative. Commands are idempotent and event cursors let clients reconnect without replaying an action that has already been applied. Worker ownership is represented by renewable leases with bounded retry and a terminal state.
 
-A Coordinator breaks a research objective into subtasks and delegates them to explicit domain roles: literature, molecular quantum chemistry, periodic DFT, molecular dynamics, experiments, environment management, and writing. A Supervisor reviews trajectories and extracts reusable cases. Results stay linked to Session events, tool outputs, calculation files, and immutable artifacts rather than being collapsed into a final prose answer.
+A Coordinator breaks a research objective into subtasks and delegates them to explicit domain roles: literature, molecular quantum chemistry, periodic DFT, molecular dynamics, experiments, environment management, and writing. A session can opt into DAG-guided orchestration: the harness then persists a process DAG (what should be done next) and a delivery/mechanism DAG (what has actually been established), a Supervisor maintains the process DAG, and delivery completion is derived deterministically from referenced evidence rather than model claims. Results stay linked to Session events, tool outputs, calculation files, and immutable artifacts rather than being collapsed into a final prose answer.
 
 Before each model request, Cloudra reassembles the active role, project policy, memory, selected skills, and complete tool schemas. Revisions are recorded in diagnostics. Environment observations and file changes are kept separate from identity prompts and conversation history. That makes prompt drift visible and prevents an old experiment from being silently rewritten when the runtime changes.
 
@@ -160,12 +160,13 @@ Real calculations require the corresponding scientific software and licences. Sl
 
 ```text
 cloudra/
-├── agent.py, react.py          reasoning and orchestration
-├── runtime/                    Session runners, workers, prompt assembly
-├── session_store.py            durable state transitions and leases
-├── api.py, api_v1.py           local and remote control surfaces
-├── nodes.py, slurm.py          capability routing and HPC execution
-├── artifacts.py                immutable research outputs
+├── core/                       reasoning loop, agent roles, supervisor
+├── services/                   application service layer and FastAPI control plane
+├── persistence/                SQLite store, artifacts, memory, paths
+├── base/                       dataclasses and loader base types
+├── infra/                      config, LLM transport, events, platform support
+├── dag/                        DAG-guided orchestration (opt-in per session)
+├── runtime/                    session runners, workers, prompt assembly
 ├── device/                     Android capability registry and runtime
 ├── tools/, subagents/          explicit scientific capabilities and roles
 ├── skills/, prompts/           research methods and role policies
