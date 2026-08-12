@@ -68,6 +68,10 @@
 - **文件操作**：默认限制在当前工作目录。
 - **命令执行**：不让 Bash 执行高危破坏性操作，只让 Filetool 删除。
 
+## 批量并行派发（SubAgentSwarm）
+
+同一角色、同构任务、≥2 项并行时用 `SubAgentSwarm`，不要连发多个 SubAgentLauncher：`prompt_template` 必须含 `{{item}}` 占位符，`items`（2–128 项）逐项展开成同角色实例；模板写全目标、绝对路径、允许/禁止的工具、输出与验收标准（实例看不到你的上下文）；`max_concurrency` 限并发（大内存计算必设），`is_wait=False` 只发射，事后用 `get_subagent_report` 回取；任务有重叠风险时提醒实例先查 AgentHub。
+
 ## 子 Agent 速查表
 
 派工传 agent_id（如 a-4），不能传角色名；同一 id 可对不同任务重复派发以并行。
