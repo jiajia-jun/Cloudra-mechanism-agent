@@ -638,15 +638,18 @@ class ConformerSearch(Tool):
             return ConformerSearch_output_schema(is_success=False, message=f"CREST 后端失败: {e}")
 
     async def tool_call(self, user_input: ConformerSearch_input_schema, session: Session) -> ConformerSearch_output_schema:
+        import asyncio
+
+        # CREST / RDKit 都是同步 CPU/子进程；必须离开 UI 事件循环，否则 TUI 假死。
         if user_input.backend == "crest":
-            return self._run_crest(user_input)
+            return await asyncio.to_thread(self._run_crest, user_input)
 
         if not _RDKIT_AVAILABLE:
             return ConformerSearch_output_schema(
                 is_success=False,
                 message="环境未安装 RDKit 库。请执行: pip install 'cloudra[chem]'"
             )
-        return self._run_rdkit(user_input)
+        return await asyncio.to_thread(self._run_rdkit, user_input)
 
 
 def get_class():

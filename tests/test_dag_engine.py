@@ -7,10 +7,26 @@ def _load_engine_api():
     try:
         from cloudra.dag.engine import DagEngine
         from cloudra.dag.models import (
+            AddEdge,
+            AddLink,
+            AddNode,
+            AttachRef,
+            CoverageContract,
+            CoverageWaiver,
+            DependencyEdge,
+            ElementaryStepEdge,
             GraphActor,
-            GraphOperation,
             GraphRef,
             MutationBatch,
+            ObservedNode,
+            OccurrenceNode,
+            PlannedNode,
+            RemoveEdge,
+            SetCoverageContract,
+            UpdateEdge,
+            UpdateNode,
+            WaiveGate,
+            parse_graph_operation,
         )
         from cloudra.dag.store import DagStore
     except (ImportError, ModuleNotFoundError) as exc:
@@ -19,9 +35,25 @@ def _load_engine_api():
         "DagEngine": DagEngine,
         "DagStore": DagStore,
         "GraphActor": GraphActor,
-        "GraphOperation": GraphOperation,
         "GraphRef": GraphRef,
         "MutationBatch": MutationBatch,
+        "AddNode": AddNode,
+        "AddEdge": AddEdge,
+        "RemoveEdge": RemoveEdge,
+        "UpdateNode": UpdateNode,
+        "UpdateEdge": UpdateEdge,
+        "AttachRef": AttachRef,
+        "AddLink": AddLink,
+        "SetCoverageContract": SetCoverageContract,
+        "WaiveGate": WaiveGate,
+        "PlannedNode": PlannedNode,
+        "ObservedNode": ObservedNode,
+        "OccurrenceNode": OccurrenceNode,
+        "DependencyEdge": DependencyEdge,
+        "ElementaryStepEdge": ElementaryStepEdge,
+        "CoverageContract": CoverageContract,
+        "CoverageWaiver": CoverageWaiver,
+        "parse_graph_operation": parse_graph_operation,
     }
 
 
@@ -33,8 +65,88 @@ def _new_engine(tmp_path, conversation_id="dag-engine"):
     return api, db, store, api["DagEngine"](store)
 
 
+_PROCESS_NODE_TYPES = {"work", "calculation", "workflow", "planned_tool_call", "planned"}
+_DELIVERY_NODE_TYPES = {"occurrence", "intermediate_occurrence", "deliverable"}
+
+
+def _element(cls, kwargs):
+    """旧 payload 自由字典 → 显式字段 kwargs；非字段键归入 metadata。"""
+    kwargs = dict(kwargs)
+    payload = kwargs.pop("payload", None) or {}
+    merged = {**payload, **kwargs}
+    fields = set(cls.model_fields)
+    known = {key: value for key, value in merged.items() if key in fields}
+    extras = {key: value for key, value in merged.items() if key not in fields}
+    if extras:
+        known["metadata"] = {**extras, **known.get("metadata", {})}
+    return cls(**known)
+
+
+def _node(api, node_type, **kwargs):
+    if node_type in _PROCESS_NODE_TYPES:
+        cls = api["PlannedNode"]
+    elif node_type == "observed_tool_call":
+        cls = api["ObservedNode"]
+    elif node_type in _DELIVERY_NODE_TYPES:
+        cls = api["OccurrenceNode"]
+    else:
+        raise ValueError(f"unknown node_type {node_type!r}")
+    return _element(cls, kwargs)
+
+
+def _edge(api, edge_type, **kwargs):
+    if edge_type in ("depends_on", "dependency"):
+        cls = api["DependencyEdge"]
+    elif edge_type == "elementary_step":
+        cls = api["ElementaryStepEdge"]
+    else:
+        raise ValueError(f"unknown edge_type {edge_type!r}")
+    return _element(cls, kwargs)
+
+
 def _op(api, name, graph=None, **data):
-    return api["GraphOperation"](op=name, graph=graph, data=data)
+    if name == "add_node":
+        data = dict(data)
+        node_type = data.pop("node_type")
+        return api["AddNode"](op="add_node", graph=graph, node=_node(api, node_type, **data))
+    if name == "add_edge":
+        data = dict(data)
+        edge_type = data.pop("edge_type")
+        return api["AddEdge"](op="add_edge", graph=graph, edge=_edge(api, edge_type, **data))
+    if name == "remove_edge":
+        return api["RemoveEdge"](op="remove_edge", graph=graph, edge_id=data["edge_id"])
+    if name == "update_node":
+        return api["UpdateNode"](
+            op="update_node", graph=graph, node_id=data["node_id"], changes=data["changes"]
+        )
+    if name == "update_edge":
+        return api["UpdateEdge"](
+            op="update_edge", graph=graph, edge_id=data["edge_id"], changes=data["changes"]
+        )
+    if name == "attach_ref":
+        return api["AttachRef"](
+            op="attach_ref",
+            graph=graph,
+            target_type=data["target_type"],
+            target_id=data["target_id"],
+            ref=api["GraphRef"](**data["ref"]),
+            evidence_role=data.get("evidence_role"),
+        )
+    if name == "add_link":
+        return api["AddLink"](op="add_link", graph=None, **data)
+    if name == "set_coverage_contract":
+        contract = data["contract"]
+        if isinstance(contract, dict):
+            contract = api["CoverageContract"](**contract)
+        return api["SetCoverageContract"](
+            op="set_coverage_contract", graph=None, contract=contract
+        )
+    if name == "waive_gate":
+        waiver = data["waiver"]
+        if isinstance(waiver, dict):
+            waiver = api["CoverageWaiver"](**waiver)
+        return api["WaiveGate"](op="waive_gate", graph=None, waiver=waiver)
+    raise ValueError(f"unknown op {name!r}")
 
 
 def _batch(api, store, operations, *, actor="harness", base_revisions=None,
@@ -259,7 +371,20 @@ def test_supervisor_cannot_waive_gate_or_claim_overall_completion(tmp_path):
         _batch(
             api,
             store,
-            [_op(api, "waive_gate", None, gate_id="endpoint", rationale="looks fine")],
+            [
+                _op(
+                    api,
+                    "waive_gate",
+                    waiver={
+                        "gate_code": "endpoint",
+                        "target_type": "graph",
+                        "target_id": "delivery",
+                        "user_id": "test-user",
+                        "session_id": "s1",
+                        "rationale": "looks fine",
+                    },
+                )
+            ],
             actor="supervisor",
         )
     )
@@ -273,7 +398,7 @@ def test_supervisor_cannot_waive_gate_or_claim_overall_completion(tmp_path):
                     "add_node",
                     "process",
                     node_id="root",
-                    node_type="deliverable",
+                    node_type="calculation",
                     label="mechanism",
                     payload={"overall_complete": True},
                 )
@@ -396,7 +521,7 @@ def test_model_actors_cannot_forge_evidence_derived_levels(tmp_path, actor):
     assert not forged.accepted
     assert forged.rejection_code == "actor_forbidden"
     edge = engine.snapshot().delivery.edges[0]
-    assert edge.payload == {"evidence_level": "proposed"}
+    assert edge.evidence_level == "proposed"
 
     prevalidated = engine.apply_batch(
         _batch(
@@ -554,7 +679,9 @@ def test_operation_vocabulary_has_no_delete(tmp_path):
     api, _db, _store, _engine = _new_engine(tmp_path, "no-delete")
 
     with pytest.raises(ValueError):
-        api["GraphOperation"](op="delete_node", graph="delivery", data={"node_id": "n1"})
+        api["parse_graph_operation"](
+            {"op": "delete_node", "graph": "delivery", "data": {"node_id": "n1"}}
+        )
 
 
 def test_supervisor_is_read_only_on_delivery_but_may_link(tmp_path):
@@ -599,7 +726,7 @@ def test_supervisor_is_read_only_on_delivery_but_may_link(tmp_path):
             store,
             [
                 _op(
-                    api, "add_link", "process",
+                    api, "add_link", None,
                     link_id="lk-1",
                     process_node_id="ts-search",
                     delivery_element_type="node",
@@ -831,3 +958,75 @@ def test_agent_manages_only_own_assigned_process_nodes(tmp_path):
     )
     assert not structure.accepted
     assert structure.rejection_code == "actor_forbidden"
+
+
+def test_process_status_out_of_vocabulary_rejected_with_wordlist(tmp_path):
+    """回归：Supervisor 写 status="pending" 的 planned 节点既不进 frontier 也不进
+    blockers，从排产视野消失（executor 只能自由发挥）。词表由类型系统把守：
+    add 路径 schema Literal 直接拒绝（不再做同义词归一化，迁就错误拼写只会让
+    它继续扩散）；update 路径引擎拒绝并在 reason 里报出词表，让模型一步自纠。"""
+    from pydantic import ValidationError
+
+    api, _db, store, engine = _new_engine(tmp_path, "status-vocab")
+
+    # add 路径：词表外的 status 在构造节点时被 schema 拒绝
+    with pytest.raises(ValidationError):
+        api["PlannedNode"](node_id="w1", label="optfreq", status="pending")
+
+    added = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "process", node_id="w1", node_type="calculation",
+                label="optfreq", payload={"status": "proposed"}),
+        ], actor="supervisor")
+    )
+    assert added.accepted
+    node = engine.snapshot().process.nodes[0]
+    assert node.status == "proposed"
+
+    updated = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "update_node", "process", node_id="w1",
+                changes={"status": "succeeded"}),
+        ], actor="supervisor")
+    )
+    assert updated.accepted
+    node = engine.snapshot().process.nodes[0]
+    assert node.status == "succeeded"
+
+    rejected = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "update_node", "process", node_id="w1",
+                changes={"status": "kind-of-done"}),
+        ], actor="supervisor")
+    )
+    assert not rejected.accepted
+    assert rejected.rejection_code == "invalid_status"
+    assert "proposed" in (rejected.rejection_reason or "")
+    node = engine.snapshot().process.nodes[0]
+    assert node.status == "succeeded"
+
+
+def test_model_update_rejection_names_offending_fields(tmp_path):
+    """回归：changes 带白名单外字段（如 note）被整批拒时，reason 必须点名违规
+    字段并给出白名单——否则模型只能盲目重试烧掉轮次预算。"""
+    api, _db, store, engine = _new_engine(tmp_path, "mutable-fields")
+
+    engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "process", node_id="w1", node_type="calculation",
+                label="optfreq", payload={"status": "proposed"}),
+        ], actor="supervisor")
+    )
+    rejected = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "update_node", "process", node_id="w1",
+                changes={"status": "ready", "note": "解锁为可执行"}),
+        ], actor="supervisor")
+    )
+
+    assert not rejected.accepted
+    assert rejected.rejection_code == "actor_forbidden"
+    reason = rejected.rejection_reason or ""
+    assert "note" in reason
+    assert "annotations" in reason
+

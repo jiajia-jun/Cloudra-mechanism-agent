@@ -68,7 +68,7 @@ async def test_desktop_waiting_subagent_defaults_to_in_process(isolated_runtime,
 
     calls: list[tuple[int, str, str]] = []
 
-    async def fake_run_executor(task_id: int, database_path: str, session_id: str):
+    async def fake_run_executor(task_id: int, database_path: str, session_id: str, **_kwargs):
         calls.append((task_id, database_path, session_id))
         db = ConversationDB.from_path(database_path)
         session_store.create_session_record(

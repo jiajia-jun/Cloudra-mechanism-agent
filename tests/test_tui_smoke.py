@@ -53,7 +53,7 @@ async def test_tui_smoke(monkeypatch):
     run_calls = []
     cancelled = asyncio.Event()
 
-    async def fake_inject(conversation_id, agent_id, event_type, content, db_path=None):
+    async def fake_inject(conversation_id, agent_id, event_type, content, db_path=None, session_id=None, **_kwargs):
         injected.append((agent_id, event_type, content))
 
     monkeypatch.setattr(
@@ -233,7 +233,7 @@ async def test_pending_approval_queue_sequential_resolution(monkeypatch):
     tui.conversation_id = "conv-queue"
     decided = []
 
-    async def fake_decide_approval(conv_id, approval_id, decision, reason):
+    async def fake_decide_approval(conv_id, approval_id, decision, reason, **_kwargs):
         decided.append((approval_id, decision))
         return True
 

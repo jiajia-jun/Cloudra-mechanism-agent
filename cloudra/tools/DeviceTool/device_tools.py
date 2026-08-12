@@ -26,8 +26,11 @@ async def _invoke_device(
 ) -> dict:
     conversation_id = getattr(tool.subagent, "conversation_id", "default")
     db = ConversationDB(conversation_id)
-    broker = DeviceBroker()
-    invocation = broker.create_invocation(
+    # DeviceBroker 是独立库的同步类（整体异步化不在本次范围），构造与方法
+    # 调用一律包 asyncio.to_thread，避免在事件循环线程上同步 sqlite 忙等。
+    broker = await asyncio.to_thread(DeviceBroker)
+    invocation = await asyncio.to_thread(
+        broker.create_invocation,
         conversation_id=conversation_id,
         session_id=session.id,
         tool_name=tool_name,
@@ -37,14 +40,14 @@ async def _invoke_device(
         ttl_seconds=ttl_seconds,
     )
     tool_call_id = invocation["tool_call_id"]
-    changed = session_store.transition_session_state(
+    changed = await session_store.atransition_session_state(
         db,
         session.id,
         expected={"running"},
         target="waiting_for_device",
     )
     if changed:
-        session_store.insert_session_event(
+        await session_store.ainsert_session_event(
             db,
             session.id,
             "waiting_for_device",
@@ -57,7 +60,7 @@ async def _invoke_device(
         )
     try:
         while True:
-            current = broker.get_invocation(tool_call_id)
+            current = await asyncio.to_thread(broker.get_invocation, tool_call_id)
             if current["state"] in {
                 "succeeded",
                 "failed",
@@ -66,10 +69,11 @@ async def _invoke_device(
                 "cancelled",
             }:
                 return current
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(0.5)
     except asyncio.CancelledError:
         try:
-            broker.finish(
+            await asyncio.to_thread(
+                broker.finish,
                 invocation["device_id"],
                 tool_call_id,
                 status="cancelled",
@@ -79,14 +83,14 @@ async def _invoke_device(
             pass
         raise
     finally:
-        restored = session_store.transition_session_state(
+        restored = await session_store.atransition_session_state(
             db,
             session.id,
             expected={"waiting_for_device"},
             target="running",
         )
         if restored:
-            session_store.insert_session_event(
+            await session_store.ainsert_session_event(
                 db,
                 session.id,
                 "running",

@@ -52,6 +52,70 @@ async def _wake_coordinator(database_path: str, input_data: dict, content: str) 
         print(f"[executor] 事件注入失败: {e}")
 
 
+async def _backfill_dag_assignee_nodes(
+    db: ConversationDB,
+    session_id: str,
+    agent_id: str,
+    final_state: str,
+    error: str = None,
+    orchestration_mode: str = 'standard',
+) -> None:
+    """子 Agent 终态 → process 图指派节点的确定性补写。
+
+    只补 ``payload.assignee == agent_id`` 且仍停在 ready/running 的 planned 节点：
+    done → succeeded；failed/cancelled → failed（blocked_reason 取 error 前 200
+    字符）。on_tool_finished 的绑定回报与子 agent 手动 update_node 都不动——
+    这里只兜住"子进程结束了但节点没人收尾"的情况。standard 会话零开销直接返回；
+    补写失败只打日志，不影响收尾主路径。
+    """
+    from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
+
+    if normalize_orchestration_mode(orchestration_mode) is OrchestrationMode.STANDARD:
+        return
+
+    def _apply() -> None:
+        from cloudra.dag.controller import DagController
+        from cloudra.dag.models import UpdateNode
+        from cloudra.dag.store import DagStore, GraphBundleNotFound
+
+        store = DagStore(db)
+        try:
+            snapshot = store.load_snapshot()
+        except GraphBundleNotFound:
+            return  # 该 conversation 还没建图
+        node_status = 'succeeded' if final_state == 'done' else 'failed'
+        operations = []
+        for node in snapshot.process.nodes:
+            if node.node_type == 'observed_tool_call':
+                continue  # harness 遥测记录不是排产工作，不由子 agent 收尾
+            if node.assignee != agent_id:
+                continue
+            if node.status not in {'ready', 'running'}:
+                continue
+            changes = {'status': node_status}
+            if node_status == 'failed' and error:
+                changes['blocked_reason'] = error[:200]
+            operations.append(UpdateNode(
+                op='update_node',
+                graph='process',
+                node_id=node.node_id,
+                changes=changes,
+            ))
+        if not operations:
+            return
+        # harness 通道写入：actor=HARNESS 不受按图分权限制，自带 stale 重试
+        DagController(db, session_id, orchestration_mode)._apply_harness(
+            operations,
+            f"sub-agent {agent_id} ended with {final_state}; "
+            "deterministic assignee status backfill",
+        )
+
+    try:
+        await asyncio.to_thread(_apply)
+    except Exception as exc:
+        print(f"[executor] DAG 终态补写失败（已忽略）: {exc}")
+
+
 async def _pending_reminder_count(db: ConversationDB, conv_id: str, agent_id: str, session_id: str = None) -> int:
     """本 Agent 本 session 仍待触发的 schedule 提醒数（含无 session 的旧提醒）。"""
 
@@ -98,6 +162,23 @@ async def _seconds_until_own_reminder(db: ConversationDB, conv_id: str, agent_id
     if not row or row[0] is None:
         return None
     return max(0.0, float(row[0]) - time.time())
+
+
+async def _session_heartbeat(db: ConversationDB, session_id: str | None) -> None:
+    """子 Agent session 的存活心跳（5s，对齐 service 侧 `_heartbeat`）。
+
+    executor 是独立子进程，没有 service 的心跳任务；缺了它，挂起等待提醒
+    （waiting）或长任务运行中的活体 session 心跳静止，会被 recover_stale
+    误判成僵尸标 interrupted。心跳是 best-effort，失败绝不杀死主流程。
+    """
+    if not session_id:
+        return
+    while True:
+        await asyncio.sleep(5)
+        try:
+            await session_store.aheartbeat(db, session_id)
+        except Exception:
+            pass
 
 
 async def _run_with_reminder_waits(sub_reAct, db: ConversationDB, conv_id: str, agent_id: str):
@@ -209,6 +290,9 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
 
     # 3. 执行任务
     print(f"--- Agent {sub_agent.name} 启动 (PID: {os.getpid()}) ---")
+    heartbeat = asyncio.create_task(
+        _session_heartbeat(db, getattr(getattr(sub_reAct, "session", None), "id", None))
+    )
     try:
         async def wait_for_user(prompt: str) -> str:
             from cloudra.services.interactions import wait_for_user_response
@@ -228,6 +312,10 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
 
         # 4. 统一收尾：落库 done，并注入事件唤醒 Coordinator（结论截断 500 字符）
         await _finalize_task(db, task_id, session_id, 'done')
+        await _backfill_dag_assignee_nodes(
+            db, session_id, agent_id, 'done',
+            orchestration_mode=input_data.get('orchestration_mode', 'standard'),
+        )
         await _wake_coordinator(
             database_path,
             input_data,
@@ -237,6 +325,10 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         # 用户打断：reAct.run 已把 session 标为 cancelled，这里同步 subagent_requests
         print(f"--- Agent {sub_agent.name} 已被用户打断 ---")
         await _finalize_task(db, task_id, session_id, 'cancelled')
+        await _backfill_dag_assignee_nodes(
+            db, session_id, agent_id, 'cancelled',
+            orchestration_mode=input_data.get('orchestration_mode', 'standard'),
+        )
         await _wake_coordinator(
             database_path,
             input_data,
@@ -249,12 +341,18 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         error_message = str(e)
 
         await _finalize_task(db, task_id, session_id, 'failed', error=error_message)
+        await _backfill_dag_assignee_nodes(
+            db, session_id, agent_id, 'failed', error=error_message,
+            orchestration_mode=input_data.get('orchestration_mode', 'standard'),
+        )
         # 事件内容截断 500 字符；session.error 保留完整错误
         await _wake_coordinator(
             database_path,
             input_data,
             f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 执行失败: {error_message[:500]}",
         )
+    finally:
+        heartbeat.cancel()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

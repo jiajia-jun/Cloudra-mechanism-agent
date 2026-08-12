@@ -251,6 +251,83 @@ def test_get_log_path():
     assert get_log_path("/tmp/test.inp", job_type="cp2k") == "/tmp/test.out"
 
 
+def test_allocate_gaussian_scratch_is_unique_and_safe_to_clean(tmp_path, monkeypatch):
+    """并行任务必须落到 cloudra_g16_* 子目录；清理不得误删全局 SCRDIR。"""
+    from cloudra.infra.compute_utils import (
+        allocate_gaussian_scratch,
+        cleanup_gaussian_scratch,
+    )
+
+    shared = tmp_path / "Utsu"
+    shared.mkdir()
+    marker = shared / "keep_me"
+    marker.write_text("x", encoding="utf-8")
+    monkeypatch.setenv("GAUSS_SCRDIR", str(shared))
+
+    a = allocate_gaussian_scratch(7, str(tmp_path / "job_a"))
+    b = allocate_gaussian_scratch(8, str(tmp_path / "job_b"))
+    assert a != b
+    assert a.parent == shared
+    assert a.name.startswith("cloudra_g16_task7_")
+    assert b.name.startswith("cloudra_g16_task8_")
+    (a / "Gau-1.inp").write_text("fake", encoding="utf-8")
+
+    cleanup_gaussian_scratch(a)
+    assert not a.exists()
+    assert shared.exists()
+    assert marker.exists()
+    # 拒绝清理非 cloudra_g16_* 路径
+    cleanup_gaussian_scratch(shared)
+    assert shared.exists()
+
+
+def test_calculator_script_isolates_shared_gauss_scrdir(tmp_path, monkeypatch):
+    """回归：共用 GAUSS_SCRDIR 时 calculator 必须把 g16 关进独立子目录。"""
+    from cloudra.infra.platform_utils import get_bash_path
+
+    bash = get_bash_path()
+    if not bash:
+        pytest.skip("bash unavailable")
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    g16 = bindir / "g16"
+    g16.write_text(
+        "#!/bin/bash\n"
+        "echo \"SCR=$GAUSS_SCRDIR\"\n"
+        "test -d \"$GAUSS_SCRDIR\" || exit 2\n"
+        "base=\"${1%.gjf}\"\n"
+        "printf 'ok\\n' > \"${base}.log\"\n",
+        encoding="utf-8",
+    )
+    g16.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bindir) + os.pathsep + os.environ.get("PATH", ""))
+
+    shared = tmp_path / "Utsu"
+    shared.mkdir()
+    monkeypatch.setenv("GAUSS_SCRDIR", str(shared))
+
+    gjf = tmp_path / "h2.gjf"
+    gjf.write_text(
+        "#p hf/sto-3g\n\ntitle\n\n0 1\nH 0 0 0\nH 0 0 0.74\n\n",
+        encoding="utf-8",
+    )
+    script = Path(__file__).resolve().parents[1] / "cloudra" / "calculator.sh"
+    result = subprocess.run(
+        [bash, str(script), str(gjf), "gaussian"],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+    )
+    assert result.returncode == 0, result.stderr
+    assert "isolated GAUSS_SCRDIR=" in result.stderr
+    assert "cloudra_g16_" in result.stderr
+    # 任务结束后子目录应由 trap 清掉；全局 Utsu 保留
+    assert shared.exists()
+    assert list(shared.glob("cloudra_g16_*")) == []
+    assert (tmp_path / "h2.log").exists()
+
+
 def test_check_job_type_cp2k_in_path(tmp_path, monkeypatch):
     """系统 PATH 中有 cp2k.popt 时 CP2K 检查应通过。"""
     empty_dir = tmp_path / "empty"

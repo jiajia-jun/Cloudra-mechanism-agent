@@ -394,40 +394,48 @@ class LocalCloudraBackend:
             service = CloudraService()
         self.service = service
 
+    # 同步 service/SQLite 调用一律 to_thread 卸载：这些方法跑在 TUI/API 的
+    # 事件循环上，同步 SQLite 忙等会冻结整个 loop（见 AGENTS.md 工作约定）。
     async def list_conversations(self) -> list[dict]:
-        return self.service.list_conversations()
+        return await asyncio.to_thread(self.service.list_conversations)
 
     async def create_conversation(self) -> dict:
-        conversation = self.service.create_conversation()
+        conversation = await asyncio.to_thread(self.service.create_conversation)
         return {"id": conversation.id, "state": conversation.state}
 
     async def get_conversation_messages(
         self,
         conversation_id: str,
     ) -> list[dict]:
-        return self.service.get_conversation_messages(conversation_id)
+        return await asyncio.to_thread(
+            self.service.get_conversation_messages, conversation_id
+        )
 
     async def list_sessions(self, conversation_id: str) -> list[dict]:
-        return [
-            record.to_dict()
-            for record in self.service.session_runner.list(conversation_id)
-        ]
+        records = await asyncio.to_thread(
+            self.service.session_runner.list, conversation_id
+        )
+        return [record.to_dict() for record in records]
 
     async def get_dag_projection(self, conversation_id: str) -> dict | None:
-        return self.service.dag_projection(conversation_id)
+        return await asyncio.to_thread(self.service.dag_projection, conversation_id)
 
     async def get_dag_graph(
         self,
         conversation_id: str,
         graph_kind: str,
     ) -> dict | None:
-        return self.service.dag_graph(conversation_id, graph_kind)
+        return await asyncio.to_thread(
+            self.service.dag_graph, conversation_id, graph_kind
+        )
 
     async def get_dag_delivery_report(
         self,
         conversation_id: str,
     ) -> dict | None:
-        return self.service.dag_delivery_report(conversation_id)
+        return await asyncio.to_thread(
+            self.service.dag_delivery_report, conversation_id
+        )
 
     async def get_dag_history(
         self,
@@ -435,7 +443,8 @@ class LocalCloudraBackend:
         *,
         after_revision: int = 0,
     ) -> list[dict] | None:
-        return self.service.dag_history(
+        return await asyncio.to_thread(
+            self.service.dag_history,
             conversation_id,
             after_revision=after_revision,
         )
@@ -447,7 +456,8 @@ class LocalCloudraBackend:
         base_revisions: dict[str, int],
         rationale: str = "",
     ) -> dict | None:
-        return self.service.dag_apply_user_mutation(
+        return await asyncio.to_thread(
+            self.service.dag_apply_user_mutation,
             conversation_id,
             operations,
             base_revisions,
@@ -462,7 +472,8 @@ class LocalCloudraBackend:
         working_directory: str | None = None,
         orchestration_mode: str = "standard",
     ) -> tuple[str, dict]:
-        _, record = self.service.submit_session_command(
+        _, record = await asyncio.to_thread(
+            self.service.submit_session_command,
             command_id=f"cmd_{uuid.uuid4().hex}",
             query=query,
             conversation_id=conversation_id,
@@ -476,7 +487,9 @@ class LocalCloudraBackend:
         conversation_id: str,
         session_id: str,
     ) -> dict | None:
-        record = self.service.session_runner.get(conversation_id, session_id)
+        record = await asyncio.to_thread(
+            self.service.session_runner.get, conversation_id, session_id
+        )
         return record.to_dict() if record is not None else None
 
     async def cancel_session(
@@ -522,7 +535,8 @@ class LocalCloudraBackend:
         *,
         session_id: str | None = None,
     ) -> list[dict]:
-        return self.service.list_pending_interactions(
+        return await asyncio.to_thread(
+            self.service.list_pending_interactions,
             conversation_id,
             session_id=session_id,
         )
@@ -598,7 +612,7 @@ class LocalCloudraBackend:
         conversation_id: str | None = None,
     ) -> list[dict]:
         if conversation_id is not None:
-            return self.service.list_pending_approvals_for_conversation(
+            return await self.service.alist_pending_approvals_for_conversation(
                 conversation_id
             )
         return await self.service.list_pending_approvals()

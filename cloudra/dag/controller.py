@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from datetime import datetime, timezone
@@ -11,13 +12,18 @@ from typing import Any
 from cloudra.dag.completion import build_projection, evaluate_delivery
 from cloudra.dag.engine import DagEngine
 from cloudra.dag.models import (
+    AddNode,
+    AttachRef,
     CoverageContract,
     GraphActor,
     GraphOperation,
     GraphRef,
     MutationBatch,
     MutationResult,
+    ObservedNode,
     OrchestrationMode,
+    UpdateEdge,
+    UpdateNode,
     normalize_orchestration_mode,
 )
 from cloudra.dag.store import DagStore, InvalidGraphReference, _canonical_json
@@ -27,14 +33,40 @@ from cloudra.services import session_store
 
 logger = logging.getLogger("DagController")
 
+# short_irc 证据门槛：双向均收敛到极小点，或每个方向至少这么多 IRC 点（不含 TS）。
+MIN_IRC_POINTS_PER_DIRECTION = 50
+
+# bind_evidence 的 evidence_role 词表：与 _derive_delivery_changes 的派生分支一一对应。
+EVIDENCE_ROLES = frozenset({
+    "intermediate_optimization",
+    "ts_optimization_frequency",
+    "short_irc",
+    "endpoint_a_optimization",
+    "endpoint_b_optimization",
+    "endpoint_direction_check",
+    "endpoint_identity_match",
+    "thermochemistry",
+})
+
+# Supervisor 复核下调（downgraded）：沿证据等级阶梯降一级；
+# proposed 及更低（含 rejected/inconclusive 处置级）只能落到 inconclusive。
+_EVIDENCE_LEVEL_DOWNGRADE = {
+    "thermo_annotated": "endpoint_supported",
+    "endpoint_supported": "saddle_supported",
+    "saddle_supported": "structure_supported",
+    "structure_supported": "proposed",
+}
+
 
 class DagController:
     """Deterministic harness writer. Chemistry tools themselves remain stateless."""
 
-    # 编排平面自身的工具不作为化学工作记录：dag_graph 的每次 view/mutate 若
-    # 被观察，会产生自引用噪声——失败的 mutate 变成 blocker、process revision
-    # 空转，进一步加剧版本竞争。Supervisor 触发（delivery_updated）仍保留。
-    _OBSERVATION_EXEMPT_TOOLS = frozenset({"dag_graph"})
+    # 编排/元工具不作为化学工作记录：
+    # - dag_graph：view/mutate 若被观察会产生自引用噪声（失败 mutate → blocker、
+    #   process revision 空转）。Supervisor 触发（delivery_updated）仍保留。
+    # - getskill：读 SOP 不是流程步骤；并行 getskill + init_from_template 时
+    #   on_tool_started 先落 observed 节点会挡住「空图」模板初始化。
+    _OBSERVATION_EXEMPT_TOOLS = frozenset({"dag_graph", "getskill"})
 
     _OUTPUT_PATH_KEYS = {
         "output_path",
@@ -56,11 +88,14 @@ class DagController:
         working_directory: str | Path | None = None,
         artifact_data_dir: str | Path | None = None,
         supervisor=None,
+        agent_id: str | None = None,
     ):
         self.db = db
         self.session_id = session_id
         self.mode = normalize_orchestration_mode(mode)
         self.conversation_id = conversation_id or db.conversation_id or "default"
+        # 投影 assigned_to_me 区块按此 id 过滤（缺省则不输出该区块）
+        self.agent_id = agent_id
         self.working_directory = (
             Path(working_directory).expanduser().resolve()
             if working_directory is not None
@@ -74,35 +109,72 @@ class DagController:
         )
         self.supervisor = supervisor
         self._initialized = False
+        self._substantive_gate_warned = False
 
     @property
     def enabled(self) -> bool:
         return self.mode is not OrchestrationMode.STANDARD
 
     async def initialize(self) -> None:
+        """加载图存储与覆盖契约；不自动拉起 Supervisor。
+
+        用户追加/唤醒会再次进入 ``Coordinator.run()`` → ``initialize()``。
+        若此处因 delivery 非空自动 ``graph_initialization``，会与首轮用户要求
+        抢拍，模型常在 goal/stop 复核提示下空转。排产改由
+        ``delivery_updated`` / ``user_replan`` / ``pre_delivery`` 显式触发。
+        """
         if not self.enabled or self._initialized:
             return
-        self.store.ensure_bundle(self.session_id)
-        self.contract = self.store.load_coverage_contract()
+        await asyncio.to_thread(self.store.ensure_bundle, self.session_id)
+        self.contract = await asyncio.to_thread(self.store.load_coverage_contract)
         self._initialized = True
-        if (
-            self.mode is OrchestrationMode.DAG_GUIDED
-            and self.supervisor is not None
-            # fresh 会话两张图都是空的，无事可规划；仅恢复会话（delivery
-            # 已有 Coordinator 设计的机理假设）时唤醒 Supervisor 补齐流程工作。
-            and self.engine.snapshot().delivery.nodes
-        ):
-            await self.maybe_supervise("graph_initialization")
+
+    async def has_graph_content(self) -> bool:
+        """process 或 delivery 至少一侧已有节点（空 bundle 不算建图）。"""
+        if not self.enabled:
+            return True
+        # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
+        snapshot = await asyncio.to_thread(self.engine.snapshot)
+        return bool(snapshot.process.nodes or snapshot.delivery.nodes)
+
+    async def check_substantive_gate(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> tuple[str, str] | None:
+        """实质性操作前的 DAG 门槛。
+
+        返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝；``("warn", msg)`` 软警告。
+        """
+        from cloudra.dag.substantive_gate import (
+            GUIDED_BLOCK_MESSAGE,
+            RECORD_WARN_MESSAGE,
+            is_substantive_tool,
+        )
+
+        if not self.enabled or not is_substantive_tool(tool_name, arguments):
+            return None
+        if await self.has_graph_content():
+            return None
+        if self.mode is OrchestrationMode.DAG_GUIDED:
+            return "block", GUIDED_BLOCK_MESSAGE
+        if self.mode is OrchestrationMode.DAG_RECORD:
+            return "warn", RECORD_WARN_MESSAGE
+        return None
 
     async def prompt_projection(self) -> str:
         if not self.enabled:
             return ""
         await self.initialize()
+        # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
+        snapshot = await asyncio.to_thread(self.engine.snapshot)
+        history = await asyncio.to_thread(self.engine.history, limit=8)
         projection = build_projection(
-            self.engine.snapshot(),
+            snapshot,
             mode=self.mode,
             contract=self.contract,
-            history=self.engine.history(limit=8),
+            history=history,
+            actor_id=self.agent_id,
         )
         return projection.to_prompt_text()
 
@@ -111,10 +183,40 @@ class DagController:
             return None
         return evaluate_delivery(self.engine.snapshot().delivery, self.contract)
 
+    async def _has_pending_background(self) -> bool:
+        """会话级后台是否还有未竟工作（子任务/计算/定时提醒）。
+
+        与 runner._count_pending_tasks 同一判定口径：只要后台未排空，
+        stop 就是"挂起等唤醒"而不是交付。
+        """
+        from cloudra.persistence.database import aretry_on_locked
+
+        async def query():
+            async with self.db.aconnect() as con:
+                cur = await con.execute(
+                    """
+                    SELECT
+                        (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                        (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                        (SELECT COUNT(*) FROM scheduled_reminders WHERE state = 'pending' AND conversation_id = ?)
+                    """,
+                    (self.conversation_id, self.conversation_id, self.conversation_id),
+                )
+                return await cur.fetchone()
+
+        row = await aretry_on_locked(query)
+        return bool(row and any(row))
+
     async def audit_stop(self, disposition: str):
         if not self.enabled:
             return True, None
         await self.initialize()
+        if await self._has_pending_background():
+            # 挂起而非交付：后台还有计算/提醒/子任务在跑，stop 只是休眠等唤醒。
+            # 不做交付审计、不记录 disposition——否则 agent 会把 partial 当
+            # "暂停"用，污染交付审计轨迹；真正的交付审计发生在后台排空后的
+            # 最终 stop。
+            return True, None
         report = self.delivery_report()
         if disposition == "complete" and not report.complete:
             if self.mode is OrchestrationMode.DAG_GUIDED:
@@ -122,7 +224,9 @@ class DagController:
                 report = self.delivery_report()
             if not report.complete:
                 return False, report
-        self.store.record_delivery_disposition(
+        # 同步写 dag_delivery_dispositions 不能在事件循环线程上执行，offload 到 worker 线程
+        await asyncio.to_thread(
+            self.store.record_delivery_disposition,
             self.session_id,
             disposition,
             report,
@@ -138,12 +242,13 @@ class DagController:
         if not self.enabled or tool_name in self._OBSERVATION_EXEMPT_TOOLS:
             return None
         await self.initialize()
-        snapshot = self.engine.snapshot()
+        # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
+        snapshot = await asyncio.to_thread(self.engine.snapshot)
         existing = next(
             (
                 node
                 for node in snapshot.process.nodes
-                if node.payload.get("tool_call_id") == tool_call_id
+                if node.tool_call_id == tool_call_id
             ),
             None,
         )
@@ -152,9 +257,9 @@ class DagController:
         candidates = [
             node
             for node in snapshot.process.nodes
-            if node.payload.get("tool_name") == tool_name
-            and node.payload.get("status", "proposed") in {"proposed", "ready"}
-            and not node.payload.get("tool_call_id")
+            if node.tool_name == tool_name
+            and node.status in {"proposed", "ready"}
+            and not node.tool_call_id
         ]
         args_hash = "sha256:" + hashlib.sha256(
             _canonical_json(arguments).encode("utf-8")
@@ -162,16 +267,14 @@ class DagController:
         if len(candidates) == 1:
             node_id = candidates[0].node_id
             operations = [
-                GraphOperation(
+                UpdateNode(
                     op="update_node",
                     graph="process",
-                    data={
-                        "node_id": node_id,
-                        "changes": {
-                            "status": "running",
-                            "tool_call_id": tool_call_id,
-                            "arguments_hash": args_hash,
-                        },
+                    node_id=node_id,
+                    changes={
+                        "status": "running",
+                        "tool_call_id": tool_call_id,
+                        "arguments_hash": args_hash,
                     },
                 )
             ]
@@ -180,24 +283,26 @@ class DagController:
                 tool_call_id.encode("utf-8")
             ).hexdigest()[:20]
             operations = [
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={
-                        "node_id": node_id,
-                        "node_type": "observed_tool_call",
-                        "label": tool_name,
-                        "payload": {
-                            "status": "running",
-                            "tool_name": tool_name,
-                            "tool_call_id": tool_call_id,
-                            "arguments_hash": args_hash,
-                            "unplanned": True,
-                        },
-                    },
+                    node=ObservedNode(
+                        node_id=node_id,
+                        label=tool_name,
+                        status="running",
+                        tool_name=tool_name,
+                        tool_call_id=tool_call_id,
+                        arguments_hash=args_hash,
+                        unplanned=True,
+                    ),
                 )
             ]
-        self._apply_harness(operations, f"tool started: {tool_name}")
+        # 同步 SQLite 写不能在事件循环线程上执行：busy 等待会冻结整个循环，
+        # 使同进程 aiosqlite 连接无法提交，形成跨进程 5 分钟级自死锁
+        # （"database is locked" 根因）。一律 offload 到 worker 线程。
+        await asyncio.to_thread(
+            self._apply_harness, operations, f"tool started: {tool_name}"
+        )
         return node_id
 
     async def on_tool_finished(
@@ -218,7 +323,8 @@ class DagController:
             return None
         await self.initialize()
         await self.on_tool_started(tool_call_id, tool_name, arguments)
-        evidence_ref = self.store.register_evidence(
+        evidence_ref = await asyncio.to_thread(
+            self.store.register_evidence,
             self.session_id,
             tool_name,
             {
@@ -227,40 +333,43 @@ class DagController:
                 "result": result,
             },
         )
-        node = self._process_node_for_call(tool_call_id)
-        refs = [evidence_ref, *self._snapshot_output_artifacts(result)]
+        node = await asyncio.to_thread(self._process_node_for_call, tool_call_id)
+        refs = [
+            evidence_ref,
+            *await asyncio.to_thread(self._snapshot_output_artifacts, result),
+        ]
         success = self._result_succeeded(result)
         operations = [
-            GraphOperation(
+            AttachRef(
                 op="attach_ref",
                 graph="process",
-                data={
-                    "target_type": "node",
-                    "target_id": node.node_id,
-                    "ref": ref.model_dump(mode="json"),
-                },
+                target_type="node",
+                target_id=node.node_id,
+                ref=ref,
             )
             for ref in refs
         ]
         operations.append(
-            GraphOperation(
+            UpdateNode(
                 op="update_node",
                 graph="process",
-                data={
-                    "node_id": node.node_id,
-                    "changes": {
-                        "status": "succeeded" if success else "failed",
-                        "evidence_source": tool_name,
-                    },
+                node_id=node.node_id,
+                changes={
+                    "status": "succeeded" if success else "failed",
+                    "evidence_source": tool_name,
                 },
             )
         )
-        self._apply_harness(operations, f"tool finished: {tool_name}")
-        self._adapt_delivery(node, tool_name, arguments, result, refs)
+        await asyncio.to_thread(
+            self._apply_harness, operations, f"tool finished: {tool_name}"
+        )
+        await asyncio.to_thread(
+            self._adapt_delivery, node, tool_name, arguments, result, refs
+        )
         if self.mode is OrchestrationMode.DAG_GUIDED:
             bound = bool(
-                node.payload.get("delivery_target_id")
-                and node.payload.get("delivery_target_type") in {"node", "edge"}
+                node.delivery_target_id
+                and node.delivery_target_type in {"node", "edge"}
             )
             await self._trigger_supervisor_after_tool(
                 tool_name, arguments, result, success, bound_to_delivery=bound
@@ -288,6 +397,11 @@ class DagController:
             return
         # 1/2. dag_graph 调用：区分接受的机理变更与被转交的删边请求。
         if tool_name == "dag_graph":
+            # bind_evidence 成功挂载即新证据落地（等级已由 harness 派生），复核它
+            # 消除了哪些 delivery 缺口、挂载是否张冠李戴。
+            if arguments.get("action") == "bind_evidence" and result.get("accepted"):
+                await self.maybe_supervise("new_evidence")
+                return
             request = self._coordinator_request(arguments, result)
             if request is not None:
                 await self.maybe_supervise("delivery_updated", coordinator_request=request)
@@ -316,8 +430,9 @@ class DagController:
         if result.get("rejection_code") != "edge_removal_requires_supervisor":
             return None
         operations = arguments.get("operations") or []
+        # op 可能是新具名形状（edge_id 顶层）或旧 data 形状，摘要两种都认
         summary = ", ".join(
-            f"{op.get('op')}:{op.get('graph')}:{(op.get('data') or {}).get('edge_id')}"
+            f"{op.get('op')}:{op.get('graph')}:{op.get('edge_id') or (op.get('data') or {}).get('edge_id')}"
             for op in operations
             if isinstance(op, dict)
         )
@@ -366,7 +481,9 @@ class DagController:
         ):
             return None
         await self.initialize()
-        run_session_id = self._register_supervisor_session(trigger, coordinator_request)
+        run_session_id = await asyncio.to_thread(
+            self._register_supervisor_session, trigger, coordinator_request
+        )
         event_sink = None
         if run_session_id is not None:
             # 运行过程写进 supervisor 自己的 session 事件流：
@@ -384,11 +501,14 @@ class DagController:
                 event_sink=event_sink,
             )
             # Supervisor 可能经工具加严过 coverage contract，重新载入。
-            self.contract = self.store.load_coverage_contract()
+            # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
+            self.contract = await asyncio.to_thread(self.store.load_coverage_contract)
         except Exception as exc:  # Supervisor 是顾问角色：故障不炸 Coordinator 循环
             error_note = str(exc)
             logger.warning("[DagController] supervisor run failed (%s): %s", trigger, exc)
-        self._finalize_supervisor_session(run_session_id, trigger, result, error_note)
+        await asyncio.to_thread(
+            self._finalize_supervisor_session, run_session_id, trigger, result, error_note
+        )
         return result
 
     def _register_supervisor_session(
@@ -450,11 +570,14 @@ class DagController:
             logger.warning("[DagController] supervisor session 终态落库失败（已忽略）: %s", exc)
 
     def _process_node_for_call(self, tool_call_id: str):
+        nodes = self.engine.snapshot().process.nodes
         matches = [
-            node
-            for node in self.engine.snapshot().process.nodes
-            if node.payload.get("tool_call_id") == tool_call_id
+            node for node in nodes if node.tool_call_id == tool_call_id
         ]
+        if not matches:
+            # 兜底：上下文压缩后 tool_call_id 可能丢失，允许直接传
+            # observed_<hex> 节点 id 作为别名（bind_evidence 高层动作用）。
+            matches = [node for node in nodes if node.node_id == tool_call_id]
         if len(matches) != 1:
             raise RuntimeError(
                 f"tool call {tool_call_id!r} does not resolve to exactly one process node"
@@ -535,8 +658,8 @@ class DagController:
         result: dict[str, Any],
         refs: list[GraphRef],
     ) -> None:
-        target_type = process_node.payload.get("delivery_target_type")
-        target_id = process_node.payload.get("delivery_target_id")
+        target_type = process_node.delivery_target_type
+        target_id = process_node.delivery_target_id
         if target_type not in {"node", "edge"} or not target_id:
             return
         graph = self.engine.snapshot().delivery
@@ -546,33 +669,36 @@ class DagController:
             raise RuntimeError(f"planned delivery target {target_type}:{target_id} is missing")
 
         operations = [
-            GraphOperation(
+            AttachRef(
                 op="attach_ref",
                 graph="delivery",
-                data={
-                    "target_type": target_type,
-                    "target_id": target_id,
-                    "ref": ref.model_dump(mode="json"),
-                },
+                target_type=target_type,
+                target_id=target_id,
+                ref=ref,
             )
             for ref in refs
         ]
         changes = self._derive_delivery_changes(
             target.payload,
-            process_node.payload.get("evidence_role", ""),
+            process_node.evidence_role or "",
             tool_name,
             arguments,
             result,
         )
         if changes:
             operations.append(
-                GraphOperation(
-                    op="update_node" if target_type == "node" else "update_edge",
+                UpdateNode(
+                    op="update_node",
                     graph="delivery",
-                    data={
-                        f"{target_type}_id": target_id,
-                        "changes": changes,
-                    },
+                    node_id=target_id,
+                    changes=changes,
+                )
+                if target_type == "node"
+                else UpdateEdge(
+                    op="update_edge",
+                    graph="delivery",
+                    edge_id=target_id,
+                    changes=changes,
                 )
             )
         if operations:
@@ -580,6 +706,31 @@ class DagController:
                 operations,
                 f"attach {tool_name} evidence to delivery {target_type} {target_id}",
             )
+
+    @staticmethod
+    def _has_frequency_data(result: dict[str, Any]) -> bool:
+        """确认解析结果里确实有可计数的频率列表（不能仅凭 job_types/热化学块）。"""
+        return (
+            result.get("frequencies_cm") is not None
+            or result.get("imaginary_frequencies") is not None
+        )
+
+    @staticmethod
+    def _imaginary_frequency_list(result: dict[str, Any]) -> list[Any] | None:
+        """返回虚频列表；无法确认频率数据时返回 None（不得当成零虚频）。"""
+        if not DagController._has_frequency_data(result):
+            return None
+        imaginary = result.get("imaginary_frequencies")
+        if imaginary is None:
+            # 仅有 frequencies_cm（实频）时视为零虚频。
+            return []
+        return list(imaginary)
+
+    @staticmethod
+    def _ts_guess_verdict_passed(result: dict[str, Any]) -> bool:
+        """ts_guess strict 的 verdict 为「pass：……」长串，按前缀判定。"""
+        verdict = str(result.get("verdict") or "")
+        return verdict.startswith("pass")
 
     @staticmethod
     def _derive_delivery_changes(
@@ -601,15 +752,25 @@ class DagController:
                 tool_name == "ts_guess"
                 and role == "endpoint_direction_check"
                 and arguments.get("strict") is True
-                and result.get("verdict") == "pass"
+                and DagController._ts_guess_verdict_passed(result)
             ):
                 changes["endpoint_direction_consistent"] = True
         elif tool_name == "gaussian_log_parser":
-            imaginary = result.get("imaginary_frequencies") or []
+            imaginary = DagController._imaginary_frequency_list(result)
             normal = result.get("normal_termination") is not False
-            if role == "intermediate_optimization" and normal and len(imaginary) == 0:
+            if (
+                role == "intermediate_optimization"
+                and normal
+                and imaginary is not None
+                and len(imaginary) == 0
+            ):
                 changes["evidence_level"] = "structure_supported"
-            elif role == "ts_optimization_frequency" and normal and len(imaginary) == 1:
+            elif (
+                role == "ts_optimization_frequency"
+                and normal
+                and imaginary is not None
+                and len(imaginary) == 1
+            ):
                 changes.update(
                     saddle_supported=True,
                     evidence_level="saddle_supported",
@@ -617,14 +778,26 @@ class DagController:
             elif role == "short_irc" and (
                 result.get("irc_both_directions_converged") is True
                 or (
-                    int(result.get("irc_num_points_forward") or 0) > 0
-                    and int(result.get("irc_num_points_backward") or 0) > 0
+                    int(result.get("irc_num_points_forward") or 0)
+                    >= MIN_IRC_POINTS_PER_DIRECTION
+                    and int(result.get("irc_num_points_backward") or 0)
+                    >= MIN_IRC_POINTS_PER_DIRECTION
                 )
             ):
                 changes["short_irc_supported"] = True
-            elif role == "endpoint_a_optimization" and normal and len(imaginary) == 0:
+            elif (
+                role == "endpoint_a_optimization"
+                and normal
+                and imaginary is not None
+                and len(imaginary) == 0
+            ):
                 changes["endpoint_a_minimum_supported"] = True
-            elif role == "endpoint_b_optimization" and normal and len(imaginary) == 0:
+            elif (
+                role == "endpoint_b_optimization"
+                and normal
+                and imaginary is not None
+                and len(imaginary) == 0
+            ):
                 changes["endpoint_b_minimum_supported"] = True
         elif tool_name == "reaction_mapping" and role == "endpoint_identity_match":
             if (
@@ -690,12 +863,246 @@ class DagController:
             return None
         self._apply_harness(
             [
-                GraphOperation(
-                    op="update_node" if target_type == "node" else "update_edge",
+                UpdateNode(
+                    op="update_node",
                     graph="delivery",
-                    data={f"{target_type}_id": target_id, "changes": changes},
+                    node_id=target_id,
+                    changes=changes,
+                )
+                if target_type == "node"
+                else UpdateEdge(
+                    op="update_edge",
+                    graph="delivery",
+                    edge_id=target_id,
+                    changes=changes,
                 )
             ],
             f"re-derive {target_type} {target_id} from retro-attached {tool_name} evidence",
         )
         return changes
+
+    @staticmethod
+    def _delivery_target(graph, target_id: str):
+        """在 delivery 图上定位节点或边，返回 (target_type, element)；缺失抛错。"""
+        node = next((n for n in graph.nodes if n.node_id == target_id), None)
+        if node is not None:
+            return "node", node
+        edge = next((e for e in graph.edges if e.edge_id == target_id), None)
+        if edge is not None:
+            return "edge", edge
+        raise RuntimeError(f"delivery target {target_id!r} does not exist")
+
+    async def bind_evidence_for_call(
+        self,
+        tool_call_id: str,
+        target_id: str,
+        evidence_role: str,
+    ) -> dict[str, Any]:
+        """agent 高层挂证据：tool_call_id → 已登记证据 → attach + 确定性派生。
+
+        agent 不需要看见 ev_ id：只要给出自己发起的工具调用（或 observed 节点 id
+        别名）、delivery 目标和证据角色。三道确定性校验：证据已登记（
+        on_tool_finished 已把 tool_result ref 挂到 process 节点）、该次计算确实
+        成功、目标元素存在；attach 与等级派生都走 _apply_harness（自带 stale 重试）。
+        """
+        if not self.enabled:
+            raise RuntimeError(
+                "bind_evidence is disabled in standard orchestration mode"
+            )
+        if evidence_role not in EVIDENCE_ROLES:
+            raise RuntimeError(
+                f"unknown evidence_role {evidence_role!r}; allowed: {sorted(EVIDENCE_ROLES)}"
+            )
+        await self.initialize()
+        node = await asyncio.to_thread(self._process_node_for_call, tool_call_id)
+        ref = next((r for r in node.refs if r.ref_type == "tool_result"), None)
+        if ref is None:
+            raise RuntimeError(
+                f"tool call {tool_call_id!r} has no registered evidence; only a "
+                "finished tool call with a recorded tool_result can be bound"
+            )
+        _, payload = await asyncio.to_thread(
+            self.store.resolve_evidence_with_source, ref
+        )
+        if not self._result_succeeded(payload.get("result") or {}):
+            raise RuntimeError(
+                f"tool call {tool_call_id!r} did not succeed; a failed or "
+                "unsuccessful computation cannot be bound as evidence"
+            )
+        def _locate_target():
+            # snapshot 是同步 sqlite 读，连同定位一起放进 worker 线程
+            return self._delivery_target(self.engine.snapshot().delivery, target_id)
+
+        target_type, _ = await asyncio.to_thread(_locate_target)
+        await asyncio.to_thread(
+            self._apply_harness,
+            [
+                AttachRef(
+                    op="attach_ref",
+                    graph="delivery",
+                    target_type=target_type,
+                    target_id=target_id,
+                    ref=ref,
+                )
+            ],
+            f"bind evidence of {tool_call_id} to delivery {target_type} {target_id}",
+        )
+        changes = await asyncio.to_thread(
+            self.rederive_delivery_element, target_type, target_id, ref, evidence_role
+        )
+        return {
+            "target_type": target_type,
+            "target_id": target_id,
+            "ref_id": ref.ref_id,
+            "evidence_role": evidence_role,
+            "changes": changes or {},
+            "derived": bool(changes),
+        }
+
+    async def review_evidence(
+        self,
+        target_id: str,
+        verdict: str,
+        rationale: str,
+        reviewer: str = "supervisor",
+    ) -> dict[str, Any]:
+        """Supervisor 证据复核：delivery 对 Supervisor 只读，下调由 harness 代写。
+
+        confirmed 不改图（无需动作）；downgraded 沿等级阶梯降一级；rejected 落到
+        inconclusive 并标记否决。journal 以 actor=HARNESS 记录 Supervisor 的
+        verdict 与理由；否决/下调后向挂载者 session 与 Coordinator 各投一条
+        evidence_vetoed 事件。
+        """
+        if not self.enabled:
+            raise RuntimeError(
+                "review_evidence is disabled in standard orchestration mode"
+            )
+        await self.initialize()
+        def _locate_target():
+            # snapshot 是同步 sqlite 读，连同定位一起放进 worker 线程
+            return self._delivery_target(self.engine.snapshot().delivery, target_id)
+
+        target_type, target = await asyncio.to_thread(_locate_target)
+        old_level = target.evidence_level
+        if verdict == "confirmed":
+            # 确认无需动作：等级维持，图与 journal 都不动。
+            return {
+                "target_type": target_type,
+                "target_id": target_id,
+                "verdict": verdict,
+                "evidence_level": old_level,
+                "changed": False,
+            }
+        if verdict == "downgraded":
+            new_level = _EVIDENCE_LEVEL_DOWNGRADE.get(old_level, "inconclusive")
+            changes = {
+                "evidence_level": new_level,
+                "reason": f"{verdict} by {reviewer}: {rationale}",
+            }
+        else:  # rejected：证据不被认可，落 inconclusive 并显式标记否决
+            new_level = "inconclusive"
+            changes = {
+                "evidence_level": new_level,
+                "reason": f"{verdict} by {reviewer}: {rationale}",
+                "evidence_vetoed": True,
+            }
+        await asyncio.to_thread(
+            self._apply_harness,
+            [
+                UpdateNode(
+                    op="update_node",
+                    graph="delivery",
+                    node_id=target_id,
+                    changes=changes,
+                )
+                if target_type == "node"
+                else UpdateEdge(
+                    op="update_edge",
+                    graph="delivery",
+                    edge_id=target_id,
+                    changes=changes,
+                )
+            ],
+            f"supervisor evidence review ({verdict}) by {reviewer}: {rationale}",
+        )
+        await self._notify_evidence_vetoed(
+            target_type, target_id, old_level, new_level, verdict, rationale,
+            list(target.refs),
+        )
+        return {
+            "target_type": target_type,
+            "target_id": target_id,
+            "verdict": verdict,
+            "evidence_level": new_level,
+            "previous_evidence_level": old_level,
+            "changed": True,
+        }
+
+    def _resolve_evidence_binder(self, refs: list[GraphRef]):
+        """反查挂载者：tool_result ref → dag_evidence.session_id → session.agent_id。
+
+        查不到（证据来自别的会话、老记录缺 session）时返回 (None, None)，
+        调用方只通知 Coordinator。
+        """
+        for ref in refs:
+            if ref.ref_type != "tool_result":
+                continue
+            with self.db.connect() as con:
+                row = con.execute(
+                    "SELECT session_id FROM dag_evidence WHERE evidence_id = ?",
+                    (ref.ref_id,),
+                ).fetchone()
+                if not row or not row[0]:
+                    continue
+                agent_row = con.execute(
+                    "SELECT agent_id FROM session WHERE session_id = ?", (row[0],)
+                ).fetchone()
+            if agent_row and agent_row[0]:
+                return agent_row[0], row[0]
+        return None, None
+
+    async def _notify_evidence_vetoed(
+        self,
+        target_type: str,
+        target_id: str,
+        old_level: str,
+        new_level: str,
+        verdict: str,
+        rationale: str,
+        refs: list[GraphRef],
+    ) -> None:
+        """否决/下调通知：挂载者 session 跟进补救，Coordinator 保有全局视野。"""
+        from cloudra.persistence.context_manager import ContextManager
+
+        binder_agent, binder_session = await asyncio.to_thread(
+            self._resolve_evidence_binder, refs
+        )
+        guidance = (
+            "建议下一步：修正后重新计算，再用 bind_evidence 把新证据挂回该元素；"
+            "如认为复核有误，在回复中说明依据。"
+            if verdict == "rejected"
+            else "建议下一步：补充缺失的计算证据恢复等级，或在回复中说明现有证据已足够。"
+        )
+        content = (
+            f"Supervisor 证据复核（{verdict}）：delivery {target_type} {target_id} "
+            f"证据等级 {old_level} → {new_level}。\n"
+            f"理由：{rationale}\n"
+            f"{guidance}"
+        )
+        # 与 monitor 计算终态事件同一路由：提交者定向到其 session，Coordinator 广播。
+        targets = {binder_agent: binder_session, "a-0": None} if binder_agent else {"a-0": None}
+        for agent_id, session_id in targets.items():
+            try:
+                await ContextManager.inject_event(
+                    conversation_id=self.conversation_id,
+                    agent_id=agent_id,
+                    event_type="evidence_vetoed",
+                    content=content,
+                    db_path=self.db.path,
+                    session_id=session_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[DagController] evidence_vetoed 事件注入失败 (%s，已忽略): %s",
+                    agent_id, exc,
+                )

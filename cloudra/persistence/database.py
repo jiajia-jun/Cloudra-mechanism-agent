@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import logging
 import os
 import random
 import re
 import sqlite3
 import time
+import traceback
 from typing import Awaitable, Callable, Optional, TypeVar
 
 import aiosqlite
@@ -21,10 +24,43 @@ import aiosqlite
 from cloudra.persistence import paths
 from cloudra.persistence.paths import PathLike
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 _T = TypeVar("_T")
+
+_warned_sync_sites: set[str] = set()
+
+
+def _check_sync_on_loop(kind: str) -> None:
+    """同步 SQLite 调用不得在事件循环线程上执行。
+
+    busy 等待会冻结整个事件循环，使同进程 aiosqlite 连接上的未提交写
+    永远无法 commit，曾造成跨进程 5 分钟级 "database is locked" 死锁。
+    默认每个调用点告警一次；CLOUDRA_DB_SYNC_ON_LOOP=raise 时抛错
+    （开发/调试用），=off 时完全关闭（测试夹具等确知安全的场景）。
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return  # 无 running loop：守护线程 / CLI / 测试等同步上下文，合法
+    policy = os.environ.get("CLOUDRA_DB_SYNC_ON_LOOP", "warn").lower()
+    if policy == "off":
+        return
+    caller = traceback.extract_stack(limit=3)[0]
+    site = f"{caller.filename}:{caller.lineno}"
+    msg = (
+        f"sync SQLite {kind} on the asyncio event-loop thread at {site}; "
+        "use the async variant or offload via asyncio.to_thread "
+        "(set CLOUDRA_DB_SYNC_ON_LOOP=off to disable this guard)"
+    )
+    if policy == "raise":
+        raise RuntimeError(msg)
+    if site not in _warned_sync_sites:
+        _warned_sync_sites.add(site)
+        logger.warning(msg)
 
 
 def _is_locked_error(exc: BaseException) -> bool:
@@ -40,6 +76,7 @@ def retry_on_locked(
     base_delay: float = 0.25,
 ) -> _T:
     """Retry a complete short SQLite operation when another writer owns the lock."""
+    _check_sync_on_loop("write (retry_on_locked)")
     for attempt in range(retries + 1):
         try:
             return operation()
@@ -101,6 +138,7 @@ class ConversationDB:
 
     def init(self) -> "ConversationDB":
         """初始化数据库：建目录、建表、启用 WAL。"""
+        _check_sync_on_loop("init")
         self.ensure_dir()
         # journal_mode is persistent.  Switching it on every connection needs a
         # stronger lock and creates avoidable contention between worker processes.
@@ -134,6 +172,7 @@ class ConversationDB:
             cur.execute(_CREATE_DAG_SPECIES)
             cur.execute(_CREATE_DAG_NODES)
             cur.execute(_CREATE_DAG_EDGES)
+            cur.execute(_CREATE_DAG_EVIDENCE_BINDINGS)
             cur.execute(_CREATE_DAG_LINKS)
             cur.execute(_CREATE_DAG_EVIDENCE)
             cur.execute(_CREATE_DAG_MUTATIONS)
@@ -178,6 +217,7 @@ class ConversationDB:
     @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
         """返回统一配置且退出时显式关闭的同步 SQLite 连接上下文。"""
+        _check_sync_on_loop("connect")
         self.ensure_dir()
         con = sqlite3.connect(self.path, timeout=timeout)
         try:
@@ -231,6 +271,7 @@ class ConversationDB:
             await cur.execute(_CREATE_DAG_SPECIES)
             await cur.execute(_CREATE_DAG_NODES)
             await cur.execute(_CREATE_DAG_EDGES)
+            await cur.execute(_CREATE_DAG_EVIDENCE_BINDINGS)
             await cur.execute(_CREATE_DAG_LINKS)
             await cur.execute(_CREATE_DAG_EVIDENCE)
             await cur.execute(_CREATE_DAG_MUTATIONS)
@@ -272,6 +313,7 @@ class ConversationDB:
             for name, definition in columns.items():
                 if name not in existing:
                     cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+        ConversationDB._migrate_dag_evidence_bindings(cur)
 
     @staticmethod
     async def _amigrate_related_schema(cur) -> None:
@@ -281,6 +323,75 @@ class ConversationDB:
             for name, definition in columns.items():
                 if name not in existing:
                     await cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+        await ConversationDB._amigrate_dag_evidence_bindings(cur)
+
+    @staticmethod
+    def _migrate_dag_evidence_bindings(cur) -> None:
+        """一次性回填：v11 及之前证据引用内联在 dag_nodes/dag_edges 的
+        refs JSON 列里，这里展开进关联表。仅在关联表为空时执行；
+        主键 + INSERT OR IGNORE 保证重复 init 不重复插。"""
+        if cur.execute("SELECT 1 FROM dag_evidence_bindings LIMIT 1").fetchone():
+            return
+        for target_type, table, id_col in (
+            ("node", "dag_nodes", "node_id"),
+            ("edge", "dag_edges", "edge_id"),
+        ):
+            rows = cur.execute(
+                f"SELECT graph_id, {id_col}, refs, payload, created_revision "
+                f"FROM {table} WHERE refs NOT IN ('[]', '')"
+            ).fetchall()
+            for row in rows:
+                for params in ConversationDB._expand_inline_refs(target_type, row):
+                    cur.execute(_INSERT_DAG_EVIDENCE_BINDING, params)
+
+    @staticmethod
+    async def _amigrate_dag_evidence_bindings(cur) -> None:
+        await cur.execute("SELECT 1 FROM dag_evidence_bindings LIMIT 1")
+        if await cur.fetchone():
+            return
+        for target_type, table, id_col in (
+            ("node", "dag_nodes", "node_id"),
+            ("edge", "dag_edges", "edge_id"),
+        ):
+            await cur.execute(
+                f"SELECT graph_id, {id_col}, refs, payload, created_revision "
+                f"FROM {table} WHERE refs NOT IN ('[]', '')"
+            )
+            for row in await cur.fetchall():
+                for params in ConversationDB._expand_inline_refs(target_type, row):
+                    await cur.execute(_INSERT_DAG_EVIDENCE_BINDING, params)
+
+    @staticmethod
+    def _expand_inline_refs(target_type: str, row) -> "list[tuple]":
+        """把一行的内联 refs JSON 展开为关联表插入参数（同步/异步迁移共用）。"""
+        graph_id, target_id, refs_json, payload_json, created_revision = row
+        try:
+            refs = json.loads(refs_json)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(refs, list):
+            return []
+        # evidence_role 历史上只存在于变更日志的 op 里，回放代价大，留 NULL；
+        # derived_level 从 payload 里的 evidence_level 推（没有就 NULL）。
+        derived_level = None
+        try:
+            level = json.loads(payload_json).get("evidence_level")
+        except (TypeError, ValueError, AttributeError):
+            level = None
+        if isinstance(level, str):
+            derived_level = level
+        return [
+            (
+                graph_id,
+                target_type,
+                str(target_id),
+                str(ref["ref_id"]),
+                derived_level,
+                created_revision,
+            )
+            for ref in refs
+            if isinstance(ref, dict) and ref.get("ref_id")
+        ]
 
 
 # SQL 建表语句统一放在这里，作为唯一表结构定义。
@@ -607,6 +718,28 @@ _CREATE_DAG_EDGES = """
         PRIMARY KEY(graph_id, edge_id),
         FOREIGN KEY(graph_id) REFERENCES dag_graphs(graph_id)
     )
+"""
+
+_CREATE_DAG_EVIDENCE_BINDINGS = """
+    CREATE TABLE IF NOT EXISTS dag_evidence_bindings(
+        graph_id TEXT NOT NULL,
+        target_type TEXT NOT NULL CHECK(target_type IN ('node', 'edge')),
+        target_id TEXT NOT NULL,
+        evidence_id TEXT NOT NULL,
+        evidence_role TEXT,
+        derived_level TEXT,
+        created_revision INTEGER NOT NULL,
+        PRIMARY KEY(graph_id, target_type, target_id, evidence_id),
+        FOREIGN KEY(graph_id) REFERENCES dag_graphs(graph_id)
+    )
+"""
+
+# 迁移回填专用：evidence_role 无历史来源，固定 NULL（见 _expand_inline_refs）。
+_INSERT_DAG_EVIDENCE_BINDING = """
+    INSERT OR IGNORE INTO dag_evidence_bindings(
+        graph_id, target_type, target_id, evidence_id,
+        evidence_role, derived_level, created_revision
+    ) VALUES (?, ?, ?, ?, NULL, ?, ?)
 """
 
 _CREATE_DAG_LINKS = """

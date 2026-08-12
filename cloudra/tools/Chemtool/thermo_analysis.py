@@ -17,6 +17,15 @@ _R_J_MOL_K = 8.31446261815324
 _HARTREE_J_MOL = 2_625_499.6394799
 _R_L_ATM_MOL_K = 0.082057366080960
 
+# GoodVibes CLI flags verified against GoodVibes 4.2 / 3.x public help:
+#   -q              Grimme mRRHO entropy + Head-Gordon qh enthalpy
+#   --qs {grimme,truhlar}   quasi-harmonic entropy scheme (default grimme)
+#   -f / --tau      shared frequency cutoff for S and H (cm^-1; default 100)
+#   --fs / --fh     entropy-only / enthalpy-only overrides of -f
+#   --temp TEMP     temperature (K); no short -t in 4.2
+#   -c / --conc     solution concentration (mol/L); omit for gas 1 atm
+# This module maps frequency_cutoff_cm -> -f (shared cutoff under -q).
+
 
 description = (
     "汇总多个量化输出的反应热化学：按带符号的化学计量系数组合 ΔE、ΔH 与 ΔG，"
@@ -47,7 +56,10 @@ class ThermoAnalysis_input_schema(input_schema):
     temperature: float = Field(default=298.15, gt=0, description="热化学温度 (K)。")
     standard_state: Literal["gas_1atm", "solution_1m", "solution_custom"] = Field(
         default="gas_1atm",
-        description="标准态。raw_rrho 的溶液标准态由日志压力做理想气体 1 atm→浓度修正；GoodVibes 用 --conc 重算。",
+        description=(
+            "标准态。raw_rrho 的溶液标准态由日志压力做理想气体 1 atm→浓度修正；"
+            "GoodVibes 用 --conc/-c 重算（与 raw_rrho 同语义：gas 省略浓度，solution_1m→1.0 M）。"
+        ),
     )
     concentration_molar: Optional[float] = Field(
         default=None,
@@ -58,10 +70,20 @@ class ThermoAnalysis_input_schema(input_schema):
         default=None,
         description="可选参考物种名称；提供后，每个物种额外返回相对该物种的 E/H/G。",
     )
+    qh_scheme: Literal["grimme", "truhlar"] = Field(
+        default="grimme",
+        description=(
+            "GoodVibes 准谐熵方案，映射 CLI `--qs`：grimme=mRRHO 插值（默认）；"
+            "truhlar=低频抬升。raw_rrho 不使用。假设 GoodVibes 3.x/4.x。"
+        ),
+    )
     frequency_cutoff_cm: float = Field(
         default=100.0,
         ge=0,
-        description="GoodVibes quasi-harmonic 熵/焓共用的低频截止值 (cm⁻¹)。raw_rrho 不使用。",
+        description=(
+            "GoodVibes 准谐频率截断 (cm⁻¹)，映射 CLI `-f/--tau`（同时作用于熵与焓；"
+            "默认 100。`--fs` 仅为熵侧覆盖，本工具在 -q 下统一用 -f）。raw_rrho 不使用。"
+        ),
     )
     frequency_scale_factor: Optional[float] = Field(
         default=None,
@@ -260,6 +282,8 @@ def _goodvibes_command(
         executable,
         *[os.path.abspath(species.log_path) for species in user_input.species],
         "-q",
+        "--qs",
+        user_input.qh_scheme,
         "-f",
         f"{user_input.frequency_cutoff_cm:g}",
         "--temp",
@@ -267,6 +291,7 @@ def _goodvibes_command(
     ]
     concentration = _concentration(user_input)
     if concentration is not None:
+        # Prefer long form; GoodVibes also accepts -c (same semantics as raw_rrho solution SS).
         command.extend(["--conc", f"{concentration:g}"])
     if user_input.frequency_scale_factor is not None:
         command.extend(["-v", f"{user_input.frequency_scale_factor:g}"])
@@ -282,6 +307,198 @@ def _match_goodvibes_entry(entries: list[dict], species: ThermoSpecies) -> Optio
     stem = os.path.splitext(os.path.basename(species.log_path))[0]
     by_name = [entry for entry in entries if entry.get("name") == stem]
     return by_name[0] if len(by_name) == 1 else None
+
+
+def _parse_float_token(token: str) -> Optional[float]:
+    try:
+        value = float(token)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def _parse_goodvibes_text_table(stdout: str) -> tuple[list[dict], Optional[str]]:
+    """Parse classic GoodVibes stdout tables (3.2 README style and SPC variants).
+
+    Looks for a header containing Structure plus qh-G(T) (or qh-G(T)_SPC) and
+    optional qh-H / H_SPC columns. Returns per-structure dicts with keys
+    name, scf_energy, qh_enthalpy, qh_gibbs_free_energy (Hartree).
+    Never raises: failures return ([], reason).
+    """
+    if not stdout or not stdout.strip():
+        return [], "GoodVibes stdout 为空，无法解析文本表"
+
+    lines = stdout.splitlines()
+    header_idx = None
+    header_cols: list[str] = []
+    for idx, line in enumerate(lines):
+        if "Structure" not in line:
+            continue
+        # Normalize spaced column names like "qh-G(T)" / "T.qh-S"
+        tokens = line.split()
+        if "Structure" not in tokens:
+            continue
+        lowered = [t.lower() for t in tokens]
+        if not any(t.startswith("qh-g") for t in lowered):
+            continue
+        header_idx = idx
+        header_cols = tokens
+        break
+
+    if header_idx is None:
+        return [], "GoodVibes stdout 未找到含 qh-G(T) 的 Structure 表头"
+
+    col_index = {name.lower(): i for i, name in enumerate(header_cols)}
+    # Structure is always first logical column after optional leading markers.
+    structure_i = col_index.get("structure")
+    if structure_i is None:
+        return [], "GoodVibes 文本表缺少 Structure 列"
+
+    def _find_col(*candidates: str) -> Optional[int]:
+        for candidate in candidates:
+            key = candidate.lower()
+            if key in col_index:
+                return col_index[key]
+        return None
+
+    e_i = _find_col("E_SPC", "E")
+    h_i = _find_col("qh-H", "H_SPC", "H")
+    g_i = _find_col("qh-G(T)_SPC", "qh-G(T)")
+    if g_i is None:
+        return [], "GoodVibes 文本表缺少 qh-G(T) / qh-G(T)_SPC 列"
+    if e_i is None or h_i is None:
+        return [], "GoodVibes 文本表缺少 E 或焓（H / qh-H / H_SPC）列"
+
+    entries: list[dict] = []
+    for line in lines[header_idx + 1 :]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if set(stripped) <= {"*", "─", "-", "=", " "}:
+            if entries:
+                break
+            continue
+        if stripped.startswith("RXN:"):
+            break
+        # Data rows often start with "o  name ..."
+        tokens = stripped.split()
+        if not tokens:
+            continue
+        if tokens[0] in {"o", "*", "x", "!"} and len(tokens) > 1:
+            tokens = tokens[1:]
+        # Skip Temp/K interval rows that insert an extra temperature column.
+        if "temp/k" in {c.lower() for c in header_cols}:
+            # Interval tables are not used by this tool; reject explicitly.
+            return [], "GoodVibes 温度扫描表（含 Temp/K）不受支持；请使用单温度 --temp"
+        # Expect: name + numeric columns matching header after Structure
+        numeric_expected = len(header_cols) - structure_i - 1
+        if len(tokens) < 1 + numeric_expected:
+            continue
+        name = tokens[0]
+        numbers = tokens[1:]
+        if len(numbers) < numeric_expected:
+            continue
+        # Map relative to columns after Structure
+        values_by_header = {}
+        for offset, col_name in enumerate(header_cols[structure_i + 1 :]):
+            parsed = _parse_float_token(numbers[offset])
+            if parsed is None:
+                values_by_header = {}
+                break
+            values_by_header[col_name.lower()] = parsed
+        if not values_by_header:
+            continue
+
+        def _val(*candidates: str) -> Optional[float]:
+            for candidate in candidates:
+                key = candidate.lower()
+                if key in values_by_header:
+                    return values_by_header[key]
+            return None
+
+        energy = _val("E_SPC", "E")
+        qh_h = _val("qh-H", "H_SPC", "H")
+        qh_g = _val("qh-G(T)_SPC", "qh-G(T)")
+        if energy is None or qh_h is None or qh_g is None:
+            continue
+        entries.append({
+            "name": name,
+            "scf_energy": energy,
+            "qh_enthalpy": qh_h,
+            "qh_gibbs_free_energy": qh_g,
+        })
+
+    if not entries:
+        return [], "GoodVibes 文本表未解析到任何物种数据行"
+    return entries, None
+
+
+def _records_from_thermo_maps(
+    user_input: ThermoAnalysis_input_schema,
+    thermo_by_stem: dict[str, dict],
+) -> tuple[list[dict], Optional[str]]:
+    records = []
+    for species in user_input.species:
+        stem = os.path.splitext(os.path.basename(species.log_path))[0]
+        thermo = thermo_by_stem.get(stem)
+        if thermo is None and len(thermo_by_stem) == 1 and len(user_input.species) == 1:
+            thermo = next(iter(thermo_by_stem.values()))
+        if thermo is None:
+            return [], f"GoodVibes 结果中无法唯一匹配物种 {species.name}（stem={stem}）"
+        base_energy = thermo.get("sp_energy")
+        if base_energy is None:
+            base_energy = thermo.get("scf_energy")
+        qh_h = thermo.get("qh_enthalpy")
+        qh_g = thermo.get("qh_gibbs_free_energy")
+        if base_energy is None or qh_h is None or qh_g is None:
+            return [], f"{species.name}: GoodVibes 缺少 qh_enthalpy 或 qh_gibbs_free_energy"
+        numeric_values = {}
+        for field_name, value in (
+            ("base_energy", base_energy),
+            ("qh_enthalpy", qh_h),
+            ("qh_gibbs_free_energy", qh_g),
+        ):
+            try:
+                if isinstance(value, bool):
+                    raise TypeError
+                number = float(value)
+            except (TypeError, ValueError):
+                return [], f"{species.name}: GoodVibes 字段 {field_name} must be numeric"
+            if not math.isfinite(number):
+                return [], f"{species.name}: GoodVibes 字段 {field_name} must be finite numeric"
+            numeric_values[field_name] = number
+        base_energy_value = numeric_values["base_energy"]
+        qh_h_value = numeric_values["qh_enthalpy"]
+        qh_g_value = numeric_values["qh_gibbs_free_energy"]
+        electronic = (
+            species.single_point_energy_hartree
+            if species.single_point_energy_hartree is not None
+            else base_energy_value
+        )
+        records.append({
+            "name": species.name,
+            "log_path": os.path.abspath(species.log_path),
+            "coefficient": float(species.coefficient),
+            "frequency_electronic_energy_hartree": base_energy_value,
+            "electronic_energy_hartree": float(electronic),
+            "enthalpy_correction_hartree": qh_h_value - base_energy_value,
+            "gibbs_correction_hartree": qh_g_value - base_energy_value,
+            "standard_state_g_correction_hartree": None,
+            "enthalpy_hartree": float(electronic) + qh_h_value - base_energy_value,
+            "gibbs_free_energy_hartree": float(electronic) + qh_g_value - base_energy_value,
+            "energy_source": (
+                "supplied_single_point"
+                if species.single_point_energy_hartree is not None
+                else (
+                    "goodvibes_spc"
+                    if thermo.get("sp_energy") is not None
+                    else "frequency_log_scf"
+                )
+            ),
+        })
+    return records, None
 
 
 def _load_goodvibes_records(
@@ -306,98 +523,112 @@ def _load_goodvibes_records(
             "command": command,
             "returncode": proc.returncode,
             "fallback_used": False,
+            "qh_scheme": user_input.qh_scheme,
+            "frequency_cutoff_cm": user_input.frequency_cutoff_cm,
         }
-        if proc.returncode != 0 or not os.path.isfile(json_path):
-            tail = ((proc.stdout or "") + "\n" + (proc.stderr or ""))[-2000:]
-            return [], provenance, f"GoodVibes 未生成结构化结果（returncode={proc.returncode}）：{tail}"
-        try:
-            with open(json_path, encoding="utf-8") as handle:
-                payload = json.load(handle)
-        except (OSError, json.JSONDecodeError) as exc:
-            return [], provenance, f"GoodVibes JSON 无法解析: {exc}"
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+        combined_tail = (stdout + "\n" + stderr)[-2000:]
 
-    if not isinstance(payload, dict):
-        return [], provenance, "GoodVibes JSON top-level must be an object"
-    goodvibes_version = payload.get("goodvibes_version")
-    if not isinstance(goodvibes_version, str) or not goodvibes_version.strip():
-        return [], provenance, "GoodVibes JSON 缺少非空的 goodvibes_version"
-    provenance.update({
-        "goodvibes_version": goodvibes_version,
-        "schema_version": payload.get("schema_version"),
-        "options": payload.get("options", {}),
-    })
-    schema_version = payload.get("schema_version")
-    try:
-        schema_major = int(str(schema_version).split(".", 1)[0])
-    except (TypeError, ValueError):
-        return [], provenance, "GoodVibes JSON 缺少可识别的 schema_version"
-    if schema_major != 1:
-        return [], provenance, (
-            f"GoodVibes schema_version={schema_version!r} 不受支持；当前只接受 1.x"
-        )
-    entries = payload.get("results", [])
-    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
-        return [], provenance, "GoodVibes JSON 的 results 必须是对象列表"
-    records = []
-    for species in user_input.species:
-        entry = _match_goodvibes_entry(entries, species)
-        if entry is None:
-            return [], provenance, f"GoodVibes 结果中无法唯一匹配物种 {species.name}"
-        thermo = entry.get("thermo", {})
-        if not isinstance(thermo, dict):
-            return [], provenance, f"{species.name}: GoodVibes thermo 必须是对象"
-        base_energy = thermo.get("sp_energy")
-        if base_energy is None:
-            base_energy = thermo.get("scf_energy")
-        qh_h = thermo.get("qh_enthalpy")
-        qh_g = thermo.get("qh_gibbs_free_energy")
-        if base_energy is None or qh_h is None or qh_g is None:
-            return [], provenance, f"{species.name}: GoodVibes 缺少 qh_enthalpy 或 qh_gibbs_free_energy"
-        numeric_values = {}
-        for field_name, value in (
-            ("base_energy", base_energy),
-            ("qh_enthalpy", qh_h),
-            ("qh_gibbs_free_energy", qh_g),
-        ):
+        json_error: Optional[str] = None
+        payload: Optional[dict] = None
+        if proc.returncode != 0:
+            json_error = f"GoodVibes 退出码非零（returncode={proc.returncode}）：{combined_tail}"
+        elif not os.path.isfile(json_path):
+            json_error = "GoodVibes 未生成 JSON 文件"
+        else:
             try:
-                if isinstance(value, bool):
-                    raise TypeError
-                number = float(value)
-            except (TypeError, ValueError):
-                return [], provenance, (
-                    f"{species.name}: GoodVibes 字段 {field_name} must be numeric"
-                )
-            if not math.isfinite(number):
-                return [], provenance, (
-                    f"{species.name}: GoodVibes 字段 {field_name} must be finite numeric"
-                )
-            numeric_values[field_name] = number
-        base_energy_value = numeric_values["base_energy"]
-        qh_h_value = numeric_values["qh_enthalpy"]
-        qh_g_value = numeric_values["qh_gibbs_free_energy"]
-        electronic = (
-            species.single_point_energy_hartree
-            if species.single_point_energy_hartree is not None
-            else base_energy_value
-        )
-        records.append({
-            "name": species.name,
-            "log_path": os.path.abspath(species.log_path),
-            "coefficient": float(species.coefficient),
-            "frequency_electronic_energy_hartree": base_energy_value,
-            "electronic_energy_hartree": float(electronic),
-            "enthalpy_correction_hartree": qh_h_value - base_energy_value,
-            "gibbs_correction_hartree": qh_g_value - base_energy_value,
-            "standard_state_g_correction_hartree": None,
-            "enthalpy_hartree": float(electronic) + qh_h_value - base_energy_value,
-            "gibbs_free_energy_hartree": float(electronic) + qh_g_value - base_energy_value,
-            "energy_source": (
-                "supplied_single_point"
-                if species.single_point_energy_hartree is not None
-                else ("goodvibes_spc" if thermo.get("sp_energy") is not None else "frequency_log_scf")
-            ),
-        })
-    return records, provenance, None
+                with open(json_path, encoding="utf-8") as handle:
+                    loaded = json.load(handle)
+            except (OSError, json.JSONDecodeError) as exc:
+                json_error = f"GoodVibes JSON 无法解析: {exc}"
+            else:
+                if not isinstance(loaded, dict):
+                    json_error = "GoodVibes JSON top-level must be an object"
+                else:
+                    payload = loaded
+
+        if payload is not None:
+            goodvibes_version = payload.get("goodvibes_version")
+            if not isinstance(goodvibes_version, str) or not goodvibes_version.strip():
+                json_error = "GoodVibes JSON 缺少非空的 goodvibes_version"
+            else:
+                provenance.update({
+                    "goodvibes_version": goodvibes_version,
+                    "schema_version": payload.get("schema_version"),
+                    "options": payload.get("options", {}),
+                    "parse_source": "json",
+                })
+                schema_version = payload.get("schema_version")
+                try:
+                    schema_major = int(str(schema_version).split(".", 1)[0])
+                except (TypeError, ValueError):
+                    json_error = "GoodVibes JSON 缺少可识别的 schema_version"
+                else:
+                    if schema_major != 1:
+                        json_error = (
+                            f"GoodVibes schema_version={schema_version!r} 不受支持；"
+                            "当前只接受 1.x"
+                        )
+                    else:
+                        entries = payload.get("results", [])
+                        if not isinstance(entries, list) or not all(
+                            isinstance(entry, dict) for entry in entries
+                        ):
+                            json_error = "GoodVibes JSON 的 results 必须是对象列表"
+                        else:
+                            thermo_by_stem: dict[str, dict] = {}
+                            for species in user_input.species:
+                                entry = _match_goodvibes_entry(entries, species)
+                                if entry is None:
+                                    json_error = (
+                                        f"GoodVibes 结果中无法唯一匹配物种 {species.name}"
+                                    )
+                                    break
+                                thermo = entry.get("thermo", {})
+                                if not isinstance(thermo, dict):
+                                    json_error = f"{species.name}: GoodVibes thermo 必须是对象"
+                                    break
+                                stem = os.path.splitext(os.path.basename(species.log_path))[0]
+                                thermo_by_stem[stem] = thermo
+                            else:
+                                records, record_error = _records_from_thermo_maps(
+                                    user_input, thermo_by_stem,
+                                )
+                                if record_error:
+                                    json_error = record_error
+                                else:
+                                    return records, provenance, None
+
+        # JSON path failed: try classic stdout table (GoodVibes 3.2 README style).
+        text_entries, text_error = _parse_goodvibes_text_table(stdout)
+        if text_error:
+            reason = json_error or "GoodVibes JSON 不可用"
+            return [], provenance, (
+                f"{reason}；文本表回退亦失败：{text_error}"
+            )
+        provenance["parse_source"] = "stdout_table"
+        if json_error:
+            provenance["json_parse_error"] = json_error
+        thermo_by_stem = {
+            entry["name"]: {
+                "scf_energy": entry["scf_energy"],
+                "qh_enthalpy": entry["qh_enthalpy"],
+                "qh_gibbs_free_energy": entry["qh_gibbs_free_energy"],
+            }
+            for entry in text_entries
+        }
+        # Also index by basename stem aliases if name differs slightly.
+        for entry in text_entries:
+            thermo_by_stem.setdefault(entry["name"], {
+                "scf_energy": entry["scf_energy"],
+                "qh_enthalpy": entry["qh_enthalpy"],
+                "qh_gibbs_free_energy": entry["qh_gibbs_free_energy"],
+            })
+        records, record_error = _records_from_thermo_maps(user_input, thermo_by_stem)
+        if record_error:
+            return [], provenance, record_error
+        return records, provenance, None
 
 
 class ThermoAnalysis(Tool):
@@ -455,7 +686,9 @@ class ThermoAnalysis(Tool):
                 status="inconclusive",
                 message="solution_custom 必须提供 concentration_molar。",
             )
-        missing_paths = [species.log_path for species in user_input.species if not os.path.isfile(species.log_path)]
+        missing_paths = [
+            species.log_path for species in user_input.species if not os.path.isfile(species.log_path)
+        ]
         if missing_paths:
             return ThermoAnalysis_output_schema(
                 is_success=False,
@@ -470,15 +703,35 @@ class ThermoAnalysis(Tool):
         if concentration is not None:
             assumptions.append(f"concentration={concentration:g} mol/L")
 
+        # GoodVibes / 日志解析为同步 IO+子进程；移出事件循环，避免 TUI 假死。
+        import asyncio
+
+        return await asyncio.to_thread(
+            self._compute_thermochemistry,
+            user_input,
+            concentration,
+            assumptions,
+        )
+
+    @staticmethod
+    def _compute_thermochemistry(
+        user_input: ThermoAnalysis_input_schema,
+        concentration: float | None,
+        assumptions: list[str],
+    ) -> ThermoAnalysis_output_schema:
         if user_input.backend == "goodvibes":
             executable = shutil.which("goodvibes")
             provenance = {
                 "backend": "goodvibes",
                 "fallback_used": False,
+                "qh_scheme": user_input.qh_scheme,
+                "frequency_cutoff_cm": user_input.frequency_cutoff_cm,
             }
-            assumptions.append(
-                f"GoodVibes quasi-harmonic: -q, cutoff={user_input.frequency_cutoff_cm:g} cm^-1"
-            )
+            assumptions = [
+                *assumptions,
+                f"GoodVibes quasi-harmonic: -q --qs {user_input.qh_scheme}, "
+                f"cutoff(-f)={user_input.frequency_cutoff_cm:g} cm^-1",
+            ]
             if executable is None:
                 return ThermoAnalysis_output_schema(
                     is_success=True,
@@ -504,11 +757,14 @@ class ThermoAnalysis(Tool):
                 "backend": "raw_rrho",
                 "fallback_used": False,
             }
-            assumptions.append(
-                "raw Gaussian RRHO corrections; requested temperature must match the frequency log"
-            )
+            assumptions = [
+                *assumptions,
+                "raw Gaussian RRHO corrections; requested temperature must match the frequency log",
+            ]
             if concentration is not None:
-                assumptions.append("ideal-gas RT ln(C°RT/p°) standard-state correction applied per species")
+                assumptions.append(
+                    "ideal-gas RT ln(C°RT/p°) standard-state correction applied per species"
+                )
             records = []
             errors = []
             for species in user_input.species:

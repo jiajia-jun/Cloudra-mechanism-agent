@@ -12,8 +12,15 @@ from cloudra.services.service import CloudraService
 
 @pytest.fixture
 def isolated_service(tmp_path, monkeypatch):
+    import os
+    from pathlib import Path
+
     data_dir = tmp_path / "data"
+    # AF_UNIX 路径有长度上限；workspace 下的 tmp_path 往往过长
+    runtime_dir = Path(f"/tmp/cr{os.getpid()}")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
     reload_config()
     get_config().data_dir = data_dir
     service = CloudraService()
@@ -76,6 +83,10 @@ async def test_supplemental_message_replay_is_injected_once(isolated_service):
         query="初始任务",
     )
     session_store.update_session_fields(db, session_id, {"state": "running"})
+    # 有活 runner 才保持 inject；否则会升级为 resume 并换新 session_id
+    isolated_service.session_runner._running[(conversation_id, session_id)] = (
+        asyncio.get_running_loop().create_future()
+    )
 
     first_command, first_record = (
         await isolated_service.append_session_message_command(
@@ -147,7 +158,12 @@ async def test_persistent_interaction_answer_wakes_session_once(isolated_service
             conversation_id,
             session_id=session_id,
         )
-        if interactions:
+        # 异步写入后交互行与 session 状态不再同一事件循环节拍落库，
+        # 等两者都就绪再断言。
+        if interactions and isolated_service.session_runner.get(
+            conversation_id,
+            session_id,
+        ).state == "waiting_for_user":
             break
         await asyncio.sleep(0.01)
     assert len(interactions) == 1

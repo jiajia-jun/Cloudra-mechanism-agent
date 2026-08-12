@@ -504,10 +504,61 @@ _TS_FREQ_SNIPPET = """\
                       A                      A                      A
  Frequencies --   -915.3388               1200.0000              1300.0000
  Red. masses --      1.0078                 1.0078                 1.0078
+  Atom  AN      X      Y      Z        X      Y      Z        X      Y      Z
+     1   6     0.05   0.00   0.00     0.00   0.10   0.00     0.00   0.00   0.10
+     2   7    -0.05   0.00   0.00     0.00  -0.10   0.00     0.00   0.00  -0.10
+     3   1     0.80   0.00   0.00     0.00   0.00   0.10     0.00   0.10   0.00
  Normal termination of Gaussian 16 at Sat Mar 22 18:44:39 2025.
 """
 
+# 虚频模式：H 相对 C/N 大幅位移（与 watch_pairs C-H、N-H 一致）
 _TS_FREQ_WITH_GEOMETRY = """\
+ Standard orientation:
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1          6           0        0.427601   -0.595125    0.000000
+      2          7           0       -0.354874    0.327913    0.000000
+      3          1           0       -0.680027   -1.045650    0.000000
+ ---------------------------------------------------------------------
+ Harmonic frequencies (cm**-1), IR intensities (KM/Mole), Raman scattering
+                      1                      2                      3
+                      A                      A                      A
+ Frequencies --   -915.3388               1200.0000              1300.0000
+ Red. masses --      1.0078                 1.0078                 1.0078
+  Atom  AN      X      Y      Z        X      Y      Z        X      Y      Z
+     1   6     0.05   0.00   0.00     0.00   0.10   0.00     0.00   0.00   0.10
+     2   7    -0.05   0.00   0.00     0.00  -0.10   0.00     0.00   0.00  -0.10
+     3   1     0.80   0.00   0.00     0.00   0.00   0.10     0.00   0.10   0.00
+ Normal termination of Gaussian 16 at Sat Mar 22 18:44:39 2025.
+"""
+
+# 虚频模式：主要是 C–N 相对伸缩，H 几乎不动（与声明反应坐标不符）
+_TS_FREQ_WRONG_MODE = """\
+ Standard orientation:
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1          6           0        0.427601   -0.595125    0.000000
+      2          7           0       -0.354874    0.327913    0.000000
+      3          1           0       -0.680027   -1.045650    0.000000
+ ---------------------------------------------------------------------
+ Harmonic frequencies (cm**-1), IR intensities (KM/Mole), Raman scattering
+                      1                      2                      3
+                      A                      A                      A
+ Frequencies --   -915.3388               1200.0000              1300.0000
+ Red. masses --      1.0078                 1.0078                 1.0078
+  Atom  AN      X      Y      Z        X      Y      Z        X      Y      Z
+     1   6     1.00   0.00   0.00     0.00   0.10   0.00     0.00   0.00   0.10
+     2   7    -1.00   0.00   0.00     0.00  -0.10   0.00     0.00   0.00  -0.10
+     3   1     0.00   0.00   0.00     0.00   0.00   0.10     0.00   0.10   0.00
+ Normal termination of Gaussian 16 at Sat Mar 22 18:44:39 2025.
+"""
+
+# 有虚频但无简正模式位移块
+_TS_FREQ_NO_DISPS = """\
  Standard orientation:
  ---------------------------------------------------------------------
  Center     Atomic      Atomic             Coordinates (Angstroms)
@@ -773,3 +824,106 @@ async def test_verify_strict_no_informative_pair_is_inconclusive(tmp_path, mock_
 
     assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_rejects_imag_mode_misaligned_with_watch_pairs(tmp_path, mock_session):
+    """strict：虚频模式主要不在声明的反应中心原子对上时，应 fail。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_wrong_mode.log"
+    freq_log.write_text(_TS_FREQ_WRONG_MODE)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "strict": True,
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": _HCN_XYZ,
+        "product_text": _HNC_XYZ,
+        "watch_pairs": [[1, 3], [2, 3]],
+        "output_dir": str(tmp_path / "strict_bad_mode"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verdict.startswith("fail")
+    assert any("虚频模式" in check or "反应坐标" in check for check in result.checks)
+    assert result.imag_mode_aligned is False
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_missing_vibdisps_is_inconclusive(tmp_path, mock_session):
+    """strict：频率日志无简正模式位移时无法核对虚频方向，应 inconclusive。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_no_disps.log"
+    freq_log.write_text(_TS_FREQ_NO_DISPS)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "strict": True,
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": _HCN_XYZ,
+        "product_text": _HNC_XYZ,
+        "watch_pairs": [[1, 3], [2, 3]],
+        "output_dir": str(tmp_path / "strict_no_disps"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verdict.startswith("inconclusive")
+    assert any("简正模式位移" in check for check in result.checks)
+    assert result.imag_mode_aligned is None
+
+
+@pytest.mark.asyncio
+async def test_verify_non_strict_reports_mode_alignment_without_changing_verdict(
+    tmp_path, mock_session,
+):
+    """非 strict：模式不对齐只写入 checks，仍保持 candidate 语义。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_wrong_mode.log"
+    freq_log.write_text(_TS_FREQ_WRONG_MODE)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "freq_log": str(freq_log),
+        "watch_pairs": [[1, 3], [2, 3]],
+        "output_dir": str(tmp_path / "non_strict_mode"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.verdict.startswith("candidate")
+    assert any("虚频模式" in check or "反应坐标" in check for check in result.checks)
+    assert result.imag_mode_aligned is False
+
+
+def test_imag_mode_alignment_helper_uses_relative_displacement_ratio():
+    from cloudra.tools.Chemtool.ts_guess import _assess_imag_mode_alignment
+
+    vibfreqs = [-900.0, 1200.0, 1300.0]
+    vibdisps = np.array([
+        [[0.05, 0.0, 0.0], [-0.05, 0.0, 0.0], [0.80, 0.0, 0.0]],
+        [[0.0, 0.1, 0.0], [0.0, -0.1, 0.0], [0.0, 0.0, 0.1]],
+        [[0.0, 0.0, 0.1], [0.0, 0.0, -0.1], [0.0, 0.1, 0.0]],
+    ], dtype=float)
+    ok = _assess_imag_mode_alignment(
+        vibfreqs, vibdisps, watch_pairs=[[1, 3], [2, 3]], **{}
+    )
+    assert ok["status"] == "aligned"
+    assert ok["aligned"] is True
+
+    bad_disps = np.array([
+        [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        [[0.0, 0.1, 0.0], [0.0, -0.1, 0.0], [0.0, 0.0, 0.1]],
+        [[0.0, 0.0, 0.1], [0.0, 0.0, -0.1], [0.0, 0.1, 0.0]],
+    ], dtype=float)
+    bad = _assess_imag_mode_alignment(
+        vibfreqs, bad_disps, watch_pairs=[[1, 3], [2, 3]], **{}
+    )
+    assert bad["status"] == "misaligned"
+    assert bad["aligned"] is False
+
+    missing = _assess_imag_mode_alignment(
+        vibfreqs, None, watch_pairs=[[1, 3]], **{}
+    )
+    assert missing["status"] == "missing"
+    assert missing["aligned"] is None

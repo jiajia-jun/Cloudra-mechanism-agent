@@ -670,14 +670,17 @@ class ElectronicAnalysis(Tool):
         )
 
     async def tool_call(self, user_input: ElectronicAnalysis_input_schema, session: Session) -> ElectronicAnalysis_output_schema:
+        import asyncio
+
         try:
             xyz_text = _load_xyz_text(user_input)
         except Exception as e:
             return ElectronicAnalysis_output_schema(is_success=False, message=f"读取输入结构失败: {e}")
 
+        # xTB / PySCF 为同步子进程或重 CPU；移出事件循环，避免 TUI 与 Coordinator 同 loop 假死。
         if user_input.backend == "xtb":
             try:
-                return self._run_xtb(user_input, xyz_text)
+                return await asyncio.to_thread(self._run_xtb, user_input, xyz_text)
             except Exception as e:
                 return ElectronicAnalysis_output_schema(is_success=False, message=f"xTB 后端失败: {e}")
 
@@ -687,7 +690,7 @@ class ElectronicAnalysis(Tool):
                 message="环境未安装 PySCF 库。请执行: pip install pyscf 或 pip install 'cloudra[chem]'"
             )
         try:
-            return self._run_pyscf(user_input, xyz_text)
+            return await asyncio.to_thread(self._run_pyscf, user_input, xyz_text)
         except Exception as e:
             return ElectronicAnalysis_output_schema(is_success=False, message=f"PySCF 后端失败: {e}")
 

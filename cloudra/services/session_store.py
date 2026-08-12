@@ -353,6 +353,57 @@ async def atransition_session_state(
     return changed
 
 
+async def asuspend_session(
+    db: ConversationDB,
+    session_id: str,
+    *,
+    result: Optional[str] = None,
+) -> None:
+    """挂起：后台（子任务/计算/提醒）未排空时的 stop。
+
+    非终态：写 ``waiting``、保留/更新 result 预览，但绝不写 ``finished_at``，
+    也不进 Case Bank。唤醒时由 :func:`aresume_session` 转回 running。
+    """
+
+    async def write() -> None:
+        async with db.aconnect() as con:
+            await con.execute(
+                "UPDATE session SET state='waiting', "
+                "result=COALESCE(?, result), finished_at=NULL "
+                "WHERE session_id=?",
+                (result, session_id),
+            )
+            await con.commit()
+
+    await aretry_on_locked(write)
+    await _aemit_session_state(db, session_id, "waiting")
+
+
+async def aresume_session(db: ConversationDB, session_id: str) -> bool:
+    """复活语义：被定时提醒/外部事件重新唤醒时，把挂起/误留的终态转回 running。
+
+    stop 在后台未排空时落库 ``waiting``；历史路径也可能误写 ``completed``。
+    runner/executor 再次调用 run() 续跑前必须撤回，否则 UI 会显示"已完成"
+    而模型仍在工作。只复活 waiting/completed——cancelled / failed 是用户或
+    系统的明确终态，绝不被唤醒覆盖。
+    """
+
+    async def write() -> bool:
+        async with db.aconnect() as con:
+            cursor = await con.execute(
+                "UPDATE session SET state='running', finished_at=NULL "
+                "WHERE session_id=? AND state IN ('completed', 'waiting')",
+                (session_id,),
+            )
+            await con.commit()
+            return cursor.rowcount == 1
+
+    changed = await aretry_on_locked(write)
+    if changed:
+        await _aemit_session_state(db, session_id, "running")
+    return changed
+
+
 async def aheartbeat(db: ConversationDB, session_id: str) -> None:
     """刷新 Session 心跳（异步）。"""
     now = _utc_now()
@@ -788,6 +839,10 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
     """把失去心跳或未被认领的 Session 标为 interrupted。
 
     返回被标记 interrupted 的 Session 数。``cutoff`` 为心跳过期阈值（ISO 时间串）。
+    覆盖 running/waiting/cancel_requested/waiting_for_*：waiting（挂起等唤醒）
+    与 cancel_requested（取消半途）的属主进程死后同样会成为永久僵尸，
+    活体由各自的心跳保活（service 侧 5s 心跳；子 agent executor 进程内
+    心跳任务），心跳过期才回收，不会误杀合法的挂起等待。
     """
     now = _utc_now()
     changed = 0
@@ -797,8 +852,8 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
             row[0] for row in con.execute(
                 """SELECT session_id FROM session
                 WHERE (
-                    state IN ('running', 'waiting_for_user',
-                    'waiting_for_device', 'waiting_for_approval')
+                    state IN ('running', 'waiting', 'cancel_requested',
+                    'waiting_for_user', 'waiting_for_device', 'waiting_for_approval')
                     AND (heartbeat_at IS NULL OR heartbeat_at < ?)
                 ) OR (
                     state='queued'
@@ -812,8 +867,8 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
                 """SELECT id FROM compute_jobs
                 WHERE state IN ('ready', 'running') AND session_id IN (
                     SELECT session_id FROM session WHERE (
-                        state IN ('running', 'waiting_for_user',
-                        'waiting_for_device', 'waiting_for_approval')
+                        state IN ('running', 'waiting', 'cancel_requested',
+                        'waiting_for_user', 'waiting_for_device', 'waiting_for_approval')
                         AND (heartbeat_at IS NULL OR heartbeat_at < ?)
                     ) OR (
                         state='queued'
@@ -846,8 +901,8 @@ def recover_stale(db: ConversationDB, *, cutoff: str) -> int:
                 """UPDATE session SET state='interrupted',
                 error=COALESCE(error, 'worker heartbeat expired'), finished_at=?
                 WHERE (
-                    state IN ('running', 'waiting_for_user',
-                    'waiting_for_device', 'waiting_for_approval')
+                    state IN ('running', 'waiting', 'cancel_requested',
+                    'waiting_for_user', 'waiting_for_device', 'waiting_for_approval')
                     AND (heartbeat_at IS NULL OR heartbeat_at < ?)
                 ) OR (
                     state='queued'

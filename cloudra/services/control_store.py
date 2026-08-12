@@ -8,11 +8,21 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
-from cloudra.persistence.database import ConversationDB, retry_on_locked
+from cloudra.persistence.database import ConversationDB, aretry_on_locked, retry_on_locked
 
 _COMMAND_ID = re.compile(r"^[A-Za-z0-9_.:-]{8,160}$")
 _INTERACTION_ID = re.compile(r"^[A-Za-z0-9_.:-]{8,160}$")
 _FINAL_COMMAND_STATES = frozenset({"applied", "failed"})
+
+# 交互表的 SQL 在同步/异步变体间共用，避免两套语句漂移。
+_INTERACTION_INSERT_SQL = """INSERT INTO interactions
+(interaction_id, session_id, agent_id, prompt, state, created_at)
+VALUES (?, ?, ?, ?, 'pending', ?)"""
+_INTERACTION_SELECT_SQL = """SELECT interaction_id, session_id, agent_id, prompt, state,
+response, created_at, responded_at
+FROM interactions WHERE interaction_id=?"""
+_INTERACTION_EXPIRE_SQL = """UPDATE interactions SET state='expired', responded_at=?
+WHERE interaction_id=? AND state='pending'"""
 
 
 class CommandConflict(ValueError):
@@ -224,15 +234,39 @@ def create_interaction(
     def write() -> None:
         with db.connect() as con:
             con.execute(
-                """INSERT INTO interactions
-                (interaction_id, session_id, agent_id, prompt, state, created_at)
-                VALUES (?, ?, ?, ?, 'pending', ?)""",
+                _INTERACTION_INSERT_SQL,
                 (interaction_id, session_id, agent_id, prompt, _utc_now()),
             )
             con.commit()
 
     retry_on_locked(write)
     record = get_interaction(db, interaction_id)
+    if record is None:  # pragma: no cover - defensive invariant
+        raise RuntimeError("交互记录意外丢失")
+    return record
+
+
+async def acreate_interaction(
+    db: ConversationDB,
+    *,
+    session_id: str,
+    agent_id: str,
+    prompt: str,
+    interaction_id: str | None = None,
+) -> Interaction:
+    """异步变体：与 :func:`create_interaction` 共用 SQL，不阻塞事件循环。"""
+    interaction_id = interaction_id or f"int_{uuid.uuid4().hex}"
+
+    async def write() -> None:
+        async with db.aconnect() as con:
+            await con.execute(
+                _INTERACTION_INSERT_SQL,
+                (interaction_id, session_id, agent_id, prompt, _utc_now()),
+            )
+            await con.commit()
+
+    await aretry_on_locked(write)
+    record = await aget_interaction(db, interaction_id)
     if record is None:  # pragma: no cover - defensive invariant
         raise RuntimeError("交互记录意外丢失")
     return record
@@ -258,13 +292,28 @@ def get_interaction(db: ConversationDB, interaction_id: str) -> Interaction | No
     def read():
         with db.connect() as con:
             return con.execute(
-                """SELECT interaction_id, session_id, agent_id, prompt, state,
-                response, created_at, responded_at
-                FROM interactions WHERE interaction_id=?""",
+                _INTERACTION_SELECT_SQL,
                 (interaction_id,),
             ).fetchone()
 
     row = retry_on_locked(read)
+    return _interaction_from_row(row) if row else None
+
+
+async def aget_interaction(db: ConversationDB, interaction_id: str) -> Interaction | None:
+    """异步变体：与 :func:`get_interaction` 共用 SQL，不阻塞事件循环。"""
+    if not _INTERACTION_ID.fullmatch(interaction_id):
+        raise ValueError("无效的 interaction_id")
+
+    async def read():
+        async with db.aconnect() as con:
+            cursor = await con.execute(
+                _INTERACTION_SELECT_SQL,
+                (interaction_id,),
+            )
+            return await cursor.fetchone()
+
+    row = await aretry_on_locked(read)
     return _interaction_from_row(row) if row else None
 
 
@@ -316,11 +365,25 @@ def expire_interaction(db: ConversationDB, interaction_id: str) -> bool:
     def write() -> bool:
         with db.connect() as con:
             cursor = con.execute(
-                """UPDATE interactions SET state='expired', responded_at=?
-                WHERE interaction_id=? AND state='pending'""",
+                _INTERACTION_EXPIRE_SQL,
                 (_utc_now(), interaction_id),
             )
             con.commit()
             return cursor.rowcount == 1
 
     return retry_on_locked(write)
+
+
+async def aexpire_interaction(db: ConversationDB, interaction_id: str) -> bool:
+    """异步变体：与 :func:`expire_interaction` 共用 SQL，不阻塞事件循环。"""
+
+    async def write() -> bool:
+        async with db.aconnect() as con:
+            cursor = await con.execute(
+                _INTERACTION_EXPIRE_SQL,
+                (_utc_now(), interaction_id),
+            )
+            await con.commit()
+            return cursor.rowcount == 1
+
+    return await aretry_on_locked(write)

@@ -7,28 +7,40 @@ import os
 import time
 
 from cloudra.infra import events
-from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.database import ConversationDB, aretry_on_locked
 from cloudra.services import control_store, session_store
 
 
-def _session_state(db: ConversationDB, session_id: str) -> str | None:
-    with db.connect() as con:
-        row = con.execute(
+async def _asession_state(db: ConversationDB, session_id: str) -> str | None:
+    async with db.aconnect() as con:
+        cursor = await con.execute(
             "SELECT state FROM session WHERE session_id=?",
             (session_id,),
-        ).fetchone()
+        )
+        row = await cursor.fetchone()
     return row[0] if row else None
 
 
-def _set_session_state(
+async def _aset_session_state(
     db: ConversationDB,
     session_id: str,
     state: str,
     *,
     event_data: dict | None = None,
 ) -> None:
-    session_store.update_session_fields(db, session_id, {"state": state})
-    session_store.insert_session_event(
+    # 等价于 update_session_fields({"state": state}) + insert_session_event；
+    # async 上下文禁止同步写库，这里走 aconnect 不阻塞事件循环。
+    async def write() -> None:
+        async with db.aconnect() as con:
+            await con.execute(
+                "UPDATE session SET state = ? WHERE session_id = ?",
+                (state, session_id),
+            )
+            await con.commit()
+
+    await aretry_on_locked(write)
+    await session_store._aemit_session_state(db, session_id, state)
+    await session_store.ainsert_session_event(
         db,
         session_id,
         state,
@@ -53,13 +65,13 @@ async def wait_for_user_response(
         else ConversationDB(conversation_id)
     )
     queue = await events.subscribe_async(conversation_id, "interaction_answered")
-    interaction = control_store.create_interaction(
+    interaction = await control_store.acreate_interaction(
         db,
         session_id=session_id,
         agent_id=agent_id,
         prompt=prompt,
     )
-    _set_session_state(
+    await _aset_session_state(
         db,
         session_id,
         "waiting_for_user",
@@ -76,7 +88,7 @@ async def wait_for_user_response(
         )
     except Exception:
         pass
-    session_store.insert_session_event(
+    await session_store.ainsert_session_event(
         db,
         session_id,
         "interaction_requested",
@@ -94,29 +106,29 @@ async def wait_for_user_response(
 
     try:
         while True:
-            current = control_store.get_interaction(
+            current = await control_store.aget_interaction(
                 db,
                 interaction.interaction_id,
             )
             if current is not None and current.state == "answered":
-                if _session_state(db, session_id) == "waiting_for_user":
-                    _set_session_state(db, session_id, "running")
+                if await _asession_state(db, session_id) == "waiting_for_user":
+                    await _aset_session_state(db, session_id, "running")
                 return current.response or ""
 
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                control_store.expire_interaction(
+                await control_store.aexpire_interaction(
                     db,
                     interaction.interaction_id,
                 )
-                session_store.insert_session_event(
+                await session_store.ainsert_session_event(
                     db,
                     session_id,
                     "interaction_expired",
                     {"interaction_id": interaction.interaction_id},
                 )
-                if _session_state(db, session_id) == "waiting_for_user":
-                    _set_session_state(db, session_id, "running")
+                if await _asession_state(db, session_id) == "waiting_for_user":
+                    await _aset_session_state(db, session_id, "running")
                 raise TimeoutError("等待用户回答超时")
 
             try:
@@ -129,8 +141,8 @@ async def wait_for_user_response(
             if message.get("interaction_id") != interaction.interaction_id:
                 continue
     except asyncio.CancelledError:
-        control_store.expire_interaction(db, interaction.interaction_id)
-        session_store.insert_session_event(
+        await control_store.aexpire_interaction(db, interaction.interaction_id)
+        await session_store.ainsert_session_event(
             db,
             session_id,
             "interaction_cancelled",

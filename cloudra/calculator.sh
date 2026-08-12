@@ -33,6 +33,30 @@ cd "$WORKDIR"
 run_gaussian() {
     # Gaussian 可执行文件通常命名为 g16/g09/g26。
     # 统一通过系统 PATH 调用，不依赖工作目录下的本地副本。
+    #
+    # Link0 会把 .gjf 拷到 $GAUSS_SCRDIR/Gau-$PID.inp。多个本地任务若共用
+    # 同一个 GAUSS_SCRDIR（常见全局 ~/…/Utsu），并行时会互相踩 rwf/chk/inp，
+    # 表现为 Link1 后立刻 FileIO、日志只有一百多行、零 SCF——不是输入写错。
+    # guard 已分配 cloudra_g16_* 时直接用；否则自建子目录，EXIT 后再删。
+    local base_scr="${GAUSS_SCRDIR:-$WORKDIR/.g16_scratch}"
+    local job_scr
+    local own_scratch=0
+    if [[ "$(basename -- "$base_scr")" == cloudra_g16_* ]]; then
+        job_scr="$base_scr"
+        mkdir -p "$job_scr"
+    else
+        mkdir -p "$base_scr"
+        job_scr="${base_scr%/}/cloudra_g16_$$"
+        mkdir -p "$job_scr"
+        own_scratch=1
+    fi
+    export GAUSS_SCRDIR="$job_scr"
+    if [ "$own_scratch" -eq 1 ]; then
+        # shellcheck disable=SC2064
+        trap "rm -rf -- $(printf '%q' "$job_scr")" EXIT
+    fi
+    echo "[calculator] isolated GAUSS_SCRDIR=$GAUSS_SCRDIR" >&2
+
     if command -v g16 >/dev/null 2>&1; then
         g16 "$INPUT_FILE"
     elif command -v g09 >/dev/null 2>&1; then

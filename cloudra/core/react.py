@@ -13,10 +13,12 @@ from cloudra.infra import events
 from cloudra.infra.config import get_config
 from cloudra.infra.presentation import Color
 from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
+from cloudra.infra.token_estimator import TokenEstimator
 from cloudra.persistence.case_bank import get_case_bank
 from cloudra.persistence.database import ConversationDB, get_database_path
 from cloudra.services import session_store
 from cloudra.tools import get_tools_lst
+from cloudra.tools.core.bash_habit_guard import bash_habit_warning
 
 
 class AgentCancelled(Exception):
@@ -121,6 +123,7 @@ class reAct:
             working_directory=getattr(agent, "working_directory", None),
             artifact_data_dir=data_dir,
             supervisor=self.graph_supervisor,
+            agent_id=getattr(agent, "id", None),
         )
         if self.orchestration_mode is not OrchestrationMode.STANDARD:
             self.agent.set_dag_projection_provider(
@@ -132,6 +135,11 @@ class reAct:
         self._truncation_retries = 0
         # 死循环检测：最近若干次工具调用的签名（tool_name + 稳定序列化参数）
         self._recent_tool_sigs: list[str] = []
+        # bash 习惯检测（见 _check_bash_habit）：连续 bashtools 调用计数 +
+        # 当前持久上下文 token 估算缓存（按消息条数变化失效）。
+        self._consecutive_bash = 0
+        self._history_len_cache = -1
+        self._history_tokens_cache = 0
         # 本实例已有过一次成功的 stop（runner 因外部事件唤醒后 _continue 会重新置 True
         # 进入新一轮 run）。goal 锚点在第一次 stop 时已通过确认/审计，复活轮里模型
         # 常误以为"stop 已调用过"而只回正文——此时允许正文收尾，避免无限空转。
@@ -218,6 +226,13 @@ class reAct:
             else:
                 deduplicated_raw.append(event)
 
+        # append 路径会先把 user_message 落进上下文再 inject_event；
+        # 此处若再写一条【user_message】会造成重复。按近期正文去重。
+        recent_contents = {
+            str(msg.get("content") or "")
+            for msg in (await self.agent.context_manager.load())[-12:]
+        }
+
         injected = 0
         for event in deduplicated_raw + persisted:
             # IPC 事件 payload 包含 agent_id/event_type/content
@@ -226,10 +241,15 @@ class reAct:
                 continue
             event_type = event.get("event_type", "external")
             content = event.get("content", "")
+            system_line = f"【{event_type}】{content}"
+            if content in recent_contents or system_line in recent_contents:
+                injected += 1  # 仍计为已消费，便于 runner 继续循环
+                continue
             await self.agent.update_context({
                 "role": "system",
-                "content": f"【{event_type}】{content}",
+                "content": system_line,
             })
+            recent_contents.add(system_line)
             self.log.update_content(
                 f"{Color.YELLOW}[外部事件] {event_type}: {self._truncate(content, 200)}{Color.END}\n"
             )
@@ -240,6 +260,51 @@ class reAct:
         """供 runner 在等待后台任务后调用：一次性消费所有外部事件。"""
         await self._setup_event_subscriptions()
         return await self._consume_external_events() > 0
+
+    async def _has_pending_background(self) -> bool:
+        """会话级后台是否还有未竟工作（子任务/计算/定时提醒）。
+
+        与 runner._count_pending_tasks / DagController._has_pending_background
+        同一判定口径：只要后台未排空，stop 就是挂起而非交付完成。
+        """
+        from cloudra.persistence.database import aretry_on_locked
+
+        conv_id = getattr(self.agent, "conversation_id", None) or "default"
+        db = ConversationDB.from_path(self.database_path)
+
+        async def query():
+            async with db.aconnect() as con:
+                cur = await con.execute(
+                    """
+                    SELECT
+                        (SELECT COUNT(*) FROM subagent_requests
+                         WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                        (SELECT COUNT(*) FROM compute_jobs
+                         WHERE state IN ('ready', 'running') AND conversation_id = ?),
+                        (SELECT COUNT(*) FROM scheduled_reminders
+                         WHERE state = 'pending' AND conversation_id = ?)
+                    """,
+                    (conv_id, conv_id, conv_id),
+                )
+                return await cur.fetchone()
+
+        row = await aretry_on_locked(query)
+        return bool(row and any(row))
+
+    async def _finalize_stop(self, content: str) -> str:
+        """stop / 隐式收尾的统一落库：有后台则挂起，否则 completed + Case Bank。"""
+        db = ConversationDB.from_path(self.database_path)
+        if await self._has_pending_background():
+            self.session.state = "waiting"
+            await session_store.asuspend_session(db, self.session.id, result=content)
+            await self._record_phase("waiting")
+            return content
+        self.session.state = "completed"
+        await session_store.afinalize_session(
+            db, self.session.id, "completed", result=content
+        )
+        await self._persist_case()
+        return content
 
     async def _persist_case(self) -> None:
         """任务结束时把 trajectory 沉淀为结构化 case 到全局 Case Bank。"""
@@ -262,7 +327,9 @@ class reAct:
             embedding_bytes = embedding.astype(np.float32).tobytes()
 
             case_bank = get_case_bank()
-            case_bank.add_case(
+            # 同步写 case_bank.db 不能在事件循环线程上执行，offload 到 worker 线程
+            await asyncio.to_thread(
+                case_bank.add_case,
                 session_id=self.session.id,
                 task_summary=task_summary,
                 outcome=case_data.get("outcome", "unknown"),
@@ -283,6 +350,11 @@ class reAct:
         # 确保上下文管理器已初始化，并加载初始上下文
         await self.agent.get_context()
         await self.dag_controller.initialize()
+        # 复活场景：上次 stop 已把 session 落库 completed，但 runner/executor
+        # 因 pending 提醒或外部事件再次调用 run() 续跑——先把状态转回 running，
+        # 避免"状态已完成、模型仍在工作"的假象。首次运行时该 CAS 自然落空。
+        db = ConversationDB.from_path(self.database_path)
+        await session_store.aresume_session(db, self.session.id)
         await self._setup_event_subscriptions()
         # 把 LLM 传输层状态（重试/fallback/异常）桥接为 session 事件：
         # 全屏 TUI 下 print 不可见，没有这些事件用户只能看到"卡住"
@@ -384,11 +456,7 @@ class reAct:
                                 {"gaps": gaps, "implicit_completion": True},
                             )
                             continue
-                        self.session.state = 'completed'
-                        db = ConversationDB.from_path(self.database_path)
-                        await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
-                        await self._persist_case()
-                        return content
+                        return await self._finalize_stop(content)
                 else:
                     try:
                         self.agent._goal_confirm_force = True
@@ -401,7 +469,6 @@ class reAct:
             stopped = await self.act_result(tool_calls)
 
             if stopped:
-                self.session.state = 'completed'
                 self._stopped_via_tool = True
                 # 后续若被外部事件唤醒（同一实例继续 run），每轮请求注入复核轮提示，
                 # 引导模型无事可做时直接再次 stop，而不是输出闲聊正文空转。
@@ -416,13 +483,10 @@ class reAct:
                         break
                 if not content:
                     content = context[-1].get('content', '任务已完成') if context else '任务已完成'
-                db = ConversationDB.from_path(self.database_path)
-                await session_store.afinalize_session(db, self.session.id, 'completed', result=content)
-                # 任务结束前沉淀经验 case
-                await self._persist_case()
+                # 有后台未竟工作时挂起（waiting），否则 completed + Case Bank。
                 # 上下文按 session 隔离且保留：新任务用新 session 自然不会串，
                 # 旧上下文留档供 ContextScreen 事后审查与复现。
-                return content
+                return await self._finalize_stop(content)
 
     MAX_STREAM_RETRIES = 2
 
@@ -793,6 +857,56 @@ class reAct:
         )
         return self._truncate(str(text), max_len=400)
 
+    async def _estimate_history_tokens(self) -> int:
+        """估算当前持久上下文（历史消息）的 token 数，供长上下文判定。
+
+        上下文在本实例生命周期内只增不减，用消息条数做缓存失效键，
+        避免每个 bash 调用都重扫整段历史。
+        """
+        try:
+            context = await self.agent.get_context()
+        except Exception:
+            return 0
+        if self._history_len_cache == len(context):
+            return self._history_tokens_cache
+        self._history_len_cache = len(context)
+        self._history_tokens_cache = await asyncio.to_thread(
+            TokenEstimator.estimate_messages, context
+        )
+        return self._history_tokens_cache
+
+    async def _check_bash_habit(self, tool_name: str, tool_args: dict) -> None:
+        """harness 级 bash 习惯检查：长上下文下连续用 bash 或直调量化程序时，
+        在工具执行前注入一条系统警告，提醒改用结构化工具（照常放行执行）。
+
+        与工具内（bashtools/coord_guard）的内容级警告互补：这里感知的是
+        "上下文已很长 + 行为仍习惯性回退命令行"的全局信号，内容级警告管的是
+        单条命令本身是否违规。
+        """
+        if tool_name == "bashtools":
+            self._consecutive_bash += 1
+        else:
+            self._consecutive_bash = 0
+            return
+        command = str(tool_args.get("command", ""))
+        if not command:
+            return
+        warning = bash_habit_warning(
+            command,
+            history_tokens=await self._estimate_history_tokens(),
+            context_window=getattr(self.agent, "context_window", 0) or 0,
+            consecutive_bash=self._consecutive_bash,
+        )
+        if not warning:
+            return
+        await self._commit_undos()
+        await self.agent.update_context({"role": "system", "content": warning})
+        await self._record_event(
+            "bash_habit_warning",
+            {"command": command, "consecutive": self._consecutive_bash},
+        )
+        self.log.update_content(f"{Color.YELLOW}[系统] {warning}{Color.END}\n")
+
     async def act_result(self, tool_calls: list):
         '''
         并发执行 reasoning 阶段收集到的 tool_calls。
@@ -839,18 +953,19 @@ class reAct:
                 continue
 
             try:
-                if isinstance(tool_args_raw, str):
-                    # strict=False 允许 JSON 字符串中出现未转义的换行/控制字符，
-                    # 这是 LLM 生成 text_writer 等多行参数时的常见情况。
-                    tool_args = json.loads(tool_args_raw, strict=False)
-                else:
-                    tool_args = tool_args_raw
+                from cloudra.infra.json_args import loads_tool_arguments
+
+                # 宽松解析 + 有限修复（嵌套少写 } 等）；strict=False 容忍未转义换行。
+                tool_args = loads_tool_arguments(tool_args_raw)
             except json.JSONDecodeError as e:
                 # 如果 JSON 解析失败，将错误作为工具结果返回给 Agent
                 result_block = {
                     'role': 'tool',
                     'tool_call_id': tool_call_id,
-                    'content': f"【系统错误】工具参数解析失败 (JSON Error): {str(e)}。请确保参数格式正确。"
+                    'content': (
+                        f"【系统错误】工具参数解析失败 (JSON Error): {e.msg}。"
+                        "请确保参数是合法 JSON；大批次 mutate 请拆小批后重试。"
+                    ),
                 }
                 await self._commit_undos()
                 await self.agent.update_context(result_block)
@@ -969,13 +1084,63 @@ class reAct:
                         self._continue = False
                         stop_requested = True
 
+                    # DAG 实质性操作门槛：guided 硬拦 / record 软警告
+                    gate = self.dag_controller.check_substantive_gate(
+                        tool_name, tool_args
+                    )
+                    if asyncio.iscoroutine(gate):
+                        # 真实控制器已 async（内部 offload sqlite 读）；
+                        # 测试里的同步替身直接返回结果，兼容两种形态
+                        gate = await gate
+                    if gate is not None:
+                        kind, gate_msg = gate
+                        if kind == "block":
+                            await self._commit_undos()
+                            await self.agent.update_context({
+                                "role": "tool",
+                                "tool_call_id": tool_call_id,
+                                "content": gate_msg,
+                            })
+                            await self._record_event(
+                                "dag_substantive_gate_blocked",
+                                {"tool": tool_name},
+                            )
+                            self.log.update_content(
+                                f"{Color.YELLOW}{gate_msg}{Color.END}\n"
+                            )
+                            break
+                        if kind == "warn":
+                            if not getattr(
+                                self.dag_controller, "_substantive_gate_warned", False
+                            ):
+                                self.dag_controller._substantive_gate_warned = True
+                                await self._commit_undos()
+                                await self.agent.update_context({
+                                    "role": "system",
+                                    "content": gate_msg,
+                                })
+                                await self._record_event(
+                                    "dag_substantive_gate_warned",
+                                    {"tool": tool_name},
+                                )
+
+                    # harness 级 bash 习惯检查：长上下文下连续用 bash / 直调
+                    # 量化程序时注入系统警告（放行执行，见 _check_bash_habit）。
+                    await self._check_bash_habit(tool_name, tool_args)
+
                     session.state = 'waiting'
                     await self.dag_controller.on_tool_started(
                         tool_call_id,
                         tool_name,
                         tool_args,
                     )
-                    acts.append(tool_instance.safe_call(input_instance, session))
+                    # 延迟创建协程：若本批后续工具在 gather 前抛错（死循环拦截、
+                    # audit_stop/on_tool_started 异常），已创建协程会永不 await
+                    # 触发 RuntimeWarning；改为 append 工厂，gather 前再实例化。
+                    acts.append(
+                        lambda tool=tool_instance, inp=input_instance, sess=session:
+                        tool.safe_call(inp, sess)
+                    )
                     tool_call_ids.append(tool_call_id)
                     tool_names.append(tool_name)
                     tool_arguments[tool_call_id] = tool_args
@@ -999,7 +1164,9 @@ class reAct:
 
         if acts:
             # 使用 return_exceptions=True，确保单个工具崩溃不影响其他工具，且能捕获异常
-            tool_results = await asyncio.gather(*acts, return_exceptions=True)
+            tool_results = await asyncio.gather(
+                *(act() for act in acts), return_exceptions=True
+            )
             await self._commit_undos()
 
             # 每个工具结果单独作为一条消息

@@ -280,10 +280,10 @@ def create_v1_router(
                 headers={"WWW-Authenticate": "Device"},
             )
         try:
-            request.state.cloudra_device = (
-                service.device_broker.authenticate(
-                    authorization.removeprefix("Device ").strip()
-                )
+            # DeviceBroker 是同步 sqlite3 实现，高频调用必须卸载出事件循环
+            request.state.cloudra_device = await asyncio.to_thread(
+                service.device_broker.authenticate,
+                authorization.removeprefix("Device ").strip(),
             )
         except DeviceAuthenticationError as exc:
             raise HTTPException(
@@ -316,8 +316,9 @@ def create_v1_router(
 
     @router.post("/pairing/start", dependencies=protected)
     async def start_pairing(body: V1PairingStart) -> dict:
-        return service.device_broker.start_pairing(
-            ttl_seconds=body.ttl_seconds
+        return await asyncio.to_thread(
+            service.device_broker.start_pairing,
+            ttl_seconds=body.ttl_seconds,
         )
 
     @router.post(
@@ -328,20 +329,21 @@ def create_v1_router(
         from cloudra.services.device_broker import PairingError
 
         try:
-            return service.device_broker.complete_pairing(
-                **body.model_dump()
+            return await asyncio.to_thread(
+                service.device_broker.complete_pairing,
+                **body.model_dump(),
             )
         except PairingError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @router.get("/devices", dependencies=protected)
     async def list_devices() -> list[dict]:
-        return service.device_broker.list_devices()
+        return await asyncio.to_thread(service.device_broker.list_devices)
 
     @router.delete("/devices/{device_id}", dependencies=protected)
     async def revoke_device(device_id: str) -> dict:
         try:
-            revoked = service.device_broker.revoke(device_id)
+            revoked = await asyncio.to_thread(service.device_broker.revoke, device_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if not revoked:
@@ -365,7 +367,8 @@ def create_v1_router(
     ) -> dict:
         require_matching_device(request, device_id)
         try:
-            return service.device_broker.hello(
+            return await asyncio.to_thread(
+                service.device_broker.hello,
                 device_id,
                 **body.model_dump(),
             )
@@ -383,7 +386,8 @@ def create_v1_router(
     ) -> dict:
         require_matching_device(request, device_id)
         try:
-            return service.device_broker.heartbeat(
+            return await asyncio.to_thread(
+                service.device_broker.heartbeat,
                 device_id,
                 **body.model_dump(),
             )
@@ -400,7 +404,9 @@ def create_v1_router(
         request: Request,
     ) -> list[dict]:
         require_matching_device(request, device_id)
-        return service.device_broker.lease(device_id, **body.model_dump())
+        return await asyncio.to_thread(
+            service.device_broker.lease, device_id, **body.model_dump()
+        )
 
     @router.post(
         "/devices/{device_id}/tool-calls/{tool_call_id}/ack",
@@ -416,7 +422,8 @@ def create_v1_router(
 
         require_matching_device(request, device_id)
         try:
-            return service.device_broker.acknowledge(
+            return await asyncio.to_thread(
+                service.device_broker.acknowledge,
                 device_id,
                 tool_call_id,
                 body.lease_id,
@@ -438,7 +445,8 @@ def create_v1_router(
 
         require_matching_device(request, device_id)
         try:
-            return service.device_broker.mark_running(
+            return await asyncio.to_thread(
+                service.device_broker.mark_running,
                 device_id,
                 tool_call_id,
                 body.lease_id,
@@ -463,7 +471,8 @@ def create_v1_router(
 
         require_matching_device(request, device_id)
         try:
-            return service.device_broker.mark_waiting_for_local_approval(
+            return await asyncio.to_thread(
+                service.device_broker.mark_waiting_for_local_approval,
                 device_id,
                 tool_call_id,
                 body.lease_id,
@@ -485,7 +494,8 @@ def create_v1_router(
 
         require_matching_device(request, device_id)
         try:
-            return service.device_broker.finish(
+            return await asyncio.to_thread(
+                service.device_broker.finish,
                 device_id,
                 tool_call_id,
                 **body.model_dump(),
@@ -501,7 +511,9 @@ def create_v1_router(
         from cloudra.services.device_broker import DeviceInvocationError
 
         try:
-            return service.device_broker.get_invocation(tool_call_id)
+            return await asyncio.to_thread(
+                service.device_broker.get_invocation, tool_call_id
+            )
         except DeviceInvocationError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -511,12 +523,12 @@ def create_v1_router(
         dependencies=protected,
     )
     async def create_conversation() -> dict:
-        conversation = service.create_conversation()
+        conversation = await asyncio.to_thread(service.create_conversation)
         return {"id": conversation.id, "state": conversation.state}
 
     @router.get("/conversations", dependencies=protected)
     async def list_conversations() -> list[dict]:
-        return service.list_conversations()
+        return await asyncio.to_thread(service.list_conversations)
 
     @router.get(
         "/conversations/{conversation_id}/messages",
@@ -524,7 +536,9 @@ def create_v1_router(
     )
     async def get_conversation_messages(conversation_id: str) -> list[dict]:
         try:
-            return service.get_conversation_messages(conversation_id)
+            return await asyncio.to_thread(
+                service.get_conversation_messages, conversation_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -534,10 +548,8 @@ def create_v1_router(
     )
     async def list_sessions(conversation_id: str) -> list[dict]:
         try:
-            return [
-                record.to_dict()
-                for record in service.session_runner.list(conversation_id)
-            ]
+            records = await asyncio.to_thread(service.session_runner.list, conversation_id)
+            return [record.to_dict() for record in records]
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -573,7 +585,8 @@ def create_v1_router(
                 detail="远程 Phase 1 不允许启用自动审批",
             )
         try:
-            command, record = service.submit_session_command(
+            command, record = await asyncio.to_thread(
+                service.submit_session_command,
                 command_id=idempotency_key or control_store.new_command_id(),
                 query=body.query,
                 conversation_id=conversation_id,
@@ -598,7 +611,9 @@ def create_v1_router(
         conversation_id: str = Query(min_length=1, max_length=100),
     ) -> dict:
         try:
-            record = service.session_runner.get(conversation_id, session_id)
+            record = await asyncio.to_thread(
+                service.session_runner.get, conversation_id, session_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if record is None:
@@ -611,10 +626,10 @@ def create_v1_router(
         conversation_id: str = Query(min_length=1, max_length=100),
     ) -> list[dict]:
         try:
-            return [
-                record.to_dict()
-                for record in service.session_runner.list_children(conversation_id, session_id)
-            ]
+            records = await asyncio.to_thread(
+                service.session_runner.list_children, conversation_id, session_id
+            )
+            return [record.to_dict() for record in records]
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -685,7 +700,8 @@ def create_v1_router(
     ) -> dict:
         try:
             validate_conversation_id(conversation_id)
-            command = control_store.get_command(
+            command = await asyncio.to_thread(
+                control_store.get_command,
                 ConversationDB(conversation_id),
                 command_id,
             )
@@ -701,7 +717,8 @@ def create_v1_router(
         session_id: str | None = Query(default=None, max_length=160),
     ) -> list[dict]:
         try:
-            return service.list_pending_interactions(
+            return await asyncio.to_thread(
+                service.list_pending_interactions,
                 conversation_id,
                 session_id=session_id,
             )
@@ -798,13 +815,12 @@ def create_v1_router(
     ) -> list[dict]:
         try:
             validate_conversation_id(conversation_id)
-            return [
-                artifact.to_dict()
-                for artifact in service.artifacts.list(
-                    conversation_id,
-                    session_id=session_id,
-                )
-            ]
+            artifacts = await asyncio.to_thread(
+                service.artifacts.list,
+                conversation_id,
+                session_id=session_id,
+            )
+            return [artifact.to_dict() for artifact in artifacts]
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -814,7 +830,9 @@ def create_v1_router(
         conversation_id: str = Query(min_length=1, max_length=100),
     ) -> dict:
         try:
-            artifact = service.artifacts.get(conversation_id, artifact_id)
+            artifact = await asyncio.to_thread(
+                service.artifacts.get, conversation_id, artifact_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if artifact is None:
@@ -833,7 +851,8 @@ def create_v1_router(
         from cloudra.persistence.artifacts import ArtifactNotFound
 
         try:
-            token, expires_at = service.artifacts.issue_download_token(
+            token, expires_at = await asyncio.to_thread(
+                service.artifacts.issue_download_token,
                 conversation_id,
                 artifact_id,
                 ttl_seconds=body.ttl_seconds,
@@ -861,7 +880,8 @@ def create_v1_router(
         from cloudra.persistence.artifacts import ArtifactDownloadDenied
 
         try:
-            artifact, path = service.artifacts.resolve_download(
+            artifact, path = await asyncio.to_thread(
+                service.artifacts.resolve_download,
                 conversation_id,
                 artifact_id,
                 download_token,
@@ -888,11 +908,13 @@ def create_v1_router(
     ) -> dict:
         try:
             validate_conversation_id(conversation_id)
-            rows = service.session_runner.events(
+            rows = await asyncio.to_thread(
+                service.session_runner.events,
                 conversation_id,
                 session_id,
                 after_cursor,
-            )[:limit]
+            )
+            rows = rows[:limit]
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         events = [
@@ -920,7 +942,8 @@ def create_v1_router(
         try:
             validate_conversation_id(conversation_id)
             # Fail early for malformed session IDs before response headers start.
-            service.session_runner.events(
+            await asyncio.to_thread(
+                service.session_runner.events,
                 conversation_id,
                 session_id,
                 after_cursor,
@@ -934,7 +957,8 @@ def create_v1_router(
             while True:
                 if await request.is_disconnected():
                     return
-                rows = service.session_runner.events(
+                rows = await asyncio.to_thread(
+                    service.session_runner.events,
                     conversation_id,
                     session_id,
                     cursor,
@@ -952,7 +976,8 @@ def create_v1_router(
                 else:
                     quiet_ticks += 1
 
-                record = service.session_runner.get(
+                record = await asyncio.to_thread(
+                    service.session_runner.get,
                     conversation_id,
                     session_id,
                 )

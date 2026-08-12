@@ -42,6 +42,7 @@ dependencies = [
     "aiosqlite>=0.20",
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
+    "tiktoken>=0.7.0",
 ]
 
 [project.optional-dependencies]

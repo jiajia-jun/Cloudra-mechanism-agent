@@ -1,129 +1,243 @@
-"""轻量级 Token 估算器。
+"""Token 计数器：压缩触发与截断的统一入口。
 
-不依赖 tiktoken / transformers 等外部库，基于启发式规则对文本和
-OpenAI 风格的多模态消息进行快速 Token 估算，用于上下文压缩决策。
+优先使用 ``tiktoken`` 做本地精确计数（不依赖 provider tokenize 端点）；
+tiktoken 不可用时回退到字符启发式（偏保守，略高估，避免迟迟不压缩）。
+
+压缩决策应调用 ``count_text`` / ``count_messages``，不要直接依赖启发式。
 """
 
+from __future__ import annotations
+
 import re
-from typing import Any
+from functools import lru_cache
+from typing import Any, Optional
+
+# OpenAI chat 消息格式开销（cl100k / o200k 通用近似）
+_TOKENS_PER_MESSAGE = 4
+_TOKENS_PER_NAME = 1
+_REPLY_PRIMING_TOKENS = 2
+
+
+@lru_cache(maxsize=8)
+def _encoding_for(name: str):
+    import tiktoken
+
+    return tiktoken.get_encoding(name)
+
+
+@lru_cache(maxsize=32)
+def _encoding_for_model(model: str):
+    import tiktoken
+
+    try:
+        return tiktoken.encoding_for_model(model)
+    except KeyError:
+        # DeepSeek / 多数 OpenAI 兼容端点不在 tiktoken 模型表里；
+        # o200k_base 对现代多语种更稳，失败再退 cl100k_base。
+        for fallback in ("o200k_base", "cl100k_base"):
+            try:
+                return tiktoken.get_encoding(fallback)
+            except Exception:
+                continue
+        raise
 
 
 class TokenEstimator:
-    """基于字符分布的快速 token 估算器。
+    """精确优先的 token 计数器（tiktoken），附带启发式回退。"""
 
-    估算规则（综合常见 BPE tokenizer 的统计特征）：
-    - 英文/ASCII 单词：约 1 token / 4 个字符
-    - 中文/CJK 统一表意文字：约 1 token / 1.5 个字符
-    - 韩文/日文假名等：约 1 token / 2 个字符
-    - 数字、标点和空格：约 1 token / 4 个字符
-    - base64 图片：图片在消息中通常以 data URL 形式出现，估算为
-      ``len(base64_string) * 0.75 * 0.25``，即原始字节数约 1/3 的 token
-      （视觉模型对图片的 token 计算大致在此范围）。
+    _model: Optional[str] = None
+    _encoding_name: str = "o200k_base"
 
-    该估算器仅用于上下文长度管理，不替代模型计费 Token。
-    """
-
-    # CJK 统一表意文字范围
+    # ---- 启发式回退（仅 tiktoken 不可用时）----
     _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
-    # 韩文、日文假名、片假名等
     _CJK_EXT_RE = re.compile(
         r"[\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\u3100-\u312f]"
     )
-    # ASCII 字母数字
     _ASCII_RE = re.compile(r"[a-zA-Z0-9]")
 
     @classmethod
-    def estimate_text(cls, text: Any) -> int:
-        """估算任意文本字符串的 token 数。"""
+    def configure(
+        cls,
+        model: Optional[str] = None,
+        encoding: Optional[str] = None,
+    ) -> None:
+        """配置默认模型 / encoding；压缩前可由 Agent 按当前 endpoint 设置。"""
+        if model is not None:
+            cls._model = model or None
+            _encoding_for_model.cache_clear()
+        if encoding is not None:
+            cls._encoding_name = encoding
+            _encoding_for.cache_clear()
+
+    @classmethod
+    def _get_encoding(cls):
+        if cls._model:
+            try:
+                return _encoding_for_model(cls._model)
+            except Exception:
+                pass
+        try:
+            return _encoding_for(cls._encoding_name)
+        except Exception:
+            return _encoding_for("cl100k_base")
+
+    # ------------------------------------------------------------------
+    # 精确计数 API
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def count_text(cls, text: Any) -> int:
+        """精确计数单段文本 token（tiktoken）；失败则启发式。"""
         if text is None:
             return 0
         if not isinstance(text, str):
             text = str(text)
         if not text:
             return 0
-
-        cjk_count = len(cls._CJK_RE.findall(text))
-        cjk_ext_count = len(cls._CJK_EXT_RE.findall(text))
-        ascii_count = len(cls._ASCII_RE.findall(text))
-        other_count = max(0, len(text) - cjk_count - cjk_ext_count - ascii_count)
-
-        # 其他字符里大部分是标点和空格，粗略按 1 token / 4 字符
-        other_tokens = other_count / 4.0
-
-        total = (
-            cjk_count / 1.5
-            + cjk_ext_count / 2.0
-            + ascii_count / 4.0
-            + other_tokens
-        )
-        return max(1, int(total))
-
-    @classmethod
-    def estimate_image_url(cls, url: str) -> int:
-        """估算一张图片（data URL 或 http URL）的 token 数。"""
-        if not url:
-            return 0
-        # http 图片不会被 LLM 实际消费，token 很低
-        if not url.startswith("data:"):
-            return cls.estimate_text(url)
-
-        # data:image/xxx;base64,xxxx
         try:
-            _, b64_part = url.split(",", 1)
-        except ValueError:
-            return cls.estimate_text(url)
-
-        # base64 字符串长度 * 0.75 为原始字节数，视觉模型 token 约为原始字节的 1/3
-        return max(1, int(len(b64_part) * 0.75 * 0.25))
+            return len(cls._get_encoding().encode(text, disallowed_special=()))
+        except Exception:
+            return cls._estimate_text_heuristic(text)
 
     @classmethod
-    def estimate_content_part(cls, part: dict) -> int:
-        """估算消息 content 列表中单个 part 的 token 数。"""
+    def truncate_to_tokens(cls, text: str, max_tokens: int) -> str:
+        """把文本截到不超过 ``max_tokens``（优先按 tiktoken token 边界）。"""
+        if max_tokens <= 0 or not text:
+            return ""
+        try:
+            enc = cls._get_encoding()
+            tokens = enc.encode(text, disallowed_special=())
+            if len(tokens) <= max_tokens:
+                return text
+            return enc.decode(tokens[:max_tokens])
+        except Exception:
+            return cls._truncate_heuristic(text, max_tokens)
+
+    @classmethod
+    def count_content_part(cls, part: dict) -> int:
         part_type = part.get("type")
         if part_type == "text":
-            return cls.estimate_text(part.get("text", ""))
+            return cls.count_text(part.get("text", ""))
         if part_type == "image_url":
             image_url = part.get("image_url", {})
             url = image_url.get("url", "") if isinstance(image_url, dict) else str(image_url)
-            return cls.estimate_image_url(url)
-        # tool/function 等其他类型 fallback
-        return cls.estimate_text(str(part))
+            return cls.count_image_url(url)
+        return cls.count_text(str(part))
 
     @classmethod
-    def estimate_message(cls, message: dict) -> int:
-        """估算单条 OpenAI 风格消息的 token 数（含格式开销）。"""
+    def count_image_url(cls, url: str) -> int:
+        if not url:
+            return 0
+        if not url.startswith("data:"):
+            return cls.count_text(url)
+        try:
+            _, b64_part = url.split(",", 1)
+        except ValueError:
+            return cls.count_text(url)
+        # 视觉模型对图片的 token 计算大致：原始字节约 1/3
+        return max(1, int(len(b64_part) * 0.75 * 0.25))
+
+    @classmethod
+    def count_message(cls, message: dict) -> int:
+        """精确计数单条 OpenAI 风格消息（含格式开销）。"""
+        tokens = _TOKENS_PER_MESSAGE
         content = message.get("content")
-        tokens = 0
 
         if isinstance(content, list):
             for part in content:
                 if isinstance(part, dict):
-                    tokens += cls.estimate_content_part(part)
+                    tokens += cls.count_content_part(part)
                 else:
-                    tokens += cls.estimate_text(part)
+                    tokens += cls.count_text(part)
         elif isinstance(content, dict):
-            tokens += cls.estimate_content_part(content)
-        else:
-            tokens += cls.estimate_text(content)
+            tokens += cls.count_content_part(content)
+        elif content is not None:
+            tokens += cls.count_text(content)
 
-        # role / name / tool_call_id 等字段的格式开销
         for key in ("role", "name", "tool_call_id"):
-            if key in message:
-                tokens += cls.estimate_text(message[key])
+            if key in message and message[key] is not None:
+                tokens += cls.count_text(message[key])
+                if key == "name":
+                    tokens += _TOKENS_PER_NAME
 
-        # tool_calls 结构
-        if "tool_calls" in message:
+        if "tool_calls" in message and message["tool_calls"]:
             for tc in message["tool_calls"]:
-                tokens += cls.estimate_text(str(tc))
+                tokens += cls.count_text(
+                    tc if isinstance(tc, str) else _stable_json(tc)
+                )
 
-        # 每条消息预留 4 token 的格式开销（role 分隔等）
-        return max(1, tokens + 4)
+        if "reasoning_content" in message and message["reasoning_content"]:
+            tokens += cls.count_text(message["reasoning_content"])
+
+        return max(1, tokens)
+
+    @classmethod
+    def count_messages(cls, messages: list[dict]) -> int:
+        """精确计数消息列表总 token。"""
+        if not messages:
+            return 0
+        return sum(cls.count_message(m) for m in messages) + _REPLY_PRIMING_TOKENS
+
+    # ------------------------------------------------------------------
+    # 兼容旧调用名（内部改为精确计数）
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def estimate_text(cls, text: Any) -> int:
+        return cls.count_text(text)
+
+    @classmethod
+    def estimate_image_url(cls, url: str) -> int:
+        return cls.count_image_url(url)
+
+    @classmethod
+    def estimate_content_part(cls, part: dict) -> int:
+        return cls.count_content_part(part)
+
+    @classmethod
+    def estimate_message(cls, message: dict) -> int:
+        return cls.count_message(message)
 
     @classmethod
     def estimate_messages(cls, messages: list[dict]) -> int:
-        """估算消息列表的总 token 数。"""
-        if not messages:
-            return 0
-        total = sum(cls.estimate_message(m) for m in messages)
-        # 整个消息列表预留 2 token 开销
-        return total + 2
+        return cls.count_messages(messages)
+
+    # ------------------------------------------------------------------
+    # 启发式回退
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _estimate_text_heuristic(cls, text: str) -> int:
+        cjk_count = len(cls._CJK_RE.findall(text))
+        cjk_ext_count = len(cls._CJK_EXT_RE.findall(text))
+        ascii_count = len(cls._ASCII_RE.findall(text))
+        other_count = max(0, len(text) - cjk_count - cjk_ext_count - ascii_count)
+        total = (
+            cjk_count / 1.0
+            + cjk_ext_count / 1.5
+            + ascii_count / 4.0
+            + other_count / 4.0
+        )
+        return max(1, int(total))
+
+    @classmethod
+    def _truncate_heuristic(cls, text: str, max_tokens: int) -> str:
+        if cls._estimate_text_heuristic(text) <= max_tokens:
+            return text
+        lo, hi = 0, len(text)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if cls._estimate_text_heuristic(text[:mid]) <= max_tokens:
+                lo = mid
+            else:
+                hi = mid - 1
+        return text[:lo]
+
+
+def _stable_json(obj: Any) -> str:
+    import json
+
+    try:
+        return json.dumps(obj, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        return str(obj)

@@ -39,11 +39,11 @@
 
 **Step 4 TS 优化 + 频率**：`gjf_writer` 生成 `opt=(ts,noeigen,calcfc) freq` 输入，收敛困难时加 `maxstep=10`、`int=ultrafine`。完成后可用默认 `ts_guess` verify 查看候选方向，但默认结果只是建议；严格验证要求恰好 1 个虚频。
 
-**Step 5 IRC 验证**：`irc=(lqa,calcfc,maxpoint=80)`，级别与 TS 搜索一致。不必等待 IRC 完整走到极小点：取 rx<0 与 rx>0 两侧最外有效帧，各自做无约束优化得到中间体；随后把 TS 频率日志、部分 IRC 日志和两个优化中间体传给 `ts_guess` verify，并设 `strict=True`。工具尝试两种无序配对，利用指定 `watch_pairs` 或自动选择的变化原子对，检查每个 IRC 外帧的距离坐标是否处于 TS 与对应中间体之间且更靠近中间体。随后用 `reaction_mapping` 把两个优化中间体的具体结构分别与原先声明的端点 SMILES 核对。`strict pass` 只证明路径方向一致，端点 `match` 只证明分子图身份；两者互不替代，也都不替代虚频振动模式、电子结构和化学合理性判断。曲线不平滑则按 SKILL.md §5 重搜策略处理。
+**Step 5 IRC 验证**：`irc=(lqa,calcfc,maxpoint=80)`，级别与 TS 搜索一致。**双向每个方向至少 50 个有效点**（与 SKILL.md §4 Step 3 / 证据门槛对齐）；`maxpoint` 不足或一侧过早终止时加大重跑。不必等待 IRC 完整走到极小点：取 rx<0 与 rx>0 两侧最外有效帧，各自做无约束优化得到中间体；随后把 TS 频率日志、部分 IRC 日志和两个优化中间体传给 `ts_guess` verify，并设 `strict=True`。工具尝试两种无序配对，利用指定 `watch_pairs` 或自动选择的变化原子对，检查每个 IRC 外帧的距离坐标是否处于 TS 与对应中间体之间且更靠近中间体。随后用 `reaction_mapping` 把两个优化中间体的具体结构分别与原先声明的端点 SMILES 核对。`strict pass` 只证明路径方向一致，端点 `match` 只证明分子图身份；两者互不替代，也都不替代虚频振动模式、电子结构和化学合理性判断。曲线不平滑则按 SKILL.md §5 重搜策略处理。
 
-在 delivery DAG 中，`endpoint-supported` 必须由相互独立的证据合成：TS 优化/频率给出恰好一个虚频，short bidirectional IRC 两向都有有效点，两侧 optimized endpoint 都正常收敛为无虚频极小点，`ts_guess strict=True` 只确认外帧位于 TS 与对应极小点之间，最后 `reaction_mapping` 确认两个优化端点与该边声明的中间体分子图一致。少任何一项都保持 `saddle-supported` 或更低；`strict pass`、扫描峰或初猜好看均不能单独越级。
+在 delivery DAG 中，`endpoint-supported` 必须由相互独立的证据合成：TS 优化/频率给出恰好一个虚频，short bidirectional IRC **两向均有足够有效点（各 ≥50）**，两侧 optimized endpoint 都正常收敛为无虚频极小点，`ts_guess strict=True` 只确认外帧位于 TS 与对应极小点之间，最后 `reaction_mapping` 确认两个优化端点与该边声明的中间体分子图一致。少任何一项都保持 `saddle-supported` 或更低；`strict pass`、扫描峰或初猜好看均不能单独越级。
 
-**Step 6 能量学**：保持基组一致完成频率与 IRC 后，提高泛函级别算单点能（SKILL.md §3 高低搭配策略）。用 `thermo_analysis` 把 Gaussian 原文的频率级 H/G correction 叠到相应单点能，并用带符号化学计量系数组合 ΔE/ΔH/ΔG；`raw_rrho` 只表示日志原始 RRHO，只有显式 `goodvibes` 后端才应用准谐振低频修正。所有剖面必须写明日志温度/压力、目标 1 atm/1 M（或自定义浓度）、后端和能量来源；日志缺温度/压力不能默认为完整结果，非 1 atm 原始压力要先正规化。GoodVibes 缺失时的 `inconclusive` 不得静默退回 raw RRHO。能垒比较一律用同一约定下的 ΔG‡，不要只比电子能。
+**Step 6 能量学**：**仅在 Step 5 路径/端点验证通过后**，再提高泛函级别算单点能（SKILL.md §3 高低搭配；顺序见 SKILL.md §4 Step 3→4）。用 `thermo_analysis` 把 Gaussian 原文的频率级 H/G correction 叠到相应单点能，并用带符号化学计量系数组合 ΔE/ΔH/ΔG；`raw_rrho` 只表示日志原始 RRHO，只有显式 `goodvibes` 后端才应用准谐振低频修正。溶剂化按 SKILL.md §3.3。所有剖面必须写明日志温度/压力、目标 1 atm/1 M（或自定义浓度）、后端和能量来源；日志缺温度/压力不能默认为完整结果，非 1 atm 原始压力要先正规化。GoodVibes 缺失时的 `inconclusive` 不得静默退回 raw RRHO。能垒比较一律用同一约定下的 ΔG‡，不要只比电子能。疑似强多参考时按 SKILL.md §3.1.1 诊断并降级定量结论。
 
 **Step 7 电子结构交叉验证**：对 TS 与关键中间体跑 `electronic_analysis`：成/断键应表现为 partial bond（非整数 Mayer 键级）；自由基步骤检查自旋布居迁移方向与 IBO 孤对变化是否与假设的电子推动一致。
 
@@ -85,6 +85,8 @@ delivery 节点是同一 canonical species 在某条路径中的 occurrence。�
 | 自由基体系 `<S^2>` 偏差 > 0.1 | 自旋污染 | 检查对称性破缺是否合理；换泛函复算；结论标注不确定性 |
 | SCF 不收敛 | 初猜差 / 近简并 | 换初猜（`guess=mix` 开壳层单重态）、小基组预收敛后 read、或 `stable=opt` 检查波函数稳定性 |
 | 半经验（xTB）扫描结果奇异 | 半经验对 TS 精度不足 | 用 DFT 级别重扫（见 SKILL.md §4 Step 1 警告） |
+| FOD / T1 / 破缺 ⟨S²⟩ 提示强多参考 | 单参考 DFT 边界 | 按 SKILL.md §3.1.1：r2SCAN/TPSS 缓解 + 标注不确定度；能垒降为定性；建议用户 NEVPT2/CASPT2 复核 |
+| IRC 单侧有效点 < 50 | maxpoints/步长不足 | 加大 `maxpoint` 或调整步长重跑该向（SKILL.md §4 Step 3） |
 
 # 5. 禁令与一致性
 

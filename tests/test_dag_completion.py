@@ -11,8 +11,10 @@ def _load_completion_api():
         "evaluate_delivery": completion.evaluate_delivery,
         "CoverageContract": models.CoverageContract,
         "CoverageWaiver": models.CoverageWaiver,
-        "DagEdge": models.DagEdge,
-        "DagNode": models.DagNode,
+        "DependencyEdge": models.DependencyEdge,
+        "ElementaryStepEdge": models.ElementaryStepEdge,
+        "OccurrenceNode": models.OccurrenceNode,
+        "PlannedNode": models.PlannedNode,
         "GraphBundle": models.GraphBundle,
         "GraphData": models.GraphData,
         "GraphSnapshot": models.GraphSnapshot,
@@ -21,27 +23,25 @@ def _load_completion_api():
 
 def _delivery(api, node_levels, edge_levels, *, edge_payloads=None):
     nodes = [
-        api["DagNode"](
+        api["OccurrenceNode"](
             node_id=f"i{index}",
-            node_type="intermediate_occurrence",
             label=f"intermediate {index}",
-            payload={"evidence_level": level},
+            role="intermediate",
+            evidence_level=level,
         )
         for index, level in enumerate(node_levels)
     ]
     edges = []
     for index, level in enumerate(edge_levels):
-        payload = {"evidence_level": level}
-        if edge_payloads:
-            payload.update(edge_payloads[index])
+        extra = dict(edge_payloads[index]) if edge_payloads else {}
         edges.append(
-            api["DagEdge"](
+            api["ElementaryStepEdge"](
                 edge_id=f"e{index}",
                 source_node_id=nodes[index].node_id,
                 target_node_id=nodes[index + 1].node_id,
-                edge_type="elementary_step",
                 label=f"step {index}",
-                payload=payload,
+                evidence_level=level,
+                **extra,
             )
         )
     return api["GraphData"](
@@ -189,16 +189,13 @@ def test_thermochemistry_is_required_only_when_requested():
 def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
     api = _load_completion_api()
     process_nodes = [
-        api["DagNode"](
+        api["PlannedNode"](
             node_id=f"work-{index:02d}",
-            node_type="calculation",
             label=f"work {index}",
-            payload={
-                "status": "ready",
-                "priority": index % 4,
-                "created_at": f"2026-08-10T00:{index:02d}:00Z",
-                "full_tool_result": "SECRET-HEAVY-ATOM-MAP",
-            },
+            status="ready",
+            priority=index % 4,
+            created_at=f"2026-08-10T00:{index:02d}:00Z",
+            metadata={"full_tool_result": "SECRET-HEAVY-ATOM-MAP"},
         )
         for index in range(20)
     ]
@@ -243,7 +240,9 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
         "work-11",
     ]
     assert "dag_guided" in text
-    assert '"process": 4' in text
+    # revisions 是存储层并发控制的内部状态，阶段 3 起不再投影给模型
+    assert "revisions" not in text
+    assert '"process": 4' not in text
     assert "missing_endpoint_evidence" in text
     assert "SECRET-HEAVY-ATOM-MAP" not in text
 
@@ -265,7 +264,7 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
         snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
     ).to_prompt_text()
     assert "当前编排模式: dag_guided" in guided
-    assert "Supervisor 拍板" in guided
+    assert "Supervisor 会被自动唤醒" in guided
     assert "status=ready" in guided
     assert "SOP" in guided
     assert "delivery_report" in guided
@@ -283,24 +282,23 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
 
 def test_superseded_process_dependency_no_longer_blocks_frontier():
     api = _load_completion_api()
-    predecessor = api["DagNode"](
+    predecessor = api["PlannedNode"](
         node_id="old-scan",
-        node_type="calculation",
         label="obsolete scan",
-        payload={"status": "failed"},
+        status="failed",
     )
-    replacement = api["DagNode"](
+    replacement = api["PlannedNode"](
         node_id="new-neb",
-        node_type="calculation",
         label="replacement NEB",
-        payload={"status": "ready", "priority": 10},
+        status="ready",
+        priority=10,
     )
-    dependency = api["DagEdge"](
+    dependency = api["DependencyEdge"](
         edge_id="old-scan-before-neb",
         source_node_id="old-scan",
         target_node_id="new-neb",
-        edge_type="depends_on",
-        payload={"status": "superseded", "reason": "scan coordinate was wrong"},
+        status="superseded",
+        reason="scan coordinate was wrong",
     )
     process = api["GraphData"](
         graph_id="dag_process",
@@ -331,3 +329,65 @@ def test_superseded_process_dependency_no_longer_blocks_frontier():
     )
 
     assert [item["node_id"] for item in projection.frontier] == ["new-neb"]
+
+
+def test_assigned_to_me_filters_open_nodes_for_actor():
+    api = _load_completion_api()
+    nodes = [
+        api["PlannedNode"](
+            node_id="mine-ready",
+            label="mine ready",
+            status="ready",
+            assignee="a-4",
+        ),
+        api["PlannedNode"](
+            node_id="mine-running",
+            label="mine running",
+            status="running",
+            assignee="a-4",
+        ),
+        api["PlannedNode"](
+            node_id="mine-done",
+            label="mine done",
+            status="succeeded",
+            assignee="a-4",
+        ),
+        api["PlannedNode"](
+            node_id="theirs",
+            label="theirs",
+            status="ready",
+            assignee="a-6",
+        ),
+    ]
+    process = api["GraphData"](
+        graph_id="dag_process",
+        graph_kind="process",
+        revision=1,
+        nodes=nodes,
+        edges=[],
+    )
+    delivery = _delivery(api, [], [])
+    snapshot = api["GraphSnapshot"](
+        bundle=api["GraphBundle"](
+            process_graph_id="dag_process",
+            delivery_graph_id="dag_delivery",
+            revisions={"process": 1, "delivery": 1},
+        ),
+        process=process,
+        delivery=delivery,
+    )
+
+    projection = api["build_projection"](
+        snapshot,
+        mode="dag_guided",
+        contract=api["CoverageContract"].mechanism_default(),
+        actor_id="a-4",
+    )
+    assert [item["node_id"] for item in projection.assigned_to_me] == ["mine-ready", "mine-running"]
+
+    anonymous = api["build_projection"](
+        snapshot,
+        mode="dag_guided",
+        contract=api["CoverageContract"].mechanism_default(),
+    )
+    assert anonymous.assigned_to_me == []

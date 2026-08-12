@@ -10,14 +10,14 @@ from typing import Any
 
 from cloudra.dag.models import (
     CoverageContract,
-    DagEdge,
-    DagNode,
     GraphBundle,
     GraphData,
     GraphKind,
     GraphRef,
     GraphSnapshot,
     SpeciesRecord,
+    parse_dag_edge,
+    parse_dag_node,
 )
 from cloudra.persistence.database import ConversationDB, retry_on_locked
 
@@ -53,6 +53,64 @@ def _canonical_json(value: Any, *, error_type: type[ValueError] = ValueError) ->
         )
     except (TypeError, ValueError) as exc:
         raise error_type(f"value is not finite canonical JSON: {exc}") from exc
+
+
+def _load_graph_bindings(
+    con: sqlite3.Connection, graph_id: str
+) -> dict[tuple[str, str], list[tuple[str, "str | None"]]]:
+    """按插入序读关联表：``(target_type, target_id) -> [(evidence_id, content_hash|None)]``。
+
+    content_hash 取自 dag_evidence 左连接；为 None 表示绑定指向证据库之外的
+    目标（artifact/species/compute_job 引用），重建 GraphRef 时回退内联列。
+    """
+    rows = con.execute(
+        """
+        SELECT b.target_type, b.target_id, b.evidence_id, e.content_hash
+        FROM dag_evidence_bindings b
+        LEFT JOIN dag_evidence e ON e.evidence_id = b.evidence_id
+        WHERE b.graph_id = ? ORDER BY b.rowid
+        """,
+        (graph_id,),
+    ).fetchall()
+    bindings: dict[tuple[str, str], list[tuple[str, str | None]]] = {}
+    for target_type, target_id, evidence_id, content_hash in rows:
+        bindings.setdefault((target_type, target_id), []).append(
+            (evidence_id, content_hash)
+        )
+    return bindings
+
+
+def _assemble_refs(
+    inline_refs: list[dict[str, Any]],
+    bindings: list[tuple[str, "str | None"]],
+) -> list[dict[str, Any]]:
+    """以关联表为准组装元素 refs；关联表无记录时回退内联 refs 列（未迁移兜底）。
+
+    写路径上内联列与关联表同步维护，因此优先取内联条目的完整 GraphRef
+    载荷（保留 ref_type/revision，覆盖 artifact/species/compute_job 引用）；
+    仅当内联缺失时（例如内联列被旧版本写坏）用 dag_evidence 行重建
+    tool_result 引用。两边都没有的悬挂绑定跳过。
+    """
+    if not bindings:
+        return list(inline_refs)
+    inline_by_id: dict[str, list[dict[str, Any]]] = {}
+    for ref in inline_refs:
+        if isinstance(ref, dict) and ref.get("ref_id"):
+            inline_by_id.setdefault(str(ref["ref_id"]), []).append(ref)
+    out: list[dict[str, Any]] = []
+    for evidence_id, content_hash in bindings:
+        queued = inline_by_id.get(evidence_id)
+        if queued:
+            out.append(queued.pop(0))
+        elif content_hash is not None:
+            out.append(
+                {
+                    "ref_type": "tool_result",
+                    "ref_id": evidence_id,
+                    "content_hash": content_hash,
+                }
+            )
+    return out
 
 
 class DagStore:
@@ -192,26 +250,31 @@ class DagStore:
                 """,
                 (graph_id,),
             ).fetchall()
+            bindings = _load_graph_bindings(con, graph_id)
         nodes = [
-            DagNode(
-                node_id=row[0],
-                node_type=row[1],
-                label=row[2],
-                refs=json.loads(row[3]),
-                payload=json.loads(row[4]),
-            )
+            parse_dag_node({
+                "node_id": row[0],
+                "node_type": row[1],
+                "label": row[2],
+                "refs": _assemble_refs(
+                    json.loads(row[3]), bindings.get(("node", row[0]), [])
+                ),
+                **json.loads(row[4]),
+            })
             for row in node_rows
         ]
         edges = [
-            DagEdge(
-                edge_id=row[0],
-                source_node_id=row[1],
-                target_node_id=row[2],
-                edge_type=row[3],
-                label=row[4],
-                refs=json.loads(row[5]),
-                payload=json.loads(row[6]),
-            )
+            parse_dag_edge({
+                "edge_id": row[0],
+                "source_node_id": row[1],
+                "target_node_id": row[2],
+                "edge_type": row[3],
+                "label": row[4],
+                "refs": _assemble_refs(
+                    json.loads(row[5]), bindings.get(("edge", row[0]), [])
+                ),
+                **json.loads(row[6]),
+            })
             for row in edge_rows
         ]
         return GraphData(

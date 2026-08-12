@@ -183,25 +183,29 @@ async def run_task_async(
         if conv_id:
             print(f"{Color.GREEN}[系统]{Color.END} 继续对话: {conv_id}")
 
-    conversation = Conversation(conv_id)
-    conversation.touch()
+    # Conversation/DB/Coordinator/reAct 初始化含同步 SQLite 与磁盘 IO。
+    # TUI 与任务同 loop：必须移出，否则启动瞬间界面假死。
+    def _bootstrap():
+        conversation = Conversation(conv_id)
+        conversation.touch()
+        conv_db = ConversationDB(conversation.id)
+        conv_db.init()
+        coordinator_agent = Coordinator(
+            query=query,
+            conversation_id=conversation.id,
+            working_directory=working_directory,
+            orchestration_mode=orchestration_mode,
+            orchestration_config=orchestration_config,
+        )
+        father = Coordinator_reAct(coordinator_agent, session_id=session_id)
+        return conversation, coordinator_agent, conv_db.path, father
 
-    conv_db = ConversationDB(conversation.id)
-    conv_db.init()
-    database = conv_db.path
-
-    coordinator_agent = Coordinator(
-        query=query,
-        conversation_id=conversation.id,
-        working_directory=working_directory,
-        orchestration_mode=orchestration_mode,
-        orchestration_config=orchestration_config,
+    conversation, coordinator_agent, database, father_reAct = await asyncio.to_thread(
+        _bootstrap
     )
     context = await coordinator_agent.get_context()
     if not context or context[-1].get("content") != query:
         await coordinator_agent.update_context({"role": "user", "content": query})
-
-    father_reAct = Coordinator_reAct(coordinator_agent, session_id=session_id)
 
     # 先启动 IPC listener，确保 workers 线程订阅前事件总线可用。
     await ensure_listener(conversation.id)
@@ -228,18 +232,40 @@ async def run_task_async(
             await father_reAct._record_phase("waiting")
             await _wait_for_background_tasks(database, conversation.id)
 
-            has_pending = await father_reAct.drain_pending_external_events()
-            if not has_pending:
-                break
+            has_pending_events = await father_reAct.drain_pending_external_events()
+            if has_pending_events:
+                if verbose:
+                    print(
+                        f"\n{Color.YELLOW}[系统]{Color.END} "
+                        "收到外部事件，Coordinator 继续处理..."
+                    )
+                father_reAct._continue = True
+                result = await father_reAct.run()
+                continue
 
-            if verbose:
-                print(f"\n{Color.YELLOW}[系统]{Color.END} 收到外部事件，Coordinator 继续处理...")
-            father_reAct._continue = True
-            result = await father_reAct.run()
+            # drain 为空也可能是 external_event 提前唤醒后的竞态；
+            # 只有后台真正排空才允许结束，否则继续等。
+            db = ConversationDB.from_path(database)
+            sub_n, compute_n, reminder_n = await _count_pending_tasks(
+                db, conversation.id
+            )
+            if sub_n == 0 and compute_n == 0 and reminder_n == 0:
+                break
 
     finally:
         if workers is not None:
-            workers.release_workers(database)
+            # 后台仍有 ready/running 任务时保住 worker，避免 compute 永久卡 ready。
+            should_release = True
+            try:
+                db = ConversationDB.from_path(database)
+                sub_n, compute_n, reminder_n = await _count_pending_tasks(
+                    db, conversation.id
+                )
+                should_release = sub_n == 0 and compute_n == 0 and reminder_n == 0
+            except Exception:
+                should_release = True
+            if should_release:
+                workers.release_workers(database)
         if conversation.state != "archived":
             conversation.set_state("sleeping")
     conversation.touch()

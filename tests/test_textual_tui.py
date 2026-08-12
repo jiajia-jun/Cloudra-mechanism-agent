@@ -1004,7 +1004,7 @@ async def test_followup_send_stays_in_same_conversation(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
-    """状态栏常驻显示对话级共享上下文规模（上下文 N条消息≈Xk tokens）。"""
+    """状态栏常驻显示按-agent 上下文摘要（Coordinator N条/Xk · M路Σ…）。"""
     import asyncio as _asyncio
 
     app = _make_app(tmp_path, monkeypatch)
@@ -1013,8 +1013,8 @@ async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
         status_bar = screen.query_one("#status-bar", StatusBar)
 
         # on_mount 已刷新过一次
-        assert "条消息≈" in status_bar.context_info
-        assert "tokens" in status_bar.context_info
+        assert "条/" in status_bar.context_info
+        assert "Coordinator" in status_bar.context_info or "空" in status_bar.context_info
 
         # Coordinator 流式结束 → 触发再次刷新
         bridge = screen._render_bridge
@@ -1026,8 +1026,7 @@ async def test_status_bar_shows_shared_context_info(tmp_path, monkeypatch):
         })
         await _asyncio.sleep(0.2)
         await pilot.pause()
-        assert "条消息≈" in status_bar.context_info
-        assert "tokens" in status_bar.context_info
+        assert "条/" in status_bar.context_info
 
 
 # ------------------------------------------------------------------
@@ -1221,7 +1220,7 @@ async def test_escape_cancel_returns_immediately(tmp_path, monkeypatch):
             state = "running"
             parent_session_id = None
 
-        async def fake_active():
+        async def fake_active(**_kwargs):
             return FakeActive()
 
         screen._find_active_record = fake_active
@@ -1333,7 +1332,7 @@ async def test_approval_deny_button_submits_decision(tmp_path, monkeypatch):
         screen = app.screen
         decisions = []
 
-        async def fake_decide(conv_id, approval_id, decision, reason):
+        async def fake_decide(conv_id, approval_id, decision, reason, **_kwargs):
             decisions.append((approval_id, decision))
 
         screen.service.decide_approval = fake_decide

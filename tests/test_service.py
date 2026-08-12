@@ -1,7 +1,9 @@
 import asyncio
+import os
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -225,12 +227,18 @@ async def test_append_session_message_uses_target_agent_id(tmp_path, monkeypatch
 
     injected = []
 
-    async def fake_inject(conversation_id, agent_id, event_type, content, db_path=None):
+    async def fake_inject(
+        conversation_id, agent_id, event_type, content, db_path=None, **_kwargs
+    ):
         injected.append((conversation_id, agent_id, event_type, content, db_path))
 
     monkeypatch.setattr(ContextManager, "inject_event", staticmethod(fake_inject))
 
     service = CloudraService()
+    # 有活 runner 才走 inject；否则会升级为 resume
+    service.session_runner._running[(conversation.id, "a-1_task42")] = (
+        asyncio.get_running_loop().create_future()
+    )
     command, record = await service.append_session_message_command(
         command_id="test-cmd-1",
         conversation_id=conversation.id,
@@ -244,6 +252,140 @@ async def test_append_session_message_uses_target_agent_id(tmp_path, monkeypatch
     assert agent_id == "a-1"
     assert event_type == "user_message"
     assert "请在子 Agent 里补充这个" in content
+
+
+@pytest.mark.asyncio
+async def test_append_inject_persists_user_requirement_to_context(
+    tmp_path, monkeypatch
+):
+    """inject 必须把补充要求写入上下文文件，不能只停在 pending event。"""
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.context_manager import ContextManager
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
+
+    data_dir = tmp_path / "data"
+    runtime_dir = Path(f"/tmp/cr{os.getpid()}d")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    conversation_id = "conv_append_durable"
+    session_id = "a-0_run_durable"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="原任务",
+    )
+    session_store.update_session_fields(db, session_id, {"state": "running"})
+
+    service = CloudraService()
+    service.session_runner._running[(conversation_id, session_id)] = (
+        asyncio.get_running_loop().create_future()
+    )
+
+    await service.append_session_message_command(
+        command_id="cmd_durable",
+        conversation_id=conversation_id,
+        session_id=session_id,
+        content="继续把 TS 算完",
+    )
+
+    cm = ContextManager(
+        agent_id="a-0",
+        conversation_id=conversation_id,
+        prompt=None,
+        query="",
+    )
+    stored = await cm.load()
+    assert any(
+        m.get("role") == "user" and "继续把 TS 算完" in str(m.get("content", ""))
+        for m in stored
+    )
+
+
+@pytest.mark.asyncio
+async def test_append_without_live_runner_resumes_instead_of_inject(
+    tmp_path, monkeypatch
+):
+    """session 标 running/waiting 但本进程无活 runner 时，应 resume 而非空 inject。"""
+    from cloudra.infra.config import get_config, reload_config
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
+
+    data_dir = tmp_path / "data"
+    runtime_dir = Path(f"/tmp/cr{os.getpid()}s")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
+    reload_config()
+    get_config().data_dir = data_dir
+    get_config()._ensure_dirs()
+
+    conversation_id = "conv_append_stale"
+    session_id = "a-0_run_stale"
+    db = ConversationDB(conversation_id).init()
+    session_store.insert_queued_session(
+        db,
+        session_id=session_id,
+        agent_id="a-0",
+        agent_type="coordinator",
+        query="原任务",
+        orchestration_mode="dag_guided",
+    )
+    session_store.update_session_fields(db, session_id, {"state": "waiting"})
+
+    service = CloudraService()
+    submitted = {}
+
+    async def fake_submit(query, conversation_id, **kwargs):
+        submitted["query"] = query
+        submitted["conversation_id"] = conversation_id
+        submitted["kwargs"] = kwargs
+        from cloudra.services.service import SessionRecord
+
+        return SessionRecord(
+            session_id=kwargs.get("session_id") or "a-0_run_new",
+            agent_id="a-0",
+            agent_type="coordinator",
+            parent_session_id=None,
+            query=query,
+            state="queued",
+            result=None,
+            error=None,
+            pid=None,
+            worker_id=None,
+            created_at=None,
+            started_at=None,
+            heartbeat_at=None,
+            finished_at=None,
+            exit_code=None,
+            working_directory=kwargs.get("working_directory"),
+            orchestration_mode=str(
+                kwargs.get("orchestration_mode") or "dag_guided"
+            ),
+        )
+
+    monkeypatch.setattr(service.session_runner, "submit_async", fake_submit)
+
+    command, record = await service.append_session_message_command(
+        command_id="cmd_stale_resume",
+        conversation_id=conversation_id,
+        session_id=session_id,
+        content="你作弊了，重算",
+    )
+
+    assert command.state == "applied"
+    assert submitted["query"] == "你作弊了，重算"
+    mode = submitted["kwargs"].get("orchestration_mode")
+    assert str(getattr(mode, "value", mode)) == "dag_guided"
+    assert record.session_id != session_id
 
 
 
@@ -306,6 +448,16 @@ async def test_append_session_message_async_does_not_block_event_loop(
     session_store.update_session_fields(db, session_id, {"state": "running"})
 
     service = CloudraService()
+    # 模拟本进程仍有活 runner，否则 prepare 会把 inject 升级为 resume
+    service.session_runner._running[(conversation_id, session_id)] = (
+        asyncio.get_running_loop().create_future()
+    )
+    from cloudra.persistence.context_manager import ContextManager
+
+    async def fake_inject(**_kwargs):
+        return None
+
+    monkeypatch.setattr(ContextManager, "inject_event", staticmethod(fake_inject))
     original = service._prepare_append_message
 
     def slow_prepare(request):

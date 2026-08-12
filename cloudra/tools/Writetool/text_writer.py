@@ -6,6 +6,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema
 from cloudra.persistence.workspace import WorkspaceConflictError, WorkspaceError
+from cloudra.tools.core.coord_guard import handwritten_coord_warning
 from cloudra.tools.core.workspace_mutation import (
     WorkspaceMutationOutput,
     execute_prepared_change,
@@ -18,6 +19,8 @@ description = (
     "新建传 expected_sha256='missing'，覆写前必须先用 text_reader 获取最新 sha256。"
     "适用：创建新文件，或对已有文件做整体重写。"
     "不适用：已有文件的局部修改（用 text_reader + edit_file）；严禁用 bash 重定向代替本工具写文件。"
+    "注意：向 .gjf/.xyz/.com 写入逐字键入的坐标块会被 harness 警告——"
+    "坐标必须来自 smiles_to_mol / format_converter / gjf_writer 等工具。"
 )
 
 
@@ -50,6 +53,9 @@ class TextWriter(Tool):
         return False
 
     async def tool_call(self, user_input: TextWriter_input_schema, session: Session) -> TextWriter_output_schema:
+        # 手写坐标守卫：命中时**照常写入**，把警告附在返回消息里让模型意识到
+        # 行为不当（不硬拦——改 gjf 关键词等正当编辑不该被误伤）。
+        guard_warning = handwritten_coord_warning(user_input.content, path=user_input.filepath)
         service = workspace_for_tool(self)
         try:
             change = await asyncio.to_thread(
@@ -87,7 +93,7 @@ class TextWriter(Tool):
                 message=str(exc),
             )
 
-        return await execute_prepared_change(
+        out = await execute_prepared_change(
             self,
             service,
             change,
@@ -96,6 +102,9 @@ class TextWriter(Tool):
             tool_args=user_input.model_dump(mode="json"),
             output_class=TextWriter_output_schema,
         )
+        if guard_warning and out.is_written:
+            out.message = f"{guard_warning}\n\n{out.message}"
+        return out
 
 
 def get_class():

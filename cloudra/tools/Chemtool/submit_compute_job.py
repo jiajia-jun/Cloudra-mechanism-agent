@@ -11,6 +11,7 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra import events
 from cloudra.infra.compute_utils import check_job_type, launch_compute_processes
 from cloudra.persistence.database import ConversationDB, get_database_path
+from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 
 description = (
     "提交计算任务：接收已生成的输入文件路径，在 compute_jobs 表中创建任务记录，"
@@ -60,6 +61,17 @@ class SubmitComputeJob(Tool):
 
     def is_write(self) -> bool:
         return True
+
+    def _with_delegation_hint(
+        self, out: SubmitComputeJob_output_schema
+    ) -> SubmitComputeJob_output_schema:
+        """Coordinator 自行提交时附轻量提示；照常放行。"""
+        if not out.is_success:
+            return out
+        warning = coordinator_self_compute_warning(self.subagent)
+        if warning:
+            out.message = f"{warning}\n\n{out.message}" if out.message else warning
+        return out
 
     async def tool_call(self, user_input: SubmitComputeJob_input_schema, session: Session) -> SubmitComputeJob_output_schema:
         # 兼容测试或旧调用中 session 为 None 的情况。
@@ -131,14 +143,17 @@ class SubmitComputeJob(Tool):
                         task_id=job_id,
                         job_type=user_input.job_type,
                     )
-                    return SubmitComputeJob_output_schema(
+                    return self._with_delegation_hint(
+                        SubmitComputeJob_output_schema(
                             is_success=True,
                             job_id=job_id,
                             job_dir=workdir,
                             state="ready",
                             message=(
                                 f"任务已提交到 {scheduler} 后端，将会在终态时唤醒。"
-                            ))
+                            ),
+                        )
+                    )
 
             except Exception as e:
                 return SubmitComputeJob_output_schema(
@@ -165,12 +180,15 @@ class SubmitComputeJob(Tool):
                     await con.commit()
                     # 任务提交是昂贵的，必须在数据库留痕才允许进行。
                     state = await self.run_now(job_id, db_path, f_path, user_input.job_type, conv_id)
-                    return SubmitComputeJob_output_schema(
+                    return self._with_delegation_hint(
+                        SubmitComputeJob_output_schema(
                             is_success=True,
                             job_id=job_id,
                             job_dir=workdir,
                             state=state,
-                            message=f"任务运行完毕，最终状态：{state}")
+                            message=f"任务运行完毕，最终状态：{state}",
+                        )
+                    )
 
             except Exception as e:
                 return SubmitComputeJob_output_schema(

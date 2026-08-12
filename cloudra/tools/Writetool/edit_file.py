@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema
 from cloudra.persistence.workspace import TextEdit, WorkspaceConflictError, WorkspaceError
+from cloudra.tools.core.coord_guard import handwritten_coord_warning
 from cloudra.tools.core.workspace_mutation import (
     WorkspaceMutationOutput,
     execute_prepared_change,
@@ -52,6 +53,7 @@ class EditFile(Tool):
         "对已有文本文件做基于旧文本精确匹配的结构化修改；每个 old_text 默认只能匹配一次，多匹配会被拒绝。"
         "适用：修改已有文件的局部内容——这是改文件的首选工具；必须先调用 text_reader 获取最新 sha256。"
         "不适用：新建文件或整文件覆写（用 text_writer）；严禁用 Bash、sed、重定向或临时脚本改文件。"
+        "注意：向 .gjf/.xyz/.com 写入逐字键入的坐标块会被 harness 警告——坐标必须来自工具。"
     )
     input_schema: Any = EditFile_input_schema
     output_schema: Any = EditFile_output_schema
@@ -65,6 +67,15 @@ class EditFile(Tool):
         session: Session,
     ) -> EditFile_output_schema:
         service = workspace_for_tool(self)
+        # 手写坐标守卫：命中时**照常编辑**，把警告附在返回消息里（不硬拦）。
+        guard_warning = next(
+            (
+                warning
+                for edit in user_input.edits
+                if (warning := handwritten_coord_warning(edit.new_text, path=user_input.filepath))
+            ),
+            None,
+        )
         edits = [
             TextEdit(
                 old_text=edit.old_text,
@@ -109,7 +120,7 @@ class EditFile(Tool):
                 message=str(exc),
             )
 
-        return await execute_prepared_change(
+        out = await execute_prepared_change(
             self,
             service,
             change,
@@ -118,6 +129,9 @@ class EditFile(Tool):
             tool_args=user_input.model_dump(mode="json"),
             output_class=EditFile_output_schema,
         )
+        if guard_warning and out.is_written:
+            out.message = f"{guard_warning}\n\n{out.message}"
+        return out
 
 
 def get_class():

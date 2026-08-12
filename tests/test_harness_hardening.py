@@ -526,10 +526,11 @@ class TestPersistentCompression:
         stored = await cm.load()
         summaries = [
             m for m in stored
-            if m.get("role") == "system"
-            and str(m.get("content", "")).startswith("[上下文压缩提示]")
+            if str(m.get("content", "")).startswith("[上下文压缩提示]")
         ]
         assert len(summaries) == 1
+        assert summaries[0]["role"] == "user"
+        assert "根据下面这份交接信息继续工作" in summaries[0]["content"]
 
 
 # ---------------------------------------------------------------------------

@@ -157,9 +157,11 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     with_hub = assembler.assemble(["bashtools", "agent_hub"])
     assert "AgentHub" in with_hub.identity_messages[0]["content"]
     assert "agent_hub" in with_hub.identity_messages[0]["content"]
+    assert "交接文档" in with_hub.identity_messages[0]["content"]
 
     without_hub = assembler.assemble(["bashtools"])
     assert "AgentHub" not in without_hub.identity_messages[0]["content"]
+    assert "交接文档" in without_hub.identity_messages[0]["content"]
 
 
 @pytest.mark.asyncio

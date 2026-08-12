@@ -196,6 +196,60 @@ def test_recovery_interrupts_unclaimed_session_and_its_compute_job(tmp_path):
     assert compute_state == "failed"
 
 
+def test_recovery_reaps_zombie_waiting_and_cancel_requested(tmp_path):
+    """挂起等唤醒（waiting）与取消半途（cancel_requested）的 session，
+    属主进程死后心跳静止，同样必须被回收——否则 TUI 永远显示"任务运行中"，
+    /new 被 _has_active_session 永久挡住。"""
+    db = ConversationDB("worker-zombie", data_dir=tmp_path).init()
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    with db.connect() as con:
+        con.execute(
+            """INSERT INTO session
+            (session_id, state, query, created_at, heartbeat_at)
+            VALUES ('s-waiting', 'waiting', 'run', ?, ?)""",
+            (stale, stale),
+        )
+        con.execute(
+            """INSERT INTO session
+            (session_id, state, query, created_at, heartbeat_at)
+            VALUES ('s-cancel', 'cancel_requested', 'run', ?, ?)""",
+            (stale, stale),
+        )
+        con.commit()
+
+    assert session_store.recover_stale(db, cutoff=cutoff) == 2
+    with db.connect() as con:
+        states = {
+            row[0]: row[1]
+            for row in con.execute("SELECT session_id, state FROM session")
+        }
+    assert states == {"s-waiting": "interrupted", "s-cancel": "interrupted"}
+
+
+def test_recovery_keeps_live_waiting_session_with_fresh_heartbeat(tmp_path):
+    """合法挂起等待的 session（executor 活着、5s 心跳）不得被误杀。"""
+    db = ConversationDB("worker-live-waiting", data_dir=tmp_path).init()
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    fresh = datetime.now(timezone.utc).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    with db.connect() as con:
+        con.execute(
+            """INSERT INTO session
+            (session_id, state, query, created_at, heartbeat_at)
+            VALUES ('s-live', 'waiting', 'run', ?, ?)""",
+            (stale, fresh),
+        )
+        con.commit()
+
+    assert session_store.recover_stale(db, cutoff=cutoff) == 0
+    with db.connect() as con:
+        state = con.execute(
+            "SELECT state FROM session WHERE session_id='s-live'"
+        ).fetchone()[0]
+    assert state == "waiting"
+
+
 def test_session_state_emit_touches_meta_last_active(tmp_path):
     """session 状态迁移时 best-effort 刷新 meta.json 的 last_active（节流每分钟一次）。"""
     conv_dir = tmp_path / "conversations" / "conv-meta"

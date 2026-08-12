@@ -26,10 +26,17 @@ _HELP_TEXT = """
 [b]全局[/b]
   [b]?[/b]           显示本帮助
   [b]Tab[/b]         切换焦点（命令补全弹出时为确认补全）
-  [b]Esc[/b]         取消当前任务 / 关闭弹窗 / 关闭补全 / 清除文本选择
+  [b]Esc[/b]         取消当前任务（3 秒内再按强制终止）/ 关闭弹窗 / 关闭补全 / 清除文本选择
   [b]Ctrl+B[/b]      打开/收起侧栏
   [b]Ctrl+T[/b]      对话上下文统计
-  [b]q[/b]           退出 TUI（输入框聚焦时请先 Tab 移出）
+  [b]Ctrl+Q[/b]      正常退出 TUI（对话保留，下次 cloudra 自动回到同一对话）
+  [b]Ctrl+\\[/b]     [b]硬逃生[/b]：界面假死时强制退回 shell（同上，对话保留）
+             另一终端也可用：kill -QUIT <pid>
+             或 touch <data_dir>/tui.force_exit
+  进程隔离（默认）：Agent runtime 与 TUI 分进程；界面假死/重启只杀 TUI，计算继续。
+  回退同进程：CLOUDRA_TUI_INLINE=1
+  外层 watchdog 默认开启：事件循环无响应约 30s 后自动重启界面（对话与 runtime 保留）。
+  禁用监督：CLOUDRA_TUI_NO_WATCHDOG=1
 
 [b]聊天区[/b]
   [b]鼠标拖选[/b]     选中文本（可跨消息），实时高亮
@@ -54,9 +61,9 @@ _HELP_TEXT = """
   [b]/goal [目标][/b] 设置目标锚点（有目标后任务只有 stop 才能结束）；
              /goal pause 暂停当前任务；无参查看当前目标
   [b]/compact [N][/b] 压缩对话上下文（保留最近 N 条，默认 4）
-  [b]/context[/b]    对话上下文统计（同 Ctrl+T）
+  [b]/context[/b]    按 Agent 分列的上下文统计（同 Ctrl+T）
   [b]/yolo [on|off][/b] 查看/切换自动审批模式
-  [b]/cancel[/b]     取消当前任务（同 Esc）
+  [b]/cancel[/b]     取消当前任务（同 Esc；连按可强制终止）
   [b]/quit[/b]       退出
 
 [b]运行逻辑[/b]

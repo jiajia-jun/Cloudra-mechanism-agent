@@ -56,16 +56,44 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 | **过渡金属 (开壳层反应)** | `TPSS0-D4` | `PBE0-D4` |
 | **NMR 化学位移** | `B3LYP` (结合标度法) | `revTPSS` (结合 pcSseg-1 基组) |
 
-## 3.2 基组选择指南
-理论方法对基组的依赖性存在根本差异，切勿混用评判标准。
+### 3.1.1 多参考诊断与边界（保留 r2SCAN/TPSS，勿擅自换 CAS）
+上表“多参考特征强 → `r2SCAN`/`TPSS`”是 **DFT 框架内的最佳缓解**，不是错误建议。agent 不擅自改走 CASSCF 全流程；要做的是**先诊断、再标注不确定度**。
 
-*   **针对 DFT 的推荐（优先选 def2/pcseg 系列）**：
-    *   **日常够用/优化**：`6-31G*`, `6-311G**`, `def-TZVP`
-    *   **高精度/单点能**：`def2-TZVP`, `def2-TZVPP`, `pcseg-2`
+*   **何时怀疑强多参考**：臭氧 / Criegee 中间体；双自由基边界（部分环加成 TS）；均裂中段；低自旋过渡金属多态 / 近简并。
+*   **廉价诊断（可写进作业关键词）**：
+    *   xTB FOD：`xtb --fod`（fractional occupation density，Grimme 2015）——局域 FOD 热点提示多参考区；
+    *   UDFT 破缺对称 + ⟨S²⟩ + Yamaguchi 自旋投影校正；
+    *   波函数稳定性：`stable=opt`（Gaussian）/ 等价 ORCA 稳定性检查；
+    *   有 CCSD(T) 单点时看 T1 diagnostic（主族经验：T1 > 0.02 预警）。
+*   **诊断阳性时的行动**：改用 / 复核 `r2SCAN` 或 `TPSS` 类泛函；结论中**显式标注方法不确定度**；能垒定量结论降级为定性排序；必要时**建议用户**用 NEVPT2/CASPT2 单点复核——agent **不得**自行宣称定量可靠。
+
+## 3.2 基组选择指南
+理论方法对基组的依赖性存在根本差异，切勿混用评判标准。Pople（6-31G* 族）与 Karlsruhe def2 族**并列可用**；同一研究内保持一族一致，勿混用后再比能垒。
+
+*   **Pople 族（现有常用）**：优化/频率 `6-31G*` / `6-311G**`；阴离子与弱相互作用加 `+` / `++` 弥散。
+*   **def2 族（推荐现代化默认）**：
+    *   预优化 / 粗扫：`def2-SVP`
+    *   精修几何与频率 / 日常单点：`def2-TZVP`（或 `def2-TZVPP`）
+    *   阴离子、弱相互作用、氢键/离子对：加弥散 `def2-TZVPD` 或 `ma-def2-SVP` / `ma-def2-TZVP`
+*   **pcseg 等**：高精度单点可选 `pcseg-2`。
 *   **特定任务基组建议**：
-    *   **弱相互作用能**：主导体系必须加弥散，如 `ma-def2-SVP` / `jun-cc-pVDZ`，建议加 BSSE 校正。
-    *   **势垒计算**：有算力可加少量弥散（如 `ma-`），或提升 zeta 数。
-    *   **相对论计算**：全电子相对论必须用专用基组（如 `cc-pVnZ-DK`）；第四周期及以后重元素强烈推荐赝势基组。
+    *   **弱相互作用能**：主导体系必须加弥散，建议加 BSSE 校正。
+    *   **势垒计算**：有算力可加少量弥散（如 `ma-` / `def2-TZVPD`），或提升 zeta 数。
+    *   **相对论计算**：全电子相对论必须用专用基组（如 `cc-pVnZ-DK`）；第四周期及以后重元素强烈推荐赝势基组（def2-ECP 与 def2 价基配套）。
+
+## 3.3 溶剂化决策树
+把溶剂模型写进条件假设，再选计算策略（与机理文件中的 SMD 提示对齐，此处为总决策入口）。
+
+| 场景 | 推荐 | 关键词/动作 |
+| :--- | :--- | :--- |
+| 非极性、气相实验或对照 | 气相几何 + 气相能量 | 不设 scrf |
+| 需要 ΔG_solv / 溶液自由能剖面 | **SMD**（优先） | `scrf=(smd,solvent=...)`；报告标准态 1 M |
+| 几何受溶剂影响小、只要定性溶剂效应 | CPCM/PCM 优化或气相优化后溶剂单点 | `scrf=(cpcm/pcm,solvent=...)` |
+| 质子转移、强氢键参与反应坐标、紧密离子对 | 隐式 + **1–3 个显式溶剂分子** | 显式分子进 `distance_filters`/反应坐标；勿只靠隐式 |
+| 离子型机理（SN1/E1、鎓离子、裸电荷中间体） | **必须溶剂化**（至少 SMD） | 气相剖面严重失真，禁止只报气相 ΔG‡ 作溶液结论 |
+
+*   **优化 vs 单点**：几何对溶剂敏感（离子、氢键网络、极性 TS）→ 在隐式溶剂下优化+频率；敏感度低时可用气相优化/频率，再对关键结构做 SMD 单点（须在报告中写明）。
+*   溶液热化学用 `thermo_analysis` 的 `solution_1m` / `solution_custom`，与实验浓度对齐。
 
 # 4. Agent 工作流：过渡态 (TS) 搜索 (Workflow State Machine)
 当接收到“过渡态搜索”任务时，建议遵循以下程序化执行步骤。
@@ -83,18 +111,23 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
 
 **Step 2: 任务构建与投递 (Build & Submit)**
 - 调用 `gjf_writer` 生成输入。
+- 关于**计算资源设置**：dft本身内存要求不算太高，如果是小分子建议加大核数而不是加大内存，大分子要注意，hessian计算的内存占用量会急剧上升，此时内存成为计算瓶颈。
 - **推荐关键词组合**：`opt=(ts,noeigen,calcfc)`。可视收敛情况调整，例如增加 `maxstep=10` 或 `int=ultrafine`。
 - `opt` 和 `freq` 可连用，这是高斯标准做法；过渡态需要唯一虚频，建议带上 `freq` 验证。
 - 调用 `submit_compute_job` 提交任务。无语法错误后，使用异步提交 (`is_async=True`)。
+- 系统不负责任务调度功能，多个提交默认为异步计算，请注意这其中的风险，若串行提交需要一个一个提交任务。
+- 在较大分子的情况下（>=30），建议采用串行提交，理想的配置是单个任务核数不大于32，内存需求几乎无上限。
 
-**Step 3: 计算单点能 (Single Point Energy)**
-- 保持几何优化时的基组一致，去掉 `opt` 和 `freq` 关键词，提高泛函级别计算单点能。
-
-**Step 4: 运行与验证 IRC (IRC Validation)**
-- 计算级别建议与 TS 搜索一致，构建参数如 `irc=(lqa,calcfc,maxpoint=80)`。
-- *逻辑验证*：作 IRC 曲线。如果曲线不平滑（有平台或噪声），说明过渡态精度不够或位置不对。不必执着于整条 IRC 曲线完整收敛：从两侧最外有效帧分别做无约束优化得到中间体，再调用 `ts_guess mode=verify strict=True`，证明两个部分端点各自处于 TS 与对应优化中间体之间即可。
+**Step 3: 运行与验证 IRC (IRC Validation)**
+- 计算级别建议与 TS 搜索一致。关键词示例：`irc=(lqa,calcfc,maxpoint=80)`。
+- **点数门槛（与证据对齐）**：双向 IRC **每个方向至少 50 个有效点**；`maxpoint=80` 为常用起步。某一侧有效点不足 50 或过早卡住时，加大 `maxpoint`（或缩小步长）重跑该向，勿用过短 IRC 冒充 endpoint-supported。
+- *逻辑验证*：作 IRC 曲线。如果曲线不平滑（有平台或噪声），说明过渡态精度不够或位置不对。不必执着于整条 IRC 曲线完整收敛到极小点：从两侧最外有效帧分别做无约束优化得到中间体，再调用 `ts_guess mode=verify strict=True`，证明两个部分端点各自处于 TS 与对应优化中间体之间即可。
 - *端点身份*：再把两个优化中间体作为具体结构交给 `reaction_mapping`，与该基元步预期的端点 SMILES 分别核对分子图。`strict pass` 与端点图匹配是两件独立证据，任一项都不能代替另一项。
 - *重搜策略*：此时不仅要加上 `maxstep=10`，还应该加上积分格点精度参数（如 `int=ultrafine` 或 `int=superfine`）重新计算 TS。
+
+**Step 4: 计算单点能 (Single Point Energy)**
+- **先完成 Step 3 的路径/端点验证，再上高价单点**（与 SOP 一致：避免对错误鞍点浪费高水平计算）。
+- 保持几何优化时的基组一致或按 §3.2 升级，去掉 `opt` 和 `freq` 关键词，提高泛函级别计算单点能；热校正仍来自频率级日志，用 `thermo_analysis` 叠加。
 
 过渡态搜索任务一般伴随着机理寻找的任务，一般策略是：**以过渡态为中心，跑出双向部分 IRC 后对两侧外帧分别优化得到中间体，再以这些结构拼出完整能垒**。工具不保存“已验证”等任务状态，只对本次传入的几何材料作判定。
 
@@ -108,3 +141,14 @@ description: Provide domain expertise for DFT (Density Functional Theory) quantu
    - 过渡态不够平滑：需增加精度重算高精度 TS（见 Step 4 重搜策略）。
    - 反应能垒过平：尝试在 gjf_writer 中追加 `extra_keywords="IOp(1/108=-1)"` 取消收敛判断。
 5. **freq数值崩溃**：有时freq突然崩溃并不是物理上的问题，在排查了无不合理距离等问题后，可以考虑读取已经算过的几何优化文件中的频率数据：geom=allcheck guess=read freq
+6. **疑似强多参考**：见 §3.1.1；勿静默把单参考 DFT 能垒写成定量结论。
+
+# 6. 热化学细节与可检验预言
+频率级结果进 `thermo_analysis` 前，先对齐下列约定（可写进报告 assumptions）。
+
+*   **频率标度因子**：谐振频率按泛函/基组查表标度后再算热校正。常见量级（仅作起步，最终以表为准）：B3LYP/6-31G* ≈ 0.960；M06-2X 常用 ≈ 0.97。查 [NIST CCCBDB](https://cccbdb.nist.gov/vibscalejust.asp) 或 Truhlar harm_fac；GoodVibes 可用 `-v` / 自动检测（见 `thermo_analysis` 的 `frequency_scale_factor`）。
+*   **多构象 Boltzmann 加权**：ΔG‡ 存在多个可及 TS 构象时，对自由能做 Boltzmann 加权，或至少报告最低与次低及 ΔΔG。勿只报 conf0。
+*   **Eyring 速率常数**（过渡态理论）：`k = (k_B T / h) * exp(-ΔG‡ / RT)`。标准态须与 ΔG‡ 一致（1 atm vs 1 M）；双分子步骤写清浓度单位；此式为经典 TST，**不含隧穿**。
+*   **隧穿**：氢（氘）转移、显著虚频的 HAT/质子转移，应提示存在 Wigner / Eckart 校正；定量 k 或一级 KIE 需要时再启用，并在结论中标注。
+*   **KIE 一句话协议**：预测动力学同位素效应可用频率数据 + Bigeleisen–Mayer 方程（工具如 Kinisot）；把计算 KIE 当作可检验的机理预言，与实验对照，而非事后解释词。
+*   **ΔΔG‡ → 选择性**：见 `reaction-class-geometry.md` §3.3（如 298 K 下 ≈1.4 / 2.7 kcal/mol 对应约 10:1 / 100:1）。

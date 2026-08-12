@@ -126,7 +126,14 @@ def test_species_records_are_stable_and_immutable(tmp_path):
 
 def _seed_process_path(store):
     from cloudra.dag.engine import DagEngine
-    from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        DependencyEdge,
+        GraphActor,
+        MutationBatch,
+        PlannedNode,
+    )
 
     engine = DagEngine(store)
     result = engine.apply_batch(
@@ -137,25 +144,24 @@ def _seed_process_path(store):
             base_revisions=store.load_bundle().revisions,
             rationale="seed replay state",
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={"node_id": "map", "node_type": "work", "label": "map"},
+                    node=PlannedNode(node_id="map", label="map"),
                 ),
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={"node_id": "ts", "node_type": "work", "label": "TS"},
+                    node=PlannedNode(node_id="ts", label="TS"),
                 ),
-                GraphOperation(
+                AddEdge(
                     op="add_edge",
                     graph="process",
-                    data={
-                        "edge_id": "map-before-ts",
-                        "source_node_id": "map",
-                        "target_node_id": "ts",
-                        "edge_type": "depends_on",
-                    },
+                    edge=DependencyEdge(
+                        edge_id="map-before-ts",
+                        source_node_id="map",
+                        target_node_id="ts",
+                    ),
                 ),
             ],
         )
@@ -193,3 +199,79 @@ def test_invalid_journal_raises_without_inventing_an_empty_graph(tmp_path):
     with db.connect() as con:
         remaining = con.execute("SELECT node_id FROM dag_nodes ORDER BY node_id").fetchall()
     assert remaining == [("ts",)]
+
+
+def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
+    """旧格式兼容：手工构造 data-dict 形状 + 旧词表的 journal 记录，
+    重放不炸且映射到现行类型（旧形状只读，不要求能写）。"""
+    import json
+
+    _api, db, store = _new_store(tmp_path, "legacy-journal")
+    store.ensure_bundle("s1")
+    revisions = store.load_bundle().revisions
+    legacy_operations = [
+        {
+            "op": "add_node",
+            "graph": "process",
+            "data": {
+                "node_id": "legacy",
+                "node_type": "workflow",
+                "label": "legacy step",
+                "payload": {"status": "pending", "priority": 5, "custom": "kept"},
+            },
+        },
+        {
+            "op": "update_node",
+            "graph": "process",
+            "data": {"node_id": "legacy", "changes": {"status": "in_progress"}},
+        },
+        {
+            "op": "add_node",
+            "graph": "delivery",
+            "data": {
+                "node_id": "r",
+                "node_type": "intermediate_occurrence",
+                "label": "R",
+                "payload": {"role": "reactant", "evidence_level": "proposed"},
+            },
+        },
+    ]
+    resulting = {"process": revisions["process"] + 1, "delivery": revisions["delivery"] + 1}
+    with db.connect() as con:
+        con.execute(
+            """
+            INSERT INTO dag_mutations(
+                mutation_id, graph_id, base_revision, resulting_revision,
+                actor_type, actor_id, session_id, rationale, base_revisions,
+                resulting_revisions, operations, accepted, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+            """,
+            (
+                "mut_legacy",
+                "dag_process",
+                revisions["process"],
+                resulting["process"],
+                "harness",
+                "legacy-test",
+                "s1",
+                "hand-written legacy journal row",
+                json.dumps(revisions),
+                json.dumps(resulting),
+                json.dumps(legacy_operations),
+            ),
+        )
+
+    rebuilt = store.rebuild_materialized()
+
+    assert rebuilt.bundle.revisions == resulting
+    node = next(n for n in rebuilt.process.nodes if n.node_id == "legacy")
+    assert node.node_type == "planned"
+    assert node.status == "running"  # pending → proposed → in_progress → running
+    assert node.priority == 5
+    assert node.metadata["custom"] == "kept"
+    occurrence = rebuilt.delivery.nodes[0]
+    assert occurrence.node_type == "occurrence"
+    assert occurrence.role == "reactant"
+    assert occurrence.evidence_level == "proposed"
+    # 重放后物化行已升级为新形状，二次重放（幂等）仍一致
+    assert store.rebuild_materialized() == rebuilt

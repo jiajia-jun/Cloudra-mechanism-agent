@@ -85,6 +85,8 @@ class PreparedAppend:
     working_directory: str | None
     node_id: str | None
     workspace_id: str | None
+    orchestration_mode: str = OrchestrationMode.STANDARD.value
+    orchestration_config: str = "{}"
     command: control_store.ClientCommand | None = None
     existing_record: SessionRecord | None = None
 
@@ -305,16 +307,24 @@ class SessionRunner:
                 self._emit, conversation_id, session_id, "completed", {"result": result}
             )
         except asyncio.CancelledError:
-            await asyncio.to_thread(
-                self._update,
-                conversation_id,
-                session_id,
-                state="cancelled",
-                finished_at=datetime.now(timezone.utc).isoformat(),
-            )
-            await asyncio.to_thread(
-                self._emit, conversation_id, session_id, "cancelled", {}
-            )
+            current = self.get(conversation_id, session_id)
+            if current is None or current.state not in (
+                "cancelled",
+                "killed",
+                "failed",
+                "completed",
+                "interrupted",
+            ):
+                await asyncio.to_thread(
+                    self._update,
+                    conversation_id,
+                    session_id,
+                    state="cancelled",
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                )
+                await asyncio.to_thread(
+                    self._emit, conversation_id, session_id, "cancelled", {}
+                )
             raise
         except Exception as exc:
             await asyncio.to_thread(
@@ -404,7 +414,7 @@ class SessionRunner:
             return _fetch(owned)
 
     def recover_stale_sessions(self, timeout_seconds: int = 60) -> int:
-        """把失去心跳的 running Session 标为 interrupted，避免永久假运行。"""
+        """把失去心跳的 running/waiting/cancel_requested Session 标为 interrupted，避免永久假运行。"""
         cutoff = datetime.fromtimestamp(
             datetime.now(timezone.utc).timestamp() - timeout_seconds,
             tz=timezone.utc,
@@ -498,6 +508,7 @@ class SessionRunner:
         if record.state in (
             "queued",
             "running",
+            "waiting",
             "waiting_for_user",
             "waiting_for_approval",
             "waiting_for_device",
@@ -532,6 +543,7 @@ class SessionRunner:
         elif record.pid and record.state in (
             "queued",
             "running",
+            "waiting",
             "waiting_for_user",
             "waiting_for_approval",
             "waiting_for_device",
@@ -550,6 +562,58 @@ class SessionRunner:
         await asyncio.to_thread(
             self._cancel_descendants, conversation_id, session_id
         )
+        return self.get(conversation_id, session_id)
+
+    async def force_cancel(
+        self, conversation_id: str, session_id: str
+    ) -> SessionRecord | None:
+        """强制终止：立刻取消协程、SIGTERM 子进程，并落 ``killed``。
+
+        与 ``cancel`` 的区别：不等待优雅退出；本进程内的 Coordinator
+        （``pid == os.getpid()``）只 ``task.cancel()``，绝不 SIGTERM 自己。
+        """
+        record = self.get(conversation_id, session_id)
+        if record is None:
+            return None
+        activeish = (
+            "queued",
+            "running",
+            "waiting",
+            "waiting_for_user",
+            "waiting_for_approval",
+            "waiting_for_device",
+            "cancel_requested",
+        )
+        if record.state not in activeish:
+            return record
+        if record.state != "cancel_requested":
+            await asyncio.to_thread(
+                self._update, conversation_id, session_id, state="cancel_requested"
+            )
+            await asyncio.to_thread(
+                self._emit, conversation_id, session_id, "cancel_requested", {}
+            )
+        task = self._running.get((conversation_id, session_id))
+        if task and not task.done():
+            task.cancel()
+        await asyncio.to_thread(self._cancel_descendants, conversation_id, session_id)
+        if record.pid and record.pid != os.getpid():
+            try:
+                os.kill(record.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        finished = datetime.now(timezone.utc).isoformat()
+        await asyncio.to_thread(
+            self._update,
+            conversation_id,
+            session_id,
+            state="killed",
+            finished_at=finished,
+        )
+        await asyncio.to_thread(
+            self._emit, conversation_id, session_id, "killed", {}
+        )
+        self._running.pop((conversation_id, session_id), None)
         return self.get(conversation_id, session_id)
 
     def _cancel_descendants(self, conversation_id: str, parent_session_id: str) -> None:
@@ -696,7 +760,7 @@ class CloudraService:
         the user privilege boundary (only users may waive gates or lower
         coverage requirements; evidence-derived levels stay harness-only).
         """
-        from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+        from cloudra.dag.models import GraphActor, MutationBatch, parse_graph_operation
 
         context = self._dag_read_context(conversation_id)
         if context is None:
@@ -707,7 +771,7 @@ class CloudraService:
             actor=GraphActor.USER,
             actor_id="user",
             base_revisions=base_revisions,
-            operations=[GraphOperation(**op) for op in operations],
+            operations=[parse_graph_operation(op) for op in operations],
             rationale=rationale,
         )
         result = engine.apply_batch(batch)
@@ -745,8 +809,7 @@ class CloudraService:
             conversation_id=conversation_id,
             supervisor=GraphSupervisor(conversation_id=conversation_id),
         )
-        # 新构造的 controller 在 initialize() 里会因 delivery 非空再触发一次
-        # graph_initialization；replan 只需要加载契约，这里直接标记已初始化。
+        # initialize() 不再自动督导；这里显式加载契约后走 user_replan。
         controller.contract = controller.store.load_coverage_contract()
         controller._initialized = True
         result = await controller.maybe_supervise(
@@ -1012,10 +1075,19 @@ class CloudraService:
                 or target.working_directory,
                 node_id=target.node_id,
                 workspace_id=target.workspace_id,
+                orchestration_mode=target.orchestration_mode
+                or OrchestrationMode.STANDARD.value,
+                orchestration_config=target.orchestration_config or "{}",
             )
         mode: Literal["inject", "resume"] = (
             "resume" if target.state in _TERMINAL_STATES else "inject"
         )
+        # DB 仍标 running/waiting 但本进程已无活 runner（崩溃、隔离 TUI、
+        # 假 completed→waiting 残留）时，纯 inject 只会把事件停在 pending。
+        if mode == "inject" and not self._session_has_live_runner(
+            request["conversation_id"], request["session_id"]
+        ):
+            mode = "resume"
         return PreparedAppend(
             conversation_id=request["conversation_id"],
             session_id=request["session_id"],
@@ -1027,6 +1099,9 @@ class CloudraService:
             or target.working_directory,
             node_id=target.node_id,
             workspace_id=target.workspace_id,
+            orchestration_mode=target.orchestration_mode
+            or OrchestrationMode.STANDARD.value,
+            orchestration_config=target.orchestration_config or "{}",
         )
 
     def _existing_append_result(
@@ -1072,6 +1147,16 @@ class CloudraService:
             control_store.finish_command(db, prepared.command_id, error=str(exc))
             raise
 
+    def _session_has_live_runner(
+        self, conversation_id: str, session_id: str
+    ) -> bool:
+        task = self.session_runner._running.get((conversation_id, session_id))
+        return task is not None and not task.done()
+
+    @staticmethod
+    def _append_supplement_text(content: str) -> str:
+        return f"用户从远程控制台补充要求：{content}"
+
     async def append_session_message_command(
         self,
         *,
@@ -1094,6 +1179,12 @@ class CloudraService:
         if prepared.mode == "existing":
             return await asyncio.to_thread(self._existing_append_result, prepared)
         if prepared.mode == "resume":
+            try:
+                orch_config = json.loads(prepared.orchestration_config or "{}")
+            except (TypeError, ValueError, json.JSONDecodeError):
+                orch_config = None
+            if not isinstance(orch_config, dict):
+                orch_config = None
             record = await self.session_runner.submit_async(
                 prepared.content,
                 prepared.conversation_id,
@@ -1103,16 +1194,32 @@ class CloudraService:
                 working_directory=prepared.working_directory,
                 node_id=prepared.node_id,
                 workspace_id=prepared.workspace_id,
+                orchestration_mode=prepared.orchestration_mode,
+                orchestration_config=orch_config,
             )
         elif prepared.mode == "inject":
             from cloudra.persistence.context_manager import ContextManager
 
+            supplement = self._append_supplement_text(prepared.content)
+            # Coordinator 上下文是对话级 a-0.json；子 Agent 才按 session 分文件。
+            context_session_id = (
+                None if prepared.agent_id == "a-0" else prepared.session_id
+            )
+            cm = ContextManager(
+                agent_id=prepared.agent_id,
+                conversation_id=prepared.conversation_id,
+                prompt=None,
+                query="",
+                session_id=context_session_id,
+            )
+            await cm.append({"role": "user", "content": supplement})
             await ContextManager.inject_event(
                 conversation_id=prepared.conversation_id,
                 agent_id=prepared.agent_id,
                 event_type="user_message",
-                content=f"用户从远程控制台补充要求：{prepared.content}",
+                content=supplement,
                 db_path=ConversationDB(prepared.conversation_id).path,
+                session_id=prepared.session_id,
             )
             self.session_runner._emit(
                 prepared.conversation_id,

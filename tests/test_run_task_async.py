@@ -2,6 +2,7 @@
 
 import asyncio
 import sqlite3
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -12,12 +13,18 @@ from cloudra.persistence.database import ConversationDB
 @pytest.fixture
 def isolated_db(tmp_path, monkeypatch):
     """使用临时数据目录隔离数据库和上下文。"""
+    import os
+
     data_dir = tmp_path / "cloudra_data"
     data_dir.mkdir()
+    # AF_UNIX 路径上限约 108 字节；pytest tmp 路径过长时用短 runtime 目录
+    runtime_dir = Path(f"/tmp/cr{os.getpid()}")
+    runtime_dir.mkdir(exist_ok=True)
 
     from cloudra.infra.config import get_config, reload_config
 
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
     reload_config()
     cfg = get_config()
     cfg.data_dir = data_dir
@@ -168,3 +175,96 @@ async def test_run_task_async_exits_when_no_pending_events(isolated_db):
 
     assert call_count == 1, f"无事件时不应再次唤醒，实际 {call_count} 次"
     assert result == "done result"
+
+
+@pytest.mark.asyncio
+async def test_run_task_async_keeps_waiting_if_background_still_pending(isolated_db):
+    """external_event 提前唤醒但 drain 为空、后台仍有 pending 时，不得结束会话。"""
+    from cloudra.core.main import run_task_async
+    from cloudra.persistence.database import ConversationDB
+
+    conv_id = "pending_bg_conv"
+    db = ConversationDB(conv_id).init()
+    with db.connect() as con:
+        con.execute(
+            "INSERT INTO subagent_requests (conversation_id, state, input_data) "
+            "VALUES (?, 'running', '{}')",
+            (conv_id,),
+        )
+        con.commit()
+
+    call_count = 0
+    wait_calls = 0
+
+    async def fake_react_run(self):
+        nonlocal call_count
+        call_count += 1
+        return f"result_{call_count}"
+
+    async def fake_wait(database, _conv_id):
+        nonlocal wait_calls
+        wait_calls += 1
+        if wait_calls >= 2:
+            with sqlite3.connect(database) as con:
+                con.execute(
+                    "UPDATE subagent_requests SET state='done' WHERE conversation_id=?",
+                    (conv_id,),
+                )
+                con.commit()
+
+    async def fake_drain(self):
+        return False
+
+    with patch("cloudra.runtime.runner.Coordinator_reAct.run", fake_react_run), \
+         patch("cloudra.runtime.runner._wait_for_background_tasks", fake_wait), \
+         patch("cloudra.runtime.runner.Coordinator_reAct.drain_pending_external_events", fake_drain):
+        result = await asyncio.wait_for(
+            run_task_async("test query", conv_id=conv_id, verbose=False),
+            timeout=5,
+        )
+
+    assert wait_calls >= 2, f"后台未排空时应继续等待，实际 wait={wait_calls}"
+    assert call_count == 1
+    assert result == "result_1"
+
+
+@pytest.mark.asyncio
+async def test_run_task_async_keeps_workers_when_pending_on_failure(isolated_db):
+    """Coordinator 异常退出但后台仍有 pending 时，不应 release_workers。"""
+    from cloudra.core.main import run_task_async
+    from cloudra.persistence.database import ConversationDB
+
+    conv_id = "fail_keep_workers"
+    db = ConversationDB(conv_id).init()
+    with db.connect() as con:
+        con.execute(
+            "INSERT INTO compute_jobs (conversation_id, state, path, jobtype) "
+            "VALUES (?, 'ready', '/tmp/x.gjf', 'gaussian')",
+            (conv_id,),
+        )
+        con.commit()
+
+    released = {"count": 0}
+
+    async def fake_react_run(self):
+        raise RuntimeError("database is locked")
+
+    def fake_acquire(database, interactive_approval):
+        return None
+
+    def fake_release(database):
+        released["count"] += 1
+
+    with patch("cloudra.runtime.runner.Coordinator_reAct.run", fake_react_run), \
+         patch("cloudra.runtime.workers.acquire_workers", fake_acquire), \
+         patch("cloudra.runtime.workers.release_workers", fake_release), \
+         patch("cloudra.runtime.runner.is_mobile_runtime", return_value=False):
+        with pytest.raises(RuntimeError, match="database is locked"):
+            await run_task_async(
+                "test query",
+                conv_id=conv_id,
+                verbose=False,
+                interactive_approval=False,
+            )
+
+    assert released["count"] == 0

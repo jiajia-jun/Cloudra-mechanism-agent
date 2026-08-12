@@ -17,6 +17,8 @@ def _isolated_data_dir(tmp_path, monkeypatch):
     # 有些测试会 reload_config()，重建单例时 YAML 配置（优先级高于环境变量）
     # 会把 data_dir 重置回真实目录；把配置文件指到不存在路径，从源头隔离。
     monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "config.yaml"))
+    # 避免宿主环境残留的 runtime URL 让 Textual 测试误走隔离 HTTP 路径
+    monkeypatch.delenv("CLOUDRA_TUI_RUNTIME_URL", raising=False)
     monkeypatch.setattr(get_config(), "data_dir", tmp_path / "data")
 
 

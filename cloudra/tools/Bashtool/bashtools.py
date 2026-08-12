@@ -6,7 +6,9 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.core.agent import Agent
+from cloudra.tools.core.bash_habit_guard import bash_file_write_warning
 from cloudra.tools.core.command_analyzer import BashCommandClassifier
+from cloudra.tools.core.coord_guard import handwritten_coord_warning
 from cloudra.tools.core.permission_model import Permission, check_permission
 
 
@@ -63,6 +65,8 @@ class Bashtools(Tool):
         "适用：运行测试、安装依赖、查看环境信息、调用命令行工具。"
         "不适用：修改工作区文件——严禁用 Bash、sed、重定向、tee 或临时脚本改文件，"
         "已有文件用 text_reader + edit_file，新建文件用 text_writer。"
+        "注意：命令文本里嵌入坐标块（如 heredoc 写 .gjf/.xyz）会被 harness 警告，"
+        "坐标必须来自 smiles_to_mol / format_converter / gjf_writer 等工具。"
     )
 
     def __init__(self, subagent: Agent = None, **data) -> None:
@@ -150,6 +154,15 @@ class Bashtools(Tool):
             result = f'没有权限执行该命令: {command}'
             return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=126)
 
+        # 手写坐标 / bash 写文件习惯检查：命中时**照常执行**，把警告附在结果里
+        # 让模型意识到行为不当（不硬拦）。coord 命中优先：它更具体，并直接点破
+        # "绕过 supervisor 审查 / DAG 系统"。从日志提取坐标的正当流程走
+        # sed/grep 管道，命令里不含坐标文本，不会被误伤。
+        guard_warning = (
+            handwritten_coord_warning(command, path=None)
+            or bash_file_write_warning(command)
+        )
+
         # 触发安全检查
         analysis = BashCommandClassifier.classify(command)
         if analysis.permissions & (Permission.DESTRUCTIVE | Permission.SCRIPT):
@@ -217,6 +230,8 @@ class Bashtools(Tool):
         result = truncate_output(result)
         if exit_code != 0:
             result = f"【命令失败】exit_code={exit_code}。输出：\n{result}"
+        if guard_warning:
+            result = f"{guard_warning}\n\n{result}"
         return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=exit_code)
 
 

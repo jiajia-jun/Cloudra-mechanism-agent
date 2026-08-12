@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from uuid import uuid4
 
 from textual.app import ComposeResult
@@ -13,11 +14,10 @@ from textual.widgets import Footer, Header
 
 from cloudra.base.conversation_class import Conversation
 from cloudra.infra.config import get_config
-from cloudra.infra.token_estimator import TokenEstimator
 from cloudra.persistence.context_manager import ContextManager
 from cloudra.persistence.conversation_repo import list_conversations
-from cloudra.services.service import CloudraService
 from cloudra.tui.new.commands import KNOWN_COMMANDS, parse_command
+from cloudra.tui.new.control import create_tui_service
 from cloudra.tui.new.render_bridge import RenderBridge
 from cloudra.tui.new.screens.approval_modal import ApprovalModal
 from cloudra.tui.new.screens.ask_user_modal import AskUserModal
@@ -30,7 +30,16 @@ from cloudra.tui.new.widgets.input_bar import InputBar
 from cloudra.tui.new.widgets.side_panel import SidePanel
 from cloudra.tui.new.widgets.status_bar import StatusBar
 
-_ACTIVE_STATES = {"queued", "running"}
+_ACTIVE_STATES = {"queued", "running", "waiting"}
+# Esc 取消：含审批/提问等待态（与 SessionRunner.cancel 一致）；不含 cancel_requested
+_CANCELABLE_STATES = {
+    "queued",
+    "running",
+    "waiting",
+    "waiting_for_user",
+    "waiting_for_approval",
+    "waiting_for_device",
+}
 
 # Coordinator 的 agent_id（与 legacy TUI / email_listener 的注入先例一致）
 _COORDINATOR_AGENT_ID = "a-0"
@@ -57,6 +66,26 @@ _MODE_LABELS = {
 _HISTORY_TASK_LIMIT = 5
 _HISTORY_EVENT_LIMIT = 120
 _HISTORY_TOTAL_EVENT_LIMIT = 480
+# llm_chunk 在长会话里会淹没工具/阶段事件；截断时优先保留非 stream 事件
+_HISTORY_LOW_PRIORITY_EVENTS = frozenset({"llm_chunk", "llm_request_diagnostics"})
+# 第一次 Esc 后，该时间窗内再按即强制终止（与 legacy TUI 一致）
+_FORCE_CANCEL_WINDOW_S = 3.0
+
+
+def _select_history_events(events: list[dict], limit: int) -> list[dict]:
+    """截断历史事件：优先保留工具/阶段/终态，避免 Coordinator 窗口只剩 llm_chunk。"""
+    if limit <= 0:
+        return []
+    if len(events) <= limit:
+        return list(events)
+    ranked: list[tuple[int, int, dict]] = []
+    for idx, ev in enumerate(events):
+        et = str(ev.get("event_type") or "")
+        priority = 0 if et in _HISTORY_LOW_PRIORITY_EVENTS else 1
+        ranked.append((priority, idx, ev))
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    keep = {id(item[2]) for item in ranked[-limit:]}
+    return [ev for ev in events if id(ev) in keep]
 
 
 def _format_tokens(n: int) -> str:
@@ -74,7 +103,7 @@ class MainScreen(Screen):
 
     BINDINGS = [
         ("escape", "cancel_current", "取消当前任务"),
-        ("q", "quit", "退出"),
+        ("ctrl+q", "quit", "退出"),
         ("?", "show_help", "帮助"),
         ("ctrl+t", "show_context", "上下文统计"),
         ("ctrl+g", "show_dag", "DAG 编排"),
@@ -86,7 +115,8 @@ class MainScreen(Screen):
         self.yolo = yolo
         # 编排模式：standard / dag_record / dag_guided，对下一个新任务生效
         self.orchestration_mode = "standard"
-        self.service = CloudraService()
+        # 默认经本机 runtime HTTP 提交/取消；INLINE 时退回同进程 CloudraService
+        self.service = create_tui_service()
         self.conversation_id = conversation_id or self._startup_conversation()
         self.current_session_id: str | None = None
         self._render_bridge: RenderBridge | None = None
@@ -101,6 +131,9 @@ class MainScreen(Screen):
         self._plan_refresh_task: asyncio.Task | None = None
         self._compact_task: asyncio.Task | None = None
         self._compactions: dict[str, str] = {}
+        # Esc 强制取消：第一次软取消时间戳与目标 session
+        self._cancel_at: float | None = None
+        self._cancel_session_id: str | None = None
 
     def _startup_conversation(self) -> str:
         """恢复上次对话或新建。"""
@@ -241,18 +274,23 @@ class MainScreen(Screen):
             return ""
 
     async def _find_active_record(
-        self, agent_id: str | None = None, session_id: str | None = None
+        self,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        *,
+        states: set[str] | None = None,
     ):
         """当前对话中最新一个运行中的任务；没有则 None。
 
         session_id 指定时按实例精确定位（并行实例各自独立）；agent_id 指定时
         找该角色的运行中 session；都为 None 时只找根任务（Coordinator）。
         """
+        allowed = states if states is not None else _ACTIVE_STATES
         records = await asyncio.to_thread(
             self.service.session_runner.list, self.conversation_id
         )
         for record in records:  # list() 按 created_at DESC
-            if record.state not in _ACTIVE_STATES:
+            if record.state not in allowed:
                 continue
             if session_id is not None:
                 if record.session_id == session_id:
@@ -380,22 +418,26 @@ class MainScreen(Screen):
             pass
 
     async def _refresh_context_info(self) -> None:
-        """刷新状态栏的对话级共享上下文摘要。
-
-        Coordinator（a-0）的上下文是对话级的，跨任务延续——这个指示让用户
-        能直接看到"记忆"在增长/被压缩。
-        """
+        """刷新状态栏的按-agent 上下文摘要（主上下文 + 多路合计）。"""
         status_bar = self.query_one("#status-bar", StatusBar)
         try:
-            cm = ContextManager(
-                agent_id=_COORDINATOR_AGENT_ID,
-                conversation_id=self.conversation_id,
-                prompt=None,
-                query="",
+            from cloudra.persistence.context_stats import (
+                collect_conversation_context_stats,
+                format_status_bar_context_info,
             )
-            context = await cm.load()
-            tokens = TokenEstimator.estimate_messages(context)
-            status_bar.context_info = f"{len(context)}条消息≈{_format_tokens(tokens)} tokens"
+
+            try:
+                records = await asyncio.to_thread(
+                    self.service.session_runner.list, self.conversation_id
+                )
+            except Exception:
+                records = []
+            stats = await asyncio.to_thread(
+                collect_conversation_context_stats,
+                self.conversation_id,
+                session_records=records,
+            )
+            status_bar.context_info = format_status_bar_context_info(stats)
         except Exception:
             status_bar.context_info = ""
 
@@ -449,7 +491,9 @@ class MainScreen(Screen):
                     continue
                 entries.extend(
                     (rec.session_id, ev)
-                    for ev in session_events[-_HISTORY_EVENT_LIMIT:]
+                    for ev in _select_history_events(
+                        session_events, _HISTORY_EVENT_LIMIT
+                    )
                 )
             history.append((task, entries))
 
@@ -1095,24 +1139,61 @@ class MainScreen(Screen):
     # ------------------------------------------------------------------
 
     async def action_cancel_current(self) -> None:
-        """取消当前运行中的任务（立即反馈，取消过程在后台进行）。
+        """取消当前任务：第一次 Esc 优雅打断，3 秒内再按强制终止。
 
-        cancel() 内部会等任务落终态（最长 3s+），不能阻塞在 UI 动作里——
-        否则按 Esc 后要卡半天才有反应。任务真正停止时会通过事件桥
-        渲染"已取消"卡片。
+        cancel()/force_cancel() 可能等待数秒，不能阻塞在 UI 动作里。
         """
-        active = await self._find_active_record()
-        if active is None:
+        active = await self._find_active_record(states=_CANCELABLE_STATES)
+        session_id = active.session_id if active is not None else self.current_session_id
+        # 已处于 cancel_requested 时仍允许二次 Esc 强制终止
+        if not session_id and self._cancel_session_id:
+            session_id = self._cancel_session_id
+        if not session_id:
             self.notify("没有运行中的任务", severity="warning")
             return
-        asyncio.create_task(self._cancel_in_background(active.session_id))
-        self.notify("已请求取消，任务将在当前步骤结束后停止", severity="information")
+
+        now = time.monotonic()
+        force = (
+            self._cancel_at is not None
+            and self._cancel_session_id == session_id
+            and (now - self._cancel_at) < _FORCE_CANCEL_WINDOW_S
+        )
+        if force:
+            self._cancel_at = None
+            self._cancel_session_id = None
+            asyncio.create_task(self._force_cancel_in_background(session_id))
+            self.notify("已强制终止任务", severity="warning")
+            return
+
+        self._cancel_at = now
+        self._cancel_session_id = session_id
+        asyncio.create_task(self._cancel_in_background(session_id))
+        self.notify(
+            "已请求取消，任务将在当前步骤结束后停止（3 秒内再按 Esc 强制终止）",
+            severity="information",
+        )
 
     async def _cancel_in_background(self, session_id: str) -> None:
         try:
             await self.service.session_runner.cancel(self.conversation_id, session_id)
         except Exception as exc:
             self.notify(f"取消失败: {exc}", severity="error")
+
+    async def _force_cancel_in_background(self, session_id: str) -> None:
+        try:
+            force = getattr(self.service.session_runner, "force_cancel", None)
+            if force is None:
+                await self.service.session_runner.cancel(
+                    self.conversation_id, session_id
+                )
+            else:
+                await force(self.conversation_id, session_id)
+        except Exception as exc:
+            self.notify(f"强制取消失败: {exc}", severity="error")
+
+    def action_quit(self) -> None:
+        """正常退出 TUI（事件循环仍响应时）。卡死时用 Ctrl+\\ / touch tui.force_exit。"""
+        self.app.exit()
 
     def action_show_help(self) -> None:
         """显示帮助页面。"""

@@ -544,6 +544,9 @@ async def test_guided_react_does_not_poll_supervisor_by_step_count(monkeypatch):
     loop.reasoning = lambda: _async_value([{"tool": "stop"}])
     loop.act_result = lambda calls: _async_value(True)
     loop._persist_case = no_op
+    # _finalize_stop 新增的后台任务检查会真实访问 database_path，
+    # 与本测试关注点（supervisor 不按步数轮询）无关，按既有夹具风格一并打桩。
+    loop._has_pending_background = lambda: _async_value(False)
     monkeypatch.setattr(react_module.session_store, "afinalize_session", no_op)
 
     result = await loop._run_loop()

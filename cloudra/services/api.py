@@ -64,6 +64,8 @@ class ApprovalDecision(BaseModel):
 
 class SessionMessageAppend(BaseModel):
     content: str = Field(min_length=1, max_length=20_000)
+    # 可选：追问时覆盖工作目录；缺省则沿用目标 session / 对话既有目录
+    working_directory: str | None = Field(default=None, max_length=4_096)
 
 
 class DagMutationRequest(BaseModel):
@@ -103,7 +105,13 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     app.state.cloudra_service = service
     if hasattr(service.session_runner, "recover_stale_sessions"):
-        app.router.add_event_handler("startup", service.session_runner.recover_stale_sessions)
+        # recover_stale_sessions 内含同步 DB 写与 subprocess.run，不能在事件循环线程上直接跑
+        def _recover_stale_sessions() -> None:
+            asyncio.create_task(
+                asyncio.to_thread(service.session_runner.recover_stale_sessions)
+            )
+
+        app.router.add_event_handler("startup", _recover_stale_sessions)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_allowed_origins(),
@@ -170,7 +178,7 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
 
     @app.post("/api/conversations", status_code=status.HTTP_201_CREATED, dependencies=protected)
     async def create_conversation() -> dict:
-        conversation = service.create_conversation()
+        conversation = await asyncio.to_thread(service.create_conversation)
         return {"id": conversation.id, "state": conversation.state}
 
     @app.post(
@@ -182,14 +190,16 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         try:
             working_directory = _validate_working_directory(request.working_directory)
             if working_directory is None:
-                _, record = service.submit_session(
+                _, record = await asyncio.to_thread(
+                    service.submit_session,
                     request.query,
                     conversation_id,
                     yolo=request.yolo,
                     orchestration_mode=request.orchestration_mode,
                 )
             else:
-                _, record = service.submit_session(
+                _, record = await asyncio.to_thread(
+                    service.submit_session,
                     request.query,
                     conversation_id,
                     working_directory=working_directory,
@@ -210,7 +220,9 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         after_id: int = 0,
     ) -> list[dict]:
         try:
-            return service.session_runner.events(conversation_id, session_id, after_id)
+            return await asyncio.to_thread(
+                service.session_runner.events, conversation_id, session_id, after_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -224,8 +236,12 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     ) -> dict:
         """读取该 Session 最近一次实际 LLM 请求的 prompt/tool 诊断。"""
         try:
-            session = service.session_runner.get(conversation_id, session_id)
-            session_events = service.session_runner.events(conversation_id, session_id)
+            session = await asyncio.to_thread(
+                service.session_runner.get, conversation_id, session_id
+            )
+            session_events = await asyncio.to_thread(
+                service.session_runner.events, conversation_id, session_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if session is None:
@@ -264,51 +280,61 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
             terminal_event_types = {"completed", "failed", "cancelled", "killed", "interrupted"}
             keepalive_interval = 15.0
 
-            with db.connect() as conn:
-                # 先补拉订阅前已经落库的事件
-                buffered = service.session_runner.events(conversation_id, session_id, cursor, conn=conn)
-                for event in buffered:
+            # 同步 sqlite 查询一律 to_thread 短查询，不持连接横跨 await，
+            # 避免 busy 等待冻结整个事件循环
+            # 先补拉订阅前已经落库的事件
+            buffered = await asyncio.to_thread(
+                service.session_runner.events, conversation_id, session_id, cursor
+            )
+            for event in buffered:
+                cursor = event["id"]
+                yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+            if any(event["event_type"] in terminal_event_types for event in buffered):
+                return
+
+            while True:
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=keepalive_interval)
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+
+                # 只转发目标 session 的事件
+                if msg.get("session_id") != session_id:
+                    continue
+
+                # 可能有多个事件在同一 IPC 消息里（不会，但保险起见做 catch-up）
+                fresh = await asyncio.to_thread(
+                    service.session_runner.events, conversation_id, session_id, cursor
+                )
+                for event in fresh:
                     cursor = event["id"]
                     yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                if any(event["event_type"] in terminal_event_types for event in buffered):
+                if any(event["event_type"] in terminal_event_types for event in fresh):
                     return
 
-                while True:
-                    try:
-                        msg = await asyncio.wait_for(queue.get(), timeout=keepalive_interval)
-                    except asyncio.TimeoutError:
-                        yield ": ping\n\n"
-                        continue
-
-                    # 只转发目标 session 的事件
-                    if msg.get("session_id") != session_id:
-                        continue
-
-                    # 可能有多个事件在同一 IPC 消息里（不会，但保险起见做 catch-up）
-                    fresh = service.session_runner.events(conversation_id, session_id, cursor, conn=conn)
-                    for event in fresh:
-                        cursor = event["id"]
-                        yield f"id: {cursor}\nevent: {event['event_type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                    if any(event["event_type"] in terminal_event_types for event in fresh):
-                        return
-
-                    record = service.session_runner.get(conversation_id, session_id, conn=conn)
-                    if record is None or record.state in terminal_event_types | {"sleeping"}:
-                        return
+                record = await asyncio.to_thread(
+                    service.session_runner.get, conversation_id, session_id
+                )
+                if record is None or record.state in terminal_event_types | {"sleeping"}:
+                    return
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.get("/api/conversations/{conversation_id}/sessions", dependencies=protected)
     async def list_sessions(conversation_id: str) -> list[dict]:
         try:
-            return [record.to_dict() for record in service.session_runner.list(conversation_id)]
+            records = await asyncio.to_thread(service.session_runner.list, conversation_id)
+            return [record.to_dict() for record in records]
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/conversations/{conversation_id}/sessions/{session_id}", dependencies=protected)
     async def get_session(conversation_id: str, session_id: str) -> dict:
         try:
-            record = service.session_runner.get(conversation_id, session_id)
+            record = await asyncio.to_thread(
+                service.session_runner.get, conversation_id, session_id
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if record is None:
@@ -319,9 +345,18 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         "/api/conversations/{conversation_id}/sessions/{session_id}/cancel",
         dependencies=protected,
     )
-    async def cancel_session(conversation_id: str, session_id: str) -> dict:
+    async def cancel_session(
+        conversation_id: str,
+        session_id: str,
+        force: bool = False,
+    ) -> dict:
         try:
-            record = await service.session_runner.cancel(conversation_id, session_id)
+            if force:
+                record = await service.session_runner.force_cancel(
+                    conversation_id, session_id
+                )
+            else:
+                record = await service.session_runner.cancel(conversation_id, session_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if record is None:
@@ -334,10 +369,10 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     async def list_session_children(conversation_id: str, session_id: str) -> list[dict]:
         try:
-            return [
-                record.to_dict()
-                for record in service.session_runner.list_children(conversation_id, session_id)
-            ]
+            records = await asyncio.to_thread(
+                service.session_runner.list_children, conversation_id, session_id
+            )
+            return [record.to_dict() for record in records]
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -374,17 +409,17 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
 
     @app.get("/api/conversations", dependencies=protected)
     async def list_conversations() -> list[dict]:
-        return service.list_conversations()
+        return await asyncio.to_thread(service.list_conversations)
 
     @app.delete("/api/conversations", dependencies=protected)
     async def delete_all_conversations() -> dict:
-        count = service.delete_all_conversations()
+        count = await asyncio.to_thread(service.delete_all_conversations)
         return {"deleted": count}
 
     @app.get("/api/conversations/{conversation_id}/messages", dependencies=protected)
     async def get_messages(conversation_id: str) -> list[dict]:
         try:
-            return service.get_conversation_messages(conversation_id)
+            return await asyncio.to_thread(service.get_conversation_messages, conversation_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except (OSError, ValueError) as exc:
@@ -469,7 +504,7 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     async def get_dag_projection(conversation_id: str) -> dict:
         try:
-            result = service.dag_projection(conversation_id)
+            result = await asyncio.to_thread(service.dag_projection, conversation_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if result is None:
@@ -482,7 +517,7 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     async def get_dag_graph(conversation_id: str, graph_kind: str) -> dict:
         try:
-            result = service.dag_graph(conversation_id, graph_kind)
+            result = await asyncio.to_thread(service.dag_graph, conversation_id, graph_kind)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if result is None:
@@ -495,7 +530,7 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     )
     async def get_dag_delivery_report(conversation_id: str) -> dict:
         try:
-            result = service.dag_delivery_report(conversation_id)
+            result = await asyncio.to_thread(service.dag_delivery_report, conversation_id)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         if result is None:
@@ -511,7 +546,8 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         after_revision: int = 0,
     ) -> list[dict]:
         try:
-            result = service.dag_history(
+            result = await asyncio.to_thread(
+                service.dag_history,
                 conversation_id,
                 after_revision=max(0, after_revision),
             )
@@ -529,7 +565,9 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
         conversation_id: str, payload: DagMutationRequest
     ) -> dict:
         try:
-            result = service.dag_apply_user_mutation(
+            # 同步引擎写必须离开事件循环线程，避免 busy 等待冻结整个 API 循环。
+            result = await asyncio.to_thread(
+                service.dag_apply_user_mutation,
                 conversation_id,
                 payload.operations,
                 payload.base_revisions,
@@ -559,17 +597,22 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     @app.get("/api/sessions", dependencies=protected)
     async def list_all_sessions(state: str | None = None) -> list[dict]:
         """跨会话聚合所有 Session，替代 CLI `sessions` 读取的遗留全局表。"""
-        rows = []
-        for conversation in service.list_conversations():
-            conversation_id = conversation.get("id", "")
-            try:
-                validate_conversation_id(conversation_id)
-            except ValueError:
-                continue
-            for record in service.session_runner.list(conversation_id):
-                row = record.to_dict()
-                row["conversation_id"] = conversation_id
-                rows.append(row)
+
+        def _collect() -> list[dict]:
+            rows = []
+            for conversation in service.list_conversations():
+                conversation_id = conversation.get("id", "")
+                try:
+                    validate_conversation_id(conversation_id)
+                except ValueError:
+                    continue
+                for record in service.session_runner.list(conversation_id):
+                    row = record.to_dict()
+                    row["conversation_id"] = conversation_id
+                    rows.append(row)
+            return rows
+
+        rows = await asyncio.to_thread(_collect)
         if state:
             rows = [row for row in rows if row["state"] == state]
         rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)

@@ -58,7 +58,7 @@ def _make_input(**overrides):
 def _install_fake_executor(monkeypatch, sleep: float = 0.0, concurrency_log: dict | None = None):
     """假 executor：读 payload 的 query，写 result=RESULT::<query> 后 finalize。"""
 
-    async def fake_run_executor(task_id: int, database_path: str, session_id: str):
+    async def fake_run_executor(task_id: int, database_path: str, session_id: str, **_kwargs):
         if concurrency_log is not None:
             concurrency_log["active"] += 1
             concurrency_log["peak"] = max(concurrency_log["peak"], concurrency_log["active"])

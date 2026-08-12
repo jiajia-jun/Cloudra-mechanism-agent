@@ -51,6 +51,17 @@ _AGENT_HUB_GUIDANCE = (
     "`read`/`search` 查一下 hub 是否有相关记录再下结论。"
 )
 
+# 所有角色注入：压缩不再保留近几轮 toolcall，状态必须落盘
+_CONTEXT_HANDOFF_GUIDANCE = (
+    "## 上下文与交接文档（重要）\n"
+    "长任务中对话历史会被自动压缩，**近几轮工具往返原文不会保留**。"
+    "可恢复状态必须写到工作区文件，不要指望上下文里还留着：\n"
+    "- 每完成一个有意义的阶段，写/更新交接文档（推荐任务目录下的 `HANDOFF.md` 或 "
+    "`progress.md`）：目标、已完成步骤、关键绝对路径、作业 ID、结论数值、下一步与阻塞点；\n"
+    "- 数值与路径以文件和当次工具返回为准，禁止凭记忆转述；\n"
+    "- 压缩后继续或换班接手时，先读交接文档再动手，不要重头摸索。"
+)
+
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -512,6 +523,14 @@ class PromptAssembler:
                     revision=f"sha256:{_sha256_text(_AGENT_HUB_GUIDANCE)}",
                 )
             )
+
+        identity_sections.append(_CONTEXT_HANDOFF_GUIDANCE)
+        sources.append(
+            PromptSource(
+                kind="context_handoff_guidance",
+                revision=f"sha256:{_sha256_text(_CONTEXT_HANDOFF_GUIDANCE)}",
+            )
+        )
 
         revision_payload = json.dumps(
             [source.to_dict() for source in sources],

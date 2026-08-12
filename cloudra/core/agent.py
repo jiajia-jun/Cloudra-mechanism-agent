@@ -506,13 +506,15 @@ class Agent(BaseModel):
             )
         )
         self._last_prompt_assembly = assembly
+        if self.model:
+            TokenEstimator.configure(model=self.model)
         target_tokens = self.context_window // 2 if self.context_window else None
         if target_tokens is not None:
             # Tool schemas and runtime observations are part of the provider's
             # prompt too. Previously they were appended after ContextManager's
             # threshold check, so actual requests could pass 50% unnoticed.
             schema_tokens = self._estimate_tools_schema_tokens(schemas)
-            observation_tokens = TokenEstimator.estimate_messages(
+            observation_tokens = TokenEstimator.count_messages(
                 list(assembly.observation_messages)
             )
             history_budget = max(

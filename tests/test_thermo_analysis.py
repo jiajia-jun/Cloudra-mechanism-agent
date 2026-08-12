@@ -251,8 +251,158 @@ async def test_goodvibes_structured_output_and_command_are_preserved(monkeypatch
     assert result.provenance["goodvibes_version"] == "4.2.0-test"
     assert result.provenance["command"] == captured["command"]
     assert "-q" in captured["command"]
+    assert captured["command"][captured["command"].index("--qs") + 1] == "grimme"
     assert captured["command"][captured["command"].index("--conc") + 1] == "1"
+    assert captured["command"][captured["command"].index("--temp") + 1] == "310"
     assert captured["command"][captured["command"].index("-f") + 1] == "80"
+
+
+@pytest.mark.asyncio
+async def test_goodvibes_truhlar_scheme_and_custom_concentration(monkeypatch):
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        json_path = Path(command[command.index("--json") + 1])
+        json_path.write_text(
+            json.dumps({
+                "schema_version": "1.0",
+                "goodvibes_version": "4.2.0-test",
+                "options": {"QS": "truhlar", "temperature": 298.15, "conc": 0.5},
+                "results": [
+                    {
+                        "file": str(WATER_FREQ.resolve()),
+                        "name": WATER_FREQ.stem,
+                        "thermo": {
+                            "scf_energy": -75.0,
+                            "qh_enthalpy": -74.98,
+                            "qh_gibbs_free_energy": -75.02,
+                        },
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(thermo_mod.shutil, "which", lambda _name: "/usr/bin/goodvibes")
+    monkeypatch.setattr(thermo_mod.subprocess, "run", fake_run)
+    result = await ThermoAnalysis().tool_call(
+        ThermoAnalysis_input_schema(
+            species=[ThermoSpecies(name="water", log_path=str(WATER_FREQ), coefficient=1)],
+            backend="goodvibes",
+            qh_scheme="truhlar",
+            standard_state="solution_custom",
+            concentration_molar=0.5,
+            frequency_cutoff_cm=120.0,
+        ),
+        session=None,
+    )
+
+    assert result.status == "complete"
+    assert captured["command"][captured["command"].index("--qs") + 1] == "truhlar"
+    assert captured["command"][captured["command"].index("--conc") + 1] == "0.5"
+    assert captured["command"][captured["command"].index("-f") + 1] == "120"
+    assert "qh_scheme=truhlar" in " ".join(result.assumptions) or any(
+        "truhlar" in item for item in result.assumptions
+    )
+    assert result.provenance["qh_scheme"] == "truhlar"
+
+
+@pytest.mark.asyncio
+async def test_goodvibes_gas_omits_conc_flag(monkeypatch):
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        json_path = Path(command[command.index("--json") + 1])
+        json_path.write_text(
+            json.dumps({
+                "schema_version": "1.0",
+                "goodvibes_version": "4.2.0-test",
+                "results": [
+                    {
+                        "file": str(WATER_FREQ.resolve()),
+                        "name": WATER_FREQ.stem,
+                        "thermo": {
+                            "scf_energy": -75.0,
+                            "qh_enthalpy": -74.97,
+                            "qh_gibbs_free_energy": -75.01,
+                        },
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(thermo_mod.shutil, "which", lambda _name: "/usr/bin/goodvibes")
+    monkeypatch.setattr(thermo_mod.subprocess, "run", fake_run)
+    result = await ThermoAnalysis().tool_call(
+        ThermoAnalysis_input_schema(
+            species=[ThermoSpecies(name="water", log_path=str(WATER_FREQ), coefficient=1)],
+            backend="goodvibes",
+            standard_state="gas_1atm",
+        ),
+        session=None,
+    )
+
+    assert result.status == "complete"
+    assert "--conc" not in captured["command"]
+    assert "-c" not in captured["command"]
+
+
+# Fixture text mirrors GoodVibes 3.2 README Example 1 table layout.
+_GOODVIBES_README_TABLE = """
+   Structure                    E        ZPE             H        T.S     T.qh-S          G(T)       qh-G(T)
+   *********************************************************************************************************
+o  methylaniline      -326.664901   0.142118   -326.514489   0.039668   0.039465   -326.554157   -326.553954
+   *********************************************************************************************************
+"""
+
+
+def test_parse_goodvibes_readme_text_table():
+    entries, error = thermo_mod._parse_goodvibes_text_table(_GOODVIBES_README_TABLE)
+
+    assert error is None
+    assert len(entries) == 1
+    assert entries[0]["name"] == "methylaniline"
+    assert entries[0]["scf_energy"] == pytest.approx(-326.664901)
+    assert entries[0]["qh_enthalpy"] == pytest.approx(-326.514489)
+    assert entries[0]["qh_gibbs_free_energy"] == pytest.approx(-326.553954)
+
+
+def test_parse_goodvibes_text_table_missing_header_is_inconclusive():
+    entries, error = thermo_mod._parse_goodvibes_text_table("no thermo table here\n")
+
+    assert entries == []
+    assert error is not None
+    assert "qh-G(T)" in error
+
+
+@pytest.mark.asyncio
+async def test_goodvibes_falls_back_to_stdout_table_when_json_missing(monkeypatch):
+    def fake_run(command, **kwargs):
+        # Deliberately do not write the --json path.
+        return SimpleNamespace(
+            returncode=0,
+            stdout=_GOODVIBES_README_TABLE.replace("methylaniline", WATER_FREQ.stem),
+            stderr="",
+        )
+
+    monkeypatch.setattr(thermo_mod.shutil, "which", lambda _name: "/usr/bin/goodvibes")
+    monkeypatch.setattr(thermo_mod.subprocess, "run", fake_run)
+    result = await ThermoAnalysis().tool_call(
+        ThermoAnalysis_input_schema(
+            species=[ThermoSpecies(name="water", log_path=str(WATER_FREQ), coefficient=1)],
+            backend="goodvibes",
+        ),
+        session=None,
+    )
+
+    assert result.status == "complete"
+    assert result.provenance.get("parse_source") == "stdout_table"
+    assert result.species[0]["gibbs_free_energy_hartree"] == pytest.approx(-326.553954)
 
 
 @pytest.mark.asyncio

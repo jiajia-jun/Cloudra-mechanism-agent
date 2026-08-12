@@ -125,11 +125,12 @@ class GraphSupervisor:
     对其调用 clear_context。
     """
 
-    MAX_ROUNDS = 8
-    # 工具结果进上下文的字符上限。图视图本身有界（≤50 节点/100 边），但 process
-    # 图上 harness 观察节点带长 hash，4000 会在结构中间切断——Supervisor 读到
-    # 残缺 JSON 后反复重查同一视图，空转数轮后零产出结束。30000 约覆盖满页视图。
-    MAX_TOOL_RESULT_CHARS = 30000
+    # 真实排障轨迹（翻页 view + 被拒 mutate 重试）常在 8 轮内做不完正事，
+    # 到顶即被切断、零收尾。16 轮配合 view 过滤与可自纠的拒绝消息足够。
+    MAX_ROUNDS = 16
+    # graph_kind 视图已是摘要；8000 仍可能被「满页节点 + 全图 index」顶破，
+    # 12000 覆盖约 50 个 planned 节点的摘要页。真要更大请用 node_ids 缩小范围。
+    MAX_TOOL_RESULT_CHARS = 12000
 
     def __init__(
         self,
@@ -157,11 +158,59 @@ class GraphSupervisor:
         if coordinator_request:
             parts.append(f"【Coordinator 机理变更说明】{coordinator_request}")
         parts.append(
-            "请用 dag_graph 的 view/delivery_report 查看当前两张图，"
-            "仅在确有必要时用 mutate 维护 process DAG；无事可做时直接结束，"
-            "不要再调用工具。"
+            "请先用 dag_graph(action=view) 读 frontier/blockers/delivery_gaps 投影；"
+            "确有必要时再用 graph_kind + node_ids/status_filter 取摘要子图，"
+            "用 mutate 维护 process DAG。无事可做时直接结束，不要再调用工具。"
         )
         return "\n".join(parts)
+
+    @staticmethod
+    def _view_placeholder(content: str) -> str | None:
+        """若 content 是成功的 view 结果，返回过时占位符；否则 None。"""
+        try:
+            payload = json.loads(content)
+        except (TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict) or payload.get("action") != "view":
+            return None
+        if payload.get("success") is False:
+            return None
+        result = payload.get("result") or {}
+        kind = result.get("graph_kind") or "projection"
+        revision = result.get("revision")
+        revisions = result.get("revisions")
+        if revision is not None:
+            rev_text = f"revision={revision}"
+        elif isinstance(revisions, dict):
+            rev_text = f"revisions={revisions}"
+        else:
+            rev_text = "revision=?"
+        return (
+            f"【过时视图已折叠】action=view graph_kind={kind} {rev_text}。"
+            "图存储是权威；需要细节请重新 view。"
+        )
+
+    async def _fold_stale_views(self, agent: SupervisorAgent, keep_tool_call_id: str) -> None:
+        """新 view 成功后，把上下文里更早的 view 工具结果折叠成一行占位。
+
+        决策/mutate 记录保留；被折叠的是可随时从权威图存储重取的快照。
+        """
+        context = await agent.get_context()
+        changed = False
+        rewritten: list = []
+        for block in context:
+            if (
+                isinstance(block, dict)
+                and block.get("role") == "tool"
+                and block.get("tool_call_id") != keep_tool_call_id
+            ):
+                placeholder = self._view_placeholder(str(block.get("content") or ""))
+                if placeholder is not None and block.get("content") != placeholder:
+                    block = {**block, "content": placeholder}
+                    changed = True
+            rewritten.append(block)
+        if changed:
+            await agent._ensure_context_manager().replace(rewritten)
 
     async def run(
         self,
@@ -228,18 +277,17 @@ class GraphSupervisor:
                 tool_call_id = tool_call.get("id")
                 name = tool_call.get("function", {}).get("name", "")
                 raw_args = tool_call.get("function", {}).get("arguments") or "{}"
-                if isinstance(raw_args, str):
-                    try:
-                        args = json.loads(raw_args, strict=False)
-                    except json.JSONDecodeError as exc:
-                        await agent.update_context({
-                            "role": "tool",
-                            "tool_call_id": tool_call_id,
-                            "content": f"【系统错误】工具参数解析失败: {exc}",
-                        })
-                        continue
-                else:
-                    args = raw_args
+                try:
+                    from cloudra.infra.json_args import loads_tool_arguments
+
+                    args = loads_tool_arguments(raw_args)
+                except json.JSONDecodeError as exc:
+                    await agent.update_context({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": f"【系统错误】工具参数解析失败: {exc.msg}",
+                    })
+                    continue
                 if name != "dag_graph":
                     await agent.update_context({
                         "role": "tool",
@@ -249,16 +297,40 @@ class GraphSupervisor:
                     continue
                 try:
                     input_obj = DagGraphInput(**args)
-                except ValueError as exc:
+                except Exception as exc:
+                    # Pydantic v2 ValidationError 不是 ValueError；统一回喂便于模型改参。
                     await agent.update_context({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
-                        "content": f"【系统错误】dag_graph 参数校验失败: {exc}",
+                        "content": (
+                            f"【系统错误】dag_graph 参数校验失败: {exc}。"
+                            "mutate 请拆成每批 1–3 个 op，payload 尽量扁平；"
+                            "base_revisions/operations 放在工具调用顶层。"
+                        ),
                     })
                     continue
                 args_summary = json.dumps(args, ensure_ascii=False, default=str)[:300]
                 await _emit("tool_started", {"tool": "dag_graph", "arguments": args_summary})
-                output = await DagGraph(subagent=agent).tool_call(input_obj, session)
+                try:
+                    output = await DagGraph(subagent=agent).tool_call(input_obj, session)
+                except Exception as exc:
+                    # 工具层异常回喂模型让它调整，而不是炸掉整个督导运行——
+                    # 否则一次 view/mutate 崩溃就会把 Supervisor session 直接终结。
+                    logger.warning(
+                        "[Supervisor] dag_graph %s failed: %s", input_obj.action, exc
+                    )
+                    error_content = f"【系统错误】dag_graph {input_obj.action} 执行失败: {exc}"
+                    await _emit("tool_finished", {
+                        "tool": "dag_graph",
+                        "arguments": args_summary,
+                        "result": error_content[:500],
+                    })
+                    await agent.update_context({
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": error_content,
+                    })
+                    continue
                 payload = output.model_dump(mode="json")
                 if input_obj.action == "mutate":
                     mutations.append({
@@ -281,8 +353,39 @@ class GraphSupervisor:
                     "tool_call_id": tool_call_id,
                     "content": content,
                 })
+                if input_obj.action == "view" and output.success:
+                    await self._fold_stale_views(agent, tool_call_id)
         else:
             note = f"reached MAX_ROUNDS ({self.MAX_ROUNDS})"
+            # 预算用尽不再无声切断：给模型一次不执行工具的收尾机会，把结论
+            # 与遗留事项留在持久上下文里，session 以正常总结而非截断结束。
+            await agent.update_context({
+                "role": "user",
+                "content": (
+                    "【系统提示】本次触发的工具轮次预算已用尽，后续工具调用不会"
+                    "被执行。请用一两句话总结本轮结论与未完成事项；下次图事件"
+                    "触发时可以继续。"
+                ),
+            })
+            try:
+                response = await agent.llm_call()
+                closing = response.choices[0].message.content or ""
+                # 只保留文本、丢弃 tool_calls：未执行的 tool_calls 留在上下文里
+                # 会让下一次请求带上没有对应 tool 结果的悬空调用。
+                await agent.update_context({
+                    "role": "assistant",
+                    "content": closing or "（轮次预算用尽，待下次触发继续。）",
+                })
+                if closing:
+                    await _emit("llm_chunk", {
+                        "stream": "content",
+                        "delta": closing,
+                        "agent_id": "supervisor",
+                        "agent_name": "supervisor",
+                    })
+                    await _emit("llm_stream_end", {})
+            except Exception as exc:
+                logger.warning("[Supervisor] wrap-up llm_call failed: %s", exc)
 
         return GraphSupervisorResult(
             trigger=trigger,
@@ -346,12 +449,15 @@ class Supervisor:
             content = str(content)[:500]  # 单条消息截断
 
             if role == "system":
-                # 跳过 system prompt、supervisor advice、上下文压缩提示
+                # 跳过 system prompt、supervisor advice、旧版 system 梗概
                 if content.startswith("[Supervisor]") or "上下文压缩" in content:
                     continue
                 events.append(f"Step {idx}: system instruction updated.")
             elif role == "user":
-                events.append(f"Step {idx}: user said '{content}'.")
+                if content.startswith("[上下文压缩提示]"):
+                    events.append(f"Step {idx}: compaction handoff injected.")
+                else:
+                    events.append(f"Step {idx}: user said '{content}'.")
             elif role == "assistant":
                 tool_calls = msg.get("tool_calls")
                 if tool_calls:

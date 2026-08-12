@@ -244,7 +244,7 @@ class TestCapMessageSizes:
         tool_msg = next(m for m in messages if m.get("role") == "tool")
         assert len(tool_msg["content"]) < 50_000
         assert "已截断" in tool_msg["content"]
-        assert "原始共" in tool_msg["content"]
+        assert "token" in tool_msg["content"]
         user_msg = next(m for m in messages if m.get("content") == "短消息")
         assert user_msg["content"] == "短消息"
 
@@ -265,7 +265,7 @@ class TestHistoryCompression:
 
     LLMClient 全部 mock，钉住：
     1. 触发条件：估算总 token > max_context_tokens 才触发。
-    2. 替换方式：system 消息 + 梗概消息 + 最近 4 个 assistant 回合原样保留。
+    2. 替换方式：system 消息 + 梗概消息；默认不保留近几轮 toolcall/assistant 尾部。
     3. 兜底：LLM 失败 / 缺配置 / 梗概仍超预算 时保留原始消息不压缩。
     """
 
@@ -293,42 +293,33 @@ class TestHistoryCompression:
 
     @pytest.mark.asyncio
     async def test_compression_replaces_history_with_summary(self, context_manager, mock_llm):
-        """超预算时：历史被梗概替换，system 与最近 4 个回合保留。"""
+        """超预算时：历史（含近几轮）全部进梗概，不保留 toolcall/近期原文尾部。"""
         mock_cls, create = mock_llm
         await self._fill_history(context_manager)
 
         msgs = await context_manager.build_messages(max_context_tokens=1000)
 
-        # LLM 被调用一次；除 temperature=1 外不覆盖服务商默认生成参数。
         assert create.call_count == 1
         kwargs = create.call_args.kwargs
         assert kwargs["model"] == "fake-model"
-        assert kwargs["temperature"] == 1.0
+        assert kwargs["temperature"] == 0.2
         assert "max_tokens" not in kwargs
-        # 梗概输入只包含历史（含初始 query），不包含保留的最近轮次。
-        # 保留窗口以第 4 条 assistant 为锚点截断，该轮对应的 user 消息
-        # （"最近问题 6"）被划入历史而非保留区。
         summary_prompt = kwargs["messages"][1]["content"]
-        assert kwargs["messages"][0] == {"role": "system", "content": "你是一个专门压缩对话历史的助手。"}
         assert "历史问题 0" in summary_prompt
         assert "初始问题" in summary_prompt
-        assert "最近问题 6" in summary_prompt
-        assert "最近问题 7" not in summary_prompt
+        assert "最近回复 9" in summary_prompt
 
-        # 结构：原 system prompt + 梗概 system 消息 + 保留尾部（7 条，
-        # 从第 4 条 assistant "最近回复 6" 开始，其 user 消息不在其中）
-        assert len(msgs) == 9
+        # 结构：原 system prompt + 梗概 user 交接（无近期原文尾部）
+        assert len(msgs) == 2
         assert msgs[0]["role"] == "system"
         assert msgs[0]["content"] == "你是一个测试助手。"
-        assert msgs[1]["role"] == "system"
+        assert msgs[1]["role"] == "user"
         assert msgs[1]["content"].startswith("[上下文压缩提示]")
+        assert "根据下面这份交接信息继续工作" in msgs[1]["content"]
         assert "压缩梗概" in msgs[1]["content"]
-        # 历史不再出现，保留区完整
         contents = [str(m.get("content", "")) for m in msgs]
         assert not any("历史问题 0" in c for c in contents)
-        assert not any("最近问题 6" in c for c in contents)
-        assert any("最近回复 6" in c for c in contents)
-        assert any("最近回复 9" in c for c in contents)
+        assert not any("最近回复 9" in c for c in contents)
 
     @pytest.mark.asyncio
     async def test_persistent_compaction_caps_oversized_summary_input(
@@ -351,7 +342,7 @@ class TestHistoryCompression:
         summary_prompt = create.call_args.kwargs["messages"][1]["content"]
         assert "BEGIN-" in summary_prompt
         assert "-END" not in summary_prompt
-        assert "内容过长已截断" in summary_prompt
+        assert "已截断" in summary_prompt
 
     @pytest.mark.asyncio
     async def test_oversized_history_uses_hierarchical_summary(
@@ -360,8 +351,9 @@ class TestHistoryCompression:
         """摘要输入自身超过 FOLLOWER 半窗时分块并最终归并为一条。"""
         _, create = mock_llm
         monkeypatch.setattr(get_config().follower, "context_window", 32_000)
+        # 用 user 角色绕过 tool 的 2k token 硬顶，专门验证分层摘要分块。
         history = [
-            {"role": "tool", "content": f"块 {index}: " + "中" * 30_000}
+            {"role": "user", "content": f"块 {index}: " + "中" * 30_000}
             for index in range(4)
         ]
         summary = await context_manager._summarize_history(history)
@@ -369,7 +361,7 @@ class TestHistoryCompression:
         assert create.call_count > 1
         for call in create.call_args_list:
             prompt = call.kwargs["messages"][1]["content"]
-            assert TokenEstimator.estimate_text(prompt) < 20_000
+            assert TokenEstimator.count_text(prompt) < 20_000
 
     @pytest.mark.asyncio
     async def test_summary_chunks_use_bounded_parallelism_and_report_progress(
@@ -396,8 +388,9 @@ class TestHistoryCompression:
 
         create.side_effect = slow_summary
         context_manager._on_compaction_progress = progress.append
+        # 用 user 角色绕过 tool 结果硬顶，专门验证同层摘要并发。
         history = [
-            {"role": "tool", "content": f"块 {index}: " + "中" * 20_000}
+            {"role": "user", "content": f"块 {index}: " + "中" * 20_000}
             for index in range(6)
         ]
 
@@ -506,17 +499,112 @@ class TestManualCompaction:
 
         assert result["compressed"] is True
         assert result["original_count"] == 13  # 1 + 6*2
-        assert result["new_count"] == 5          # 梗概 + 4 条保留
+        assert result["new_count"] == 5          # user 交接梗概 + 4 条保留
         assert result["summary_length"] == len("压缩梗概")
         create.assert_called_once()
 
         context = await context_manager.load()
         assert len(context) == 5
-        assert context[0]["role"] == "system"
+        assert context[0]["role"] == "user"
         assert context[0]["content"].startswith("[上下文压缩提示]")
+        assert "根据下面这份交接信息继续工作" in context[0]["content"]
         assert "压缩梗概" in context[0]["content"]
         assert context[-1]["content"] == "回复 5"
         assert context[-2]["content"] == "问题 5"
+
+    @pytest.mark.asyncio
+    async def test_compact_preserves_supervisor_and_skill_pins(
+        self, context_manager, mock_llm
+    ):
+        """手动 compact 保留 Supervisor 与 getskill 钉住，不把它们摘要掉。"""
+        from cloudra.persistence.context_manager import (
+            SKILL_PIN_MARKER,
+            SUPERVISOR_ADVICE_MARKER,
+        )
+
+        await context_manager.replace([
+            {"role": "user", "content": "初始问题"},
+            {
+                "role": "system",
+                "content": f"{SUPERVISOR_ADVICE_MARKER}\n请优先做 DFT",
+            },
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": "call_skill",
+                    "type": "function",
+                    "function": {
+                        "name": "getskill",
+                        "arguments": '{"skill_name":"dft-calculation"}',
+                    },
+                }],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_skill",
+                "content": "DFT SOP: 先构型优化再频率分析",
+            },
+            {"role": "user", "content": "旧问题 A"},
+            {"role": "assistant", "content": "旧回复 A"},
+            {"role": "user", "content": "最近问题"},
+            {"role": "assistant", "content": "最近回复"},
+        ])
+
+        result = await context_manager.compact(keep_recent=2)
+        assert result["compressed"] is True
+        stored = await context_manager.load()
+        contents = [str(m.get("content", "")) for m in stored]
+        assert any(c.startswith(SUPERVISOR_ADVICE_MARKER) for c in contents)
+        assert any(c.startswith(SKILL_PIN_MARKER) and "DFT SOP" in c for c in contents)
+        assert any(c.startswith("[上下文压缩提示]") for c in contents)
+        assert stored[-1]["content"] == "最近回复"
+
+    @pytest.mark.asyncio
+    async def test_tool_result_capped_at_token_budget(self, context_manager):
+        """非 skill 工具返回超过 TOOL_RESULT_MAX_TOKENS 时在渲染期截断；getskill 不截断。"""
+        from cloudra.infra.token_estimator import TokenEstimator
+        from cloudra.persistence.context_manager import TOOL_RESULT_MAX_TOKENS
+
+        long_text = "结果" * 5000
+        await context_manager.replace([
+            {"role": "user", "content": "跑一下"},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_bash",
+                        "type": "function",
+                        "function": {"name": "bashtools", "arguments": "{}"},
+                    },
+                    {
+                        "id": "call_skill",
+                        "type": "function",
+                        "function": {
+                            "name": "getskill",
+                            "arguments": '{"skill_name":"dft-calculation"}',
+                        },
+                    },
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_bash", "content": long_text},
+            {
+                "role": "tool",
+                "tool_call_id": "call_skill",
+                "content": "完整 skill 内容应保留 " + long_text,
+            },
+        ])
+
+        msgs = await context_manager.build_messages()
+        bash = next(m for m in msgs if m.get("tool_call_id") == "call_bash")
+        skill = next(m for m in msgs if m.get("tool_call_id") == "call_skill")
+        assert "已截断" in str(bash["content"])
+        # 截断后正文（去掉后缀）应不超过硬顶
+        body = str(bash["content"]).split("\n\n[...")[0]
+        assert TokenEstimator.count_text(body) <= TOOL_RESULT_MAX_TOKENS
+        assert "完整 skill 内容应保留" in str(skill["content"])
+        assert "已截断" not in str(skill["content"])
 
     @pytest.mark.asyncio
     async def test_compact_skips_when_below_keep_threshold(self, context_manager, mock_llm):
@@ -797,10 +885,7 @@ class TestTailCutAlignment:
     async def test_compress_persistent_cut_aligned(
         self, context_manager, mock_llm, monkeypatch
     ):
-        """持久化压缩切口落在 tool 结果上时左移对齐，压缩结果无孤儿 tool。"""
-        monkeypatch.setattr(
-            "cloudra.persistence.context_manager.AUTO_COMPACT_KEEP_ASSISTANT", 0
-        )
+        """默认不保留 toolcall 尾部时，整段（含 tool 链）进梗概且存储无孤儿 tool。"""
         await context_manager.replace(
             [
                 {"role": "user", "content": f"旧问题 {i}"}
@@ -816,20 +901,96 @@ class TestTailCutAlignment:
         assert await context_manager._compress_persistent() is True
         stored = await context_manager.load()
         _assert_tool_pairing(stored)
-        # 带 tool_calls 的 assistant 与它的 tool 结果一起保留在尾部
         assert any(
+            str(m.get("content", "")).startswith("[上下文压缩提示]")
+            for m in stored
+        )
+        assert not any(
             m.get("role") == "assistant" and m.get("tool_calls") for m in stored
         )
-        assert any(m.get("tool_call_id") == "call_a" for m in stored)
+        assert not any(m.get("tool_call_id") == "call_a" for m in stored)
+        handoffs = [
+            m for m in stored
+            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+        ]
+        assert len(handoffs) == 1
+        assert handoffs[0]["role"] == "user"
+        assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_skill_pins_deduped_and_capped_on_compress(
+        self, context_manager, mock_llm
+    ):
+        """同名 getskill 重复钉住应去重，单条 skill pin 受 token 上限约束。"""
+        from cloudra.persistence.context_manager import (
+            SKILL_PIN_MARKER,
+            SKILL_PIN_MAX_TOKENS,
+        )
+
+        huge = "DFT流程步骤。" * 8000  # 远超单 pin 上限
+        await context_manager.replace(
+            [
+                {"role": "user", "content": "跑通乙烯臭氧化机理"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": "call_s1",
+                        "type": "function",
+                        "function": {
+                            "name": "getskill",
+                            "arguments": '{"skill_name":"dft-calculation"}',
+                        },
+                    }],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_s1",
+                    "content": huge,
+                },
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": "call_s2",
+                        "type": "function",
+                        "function": {
+                            "name": "getskill",
+                            "arguments": '{"skill_name":"dft-calculation"}',
+                        },
+                    }],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_s2",
+                    "content": huge + "\n--- Reference: mechanism ---\n" + huge,
+                },
+                {"role": "assistant", "content": "准备建图"},
+            ]
+        )
+
+        assert await context_manager._compress_persistent() is True
+        stored = await context_manager.load()
+        pins = [
+            m for m in stored
+            if str(m.get("content", "")).startswith(SKILL_PIN_MARKER)
+        ]
+        assert len(pins) == 1, f"同名 skill 应只留 1 条 pin，实际 {len(pins)}"
+        pin_tokens = TokenEstimator.count_message(pins[0])
+        assert pin_tokens <= SKILL_PIN_MAX_TOKENS + 64
+        handoffs = [
+            m for m in stored
+            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+        ]
+        assert len(handoffs) == 1
+        assert handoffs[0]["role"] == "user"
+        assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
 
     @pytest.mark.asyncio
     async def test_compress_to_budget_cut_aligned(
         self, context_manager, mock_llm, monkeypatch
     ):
-        """render-time 压缩切口落在 tool 结果上时左移对齐，结果无孤儿 tool。"""
-        monkeypatch.setattr(
-            "cloudra.persistence.context_manager.RENDER_COMPACT_KEEP_ASSISTANT", 0
-        )
+        """render-time 压缩默认不保留 toolcall 尾部，整段进梗概。"""
         messages = [
             {"role": "system", "content": "身份"},
             {"role": "user", "content": "旧问题 " + "长" * 500},
@@ -843,12 +1004,14 @@ class TestTailCutAlignment:
         )
 
         _assert_tool_pairing(compressed)
-        # 历史被梗概替换，tool 链完整保留在尾部
         assert any(
             str(m.get("content", "")).startswith("[上下文压缩提示]")
             for m in compressed
         )
-        assert any(m.get("tool_call_id") == "call_a" for m in compressed)
+        assert not any(m.get("tool_call_id") == "call_a" for m in compressed)
+        assert not any(
+            m.get("role") == "assistant" and m.get("tool_calls") for m in compressed
+        )
 
     @pytest.mark.asyncio
     async def test_manual_compact_cut_aligned(self, context_manager, mock_llm):
@@ -866,6 +1029,12 @@ class TestTailCutAlignment:
         assert stats["compressed"] is True
         stored = await context_manager.load()
         _assert_tool_pairing(stored)
-        # 切口左移：梗概 + assistant(tool_calls) + tool + 近期回复
+        # 切口左移：user 交接梗概 + assistant(tool_calls) + tool + 近期回复
         assert stats["new_count"] == 4
-        assert stored[0]["content"].startswith("[上下文压缩提示]")
+        handoffs = [
+            m for m in stored
+            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+        ]
+        assert len(handoffs) == 1
+        assert handoffs[0]["role"] == "user"
+        assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]

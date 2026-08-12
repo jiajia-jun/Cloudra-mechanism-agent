@@ -112,6 +112,53 @@ async def test_partial_stop_preserves_gaps_and_audits_disposition(
 
 
 @pytest.mark.asyncio
+async def test_stop_with_pending_background_is_suspend_not_delivery(
+    tmp_path, monkeypatch
+):
+    """后台（定时提醒/计算/子任务）未排空时的 stop 是挂起而非交付：
+    跳过交付审计，也不写 disposition 记录——partial 不能被当成"暂停"用。
+    会话应落库 waiting（非 completed），且不写 finished_at。"""
+    import time
+    from unittest.mock import AsyncMock
+
+    react, agent, db_path = _stop_react(tmp_path, monkeypatch, "dag_record")
+    conv_id = react.dag_controller.conversation_id
+    with ConversationDB.from_path(db_path).connect() as con:
+        con.execute(
+            "INSERT INTO scheduled_reminders "
+            "(conversation_id, agent_id, content, wake_at, state, created_at) "
+            "VALUES (?, ?, ?, ?, 'pending', ?)",
+            (conv_id, "a-stop", "稍后检查计算", time.time() + 3600, time.time()),
+        )
+        con.commit()
+
+    await agent.update_context(
+        {"role": "assistant", "content": "先挂起，等后台算完再继续。"}
+    )
+    react.reasoning = AsyncMock(return_value=[_stop_call("complete")])
+    react._consume_external_events = AsyncMock()
+    react._persist_case = AsyncMock()
+
+    result = await react._run_loop()
+
+    assert result
+    assert react._continue is False
+    assert react._stopped_via_tool is True
+    react._persist_case.assert_not_awaited()
+    with ConversationDB.from_path(db_path).connect() as con:
+        assert (
+            con.execute("SELECT COUNT(*) FROM dag_delivery_dispositions").fetchone()[0]
+            == 0
+        )
+        state, finished_at = con.execute(
+            "SELECT state, finished_at FROM session WHERE session_id=?",
+            (react.session.id,),
+        ).fetchone()
+    assert state == "waiting"
+    assert finished_at is None
+
+
+@pytest.mark.asyncio
 async def test_standard_stop_does_not_touch_graph_storage(tmp_path, monkeypatch):
     react, _agent, db_path = _stop_react(tmp_path, monkeypatch, "standard")
 
@@ -128,7 +175,7 @@ async def test_dag_read_api_is_non_initializing_and_returns_persisted_state(
     monkeypatch,
 ):
     from cloudra.dag.engine import DagEngine
-    from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+    from cloudra.dag.models import AddNode, GraphActor, MutationBatch, PlannedNode
     from cloudra.dag.store import DagStore
 
     monkeypatch.setattr(get_config(), "data_dir", tmp_path)
@@ -154,15 +201,10 @@ async def test_dag_read_api_is_non_initializing_and_returns_persisted_state(
             actor_id="api-test",
             base_revisions=store.load_bundle().revisions,
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={
-                        "node_id": "map",
-                        "node_type": "work",
-                        "label": "mapping",
-                        "payload": {"status": "ready"},
-                    },
+                    node=PlannedNode(node_id="map", label="mapping", status="ready"),
                 )
             ],
         )
@@ -193,7 +235,7 @@ async def test_dag_read_api_is_non_initializing_and_returns_persisted_state(
 async def test_service_user_mutation_edits_and_audits(tmp_path, monkeypatch):
     """service.dag_apply_user_mutation：actor=user 落库、可 waive gate、受引擎校验。"""
     from cloudra.dag.engine import DagEngine
-    from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+    from cloudra.dag.models import AddNode, GraphActor, MutationBatch, OccurrenceNode
     from cloudra.dag.store import DagStore
 
     monkeypatch.setattr(get_config(), "data_dir", tmp_path)
@@ -209,15 +251,12 @@ async def test_service_user_mutation_edits_and_audits(tmp_path, monkeypatch):
             actor_id="coordinator",
             base_revisions=store.load_bundle().revisions,
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="delivery",
-                    data={
-                        "node_id": "r",
-                        "node_type": "intermediate_occurrence",
-                        "label": "reactant",
-                        "payload": {"evidence_level": "proposed"},
-                    },
+                    node=OccurrenceNode(
+                        node_id="r", label="reactant", evidence_level="proposed"
+                    ),
                 )
             ],
         )

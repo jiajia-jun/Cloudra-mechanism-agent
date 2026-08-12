@@ -15,7 +15,7 @@ _PHASE_LABELS = {
     "waiting": "等待提醒",
 }
 
-_ACTIVE_STATES = {"queued", "running", "cancel_requested"}
+_ACTIVE_STATES = {"queued", "running", "waiting", "cancel_requested"}
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 # Elapsed time is displayed to whole seconds; refreshing the spinner four times
@@ -36,7 +36,7 @@ class StatusBar(Static):
     yolo = reactive(False)
     phase = reactive("")
     pending = reactive(0)
-    # 对话级共享上下文的摘要，如 "42条≈8.2k"；空字符串表示未知
+    # 按 agent 的上下文摘要，如 "Coordinator 42条/8.2k · 3路Σ12.1k"
     context_info = reactive("")
     compaction_info = reactive("")
     # 模型原生网页搜索适配器名（空 = 未启用，走传统 web_search 工具）

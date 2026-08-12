@@ -30,6 +30,8 @@ _STRICT_PAIR_DELTA_MIN_ANG = 0.15
 _STRICT_INTERVAL_TOL_ANG = 0.10
 _STRICT_MAX_AUTO_PAIRS = 5
 _STRICT_PAIR_EPS_ANG = 1e-8
+# 虚频模式与反应坐标：watch_pairs 中至少一对的相对位移须达全局最大相对位移的该比例。
+_IMAG_MODE_WATCH_RATIO = 0.5
 
 description = (
     "过渡态（TS）初猜工作流：四个子功能由 mode 区分。"
@@ -80,8 +82,9 @@ class TsGuess_input_schema(input_schema):
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
-        description="interpolate：距离监测原子对；strict verify：方向证明所用原子对。均为 1-based，"
-                    "缺省自动选取 TS 与中间体之间距离变化最大的前 5 对。",
+        description="interpolate：距离监测原子对；strict/verify：方向证明与虚频模式对齐所用原子对。"
+                    "均为 1-based；缺省自动选取 TS 与中间体之间距离变化最大的前 5 对"
+                    "（虚频模式对齐在未提供时跳过）。",
     )
     output_dir: Optional[str] = Field(
         default=None,
@@ -156,6 +159,15 @@ class TsGuess_output_schema(output_schema):
     checks: list[str] = Field(default_factory=list, description="verify：逐项检查明细")
     irc_end_a_path: str = Field(default="", description="verify：IRC 端点 A xyz 路径")
     irc_end_b_path: str = Field(default="", description="verify：IRC 端点 B xyz 路径")
+    imag_mode_aligned: Optional[bool] = Field(
+        default=None,
+        description="verify：虚频简正模式是否与 watch_pairs 反应坐标一致；"
+                    "无法解析位移时为 None。",
+    )
+    imag_mode_alignment: str = Field(
+        default="",
+        description="verify：虚频模式与反应坐标对齐检查的说明文本。",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -524,14 +536,205 @@ def _parse_orca_scan(text: str) -> tuple[list[float], list[tuple[str, float, flo
 # ---------------------------------------------------------------------------
 
 _FREQ_LINE_RE = re.compile(r"Frequencies --\s+(.*)")
+_ATOM_DISP_HEADER_RE = re.compile(r"^\s*Atom\s+AN\s+X\s+Y\s+Z", re.MULTILINE)
+
+
+def _parse_gaussian_vibdisps(text: str, n_freqs: int) -> Optional[Any]:
+    """从 Gaussian 频率块解析简正模式位移，返回 shape (n_modes, n_atoms, 3) 或 None。"""
+    import numpy as np
+
+    freq_matches = list(_FREQ_LINE_RE.finditer(text))
+    if not freq_matches or n_freqs <= 0:
+        return None
+
+    # 按 Frequencies 行分块；每块最多 3 个模式，后接 Atom AN 位移表。
+    mode_chunks: list[list[list[list[float]]]] = []
+    for idx, match in enumerate(freq_matches):
+        block_freqs = []
+        for tok in match.group(1).split():
+            try:
+                block_freqs.append(float(tok))
+            except ValueError:
+                break
+        if not block_freqs:
+            continue
+        start = match.end()
+        end = freq_matches[idx + 1].start() if idx + 1 < len(freq_matches) else len(text)
+        block = text[start:end]
+        header = _ATOM_DISP_HEADER_RE.search(block)
+        if header is None:
+            return None
+        rows: list[list[list[float]]] = []
+        for line in block[header.end():].splitlines():
+            stripped = line.strip()
+            if not stripped:
+                if rows:
+                    break
+                continue
+            parts = stripped.split()
+            if len(parts) < 2 + 3 * len(block_freqs):
+                if rows:
+                    break
+                continue
+            try:
+                coords = [float(x) for x in parts[2:2 + 3 * len(block_freqs)]]
+            except ValueError:
+                if rows:
+                    break
+                continue
+            atom_modes = [
+                coords[3 * m: 3 * m + 3] for m in range(len(block_freqs))
+            ]
+            rows.append(atom_modes)
+        if not rows:
+            return None
+        # rows: natoms × nmodes_in_block × 3  → 转成 per-mode
+        per_mode = []
+        for m in range(len(block_freqs)):
+            per_mode.append([rows[a][m] for a in range(len(rows))])
+        mode_chunks.append(per_mode)
+
+    flat_modes: list[list[list[float]]] = []
+    for chunk in mode_chunks:
+        flat_modes.extend(chunk)
+    if len(flat_modes) < n_freqs:
+        return None
+    arr = np.asarray(flat_modes[:n_freqs], dtype=float)
+    if arr.ndim != 3 or arr.shape[2] != 3:
+        return None
+    return arr
+
+
+def _assess_imag_mode_alignment(
+    vibfreqs: Sequence[float],
+    vibdisps,
+    watch_pairs: Sequence[Sequence[int]],
+    **_kwargs,
+) -> dict[str, Any]:
+    """检查最低虚频模式是否主要落在 watch_pairs 反应中心上。
+
+    对每个原子对取 |d_i - d_j|；要求 watch_pairs 中至少一对达到全局最大相对位移的
+    `_IMAG_MODE_WATCH_RATIO` 倍。缺位移数据时 status=missing。
+    """
+    import numpy as np
+
+    if vibdisps is None:
+        return {
+            "status": "missing",
+            "aligned": None,
+            "message": "频率日志缺少简正模式位移，无法核对虚频方向。",
+            "details": [],
+        }
+    imag_idxs = [i for i, f in enumerate(vibfreqs) if f < 0]
+    if not imag_idxs:
+        return {
+            "status": "missing",
+            "aligned": None,
+            "message": "无虚频，跳过虚频模式对齐检查。",
+            "details": [],
+        }
+    mode_idx = min(imag_idxs, key=lambda i: vibfreqs[i])
+    try:
+        disps = np.asarray(vibdisps[mode_idx], dtype=float)
+    except (IndexError, TypeError, ValueError):
+        return {
+            "status": "missing",
+            "aligned": None,
+            "message": "频率日志缺少简正模式位移，无法核对虚频方向。",
+            "details": [],
+        }
+    if disps.ndim != 2 or disps.shape[1] != 3 or disps.shape[0] < 2:
+        return {
+            "status": "missing",
+            "aligned": None,
+            "message": "频率日志缺少简正模式位移，无法核对虚频方向。",
+            "details": [],
+        }
+
+    n = disps.shape[0]
+    pair_mags: list[tuple[tuple[int, int], float]] = []
+    max_rel = 0.0
+    max_pair = (0, 1)
+    for i in range(n):
+        for j in range(i + 1, n):
+            rel = float(np.linalg.norm(disps[i] - disps[j]))
+            pair_mags.append(((i, j), rel))
+            if rel > max_rel:
+                max_rel = rel
+                max_pair = (i, j)
+
+    if max_rel <= 0.0:
+        return {
+            "status": "missing",
+            "aligned": None,
+            "message": "虚频模式位移全为零，无法核对方向。",
+            "details": [],
+        }
+
+    if not watch_pairs:
+        return {
+            "status": "skipped",
+            "aligned": None,
+            "message": "未提供 watch_pairs，跳过虚频模式与反应坐标对齐检查。",
+            "details": [f"全局最大相对位移对=({max_pair[0] + 1},{max_pair[1] + 1})"],
+        }
+
+    threshold = _IMAG_MODE_WATCH_RATIO * max_rel
+    watch_set: set[frozenset[int]] = set()
+    watch_details: list[str] = []
+    best_watch = 0.0
+    for raw in watch_pairs:
+        if len(raw) != 2:
+            continue
+        i, j = int(raw[0]) - 1, int(raw[1]) - 1
+        if not (0 <= i < n and 0 <= j < n) or i == j:
+            watch_details.append(f"watch_pairs 原子序号无效: {raw}")
+            continue
+        lo, hi = (i, j) if i < j else (j, i)
+        watch_set.add(frozenset((lo, hi)))
+        rel = float(np.linalg.norm(disps[lo] - disps[hi]))
+        best_watch = max(best_watch, rel)
+        watch_details.append(
+            f"原子对({lo + 1},{hi + 1}) 相对位移={rel:.3f}"
+            f"（阈值 {_IMAG_MODE_WATCH_RATIO:.2f}×{max_rel:.3f}={threshold:.3f}）"
+        )
+
+    max_fs = frozenset(max_pair)
+    # 最大相对位移对本身在 watch_pairs 中 → 对齐；否则须严格超过比例阈值，
+    # 避免「两端反向伸缩、监视原子静止」时 |d_i-d_j| 恰好 = 0.5×max 的假阳性。
+    if max_fs in watch_set:
+        aligned = best_watch >= threshold
+    else:
+        aligned = best_watch > threshold
+    if aligned:
+        message = (
+            f"虚频模式与声明反应坐标一致：watch_pairs 最大相对位移 {best_watch:.3f} "
+            f"≥ {_IMAG_MODE_WATCH_RATIO:.2f}×全局最大 {max_rel:.3f} "
+            f"（最大对=({max_pair[0] + 1},{max_pair[1] + 1})）。"
+        )
+        status = "aligned"
+    else:
+        message = (
+            f"虚频模式与声明的反应坐标不符：watch_pairs 最大相对位移 {best_watch:.3f} "
+            f"< {_IMAG_MODE_WATCH_RATIO:.2f}×全局最大 {max_rel:.3f} "
+            f"（主要运动在原子对({max_pair[0] + 1},{max_pair[1] + 1})）。"
+        )
+        status = "misaligned"
+    return {
+        "status": status,
+        "aligned": aligned,
+        "message": message,
+        "details": watch_details,
+    }
 
 
 def _parse_freq_log(log_path: str, engine: str) -> dict:
-    """解析频率日志。除频率与收敛性外，尽量返回末帧元素和坐标。"""
+    """解析频率日志。除频率与收敛性外，尽量返回末帧元素、坐标与 vibdisps。"""
     with open(log_path, encoding="utf-8", errors="replace") as f:
         text = f.read()
 
     vibfreqs: Optional[list[float]] = None
+    vibdisps = None
     converged: Optional[bool] = None
     symbols: Optional[list[str]] = None
     positions = None
@@ -544,6 +747,11 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
             vf = getattr(data, "vibfreqs", None)
             if vf is not None and len(vf) > 0:
                 vibfreqs = [float(v) for v in vf]
+            vd = getattr(data, "vibdisps", None)
+            if vd is not None and len(vd) > 0:
+                import numpy as np
+
+                vibdisps = np.asarray(vd, dtype=float)
             optdone = getattr(data, "optdone", None)
             if isinstance(optdone, bool):
                 converged = optdone
@@ -576,6 +784,9 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
     if vibfreqs is None:
         raise ValueError(f"未能从频率日志解析振动频率: {log_path}")
 
+    if vibdisps is None and engine == "gaussian":
+        vibdisps = _parse_gaussian_vibdisps(text, len(vibfreqs))
+
     if converged is None:
         # 文本回退：正常终止且无错误标记视为收敛（含纯 freq 作业沿用已收敛几何的情形）
         converged = ("Normal termination" in text) and ("Error termination" not in text)
@@ -593,6 +804,7 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
 
     return {
         "vibfreqs": vibfreqs,
+        "vibdisps": vibdisps,
         "converged": converged,
         "symbols": symbols,
         "positions": positions,
@@ -962,6 +1174,21 @@ class TsGuess(Tool):
 
         irc_end_a_path = ""
         irc_end_b_path = ""
+        imag_mode_aligned: Optional[bool] = None
+        imag_mode_alignment = ""
+
+        def _record_mode_alignment() -> dict[str, Any]:
+            nonlocal imag_mode_aligned, imag_mode_alignment
+            assessment = _assess_imag_mode_alignment(
+                vibfreqs,
+                freq.get("vibdisps"),
+                user_input.watch_pairs,
+            )
+            imag_mode_aligned = assessment["aligned"]
+            imag_mode_alignment = assessment["message"]
+            checks.append(assessment["message"])
+            checks.extend(assessment.get("details") or [])
+            return assessment
 
         if user_input.strict:
             if not freq["converged"]:
@@ -978,10 +1205,18 @@ class TsGuess(Tool):
                 verdict = "fail：严格检查要求恰有一个虚频。"
             else:
                 checks.append(f"恰有 1 个虚频（{imag[0]:.1f} cm⁻¹）：一阶鞍点前提成立。")
-                verdict, info = self._strict_path_verdict(user_input, freq, checks)
-                if info is not None:
-                    irc_end_a_path = info["path_a"]
-                    irc_end_b_path = info["path_b"]
+                mode = _record_mode_alignment()
+                if mode["status"] == "missing":
+                    verdict = (
+                        "inconclusive：频率日志缺少简正模式位移，无法核对虚频方向。"
+                    )
+                elif mode["status"] == "misaligned":
+                    verdict = "fail：虚频模式与声明的反应坐标不符。"
+                else:
+                    verdict, info = self._strict_path_verdict(user_input, freq, checks)
+                    if info is not None:
+                        irc_end_a_path = info["path_a"]
+                        irc_end_b_path = info["path_b"]
         else:
             if not freq["converged"]:
                 checks.append("频率作业未正常收敛，不能据此判断 TS 候选。")
@@ -999,6 +1234,7 @@ class TsGuess(Tool):
                 checks.append(
                     f"恰有 1 个虚频（{imag[0]:.1f} cm⁻¹）：可作为一阶鞍点候选，但这不是充分证明。"
                 )
+                _record_mode_alignment()
                 irc_ok: Optional[bool] = None
                 info = self._extract_irc_endpoints(user_input, checks, require_two_sides=False)
                 if info is not None:
@@ -1024,6 +1260,8 @@ class TsGuess(Tool):
             checks=checks,
             irc_end_a_path=irc_end_a_path,
             irc_end_b_path=irc_end_b_path,
+            imag_mode_aligned=imag_mode_aligned,
+            imag_mode_alignment=imag_mode_alignment,
             message=f"TS 验证完成：{verdict}",
         )
 

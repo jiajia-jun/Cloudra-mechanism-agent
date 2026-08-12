@@ -35,11 +35,12 @@ def test_build_operation_add_node():
     assert op == {
         "op": "add_node",
         "graph": "process",
-        "data": {
+        "node": {
             "node_id": "opt-ts",
-            "node_type": "work",
+            "node_type": "planned",
             "label": "TS 优化",
-            "payload": {"status": "proposed", "priority": 3},
+            "status": "proposed",
+            "priority": 3,
         },
     }
 
@@ -54,24 +55,27 @@ def test_build_operation_add_edge():
         edge_type="elementary_step",
         label="chair [3,3]",
     )
-    assert op["data"]["edge_type"] == "elementary_step"
-    assert op["data"]["payload"] == {}
-    # 未给 edge_type 时回退 depends_on
+    assert op["edge"]["edge_type"] == "elementary_step"
+    assert op["edge"]["edge_id"] == "chair"
+    assert op["edge"]["label"] == "chair [3,3]"
+    # 未给 edge_type 时回退 dependency
     default = build_operation(
         "process", "add_edge", edge_id="e", source_node_id="a", target_node_id="b"
     )
-    assert default["data"]["edge_type"] == "depends_on"
+    assert default["edge"]["edge_type"] == "dependency"
 
 
 def test_build_operation_update_ops_wrap_changes():
     op = build_operation(
         "process", "update_node", node_id="opt-ts", json_data={"status": "skipped"}
     )
-    assert op["data"] == {"node_id": "opt-ts", "changes": {"status": "skipped"}}
+    assert op["node_id"] == "opt-ts"
+    assert op["changes"] == {"status": "skipped"}
     edge_op = build_operation(
         "delivery", "update_edge", edge_id="chair", json_data={"label": "boat"}
     )
-    assert edge_op["data"] == {"edge_id": "chair", "changes": {"label": "boat"}}
+    assert edge_op["edge_id"] == "chair"
+    assert edge_op["changes"] == {"label": "boat"}
     with pytest.raises(ValueError):
         build_operation("process", "attach_ref", node_id="x")
 
@@ -85,11 +89,11 @@ def test_edit_ops_include_new_user_ops():
 
 def test_build_operation_remove_edge():
     op = build_operation("delivery", "remove_edge", edge_id="chair")
-    assert op == {"op": "remove_edge", "graph": "delivery", "data": {"edge_id": "chair"}}
+    assert op == {"op": "remove_edge", "graph": "delivery", "edge_id": "chair"}
 
 
 def test_build_operation_add_link_and_waive_gate_carry_full_data():
-    """add_link / waive_gate 的 JSON 即完整 data，graph 置 None（跨图/契约操作）。"""
+    """add_link 字段平铺 op 顶层、waive_gate 包成 waiver 对象，graph 置 None（跨图/契约操作）。"""
     link = build_operation(
         "process",
         "add_link",
@@ -101,8 +105,8 @@ def test_build_operation_add_link_and_waive_gate_carry_full_data():
         },
     )
     assert link["graph"] is None
-    assert link["data"]["link_id"] == "l1"
-    assert link["data"]["delivery_element_id"] == "chair"
+    assert link["link_id"] == "l1"
+    assert link["delivery_element_id"] == "chair"
 
     waiver = build_operation(
         "delivery",
@@ -117,8 +121,8 @@ def test_build_operation_add_link_and_waive_gate_carry_full_data():
         },
     )
     assert waiver["graph"] is None
-    assert waiver["data"]["gate_code"] == "missing_thermochemistry"
-    assert waiver["data"]["rationale"] == "能量非关键路径"
+    assert waiver["waiver"]["gate_code"] == "missing_thermochemistry"
+    assert waiver["waiver"]["rationale"] == "能量非关键路径"
 
 
 def test_json_template_new_ops_prefill_required_keys():
@@ -239,7 +243,13 @@ def test_format_history_renders_actor_and_acceptance():
 def test_format_dag_content_with_real_service_graph(tmp_path, monkeypatch):
     """用临时目录 + 真实 CloudraService/DagStore 造小图，校验渲染输出含关键 id。"""
     from cloudra.dag.engine import DagEngine
-    from cloudra.dag.models import GraphActor, GraphOperation, MutationBatch
+    from cloudra.dag.models import (
+        AddNode,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        PlannedNode,
+    )
     from cloudra.dag.store import DagStore
     from cloudra.infra.config import get_config, reload_config
     from cloudra.persistence.database import ConversationDB
@@ -262,25 +272,24 @@ def test_format_dag_content_with_real_service_graph(tmp_path, monkeypatch):
             base_revisions=store.load_bundle().revisions,
             rationale="seed tui test graph",
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={
-                        "node_id": "map",
-                        "node_type": "work",
-                        "label": "mapping",
-                        "payload": {"status": "ready", "priority": 1},
-                    },
+                    node=PlannedNode(
+                        node_id="map",
+                        label="mapping",
+                        status="ready",
+                        priority=1,
+                    ),
                 ),
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="delivery",
-                    data={
-                        "node_id": "r",
-                        "node_type": "intermediate_occurrence",
-                        "label": "C=COCC=C",
-                        "payload": {"evidence_level": "proposed"},
-                    },
+                    node=OccurrenceNode(
+                        node_id="r",
+                        label="C=COCC=C",
+                        evidence_level="proposed",
+                    ),
                 ),
             ],
         )
@@ -298,10 +307,9 @@ def test_format_dag_content_with_real_service_graph(tmp_path, monkeypatch):
         service.dag_history(cid),
         conversation_id=cid,
     )
-    assert "map (work) mapping" in text
+    assert "map (planned) mapping" in text
     assert "status=ready" in text
     assert "C=COCC=C" in text
-    assert "evidence=proposed" in text
     assert "Delivery 覆盖报告" in text
     assert "近期变更" in text
     assert "seed tui test graph" in text

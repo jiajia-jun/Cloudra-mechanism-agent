@@ -168,6 +168,124 @@ class LLMClient:
         """返回最近一次响应中的 usage 字段（prompt_tokens/completion_tokens/total_tokens）。"""
         return self._last_usage
 
+    async def count_tokens(
+        self,
+        messages: list[dict],
+        model: Optional[str] = None,
+    ) -> dict:
+        """对消息列表做 token 计数。
+
+        优先级：
+        1. 本地 ``tiktoken``（``TokenEstimator.count_messages``）——确切、无网络
+        2. provider tokenize API（若端点可用）
+        3. 字符启发式回退（仅 tiktoken 异常时由 TokenEstimator 内部处理）
+
+        返回 ``{"tokens": int, "source": "tiktoken"|"api"|"estimate"}``。
+        """
+        from cloudra.infra.token_estimator import TokenEstimator
+
+        model_name = model or self.model or ""
+        if model_name:
+            TokenEstimator.configure(model=model_name)
+
+        # 1) tiktoken 本地精确计数
+        try:
+            import tiktoken  # noqa: F401
+
+            tokens = await asyncio.to_thread(
+                TokenEstimator.count_messages, messages
+            )
+            return {"tokens": int(tokens), "source": "tiktoken"}
+        except Exception:
+            pass
+
+        # 2) provider tokenize
+        api_count = await asyncio.to_thread(
+            self._try_provider_tokenize, messages, model_name
+        )
+        if api_count is not None:
+            return {"tokens": int(api_count), "source": "api"}
+
+        # 3) 启发式（TokenEstimator 内部已回退）
+        estimated = await asyncio.to_thread(
+            TokenEstimator.count_messages, messages
+        )
+        return {"tokens": int(estimated), "source": "estimate"}
+
+    def _try_provider_tokenize(
+        self, messages: list[dict], model: str
+    ) -> Optional[int]:
+        """尝试常见 OpenAI 兼容 tokenize 端点；失败返回 None。"""
+        if not self.base_url or not self.api_key:
+            return None
+        base = self.base_url.rstrip("/")
+        # 兼容 .../v1 与裸 host
+        candidates = [
+            f"{base}/tokenize",
+            f"{base}/token/count",
+            f"{base}/tokens/count",
+        ]
+        if base.endswith("/v1"):
+            root = base[: -len("/v1")]
+            candidates.extend(
+                [
+                    f"{root}/tokenize",
+                    f"{root}/v1/tokenize",
+                ]
+            )
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": FALLBACK_USER_AGENT,
+        }
+        payloads = [
+            {"model": model, "messages": messages},
+            {"model": model, "input": messages},
+            {"model": model, "text": json.dumps(messages, ensure_ascii=False)},
+        ]
+        for url in candidates:
+            for payload in payloads:
+                try:
+                    resp = requests.post(
+                        url, headers=headers, json=payload, timeout=min(10, self.timeout or 10)
+                    )
+                    if resp.status_code >= 400:
+                        continue
+                    data = resp.json()
+                    count = self._parse_tokenize_response(data)
+                    if count is not None:
+                        return count
+                except Exception:
+                    continue
+        return None
+
+    @staticmethod
+    def _parse_tokenize_response(data: Any) -> Optional[int]:
+        """从各家 tokenize 响应里抽出 token 总数。"""
+        if data is None:
+            return None
+        if isinstance(data, int):
+            return data
+        if not isinstance(data, dict):
+            return None
+        for key in ("tokens", "token_count", "total_tokens", "count", "prompt_tokens"):
+            value = data.get(key)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                return int(value)
+        usage = data.get("usage")
+        if isinstance(usage, dict):
+            for key in ("prompt_tokens", "total_tokens", "input_tokens"):
+                value = usage.get(key)
+                if isinstance(value, (int, float)):
+                    return int(value)
+        # OpenAI-ish: {"data": [{"tokens": [...]}]} 或 tokens 为 list
+        tokens = data.get("tokens")
+        if isinstance(tokens, list):
+            return len(tokens)
+        return None
+
     async def _emit_status(self, event: str, **data) -> None:
         """触发传输层状态回调；回调异常绝不外抛，传输层不因遥测失败。"""
         hook = self.on_status

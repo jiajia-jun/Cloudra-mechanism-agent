@@ -19,7 +19,8 @@ class StopTool_input_schema(input_schema):
         default="complete",
         description=(
             "DAG 模式交付声明：complete 必须通过 evidence-derived coverage；"
-            "partial 保留缺口后收尾；user_terminated 表示用户要求停止。"
+            "partial 保留缺口后收尾（这是最终交付声明，不是暂停）；user_terminated 表示用户要求停止。"
+            "后台任务/提醒未排空时 stop 只是挂起，不审计也不记录 disposition。"
         ),
     )
 
@@ -41,7 +42,10 @@ class StopTool(Tool):
     tool_description: str = (
         "结束当前任务并停止 ReAct 循环；调用后本轮其余工具仍会执行完毕，随后整个循环终止。"
         "适用：任务已完成、目标已达成，或确认无法继续推进需要收尾时。"
-        "不适用：还需要向用户提问澄清（用 ask_user）、还有后续步骤没做完时不要提前 stop。"
+        "也用于等待后台任务时的挂起：先用 schedule 安排唤醒再 stop；此时会话落库 waiting"
+        "（不是 completed），提醒到期或外部事件会复活循环继续——挂起不算交付，"
+        "DAG 模式下此时不做交付审计。"
+        "不适用：还需要向用户提问澄清（用 ask_user）、还有后续步骤没做完且没有安排唤醒时不要提前 stop。"
         "注意：答题/评测任务务必在 final_answer 里填入最终精简答案。"
     )
     input_schema: Any = StopTool_input_schema

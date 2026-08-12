@@ -269,6 +269,27 @@ async def test_session_diagnostics_returns_latest_llm_request(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_append_session_message_accepts_content_without_working_directory(
+    monkeypatch,
+):
+    """TUI 追问只发 content；endpoint 不得因缺 working_directory 字段 500。"""
+    monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
+    service = FakeService()
+    transport = httpx.ASGITransport(app=create_app(service))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/conversations/conv_1/sessions/a-0_run_1/messages",
+            json={"content": "继续推进 TS 优化"},
+            headers={"Idempotency-Key": "cmd_append_plain"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert service.last_append is not None
+    assert service.last_append["content"] == "继续推进 TS 优化"
+    assert service.last_append.get("working_directory") is None
+
+
+@pytest.mark.asyncio
 async def test_session_endpoint_requires_token(monkeypatch):
     monkeypatch.setenv("CLOUDRA_API_TOKEN", "secret")
     transport = httpx.ASGITransport(app=create_app(FakeService()))

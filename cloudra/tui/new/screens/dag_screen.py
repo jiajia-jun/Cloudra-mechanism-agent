@@ -53,12 +53,12 @@ _JSON_TEMPLATES = {
     },
 }
 
-# update_* 操作的 JSON 文本框语义是 changes，add_link/waive_gate 是完整 data，
-# 其余是 payload
+# update_* 操作的 JSON 文本框语义是 changes，add_link/waive_gate 是 op 顶层字段/waiver，
+# 其余并入节点/边对象
 _CHANGES_OPS = ("update_node", "update_edge")
 _DATA_OPS = ("add_link", "waive_gate")
 
-# add_link / waive_gate 的 data JSON 必填键（客户端预校验，引擎还会再校验一次）
+# add_link / waive_gate 的 JSON 必填键（客户端预校验，引擎还会再校验一次）
 _DATA_REQUIRED_KEYS = {
     "add_link": ("link_id", "process_node_id", "delivery_element_type", "delivery_element_id"),
     "waive_gate": ("gate_code", "target_type", "target_id", "user_id", "session_id", "rationale"),
@@ -85,39 +85,53 @@ def build_operation(
 ) -> dict:
     """把编辑表单字段组装成 GraphOperation dict（纯函数，便于单测）。
 
-    add_* 操作的 ``json_data`` 是节点/边的 payload；update_* 操作的是
-    changes（可改 status/priority/label/annotations/reason/blocked_reason/
-    evidence_level/required 等，不能改 refs/id/node_type）。
-    add_link / waive_gate 是跨图/契约操作，``json_data`` 即完整 data，
-    graph 字段置 None。
+    op 是以 ``op`` 判别的具名命令：add_* 操作的 ``json_data`` 并入节点/边对象
+    （具名字段如 status/evidence_level 直接落在字段上，其余键由模型层归入
+    metadata）；update_* 操作的是 changes（可改 status/priority/label/
+    annotations/reason/blocked_reason/evidence_level/required 等，不能改
+    refs/id/node_type）。add_link / waive_gate 是跨图/契约操作，graph 字段置 None。
     """
-    data: dict = {}
     if op_name == "add_node":
-        data["node_id"] = node_id
-        data["node_type"] = node_type or "work"
-        data["label"] = label
-        data["payload"] = dict(json_data or {})
-    elif op_name == "add_edge":
-        data["edge_id"] = edge_id
-        data["source_node_id"] = source_node_id
-        data["target_node_id"] = target_node_id
-        data["edge_type"] = edge_type or "depends_on"
-        data["label"] = label
-        data["payload"] = dict(json_data or {})
-    elif op_name == "update_node":
-        data["node_id"] = node_id
-        data["changes"] = dict(json_data or {})
-    elif op_name == "update_edge":
-        data["edge_id"] = edge_id
-        data["changes"] = dict(json_data or {})
-    elif op_name == "remove_edge":
-        data["edge_id"] = edge_id
-    elif op_name in _DATA_OPS:
-        # 跨图簿记（add_link）与契约豁免（waive_gate）不属于单张图
-        return {"op": op_name, "graph": None, "data": dict(json_data or {})}
-    else:
-        raise ValueError(f"不支持的操作类型: {op_name}")
-    return {"op": op_name, "graph": graph, "data": data}
+        node = {
+            "node_id": node_id,
+            "node_type": node_type or "planned",
+            "label": label,
+            **dict(json_data or {}),
+        }
+        return {"op": op_name, "graph": graph, "node": node}
+    if op_name == "add_edge":
+        edge = {
+            "edge_id": edge_id,
+            "source_node_id": source_node_id,
+            "target_node_id": target_node_id,
+            "edge_type": edge_type or "dependency",
+            "label": label,
+            **dict(json_data or {}),
+        }
+        return {"op": op_name, "graph": graph, "edge": edge}
+    if op_name == "update_node":
+        return {
+            "op": op_name,
+            "graph": graph,
+            "node_id": node_id,
+            "changes": dict(json_data or {}),
+        }
+    if op_name == "update_edge":
+        return {
+            "op": op_name,
+            "graph": graph,
+            "edge_id": edge_id,
+            "changes": dict(json_data or {}),
+        }
+    if op_name == "remove_edge":
+        return {"op": op_name, "graph": graph, "edge_id": edge_id}
+    if op_name == "add_link":
+        # 跨图簿记：字段平铺在 op 顶层，graph 置 None
+        return {"op": op_name, "graph": None, **dict(json_data or {})}
+    if op_name == "waive_gate":
+        # 契约豁免：waiver 是一个完整 CoverageWaiver 对象
+        return {"op": op_name, "graph": None, "waiver": dict(json_data or {})}
+    raise ValueError(f"不支持的操作类型: {op_name}")
 
 
 def _format_node_extras(payload: dict) -> str:
@@ -283,7 +297,7 @@ class DagEditModal(ModalScreen[dict | None]):
             )
             yield Input(placeholder="node_id（add_node/update_node 必填）", id="edit-node-id")
             yield Input(
-                placeholder="node_type（add_node，默认 work）", id="edit-node-type"
+                placeholder="node_type（add_node，默认 planned）", id="edit-node-type"
             )
             yield Input(
                 placeholder="edge_id（add_edge/update_edge/remove_edge 必填）",
@@ -292,7 +306,7 @@ class DagEditModal(ModalScreen[dict | None]):
             yield Input(placeholder="source_node_id（add_edge 必填）", id="edit-source")
             yield Input(placeholder="target_node_id（add_edge 必填）", id="edit-target")
             yield Input(
-                placeholder="edge_type（add_edge，默认 depends_on）", id="edit-edge-type"
+                placeholder="edge_type（add_edge，默认 dependency）", id="edit-edge-type"
             )
             yield Input(placeholder="label", id="edit-label")
             yield Input(

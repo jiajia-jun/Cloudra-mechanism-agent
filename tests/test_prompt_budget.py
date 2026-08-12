@@ -47,14 +47,17 @@ def test_dag_operations_skill_documents_mutation_shapes() -> None:
     skill = (
         ROOT / "cloudra" / "skills" / "dag-operations" / "SKILL.md"
     ).read_text(encoding="utf-8")
+    # 阶段 6 起 SKILL 收敛为意图手册：attach_ref/add_link 不再向 agent 宣传
+    # （attach_ref 由 bind_evidence 取代，add_link 是 Supervisor 簿记）
     for op in (
         "add_node",
         "add_edge",
         "remove_edge",
         "update_node",
         "update_edge",
-        "attach_ref",
-        "add_link",
+        "bind_evidence",
     ):
         assert op in skill
+    assert "attach_ref" not in skill
+    assert "add_link" not in skill
     assert "evidence_role" in skill and "assignee" in skill

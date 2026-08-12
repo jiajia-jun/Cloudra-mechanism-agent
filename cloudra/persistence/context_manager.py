@@ -102,15 +102,29 @@ SUPERVISOR_ADVICE_MARKER = "[Supervisor]"
 
 # 压缩梗概消息的内容前缀：持久化压缩与手动 compact 共用，
 # 用于在下一轮压缩时识别旧梗概并折叠进新梗概（避免梗概无限累积）。
+# 梗概以 role=user 写入，引导模型按交接信息接续（勿再用 system，易被当成身份层忽略）。
 COMPACT_SUMMARY_MARKER = "[上下文压缩提示]"
+COMPACT_SUMMARY_INSTRUCTION = "根据下面这份交接信息继续工作。"
 
-# Auto-compaction keeps a small completed-turn tail. Ten assistant turns can
-# itself occupy most of a 64k half-window in tool-heavy sessions, leaving the
-# compressor above budget immediately after it runs.
-AUTO_COMPACT_KEEP_ASSISTANT = 4
+# getskill 返回被提升为 system 钉住时的前缀，压缩时不进摘要、不丢弃。
+SKILL_PIN_MARKER = "[Skill 资料]"
 
-# render-time 压缩（_compress_to_budget）保留的最近 assistant 回合数。
-RENDER_COMPACT_KEEP_ASSISTANT = 10
+# 需要整段保留的 skill 工具名（匹配 assistant.tool_calls[].function.name）。
+SKILL_TOOL_NAMES = frozenset({"getskill"})
+
+# skill pin 预算：同名去重后单条与总量都有硬顶，避免多份 SOP/reference
+# 占满半窗后把首条 user 与近期对话一起冲掉（表现为「几轮后上下文丢失」）。
+SKILL_PIN_MAX_TOKENS = 6_000
+SKILL_PIN_TOTAL_MAX_TOKENS = 20_000
+
+# 自动/请求期压缩：不再保留近几轮 toolcall 原文——工具往返体积大且易过期，
+# 状态应落在工作区交接文档里（见 prompt_assembler 的交接指引）。0 = 尾部不留
+# assistant/tool 回合，全部进梗概。
+AUTO_COMPACT_KEEP_ASSISTANT = 0
+RENDER_COMPACT_KEEP_ASSISTANT = 0
+
+# 非 skill 工具返回的硬顶（token）；超过则截断，避免单条结果撑爆半窗。
+TOOL_RESULT_MAX_TOKENS = 800
 
 # Parallelize independent map chunks, but keep the fan-out conservative so one
 # long conversation cannot monopolize the FOLLOWER endpoint.
@@ -187,7 +201,8 @@ class ContextManager:
             return False
         return not (
             content.startswith(SUPERVISOR_ADVICE_MARKER)
-            or content.startswith("[上下文压缩提示]")
+            or content.startswith(COMPACT_SUMMARY_MARKER)
+            or content.startswith(SKILL_PIN_MARKER)
         )
 
     async def _migrate_legacy_identity(self, context: list) -> list:
@@ -373,10 +388,10 @@ class ContextManager:
         为了控制上下文体积：
         1. 只有最近 ``vision_history_limit`` 轮用户消息中的图片会被保留为多模态
            内容；更早的图片会被降级为文本占位符（保留路径/描述）。
-        2. 如果渲染后的总 token 数超过 ``max_context_tokens``，先做一次持久化压缩
-           （历史梗概写回上下文存储，后续轮次不再重复摘要整段历史）；
-           仍超预算时再退回 render-time 压缩（仅作用于当次请求的副本）。
-           system prompt 和最近 10 轮对话始终被保留。
+        2. 非 skill 工具返回超过 ``TOOL_RESULT_MAX_TOKENS``（默认 800）时截断。
+        3. 用 tiktoken 精确计数后，若超过 ``max_context_tokens``，先做持久化压缩
+           （保留 system / getskill 资料；默认不保留近几轮 toolcall，全部进梗概），
+           仍超预算再退回 render-time 压缩。
         """
         history = await self.load()
         if identity_messages is None:
@@ -409,17 +424,15 @@ class ContextManager:
         rendered = self._drop_empty_assistant_messages(rendered)
         rendered = self._drop_empty_user_messages(rendered)
         rendered = self._repair_tool_pairing(rendered)
-        # Very large tool results make capping and token estimation measurable
+        # Very large tool results make capping and token counting measurable
         # CPU work.  They must not run on the TUI/Agent event-loop thread.
         rendered = await asyncio.to_thread(self._cap_message_sizes, rendered)
 
         if max_context_tokens is None:
             return rendered
 
-        rendered_tokens = await asyncio.to_thread(
-            TokenEstimator.estimate_messages,
-            rendered,
-        )
+        # 压缩触发必须先拿到确切 token 计数（tiktoken；失败才回退启发式）。
+        rendered_tokens = await self._measure_tokens(rendered)
         if (
             rendered_tokens > max_context_tokens
             and not _persistent_compress_attempted
@@ -666,22 +679,269 @@ class ContextManager:
 
     # 单条消息内容的硬顶（字符数）：一条巨型工具结果（如整份 PDF 的乱码文本）
     # 就能撑爆模型上下文，而历史梗概压缩对单条超大消息无解。
-    MAX_MESSAGE_CHARS = 40_000
+    MAX_MESSAGE_CHARS = 24_000
+
+    async def _measure_tokens(self, messages: list[dict]) -> int:
+        """确切 token 计数：优先 tiktoken，失败再走 LLMClient / 启发式。"""
+        cfg = get_config().follower
+        if cfg.model:
+            TokenEstimator.configure(model=cfg.model)
+        try:
+            if self._llm_client is None and cfg.key and cfg.url:
+                self._llm_client = LLMClient(api_key=cfg.key, base_url=cfg.url, model=cfg.model)
+            if self._llm_client is not None:
+                result = await self._llm_client.count_tokens(messages, model=cfg.model)
+                return int(result["tokens"])
+        except Exception:
+            pass
+        return await asyncio.to_thread(TokenEstimator.count_messages, messages)
+
+    @staticmethod
+    def _tool_call_names(messages: list[dict]) -> dict[str, str]:
+        """从 assistant.tool_calls 建立 tool_call_id → function.name 映射。"""
+        mapping: dict[str, str] = {}
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+            for call in msg.get("tool_calls") or []:
+                if not isinstance(call, dict):
+                    continue
+                call_id = call.get("id")
+                name = (call.get("function") or {}).get("name") or ""
+                if call_id:
+                    mapping[str(call_id)] = str(name)
+        return mapping
+
+    @classmethod
+    def _is_skill_tool_result(cls, msg: dict, name_by_id: dict[str, str]) -> bool:
+        if msg.get("role") != "tool":
+            return False
+        call_id = msg.get("tool_call_id")
+        if not call_id:
+            return False
+        return name_by_id.get(str(call_id), "") in SKILL_TOOL_NAMES
+
+    @staticmethod
+    def _skill_name_from_call(call: dict) -> str:
+        """从 getskill tool_call.arguments 解析 skill_name。"""
+        raw = (call.get("function") or {}).get("arguments")
+        if isinstance(raw, dict):
+            data = raw
+        elif isinstance(raw, str) and raw.strip():
+            try:
+                data = json.loads(raw)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                data = {}
+        else:
+            data = {}
+        if not isinstance(data, dict):
+            return ""
+        name = data.get("skill_name") or data.get("name") or ""
+        return str(name).strip()
+
+    @classmethod
+    def _skill_name_by_call_id(cls, messages: list[dict]) -> dict[str, str]:
+        mapping: dict[str, str] = {}
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+            for call in msg.get("tool_calls") or []:
+                if not isinstance(call, dict):
+                    continue
+                call_id = call.get("id")
+                if not call_id:
+                    continue
+                skill = cls._skill_name_from_call(call)
+                if skill:
+                    mapping[str(call_id)] = skill
+        return mapping
+
+    @staticmethod
+    def _skill_pin_key(content: str) -> str:
+        """从 pin 正文取去重键：优先 ``skill=``，否则用正文前缀哈希。"""
+        first = (content or "").split("\n", 1)[0]
+        marker = f"{SKILL_PIN_MARKER} skill="
+        if first.startswith(marker):
+            return first[len(marker):].strip().split()[0]
+        # 旧格式或匿名 pin：用稳定前缀区分，避免互不相同的资料被误并
+        prefix = (content or "")[:240]
+        return f"anon:{hash(prefix)}"
+
+    @classmethod
+    def _cap_skill_pin(cls, pin: dict) -> dict:
+        content = str(pin.get("content") or "")
+        tokens = TokenEstimator.count_text(content)
+        if tokens <= SKILL_PIN_MAX_TOKENS:
+            return pin
+        note = (
+            f"\n\n[... Skill 资料超过 {SKILL_PIN_MAX_TOKENS} token 已截断，"
+            f"原始约 {tokens} token；完整 SOP 请再次 getskill 或读工作区文件 ...]"
+        )
+        note_tokens = TokenEstimator.count_text(note)
+        budget = max(64, SKILL_PIN_MAX_TOKENS - note_tokens)
+        truncated = TokenEstimator.truncate_to_tokens(content, budget)
+        return {"role": "system", "content": truncated + note}
+
+    @classmethod
+    def _normalize_skill_pins(cls, pins: list[dict]) -> list[dict]:
+        """同名 skill 只留最新一条，并施加单条/总量 token 硬顶。"""
+        by_key: dict[str, dict] = {}
+        order: list[str] = []
+        for pin in pins:
+            content = str(pin.get("content") or "")
+            if not content.strip():
+                continue
+            key = cls._skill_pin_key(content)
+            if key not in by_key:
+                order.append(key)
+            by_key[key] = cls._cap_skill_pin({"role": "system", "content": content})
+
+        normalized = [by_key[k] for k in order]
+        while (
+            len(normalized) > 1
+            and TokenEstimator.count_messages(normalized) > SKILL_PIN_TOTAL_MAX_TOKENS
+        ):
+            # 超量时丢掉最早钉住的 skill，优先保留最近加载的
+            normalized.pop(0)
+        return normalized
+
+    @classmethod
+    def _split_skill_pins_from_system(
+        cls, system_messages: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """把已存在的 Skill 钉住从其它 system（身份/Supervisor）中拆出。"""
+        pins: list[dict] = []
+        other: list[dict] = []
+        for msg in system_messages:
+            content = msg.get("content", "")
+            if isinstance(content, str) and content.startswith(SKILL_PIN_MARKER):
+                pins.append(msg)
+            else:
+                other.append(msg)
+        return pins, other
+
+    @staticmethod
+    def _is_compact_summary_message(msg: dict) -> bool:
+        content = msg.get("content", "")
+        return isinstance(content, str) and content.startswith(COMPACT_SUMMARY_MARKER)
+
+    @classmethod
+    def _make_compact_summary_message(cls, summary: str) -> dict:
+        """生成压缩交接消息：role=user，便于模型当作当前任务接续。"""
+        return {
+            "role": "user",
+            "content": (
+                f"{COMPACT_SUMMARY_MARKER}\n"
+                f"{COMPACT_SUMMARY_INSTRUCTION}\n\n"
+                f"{summary}"
+            ),
+        }
+
+    @classmethod
+    def _extract_skill_pins(
+        cls, messages: list[dict]
+    ) -> tuple[list[dict], list[dict]]:
+        """把 getskill 工具返回提升为 system 钉住，并从历史中剥离对应调用。
+
+        返回 (skill_pins, remainder)。skill 内容以 ``SKILL_PIN_MARKER`` system
+        消息保留，避免压缩摘要冲掉 SOP；原 tool 配对从 remainder 移除并清掉
+        对应 tool_calls，以免留下孤儿结果。同名 skill 在
+        ``_normalize_skill_pins`` 中去重并截断。
+        """
+        name_by_id = cls._tool_call_names(messages)
+        skill_name_by_id = cls._skill_name_by_call_id(messages)
+        skill_ids = {
+            call_id
+            for call_id, name in name_by_id.items()
+            if name in SKILL_TOOL_NAMES
+        }
+        if not skill_ids:
+            return [], list(messages)
+
+        pins: list[dict] = []
+        remainder: list[dict] = []
+        for msg in messages:
+            role = msg.get("role")
+            if role == "tool" and str(msg.get("tool_call_id", "")) in skill_ids:
+                text = cls._content_to_text(msg.get("content"))
+                if text.strip():
+                    call_id = str(msg.get("tool_call_id", ""))
+                    skill = skill_name_by_id.get(call_id, "")
+                    header = (
+                        f"{SKILL_PIN_MARKER} skill={skill}"
+                        if skill
+                        else SKILL_PIN_MARKER
+                    )
+                    pins.append({
+                        "role": "system",
+                        "content": f"{header}\n{text}",
+                    })
+                continue
+            if role == "assistant" and msg.get("tool_calls"):
+                original_calls = list(msg.get("tool_calls") or [])
+                kept_calls = [
+                    call for call in original_calls
+                    if not (
+                        isinstance(call, dict)
+                        and str(call.get("id", "")) in skill_ids
+                    )
+                ]
+                if len(kept_calls) == len(original_calls):
+                    remainder.append(msg)
+                    continue
+                new_msg = dict(msg)
+                if kept_calls:
+                    new_msg["tool_calls"] = kept_calls
+                    remainder.append(new_msg)
+                else:
+                    new_msg.pop("tool_calls", None)
+                    # 仅发起 getskill、无其它内容的 assistant 可丢弃
+                    if (
+                        new_msg.get("content")
+                        or new_msg.get("reasoning_content")
+                    ):
+                        remainder.append(new_msg)
+                continue
+            remainder.append(msg)
+        return pins, remainder
 
     @classmethod
     def _cap_message_sizes(cls, messages: list[dict]) -> list[dict]:
-        """给单条消息的内容加硬顶，超出部分截断并注明原始长度。
+        """给单条消息加硬顶：非 skill 工具返回按 token 截断，其它按字符兜底。
 
-        历史压缩（_compress_to_budget）的兜底是"梗概仍超预算就保留原文"，
-        所以一条数百万 token 的巨型消息（典型：PDF 二进制当文本塞进工具结果）
-        会直接越过压缩机制把请求打到 400。这里在渲染期对每条消息截断，
-        system 消息（身份 prompt、梗概）保持不变。
+        - system（身份 / 梗概 / skill 钉住）不截断
+        - getskill 工具返回整段保留（压缩路径会提升为 skill pin）
+        - 其它 tool 返回超过 ``TOOL_RESULT_MAX_TOKENS`` 时按 tiktoken 截断
+        - 非 tool 超长文本仍受 ``MAX_MESSAGE_CHARS`` 字符硬顶保护
         """
-        capped = []
+        name_by_id = cls._tool_call_names(messages)
+        capped: list[dict] = []
         for msg in messages:
-            if msg.get("role") == "system":
+            role = msg.get("role")
+            if role == "system":
                 capped.append(msg)
                 continue
+
+            if role == "tool":
+                if cls._is_skill_tool_result(msg, name_by_id):
+                    capped.append(msg)
+                    continue
+                content = msg.get("content")
+                if isinstance(content, str):
+                    tokens = TokenEstimator.count_text(content)
+                    if tokens > TOOL_RESULT_MAX_TOKENS:
+                        truncated = TokenEstimator.truncate_to_tokens(
+                            content, TOOL_RESULT_MAX_TOKENS
+                        )
+                        msg = dict(msg)
+                        msg["content"] = (
+                            truncated
+                            + f"\n\n[... 工具返回超过 {TOOL_RESULT_MAX_TOKENS} token "
+                            f"已截断，原始约 {tokens} token ...]"
+                        )
+                capped.append(msg)
+                continue
+
             content = msg.get("content")
             if isinstance(content, str) and len(content) > cls.MAX_MESSAGE_CHARS:
                 msg = dict(msg)
@@ -698,10 +958,11 @@ class ContextManager:
                         and isinstance(part.get("text"), str)
                         and len(part["text"]) > cls.MAX_MESSAGE_CHARS
                     ):
+                        original_len = len(part["text"])
                         part = dict(part)
                         part["text"] = (
                             part["text"][: cls.MAX_MESSAGE_CHARS]
-                            + f"\n\n[... 内容过长已截断，原始共 {len(part['text'])} 字符 ..."
+                            + f"\n\n[... 内容过长已截断，原始共 {original_len} 字符 ..."
                         )
                     new_parts.append(part)
                 if new_parts != content:
@@ -728,22 +989,25 @@ class ContextManager:
         def partition(items: list[str]) -> list[list[str]]:
             expanded: list[str] = []
             for item in items:
-                if TokenEstimator.estimate_text(item) <= input_limit:
+                if TokenEstimator.count_text(item) <= input_limit:
                     expanded.append(item)
                     continue
-                # A single CJK-heavy message can exceed the token budget even
-                # after the general 40k-character cap. Splitting at at most
-                # input_limit characters is conservative for all estimator
-                # character classes and keeps each summary request valid.
-                expanded.extend(
-                    item[offset : offset + input_limit]
-                    for offset in range(0, len(item), input_limit)
-                )
+                # 按 token 硬切，避免把 token 预算误当成字符数。
+                remaining = item
+                while remaining:
+                    if TokenEstimator.count_text(remaining) <= input_limit:
+                        expanded.append(remaining)
+                        break
+                    chunk = TokenEstimator.truncate_to_tokens(remaining, input_limit)
+                    if not chunk:
+                        chunk = remaining[: max(1, min(len(remaining), input_limit))]
+                    expanded.append(chunk)
+                    remaining = remaining[len(chunk):]
             chunks: list[list[str]] = []
             current: list[str] = []
             current_tokens = 0
             for item in expanded:
-                item_tokens = TokenEstimator.estimate_text(item) + 2
+                item_tokens = TokenEstimator.count_text(item) + 2
                 if current and current_tokens + item_tokens > input_limit:
                     chunks.append(current)
                     current = []
@@ -777,23 +1041,41 @@ class ContextManager:
 
         async def summarize_text(history_text: str) -> str:
             prompt = (
-                "请将以下对话历史压缩成一段简洁的梗概，保留关键信息（如任务目标、"
-                "已完成的子任务、重要结论、文件路径、失败原因等），丢弃细节和重复内容。"
-                "梗概将用于替代原始历史消息发送给后续模型，因此必须让后续模型理解当前状态。"
-                "\n\n--- 历史对话 ---\n\n"
+                "你正在为科研 Agent 压缩对话历史。输出一段结构化梗概，供后续模型"
+                "接续任务；不要写客套话，不要发明未出现的事实。\n\n"
+                "必须保留：\n"
+                "1. 用户总目标与当前子目标\n"
+                "2. 已完成步骤与关键结论（含数值、判据、成功/失败）\n"
+                "3. 重要文件路径——尤其是交接文档（HANDOFF.md / progress.md 等）、"
+                "分子/反应标识、作业 ID\n"
+                "4. 失败原因与已尝试的修复\n"
+                "5. 尚未完成的待办与阻塞点\n\n"
+                "可以丢弃：重复的工具日志、冗长原始输出、已过时的中间猜测、"
+                "逐条 tool_call 参数原文（用路径与结论代替）。\n"
+                "注意：system prompt 与 getskill 资料会在梗概之外单独保留，"
+                "无需在梗概中复述完整 SOP。后续轮次应优先打开梗概里点名的交接文档。\n\n"
+                "--- 历史对话 ---\n\n"
                 f"{history_text}\n\n"
-                "--- 梗概 ---"
+                "--- 梗概（用简洁条目或短段落）---"
             )
 
             if self._llm_client is None:
-                self._llm_client = LLMClient(api_key=api_key, base_url=base_url)
+                self._llm_client = LLMClient(
+                    api_key=api_key, base_url=base_url, model=model
+                )
             response = await self._llm_client.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "你是一个专门压缩对话历史的助手。"},
+                    {
+                        "role": "system",
+                        "content": (
+                            "你是对话历史压缩器。只输出忠实、可执行的状态摘要，"
+                            "优先保留目标、路径、结论与失败信息。"
+                        ),
+                    },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=1.0,
+                temperature=0.2,
             )
             summary = response.choices[0].message.content
             return summary.strip() if summary else "[历史消息过长，未能生成有效梗概]"
@@ -897,57 +1179,69 @@ class ContextManager:
                 tail.pop(0)
         return history, tail
 
-    async def _compress_persistent(self) -> bool:
-        """超预算时先做持久化压缩：把历史梗概一次性写回上下文存储。
+    @staticmethod
+    def _count_tail_keep_assistant(
+        compressible: list[dict], keep_assistant: int
+    ) -> int:
+        """按「最近 N 个 assistant 回合」计算应保留的尾部消息条数。
 
-        旧的 render-time 压缩（_compress_to_budget）只作用于当次请求的消息副本，
-        导致超预算期间每一轮推理都要对整段历史重新做一次 LLM 摘要——每轮摘要
-        内容都不同（KV cache 全灭），延迟与花费随任务长度线性恶化。这里把梗概
-        写回存储，后续轮次从压缩后的上下文出发，只有再次长到超预算时才触发
-        下一次摘要（天然增量）；旧的梗概会被折叠进新梗概，不会无限累积。
-        保留尾部的切口会对齐到 tool_calls 配对边界（见 _split_tail_keep_tool_pairs）。
-
-        返回是否发生了持久化压缩（无可压缩历史或梗概生成失败时为 False，
-        调用方退回 render-time 压缩兜底）。
+        ``keep_assistant <= 0`` 表示不保留任何尾部（含 toolcall 链），全部交梗概。
         """
-        context = await self.load()
-
-        # 可压缩内容 = 非 system 消息 + 旧的压缩梗概（折叠进新梗概）；
-        # 其余 system 消息（Supervisor 建议等）原样保留在前面。
-        pinned_system: list[dict] = []
-        compressible: list[dict] = []
-        for msg in context:
-            content = msg.get("content", "")
-            is_summary = (
-                msg.get("role") == "system"
-                and isinstance(content, str)
-                and content.startswith(COMPACT_SUMMARY_MARKER)
-            )
-            if msg.get("role") == "system" and not is_summary:
-                pinned_system.append(msg)
-            else:
-                compressible.append(msg)
-
-        # 自动压缩只保护最近几个 assistant 回合。完整上下文仍在压缩前持久化，
-        # 梗概保留旧任务状态；较小的尾窗避免工具密集型会话压完仍超过半窗。
+        if keep_assistant <= 0 or not compressible:
+            return 0
         tail_count = 0
         assistant_seen = 0
         for msg in reversed(compressible):
             tail_count += 1
             if msg.get("role") == "assistant":
                 assistant_seen += 1
-            if assistant_seen >= AUTO_COMPACT_KEEP_ASSISTANT:
+            if assistant_seen >= keep_assistant:
                 break
+        return tail_count
 
+    async def _compress_persistent(self) -> bool:
+        """超预算时先做持久化压缩：把历史梗概一次性写回上下文存储。
+
+        保留策略：
+        - 全部非梗概 system（含 Supervisor）；已钉住 Skill 与新 getskill 合并去重封顶
+        - 历史折叠为一条 role=user 的交接梗概（``COMPACT_SUMMARY_INSTRUCTION``）
+        - 最近 ``AUTO_COMPACT_KEEP_ASSISTANT`` 个 assistant 回合（默认 0：不留 toolcall）
+        - 旧梗概（system/user 两种历史格式）会并入新梗概
+
+        返回是否发生了持久化压缩（无可压缩历史或梗概生成失败时为 False）。
+        """
+        context = await self.load()
+
+        pinned_system: list[dict] = []
+        compressible: list[dict] = []
+        for msg in context:
+            # 梗概不论旧 system 还是新 user，都进可压缩历史以便折叠
+            if msg.get("role") == "system" and not self._is_compact_summary_message(msg):
+                pinned_system.append(msg)
+            else:
+                compressible.append(msg)
+
+        existing_pins, pinned_system = self._split_skill_pins_from_system(
+            pinned_system
+        )
+
+        tail_count = self._count_tail_keep_assistant(
+            compressible, AUTO_COMPACT_KEEP_ASSISTANT
+        )
         history, tail = self._split_tail_keep_tool_pairs(compressible, tail_count)
         if not history:
             return False
 
+        # getskill 资料从待摘要历史中钉住，避免 SOP 被梗概冲淡
+        skill_pins, history = self._extract_skill_pins(history)
+        skill_pins = self._normalize_skill_pins(existing_pins + skill_pins)
+        history = await asyncio.to_thread(self._cap_message_sizes, history)
+        if not history:
+            # 只有 skill 可抽、无可摘要正文：仍写回钉住 + 尾部
+            await self.replace(pinned_system + skill_pins + tail)
+            return bool(skill_pins)
+
         try:
-            # Rendering already refuses to send an unbounded individual tool
-            # result to the main model. Apply the same cap before asking the
-            # summary model, otherwise an oversized raw result can make compact
-            # fail forever precisely when it is most needed.
             summary = await self._summarize_history(history)
         except Exception as e:
             print(
@@ -956,15 +1250,12 @@ class ContextManager:
             )
             return False
 
-        summary_msg = {
-            "role": "system",
-            "content": (
-                f"{COMPACT_SUMMARY_MARKER} 以下是由历史对话生成的梗概，"
-                "保留了关键任务状态、结论和文件路径：\n\n"
-                f"{summary}"
-            ),
-        }
-        await self.replace(pinned_system + [summary_msg] + tail)
+        await self.replace(
+            pinned_system
+            + skill_pins
+            + [self._make_compact_summary_message(summary)]
+            + tail
+        )
         return True
 
     async def _compress_to_budget(
@@ -972,48 +1263,47 @@ class ContextManager:
         messages: list[dict],
         max_context_tokens: int,
     ) -> list[dict]:
-        """在不超过 token 预算的前提下压缩消息列表。
+        """在不超过 token 预算的前提下压缩消息列表（仅当次请求副本）。
 
-        重要约定：
-        - 仅压缩“历史消息”（最近 10 条 assistant 消息之前的内容）。
-        - 最近 10 轮对话原封不动保留，避免丢失刚发生的关键信息。
-        - 历史消息不会直接删除，而是通过 FOLLOWER 配置的大模型生成梗概后替换。
-        - 如果梗概生成失败，保留原始历史消息不压缩（宁可多花 token 也不丢失信息）。
+        保留：非 skill / 非梗概 system、去重封顶后的 getskill 资料、一条 user
+        交接梗概、最近 ``RENDER_COMPACT_KEEP_ASSISTANT`` 个 assistant 回合（默认 0）。
         """
         if not messages:
             return messages
 
-        total = await asyncio.to_thread(
-            TokenEstimator.estimate_messages,
-            messages,
-        )
+        total = await self._measure_tokens(messages)
         if total <= max_context_tokens:
             return messages
 
-        # 分离 system 消息
-        system_messages = [m for m in messages if m.get("role") == "system"]
-        non_system = [m for m in messages if m.get("role") != "system"]
+        # 旧版 system 梗概与 skill 钉住都在 system 里；梗概要进 history 折叠
+        system_messages: list[dict] = []
+        non_system: list[dict] = []
+        for msg in messages:
+            if msg.get("role") == "system" and not self._is_compact_summary_message(msg):
+                system_messages.append(msg)
+            else:
+                non_system.append(msg)
+        existing_pins, system_messages = self._split_skill_pins_from_system(
+            system_messages
+        )
 
-        # 最近 10 轮：从后往前数，遇到 10 条 assistant 为止。
-        # 以 assistant 而非 user 计数，是因为一次用户请求可能产生多条 assistant
-        # 回复（例如工具调用后的多次响应），assistant 更能代表“一轮完成”。
-        tail_count = 0
-        assistant_seen = 0
-        for msg in reversed(non_system):
-            tail_count += 1
-            if msg.get("role") == "assistant":
-                assistant_seen += 1
-            if assistant_seen >= RENDER_COMPACT_KEEP_ASSISTANT:
-                break
-
-        # 切口对齐 tool_calls 配对边界，避免孤儿 tool 结果把后续请求打到 400
+        tail_count = self._count_tail_keep_assistant(
+            non_system, RENDER_COMPACT_KEEP_ASSISTANT
+        )
         history, tail = self._split_tail_keep_tool_pairs(non_system, tail_count)
-
         if not history:
-            # 没有可压缩的历史，直接返回原消息
             return messages
 
-        # 调用 LLM 生成历史梗概
+        skill_pins, history = self._extract_skill_pins(history)
+        skill_pins = self._normalize_skill_pins(existing_pins + skill_pins)
+        history = await asyncio.to_thread(self._cap_message_sizes, history)
+        if not history:
+            return system_messages + skill_pins + tail
+
+        # 交接梗概已是 user：若历史只剩旧/新梗概，勿再调一次摘要模型
+        if all(self._is_compact_summary_message(m) for m in history):
+            return messages
+
         try:
             summary = await self._summarize_history(history)
         except Exception as e:
@@ -1023,45 +1313,31 @@ class ContextManager:
             )
             return messages
 
-        summary_msg = {
-            "role": "system",
-            "content": (
-                f"{COMPACT_SUMMARY_MARKER} 以下是由历史对话生成的梗概，"
-                "保留了关键任务状态、结论和文件路径：\n\n"
-                f"{summary}"
-            ),
-        }
-        candidate = system_messages + [summary_msg] + tail
-
-        candidate_tokens = await asyncio.to_thread(
-            TokenEstimator.estimate_messages,
-            candidate,
+        candidate = (
+            system_messages
+            + skill_pins
+            + [self._make_compact_summary_message(summary)]
+            + tail
         )
+
+        candidate_tokens = await self._measure_tokens(candidate)
         if candidate_tokens <= max_context_tokens:
             return candidate
 
-        # 如果梗概仍然超长，返回原始消息（不进一步删除或兜底）
         print(
             f"\033[93m[ContextManager]\033[0m 警告：生成的历史梗概仍超过 "
             f"{max_context_tokens} token 预算，本次请求保留完整上下文。"
         )
         return messages
 
-    async def compact(self, keep_recent: int = 4) -> dict:
+    async def compact(self, keep_recent: int = 5) -> dict:
         """手动压缩持久化上下文。
 
-        保留最近 ``keep_recent`` 条消息原样不变，将其余历史通过 FOLLOWER 配置的
-        大模型生成一段梗概，并以 system 消息形式替换到上下文开头。压缩后的上下文
-        会在后续 ``build_messages`` 时正常参与渲染。保留窗口的切口会向
-        tool_calls 配对边界对齐（见 _split_tail_keep_tool_pairs），避免留下
-        孤儿 tool 结果导致后续请求被严格端点以 400 拒绝。
+        保留：非梗概 system（Supervisor 等）、去重封顶后的 getskill 钉住、
+        一条 user 交接梗概、最近 ``keep_recent`` 条消息；其余生成梗概写回。
 
         Args:
-            keep_recent: 保留的最近消息条数，必须 >= 1，默认 4。
-
-        Returns:
-            统计字典，包含 ``original_count``、``new_count``、
-            ``summary_length``、``compressed``、可选 ``reason``。
+            keep_recent: 保留的最近消息条数，必须 >= 1，默认 5。
         """
         if keep_recent < 1:
             raise ValueError("keep_recent 必须 >= 1")
@@ -1069,16 +1345,31 @@ class ContextManager:
         context = await self.load()
         original_count = len(context)
 
-        if original_count <= keep_recent:
+        pinned_system: list[dict] = []
+        compressible: list[dict] = []
+        for msg in context:
+            if msg.get("role") == "system" and not self._is_compact_summary_message(msg):
+                pinned_system.append(msg)
+            else:
+                compressible.append(msg)
+
+        existing_pins, pinned_system = self._split_skill_pins_from_system(
+            pinned_system
+        )
+
+        if len(compressible) <= keep_recent:
             return {
                 "original_count": original_count,
                 "new_count": original_count,
                 "summary_length": 0,
                 "compressed": False,
-                "reason": f"上下文仅 {original_count} 条消息，未超过保留窗口 {keep_recent} 条",
+                "reason": (
+                    f"可压缩消息仅 {len(compressible)} 条，"
+                    f"未超过保留窗口 {keep_recent} 条"
+                ),
             }
 
-        history, tail = self._split_tail_keep_tool_pairs(context, keep_recent)
+        history, tail = self._split_tail_keep_tool_pairs(compressible, keep_recent)
         if not history:
             return {
                 "original_count": original_count,
@@ -1088,17 +1379,27 @@ class ContextManager:
                 "reason": "保留窗口向 tool_calls 配对边界对齐后没有可压缩的历史",
             }
 
-        summary = await self._summarize_history(history)
+        skill_pins, history = self._extract_skill_pins(history)
+        skill_pins = self._normalize_skill_pins(existing_pins + skill_pins)
+        history = await asyncio.to_thread(self._cap_message_sizes, history)
+        if not history:
+            new_context = pinned_system + skill_pins + list(tail)
+            await self.replace(new_context)
+            return {
+                "original_count": original_count,
+                "new_count": len(new_context),
+                "summary_length": 0,
+                "compressed": bool(skill_pins),
+                "reason": "历史仅含 getskill 资料，已钉住并保留尾部",
+            }
 
-        summary_msg = {
-            "role": "system",
-            "content": (
-                f"{COMPACT_SUMMARY_MARKER} 以下是由历史对话生成的梗概，"
-                "保留了关键任务状态、结论和文件路径：\n\n"
-                f"{summary}"
-            ),
-        }
-        new_context = [summary_msg] + list(tail)
+        summary = await self._summarize_history(history)
+        new_context = (
+            pinned_system
+            + skill_pins
+            + [self._make_compact_summary_message(summary)]
+            + list(tail)
+        )
         await self.replace(new_context)
 
         return {

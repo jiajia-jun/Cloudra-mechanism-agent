@@ -181,7 +181,7 @@ def _sidebar(app: VisualCaseApp) -> None:
 def _status(app: VisualCaseApp) -> None:
     status = app.query_one("#status-bar", StatusBar)
     status.conversation_id = "conv-123456"
-    status.context_info = "42条消息≈8.2k tokens"
+    status.context_info = "Coordinator 42条/8.2k · 3路Σ12.1k"
     status.yolo = True
     status.pending = 2
     status.session_state = "running"

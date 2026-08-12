@@ -6,10 +6,13 @@ import pytest
 
 from cloudra.dag.engine import DagEngine
 from cloudra.dag.models import (
+    AddNode,
     CoverageContract,
     GraphActor,
-    GraphOperation,
     MutationBatch,
+    OccurrenceNode,
+    PlannedNode,
+    SetCoverageContract,
 )
 from cloudra.dag.store import DagStore
 from cloudra.infra.config import get_config
@@ -71,15 +74,14 @@ def _seed_delivery_hypothesis(store):
             base_revisions=store.load_bundle().revisions,
             rationale="Claisen hypothesis",
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="delivery",
-                    data={
-                        "node_id": "r",
-                        "node_type": "intermediate_occurrence",
-                        "label": "reactant",
-                        "payload": {"evidence_level": "proposed"},
-                    },
+                    node=OccurrenceNode(
+                        node_id="r",
+                        label="reactant",
+                        evidence_level="proposed",
+                    ),
                 ),
             ],
         )
@@ -97,19 +99,16 @@ def _seed_ready_work(store, tool_name="ts_guess"):
             base_revisions=store.load_bundle().revisions,
             rationale="schedule work",
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={
-                        "node_id": f"work-{tool_name}",
-                        "node_type": "calculation",
-                        "label": tool_name,
-                        "payload": {
-                            "status": "ready",
-                            "priority": 1,
-                            "tool_name": tool_name,
-                        },
-                    },
+                    node=PlannedNode(
+                        node_id=f"work-{tool_name}",
+                        label=tool_name,
+                        status="ready",
+                        priority=1,
+                        tool_name=tool_name,
+                    ),
                 )
             ],
         )
@@ -146,8 +145,13 @@ async def test_fresh_initialization_does_not_wake_supervisor(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_resumed_initialization_with_delivery_content_wakes_supervisor(tmp_path):
-    """恢复会话（delivery 已有 Coordinator 的机理假设）初始化触发一次 graph_initialization。"""
+async def test_initialize_does_not_auto_supervise_when_delivery_exists(tmp_path):
+    """唤醒/续跑只加载图与契约，不在 initialize 时自动 graph_initialization。
+
+    用户追加要求会再起 Coordinator；若此处拉 Supervisor 会与首轮指令抢拍，
+    且模型常在 goal/stop 复核提示下空转。需要排产时走 delivery_updated /
+    user_replan / pre_delivery。
+    """
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-resume-init", "dag_guided")
     store = DagStore(db)
@@ -158,7 +162,9 @@ async def test_resumed_initialization_with_delivery_content_wakes_supervisor(tmp
 
     await controller.initialize()
 
-    assert [call["trigger"] for call in supervisor.calls] == ["graph_initialization"]
+    assert supervisor.calls == []
+    assert controller._initialized is True
+    assert controller.contract is not None
 
 
 @pytest.mark.asyncio
@@ -295,10 +301,7 @@ def test_supervisor_may_strengthen_but_not_lower_coverage(tmp_path):
             actor_id="supervisor",
             base_revisions=store.load_bundle().revisions,
             operations=[
-                GraphOperation(
-                    op="set_coverage_contract",
-                    data={"contract": stronger.model_dump(mode="json")},
-                )
+                SetCoverageContract(op="set_coverage_contract", contract=stronger)
             ],
         )
     )
@@ -309,13 +312,9 @@ def test_supervisor_may_strengthen_but_not_lower_coverage(tmp_path):
             actor_id="supervisor",
             base_revisions=store.load_bundle().revisions,
             operations=[
-                GraphOperation(
+                SetCoverageContract(
                     op="set_coverage_contract",
-                    data={
-                        "contract": CoverageContract.mechanism_default().model_dump(
-                            mode="json"
-                        )
-                    },
+                    contract=CoverageContract.mechanism_default(),
                 )
             ],
         )
@@ -592,8 +591,8 @@ async def test_supervisor_exception_finalizes_failed_without_propagating(tmp_pat
 
 @pytest.mark.asyncio
 async def test_graph_view_result_not_truncated_at_4000(tmp_path):
-    """回归：process 视图超过旧 4000 字符上限时必须完整进入 Supervisor 上下文，
-    否则它读到残缺 JSON 后会反复重查同一视图、零产出结束。"""
+    """回归：process 视图必须完整进入 Supervisor 上下文（可解析 JSON），
+    不得在结构中间被 MAX_TOOL_RESULT_CHARS 截断。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -609,15 +608,15 @@ async def test_graph_view_result_not_truncated_at_4000(tmp_path):
             base_revisions=store.load_bundle().revisions,
             rationale="seed many work nodes",
             operations=[
-                GraphOperation(
+                AddNode(
                     op="add_node",
                     graph="process",
-                    data={
-                        "node_id": f"work-{i:02d}",
-                        "node_type": "calculation",
-                        "label": f"calculation {i} " + "x" * 100,
-                        "payload": {"status": "ready", "priority": i},
-                    },
+                    node=PlannedNode(
+                        node_id=f"work-{i:02d}",
+                        label=f"calculation {i} " + "x" * 100,
+                        status="ready",
+                        priority=i,
+                    ),
                 )
                 for i in range(30)
             ],
@@ -643,8 +642,17 @@ async def test_graph_view_result_not_truncated_at_4000(tmp_path):
     tool_contents = [
         str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
     ]
-    assert any(len(c) > 4000 for c in tool_contents)
+    assert tool_contents
     assert not any("结果过长被截断" in c for c in tool_contents)
+    payload = json.loads(tool_contents[-1])
+    assert payload["success"] is True
+    assert payload["result"]["total_nodes"] == 30
+    assert len(payload["result"]["nodes"]) == 30
+    # 一页装得下时不重复附 index
+    assert "index" not in payload["result"]
+    # 摘要视图：无完整 refs 列表，只有计数
+    assert "refs" not in payload["result"]["nodes"][0]
+    assert "n_refs" in payload["result"]["nodes"][0]
 
 
 
@@ -705,3 +713,281 @@ async def test_graph_supervisor_emits_render_events(tmp_path):
     finished = next(d for k, d in emitted if k == "tool_finished")
     assert finished["tool"] == "dag_graph"
     assert finished["result"]
+
+
+@pytest.mark.asyncio
+async def test_view_survives_malformed_priority_payload(tmp_path):
+    """回归：模型往 process 节点写了非数字 priority（如 "high"）后，
+    view 的投影派生不得崩溃——否则 Supervisor 的运行会被一次 view 直接终结。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-bad-priority", data_dir=tmp_path).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    engine = DagEngine(store)
+    seeded = engine.apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.SUPERVISOR,
+            actor_id="supervisor",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed work with malformed priority",
+            operations=[
+                AddNode(
+                    op="add_node",
+                    graph="process",
+                    node=PlannedNode(
+                        node_id="work-bad",
+                        label="poisoned priority",
+                        status="ready",
+                        priority="high",
+                    ),
+                ),
+                AddNode(
+                    op="add_node",
+                    graph="process",
+                    node=PlannedNode(
+                        node_id="work-ok",
+                        label="normal priority",
+                        status="ready",
+                        priority=5,
+                    ),
+                ),
+            ],
+        )
+    )
+    assert seeded.accepted
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-bad-priority")
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c-view", {"action": "view"})]),
+                _response(content="看完了。"),
+            ]
+        ),
+    )
+
+    result = await supervisor.run("new_evidence", session_id="s1")
+
+    assert result.rounds == 1
+    tool_contents = [
+        str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
+    ]
+    view_content = next(c for c in tool_contents if "frontier" in c)
+    assert "【系统错误】" not in view_content
+    payload = json.loads(view_content)
+    frontier = payload["result"]["frontier"]
+    # 脏 priority 按 0 处理：正常节点排前面，脏节点仍在 frontier 里可见
+    assert [n["node_id"] for n in frontier] == ["work-ok", "work-bad"]
+    assert frontier[1]["priority"] == 0
+
+
+@pytest.mark.asyncio
+async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
+    """回归：dag_graph 工具内部异常必须以【系统错误】回喂 Supervisor 上下文，
+    让它有机会调整，而不是把整个督导运行炸掉、session 落为 failed。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-tool-crash", data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    async def boom(self, user_input, session):
+        raise RuntimeError("projection exploded")
+
+    monkeypatch.setattr(
+        "cloudra.tools.Plantool.dag_graph.DagGraph.tool_call", boom
+    )
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-tool-crash")
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c-view", {"action": "view"})]),
+                _response(content="工具异常，先结束本轮。"),
+            ]
+        ),
+    )
+    emitted = []
+
+    async def sink(event_type, data):
+        emitted.append((event_type, data))
+
+    result = await supervisor.run("new_evidence", session_id="s1", event_sink=sink)
+
+    assert result.rounds == 1
+    assert result.note == ""
+    tool_contents = [
+        str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
+    ]
+    assert any("【系统错误】" in c and "projection exploded" in c for c in tool_contents)
+    # UI 事件流不悬空：tool_started 后必须跟 tool_finished
+    kinds = [k for k, _ in emitted]
+    assert "tool_started" in kinds and "tool_finished" in kinds
+
+
+@pytest.mark.asyncio
+async def test_max_rounds_ends_with_wrapup_instead_of_cutoff(tmp_path):
+    """回归：真实运行中 Supervisor 常在排障中途撞上轮次预算，被无声切断
+    （"view 之后被迫结束"）。预算用尽后必须给一次不执行工具的收尾调用，
+    session 以正常总结结束；收尾回复里的 tool_calls 被丢弃、不落上下文。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-wrapup", data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-wrapup")
+    agent = supervisor._ensure_agent()
+    budget = supervisor.MAX_ROUNDS
+    responses = [
+        _response([_tool_call(f"c-view-{i}", {"action": "view"})]) for i in range(budget)
+    ]
+    # 收尾回复带文本 + 一个不该被执行的 tool_call：文本保留，调用丢弃。
+    responses.append(
+        _response(
+            [_tool_call("c-late", {"action": "view"})],
+            content="预算用尽：optfreq 系列仍 pending，待下次触发继续。",
+        )
+    )
+    llm = AsyncMock(side_effect=responses)
+    object.__setattr__(agent, "llm_call", llm)
+    emitted = []
+
+    async def sink(event_type, data):
+        emitted.append((event_type, data))
+
+    result = await supervisor.run("new_evidence", session_id="s1", event_sink=sink)
+
+    assert result.rounds == budget
+    assert f"reached MAX_ROUNDS ({budget})" in result.note
+    # 收尾恰好多一次 llm 调用
+    assert llm.await_count == budget + 1
+    context = await agent.get_context()
+    closing = context[-1]
+    assert closing["role"] == "assistant"
+    assert "预算用尽" in str(closing["content"])
+    assert "tool_calls" not in closing
+    # 收尾内容进了事件流（TUI 可见），且没有多余的 tool_started
+    started = [d for k, d in emitted if k == "tool_started"]
+    assert len(started) == budget
+    assert any(
+        "预算用尽" in d.get("delta", "") for k, d in emitted if k == "llm_chunk"
+    )
+
+
+@pytest.mark.asyncio
+async def test_wrapup_llm_failure_does_not_break_run(tmp_path):
+    """收尾调用失败不影响运行结果：note 仍是 MAX_ROUNDS，异常被吞。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-wrapup-fail", data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-wrapup-fail")
+    agent = supervisor._ensure_agent()
+    budget = supervisor.MAX_ROUNDS
+    responses = [
+        _response([_tool_call(f"c-view-{i}", {"action": "view"})]) for i in range(budget)
+    ]
+    responses.append(RuntimeError("provider down at wrap-up"))
+    object.__setattr__(agent, "llm_call", AsyncMock(side_effect=responses))
+
+    result = await supervisor.run("new_evidence", session_id="s1")
+
+    assert result.rounds == budget
+    assert f"reached MAX_ROUNDS ({budget})" in result.note
+
+
+@pytest.mark.asyncio
+async def test_supervisor_folds_stale_view_results(tmp_path):
+    """回归：每次触发追加 view 会让 Supervisor 上下文线性膨胀。新 view 成功后
+    更早的 view 工具结果应折叠成一行占位，保留决策/mutate 记录。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("supervisor-fold-views", data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id="supervisor-fold-views")
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c1", {"action": "view", "graph_kind": "process"})]),
+                _response([_tool_call("c2", {"action": "view"})]),
+                _response(content="两张视图都看过了。"),
+            ]
+        ),
+    )
+
+    await supervisor.run("new_evidence", session_id="s1")
+
+    tool_blocks = [b for b in await agent.get_context() if b.get("role") == "tool"]
+    assert len(tool_blocks) == 2
+    assert "【过时视图已折叠】" in str(tool_blocks[0].get("content", ""))
+    assert "frontier" in str(tool_blocks[1].get("content", ""))
+    assert "【过时视图已折叠】" not in str(tool_blocks[1].get("content", ""))
+
+
+@pytest.mark.asyncio
+async def test_bind_evidence_acceptance_triggers_new_evidence(tmp_path):
+    """agent 的 bind_evidence 挂载成功 → new_evidence 复核（证据等级已被 harness 派生）。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-bind-trigger", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-bind-1",
+        "dag_graph",
+        {
+            "action": "bind_evidence",
+            "tool_call_id": "tc-x",
+            "bind_target": "step1",
+            "evidence_role": "ts_optimization_frequency",
+        },
+        {"success": True, "accepted": True},
+    )
+
+    assert [call["trigger"] for call in supervisor.calls] == ["new_evidence"]
+
+
+@pytest.mark.asyncio
+async def test_failed_bind_and_review_evidence_do_not_trigger(tmp_path):
+    """bind_evidence 被拒不触发；Supervisor 自己的 review_evidence 也不应唤醒自己。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-bind-quiet", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-bind-2",
+        "dag_graph",
+        {"action": "bind_evidence", "tool_call_id": "tc-x", "bind_target": "step1"},
+        {"success": False, "accepted": False, "error": "did not succeed"},
+    )
+    await controller.on_tool_finished(
+        "tc-review-1",
+        "dag_graph",
+        {
+            "action": "review_evidence",
+            "bind_target": "step1",
+            "verdict": "rejected",
+            "rationale": "证据不成立",
+        },
+        {"success": True, "accepted": True},
+    )
+
+    assert supervisor.calls == []

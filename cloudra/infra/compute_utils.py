@@ -200,3 +200,27 @@ def get_log_path(input_file: str, job_type: str = "gaussian") -> str:
     if job_type == "gaussian":
         return str(path.with_suffix(".log"))
     return str(path.with_suffix(".out"))
+
+
+def allocate_gaussian_scratch(task_id: int, workdir: str) -> Path:
+    """为单个 Gaussian 任务分配独占的 GAUSS_SCRDIR。
+
+    并行本地任务共用全局 SCRDIR 时，g16 Link0 写入的 ``Gau-$PID.*`` 会互相覆盖，
+    典型症状是日志在打印 Route/坐标前就 FileIO 退出。子目录在任务结束后由
+    :func:`cleanup_gaussian_scratch` 删除——运行期间不得清理。
+    """
+    base = os.environ.get("GAUSS_SCRDIR") or os.path.join(workdir, ".g16_scratch")
+    scratch = Path(base) / f"cloudra_g16_task{task_id}_{os.getpid()}"
+    scratch.mkdir(parents=True, exist_ok=True)
+    return scratch
+
+
+def cleanup_gaussian_scratch(scratch: Path | str | None) -> None:
+    """删除 :func:`allocate_gaussian_scratch` 创建的任务级 scratch（忽略错误）。"""
+    if not scratch:
+        return
+    path = Path(scratch)
+    # 只删 cloudra_g16_* 叶子，避免误删用户全局 GAUSS_SCRDIR
+    if not path.name.startswith("cloudra_g16_"):
+        return
+    shutil.rmtree(path, ignore_errors=True)

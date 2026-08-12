@@ -74,9 +74,9 @@ def evaluate_delivery(
         )
 
     for node in delivery.nodes:
-        level = str(node.payload.get("evidence_level", "proposed"))
+        level = node.evidence_level
         if level in _DISPOSITION_LEVELS:
-            if contract.require_branch_disposition and not str(node.payload.get("reason", "")).strip():
+            if contract.require_branch_disposition and not node.reason.strip():
                 record(
                     CoverageGateResult(
                         code="missing_branch_disposition",
@@ -116,9 +116,9 @@ def evaluate_delivery(
             )
 
     for edge in delivery.edges:
-        level = str(edge.payload.get("evidence_level", "proposed"))
+        level = edge.evidence_level
         if level in _DISPOSITION_LEVELS:
-            if contract.require_branch_disposition and not str(edge.payload.get("reason", "")).strip():
+            if contract.require_branch_disposition and not edge.reason.strip():
                 record(
                     CoverageGateResult(
                         code="missing_branch_disposition",
@@ -161,7 +161,7 @@ def evaluate_delivery(
             )
         if contract.require_thermochemistry and not (
             level == "thermo_annotated"
-            or edge.payload.get("thermochemistry_supported") is True
+            or edge.thermochemistry_supported is True
         ):
             record(
                 CoverageGateResult(
@@ -186,8 +186,8 @@ def _compact_process_node(node) -> dict[str, Any]:
         "node_id": node.node_id,
         "node_type": node.node_type,
         "label": node.label,
-        "status": node.payload.get("status", "proposed"),
-        "priority": node.payload.get("priority", 0),
+        "status": node.status,
+        "priority": node.priority,
     }
 
 
@@ -197,14 +197,13 @@ def build_projection(
     mode: str | OrchestrationMode,
     contract: CoverageContract,
     history: list[dict[str, Any]] | None = None,
+    actor_id: str | None = None,
 ) -> DagProjection:
     process = snapshot.process
-    statuses = {
-        node.node_id: node.payload.get("status", "proposed") for node in process.nodes
-    }
+    statuses = {node.node_id: node.status for node in process.nodes}
     dependencies: dict[str, list[str]] = {node.node_id: [] for node in process.nodes}
     for edge in process.edges:
-        if edge.payload.get("status") in {"skipped", "superseded"}:
+        if edge.status in {"skipped", "superseded"}:
             continue
         if edge.target_node_id in dependencies:
             dependencies[edge.target_node_id].append(edge.source_node_id)
@@ -224,15 +223,15 @@ def build_projection(
             blockers.append(
                 {
                     **_compact_process_node(node),
-                    "reason": node.payload.get("reason")
-                    or node.payload.get("blocked_reason")
+                    "reason": node.reason
+                    or node.blocked_reason
                     or (f"waiting for: {', '.join(sorted(unmet))}" if unmet else ""),
                 }
             )
     candidates.sort(
         key=lambda node: (
-            -int(node.payload.get("priority", 0)),
-            str(node.payload.get("created_at", "")),
+            -node.priority,
+            node.created_at,
             node.node_id,
         )
     )
@@ -266,4 +265,14 @@ def build_projection(
         blockers=blockers[:12],
         delivery_gaps=delivery_gaps,
         recent_mutations=safe_history,
+        assigned_to_me=(
+            [
+                _compact_process_node(node)
+                for node in process.nodes
+                if node.assignee == actor_id
+                and statuses[node.node_id] not in {"succeeded", "skipped"}
+            ][:12]
+            if actor_id
+            else []
+        ),
     )

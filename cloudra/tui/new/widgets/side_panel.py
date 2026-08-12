@@ -16,6 +16,7 @@ from textual.widgets import Label, ListItem, ListView, Static
 _STATE_ICONS = {
     "queued": "◌",
     "running": "●",
+    "waiting": "◎",
     "cancel_requested": "◐",
 }
 _ACTIVE_STATES = set(_STATE_ICONS)

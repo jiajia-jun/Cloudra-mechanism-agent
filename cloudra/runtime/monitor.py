@@ -125,18 +125,35 @@ async def run_guard(
 
     # 启动 calculator；start_new_session 保证 guard 意外退出时 calculator 不被连带杀死。
     # Windows 不支持 start_new_session，仅 POSIX 传入。
+    from cloudra.infra.compute_utils import (
+        allocate_gaussian_scratch,
+        cleanup_gaussian_scratch,
+    )
+
+    calc_env = os.environ.copy()
+    scratch_dir = None
+    if job_type == "gaussian":
+        scratch_dir = allocate_gaussian_scratch(taskid, workdir)
+        calc_env["GAUSS_SCRDIR"] = str(scratch_dir)
+        print(f'[guard] Gaussian scratch: {scratch_dir}')
+
     calc_kwargs = {
         "stdout": subprocess.DEVNULL,
         "stderr": subprocess.DEVNULL,
         "stdin": subprocess.DEVNULL,
         "cwd": workdir,
+        "env": calc_env,
     }
     if is_posix():
         calc_kwargs["start_new_session"] = True
-    calc_proc = await asyncio.create_subprocess_exec(*calculator_cmd, **calc_kwargs)
-    print(f'[guard] calculator 启动 (PID {calc_proc.pid})，等待其结束...')
-    returncode = await calc_proc.wait()
-    print(f'[guard] calculator 退出，退出码：{returncode}')
+    try:
+        calc_proc = await asyncio.create_subprocess_exec(*calculator_cmd, **calc_kwargs)
+        print(f'[guard] calculator 启动 (PID {calc_proc.pid})，等待其结束...')
+        returncode = await calc_proc.wait()
+        print(f'[guard] calculator 退出，退出码：{returncode}')
+    finally:
+        # 必须在 g16 退出后再清；运行中删除会制造 FileIO / 假“输入被删”。
+        cleanup_gaussian_scratch(scratch_dir)
 
     data_dic, is_success = await _parse_log(log_path, parse_timeout, job_type=job_type)
     if data_dic is None:
