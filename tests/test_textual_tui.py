@@ -160,6 +160,41 @@ async def test_input_bar_ctrl_enter_inserts_newline():
 
 
 @pytest.mark.asyncio
+async def test_submit_textarea_survives_zero_content_width():
+    """窄宽度 + tall border + padding 把 content_width 吃成 0 时不得崩溃。
+
+    现场：SubmitTextArea wrap(0) → ValueError: range() arg 3 must not be zero。
+    """
+    from textual.app import App
+    from textual.geometry import Region
+
+    from cloudra.tui.new.widgets.input_bar import SubmitTextArea
+
+    class TestApp(App):
+        CSS = """
+        SubmitTextArea {
+            width: 4;
+            height: 5;
+            padding: 0 1;
+            border: tall green;
+        }
+        """
+
+        def compose(self):
+            yield SubmitTextArea(
+                placeholder="输入任务或补充要求… (方向键移动光标, Enter 发送)",
+                id="message-input",
+            )
+
+    app = TestApp()
+    async with app.run_test(size=(4, 8)) as pilot:
+        await pilot.pause()
+        textarea = app.query_one("#message-input", SubmitTextArea)
+        lines = textarea.render_lines(Region(0, 0, 4, 5))
+        assert len(lines) == 5
+
+
+@pytest.mark.asyncio
 async def test_chat_log_switches_sessions():
     """ChatLog 能按 session 切换显示。"""
     from textual.app import App
@@ -626,6 +661,47 @@ async def test_send_echoes_user_message_before_submit(tmp_path, monkeypatch):
         assert not chat_log.records_for_session("_pending")
         assert len(chat_log.records_for_session("a-0_run_test123")) >= 1
         assert screen.current_session_id == "a-0_run_test123"
+
+
+@pytest.mark.asyncio
+async def test_start_coordinator_task_sends_working_directory(tmp_path, monkeypatch):
+    """新任务必须把 TUI 启动目录交给 runtime，不能靠隔离进程自己的 cwd。"""
+    from pathlib import Path
+
+    app = _make_app(tmp_path, monkeypatch)
+    captured = {}
+
+    class FakeRecord:
+        session_id = "a-0_run_wd"
+        state = "queued"
+
+    async def fake_submit(*_args, **kwargs):
+        captured.update(kwargs)
+        return kwargs.get("conversation_id"), FakeRecord()
+
+    async with app.run_test():
+        screen = app.screen
+        screen.service.submit_session_async = fake_submit
+        await screen._start_coordinator_task("跑 DFT")
+        assert captured["working_directory"] == screen.working_directory
+        assert Path(captured["working_directory"]).is_absolute()
+
+
+@pytest.mark.asyncio
+async def test_append_message_sends_working_directory(tmp_path, monkeypatch):
+    """追问/唤醒也要带工作目录，才能补上历史上 working_directory 为空的 session。"""
+    app = _make_app(tmp_path, monkeypatch)
+    captured = {}
+
+    async def fake_append(**kwargs):
+        captured.update(kwargs)
+        return None, None
+
+    async with app.run_test():
+        screen = app.screen
+        screen.service.append_session_message_command = fake_append
+        await screen._append_message("a-4_task1", "继续")
+        assert captured["working_directory"] == screen.working_directory
 
 
 @pytest.mark.asyncio

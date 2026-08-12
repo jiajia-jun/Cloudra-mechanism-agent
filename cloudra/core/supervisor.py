@@ -11,7 +11,8 @@
 
 核心设计：
 - 不按 ReAct 步数轮询；仅由图事件触发；
-- 不向 Coordinator 上下文注入自由文本建议；
+- 结束时把结论文本钉进 Coordinator 的 ``[Supervisor]`` 建议（覆盖旧建议）；
+  仅当督导跑在 Coordinator 工具循环之外（子 Agent / API）时才 inject_event 唤醒；
 - 所有在线影响必须经过 DAG engine 的权限、revision 与无环校验；
 - 上下文每次触发不清空，只追加触发消息。
 """
@@ -115,6 +116,7 @@ class GraphSupervisorResult(BaseModel):
     rounds: int = 0
     mutations: list[dict] = Field(default_factory=list)
     note: str = ""
+    report: str = ""
 
 
 class GraphSupervisor:
@@ -125,12 +127,12 @@ class GraphSupervisor:
     对其调用 clear_context。
     """
 
-    # 真实排障轨迹（翻页 view + 被拒 mutate 重试）常在 8 轮内做不完正事，
-    # 到顶即被切断、零收尾。16 轮配合 view 过滤与可自纠的拒绝消息足够。
-    MAX_ROUNDS = 16
-    # graph_kind 视图已是摘要；8000 仍可能被「满页节点 + 全图 index」顶破，
-    # 12000 覆盖约 50 个 planned 节点的摘要页。真要更大请用 node_ids 缩小范围。
-    MAX_TOOL_RESULT_CHARS = 12000
+    # 单次触发不设工具轮次上限：完整 process 排产常要数十次 mutate（每批 1–3 op），
+    # 旧 16 轮预算会在只 view 时被切断、图没写完。结束条件是模型不再发
+    # tool_calls，或 llm_call 失败；空回复仍强制收尾给 Coordinator。
+    # 空回复且无 tool_calls 时连续容忍次数：模型常在 view 后空转一拍，
+    # 立刻收尾并禁止工具会把「我将排产」写成正文、图却不变。
+    EMPTY_END_GRACE = 3
 
     def __init__(
         self,
@@ -156,11 +158,25 @@ class GraphSupervisor:
     def _trigger_message(trigger: str, coordinator_request: Optional[str]) -> str:
         parts = [f"【图事件触发】{trigger}"]
         if coordinator_request:
-            parts.append(f"【Coordinator 机理变更说明】{coordinator_request}")
+            label = (
+                "【Coordinator 留言】"
+                if trigger == "coordinator_message"
+                else "【Coordinator 机理变更说明】"
+            )
+            parts.append(f"{label}{coordinator_request}")
+        if trigger in {"delivery_updated", "coordinator_message", "graph_initialization"}:
+            parts.append(
+                "排产条件：若 delivery 已有实质机理且 process 仍只有模板 planned "
+                "（p_analyze/p_literature/p_skill/p_delivery_design）或非模板计划"
+                "尚未覆盖当前缺口，应 mutate 补计算 planned 节点；"
+                "若非模板 frontier 已覆盖缺口，可不改图但必须说明理由。"
+                "无论是否改图，结束前必须留下给 Coordinator 的结论文本（禁止空回复）。"
+            )
         parts.append(
             "请先用 dag_graph(action=view) 读 frontier/blockers/delivery_gaps 投影；"
-            "确有必要时再用 graph_kind + node_ids/status_filter 取摘要子图，"
-            "用 mutate 维护 process DAG。无事可做时直接结束，不要再调用工具。"
+            "确有必要时再用 graph_kind + node_ids/status_filter 取摘要子图。"
+            "需要排产或改流程时用 mutate 维护 process DAG；"
+            "先 mutate（若需要）再写结论文本——不要用正文代替 mutate。"
         )
         return "\n".join(parts)
 
@@ -212,18 +228,111 @@ class GraphSupervisor:
         if changed:
             await agent._ensure_context_manager().replace(rewritten)
 
+    @staticmethod
+    def _fallback_report(
+        trigger: str,
+        rounds: int,
+        mutations: list[dict],
+        note: str,
+    ) -> str:
+        accepted = sum(1 for m in mutations if m.get("accepted"))
+        parts = [
+            f"Supervisor 本轮结论（{trigger}）：",
+            f"工具轮次={rounds}，accepted mutations={accepted}/{len(mutations)}。",
+        ]
+        if note:
+            parts.append(f"note={note}。")
+        parts.append(
+            "本轮未留下自然语言说明；请查看 process 图变更，"
+            "或用 dag_graph(action=message_supervisor) 再沟通。"
+        )
+        return "".join(parts)
+
+    async def _force_text_closing(
+        self,
+        agent: SupervisorAgent,
+        *,
+        prompt: str,
+        emit,
+        fallback: str,
+    ) -> str:
+        """强制一次仅文本收尾（丢弃 tool_calls）。"""
+        await agent.update_context({"role": "user", "content": prompt})
+        try:
+            response = await agent.llm_call()
+            closing = (response.choices[0].message.content or "").strip()
+        except Exception as exc:
+            logger.warning("[Supervisor] force-closing llm_call failed: %s", exc)
+            closing = ""
+        text = closing or fallback
+        await agent.update_context({"role": "assistant", "content": text})
+        if text:
+            await emit("llm_chunk", {
+                "stream": "content",
+                "delta": text,
+                "agent_id": "supervisor",
+                "agent_name": "supervisor",
+            })
+            await emit("llm_stream_end", {})
+        return text
+
+    async def _publish_report_to_coordinator(
+        self, report: str, *, wake_coordinator: bool
+    ) -> None:
+        """钉住 ``[Supervisor]`` 建议；仅在 Coordinator 可能 waiting 时发唤醒事件。
+
+        Coordinator 自己的 mutate / message_supervisor 路径里 Supervisor 是同步
+        await 的，下一轮推理 naturally 能读到钉住的建议——再 inject 会变成
+        重复的 ``【supervisor】`` 系统行。子 Agent 或 API（user_replan）触发时
+        Coordinator 往往在 waiting，必须 inject_event 才能拉起来。
+        """
+        if not report.strip():
+            return
+        from cloudra.persistence.context_manager import ContextManager
+        from cloudra.persistence.database import get_database_path
+
+        try:
+            cm = ContextManager(
+                agent_id="a-0",
+                conversation_id=self.conversation_id,
+                prompt=None,
+                query="",
+                session_id=None,
+            )
+            await cm.set_supervisor_advice(report.strip())
+        except Exception as exc:
+            logger.warning("[Supervisor] set_supervisor_advice failed: %s", exc)
+        if not wake_coordinator:
+            return
+        try:
+            await ContextManager.inject_event(
+                conversation_id=self.conversation_id,
+                agent_id="a-0",
+                event_type="supervisor",
+                content=report.strip(),
+                db_path=get_database_path(self.conversation_id),
+            )
+        except Exception as exc:
+            logger.warning("[Supervisor] inject_event to coordinator failed: %s", exc)
+
     async def run(
         self,
         trigger: str,
         coordinator_request: Optional[str] = None,
         session_id: Optional[str] = None,
         event_sink=None,
+        wake_coordinator: bool = False,
     ) -> GraphSupervisorResult:
-        """追加一条触发消息并运行 Supervisor 的工具循环（至多 MAX_ROUNDS 轮）。
+        """追加一条触发消息并运行 Supervisor 的工具循环。
 
+        不设轮次上限：模型不再发 tool_calls（或 llm_call 失败）才结束。
         event_sink：可选异步回调 (event_type, data)，由调用方（DagController）
         把运行过程写进 supervisor 自己的 session 事件流——TUI 选中它的
         session 行时才能看到推理与 dag_graph 调用，否则窗口是空的。
+
+        结束时无论是否改图，都会把结论文本钉进 Coordinator 的 ``[Supervisor]``
+        建议；若模型空回复则强制再收尾一次。``wake_coordinator`` 为真时再
+        inject_event（子 Agent / API 触发，Coordinator 可能在 waiting）。
         """
         # 惰性导入，避免模块级依赖 tools 包。
         from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
@@ -247,8 +356,10 @@ class GraphSupervisor:
         mutations: list[dict] = []
         rounds = 0
         note = ""
+        last_report = ""
+        empty_streak = 0
 
-        for _ in range(self.MAX_ROUNDS):
+        while True:
             try:
                 response = await agent.llm_call()
             except Exception as exc:  # LLM 故障不炸任务：Supervisor 是顾问角色
@@ -258,11 +369,13 @@ class GraphSupervisor:
             message = response.choices[0].message
             raw_tool_calls = message.tool_calls or []
             tool_calls = [tc.model_dump(exclude_none=True) for tc in raw_tool_calls]
+            content_text = (message.content or "").strip()
             block = {"role": "assistant", "content": message.content or ""}
             if tool_calls:
                 block["tool_calls"] = tool_calls
             await agent.update_context(block)
-            if message.content:
+            if content_text:
+                last_report = content_text
                 await _emit("llm_chunk", {
                     "stream": "content",
                     "delta": message.content,
@@ -271,7 +384,25 @@ class GraphSupervisor:
                 })
                 await _emit("llm_stream_end", {})
             if not tool_calls:
-                break
+                if content_text:
+                    last_report = content_text
+                    break
+                # 空回复 + 无工具：不算结束。立刻强制收尾并禁止工具，
+                # 模型会把排产计划写成正文（「我将 mutate」），process 图不变。
+                empty_streak += 1
+                if empty_streak == 1:
+                    await agent.update_context({
+                        "role": "user",
+                        "content": (
+                            "【系统提示】空回复不算结束。若 process 仍缺非模板排产，"
+                            "现在调用 dag_graph(action=mutate) 写入 planned 节点；"
+                            "不要把计划写在正文里代替 mutate。"
+                        ),
+                    })
+                if empty_streak >= self.EMPTY_END_GRACE:
+                    break
+                continue
+            empty_streak = 0
             rounds += 1
             for tool_call in tool_calls:
                 tool_call_id = tool_call.get("id")
@@ -339,10 +470,6 @@ class GraphSupervisor:
                         "revisions": payload.get("result", {}).get("revisions"),
                     })
                 content = json.dumps(payload, ensure_ascii=False, default=str)
-                if len(content) > self.MAX_TOOL_RESULT_CHARS:
-                    content = content[: self.MAX_TOOL_RESULT_CHARS] + (
-                        "…【系统提示】结果过长被截断；请用 graph_kind 或更具体的查询缩小范围。"
-                    )
                 await _emit("tool_finished", {
                     "tool": "dag_graph",
                     "arguments": args_summary,
@@ -355,43 +482,31 @@ class GraphSupervisor:
                 })
                 if input_obj.action == "view" and output.success:
                     await self._fold_stale_views(agent, tool_call_id)
-        else:
-            note = f"reached MAX_ROUNDS ({self.MAX_ROUNDS})"
-            # 预算用尽不再无声切断：给模型一次不执行工具的收尾机会，把结论
-            # 与遗留事项留在持久上下文里，session 以正常总结而非截断结束。
-            await agent.update_context({
-                "role": "user",
-                "content": (
-                    "【系统提示】本次触发的工具轮次预算已用尽，后续工具调用不会"
-                    "被执行。请用一两句话总结本轮结论与未完成事项；下次图事件"
-                    "触发时可以继续。"
+
+        if not last_report.strip() and not note.startswith("llm_call failed"):
+            last_report = await self._force_text_closing(
+                agent,
+                prompt=(
+                    "【系统提示】你刚才结束时没有留下任何给 Coordinator 的结论文本。"
+                    "请用两三句话说明：是否已 mutate 排产/为何未改图、当前 frontier 建议、"
+                    "Coordinator 下一步该做什么。这是收尾，不要再调用工具。"
                 ),
-            })
-            try:
-                response = await agent.llm_call()
-                closing = response.choices[0].message.content or ""
-                # 只保留文本、丢弃 tool_calls：未执行的 tool_calls 留在上下文里
-                # 会让下一次请求带上没有对应 tool 结果的悬空调用。
-                await agent.update_context({
-                    "role": "assistant",
-                    "content": closing or "（轮次预算用尽，待下次触发继续。）",
-                })
-                if closing:
-                    await _emit("llm_chunk", {
-                        "stream": "content",
-                        "delta": closing,
-                        "agent_id": "supervisor",
-                        "agent_name": "supervisor",
-                    })
-                    await _emit("llm_stream_end", {})
-            except Exception as exc:
-                logger.warning("[Supervisor] wrap-up llm_call failed: %s", exc)
+                emit=_emit,
+                fallback=self._fallback_report(trigger, rounds, mutations, note),
+            )
+        elif not last_report.strip():
+            last_report = self._fallback_report(trigger, rounds, mutations, note)
+
+        await self._publish_report_to_coordinator(
+            last_report, wake_coordinator=wake_coordinator
+        )
 
         return GraphSupervisorResult(
             trigger=trigger,
             rounds=rounds,
             mutations=mutations,
             note=note,
+            report=last_report,
         )
 
 

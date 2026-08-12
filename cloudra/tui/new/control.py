@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from cloudra.persistence.workspace import resolve_working_directory
 from cloudra.services import control_store
 from cloudra.services.service import CloudraService, SessionRecord
 
@@ -167,6 +168,28 @@ class _IsolatedSessionRunner:
         await asyncio.to_thread(
             self._local._emit, conversation_id, session_id, "killed", {}
         )
+        # 子 Agent 被强制终止：即使 executor 未跑到收尾，也通知 Coordinator
+        if (
+            (record.agent_id or "a-0") != "a-0"
+            or record.parent_session_id
+            or (record.agent_type or "").lower() in {"follower", "subagent"}
+        ):
+            try:
+                from cloudra.persistence.context_manager import ContextManager
+                from cloudra.persistence.database import get_database_path
+
+                label = record.agent_id or session_id
+                await ContextManager.inject_event(
+                    conversation_id=conversation_id,
+                    agent_id="a-0",
+                    event_type="subagent",
+                    content=(
+                        f"子 Agent {label} (session={session_id}) 已被强制终止（killed）。"
+                    ),
+                    db_path=get_database_path(conversation_id),
+                )
+            except Exception:
+                pass
         try:
             client = self._service._client_or_create()
             response = await asyncio.wait_for(
@@ -241,9 +264,9 @@ class IsolatedControlService(CloudraService):
             "query": query,
             "yolo": bool(yolo),
             "orchestration_mode": mode,
+            # 隔离 runtime 的 cwd 可能是旧进程留下的；始终发送 TUI 侧目录
+            "working_directory": resolve_working_directory(working_directory),
         }
-        if working_directory:
-            body["working_directory"] = working_directory
         payload = await self._request_json(
             "POST",
             f"/api/conversations/{conversation_id}/sessions",
@@ -262,8 +285,10 @@ class IsolatedControlService(CloudraService):
         content: str,
         working_directory: str | None = None,
     ):
-        del working_directory
-        body: dict[str, Any] = {"content": content}
+        body: dict[str, Any] = {
+            "content": content,
+            "working_directory": resolve_working_directory(working_directory),
+        }
         headers = {"Idempotency-Key": command_id}
         client = self._client_or_create()
         response = await client.post(

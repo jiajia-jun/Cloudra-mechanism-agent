@@ -145,22 +145,37 @@ class DagController:
         """实质性操作前的 DAG 门槛。
 
         返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝；``("warn", msg)`` 软警告。
+
+        guided：空图硬拦 → 图非空后，写文件/开算/非调研子 Agent 还须工作流就绪
+        （实质机理 + Supervisor 非模板排产）；explorer/researcher 在图非空后放行。
+        record：仅空图软警告一次。
         """
         from cloudra.dag.substantive_gate import (
             GUIDED_BLOCK_MESSAGE,
+            GUIDED_WORKFLOW_BLOCK_MESSAGE,
             RECORD_WARN_MESSAGE,
+            is_early_research_subagent_call,
             is_substantive_tool,
+            workflow_ready,
         )
 
         if not self.enabled or not is_substantive_tool(tool_name, arguments):
             return None
-        if await self.has_graph_content():
+        has_content = await self.has_graph_content()
+        if not has_content:
+            if self.mode is OrchestrationMode.DAG_GUIDED:
+                return "block", GUIDED_BLOCK_MESSAGE
+            if self.mode is OrchestrationMode.DAG_RECORD:
+                return "warn", RECORD_WARN_MESSAGE
             return None
-        if self.mode is OrchestrationMode.DAG_GUIDED:
-            return "block", GUIDED_BLOCK_MESSAGE
-        if self.mode is OrchestrationMode.DAG_RECORD:
-            return "warn", RECORD_WARN_MESSAGE
-        return None
+        if self.mode is not OrchestrationMode.DAG_GUIDED:
+            return None
+        if is_early_research_subagent_call(tool_name, arguments):
+            return None
+        snapshot = await asyncio.to_thread(self.engine.snapshot)
+        if workflow_ready(snapshot):
+            return None
+        return "block", GUIDED_WORKFLOW_BLOCK_MESSAGE
 
     async def prompt_projection(self) -> str:
         if not self.enabled:
@@ -397,6 +412,17 @@ class DagController:
             return
         # 1/2. dag_graph 调用：区分接受的机理变更与被转交的删边请求。
         if tool_name == "dag_graph":
+            # Coordinator → Supervisor 留言：不改图，只唤醒督导
+            if (
+                arguments.get("action") == "message_supervisor"
+                and result.get("success")
+            ):
+                msg = str(arguments.get("message") or "").strip()
+                if msg:
+                    await self.maybe_supervise(
+                        "coordinator_message", coordinator_request=msg
+                    )
+                return
             # bind_evidence 成功挂载即新证据落地（等级已由 harness 派生），复核它
             # 消除了哪些 delivery 缺口、挂载是否张冠李戴。
             if arguments.get("action") == "bind_evidence" and result.get("accepted"):
@@ -468,6 +494,7 @@ class DagController:
         allowed_triggers = {
             "graph_initialization",
             "delivery_updated",
+            "coordinator_message",
             "new_evidence",
             "user_replan",
             "pre_delivery",
@@ -499,6 +526,9 @@ class DagController:
                 coordinator_request=coordinator_request,
                 session_id=self.session_id,
                 event_sink=event_sink,
+                # a-0 自己的工具循环里 Supervisor 是同步 await，钉建议即可；
+                # 子 Agent / API（agent_id 不是 a-0）时 Coordinator 可能 waiting。
+                wake_coordinator=self.agent_id != "a-0",
             )
             # Supervisor 可能经工具加严过 coverage contract，重新载入。
             # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
@@ -558,6 +588,9 @@ class DagController:
             )
             if result.note:
                 summary += f" note={result.note}"
+            report = getattr(result, "report", "") or ""
+            if report.strip():
+                summary += f" | {report.strip()[:200]}"
         try:
             session_store.finalize_session(
                 self.db,

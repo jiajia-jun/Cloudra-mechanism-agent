@@ -10,6 +10,7 @@ import traceback
 from cloudra.core.react import AgentCancelled, reAct
 from cloudra.infra import events
 from cloudra.infra.platform_utils import is_posix
+from cloudra.infra.runtime_profile import is_mobile_runtime
 from cloudra.persistence.context_manager import ContextManager
 from cloudra.persistence.database import ConversationDB, aretry_on_locked
 from cloudra.services import session_store
@@ -21,12 +22,134 @@ def _mark_cancelled_sync(database_path: str, task_id: int, session_id: str) -> N
     """事件循环退出后的兜底：用同步连接把任务标记为 cancelled。
 
     仅在 SIGTERM/SIGINT 打断 asyncio.run 之后调用，此时不能再使用异步连接。
+    子 Agent 无论何种停法都要通知 Coordinator——这里补上 SIGTERM 路径漏掉的事件。
+    hub_call 会话不当交付：跳过 Coordinator「已完成/终止」唤醒，改给主叫挂断。
     """
     db = ConversationDB.from_path(database_path)
+    conv_id = "default"
+    agent_label = "subagent"
+    payload: dict = {}
+    try:
+        with db.connect() as con:
+            row = con.execute(
+                "SELECT conversation_id, input_data FROM subagent_requests WHERE id=?",
+                (task_id,),
+            ).fetchone()
+        if row:
+            conv_id = row[0] or conv_id
+            try:
+                loaded = json.loads(row[1] or "{}")
+            except (TypeError, ValueError, json.JSONDecodeError):
+                loaded = {}
+            if isinstance(loaded, dict):
+                payload = loaded
+                conv_id = payload.get("conversation_id") or conv_id
+                agent_label = payload.get("agent_id") or agent_label
+    except Exception as e:
+        print(f"[executor] 读取 subagent 元数据失败: {e}")
+
     try:
         session_store.finalize_task(db, task_id, session_id, 'cancelled', retries=2)
     except Exception as e:
         print(f"[executor] cancelled 状态兜底写入失败: {e}")
+
+    if payload.get("origin") == "hub_call":
+        _wake_caller_hangup_sync(
+            database_path,
+            payload,
+            agent_name=agent_label,
+            session_id=session_id,
+        )
+        return
+
+    _wake_coordinator_sync(
+        database_path,
+        conversation_id=conv_id,
+        content=(
+            f"子 Agent {agent_label} (session={session_id}, task_id={task_id}) "
+            f"已被终止（SIGTERM/打断）。"
+        ),
+    )
+
+
+def _wake_coordinator_sync(
+    database_path: str, *, conversation_id: str, content: str
+) -> None:
+    """同步写入 Coordinator 唤醒事件（事件循环已退出时使用）。"""
+    try:
+        db = ConversationDB.from_path(database_path)
+        with db.connect() as con:
+            con.execute(
+                """
+                INSERT INTO context_events
+                    (conversation_id, agent_id, session_id, event_type, content, state, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    conversation_id or "default",
+                    "a-0",
+                    None,
+                    "subagent",
+                    content,
+                    "pending",
+                    time.time(),
+                ),
+            )
+            con.commit()
+        events.emit(
+            conversation_id or "default",
+            "external_event",
+            agent_id="a-0",
+            session_id=None,
+            event_type="subagent",
+            content=content,
+        )
+    except Exception as e:
+        print(f"[executor] 同步唤醒 Coordinator 失败: {e}")
+
+
+def _wake_caller_hangup_sync(
+    database_path: str,
+    input_data: dict,
+    *,
+    agent_name: str,
+    session_id: str | None,
+) -> None:
+    """SIGTERM 后无法走 async deliver_incoming_call：同步给主叫挂断。"""
+    conv_id = input_data.get("conversation_id") or "default"
+    caller_id = input_data.get("caller_agent_id") or "a-0"
+    caller_session = input_data.get("caller_session_id") or None
+    hangup = f"【来电结束】{agent_name} (session={session_id}) 已挂断。"
+    try:
+        db = ConversationDB.from_path(database_path)
+        with db.connect() as con:
+            con.execute(
+                """
+                INSERT INTO context_events
+                    (conversation_id, agent_id, session_id, event_type, content, state, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    conv_id,
+                    caller_id,
+                    caller_session,
+                    "user_message",
+                    hangup,
+                    "pending",
+                    time.time(),
+                ),
+            )
+            con.commit()
+        events.emit(
+            conv_id,
+            "external_event",
+            agent_id=caller_id,
+            session_id=caller_session,
+            event_type="user_message",
+            content=hangup,
+        )
+    except Exception as e:
+        print(f"[executor] 同步挂断通知失败: {e}")
 
 
 async def _finalize_task(db, task_id: int, session_id: str, status: str, error: str = None) -> None:
@@ -50,6 +173,37 @@ async def _wake_coordinator(database_path: str, input_data: dict, content: str) 
         )
     except Exception as e:
         print(f"[executor] 事件注入失败: {e}")
+
+
+async def _wake_after_executor(
+    database_path: str,
+    input_data: dict,
+    content: str,
+    *,
+    agent_name: str | None = None,
+    session_id: str | None = None,
+) -> None:
+    """Launcher 子任务唤醒 Coordinator；hub_call 会话则给主叫挂断，不当交付。"""
+    if input_data.get("origin") == "hub_call":
+        try:
+            caller_id = input_data.get("caller_agent_id") or "a-0"
+            caller_session = input_data.get("caller_session_id") or ""
+            label = agent_name or input_data.get("agent_id") or "subagent"
+            sid = session_id or input_data.get("session_id")
+            hangup = f"【来电结束】{label} (session={sid}) 已挂断。"
+            from cloudra.tools.Managetool._hub_call import deliver_incoming_call
+
+            await deliver_incoming_call(
+                conversation_id=input_data.get("conversation_id", "default"),
+                callee_agent_id=caller_id,
+                callee_session_id=caller_session or "",
+                text=hangup,
+                db_path=database_path,
+            )
+        except Exception as e:
+            print(f"[executor] 事件注入失败: {e}")
+        return
+    await _wake_coordinator(database_path, input_data, content)
 
 
 async def _backfill_dag_assignee_nodes(
@@ -259,6 +413,18 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         input_data.get('orchestration_mode', 'standard')
     )
 
+    # hub_call spawn：session.query 仍是通话原文，但上下文不能再落一条裸 query。
+    # 先挂上 query="" 的 ContextManager，后面 extra_context 只追加【来电】user 行。
+    if input_data.get("origin") == "hub_call":
+        sub_agent.context_manager = ContextManager(
+            agent_id=sub_agent.id,
+            conversation_id=sub_agent.conversation_id,
+            prompt=sub_agent.prompt,
+            query="",
+            session_id=sub_agent.session_id,
+            on_compaction_progress=sub_agent._report_compaction_progress,
+        )
+
     # 如果 payload 中传入了额外的 context，则追加进去
     extra_context = input_data.get('context', [])
     if extra_context:
@@ -290,6 +456,12 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
 
     # 3. 执行任务
     print(f"--- Agent {sub_agent.name} 启动 (PID: {os.getpid()}) ---")
+    # 进程内 follower（隔离 TUI resume / swarm）不经过 run_task_async，
+    # 必须自己拉起 check_compute，否则 Coordinator 进程死后 jobs 会停在 ready。
+    workers_mod = None
+    if not is_mobile_runtime():
+        from cloudra.runtime import workers as workers_mod
+        workers_mod.acquire_workers(database_path, interactive_approval=False)
     heartbeat = asyncio.create_task(
         _session_heartbeat(db, getattr(getattr(sub_reAct, "session", None), "id", None))
     )
@@ -316,10 +488,12 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
             db, session_id, agent_id, 'done',
             orchestration_mode=input_data.get('orchestration_mode', 'standard'),
         )
-        await _wake_coordinator(
+        await _wake_after_executor(
             database_path,
             input_data,
             f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 已完成。结论: {result[:500]}",
+            agent_name=sub_agent.name,
+            session_id=session_id,
         )
     except AgentCancelled:
         # 用户打断：reAct.run 已把 session 标为 cancelled，这里同步 subagent_requests
@@ -329,10 +503,12 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
             db, session_id, agent_id, 'cancelled',
             orchestration_mode=input_data.get('orchestration_mode', 'standard'),
         )
-        await _wake_coordinator(
+        await _wake_after_executor(
             database_path,
             input_data,
             f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 已被取消。",
+            agent_name=sub_agent.name,
+            session_id=session_id,
         )
     except Exception as e:
         # 打印完整 traceback：只打一行 message 会让根因排查变成猜谜
@@ -346,13 +522,25 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
             orchestration_mode=input_data.get('orchestration_mode', 'standard'),
         )
         # 事件内容截断 500 字符；session.error 保留完整错误
-        await _wake_coordinator(
+        await _wake_after_executor(
             database_path,
             input_data,
             f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 执行失败: {error_message[:500]}",
+            agent_name=sub_agent.name,
+            session_id=session_id,
         )
     finally:
         heartbeat.cancel()
+        if workers_mod is not None:
+            should_release = True
+            try:
+                from cloudra.runtime.runner import _count_pending_tasks
+                sub_n, compute_n, reminder_n = await _count_pending_tasks(db, conv_id)
+                should_release = sub_n == 0 and compute_n == 0 and reminder_n == 0
+            except Exception:
+                should_release = True
+            if should_release:
+                workers_mod.release_workers(database_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

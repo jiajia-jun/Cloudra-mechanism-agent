@@ -303,24 +303,6 @@ class TestBashExitCode:
         assert out.exit_code == 126
         assert "没有权限" in out.result
 
-class TestTruncateOutput:
-    def test_truncate_output_keeps_head_and_tail(self):
-        from cloudra.tools.Bashtool.bashtools import MAX_OUTPUT_CHARS, truncate_output
-
-        text = "头" * (MAX_OUTPUT_CHARS // 2) + "中" * MAX_OUTPUT_CHARS + "尾" * 100
-        truncated = truncate_output(text)
-
-        assert len(truncated) < len(text)
-        assert truncated.startswith("头")
-        assert truncated.endswith("尾" * 100)
-        assert "中间省略" in truncated
-
-    def test_truncate_output_short_text_untouched(self):
-        from cloudra.tools.Bashtool.bashtools import truncate_output
-
-        assert truncate_output("短文本") == "短文本"
-
-
 # ---------------------------------------------------------------------------
 # 5. 死循环检测与步数预算
 # ---------------------------------------------------------------------------

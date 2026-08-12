@@ -29,8 +29,8 @@ class HeadlessBrowser_input_schema(input_schema):
         description="页面加载后等待的条件：可以是 CSS 选择器（等待元素出现）或纯数字秒数（如 '2'），留空则不额外等待"
     )
     max_length: int = Field(
-        default=8000,
-        description="fetch 模式下返回正文的最大字符数，超出会被截断"
+        default=0,
+        description="fetch 模式下返回正文的最大字符数；0 表示不截断。仅在调用方显式要求缩短时使用。"
     )
     full_page: bool = Field(
         default=True,

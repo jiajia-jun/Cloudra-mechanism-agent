@@ -33,25 +33,6 @@ class Bashtools_output_schema(output_schema):
     )
 
 
-# 单次命令输出的字符上限：超出部分保留首尾、省略中间。
-# 必须小于 ContextManager 的单消息硬顶（40k），否则截断信息会丢失。
-MAX_OUTPUT_CHARS = 30_000
-
-
-def truncate_output(text: str, max_chars: int = MAX_OUTPUT_CHARS) -> str:
-    """超长输出首尾保留、中间省略，并注明省略的字符数。"""
-    if len(text) <= max_chars:
-        return text
-    head = max_chars * 2 // 3
-    tail = max_chars - head
-    omitted = len(text) - head - tail
-    return (
-        text[:head]
-        + f"\n\n[... 输出过长，中间省略 {omitted} 字符 ...]\n\n"
-        + text[-tail:]
-    )
-
-
 class Bashtools(Tool):
     tool_id: str = 't-1'
     tool_name: str = 'bashtools'
@@ -227,7 +208,6 @@ class Bashtools(Tool):
         result = stdout_text
         if stderr_text:
             result += ("\n" if result else "") + stderr_text
-        result = truncate_output(result)
         if exit_code != 0:
             result = f"【命令失败】exit_code={exit_code}。输出：\n{result}"
         if guard_warning:

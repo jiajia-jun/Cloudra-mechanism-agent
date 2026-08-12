@@ -10,6 +10,7 @@
 不引入向量检索依赖。
 """
 
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -19,23 +20,20 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, _tool_db_path, input_schema, output_schema
 from cloudra.persistence.database import ConversationDB, aretry_on_locked
+from cloudra.tools.Managetool._hub_call import (
+    deliver_incoming_call,
+    format_incoming_call,
+    list_directory,
+    lookup_post,
+    resolve_agent_id,
+    resolve_call_target,
+    resume_follower_if_idle,
+    spawn_from_call,
+)
 
 
 def _resolve_agent_id(target: str) -> str | None:
-    """把点名对象（角色名 / Agent ID / coordinator）解析为事件定向用的 agent_id。"""
-    from cloudra.subagents.registry import SUBAGENT_REGISTRY
-
-    t = target.strip()
-    if not t:
-        return None
-    if t.lower() in ("coordinator", "a-0"):
-        return "a-0"
-    if t.startswith("a-"):
-        return t
-    for reg in SUBAGENT_REGISTRY:
-        if reg.class_name == t:
-            return reg.agent_id
-    return None
+    return resolve_agent_id(target)
 
 
 # 模糊命中下限：query token 覆盖率低于该值视为不相关
@@ -77,6 +75,8 @@ description = (
     "- **browse**：浏览最近有哪些主题（topic）及活跃度。\n"
     "- **read**：按主题读取帖子（含问答串）。\n"
     "- **search**：按关键词检索所有帖子（模糊匹配，无需精确用词）。\n"
+    "- **directory**：列出本对话所有 session（session_id、agent_id、state、task）。\n"
+    "- **call**：向另一 Agent 发起实时来电（to + message，可选 post_id）。\n"
     "使用纪律：开始一个与其他 Agent 可能重叠的子任务前，先 browse/search 看看有没有人已经做过；"
     "得到可复用的关键结论（参数、数据、坑）后，post 到对应主题。帖子内容要自包含，"
     "别人没有你的上下文。对数据或工具行为有疑惑时，发 question 或用 to_agent 点名求助，"
@@ -85,7 +85,7 @@ description = (
 
 
 class AgentHub_input_schema(input_schema):
-    action: str = Field(description="操作类型：post / browse / read / search")
+    action: str = Field(description="操作类型：post / browse / read / search / directory / call")
     topic: str = Field(default="", description="主题名（post/read 必填），如 'CO2加氢-文献调研'")
     content: str = Field(default="", description="帖子内容（post 必填），要求自包含")
     kind: str = Field(
@@ -96,6 +96,12 @@ class AgentHub_input_schema(input_schema):
         default="",
         description="点名对象：角色名（如 small_mol）、Agent ID（如 a-4）或 coordinator；帖子仍公开，被点名者会收到事件通知"
     )
+    to: str = Field(
+        default="",
+        description="call 目标：session_id、agent_id（如 a-4）、角色名（如 small_mol）或 coordinator",
+    )
+    message: str = Field(default="", description="call 时你要对对面说的话（不是角色 prompt）")
+    post_id: Optional[int] = Field(default=None, description="call 时可选的对照帖子 ID")
     parent_id: Optional[int] = Field(default=None, description="回复的帖子 ID（可选）；回复会通知原作者")
     keyword: str = Field(default="", description="检索关键词（search 必填），模糊匹配，可用近义词/不精确措辞")
     limit: int = Field(default=20, description="最大返回条数")
@@ -106,6 +112,8 @@ class AgentHub_output_schema(output_schema):
     posts: list = Field(default_factory=list, description="帖子列表（read/search/browse 结果）")
     post_id: int = Field(default=0, description="新帖 ID（post 结果）")
     message: str = Field(default="", description="状态说明")
+    sessions: list = Field(default_factory=list, description="directory 结果")
+    session_id: str = Field(default="", description="call 结果：对方 session_id")
 
 
 class AgentHub(Tool):
@@ -151,9 +159,85 @@ class AgentHub(Tool):
             return await self._read(db, user_input)
         if action == "search":
             return await self._search(db, user_input)
+        if action == "directory":
+            rows = await list_directory(db)
+            return AgentHub_output_schema(
+                is_success=True,
+                sessions=rows,
+                message=f"共 {len(rows)} 个 session。" if rows else "当前没有 session。",
+            )
+        if action == "call":
+            return await self._call(db, user_input)
         return AgentHub_output_schema(
             is_success=False,
-            message=f"未知 action: {user_input.action}，可用：post / browse / read / search",
+            message=f"未知 action: {user_input.action}，可用：post / browse / read / search / directory / call",
+        )
+
+    async def _call(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:
+        spoken = user_input.message.strip()
+        if not spoken:
+            return AgentHub_output_schema(is_success=False, message="call 需要非空的 message。")
+
+        kind, data = await asyncio.to_thread(resolve_call_target, user_input.to, db=db)
+        if kind == "error":
+            return AgentHub_output_schema(is_success=False, message=data["message"])
+
+        caller_agent = getattr(self.subagent, "id", None) or getattr(self.subagent, "name", "unknown")
+        caller_session = getattr(self.subagent, "session_id", None) or ""
+        post_line = None
+        if user_input.post_id:
+            post = await lookup_post(db, user_input.post_id)
+            if post is not None:
+                post_line = f"对照帖子 #{post['id']}（主题 {post['topic']}）。"
+        text = format_incoming_call(
+            caller_agent_id=str(caller_agent),
+            caller_session_id=str(caller_session),
+            message=spoken,
+            post_line=post_line,
+        )
+        if kind == "spawn":
+            try:
+                session_id = await spawn_from_call(
+                    agent_id=data["agent_id"],
+                    message=spoken,
+                    incoming_text=text,
+                    conversation_id=getattr(self.subagent, "conversation_id", "default") or "default",
+                    working_directory=getattr(self.subagent, "working_directory", None),
+                    parent_session_id=caller_session or None,
+                    parent_orchestration_mode=getattr(self.subagent, "orchestration_mode", "standard"),
+                    caller_agent_id=str(caller_agent),
+                    caller_session_id=str(caller_session),
+                )
+            except ValueError as exc:
+                return AgentHub_output_schema(is_success=False, message=str(exc))
+            return AgentHub_output_schema(
+                is_success=True,
+                session_id=session_id,
+                message=f"已呼叫 {session_id}（不阻塞）。",
+            )
+
+        await deliver_incoming_call(
+            conversation_id=getattr(self.subagent, "conversation_id", "default") or "default",
+            callee_agent_id=data["agent_id"],
+            callee_session_id=data["session_id"],
+            text=text,
+            db_path=_tool_db_path(self.subagent),
+        )
+        await resume_follower_if_idle(
+            db=db,
+            conversation_id=getattr(self.subagent, "conversation_id", "default") or "default",
+            session_id=data["session_id"],
+            agent_id=data["agent_id"],
+            working_directory=getattr(self.subagent, "working_directory", None),
+            orchestration_mode=getattr(self.subagent, "orchestration_mode", "standard"),
+            parent_session_id=caller_session or None,
+            caller_agent_id=str(caller_agent),
+            caller_session_id=str(caller_session),
+        )
+        return AgentHub_output_schema(
+            is_success=True,
+            session_id=data["session_id"],
+            message=f"已呼叫 {data['session_id']}（不阻塞）。",
         )
 
     async def _post(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:

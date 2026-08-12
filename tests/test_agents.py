@@ -2,6 +2,13 @@ from cloudra.core.agent import Coordinator
 from cloudra.tools.core.permission_model import Permission
 
 
+def test_agent_working_directory_defaults_to_cwd(tmp_path, monkeypatch):
+    """未显式传入时，Agent 工作目录必须收成当前进程的绝对路径，不能保持 None。"""
+    monkeypatch.chdir(tmp_path)
+    agent = Coordinator(query="test", conversation_id="test")
+    assert agent.working_directory == str(tmp_path.resolve())
+
+
 def test_coordinator_permissions():
     """测试 Coordinator 的默认权限。"""
     agent = Coordinator(query="test", conversation_id="test")

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
+from rich.style import Style
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
+from textual.strip import Strip
 from textual.widgets import Button, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
@@ -86,6 +88,29 @@ class SubmitTextArea(TextArea):
             super().action_copy()
         else:
             self.screen.action_copy_text()
+
+    def _blank_strip(self, width: int = 0) -> Strip:
+        style = self.rich_style or Style()
+        return Strip.blank(max(0, width), style)
+
+    def render_line(self, y: int) -> Strip:
+        """窄终端下 content_width 会被 border/padding 吃成 0。
+
+        Textual 对 placeholder 做 ``wrap(0)`` 会 ``ValueError: range() arg 3
+        must not be zero``，整屏崩溃。宽度不够时画空行，不折 placeholder。
+        """
+        if self.content_size.width <= 0:
+            return self._blank_strip(0)
+        try:
+            return super().render_line(y)
+        except ValueError:
+            return self._blank_strip(self.content_size.width)
+
+    def render_lines(self, crop):
+        try:
+            return super().render_lines(crop)
+        except (ValueError, AttributeError):
+            return [self._blank_strip(crop.width) for _ in range(max(0, crop.height))]
 
 
 class InputBar(Vertical):

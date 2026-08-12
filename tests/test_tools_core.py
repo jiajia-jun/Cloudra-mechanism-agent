@@ -166,10 +166,11 @@ def test_headless_browser_schema():
     inp = HeadlessBrowser_input_schema(url='https://example.com', action='fetch')
     assert inp.url == 'https://example.com'
     assert inp.action == 'fetch'
+    assert inp.max_length == 0
 
 
 class TestWebFetcherGuards:
-    """web_fetcher 的 PDF/体积防护。"""
+    """web_fetcher 的 PDF 防护；正文不截断。"""
 
     @staticmethod
     def _resp(content: bytes, content_type: str, status: int = 200):
@@ -219,8 +220,8 @@ class TestWebFetcherGuards:
         assert result.success is False and "pdf2md" in result.error
 
     @pytest.mark.asyncio
-    async def test_giant_html_truncated(self, monkeypatch):
-        html = ("<html><body><p>" + "内容 " * 300000 + "</p></body></html>").encode()
+    async def test_giant_html_not_truncated(self, monkeypatch):
+        html = ("<html><body><p>" + "x" * 250_000 + "</p></body></html>").encode()
         resp = self._resp(html, "text/html; charset=utf-8")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
         from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
@@ -228,5 +229,5 @@ class TestWebFetcherGuards:
             WebFetcher_input_schema(url="https://x.com/page"), None
         )
         assert result.success is True
-        assert len(result.content) <= 210_000
-        assert "已截断" in result.content
+        assert result.content.count("x") == 250_000
+        assert "已截断" not in result.content

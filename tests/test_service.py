@@ -758,7 +758,12 @@ async def test_dag_request_replan_invokes_supervisor(tmp_path, monkeypatch):
             self.kwargs = kwargs
 
         async def run(
-            self, trigger, coordinator_request=None, session_id=None, event_sink=None
+            self,
+            trigger,
+            coordinator_request=None,
+            session_id=None,
+            event_sink=None,
+            **_kwargs,
         ):
             calls.append(
                 {"trigger": trigger, "coordinator_request": coordinator_request}

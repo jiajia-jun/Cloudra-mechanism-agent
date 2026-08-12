@@ -41,14 +41,19 @@ _WEB_SEARCH_GUIDANCE = (
 # 有 agent_hub 工具（所有并行 Agent）时注入的引导，鼓励主动共享/复用
 _AGENT_HUB_GUIDANCE = (
     "## AgentHub 协作（并行共享）\n"
-    "系统提供 `agent_hub` 工具：所有并行 Agent 共享的论坛，是彼此间唯一的横向信道。"
+    "系统提供 `agent_hub` 工具：所有并行 Agent 共享的论坛，也可用 `call` 直连说话。"
     "使用纪律：\n"
     "- 开工前先 `browse`/`search` 看别人是否已做过相关主题，避免重复劳动；"
     "与其他 Agent 并行、可能重叠的任务**尤其要主动查**。\n"
     "- 拿到可复用的关键结论（参数、数据、坑）后，用 `post` 发布到对应主题；"
     "帖子要自包含——别人没有你的上下文。\n"
     "- 其他 Agent 的帖子是你结论的交叉验证来源：遇到可疑/矛盾的发现时，"
-    "`read`/`search` 查一下 hub 是否有相关记录再下结论。"
+    "`read`/`search` 查一下 hub 是否有相关记录再下结论。\n"
+    "- `directory` 列出在线 Agent 及其 `task`（当前在做什么）；"
+    "派工前可先查谁有空、谁在做相关事。\n"
+    "- `call` 用 `to` + `message` 直接说话（可选 `post_id` 关联帖子）；"
+    "`call` 是平行沟通，**不是**一次交付或派工。\n"
+    "- 收到 `role=user` 的 `【来电】` 行视为用户消息，**必须先回答**再继续其他动作。"
 )
 
 # 所有角色注入：压缩不再保留近几轮 toolcall，状态必须落盘
@@ -395,7 +400,8 @@ class PromptAssembler:
                 f"顶层内容:\n{listing}\n"
                 f"最近变化:\n{recent_changes}\n"
                 "任务描述可以引用绝对路径；text_reader、edit_file、text_writer "
-                "的 filepath 必须相对此工作目录。"
+                "的 filepath 必须相对此工作目录，bashtools 也在此目录启动。"
+                "不要按任务文本另建一套目录；相对路径一律落在 working_directory 下。"
                 f"{device_section}"
                 ),
             },

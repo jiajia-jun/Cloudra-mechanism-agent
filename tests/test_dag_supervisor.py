@@ -50,7 +50,15 @@ class FakeSupervisor:
     def __init__(self):
         self.calls = []
 
-    async def run(self, trigger, coordinator_request=None, session_id=None, event_sink=None):
+    async def run(
+        self,
+        trigger,
+        coordinator_request=None,
+        session_id=None,
+        event_sink=None,
+        wake_coordinator=False,
+        **_kwargs,
+    ):
         from cloudra.core.supervisor import GraphSupervisorResult
 
         self.calls.append(
@@ -59,6 +67,7 @@ class FakeSupervisor:
                 "coordinator_request": coordinator_request,
                 "session_id": session_id,
                 "event_sink": event_sink,
+                "wake_coordinator": wake_coordinator,
             }
         )
         return GraphSupervisorResult(trigger=trigger)
@@ -590,9 +599,8 @@ async def test_supervisor_exception_finalizes_failed_without_propagating(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_graph_view_result_not_truncated_at_4000(tmp_path):
-    """回归：process 视图必须完整进入 Supervisor 上下文（可解析 JSON），
-    不得在结构中间被 MAX_TOOL_RESULT_CHARS 截断。"""
+async def test_graph_view_result_not_truncated(tmp_path):
+    """process 视图必须完整进入 Supervisor 上下文（可解析 JSON），写入时不再截断。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -653,6 +661,10 @@ async def test_graph_view_result_not_truncated_at_4000(tmp_path):
     # 摘要视图：无完整 refs 列表，只有计数
     assert "refs" not in payload["result"]["nodes"][0]
     assert "n_refs" in payload["result"]["nodes"][0]
+    rendered = await agent.context_manager.build_messages()
+    rendered_tool = next(m for m in rendered if m.get("role") == "tool")
+    assert "已截断" not in str(rendered_tool["content"])
+    assert json.loads(rendered_tool["content"])["result"]["total_nodes"] == 30
 
 
 
@@ -835,29 +847,21 @@ async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_max_rounds_ends_with_wrapup_instead_of_cutoff(tmp_path):
-    """回归：真实运行中 Supervisor 常在排障中途撞上轮次预算，被无声切断
-    （"view 之后被迫结束"）。预算用尽后必须给一次不执行工具的收尾调用，
-    session 以正常总结结束；收尾回复里的 tool_calls 被丢弃、不落上下文。"""
+async def test_supervisor_continues_past_old_round_cap(tmp_path):
+    """完整排产常超过旧 16 轮预算；无 tool_calls 才结束，不被切断。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
-    db = ConversationDB("supervisor-wrapup", data_dir=tmp_path).init()
+    db = ConversationDB("supervisor-no-cap", data_dir=tmp_path).init()
     DagStore(db).ensure_bundle("s1")
 
-    supervisor = GraphSupervisor(conversation_id="supervisor-wrapup")
+    supervisor = GraphSupervisor(conversation_id="supervisor-no-cap")
     agent = supervisor._ensure_agent()
-    budget = supervisor.MAX_ROUNDS
+    n_views = 20
     responses = [
-        _response([_tool_call(f"c-view-{i}", {"action": "view"})]) for i in range(budget)
+        _response([_tool_call(f"c-view-{i}", {"action": "view"})]) for i in range(n_views)
     ]
-    # 收尾回复带文本 + 一个不该被执行的 tool_call：文本保留，调用丢弃。
-    responses.append(
-        _response(
-            [_tool_call("c-late", {"action": "view"})],
-            content="预算用尽：optfreq 系列仍 pending，待下次触发继续。",
-        )
-    )
+    responses.append(_response(content="已写入非模板 planned，请派 a-4。"))
     llm = AsyncMock(side_effect=responses)
     object.__setattr__(agent, "llm_call", llm)
     emitted = []
@@ -865,28 +869,19 @@ async def test_max_rounds_ends_with_wrapup_instead_of_cutoff(tmp_path):
     async def sink(event_type, data):
         emitted.append((event_type, data))
 
-    result = await supervisor.run("new_evidence", session_id="s1", event_sink=sink)
+    result = await supervisor.run("delivery_updated", session_id="s1", event_sink=sink)
 
-    assert result.rounds == budget
-    assert f"reached MAX_ROUNDS ({budget})" in result.note
-    # 收尾恰好多一次 llm 调用
-    assert llm.await_count == budget + 1
-    context = await agent.get_context()
-    closing = context[-1]
-    assert closing["role"] == "assistant"
-    assert "预算用尽" in str(closing["content"])
-    assert "tool_calls" not in closing
-    # 收尾内容进了事件流（TUI 可见），且没有多余的 tool_started
+    assert result.rounds == n_views
+    assert result.note == ""
+    assert "已写入非模板 planned" in result.report
+    assert llm.await_count == n_views + 1
     started = [d for k, d in emitted if k == "tool_started"]
-    assert len(started) == budget
-    assert any(
-        "预算用尽" in d.get("delta", "") for k, d in emitted if k == "llm_chunk"
-    )
+    assert len(started) == n_views
 
 
 @pytest.mark.asyncio
 async def test_wrapup_llm_failure_does_not_break_run(tmp_path):
-    """收尾调用失败不影响运行结果：note 仍是 MAX_ROUNDS，异常被吞。"""
+    """空结束时的强制收尾 LLM 失败不影响运行：用兜底文案，异常被吞。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -895,17 +890,23 @@ async def test_wrapup_llm_failure_does_not_break_run(tmp_path):
 
     supervisor = GraphSupervisor(conversation_id="supervisor-wrapup-fail")
     agent = supervisor._ensure_agent()
-    budget = supervisor.MAX_ROUNDS
-    responses = [
-        _response([_tool_call(f"c-view-{i}", {"action": "view"})]) for i in range(budget)
-    ]
-    responses.append(RuntimeError("provider down at wrap-up"))
-    object.__setattr__(agent, "llm_call", AsyncMock(side_effect=responses))
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response(content=""),
+                RuntimeError("provider down at wrap-up"),
+            ]
+        ),
+    )
 
     result = await supervisor.run("new_evidence", session_id="s1")
 
-    assert result.rounds == budget
-    assert f"reached MAX_ROUNDS ({budget})" in result.note
+    assert result.rounds == 0
+    assert "llm_call failed" in result.note
+    assert "Supervisor 本轮结论" in result.report
+    assert "new_evidence" in result.report
 
 
 @pytest.mark.asyncio
@@ -991,3 +992,301 @@ async def test_failed_bind_and_review_evidence_do_not_trigger(tmp_path):
     )
 
     assert supervisor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_empty_closing_forces_wrapup_and_pins_advice(tmp_path):
+    """只 view 后空 content 结束 → 强制收尾；结论文本钉进 Coordinator [Supervisor]。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    conv = "supervisor-empty-report"
+    db = ConversationDB(conv, data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id=conv)
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c-view", {"action": "view"})]),
+                _response(content=""),  # 空结束
+                _response(content="未新增 planned：frontier 已覆盖 TS 优化缺口。"),
+            ]
+        ),
+    )
+
+    result = await supervisor.run("delivery_updated", session_id="s1")
+
+    assert "未新增 planned" in result.report
+    assert result.note == ""
+    from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+
+    cm = ContextManager(
+        agent_id="a-0",
+        conversation_id=conv,
+        prompt=None,
+        query="",
+        session_id=None,
+    )
+    context = await cm.load()
+    advice = [
+        m for m in context
+        if m.get("role") == "system"
+        and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
+    ]
+    assert advice
+    assert "未新增 planned" in advice[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_empty_turn_continues_and_can_mutate(tmp_path):
+    """view 后空回复不得收尾禁工具；下一轮 mutate 必须真正落图。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    conv = "supervisor-empty-then-mutate"
+    db = ConversationDB(conv, data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id=conv)
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c-view", {"action": "view"})]),
+                _response(content=""),
+                _response([
+                    _tool_call(
+                        "c-mut",
+                        {
+                            "action": "mutate",
+                            "rationale": "schedule POZ opt",
+                            "operations": [
+                                {
+                                    "op": "add_node",
+                                    "graph": "process",
+                                    "node": {
+                                        "node_id": "p_opt_poz",
+                                        "node_type": "planned",
+                                        "label": "POZ Opt+Freq",
+                                        "assignee": "a-4",
+                                        "tool_name": "submit_compute_job",
+                                    },
+                                }
+                            ],
+                        },
+                    )
+                ]),
+                _response(content="已排产 p_opt_poz，请派 a-4。"),
+            ]
+        ),
+    )
+
+    result = await supervisor.run("delivery_updated", session_id="s1")
+
+    assert any(m.get("accepted") for m in result.mutations)
+    assert "p_opt_poz" in result.report or "已排产" in result.report
+    snapshot = DagEngine(DagStore(db)).snapshot()
+    assert any(n.node_id == "p_opt_poz" for n in snapshot.process.nodes)
+    context = await agent.get_context()
+    assert any(
+        "空回复不算结束" in str(b.get("content", ""))
+        for b in context
+        if b.get("role") == "user"
+    )
+
+
+@pytest.mark.asyncio
+async def test_nonempty_closing_pins_content_directly(tmp_path):
+    """有 content 结束 → 直接钉住该 content，不再强制二次收尾。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    conv = "supervisor-direct-report"
+    db = ConversationDB(conv, data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id=conv)
+    agent = supervisor._ensure_agent()
+    llm = AsyncMock(
+        side_effect=[
+            _response(content="已排产 work-ts-opt；请派 a-4。"),
+        ]
+    )
+    object.__setattr__(agent, "llm_call", llm)
+
+    result = await supervisor.run("delivery_updated", session_id="s1")
+
+    assert result.report == "已排产 work-ts-opt；请派 a-4。"
+    assert llm.await_count == 1
+    from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+
+    cm = ContextManager(
+        agent_id="a-0",
+        conversation_id=conv,
+        prompt=None,
+        query="",
+        session_id=None,
+    )
+    advice = [
+        m for m in await cm.load()
+        if m.get("role") == "system"
+        and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
+    ]
+    assert "已排产 work-ts-opt" in advice[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_empty_closing_wrapup_failure_uses_fallback_report(tmp_path):
+    """强制收尾 LLM 失败时仍用确定性兜底文案钉住 Coordinator。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    conv = "supervisor-fallback-report"
+    db = ConversationDB(conv, data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id=conv)
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response(content=""),
+                RuntimeError("provider down"),
+            ]
+        ),
+    )
+
+    result = await supervisor.run("delivery_updated", session_id="s1")
+
+    assert "Supervisor 本轮结论" in result.report
+    assert "delivery_updated" in result.report
+    assert "message_supervisor" in result.report
+
+
+def test_trigger_message_conditional_planning_and_no_empty_end():
+    """delivery_updated / coordinator_message 文案：条件排产 + 禁止空结束。"""
+    _, GraphSupervisor, _ = _api()
+    text = GraphSupervisor._trigger_message("delivery_updated", "rationale: add TS")
+    assert "模板" in text
+    assert "可不改图" in text or "说明理由" in text
+    assert "禁止空回复" in text or "结论文本" in text
+    assert "【Coordinator 机理变更说明】" in text
+    assert "不要用正文代替 mutate" in text
+
+    msg = GraphSupervisor._trigger_message("coordinator_message", "请补排产")
+    assert "【Coordinator 留言】请补排产" in msg
+    assert "结论文本" in msg or "禁止空回复" in msg
+
+
+@pytest.mark.asyncio
+async def test_message_supervisor_triggers_coordinator_message(tmp_path):
+    """Coordinator 的 message_supervisor → coordinator_message + 原文。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-coord-msg", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-msg-1",
+        "dag_graph",
+        {"action": "message_supervisor", "message": "frontier 空，请补 TS 排产"},
+        {"success": True, "accepted": True, "result": {"delivered": True}},
+    )
+
+    assert [call["trigger"] for call in supervisor.calls] == ["coordinator_message"]
+    assert supervisor.calls[0]["coordinator_request"] == "frontier 空，请补 TS 排产"
+
+
+@pytest.mark.asyncio
+async def test_message_supervisor_empty_or_failed_does_not_trigger(tmp_path):
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-coord-msg-quiet", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-msg-2",
+        "dag_graph",
+        {"action": "message_supervisor", "message": ""},
+        {"success": True},
+    )
+    await controller.on_tool_finished(
+        "tc-msg-3",
+        "dag_graph",
+        {"action": "message_supervisor", "message": "hello"},
+        {"success": False, "error": "oops"},
+    )
+
+    assert supervisor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_maybe_supervise_wakes_only_off_coordinator_loop(tmp_path):
+    """a-0 自己的循环只钉建议；子 Agent / API（agent_id 非 a-0）才要求唤醒。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-wake-flag", "dag_guided")
+    supervisor = FakeSupervisor()
+
+    coord = DagController(
+        db, "s1", "dag_guided", supervisor=supervisor, agent_id="a-0"
+    )
+    await coord.maybe_supervise("new_evidence")
+    assert supervisor.calls[-1]["wake_coordinator"] is False
+
+    follower = DagController(
+        db, "s1", "dag_guided", supervisor=supervisor, agent_id="a-4"
+    )
+    await follower.maybe_supervise("new_evidence")
+    assert supervisor.calls[-1]["wake_coordinator"] is True
+
+    api = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+    await api.maybe_supervise("user_replan")
+    assert supervisor.calls[-1]["wake_coordinator"] is True
+
+
+@pytest.mark.asyncio
+async def test_publish_report_injects_event_only_when_waking(tmp_path):
+    """Coordinator 路径只钉 [Supervisor]；wake_coordinator 才写 context_events。"""
+    _, GraphSupervisor, _ = _api()
+
+    get_config().data_dir = tmp_path
+    conv = "supervisor-wake-event"
+    db = ConversationDB(conv, data_dir=tmp_path).init()
+    DagStore(db).ensure_bundle("s1")
+
+    supervisor = GraphSupervisor(conversation_id=conv)
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(side_effect=[_response(content="已覆盖缺口，不改图。")]),
+    )
+    await supervisor.run("delivery_updated", session_id="s1", wake_coordinator=False)
+
+    with db.connect() as con:
+        n = con.execute(
+            "SELECT COUNT(*) FROM context_events WHERE event_type = 'supervisor'"
+        ).fetchone()[0]
+    assert n == 0
+
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(side_effect=[_response(content="计算失败，建议重试 opt。")]),
+    )
+    await supervisor.run("process_node_failed", session_id="s1", wake_coordinator=True)
+
+    with db.connect() as con:
+        rows = con.execute(
+            "SELECT content FROM context_events WHERE event_type = 'supervisor'"
+        ).fetchall()
+    assert len(rows) == 1
+    assert "建议重试 opt" in rows[0][0]

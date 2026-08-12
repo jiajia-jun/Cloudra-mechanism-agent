@@ -13,6 +13,7 @@ from cloudra.persistence.workspace import (
     WorkspaceConflictError,
     WorkspaceError,
     WorkspaceService,
+    resolve_working_directory,
 )
 from cloudra.tools.Searchtool.text_reader import (
     TextReader,
@@ -38,6 +39,14 @@ def _subagent(root: Path) -> SimpleNamespace:
         conversation_id=f"test-{root.name}",
         name="coder",
     )
+
+
+def test_resolve_working_directory_defaults_to_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert resolve_working_directory(None) == str(tmp_path.resolve())
+    nested = tmp_path / "proj"
+    nested.mkdir()
+    assert resolve_working_directory(str(nested)) == str(nested.resolve())
 
 
 def test_workspace_rejects_absolute_escape_and_symlink_paths(tmp_path):

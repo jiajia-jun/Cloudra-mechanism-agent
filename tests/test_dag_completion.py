@@ -265,7 +265,8 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
     ).to_prompt_text()
     assert "当前编排模式: dag_guided" in guided
     assert "Supervisor 会被自动唤醒" in guided
-    assert "status=ready" in guided
+    assert "proposed" in guided and "ready" in guided
+    assert "status_filter=ready" in guided or "frontier" in guided
     assert "SOP" in guided
     assert "delivery_report" in guided
 

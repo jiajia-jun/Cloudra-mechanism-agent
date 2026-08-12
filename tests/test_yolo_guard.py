@@ -325,3 +325,84 @@ class TestYoloGuardJudge:
             guard = YoloGuard()
             with pytest.raises(RuntimeError):
                 guard._client()
+
+
+class TestEnsureSafetyYoloRoute:
+    """危险工具的 ensure_safety 在 YOLO 开启时走 Guard，不进人工审批。"""
+
+    @pytest.mark.asyncio
+    async def test_yolo_on_calls_guard_not_human_approval(self, monkeypatch):
+        from cloudra.base.tools_class import Tool
+        from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
+
+        monkeypatch.delenv("CLOUDRA_YOLO_MODE", raising=False)
+        tool = Tool(tool_name="bashtools")
+        tool.subagent = MagicMock(name="explorer")
+        tool.subagent.name = "explorer"
+        session = MagicMock()
+
+        judged = {}
+
+        async def fake_judge(self, tool_name, tool_args, agent, session):
+            judged["call"] = (tool_name, tool_args)
+            return True, "操作合理"
+
+        monkeypatch.setattr("cloudra.infra.yolo_guard.YoloGuard.judge", fake_judge)
+        approval_called = []
+
+        async def fake_approval(*_args, **_kwargs):
+            approval_called.append(True)
+            return False, "不应走到人工审批"
+
+        monkeypatch.setattr(Tool, "request_approval", fake_approval)
+
+        token = set_session_yolo(True)
+        try:
+            ok, reason = await tool.ensure_safety(
+                session,
+                details="【动作】: 执行危险终端命令\n【执行指令】: rm -rf /tmp/x",
+                tool_args={"command": "rm -rf /tmp/x"},
+            )
+        finally:
+            reset_session_yolo(token)
+
+        assert ok is True
+        assert reason == ""
+        assert judged["call"] == ("bashtools", {"command": "rm -rf /tmp/x"})
+        assert approval_called == []
+
+    @pytest.mark.asyncio
+    async def test_yolo_off_does_not_call_guard(self, monkeypatch):
+        from cloudra.base.tools_class import Tool
+        from cloudra.infra.yolo_guard import is_yolo_enabled
+
+        monkeypatch.delenv("CLOUDRA_YOLO_MODE", raising=False)
+        assert is_yolo_enabled() is False
+
+        tool = Tool(tool_name="bashtools")
+        tool.subagent = MagicMock()
+        tool.subagent.name = "explorer"
+        tool.subagent.conversation_id = "test-conv"
+        session = MagicMock()
+        session.id = "s-1"
+
+        guard_called = []
+
+        async def fake_judge(self, *_args, **_kwargs):
+            guard_called.append(True)
+            return True, "不应调用"
+
+        monkeypatch.setattr("cloudra.infra.yolo_guard.YoloGuard.judge", fake_judge)
+
+        async def fake_approval(*_args, **_kwargs):
+            return True, ""
+
+        monkeypatch.setattr(Tool, "request_approval", fake_approval)
+
+        ok, reason = await tool.ensure_safety(
+            session,
+            details="【动作】: 执行危险终端命令",
+            tool_args={"command": "rm file"},
+        )
+        assert ok is True
+        assert guard_called == []

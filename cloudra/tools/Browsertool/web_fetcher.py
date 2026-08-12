@@ -206,15 +206,6 @@ class WebFetcher(Tool):
         else:
             content = raw_text
 
-        # 体积护栏：超大文本截断，避免一条工具结果撑爆上下文
-        MAX_TEXT_CHARS = 200_000
-        if len(content) > MAX_TEXT_CHARS:
-            content = (
-                content[:MAX_TEXT_CHARS]
-                + f"\n\n[... 内容过长已截断，原始共 {len(content)} 字符，"
-                "如需完整内容请分段抓取或下载到本地处理 ...]"
-            )
-
         return WebFetcher_output_schema(
             success=True,
             status_code=response.status_code,

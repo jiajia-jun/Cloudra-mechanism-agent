@@ -229,10 +229,10 @@ class TestRepairDanglingToolCalls:
 
 
 class TestCapMessageSizes:
-    """单条巨型消息（如整份 PDF 乱码文本）必须在渲染期截断，防止上下文爆炸。"""
+    """渲染期不拦腰截断；超窗由持久化压缩处理。"""
 
     @pytest.mark.asyncio
-    async def test_giant_tool_message_capped(self, context_manager):
+    async def test_giant_tool_message_not_capped(self, context_manager):
         giant = "%PDF-1.3 乱码" * 20000  # ~180k 字符
         await context_manager.append({"role": "assistant", "content": "调用工具", "tool_calls": [
             {"id": "c1", "type": "function", "function": {"name": "bashtools", "arguments": "{}"}},
@@ -242,11 +242,20 @@ class TestCapMessageSizes:
 
         messages = await context_manager.build_messages()
         tool_msg = next(m for m in messages if m.get("role") == "tool")
-        assert len(tool_msg["content"]) < 50_000
-        assert "已截断" in tool_msg["content"]
-        assert "token" in tool_msg["content"]
+        assert tool_msg["content"] == giant
+        assert "已截断" not in tool_msg["content"]
         user_msg = next(m for m in messages if m.get("content") == "短消息")
         assert user_msg["content"] == "短消息"
+
+    @pytest.mark.asyncio
+    async def test_giant_user_message_not_capped(self, context_manager):
+        giant = "用户粘贴 " * 20_000
+        await context_manager.append({"role": "user", "content": giant})
+
+        messages = await context_manager.build_messages()
+        user_msg = next(m for m in messages if m.get("role") == "user" and giant in str(m.get("content")))
+        assert user_msg["content"] == giant
+        assert "已截断" not in user_msg["content"]
 
     @pytest.mark.asyncio
     async def test_system_message_not_capped(self, context_manager):
@@ -323,10 +332,11 @@ class TestHistoryCompression:
 
     @pytest.mark.asyncio
     async def test_persistent_compaction_caps_oversized_summary_input(
-        self, context_manager, mock_llm
+        self, context_manager, mock_llm, monkeypatch
     ):
-        """巨型原始工具结果不会让摘要请求自身超窗并永久失效。"""
+        """巨型原始工具结果按 token 分块进摘要，不会让单次摘要请求超窗。"""
         _, create = mock_llm
+        monkeypatch.setattr(get_config().follower, "context_window", 16_000)
         await context_manager.append(
             {"role": "tool", "content": "BEGIN-" + "x" * 60_000 + "-END"}
         )
@@ -339,10 +349,10 @@ class TestHistoryCompression:
             )
 
         assert await context_manager._compress_persistent() is True
-        summary_prompt = create.call_args.kwargs["messages"][1]["content"]
-        assert "BEGIN-" in summary_prompt
-        assert "-END" not in summary_prompt
-        assert "已截断" in summary_prompt
+        prompts = [call.kwargs["messages"][1]["content"] for call in create.call_args_list]
+        assert any("BEGIN-" in prompt for prompt in prompts)
+        for prompt in prompts:
+            assert TokenEstimator.count_text(prompt) < 12_000
 
     @pytest.mark.asyncio
     async def test_oversized_history_uses_hierarchical_summary(
@@ -351,7 +361,7 @@ class TestHistoryCompression:
         """摘要输入自身超过 FOLLOWER 半窗时分块并最终归并为一条。"""
         _, create = mock_llm
         monkeypatch.setattr(get_config().follower, "context_window", 32_000)
-        # 用 user 角色绕过 tool 的 2k token 硬顶，专门验证分层摘要分块。
+        # 用超长 user 消息验证分层摘要分块（摘要输入按 token 硬切）。
         history = [
             {"role": "user", "content": f"块 {index}: " + "中" * 30_000}
             for index in range(4)
@@ -388,7 +398,7 @@ class TestHistoryCompression:
 
         create.side_effect = slow_summary
         context_manager._on_compaction_progress = progress.append
-        # 用 user 角色绕过 tool 结果硬顶，专门验证同层摘要并发。
+        # 用超长 user 消息验证同层摘要并发。
         history = [
             {"role": "user", "content": f"块 {index}: " + "中" * 20_000}
             for index in range(6)
@@ -561,11 +571,8 @@ class TestManualCompaction:
         assert stored[-1]["content"] == "最近回复"
 
     @pytest.mark.asyncio
-    async def test_tool_result_capped_at_token_budget(self, context_manager):
-        """非 skill 工具返回超过 TOOL_RESULT_MAX_TOKENS 时在渲染期截断；getskill 不截断。"""
-        from cloudra.infra.token_estimator import TokenEstimator
-        from cloudra.persistence.context_manager import TOOL_RESULT_MAX_TOKENS
-
+    async def test_tool_results_are_not_token_capped(self, context_manager):
+        """工具返回原样进入模型；拦腰截断会诱发反复重调。"""
         long_text = "结果" * 5000
         await context_manager.replace([
             {"role": "user", "content": "跑一下"},
@@ -578,33 +585,15 @@ class TestManualCompaction:
                         "type": "function",
                         "function": {"name": "bashtools", "arguments": "{}"},
                     },
-                    {
-                        "id": "call_skill",
-                        "type": "function",
-                        "function": {
-                            "name": "getskill",
-                            "arguments": '{"skill_name":"dft-calculation"}',
-                        },
-                    },
                 ],
             },
             {"role": "tool", "tool_call_id": "call_bash", "content": long_text},
-            {
-                "role": "tool",
-                "tool_call_id": "call_skill",
-                "content": "完整 skill 内容应保留 " + long_text,
-            },
         ])
 
         msgs = await context_manager.build_messages()
         bash = next(m for m in msgs if m.get("tool_call_id") == "call_bash")
-        skill = next(m for m in msgs if m.get("tool_call_id") == "call_skill")
-        assert "已截断" in str(bash["content"])
-        # 截断后正文（去掉后缀）应不超过硬顶
-        body = str(bash["content"]).split("\n\n[...")[0]
-        assert TokenEstimator.count_text(body) <= TOOL_RESULT_MAX_TOKENS
-        assert "完整 skill 内容应保留" in str(skill["content"])
-        assert "已截断" not in str(skill["content"])
+        assert bash["content"] == long_text
+        assert "已截断" not in str(bash["content"])
 
     @pytest.mark.asyncio
     async def test_compact_skips_when_below_keep_threshold(self, context_manager, mock_llm):
@@ -918,16 +907,109 @@ class TestTailCutAlignment:
         assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
 
     @pytest.mark.asyncio
-    async def test_skill_pins_deduped_and_capped_on_compress(
+    async def test_compact_handoff_lists_pinned_skills_as_done(
         self, context_manager, mock_llm
     ):
-        """同名 getskill 重复钉住应去重，单条 skill pin 受 token 上限约束。"""
-        from cloudra.persistence.context_manager import (
-            SKILL_PIN_MARKER,
-            SKILL_PIN_MAX_TOKENS,
+        """压缩抽走 getskill 后，交接须确定性写明已钉住 skill，避免反复加载。
+
+        回归：摘要模型若只看到「准备 getskill」而无 tool 成功记录，会误写
+        「skill 未落地」；agent 再 getskill → 再次撑爆 → 再压缩，死循环。
+        """
+        from types import SimpleNamespace
+
+        from cloudra.persistence.context_manager import SKILL_PIN_MARKER
+
+        _cls, create = mock_llm
+        create.return_value = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=(
+                            "**当前子目标**：加载 DAG 与 DFT skill\n"
+                            "**失败**：skill 始终未落地，没有任何 tool_call 成功记录\n"
+                            "**待办**：必须真实调用 getskill"
+                        )
+                    )
+                )
+            ]
         )
 
-        huge = "DFT流程步骤。" * 8000  # 远超单 pin 上限
+        await context_manager.replace(
+            [
+                {"role": "user", "content": "乙烯臭氧化机理计算"},
+                {
+                    "role": "assistant",
+                    "content": "将并行加载 skill",
+                    "tool_calls": [
+                        {
+                            "id": "call_d",
+                            "type": "function",
+                            "function": {
+                                "name": "getskill",
+                                "arguments": '{"skill_name":"dag-operations"}',
+                            },
+                        },
+                        {
+                            "id": "call_f",
+                            "type": "function",
+                            "function": {
+                                "name": "getskill",
+                                "arguments": '{"skill_name":"dft-calculation"}',
+                            },
+                        },
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_d",
+                    "content": "DAG SOP body",
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_f",
+                    "content": "DFT SOP body",
+                },
+                {"role": "assistant", "content": "下一步建图"},
+            ]
+        )
+
+        assert await context_manager._compress_persistent() is True
+        stored = await context_manager.load()
+        pins = [
+            m
+            for m in stored
+            if str(m.get("content", "")).startswith(SKILL_PIN_MARKER)
+        ]
+        assert len(pins) == 2
+        handoffs = [
+            m
+            for m in stored
+            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+        ]
+        assert len(handoffs) == 1
+        handoff = handoffs[0]["content"]
+        assert "已钉住的 Skill" in handoff
+        assert "dag-operations" in handoff
+        assert "dft-calculation" in handoff
+        assert "如非必要不要重复 getskill" in handoff
+        assert "如非必要不要再次 getskill" in handoff  # COMPACT_SUMMARY_INSTRUCTION
+        assert "不要因为「压缩后想核对语义」" in handoff
+
+        user_prompt = create.await_args.kwargs["messages"][1]["content"]
+        assert "dag-operations" in user_prompt
+        assert "dft-calculation" in user_prompt
+        assert "禁止" in user_prompt
+        assert "压缩后需核对" in user_prompt
+
+    @pytest.mark.asyncio
+    async def test_skill_pins_deduped_on_compress(
+        self, context_manager, mock_llm
+    ):
+        """同名 getskill 重复钉住应去重，正文不截断。"""
+        from cloudra.persistence.context_manager import SKILL_PIN_MARKER
+
+        huge = "DFT流程步骤。" * 8000
+        latest = huge + "\n--- Reference: mechanism ---\n" + huge
         await context_manager.replace(
             [
                 {"role": "user", "content": "跑通乙烯臭氧化机理"},
@@ -963,7 +1045,7 @@ class TestTailCutAlignment:
                 {
                     "role": "tool",
                     "tool_call_id": "call_s2",
-                    "content": huge + "\n--- Reference: mechanism ---\n" + huge,
+                    "content": latest,
                 },
                 {"role": "assistant", "content": "准备建图"},
             ]
@@ -976,8 +1058,8 @@ class TestTailCutAlignment:
             if str(m.get("content", "")).startswith(SKILL_PIN_MARKER)
         ]
         assert len(pins) == 1, f"同名 skill 应只留 1 条 pin，实际 {len(pins)}"
-        pin_tokens = TokenEstimator.count_message(pins[0])
-        assert pin_tokens <= SKILL_PIN_MAX_TOKENS + 64
+        assert "--- Reference: mechanism ---" in pins[0]["content"]
+        assert "已截断" not in pins[0]["content"]
         handoffs = [
             m for m in stored
             if str(m.get("content", "")).startswith("[上下文压缩提示]")
@@ -1038,3 +1120,23 @@ class TestTailCutAlignment:
         assert len(handoffs) == 1
         assert handoffs[0]["role"] == "user"
         assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_reload_from_disk_sees_other_writer_append(context_manager):
+    """inject 路径会另建 CM 写同一文件；活实例必须能丢掉缓存重读。"""
+    await context_manager.load()
+    other = ContextManager(
+        agent_id="test-agent",
+        conversation_id="test-conv",
+        prompt=None,
+        query="",
+    )
+    other.context_file = context_manager.context_file
+    await other.append({"role": "user", "content": "用户从远程控制台补充要求：继续"})
+
+    stale = await context_manager.load()
+    assert not any("继续" in str(m.get("content", "")) for m in stale)
+
+    fresh = await context_manager.reload_from_disk()
+    assert any("继续" in str(m.get("content", "")) for m in fresh)

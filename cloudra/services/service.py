@@ -27,6 +27,7 @@ from cloudra.infra import events
 from cloudra.infra.config import get_config
 from cloudra.persistence import conversation_repo, paths
 from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.workspace import resolve_working_directory
 from cloudra.runtime.runner import run_task_async
 from cloudra.services import control_store, session_store
 
@@ -89,6 +90,8 @@ class PreparedAppend:
     orchestration_config: str = "{}"
     command: control_store.ClientCommand | None = None
     existing_record: SessionRecord | None = None
+    agent_type: str = "coordinator"
+    parent_session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +235,9 @@ class SessionRunner:
         session_id = kwargs.pop("session_id", None) or f"a-0_run_{uuid.uuid4().hex}"
         mode = normalize_orchestration_mode(kwargs.get("orchestration_mode"))
         kwargs["orchestration_mode"] = mode
+        kwargs["working_directory"] = resolve_working_directory(
+            kwargs.get("working_directory")
+        )
         if kwargs.get("orchestration_config") is None:
             kwargs["orchestration_config"] = build_orchestration_config(mode)
         record, created = await asyncio.to_thread(
@@ -265,6 +271,7 @@ class SessionRunner:
         mode = normalize_orchestration_mode(orchestration_mode)
         if orchestration_config is None:
             orchestration_config = build_orchestration_config(mode)
+        working_directory = resolve_working_directory(working_directory)
         record, created = self._prepare_submission(
             query,
             conversation_id,
@@ -654,6 +661,28 @@ class SessionRunner:
             self._emit, conversation_id, session_id, "killed", {}
         )
         self._running.pop((conversation_id, session_id), None)
+        # 子 Agent 被强制终止时通知 Coordinator（与 executor 收尾一致）
+        if (
+            (record.agent_id or "a-0") != "a-0"
+            or record.parent_session_id
+            or (record.agent_type or "").lower() in {"follower", "subagent"}
+        ):
+            try:
+                from cloudra.persistence.context_manager import ContextManager
+                from cloudra.persistence.database import get_database_path
+
+                label = record.agent_id or session_id
+                await ContextManager.inject_event(
+                    conversation_id=conversation_id,
+                    agent_id="a-0",
+                    event_type="subagent",
+                    content=(
+                        f"子 Agent {label} (session={session_id}) 已被强制终止（killed）。"
+                    ),
+                    db_path=get_database_path(conversation_id),
+                )
+            except Exception:
+                pass
         return self.get(conversation_id, session_id)
 
     def _cancel_descendants(self, conversation_id: str, parent_session_id: str) -> None:
@@ -1208,6 +1237,8 @@ class CloudraService:
                 workspace_id=target.workspace_id,
                 command=command,
                 existing_record=record,
+                agent_type=target.agent_type or "coordinator",
+                parent_session_id=target.parent_session_id,
             )
         if not control_store.claim_command(db, request["command_id"]):
             raise RuntimeError("控制命令正在生效，请稍后查询")
@@ -1236,6 +1267,8 @@ class CloudraService:
                 orchestration_mode=target.orchestration_mode
                 or OrchestrationMode.STANDARD.value,
                 orchestration_config=target.orchestration_config or "{}",
+                agent_type=target.agent_type or "coordinator",
+                parent_session_id=target.parent_session_id,
             )
         mode: Literal["inject", "resume"] = (
             "resume" if target.state in _TERMINAL_STATES else "inject"
@@ -1260,6 +1293,8 @@ class CloudraService:
             orchestration_mode=target.orchestration_mode
             or OrchestrationMode.STANDARD.value,
             orchestration_config=target.orchestration_config or "{}",
+            agent_type=target.agent_type or "coordinator",
+            parent_session_id=target.parent_session_id,
         )
 
     def _existing_append_result(
@@ -1315,6 +1350,83 @@ class CloudraService:
     def _append_supplement_text(content: str) -> str:
         return f"用户从远程控制台补充要求：{content}"
 
+    def _is_follower_session(self, prepared: PreparedAppend) -> bool:
+        """目标是否为子 Agent session（非 Coordinator）。"""
+        if prepared.agent_id == "a-0":
+            return False
+        agent_type = (prepared.agent_type or "").lower()
+        return agent_type in {"follower", "subagent"} or bool(
+            prepared.parent_session_id
+        )
+
+    async def _resume_follower_session(
+        self, prepared: PreparedAppend
+    ) -> SessionRecord:
+        """唤醒沉睡的子 Agent：复用原 session_id，经 subagent 执行路径续跑。"""
+        from cloudra.infra.yolo_guard import is_yolo_enabled
+        from cloudra.persistence.context_manager import ContextManager
+        from cloudra.persistence.database import get_database_path
+        from cloudra.tools.Managetool._subagent_dispatch import (
+            run_subagent_in_process,
+        )
+
+        supplement = self._append_supplement_text(prepared.content)
+        cm = ContextManager(
+            agent_id=prepared.agent_id,
+            conversation_id=prepared.conversation_id,
+            prompt=None,
+            query="",
+            session_id=prepared.session_id,
+        )
+        await cm.append({"role": "user", "content": supplement})
+
+        db = ConversationDB(prepared.conversation_id).init()
+        payload = {
+            "agent_id": prepared.agent_id,
+            "query": prepared.content,
+            "context": [],
+            "conversation_id": prepared.conversation_id,
+            "parent_session_id": prepared.parent_session_id,
+            "working_directory": prepared.working_directory,
+            "orchestration_mode": prepared.orchestration_mode,
+            "yolo": is_yolo_enabled(),
+        }
+        session_id = prepared.session_id
+        task_id, _, _ = await session_store.acreate_subagent_request(
+            db,
+            state="running",
+            payload=payload,
+            conversation_id=prepared.conversation_id,
+            parent_session_id=prepared.parent_session_id,
+            session_id_fn=lambda _tid: session_id,
+        )
+        db_path = get_database_path(prepared.conversation_id)
+        task = asyncio.create_task(
+            run_subagent_in_process(task_id, db_path, session_id)
+        )
+        self.session_runner._running[
+            (prepared.conversation_id, session_id)
+        ] = task
+        self.session_runner._emit(
+            prepared.conversation_id,
+            session_id,
+            "user_message",
+            {
+                "message_id": prepared.command_id,
+                "command_id": prepared.command_id,
+                "content": prepared.content,
+                "agent_id": prepared.agent_id,
+            },
+        )
+        record = await asyncio.to_thread(
+            self.session_runner.get,
+            prepared.conversation_id,
+            session_id,
+        )
+        if record is None:
+            raise RuntimeError("子 Agent 唤醒后 Session 不存在")
+        return record
+
     async def append_session_message_command(
         self,
         *,
@@ -1337,24 +1449,27 @@ class CloudraService:
         if prepared.mode == "existing":
             return await asyncio.to_thread(self._existing_append_result, prepared)
         if prepared.mode == "resume":
-            try:
-                orch_config = json.loads(prepared.orchestration_config or "{}")
-            except (TypeError, ValueError, json.JSONDecodeError):
-                orch_config = None
-            if not isinstance(orch_config, dict):
-                orch_config = None
-            record = await self.session_runner.submit_async(
-                prepared.content,
-                prepared.conversation_id,
-                session_id=self._command_session_id(
-                    prepared.command_id, "resume"
-                ),
-                working_directory=prepared.working_directory,
-                node_id=prepared.node_id,
-                workspace_id=prepared.workspace_id,
-                orchestration_mode=prepared.orchestration_mode,
-                orchestration_config=orch_config,
-            )
+            if self._is_follower_session(prepared):
+                record = await self._resume_follower_session(prepared)
+            else:
+                try:
+                    orch_config = json.loads(prepared.orchestration_config or "{}")
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    orch_config = None
+                if not isinstance(orch_config, dict):
+                    orch_config = None
+                record = await self.session_runner.submit_async(
+                    prepared.content,
+                    prepared.conversation_id,
+                    session_id=self._command_session_id(
+                        prepared.command_id, "resume"
+                    ),
+                    working_directory=prepared.working_directory,
+                    node_id=prepared.node_id,
+                    workspace_id=prepared.workspace_id,
+                    orchestration_mode=prepared.orchestration_mode,
+                    orchestration_config=orch_config,
+                )
         elif prepared.mode == "inject":
             from cloudra.persistence.context_manager import ContextManager
 

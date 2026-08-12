@@ -19,6 +19,16 @@ MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 MAX_DIFF_CHARS = 200_000
 
 
+def resolve_working_directory(value: str | None = None) -> str:
+    """把工作目录收成绝对路径；缺省用当前进程 cwd。
+
+    隔离 TUI 的 runtime 进程 cwd 可能与用户启动目录不同。客户端应传入
+    自己的目录，而不是让 runtime 用 getcwd 兜底。
+    """
+    raw = (value or "").strip() or os.getcwd()
+    return str(Path(raw).expanduser().resolve())
+
+
 class WorkspaceError(ValueError):
     """工作区操作不满足路径、文本或编辑约束。"""
 
@@ -131,8 +141,6 @@ def _unified_diff(relative_path: str, before: str | None, after: str) -> str:
         line if line.endswith(("\n", "\r")) else line + "\n"
         for line in diff_lines
     )
-    if len(diff) > MAX_DIFF_CHARS:
-        return diff[:MAX_DIFF_CHARS] + "\n... diff 已截断 ...\n"
     return diff
 
 

@@ -77,8 +77,16 @@ class TestExecutorCancelledFallback:
         with db.connect() as con:
             req_state = con.execute("SELECT state FROM subagent_requests WHERE id=1").fetchone()[0]
             sess_state = con.execute("SELECT state FROM session WHERE session_id='s-1'").fetchone()[0]
+            event = con.execute(
+                "SELECT agent_id, event_type, content, state FROM context_events"
+            ).fetchone()
         assert req_state == "cancelled"
         assert sess_state == "cancelled"
+        assert event is not None
+        assert event[0] == "a-0"
+        assert event[1] == "subagent"
+        assert event[3] == "pending"
+        assert "终止" in event[2] or "打断" in event[2]
 
 
 @pytest.mark.asyncio

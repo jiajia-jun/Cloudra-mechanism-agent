@@ -23,7 +23,7 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 - `react.py` — ReAct 推理循环主体（流式 LLM、工具调度、取消/重试）。
 - `agent.py` — `Agent`/`Coordinator`/`Follower` 角色与 prompt 加载。
 - `supervisor.py` — 科学督导（SupervisorAgent、GraphSupervisor），只在 `dag_guided` 模式有写图权限。
-- `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装）、`environment_observer.py`（工作区快照）。
+- `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程；进程内 follower 与 runner 一样 `acquire_workers`，避免隔离 TUI resume 后 compute 停在 ready）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装）、`environment_observer.py`（工作区快照）。
 - `dag/` — DAG 引导编排子系统（仍在包根一级），见下节。
 
 **`services/` — 服务层 / 控制面**
@@ -60,7 +60,7 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 **UI 前端**
 
 - `tui/new/` — Textual 全屏 TUI（主界面）：`screens/`（main/approval/ask_user/context/dag/help）、`widgets/`（chat_log、input_bar、side_panel、status_bar 等）、`commands.py`（斜杠命令注册）、`transcript*.py` + `render_bridge.py`（事件→屏幕渲染管线）。
-- `tui/new/watchdog.py` + `runtime_proc.py` + `control.py` — **默认进程隔离**：父进程拉起本机 FastAPI runtime（Agent）与可杀的 TUI 子进程；UI 假死只重启 TUI。`CLOUDRA_TUI_INLINE=1` 回退同进程；`CLOUDRA_TUI_NO_WATCHDOG=1` 禁用界面重启；`CLOUDRA_TUI_RUNTIME_URL` 复用已有 runtime。
+- `tui/new/watchdog.py` + `runtime_proc.py` + `control.py` — **默认进程隔离**：父进程拉起本机 FastAPI runtime（Agent）与可杀的 TUI 子进程；UI 假死只重启 TUI。`CLOUDRA_TUI_INLINE=1` 回退同进程；`CLOUDRA_TUI_NO_WATCHDOG=1` 禁用界面重启；`CLOUDRA_TUI_RUNTIME_URL` 复用已有 runtime。提交/追问必须带上 TUI 启动目录作为 `working_directory`（隔离 runtime 的 cwd 可能是旧进程留下的，不能当工作区）。
 - `tui/legacy_app.py` — prompt_toolkit 旧版 TUI；`tui/run.py` — 入口；`tui/render.py` — IPC 终端渲染。
 - `ui/app.py` — Flet 桌面/移动 GUI；根目录 `flet_app.py` 为打包入口。
 

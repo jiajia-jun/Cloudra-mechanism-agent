@@ -54,9 +54,10 @@ class LLMConfig(BaseSettings):
     # 原生搜索注入参数（verbatim 写入 extra_body）。custom 与无原生搜索的服务商
     # （如中转站 DeepSeek）用它指定 {plugins/ web_search_options / tools} 等字段。
     native_search_params: dict = Field(default_factory=dict)
-    # 模型真实上下文窗口（token 数）：上下文压缩阈值按 window // 2 计算，
-    # 必须与服务商实际窗口一致，否则压缩永远不触发、长任务直接 400
-    context_window: int = 128000
+    # 模型真实上下文窗口（token 数）：上下文压缩阈值按 window // 2 计算。
+    # 默认偏保守：宁可比服务商标称窗口略小、早一点压缩，也不让对话拖成
+    # 脏上下文；按模型性质覆盖请改 config.yaml / `cloudra config set`。
+    context_window: int = 200000
     # 单次 LLM 请求超时秒数（OpenAI SDK 与 requests shim 共用）
     timeout: int = 300
 

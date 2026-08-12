@@ -98,9 +98,66 @@ async def test_isolated_submit_posts_to_runtime(monkeypatch):
     assert "sessions" in args[1]
     assert kwargs["json"]["yolo"] is True
     assert kwargs["json"]["orchestration_mode"] == "dag_guided"
+    assert "working_directory" in kwargs["json"]
 
     with pytest.raises(RuntimeError, match="隔离"):
         service.session_runner.submit("x", conv_id)
+
+
+@pytest.mark.asyncio
+async def test_isolated_submit_defaults_working_directory_to_tui_cwd(tmp_path, monkeypatch):
+    """隔离控制面缺省应发送 TUI 进程 cwd，而不是把空值交给 runtime。"""
+    monkeypatch.delenv("CLOUDRA_TUI_INLINE", raising=False)
+    monkeypatch.chdir(tmp_path)
+    service = IsolatedControlService("http://127.0.0.1:18000")
+    fake_resp = MagicMock()
+    fake_resp.status_code = 202
+    fake_resp.content = b'{"session_id":"a-0_run_x","state":"queued"}'
+    fake_resp.json.return_value = {"session_id": "a-0_run_x", "state": "queued"}
+    fake_resp.raise_for_status = MagicMock()
+    client = MagicMock()
+    client.is_closed = False
+    client.request = AsyncMock(return_value=fake_resp)
+    service._client = client
+
+    await service.submit_session_async(
+        "hello",
+        conversation_id="c" + "0" * 31,
+    )
+    body = client.request.await_args.kwargs["json"]
+    assert body["working_directory"] == str(tmp_path.resolve())
+
+
+@pytest.mark.asyncio
+async def test_isolated_append_forwards_working_directory(tmp_path, monkeypatch):
+    """追问 JSON 必须带 working_directory，resume 才能补上空的 session 目录。"""
+    monkeypatch.delenv("CLOUDRA_TUI_INLINE", raising=False)
+    service = IsolatedControlService("http://127.0.0.1:18000")
+    fake_resp = MagicMock()
+    fake_resp.status_code = 200
+    fake_resp.content = b'{"command_id":"cmd","state":"applied","session":{"session_id":"a-4_task1","state":"running"}}'
+    fake_resp.json.return_value = {
+        "command_id": "cmd",
+        "state": "applied",
+        "session": {"session_id": "a-4_task1", "state": "running"},
+    }
+    fake_resp.raise_for_status = MagicMock()
+    client = MagicMock()
+    client.is_closed = False
+    client.post = AsyncMock(return_value=fake_resp)
+    service._client = client
+
+    workspace = str(tmp_path.resolve())
+    await service.append_session_message_command(
+        command_id="cmd",
+        conversation_id="c" + "0" * 31,
+        session_id="a-4_task1",
+        content="继续",
+        working_directory=workspace,
+    )
+    body = client.post.await_args.kwargs["json"]
+    assert body["content"] == "继续"
+    assert body["working_directory"] == workspace
 
 
 @pytest.mark.asyncio

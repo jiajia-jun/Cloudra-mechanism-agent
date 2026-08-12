@@ -13,6 +13,7 @@ from typing import Any, Optional
 from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
 from cloudra.infra.runtime_profile import subagent_execution_mode
 from cloudra.persistence.database import ConversationDB, aretry_on_locked, get_database_path
+from cloudra.persistence.workspace import resolve_working_directory
 from cloudra.services import session_store
 
 
@@ -77,12 +78,14 @@ async def dispatch_subagent(
     parent_session_id: Optional[str],
     parent_orchestration_mode: Any = OrchestrationMode.STANDARD,
     semaphore: Optional[asyncio.Semaphore] = None,
+    extra_payload: Optional[dict] = None,
 ) -> SubagentDispatchResult:
     """实例化子 Agent、落库 subagent_requests、按运行模式执行并回取结果。
 
     semaphore 仅在 is_wait=True 时有意义：in-process 模式包住执行协程，
     subprocess 模式包住 spawn + 等待，用于 swarm 限制并发实例数。
     """
+    working_directory = resolve_working_directory(working_directory)
     sub_agent = agent_cls(
         query=query,
         conversation_id=conversation_id,
@@ -117,6 +120,8 @@ async def dispatch_subagent(
         'orchestration_mode': sub_mode.value,
         'yolo': is_yolo_enabled(),
     }
+    if extra_payload:
+        base_payload.update(extra_payload)
 
     if is_wait:
         # 同步模式：默认在当前 Python 进程内执行（Android 唯一支持的方式）；

@@ -38,7 +38,10 @@ from cloudra.persistence.database import ConversationDB
 _TEMPLATE_PROCESS_NODES = [
     ("p_analyze", "需求分析：拆解用户目标，确认机理问题与完成判据"),
     ("p_skill", "读取相关 skill 与领域方法（机理 SOP）"),
-    ("p_literature", "文献与领域共识搜集（可派子 agent）"),
+    (
+        "p_literature",
+        "文献与领域共识搜集（可派 explorer/researcher；计算类子 Agent 须等机理提交与 Supervisor 排产）",
+    ),
     ("p_delivery_design", "设计机理假设图：中间体与基元步（delivery DAG）"),
 ]
 _TEMPLATE_PROCESS_EDGES = [
@@ -139,13 +142,21 @@ def _node_index_entry(node: dict[str, Any]) -> dict[str, Any]:
 class DagGraphInput(input_schema):
     action: Literal[
         "view", "mutate", "delivery_report", "init_from_template",
-        "bind_evidence", "review_evidence",
+        "bind_evidence", "review_evidence", "message_supervisor",
     ] = Field(
         description="view reads a bounded projection; mutate submits one atomic batch; "
         "delivery_report evaluates coverage; init_from_template seeds the standard "
         "mechanism-study skeleton on empty graphs; bind_evidence mounts a finished "
         "tool call as delivery evidence; review_evidence (supervisor-only) adjudicates "
-        "mounted evidence."
+        "mounted evidence; message_supervisor (coordinator) sends feedback to the "
+        "Supervisor without changing the graph."
+    )
+    message: str | None = Field(
+        default=None,
+        description=(
+            "For message_supervisor: plain-text note to the Supervisor "
+            "(request planning, report blockers, ask why frontier is empty, etc.)."
+        ),
     )
     tool_call_id: str | None = Field(
         default=None,
@@ -247,7 +258,11 @@ class DagGraph(Tool):
         "Read or submit validated changes to the persistent process DAG and delivery/mechanism "
         "DAG (dag_record/dag_guided sessions only). The Coordinator designs the delivery DAG; "
         "the Supervisor maintains the process DAG; accepted delivery mutations wake the "
-        "Supervisor to schedule work — only Supervisor-ready frontier tasks may be executed. "
+        "Supervisor to schedule work — execute frontier tasks (planned nodes whose "
+        "dependencies are met and status is proposed or ready; do not require "
+        "status=ready alone). "
+        "message_supervisor (Coordinator only) sends a note to the Supervisor without "
+        "mutating the graph. "
         "Graph records hold durable pointers, not calculation bodies; completion is "
         "evidence-derived.\n"
         "mutate submits one atomic batch applied in order and validated together, so an edge "
@@ -307,6 +322,39 @@ class DagGraph(Tool):
             )
 
         conversation_id = getattr(self.subagent, "conversation_id", "default")
+        caller_type = getattr(self.subagent, "type", "")
+        caller_id = getattr(self.subagent, "id", "")
+
+        if user_input.action == "message_supervisor":
+            if caller_type == "supervisor":
+                return DagGraphOutput(
+                    success=False,
+                    action="message_supervisor",
+                    error="message_supervisor is for the Coordinator; you are the Supervisor.",
+                )
+            if caller_type != "coordinator" and caller_id != "a-0":
+                return DagGraphOutput(
+                    success=False,
+                    action="message_supervisor",
+                    error=(
+                        "message_supervisor is Coordinator-only; "
+                        "report blockers on your assigned process node or via AgentHub."
+                    ),
+                )
+            msg = (user_input.message or "").strip()
+            if not msg:
+                return DagGraphOutput(
+                    success=False,
+                    action="message_supervisor",
+                    error="message_supervisor requires a non-empty message.",
+                )
+            # 真正唤醒由 DagController.on_tool_finished → maybe_supervise 完成
+            return DagGraphOutput(
+                success=True,
+                action="message_supervisor",
+                accepted=True,
+                result={"delivered": True, "message": msg[:2000]},
+            )
 
         def _prepare_db_and_store():
             # 工具调用路径上不做 init() 的 schema 写，版本落后才迁移；
@@ -323,7 +371,7 @@ class DagGraph(Tool):
         engine = DagEngine(store)
         actor = (
             GraphActor.SUPERVISOR
-            if getattr(self.subagent, "type", "") == "supervisor"
+            if caller_type == "supervisor"
             else GraphActor.AGENT
         )
 

@@ -243,7 +243,7 @@ class TestGoalConfirm:
         )
 
     async def test_revived_after_stop_notice_injected(self, agent):
-        """stop 后被唤醒的复核轮：每轮请求都带"无事可做就再次 stop"的提示。"""
+        """stop 后被唤醒的复核轮：提示优先回应用户，无用户要求才再次 stop。"""
         from unittest.mock import AsyncMock
 
         agent._build_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
@@ -256,6 +256,10 @@ class TestGoalConfirm:
             if m.get("role") == "system" and "再次调用 stop" in str(m.get("content", ""))
         ]
         assert notices
+        text = str(notices[0].get("content", ""))
+        assert "优先" in text
+        assert "用户" in text
+        assert "来电" in text
         # 非一次性：下一轮仍应注入（直到模型再次 stop）
         kwargs2 = await agent._build_request_kwargs()
         assert any(

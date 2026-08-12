@@ -1168,3 +1168,60 @@ async def test_review_evidence_rejected_downgrades_and_notifies(tmp_path):
     assert "step1" in events[0][2]
     assert "saddle_supported → inconclusive" in events[0][2]
     assert "虚频归属" in events[0][2]
+
+
+@pytest.mark.asyncio
+async def test_message_supervisor_delivers_without_graph_change(tmp_path):
+    from cloudra.core.supervisor import SupervisorAgent
+    from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
+
+    get_config().data_dir = tmp_path
+    agent = _agent("tool-msg-supervisor", "dag_guided")
+    tool = DagGraph(subagent=agent)
+    session = Session("s1", str(tmp_path / "session.json"))
+
+    out = await tool.tool_call(
+        DagGraphInput(
+            action="message_supervisor",
+            message="请为 TS 补排产",
+        ),
+        session,
+    )
+    assert out.success
+    assert out.accepted is True
+    assert out.result["delivered"] is True
+    assert "请为 TS 补排产" in out.result["message"]
+
+    empty = await tool.tool_call(
+        DagGraphInput(action="message_supervisor", message="  "),
+        session,
+    )
+    assert empty.success is False
+    assert "non-empty" in empty.error
+
+    supervisor = SupervisorAgent(
+        conversation_id="tool-msg-supervisor-sv",
+        orchestration_mode="dag_guided",
+    )
+    blocked = await DagGraph(subagent=supervisor).tool_call(
+        DagGraphInput(action="message_supervisor", message="nope"),
+        session,
+    )
+    assert blocked.success is False
+    assert "Coordinator" in blocked.error
+
+    from cloudra.core.agent import Follower
+
+    follower = Follower(
+        id="a-4",
+        name="small_mol",
+        query="opt",
+        conversation_id="tool-msg-supervisor-f",
+        orchestration_mode="dag_guided",
+    )
+    from_follower = await DagGraph(subagent=follower).tool_call(
+        DagGraphInput(action="message_supervisor", message="请排产"),
+        session,
+    )
+    assert from_follower.success is False
+    assert "Coordinator-only" in from_follower.error

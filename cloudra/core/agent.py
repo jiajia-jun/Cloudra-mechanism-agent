@@ -8,7 +8,7 @@ from typing import Any, Optional
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from cloudra import __version__
 from cloudra.base.tools_class import Tool
@@ -20,6 +20,7 @@ from cloudra.infra.runtime_profile import filter_tools_for_runtime
 from cloudra.infra.token_estimator import TokenEstimator
 from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.workspace import resolve_working_directory
 from cloudra.runtime.prompt_assembler import (
     PromptAssembler,
     PromptAssembly,
@@ -36,16 +37,19 @@ _GOAL_CONFIRM_REMINDER = (
     "【系统】你刚刚给出了结论但没有调用 stop 工具。注意：任务只有在调用 stop "
     "工具后才会真正结束，仅输出正文会让循环继续空转。请用 goal_set 重新确认目标与完成判据，"
     "或 todo_read 查看任务清单，判断目标是否真正达成：若已完成，调用 stop 并填入最终答案收尾；"
-    "若未完成，继续推进。如果你此前已经调用过 stop、本轮只是被事件唤醒且没有新工作，"
-    "也请直接再次调用 stop——重复调用是安全且推荐的静默收尾方式，不要输出闲聊正文。"
+    "若未完成，继续推进。如果你此前已经调用过 stop、本轮只是被事件唤醒："
+    "有用户消息则先回应用户；没有新工作才直接再次调用 stop 静默收尾。"
 )
 
 # 曾经 stop 过的实例被外部事件唤醒后，持续注入的复核轮提示（每轮都带，直到再次 stop）
 _REVIVED_AFTER_STOP_NOTICE = (
     "【系统】本任务此前已经通过 stop 工具收尾，当前是被外部事件（消息/提醒）唤醒的复核轮。"
-    "请先读取并判断事件内容：若是 AgentHub 消息或点名，先查看并处理（需要时回复），"
-    "处理完成后调用 stop 收尾；若事件已过时或无需行动，直接再次调用 stop 静默收尾"
-    "（重复调用安全且推荐），不要输出安慰性/闲聊正文——每一轮正文都在空耗算力。"
+    "优先回应用户：若本轮有用户提问、指令、汇报要求或叫停，必须先用正文直接回答"
+    "（用户消息不是闲聊，也不要先去查计算/改提醒/再次 stop）。"
+    "其中 `role=user` 的 `【来电】` 行同样算用户提问，必须先答再考虑静默 stop。"
+    "答完之后，若用户要求停止则按要求收尾；若后台任务仍在跑且用户未叫停，可以再 stop 挂起。"
+    "仅当唤醒只是过期提醒、无需回复的通知、或确实没有用户要求时，才直接再次调用 stop "
+    "静默收尾（重复调用安全且推荐）。不要输出与用户问题无关的空转正文。"
 )
 
 
@@ -103,7 +107,7 @@ class Agent(BaseModel):
     max_tokens: int
 
     #agent使用模型上下文窗口（用于上下文压缩阈值计算）
-    context_window: int = 128000
+    context_window: int = 200000
 
     #agent使用模型top_p
     top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
@@ -140,6 +144,7 @@ class Agent(BaseModel):
     conversation_id: str
 
     # API 会话可独立指定目录，避免修改进程级 cwd 导致并发任务互相影响。
+    # 构造后由 validator 收成绝对路径，不再保持 None。
     working_directory: Optional[str] = None
 
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
@@ -168,6 +173,11 @@ class Agent(BaseModel):
     _goal_confirm_force: bool = False
     # 本实例曾成功 stop、后被外部事件唤醒：每轮请求都带复核轮提示，引导模型再次 stop
     _revived_after_stop: bool = False
+
+    @model_validator(mode="after")
+    def _resolve_working_directory(self) -> "Agent":
+        self.working_directory = resolve_working_directory(self.working_directory)
+        return self
 
     def _init_context_manager(self) -> None:
         '''初始化本 Agent 的 ContextManager。'''

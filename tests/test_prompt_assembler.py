@@ -158,10 +158,21 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     assert "AgentHub" in with_hub.identity_messages[0]["content"]
     assert "agent_hub" in with_hub.identity_messages[0]["content"]
     assert "交接文档" in with_hub.identity_messages[0]["content"]
+    assert "directory" in with_hub.identity_messages[0]["content"]
+    assert "call" in with_hub.identity_messages[0]["content"]
+    assert "【来电】" in with_hub.identity_messages[0]["content"]
 
     without_hub = assembler.assemble(["bashtools"])
     assert "AgentHub" not in without_hub.identity_messages[0]["content"]
     assert "交接文档" in without_hub.identity_messages[0]["content"]
+
+
+def test_coordinator_prompt_allows_peer_call():
+    from pathlib import Path
+
+    text = Path("cloudra/prompts/coordinator.md").read_text(encoding="utf-8")
+    assert "不允许直接通信" not in text
+    assert "agent_hub" in text
 
 
 @pytest.mark.asyncio
@@ -292,6 +303,9 @@ async def test_ordinary_workspace_change_is_observation_only(
     assert second_diagnostics["prompt_revision"] == first_diagnostics["prompt_revision"]
     assert second_observation != first_observation
     assert "new-result.txt" in second_observation
+    assert f"working_directory={workspace.resolve()}" in first_observation
+    assert "bashtools" in first_observation
+    assert "相对此工作目录" in first_observation
 
 
 @pytest.mark.asyncio

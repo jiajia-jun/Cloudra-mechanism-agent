@@ -43,6 +43,38 @@ class _FakeAgent:
         pass
 
 
+class _ContextDelegatingAgent(_FakeAgent):
+    """把 update_context 交给真实 ContextManager，用于检查落盘的 user 行。"""
+
+    def __init__(self, query=None, conversation_id=None, **kwargs):
+        super().__init__(query=query, conversation_id=conversation_id, **kwargs)
+        self.id = "a-fake"
+        self.prompt = "stock role prompt"
+
+    async def _report_compaction_progress(self, progress):
+        return None
+
+    def _ensure_context_manager(self):
+        if self.context_manager is None:
+            from cloudra.persistence.context_manager import ContextManager
+
+            self.context_manager = ContextManager(
+                agent_id=self.id,
+                conversation_id=self.conversation_id,
+                prompt=self.prompt,
+                query=self.query,
+                session_id=self.session_id,
+                on_compaction_progress=self._report_compaction_progress,
+            )
+        return self.context_manager
+
+    async def get_context(self):
+        return await self._ensure_context_manager().load()
+
+    async def update_context(self, block):
+        await self._ensure_context_manager().append(block)
+
+
 def _make_fake_react(result=None, exc=None):
     """构造 reAct 替身类：run() 返回固定结果或抛出固定异常。"""
 
@@ -59,8 +91,16 @@ def _make_fake_react(result=None, exc=None):
     return FakeReAct
 
 
-def _setup_executor_env(tmp_path, monkeypatch, run_result=None, run_exc=None):
+def _setup_executor_env(
+    tmp_path, monkeypatch, run_result=None, run_exc=None, *, input_extra=None, agent_cls=None
+):
     """准备临时 DB（1 条 running 请求 + 1 条 running session）并替换 Subagent_hash / reAct。"""
+    import os
+    from pathlib import Path
+
+    runtime_dir = Path(f"/tmp/cr{os.getpid()}e")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime_dir))
     db_path = str(tmp_path / "test.db")
     db = ConversationDB.from_path(db_path).init()
     input_data = {
@@ -69,6 +109,8 @@ def _setup_executor_env(tmp_path, monkeypatch, run_result=None, run_exc=None):
         "conversation_id": "conv-1",
         "session_id": "s-1",
     }
+    if input_extra:
+        input_data.update(input_extra)
     with db.connect() as con:
         con.execute(
             "INSERT INTO subagent_requests (id, state, input_data, conversation_id, session_id) "
@@ -78,7 +120,8 @@ def _setup_executor_env(tmp_path, monkeypatch, run_result=None, run_exc=None):
         con.execute("INSERT INTO session (session_id, state) VALUES ('s-1', 'running')")
         con.commit()
 
-    agent_hash = type("AgentHash", (), {"get": lambda self, k: {"a-fake": _FakeAgent}.get(k)})()
+    cls = agent_cls or _FakeAgent
+    agent_hash = type("AgentHash", (), {"get": lambda self, k: {"a-fake": cls}.get(k)})()
     monkeypatch.setattr("cloudra.runtime.executor.Subagent_hash", lambda: agent_hash)
     monkeypatch.setattr(
         "cloudra.runtime.executor.reAct", _make_fake_react(result=run_result, exc=run_exc)
@@ -218,8 +261,196 @@ class TestMarkFailed:
         db_path = _setup_executor_env(tmp_path, monkeypatch, run_exc=RuntimeError("错" * 600))
         await run_executor(1, db_path, "s-1")
 
-        req_state, sess, events = _read_states(db_path)
+        _, sess, events = _read_states(db_path)
         # session.error 保存完整错误，事件内容截断到 500 字符
         assert sess[1] == "错" * 600
         assert events[0][3].endswith("错" * 500)
         assert "错" * 501 not in events[0][3]
+
+
+@pytest.mark.asyncio
+class TestExecutorWorkers:
+    """进程内 run_executor 必须自己 acquire compute workers。
+
+    隔离 TUI 下 follower 走 run_subagent_in_process → run_executor，
+    不再经过 run_task_async。Coordinator 进程死后 jobs 会永远停在 ready。
+    """
+
+    async def test_acquires_and_releases_when_idle(self, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        from cloudra.runtime.executor import run_executor
+
+        db_path = _setup_executor_env(tmp_path, monkeypatch, run_result="ok")
+        acquired = []
+        released = []
+
+        with patch("cloudra.runtime.workers.acquire_workers", lambda db, *a, **k: acquired.append(db)), \
+             patch("cloudra.runtime.workers.release_workers", lambda db, *a, **k: released.append(db)):
+            await run_executor(1, db_path, "s-1")
+
+        assert acquired == [db_path]
+        assert released == [db_path]
+
+    async def test_keeps_workers_when_compute_pending(self, tmp_path, monkeypatch):
+        from unittest.mock import patch
+
+        from cloudra.runtime.executor import run_executor
+
+        db_path = _setup_executor_env(tmp_path, monkeypatch, run_result="ok")
+        db = ConversationDB.from_path(db_path)
+        with db.connect() as con:
+            con.execute(
+                "INSERT INTO compute_jobs (conversation_id, state, path, jobtype) "
+                "VALUES ('conv-1', 'ready', '/tmp/x.gjf', 'gaussian')"
+            )
+            con.commit()
+
+        acquired = []
+        released = []
+        with patch("cloudra.runtime.workers.acquire_workers", lambda db, *a, **k: acquired.append(db)), \
+             patch("cloudra.runtime.workers.release_workers", lambda db, *a, **k: released.append(db)):
+            await run_executor(1, db_path, "s-1")
+
+        assert acquired == [db_path]
+        assert released == []
+
+
+@pytest.mark.asyncio
+async def test_hub_call_origin_has_exactly_one_incoming_user_line(tmp_path, monkeypatch):
+    """hub_call spawn：上下文只有一条【来电】user 行，前面不能再有裸 query。"""
+    from cloudra.persistence.context_manager import ContextManager
+    from cloudra.runtime.executor import run_executor
+    from cloudra.tools.Managetool._hub_call import format_incoming_call
+
+    spoken = "帮我看虚频"
+    incoming = format_incoming_call(
+        caller_agent_id="a-0",
+        caller_session_id="a-0_run1",
+        message=spoken,
+    )
+    db_path = _setup_executor_env(
+        tmp_path,
+        monkeypatch,
+        run_result="ok",
+        input_extra={
+            "query": spoken,
+            "origin": "hub_call",
+            "context": [{"role": "user", "content": incoming}],
+            "caller_agent_id": "a-0",
+            "caller_session_id": "a-0_run1",
+        },
+        agent_cls=_ContextDelegatingAgent,
+    )
+    await run_executor(1, db_path, "s-1")
+
+    stored = await ContextManager(
+        agent_id="a-fake",
+        conversation_id="conv-1",
+        prompt=None,
+        query="",
+        session_id="s-1",
+    ).load()
+    user_msgs = [m for m in stored if m.get("role") == "user"]
+    assert len(user_msgs) == 1
+    assert "【来电】" in user_msgs[0]["content"]
+    assert user_msgs[0]["content"] == incoming
+    assert stored[0]["content"] != spoken
+
+
+@pytest.mark.asyncio
+class TestHubCallHangup:
+    async def test_hub_call_origin_does_not_wake_coordinator_as_delivery(
+        self, tmp_path, monkeypatch
+    ):
+        from cloudra.persistence.context_manager import ContextManager
+        from cloudra.runtime.executor import run_executor
+
+        db_path = _setup_executor_env(
+            tmp_path,
+            monkeypatch,
+            run_result="闲聊结论",
+            agent_cls=_ContextDelegatingAgent,
+        )
+        db = ConversationDB.from_path(db_path)
+        with db.connect() as con:
+            row = con.execute("SELECT input_data FROM subagent_requests WHERE id=1").fetchone()
+            payload = json.loads(row[0])
+            payload["origin"] = "hub_call"
+            payload["caller_agent_id"] = "a-0"
+            payload["caller_session_id"] = "a-0_run1"
+            con.execute(
+                "UPDATE subagent_requests SET input_data=? WHERE id=1",
+                (json.dumps(payload),),
+            )
+            con.commit()
+        await run_executor(1, db_path, "s-1")
+        _, _, events = _read_states(db_path)
+        contents = [e[3] for e in events]
+        assert not any("已完成。结论" in (c or "") for c in contents)
+
+        hangups = [
+            e
+            for e in events
+            if e[2] == "user_message" and "【来电结束】" in (e[3] or "")
+        ]
+        assert len(hangups) == 1
+        conv_id, agent_id, event_type, content, ev_state = hangups[0]
+        assert (conv_id, agent_id, event_type, ev_state) == (
+            "conv-1",
+            "a-0",
+            "user_message",
+            "pending",
+        )
+        assert "fake-agent" in content
+        assert "session=s-1" in content
+        assert "已挂断" in content
+        assert not any(e[2] == "subagent" for e in events)
+
+        caller_cm = ContextManager(
+            agent_id="a-0",
+            conversation_id="conv-1",
+            prompt=None,
+            query="",
+        )
+        caller_stored = await caller_cm.load()
+        caller_user = [
+            m
+            for m in caller_stored
+            if m.get("role") == "user" and "【来电结束】" in str(m.get("content", ""))
+        ]
+        assert len(caller_user) == 1
+        assert "fake-agent" in caller_user[0]["content"]
+        assert "session=s-1" in caller_user[0]["content"]
+
+    async def test_hangup_inject_failure_keeps_task_done(self, tmp_path, monkeypatch):
+        from cloudra.runtime.executor import run_executor
+
+        db_path = _setup_executor_env(
+            tmp_path, monkeypatch, run_result="闲聊结论", agent_cls=_ContextDelegatingAgent
+        )
+        db = ConversationDB.from_path(db_path)
+        with db.connect() as con:
+            row = con.execute("SELECT input_data FROM subagent_requests WHERE id=1").fetchone()
+            payload = json.loads(row[0])
+            payload["origin"] = "hub_call"
+            payload["caller_agent_id"] = "a-0"
+            payload["caller_session_id"] = "a-0_run1"
+            con.execute(
+                "UPDATE subagent_requests SET input_data=? WHERE id=1",
+                (json.dumps(payload),),
+            )
+            con.commit()
+
+        async def boom(**_kwargs):
+            raise RuntimeError("inject failed")
+
+        monkeypatch.setattr(
+            "cloudra.tools.Managetool._hub_call.deliver_incoming_call",
+            boom,
+        )
+        await run_executor(1, db_path, "s-1")
+        req_state, sess, events = _read_states(db_path)
+        assert req_state == "done"
+        assert sess[0] == "completed"
+        assert not any("已完成。结论" in (c or "") for c in (e[3] for e in events))

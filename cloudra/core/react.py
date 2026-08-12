@@ -226,11 +226,11 @@ class reAct:
             else:
                 deduplicated_raw.append(event)
 
-        # append 路径会先把 user_message 落进上下文再 inject_event；
-        # 此处若再写一条【user_message】会造成重复。按近期正文去重。
+        # inject 路径会另建 ContextManager 把 user 行落盘再广播；本实例
+        # 缓存可能过期。先重读磁盘，再按近期正文去重。
         recent_contents = {
             str(msg.get("content") or "")
-            for msg in (await self.agent.context_manager.load())[-12:]
+            for msg in (await self.agent.context_manager.reload_from_disk())[-12:]
         }
 
         injected = 0
@@ -241,6 +241,20 @@ class reAct:
                 continue
             event_type = event.get("event_type", "external")
             content = event.get("content", "")
+            if event_type == "user_message":
+                if content in recent_contents:
+                    injected += 1
+                    continue
+                await self.agent.update_context({
+                    "role": "user",
+                    "content": content,
+                })
+                recent_contents.add(content)
+                self.log.update_content(
+                    f"{Color.YELLOW}[外部事件] {event_type}: {self._truncate(content, 200)}{Color.END}\n"
+                )
+                injected += 1
+                continue
             system_line = f"【{event_type}】{content}"
             if content in recent_contents or system_line in recent_contents:
                 injected += 1  # 仍计为已消费，便于 runner 继续循环
@@ -471,7 +485,7 @@ class reAct:
             if stopped:
                 self._stopped_via_tool = True
                 # 后续若被外部事件唤醒（同一实例继续 run），每轮请求注入复核轮提示，
-                # 引导模型无事可做时直接再次 stop，而不是输出闲聊正文空转。
+                # 引导模型：有用户消息先回应；无事可做才再次 stop，避免空转。
                 self.agent._revived_after_stop = True
                 # result 取最后一条 assistant 正文：stop 调用后 context[-1] 是工具返回
                 # （{"stopped": true, ...} 的原始 JSON），不能直接当最终总结。

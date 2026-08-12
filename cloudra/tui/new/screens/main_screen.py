@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from pathlib import Path
 from uuid import uuid4
 
 from textual.app import ComposeResult
@@ -31,6 +32,28 @@ from cloudra.tui.new.widgets.side_panel import SidePanel
 from cloudra.tui.new.widgets.status_bar import StatusBar
 
 _ACTIVE_STATES = {"queued", "running", "waiting"}
+# 侧栏选中子 Agent 时可注入/唤醒的状态（含 completed/cancelled/failed/killed 等终态）
+_WAKEABLE_FOLLOWER_STATES = {
+    "queued",
+    "running",
+    "waiting",
+    "waiting_for_user",
+    "waiting_for_approval",
+    "waiting_for_device",
+    "completed",
+    "interrupted",
+    "cancelled",
+    "failed",
+    "killed",
+}
+# 无活体根任务时，可对最近 Coordinator session 走 resume 唤醒
+_WAKEABLE_COORDINATOR_STATES = {
+    "completed",
+    "interrupted",
+    "cancelled",
+    "failed",
+    "killed",
+}
 # Esc 取消：含审批/提问等待态（与 SessionRunner.cancel 一致）；不含 cancel_requested
 _CANCELABLE_STATES = {
     "queued",
@@ -113,6 +136,8 @@ class MainScreen(Screen):
     def __init__(self, yolo: bool = False, conversation_id: str | None = None) -> None:
         super().__init__()
         self.yolo = yolo
+        # 用户启动 TUI 时的目录：隔离 runtime 的 cwd 可能不同，必须显式下发
+        self.working_directory = str(Path.cwd().resolve())
         # 编排模式：standard / dag_record / dag_guided，对下一个新任务生效
         self.orchestration_mode = "standard"
         # 默认经本机 runtime HTTP 提交/取消；INLINE 时退回同进程 CloudraService
@@ -330,13 +355,16 @@ class MainScreen(Screen):
             self.notify("上下文正在压缩，请等待完成后再发送任务", severity="warning")
             return
 
-        # 定向到指定子 Agent 实例：注入它（按 session 精确定位）的运行中 session
+        # 定向到指定子 Agent 实例：注入/唤醒它（按 session 精确定位）
         target = self._target_session_id
         if target and self._target_agent_id != _COORDINATOR_AGENT_ID:
-            record = await self._find_active_record(session_id=target)
+            record = await self._find_active_record(
+                session_id=target, states=_WAKEABLE_FOLLOWER_STATES
+            )
             if record is None:
                 self.notify(
-                    "该 Agent 当前没有运行中的任务，无法插入指令", severity="warning"
+                    "该 Agent session 不存在，无法注入或唤醒",
+                    severity="warning",
                 )
                 return
             command_id = f"tui-msg-{uuid4().hex}"
@@ -371,7 +399,25 @@ class MainScreen(Screen):
                 raise
             return
 
-        # 无运行中任务：启动新 Coordinator 任务，消息先上屏到 pending 组
+        # 无活体根任务：优先唤醒最近的终态 Coordinator（含 kill/cancel），否则新开
+        resume_root = await self._find_active_record(
+            states=_WAKEABLE_COORDINATOR_STATES
+        )
+        if resume_root is not None:
+            command_id = f"tui-msg-{uuid4().hex}"
+            handle = chat_log.append_user(
+                resume_root.session_id, content, message_id=command_id
+            )
+            await self._present_user_echo(chat_log, handle)
+            try:
+                await self._append_message(
+                    resume_root.session_id, content, command_id=command_id
+                )
+            except Exception:
+                chat_log.mark_send_failed(handle)
+                raise
+            return
+
         input_bar.follow_up = False
         if chat_log.has_records:
             # 同一对话里开启新任务，加分隔线避免误认为切换了对话
@@ -394,6 +440,7 @@ class MainScreen(Screen):
         _, record = await self.service.submit_session_async(
             query,
             conversation_id=self.conversation_id,
+            working_directory=self.working_directory,
             yolo=self.yolo,
             orchestration_mode=self.orchestration_mode,
         )
@@ -554,6 +601,7 @@ class MainScreen(Screen):
             conversation_id=self.conversation_id,
             session_id=session_id,
             content=content,
+            working_directory=self.working_directory,
         )
         await self._refresh_context_info()
 
