@@ -72,6 +72,23 @@ class FakeService:
         }
         return conversation_id, _Record()
 
+    async def submit_session_async(
+        self,
+        query,
+        conversation_id=None,
+        working_directory=None,
+        yolo=False,
+        orchestration_mode="standard",
+        **_kwargs,
+    ):
+        return self.submit_session(
+            query,
+            conversation_id,
+            working_directory=working_directory,
+            yolo=yolo,
+            orchestration_mode=orchestration_mode,
+        )
+
     def submit_session_command(
         self,
         *,
@@ -99,6 +116,9 @@ class FakeService:
         command = _Command()
         command.command_id = command_id
         return command, _Record()
+
+    async def submit_session_command_async(self, **kwargs):
+        return self.submit_session_command(**kwargs)
 
     async def cancel_session_command(self, **kwargs):
         return _Command(), None

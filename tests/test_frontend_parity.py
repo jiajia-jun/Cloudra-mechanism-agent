@@ -75,6 +75,23 @@ class FakeService:
         })
         return conversation_id, _Record()
 
+    async def submit_session_async(
+        self,
+        query,
+        conversation_id=None,
+        working_directory=None,
+        yolo=False,
+        orchestration_mode="standard",
+        **_kwargs,
+    ):
+        return self.submit_session(
+            query,
+            conversation_id,
+            working_directory=working_directory,
+            yolo=yolo,
+            orchestration_mode=orchestration_mode,
+        )
+
     def list_conversations(self):
         return self.conversations
 

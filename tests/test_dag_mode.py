@@ -317,9 +317,12 @@ def test_idempotent_session_command_threads_orchestration_mode(tmp_path, monkeyp
         def get(self, *args):
             return None
 
-        def submit(self, query, conversation_id, **kwargs):
+        def _prepare_submission(self, query, conversation_id, session_id, **kwargs):
             captured.update(kwargs)
-            return record
+            return record, True
+
+        def _schedule_execution(self, *args, **kwargs):
+            pass
 
         def _emit(self, *args, **kwargs):
             pass

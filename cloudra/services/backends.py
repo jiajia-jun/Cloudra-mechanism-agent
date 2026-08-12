@@ -472,8 +472,9 @@ class LocalCloudraBackend:
         working_directory: str | None = None,
         orchestration_mode: str = "standard",
     ) -> tuple[str, dict]:
-        _, record = await asyncio.to_thread(
-            self.service.submit_session_command,
+        # 异步变体：同步 submit_session_command 的调度段要 running loop，
+        # 不能 to_thread（本方法本身就在 loop 线程上）。
+        _, record = await self.service.submit_session_command_async(
             command_id=f"cmd_{uuid.uuid4().hex}",
             query=query,
             conversation_id=conversation_id,

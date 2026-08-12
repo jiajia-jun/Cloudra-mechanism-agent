@@ -112,6 +112,23 @@ class PreparedInteraction:
     skip: bool
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedSessionCreate:
+    """submit_session_command 的准备产物：DB 阶段（线程）与调度阶段（loop 线程）之间的交接。"""
+
+    conversation_id: str
+    session_id: str
+    command_id: str
+    query: str
+    working_directory: str | None
+    mode: OrchestrationMode
+    orchestration_config: dict | None
+    command: control_store.ClientCommand
+    record: SessionRecord
+    needs_schedule: bool
+    needs_finish: bool
+
+
 _SESSION_COLUMNS = """session_id, agent_id, agent_type, parent_session_id, query,
 state, result, error, pid, worker_id, created_at, started_at, heartbeat_at,
 finished_at, exit_code, node_id, workspace_id, working_directory"""
@@ -177,6 +194,35 @@ class SessionRunner:
         )
         return self.get(conversation_id, session_id), True
 
+    def _schedule_execution(
+        self,
+        query: str,
+        conversation_id: str,
+        session_id: str,
+        working_directory: str | None,
+        yolo: bool,
+        mode: OrchestrationMode,
+        orchestration_config: dict | None,
+    ) -> None:
+        """调度已 prepare 的 Session 执行；只能在有 running loop 的线程调用。
+
+        asyncio.create_task 要求 running loop——to_thread 工作线程里调用会
+        炸 RuntimeError: no running event loop（HTTP 层表现为提交被
+        500/409 拒绝），所以 DB 阶段与调度必须分开。
+        """
+        task = asyncio.create_task(
+            self._execute(
+                query,
+                conversation_id,
+                session_id,
+                working_directory,
+                yolo,
+                mode,
+                orchestration_config,
+            )
+        )
+        self._running[(conversation_id, session_id)] = task
+
     async def submit_async(
         self,
         query: str,
@@ -192,18 +238,15 @@ class SessionRunner:
             self._prepare_submission, query, conversation_id, session_id, **kwargs
         )
         if created:
-            task = asyncio.create_task(
-                self._execute(
-                    query,
-                    conversation_id,
-                    session_id,
-                    kwargs.get("working_directory"),
-                    kwargs.get("yolo", False),
-                    kwargs.get("orchestration_mode", OrchestrationMode.STANDARD),
-                    kwargs.get("orchestration_config"),
-                )
+            self._schedule_execution(
+                query,
+                conversation_id,
+                session_id,
+                kwargs.get("working_directory"),
+                kwargs.get("yolo", False),
+                kwargs.get("orchestration_mode", OrchestrationMode.STANDARD),
+                kwargs.get("orchestration_config"),
             )
-            self._running[(conversation_id, session_id)] = task
         return record
 
     def submit(
@@ -234,18 +277,15 @@ class SessionRunner:
             orchestration_config=orchestration_config,
         )
         if created:
-            task = asyncio.create_task(
-                self._execute(
-                    query,
-                    conversation_id,
-                    session_id,
-                    working_directory,
-                    yolo,
-                    mode,
-                    orchestration_config,
-                )
+            self._schedule_execution(
+                query,
+                conversation_id,
+                session_id,
+                working_directory,
+                yolo,
+                mode,
+                orchestration_config,
             )
-            self._running[(conversation_id, session_id)] = task
         return record
 
     async def _execute(
@@ -917,7 +957,7 @@ class CloudraService:
         digest = hashlib.sha256(command_id.encode("utf-8")).hexdigest()[:32]
         return f"a-0_{prefix}_{digest}"
 
-    def submit_session_command(
+    def _prepare_session_command(
         self,
         *,
         command_id: str,
@@ -928,8 +968,8 @@ class CloudraService:
         workspace_id: str = "default",
         orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
         orchestration_config: dict | None = None,
-    ) -> tuple[control_store.ClientCommand, SessionRecord]:
-        """Create one Session for an idempotent remote command."""
+    ) -> PreparedSessionCreate:
+        """submit_session_command 的同步 DB 阶段（可在 to_thread 工作线程里跑）。"""
 
         validate_conversation_id(conversation_id)
         mode = normalize_orchestration_mode(orchestration_mode)
@@ -958,42 +998,49 @@ class CloudraService:
             record = self.session_runner.get(conversation_id, session_id)
             if record is None:
                 raise RuntimeError("控制命令已生效，但对应 Session 不存在")
-            return command, record
+            return PreparedSessionCreate(
+                conversation_id=conversation_id,
+                session_id=session_id,
+                command_id=command_id,
+                query=query,
+                working_directory=working_directory,
+                mode=mode,
+                orchestration_config=orchestration_config,
+                command=command,
+                record=record,
+                needs_schedule=False,
+                needs_finish=False,
+            )
 
         if control_store.claim_command(db, command_id):
             try:
-                record = self.session_runner.submit(
+                record, created = self.session_runner._prepare_submission(
                     query,
                     conversation_id,
+                    session_id,
                     working_directory=working_directory,
                     yolo=False,
-                    session_id=session_id,
                     node_id=node_id,
                     workspace_id=workspace_id,
                     orchestration_mode=mode,
                     orchestration_config=orchestration_config,
                 )
-                self.session_runner._emit(
-                    conversation_id,
-                    session_id,
-                    "client_command_received",
-                    {"command_id": command_id, "command_type": "session.create"},
-                )
-                command = control_store.finish_command(
-                    db,
-                    command_id,
-                    result={"session_id": session_id},
-                )
-                self.session_runner._emit(
-                    conversation_id,
-                    session_id,
-                    "client_command_applied",
-                    {"command_id": command_id, "command_type": "session.create"},
-                )
-                return command, record
             except Exception as exc:
                 control_store.finish_command(db, command_id, error=str(exc))
                 raise
+            return PreparedSessionCreate(
+                conversation_id=conversation_id,
+                session_id=session_id,
+                command_id=command_id,
+                query=query,
+                working_directory=working_directory,
+                mode=mode,
+                orchestration_config=orchestration_config,
+                command=command,
+                record=record,
+                needs_schedule=created,
+                needs_finish=True,
+            )
 
         # A concurrent replay is already applying the deterministic Session.
         record = self.session_runner.get(conversation_id, session_id)
@@ -1004,7 +1051,118 @@ class CloudraService:
             command_id,
             result={"session_id": session_id},
         )
-        return command, record
+        return PreparedSessionCreate(
+            conversation_id=conversation_id,
+            session_id=session_id,
+            command_id=command_id,
+            query=query,
+            working_directory=working_directory,
+            mode=mode,
+            orchestration_config=orchestration_config,
+            command=command,
+            record=record,
+            needs_schedule=False,
+            needs_finish=False,
+        )
+
+    def _finish_session_command(
+        self,
+        prepared: PreparedSessionCreate,
+    ) -> control_store.ClientCommand:
+        """session.create 命令的收尾（事件 + finish，同步 DB，可在线程里跑）。"""
+        self.session_runner._emit(
+            prepared.conversation_id,
+            prepared.session_id,
+            "client_command_received",
+            {"command_id": prepared.command_id, "command_type": "session.create"},
+        )
+        command = control_store.finish_command(
+            ConversationDB(prepared.conversation_id).init(),
+            prepared.command_id,
+            result={"session_id": prepared.session_id},
+        )
+        self.session_runner._emit(
+            prepared.conversation_id,
+            prepared.session_id,
+            "client_command_applied",
+            {"command_id": prepared.command_id, "command_type": "session.create"},
+        )
+        return command
+
+    def _apply_prepared_session_command(
+        self,
+        prepared: PreparedSessionCreate,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        """调度 + 收尾；调度只能在有 running loop 的线程做（见 _schedule_execution）。"""
+        if prepared.needs_schedule:
+            self.session_runner._schedule_execution(
+                prepared.query,
+                prepared.conversation_id,
+                prepared.session_id,
+                prepared.working_directory,
+                False,
+                prepared.mode,
+                prepared.orchestration_config,
+            )
+        if prepared.needs_finish:
+            return self._finish_session_command(prepared), prepared.record
+        return prepared.command, prepared.record
+
+    def submit_session_command(
+        self,
+        *,
+        command_id: str,
+        query: str,
+        conversation_id: str,
+        working_directory: str | None = None,
+        node_id: str = "node-local",
+        workspace_id: str = "default",
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        """Create one Session for an idempotent remote command.
+
+        只能在有 running loop 的线程调用（CLI/测试上下文）；HTTP 路由与
+        异步调用方必须用 submit_session_command_async——本方法在 to_thread
+        工作线程里跑会在调度阶段炸 RuntimeError: no running event loop。
+        """
+        prepared = self._prepare_session_command(
+            command_id=command_id,
+            query=query,
+            conversation_id=conversation_id,
+            working_directory=working_directory,
+            node_id=node_id,
+            workspace_id=workspace_id,
+            orchestration_mode=orchestration_mode,
+            orchestration_config=orchestration_config,
+        )
+        return self._apply_prepared_session_command(prepared)
+
+    async def submit_session_command_async(
+        self,
+        *,
+        command_id: str,
+        query: str,
+        conversation_id: str,
+        working_directory: str | None = None,
+        node_id: str = "node-local",
+        workspace_id: str = "default",
+        orchestration_mode: str | OrchestrationMode = OrchestrationMode.STANDARD,
+        orchestration_config: dict | None = None,
+    ) -> tuple[control_store.ClientCommand, SessionRecord]:
+        """submit_session_command 的事件循环安全变体：DB 阶段卸载到线程，调度留在 loop 线程。"""
+        prepared = await asyncio.to_thread(
+            self._prepare_session_command,
+            command_id=command_id,
+            query=query,
+            conversation_id=conversation_id,
+            working_directory=working_directory,
+            node_id=node_id,
+            workspace_id=workspace_id,
+            orchestration_mode=orchestration_mode,
+            orchestration_config=orchestration_config,
+        )
+        return self._apply_prepared_session_command(prepared)
 
     def _prepare_append_message(
         self,

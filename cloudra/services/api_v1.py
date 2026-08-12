@@ -585,8 +585,9 @@ def create_v1_router(
                 detail="远程 Phase 1 不允许启用自动审批",
             )
         try:
-            command, record = await asyncio.to_thread(
-                service.submit_session_command,
+            # 异步变体：DB 阶段在线程，执行任务调度留在 loop 线程（同步版
+            # 经 to_thread 会炸 RuntimeError: no running event loop）。
+            command, record = await service.submit_session_command_async(
                 command_id=idempotency_key or control_store.new_command_id(),
                 query=body.query,
                 conversation_id=conversation_id,

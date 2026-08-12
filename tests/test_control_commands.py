@@ -252,17 +252,12 @@ def test_session_create_command_replay_returns_same_session(
 ):
     calls = []
 
-    def fake_submit(
+    def fake_prepare(
         query,
         conversation_id,
-        working_directory=None,
-        yolo=False,
-        session_id=None,
-        node_id=None,
-        workspace_id=None,
+        session_id,
         **_kwargs,
     ):
-        calls.append(session_id)
         db = ConversationDB(conversation_id).init()
         session_store.insert_queued_session(
             db,
@@ -271,9 +266,15 @@ def test_session_create_command_replay_returns_same_session(
             agent_type="coordinator",
             query=query,
         )
-        return isolated_service.session_runner.get(conversation_id, session_id)
+        return isolated_service.session_runner.get(conversation_id, session_id), True
 
-    monkeypatch.setattr(isolated_service.session_runner, "submit", fake_submit)
+    def fake_schedule(query, conversation_id, session_id, *_args, **_kwargs):
+        calls.append(session_id)
+
+    # 接口已拆分为 DB 准备（_prepare_submission）+ loop 调度（_schedule_execution），
+    # 替身分别打桩，避免在同步测试上下文里触发 asyncio.create_task。
+    monkeypatch.setattr(isolated_service.session_runner, "_prepare_submission", fake_prepare)
+    monkeypatch.setattr(isolated_service.session_runner, "_schedule_execution", fake_schedule)
 
     first_command, first_record = isolated_service.submit_session_command(
         command_id="cmd_create_12345678",
@@ -296,6 +297,42 @@ def test_session_create_command_replay_returns_same_session(
             query="不同任务",
             conversation_id="conv_create",
         )
+
+
+@pytest.mark.asyncio
+async def test_session_create_command_async_schedules_on_loop(
+    isolated_service,
+    monkeypatch,
+):
+    """回归：HTTP 路由曾用 to_thread 包裹同步 submit_session_command，
+    调度段的 asyncio.create_task 在工作线程炸 RuntimeError: no running
+    event loop（表现为首次提交被拒绝）。异步变体必须把调度留在 loop 线程。"""
+    scheduled = []
+
+    def fake_prepare(query, conversation_id, session_id, **_kwargs):
+        db = ConversationDB(conversation_id).init()
+        session_store.insert_queued_session(
+            db,
+            session_id=session_id,
+            agent_id="a-0",
+            agent_type="coordinator",
+            query=query,
+        )
+        return isolated_service.session_runner.get(conversation_id, session_id), True
+
+    def fake_schedule(query, conversation_id, session_id, *_args, **_kwargs):
+        scheduled.append(session_id)
+
+    monkeypatch.setattr(isolated_service.session_runner, "_prepare_submission", fake_prepare)
+    monkeypatch.setattr(isolated_service.session_runner, "_schedule_execution", fake_schedule)
+
+    command, record = await isolated_service.submit_session_command_async(
+        command_id="cmd_async_12345678",
+        query="执行任务",
+        conversation_id="conv_async",
+    )
+    assert command.state == "applied"
+    assert scheduled == [record.session_id]
 
 
 @pytest.mark.asyncio

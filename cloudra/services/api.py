@@ -189,23 +189,16 @@ def create_app(service: CloudraService | None = None) -> FastAPI:
     async def create_session(conversation_id: str, request: SessionCreate) -> dict:
         try:
             working_directory = _validate_working_directory(request.working_directory)
-            if working_directory is None:
-                _, record = await asyncio.to_thread(
-                    service.submit_session,
-                    request.query,
-                    conversation_id,
-                    yolo=request.yolo,
-                    orchestration_mode=request.orchestration_mode,
-                )
-            else:
-                _, record = await asyncio.to_thread(
-                    service.submit_session,
-                    request.query,
-                    conversation_id,
-                    working_directory=working_directory,
-                    yolo=request.yolo,
-                    orchestration_mode=request.orchestration_mode,
-                )
+            # submit_session_async：DB 阶段在线程、asyncio.create_task 调度在
+            # loop 线程；同步版经 to_thread 调用会在工作线程炸
+            # RuntimeError: no running event loop（表现为提交被拒绝）。
+            _, record = await service.submit_session_async(
+                request.query,
+                conversation_id,
+                working_directory=working_directory,
+                yolo=request.yolo,
+                orchestration_mode=request.orchestration_mode,
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return record.to_dict()
