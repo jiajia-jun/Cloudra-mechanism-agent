@@ -209,6 +209,15 @@ def config_init(force):
     follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
     follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
     follower_key = click.prompt("Follower API Key", default="", hide_input=True)
+    openalex_key = click.prompt(
+        "OpenAlex API Key（可选，回车跳过；无 key 时匿名检索）",
+        default="",
+        hide_input=True,
+    )
+    openalex_mailto = click.prompt(
+        "OpenAlex 礼貌池邮箱（可选，回车跳过）",
+        default=cfg.openalex_mailto or "",
+    )
 
     cfg.coordinator.model = coord_model
     cfg.coordinator.url = coord_url
@@ -216,6 +225,10 @@ def config_init(force):
     cfg.follower.model = follower_model
     cfg.follower.url = follower_url
     cfg.follower.key = follower_key or cfg.follower.key
+    if openalex_key:
+        cfg.openalex_api_key = openalex_key
+    if openalex_mailto:
+        cfg.openalex_mailto = openalex_mailto
 
     cfg.save()
     console.print(f"[green]配置已保存至: {cfg_path}[/green]")
@@ -252,6 +265,11 @@ def config_show():
     )
 
     console.print(table)
+    console.print()
+    oa_key = display.get("openalex_api_key", "(not set)")
+    oa_mail = display.get("openalex_mailto", "(not set)")
+    console.print(f"[bold]OpenAlex API Key:[/bold] {oa_key}")
+    console.print(f"[bold]OpenAlex mailto:[/bold] {oa_mail}")
 
 
 def _resolve_config_attr(cfg, key: str):

@@ -677,6 +677,8 @@ class LocalCloudraBackend:
             "follower_model": config.follower.model,
             "follower_url": config.follower.url,
             "follower_key": config.follower.key,
+            "openalex_api_key": config.openalex_api_key,
+            "openalex_mailto": config.openalex_mailto,
         }
 
     def save_model_settings(self, values: dict) -> None:
@@ -687,6 +689,10 @@ class LocalCloudraBackend:
         config.follower.model = values["follower_model"]
         config.follower.url = values["follower_url"]
         config.follower.key = values["follower_key"]
+        if "openalex_api_key" in values:
+            config.openalex_api_key = values["openalex_api_key"]
+        if "openalex_mailto" in values:
+            config.openalex_mailto = values["openalex_mailto"]
         config.save()
 
     def set_workspace(self, path: Path) -> None:

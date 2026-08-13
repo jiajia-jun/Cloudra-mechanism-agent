@@ -698,6 +698,18 @@ class CloudraUI:
             password=True,
             can_reveal_password=True,
         )
+        openalex_key = ft.TextField(
+            label="OpenAlex API Key（可选）",
+            value=settings.get("openalex_api_key", ""),
+            password=True,
+            can_reveal_password=True,
+            hint_text="空则匿名检索，额度更低",
+        )
+        openalex_mailto = ft.TextField(
+            label="OpenAlex 礼貌池邮箱（可选）",
+            value=settings.get("openalex_mailto", ""),
+            hint_text="写入 User-Agent mailto；空则只用通用标识",
+        )
         dialog = None
 
         async def save_settings():
@@ -709,6 +721,8 @@ class CloudraUI:
                     "follower_model": follower_model.value.strip(),
                     "follower_url": follower_url.value.strip(),
                     "follower_key": follower_key.value.strip(),
+                    "openalex_api_key": openalex_key.value.strip(),
+                    "openalex_mailto": openalex_mailto.value.strip(),
                 }
             )
             _close_dialog(self.page, dialog)
@@ -726,12 +740,14 @@ class CloudraUI:
                         follower_model,
                         follower_url,
                         follower_key,
+                        openalex_key,
+                        openalex_mailto,
                     ],
                     spacing=12,
                     scroll=ft.ScrollMode.AUTO,
                 ),
                 width=440,
-                height=520,
+                height=640,
             ),
             actions=[
                 ft.Button(

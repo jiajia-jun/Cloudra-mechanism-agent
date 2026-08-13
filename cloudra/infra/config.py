@@ -100,6 +100,11 @@ class CloudraConfig(BaseSettings):
     # Email config
     email: EmailConfig = Field(default_factory=EmailConfig)
 
+    # OpenAlex 文献检索。空则匿名调用（额度更低）；可设 CLOUDRA_OPENALEX_API_KEY / OPENALEX_API_KEY。
+    openalex_api_key: str = ""
+    # 礼貌池邮箱，写入 User-Agent 的 mailto；空则只用通用 UA。可设 CLOUDRA_OPENALEX_MAILTO / OPENALEX_MAILTO。
+    openalex_mailto: str = ""
+
     # UI/UX state
     last_conversation_id: Optional[str] = None
     workspace_dir: Optional[Path] = None
@@ -142,6 +147,11 @@ class CloudraConfig(BaseSettings):
         if os.getenv("SMTP_PASS"):
             self.email.password = os.getenv("SMTP_PASS")
 
+        if not self.openalex_api_key and os.getenv("OPENALEX_API_KEY"):
+            self.openalex_api_key = os.getenv("OPENALEX_API_KEY") or ""
+        if not self.openalex_mailto and os.getenv("OPENALEX_MAILTO"):
+            self.openalex_mailto = os.getenv("OPENALEX_MAILTO") or ""
+
     def _load_yaml_config(self):
         """Load config from YAML file, overriding defaults."""
         cfg_path = self.config_file
@@ -169,6 +179,10 @@ class CloudraConfig(BaseSettings):
                 self.last_conversation_id = data["last_conversation_id"]
             if "workspace_dir" in data and data["workspace_dir"]:
                 self.workspace_dir = Path(data["workspace_dir"])
+            if "openalex_api_key" in data and data["openalex_api_key"] is not None:
+                self.openalex_api_key = str(data["openalex_api_key"])
+            if "openalex_mailto" in data and data["openalex_mailto"] is not None:
+                self.openalex_mailto = str(data["openalex_mailto"])
         except Exception as e:
             print(f"[Config Warning] Failed to load {cfg_path}: {e}")
 
@@ -216,7 +230,9 @@ class CloudraConfig(BaseSettings):
                 "password": self.email.password,
                 "sender_name": self.email.sender_name,
                 "whitelist": self.email.whitelist,
-            }
+            },
+            "openalex_api_key": self.openalex_api_key,
+            "openalex_mailto": self.openalex_mailto,
         }
         text = yaml.dump(
             data,
@@ -250,6 +266,8 @@ class CloudraConfig(BaseSettings):
                     "timeout": self.follower.timeout,
                 },
             },
+            "openalex_api_key": "***" if self.openalex_api_key else "(not set)",
+            "openalex_mailto": self.openalex_mailto or "(not set)",
         }
 
 

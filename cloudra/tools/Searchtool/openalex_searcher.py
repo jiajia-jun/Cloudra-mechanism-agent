@@ -4,10 +4,13 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.infra.config import get_config
 
 description = (
     "Search the full OpenAlex scholarly corpus (preprints and published papers) via the open API. "
-    "OpenAlex covers 200M+ records, needs no API key, and is stable without anti-bot issues. "
+    "OpenAlex covers 200M+ records. An API key is optional: set openalex_api_key / "
+    "OPENALEX_API_KEY for a higher daily budget; without a key the request is anonymous. "
+    "Optional openalex_mailto / OPENALEX_MAILTO puts your email in the User-Agent polite pool. "
     "Keyword search returns title, DOI, abstract, and PDF download links."
 )
 
@@ -62,11 +65,15 @@ class OpenAlexSearcher(Tool):
             "per_page": user_input.limit,
             "page": user_input.page,
         }
+        api_key = (get_config().openalex_api_key or "").strip()
+        if api_key:
+            params["api_key"] = api_key
 
-        # 建议在 Header 中加入一个邮箱（选填），这会让你的请求进入 OpenAlex 的“礼貌池”，速度更快更稳
-        headers = {
-            "User-Agent": "Cloudra/1.0 (mailto:951899550@qq.com)"
-        }
+        mailto = (get_config().openalex_mailto or "").strip()
+        if mailto.lower().startswith("mailto:"):
+            mailto = mailto[7:].strip()
+        user_agent = f"Cloudra/1.0 (mailto:{mailto})" if mailto else "Cloudra/1.0"
+        headers = {"User-Agent": user_agent}
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:

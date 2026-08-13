@@ -17,6 +17,7 @@
 - 目标严格模式与 `/goal` 命令：TUI 新增 `/goal <目标>`（设置目标锚点并固定到 Coordinator 上下文）、`/goal pause`（暂停当前任务）、`/goal`（查看）。设置目标后任务只有调用 `stop` 才能结束，无工具轮会注入「确认 goal 是否完成」提醒；未设目标时保持传统语义（有正文即完成）。
 - 移除 `MAX_STEPS` 步数上限：循环结束由 `stop`/取消/死循环检测决定，不再有硬性步数天花板。
 - `submit_compute_job` 支持 CP2K：新增 `cp2k` job_type（`calculator.sh` 分支、PATH 检查、`.out` 日志路径），guard 用轻量文本解析 CP2K 输出（cclib 已移除 CP2K 解析器）；顺带修复 guard 未透传 job_type 导致非 Gaussian 日志路径错配的问题。
+- OpenAlex API key：配置项 `openalex_api_key`（`cloudra config set` / `config.yaml` / `CLOUDRA_OPENALEX_API_KEY` / `OPENALEX_API_KEY`）；`openalex_searcher` 有 key 则带上，没有则匿名降级。礼貌池邮箱 `openalex_mailto`（`CLOUDRA_OPENALEX_MAILTO` / `OPENALEX_MAILTO`）写入 User-Agent；未设置则只用通用 UA。
 
 ### 变更
 - `chemrxiv_searcher` 改名叫 `openalex_searcher`，它其实一直检索整个 OpenAlex，没过滤过 ChemRxiv；Android 工具白名单和文档同步更新。
