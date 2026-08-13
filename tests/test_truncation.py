@@ -113,7 +113,7 @@ class TestTruncation:
         ctx = await react.agent.get_context()
         nudges = [
             m for m in ctx
-            if m.get("role") == "system" and "截断" in str(m.get("content", ""))
+            if m.get("role") == "system" and "truncated" in str(m.get("content", "")).lower()
         ]
         assert len(nudges) == 2
         # session 落库 failed，错误说明包含截断原因，且不会把工具结果当最终答案
@@ -123,7 +123,7 @@ class TestTruncation:
                 (react.session.id,),
             ).fetchone()
         assert row[0] == "failed"
-        assert "截断" in row[1]
+        assert "truncated" in row[1].lower()
         assert not row[2]
 
     async def test_retry_then_success(self, tmp_path, monkeypatch):

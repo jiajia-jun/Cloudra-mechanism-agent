@@ -1111,15 +1111,16 @@ class DagController:
             self._resolve_evidence_binder, refs
         )
         guidance = (
-            "建议下一步：修正后重新计算，再用 bind_evidence 把新证据挂回该元素；"
-            "如认为复核有误，在回复中说明依据。"
+            "Suggested next step: recompute after the fix, then bind_evidence to reattach "
+            "the new evidence to this element; if you believe the review is wrong, explain your basis in the reply."
             if verdict == "rejected"
-            else "建议下一步：补充缺失的计算证据恢复等级，或在回复中说明现有证据已足够。"
+            else "Suggested next step: add the missing compute evidence to restore the level, "
+            "or explain in the reply why the current evidence is sufficient."
         )
         content = (
-            f"Supervisor 证据复核（{verdict}）：delivery {target_type} {target_id} "
-            f"证据等级 {old_level} → {new_level}。\n"
-            f"理由：{rationale}\n"
+            f"Supervisor evidence review ({verdict}): delivery {target_type} {target_id} "
+            f"evidence level {old_level} → {new_level}.\n"
+            f"Rationale: {rationale}\n"
             f"{guidance}"
         )
         # 与 monitor 计算终态事件同一路由：提交者定向到其 session，Coordinator 广播。

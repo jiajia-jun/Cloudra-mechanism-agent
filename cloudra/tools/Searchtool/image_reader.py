@@ -7,21 +7,21 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "视觉感知工具：读取本地图像文件（PNG/JPG/JPEG/WEBP）并将其载入 Agent 的视觉上下文，"
-    "使 Agent 能“看到”图片内容并进行分析、描述或对比。"
-    "适用：分析本地已有图片，如分子结构图、谱图截图、实验装置照片。"
-    "不适用：PDF 页面（先用 pdf2md，失败再 pdf2image 转图后读本工具）、"
-    "从化学结构图反推 SMILES（用 image_to_smiles）。"
+    "Vision tool: read a local image (PNG/JPG/JPEG/WEBP) into the Agent's visual context "
+    "so the Agent can see the image and analyze, describe, or compare it. "
+    "Use for: analyzing existing local images such as molecular structures, spectrum screenshots, or apparatus photos. "
+    "Do not use for: PDF pages (try pdf2md first; if that fails, pdf2image then this tool) "
+    "or recovering SMILES from a chemical structure drawing (use image_to_smiles)."
 )
 
 class ImageReader_input_schema(input_schema):
-    image_path: str = Field(description="待读取图像文件的绝对路径")
-    description: str = Field(default="请分析这张图片的内容。", description="希望 Agent 关注的视觉重点说明")
+    image_path: str = Field(description="Absolute path of the image file to read")
+    description: str = Field(default="请分析这张图片的内容。", description="What the Agent should focus on in the image")
 
 class ImageReader_output_schema(output_schema):
-    is_success: bool = Field(description="是否成功读取图片")
-    image_path: str = Field(description="图片的绝对路径（供系统内部多模态引擎调用）")
-    message: str = Field(default="", description="读取状态或错误信息")
+    is_success: bool = Field(description="Whether the image was read")
+    image_path: str = Field(description="Absolute path of the image (for the internal multimodal engine)")
+    message: str = Field(default="", description="Read status or error message")
 
 class ImageReader(Tool):
     tool_id: str = 't-27'

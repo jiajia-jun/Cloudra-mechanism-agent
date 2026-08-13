@@ -10,9 +10,9 @@ from cloudra.tools.Managetool._subagent_dispatch import (
 )
 
 INCOMING_CALL_TEMPLATE = (
-    "【来电】{caller_agent_id} 打给你（session={caller_session_id}）。"
-    "请第一时间回应这通来电（正文或 agent_hub call/post），"
-    "不要先查计算、改提醒或 stop。\n\n"
+    "[Incoming call] {caller_agent_id} is calling you (session={caller_session_id}). "
+    "Answer this call first (prose or agent_hub call/post); "
+    "do not check compute, change reminders, or stop first.\n\n"
 )
 
 
@@ -51,12 +51,12 @@ def resolve_agent_id(target: str) -> str | None:
 def resolve_call_target(to: str, *, db: ConversationDB) -> tuple[str, dict]:
     raw = (to or "").strip()
     if not raw:
-        return "error", {"message": "call 需要非空的 to。"}
+        return "error", {"message": "call requires a non-empty to."}
     lowered = raw.lower()
     if lowered in ("coordinator", "a-0"):
         row = _latest_coordinator(db)
         if row is None:
-            return "error", {"message": "本对话没有 Coordinator session。"}
+            return "error", {"message": "This conversation has no Coordinator session."}
         return "visit", {"session_id": row[0], "agent_id": "a-0"}
     agent_id = resolve_agent_id(raw)
     if agent_id is not None and agent_id != "a-0":
@@ -64,7 +64,7 @@ def resolve_call_target(to: str, *, db: ConversationDB) -> tuple[str, dict]:
     session_row = _session_row(db, raw)
     if session_row is not None:
         return "visit", {"session_id": session_row[0], "agent_id": session_row[1] or ""}
-    return "error", {"message": f"未知的 to: {raw}"}
+    return "error", {"message": f"Unknown to: {raw}"}
 
 
 def _session_row(db: ConversationDB, session_id: str):
@@ -147,7 +147,7 @@ async def spawn_from_call(
 
     agent_cls = Subagent_hash().get(agent_id)
     if agent_cls is None:
-        raise ValueError(f"未知 agent_id: {agent_id}")
+        raise ValueError(f"Unknown agent_id: {agent_id}")
     result = await dispatch_subagent(
         agent_cls,
         agent_id=agent_id,

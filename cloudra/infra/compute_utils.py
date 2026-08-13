@@ -39,14 +39,14 @@ def check_job_type(job_type: str, workdir: str) -> tuple[bool, str]:
     """
     bins = _REQUIRED_BINS.get(job_type)
     if bins is None:
-        return False, f"不支持的 job_type: {job_type}"
+        return False, f"Unsupported job_type: {job_type}"
     found = [b for b in bins if shutil.which(b)]
     if found:
         return True, ""
 
     return False, (
-        f"系统 PATH 中缺少 {job_type} 计算所需的程序，"
-        f"请安装并确保以下任一命令可用: {', '.join(bins)}"
+        f"PATH is missing the programs required for {job_type} compute; "
+        f"install and ensure one of these commands is available: {', '.join(bins)}"
     )
 
 
@@ -86,9 +86,9 @@ def build_calculator_cmd(input_file: str, job_type: str) -> tuple[bool, list[str
     ok, script_path = check_calculator_script(workdir)
     if bash_path is None or not ok:
         return False, [], (
-            f"未找到 calculator.sh 或可用的 bash，请确认脚本已安装且 bash 在 PATH 中。"
-            f"可以在工作目录 {workdir} 下放一个可执行的 calculator.sh，"
-            f"或者保留项目内置脚本 { _default_calculator_path() }。"
+            f"calculator.sh or a usable bash was not found; confirm the script is installed and bash is on PATH. "
+            f"You may place an executable calculator.sh in the working directory {workdir}, "
+            f"or keep the built-in script {_default_calculator_path()}."
         )
     return True, [bash_path, script_path, input_file, job_type], ""
 
@@ -168,12 +168,12 @@ async def launch_compute_processes(
             if final_state == "failed":
                 return (
                     False,
-                    f"task_id={task_id} 计算任务失败或 guard 未能在解析窗口内完成解析，"
-                    f"请让 Agent 自行读取 state_{task_id}.json 或原始日志确认结果。",
+                    f"task_id={task_id} compute job failed, or guard could not finish parsing within the window; "
+                    f"have the agent read state_{task_id}.json or the raw log to confirm the result.",
                 )
             return (
                 False,
-                f"task_id={task_id} guard 异常退出且未落库终态，请检查日志。",
+                f"task_id={task_id} guard exited abnormally without writing a terminal state; check the logs.",
             )
 
         # 异步后台模式：guard 与 calculator 脱离当前进程会话，独立运行。
@@ -187,7 +187,7 @@ async def launch_compute_processes(
         subprocess.Popen(guard_cmd, **popen_kwargs)
         return True, ""
     except Exception as e:
-        return False, f"启动计算子进程失败: {e}"
+        return False, f"Failed to start compute subprocess: {e}"
 
 
 def get_log_path(input_file: str, job_type: str = "gaussian") -> str:

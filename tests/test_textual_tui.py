@@ -537,7 +537,7 @@ async def test_goal_command_sets_anchor_and_pins_context(tmp_path, monkeypatch):
         )
         context = await cm.load()
         assert any(
-            m.get("role") == "system" and "【任务目标】" in str(m.get("content", ""))
+            m.get("role") == "system" and "[Task goal]" in str(m.get("content", ""))
             for m in context
         )
 
@@ -720,7 +720,7 @@ async def test_running_followup_is_visible_before_backend_finishes(tmp_path, mon
             agent_id="a-0",
         )
 
-        async def active(agent_id=None):
+        async def active(agent_id=None, session_id=None, **_kwargs):
             return record
 
         release = asyncio.Event()
@@ -1619,7 +1619,7 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
 
         screen._append_message = fake_append
 
-        async def find_none(agent_id=None, session_id=None):
+        async def find_none(agent_id=None, session_id=None, **_kwargs):
             return None
 
         screen._find_active_record = find_none
@@ -1634,7 +1634,7 @@ async def test_sidebar_agent_select_filters_chat_and_targets_input(tmp_path, mon
             parent_session_id="a-0_run_x",
         )
 
-        async def find_rec(agent_id=None, session_id=None):
+        async def find_rec(agent_id=None, session_id=None, **_kwargs):
             return rec if session_id == "a-3_task1" else None
 
         screen._find_active_record = find_rec

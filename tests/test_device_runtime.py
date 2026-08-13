@@ -729,7 +729,7 @@ async def test_local_denial_and_approval_time_conflict_never_overwrite_user_file
         conflicted["tool_call_id"]
     )
     assert conflict_result["state"] == "failed"
-    assert "审批期间已变化" in conflict_result["error"]
+    assert "File changed during approval" in conflict_result["error"]
     assert source.read_text(encoding="utf-8") == (
         "user changed during approval"
     )

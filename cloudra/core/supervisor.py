@@ -46,7 +46,7 @@ def _load_supervisor_prompt() -> str:
     )
     if os.path.exists(prompt_path):
         return open(prompt_path, encoding="utf-8").read()
-    return "你是 Cloudra 的科学督导导师。你的职责是监督 AI 研究助手是否在战略方向上走偏。"
+    return "You are Cloudra's scientific supervisor. Your job is to watch whether the AI research assistant is drifting off the strategic path."
 
 
 SUPERVISOR_SYSTEM_PROMPT = _load_supervisor_prompt()
@@ -156,27 +156,28 @@ class GraphSupervisor:
 
     @staticmethod
     def _trigger_message(trigger: str, coordinator_request: Optional[str]) -> str:
-        parts = [f"【图事件触发】{trigger}"]
+        parts = [f"[Graph event]{trigger}"]
         if coordinator_request:
             label = (
-                "【Coordinator 留言】"
+                "[Coordinator message]"
                 if trigger == "coordinator_message"
-                else "【Coordinator 机理变更说明】"
+                else "[Coordinator mechanism-change note]"
             )
             parts.append(f"{label}{coordinator_request}")
         if trigger in {"delivery_updated", "coordinator_message", "graph_initialization"}:
             parts.append(
-                "排产条件：若 delivery 已有实质机理且 process 仍只有模板 planned "
-                "（p_analyze/p_literature/p_skill/p_delivery_design）或非模板计划"
-                "尚未覆盖当前缺口，应 mutate 补计算 planned 节点；"
-                "若非模板 frontier 已覆盖缺口，可不改图但必须说明理由。"
-                "无论是否改图，结束前必须留下给 Coordinator 的结论文本（禁止空回复）。"
+                "Scheduling rule: if delivery already has a real mechanism and process still has only "
+                "template planned nodes (p_analyze/p_literature/p_skill/p_delivery_design), or "
+                "non-template plans do not yet cover the current gaps, mutate to add compute planned nodes; "
+                "if the non-template frontier already covers the gaps, you may leave the graph unchanged "
+                "but must explain why. Whether or not you change the graph, leave a conclusion for the "
+                "Coordinator before ending (empty replies are forbidden)."
             )
         parts.append(
-            "请先用 dag_graph(action=view) 读 frontier/blockers/delivery_gaps 投影；"
-            "确有必要时再用 graph_kind + node_ids/status_filter 取摘要子图。"
-            "需要排产或改流程时用 mutate 维护 process DAG；"
-            "先 mutate（若需要）再写结论文本——不要用正文代替 mutate。"
+            "First call dag_graph(action=view) to read the frontier/blockers/delivery_gaps projection; "
+            "only if needed, fetch a summary subgraph with graph_kind + node_ids/status_filter. "
+            "When you need to schedule or change the workflow, use mutate to maintain the process DAG; "
+            "mutate first (if needed), then write the conclusion — do not use prose in place of mutate."
         )
         return "\n".join(parts)
 
@@ -202,8 +203,8 @@ class GraphSupervisor:
         else:
             rev_text = "revision=?"
         return (
-            f"【过时视图已折叠】action=view graph_kind={kind} {rev_text}。"
-            "图存储是权威；需要细节请重新 view。"
+            f"[Stale view folded] action=view graph_kind={kind} {rev_text}. "
+            "The graph store is authoritative; call view again if you need details."
         )
 
     async def _fold_stale_views(self, agent: SupervisorAgent, keep_tool_call_id: str) -> None:
@@ -237,14 +238,14 @@ class GraphSupervisor:
     ) -> str:
         accepted = sum(1 for m in mutations if m.get("accepted"))
         parts = [
-            f"Supervisor 本轮结论（{trigger}）：",
-            f"工具轮次={rounds}，accepted mutations={accepted}/{len(mutations)}。",
+            f"Supervisor conclusion this turn ({trigger}): ",
+            f"tool rounds={rounds}, accepted mutations={accepted}/{len(mutations)}. ",
         ]
         if note:
-            parts.append(f"note={note}。")
+            parts.append(f"note={note}. ")
         parts.append(
-            "本轮未留下自然语言说明；请查看 process 图变更，"
-            "或用 dag_graph(action=message_supervisor) 再沟通。"
+            "This turn left no natural-language note; inspect process graph changes, "
+            "or use dag_graph(action=message_supervisor) to communicate again."
         )
         return "".join(parts)
 
@@ -394,9 +395,10 @@ class GraphSupervisor:
                     await agent.update_context({
                         "role": "user",
                         "content": (
-                            "【系统提示】空回复不算结束。若 process 仍缺非模板排产，"
-                            "现在调用 dag_graph(action=mutate) 写入 planned 节点；"
-                            "不要把计划写在正文里代替 mutate。"
+                            "[System] An empty reply does not end the turn. "
+                            "If process still lacks non-template scheduling, "
+                            "call dag_graph(action=mutate) now to write planned nodes; "
+                            "do not put the plan in prose instead of mutate."
                         ),
                     })
                 if empty_streak >= self.EMPTY_END_GRACE:
@@ -416,14 +418,14 @@ class GraphSupervisor:
                     await agent.update_context({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
-                        "content": f"【系统错误】工具参数解析失败: {exc.msg}",
+                        "content": f"[System error] Failed to parse tool arguments: {exc.msg}",
                     })
                     continue
                 if name != "dag_graph":
                     await agent.update_context({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
-                        "content": f"【系统错误】工具 {name!r} 不可用；你只有 dag_graph。",
+                        "content": f"[System error] Tool {name!r} is not available; you only have dag_graph.",
                     })
                     continue
                 try:
@@ -434,9 +436,9 @@ class GraphSupervisor:
                         "role": "tool",
                         "tool_call_id": tool_call_id,
                         "content": (
-                            f"【系统错误】dag_graph 参数校验失败: {exc}。"
-                            "mutate 请拆成每批 1–3 个 op，payload 尽量扁平；"
-                            "base_revisions/operations 放在工具调用顶层。"
+                            f"[System error] dag_graph argument validation failed: {exc}. "
+                            "Split mutate into batches of 1–3 ops with a flat payload; "
+                            "put base_revisions/operations at the top level of the tool call."
                         ),
                     })
                     continue
@@ -450,7 +452,7 @@ class GraphSupervisor:
                     logger.warning(
                         "[Supervisor] dag_graph %s failed: %s", input_obj.action, exc
                     )
-                    error_content = f"【系统错误】dag_graph {input_obj.action} 执行失败: {exc}"
+                    error_content = f"[System error] dag_graph {input_obj.action} failed: {exc}"
                     await _emit("tool_finished", {
                         "tool": "dag_graph",
                         "arguments": args_summary,
@@ -487,9 +489,10 @@ class GraphSupervisor:
             last_report = await self._force_text_closing(
                 agent,
                 prompt=(
-                    "【系统提示】你刚才结束时没有留下任何给 Coordinator 的结论文本。"
-                    "请用两三句话说明：是否已 mutate 排产/为何未改图、当前 frontier 建议、"
-                    "Coordinator 下一步该做什么。这是收尾，不要再调用工具。"
+                    "[System] You ended without leaving any conclusion text for the Coordinator. "
+                    "In two or three sentences, say whether you mutated the schedule / why the graph "
+                    "was unchanged, the current frontier recommendation, and what the Coordinator "
+                    "should do next. This is a closing turn; do not call tools."
                 ),
                 emit=_emit,
                 fallback=self._fallback_report(trigger, rounds, mutations, note),
@@ -565,11 +568,11 @@ class Supervisor:
 
             if role == "system":
                 # 跳过 system prompt、supervisor advice、旧版 system 梗概
-                if content.startswith("[Supervisor]") or "上下文压缩" in content:
+                if content.startswith("[Supervisor]") or "[Context compact]" in content:
                     continue
                 events.append(f"Step {idx}: system instruction updated.")
             elif role == "user":
-                if content.startswith("[上下文压缩提示]"):
+                if content.startswith("[Context compact]"):
                     events.append(f"Step {idx}: compaction handoff injected.")
                 else:
                     events.append(f"Step {idx}: user said '{content}'.")
@@ -661,19 +664,19 @@ class Supervisor:
         timeline_summary = self.compress_timeline(messages)
 
         prompt = (
-            "请从以下 AI 助手的任务执行记录中提炼一个结构化经验案例（case）。\n\n"
-            "输出必须且只能是一个 JSON 对象，字段如下：\n"
-            '- task_summary: 一句话概括任务目标\n'
+            "Extract a structured experience case from the AI assistant's task log below.\n\n"
+            "Output must be a single JSON object with these fields:\n"
+            "- task_summary: one sentence summarizing the task goal\n"
             '- outcome: "success" | "partial" | "failure"\n'
-            '- outcome_reason: 成功或失败的关键原因\n'
-            '- lesson: 可复用的经验或教训，供未来类似任务参考\n\n'
-            "--- 执行记录 ---\n\n"
+            "- outcome_reason: the key reason for success or failure\n"
+            "- lesson: a reusable lesson for similar future tasks\n\n"
+            "--- Execution log ---\n\n"
             f"{timeline_summary}\n\n"
             "--- JSON ---"
         )
 
         data, error = await self._get_client().chat_json(
-            "你是一个从任务记录中提取经验教训的助手。",
+            "You extract lessons from task records.",
             prompt,
             max_tokens=4096,
             temperature=1.0,
@@ -699,7 +702,7 @@ class Supervisor:
         return {
             "task_summary": "",
             "outcome": "unknown",
-            "outcome_reason": f"Case 提取 LLM 调用失败: {exc}",
+            "outcome_reason": f"Case extraction LLM call failed: {exc}",
             "lesson": "",
         }
 

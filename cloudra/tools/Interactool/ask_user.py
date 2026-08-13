@@ -49,33 +49,33 @@ async def _read_input(prompt_text: str) -> str:
     return await asyncio.to_thread(input, prompt_text)
 
 description = (
-    "向用户提出问题并阻塞等待回答，用户的回答返回给 Agent 作为上下文；"
-    "用户可输入 '拒绝:<原因>' 表示拒绝，工具会返回 rejected=True 及原因。"
-    "适用：需求不清需要澄清、关键操作需要用户确认、缺少只有用户知道的信息。"
-    "不适用：任务已完成应结束（用 stop）、能靠自己查证的问题不要打扰用户。"
+    "Ask the user a question and block until they answer; the answer is returned to the Agent as context. "
+    "The user may type '拒绝:<reason>' to refuse; the tool then returns rejected=True and the reason. "
+    "Use for: clarifying unclear requirements, confirming a critical action, or information only the user knows. "
+    "Do not use for: ending a finished task (use stop), or questions you can look up yourself."
 )
 
 
 class AskUser_input_schema(input_schema):
     question: str = Field(
-        description="要向用户提出的具体问题。建议清晰、简洁，并说明需要用户回答什么。"
+        description="The specific question to ask the user. Keep it clear and concise, and say what you need them to answer."
     )
     default_answer: Optional[str] = Field(
         default=None,
-        description="默认答案。如果用户直接按回车（不输入内容），则返回此默认值。"
+        description="Default answer. Returned if the user presses Enter without typing anything."
     )
     allow_reject: bool = Field(
         default=True,
-        description="是否允许用户拒绝回答。若允许，用户可输入 '拒绝:<原因>' 或 'reject:<原因>'。"
+        description="Whether the user may refuse. If allowed, they can type '拒绝:<reason>' or 'reject:<reason>'."
     )
 
 
 class AskUser_output_schema(output_schema):
-    is_success: bool = Field(description="是否成功获取用户回答")
-    rejected: bool = Field(default=False, description="用户是否明确拒绝了该请求")
-    answer: str = Field(default="", description="用户的回答内容（如果用户未回答且有默认值，则返回默认值；如果用户拒绝，则返回拒绝原因）")
-    reason: str = Field(default="", description="用户拒绝时填写的具体原因（正常回答时为空）")
-    message: str = Field(default="", description="状态或提示信息")
+    is_success: bool = Field(description="Whether a user answer was obtained")
+    rejected: bool = Field(default=False, description="Whether the user explicitly refused the request")
+    answer: str = Field(default="", description="The user's answer (the default if they skipped; the refusal reason if they refused)")
+    reason: str = Field(default="", description="Reason given when the user refused (empty on a normal answer)")
+    message: str = Field(default="", description="Status or hint")
 
 
 class AskUser(Tool):

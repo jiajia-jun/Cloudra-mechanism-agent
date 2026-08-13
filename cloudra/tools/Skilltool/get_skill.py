@@ -10,11 +10,11 @@ from cloudra.core.agent import Agent
 
 class GetSkill_input_schema(input_schema):
     skill_name: str = Field(
-        description="所需调用的Skill名称。"
+        description="Name of the skill to load."
     )
     other: str = Field(
         default="",
-        description="在阅读skill后需要调用references时使用该参数，填入父skill中提到的ref名字。"
+        description="After reading a skill, pass this to load a reference mentioned in the parent skill (the ref name)."
     )
     # FIXME: 以下两个字段为预留功能，当前 tool_call 中未实现，保留 schema 是为了后续扩展：
     #   - script_command: 根据 skill 中的指令执行脚本
@@ -22,20 +22,20 @@ class GetSkill_input_schema(input_schema):
     # 在实现前，LLM 调用时无需填写。
     script_command: str = Field(
         default="",
-        description="（预留，暂未实现）根据 skill 中的指令执行脚本。"
+        description="(Reserved, not implemented) Run a script according to instructions in the skill."
     )
     RAG_keyword: str = Field(
         default="",
-        description="（预留，暂未实现）在长篇幅 skill 中按关键词检索有用片段。"
+        description="(Reserved, not implemented) Search a long skill for useful snippets by keyword."
     )
 
 
 class GetSkill_output_schema(output_schema):
     content: str = Field(
-        description="资料内容。"
+        description="Loaded skill content."
     )
     result: str = Field(
-        description="工具执行结果。"
+        description="Tool result."
     )
 
 
@@ -45,7 +45,7 @@ class GetSkill(Tool):
     tool_name: str = 'getskill'
     # NOTE: 这里先给一个静态兜底值，真正的动态描述在 __init__ 中根据 skills 目录内容拼接。
     # 由于 tool_schema_json 已改为实例方法，__init__ 里设置的 self.tool_description 会被 LLM 看到。
-    tool_description: str = "通过这个工具获取skills。"
+    tool_description: str = "Load skills with this tool."
     input_schema: Any = GetSkill_input_schema
     output_schema: Any = GetSkill_output_schema
 
@@ -65,11 +65,11 @@ class GetSkill(Tool):
             skill_metadata_str += skill_str
 
         self.tool_description = f'''
-        加载指定 skill 的完整操作规范（SOP）。skill 是领域知识与工作流程的载体：
-        开始任何有对应 skill 的任务（如 dft 计算、分子动力学、论文写作、文献检索）之前，
-        必须先调用本工具加载对应 skill，并严格按其中的流程、完成判据与注意事项执行。
-        当 skill 内容提到 references 时，用 other 参数传入 ref 名字继续读取对应参考文件。
-        以下是你能够调用的 skills:
+        Load the full SOP for a named skill. A skill carries domain knowledge and workflow:
+        before starting any task that has a matching skill (e.g. DFT, molecular dynamics, paper writing, literature search),
+        you must call this tool to load that skill and follow its procedure, completion criteria, and caveats.
+        When the skill mentions references, pass the ref name in other to read the corresponding reference file.
+        Skills you can load:
         {skill_metadata_str}
         '''
 

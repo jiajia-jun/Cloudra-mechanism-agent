@@ -29,7 +29,7 @@ def test_collect_splits_agents_and_roles(tmp_path, monkeypatch):
     _write_jsonl(
         base / "a-0.json",
         [
-            {"role": "system", "content": "[Skill 资料] big " + ("x" * 200)},
+            {"role": "system", "content": "[Skill material] big " + ("x" * 200)},
             {"role": "user", "content": "hello"},
             {"role": "assistant", "content": "hi"},
         ],

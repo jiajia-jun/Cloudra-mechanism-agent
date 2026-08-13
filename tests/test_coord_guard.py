@@ -58,7 +58,7 @@ def test_warning_only_for_geometry_paths():
     assert handwritten_coord_warning(_XYZ_BLOCK + "# ts.gjf", path=None) is not None
     # 警告里点破绕过 supervisor/DAG 审查
     warning = handwritten_coord_warning(_XYZ_BLOCK, path="ts1.gjf")
-    assert "supervisor" in warning and "DAG" in warning
+    assert "Supervisor" in warning and "DAG" in warning
 
 
 @pytest.mark.asyncio
@@ -74,7 +74,7 @@ async def test_text_writer_warns_but_writes_handwritten_coords(tmp_path, monkeyp
         SimpleNamespace(id="s1"),
     )
     assert out.is_written
-    assert "手写坐标" in out.message
+    assert "handwritten coordinates" in out.message
     assert (tmp_path / "ts3_qst2.gjf").exists()
 
 
@@ -108,7 +108,7 @@ async def test_edit_file_warns_on_coord_insertion(tmp_path, monkeypatch):
         SimpleNamespace(id="s1"),
     )
     assert out.is_written
-    assert "手写坐标" in out.message
+    assert "handwritten coordinates" in out.message
     assert "0 1" in target.read_text(encoding="utf-8")
 
 
@@ -123,7 +123,7 @@ async def test_bash_warns_on_heredoc_coords(tmp_path, monkeypatch):
         SimpleNamespace(id="s1"),
     )
     assert out.exit_code == 0
-    assert "手写坐标" in out.result
+    assert "handwritten coordinates" in out.result
     assert (tmp_path / "ts.gjf").exists()
 
 

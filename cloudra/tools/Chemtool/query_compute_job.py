@@ -9,28 +9,28 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.database import ConversationDB, get_database_path
 
 description = (
-    "查询计算任务状态：按 job_id 查看 submit_compute_job 提交的任务当前状态、"
-    "工作目录、起止时间与失败原因；不传 job_id 时列出本会话最近的任务。"
-    "适用：提交异步计算后确认任务是 ready/running/done/failed，或失败时查看 last_error。"
-    "不适用：提交新任务（用 submit_compute_job）、解析已完成计算的日志（用 log_parser）。"
+    "Query compute-job status: by job_id, show the current state, working directory, start/end times, and failure reason of a job submitted with submit_compute_job; "
+    "without job_id, list recent jobs in this session. "
+    "Use for: confirming an async job is ready/running/done/failed, or reading last_error on failure. "
+    "Do not use for: submitting a new job (use submit_compute_job) or parsing a finished log (use log_parser)."
 )
 
 
 class QueryComputeJob_input_schema(input_schema):
     job_id: Optional[int] = Field(
         default=None,
-        description="要查询的计算任务 ID（submit_compute_job 返回的 job_id）。不传则列出最近任务。",
+        description="Compute job ID to query (job_id returned by submit_compute_job). Omit to list recent jobs.",
     )
     limit: int = Field(
         default=10,
-        description="不传 job_id 时，列出最近多少条任务记录。",
+        description="How many recent job records to list when job_id is omitted.",
     )
 
 
 class QueryComputeJob_output_schema(output_schema):
-    is_success: bool = Field(description="查询是否成功")
-    jobs: List[Dict[str, Any]] = Field(default_factory=list, description="任务记录列表")
-    message: str = Field(default="", description="状态或错误信息")
+    is_success: bool = Field(description="Whether the query succeeded")
+    jobs: List[Dict[str, Any]] = Field(default_factory=list, description="Job records")
+    message: str = Field(default="", description="Status or error message")
 
 
 def _iso(ts) -> str:
@@ -98,7 +98,7 @@ class QueryComputeJob(Tool):
                         return QueryComputeJob_output_schema(
                             is_success=False,
                             jobs=[],
-                            message=f"未找到 job_id={user_input.job_id} 的计算任务。",
+                            message=f"No compute job found for job_id={user_input.job_id}.",
                         )
                 else:
                     limit = max(1, min(int(user_input.limit or 10), 50))
@@ -109,13 +109,13 @@ class QueryComputeJob(Tool):
                     )
                     rows = await cur.fetchall()
         except Exception as e:
-            return QueryComputeJob_output_schema(is_success=False, jobs=[], message=f"查询失败：{e}")
+            return QueryComputeJob_output_schema(is_success=False, jobs=[], message=f"Query failed: {e}")
 
         jobs = [_row_to_dict(row) for row in rows]
         return QueryComputeJob_output_schema(
             is_success=True,
             jobs=jobs,
-            message=f"共 {len(jobs)} 条任务记录。",
+            message=f"{len(jobs)} job record(s).",
         )
 
 

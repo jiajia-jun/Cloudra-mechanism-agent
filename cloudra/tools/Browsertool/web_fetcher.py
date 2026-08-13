@@ -9,39 +9,39 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通用 HTTP 抓取/下载工具：抓取网页 HTML 并提取正文文本，或把响应原样下载到本地文件。"
-    "适用：已知 URL 时抓取在线文献页面、网页内容、数据文件；下载二进制文件必须提供 download_path 保存到本地。"
-    "不适用：需要 JavaScript 渲染的动态页面（用 headless_browser）、按关键词找网页（用 web_search）。"
-    "注意：PDF 不能用文本模式抓取（会得到乱码），请用 download_path 下载到本地后交给 pdf2md 处理。"
+    "Generic HTTP fetch/download tool: fetch page HTML and extract body text, or save the response bytes to a local file. "
+    "Use for: fetching known-URL literature pages, web content, or data files; binary downloads must set download_path. "
+    "Do not use for: JS-rendered dynamic pages (use headless_browser) or keyword search (use web_search). "
+    "Note: do not fetch PDFs in text mode (you will get garbage); download with download_path and pass the file to pdf2md."
 )
 
 
 class WebFetcher_input_schema(input_schema):
-    url: str = Field(description="目标 URL，必须包含协议（如 https://）")
+    url: str = Field(description="Target URL; must include a scheme (e.g. https://)")
     method: str = Field(
         default="GET",
-        description="HTTP 方法：GET / POST / PUT / DELETE 等"
+        description="HTTP method: GET / POST / PUT / DELETE, etc."
     )
     extract_text: bool = Field(
         default=True,
-        description="对于 HTML 页面，是否提取正文文本；False 则返回原始 HTML"
+        description="For HTML pages, whether to extract body text; False returns raw HTML"
     )
     download_path: str = Field(
         default="",
-        description="如果提供绝对路径，则将响应内容原样保存到该文件（适合下载 PDF/图片/压缩包等二进制文件）"
+        description="If an absolute path is given, save the response bytes as-is to that file (for PDFs, images, archives, and other binaries)"
     )
     timeout: int = Field(
         default=30,
-        description="请求超时时间（秒）"
+        description="Request timeout in seconds"
     )
 
 
 class WebFetcher_output_schema(output_schema):
-    success: bool = Field(description="是否成功")
-    status_code: int = Field(default=0, description="HTTP 状态码")
-    content: str = Field(default="", description="提取的文本或原始 HTML（下载模式为空）")
-    downloaded_path: str = Field(default="", description="下载模式下保存的本地文件绝对路径")
-    error: str = Field(default="", description="失败时的错误信息")
+    success: bool = Field(description="Whether the request succeeded")
+    status_code: int = Field(default=0, description="HTTP status code")
+    content: str = Field(default="", description="Extracted text or raw HTML (empty in download mode)")
+    downloaded_path: str = Field(default="", description="Absolute local path saved in download mode")
+    error: str = Field(default="", description="Error message on failure")
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -109,21 +109,21 @@ class WebFetcher(Tool):
         timeout = user_input.timeout
 
         if not url:
-            return WebFetcher_output_schema(success=False, error="URL 不能为空。")
+            return WebFetcher_output_schema(success=False, error="URL must not be empty.")
 
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
-            return WebFetcher_output_schema(success=False, error=f"URL 格式不合法: {url}")
+            return WebFetcher_output_schema(success=False, error=f"Invalid URL: {url}")
 
         if method not in ('GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'):
-            return WebFetcher_output_schema(success=False, error=f"不支持的 HTTP 方法: {method}")
+            return WebFetcher_output_schema(success=False, error=f"Unsupported HTTP method: {method}")
 
         try:
             import httpx
         except ImportError:
             return WebFetcher_output_schema(
                 success=False,
-                error="缺少 HTTP 依赖 httpx，请执行: pip install httpx"
+                error="Missing HTTP dependency httpx. Install with: pip install httpx"
             )
 
         try:
@@ -140,7 +140,7 @@ class WebFetcher(Tool):
                 )
                 response.raise_for_status()
         except Exception as e:
-            return WebFetcher_output_schema(success=False, error=f"请求失败: {str(e)}")
+            return WebFetcher_output_schema(success=False, error=f"Request failed: {str(e)}")
 
         # 下载模式：原样保存字节到本地
         if download_path:
@@ -157,7 +157,7 @@ class WebFetcher(Tool):
                 return WebFetcher_output_schema(
                     success=False,
                     status_code=response.status_code,
-                    error=f"保存文件失败: {str(e)}"
+                    error=f"Failed to save file: {str(e)}"
                 )
 
         # 非下载模式：按文本处理
@@ -176,9 +176,9 @@ class WebFetcher(Tool):
                 success=False,
                 status_code=response.status_code,
                 error=(
-                    f"目标是 PDF 文件（约 {len(response.content) // 1024} KB），"
-                    "文本抓取不适用于 PDF。请改用 download_path 参数下载到本地后，"
-                    "再用 pdf2md 工具提取内容。"
+                    f"The target is a PDF file (~{len(response.content) // 1024} KB); "
+                    "text fetch is not suitable for PDF. Use download_path to save it locally, "
+                    "then extract with the pdf2md tool."
                 )
             )
 
@@ -188,7 +188,7 @@ class WebFetcher(Tool):
             return WebFetcher_output_schema(
                 success=False,
                 status_code=response.status_code,
-                error=f"解码响应内容失败: {str(e)}"
+                error=f"Failed to decode response body: {str(e)}"
             )
 
         if is_html and extract_text:
@@ -201,7 +201,7 @@ class WebFetcher(Tool):
             text = extractor.get_text()
             # 把标题放在最前面
             if title:
-                text = f"【标题】: {title}\n\n{text}"
+                text = f"[Title]: {title}\n\n{text}"
             content = text
         else:
             content = raw_text

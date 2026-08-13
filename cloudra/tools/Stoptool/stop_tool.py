@@ -9,18 +9,19 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 class StopTool_input_schema(input_schema):
     reason: str = Field(
         default="",
-        description="停止原因，可选"
+        description="Reason for stopping, optional"
     )
     final_answer: str = Field(
         default="",
-        description="【非常重要】如果是答题/评测任务，请务必在这里填入你的最终精简答案（例如 A,B 或 245.8）。工具会自动将其包裹为 [ANSWER] 标签。"
+        description="[CRITICAL] For quiz/eval tasks, put your final concise answer here (e.g. A,B or 245.8). The tool wraps it in an [ANSWER] tag."
     )
     delivery_disposition: Literal["complete", "partial", "user_terminated"] = Field(
         default="complete",
         description=(
-            "DAG 模式交付声明：complete 必须通过 evidence-derived coverage；"
-            "partial 保留缺口后收尾（这是最终交付声明，不是暂停）；user_terminated 表示用户要求停止。"
-            "后台任务/提醒未排空时 stop 只是挂起，不审计也不记录 disposition。"
+            "DAG-mode delivery declaration: complete must pass evidence-derived coverage; "
+            "partial finishes with remaining gaps (this is a final delivery statement, not a pause); "
+            "user_terminated means the user asked to stop. "
+            "If background jobs/reminders are still pending, stop only suspends — no audit and no disposition is recorded."
         ),
     )
 
@@ -28,11 +29,11 @@ class StopTool_input_schema(input_schema):
 class StopTool_output_schema(output_schema):
     stopped: bool = Field(
         default=True,
-        description="是否成功停止"
+        description="Whether the loop was stopped"
     )
     message: str = Field(
         default="任务已停止",
-        description="停止确认信息"
+        description="Stop confirmation message"
     )
 
 
@@ -40,13 +41,13 @@ class StopTool(Tool):
     tool_id: str = 't-stop'
     tool_name: str = 'stop'
     tool_description: str = (
-        "结束当前任务并停止 ReAct 循环；调用后本轮其余工具仍会执行完毕，随后整个循环终止。"
-        "适用：任务已完成、目标已达成，或确认无法继续推进需要收尾时。"
-        "也用于等待后台任务时的挂起：先用 schedule 安排唤醒再 stop；此时会话落库 waiting"
-        "（不是 completed），提醒到期或外部事件会复活循环继续——挂起不算交付，"
-        "DAG 模式下此时不做交付审计。"
-        "不适用：还需要向用户提问澄清（用 ask_user）、还有后续步骤没做完且没有安排唤醒时不要提前 stop。"
-        "注意：答题/评测任务务必在 final_answer 里填入最终精简答案。"
+        "End the current task and stop the ReAct loop; remaining tools in this round still finish, then the loop terminates. "
+        "Use for: the task is done, the goal is met, or you confirm you cannot proceed and need to wrap up. "
+        "Also used to suspend while waiting on background work: schedule a wake-up first, then stop; "
+        "the session is persisted as waiting (not completed), and the loop resumes when the reminder fires or an external event arrives — "
+        "suspension is not delivery, so DAG mode does not run a delivery audit at this point. "
+        "Do not use for: questions that still need the user (use ask_user), or stopping early while later steps remain and no wake-up is scheduled. "
+        "Note: for quiz/eval tasks, put the final concise answer in final_answer."
     )
     input_schema: Any = StopTool_input_schema
     output_schema: Any = StopTool_output_schema

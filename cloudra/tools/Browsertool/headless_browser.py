@@ -11,44 +11,44 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra.config import get_config
 
 description = (
-    "使用无头浏览器（Playwright Chromium）访问指定 URL，获取渲染后的页面文本、标题或截图；"
-    "浏览器环境未就绪时降级为静态 HTTP 抓取。"
-    "适用：必须执行 JavaScript 才能看到内容的动态网页、SPA 页面，或需要整页截图的场景。"
-    "不适用：普通静态网页抓取和文件下载（用 web_fetcher 更快）、按关键词检索（用 web_search/paper_searcher）。"
+    "Visit a URL with a headless browser (Playwright Chromium) and return rendered page text, title, or a screenshot; "
+    "falls back to static HTTP fetch if the browser environment is not ready. "
+    "Use for: JS-rendered pages, SPAs, or full-page screenshots. "
+    "Do not use for: ordinary static fetches and file downloads (web_fetcher is faster) or keyword search (use web_search/paper_searcher)."
 )
 
 
 class HeadlessBrowser_input_schema(input_schema):
-    url: str = Field(description="要访问的目标 URL，必须包含协议（如 https://）")
+    url: str = Field(description="Target URL to visit; must include a scheme (e.g. https://)")
     action: str = Field(
         default="fetch",
-        description="操作类型：fetch（提取页面文本与标题）/ screenshot（截图并保存）"
+        description="Action: fetch (extract page text and title) / screenshot (capture and save)"
     )
     wait_for: str = Field(
         default="",
-        description="页面加载后等待的条件：可以是 CSS 选择器（等待元素出现）或纯数字秒数（如 '2'），留空则不额外等待"
+        description="Wait condition after load: a CSS selector (wait for the element) or a number of seconds (e.g. '2'); empty means no extra wait"
     )
     max_length: int = Field(
         default=0,
-        description="fetch 模式下返回正文的最大字符数；0 表示不截断。仅在调用方显式要求缩短时使用。"
+        description="Max characters of body text in fetch mode; 0 means no truncation. Use only when the caller explicitly wants a shorter result."
     )
     full_page: bool = Field(
         default=True,
-        description="screenshot 模式下是否截取完整页面；False 则只截取当前视口"
+        description="In screenshot mode, capture the full page; False captures the current viewport only"
     )
     timeout: int = Field(
         default=30,
-        description="页面加载超时时间（秒）"
+        description="Page-load timeout in seconds"
     )
 
 
 class HeadlessBrowser_output_schema(output_schema):
-    success: bool = Field(description="是否成功")
-    url: str = Field(default="", description="实际访问的 URL（可能经过重定向）")
-    title: str = Field(default="", description="页面标题")
-    text: str = Field(default="", description="fetch 模式下提取的页面正文")
-    screenshot_path: str = Field(default="", description="screenshot 模式下保存的截图绝对路径")
-    error: str = Field(default="", description="失败时的错误信息")
+    success: bool = Field(description="Whether the operation succeeded")
+    url: str = Field(default="", description="URL actually visited (may follow redirects)")
+    title: str = Field(default="", description="Page title")
+    text: str = Field(default="", description="Extracted page body in fetch mode")
+    screenshot_path: str = Field(default="", description="Absolute path of the saved screenshot in screenshot mode")
+    error: str = Field(default="", description="Error message on failure")
 
 
 class _HTMLTextExtractor(HTMLParser):

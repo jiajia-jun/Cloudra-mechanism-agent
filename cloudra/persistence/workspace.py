@@ -123,7 +123,7 @@ def _encode_text(text: str, has_utf8_bom: bool) -> bytes:
     try:
         encoded = text.encode("utf-8")
     except UnicodeEncodeError as exc:
-        raise WorkspaceError("文本包含无法编码为 UTF-8 的字符") from exc
+        raise WorkspaceError("Text contains characters that cannot be encoded as UTF-8") from exc
     return codecs.BOM_UTF8 + encoded if has_utf8_bom else encoded
 
 
@@ -161,16 +161,16 @@ class WorkspaceService:
     def __init__(self, root: str | os.PathLike[str], max_file_bytes: int = MAX_TEXT_FILE_BYTES):
         root_path = Path(root).expanduser().resolve()
         if not root_path.is_dir():
-            raise WorkspaceError(f"工作目录不存在或不是目录: {root_path}")
+            raise WorkspaceError(f"Working directory does not exist or is not a directory: {root_path}")
         self.root = root_path
         self.max_file_bytes = max_file_bytes
 
     def resolve_path(self, relative_path: str) -> Path:
         if not relative_path or "\x00" in relative_path:
-            raise WorkspaceError("文件路径不能为空或包含 NUL 字符")
+            raise WorkspaceError("File path must not be empty or contain NUL characters")
         requested = Path(relative_path)
         if requested.is_absolute():
-            raise WorkspaceError("文件工具只接受相对工作目录的路径")
+            raise WorkspaceError("File tools only accept paths relative to the working directory")
 
         unresolved = self.root / requested
         current = self.root
@@ -179,15 +179,15 @@ class WorkspaceService:
                 continue
             current = current / part
             if current.exists() and current.is_symlink():
-                raise WorkspaceError(f"不允许通过符号链接修改文件: {relative_path}")
+                raise WorkspaceError(f"Modifying files through a symlink is not allowed: {relative_path}")
 
         resolved = unresolved.resolve(strict=False)
         try:
             resolved.relative_to(self.root)
         except ValueError as exc:
-            raise WorkspaceError(f"路径越过工作目录边界: {relative_path}") from exc
+            raise WorkspaceError(f"Path escapes the working directory: {relative_path}") from exc
         if resolved == self.root:
-            raise WorkspaceError("目标必须是工作目录内的文件")
+            raise WorkspaceError("Target must be a file inside the working directory")
         return resolved
 
     def _relative_label(self, absolute_path: Path) -> str:
@@ -196,23 +196,23 @@ class WorkspaceService:
     def snapshot(self, relative_path: str) -> TextSnapshot:
         absolute_path = self.resolve_path(relative_path)
         if not absolute_path.exists():
-            raise WorkspaceError(f"文件不存在: {relative_path}")
+            raise WorkspaceError(f"File does not exist: {relative_path}")
         if not absolute_path.is_file():
-            raise WorkspaceError(f"目标不是普通文件: {relative_path}")
+            raise WorkspaceError(f"Target is not a regular file: {relative_path}")
 
         raw = absolute_path.read_bytes()
         if len(raw) > self.max_file_bytes:
             raise WorkspaceError(
-                f"文件过大，拒绝作为文本编辑（{len(raw)} > {self.max_file_bytes} bytes）"
+                f"File is too large to edit as text ({len(raw)} > {self.max_file_bytes} bytes)"
             )
         has_utf8_bom = raw.startswith(codecs.BOM_UTF8)
         body = raw[len(codecs.BOM_UTF8):] if has_utf8_bom else raw
         if b"\x00" in body:
-            raise WorkspaceError(f"目标看起来是二进制文件: {relative_path}")
+            raise WorkspaceError(f"Target looks like a binary file: {relative_path}")
         try:
             content = body.decode("utf-8")
         except UnicodeDecodeError as exc:
-            raise WorkspaceError(f"文件不是有效 UTF-8 文本: {relative_path}") from exc
+            raise WorkspaceError(f"File is not valid UTF-8 text: {relative_path}") from exc
 
         return TextSnapshot(
             relative_path=self._relative_label(absolute_path),
@@ -236,7 +236,7 @@ class WorkspaceService:
         actual_start = min(max(start_line, 0), total_lines)
         actual_end = total_lines if end_line == -1 else min(max(end_line, 0), total_lines)
         if actual_start > actual_end:
-            raise WorkspaceError(f"切片范围无效: [{actual_start}:{actual_end}]")
+            raise WorkspaceError(f"Invalid slice range: [{actual_start}:{actual_end}]")
         return snapshot, "".join(lines[actual_start:actual_end]), total_lines, actual_start, actual_end
 
     def prepare_edit(
@@ -246,11 +246,11 @@ class WorkspaceService:
         edits: Sequence[TextEdit],
     ) -> PreparedFileChange:
         if not edits:
-            raise WorkspaceError("至少需要一个文本编辑")
+            raise WorkspaceError("At least one text edit is required")
         snapshot = self.snapshot(relative_path)
         if expected_sha256 != snapshot.sha256:
             raise WorkspaceConflictError(
-                f"文件已变化，请重新读取后再编辑；当前 sha256={snapshot.sha256}"
+                f"File has changed; re-read before editing. Current sha256={snapshot.sha256}"
             )
 
         content = snapshot.content
@@ -259,13 +259,13 @@ class WorkspaceService:
             old_text = _normalize_newlines(edit.old_text, snapshot.newline)
             new_text = _normalize_newlines(edit.new_text, snapshot.newline)
             if not old_text:
-                raise WorkspaceError("old_text 不能为空")
+                raise WorkspaceError("old_text must not be empty")
             matches = content.count(old_text)
             if matches == 0:
-                raise WorkspaceConflictError("old_text 未匹配，请重新读取目标文件")
+                raise WorkspaceConflictError("old_text did not match; re-read the target file")
             if not edit.replace_all and matches != 1:
                 raise WorkspaceConflictError(
-                    f"old_text 匹配了 {matches} 次；请提供更精确的上下文或显式 replace_all"
+                    f"old_text matched {matches} times; provide more precise context or set replace_all"
                 )
             content = content.replace(old_text, new_text, -1 if edit.replace_all else 1)
 
@@ -283,11 +283,11 @@ class WorkspaceService:
             snapshot = self.snapshot(relative_path)
             if expected_sha256 == "missing":
                 raise WorkspaceConflictError(
-                    f"文件已经存在，请先读取并传入 sha256={snapshot.sha256}"
+                    f"File already exists; read it first and pass sha256={snapshot.sha256}"
                 )
             if expected_sha256 != snapshot.sha256:
                 raise WorkspaceConflictError(
-                    f"文件已变化，请重新读取后再覆写；当前 sha256={snapshot.sha256}"
+                    f"File has changed; re-read before overwriting. Current sha256={snapshot.sha256}"
                 )
             normalized = _normalize_newlines(content, snapshot.newline)
             normalized = _preserve_final_newline(
@@ -299,7 +299,7 @@ class WorkspaceService:
 
         if expected_sha256 != "missing":
             raise WorkspaceConflictError(
-                "文件不存在；新建文件时 expected_sha256 必须为 'missing'"
+                "File does not exist; expected_sha256 must be 'missing' when creating a new file"
             )
         normalized = _normalize_newlines(content, "\n")
         after_bytes = _encode_text(normalized, False)
@@ -330,7 +330,7 @@ class WorkspaceService:
         after_content: str,
     ) -> PreparedFileChange:
         if after_content == snapshot.content:
-            raise WorkspaceError("编辑没有产生任何变化")
+            raise WorkspaceError("The edit produced no changes")
         after_bytes = _encode_text(after_content, snapshot.has_utf8_bom)
         self._check_output_size(after_bytes)
         diff = _unified_diff(snapshot.relative_path, snapshot.content, after_content)
@@ -356,27 +356,27 @@ class WorkspaceService:
     def _check_output_size(self, payload: bytes) -> None:
         if len(payload) > self.max_file_bytes:
             raise WorkspaceError(
-                f"编辑结果过大，拒绝写入（{len(payload)} > {self.max_file_bytes} bytes）"
+                f"Edit result is too large to write ({len(payload)} > {self.max_file_bytes} bytes)"
             )
 
     def _assert_precondition(self, change: PreparedFileChange) -> None:
         if change.before_sha256 is None:
             if change.absolute_path.exists():
-                raise WorkspaceConflictError("文件在审批期间已被创建，请重新读取")
+                raise WorkspaceConflictError("File was created during approval; re-read it")
             return
 
         current = self.snapshot(change.relative_path)
         if current.sha256 != change.before_sha256:
             raise WorkspaceConflictError(
-                f"文件在审批期间已变化；当前 sha256={current.sha256}"
+                f"File changed during approval; current sha256={current.sha256}"
             )
 
     def apply(self, change: PreparedFileChange) -> None:
         if change.root != self.root:
-            raise WorkspaceError("变更不属于当前工作目录")
+            raise WorkspaceError("Change does not belong to the current working directory")
         absolute_path = self.resolve_path(change.relative_path)
         if absolute_path != change.absolute_path:
-            raise WorkspaceConflictError("目标路径在审批期间发生变化")
+            raise WorkspaceConflictError("Target path changed during approval")
 
         self._assert_precondition(change)
 
@@ -385,7 +385,7 @@ class WorkspaceService:
         try:
             parent.resolve().relative_to(self.root)
         except ValueError as exc:
-            raise WorkspaceConflictError("父目录在审批期间越过工作区边界") from exc
+            raise WorkspaceConflictError("Parent directory escaped the workspace during approval") from exc
 
         payload = _encode_text(change.after_content, change.has_utf8_bom)
         temp_path: str | None = None
@@ -457,7 +457,7 @@ class TurnDiffTracker:
                 parts.append(diff)
         aggregate = "".join(parts)
         if len(aggregate) > MAX_DIFF_CHARS:
-            return aggregate[:MAX_DIFF_CHARS] + "\n... 本轮 diff 已截断 ...\n"
+            return aggregate[:MAX_DIFF_CHARS] + "\n... this-turn diff truncated ...\n"
         return aggregate
 
 

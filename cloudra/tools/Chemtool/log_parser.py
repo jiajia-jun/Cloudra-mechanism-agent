@@ -8,10 +8,10 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "深度解析 Gaussian 输出日志（.log / .out），提取能量、偶极矩、HOMO/LUMO 能级、"
-    "频率、热力学修正等物理化学性质。"
-    "适用：Gaussian 计算完成后对结果做全面分析，或检查任务是否正常收敛。"
-    "不适用：提交计算任务（用 submit_compute_job）、实验光谱数据处理（用 ir_processor / nmr_processor）。"
+    "Deep-parse a Gaussian output log (.log / .out) and extract energies, dipole, HOMO/LUMO, "
+    "frequencies, thermochemical corrections, and other physicochemical properties. "
+    "Use for: a full analysis after a Gaussian job, or checking whether the job converged normally. "
+    "Do not use for: submitting a job (use submit_compute_job) or processing experimental spectra (use ir_processor / nmr_processor)."
 )
 
 
@@ -90,64 +90,64 @@ def _extract_gaussian_thermochemistry(log_path: str) -> dict[str, float]:
 
 class LogParser_input_schema(input_schema):
     log_path: str = Field(
-        description="Gaussian 输出日志文件（.log 或 .out）的绝对路径。"
+        description="Absolute path of the Gaussian output log (.log or .out)."
     )
     properties: Optional[list[str]] = Field(
         default=None,
-        description="需要提取的物理量列表。可选值: "
+        description="Properties to extract. Allowed: "
                     "'energy', 'homo_lumo', 'dipole', 'frequencies', "
                     "'thermochemistry', 'mulliken_charges', 'convergence', "
-                    "'job_type'（任务类型识别）, 'scan'（扫描参数与能量序列）, "
-                    "'irc'（IRC 路径摘要）。"
-                    "为 None 时提取所有可用物理量。"
+                    "'job_type' (job-type detection), 'scan' (scan parameters and energy series), "
+                    "'irc' (IRC path summary). "
+                    "None extracts every available property."
     )
 
 
 class LogParser_output_schema(output_schema):
-    is_success: bool = Field(description="解析是否成功")
-    scf_energy_hartree: Optional[float] = Field(default=None, description="最终 SCF 能量 (Hartree)")
-    scf_energy_ev: Optional[float] = Field(default=None, description="最终 SCF 能量 (eV)")
-    homo_ev: Optional[float] = Field(default=None, description="HOMO 能级 (eV)")
-    lumo_ev: Optional[float] = Field(default=None, description="LUMO 能级 (eV)")
-    homo_lumo_gap_ev: Optional[float] = Field(default=None, description="HOMO-LUMO 能隙 (eV)")
-    dipole_moment_debye: Optional[float] = Field(default=None, description="偶极矩 (Debye)")
-    frequencies_cm: Optional[list[float]] = Field(default=None, description="振动频率列表 (cm⁻¹)")
-    imaginary_frequencies: Optional[list[float]] = Field(default=None, description="虚频列表 (cm⁻¹)，用于判断过渡态")
-    zero_point_correction_hartree: Optional[float] = Field(default=None, description="零点能校正 (Hartree)")
-    thermal_energy_correction_hartree: Optional[float] = Field(default=None, description="热能校正 (Hartree)")
-    thermal_enthalpy_correction_hartree: Optional[float] = Field(default=None, description="热焓校正 (Hartree)")
-    thermal_gibbs_correction_hartree: Optional[float] = Field(default=None, description="热 Gibbs 自由能校正 (Hartree)")
-    total_zero_point_energy_hartree: Optional[float] = Field(default=None, description="电子能与零点能之和 (Hartree)")
-    total_thermal_energy_hartree: Optional[float] = Field(default=None, description="电子能与热能之和 (Hartree)")
-    total_enthalpy_hartree: Optional[float] = Field(default=None, description="电子能与热焓之和 (Hartree)")
-    total_gibbs_free_energy_hartree: Optional[float] = Field(default=None, description="电子能与热 Gibbs 自由能之和 (Hartree)")
+    is_success: bool = Field(description="Whether parsing succeeded")
+    scf_energy_hartree: Optional[float] = Field(default=None, description="Final SCF energy (Hartree)")
+    scf_energy_ev: Optional[float] = Field(default=None, description="Final SCF energy (eV)")
+    homo_ev: Optional[float] = Field(default=None, description="HOMO energy (eV)")
+    lumo_ev: Optional[float] = Field(default=None, description="LUMO energy (eV)")
+    homo_lumo_gap_ev: Optional[float] = Field(default=None, description="HOMO-LUMO gap (eV)")
+    dipole_moment_debye: Optional[float] = Field(default=None, description="Dipole moment (Debye)")
+    frequencies_cm: Optional[list[float]] = Field(default=None, description="Vibrational frequencies (cm⁻¹)")
+    imaginary_frequencies: Optional[list[float]] = Field(default=None, description="Imaginary frequencies (cm⁻¹), used to judge a TS")
+    zero_point_correction_hartree: Optional[float] = Field(default=None, description="Zero-point correction (Hartree)")
+    thermal_energy_correction_hartree: Optional[float] = Field(default=None, description="Thermal energy correction (Hartree)")
+    thermal_enthalpy_correction_hartree: Optional[float] = Field(default=None, description="Thermal enthalpy correction (Hartree)")
+    thermal_gibbs_correction_hartree: Optional[float] = Field(default=None, description="Thermal Gibbs free-energy correction (Hartree)")
+    total_zero_point_energy_hartree: Optional[float] = Field(default=None, description="Electronic energy plus ZPE (Hartree)")
+    total_thermal_energy_hartree: Optional[float] = Field(default=None, description="Electronic energy plus thermal energy (Hartree)")
+    total_enthalpy_hartree: Optional[float] = Field(default=None, description="Electronic energy plus thermal enthalpy (Hartree)")
+    total_gibbs_free_energy_hartree: Optional[float] = Field(default=None, description="Electronic energy plus thermal Gibbs free energy (Hartree)")
     zero_point_energy_hartree: Optional[float] = Field(
         default=None,
-        description="兼容字段：zero_point_correction_hartree 的别名 (Hartree)",
+        description="Compatibility alias of zero_point_correction_hartree (Hartree)",
     )
     thermal_energy_hartree: Optional[float] = Field(
         default=None,
-        description="兼容字段：thermal_energy_correction_hartree 的别名 (Hartree)",
+        description="Compatibility alias of thermal_energy_correction_hartree (Hartree)",
     )
     enthalpy_hartree: Optional[float] = Field(
         default=None,
-        description="兼容字段：total_enthalpy_hartree 的别名；这是总焓，不是焓校正 (Hartree)",
+        description="Compatibility alias of total_enthalpy_hartree; this is total enthalpy, not the enthalpy correction (Hartree)",
     )
     gibbs_free_energy_hartree: Optional[float] = Field(
         default=None,
-        description="兼容字段：total_gibbs_free_energy_hartree 的别名；这是总自由能，不是校正项 (Hartree)",
+        description="Compatibility alias of total_gibbs_free_energy_hartree; this is total free energy, not the correction (Hartree)",
     )
-    mulliken_charges: Optional[dict] = Field(default=None, description="Mulliken 电荷分布 {原子序号: 电荷}")
-    normal_termination: Optional[bool] = Field(default=None, description="Gaussian 是否正常终止")
-    job_types: Optional[list[str]] = Field(default=None, description="识别到的任务类型（opt/ts/freq/scan/irc/sp 的子集，升序）")
-    scan_parameter: Optional[list[float]] = Field(default=None, description="扫描参数值序列（relaxed PES scan）")
-    scan_energies_ev: Optional[list[float]] = Field(default=None, description="各扫描点能量 (eV)")
-    irc_num_points_forward: Optional[int] = Field(default=None, description="IRC 正向路径点数（不含 TS）")
-    irc_num_points_backward: Optional[int] = Field(default=None, description="IRC 反向路径点数（不含 TS）")
-    irc_rx_coord_range: Optional[list[float]] = Field(default=None, description="IRC 反应坐标范围 [min, max]")
-    irc_endpoint_energies_hartree: Optional[list[float]] = Field(default=None, description="IRC 两端点能量 (Hartree)，按反应坐标从小到大")
-    irc_both_directions_converged: Optional[bool] = Field(default=None, description="IRC 两个方向是否都收敛到极小点")
-    message: str = Field(default="", description="状态或错误信息")
+    mulliken_charges: Optional[dict] = Field(default=None, description="Mulliken charges {atom index: charge}")
+    normal_termination: Optional[bool] = Field(default=None, description="Whether Gaussian terminated normally")
+    job_types: Optional[list[str]] = Field(default=None, description="Detected job types (subset of opt/ts/freq/scan/irc/sp, sorted)")
+    scan_parameter: Optional[list[float]] = Field(default=None, description="Scan parameter series (relaxed PES scan)")
+    scan_energies_ev: Optional[list[float]] = Field(default=None, description="Energy at each scan point (eV)")
+    irc_num_points_forward: Optional[int] = Field(default=None, description="IRC forward-path point count (excluding TS)")
+    irc_num_points_backward: Optional[int] = Field(default=None, description="IRC reverse-path point count (excluding TS)")
+    irc_rx_coord_range: Optional[list[float]] = Field(default=None, description="IRC reaction-coordinate range [min, max]")
+    irc_endpoint_energies_hartree: Optional[list[float]] = Field(default=None, description="IRC endpoint energies (Hartree), ordered by reaction coordinate")
+    irc_both_directions_converged: Optional[bool] = Field(default=None, description="Whether both IRC directions converged to a minimum")
+    message: str = Field(default="", description="Status or error message")
 
 
 class LogParser(Tool):

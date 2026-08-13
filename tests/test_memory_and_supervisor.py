@@ -249,7 +249,7 @@ class TestCoordinatorMemoryLoading:
         agent._tools_schema_cache = []
         messages = await agent._build_messages()
         identity = messages[0]["content"]
-        assert "长期记忆" in identity
+        assert "Long-term memory" in identity
         assert "ISPIN=2" in identity
         assert any(
             source["kind"] == "memory"

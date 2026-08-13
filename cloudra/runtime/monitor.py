@@ -192,17 +192,18 @@ async def run_guard(
     submitter = info["agent_id"]
 
     if state == 'done':
-        guidance = "下一步：用 log_parser 解析日志提取能量/频率等结果。"
+        guidance = "Next: use log_parser on the log to extract energy/frequencies and other results."
     else:
         guidance = (
-            "下一步：用 query_compute_job 查看 last_error，并直接查看日志定位失败原因；"
-            "必要时修正输入文件后重新 submit_compute_job。若无法自行解决，发邮件联系用户。"
+            "Next: use query_compute_job to inspect last_error, and read the log to locate the failure; "
+            "if needed, fix the input file and resubmit with submit_compute_job. "
+            "If you cannot resolve it, email the user."
         )
     event_content = (
-        f"计算任务 task_id={taskid} 已结束，state={state}。\n"
-        f"输入文件：{info['path']}\n"
-        f"日志文件：{log_path}\n"
-        f"结构化结果：{json_path}\n"
+        f"Compute job task_id={taskid} finished, state={state}.\n"
+        f"Input file: {info['path']}\n"
+        f"Log file: {log_path}\n"
+        f"Structured result: {json_path}\n"
         f"{guidance}"
     )
     # 提交者不是 Coordinator 时，两边都通知：提交者跟进结果（定向到其 session，

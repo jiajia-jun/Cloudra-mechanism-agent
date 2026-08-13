@@ -104,17 +104,17 @@ async def _invoke_device(
 class DeviceWorkspaceListInput(input_schema):
     path: str = Field(
         default=".",
-        description="Android 已授权工作区内的相对目录",
+        description="Relative directory inside the authorized Android workspace",
     )
     max_entries: int = Field(default=200, ge=1, le=1_000)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
     expected_workspace_revision: int | None = Field(
         default=None,
         ge=0,
-        description="可选的 Android 工作区 revision",
+        description="Optional Android workspace revision",
     )
 
 
@@ -131,9 +131,9 @@ class DeviceWorkspaceList(Tool):
     tool_id: str = "device-t-1"
     tool_name: str = "device.workspace.list"
     tool_description: str = (
-        "列出一台已配对且在线 Android 设备的授权工作区目录。"
-        "适用：浏览手机端工作区结构、定位要读取或修改的文件；"
-        "区别于 device.documents.list 的 SAF 授权目录。"
+        "List the authorized workspace directory of a paired, online Android device. "
+        "Use for: browsing the phone workspace and locating files to read or edit; "
+        "distinct from the SAF-authorized directory of device.documents.list."
     )
     input_schema: Any = DeviceWorkspaceListInput
     output_schema: Any = DeviceWorkspaceListOutput
@@ -171,11 +171,11 @@ class DeviceWorkspaceList(Tool):
 
 
 class DeviceWorkspaceReadInput(input_schema):
-    path: str = Field(description="Android 已授权工作区内的相对文件路径")
+    path: str = Field(description="Relative file path inside the authorized Android workspace")
     max_bytes: int = Field(default=262_144, ge=1, le=1_048_576)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
     expected_workspace_revision: int | None = Field(default=None, ge=0)
 
@@ -196,8 +196,8 @@ class DeviceWorkspaceRead(Tool):
     tool_id: str = "device-t-2"
     tool_name: str = "device.workspace.read"
     tool_description: str = (
-        "读取一台已配对且在线 Android 设备授权工作区内的小文件，返回内容与 sha256。"
-        "适用：查看手机端工作区文件；也是后续 apply_patch 修改前获取 sha256 的必经步骤。"
+        "Read a small file from the authorized workspace of a paired, online Android device; returns content and sha256. "
+        "Use for: viewing phone-workspace files; also required to get sha256 before a later apply_patch."
     )
     input_schema: Any = DeviceWorkspaceReadInput
     output_schema: Any = DeviceWorkspaceReadOutput
@@ -240,11 +240,11 @@ class DeviceWorkspaceRead(Tool):
 class DeviceConfigGetInput(input_schema):
     keys: list[str] | None = Field(
         default=None,
-        description="要读取的公开配置字段；留空返回全部公开字段",
+        description="Public config keys to read; leave empty to return all public fields",
     )
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -260,8 +260,8 @@ class DeviceConfigGet(Tool):
     tool_id: str = "device-t-3"
     tool_name: str = "device.config.get"
     tool_description: str = (
-        "读取一台已配对 Android 设备公开且不含密钥的运行配置。"
-        "适用：查看设备 Runtime 配置与 config_revision；修改配置用 device.config.patch。"
+        "Read the public, non-secret runtime config of a paired Android device. "
+        "Use for: inspecting Device Runtime config and config_revision; patch config with device.config.patch."
     )
     input_schema: Any = DeviceConfigGetInput
     output_schema: Any = DeviceConfigGetOutput
@@ -300,18 +300,18 @@ class DeviceTextEdit(BaseModel):
 
 
 class DeviceWorkspaceApplyPatchInput(input_schema):
-    path: str = Field(description="Android 授权工作区内的相对文件路径")
+    path: str = Field(description="Relative file path inside the authorized Android workspace")
     expected_sha256: str = Field(
-        description="最近一次 device.workspace.read 返回的 sha256"
+        description="sha256 returned by the latest device.workspace.read"
     )
     edits: list[DeviceTextEdit] = Field(
         min_length=1,
         max_length=100,
-        description="审批前生成 diff 的精确文本替换",
+        description="Exact text replacements used to build the diff shown before approval",
     )
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
     expected_workspace_revision: int | None = Field(default=None, ge=0)
 
@@ -332,9 +332,9 @@ class DeviceWorkspaceApplyPatch(Tool):
     tool_id: str = "device-t-4"
     tool_name: str = "device.workspace.apply_patch"
     tool_description: str = (
-        "在 Android 本地显示候选 diff，经用户批准后原子修改授权工作区文本。"
-        "适用：精确修改手机端工作区已有文件；"
-        "必须先 device.workspace.read 读取最新 sha256，设备端拒绝或超时都会返回失败。"
+        "Show a candidate diff on the Android device and, after user approval, atomically edit authorized workspace text. "
+        "Use for: precise edits to existing phone-workspace files; "
+        "must call device.workspace.read first for the latest sha256; device-side reject or timeout returns failure."
     )
     input_schema: Any = DeviceWorkspaceApplyPatchInput
     output_schema: Any = DeviceWorkspaceApplyPatchOutput
@@ -382,13 +382,13 @@ class DeviceWorkspaceApplyPatch(Tool):
 class DeviceConfigPatchInput(input_schema):
     patch: dict = Field(
         description=(
-            "仅允许 display_name 和 max_read_bytes；其余字段会被拒绝"
+            "Only display_name and max_read_bytes are allowed; other fields are rejected"
         )
     )
     expected_config_revision: int = Field(ge=1)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -406,9 +406,9 @@ class DeviceConfigPatch(Tool):
     tool_id: str = "device-t-5"
     tool_name: str = "device.config.patch"
     tool_description: str = (
-        "在 Android 本地显示旧值和新值，经用户批准后修改 Device Runtime 配置。"
-        "适用：调整 display_name、max_read_bytes 等公开配置；"
-        "需先 device.config.get 拿到当前 config_revision。"
+        "Show old and new values on the Android device and, after user approval, patch Device Runtime config. "
+        "Use for: adjusting public settings such as display_name and max_read_bytes; "
+        "call device.config.get first to obtain the current config_revision."
     )
     input_schema: Any = DeviceConfigPatchInput
     output_schema: Any = DeviceConfigPatchOutput
@@ -450,12 +450,12 @@ class DeviceDocumentsListInput(input_schema):
     path: str = Field(
         default=".",
         max_length=4_096,
-        description="SAF 授权目录内的相对目录",
+        description="Relative directory inside the SAF-authorized folder",
     )
     max_entries: int = Field(default=200, ge=1, le=1_000)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -472,8 +472,8 @@ class DeviceDocumentsList(Tool):
     tool_id: str = "device-t-6"
     tool_name: str = "device.documents.list"
     tool_description: str = (
-        "列出 Android 用户通过系统文档选择器持久授权的目录（SAF）。"
-        "适用：浏览用户授权共享出来的文档目录；区别于 device.workspace.list 的应用工作区。"
+        "List directories the Android user persistently authorized via the system document picker (SAF). "
+        "Use for: browsing user-shared document folders; distinct from the app workspace of device.workspace.list."
     )
     input_schema: Any = DeviceDocumentsListInput
     output_schema: Any = DeviceDocumentsListOutput
@@ -510,12 +510,12 @@ class DeviceDocumentsList(Tool):
 class DeviceDocumentsReadInput(input_schema):
     path: str = Field(
         max_length=4_096,
-        description="SAF 授权目录内的相对文件路径",
+        description="Relative file path inside the SAF-authorized folder",
     )
     max_bytes: int = Field(default=262_144, ge=1, le=1_048_576)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -537,8 +537,8 @@ class DeviceDocumentsRead(Tool):
     tool_id: str = "device-t-7"
     tool_name: str = "device.documents.read"
     tool_description: str = (
-        "读取 Android SAF 持久授权目录中的小文件；二进制以 base64 返回。"
-        "适用：读取用户授权共享的文档；写入前必须先读本工具拿到最新 sha256。"
+        "Read a small file from an Android SAF persistently authorized directory; binaries are returned as base64. "
+        "Use for: reading user-shared documents; you must read with this tool first to get the latest sha256 before writing."
     )
     input_schema: Any = DeviceDocumentsReadInput
     output_schema: Any = DeviceDocumentsReadOutput
@@ -580,21 +580,21 @@ class DeviceDocumentsRead(Tool):
 class DeviceDocumentsWriteInput(input_schema):
     path: str = Field(
         max_length=4_096,
-        description="SAF 授权目录内的现有文件路径",
+        description="Existing file path inside the SAF-authorized folder",
     )
     expected_sha256: str = Field(
         min_length=64,
         max_length=64,
         pattern=r"^[0-9A-Fa-f]{64}$",
-        description="最近一次 device.documents.read 返回的 sha256"
+        description="sha256 returned by the latest device.documents.read"
     )
     content: str = Field(
         max_length=1_398_104,
-        description="审批后覆盖写入的 base64 内容，最大 1 MiB"
+        description="Base64 content to overwrite after approval, max 1 MiB"
     )
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -613,9 +613,9 @@ class DeviceDocumentsWrite(Tool):
     tool_id: str = "device-t-8"
     tool_name: str = "device.documents.write"
     tool_description: str = (
-        "在 Android 显示写入摘要并经用户批准后，按 sha256 前置条件覆盖"
-        " SAF 授权目录中的现有文件。"
-        "适用：更新用户共享文档的内容；必须先 device.documents.read 获取最新 sha256。"
+        "Show a write summary on Android and, after user approval, overwrite an existing file "
+        "in the SAF-authorized directory subject to a sha256 precondition. "
+        "Use for: updating user-shared document content; must call device.documents.read first for the latest sha256."
     )
     input_schema: Any = DeviceDocumentsWriteInput
     output_schema: Any = DeviceDocumentsWriteOutput
@@ -658,7 +658,7 @@ class DeviceFilePickInput(input_schema):
     max_bytes: int = Field(default=262_144, ge=1, le=1_048_576)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -681,8 +681,8 @@ class DeviceFilePick(Tool):
     tool_id: str = "device-t-9"
     tool_name: str = "device.file.pick"
     tool_description: str = (
-        "经 Android 本地批准后打开系统文件选择器，并读取用户明确选择的小文件。"
-        "适用：请用户在手机上手动挑一个文件交给 Agent（如照片、文档）；不能按路径读任意文件。"
+        "After local Android approval, open the system file picker and read the small file the user explicitly selects. "
+        "Use for: asking the user to pick a file on the phone for the Agent (e.g. a photo or document); cannot read arbitrary paths."
     )
     input_schema: Any = DeviceFilePickInput
     output_schema: Any = DeviceBinaryCaptureOutput
@@ -712,7 +712,7 @@ class DeviceFilePick(Tool):
 class DeviceCameraCaptureInput(input_schema):
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -720,8 +720,8 @@ class DeviceCameraCapture(Tool):
     tool_id: str = "device-t-10"
     tool_name: str = "device.camera.capture"
     tool_description: str = (
-        "经 Android 本地批准后打开系统相机，返回本次拍摄的 JPEG 缩略图。"
-        "适用：请用户现场拍摄实物（如实验装置、样品、板书）交给 Agent 分析。"
+        "After local Android approval, open the system camera and return a JPEG thumbnail of this shot. "
+        "Use for: asking the user to photograph a physical object (apparatus, sample, whiteboard) for the Agent to analyze."
     )
     input_schema: Any = DeviceCameraCaptureInput
     output_schema: Any = DeviceBinaryCaptureOutput
@@ -769,7 +769,7 @@ class DeviceShareTextInput(input_schema):
     subject: str = Field(default="", max_length=200)
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -784,9 +784,9 @@ class DeviceShareText(Tool):
     tool_id: str = "device-t-11"
     tool_name: str = "device.share.text"
     tool_description: str = (
-        "在 Android 展示文本预览，经本地批准后打开系统分享面板；"
-        "最终发送目标仍由用户选择。"
-        "适用：把结果文本交给用户自行分享到微信、邮件等应用；Agent 不直接控制发送对象。"
+        "Show a text preview on Android and, after local approval, open the system share sheet; "
+        "the user still chooses the final destination. "
+        "Use for: handing result text to the user to share via WeChat, email, etc.; the Agent does not control the recipient."
     )
     input_schema: Any = DeviceShareTextInput
     output_schema: Any = DeviceShareTextOutput
@@ -826,11 +826,11 @@ class DeviceNotifyInput(input_schema):
     notification_id: str = Field(
         default="",
         max_length=200,
-        description="可选稳定 ID；相同 ID 会更新已有通知",
+        description="Optional stable ID; the same ID updates an existing notification",
     )
     device_id: str = Field(
         default="",
-        description="目标 device_id；留空时选择一个在线兼容设备",
+        description="Target device_id; leave empty to pick an online compatible device",
     )
 
 
@@ -845,8 +845,8 @@ class DeviceNotify(Tool):
     tool_id: str = "device-t-12"
     tool_name: str = "device.notify"
     tool_description: str = (
-        "在 Android 展示通知内容预览，经本地批准且系统通知权限允许后显示通知。"
-        "适用：长任务完成或需要用户介入时在手机通知栏提醒用户；只发通知，不能获取用户回复。"
+        "Show a notification preview on Android and, after local approval and if notification permission is granted, display it. "
+        "Use for: reminding the user in the notification shade when a long task finishes or needs intervention; send-only, cannot collect a reply."
     )
     input_schema: Any = DeviceNotifyInput
     output_schema: Any = DeviceNotifyOutput

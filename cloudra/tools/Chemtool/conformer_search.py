@@ -71,70 +71,70 @@ def _select_cluster_representatives(
     return sorted(selected, key=lambda cid: (rel_energies[cid], cid))
 
 description = (
-    "构象系综搜索：输入 SMILES 或 xyz/sdf 结构，生成构象系综并输出能量/Boltzmann 布居表，"
-    "支持反应距离过滤（distance_filters）筛选成键原子距离落入反应预组织区间的 reactive conformer。"
-    "所有坐标写入系综文件（confs.sdf / confs.xyz），上下文中只返回数值表。"
-    "适用：有机机理计算前定位反应构象、评估构象对能量的贡献、为过渡态初猜挑选起始结构。"
-    "不适用：高精度单点能计算（用 submit_compute_job）、结构格式互换（用 format_converter）。"
+    "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table, "
+    "with optional reaction-distance filters (distance_filters) to keep reactive conformers whose bonding-atom distances fall in a preorganization window. "
+    "All coordinates go to ensemble files (confs.sdf / confs.xyz); context only gets the numeric table. "
+    "Use for: locating reactive conformers before organic-mechanism calculations, assessing conformational energy contributions, picking a starting geometry for a TS guess. "
+    "Do not use for: high-accuracy single points (use submit_compute_job) or format conversion (use format_converter)."
 )
 
 
 class ConformerSearch_input_schema(input_schema):
     smiles: Optional[str] = Field(
         default=None,
-        description="输入分子的 SMILES 字符串。与 input_path/input_text 三选一，优先使用 smiles。"
+        description="Input molecule SMILES. One of smiles/input_path/input_text; smiles is preferred."
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="输入结构文件路径（xyz/sdf/mol）。xyz 输入会通过 rdDetermineBonds 推断键级。"
+        description="Input structure file path (xyz/sdf/mol). xyz input infers bond orders via rdDetermineBonds."
     )
     input_text: Optional[str] = Field(
         default=None,
-        description="直接传入结构文本（xyz 块或 mol 块）。提供 input_path 时优先读文件。"
+        description="Structure text (xyz or mol block). If input_path is set, the file is read instead."
     )
-    charge: int = Field(default=0, description="分子总电荷。xyz 输入推断键级时使用。")
+    charge: int = Field(default=0, description="Total molecular charge. Used when inferring bond orders from xyz.")
     backend: Literal["rdkit", "crest"] = Field(
         default="rdkit",
-        description="搜索后端。rdkit：ETKDGv3 采样 + MMFF/UFF 优化；crest：调用外部 CREST 程序（GFN2-xTB，--quick）。"
+        description="Search backend. rdkit: ETKDGv3 sampling + MMFF/UFF optimization; crest: external CREST (GFN2-xTB, --quick)."
     )
-    num_confs: int = Field(default=50, description="RDKit 后端生成的初始构象数。")
+    num_confs: int = Field(default=50, description="Initial conformer count for the RDKit backend.")
     energy_window_kcal: float = Field(
         default=6.0,
-        description="相对能量窗口（kcal/mol）。有 distance_filters 时，即使最低能 reactive conformer 在窗口外也会额外保留，"
-                    "并保留其相对于全局最低能构象的能量罚分。"
+        description="Relative energy window (kcal/mol). With distance_filters, the lowest-energy reactive conformer is kept even if it is outside the window, "
+                    "and its energy penalty vs the global minimum is retained."
     )
     rmsd_threshold: float = Field(
         default=0.5,
-        description="重原子 RMSD 聚类阈值（Å）。通常保留簇内最低能构象；若该构象不通过距离过滤，"
-                    "还会额外保留簇内最低能的 reactive conformer。"
+        description="Heavy-atom RMSD clustering threshold (Å). Usually keeps the lowest-energy member of each cluster; if that member fails the distance filter, "
+                    "also keeps the lowest-energy reactive conformer in the cluster."
     )
-    temperature: float = Field(default=298.15, description="Boltzmann 布居计算温度（K）。")
-    random_seed: int = Field(default=42, description="RDKit 构象采样随机种子，保证可重复。")
+    temperature: float = Field(default=298.15, description="Temperature for Boltzmann populations (K).")
+    random_seed: int = Field(default=42, description="RDKit conformer-sampling random seed for reproducibility.")
     distance_filters: list[dict] = Field(
         default_factory=list,
-        description="反应距离过滤列表，每项形如 {\"atoms\": [i, j], \"min_ang\": 1.8, \"max_ang\": 2.6}，"
-                    "原子序号为 1-based。用于筛选关键原子对距离落入反应预组织区间的构象（reactive conformer）。"
+        description="Reaction-distance filters; each item like {\"atoms\": [i, j], \"min_ang\": 1.8, \"max_ang\": 2.6}, "
+                    "1-based atom indices. Keeps conformers whose key atom-pair distances fall in the preorganization window (reactive conformers)."
     )
     output_dir: Optional[str] = Field(
         default=None,
-        description="系综输出目录。缺省：有 input_path 时为同目录 <stem>_confs/，否则为 ./confs_output/。"
+        description="Ensemble output directory. Default: <stem>_confs/ next to input_path, else ./confs_output/."
     )
-    timeout: int = Field(default=600, description="CREST 后端的子进程超时时间（秒）。")
+    timeout: int = Field(default=600, description="CREST backend subprocess timeout (seconds).")
 
 
 class ConformerSearch_output_schema(output_schema):
-    is_success: bool = Field(description="搜索是否成功")
-    table: str = Field(default="", description="能量/布居文本表（最多 10 行，不含坐标）")
+    is_success: bool = Field(description="Whether the search succeeded")
+    table: str = Field(default="", description="Energy/population text table (at most 10 rows, no coordinates)")
     conformers: list[dict] = Field(
         default_factory=list,
-        description="聚类后各构象的数值摘要：conf_id/rel_energy_kcal/boltzmann_pct/rmsd_to_conf0/passes_filters"
+        description="Numeric summary of clustered conformers: conf_id/rel_energy_kcal/boltzmann_pct/rmsd_to_conf0/passes_filters"
     )
     counts: dict = Field(
         default_factory=dict,
-        description="统计：generated/optimized/within_window/clusters/retained/passing_filters/reactive_rescued"
+        description="Counts: generated/optimized/within_window/clusters/retained/passing_filters/reactive_rescued"
     )
-    ensemble_path: str = Field(default="", description="构象系综文件路径（confs.sdf 或 confs.xyz）")
-    message: str = Field(default="", description="状态或错误信息")
+    ensemble_path: str = Field(default="", description="Conformer-ensemble file path (confs.sdf or confs.xyz)")
+    message: str = Field(default="", description="Status or error message")
 
 
 def _kabsch_rmsd(pos_a, pos_b) -> float:

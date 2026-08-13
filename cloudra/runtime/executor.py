@@ -66,8 +66,8 @@ def _mark_cancelled_sync(database_path: str, task_id: int, session_id: str) -> N
         database_path,
         conversation_id=conv_id,
         content=(
-            f"子 Agent {agent_label} (session={session_id}, task_id={task_id}) "
-            f"已被终止（SIGTERM/打断）。"
+            f"Sub-agent {agent_label} (session={session_id}, task_id={task_id}) "
+            f"was terminated (SIGTERM/interrupt)."
         ),
     )
 
@@ -119,7 +119,7 @@ def _wake_caller_hangup_sync(
     conv_id = input_data.get("conversation_id") or "default"
     caller_id = input_data.get("caller_agent_id") or "a-0"
     caller_session = input_data.get("caller_session_id") or None
-    hangup = f"【来电结束】{agent_name} (session={session_id}) 已挂断。"
+    hangup = f"[Call ended] {agent_name} (session={session_id}) hung up."
     try:
         db = ConversationDB.from_path(database_path)
         with db.connect() as con:
@@ -190,7 +190,7 @@ async def _wake_after_executor(
             caller_session = input_data.get("caller_session_id") or ""
             label = agent_name or input_data.get("agent_id") or "subagent"
             sid = session_id or input_data.get("session_id")
-            hangup = f"【来电结束】{label} (session={sid}) 已挂断。"
+            hangup = f"[Call ended] {label} (session={sid}) hung up."
             from cloudra.tools.Managetool._hub_call import deliver_incoming_call
 
             await deliver_incoming_call(
@@ -491,7 +491,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         await _wake_after_executor(
             database_path,
             input_data,
-            f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 已完成。结论: {result[:500]}",
+            f"Sub-agent {sub_agent.name} (session={session_id}, task_id={task_id}) completed. Conclusion: {result[:500]}",
             agent_name=sub_agent.name,
             session_id=session_id,
         )
@@ -506,7 +506,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         await _wake_after_executor(
             database_path,
             input_data,
-            f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 已被取消。",
+            f"Sub-agent {sub_agent.name} (session={session_id}, task_id={task_id}) was cancelled.",
             agent_name=sub_agent.name,
             session_id=session_id,
         )
@@ -525,7 +525,7 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
         await _wake_after_executor(
             database_path,
             input_data,
-            f"子 Agent {sub_agent.name} (session={session_id}, task_id={task_id}) 执行失败: {error_message[:500]}",
+            f"Sub-agent {sub_agent.name} (session={session_id}, task_id={task_id}) failed: {error_message[:500]}",
             agent_name=sub_agent.name,
             session_id=session_id,
         )

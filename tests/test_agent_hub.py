@@ -176,14 +176,14 @@ class TestHubNotify:
             action="post", topic="乙烯臭氧化-TS1", kind="message", to_agent="small_mol",
             content="TS1 虚频 -275 cm-1，请复核 IRC 端点匹配。",
         ), mock_session)
-        assert out.is_success and "已通知" in out.message
+        assert out.is_success and "Notified" in out.message
 
         assert len(captured_events) == 1
         evt = captured_events[0]
         assert evt["conversation_id"] == "test-hub"
         assert evt["agent_id"] == "a-4"  # small_mol 解析为注册表里的 a-4
         assert evt["event_type"] == "hub_message"
-        assert "点名你" in evt["content"] and "TS1 虚频" in evt["content"]
+        assert "mentioned you" in evt["content"] and "TS1 虚频" in evt["content"]
 
         read = await tool.tool_call(AgentHub_input_schema(
             action="read", topic="乙烯臭氧化-TS1",
@@ -228,7 +228,7 @@ class TestHubNotify:
         evt = captured_events[0]
         assert evt["agent_id"] == "a-4"
         assert evt["event_type"] == "hub_reply"
-        assert "回复了你" in evt["content"]
+        assert "replied to your" in evt["content"]
 
         # 自己回复自己的帖子：不再产生任何通知
         captured_events.clear()
@@ -300,11 +300,11 @@ def test_format_incoming_call_is_user_speech_not_a_prompt():
         caller_session_id="a-0_run1",
         message="POZ 有虚频，怎么位移？",
     )
-    assert text.startswith("【来电】")
+    assert text.startswith("[Incoming call]")
     assert "a-0" in text and "a-0_run1" in text
-    assert "第一时间" in text
+    assert "Answer this call first" in text
     assert "POZ 有虚频，怎么位移？" in text
-    assert "【来电】" in text.split("POZ", 1)[0]
+    assert "[Incoming call]" in text.split("POZ", 1)[0]
 
 
 def test_format_incoming_call_optional_post_line():
@@ -312,9 +312,9 @@ def test_format_incoming_call_optional_post_line():
         caller_agent_id="a-4",
         caller_session_id="a-4_task1",
         message="看这个",
-        post_line="对照帖子 #3（主题 虚频）。",
+        post_line="Related post #3 (topic 虚频).",
     )
-    assert "对照帖子 #3" in text
+    assert "Related post #3" in text
 
 
 def test_format_incoming_call_preserves_braces_in_message():
@@ -511,14 +511,14 @@ async def test_call_visit_appends_user_incoming_not_system_wrapper(
     user_hits = [
         m
         for m in stored
-        if m.get("role") == "user" and "【来电】" in str(m.get("content", ""))
+        if m.get("role") == "user" and "[Incoming call]" in str(m.get("content", ""))
     ]
     system_hits = [
         m
         for m in stored
         if m.get("role") == "system"
         and (
-            "【来电】" in str(m.get("content", ""))
+            "[Incoming call]" in str(m.get("content", ""))
             or "【hub_message】" in str(m.get("content", ""))
             or "【user_message】" in str(m.get("content", ""))
         )
@@ -536,7 +536,7 @@ async def test_call_unknown_agent_id_fails_closed(agent, mock_session):
         mock_session,
     )
     assert not out.is_success
-    assert "a-99" in out.message or "未知" in out.message
+    assert "a-99" in out.message or "Unknown" in out.message
 
 
 @pytest.mark.asyncio

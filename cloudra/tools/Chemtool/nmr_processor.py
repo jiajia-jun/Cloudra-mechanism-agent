@@ -14,40 +14,40 @@ except Exception:
     _NMRGLUE_AVAILABLE = False
 
 description = (
-    "NMR 原始数据处理：基于 nmrglue，支持 Bruker (fid/1r)、Varian/Agilent、JEOL、NMRPipe、JCAMP-DX 格式，"
-    "提供窗函数、补零、傅里叶变换、相位校正及基线校正的完整时域到频域流程。"
-    "适用：处理实验 NMR 原始数据、获得化学位移谱用于结构解析。"
-    "不适用：红外光谱处理（用 ir_processor）、理论化学位移计算日志的读取（用 log_parser）。"
+    "NMR raw-data processing via nmrglue: Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX, "
+    "with a full time-to-frequency pipeline (window function, zero-fill, FT, phasing, baseline correction). "
+    "Use for: processing experimental NMR raw data and obtaining a chemical-shift spectrum for structure elucidation. "
+    "Do not use for: IR processing (use ir_processor) or reading a theoretical chemical-shift log (use log_parser)."
 )
 
 class NMRProcessor_input_schema(input_schema):
-    data_path: str = Field(description="原始数据文件或文件夹路径")
-    format: str = Field(default="auto", description="格式: 'bruker', 'varian', 'jeol', 'pipe', 'jcamp', 'auto'")
+    data_path: str = Field(description="Path of the raw data file or folder")
+    format: str = Field(default="auto", description="Format: 'bruker', 'varian', 'jeol', 'pipe', 'jcamp', 'auto'")
 
     # 处理参数
-    apodization: str = Field(default="em", description="窗函数类型: 'em' (指数), 'gm' (高斯), 'sine', 'none'")
-    lb: float = Field(default=0.3, description="线宽因子 (Line Broadening, Hz)")
-    zero_fill: int = Field(default=1, description="补零倍数 (通常为 1 或 2)")
-    auto_phase: bool = Field(default=True, description="是否自动相位校正")
-    baseline_corr: bool = Field(default=True, description="是否进行基线校正 (多项式拟合)")
+    apodization: str = Field(default="em", description="Window function: 'em' (exponential), 'gm' (Gaussian), 'sine', 'none'")
+    lb: float = Field(default=0.3, description="Line broadening factor (Hz)")
+    zero_fill: int = Field(default=1, description="Zero-fill factor (usually 1 or 2)")
+    auto_phase: bool = Field(default=True, description="Whether to auto-phase")
+    baseline_corr: bool = Field(default=True, description="Whether to apply baseline correction (polynomial fit)")
 
     # 分析参数
-    extract_peaks: bool = Field(default=True, description="是否自动识别峰")
-    peak_threshold: float = Field(default=0.02, description="峰检测阈值 (相对强度)")
-    peak_engine: str = Field(default="greedy", description="峰检测算法: 'greedy' 或 'clound'")
+    extract_peaks: bool = Field(default=True, description="Whether to auto-pick peaks")
+    peak_threshold: float = Field(default=0.02, description="Peak-detection threshold (relative intensity)")
+    peak_engine: str = Field(default="greedy", description="Peak-detection algorithm: 'greedy' or 'clound'")
 
     # 专家选项 (JSON 字典)
     advanced_settings: Dict[str, Any] = Field(
         default_factory=dict,
-        description="高级参数覆盖。支持: 'p0', 'p1' (手动相位), 'bc_order' (基线阶数), 'zf_size' (指定补零点数) 等"
+        description="Advanced overrides. Supports: 'p0', 'p1' (manual phase), 'bc_order' (baseline order), 'zf_size' (explicit zero-fill points), etc."
     )
 
 class NMRProcessor_output_schema(output_schema):
-    is_success: bool = Field(description="是否处理成功")
-    metadata: Dict[str, Any] = Field(default={}, description="仪器参数及溶剂信息")
-    spectrum_data: Dict[str, List[float]] = Field(default={}, description="处理后的谱图数据 (ppm, intensity)")
-    peaks: List[Dict[str, Any]] = Field(default=[], description="特征峰列表")
-    message: str = Field(default="", description="详细状态说明")
+    is_success: bool = Field(description="Whether processing succeeded")
+    metadata: Dict[str, Any] = Field(default={}, description="Instrument parameters and solvent info")
+    spectrum_data: Dict[str, List[float]] = Field(default={}, description="Processed spectrum data (ppm, intensity)")
+    peaks: List[Dict[str, Any]] = Field(default=[], description="Peak list")
+    message: str = Field(default="", description="Detailed status")
 
 class NMRProcessor(Tool):
     tool_id: str = 't-9'

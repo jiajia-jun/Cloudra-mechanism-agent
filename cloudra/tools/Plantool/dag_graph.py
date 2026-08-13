@@ -36,13 +36,13 @@ from cloudra.persistence.database import ConversationDB
 # delivery 非空、或 process 上已有非 observed 计划节点时拒绝，避免覆盖已有图；
 # harness 的 observed_tool_call 遥测单独不算「已建图」。
 _TEMPLATE_PROCESS_NODES = [
-    ("p_analyze", "需求分析：拆解用户目标，确认机理问题与完成判据"),
-    ("p_skill", "读取相关 skill 与领域方法（机理 SOP）"),
+    ("p_analyze", "Requirements analysis: decompose the user goal; confirm the mechanism question and completion criteria"),
+    ("p_skill", "Read relevant skills and domain methods (mechanism SOP)"),
     (
         "p_literature",
-        "文献与领域共识搜集（可派 explorer/researcher；计算类子 Agent 须等机理提交与 Supervisor 排产）",
+        "Literature and domain-consensus gathering (may dispatch explorer/researcher; compute sub-agents wait for mechanism submit and Supervisor scheduling)",
     ),
-    ("p_delivery_design", "设计机理假设图：中间体与基元步（delivery DAG）"),
+    ("p_delivery_design", "Design the mechanism hypothesis graph: intermediates and elementary steps (delivery DAG)"),
 ]
 _TEMPLATE_PROCESS_EDGES = [
     ("dep_analyze_skill", "p_analyze", "p_skill"),
@@ -51,8 +51,8 @@ _TEMPLATE_PROCESS_EDGES = [
     ("dep_lit_design", "p_literature", "p_delivery_design"),
 ]
 _TEMPLATE_DELIVERY_NODES = [
-    ("occ_reactants", "reactant", "反应物（待填 SMILES/说明）"),
-    ("occ_products", "product", "产物（待填 SMILES/说明）"),
+    ("occ_reactants", "reactant", "Reactants (SMILES/notes to fill)"),
+    ("occ_products", "product", "Products (SMILES/notes to fill)"),
 ]
 
 
@@ -256,38 +256,26 @@ class DagGraph(Tool):
     tool_name: str = "dag_graph"
     tool_description: str = (
         "Read or submit validated changes to the persistent process DAG and delivery/mechanism "
-        "DAG (dag_record/dag_guided sessions only). The Coordinator designs the delivery DAG; "
-        "the Supervisor maintains the process DAG; accepted delivery mutations wake the "
-        "Supervisor to schedule work — execute frontier tasks (planned nodes whose "
-        "dependencies are met and status is proposed or ready; do not require "
-        "status=ready alone). "
-        "message_supervisor (Coordinator only) sends a note to the Supervisor without "
-        "mutating the graph. "
-        "Graph records hold durable pointers, not calculation bodies; completion is "
-        "evidence-derived.\n"
-        "mutate submits one atomic batch applied in order and validated together, so an edge "
-        "may reference nodes created earlier in the same batch. Each operation is a named "
-        "command discriminated by 'op' (add_node/add_edge/remove_edge/update_node/update_edge/"
-        "attach_ref/add_link) with explicit fields in the schema: add_node takes a full node "
-        "object (extra attributes go to its metadata), add_edge an edge object, "
-        "update_node/update_edge take id + changes. A rejected call returns the correct "
-        'shape with the error; conventions: getskill("dag-operations").\n'
+        "DAG (dag_record/dag_guided sessions only). Coordinator designs delivery; Supervisor "
+        "maintains process. Accepted delivery mutations wake Supervisor to schedule work — "
+        "execute frontier tasks (planned nodes whose dependencies are met and status is "
+        "proposed or ready; do not require status=ready alone). "
+        "message_supervisor (Coordinator only) notes the Supervisor without mutating the graph. "
+        "Records hold durable pointers, not calculation bodies; completion is evidence-derived.\n"
+        "mutate is one atomic batch applied in order. Op shapes and conventions: "
+        'getskill("dag-operations"). A rejected call returns the correct shape.\n'
         "Key constraints:\n"
         "- evidence_level is harness-derived; a model may only set proposed/rejected/"
-        "inconclusive. Planned nodes carrying tool_name + delivery_target_type + "
-        "delivery_target_id + evidence_role bind tool calls to delivery elements; unbound "
-        "calls stay observed_tool_call records.\n"
-        "- Mount a finished calculation with bind_evidence(tool_call_id, bind_target, "
-        "evidence_role): the harness resolves its registered tool_result, requires "
-        "success, attaches and derives the level (observed_<hex> ids accepted).\n"
-        "- remove_edge works on both graphs but the batch rationale is mandatory; on the "
-        "process graph the Supervisor executes the removal after reviewing your rationale.\n"
-        "- Prefer default view (frontier/blockers/gaps); graph_kind is compact (no full "
-        "refs; process omits observed_tool_call unless include_observed).\n"
+        "inconclusive. Planned nodes with tool_name + delivery_target_type + "
+        "delivery_target_id + evidence_role bind tool calls; unbound calls stay "
+        "observed_tool_call records.\n"
+        "- bind_evidence(tool_call_id, bind_target, evidence_role) mounts a finished "
+        "calculation (observed_<hex> ids accepted).\n"
+        "- remove_edge needs a batch rationale; on process, Supervisor executes after review.\n"
+        "- Prefer default view (frontier/blockers/gaps); graph_kind is compact.\n"
         "review_evidence is supervisor-only. "
-        "init_from_template seeds the standard mechanism-study skeleton when delivery is "
-        "empty and process has no planned nodes (observed_tool_call records alone do not "
-        "block); fill species with update_node, then extend with mutate."
+        "init_from_template seeds the mechanism-study skeleton when delivery is empty and "
+        "process has no planned nodes (observed_tool_call alone does not block)."
     )
     input_schema: Any = DagGraphInput
     output_schema: Any = DagGraphOutput

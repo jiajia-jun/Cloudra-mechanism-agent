@@ -24,22 +24,22 @@ class EditOperation(BaseModel):
 
     old_text: str = Field(
         alias="old_str",
-        description="需要替换的原文本；默认必须在当前文件中唯一匹配",
+        description="Original text to replace; by default it must match uniquely in the current file",
     )
     new_text: str = Field(
         alias="new_str",
-        description="替换后的文本",
+        description="Replacement text",
     )
     replace_all: bool = Field(
         default=False,
-        description="是否替换全部匹配；默认 false，匹配多次时拒绝编辑",
+        description="Whether to replace every match; default false, and the edit is rejected if there are multiple matches",
     )
 
 
 class EditFile_input_schema(input_schema):
-    filepath: str = Field(description="相对 Agent 工作目录的目标文件路径")
-    expected_sha256: str = Field(description="最近一次 text_reader 返回的完整文件 sha256")
-    edits: list[EditOperation] = Field(description="按顺序执行的精确文本替换")
+    filepath: str = Field(description="Target file path relative to the Agent working directory")
+    expected_sha256: str = Field(description="Full-file sha256 returned by the latest text_reader call")
+    edits: list[EditOperation] = Field(description="Exact text replacements to apply in order")
 
 
 class EditFile_output_schema(WorkspaceMutationOutput):
@@ -50,10 +50,10 @@ class EditFile(Tool):
     tool_id: str = "t-edit"
     tool_name: str = "edit_file"
     tool_description: str = (
-        "对已有文本文件做基于旧文本精确匹配的结构化修改；每个 old_text 默认只能匹配一次，多匹配会被拒绝。"
-        "适用：修改已有文件的局部内容——这是改文件的首选工具；必须先调用 text_reader 获取最新 sha256。"
-        "不适用：新建文件或整文件覆写（用 text_writer）；严禁用 Bash、sed、重定向或临时脚本改文件。"
-        "注意：向 .gjf/.xyz/.com 写入逐字键入的坐标块会被 harness 警告——坐标必须来自工具。"
+        "Structured edit of an existing text file by exact old-text match; each old_text must match once by default, and multiple matches are rejected. "
+        "Use for: local edits to existing files — this is the preferred file-edit tool; call text_reader first to get the latest sha256. "
+        "Do not use for: creating a file or rewriting it wholesale (use text_writer); never edit files with Bash, sed, redirection, or throwaway scripts. "
+        "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — coordinates must come from tools."
     )
     input_schema: Any = EditFile_input_schema
     output_schema: Any = EditFile_output_schema

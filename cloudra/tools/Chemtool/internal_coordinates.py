@@ -93,83 +93,84 @@ _BOND_ORDER_FALLBACK_FACTOR = {1.0: 1.00, 1.5: 0.93, 2.0: 0.87, 3.0: 0.78}
 _MAGIC_REFS = ('origin', 'e_x', 'e_y', 'e_z')
 
 description = (
-    "分子结构感知分析：从笛卡尔坐标（xyz/mol/pdb/sdf/cif）感知键级、立体化学、环、可旋转二面角，"
-    "检测异常键长（压缩/拉长/断裂嫌疑/形成中/原子重叠）与异常键角，并沿分子图生成树生成 Z-matrix 内坐标文件；"
-    "也可将 Z-matrix 还原为笛卡尔坐标。让大模型在不看图的情况下获得准确的结构信息。"
-    "适用：过渡态检查（断裂/形成键定位）、构象分析、立体化学确认、结构合理性诊断。"
-    "不适用：单纯的文件格式转换（用 format_converter）、从 SMILES 生成结构（用 smiles_to_mol）。"
+    "Molecular-structure perception: from Cartesian coordinates (xyz/mol/pdb/sdf/cif), infer bond orders, stereochemistry, rings, and rotatable dihedrals; "
+    "detect anomalous bond lengths (compressed/elongated/breaking_suspect/forming/atomic overlap) and anomalous angles; "
+    "and write a Z-matrix internal-coordinate file along a spanning tree of the molecular graph. Can also convert a Z-matrix back to Cartesian. "
+    "Gives the model accurate structural facts without looking at a picture. "
+    "Use for: TS inspection (locating breaking/forming bonds), conformational analysis, stereo confirmation, geometry sanity checks. "
+    "Do not use for: plain format conversion (use format_converter) or generating a structure from SMILES (use smiles_to_mol)."
 )
 
 
 class InternalCoordinates_input_schema(input_schema):
     mode: Literal["analyze", "zmatrix_to_cartesian"] = Field(
         default="analyze",
-        description="analyze：结构感知分析并生成 Z-matrix 文件（默认）；"
-                    "zmatrix_to_cartesian：从 Z-matrix 文本/文件还原笛卡尔坐标。"
+        description="analyze: structure-perception analysis and write a Z-matrix file (default); "
+                    "zmatrix_to_cartesian: restore Cartesian coordinates from Z-matrix text/file."
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="输入文件路径（xyz/mol/pdb/sdf/cif 等，ASE 可读）。mode=analyze 时使用。"
+        description="Input file path (xyz/mol/pdb/sdf/cif, etc., ASE-readable). Used when mode=analyze."
     )
     input_text: Optional[str] = Field(
         default=None,
-        description="直接传入坐标文本。若提供 input_path 则优先读取文件。"
+        description="Coordinate text. If input_path is set, the file is read instead."
     )
     input_format: Literal["auto", "xyz", "mol", "pdb", "sdf", "cif"] = Field(
         default="auto",
-        description="笛卡尔坐标输入格式。auto 时由 ASE 根据文件扩展名推断（input_text 默认为 xyz）。"
+        description="Cartesian input format. auto lets ASE infer from the file extension (input_text defaults to xyz)."
     )
     charge: int = Field(
         default=0,
-        description="体系总电荷，用于 RDKit 键级感知（rdDetermineBonds.DetermineBonds）。默认 0。"
+        description="Total charge, used for RDKit bond-order perception (rdDetermineBonds.DetermineBonds). Default 0."
     )
     reactive_atoms: Optional[list[int]] = Field(
         default=None,
-        description="反应中心原子序号（1-based），可选。提供后报告中给出这些原子的成键邻居距离与关键键角。"
+        description="Optional reaction-center atom indices (1-based). When set, the report includes bonded-neighbor distances and key angles for these atoms."
     )
     watch_pairs: Optional[list[list[int]]] = Field(
         default=None,
-        description="需要显式监测的原子对（1-based），可选。报告中给出距离及『形成中/正常/远离』判定。"
+        description="Optional atom pairs to monitor explicitly (1-based). The report gives distances and a forming/normal/distant verdict."
     )
     bond_tolerance: float = Field(
         default=0.15,
-        description="键长偏差阈值比例。实测/参考 ≤ 1-阈值 判为 compressed，≥ 1+阈值 判为 elongated（≥1.5 为 breaking_suspect）。"
+        description="Bond-length deviation threshold as a fraction. measured/reference ≤ 1-threshold → compressed; ≥ 1+threshold → elongated (≥1.5 → breaking_suspect)."
     )
     angle_tolerance: float = Field(
         default=12.0,
-        description="键角偏差阈值（度）。与杂化期望角偏差超过该值才报告。默认 12°。"
+        description="Bond-angle deviation threshold (degrees). Reported only when the deviation from the hybridization-expected angle exceeds this. Default 12°."
     )
     zmat_path: Optional[str] = Field(
         default=None,
-        description="mode=analyze 时 Z-matrix 输出文件路径。缺省：input_path 同目录 <stem>.zmat；"
-                    "纯文本输入缺省 ./structure.zmat。"
+        description="Z-matrix output path when mode=analyze. Default: <stem>.zmat next to input_path; "
+                    "./structure.zmat for text-only input."
     )
     zmatrix_path: Optional[str] = Field(
         default=None,
-        description="mode=zmatrix_to_cartesian 时的 Z-matrix 文件路径（优先于 zmatrix_text）。"
+        description="Z-matrix file path when mode=zmatrix_to_cartesian (preferred over zmatrix_text)."
     )
     zmatrix_text: Optional[str] = Field(
         default=None,
-        description="mode=zmatrix_to_cartesian 时直接传入的 Z-matrix 文本。"
+        description="Z-matrix text when mode=zmatrix_to_cartesian."
     )
     output_path: Optional[str] = Field(
         default=None,
-        description="mode=zmatrix_to_cartesian 时的 xyz 输出文件路径。"
+        description="xyz output path when mode=zmatrix_to_cartesian."
     )
 
 
 class InternalCoordinates_output_schema(output_schema):
-    is_success: bool = Field(description="操作是否成功")
-    report: str = Field(default="", description="mode=analyze 时的结构化中文分析报告（分节文本）")
+    is_success: bool = Field(description="Whether the operation succeeded")
+    report: str = Field(default="", description="Structured Chinese analysis report when mode=analyze (sectioned text)")
     anomalies: list[dict] = Field(
         default_factory=list,
-        description="键/键角异常的机器可读列表，每条含 type/atoms/value/reference/status"
+        description="Machine-readable list of bond/angle anomalies; each item has type/atoms/value/reference/status"
     )
-    zmat_path: str = Field(default="", description="mode=analyze 时写入的 Z-matrix 文件路径")
-    zmat_lines: int = Field(default=0, description="mode=analyze 时 Z-matrix 文件的行数")
-    xyz_text: str = Field(default="", description="mode=zmatrix_to_cartesian 时返回的 xyz 文本")
-    output_path: str = Field(default="", description="mode=zmatrix_to_cartesian 时写入的 xyz 文件路径")
-    message: str = Field(default="", description="状态或错误信息")
+    zmat_path: str = Field(default="", description="Z-matrix file path written when mode=analyze")
+    zmat_lines: int = Field(default=0, description="Line count of the Z-matrix file when mode=analyze")
+    xyz_text: str = Field(default="", description="xyz text returned when mode=zmatrix_to_cartesian")
+    output_path: str = Field(default="", description="xyz file path written when mode=zmatrix_to_cartesian")
+    message: str = Field(default="", description="Status or error message")
 
 
 def _angle_deg(p0, p1, p2) -> float:

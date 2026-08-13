@@ -14,22 +14,22 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "将 PDF 文件逐页转换为高质量图片（基于 PyMuPDF），保存到指定输出目录。"
-    "适用：pdf2md 转换失败或返回空内容时的兜底方案——转图后再用 image_reader 看图分析。"
-    "不适用：文本型 PDF 的直接提取（首选 pdf2md）；"
-    "每个 PDF 必须分配独立的新输出目录，避免 PNG 碎片文件污染共享目录。"
+    "Convert a PDF to high-quality per-page images (PyMuPDF) and save them to a given output directory. "
+    "Use for: fallback when pdf2md fails or returns empty — convert to images, then analyze with image_reader. "
+    "Do not use for: extracting text from a text-layer PDF (prefer pdf2md); "
+    "each PDF must get its own new output directory so PNG fragments do not pollute a shared folder."
 )
 
 
 class pdf2image_input_schema(input_schema):
-    pdf_path: str = Field(description="待转换的 PDF 文件的绝对路径")
-    output_dir: str = Field(description="生成的图片输出目录。请务必为每个 PDF 文件分配一个专属且独立的新目录（例如临时目录下的 pdf_name_images），切勿将其直接输出在根目录或共享目录，以免大量 PNG 碎片文件造成环境污染。")
+    pdf_path: str = Field(description="Absolute path of the PDF to convert")
+    output_dir: str = Field(description="Output directory for generated images. Assign a dedicated new directory per PDF (e.g. a temp dir named pdf_name_images); do not write into the workspace root or a shared folder, or PNG fragments will pollute the environment.")
 
 
 class pdf2image_output_schema(output_schema):
-    is_success: bool = Field(description="是否转换成功")
-    image_paths: list[str] = Field(default_factory=list, description="生成的图片绝对路径列表")
-    message: str = Field(default="", description="转换过程的输出或错误信息")
+    is_success: bool = Field(description="Whether conversion succeeded")
+    image_paths: list[str] = Field(default_factory=list, description="Absolute paths of generated images")
+    message: str = Field(default="", description="Conversion output or error message")
 
 
 class pdf2image(Tool):

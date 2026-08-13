@@ -11,15 +11,15 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra.config import get_config
 
 description = (
-    "从收件箱读取最新邮件，可按发件人过滤、指定数量、只看未读。"
-    "适用：查看用户的远程回复或指令更新。"
-    "不适用：发送邮件（用 email_sender）。需要在配置中先配好 IMAP 邮箱凭据。"
+    "Read the latest messages from the inbox, optionally filtered by sender, count, or unread-only. "
+    "Use for: checking the user's remote replies or updated instructions. "
+    "Do not use for: sending mail (use email_sender). IMAP credentials must be configured first."
 )
 
 class EmailReader_input_schema(input_schema):
-    count: int = Field(default=5, description="读取最近邮件的数量")
-    filter_sender: Optional[str] = Field(default=None, description="可选：按发件人邮箱过滤")
-    only_unread: bool = Field(default=True, description="是否仅读取未读邮件")
+    count: int = Field(default=5, description="Number of recent messages to read")
+    filter_sender: Optional[str] = Field(default=None, description="Optional: filter by sender email")
+    only_unread: bool = Field(default=True, description="Whether to read unread messages only")
 
 class EmailMessage(output_schema):
     subject: str
@@ -28,9 +28,9 @@ class EmailMessage(output_schema):
     body: str
 
 class EmailReader_output_schema(output_schema):
-    success: bool = Field(description="是否成功读取邮件")
-    emails: List[EmailMessage] = Field(default_factory=list, description="读取到的邮件列表")
-    message: str = Field(description="状态或错误信息")
+    success: bool = Field(description="Whether mail was read successfully")
+    emails: List[EmailMessage] = Field(default_factory=list, description="List of messages read")
+    message: str = Field(description="Status or error message")
 
 class EmailReader(Tool):
     tool_id: str = 't-30'
@@ -48,7 +48,7 @@ class EmailReader(Tool):
         if not config.user or not config.password:
             return EmailReader_output_schema(
                 success=False,
-                message="【配置错误】IMAP 用户名或密码未设置。"
+                message="[Config error] IMAP username or password is not set."
             )
 
         try:
@@ -56,10 +56,10 @@ class EmailReader(Tool):
             return EmailReader_output_schema(
                 success=True,
                 emails=emails,
-                message=f"成功读取 {len(emails)} 封邮件"
+                message=f"Read {len(emails)} email(s)"
             )
         except Exception as e:
-            return EmailReader_output_schema(success=False, message=f"读取邮件失败: {str(e)}")
+            return EmailReader_output_schema(success=False, message=f"Failed to read mail: {str(e)}")
 
     def _read_imap(self, config, user_input, mark_seen: bool = False) -> List[EmailMessage]:
         r"""同步执行 IMAP 读取。

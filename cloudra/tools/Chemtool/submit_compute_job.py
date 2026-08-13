@@ -14,42 +14,41 @@ from cloudra.persistence.database import ConversationDB, get_database_path
 from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 
 description = (
-    "提交计算任务：接收已生成的输入文件路径，在 compute_jobs 表中创建任务记录，"
-    "由框架层的 Compute Executor 自动捞取并执行；提交后立刻返回 job_id，不会等待计算完成。"
-    "适用：Gaussian、CP2K、VASP、ORCA 等耗时计算的正式提交执行，"
-    "输入文件需先用 gjf_writer 等工具（CP2K 为 .inp）准备好。"
-    "不适用：生成输入文件（用 gjf_writer）、查询任务进度（用 query_compute_job）、"
-    "查看计算结果（算完后用 log_parser 解析日志）。"
+    "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
+    "and let the framework Compute Executor pick it up; returns job_id immediately without waiting for the job to finish. "
+    "Use for: formally running long Gaussian, CP2K, VASP, or ORCA jobs; prepare the input first with gjf_writer or similar (CP2K uses .inp). "
+    "Do not use for: generating the input (use gjf_writer), querying progress (use query_compute_job), "
+    "or inspecting results (parse the log with log_parser after the job finishes)."
 )
 
 
 class SubmitComputeJob_input_schema(input_schema):
     input_file: str = Field(
-        description="输入文件的绝对路径（如 .gjf 文件）。"
+        description="Absolute path of the input file (e.g. a .gjf file)."
     )
     job_type: Literal["gaussian", "vasp", "orca", "cp2k"] = Field(
         default="gaussian",
-        description="计算任务类型。当前支持 'gaussian'，'vasp'，'orca' 和 'cp2k'。"
+        description="Job type. Currently supports 'gaussian', 'vasp', 'orca', and 'cp2k'."
     )
     is_async: bool = Field(
         default=False,
-        description="是否异步运行该任务，若任务时长较久，建议异步运行"
+        description="Whether to run the job asynchronously; recommended for long jobs"
             )
     execution_backend: Literal["auto", "local", "slurm"] = Field(
         default="auto",
         description=(
-            "执行后端。auto 根据 Phase 8 node registry 中输入文件所属 workspace "
-            "选择 local/slurm；Slurm 任务始终异步提交。"
+            "Execution backend. auto picks local/slurm from the Phase 8 node registry "
+            "based on the input file's workspace; Slurm jobs are always submitted asynchronously."
         ),
     )
 
 
 class SubmitComputeJob_output_schema(output_schema):
-    is_success: bool = Field(description="提交是否成功")
-    job_id: int = Field(default=-1, description="计算任务 ID，用 query_compute_job 查询其状态")
-    job_dir: str = Field(default="", description="计算任务的工作目录绝对路径")
-    state: str = Field(default="", description="任务初始状态（正常为 'ready'）")
-    message: str = Field(default="", description="状态或错误信息")
+    is_success: bool = Field(description="Whether submission succeeded")
+    job_id: int = Field(default=-1, description="Compute job ID; query its status with query_compute_job")
+    job_dir: str = Field(default="", description="Absolute path of the job working directory")
+    state: str = Field(default="", description="Initial job state (normally 'ready')")
+    message: str = Field(default="", description="Status or error message")
 
 
 class SubmitComputeJob(Tool):
@@ -84,7 +83,7 @@ class SubmitComputeJob(Tool):
         if not os.path.exists(f_path):
             return SubmitComputeJob_output_schema(
                     is_success=False,
-                    message="文件或目录不存在。")
+                    message="File or directory does not exist.")
 
         scheduler = user_input.execution_backend
         scheduler_options: dict = {"type": scheduler}
@@ -101,7 +100,7 @@ class SubmitComputeJob(Tool):
                 if os.getenv("CLOUDRA_NODE_REGISTRY_FILE"):
                     return SubmitComputeJob_output_schema(
                         is_success=False,
-                        message=f"无法为输入文件解析 node scheduler：{exc}",
+                        message=f"Could not resolve a node scheduler for the input file: {exc}",
                     )
                 scheduler = "local"
                 scheduler_options = {"type": "local"}
@@ -113,7 +112,7 @@ class SubmitComputeJob(Tool):
 
             ok, msg = check_slurm_tools()
         else:
-            ok, msg = False, f"不支持的执行后端: {scheduler}"
+            ok, msg = False, f"Unsupported execution backend: {scheduler}"
         if not ok:
             return SubmitComputeJob_output_schema(is_success=False, message=msg)
 
@@ -150,7 +149,7 @@ class SubmitComputeJob(Tool):
                             job_dir=workdir,
                             state="ready",
                             message=(
-                                f"任务已提交到 {scheduler} 后端，将会在终态时唤醒。"
+                                f"Job submitted to the {scheduler} backend; you will be woken at the terminal state."
                             ),
                         )
                     )
@@ -158,7 +157,7 @@ class SubmitComputeJob(Tool):
             except Exception as e:
                 return SubmitComputeJob_output_schema(
                         is_success=False,
-                        message=f"任务提交遇到错误：{e}")
+                        message=f"Job submission hit an error: {e}")
 
         else:
             # 直接写入 running，并开始计算
@@ -186,14 +185,14 @@ class SubmitComputeJob(Tool):
                             job_id=job_id,
                             job_dir=workdir,
                             state=state,
-                            message=f"任务运行完毕，最终状态：{state}",
+                            message=f"Job finished, final state: {state}",
                         )
                     )
 
             except Exception as e:
                 return SubmitComputeJob_output_schema(
                         is_success=False,
-                        message=f"任务提交遇到错误：{e}")
+                        message=f"Job submission hit an error: {e}")
 
 
     async def run_now(self, job_id: int, db_path: str, input_file: str, job_type: str, conv_id: str) -> str:
@@ -215,7 +214,7 @@ class SubmitComputeJob(Tool):
                     ('failed', time.time(), job_id)
                 )
                 await con.commit()
-            raise RuntimeError(f"运行计算任务失败：{msg}")
+            raise RuntimeError(f"Compute job failed: {msg}")
 
         state = 'done'
         async with db.aconnect() as con:

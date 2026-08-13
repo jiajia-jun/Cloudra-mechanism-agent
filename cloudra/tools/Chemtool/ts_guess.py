@@ -34,139 +34,139 @@ _STRICT_PAIR_EPS_ANG = 1e-8
 _IMAG_MODE_WATCH_RATIO = 0.5
 
 description = (
-    "过渡态（TS）初猜工作流：四个子功能由 mode 区分。"
-    "interpolate：由反应物/产物 xyz 做线性或 IDPP 插值生成 NEB 候选路径图像（自动对齐、"
-    "支持 atom_map 原子重排、距离监测表与 TS 候选帧判定）；"
-    "scan_prepare：生成 Gaussian/ORCA 约束扫描输入文件（键长/键角/二面角，modredundant 或 %geom Scan）；"
-    "scan_parse：解析扫描日志，给出相对能量剖面表、势垒、单调性/不连续/边界极值/多峰判定，"
-    "并提取能量最高点几何作为 TS 初猜 xyz；"
-    "verify：默认以频率与 IRC 端点粗略连通性给出 candidate/unlikely/inconclusive 建议；"
-    "strict=True 时，要求一个虚频、双向 IRC 有效端点和两个优化中间体，并检查每个部分 IRC 端点"
-    "是否处于 TS 与对应中间体之间，给出限定于路径方向一致性的 pass/fail/inconclusive。"
-    "本工具不做任何量化计算，只生成输入、解析输出并给出判定；计算用 submit_compute_job 提交。"
-    "坐标不进上下文，只回数值表、判定与文件路径。"
+    "Transition-state (TS) guess workflow: four sub-functions selected by mode. "
+    "interpolate: linear or IDPP interpolation from reactant/product xyz to generate NEB candidate-path images "
+    "(auto-align, optional atom_map reordering, distance-monitor table, and TS-candidate frame verdict); "
+    "scan_prepare: write a Gaussian/ORCA constrained-scan input (bond/angle/dihedral, modredundant or %geom Scan); "
+    "scan_parse: parse a scan log into a relative-energy profile table, barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
+    "and extract the highest-energy geometry as a TS-guess xyz; "
+    "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
+    "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two optimized intermediates, "
+    "and checks that each partial IRC endpoint lies between the TS and the matching intermediate, yielding a path-direction-consistency pass/fail/inconclusive. "
+    "This tool does no QM calculation itself — it only writes inputs, parses outputs, and issues verdicts; submit jobs with submit_compute_job. "
+    "Coordinates never enter context; only numeric tables, verdicts, and file paths are returned."
 )
 
 
 class TsGuess_input_schema(input_schema):
     mode: Literal["interpolate", "scan_prepare", "scan_parse", "verify"] = Field(
-        description="子功能：interpolate（插值路径）、scan_prepare（扫描输入生成）、"
-                    "scan_parse（扫描日志解析判定）、verify（频率+IRC 验证判定）。"
+        description="Sub-function: interpolate (interpolate a path), scan_prepare (write a scan input), "
+                    "scan_parse (parse a scan log and judge), verify (frequency+IRC verification)."
     )
 
     # ---------- interpolate ----------
     reactant_path: Optional[str] = Field(
         default=None,
-        description="反应物 xyz 文件路径；strict verify 中表示一侧端点优化所得中间体。",
+        description="Reactant xyz file path; in strict verify, an intermediate from one endpoint optimization.",
     )
     reactant_text: Optional[str] = Field(
         default=None,
-        description="反应物 xyz 文本；strict verify 中表示一侧端点优化所得中间体。提供 path 时优先。",
+        description="Reactant xyz text; in strict verify, an intermediate from one endpoint optimization. Path takes precedence.",
     )
     product_path: Optional[str] = Field(
         default=None,
-        description="产物 xyz 文件路径；strict verify 中表示另一侧端点优化所得中间体。",
+        description="Product xyz file path; in strict verify, an intermediate from the other endpoint optimization.",
     )
     product_text: Optional[str] = Field(
         default=None,
-        description="产物 xyz 文本；strict verify 中表示另一侧端点优化所得中间体。提供 path 时优先。",
+        description="Product xyz text; in strict verify, an intermediate from the other endpoint optimization. Path takes precedence.",
     )
-    n_images: int = Field(default=10, description="interpolate：总图像数（含两端），≥2。")
+    n_images: int = Field(default=10, description="interpolate: total image count (including endpoints), ≥2.")
     interp_method: Literal["idpp", "linear"] = Field(
-        default="idpp", description="interpolate：插值方法。idpp 按 Smidtstrup 2014 对图像间对距离弛豫；linear 为线性插值。"
+        default="idpp", description="interpolate: interpolation method. idpp relaxes inter-image pair distances per Smidtstrup 2014; linear is linear interpolation."
     )
     atom_map: list[int] = Field(
         default_factory=list,
-        description="interpolate：1-based 原子映射，产物第 k 个原子对应反应物第 atom_map[k-1] 个原子。"
-                    "缺省为恒等映射；必须是 1..N 的合法排列且对应元素一致。",
+        description="interpolate: 1-based atom map; product atom k corresponds to reactant atom atom_map[k-1]. "
+                    "Default is the identity; must be a valid permutation of 1..N with matching elements.",
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
-        description="interpolate：距离监测原子对；strict/verify：方向证明与虚频模式对齐所用原子对。"
-                    "均为 1-based；缺省自动选取 TS 与中间体之间距离变化最大的前 5 对"
-                    "（虚频模式对齐在未提供时跳过）。",
+        description="interpolate: atom pairs to monitor distances; strict/verify: pairs used for direction proof and imaginary-mode alignment. "
+                    "All 1-based; default auto-picks the 5 pairs with the largest distance change between TS and intermediates "
+                    "(imaginary-mode alignment is skipped if not provided).",
     )
     output_dir: Optional[str] = Field(
         default=None,
-        description="interpolate：图像输出目录（缺省 ./ts_interp/）；verify：IRC 端点落盘目录（缺省 <freq_log_stem>_verify/）。",
+        description="interpolate: image output directory (default ./ts_interp/); verify: directory to write IRC endpoints (default <freq_log_stem>_verify/).",
     )
 
     # ---------- scan_prepare ----------
-    input_path: Optional[str] = Field(default=None, description="scan_prepare：输入结构文件路径（xyz）。")
-    input_text: Optional[str] = Field(default=None, description="scan_prepare：输入结构 xyz 文本。")
-    engine: Literal["gaussian", "orca"] = Field(default="gaussian", description="目标量化程序。")
-    coord_type: Literal["bond", "angle", "dihedral"] = Field(default="bond", description="扫描坐标类型。")
+    input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz).")
+    input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
+    engine: Literal["gaussian", "orca"] = Field(default="gaussian", description="Target QM program.")
+    coord_type: Literal["bond", "angle", "dihedral"] = Field(default="bond", description="Scanned coordinate type.")
     atoms: list[int] = Field(
-        default_factory=list, description="扫描坐标原子序号（1-based，bond/angle/dihedral 分别 2/3/4 个）。"
+        default_factory=list, description="Scanned-coordinate atom indices (1-based; 2/3/4 atoms for bond/angle/dihedral)."
     )
-    scan_start: Optional[float] = Field(default=None, description="扫描起点值（Å 或度）。缺省取当前几何值。")
-    scan_end: float = Field(default=0.0, description="扫描终点值（Å 或度）。")
-    scan_steps: int = Field(default=10, description="扫描步数。")
-    method: str = Field(default="b3lyp/def2svp", description="方法/基组，如 'b3lyp/def2svp'。")
-    charge: int = Field(default=0, description="体系总电荷。")
-    spin: int = Field(default=1, description="自旋多重度（2S+1）。")
-    extra_route: str = Field(default="", description="附加路由关键字（如 'scrf=(solvent=water)'）。")
-    nprocs: int = Field(default=4, description="并行核数（Gaussian %nprocshared / ORCA %pal）。")
-    output_path: Optional[str] = Field(default=None, description="scan_prepare：输入文件写入路径（gjf/inp，必填）。")
-    job_name: str = Field(default="scan", description="作业名（chk 文件与标题用）。")
+    scan_start: Optional[float] = Field(default=None, description="Scan start value (Å or degrees). Default is the current geometry value.")
+    scan_end: float = Field(default=0.0, description="Scan end value (Å or degrees).")
+    scan_steps: int = Field(default=10, description="Number of scan steps.")
+    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'.")
+    charge: int = Field(default=0, description="Total charge.")
+    spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
+    extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)').")
+    nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
+    output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the input file (gjf/inp, required).")
+    job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
 
     # ---------- scan_parse ----------
-    log_path: Optional[str] = Field(default=None, description="scan_parse：扫描日志文件路径。")
+    log_path: Optional[str] = Field(default=None, description="scan_parse: scan log file path.")
     ts_candidate_path: Optional[str] = Field(
-        default=None, description="scan_parse：TS 初猜 xyz 写入路径（缺省 <log_stem>_ts_guess.xyz）。"
+        default=None, description="scan_parse: path to write the TS-guess xyz (default <log_stem>_ts_guess.xyz)."
     )
 
     # ---------- verify ----------
-    freq_log: Optional[str] = Field(default=None, description="verify：频率计算日志路径。")
+    freq_log: Optional[str] = Field(default=None, description="verify: frequency-calculation log path.")
     irc_log: Optional[str] = Field(
         default=None,
-        description="verify：IRC 日志路径；默认模式可选，strict 模式必需并要求 rx<0/rx>0 两侧有效帧。",
+        description="verify: IRC log path; optional in default mode, required in strict mode with valid frames on both rx<0 and rx>0 sides.",
     )
     strict: bool = Field(
         default=False,
-        description="仅 verify：启用无状态的路径方向一致性证明。允许 IRC 未走到极小点，但要求双向有效端点、"
-                    "TS 几何和两侧端点优化所得中间体。",
+        description="verify only: enable a stateless path-direction consistency proof. IRC need not reach a minimum, but bidirectional valid endpoints, "
+                    "TS geometry, and intermediates from both endpoint optimizations are required.",
     )
 
 
 class TsGuess_output_schema(output_schema):
-    is_success: bool = Field(description="操作是否成功")
-    message: str = Field(default="", description="状态或错误信息")
+    is_success: bool = Field(description="Whether the operation succeeded")
+    message: str = Field(default="", description="Status or error message")
 
     # interpolate
-    images_dir: str = Field(default="", description="interpolate：图像目录路径")
-    distance_table: str = Field(default="", description="interpolate：逐帧距离文本表")
-    ts_candidate_index: Optional[int] = Field(default=None, description="TS 候选帧序号（0-based）")
+    images_dir: str = Field(default="", description="interpolate: image directory path")
+    distance_table: str = Field(default="", description="interpolate: per-frame distance text table")
+    ts_candidate_index: Optional[int] = Field(default=None, description="TS candidate frame index (0-based)")
     # scan_parse 也复用 ts_candidate_path
-    ts_candidate_path: str = Field(default="", description="TS 初猜 xyz 路径")
+    ts_candidate_path: str = Field(default="", description="TS-guess xyz path")
 
     # scan_prepare
-    input_file_path: str = Field(default="", description="scan_prepare：生成的输入文件路径")
-    run_hint: str = Field(default="", description="scan_prepare：提交运行提示")
+    input_file_path: str = Field(default="", description="scan_prepare: generated input file path")
+    run_hint: str = Field(default="", description="scan_prepare: submit/run hint")
 
     # scan_parse
-    profile_table: str = Field(default="", description="scan_parse：逐点相对能量文本表（kcal/mol）")
-    verdicts: list[str] = Field(default_factory=list, description="scan_parse：剖面判定列表")
-    barrier_kcal: Optional[float] = Field(default=None, description="scan_parse：势垒（最高点−首点，kcal/mol）")
+    profile_table: str = Field(default="", description="scan_parse: per-point relative-energy text table (kcal/mol)")
+    verdicts: list[str] = Field(default_factory=list, description="scan_parse: profile verdicts")
+    barrier_kcal: Optional[float] = Field(default=None, description="scan_parse: barrier (highest point − first point, kcal/mol)")
 
     # verify
     verdict: str = Field(
         default="",
-        description="verify：默认 candidate/unlikely/inconclusive；strict 为 pass/fail/inconclusive。",
+        description="verify: default candidate/unlikely/inconclusive; strict is pass/fail/inconclusive.",
     )
-    n_imag: Optional[int] = Field(default=None, description="verify：虚频个数")
-    imag_freqs: list[float] = Field(default_factory=list, description="verify：虚频值列表（cm⁻¹，负值）")
-    checks: list[str] = Field(default_factory=list, description="verify：逐项检查明细")
-    irc_end_a_path: str = Field(default="", description="verify：IRC 端点 A xyz 路径")
-    irc_end_b_path: str = Field(default="", description="verify：IRC 端点 B xyz 路径")
+    n_imag: Optional[int] = Field(default=None, description="verify: number of imaginary frequencies")
+    imag_freqs: list[float] = Field(default_factory=list, description="verify: imaginary frequencies (cm⁻¹, negative)")
+    checks: list[str] = Field(default_factory=list, description="verify: per-check details")
+    irc_end_a_path: str = Field(default="", description="verify: IRC endpoint A xyz path")
+    irc_end_b_path: str = Field(default="", description="verify: IRC endpoint B xyz path")
     imag_mode_aligned: Optional[bool] = Field(
         default=None,
-        description="verify：虚频简正模式是否与 watch_pairs 反应坐标一致；"
-                    "无法解析位移时为 None。",
+        description="verify: whether the imaginary normal mode matches the watch_pairs reaction coordinate; "
+                    "None if displacements cannot be parsed.",
     )
     imag_mode_alignment: str = Field(
         default="",
-        description="verify：虚频模式与反应坐标对齐检查的说明文本。",
+        description="verify: explanation of the imaginary-mode vs reaction-coordinate alignment check.",
     )
 
 

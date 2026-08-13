@@ -197,7 +197,7 @@ class TestValidationErrorFeedback:
         tool_msgs = [m for m in context if m.get("role") == "tool"]
         assert len(tool_msgs) == 1
         assert tool_msgs[0]["tool_call_id"] == "c1"
-        assert "参数校验失败" in tool_msgs[0]["content"]
+        assert "argument validation failed" in tool_msgs[0]["content"]
         assert "count_tool" in tool_msgs[0]["content"]
 
     async def test_valid_call_alongside_invalid_still_runs(self, tmp_path, monkeypatch):
@@ -212,7 +212,7 @@ class TestValidationErrorFeedback:
         context = await agent.get_context()
         tool_msgs = [m for m in context if m.get("role") == "tool"]
         assert len(tool_msgs) == 2
-        assert "参数校验失败" in tool_msgs[0]["content"]
+        assert "argument validation failed" in tool_msgs[0]["content"]
         assert "echo:ok" in tool_msgs[1]["content"]
 
 
@@ -293,7 +293,7 @@ class TestBashExitCode:
             Bashtools_input_schema(command="ls /nonexistent_dir_xyz_123"), session=None,
         )
         assert out.exit_code != 0
-        assert "【命令失败】" in out.result
+        assert "[Command failed]" in out.result
 
     async def test_permission_denied_exit_code_126(self):
         from cloudra.tools.Bashtool.bashtools import Bashtools, Bashtools_input_schema
@@ -301,7 +301,7 @@ class TestBashExitCode:
         tool = Bashtools()  # 无 subagent：rm 属于 DESTRUCTIVE，无权执行
         out = await tool.tool_call(Bashtools_input_schema(command="rm some_file"), session=None)
         assert out.exit_code == 126
-        assert "没有权限" in out.result
+        assert "No permission" in out.result
 
 # ---------------------------------------------------------------------------
 # 5. 死循环检测与步数预算
@@ -397,14 +397,14 @@ class TestLoopDetection:
 
         context = await agent.get_context()
         system_msgs = [m for m in context if m.get("role") == "system"]
-        assert any("陷入循环" in str(m.get("content", "")) for m in system_msgs)
+        assert any("stuck in a loop" in str(m.get("content", "")) for m in system_msgs)
 
     async def test_abort_on_fifth_identical_call(self, tmp_path, monkeypatch):
         """连续第 5 次相同调用直接抛 AgentStuckLoop（在执行前拦截）。"""
         react, _ = _make_react(tmp_path, monkeypatch, [_EchoTool])
         call = _tc("c1", "echo_tool", '{"text": "same"}')
 
-        with pytest.raises(AgentStuckLoop, match="死循环"):
+        with pytest.raises(AgentStuckLoop, match="Stuck loop"):
             for _ in range(react.LOOP_ABORT_THRESHOLD):
                 await react.act_result([call])
 
@@ -417,7 +417,7 @@ class TestLoopDetection:
 
         context = await agent.get_context()
         system_msgs = [m for m in context if m.get("role") == "system"]
-        assert not any("陷入循环" in str(m.get("content", "")) for m in system_msgs)
+        assert not any("stuck in a loop" in str(m.get("content", "")) for m in system_msgs)
 
 
 # ---------------------------------------------------------------------------
@@ -475,13 +475,13 @@ class TestPersistentCompression:
         msgs = await cm.build_messages(max_context_tokens=1000)
         assert create.call_count == 1
         contents = [str(m.get("content", "")) for m in msgs]
-        assert any("[上下文压缩提示]" in c for c in contents)
+        assert any("[Context compact]" in c for c in contents)
         assert not any("历史问题 0" in c for c in contents)
 
         # 存储中的上下文已是梗概形态（持久化，而非仅当次请求生效）
         stored = await cm.load()
         stored_contents = [str(m.get("content", "")) for m in stored]
-        assert any("[上下文压缩提示]" in c for c in stored_contents)
+        assert any("[Context compact]" in c for c in stored_contents)
         assert not any("历史问题 0" in c for c in stored_contents)
 
         # 再次 build：压缩后的上下文已在预算内，不再调 LLM
@@ -504,15 +504,15 @@ class TestPersistentCompression:
 
         # 第二次梗概的输入包含旧梗概内容（折叠），存储里仍只有一条梗概消息
         second_prompt = create.call_args.kwargs["messages"][1]["content"]
-        assert "[上下文压缩提示]" in second_prompt
+        assert "[Context compact]" in second_prompt
         stored = await cm.load()
         summaries = [
             m for m in stored
-            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+            if str(m.get("content", "")).startswith("[Context compact]")
         ]
         assert len(summaries) == 1
         assert summaries[0]["role"] == "user"
-        assert "根据下面这份交接信息继续工作" in summaries[0]["content"]
+        assert "Continue from the handoff below" in summaries[0]["content"]
 
 
 # ---------------------------------------------------------------------------

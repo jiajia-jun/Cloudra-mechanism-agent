@@ -16,34 +16,34 @@ except Exception:
     _RDKIT_AVAILABLE = False
 
 description = (
-    "将化学 SMILES 字符串转换为 MOL（MDL MOLfile）格式：基于 RDKit，支持生成带 2D 或 3D 坐标，"
-    "可选择保存到文件或直接返回 MOL 文本内容。"
-    "适用：只有 SMILES 时需要生成初始三维结构，作为 gjf_writer 或 format_converter 的输入。"
-    "不适用：已有结构文件的格式互换（用 format_converter）、把 SMILES 画成图片（用 molecule_drawer）。"
+    "Convert a chemical SMILES string to MOL (MDL MOLfile) via RDKit, with 2D or 3D coordinates, "
+    "optionally saving to a file or returning MOL text. "
+    "Use for: generating an initial 3D structure from SMILES as input to gjf_writer or format_converter. "
+    "Do not use for: converting an existing structure file (use format_converter) or drawing SMILES as an image (use molecule_drawer)."
 )
 
 
 class SmilesToMol_input_schema(input_schema):
-    smiles: str = Field(description="输入的化学 SMILES 字符串")
+    smiles: str = Field(description="Input chemical SMILES string")
     output_path: Optional[str] = Field(
         default=None,
-        description="保存 MOL 文件的路径（可选）。如果提供，会将 MOL 内容写入该文件；否则仅返回 MOL 文本。"
+        description="Optional path to save the MOL file. If set, MOL content is written there; otherwise only MOL text is returned."
     )
     generate_3d: bool = Field(
         default=False,
-        description="是否生成 3D 坐标。默认为 False（生成 2D 坐标）。开启后会在内存中进行分子构象搜索和力场优化，耗时稍长。"
+        description="Whether to generate 3D coordinates. Default False (2D). When True, runs in-memory conformer search and force-field optimization (slower)."
     )
     kekulize: bool = Field(
         default=True,
-        description="是否在输出中显示 Kekulé 式（单双键交替），而非芳香键。"
+        description="Whether to show Kekulé form (alternating single/double bonds) instead of aromatic bonds."
     )
 
 
 class SmilesToMol_output_schema(output_schema):
-    is_success: bool = Field(description="转换是否成功")
-    mol_content: str = Field(default="", description="生成的 MOL 文件文本内容（V2000 格式）")
-    file_path: str = Field(default="", description="如果写入了文件，返回文件路径；否则为空")
-    message: str = Field(default="", description="状态或错误信息")
+    is_success: bool = Field(description="Whether conversion succeeded")
+    mol_content: str = Field(default="", description="Generated MOL file text (V2000)")
+    file_path: str = Field(default="", description="File path if written; otherwise empty")
+    message: str = Field(default="", description="Status or error message")
 
 
 class SmilesToMol(Tool):

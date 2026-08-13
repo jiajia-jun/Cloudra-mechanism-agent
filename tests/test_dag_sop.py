@@ -34,7 +34,7 @@ def test_agent_entry_points_route_dag_sessions_to_the_worked_sop() -> None:
 
     assert "DAG-guided" in skill and "mechanism-elucidation-sop.md" in skill
     assert "Claisen" in pericyclic and "delivery DAG" in pericyclic
-    assert "DAG 编排" in coordinator
+    assert "DAG orchestration" in coordinator
     assert "init_from_template" in coordinator
     assert "delivery_report" in coordinator
     assert "Supervisor" in coordinator

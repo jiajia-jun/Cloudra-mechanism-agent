@@ -75,9 +75,9 @@ async def test_schedule_create_and_fire_wakes_waiter(schedule_db):
     assert state == "fired"
     event_type, event_content = event
     assert event_type == "scheduled_reminder"
-    assert event_content.startswith(f"[提醒 #{result.schedule_id}] 检查后台计算")
+    assert event_content.startswith(f"[Reminder #{result.schedule_id}] 检查后台计算")
     # 唤醒事件须携带自提示引导：提醒不是新任务、无事可做就 stop
-    assert "为自己设定的定时提醒" in event_content
+    assert "timed reminder you set for yourself" in event_content
     assert "stop" in event_content
 
 
@@ -113,7 +113,7 @@ async def test_coordinator_prompt_includes_pending_schedule_and_cancel_guidance(
     schedule_snapshot = next(
         message["content"]
         for message in messages
-        if message["role"] == "system" and "【当前待触发 schedule】" in message["content"]
+        if message["role"] == "system" and "[Pending schedules]" in message["content"]
     )
 
     assert f"schedule_id={created.schedule_id}" in schedule_snapshot

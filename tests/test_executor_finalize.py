@@ -166,7 +166,7 @@ class TestMarkDone:
         assert (conv_id, agent_id, event_type, ev_state) == (
             "conv-1", "a-0", "subagent", "pending",
         )
-        assert content == "子 Agent fake-agent (session=s-1, task_id=1) 已完成。结论: 任务结论"
+        assert content == "Sub-agent fake-agent (session=s-1, task_id=1) completed. Conclusion: 任务结论"
 
     async def test_event_content_truncates_result_to_500_chars(self, tmp_path, monkeypatch):
         from cloudra.runtime.executor import run_executor
@@ -198,7 +198,7 @@ class TestMarkCancelled:
         assert sess[3] is not None
 
         assert len(events) == 1
-        assert events[0][3] == "子 Agent fake-agent (session=s-1, task_id=1) 已被取消。"
+        assert events[0][3] == "Sub-agent fake-agent (session=s-1, task_id=1) was cancelled."
 
     async def test_finished_at_is_coalesced(self, tmp_path, monkeypatch):
         """cancelled 路径用 COALESCE：已有 finished_at 不被覆盖。"""
@@ -236,7 +236,7 @@ class TestMarkFailed:
         assert sess[3] is not None
 
         assert len(events) == 1
-        assert events[0][3] == "子 Agent fake-agent (session=s-1, task_id=1) 执行失败: 爆炸了"
+        assert events[0][3] == "Sub-agent fake-agent (session=s-1, task_id=1) failed: 爆炸了"
 
     async def test_finished_at_is_coalesced(self, tmp_path, monkeypatch):
         """统一收尾一律 COALESCE：failed 路径也不再覆盖已有 finished_at（首个终态时间戳生效）。"""
@@ -318,7 +318,7 @@ class TestExecutorWorkers:
 
 @pytest.mark.asyncio
 async def test_hub_call_origin_has_exactly_one_incoming_user_line(tmp_path, monkeypatch):
-    """hub_call spawn：上下文只有一条【来电】user 行，前面不能再有裸 query。"""
+    """hub_call spawn：上下文只有一条[Incoming call]user 行，前面不能再有裸 query。"""
     from cloudra.persistence.context_manager import ContextManager
     from cloudra.runtime.executor import run_executor
     from cloudra.tools.Managetool._hub_call import format_incoming_call
@@ -353,7 +353,7 @@ async def test_hub_call_origin_has_exactly_one_incoming_user_line(tmp_path, monk
     ).load()
     user_msgs = [m for m in stored if m.get("role") == "user"]
     assert len(user_msgs) == 1
-    assert "【来电】" in user_msgs[0]["content"]
+    assert "[Incoming call]" in user_msgs[0]["content"]
     assert user_msgs[0]["content"] == incoming
     assert stored[0]["content"] != spoken
 
@@ -387,12 +387,12 @@ class TestHubCallHangup:
         await run_executor(1, db_path, "s-1")
         _, _, events = _read_states(db_path)
         contents = [e[3] for e in events]
-        assert not any("已完成。结论" in (c or "") for c in contents)
+        assert not any("completed. Conclusion" in (c or "") for c in contents)
 
         hangups = [
             e
             for e in events
-            if e[2] == "user_message" and "【来电结束】" in (e[3] or "")
+            if e[2] == "user_message" and "[Call ended]" in (e[3] or "")
         ]
         assert len(hangups) == 1
         conv_id, agent_id, event_type, content, ev_state = hangups[0]
@@ -404,7 +404,7 @@ class TestHubCallHangup:
         )
         assert "fake-agent" in content
         assert "session=s-1" in content
-        assert "已挂断" in content
+        assert "hung up" in content
         assert not any(e[2] == "subagent" for e in events)
 
         caller_cm = ContextManager(
@@ -417,7 +417,7 @@ class TestHubCallHangup:
         caller_user = [
             m
             for m in caller_stored
-            if m.get("role") == "user" and "【来电结束】" in str(m.get("content", ""))
+            if m.get("role") == "user" and "[Call ended]" in str(m.get("content", ""))
         ]
         assert len(caller_user) == 1
         assert "fake-agent" in caller_user[0]["content"]
@@ -453,4 +453,4 @@ class TestHubCallHangup:
         req_state, sess, events = _read_states(db_path)
         assert req_state == "done"
         assert sess[0] == "completed"
-        assert not any("已完成。结论" in (c or "") for c in (e[3] for e in events))
+        assert not any("completed. Conclusion" in (c or "") for c in (e[3] for e in events))

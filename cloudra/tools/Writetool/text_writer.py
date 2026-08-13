@@ -15,21 +15,21 @@ from cloudra.tools.core.workspace_mutation import (
 )
 
 description = (
-    "在 Agent 工作目录内新建或整文件覆写 UTF-8 文本；"
-    "新建传 expected_sha256='missing'，覆写前必须先用 text_reader 获取最新 sha256。"
-    "适用：创建新文件，或对已有文件做整体重写。"
-    "不适用：已有文件的局部修改（用 text_reader + edit_file）；严禁用 bash 重定向代替本工具写文件。"
-    "注意：向 .gjf/.xyz/.com 写入逐字键入的坐标块会被 harness 警告——"
-    "坐标必须来自 smiles_to_mol / format_converter / gjf_writer 等工具。"
+    "Create or wholesale-overwrite a UTF-8 text file in the Agent working directory; "
+    "pass expected_sha256='missing' for a new file, and call text_reader first to get the latest sha256 before overwriting. "
+    "Use for: creating a new file, or rewriting an existing file in full. "
+    "Do not use for: local edits to an existing file (use text_reader + edit_file); never write files with bash redirection instead of this tool. "
+    "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — "
+    "coordinates must come from tools such as smiles_to_mol / format_converter / gjf_writer."
 )
 
 
 class TextWriter_input_schema(input_schema):
-    filepath: str = Field(description="相对 Agent 工作目录的目标文件路径")
-    content: str = Field(description="要写入的文本内容")
+    filepath: str = Field(description="Target file path relative to the Agent working directory")
+    content: str = Field(description="Text content to write")
     expected_sha256: str = Field(
         default="missing",
-        description="新建文件传 missing；覆写已有文件传 text_reader 返回的 sha256",
+        description="Pass missing for a new file; for overwrite, pass the sha256 returned by text_reader",
     )
 
 

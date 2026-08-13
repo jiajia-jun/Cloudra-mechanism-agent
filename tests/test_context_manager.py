@@ -86,7 +86,7 @@ class TestContextManagerRender:
         msgs = await context_manager.build_messages(supports_vision=False)
         last = msgs[-1]
         assert isinstance(last["content"], str)
-        assert "当前模型不支持视觉" in last["content"]
+        assert "does not support vision" in last["content"]
 
     @pytest.mark.asyncio
     async def test_no_duplicate_system_prompt(self, context_manager, make_image):
@@ -134,7 +134,7 @@ class TestContextManagerRender:
             for msg in msgs
             if isinstance(msg.get("content"), list)
             for part in msg["content"]
-            if part.get("type") == "text" and part.get("text", "").startswith("[图片:")
+            if part.get("type") == "text" and part.get("text", "").startswith("[Image:")
         ]
 
         assert len(image_urls) == 5
@@ -152,7 +152,7 @@ class TestContextManagerRender:
         msgs = await context_manager.build_messages(supports_vision=True)
         last = msgs[-1]
         text_parts = [p["text"] for p in last["content"] if p.get("type") == "text"]
-        assert any("图片缺失" in t for t in text_parts)
+        assert any("Missing image" in t for t in text_parts)
 
     @pytest.mark.asyncio
     async def test_token_compression(self, context_manager, monkeypatch):
@@ -215,7 +215,7 @@ class TestRepairDanglingToolCalls:
         assert "call_2" in answered
         synthetic = [m for m in messages if m.get("tool_call_id") == "call_2"]
         assert len(synthetic) == 1
-        assert "工具结果缺失" in synthetic[0]["content"]
+        assert "Missing tool result" in synthetic[0]["content"]
 
         # 不变式：每个 assistant 的 tool_call 都有响应（端点 400 的充要条件）
         for msg in messages:
@@ -323,8 +323,8 @@ class TestHistoryCompression:
         assert msgs[0]["role"] == "system"
         assert msgs[0]["content"] == "你是一个测试助手。"
         assert msgs[1]["role"] == "user"
-        assert msgs[1]["content"].startswith("[上下文压缩提示]")
-        assert "根据下面这份交接信息继续工作" in msgs[1]["content"]
+        assert msgs[1]["content"].startswith("[Context compact]")
+        assert "Continue from the handoff below" in msgs[1]["content"]
         assert "压缩梗概" in msgs[1]["content"]
         contents = [str(m.get("content", "")) for m in msgs]
         assert not any("历史问题 0" in c for c in contents)
@@ -423,7 +423,7 @@ class TestHistoryCompression:
 
         msgs = await context_manager.build_messages(max_context_tokens=1000)
 
-        assert "[历史消息过长，未能生成有效梗概]" in msgs[1]["content"]
+        assert "[History too long; could not produce a valid summary]" in msgs[1]["content"]
 
     @pytest.mark.asyncio
     async def test_llm_failure_keeps_original_messages(self, context_manager, mock_llm):
@@ -438,7 +438,7 @@ class TestHistoryCompression:
         assert create.call_count == 2
         contents = [str(m.get("content", "")) for m in msgs]
         assert any("历史问题 0" in c for c in contents)
-        assert not any("[上下文压缩提示]" in c for c in contents)
+        assert not any("[Context compact]" in c for c in contents)
 
     @pytest.mark.asyncio
     async def test_missing_follower_config_keeps_original(self, context_manager, mock_llm, monkeypatch):
@@ -472,12 +472,12 @@ class TestHistoryCompression:
 
         assert create.call_count == 1  # 只做一次持久化梗概
         contents = [str(m.get("content", "")) for m in msgs]
-        assert any("[上下文压缩提示]" in c for c in contents)
+        assert any("[Context compact]" in c for c in contents)
         assert not any("历史问题 0" in c for c in contents)
         # 持久化：存储中的上下文也已是梗概形态
         stored = await context_manager.load()
         stored_contents = [str(m.get("content", "")) for m in stored]
-        assert any("[上下文压缩提示]" in c for c in stored_contents)
+        assert any("[Context compact]" in c for c in stored_contents)
         assert not any("历史问题 0" in c for c in stored_contents)
 
     @pytest.mark.asyncio
@@ -516,8 +516,8 @@ class TestManualCompaction:
         context = await context_manager.load()
         assert len(context) == 5
         assert context[0]["role"] == "user"
-        assert context[0]["content"].startswith("[上下文压缩提示]")
-        assert "根据下面这份交接信息继续工作" in context[0]["content"]
+        assert context[0]["content"].startswith("[Context compact]")
+        assert "Continue from the handoff below" in context[0]["content"]
         assert "压缩梗概" in context[0]["content"]
         assert context[-1]["content"] == "回复 5"
         assert context[-2]["content"] == "问题 5"
@@ -567,7 +567,7 @@ class TestManualCompaction:
         contents = [str(m.get("content", "")) for m in stored]
         assert any(c.startswith(SUPERVISOR_ADVICE_MARKER) for c in contents)
         assert any(c.startswith(SKILL_PIN_MARKER) and "DFT SOP" in c for c in contents)
-        assert any(c.startswith("[上下文压缩提示]") for c in contents)
+        assert any(c.startswith("[Context compact]") for c in contents)
         assert stored[-1]["content"] == "最近回复"
 
     @pytest.mark.asyncio
@@ -749,7 +749,7 @@ class TestEmptyUserMessageGuard:
         assert "  " not in user_contents
         assert [{"type": "text", "text": ""}] not in user_contents
         # 带图片部分的 user 消息保留（无视觉模型时降级为文本占位符）
-        assert any("[图片:" in str(c) for c in user_contents)
+        assert any("[Image:" in str(c) for c in user_contents)
 
 
 def _assistant_with_tool_calls(*call_ids: str) -> dict:
@@ -797,7 +797,7 @@ class TestToolPairingRepair:
     def test_orphan_tool_result_dropped(self):
         """tool_call_id 找不到匹配 assistant tool_call 的 tool 消息被丢弃。"""
         messages = [
-            {"role": "system", "content": "[上下文压缩提示] 梗概"},
+            {"role": "system", "content": "[Context compact] 梗概"},
             _tool_result("call_orphan"),
             _assistant_with_tool_calls("call_a", "call_b"),
             _tool_result("call_a"),
@@ -824,7 +824,7 @@ class TestToolPairingRepair:
             m for m in repaired
             if m.get("role") == "tool" and m.get("tool_call_id") == "call_b"
         )
-        assert "工具结果缺失" in placeholder["content"]
+        assert "Missing tool result" in placeholder["content"]
         # 占位补在该 assistant（及其后连续的 tool 结果组）之后、下一条 assistant 之前
         assert repaired.index(assistant) < repaired.index(placeholder)
         assert repaired.index(placeholder) < repaired.index(messages[3])
@@ -891,7 +891,7 @@ class TestTailCutAlignment:
         stored = await context_manager.load()
         _assert_tool_pairing(stored)
         assert any(
-            str(m.get("content", "")).startswith("[上下文压缩提示]")
+            str(m.get("content", "")).startswith("[Context compact]")
             for m in stored
         )
         assert not any(
@@ -900,11 +900,11 @@ class TestTailCutAlignment:
         assert not any(m.get("tool_call_id") == "call_a" for m in stored)
         handoffs = [
             m for m in stored
-            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+            if str(m.get("content", "")).startswith("[Context compact]")
         ]
         assert len(handoffs) == 1
         assert handoffs[0]["role"] == "user"
-        assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
+        assert "Continue from the handoff below" in handoffs[0]["content"]
 
     @pytest.mark.asyncio
     async def test_compact_handoff_lists_pinned_skills_as_done(
@@ -984,22 +984,22 @@ class TestTailCutAlignment:
         handoffs = [
             m
             for m in stored
-            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+            if str(m.get("content", "")).startswith("[Context compact]")
         ]
         assert len(handoffs) == 1
         handoff = handoffs[0]["content"]
-        assert "已钉住的 Skill" in handoff
+        assert "Pinned skills" in handoff
         assert "dag-operations" in handoff
         assert "dft-calculation" in handoff
-        assert "如非必要不要重复 getskill" in handoff
-        assert "如非必要不要再次 getskill" in handoff  # COMPACT_SUMMARY_INSTRUCTION
-        assert "不要因为「压缩后想核对语义」" in handoff
+        assert "do not getskill again unless necessary" in handoff
+        assert "do not getskill the same skill again unless necessary" in handoff  # COMPACT_SUMMARY_INSTRUCTION
+        assert "re-check semantics after compact" in handoff
 
         user_prompt = create.await_args.kwargs["messages"][1]["content"]
         assert "dag-operations" in user_prompt
         assert "dft-calculation" in user_prompt
-        assert "禁止" in user_prompt
-        assert "压缩后需核对" in user_prompt
+        assert "already done" in user_prompt
+        assert "re-check/reread skill after compact" in user_prompt
 
     @pytest.mark.asyncio
     async def test_skill_pins_deduped_on_compress(
@@ -1062,11 +1062,11 @@ class TestTailCutAlignment:
         assert "已截断" not in pins[0]["content"]
         handoffs = [
             m for m in stored
-            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+            if str(m.get("content", "")).startswith("[Context compact]")
         ]
         assert len(handoffs) == 1
         assert handoffs[0]["role"] == "user"
-        assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
+        assert "Continue from the handoff below" in handoffs[0]["content"]
 
     @pytest.mark.asyncio
     async def test_compress_to_budget_cut_aligned(
@@ -1087,7 +1087,7 @@ class TestTailCutAlignment:
 
         _assert_tool_pairing(compressed)
         assert any(
-            str(m.get("content", "")).startswith("[上下文压缩提示]")
+            str(m.get("content", "")).startswith("[Context compact]")
             for m in compressed
         )
         assert not any(m.get("tool_call_id") == "call_a" for m in compressed)
@@ -1115,11 +1115,11 @@ class TestTailCutAlignment:
         assert stats["new_count"] == 4
         handoffs = [
             m for m in stored
-            if str(m.get("content", "")).startswith("[上下文压缩提示]")
+            if str(m.get("content", "")).startswith("[Context compact]")
         ]
         assert len(handoffs) == 1
         assert handoffs[0]["role"] == "user"
-        assert "根据下面这份交接信息继续工作" in handoffs[0]["content"]
+        assert "Continue from the handoff below" in handoffs[0]["content"]
 
 
 @pytest.mark.asyncio

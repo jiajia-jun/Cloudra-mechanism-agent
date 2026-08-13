@@ -22,38 +22,38 @@ def _import_spectrochempy():
         return None
 
 description = (
-    "红外光谱（IR）处理与解析：基于 SpectroChemPy，支持 JCAMP-DX、Thermo Nicolet (SPA/SPG)、CSV 等格式，"
-    "提供基线校正、平滑、归一化、二阶导数分析及官能团自动识别。"
-    "适用：处理实验红外原始谱图、指认官能团、与理论计算光谱对比。"
-    "不适用：NMR 谱处理（用 nmr_processor）、Gaussian 频率计算日志的读取（用 log_parser）。"
+    "Infrared (IR) spectrum processing and assignment: SpectroChemPy, supporting JCAMP-DX, Thermo Nicolet (SPA/SPG), CSV, etc., "
+    "with baseline correction, smoothing, normalization, second-derivative analysis, and automatic functional-group ID. "
+    "Use for: processing experimental IR raw spectra, assigning functional groups, comparing with computed spectra. "
+    "Do not use for: NMR processing (use nmr_processor) or reading a Gaussian frequency log (use log_parser)."
 )
 
 class IRProcessor_input_schema(input_schema):
-    data_path: str = Field(description="原始 IR 数据文件路径")
+    data_path: str = Field(description="Path of the raw IR data file")
 
     # 预处理选项
-    baseline: bool = Field(default=True, description="是否进行基线校正 (Rubberband/Modified Poly)")
-    smooth: bool = Field(default=True, description="是否进行平滑 (Savitzky-Golay)")
-    normalize: str = Field(default="snv", description="归一化方法: 'snv' (标准正态变换), 'minmax', 'area', 'none'")
+    baseline: bool = Field(default=True, description="Whether to apply baseline correction (Rubberband/Modified Poly)")
+    smooth: bool = Field(default=True, description="Whether to smooth (Savitzky-Golay)")
+    normalize: str = Field(default="snv", description="Normalization: 'snv' (standard normal variate), 'minmax', 'area', 'none'")
 
     # 分析参数
-    detect_peaks: bool = Field(default=True, description="是否自动提取吸收峰")
-    peak_threshold: float = Field(default=0.05, description="峰提取灵敏度")
-    identify_groups: bool = Field(default=True, description="是否基于特征频率库自动识别官能团")
+    detect_peaks: bool = Field(default=True, description="Whether to auto-extract absorption peaks")
+    peak_threshold: float = Field(default=0.05, description="Peak-picking sensitivity")
+    identify_groups: bool = Field(default=True, description="Whether to auto-identify functional groups from a characteristic-frequency library")
 
     # 专家选项 (JSON 字典)
     advanced_settings: Dict[str, Any] = Field(
         default_factory=dict,
-        description="高级参数覆盖。支持: 'smooth_size', 'smooth_order', 'baseline_method', 'baseline_params' (dict) 等"
+        description="Advanced overrides. Supports: 'smooth_size', 'smooth_order', 'baseline_method', 'baseline_params' (dict), etc."
     )
 
 class IRProcessor_output_schema(output_schema):
-    is_success: bool = Field(description="是否成功处理")
-    units: str = Field(default="cm^-1", description="X轴单位")
-    y_unit: str = Field(default="Absorbance", description="Y轴单位 (Abs/Trans)")
-    spectrum: Dict[str, List[float]] = Field(default={}, description="处理后的谱图数据")
-    peaks: List[Dict[str, Any]] = Field(default=[], description="检测到的峰及其对应的可能官能团")
-    message: str = Field(default="", description="执行信息")
+    is_success: bool = Field(description="Whether processing succeeded")
+    units: str = Field(default="cm^-1", description="X-axis unit")
+    y_unit: str = Field(default="Absorbance", description="Y-axis unit (Abs/Trans)")
+    spectrum: Dict[str, List[float]] = Field(default={}, description="Processed spectrum data")
+    peaks: List[Dict[str, Any]] = Field(default=[], description="Detected peaks and possible matching functional groups")
+    message: str = Field(default="", description="Status message")
 
 class IRProcessor(Tool):
     tool_id: str = 't-8'

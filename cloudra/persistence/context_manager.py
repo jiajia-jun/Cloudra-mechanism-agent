@@ -103,16 +103,16 @@ SUPERVISOR_ADVICE_MARKER = "[Supervisor]"
 # 压缩梗概消息的内容前缀：持久化压缩与手动 compact 共用，
 # 用于在下一轮压缩时识别旧梗概并折叠进新梗概（避免梗概无限累积）。
 # 梗概以 role=user 写入，引导模型按交接信息接续（勿再用 system，易被当成身份层忽略）。
-COMPACT_SUMMARY_MARKER = "[上下文压缩提示]"
+COMPACT_SUMMARY_MARKER = "[Context compact]"
 COMPACT_SUMMARY_INSTRUCTION = (
-    "根据下面这份交接信息继续工作。"
-    "上下文刚被压缩：`[Skill 资料]` 已在 system 层原样钉住保留，"
-    "如非必要不要再次 getskill 同名 skill（核对语义请直接读已有 Skill 资料；"
-    "仅当需要 `other=` 取 reference 附件、或列表中明确缺失某 skill 时才加载）。"
+    "Continue from the handoff below. "
+    "Context was just compacted: `[Skill material]` is pinned verbatim in the system layer; "
+    "do not getskill the same skill again unless necessary (read the existing Skill material to check semantics; "
+    "only load when you need `other=` for a reference attachment, or a skill is clearly missing from the list)."
 )
 
 # getskill 返回被提升为 system 钉住时的前缀，压缩时不进摘要、不丢弃。
-SKILL_PIN_MARKER = "[Skill 资料]"
+SKILL_PIN_MARKER = "[Skill material]"
 
 # 需要整段保留的 skill 工具名（匹配 assistant.tool_calls[].function.name）。
 SKILL_TOOL_NAMES = frozenset({"getskill"})
@@ -288,9 +288,9 @@ class ContextManager:
         # 提取 image_path（如果存在），构建 OpenAI 标准 image_url 结构
         image_path = new_block.pop('image_path', None)
         if image_path:
-            text_content = new_block.get('content', "查看此图片内容：")
+            text_content = new_block.get('content', "Look at this image:")
             new_block['content'] = [
-                {"type": "text", "text": text_content if text_content else "查看此图片内容："},
+                {"type": "text", "text": text_content if text_content else "Look at this image:"},
                 {"type": "image_url", "image_url": {"url": image_path}},
             ]
         elif 'content' not in new_block:
@@ -330,8 +330,8 @@ class ContextManager:
             "role": "system",
             "content": (
                 f"{SUPERVISOR_ADVICE_MARKER}\n{advice_text}\n"
-                "【注意】以上是 Supervisor 对本阶段方向的审查意见，"
-                "请在后续推理、任务拆解与工具选择中优先参考并据此调整。"
+                "[Note] The above is the Supervisor's review of this stage's direction; "
+                "prefer it in later reasoning, task breakdown, and tool choice, and adjust accordingly."
             ),
         }
 
@@ -480,19 +480,19 @@ class ContextManager:
         用于避免过早历史消息中的图片持续占用上下文 Token。
         """
         if force_text or not supports_vision:
-            text = f"[图片: {path}]" if force_text else f"[图片: {path} (当前模型不支持视觉或多模态信息已过于久远)]"
+            text = f"[Image: {path}]" if force_text else f"[Image: {path} (this model does not support vision, or the multimodal content is too old)]"
             return {"type": "text", "text": text}
 
         if path.startswith("data:"):
             return {"type": "image_url", "image_url": {"url": path}}
 
         if not os.path.exists(path):
-            return {"type": "text", "text": f"[图片缺失: {path}]"}
+            return {"type": "text", "text": f"[Missing image: {path}]"}
 
         ext = os.path.splitext(path)[1].lower()
         mime = _IMAGE_MIME_TYPES.get(ext)
         if mime is None:
-            return {"type": "text", "text": f"[不支持的图片格式: {path}]"}
+            return {"type": "text", "text": f"[Unsupported image format: {path}]"}
 
         try:
             base64_image = self._encode_image(path)
@@ -501,7 +501,7 @@ class ContextManager:
                 "image_url": {"url": f"data:{mime};base64,{base64_image}"},
             }
         except Exception:
-            return {"type": "text", "text": f"[图片加载失败: {path}]"}
+            return {"type": "text", "text": f"[Failed to load image: {path}]"}
 
     @staticmethod
     def _content_to_text(content) -> str:
@@ -680,7 +680,7 @@ class ContextManager:
                     pending.append({
                         "role": "tool",
                         "tool_call_id": call_id,
-                        "content": "[工具结果缺失：可能在上下文压缩中丢失]",
+                        "content": "[Missing tool result: may have been lost during context compact]",
                     })
                     answered.add(call_id)
         repaired.extend(pending)
@@ -799,18 +799,18 @@ class ContextManager:
         """压缩交接末尾的确定性说明：已钉住 skill 勿再列为待办。"""
         if not skill_names:
             return (
-                "\n\n**Skill 钉住**：本次交接未额外列出钉住 skill；"
-                "若上下文里已有 `[Skill 资料]`，仍视为已加载——"
-                "如非必要不要重复 getskill。"
+                "\n\n**Skill pins**: this handoff did not list extra pinned skills; "
+                "if context already has `[Skill material]`, treat them as loaded — "
+                "do not getskill again unless necessary."
             )
-        joined = "、".join(skill_names)
+        joined = ", ".join(skill_names)
         return (
-            "\n\n**已钉住的 Skill（如非必要不要重复 getskill）**："
-            f"{joined}。"
-            "压缩不会丢弃这些 SOP——它们以 `[Skill 资料]` 原样留在 system 层。"
-            "不要因为「压缩后想核对语义」而再 getskill 同名 skill；直接使用已有钉住内容。"
-            "仅当需要 `other=` 读取 reference 附件、或上述列表里没有你真正缺少的 skill 时才调用 getskill。"
-            "下一步应推进任务（建图/计算/写交接文档），不要把「加载/重读 skill」当阻塞点。"
+            "\n\n**Pinned skills (do not getskill again unless necessary)**: "
+            f"{joined}. "
+            "Compact does not drop these SOPs — they stay as `[Skill material]` in the system layer. "
+            "Do not getskill the same skill just to re-check semantics after compact; use the pinned content. "
+            "Only call getskill when you need `other=` for a reference attachment, or a skill you actually lack is not in the list above. "
+            "Next, advance the task (graph/compute/handoff notes); do not treat 'load/reread skill' as a blocker."
         )
 
     @classmethod
@@ -955,10 +955,10 @@ class ContextManager:
         pinned_note = ""
         if pinned_names:
             pinned_note = (
-                "下列 skill 本次压缩已钉住并在梗概外单独保留，必须写入「已完成」，"
-                "禁止写成待办/阻塞/未落地，禁止写「压缩后需核对/重读 skill」，"
-                "也禁止要求再次 getskill 同名 skill："
-                f"{'、'.join(pinned_names)}。\n"
+                "The following skills were pinned during this compact and are kept outside the summary; "
+                "they must be listed as already done. Do not write them as todos/blockers/not-yet-loaded, "
+                "do not write 're-check/reread skill after compact', and do not ask to getskill the same skill again: "
+                f"{', '.join(pinned_names)}.\n"
             )
 
         def partition(items: list[str]) -> list[list[str]]:
@@ -1011,26 +1011,27 @@ class ContextManager:
 
         async def summarize_text(history_text: str) -> str:
             prompt = (
-                "你正在为科研 Agent 压缩对话历史。输出一段结构化梗概，供后续模型"
-                "接续任务；不要写客套话，不要发明未出现的事实。\n\n"
-                "必须保留：\n"
-                "1. 用户总目标与当前子目标\n"
-                "2. 已完成步骤与关键结论（含数值、判据、成功/失败）\n"
-                "3. 重要文件路径——尤其是交接文档（HANDOFF.md / progress.md 等）、"
-                "分子/反应标识、作业 ID\n"
-                "4. 失败原因与已尝试的修复\n"
-                "5. 尚未完成的待办与阻塞点\n\n"
-                "可以丢弃：重复的工具日志、冗长原始输出、已过时的中间猜测、"
-                "逐条 tool_call 参数原文（用路径与结论代替）。\n"
-                "注意：system prompt 与 getskill 资料会在梗概之外单独保留（`[Skill 资料]` 钉住），"
-                "无需在梗概中复述完整 SOP。历史里 getskill 的 tool 成功记录可能已被"
-                "抽走钉住，因此不能仅因摘要输入看不到 tool 结果就断定 skill 未加载，"
-                "也不要把「压缩后核对/重读 skill」写成待办。"
-                "后续轮次应优先打开梗概里点名的交接文档，如非必要不要建议再次 getskill。\n"
+                "You are compacting conversation history for a research agent. Output a structured summary "
+                "so a later model can continue the task; no filler, and do not invent facts that did not appear.\n\n"
+                "Must keep:\n"
+                "1. The user's overall goal and current sub-goals\n"
+                "2. Completed steps and key conclusions (including numbers, criteria, success/failure)\n"
+                "3. Important file paths — especially handoff notes (HANDOFF.md / progress.md, etc.), "
+                "molecule/reaction identifiers, and job IDs\n"
+                "4. Failure reasons and fixes already tried\n"
+                "5. Remaining todos and blockers\n\n"
+                "May drop: repeated tool logs, long raw output, stale intermediate guesses, "
+                "verbatim tool_call arguments (replace with paths and conclusions).\n"
+                "Note: the system prompt and getskill material are kept separately outside this summary "
+                "(`[Skill material]` pins); do not restate full SOPs in the summary. Successful getskill "
+                "tool records in history may already have been lifted into pins, so do not conclude a skill "
+                "was never loaded just because the summary input lacks that tool result, and do not write "
+                "'re-check/reread skill after compact' as a todo. "
+                "Later rounds should open handoff notes named in the summary first; do not suggest getskill again unless necessary.\n"
                 f"{pinned_note}\n"
-                "--- 历史对话 ---\n\n"
+                "--- History ---\n\n"
                 f"{history_text}\n\n"
-                "--- 梗概（用简洁条目或短段落）---"
+                "--- Summary (concise bullets or short paragraphs) ---"
             )
 
             if self._llm_client is None:
@@ -1043,8 +1044,8 @@ class ContextManager:
                     {
                         "role": "system",
                         "content": (
-                            "你是对话历史压缩器。只输出忠实、可执行的状态摘要，"
-                            "优先保留目标、路径、结论与失败信息。"
+                            "You are a conversation-history compressor. Output only a faithful, actionable state summary; "
+                            "prefer goals, paths, conclusions, and failures."
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -1052,7 +1053,7 @@ class ContextManager:
                 temperature=0.2,
             )
             summary = response.choices[0].message.content
-            return summary.strip() if summary else "[历史消息过长，未能生成有效梗概]"
+            return summary.strip() if summary else "[History too long; could not produce a valid summary]"
 
         limiter = asyncio.Semaphore(COMPACTION_CONCURRENCY)
 
@@ -1104,7 +1105,7 @@ class ContextManager:
             while len(summaries) > 1:
                 level += 1
                 reduction_lines = [
-                    f"[分段梗概 {index + 1}] {summary}"
+                    f"[Chunk summary {index + 1}] {summary}"
                     for index, summary in enumerate(summaries)
                 ]
                 reduction_chunks = await asyncio.to_thread(
@@ -1118,7 +1119,7 @@ class ContextManager:
                 completed=1,
                 total=1,
             )
-            return summaries[0] if summaries else "[没有可压缩的历史消息]"
+            return summaries[0] if summaries else "[No history to compact]"
         except BaseException as exc:
             await self._report_compaction(
                 stage="failed",

@@ -29,61 +29,62 @@ except Exception:
 _HARTREE_TO_EV = 27.211386245988
 
 description = (
-    "电子结构分析：对 xyz 结构做单点计算（PySCF 或 xTB），提取 agent 可读的电子结构事实——"
-    "总能量、HOMO/LUMO/能隙、偶极矩、原子电荷（Mulliken 与 meta-Löwdin 对照）、Mayer 键级（识别过渡态的部分键与"
-    "正在形成的 incipient bond）、IBO 定域轨道 Lewis 图像（孤对电子与 2c-2e 键，NBO 的开源替代）。"
-    "支持开壳层（spin>1 自动走 UHF/UKS）：输出 <S^2> 自旋污染检查与 Mulliken 自旋布居，可定位自由基中心。"
-    "全部输出为数值/文本表，坐标不进上下文。"
-    "适用：反应物/中间体/过渡态（含自由基）的电子结构感知，判断反应进行程度（部分键、incipient bond）。"
-    "不适用：几何优化或过渡态搜索本身（用 submit_compute_job）、构象搜索（用 conformer_search）。"
+    "Electronic-structure analysis: single-point calculation on an xyz structure (PySCF or xTB), extracting agent-readable facts — "
+    "total energy, HOMO/LUMO/gap, dipole, atomic charges (Mulliken vs meta-Löwdin), Mayer bond orders "
+    "(partial bonds and forming incipient bonds at a TS), and an IBO-localized Lewis picture "
+    "(lone pairs and 2c-2e bonds; an open-source NBO alternative). "
+    "Open-shell supported (spin>1 automatically uses UHF/UKS): reports <S^2> spin contamination and Mulliken spin populations to locate radical centers. "
+    "All output is numeric/text tables; coordinates never enter context. "
+    "Use for: electronic-structure perception of reactants/intermediates/TS (including radicals) and judging how far a reaction has proceeded (partial/incipient bonds). "
+    "Do not use for: geometry optimization or TS search itself (use submit_compute_job) or conformer search (use conformer_search)."
 )
 
 
 class ElectronicAnalysis_input_schema(input_schema):
     input_path: Optional[str] = Field(
-        default=None, description="输入结构文件路径（xyz 格式）。与 input_text 二选一，优先读文件。"
+        default=None, description="Input structure file path (xyz). Mutually exclusive with input_text; file is preferred."
     )
     input_text: Optional[str] = Field(
-        default=None, description="直接传入 xyz 坐标文本。提供 input_path 时优先读取文件。"
+        default=None, description="xyz coordinate text. If input_path is set, the file is read instead."
     )
-    charge: int = Field(default=0, description="分子总电荷。")
-    spin: int = Field(default=1, description="自旋多重度（2S+1）。闭壳层为 1。")
+    charge: int = Field(default=0, description="Total molecular charge.")
+    spin: int = Field(default=1, description="Spin multiplicity (2S+1). Closed-shell is 1.")
     backend: Literal["pyscf", "xtb"] = Field(
         default="pyscf",
-        description="计算后端。pyscf：HF/DFT 全分析；xtb：调用外部 xTB 程序（GFN2-xTB 半经验，仅能量/能隙/电荷/偶极）。"
+        description="Compute backend. pyscf: full HF/DFT analysis; xtb: external xTB (GFN2-xTB semi-empirical; energy/gap/charges/dipole only)."
     )
     method: str = Field(
         default="b3lyp",
-        description="PySCF 后端的泛函（如 b3lyp、pbe0、wb97x）。填 'hf' 走 HF。spin>1 时自动切换非限制性（UHF/UKS）。"
+        description="PySCF functional (e.g. b3lyp, pbe0, wb97x). Use 'hf' for HF. spin>1 automatically switches to unrestricted (UHF/UKS)."
     )
-    basis: str = Field(default="def2-svp", description="PySCF 后端的基组（如 def2-svp、sto-3g、cc-pvdz）。")
+    basis: str = Field(default="def2-svp", description="PySCF basis set (e.g. def2-svp, sto-3g, cc-pvdz).")
     density_fitting: bool = Field(
         default=True,
-        description="是否启用密度拟合（DF/RI）加速 SCF。对电荷/键级等布居分析精度损失可忽略，成本显著下降，默认开启。"
+        description="Whether to accelerate SCF with density fitting (DF/RI). Accuracy loss on charges/bond orders is negligible; cost drops substantially. On by default."
     )
     scf_conv_tol: float = Field(
-        default=1e-7, description="SCF 能量收敛阈值（Eh）。感知用途 1e-7 足够；需要发表级能量时收紧到 1e-9。"
+        default=1e-7, description="SCF energy convergence threshold (Eh). 1e-7 is enough for perception; tighten to 1e-9 for publication-grade energies."
     )
     reactive_atoms: list[int] = Field(
         default_factory=list,
-        description="反应关键原子序号（1-based）。提供后，电荷/键级/IBO 报告聚焦这些原子及其成键邻居。"
+        description="Key reactive atom indices (1-based). When set, charge/bond-order/IBO reports focus on these atoms and their bonded neighbors."
     )
     output_dir: Optional[str] = Field(
-        default=None, description="输出目录。提供时将 molden 轨道文件与计算日志落盘并返回路径。"
+        default=None, description="Output directory. When set, writes a molden orbital file and a calculation log and returns their paths."
     )
-    timeout: int = Field(default=1200, description="xTB 后端的子进程超时时间（秒）。")
+    timeout: int = Field(default=1200, description="xTB backend subprocess timeout (seconds).")
 
 
 class ElectronicAnalysis_output_schema(output_schema):
-    is_success: bool = Field(description="分析是否成功")
-    report: str = Field(default="", description="电子结构文本报告（Summary/Frontier Orbitals/Charges/Bond Orders/IBO Lewis Picture/Notes）")
+    is_success: bool = Field(description="Whether the analysis succeeded")
+    report: str = Field(default="", description="Electronic-structure text report (Summary/Frontier Orbitals/Charges/Bond Orders/IBO Lewis Picture/Notes)")
     summary: dict = Field(
         default_factory=dict,
-        description="数值摘要：total_energy_eh/homo_eh/lumo_eh/gap_ev/dipole_debye 等"
+        description="Numeric summary: total_energy_eh/homo_eh/lumo_eh/gap_ev/dipole_debye, etc."
     )
-    molden_path: str = Field(default="", description="molden 轨道文件路径（output_dir 提供时）")
-    log_path: str = Field(default="", description="计算日志文件路径（output_dir 提供时）")
-    message: str = Field(default="", description="状态或错误信息")
+    molden_path: str = Field(default="", description="molden orbital file path (when output_dir is set)")
+    log_path: str = Field(default="", description="Calculation log path (when output_dir is set)")
+    message: str = Field(default="", description="Status or error message")
 
 
 def _load_xyz_text(user_input: ElectronicAnalysis_input_schema) -> str:
@@ -505,7 +506,7 @@ class ElectronicAnalysis(Tool):
                          "α 通道独有的单中心 IBO 近似对应单占据轨道（SOMO）。"
                          "UHF/UKS 有自旋污染风险，<S^2> 偏差大时能量与键级需谨慎解读。")
         if not mf.converged:
-            lines.append("【警告】SCF 未收敛，以上数值不可信，请检查结构/电荷/自旋设置。")
+            lines.append("[Warning] SCF did not converge; the values above are not trustworthy. Check geometry/charge/spin settings.")
         lines.append("坐标不在上下文中；如需轨道可视化，使用返回的 molden_path。")
 
         report = "\n".join(lines)

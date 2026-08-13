@@ -13,23 +13,23 @@ from cloudra.tools.core.permission_model import Permission, check_permission
 
 
 class Bashtools_input_schema(input_schema):
-    command: str = Field(description='需要执行的命令。')
+    command: str = Field(description='The command to execute.')
     # review：用 LLM 可理解的一句话描述该命令用途，方便前端展示与审批信息可读性。
     task_description: str = Field(
-        description='一句话描述这条命令要完成的任务（用于前端展示与审批上下文）。',
+        description='One-sentence description of what this command should accomplish (shown in the UI and approval context).',
         default='',
     )
     timeout: int = Field(description='', default=60)
 
 
 class Bashtools_output_schema(output_schema):
-    result: str = Field(description='bash工具结果。')
-    task_description: str = Field(description='该命令的任务描述。')
-    run_command: str = Field(description='调用的bash指令。')
+    result: str = Field(description='Bash tool result.')
+    task_description: str = Field(description='Task description of this command.')
+    run_command: str = Field(description='The bash command that was invoked.')
     exit_code: int = Field(
         default=0,
-        description='命令退出码：0 表示成功，非 0 表示失败。'
-        '务必以退出码判断命令成败，不要根据输出文本猜测。',
+        description='Command exit code: 0 means success, non-zero means failure. '
+        'Always judge success by the exit code, not by guessing from stdout.',
     )
 
 
@@ -42,12 +42,12 @@ class Bashtools(Tool):
     output_schema: Any = Bashtools_output_schema
     subagent: Agent = None
     tool_description: str = (
-        "执行搜索、环境检查、构建和测试等终端命令，以退出码判断成败。"
-        "适用：运行测试、安装依赖、查看环境信息、调用命令行工具。"
-        "不适用：修改工作区文件——严禁用 Bash、sed、重定向、tee 或临时脚本改文件，"
-        "已有文件用 text_reader + edit_file，新建文件用 text_writer。"
-        "注意：命令文本里嵌入坐标块（如 heredoc 写 .gjf/.xyz）会被 harness 警告，"
-        "坐标必须来自 smiles_to_mol / format_converter / gjf_writer 等工具。"
+        "Run terminal commands for search, environment checks, builds, and tests; judge success by exit code. "
+        "Use for: running tests, installing dependencies, inspecting the environment, invoking CLI tools. "
+        "Do not use for: modifying workspace files — never edit files with Bash, sed, redirection, tee, or throwaway scripts; "
+        "edit existing files with text_reader + edit_file, create new files with text_writer. "
+        "Note: embedding coordinate blocks in the command text (e.g. writing .gjf/.xyz via heredoc) triggers a harness warning; "
+        "coordinates must come from tools such as smiles_to_mol / format_converter / gjf_writer."
     )
 
     def __init__(self, subagent: Agent = None, **data) -> None:
@@ -62,13 +62,13 @@ class Bashtools(Tool):
             # review：显式判断空列表，避免对 None 或空字符串做隐式转换。
             if availables:
                 desc = (
-                    f"可执行的命令有：\n{tool_str}\n"
-                    "本工具用于搜索、环境检查、构建和测试。"
-                    "不适用：修改工作区文件——不要用 Bash、sed、重定向、tee 或临时脚本，"
-                    "请改用 edit_file / text_writer。"
+                    f"Available commands:\n{tool_str}\n"
+                    "This tool is for search, environment checks, builds, and tests. "
+                    "Do not use it to modify workspace files — do not use Bash, sed, redirection, tee, or throwaway scripts; "
+                    "use edit_file / text_writer instead."
                 )
             else:
-                desc = '当前没有可调用工具。'
+                desc = 'No tools are currently available.'
             self.tool_description = desc
 
     def _format_tool_list(self, tools: list[str]) -> str:
@@ -132,7 +132,7 @@ class Bashtools(Tool):
         task_description = input_instance.task_description or command
 
         if not self.has_command_permission(command):
-            result = f'没有权限执行该命令: {command}'
+            result = f'No permission to run this command: {command}'
             return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=126)
 
         # 手写坐标 / bash 写文件习惯检查：命中时**照常执行**，把警告附在结果里
@@ -191,11 +191,11 @@ class Bashtools(Tool):
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
             process.kill()
-            result = '命令执行超时！'
+            result = 'Command timed out!'
             return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=124)
         except Exception as e:
             print(e)
-            result = f'命令执行失败:{e}'
+            result = f'Command failed: {e}'
             self._terminal_commands.pop(task_description, None)
             # Use safer decoding for stderr too
             err_msg = decode_output(stderr) if 'stderr' in locals() else str(e)
@@ -209,7 +209,7 @@ class Bashtools(Tool):
         if stderr_text:
             result += ("\n" if result else "") + stderr_text
         if exit_code != 0:
-            result = f"【命令失败】exit_code={exit_code}。输出：\n{result}"
+            result = f"[Command failed] exit_code={exit_code}. Output:\n{result}"
         if guard_warning:
             result = f"{guard_warning}\n\n{result}"
         return Bashtools_output_schema(result=result, task_description=task_description, run_command=command, exit_code=exit_code)

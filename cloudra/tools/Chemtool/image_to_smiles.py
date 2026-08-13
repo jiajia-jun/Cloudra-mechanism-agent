@@ -7,23 +7,22 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "化学结构图像识别（OCSR）：基于 DECIMER 深度学习模型，"
-    "将印刷体或手绘的化学结构图（PNG/JPG 截图等）转换为 SMILES 字符串。"
-    "适用：从文献截图、手绘结构中还原分子，拿到 SMILES 后可接 smiles_to_mol 或 molecule_drawer。"
-    "不适用：只是查看图片内容（用 image_reader）、已有 SMILES 需要画图（用 molecule_drawer）。"
+    "Chemical structure image recognition (OCSR): convert printed or hand-drawn structure figures (PNG/JPG screenshots, etc.) to SMILES using the DECIMER deep-learning model. "
+    "Use for: recovering a molecule from a paper screenshot or a sketch, then feeding SMILES to smiles_to_mol or molecule_drawer. "
+    "Do not use for: merely viewing an image (use image_reader) or drawing from an existing SMILES (use molecule_drawer)."
 )
 
 
 class ImageToSmiles_input_schema(input_schema):
     image_path: str = Field(
-        description="化学结构图像文件的绝对路径或相对路径。支持 PNG、JPG、JPEG、TIFF 等常见格式。"
+        description="Absolute or relative path of the chemical-structure image. Common formats such as PNG, JPG, JPEG, TIFF."
     )
 
 
 class ImageToSmiles_output_schema(output_schema):
-    is_success: bool = Field(description="识别是否成功")
-    smiles: str = Field(default="", description="识别出的 SMILES 字符串。失败时为空。")
-    message: str = Field(default="", description="执行信息或错误提示")
+    is_success: bool = Field(description="Whether recognition succeeded")
+    smiles: str = Field(default="", description="Recognized SMILES string. Empty on failure.")
+    message: str = Field(default="", description="Status or error message")
 
 
 class ImageToSmiles(Tool):

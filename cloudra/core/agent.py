@@ -34,22 +34,23 @@ _TODO_REMIND_EVERY = 10
 
 # 模型给出结论但未调用 stop 时，注入一次目标确认提醒（一次性 force）
 _GOAL_CONFIRM_REMINDER = (
-    "【系统】你刚刚给出了结论但没有调用 stop 工具。注意：任务只有在调用 stop "
-    "工具后才会真正结束，仅输出正文会让循环继续空转。请用 goal_set 重新确认目标与完成判据，"
-    "或 todo_read 查看任务清单，判断目标是否真正达成：若已完成，调用 stop 并填入最终答案收尾；"
-    "若未完成，继续推进。如果你此前已经调用过 stop、本轮只是被事件唤醒："
-    "有用户消息则先回应用户；没有新工作才直接再次调用 stop 静默收尾。"
+    "[System] You just stated a conclusion without calling the stop tool. "
+    "The task only ends after you call stop; prose alone leaves the loop spinning. "
+    "Use goal_set to reconfirm the objective and completion criteria, or todo_read to check the task list, "
+    "and decide whether the goal is actually met: if done, call stop with the final answer; "
+    "if not, keep going. If you already called stop and this round is only an event wakeup: "
+    "answer the user first if there is a user message; if there is no new work, call stop again to finish silently."
 )
 
 # 曾经 stop 过的实例被外部事件唤醒后，持续注入的复核轮提示（每轮都带，直到再次 stop）
 _REVIVED_AFTER_STOP_NOTICE = (
-    "【系统】本任务此前已经通过 stop 工具收尾，当前是被外部事件（消息/提醒）唤醒的复核轮。"
-    "优先回应用户：若本轮有用户提问、指令、汇报要求或叫停，必须先用正文直接回答"
-    "（用户消息不是闲聊，也不要先去查计算/改提醒/再次 stop）。"
-    "其中 `role=user` 的 `【来电】` 行同样算用户提问，必须先答再考虑静默 stop。"
-    "答完之后，若用户要求停止则按要求收尾；若后台任务仍在跑且用户未叫停，可以再 stop 挂起。"
-    "仅当唤醒只是过期提醒、无需回复的通知、或确实没有用户要求时，才直接再次调用 stop "
-    "静默收尾（重复调用安全且推荐）。不要输出与用户问题无关的空转正文。"
+    "[System] This task already finished via the stop tool; this is a review round woken by an external event "
+    "(message/reminder). Answer the user first: if this round has a user question, instruction, report request, or stop request, "
+    "reply in prose immediately (user messages are not small talk; do not check compute, change reminders, or stop first). "
+    "A `role=user` `[Incoming call]` line also counts as a user ask: answer it before considering a silent stop. "
+    "After answering, if the user asked you to stop, finish as requested; if background work is still running and the user did not ask to stop, you may stop to wait. "
+    "Only when the wakeup is an expired reminder, a no-reply notice, or there is truly no user request should you call stop again "
+    "to finish silently (repeat stop is safe and recommended). Do not emit idle prose unrelated to the user's question."
 )
 
 
@@ -355,9 +356,9 @@ class Agent(BaseModel):
 
             if load_json(agent_store_path(self, "todos.json"), default=None):
                 return (
-                    "【系统】你正在维护一份任务清单（todo list）。本轮开始前请先调用 "
-                    "todo_read 查看当前清单，确认哪一项处于进行中，再决定下一步；"
-                    "完成某项后立即用 todo_write 更新状态。"
+                    "[System] You are maintaining a todo list. Before this round, call "
+                    "todo_read to see the current list, confirm which item is in progress, then decide the next step; "
+                    "after finishing an item, immediately todo_write to update its status."
                 )
         except Exception:
             pass
@@ -798,7 +799,7 @@ class Coordinator(Agent):
                 if not rows:
                     return ""
 
-                lines = ["【当前子 Agent 任务状态】"]
+                lines = ["[Current sub-agent task status]"]
                 for task_id, session_id, state, input_data in rows:
                     agent_id = "unknown"
                     query = ""
@@ -818,7 +819,7 @@ class Coordinator(Agent):
                         session_ids,
                     ).fetchall()
                     if sessions:
-                        lines.append("【子 Agent Session 状态】")
+                        lines.append("[Sub-agent session status]")
                         for sid, sstate, error in sessions:
                             err = f" error={error[:60]}" if error else ""
                             lines.append(f"- session={sid} state={sstate}{err}")
@@ -843,9 +844,9 @@ class Coordinator(Agent):
                 return ""
 
             lines = [
-                "【当前待触发 schedule】",
-                "这些提醒彼此独立且都会触发。创建新提醒前先判断旧提醒是否仍有必要；"
-                "已被新安排取代或不再需要的提醒应调用 schedule(action='cancel', schedule_id=...) 取消。",
+                "[Pending schedules]",
+                "These reminders are independent and each will fire. Before creating a new one, decide whether old ones are still needed; "
+                "cancel superseded or unused reminders with schedule(action='cancel', schedule_id=...).",
             ]
             for schedule_id, wake_at, content in rows:
                 wake_iso = datetime.fromtimestamp(float(wake_at)).astimezone().isoformat(

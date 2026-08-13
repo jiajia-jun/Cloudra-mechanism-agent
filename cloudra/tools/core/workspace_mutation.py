@@ -20,14 +20,14 @@ from cloudra.persistence.workspace import (
 
 
 class WorkspaceMutationOutput(output_schema):
-    is_written: bool = Field(description="是否完成文件写入")
-    filepath: str = Field(description="相对工作目录的文件路径")
-    status: str = Field(description="applied、declined、conflict 或 failed")
-    change_id: str = Field(default="", description="本次文件变更 ID")
-    before_sha256: str | None = Field(default=None, description="修改前文件哈希")
-    after_sha256: str | None = Field(default=None, description="候选或写入后的文件哈希")
-    diff: str = Field(default="", description="本次变更的 unified diff")
-    message: str = Field(default="", description="状态或错误信息")
+    is_written: bool = Field(description="Whether the file write completed")
+    filepath: str = Field(description="File path relative to the working directory")
+    status: str = Field(description="applied, declined, conflict, or failed")
+    change_id: str = Field(default="", description="ID of this file change")
+    before_sha256: str | None = Field(default=None, description="File hash before the change")
+    after_sha256: str | None = Field(default=None, description="Candidate or post-write file hash")
+    diff: str = Field(default="", description="Unified diff of this change")
+    message: str = Field(default="", description="Status or error message")
 
 
 _OutputT = TypeVar("_OutputT", bound=WorkspaceMutationOutput)
@@ -95,7 +95,7 @@ async def execute_prepared_change(
         tool_args=tool_args,
     )
     if not approved:
-        message = denial_reason or "用户拒绝了文件变更"
+        message = denial_reason or "User declined the file change"
         await tool.record_session_event(
             session,
             "file_change_declined",
@@ -198,5 +198,5 @@ async def execute_prepared_change(
         before_sha256=change.before_sha256,
         after_sha256=change.after_sha256,
         diff=change.diff,
-        message="文件变更已原子写入",
+        message="File change written atomically",
     )

@@ -81,11 +81,13 @@ async def _fire_due_reminders(db: ConversationDB, conversation_id: str) -> int:
             agent_id=agent_id,
             event_type="scheduled_reminder",
             content=(
-                f"[提醒 #{schedule_id}] {content}\n"
-                "【系统提示】这是你此前为自己设定的定时提醒，不是新任务。请按提醒内容逐项检查："
-                "事项已完成的，清理不再需要的旧提醒后直接调用 stop 静默收尾；"
-                "未完成或发现新情况的，继续推进，需要继续监控时再设下一次提醒。"
-                "不要只回一段正文确认收到——没有行动的输出不会让任何工作推进。"
+                f"[Reminder #{schedule_id}] {content}\n"
+                "[System] This is a timed reminder you set for yourself, not a new task. "
+                "Check each item in the reminder: if the work is done, clean up reminders you "
+                "no longer need and call stop to finish silently; if it is unfinished or you "
+                "found something new, keep going, and set the next reminder if you still need "
+                "to monitor. Do not reply with prose that only acknowledges receipt — output "
+                "without action does not advance any work."
             ),
             db_path=db.path,
             session_id=session_id,

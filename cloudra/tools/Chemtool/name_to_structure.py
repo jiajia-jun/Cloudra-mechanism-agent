@@ -27,41 +27,41 @@ except Exception:
 _TIMEOUT = 15.0
 
 description = (
-    "将化学名称（通用名/商品名/CAS 号/IUPAC 系统命名）解析为结构：依次尝试 PubChem、"
-    "NCI/CADD CIR、OPSIN 三个公开解析服务，返回 SMILES、IUPAC 名、分子式与 InChIKey；"
-    "可选生成 3D 坐标并写入 xyz 文件，作为 conformer_search / ts_guess / electronic_analysis 的输入。"
-    "适用：用户只给出化合物名称（如 'aspirin'、'Diels-Alder 产物'、'50-78-2'）时需要结构。"
-    "不适用：已有 SMILES 或结构文件（用 smiles_to_mol / format_converter）。"
-    "注意：中文俗名命中率低，失败时请改用英文名、IUPAC 名或 CAS 号重试；结果需人工核对同分异构体是否正确。"
+    "Resolve a chemical name (common name / trade name / CAS / IUPAC) to a structure: try PubChem, NCI/CADD CIR, then OPSIN, "
+    "and return SMILES, IUPAC name, formula, and InChIKey; optionally generate 3D coordinates into an xyz file for "
+    "conformer_search / ts_guess / electronic_analysis. "
+    "Use for: the user only gave a compound name (e.g. 'aspirin', 'Diels-Alder product', '50-78-2'). "
+    "Do not use for: existing SMILES or structure files (use smiles_to_mol / format_converter). "
+    "Note: Chinese common names hit poorly — retry with an English name, IUPAC name, or CAS; verify isomers by hand."
 )
 
 
 class NameToStructure_input_schema(input_schema):
-    name: str = Field(description="化合物名称。支持英文通用名、IUPAC 名、CAS 号、商品名。")
+    name: str = Field(description="Compound name. English common name, IUPAC name, CAS number, or trade name.")
     resolver: Literal["auto", "pubchem", "cir", "opsin"] = Field(
         default="auto",
-        description="解析服务。auto 时按 pubchem → cir → opsin 顺序回退；opsin 专精 IUPAC 系统命名。"
+        description="Resolver. auto falls back pubchem → cir → opsin; opsin specializes in systematic IUPAC names."
     )
     generate_3d: bool = Field(
         default=False,
-        description="是否基于解析出的 SMILES 生成 3D 坐标（RDKit ETKDG + MMFF 优化）。"
+        description="Whether to generate 3D coordinates from the resolved SMILES (RDKit ETKDG + MMFF)."
     )
     output_path: Optional[str] = Field(
         default=None,
-        description="3D 坐标输出文件路径（.xyz）。generate_3d=True 时缺省为 ./<name>.xyz。"
+        description="3D coordinate output path (.xyz). Default ./<name>.xyz when generate_3d=True."
     )
 
 
 class NameToStructure_output_schema(output_schema):
-    is_success: bool = Field(description="解析是否成功")
-    smiles: str = Field(default="", description="解析得到的 SMILES（优先立体化学信息完整的 Isomeric SMILES）")
-    iupac_name: str = Field(default="", description="IUPAC 系统命名（服务返回时）")
-    molecular_formula: str = Field(default="", description="分子式（PubChem 返回时）")
-    inchikey: str = Field(default="", description="InChIKey（PubChem 返回时）")
-    cid: str = Field(default="", description="PubChem CID（经 PubChem 解析成功时）")
-    resolver_used: str = Field(default="", description="实际解析成功的服务（pubchem/cir/opsin）")
-    xyz_path: str = Field(default="", description="3D 坐标文件路径（generate_3d=True 且成功时）")
-    message: str = Field(default="", description="状态或错误信息")
+    is_success: bool = Field(description="Whether resolution succeeded")
+    smiles: str = Field(default="", description="Resolved SMILES (prefer isomeric SMILES with full stereochemistry)")
+    iupac_name: str = Field(default="", description="IUPAC name (when the service returns it)")
+    molecular_formula: str = Field(default="", description="Molecular formula (when PubChem returns it)")
+    inchikey: str = Field(default="", description="InChIKey (when PubChem returns it)")
+    cid: str = Field(default="", description="PubChem CID (when resolved via PubChem)")
+    resolver_used: str = Field(default="", description="Resolver that succeeded (pubchem/cir/opsin)")
+    xyz_path: str = Field(default="", description="3D coordinate file path (when generate_3d=True and successful)")
+    message: str = Field(default="", description="Status or error message")
 
 
 async def _resolve_pubchem(name: str) -> Optional[dict]:

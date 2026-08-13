@@ -28,80 +28,80 @@ _R_L_ATM_MOL_K = 0.082057366080960
 
 
 description = (
-    "汇总多个量化输出的反应热化学：按带符号的化学计量系数组合 ΔE、ΔH 与 ΔG，"
-    "可把频率计算得到的 RRHO 校正叠加到更高水平单点能上。"
-    "raw_rrho 后端忠实使用日志中的 RRHO 热校正；goodvibes 后端显式调用 GoodVibes 做准谐振校正。"
-    "所有结果都记录温度、标准态、能量来源与后端，不把缺数据或缺 GoodVibes 静默当作完整结果。"
+    "Aggregate reaction thermochemistry from multiple QM outputs: combine ΔE, ΔH, and ΔG with signed stoichiometric coefficients; "
+    "RRHO corrections from a frequency job can be stacked on a higher-level single-point energy. "
+    "The raw_rrho backend uses the log's RRHO thermal corrections as-is; the goodvibes backend calls GoodVibes for quasi-harmonic corrections. "
+    "Every result records temperature, standard state, energy source, and backend; missing data or missing GoodVibes is never silently treated as a complete result."
 )
 
 
 class ThermoSpecies(BaseModel):
-    name: str = Field(description="物种唯一名称，用于表格和可选参考物。")
-    log_path: str = Field(description="包含频率与热化学摘要的 Gaussian 输出路径。")
+    name: str = Field(description="Unique species name, used in the table and as an optional reference.")
+    log_path: str = Field(description="Path of a Gaussian output that contains frequencies and a thermochemistry summary.")
     coefficient: float = Field(
-        description="带符号化学计量系数：反应物为负、产物为正；中间态比较也可直接给相对系数。"
+        description="Signed stoichiometric coefficient: negative for reactants, positive for products; relative coefficients are also fine for intermediate comparisons."
     )
     single_point_energy_hartree: Optional[float] = Field(
         default=None,
-        description="可选的更高水平电子单点能 (Hartree)。提供后，日志只贡献 H/G 的热校正。",
+        description="Optional higher-level electronic single-point energy (Hartree). When set, the log only contributes H/G thermal corrections.",
     )
 
 
 class ThermoAnalysis_input_schema(input_schema):
-    species: list[ThermoSpecies] = Field(min_length=1, description="参与汇总的物种及带符号系数。")
+    species: list[ThermoSpecies] = Field(min_length=1, description="Species in the aggregation, with signed coefficients.")
     backend: Literal["raw_rrho", "goodvibes"] = Field(
         default="raw_rrho",
-        description="raw_rrho：使用日志原始 RRHO；goodvibes：调用外部 GoodVibes 做 quasi-harmonic 校正。",
+        description="raw_rrho: use the log's original RRHO; goodvibes: call external GoodVibes for quasi-harmonic corrections.",
     )
-    temperature: float = Field(default=298.15, gt=0, description="热化学温度 (K)。")
+    temperature: float = Field(default=298.15, gt=0, description="Thermochemistry temperature (K).")
     standard_state: Literal["gas_1atm", "solution_1m", "solution_custom"] = Field(
         default="gas_1atm",
         description=(
-            "标准态。raw_rrho 的溶液标准态由日志压力做理想气体 1 atm→浓度修正；"
-            "GoodVibes 用 --conc/-c 重算（与 raw_rrho 同语义：gas 省略浓度，solution_1m→1.0 M）。"
+            "Standard state. For raw_rrho, solution states apply an ideal-gas 1 atm→concentration correction from the log pressure; "
+            "GoodVibes recomputes with --conc/-c (same semantics as raw_rrho: gas omits concentration, solution_1m→1.0 M)."
         ),
     )
     concentration_molar: Optional[float] = Field(
         default=None,
         gt=0,
-        description="solution_custom 的浓度 (mol/L)；solution_1m 固定为 1.0 mol/L。",
+        description="Concentration (mol/L) for solution_custom; solution_1m is fixed at 1.0 mol/L.",
     )
     reference_species: Optional[str] = Field(
         default=None,
-        description="可选参考物种名称；提供后，每个物种额外返回相对该物种的 E/H/G。",
+        description="Optional reference species name; when set, each species also returns E/H/G relative to it.",
     )
     qh_scheme: Literal["grimme", "truhlar"] = Field(
         default="grimme",
         description=(
-            "GoodVibes 准谐熵方案，映射 CLI `--qs`：grimme=mRRHO 插值（默认）；"
-            "truhlar=低频抬升。raw_rrho 不使用。假设 GoodVibes 3.x/4.x。"
+            "GoodVibes quasi-harmonic entropy scheme, mapped to CLI `--qs`: grimme=mRRHO interpolation (default); "
+            "truhlar=raise low frequencies. Unused by raw_rrho. Assumes GoodVibes 3.x/4.x."
         ),
     )
     frequency_cutoff_cm: float = Field(
         default=100.0,
         ge=0,
         description=(
-            "GoodVibes 准谐频率截断 (cm⁻¹)，映射 CLI `-f/--tau`（同时作用于熵与焓；"
-            "默认 100。`--fs` 仅为熵侧覆盖，本工具在 -q 下统一用 -f）。raw_rrho 不使用。"
+            "GoodVibes quasi-harmonic frequency cutoff (cm⁻¹), mapped to CLI `-f/--tau` (applies to both entropy and enthalpy; "
+            "default 100. `--fs` is entropy-only; this tool always uses -f under -q). Unused by raw_rrho."
         ),
     )
     frequency_scale_factor: Optional[float] = Field(
         default=None,
         gt=0,
-        description="GoodVibes 振动频率缩放因子；缺省时由 GoodVibes 自动判断或使用 1.0。",
+        description="GoodVibes vibrational frequency scale factor; if omitted, GoodVibes auto-detects or uses 1.0.",
     )
-    timeout: int = Field(default=600, gt=0, description="GoodVibes 子进程超时（秒）。")
+    timeout: int = Field(default=600, gt=0, description="GoodVibes subprocess timeout (seconds).")
 
 
 class ThermoAnalysis_output_schema(output_schema):
-    is_success: bool = Field(description="工具是否正常执行；科学材料不完整时仍可为 true。")
-    status: Literal["complete", "inconclusive"] = Field(description="热化学结果是否完整。")
-    species: list[dict] = Field(default_factory=list, description="各物种绝对 E/H/G、校正项与能量来源。")
-    reaction: dict = Field(default_factory=dict, description="按系数组合的 ΔE、ΔH、ΔG（Hartree 与 kcal/mol）。")
-    assumptions: list[str] = Field(default_factory=list, description="温度、标准态与校正模型假设。")
-    provenance: dict = Field(default_factory=dict, description="后端、命令、版本与是否发生 fallback。")
-    table: str = Field(default="", description="不含坐标的热化学数值表。")
-    message: str = Field(default="", description="状态或不完整原因。")
+    is_success: bool = Field(description="Whether the tool ran normally; may still be true when scientific material is incomplete.")
+    status: Literal["complete", "inconclusive"] = Field(description="Whether the thermochemistry result is complete.")
+    species: list[dict] = Field(default_factory=list, description="Absolute E/H/G, corrections, and energy source per species.")
+    reaction: dict = Field(default_factory=dict, description="ΔE, ΔH, ΔG combined by coefficients (Hartree and kcal/mol).")
+    assumptions: list[str] = Field(default_factory=list, description="Temperature, standard-state, and correction-model assumptions.")
+    provenance: dict = Field(default_factory=dict, description="Backend, command, version, and whether a fallback occurred.")
+    table: str = Field(default="", description="Thermochemistry numeric table without coordinates.")
+    message: str = Field(default="", description="Status or reason for incompleteness.")
 
 
 def _combine_species_records(records: list[dict]) -> dict[str, float]:

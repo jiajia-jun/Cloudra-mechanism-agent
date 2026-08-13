@@ -130,6 +130,6 @@ async def test_non_user_events_still_use_system_wrapper(tmp_path, monkeypatch):
     assert n > 0
     ctx = await agent.context_manager.load()
     assert any(
-        m.get("role") == "system" and str(m.get("content", "")).startswith("【subagent】")
+        m.get("role") == "system" and str(m.get("content", "")).startswith("[subagent]")
         for m in ctx
     )

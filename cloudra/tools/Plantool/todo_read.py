@@ -22,19 +22,19 @@ class TodoRead_input_schema(input_schema):
 
 
 class TodoRead_output_schema(output_schema):
-    result: str = Field(description="目标锚点与任务清单的可读文本。")
-    todos: list = Field(default_factory=list, description="任务清单。")
-    goal: dict = Field(default_factory=dict, description="目标锚点（未设定时为空 dict）。")
+    result: str = Field(description="Readable text of the goal anchor and task list.")
+    todos: list = Field(default_factory=list, description="Task list.")
+    goal: dict = Field(default_factory=dict, description="Goal anchor (empty dict if unset).")
 
 
 class TodoRead(Tool):
     tool_id: str = 't-42'
     tool_name: str = 'todo_read'
     tool_description: str = (
-        "查看当前任务清单（todo list）与目标锚点。\n"
-        "适用场景：多步骤任务中每轮开始前查看自己维护的清单，确认当前进行中的任务；"
-        "上下文被压缩或长时间执行后重新取回计划，避免偏离目标。\n"
-        "注意：本工具只读不写；更新清单请用 todo_write，设定目标请用 goal_set。"
+        "Read the current todo list and goal anchor.\n"
+        "Use when: at the start of a round in a multi-step task, to check the list you maintain and confirm the in-progress item; "
+        "or after context compaction / a long run, to recover the plan and avoid drifting off the goal.\n"
+        "Note: this tool is read-only; update the list with todo_write, set the goal with goal_set."
     )
     input_schema: Any = TodoRead_input_schema
     output_schema: Any = TodoRead_output_schema

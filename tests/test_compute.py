@@ -202,7 +202,7 @@ def test_check_job_type_missing_executable(tmp_path, monkeypatch):
     monkeypatch.setattr("cloudra.infra.compute_utils.shutil.which", lambda _bin: None)
     ok, msg = check_job_type("gaussian", str(empty_dir))
     assert ok is False
-    assert "缺少" in msg
+    assert "missing" in msg
 
 
 def test_check_job_type_gaussian_in_path(tmp_path, monkeypatch):
@@ -401,7 +401,7 @@ async def test_submit_compute_job_sync_success(isolated_db, mock_calc_workdir):
     assert result.is_success is True
     assert result.state == "done"
     assert result.job_dir == mock_calc_workdir
-    assert "运行完毕" in result.message
+    assert "Job finished" in result.message
 
 
 @pytest.mark.asyncio
@@ -417,7 +417,7 @@ async def test_submit_compute_job_sync_failure(isolated_db, mock_calc_workdir_fa
     )
 
     assert result.is_success is False
-    assert "运行计算任务失败" in result.message
+    assert "Compute job failed" in result.message
 
 
 @pytest.mark.asyncio
@@ -439,7 +439,7 @@ async def test_submit_compute_job_missing_executable(isolated_db, tmp_path, monk
     )
 
     assert result.is_success is False
-    assert "缺少" in result.message
+    assert "missing" in result.message
 
 
 @pytest.mark.asyncio
@@ -516,7 +516,7 @@ async def test_query_compute_job_list_and_missing(isolated_db, mock_calc_workdir
 
     missing = await query.tool_call(QueryComputeJob_input_schema(job_id=99999), session=None)
     assert missing.is_success is False
-    assert "未找到" in missing.message
+    assert "No compute job found" in missing.message
 
 
 @pytest.mark.asyncio
@@ -534,7 +534,7 @@ async def test_submit_compute_job_cp2k_sync_success(isolated_db, mock_cp2k_workd
     assert result.is_success is True
     assert result.state == "done"
     assert result.job_dir == mock_cp2k_workdir
-    assert "运行完毕" in result.message
+    assert "Job finished" in result.message
 
 
 def test_calculator_script_cp2k(tmp_path, monkeypatch):

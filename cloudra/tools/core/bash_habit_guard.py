@@ -42,23 +42,23 @@ LONG_CONTEXT_RATIO = 0.5
 CONSECUTIVE_BASH_WARN = 3
 
 _FILE_WRITE_GUIDANCE = (
-    "你正在用 bash 写/改工作区文件（重定向 / heredoc / tee / 原地编辑），这绕开了 "
-    "text_writer / edit_file 的文件变更审批、产物记录与 DAG 证据链。已有文件用 "
-    "text_reader + edit_file，新建文件用 text_writer；不要用 bash 绕过这些结构化"
-    "工具，也不要尝试绕过 DAG 系统。"
+    "You are using bash to write/edit workspace files (redirect / heredoc / tee / in-place edit), which bypasses "
+    "text_writer / edit_file file-change approval, artifact recording, and the DAG evidence chain. Use "
+    "text_reader + edit_file for existing files and text_writer for new files; do not use bash to bypass these "
+    "structured tools, and do not try to bypass the DAG system."
 )
 
 _COMPUTE_GUIDANCE = (
-    "量化计算应走结构化工具提交：submit_compute_job（gaussian/vasp/orca/cp2k）"
-    "异步调度，conformer_search / electronic_analysis 负责构象与电子性质。直接命令行"
-    "执行绕开计算调度与证据记录，作为 DAG 证据挂接时可能不被采信；不要尝试绕过 "
-    "DAG 系统。"
+    "Quantum chemistry should go through structured tools: submit_compute_job (gaussian/vasp/orca/cp2k) "
+    "for async scheduling; conformer_search / electronic_analysis for conformers and electronic properties. "
+    "Direct CLI execution bypasses compute scheduling and evidence recording, and may not be accepted as DAG evidence; "
+    "do not try to bypass the DAG system."
 )
 
 _GENERAL_GUIDANCE = (
-    "长上下文下你连续使用 bash，容易习惯性回退命令行、绕开文件审批与计算调度。"
-    "写/改文件用 text_writer / edit_file，量化计算用 submit_compute_job 等结构化"
-    "工具；不要尝试用 bash 绕过化学工具或 DAG 系统。"
+    "Under long context you have used bash repeatedly, which tends to fall back to the CLI and bypass file approval and compute scheduling. "
+    "Write/edit files with text_writer / edit_file, and run quantum chemistry with submit_compute_job and other structured "
+    "tools; do not use bash to bypass chemistry tools or the DAG system."
 )
 
 
@@ -157,7 +157,7 @@ def bash_file_write_warning(command: str) -> str | None:
     if not tokens:
         return None
     if _is_inplace_edit(tokens) or _is_content_write(tokens):
-        return f"【警告：疑似 bash 习惯】{_FILE_WRITE_GUIDANCE}"
+        return f"[Warning: suspected bash habit] {_FILE_WRITE_GUIDANCE}"
     return None
 
 
@@ -195,7 +195,7 @@ def bash_habit_warning(
         return None
     program = _direct_compute_program(command)
     if program:
-        return f"【警告：疑似 bash 习惯】长上下文下直接命令行调用 {program}。{_COMPUTE_GUIDANCE}"
+        return f"[Warning: suspected bash habit] Direct CLI call to {program} under long context. {_COMPUTE_GUIDANCE}"
     if consecutive_bash >= CONSECUTIVE_BASH_WARN:
-        return f"【警告：疑似 bash 习惯】已连续 {consecutive_bash} 次调用 bash。{_GENERAL_GUIDANCE}"
+        return f"[Warning: suspected bash habit] {consecutive_bash} consecutive bash calls. {_GENERAL_GUIDANCE}"
     return None

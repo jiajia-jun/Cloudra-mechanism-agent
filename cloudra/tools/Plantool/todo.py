@@ -19,38 +19,38 @@ _VALID_STATUSES = ("pending", "in_progress", "done")
 class TodoItem(BaseModel):
     """单条任务项。更新已有任务时必须带上原 id，否则会被当成新任务。"""
 
-    content: str = Field(description="任务内容，一句话描述。")
+    content: str = Field(description="Task content, one sentence.")
     status: Literal["pending", "in_progress", "done"] = Field(
         default="pending",
-        description="任务状态：pending（未开始）/ in_progress（进行中）/ done（已完成）。",
+        description="Task status: pending (not started) / in_progress (in progress) / done (completed).",
     )
     id: str = Field(
         default="",
-        description="任务 id。新建任务留空（自动分配）；更新已有任务时填原 id。",
+        description="Task id. Leave empty for a new task (auto-assigned); pass the original id when updating an existing task.",
     )
 
 
 class TodoWrite_input_schema(input_schema):
     todos: list[TodoItem] = Field(
-        description="完整任务清单（整体替换，不是增量）。传空列表可清空清单。"
+        description="Full task list (wholesale replace, not incremental). Pass an empty list to clear the list."
     )
 
 
 class TodoWrite_output_schema(output_schema):
-    result: str = Field(description="工具执行结果。")
-    todos: list[dict] = Field(description="更新后的完整任务清单。")
+    result: str = Field(description="Tool result.")
+    todos: list[dict] = Field(description="Updated full task list.")
 
 
 class TodoWrite(Tool):
     tool_id: str = 't-40'
     tool_name: str = 'todo_write'
     tool_description: str = (
-        "管理工作清单（todo list），用于跟踪多步骤任务的进度。\n"
-        "适用场景：任务需要 3 步以上或多轮工具调用时，先建立清单再逐项推进；"
-        "每完成一项立即更新状态，开始新任务前把对应项置为 in_progress。"
-        "同一时刻只允许一项为 in_progress。\n"
-        "注意：每次调用整体替换清单（更新已有任务需带上原 id）；"
-        "单步即可完成的简单任务不要使用本工具。"
+        "Manage the todo list used to track progress on multi-step tasks.\n"
+        "Use when: the task needs 3+ steps or multiple tool-call rounds — build the list first, then work through it; "
+        "update status as soon as an item is done, and set the next item to in_progress before starting it. "
+        "Only one item may be in_progress at a time.\n"
+        "Note: each call replaces the whole list (include the original id when updating an existing item); "
+        "do not use this tool for a simple one-step task."
     )
     input_schema: Any = TodoWrite_input_schema
     output_schema: Any = TodoWrite_output_schema
@@ -84,14 +84,14 @@ class TodoWrite(Tool):
     def _format(todos: list[dict]) -> str:
         """渲染为可读清单文本（回传给 LLM，也可供前端直接展示）。"""
         if not todos:
-            return "（清单为空）"
+            return "(empty list)"
         icon = {"pending": "○", "in_progress": "◐", "done": "●"}
         lines = [
             f"{icon.get(t['status'], '?')} [{t['id']}] {t['content']} ({t['status']})"
             for t in todos
         ]
         done = sum(1 for t in todos if t["status"] == "done")
-        return "\n".join(lines) + f"\n进度: {done}/{len(todos)} 已完成"
+        return "\n".join(lines) + f"\nProgress: {done}/{len(todos)} done"
 
     async def tool_call(
         self,
@@ -106,7 +106,7 @@ class TodoWrite(Tool):
         formatted = self._format(todos)
         await self.record_session_event(session, "todo_updated", {"todos": todos})
         return TodoWrite_output_schema(
-            result=f"任务清单已更新（共 {len(todos)} 项）：\n{formatted}",
+            result=f"Todo list updated ({len(todos)} items):\n{formatted}",
             todos=todos,
         )
 

@@ -8,28 +8,28 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import WorkspaceError, WorkspaceService
 
 description = (
-    "安全读取 Agent 工作目录内的 UTF-8 文本文件，返回内容切片与完整文件 sha256；"
-    "支持指定起始行与结束行进行切片。"
-    "适用：查看代码、日志、配置等文本文件；也是 edit_file / text_writer 修改前的必经步骤。"
-    "不适用：二进制文档（PDF/Word 用 pdf2md）、图片（用 image_reader）。"
-    "注意：修改文件前必须先调用本工具获取最新 sha256。"
+    "Safely read a UTF-8 text file in the Agent working directory; returns a content slice and the full-file sha256. "
+    "Supports slicing by start and end line. "
+    "Use for: viewing code, logs, configs, and other text files; also required before edit_file / text_writer. "
+    "Do not use for: binary documents (PDF/Word via pdf2md) or images (use image_reader). "
+    "Note: you must call this tool to get the latest sha256 before modifying a file."
 )
 
 
 class TextReader_input_schema(input_schema):
-    filepath: str = Field(description="相对 Agent 工作目录的文件路径")
-    start_line: int = Field(default=0, description="起始行号，左闭，从 0 开始")
-    end_line: int = Field(default=-1, description="结束行号，左开；-1 表示读到末尾")
+    filepath: str = Field(description="File path relative to the Agent working directory")
+    start_line: int = Field(default=0, description="Start line, inclusive, 0-based")
+    end_line: int = Field(default=-1, description="End line, exclusive; -1 means read to EOF")
 
 
 class TextReader_output_schema(output_schema):
-    content: str = Field(description="读取到的文本内容")
-    filepath: str = Field(default="", description="规范化后的工作区相对路径")
-    sha256: str = Field(default="", description="完整文件原始字节的 SHA256")
-    total_lines: int = Field(default=0, description="完整文件总行数")
-    start_line: int = Field(default=0, description="实际切片起始行")
-    end_line: int = Field(default=0, description="实际切片结束行")
-    message: str = Field(default="", description="错误或状态信息")
+    content: str = Field(description="Text content that was read")
+    filepath: str = Field(default="", description="Normalized workspace-relative path")
+    sha256: str = Field(default="", description="SHA256 of the full file's raw bytes")
+    total_lines: int = Field(default=0, description="Total line count of the full file")
+    start_line: int = Field(default=0, description="Actual slice start line")
+    end_line: int = Field(default=0, description="Actual slice end line")
+    message: str = Field(default="", description="Error or status message")
 
 
 class TextReader(Tool):

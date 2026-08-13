@@ -15,35 +15,36 @@ from cloudra.core.agent import Agent
 from cloudra.tools.Plantool._store import agent_store_path, save_json
 
 # 目标锚点消息的内容前缀：重复设定时据此识别并替换旧锚点
-GOAL_MARKER = "【任务目标】"
+GOAL_MARKER = "[Task goal]"
 
 
 class GoalSet_input_schema(input_schema):
-    objective: str = Field(description="一句话说明当前任务要达成什么。")
+    objective: str = Field(description="One sentence: what this task should achieve.")
     completion_criteria: str = Field(
         default="",
-        description="可验证的完成判据（什么样算做完）。建议填写，避免目标含糊。",
+        description="Verifiable completion criteria (what counts as done). Recommended, to keep the goal concrete.",
     )
     current_focus: str = Field(
         default="",
-        description="当前阶段的聚焦点（可选，用于长任务中途校正方向）。",
+        description="Focus of the current stage (optional; used to correct direction mid-task).",
     )
 
 
 class GoalSet_output_schema(output_schema):
-    result: str = Field(description="工具执行结果。")
-    goal: dict = Field(description="更新后的完整目标锚点。")
+    result: str = Field(description="Tool result.")
+    goal: dict = Field(description="The updated full goal anchor.")
 
 
 class GoalSet(Tool):
     tool_id: str = 't-41'
     tool_name: str = 'goal_set'
     tool_description: str = (
-        "设定或更新当前任务的目标锚点。\n"
-        "适用场景：长任务开始时明确目标与完成判据；方向调整或阶段切换时更新。"
-        "设定后目标会作为系统提示固定在上下文中（重复设定替换旧锚点），"
-        "即使历史被压缩也能持续参考。\n"
-        "单步即可完成的简单任务不要使用本工具。"
+        "Set or update the current task's goal anchor.\n"
+        "Use when: a long task starts and you need a clear objective and completion criteria; "
+        "or when direction changes or a new stage begins. "
+        "Once set, the goal is pinned as a system message (a later set replaces the old anchor), "
+        "so it remains available even after history is compacted.\n"
+        "Do not use this tool for a simple one-step task."
     )
     input_schema: Any = GoalSet_input_schema
     output_schema: Any = GoalSet_output_schema
@@ -53,9 +54,9 @@ class GoalSet(Tool):
     def _format(goal: dict) -> str:
         lines = [f"{GOAL_MARKER} {goal['objective']}"]
         if goal.get("completion_criteria"):
-            lines.append(f"完成判据: {goal['completion_criteria']}")
+            lines.append(f"Completion criteria: {goal['completion_criteria']}")
         if goal.get("current_focus"):
-            lines.append(f"当前聚焦: {goal['current_focus']}")
+            lines.append(f"Current focus: {goal['current_focus']}")
         return "\n".join(lines)
 
     async def _pin_to_context(self, goal: dict) -> None:
@@ -90,7 +91,7 @@ class GoalSet(Tool):
         await self._pin_to_context(goal)
         await self.record_session_event(session, "goal_updated", {"goal": goal})
         return GoalSet_output_schema(
-            result=f"目标锚点已设定：\n{self._format(goal)}",
+            result=f"Goal anchor set:\n{self._format(goal)}",
             goal=goal,
         )
 

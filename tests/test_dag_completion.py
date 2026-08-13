@@ -263,8 +263,8 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
     guided = api["build_projection"](
         snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
     ).to_prompt_text()
-    assert "当前编排模式: dag_guided" in guided
-    assert "Supervisor 会被自动唤醒" in guided
+    assert "Current orchestration mode: dag_guided" in guided
+    assert "Supervisor is woken automatically" in guided
     assert "proposed" in guided and "ready" in guided
     assert "status_filter=ready" in guided or "frontier" in guided
     assert "SOP" in guided
@@ -273,8 +273,8 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
     record = api["build_projection"](
         snapshot, mode="dag_record", contract=api["CoverageContract"].mechanism_default()
     ).to_prompt_text()
-    assert "当前编排模式: dag_record" in record
-    assert "Supervisor 不在线" in record
+    assert "Current orchestration mode: dag_record" in record
+    assert "Supervisor is offline" in record
     # record 模式子 agent 的自管理职责：回报指派节点、补挂证据带 role
     assert "assignee" in record
     assert "evidence_role" in record

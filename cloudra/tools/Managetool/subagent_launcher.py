@@ -15,56 +15,56 @@ from cloudra.tools.Managetool._subagent_dispatch import (
 _run_subagent_in_process = run_subagent_in_process
 
 description = (
-    "启动子 Agent 执行特定任务。Coordinator 可将复杂任务拆分为多个子任务。\n"
-    "重要指南：\n"
-    "- **绝对路径**: 必须在 query 或 context 中提供工作目录的绝对路径。\n"
-    "- **安全提示**: 系统已开启【安全审计】。除 explorer 外所有子 Agent 均可执行写入/脚本/删除操作，请指导它们在 Thought 中详细说明意图、影响范围与回滚方案以辅助审批。\n"
-    "- **任务定义**: 任务描述需极其明确，指定要使用的工具，并明确禁止子 Agent 使用与其任务无关的工具。\n"
-    "- **AgentHub**: 子 Agent 可通过 `agent_hub` 工具与其他并行 Agent 共享发现/提问/回答，也可用 to_agent 点名留言（帖子公开，被点名/被回复者会收到通知）。并行派发有重叠风险的任务时，提醒它们先查 hub、结论发 hub。\n"
-    "- **agent_id 必须是唯一标识符**: 调用时只能传入类似 a-1、a-2 的 id，不能传 explorer、writer 等名称；同一 agent_id 可以对不同任务重复派发以实现并行；批量并行建议用 SubAgentSwarm（t-47）。\n"
-    "可用的子 Agent:\n"
-    "1. explorer (a-1): 探索+审查。摸清项目结构、定位文件；只读审查代码/文档/数据，输出带证据的审查报告。只读。\n"
-    "2. writer (a-2): 论文写作与文档产出。写报告、论文、文档。需通过安全审计。\n"
-    "3. researcher (a-3): 文献查阅。学术检索、方法论拆解、文献对标。全权限，危险操作需严审。\n"
-    "4. small_mol (a-4): 小分子计算。Gaussian/ORCA 等分子/团簇量化计算：构象、过渡态、光谱、能量。\n"
-    "5. md (a-5): 分子动力学。GROMACS/LAMMPS 体系构建、平衡、采样与轨迹分析。\n"
-    "6. dft (a-6): 第一性原理。VASP/QE 等周期体系计算：体相、表面、缺陷、电子性质。\n"
-    "7. experiment (a-7): 实验设计。DOE、对照设计、表征矩阵、安全评估与失败诊断。\n"
-    "8. env (a-8): 环境管理。依赖安装、conda/虚拟环境、编译配置、HPC 作业环境。全权限，需严审。"
+    "Launch a sub-agent to run a specific task. The Coordinator may split a complex job into subtasks.\n"
+    "Important guidelines:\n"
+    "- **Absolute paths**: you must provide the working directory's absolute path in query or context.\n"
+    "- **Safety**: a security audit is enabled. All sub-agents except explorer may write/script/delete; instruct them to spell out intent, blast radius, and rollback in Thought to aid approval.\n"
+    "- **Task definition**: the task description must be extremely specific: name the tools to use, and explicitly forbid tools unrelated to the task.\n"
+    "- **AgentHub**: sub-agents can share findings/questions/answers with other parallel Agents via `agent_hub`, and can address someone with to_agent (posts are public; addressees and authors of replied-to posts are notified). When dispatching overlapping work, tell them to check the hub first and post conclusions to the hub.\n"
+    "- **agent_id must be a unique identifier**: pass ids such as a-1, a-2 — not names like explorer or writer; the same agent_id may be dispatched repeatedly for different tasks to run in parallel; for batch parallelism prefer SubAgentSwarm (t-47).\n"
+    "Available sub-agents:\n"
+    "1. explorer (a-1): explore + review. Map project structure and locate files; read-only review of code/docs/data with an evidence-backed report. Read-only.\n"
+    "2. writer (a-2): papers and documents. Write reports, papers, docs. Must pass the security audit.\n"
+    "3. researcher (a-3): literature. Academic search, method breakdown, literature comparison. Full permissions; dangerous ops need strict review.\n"
+    "4. small_mol (a-4): small-molecule compute. Gaussian/ORCA molecular/cluster QM: conformers, TS, spectra, energies.\n"
+    "5. md (a-5): molecular dynamics. GROMACS/LAMMPS system build, equilibration, sampling, and trajectory analysis.\n"
+    "6. dft (a-6): first-principles. VASP/QE periodic systems: bulk, surfaces, defects, electronic properties.\n"
+    "7. experiment (a-7): experimental design. DOE, controls, characterization matrix, safety assessment, and failure diagnosis.\n"
+    "8. env (a-8): environment management. Dependency install, conda/venvs, build config, HPC job environments. Full permissions; strict review."
 )
 
 
 class SubAgentLauncher_input_schema(input_schema):
-    agent_id: str = Field(description="要启动的子 Agent 唯一标识符（id），例如 a-1、a-2、a-3，不能传名称如 explorer、writer")
+    agent_id: str = Field(description="Unique id of the sub-agent to launch, e.g. a-1, a-2, a-3 — not a name such as explorer or writer")
     query: str = Field(
         description=(
-            "任务描述。这里只写当前任务需要什么，不要写子 Agent 的身份信息（系统已通过 prompt 注入）。"
-            "必须包含：任务目标、必要的绝对路径/输入数据、允许使用的工具、禁止使用的工具、输出格式要求、完成标准。"
+            "Task description. Write only what this task needs, not the sub-agent's identity (already injected via prompt). "
+            "Must include: goal, required absolute paths/input data, allowed tools, forbidden tools, output format, and done criteria."
         )
     )
     context: list = Field(
         default_factory=list,
         description=(
-            "提供给子 Agent 的初始上下文信息列表。"
-            "列表中的每个元素必须是标准消息字典，格式为 {\"role\": \"user\"/\"system\"/\"assistant\", \"content\": \"...\"}，"
-            "不要传入纯字符串。"
+            "Initial context messages for the sub-agent. "
+            "Each element must be a standard message dict {\"role\": \"user\"/\"system\"/\"assistant\", \"content\": \"...\"}; "
+            "do not pass plain strings."
         )
     )
     is_wait: bool = Field(
         default=False,
-        description="是否等待子 Agent 执行完毕。若为 True，工具将阻塞直至任务完成并返回结果；若为 False，则仅发射任务并立即返回。"
+        description="Whether to wait until the sub-agent finishes. True blocks until the task completes and returns the result; False fires the task and returns immediately."
     )
 
 
 class toSQLite3_output_schema(output_schema):
-    is_success: bool = Field(description="是否成功创建任务记录")
-    session_id: str = Field(description="子 Agent 的 Session ID")
+    is_success: bool = Field(description="Whether the task record was created")
+    session_id: str = Field(description="Sub-agent Session ID")
 
 
 class SubAgentLauncher_output_schema(output_schema):
-    session_id: str = Field(description="子 Agent 的 Session ID")
-    act_agent: str = Field(description="实际执行任务的 Agent 名称")
-    result: str = Field(description="子 Agent 的最终返回结果")
+    session_id: str = Field(description="Sub-agent Session ID")
+    act_agent: str = Field(description="Name of the Agent that actually ran the task")
+    result: str = Field(description="Sub-agent's final result")
 
 
 class SubAgentLauncher(Tool):
@@ -89,7 +89,7 @@ class SubAgentLauncher(Tool):
             return SubAgentLauncher_output_schema(
                 session_id="error",
                 act_agent="none",
-                result=f"【系统错误】无法加载子 Agent 映射表: {str(e)}"
+                result=f"[System error] Failed to load sub-agent mapping: {str(e)}"
             )
 
         agent_id = input_instance.agent_id

@@ -38,13 +38,13 @@ MIN_COORD_LINES = 3
 # 结构化坐标来源提示 + 绕开审查的定性：手写坐标不与计算记录绑定，
 # 挂 DAG 证据时可能不被采信，也绕过了 supervisor 对证据等级的审查。
 _GUIDANCE = (
-    "坐标应来自工具，不要逐字键入或凭记忆转录："
-    "结构生成用 smiles_to_mol / conformer_search；从计算日志提取坐标用 "
-    "format_converter（log→xyz）或 log_parser；Gaussian 输入优先用 gjf_writer "
-    "生成；几何微调走 internal_coordinates 的 Z-matrix 流程。"
-    "用 bash 手写坐标意味着试图绕过 supervisor 对机理证据的审查：手写坐标不绑定"
-    "任何计算记录，作为 DAG 证据挂接时可能不被采信。"
-    "不要再用 bash 绕过化学工具，也不要尝试绕过 DAG 系统。"
+    "Coordinates should come from tools; do not type them by hand or transcribe from memory: "
+    "use smiles_to_mol / conformer_search for structure generation; extract coordinates from compute logs with "
+    "format_converter (log→xyz) or log_parser; prefer gjf_writer for Gaussian input; "
+    "geometry tweaks should use the internal_coordinates Z-matrix flow. "
+    "Hand-writing coordinates with bash means trying to bypass Supervisor review of mechanism evidence: handwritten coordinates are not bound "
+    "to any compute record and may not be accepted as DAG evidence. "
+    "Do not use bash to bypass chemistry tools, and do not try to bypass the DAG system."
 )
 
 
@@ -82,5 +82,5 @@ def handwritten_coord_warning(text: str, *, path: str | None) -> str | None:
     else:
         if not any(ext in text.lower() for ext in _GEOMETRY_EXTENSIONS):
             return None
-        target = "几何/计算输入文件"
-    return f"【警告：疑似手写坐标】向 {target} 写入了逐字键入的坐标块。{_GUIDANCE}"
+        target = "a geometry/compute input file"
+    return f"[Warning: suspected handwritten coordinates] Wrote a typed-in coordinate block to {target}. {_GUIDANCE}"

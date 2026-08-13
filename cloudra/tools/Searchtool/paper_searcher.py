@@ -6,32 +6,32 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通过 arXiv API 检索学术论文预印本，返回标题、DOI、摘要等结构化结果。"
-    "适用：追踪最新预印本、按提交/更新时间监控某主题进展。"
-    "不适用：正式发表文献的全库检索（用 openalex_searcher）、非学术网页（用 web_search）、"
-    "已定位 PDF 的内容提取（用 web_fetcher 下载后交 pdf2md）。"
+    "Search arXiv preprints via the arXiv API; returns structured title, DOI, abstract, etc. "
+    "Use for: tracking new preprints or monitoring a topic by submit/update time. "
+    "Do not use for: full-corpus search of published literature (use openalex_searcher), non-academic web pages (use web_search), "
+    "or extracting content from a known PDF (download with web_fetcher then pdf2md)."
 )
 
 
 class PaperSearcher_input_schema(input_schema):
-    query: str = Field(description="搜索关键词")
-    max_results: int = Field(default=10, description="最大返回结果数")
+    query: str = Field(description="Search keywords")
+    max_results: int = Field(default=10, description="Maximum number of results")
     sort_by: str = Field(
         default="Relevance",
-        description="排序方式：Relevance（相关度）/ SubmittedDate（提交时间）/ LastUpdatedDate（更新时间）"
+        description="Sort by: Relevance / SubmittedDate / LastUpdatedDate"
     )
     sort_order: str = Field(
         default="Descending",
-        description="排序顺序：Ascending（升序）/ Descending（降序）"
+        description="Sort order: Ascending / Descending"
     )
     mode: str = Field(
         default="normal",
-        description="展示模式：light（仅标题、期刊、DOI）/ normal（加摘要）/ weight（加作者、分类、PDF 链接等全部信息）"
+        description="Display mode: light (title, journal, DOI only) / normal (plus abstract) / weight (plus authors, categories, PDF links, and all other fields)"
     )
 
 
 class PaperSearcher_output_schema(output_schema):
-    content: list = Field(description="搜索结果列表，每个元素为一个论文信息字典")
+    content: list = Field(description="Search results; each item is a paper-info dict")
 
 
 class PaperSearcher(Tool):

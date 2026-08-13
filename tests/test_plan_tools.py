@@ -58,7 +58,7 @@ class TestTodoWrite:
 
         assert len(out.todos) == 2
         assert out.todos[0]["id"]  # 自动分配 id
-        assert "进度: 0/2 已完成" in out.result
+        assert "Progress: 0/2 done" in out.result
         # 落盘
         stored = _read_store(agent, "todos.json")
         assert [t["content"] for t in stored] == ["查文献", "跑计算"]
@@ -113,14 +113,14 @@ class TestTodoRead:
         )
 
         out = await TodoRead(subagent=agent).tool_call(TodoRead_input_schema(), mock_session)
-        assert "【任务目标】 完成 XX 体系的 DFT 计算" in out.result
+        assert "[Task goal] 完成 XX 体系的 DFT 计算" in out.result
         assert "查文献" in out.result
         assert out.todos[0]["content"] == "查文献"
         assert out.goal["objective"] == "完成 XX 体系的 DFT 计算"
 
     async def test_read_empty_when_no_plan(self, agent, mock_session):
         out = await TodoRead(subagent=agent).tool_call(TodoRead_input_schema(), mock_session)
-        assert "清单为空" in out.result
+        assert "empty list" in out.result
         assert out.todos == []
         assert out.goal == {}
 
@@ -253,17 +253,17 @@ class TestGoalConfirm:
         kwargs = await agent._build_request_kwargs()
         notices = [
             m for m in kwargs["messages"]
-            if m.get("role") == "system" and "再次调用 stop" in str(m.get("content", ""))
+            if m.get("role") == "system" and "call stop again" in str(m.get("content", ""))
         ]
         assert notices
         text = str(notices[0].get("content", ""))
-        assert "优先" in text
-        assert "用户" in text
-        assert "来电" in text
+        assert "Answer the user first" in text
+        assert "user" in text.lower()
+        assert "Incoming call" in text
         # 非一次性：下一轮仍应注入（直到模型再次 stop）
         kwargs2 = await agent._build_request_kwargs()
         assert any(
-            m.get("role") == "system" and "再次调用 stop" in str(m.get("content", ""))
+            m.get("role") == "system" and "call stop again" in str(m.get("content", ""))
             for m in kwargs2["messages"]
         )
 
@@ -276,7 +276,7 @@ class TestGoalConfirm:
 
         kwargs = await agent._build_request_kwargs()
         assert not any(
-            "再次调用 stop" in str(m.get("content", "")) for m in kwargs["messages"]
+            "call stop again" in str(m.get("content", "")) for m in kwargs["messages"]
         )
 
 
@@ -299,7 +299,7 @@ class TestGoalSet:
             if m.get("role") == "system" and str(m.get("content", "")).startswith(GOAL_MARKER)
         ]
         assert len(goals) == 1
-        assert "完成判据" in goals[0]["content"]
+        assert "Completion criteria" in goals[0]["content"]
 
     async def test_second_set_replaces_old_anchor(self, agent, mock_session):
         await agent.get_context()

@@ -53,8 +53,8 @@ TEMPLATE_PROCESS_NODE_IDS = frozenset(
 TEMPLATE_DELIVERY_NODE_IDS = frozenset({"occ_reactants", "occ_products"})
 TEMPLATE_DELIVERY_PLACEHOLDER_LABELS = frozenset(
     {
-        "反应物（待填 SMILES/说明）",
-        "产物（待填 SMILES/说明）",
+        "Reactants (SMILES/notes to fill)",
+        "Products (SMILES/notes to fill)",
     }
 )
 
@@ -62,26 +62,26 @@ TEMPLATE_DELIVERY_PLACEHOLDER_LABELS = frozenset(
 EARLY_RESEARCH_SUBAGENT_IDS = frozenset({"a-1", "a-3"})
 
 GUIDED_BLOCK_MESSAGE = (
-    "【DAG 门槛】dag_guided 模式下，派子 Agent、写/改文件、解析计算日志、"
-    "提交计算任务等实质性操作前，必须先创建 DAG（process 或 delivery 至少一侧有节点）。"
-    "请先调用 dag_graph：优先 action=init_from_template，或用 mutate 添加节点。"
-    "smiles_to_mol / image_to_smiles / name_to_structure 等建图用结构工具不受此限。"
+    "[DAG gate] In dag_guided mode, before dispatching a sub-agent, writing/editing files, parsing compute logs, "
+    "or submitting compute jobs, you must create a DAG first (at least one node on process or delivery). "
+    "Call dag_graph: prefer action=init_from_template, or mutate to add nodes. "
+    "Structure tools used to build the graph (smiles_to_mol / image_to_smiles / name_to_structure) are not gated."
 )
 
 GUIDED_WORKFLOW_BLOCK_MESSAGE = (
-    "【DAG 工作流门槛】dag_guided 下，写/改文件、开算、派计算类子 Agent 之前，"
-    "须先完成：① mutate 提交初步机理（delivery 非模板占位）；"
-    "② 等待 Supervisor 审核并在 process 上安排非模板计划任务。"
-    "初调调研可派 explorer(a-1) / researcher(a-3)；"
-    "按 process 拆解后再派 small_mol/dft 等计算子 Agent。"
-    "log_parser 等会自动维护图；意外情况可用 bind_evidence；"
-    "机理覆盖满足后方可交付。"
+    "[DAG workflow gate] In dag_guided mode, before writing/editing files, starting compute, or dispatching a compute sub-agent, "
+    "you must: (1) mutate a preliminary mechanism (delivery is not template placeholders); "
+    "(2) wait for Supervisor review and non-template planned work on process. "
+    "Early scouting may dispatch explorer(a-1) / researcher(a-3); "
+    "dispatch small_mol/dft compute sub-agents only after process is broken down. "
+    "log_parser and similar tools maintain the graph automatically; use bind_evidence for unexpected cases; "
+    "deliver only after mechanism coverage is satisfied."
 )
 
 RECORD_WARN_MESSAGE = (
-    "【DAG 提醒】dag_record 模式下建议先建图再执行实质性操作"
-    "（当前 process/delivery 均为空）。可用 dag_graph action=init_from_template。"
-    "本次调用已放行。"
+    "[DAG note] In dag_record mode, build the graph before substantive work "
+    "(process/delivery are both empty). Use dag_graph action=init_from_template. "
+    "This call was allowed."
 )
 
 

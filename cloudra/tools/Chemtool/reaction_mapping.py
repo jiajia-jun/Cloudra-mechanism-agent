@@ -622,21 +622,21 @@ def _bind_concrete_structures(user_input, mapping_result: dict) -> dict:
 
 
 class ReactionMapping_input_schema(input_schema):
-    reactant_smiles: str = Field(description="反应物 SMILES。")
-    product_smiles: str = Field(description="产物 SMILES。")
-    selected_candidate: int = Field(default=0, description="选择的候选映射序号（0-based）。")
-    reactant_path: Optional[str] = Field(default=None, description="反应物具体结构路径（mol/sdf/xyz）。")
-    reactant_text: Optional[str] = Field(default=None, description="反应物具体结构文本。路径优先。")
-    product_path: Optional[str] = Field(default=None, description="产物具体结构路径（mol/sdf/xyz）。")
-    product_text: Optional[str] = Field(default=None, description="产物具体结构文本。路径优先。")
+    reactant_smiles: str = Field(description="Reactant SMILES.")
+    product_smiles: str = Field(description="Product SMILES.")
+    selected_candidate: int = Field(default=0, description="Selected mapping-candidate index (0-based).")
+    reactant_path: Optional[str] = Field(default=None, description="Path of a concrete reactant structure (mol/sdf/xyz).")
+    reactant_text: Optional[str] = Field(default=None, description="Concrete reactant structure text. Path takes precedence.")
+    product_path: Optional[str] = Field(default=None, description="Path of a concrete product structure (mol/sdf/xyz).")
+    product_text: Optional[str] = Field(default=None, description="Concrete product structure text. Path takes precedence.")
     reactant_format: Literal["auto", "mol", "sdf", "xyz"] = "auto"
     product_format: Literal["auto", "mol", "sdf", "xyz"] = "auto"
-    reactant_charge: int = Field(default=0, description="反应物总电荷，XYZ 键级推断时使用。")
-    product_charge: int = Field(default=0, description="产物总电荷，XYZ 键级推断时使用。")
+    reactant_charge: int = Field(default=0, description="Reactant total charge, used when inferring XYZ bond orders.")
+    product_charge: int = Field(default=0, description="Product total charge, used when inferring XYZ bond orders.")
 
 
 class ReactionMapping_output_schema(output_schema):
-    is_success: bool = Field(description="工具是否正常执行。")
+    is_success: bool = Field(description="Whether the tool ran normally.")
     mapping_status: Literal["unique", "ambiguous", "inconclusive"] = "inconclusive"
     candidates: list[dict] = Field(default_factory=list)
     heavy_atom_map: list[int] = Field(default_factory=list)
@@ -653,7 +653,7 @@ class ReactionMapping_output_schema(output_schema):
     concrete_watch_pairs: list[list[int]] = Field(default_factory=list)
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
-        description="可直接用于当前绑定坐标的反应原子对；无安全具体绑定时为图级序号。",
+        description="Reaction atom pairs usable on the currently bound coordinates; graph-level indices when there is no safe concrete binding.",
     )
     message: str = ""
 
@@ -661,7 +661,7 @@ class ReactionMapping_output_schema(output_schema):
 class ReactionMapping(Tool):
     tool_id: str = "t-49"
     tool_name: str = "reaction_mapping"
-    tool_description: str = "从反应物/产物 SMILES 生成可检查的原子映射候选与反应中心键变化。"
+    tool_description: str = "From reactant/product SMILES, generate inspectable atom-mapping candidates and reaction-center bond changes."
     input_schema: Any = ReactionMapping_input_schema
     output_schema: Any = ReactionMapping_output_schema
 

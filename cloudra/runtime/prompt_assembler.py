@@ -28,43 +28,43 @@ SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
 
 # 有联网搜索能力（原生搜索或 web_search 工具）时注入的引导，防止模型凭记忆作答
 _WEB_SEARCH_GUIDANCE = (
-    "## 联网搜索（重要）\n"
-    "你具备联网搜索能力。当任务依赖**实时/最新或外部**信息时，**必须先联网搜索**，"
-    "不要凭训练记忆作答。典型场景：\n"
-    "- 近期新闻、最新软件/模型版本、当前价格/参数、榜单/政策/规范；\n"
-    "- 官方文档、论坛讨论、数据库页面、具体机构/产品的最新信息；\n"
-    "- 你的知识可能过时或不确定，而答案会影响结论或决策。\n"
-    "搜索后基于结果作答，并附来源 URL。联网搜索不是可选项——只要任务需要当前/"
-    "外部事实，就先搜再答。"
+    "## Web search (important)\n"
+    "You have web search. When the task depends on **live, current, or external** information, "
+    "**search the web first** — do not answer from training memory. Typical cases:\n"
+    "- Recent news, latest software/model versions, current prices/parameters, rankings/policy/specs;\n"
+    "- Official docs, forum threads, database pages, up-to-date info on a specific org or product;\n"
+    "- Your knowledge may be stale or uncertain, and the answer would affect a conclusion or decision.\n"
+    "Answer from search results and include source URLs. Web search is not optional — whenever the "
+    "task needs current/external facts, search first, then answer."
 )
 
 # 有 agent_hub 工具（所有并行 Agent）时注入的引导，鼓励主动共享/复用
 _AGENT_HUB_GUIDANCE = (
-    "## AgentHub 协作（并行共享）\n"
-    "系统提供 `agent_hub` 工具：所有并行 Agent 共享的论坛，也可用 `call` 直连说话。"
-    "使用纪律：\n"
-    "- 开工前先 `browse`/`search` 看别人是否已做过相关主题，避免重复劳动；"
-    "与其他 Agent 并行、可能重叠的任务**尤其要主动查**。\n"
-    "- 拿到可复用的关键结论（参数、数据、坑）后，用 `post` 发布到对应主题；"
-    "帖子要自包含——别人没有你的上下文。\n"
-    "- 其他 Agent 的帖子是你结论的交叉验证来源：遇到可疑/矛盾的发现时，"
-    "`read`/`search` 查一下 hub 是否有相关记录再下结论。\n"
-    "- `directory` 列出在线 Agent 及其 `task`（当前在做什么）；"
-    "派工前可先查谁有空、谁在做相关事。\n"
-    "- `call` 用 `to` + `message` 直接说话（可选 `post_id` 关联帖子）；"
-    "`call` 是平行沟通，**不是**一次交付或派工。\n"
-    "- 收到 `role=user` 的 `【来电】` 行视为用户消息，**必须先回答**再继续其他动作。"
+    "## AgentHub collaboration (shared among parallel agents)\n"
+    "The system provides the `agent_hub` tool: a forum shared by all parallel agents, plus `call` for "
+    "direct speech. Usage rules:\n"
+    "- Before starting work, `browse`/`search` to see whether someone already covered the topic; "
+    "avoid duplicate work. **Especially search** when your task may overlap with another agent.\n"
+    "- After you have reusable findings (parameters, data, pitfalls), `post` them to the matching topic; "
+    "posts must be self-contained — others do not have your context.\n"
+    "- Other agents' posts are a cross-check: when a finding looks suspicious or contradictory, "
+    "`read`/`search` the hub before concluding.\n"
+    "- `directory` lists online agents and their `task` (what they are doing now); "
+    "check who is free and who is on related work before dispatching.\n"
+    "- `call` uses `to` + `message` to speak directly (optional `post_id` to link a post); "
+    "`call` is parallel communication, **not** a delivery or a dispatch.\n"
+    "- Treat a `role=user` `[Incoming call]` line as a user message: **answer it first** before any other action."
 )
 
 # 所有角色注入：压缩不再保留近几轮 toolcall，状态必须落盘
 _CONTEXT_HANDOFF_GUIDANCE = (
-    "## 上下文与交接文档（重要）\n"
-    "长任务中对话历史会被自动压缩，**近几轮工具往返原文不会保留**。"
-    "可恢复状态必须写到工作区文件，不要指望上下文里还留着：\n"
-    "- 每完成一个有意义的阶段，写/更新交接文档（推荐任务目录下的 `HANDOFF.md` 或 "
-    "`progress.md`）：目标、已完成步骤、关键绝对路径、作业 ID、结论数值、下一步与阻塞点；\n"
-    "- 数值与路径以文件和当次工具返回为准，禁止凭记忆转述；\n"
-    "- 压缩后继续或换班接手时，先读交接文档再动手，不要重头摸索。"
+    "## Context and handoff notes (important)\n"
+    "On long tasks, conversation history is compacted automatically; **recent tool-call transcripts are not kept**. "
+    "Recoverable state must live in workspace files — do not rely on it remaining in context:\n"
+    "- After each meaningful stage, write/update a handoff note (prefer `HANDOFF.md` or `progress.md` in the task directory): "
+    "goal, completed steps, key absolute paths, job IDs, numeric conclusions, next steps and blockers;\n"
+    "- Treat files and the latest tool returns as source of truth for numbers and paths; do not paraphrase from memory;\n"
+    "- After compact or a shift change, read the handoff note before acting; do not start from scratch."
 )
 
 
@@ -182,8 +182,8 @@ class PromptAssembler:
     def _agents_md_sections(self) -> list[tuple[str, str, PromptSource]]:
         cfg = get_config()
         candidates = (
-            ("global_agents_md", "全局", Path(cfg.config_file).parent / "AGENTS.md"),
-            ("workspace_agents_md", "项目", Path(self.working_directory) / "AGENTS.md"),
+            ("global_agents_md", "global", Path(cfg.config_file).parent / "AGENTS.md"),
+            ("workspace_agents_md", "project", Path(self.working_directory) / "AGENTS.md"),
         )
         sections = []
         seen_paths: set[Path] = set()
@@ -358,24 +358,24 @@ class PromptAssembler:
             listing = (
                 "\n".join(observation.top_level_entries)
                 if observation.top_level_entries
-                else "<空目录>"
+                else "<empty directory>"
             )
             change_lines = [
                 f"- {item['change']}: {item['path']}"
                 for item in observation.changes
             ]
             recent_changes = (
-                "\n".join(change_lines) if change_lines else "<本进程内未观察到新变化>"
+                "\n".join(change_lines) if change_lines else "<no new changes observed in this process>"
             )
             scan_note = (
-                f"扫描条目={observation.entry_count}"
-                + ("（已截断）" if observation.truncated else "")
+                f"scanned_entries={observation.entry_count}"
+                + (" (truncated)" if observation.truncated else "")
             )
             workspace_revision = observation.revision
         except Exception:
-            listing = "<无法读取目录内容>"
-            recent_changes = "<无法计算>"
-            scan_note = "扫描失败"
+            listing = "<unable to read directory>"
+            recent_changes = "<unavailable>"
+            scan_note = "scan failed"
             workspace_revision = "unavailable"
         device_section = ""
         if device_environment:
@@ -386,22 +386,22 @@ class PromptAssembler:
                 separators=(",", ":"),
             )
             device_section = (
-                "\n\n【Android Device environment observation】\n"
+                "\n\n[Android Device environment observation]\n"
                 f"{rendered}"
             )
         return (
             {
                 "role": "system",
                 "content": (
-                "【当前工作区 observation】\n"
+                "[Workspace observation]\n"
                 f"workspace_revision={workspace_revision}\n"
                 f"working_directory={self.working_directory}\n"
                 f"{scan_note}\n"
-                f"顶层内容:\n{listing}\n"
-                f"最近变化:\n{recent_changes}\n"
-                "任务描述可以引用绝对路径；text_reader、edit_file、text_writer "
-                "的 filepath 必须相对此工作目录，bashtools 也在此目录启动。"
-                "不要按任务文本另建一套目录；相对路径一律落在 working_directory 下。"
+                f"Top-level contents:\n{listing}\n"
+                f"Recent changes:\n{recent_changes}\n"
+                "Task descriptions may cite absolute paths; filepath for text_reader, edit_file, and text_writer "
+                "must be relative to this working directory, and bashtools also starts here. "
+                "Do not create a second directory tree from the task text; relative paths always land under working_directory."
                 f"{device_section}"
                 ),
             },
@@ -438,11 +438,11 @@ class PromptAssembler:
         if memory is not None:
             memory_text, memory_source = memory
             identity_sections.append(
-                "## 长期记忆（从过往任务中积累的经验）\n\n"
-                "以下经验来自 MEMORY.md，在执行任务时优先遵循：\n\n"
+                "## Long-term memory (lessons from past tasks)\n\n"
+                "The following comes from MEMORY.md; follow it while working:\n\n"
                 f"{memory_text}\n\n"
-                "如果从这些经验中学到了新的可复用原则，请调用 "
-                "`update_memory` 工具更新记忆。"
+                "If you learn a new reusable principle from this work, call "
+                "`update_memory` to update memory."
             )
             sources.append(memory_source)
 
@@ -453,8 +453,8 @@ class PromptAssembler:
                 rendered_agents.append(f"### {label} AGENTS.md\n\n{content}")
                 sources.append(source)
             identity_sections.append(
-                "## 用户自定义指令（AGENTS.md）\n\n"
-                "以下内容来自用户编写的 AGENTS.md，在执行任务时优先遵循：\n\n"
+                "## User instructions (AGENTS.md)\n\n"
+                "The following comes from user-written AGENTS.md; follow it while working:\n\n"
                 + "\n\n".join(rendered_agents)
             )
 
@@ -462,7 +462,7 @@ class PromptAssembler:
         if skills is not None:
             skill_manifest, skill_source = skills
             identity_sections.append(
-                "## 当前 skill manifest\n\n"
+                "## Current skill manifest\n\n"
                 + "\n".join(
                     f"- {item['name']}: {item['description']}"
                     for item in skill_manifest
@@ -475,13 +475,13 @@ class PromptAssembler:
             for device in device_capabilities:
                 names = ", ".join(
                     item["name"] for item in device["capabilities"]
-                ) or "<无>"
+                ) or "<none>"
                 rendered_devices.append(
                     f"- {device['device_id']} ({device['display_name']}, "
                     f"{device['state']}): {names}"
                 )
             identity_sections.append(
-                "## 当前 Android device capability snapshot\n\n"
+                "## Current Android device capability snapshot\n\n"
                 + "\n".join(rendered_devices)
             )
             device_payload = json.dumps(
@@ -498,11 +498,11 @@ class PromptAssembler:
             )
 
         identity_sections.append(
-            "## 当前可用工具\n\n"
+            "## Currently available tools\n\n"
             + (
                 "\n".join(f"- {name}" for name in tool_names)
                 if tool_names
-                else "本次请求没有可用工具。"
+                else "No tools are available for this request."
             )
         )
         sources.append(

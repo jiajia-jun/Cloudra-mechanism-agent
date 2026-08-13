@@ -13,21 +13,21 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra.config import get_config
 
 description = (
-    "通过 SMTP 发送电子邮件，支持纯文本或 HTML 正文，并可携带多个本地文件作为附件。"
-    "适用：长任务完成后向用户远程交付结果通知、分子结构图、数据报表等。"
-    "不适用：读取收件箱、查看用户回复（用 email_reader）；需先在配置中配好 SMTP 邮箱凭据。"
+    "Send email via SMTP, with plain-text or HTML body and optional local-file attachments. "
+    "Use for: remotely delivering result notices, molecular structure figures, data reports, etc. after a long task. "
+    "Do not use for: reading the inbox or checking user replies (use email_reader); SMTP credentials must be configured first."
 )
 
 class EmailSender_input_schema(input_schema):
-    to_email: str = Field(description="收件人邮箱地址")
-    subject: str = Field(description="邮件主题")
-    body: str = Field(description="邮件正文内容")
-    is_html: bool = Field(default=False, description="正文是否为 HTML 格式")
-    attachments: Optional[List[str]] = Field(default_factory=list, description="附件文件的绝对路径列表")
+    to_email: str = Field(description="Recipient email address")
+    subject: str = Field(description="Email subject")
+    body: str = Field(description="Email body")
+    is_html: bool = Field(default=False, description="Whether the body is HTML")
+    attachments: Optional[List[str]] = Field(default_factory=list, description="Absolute paths of attachment files")
 
 class EmailSender_output_schema(output_schema):
-    success: bool = Field(description="邮件是否发送成功")
-    message: str = Field(description="执行结果详情或错误信息")
+    success: bool = Field(description="Whether the email was sent")
+    message: str = Field(description="Result details or error message")
 
 class EmailSender(Tool):
     tool_id: str = 't-29'
@@ -46,7 +46,7 @@ class EmailSender(Tool):
         if not config.user or not config.password:
             return EmailSender_output_schema(
                 success=False,
-                message="【配置错误】SMTP 用户名或密码未设置。请通过 config 设置或环境变量配置。"
+                message="[Config error] SMTP username or password is not set. Configure it via config or environment variables."
             )
 
         # 准备邮件内容
@@ -75,9 +75,9 @@ class EmailSender(Tool):
         # 异步发送
         try:
             await asyncio.to_thread(self._send_smtp, config, msg)
-            return EmailSender_output_schema(success=True, message=f"邮件已成功发送至 {user_input.to_email}")
+            return EmailSender_output_schema(success=True, message=f"Email sent to {user_input.to_email}")
         except Exception as e:
-            return EmailSender_output_schema(success=False, message=f"邮件发送失败: {str(e)}")
+            return EmailSender_output_schema(success=False, message=f"Failed to send email: {str(e)}")
 
     def _send_smtp(self, config, msg):
         """同步执行 SMTP 发送"""

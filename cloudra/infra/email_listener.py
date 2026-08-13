@@ -101,7 +101,7 @@ class EmailListener:
                             conversation_id=conv_id,
                             agent_id="a-0",
                             event_type="email",
-                            content=f"收到来自 {msg.sender} 的新邮件，主题：{subject}，正文：{body}",
+                            content=f"New email from {msg.sender}, subject: {subject}, body: {body}",
                         ))
                         print(f"[+] 已向运行中的会话 {conv_id} 注入邮件事件")
                         return

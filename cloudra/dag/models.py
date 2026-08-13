@@ -692,30 +692,32 @@ class DeliveryReport(BaseModel):
 # 该模式下能做什么。只讲意图，不讲 op 细节——操作手册见 dag-operations skill。
 _MODE_GUIDANCE = {
     OrchestrationMode.DAG_RECORD: (
-        "当前编排模式: dag_record（DAG 由系统记录，Supervisor 不在线）\n"
-        "- 按正常流程执行任务即可；工具与计算结果会被自动记入两张 DAG。\n"
-        "- 若投影里出现 assignee 等于你 agent id 的 process 节点，那是指派给你的"
-        "工作，其成败会由系统自动回报；需要补充说明时可用 dag_graph update_node。\n"
-        "- 计划外产出的既有证据要计入机理图时，用 dag_graph bind_evidence"
-        "（tool_call_id、target、evidence_role），系统验证成功性并自动重算证据等级。"
+        "Current orchestration mode: dag_record (DAG is recorded by the system; Supervisor is offline)\n"
+        "- Run the task as usual; tool and compute results are recorded into both DAGs automatically.\n"
+        "- If the projection shows a process node whose assignee equals your agent id, that work is assigned to you; "
+        "success/failure is reported automatically. Use dag_graph update_node when you need extra notes.\n"
+        "- To attach existing unplanned evidence to the mechanism graph, use dag_graph bind_evidence "
+        "(tool_call_id, target, evidence_role); the system verifies success and rederives evidence level."
     ),
     OrchestrationMode.DAG_GUIDED: (
-        "当前编排模式: dag_guided（DAG 引导编排，Supervisor 在线）\n"
-        "你必须遵守的编排纪律：\n"
-        "1. 机理假设与计算方案由你设计：用 dag_graph mutate 把机理假设（中间体、基元步骤）"
-        "写入 delivery 图，rationale 说清计算方案；变更被接受后 Supervisor 会被自动唤醒，"
-        "审核方案并把计算工作排入 process 流程图。\n"
-        "2. 只执行下方 frontier 中的计算任务：frontier = 依赖已满足且 status 为 "
-        "`proposed` 或 `ready` 的 planned 节点（不要只用 status_filter=ready——"
-        "大量排产节点会以 proposed 进入 frontier）。按节点 assignee（合法子 Agent id，"
-        "如 a-4）派工或自行执行；计算成功后用 dag_graph bind_evidence 把结果挂到"
-        "对应机理图元素（证据真实性与等级由系统验证派生，Supervisor 复核可否决，"
-        "否决会以事件通知你）。\n"
-        "3. 遵循机理研究 SOP，不跳步：反应映射 → TS 猜测 → TS 优化 + 唯一虚频确认 → "
-        "IRC → 端点优化与匹配 → 热化学分析。\n"
-        "4. 交付完成由图上证据决定，不由你的声明决定；stop(delivery_disposition=complete) "
-        "之前先用 dag_graph(action=delivery_report) 自查，有缺口就继续补证或显式选 "
-        "partial / user_terminated。"
+        "Current orchestration mode: dag_guided (DAG-guided orchestration; Supervisor is online)\n"
+        "You must follow this orchestration discipline:\n"
+        "1. You design the mechanism hypothesis and compute plan: use dag_graph mutate to write the hypothesis "
+        "(intermediates, elementary steps) into the delivery graph, with rationale explaining the compute plan. "
+        "After the change is accepted, Supervisor is woken automatically to review the plan and schedule compute "
+        "work onto the process graph.\n"
+        "2. Only execute compute tasks in the frontier below: frontier = planned nodes whose dependencies are met "
+        "and whose status is `proposed` or `ready` (do not use status_filter=ready alone — many scheduled nodes "
+        "enter the frontier as proposed). Dispatch or run by node assignee (a legal sub-agent id such as a-4). "
+        "After a successful compute, use dag_graph bind_evidence to attach the result to the matching "
+        "mechanism-graph element (evidence authenticity and level are verified and derived by the system; "
+        "Supervisor review may veto, and a veto is delivered to you as an event).\n"
+        "3. Follow the mechanism-research SOP without skipping steps: reaction mapping → TS guess → "
+        "TS optimization + unique imaginary-frequency confirmation → IRC → endpoint optimization and matching → "
+        "thermochemistry.\n"
+        "4. Delivery completeness is decided by graph evidence, not by your declaration; before "
+        "stop(delivery_disposition=complete), self-check with dag_graph(action=delivery_report). If there are gaps, "
+        "keep filling evidence or explicitly choose partial / user_terminated."
     ),
 }
 
@@ -737,15 +739,15 @@ class DagProjection(BaseModel):
         import json
 
         guidance = _MODE_GUIDANCE.get(
-            self.mode, "当前编排模式: standard（无 DAG 编排，dag_graph 工具不可用）"
+            self.mode, "Current orchestration mode: standard (no DAG orchestration; dag_graph is unavailable)"
         )
         payload = self.model_dump(mode="json")
         # revisions 是存储层并发控制的内部状态，不投影给模型：
         # mutate 不传 base_revisions 时由 harness 固定版本并自动重试。
         payload.pop("revisions", None)
         return (
-            f"【DAG 编排】{guidance}\n"
-            "图投影（有界，仅稳定引用，不含计算正文）:\n"
+            f"[DAG orchestration] {guidance}\n"
+            "Graph projection (bounded, stable refs only, no compute body):\n"
             + json.dumps(
                 payload,
                 ensure_ascii=False,

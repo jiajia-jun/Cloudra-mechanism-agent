@@ -6,22 +6,22 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通过 OpenAlex 开放 API 检索全库学术文献（预印本及正式发表论文）。"
-    "OpenAlex 覆盖 2 亿+ 文献记录，无需 API key，稳定无反爬。"
-    "支持按关键词搜索，返回包含标题、DOI、摘要及 PDF 下载链接的结果。"
+    "Search the full OpenAlex scholarly corpus (preprints and published papers) via the open API. "
+    "OpenAlex covers 200M+ records, needs no API key, and is stable without anti-bot issues. "
+    "Keyword search returns title, DOI, abstract, and PDF download links."
 )
 
 class OpenAlexSearcher_input_schema(input_schema):
-    query: str = Field(description="搜索关键词")
-    limit: int = Field(default=10, description="最大返回结果数")
-    page: int = Field(default=1, description="页码")
+    query: str = Field(description="Search keywords")
+    limit: int = Field(default=10, description="Maximum number of results")
+    page: int = Field(default=1, description="Page number")
     mode: str = Field(
         default="normal",
-        description="展示模式：light（仅标题、DOI、日期）/ normal（加摘要）/ weight（加作者、PDF 链接等详细信息）"
+        description="Display mode: light (title, DOI, date only) / normal (plus abstract) / weight (plus authors, PDF links, and other details)"
     )
 
 class OpenAlexSearcher_output_schema(output_schema):
-    content: list = Field(description="搜索结果列表，每个元素为一个论文信息字典")
+    content: list = Field(description="Search results; each item is a paper-info dict")
 
 class OpenAlexSearcher(Tool):
     tool_id: str = 't-26'

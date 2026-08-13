@@ -17,28 +17,29 @@ from cloudra.persistence.database import ConversationDB, aretry_on_locked, get_d
 class ScheduleInput(input_schema):
     action: Literal["create", "list", "cancel"] = Field(
         default="create",
-        description="create 创建提醒，list 查看仍在等待的提醒，cancel 取消提醒。",
+        description="create a reminder, list still-pending reminders, or cancel a reminder.",
     )
     message: Optional[str] = Field(
         default=None,
         description=(
-            "醒来时送回给 Agent 的提醒内容。create 时必填。请写成给未来的自己的操作指引："
-            "要检查哪些具体事项（日志路径、job_id、子 agent 会话）、怎样算完成、"
-            "完成后应取消哪些旧提醒。空泛的'检查一下'会让醒来时无从下手。"
+            "Reminder text delivered back to the Agent on wake. Required for create. "
+            "Write it as operating instructions to your future self: what to check "
+            "(log paths, job_id, sub-agent sessions), what counts as done, "
+            "and which old reminders to cancel afterward. A vague 'check on it' leaves you with nothing to do on wake."
         ),
     )
     wake_at: Optional[str] = Field(
         default=None,
-        description="带时区的 ISO 8601 唤醒时间，例如 2026-07-28T18:30:00+08:00。",
+        description="Wake time as timezone-aware ISO 8601, e.g. 2026-07-28T18:30:00+08:00.",
     )
     delay_seconds: Optional[float] = Field(
         default=None,
         ge=0,
-        description="从现在起多少秒后唤醒。与 wake_at 二选一。",
+        description="Wake this many seconds from now. Mutually exclusive with wake_at.",
     )
     schedule_id: Optional[int] = Field(
         default=None,
-        description="要取消的提醒 ID；cancel 时必填。",
+        description="Reminder ID to cancel; required for cancel.",
     )
 
 
@@ -54,12 +55,12 @@ class Schedule(Tool):
     tool_id: str = "t-13"
     tool_name: str = "schedule"
     tool_description: str = (
-        "让当前 Agent 在未来自行醒来并收到指定提醒，适合持续监控后台计算或稍后复查状态。"
-        "提醒存在时当前任务会在后台保持等待；醒来后可根据新状态再次设置下一次提醒。"
-        "message 是写给自己的备忘录：醒来时只有它和当时的运行状态可用，"
-        "必须写清要检查什么、完成判据和后续动作。"
-        "使用 list 查看所有尚未触发的提醒，使用 cancel 按 schedule_id 取消过时或已被替代的提醒。"
-        "多个 create 提醒会彼此独立地全部触发，不会自动覆盖。"
+        "Have the current Agent wake itself later with a given reminder — for monitoring background compute or rechecking status. "
+        "While a reminder exists, the current task stays waiting in the background; after waking you can set the next reminder from the new state. "
+        "message is a memo to yourself: on wake only it and the then-current runtime state are available, "
+        "so spell out what to check, the done criteria, and the next action. "
+        "Use list to see all unfired reminders, and cancel with schedule_id to drop stale or superseded ones. "
+        "Multiple create reminders all fire independently; they do not overwrite each other."
     )
     input_schema: Any = ScheduleInput
     output_schema: Any = ScheduleOutput
@@ -83,7 +84,7 @@ class Schedule(Tool):
             normalized = normalized[:-1] + "+00:00"
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is None:
-            raise ValueError("wake_at 必须包含时区，避免后台任务在不同时区下提前或延后唤醒")
+            raise ValueError("wake_at must include a timezone so the reminder does not fire early or late across timezones")
         return parsed.timestamp()
 
     async def tool_call(self, user_input: ScheduleInput, session: Session) -> ScheduleOutput:
@@ -122,13 +123,13 @@ class Schedule(Tool):
             ]
             return ScheduleOutput(
                 is_success=True,
-                message=f"共有 {len(schedules)} 个待触发提醒。",
+                message=f"{len(schedules)} pending reminder(s).",
                 schedules=schedules,
             )
 
         if user_input.action == "cancel":
             if user_input.schedule_id is None:
-                return ScheduleOutput(is_success=False, message="cancel 必须提供 schedule_id。")
+                return ScheduleOutput(is_success=False, message="cancel requires schedule_id.")
 
             async def cancel() -> int:
                 session_id = getattr(session, "id", None)
@@ -152,16 +153,16 @@ class Schedule(Tool):
                 await events.aemit(conversation_id, "schedule_changed")
             return ScheduleOutput(
                 is_success=changed > 0,
-                message="提醒已取消。" if changed else "未找到可取消的待触发提醒。",
+                message="Reminder cancelled." if changed else "No pending reminder found to cancel.",
                 schedule_id=user_input.schedule_id,
             )
 
         if not user_input.message or not user_input.message.strip():
-            return ScheduleOutput(is_success=False, message="create 必须提供非空 message。")
+            return ScheduleOutput(is_success=False, message="create requires a non-empty message.")
         if (user_input.wake_at is None) == (user_input.delay_seconds is None):
             return ScheduleOutput(
                 is_success=False,
-                message="create 必须且只能提供 wake_at 或 delay_seconds 其中一个。",
+                message="create must provide exactly one of wake_at or delay_seconds.",
             )
 
         try:
@@ -171,7 +172,7 @@ class Schedule(Tool):
                 else time.time() + float(user_input.delay_seconds)
             )
         except (TypeError, ValueError) as exc:
-            return ScheduleOutput(is_success=False, message=f"无效的唤醒时间：{exc}")
+            return ScheduleOutput(is_success=False, message=f"Invalid wake time: {exc}")
 
         async def create() -> int:
             async with db.aconnect() as con:
@@ -198,7 +199,7 @@ class Schedule(Tool):
         wake_iso = datetime.fromtimestamp(wake_timestamp).astimezone().isoformat()
         return ScheduleOutput(
             is_success=True,
-            message=f"提醒已安排，Agent 将于 {wake_iso} 醒来。",
+            message=f"Reminder scheduled; the agent will wake at {wake_iso}.",
             schedule_id=schedule_id,
             wake_at=wake_iso,
         )

@@ -441,7 +441,7 @@ async def test_dispatcher_cannot_execute_mobile_hidden_tool(tmp_path, monkeypatc
     context = await agent.get_context()
     tool_messages = [block for block in context if block.get("role") == "tool"]
     assert len(tool_messages) == 1
-    assert "找不到工具: bashtools" in tool_messages[0]["content"]
+    assert "Tool not found: bashtools" in tool_messages[0]["content"]
     assert "must not run" not in json.dumps(tool_messages, ensure_ascii=False)
 
 

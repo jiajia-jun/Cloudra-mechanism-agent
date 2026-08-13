@@ -3,65 +3,65 @@ name: molecular-docking
 description: Provide domain expertise for Molecular Docking workflows (e.g., AutoDock Vina, GNINA). Use when setting up docking protocols, preparing proteins/ligands, identifying binding sites, defining grid boxes, performing post-docking analysis (MM-GBSA), and experimental validation.
 ---
 
-# 1. 本地工具链映射 (Toolchain Mapping)
-在执行分子对接时，将理论流程映射到当前执行环境：
-- **分子前处理**：使用 `CLOUDRA` 内部的 `Chemtool` 或调用 Python 环境（如 RDKit, OpenBabel）。对接前应确认可滴定基团的质子化状态，避免直接剥离 PDB 就开跑。
-- **口袋预测与定义**：如果缺少共晶配体，优先调用 `fpocket` 等口袋预测工具，而不是手动盲设 XYZ。
-- **任务分发**：调用 `submit_compute_job` 提交后台对接任务；高通量或海量构象打分通过 `is_async=True` 并行管理。
-- **后处理验证**：编写或调用脚本计算 Top 1 Pose 与真实晶体构象的 RMSD，作为量化考核指标。
+# 1. Local toolchain mapping (Toolchain Mapping)
+When running molecular docking, map the theoretical pipeline onto the current execution environment:
+- **Molecule preprocessing**: use `CLOUDRA` internal `Chemtool` or the Python environment (RDKit, OpenBabel). Confirm protonation of titratable groups before docking; do not strip a PDB and start immediately.
+- **Pocket prediction and definition**: if there is no co-crystal ligand, prefer pocket predictors such as `fpocket` rather than blindly setting XYZ by hand.
+- **Job dispatch**: submit background docking with `submit_compute_job`; manage high-throughput or large conformational scoring in parallel with `is_async=True`.
+- **Post-processing validation**: write or call a script to compute RMSD of the Top 1 pose vs the true crystal conformation as a quantitative check.
 
-# 2. 限制与例外 (Constraints & Exceptions)
-以下规则是常用最佳实践，但应根据研究目的灵活调整。
+# 2. Constraints and exceptions (Constraints & Exceptions)
+The following are common best practices; adjust them to the research goal.
 
-1. **盲对接**：高精度筛选推荐将 Grid Box 聚焦于共晶配体或预测口袋；把整个蛋白作为搜索框的“全蛋白盲对接”可用于探索性研究（如未知靶点、天然产物靶标垂钓），但结果需谨慎解读，并应结合口袋预测、生物学实验或分子动力学进一步验证。[CobDock blind docking](https://pmc.ncbi.nlm.nih.gov/articles/PMC10785400/) [Refining docking protocols](https://www.benchchem.com/pdf/Technical_Support_Center_Refining_Molecular_Docking_Protocols_for_Natural_Products.pdf)
-2. **共价对接**：标准 Vina 不处理共价键。若研究共价抑制剂（如靶向 Cys），建议改用 AutoDock4、CovDock、GOLD 等支持共价对接的方法；Vina 可用于非共价预筛选，但不能作为共价结合模式的最终依据。
-3. **金属配位**：Vina 的打分函数对 Zn²⁺、Fe³⁺ 等金属配位描述较弱，建议优先使用 AutoDock4Zn、GOLD、Glide 等专门方法。在数据有限且仅做快速排序时，Vina 结果仅作参考。
-4. **水分子处理**：常规情况下删除结晶水以减少假阳性；若文献或预计算明确指出口袋存在关键的介导结构水（Bridging Water），则予以保留。
+1. **Blind docking**: for high-precision screening, focus the grid box on the co-crystal ligand or a predicted pocket. Whole-protein “blind docking” can be used for exploratory work (unknown targets, natural-product target fishing), but interpret results cautiously and follow up with pocket prediction, biological experiment, or MD. [CobDock blind docking](https://pmc.ncbi.nlm.nih.gov/articles/PMC10785400/) [Refining docking protocols](https://www.benchchem.com/pdf/Technical_Support_Center_Refining_Molecular_Docking_Protocols_for_Natural_Products.pdf)
+2. **Covalent docking**: standard Vina does not handle covalent bonds. For covalent inhibitors (e.g. Cys-targeting), switch to AutoDock4, CovDock, GOLD, or another covalent method; Vina may be used for non-covalent pre-screening but not as the final evidence of a covalent binding mode.
+3. **Metal coordination**: Vina’s scoring function is weak for Zn²⁺, Fe³⁺, and similar metal coordination; prefer AutoDock4Zn, GOLD, Glide, or other specialized methods. When data are limited and you only need a fast ranking, treat Vina as a reference only.
+4. **Water treatment**: usually delete crystal waters to reduce false positives; keep them if the literature or a pre-calculation clearly identifies a key bridging water in the pocket.
 
-# 3. 科学知识库：配体与受体预处理 (Scientific Knowledge Base)
-在投递对接任务前，以本节要求为前置确认标准。
+# 3. Scientific knowledge base: ligand and receptor preparation (Scientific Knowledge Base)
+Treat this section as a pre-flight checklist before submitting a docking job.
 
-## 3.1 蛋白质受体的极限准备
-- **分辨率要求**：晶体结构分辨率优先 < 2.5 Å。
-- **质子化状态 (Protonation States)**：生理 pH (~7.4) 下可滴定氨基酸的 pKa 必须预先预测。重点排查口袋附近的组氨酸（His），确认它是 HID, HIE 还是 HIP。
-- **残基修复**：缺失的重原子应修复，否则力场计算会出现空位错误。
+## 3.1 Extreme preparation of the protein receptor
+- **Resolution**: prefer crystal structures with resolution < 2.5 Å.
+- **Protonation states**: pKa of titratable residues at physiological pH (~7.4) must be predicted in advance. Pay special attention to histidine near the pocket and confirm HID, HIE, or HIP.
+- **Residue repair**: missing heavy atoms must be repaired, or force-field calculations will hit vacancy errors.
 
-## 3.2 配体的参数化
-- **3D 构象优化**：如果初始输入只有 SMILES，优先调用 `smiles_to_mol` 工具并设置 `generate_3d=True`。
-- **生理状态电离**：确认分子在 pH=7.4 的状态（如 -COOH 会变为 -COO⁻）。
-- **电荷要求**：普通 Vina 默认电荷即可；若后续转入 MM-GBSA，建议生成高精度的 **AM1-BCC 电荷**。
+## 3.2 Ligand parameterization
+- **3D conformational optimization**: if the input is SMILES only, prefer `smiles_to_mol` with `generate_3d=True`.
+- **Physiological ionization**: confirm the state at pH 7.4 (e.g. -COOH becomes -COO⁻).
+- **Charges**: ordinary Vina can use default charges; if you later go to MM-GBSA, generate high-quality **AM1-BCC charges**.
 
-# 4. Agent 工作流：分子对接标准流水线 (Workflow State Machine)
+# 4. Agent workflow: standard molecular-docking pipeline (Workflow State Machine)
 
-**Step 1: 结合位点探测与盒子设定**
-- *有共晶配体*：提取共晶配体的几何质心（Centroid）作为 Grid Box 中心。尺寸延伸设定为各加 5~10 Å（通常不超过 30×30×30 Å）。
-- *无共晶配体*：调用预测工具（如 fpocket）打分最高的口袋为中心，最好结合生物学突变实验数据进行交叉验证。
+**Step 1: Binding-site detection and box setup**
+- *With a co-crystal ligand*: take the geometric centroid of the co-crystal ligand as the grid-box center. Extend each side by 5–10 Å (usually not beyond 30×30×30 Å).
+- *Without a co-crystal ligand*: center on the highest-scoring pocket from a predictor (e.g. fpocket); preferably cross-check with biological mutation data.
 
-**Step 2: 对接参数规划与执行**
-- `exhaustiveness`（穷举度）：
-  - HTVS（高通量）：设为 8。
-  - 精细对接/大柔性分子：设为 32 ~ 64。更高不仅耗时增加，收益通常递减。
-- 启动 `submit_compute_job` 异步执行。
+**Step 2: Docking parameters and execution**
+- `exhaustiveness`:
+  - HTVS (high-throughput): 8.
+  - Fine docking / large flexible molecules: 32–64. Higher values cost more time with diminishing returns.
+- Launch `submit_compute_job` asynchronously.
 
-**Step 3: 重对接验证金标准 (Re-docking Validation)**
-- 在打分新配体前，建议先将原共晶配体重对接回去。
-- 若 Top 1 Pose 的 **RMSD > 2.0 Å**，说明当前盒子或采样设置可能不合适，应返回 Step 1 调整盒子大小、提高 exhaustiveness、考虑柔性残基或更换对接程序，而不是直接认定全部结果无意义。
+**Step 3: Re-docking validation gold standard**
+- Before scoring new ligands, re-dock the original co-crystal ligand.
+- If Top 1 pose **RMSD > 2.0 Å**, the current box or sampling may be unsuitable; return to Step 1 to adjust box size, raise exhaustiveness, consider flexible residues, or change the docking program — do not immediately declare all results meaningless.
 
-**Step 4: 后处理重打分 (Rescoring)**
-- 提取 Top 构象作为起点，不应单纯信任 Vina 分数。
-- 推荐工作流：导入 Amber/GROMACS 跑极短 MD 或通过 MM-GBSA 计算结合自由能，以引入溶剂化去极化效应（Desolvation Penalty）。
+**Step 4: Post-processing rescoring**
+- Take top poses as starting points; do not trust the Vina score alone.
+- Recommended workflow: import into Amber/GROMACS for a very short MD, or compute binding free energy with MM-GBSA, to include the desolvation penalty.
 
-# 5. 异常诊断与排障断路器 (Circuit Breakers)
-1. **结果分数全部极差 (>0 kcal/mol)**：
-   - 检查配体与蛋白的加氢步骤是否发生严重空间碰撞。
-   - 检查 Grid Box 是否偏离了口袋中心，导致配体被挤出。
-2. **大分子的假阳性**：
-   - Vina 分数具备尺寸叠加效应。若配体分子量过大，建议除以重原子数，使用“配体效率 (Ligand Efficiency, LE)”重新评估。
-3. **关键相互作用缺失**：
-   - 通过脚本或交互式反馈验证：若打分最高的姿态未能形成目标口袋已知的核心氢键，应质疑该对接姿态，但不必直接否决，可结合 MD 或重打分修正。
+# 5. Diagnostics and circuit breakers (Circuit Breakers)
+1. **All scores extremely poor (>0 kcal/mol)**:
+   - Check whether hydrogenation of ligand and protein produced severe steric clashes.
+   - Check whether the grid box missed the pocket center and squeezed the ligand out.
+2. **False positives for large molecules**:
+   - Vina scores have a size-additive effect. If ligand molecular weight is large, divide by heavy-atom count and re-evaluate with ligand efficiency (LE).
+3. **Missing key interactions**:
+   - Verify by script or interactive feedback: if the top-scoring pose fails to form a known core hydrogen bond of the target pocket, question that pose, but do not reject it outright; correct with MD or rescoring.
 
-# 6. 最小可运行 Vina Python 示例
-以下代码仅展示标准调用流程，参数需按实际体系调整。为避免解析问题，示例中不写注释。
+# 6. Minimal runnable Vina Python example
+The following shows only the standard call flow; adjust parameters to the real system. No comments in the example, to avoid parse issues.
 
 ```python
 from vina import Vina

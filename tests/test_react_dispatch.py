@@ -293,7 +293,7 @@ class TestActResult:
         messages = await _tool_messages(agent)
         assert len(messages) == 1
         assert messages[0]["tool_call_id"] == "c1"
-        assert "工具参数解析失败 (JSON Error)" in messages[0]["content"]
+        assert "Failed to parse tool arguments (JSON Error)" in messages[0]["content"]
 
     async def test_unknown_tool_error_path(self, tmp_path, monkeypatch):
         react, agent, _ = _make_react(tmp_path, monkeypatch, [_EchoTool])
@@ -302,7 +302,7 @@ class TestActResult:
         assert stopped is False
         messages = await _tool_messages(agent)
         assert len(messages) == 1
-        assert "找不到工具: nonexistent_tool" in messages[0]["content"]
+        assert "Tool not found: nonexistent_tool" in messages[0]["content"]
 
     async def test_empty_tool_name_error_path(self, tmp_path, monkeypatch):
         # act_result 不再反推工具名（反推发生在 reasoning 的 _normalize_tool_calls），
@@ -313,7 +313,7 @@ class TestActResult:
         assert stopped is False
         messages = await _tool_messages(agent)
         assert len(messages) == 1
-        assert "工具调用缺少 function.name" in messages[0]["content"]
+        assert "Tool call is missing function.name" in messages[0]["content"]
         assert "echo_tool" in messages[0]["content"]  # 列出当前可用工具
 
     async def test_stop_tool_requests_termination(self, tmp_path, monkeypatch):
@@ -334,7 +334,7 @@ class TestActResult:
         assert stopped is True
         assert react._continue is False
         messages = await _tool_messages(agent)
-        assert any("找不到工具: stop" in m["content"] for m in messages)
+        assert any("Tool not found: stop" in m["content"] for m in messages)
 
     async def test_tool_exception_isolated_from_others(self, tmp_path, monkeypatch):
         react, agent, _ = _make_react(tmp_path, monkeypatch, [_BoomTool, _EchoTool])
@@ -347,7 +347,7 @@ class TestActResult:
         messages = await _tool_messages(agent)
         assert len(messages) == 2
         # safe_call 把异常包成 RuntimeError，gather(return_exceptions=True) 转成错误消息
-        assert "工具执行发生异常" in messages[0]["content"]
+        assert "Tool execution raised an exception" in messages[0]["content"]
         assert "boom_tool" in messages[0]["content"]
         assert "炸了" in messages[0]["content"]
         # 另一个工具不受影响，正常返回
@@ -382,7 +382,7 @@ class TestActResultCancellation:
         assert stopped is False
         assert react._continue is True
         messages = await _tool_messages(agent)
-        assert "工具执行发生异常" in messages[0]["content"]
+        assert "Tool execution raised an exception" in messages[0]["content"]
         assert "cancel_tool" in messages[0]["content"]
         assert "echo:ok" in messages[1]["content"]
 

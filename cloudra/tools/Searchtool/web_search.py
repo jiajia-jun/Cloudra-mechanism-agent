@@ -18,14 +18,12 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "通用网页搜索。返回标题、URL 与摘要，适用于查找文档、论坛讨论、数据页等非论文信源"
-    "（学术论文请优先用 paper_searcher / openalex_searcher）。\n"
-    "两段式纪律：本工具只给摘要，用于筛选；选中 1-3 条最相关的结果后，用 web_fetcher 抓取全文。"
-    "引用结论时必须附上来源 URL。\n"
-    "后端自动选择：配置了 TAVILY_API_KEY 或 BRAVE_SEARCH_API_KEY 时优先使用对应 API，"
-    "否则回退到免 key 的 Bing / DuckDuckGo。\n"
-    "注意：若 LLM 配置已启用模型原生网页搜索（native_search），该搜索由服务商侧完成、"
-    "结果以内联引用直接出现在模型回复中，Agent 无需也不应再调用本工具。"
+    "Generic web search. Returns title, URL, and snippet — for docs, forum threads, data pages, and other non-paper sources "
+    "(prefer paper_searcher / openalex_searcher for academic papers).\n"
+    "Two-stage discipline: this tool only returns snippets for screening; after picking the 1–3 most relevant hits, fetch full text with web_fetcher. "
+    "When citing a conclusion, include the source URL.\n"
+    "Backend auto-select: if TAVILY_API_KEY or BRAVE_SEARCH_API_KEY is set, use that API; otherwise fall back to key-free Bing / DuckDuckGo.\n"
+    "Note: if the LLM config has native_search enabled, the provider runs search and inlines citations in the model reply — the Agent must not call this tool as well."
 )
 
 _UA = (
@@ -35,19 +33,19 @@ _UA = (
 
 
 class WebSearch_input_schema(input_schema):
-    query: str = Field(description="搜索关键词，用具体、可检索的表述")
-    max_results: int = Field(default=8, description="最大返回条数")
+    query: str = Field(description="Search query; use a specific, retrievable phrasing")
+    max_results: int = Field(default=8, description="Maximum number of results")
     backend: str = Field(
         default="auto",
-        description="后端：auto（自动选择）/ tavily / brave / duckduckgo"
+        description="Backend: auto (choose automatically) / tavily / brave / duckduckgo"
     )
 
 
 class WebSearch_output_schema(output_schema):
-    is_success: bool = Field(description="是否成功")
-    results: list = Field(default_factory=list, description="结果列表：[{title, url, snippet, source}]")
-    backend_used: str = Field(default="", description="实际使用的后端")
-    error: str = Field(default="", description="失败信息")
+    is_success: bool = Field(description="Whether the search succeeded")
+    results: list = Field(default_factory=list, description="Result list: [{title, url, snippet, source}]")
+    backend_used: str = Field(default="", description="Backend actually used")
+    error: str = Field(default="", description="Failure message")
 
 
 class _DDGResultParser(HTMLParser):

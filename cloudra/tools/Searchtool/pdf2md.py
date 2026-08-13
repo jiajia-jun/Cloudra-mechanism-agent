@@ -15,25 +15,25 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "将 PDF、Word、Excel、PPT 等二进制文档转换为 Markdown（基于 PyMuPDF），"
-    "提取文本和图片，返回 Markdown 文件路径与提取图片列表。"
-    "适用：阅读本地文献、报告、课件——拿到 PDF/Office 文件后应优先用本工具转 Markdown 再做摘要、抽取和问答。"
-    "不适用：转换失败或扫描版 PDF 无文字层时，改用 pdf2image 转图后用 image_reader 看图；"
-    "在线 PDF 需先用 web_fetcher 的 download_path 下载到本地。"
+    "Convert PDF, Word, Excel, PPT, and other binary documents to Markdown (PyMuPDF), "
+    "extracting text and images and returning the Markdown path plus extracted image list. "
+    "Use for: reading local papers, reports, or slides — convert to Markdown first, then summarize, extract, or Q&A. "
+    "Do not use for: failed conversion or scanned PDFs with no text layer (use pdf2image then image_reader); "
+    "online PDFs must first be downloaded with web_fetcher download_path."
 )
 
 
 class pdf2md_input_schema(input_schema):
-    input_path: str = Field(description="待转换文件的绝对路径")
-    output_path: str = Field(description="转换后 Markdown 文件的输出目录")
-    timeout: int = Field(default=300, description="转换超时时间（秒）")
+    input_path: str = Field(description="Absolute path of the file to convert")
+    output_path: str = Field(description="Output directory for the converted Markdown file")
+    timeout: int = Field(default=300, description="Conversion timeout in seconds")
 
 
 class pdf2md_output_schema(output_schema):
-    is_finished: bool = Field(description="是否转换成功")
-    md_path: str = Field(description="生成的 Markdown 文件路径，失败时为空字符串")
-    extracted_images: list[str] = Field(default_factory=list, description="从 PDF 中提取出的图片绝对路径列表")
-    content: str = Field(default="", description="转换过程的输出或错误信息")
+    is_finished: bool = Field(description="Whether conversion succeeded")
+    md_path: str = Field(description="Path of the generated Markdown file; empty string on failure")
+    extracted_images: list[str] = Field(default_factory=list, description="Absolute paths of images extracted from the PDF")
+    content: str = Field(default="", description="Conversion output or error message")
 
 
 class pdf2md(Tool):

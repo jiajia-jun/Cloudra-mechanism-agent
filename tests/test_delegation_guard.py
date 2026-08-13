@@ -20,7 +20,7 @@ def test_warning_only_for_coordinator():
 def test_warning_mentions_delegation():
     warning = coordinator_self_compute_warning(SimpleNamespace(type="coordinator"))
     assert "Coordinator" in warning
-    assert "子 Agent" in warning
+    assert "sub-agent" in warning
     assert "submit_compute_job" in warning
 
 
@@ -37,7 +37,7 @@ def test_submit_output_gets_hint_for_coordinator():
         )
     )
     assert out.is_success
-    assert out.message.startswith("【提示：Coordinator 自行提交计算】")
+    assert out.message.startswith("[Note: Coordinator submitted compute themselves]")
     assert "任务已提交到 local 后端" in out.message
 
 

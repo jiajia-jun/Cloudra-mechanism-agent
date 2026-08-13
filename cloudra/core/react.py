@@ -255,7 +255,7 @@ class reAct:
                 )
                 injected += 1
                 continue
-            system_line = f"【{event_type}】{content}"
+            system_line = f"[{event_type}]{content}"
             if content in recent_contents or system_line in recent_contents:
                 injected += 1  # 仍计为已消费，便于 runner 继续循环
                 continue
@@ -456,11 +456,11 @@ class reAct:
                                 ]
                             ]
                             err_msg = (
-                                "【交付审计未通过】普通正文不能绕过 DAG 交付审计；"
-                                "当前机理证据仍有缺口："
+                                "[Delivery audit failed] Prose cannot bypass the DAG delivery audit; "
+                                "current mechanism evidence still has gaps: "
                                 + json.dumps(gaps, ensure_ascii=False)
-                                + "。请继续补证，或显式调用 stop 并选择 partial / "
-                                "user_terminated。"
+                                + ". Continue gathering evidence, or explicitly call stop with partial / "
+                                "user_terminated."
                             )
                             await self.agent.update_context(
                                 {"role": "system", "content": err_msg}
@@ -496,7 +496,7 @@ class reAct:
                         content = str(msg['content'])
                         break
                 if not content:
-                    content = context[-1].get('content', '任务已完成') if context else '任务已完成'
+                    content = context[-1].get('content', 'Task completed') if context else 'Task completed'
                 # 有后台未竟工作时挂起（waiting），否则 completed + Case Bank。
                 # 上下文按 session 隔离且保留：新任务用新 session 自然不会串，
                 # 旧上下文留档供 ContextScreen 事后审查与复现。
@@ -716,9 +716,9 @@ class reAct:
         """输出被 max_tokens 截断时的处理：注入收敛提示；反复截断则抛 LLMOutputTruncated。"""
         if self._truncation_retries >= self.MAX_TRUNCATION_RETRIES:
             raise LLMOutputTruncated(
-                f"模型输出连续 {self.MAX_TRUNCATION_RETRIES + 1} 次被 max_tokens 截断"
-                f"（当前上限 {self.agent.max_tokens} tokens）。"
-                "这通常意味着 thinking 过长，请增大 max_tokens 或拆分任务。"
+                f"Model output was truncated by max_tokens {self.MAX_TRUNCATION_RETRIES + 1} times in a row "
+                f"(current limit {self.agent.max_tokens} tokens). "
+                "This usually means thinking is too long; increase max_tokens or split the task."
             )
         self._truncation_retries += 1
         self.log.update_content(
@@ -728,8 +728,10 @@ class reAct:
         await self.agent.update_context({
             "role": "system",
             "content": (
-                "【系统提示】你上一条输出因 max_tokens 限制被截断，结论或 tool_call 没有完整生成。"
-                "请立即收敛思考长度，用简洁形式直接给出最终结论，或重新发起必要的工具调用。"
+                "[System] Your previous output was truncated by the max_tokens limit; "
+                "the conclusion or tool_call was incomplete. "
+                "Shorten your reasoning immediately and give a concise final answer, "
+                "or re-issue the necessary tool calls."
             ),
         })
 
@@ -950,11 +952,11 @@ class reAct:
                 available_names = sorted({e.tool_name for e in tool_entries})
                 example = '{"name": "getskill", "arguments": {"skill_name": "subagent-prompting"}}'
                 err_msg = (
-                    "【系统错误】工具调用缺少 function.name。"
-                    "OpenAI function calling 要求必须提供准确的工具名，"
-                    f"例如：{example}。"
-                    f"当前可用工具：{', '.join(available_names)}。"
-                    "请重新调用，并确保 `name` 字段非空。"
+                    "[System error] Tool call is missing function.name. "
+                    "OpenAI function calling requires an exact tool name, "
+                    f"for example: {example}. "
+                    f"Available tools: {', '.join(available_names)}. "
+                    "Please retry and ensure the `name` field is non-empty."
                 )
                 result_block = {
                     'role': 'tool',
@@ -977,8 +979,8 @@ class reAct:
                     'role': 'tool',
                     'tool_call_id': tool_call_id,
                     'content': (
-                        f"【系统错误】工具参数解析失败 (JSON Error): {e.msg}。"
-                        "请确保参数是合法 JSON；大批次 mutate 请拆小批后重试。"
+                        f"[System error] Failed to parse tool arguments (JSON Error): {e.msg}. "
+                        "Ensure arguments are valid JSON; split large mutate batches and retry."
                     ),
                 }
                 await self._commit_undos()
@@ -1000,14 +1002,16 @@ class reAct:
                     break
             if repeat >= self.LOOP_ABORT_THRESHOLD:
                 raise AgentStuckLoop(
-                    f"检测到死循环：工具 `{tool_name}` 以完全相同的参数连续调用 {repeat} 次，"
-                    "任务被强制终止。"
+                    f"Stuck loop detected: tool `{tool_name}` was called {repeat} times in a row "
+                    "with identical arguments; the task was force-terminated."
                 )
             if repeat == self.LOOP_WARN_THRESHOLD:
                 warn_msg = (
-                    f"【系统提示】检测到你可能陷入循环：工具 `{tool_name}` 已连续 {repeat} 次"
-                    "以完全相同的参数被调用。请先仔细阅读前几次的返回结果，改变策略或参数；"
-                    "如果目的是等待/轮询，请说明原因并换用更长间隔的方式。不要无意义地重复相同调用。"
+                    f"[System] You may be stuck in a loop: tool `{tool_name}` has been called "
+                    f"{repeat} times in a row with identical arguments. "
+                    "Read the previous results and change strategy or parameters; "
+                    "if you are waiting/polling, explain why and use a longer interval. "
+                    "Do not repeat the same call meaninglessly."
                 )
                 await self._commit_undos()
                 await self.agent.update_context({"role": "system", "content": warn_msg})
@@ -1044,8 +1048,8 @@ class reAct:
                         # 把校验错误作为工具结果回喂 LLM 让它自行修正，
                         # 绝不能让 ValidationError 穿透主循环直接打崩整个任务。
                         err_msg = (
-                            f"【系统错误】工具 `{tool_name}` 参数校验失败: {e}。"
-                            "请对照该工具的参数 schema 修正参数类型与必填字段后重新调用。"
+                            f"[System error] Tool `{tool_name}` argument validation failed: {e}. "
+                            "Fix argument types and required fields against the tool schema, then retry."
                         )
                         await self._commit_undos()
                         await self.agent.update_context({
@@ -1074,8 +1078,8 @@ class reAct:
                                 for gate in [*report.unresolved, *report.inconclusive]
                             ]
                             err_msg = (
-                                "【交付审计未通过】delivery_disposition=complete，"
-                                "当前机理证据仍有缺口："
+                                "[Delivery audit failed] delivery_disposition=complete, "
+                                "current mechanism evidence still has gaps: "
                                 + json.dumps(gaps, ensure_ascii=False)
                             )
                             await self._commit_undos()
@@ -1164,7 +1168,7 @@ class reAct:
                 result_block = {
                     'role': 'tool',
                     'tool_call_id': tool_call_id,
-                    'content': f"【系统错误】找不到工具: {tool_name}。请检查工具名称是否正确。"
+                    'content': f"[System error] Tool not found: {tool_name}. Check that the tool name is correct."
                 }
                 await self._commit_undos()
                 await self.agent.update_context(result_block)
@@ -1189,7 +1193,7 @@ class reAct:
                 image_path = None
                 if isinstance(tool_result, Exception):
                     # 如果工具执行抛出了异常，将错误信息反馈给 Agent
-                    content = f"【系统错误】工具执行发生异常: {str(tool_result)}"
+                    content = f"[System error] Tool execution raised an exception: {str(tool_result)}"
                     result_dict = {
                         "is_success": False,
                         "error": str(tool_result),

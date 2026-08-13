@@ -132,12 +132,12 @@ def test_web_search_guidance_gated_by_availability(isolated_prompt_sources):
     with_guidance = assembler.assemble(
         ["web_search"], web_search_available=True
     )
-    assert "联网搜索" in with_guidance.identity_messages[0]["content"]
+    assert "Web search" in with_guidance.identity_messages[0]["content"]
 
     without = assembler.assemble(
         ["web_search"], web_search_available=False
     )
-    assert "联网搜索" not in without.identity_messages[0]["content"]
+    assert "Web search" not in without.identity_messages[0]["content"]
 
 
 def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
@@ -157,14 +157,14 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     with_hub = assembler.assemble(["bashtools", "agent_hub"])
     assert "AgentHub" in with_hub.identity_messages[0]["content"]
     assert "agent_hub" in with_hub.identity_messages[0]["content"]
-    assert "交接文档" in with_hub.identity_messages[0]["content"]
+    assert "handoff" in with_hub.identity_messages[0]["content"]
     assert "directory" in with_hub.identity_messages[0]["content"]
     assert "call" in with_hub.identity_messages[0]["content"]
-    assert "【来电】" in with_hub.identity_messages[0]["content"]
+    assert "[Incoming call]" in with_hub.identity_messages[0]["content"]
 
     without_hub = assembler.assemble(["bashtools"])
     assert "AgentHub" not in without_hub.identity_messages[0]["content"]
-    assert "交接文档" in without_hub.identity_messages[0]["content"]
+    assert "handoff" in without_hub.identity_messages[0]["content"]
 
 
 def test_coordinator_prompt_allows_peer_call():
@@ -185,7 +185,7 @@ async def test_agent_injects_web_search_guidance_when_search_available(
     agent = _agent(tmp_path, workspace, prompt_name="probe")
 
     kwargs = await agent._build_request_kwargs()
-    assert "联网搜索" in kwargs["messages"][0]["content"]
+    assert "Web search" in kwargs["messages"][0]["content"]
 
     # 关闭原生搜索且无 web_search 工具时，不注入引导
     from cloudra.infra.config import get_config
@@ -193,7 +193,7 @@ async def test_agent_injects_web_search_guidance_when_search_available(
     monkeypatch.setattr(get_config().follower, "native_search", "off")
     agent2 = _agent(tmp_path, workspace, prompt_name="probe")
     kwargs2 = await agent2._build_request_kwargs()
-    assert "联网搜索" not in kwargs2["messages"][0]["content"]
+    assert "Web search" not in kwargs2["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -232,7 +232,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
         },
         {
             "role": "system",
-            "content": "[上下文压缩提示] 保留这条梗概",
+            "content": "[Context compact] 保留这条梗概",
         },
     ]
     with open(manager.context_file, "w", encoding="utf-8") as stream:
@@ -251,7 +251,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
     assert not any("已经过期的身份" in str(msg.get("content")) for msg in messages)
     assert any("已完成一部分" in str(msg.get("content")) for msg in messages)
     assert any(SUPERVISOR_ADVICE_MARKER in str(msg.get("content")) for msg in messages)
-    assert any("[上下文压缩提示]" in str(msg.get("content")) for msg in messages)
+    assert any("[Context compact]" in str(msg.get("content")) for msg in messages)
 
 
 @pytest.mark.asyncio
@@ -305,7 +305,7 @@ async def test_ordinary_workspace_change_is_observation_only(
     assert "new-result.txt" in second_observation
     assert f"working_directory={workspace.resolve()}" in first_observation
     assert "bashtools" in first_observation
-    assert "相对此工作目录" in first_observation
+    assert "relative to this working directory" in first_observation
 
 
 @pytest.mark.asyncio

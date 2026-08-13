@@ -86,7 +86,7 @@ async def test_guided_blocks_substantive_until_graph_has_nodes(tmp_path):
     gate = await controller.check_substantive_gate("SubAgentLauncher", {})
     assert gate is not None
     assert gate[0] == "block"
-    assert "DAG 门槛" in gate[1]
+    assert "DAG gate" in gate[1]
 
     assert await controller.check_substantive_gate(
         "smiles_to_mol", {"smiles": "CCO"}
@@ -186,7 +186,7 @@ async def test_guided_template_allows_researcher_blocks_edit_and_dft(tmp_path):
         gate = await controller.check_substantive_gate(tool, args)
         assert gate is not None, tool
         assert gate[0] == "block", tool
-        assert "机理" in gate[1] or "排产" in gate[1] or "Supervisor" in gate[1]
+        assert "mechanism" in gate[1] or "planned" in gate[1] or "Supervisor" in gate[1]
 
 
 @pytest.mark.asyncio

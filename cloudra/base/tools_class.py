@@ -168,7 +168,7 @@ class Tool(BaseModel):
         try:
             return await self.tool_call(user_input, session)
         except Exception as e:
-            error_msg = f"【工具执行异常】{self.tool_name}: {str(e)}"
+            error_msg = f"[Tool error] {self.tool_name}: {str(e)}"
             raise RuntimeError(error_msg) from e
 
     async def ensure_safety(

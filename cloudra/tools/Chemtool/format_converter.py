@@ -7,13 +7,13 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "基于 ASE 在 mol、xyz、gjf、pdb、SDF、cif 等常见计算化学文件格式之间相互转换；"
-    "坐标数据仅在文件之间流转，不会出现在返回结果中。"
-    "也支持 Gaussian 日志（input_format='log'）提取关键帧为 CSV（output_format='csv'）："
-    "优化轨迹、扫描曲线、IRC 反应路径逐点的结构/能量/反应坐标，供程序化分析。"
-    "适用：已有结构文件需要换格式（如 xyz 转 gjf、cif 转 pdb）以对接下游计算或可视化；"
-    "IRC/扫描曲线分析时把日志转成 CSV 后用 pandas 等程序化读取。"
-    "不适用：从 SMILES 生成初始三维结构（用 smiles_to_mol）、编写 Gaussian 计算输入（用 gjf_writer）。"
+    "Convert among common computational-chemistry file formats (mol, xyz, gjf, pdb, SDF, cif, etc.) via ASE; "
+    "coordinates stay in files and never appear in the return value. "
+    "Also extracts key frames from a Gaussian log (input_format='log') to CSV (output_format='csv'): "
+    "optimization trajectories, scan curves, and IRC path structures/energies/reaction coordinates for programmatic analysis. "
+    "Use for: converting an existing structure file (e.g. xyz→gjf, cif→pdb) for downstream compute or visualization; "
+    "turning IRC/scan logs into CSV for pandas and similar. "
+    "Do not use for: generating an initial 3D structure from SMILES (use smiles_to_mol) or writing a Gaussian input (use gjf_writer)."
 )
 
 
@@ -26,23 +26,23 @@ _ASE_FORMAT_MAP = {
 
 class FormatConverter_input_schema(input_schema):
     input_path: str = Field(
-        description="输入文件的绝对路径。"
+        description="Absolute path of the input file."
     )
     input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log"] = Field(
-        description="输入文件格式。log 表示 Gaussian 输出日志（.log/.out），此时输出必须为 csv。"
+        description="Input format. log means a Gaussian output log (.log/.out); then output must be csv."
     )
     output_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "csv"] = Field(
-        description="目标输出格式。csv 仅用于 log→关键帧表。"
+        description="Target output format. csv is only for log→key-frame tables."
     )
     output_path: str = Field(
-        description="输出文件的绝对路径。"
+        description="Absolute path of the output file."
     )
 
 
 class FormatConverter_output_schema(output_schema):
-    is_success: bool = Field(description="转换是否成功")
-    output_path: str = Field(default="", description="输出文件的绝对路径")
-    message: str = Field(default="", description="状态或错误信息")
+    is_success: bool = Field(description="Whether conversion succeeded")
+    output_path: str = Field(default="", description="Absolute path of the output file")
+    message: str = Field(default="", description="Status or error message")
 
 
 class FormatConverter(Tool):

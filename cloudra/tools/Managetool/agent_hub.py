@@ -66,54 +66,53 @@ def _fuzzy_score(query: str, text: str) -> float:
     return len(q_tokens & _query_tokens(text)) / len(q_tokens)
 
 description = (
-    "AgentHub：所有并行 Agent 共享的信息论坛，一切帖子对全体 Agent 公开。你可以在这里：\n"
-    "- **post**：发布发现（finding）、提问（question）、回答（answer）、广播（broadcast）或留言（message），"
-    "回复某帖时传 parent_id。\n"
-    "- **点名与通知**：post 时可填 to_agent（角色名如 small_mol、ID 如 a-4，或 coordinator）表示"
-    "这条内容主要写给谁——帖子本身仍是公开的讨论痕迹，任何人都能读到；被点名的 Agent 会立即收到"
-    "事件通知，帖子被回复时原作者同样会收到通知。\n"
-    "- **browse**：浏览最近有哪些主题（topic）及活跃度。\n"
-    "- **read**：按主题读取帖子（含问答串）。\n"
-    "- **search**：按关键词检索所有帖子（模糊匹配，无需精确用词）。\n"
-    "- **directory**：列出本对话所有 session（session_id、agent_id、state、task）。\n"
-    "- **call**：向另一 Agent 发起实时来电（to + message，可选 post_id）。\n"
-    "使用纪律：开始一个与其他 Agent 可能重叠的子任务前，先 browse/search 看看有没有人已经做过；"
-    "得到可复用的关键结论（参数、数据、坑）后，post 到对应主题。帖子内容要自包含，"
-    "别人没有你的上下文。对数据或工具行为有疑惑时，发 question 或用 to_agent 点名求助，"
-    "不要独自凭记忆下结论。"
+    "AgentHub: a shared information forum for all parallel Agents. Every post is public to every Agent. You can:\n"
+    "- **post**: publish a finding, question, answer, broadcast, or message; pass parent_id to reply to a post.\n"
+    "- **Addressing and notifications**: on post you may set to_agent (role name such as small_mol, ID such as a-4, or coordinator) "
+    "to say who the content is mainly for — the post itself remains a public discussion trail anyone can read; "
+    "the addressed Agent is notified immediately, and the original author is notified when their post is replied to.\n"
+    "- **browse**: list recent topics and activity.\n"
+    "- **read**: read posts for a topic (including Q&A threads).\n"
+    "- **search**: search all posts by keyword (fuzzy match; exact wording not required).\n"
+    "- **directory**: list all sessions in this conversation (session_id, agent_id, state, task).\n"
+    "- **call**: place a live call to another Agent (to + message, optional post_id).\n"
+    "Discipline: before starting a subtask that may overlap with another Agent, browse/search to see if someone already did it; "
+    "after you get a reusable conclusion (parameters, data, pitfalls), post it to the matching topic. Posts must be self-contained — "
+    "others do not have your context. If you are unsure about data or tool behavior, post a question or address someone with to_agent; "
+    "do not conclude from memory alone."
 )
 
 
 class AgentHub_input_schema(input_schema):
-    action: str = Field(description="操作类型：post / browse / read / search / directory / call")
-    topic: str = Field(default="", description="主题名（post/read 必填），如 'CO2加氢-文献调研'")
-    content: str = Field(default="", description="帖子内容（post 必填），要求自包含")
+    action: str = Field(description="Action: post / browse / read / search / directory / call")
+    topic: str = Field(default="", description="Topic name (required for post/read), e.g. 'CO2 hydrogenation - literature'")
+    content: str = Field(default="", description="Post body (required for post); must be self-contained")
     kind: str = Field(
         default="finding",
-        description="帖子类型：finding（发现）/ question（提问）/ answer（回答）/ broadcast（广播）/ message（留言）；帖子一律公开"
+        description="Post kind: finding / question / answer / broadcast / message; all posts are public"
     )
     to_agent: str = Field(
         default="",
-        description="点名对象：角色名（如 small_mol）、Agent ID（如 a-4）或 coordinator；帖子仍公开，被点名者会收到事件通知"
+        description="Addressee: role name (e.g. small_mol), Agent ID (e.g. a-4), or coordinator; the post stays public and the addressee is notified"
     )
     to: str = Field(
         default="",
-        description="call 目标：session_id、agent_id（如 a-4）、角色名（如 small_mol）或 coordinator",
+        description="call target: session_id, agent_id (e.g. a-4), role name (e.g. small_mol), or coordinator",
     )
-    message: str = Field(default="", description="call 时你要对对面说的话（不是角色 prompt）")
-    post_id: Optional[int] = Field(default=None, description="call 时可选的对照帖子 ID")
-    parent_id: Optional[int] = Field(default=None, description="回复的帖子 ID（可选）；回复会通知原作者")
-    keyword: str = Field(default="", description="检索关键词（search 必填），模糊匹配，可用近义词/不精确措辞")
-    limit: int = Field(default=20, description="最大返回条数")
+    message: str = Field(default="", description="What you say to the other side on call (not a role prompt)")
+    post_id: Optional[int] = Field(default=None, description="Optional related post ID for call")
+    parent_id: Optional[int] = Field(default=None, description="Post ID to reply to (optional); a reply notifies the original author")
+    keyword: str = Field(default="", description="Search keyword (required for search); fuzzy match, synonyms/inexact phrasing OK")
+    limit: int = Field(default=20, description="Maximum number of items to return")
 
 
 class AgentHub_output_schema(output_schema):
-    is_success: bool = Field(description="操作是否成功")
-    posts: list = Field(default_factory=list, description="帖子列表（read/search/browse 结果）")
-    post_id: int = Field(default=0, description="新帖 ID（post 结果）")
-    message: str = Field(default="", description="状态说明")
-    sessions: list = Field(default_factory=list, description="directory 结果")
-    session_id: str = Field(default="", description="call 结果：对方 session_id")
+    is_success: bool = Field(description="Whether the action succeeded")
+    posts: list = Field(default_factory=list, description="Post list (read/search/browse results)")
+    post_id: int = Field(default=0, description="New post ID (post result)")
+    message: str = Field(default="", description="Status note")
+    sessions: list = Field(default_factory=list, description="directory result")
+    session_id: str = Field(default="", description="call result: the other party's session_id")
 
 
 class AgentHub(Tool):
@@ -164,19 +163,19 @@ class AgentHub(Tool):
             return AgentHub_output_schema(
                 is_success=True,
                 sessions=rows,
-                message=f"共 {len(rows)} 个 session。" if rows else "当前没有 session。",
+                message=f"{len(rows)} session(s)." if rows else "No sessions right now.",
             )
         if action == "call":
             return await self._call(db, user_input)
         return AgentHub_output_schema(
             is_success=False,
-            message=f"未知 action: {user_input.action}，可用：post / browse / read / search / directory / call",
+            message=f"Unknown action: {user_input.action}. Available: post / browse / read / search / directory / call",
         )
 
     async def _call(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:
         spoken = user_input.message.strip()
         if not spoken:
-            return AgentHub_output_schema(is_success=False, message="call 需要非空的 message。")
+            return AgentHub_output_schema(is_success=False, message="call requires a non-empty message.")
 
         kind, data = await asyncio.to_thread(resolve_call_target, user_input.to, db=db)
         if kind == "error":
@@ -188,7 +187,7 @@ class AgentHub(Tool):
         if user_input.post_id:
             post = await lookup_post(db, user_input.post_id)
             if post is not None:
-                post_line = f"对照帖子 #{post['id']}（主题 {post['topic']}）。"
+                post_line = f"Related post #{post['id']} (topic {post['topic']})."
         text = format_incoming_call(
             caller_agent_id=str(caller_agent),
             caller_session_id=str(caller_session),
@@ -213,7 +212,7 @@ class AgentHub(Tool):
             return AgentHub_output_schema(
                 is_success=True,
                 session_id=session_id,
-                message=f"已呼叫 {session_id}（不阻塞）。",
+                message=f"Called {session_id} (non-blocking).",
             )
 
         await deliver_incoming_call(
@@ -237,17 +236,17 @@ class AgentHub(Tool):
         return AgentHub_output_schema(
             is_success=True,
             session_id=data["session_id"],
-            message=f"已呼叫 {data['session_id']}（不阻塞）。",
+            message=f"Called {data['session_id']} (non-blocking).",
         )
 
     async def _post(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:
         topic = user_input.topic.strip()
         content = user_input.content.strip()
         if not topic or not content:
-            return AgentHub_output_schema(is_success=False, message="post 需要非空的 topic 和 content。")
+            return AgentHub_output_schema(is_success=False, message="post requires non-empty topic and content.")
         kind = user_input.kind.strip().lower() or "finding"
         if kind not in ("finding", "question", "answer", "broadcast", "message"):
-            return AgentHub_output_schema(is_success=False, message=f"未知 kind: {kind}")
+            return AgentHub_output_schema(is_success=False, message=f"Unknown kind: {kind}")
         to_agent = user_input.to_agent.strip()
         target_id = None
         if to_agent:
@@ -255,11 +254,11 @@ class AgentHub(Tool):
             if target_id is None:
                 return AgentHub_output_schema(
                     is_success=False,
-                    message=f"未知的 to_agent: {to_agent}（可用角色名如 small_mol、ID 如 a-4、coordinator）",
+                    message=f"Unknown to_agent: {to_agent} (use a role name such as small_mol, an ID such as a-4, or coordinator)",
                 )
         if kind == "message" and not to_agent:
             return AgentHub_output_schema(
-                is_success=False, message="message 类帖子需要 to_agent 指明写给谁（帖子仍公开）。"
+                is_success=False, message="message posts need to_agent to name the addressee (the post is still public)."
             )
 
         author_agent = getattr(self.subagent, 'name', None) or "unknown"
@@ -284,7 +283,7 @@ class AgentHub(Tool):
             post_id=post_id,
             target_id=target_id,
         )
-        message = f"已发布到主题 '{topic}'（id={post_id}）。"
+        message = f"Posted to topic '{topic}' (id={post_id})."
         if notice:
             message += notice
         return AgentHub_output_schema(
@@ -333,12 +332,12 @@ class AgentHub(Tool):
                     agent_id=target_id,
                     event_type="hub_message",
                     content=(
-                        f"{author_agent} 在 AgentHub 主题 '{user_input.topic.strip()}' 点名你"
-                        f"（帖子 #{post_id}）：{user_input.content.strip()[:500]}"
+                        f"{author_agent} mentioned you in AgentHub topic '{user_input.topic.strip()}' "
+                        f"(post #{post_id}): {user_input.content.strip()[:500]}"
                     ),
                     db_path=db_path,
                 )
-                notices.append(f"已通知 {user_input.to_agent.strip()}。")
+                notices.append(f"Notified {user_input.to_agent.strip()}.")
             if user_input.parent_id is not None:
                 parent = await self._get_post(db, user_input.parent_id)
                 if parent is not None and parent["author_agent"] != author_agent:
@@ -349,14 +348,14 @@ class AgentHub(Tool):
                             agent_id=parent_target,
                             event_type="hub_reply",
                             content=(
-                                f"{author_agent} 回复了你在 AgentHub 主题 '{parent['topic']}' 的帖子"
-                                f" #{parent['id']}（回复 #{post_id}）：{user_input.content.strip()[:500]}"
+                                f"{author_agent} replied to your AgentHub post in topic '{parent['topic']}' "
+                                f"#{parent['id']} (reply #{post_id}): {user_input.content.strip()[:500]}"
                             ),
                             db_path=db_path,
                         )
-                        notices.append(f"已通知原作者 {parent['author_agent']}。")
+                        notices.append(f"Notified original author {parent['author_agent']}.")
         except Exception:
-            notices.append("（事件通知发送失败，帖子已公开保存）")
+            notices.append("(event notify failed; the post was saved publicly)")
         return " " + " ".join(notices) if notices else ""
 
     async def _browse(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:
@@ -374,13 +373,13 @@ class AgentHub(Tool):
         return AgentHub_output_schema(
             is_success=True,
             posts=topics,
-            message=f"共 {len(topics)} 个主题。" if topics else "论坛暂无帖子。",
+            message=f"{len(topics)} topic(s)." if topics else "The forum has no posts yet.",
         )
 
     async def _read(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:
         topic = user_input.topic.strip()
         if not topic:
-            return AgentHub_output_schema(is_success=False, message="read 需要指定 topic。")
+            return AgentHub_output_schema(is_success=False, message="read requires a topic.")
 
         async def query():
             async with db.aconnect() as con:
@@ -396,13 +395,13 @@ class AgentHub(Tool):
         return AgentHub_output_schema(
             is_success=True,
             posts=posts,
-            message=f"主题 '{topic}' 共 {len(posts)} 帖。" if posts else f"主题 '{topic}' 暂无帖子。",
+            message=f"Topic '{topic}' has {len(posts)} post(s)." if posts else f"Topic '{topic}' has no posts yet.",
         )
 
     async def _search(self, db: ConversationDB, user_input: AgentHub_input_schema) -> AgentHub_output_schema:
         keyword = user_input.keyword.strip()
         if not keyword:
-            return AgentHub_output_schema(is_success=False, message="search 需要指定 keyword。")
+            return AgentHub_output_schema(is_success=False, message="search requires a keyword.")
 
         # 模糊检索：取最近一批帖子在 Python 侧打分——子串精确命中排最前，
         # 其余按 query token（英文按词、中文按 bigram）在主题/正文中的覆盖率排序。
@@ -432,8 +431,8 @@ class AgentHub(Tool):
             is_success=True,
             posts=posts,
             message=(
-                f"关键词 '{keyword}' 模糊命中 {len(posts)} 帖（扫描最近 {len(rows)} 帖）。"
-                if posts else f"关键词 '{keyword}' 无命中。"
+                f"Keyword '{keyword}' fuzzy-matched {len(posts)} post(s) (scanned the latest {len(rows)})."
+                if posts else f"Keyword '{keyword}' had no hits."
             ),
         )
 

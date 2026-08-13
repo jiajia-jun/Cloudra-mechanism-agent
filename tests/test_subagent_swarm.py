@@ -121,7 +121,7 @@ class TestValidation:
             _make_input(items=["alpha", "alpha", "beta"]), session=None
         )
         assert out.session_ids == []
-        assert "重复" in out.result
+        assert "duplicate" in out.result
         assert "alpha" in out.result
 
     @pytest.mark.asyncio
@@ -162,11 +162,11 @@ class TestWaitingSwarm:
         items = ["alpha", "beta", "gamma"]
         out = await tool.tool_call(_make_input(items=items), session=None)
 
-        assert "Swarm 完成: 3/3 个成功" in out.result
+        assert "Swarm finished: 3/3 succeeded" in out.result
         for index, item in enumerate(items, start=1):
             assert f"=== Item {index}/3: {item} ===" in out.result
             assert f"检查目录 {item}" in out.result  # 该项的 RESULT 进入报告
-        assert out.result.count("状态: 成功") == 3
+        assert out.result.count("status: succeeded") == 3
 
     async def test_max_concurrency_limits_parallelism(self, isolated_runtime, monkeypatch):
         log = {"active": 0, "peak": 0}
@@ -177,7 +177,7 @@ class TestWaitingSwarm:
         )
 
         assert len(out.session_ids) == 4
-        assert "4/4 个成功" in out.result
+        assert "4/4 succeeded" in out.result
         assert 1 <= log["peak"] <= 2  # 峰值并发不超过上限
 
     async def test_executor_failure_aggregated_as_failed_section(self, isolated_runtime, monkeypatch):
@@ -189,8 +189,8 @@ class TestWaitingSwarm:
         out = await tool.tool_call(_make_input(items=["a", "b"]), session=None)
 
         # _run_subagent_in_process 兜底落库 failed，报告分节标记失败
-        assert "0/2 个成功" in out.result
-        assert out.result.count("状态: 失败") == 2
+        assert "0/2 succeeded" in out.result
+        assert out.result.count("status: failed") == 2
 
 
 @pytest.mark.asyncio

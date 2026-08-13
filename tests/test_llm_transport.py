@@ -464,7 +464,7 @@ class TestAgentDelegation:
         assert kwargs["messages"][0] == {"role": "user", "content": "你好"}
         assert kwargs["messages"][1]["role"] == "system"
         assert kwargs["messages"][1]["content"].startswith(
-            "【当前工作区 observation】"
+            "[Workspace observation]"
         )
         identity_messages = agent.context_manager.build_messages.call_args.kwargs[
             "identity_messages"
@@ -473,9 +473,9 @@ class TestAgentDelegation:
         assert identity_messages[0]["role"] == "system"
         assert identity_messages[0]["content"].startswith("测试\n\n")
         # prompt_assembler 现在会在工具段之后追加交接文档指引（_CONTEXT_HANDOFF_GUIDANCE）
-        assert "## 当前可用工具\n\n本次请求没有可用工具。" in identity_messages[0]["content"]
+        assert "## Currently available tools\n\nNo tools are available for this request." in identity_messages[0]["content"]
         assert identity_messages[0]["content"].endswith(
-            "压缩后继续或换班接手时，先读交接文档再动手，不要重头摸索。"
+            "After compact or a shift change, read the handoff note before acting; do not start from scratch."
         )
         assert kwargs["temperature"] == agent.temperature
         assert kwargs["max_tokens"] == agent.max_tokens

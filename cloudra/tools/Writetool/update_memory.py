@@ -8,34 +8,34 @@ from cloudra.core.agent import Agent
 from cloudra.persistence.memory import get_memory_manager
 
 description = (
-    "把任务中获得的经验教训、最佳实践追加到 Coordinator 的长期记忆（MEMORY.md），"
-    "记忆在 Coordinator 启动时自动加载进上下文；字数超阈值时自动压缩归档。"
-    "适用：任务结束后沉淀可复用的经验（如某类计算的踩坑点、某工具的用法要点），供后续任务复用。"
-    "不适用：记录本次任务的临时中间结果（用 text_writer 写工作区文件）、加载已有技能流程（用 getskill）。"
+    "Append lessons learned and best practices from this task to the Coordinator's long-term memory (MEMORY.md); "
+    "memory is loaded into context when the Coordinator starts, and is compacted/archived when it exceeds the size threshold. "
+    "Use for: capturing reusable experience after a task (e.g. pitfalls of a calculation class, usage notes for a tool) for later tasks. "
+    "Do not use for: recording ephemeral intermediate results of this task (write workspace files with text_writer) or loading an existing skill SOP (use getskill)."
 )
 
 
 class UpdateMemory_input_schema(input_schema):
     lesson: str = Field(
         description=(
-            "要记录的经验或技能提醒。应简洁、具体、可复用，例如："
-            "'调用 Gaussian 做 TS 搜索前，必须先做柔性扫描并保存初猜结构；' "
-            "'解析 VASP OUTCAR 时优先读取 MAGMOM 列来判断磁性。'"
+            "The lesson or skill reminder to record. Keep it concise, specific, and reusable, e.g.: "
+            "'Before a Gaussian TS search, run a relaxed scan and save the guess geometry;' "
+            "'When parsing a VASP OUTCAR, prefer the MAGMOM column to judge magnetism.'"
         )
     )
     source: str = Field(
         default="",
-        description="经验来源，例如子 Agent 名称、session_id 或任务描述。"
+        description="Source of the lesson, e.g. a sub-agent name, session_id, or task description."
     )
     skill_name: str = Field(
         default="",
-        description="可选的技能分类标签，例如 'dft-calculation'、'literature-search'。"
+        description="Optional skill category tag, e.g. 'dft-calculation', 'literature-search'."
     )
 
 
 class UpdateMemory_output_schema(output_schema):
-    result: str = Field(description="记忆更新结果")
-    word_count: int = Field(default=0, description="当前 MEMORY.md 的估算字数")
+    result: str = Field(description="Memory-update result")
+    word_count: int = Field(default=0, description="Estimated word count of the current MEMORY.md")
 
 
 class UpdateMemory(Tool):

@@ -791,7 +791,7 @@ async def test_view_survives_malformed_priority_payload(tmp_path):
         str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
     ]
     view_content = next(c for c in tool_contents if "frontier" in c)
-    assert "【系统错误】" not in view_content
+    assert "[System error]" not in view_content
     payload = json.loads(view_content)
     frontier = payload["result"]["frontier"]
     # 脏 priority 按 0 处理：正常节点排前面，脏节点仍在 frontier 里可见
@@ -801,7 +801,7 @@ async def test_view_survives_malformed_priority_payload(tmp_path):
 
 @pytest.mark.asyncio
 async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
-    """回归：dag_graph 工具内部异常必须以【系统错误】回喂 Supervisor 上下文，
+    """回归：dag_graph 工具内部异常必须以[System error]回喂 Supervisor 上下文，
     让它有机会调整，而不是把整个督导运行炸掉、session 落为 failed。"""
     _, GraphSupervisor, _ = _api()
 
@@ -840,7 +840,7 @@ async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
     tool_contents = [
         str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
     ]
-    assert any("【系统错误】" in c and "projection exploded" in c for c in tool_contents)
+    assert any("[System error]" in c and "projection exploded" in c for c in tool_contents)
     # UI 事件流不悬空：tool_started 后必须跟 tool_finished
     kinds = [k for k, _ in emitted]
     assert "tool_started" in kinds and "tool_finished" in kinds
@@ -905,7 +905,7 @@ async def test_wrapup_llm_failure_does_not_break_run(tmp_path):
 
     assert result.rounds == 0
     assert "llm_call failed" in result.note
-    assert "Supervisor 本轮结论" in result.report
+    assert "Supervisor conclusion this turn" in result.report
     assert "new_evidence" in result.report
 
 
@@ -937,9 +937,9 @@ async def test_supervisor_folds_stale_view_results(tmp_path):
 
     tool_blocks = [b for b in await agent.get_context() if b.get("role") == "tool"]
     assert len(tool_blocks) == 2
-    assert "【过时视图已折叠】" in str(tool_blocks[0].get("content", ""))
+    assert "[Stale view folded]" in str(tool_blocks[0].get("content", ""))
     assert "frontier" in str(tool_blocks[1].get("content", ""))
-    assert "【过时视图已折叠】" not in str(tool_blocks[1].get("content", ""))
+    assert "[Stale view folded]" not in str(tool_blocks[1].get("content", ""))
 
 
 @pytest.mark.asyncio
@@ -1095,7 +1095,7 @@ async def test_empty_turn_continues_and_can_mutate(tmp_path):
     assert any(n.node_id == "p_opt_poz" for n in snapshot.process.nodes)
     context = await agent.get_context()
     assert any(
-        "空回复不算结束" in str(b.get("content", ""))
+        "empty reply does not end" in str(b.get("content", ""))
         for b in context
         if b.get("role") == "user"
     )
@@ -1166,7 +1166,7 @@ async def test_empty_closing_wrapup_failure_uses_fallback_report(tmp_path):
 
     result = await supervisor.run("delivery_updated", session_id="s1")
 
-    assert "Supervisor 本轮结论" in result.report
+    assert "Supervisor conclusion this turn" in result.report
     assert "delivery_updated" in result.report
     assert "message_supervisor" in result.report
 
@@ -1175,15 +1175,15 @@ def test_trigger_message_conditional_planning_and_no_empty_end():
     """delivery_updated / coordinator_message 文案：条件排产 + 禁止空结束。"""
     _, GraphSupervisor, _ = _api()
     text = GraphSupervisor._trigger_message("delivery_updated", "rationale: add TS")
-    assert "模板" in text
-    assert "可不改图" in text or "说明理由" in text
-    assert "禁止空回复" in text or "结论文本" in text
-    assert "【Coordinator 机理变更说明】" in text
-    assert "不要用正文代替 mutate" in text
+    assert "template" in text
+    assert "leave the graph unchanged" in text
+    assert "empty replies are forbidden" in text
+    assert "[Coordinator mechanism-change note]" in text
+    assert "do not use prose in place of mutate" in text
 
     msg = GraphSupervisor._trigger_message("coordinator_message", "请补排产")
-    assert "【Coordinator 留言】请补排产" in msg
-    assert "结论文本" in msg or "禁止空回复" in msg
+    assert "[Coordinator message]请补排产" in msg
+    assert "empty replies are forbidden" in msg
 
 
 @pytest.mark.asyncio

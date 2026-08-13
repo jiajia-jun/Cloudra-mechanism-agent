@@ -52,9 +52,9 @@ def test_resolve_working_directory_defaults_to_cwd(tmp_path, monkeypatch):
 def test_workspace_rejects_absolute_escape_and_symlink_paths(tmp_path):
     service = WorkspaceService(tmp_path)
 
-    with pytest.raises(WorkspaceError, match="相对"):
+    with pytest.raises(WorkspaceError, match="relative"):
         service.resolve_path(str(tmp_path / "file.txt"))
-    with pytest.raises(WorkspaceError, match="边界"):
+    with pytest.raises(WorkspaceError, match="escapes"):
         service.resolve_path("../outside.txt")
 
     outside = tmp_path.parent / f"{tmp_path.name}-outside"
@@ -64,7 +64,7 @@ def test_workspace_rejects_absolute_escape_and_symlink_paths(tmp_path):
         link.symlink_to(outside, target_is_directory=True)
     except (NotImplementedError, OSError):
         pytest.skip("当前文件系统不支持创建符号链接")
-    with pytest.raises(WorkspaceError, match="符号链接"):
+    with pytest.raises(WorkspaceError, match="symlink"):
         service.resolve_path("linked/file.txt")
 
 
@@ -107,7 +107,7 @@ def test_edit_requires_unique_match_unless_replace_all(tmp_path):
     service = WorkspaceService(tmp_path)
     before = service.snapshot("repeat.txt")
 
-    with pytest.raises(WorkspaceConflictError, match="匹配了 2 次"):
+    with pytest.raises(WorkspaceConflictError, match="matched 2 times"):
         service.prepare_edit(
             "repeat.txt",
             before.sha256,
@@ -136,7 +136,7 @@ def test_apply_detects_file_change_after_preview(tmp_path):
 
     path.write_text("user\n", encoding="utf-8")
 
-    with pytest.raises(WorkspaceConflictError, match="审批期间已变化"):
+    with pytest.raises(WorkspaceConflictError, match="changed during approval"):
         service.apply(change)
     assert path.read_text(encoding="utf-8") == "user\n"
 
@@ -162,7 +162,7 @@ def test_edit_result_cannot_exceed_workspace_text_limit(tmp_path):
     service = WorkspaceService(tmp_path, max_file_bytes=8)
     before = service.snapshot("small.txt")
 
-    with pytest.raises(WorkspaceError, match="编辑结果过大"):
+    with pytest.raises(WorkspaceError, match="too large"):
         service.prepare_edit(
             "small.txt",
             before.sha256,
@@ -177,9 +177,9 @@ def test_write_requires_missing_for_create_and_hash_for_overwrite(tmp_path):
     service.apply(create)
     assert create.kind == "add"
 
-    with pytest.raises(WorkspaceConflictError, match="已经存在"):
+    with pytest.raises(WorkspaceConflictError, match="already exists"):
         service.prepare_write("new.txt", "unsafe\n", "missing")
-    with pytest.raises(WorkspaceConflictError, match="已变化"):
+    with pytest.raises(WorkspaceConflictError, match="has changed"):
         service.prepare_write("new.txt", "unsafe\n", "0" * 64)
 
     current = service.snapshot("new.txt")
@@ -226,7 +226,7 @@ async def test_text_reader_tool_uses_relative_workspace_path(tmp_path, mock_sess
     assert result.filepath == "readme.md"
     assert len(result.sha256) == 64
     assert rejected.content == ""
-    assert "相对" in rejected.message
+    assert "relative" in rejected.message
 
 
 @pytest.mark.asyncio
@@ -298,7 +298,7 @@ async def test_text_writer_tool_returns_structured_conflict(
 
     assert result.is_written is False
     assert result.status == "conflict"
-    assert "已经存在" in result.message
+    assert "already exists" in result.message
     assert (tmp_path / "exists.txt").read_text(encoding="utf-8") == "keep\n"
     assert events == [
         (

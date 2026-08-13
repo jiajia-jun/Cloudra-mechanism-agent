@@ -114,7 +114,7 @@ async def test_bashtools_warns_but_runs_file_write(tmp_path, monkeypatch):
         SimpleNamespace(id="s1"),
     )
     assert out.exit_code == 0
-    assert "bash 习惯" in out.result
+    assert "bash habit" in out.result
     assert (tmp_path / "note.txt").read_text() == "hello\n"
 
 
@@ -153,7 +153,7 @@ async def test_react_injects_bash_habit_warning_in_long_context(tmp_path, monkey
     await react._check_bash_habit("bashtools", {"command": "g16 ts.gjf"})
 
     context = await react.agent.get_context()
-    assert any("bash 习惯" in str(m.get("content", "")) for m in context)
+    assert any("bash habit" in str(m.get("content", "")) for m in context)
     assert react._consecutive_bash == 1
 
 
@@ -164,7 +164,7 @@ async def test_react_no_warning_in_short_context(tmp_path, monkeypatch):
     await react._check_bash_habit("bashtools", {"command": "g16 ts.gjf"})
 
     context = await react.agent.get_context()
-    assert not any("bash 习惯" in str(m.get("content", "")) for m in context)
+    assert not any("bash habit" in str(m.get("content", "")) for m in context)
     assert react._consecutive_bash == 1
 
 

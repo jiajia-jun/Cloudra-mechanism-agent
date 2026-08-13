@@ -86,7 +86,7 @@ class TestExecutorCancelledFallback:
         assert event[0] == "a-0"
         assert event[1] == "subagent"
         assert event[3] == "pending"
-        assert "终止" in event[2] or "打断" in event[2]
+        assert "terminated" in event[2] or "SIGTERM" in event[2]
 
 
 @pytest.mark.asyncio
