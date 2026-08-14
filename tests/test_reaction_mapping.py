@@ -57,7 +57,7 @@ def test_complete_atom_map_labels_are_authoritative():
 
 
 def test_complete_atom_map_labels_cannot_cross_elements():
-    with pytest.raises(ValueError, match="元素|同位素"):
+    with pytest.raises(ValueError, match="element|isotope"):
         analyze_reaction_mapping(
             "[CH3:1][OH:2]",
             "[OH:1][CH3:2]",
@@ -109,7 +109,7 @@ def test_claisen_mapping_reports_pericyclic_bond_changes():
 
 def test_unbalanced_reaction_is_operational_failure():
     """防止元素数不守恒时仍返回长度不合法的 ts_guess atom_map。"""
-    with pytest.raises(ValueError, match="元素数"):
+    with pytest.raises(ValueError, match="element counts"):
         analyze_reaction_mapping("CC", "CCC")
 
 
@@ -127,7 +127,7 @@ async def test_tool_returns_advisory_mapping_result(mock_session):
     assert result.is_success is True
     assert result.mapping_status == "ambiguous"
     assert any(c["heavy_atom_map"] == [4, 5, 6, 1, 2, 3] for c in result.candidates)
-    assert "人工" in result.message or "agent" in result.message
+    assert "manual" in result.message or "agent" in result.message
 
 
 @pytest.mark.asyncio
@@ -139,7 +139,7 @@ async def test_tool_reports_malformed_or_unbalanced_input_as_operational_failure
 
     assert result.is_success is False
     assert result.mapping_status == "inconclusive"
-    assert "重原子元素数" in result.message
+    assert "element counts" in result.message
 
 
 @pytest.mark.asyncio
@@ -280,7 +280,7 @@ async def test_symmetric_concrete_embedding_is_inconclusive_without_labels(tmp_p
     assert result.reactant_identity == result.product_identity == "match"
     assert result.binding_status == "inconclusive"
     assert result.atom_map == []
-    assert any("对称" in item or "不唯一" in item for item in result.binding_diagnostics)
+    assert any("symmetric" in item or "not unique" in item for item in result.binding_diagnostics)
 
 
 @pytest.mark.asyncio

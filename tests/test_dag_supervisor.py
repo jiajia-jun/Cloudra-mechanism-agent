@@ -202,7 +202,7 @@ async def test_delivery_updated_passes_coordinator_request(tmp_path):
     }
 
     await controller.on_tool_finished(
-        "tc-dag-1", "dag_graph", arguments, {"success": True, "accepted": True}
+        "tc-dag-1", "dag_graph", arguments, {"is_success": True, "accepted": True}
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["delivery_updated"]
@@ -220,7 +220,7 @@ async def test_process_only_or_read_dag_tool_calls_do_not_trigger(tmp_path):
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
     await controller.on_tool_finished(
-        "tc-dag-view", "dag_graph", {"action": "view"}, {"success": True}
+        "tc-dag-view", "dag_graph", {"action": "view"}, {"is_success": True}
     )
     await controller.on_tool_finished(
         "tc-dag-process",
@@ -236,7 +236,7 @@ async def test_process_only_or_read_dag_tool_calls_do_not_trigger(tmp_path):
                 }
             ],
         },
-        {"success": True, "accepted": True},
+        {"is_success": True, "accepted": True},
     )
 
     assert supervisor.calls == []
@@ -272,7 +272,7 @@ async def test_log_parser_success_triggers_new_evidence(tmp_path):
         "tc-2",
         "gaussian_log_parser",
         {"log_path": "ts1.log"},
-        {"success": True, "normal_termination": True, "scf_energy": -303.65},
+        {"is_success": True, "normal_termination": True, "scf_energy": -303.65},
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["new_evidence"]
@@ -287,7 +287,7 @@ async def test_log_parser_failure_and_tool_failure_do_not_trigger(tmp_path):
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
     await controller.on_tool_finished(
-        "tc-3", "gaussian_log_parser", {"log_path": "bad.log"}, {"success": False, "error": "parse error"}
+        "tc-3", "gaussian_log_parser", {"log_path": "bad.log"}, {"is_success": False, "error": "parse error"}
     )
     await controller.on_tool_finished(
         "tc-4", "ts_guess", {}, {"is_success": False, "error": "scf failed"}
@@ -653,7 +653,7 @@ async def test_graph_view_result_not_truncated(tmp_path):
     assert tool_contents
     assert not any("结果过长被截断" in c for c in tool_contents)
     payload = json.loads(tool_contents[-1])
-    assert payload["success"] is True
+    assert payload["is_success"] is True
     assert payload["result"]["total_nodes"] == 30
     assert len(payload["result"]["nodes"]) == 30
     # 一页装得下时不重复附 index
@@ -959,7 +959,7 @@ async def test_bind_evidence_acceptance_triggers_new_evidence(tmp_path):
             "bind_target": "step1",
             "evidence_role": "ts_optimization_frequency",
         },
-        {"success": True, "accepted": True},
+        {"is_success": True, "accepted": True},
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["new_evidence"]
@@ -977,7 +977,7 @@ async def test_failed_bind_and_review_evidence_do_not_trigger(tmp_path):
         "tc-bind-2",
         "dag_graph",
         {"action": "bind_evidence", "tool_call_id": "tc-x", "bind_target": "step1"},
-        {"success": False, "accepted": False, "error": "did not succeed"},
+        {"is_success": False, "accepted": False, "error": "did not succeed"},
     )
     await controller.on_tool_finished(
         "tc-review-1",
@@ -988,7 +988,7 @@ async def test_failed_bind_and_review_evidence_do_not_trigger(tmp_path):
             "verdict": "rejected",
             "rationale": "证据不成立",
         },
-        {"success": True, "accepted": True},
+        {"is_success": True, "accepted": True},
     )
 
     assert supervisor.calls == []
@@ -1198,7 +1198,7 @@ async def test_message_supervisor_triggers_coordinator_message(tmp_path):
         "tc-msg-1",
         "dag_graph",
         {"action": "message_supervisor", "message": "frontier 空，请补 TS 排产"},
-        {"success": True, "accepted": True, "result": {"delivered": True}},
+        {"is_success": True, "accepted": True, "result": {"delivered": True}},
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["coordinator_message"]
@@ -1216,13 +1216,13 @@ async def test_message_supervisor_empty_or_failed_does_not_trigger(tmp_path):
         "tc-msg-2",
         "dag_graph",
         {"action": "message_supervisor", "message": ""},
-        {"success": True},
+        {"is_success": True},
     )
     await controller.on_tool_finished(
         "tc-msg-3",
         "dag_graph",
         {"action": "message_supervisor", "message": "hello"},
-        {"success": False, "error": "oops"},
+        {"is_success": False, "error": "oops"},
     )
 
     assert supervisor.calls == []

@@ -148,8 +148,8 @@ def test_profile_monotonic():
     """全程单调：提示可能无势垒或坐标选错；极值在末端同时触发边界判定。"""
     result = analyze_scan_profile([0.0, 1.0, 2.0, 3.0])
     assert result["ts_index"] == 3
-    assert any("单调" in v for v in result["verdicts"])
-    assert any("边界" in v for v in result["verdicts"])
+    assert any("monotonic" in v for v in result["verdicts"])
+    assert any("boundary" in v for v in result["verdicts"])
 
 
 def test_profile_peak_at_boundary():
@@ -157,27 +157,27 @@ def test_profile_peak_at_boundary():
     result = analyze_scan_profile([5.0, 3.0, 1.0, 0.0])
     assert result["ts_index"] == 0
     assert result["barrier_kcal"] == pytest.approx(0.0)
-    assert any("边界" in v for v in result["verdicts"])
-    assert any("单调" in v for v in result["verdicts"])  # 单调递减同时触发单调判定
+    assert any("boundary" in v for v in result["verdicts"])
+    assert any("monotonic" in v for v in result["verdicts"])  # 单调递减同时触发单调判定
 
 
 def test_profile_discontinuity():
     """相邻能量突跳 > 3×中位数且 > 2 kcal/mol：报滑谷/不连续。"""
     result = analyze_scan_profile([0.0, 0.1, 0.2, 5.0, 5.1])
-    assert any("突跳" in v and "帧 2→3" in v for v in result["verdicts"])
+    assert any("jump" in v and "frames 2→3" in v for v in result["verdicts"])
 
 
 def test_profile_no_false_jump():
     """均匀变化的剖面不应误报突跳。"""
     result = analyze_scan_profile([0.0, 5.0, 10.0, 5.0, 0.0])
-    assert not any("突跳" in v for v in result["verdicts"])
+    assert not any("jump" in v for v in result["verdicts"])
 
 
 def test_profile_multiple_peaks():
     """多峰：全部列出。"""
     result = analyze_scan_profile([0.0, 5.0, 2.0, 6.0, 1.0])
     assert result["ts_index"] == 3
-    assert any("多个能量峰" in v and "1" in v and "3" in v for v in result["verdicts"])
+    assert any("Multiple energy peaks" in v and "1" in v and "3" in v for v in result["verdicts"])
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +341,7 @@ H  1.1  0.0  0.0
         "output_dir": str(tmp_path / "bad1"),
     }), mock_session)
     assert not bad_perm.is_success
-    assert "排列" in bad_perm.message
+    assert "permutation" in bad_perm.message
 
     # 元素不匹配（C 映射到 H）
     bad_elem = await tool.safe_call(TsGuess_input_schema(**{
@@ -352,7 +352,7 @@ H  1.1  0.0  0.0
         "output_dir": str(tmp_path / "bad2"),
     }), mock_session)
     assert not bad_elem.is_success
-    assert "元素不匹配" in bad_elem.message
+    assert "element mismatch" in bad_elem.message
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +444,7 @@ async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
         "output_path": str(tmp_path / "x.gjf"),
     }), mock_session)
     assert not result.is_success
-    assert "4 个原子" in result.message
+    assert "4 atom indices" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -482,7 +482,7 @@ async def test_scan_parse_h2_fixture(tmp_path, mock_session):
 
     # 最高点在末帧 → 边界判定
     assert result.ts_candidate_index == 100
-    assert any("边界" in v for v in result.verdicts)
+    assert any("boundary" in v for v in result.verdicts)
 
     # TS 初猜 xyz：2 个 H，键长 ≈ 1.60 Å（末帧扫描点几何）
     assert ts_path.is_file()
@@ -624,8 +624,8 @@ async def test_verify_ts_positive(tmp_path, mock_session):
     assert result.n_imag == 1
     assert result.imag_freqs == [pytest.approx(-915.34, abs=0.01)]
     assert result.verdict.startswith("candidate")
-    assert any("1 个虚频" in c for c in result.checks)
-    assert any("连通性一致" in c for c in result.checks)
+    assert any("1 imaginary frequency" in c for c in result.checks)
+    assert any("connectivity is consistent" in c for c in result.checks)
 
     # IRC 端点落盘，各 3 原子
     for p in (result.irc_end_a_path, result.irc_end_b_path):
@@ -646,7 +646,7 @@ async def test_verify_minimum_negative(tmp_path, mock_session):
     assert result.n_imag == 0
     assert result.imag_freqs == []
     assert result.verdict.startswith("unlikely")
-    assert any("极小点" in c for c in result.checks)
+    assert any("minimum" in c for c in result.checks)
 
 
 @pytest.mark.asyncio
@@ -667,7 +667,7 @@ async def test_verify_high_order_saddle(tmp_path, mock_session):
     assert result.is_success, result.message
     assert result.n_imag == 2
     assert result.verdict.startswith("unlikely")
-    assert any("高阶鞍点" in c for c in result.checks)
+    assert any("higher-order saddle" in c for c in result.checks)
 
 
 @pytest.mark.asyncio
@@ -687,8 +687,8 @@ async def test_verify_irc_endpoints_without_expected(tmp_path, mock_session):
     assert result.is_success, result.message
     assert result.n_imag == 1
     assert result.verdict.startswith("candidate")
-    assert any("成键" in c for c in result.checks)
-    assert not any("不一致" in c for c in result.checks)
+    assert any("bonds" in c for c in result.checks)
+    assert not any("inconsistent" in c for c in result.checks)
 
 
 @pytest.mark.asyncio
@@ -711,7 +711,7 @@ async def test_verify_strict_accepts_partial_irc_between_ts_and_intermediates(tm
 
     assert result.is_success, result.message
     assert result.verdict.startswith("pass")
-    assert any("中间" in check for check in result.checks)
+    assert any("intermediate" in check for check in result.checks)
     assert result.irc_end_a_path and result.irc_end_b_path
 
 
@@ -802,7 +802,7 @@ async def test_verify_strict_atom_order_mismatch_is_inconclusive(tmp_path, mock_
 
     assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
-    assert any("原子顺序不一致" in check for check in result.checks)
+    assert any("atom order" in check for check in result.checks)
 
 
 @pytest.mark.asyncio
@@ -846,7 +846,7 @@ async def test_verify_strict_rejects_imag_mode_misaligned_with_watch_pairs(tmp_p
 
     assert result.is_success, result.message
     assert result.verdict.startswith("fail")
-    assert any("虚频模式" in check or "反应坐标" in check for check in result.checks)
+    assert any("imaginary mode" in check or "reaction coordinate" in check for check in result.checks)
     assert result.imag_mode_aligned is False
 
 
@@ -870,7 +870,7 @@ async def test_verify_strict_missing_vibdisps_is_inconclusive(tmp_path, mock_ses
 
     assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
-    assert any("简正模式位移" in check for check in result.checks)
+    assert any("normal-mode displacements" in check for check in result.checks)
     assert result.imag_mode_aligned is None
 
 
@@ -892,7 +892,7 @@ async def test_verify_non_strict_reports_mode_alignment_without_changing_verdict
 
     assert result.is_success, result.message
     assert result.verdict.startswith("candidate")
-    assert any("虚频模式" in check or "反应坐标" in check for check in result.checks)
+    assert any("imaginary mode" in check or "reaction coordinate" in check for check in result.checks)
     assert result.imag_mode_aligned is False
 
 

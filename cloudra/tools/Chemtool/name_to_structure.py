@@ -134,10 +134,10 @@ class NameToStructure(Tool):
     def _smiles_to_xyz_file(smiles: str, output_path: str) -> None:
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
-            raise ValueError(f"RDKit 无法解析 SMILES: {smiles}")
+            raise ValueError(f"RDKit could not parse SMILES: {smiles}")
         mol = Chem.AddHs(mol)
         if AllChem.EmbedMolecule(mol, AllChem.ETKDGv3()) != 0:
-            raise ValueError("3D 构象嵌入失败")
+            raise ValueError("3D conformer embedding failed")
         try:
             AllChem.MMFFOptimizeMolecule(mol)
         except Exception:
@@ -167,24 +167,25 @@ class NameToStructure(Tool):
                 continue
             if result:
                 return result, svc, errors
-            errors.append(f"{svc}: 未命中")
+            errors.append(f"{svc}: no hit")
         return None, "", errors
 
     async def tool_call(self, user_input: NameToStructure_input_schema, session: Session) -> NameToStructure_output_schema:
         if not _HTTPX_AVAILABLE:
-            return NameToStructure_output_schema(is_success=False, message="环境未安装 httpx。")
+            return NameToStructure_output_schema(is_success=False, message="httpx is not installed.")
 
         name = user_input.name.strip()
         if not name:
-            return NameToStructure_output_schema(is_success=False, message="name 不能为空")
+            return NameToStructure_output_schema(is_success=False, message="name must not be empty")
 
         result, svc, errors = await self._resolve(name, user_input.resolver)
         if not result:
-            hint = ("所有解析服务均未命中。建议：① 改用英文通用名或 IUPAC 名（中文俗名命中率低）；"
-                    "② 改用 CAS 号；③ 若名称是反应产物描述（如 'Diels-Alder 产物'），请用 RDKit 反应模板自行构建。")
+            hint = ("No resolver returned a hit. Suggestions: 1) use an English common name or IUPAC name "
+                    "(Chinese trivial names rarely hit); 2) use a CAS number; 3) if the name describes a reaction "
+                    "product (e.g. 'Diels-Alder product'), build it yourself with an RDKit reaction template.")
             return NameToStructure_output_schema(
                 is_success=False,
-                message=f"名称解析失败: {name}\n尝试记录: {'; '.join(errors)}\n{hint}",
+                message=f"Name resolution failed: {name}\nAttempts: {'; '.join(errors)}\n{hint}",
             )
 
         smiles = result["smiles"]
@@ -193,7 +194,7 @@ class NameToStructure(Tool):
             if not _RDKIT_AVAILABLE:
                 return NameToStructure_output_schema(
                     is_success=False, smiles=smiles, resolver_used=svc,
-                    message="已解析 SMILES，但生成 3D 需要 RDKit。请执行: pip install 'cloudra[chem]'",
+                    message="SMILES resolved, but 3D generation requires RDKit. Install it with: pip install 'cloudra[chem]'",
                 )
             out = user_input.output_path or f"./{name.replace(' ', '_')}.xyz"
             try:
@@ -203,12 +204,12 @@ class NameToStructure(Tool):
                 return NameToStructure_output_schema(
                     is_success=False, smiles=smiles, resolver_used=svc,
                     iupac_name=result.get("iupac_name", ""),
-                    message=f"SMILES 解析成功但 3D 生成失败: {e}",
+                    message=f"SMILES resolved but 3D generation failed: {e}",
                 )
 
-        msg = f"解析成功（{svc}）: {name} -> {smiles}"
+        msg = f"Resolved ({svc}): {name} -> {smiles}"
         if svc == "cir":
-            msg += "（CIR 为通用解析器，同分异构体/立体化学请务必核对）"
+            msg += " (CIR is a generic resolver; verify isomers/stereochemistry)"
         return NameToStructure_output_schema(
             is_success=True,
             smiles=smiles,
@@ -218,7 +219,7 @@ class NameToStructure(Tool):
             cid=result.get("cid", ""),
             resolver_used=svc,
             xyz_path=xyz_path,
-            message=msg + "。请核对结构是否符合预期（同分异构体、立体化学、质子化状态）。",
+            message=msg + ". Verify the structure matches expectations (isomers, stereochemistry, protonation state).",
         )
 
 

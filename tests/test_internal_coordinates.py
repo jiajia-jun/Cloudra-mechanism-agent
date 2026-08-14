@@ -163,7 +163,7 @@ async def test_analyze_fake_ts_anomalies(mock_session, tmp_path):
 
     assert "== Reactive Center ==" in result.report
     assert "O5" in result.report.split("== Reactive Center ==")[1]
-    assert "形成中" in result.report
+    assert "forming" in result.report
 
 
 @pytest.mark.asyncio
@@ -180,9 +180,9 @@ async def test_analyze_cyclohexane_ring(mock_session, tmp_path):
     assert result.is_success is True
     assert "== Rings ==" in result.report
     rings_section = result.report.split("== Rings ==")[1].split("==")[0]
-    assert "6 元环" in rings_section
+    assert "6-membered ring" in rings_section
     assert "CP:" in rings_section
-    assert "椅式" in rings_section
+    assert "chair" in rings_section
 
 
 @pytest.mark.asyncio
@@ -197,7 +197,7 @@ async def test_analyze_water_dimer_fragments(mock_session, tmp_path):
         mock_session,
     )
     assert result.is_success is True
-    assert "碎片数: 2" in result.report
+    assert "Fragments: 2" in result.report
     assert any(a["status"] == "forming_candidate" and set(a["atoms"]) == {"H2", "O4"}
                for a in result.anomalies)
     # 多碎片 zmat 也能生成并可 round-trip 还原坐标

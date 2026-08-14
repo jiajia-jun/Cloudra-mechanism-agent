@@ -61,7 +61,7 @@ class SmilesToMol(Tool):
             return SmilesToMol_output_schema(
                 is_success=False,
                 mol_content="",
-                message="环境未安装 RDKit 库。请执行: pip install 'cloudra[chem]'"
+                message="RDKit is not installed. Install it with: pip install 'cloudra[chem]', then retry."
             )
 
         from rdkit import Chem
@@ -79,7 +79,7 @@ class SmilesToMol(Tool):
                 return SmilesToMol_output_schema(
                     is_success=False,
                     mol_content="",
-                    message=f"无效的 SMILES 字符串: {smiles}"
+                    message=f"Invalid SMILES string: {smiles}. Check the syntax and retry."
                 )
 
             # 2. 生成坐标
@@ -90,7 +90,8 @@ class SmilesToMol(Tool):
                     return SmilesToMol_output_schema(
                         is_success=False,
                         mol_content="",
-                        message="3D 构象生成失败（EmbedMolecule 返回 -1）。"
+                        message="3D conformer generation failed (EmbedMolecule returned -1). "
+                                "Retry, or set generate_3d=False to get a 2D structure instead."
                     )
                 AllChem.MMFFOptimizeMolecule(mol)
             else:
@@ -102,7 +103,7 @@ class SmilesToMol(Tool):
                 return SmilesToMol_output_schema(
                     is_success=False,
                     mol_content="",
-                    message="RDKit 未能生成 MOL 块内容。"
+                    message="RDKit did not produce MOL block content."
                 )
 
             # 4. 可选：写入文件
@@ -119,14 +120,14 @@ class SmilesToMol(Tool):
                 is_success=True,
                 mol_content=mol_block,
                 file_path=saved_path,
-                message="SMILES 转换为 MOL 成功。"
+                message="SMILES converted to MOL successfully."
             )
 
         except Exception as e:
             return SmilesToMol_output_schema(
                 is_success=False,
                 mol_content="",
-                message=f"转换异常: {str(e)}"
+                message=f"Conversion raised an exception: {str(e)}. Check the SMILES and output_path, then retry."
             )
 
 

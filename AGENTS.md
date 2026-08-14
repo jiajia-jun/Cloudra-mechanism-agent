@@ -21,9 +21,9 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 **`core/` — 核心运行时（推理与编排）**
 
 - `react.py` — ReAct 推理循环主体（流式 LLM、工具调度、取消/重试）。
-- `agent.py` — `Agent`/`Coordinator`/`Follower` 角色与 prompt 加载。
+- `agent.py` — `Agent`/`Coordinator`/`Follower` 角色定义；system prompt 组装不在此，而在 `runtime/prompt_assembler.py`。
 - `supervisor.py` — 科学督导（SupervisorAgent、GraphSupervisor），只在 `dag_guided` 模式有写图权限。
-- `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程；进程内 follower 与 runner 一样 `acquire_workers`，避免隔离 TUI resume 后 compute 停在 ready）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装）、`environment_observer.py`（工作区快照）。
+- `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程；进程内 follower 与 runner 一样 `acquire_workers`，避免隔离 TUI resume 后 compute 停在 ready）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装：`load_role_prompt()` 读 `prompts/*.md`，按 (mtime_ns, size) 签名缓存；AGENTS.md 仅注入 Coordinator，子 agent 不注入）、`environment_observer.py`（工作区快照）。
 - `dag/` — DAG 引导编排子系统（仍在包根一级），见下节。
 
 **`services/` — 服务层 / 控制面**
@@ -66,7 +66,7 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 
 **能力与角色**
 
-- `tools/` — 按领域分组的工具（Bashtool/Chemtool/Searchtool/Writetool/Plantool 等）；`tools/registry.py` 注册；`tools/core/` 含命令分级、权限模型、文件变更审批流水线、`coord_guard.py`（手写坐标守卫：向 .gjf/.xyz/.com 写入逐字坐标块在 text_writer/edit_file/bashtools 层放行但附警告并点破"绕过 supervisor/DAG 审查"，坐标必须来自 smiles_to_mol/format_converter/gjf_writer 等工具）、`bash_habit_guard.py`（bash 习惯守卫：heredoc/echo/tee/sed -i 写文件等命令在 bashtools 层附警告；长上下文 + 连续 bash / 直调量化程序时由 reAct harness 注入系统警告）、`delegation_guard.py`（Coordinator 自行 `submit_compute_job` 时在工具结果附轻量提示，照常放行）。工具**无持久状态**，结构化输出由 DAG 适配器解释。
+- `tools/` — 按领域分组的工具（Bashtool/Chemtool/Searchtool/Writetool/Plantool 等）；`tools/registry.py` 注册；`tools/core/` 含命令分级、权限模型、文件变更审批流水线、`coord_guard.py`（手写坐标守卫：向 .gjf/.xyz/.com 写入逐字坐标块在 text_writer/edit_file/bashtools 层放行但附警告并点破"绕过 supervisor/DAG 审查"，坐标必须来自 smiles_to_mol/format_converter/gjf_writer 等工具）、`bash_habit_guard.py`（bash 习惯守卫：heredoc/echo/tee/sed -i 写文件等命令在 bashtools 层附警告；长上下文 + 连续 bash / 直调量化程序时由 reAct harness 注入系统警告）、`delegation_guard.py`（Coordinator 自行 `submit_compute_job` 时在工具结果附轻量提示，照常放行）。工具**无持久状态**，结构化输出由 DAG 适配器解释。工具输出 schema 的成功字段统一为 `is_success`（布尔），返回给模型的 message/错误文本一律英文。超大工具结果护栏：bashtools 合并输出超 30k 字符时全文原子落盘到工作区 `.cloudra/tool_output/`，模型只收到截断摘要 + 落盘路径，需用 text_reader 的 start_line/end_line 分页读取全文。
 - `subagents/` — 领域子 Agent（dft、md、researcher 等 8 个角色）。
 - `prompts/*.md`、`skills/*` — 角色 prompt 与科研方法技能包。
 

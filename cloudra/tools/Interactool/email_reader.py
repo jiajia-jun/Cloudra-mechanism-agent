@@ -28,7 +28,7 @@ class EmailMessage(output_schema):
     body: str
 
 class EmailReader_output_schema(output_schema):
-    success: bool = Field(description="Whether mail was read successfully")
+    is_success: bool = Field(description="Whether mail was read successfully")
     emails: List[EmailMessage] = Field(default_factory=list, description="List of messages read")
     message: str = Field(description="Status or error message")
 
@@ -47,19 +47,19 @@ class EmailReader(Tool):
 
         if not config.user or not config.password:
             return EmailReader_output_schema(
-                success=False,
+                is_success=False,
                 message="[Config error] IMAP username or password is not set."
             )
 
         try:
             emails = await asyncio.to_thread(self._read_imap, config, user_input)
             return EmailReader_output_schema(
-                success=True,
+                is_success=True,
                 emails=emails,
                 message=f"Read {len(emails)} email(s)"
             )
         except Exception as e:
-            return EmailReader_output_schema(success=False, message=f"Failed to read mail: {str(e)}")
+            return EmailReader_output_schema(is_success=False, message=f"Failed to read mail: {str(e)}")
 
     def _read_imap(self, config, user_input, mark_seen: bool = False) -> List[EmailMessage]:
         r"""同步执行 IMAP 读取。

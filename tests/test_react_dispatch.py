@@ -346,10 +346,12 @@ class TestActResult:
         assert stopped is False
         messages = await _tool_messages(agent)
         assert len(messages) == 2
-        # safe_call 把异常包成 RuntimeError，gather(return_exceptions=True) 转成错误消息
-        assert "Tool execution raised an exception" in messages[0]["content"]
+        # safe_call 把异常包成带工具名的 [Tool error] RuntimeError，
+        # gather(return_exceptions=True) 转成错误消息，react 层不再二次套壳
+        assert "[Tool error]" in messages[0]["content"]
         assert "boom_tool" in messages[0]["content"]
         assert "炸了" in messages[0]["content"]
+        assert "Fix the arguments" in messages[0]["content"]
         # 另一个工具不受影响，正常返回
         assert "echo:ok" in messages[1]["content"]
 
@@ -382,7 +384,7 @@ class TestActResultCancellation:
         assert stopped is False
         assert react._continue is True
         messages = await _tool_messages(agent)
-        assert "Tool execution raised an exception" in messages[0]["content"]
+        assert "[Tool error]" in messages[0]["content"]
         assert "cancel_tool" in messages[0]["content"]
         assert "echo:ok" in messages[1]["content"]
 
@@ -467,7 +469,7 @@ async def test_revive_after_stop_keeps_context(tmp_path, monkeypatch):
     assert second
 
     context = await agent.get_context()
-    # 工具结果以 JSON 存进上下文，非 ASCII 会被转义，按转义形式匹配
-    marker = json.dumps("第一轮的计算结果", ensure_ascii=True)[1:-1]
+    # 工具结果以 JSON 存进上下文（ensure_ascii=False，非 ASCII 不转义），按原文匹配
+    marker = "第一轮的计算结果"
     contents = [str(m.get("content", "")) for m in context]
     assert any(marker in c for c in contents)

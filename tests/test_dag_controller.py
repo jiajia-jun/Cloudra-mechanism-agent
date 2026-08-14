@@ -530,7 +530,7 @@ async def test_dag_graph_calls_not_observed_but_trigger_supervisor(tmp_path):
     view_args = {"action": "view"}
     await controller.on_tool_started("tc-view", "dag_graph", view_args)
     ref = await controller.on_tool_finished(
-        "tc-view", "dag_graph", view_args, {"success": True, "action": "view", "result": {}}
+        "tc-view", "dag_graph", view_args, {"is_success": True, "action": "view", "result": {}}
     )
     assert ref is None
     assert controller.engine.snapshot().process.nodes == []
@@ -541,7 +541,7 @@ async def test_dag_graph_calls_not_observed_but_trigger_supervisor(tmp_path):
         "operations": [{"op": "add_node", "graph": "delivery"}],
         "rationale": "机理假设",
     }
-    await controller.on_tool_finished("tc-mut", "dag_graph", mutate_args, {"success": True, "accepted": True})
+    await controller.on_tool_finished("tc-mut", "dag_graph", mutate_args, {"is_success": True, "accepted": True})
     assert calls and calls[0]["trigger"] == "delivery_updated"
 
 
@@ -688,7 +688,7 @@ async def test_rejected_remove_edge_wakes_supervisor_for_review(tmp_path):
             "rationale": "dep_ab 已被人工合并",
         },
         {
-            "success": False,
+            "is_success": False,
             "accepted": False,
             "rejection_code": "edge_removal_requires_supervisor",
         },

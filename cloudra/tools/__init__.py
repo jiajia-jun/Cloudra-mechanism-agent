@@ -46,6 +46,20 @@ def _make_entry(tool_cls: type) -> ToolEntry:
     )
 
 
+def _assert_unique_tool_ids(entries: list[ToolEntry]) -> None:
+    """tool_id 全局唯一：重复 id 直接 raise，防止注册表静默撞号。"""
+    seen: dict[str, str] = {}
+    for entry in entries:
+        if not entry.tool_id:
+            continue
+        owner = f"{entry.cls.__module__}:{entry.cls.__name__}"
+        if entry.tool_id in seen:
+            raise RuntimeError(
+                f"工具 tool_id 重复: {entry.tool_id!r} ({seen[entry.tool_id]} 与 {owner})"
+            )
+        seen[entry.tool_id] = owner
+
+
 def get_tools_lst() -> list[ToolEntry]:
     """返回显式注册且在当前依赖环境中可导入的工具，进程内缓存。"""
     global _TOOL_ENTRIES_CACHE
@@ -82,10 +96,11 @@ def get_tools_lst() -> list[ToolEntry]:
             ) from e
         entries.append(_make_entry(tool_cls))
 
-    _TOOL_ENTRIES_CACHE = entries
     if _EXTRA_ENTRIES:
-        _TOOL_ENTRIES_CACHE.extend(_EXTRA_ENTRIES)
+        entries.extend(_EXTRA_ENTRIES)
         _EXTRA_ENTRIES.clear()
+    _assert_unique_tool_ids(entries)
+    _TOOL_ENTRIES_CACHE = entries
     return entries
 
 
@@ -99,6 +114,7 @@ def register_tool_class(tool_cls) -> None:
     """向全局工具注册表追加一个额外工具类（例如 benchmark 专用工具）。"""
     entry = _make_entry(tool_cls)
     if _TOOL_ENTRIES_CACHE is not None:
+        _assert_unique_tool_ids([*_TOOL_ENTRIES_CACHE, entry])
         _TOOL_ENTRIES_CACHE.append(entry)
     else:
         _EXTRA_ENTRIES.append(entry)

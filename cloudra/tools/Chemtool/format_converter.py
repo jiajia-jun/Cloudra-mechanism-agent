@@ -67,19 +67,21 @@ class FormatConverter(Tool):
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message="output_format='csv' 仅支持 Gaussian 日志输入（input_format='log'）。"
+                message="output_format='csv' is only supported for Gaussian log input (input_format='log'). "
+                        "For structure files, choose a structure output_format instead."
             )
         if user_input.output_format != "csv":
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message="input_format='log' 时输出格式必须为 'csv'（关键帧表）。"
+                message="When input_format='log', the output format must be 'csv' (key-frame table)."
             )
         if not os.path.isfile(user_input.input_path):
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message=f"输入文件不存在: {user_input.input_path}"
+                message=f"Input file does not exist: {user_input.input_path}. "
+                        "Check the path, then retry."
             )
         try:
             from cloudra.tools.core.gaussian_frames import (
@@ -96,19 +98,23 @@ class FormatConverter(Tool):
                 return FormatConverter_output_schema(
                     is_success=False,
                     output_path="",
-                    message=f"未能从日志中提取任何关键帧（识别为 {'+'.join(ordered) or '未知'}）: {user_input.input_path}"
+                    message=f"No key frames could be extracted from the log "
+                            f"(detected as {'+'.join(ordered) or 'unknown'}): {user_input.input_path}. "
+                            "Check that the log contains a finished opt/scan/irc job."
                 )
             frames_to_csv(frames, user_input.output_path)
             return FormatConverter_output_schema(
                 is_success=True,
                 output_path=user_input.output_path,
-                message=f"识别为 {'+'.join(ordered)}，写出 {len(frames)} 帧 → {user_input.output_path}"
+                message=f"Detected {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
             )
         except Exception as e:
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message=f"日志关键帧提取失败: {str(e)}"
+                message=f"Failed to extract key frames from the log: {str(e)}. "
+                        "Check that the input is a valid Gaussian log; "
+                        "you can also read it directly with gaussian_log_parser."
             )
 
     async def tool_call(self, user_input: FormatConverter_input_schema, session: Session) -> FormatConverter_output_schema:
@@ -124,7 +130,8 @@ class FormatConverter(Tool):
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message=f"输入文件不存在: {input_path}"
+                message=f"Input file does not exist: {input_path}. "
+                        "Check the path, or generate the structure first with smiles_to_mol, then retry."
             )
 
         # 2. 校验输入/输出格式是否相同
@@ -132,7 +139,7 @@ class FormatConverter(Tool):
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message="输入格式与输出格式相同，无需转换。"
+                message="Input and output formats are identical; no conversion is needed."
             )
 
         try:
@@ -147,7 +154,8 @@ class FormatConverter(Tool):
                 return FormatConverter_output_schema(
                     is_success=False,
                     output_path="",
-                    message=f"无法从 {input_path} 读取结构。"
+                    message=f"Could not read a structure from {input_path}. "
+                            f"Check that the file content matches input_format='{user_input.input_format}'."
                 )
 
             # 4. 确保输出目录存在并写入
@@ -160,14 +168,30 @@ class FormatConverter(Tool):
             return FormatConverter_output_schema(
                 is_success=True,
                 output_path=output_path,
-                message=f"成功将 {user_input.input_format} 转换为 {user_input.output_format}: {output_path}"
+                message=f"Converted {user_input.input_format} to {user_input.output_format}: {output_path}"
             )
 
+        except FileNotFoundError as e:
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message=f"File not found during conversion: {e.filename or input_path}. "
+                        "Check the input/output paths, then retry."
+            )
+        except ImportError as e:
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message=f"Required conversion library is not installed: {str(e)}. "
+                        "Install it with: pip install 'cloudra[chem]', then retry."
+            )
         except Exception as e:
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message=f"格式转换失败: {str(e)}"
+                message=f"Format conversion failed: {str(e)}. "
+                        f"Check that {input_path} is a valid {user_input.input_format} file and that "
+                        f"'{user_input.output_format}' is supported, then retry."
             )
 
 

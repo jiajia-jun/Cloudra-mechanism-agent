@@ -1081,6 +1081,8 @@ class reAct:
                                 "[Delivery audit failed] delivery_disposition=complete, "
                                 "current mechanism evidence still has gaps: "
                                 + json.dumps(gaps, ensure_ascii=False)
+                                + ". Continue gathering evidence, or call stop again with "
+                                "delivery_disposition=partial / user_terminated."
                             )
                             await self._commit_undos()
                             await self.agent.update_context({
@@ -1192,8 +1194,17 @@ class reAct:
                 tool_name = id_to_name.get(tool_call_id, 'Unknown')
                 image_path = None
                 if isinstance(tool_result, Exception):
-                    # 如果工具执行抛出了异常，将错误信息反馈给 Agent
-                    content = f"[System error] Tool execution raised an exception: {str(tool_result)}"
+                    # 如果工具执行抛出了异常，将错误信息反馈给 Agent。
+                    # safe_call 已包好的 [Tool error] 消息（带工具名与恢复指引）不再二次套壳；
+                    # 未包装的异常在这里统一补上前缀、工具名与下一步指引。
+                    raw = str(tool_result)
+                    if raw.startswith("[Tool error]"):
+                        content = raw
+                    else:
+                        content = (
+                            f"[System error] Tool `{tool_name}` raised an exception: {raw}. "
+                            "Fix the arguments or use a different tool, then retry."
+                        )
                     result_dict = {
                         "is_success": False,
                         "error": str(tool_result),
@@ -1213,7 +1224,7 @@ class reAct:
                         tool_arguments.get(tool_call_id, {}),
                         result_dict,
                     )
-                    content = json.dumps(result_dict)
+                    content = json.dumps(result_dict, ensure_ascii=False)
                     # 自动提取图片路径（如果工具输出中包含该字段）
                     if result_dict.get('image_path'):
                         image_path = result_dict.get('image_path')

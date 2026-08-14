@@ -47,7 +47,7 @@ class pdf2image(Tool):
             return pdf2image_output_schema(
                 is_success=False,
                 image_paths=[],
-                message="环境未安装 PyMuPDF 库。请执行: pip install 'cloudra[pdf]'"
+                message="PyMuPDF is not installed. Install it with: pip install 'cloudra[pdf]', then retry."
             )
 
         pdf_path = user_input.pdf_path
@@ -57,7 +57,7 @@ class pdf2image(Tool):
             return pdf2image_output_schema(
                 is_success=False,
                 image_paths=[],
-                message=f"错误：文件不存在于路径 {pdf_path}"
+                message=f"Error: file does not exist at path {pdf_path}. Check the path, then retry."
             )
 
         try:
@@ -66,7 +66,7 @@ class pdf2image(Tool):
             return pdf2image_output_schema(
                 is_success=False,
                 image_paths=[],
-                message=f"创建输出目录失败：{str(e)}"
+                message=f"Failed to create the output directory: {str(e)}"
             )
 
         image_paths = []
@@ -91,13 +91,13 @@ class pdf2image(Tool):
             return pdf2image_output_schema(
                 is_success=True,
                 image_paths=image_paths,
-                message=f"成功将 PDF 转换为 {len(image_paths)} 张图片。"
+                message=f"Converted the PDF to {len(image_paths)} images."
             )
         except Exception as e:
             return pdf2image_output_schema(
                 is_success=False,
                 image_paths=image_paths,
-                message=f"转换失败：{str(e)}"
+                message=f"Conversion failed: {str(e)}. Check that {pdf_path} is a valid, readable PDF."
             )
 
 

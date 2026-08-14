@@ -1,4 +1,5 @@
 import ast
+import os
 from pathlib import Path
 
 import pytest
@@ -206,7 +207,7 @@ class TestWebFetcherGuards:
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/a.pdf"), None
         )
-        assert result.success is False
+        assert result.is_success is False
         assert "pdf2md" in result.error and "download_path" in result.error
 
     @pytest.mark.asyncio
@@ -217,7 +218,7 @@ class TestWebFetcherGuards:
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/download?id=1"), None
         )
-        assert result.success is False and "pdf2md" in result.error
+        assert result.is_success is False and "pdf2md" in result.error
 
     @pytest.mark.asyncio
     async def test_giant_html_not_truncated(self, monkeypatch):
@@ -228,6 +229,104 @@ class TestWebFetcherGuards:
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/page"), None
         )
-        assert result.success is True
+        assert result.is_success is True
         assert result.content.count("x") == 250_000
         assert "已截断" not in result.content
+
+
+@pytest.mark.asyncio
+async def test_bashtools_oversized_output_offloads_to_workspace(tmp_path, mock_session):
+    """超大 stdout 落盘到 .cloudra/tool_output/，observation 只回截断摘要 + 路径。"""
+    from types import SimpleNamespace
+
+    from cloudra.tools.Bashtool.bashtools import (
+        MAX_OBSERVATION_CHARS,
+        TOOL_OUTPUT_DIR,
+        Bashtools,
+        Bashtools_input_schema,
+    )
+    from cloudra.tools.core.permission_model import Permission
+
+    big = "x" * (MAX_OBSERVATION_CHARS + 5_000) + "\n"
+    (tmp_path / "big.txt").write_text(big, encoding="utf-8")
+
+    subagent = SimpleNamespace(
+        working_directory=str(tmp_path),
+        permission_all=lambda: (
+            Permission.READ | Permission.WRITE | Permission.SCRIPT | Permission.DESTRUCTIVE
+        ),
+    )
+    tool = Bashtools(subagent=subagent)
+    result = await tool.tool_call(
+        Bashtools_input_schema(command="cat big.txt", task_description="read big file"),
+        mock_session,
+    )
+
+    assert result.exit_code == 0
+    assert len(result.result) < MAX_OBSERVATION_CHARS
+    assert "[Output truncated" in result.result
+    assert "text_reader" in result.result
+    assert TOOL_OUTPUT_DIR.replace(os.sep, "/") in result.result
+
+    dumped = list((tmp_path / TOOL_OUTPUT_DIR).glob("bash-*.log"))
+    assert len(dumped) == 1
+    assert dumped[0].read_text(encoding="utf-8") == big
+
+
+@pytest.mark.asyncio
+async def test_bashtools_oversized_output_fallback_truncates(tmp_path, mock_session, monkeypatch):
+    """落盘失败时优雅降级为纯截断并注明，工具本身不炸。"""
+    from types import SimpleNamespace
+
+    import cloudra.tools.Bashtool.bashtools as bashtools_mod
+    from cloudra.tools.Bashtool.bashtools import (
+        MAX_OBSERVATION_CHARS,
+        Bashtools,
+        Bashtools_input_schema,
+    )
+    from cloudra.tools.core.permission_model import Permission
+
+    (tmp_path / "big.txt").write_text("y" * (MAX_OBSERVATION_CHARS + 5_000), encoding="utf-8")
+
+    def _failing_write(path, content, encoding="utf-8"):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(bashtools_mod, "atomic_write_text", _failing_write)
+    subagent = SimpleNamespace(
+        working_directory=str(tmp_path),
+        permission_all=lambda: (
+            Permission.READ | Permission.WRITE | Permission.SCRIPT | Permission.DESTRUCTIVE
+        ),
+    )
+    tool = Bashtools(subagent=subagent)
+    result = await tool.tool_call(
+        Bashtools_input_schema(command="cat big.txt", task_description="read big file"),
+        mock_session,
+    )
+
+    assert result.exit_code == 0
+    assert len(result.result) < MAX_OBSERVATION_CHARS
+    assert "could not be saved" in result.result
+
+
+@pytest.mark.asyncio
+async def test_bashtools_small_output_untouched(tmp_path, mock_session):
+    """阈值以下的输出原样返回，不触发落盘。"""
+    from types import SimpleNamespace
+
+    from cloudra.tools.Bashtool.bashtools import Bashtools, Bashtools_input_schema
+    from cloudra.tools.core.permission_model import Permission
+
+    subagent = SimpleNamespace(
+        working_directory=str(tmp_path),
+        permission_all=lambda: Permission.READ,
+    )
+    tool = Bashtools(subagent=subagent)
+    result = await tool.tool_call(
+        Bashtools_input_schema(command="ls", task_description="list files"),
+        mock_session,
+    )
+
+    assert result.exit_code == 0
+    assert "[Output truncated" not in result.result
+    assert not (tmp_path / ".cloudra").exists()

@@ -41,7 +41,7 @@ class ImageToSmiles(Tool):
             return ImageToSmiles_output_schema(
                 is_success=False,
                 smiles="",
-                message=f"文件不存在: {path}"
+                message=f"File does not exist: {path}"
             )
 
         # 尝试导入 DECIMER（支持 GitHub 版大写和 PyPI 版小写两种包名）
@@ -64,11 +64,11 @@ class ImageToSmiles(Tool):
                 is_success=False,
                 smiles="",
                 message=(
-                    "环境未安装 DECIMER 库。请执行以下命令安装:\n"
+                    "DECIMER is not installed. Install it with:\n"
                     "  pip install decimer\n"
-                    "或:\n"
+                    "or:\n"
                     "  pip install git+https://github.com/Kohulan/DECIMER-Image_Transformer.git\n"
-                    f"原始错误: {import_error_msg}"
+                    f"Original error: {import_error_msg}"
                 )
             )
 
@@ -78,18 +78,18 @@ class ImageToSmiles(Tool):
                 return ImageToSmiles_output_schema(
                     is_success=False,
                     smiles="",
-                    message="DECIMER 未能从图像中识别出有效的化学结构。"
+                    message="DECIMER could not recognize a valid chemical structure from the image."
                 )
             return ImageToSmiles_output_schema(
                 is_success=True,
                 smiles=smiles.strip(),
-                message="化学结构识别成功。"
+                message="Chemical structure recognized successfully."
             )
         except Exception as e:
             return ImageToSmiles_output_schema(
                 is_success=False,
                 smiles="",
-                message=f"识别过程发生异常: {str(e)}"
+                message=f"Recognition raised an exception: {str(e)}"
             )
 
 

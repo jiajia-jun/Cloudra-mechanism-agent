@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional
 
@@ -35,21 +34,29 @@ from cloudra.core.agent import Agent
 from cloudra.dag.models import OrchestrationMode
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import LLMClient
+from cloudra.runtime.prompt_assembler import load_role_prompt
 
 logger = logging.getLogger("Supervisor")
 
 
-def _load_supervisor_prompt() -> str:
-    """从 prompts/supervisor.md 加载 system prompt。"""
-    prompt_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "prompts", "supervisor.md"
-    )
-    if os.path.exists(prompt_path):
-        return open(prompt_path, encoding="utf-8").read()
-    return "You are Cloudra's scientific supervisor. Your job is to watch whether the AI research assistant is drifting off the strategic path."
+def load_supervisor_prompt() -> str:
+    """加载 supervisor 角色 prompt（按 mtime 缓存，改 prompt 文件立即生效）。
+
+    与 PromptAssembler 的每请求 (mtime_ns, size) 重校验一致；文件缺失时
+    回退到与当前 graph-planning 角色一致的一句话描述。
+    """
+    try:
+        return load_role_prompt("supervisor")
+    except FileNotFoundError:
+        return (
+            "You are Cloudra's graph-planning Supervisor in dag_guided mode: "
+            "maintain the process DAG so it schedules and covers the Coordinator's "
+            "delivery mechanism, using only the dag_graph tool."
+        )
 
 
-SUPERVISOR_SYSTEM_PROMPT = _load_supervisor_prompt()
+# 兼容导出入口；新代码请调用 load_supervisor_prompt() 以获得 mtime 重校验。
+SUPERVISOR_SYSTEM_PROMPT = load_supervisor_prompt()
 
 
 class TimelineEvent(BaseModel):
@@ -190,7 +197,7 @@ class GraphSupervisor:
             return None
         if not isinstance(payload, dict) or payload.get("action") != "view":
             return None
-        if payload.get("success") is False:
+        if payload.get("is_success") is False:
             return None
         result = payload.get("result") or {}
         kind = result.get("graph_kind") or "projection"
@@ -482,7 +489,7 @@ class GraphSupervisor:
                     "tool_call_id": tool_call_id,
                     "content": content,
                 })
-                if input_obj.action == "view" and output.success:
+                if input_obj.action == "view" and output.is_success:
                     await self._fold_stale_views(agent, tool_call_id)
 
         if not last_report.strip() and not note.startswith("llm_call failed"):

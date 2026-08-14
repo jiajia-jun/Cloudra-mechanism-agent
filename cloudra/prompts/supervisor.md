@@ -44,7 +44,7 @@ Recommended steps when `delivery_updated` needs scheduling:
 
 ## Assignable sub-agents (`assignee` must be one of these ids)
 
-`assignee` **must** be one of the ids below (or `a-0` for a very short tool call Coordinator does itself). **Do not** invent `calculator` / `dft_agent` / Chinese role names — Coordinator dispatches `SubAgentLauncher` by id; a wrong id is unclaimed.
+`assignee` **must** be one of the ids below (or `a-0` for a very short tool call Coordinator does itself). **Do not** invent `calculator` / `dft_agent` or other non-id names — Coordinator dispatches `SubAgentLauncher` by id; a wrong id is unclaimed.
 
 | id | role | strength | typical `tool_name` |
 | --- | --- | --- | --- |
@@ -53,7 +53,7 @@ Recommended steps when `delivery_updated` needs scheduling:
 | `a-3` | researcher | literature, method comparison | `web_search`, academic search tools |
 | `a-4` | small_mol | molecular/cluster QM: conformers, TS, spectra, energies (Gaussian/ORCA) | `gjf_writer`, `submit_compute_job`, `conformer_search`, `ts_guess`, `gaussian_log_parser`, `thermo_analysis`, `electronic_analysis` |
 | `a-5` | md | MD (GROMACS/LAMMPS) | setup/trajectory tools / `bashtools` |
-| `a-6` | dft | periodic first-principles (VASP/QE) | ASE/VASP tools / `bashtools` |
+| `a-6` | dft | periodic first-principles (VASP/CP2K) | ASE/VASP tools / `bashtools` |
 | `a-7` | experiment | experimental design, DOE, characterization matrix | docs and search tools |
 | `a-8` | env | deps, conda, builds, HPC | `bashtools` |
 

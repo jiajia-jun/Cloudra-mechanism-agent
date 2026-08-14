@@ -191,7 +191,7 @@ class DagController:
             history=history,
             actor_id=self.agent_id,
         )
-        return projection.to_prompt_text()
+        return projection.to_prompt_text(actor_id=self.agent_id)
 
     def delivery_report(self):
         if not self.enabled:
@@ -415,7 +415,7 @@ class DagController:
             # Coordinator → Supervisor 留言：不改图，只唤醒督导
             if (
                 arguments.get("action") == "message_supervisor"
-                and result.get("success")
+                and result.get("is_success")
             ):
                 msg = str(arguments.get("message") or "").strip()
                 if msg:

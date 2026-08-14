@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra.core.agent import Follower
+from cloudra.core.agent import Coordinator, Follower
 from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 
 
@@ -23,6 +23,19 @@ def _agent(tmp_path, workspace, *, prompt_name=None, prompt=None):
     agent = Follower(
         id="a-prompt",
         name=prompt_name or "prompt-test",
+        prompt_name=prompt_name,
+        prompt=prompt,
+        query="继续任务",
+        conversation_id="prompt-conv",
+        working_directory=str(workspace),
+    )
+    agent._tools_schema_cache = []
+    agent.context_manager = _context_manager(tmp_path)
+    return agent
+
+
+def _coordinator(tmp_path, workspace, *, prompt_name=None, prompt=None):
+    agent = Coordinator(
         prompt_name=prompt_name,
         prompt=prompt,
         query="继续任务",
@@ -204,7 +217,7 @@ async def test_agents_md_change_applies_to_existing_conversation(
     _, workspace = isolated_prompt_sources
     agents_file = workspace / "AGENTS.md"
     agents_file.write_text("策略第一版", encoding="utf-8")
-    agent = _agent(tmp_path, workspace, prompt="固定角色")
+    agent = _coordinator(tmp_path, workspace, prompt="固定角色")
 
     first = await agent._build_request_kwargs()
     first_revision = agent.get_runtime_diagnostics()["prompt_revision"]
@@ -217,6 +230,24 @@ async def test_agents_md_change_applies_to_existing_conversation(
     assert second_revision != first_revision
     assert "策略第二版" in second["messages"][0]["content"]
     assert "策略第一版" not in second["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_follower_skips_agents_md_injection(
+    tmp_path,
+    isolated_prompt_sources,
+):
+    """非 Coordinator 角色不注入 AGENTS.md（开发者向内容对子 agent 是噪声）。"""
+    _, workspace = isolated_prompt_sources
+    (workspace / "AGENTS.md").write_text("开发者策略", encoding="utf-8")
+
+    follower = await _agent(tmp_path, workspace, prompt="固定角色")._build_request_kwargs()
+    assert "开发者策略" not in follower["messages"][0]["content"]
+
+    coordinator = await _coordinator(
+        tmp_path, workspace, prompt="固定角色"
+    )._build_request_kwargs()
+    assert "开发者策略" in coordinator["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
@@ -442,3 +473,53 @@ async def test_skill_manifest_and_supervisor_advice_have_revision_semantics(
     assert second["supervisor_advice_revision"] != (
         first["supervisor_advice_revision"]
     )
+
+
+def test_skill_manifest_collapses_multiline_description(
+    tmp_path,
+    isolated_prompt_sources,
+    monkeypatch,
+):
+    """YAML 多行块标量 description 在 manifest 里压成单行，不渲染成断裂列表。"""
+    from cloudra.runtime.prompt_assembler import PromptAssembler
+
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("# 角色", encoding="utf-8")
+    skills = tmp_path / "skills"
+    skill = skills / "multiline" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text(
+        "---\nname: multiline\ndescription: >\n  第一行\n  第二行\n---\n正文",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("cloudra.runtime.prompt_assembler.SKILLS_DIR", skills)
+
+    assembler = PromptAssembler(
+        prompt_name="probe",
+        custom_prompt=None,
+        conversation_id="c",
+        working_directory=str(workspace),
+        include_memory=False,
+    )
+    content = assembler.assemble([]).identity_messages[0]["content"]
+
+    assert "- multiline: 第一行 第二行" in content
+    assert "第一行\n" not in content
+
+
+def test_supervisor_prompt_follows_mtime_cache(tmp_path, monkeypatch):
+    """load_supervisor_prompt 走 load_role_prompt 的 mtime 缓存，改文件即生效。"""
+    import cloudra.runtime.prompt_assembler as assembler_mod
+    from cloudra.core.supervisor import load_supervisor_prompt
+
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "supervisor.md").write_text("督导第一版", encoding="utf-8")
+    monkeypatch.setattr(assembler_mod, "PROMPTS_DIR", prompts_dir)
+
+    assert load_supervisor_prompt() == "督导第一版"
+    (prompts_dir / "supervisor.md").write_text("督导第二版", encoding="utf-8")
+    assert load_supervisor_prompt() == "督导第二版"
+
+    (prompts_dir / "supervisor.md").unlink()
+    assert "graph-planning Supervisor" in load_supervisor_prompt()

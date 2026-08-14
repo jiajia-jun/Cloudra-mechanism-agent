@@ -164,11 +164,15 @@ class Tool(BaseModel):
         '''
         带有通用异常捕获的工具调用包装器。
         工具执行失败时抛出包含工具名的 RuntimeError，由 reAct.act_result() 统一捕获并回传给 LLM。
+        消息以 [Tool error] 前缀 + 工具名 + 恢复指引成形；react 层识别该前缀后不再二次套壳。
         '''
         try:
             return await self.tool_call(user_input, session)
         except Exception as e:
-            error_msg = f"[Tool error] {self.tool_name}: {str(e)}"
+            error_msg = (
+                f"[Tool error] {self.tool_name}: {str(e)}. "
+                "Fix the arguments or use a different tool, then retry."
+            )
             raise RuntimeError(error_msg) from e
 
     async def ensure_safety(

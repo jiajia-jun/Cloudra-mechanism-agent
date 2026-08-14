@@ -521,11 +521,14 @@ async def run_executor(task_id: int, database_path: str, session_id: str = None)
             db, session_id, agent_id, 'failed', error=error_message,
             orchestration_mode=input_data.get('orchestration_mode', 'standard'),
         )
-        # 事件内容截断 500 字符；session.error 保留完整错误
+        # 事件内容截断 500 字符；完整错误保留在 session.error，附根因排查指引
         await _wake_after_executor(
             database_path,
             input_data,
-            f"Sub-agent {sub_agent.name} (session={session_id}, task_id={task_id}) failed: {error_message[:500]}",
+            f"Sub-agent {sub_agent.name} (session={session_id}, task_id={task_id}) failed: {error_message[:500]}\n"
+            f"Next: the full error is recorded in session.error for session_id={session_id}; "
+            "use get_subagent_report with that session_id to inspect the sub-agent's context and locate the root cause, "
+            "then retry with adjusted input or report the failure to the user.",
             agent_name=sub_agent.name,
             session_id=session_id,
         )

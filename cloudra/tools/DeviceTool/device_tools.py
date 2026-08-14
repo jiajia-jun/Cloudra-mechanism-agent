@@ -77,7 +77,7 @@ async def _invoke_device(
                 invocation["device_id"],
                 tool_call_id,
                 status="cancelled",
-                error="服务器 Session 已取消",
+                error="Server session has been cancelled",
             )
         except ValueError:
             pass

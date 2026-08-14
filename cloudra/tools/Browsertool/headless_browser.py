@@ -43,7 +43,7 @@ class HeadlessBrowser_input_schema(input_schema):
 
 
 class HeadlessBrowser_output_schema(output_schema):
-    success: bool = Field(description="Whether the operation succeeded")
+    is_success: bool = Field(description="Whether the operation succeeded")
     url: str = Field(default="", description="URL actually visited (may follow redirects)")
     title: str = Field(default="", description="Page title")
     text: str = Field(default="", description="Extracted page body in fetch mode")
@@ -118,19 +118,19 @@ class HeadlessBrowser(Tool):
 
         if not url:
             return HeadlessBrowser_output_schema(
-                success=False, error="URL 不能为空。"
+                is_success=False, error="URL must not be empty."
             )
 
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return HeadlessBrowser_output_schema(
-                success=False, error=f"URL 格式不合法: {url}"
+                is_success=False, error=f"Invalid URL format: {url}"
             )
 
         if action not in ('fetch', 'screenshot'):
             return HeadlessBrowser_output_schema(
-                success=False,
-                error=f"不支持的 action: {action}，仅支持 fetch / screenshot。"
+                is_success=False,
+                error=f"Unsupported action: {action}; only fetch / screenshot are supported."
             )
 
         playwright_available = importlib.util.find_spec("playwright.async_api") is not None
@@ -149,22 +149,22 @@ class HeadlessBrowser(Tool):
             except Exception as e:
                 if action == 'screenshot':
                     return HeadlessBrowser_output_schema(
-                        success=False,
+                        is_success=False,
                         error=(
-                            f"无头浏览器启动失败，无法截图: {str(e)}\n"
-                            "请安装系统依赖: sudo playwright install-deps chromium"
+                            f"Headless browser failed to start; cannot take a screenshot: {str(e)}\n"
+                            "Install system dependencies: sudo playwright install-deps chromium"
                         )
                     )
                 fallback = await self._fallback_http_fetch(url, timeout_sec, max_length)
                 fallback.error = (
-                    f"无头浏览器未就绪，已降级为静态抓取。原错误: {str(e)}"
+                    f"Headless browser not ready; fell back to a static fetch. Original error: {str(e)}"
                 )
                 return fallback
 
         if action == 'screenshot':
             return HeadlessBrowser_output_schema(
-                success=False,
-                error="缺少 playwright，无法截图。请先执行: pip install playwright && playwright install chromium"
+                is_success=False,
+                error="playwright is not installed; cannot take a screenshot. Run: pip install playwright && playwright install chromium"
             )
 
         return await self._fallback_http_fetch(url, timeout_sec, max_length)
@@ -214,11 +214,11 @@ class HeadlessBrowser(Tool):
                 text = '\n'.join(lines)
 
                 if max_length > 0 and len(text) > max_length:
-                    text = text[:max_length] + '\n\n...[内容已截断]'
+                    text = text[:max_length] + '\n\n...[content truncated; increase max_length to retrieve more]'
 
                 await browser.close()
                 return HeadlessBrowser_output_schema(
-                    success=True, url=final_url, title=title, text=text
+                    is_success=True, url=final_url, title=title, text=text
                 )
 
             elif action == 'screenshot':
@@ -229,7 +229,7 @@ class HeadlessBrowser(Tool):
                 await page.screenshot(path=screenshot_path, full_page=full_page)
                 await browser.close()
                 return HeadlessBrowser_output_schema(
-                    success=True, url=final_url, title=title,
+                    is_success=True, url=final_url, title=title,
                     screenshot_path=screenshot_path
                 )
 
@@ -252,8 +252,8 @@ class HeadlessBrowser(Tool):
                 html = resp.text
         except Exception as e:
             return HeadlessBrowser_output_schema(
-                success=False,
-                error=f"静态 HTTP 抓取也失败了: {str(e)}"
+                is_success=False,
+                error=f"Static HTTP fetch also failed: {str(e)}"
             )
 
         extractor = _HTMLTextExtractor()
@@ -268,11 +268,11 @@ class HeadlessBrowser(Tool):
         text = '\n'.join(lines)
 
         if max_length > 0 and len(text) > max_length:
-            text = text[:max_length] + '\n\n...[内容已截断]'
+            text = text[:max_length] + '\n\n...[content truncated; increase max_length to retrieve more]'
 
         return HeadlessBrowser_output_schema(
-            success=True, url=url, title=title, text=text,
-            error="已使用静态 HTTP 回退（无头浏览器未就绪）"
+            is_success=True, url=url, title=title, text=text,
+            error="Static HTTP fallback was used (headless browser not ready)"
         )
 
 

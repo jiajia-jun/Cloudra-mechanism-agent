@@ -6,12 +6,12 @@ description: Provide best practices and templates for writing effective prompts 
 # 1. Local toolchain mapping (Toolchain Mapping)
 In a complex agent architecture (ReAct or multi-agent collaboration), when the main agent dispatches work to a sub-agent via tools such as `SubAgentLauncher`, map state and tool permissions physically:
 - **Strip unnecessary dependencies**: a sub-agent does not necessarily inherit all of the parent’s tools and state. In the prompt, if the sub-agent only needs compute, explicitly forbid web search and other unrelated tools.
-- **Use absolute paths**: a sub-agent’s working directory (CWD) is independent. For any file the sub-agent must read or modify, put the **absolute path** in the instructions (e.g. `/home/yyy2333/.../file.txt`); avoid relative paths or vague references.
+- **Use absolute paths**: a sub-agent’s working directory (CWD) is independent. For any file the sub-agent must read or modify, put the **absolute path** in the instructions (e.g. `/path/to/workdir/file.txt`); avoid relative paths or vague references.
 
 # 2. Constraints and anti-hallucination guardrails (Constraints & Guardrails)
 Without constraints, a large model will readily “pretend the task is done” and invent results.
 1. **Avoid vague reference**: do not write “process the result above”; restating the core entities and goal by name.
-2. **Trust but verify**: do not take a sub-agent’s claim that “the file was modified” or “the data was found” at face value. Require in its instructions that after a critical step it call the matching read tool (e.g. `log_parser` or a file-slice read) and present the result in the reply as proof.
+2. **Trust but verify**: do not take a sub-agent’s claim that “the file was modified” or “the data was found” at face value. Require in its instructions that after a critical step it call the matching read tool (e.g. `gaussian_log_parser` or a file-slice read) and present the result in the reply as proof.
 3. **Stop log floods**: in the prompt, forbid the sub-agent from dumping extremely long files (e.g. `OUTCAR` or logs over 1000 lines); require a specific tool or script to parse the critical parts.
 
 # 3. Knowledge base: S.C.A.R.F. standard template (Scientific Knowledge Base)

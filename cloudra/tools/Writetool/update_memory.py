@@ -39,7 +39,7 @@ class UpdateMemory_output_schema(output_schema):
 
 
 class UpdateMemory(Tool):
-    tool_id: str = 't-26'
+    tool_id: str = 't-34'
     tool_name: str = 'update_memory'
     tool_description: str = description
     input_schema: Any = UpdateMemory_input_schema

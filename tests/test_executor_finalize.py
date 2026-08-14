@@ -236,7 +236,9 @@ class TestMarkFailed:
         assert sess[3] is not None
 
         assert len(events) == 1
-        assert events[0][3] == "Sub-agent fake-agent (session=s-1, task_id=1) failed: 爆炸了"
+        assert events[0][3].startswith("Sub-agent fake-agent (session=s-1, task_id=1) failed: 爆炸了")
+        assert "session.error" in events[0][3]
+        assert "get_subagent_report" in events[0][3]
 
     async def test_finished_at_is_coalesced(self, tmp_path, monkeypatch):
         """统一收尾一律 COALESCE：failed 路径也不再覆盖已有 finished_at（首个终态时间戳生效）。"""
@@ -262,9 +264,9 @@ class TestMarkFailed:
         await run_executor(1, db_path, "s-1")
 
         _, sess, events = _read_states(db_path)
-        # session.error 保存完整错误，事件内容截断到 500 字符
+        # session.error 保存完整错误，事件内容截断到 500 字符（之后附根因排查指引）
         assert sess[1] == "错" * 600
-        assert events[0][3].endswith("错" * 500)
+        assert "错" * 500 in events[0][3]
         assert "错" * 501 not in events[0][3]
 
 

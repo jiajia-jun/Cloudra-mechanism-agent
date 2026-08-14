@@ -26,8 +26,12 @@ class EmailSender_input_schema(input_schema):
     attachments: Optional[List[str]] = Field(default_factory=list, description="Absolute paths of attachment files")
 
 class EmailSender_output_schema(output_schema):
-    success: bool = Field(description="Whether the email was sent")
+    is_success: bool = Field(description="Whether the email was sent")
     message: str = Field(description="Result details or error message")
+    skipped_attachments: List[str] = Field(
+        default_factory=list,
+        description="Attachment paths that were skipped (missing file or unreadable). Empty means all attachments were included."
+    )
 
 class EmailSender(Tool):
     tool_id: str = 't-29'
@@ -45,7 +49,7 @@ class EmailSender(Tool):
 
         if not config.user or not config.password:
             return EmailSender_output_schema(
-                success=False,
+                is_success=False,
                 message="[Config error] SMTP username or password is not set. Configure it via config or environment variables."
             )
 
@@ -59,7 +63,8 @@ class EmailSender(Tool):
         part = MIMEText(user_input.body, 'html' if user_input.is_html else 'plain', 'utf-8')
         msg.attach(part)
 
-        # 添加附件
+        # 添加附件；缺失或读取失败的附件记入返回值，让模型和用户可见
+        skipped_attachments = []
         for file_path in (user_input.attachments or []):
             if os.path.exists(file_path):
                 try:
@@ -67,17 +72,25 @@ class EmailSender(Tool):
                         attachment = MIMEApplication(f.read())
                     attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(file_path))
                     msg.attach(attachment)
-                except Exception as e:
-                    print(f"无法添加附件 {file_path}: {e}")
+                except Exception:
+                    skipped_attachments.append(file_path)
             else:
-                print(f"附件路径不存在: {file_path}")
+                skipped_attachments.append(file_path)
 
         # 异步发送
         try:
             await asyncio.to_thread(self._send_smtp, config, msg)
-            return EmailSender_output_schema(success=True, message=f"Email sent to {user_input.to_email}")
+            message = f"Email sent to {user_input.to_email}"
+            if skipped_attachments:
+                message += f"; skipped attachments (missing or unreadable): {skipped_attachments}"
+            return EmailSender_output_schema(
+                is_success=True, message=message, skipped_attachments=skipped_attachments
+            )
         except Exception as e:
-            return EmailSender_output_schema(success=False, message=f"Failed to send email: {str(e)}")
+            return EmailSender_output_schema(
+                is_success=False, message=f"Failed to send email: {str(e)}",
+                skipped_attachments=skipped_attachments
+            )
 
     def _send_smtp(self, config, msg):
         """同步执行 SMTP 发送"""

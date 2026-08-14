@@ -12,7 +12,7 @@ description = (
     "Query compute-job status: by job_id, show the current state, working directory, start/end times, and failure reason of a job submitted with submit_compute_job; "
     "without job_id, list recent jobs in this session. "
     "Use for: confirming an async job is ready/running/done/failed, or reading last_error on failure. "
-    "Do not use for: submitting a new job (use submit_compute_job) or parsing a finished log (use log_parser)."
+    "Do not use for: submitting a new job (use submit_compute_job) or parsing a finished log (use gaussian_log_parser)."
 )
 
 
@@ -80,7 +80,7 @@ class QueryComputeJob(Tool):
         conv_id = getattr(self.subagent, 'conversation_id', 'default')
         db = ConversationDB.from_path(get_database_path(conv_id))
         if not os.path.exists(db.path):
-            return QueryComputeJob_output_schema(is_success=True, jobs=[], message="本会话还没有任何计算任务。")
+            return QueryComputeJob_output_schema(is_success=True, jobs=[], message="No compute jobs have been submitted in this conversation yet.")
 
         columns = (
             "id, state, path, start_timestamp, end_timestamp, jobtype,"

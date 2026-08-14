@@ -1,7 +1,7 @@
 """通用网页搜索工具：多后端可切换，自动 fallback。
 
 后端优先级（auto 模式）：Tavily（需 TAVILY_API_KEY）→ Brave（需
-BRAVE_SEARCH_API_KEY）→ DuckDuckGo HTML（免 key 兜底）。
+BRAVE_SEARCH_API_KEY）→ Bing（免 key）→ DuckDuckGo HTML（免 key 兜底）。
 
 设计纪律（与工具 description 一致）：本工具只返回标题/摘要/URL，用于筛选；
 需要全文时用 web_fetcher 抓取选中的 URL。
@@ -37,7 +37,7 @@ class WebSearch_input_schema(input_schema):
     max_results: int = Field(default=8, description="Maximum number of results")
     backend: str = Field(
         default="auto",
-        description="Backend: auto (choose automatically) / tavily / brave / duckduckgo"
+        description="Backend: auto (choose automatically) / tavily / brave / bing / duckduckgo"
     )
 
 
@@ -153,13 +153,13 @@ class WebSearch(Tool):
     async def tool_call(self, user_input: WebSearch_input_schema, session: Session) -> WebSearch_output_schema:
         query = user_input.query.strip()
         if not query:
-            return WebSearch_output_schema(is_success=False, error="query 不能为空。")
+            return WebSearch_output_schema(is_success=False, error="query must not be empty.")
         max_results = max(1, min(user_input.max_results, 20))
 
         try:
             import httpx
         except ImportError:
-            return WebSearch_output_schema(is_success=False, error="缺少 httpx 依赖。")
+            return WebSearch_output_schema(is_success=False, error="httpx dependency is missing.")
 
         backend = user_input.backend.strip().lower()
         errors = []
@@ -178,14 +178,14 @@ class WebSearch(Tool):
         else:
             return WebSearch_output_schema(
                 is_success=False,
-                error=f"未知 backend: {backend}，可用：auto / tavily / brave / bing / duckduckgo",
+                error=f"Unknown backend: {backend}; available: auto / tavily / brave / bing / duckduckgo",
             )
 
         async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
             for name in order:
                 available, fn = candidates[name]
                 if not available:
-                    errors.append(f"{name}: 未配置 API key，跳过")
+                    errors.append(f"{name}: API key not configured, skipped")
                     continue
                 try:
                     results = await fn(client, query, max_results)
@@ -198,11 +198,11 @@ class WebSearch(Tool):
                     return WebSearch_output_schema(
                         is_success=True, results=results, backend_used=name
                     )
-                errors.append(f"{name}: 无结果")
+                errors.append(f"{name}: no results")
 
         return WebSearch_output_schema(
             is_success=False,
-            error="所有后端均未返回结果。" + "；".join(errors),
+            error="All backends returned no results. " + "; ".join(errors),
         )
 
     async def _search_tavily(self, client, query: str, max_results: int) -> list:

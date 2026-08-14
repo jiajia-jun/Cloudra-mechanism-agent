@@ -20,7 +20,7 @@
 | TS 优化+频率 | `gjf_writer` + `submit_compute_job` | `opt=(ts,noeigen,calcfc) freq` | TS 结构 + 频率 |
 | TS 验证 | `ts_guess` mode=verify `strict=True` | 1 个虚频 + 双向部分 IRC + 两个外帧优化中间体；可用 `watch_pairs` | 路径方向一致性的 pass/fail/inconclusive（无需完整 IRC） |
 | 电子结构交叉验证 | `electronic_analysis` | `reactive_atoms` 聚焦；自由基用 spin>1 | partial bond / 自旋布居 / IBO 孤对 |
-| 结果解析 | `log_parser` / `format_converter` | 避免 cat 大日志、避免手写正则 | 能量、收敛状态 |
+| 结果解析 | `gaussian_log_parser` / `format_converter` | 避免 cat 大日志、避免手写正则 | 能量、收敛状态 |
 | 相对热化学 | `thermo_analysis` | 带符号系数、温度、标准态；`raw_rrho` 或显式 `goodvibes` | ΔE/ΔH/ΔG、假设与后端 provenance |
 
 # 2. 流程状态机

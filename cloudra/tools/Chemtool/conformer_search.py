@@ -86,7 +86,8 @@ class ConformerSearch_input_schema(input_schema):
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="Input structure file path (xyz/sdf/mol). xyz input infers bond orders via rdDetermineBonds."
+        description="Input structure file path (xyz/sdf/mol). xyz input infers bond orders via rdDetermineBonds. "
+                    "Absolute path, or relative to the agent process's current working directory; absolute paths are recommended."
     )
     input_text: Optional[str] = Field(
         default=None,
@@ -117,7 +118,8 @@ class ConformerSearch_input_schema(input_schema):
     )
     output_dir: Optional[str] = Field(
         default=None,
-        description="Ensemble output directory. Default: <stem>_confs/ next to input_path, else ./confs_output/."
+        description="Ensemble output directory. Default: <stem>_confs/ next to input_path, else ./confs_output/. "
+                    "Relative paths resolve against the agent process's current working directory."
     )
     timeout: int = Field(default=600, description="CREST backend subprocess timeout (seconds).")
 
@@ -171,7 +173,7 @@ class ConformerSearch(Tool):
         """返回 (结构文本, 来源后缀)。来源后缀为 'xyz' 或 'sdf'。"""
         if user_input.input_path:
             if not os.path.isfile(user_input.input_path):
-                raise ValueError(f"输入文件不存在: {user_input.input_path}")
+                raise ValueError(f"Input file does not exist: {user_input.input_path}")
             with open(user_input.input_path, encoding="utf-8", errors="replace") as f:
                 text = f.read()
             ext = os.path.splitext(user_input.input_path)[1].lower()
@@ -184,35 +186,35 @@ class ConformerSearch(Tool):
             if first.isdigit() and fmt == "sdf":
                 fmt = "xyz"
             return text, fmt
-        raise ValueError("必须提供 smiles、input_path 或 input_text 之一")
+        raise ValueError("Must provide one of smiles, input_path, or input_text")
 
     def _load_mol(self, user_input: ConformerSearch_input_schema):
         """构建带键级信息的 RDKit Mol（未加氢优化前）。"""
         if user_input.smiles:
             mol = Chem.MolFromSmiles(user_input.smiles)
             if mol is None:
-                raise ValueError(f"无效的 SMILES 字符串: {user_input.smiles}")
+                raise ValueError(f"Invalid SMILES string: {user_input.smiles}")
             return mol
 
         text, fmt = self._read_input_text(user_input)
         if fmt == "sdf":
             mol = Chem.MolFromMolBlock(text, removeHs=False)
             if mol is None:
-                raise ValueError("无法解析输入的 sdf/mol 文本")
+                raise ValueError("Could not parse the input sdf/mol text")
             return mol
 
         mol = Chem.MolFromXYZBlock(text)
         if mol is None:
-            raise ValueError("无法解析输入的 xyz 文本")
+            raise ValueError("Could not parse the input xyz text")
         try:
             rdDetermineBonds.DetermineBonds(mol, charge=user_input.charge)
         except Exception as e:
             raise ValueError(
-                f"xyz 输入的键级推断（rdDetermineBonds）失败: {e}。"
-                "MMFF 优化依赖键级感知，请检查电荷设置或改用 sdf/mol 输入。"
+                f"Bond-order inference (rdDetermineBonds) failed for the xyz input: {e}. "
+                "MMFF optimization depends on bond perception; check the charge setting or use sdf/mol input instead."
             ) from e
         if mol.GetNumBonds() == 0 and mol.GetNumAtoms() > 1:
-            raise ValueError("xyz 输入未能推断出任何化学键，无法进行 MMFF 优化。")
+            raise ValueError("No chemical bonds could be inferred from the xyz input; MMFF optimization is not possible.")
         return mol
 
     # ---------- 通用输出 ----------
@@ -232,10 +234,10 @@ class ConformerSearch(Tool):
         for flt in user_input.distance_filters:
             atoms = flt.get("atoms", [])
             if len(atoms) != 2:
-                raise ValueError(f"distance_filters 每项的 atoms 必须含 2 个原子序号: {flt}")
+                raise ValueError(f"Each distance_filters entry's atoms must contain 2 atom indices: {flt}")
             i, j = int(atoms[0]), int(atoms[1])
             if not (1 <= i <= natoms and 1 <= j <= natoms):
-                raise ValueError(f"distance_filters 原子序号越界（共 {natoms} 个原子）: {flt}")
+                raise ValueError(f"distance_filters atom indices out of range (system has {natoms} atoms): {flt}")
 
     @staticmethod
     def _filter_pass(positions, filters) -> bool:
@@ -297,13 +299,13 @@ class ConformerSearch(Tool):
         table = self._render_table(conformers, bool(user_input.distance_filters))
 
         message = (
-            f"构象搜索完成：聚类后保留 {len(kept)} 个构象，系综已写入 {ensemble_path}。"
-            "坐标不在上下文中，请用 ensemble_path 指向的文件做后续计算。"
+            f"Conformer search complete: {len(kept)} conformers kept after clustering; ensemble written to {ensemble_path}. "
+            "Coordinates are not included in context; use the file at ensemble_path for follow-up calculations."
         )
         if user_input.distance_filters:
             message += (
-                f"\n通过距离过滤的构象共 {n_pass} 个，即为 reactive conformer 候选，"
-                "建议对这些构象做后续 TS 初猜。"
+                f"\n{n_pass} conformers pass the distance filters and are reactive conformer candidates; "
+                "TS guesses from these conformers are recommended."
             )
         if extra_message:
             message += f"\n{extra_message}"
@@ -331,7 +333,7 @@ class ConformerSearch(Tool):
             params.pruneRmsThresh = -1.0
             cids = list(AllChem.EmbedMultipleConfs(mol, numConfs=user_input.num_confs, params=params))
             if not cids:
-                return ConformerSearch_output_schema(is_success=False, message="RDKit 构象生成失败（未嵌入任何构象）。")
+                return ConformerSearch_output_schema(is_success=False, message="RDKit conformer generation failed (no conformers embedded).")
             counts = {"generated": len(cids)}
 
             # MMFF 优化；力场参数缺失时回退 UFF
@@ -362,7 +364,7 @@ class ConformerSearch(Tool):
                 if passes_by_cid[cid] and rel[cid] > user_input.energy_window_kcal
             )
             if not candidate_cids:
-                return ConformerSearch_output_schema(is_success=False, message="能量窗口内没有构象，异常终止。")
+                return ConformerSearch_output_schema(is_success=False, message="No conformers within the energy window; aborting.")
 
             # 重原子 RMSD 聚类去重（按能量升序贪心）
             mol_h = Chem.RemoveHs(mol)
@@ -445,16 +447,16 @@ class ConformerSearch(Tool):
             atomic_write_text(sdf_path, "".join(sdf_chunks))
             atomic_write_text(xyz_path, "".join(xyz_chunks))
 
-            extra = f"力场：{ff_name}（能量单位 kcal/mol）。"
+            extra = f"Force field: {ff_name} (energies in kcal/mol)."
             if counts["reactive_rescued"]:
                 extra += (
-                    f"为避免预筛选漏掉反应构象，额外保留了 {counts['reactive_rescued']} 个能量窗外的"
-                    "最低能 reactive conformer；其相对能仍以全局最低能构象为零点。"
+                    f"{counts['reactive_rescued']} lowest-energy reactive conformer(s) outside the energy window were "
+                    "additionally kept to avoid losing reactive conformers in pre-screening; their relative energies still use the global minimum as zero."
                 )
             return self._finalize(user_input, kept, counts, sdf_path, extra_message=extra)
 
         except Exception as e:
-            return ConformerSearch_output_schema(is_success=False, message=f"构象搜索失败: {e}")
+            return ConformerSearch_output_schema(is_success=False, message=f"Conformer search failed: {e}")
 
     # ---------- CREST 后端 ----------
 
@@ -478,7 +480,7 @@ class ConformerSearch(Tool):
             comment = lines[idx + 1] if idx + 1 < len(lines) else ""
             m = re.search(r"-?\d+\.\d+", comment)
             if m is None:
-                raise ValueError(f"crest 输出帧缺少能量注释: {comment!r}")
+                raise ValueError(f"crest output frame missing energy annotation: {comment!r}")
             energy_eh = float(m.group(0))
             coords = []
             for ln in lines[idx + 2: idx + 2 + natoms]:
@@ -486,19 +488,19 @@ class ConformerSearch(Tool):
                 if len(parts) >= 4:
                     coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
             if len(coords) != natoms:
-                raise ValueError("crest 输出帧原子数不完整")
+                raise ValueError("crest output frame has an incomplete atom count")
             frames.append({"energy_eh": energy_eh, "positions": coords, "comment": comment})
             idx += 2 + natoms
         if not frames:
-            raise ValueError("crest_conformers.xyz 中未解析到任何构象帧")
+            raise ValueError("No conformer frames parsed from crest_conformers.xyz")
         return frames
 
     def _run_crest(self, user_input: ConformerSearch_input_schema) -> ConformerSearch_output_schema:
         if shutil.which("crest") is None:
             return ConformerSearch_output_schema(
                 is_success=False,
-                message="未找到 crest 可执行程序。请安装 CREST（https://crest-lab.github.io/crest-docs/）"
-                        "并确保其在 PATH 中，或改用 backend='rdkit'。"
+                message="crest executable not found. Install CREST (https://crest-lab.github.io/crest-docs/) "
+                        "and ensure it is on PATH, or use backend='rdkit'."
             )
 
         try:
@@ -507,11 +509,11 @@ class ConformerSearch(Tool):
                 if not _RDKIT_AVAILABLE:
                     return ConformerSearch_output_schema(
                         is_success=False,
-                        message="smiles 输入需要 RDKit 生成初始 3D 结构。请执行: pip install 'cloudra[chem]'"
+                        message="smiles input requires RDKit to generate an initial 3D structure. Install it with: pip install 'cloudra[chem]'"
                     )
                 mol = Chem.AddHs(Chem.MolFromSmiles(user_input.smiles))
                 if AllChem.EmbedMolecule(mol, AllChem.ETKDGv3()) == -1:
-                    return ConformerSearch_output_schema(is_success=False, message="SMILES 初始 3D 结构生成失败。")
+                    return ConformerSearch_output_schema(is_success=False, message="Failed to generate an initial 3D structure from SMILES.")
                 AllChem.MMFFOptimizeMolecule(mol)
                 xyz_text = Chem.MolToXYZBlock(mol)
             else:
@@ -520,11 +522,11 @@ class ConformerSearch(Tool):
                     if not _RDKIT_AVAILABLE:
                         return ConformerSearch_output_schema(
                             is_success=False,
-                            message="sdf 输入需要 RDKit 转换坐标。请执行: pip install 'cloudra[chem]'"
+                            message="sdf input requires RDKit to convert coordinates. Install it with: pip install 'cloudra[chem]'"
                         )
                     mol = Chem.MolFromMolBlock(text, removeHs=False)
                     if mol is None:
-                        return ConformerSearch_output_schema(is_success=False, message="无法解析输入的 sdf/mol 文本")
+                        return ConformerSearch_output_schema(is_success=False, message="Could not parse the input sdf/mol text")
                     xyz_text = Chem.MolToXYZBlock(mol)
                 else:
                     xyz_text = text
@@ -545,8 +547,8 @@ class ConformerSearch(Tool):
                     err_tail = (proc.stderr or "")[-1000:]
                     return ConformerSearch_output_schema(
                         is_success=False,
-                        message=f"CREST 未生成 crest_conformers.xyz（returncode={proc.returncode}）。\n"
-                                f"stdout 尾部:\n{tail}\nstderr 尾部:\n{err_tail}"
+                        message=f"CREST did not produce crest_conformers.xyz (returncode={proc.returncode}).\n"
+                                f"stdout tail:\n{tail}\nstderr tail:\n{err_tail}"
                     )
                 try:
                     frames = self._parse_crest_xyz(crest_xyz)
@@ -554,7 +556,7 @@ class ConformerSearch(Tool):
                     tail = (proc.stdout or "")[-2000:]
                     return ConformerSearch_output_schema(
                         is_success=False,
-                        message=f"解析 crest_conformers.xyz 失败: {e}\nstdout 尾部:\n{tail}"
+                        message=f"Failed to parse crest_conformers.xyz: {e}\nstdout tail:\n{tail}"
                     )
 
             natoms = len(frames[0]["positions"])
@@ -604,7 +606,7 @@ class ConformerSearch(Tool):
                 if row["passes_filters"] and row["rel_energy_kcal"] > user_input.energy_window_kcal
             )
             if not kept:
-                return ConformerSearch_output_schema(is_success=False, message="能量窗口内没有构象，异常终止。")
+                return ConformerSearch_output_schema(is_success=False, message="No conformers within the energy window; aborting.")
 
             ref_pos = kept[0]["positions"]
             for k in kept:
@@ -621,21 +623,21 @@ class ConformerSearch(Tool):
                 chunks.append("\n".join(lines) + "\n")
             atomic_write_text(xyz_path, "".join(chunks))
 
-            extra = "后端：CREST (GFN2-xTB, --quick)。系综已由 CREST 去重，未再做 RMSD 聚类。"
+            extra = "Backend: CREST (GFN2-xTB, --quick). The ensemble was deduplicated by CREST; no further RMSD clustering was applied."
             if counts["reactive_rescued"]:
                 extra += (
-                    f"为避免预筛选漏掉反应构象，额外保留了 {counts['reactive_rescued']} 个能量窗外的"
-                    "最低能 reactive conformer；其相对能仍以全局最低能构象为零点。"
+                    f"{counts['reactive_rescued']} lowest-energy reactive conformer(s) outside the energy window were "
+                    "additionally kept to avoid losing reactive conformers in pre-screening; their relative energies still use the global minimum as zero."
                 )
             return self._finalize(user_input, kept, counts, xyz_path, extra_message=extra)
 
         except subprocess.TimeoutExpired:
             return ConformerSearch_output_schema(
                 is_success=False,
-                message=f"CREST 运行超时（>{user_input.timeout}s）。可调大 timeout 或改用 backend='rdkit'。"
+                message=f"CREST run timed out (>{user_input.timeout}s). Increase timeout or use backend='rdkit'."
             )
         except Exception as e:
-            return ConformerSearch_output_schema(is_success=False, message=f"CREST 后端失败: {e}")
+            return ConformerSearch_output_schema(is_success=False, message=f"CREST backend failed: {e}")
 
     async def tool_call(self, user_input: ConformerSearch_input_schema, session: Session) -> ConformerSearch_output_schema:
         import asyncio
@@ -647,7 +649,7 @@ class ConformerSearch(Tool):
         if not _RDKIT_AVAILABLE:
             return ConformerSearch_output_schema(
                 is_success=False,
-                message="环境未安装 RDKit 库。请执行: pip install 'cloudra[chem]'"
+                message="RDKit is not installed. Install it with: pip install 'cloudra[chem]'"
             )
         return await asyncio.to_thread(self._run_rdkit, user_input)
 

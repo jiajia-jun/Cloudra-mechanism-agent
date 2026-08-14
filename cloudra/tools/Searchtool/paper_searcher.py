@@ -31,7 +31,10 @@ class PaperSearcher_input_schema(input_schema):
 
 
 class PaperSearcher_output_schema(output_schema):
-    content: list = Field(description="Search results; each item is a paper-info dict")
+    is_success: bool = Field(default=True, description="Whether the search succeeded")
+    content: list = Field(default_factory=list, description="Search results; each item is a paper-info dict")
+    message: str = Field(default="", description="Status note (e.g. no results, or an invalid parameter was reset to its default)")
+    error: str = Field(default="", description="Error message on failure")
 
 
 class PaperSearcher(Tool):
@@ -47,12 +50,14 @@ class PaperSearcher(Tool):
     async def tool_call(self, user_input: PaperSearcher_input_schema, session: Session) -> PaperSearcher_output_schema:
         import arxiv
         try:
+            message = ""
             if user_input.sort_by not in ['Relevance', 'SubmittedDate', 'LastUpdatedDate']:
                 user_input.sort_by = 'Relevance'
             if user_input.sort_order not in ['Ascending', 'Descending']:
                 user_input.sort_order = 'Descending'
             if user_input.mode not in ['light', 'normal', 'weight']:
-                user_input.mode = 'light'
+                message = f"Unknown mode '{user_input.mode}'; falling back to the default 'normal'."
+                user_input.mode = 'normal'
 
             sort_by = getattr(arxiv.SortCriterion, user_input.sort_by)
             sort_order = getattr(arxiv.SortOrder, user_input.sort_order)
@@ -86,10 +91,10 @@ class PaperSearcher(Tool):
 
                 results_list.append(item)
 
-            return PaperSearcher_output_schema(content=results_list)
+            return PaperSearcher_output_schema(content=results_list, message=message)
         except Exception as e:
             # 捕获所有 arxiv 库抛出的网络异常
-            return PaperSearcher_output_schema(content=[{'error': f'arXiv API 暂时不可用: {str(e)}'}])
+            return PaperSearcher_output_schema(is_success=False, error=f'arXiv API temporarily unavailable: {str(e)}')
 
 
 def get_class():

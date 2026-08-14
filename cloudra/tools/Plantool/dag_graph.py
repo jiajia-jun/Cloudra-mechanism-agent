@@ -243,7 +243,7 @@ class DagGraphInput(input_schema):
 
 
 class DagGraphOutput(output_schema):
-    success: bool
+    is_success: bool
     action: str
     result: dict[str, Any] = Field(default_factory=dict)
     accepted: bool | None = None
@@ -304,7 +304,7 @@ class DagGraph(Tool):
         mode = self._mode()
         if mode is OrchestrationMode.STANDARD:
             return DagGraphOutput(
-                success=False,
+                is_success=False,
                 action=user_input.action,
                 error="dag_graph is disabled in standard orchestration mode",
             )
@@ -316,13 +316,13 @@ class DagGraph(Tool):
         if user_input.action == "message_supervisor":
             if caller_type == "supervisor":
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="message_supervisor",
                     error="message_supervisor is for the Coordinator; you are the Supervisor.",
                 )
             if caller_type != "coordinator" and caller_id != "a-0":
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="message_supervisor",
                     error=(
                         "message_supervisor is Coordinator-only; "
@@ -332,13 +332,13 @@ class DagGraph(Tool):
             msg = (user_input.message or "").strip()
             if not msg:
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="message_supervisor",
                     error="message_supervisor requires a non-empty message.",
                 )
             # 真正唤醒由 DagController.on_tool_finished → maybe_supervise 完成
             return DagGraphOutput(
-                success=True,
+                is_success=True,
                 action="message_supervisor",
                 accepted=True,
                 result={"delivered": True, "message": msg[:2000]},
@@ -368,7 +368,7 @@ class DagGraph(Tool):
             snapshot = await asyncio.to_thread(engine.snapshot)
             if _blocks_init_from_template(snapshot):
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="init_from_template",
                     error=(
                         "init_from_template is only allowed while delivery is empty and "
@@ -416,7 +416,7 @@ class DagGraph(Tool):
 
             mutation = await asyncio.to_thread(_apply_template)
             return DagGraphOutput(
-                success=mutation.accepted,
+                is_success=mutation.accepted,
                 action="init_from_template",
                 accepted=mutation.accepted,
                 rejection_code=mutation.rejection_code,
@@ -430,7 +430,7 @@ class DagGraph(Tool):
         if user_input.action == "mutate":
             if not user_input.operations:
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="mutate",
                     error="mutate requires at least one operation",
                 )
@@ -471,7 +471,7 @@ class DagGraph(Tool):
                     db, session, mode, conversation_id, user_input.operations,
                 )
             return DagGraphOutput(
-                success=mutation.accepted,
+                is_success=mutation.accepted,
                 action="mutate",
                 accepted=mutation.accepted,
                 rejection_code=mutation.rejection_code,
@@ -495,7 +495,7 @@ class DagGraph(Tool):
             ]
             if missing:
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="bind_evidence",
                     error=f"bind_evidence requires: {', '.join(missing)}",
                 )
@@ -511,13 +511,13 @@ class DagGraph(Tool):
             except Exception as exc:
                 # 证据缺失/计算未成功/目标不存在等确定性拒绝，原文回报给模型自纠
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="bind_evidence",
                     accepted=False,
                     error=str(exc),
                 )
             return DagGraphOutput(
-                success=True,
+                is_success=True,
                 action="bind_evidence",
                 accepted=True,
                 result=bound,
@@ -527,7 +527,7 @@ class DagGraph(Tool):
             # Supervisor 对 delivery 只读：工具校验身份后由 harness 确定性下调等级
             if actor is not GraphActor.SUPERVISOR:
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="review_evidence",
                     error=(
                         "review_evidence is supervisor-only; evidence vetoes are "
@@ -545,7 +545,7 @@ class DagGraph(Tool):
             ]
             if missing:
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="review_evidence",
                     error=f"review_evidence requires: {', '.join(missing)}",
                 )
@@ -561,13 +561,13 @@ class DagGraph(Tool):
                 )
             except Exception as exc:
                 return DagGraphOutput(
-                    success=False,
+                    is_success=False,
                     action="review_evidence",
                     accepted=False,
                     error=str(exc),
                 )
             return DagGraphOutput(
-                success=True,
+                is_success=True,
                 action="review_evidence",
                 accepted=True,
                 result=reviewed,
@@ -578,7 +578,7 @@ class DagGraph(Tool):
         if user_input.action == "delivery_report":
             report = evaluate_delivery(snapshot.delivery, contract)
             return DagGraphOutput(
-                success=True,
+                is_success=True,
                 action="delivery_report",
                 result=report.model_dump(mode="json"),
             )
@@ -652,7 +652,7 @@ class DagGraph(Tool):
                     **({"status": user_input.status_filter} if user_input.status_filter else {}),
                     **({"include_observed": True} if user_input.include_observed else {}),
                 }
-            return DagGraphOutput(success=True, action="view", result=result)
+            return DagGraphOutput(is_success=True, action="view", result=result)
 
         history = await asyncio.to_thread(engine.history, limit=8)
         projection = build_projection(
@@ -662,7 +662,7 @@ class DagGraph(Tool):
             history=history,
         )
         return DagGraphOutput(
-            success=True,
+            is_success=True,
             action="view",
             result=projection.model_dump(mode="json"),
         )

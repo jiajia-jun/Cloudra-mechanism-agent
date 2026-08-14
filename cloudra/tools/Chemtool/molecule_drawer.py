@@ -32,9 +32,15 @@ class MoleculeDrawer_input_schema(input_schema):
     height: int = Field(default=400, description="Image height (px)")
     legend: str = Field(default="", description="Caption under the molecule")
 
-    # 高亮设置
-    highlight_atoms: Optional[List[int]] = Field(default=None, description="Atom indices to highlight")
-    highlight_bonds: Optional[List[int]] = Field(default=None, description="Bond indices to highlight")
+    # 高亮设置（注意：与 Chemtool 其他工具的 1-based 约定不同，RDKit 原生为 0-based）
+    highlight_atoms: Optional[List[int]] = Field(
+        default=None,
+        description="Atom indices to highlight (0-based, RDKit native convention — unlike the 1-based indexing used by other Chemtool tools)."
+    )
+    highlight_bonds: Optional[List[int]] = Field(
+        default=None,
+        description="Bond indices to highlight (0-based, RDKit native convention)."
+    )
 
     # 绘图风格 (MolDrawOptions)
     add_atom_indices: bool = Field(default=False, description="Whether to show atom index numbers")
@@ -73,7 +79,8 @@ class MoleculeDrawer(Tool):
             return MoleculeDrawer_output_schema(
                 is_success=False,
                 image_path="",
-                message="环境未安装 RDKit 库，无法绘制分子结构图。请执行: pip install 'cloudra[chem]'"
+                message="RDKit is not installed; cannot draw the molecule. "
+                        "Install it with: pip install 'cloudra[chem]', then retry."
             )
         smiles = user_input.smiles
         path = user_input.output_path
@@ -88,16 +95,20 @@ class MoleculeDrawer(Tool):
         )
         approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=user_input.model_dump(mode="json"))
         if not approved:
-            message = "【安全拦截】操作被拒绝。"
+            message = (
+                "[Safety block] The operation was rejected. "
+                "Next: explain to the user why the drawing was needed, adjust the parameters, "
+                "or choose a safer alternative."
+            )
             if denial_reason:
-                message += f"\n拒绝原因: {denial_reason}"
+                message += f"\nRejection reason: {denial_reason}"
             return MoleculeDrawer_output_schema(is_success=False, image_path="", message=message)
 
         try:
             # 1. 解析分子
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
-                return MoleculeDrawer_output_schema(is_success=False, image_path="", message=f"无效的 SMILES: {smiles}")
+                return MoleculeDrawer_output_schema(is_success=False, image_path="", message=f"Invalid SMILES: {smiles}. Check the syntax and retry.")
 
             # 2. 预处理
             if user_input.add_hs:
@@ -139,10 +150,10 @@ class MoleculeDrawer(Tool):
             else:
                 atomic_write_bytes(path, content)
 
-            return MoleculeDrawer_output_schema(is_success=True, image_path=path, message="图像生成成功。")
+            return MoleculeDrawer_output_schema(is_success=True, image_path=path, message="Image generated successfully.")
 
         except Exception as e:
-            return MoleculeDrawer_output_schema(is_success=False, image_path="", message=f"绘图异常: {str(e)}")
+            return MoleculeDrawer_output_schema(is_success=False, image_path="", message=f"Drawing raised an exception: {str(e)}")
 
 def get_class():
     return MoleculeDrawer

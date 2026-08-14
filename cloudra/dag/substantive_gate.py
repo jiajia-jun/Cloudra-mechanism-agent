@@ -74,7 +74,7 @@ GUIDED_WORKFLOW_BLOCK_MESSAGE = (
     "(2) wait for Supervisor review and non-template planned work on process. "
     "Early scouting may dispatch explorer(a-1) / researcher(a-3); "
     "dispatch small_mol/dft compute sub-agents only after process is broken down. "
-    "log_parser and similar tools maintain the graph automatically; use bind_evidence for unexpected cases; "
+    "gaussian_log_parser and similar tools maintain the graph automatically; use bind_evidence for unexpected cases; "
     "deliver only after mechanism coverage is satisfied."
 )
 

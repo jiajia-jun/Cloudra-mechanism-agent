@@ -184,7 +184,8 @@ class LogParser(Tool):
         if not os.path.isfile(log_path):
             return LogParser_output_schema(
                 is_success=False,
-                message=f"日志文件不存在: {log_path}"
+                message=f"Log file not found: {log_path}. "
+                        "Check the path, or locate the log with query_compute_job, then retry."
             )
 
         try:
@@ -196,11 +197,13 @@ class LogParser(Tool):
             if data is None:
                 return LogParser_output_schema(
                     is_success=False,
-                    message="cclib 未能从日志中解析出任何数据。"
+                    message=f"cclib could not parse any data from: {log_path}. "
+                            "Check that it is a complete computational-chemistry log; "
+                            "if the job failed, inspect the log tail to find the cause."
                 )
 
             requested = self._resolve_requested_fields(user_input.properties)
-            result: dict[str, Any] = {"is_success": True, "message": "日志解析成功。"}
+            result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully."}
 
             # 3. 根据请求填充字段
             if "scf_energy_hartree" in requested or "scf_energy_ev" in requested:
@@ -322,14 +325,28 @@ class LogParser(Tool):
                             irc_meta["forward_converged"] and irc_meta["backward_converged"]
                         )
                     except ValueError as e:
-                        result["message"] = f"日志解析成功；IRC 摘要提取失败: {e}"
+                        result["message"] = f"Log parsed; IRC summary extraction failed: {e}"
 
             return LogParser_output_schema(**result)
 
+        except FileNotFoundError:
+            return LogParser_output_schema(
+                is_success=False,
+                message=f"Log file not found: {log_path}. "
+                        "Check the path, or locate the log with query_compute_job, then retry."
+            )
+        except ImportError as e:
+            return LogParser_output_schema(
+                is_success=False,
+                message=f"Required parser library is not installed: {str(e)}. "
+                        "Install it with: pip install 'cloudra[chem]', then retry."
+            )
         except Exception as e:
             return LogParser_output_schema(
                 is_success=False,
-                message=f"日志解析失败: {str(e)}"
+                message=f"Failed to parse the log: {str(e)}. "
+                        f"Check that {log_path} is a valid, complete log file; "
+                        "if the job crashed, inspect the log tail for the cause."
             )
 
 

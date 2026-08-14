@@ -18,7 +18,7 @@ description = (
     "and let the framework Compute Executor pick it up; returns job_id immediately without waiting for the job to finish. "
     "Use for: formally running long Gaussian, CP2K, VASP, or ORCA jobs; prepare the input first with gjf_writer or similar (CP2K uses .inp). "
     "Do not use for: generating the input (use gjf_writer), querying progress (use query_compute_job), "
-    "or inspecting results (parse the log with log_parser after the job finishes)."
+    "or inspecting results (parse the log with gaussian_log_parser after the job finishes)."
 )
 
 
@@ -83,7 +83,8 @@ class SubmitComputeJob(Tool):
         if not os.path.exists(f_path):
             return SubmitComputeJob_output_schema(
                     is_success=False,
-                    message="File or directory does not exist.")
+                    message=f"Input file does not exist: {f_path}. "
+                            "Check the path, or generate the input first with gjf_writer, then retry.")
 
         scheduler = user_input.execution_backend
         scheduler_options: dict = {"type": scheduler}
@@ -157,7 +158,9 @@ class SubmitComputeJob(Tool):
             except Exception as e:
                 return SubmitComputeJob_output_schema(
                         is_success=False,
-                        message=f"Job submission hit an error: {e}")
+                        message=f"Job submission hit an error: {e}. "
+                                "Next: check whether a partial job record was created with query_compute_job; "
+                                "fix the cause and resubmit with submit_compute_job.")
 
         else:
             # 直接写入 running，并开始计算
@@ -192,7 +195,9 @@ class SubmitComputeJob(Tool):
             except Exception as e:
                 return SubmitComputeJob_output_schema(
                         is_success=False,
-                        message=f"Job submission hit an error: {e}")
+                        message=f"Job submission hit an error: {e}. "
+                                "Next: use query_compute_job to inspect the job state and last_error, "
+                                "read the log to locate the failure, then fix the input and resubmit.")
 
 
     async def run_now(self, job_id: int, db_path: str, input_file: str, job_type: str, conv_id: str) -> str:

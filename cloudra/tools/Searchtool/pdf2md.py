@@ -30,7 +30,7 @@ class pdf2md_input_schema(input_schema):
 
 
 class pdf2md_output_schema(output_schema):
-    is_finished: bool = Field(description="Whether conversion succeeded")
+    is_success: bool = Field(description="Whether conversion succeeded")
     md_path: str = Field(description="Path of the generated Markdown file; empty string on failure")
     extracted_images: list[str] = Field(default_factory=list, description="Absolute paths of images extracted from the PDF")
     content: str = Field(default="", description="Conversion output or error message")
@@ -49,7 +49,7 @@ class pdf2md(Tool):
     async def tool_call(self, user_input: pdf2md_input_schema, session: Session) -> pdf2md_output_schema:
         if not _PYMUPDF_AVAILABLE:
             return pdf2md_output_schema(
-                is_finished=False,
+                is_success=False,
                 md_path='',
                 content="环境未安装 PyMuPDF 库。请执行: pip install 'cloudra[pdf]'"
             )
@@ -65,13 +65,13 @@ class pdf2md(Tool):
             )
         except asyncio.TimeoutError:
             return pdf2md_output_schema(
-                is_finished=False,
+                is_success=False,
                 md_path='',
                 content='PDF 转换超时！'
             )
         except Exception as e:
             return pdf2md_output_schema(
-                is_finished=False,
+                is_success=False,
                 md_path='',
                 content=f'PDF 转换失败: {e}'
             )
@@ -161,7 +161,7 @@ class pdf2md(Tool):
         md_file_path.write_text(md_content, encoding="utf-8")
 
         return pdf2md_output_schema(
-            is_finished=True,
+            is_success=True,
             md_path=str(md_file_path.absolute()),
             extracted_images=extracted_images,
             content=f"转换完成，共处理 {len(md_lines)} 行文本，提取 {len(extracted_images)} 张图片。",

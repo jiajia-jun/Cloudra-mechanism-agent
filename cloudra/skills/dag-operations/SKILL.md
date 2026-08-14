@@ -33,7 +33,7 @@ Advance in this order (the harness hard-blocks skipping ahead; error messages na
    dependencies are satisfied and whose status is `proposed` or `ready` — do not rely only on
    `status_filter=ready`). Dispatch `small_mol` / `dft` (etc.) sub-agents by node `assignee` (legal ids such as `a-4`),
    or execute already-scheduled tool-level work yourself.
-6. **Evidence return**: tool results such as `log_parser` are maintained on the graph by the harness; if something
+6. **Evidence return**: tool results such as `gaussian_log_parser` are maintained on the graph by the harness; if something
    unexpected happens (calculate-before-graph, a missed binding), claim it yourself with `bind_evidence`.
 7. **Delivery**: only `stop` for delivery after `delivery_report` confirms coverage; if there are gaps, keep
    filling evidence or state partial / ask the user for a waiver.

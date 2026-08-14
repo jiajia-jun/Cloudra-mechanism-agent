@@ -151,6 +151,7 @@ class PromptAssembler:
         working_directory: Optional[str],
         include_memory: bool,
         observer_id: str = "",
+        include_agents_md: bool = True,
     ):
         self.prompt_name = prompt_name
         self.custom_prompt = custom_prompt
@@ -160,6 +161,7 @@ class PromptAssembler:
         )
         self.include_memory = include_memory
         self.observer_id = observer_id or conversation_id
+        self.include_agents_md = include_agents_md
 
     @staticmethod
     def _source(kind: str, content: str, path: Optional[Path] = None) -> PromptSource:
@@ -180,6 +182,12 @@ class PromptAssembler:
         return content, self._source("role", content, prompt_path)
 
     def _agents_md_sections(self) -> list[tuple[str, str, PromptSource]]:
+        # 角色门控：只有 Coordinator 注入 AGENTS.md。工作区若是 Cloudra 仓库
+        # 本身，根目录面向开发者的 AGENTS.md 对 dft/md 等子 agent 是纯噪声，
+        # 还可能误导它们执行其中的开发命令；子 agent 应遵守的约定由
+        # Coordinator 在任务描述里传达。
+        if not self.include_agents_md:
+            return []
         cfg = get_config()
         candidates = (
             ("global_agents_md", "global", Path(cfg.config_file).parent / "AGENTS.md"),
@@ -272,7 +280,11 @@ class PromptAssembler:
                     if isinstance(parsed, dict):
                         metadata = parsed
             name = str(metadata.get("name") or skill_file.parent.name).strip()
-            description = str(metadata.get("description") or "").strip()
+            # description 可能是 YAML 多行块标量；压成单行（空白折叠），
+            # 避免 manifest 的 "- name: description" 列表被渲染成断裂多行。
+            description = " ".join(
+                str(metadata.get("description") or "").split()
+            )
             manifest.append(
                 {
                     "name": name,

@@ -216,7 +216,10 @@ async def dispatch_subagent(
                 session_id=session_id,
                 agent_id=agent_id,
             )
-        result = f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}"
+        result = (
+            f"Task submitted asynchronously: agent_id={agent_id}, session_id={session_id}. "
+            f"Retrieve the result later with get_subagent_report(session_id=\"{session_id}\")."
+        )
 
     return SubagentDispatchResult(
         task_id=task_id,

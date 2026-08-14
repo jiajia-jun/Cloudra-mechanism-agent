@@ -161,7 +161,7 @@ class InternalCoordinates_input_schema(input_schema):
 
 class InternalCoordinates_output_schema(output_schema):
     is_success: bool = Field(description="Whether the operation succeeded")
-    report: str = Field(default="", description="Structured Chinese analysis report when mode=analyze (sectioned text)")
+    report: str = Field(default="", description="Structured analysis report when mode=analyze (sectioned text)")
     anomalies: list[dict] = Field(
         default_factory=list,
         description="Machine-readable list of bond/angle anomalies; each item has type/atoms/value/reference/status"
@@ -268,7 +268,7 @@ class InternalCoordinates(Tool):
             fmt = "xyz" if input_format == "auto" else input_format
             return ase.io.read(StringIO(input_text), format=fmt)
 
-        raise ValueError("必须提供 input_path 或 input_text")
+        raise ValueError("Must provide input_path or input_text")
 
     @staticmethod
     def _atoms_to_xyz_block(atoms) -> str:
@@ -289,7 +289,7 @@ class InternalCoordinates(Tool):
 
         mol = Chem.MolFromXYZBlock(xyz_block)
         if mol is None:
-            raise ValueError("RDKit 无法解析 XYZ 块")
+            raise ValueError("RDKit could not parse the XYZ block")
         rdDetermineBonds.DetermineConnectivity(mol)
         rdDetermineBonds.DetermineBonds(mol, charge=charge)
         bond_orders: dict[tuple[int, int], float] = {}
@@ -338,7 +338,7 @@ class InternalCoordinates(Tool):
             centers = Chem.FindMolChiralCenters(mol, includeUnassigned=True, useLegacyImplementation=False)
             for idx, label in centers:
                 sym = mol.GetAtomWithIdx(idx).GetSymbol()
-                text = label if label != '?' else '未指定(?)'
+                text = label if label != '?' else 'unassigned(?)'
                 chiral_lines.append(f"  {sym}{idx + 1}: {text}")
             for bond in mol.GetBonds():
                 stereo = bond.GetStereo()
@@ -406,17 +406,17 @@ class InternalCoordinates(Tool):
         for ring in ring_sets:
             ordered = cls._order_ring(ring, adj)
             labels = "-".join(f"{symbols[a]}{a + 1}" for a in ordered)
-            line = f"  {len(ring)} 元环: {labels}"
+            line = f"  {len(ring)}-membered ring: {labels}"
             if len(ring) == 6 and len(ordered) == 6:
                 try:
                     coords = [positions[a] for a in ordered]
                     big_q, theta, phi = _cremer_pople(coords)
                     if theta < 15 or theta > 165:
-                        hint = "近似椅式 (chair)"
+                        hint = "near-chair (chair)"
                     elif 75 <= theta <= 105:
-                        hint = "船式/扭船式 (boat/twist-boat)"
+                        hint = "boat/twist-boat"
                     else:
-                        hint = "中间构象"
+                        hint = "intermediate conformation"
                     line += f"  [CP: Q={big_q:.3f} θ={theta:.1f}° φ={phi:.1f}° → {hint}]"
                 except Exception:
                     pass
@@ -557,25 +557,25 @@ class InternalCoordinates(Tool):
                     'status': status,
                 })
 
-        status_cn = {
-            'compressed': '压缩 (compressed)',
-            'elongated': '拉长 (elongated)',
-            'breaking_suspect': '断裂嫌疑 (breaking_suspect)',
-            'forming_candidate': '形成候选 (forming_candidate)',
-            'clash': '原子重叠 (clash)',
+        status_label = {
+            'compressed': 'compressed',
+            'elongated': 'elongated',
+            'breaking_suspect': 'breaking_suspect',
+            'forming_candidate': 'forming_candidate',
+            'clash': 'clash',
         }
         lines: list[str] = []
         for a in anomalies:
             pair = "-".join(a['atoms'])
             if a['bond_order'] > 0:
                 lines.append(
-                    f"  {pair}  r={a['value']:.3f} Å  ref={a['reference']:.3f} (键级 {a['bond_order']:g})  "
-                    f"ratio={a['ratio']:.3f}  [{status_cn[a['status']]}]"
+                    f"  {pair}  r={a['value']:.3f} Å  ref={a['reference']:.3f} (bond order {a['bond_order']:g})  "
+                    f"ratio={a['ratio']:.3f}  [{status_label[a['status']]}]"
                 )
             else:
                 lines.append(
-                    f"  {pair}  r={a['value']:.3f} Å  单键 ref={a['reference']:.3f}  vdW={a['vdw_sum']:.3f}  "
-                    f"[{status_cn[a['status']]}]"
+                    f"  {pair}  r={a['value']:.3f} Å  single-bond ref={a['reference']:.3f}  vdW={a['vdw_sum']:.3f}  "
+                    f"[{status_label[a['status']]}]"
                 )
         return anomalies, lines
 
@@ -617,7 +617,7 @@ class InternalCoordinates(Tool):
                         })
         records.sort(key=lambda a: -abs(a['delta']))
         lines = [
-            f"  {'-'.join(a['atoms'])}  ∠={a['value']:.1f}°  期望={a['reference']:.1f}°  Δ={a['delta']:+.1f}°"
+            f"  {'-'.join(a['atoms'])}  ∠={a['value']:.1f}°  expected={a['reference']:.1f}°  Δ={a['delta']:+.1f}°"
             for a in records[:20]
         ]
         return records[:20], lines
@@ -640,13 +640,13 @@ class InternalCoordinates(Tool):
             return f"{symbols[i]}{i + 1}"
 
         if watch_pairs:
-            lines.append("  [监测原子对]")
+            lines.append("  [Watched atom pairs]")
             for pair in watch_pairs:
                 if len(pair) != 2:
                     continue
                 i, j = pair[0] - 1, pair[1] - 1
                 if not (0 <= i < n and 0 <= j < n):
-                    lines.append(f"  {pair}: 原子序号越界，跳过")
+                    lines.append(f"  {pair}: atom index out of range, skipped")
                     continue
                 r = dist(i, j)
                 ref_single = cls._reference_bond_length(symbols[i], symbols[j], 1.0)
@@ -655,31 +655,31 @@ class InternalCoordinates(Tool):
                 if key in bond_orders:
                     order = bond_orders[key]
                     ref = cls._reference_bond_length(symbols[i], symbols[j], order)
-                    verdict = f"已成键 (键级 {order:g}, ref {ref:.3f})"
+                    verdict = f"bonded (bond order {order:g}, ref {ref:.3f})"
                 elif r < 0.75 * vdw_sum:
-                    verdict = f"形成中: < vdW {vdw_sum:.3f}"
+                    verdict = f"forming: < vdW {vdw_sum:.3f}"
                     if r > ref_single:
-                        verdict += f", > {symbols[i]}-{symbols[j]} 单键 ref {ref_single:.3f}"
+                        verdict += f", > {symbols[i]}-{symbols[j]} single-bond ref {ref_single:.3f}"
                 else:
-                    verdict = f"远离: > 0.75×vdW {0.75 * vdw_sum:.3f}"
+                    verdict = f"far: > 0.75×vdW {0.75 * vdw_sum:.3f}"
                 lines.append(f"  r({label(i)}-{label(j)})={r:.3f} Å  [{verdict}]")
 
         if reactive_atoms:
-            lines.append("  [反应中心原子]")
+            lines.append("  [Reactive-center atoms]")
             for idx in reactive_atoms:
                 i = idx - 1
                 if not (0 <= i < n):
-                    lines.append(f"  原子 {idx}: 序号越界，跳过")
+                    lines.append(f"  Atom {idx}: index out of range, skipped")
                     continue
                 if not adj[i]:
-                    lines.append(f"  {label(i)}: 无成键邻居")
+                    lines.append(f"  {label(i)}: no bonded neighbors")
                     continue
                 bonds_desc = []
                 for j in adj[i]:
                     order = bond_orders[(min(i, j), max(i, j))]
                     ref = cls._reference_bond_length(symbols[i], symbols[j], order)
                     bonds_desc.append(f"{label(j)}={dist(i, j):.3f}(ref {ref:.3f})")
-                lines.append(f"  {label(i)} 邻居: " + ", ".join(bonds_desc))
+                lines.append(f"  {label(i)} neighbors: " + ", ".join(bonds_desc))
                 nbrs = adj[i]
                 angle_desc = []
                 for x in range(len(nbrs)):
@@ -688,7 +688,7 @@ class InternalCoordinates(Tool):
                         ang = _angle_deg(positions[a], positions[i], positions[b])
                         angle_desc.append(f"∠{label(a)}-{label(i)}-{label(b)}={ang:.1f}°")
                 if angle_desc:
-                    lines.append("    键角: " + ", ".join(angle_desc[:8]))
+                    lines.append("    Angles: " + ", ".join(angle_desc[:8]))
         return lines
 
     # ---------- 等价原子 ----------
@@ -925,7 +925,7 @@ class InternalCoordinates(Tool):
                 user_input.input_path, user_input.input_text, user_input.input_format,
             )
         except Exception as e:
-            return InternalCoordinates_output_schema(is_success=False, message=f"读取输入结构失败: {e}")
+            return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
 
         symbols = atoms.get_chemical_symbols()
         positions = np.asarray(atoms.get_positions(), dtype=float)
@@ -941,10 +941,10 @@ class InternalCoordinates(Tool):
                 )
             except Exception as e:
                 bond_orders = self._distance_connectivity(symbols, positions)
-                notes.append(f"RDKit 键级感知失败（{e}），键级未感知，以下键信息为距离推断（全部按单键处理）。")
+                notes.append(f"RDKit bond perception failed ({e}); bond orders were not perceived — bond info below is distance-inferred (all treated as single bonds).")
         else:
             bond_orders = self._distance_connectivity(symbols, positions)
-            notes.append("环境未安装 RDKit，键级未感知，以下键信息为距离推断（全部按单键处理）。")
+            notes.append("RDKit is not installed; bond orders were not perceived — bond info below is distance-inferred (all treated as single bonds).")
 
         adj = self._build_adjacency(n, bond_orders)
         n_frag = 0
@@ -967,7 +967,7 @@ class InternalCoordinates(Tool):
         if mol is not None:
             chiral_lines, ez_lines = self._stereochemistry_report(mol)
         elif _RDKIT_AVAILABLE:
-            notes.append("键级未感知，立体化学分析跳过。")
+            notes.append("Bond orders were not perceived; stereochemistry analysis skipped.")
 
         ring_lines, ring_sets = self._rings_report(mol, adj, symbols, positions, bond_orders)
         rot_lines = self._rotatable_dihedrals(mol, adj, symbols, positions, bond_orders, ring_sets)
@@ -998,52 +998,52 @@ class InternalCoordinates(Tool):
         formula = "".join(f"{k}{hill[k] if hill[k] > 1 else ''}" for k in formula_keys if k in hill)
 
         report: list[str] = ["== Summary =="]
-        report.append(f"  分子式: {formula}  原子数: {n}  键数: {len(bond_orders)}  "
-                      f"碎片数: {n_frag}  总电荷: {user_input.charge}")
-        report.append(f"  键级感知: {'RDKit (键级已知)' if mol is not None else '距离推断 (全部按单键)'}")
-        report.append(f"  键异常: {len(bond_anomalies)} 处  键角异常: {len(angle_anomalies)} 处")
+        report.append(f"  Formula: {formula}  Atoms: {n}  Bonds: {len(bond_orders)}  "
+                      f"Fragments: {n_frag}  Total charge: {user_input.charge}")
+        report.append(f"  Bond orders: {'RDKit (perceived)' if mol is not None else 'distance-inferred (all single)'}")
+        report.append(f"  Bond anomalies: {len(bond_anomalies)}  Angle anomalies: {len(angle_anomalies)}")
 
         report.append("== Stereochemistry ==")
         if chiral_lines or ez_lines:
             if chiral_lines:
-                report.append("  手性中心:")
+                report.append("  Chiral centers:")
                 report.extend(chiral_lines)
             if ez_lines:
-                report.append("  双键构型:")
+                report.append("  Double-bond configurations:")
                 report.extend(ez_lines)
         else:
-            report.append("  无手性中心 / 无 E-Z 双键（或未感知）")
+            report.append("  No chiral centers / no E-Z double bonds (or not perceived)")
 
         report.append("== Rings ==")
-        report.extend(ring_lines if ring_lines else ["  无环"])
+        report.extend(ring_lines if ring_lines else ["  No rings"])
 
         report.append("== Rotatable Dihedrals ==")
         if rot_lines:
             report.extend(rot_lines[:15])
             if len(rot_lines) > 15:
-                report.append(f"  ... 其余 {len(rot_lines) - 15} 条从略")
+                report.append(f"  ... {len(rot_lines) - 15} more omitted")
         else:
-            report.append("  无可旋转键")
+            report.append("  No rotatable bonds")
 
         report.append("== Abnormal Bonds ==")
-        report.extend(bond_lines if bond_lines else ["  无异常键长（正常键不逐一列出）"])
+        report.extend(bond_lines if bond_lines else ["  No abnormal bond lengths (normal bonds are not listed)"])
 
         report.append("== Abnormal Angles ==")
-        report.extend(angle_lines if angle_lines else [f"  无偏差超过 {user_input.angle_tolerance:.1f}° 的键角"])
+        report.extend(angle_lines if angle_lines else [f"  No bond angles deviating by more than {user_input.angle_tolerance:.1f}°"])
 
         if user_input.reactive_atoms or user_input.watch_pairs:
             report.append("== Reactive Center ==")
-            report.extend(reactive_lines if reactive_lines else ["  （无有效输入）"])
+            report.extend(reactive_lines if reactive_lines else ["  (no valid input)"])
 
         report.append("== Equivalent Atoms ==")
         if equiv_lines:
             report.extend(equiv_lines[:10])
         else:
-            report.append("  无对称等价原子组（或未感知）")
+            report.append("  No symmetry-equivalent atom groups (or not perceived)")
 
         report.append("== Notes ==")
-        notes.append("数值格式：键长 3 位小数 Å，角度 1 位小数 °；范德华半径取自 Bondi (1964)。")
-        notes.append("forming_candidate/breaking_suspect 仅为几何判据提示，须结合反应机理解读。")
+        notes.append("Numeric format: bond lengths 3 decimals (Å), angles 1 decimal (°); van der Waals radii from Bondi (1964).")
+        notes.append("forming_candidate/breaking_suspect are geometric-criteria hints only; interpret them against the reaction mechanism.")
         report.extend(f"  - {t}" for t in notes)
 
         # 4. Z-matrix 文件
@@ -1079,7 +1079,7 @@ class InternalCoordinates(Tool):
             return InternalCoordinates_output_schema(
                 is_success=False,
                 report="\n".join(report),
-                message=f"Z-matrix 生成失败: {e}\n{traceback.format_exc()}",
+                message=f"Failed to generate Z-matrix: {e}\n{traceback.format_exc()}",
             )
 
         anomalies = bond_anomalies + angle_anomalies
@@ -1090,9 +1090,9 @@ class InternalCoordinates(Tool):
             zmat_path=zmat_path,
             zmat_lines=zmat_lines,
             message=(
-                f"结构分析完成：{len(bond_anomalies)} 处键异常、{len(angle_anomalies)} 处键角异常。"
-                f"Z-matrix 已写入 {zmat_path}（{zmat_lines} 行），内容不进入上下文，"
-                f"可用 mode=zmatrix_to_cartesian 还原坐标。"
+                f"Structure analysis complete: {len(bond_anomalies)} bond anomalies, {len(angle_anomalies)} angle anomalies. "
+                f"Z-matrix written to {zmat_path} ({zmat_lines} lines); its content is not included in context — "
+                f"restore coordinates with mode=zmatrix_to_cartesian."
             ),
         )
 
@@ -1119,7 +1119,7 @@ class InternalCoordinates(Tool):
             tokens = [t.strip() for t in line.split("|")]
             head = tokens[0].split()
             if len(head) < 2:
-                raise ValueError(f"无法解析 Z-matrix 行: {line}")
+                raise ValueError(f"Could not parse Z-matrix line: {line}")
             idx = int(head[0])
             name = head[1]
             symbol = re.sub(r"\d+", "", name)
@@ -1139,7 +1139,7 @@ class InternalCoordinates(Tool):
             m = re.search(r"\d+", name)
             if m:
                 return str(int(m.group()))
-            raise ValueError(f"无法解析父原子名: {name}")
+            raise ValueError(f"Could not parse parent atom name: {name}")
 
         rows = []
         for rec in records:
@@ -1229,7 +1229,7 @@ class InternalCoordinates(Tool):
                 return s
             col = name_to_col.get(int(s), -1)
             if col < 0:
-                raise ValueError(f"无法解析参考原子: {s}")
+                raise ValueError(f"Could not parse reference atom: {s}")
             return col
 
         n = len(zmat_frame)
@@ -1249,7 +1249,7 @@ class InternalCoordinates(Tool):
             norm_ba = np.linalg.norm(ba)
             if norm_ba < 1e-9:
                 raise ValueError(
-                    f"Z-matrix 第 {j + 1} 行的键长参考与键角参考位置重合，无法定义坐标系"
+                    f"Z-matrix row {j + 1}: bond-length and bond-angle references coincide; cannot define a coordinate frame"
                 )
             normal = np.cross(pos(d_ref) - pa, ba)
             if np.linalg.norm(normal) < 1e-9:
@@ -1294,7 +1294,7 @@ class InternalCoordinates(Tool):
                     zmatrix_text = f.read()
             except Exception as e:
                 return InternalCoordinates_output_schema(
-                    is_success=False, message=f"读取 Z-matrix 文件失败: {e}"
+                    is_success=False, message=f"Failed to read Z-matrix file: {e}"
                 )
         elif user_input.zmatrix_text:
             zmatrix_text = user_input.zmatrix_text
@@ -1302,7 +1302,7 @@ class InternalCoordinates(Tool):
         if not zmatrix_text:
             return InternalCoordinates_output_schema(
                 is_success=False,
-                message="mode=zmatrix_to_cartesian 时必须提供 zmatrix_path 或 zmatrix_text"
+                message="mode=zmatrix_to_cartesian requires zmatrix_path or zmatrix_text"
             )
 
         try:
@@ -1319,20 +1319,20 @@ class InternalCoordinates(Tool):
                 is_success=True,
                 xyz_text=xyz_text,
                 output_path=output_path,
-                message="成功从 Z-matrix 生成笛卡尔坐标。"
+                message="Cartesian coordinates generated from Z-matrix."
             )
         except Exception as e:
             import traceback
             return InternalCoordinates_output_schema(
                 is_success=False,
-                message=f"Z-matrix 转坐标失败: {e}\n{traceback.format_exc()}"
+                message=f"Failed to convert Z-matrix to coordinates: {e}\n{traceback.format_exc()}"
             )
 
     async def tool_call(self, user_input: InternalCoordinates_input_schema, session: Session) -> InternalCoordinates_output_schema:
         if not _CHEMCOORD_AVAILABLE:
             return InternalCoordinates_output_schema(
                 is_success=False,
-                message="环境未安装 chemcoord 库。请执行: pip install 'cloudra[chem]'"
+                message="chemcoord is not installed. Install it with: pip install 'cloudra[chem]'"
             )
         if user_input.mode == "analyze":
             return self._analyze(user_input)

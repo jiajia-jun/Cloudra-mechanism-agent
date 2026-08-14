@@ -25,7 +25,7 @@ def _parse_heavy_smiles(smiles: str, role: str):
 
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
-        raise ValueError(f"{role} SMILES 无法解析: {smiles}")
+        raise ValueError(f"{role} SMILES could not be parsed: {smiles}")
     return Chem.RemoveHs(mol)
 
 
@@ -50,17 +50,17 @@ def _mapped_label_permutation(reactant, product) -> list[int] | None:
     if not any_labels:
         return None
     if any(label <= 0 for label in r_labels + p_labels):
-        raise ValueError("atom-map 标签必须覆盖两端每一个重原子，不能只提供部分标签")
+        raise ValueError("atom-map labels must cover every heavy atom on both sides; partial labels are not allowed")
     if len(set(r_labels)) != len(r_labels) or len(set(p_labels)) != len(p_labels):
-        raise ValueError("同一分子内 atom-map 标签不能重复")
+        raise ValueError("atom-map labels must not repeat within one molecule")
     if set(r_labels) != set(p_labels):
-        raise ValueError("反应物与产物的 atom-map 标签集合不一致")
+        raise ValueError("reactant and product atom-map label sets do not match")
     r_by_label = {label: idx for idx, label in enumerate(r_labels)}
     for p_idx, label in enumerate(p_labels):
         r_idx = r_by_label[label]
         if _atom_key(product.GetAtomWithIdx(p_idx)) != _atom_key(reactant.GetAtomWithIdx(r_idx)):
             raise ValueError(
-                f"atom-map 标签 {label} 在两端连接了不同元素或同位素"
+                f"atom-map label {label} connects different elements or isotopes on the two sides"
             )
     return [r_by_label[label] for label in p_labels]
 
@@ -323,12 +323,12 @@ def analyze_reaction_mapping(
     product_smiles: str,
     selected_candidate: int = 0,
 ) -> dict:
-    reactant = _parse_heavy_smiles(reactant_smiles, "反应物")
-    product = _parse_heavy_smiles(product_smiles, "产物")
+    reactant = _parse_heavy_smiles(reactant_smiles, "Reactant")
+    product = _parse_heavy_smiles(product_smiles, "Product")
     r_inventory = Counter(_atom_key(atom) for atom in reactant.GetAtoms())
     p_inventory = Counter(_atom_key(atom) for atom in product.GetAtoms())
     if r_inventory != p_inventory:
-        raise ValueError(f"反应前后重原子元素数不一致: {dict(r_inventory)} vs {dict(p_inventory)}")
+        raise ValueError(f"Heavy-atom element counts differ before and after the reaction: {dict(r_inventory)} vs {dict(p_inventory)}")
 
     candidates, authoritative = _candidate_mappings(reactant, product)
     if not candidates:
@@ -340,11 +340,11 @@ def analyze_reaction_mapping(
             "broken_bonds": [],
             "order_changes": [],
             "watch_pairs": [],
-            "message": "没有生成可用的元素守恒映射候选。",
+            "message": "No usable element-conserving mapping candidate was generated.",
         }
     if not 0 <= selected_candidate < len(candidates):
         raise ValueError(
-            f"selected_candidate={selected_candidate} 越界，共 {len(candidates)} 个候选"
+            f"selected_candidate={selected_candidate} out of range; {len(candidates)} candidate(s) available"
         )
 
     top_score = candidates[0]["score"]
@@ -356,12 +356,12 @@ def analyze_reaction_mapping(
     selected = candidates[selected_candidate]
     watch_pairs = sorted(selected["formed_bonds"] + selected["broken_bonds"])
     message = (
-        "映射由两端完整 atom-map 标签确定。"
+        "Mapping determined by complete atom-map labels on both sides."
         if authoritative
         else (
-            "存在分数相近的原子映射候选，需要 agent 结合机理假设或人工选择。"
+            "There are atom-mapping candidates with close scores; the agent must choose with a mechanism hypothesis or manual review."
             if status == "ambiguous"
-            else "图编辑与原子环境评分得到单一领先候选；仍建议结合机理检查。"
+            else "Graph-edit and atom-environment scoring produced a single leading candidate; still check it against the mechanism."
         )
     )
     return {
@@ -404,7 +404,7 @@ def _read_structure(
         return None
     if path:
         if not os.path.isfile(path):
-            raise ValueError(f"{role}结构文件不存在: {path}")
+            raise ValueError(f"{role} structure file does not exist: {path}")
         with open(path, encoding="utf-8", errors="replace") as handle:
             payload = handle.read()
         inferred = os.path.splitext(path)[1].lower().lstrip(".")
@@ -422,9 +422,9 @@ def _read_structure(
             rdDetermineBonds.DetermineBonds(mol, charge=charge)
             Chem.SanitizeMol(mol)
     else:
-        raise ValueError(f"{role}结构格式不支持: {actual_format or '无法从路径推断'}")
+        raise ValueError(f"{role} structure format not supported: {actual_format or 'cannot infer from path'}")
     if mol is None:
-        raise ValueError(f"{role}结构无法按 {actual_format} 解析")
+        raise ValueError(f"{role} structure could not be parsed as {actual_format}")
     return mol
 
 
@@ -434,13 +434,13 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
 
     if structure is None:
         return "not_provided", [], ""
-    expected = _parse_heavy_smiles(expected_smiles, "端点")
+    expected = _parse_heavy_smiles(expected_smiles, "Endpoint")
     expected_labels = [atom.GetAtomMapNum() for atom in expected.GetAtoms()]
     concrete_heavy_atoms = [atom for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1]
     concrete_labels = [atom.GetAtomMapNum() for atom in concrete_heavy_atoms]
     structure_heavy = Chem.RemoveHs(_clear_atom_maps(structure))
     if _canonical_heavy_smiles(expected) != _canonical_heavy_smiles(structure_heavy):
-        return "mismatch", [], "具体结构与声明 SMILES 的分子图不一致。"
+        return "mismatch", [], "The concrete structure's molecular graph differs from the declared SMILES."
 
     if (
         expected_labels
@@ -461,17 +461,17 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
                 return (
                     "match",
                     [],
-                    f"具体结构 atom-map 标签 {expected_atom.GetAtomMapNum()} 的元素或同位素不一致。",
+                    f"The concrete structure's atom-map label {expected_atom.GetAtomMapNum()} has a mismatched element or isotope.",
                 )
         binding = [concrete_by_label[label] for label in expected_labels]
-        return "match", binding, "具体结构的 atom-map 标签确定了重原子绑定。"
+        return "match", binding, "The concrete structure's atom-map labels determine the heavy-atom binding."
 
     expected_clean = _clear_atom_maps(expected)
     matches = structure_heavy.GetSubstructMatches(
         expected_clean, uniquify=False, useChirality=True, maxMatches=256,
     )
     if not matches:
-        return "inconclusive", [], "分子图相同，但无法把 SMILES 原子绑定到具体结构。"
+        return "inconclusive", [], "Same molecular graph, but SMILES atoms could not be bound to the concrete structure."
     original_heavy_indices = [
         atom.GetIdx() for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1
     ]
@@ -480,7 +480,7 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
         return (
             "match",
             [],
-            f"具体结构存在 {len(distinct)} 个对称重原子绑定；没有 concrete atom-map 标签，绑定不唯一。",
+            f"The concrete structure has {len(distinct)} symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.",
         )
     return "match", [original_heavy_indices[idx] for idx in distinct[0]], ""
 
@@ -496,7 +496,7 @@ def _expand_full_atom_map(
     r_inventory = Counter(atom.GetAtomicNum() for atom in reactant_structure.GetAtoms())
     p_inventory = Counter(atom.GetAtomicNum() for atom in product_structure.GetAtoms())
     if r_inventory != p_inventory:
-        return [], "具体结构的显式原子元素数不一致，不能生成全原子映射。"
+        return [], "Explicit-atom element counts of the concrete structures differ; cannot generate a full-atom mapping."
 
     full_map = [-1] * product_structure.GetNumAtoms()
     for p_query_idx, r_query_one_based in enumerate(heavy_atom_map):
@@ -514,25 +514,25 @@ def _expand_full_atom_map(
         )
         if len(p_hydrogens) != len(r_hydrogens):
             return [], (
-                f"映射重原子 P{p_query_idx + 1}→R{r_query_one_based} 的显式氢数不同；"
-                "可能存在质子转移或结构缺氢。"
+                f"Mapped heavy atoms P{p_query_idx + 1}→R{r_query_one_based} have different explicit hydrogen counts; "
+                "possible proton transfer or missing hydrogens."
             )
         for p_h, r_h in zip(p_hydrogens, r_hydrogens):
             full_map[p_h] = r_h
 
     if -1 in full_map or sorted(full_map) != list(range(reactant_structure.GetNumAtoms())):
-        return [], "仍有原子未映射或映射重复，不能输出部分 atom_map。"
-    return [idx + 1 for idx in full_map], "全原子映射已绑定到具体结构顺序。"
+        return [], "Some atoms remain unmapped or are mapped twice; cannot output a partial atom_map."
+    return [idx + 1 for idx in full_map], "Full-atom mapping bound to the concrete structure order."
 
 
 def _bind_concrete_structures(user_input, mapping_result: dict) -> dict:
     reactant = _read_structure(
         user_input.reactant_path, user_input.reactant_text,
-        user_input.reactant_format, user_input.reactant_charge, "反应物",
+        user_input.reactant_format, user_input.reactant_charge, "Reactant",
     )
     product = _read_structure(
         user_input.product_path, user_input.product_text,
-        user_input.product_format, user_input.product_charge, "产物",
+        user_input.product_format, user_input.product_charge, "Product",
     )
     r_identity, r_binding, r_diagnostic = _identity_and_binding(user_input.reactant_smiles, reactant)
     p_identity, p_binding, p_diagnostic = _identity_and_binding(user_input.product_smiles, product)
@@ -575,7 +575,7 @@ def _bind_concrete_structures(user_input, mapping_result: dict) -> dict:
             "product_identity": p_identity,
             "atom_map": [],
             "concrete_watch_pairs": [],
-            "binding_diagnostics": ["必须同时提供反应物和产物具体结构才能生成全原子映射。"],
+            "binding_diagnostics": ["Both reactant and product concrete structures are required to generate a full-atom mapping."],
         }
     if r_identity != "match" or p_identity != "match":
         return {
@@ -587,7 +587,7 @@ def _bind_concrete_structures(user_input, mapping_result: dict) -> dict:
             "concrete_watch_pairs": [],
             "binding_diagnostics": [
                 item for item in (r_diagnostic, p_diagnostic) if item
-            ] or ["至少一个具体端点与声明 SMILES 的分子图不一致。"],
+            ] or ["At least one concrete endpoint's molecular graph differs from the declared SMILES."],
         }
     if not r_binding or not p_binding:
         return {
@@ -689,7 +689,7 @@ class ReactionMapping(Tool):
             return ReactionMapping_output_schema(
                 is_success=False,
                 mapping_status="inconclusive",
-                message=f"反应映射失败: {exc}",
+                message=f"Reaction mapping failed: {exc}",
             )
 
 

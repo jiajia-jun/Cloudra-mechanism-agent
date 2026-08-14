@@ -38,11 +38,11 @@ description = (
     "- **agent_id**: pass ids such as a-1, a-2 — not names like explorer or writer; multiple instances of the same agent_id run in parallel, each with its own session and plan store.\n"
     "Available sub-agents:\n"
     "1. explorer (a-1): explore + review. Map project structure and locate files; read-only review of code/docs/data with an evidence-backed report. Read-only.\n"
-    "2. writer (a-2): papers and documents. Write reports, papers, docs. Must pass the security audit.\n"
+    "2. writer (a-2): papers and documents. Write reports, papers, docs. May write files, but cannot run scripts or destructive operations; must pass the security audit.\n"
     "3. researcher (a-3): literature. Academic search, method breakdown, literature comparison. Full permissions; dangerous ops need strict review.\n"
     "4. small_mol (a-4): small-molecule compute. Gaussian/ORCA molecular/cluster QM: conformers, TS, spectra, energies.\n"
     "5. md (a-5): molecular dynamics. GROMACS/LAMMPS system build, equilibration, sampling, and trajectory analysis.\n"
-    "6. dft (a-6): first-principles. VASP/QE periodic systems: bulk, surfaces, defects, electronic properties.\n"
+    "6. dft (a-6): first-principles. VASP/CP2K periodic systems: bulk, surfaces, defects, electronic properties.\n"
     "7. experiment (a-7): experimental design. DOE, controls, characterization matrix, safety assessment, and failure diagnosis.\n"
     "8. env (a-8): environment management. Dependency install, conda/venvs, build config, HPC job environments. Full permissions; strict review."
 )

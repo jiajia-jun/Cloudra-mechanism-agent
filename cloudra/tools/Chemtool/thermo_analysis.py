@@ -37,7 +37,10 @@ description = (
 
 class ThermoSpecies(BaseModel):
     name: str = Field(description="Unique species name, used in the table and as an optional reference.")
-    log_path: str = Field(description="Path of a Gaussian output that contains frequencies and a thermochemistry summary.")
+    log_path: str = Field(
+        description="Path of a Gaussian output that contains frequencies and a thermochemistry summary. "
+                    "Absolute path, or relative to the agent process's current working directory; absolute paths are recommended."
+    )
     coefficient: float = Field(
         description="Signed stoichiometric coefficient: negative for reactants, positive for products; relative coefficients are also fine for intermediate comparisons."
     )
@@ -632,7 +635,7 @@ def _load_goodvibes_records(
 
 
 class ThermoAnalysis(Tool):
-    tool_id: str = "t-48"
+    tool_id: str = "t-50"
     tool_name: str = "thermo_analysis"
     tool_description: str = description
     input_schema: Any = ThermoAnalysis_input_schema
@@ -651,13 +654,13 @@ class ThermoAnalysis(Tool):
             return ThermoAnalysis_output_schema(
                 is_success=False,
                 status="inconclusive",
-                message="species 名称必须唯一。",
+                message="Species names must be unique. Rename the duplicates and retry.",
             )
         if not any(species.coefficient != 0 for species in user_input.species):
             return ThermoAnalysis_output_schema(
                 is_success=False,
                 status="inconclusive",
-                message="至少一个化学计量系数必须非零。",
+                message="At least one stoichiometric coefficient must be non-zero.",
             )
         sp_coverage = [
             species.single_point_energy_hartree is not None
@@ -669,22 +672,24 @@ class ThermoAnalysis(Tool):
                 status="inconclusive",
                 provenance={"backend": user_input.backend, "fallback_used": False},
                 message=(
-                    "single-point 能量只覆盖了部分物种，不能把不同电子结构水平静默混成"
-                    "一个反应能；请为全部物种提供同水平单点能，或全部使用频率日志电子能。"
+                    "single-point energies cover only part of the species, so energies from different "
+                    "electronic-structure levels cannot be silently mixed into one reaction energy; "
+                    "provide same-level single-point energies for all species, or use the frequency-log "
+                    "electronic energies for all of them."
                 ),
             )
         if user_input.reference_species is not None and user_input.reference_species not in names:
             return ThermoAnalysis_output_schema(
                 is_success=False,
                 status="inconclusive",
-                message=f"reference_species 不在 species 中: {user_input.reference_species}",
+                message=f"reference_species is not in species: {user_input.reference_species}",
             )
         concentration = _concentration(user_input)
         if user_input.standard_state == "solution_custom" and concentration is None:
             return ThermoAnalysis_output_schema(
                 is_success=False,
                 status="inconclusive",
-                message="solution_custom 必须提供 concentration_molar。",
+                message="solution_custom requires concentration_molar to be set.",
             )
         missing_paths = [
             species.log_path for species in user_input.species if not os.path.isfile(species.log_path)
@@ -693,7 +698,8 @@ class ThermoAnalysis(Tool):
             return ThermoAnalysis_output_schema(
                 is_success=False,
                 status="inconclusive",
-                message=f"热化学日志不存在: {missing_paths}",
+                message=f"Thermochemistry log files do not exist: {missing_paths}. "
+                        "Check the paths, then retry.",
             )
 
         assumptions = [

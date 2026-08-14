@@ -95,7 +95,11 @@ async def execute_prepared_change(
         tool_args=tool_args,
     )
     if not approved:
-        message = denial_reason or "User declined the file change"
+        message = denial_reason or (
+            "User declined the file change. "
+            "Next: explain to the user why the change was needed, adjust the content, "
+            "or choose a different approach."
+        )
         await tool.record_session_event(
             session,
             "file_change_declined",

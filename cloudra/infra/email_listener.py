@@ -131,7 +131,7 @@ class EmailListener:
             subject=f"Re: {msg.subject}",
             body=body,
         ), None)
-        if out.success:
+        if out.is_success:
             print(f"[+] 结果已回邮至 {sender_email}")
             logger.warning(f"结果已回邮至 {sender_email}")
         else:

@@ -40,7 +40,7 @@ MIN_COORD_LINES = 3
 _GUIDANCE = (
     "Coordinates should come from tools; do not type them by hand or transcribe from memory: "
     "use smiles_to_mol / conformer_search for structure generation; extract coordinates from compute logs with "
-    "format_converter (log→xyz) or log_parser; prefer gjf_writer for Gaussian input; "
+    "format_converter (log→xyz) or gaussian_log_parser; prefer gjf_writer for Gaussian input; "
     "geometry tweaks should use the internal_coordinates Z-matrix flow. "
     "Hand-writing coordinates with bash means trying to bypass Supervisor review of mechanism evidence: handwritten coordinates are not bound "
     "to any compute record and may not be accepted as DAG evidence. "

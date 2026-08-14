@@ -25,11 +25,13 @@ description = (
     "Infrared (IR) spectrum processing and assignment: SpectroChemPy, supporting JCAMP-DX, Thermo Nicolet (SPA/SPG), CSV, etc., "
     "with baseline correction, smoothing, normalization, second-derivative analysis, and automatic functional-group ID. "
     "Use for: processing experimental IR raw spectra, assigning functional groups, comparing with computed spectra. "
-    "Do not use for: NMR processing (use nmr_processor) or reading a Gaussian frequency log (use log_parser)."
+    "Do not use for: NMR processing (use nmr_processor) or reading a Gaussian frequency log (use gaussian_log_parser)."
 )
 
 class IRProcessor_input_schema(input_schema):
-    data_path: str = Field(description="Path of the raw IR data file")
+    data_path: str = Field(
+        description="Path of the raw IR data file. Absolute path, or relative to the agent process's current working directory; absolute paths are recommended."
+    )
 
     # 预处理选项
     baseline: bool = Field(default=True, description="Whether to apply baseline correction (Rubberband/Modified Poly)")
@@ -70,14 +72,14 @@ class IRProcessor(Tool):
         if scp is None:
             return IRProcessor_output_schema(
                 is_success=False,
-                message="环境未安装 spectrochempy 库。请执行: pip install 'cloudra[chem]'"
+                message="spectrochempy is not installed. Install it with: pip install 'cloudra[chem]'"
             )
 
         import numpy as np
 
         path = user_input.data_path
         if not os.path.exists(path):
-            return IRProcessor_output_schema(is_success=False, message=f"文件不存在: {path}")
+            return IRProcessor_output_schema(is_success=False, message=f"File does not exist: {path}")
 
         try:
             # 1. 读取数据
@@ -164,11 +166,11 @@ class IRProcessor(Tool):
                     "intensity": y_list[::step]
                 },
                 peaks=peaks_list,
-                message="红外光谱处理完成。"
+                message="IR spectrum processing complete."
             )
 
         except Exception as e:
-            return IRProcessor_output_schema(is_success=False, message=f"IR 处理异常: {str(e)}")
+            return IRProcessor_output_schema(is_success=False, message=f"IR processing raised an exception: {str(e)}")
 
     def _match_group(self, wn: float) -> List[str]:
         """特征频率匹配逻辑"""

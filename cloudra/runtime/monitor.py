@@ -192,7 +192,7 @@ async def run_guard(
     submitter = info["agent_id"]
 
     if state == 'done':
-        guidance = "Next: use log_parser on the log to extract energy/frequencies and other results."
+        guidance = "Next: use gaussian_log_parser on the log to extract energy/frequencies and other results."
     else:
         guidance = (
             "Next: use query_compute_job to inspect last_error, and read the log to locate the failure; "

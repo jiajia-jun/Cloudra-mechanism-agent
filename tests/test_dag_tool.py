@@ -37,7 +37,7 @@ async def test_direct_standard_tool_call_fails_without_initializing_graphs(tmp_p
         Session("s1", str(tmp_path / "session.json")),
     )
 
-    assert not output.success
+    assert not output.is_success
     assert "standard" in output.error
     with db.connect() as con:
         assert con.execute("SELECT COUNT(*) FROM dag_graphs").fetchone()[0] == 0
@@ -96,10 +96,10 @@ async def test_dag_record_agent_can_mutate_and_view(tmp_path):
     )
     viewed = await tool.tool_call(DagGraphInput(action="view"), session)
 
-    assert mutated.success
+    assert mutated.is_success
     assert mutated.accepted is True
     assert mutated.result["revisions"] == {"process": 0, "delivery": 1}
-    assert viewed.success
+    assert viewed.is_success
     assert viewed.result["revisions"] == {"process": 0, "delivery": 1}
     with ConversationDB(agent.conversation_id).connect() as con:
         assert con.execute("SELECT COUNT(*) FROM dag_graphs").fetchone() == (2,)
@@ -131,7 +131,7 @@ async def test_mutate_without_base_revisions_pins_current(tmp_path):
         session,
     )
 
-    assert mutated.success
+    assert mutated.is_success
     assert mutated.accepted is True
     assert mutated.result["revisions"] == {"process": 0, "delivery": 1}
 
@@ -181,7 +181,7 @@ async def test_mutate_without_revisions_retries_stale(tmp_path, monkeypatch):
         session,
     )
 
-    assert mutated.success
+    assert mutated.is_success
     assert mutated.accepted is True
     # pin 一次（过期）+ 重试一次（最新）；引擎拒绝簿记自身也会读版本，不精确断言次数
     assert calls["n"] >= 2
@@ -214,7 +214,7 @@ async def test_explicit_wrong_base_revisions_fails_without_retry(tmp_path):
         session,
     )
 
-    assert not mutated.success
+    assert not mutated.is_success
     assert mutated.rejection_code == "stale_revision"
     assert "base_revisions" in mutated.error
 
@@ -330,7 +330,7 @@ async def test_delivery_report_is_read_only_and_endpoint_aware(tmp_path):
 
     report = await tool.tool_call(DagGraphInput(action="delivery_report"), session)
 
-    assert report.success
+    assert report.is_success
     assert report.result["complete"] is False
     assert report.result["unresolved"][0]["code"] == "empty_delivery_graph"
 
@@ -441,7 +441,7 @@ async def test_init_from_template_seeds_skeleton_only_on_empty_graphs(tmp_path):
         DagGraphInput(action="init_from_template", rationale="start Claisen study"),
         session,
     )
-    assert seeded.success
+    assert seeded.is_success
     view = await tool.tool_call(
         DagGraphInput(action="view", graph_kind="process"), session
     )
@@ -457,7 +457,7 @@ async def test_init_from_template_seeds_skeleton_only_on_empty_graphs(tmp_path):
     again = await tool.tool_call(
         DagGraphInput(action="init_from_template"), session
     )
-    assert not again.success
+    assert not again.is_success
     assert "empty" in again.error
 
 
@@ -511,7 +511,7 @@ async def test_init_from_template_allows_observed_only_process_pollution(tmp_pat
         DagGraphInput(action="init_from_template", rationale="start after skill load"),
         session,
     )
-    assert seeded.success, seeded.error
+    assert seeded.is_success, seeded.error
     view = await tool.tool_call(
         DagGraphInput(action="view", graph_kind="process", include_observed=True),
         session,
@@ -823,7 +823,7 @@ async def test_process_view_omits_observed_and_compacts_by_default(tmp_path):
     default = await tool.tool_call(
         DagGraphInput(action="view", graph_kind="process"), session
     )
-    assert default.success
+    assert default.is_success
     assert default.result["total_nodes"] == 1
     assert default.result["omitted_observed_tool_calls"] == 1
     assert [n["node_id"] for n in default.result["nodes"]] == ["optfreq_R"]
@@ -951,7 +951,7 @@ async def test_bind_evidence_derives_level(tmp_path):
         session,
     )
 
-    assert bound.success
+    assert bound.is_success
     assert bound.accepted is True
     assert bound.result["target_type"] == "edge"
     assert bound.result["derived"] is True
@@ -987,7 +987,7 @@ async def test_bind_evidence_accepts_observed_node_id_alias(tmp_path):
         session,
     )
 
-    assert bound.success
+    assert bound.is_success
     assert bound.accepted is True
     assert _delivery_edge_level(db)["evidence_level"] == "saddle_supported"
 
@@ -1014,7 +1014,7 @@ async def test_bind_evidence_without_registered_evidence_rejected(tmp_path):
         session,
     )
 
-    assert not bound.success
+    assert not bound.is_success
     assert "no registered evidence" in bound.error
     assert _delivery_edge_level(db)["evidence_level"] == "proposed"
 
@@ -1040,7 +1040,7 @@ async def test_bind_evidence_failed_call_rejected(tmp_path):
         session,
     )
 
-    assert not bound.success
+    assert not bound.is_success
     assert "did not succeed" in bound.error
     assert _delivery_edge_level(db)["evidence_level"] == "proposed"
 
@@ -1064,7 +1064,7 @@ async def test_bind_evidence_rejected_in_standard_mode(tmp_path):
         session,
     )
 
-    assert not bound.success
+    assert not bound.is_success
     assert "standard" in bound.error
 
 
@@ -1087,7 +1087,7 @@ async def test_review_evidence_requires_supervisor_actor(tmp_path):
         session,
     )
 
-    assert not reviewed.success
+    assert not reviewed.is_success
     assert "supervisor-only" in reviewed.error
     assert _delivery_edge_level(db)["evidence_level"] == "proposed"
 
@@ -1142,7 +1142,7 @@ async def test_review_evidence_rejected_downgrades_and_notifies(tmp_path):
         session,
     )
 
-    assert reviewed.success
+    assert reviewed.is_success
     assert reviewed.accepted is True
     assert reviewed.result["previous_evidence_level"] == "saddle_supported"
     assert reviewed.result["evidence_level"] == "inconclusive"
@@ -1187,7 +1187,7 @@ async def test_message_supervisor_delivers_without_graph_change(tmp_path):
         ),
         session,
     )
-    assert out.success
+    assert out.is_success
     assert out.accepted is True
     assert out.result["delivered"] is True
     assert "请为 TS 补排产" in out.result["message"]
@@ -1196,7 +1196,7 @@ async def test_message_supervisor_delivers_without_graph_change(tmp_path):
         DagGraphInput(action="message_supervisor", message="  "),
         session,
     )
-    assert empty.success is False
+    assert empty.is_success is False
     assert "non-empty" in empty.error
 
     supervisor = SupervisorAgent(
@@ -1207,7 +1207,7 @@ async def test_message_supervisor_delivers_without_graph_change(tmp_path):
         DagGraphInput(action="message_supervisor", message="nope"),
         session,
     )
-    assert blocked.success is False
+    assert blocked.is_success is False
     assert "Coordinator" in blocked.error
 
     from cloudra.core.agent import Follower
@@ -1223,5 +1223,5 @@ async def test_message_supervisor_delivers_without_graph_change(tmp_path):
         DagGraphInput(action="message_supervisor", message="请排产"),
         session,
     )
-    assert from_follower.success is False
+    assert from_follower.is_success is False
     assert "Coordinator-only" in from_follower.error

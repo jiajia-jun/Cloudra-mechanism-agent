@@ -17,7 +17,7 @@ description = (
     "NMR raw-data processing via nmrglue: Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX, "
     "with a full time-to-frequency pipeline (window function, zero-fill, FT, phasing, baseline correction). "
     "Use for: processing experimental NMR raw data and obtaining a chemical-shift spectrum for structure elucidation. "
-    "Do not use for: IR processing (use ir_processor) or reading a theoretical chemical-shift log (use log_parser)."
+    "Do not use for: IR processing (use ir_processor) or reading a theoretical chemical-shift log (use gaussian_log_parser)."
 )
 
 class NMRProcessor_input_schema(input_schema):
@@ -63,12 +63,12 @@ class NMRProcessor(Tool):
         if not _NMRGLUE_AVAILABLE:
             return NMRProcessor_output_schema(
                 is_success=False,
-                message="缺少 nmrglue 库。请执行: pip install 'cloudra[chem]'"
+                message="nmrglue is not installed. Install it with: pip install 'cloudra[chem]'"
             )
 
         path = user_input.data_path
         if not os.path.exists(path):
-            return NMRProcessor_output_schema(is_success=False, message="输入路径不存在。")
+            return NMRProcessor_output_schema(is_success=False, message="Input path does not exist.")
 
         import numpy as np
 
@@ -103,7 +103,7 @@ class NMRProcessor(Tool):
             elif fmt == 'jeol':
                 dic, data = ng.jeol.read(path)
             else:
-                return NMRProcessor_output_schema(is_success=False, message="未识别的仪器格式。")
+                return NMRProcessor_output_schema(is_success=False, message="Unrecognized instrument format.")
 
             # 2. 深度处理流 (Pipeline)
             if np.iscomplexobj(data):
@@ -186,12 +186,12 @@ class NMRProcessor(Tool):
                 metadata=metadata,
                 spectrum_data={"ppm": reduced_ppm, "intensity": reduced_data},
                 peaks=peaks_found,
-                message="NMR 数据处理成功。"
+                message="NMR data processed successfully."
             )
 
         except Exception as e:
             import traceback
-            return NMRProcessor_output_schema(is_success=False, message=f"处理异常: {str(e)}\n{traceback.format_exc()}")
+            return NMRProcessor_output_schema(is_success=False, message=f"Processing raised an exception: {str(e)}\n{traceback.format_exc()}")
 
 def get_class():
     return NMRProcessor

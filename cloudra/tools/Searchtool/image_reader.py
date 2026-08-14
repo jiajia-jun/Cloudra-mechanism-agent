@@ -16,7 +16,7 @@ description = (
 
 class ImageReader_input_schema(input_schema):
     image_path: str = Field(description="Absolute path of the image file to read")
-    description: str = Field(default="请分析这张图片的内容。", description="What the Agent should focus on in the image")
+    description: str = Field(default="Analyze the content of this image.", description="What the Agent should focus on in the image")
 
 class ImageReader_output_schema(output_schema):
     is_success: bool = Field(description="Whether the image was read")
@@ -41,7 +41,7 @@ class ImageReader(Tool):
             return ImageReader_output_schema(
                 is_success=False,
                 image_path="",
-                message=f"错误：文件不存在于路径 {path}"
+                message=f"Error: file does not exist at path {path}"
             )
 
         # 验证是否为支持的图片格式
@@ -50,14 +50,14 @@ class ImageReader(Tool):
             return ImageReader_output_schema(
                 is_success=False,
                 image_path="",
-                message=f"错误：不支持的文件格式 {ext}。目前仅支持 PNG, JPG, JPEG, WEBP。"
+                message=f"Error: unsupported file format {ext}. Only PNG, JPG, JPEG, WEBP are supported."
             )
 
         # 返回路径。reAct.py 探测到 image_path 字段后，会自动触发多模态发送逻辑。
         return ImageReader_output_schema(
             is_success=True,
             image_path=path,
-            message=f"已成功加载图片：{path}。{user_input.description}"
+            message=f"Image loaded: {path}. {user_input.description}"
         )
 
 def get_class():

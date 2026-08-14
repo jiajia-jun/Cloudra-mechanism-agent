@@ -138,14 +138,14 @@ class AskUser(Tool):
                         rejected=True,
                         answer=reason,
                         reason=reason,
-                        message="用户拒绝了该请求。" + (f"原因: {reason}" if reason else "未说明原因。")
+                        message="The user rejected the request. " + (f"Reason: {reason}" if reason else "No reason was given.")
                     )
 
             if not answer and default_answer is not None:
                 answer = default_answer
-                message = f"用户未输入，已使用默认值: {default_answer}"
+                message = f"No user input; the default was used: {default_answer}"
             else:
-                message = "已成功获取用户回答。"
+                message = "User answer obtained successfully."
 
             return AskUser_output_schema(
                 is_success=True,
@@ -163,14 +163,15 @@ class AskUser(Tool):
                     rejected=False,
                     answer=default_answer,
                     reason="",
-                    message=f"检测到非交互式环境，已使用默认值: {default_answer}"
+                    message=f"Non-interactive environment detected; the default was used: {default_answer}"
                 )
             return AskUser_output_schema(
                 is_success=False,
                 rejected=False,
                 answer="",
                 reason="",
-                message="非交互式环境无法获取用户输入，且未提供默认值。"
+                message="Cannot get user input in a non-interactive environment, and no default was provided. "
+                        "Retry with default_answer set, or proceed without asking."
             )
         except Exception as e:
             return AskUser_output_schema(
@@ -178,7 +179,7 @@ class AskUser(Tool):
                 rejected=False,
                 answer="",
                 reason="",
-                message=f"获取用户输入时发生异常: {str(e)}"
+                message=f"An exception occurred while getting user input: {str(e)}"
             )
 
 

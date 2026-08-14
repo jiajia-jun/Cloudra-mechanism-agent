@@ -20,7 +20,7 @@ description = (
     "Generate a complete Gaussian input file (.gjf) from a molecular source, method, basis, and related parameters, and save it to a given path; "
     "coordinates are generated from a file or SMILES and never appear in the return value. "
     "Use for: preparing Gaussian inputs (opt, freq, TS search, etc.) to submit with submit_compute_job. "
-    "Do not use for: parsing results (use log_parser) or converting an existing structure file (use format_converter)."
+    "Do not use for: parsing results (use gaussian_log_parser) or converting an existing structure file (use format_converter)."
 )
 
 
@@ -118,7 +118,7 @@ class GjfWriter(Tool):
         if source_type == "smiles":
             mol = Chem.MolFromSmiles(source_value)
             if mol is None:
-                raise ValueError(f"无法从 SMILES 解析分子: {source_value}")
+                raise ValueError(f"Could not parse a molecule from SMILES: {source_value}")
             mol = Chem.AddHs(mol)
             AllChem.EmbedMolecule(mol, randomSeed=42)
             AllChem.MMFFOptimizeMolecule(mol)
@@ -206,7 +206,8 @@ class GjfWriter(Tool):
             return GjfWriter_output_schema(
                 is_success=False,
                 gjf_path="",
-                message="环境未安装 RDKit 库，无法生成 Gaussian 输入文件。请执行: pip install 'cloudra[chem]'"
+                message="RDKit is not installed; cannot generate the Gaussian input file. "
+                        "Install it with: pip install 'cloudra[chem]', then retry."
             )
         try:
             coords = self._get_coordinates(user_input.source_type, user_input.source_value)
@@ -222,13 +223,29 @@ class GjfWriter(Tool):
             return GjfWriter_output_schema(
                 is_success=True,
                 gjf_path=gjf_path,
-                message="Gaussian 输入文件生成成功。"
+                message="Gaussian input file generated successfully."
+            )
+        except FileNotFoundError as e:
+            missing = e.filename or user_input.source_value
+            return GjfWriter_output_schema(
+                is_success=False,
+                gjf_path="",
+                message=f"Coordinate source file not found: {missing}. "
+                        "Check the path, or generate the structure first with smiles_to_mol / format_converter."
+            )
+        except ValueError as e:
+            return GjfWriter_output_schema(
+                is_success=False,
+                gjf_path="",
+                message=f"Invalid input for gjf_writer: {str(e)}. "
+                        "Check that the SMILES is valid or that the source file matches source_type, then retry."
             )
         except Exception as e:
             return GjfWriter_output_schema(
                 is_success=False,
                 gjf_path="",
-                message=f"生成失败: {str(e)}"
+                message=f"Failed to generate the Gaussian input file: {str(e)}. "
+                        "Verify the coordinate source and output path, then retry."
             )
 
 

@@ -721,6 +721,26 @@ _MODE_GUIDANCE = {
     ),
 }
 
+# dag_guided 下子 agent（follower）的模式引导：机理设计是 Coordinator 专属职责，
+# 子 agent 只执行派给自己的节点、回报自己名下节点、补挂证据（与子 agent prompt
+# 的 "You do not maintain the graph" 一致）。
+_DAG_GUIDED_FOLLOWER_GUIDANCE = (
+    "Current orchestration mode: dag_guided (DAG-guided orchestration; Supervisor is online)\n"
+    "You are a sub-agent in this orchestration: the Coordinator designs the mechanism hypothesis, "
+    "and the Supervisor owns the process graph. You do not maintain the graph. Your discipline:\n"
+    "1. Execute only the nodes in assigned_to_me below (assignee equals your agent id); "
+    "do not start unassigned work.\n"
+    "2. Node success/failure is reported automatically; use dag_graph update_node "
+    "(status/reason/blocked_reason, no revision) only for nodes assigned to you when you need extra notes.\n"
+    "3. To attach existing unplanned evidence to the mechanism graph, use dag_graph bind_evidence "
+    "(tool_call_id, target, evidence_role); evidence authenticity and level are verified and derived "
+    "by the system, and Supervisor review may veto."
+)
+
+# 机理设计职责的持有者：Coordinator（a-0）。其余 actor 在 dag_guided 下
+# 投影 _DAG_GUIDED_FOLLOWER_GUIDANCE。
+_COORDINATOR_ACTOR_IDS = frozenset({"a-0", "coordinator"})
+
 
 class DagProjection(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -735,12 +755,20 @@ class DagProjection(BaseModel):
     # 子 agent 回报路径的一等入口，免从 frontier/blockers 里自行筛选
     assigned_to_me: list[dict[str, Any]] = Field(default_factory=list)
 
-    def to_prompt_text(self) -> str:
+    def to_prompt_text(self, actor_id: str | None = None) -> str:
         import json
 
         guidance = _MODE_GUIDANCE.get(
             self.mode, "Current orchestration mode: standard (no DAG orchestration; dag_graph is unavailable)"
         )
+        # dag_guided 的完整版引导含机理设计职责，只对 Coordinator 投影；
+        # 子 agent 投影 follower 版。actor_id 缺省（如直接构造投影）时保持完整版，向后兼容。
+        if (
+            self.mode is OrchestrationMode.DAG_GUIDED
+            and actor_id is not None
+            and actor_id not in _COORDINATOR_ACTOR_IDS
+        ):
+            guidance = _DAG_GUIDED_FOLLOWER_GUIDANCE
         payload = self.model_dump(mode="json")
         # revisions 是存储层并发控制的内部状态，不投影给模型：
         # mutate 不传 base_revisions 时由 harness 固定版本并自动重试。
@@ -781,11 +809,11 @@ def build_orchestration_config(
         return snapshot
     snapshot["graph_policy_revision"] = GRAPH_POLICY_REVISION
     if normalized is OrchestrationMode.DAG_GUIDED:
-        from cloudra.core.supervisor import SUPERVISOR_SYSTEM_PROMPT
+        from cloudra.core.supervisor import load_supervisor_prompt
         from cloudra.infra.config import get_config
 
         snapshot["supervisor_model"] = get_config().follower.model
         snapshot["supervisor_prompt_revision"] = "sha256:" + hashlib.sha256(
-            SUPERVISOR_SYSTEM_PROMPT.encode("utf-8")
+            load_supervisor_prompt().encode("utf-8")
         ).hexdigest()
     return snapshot

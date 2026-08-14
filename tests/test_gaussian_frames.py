@@ -226,7 +226,7 @@ async def test_format_converter_log_to_csv(tmp_path):
     )
     assert result.is_success is True
     assert "opt+freq" in result.message
-    assert "5 帧" in result.message
+    assert "5 frames" in result.message
     rows = _read_csv(out)
     assert len(rows) == 5
     assert int(rows[-1]["xyz"].splitlines()[0]) == 3
@@ -251,7 +251,7 @@ async def test_format_converter_log_to_csv_irc(tmp_path):
     )
     assert result.is_success is True
     assert "irc" in result.message
-    assert "21 帧" in result.message
+    assert "21 frames" in result.message
 
 
 @pytest.mark.asyncio
@@ -311,7 +311,7 @@ async def test_format_converter_log_missing_file(tmp_path):
         session=None,
     )
     assert result.is_success is False
-    assert "不存在" in result.message
+    assert "does not exist" in result.message
 
 
 # ---------------------------------------------------------------------------

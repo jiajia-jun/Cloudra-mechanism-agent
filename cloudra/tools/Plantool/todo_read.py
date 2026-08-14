@@ -28,7 +28,7 @@ class TodoRead_output_schema(output_schema):
 
 
 class TodoRead(Tool):
-    tool_id: str = 't-42'
+    tool_id: str = 't-33'
     tool_name: str = 'todo_read'
     tool_description: str = (
         "Read the current todo list and goal anchor.\n"

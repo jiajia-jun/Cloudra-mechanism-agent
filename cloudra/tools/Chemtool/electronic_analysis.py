@@ -90,19 +90,19 @@ class ElectronicAnalysis_output_schema(output_schema):
 def _load_xyz_text(user_input: ElectronicAnalysis_input_schema) -> str:
     if user_input.input_path:
         if not os.path.isfile(user_input.input_path):
-            raise ValueError(f"输入文件不存在: {user_input.input_path}")
+            raise ValueError(f"Input file does not exist: {user_input.input_path}")
         with open(user_input.input_path, encoding="utf-8", errors="replace") as f:
             return f.read()
     if user_input.input_text:
         return user_input.input_text
-    raise ValueError("必须提供 input_path 或 input_text 之一")
+    raise ValueError("Must provide one of input_path or input_text")
 
 
 def _parse_xyz(xyz_text: str) -> tuple[list[str], list[list[float]]]:
     """解析 xyz 文本，返回 (元素符号, 坐标)。容忍多余空行与注释行。"""
     lines = [ln for ln in xyz_text.splitlines() if ln.strip()]
     if not lines:
-        raise ValueError("xyz 文本为空")
+        raise ValueError("xyz text is empty")
     try:
         natoms = int(lines[0].split()[0])
         start = 2
@@ -118,9 +118,9 @@ def _parse_xyz(xyz_text: str) -> tuple[list[str], list[list[float]]]:
         symbols.append(parts[0])
         coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
     if natoms is not None and len(symbols) != natoms:
-        raise ValueError(f"xyz 声明 {natoms} 个原子，实际解析到 {len(symbols)} 个")
+        raise ValueError(f"xyz declares {natoms} atoms, but {len(symbols)} were parsed")
     if not symbols:
-        raise ValueError("xyz 文本中未解析到任何原子")
+        raise ValueError("No atoms were parsed from the xyz text")
     return symbols, coords
 
 
@@ -385,7 +385,7 @@ class ElectronicAnalysis(Tool):
         if dm_spin is not None:
             s2_val, mult_est = mf.spin_square()
             s2_ideal = (user_input.spin - 1) / 2 * ((user_input.spin - 1) / 2 + 1)
-            lines.append(f"<S^2>          : {float(s2_val):.4f} (ideal {s2_ideal:.4f}; 偏差>0.1 提示自旋污染)")
+            lines.append(f"<S^2>          : {float(s2_val):.4f} (ideal {s2_ideal:.4f}; deviation >0.1 suggests spin contamination)")
         lines.append(f"Dipole moment  : {dip_norm:.4f} Debye  (vector: {dip_vec[0]:.3f}, {dip_vec[1]:.3f}, {dip_vec[2]:.3f})")
         lines.append("")
 
@@ -397,7 +397,7 @@ class ElectronicAnalysis(Tool):
 
         lines.append("=== Charges (Mulliken / meta-Löwdin) ===")
         if spin_pop is not None:
-            lines.append("（spin 列为 Mulliken 自旋布居：|值|大者即自由基/未成对电子中心）")
+            lines.append("(spin column = Mulliken spin population: large |value| marks the radical/unpaired-electron center)")
 
         def _charge_row(a: int) -> str:
             row = f"{atom_label[a]:>6} {chg_mul[a]:>10.4f} {chg[a]:>12.4f}"
@@ -427,7 +427,7 @@ class ElectronicAnalysis(Tool):
         if spin_pop is not None:
             radical_order = np.argsort(-np.abs(spin_pop))[:3]
             top = ", ".join(f"{atom_label[a]} ({spin_pop[a]:+.3f})" for a in radical_order)
-            lines.append(f"Spin population top-3 (自由基中心): {top}")
+            lines.append(f"Spin population top-3 (radical center): {top}")
         lines.append("")
 
         lines.append("=== Bond Orders (Mayer) ===")
@@ -454,7 +454,7 @@ class ElectronicAnalysis(Tool):
                     d = float(np.linalg.norm(np.asarray(coords[i]) - np.asarray(coords[j])))
                     incipient.append((i, j, d, bo[i, j]))
         if incipient:
-            lines.append("Non-bonded pairs with BO > 0.3 (incipient bond, 正在形成的键):")
+            lines.append("Non-bonded pairs with BO > 0.3 (incipient bond, forming):")
             for i, j, d, b in incipient:
                 lines.append(f"  {atom_label[i]:>6}-{atom_label[j]:<6} r={d:.3f} Å  BO={b:.3f}  <- incipient bond")
         lines.append("")
@@ -485,7 +485,7 @@ class ElectronicAnalysis(Tool):
                 s1, s2 = o["shares"]
                 lines.append(f"  {atom_label[a1]}-{atom_label[a2]}{_spin_prefix(o)} ({s1:.0f}% / {s2:.0f}%, E={o['energy_eh']:.3f} Eh)")
         if deloc:
-            lines.append("Delocalized orbitals (离域，未归入经典 Lewis 图像):")
+            lines.append("Delocalized orbitals (not assigned to the classical Lewis picture):")
             for o in deloc:
                 share_str = "/".join(f"{s:.0f}%" for s in o["shares"])
                 labels = "-".join(atom_label[a - 1] for a in o["atoms"])
@@ -493,21 +493,21 @@ class ElectronicAnalysis(Tool):
         lines.append("")
 
         lines.append("=== Notes ===")
-        lines.append("电荷以 meta-Löwdin 为准：Mulliken 电荷对基组敏感（大基组下可失真），仅作对照；"
-                     "两者符号冲突时结论取 meta-Löwdin。")
-        lines.append("部分键（partial bond, 0.3 < BO 且偏离整数键级 > 0.3）与 incipient bond 是反应进行中的信号："
-                     "过渡态附近断裂/形成的键通常表现为非整数键级。")
+        lines.append("Charges follow meta-Löwdin: Mulliken charges are basis-set sensitive (may distort with large "
+                     "basis sets) and are shown only for comparison; on sign conflicts, trust meta-Löwdin.")
+        lines.append("Partial bonds (0.3 < BO and deviating from an integer bond order by > 0.3) and incipient "
+                     "bonds signal an ongoing reaction: bonds breaking/forming near a TS usually show non-integer bond orders.")
         if partial_notes:
-            lines.append(f"检测到 partial bond (TS-like): {', '.join(partial_notes)}。")
+            lines.append(f"Partial bond (TS-like) detected: {', '.join(partial_notes)}.")
         if incipient:
-            lines.append(f"检测到 {len(incipient)} 对 incipient bond（非键但 BO>0.3），提示键正在形成。")
+            lines.append(f"Detected {len(incipient)} incipient bond pair(s) (non-bonded but BO>0.3), suggesting bond formation in progress.")
         if spin_pop is not None:
-            lines.append("开壳层体系：自旋布居（Charges 表 spin 列）定位自由基中心；"
-                         "α 通道独有的单中心 IBO 近似对应单占据轨道（SOMO）。"
-                         "UHF/UKS 有自旋污染风险，<S^2> 偏差大时能量与键级需谨慎解读。")
+            lines.append("Open-shell system: the spin population (the spin column of the Charges table) locates the radical center; "
+                         "an α-channel-only single-center IBO roughly corresponds to a singly occupied orbital (SOMO). "
+                         "UHF/UKS carries spin-contamination risk — interpret energies and bond orders with care when the <S^2> deviation is large.")
         if not mf.converged:
             lines.append("[Warning] SCF did not converge; the values above are not trustworthy. Check geometry/charge/spin settings.")
-        lines.append("坐标不在上下文中；如需轨道可视化，使用返回的 molden_path。")
+        lines.append("Coordinates are not included in context; use the returned molden_path for orbital visualization.")
 
         report = "\n".join(lines)
         summary = {
@@ -541,7 +541,7 @@ class ElectronicAnalysis(Tool):
                         molden.orbital_coeff(mol, f, mf.mo_coeff, ene=mf.mo_energy, occ=mf.mo_occ)
             except Exception as e:
                 molden_path = ""
-                lines_note = f"（molden 轨道文件写入失败：{e}）"
+                lines_note = f" (failed to write molden orbital file: {e})"
             else:
                 lines_note = ""
             log_path = os.path.join(user_input.output_dir, "electronic_analysis.log")
@@ -553,7 +553,7 @@ class ElectronicAnalysis(Tool):
             summary=summary,
             molden_path=molden_path,
             log_path=log_path,
-            message="电子结构分析完成（PySCF）。报告不含坐标；molden 与日志见返回路径。",
+            message="Electronic structure analysis complete (PySCF). The report contains no coordinates; see the returned paths for the molden file and log.",
         )
 
     # ---------- xTB 后端 ----------
@@ -579,8 +579,8 @@ class ElectronicAnalysis(Tool):
         if shutil.which("xtb") is None:
             return ElectronicAnalysis_output_schema(
                 is_success=False,
-                message="未找到 xtb 可执行程序。请安装 xTB（https://xtb-docs.readthedocs.io/）"
-                        "并确保其在 PATH 中，或改用 backend='pyscf'。"
+                message="xtb executable not found. Install xTB (https://xtb-docs.readthedocs.io/) "
+                        "and ensure it is on PATH, or use backend='pyscf'."
             )
 
         symbols, _ = _parse_xyz(xyz_text)
@@ -599,7 +599,7 @@ class ElectronicAnalysis(Tool):
             except subprocess.TimeoutExpired:
                 return ElectronicAnalysis_output_schema(
                     is_success=False,
-                    message=f"xTB 运行超时（>{user_input.timeout}s）。"
+                    message=f"xTB run timed out (>{user_input.timeout}s)."
                 )
 
             stdout = proc.stdout or ""
@@ -609,8 +609,8 @@ class ElectronicAnalysis(Tool):
                 err_tail = (proc.stderr or "")[-1000:]
                 return ElectronicAnalysis_output_schema(
                     is_success=False,
-                    message=f"未能从 xTB 输出解析总能量（returncode={proc.returncode}）。\n"
-                            f"stdout 尾部:\n{tail}\nstderr 尾部:\n{err_tail}"
+                    message=f"Failed to parse the total energy from xTB output (returncode={proc.returncode}).\n"
+                            f"stdout tail:\n{tail}\nstderr tail:\n{err_tail}"
                 )
 
             # Mulliken 电荷（charges 文件：每行一个电荷值）
@@ -647,7 +647,7 @@ class ElectronicAnalysis(Tool):
         if "gap_ev" in data:
             lines.append(f"HOMO-LUMO gap  : {data['gap_ev']:.3f} eV")
         else:
-            lines.append("HOMO-LUMO gap  : 未从输出解析到")
+            lines.append("HOMO-LUMO gap  : not parsed from output")
         lines.append("")
         if charges:
             lines.append("=== Charges (Mulliken, xTB) ===")
@@ -656,8 +656,8 @@ class ElectronicAnalysis(Tool):
                 lines.append(f"{atom_label[a]:>6} {charges[a]:>10.4f}")
             lines.append("")
         lines.append("=== Notes ===")
-        lines.append("xTB 后端为半经验 GFN2-xTB，仅提供能量/能隙/电荷/偶极；"
-                     "Mayer 键级与 IBO Lewis 图像请用 backend='pyscf'。")
+        lines.append("The xTB backend is semi-empirical GFN2-xTB and only provides energy/gap/charges/dipole; "
+                     "use backend='pyscf' for Mayer bond orders and the IBO Lewis picture.")
         report = "\n".join(lines)
 
         summary = dict(data)
@@ -667,7 +667,7 @@ class ElectronicAnalysis(Tool):
             report=report,
             summary=summary,
             log_path=log_path,
-            message="电子结构分析完成（xTB/GFN2-xTB）。报告不含坐标。",
+            message="Electronic structure analysis complete (xTB/GFN2-xTB). The report contains no coordinates.",
         )
 
     async def tool_call(self, user_input: ElectronicAnalysis_input_schema, session: Session) -> ElectronicAnalysis_output_schema:
@@ -676,24 +676,24 @@ class ElectronicAnalysis(Tool):
         try:
             xyz_text = _load_xyz_text(user_input)
         except Exception as e:
-            return ElectronicAnalysis_output_schema(is_success=False, message=f"读取输入结构失败: {e}")
+            return ElectronicAnalysis_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
 
         # xTB / PySCF 为同步子进程或重 CPU；移出事件循环，避免 TUI 与 Coordinator 同 loop 假死。
         if user_input.backend == "xtb":
             try:
                 return await asyncio.to_thread(self._run_xtb, user_input, xyz_text)
             except Exception as e:
-                return ElectronicAnalysis_output_schema(is_success=False, message=f"xTB 后端失败: {e}")
+                return ElectronicAnalysis_output_schema(is_success=False, message=f"xTB backend failed: {e}")
 
         if not _PYSCF_AVAILABLE:
             return ElectronicAnalysis_output_schema(
                 is_success=False,
-                message="环境未安装 PySCF 库。请执行: pip install pyscf 或 pip install 'cloudra[chem]'"
+                message="PySCF is not installed. Install it with: pip install pyscf or pip install 'cloudra[chem]'"
             )
         try:
             return await asyncio.to_thread(self._run_pyscf, user_input, xyz_text)
         except Exception as e:
-            return ElectronicAnalysis_output_schema(is_success=False, message=f"PySCF 后端失败: {e}")
+            return ElectronicAnalysis_output_schema(is_success=False, message=f"PySCF backend failed: {e}")
 
 
 def get_class():

@@ -44,7 +44,7 @@ async def test_pubchem_hit(tool, mock_session, monkeypatch):
     assert result.resolver_used == "pubchem"
     assert result.cid == "2244"
     assert result.molecular_formula == "C9H8O4"
-    assert "核对" in result.message  # 必带人工核对提示
+    assert "Verify" in result.message  # 必带人工核对提示
 
 
 @pytest.mark.asyncio
@@ -92,7 +92,7 @@ async def test_all_resolvers_miss(tool, mock_session, monkeypatch):
         NameToStructure_input_schema(name="一个不存在的化合物名xyz"), mock_session,
     )
     assert result.is_success is False
-    assert "未命中" in result.message
+    assert "no hit" in result.message
     assert "IUPAC" in result.message or "CAS" in result.message
 
 

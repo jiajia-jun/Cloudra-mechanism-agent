@@ -89,7 +89,7 @@ class Agent(BaseModel):
     #agent名称
     name: str
 
-    #agent类型：coordinator,researcher,...other
+    #agent类型：'coordinator' 或 'follower'
     type: str
 
     #agent使用模型
@@ -460,6 +460,7 @@ class Agent(BaseModel):
             conversation_id=self.conversation_id,
             working_directory=self.working_directory,
             include_memory=self.type == "coordinator",
+            include_agents_md=self.type == "coordinator",
             observer_id=self.id,
         )
 
@@ -735,7 +736,8 @@ class Agent(BaseModel):
 
 class Coordinator(Agent):
     '''
-    父agent，用于协调子agent。仅拥有管理工具。
+    父agent，用于协调子agent。权限全部开放（read/write/script/destructive 均为 True），
+    可以使用所有工具（见下方各 permission 方法与 get_available_tools）。
     '''
     id: str = 'a-0'
 

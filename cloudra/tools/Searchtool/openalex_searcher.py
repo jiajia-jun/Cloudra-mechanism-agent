@@ -24,7 +24,10 @@ class OpenAlexSearcher_input_schema(input_schema):
     )
 
 class OpenAlexSearcher_output_schema(output_schema):
-    content: list = Field(description="Search results; each item is a paper-info dict")
+    is_success: bool = Field(default=True, description="Whether the search succeeded")
+    content: list = Field(default_factory=list, description="Search results; each item is a paper-info dict")
+    message: str = Field(default="", description="Status note (e.g. no matching papers)")
+    error: str = Field(default="", description="Error message on failure")
 
 class OpenAlexSearcher(Tool):
     tool_id: str = 't-26'
@@ -80,10 +83,10 @@ class OpenAlexSearcher(Tool):
                 response = await client.get(api_url, params=params, headers=headers)
 
                 if response.status_code != 200:
-                    return OpenAlexSearcher_output_schema(content=[{
-                        "error": f"OpenAlex API 异常: {response.status_code}",
-                        "detail": response.text[:200]
-                    }])
+                    return OpenAlexSearcher_output_schema(
+                        is_success=False,
+                        error=f"OpenAlex API error: {response.status_code}; detail: {response.text[:200]}"
+                    )
 
                 data = response.json()
                 works = data.get("results", [])
@@ -104,7 +107,7 @@ class OpenAlexSearcher(Tool):
                         if abstract_index:
                             item["abstract"] = self._reconstruct_abstract(abstract_index)
                         else:
-                            item["abstract"] = "暂无摘要"
+                            item["abstract"] = "No abstract available"
 
                     # 3. 详细信息 (weight)
                     if user_input.mode == "weight":
@@ -122,12 +125,12 @@ class OpenAlexSearcher(Tool):
                     results.append(item)
 
                 if not results:
-                    return OpenAlexSearcher_output_schema(content=[{"message": "未找到相关论文。"}])
+                    return OpenAlexSearcher_output_schema(content=[], message="No matching papers found.")
 
                 return OpenAlexSearcher_output_schema(content=results)
 
         except Exception as e:
-            return OpenAlexSearcher_output_schema(content=[{"error": f"OpenAlex 访问失败: {str(e)}"}])
+            return OpenAlexSearcher_output_schema(is_success=False, error=f"OpenAlex request failed: {str(e)}")
 
 def get_class():
     return OpenAlexSearcher

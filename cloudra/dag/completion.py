@@ -188,6 +188,11 @@ def _compact_process_node(node) -> dict[str, Any]:
         "label": node.label,
         "status": node.status,
         "priority": node.priority,
+        "assignee": node.assignee,
+        "tool_name": node.tool_name,
+        "delivery_target_type": node.delivery_target_type,
+        "delivery_target_id": node.delivery_target_id,
+        "evidence_role": node.evidence_role,
     }
 
 

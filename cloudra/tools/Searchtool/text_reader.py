@@ -12,8 +12,13 @@ description = (
     "Supports slicing by start and end line. "
     "Use for: viewing code, logs, configs, and other text files; also required before edit_file / text_writer. "
     "Do not use for: binary documents (PDF/Word via pdf2md) or images (use image_reader). "
-    "Note: you must call this tool to get the latest sha256 before modifying a file."
+    "Note: you must call this tool to get the latest sha256 before modifying a file. "
+    "Oversized slices are truncated; page through large files with start_line/end_line."
 )
+
+# 超大切片护栏：单次返回超过阈值就截断并提示按行分页，
+# 避免整文件返回把上下文顶爆触发有损压缩。
+MAX_CONTENT_CHARS = 30_000
 
 
 class TextReader_input_schema(input_schema):
@@ -23,7 +28,8 @@ class TextReader_input_schema(input_schema):
 
 
 class TextReader_output_schema(output_schema):
-    content: str = Field(description="Text content that was read")
+    is_success: bool = Field(default=True, description="Whether the read succeeded; False means content is empty and message holds the error")
+    content: str = Field(default="", description="Text content that was read")
     filepath: str = Field(default="", description="Normalized workspace-relative path")
     sha256: str = Field(default="", description="SHA256 of the full file's raw bytes")
     total_lines: int = Field(default=0, description="Total line count of the full file")
@@ -58,9 +64,20 @@ class TextReader(Tool):
             )
         except (OSError, WorkspaceError) as exc:
             return TextReader_output_schema(
-                content="",
+                is_success=False,
                 filepath=user_input.filepath,
                 message=str(exc),
+            )
+        message = ""
+        if len(content) > MAX_CONTENT_CHARS:
+            content = (
+                content[:MAX_CONTENT_CHARS]
+                + f"\n[Truncated: slice is {total} lines; showing first {MAX_CONTENT_CHARS} chars. "
+                "Page through the rest with start_line/end_line.]"
+            )
+            message = (
+                f"Content truncated to {MAX_CONTENT_CHARS} chars; "
+                "use start_line/end_line to page through the file."
             )
         return TextReader_output_schema(
             content=content,
@@ -69,6 +86,7 @@ class TextReader(Tool):
             total_lines=total,
             start_line=start,
             end_line=end,
+            message=message,
         )
 
 

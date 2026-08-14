@@ -44,6 +44,7 @@ from cloudra.dag.store import (
     _load_graph_bindings,
 )
 from cloudra.persistence.database import retry_on_locked
+from cloudra.subagents.registry import SUBAGENT_REGISTRY
 
 
 class _Rejected(ValueError):
@@ -51,6 +52,11 @@ class _Rejected(ValueError):
         super().__init__(reason)
         self.code = code
         self.reason = reason
+
+
+# 排产归属的合法取值：已注册子 agent id + Coordinator（a-0）。
+# 只在写操作入口校验（_check_assignee），旧 journal 里的历史 assignee 仍可重放。
+_VALID_ASSIGNEES = frozenset(reg.agent_id for reg in SUBAGENT_REGISTRY) | {"a-0"}
 
 
 @dataclass
@@ -523,6 +529,8 @@ class DagEngine:
             )
         if actor is GraphActor.AGENT and state.kind is GraphKind.PROCESS:
             self._check_agent_process_access(state, actor_id, operation)
+        if state.kind is GraphKind.PROCESS:
+            self._check_assignee(operation)
 
         if isinstance(operation, (AddNode, AddEdge)):
             self._check_element_graph_kind(state.kind, operation)
@@ -621,6 +629,28 @@ class DagEngine:
                 "invalid_operation",
                 f"{type_name!r} does not belong on the {kind.value} graph; "
                 f"expected {expected}",
+            )
+
+    @staticmethod
+    def _check_assignee(operation: GraphOperation) -> None:
+        """process 节点 assignee 合法性：只接受已注册子 agent id 与 a-0（Coordinator）。
+
+        写错角色名（如 "dft" 而非 "a-6"）会静默产生无人回报的孤儿节点，
+        故在写入口 fail-fast 并列出合法 id；只读重放不经过这里。
+        """
+        if isinstance(operation, AddNode):
+            assignee = getattr(operation.node, "assignee", None)
+        elif isinstance(operation, UpdateNode):
+            assignee = operation.changes.get("assignee")
+        else:
+            return
+        if assignee is None:
+            return
+        if assignee not in _VALID_ASSIGNEES:
+            raise _Rejected(
+                "invalid_assignee",
+                f"unknown assignee {assignee!r}; valid assignees: "
+                f"{sorted(_VALID_ASSIGNEES)} (registered sub-agent ids plus a-0)",
             )
 
     @staticmethod

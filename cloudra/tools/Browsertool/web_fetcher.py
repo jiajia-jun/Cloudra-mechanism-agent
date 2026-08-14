@@ -37,7 +37,7 @@ class WebFetcher_input_schema(input_schema):
 
 
 class WebFetcher_output_schema(output_schema):
-    success: bool = Field(description="Whether the request succeeded")
+    is_success: bool = Field(description="Whether the request succeeded")
     status_code: int = Field(default=0, description="HTTP status code")
     content: str = Field(default="", description="Extracted text or raw HTML (empty in download mode)")
     downloaded_path: str = Field(default="", description="Absolute local path saved in download mode")
@@ -109,20 +109,20 @@ class WebFetcher(Tool):
         timeout = user_input.timeout
 
         if not url:
-            return WebFetcher_output_schema(success=False, error="URL must not be empty.")
+            return WebFetcher_output_schema(is_success=False, error="URL must not be empty.")
 
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
-            return WebFetcher_output_schema(success=False, error=f"Invalid URL: {url}")
+            return WebFetcher_output_schema(is_success=False, error=f"Invalid URL: {url}")
 
         if method not in ('GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'):
-            return WebFetcher_output_schema(success=False, error=f"Unsupported HTTP method: {method}")
+            return WebFetcher_output_schema(is_success=False, error=f"Unsupported HTTP method: {method}")
 
         try:
             import httpx
         except ImportError:
             return WebFetcher_output_schema(
-                success=False,
+                is_success=False,
                 error="Missing HTTP dependency httpx. Install with: pip install httpx"
             )
 
@@ -140,7 +140,7 @@ class WebFetcher(Tool):
                 )
                 response.raise_for_status()
         except Exception as e:
-            return WebFetcher_output_schema(success=False, error=f"Request failed: {str(e)}")
+            return WebFetcher_output_schema(is_success=False, error=f"Request failed: {str(e)}")
 
         # 下载模式：原样保存字节到本地
         if download_path:
@@ -149,13 +149,13 @@ class WebFetcher(Tool):
                 with open(download_path, 'wb') as f:
                     f.write(response.content)
                 return WebFetcher_output_schema(
-                    success=True,
+                    is_success=True,
                     status_code=response.status_code,
                     downloaded_path=download_path
                 )
             except Exception as e:
                 return WebFetcher_output_schema(
-                    success=False,
+                    is_success=False,
                     status_code=response.status_code,
                     error=f"Failed to save file: {str(e)}"
                 )
@@ -173,7 +173,7 @@ class WebFetcher(Tool):
         )
         if is_pdf:
             return WebFetcher_output_schema(
-                success=False,
+                is_success=False,
                 status_code=response.status_code,
                 error=(
                     f"The target is a PDF file (~{len(response.content) // 1024} KB); "
@@ -186,7 +186,7 @@ class WebFetcher(Tool):
             raw_text = response.text
         except Exception as e:
             return WebFetcher_output_schema(
-                success=False,
+                is_success=False,
                 status_code=response.status_code,
                 error=f"Failed to decode response body: {str(e)}"
             )
@@ -207,7 +207,7 @@ class WebFetcher(Tool):
             content = raw_text
 
         return WebFetcher_output_schema(
-            success=True,
+            is_success=True,
             status_code=response.status_code,
             content=content
         )

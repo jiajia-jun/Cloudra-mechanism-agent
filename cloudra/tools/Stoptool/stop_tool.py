@@ -32,7 +32,7 @@ class StopTool_output_schema(output_schema):
         description="Whether the loop was stopped"
     )
     message: str = Field(
-        default="任务已停止",
+        default="Task stopped",
         description="Stop confirmation message"
     )
 
@@ -62,7 +62,7 @@ class StopTool(Tool):
         if user_input.final_answer:
             ans_str = f" [ANSWER]{user_input.final_answer}[/ANSWER]"
 
-        msg = f"任务已停止。原因：{user_input.reason}{ans_str}" if user_input.reason else f"任务已停止。{ans_str}"
+        msg = f"Task stopped. Reason: {user_input.reason}{ans_str}" if user_input.reason else f"Task stopped.{ans_str}"
         return StopTool_output_schema(
             stopped=True,
             message=msg
