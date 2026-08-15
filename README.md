@@ -225,14 +225,29 @@ double searching.
 
 ## Usage
 
+The recommended frontend is the Electron/Web UI (Node.js >= 18 required):
+
+```bash
+./install.sh               # once: Python package + config
+./web.sh                   # install npm deps, build, start Electron
+./web.sh --browser         # or serve the SPA in a plain browser
+./web.sh --skip-build      # reuse the existing frontend/dist build
+```
+
+The web UI provides per-project workspaces, an AgentBar to switch among all
+parallel agents, an Inspector with per-event detail, live YOLO/model settings,
+approval/interaction/artifact control, and DAG panels.
+
+The pre-web entry points remain available during the transition:
+
 ```bash
 cloudra                              # interactive TUI on Linux
 cloudra run "TASK"                  # run or continue a research task
 cloudra run "Elucidate the mechanism of ..." --orchestration-mode dag_guided
 cloudra sessions                    # inspect durable Session states
 cloudra history                     # list conversations
-cloudra gui                         # experimental Flet GUI (currently untested; TUI is recommended)
-cloudra-api                         # API server (localhost by default)
+cloudra gui                         # experimental Flet GUI (currently untested)
+cloudra-api                         # legacy API server (v1)
 ```
 
 Orchestration modes are chosen per session and immutable afterwards:

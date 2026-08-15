@@ -186,14 +186,29 @@ DuckDuckGo）作为免 key 兜底。启用后外部工具会被剔除，避免�
 
 ## 使用入口
 
+推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）：
+
+```bash
+./install.sh               # 首次：安装 Python 包并初始化配置
+./web.sh                   # 安装 npm 依赖、构建并启动 Electron
+./web.sh --browser         # 或在普通浏览器中打开 SPA
+./web.sh --skip-build      # 复用已经构建的 frontend/dist
+```
+
+Web UI 提供：按项目隔离的工作区、可在所有平行 Agent 间切换的 AgentBar、
+单条事件可追溯的 Inspector、运行中切换 YOLO/模型、审批/交互/产物控制面板，
+以及 DAG 面板。
+
+过渡期内旧入口仍然可用：
+
 ```bash
 cloudra                              # Linux 交互式 TUI
 cloudra run "TASK"                  # 运行或继续研究任务
 cloudra run "阐明……的反应机理" --orchestration-mode dag_guided
 cloudra sessions                    # 检查持久 Session 状态
 cloudra history                     # 查看 Conversation
-cloudra gui                         # 实验性 Flet GUI（未充分测试，推荐 TUI）
-cloudra-api                         # API Server，默认只监听本机
+cloudra gui                         # 实验性 Flet GUI
+cloudra-api                         # 旧版 API Server（v1）
 ```
 
 编排模式按会话选择、选定后不可变：`standard`（默认）、`dag_record`、

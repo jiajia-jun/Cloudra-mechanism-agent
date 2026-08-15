@@ -10,11 +10,12 @@ set -euo pipefail
 #   5. 交互式初始化 cloudra config
 #   6. 把 cloudra 命令加入 PATH（可选）
 #
-# 注意：Cloudra 2.0 使用 Python 原生 Flet GUI，无需 Rust / Node.js / Tauri。
+# 注意：Python 端安装完成后，如需新的 Electron/Web 前端，再运行 ./web.sh
+#（该脚本会自行安装 npm 依赖并构建前端）。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="cloudra"
-MIN_PYTHON="3.10"
+MIN_PYTHON="3.11"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -186,7 +187,7 @@ if [[ "$OS" == "Darwin" ]]; then
     DEFAULT_GUI="y"
 fi
 while [[ "$INSTALL_GUI" != "y" && "$INSTALL_GUI" != "n" ]]; do
-    read -rp "是否安装 GUI 依赖（Flet，${DEFAULT_GUI}）？[Y/n] " INSTALL_GUI
+    read -rp "是否安装 GUI 依赖（Flet，${DEFAULT_GUI}，推荐 n；新 Web UI 用 ./web.sh）？[Y/n] " INSTALL_GUI
     INSTALL_GUI=${INSTALL_GUI:-$DEFAULT_GUI}
     INSTALL_GUI=$(echo "$INSTALL_GUI" | tr '[:upper:]' '[:lower:]')
 done
@@ -278,10 +279,13 @@ EOF
 fi
 
 ok "安装完成！"
-info "Cloudra 2.0 使用 Python 原生 Flet GUI，无需 Rust / Node.js / Tauri。"
-info "常用命令："
+info "推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）："
+echo "  ./web.sh                   # 构建并启动 Electron 桌面前端"
+echo "  ./web.sh --browser         # 构建并在浏览器中打开"
+echo "  ./web.sh --skip-build      # 复用已构建的前端"
+info "其他命令："
 echo "  cloudra config show        # 查看当前配置"
 echo "  cloudra run 'YOUR TASK'    # 运行任务"
-echo "  cloudra                    # Linux 进入 TUI，Windows/Android 启动 GUI"
-echo "  cloudra gui                # 强制启动 GUI"
-echo "  cloudra-api                # 启动 REST API（http://127.0.0.1:8000）"
+echo "  cloudra                    # 旧版 TUI（过渡期保留）"
+echo "  cloudra gui                # 旧版 Flet GUI（过渡期保留）"
+echo "  cloudra-api                # 旧版 REST API（v1，过渡期保留）"

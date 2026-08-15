@@ -80,3 +80,6 @@ MagicMock/
 # Frontend (v2 Electron/React)
 frontend/node_modules/
 frontend/dist/
+
+# runtime v2 local sqlite
+runtime-v2.db*

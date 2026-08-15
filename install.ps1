@@ -10,7 +10,7 @@
     4. 把 venv Scripts 目录加入用户 PATH
     5. 初始化 cloudra config
 
-    Cloudra 2.0 使用 Python 原生 Flet GUI，无需 Rust / Node.js / Tauri。
+    Python 端安装完成后，如需新的 Electron/Web 前端，再运行 .\web.ps1。
 #>
 
 $ErrorActionPreference = "Stop"
@@ -187,9 +187,12 @@ try {
 }
 
 Write-Ok "安装完成！"
-Write-Info "Cloudra 2.0 使用 Python 原生 Flet GUI，无需 Rust / Node.js / Tauri。"
-Write-Info "常用命令："
+Write-Info "推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）："
+Write-Host "  .\web.ps1                 # 构建并启动 Electron 桌面前端"
+Write-Host "  .\web.ps1 -Browser        # 构建并在浏览器中打开"
+Write-Host "  .\web.ps1 -SkipBuild      # 复用已构建的前端"
+Write-Info "其他命令（过渡期保留）："
 Write-Host "  cloudra config show        # 查看当前配置"
 Write-Host "  cloudra run 'YOUR TASK'    # 运行任务"
-Write-Host "  cloudra                    # 启动 GUI"
-Write-Host "  cloudra-api                # 启动 REST API（http://127.0.0.1:8000）"
+Write-Host "  cloudra                    # 旧版 GUI"
+Write-Host "  cloudra-api                # 旧版 REST API（v1）"

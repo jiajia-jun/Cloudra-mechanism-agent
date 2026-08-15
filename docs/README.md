@@ -6,6 +6,7 @@
 
 | 文档 | 适用场景 | 当前状态 |
 | --- | --- | --- |
+| `../web.sh` / `../web.ps1` | 一键安装 npm 依赖、构建并启动 Electron/浏览器前端 | 当前推荐入口；Node.js >= 18 |
 | [`ANDROID_USER_GUIDE.md`](ANDROID_USER_GUIDE.md) | API Server、WSL2 局域网、APK 安装、Device Runtime、SAF、故障排查 | 当前操作入口；真机矩阵待执行 |
 | [`PHASE8_OPERATIONS.md`](PHASE8_OPERATIONS.md) | 备份恢复、设备撤消、运维状态、APK 签名、数据库迁移决策 | 已实现的单机生产契约；正式签名待完成 |
 | [`CLI_API_REFERENCE.md`](CLI_API_REFERENCE.md) | CLI 命令与 API 入口速查 | 随当前 2.0 beta 接口维护 |
