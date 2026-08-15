@@ -5,8 +5,8 @@ const net = require('node:net');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const isDev = !app.isPackaged;
 let runtime = null;
+const useDevServer = process.env.CLOUDRA_DEV_SERVER === '1';
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -70,7 +70,7 @@ async function createWindow() {
     },
   });
   process.env.CLOUDRA_RUNTIME_URL = baseUrl;
-  if (isDev) {
+  if (useDevServer) {
     win.loadURL('http://localhost:5173');
     win.webContents.openDevTools({ mode: 'detach' });
   } else {

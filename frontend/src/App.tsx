@@ -12,13 +12,14 @@ function useProjects() {
   return { projects, activeId, setActiveId, refresh };
 }
 
-function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelectEvent, onPatchSettings }: {
+function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelectEvent, onPatchSettings, onError }: {
   activeAgent: Agent | null;
   activeProject: Project | null;
   events: EventEnvelope[];
   selectedEvent: EventEnvelope | null;
   onSelectEvent: (e: EventEnvelope) => void;
   onPatchSettings: (patch: Record<string, unknown>) => void;
+  onError: (message: string) => void;
 }) {
   const [tab, setTab] = useState<'events' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings'>('events');
   const [dag, setDag] = useState<Record<string, unknown> | null>(null);
@@ -30,15 +31,21 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
   async function loadTab(next: typeof tab) {
     setTab(next);
     if (!activeProject) return;
-    if (next === 'dag') {
-      const [graph, report] = await Promise.all([
-        api.dagDelivery(activeProject.id),
-        api.dagReport(activeProject.id),
-      ]);
-      setDag({ graph, report });
-    } else if (next === 'approvals') setApprovals(await api.approvals(activeProject.id));
-    else if (next === 'interactions') setInteractions(await api.interactions(activeProject.id));
-    else if (next === 'artifacts') setArtifacts(await api.artifacts(activeProject.id));
+    try {
+      if (next === 'dag') {
+        const [graph, report] = await Promise.all([
+          api.dagDelivery(activeProject.id),
+          api.dagReport(activeProject.id),
+        ]);
+        setDag({ graph, report });
+      } else if (next === 'approvals') setApprovals(await api.approvals(activeProject.id));
+      else if (next === 'interactions') setInteractions(await api.interactions(activeProject.id));
+      else if (next === 'artifacts') setArtifacts(await api.artifacts(activeProject.id));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setDag({ error: message });
+      onError(message);
+    }
   }
 
   return (
@@ -133,8 +140,12 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
                     placeholder="respond…"
                     onKeyDown={async (e) => {
                       if (e.key !== 'Enter') return;
-                      await api.respondInteraction(activeProject.id, interactionId, (e.target as HTMLInputElement).value);
-                      setInteractions(await api.interactions(activeProject.id));
+                      try {
+                        await api.respondInteraction(activeProject.id, interactionId, (e.target as HTMLInputElement).value);
+                        setInteractions(await api.interactions(activeProject.id));
+                      } catch (err) {
+                        onError(err instanceof Error ? err.message : String(err));
+                      }
                     }}
                     style={{ width: '100%', marginTop: 6 }}
                   />
@@ -245,10 +256,14 @@ export default function App() {
 
   async function createProjectAndSelect() {
     if (!newProject.trim()) return;
-    const resp = await api.createProject(newProject.trim());
-    await refreshProjects();
-    setActiveId(resp.data.id);
-    setNewProject('');
+    try {
+      const resp = await api.createProject(newProject.trim());
+      await refreshProjects();
+      setActiveId(resp.data.id);
+      setNewProject('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function sendMessage() {
@@ -272,14 +287,22 @@ export default function App() {
 
   async function spawnRole(roleId: string) {
     if (!activeProject) return;
-    const resp = await api.spawnAgent(activeProject.id, { role_id: roleId });
-    await selectAgent(resp.data.id);
+    try {
+      const resp = await api.spawnAgent(activeProject.id, { role_id: roleId });
+      await selectAgent(resp.data.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function patchSettings(patch: Record<string, unknown>) {
     if (!activeAgent) return;
-    const resp = await api.patchSettings(activeAgent.id, patch);
-    setAgents((prev) => prev.map((a) => (a.id === activeAgent.id ? resp.data : a)));
+    try {
+      const resp = await api.patchSettings(activeAgent.id, patch);
+      setAgents((prev) => prev.map((a) => (a.id === activeAgent.id ? resp.data : a)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   const toolEvents = useMemo(() => events.filter((e) => e.type.startsWith('tool.') || e.type.startsWith('llm.')), [events]);
@@ -344,8 +367,8 @@ export default function App() {
             style={{ flex: 1, padding: 8 }}
           />
           <button onClick={sendMessage} style={{ padding: '8px 16px' }}>Send</button>
-          {activeAgent && <button onClick={() => api.cancel(activeAgent.id).then((r) => setAgents((p) => p.map((a) => (a.id === r.data.id ? r.data : a))))}>Cancel</button>}
-          {activeAgent && <button onClick={() => api.restart(activeAgent.id).then((r) => setAgents((p) => p.map((a) => (a.id === r.data.id ? r.data : a))))}>Restart</button>}
+          {activeAgent && <button onClick={() => api.cancel(activeAgent.id).then((r) => setAgents((p) => p.map((a) => (a.id === r.data.id ? r.data : a)))).catch((e) => setError(e instanceof Error ? e.message : String(e)))}>Cancel</button>}
+          {activeAgent && <button onClick={() => api.restart(activeAgent.id).then((r) => setAgents((p) => p.map((a) => (a.id === r.data.id ? r.data : a)))).catch((e) => setError(e instanceof Error ? e.message : String(e)))}>Restart</button>}
         </div>
         {error && <div style={{ color: '#ff8080', padding: '4px 12px' }}>{error}</div>}
       </main>
@@ -357,6 +380,7 @@ export default function App() {
         selectedEvent={selectedEvent}
         onSelectEvent={setSelectedEvent}
         onPatchSettings={patchSettings}
+        onError={(message) => setError(message)}
       />
     </div>
   );
