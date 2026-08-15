@@ -1,0 +1,236 @@
+"""Shared Pydantic schemas for the event-driven Cloudra runtime.
+
+This module is the single source of truth for the v2 API wire types.  No
+other runtime_v2 module may invent its own request/response shapes.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class OrchestrationMode(str, Enum):
+    STANDARD = "standard"
+    DAG_RECORD = "dag_record"
+    DAG_GUIDED = "dag_guided"
+
+
+class AgentState(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    WAITING_INPUT = "waiting_input"
+    WAITING_APPROVAL = "waiting_approval"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class RuntimeSettingsPatch(BaseModel):
+    """Partial settings update; full RuntimeSettings extends this with defaults."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: Optional[int] = Field(default=None, ge=1)
+    context_window: Optional[int] = Field(default=None, ge=1)
+    top_p: Optional[float] = Field(default=None, gt=0.0, le=1.0)
+    frequency_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
+    presence_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
+    timeout: Optional[int] = Field(default=None, ge=1)
+    yolo: Optional[bool] = None
+    native_search: Optional[str] = None
+    native_search_params: Optional[dict[str, Any]] = None
+    orchestration_mode: Optional[OrchestrationMode] = None
+    api_key: Optional[str] = Field(default=None, repr=False)
+
+
+class RuntimeSettings(RuntimeSettingsPatch):
+    """Effective settings of one agent at one point in time.
+
+    ``api_key`` is write-only on the wire: dumps never include it and the API
+    only reports ``api_key_set``.
+    """
+
+    model: str = ""
+    base_url: str = ""
+    temperature: float = 0.7
+    max_tokens: int = 32768
+    context_window: int = 200000
+    top_p: Optional[float] = None
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    timeout: int = 300
+    yolo: bool = False
+    native_search: str = "auto"
+    native_search_params: dict[str, Any] = Field(default_factory=dict)
+    orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
+
+    api_key: str = Field(default="", repr=False, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def api_key_set(self) -> bool:
+        return bool(self.api_key)
+
+    def apply(self, patch: RuntimeSettingsPatch) -> "RuntimeSettings":
+        data = self.model_dump()
+        data.pop("api_key_set", None)  # computed field; not a constructor input
+        patch_data = patch.model_dump(exclude_unset=True)
+        if patch.api_key is not None:
+            patch_data["api_key"] = patch.api_key
+        data.update(patch_data)
+        return RuntimeSettings.model_validate(data)
+
+
+class PermissionSet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    read: bool = True
+    write: bool = False
+    manage: bool = False
+    script: bool = False
+    destructive: bool = False
+
+
+class ToolPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    allow: list[str] = Field(default_factory=lambda: ["*"])
+    deny: list[str] = Field(default_factory=list)
+
+
+class RoleProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role_id: str = Field(min_length=1)
+    display_name: str
+    description: str = ""
+    permissions: PermissionSet = Field(default_factory=PermissionSet)
+    can_spawn: bool = False
+    spawn_roles: Optional[list[str]] = None
+    tool_policy: ToolPolicy = Field(default_factory=ToolPolicy)
+    default_settings: RuntimeSettingsPatch = Field(default_factory=RuntimeSettingsPatch)
+    builtin: bool = True
+
+
+class AgentCapabilities(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    permissions: PermissionSet
+    can_spawn: bool = False
+    spawn_roles: Optional[list[str]] = None
+    tools: list[str] = Field(default_factory=list)
+
+
+class CurrentRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    started_at: datetime
+    current_tool: Optional[str] = None
+
+
+class AgentSession(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    project_id: str
+    role_id: str
+    display_name: str
+    parent_session_id: Optional[str] = None
+    state: AgentState = AgentState.QUEUED
+    state_since: datetime = Field(default_factory=utc_now)
+    settings: RuntimeSettings = Field(default_factory=RuntimeSettings)
+    settings_revision: int = 0
+    capabilities: AgentCapabilities = Field(
+        default_factory=lambda: AgentCapabilities(permissions=PermissionSet())
+    )
+    current_run: Optional[CurrentRun] = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    def touch(self) -> None:
+        self.updated_at = utc_now()
+
+
+class ProjectSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
+    defaults: RuntimeSettingsPatch = Field(default_factory=RuntimeSettingsPatch)
+
+
+class Project(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str = Field(min_length=1, max_length=200)
+    workspace_dir: Optional[str] = None
+    archived: bool = False
+    settings: ProjectSettings = Field(default_factory=ProjectSettings)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+    def touch(self) -> None:
+        self.updated_at = utc_now()
+
+
+class Command(BaseModel):
+    """A user/system operation entering the command pipeline.
+
+    Append the event first; only then apply the command to in-memory state.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str = Field(default_factory=lambda: new_id("cmd"))
+    type: str = Field(min_length=1)
+    target: dict[str, str] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    actor: Literal["user", "system"] = "user"
+
+
+class CommandResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    command_id: str
+    accepted: bool = True
+    event_id: str
+    data: Any = None
+
+
+class CommandRejected(Exception):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+class EventEnvelope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stream: Literal["agent", "project"]
+    event_id: str = Field(default_factory=lambda: new_id("evt"))
+    project_id: str
+    session_id: Optional[str] = None
+    run_id: Optional[str] = None
+    seq: int
+    session_seq: Optional[int] = None
+    type: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utc_now)

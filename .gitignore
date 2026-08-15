@@ -76,3 +76,7 @@ fort.*
 
 # 测试泄漏的 mock 数据目录
 MagicMock/
+
+# Frontend (v2 Electron/React)
+frontend/node_modules/
+frontend/dist/

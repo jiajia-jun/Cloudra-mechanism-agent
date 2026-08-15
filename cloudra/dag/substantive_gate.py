@@ -16,35 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cloudra.tools.core.bash_habit_guard import (
-    _direct_compute_program,
-    bash_file_write_warning,
-)
-
-# 实质性操作：派工、改工作区、开算、解析计算日志等。
-# SMILES/结构准备类工具刻意不在此列（建图需要它们）。
-SUBSTANTIVE_TOOLS = frozenset(
-    {
-        "SubAgentLauncher",
-        "SubAgentSwarm",
-        "text_writer",
-        "edit_file",
-        "gaussian_log_parser",
-        "submit_compute_job",
-        "gjf_writer",
-        "conformer_search",
-        "ts_guess",
-        "thermo_analysis",
-        "electronic_analysis",
-        "ir_processor",
-        "nmr_processor",
-        "device.workspace.apply_patch",
-        "device.documents.write",
-    }
-)
-
-# bashtools 仅在命令像写文件 / 直调量化时视为实质性
-_BASH_TOOL = "bashtools"
+from cloudra.tools.capabilities import is_substantive_tool as _capability_is_substantive
 
 # 与 dag_graph.init_from_template 骨架 id 对齐（模板 ≠ 实质机理 / 排产）。
 TEMPLATE_PROCESS_NODE_IDS = frozenset(
@@ -86,20 +58,8 @@ RECORD_WARN_MESSAGE = (
 
 
 def is_substantive_tool(tool_name: str, arguments: dict[str, Any] | None = None) -> bool:
-    """该工具调用是否属于「实质性操作」。"""
-    if tool_name in SUBSTANTIVE_TOOLS:
-        return True
-    if tool_name != _BASH_TOOL:
-        return False
-    args = arguments or {}
-    command = str(args.get("command") or "")
-    if not command.strip():
-        return False
-    if bash_file_write_warning(command):
-        return True
-    if _direct_compute_program(command):
-        return True
-    return False
+    """该工具调用是否属于「实质性操作」。语义定义在 tools/capabilities 的注册表投影。"""
+    return _capability_is_substantive(tool_name, arguments)
 
 
 def is_early_research_subagent_call(

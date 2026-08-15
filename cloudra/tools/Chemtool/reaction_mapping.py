@@ -695,3 +695,21 @@ class ReactionMapping(Tool):
 
 def get_class():
     return ReactionMapping
+
+
+def derive_delivery_changes(
+    *,
+    current: dict[str, Any],
+    role: str,
+    arguments: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """DAG evidence derivation owned by this tool; kept out of DagController."""
+    del current, arguments  # 本工具派生不需要 current/arguments
+    if role == "endpoint_identity_match" and (
+        result.get("binding_status") == "complete"
+        and result.get("reactant_identity") == "match"
+        and result.get("product_identity") == "match"
+    ):
+        return {"endpoint_identity_matched": True}
+    return {}

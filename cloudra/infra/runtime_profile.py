@@ -13,33 +13,11 @@ from collections.abc import Iterable
 from typing import TypeVar
 
 from cloudra.infra.platform_utils import is_android
+from cloudra.tools.capabilities import android_tools
 
 _Entry = TypeVar("_Entry")
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
-
-# Tools in this set are implemented entirely in the embedded Python process or
-# through network APIs.  In particular, none of them launches a shell or an
-# external executable.
-ANDROID_TOOL_ALLOWLIST = frozenset(
-    {
-        "SubAgentLauncher",
-        "agent_hub",
-        "edit_file",
-        "get_subagent_report",
-        "getskill",
-        "image_reader",
-        "openalex_searcher",
-        "paper_searcher",
-        "schedule",
-        "stop",
-        "text_reader",
-        "text_writer",
-        "update_memory",
-        "web_fetcher",
-        "web_search",
-    }
-)
 
 
 def is_mobile_runtime() -> bool:
@@ -82,8 +60,9 @@ def filter_tools_for_runtime(entries: Iterable[_Entry]) -> list[_Entry]:
     entries = list(entries)
     if not is_mobile_runtime():
         return entries
+    allowed = android_tools()
     return [
         entry
         for entry in entries
-        if getattr(entry, "tool_name", "") in ANDROID_TOOL_ALLOWLIST
+        if getattr(entry, "tool_name", "") in allowed
     ]

@@ -1484,3 +1484,28 @@ class TsGuess(Tool):
 
 def get_class():
     return TsGuess
+
+
+def derive_delivery_changes(
+    *,
+    current: dict[str, Any],
+    role: str,
+    arguments: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """DAG evidence derivation owned by this tool; kept out of DagController.
+
+    ``ts_guess`` results are advisory by design: they may add an advisory
+    source, and only a strict endpoint-direction check can set a derived flag.
+    """
+    advisory = list(current.get("advisory_sources") or [])
+    if "ts_guess" not in advisory:
+        advisory.append("ts_guess")
+    changes: dict[str, Any] = {"advisory_sources": advisory}
+    if (
+        role == "endpoint_direction_check"
+        and arguments.get("strict") is True
+        and str(result.get("verdict") or "").startswith("pass")
+    ):
+        changes["endpoint_direction_consistent"] = True
+    return changes

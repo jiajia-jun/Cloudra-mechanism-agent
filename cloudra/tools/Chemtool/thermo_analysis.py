@@ -830,3 +830,17 @@ class ThermoAnalysis(Tool):
 
 def get_class():
     return ThermoAnalysis
+
+
+def derive_delivery_changes(
+    *,
+    current: dict[str, Any],
+    role: str,
+    arguments: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """DAG evidence derivation owned by this tool; kept out of DagController."""
+    del current, arguments, result  # 本工具派生只需要 role
+    if role == "thermochemistry":
+        return {"thermochemistry_supported": True}
+    return {}

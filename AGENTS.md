@@ -57,16 +57,19 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 
 **包根一级子包（未动）**：`dag/`、`runtime/`、`tools/`、`subagents/`、`tui/`、`ui/`、`device/`、`prompts/`、`skills/`。
 
+**`runtime_v2/`（事件驱动新内核，按 S1 规格）**：`schemas.py`（API 类型唯一来源）、`events.py`（EventLog/EventHub）、`core.py`（RuntimeCore）、`commands.py`（CommandBus，先事件后状态）、`agent_host.py`（AgentSession 状态机）、`agent_runner.py`（每 Agent 一个 async task，真并发 + 可取消）、`turn_pipeline.py`（固定轮次管道，只依赖 PolicyStage）、`policies/`（permission/dag 两个 stage；新 harness 能力只加 stage）、`mailbox.py`（用户/Agent 间统一投递）、`adapters.py`（旧 LLMClient/工具注册表/PromptAssembler 到新协议的桥）、`persistence.py`（事件表 + 快照 + 增量重放）。API 入口：`services/api_v2.py`（薄路由，生产装配 `create_default_v2_app()`）。旧 `services/api.py` / `runtime/` / TUI 在新前端达到 S6 前保持运行但不再投入新功能。
+
 **UI 前端**
 
 - `tui/new/` — Textual 全屏 TUI（主界面）：`screens/`（main/approval/ask_user/context/dag/help）、`widgets/`（chat_log、input_bar、side_panel、status_bar 等）、`commands.py`（斜杠命令注册）、`transcript*.py` + `render_bridge.py`（事件→屏幕渲染管线）。
 - `tui/new/watchdog.py` + `runtime_proc.py` + `control.py` — **默认进程隔离**：父进程拉起本机 FastAPI runtime（Agent）与可杀的 TUI 子进程；UI 假死只重启 TUI。`CLOUDRA_TUI_INLINE=1` 回退同进程；`CLOUDRA_TUI_NO_WATCHDOG=1` 禁用界面重启；`CLOUDRA_TUI_RUNTIME_URL` 复用已有 runtime。提交/追问必须带上 TUI 启动目录作为 `working_directory`（隔离 runtime 的 cwd 可能是旧进程留下的，不能当工作区）。
 - `tui/legacy_app.py` — prompt_toolkit 旧版 TUI；`tui/run.py` — 入口；`tui/render.py` — IPC 终端渲染。
 - `ui/app.py` — Flet 桌面/移动 GUI；根目录 `flet_app.py` 为打包入口。
+- `frontend/` — 新 Electron + React SPA（v2 前端）：`src/App.tsx`（项目栏 / AgentBar / 对话 / Inspector 五标签）、`src/api.ts`（v2 客户端）、`electron/main.cjs`（spawn `create_default_v2_app` runtime + 托盘壳）、`electron/preload.cjs`（只暴露 runtimeBaseUrl）。`npm run build` 通过才算前端可用；开发时 `npm run dev`，生产 Electron 加载 `dist/`。
 
 **能力与角色**
 
-- `tools/` — 按领域分组的工具（Bashtool/Chemtool/Searchtool/Writetool/Plantool 等）；`tools/registry.py` 注册；`tools/core/` 含命令分级、权限模型、文件变更审批流水线、`coord_guard.py`（手写坐标守卫：向 .gjf/.xyz/.com 写入逐字坐标块在 text_writer/edit_file/bashtools 层放行但附警告并点破"绕过 supervisor/DAG 审查"，坐标必须来自 smiles_to_mol/format_converter/gjf_writer 等工具）、`bash_habit_guard.py`（bash 习惯守卫：heredoc/echo/tee/sed -i 写文件等命令在 bashtools 层附警告；长上下文 + 连续 bash / 直调量化程序时由 reAct harness 注入系统警告）、`delegation_guard.py`（Coordinator 自行 `submit_compute_job` 时在工具结果附轻量提示，照常放行）。工具**无持久状态**，结构化输出由 DAG 适配器解释。工具输出 schema 的成功字段统一为 `is_success`（布尔），返回给模型的 message/错误文本一律英文。超大工具结果护栏：bashtools 合并输出超 30k 字符时全文原子落盘到工作区 `.cloudra/tool_output/`，模型只收到截断摘要 + 落盘路径，需用 text_reader 的 start_line/end_line 分页读取全文。
+- `tools/` — 按领域分组的工具（Bashtool/Chemtool/Searchtool/Writetool/Plantool 等）；`tools/registry.py` 注册（每个 `ToolRegistration` 可选声明 `tool_name` 与 DAG/runtime 语义，下游只能经 `tools/capabilities.py` 投影查询，**禁止在别处新建工具名集合**）；`tools/core/` 含命令分级、权限模型、文件变更审批流水线、`coord_guard.py`（手写坐标守卫：向 .gjf/.xyz/.com 写入逐字坐标块在 text_writer/edit_file/bashtools 层放行但附警告并点破"绕过 supervisor/DAG 审查"，坐标必须来自 smiles_to_mol/format_converter/gjf_writer 等工具）、`bash_habit_guard.py`（bash 习惯守卫：heredoc/echo/tee/sed -i 写文件等命令在 bashtools 层附警告；长上下文 + 连续 bash / 直调量化程序时由 reAct harness 注入系统警告）、`delegation_guard.py`（Coordinator 自行 `submit_compute_job` 时在工具结果附轻量提示，照常放行）。工具**无持久状态**，结构化输出由 DAG 适配器解释；工具的 DAG 证据派生函数（`derive_delivery_changes`）随工具模块提供并在 registry 声明，`dag/controller.py` 只保留 endpoint 通用提升。工具输出 schema 的成功字段统一为 `is_success`（布尔），返回给模型的 message/错误文本一律英文。超大工具结果护栏：bashtools 合并输出超 30k 字符时全文原子落盘到工作区 `.cloudra/tool_output/`，模型只收到截断摘要 + 落盘路径，需用 text_reader 的 start_line/end_line 分页读取全文。
 - `subagents/` — 领域子 Agent（dft、md、researcher 等 8 个角色）。
 - `prompts/*.md`、`skills/*` — 角色 prompt 与科研方法技能包。
 

@@ -199,3 +199,15 @@ def bash_habit_warning(
     if consecutive_bash >= CONSECUTIVE_BASH_WARN:
         return f"[Warning: suspected bash habit] {consecutive_bash} consecutive bash calls. {_GENERAL_GUIDANCE}"
     return None
+
+
+def is_substantive_bash_command(arguments: dict) -> bool:
+    """DAG-gate predicate for the bashtools registration.
+
+    True when a bash call writes/edits workspace files or directly invokes a
+    compute program, i.e. the same signals the habit guard watches for.
+    """
+    command = str((arguments or {}).get("command") or "").strip()
+    if not command:
+        return False
+    return bool(bash_file_write_warning(command)) or bool(_direct_compute_program(command))

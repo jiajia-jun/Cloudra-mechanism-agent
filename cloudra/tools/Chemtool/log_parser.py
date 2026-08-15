@@ -352,3 +352,81 @@ class LogParser(Tool):
 
 def get_class():
     return LogParser
+
+
+def _has_frequency_data(result: dict[str, Any]) -> bool:
+    """频率列表确实存在才可计数（不能只凭 job_types / 热化学块）。"""
+    return (
+        result.get("frequencies_cm") is not None
+        or result.get("imaginary_frequencies") is not None
+    )
+
+
+def _imaginary_frequency_list(result: dict[str, Any]) -> list[Any] | None:
+    """返回虚频列表；无法确认频率数据时返回 None（不得当成零虚频）。"""
+    if not _has_frequency_data(result):
+        return None
+    imaginary = result.get("imaginary_frequencies")
+    if imaginary is None:
+        # 仅有 frequencies_cm（实频）时视为零虚频。
+        return []
+    return list(imaginary)
+
+
+def derive_delivery_changes(
+    *,
+    current: dict[str, Any],
+    role: str,
+    arguments: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """DAG evidence derivation owned by this tool; kept out of DagController.
+
+    Only the deterministic harness calls this, and engine still rejects models
+    that try to set derived evidence fields themselves.
+    """
+    del current, arguments  # 本工具派生不需要 current/arguments
+    imaginary = _imaginary_frequency_list(result)
+    normal = result.get("normal_termination") is not False
+    # short_irc 门槛：双向均收敛，或每个方向至少这么多 IRC 点（不含 TS）。
+    min_irc_points = 50
+    if (
+        role == "intermediate_optimization"
+        and normal
+        and imaginary is not None
+        and len(imaginary) == 0
+    ):
+        return {"evidence_level": "structure_supported"}
+    if (
+        role == "ts_optimization_frequency"
+        and normal
+        and imaginary is not None
+        and len(imaginary) == 1
+    ):
+        return {
+            "saddle_supported": True,
+            "evidence_level": "saddle_supported",
+        }
+    if role == "short_irc" and (
+        result.get("irc_both_directions_converged") is True
+        or (
+            int(result.get("irc_num_points_forward") or 0) >= min_irc_points
+            and int(result.get("irc_num_points_backward") or 0) >= min_irc_points
+        )
+    ):
+        return {"short_irc_supported": True}
+    if (
+        role == "endpoint_a_optimization"
+        and normal
+        and imaginary is not None
+        and len(imaginary) == 0
+    ):
+        return {"endpoint_a_minimum_supported": True}
+    if (
+        role == "endpoint_b_optimization"
+        and normal
+        and imaginary is not None
+        and len(imaginary) == 0
+    ):
+        return {"endpoint_b_minimum_supported": True}
+    return {}

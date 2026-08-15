@@ -4,6 +4,11 @@ Keep this module dependency-free: :mod:`cloudra.core.agent` imports
 ``cloudra.tools`` while several tool implementations import ``cloudra.core.agent``.
 The registry therefore stores import paths instead of importing tool classes at
 module import time.
+
+Optional semantic fields are the single source of truth for downstream policy
+projections (DAG gate / runtime profiles / evidence derivation).  Downstream
+modules must query :mod:`cloudra.tools.capabilities` instead of maintaining
+their own per-tool name sets.
 """
 
 from dataclasses import dataclass
@@ -14,62 +19,235 @@ class ToolRegistration:
     module: str
     class_name: str
 
+    # Declared wire name. Only needed when the tool has non-default semantics
+    # (or a tool_name that differs from class_name); capabilities only projects
+    # entries that carry it.
+    tool_name: str = ""
+
+    # DAG semantics. All flags default to the conservative/plain behavior.
+    dag_substantive: bool = False
+    substantive_predicate: str = ""  # "module:function(arguments)->bool", overrides dag_substantive
+    dag_observe: bool = True
+    supervisor_evidence: bool = False
+    evidence_deriver: str = ""  # "module:function(current, role, arguments, result)->dict"
+
+    # Runtime availability. The default keeps the Android allow-list opt-in.
+    runtime_profiles: frozenset[str] = frozenset({"desktop"})
+
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
-    ToolRegistration("cloudra.tools.Bashtool.bashtools", "Bashtools"),
-    ToolRegistration("cloudra.tools.Browsertool.headless_browser", "HeadlessBrowser"),
-    ToolRegistration("cloudra.tools.Browsertool.web_fetcher", "WebFetcher"),
-    ToolRegistration("cloudra.tools.Chemtool.conformer_search", "ConformerSearch"),
-    ToolRegistration("cloudra.tools.Chemtool.electronic_analysis", "ElectronicAnalysis"),
-    ToolRegistration("cloudra.tools.Chemtool.format_converter", "FormatConverter"),
-    ToolRegistration("cloudra.tools.Chemtool.gjf_writer", "GjfWriter"),
-    ToolRegistration("cloudra.tools.Chemtool.image_to_smiles", "ImageToSmiles"),
-    ToolRegistration("cloudra.tools.Chemtool.internal_coordinates", "InternalCoordinates"),
-    ToolRegistration("cloudra.tools.Chemtool.ir_processor", "IRProcessor"),
-    ToolRegistration("cloudra.tools.Chemtool.log_parser", "LogParser"),
-    ToolRegistration("cloudra.tools.Chemtool.molecule_drawer", "MoleculeDrawer"),
-    ToolRegistration("cloudra.tools.Chemtool.name_to_structure", "NameToStructure"),
-    ToolRegistration("cloudra.tools.Chemtool.nmr_processor", "NMRProcessor"),
-    ToolRegistration("cloudra.tools.Chemtool.query_compute_job", "QueryComputeJob"),
-    ToolRegistration("cloudra.tools.Chemtool.reaction_mapping", "ReactionMapping"),
-    ToolRegistration("cloudra.tools.Chemtool.smiles_to_mol", "SmilesToMol"),
-    ToolRegistration("cloudra.tools.Chemtool.submit_compute_job", "SubmitComputeJob"),
-    ToolRegistration("cloudra.tools.Chemtool.thermo_analysis", "ThermoAnalysis"),
-    ToolRegistration("cloudra.tools.Chemtool.ts_guess", "TsGuess"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceWorkspaceList"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceWorkspaceRead"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceConfigGet"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceWorkspaceApplyPatch"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceConfigPatch"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceDocumentsList"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceDocumentsRead"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceDocumentsWrite"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceFilePick"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceCameraCapture"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceShareText"),
-    ToolRegistration("cloudra.tools.DeviceTool.device_tools", "DeviceNotify"),
-    ToolRegistration("cloudra.tools.Interactool.ask_user", "AskUser"),
-    ToolRegistration("cloudra.tools.Interactool.email_reader", "EmailReader"),
-    ToolRegistration("cloudra.tools.Interactool.email_sender", "EmailSender"),
-    ToolRegistration("cloudra.tools.Managetool.agent_hub", "AgentHub"),
-    ToolRegistration("cloudra.tools.Managetool.get_subagent_report", "GetSubAgentReport"),
-    ToolRegistration("cloudra.tools.Managetool.schedule", "Schedule"),
-    ToolRegistration("cloudra.tools.Managetool.subagent_launcher", "SubAgentLauncher"),
-    ToolRegistration("cloudra.tools.Managetool.subagent_swarm", "SubAgentSwarm"),
-    ToolRegistration("cloudra.tools.Plantool.goal", "GoalSet"),
-    ToolRegistration("cloudra.tools.Plantool.dag_graph", "DagGraph"),
-    ToolRegistration("cloudra.tools.Plantool.todo", "TodoWrite"),
-    ToolRegistration("cloudra.tools.Plantool.todo_read", "TodoRead"),
-    ToolRegistration("cloudra.tools.Searchtool.openalex_searcher", "OpenAlexSearcher"),
-    ToolRegistration("cloudra.tools.Searchtool.image_reader", "ImageReader"),
-    ToolRegistration("cloudra.tools.Searchtool.paper_searcher", "PaperSearcher"),
-    ToolRegistration("cloudra.tools.Searchtool.pdf2image", "pdf2image"),
-    ToolRegistration("cloudra.tools.Searchtool.pdf2md", "pdf2md"),
-    ToolRegistration("cloudra.tools.Searchtool.text_reader", "TextReader"),
-    ToolRegistration("cloudra.tools.Searchtool.web_search", "WebSearch"),
-    ToolRegistration("cloudra.tools.Skilltool.get_skill", "GetSkill"),
-    ToolRegistration("cloudra.tools.Stoptool.stop_tool", "StopTool"),
-    ToolRegistration("cloudra.tools.Writetool.edit_file", "EditFile"),
-    ToolRegistration("cloudra.tools.Writetool.text_writer", "TextWriter"),
-    ToolRegistration("cloudra.tools.Writetool.update_memory", "UpdateMemory"),
+    ToolRegistration(
+        module='cloudra.tools.Bashtool.bashtools',
+        class_name='Bashtools',
+        tool_name='bashtools',
+        substantive_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
+    ),
+    ToolRegistration('cloudra.tools.Browsertool.headless_browser', 'HeadlessBrowser'),
+    ToolRegistration(
+        module='cloudra.tools.Browsertool.web_fetcher',
+        class_name='WebFetcher',
+        tool_name='web_fetcher',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.conformer_search',
+        class_name='ConformerSearch',
+        tool_name='conformer_search',
+        dag_substantive=True,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.electronic_analysis',
+        class_name='ElectronicAnalysis',
+        tool_name='electronic_analysis',
+        dag_substantive=True,
+    ),
+    ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.gjf_writer',
+        class_name='GjfWriter',
+        tool_name='gjf_writer',
+        dag_substantive=True,
+    ),
+    ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
+    ToolRegistration('cloudra.tools.Chemtool.internal_coordinates', 'InternalCoordinates'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.ir_processor',
+        class_name='IRProcessor',
+        tool_name='ir_processor',
+        dag_substantive=True,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.log_parser',
+        class_name='LogParser',
+        tool_name='gaussian_log_parser',
+        dag_substantive=True,
+        supervisor_evidence=True,
+        evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
+    ),
+    ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
+    ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.nmr_processor',
+        class_name='NMRProcessor',
+        tool_name='nmr_processor',
+        dag_substantive=True,
+    ),
+    ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.reaction_mapping',
+        class_name='ReactionMapping',
+        tool_name='reaction_mapping',
+        evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
+    ),
+    ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.submit_compute_job',
+        class_name='SubmitComputeJob',
+        tool_name='submit_compute_job',
+        dag_substantive=True,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.thermo_analysis',
+        class_name='ThermoAnalysis',
+        tool_name='thermo_analysis',
+        dag_substantive=True,
+        evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.ts_guess',
+        class_name='TsGuess',
+        tool_name='ts_guess',
+        dag_substantive=True,
+        evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
+    ),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceWorkspaceList'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceWorkspaceRead'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceConfigGet'),
+    ToolRegistration(
+        module='cloudra.tools.DeviceTool.device_tools',
+        class_name='DeviceWorkspaceApplyPatch',
+        tool_name='device.workspace.apply_patch',
+        dag_substantive=True,
+    ),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceConfigPatch'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceDocumentsList'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceDocumentsRead'),
+    ToolRegistration(
+        module='cloudra.tools.DeviceTool.device_tools',
+        class_name='DeviceDocumentsWrite',
+        tool_name='device.documents.write',
+        dag_substantive=True,
+    ),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceFilePick'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceCameraCapture'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceShareText'),
+    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceNotify'),
+    ToolRegistration('cloudra.tools.Interactool.ask_user', 'AskUser'),
+    ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
+    ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
+    ToolRegistration(
+        module='cloudra.tools.Managetool.agent_hub',
+        class_name='AgentHub',
+        tool_name='agent_hub',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Managetool.get_subagent_report',
+        class_name='GetSubAgentReport',
+        tool_name='get_subagent_report',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Managetool.schedule',
+        class_name='Schedule',
+        tool_name='schedule',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Managetool.subagent_launcher',
+        class_name='SubAgentLauncher',
+        tool_name='SubAgentLauncher',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+        dag_substantive=True,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Managetool.subagent_swarm',
+        class_name='SubAgentSwarm',
+        tool_name='SubAgentSwarm',
+        dag_substantive=True,
+    ),
+    ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_graph',
+        class_name='DagGraph',
+        tool_name='dag_graph',
+        dag_observe=False,
+    ),
+    ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
+    ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
+    ToolRegistration(
+        module='cloudra.tools.Searchtool.openalex_searcher',
+        class_name='OpenAlexSearcher',
+        tool_name='openalex_searcher',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Searchtool.image_reader',
+        class_name='ImageReader',
+        tool_name='image_reader',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Searchtool.paper_searcher',
+        class_name='PaperSearcher',
+        tool_name='paper_searcher',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration('cloudra.tools.Searchtool.pdf2image', 'pdf2image'),
+    ToolRegistration('cloudra.tools.Searchtool.pdf2md', 'pdf2md'),
+    ToolRegistration(
+        module='cloudra.tools.Searchtool.text_reader',
+        class_name='TextReader',
+        tool_name='text_reader',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Searchtool.web_search',
+        class_name='WebSearch',
+        tool_name='web_search',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Skilltool.get_skill',
+        class_name='GetSkill',
+        tool_name='getskill',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Stoptool.stop_tool',
+        class_name='StopTool',
+        tool_name='stop',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Writetool.edit_file',
+        class_name='EditFile',
+        tool_name='edit_file',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+        dag_substantive=True,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Writetool.text_writer',
+        class_name='TextWriter',
+        tool_name='text_writer',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+        dag_substantive=True,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Writetool.update_memory',
+        class_name='UpdateMemory',
+        tool_name='update_memory',
+        runtime_profiles=frozenset({'desktop', 'android'}),
+    ),
 )

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from cloudra.dag.completion import build_projection, evaluate_delivery
-from cloudra.dag.engine import DagEngine
+from cloudra.dag.engine import _DERIVED_EVIDENCE_FIELDS, DagEngine
 from cloudra.dag.models import (
     AddNode,
     AttachRef,
@@ -30,11 +30,17 @@ from cloudra.dag.store import DagStore, InvalidGraphReference, _canonical_json
 from cloudra.persistence.artifacts import ArtifactDownloadDenied, ArtifactService
 from cloudra.persistence.database import ConversationDB
 from cloudra.services import session_store
+from cloudra.tools.capabilities import (
+    evidence_deriver_for,
+    is_dag_observable,
+    supervisor_evidence_tools,
+)
 
 logger = logging.getLogger("DagController")
 
-# short_irc 证据门槛：双向均收敛到极小点，或每个方向至少这么多 IRC 点（不含 TS）。
-MIN_IRC_POINTS_PER_DIRECTION = 50
+# 工具侧 evidence deriver 可写出的字段白名单：派生证据位由 engine 定义，
+# 另加 evidence_level 与 advisory_sources 两个 harness 约定字段。
+_DERIVER_ALLOWED_FIELDS = _DERIVED_EVIDENCE_FIELDS | {"advisory_sources", "evidence_level"}
 
 # bind_evidence 的 evidence_role 词表：与 _derive_delivery_changes 的派生分支一一对应。
 EVIDENCE_ROLES = frozenset({
@@ -60,13 +66,6 @@ _EVIDENCE_LEVEL_DOWNGRADE = {
 
 class DagController:
     """Deterministic harness writer. Chemistry tools themselves remain stateless."""
-
-    # 编排/元工具不作为化学工作记录：
-    # - dag_graph：view/mutate 若被观察会产生自引用噪声（失败 mutate → blocker、
-    #   process revision 空转）。Supervisor 触发（delivery_updated）仍保留。
-    # - getskill：读 SOP 不是流程步骤；并行 getskill + init_from_template 时
-    #   on_tool_started 先落 observed 节点会挡住「空图」模板初始化。
-    _OBSERVATION_EXEMPT_TOOLS = frozenset({"dag_graph", "getskill"})
 
     _OUTPUT_PATH_KEYS = {
         "output_path",
@@ -254,7 +253,7 @@ class DagController:
         tool_name: str,
         arguments: dict[str, Any],
     ) -> str | None:
-        if not self.enabled or tool_name in self._OBSERVATION_EXEMPT_TOOLS:
+        if not self.enabled or not is_dag_observable(tool_name):
             return None
         await self.initialize()
         # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
@@ -329,7 +328,7 @@ class DagController:
     ) -> GraphRef | None:
         if not self.enabled:
             return None
-        if tool_name in self._OBSERVATION_EXEMPT_TOOLS:
+        if not is_dag_observable(tool_name):
             # 不记录编排平面调用本身，但 Coordinator 的机理变更仍要唤醒 Supervisor。
             if self.mode is OrchestrationMode.DAG_GUIDED:
                 await self._trigger_supervisor_after_tool(
@@ -441,7 +440,7 @@ class DagController:
         # 3/4. 证据类工具：绑定到 delivery 目标的成败都要复核；
         # 未绑定的只保留 gaussian_log_parser 成功这一个口。
         if success:
-            if bound_to_delivery or tool_name == "gaussian_log_parser":
+            if bound_to_delivery or tool_name in supervisor_evidence_tools():
                 await self.maybe_supervise("new_evidence")
         elif bound_to_delivery:
             await self.maybe_supervise("process_node_failed")
@@ -741,31 +740,6 @@ class DagController:
             )
 
     @staticmethod
-    def _has_frequency_data(result: dict[str, Any]) -> bool:
-        """确认解析结果里确实有可计数的频率列表（不能仅凭 job_types/热化学块）。"""
-        return (
-            result.get("frequencies_cm") is not None
-            or result.get("imaginary_frequencies") is not None
-        )
-
-    @staticmethod
-    def _imaginary_frequency_list(result: dict[str, Any]) -> list[Any] | None:
-        """返回虚频列表；无法确认频率数据时返回 None（不得当成零虚频）。"""
-        if not DagController._has_frequency_data(result):
-            return None
-        imaginary = result.get("imaginary_frequencies")
-        if imaginary is None:
-            # 仅有 frequencies_cm（实频）时视为零虚频。
-            return []
-        return list(imaginary)
-
-    @staticmethod
-    def _ts_guess_verdict_passed(result: dict[str, Any]) -> bool:
-        """ts_guess strict 的 verdict 为「pass：……」长串，按前缀判定。"""
-        verdict = str(result.get("verdict") or "")
-        return verdict.startswith("pass")
-
-    @staticmethod
     def _derive_delivery_changes(
         current: dict[str, Any],
         role: str,
@@ -775,73 +749,19 @@ class DagController:
     ) -> dict[str, Any]:
         if not DagController._result_succeeded(result):
             return {}
-        changes: dict[str, Any] = {}
-        if tool_name in {"ts_guess", "scan_parse"}:
-            advisory = list(current.get("advisory_sources", []))
-            if tool_name not in advisory:
-                advisory.append(tool_name)
-            changes["advisory_sources"] = advisory
-            if (
-                tool_name == "ts_guess"
-                and role == "endpoint_direction_check"
-                and arguments.get("strict") is True
-                and DagController._ts_guess_verdict_passed(result)
-            ):
-                changes["endpoint_direction_consistent"] = True
-        elif tool_name == "gaussian_log_parser":
-            imaginary = DagController._imaginary_frequency_list(result)
-            normal = result.get("normal_termination") is not False
-            if (
-                role == "intermediate_optimization"
-                and normal
-                and imaginary is not None
-                and len(imaginary) == 0
-            ):
-                changes["evidence_level"] = "structure_supported"
-            elif (
-                role == "ts_optimization_frequency"
-                and normal
-                and imaginary is not None
-                and len(imaginary) == 1
-            ):
-                changes.update(
-                    saddle_supported=True,
-                    evidence_level="saddle_supported",
-                )
-            elif role == "short_irc" and (
-                result.get("irc_both_directions_converged") is True
-                or (
-                    int(result.get("irc_num_points_forward") or 0)
-                    >= MIN_IRC_POINTS_PER_DIRECTION
-                    and int(result.get("irc_num_points_backward") or 0)
-                    >= MIN_IRC_POINTS_PER_DIRECTION
-                )
-            ):
-                changes["short_irc_supported"] = True
-            elif (
-                role == "endpoint_a_optimization"
-                and normal
-                and imaginary is not None
-                and len(imaginary) == 0
-            ):
-                changes["endpoint_a_minimum_supported"] = True
-            elif (
-                role == "endpoint_b_optimization"
-                and normal
-                and imaginary is not None
-                and len(imaginary) == 0
-            ):
-                changes["endpoint_b_minimum_supported"] = True
-        elif tool_name == "reaction_mapping" and role == "endpoint_identity_match":
-            if (
-                result.get("binding_status") == "complete"
-                and result.get("reactant_identity") == "match"
-                and result.get("product_identity") == "match"
-            ):
-                changes["endpoint_identity_matched"] = True
-        elif tool_name == "thermo_analysis" and role == "thermochemistry":
-            changes["thermochemistry_supported"] = True
-
+        deriver = evidence_deriver_for(tool_name)
+        if deriver is None:
+            return {}
+        raw_changes = deriver(current=current, role=role, arguments=arguments, result=result)
+        changes = {
+            key: value
+            for key, value in (raw_changes or {}).items()
+            if key in _DERIVER_ALLOWED_FIELDS
+        }
+        if not changes:
+            return {}
+        # 通用提升逻辑仍由 harness 持有：endpoint 证据位齐了升级为
+        # endpoint_supported；再叠加 thermochemistry 则升级为 thermo_annotated。
         combined = {**current, **changes}
         endpoint_flags = {
             "saddle_supported",
