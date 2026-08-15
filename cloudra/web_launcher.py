@@ -7,8 +7,6 @@ at an unpacked frontend directory.
 
 from __future__ import annotations
 
-import contextlib
-import io
 import os
 import shutil
 import socket
@@ -16,7 +14,6 @@ import subprocess
 import sys
 import time
 import urllib.request
-import webbrowser
 from pathlib import Path
 
 
@@ -47,32 +44,96 @@ def _check_node(frontend: Path) -> None:
         )
 
 
-def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool = False) -> None:
+def _ensure_frontend(
+    frontend: Path,
+    *,
+    rebuild: bool = False,
+    skip_build: bool = False,
+    runtime_url: str | None = None,
+) -> None:
     _check_node(frontend)
     if not (frontend / "node_modules").is_dir():
-        print("[cloudra] installing frontend dependencies...")
+        print("[cloudra] installing frontend dependencies...", flush=True)
         subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
+    dist = frontend / "dist"
+    marker = dist / ".cloudra-runtime-url"
+    runtime_marker = runtime_url or "default"
     if skip_build:
-        if not (frontend / "dist" / "index.html").is_file():
+        if not (dist / "index.html").is_file():
             raise RuntimeError("--skip-build was requested but frontend/dist is missing")
+        if marker.is_file() and marker.read_text(encoding="utf-8").strip() != runtime_marker:
+            raise RuntimeError(
+                "--skip-build was requested but the existing build targets "
+                f"a different runtime URL ({runtime_marker}); rebuild without --skip-build"
+            )
         return
-    if rebuild or not (frontend / "dist" / "index.html").is_file():
-        print("[cloudra] building frontend...")
-        subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
+    needs_build = (
+        rebuild
+        or not (dist / "index.html").is_file()
+        or runtime_url is not None
+    )
+    if not needs_build and (
+        not marker.is_file()
+        or marker.read_text(encoding="utf-8").strip() != runtime_marker
+    ):
+        # The SPA bakes its API base URL at build time; establish the marker
+        # with a matching build once.
+        needs_build = True
+    if needs_build:
+        env = os.environ.copy()
+        if runtime_url is not None:
+            env["VITE_RUNTIME_URL"] = runtime_url
+        print("[cloudra] building frontend...", flush=True)
+        subprocess.run(["npm", "run", "build"], cwd=frontend, env=env, check=True)
+        dist.mkdir(parents=True, exist_ok=True)
+        marker.write_text(runtime_marker, encoding="utf-8")
 
 
-def _free_port(preferred: int, env_name: str) -> int:
-    env_value = os.environ.get(env_name)
-    if env_value:
-        return int(env_value)
+def _port_is_bindable(preferred: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
             sock.bind(("127.0.0.1", preferred))
-        except OSError as exc:
-            raise RuntimeError(
-                f"port {preferred} is unavailable; set {env_name} to a free port"
-            ) from exc
+        except OSError:
+            return False
+        return True
+
+
+def _runtime_is_healthy(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/v2/runtime/health", timeout=1.0
+        ) as resp:
+            return 200 <= resp.status < 300
+    except Exception:
+        return False
+
+
+def _find_api_port(preferred: int, env_name: str) -> tuple[int, bool]:
+    """Return (port, reused_existing_runtime)."""
+    env_value = os.environ.get(env_name)
+    if env_value:
+        port = int(env_value)
+        return port, _runtime_is_healthy(port)
+    if _port_is_bindable(preferred):
+        return preferred, False
+    if _runtime_is_healthy(preferred):
+        return preferred, True
+    for port in range(preferred + 1, preferred + 100):
+        if _port_is_bindable(port):
+            return port, False
+    raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
+
+
+def _find_web_port(preferred: int, env_name: str) -> int:
+    env_value = os.environ.get(env_name)
+    if env_value:
+        return int(env_value)
+    if _port_is_bindable(preferred):
         return preferred
+    for port in range(preferred + 1, preferred + 100):
+        if _port_is_bindable(port):
+            return port
+    raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
 
 
 def _ensure_electron(frontend: Path) -> None:
@@ -83,7 +144,7 @@ def _ensure_electron(frontend: Path) -> None:
     binary = electron_dir / "dist" / "electron"
     if binary.is_file() and os.access(binary, os.X_OK):
         return
-    print("[cloudra] electron binary missing, repairing electron install...")
+    print("[cloudra] electron binary missing, repairing electron install...", flush=True)
     if not (electron_dir / "install.js").is_file():
         subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
     subprocess.run(["node", "install.js"], cwd=electron_dir, check=True)
@@ -114,14 +175,20 @@ def launch_electron(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     # Electron main spawns `python3`; point it at the interpreter that is
     # running this CLI so venvs work out of the box.
     env["CLOUDRA_PYTHON"] = sys.executable
-    print("[cloudra] starting Electron desktop frontend...")
+    print("[cloudra] starting Electron desktop frontend...", flush=True)
     return subprocess.call(["npm", "run", "electron"], cwd=frontend, env=env)
 
 
 def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
-    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
-    api_port = _free_port(8000, "CLOUDRA_API_PORT")
-    web_port = _free_port(5173, "CLOUDRA_WEB_PORT")
+    api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT")
+    runtime_url = None if api_port == 8000 else f"http://127.0.0.1:{api_port}"
+    _ensure_frontend(
+        frontend,
+        rebuild=rebuild,
+        skip_build=skip_build,
+        runtime_url=runtime_url,
+    )
+    web_port = _find_web_port(5173, "CLOUDRA_WEB_PORT")
     from cloudra.infra.config import get_config
 
     store_path = os.environ.get(
@@ -130,22 +197,26 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     )
     env = os.environ.copy()
     env["CLOUDRA_RUNTIME_STORE"] = store_path
-    runtime = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "cloudra.services.api_v2:create_default_v2_app",
-            "--factory",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(api_port),
-            "--log-level",
-            "warning",
-        ],
-        env=env,
-    )
+    runtime = None
+    if reused_runtime:
+        print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
+    else:
+        runtime = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "cloudra.services.api_v2:create_default_v2_app",
+                "--factory",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(api_port),
+                "--log-level",
+                "warning",
+            ],
+            env=env,
+        )
     static = None
     try:
         _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
@@ -162,15 +233,13 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
             ]
         )
         url = f"http://127.0.0.1:{web_port}"
-        print(f"[cloudra] web frontend: {url}")
-        with contextlib.redirect_stderr(io.StringIO()):
-            opened = webbrowser.open(url)
-        if not opened:
-            print(f"[cloudra] open {url} manually")
-        return runtime.wait()
+        print(f"[cloudra] web frontend: {url}", flush=True)
+        print(f"[cloudra] open {url} in your browser", flush=True)
+        return runtime.wait() if runtime is not None else static.wait()
     except KeyboardInterrupt:
         return 0
     finally:
-        for proc in (static, runtime):
-            if proc is not None and proc.poll() is None:
-                proc.terminate()
+        if static is not None and static.poll() is None:
+            static.terminate()
+        if runtime is not None and runtime.poll() is None:
+            runtime.terminate()
