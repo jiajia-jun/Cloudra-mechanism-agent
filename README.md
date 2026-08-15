@@ -229,9 +229,10 @@ The recommended frontend is the Electron/Web UI (Node.js >= 18 required):
 
 ```bash
 ./install.sh               # once: Python package + config
-./web.sh                   # install npm deps, build, start Electron
-./web.sh --browser         # or serve the SPA in a plain browser
-./web.sh --skip-build      # reuse the existing frontend/dist build
+cloudra                    # install npm deps, build, start Electron
+cloudra web --browser      # or serve the SPA in a plain browser
+cloudra web --skip-build   # reuse the existing frontend/dist build
+cloudra tui                # legacy terminal UI during transition
 ```
 
 The web UI provides per-project workspaces, an AgentBar to switch among all

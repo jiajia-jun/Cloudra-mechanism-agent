@@ -8,7 +8,7 @@
 uv run pytest -q tests/            # 全套测试
 uv run pytest -q tests/test_dag*   # 聚焦某个子系统（按文件名前缀选）
 uv run ruff check cloudra tests    # lint（line-length 120，select E/F/W/I）
-./web.sh                          # 构建并启动 Electron 前端（浏览器模式：--browser）
+cloudra                          # 构建并启动 Electron 前端（浏览器：cloudra web --browser）
 uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI 视觉基线
 ```

@@ -14,9 +14,9 @@ from rich.table import Table
 
 from cloudra import __version__
 from cloudra.infra.config import get_config
-from cloudra.infra.platform_utils import is_android, is_windows
 from cloudra.persistence import conversation_repo, paths
 from cloudra.services.service import CloudraService, validate_conversation_id
+from cloudra.web_launcher import launch_browser, launch_electron
 
 console = Console()
 APP_NAME = "cloudra"
@@ -32,7 +32,7 @@ VERSION = __version__
 @click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
 @click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
 @click.option("--yolo", is_flag=True, help="启动默认界面时启用 YOLO 全自动模式")
-@click.option("--legacy-tui", is_flag=True, help="使用旧版 prompt_toolkit TUI（新 TUI 有问题时回退）")
+@click.option("--legacy-tui", is_flag=True, help="无子命令时启动旧版 prompt_toolkit TUI")
 @click.pass_context
 def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         follower_model, follower_url, follower_key, yolo, legacy_tui):
@@ -42,16 +42,17 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         sys.exit(0)
 
     if ctx.invoked_subcommand is None:
-        # 无子命令时：Windows/Android 启动 GUI，Linux 进入交互式 TUI
         _apply_config_overrides(
             coordinator_model, coordinator_url, coordinator_key,
             follower_model, follower_url, follower_key,
         )
-        if is_windows() or is_android():
-            _launch_gui()
+        if legacy_tui:
+            _interactive_tui(yolo=yolo, legacy=True)
+        elif sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            console.print("[yellow]未检测到图形显示，回退到浏览器模式。[/yellow]")
+            sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
         else:
-            _interactive_tui(yolo=yolo, legacy=legacy_tui)
-        sys.exit(0)
+            sys.exit(launch_electron(_frontend_or_exit(), rebuild=False, skip_build=False))
 
     _apply_config_overrides(
         coordinator_model, coordinator_url, coordinator_key,
@@ -81,6 +82,34 @@ def _launch_gui():
     """启动 Flet GUI。"""
     from cloudra.ui import run_gui
     run_gui()
+
+
+def _frontend_or_exit():
+    from cloudra.web_launcher import _frontend_dir
+    try:
+        return _frontend_dir()
+    except RuntimeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+
+@cli.command(name="web")
+@click.option("--browser", is_flag=True, help="在浏览器中打开，而不是启动 Electron")
+@click.option("--rebuild", is_flag=True, help="强制重新构建前端")
+@click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
+def web(browser, rebuild, skip_build):
+    """启动新的 Electron/Web 前端。"""
+    frontend = _frontend_or_exit()
+    if browser:
+        sys.exit(launch_browser(frontend, rebuild=rebuild, skip_build=skip_build))
+    sys.exit(launch_electron(frontend, rebuild=rebuild, skip_build=skip_build))
+
+
+@cli.command(name="tui")
+@click.option("--legacy", is_flag=True, help="使用旧版 prompt_toolkit TUI")
+def tui(legacy):
+    """启动过渡期保留的终端界面。"""
+    _interactive_tui(legacy=legacy)
 
 
 def _interactive_tui(yolo: bool = False, legacy: bool = False):

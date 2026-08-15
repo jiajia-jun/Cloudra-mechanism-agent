@@ -188,9 +188,10 @@ try {
 
 Write-Ok "安装完成！"
 Write-Info "推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）："
-Write-Host "  .\web.ps1                 # 构建并启动 Electron 桌面前端"
-Write-Host "  .\web.ps1 -Browser        # 构建并在浏览器中打开"
-Write-Host "  .\web.ps1 -SkipBuild      # 复用已构建的前端"
+Write-Host "  cloudra                    # 构建并启动 Electron 桌面前端"
+Write-Host "  cloudra web --browser      # 构建并在浏览器中打开"
+Write-Host "  cloudra web --skip-build   # 复用已构建的前端"
+Write-Host "  cloudra tui                # 过渡期终端界面"
 Write-Info "其他命令（过渡期保留）："
 Write-Host "  cloudra config show        # 查看当前配置"
 Write-Host "  cloudra run 'YOUR TASK'    # 运行任务"

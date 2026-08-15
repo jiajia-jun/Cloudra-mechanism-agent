@@ -280,9 +280,10 @@ fi
 
 ok "安装完成！"
 info "推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）："
-echo "  ./web.sh                   # 构建并启动 Electron 桌面前端"
-echo "  ./web.sh --browser         # 构建并在浏览器中打开"
-echo "  ./web.sh --skip-build      # 复用已构建的前端"
+echo "  cloudra                    # 构建并启动 Electron 桌面前端"
+echo "  cloudra web --browser      # 构建并在浏览器中打开"
+echo "  cloudra web --skip-build   # 复用已构建的前端"
+echo "  cloudra tui                # 过渡期终端界面"
 info "其他命令："
 echo "  cloudra config show        # 查看当前配置"
 echo "  cloudra run 'YOUR TASK'    # 运行任务"

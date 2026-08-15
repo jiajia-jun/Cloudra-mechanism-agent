@@ -190,9 +190,10 @@ DuckDuckGo）作为免 key 兜底。启用后外部工具会被剔除，避免�
 
 ```bash
 ./install.sh               # 首次：安装 Python 包并初始化配置
-./web.sh                   # 安装 npm 依赖、构建并启动 Electron
-./web.sh --browser         # 或在普通浏览器中打开 SPA
-./web.sh --skip-build      # 复用已经构建的 frontend/dist
+cloudra                    # 安装 npm 依赖、构建并启动 Electron
+cloudra web --browser      # 或在普通浏览器中打开 SPA
+cloudra web --skip-build   # 复用已经构建的 frontend/dist
+cloudra tui                # 过渡期终端界面
 ```
 
 Web UI 提供：按项目隔离的工作区、可在所有平行 Agent 间切换的 AgentBar、
