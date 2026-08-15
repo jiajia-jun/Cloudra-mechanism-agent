@@ -2,8 +2,7 @@
 
 本文说明 Cloudra 的 DAG 引导编排子系统（`cloudra/dag/`）的当前实现：双图模型、
 三种编排模式、分权规则、证据回流契约与 Supervisor 触发时机。面向需要理解或修改
-这条链路的开发者；用户使用入口见 [`CLI_API_REFERENCE.md`](CLI_API_REFERENCE.md)
-和 TUI 的 `/mode` 命令。
+这条链路的开发者；用户使用入口见 [`CLI_API_REFERENCE.md`](CLI_API_REFERENCE.md)；Web UI 在项目设置中选择模式。
 
 ## 解决什么问题
 
@@ -28,8 +27,8 @@
 | `dag_guided` | 记录双图，且 Supervisor 可提交受限的图变更并调度 frontier |
 
 三档把"图簿记本身的效果"和"Supervisor 控制的效果"分开，支撑三方消融实验。
-UI（TUI `/mode off|record|guided`）、CLI（`--orchestration-mode`）、API
-（session 创建的 `orchestration_mode` 字段）三入口等价。图按会话持久化，
+Web UI（项目设置）、CLI（`--orchestration-mode`）、API（session 创建的
+`orchestration_mode` 字段）三入口等价。图按会话持久化，
 跨过 session 与进程重启存活；standard 会话不碰已有图，之后的 DAG 会话可以继续它。
 
 ## 两张图的分工与分权
@@ -111,5 +110,5 @@ best-effort 遥测，永远不作为交付证据。
   被拒绝时错误信息附正确格式示例。
 - **服务/API**：投影、子图、交付报告、变更历史、用户变更批次、replan，路径见
   [`CLI_API_REFERENCE.md`](CLI_API_REFERENCE.md)。
-- **TUI**：DAG 屏幕展示双图与变更事件，用户可直接编辑；`/mode` 切换模式。
+- **Web UI**：DAG 面板展示双图、变更事件和 mutation 编辑框。
   图事件是可靠事件，与 best-effort 遥测区分展示。

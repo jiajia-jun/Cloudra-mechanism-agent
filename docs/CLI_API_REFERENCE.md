@@ -6,8 +6,10 @@
 
 ```text
 cloudra --version
-cloudra                       # Linux TUI；Windows/Android 默认 GUI
-cloudra gui
+cloudra                       # Electron/Web 前端（默认入口）
+cloudra web --browser         # 浏览器模式
+cloudra web [--skip-build] [--rebuild]
+cloudra gui                   # 实验性 Flet GUI（不再维护）
 cloudra run "TASK" [--new] [--conv-id ID] [--dry-run] [--yolo]
                    [--orchestration-mode standard|dag_record|dag_guided]
 

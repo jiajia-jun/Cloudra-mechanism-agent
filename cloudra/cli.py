@@ -31,11 +31,9 @@ VERSION = __version__
 @click.option("--follower-model", envvar="CLOUDRA_FOLLOWER_MODEL", help="覆盖 Follower 模型")
 @click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
 @click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
-@click.option("--yolo", is_flag=True, help="启动默认界面时启用 YOLO 全自动模式")
-@click.option("--legacy-tui", is_flag=True, help="无子命令时启动旧版 prompt_toolkit TUI")
 @click.pass_context
 def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
-        follower_model, follower_url, follower_key, yolo, legacy_tui):
+        follower_model, follower_url, follower_key):
     """Cloudra - AI 化学科研助手"""
     if version:
         console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
@@ -46,9 +44,7 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
             coordinator_model, coordinator_url, coordinator_key,
             follower_model, follower_url, follower_key,
         )
-        if legacy_tui:
-            _interactive_tui(yolo=yolo, legacy=True)
-        elif sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        if sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
             console.print("[yellow]未检测到图形显示，回退到浏览器模式。[/yellow]")
             sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
         else:
@@ -103,19 +99,6 @@ def web(browser, rebuild, skip_build):
     if browser:
         sys.exit(launch_browser(frontend, rebuild=rebuild, skip_build=skip_build))
     sys.exit(launch_electron(frontend, rebuild=rebuild, skip_build=skip_build))
-
-
-@cli.command(name="tui")
-@click.option("--legacy", is_flag=True, help="使用旧版 prompt_toolkit TUI")
-def tui(legacy):
-    """启动过渡期保留的终端界面。"""
-    _interactive_tui(legacy=legacy)
-
-
-def _interactive_tui(yolo: bool = False, legacy: bool = False):
-    """Linux 等终端环境下的交互式 TUI（默认 Textual 全屏，legacy 时回退 prompt_toolkit）。"""
-    from cloudra.tui import run_tui
-    run_tui(yolo=yolo, legacy=legacy)
 
 
 @cli.command(name="gui")

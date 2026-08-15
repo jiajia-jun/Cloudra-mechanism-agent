@@ -125,7 +125,7 @@ persisted in the session database and inspectable after the fact.
 
 ```mermaid
 flowchart LR
-    U["Researcher"] --> C["TUI / Android Remote Console"]
+    U["Researcher"] --> C["Web UI / Android Remote Console"]
     C <-->|"idempotent commands + resumable events"| G["Gateway API"]
     G --> S["Durable Session and Event Store"]
     S <--> A["Coordinator + Domain Agents"]
@@ -232,28 +232,27 @@ The recommended frontend is the Electron/Web UI (Node.js >= 18 required):
 cloudra                    # install npm deps, build, start Electron
 cloudra web --browser      # or serve the SPA in a plain browser
 cloudra web --skip-build   # reuse the existing frontend/dist build
-cloudra tui                # legacy terminal UI during transition
 ```
 
 The web UI provides per-project workspaces, an AgentBar to switch among all
 parallel agents, an Inspector with per-event detail, live YOLO/model settings,
 approval/interaction/artifact control, and DAG panels.
 
-The pre-web entry points remain available during the transition:
+CLI/headless entry points:
 
 ```bash
-cloudra                              # interactive TUI on Linux
 cloudra run "TASK"                  # run or continue a research task
 cloudra run "Elucidate the mechanism of ..." --orchestration-mode dag_guided
 cloudra sessions                    # inspect durable Session states
 cloudra history                     # list conversations
-cloudra gui                         # experimental Flet GUI (currently untested)
+cloudra gui                         # experimental Flet GUI (not maintained)
 cloudra-api                         # legacy API server (v1)
 ```
 
 Orchestration modes are chosen per session and immutable afterwards:
-`standard` (default), `dag_record`, or `dag_guided`. In the TUI, `/mode` selects
-the mode and the DAG screens show and edit both graphs.
+`standard` (default), `dag_record`, or `dag_guided`, chosen when a session is
+created. The web UI exposes the mode in project settings and the DAG panels
+show both graphs.
 
 A minimal DAG-mode chemistry run:
 
@@ -301,7 +300,7 @@ cloudra/
 ├── device/                     Android capability registry and runtime
 ├── tools/, subagents/          perception tools, scientific capabilities, domain roles
 ├── skills/, prompts/           research methods and role policies
-└── ui/, tui/                   human control surfaces
+└── frontend/, ui/              human control surfaces
 ```
 
 ## Development

@@ -10,7 +10,6 @@ uv run pytest -q tests/test_dag*   # 聚焦某个子系统（按文件名前缀�
 uv run ruff check cloudra tests    # lint（line-length 120，select E/F/W/I）
 cloudra                          # 构建并启动 Electron 前端（浏览器：cloudra web --browser）
 uv run python -m compileall -q <改动文件>   # 改完先做语法检查
-CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI 视觉基线
 ```
 
 入口：`cloudra`（CLI，`cloudra/cli.py`）、`cloudra-api`（FastAPI 控制面，`cloudra/services/api.py`）、`flet_app.py`（GUI/APK 打包入口）。Python >= 3.11。
@@ -24,7 +23,7 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 - `react.py` — ReAct 推理循环主体（流式 LLM、工具调度、取消/重试）。
 - `agent.py` — `Agent`/`Coordinator`/`Follower` 角色定义；system prompt 组装不在此，而在 `runtime/prompt_assembler.py`。
 - `supervisor.py` — 科学督导（SupervisorAgent、GraphSupervisor），只在 `dag_guided` 模式有写图权限。
-- `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程；进程内 follower 与 runner 一样 `acquire_workers`，避免隔离 TUI resume 后 compute 停在 ready）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装：`load_role_prompt()` 读 `prompts/*.md`，按 (mtime_ns, size) 签名缓存；AGENTS.md 仅注入 Coordinator，子 agent 不注入）、`environment_observer.py`（工作区快照）。
+- `main.py` — 薄封装；实际执行在 `runtime/`：`runner.py`（任务入口）、`executor.py`（子 Agent 子进程；进程内 follower 与 runner 一样 `acquire_workers`，避免进程恢复后 compute 停在 ready）、`compute_executor.py` + `monitor.py`（计算任务与日志监视）、`workers.py`（后台线程池）、`prompt_assembler.py`（确定性 system prompt 组装：`load_role_prompt()` 读 `prompts/*.md`，按 (mtime_ns, size) 签名缓存；AGENTS.md 仅注入 Coordinator，子 agent 不注入）、`environment_observer.py`（工作区快照）。
 - `dag/` — DAG 引导编排子系统（仍在包根一级），见下节。
 
 **`services/` — 服务层 / 控制面**
@@ -40,7 +39,7 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 
 - `database.py` — 会话级 SQLite（ConversationDB）；`conversation_repo.py` — 会话查询唯一入口。
 - `artifacts.py` — 不可变产物快照（ArtifactService）与短期下载授权。
-- `memory.py`（长期记忆 MEMORY.md）、`case_bank.py`（经验案例库）、`context_manager.py`（Agent 上下文）、`context_stats.py`（只读按-agent 上下文统计，供 TUI `/context` 与状态栏）。
+- `memory.py`（长期记忆 MEMORY.md）、`case_bank.py`（经验案例库）、`context_manager.py`（Agent 上下文）、`context_stats.py`（只读按-agent 上下文统计）。
 - `paths.py` — data_dir 下所有路径的**唯一事实来源**；`fs_utils.py` — 原子写；`workspace.py` — 工作区受限读写。
 
 **`base/` — 数据类与基类**
@@ -56,15 +55,12 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 - `presentation.py` / `tool_presentation.py`、`platform_utils.py`、`runtime_profile.py`（mobile 能力 profile）。
 - `email_listener.py`、`mobile_storage.py`、`native_bridge.py`、`android_build.py`。
 
-**包根一级子包（未动）**：`dag/`、`runtime/`、`tools/`、`subagents/`、`tui/`、`ui/`、`device/`、`prompts/`、`skills/`。
+**包根一级子包（未动）**：`dag/`、`runtime/`、`tools/`、`subagents/`、`ui/`、`device/`、`prompts/`、`skills/`。
 
-**`runtime_v2/`（事件驱动新内核，按 S1 规格）**：`schemas.py`（API 类型唯一来源）、`events.py`（EventLog/EventHub）、`core.py`（RuntimeCore）、`commands.py`（CommandBus，先事件后状态）、`agent_host.py`（AgentSession 状态机）、`agent_runner.py`（每 Agent 一个 async task，真并发 + 可取消）、`turn_pipeline.py`（固定轮次管道，只依赖 PolicyStage）、`policies/`（permission/dag 两个 stage；新 harness 能力只加 stage）、`mailbox.py`（用户/Agent 间统一投递）、`adapters.py`（旧 LLMClient/工具注册表/PromptAssembler 到新协议的桥）、`persistence.py`（事件表 + 快照 + 增量重放）。API 入口：`services/api_v2.py`（薄路由，生产装配 `create_default_v2_app()`）。旧 `services/api.py` / `runtime/` / TUI 在新前端达到 S6 前保持运行但不再投入新功能。
+**`runtime_v2/`（事件驱动新内核，按 S1 规格）**：`schemas.py`（API 类型唯一来源）、`events.py`（EventLog/EventHub）、`core.py`（RuntimeCore）、`commands.py`（CommandBus，先事件后状态）、`agent_host.py`（AgentSession 状态机）、`agent_runner.py`（每 Agent 一个 async task，真并发 + 可取消）、`turn_pipeline.py`（固定轮次管道，只依赖 PolicyStage）、`policies/`（permission/dag 两个 stage；新 harness 能力只加 stage）、`mailbox.py`（用户/Agent 间统一投递）、`adapters.py`（旧 LLMClient/工具注册表/PromptAssembler 到新协议的桥）、`persistence.py`（事件表 + 快照 + 增量重放）。API 入口：`services/api_v2.py`（薄路由，生产装配 `create_default_v2_app()`）。旧 `services/api.py` / `runtime/` 与 Flet `ui/` 在迁移完成前保持运行但不再投入新功能；旧 TUI 已删除。
 
 **UI 前端**
 
-- `tui/new/` — Textual 全屏 TUI（主界面）：`screens/`（main/approval/ask_user/context/dag/help）、`widgets/`（chat_log、input_bar、side_panel、status_bar 等）、`commands.py`（斜杠命令注册）、`transcript*.py` + `render_bridge.py`（事件→屏幕渲染管线）。
-- `tui/new/watchdog.py` + `runtime_proc.py` + `control.py` — **默认进程隔离**：父进程拉起本机 FastAPI runtime（Agent）与可杀的 TUI 子进程；UI 假死只重启 TUI。`CLOUDRA_TUI_INLINE=1` 回退同进程；`CLOUDRA_TUI_NO_WATCHDOG=1` 禁用界面重启；`CLOUDRA_TUI_RUNTIME_URL` 复用已有 runtime。提交/追问必须带上 TUI 启动目录作为 `working_directory`（隔离 runtime 的 cwd 可能是旧进程留下的，不能当工作区）。
-- `tui/legacy_app.py` — prompt_toolkit 旧版 TUI；`tui/run.py` — 入口；`tui/render.py` — IPC 终端渲染。
 - `ui/app.py` — Flet 桌面/移动 GUI；根目录 `flet_app.py` 为打包入口。
 - `frontend/` — 新 Electron + React SPA（v2 前端）：`src/App.tsx`（项目栏 / AgentBar / 对话 / Inspector 五标签）、`src/api.ts`（v2 客户端）、`electron/main.cjs`（spawn `create_default_v2_app` runtime + 托盘壳）、`electron/preload.cjs`（只暴露 runtimeBaseUrl）。`npm run build` 通过才算前端可用；开发时 `npm run dev`，生产 Electron 加载 `dist/`。
 
@@ -76,7 +72,7 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 
 ## dag/ 子系统（DAG 引导编排）
 
-按会话 opt-in：`orchestration_mode` ∈ `standard`（默认，不读不写图）/ `dag_record`（只记录）/ `dag_guided`（记录 + Supervisor 引导），session 创建时写入、之后不可变。UI/CLI/API 三入口都可选择；TUI 用 `/mode off|record|guided`。
+按会话 opt-in：`orchestration_mode` ∈ `standard`（默认，不读不写图）/ `dag_record`（只记录）/ `dag_guided`（记录 + Supervisor 引导），session 创建时写入、之后不可变。CLI/API 三入口都可选择。
 
 - `models.py` — 共享类型与 `build_orchestration_config()`。图元素是类型化判别联合：节点按 `node_type` 分 `PlannedNode`/`ObservedNode`（process）与 `OccurrenceNode`（delivery），边按 `edge_type` 分 `DependencyEdge`/`ElementaryStepEdge`，约定字段（status/assignee/evidence_level/role/smiles/派生证据位等）为显式字段，自由扩展位收敛为 `metadata`；`GraphOperation` 是以 `op` 判别的具名命令联合（AddNode/AddEdge/RemoveEdge/UpdateNode/UpdateEdge/AttachRef/AddLink/SetCoverageContract/WaiveGate）。`parse_dag_node`/`parse_dag_edge`/`parse_graph_operation` 对旧 data-dict 形状与旧词表（workflow/intermediate_occurrence 等）只读兼容，旧 journal 可重放。
 - `store.py` — 双 DAG（process 流程图 + delivery 机理图）持久存储，变更日志 + 物化视图。证据引用存关联表 `dag_evidence_bindings`（读路径以它为准，左连接 `dag_evidence` 重建 GraphRef；节点/边的 `refs` 内联 JSON 列保留为兼容兜底，关联表无记录时回退）；写路径双写（`attach_ref` 记账带 evidence_role，物化时对账补缺并清理孤儿绑定），v11 旧库由 init 一次性迁移。
@@ -88,14 +84,14 @@ CLOUDRA_UPDATE_TUI_SNAPSHOT=1 uv run pytest tests/test_tui_visual*  # 更新 TUI
 
 ## 测试约定（tests/）
 
-- 按文件名前缀分组：`test_dag_*`（DAG）、`test_tui_*` / `test_textual_tui`（TUI）、`test_react_*`（推理循环）、`test_approval_*` / `test_cancel_flow` / `test_wakeup_logic`（控制流）、`test_api` / `test_service` / `test_frontend_parity`（服务层）、`test_device_*` / `test_mobile_runtime`（Android）、`test_compute` / `test_slurm`（计算执行）、化学工具各一、其余为基础设施单测。
+- 按文件名前缀分组：`test_dag_*`（DAG）、`test_react_*`（推理循环）、`test_approval_*` / `test_cancel_flow` / `test_wakeup_logic`（控制流）、`test_api` / `test_service` / `test_frontend_parity`（服务层）、`test_device_*` / `test_mobile_runtime`（Android）、`test_compute` / `test_slurm`（计算执行）、化学工具各一、其余为基础设施单测。
 - `conftest.py` autouse 隔离 data_dir 到 tmp_path；不要在测试里写真实数据目录。
 - 跳过均按环境探测：缺 `crest`/`xtb` 二进制、无 symlink 权限、非 POSIX、APK 未构建。无需要真实 LLM key 的测试。
 - 测试替身（fake/stub）签名要对齐真实接口，建议带 `**_kwargs` 防接口加参后变红。
 
 ## 顶层散件
 
-- `scripts/build_android.py`（APK 构建驱动）、`scripts/profile_textual_tui.py`（TUI 性能分析）。
+- `scripts/build_android.py`（APK 构建驱动）。
 - `extensions/cloudra_native/` — 独立子包（Android 原生服务桥，自有 pyproject）。
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。
