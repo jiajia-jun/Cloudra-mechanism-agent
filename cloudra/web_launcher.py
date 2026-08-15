@@ -75,6 +75,25 @@ def _free_port(preferred: int, env_name: str) -> int:
         return preferred
 
 
+def _ensure_electron(frontend: Path) -> None:
+    """npm install can finish with a broken electron package when its
+    postinstall download was interrupted.  Re-run electron's install script
+    and verify the binary before launching."""
+    electron_dir = frontend / "node_modules" / "electron"
+    binary = electron_dir / "dist" / "electron"
+    if binary.is_file() and os.access(binary, os.X_OK):
+        return
+    print("[cloudra] electron binary missing, repairing electron install...")
+    if not (electron_dir / "install.js").is_file():
+        subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
+    subprocess.run(["node", "install.js"], cwd=electron_dir, check=True)
+    if not (binary.is_file() and os.access(binary, os.X_OK)):
+        raise RuntimeError(
+            "electron failed to install its binary; run: "
+            f"rm -rf {electron_dir} && npm install --prefix {frontend}"
+        )
+
+
 def _wait_healthy(url: str, timeout: float = 30.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -90,6 +109,7 @@ def _wait_healthy(url: str, timeout: float = 30.0) -> None:
 
 def launch_electron(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
+    _ensure_electron(frontend)
     env = os.environ.copy()
     # Electron main spawns `python3`; point it at the interpreter that is
     # running this CLI so venvs work out of the box.
