@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, streamProject } from './api';
 import type { Agent, EventEnvelope, Project, TranscriptMessage } from './types';
 
-function useProjects() {
+function useProjects(onError: (message: string) => void) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   useEffect(() => {
-    api.listProjects().then(setProjects);
+    api.listProjects().then(setProjects).catch((e) => onError(e instanceof Error ? e.message : String(e)));
   }, []);
   const refresh = () => api.listProjects().then(setProjects);
   return { projects, activeId, setActiveId, refresh };
@@ -194,7 +194,7 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
 }
 
 export default function App() {
-  const { projects, activeId, setActiveId, refresh: refreshProjects } = useProjects();
+  const { projects, activeId, setActiveId, refresh: refreshProjects } = useProjects((message) => setError(message));
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
@@ -209,7 +209,7 @@ export default function App() {
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
 
   useEffect(() => {
-    api.listRoles().then(setRoles);
+    api.listRoles().then(setRoles).catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   useEffect(() => {

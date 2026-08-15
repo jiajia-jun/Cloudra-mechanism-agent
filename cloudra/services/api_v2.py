@@ -9,11 +9,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any, Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from cloudra import __version__
@@ -554,6 +556,11 @@ def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
     app = create_v2_app(core, pipeline=pipeline, store_path=store_path)
     if core.store is not None:
         restore_core(core, core.store)
+    # Optional single-port browser mode: serve the built SPA from the same
+    # uvicorn process.  Static mount is added last so /api/* routes win.
+    serve_dir = os.environ.get("CLOUDRA_FRONTEND_SERVE_DIR", "").strip()
+    if serve_dir and Path(serve_dir, "index.html").is_file():
+        app.mount("/", StaticFiles(directory=serve_dir, html=True), name="frontend")
     return app
 
 

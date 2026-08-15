@@ -1,6 +1,6 @@
 import type { Agent, EventEnvelope, Project, TranscriptMessage } from './types';
 
-const runtimeUrl = (window as any).cloudraRuntime?.runtimeBaseUrl ?? (import.meta.env.VITE_RUNTIME_URL ?? 'http://127.0.0.1:8000');
+const runtimeUrl = (window as any).cloudraRuntime?.runtimeBaseUrl ?? (import.meta.env.VITE_RUNTIME_URL ?? '');
 
 export class ApiError extends Error {
   code: string;
