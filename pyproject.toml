@@ -46,9 +46,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gui = [
-    "flet[desktop]>=0.86,<0.87",
-]
 chem = [
     "rdkit>=2023.0",
     "nmrglue>=0.10",
@@ -80,7 +77,6 @@ dev = [
 
 [project.scripts]
 cloudra = "cloudra.cli:main"
-cloudra-api = "cloudra.services.api:main"
 
 [project.urls]
 Homepage = "https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists"
@@ -94,45 +90,6 @@ exclude = ["tests*", "test_*"]
 # 缺失时 pip 安装的包会在 _load_prompt / skill_loader 处报 FileNotFoundError。
 [tool.setuptools.package-data]
 cloudra = ["prompts/*.md", "skills/**/*", "calculator.sh"]
-
-[tool.flet]
-org = "io.github.yyywaa"
-product = "Cloudra"
-company = "Cloudra"
-bundle_id = "io.github.yyywaa.cloudra"
-
-[tool.flet.app]
-module = "flet_app"
-path = "."
-exclude = [
-    ".env",
-    "*.env",
-    ".git",
-    ".github",
-    ".venv",
-    ".pytest_cache",
-    ".ruff_cache",
-    "benchmarks",
-    "build",
-    "copyright_docs",
-    "exam_*",
-    "frontend",
-    "paper",
-    "tests",
-    "软著申请材料",
-]
-
-[tool.flet.android]
-dependencies = ["flet>=0.86,<0.87"]
-target_arch = ["arm64-v8a"]
-split_per_abi = false
-
-[tool.flet.android.manifest_application]
-# Custom OpenAI-compatible endpoints are sometimes plain HTTP on a LAN.
-usesCleartextTraffic = "true"
-
-[tool.flet.android.permission]
-"android.permission.INTERNET" = true
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
