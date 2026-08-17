@@ -5,7 +5,7 @@ Cloudra V2.0                                                第 1 页
 ## 一、软件概述
 
 ### 1.1 软件名称
-**Cloudra（agent4chem）**
+**Cloudra**
 
 ### 1.2 软件版本
 **V2.0**

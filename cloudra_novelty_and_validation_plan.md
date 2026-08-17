@@ -2,7 +2,7 @@
 
 > 日期：2026-08-08 晚间讨论整理
 > 性质：供修改与组内讨论的初稿；文献范围以 2024–2026 为主
-> 关联文档：`agent4chem_literature_report.md`（框架收录级综述，17+2 篇）
+> 关联文档：`chemistry_ai_agents_literature_report.md`（框架收录级综述，17+2 篇）
 
 ---
 
