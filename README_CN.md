@@ -6,7 +6,7 @@
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-[English](README.md) · [文档索引](docs/README.md) · [DAG 编排](docs/DAG_ORCHESTRATION.md) · [Android 使用教程](docs/ANDROID_USER_GUIDE.md)
+[English](README.md) · [文档索引](docs/README.md) · [DAG 编排](docs/DAG_ORCHESTRATION.md)
 
 > Cloudra 仍在开发。目前不声称系统能自主保证科研正确或跑赢 benchmark。已验证
 > 范围与明确不作声明的证据见[验证现状](#验证现状)。
@@ -51,26 +51,29 @@ Cloudra 里的 Agent 从不手写坐标、也不凭记忆转述能量；它们�
 
 ## 支柱二 —— DAG 驱动 harness
 
-- **机理图成为可审计的研究对象。** 被研究的路径是持久的 **delivery DAG**，
-  不是聊天上下文。节点是中间体的 *occurrence*——催化循环和可逆步通过让
+- **机理图成为可审计的研究对象。** 被研究的路径是持久的 **delivery DAG**——唯一
+  的持久图，不是聊天上下文。节点是中间体的 *occurrence*——催化循环和可逆步通过让
   `Cat@entry` 与 `Cat@return` 成为共享同一份 canonical species 记录的不同
   节点来保持图无环。每个节点和边携带类型化引用（`artifact` / `compute_job` /
   `tool_result` / `species`），指向不可变记录；裸文件路径和散文声明都不是证据。
-- **回答"下一步做什么"的 process DAG。** 计划与已完成的工作、依赖、阻塞和
-  失败都在第二张持久图里。失败是证据，不是删除；替代计算以 supersede 方式
-  保留完整审计链。
-- **完成度由证据派生。** 图元素携带证据级别（`proposed` →
-  `structure_supported` → `saddle_supported` → `endpoint_supported` →
-  `thermo_annotated`，另有 `rejected` / `inconclusive`），只有确定性 harness 能
-  根据实际引用的结构化结果提升级别。探索性输出（TS 初猜、扫描）不能提升一条边。
-  覆盖契约（coverage contract）在图上评估研究能否交付；只有用户本人能豁免 gate。
-- **事件驱动的 Supervisor。** 引导模式下 Supervisor 拥有 process DAG：它把
-  工具级工作绑定到具体机理图元素上排产，对新证据和计算失败做出反应，裁决
-  删边申请，交付前审计。它不能碰机理图、不能提升证据级别、不能宣布研究完成。
-- **三模式消融边界。** `standard`（零图成本）、`dag_record`（只有确定性图
-  簿记，无 Supervisor 影响）、`dag_guided`（簿记 + Supervisor 控制）是按会话
-  选择、选定后不可变的模式——图簿记本身的效果和 Supervisor 控制的效果可以
-  分开测量。
+- **每个元素欠什么证据，写在图上。** Coordinator 提交机理草稿时为每个元素声明
+  有序的 **stage 契约**（occurrence：geometry/frequency/single_point；基元步：
+  ts_guess → ts_opt → frequency → short_irc → 端点 → direction/identity →
+  热化学）。阶段严格按序绑定；交付相关的工具结果落入 CallReview 收件箱等待复核，
+  不存在第二张"待办"图——没有排产、没有 frontier。
+- **完成度由证据派生。** 阶段状态为 `pending / supported / skipped / rejected`，
+  元素级证据级别（`structure_supported` → `saddle_supported` →
+  `endpoint_supported` → `thermo_annotated`）由确定性 harness 从阶段派生。
+  探索性输出（TS 初猜、扫描）最多支撑 advisory 的 ts_guess 阶段；`rejected`
+  不是处置，是仍欠的开放缺口。覆盖契约（coverage contract）在图上评估研究能否
+  交付；只有用户本人能豁免 gate。
+- **事件驱动的 Supervisor。** 引导模式下 Supervisor 接受或驳回机理草稿（接受前
+  计算入口保持关闭），并逐条复核收件箱里的交付相关调用、把证据绑定到阶段
+  （agree/disagree/skip）。它不能碰机理图结构、不能提升证据级别、不能宣布研究完成。
+- **三模式消融边界。** `standard`（零图成本）、`dag_record`（草稿自动接受，
+  Coordinator 自绑阶段，无 Supervisor）、`dag_guided`（Supervisor 接受草稿 +
+  复核每个交付相关调用）是按会话选择的模式——图簿记本身的效果和 Supervisor
+  控制的效果可以分开测量。
 
 两根支柱之下是持久会话基座：幂等命令、可恢复事件游标、带可审计终态的 lease
 worker、不可变 artifact、记录在案的 prompt 组装 revision，让以小时到天计的
@@ -80,13 +83,14 @@ worker、不可变 artifact、记录在案的 prompt 组装 revision，让以小
 
 Cloudra 已在引导模式下**完整跑通乙烯臭氧化（C₂H₄ + O₃）机理研究**：
 
-- Coordinator 拆解目标，派出文献与领域子 Agent，并把候选机理设计为 delivery DAG；
-- Supervisor 针对每个机理图元素排产工具级工作——反应映射、构象采样、TS 搜索、
-  优化+频率、短双向 IRC、端点优化、端点匹配、热化学——对每一个落地的结果和
-  每一次失败做出反应；
-- 确定性适配器把每个计算的证据绑定到图元素上，推动中间体和基元步逐级提升
-  证据级别；运行中暴露的 O₃ 强多参考特征和方法敏感性问题被记为图注解，
-  而不是被一笔带过；
+- Coordinator 拆解目标，派出文献与领域子 Agent，并把候选机理设计为 delivery DAG
+  （含每个元素的阶段契约）；
+- Supervisor 接受机理草稿解锁计算，随后复核每一个交付相关调用——反应映射、构象
+  采样、TS 搜索、优化+频率、短双向 IRC、端点优化、端点匹配、热化学——把证据
+  逐阶段绑定，对失败和不合格证据做出反应；
+- 确定性适配器校验每次阶段绑定（顺序、调用成功、非 submit 产物、解析器检查），
+  推动中间体和基元步逐级提升证据级别；运行中暴露的 O₃ 强多参考特征和方法敏感性
+  问题被记为图注解，而不是被一笔带过；
 - 最终交付由确定性覆盖报告把关：声称的基元步达到 endpoint-supported，端点
   经 IRC 链接并完成优化，报告的能量带有明确的级别（level-of-theory）来源说明。
 
@@ -97,12 +101,12 @@ Cloudra 已在引导模式下**完整跑通乙烯臭氧化（C₂H₄ + O₃）�
 
 ```mermaid
 flowchart LR
-    U["科研人员"] --> C["Web UI / Android 远程控制台"]
+    U["科研人员"] --> C["Electron / Web UI"]
     C <-->|"幂等命令 + 可恢复事件"| G["Gateway API"]
     G --> S["持久 Session 与事件存储"]
     S <--> A["Coordinator + 领域 Agent"]
     A --> P["感知工具<br/>（几何 / 电子）"]
-    A <--> D2["Process DAG + Delivery DAG"]
+    A <--> D2["Delivery DAG + CallReview 收件箱"]
     SV["Supervisor"] <--> D2
     P --> L["本地工作站"]
     P --> H["Slurm / HPC 节点"]
@@ -136,17 +140,16 @@ flowchart LR
 自动化测试覆盖图存储与变更引擎（无环性、occurrence 节点、不可变证据引用、
 原子批次、乐观 revision、分权边界）、确定性交付完成度、模式隔离、会话持久化与
 重启恢复、感知工具（原子映射、内坐标、构象搜索、TS/扫描解析、日志解析）、
-prompt 组装、命令幂等、artifact 边界、设备配对、worker lease、节点路由、Slurm
-命令构造、备份恢复和无源码 Android 打包。CI 在 CPython 3.11–3.13 上运行全套
+prompt 组装、命令幂等、artifact 边界、节点路由、Slurm
+命令构造和备份恢复。CI 在 CPython 3.11–3.13 上运行全套
 测试。上述臭氧化研究是一次已演示的端到端运行，不是 benchmark。
 
 以下证据仍然缺失，因此项目**不作对应声明**：
 
 - 与其他 Agent 或人类基线对比的科研 benchmark 结果；
 - 多反应体系上机理发现成功率的系统性评测；
-- Android 真机、厂商后台限制和原生权限矩阵的端到端验收；
 - 真实 Slurm 集群上的提交、取消和恢复实验；
-- 公网部署、生产签名和长周期运维可靠性。
+- 公网部署和长周期运维可靠性。
 
 ## 安装
 
@@ -199,31 +202,17 @@ Web UI 提供：按项目隔离的工作区、可在所有平行 Agent 间切换
 单条事件可追溯的 Inspector、运行中切换 YOLO/模型、审批/交互/产物控制面板，
 以及 DAG 面板。
 
-CLI / 无界面入口：
+入口：
 
 ```bash
-cloudra run "TASK"                  # 运行或继续研究任务
-cloudra run "阐明……的反应机理" --orchestration-mode dag_guided
-cloudra sessions                    # 检查持久 Session 状态
-cloudra history                     # 查看 Conversation
-cloudra gui                         # 实验性 Flet GUI（不再维护）
-cloudra-api                         # 旧版 API Server（v1）
+cloudra                  # 构建并启动 Electron 前端
+cloudra web --browser    # 浏览器模式
 ```
 
-编排模式按会话选择、选定后不可变：`standard`（默认）、`dag_record`、
-`dag_guided`，在会话创建时选定。Web UI 在项目设置中切换模式，DAG 面板展示两张图。
+编排模式按项目选择：`standard`（默认）、`dag_record`、`dag_guided`，
+可在 Web UI 的项目设置中切换，DAG 面板展示机理图与复核收件箱。
 
-一个最小的 DAG 模式计算流程：
-
-```bash
-cloudra run "在当前工作区生成苯的 B3LYP/6-31G(d) Gaussian 输入，并记录方法设置"
-cloudra run "异步提交苯的输入文件，并报告 scheduler job identity"
-cloudra run "计算结束后解析日志，给出能量、轨道能隙、频率、警告和文件引用"
-```
-
-真实计算需要对应科研软件及许可证。Android 远程控制见
-[`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md)，命令与接口速查见
-[`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md)。
+真实计算需要对应科研软件及许可证。
 
 ## 可复现性
 
@@ -236,11 +225,8 @@ Supervisor 模型、prompt revision 与图策略 revision 的快照；每一次�
 
 | 文档 | 内容 |
 | --- | --- |
-| [`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md) | DAG 引导编排：双图模型、模式、分权、证据派生 |
-| [`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md) | CLI 命令与 API 端点速查 |
-| [`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md) | API Server、局域网配置、APK 安装、设备端 runtime、故障排查 |
+| [`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md) | DAG 引导编排：机理图 + 阶段契约、模式、分权、证据派生 |
 | [`docs/PHASE8_NODE_REGISTRY.md`](docs/PHASE8_NODE_REGISTRY.md) | 多节点 profile、工作区路由、worker lease、Slurm 语义 |
-| [`docs/PHASE8_OPERATIONS.md`](docs/PHASE8_OPERATIONS.md) | 备份恢复、设备撤销、APK 签名、数据库迁移 |
 | [`AGENTS.md`](AGENTS.md) | 仓库地图与开发约定（面向贡献者） |
 
 ## 仓库结构

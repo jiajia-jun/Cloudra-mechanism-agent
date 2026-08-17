@@ -188,12 +188,15 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
             sid: AgentSession.model_validate(data)
             for sid, data in snapshot.get("agents", {}).items()
         }
-        core.roles = type(core.roles)(
-            tuple(
-                RoleProfile.model_validate(data)
-                for data in snapshot.get("roles", {}).values()
-            )
-        )
+        # 快照角色是内置角色表上的覆盖层（携带 role.update 补丁），不能整个
+        # 替换注册表——否则旧快照会丢掉后加的内置角色（如 supervisor）。
+        from cloudra.runtime_v2.roles import BUILTIN_ROLES
+
+        merged = {role.role_id: role for role in BUILTIN_ROLES}
+        for data in snapshot.get("roles", {}).values():
+            role = RoleProfile.model_validate(data)
+            merged[role.role_id] = role
+        core.roles = type(core.roles)(tuple(merged.values()))
         core.runtime_defaults = RuntimeSettings.model_validate(
             snapshot.get("runtime_defaults", {})
         )
@@ -202,9 +205,48 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
 
     raw_events = store.events_after(last_seq)
     envelopes = [EventEnvelope.model_validate(raw) for raw in raw_events]
-    core.event_log.restore(envelopes)
+    # Backfill the full event history into the in-memory log so transcripts
+    # and per-session queries survive restarts; only post-snapshot events
+    # drive state replay.  restore() keeps seq counters monotonic via max().
+    backfill = [EventEnvelope.model_validate(raw) for raw in store.events_after(0)]
+    core.event_log.restore(backfill)
     for envelope in envelopes:
         _replay_event(core, envelope)
+
+    # Runs live in memory only: an agent restored as RUNNING/WAITING died with
+    # the previous process and has no runner anymore.  Mark the run failed so
+    # the UI doesn't show a zombie "running" agent forever; a user message
+    # reopens it (message-to-terminal auto-restart).
+    from cloudra.runtime_v2.schemas import AgentState
+
+    new_events = []
+    for agent in core.agents.values():
+        if agent.state not in {
+            AgentState.RUNNING,
+            AgentState.WAITING_INPUT,
+            AgentState.WAITING_APPROVAL,
+        }:
+            continue
+        before = len(core.event_log)
+        if agent.current_run is not None:
+            core.agent_host.finish_run(
+                agent, outcome="failed", error="interrupted by process restart"
+            )
+        else:
+            core.agent_host.transition(
+                agent, AgentState.FAILED, reason="interrupted by process restart"
+            )
+        new_events.extend(list(core.event_log)[before:])
+    for envelope in new_events:
+        store.append_event(envelope)
+    if new_events:
+        store.save_snapshot(
+            projects=core.projects,
+            agents=core.agents,
+            roles=core.roles._roles,
+            runtime_defaults=core.runtime_defaults,
+            last_seq=core.event_log.last_seq,
+        )
     return envelopes[-1].seq if envelopes else last_seq
 
 

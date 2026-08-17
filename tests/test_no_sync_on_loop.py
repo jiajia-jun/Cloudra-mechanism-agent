@@ -106,3 +106,17 @@ def test_allowlist_entries_exist():
             found.add((rel, qualname))
     stale = [key for key in _ALLOWLIST if key not in found]
     assert not stale, f"白名单中的条目已不存在: {stale}"
+
+
+def test_yolo_guard_tolerates_missing_context_manager():
+    """v2 的 LegacyToolExecutor 传入壳 bridge（无 context_manager），
+    YOLO 守卫必须容错而不是 AttributeError。"""
+    import asyncio
+
+    from cloudra.infra.yolo_guard import _format_recent_context_multimodal
+
+    class Shell:
+        pass
+
+    parts = asyncio.run(_format_recent_context_multimodal(Shell()))
+    assert parts == [{"type": "text", "text": "<无上下文>"}]

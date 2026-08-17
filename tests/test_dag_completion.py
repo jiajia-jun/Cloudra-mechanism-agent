@@ -14,10 +14,12 @@ def _load_completion_api():
         "DependencyEdge": models.DependencyEdge,
         "ElementaryStepEdge": models.ElementaryStepEdge,
         "OccurrenceNode": models.OccurrenceNode,
+        "ObservedNode": models.ObservedNode,
         "PlannedNode": models.PlannedNode,
         "GraphBundle": models.GraphBundle,
         "GraphData": models.GraphData,
         "GraphSnapshot": models.GraphSnapshot,
+        "StageState": models.StageState,
     }
 
 
@@ -87,7 +89,9 @@ def test_ts_guess_or_saddle_without_endpoints_is_not_complete(level):
     assert "missing_endpoint_evidence" in {gap.code for gap in report.unresolved}
 
 
-def test_rejected_branch_needs_a_persisted_disposition_reason():
+def test_rejected_branch_is_an_open_gap_even_with_a_reason():
+    """D10：rejected 不是处置——带理由也是开放缺口（只能重绑或显式
+    skip-with-reason 退出）；inconclusive（skip 的等价物）带理由才算处置。"""
     api = _load_completion_api()
     without_reason = _delivery(
         api,
@@ -100,31 +104,36 @@ def test_rejected_branch_needs_a_persisted_disposition_reason():
         ["rejected"],
         edge_payloads=[{"reason": "optimization returns to reactant minimum"}],
     )
+    skipped_equivalent = _delivery(
+        api,
+        ["structure_supported", "structure_supported"],
+        ["inconclusive"],
+        edge_payloads=[{"reason": "optimization returns to reactant minimum"}],
+    )
     contract = api["CoverageContract"].mechanism_default()
 
-    incomplete = api["evaluate_delivery"](without_reason, contract)
-    complete = api["evaluate_delivery"](with_reason, contract)
+    no_reason_report = api["evaluate_delivery"](without_reason, contract)
+    reasoned_report = api["evaluate_delivery"](with_reason, contract)
+    skipped_report = api["evaluate_delivery"](skipped_equivalent, contract)
 
-    assert not incomplete.complete
-    assert "missing_branch_disposition" in {
-        gap.code for gap in incomplete.inconclusive
-    }
-    assert complete.complete
+    assert not no_reason_report.complete
+    assert not reasoned_report.complete
+    rejected_gap = next(
+        gap for gap in reasoned_report.unresolved if gap.code == "branch_rejected"
+    )
+    assert "optimization returns to reactant minimum" in rejected_gap.detail
+    assert skipped_report.complete
 
 
 def test_disposed_branch_does_not_undermine_supported_intermediates():
-    """带 reason 的 rejected 边是已处置的竞争分支，不是 claimed step。
-
-    它与同文件 test_rejected_branch_needs_a_persisted_disposition_reason
-    使用相同 fixture：claimed 中间体满足结构证据、竞争分支已显式处置，
-    按设计即 complete；该 rejected 边不会计入 unresolved，也不能充当
-    任何 claimed step 的端点证据。
-    """
+    """带 reason 的 inconclusive 边是已处置的竞争分支（skip 等价物），不是
+    claimed step：claimed 中间体满足结构证据、竞争分支已显式处置，按设计即
+    complete；该边不会计入 unresolved，也不能充当任何 claimed step 的端点证据。"""
     api = _load_completion_api()
     delivery = _delivery(
         api,
         ["structure_supported", "structure_supported"],
-        ["rejected"],
+        ["inconclusive"],
         edge_payloads=[{"reason": "candidate collapses to the reactant minimum"}],
     )
 
@@ -186,42 +195,71 @@ def test_thermochemistry_is_required_only_when_requested():
     assert "missing_thermochemistry" in {gap.code for gap in thermo.unresolved}
 
 
-def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
-    api = _load_completion_api()
-    process_nodes = [
-        api["PlannedNode"](
-            node_id=f"work-{index:02d}",
-            label=f"work {index}",
-            status="ready",
-            priority=index % 4,
-            created_at=f"2026-08-10T00:{index:02d}:00Z",
-            metadata={"full_tool_result": "SECRET-HEAVY-ATOM-MAP"},
+def _staged_delivery(api, node_stages, edge_stages):
+    """阶段契约直接声明在元素上（evidence_level 保持 proposed，不走旧等级路径）。"""
+    nodes = [
+        api["OccurrenceNode"](
+            node_id=f"i{index}",
+            label=f"intermediate {index}",
+            role="intermediate",
+            stages=stages,
         )
-        for index in range(20)
+        for index, stages in enumerate(node_stages)
     ]
-    process = api["GraphData"](
-        graph_id="dag_process",
-        graph_kind="process",
-        revision=4,
-        nodes=process_nodes,
+    edges = [
+        api["ElementaryStepEdge"](
+            edge_id=f"e{index}",
+            source_node_id=nodes[index].node_id,
+            target_node_id=nodes[index + 1].node_id,
+            label=f"step {index}",
+            stages=stages,
+        )
+        for index, stages in enumerate(edge_stages)
+    ]
+    return api["GraphData"](
+        graph_id="dag_delivery",
+        graph_kind="delivery",
+        revision=1,
+        nodes=nodes,
+        edges=edges,
     )
+
+
+def _supported_geometry(api):
+    return [api["StageState"](kind="geometry", status="supported")]
+
+
+def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
+    """Phase 4：投影 = delivery 缺口 + 待复核调用 + 近期变更；无 frontier/
+    blockers/assigned_to_me，且不携带证据正文。"""
+    api = _load_completion_api()
     delivery = _delivery(
         api,
         ["structure_supported", "structure_supported"],
         ["saddle_supported"],
+        edge_payloads=[{"metadata": {"full_tool_result": "SECRET-HEAVY-ATOM-MAP"}}],
     )
     snapshot = api["GraphSnapshot"](
         bundle=api["GraphBundle"](
             process_graph_id="dag_process",
             delivery_graph_id="dag_delivery",
-            revisions={"process": 4, "delivery": 1},
+            revisions={"process": 0, "delivery": 1},
         ),
-        process=process,
+        process=api["GraphData"](graph_id="dag_process", graph_kind="process", revision=0),
         delivery=delivery,
     )
     history = [
         {"mutation_id": f"mut-{index}", "actor": "harness", "accepted": True}
         for index in range(15)
+    ]
+    reviews = [
+        {
+            "review_id": f"rev-{index}",
+            "tool_name": "gaussian_log_parser",
+            "is_success": True,
+            "caller": "a-4",
+        }
+        for index in range(20)
     ]
 
     projection = api["build_projection"](
@@ -229,26 +267,23 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
         mode="dag_guided",
         contract=api["CoverageContract"].mechanism_default(),
         history=history,
+        pending_reviews=reviews,
     )
     text = projection.to_prompt_text()
 
-    assert len(projection.frontier) == 12
     assert len(projection.recent_mutations) == 8
-    assert [item["node_id"] for item in projection.frontier[:3]] == [
-        "work-03",
-        "work-07",
-        "work-11",
-    ]
+    assert len(projection.pending_reviews) == 12
+    assert projection.delivery_gaps
     assert "dag_guided" in text
-    # revisions 是存储层并发控制的内部状态，阶段 3 起不再投影给模型
+    # revisions 是存储层并发控制的内部状态，不投影给模型
     assert "revisions" not in text
-    assert '"process": 4' not in text
     assert "missing_endpoint_evidence" in text
+    assert "rev-0" in text
     assert "SECRET-HEAVY-ATOM-MAP" not in text
 
 
 def test_projection_prompt_text_carries_mode_banner_and_discipline():
-    """投影头部必须明确告诉 agent 当前模式与编排纪律（SOP / Supervisor 拍板）。"""
+    """投影头部必须明确告诉 agent 当前模式与编排纪律（提案先行 / 复核绑定）。"""
     api = _load_completion_api()
     snapshot = api["GraphSnapshot"](
         bundle=api["GraphBundle"](
@@ -264,131 +299,225 @@ def test_projection_prompt_text_carries_mode_banner_and_discipline():
         snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
     ).to_prompt_text()
     assert "Current orchestration mode: dag_guided" in guided
-    assert "Supervisor is woken automatically" in guided
-    assert "proposed" in guided and "ready" in guided
-    assert "status_filter=ready" in guided or "frontier" in guided
-    assert "SOP" in guided
+    assert "dag_propose_mechanism" in guided
+    assert "no frontier" in guided
+    assert "dag_review_call" in guided
     assert "delivery_report" in guided
+
+    follower = api["build_projection"](
+        snapshot, mode="dag_guided", contract=api["CoverageContract"].mechanism_default()
+    ).to_prompt_text(actor_id="a-4")
+    assert "sub-agent" in follower
+    assert "do not maintain the graph" in follower
 
     record = api["build_projection"](
         snapshot, mode="dag_record", contract=api["CoverageContract"].mechanism_default()
     ).to_prompt_text()
     assert "Current orchestration mode: dag_record" in record
     assert "Supervisor is offline" in record
-    # record 模式子 agent 的自管理职责：回报指派节点、补挂证据带 role
-    assert "assignee" in record
-    assert "evidence_role" in record
-    assert "拍板" not in record
+    assert "dag_bind_evidence" in record
+    assert "stage_kind" in record
 
 
-def test_superseded_process_dependency_no_longer_blocks_frontier():
+def test_supported_and_reasoned_skipped_stages_complete_coverage():
+    """stage 驱动覆盖：必需阶段全部 supported 或带理由 skipped ⇒ complete。"""
     api = _load_completion_api()
-    predecessor = api["PlannedNode"](
-        node_id="old-scan",
-        label="obsolete scan",
-        status="failed",
-    )
-    replacement = api["PlannedNode"](
-        node_id="new-neb",
-        label="replacement NEB",
-        status="ready",
-        priority=10,
-    )
-    dependency = api["DependencyEdge"](
-        edge_id="old-scan-before-neb",
-        source_node_id="old-scan",
-        target_node_id="new-neb",
-        status="superseded",
-        reason="scan coordinate was wrong",
-    )
-    process = api["GraphData"](
-        graph_id="dag_process",
-        graph_kind="process",
-        revision=2,
-        nodes=[predecessor, replacement],
-        edges=[dependency],
-    )
-    delivery = _delivery(
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
         api,
-        ["structure_supported", "structure_supported"],
-        ["saddle_supported"],
-    )
-    snapshot = api["GraphSnapshot"](
-        bundle=api["GraphBundle"](
-            process_graph_id="dag_process",
-            delivery_graph_id="dag_delivery",
-            revisions={"process": 2, "delivery": 1},
-        ),
-        process=process,
-        delivery=delivery,
-    )
-
-    projection = api["build_projection"](
-        snapshot,
-        mode="dag_guided",
-        contract=api["CoverageContract"].mechanism_default(),
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(
+                kind="ts_opt",
+                status="skipped",
+                reason="TS search collapsed back to the reactant minimum",
+            ),
+            StageState(
+                kind="frequency",
+                status="skipped",
+                reason="no stationary point left to confirm",
+            ),
+        ]],
     )
 
-    assert [item["node_id"] for item in projection.frontier] == ["new-neb"]
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert report.complete
+    assert report.unresolved == []
+    assert report.inconclusive == []
 
 
-def test_assigned_to_me_filters_open_nodes_for_actor():
+def test_all_required_stages_supported_is_complete():
     api = _load_completion_api()
-    nodes = [
-        api["PlannedNode"](
-            node_id="mine-ready",
-            label="mine ready",
-            status="ready",
-            assignee="a-4",
-        ),
-        api["PlannedNode"](
-            node_id="mine-running",
-            label="mine running",
-            status="running",
-            assignee="a-4",
-        ),
-        api["PlannedNode"](
-            node_id="mine-done",
-            label="mine done",
-            status="succeeded",
-            assignee="a-4",
-        ),
-        api["PlannedNode"](
-            node_id="theirs",
-            label="theirs",
-            status="ready",
-            assignee="a-6",
-        ),
-    ]
-    process = api["GraphData"](
-        graph_id="dag_process",
-        graph_kind="process",
-        revision=1,
-        nodes=nodes,
-        edges=[],
-    )
-    delivery = _delivery(api, [], [])
-    snapshot = api["GraphSnapshot"](
-        bundle=api["GraphBundle"](
-            process_graph_id="dag_process",
-            delivery_graph_id="dag_delivery",
-            revisions={"process": 1, "delivery": 1},
-        ),
-        process=process,
-        delivery=delivery,
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(kind=kind, status="supported")
+            for kind in (
+                "ts_opt", "frequency", "short_irc",
+                "endpoint_a", "endpoint_b", "direction", "identity",
+            )
+        ]],
     )
 
-    projection = api["build_projection"](
-        snapshot,
-        mode="dag_guided",
-        contract=api["CoverageContract"].mechanism_default(),
-        actor_id="a-4",
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
     )
-    assert [item["node_id"] for item in projection.assigned_to_me] == ["mine-ready", "mine-running"]
 
-    anonymous = api["build_projection"](
-        snapshot,
-        mode="dag_guided",
-        contract=api["CoverageContract"].mechanism_default(),
+    assert report.complete
+    assert "elementary_step_endpoint_supported" in {
+        gate.code for gate in report.satisfied
+    }
+
+
+def test_required_pending_stage_blocks_completion():
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(kind="ts_opt", status="supported"),
+            StageState(kind="frequency", status="pending"),
+        ]],
     )
-    assert anonymous.assigned_to_me == []
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert not report.complete
+    assert "missing_stage_evidence" in {gap.code for gap in report.unresolved}
+
+
+@pytest.mark.parametrize("status", ["skipped", "rejected"])
+def test_stage_disposition_without_reason_stays_open_even_when_waived(status):
+    """D9/D10：无理由的 skipped（missing_stage_reason）不可豁免——匹配的
+    USER waiver 也不能让它计入完成；rejected 永远是开放缺口（stage_rejected），
+    与豁免无关。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[StageState(kind="ts_opt", status=status, reason="")]],
+    )
+    waiver = api["CoverageWaiver"](
+        gate_code="missing_stage_reason",
+        target_type="edge",
+        target_id="e0",
+        user_id="chemist",
+        session_id="s1",
+        rationale="accept the unreasoned disposition for this exploratory run",
+    )
+    contract = api["CoverageContract"].mechanism_default(waivers=[waiver])
+
+    report = api["evaluate_delivery"](delivery, contract)
+
+    assert not report.complete
+    assert report.waived == []
+    if status == "skipped":
+        assert "missing_stage_reason" in {gap.code for gap in report.inconclusive}
+    else:
+        assert "stage_rejected" in {gap.code for gap in report.unresolved}
+
+
+@pytest.mark.parametrize("status", ["skipped", "rejected"])
+def test_stage_disposition_without_reason_unwaived_is_not_complete(status):
+    """回归守护：无豁免时，无理由的 skipped 与任何 rejected（带不带理由）
+    都不计入完成（D10：rejected 是开放缺口，不是处置）。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[StageState(kind="ts_opt", status=status, reason="  ")]],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert not report.complete
+    if status == "skipped":
+        assert "missing_stage_reason" in {gap.code for gap in report.inconclusive}
+    else:
+        assert "stage_rejected" in {gap.code for gap in report.unresolved}
+
+
+def test_rejected_stage_with_reason_and_pending_stages_is_incomplete():
+    """prj_d6212be8a2934e80 回归：Supervisor 否决（rejected+理由）且其余必需
+    阶段仍 pending 的边必须评估为 INCOMPLETE——否决不再是终态处置。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(
+                kind="ts_opt",
+                status="rejected",
+                reason="the imaginary frequency does not belong to the target TS",
+            ),
+            StageState(kind="frequency", status="pending"),
+            StageState(kind="short_irc", status="pending"),
+        ]],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert not report.complete
+    rejected = next(
+        gap for gap in report.unresolved if gap.code == "stage_rejected"
+    )
+    assert "does not belong to the target TS" in rejected.detail
+    assert "missing_stage_evidence" in {gap.code for gap in report.unresolved}
+
+
+def test_contract_thermochemistry_applies_to_disposed_elements():
+    """f2 回归：契约级检查（require_thermochemistry）对每个元素生效，
+    不因所有必需阶段都已 skip-with-reason 而跳过。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(kind="ts_opt", status="skipped", reason="branch abandoned"),
+            StageState(kind="frequency", status="skipped", reason="nothing to confirm"),
+        ]],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery,
+        api["CoverageContract"].mechanism_default(require_thermochemistry=True),
+    )
+
+    assert not report.complete
+    assert "missing_thermochemistry" in {gap.code for gap in report.unresolved}
+
+
+def test_non_required_pending_stage_never_blocks_coverage():
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(kind="ts_opt", status="supported"),
+            StageState(kind="thermochemistry", status="pending", required=False),
+        ]],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert report.complete
+    assert report.unresolved == []

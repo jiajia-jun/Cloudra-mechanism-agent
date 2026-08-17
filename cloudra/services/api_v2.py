@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -19,13 +20,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from cloudra import __version__
+from cloudra.runtime.compute_executor import ComputeBroker
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import (
     Command,
     CommandRejected,
     RuntimeSettingsPatch,
-    new_id,
 )
 
 
@@ -86,6 +87,20 @@ class DagMutationRequest(BaseModel):
     rationale: str = ""
 
 
+class DagReplanRequest(BaseModel):
+    note: str = ""
+
+
+class GoalSetRequest(BaseModel):
+    objective: str = ""
+    completion_criteria: str = ""
+    current_focus: str = ""
+
+
+class CompactRequest(BaseModel):
+    keep_recent: int = Field(default=20, ge=1, le=500)
+
+
 class CommandResponse(BaseModel):
     command_id: str
     accepted: bool
@@ -114,14 +129,30 @@ def create_v2_app(
         core.store = RuntimeStore(store_path)
 
         async def persist_event(envelope) -> None:
+            # llm.chunk deltas are transient hub-only events: no replay value,
+            # and persisting them would flood the event table.
+            if envelope.type == "llm.chunk":
+                return
             await asyncio.to_thread(core.store.append_event, envelope)
 
         core.event_hub.subscribe(persist_event)
     bus = CommandBus(core)
+    compute_broker = ComputeBroker()
 
-    app = FastAPI(title="Cloudra API v2", version=__version__)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        await core.reminders.rearm_all()
+        await compute_broker.start()
+        try:
+            yield
+        finally:
+            await compute_broker.close()
+            await core.reminders.close()
+
+    app = FastAPI(title="Cloudra API v2", version=__version__, lifespan=lifespan)
     app.state.runtime_core = core
     app.state.legacy_service = legacy_service
+    app.state.compute_broker = compute_broker
     # Local SPA origins (Electron file:// and browser dev/build servers) are
     # cross-origin to this runtime.  No credentials are allowed, so wildcard
     # CORS is safe for the local single-user trust model.
@@ -268,7 +299,7 @@ def create_v2_app(
         agent = core.require_agent(session_id)
         messages = []
         for event in core.event_log.query_session(session_id):
-            if event.type == "agent.message_injected":
+            if event.type in {"agent.message_injected", "agent.message_emitted"}:
                 data = event.data
                 messages.append(
                     {
@@ -286,12 +317,12 @@ def create_v2_app(
         session_id: str,
         after: int = 0,
         types: Optional[str] = Query(default=None),
-        limit: int = Query(default=500, ge=1, le=1000),
+        limit: int = Query(default=1000, ge=1, le=5000),
     ) -> list[dict[str, Any]]:
         core.require_agent(session_id)
         wanted = [t.strip() for t in types.split(",") if t.strip()] if types else None
         events = core.event_log.query_session(
-            session_id, after_session_seq=after, types=wanted, limit=limit
+            session_id, after_session_seq=after, types=wanted, limit=limit, tail=False
         )
         return [event.model_dump(mode="json") for event in events]
 
@@ -339,6 +370,75 @@ def create_v2_app(
         )
         return await execute(command)
 
+    @app.get("/api/v2/agents/{session_id}/goal", dependencies=protected)
+    async def get_goal(session_id: str) -> dict[str, Any]:
+        from cloudra.runtime_v2.policies.goal_stage import read_goal
+
+        agent = core.require_agent(session_id)
+        return {"goal": await asyncio.to_thread(read_goal, agent)}
+
+    @app.post("/api/v2/agents/{session_id}/goal", dependencies=protected)
+    async def set_goal(session_id: str, body: GoalSetRequest) -> dict[str, Any]:
+        from cloudra.runtime_v2.policies.goal_stage import write_goal
+
+        agent = core.require_agent(session_id)
+        goal = body.model_dump()
+        await asyncio.to_thread(write_goal, agent, goal)
+        return {"goal": goal}
+
+    @app.post("/api/v2/agents/{session_id}/compact", dependencies=protected)
+    async def compact_agent(session_id: str, body: CompactRequest) -> CommandResponse:
+        command = Command(
+            type="agent.compact",
+            target={"session_id": session_id},
+            payload=_command_payload(body),
+        )
+        return await execute(command)
+
+    @app.get("/api/v2/agents/{session_id}/context", dependencies=protected)
+    async def agent_context_stats(session_id: str) -> dict[str, Any]:
+        """Read-only per-agent context usage, derived from the session events.
+
+        ``tokens`` is an estimate over persisted event text; the exact current
+        context size is ``last_prompt_tokens`` from the latest LLM call.
+        """
+        from cloudra.infra.token_estimator import TokenEstimator
+
+        core.require_agent(session_id)
+        by_role: dict[str, dict[str, int]] = {
+            role: {"messages": 0, "tokens": 0} for role in ("user", "assistant", "tool")
+        }
+        last_prompt_tokens: int | None = None
+        for event in core.event_log.query_session(session_id, limit=100000):
+            if event.type in {"agent.message_injected", "agent.message_emitted"}:
+                role = "user" if event.type == "agent.message_injected" else "assistant"
+                text = str(event.data.get("content") or "")
+            elif event.type == "tool.finished":
+                role = "tool"
+                text = str(event.data.get("result_summary") or "")
+            elif event.type == "llm.completed":
+                usage = event.data.get("usage") or {}
+                if usage.get("prompt_tokens"):
+                    last_prompt_tokens = int(usage["prompt_tokens"])
+                continue
+            else:
+                continue
+            by_role[role]["messages"] += 1
+            by_role[role]["tokens"] += TokenEstimator.count_text(text)
+        return {
+            "session_id": session_id,
+            "messages": sum(bucket["messages"] for bucket in by_role.values()),
+            "tokens": sum(bucket["tokens"] for bucket in by_role.values()),
+            "by_role": by_role,
+            "last_prompt_tokens": last_prompt_tokens,
+        }
+
+    @app.get("/api/v2/skills", dependencies=protected)
+    async def list_skills() -> list[dict[str, Any]]:
+        from cloudra.base.skill_class import skill_loader
+
+        return await asyncio.to_thread(skill_loader().skill_datas_get)
+
     # -------------------------------------------------------------------- roles
 
     @app.get("/api/v2/roles", dependencies=protected)
@@ -358,16 +458,31 @@ def create_v2_app(
         )
         return await execute(command)
 
-    # ------------------------------------------------ legacy control surface
+    # ---------------------------------------------------- DAG / artifact reads
 
-    def _service(request: Request):
-        service = request.app.state.legacy_service
-        if service is None:
-            from cloudra.services.service import CloudraService
+    def _artifacts_service():
+        from cloudra.infra.config import get_config
+        from cloudra.persistence.artifacts import ArtifactService
 
-            service = CloudraService()
-            request.app.state.legacy_service = service
-        return service
+        return ArtifactService(Path(get_config().data_dir))
+
+    def _dag_read_context(project_id: str):
+        """Existing DAG store+engine for a project, or None (never initializes)."""
+        from cloudra.dag.engine import DagEngine
+        from cloudra.dag.store import DagStore, GraphBundleNotFound
+        from cloudra.persistence.database import ConversationDB
+
+        core.require_project(project_id)
+        db = ConversationDB(project_id)
+        if not Path(db.path).is_file():
+            return None
+        db.migrate_if_needed()
+        store = DagStore(db)
+        try:
+            store.load_bundle()
+        except GraphBundleNotFound:
+            return None
+        return store, DagEngine(store)
 
     def _dag_controller(core: RuntimeCore, project_id: str):
         project = core.require_project(project_id)
@@ -376,7 +491,11 @@ def create_v2_app(
 
         if project.settings.orchestration_mode.value == "standard":
             return None
-        db = ConversationDB(project_id).init()
+        db = ConversationDB(project_id)
+        if Path(db.path).is_file():
+            db.migrate_if_needed()
+        else:
+            db.init()
         return DagController(
             db,
             project_id,
@@ -386,79 +505,90 @@ def create_v2_app(
         )
 
     @app.get("/api/v2/projects/{project_id}/approvals", dependencies=protected)
-    async def list_approvals(project_id: str, request: Request) -> list[dict[str, Any]]:
-        return await _service(request).alist_pending_approvals_for_conversation(project_id)
+    async def list_approvals(project_id: str) -> list[dict[str, Any]]:
+        core.require_project(project_id)
+        return core.pending.list_pending_approvals(project_id)
 
     @app.post("/api/v2/projects/{project_id}/approvals/{approval_id}/decision", dependencies=protected)
     async def decide_approval(
-        project_id: str, approval_id: int, body: ApprovalDecision, request: Request
+        project_id: str, approval_id: str, body: ApprovalDecision
     ) -> dict[str, Any]:
-        decision = "approved" if body.decision == "approve" else "denied"
-        accepted = await _service(request).decide_approval(
-            project_id, approval_id, decision, body.reason
+        result = await bus.execute(
+            Command(
+                type="approval.decide",
+                target={"project_id": project_id},
+                payload={
+                    "approval_id": approval_id,
+                    "decision": "approved" if body.decision == "approve" else "denied",
+                    "reason": body.reason,
+                },
+            )
         )
-        if not accepted:
-            raise HTTPException(status_code=404, detail="approval not found")
+        if not result.accepted:
+            error = (result.data or {}).get("error", {})
+            http_code = 404 if error.get("code") == "not_found" else 400
+            raise HTTPException(status_code=http_code, detail=error.get("message", "decision rejected"))
         return {"accepted": True}
 
     @app.get("/api/v2/projects/{project_id}/interactions", dependencies=protected)
     async def list_interactions(
-        project_id: str, request: Request, session_id: str | None = None
+        project_id: str, session_id: str | None = None
     ) -> list[dict[str, Any]]:
-        return await asyncio.to_thread(
-            _service(request).list_pending_interactions,
-            project_id,
-            session_id=session_id,
-        )
+        core.require_project(project_id)
+        rows = core.pending.list_pending_interactions(project_id)
+        if session_id is not None:
+            rows = [row for row in rows if row["session_id"] == session_id]
+        return rows
 
     @app.post("/api/v2/projects/{project_id}/interactions/{interaction_id}/response", dependencies=protected)
     async def respond_interaction(
         project_id: str,
         interaction_id: str,
         body: InteractionResponse,
-        request: Request,
     ) -> dict[str, Any]:
-        _, latest = await _service(request).respond_interaction_command(
-            command_id=new_id("cmd"),
-            conversation_id=project_id,
-            interaction_id=interaction_id,
-            response=body.response,
+        result = await bus.execute(
+            Command(
+                type="interaction.respond",
+                target={"project_id": project_id},
+                payload={"interaction_id": interaction_id, "response": body.response},
+            )
         )
-        return latest.to_dict()
+        if not result.accepted:
+            error = (result.data or {}).get("error", {})
+            http_code = 404 if error.get("code") == "not_found" else 400
+            raise HTTPException(status_code=http_code, detail=error.get("message", "response rejected"))
+        return result.data
 
     @app.get("/api/v2/projects/{project_id}/artifacts", dependencies=protected)
     async def list_artifacts(
-        project_id: str, request: Request, session_id: str | None = None
+        project_id: str, session_id: str | None = None
     ) -> list[dict[str, Any]]:
-        service = _service(request)
+        core.require_project(project_id)
         artifacts = await asyncio.to_thread(
-            service.artifacts.list, project_id, session_id=session_id
+            _artifacts_service().list, project_id, session_id=session_id
         )
         return [artifact.to_dict() for artifact in artifacts]
 
     @app.get("/api/v2/artifacts/{artifact_id}/download", dependencies=protected)
-    async def download_artifact(
-        artifact_id: str, project_id: str, request: Request
-    ) -> StreamingResponse:
+    async def download_artifact(artifact_id: str, project_id: str) -> StreamingResponse:
         from fastapi.responses import FileResponse
 
-        service = _service(request)
+        artifacts = _artifacts_service()
         token, _ = await asyncio.to_thread(
-            service.artifacts.issue_download_token, project_id, artifact_id
+            artifacts.issue_download_token, project_id, artifact_id
         )
         artifact, source = await asyncio.to_thread(
-            service.artifacts.resolve_download, project_id, artifact_id, token
+            artifacts.resolve_download, project_id, artifact_id, token
         )
         return FileResponse(source, filename=artifact.name)
 
     @app.get("/api/v2/projects/{project_id}/dag/process", dependencies=protected)
     async def dag_process(project_id: str) -> dict[str, Any]:
-        controller = await asyncio.to_thread(_dag_controller, core, project_id)
-        if controller is None:
-            return {"mode": "standard", "graph": None}
-        await controller.initialize()
-        snapshot = await asyncio.to_thread(controller.engine.snapshot)
-        return {"mode": controller.mode.value, "graph": snapshot.process.model_dump(mode="json")}
+        # Phase 4：process 图已删除。路由保留一个版本，一律 410。
+        raise HTTPException(
+            status_code=410,
+            detail="the process graph was removed (delivery-only orchestration); use /dag/delivery",
+        )
 
     @app.get("/api/v2/projects/{project_id}/dag/delivery", dependencies=protected)
     async def dag_delivery(project_id: str) -> dict[str, Any]:
@@ -485,18 +615,151 @@ def create_v2_app(
             return []
         return await asyncio.to_thread(controller.engine.history, limit=100)
 
-    @app.post("/api/v2/projects/{project_id}/dag/mutations", dependencies=protected)
-    async def dag_mutations(project_id: str, body: DagMutationRequest, request: Request) -> dict[str, Any]:
-        result = await asyncio.to_thread(
-            _service(request).dag_apply_user_mutation,
-            project_id,
-            body.operations,
-            body.base_revisions,
-            body.rationale,
+    @app.get("/api/v2/projects/{project_id}/dag/projection", dependencies=protected)
+    async def dag_projection(project_id: str) -> dict[str, Any] | None:
+        from cloudra.dag.completion import build_projection
+
+        context = await asyncio.to_thread(_dag_read_context, project_id)
+        if context is None:
+            return None
+        store, engine = context
+        mode = core.require_project(project_id).settings.orchestration_mode
+        reviews = await asyncio.to_thread(store.list_call_reviews)
+        pending = [
+            {
+                "review_id": row.review_id,
+                "tool_name": row.tool_name,
+                "is_success": row.is_success,
+                "caller": row.caller_legacy_id or row.caller_role_id,
+                "compute_job_id": row.compute_job_id,
+                "result_summary": row.result_summary[:200],
+                "created_at": row.created_at,
+            }
+            for row in reviews
+        ]
+        projection = await asyncio.to_thread(
+            build_projection,
+            engine.snapshot(),
+            mode=mode,
+            contract=store.load_coverage_contract(),
+            history=engine.history(limit=8),
+            pending_reviews=pending,
         )
-        if result is None:
+        return projection.model_dump(mode="json")
+
+    @app.get("/api/v2/projects/{project_id}/dag/reviews", dependencies=protected)
+    async def dag_reviews(project_id: str) -> dict[str, Any] | None:
+        """CallReview 收件箱：pending 全量 + 最近已裁决/忽略（只读投影）。"""
+        context = await asyncio.to_thread(_dag_read_context, project_id)
+        if context is None:
+            return None
+        store, _engine = context
+        pending = await asyncio.to_thread(store.list_call_reviews, "pending")
+        everything = await asyncio.to_thread(store.list_call_reviews, None)
+
+        def _row(review) -> dict[str, Any]:
+            return {
+                "review_id": review.review_id,
+                "tool_name": review.tool_name,
+                "is_success": review.is_success,
+                "caller_session_id": review.caller_session_id,
+                "caller_role_id": review.caller_role_id,
+                "caller_legacy_id": review.caller_legacy_id,
+                "arguments_digest": review.arguments_digest,
+                "result_summary": review.result_summary[:200],
+                "compute_job_id": review.compute_job_id,
+                "suggested_target_id": review.suggested_target_id,
+                "state": review.state,
+                "created_at": review.created_at,
+            }
+
+        return {
+            "pending": [_row(review) for review in pending],
+            "recent": [_row(review) for review in everything if review.state != "pending"][-20:],
+        }
+
+    @app.get("/api/v2/projects/{project_id}/dag/draft", dependencies=protected)
+    async def dag_draft(project_id: str) -> dict[str, Any] | None:
+        """当前机理草稿 + mechanism_accepted（D4：EXISTS accepted draft）。"""
+        context = await asyncio.to_thread(_dag_read_context, project_id)
+        if context is None:
+            return None
+        store, _engine = context
+        draft = await asyncio.to_thread(store.latest_draft)
+        accepted = await asyncio.to_thread(store.has_accepted_draft)
+        return {"mechanism_accepted": accepted, "draft": draft}
+
+    @app.post("/api/v2/projects/{project_id}/dag/replan", dependencies=protected)
+    async def dag_replan(project_id: str, body: DagReplanRequest) -> dict[str, Any]:
+        from cloudra.core.supervisor import GraphSupervisor
+        from cloudra.dag.controller import DagController
+        from cloudra.dag.models import OrchestrationMode
+        from cloudra.persistence.database import ConversationDB
+
+        context = await asyncio.to_thread(_dag_read_context, project_id)
+        if context is None:
             raise HTTPException(status_code=404, detail="DAG bundle not initialized")
-        return result
+        mode = core.require_project(project_id).settings.orchestration_mode
+        if mode is not OrchestrationMode.DAG_GUIDED:
+            raise HTTPException(
+                status_code=422,
+                detail=f"replan is only available in dag_guided mode (current: {mode.value})",
+            )
+
+        def _controller() -> DagController:
+            db = ConversationDB(project_id)
+            db.migrate_if_needed()
+            controller = DagController(
+                db,
+                "user_replan",
+                mode,
+                conversation_id=project_id,
+                supervisor=GraphSupervisor(conversation_id=project_id),
+            )
+            controller.contract = controller.store.load_coverage_contract()
+            controller._initialized = True
+            return controller
+
+        controller = await asyncio.to_thread(_controller)
+        result = await controller.maybe_supervise("user_replan", coordinator_request=body.note or None)
+        if result is None:
+            return {
+                "trigger": "user_replan",
+                "supervised": False,
+                "summary": "Supervisor 未产出结果（运行失败或未触发，详见日志）",
+            }
+        accepted = sum(1 for m in result.mutations if m.get("accepted"))
+        summary = f"rounds={result.rounds} mutations={accepted}/{len(result.mutations)}"
+        if result.note:
+            summary += f" note={result.note}"
+        return {
+            "trigger": result.trigger,
+            "supervised": True,
+            "rounds": result.rounds,
+            "mutations_accepted": accepted,
+            "mutations_total": len(result.mutations),
+            "note": result.note,
+            "summary": summary,
+        }
+
+    @app.post("/api/v2/projects/{project_id}/dag/mutations", dependencies=protected)
+    async def dag_mutations(project_id: str, body: DagMutationRequest) -> dict[str, Any]:
+        from cloudra.dag.models import GraphActor, MutationBatch, parse_graph_operation
+
+        context = await asyncio.to_thread(_dag_read_context, project_id)
+        if context is None:
+            raise HTTPException(status_code=404, detail="DAG bundle not initialized")
+        _store, engine = context
+        batch = MutationBatch(
+            session_id="user",
+            actor=GraphActor.USER,
+            actor_id="user",
+            base_revisions=body.base_revisions,
+            operations=[parse_graph_operation(op) for op in body.operations],
+            rationale=body.rationale,
+        )
+        result = await asyncio.to_thread(engine.apply_batch, batch)
+        return result.model_dump(mode="json")
 
     # ---------------------------------------------------------------------- SSE
 
@@ -513,8 +776,8 @@ def create_v2_app(
 
         async def generate():
             try:
-                for event in core.event_log.query_project(project.id, after_seq=cursor):
-                    yield _sse(event)
+                async for chunk in _sse_replay(core, project, cursor):
+                    yield chunk
                 while True:
                     try:
                         event = await asyncio.wait_for(queue.get(), timeout=15.0)
@@ -548,10 +811,12 @@ def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
     core.runtime_defaults = legacy_default_runtime_settings()
     pipeline = TurnPipeline(
         event_log=core.event_log,
-        stages=default_stages(),
+        stages=default_stages(core),
         llm=LegacyLLMProvider(),
         tools=LegacyToolExecutor(core),
         prompt_provider=LegacyPromptProvider(),
+        event_hub=core.event_hub,
+        notices=core.notices,
     )
     app = create_v2_app(core, pipeline=pipeline, store_path=store_path)
     if core.store is not None:
@@ -566,3 +831,25 @@ def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
 
 def _sse(event) -> str:
     return f"event: {event.type}\ndata: {json.dumps(event.model_dump(mode='json'), ensure_ascii=False)}\n\n"
+
+
+async def _sse_replay(core, project, cursor: int):
+    """回放历史事件并以 project.synced 边界标记收尾（前端据此抑制历史事件
+    触发的提示）。抽成模块级 helper 是为了可测：httpx ASGITransport 缓冲整个
+    响应，无限 SSE 流无法经它断言，测试直接驱动这个生成器。"""
+    from cloudra.runtime_v2.schemas import EventEnvelope
+
+    replayed_through = cursor
+    for event in core.event_log.query_project(project.id, after_seq=cursor):
+        replayed_through = max(replayed_through, event.seq)
+        yield _sse(event)
+    # seq=0 不影响客户端 cursor
+    yield _sse(
+        EventEnvelope(
+            stream="project",
+            project_id=project.id,
+            seq=0,
+            type="project.synced",
+            data={"replayed_through": replayed_through},
+        )
+    )

@@ -6,7 +6,7 @@
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-[中文](README_CN.md) · [Documentation](docs/README.md) · [DAG Orchestration](docs/DAG_ORCHESTRATION.md) · [Android Guide](docs/ANDROID_USER_GUIDE.md)
+[中文](README_CN.md) · [Documentation](docs/README.md) · [DAG Orchestration](docs/DAG_ORCHESTRATION.md)
 
 > Cloudra is research software under active development. It does not claim autonomous
 > scientific validity or benchmark superiority. The verified scope and the explicitly
@@ -66,33 +66,37 @@ for "just adjusting a few atoms".
 ## Pillar 2 — DAG-driven harness
 
 - **The mechanism graph as an auditable research object.** The investigated
-  pathway is a persistent **delivery DAG**, not chat context. Nodes are
-  intermediate *occurrences* — catalytic cycles and reversible steps stay acyclic
-  by giving `Cat@entry` and `Cat@return` distinct nodes sharing one canonical
-  species record. Every node and edge carries typed references
-  (`artifact` / `compute_job` / `tool_result` / `species`) to immutable records;
-  a bare file path or a prose claim is not evidence.
-- **A process DAG that answers "what next".** Planned and completed work, its
-  dependencies, blockers, and failures live in a second persistent graph. Failure
-  is evidence, not deletion; replacements supersede while preserving the audit
-  chain.
-- **Evidence-derived completion.** Graph elements carry evidence levels
-  (`proposed` → `structure_supported` → `saddle_supported` → `endpoint_supported`
-  → `thermo_annotated`, plus `rejected`/`inconclusive`) that only the deterministic
-  harness can promote, from the structured results actually referenced. Advisory
-  outputs (a TS guess, a scan) cannot promote an edge. A coverage contract
-  evaluated over the graph decides whether the study may be delivered; only the
-  human user can waive a gate.
-- **Event-driven Supervisor.** In guided mode a Supervisor owns the process DAG:
-  it schedules tool-level work bound to specific mechanism elements, reacts to new
-  evidence and failures, arbitrates edge-removal requests, and audits before
-  delivery. It cannot touch the mechanism graph, cannot promote evidence, and
-  cannot mark the study complete.
+  pathway is a persistent **delivery DAG** — the only persistent graph, not chat
+  context. Nodes are intermediate *occurrences* — catalytic cycles and reversible
+  steps stay acyclic by giving `Cat@entry` and `Cat@return` distinct nodes
+  sharing one canonical species record. Every node and edge carries typed
+  references (`artifact` / `compute_job` / `tool_result` / `species`) to
+  immutable records; a bare file path or a prose claim is not evidence.
+- **The graph states what evidence each element owes.** When proposing the
+  mechanism, the Coordinator declares an ordered **stage contract** per element
+  (occurrence: geometry/frequency/single_point; elementary step: ts_guess →
+  ts_opt → frequency → short_irc → endpoints → direction/identity →
+  thermochemistry). Stages bind strictly in order; finished delivery-relevant
+  calls land in a CallReview inbox awaiting review. There is no second "todo"
+  graph — no scheduling, no frontier.
+- **Evidence-derived completion.** Stage status is
+  `pending / supported / skipped / rejected`; element-level evidence levels
+  (`structure_supported` → `saddle_supported` → `endpoint_supported` →
+  `thermo_annotated`) are derived from stages by the deterministic harness.
+  Advisory outputs (a TS guess, a scan) can only support the advisory ts_guess
+  stage; `rejected` is not a disposal — it is an open gap still owed. A
+  coverage contract evaluated over the graph decides whether the study may be
+  delivered; only the human user can waive a gate.
+- **Event-driven Supervisor.** In guided mode the Supervisor accepts or rejects
+  the mechanism draft (compute stays gated until acceptance) and then reviews
+  each delivery-relevant call from the inbox, binding evidence to stages
+  (agree/disagree/skip). It cannot touch the mechanism graph structure, cannot
+  promote evidence, and cannot mark the study complete.
 - **A three-mode ablation boundary.** `standard` (no graph cost), `dag_record`
-  (deterministic graph bookkeeping, no Supervisor influence), and `dag_guided`
-  (bookkeeping + Supervisor control) are per-session, immutable choices — the
-  effect of graph bookkeeping and the effect of Supervisor control can be measured
-  separately.
+  (draft auto-accepted, Coordinator self-binds stages, no Supervisor), and
+  `dag_guided` (Supervisor accepts the draft + reviews every delivery-relevant
+  call) are per-session choices — the effect of graph bookkeeping and the
+  effect of Supervisor control can be measured separately.
 
 Underneath both pillars sits a durable session substrate: idempotent commands,
 resumable event cursors, leased workers with auditable terminal states, immutable
@@ -105,15 +109,18 @@ Cloudra has run a **complete ethylene ozonolysis (C₂H₄ + O₃) mechanism stu
 end-to-end in guided mode:
 
 - the Coordinator decomposed the objective, dispatched literature and domain
-  sub-agents, and designed the candidate mechanism as a delivery DAG;
-- the Supervisor scheduled tool-level process work against each mechanism element —
-  reaction mapping, conformer sampling, TS searches, optimization + frequency,
-  short bidirectional IRC, endpoint optimizations, endpoint matching, and
-  thermochemistry — reacting to each landed result and each failure;
-- evidence from every calculation was bound to graph elements by the deterministic
-  adapter, promoting intermediates and steps through the evidence levels; the
-  strong multi-reference character of O₃ and method-sensitivity issues surfaced
-  during the run were recorded as graph annotations rather than glossed over;
+  sub-agents, and designed the candidate mechanism as a delivery DAG (with a
+  stage contract per element);
+- the Supervisor accepted the mechanism draft to unlock compute, then reviewed
+  each delivery-relevant call — reaction mapping, conformer sampling, TS
+  searches, optimization + frequency, short bidirectional IRC, endpoint
+  optimizations, endpoint matching, and thermochemistry — binding evidence
+  stage by stage and reacting to failures and inadequate evidence;
+- the deterministic adapter validated every stage bind (order, call success,
+  no submit-call evidence, parser checks), promoting intermediates and steps
+  through the evidence levels; the strong multi-reference character of O₃ and
+  method-sensitivity issues surfaced during the run were recorded as graph
+  annotations rather than glossed over;
 - the final delivery was gated by the deterministic coverage report: claimed steps
   reached endpoint-supported status with IRC-linked, optimized endpoints, and the
   reported energetics carry documented level-of-theory provenance.
@@ -125,12 +132,12 @@ persisted in the session database and inspectable after the fact.
 
 ```mermaid
 flowchart LR
-    U["Researcher"] --> C["Web UI / Android Remote Console"]
+    U["Researcher"] --> C["Electron / Web UI"]
     C <-->|"idempotent commands + resumable events"| G["Gateway API"]
     G --> S["Durable Session and Event Store"]
     S <--> A["Coordinator + Domain Agents"]
     A --> P["Perception Tools<br/>(geometry / electronic)"]
-    A <--> D2["Process DAG + Delivery DAG"]
+    A <--> D2["Delivery DAG + CallReview inbox"]
     SV["Supervisor"] <--> D2
     P --> L["Local workstation"]
     P --> H["Slurm / HPC node"]
@@ -172,18 +179,16 @@ nodes, immutable evidence references, atomic batches, optimistic revisions,
 permission boundaries), deterministic delivery completion, mode isolation, session
 persistence and restart recovery, the perception tools (atom mapping, internal
 coordinates, conformer search, TS/scan parsing, log parsing), prompt assembly,
-command idempotency, artifact boundaries, device pairing, worker leases, node
-routing, Slurm command construction, backup/restore, and sourceless Android
-packaging. CI runs the suite on CPython 3.11–3.13. The ozonolysis study above is a
+command idempotency, artifact boundaries, node
+routing, Slurm command construction, and backup/restore. CI runs the suite on CPython 3.11–3.13. The ozonolysis study above is a
 demonstrated end-to-end run, not a benchmark.
 
 The following evidence is still missing and is therefore **not claimed**:
 
 - comparative scientific benchmark results against other agents or human baselines;
 - systematic multi-reaction evaluation of mechanism-discovery success rates;
-- end-to-end validation on a physical Android device and OEM background-policy matrix;
 - submission and recovery trials on a real Slurm cluster;
-- public-network deployment, production signing, and long-duration operational reliability.
+- public-network deployment and long-duration operational reliability.
 
 ## Installation
 
@@ -238,34 +243,18 @@ The web UI provides per-project workspaces, an AgentBar to switch among all
 parallel agents, an Inspector with per-event detail, live YOLO/model settings,
 approval/interaction/artifact control, and DAG panels.
 
-CLI/headless entry points:
+Entry points:
 
 ```bash
-cloudra run "TASK"                  # run or continue a research task
-cloudra run "Elucidate the mechanism of ..." --orchestration-mode dag_guided
-cloudra sessions                    # inspect durable Session states
-cloudra history                     # list conversations
-cloudra gui                         # experimental Flet GUI (not maintained)
-cloudra-api                         # legacy API server (v1)
+cloudra                             # build and launch the Electron frontend
+cloudra web --browser               # same runtime in the browser
 ```
 
-Orchestration modes are chosen per session and immutable afterwards:
-`standard` (default), `dag_record`, or `dag_guided`, chosen when a session is
-created. The web UI exposes the mode in project settings and the DAG panels
-show both graphs.
+Orchestration modes are per project: `standard` (default), `dag_record`, or
+`dag_guided`, switchable from the project settings in the UI; the DAG panel
+shows the mechanism graph and the review inbox.
 
-A minimal DAG-mode chemistry run:
-
-```bash
-cloudra run "Create a Gaussian input for benzene at B3LYP/6-31G(d) and save it under the active workspace"
-cloudra run "Submit the benzene input and report the scheduler job identity"
-cloudra run "After completion, parse the log and report energy, orbital gap, frequencies, and warnings with file references"
-```
-
-Real calculations require the corresponding scientific software and licences. For
-Android remote control see [`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md);
-a compact command and endpoint map is in
-[`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md).
+Real calculations require the corresponding scientific software and licences.
 
 ## Reproducibility
 
@@ -279,11 +268,8 @@ mutation carries its actor, rationale, and base revision in an append-only journ
 
 | Document | Contents |
 | --- | --- |
-| [`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md) | DAG-guided orchestration: dual graphs, modes, permissions, evidence derivation |
-| [`docs/CLI_API_REFERENCE.md`](docs/CLI_API_REFERENCE.md) | CLI commands and API endpoint map |
-| [`docs/ANDROID_USER_GUIDE.md`](docs/ANDROID_USER_GUIDE.md) | API server, LAN setup, APK install, device runtime, troubleshooting |
+| [`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md) | DAG-guided orchestration: mechanism graph + stage contracts, modes, permissions, evidence derivation |
 | [`docs/PHASE8_NODE_REGISTRY.md`](docs/PHASE8_NODE_REGISTRY.md) | Multi-node profiles, workspace routing, worker leases, Slurm semantics |
-| [`docs/PHASE8_OPERATIONS.md`](docs/PHASE8_OPERATIONS.md) | Backup/restore, device revocation, APK signing, database migration |
 | [`AGENTS.md`](AGENTS.md) | Repository map and development conventions for contributors |
 
 ## Repository layout
@@ -296,11 +282,11 @@ cloudra/
 ├── base/                       dataclasses and loader base types
 ├── infra/                      config, LLM transport, events, platform support
 ├── dag/                        DAG-driven harness (opt-in per session)
-├── runtime/                    session runners, workers, prompt assembly
-├── device/                     Android capability registry and runtime
+├── runtime/                    prompt assembly, workspace observer, compute log monitor
+├── runtime_v2/                 event-driven kernel (runs, commands, policies, bridges)
 ├── tools/, subagents/          perception tools, scientific capabilities, domain roles
 ├── skills/, prompts/           research methods and role policies
-└── frontend/, ui/              human control surfaces
+└── frontend/                   Electron + React control surface
 ```
 
 ## Development

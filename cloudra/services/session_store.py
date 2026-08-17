@@ -479,6 +479,70 @@ async def ainsert_session_event(
 
 
 # ---------------------------------------------------------------------------
+# 只读查询（v2 API 的 legacy 子 Agent 视图）
+# ---------------------------------------------------------------------------
+
+def list_subagent_sessions(db: ConversationDB, *, limit: int = 200) -> list[dict]:
+    """Follower/supervisor sessions of this conversation, newest first."""
+    with db.connect() as con:
+        rows = con.execute(
+            """
+            SELECT session_id, agent_id, agent_type, parent_session_id, query,
+                   state, result, error, created_at, finished_at, orchestration_mode
+            FROM session
+            WHERE agent_type IN ('follower', 'supervisor')
+            ORDER BY created_at DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "session_id": row[0],
+            "agent_id": row[1],
+            "agent_type": row[2],
+            "parent_session_id": row[3],
+            "query": (row[4] or "")[:200],
+            "state": row[5],
+            "has_result": bool(row[6]),
+            "error": row[7],
+            "created_at": row[8],
+            "finished_at": row[9],
+            "orchestration_mode": row[10],
+        }
+        for row in rows
+    ]
+
+
+def get_session_row(db: ConversationDB, session_id: str) -> dict | None:
+    """Read-only: one session row's identity fields, or None."""
+    with db.connect() as con:
+        row = con.execute(
+            "SELECT agent_id, agent_type, state FROM session WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {"agent_id": row[0], "agent_type": row[1], "state": row[2]}
+
+
+def list_session_events(db: ConversationDB, session_id: str, *, limit: int = 2000) -> list[dict]:
+    """Raw session_events rows for one session, in insertion order."""
+    with db.connect() as con:
+        rows = con.execute(
+            "SELECT id, event_type, data, created_at FROM session_events WHERE session_id = ? ORDER BY id LIMIT ?",
+            (session_id, limit),
+        ).fetchall()
+    out = []
+    for row in rows:
+        try:
+            data = json.loads(row[2])
+        except (json.JSONDecodeError, TypeError):
+            data = {}
+        out.append({"id": row[0], "event_type": row[1], "data": data, "created_at": row[3]})
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 子任务（subagent_requests）生命周期
 # ---------------------------------------------------------------------------
 
@@ -659,6 +723,15 @@ def claim_ready_compute_job(
         now = time.time()
         expires = now + max(10, int(lease_seconds))
         with db.connect() as con:
+            peek = con.execute(
+                """SELECT id FROM compute_jobs
+                WHERE (state='ready' OR (state='running' AND lease_expires_at<?))
+                AND COALESCE(attempt_count, 0) < ? ORDER BY id LIMIT 1""",
+                (now, max_attempts),
+            ).fetchone()
+            if peek is None:
+                con.rollback()
+                return None
             row = con.execute(
                 """UPDATE compute_jobs SET state='running', lease_owner=?,
                 lease_expires_at=?, attempt_count=COALESCE(attempt_count, 0)+1,
@@ -670,7 +743,10 @@ def claim_ready_compute_job(
                 RETURNING id""",
                 (worker_id, expires, now, now, max_attempts),
             ).fetchone()
-            con.commit()
+            if row:
+                con.commit()
+            else:
+                con.rollback()
             return int(row[0]) if row else None
 
     return retry_on_locked(write)

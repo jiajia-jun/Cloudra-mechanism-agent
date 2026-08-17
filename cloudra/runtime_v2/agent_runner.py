@@ -19,10 +19,42 @@ if TYPE_CHECKING:
 logger = logging.getLogger("runtime_v2.agent_runner")
 
 
+def _is_retryable(exc: Exception) -> bool:
+    """Only transient failures are worth an in-place retry.
+
+    HTTP 4xx (bad key, insufficient balance, invalid request) will fail again
+    on every retry — fail fast instead of burning the retry budget.  408/429
+    and 5xx / connection errors stay retryable.  Classification is by the
+    ``status_code`` attribute so the kernel never imports the LLM SDK.
+    """
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and 400 <= status < 500 and status not in (408, 429):
+        return False
+    return True
+
+
 class AgentRunner:
-    def __init__(self, core: "RuntimeCore", pipeline: "TurnPipeline") -> None:
+    """One async task per running agent.
+
+    A crashed turn is retried in place with the accumulated history (the crash
+    means the turn never returned, so nothing was appended — retrying is a
+    clean redo of the LLM request).  Only after ``max_turn_retries`` does the
+    run finish as failed; users should never have to retry transient failures
+    by hand.
+    """
+
+    def __init__(
+        self,
+        core: "RuntimeCore",
+        pipeline: "TurnPipeline",
+        *,
+        max_turn_retries: int = 2,
+        retry_backoff: tuple[float, ...] = (2.0, 4.0),
+    ) -> None:
         self.core = core
         self.pipeline = pipeline
+        self.max_turn_retries = max_turn_retries
+        self.retry_backoff = retry_backoff
         self._tasks: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------------ public
@@ -49,6 +81,11 @@ class AgentRunner:
 
     async def _run(self, agent: AgentSession) -> None:
         core = self.core
+        # Hub cursor: everything appended from this point on must reach the
+        # hub (SSE, persistence).  start_run/resume and the final
+        # message_emitted/finish_run events land outside the per-turn publish,
+        # so the cursor spans the whole task and a final flush runs on exit.
+        cursor = len(core.event_log)
         try:
             if agent.current_run is not None and agent.state in {
                 AgentState.WAITING_INPUT,
@@ -63,28 +100,80 @@ class AgentRunner:
             else:
                 run_id = core.agent_host.start_run(agent)
             history: list[dict] = []
+            # A fresh run starts with empty history; any compaction requested
+            # against the previous run's history is meaningless now.
+            core.pending_compactions.pop(agent.id, None)
             while agent.state is AgentState.RUNNING:
-                before = len(core.event_log)
                 inbox_messages = self._drain_inbox(agent)
                 if not history and not inbox_messages:
                     inbox = core.mailbox.ensure_inbox(agent.id)
                     message = await inbox.get()
                     inbox_messages.append(message)
-                try:
-                    project = core.require_project(agent.project_id)
-                    outcome = await self.pipeline.run_turn(
-                        agent=agent,
-                        run_id=run_id,
-                        settings=agent.settings.model_copy(deep=True),
-                        capabilities=agent.capabilities,
-                        inbox_messages=inbox_messages,
-                        history=history,
-                        workspace_dir=project.workspace_dir,
-                    )
-                finally:
-                    await self._publish_new_events(before)
+                if history:
+                    keep_recent = core.pending_compactions.get(agent.id)
+                    if keep_recent is not None:
+                        core.pending_compactions.pop(agent.id, None)
+                        await self._apply_compaction(agent, run_id, history, keep_recent)
+                attempt = 0
+                while True:
+                    try:
+                        project = core.require_project(agent.project_id)
+                        outcome = await self.pipeline.run_turn(
+                            agent=agent,
+                            run_id=run_id,
+                            settings=agent.settings.model_copy(deep=True),
+                            capabilities=agent.capabilities,
+                            inbox_messages=inbox_messages,
+                            history=history,
+                            workspace_dir=project.workspace_dir,
+                            notices=core.notices,
+                        )
+                        break
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        attempt += 1
+                        if attempt > self.max_turn_retries or not _is_retryable(exc):
+                            raise
+                        delay = self.retry_backoff[min(attempt - 1, len(self.retry_backoff) - 1)]
+                        core.event_log.append(
+                            "run.retry",
+                            stream="agent",
+                            project_id=agent.project_id,
+                            session_id=agent.id,
+                            run_id=run_id,
+                            data={
+                                "attempt": attempt,
+                                "max_retries": self.max_turn_retries,
+                                "error": str(exc)[:500],
+                                "next_delay_s": delay,
+                            },
+                        )
+                        await asyncio.sleep(delay)
+                    finally:
+                        await self._publish_new_events(cursor)
+                        cursor = len(core.event_log)
                 self._append_history(history, inbox_messages, outcome)
                 if outcome.decision == "stop":
+                    if outcome.content:
+                        core.event_log.append(
+                            "agent.message_emitted",
+                            stream="agent",
+                            project_id=agent.project_id,
+                            session_id=agent.id,
+                            run_id=run_id,
+                            data={"sender": agent.role_id, "content": outcome.content},
+                        )
+                    # D8.3：区分显式 stop 与最终消息收尾——dag 模式下后者
+                    # 由 dag policy stage 自动记录 partial 交付处置。
+                    explicit_stop = any(
+                        call.name == self.pipeline.stop_tool
+                        for call, _result in outcome.tool_exchanges
+                    )
+                    for stage in getattr(self.pipeline, "stages", ()):
+                        hook = getattr(stage, "on_run_end", None)
+                        if hook is not None:
+                            await hook(agent, explicit_stop=explicit_stop)
                     core.agent_host.finish_run(agent, outcome="succeeded")
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
@@ -108,6 +197,14 @@ class AgentRunner:
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
                 core.agent_host.finish_run(agent, outcome="failed", error=str(exc))
+        finally:
+            # Flush the tail events (message_emitted, finish_run's
+            # state_changed/run.finished, or a crashed turn's partial events)
+            # so SSE clients and the store see the complete run lifecycle.
+            try:
+                await self._publish_new_events(cursor)
+            except Exception:
+                logger.exception("agent %s final event flush failed", agent.id)
 
     def _drain_inbox(self, agent: AgentSession) -> list[dict]:
         inbox = self.core.mailbox.inbox(agent.id)
@@ -124,16 +221,22 @@ class AgentRunner:
     def _append_history(history: list[dict], inbox_messages: list[dict], outcome) -> None:
         for item in inbox_messages:
             history.append({"role": "user", "content": item.get("content", "")})
-        if outcome.content:
-            history.append({"role": "assistant", "content": outcome.content})
+        tool_calls = [call for call, _ in outcome.tool_exchanges]
+        if outcome.blocked_call is not None:
+            tool_calls.append(outcome.blocked_call)
+        if outcome.content or tool_calls:
+            entry: dict = {"role": "assistant", "content": outcome.content}
+            if outcome.reasoning:
+                entry["reasoning_content"] = outcome.reasoning
+            if tool_calls:
+                # Structured form; the LLM adapter converts these into the
+                # wire format (assistant tool_calls + matching tool messages).
+                entry["tool_calls"] = [
+                    {"id": call.id, "name": call.name, "arguments": call.arguments}
+                    for call in tool_calls
+                ]
+            history.append(entry)
         for call, result in outcome.tool_exchanges:
-            history.append(
-                {
-                    "role": "assistant",
-                    "content": f"[tool] {call.name}",
-                    "tool_call_id": call.id,
-                }
-            )
             history.append(
                 {
                     "role": "tool",
@@ -149,6 +252,42 @@ class AgentRunner:
                     "content": outcome.message or "blocked by policy",
                 }
             )
+
+    async def _apply_compaction(
+        self, agent: AgentSession, run_id: str, history: list[dict], keep_recent: int
+    ) -> None:
+        from cloudra.runtime_v2.compaction import compact_history, summarize_with_agent_settings
+
+        core = self.core
+        core.event_log.append(
+            "compaction.started",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data={"keep_recent": keep_recent, "history_messages": len(history)},
+        )
+        try:
+            new_history, stats = await compact_history(
+                history,
+                keep_recent,
+                lambda messages: summarize_with_agent_settings(agent, messages),
+            )
+        except Exception as exc:
+            # Compaction is best-effort: a summarization failure must never
+            # kill the run; the uncompacted history stays in place.
+            logger.exception("agent %s compaction failed", agent.id)
+            stats = {"compacted": False, "error": str(exc)}
+        else:
+            history[:] = new_history
+        core.event_log.append(
+            "compaction.finished",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data=stats,
+        )
 
     async def _publish_new_events(self, before: int) -> None:
         for event in list(self.core.event_log)[before:]:

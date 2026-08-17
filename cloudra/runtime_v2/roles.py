@@ -74,6 +74,13 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
         permissions=PermissionSet(read=True, write=True, script=True, destructive=True),
         can_spawn=False,
     ),
+    RoleProfile(
+        role_id="supervisor",
+        display_name="Supervisor",
+        description="DAG 督导运行的壳会话：只在 dag_guided 下由 dag stage 投影，不经 LLM 管线。",
+        permissions=PermissionSet(read=True),
+        can_spawn=False,
+    ),
 )
 
 

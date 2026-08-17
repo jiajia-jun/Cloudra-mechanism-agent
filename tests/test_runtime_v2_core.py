@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from cloudra.runtime_v2.adapters import LegacyToolExecutor
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import Command
 from cloudra.services.api_v2 import create_v2_app
 
@@ -230,6 +232,21 @@ async def test_default_v2_app_wires_runtime_without_network(tmp_path):
         resp = await client.get("/api/v2/roles")
         assert resp.status_code == 200
         assert {role["role_id"] for role in resp.json()} >= {"coordinator", "small_mol"}
+    # Transient streaming deltas are fanned out to subscribers but never
+    # persisted into the runtime store.
+    from cloudra.runtime_v2.schemas import EventEnvelope
+
+    received = []
+
+    async def collect(event):
+        received.append(event)
+
+    core.event_hub.subscribe(collect)
+    await core.event_hub.publish(
+        EventEnvelope(stream="agent", project_id="p1", seq=0, type="llm.chunk", data={"delta": "x"})
+    )
+    assert received and received[-1].type == "llm.chunk"
+    assert not [e for e in core.store.query_project_events("p1") if e["type"] == "llm.chunk"]
 
 
 @pytest.mark.asyncio
@@ -244,6 +261,9 @@ async def test_api_v2_control_surface_routes():
         project = resp.json()["data"]
 
         resp = await client.get(f"/api/v2/projects/{project['id']}/dag/process")
+        assert resp.status_code == 410  # process graph removed (delivery-only)
+
+        resp = await client.get(f"/api/v2/projects/{project['id']}/dag/delivery")
         assert resp.status_code == 200
         assert resp.json()["mode"] == "dag_record"
         assert resp.json()["graph"]["nodes"] == []
@@ -260,6 +280,87 @@ async def test_api_v2_control_surface_routes():
         assert resp.status_code == 200
         assert resp.json() == []
 
+        resp = await client.get(f"/api/v2/projects/{project['id']}/dag/projection")
+        assert resp.status_code == 200
+        projection = resp.json()
+        assert projection["mode"] == "dag_record"
+        assert projection["pending_reviews"] == []
+        assert "frontier" not in projection
+
+        resp = await client.get(f"/api/v2/projects/{project['id']}/dag/reviews")
+        assert resp.status_code == 200
+        assert resp.json() == {"pending": [], "recent": []}
+
+        resp = await client.get(f"/api/v2/projects/{project['id']}/dag/draft")
+        assert resp.status_code == 200
+        assert resp.json() == {"mechanism_accepted": False, "draft": None}
+
+        # replan is dag_guided-only: dag_record maps the ValueError to 422
+        resp = await client.post(f"/api/v2/projects/{project['id']}/dag/replan", json={"note": ""})
+        assert resp.status_code == 422
+
+        # Regression: explicit nulls in a settings patch (the SPA round-trips
+        # serialized defaults) must not poison subsequent spawns.
+        resp = await client.patch(
+            f"/api/v2/projects/{project['id']}",
+            json={
+                "settings": {
+                    "orchestration_mode": "dag_record",
+                    "defaults": {"model": None, "api_key": None, "orchestration_mode": "dag_record"},
+                }
+            },
+        )
+        assert resp.status_code == 200
+        resp = await client.post(f"/api/v2/projects/{project['id']}/agents", json={"role_id": "coordinator"})
+        assert resp.status_code == 201
+        assert resp.json()["data"]["settings"]["orchestration_mode"] == "dag_record"
+
+
+@pytest.mark.asyncio
+async def test_api_v2_goal_context_compact_skills_routes():
+    app = create_v2_app(RuntimeCore(strict_events=True))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/v2/projects", json={"name": "cmd-demo"})
+        project = resp.json()["data"]
+        resp = await client.post(
+            f"/api/v2/projects/{project['id']}/agents",
+            json={"role_id": "coordinator"},
+        )
+        agent = resp.json()["data"]
+
+        goal = {"objective": "find the TS", "completion_criteria": "verified", "current_focus": ""}
+        resp = await client.post(f"/api/v2/agents/{agent['id']}/goal", json=goal)
+        assert resp.status_code == 200
+        resp = await client.get(f"/api/v2/agents/{agent['id']}/goal")
+        assert resp.json()["goal"]["objective"] == "find the TS"
+
+        resp = await client.get(f"/api/v2/agents/{agent['id']}/context")
+        assert resp.status_code == 200
+        stats = resp.json()
+        assert stats["session_id"] == agent["id"]
+        assert stats["messages"] == 0
+        assert set(stats["by_role"]) == {"user", "assistant", "tool"}
+
+        resp = await client.post(f"/api/v2/agents/{agent['id']}/compact", json={"keep_recent": 10})
+        assert resp.status_code == 200
+        assert resp.json()["accepted"] is True
+
+        # Mid-session orchestration mode switch: agents snapshot settings at
+        # spawn, and settings_update must flip the live value for dag tools.
+        assert agent["settings"]["orchestration_mode"] == "standard"
+        resp = await client.patch(
+            f"/api/v2/agents/{agent['id']}/settings",
+            json={"orchestration_mode": "dag_guided"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["settings"]["orchestration_mode"] == "dag_guided"
+
+        resp = await client.get("/api/v2/skills")
+        assert resp.status_code == 200
+        skills = resp.json()
+        assert skills and all("name" in s and "content" in s for s in skills)
+
 
 @pytest.mark.asyncio
 async def test_api_error_mapping():
@@ -269,3 +370,89 @@ async def test_api_error_mapping():
         resp = await client.get("/api/v2/agents/as_missing")
         assert resp.status_code == 404
         assert resp.json()["detail"]["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_stream_marks_replay_boundary():
+    """SSE 回放末尾必须带 project.synced 边界标记，前端据此抑制历史事件
+    触发的提示（审批 toast 等只应对新事件触发）。
+
+    直接驱动 _sse_replay 生成器：httpx ASGITransport 会缓冲整个响应体，
+    无限 SSE 流经它永远收不到 markers（send 要等 app 跑完才返回）。"""
+    from cloudra.services.api_v2 import _sse_replay
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    result = await bus.execute(Command(type="project.create", payload={"name": "sse"}))
+    project = result.data
+
+    chunks = [chunk async for chunk in _sse_replay(core, project, 0)]
+    text = "".join(chunks)
+    # 回放事件（project.created）在前，边界标记在后
+    assert text.index("project.created") < text.index("project.synced")
+    assert "replayed_through" in text
+
+
+@pytest.mark.asyncio
+async def test_workspace_dir_normalized_and_relative_rejected(tmp_path):
+    """workspace_dir 在命令层规范化：相对路径直接拒绝（下游会把它和 server
+    cwd 拼出嵌套怪路径），不存在的绝对路径自动创建。"""
+    bus = CommandBus(RuntimeCore(strict_events=True))
+    bad = await bus.execute(
+        Command(
+            type="project.create",
+            payload={"name": "bad", "workspace_dir": "home/user/nowhere"},
+        )
+    )
+    assert bad.accepted is False
+    assert bad.data["error"]["code"] == "invalid_request"
+
+    target = tmp_path / "fresh-ws"
+    good = await bus.execute(
+        Command(
+            type="project.create",
+            payload={"name": "good", "workspace_dir": str(target)},
+        )
+    )
+    assert good.accepted is True
+    assert good.data.workspace_dir == str(target)
+    assert target.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_orchestration_mode_switch_opens_dag_tool(tmp_path):
+    """发出消息后切换编排模式：agent.settings_update 落 dag_record 后，
+    dag_view 工具门禁必须打开（此前 agent 报 disabled in standard mode）。"""
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "switch"}))
+    project = next(iter(core.projects.values()))
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator", "query": "hi"},
+            )
+        )
+    ).data
+    executor = LegacyToolExecutor(core)
+
+    async def dag_view():
+        return await executor.execute(
+            agent, ToolCall(id="t1", name="dag_view", arguments={"graph_kind": "both"})
+        )
+
+    blocked = await dag_view()
+    assert blocked.is_success is False
+    assert "disabled in standard" in blocked.summary
+
+    await bus.execute(
+        Command(
+            type="agent.settings_update",
+            target={"session_id": agent.id},
+            payload={"orchestration_mode": "dag_record"},
+        )
+    )
+    allowed = await dag_view()
+    assert allowed.is_success is True, allowed.summary

@@ -68,6 +68,7 @@ class PipelineContext:
         inbox_messages: list[dict[str, Any]],
         emit,
         workspace_dir: str | None = None,
+        notices=None,
     ) -> None:
         self.agent = agent
         self.run_id = run_id
@@ -75,6 +76,7 @@ class PipelineContext:
         self.capabilities = capabilities
         self.inbox_messages = list(inbox_messages)
         self.workspace_dir = workspace_dir
+        self.notices = notices
         self._emit = emit
 
     def emit(self, type: str, data: dict[str, Any] | None = None) -> None:

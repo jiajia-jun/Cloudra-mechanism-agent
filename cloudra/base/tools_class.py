@@ -1,5 +1,7 @@
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
@@ -13,6 +15,23 @@ from cloudra.tools.core.permission_model import Permission
 
 if TYPE_CHECKING:
     from cloudra.infra.yolo_guard import YoloGuard
+
+# runtime_v2 的审批钩子：LegacyToolExecutor 在执行工具前设置；未设置时
+# （CLI/Flet/旧服务层）request_approval 维持原有的 SQLite + 事件总线等待。
+# 签名: async (**fields) -> tuple[bool, str]，字段同 request_approval 的关键字参数。
+_APPROVAL_HANDLER: ContextVar[
+    Optional[Callable[..., Awaitable[tuple[bool, str]]]]
+] = ContextVar("cloudra_approval_handler", default=None)
+
+
+@contextmanager
+def use_approval_handler(handler: Callable[..., Awaitable[tuple[bool, str]]]):
+    """Scope a v2 approval handler to one tool execution (per-task isolation)."""
+    token = _APPROVAL_HANDLER.set(handler)
+    try:
+        yield
+    finally:
+        _APPROVAL_HANDLER.reset(token)
 
 
 def _tool_db_path(subagent) -> str:
@@ -269,6 +288,18 @@ class Tool(BaseModel):
 
         from cloudra.infra import events
         from cloudra.services import session_store as _ss
+
+        handler = _APPROVAL_HANDLER.get()
+        if handler is not None:
+            # runtime_v2 上下文：审批请求与等待由内核 broker 承担，
+            # 不碰 conversation SQLite 与 legacy 事件总线。
+            return await handler(
+                details=details,
+                tool_name=tool_name,
+                normalized_arguments=normalized_arguments or {},
+                risk_summary=risk_summary,
+                candidate_diff=candidate_diff,
+            )
 
         db = ConversationDB.from_path(db_path)
         conversation_id = getattr(self.subagent, "conversation_id", None)

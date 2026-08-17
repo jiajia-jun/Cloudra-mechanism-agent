@@ -2,7 +2,6 @@ from click.testing import CliRunner
 
 from cloudra.cli import cli
 from cloudra.infra.config import get_config
-from cloudra.services.device_broker import DeviceBroker
 
 
 def test_backup_cli_create_verify_and_restore(tmp_path, monkeypatch):
@@ -21,22 +20,3 @@ def test_backup_cli_create_verify_and_restore(tmp_path, monkeypatch):
     assert (restored / "state.json").read_text() == "{}"
 
 
-def test_devices_cli_revokes_pairing(tmp_path, monkeypatch):
-    monkeypatch.setattr(get_config(), "data_dir", tmp_path)
-    broker = DeviceBroker(tmp_path)
-    pairing = broker.start_pairing()
-    credential = broker.complete_pairing(
-        pairing_id=pairing["pairing_id"],
-        pairing_secret=pairing["pairing_secret"],
-        display_name="Phone",
-        client_version="test",
-        capabilities=[],
-        capability_revision=1,
-        workspace_revision=1,
-        config_revision=1,
-    )
-    result = CliRunner().invoke(
-        cli, ["devices", "revoke", credential["device_id"], "--yes"]
-    )
-    assert result.exit_code == 0
-    assert broker.list_devices() == []

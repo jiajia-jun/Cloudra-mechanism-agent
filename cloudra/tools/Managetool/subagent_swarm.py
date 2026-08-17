@@ -1,10 +1,9 @@
 """SubAgentSwarm (t-47)：对同一子 Agent 角色批量并行派发多个不同任务。
 
-复用 _subagent_dispatch 的派发核心（与 t-0 同一套实例化/落库/执行/回取逻辑），
-逐项展开 prompt_template 中的 {{item}} 占位符后并发派发，聚合结果返回。
+执行由 runtime_v2 的 subagent_bridge 按工具名拦截实现（{{item}} 展开 +
+并发上限 + 聚合）；本类只保留 schema 与描述。
 """
 
-import asyncio
 from typing import Any
 
 from pydantic import Field
@@ -12,12 +11,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.core.agent import Agent
-from cloudra.persistence.database import ConversationDB
-from cloudra.subagents import Subagent_hash
-from cloudra.tools.Managetool._subagent_dispatch import (
-    dispatch_subagent,
-    fetch_subagent_outcome,
-)
+from cloudra.subagents import Subagent_hash  # noqa: F401  (kept for external references)
 
 MIN_ITEMS = 2
 MAX_ITEMS = 128
@@ -108,159 +102,10 @@ class SubAgentSwarm(Tool):
         input_instance: SubAgentSwarm_input_schema,
         session: Session
     ) -> SubAgentSwarm_output_schema:
-        # ---- 校验 ----
-        template = input_instance.prompt_template
-        if "{{item}}" not in template:
-            return self._error(
-                "Error: prompt_template must contain the {{item}} placeholder; "
-                "each subtask substitutes it with the corresponding item."
-            )
-
-        items = [str(i) for i in input_instance.items]
-        if not (MIN_ITEMS <= len(items) <= MAX_ITEMS):
-            return self._error(
-                f"Error: items count must be between {MIN_ITEMS} and {MAX_ITEMS}, got {len(items)}."
-            )
-
-        prompts = [template.replace("{{item}", item) for item in items]
-        seen: dict[str, int] = {}
-        duplicate_items: list[str] = []
-        for item, prompt in zip(items, prompts):
-            if prompt in seen:
-                duplicate_items.append(item)
-            else:
-                seen[prompt] = len(seen)
-        if duplicate_items:
-            return self._error(
-                "Error: after expanding the following items, the task description duplicates another item; "
-                "deduplicate or change the template: "
-                f"{duplicate_items}"
-            )
-
-        try:
-            agent_hash = Subagent_hash()
-        except Exception as e:
-            return self._error(f"[System error] Failed to load sub-agent mapping: {str(e)}")
-
-        agent_id = input_instance.agent_id
-        agent_cls = agent_hash.get(agent_id)
-        if agent_cls is None:
-            available_ids = list(agent_hash.subagents_dict.keys())
-            return self._error(
-                f"Error: Agent ID '{agent_id}' not found. Available IDs: {available_ids}"
-            )
-
-        parent_session_id = getattr(session, "id", None) if session else None
-        conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
-        working_directory = getattr(self.subagent, 'working_directory', None)
-        parent_mode = getattr(self.subagent, 'orchestration_mode', 'standard')
-
-        # ---- 派发 ----
-        if input_instance.is_wait:
-            return await self._run_waiting(
-                agent_cls, agent_id, items, prompts, input_instance,
-                conversation_id, working_directory, parent_session_id, parent_mode,
-            )
-        return await self._run_fire_and_forget(
-            agent_cls, agent_id, items, prompts, input_instance,
-            conversation_id, working_directory, parent_session_id, parent_mode,
-        )
-
-    async def _run_waiting(
-        self, agent_cls, agent_id, items, prompts, input_instance,
-        conversation_id, working_directory, parent_session_id, parent_mode,
-    ) -> SubAgentSwarm_output_schema:
-        max_concurrency = int(input_instance.max_concurrency or 0)
-        semaphore = asyncio.Semaphore(max_concurrency) if max_concurrency > 0 else None
-        db = ConversationDB(conversation_id)
-
-        async def run_one(prompt: str):
-            """派发单项并回取状态；异常不抛出，聚合为失败分节。"""
-            try:
-                dispatched = await dispatch_subagent(
-                    agent_cls,
-                    agent_id=agent_id,
-                    query=prompt,
-                    context=input_instance.context,
-                    is_wait=True,
-                    conversation_id=conversation_id,
-                    working_directory=working_directory,
-                    parent_session_id=parent_session_id,
-                    parent_orchestration_mode=parent_mode,
-                    semaphore=semaphore,
-                )
-            except Exception as e:
-                return None, "failed", f"[System error] Dispatch or execution error: {e}"
-            state, _result = await fetch_subagent_outcome(db, dispatched.task_id, dispatched.session_id)
-            return dispatched, state, dispatched.result
-
-        outcomes = await asyncio.gather(*(run_one(p) for p in prompts))
-
-        session_ids: list[str] = []
-        task_ids: list[int] = []
-        sections: list[str] = []
-        total = len(items)
-        succeeded = 0
-        for index, (item, (dispatched, state, result)) in enumerate(zip(items, outcomes), start=1):
-            label = _STATE_LABELS.get(state, f"unknown({state})")
-            if state == "done":
-                succeeded += 1
-            session_id = dispatched.session_id if dispatched else "error"
-            session_ids.append(session_id)
-            task_ids.append(dispatched.task_id if dispatched else -1)
-            sections.append(
-                f"=== Item {index}/{total}: {_summarize_item(item)} ===\n"
-                f"status: {label}\n"
-                f"session_id: {session_id}\n"
-                f"{result}"
-            )
-
-        report = (
-            f"Swarm finished: {succeeded}/{total} succeeded (agent_id={agent_id})\n\n"
-            + "\n\n".join(sections)
-        )
-        return SubAgentSwarm_output_schema(
-            session_ids=session_ids, task_ids=task_ids, result=report
-        )
-
-    async def _run_fire_and_forget(
-        self, agent_cls, agent_id, items, prompts, input_instance,
-        conversation_id, working_directory, parent_session_id, parent_mode,
-    ) -> SubAgentSwarm_output_schema:
-        session_ids: list[str] = []
-        task_ids: list[int] = []
-        failures: list[str] = []
-        for item, prompt in zip(items, prompts):
-            try:
-                dispatched = await dispatch_subagent(
-                    agent_cls,
-                    agent_id=agent_id,
-                    query=prompt,
-                    context=input_instance.context,
-                    is_wait=False,
-                    conversation_id=conversation_id,
-                    working_directory=working_directory,
-                    parent_session_id=parent_session_id,
-                    parent_orchestration_mode=parent_mode,
-                )
-                session_ids.append(dispatched.session_id)
-                task_ids.append(dispatched.task_id)
-            except Exception as e:
-                session_ids.append("error")
-                task_ids.append(-1)
-                failures.append(f"- {_summarize_item(item)}: {e}")
-
-        lines = [
-            f"Swarm asynchronously dispatched {len(items)} subtasks (agent_id={agent_id});",
-            "use get_subagent_report with session_id to query progress and results.",
-            "session_ids:",
-        ]
-        lines.extend(f"- {sid}" for sid in session_ids)
-        if failures:
-            lines.append("Failed dispatches:")
-            lines.extend(failures)
-        return SubAgentSwarm_output_schema(
-            session_ids=session_ids, task_ids=task_ids, result="\n".join(lines)
+        # Legacy 派发已删除；runtime_v2 的 LegacyToolExecutor 在执行前按工具名
+        # 拦截到 subagent_bridge，此 body 只是兜底。
+        return self._error(
+            "[System error] SubAgentSwarm is handled by runtime_v2; the legacy dispatch path no longer exists."
         )
 
     def get_subagents(self) -> list[str]:

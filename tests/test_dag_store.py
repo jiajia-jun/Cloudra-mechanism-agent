@@ -124,15 +124,15 @@ def test_species_records_are_stable_and_immutable(tmp_path):
         )
 
 
-def _seed_process_path(store):
+def _seed_delivery_path(store):
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import (
         AddEdge,
         AddNode,
-        DependencyEdge,
+        ElementaryStepEdge,
         GraphActor,
         MutationBatch,
-        PlannedNode,
+        OccurrenceNode,
     )
 
     engine = DagEngine(store)
@@ -146,21 +146,21 @@ def _seed_process_path(store):
             operations=[
                 AddNode(
                     op="add_node",
-                    graph="process",
-                    node=PlannedNode(node_id="map", label="map"),
+                    graph="delivery",
+                    node=OccurrenceNode(node_id="r", label="R", role="reactant"),
                 ),
                 AddNode(
                     op="add_node",
-                    graph="process",
-                    node=PlannedNode(node_id="ts", label="TS"),
+                    graph="delivery",
+                    node=OccurrenceNode(node_id="p", label="P", role="product"),
                 ),
                 AddEdge(
                     op="add_edge",
-                    graph="process",
-                    edge=DependencyEdge(
-                        edge_id="map-before-ts",
-                        source_node_id="map",
-                        target_node_id="ts",
+                    graph="delivery",
+                    edge=ElementaryStepEdge(
+                        edge_id="step",
+                        source_node_id="r",
+                        target_node_id="p",
                     ),
                 ),
             ],
@@ -173,10 +173,10 @@ def _seed_process_path(store):
 def test_materialized_graph_can_be_rebuilt_from_accepted_journal(tmp_path):
     _api, db, store = _new_store(tmp_path, "rebuild")
     store.ensure_bundle("s1")
-    engine = _seed_process_path(store)
+    engine = _seed_delivery_path(store)
     expected = engine.snapshot()
     with db.connect() as con:
-        con.execute("DELETE FROM dag_nodes WHERE node_id = 'map'")
+        con.execute("DELETE FROM dag_nodes WHERE node_id = 'r'")
 
     rebuilt = store.rebuild_materialized()
 
@@ -186,24 +186,25 @@ def test_materialized_graph_can_be_rebuilt_from_accepted_journal(tmp_path):
 def test_invalid_journal_raises_without_inventing_an_empty_graph(tmp_path):
     api, db, store = _new_store(tmp_path, "bad-journal")
     store.ensure_bundle("s1")
-    _seed_process_path(store)
+    _seed_delivery_path(store)
     with db.connect() as con:
         con.execute(
             "UPDATE dag_mutations SET resulting_revisions = ? WHERE accepted = 1",
-            ('{"delivery":0,"process":99}',),
+            ('{"delivery":99,"process":0}',),
         )
-        con.execute("DELETE FROM dag_nodes WHERE node_id = 'map'")
+        con.execute("DELETE FROM dag_nodes WHERE node_id = 'r'")
 
     with pytest.raises(api["DagCorruptionError"]):
         store.rebuild_materialized()
     with db.connect() as con:
         remaining = con.execute("SELECT node_id FROM dag_nodes ORDER BY node_id").fetchall()
-    assert remaining == [("ts",)]
+    assert remaining == [("p",)]
 
 
 def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
-    """旧格式兼容：手工构造 data-dict 形状 + 旧词表的 journal 记录，
-    重放不炸且映射到现行类型（旧形状只读，不要求能写）。"""
+    """旧格式兼容：手工构造 data-dict 形状 + 旧词表的 journal 记录可重放；
+    process op 在 Phase 4 后重放为 no-op（revision 照原口径推进），
+    并在 journal 里留 ignored_legacy_process_op 记录。"""
     import json
 
     _api, db, store = _new_store(tmp_path, "legacy-journal")
@@ -226,6 +227,16 @@ def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
             "data": {"node_id": "legacy", "changes": {"status": "in_progress"}},
         },
         {
+            "op": "add_link",
+            "graph": None,
+            "data": {
+                "link_id": "lk-legacy",
+                "process_node_id": "legacy",
+                "delivery_element_type": "node",
+                "delivery_element_id": "r",
+            },
+        },
+        {
             "op": "add_node",
             "graph": "delivery",
             "data": {
@@ -236,6 +247,8 @@ def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
             },
         },
     ]
+    # touch 口径与写入时一致：每 mutation 按图推进一次——本行 4 个 op
+    # 触及 process（含 add_link 双图）与 delivery，各 +1
     resulting = {"process": revisions["process"] + 1, "delivery": revisions["delivery"] + 1}
     with db.connect() as con:
         con.execute(
@@ -264,14 +277,73 @@ def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
     rebuilt = store.rebuild_materialized()
 
     assert rebuilt.bundle.revisions == resulting
-    node = next(n for n in rebuilt.process.nodes if n.node_id == "legacy")
-    assert node.node_type == "planned"
-    assert node.status == "running"  # pending → proposed → in_progress → running
-    assert node.priority == 5
-    assert node.metadata["custom"] == "kept"
+    # process op 全部 no-op：不物化任何 process 节点/边
+    assert rebuilt.process.nodes == []
+    assert rebuilt.process.edges == []
     occurrence = rebuilt.delivery.nodes[0]
     assert occurrence.node_type == "occurrence"
     assert occurrence.role == "reactant"
     assert occurrence.evidence_level == "proposed"
-    # 重放后物化行已升级为新形状，二次重放（幂等）仍一致
+    with db.connect() as con:
+        ignored = con.execute(
+            "SELECT rationale FROM dag_mutations WHERE rationale LIKE 'ignored_legacy_process_op%'"
+        ).fetchall()
+    assert ignored and "3 legacy process operations" in ignored[0][0]
+    # 二次重放（幂等）仍一致
     assert store.rebuild_materialized() == rebuilt
+
+
+def test_legacy_rows_without_stages_map_from_evidence_level(tmp_path):
+    """旧物化行（stages 列为空）读取时按 evidence_level 一次性映射出阶段。"""
+    api, db, store = _new_store(tmp_path, "legacy-stage-map")
+    store.ensure_bundle(session_id="s1")
+    with db.connect() as con:
+        con.execute(
+            """
+            INSERT INTO dag_nodes(
+                graph_id, node_id, node_type, label, refs, payload,
+                created_revision, updated_revision
+            ) VALUES (
+                'dag_delivery', 'i0', 'occurrence', 'int', '[]',
+                '{"evidence_level": "structure_supported"}', 0, 0
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO dag_nodes(
+                graph_id, node_id, node_type, label, refs, payload,
+                created_revision, updated_revision
+            ) VALUES (
+                'dag_delivery', 'i1', 'occurrence', 'int2', '[]',
+                '{"evidence_level": "inconclusive", "reason": "only a scan exists"}', 0, 0
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO dag_edges(
+                graph_id, edge_id, source_node_id, target_node_id, edge_type,
+                label, refs, payload, created_revision, updated_revision
+            ) VALUES (
+                'dag_delivery', 'e0', 'i0', 'i1', 'elementary_step', 'step', '[]',
+                '{"evidence_level": "saddle_supported"}', 0, 0
+            )
+            """
+        )
+
+    snapshot = store.load_snapshot()
+    node = next(n for n in snapshot.delivery.nodes if n.node_id == "i0")
+    inconclusive = next(n for n in snapshot.delivery.nodes if n.node_id == "i1")
+    edge = snapshot.delivery.edges[0]
+
+    assert [(s.kind.value, s.status.value) for s in node.stages] == [
+        ("geometry", "supported")
+    ]
+    assert [(s.kind.value, s.status.value, s.reason) for s in inconclusive.stages] == [
+        ("geometry", "skipped", "only a scan exists")
+    ]
+    assert [(s.kind.value, s.status.value) for s in edge.stages] == [
+        ("ts_opt", "supported"),
+        ("frequency", "supported"),
+    ]

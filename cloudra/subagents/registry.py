@@ -25,3 +25,17 @@ SUBAGENT_REGISTRY: tuple[SubagentRegistration, ...] = (
     SubagentRegistration("a-8", "cloudra.subagents.env", "env"),
 )
 
+
+def legacy_agent_id_for_role(role_id: str) -> str:
+    """Map a v2 role_id (or Coordinator) onto the DAG assignee vocabulary.
+
+    Process-node ``assignee`` and tool ``actor_id`` use legacy a-N ids
+    (``a-0`` = Coordinator).  Unknown roles pass through unchanged.
+    """
+    if role_id == "coordinator":
+        return "a-0"
+    for reg in SUBAGENT_REGISTRY:
+        if reg.class_name == role_id or reg.agent_id == role_id:
+            return reg.agent_id
+    return role_id
+

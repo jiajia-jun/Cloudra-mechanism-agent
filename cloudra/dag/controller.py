@@ -5,77 +5,70 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from cloudra.dag.completion import build_projection, evaluate_delivery
-from cloudra.dag.engine import _DERIVED_EVIDENCE_FIELDS, DagEngine
+from cloudra.dag.delta import DeliveryDelta
+from cloudra.dag.engine import (
+    DagEngine,
+    _Rejected,
+    apply_stage_verdict,
+)
 from cloudra.dag.models import (
+    ELEMENTARY_STEP_STAGE_KINDS,
+    OCCURRENCE_STAGE_KINDS,
+    AddEdge,
     AddNode,
     AttachRef,
+    CallReview,
     CoverageContract,
     GraphActor,
+    GraphKind,
     GraphOperation,
     GraphRef,
+    MechanismDraft,
     MutationBatch,
     MutationResult,
-    ObservedNode,
     OrchestrationMode,
+    StageContract,
+    StageKind,
+    StageState,
+    StageStatus,
     UpdateEdge,
     UpdateNode,
+    derive_evidence_level,
     normalize_orchestration_mode,
+    parse_graph_operation,
 )
 from cloudra.dag.store import DagStore, InvalidGraphReference, _canonical_json
-from cloudra.persistence.artifacts import ArtifactDownloadDenied, ArtifactService
 from cloudra.persistence.database import ConversationDB
 from cloudra.services import session_store
 from cloudra.tools.capabilities import (
     evidence_deriver_for,
     is_dag_observable,
-    supervisor_evidence_tools,
+    is_dag_reviewed,
 )
 
 logger = logging.getLogger("DagController")
 
-# 工具侧 evidence deriver 可写出的字段白名单：派生证据位由 engine 定义，
-# 另加 evidence_level 与 advisory_sources 两个 harness 约定字段。
-_DERIVER_ALLOWED_FIELDS = _DERIVED_EVIDENCE_FIELDS | {"advisory_sources", "evidence_level"}
-
-# bind_evidence 的 evidence_role 词表：与 _derive_delivery_changes 的派生分支一一对应。
-EVIDENCE_ROLES = frozenset({
-    "intermediate_optimization",
-    "ts_optimization_frequency",
-    "short_irc",
-    "endpoint_a_optimization",
-    "endpoint_b_optimization",
-    "endpoint_direction_check",
-    "endpoint_identity_match",
-    "thermochemistry",
-})
-
-# Supervisor 复核下调（downgraded）：沿证据等级阶梯降一级；
-# proposed 及更低（含 rejected/inconclusive 处置级）只能落到 inconclusive。
-_EVIDENCE_LEVEL_DOWNGRADE = {
-    "thermo_annotated": "endpoint_supported",
-    "endpoint_supported": "saddle_supported",
-    "saddle_supported": "structure_supported",
-    "structure_supported": "proposed",
-}
+def _short_tool_rationale(tool_name: str, arguments: dict[str, Any]) -> str:
+    """Wake-payload snippet from a delivery-write tool's arguments."""
+    bits = [tool_name]
+    for key in (
+        "rationale", "label", "node_id", "element_id", "edge_id",
+        "role", "source_node_id", "target_node_id",
+    ):
+        value = arguments.get(key)
+        if value:
+            bits.append(f"{key}={value}")
+    return " ".join(bits)
 
 
 class DagController:
     """Deterministic harness writer. Chemistry tools themselves remain stateless."""
-
-    _OUTPUT_PATH_KEYS = {
-        "output_path",
-        "output_file",
-        "input_file_path",
-        "image_path",
-        "ts_candidate_path",
-        "irc_end_a_path",
-        "irc_end_b_path",
-    }
 
     def __init__(
         self,
@@ -85,16 +78,23 @@ class DagController:
         *,
         conversation_id: str | None = None,
         working_directory: str | Path | None = None,
-        artifact_data_dir: str | Path | None = None,
         supervisor=None,
         agent_id: str | None = None,
+        role_id: str | None = None,
+        on_supervision=None,
+        core=None,
     ):
         self.db = db
         self.session_id = session_id
         self.mode = normalize_orchestration_mode(mode)
         self.conversation_id = conversation_id or db.conversation_id or "default"
-        # 投影 assigned_to_me 区块按此 id 过滤（缺省则不输出该区块）
+        # 变更日志与 CallReview sidecar 使用的 actor id（legacy a-N 词表）
         self.agent_id = agent_id
+        # v2 role_id（CallReview sidecar 用；legacy a-N 由单一映射推出，D13）
+        self.role_id = role_id
+        # runtime_v2 RuntimeCore 句柄（可选）：_has_pending_background 的
+        # v2-native 信号（core.agents 投影 + ReminderBroker 投影，D8.2）
+        self._core = core
         self.working_directory = (
             Path(working_directory).expanduser().resolve()
             if working_directory is not None
@@ -103,12 +103,11 @@ class DagController:
         self.store = DagStore(db)
         self.engine = DagEngine(self.store)
         self.contract = CoverageContract.mechanism_default()
-        self.artifacts = ArtifactService(
-            Path(artifact_data_dir) if artifact_data_dir is not None else None
-        )
         self.supervisor = supervisor
+        # 可选观察钩子：async (phase, trigger, result, error_note)；
+        # runtime_v2 的 dag_stage 用它把督导运行投影成一个壳 agent 会话。
+        self.on_supervision = on_supervision
         self._initialized = False
-        self._substantive_gate_warned = False
 
     @property
     def enabled(self) -> bool:
@@ -118,9 +117,8 @@ class DagController:
         """加载图存储与覆盖契约；不自动拉起 Supervisor。
 
         用户追加/唤醒会再次进入 ``Coordinator.run()`` → ``initialize()``。
-        若此处因 delivery 非空自动 ``graph_initialization``，会与首轮用户要求
-        抢拍，模型常在 goal/stop 复核提示下空转。排产改由
-        ``delivery_updated`` / ``user_replan`` / ``pre_delivery`` 显式触发。
+        督导唤醒全部由 ``_trigger_supervisor_after_tool`` / 收件箱 /
+        ``user_replan`` / ``pre_delivery`` 显式触发。
         """
         if not self.enabled or self._initialized:
             return
@@ -128,53 +126,39 @@ class DagController:
         self.contract = await asyncio.to_thread(self.store.load_coverage_contract)
         self._initialized = True
 
-    async def has_graph_content(self) -> bool:
-        """process 或 delivery 至少一侧已有节点（空 bundle 不算建图）。"""
+    async def mechanism_accepted(self) -> bool:
+        """D4：是否存在已接受的机理草稿（唯一判据，随库存续）。"""
         if not self.enabled:
             return True
-        # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
-        snapshot = await asyncio.to_thread(self.engine.snapshot)
-        return bool(snapshot.process.nodes or snapshot.delivery.nodes)
+        await self.initialize()
+        # 同步 sqlite 读走 worker 线程，busy 等待不占事件循环
+        return await asyncio.to_thread(self.store.has_accepted_draft)
 
     async def check_substantive_gate(
         self,
         tool_name: str,
         arguments: dict[str, Any] | None = None,
     ) -> tuple[str, str] | None:
-        """实质性操作前的 DAG 门槛。
+        """实质性计算前的 DAG 门槛（Phase 3：唯一门槛 = mechanism_accepted）。
 
-        返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝；``("warn", msg)`` 软警告。
-
-        guided：空图硬拦 → 图非空后，写文件/开算/非调研子 Agent 还须工作流就绪
-        （实质机理 + Supervisor 非模板排产）；explorer/researcher 在图非空后放行。
-        record：仅空图软警告一次。
+        返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝。机理草稿被接受
+        之前拦截计算入口（submit_compute_job/gjf_writer/ts_guess 计算型
+        mode 等，词表在 registry 的 dag_compute_entry）；检索/读取/机理
+        提案工具始终放行；standard 模式无门槛。
         """
         from cloudra.dag.substantive_gate import (
             GUIDED_BLOCK_MESSAGE,
-            GUIDED_WORKFLOW_BLOCK_MESSAGE,
-            RECORD_WARN_MESSAGE,
-            is_early_research_subagent_call,
-            is_substantive_tool,
-            workflow_ready,
+            RECORD_BLOCK_MESSAGE,
+            is_compute_entry_tool,
         )
 
-        if not self.enabled or not is_substantive_tool(tool_name, arguments):
+        if not self.enabled or not is_compute_entry_tool(tool_name, arguments):
             return None
-        has_content = await self.has_graph_content()
-        if not has_content:
-            if self.mode is OrchestrationMode.DAG_GUIDED:
-                return "block", GUIDED_BLOCK_MESSAGE
-            if self.mode is OrchestrationMode.DAG_RECORD:
-                return "warn", RECORD_WARN_MESSAGE
+        if await self.mechanism_accepted():
             return None
-        if self.mode is not OrchestrationMode.DAG_GUIDED:
-            return None
-        if is_early_research_subagent_call(tool_name, arguments):
-            return None
-        snapshot = await asyncio.to_thread(self.engine.snapshot)
-        if workflow_ready(snapshot):
-            return None
-        return "block", GUIDED_WORKFLOW_BLOCK_MESSAGE
+        if self.mode is OrchestrationMode.DAG_GUIDED:
+            return "block", GUIDED_BLOCK_MESSAGE
+        return "block", RECORD_BLOCK_MESSAGE
 
     async def prompt_projection(self) -> str:
         if not self.enabled:
@@ -183,12 +167,27 @@ class DagController:
         # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
         snapshot = await asyncio.to_thread(self.engine.snapshot)
         history = await asyncio.to_thread(self.engine.history, limit=8)
+        reviews = await asyncio.to_thread(self.store.list_call_reviews)
+        pending = [
+            {
+                "review_id": row.review_id,
+                "tool_name": row.tool_name,
+                "is_success": row.is_success,
+                "caller": row.caller_legacy_id or row.caller_role_id,
+                **(
+                    {"compute_job_id": row.compute_job_id}
+                    if row.compute_job_id
+                    else {}
+                ),
+            }
+            for row in reviews
+        ]
         projection = build_projection(
             snapshot,
             mode=self.mode,
             contract=self.contract,
             history=history,
-            actor_id=self.agent_id,
+            pending_reviews=pending,
         )
         return projection.to_prompt_text(actor_id=self.agent_id)
 
@@ -201,25 +200,54 @@ class DagController:
         """会话级后台是否还有未竟工作（子任务/计算/定时提醒）。
 
         与 runner._count_pending_tasks 同一判定口径：只要后台未排空，
-        stop 就是"挂起等唤醒"而不是交付。
+        stop 就是"挂起等唤醒"而不是交付。D8.2：子 agent 与提醒读
+        v2-native 信号（core.agents 投影 + ReminderBroker 事件投影）——
+        旧的 scheduled_reminders/subagent_requests 表在 v2 下恒为空，
+        挂起判定对它们永远失明（证据 e）；compute_jobs 表仍是权威。
         """
         from cloudra.persistence.database import aretry_on_locked
 
         async def query():
             async with self.db.aconnect() as con:
                 cur = await con.execute(
-                    """
-                    SELECT
-                        (SELECT COUNT(*) FROM subagent_requests WHERE state IN ('ready', 'running') AND conversation_id = ?),
-                        (SELECT COUNT(*) FROM compute_jobs WHERE state IN ('ready', 'running') AND conversation_id = ?),
-                        (SELECT COUNT(*) FROM scheduled_reminders WHERE state = 'pending' AND conversation_id = ?)
-                    """,
-                    (self.conversation_id, self.conversation_id, self.conversation_id),
+                    "SELECT COUNT(*) FROM compute_jobs "
+                    "WHERE state IN ('ready', 'running') AND conversation_id = ?",
+                    (self.conversation_id,),
                 )
                 return await cur.fetchone()
 
         row = await aretry_on_locked(query)
-        return bool(row and any(row))
+        if row and any(row):
+            return True
+        core = self._core
+        if core is None:
+            return False
+        terminal = {"succeeded", "failed", "cancelled"}
+        if any(
+            agent.id != self.session_id
+            and agent.project_id == self.conversation_id
+            and agent.state.value not in terminal
+            for agent in core.agents.values()
+        ):
+            return True
+        return bool(core.reminders.pending(self.session_id))
+
+    async def record_unaudited_partial(self) -> None:
+        """D8.3：非 stop 的运行结束（最终消息路径）自动落 partial。
+
+        complete 只能来自被审计的显式 stop；只对 Coordinator（a-0）记录，
+        子 agent 的运行结束不构成交付。
+        """
+        if not self.enabled or self.agent_id != "a-0":
+            return
+        await self.initialize()
+        report = await asyncio.to_thread(self.delivery_report)
+        await asyncio.to_thread(
+            self.store.record_delivery_disposition,
+            self.session_id,
+            "partial",
+            report,
+        )
 
     async def audit_stop(self, disposition: str):
         if not self.enabled:
@@ -247,77 +275,47 @@ class DagController:
         )
         return True, report
 
-    async def on_tool_started(
+    async def _enqueue_call_review(
         self,
         tool_call_id: str,
         tool_name: str,
         arguments: dict[str, Any],
-    ) -> str | None:
-        if not self.enabled or not is_dag_observable(tool_name):
-            return None
-        await self.initialize()
-        # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
-        snapshot = await asyncio.to_thread(self.engine.snapshot)
-        existing = next(
-            (
-                node
-                for node in snapshot.process.nodes
-                if node.tool_call_id == tool_call_id
+        result: dict[str, Any],
+        success: bool,
+        *,
+        compute_job_id: str | None = None,
+    ) -> bool:
+        """CallReview 收件箱 enqueue（D5 节流、D12 仅追加直连 INSERT）。
+
+        只有 registry 声明 dag_review=True 的工具入箱（计算作业终态走
+        enqueue_compute_review）；普通工具调用不入箱也不唤醒 Supervisor。
+        返回是否有新行入箱。
+        """
+        if not is_dag_reviewed(tool_name):
+            return False
+        from cloudra.subagents.registry import legacy_agent_id_for_role
+
+        role_id = self.role_id or ""
+        review = CallReview(
+            review_id="rev_" + uuid.uuid4().hex,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            is_success=success,
+            caller_session_id=self.session_id,
+            caller_role_id=role_id,
+            caller_legacy_id=(
+                legacy_agent_id_for_role(role_id) if role_id else (self.agent_id or "")
             ),
-            None,
+            arguments_digest="sha256:" + hashlib.sha256(
+                _canonical_json(arguments).encode("utf-8")
+            ).hexdigest()[:16],
+            result_summary=_canonical_json(result)[:300],
+            compute_job_id=compute_job_id,
+            state="pending",
+            created_at=datetime.now(timezone.utc).isoformat(),
         )
-        if existing is not None:
-            return existing.node_id
-        candidates = [
-            node
-            for node in snapshot.process.nodes
-            if node.tool_name == tool_name
-            and node.status in {"proposed", "ready"}
-            and not node.tool_call_id
-        ]
-        args_hash = "sha256:" + hashlib.sha256(
-            _canonical_json(arguments).encode("utf-8")
-        ).hexdigest()
-        if len(candidates) == 1:
-            node_id = candidates[0].node_id
-            operations = [
-                UpdateNode(
-                    op="update_node",
-                    graph="process",
-                    node_id=node_id,
-                    changes={
-                        "status": "running",
-                        "tool_call_id": tool_call_id,
-                        "arguments_hash": args_hash,
-                    },
-                )
-            ]
-        else:
-            node_id = "observed_" + hashlib.sha256(
-                tool_call_id.encode("utf-8")
-            ).hexdigest()[:20]
-            operations = [
-                AddNode(
-                    op="add_node",
-                    graph="process",
-                    node=ObservedNode(
-                        node_id=node_id,
-                        label=tool_name,
-                        status="running",
-                        tool_name=tool_name,
-                        tool_call_id=tool_call_id,
-                        arguments_hash=args_hash,
-                        unplanned=True,
-                    ),
-                )
-            ]
-        # 同步 SQLite 写不能在事件循环线程上执行：busy 等待会冻结整个循环，
-        # 使同进程 aiosqlite 连接无法提交，形成跨进程 5 分钟级自死锁
-        # （"database is locked" 根因）。一律 offload 到 worker 线程。
-        await asyncio.to_thread(
-            self._apply_harness, operations, f"tool started: {tool_name}"
-        )
-        return node_id
+        await asyncio.to_thread(self.store.enqueue_call_review, review)
+        return True
 
     async def on_tool_finished(
         self,
@@ -325,7 +323,7 @@ class DagController:
         tool_name: str,
         arguments: dict[str, Any],
         result: dict[str, Any],
-    ) -> GraphRef | None:
+    ) -> DeliveryDelta | None:
         if not self.enabled:
             return None
         if not is_dag_observable(tool_name):
@@ -336,7 +334,6 @@ class DagController:
                 )
             return None
         await self.initialize()
-        await self.on_tool_started(tool_call_id, tool_name, arguments)
         evidence_ref = await asyncio.to_thread(
             self.store.register_evidence,
             self.session_id,
@@ -347,48 +344,29 @@ class DagController:
                 "result": result,
             },
         )
-        node = await asyncio.to_thread(self._process_node_for_call, tool_call_id)
-        refs = [
-            evidence_ref,
-            *await asyncio.to_thread(self._snapshot_output_artifacts, result),
-        ]
         success = self._result_succeeded(result)
-        operations = [
-            AttachRef(
-                op="attach_ref",
-                graph="process",
-                target_type="node",
-                target_id=node.node_id,
-                ref=ref,
-            )
-            for ref in refs
-        ]
-        operations.append(
-            UpdateNode(
-                op="update_node",
-                graph="process",
-                node_id=node.node_id,
-                changes={
-                    "status": "succeeded" if success else "failed",
-                    "evidence_source": tool_name,
-                },
-            )
+        # 不再有图上遥测（observed 节点/自动认领/自动绑定，证据 b/i-1）：
+        # 只登记证据 + 收件箱 enqueue；绑定一律走显式阶段绑定。
+        enqueued = await self._enqueue_call_review(
+            tool_call_id, tool_name, arguments, result, success
         )
-        await asyncio.to_thread(
-            self._apply_harness, operations, f"tool finished: {tool_name}"
-        )
-        await asyncio.to_thread(
-            self._adapt_delivery, node, tool_name, arguments, result, refs
-        )
-        if self.mode is OrchestrationMode.DAG_GUIDED:
-            bound = bool(
-                node.delivery_target_id
-                and node.delivery_target_type in {"node", "edge"}
+        if self.mode is OrchestrationMode.DAG_GUIDED and enqueued:
+            # D5/D14：入箱才唤醒，唤醒按 conversation 合并；附待审清单让
+            # Supervisor 不用猜 review_id。
+            pending = await asyncio.to_thread(self.store.list_call_reviews)
+            lines = [
+                f"- {row.review_id}: {row.tool_name} "
+                f"({'ok' if row.is_success else 'FAILED'}) "
+                f"by {row.caller_legacy_id or row.caller_role_id or 'unknown'}"
+                + (f" [job {row.compute_job_id}]" if row.compute_job_id else "")
+                + (f" — {row.result_summary[:80]}" if row.result_summary else "")
+                for row in pending[:12]
+            ]
+            await self.maybe_supervise(
+                "tool_call_review",
+                coordinator_request="Pending call reviews:\n" + "\n".join(lines),
             )
-            await self._trigger_supervisor_after_tool(
-                tool_name, arguments, result, success, bound_to_delivery=bound
-            )
-        return evidence_ref
+        return DeliveryDelta(evidence_ref=evidence_ref, tool_name=tool_name)
 
     async def _trigger_supervisor_after_tool(
         self,
@@ -396,109 +374,67 @@ class DagController:
         arguments: dict[str, Any],
         result: dict[str, Any],
         success: bool,
-        bound_to_delivery: bool = False,
     ) -> None:
-        """每次工具结束 guided 下最多唤醒一次 Supervisor，按优先级取一。
+        """非观察工具（dag_* 编排面）结束后的 Supervisor 唤醒口，按优先级取一。
 
-        触发口：
-        1. Coordinator 的机理图变更被接受 → delivery_updated（附 rationale 摘要）；
-        2. dag_graph 的删边请求被转交 → edge_removal_requested（Supervisor 复核）；
-        3. 绑定到 delivery 目标的工具成功落地新证据 → new_evidence；
-           未绑定但 gaussian_log_parser 成功也按新证据处理；
-        4. 绑定到 delivery 目标的工具失败 → process_node_failed。
+        触发口（按 tool_name 映射，不嗅探 action）：
+        1. dag_propose_mechanism 被接受/落草稿 → mechanism_proposed（附 rationale）；
+        2. Coordinator 的机理图变更被接受 → delivery_updated（附 arguments 摘要）；
+        3. dag_message_supervisor 成功 → coordinator_message。
+        观察类工具的唤醒走收件箱（tool_call_review，见 on_tool_finished）。
         """
         if self.supervisor is None:
             return
-        # 1/2. dag_graph 调用：区分接受的机理变更与被转交的删边请求。
-        if tool_name == "dag_graph":
-            # Coordinator → Supervisor 留言：不改图，只唤醒督导
-            if (
-                arguments.get("action") == "message_supervisor"
-                and result.get("is_success")
-            ):
-                msg = str(arguments.get("message") or "").strip()
-                if msg:
-                    await self.maybe_supervise(
-                        "coordinator_message", coordinator_request=msg
-                    )
-                return
-            # bind_evidence 成功挂载即新证据落地（等级已由 harness 派生），复核它
-            # 消除了哪些 delivery 缺口、挂载是否张冠李戴。
-            if arguments.get("action") == "bind_evidence" and result.get("accepted"):
-                await self.maybe_supervise("new_evidence")
-                return
-            request = self._coordinator_request(arguments, result)
-            if request is not None:
-                await self.maybe_supervise("delivery_updated", coordinator_request=request)
-                return
-            removal = self._edge_removal_request(arguments, result)
-            if removal is not None:
+        accepted = bool(result.get("accepted"))
+        if tool_name == "dag_propose_mechanism" and accepted:
+            await self.maybe_supervise(
+                "mechanism_proposed",
+                coordinator_request=str(arguments.get("rationale") or ""),
+            )
+            return
+        if (
+            tool_name in {
+                "dag_add_species",
+                "dag_add_step",
+                "dag_update_delivery_element",
+            }
+            and accepted
+        ):
+            await self.maybe_supervise(
+                "delivery_updated",
+                coordinator_request=_short_tool_rationale(tool_name, arguments),
+            )
+            return
+        if tool_name == "dag_message_supervisor" and success:
+            msg = str(arguments.get("message") or "").strip()
+            if msg:
                 await self.maybe_supervise(
-                    "edge_removal_requested", coordinator_request=removal
+                    "coordinator_message", coordinator_request=msg
                 )
             return
-        # 3/4. 证据类工具：绑定到 delivery 目标的成败都要复核；
-        # 未绑定的只保留 gaussian_log_parser 成功这一个口。
-        if success:
-            if bound_to_delivery or tool_name in supervisor_evidence_tools():
-                await self.maybe_supervise("new_evidence")
-        elif bound_to_delivery:
-            await self.maybe_supervise("process_node_failed")
 
-    @staticmethod
-    def _edge_removal_request(
-        arguments: dict[str, Any], result: dict[str, Any]
-    ) -> str | None:
-        """从一次被拒的 dag_graph mutate 中提取删边复核请求。"""
-        if arguments.get("action") != "mutate" or result.get("accepted") is not False:
-            return None
-        if result.get("rejection_code") != "edge_removal_requires_supervisor":
-            return None
-        operations = arguments.get("operations") or []
-        # op 可能是新具名形状（edge_id 顶层）或旧 data 形状，摘要两种都认
-        summary = ", ".join(
-            f"{op.get('op')}:{op.get('graph')}:{op.get('edge_id') or (op.get('data') or {}).get('edge_id')}"
-            for op in operations
-            if isinstance(op, dict)
-        )
-        rationale = arguments.get("rationale") or ""
-        return f"edge removal requested — rationale: {rationale}\noperations: {summary}"
+    # D14 唤醒合并：按 conversation 共享的督导状态——运行中或已有排队触发的
+    # 事件折叠进下一次运行，不再一个事件拉起一整轮 LLM 督导（证据 g）。
+    _SUPERVISION_STATES: dict[str, dict[str, Any]] = {}
 
-    @staticmethod
-    def _coordinator_request(
-        arguments: dict[str, Any], result: dict[str, Any]
-    ) -> str | None:
-        """从一次 dag_graph 调用中提取 Coordinator 的机理变更说明。"""
-        if arguments.get("action") != "mutate" or not result.get("accepted"):
-            return None
-        operations = arguments.get("operations") or []
-        touches_delivery = any(
-            op.get("graph") == "delivery" or op.get("op") == "add_link"
-            for op in operations
-            if isinstance(op, dict)
-        )
-        if not touches_delivery:
-            return None
-        summary = ", ".join(
-            f"{op.get('op')}:{op.get('graph')}"
-            for op in operations
-            if isinstance(op, dict)
-        )
-        rationale = arguments.get("rationale") or ""
-        return f"rationale: {rationale}\noperations: {summary}"
+    @classmethod
+    def _supervision_state(cls, conversation_id: str) -> dict[str, Any]:
+        state = cls._SUPERVISION_STATES.get(conversation_id)
+        if state is None:
+            state = {"lock": asyncio.Lock(), "pending": []}
+            cls._SUPERVISION_STATES[conversation_id] = state
+        return state
 
     async def maybe_supervise(
         self, trigger: str, coordinator_request: str | None = None
     ):
         allowed_triggers = {
-            "graph_initialization",
+            "tool_call_review",
+            "mechanism_proposed",
             "delivery_updated",
             "coordinator_message",
-            "new_evidence",
             "user_replan",
             "pre_delivery",
-            "edge_removal_requested",
-            "process_node_failed",
         }
         if (
             self.mode is not OrchestrationMode.DAG_GUIDED
@@ -507,13 +443,41 @@ class DagController:
         ):
             return None
         await self.initialize()
+        state = self._supervision_state(self.conversation_id)
+        if state["lock"].locked():
+            # 督导运行中：触发折叠进紧随其后的合并运行
+            state["pending"].append(trigger)
+            return None
+        async with state["lock"]:
+            result = await self._run_supervision(trigger, coordinator_request)
+            while state["pending"]:
+                folded = sorted(set(state["pending"]))
+                state["pending"].clear()
+                note = (
+                    "coalesced triggers: " + ", ".join(folded)
+                    if len(folded) > 1
+                    else None
+                )
+                result = await self._run_supervision(folded[0], note)
+            return result
+
+    async def _run_supervision(
+        self, trigger: str, coordinator_request: str | None = None
+    ):
+        # UI 投影回调永远 best-effort：投影故障（如壳会话 spawn 被拒）不能
+        # 杀死督导本身，更不能连带打崩父 agent 的 turn。
+        if self.on_supervision is not None:
+            try:
+                await self.on_supervision("start", trigger, None, None)
+            except Exception as exc:
+                logger.warning("[DagController] on_supervision(start) failed: %s", exc)
         run_session_id = await asyncio.to_thread(
             self._register_supervisor_session, trigger, coordinator_request
         )
         event_sink = None
         if run_session_id is not None:
             # 运行过程写进 supervisor 自己的 session 事件流：
-            # TUI 选中它的 session 行即可看到推理与 dag_graph 调用。
+            # TUI 选中它的 session 行即可看到推理与 dag_* 工具调用。
             async def event_sink(event_type: str, data: dict) -> None:
                 await session_store.arecord_event(self.db, run_session_id, event_type, data)
 
@@ -538,6 +502,11 @@ class DagController:
         await asyncio.to_thread(
             self._finalize_supervisor_session, run_session_id, trigger, result, error_note
         )
+        if self.on_supervision is not None:
+            try:
+                await self.on_supervision("finish", trigger, result, error_note)
+            except Exception as exc:
+                logger.warning("[DagController] on_supervision(finish) failed: %s", exc)
         return result
 
     def _register_supervisor_session(
@@ -601,28 +570,30 @@ class DagController:
         except Exception as exc:
             logger.warning("[DagController] supervisor session 终态落库失败（已忽略）: %s", exc)
 
-    def _process_node_for_call(self, tool_call_id: str):
-        nodes = self.engine.snapshot().process.nodes
-        matches = [
-            node for node in nodes if node.tool_call_id == tool_call_id
-        ]
-        if not matches:
-            # 兜底：上下文压缩后 tool_call_id 可能丢失，允许直接传
-            # observed_<hex> 节点 id 作为别名（bind_evidence 高层动作用）。
-            matches = [node for node in nodes if node.node_id == tool_call_id]
-        if len(matches) != 1:
+    def _evidence_for_call(self, tool_call_id: str) -> GraphRef:
+        """tool_call_id → 已登记的 tool_result 证据引用（证据库反查）。
+
+        process 遥测节点已删除（D12）：解析走 dag_evidence 的 payload，
+        不再经过图上的 observed 节点。
+        """
+        ref = self.store.resolve_evidence_for_call(tool_call_id)
+        if ref is None:
             raise RuntimeError(
-                f"tool call {tool_call_id!r} does not resolve to exactly one process node"
+                f"tool call {tool_call_id!r} has no registered evidence; only a "
+                "finished tool call with a recorded tool_result can be bound"
             )
-        return matches[0]
+        return ref
 
     def _apply_harness(
         self,
         operations: list[GraphOperation],
         rationale: str,
     ) -> MutationResult:
-        for attempt in range(2):
-            result = self.engine.apply_batch(
+        # Concurrent children (swarm) bump process revision on every observed
+        # tool-call; two attempts is not enough when three opts finish together.
+        last: MutationResult | None = None
+        for attempt in range(8):
+            last = self.engine.apply_batch(
                 MutationBatch(
                     session_id=self.session_id,
                     actor=GraphActor.HARNESS,
@@ -632,14 +603,15 @@ class DagController:
                     rationale=rationale,
                 )
             )
-            if result.accepted:
-                return result
-            if result.rejection_code != "stale_revision" or attempt == 1:
-                raise RuntimeError(
-                    f"deterministic DAG mutation rejected: {result.rejection_code}: "
-                    f"{result.rejection_reason}"
-                )
-        raise RuntimeError("unreachable")
+            if last.accepted:
+                return last
+            if last.rejection_code != "stale_revision":
+                break
+        assert last is not None
+        raise RuntimeError(
+            f"deterministic DAG mutation rejected: {last.rejection_code}: "
+            f"{last.rejection_reason}"
+        )
 
     @staticmethod
     def _result_succeeded(result: dict[str, Any]) -> bool:
@@ -647,192 +619,6 @@ class DagController:
             if key in result:
                 return bool(result[key])
         return "error" not in result
-
-    def _snapshot_output_artifacts(self, result: dict[str, Any]) -> list[GraphRef]:
-        if self.working_directory is None:
-            return []
-        refs: list[GraphRef] = []
-        seen: set[Path] = set()
-        for key, raw_value in result.items():
-            if key not in self._OUTPUT_PATH_KEYS or not raw_value:
-                continue
-            path = Path(str(raw_value)).expanduser()
-            try:
-                resolved = path.resolve(strict=True)
-            except OSError:
-                continue
-            if resolved in seen or not resolved.is_file():
-                continue
-            try:
-                artifact = self.artifacts.register_file(
-                    conversation_id=self.conversation_id,
-                    session_id=self.session_id,
-                    source=resolved,
-                    allowed_root=self.working_directory,
-                )
-            except (ArtifactDownloadDenied, OSError):
-                continue
-            seen.add(resolved)
-            refs.append(
-                GraphRef(
-                    ref_type="artifact",
-                    ref_id=artifact.artifact_id,
-                    content_hash=f"sha256:{artifact.sha256}",
-                )
-            )
-        return refs
-
-    def _adapt_delivery(
-        self,
-        process_node,
-        tool_name: str,
-        arguments: dict[str, Any],
-        result: dict[str, Any],
-        refs: list[GraphRef],
-    ) -> None:
-        target_type = process_node.delivery_target_type
-        target_id = process_node.delivery_target_id
-        if target_type not in {"node", "edge"} or not target_id:
-            return
-        graph = self.engine.snapshot().delivery
-        collection = graph.nodes if target_type == "node" else graph.edges
-        target = next((item for item in collection if getattr(item, f"{target_type}_id") == target_id), None)
-        if target is None:
-            raise RuntimeError(f"planned delivery target {target_type}:{target_id} is missing")
-
-        operations = [
-            AttachRef(
-                op="attach_ref",
-                graph="delivery",
-                target_type=target_type,
-                target_id=target_id,
-                ref=ref,
-            )
-            for ref in refs
-        ]
-        changes = self._derive_delivery_changes(
-            target.payload,
-            process_node.evidence_role or "",
-            tool_name,
-            arguments,
-            result,
-        )
-        if changes:
-            operations.append(
-                UpdateNode(
-                    op="update_node",
-                    graph="delivery",
-                    node_id=target_id,
-                    changes=changes,
-                )
-                if target_type == "node"
-                else UpdateEdge(
-                    op="update_edge",
-                    graph="delivery",
-                    edge_id=target_id,
-                    changes=changes,
-                )
-            )
-        if operations:
-            self._apply_harness(
-                operations,
-                f"attach {tool_name} evidence to delivery {target_type} {target_id}",
-            )
-
-    @staticmethod
-    def _derive_delivery_changes(
-        current: dict[str, Any],
-        role: str,
-        tool_name: str,
-        arguments: dict[str, Any],
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
-        if not DagController._result_succeeded(result):
-            return {}
-        deriver = evidence_deriver_for(tool_name)
-        if deriver is None:
-            return {}
-        raw_changes = deriver(current=current, role=role, arguments=arguments, result=result)
-        changes = {
-            key: value
-            for key, value in (raw_changes or {}).items()
-            if key in _DERIVER_ALLOWED_FIELDS
-        }
-        if not changes:
-            return {}
-        # 通用提升逻辑仍由 harness 持有：endpoint 证据位齐了升级为
-        # endpoint_supported；再叠加 thermochemistry 则升级为 thermo_annotated。
-        combined = {**current, **changes}
-        endpoint_flags = {
-            "saddle_supported",
-            "short_irc_supported",
-            "endpoint_a_minimum_supported",
-            "endpoint_b_minimum_supported",
-            "endpoint_direction_consistent",
-            "endpoint_identity_matched",
-        }
-        if endpoint_flags <= {key for key, value in combined.items() if value is True}:
-            changes["evidence_level"] = "endpoint_supported"
-        if combined.get("evidence_level") == "endpoint_supported" and changes.get(
-            "thermochemistry_supported"
-        ):
-            changes["evidence_level"] = "thermo_annotated"
-        return changes
-
-    def rederive_delivery_element(
-        self,
-        target_type: str,
-        target_id: str,
-        ref: GraphRef,
-        evidence_role: str,
-    ) -> dict[str, Any] | None:
-        """事后认领：把一条已登记的 tool_result 证据按指定 role 补挂到
-        delivery 元素后，重跑确定性派生，升级该元素的证据等级。
-
-        正常路径是「Supervisor 排产 → 绑定工具调用 → 完成时自动派生」；
-        先算后建图的场景下模型用 attach_ref（带 evidence_role）补挂证据，
-        由这里补齐派生。返回应用的 changes，无法派生时返回 None。
-        """
-        if target_type not in {"node", "edge"} or not evidence_role:
-            return None
-        try:
-            tool_name, payload = self.store.resolve_evidence_with_source(ref)
-        except InvalidGraphReference:
-            return None
-        arguments = payload.get("arguments") or {}
-        result = payload.get("result") or {}
-        graph = self.engine.snapshot().delivery
-        collection = graph.nodes if target_type == "node" else graph.edges
-        target = next(
-            (item for item in collection if getattr(item, f"{target_type}_id") == target_id),
-            None,
-        )
-        if target is None:
-            return None
-        changes = self._derive_delivery_changes(
-            target.payload, evidence_role, tool_name, arguments, result
-        )
-        if not changes:
-            return None
-        self._apply_harness(
-            [
-                UpdateNode(
-                    op="update_node",
-                    graph="delivery",
-                    node_id=target_id,
-                    changes=changes,
-                )
-                if target_type == "node"
-                else UpdateEdge(
-                    op="update_edge",
-                    graph="delivery",
-                    edge_id=target_id,
-                    changes=changes,
-                )
-            ],
-            f"re-derive {target_type} {target_id} from retro-attached {tool_name} evidence",
-        )
-        return changes
 
     @staticmethod
     def _delivery_target(graph, target_id: str):
@@ -845,35 +631,176 @@ class DagController:
             return "edge", edge
         raise RuntimeError(f"delivery target {target_id!r} does not exist")
 
-    async def bind_evidence_for_call(
+    def _passes_saddle_check(self, ref: GraphRef | None) -> bool:
+        """TS frequency 阶段绑定的 harness 检查（D7）：证据必须能被其工具的
+        deriver 推出 n_imag==1（saddle_supported），否则 bind 被拒。"""
+        if ref is None:
+            return False
+        try:
+            tool_name, payload = self.store.resolve_evidence_with_source(ref)
+        except InvalidGraphReference:
+            return False
+        deriver = evidence_deriver_for(tool_name)
+        if deriver is None:
+            return False
+        changes = deriver(
+            current={},
+            role="ts_optimization_frequency",
+            arguments=payload.get("arguments") or {},
+            result=payload.get("result") or {},
+        )
+        return bool((changes or {}).get("saddle_supported"))
+
+    async def apply_stage_bind(
+        self,
+        *,
+        element_id: str,
+        stage_kind: str,
+        ref: GraphRef | None,
+        verdict: str,
+        reason: str = "",
+        tool_succeeded: bool,
+    ) -> MutationResult:
+        """阶段绑定的唯一 harness 入口（agree/disagree/skip）。
+
+        守卫确定性（engine.apply_stage_verdict）：顺序（前面的必需阶段须
+        supported/skipped；rejected 可重绑，D2）、理由（disagree/skip 必填）、
+        工具成败；TS frequency 另有 n_imag==1 检查（D7，不过 ⇒
+        saddle_check_failed，阶段保持 pending）。守卫拒绝不落地；通过后
+        attach ref + 更新 stages，并由阶段重派生 evidence_level（D7）。
+        """
+        if not self.enabled:
+            raise RuntimeError(
+                "stage binds are disabled in standard orchestration mode"
+            )
+        await self.initialize()
+        try:
+            kind = StageKind(stage_kind)
+        except ValueError:
+            raise RuntimeError(
+                f"unknown stage_kind {stage_kind!r}; "
+                f"allowed: {sorted(item.value for item in StageKind)}"
+            ) from None
+        if verdict not in ("agree", "disagree", "skip"):
+            raise RuntimeError(
+                f"unknown verdict {verdict!r}; allowed: agree/disagree/skip"
+            )
+
+        def _guarded_stages():
+            # snapshot 是同步 sqlite 读，连同守卫一起放进 worker 线程
+            snapshot = self.engine.snapshot()
+            target_type, element = self._delivery_target(
+                snapshot.delivery, element_id
+            )
+            new_stages = apply_stage_verdict(
+                list(element.stages),
+                stage_kind=kind,
+                verdict=verdict,  # type: ignore[arg-type]
+                reason=reason,
+                ref=ref,
+                tool_succeeded=tool_succeeded,
+            )
+            if verdict == "agree" and ref is not None:
+                # D11：submit_compute_job 的调用永远不是阶段证据——计算阶段
+                # 证据只能来自作业终态后的产物（parser 输出）。
+                try:
+                    source_name, _ = self.store.resolve_evidence_with_source(ref)
+                except InvalidGraphReference:
+                    raise _Rejected(
+                        "invalid_reference",
+                        f"evidence reference {ref.ref_id!r} does not resolve",
+                    ) from None
+                if source_name == "submit_compute_job":
+                    raise _Rejected(
+                        "bind_target_is_submit",
+                        "a submit_compute_job call is never stage evidence; bind "
+                        "the parser output of the finished compute job instead",
+                    )
+            if (
+                verdict == "agree"
+                and target_type == "edge"
+                and kind is StageKind.FREQUENCY
+                and not self._passes_saddle_check(ref)
+            ):
+                raise _Rejected(
+                    "saddle_check_failed",
+                    "TS frequency evidence must show exactly one imaginary "
+                    "frequency (n_imag == 1); the stage stays pending",
+                )
+            return target_type, element, new_stages
+
+        try:
+            target_type, element, new_stages = await asyncio.to_thread(
+                _guarded_stages
+            )
+        except _Rejected as exc:
+            rejection = exc  # except 块退出后 exc 会被删除，先绑定到普通局部变量
+            revisions = await asyncio.to_thread(
+                lambda: dict(self.store.load_bundle().revisions)
+            )
+            return MutationResult(
+                accepted=False,
+                mutation_id="mut_" + uuid.uuid4().hex,
+                revisions=revisions,
+                rejection_code=rejection.code,
+                rejection_reason=rejection.reason,
+            )
+
+        operations: list[GraphOperation] = []
+        if verdict == "agree" and ref is not None and ref not in element.refs:
+            operations.append(
+                AttachRef(
+                    op="attach_ref",
+                    graph="delivery",
+                    target_type=target_type,  # type: ignore[arg-type]
+                    target_id=element_id,
+                    ref=ref,
+                )
+            )
+        changes = {
+            "stages": [stage.model_dump(mode="json") for stage in new_stages],
+            "evidence_level": derive_evidence_level(
+                new_stages, is_edge=target_type == "edge"
+            ),
+        }
+        operations.append(
+            UpdateNode(
+                op="update_node",
+                graph="delivery",
+                node_id=element_id,
+                changes=changes,
+            )
+            if target_type == "node"
+            else UpdateEdge(
+                op="update_edge",
+                graph="delivery",
+                edge_id=element_id,
+                changes=changes,
+            )
+        )
+        return await asyncio.to_thread(
+            self._apply_harness,
+            operations,
+            f"stage bind {verdict}: {element_id}.{kind.value}",
+        )
+
+    async def bind_stage_for_call(
         self,
         tool_call_id: str,
         target_id: str,
-        evidence_role: str,
+        stage_kind: str,
     ) -> dict[str, Any]:
-        """agent 高层挂证据：tool_call_id → 已登记证据 → attach + 确定性派生。
+        """dag_bind_evidence 的阶段形态：tool_call_id → 已登记证据 → agree 绑定。
 
-        agent 不需要看见 ev_ id：只要给出自己发起的工具调用（或 observed 节点 id
-        别名）、delivery 目标和证据角色。三道确定性校验：证据已登记（
-        on_tool_finished 已把 tool_result ref 挂到 process 节点）、该次计算确实
-        成功、目标元素存在；attach 与等级派生都走 _apply_harness（自带 stale 重试）。
+        确定性校验与 bind_evidence_for_call 同构（证据已登记、该次调用确实
+        成功），随后走 apply_stage_bind 的顺序/检查守卫。
         """
         if not self.enabled:
             raise RuntimeError(
                 "bind_evidence is disabled in standard orchestration mode"
             )
-        if evidence_role not in EVIDENCE_ROLES:
-            raise RuntimeError(
-                f"unknown evidence_role {evidence_role!r}; allowed: {sorted(EVIDENCE_ROLES)}"
-            )
         await self.initialize()
-        node = await asyncio.to_thread(self._process_node_for_call, tool_call_id)
-        ref = next((r for r in node.refs if r.ref_type == "tool_result"), None)
-        if ref is None:
-            raise RuntimeError(
-                f"tool call {tool_call_id!r} has no registered evidence; only a "
-                "finished tool call with a recorded tool_result can be bound"
-            )
+        ref = await asyncio.to_thread(self._evidence_for_call, tool_call_id)
         _, payload = await asyncio.to_thread(
             self.store.resolve_evidence_with_source, ref
         )
@@ -882,181 +809,386 @@ class DagController:
                 f"tool call {tool_call_id!r} did not succeed; a failed or "
                 "unsuccessful computation cannot be bound as evidence"
             )
-        def _locate_target():
-            # snapshot 是同步 sqlite 读，连同定位一起放进 worker 线程
-            return self._delivery_target(self.engine.snapshot().delivery, target_id)
-
-        target_type, _ = await asyncio.to_thread(_locate_target)
-        await asyncio.to_thread(
-            self._apply_harness,
-            [
-                AttachRef(
-                    op="attach_ref",
-                    graph="delivery",
-                    target_type=target_type,
-                    target_id=target_id,
-                    ref=ref,
-                )
-            ],
-            f"bind evidence of {tool_call_id} to delivery {target_type} {target_id}",
-        )
-        changes = await asyncio.to_thread(
-            self.rederive_delivery_element, target_type, target_id, ref, evidence_role
+        mutation = await self.apply_stage_bind(
+            element_id=target_id,
+            stage_kind=stage_kind,
+            ref=ref,
+            verdict="agree",
+            tool_succeeded=True,
         )
         return {
-            "target_type": target_type,
             "target_id": target_id,
+            "stage_kind": stage_kind,
             "ref_id": ref.ref_id,
-            "evidence_role": evidence_role,
-            "changes": changes or {},
-            "derived": bool(changes),
+            "accepted": mutation.accepted,
+            "rejection_code": mutation.rejection_code,
+            "rejection_reason": mutation.rejection_reason,
+            "mutation_id": mutation.mutation_id,
+            "revisions": mutation.revisions,
         }
 
-    async def review_evidence(
+    async def review_call(
         self,
+        *,
+        review_id: str,
         target_id: str,
+        stage_kind: str,
         verdict: str,
-        rationale: str,
-        reviewer: str = "supervisor",
+        reason: str = "",
     ) -> dict[str, Any]:
-        """Supervisor 证据复核：delivery 对 Supervisor 只读，下调由 harness 代写。
+        """Supervisor 的 per-call 复核（D3）：dag_review_call 的 controller 面。
 
-        confirmed 不改图（无需动作）；downgraded 沿等级阶梯降一级；rejected 落到
-        inconclusive 并标记否决。journal 以 actor=HARNESS 记录 Supervisor 的
-        verdict 与理由；否决/下调后向挂载者 session 与 Coordinator 各投一条
-        evidence_vetoed 事件。
+        review 行不携带 ref——harness 从 review.tool_call_id 重解析证据
+        （已登记、调用成功、目标存在、非 submit 调用 D11），阶段绑定守卫与
+        dag_bind_evidence 完全同构。ignore = 不是 delivery 证据，不改阶段。
         """
         if not self.enabled:
             raise RuntimeError(
-                "review_evidence is disabled in standard orchestration mode"
+                "review_call is disabled in standard orchestration mode"
             )
         await self.initialize()
-        def _locate_target():
-            # snapshot 是同步 sqlite 读，连同定位一起放进 worker 线程
-            return self._delivery_target(self.engine.snapshot().delivery, target_id)
-
-        target_type, target = await asyncio.to_thread(_locate_target)
-        old_level = target.evidence_level
-        if verdict == "confirmed":
-            # 确认无需动作：等级维持，图与 journal 都不动。
+        review = await asyncio.to_thread(self.store.get_call_review, review_id)
+        if review is None:
+            raise RuntimeError(f"call review {review_id!r} does not exist")
+        if review.state == "ignored":
+            raise RuntimeError(
+                f"call review {review_id!r} is already ignored"
+            )
+        # 一条 review 可依次支撑多个阶段（一次 opt+freq 解析同时供 ts_opt 与
+        # frequency），因此 reviewed 不阻止后续 verdict；state 只是簿记。
+        if verdict == "ignore":
+            await asyncio.to_thread(
+                self.store.mark_call_review, review_id, "ignored"
+            )
             return {
-                "target_type": target_type,
-                "target_id": target_id,
-                "verdict": verdict,
-                "evidence_level": old_level,
-                "changed": False,
+                "review_id": review_id,
+                "verdict": "ignore",
+                "accepted": True,
+                "stage_changed": False,
             }
-        if verdict == "downgraded":
-            new_level = _EVIDENCE_LEVEL_DOWNGRADE.get(old_level, "inconclusive")
-            changes = {
-                "evidence_level": new_level,
-                "reason": f"{verdict} by {reviewer}: {rationale}",
-            }
-        else:  # rejected：证据不被认可，落 inconclusive 并显式标记否决
-            new_level = "inconclusive"
-            changes = {
-                "evidence_level": new_level,
-                "reason": f"{verdict} by {reviewer}: {rationale}",
-                "evidence_vetoed": True,
-            }
-        await asyncio.to_thread(
-            self._apply_harness,
-            [
-                UpdateNode(
-                    op="update_node",
-                    graph="delivery",
-                    node_id=target_id,
-                    changes=changes,
-                )
-                if target_type == "node"
-                else UpdateEdge(
-                    op="update_edge",
-                    graph="delivery",
-                    edge_id=target_id,
-                    changes=changes,
-                )
-            ],
-            f"supervisor evidence review ({verdict}) by {reviewer}: {rationale}",
+        ref = None
+        tool_succeeded = False
+        if verdict == "agree":
+            # D3：ref 由 harness 从 tool_call_id 确定性解析（含 D11 检查，
+            # 在 apply_stage_bind 内）
+            ref = await asyncio.to_thread(
+                self._evidence_for_call, review.tool_call_id
+            )
+            _, payload = await asyncio.to_thread(
+                self.store.resolve_evidence_with_source, ref
+            )
+            tool_succeeded = self._result_succeeded(payload.get("result") or {})
+        mutation = await self.apply_stage_bind(
+            element_id=target_id,
+            stage_kind=stage_kind,
+            ref=ref,
+            verdict=verdict,
+            reason=reason,
+            tool_succeeded=tool_succeeded,
         )
-        await self._notify_evidence_vetoed(
-            target_type, target_id, old_level, new_level, verdict, rationale,
-            list(target.refs),
-        )
+        if mutation.accepted:
+            await asyncio.to_thread(
+                self.store.mark_call_review, review_id, "reviewed"
+            )
         return {
-            "target_type": target_type,
-            "target_id": target_id,
+            "review_id": review_id,
             "verdict": verdict,
-            "evidence_level": new_level,
-            "previous_evidence_level": old_level,
-            "changed": True,
+            "target_id": target_id,
+            "stage_kind": stage_kind,
+            "accepted": mutation.accepted,
+            "rejection_code": mutation.rejection_code,
+            "rejection_reason": mutation.rejection_reason,
+            "mutation_id": mutation.mutation_id,
+            "stage_changed": mutation.accepted,
         }
 
-    def _resolve_evidence_binder(self, refs: list[GraphRef]):
-        """反查挂载者：tool_result ref → dag_evidence.session_id → session.agent_id。
+    # --- 机理草稿（Phase 3：propose → accept → 解锁计算） ---
 
-        查不到（证据来自别的会话、老记录缺 session）时返回 (None, None)，
-        调用方只通知 Coordinator。
-        """
-        for ref in refs:
-            if ref.ref_type != "tool_result":
-                continue
-            with self.db.connect() as con:
-                row = con.execute(
-                    "SELECT session_id FROM dag_evidence WHERE evidence_id = ?",
-                    (ref.ref_id,),
-                ).fetchone()
-                if not row or not row[0]:
-                    continue
-                agent_row = con.execute(
-                    "SELECT agent_id FROM session WHERE session_id = ?", (row[0],)
-                ).fetchone()
-            if agent_row and agent_row[0]:
-                return agent_row[0], row[0]
-        return None, None
-
-    async def _notify_evidence_vetoed(
-        self,
-        target_type: str,
-        target_id: str,
-        old_level: str,
-        new_level: str,
-        verdict: str,
+    @staticmethod
+    def _validate_draft(
+        operations_raw: list[dict[str, Any]],
+        stage_contracts_raw: dict[str, list[str]],
         rationale: str,
-        refs: list[GraphRef],
-    ) -> None:
-        """否决/下调通知：挂载者 session 跟进补救，Coordinator 保有全局视野。"""
-        from cloudra.persistence.context_manager import ContextManager
-
-        binder_agent, binder_session = await asyncio.to_thread(
-            self._resolve_evidence_binder, refs
-        )
-        guidance = (
-            "Suggested next step: recompute after the fix, then bind_evidence to reattach "
-            "the new evidence to this element; if you believe the review is wrong, explain your basis in the reply."
-            if verdict == "rejected"
-            else "Suggested next step: add the missing compute evidence to restore the level, "
-            "or explain in the reply why the current evidence is sufficient."
-        )
-        content = (
-            f"Supervisor evidence review ({verdict}): delivery {target_type} {target_id} "
-            f"evidence level {old_level} → {new_level}.\n"
-            f"Rationale: {rationale}\n"
-            f"{guidance}"
-        )
-        # 与 monitor 计算终态事件同一路由：提交者定向到其 session，Coordinator 广播。
-        targets = {binder_agent: binder_session, "a-0": None} if binder_agent else {"a-0": None}
-        for agent_id, session_id in targets.items():
+    ) -> MechanismDraft:
+        """校验草稿：delivery-only add/update ops；阶段全部 pending（阶段状态
+        只由 harness 推进）；stage_contracts 的键必须解析到草稿自身 add 的
+        元素，且阶段词表与元素种类匹配。"""
+        operations: list[GraphOperation] = []
+        for raw in operations_raw:
             try:
-                await ContextManager.inject_event(
-                    conversation_id=self.conversation_id,
-                    agent_id=agent_id,
-                    event_type="evidence_vetoed",
-                    content=content,
-                    db_path=self.db.path,
-                    session_id=session_id,
+                op = parse_graph_operation(raw)
+            except ValueError as exc:
+                raise RuntimeError(f"invalid draft operation: {exc}") from exc
+            if (
+                not isinstance(op, (AddNode, AddEdge, UpdateNode, UpdateEdge))
+                or op.graph is not GraphKind.DELIVERY
+            ):
+                raise RuntimeError(
+                    "draft operations must be delivery-only "
+                    "add_node/add_edge/update_node/update_edge"
                 )
-            except Exception as exc:
-                logger.warning(
-                    "[DagController] evidence_vetoed 事件注入失败 (%s，已忽略): %s",
-                    agent_id, exc,
+            if isinstance(op, (AddNode, AddEdge)):
+                element = op.node if isinstance(op, AddNode) else op.edge
+                if any(
+                    stage.status is not StageStatus.PENDING or stage.ref is not None
+                    for stage in getattr(element, "stages", [])
+                ):
+                    raise RuntimeError(
+                        "draft stages must all be pending; stage states are "
+                        "advanced by harness stage binds only"
+                    )
+            else:
+                extras = set(op.changes) - {
+                    "status", "priority", "label", "annotations",
+                    "reason", "blocked_reason", "evidence_level",
+                    "supersedes", "required",
+                }
+                if extras:
+                    raise RuntimeError(
+                        f"draft update changes exceed mutable fields: {sorted(extras)}"
+                    )
+                if op.changes.get("evidence_level") not in (
+                    None, "proposed", "rejected", "inconclusive"
+                ):
+                    raise RuntimeError(
+                        "a draft cannot promote evidence levels; evidence is "
+                        "derived by the harness from stage binds"
+                    )
+            operations.append(op)
+        added: dict[str, str] = {}
+        for op in operations:
+            if isinstance(op, AddNode):
+                added[op.node.node_id] = "node"
+            elif isinstance(op, AddEdge):
+                added[op.edge.edge_id] = "edge"
+        contracts: dict[str, StageContract] = {}
+        for element_id, kinds in (stage_contracts_raw or {}).items():
+            if element_id not in added:
+                raise RuntimeError(
+                    f"stage contract for {element_id!r} does not resolve to an "
+                    "element added by this draft"
                 )
+            allowed = (
+                OCCURRENCE_STAGE_KINDS
+                if added[element_id] == "node"
+                else ELEMENTARY_STEP_STAGE_KINDS
+            )
+            stages: list[StageState] = []
+            for raw_kind in kinds:
+                try:
+                    kind = StageKind(raw_kind)
+                except ValueError:
+                    raise RuntimeError(
+                        f"unknown stage kind {raw_kind!r}; "
+                        f"allowed: {sorted(item.value for item in StageKind)}"
+                    ) from None
+                if kind not in allowed:
+                    raise RuntimeError(
+                        f"stage {kind.value!r} does not apply to "
+                        f"{'occurrence nodes' if added[element_id] == 'node' else 'elementary-step edges'}; "
+                        f"allowed here: {sorted(item.value for item in allowed)}"
+                    )
+                if kind in {stage.kind for stage in stages}:
+                    raise RuntimeError(f"duplicate stage {kind.value!r} for {element_id!r}")
+                stages.append(StageState(kind=kind))
+            contracts[element_id] = StageContract(stages=stages)
+        return MechanismDraft(
+            operations=operations,
+            stage_contracts=contracts,
+            rationale=rationale,
+        )
+
+    @staticmethod
+    def _draft_operations(draft: MechanismDraft) -> list[GraphOperation]:
+        """把阶段契约并进 add ops（元素 stages 随 add 落图，全 pending）。"""
+        operations: list[GraphOperation] = []
+        for op in draft.operations:
+            if isinstance(op, AddNode) and op.node.node_id in draft.stage_contracts:
+                op = op.model_copy(update={
+                    "node": op.node.model_copy(update={
+                        "stages": list(draft.stage_contracts[op.node.node_id].stages)
+                    })
+                })
+            elif isinstance(op, AddEdge) and op.edge.edge_id in draft.stage_contracts:
+                op = op.model_copy(update={
+                    "edge": op.edge.model_copy(update={
+                        "stages": list(draft.stage_contracts[op.edge.edge_id].stages)
+                    })
+                })
+            operations.append(op)
+        return operations
+
+    def _apply_draft(self, draft: MechanismDraft, actor_id: str) -> MutationResult:
+        operations = self._draft_operations(draft)
+        last: MutationResult | None = None
+        for _attempt in range(8):
+            last = self.engine.apply_batch(
+                MutationBatch(
+                    session_id=self.session_id,
+                    actor=GraphActor.HARNESS,
+                    actor_id=actor_id,
+                    base_revisions=self.store.load_bundle().revisions,
+                    operations=operations,
+                    rationale=draft.rationale,
+                )
+            )
+            if last.accepted or last.rejection_code != "stale_revision":
+                return last
+        assert last is not None
+        return last
+
+    async def propose_mechanism(
+        self,
+        *,
+        operations: list[dict[str, Any]],
+        stage_contracts: dict[str, list[str]],
+        rationale: str,
+        actor_id: str,
+    ) -> dict[str, Any]:
+        """Coordinator 的机理草稿（D1）：guided 落 open 草稿等 Supervisor
+        接受；record 由 harness 立即自动接受（actor="harness:auto"）。"""
+        if not self.enabled:
+            raise RuntimeError(
+                "propose_mechanism is disabled in standard orchestration mode"
+            )
+        if not rationale.strip():
+            raise RuntimeError("a mechanism proposal requires a non-empty rationale")
+        await self.initialize()
+        draft = self._validate_draft(operations, stage_contracts, rationale)
+        if self.mode is OrchestrationMode.DAG_RECORD:
+            mutation = await asyncio.to_thread(
+                self._apply_draft, draft, "harness:auto"
+            )
+            if not mutation.accepted:
+                raise RuntimeError(
+                    f"mechanism draft failed to apply: {mutation.rejection_code}: "
+                    f"{mutation.rejection_reason}"
+                )
+            accepted = draft.model_copy(update={"state": "accepted"})
+            draft_id = await asyncio.to_thread(
+                self.store.save_draft, accepted, actor_id="harness:auto"
+            )
+            return {
+                "draft_id": draft_id,
+                "state": "accepted",
+                "accepted": True,
+                "revisions": mutation.revisions,
+            }
+        draft_id = await asyncio.to_thread(
+            self.store.save_draft, draft, actor_id=actor_id
+        )
+        return {"draft_id": draft_id, "state": "open", "accepted": False}
+
+    async def accept_mechanism(
+        self,
+        *,
+        verdict: str,
+        rationale: str = "",
+        draft_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Supervisor 的草稿裁决（guided only）：accept 落图（契约并入
+        add ops）；reject 退回草稿并附理由。"""
+        if not self.enabled:
+            raise RuntimeError(
+                "accept_mechanism is disabled in standard orchestration mode"
+            )
+        if self.mode is not OrchestrationMode.DAG_GUIDED:
+            raise RuntimeError(
+                "dag_accept_mechanism is guided-only; dag_record auto-accepts proposals"
+            )
+        await self.initialize()
+        if draft_id:
+            draft = await asyncio.to_thread(self.store.get_draft, draft_id)
+            if draft is None:
+                raise RuntimeError(f"mechanism draft {draft_id!r} does not exist")
+            if draft.state != "open":
+                raise RuntimeError(
+                    f"mechanism draft {draft_id!r} is already {draft.state}"
+                )
+            resolved_id = draft_id
+        else:
+            found = await asyncio.to_thread(self.store.latest_open_draft)
+            if found is None:
+                raise RuntimeError("no open mechanism draft to review")
+            resolved_id, draft = found
+        if verdict == "reject":
+            if not rationale.strip():
+                raise RuntimeError(
+                    "rejecting a mechanism draft requires a non-empty rationale"
+                )
+            await asyncio.to_thread(
+                self.store.set_draft_state,
+                resolved_id,
+                "rejected",
+                reject_reason=rationale,
+            )
+            return {
+                "draft_id": resolved_id,
+                "state": "rejected",
+                "accepted": False,
+                "reason": rationale,
+            }
+        mutation = await asyncio.to_thread(
+            self._apply_draft, draft, "harness:supervisor-accept"
+        )
+        if not mutation.accepted:
+            raise RuntimeError(
+                f"mechanism draft failed to apply: {mutation.rejection_code}: "
+                f"{mutation.rejection_reason}"
+            )
+        await asyncio.to_thread(
+            self.store.set_draft_state, resolved_id, "accepted"
+        )
+        return {
+            "draft_id": resolved_id,
+            "state": "accepted",
+            "accepted": True,
+            "revisions": mutation.revisions,
+        }
+
+
+async def enqueue_compute_review(
+    db: ConversationDB, taskid: int, terminal_state: str
+) -> None:
+    """计算作业终态入 CallReview 收件箱（D5/D11）：带作业的终态
+    （done/failed），与 submit 调用的成败无关。
+
+    非 dag 模式或无 session 记录时跳过。review_id 按作业确定
+    （rev_compute_<id>），重复终态回调由 INSERT OR IGNORE 去重。
+    guard/executor 进程内调用：不直接唤醒 Supervisor——提交者已被
+    compute_job 事件唤醒，后续 parser 调用会把证据带进复核流。
+    """
+    async with db.aconnect() as con:
+        cur = await con.execute(
+            "SELECT session_id FROM compute_jobs WHERE id=?", (taskid,)
+        )
+        row = await cur.fetchone()
+        session_id = (row[0] or "") if row else ""
+        mode, role_id = "standard", ""
+        if session_id:
+            cur = await con.execute(
+                "SELECT orchestration_mode, agent_id FROM session WHERE session_id=?",
+                (session_id,),
+            )
+            row = await cur.fetchone()
+            if row:
+                mode = row[0] or "standard"
+                role_id = row[1] or ""
+    if mode not in ("dag_record", "dag_guided"):
+        return
+    from cloudra.subagents.registry import legacy_agent_id_for_role
+
+    review = CallReview(
+        review_id=f"rev_compute_{taskid}",
+        tool_call_id="",
+        tool_name="compute_job",
+        is_success=terminal_state == "done",
+        caller_session_id=session_id,
+        caller_role_id=role_id,
+        caller_legacy_id=legacy_agent_id_for_role(role_id) if role_id else "",
+        result_summary=f"compute job {taskid} terminal state: {terminal_state}",
+        compute_job_id=str(taskid),
+        state="pending",
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    await asyncio.to_thread(DagStore(db).enqueue_call_review, review)

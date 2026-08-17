@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-import httpx
 import pytest
 
 from cloudra.infra.config import get_config, reload_config
@@ -10,8 +9,6 @@ from cloudra.persistence.artifacts import (
 )
 from cloudra.persistence.database import ConversationDB
 from cloudra.services import session_store
-from cloudra.services.api import create_app
-from cloudra.services.service import CloudraService
 
 
 @pytest.fixture
@@ -189,63 +186,3 @@ def test_artifact_rejects_source_and_storage_symlinks(
         )
 
 
-@pytest.mark.asyncio
-async def test_v1_artifact_download_requires_matching_short_lived_grant(
-    artifact_environment,
-    monkeypatch,
-):
-    env = artifact_environment
-    monkeypatch.setenv("CLOUDRA_API_TOKEN", "server-token")
-    service = CloudraService()
-    source = env["workspace"] / "report.dat"
-    source.write_bytes(b"artifact-content")
-    artifact = service.artifacts.register_file(
-        conversation_id=env["conversation_id"],
-        session_id=env["session_id"],
-        source=source,
-        allowed_root=env["workspace"],
-    )
-    headers = {
-        "Authorization": "Bearer server-token",
-        "X-Cloudra-Protocol-Version": "1",
-        "X-Cloudra-Client-Version": "android-test",
-    }
-    transport = httpx.ASGITransport(app=create_app(service))
-    async with httpx.AsyncClient(
-        transport=transport,
-        base_url="http://test",
-    ) as client:
-        listed = await client.get(
-            "/api/v1/artifacts",
-            params={"conversation_id": env["conversation_id"]},
-            headers=headers,
-        )
-        grant = await client.post(
-            f"/api/v1/artifacts/{artifact.artifact_id}/download-token",
-            params={"conversation_id": env["conversation_id"]},
-            headers=headers,
-            json={"ttl_seconds": 60},
-        )
-        grant_payload = grant.json()
-        downloaded = await client.get(
-            grant_payload["download_url"],
-            headers={
-                "X-Cloudra-Download-Token": grant_payload["download_token"],
-            },
-        )
-        denied = await client.get(
-            (
-                "/api/v1/artifacts/art_other_12345678/download"
-                f"?conversation_id={env['conversation_id']}"
-            ),
-            headers={
-                "X-Cloudra-Download-Token": grant_payload["download_token"],
-            },
-        )
-
-    assert listed.status_code == 200
-    assert listed.json()[0]["artifact_id"] == artifact.artifact_id
-    assert grant.status_code == 200
-    assert downloaded.status_code == 200
-    assert downloaded.content == b"artifact-content"
-    assert denied.status_code == 403

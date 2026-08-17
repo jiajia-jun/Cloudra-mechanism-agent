@@ -12,6 +12,9 @@ from typing import Any
 from cloudra.runtime_v2.agent_host import AgentHost
 from cloudra.runtime_v2.events import EventHub, EventLog
 from cloudra.runtime_v2.mailbox import Mailbox
+from cloudra.runtime_v2.notices import NoticeManager
+from cloudra.runtime_v2.pending import PendingBroker
+from cloudra.runtime_v2.reminders import ReminderBroker
 from cloudra.runtime_v2.roles import BUILTIN_ROLES, RoleRegistry
 from cloudra.runtime_v2.schemas import (
     AgentSession,
@@ -38,6 +41,15 @@ class RuntimeCore:
         self.runtime_defaults = RuntimeSettings()
         self.projects: dict[str, Project] = {}
         self.agents: dict[str, AgentSession] = {}
+        # Pending manual compactions (session_id -> keep_recent); the runner
+        # applies them at the next turn boundary when history is non-empty.
+        self.pending_compactions: dict[str, int] = {}
+        # Pending approvals / ask_user interactions (events + futures).
+        self.pending = PendingBroker(self)
+        # v2-native schedule reminders (event projection + asyncio timers).
+        self.reminders = ReminderBroker(self)
+        # Unified per-session LLM context injection (pins + one-shot pushes).
+        self.notices = NoticeManager()
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None

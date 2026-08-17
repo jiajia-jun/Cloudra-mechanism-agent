@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from cloudra.dag.models import (
     AddEdge,
@@ -29,6 +29,9 @@ from cloudra.dag.models import (
     OccurrenceNode,
     RemoveEdge,
     SetCoverageContract,
+    StageKind,
+    StageState,
+    StageStatus,
     UpdateEdge,
     UpdateNode,
     WaiveGate,
@@ -42,9 +45,9 @@ from cloudra.dag.store import (
     _assemble_refs,
     _canonical_json,
     _load_graph_bindings,
+    _read_element_stages,
 )
 from cloudra.persistence.database import retry_on_locked
-from cloudra.subagents.registry import SUBAGENT_REGISTRY
 
 
 class _Rejected(ValueError):
@@ -52,11 +55,6 @@ class _Rejected(ValueError):
         super().__init__(reason)
         self.code = code
         self.reason = reason
-
-
-# 排产归属的合法取值：已注册子 agent id + Coordinator（a-0）。
-# 只在写操作入口校验（_check_assignee），旧 journal 里的历史 assignee 仍可重放。
-_VALID_ASSIGNEES = frozenset(reg.agent_id for reg in SUBAGENT_REGISTRY) | {"a-0"}
 
 
 @dataclass
@@ -93,29 +91,6 @@ _IMMUTABLE_UPDATE_FIELDS = {
 }
 _MODEL_ACTORS = {GraphActor.SUPERVISOR, GraphActor.AGENT}
 _MODEL_SETTABLE_EVIDENCE_LEVELS = {"proposed", "rejected", "inconclusive"}
-# process 图 status 的规范词表（与 models.ProcessStatusValue 同义）：
-# frontier/blockers 投影只认这些值。词表外的 status 在 add 路径由 schema
-# Literal 拒绝；update 路径的 changes 是自由字典，由这里校验并报出词表，
-# 让模型一步自纠。不做同义词归一化——迁就错误拼写只会让它继续扩散。
-_PROCESS_STATUS_VALUES = {
-    "proposed",
-    "ready",
-    "running",
-    "succeeded",
-    "failed",
-    "blocked",
-    "skipped",
-    "superseded",
-}
-
-
-def _normalize_process_status(value: Any) -> str:
-    if isinstance(value, str) and value.strip().lower() in _PROCESS_STATUS_VALUES:
-        return value.strip().lower()
-    raise _Rejected(
-        "invalid_status",
-        f"unknown process status {value!r}; allowed: {sorted(_PROCESS_STATUS_VALUES)}",
-    )
 _DERIVED_EVIDENCE_FIELDS = {
     "saddle_supported",
     "short_irc_supported",
@@ -137,6 +112,75 @@ def _contains_key(value: Any, forbidden: str) -> bool:
     return False
 
 
+def apply_stage_verdict(
+    stages: list[StageState],
+    *,
+    stage_kind: StageKind,
+    verdict: Literal["agree", "disagree", "skip"],
+    reason: str = "",
+    ref: GraphRef | None = None,
+    tool_succeeded: bool = False,
+) -> list[StageState]:
+    """单阶段绑定的确定性守卫，返回更新后的阶段列表（不改动输入）。
+
+    - disagree ⇒ rejected（reason 必填，清 ref）
+    - skip ⇒ skipped（reason 必填，清 ref）
+    - agree ⇒ tool_succeeded 且带 ref，且前面所有**必需**阶段 supported/skipped
+      才 supported（stage_out_of_order）；顺序守卫只看前面的阶段，rejected
+      阶段可被后来的 agree 重绑（D2）。ts_guess 只推进它自己那个阶段，
+      永远不能充抵 ts_opt/frequency。
+    """
+    index = next(
+        (i for i, stage in enumerate(stages) if stage.kind == stage_kind), None
+    )
+    if index is None:
+        raise _Rejected(
+            "stage_not_declared",
+            f"stage {stage_kind.value!r} is not in this element's stage contract; "
+            "the Coordinator declares stages when proposing the mechanism",
+        )
+    target = stages[index]
+    if verdict in ("disagree", "skip"):
+        if not reason.strip():
+            raise _Rejected(
+                "reason_required",
+                f"a {verdict!r} verdict requires a non-empty reason",
+            )
+        status = (
+            StageStatus.REJECTED if verdict == "disagree" else StageStatus.SKIPPED
+        )
+        updated = target.model_copy(
+            update={"status": status, "reason": reason, "ref": None}
+        )
+        return [*stages[:index], updated, *stages[index + 1:]]
+    if not tool_succeeded:
+        raise _Rejected(
+            "tool_not_succeeded",
+            "only a succeeded tool call can support a stage",
+        )
+    if ref is None:
+        raise _Rejected(
+            "missing_ref",
+            "an agree verdict requires the evidence ref being bound",
+        )
+    blockers = [
+        stage.kind.value
+        for stage in stages[:index]
+        if stage.required
+        and stage.status not in {StageStatus.SUPPORTED, StageStatus.SKIPPED}
+    ]
+    if blockers:
+        raise _Rejected(
+            "stage_out_of_order",
+            "previous required stages must be supported or skipped first: "
+            + ", ".join(blockers),
+        )
+    updated = target.model_copy(
+        update={"status": StageStatus.SUPPORTED, "reason": "", "ref": ref}
+    )
+    return [*stages[:index], updated, *stages[index + 1:]]
+
+
 def _operation_freeform(operation: GraphOperation) -> dict[str, Any]:
     """op 里模型可自由书写的部分（changes/metadata），供 overall_complete 守卫扫描。"""
     if isinstance(operation, (UpdateNode, UpdateEdge)):
@@ -148,6 +192,21 @@ def _operation_freeform(operation: GraphOperation) -> dict[str, Any]:
     if isinstance(operation, AddLink):
         return operation.payload
     return {}
+
+
+def _is_legacy_process_op(operation: GraphOperation) -> bool:
+    """旧 process 图 op（含 add_link 跨图簿记）：只读重放时 no-op。"""
+    if isinstance(operation, AddLink):
+        return True
+    return getattr(operation, "graph", None) is GraphKind.PROCESS
+
+
+def _legacy_process_op_graphs(operation: GraphOperation) -> set[GraphKind]:
+    """旧 op 写入时的 touch 口径——重放必须按同一口径推进 revision，
+    journal 的 base/resulting 校验才通过。"""
+    if isinstance(operation, AddLink):
+        return {GraphKind.PROCESS, GraphKind.DELIVERY}
+    return {GraphKind.PROCESS}
 
 
 class DagEngine:
@@ -225,6 +284,7 @@ class DagEngine:
                         "materialized revisions are nonzero but the accepted journal is empty"
                     )
                 try:
+                    ignored_legacy = 0
                     for raw_actor, raw_actor_id, raw_base, raw_result, raw_operations in rows:
                         base = json.loads(raw_base)
                         expected_base = {
@@ -237,6 +297,14 @@ class DagEngine:
                         actor = GraphActor(raw_actor)
                         touched: set[GraphKind] = set()
                         for raw_operation in json.loads(raw_operations):
+                            parsed = parse_graph_operation(raw_operation)
+                            if _is_legacy_process_op(parsed):
+                                # Phase 4：process 图已删除。旧 journal 的 process
+                                # op（含 add_link）重放为 no-op，但 revision 推进
+                                # 口径与写入时一致，日志校验才能通过。
+                                ignored_legacy += 1
+                                touched.update(_legacy_process_op_graphs(parsed))
+                                continue
                             self._apply_operation(
                                 con,
                                 states,
@@ -244,7 +312,7 @@ class DagEngine:
                                 touched,
                                 actor,
                                 raw_actor_id,
-                                parse_graph_operation(raw_operation),
+                                parsed,
                             )
                         for state in states.values():
                             self._validate_structure(con, state)
@@ -270,6 +338,32 @@ class DagEngine:
                     links["items"],
                     max((state.revision for state in states.values()), default=0),
                 )
+                if ignored_legacy:
+                    # 留痕：本次重放吞掉的旧 process op 数量。operations 为空、
+                    # base==resulting==最终版本——下次重放校验该行时自洽。
+                    final = {
+                        kind.value: state.revision for kind, state in states.items()
+                    }
+                    con.execute(
+                        """
+                        INSERT INTO dag_mutations(
+                            mutation_id, graph_id, base_revision, resulting_revision,
+                            actor_type, actor_id, session_id, rationale, base_revisions,
+                            resulting_revisions, operations, accepted, created_at
+                        ) VALUES (?, ?, ?, ?, 'harness', 'dag-replay', '', ?, ?, ?, '[]', 1,
+                                  datetime('now'))
+                        """,
+                        (
+                            "mut_" + uuid.uuid4().hex,
+                            states[GraphKind.DELIVERY].graph_id,
+                            final["delivery"],
+                            final["delivery"],
+                            f"ignored_legacy_process_op: {ignored_legacy} legacy process "
+                            "operations no-op'd during replay (process graph removed)",
+                            _canonical_json(final),
+                            _canonical_json(final),
+                        ),
+                    )
 
         retry_on_locked(operation)
         return self.snapshot()
@@ -402,33 +496,39 @@ class DagEngine:
 
         for state in states.values():
             bindings = _load_graph_bindings(con, state.graph_id)
+            is_delivery = state.kind is GraphKind.DELIVERY
             for row in con.execute(
                 """
-                SELECT node_id, node_type, label, refs, payload, created_revision
+                SELECT node_id, node_type, label, refs, payload, stages, created_revision
                 FROM dag_nodes WHERE graph_id = ?
                 """,
                 (state.graph_id,),
             ).fetchall():
-                node = parse_dag_node({
+                payload = json.loads(row[4])
+                data = {
                     "node_id": row[0],
                     "node_type": row[1],
                     "label": row[2],
                     "refs": _assemble_refs(
                         json.loads(row[3]), bindings.get(("node", row[0]), [])
                     ),
-                    **json.loads(row[4]),
-                })
+                    **payload,
+                }
+                if is_delivery:
+                    data["stages"] = _read_element_stages(payload, row[5], is_edge=False)
+                node = parse_dag_node(data)
                 state.nodes[node.node_id] = node
-                state.node_created[node.node_id] = row[5]
+                state.node_created[node.node_id] = row[6]
             for row in con.execute(
                 """
                 SELECT edge_id, source_node_id, target_node_id, edge_type,
-                       label, refs, payload, created_revision
+                       label, refs, payload, stages, created_revision
                 FROM dag_edges WHERE graph_id = ?
                 """,
                 (state.graph_id,),
             ).fetchall():
-                edge = parse_dag_edge({
+                payload = json.loads(row[6])
+                data = {
                     "edge_id": row[0],
                     "source_node_id": row[1],
                     "target_node_id": row[2],
@@ -437,10 +537,13 @@ class DagEngine:
                     "refs": _assemble_refs(
                         json.loads(row[5]), bindings.get(("edge", row[0]), [])
                     ),
-                    **json.loads(row[6]),
-                })
+                    **payload,
+                }
+                if is_delivery:
+                    data["stages"] = _read_element_stages(payload, row[7], is_edge=True)
+                edge = parse_dag_edge(data)
                 state.edges[edge.edge_id] = edge
-                state.edge_created[edge.edge_id] = row[7]
+                state.edge_created[edge.edge_id] = row[8]
         return states
 
     @staticmethod
@@ -513,24 +616,26 @@ class DagEngine:
             touched.add(GraphKind.DELIVERY)
             return
         if isinstance(operation, AddLink):
-            # 跨图簿记，对两个 model actor 都开放，不参与按图分权
-            self._add_link(states, links, operation)
-            touched.update({GraphKind.PROCESS, GraphKind.DELIVERY})
-            return
+            raise _Rejected(
+                "process_graph_removed",
+                "cross-graph links are gone with the process graph; evidence binds "
+                "to delivery elements directly through stage binds",
+            )
+        if operation.graph is GraphKind.PROCESS:
+            raise _Rejected(
+                "process_graph_removed",
+                "the process graph was removed (delivery-only orchestration); "
+                "there is no scheduling frontier — run the work and let evidence "
+                "bind to delivery stages",
+            )
         state = states[operation.graph]
 
-        # 按图分权：机理 DAG 由 Coordinator 设计，流程 DAG 由 Supervisor 维护。
-        # 子 agent 对指派给自己的 process 节点有受限的回报权限
-        # （见 _check_agent_process_access）。
+        # 按图分权：机理 DAG 由 Coordinator 设计，Supervisor 对 delivery 只读。
         if actor is GraphActor.SUPERVISOR and state.kind is GraphKind.DELIVERY:
             raise _Rejected(
                 "actor_forbidden",
                 "the supervisor is read-only on the delivery DAG",
             )
-        if actor is GraphActor.AGENT and state.kind is GraphKind.PROCESS:
-            self._check_agent_process_access(state, actor_id, operation)
-        if state.kind is GraphKind.PROCESS:
-            self._check_assignee(operation)
 
         if isinstance(operation, (AddNode, AddEdge)):
             self._check_element_graph_kind(state.kind, operation)
@@ -540,7 +645,9 @@ class DagEngine:
             and isinstance(operation, (AddNode, AddEdge))
         ):
             # 证据派生保护：模型只能以 proposed/rejected/inconclusive 创建
-            # delivery 元素，派生证据位与更高级别由 harness 确定性写入
+            # delivery 元素，派生证据位与更高级别由 harness 确定性写入；
+            # 阶段契约同理——模型只能声明 pending 阶段，阶段状态/ref 由
+            # harness 的阶段绑定推进。
             element = operation.node if isinstance(operation, AddNode) else operation.edge
             derived_in_metadata = set(element.metadata) & _DERIVED_EVIDENCE_FIELDS
             derived_flags = (
@@ -549,10 +656,16 @@ class DagEngine:
                 else set()
             )
             level = getattr(element, "evidence_level", "proposed")
+            non_pending_stages = [
+                stage.kind.value
+                for stage in getattr(element, "stages", [])
+                if stage.status is not StageStatus.PENDING or stage.ref is not None
+            ]
             if (
                 level not in _MODEL_SETTABLE_EVIDENCE_LEVELS
                 or derived_in_metadata
                 or derived_flags
+                or non_pending_stages
             ):
                 raise _Rejected(
                     "actor_forbidden",
@@ -630,80 +743,6 @@ class DagEngine:
                 f"{type_name!r} does not belong on the {kind.value} graph; "
                 f"expected {expected}",
             )
-
-    @staticmethod
-    def _check_assignee(operation: GraphOperation) -> None:
-        """process 节点 assignee 合法性：只接受已注册子 agent id 与 a-0（Coordinator）。
-
-        写错角色名（如 "dft" 而非 "a-6"）会静默产生无人回报的孤儿节点，
-        故在写入口 fail-fast 并列出合法 id；只读重放不经过这里。
-        """
-        if isinstance(operation, AddNode):
-            assignee = getattr(operation.node, "assignee", None)
-        elif isinstance(operation, UpdateNode):
-            assignee = operation.changes.get("assignee")
-        else:
-            return
-        if assignee is None:
-            return
-        if assignee not in _VALID_ASSIGNEES:
-            raise _Rejected(
-                "invalid_assignee",
-                f"unknown assignee {assignee!r}; valid assignees: "
-                f"{sorted(_VALID_ASSIGNEES)} (registered sub-agent ids plus a-0)",
-            )
-
-    @staticmethod
-    def _check_agent_process_access(
-        state: "_GraphState", actor_id: str, operation: GraphOperation
-    ) -> None:
-        """agent（Coordinator/子 agent）对 process 图的受限权限。
-
-        - remove_edge：删边一律由 Supervisor 执行。请求连同 rationale 记入
-          变更日志（拒绝也是日志），harness 随后唤醒 Supervisor 复核——理由
-          充分由它代为删除。
-        - update_node / attach_ref：只允许落在 payload.assignee 等于自己的
-          节点上，且 update 只能写状态回报字段（status/reason/blocked_reason/
-          annotations），让子 agent 完成任务后即时管理自己负责的部分。
-        - 其余结构性操作（add_node/add_edge/update_edge 等）不开放。
-        """
-        if isinstance(operation, RemoveEdge):
-            raise _Rejected(
-                "edge_removal_requires_supervisor",
-                "process edges are added/removed by the supervisor; this request and "
-                "its rationale have been journaled and the supervisor will be woken "
-                "to review it",
-            )
-        if isinstance(operation, (UpdateNode, AttachRef)):
-            target_id = (
-                operation.node_id
-                if isinstance(operation, UpdateNode)
-                else operation.target_id
-            )
-            node = state.nodes.get(target_id)
-            if node is not None and getattr(node, "assignee", None) == actor_id:
-                if isinstance(operation, UpdateNode):
-                    changes = operation.changes
-                    allowed = {"status", "reason", "blocked_reason", "annotations"}
-                    if not set(changes) <= allowed:
-                        raise _Rejected(
-                            "actor_forbidden",
-                            "an agent may only report status/reason/blocked_reason/"
-                            "annotations on its assigned process nodes",
-                        )
-                return
-            assignee = getattr(node, "assignee", None) if node is not None else None
-            raise _Rejected(
-                "actor_forbidden",
-                f"process node is not assigned to this agent (current assignee: "
-                f"{assignee or 'unassigned'}); the process DAG is maintained by the "
-                "supervisor — if it needs changes, state them in your report/rationale "
-                "and the supervisor will act on them",
-            )
-        raise _Rejected(
-            "actor_forbidden",
-            "agents are read-only on the process DAG except for their assigned nodes",
-        )
 
     @staticmethod
     def _load_contract(con: sqlite3.Connection, graph_id: str) -> CoverageContract:
@@ -803,8 +842,6 @@ class DagEngine:
                     "actor_forbidden",
                     "only deterministic harness adapters may promote an evidence-derived level",
                 )
-        if state.kind is GraphKind.PROCESS and "status" in changes:
-            changes = {**changes, "status": _normalize_process_status(changes["status"])}
         _canonical_json(changes)
         current = elements[element_id]
         serialized = current.model_dump(mode="json", exclude={"payload"})
@@ -823,10 +860,8 @@ class DagEngine:
 
     @staticmethod
     def _remove_edge(state: _GraphState, operation: RemoveEdge) -> None:
-        # 删边已完全放开（两张图、任意端点状态），但批次必须带 rationale
-        # （在 _apply_transaction 入口强制），被删的边留在变更日志里供审计。
-        # agent 对 process 图的删边请求在 _check_agent_process_access 被拦下，
-        # 转交 Supervisor 复核后由它代为执行，因此到得了这里的调用都已授权。
+        # 删边放开（任意端点状态），但批次必须带 rationale（在
+        # _apply_transaction 入口强制），被删的边留在变更日志里供审计。
         if operation.edge_id not in state.edges:
             raise _Rejected("missing_target", f"edge {operation.edge_id!r} does not exist")
         del state.edges[operation.edge_id]
@@ -867,34 +902,6 @@ class DagEngine:
             derived_level=getattr(updated, "evidence_level", None),
             revision=state.revision + 1,
         )
-
-    @staticmethod
-    def _add_link(
-        states: dict[GraphKind, _GraphState],
-        links: dict[str, Any],
-        operation: AddLink,
-    ) -> None:
-        if operation.link_id in links["items"]:
-            raise _Rejected("duplicate_id", f"link {operation.link_id!r} already exists")
-        if operation.process_node_id not in states[GraphKind.PROCESS].nodes:
-            raise _Rejected("dangling_link", "process link target does not exist")
-        delivery = states[GraphKind.DELIVERY]
-        collection = (
-            delivery.nodes
-            if operation.delivery_element_type == "node"
-            else delivery.edges
-        )
-        if operation.delivery_element_id not in collection:
-            raise _Rejected("dangling_link", "delivery link target does not exist")
-        links["items"][operation.link_id] = {
-            "link_id": operation.link_id,
-            "process_node_id": operation.process_node_id,
-            "delivery_element_type": operation.delivery_element_type,
-            "delivery_element_id": operation.delivery_element_id,
-            "payload": operation.payload,
-            "created_revision": max(state.revision for state in states.values()) + 1,
-        }
-        links["dirty"] = True
 
     def _validate_structure(self, con: sqlite3.Connection, state: _GraphState) -> None:
         for edge in state.edges.values():
@@ -963,14 +970,22 @@ class DagEngine:
             raise _Rejected("cycle", f"{state.kind.value} graph would contain a cycle")
 
     # payload 列 = 显式字段（含默认值）+ metadata 的 JSON；身份列（id/type/label/refs）
-    # 各有专列。读取侧 parse_dag_node/parse_dag_edge 对新旧形状双兼容。
+    # 各有专列，stages 也有专列（读取侧 _read_element_stages 以专列为准）。
+    # 读取侧 parse_dag_node/parse_dag_edge 对新旧形状双兼容。
     _PAYLOAD_COLUMN_EXCLUDE = {"node_id", "edge_id", "source_node_id", "target_node_id",
-                               "node_type", "edge_type", "label", "refs", "payload"}
+                               "node_type", "edge_type", "label", "refs", "payload", "stages"}
 
     @staticmethod
     def _payload_column(element: "DagNode | DagEdge") -> str:
         return _canonical_json(
             element.model_dump(mode="json", exclude=DagEngine._PAYLOAD_COLUMN_EXCLUDE)
+        )
+
+    @staticmethod
+    def _stages_column(element: "DagNode | DagEdge") -> str:
+        # process 元素没有 stages 字段，落空数组保持列语义一致
+        return _canonical_json(
+            [stage.model_dump(mode="json") for stage in getattr(element, "stages", [])]
         )
 
     @staticmethod
@@ -1013,9 +1028,9 @@ class DagEngine:
             con.execute(
                 """
                 INSERT INTO dag_nodes(
-                    graph_id, node_id, node_type, label, refs, payload,
+                    graph_id, node_id, node_type, label, refs, payload, stages,
                     created_revision, updated_revision
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     state.graph_id,
@@ -1024,6 +1039,7 @@ class DagEngine:
                     node.label,
                     _canonical_json([ref.model_dump(mode="json") for ref in node.refs]),
                     DagEngine._payload_column(node),
+                    DagEngine._stages_column(node),
                     state.node_created[node.node_id],
                     state.revision,
                 ),
@@ -1033,8 +1049,8 @@ class DagEngine:
                 """
                 INSERT INTO dag_edges(
                     graph_id, edge_id, source_node_id, target_node_id, edge_type,
-                    label, refs, payload, created_revision, updated_revision
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    label, refs, payload, stages, created_revision, updated_revision
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     state.graph_id,
@@ -1045,6 +1061,7 @@ class DagEngine:
                     edge.label,
                     _canonical_json([ref.model_dump(mode="json") for ref in edge.refs]),
                     DagEngine._payload_column(edge),
+                    DagEngine._stages_column(edge),
                     state.edge_created[edge.edge_id],
                     state.revision,
                 ),

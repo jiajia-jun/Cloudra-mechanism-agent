@@ -79,6 +79,3 @@ def memory_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "memory" / "MEMORY.md"
 
 
-def case_bank_path(data_dir: Optional[PathLike] = None) -> Path:
-    """全局经验案例库（case_bank.db）路径。"""
-    return _root(data_dir) / "case_bank.db"

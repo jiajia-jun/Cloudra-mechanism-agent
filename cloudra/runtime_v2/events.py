@@ -29,6 +29,7 @@ EVENT_TYPES: dict[str, str] = {
     "agent.spawn_rejected": "spawn rejected",
     "agent.settings_changed": "runtime settings changed",
     "agent.message_injected": "user or peer message delivered",
+    "agent.message_emitted": "assistant final message produced",
     "agent.cancel_requested": "cancel accepted",
     "agent.cancelled": "cancel completed, subprocesses reaped",
     "agent.restart_requested": "restart accepted",
@@ -41,12 +42,14 @@ EVENT_TYPES: dict[str, str] = {
     # agent run events
     "agent.state_changed": "state machine transition",
     "run.started": "run started",
+    "run.retry": "crashed turn auto-retried with preserved history",
     "run.finished": "run finished",
     "llm.request_started": "llm request config snapshot",
     "llm.chunk": "streaming delta",
     "llm.completed": "llm request completed",
     "llm.retried": "llm transport retry",
     "llm.failed": "llm request failed",
+    "agent.thinking": "persisted reasoning segment of one LLM call",
     "tool.started": "tool started",
     "tool.blocked": "tool blocked by a policy stage",
     "tool.finished": "tool finished",
@@ -57,10 +60,16 @@ EVENT_TYPES: dict[str, str] = {
     "dag.evidence_bound": "evidence bound to graph element",
     "dag.gate_blocked": "substantive gate blocked a tool",
     "dag.supervisor_triggered": "supervisor woken by dag event",
+    "hub.posted": "agent forum post",
     "compaction.started": "context compaction started",
     "compaction.finished": "context compaction finished",
+    "compaction.requested": "manual context compaction requested",
+    "reminder.scheduled": "agent self-wake reminder created",
+    "reminder.cancelled": "agent self-wake reminder cancelled",
+    "reminder.fired": "agent self-wake reminder delivered",
     "loop.detected": "identical tool loop detected",
     "agent.warning": "non-fatal guard warning",
+    "project.synced": "sse replay backlog boundary (hub-only control marker)",
     "heartbeat": "sse keep-alive",
 }
 
@@ -164,15 +173,18 @@ class EventLog:
         after_session_seq: int = 0,
         types: Iterable[str] | None = None,
         limit: int = 500,
+        tail: bool = True,
     ) -> list[EventEnvelope]:
         wanted = frozenset(types) if types is not None else None
-        return [
+        matched = [
             event
             for event in self._events
             if event.session_id == session_id
             and (event.session_seq or 0) > after_session_seq
             and (wanted is None or event.type in wanted)
-        ][-limit:]
+        ]
+        # tail=True：最近 limit 条（默认，看最新）；tail=False：从头分页（全量回放）
+        return matched[-limit:] if tail else matched[:limit]
 
 
 class EventHub:

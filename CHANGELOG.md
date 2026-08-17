@@ -3,6 +3,20 @@
 ## [Unreleased]
 
 ### 新增
+- runtime_v2 原生提醒唤醒：`reminders.py` 拦截 `schedule` 工具，提醒落 `reminder.scheduled` / `reminder.cancelled` / `reminder.fired`（`schedule_id` 为事件 seq）；到点经 `agent.message` 投递 `[Reminder]` 并自动 reopen 终态 agent。进程启动 `rearm_all()` 从事件投影重建，过期立即触发——修复 v2 下 `schedule` 无人触发、挂起 agent 永睡的停摆。
+- `NoticeManager`（`notices.py`）：统一上下文注入。`pin`/`unpin` 按键幂等的常驻注入（goal 钉、DAG 投影），`push` 一次性注入（交付 delta、唤醒附言）；`turn_pipeline` 拼消息时 `collect`（pins 在前，push 耗尽）。
+- DAG 工具族：删除未发布的 `dag_graph` 单工具，拆成平铺字段的 `dag_*` verb（`dag_view` / `dag_init_from_template` / `dag_add_species` / `dag_add_step` / `dag_update_delivery_element` / `dag_schedule_work` / `dag_update_process_node` / `dag_remove_edge` / `dag_bind_evidence` / `dag_review_evidence` / `dag_set_coverage_contract` / `dag_message_supervisor` / `dag_delivery_report`）。引擎、分权、变更日志与原子批次不变；督导循环按工具名调度，不再嗅探 `action`。
+- 交付即时反馈：`DagController.on_tool_finished` 返回 `DeliveryDelta`；`dag_stage` 把 `[DAG] evidence bound: …` 追加进当轮 tool result，并 `notices.push` 保证跨 run 可见。
+- runtime_v2 为唯一运行时：Electron 前端流式输出（LLM token delta 经 `llm.chunk` 直发 SSE，不落事件日志）、thinking 分段折叠（绿标）与工具行（黄标）、Markdown + KaTeX 渲染。
+- 前端 DAG 面板：双图真图渲染（dagre+SVG）、节点选中查看/编辑字段（不暴露 JSON）、覆盖率报告、mutation 历史、supervisor replan。
+- 前端命令继承：`/goal`（目标锚点）、`/compact`（上下文压缩）、context 统计、skills 列表；审批与 ask_user 交互面板。
+- 子 agent 派发 v2 原生化：`subagent_bridge.py`（SubAgentLauncher/SubAgentSwarm/get_subagent_report 经 CommandBus spawn，支持 is_wait 与父取消级联）；`hub_bridge.py`（agent_hub 论坛落 `hub.posted` 事件，通知/呼叫走 Mailbox）；审批/交互由 `pending.py` 内核 broker 承担（事件 + future，决策经 `approval.decide`/`interaction.respond` 命令）。
+- 失败自动恢复：turn 崩溃原地重试（保留 history，`run.retry` 事件，默认 2 次退避）；对 failed/cancelled 的 agent 发消息自动 reopen 新 run，前端不再暴露手动 Restart。
+- 交付门禁移植到 v2：dag 模式下 `stop(delivery_disposition="complete")` 需通过交付覆盖率审计（`dag_stage` 拦截，复用 `DagController.audit_stop`），有未终态兄弟 agent 时 stop 视为挂起不审计。
+- DAG 视图消歧：observed 节点新增 `arguments_summary`（路径参数优先），process 视图（`include_observed=true`）暴露 `tool_call_id`/`arguments_hash`/`arguments_summary`，Coordinator 可在多个同工具 observed 节点间辨认后走 `observed_<hex>` 别名 `bind_evidence`；dag_record/guided 投影提示同步更新。
+- 多候选认领在执行者一侧消解：同工具多个计划候选时，`assignee` 恰为当前 agent 的唯一节点被直接认领（不再一律落 observed 留给 Coordinator）；顺带修复 v2 的 role_id 与 DAG 图 legacy assignee 词表（a-0..a-8）的映射缺口——此前子 agent 的 assigned_to_me 投影在 v2 下恒为空。
+- Supervisor 活动前端可见：dag_guided 下每次督导触发经 `DagController.on_supervision` 钩子投影成一个复用的壳 agent 会话（角色 `supervisor`，挂在触发者名下，不走 LLM 管线），运行时 AgentBar 显示 running，结束落摘要消息——督导期间界面不再像卡死。
+- 工作区按项目隔离，项目栏按工作区划分。
 - 子 Agent 按领域重命名：explorer（探索+审查）、writer（论文写作）、researcher（文献）、small_mol（小分子量化）、md（分子动力学）、dft（第一性原理）、experiment（实验设计）、env（环境管理），替换掉 visionary/operator/coder。explorer 只读，writer 读写，其余全权限，危险操作统一走审批。
 - 计算类 prompt 方法论：教 SOP 和翻车直觉而不是知识清单，起手先 `getskill` 加载对应 skill。
 - AgentHub：加 `hub_posts` 表（schema v6）和 `agent_hub` 工具（post/browse/read/search，支持问答串），并行子 Agent 可共享 SQLite 发帖，只读 Agent 也能发。
@@ -27,11 +41,39 @@
 - 联网搜索展示：`web_search_call` 状态事件改为流中段逐条上报，并入「思考过程」面板而非孤立系统框。
 
 ### 修复
+- `ts_guess` IDPP 插值在原子数 >3 时崩溃：`err (npair,) * diff (npair,3)` 的 numpy 广播只在 npair=3（现有单测）碰巧成立；C6H10 一类体系 npair=120 报 `shapes (120,) (120,3)`。梯度改成先扩成 `(npair,1)` 再乘位移。
+- v2 删除 v1 worker/`compute_executor` 后异步 `submit_compute_job` 只把行写成 `ready`，无人 `claim_ready_compute_job`，计算任务永远领不走。已恢复 `runtime/compute_executor.py`：`ComputeBroker` 由 FastAPI lifespan 启动，扫描会话库领取任务并拉起 guard / Slurm。
+- 子 agent 跑 `dag_record` 时证据落地不唤醒 Supervisor：`dag_stage` 对 `SubAgentLauncher`/`SubAgentSwarm` 快照 delivery revision + 已绑证据计数，差分有变化即父侧 `new_evidence`。
+- `dag_init_from_template` 播种骨架后立即 `graph_initialization` 唤醒督导排产，不再等 Coordinator 留言。
+- 前端 Agent 列表按 id 去重，避免 YOLO 级联 PATCH 同一 coordinator 多次抬高 `settings_revision`。
+- v2 丢失模型原生联网搜索：`LegacyLLMProvider` 从不解析 native_search 适配器——外置 `web_search` 工具不剔除（模型绕开原生搜索走第三方）、provider 侧搜索参数不注入、DeepSeek 的 /responses 传输不启用；`LegacyPromptProvider` 还把 `web_search_available` 硬编码 False（「联网搜索」prompt 段消失）。已对齐 v1 行为：命中适配器时剥 `web_search` 函数工具、注入原生参数、`transport=="responses"` 走 `create_responses_with_retry`；`legacy_default_settings` 桥接 legacy 配置的 `native_search`/`native_search_params`。
+- `DagController.maybe_supervise` 的 `on_supervision` 投影回调改为 best-effort：投影故障（如壳会话 spawn 被拒）只记 warning，督导照常运行、父 turn 不受连累（此前投影异常会在 supervisor.run 之前杀死整个 Coordinator turn，是 process 图从不推进的直接原因）。
+- 子 agent 不继承 yolo：YOLO 是 per-agent 设置（spawn 时快照 = 项目 defaults → 角色 defaults → spawn patch），而 `_spawn_child` 只透传 `orchestration_mode`，父开了 yolo 子 agent 仍逐项弹审批。现在 yolo 提为项目级开关：AgentBar 顶栏的 YOLO 勾选写入项目 defaults（新 agent 自动继承）并级联 PATCH 现存 agent（`patch_settings` 原地生效）；spawn 时子 agent 另继承父值（subagent_bridge 与 hub_bridge call 共用 `_spawn_child`）；Inspector 里的 per-agent 勾选保留为单 agent 覆盖。
+- `test_stream_marks_replay_boundary` 把全套回归卡死：httpx ASGITransport 缓冲整个响应体，无限 SSE 流经它永远等不到 `project.synced`（`send` 要等 app 跑完才返回，而 app 永不结束）。回放+边界标记逻辑抽成模块级 `_sse_replay` 生成器（端点行为不变），测试直接驱动生成器断言。
+- `message_supervisor` 后整个 run 崩掉（`'dict' object has no attribute 'state'`，重试 2 次后 failed，工具气泡显示 interrupted）：旧快照里没有后加的 `supervisor` 内置角色，恢复时角色注册表被快照整个替换，shell spawn 被拒；`_SupervisionShell` 未检查 spawn 是否被拒，把 `{"error": ...}` dict 当 AgentSession 用。恢复改为快照角色合并覆盖到内置角色表上（补丁继续生效、新内置角色不丢）；shell 在 spawn 被拒时降级为无 UI 投影（督导本体照常运行）。
+- compute 失败可观测性：guard（runtime/monitor.py）失败路径统一把可读原因落 `compute_jobs.last_error` 与 state json 的 `error` 字段——环境检查/命令构建失败直接落信息；日志解析失败带 calculator 退出码 + 日志尾部；计算失败从日志尾部提取终止标记段（Gaussian `Error termination`、CP2K `ABORT` 等，含上下文行，保序去重）；失败事件内联 `Failure reason:`。`query_compute_job` 的 last_error 不再返回空字符串。
+- DAG 投影：failed 的 observed_tool_call 遥测节点不再混入 blockers 视图（它们是不可执行的历史记录，污染真正的排产阻塞项）。
+- text_writer 等破坏性工具在 YOLO 模式下报 `'_LegacyAgentBridge' object has no attribute 'context_manager'`：YOLO 守卫改为对无 context_manager 的 v2 壳 bridge 容错（降级为空上下文）。
+- 历史轮次的 thinking 被吞：reasoning 原本只经瞬时 `llm.chunk` 流式展示，不落库，刷新/重进后全部消失。现在每轮 LLM 调用落一条持久 `agent.thinking` 事件，前端折叠渲染（绿色标识），SSE 收到持久段时替换对应的流式段避免重复。
+- 中间轮次的正文被吞：带工具调用的轮次，模型 narration 只活在流式气泡里，turn 结束即消失。现在 continue 轮的正文落持久 `agent.message_emitted`（stop 轮正文由 runner 最终消息承载，不重复落）。
+- stop 轮的最终消息曾是 stop 工具输出 schema 的 JSON dump（模型的最终陈述被吞）：现在用户可见消息 = 模型正文，模型没写正文时回退 stop 输出的 message（保留 reason/[ANSWER] 语义）。
+- 前端 SSE 漏注册 `agent.thinking`/`run.retry`/`hub.posted`/`compaction.requested` 事件类型（EventSource 按类型监听，未注册即静默丢弃）：持久 thinking 段实时不送达、去重逻辑不触发，已补齐并与后端 EVENT_TYPES 对齐。
+- 重进会话时历史提示重复弹出：SSE 每次连接从 cursor 0 全量回放，审批/LLM 失败等 toast 对回放事件重复触发。现在回放末尾发 `project.synced` 边界标记，回放期只重建状态不弹提示。
+- workspace_dir 相对路径静默嵌套：客户端传入剥掉前导 `/` 的路径时，下游会把它和 server 进程 cwd 拼成 `cwd/home/...` 的嵌套怪路径，所有文件/bash 工具全崩。现在 `project.create`/`project.update` 在命令层规范化：非绝对路径直接拒绝（清晰报错），`~` 展开，不存在的目录自动创建。
+- 长会话历史事件被窗口截断：events 端点原本只返回最后 500 条且 `query_session` 取尾部，早期 message/thinking 事件掉出窗口（表现为"中间轮 content 被吞"）。端点改为从头分页（`tail=False`），前端翻页拉全量。
+- DAG stage 在事件循环线程上同步建 SQLite（护栏告警）：`_controller` 改 async，`init()` 走 `asyncio.to_thread`。
+- 非瞬态 LLM 错误（401/402/400 等 4xx）不再触发 runner 原地重试，直接 failed 落错；5xx/429/连接错误保持退避重试。
+- 前端时间线：工具行配对（tool.finished）后从 openTools 删除，修复 cancel/run 结束时把历史已完成工具全部误标 interrupted 的问题。
+- v2 恢复语义：进程重启后恢复出的 running/waiting agent 没有存活 runner（run 只在内存），restore 时统一落 failed 并记 `run.finished`（"interrupted by process restart"），界面不再僵尸转圈；发消息即可自动重开。
 - YOLO 审批时模型没返回 `submit_approval_decision` tool_call 或参数解析失败，不再把“未返回 tool_call”这种内部实现错误当拒绝理由甩给主 Agent，而是在 Guard 内部告警、纠偏并重试（最多 3 次）；耗尽后按默认安全策略拒绝，返回给主 Agent 的是不含实现细节的中性原因。
 - TUI 代码块「复制」按钮失效：`on_click` 命中检测未减去边框/内边距 gutter，4×1 热区永远点不中；修复并加回归测试。
 - 审批/提问弹窗 `MarkupError` 崩溃：动态内容（工具参数、命令输出）按 console markup 解析遇 `[` 抛错打崩整个 TUI；改为 `SafeStatic`（markup 解析失败自动降级纯文本）+ `markup=False`。
 - DeepSeek Responses 流式翻译缺 key：chunk 的 `delta`/`message` 未常驻 `content`/`tool_calls`，reAct 直接属性访问抛 `AttributeError('tool_calls')`；统一补齐占位 key，`ResponseDictWrapper.model_dump` 尊重 `exclude_none`。
 - DeepSeek Chat Completions 注入 `web_search` 工具被 400 拒绝（`tools[..].type: unknown variant`）：原生搜索一律走 `/responses`，chat 路径不再注入。
+
+### 移除
+- v1 运行时整体删除：旧 FastAPI 面（`services/api.py`/`api_v1.py`）、`services/service.py` 应用服务层、legacy 执行核心（`runtime/runner|executor|workers|compute_executor|mobile_tasks`、`core/react.py`）、Flet GUI（`ui/`、`flet_app.py`）、Android 全家桶（`android/`、`extensions/cloudra_native/`、`device/`、`device_broker`、mobile/remote 相关 infra 与文档）、legacy 论坛存储（hub_posts）、`control_store`/`interactions`/`conversation_repo`/`case_bank`/`context_stats` 及对应测试。Managetool 四个跨 agent 工具只保留 schema（执行由 runtime_v2 桥接拦截）。
+- CLI 收敛为启动器与运维命令（`web`/`config`/`logs`/`skills`/`backup`）；`run`/`gui`/`sessions`/`history`/`devices`/`android` 子命令移除。
 
 ## [1.8.0] - 2026-07-18
 

@@ -202,6 +202,7 @@ class ArtifactService:
         db = ConversationDB(conversation_id)
         if not Path(db.path).is_file():
             return []
+        db.migrate_if_needed()
 
         def read():
             with db.connect() as con:

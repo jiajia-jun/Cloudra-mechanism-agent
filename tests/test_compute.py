@@ -670,85 +670,54 @@ async def test_context_manager_session_isolation(isolated_db):
     assert not any("task 1" in str(msg.get("content", "")) for msg in ctx2)
 
 
-@pytest.mark.asyncio
-async def test_subagent_launcher_no_template_pollution(isolated_db, monkeypatch):
-    """SubAgentLauncher 使用类实例化（注册表存类），全局模板不收污染。"""
-    from cloudra.persistence.database import ConversationDB
-    from cloudra.subagents import Subagent_hash
-    from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher, SubAgentLauncher_input_schema
+def test_log_tail_reason_extracts_gaussian_error(tmp_path):
+    """失败原因提取：Gaussian Error termination 段（带上下文行）。"""
+    from cloudra.runtime.monitor import _log_tail_reason
 
-    # 本子测试只关心注册表不被污染，固定子进程模式以避免真的调度后台子任务。
-    monkeypatch.setenv("CLOUDRA_SUBAGENT_MODE", "subprocess")
-    ConversationDB("parent_conv").init()
-
-    tool = SubAgentLauncher()
-    tool.subagent = MockAgent("a-0", "parent_conv")
-
-    hash_before = Subagent_hash()
-    agent_cls = hash_before.get("a-1")
-    assert agent_cls is not None
-
-    input_inst = SubAgentLauncher_input_schema(
-        agent_id="a-1",
-        query="new task for a-1",
-        is_wait=False,
+    log = tmp_path / "fail.log"
+    log.write_text(
+        " Step number  42 out of a maximum of 128\n"
+        " Convergence failure -- run terminated.\n"
+        " Error termination via Lnk1e in /opt/g16/l9999.exe\n"
+        " Job cpu time: 0 days 0:01:23.4\n",
+        encoding="utf-8",
     )
-    result = await tool.tool_call(input_inst, session=None)
+    reason = _log_tail_reason(log)
+    assert "Error termination" in reason
+    assert "Convergence failure" in reason
 
-    assert result.session_id.startswith("a-1_task")
-    assert result.act_agent is not None
 
-    hash_after = Subagent_hash()
-    agent_cls_after = hash_after.get("a-1")
-    assert agent_cls_after is agent_cls
+def test_log_tail_reason_falls_back_to_last_lines(tmp_path):
+    """没有已知终止标记时退化为末尾三行。"""
+    from cloudra.runtime.monitor import _log_tail_reason
+
+    log = tmp_path / "weird.log"
+    log.write_text("line1\nline2\nsegfault near end\n", encoding="utf-8")
+    reason = _log_tail_reason(log)
+    assert "segfault near end" in reason
+    assert _log_tail_reason(tmp_path / "missing.log") == ""
 
 
 @pytest.mark.asyncio
-async def test_dag_session_subagent_inherits_record_mode(isolated_db, monkeypatch):
-    """DAG 会话派发的子 Agent 必须以 dag_record 落库（证据登记靠它）；
-    standard 会话的子 Agent 保持 standard。"""
-    import json as _json
-
+async def test_mark_failed_writes_last_error(isolated_db):
+    """guard 标记失败时 last_error 落库，query_compute_job 直接可读。"""
     from cloudra.persistence.database import ConversationDB
-    from cloudra.tools.Managetool._subagent_dispatch import _subagent_orchestration_mode
-    from cloudra.tools.Managetool.subagent_launcher import (
-        SubAgentLauncher,
-        SubAgentLauncher_input_schema,
-    )
+    from cloudra.runtime.monitor import _mark_failed
 
-    # 映射：guided/record → record；standard → standard
-    assert _subagent_orchestration_mode("dag_guided").value == "dag_record"
-    assert _subagent_orchestration_mode("dag_record").value == "dag_record"
-    assert _subagent_orchestration_mode("standard").value == "standard"
-
-    # 固定子进程模式：只落库，不真的调度后台子任务
-    monkeypatch.setenv("CLOUDRA_SUBAGENT_MODE", "subprocess")
-    ConversationDB("parent_conv").init()
-
-    async def launch(mode):
-        tool = SubAgentLauncher()
-        tool.subagent = MockAgent("a-0", "parent_conv")
-        tool.subagent.orchestration_mode = mode
-        result = await tool.tool_call(
-            SubAgentLauncher_input_schema(
-                agent_id="a-1", query=f"task in {mode}", is_wait=False,
-            ),
-            session=None,
+    db = ConversationDB("test_conv")  # isolated_db fixture 已初始化过该库
+    # 直接插一行 compute_jobs（绕过 submit 工具，只测落库语义）
+    async with db.aconnect() as con:
+        cur = await con.execute(
+            "INSERT INTO compute_jobs (session_id, path, state, start_timestamp) VALUES (?, ?, ?, ?)",
+            ("s1", "/tmp/x.gjf", "running", 1.0),
         )
-        return result.session_id
+        await con.commit()
+        task_id = cur.lastrowid
 
-    guided_sid = await launch("dag_guided")
-    standard_sid = await launch("standard")
-
-    db = ConversationDB("parent_conv")
-    with db.connect() as con:
-        payloads = con.execute(
-            "SELECT input_data FROM subagent_requests ORDER BY id"
-        ).fetchall()
-    by_session = {}
-    for (raw,) in payloads:
-        data = _json.loads(raw)
-        # payload 里的 session_id 由 acreate_subagent_request 回写
-        by_session[data["session_id"]] = data["orchestration_mode"]
-    assert by_session[guided_sid] == "dag_record"
-    assert by_session[standard_sid] == "standard"
+    await _mark_failed(db, task_id, "env check failed: g16 not found")
+    async with db.aconnect() as con:
+        row = await (await con.execute(
+            "SELECT state, last_error FROM compute_jobs WHERE id=?", (task_id,)
+        )).fetchone()
+    assert row[0] == "failed"
+    assert "g16 not found" in row[1]

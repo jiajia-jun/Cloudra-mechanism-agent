@@ -30,6 +30,11 @@ class ToolRegistration:
     dag_observe: bool = True
     supervisor_evidence: bool = False
     evidence_deriver: str = ""  # "module:function(current, role, arguments, result)->dict"
+    # D5：工具结束是否入 CallReview 收件箱（并唤醒 Supervisor 复核）。
+    dag_review: bool = False
+    # Phase 3 门槛：mechanism 未被接受前拦截的计算入口（开算/写计算输入）。
+    dag_compute_entry: bool = False
+    dag_compute_predicate: str = ""  # "module:function(arguments)->bool", overrides dag_compute_entry
 
     # Runtime availability. The default keeps the Android allow-list opt-in.
     runtime_profiles: frozenset[str] = frozenset({"desktop"})
@@ -41,6 +46,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='Bashtools',
         tool_name='bashtools',
         substantive_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
+        dag_compute_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
     ),
     ToolRegistration('cloudra.tools.Browsertool.headless_browser', 'HeadlessBrowser'),
     ToolRegistration(
@@ -54,12 +60,14 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='ConformerSearch',
         tool_name='conformer_search',
         dag_substantive=True,
+        dag_compute_entry=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.electronic_analysis',
         class_name='ElectronicAnalysis',
         tool_name='electronic_analysis',
         dag_substantive=True,
+        dag_compute_entry=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
     ToolRegistration(
@@ -67,6 +75,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='GjfWriter',
         tool_name='gjf_writer',
         dag_substantive=True,
+        dag_compute_entry=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
     ToolRegistration('cloudra.tools.Chemtool.internal_coordinates', 'InternalCoordinates'),
@@ -83,6 +92,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_substantive=True,
         supervisor_evidence=True,
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
+        dag_review=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
     ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
@@ -98,6 +108,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='ReactionMapping',
         tool_name='reaction_mapping',
         evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
+        dag_review=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
     ToolRegistration(
@@ -105,6 +116,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='SubmitComputeJob',
         tool_name='submit_compute_job',
         dag_substantive=True,
+        dag_compute_entry=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.thermo_analysis',
@@ -112,6 +124,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='thermo_analysis',
         dag_substantive=True,
         evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
+        dag_review=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.ts_guess',
@@ -119,29 +132,9 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='ts_guess',
         dag_substantive=True,
         evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
+        dag_review=True,
+        dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
     ),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceWorkspaceList'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceWorkspaceRead'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceConfigGet'),
-    ToolRegistration(
-        module='cloudra.tools.DeviceTool.device_tools',
-        class_name='DeviceWorkspaceApplyPatch',
-        tool_name='device.workspace.apply_patch',
-        dag_substantive=True,
-    ),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceConfigPatch'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceDocumentsList'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceDocumentsRead'),
-    ToolRegistration(
-        module='cloudra.tools.DeviceTool.device_tools',
-        class_name='DeviceDocumentsWrite',
-        tool_name='device.documents.write',
-        dag_substantive=True,
-    ),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceFilePick'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceCameraCapture'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceShareText'),
-    ToolRegistration('cloudra.tools.DeviceTool.device_tools', 'DeviceNotify'),
     ToolRegistration('cloudra.tools.Interactool.ask_user', 'AskUser'),
     ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
     ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
@@ -178,9 +171,75 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ),
     ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
     ToolRegistration(
-        module='cloudra.tools.Plantool.dag_graph',
-        class_name='DagGraph',
-        tool_name='dag_graph',
+        module='cloudra.tools.Plantool.dag_tools.dag_view',
+        class_name='DagView',
+        tool_name='dag_view',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_delivery_report',
+        class_name='DagDeliveryReport',
+        tool_name='dag_delivery_report',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_add_species',
+        class_name='DagAddSpecies',
+        tool_name='dag_add_species',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_add_step',
+        class_name='DagAddStep',
+        tool_name='dag_add_step',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_update_delivery_element',
+        class_name='DagUpdateDeliveryElement',
+        tool_name='dag_update_delivery_element',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_remove_edge',
+        class_name='DagRemoveEdge',
+        tool_name='dag_remove_edge',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_bind_evidence',
+        class_name='DagBindEvidence',
+        tool_name='dag_bind_evidence',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
+        class_name='DagProposeMechanism',
+        tool_name='dag_propose_mechanism',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_accept_mechanism',
+        class_name='DagAcceptMechanism',
+        tool_name='dag_accept_mechanism',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_review_call',
+        class_name='DagReviewCall',
+        tool_name='dag_review_call',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
+        class_name='DagSetCoverageContract',
+        tool_name='dag_set_coverage_contract',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
+        class_name='DagMessageSupervisor',
+        tool_name='dag_message_supervisor',
         dag_observe=False,
     ),
     ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),

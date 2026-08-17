@@ -184,6 +184,60 @@ async def test_aretry_on_locked_retries_transient_lock():
     assert attempts == 3
 
 
+def test_concurrent_init_does_not_raise_duplicate_column(tmp_path):
+    """DAG 面板会并行打 process/delivery/report/history，每个都 ConversationDB.init()。
+    旧库缺列时并发 ALTER TABLE ADD COLUMN 必须幂等，不能把 ASGI 打成 500。"""
+    import threading
+
+    db = ConversationDB("race-init", data_dir=tmp_path)
+    db.ensure_dir()
+    with sqlite3.connect(db.path) as con:
+        # 缺 to_agent 的旧 hub_posts：CREATE IF NOT EXISTS 不会重建，迁移会 ADD COLUMN。
+        con.execute(
+            """
+            CREATE TABLE hub_posts(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topic TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                author_agent TEXT NOT NULL,
+                author_session TEXT NOT NULL DEFAULT '',
+                parent_id INTEGER,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        con.commit()
+
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            ConversationDB("race-init", data_dir=tmp_path).init()
+        except BaseException as exc:  # noqa: BLE001 — collect any crash
+            errors.append(exc)
+
+    threads = [threading.Thread(target=run) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == [], errors
+    with sqlite3.connect(db.path) as con:
+        cols = {row[1] for row in con.execute("PRAGMA table_info(hub_posts)")}
+        version = con.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+    assert "to_agent" in cols
+    assert version == SCHEMA_VERSION
+
+
+def test_add_column_ignores_duplicate_column(tmp_path):
+    db = ConversationDB("dup-col", data_dir=tmp_path).init()
+    with db.connect() as con:
+        cur = con.cursor()
+        ConversationDB._add_column(cur, "hub_posts", "to_agent", "TEXT")
+        ConversationDB._add_column(cur, "hub_posts", "to_agent", "TEXT")
+
+
 def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):
     db = ConversationDB("conv_legacy")
     db.ensure_dir()
@@ -207,26 +261,6 @@ def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):
 
 class TestApprovalSanitize:
     """终端粘贴的 GBK 字节会以孤立代理符残留，审批写库前必须净化。"""
-
-    def test_apply_approval_decision_with_surrogate(self, tmp_path):
-        from cloudra.runtime.workers import apply_approval_decision
-
-        db = ConversationDB.from_path(str(tmp_path / "t.db")).init()
-        with db.connect() as con:
-            con.execute(
-                "INSERT INTO approvals (session_id, details, state, denial_reason) VALUES ('s1', 'd', 'pending', '')"
-            )
-            con.commit()
-
-        dirty = "直接 跳过\udce8其实塞不下"
-        assert apply_approval_decision(db.path, 1, "denied", dirty) is True
-
-        with db.connect() as con:
-            reason = con.execute("SELECT denial_reason FROM approvals WHERE id=1").fetchone()[0]
-        # 孤立代理符被替换为 U+FFFD，其余字符保留，且字符串可安全 UTF-8 编码
-        assert "\udce8" not in reason
-        assert "跳过" in reason and "塞不下" in reason
-        reason.encode("utf-8")
 
     def test_sanitize_db_text_passthrough_clean(self):
         from cloudra.services import session_store

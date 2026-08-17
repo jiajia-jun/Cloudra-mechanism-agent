@@ -90,7 +90,10 @@ class RuntimeSettings(RuntimeSettingsPatch):
     def apply(self, patch: RuntimeSettingsPatch) -> "RuntimeSettings":
         data = self.model_dump()
         data.pop("api_key_set", None)  # computed field; not a constructor input
-        patch_data = patch.model_dump(exclude_unset=True)
+        # Explicit nulls carry no semantics in a patch (every field defaults
+        # to None = unset); drop them so a round-tripped settings dict with
+        # serialized nulls can never poison the result.
+        patch_data = {k: v for k, v in patch.model_dump(exclude_unset=True).items() if v is not None}
         if patch.api_key is not None:
             patch_data["api_key"] = patch.api_key
         data.update(patch_data)

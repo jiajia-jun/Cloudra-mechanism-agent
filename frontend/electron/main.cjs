@@ -63,18 +63,22 @@ async function createWindow() {
   const win = new BrowserWindow({
     width: 1480,
     height: 960,
+    backgroundColor: '#151517',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
-  process.env.CLOUDRA_RUNTIME_URL = baseUrl;
+  // The preload script runs in the renderer process and cannot see this
+  // process's env vars, so the runtime URL travels via the page query string.
   if (useDevServer) {
-    win.loadURL('http://localhost:5173');
+    win.loadURL(`http://localhost:5173/?runtime=${encodeURIComponent(baseUrl)}`);
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
+      query: { runtime: baseUrl },
+    });
   }
 }
 

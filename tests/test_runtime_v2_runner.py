@@ -19,13 +19,13 @@ class ScriptedLLM:
     def __init__(self, responses: list[LLMResponse]) -> None:
         self.responses = list(responses)
 
-    async def complete(self, agent, messages, tools):
+    async def complete(self, agent, messages, tools, **_kwargs):
         assert self.responses, "no scripted LLM response left"
         return self.responses.pop(0)
 
 
 class HangingLLM:
-    async def complete(self, agent, messages, tools):
+    async def complete(self, agent, messages, tools, **_kwargs):
         await asyncio.Event().wait()
 
 
@@ -65,6 +65,37 @@ async def _wait_state(agent, state: str, timeout: float = 2.0):
 
 
 @pytest.mark.asyncio
+async def test_thinking_mode_reasoning_is_echoed_on_next_turn():
+    """DeepSeek-style thinking mode: after a tool-calling turn the next
+    request must send the previous assistant's reasoning_content back."""
+
+    class RecordingLLM:
+        def __init__(self) -> None:
+            self.calls: list[list[dict]] = []
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls.append(list(messages))
+            if len(self.calls) == 1:
+                return LLMResponse(
+                    content="Let me look.",
+                    reasoning="I should read the file first",
+                    tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+                )
+            return LLMResponse(content="done", stop_requested=True)
+
+    llm = RecordingLLM()
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+    assert len(llm.calls) == 2
+    echoed = [
+        m.get("reasoning_content")
+        for m in llm.calls[1]
+        if m.get("role") == "assistant" and m.get("tool_calls")
+    ]
+    assert echoed == ["I should read the file first"]
+
+
+@pytest.mark.asyncio
 async def test_runner_executes_tool_then_stops():
     llm = ScriptedLLM(
         [
@@ -84,6 +115,126 @@ async def test_runner_executes_tool_then_stops():
     assert "tool.finished" in events
     assert "run.finished" in events
     assert events.index("run.started") < events.index("tool.started") < events.index("run.finished")
+
+
+@pytest.mark.asyncio
+async def test_manual_compaction_rewrites_history(monkeypatch):
+    async def fake_summarize(agent, messages):
+        return "SUMMARY"
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
+
+    class GatedLLM:
+        def __init__(self) -> None:
+            self.gate = asyncio.Event()
+            self.calls: list[list[dict]] = []
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls.append(list(messages))
+            if len(self.calls) == 1:
+                await self.gate.wait()
+                return LLMResponse(
+                    content="",
+                    tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+                )
+            return LLMResponse(content="done", stop_requested=True)
+
+    llm = GatedLLM()
+    core, _, agent = await _setup(llm)
+    await asyncio.sleep(0.02)  # first LLM call is in flight, gated
+    bus = CommandBus(core)
+    await bus.execute(
+        Command(
+            type="agent.compact",
+            target={"session_id": agent.id},
+            payload={"keep_recent": 1},
+        )
+    )
+    llm.gate.set()
+    await _wait_state(agent, "succeeded")
+    types = [e.type for e in core.event_log.query_session(agent.id)]
+    assert "compaction.requested" in types
+    assert types.index("compaction.requested") < types.index("compaction.started")
+    assert "compaction.finished" in types
+    # The second turn's messages open with the compacted handoff.
+    second_turn = llm.calls[1]
+    assert any("[Context compact]" in str(m.get("content")) for m in second_turn)
+    assert any("SUMMARY" in str(m.get("content")) for m in second_turn)
+
+
+@pytest.mark.asyncio
+async def test_compact_history_split_and_summary():
+    from cloudra.runtime_v2.compaction import compact_history
+
+    history = [
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "t1", "name": "echo", "arguments": {}}]},
+        {"role": "tool", "tool_call_id": "t1", "content": "r1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+    ]
+
+    async def summarize(messages):
+        return "SUM"
+
+    new_history, stats = await compact_history(history, 2, summarize)
+    assert stats == {"compacted": True, "before_messages": 5, "after_messages": 3}
+    assert new_history[0]["role"] == "user"
+    assert "[Context compact]" in new_history[0]["content"]
+    assert new_history[1:] == history[3:]
+
+    # keep_recent landing on a tool message slides forward to keep the
+    # assistant tool_calls / tool response pair intact.
+    new_history, stats = await compact_history(history, 3, summarize)
+    assert new_history[1:] == history[3:]
+
+    # Already short enough: untouched.
+    same, stats = await compact_history(history, 10, summarize)
+    assert same is history
+    assert stats["compacted"] is False
+
+
+@pytest.mark.asyncio
+async def test_spawn_without_query_stays_queued_until_first_message():
+    llm = ScriptedLLM([LLMResponse(content="done", stop_requested=True)])
+    core = RuntimeCore(strict_events=True)
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=default_stages(),
+        llm=llm,
+        tools=EchoTools(),
+    )
+    core.runner = AgentRunner(core, pipeline)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "queued spawn"}))
+    project = next(iter(core.projects.values()))
+
+    result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator"},
+        )
+    )
+    agent = result.data
+    assert agent.state.value == "queued"
+    await asyncio.sleep(0.02)
+    assert agent.state.value == "queued"
+    assert "run.started" not in [e.type for e in core.event_log.query_session(agent.id)]
+
+    message = await bus.execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "start now"},
+        )
+    )
+    assert message.data.state.value == "running"
+    await _wait_state(agent, "succeeded")
+    types = [e.type for e in core.event_log.query_session(agent.id)]
+    assert types.index("agent.message_injected") < types.index("run.started")
 
 
 @pytest.mark.asyncio
@@ -135,17 +286,28 @@ async def test_cancel_terminates_hanging_agent_and_closes_run():
 @pytest.mark.asyncio
 async def test_two_projects_run_agents_concurrently_and_stay_isolated():
     core = RuntimeCore(strict_events=True)
+    class RoutedLLM:
+        """Two concurrent agents share one LLM instance; a shared response
+        queue races under interleaved scheduling.  Route by the task message
+        (stable across the run's turns) so each agent gets its own script."""
+
+        def __init__(self) -> None:
+            self.counts = {"A": 0, "B": 0}
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            tag = "A" if any("task A" in str(m.get("content", "")) for m in messages) else "B"
+            self.counts[tag] += 1
+            if self.counts[tag] == 1:
+                return LLMResponse(
+                    content=f"{tag} tool",
+                    tool_calls=[ToolCall(id=f"{tag.lower()}1", name="echo", arguments={"x": tag})],
+                )
+            return LLMResponse(content=f"{tag} done", stop_requested=True)
+
     pipeline = TurnPipeline(
         event_log=core.event_log,
         stages=default_stages(),
-        llm=ScriptedLLM(
-            [
-                LLMResponse(content="A tool", tool_calls=[ToolCall(id="a1", name="echo", arguments={"x": 1})]),
-                LLMResponse(content="A done", stop_requested=True),
-                LLMResponse(content="B tool", tool_calls=[ToolCall(id="b1", name="echo", arguments={"x": 2})]),
-                LLMResponse(content="B done", stop_requested=True),
-            ]
-        ),
+        llm=RoutedLLM(),
         tools=EchoTools(),
     )
     core.runner = AgentRunner(core, pipeline)

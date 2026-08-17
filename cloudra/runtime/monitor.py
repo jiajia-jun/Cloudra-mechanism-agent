@@ -13,6 +13,36 @@ from cloudra.persistence.context_manager import ContextManager
 from cloudra.persistence.database import ConversationDB
 from cloudra.persistence.fs_utils import atomic_write_json
 
+_LOG_TAIL_CHARS = 8000
+_REASON_MAX_CHARS = 500
+# 终止标记：Gaussian "Error termination"、CP2K "PROGRAM FAILED/ABORT" 等
+_FAILURE_MARKERS = ("Error termination", "PROGRAM FAILED", "ABORT", "Error:", "ERROR")
+
+
+def _log_tail_reason(log_path: Path) -> str:
+    """从计算日志尾部提取可读的失败原因。
+
+    失败信息的可观测性不能只靠 agent 手动 grep：guard 落库/写 state json 时
+    把终止标记段（上下文两行）或末尾三行作为 reason 带上。
+    """
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    if not text.strip():
+        return ""
+    lines = [line.strip() for line in text[-_LOG_TAIL_CHARS:].splitlines() if line.strip()]
+    picked: list[str] = []
+    for i, line in enumerate(lines):
+        if any(marker in line for marker in _FAILURE_MARKERS):
+            picked.extend(lines[max(0, i - 2): i + 2])
+    if not picked:
+        picked = lines[-3:]
+    # 保序去重（标记段的上下文行可能重叠）
+    seen: set[str] = set()
+    unique = [line for line in picked if not (line in seen or seen.add(line))]
+    return " | ".join(unique)[:_REASON_MAX_CHARS]
+
 
 async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian"):
     """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示超时/失败。
@@ -157,12 +187,23 @@ async def run_guard(
 
     data_dic, is_success = await _parse_log(log_path, parse_timeout, job_type=job_type)
     if data_dic is None:
+        reason = _log_tail_reason(log_path)
         await _mark_failed(
             db,
             taskid,
-            "guard 在解析窗口内无法完成日志解析，请让 Agent 自行读取 state.json 或原始日志确认结果。",
+            "guard 在解析窗口内无法完成日志解析"
+            + (f"（calculator 退出码 {returncode}）" if returncode else "")
+            + (f"；日志尾部：{reason}" if reason else "；日志为空或缺失"),
         )
         return
+
+    state = 'done' if is_success else 'failed'
+    fail_reason = ""
+    if state == 'failed':
+        fail_reason = (
+            f"calculator 退出码 {returncode}；" if returncode else ""
+        ) + (_log_tail_reason(log_path) or "未在日志尾部找到明确错误段")
+        data_dic["error"] = fail_reason
 
     json_nm = f'state_{taskid}.json'
     json_path = os.path.join(workdir, json_nm)
@@ -173,18 +214,26 @@ async def run_guard(
         await _mark_failed(db, taskid, f"写入 state json 失败：{e}")
         return
 
-    state = 'done' if is_success else 'failed'
     try:
         async with db.aconnect() as con:
             await con.execute(
-                "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
-                (state, time.time(), taskid)
+                "UPDATE compute_jobs SET state=?, end_timestamp=?, last_error=? WHERE id=?",
+                (state, time.time(), fail_reason or None, taskid)
             )
             await con.commit()
         print(f'[guard] 数据库状态已更新: task_id={taskid}, state={state}')
     except Exception as e:
         print(f'[guard] 更新数据库失败：{e}')
         return
+
+    # D5/D11：dag 模式下计算作业终态入 CallReview 收件箱（带作业终态，
+    # 不是 submit 调用的成败）；standard 模式内部跳过。
+    try:
+        from cloudra.dag.controller import enqueue_compute_review
+
+        await enqueue_compute_review(db, taskid, state)
+    except Exception as e:
+        print(f'[guard] enqueue compute review 失败（已忽略）: {e}')
 
     # 终态事件路由给任务的提交者，而不是一律发给 Coordinator：
     # 子 Agent 提交的任务由子 Agent 自己跟进；查不到时回退 Coordinator。
@@ -195,6 +244,7 @@ async def run_guard(
         guidance = "Next: use gaussian_log_parser on the log to extract energy/frequencies and other results."
     else:
         guidance = (
+            f"Failure reason: {fail_reason}\n"
             "Next: use query_compute_job to inspect last_error, and read the log to locate the failure; "
             "if needed, fix the input file and resubmit with submit_compute_job. "
             "If you cannot resolve it, email the user."
@@ -269,17 +319,25 @@ async def _resolve_submitter(db: ConversationDB, taskid: int) -> str:
 
 
 async def _mark_failed(db: ConversationDB, taskid: int, message: str):
-    """将任务标记为 failed，并打印错误信息。"""
+    """将任务标记为 failed，错误信息同时落 last_error（query_compute_job 直接可读）。"""
     print(f'Error: {message}')
     try:
         async with db.aconnect() as con:
             await con.execute(
-                "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
-                ('failed', time.time(), taskid)
+                "UPDATE compute_jobs SET state=?, end_timestamp=?, last_error=? WHERE id=?",
+                ('failed', time.time(), message[:500], taskid)
             )
             await con.commit()
     except Exception as e:
         print(f'[guard] 标记 failed 失败：{e}')
+        return
+    # D5/D11：失败终态同样入 CallReview 收件箱（rev_compute_<id> 去重）
+    try:
+        from cloudra.dag.controller import enqueue_compute_review
+
+        await enqueue_compute_review(db, taskid, 'failed')
+    except Exception as e:
+        print(f'[guard] enqueue compute review 失败（已忽略）: {e}')
 
 
 if __name__ == '__main__':

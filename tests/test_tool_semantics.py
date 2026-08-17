@@ -30,8 +30,6 @@ _EXPECTED_SUBSTANTIVE = frozenset(
         "electronic_analysis",
         "ir_processor",
         "nmr_processor",
-        "device.workspace.apply_patch",
-        "device.documents.write",
     }
 )
 _EXPECTED_ANDROID = frozenset(
@@ -85,7 +83,11 @@ def test_bashtools_predicate():
 
 
 def test_dag_observe_projection():
-    assert not is_dag_observable("dag_graph")
+    loaded = {entry.tool_name for entry in get_tools_lst()}
+    assert "dag_graph" not in loaded
+    assert "dag_view" in loaded
+    assert not is_dag_observable("dag_view")
+    assert not is_dag_observable("dag_add_species")
     assert not is_dag_observable("getskill")
     assert is_dag_observable("gaussian_log_parser")
     assert is_dag_observable("unknown_plugin_tool")

@@ -244,29 +244,9 @@ class Agent(BaseModel):
         """
         tools = filter_tools_for_runtime(get_tools_lst() if tools is None else tools)
         if normalize_orchestration_mode(self.orchestration_mode) is OrchestrationMode.STANDARD:
-            tools = [entry for entry in tools if entry.tool_name != "dag_graph"]
-        device_tool_names = {
-            entry.tool_name
-            for entry in tools
-            if entry.tool_name.startswith("device.")
-        }
-        available_device_tools: set[str] = set()
-        if device_tool_names:
-            try:
-                from cloudra.services.device_broker import get_device_broker
-
-                available_device_tools = (
-                    get_device_broker().available_tool_names()
-                )
-            except (OSError, ValueError):
-                available_device_tools = set()
+            tools = [entry for entry in tools if not entry.tool_name.startswith("dag_")]
         available_tools = []
         for tool in tools:
-            if (
-                tool.tool_name in device_tool_names
-                and tool.tool_name not in available_device_tools
-            ):
-                continue
             if self.check_permission(tool):
                 available_tools.append(tool)
         return available_tools
@@ -468,33 +448,6 @@ class Agent(BaseModel):
         """Attach a request-time provider; graph state is never cached in prompts."""
         self._dag_projection_provider = provider
 
-    @staticmethod
-    def _device_prompt_snapshot(tool_names: list[str]) -> list[dict]:
-        """Read a non-secret device snapshot without making it a hard dependency."""
-
-        if not any(name.startswith("device.") for name in tool_names):
-            return []
-        try:
-            from cloudra.services.device_broker import get_device_broker
-
-            broker = get_device_broker()
-            devices = broker.list_devices()
-            observations = broker.recent_observations(limit=50)
-            by_device: dict[str, list[dict]] = {}
-            for observation in observations:
-                by_device.setdefault(
-                    str(observation.get("device_id", "")),
-                    [],
-                ).append(observation)
-            for device in devices:
-                device["recent_observations"] = by_device.get(
-                    str(device.get("device_id", "")),
-                    [],
-                )
-            return devices
-        except Exception:
-            return []
-
     async def _build_messages(
         self,
         tool_schemas: Optional[list[dict]] = None,
@@ -513,7 +466,6 @@ class Agent(BaseModel):
             lambda: self._prompt_assembler().assemble(
                 tool_names,
                 capability_schemas=schemas,
-                device_snapshot=self._device_prompt_snapshot(tool_names),
                 web_search_available=web_search_available,
             )
         )

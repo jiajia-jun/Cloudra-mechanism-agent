@@ -45,9 +45,8 @@ class SpeciesRecord(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
-# process 图节点 status 的规范词表：frontier/blockers 投影只认这些值
-# （completion.build_projection）。类型即校验：模型写出词表外的值在
-# schema 层直接被拒，不再靠引擎同义词归一化兜底。
+# process 图节点 status 的历史词表：仅用于旧 journal 的只读兼容解析
+# （Phase 4 起 process 图已删除，新写入一律 process_graph_removed）。
 ProcessStatusValue = Literal[
     "proposed",
     "ready",
@@ -72,6 +71,187 @@ DeliveryEvidenceLevel = Literal[
 ]
 _DELIVERY_EVIDENCE_LEVELS = set(DeliveryEvidenceLevel.__args__)
 _PROCESS_STATUS_VALUES = set(ProcessStatusValue.__args__)
+
+
+class StageKind(str, Enum):
+    """delivery 元素的阶段词表：Coordinator 按元素选子集，harness 不外推链条。
+
+    occurrence 用 geometry/frequency/single_point；elementary-step 边用其余
+    （frequency 两边共用）。ts_guess 只是建议性阶段，永远不能充抵
+    ts_opt/frequency。
+    """
+
+    GEOMETRY = "geometry"
+    FREQUENCY = "frequency"
+    SINGLE_POINT = "single_point"
+    TS_GUESS = "ts_guess"
+    TS_OPT = "ts_opt"
+    SHORT_IRC = "short_irc"
+    ENDPOINT_A = "endpoint_a"
+    ENDPOINT_B = "endpoint_b"
+    DIRECTION = "direction"
+    IDENTITY = "identity"
+    THERMOCHEMISTRY = "thermochemistry"
+
+
+class StageStatus(str, Enum):
+    PENDING = "pending"
+    SUPPORTED = "supported"
+    SKIPPED = "skipped"
+    REJECTED = "rejected"
+
+
+class StageState(BaseModel):
+    """元素上一个阶段的绑定状态；skipped/rejected 必须附非空 reason 才算处置。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: StageKind
+    required: bool = True
+    status: StageStatus = StageStatus.PENDING
+    reason: str = ""  # skipped/rejected 时必填（覆盖评估强制，schema 层不拦旧数据）
+    ref: GraphRef | None = None
+
+
+class StageContract(BaseModel):
+    """元素的阶段契约：list 顺序即允许的绑定顺序。"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    stages: list[StageState]
+
+
+# occurrence 与 elementary-step 边各自的合法阶段词表（frequency 两边共用）。
+OCCURRENCE_STAGE_KINDS = frozenset(
+    {StageKind.GEOMETRY, StageKind.FREQUENCY, StageKind.SINGLE_POINT}
+)
+ELEMENTARY_STEP_STAGE_KINDS = frozenset({
+    StageKind.TS_GUESS,
+    StageKind.TS_OPT,
+    StageKind.FREQUENCY,
+    StageKind.SHORT_IRC,
+    StageKind.ENDPOINT_A,
+    StageKind.ENDPOINT_B,
+    StageKind.DIRECTION,
+    StageKind.IDENTITY,
+    StageKind.THERMOCHEMISTRY,
+})
+
+
+class CallReview(BaseModel):
+    """一次待复核的工具调用/计算作业终态（D12：append-only 收件箱行，不是图）。
+
+    sidecar 字段（caller/tool/arguments_digest/is_success/compute_job_id）只供
+    Supervisor 判断，不构成任何自动绑定权威；is_success 对计算作业是作业的
+    终态（D11），不是 submit 调用的成败。
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    review_id: str
+    tool_call_id: str = ""
+    tool_name: str
+    is_success: bool
+    caller_session_id: str = ""
+    caller_role_id: str = ""  # v2 role_id，如 small_mol
+    caller_legacy_id: str = ""  # legacy a-N（D13 单一映射路径）
+    arguments_digest: str = ""
+    result_summary: str = ""
+    compute_job_id: str | None = None
+    suggested_target_id: str | None = None  # Coordinator 提示，sidecar only
+    state: Literal["pending", "reviewed", "ignored"] = "pending"
+    created_at: str = ""
+
+
+# 旧行读取映射：stages 为空 ⇒ 由存储的 evidence_level 一次性映射出阶段
+# （stages 列见 persistence/database.py 的 _RELATED_EXTRA_COLUMNS）。
+_LEGACY_OCCURRENCE_STAGES = {
+    "structure_supported": (StageKind.GEOMETRY,),
+    "thermo_annotated": (StageKind.GEOMETRY, StageKind.SINGLE_POINT),
+}
+_LEGACY_EDGE_STAGES = {
+    "saddle_supported": (StageKind.TS_OPT, StageKind.FREQUENCY),
+    "endpoint_supported": (
+        StageKind.TS_OPT,
+        StageKind.FREQUENCY,
+        StageKind.SHORT_IRC,
+        StageKind.ENDPOINT_A,
+        StageKind.ENDPOINT_B,
+        StageKind.DIRECTION,
+        StageKind.IDENTITY,
+    ),
+    "thermo_annotated": (
+        StageKind.TS_OPT,
+        StageKind.FREQUENCY,
+        StageKind.SHORT_IRC,
+        StageKind.ENDPOINT_A,
+        StageKind.ENDPOINT_B,
+        StageKind.DIRECTION,
+        StageKind.IDENTITY,
+        StageKind.THERMOCHEMISTRY,
+    ),
+}
+
+
+def map_legacy_stages(
+    evidence_level: str, reason: str = "", *, is_edge: bool
+) -> list[StageState]:
+    """旧物化行（无 stages）→ 阶段列表；rejected/inconclusive 映射为单个
+    合成阶段（geometry/ts_opt），带上存储的 reason。"""
+    if evidence_level in ("rejected", "inconclusive"):
+        status = (
+            StageStatus.REJECTED
+            if evidence_level == "rejected"
+            else StageStatus.SKIPPED
+        )
+        kind = StageKind.TS_OPT if is_edge else StageKind.GEOMETRY
+        return [StageState(kind=kind, status=status, reason=reason)]
+    table = _LEGACY_EDGE_STAGES if is_edge else _LEGACY_OCCURRENCE_STAGES
+    return [
+        StageState(kind=kind, status=StageStatus.SUPPORTED)
+        for kind in table.get(evidence_level, ())
+    ]
+
+
+def derive_evidence_level(
+    stages: list[StageState], *, is_edge: bool
+) -> DeliveryEvidenceLevel:
+    """由阶段状态确定性派生证据等级（display/compat 专用，模型永不直写）。"""
+    required = [stage for stage in stages if stage.required]
+    if not required:
+        return "proposed"
+    has_pending = any(stage.status is StageStatus.PENDING for stage in required)
+    has_rejected = any(stage.status is StageStatus.REJECTED for stage in required)
+    has_skipped = any(stage.status is StageStatus.SKIPPED for stage in required)
+    all_supported = all(stage.status is StageStatus.SUPPORTED for stage in required)
+    if has_rejected and not has_pending:
+        return "rejected"
+    if has_skipped and not has_rejected and not all_supported:
+        return "inconclusive"
+    supported = {
+        stage.kind for stage in stages if stage.status is StageStatus.SUPPORTED
+    }
+    if is_edge:
+        if StageKind.THERMOCHEMISTRY in supported:
+            return "thermo_annotated"
+        if {
+            StageKind.SHORT_IRC,
+            StageKind.ENDPOINT_A,
+            StageKind.ENDPOINT_B,
+            StageKind.DIRECTION,
+            StageKind.IDENTITY,
+        } <= supported:
+            return "endpoint_supported"
+        if {StageKind.TS_OPT, StageKind.FREQUENCY} <= supported:
+            return "saddle_supported"
+        return "proposed"
+    if all_supported:
+        return (
+            "thermo_annotated"
+            if StageKind.SINGLE_POINT in supported
+            else "structure_supported"
+        )
+    return "proposed"
 
 # delivery 节点 role 的约定词表（机理图中物种出现的位置）。
 _DELIVERY_NODE_ROLES = {"reactant", "intermediate", "product"}
@@ -184,7 +364,7 @@ class _GraphElement(BaseModel):
     def payload(self) -> dict[str, Any]:
         """视图投影：非默认值的显式字段 + metadata 合并成的展示字典。
 
-        只为序列化视图（service.dag_graph / 子图 view / TUI）保留旧外形；
+        只为序列化视图（service / 子图 view / TUI）保留旧外形；
         逻辑代码一律读显式字段，不写这个投影。
         """
         skipped = {
@@ -239,6 +419,9 @@ class ObservedNode(_ProcessNodeBase):
     """process 图上的工具调用遥测记录（harness 自动记账，不是排产工作）。"""
 
     node_type: Literal["observed_tool_call"] = "observed_tool_call"
+    # 关键参数的短摘要（路径类优先），供 Coordinator 在多个同工具 observed
+    # 节点间消歧后走 bind_evidence 的 observed_<hex> 别名补挂证据。
+    arguments_summary: str = ""
 
 
 class OccurrenceNode(_GraphElement):
@@ -258,6 +441,9 @@ class OccurrenceNode(_GraphElement):
     advisory_sources: list[str] = Field(default_factory=list)
     # Supervisor 否决标记（review_evidence 写入）
     evidence_vetoed: bool = False
+    # 阶段契约：Coordinator 建机理时声明；空列表 = 旧元素，读取时按
+    # evidence_level 映射（map_legacy_stages）。状态只由 harness 阶段绑定推进。
+    stages: list[StageState] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -320,6 +506,8 @@ class ElementaryStepEdge(_GraphElement):
     endpoint_direction_consistent: bool = False
     endpoint_identity_matched: bool = False
     thermochemistry_supported: bool = False
+    # 阶段契约：同 OccurrenceNode.stages。
+    stages: list[StageState] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -614,6 +802,23 @@ def parse_graph_operation(data: Any) -> GraphOperation:
     return _OPERATION_ADAPTER.validate_python(data)
 
 
+class MechanismDraft(BaseModel):
+    """Coordinator 提出的机理草稿：delivery-only ops + 每元素阶段契约。
+
+    ``stage_contracts`` 的键必须解析到草稿自身 add 出的元素（harness 在
+    propose 时校验引用完整性）。guided 下只有 Supervisor
+    ``dag_accept_mechanism`` 落图；record 下 harness 自动接受（D1）。
+    ``mechanism_accepted = EXISTS(dag_drafts WHERE state='accepted')``（D4）。
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    operations: list[GraphOperation] = Field(min_length=1)
+    stage_contracts: dict[str, StageContract] = Field(default_factory=dict)
+    rationale: str = ""
+    state: Literal["open", "accepted", "rejected"] = "open"
+
+
 class MutationBatch(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -693,48 +898,47 @@ class DeliveryReport(BaseModel):
 _MODE_GUIDANCE = {
     OrchestrationMode.DAG_RECORD: (
         "Current orchestration mode: dag_record (DAG is recorded by the system; Supervisor is offline)\n"
-        "- Run the task as usual; tool and compute results are recorded into both DAGs automatically.\n"
-        "- If the projection shows a process node whose assignee equals your agent id, that work is assigned to you; "
-        "success/failure is reported automatically. Use dag_graph update_node when you need extra notes.\n"
-        "- To attach existing unplanned evidence to the mechanism graph, use dag_graph bind_evidence "
-        "(tool_call_id, target, evidence_role); the system verifies success and rederives evidence level."
+        "- Your first delivery artifact is a mechanism proposal: dag_propose_mechanism (delivery draft + "
+        "per-element stage contracts you choose). The harness auto-accepts it; no compute before that.\n"
+        "- Run the task as usual afterwards; tool and compute results are recorded as evidence automatically.\n"
+        "- Bind a finished call to a stage with dag_bind_evidence (tool_call_id, bind_target, stage_kind); "
+        "stages bind strictly in contract order, ts_guess never satisfies ts_opt/frequency, and a "
+        "submit_compute_job call is never evidence (bind the finished job's parser output)."
     ),
     OrchestrationMode.DAG_GUIDED: (
         "Current orchestration mode: dag_guided (DAG-guided orchestration; Supervisor is online)\n"
         "You must follow this orchestration discipline:\n"
-        "1. You design the mechanism hypothesis and compute plan: use dag_graph mutate to write the hypothesis "
-        "(intermediates, elementary steps) into the delivery graph, with rationale explaining the compute plan. "
-        "After the change is accepted, Supervisor is woken automatically to review the plan and schedule compute "
-        "work onto the process graph.\n"
-        "2. Only execute compute tasks in the frontier below: frontier = planned nodes whose dependencies are met "
-        "and whose status is `proposed` or `ready` (do not use status_filter=ready alone — many scheduled nodes "
-        "enter the frontier as proposed). Dispatch or run by node assignee (a legal sub-agent id such as a-4). "
-        "After a successful compute, use dag_graph bind_evidence to attach the result to the matching "
-        "mechanism-graph element (evidence authenticity and level are verified and derived by the system; "
-        "Supervisor review may veto, and a veto is delivered to you as an event).\n"
-        "3. Follow the mechanism-research SOP without skipping steps: reaction mapping → TS guess → "
-        "TS optimization + unique imaginary-frequency confirmation → IRC → endpoint optimization and matching → "
-        "thermochemistry.\n"
-        "4. Delivery completeness is decided by graph evidence, not by your declaration; before "
-        "stop(delivery_disposition=complete), self-check with dag_graph(action=delivery_report). If there are gaps, "
-        "keep filling evidence or explicitly choose partial / user_terminated."
+        "1. Your first delivery artifact is a mechanism proposal: dag_propose_mechanism (delivery draft + "
+        "per-element stage contracts — you choose which stages each element owes, in bind order). "
+        "No compute runs before the Supervisor accepts the draft with dag_accept_mechanism.\n"
+        "2. Work at your own pace afterwards — there is no frontier. Sub-agents run tools and report; "
+        "they never write the graph. Structural changes (dag_add_species / dag_add_step / "
+        "dag_update_delivery_element) wake the Supervisor for audit.\n"
+        "3. Delivery-relevant calls land in the Supervisor's review inbox; it binds stages via "
+        "dag_review_call. A disagree means the stage is still owed — re-run and let a later call be "
+        "bound, or explicitly skip it with a reason. ts_guess is advisory and never satisfies "
+        "ts_opt/frequency; a submit_compute_job call is never evidence.\n"
+        "4. Delivery completeness is decided by stage coverage, not by your declaration; before "
+        "stop(delivery_disposition=complete), self-check with dag_delivery_report: every required "
+        "stage must be supported or skipped with a reason. If there are gaps, keep filling evidence "
+        "or explicitly choose partial / user_terminated."
     ),
 }
 
 # dag_guided 下子 agent（follower）的模式引导：机理设计是 Coordinator 专属职责，
-# 子 agent 只执行派给自己的节点、回报自己名下节点、补挂证据（与子 agent prompt
-# 的 "You do not maintain the graph" 一致）。
+# 证据复核是 Supervisor 的；子 agent 只跑工具、报告结果（与子 agent prompt 的
+# "You do not maintain the graph" 一致）。
 _DAG_GUIDED_FOLLOWER_GUIDANCE = (
     "Current orchestration mode: dag_guided (DAG-guided orchestration; Supervisor is online)\n"
-    "You are a sub-agent in this orchestration: the Coordinator designs the mechanism hypothesis, "
-    "and the Supervisor owns the process graph. You do not maintain the graph. Your discipline:\n"
-    "1. Execute only the nodes in assigned_to_me below (assignee equals your agent id); "
-    "do not start unassigned work.\n"
-    "2. Node success/failure is reported automatically; use dag_graph update_node "
-    "(status/reason/blocked_reason, no revision) only for nodes assigned to you when you need extra notes.\n"
-    "3. To attach existing unplanned evidence to the mechanism graph, use dag_graph bind_evidence "
-    "(tool_call_id, target, evidence_role); evidence authenticity and level are verified and derived "
-    "by the system, and Supervisor review may veto."
+    "You are a sub-agent in this orchestration: the Coordinator designs the mechanism hypothesis "
+    "and chooses stage contracts; the Supervisor reviews evidence. You do not maintain the graph. "
+    "Your discipline:\n"
+    "1. Run the tools your task requires and report results with concrete tool_call_ids and file "
+    "paths; never write the graph yourself.\n"
+    "2. Only post-completion artifacts count as stage evidence (parser output on a finished job); "
+    "a submit_compute_job call or a ts_guess result is never proof of an optimized saddle point.\n"
+    "3. If the Supervisor disagrees with your evidence, the stage is still owed — expect a re-run "
+    "request from the Coordinator."
 )
 
 # 机理设计职责的持有者：Coordinator（a-0）。其余 actor 在 dag_guided 下
@@ -747,19 +951,17 @@ class DagProjection(BaseModel):
 
     mode: OrchestrationMode
     revisions: dict[str, int]
-    frontier: list[dict[str, Any]] = Field(default_factory=list)
-    blockers: list[dict[str, Any]] = Field(default_factory=list)
     delivery_gaps: list[dict[str, Any]] = Field(default_factory=list)
     recent_mutations: list[dict[str, Any]] = Field(default_factory=list)
-    # 按 assignee == actor_id 过滤出的"派给我的"节点：
-    # 子 agent 回报路径的一等入口，免从 frontier/blockers 里自行筛选
-    assigned_to_me: list[dict[str, Any]] = Field(default_factory=list)
+    # 待 Supervisor 复核的调用（sidecar 摘要；guided 下 Coordinator 据此了解
+    # 哪些证据在审）
+    pending_reviews: list[dict[str, Any]] = Field(default_factory=list)
 
     def to_prompt_text(self, actor_id: str | None = None) -> str:
         import json
 
         guidance = _MODE_GUIDANCE.get(
-            self.mode, "Current orchestration mode: standard (no DAG orchestration; dag_graph is unavailable)"
+            self.mode, "Current orchestration mode: standard (no DAG orchestration; dag_* tools are unavailable)"
         )
         # dag_guided 的完整版引导含机理设计职责，只对 Coordinator 投影；
         # 子 agent 投影 follower 版。actor_id 缺省（如直接构造投影）时保持完整版，向后兼容。
@@ -771,7 +973,7 @@ class DagProjection(BaseModel):
             guidance = _DAG_GUIDED_FOLLOWER_GUIDANCE
         payload = self.model_dump(mode="json")
         # revisions 是存储层并发控制的内部状态，不投影给模型：
-        # mutate 不传 base_revisions 时由 harness 固定版本并自动重试。
+        # 写工具不传 base_revisions：由 harness 固定版本并自动重试。
         payload.pop("revisions", None)
         return (
             f"[DAG orchestration] {guidance}\n"

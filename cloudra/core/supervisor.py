@@ -3,11 +3,13 @@
 包含两个部分：
 
 1. ``Supervisor``：case-bank 提取（任务结束后的经验沉淀），不干预在线执行。
-2. ``SupervisorAgent`` + ``GraphSupervisor``：dag_guided 模式下的图规划 agent。
+2. ``SupervisorAgent`` + ``GraphSupervisor``：dag_guided 模式下的科学督导 agent。
    它复用 Agent 基类与持久 ContextManager（conversation 级上下文，跨触发、
-   跨 session、跨进程重启连续），只持有 ``dag_graph`` 工具：用 view /
-   delivery_report 自助读图，用 mutate 维护 process DAG。delivery/机理 DAG
-   由 Coordinator 设计，Supervisor 对其只读（engine 按 actor 强制）。
+   跨 session、跨进程重启连续），只持有 ``dag_*`` 工具族：用 dag_view /
+   dag_delivery_report 自助读图，用 dag_accept_mechanism 裁决机理草稿、
+   dag_review_call 复核每次 delivery 相关调用并绑定阶段。delivery/机理 DAG
+   由 Coordinator 设计，Supervisor 对其只读（engine 按 actor 强制）；
+   阶段绑定由 harness 确定性校验后落图。
 
 核心设计：
 - 不按 ReAct 步数轮询；仅由图事件触发；
@@ -51,7 +53,7 @@ def load_supervisor_prompt() -> str:
         return (
             "You are Cloudra's graph-planning Supervisor in dag_guided mode: "
             "maintain the process DAG so it schedules and covers the Coordinator's "
-            "delivery mechanism, using only the dag_graph tool."
+            "delivery mechanism, using only the dag_* tool family."
         )
 
 
@@ -70,9 +72,9 @@ class TimelineEvent(BaseModel):
 
 
 class SupervisorAgent(Agent):
-    """dag_guided 下的图规划 agent：只持有 dag_graph 工具，上下文持久。
+    """dag_guided 下的图规划 agent：只持有 dag_* 工具族，上下文持久。
 
-    权限为 READ|MANAGE（dag_graph 的权限类别为 MANAGE），写安全由 DAG
+    权限为 READ|MANAGE（dag_* 工具的权限类别为 MANAGE），写安全由 DAG
     engine 按 actor=SUPERVISOR 强制：process DAG 可维护，delivery DAG 只读。
     """
 
@@ -106,11 +108,11 @@ class SupervisorAgent(Agent):
         return True
 
     def get_available_tools(self, tools: Optional[list] = None) -> list:
-        """白名单：只有 dag_graph。读两张图、维护 process DAG 都经它。"""
+        """白名单：所有 dag_* 工具。读两张图、维护 process DAG 都经它们。"""
         return [
             entry
             for entry in super().get_available_tools(tools)
-            if entry.tool_name == "dag_graph"
+            if entry.tool_name.startswith("dag_")
         ]
 
 
@@ -134,12 +136,21 @@ class GraphSupervisor:
     对其调用 clear_context。
     """
 
-    # 单次触发不设工具轮次上限：完整 process 排产常要数十次 mutate（每批 1–3 op），
-    # 旧 16 轮预算会在只 view 时被切断、图没写完。结束条件是模型不再发
+    # 单次触发不设工具轮次上限：一轮复核常要数十次读图/裁决调用，
+    # 旧 16 轮预算会在只 view 时被切断。结束条件是模型不再发
     # tool_calls，或 llm_call 失败；空回复仍强制收尾给 Coordinator。
     # 空回复且无 tool_calls 时连续容忍次数：模型常在 view 后空转一拍，
-    # 立刻收尾并禁止工具会把「我将排产」写成正文、图却不变。
+    # 立刻收尾并禁止工具会把「我将接受草稿」写成正文、图却不变。
     EMPTY_END_GRACE = 3
+    _WRITE_DAG_TOOLS = frozenset({
+        "dag_add_species",
+        "dag_add_step",
+        "dag_update_delivery_element",
+        "dag_remove_edge",
+        "dag_set_coverage_contract",
+        "dag_accept_mechanism",
+        "dag_review_call",
+    })
 
     def __init__(
         self,
@@ -165,26 +176,34 @@ class GraphSupervisor:
     def _trigger_message(trigger: str, coordinator_request: Optional[str]) -> str:
         parts = [f"[Graph event]{trigger}"]
         if coordinator_request:
-            label = (
-                "[Coordinator message]"
-                if trigger == "coordinator_message"
-                else "[Coordinator mechanism-change note]"
-            )
+            label = {
+                "coordinator_message": "[Coordinator message]",
+                "mechanism_proposed": "[Mechanism proposal rationale]",
+                "tool_call_review": "[Pending call reviews]",
+            }.get(trigger, "[Coordinator mechanism-change note]")
             parts.append(f"{label}{coordinator_request}")
-        if trigger in {"delivery_updated", "coordinator_message", "graph_initialization"}:
+        if trigger == "mechanism_proposed":
             parts.append(
-                "Scheduling rule: if delivery already has a real mechanism and process still has only "
-                "template planned nodes (p_analyze/p_literature/p_skill/p_delivery_design), or "
-                "non-template plans do not yet cover the current gaps, mutate to add compute planned nodes; "
-                "if the non-template frontier already covers the gaps, you may leave the graph unchanged "
-                "but must explain why. Whether or not you change the graph, leave a conclusion for the "
-                "Coordinator before ending (empty replies are forbidden)."
+                "Review the draft: species/steps coverage, per-element stage contracts "
+                "(list order is the bind order), and the rationale. Accept with "
+                "dag_accept_mechanism only if the mechanism and contracts are sound — "
+                "acceptance unlocks compute; otherwise reject with a concrete reason so "
+                "the Coordinator can revise."
+            )
+        elif trigger == "tool_call_review":
+            parts.append(
+                "Adjudicate each pending review with dag_review_call (target element + stage "
+                "+ verdict): agree only when the evidence truly supports that stage — a "
+                "ts_guess result is advisory and never supports ts_opt/frequency, and a TS "
+                "frequency stage needs exactly one imaginary frequency. disagree means the "
+                "stage is still owed (it is NOT a disposal); skip with a reason only when "
+                "the stage is deliberately abandoned; ignore calls that are not delivery evidence."
             )
         parts.append(
-            "First call dag_graph(action=view) to read the frontier/blockers/delivery_gaps projection; "
-            "only if needed, fetch a summary subgraph with graph_kind + node_ids/status_filter. "
-            "When you need to schedule or change the workflow, use mutate to maintain the process DAG; "
-            "mutate first (if needed), then write the conclusion — do not use prose in place of mutate."
+            "First call dag_view to read the delivery projection and coverage gaps; fetch a "
+            "subgraph with graph_kind=delivery + node_ids only if needed. Whether or not you "
+            "change anything, leave a conclusion for the Coordinator before ending "
+            "(empty replies are forbidden)."
         )
         return "\n".join(parts)
 
@@ -195,7 +214,7 @@ class GraphSupervisor:
             payload = json.loads(content)
         except (TypeError, json.JSONDecodeError):
             return None
-        if not isinstance(payload, dict) or payload.get("action") != "view":
+        if not isinstance(payload, dict) or payload.get("action") not in {"view", "dag_view"}:
             return None
         if payload.get("is_success") is False:
             return None
@@ -217,7 +236,7 @@ class GraphSupervisor:
     async def _fold_stale_views(self, agent: SupervisorAgent, keep_tool_call_id: str) -> None:
         """新 view 成功后，把上下文里更早的 view 工具结果折叠成一行占位。
 
-        决策/mutate 记录保留；被折叠的是可随时从权威图存储重取的快照。
+        决策/写图记录保留；被折叠的是可随时从权威图存储重取的快照。
         """
         context = await agent.get_context()
         changed = False
@@ -252,7 +271,7 @@ class GraphSupervisor:
             parts.append(f"note={note}. ")
         parts.append(
             "This turn left no natural-language note; inspect process graph changes, "
-            "or use dag_graph(action=message_supervisor) to communicate again."
+            "or use dag_message_supervisor to communicate again."
         )
         return "".join(parts)
 
@@ -289,7 +308,7 @@ class GraphSupervisor:
     ) -> None:
         """钉住 ``[Supervisor]`` 建议；仅在 Coordinator 可能 waiting 时发唤醒事件。
 
-        Coordinator 自己的 mutate / message_supervisor 路径里 Supervisor 是同步
+        Coordinator 自己的 dag_add_species / dag_message_supervisor 路径里 Supervisor 是同步
         await 的，下一轮推理 naturally 能读到钉住的建议——再 inject 会变成
         重复的 ``【supervisor】`` 系统行。子 Agent 或 API（user_replan）触发时
         Coordinator 往往在 waiting，必须 inject_event 才能拉起来。
@@ -336,14 +355,20 @@ class GraphSupervisor:
         不设轮次上限：模型不再发 tool_calls（或 llm_call 失败）才结束。
         event_sink：可选异步回调 (event_type, data)，由调用方（DagController）
         把运行过程写进 supervisor 自己的 session 事件流——TUI 选中它的
-        session 行时才能看到推理与 dag_graph 调用，否则窗口是空的。
+        session 行时才能看到推理与 dag_* 工具调用，否则窗口是空的。
 
         结束时无论是否改图，都会把结论文本钉进 Coordinator 的 ``[Supervisor]``
         建议；若模型空回复则强制再收尾一次。``wake_coordinator`` 为真时再
         inject_event（子 Agent / API 触发，Coordinator 可能在 waiting）。
         """
         # 惰性导入，避免模块级依赖 tools 包。
-        from cloudra.tools.Plantool.dag_graph import DagGraph, DagGraphInput
+        from cloudra.tools import get_tools_lst
+
+        dag_tools = {
+            entry.tool_name: entry
+            for entry in get_tools_lst()
+            if entry.tool_name.startswith("dag_")
+        }
 
         async def _emit(event_type: str, data: dict) -> None:
             if event_sink is None:
@@ -359,7 +384,7 @@ class GraphSupervisor:
             {"role": "user", "content": trigger_message}
         )
         await _emit("user_message", {"content": trigger_message})
-        # DagGraph 只读取 session.id 作为 mutation 的 session 归属。
+        # DAG 写工具只读取 session.id 作为 mutation 的 session 归属。
         session = SimpleNamespace(id=session_id or "supervisor")
         mutations: list[dict] = []
         rounds = 0
@@ -396,16 +421,16 @@ class GraphSupervisor:
                     last_report = content_text
                     break
                 # 空回复 + 无工具：不算结束。立刻强制收尾并禁止工具，
-                # 模型会把排产计划写成正文（「我将 mutate」），process 图不变。
+                # 否则模型会把复核结论写成正文（「我将接受草稿」），图不变。
                 empty_streak += 1
                 if empty_streak == 1:
                     await agent.update_context({
                         "role": "user",
                         "content": (
                             "[System] An empty reply does not end the turn. "
-                            "If process still lacks non-template scheduling, "
-                            "call dag_graph(action=mutate) now to write planned nodes; "
-                            "do not put the plan in prose instead of mutate."
+                            "If a draft awaits your verdict or reviews are still pending, "
+                            "call dag_accept_mechanism / dag_review_call now; "
+                            "do not put the verdict in prose instead of the tool call."
                         ),
                     })
                 if empty_streak >= self.EMPTY_END_GRACE:
@@ -428,40 +453,43 @@ class GraphSupervisor:
                         "content": f"[System error] Failed to parse tool arguments: {exc.msg}",
                     })
                     continue
-                if name != "dag_graph":
+                entry = dag_tools.get(name)
+                if entry is None:
                     await agent.update_context({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
-                        "content": f"[System error] Tool {name!r} is not available; you only have dag_graph.",
+                        "content": (
+                            f"[System error] Tool {name!r} is not available; "
+                            "you only have dag_* tools."
+                        ),
                     })
                     continue
                 try:
-                    input_obj = DagGraphInput(**args)
+                    input_obj = entry.input_schema(**args)
                 except Exception as exc:
                     # Pydantic v2 ValidationError 不是 ValueError；统一回喂便于模型改参。
                     await agent.update_context({
                         "role": "tool",
                         "tool_call_id": tool_call_id,
                         "content": (
-                            f"[System error] dag_graph argument validation failed: {exc}. "
-                            "Split mutate into batches of 1–3 ops with a flat payload; "
-                            "put base_revisions/operations at the top level of the tool call."
+                            f"[System error] {name} argument validation failed: {exc}. "
+                            "Use this tool's flat fields; do not send a mutate operations array."
                         ),
                     })
                     continue
                 args_summary = json.dumps(args, ensure_ascii=False, default=str)[:300]
-                await _emit("tool_started", {"tool": "dag_graph", "arguments": args_summary})
+                await _emit("tool_started", {"tool": name, "arguments": args_summary})
                 try:
-                    output = await DagGraph(subagent=agent).tool_call(input_obj, session)
+                    output = await entry.instantiate(subagent=agent).tool_call(
+                        input_obj, session
+                    )
                 except Exception as exc:
                     # 工具层异常回喂模型让它调整，而不是炸掉整个督导运行——
-                    # 否则一次 view/mutate 崩溃就会把 Supervisor session 直接终结。
-                    logger.warning(
-                        "[Supervisor] dag_graph %s failed: %s", input_obj.action, exc
-                    )
-                    error_content = f"[System error] dag_graph {input_obj.action} failed: {exc}"
+                    # 否则一次 dag_view / dag_review_call 崩溃就会把 Supervisor session 直接终结。
+                    logger.warning("[Supervisor] %s failed: %s", name, exc)
+                    error_content = f"[System error] {name} failed: {exc}"
                     await _emit("tool_finished", {
-                        "tool": "dag_graph",
+                        "tool": name,
                         "arguments": args_summary,
                         "result": error_content[:500],
                     })
@@ -472,7 +500,7 @@ class GraphSupervisor:
                     })
                     continue
                 payload = output.model_dump(mode="json")
-                if input_obj.action == "mutate":
+                if name in self._WRITE_DAG_TOOLS and output.accepted is not None:
                     mutations.append({
                         "accepted": output.accepted,
                         "rejection_code": output.rejection_code,
@@ -480,7 +508,7 @@ class GraphSupervisor:
                     })
                 content = json.dumps(payload, ensure_ascii=False, default=str)
                 await _emit("tool_finished", {
-                    "tool": "dag_graph",
+                    "tool": name,
                     "arguments": args_summary,
                     "result": content[:500],
                 })
@@ -489,7 +517,11 @@ class GraphSupervisor:
                     "tool_call_id": tool_call_id,
                     "content": content,
                 })
-                if input_obj.action == "view" and output.is_success:
+                action = payload.get("action")
+                if (
+                    output.is_success
+                    and (name == "dag_view" or action in {"view", "dag_view"})
+                ):
                     await self._fold_stale_views(agent, tool_call_id)
 
         if not last_report.strip() and not note.startswith("llm_call failed"):
@@ -497,9 +529,9 @@ class GraphSupervisor:
                 agent,
                 prompt=(
                     "[System] You ended without leaving any conclusion text for the Coordinator. "
-                    "In two or three sentences, say whether you mutated the schedule / why the graph "
-                    "was unchanged, the current frontier recommendation, and what the Coordinator "
-                    "should do next. This is a closing turn; do not call tools."
+                    "In two or three sentences, say which reviews you adjudicated / why no stage "
+                    "bind was made, and what the Coordinator should do next. This is a closing "
+                    "turn; do not call tools."
                 ),
                 emit=_emit,
                 fallback=self._fallback_report(trigger, rounds, mutations, note),

@@ -30,6 +30,26 @@ def _project_id(core: RuntimeCore, command: Command) -> str:
     return command.target.get("project_id") or "runtime"
 
 
+def _normalize_workspace(raw: Any) -> str:
+    """Normalize a workspace dir at the command layer.
+
+    A relative path would silently resolve against the server process cwd
+    downstream (tools compose it with the workspace and produce nonsense
+    nested paths), so reject it here instead; `~` is expanded and a missing
+    directory is created.
+    """
+    from pathlib import Path
+
+    p = Path(str(raw)).expanduser()
+    if not p.is_absolute():
+        raise CommandRejected(
+            "invalid_request",
+            f"workspace_dir must be an absolute path (got {raw!r})",
+        )
+    p.mkdir(parents=True, exist_ok=True)
+    return str(p)
+
+
 async def _create_project(core: RuntimeCore, command: Command) -> CommandResult:
     payload = command.payload
     name = str(payload.get("name") or "").strip()
@@ -37,10 +57,11 @@ async def _create_project(core: RuntimeCore, command: Command) -> CommandResult:
         raise CommandRejected("invalid_request", "project name is required")
     project_id = new_id("prj")
     settings = ProjectSettings.model_validate(payload.get("settings") or {})
+    workspace = payload.get("workspace_dir")
     project = Project(
         id=project_id,
         name=name,
-        workspace_dir=payload.get("workspace_dir"),
+        workspace_dir=_normalize_workspace(workspace) if workspace else None,
         settings=settings,
     )
     core.record(
@@ -60,6 +81,8 @@ async def _update_project(core: RuntimeCore, command: Command) -> CommandResult:
     for field in ("name", "workspace_dir", "archived"):
         if field in payload:
             changes[field] = payload[field]
+    if changes.get("workspace_dir"):
+        changes["workspace_dir"] = _normalize_workspace(changes["workspace_dir"])
     if changes:
         core.record(
             "project.updated",
@@ -138,7 +161,7 @@ async def _spawn_agent(core: RuntimeCore, command: Command) -> CommandResult:
         session_id=agent.id,
         data=agent.model_dump(mode="json"),
     )
-    if core.runner is not None:
+    if query and core.runner is not None:
         core.runner.schedule(agent.id)
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
@@ -169,7 +192,12 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
     if not content:
         raise CommandRejected("invalid_request", "message content is required")
     if agent.state.value in {"failed", "cancelled"}:
-        raise CommandRejected("state_conflict", "restart the agent before messaging it")
+        # A message to a terminal agent is a fresh instruction to the same
+        # identity: reopen it automatically instead of making the user
+        # perform a separate restart step.  Externalised context (goal pin,
+        # DAG, memory, workspace) is re-assembled every turn, so the new run
+        # picks up where the agent left off conceptually.
+        core.agent_host.restart(agent)
     core.mailbox.deliver(
         to_session_id=agent.id,
         project_id=agent.project_id,
@@ -177,7 +205,7 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
         sender=command.actor,
         run_id=agent.current_run.run_id if agent.current_run else None,
     )
-    if agent.state.value == "succeeded":
+    if agent.state.value in {"queued", "succeeded"}:
         if core.runner is not None:
             core.agent_host.start_run(agent)
             core.runner.schedule(agent.id)
@@ -187,6 +215,24 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
         if core.runner is not None:
             core.agent_host.resume(agent)
             core.runner.schedule(agent.id)
+    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
+
+
+async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
+    agent = core.require_agent(command.target.get("session_id", ""))
+    keep_recent = int(command.payload.get("keep_recent") or 20)
+    keep_recent = max(1, min(keep_recent, 500))
+    core.record(
+        "compaction.requested",
+        stream="agent",
+        project_id=agent.project_id,
+        session_id=agent.id,
+        run_id=agent.current_run.run_id if agent.current_run else None,
+        data={"keep_recent": keep_recent, "actor": command.actor},
+    )
+    # The runner picks this up at the next turn boundary; history is
+    # in-memory, so compaction only has meaning while a run is alive.
+    core.pending_compactions[agent.id] = keep_recent
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
 
@@ -266,7 +312,7 @@ async def _restart_agent(core: RuntimeCore, command: Command) -> CommandResult:
         session_id=agent.id,
         data={"run_id": run_id, "agent": agent.model_dump(mode="json")},
     )
-    if core.runner is not None:
+    if message and core.runner is not None:
         core.runner.schedule(agent.id)
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
@@ -308,6 +354,34 @@ async def _update_runtime_defaults(core: RuntimeCore, command: Command) -> Comma
     )
 
 
+async def _decide_approval(core: RuntimeCore, command: Command) -> CommandResult:
+    project_id = _project_id(core, command)
+    core.require_project(project_id)
+    payload = command.payload
+    approval_id = str(payload.get("approval_id") or "")
+    decision = str(payload.get("decision") or "")
+    if decision not in {"approved", "denied"}:
+        raise CommandRejected("invalid_request", "decision must be 'approved' or 'denied'")
+    await core.pending.decide_approval(project_id, approval_id, decision, str(payload.get("reason") or ""))
+    return CommandResult(
+        command_id=command.command_id,
+        event_id=_last_event_id(core),
+        data={"approval_id": approval_id, "decision": decision},
+    )
+
+
+async def _respond_interaction(core: RuntimeCore, command: Command) -> CommandResult:
+    project_id = _project_id(core, command)
+    core.require_project(project_id)
+    payload = command.payload
+    record = await core.pending.respond_interaction(
+        project_id,
+        str(payload.get("interaction_id") or ""),
+        str(payload.get("response") or ""),
+    )
+    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=record)
+
+
 HANDLERS: dict[str, Handler] = {
     "project.create": _create_project,
     "project.update": _update_project,
@@ -315,7 +389,10 @@ HANDLERS: dict[str, Handler] = {
     "agent.settings_update": _patch_agent_settings,
     "agent.message": _inject_agent_message,
     "agent.cancel": _cancel_agent,
+    "agent.compact": _compact_agent,
     "agent.restart": _restart_agent,
+    "approval.decide": _decide_approval,
+    "interaction.respond": _respond_interaction,
     "role.update": _update_role,
     "runtime.settings_update": _update_runtime_defaults,
 }

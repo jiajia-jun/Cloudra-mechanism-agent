@@ -36,8 +36,8 @@ _TRANSITIONS: dict[AgentState, frozenset[AgentState]] = {
             AgentState.CANCELLED,
         }
     ),
-    AgentState.WAITING_INPUT: frozenset({AgentState.RUNNING, AgentState.CANCELLED}),
-    AgentState.WAITING_APPROVAL: frozenset({AgentState.RUNNING, AgentState.CANCELLED}),
+    AgentState.WAITING_INPUT: frozenset({AgentState.RUNNING, AgentState.CANCELLED, AgentState.FAILED}),
+    AgentState.WAITING_APPROVAL: frozenset({AgentState.RUNNING, AgentState.CANCELLED, AgentState.FAILED}),
     AgentState.SUCCEEDED: frozenset({AgentState.RUNNING, AgentState.QUEUED}),
     AgentState.FAILED: frozenset({AgentState.QUEUED}),
     AgentState.CANCELLED: frozenset({AgentState.QUEUED}),

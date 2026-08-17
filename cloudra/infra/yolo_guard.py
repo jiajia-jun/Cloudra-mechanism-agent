@@ -97,11 +97,14 @@ def _format_content(content: Any, max_len: int = 1000) -> str:
 
 async def _format_recent_context_multimodal(agent, limit: int = 5, max_len_per_msg: int = 1000) -> list:
     """格式化当前 Agent 上下文中最近 N 条消息，并保留多模态结构供 YOLO 使用。"""
-    if agent.context_manager is None:
+    # runtime_v2 的 LegacyToolExecutor 传入的是壳 bridge，没有 context_manager
+    #（v2 的对话历史在 runner 内存里，不落 legacy 上下文文件）——降级为空上下文。
+    context_manager = getattr(agent, "context_manager", None)
+    if context_manager is None:
         return [{"type": "text", "text": "<无上下文>"}]
 
     try:
-        context = await agent.context_manager.load()
+        context = await context_manager.load()
     except Exception:
         return [{"type": "text", "text": "<读取上下文失败>"}]
 

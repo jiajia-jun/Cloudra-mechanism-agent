@@ -58,6 +58,26 @@ def supervisor_evidence_tools() -> frozenset[str]:
     return frozenset(name for name, reg in _named().items() if reg.supervisor_evidence)
 
 
+def is_dag_reviewed(tool_name: str) -> bool:
+    """Whether a finished call enters the CallReview inbox (D5 throttle)."""
+    reg = _named().get(tool_name)
+    return bool(reg.dag_review) if reg is not None else False
+
+
+def is_dag_compute_entry(tool_name: str, arguments: dict[str, Any] | None = None) -> bool:
+    """Whether a call launches computation / writes compute inputs.
+
+    The Phase-3 gate blocks these until a mechanism draft is accepted (D4).
+    Entries without a declaration are not gated.
+    """
+    reg = _named().get(tool_name)
+    if reg is None:
+        return False
+    if reg.dag_compute_predicate:
+        return bool(_load(reg.dag_compute_predicate)(arguments or {}))
+    return reg.dag_compute_entry
+
+
 def android_tools() -> frozenset[str]:
     """Android allow-list; runtime availability stays opt-in per tool."""
     return frozenset(

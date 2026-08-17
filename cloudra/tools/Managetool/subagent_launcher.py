@@ -5,14 +5,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.core.agent import Agent
-from cloudra.subagents import Subagent_hash
-from cloudra.tools.Managetool._subagent_dispatch import (
-    dispatch_subagent,
-    run_subagent_in_process,
-)
-
-# 向后兼容：历史实现中该协程定义在本模块，保留别名以防外部引用。
-_run_subagent_in_process = run_subagent_in_process
+from cloudra.subagents import Subagent_hash  # noqa: F401  (kept for external references)
 
 description = (
     "Launch a sub-agent to run a specific task. The Coordinator may split a complex job into subtasks.\n"
@@ -78,52 +71,12 @@ class SubAgentLauncher(Tool):
         input_instance: SubAgentLauncher_input_schema,
         session: Session
     ) -> SubAgentLauncher_output_schema:
-        try:
-            agent_hash = Subagent_hash()
-        except Exception as e:
-            return SubAgentLauncher_output_schema(
-                session_id="error",
-                act_agent="none",
-                result=f"[System error] Failed to load sub-agent mapping: {str(e)}"
-            )
-
-        agent_id = input_instance.agent_id
-
-        # 兼容测试或旧调用中 session 为 None 的情况。
-        parent_session_id = getattr(session, "id", None) if session else None
-
-        # 从注册表获取 Agent 类并实例化（注册表现在存类而非模板实例）
-        agent_cls = agent_hash.get(agent_id)
-
-        if agent_cls is None:
-            available_ids = list(agent_hash.subagents_dict.keys())
-            result = f"Error: Agent ID '{agent_id}' not found. Available IDs: {available_ids}"
-            return SubAgentLauncher_output_schema(
-                session_id="error",
-                act_agent="none",
-                result=result
-            )
-
-        conversation_id = getattr(self.subagent, 'conversation_id', 'default') if self.subagent else 'default'
-        working_directory = getattr(self.subagent, 'working_directory', None)
-        parent_mode = getattr(self.subagent, 'orchestration_mode', 'standard')
-
-        dispatched = await dispatch_subagent(
-            agent_cls,
-            agent_id=agent_id,
-            query=input_instance.query,
-            context=input_instance.context,
-            is_wait=input_instance.is_wait,
-            conversation_id=conversation_id,
-            working_directory=working_directory,
-            parent_session_id=parent_session_id,
-            parent_orchestration_mode=parent_mode,
-        )
-
+        # Legacy 派发已删除；runtime_v2 的 LegacyToolExecutor 在执行前按工具名
+        # 拦截到 subagent_bridge，此 body 只是兜底。
         return SubAgentLauncher_output_schema(
-            session_id=dispatched.session_id,
-            act_agent=dispatched.act_agent,
-            result=dispatched.result
+            session_id="error",
+            act_agent="none",
+            result="[System error] SubAgentLauncher is handled by runtime_v2; the legacy dispatch path no longer exists.",
         )
 
     def get_subagents(self) -> list[str]:

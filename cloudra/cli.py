@@ -2,7 +2,6 @@
 Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
 """
 
-import asyncio
 import os
 import sys
 from pathlib import Path
@@ -14,8 +13,7 @@ from rich.table import Table
 
 from cloudra import __version__
 from cloudra.infra.config import get_config
-from cloudra.persistence import conversation_repo, paths
-from cloudra.services.service import CloudraService, validate_conversation_id
+from cloudra.persistence import paths
 from cloudra.web_launcher import launch_browser, launch_electron
 
 console = Console()
@@ -74,12 +72,6 @@ def _apply_config_overrides(coordinator_model, coordinator_url, coordinator_key,
         config.follower.key = follower_key
 
 
-def _launch_gui():
-    """启动 Flet GUI。"""
-    from cloudra.ui import run_gui
-    run_gui()
-
-
 def _frontend_or_exit():
     from cloudra.web_launcher import _frontend_dir
     try:
@@ -99,98 +91,6 @@ def web(browser, rebuild, skip_build):
     if browser:
         sys.exit(launch_browser(frontend, rebuild=rebuild, skip_build=skip_build))
     sys.exit(launch_electron(frontend, rebuild=rebuild, skip_build=skip_build))
-
-
-@cli.command(name="gui")
-def gui():
-    """启动 Cloudra 原生 GUI（Windows/Android 默认入口）。"""
-    _launch_gui()
-
-
-@cli.command()
-@click.argument("query")
-@click.option("--conv-id", default=None, help="指定对话 ID")
-@click.option("--new", is_flag=True, help="启动新对话，不自动恢复")
-@click.option("--dry-run", is_flag=True, help="只显示配置，不实际执行")
-@click.option("--yolo", is_flag=True, help="启用 YOLO 全自动模式（危险操作由 LLM 自动审批）")
-@click.option(
-    "--orchestration-mode",
-    type=click.Choice(["standard", "dag_record", "dag_guided"]),
-    default="standard",
-    show_default=True,
-    help="任务编排模式；DAG 模式按会话启用并持久化机理研究图。",
-)
-def run(query, conv_id, new, dry_run, yolo, orchestration_mode):
-    """运行一个 Cloudra 任务。"""
-    if yolo:
-        os.environ["CLOUDRA_YOLO_MODE"] = "true"
-        console.print("[bold yellow]YOLO 模式已启用：危险操作将由 LLM 自动审批[/bold yellow]")
-    config = get_config()
-    # Logic for sticky conversation
-    if conv_id:
-        active_conv_id = conv_id
-    elif new:
-        active_conv_id = None
-    else:
-        active_conv_id = config.last_conversation_id
-        if active_conv_id:
-            console.print(f"[dim]自动恢复上次对话: {active_conv_id}[/dim]")
-
-    # Resolve actual ID (creates directory if new, but we need it for consistency)
-    from cloudra.base.conversation_class import Conversation
-    temp_conv = Conversation(active_conv_id)
-    active_conv_id = temp_conv.id
-
-    if dry_run:
-        console.print(Panel("[bold]Dry Run 模式[/bold]", style="yellow"))
-        console.print(f"Query: {query}")
-        console.print(f"Conversation ID: {active_conv_id}")
-        console.print(f"Data Dir: {config.data_dir}")
-        console.print(f"Coordinator Model: {config.coordinator.model}")
-        console.print(f"Follower Model: {config.follower.model}")
-        console.print(f"Orchestration Mode: {orchestration_mode}")
-        return
-
-
-    # Validate API keys
-    if not config.coordinator.key:
-        console.print("[red]错误: Coordinator API Key 未设置。[/red]")
-        console.print("请运行 `cloudra config init` 进行配置，或通过环境变量设置。")
-        sys.exit(1)
-
-    try:
-        # CLI 和 HTTP API 共用同一个业务服务层；CLI 只负责终端输入输出。
-        service = CloudraService()
-        # 预生成 session_id，Ctrl+C 时才能定位 session 并请求优雅打断
-        from datetime import datetime
-        session_id = f"a-0_{datetime.now().isoformat()}"
-        # CLI 有终端 stdin，显式启用交互式审批线程（service 层默认为 API 场景的 False）
-        asyncio.run(service.run_task(
-            query, conversation_id=active_conv_id, verbose=True, session_id=session_id,
-            interactive_approval=not yolo,
-            orchestration_mode=orchestration_mode,
-        ))
-
-        # Save the used ID as the last one
-        config.last_conversation_id = active_conv_id
-        config.save()
-
-    except KeyboardInterrupt:
-        # 先置 cancel_requested 让 Agent 优雅收尾（落 cancelled 终态），再退出
-        try:
-            from cloudra.persistence.database import ConversationDB
-            from cloudra.services import session_store
-            db = ConversationDB(active_conv_id)
-            session_store.update_session_fields(db, session_id, {"state": "cancel_requested"})
-        except Exception:
-            pass
-        console.print("\n[yellow]任务被用户中断。[/yellow]")
-        sys.exit(130)
-    except Exception as e:
-        console.print(f"[red]任务执行失败: {e}[/red]")
-        import traceback
-        console.print(traceback.format_exc())
-        sys.exit(1)
 
 
 @cli.group(name="config")
@@ -331,36 +231,6 @@ def config_set(key, value):
 
 
 @cli.command()
-@click.option("--limit", default=20, help="最多显示多少条")
-def history(limit):
-    """查看历史对话列表。"""
-    conversations = conversation_repo.list_conversations()
-    if not conversations:
-        console.print("[yellow]暂无历史对话。[/yellow]")
-        return
-
-    conversations = conversations[:limit]
-
-    table = Table(title="历史对话", show_header=True, header_style="bold magenta")
-    table.add_column("对话 ID", style="cyan")
-    table.add_column("创建时间")
-    table.add_column("最后活跃")
-    table.add_column("状态")
-
-    for conv in conversations:
-        create_time = conv.get("create_time", "")
-        last_active = conv.get("last_active", "")
-        table.add_row(
-            conv["id"],
-            create_time[:19] if create_time else "",
-            last_active[:19] if last_active else "",
-            conv.get("state", "active"),
-        )
-
-    console.print(table)
-
-
-@cli.command()
 @click.argument("conv_id")
 def logs(conv_id):
     """查看某个对话的日志。"""
@@ -406,43 +276,6 @@ def skills():
             skill.get("description", "")[:80],
         )
 
-    console.print(table)
-
-
-@cli.command()
-@click.option("--state", default=None, help="按状态过滤 (sleeping, thinking, acting, killed)")
-def sessions(state):
-    """查看所有 Session 状态（跨 conversation 聚合，与 /api/sessions 一致）。"""
-    service = CloudraService()
-    rows = []
-    for conversation in service.list_conversations():
-        conversation_id = conversation.get("id", "")
-        try:
-            validate_conversation_id(conversation_id)
-        except ValueError:
-            continue
-        for record in service.session_runner.list(conversation_id):
-            row = record.to_dict()
-            row["conversation_id"] = conversation_id
-            rows.append(row)
-    if state:
-        rows = [row for row in rows if row["state"] == state]
-    rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
-    rows = rows[:100]
-
-    if not rows:
-        console.print("[yellow]暂无 Session。[/yellow]")
-        return
-
-    table = Table(title="Sessions", show_header=True, header_style="bold magenta")
-    table.add_column("Session ID", style="cyan")
-    table.add_column("Conversation")
-    table.add_column("State")
-    table.add_column("Result", max_width=60)
-
-    for row in rows:
-        result = (row.get("result") or "")[:100]
-        table.add_row(row["session_id"], row["conversation_id"], row["state"], result)
     console.print(table)
 
 
@@ -495,79 +328,6 @@ def backup_restore(archive: Path, destination: Path):
     console.print(
         f"[green]恢复完成:[/green] {destination.resolve()} "
         f"({len(manifest['files'])} files)"
-    )
-
-
-@cli.group(name="devices")
-def devices_cmd():
-    """列出或撤销已配对 Android 设备。"""
-    pass
-
-
-@devices_cmd.command(name="list")
-@click.option("--all", "include_revoked", is_flag=True, help="包含已撤销设备")
-def devices_list(include_revoked: bool):
-    from cloudra.services.device_broker import DeviceBroker
-
-    rows = DeviceBroker().list_devices(include_revoked=include_revoked)
-    table = Table(title="Android Devices", show_header=True)
-    table.add_column("Device ID", style="cyan")
-    table.add_column("Name")
-    table.add_column("State")
-    table.add_column("Last seen")
-    for row in rows:
-        table.add_row(
-            row["device_id"], row["display_name"], row["state"], row["last_seen_at"]
-        )
-    console.print(table if rows else "[yellow]暂无已配对设备。[/yellow]")
-
-
-@devices_cmd.command(name="revoke")
-@click.argument("device_id")
-@click.option("--yes", is_flag=True, help="跳过确认")
-def devices_revoke(device_id: str, yes: bool):
-    """立即撤销设备 token；设备需要重新配对才能上线。"""
-    from cloudra.services.device_broker import DeviceBroker
-
-    if not yes and not click.confirm(f"撤销设备 {device_id}？"):
-        return
-    try:
-        revoked = DeviceBroker().revoke(device_id)
-    except ValueError as exc:
-        raise click.ClickException(str(exc)) from exc
-    if not revoked:
-        raise click.ClickException("设备不存在或已经撤销")
-    console.print(f"[green]设备已撤销:[/green] {device_id}")
-
-
-@cli.group(name="android")
-def android_cmd():
-    """Android 构建和发布门禁。"""
-    pass
-
-
-@android_cmd.command(name="audit-apk")
-@click.argument("apk", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-@click.option(
-    "--expected-cert-sha256",
-    envvar="CLOUDRA_ANDROID_CERT_SHA256",
-    help="生产签名证书 SHA-256 指纹；可通过环境变量提供",
-)
-@click.option("--allow-debug", is_flag=True, help="仅本地安装验证时允许 debug 证书")
-def android_audit_apk(apk: Path, expected_cert_sha256: str | None, allow_debug: bool):
-    from cloudra.infra.android_build import audit_apk_signature
-
-    try:
-        result = audit_apk_signature(
-            apk,
-            expected_cert_sha256=expected_cert_sha256,
-            allow_debug=allow_debug,
-        )
-    except (OSError, RuntimeError) as exc:
-        raise click.ClickException(str(exc)) from exc
-    console.print(
-        f"[green]APK 签名验证通过[/green] SHA-256="
-        f"{result['certificate_sha256']}"
     )
 
 

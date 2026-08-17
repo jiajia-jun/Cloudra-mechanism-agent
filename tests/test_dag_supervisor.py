@@ -134,7 +134,7 @@ async def test_non_guided_modes_never_call_supervisor(tmp_path, mode):
     controller = DagController(db, "s1", mode, supervisor=supervisor)
 
     await controller.initialize()
-    result = await controller.maybe_supervise("new_evidence")
+    result = await controller.maybe_supervise("tool_call_review")
 
     assert result is None
     assert supervisor.calls == []
@@ -178,64 +178,45 @@ async def test_initialize_does_not_auto_supervise_when_delivery_exists(tmp_path)
 
 @pytest.mark.asyncio
 async def test_delivery_updated_passes_coordinator_request(tmp_path):
-    """Coordinator 的 delivery mutate 被接受 → delivery_updated + rationale 传递。"""
+    """Coordinator 的 dag_add_species 被接受 → delivery_updated + rationale 传递。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-delivery-updated", "dag_guided")
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
-    arguments = {
-        "action": "mutate",
-        "base_revisions": {"process": 0, "delivery": 0},
-        "rationale": "Claisen chair pathway hypothesis",
-        "operations": [
-            {
-                "op": "add_node",
-                "graph": "delivery",
-                "data": {
-                    "node_id": "r",
-                    "node_type": "intermediate_occurrence",
-                    "label": "reactant",
-                    "payload": {"evidence_level": "proposed"},
-                },
-            }
-        ],
-    }
 
     await controller.on_tool_finished(
-        "tc-dag-1", "dag_graph", arguments, {"is_success": True, "accepted": True}
+        "tc-dag-1",
+        "dag_add_species",
+        {
+            "node_id": "r",
+            "label": "reactant",
+            "role": "reactant",
+            "rationale": "Claisen chair pathway hypothesis",
+        },
+        {"is_success": True, "accepted": True},
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["delivery_updated"]
     request = supervisor.calls[0]["coordinator_request"]
     assert "Claisen chair pathway hypothesis" in request
-    assert "add_node:delivery" in request
+    assert "dag_add_species" in request
 
 
 @pytest.mark.asyncio
 async def test_process_only_or_read_dag_tool_calls_do_not_trigger(tmp_path):
-    """dag_graph 的 view / 仅触及 process 的 mutate 不触发 delivery_updated。"""
+    """dag_view / 仅触及 process 的 dag_update_process_node 不触发 delivery_updated。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-dag-no-trigger", "dag_guided")
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
     await controller.on_tool_finished(
-        "tc-dag-view", "dag_graph", {"action": "view"}, {"is_success": True}
+        "tc-dag-view", "dag_view", {"graph_kind": "both"}, {"is_success": True}
     )
     await controller.on_tool_finished(
         "tc-dag-process",
-        "dag_graph",
-        {
-            "action": "mutate",
-            "rationale": "harness-side process note",
-            "operations": [
-                {
-                    "op": "update_node",
-                    "graph": "process",
-                    "data": {"node_id": "x", "changes": {"priority": 1}},
-                }
-            ],
-        },
+        "dag_update_process_node",
+        {"node_id": "x", "priority": 1},
         {"is_success": True, "accepted": True},
     )
 
@@ -243,8 +224,49 @@ async def test_process_only_or_read_dag_tool_calls_do_not_trigger(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_init_from_template_accepted_does_not_wake_supervisor(tmp_path):
+    """graph_initialization 触发口已随 process 排产一起移除（Phase 2 唤醒表）：
+    dag_init_from_template accepted 不再唤醒 Supervisor。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-init-wake", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-init",
+        "dag_init_from_template",
+        {"rationale": "start Claisen study"},
+        {"is_success": True, "accepted": True},
+    )
+
+    assert supervisor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_remove_edge_rejection_does_not_wake_supervisor(tmp_path):
+    """process 删边已随图移除（process_graph_removed），不再是 Supervisor 复核口。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervisor-edge-removal", "dag_guided")
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-rm",
+        "dag_remove_edge",
+        {"graph": "process", "edge_id": "dep_a_b", "rationale": "no longer needed"},
+        {
+            "is_success": False,
+            "accepted": False,
+            "rejection_code": "process_graph_removed",
+        },
+    )
+
+    assert supervisor.calls == []
+
+
+@pytest.mark.asyncio
 async def test_ordinary_tool_success_does_not_trigger(tmp_path):
-    """普通工具成功（即使是空前沿）不再触发 Supervisor——触发口只有 log_parser 与图修改。"""
+    """D5 节流：非 dag_review 工具（bash/文件读）不入箱也不唤醒 Supervisor。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-ordinary-quiet", "dag_guided")
     supervisor = FakeSupervisor()
@@ -252,17 +274,20 @@ async def test_ordinary_tool_success_does_not_trigger(tmp_path):
 
     await controller.on_tool_finished(
         "tc-1",
-        "reaction_mapping",
-        {"reactant_smiles": "C=COCC=C"},
-        {"is_success": True, "mapping_status": "unique"},
+        "bashtools",
+        {"command": "cat ts1.log"},
+        {"is_success": True, "output": "normal termination"},
     )
 
     assert supervisor.calls == []
+    from cloudra.dag.store import DagStore
+
+    assert DagStore(db).list_call_reviews() == []
 
 
 @pytest.mark.asyncio
-async def test_log_parser_success_triggers_new_evidence(tmp_path):
-    """gaussian_log_parser 成功落地新证据 → new_evidence。"""
+async def test_log_parser_success_triggers_tool_call_review(tmp_path):
+    """gaussian_log_parser 成功 → 入 CallReview 收件箱 + tool_call_review 唤醒。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-new-evidence", "dag_guided")
     supervisor = FakeSupervisor()
@@ -275,12 +300,20 @@ async def test_log_parser_success_triggers_new_evidence(tmp_path):
         {"is_success": True, "normal_termination": True, "scf_energy": -303.65},
     )
 
-    assert [call["trigger"] for call in supervisor.calls] == ["new_evidence"]
+    assert [call["trigger"] for call in supervisor.calls] == ["tool_call_review"]
+    from cloudra.dag.store import DagStore
+
+    inbox = DagStore(db).list_call_reviews()
+    assert len(inbox) == 1
+    assert inbox[0].tool_name == "gaussian_log_parser"
+    assert inbox[0].is_success is True
+    assert inbox[0].state == "pending"
 
 
 @pytest.mark.asyncio
-async def test_log_parser_failure_and_tool_failure_do_not_trigger(tmp_path):
-    """log_parser 失败、任意工具失败都不触发 Supervisor。"""
+async def test_review_tool_failure_enqueues_with_failed_state(tmp_path):
+    """dag_review 工具的失败调用也入箱（is_success=False）并唤醒 Supervisor
+    复核；非复核工具的失败既不入箱也不唤醒。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-failure-quiet", "dag_guided")
     supervisor = FakeSupervisor()
@@ -290,10 +323,16 @@ async def test_log_parser_failure_and_tool_failure_do_not_trigger(tmp_path):
         "tc-3", "gaussian_log_parser", {"log_path": "bad.log"}, {"is_success": False, "error": "parse error"}
     )
     await controller.on_tool_finished(
-        "tc-4", "ts_guess", {}, {"is_success": False, "error": "scf failed"}
+        "tc-4", "bashtools", {"command": "false"}, {"is_success": False, "error": "exit 1"}
     )
 
-    assert supervisor.calls == []
+    assert [call["trigger"] for call in supervisor.calls] == ["tool_call_review"]
+    from cloudra.dag.store import DagStore
+
+    inbox = DagStore(db).list_call_reviews()
+    assert [(row.tool_name, row.is_success) for row in inbox] == [
+        ("gaussian_log_parser", False)
+    ]
 
 
 def test_supervisor_may_strengthen_but_not_lower_coverage(tmp_path):
@@ -334,7 +373,7 @@ def test_supervisor_may_strengthen_but_not_lower_coverage(tmp_path):
     assert lowered.rejection_code == "actor_forbidden"
 
 
-# --- GraphSupervisor agent 循环（复用 Agent 类 + dag_graph 工具） ---
+# --- GraphSupervisor agent 循环（复用 Agent 类 + dag_* 工具族） ---
 
 
 class _FakeToolCall:
@@ -345,12 +384,12 @@ class _FakeToolCall:
         return self._payload
 
 
-def _tool_call(call_id, arguments: dict):
+def _tool_call(call_id, arguments: dict, name: str = "dag_view"):
     return _FakeToolCall(
         {
             "id": call_id,
             "type": "function",
-            "function": {"name": "dag_graph", "arguments": json.dumps(arguments)},
+            "function": {"name": name, "arguments": json.dumps(arguments)},
         }
     )
 
@@ -369,88 +408,90 @@ def _response(tool_calls=None, content=""):
 
 
 @pytest.mark.asyncio
-async def test_graph_supervisor_agent_loop_schedules_process_work(tmp_path):
-    """Supervisor 用 dag_graph 自助读图后提交 process 变更，actor=supervisor 落库。"""
+async def test_graph_supervisor_agent_loop_accepts_mechanism_draft(tmp_path):
+    """Supervisor 用 dag_view 自助读图后接受机理草稿，草稿落库为 accepted。"""
     _, GraphSupervisor, _ = _api()
     from cloudra.core.supervisor import SupervisorAgent
+    from cloudra.dag.models import MechanismDraft
 
     get_config().data_dir = tmp_path
     db = ConversationDB("supervisor-loop", data_dir=tmp_path).init()
     store = DagStore(db)
     store.ensure_bundle("s1")
-    _seed_delivery_hypothesis(store)
+    from cloudra.dag.models import AddNode, OccurrenceNode
+
+    store.save_draft(
+        MechanismDraft(
+            operations=[
+                AddNode(
+                    op="add_node",
+                    graph="delivery",
+                    node=OccurrenceNode(node_id="r", label="reactant", role="reactant"),
+                )
+            ],
+            rationale="Claisen hypothesis",
+        ),
+        actor_id="a-0",
+    )
 
     supervisor = GraphSupervisor(conversation_id="supervisor-loop")
     agent = supervisor._ensure_agent()
     assert isinstance(agent, SupervisorAgent)
-    view_then_mutate = [
-        _response([_tool_call("c-view", {"action": "view"})]),
+    view_then_accept = [
+        _response([_tool_call("c-view", {})]),
         _response(
             [
                 _tool_call(
-                    "c-mutate",
-                    {
-                        "action": "mutate",
-                        "base_revisions": {"process": 0, "delivery": 1},
-                        "rationale": "schedule endpoint validation",
-                        "operations": [
-                            {
-                                "op": "add_node",
-                                "graph": "process",
-                                "data": {
-                                    "node_id": "endpoint-opt",
-                                    "node_type": "calculation",
-                                    "label": "endpoint optimization",
-                                    "payload": {"status": "ready", "priority": 20},
-                                },
-                            }
-                        ],
-                    },
+                    "c-accept",
+                    {"verdict": "accept"},
+                    name="dag_accept_mechanism",
                 )
             ]
         ),
-        _response(content="已安排好端点优化工作。"),
+        _response(content="草稿合理，已接受。"),
     ]
-    object.__setattr__(agent, "llm_call", AsyncMock(side_effect=view_then_mutate))
+    object.__setattr__(agent, "llm_call", AsyncMock(side_effect=view_then_accept))
 
     result = await supervisor.run(
-        "delivery_updated",
+        "mechanism_proposed",
         coordinator_request="rationale: Claisen hypothesis",
         session_id="s1",
     )
 
     assert result.rounds == 2
     assert result.mutations[0]["accepted"] is True
+    assert store.has_accepted_draft()
     engine = DagEngine(DagStore(ConversationDB("supervisor-loop", data_dir=tmp_path)))
-    nodes = engine.snapshot().process.nodes
-    assert [node.node_id for node in nodes] == ["endpoint-opt"]
+    nodes = engine.snapshot().delivery.nodes
+    assert [node.node_id for node in nodes] == ["r"]
     with db.connect() as con:
         actors = con.execute(
             "SELECT actor_type FROM dag_mutations WHERE accepted = 1"
         ).fetchall()
-    assert [row[0] for row in actors] == ["agent", "supervisor"]
+    assert [row[0] for row in actors] == ["harness"]
 
     # 上下文跨触发不清空：第二次触发后消息只增不减，且含首次触发内容。
     # 注意 get_context 返回的是 ContextManager 的活缓存列表，必须先取长度快照。
     context_after_first = await agent.get_context()
     len_after_first = len(context_after_first)
     assert any(
-        "delivery_updated" in str(block.get("content", ""))
+        "mechanism_proposed" in str(block.get("content", ""))
         for block in context_after_first
     )
     object.__setattr__(agent, "llm_call", AsyncMock(side_effect=[_response(content="无需变更。")]))
-    await supervisor.run("new_evidence", session_id="s1")
+    await supervisor.run("tool_call_review", session_id="s1")
     context_after_second = await agent.get_context()
     assert len(context_after_second) > len_after_first
     assert any(
-        "new_evidence" in str(block.get("content", ""))
+        "tool_call_review" in str(block.get("content", ""))
         for block in context_after_second
     )
 
 
 @pytest.mark.asyncio
 async def test_graph_supervisor_delivery_mutation_is_rejected_in_loop(tmp_path):
-    """Supervisor 试图改机理图 → actor_forbidden 回到其上下文，可同轮改提 process 变更。"""
+    """Supervisor 试图改机理图 → actor_forbidden 回到其上下文，可同轮改提
+    合规的契约变更。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -470,22 +511,11 @@ async def test_graph_supervisor_delivery_mutation_is_rejected_in_loop(tmp_path):
                     _tool_call(
                         "c-bad",
                         {
-                            "action": "mutate",
-                            "base_revisions": {"process": 0, "delivery": 0},
-                            "rationale": "try to design the mechanism",
-                            "operations": [
-                                {
-                                    "op": "add_node",
-                                    "graph": "delivery",
-                                    "data": {
-                                        "node_id": "r",
-                                        "node_type": "intermediate_occurrence",
-                                        "label": "reactant",
-                                        "payload": {"evidence_level": "proposed"},
-                                    },
-                                }
-                            ],
+                            "node_id": "r",
+                            "label": "reactant",
+                            "role": "reactant",
                         },
+                        name="dag_add_species",
                     )
                 ]
             ),
@@ -493,32 +523,17 @@ async def test_graph_supervisor_delivery_mutation_is_rejected_in_loop(tmp_path):
                 [
                     _tool_call(
                         "c-good",
-                        {
-                            "action": "mutate",
-                            "base_revisions": {"process": 0, "delivery": 0},
-                            "rationale": "schedule a conformer search instead",
-                            "operations": [
-                                {
-                                    "op": "add_node",
-                                    "graph": "process",
-                                    "data": {
-                                        "node_id": "conformer",
-                                        "node_type": "calculation",
-                                        "label": "conformer search",
-                                        "payload": {"status": "ready"},
-                                    },
-                                }
-                            ],
-                        },
+                        {"require_thermochemistry": True},
+                        name="dag_set_coverage_contract",
                     )
                 ]
             ),
-            _response(content="已改为安排计算。"),
+            _response(content="已加严契约。"),
             ]
         )
     )
 
-    result = await supervisor.run("graph_initialization", session_id="s1")
+    result = await supervisor.run("mechanism_proposed", session_id="s1")
 
     assert result.mutations[0]["accepted"] is False
     assert result.mutations[0]["rejection_code"] == "actor_forbidden"
@@ -540,7 +555,7 @@ async def test_graph_supervisor_llm_failure_returns_no_change(tmp_path):
     agent = supervisor._ensure_agent()
     object.__setattr__(agent, "llm_call", AsyncMock(side_effect=RuntimeError("provider down")))
 
-    result = await supervisor.run("new_evidence", session_id="s1")
+    result = await supervisor.run("tool_call_review", session_id="s1")
 
     assert result.mutations == []
     assert "llm_call failed" in result.note
@@ -555,7 +570,7 @@ async def test_supervisor_run_registers_session_record(tmp_path):
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
-    result = await controller.maybe_supervise("new_evidence")
+    result = await controller.maybe_supervise("tool_call_review")
 
     assert result is not None
     with db.connect() as con:
@@ -569,8 +584,8 @@ async def test_supervisor_run_registers_session_record(tmp_path):
     assert agent_type == "supervisor"
     assert parent == "s1"
     assert state == "finished"
-    assert "new_evidence" in query
-    assert "trigger=new_evidence" in summary
+    assert "tool_call_review" in query
+    assert "trigger=tool_call_review" in summary
 
 
 @pytest.mark.asyncio
@@ -585,7 +600,7 @@ async def test_supervisor_exception_finalizes_failed_without_propagating(tmp_pat
 
     controller = DagController(db, "s1", "dag_guided", supervisor=CrashingSupervisor())
 
-    result = await controller.maybe_supervise("new_evidence")
+    result = await controller.maybe_supervise("tool_call_review")
 
     assert result is None
     with db.connect() as con:
@@ -600,7 +615,7 @@ async def test_supervisor_exception_finalizes_failed_without_propagating(tmp_pat
 
 @pytest.mark.asyncio
 async def test_graph_view_result_not_truncated(tmp_path):
-    """process 视图必须完整进入 Supervisor 上下文（可解析 JSON），写入时不再截断。"""
+    """delivery 视图必须完整进入 Supervisor 上下文（可解析 JSON），写入时不再截断。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -611,19 +626,18 @@ async def test_graph_view_result_not_truncated(tmp_path):
     seeded = engine.apply_batch(
         MutationBatch(
             session_id="s1",
-            actor=GraphActor.SUPERVISOR,
-            actor_id="supervisor",
+            actor=GraphActor.HARNESS,
+            actor_id="harness",
             base_revisions=store.load_bundle().revisions,
-            rationale="seed many work nodes",
+            rationale="seed many occurrence nodes",
             operations=[
                 AddNode(
                     op="add_node",
-                    graph="process",
-                    node=PlannedNode(
-                        node_id=f"work-{i:02d}",
-                        label=f"calculation {i} " + "x" * 100,
-                        status="ready",
-                        priority=i,
+                    graph="delivery",
+                    node=OccurrenceNode(
+                        node_id=f"int-{i:02d}",
+                        label=f"intermediate {i} " + "x" * 100,
+                        role="intermediate",
                     ),
                 )
                 for i in range(30)
@@ -639,13 +653,13 @@ async def test_graph_view_result_not_truncated(tmp_path):
         "llm_call",
         AsyncMock(
             side_effect=[
-                _response([_tool_call("c-view", {"action": "view", "graph_kind": "process"})]),
+                _response([_tool_call("c-view", {"action": "view", "graph_kind": "delivery"})]),
                 _response(content="看完了。"),
             ]
         ),
     )
 
-    await supervisor.run("new_evidence", session_id="s1")
+    await supervisor.run("tool_call_review", session_id="s1")
 
     tool_contents = [
         str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
@@ -676,7 +690,7 @@ async def test_maybe_supervise_passes_event_sink(tmp_path):
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
-    await controller.maybe_supervise("new_evidence")
+    await controller.maybe_supervise("tool_call_review")
 
     assert supervisor.calls[0]["event_sink"] is not None
 
@@ -684,7 +698,7 @@ async def test_maybe_supervise_passes_event_sink(tmp_path):
 @pytest.mark.asyncio
 async def test_graph_supervisor_emits_render_events(tmp_path):
     """Supervisor 的运行过程经 event_sink 发出渲染事件：
-    触发消息、推理正文、dag_graph 调用与结果——TUI 窗口据此可见。"""
+    触发消息、推理正文、dag_view 调用与结果——TUI 窗口据此可见。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -723,85 +737,13 @@ async def test_graph_supervisor_emits_render_events(tmp_path):
     assert "llm_stream_end" in kinds
     assert "tool_started" in kinds and "tool_finished" in kinds
     finished = next(d for k, d in emitted if k == "tool_finished")
-    assert finished["tool"] == "dag_graph"
+    assert finished["tool"] == "dag_view"
     assert finished["result"]
 
 
 @pytest.mark.asyncio
-async def test_view_survives_malformed_priority_payload(tmp_path):
-    """回归：模型往 process 节点写了非数字 priority（如 "high"）后，
-    view 的投影派生不得崩溃——否则 Supervisor 的运行会被一次 view 直接终结。"""
-    _, GraphSupervisor, _ = _api()
-
-    get_config().data_dir = tmp_path
-    db = ConversationDB("supervisor-bad-priority", data_dir=tmp_path).init()
-    store = DagStore(db)
-    store.ensure_bundle("s1")
-    engine = DagEngine(store)
-    seeded = engine.apply_batch(
-        MutationBatch(
-            session_id="s1",
-            actor=GraphActor.SUPERVISOR,
-            actor_id="supervisor",
-            base_revisions=store.load_bundle().revisions,
-            rationale="seed work with malformed priority",
-            operations=[
-                AddNode(
-                    op="add_node",
-                    graph="process",
-                    node=PlannedNode(
-                        node_id="work-bad",
-                        label="poisoned priority",
-                        status="ready",
-                        priority="high",
-                    ),
-                ),
-                AddNode(
-                    op="add_node",
-                    graph="process",
-                    node=PlannedNode(
-                        node_id="work-ok",
-                        label="normal priority",
-                        status="ready",
-                        priority=5,
-                    ),
-                ),
-            ],
-        )
-    )
-    assert seeded.accepted
-
-    supervisor = GraphSupervisor(conversation_id="supervisor-bad-priority")
-    agent = supervisor._ensure_agent()
-    object.__setattr__(
-        agent,
-        "llm_call",
-        AsyncMock(
-            side_effect=[
-                _response([_tool_call("c-view", {"action": "view"})]),
-                _response(content="看完了。"),
-            ]
-        ),
-    )
-
-    result = await supervisor.run("new_evidence", session_id="s1")
-
-    assert result.rounds == 1
-    tool_contents = [
-        str(b.get("content", "")) for b in await agent.get_context() if b.get("role") == "tool"
-    ]
-    view_content = next(c for c in tool_contents if "frontier" in c)
-    assert "[System error]" not in view_content
-    payload = json.loads(view_content)
-    frontier = payload["result"]["frontier"]
-    # 脏 priority 按 0 处理：正常节点排前面，脏节点仍在 frontier 里可见
-    assert [n["node_id"] for n in frontier] == ["work-ok", "work-bad"]
-    assert frontier[1]["priority"] == 0
-
-
-@pytest.mark.asyncio
 async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
-    """回归：dag_graph 工具内部异常必须以[System error]回喂 Supervisor 上下文，
+    """回归：dag_view 工具内部异常必须以[System error]回喂 Supervisor 上下文，
     让它有机会调整，而不是把整个督导运行炸掉、session 落为 failed。"""
     _, GraphSupervisor, _ = _api()
 
@@ -813,7 +755,7 @@ async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
         raise RuntimeError("projection exploded")
 
     monkeypatch.setattr(
-        "cloudra.tools.Plantool.dag_graph.DagGraph.tool_call", boom
+        "cloudra.tools.Plantool.dag_tools.dag_view.DagView.tool_call", boom
     )
 
     supervisor = GraphSupervisor(conversation_id="supervisor-tool-crash")
@@ -833,7 +775,7 @@ async def test_tool_crash_does_not_end_supervisor_run(tmp_path, monkeypatch):
     async def sink(event_type, data):
         emitted.append((event_type, data))
 
-    result = await supervisor.run("new_evidence", session_id="s1", event_sink=sink)
+    result = await supervisor.run("tool_call_review", session_id="s1", event_sink=sink)
 
     assert result.rounds == 1
     assert result.note == ""
@@ -901,12 +843,12 @@ async def test_wrapup_llm_failure_does_not_break_run(tmp_path):
         ),
     )
 
-    result = await supervisor.run("new_evidence", session_id="s1")
+    result = await supervisor.run("tool_call_review", session_id="s1")
 
     assert result.rounds == 0
     assert "llm_call failed" in result.note
     assert "Supervisor conclusion this turn" in result.report
-    assert "new_evidence" in result.report
+    assert "tool_call_review" in result.report
 
 
 @pytest.mark.asyncio
@@ -926,25 +868,26 @@ async def test_supervisor_folds_stale_view_results(tmp_path):
         "llm_call",
         AsyncMock(
             side_effect=[
-                _response([_tool_call("c1", {"action": "view", "graph_kind": "process"})]),
+                _response([_tool_call("c1", {"action": "view"})]),
                 _response([_tool_call("c2", {"action": "view"})]),
                 _response(content="两张视图都看过了。"),
             ]
         ),
     )
 
-    await supervisor.run("new_evidence", session_id="s1")
+    await supervisor.run("tool_call_review", session_id="s1")
 
     tool_blocks = [b for b in await agent.get_context() if b.get("role") == "tool"]
     assert len(tool_blocks) == 2
     assert "[Stale view folded]" in str(tool_blocks[0].get("content", ""))
-    assert "frontier" in str(tool_blocks[1].get("content", ""))
+    assert "delivery_gaps" in str(tool_blocks[1].get("content", ""))
     assert "[Stale view folded]" not in str(tool_blocks[1].get("content", ""))
 
 
 @pytest.mark.asyncio
-async def test_bind_evidence_acceptance_triggers_new_evidence(tmp_path):
-    """agent 的 bind_evidence 挂载成功 → new_evidence 复核（证据等级已被 harness 派生）。"""
+async def test_bind_evidence_acceptance_does_not_wake_supervisor(tmp_path):
+    """dag_guided 下 dag_bind_evidence 已禁用；其完成事件不再是唤醒口——
+    复核唤醒只走收件箱（tool_call_review）。"""
     DagController, _, _ = _api()
     db = _db(tmp_path, "supervisor-bind-trigger", "dag_guided")
     supervisor = FakeSupervisor()
@@ -952,17 +895,17 @@ async def test_bind_evidence_acceptance_triggers_new_evidence(tmp_path):
 
     await controller.on_tool_finished(
         "tc-bind-1",
-        "dag_graph",
+        "dag_bind_evidence",
         {
             "action": "bind_evidence",
             "tool_call_id": "tc-x",
             "bind_target": "step1",
-            "evidence_role": "ts_optimization_frequency",
+            "stage_kind": "ts_opt",
         },
         {"is_success": True, "accepted": True},
     )
 
-    assert [call["trigger"] for call in supervisor.calls] == ["new_evidence"]
+    assert supervisor.calls == []
 
 
 @pytest.mark.asyncio
@@ -975,13 +918,13 @@ async def test_failed_bind_and_review_evidence_do_not_trigger(tmp_path):
 
     await controller.on_tool_finished(
         "tc-bind-2",
-        "dag_graph",
+        "dag_bind_evidence",
         {"action": "bind_evidence", "tool_call_id": "tc-x", "bind_target": "step1"},
         {"is_success": False, "accepted": False, "error": "did not succeed"},
     )
     await controller.on_tool_finished(
         "tc-review-1",
-        "dag_graph",
+        "dag_review_evidence",
         {
             "action": "review_evidence",
             "bind_target": "step1",
@@ -1043,13 +986,28 @@ async def test_empty_closing_forces_wrapup_and_pins_advice(tmp_path):
 
 @pytest.mark.asyncio
 async def test_empty_turn_continues_and_can_mutate(tmp_path):
-    """view 后空回复不得收尾禁工具；下一轮 mutate 必须真正落图。"""
+    """view 后空回复不得收尾禁工具；下一轮裁决必须真正落图。"""
     _, GraphSupervisor, _ = _api()
+    from cloudra.dag.models import AddNode, MechanismDraft, OccurrenceNode
 
     get_config().data_dir = tmp_path
     conv = "supervisor-empty-then-mutate"
     db = ConversationDB(conv, data_dir=tmp_path).init()
-    DagStore(db).ensure_bundle("s1")
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    store.save_draft(
+        MechanismDraft(
+            operations=[
+                AddNode(
+                    op="add_node",
+                    graph="delivery",
+                    node=OccurrenceNode(node_id="r", label="R", role="reactant"),
+                )
+            ],
+            rationale="hypothesis",
+        ),
+        actor_id="a-0",
+    )
 
     supervisor = GraphSupervisor(conversation_id=conv)
     agent = supervisor._ensure_agent()
@@ -1063,36 +1021,21 @@ async def test_empty_turn_continues_and_can_mutate(tmp_path):
                 _response([
                     _tool_call(
                         "c-mut",
-                        {
-                            "action": "mutate",
-                            "rationale": "schedule POZ opt",
-                            "operations": [
-                                {
-                                    "op": "add_node",
-                                    "graph": "process",
-                                    "node": {
-                                        "node_id": "p_opt_poz",
-                                        "node_type": "planned",
-                                        "label": "POZ Opt+Freq",
-                                        "assignee": "a-4",
-                                        "tool_name": "submit_compute_job",
-                                    },
-                                }
-                            ],
-                        },
+                        {"verdict": "accept"},
+                        name="dag_accept_mechanism",
                     )
                 ]),
-                _response(content="已排产 p_opt_poz，请派 a-4。"),
+                _response(content="草稿已接受。"),
             ]
         ),
     )
 
-    result = await supervisor.run("delivery_updated", session_id="s1")
+    result = await supervisor.run("mechanism_proposed", session_id="s1")
 
     assert any(m.get("accepted") for m in result.mutations)
-    assert "p_opt_poz" in result.report or "已排产" in result.report
+    assert "已接受" in result.report
     snapshot = DagEngine(DagStore(db)).snapshot()
-    assert any(n.node_id == "p_opt_poz" for n in snapshot.process.nodes)
+    assert any(n.node_id == "r" for n in snapshot.delivery.nodes)
     context = await agent.get_context()
     assert any(
         "empty reply does not end" in str(b.get("content", ""))
@@ -1168,21 +1111,24 @@ async def test_empty_closing_wrapup_failure_uses_fallback_report(tmp_path):
 
     assert "Supervisor conclusion this turn" in result.report
     assert "delivery_updated" in result.report
-    assert "message_supervisor" in result.report
+    assert "dag_message_supervisor" in result.report
 
 
-def test_trigger_message_conditional_planning_and_no_empty_end():
-    """delivery_updated / coordinator_message 文案：条件排产 + 禁止空结束。"""
+def test_trigger_message_review_discipline_and_no_empty_end():
+    """触发文案：草稿裁决 / 调用复核的纪律 + 禁止空结束。"""
     _, GraphSupervisor, _ = _api()
-    text = GraphSupervisor._trigger_message("delivery_updated", "rationale: add TS")
-    assert "template" in text
-    assert "leave the graph unchanged" in text
-    assert "empty replies are forbidden" in text
-    assert "[Coordinator mechanism-change note]" in text
-    assert "do not use prose in place of mutate" in text
+    draft = GraphSupervisor._trigger_message("mechanism_proposed", "rationale: add TS")
+    assert "[Mechanism proposal rationale]" in draft
+    assert "dag_accept_mechanism" in draft
+    assert "empty replies are forbidden" in draft
 
-    msg = GraphSupervisor._trigger_message("coordinator_message", "请补排产")
-    assert "[Coordinator message]请补排产" in msg
+    review = GraphSupervisor._trigger_message("tool_call_review", "rev_1: ts_guess")
+    assert "[Pending call reviews]" in review
+    assert "never supports ts_opt/frequency" in review
+    assert "NOT a disposal" in review
+
+    msg = GraphSupervisor._trigger_message("coordinator_message", "请复核")
+    assert "[Coordinator message]请复核" in msg
     assert "empty replies are forbidden" in msg
 
 
@@ -1196,8 +1142,8 @@ async def test_message_supervisor_triggers_coordinator_message(tmp_path):
 
     await controller.on_tool_finished(
         "tc-msg-1",
-        "dag_graph",
-        {"action": "message_supervisor", "message": "frontier 空，请补 TS 排产"},
+        "dag_message_supervisor",
+        {"message": "frontier 空，请补 TS 排产"},
         {"is_success": True, "accepted": True, "result": {"delivered": True}},
     )
 
@@ -1214,14 +1160,14 @@ async def test_message_supervisor_empty_or_failed_does_not_trigger(tmp_path):
 
     await controller.on_tool_finished(
         "tc-msg-2",
-        "dag_graph",
-        {"action": "message_supervisor", "message": ""},
+        "dag_message_supervisor",
+        {"message": ""},
         {"is_success": True},
     )
     await controller.on_tool_finished(
         "tc-msg-3",
-        "dag_graph",
-        {"action": "message_supervisor", "message": "hello"},
+        "dag_message_supervisor",
+        {"message": "hello"},
         {"is_success": False, "error": "oops"},
     )
 
@@ -1238,13 +1184,13 @@ async def test_maybe_supervise_wakes_only_off_coordinator_loop(tmp_path):
     coord = DagController(
         db, "s1", "dag_guided", supervisor=supervisor, agent_id="a-0"
     )
-    await coord.maybe_supervise("new_evidence")
+    await coord.maybe_supervise("tool_call_review")
     assert supervisor.calls[-1]["wake_coordinator"] is False
 
     follower = DagController(
         db, "s1", "dag_guided", supervisor=supervisor, agent_id="a-4"
     )
-    await follower.maybe_supervise("new_evidence")
+    await follower.maybe_supervise("tool_call_review")
     assert supervisor.calls[-1]["wake_coordinator"] is True
 
     api = DagController(db, "s1", "dag_guided", supervisor=supervisor)
@@ -1290,3 +1236,24 @@ async def test_publish_report_injects_event_only_when_waking(tmp_path):
         ).fetchall()
     assert len(rows) == 1
     assert "建议重试 opt" in rows[0][0]
+
+
+@pytest.mark.asyncio
+async def test_supervision_projection_failure_does_not_kill_run(tmp_path):
+    """on_supervision 是 UI 投影回调：抛错（如壳会话 spawn 被拒）必须
+    best-effort 降级——督导照常跑完，父 turn 不受连累。"""
+    DagController, _, _ = _api()
+    db = _db(tmp_path, "supervision-projection-crash", "dag_guided")
+    supervisor = FakeSupervisor()
+
+    async def exploding_projection(phase, trigger, result, error_note):
+        raise RuntimeError("projection boom")
+
+    controller = DagController(
+        db, "s1", "dag_guided", supervisor=supervisor, on_supervision=exploding_projection
+    )
+
+    result = await controller.maybe_supervise("tool_call_review")
+
+    assert result is not None
+    assert [c["trigger"] for c in supervisor.calls] == ["tool_call_review"]

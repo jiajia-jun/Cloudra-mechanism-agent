@@ -15,6 +15,7 @@ import os
 import random
 import re
 import sqlite3
+import threading
 import time
 import traceback
 from typing import Awaitable, Callable, Optional, TypeVar
@@ -28,10 +29,21 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 _T = TypeVar("_T")
 
 _warned_sync_sites: set[str] = set()
+_init_locks_guard = threading.Lock()
+_init_locks: dict[str, threading.Lock] = {}
+
+
+def _lock_for_init(path: str) -> threading.Lock:
+    with _init_locks_guard:
+        lock = _init_locks.get(path)
+        if lock is None:
+            lock = threading.Lock()
+            _init_locks[path] = lock
+        return lock
 
 
 def _check_sync_on_loop(kind: str) -> None:
@@ -139,6 +151,10 @@ class ConversationDB:
     def init(self) -> "ConversationDB":
         """初始化数据库：建目录、建表、启用 WAL。"""
         _check_sync_on_loop("init")
+        with _lock_for_init(self.path):
+            return self._init_unlocked()
+
+    def _init_unlocked(self) -> "ConversationDB":
         self.ensure_dir()
         # journal_mode is persistent.  Switching it on every connection needs a
         # stronger lock and creates avoidable contention between worker processes.
@@ -178,6 +194,8 @@ class ConversationDB:
             cur.execute(_CREATE_DAG_MUTATIONS)
             cur.execute(_CREATE_DAG_COVERAGE)
             cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
+            cur.execute(_CREATE_DAG_CALL_REVIEWS)
+            cur.execute(_CREATE_DAG_DRAFTS)
             cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
             cur.execute(_CREATE_INTERACTIONS_INDEX)
             cur.execute(_CREATE_ARTIFACTS_INDEX)
@@ -277,6 +295,8 @@ class ConversationDB:
             await cur.execute(_CREATE_DAG_MUTATIONS)
             await cur.execute(_CREATE_DAG_COVERAGE)
             await cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
+            await cur.execute(_CREATE_DAG_CALL_REVIEWS)
+            await cur.execute(_CREATE_DAG_DRAFTS)
             await cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
             await cur.execute(_CREATE_INTERACTIONS_INDEX)
             await cur.execute(_CREATE_ARTIFACTS_INDEX)
@@ -291,12 +311,29 @@ class ConversationDB:
         return self
 
     @staticmethod
+    def _add_column(cur, table: str, name: str, definition: str) -> None:
+        """ALTER ADD COLUMN, ignoring a concurrent duplicate-column race."""
+        try:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+        except sqlite3.OperationalError as exc:
+            if "duplicate column" not in str(exc).lower():
+                raise
+
+    @staticmethod
+    async def _aadd_column(cur, table: str, name: str, definition: str) -> None:
+        try:
+            await cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+        except sqlite3.OperationalError as exc:
+            if "duplicate column" not in str(exc).lower():
+                raise
+
+    @staticmethod
     def _migrate_session_schema(cur) -> None:
         """为旧数据库补齐 Session 元数据列，不删除已有记录。"""
         existing = {row[1] for row in cur.execute("PRAGMA table_info(session)").fetchall()}
         for name, definition in _SESSION_EXTRA_COLUMNS.items():
             if name not in existing:
-                cur.execute(f"ALTER TABLE session ADD COLUMN {name} {definition}")
+                ConversationDB._add_column(cur, "session", name, definition)
 
     @staticmethod
     async def _amigrate_session_schema(cur) -> None:
@@ -304,7 +341,7 @@ class ConversationDB:
         existing = {row[1] for row in await cur.fetchall()}
         for name, definition in _SESSION_EXTRA_COLUMNS.items():
             if name not in existing:
-                await cur.execute(f"ALTER TABLE session ADD COLUMN {name} {definition}")
+                await ConversationDB._aadd_column(cur, "session", name, definition)
 
     @staticmethod
     def _migrate_related_schema(cur) -> None:
@@ -312,7 +349,7 @@ class ConversationDB:
             existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table})").fetchall()}
             for name, definition in columns.items():
                 if name not in existing:
-                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+                    ConversationDB._add_column(cur, table, name, definition)
         ConversationDB._migrate_dag_evidence_bindings(cur)
 
     @staticmethod
@@ -322,7 +359,7 @@ class ConversationDB:
             existing = {row[1] for row in await cur.fetchall()}
             for name, definition in columns.items():
                 if name not in existing:
-                    await cur.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+                    await ConversationDB._aadd_column(cur, table, name, definition)
         await ConversationDB._amigrate_dag_evidence_bindings(cur)
 
     @staticmethod
@@ -484,6 +521,14 @@ _RELATED_EXTRA_COLUMNS = {
         "accepted": "INTEGER NOT NULL DEFAULT 1",
         "rejection_code": "TEXT",
         "rejection_reason": "TEXT",
+    },
+    # delivery 元素的阶段契约（StageState 列表 JSON）；旧行为 '[]'，
+    # 读取侧按 evidence_level 一次性映射（models.map_legacy_stages）。
+    "dag_nodes": {
+        "stages": "TEXT NOT NULL DEFAULT '[]'",
+    },
+    "dag_edges": {
+        "stages": "TEXT NOT NULL DEFAULT '[]'",
     },
 }
 
@@ -696,6 +741,7 @@ _CREATE_DAG_NODES = """
         label TEXT NOT NULL DEFAULT '',
         refs TEXT NOT NULL DEFAULT '[]',
         payload TEXT NOT NULL DEFAULT '{}',
+        stages TEXT NOT NULL DEFAULT '[]',
         created_revision INTEGER NOT NULL,
         updated_revision INTEGER NOT NULL,
         PRIMARY KEY(graph_id, node_id),
@@ -713,6 +759,7 @@ _CREATE_DAG_EDGES = """
         label TEXT NOT NULL DEFAULT '',
         refs TEXT NOT NULL DEFAULT '[]',
         payload TEXT NOT NULL DEFAULT '{}',
+        stages TEXT NOT NULL DEFAULT '[]',
         created_revision INTEGER NOT NULL,
         updated_revision INTEGER NOT NULL,
         PRIMARY KEY(graph_id, edge_id),
@@ -805,6 +852,42 @@ _CREATE_DAG_DELIVERY_DISPOSITIONS = """
         graph_revision INTEGER NOT NULL,
         report TEXT NOT NULL,
         created_at TEXT NOT NULL
+    )
+"""
+
+# CallReview 收件箱（D12）：仅追加/状态翻转，不经 DagEngine 版本化 mutation。
+_CREATE_DAG_CALL_REVIEWS = """
+    CREATE TABLE IF NOT EXISTS dag_call_reviews(
+        review_id TEXT PRIMARY KEY,
+        tool_call_id TEXT NOT NULL DEFAULT '',
+        tool_name TEXT NOT NULL,
+        is_success INTEGER NOT NULL DEFAULT 0,
+        caller_session_id TEXT NOT NULL DEFAULT '',
+        caller_role_id TEXT NOT NULL DEFAULT '',
+        caller_legacy_id TEXT NOT NULL DEFAULT '',
+        arguments_digest TEXT NOT NULL DEFAULT '',
+        result_summary TEXT NOT NULL DEFAULT '',
+        compute_job_id TEXT,
+        suggested_target_id TEXT,
+        state TEXT NOT NULL DEFAULT 'pending'
+            CHECK(state IN ('pending', 'reviewed', 'ignored')),
+        created_at TEXT NOT NULL
+    )
+"""
+
+# 机理草稿（D4）：mechanism_accepted = EXISTS(state='accepted')，随库存续。
+_CREATE_DAG_DRAFTS = """
+    CREATE TABLE IF NOT EXISTS dag_drafts(
+        draft_id TEXT PRIMARY KEY,
+        state TEXT NOT NULL DEFAULT 'open'
+            CHECK(state IN ('open', 'accepted', 'rejected')),
+        rationale TEXT NOT NULL DEFAULT '',
+        operations TEXT NOT NULL,
+        stage_contracts TEXT NOT NULL DEFAULT '{}',
+        actor_id TEXT NOT NULL DEFAULT '',
+        reject_reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        decided_at TEXT
     )
 """
 

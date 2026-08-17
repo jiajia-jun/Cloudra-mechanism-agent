@@ -23,6 +23,7 @@ from cloudra.tools.Chemtool.ts_guess import (
     TsGuess_input_schema,
     _assign_irc_endpoints,
     _evaluate_endpoint_between,
+    _idpp_relax,
     analyze_scan_profile,
 )
 
@@ -183,6 +184,16 @@ def test_profile_multiple_peaks():
 # ---------------------------------------------------------------------------
 # mode=interpolate
 # ---------------------------------------------------------------------------
+
+def test_idpp_relax_broadcasts_when_pair_count_is_not_three():
+    """C6H10 一类体系 npair=n(n-1)/2 ≠ 3 时，旧实现 (npair,)*(npair,3) 广播崩溃。"""
+    rng = np.random.default_rng(0)
+    images = rng.normal(size=(5, 4, 3))
+    out = _idpp_relax(images, max_iter=8)
+    assert out.shape == (5, 4, 3)
+    assert np.allclose(out[0], images[0])
+    assert np.allclose(out[-1], images[-1])
+
 
 _R_XYZ = """3
 reactant

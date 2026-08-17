@@ -7,17 +7,19 @@ becomes native to runtime_v2.
 
 from __future__ import annotations
 
+import inspect
 import json
-from typing import Any
+from typing import Any, Iterable
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema as LegacyInputSchema
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import LLMClient
+from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
-from cloudra.runtime_v2.turn_pipeline import LLMResponse
+from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
 
 _OPENAI_MAX_SUMMARY = 4000
 
@@ -69,7 +71,25 @@ def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
     settings.api_key = settings.api_key or legacy.key
     settings.context_window = settings.context_window or legacy.context_window
     settings.timeout = settings.timeout or legacy.timeout
+    # native_search 的 v2 默认值就是 "auto"，无法区分"显式 auto"与默认值；
+    # 桥接规则：仍是默认时取 legacy 槽位的配置（含 "off" 与自定义参数）。
+    if settings.native_search == "auto":
+        settings.native_search = legacy.native_search
+    if not settings.native_search_params:
+        settings.native_search_params = dict(legacy.native_search_params)
     return settings
+
+
+def _native_search_adapter_for(settings: RuntimeSettings):
+    """解析模型端原生网页搜索适配器（None = 关闭/不可用）。"""
+    from cloudra.infra.web_search_native import resolve_native_search
+
+    return resolve_native_search(
+        base_url=settings.base_url or "",
+        model=settings.model or "",
+        mode=settings.native_search,
+        params=settings.native_search_params,
+    )
 
 
 def legacy_default_runtime_settings() -> RuntimeSettings:
@@ -111,17 +131,63 @@ class LegacyPromptProvider:
                 include_agents_md=is_coordinator,
                 observer_id=agent.id,
             )
+            # 有联网搜索能力（模型端原生搜索或外置 web_search 工具）时，
+            # system prompt 注入「联网搜索（重要）」段，要求先搜再答。
+            settings = legacy_default_settings(agent)
+            web_search_available = (
+                _native_search_adapter_for(settings) is not None or "web_search" in tool_names
+            )
             assembly = assembler.assemble(
                 capability_names=tool_names,
-                web_search_available=False,
+                web_search_available=web_search_available,
             )
             return [*assembly.identity_messages, *assembly.observation_messages]
 
         return await asyncio.to_thread(assemble)
 
 
+def _to_api_message(message: dict[str, Any]) -> dict[str, Any]:
+    """Convert internal history entries to valid OpenAI wire messages.
+
+    Internal tool exchanges carry structured ``tool_calls`` (id/name/arguments)
+    on the assistant entry; the wire format requires function-typed tool_calls
+    with JSON-string arguments, and tool messages referencing a tool_call_id.
+    """
+    out: dict[str, Any] = {"role": message.get("role", "user"), "content": message.get("content") or ""}
+    if message.get("name"):
+        out["name"] = message["name"]
+    reasoning = message.get("reasoning_content")
+    if reasoning:
+        # Thinking-mode endpoints (DeepSeek etc.) require the previous
+        # assistant turn's reasoning_content to be echoed on the next call.
+        out["reasoning_content"] = reasoning
+    calls = message.get("tool_calls")
+    if calls:
+        out["tool_calls"] = [
+            {
+                "id": str(call.get("id") or f"tc_{i}"),
+                "type": "function",
+                "function": {
+                    "name": str(call.get("name") or "unknown"),
+                    "arguments": json.dumps(call.get("arguments") or {}, ensure_ascii=False),
+                },
+            }
+            for i, call in enumerate(calls)
+        ]
+        if not out["content"]:
+            out["content"] = None
+    if out["role"] == "tool" and message.get("tool_call_id"):
+        out["tool_call_id"] = str(message["tool_call_id"])
+    return out
+
+
 class LegacyLLMProvider:
-    """Non-streaming bridge over the existing LLMClient."""
+    """Streaming bridge over the existing LLMClient.
+
+    Token deltas are forwarded through the optional ``on_delta`` sink as they
+    arrive (throttled); the assembled LLMResponse keeps the same shape as the
+    old non-streaming path, so the turn pipeline contract is unchanged.
+    """
 
     def __init__(self, client_factory=None) -> None:
         self._client_factory = client_factory
@@ -140,31 +206,88 @@ class LegacyLLMProvider:
         agent: AgentSession,
         messages: list[dict[str, Any]],
         tools: list[str],
+        on_delta: DeltaSink | None = None,
     ) -> LLMResponse:
         settings = legacy_default_settings(agent)
         client = self._make_client(settings)
+        native_adapter = _native_search_adapter_for(settings)
         tool_schemas = legacy_tool_schemas(tools)
+        if native_adapter is not None:
+            # 模型端原生搜索启用时剔除外置 web_search 函数工具——否则模型既走
+            # function call 转第三方搜索、又走 provider 端原生搜索（双重搜索）。
+            tool_schemas = [
+                schema
+                for schema in tool_schemas
+                if (schema.get("function") or {}).get("name") != "web_search"
+            ]
         kwargs: dict[str, Any] = {
             "model": settings.model,
-            "messages": messages,
+            "messages": [_to_api_message(m) for m in messages],
             "temperature": settings.temperature,
             "max_tokens": settings.max_tokens,
-            "stream": False,
+            "stream": True,
         }
         if settings.top_p is not None:
             kwargs["top_p"] = settings.top_p
         if tool_schemas:
             kwargs["tools"] = tool_schemas
-        response = await client.create_with_retry(**kwargs)
-        choices = getattr(response, "choices", None) or []
-        choice = choices[0] if choices else None
+        if native_adapter is not None:
+            kwargs = native_adapter.inject(kwargs, settings.native_search_params)
+        if native_adapter is not None and native_adapter.transport == "responses":
+            # DeepSeek 的原生搜索只在 Responses API 支持
+            response = await client.create_responses_with_retry(**kwargs)
+        else:
+            response = await client.create_with_retry(**kwargs)
+        pumper = None
+        if on_delta is not None:
+            pumper = _ChunkPumper(lambda _type, data: on_delta(data["stream"], data["delta"]))
         content = ""
+        reasoning_content = ""
+        tool_call_buffer: dict[int, dict[str, Any]] = {}
         tool_calls: list[ToolCall] = []
         finish_reason = None
-        if choice is not None:
-            content = getattr(getattr(choice, "message", None), "content", None) or ""
-            tool_calls = _parse_tool_calls(choice)
-            finish_reason = getattr(choice, "finish_reason", None)
+        try:
+            async for chunk in _aiter_chunks(response):
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
+                    continue
+                choice = choices[0]
+                delta = getattr(choice, "delta", None)
+                if delta is None:
+                    continue
+                reason = getattr(choice, "finish_reason", None)
+                if reason:
+                    finish_reason = reason
+                token = getattr(delta, "content", None)
+                if token:
+                    content += token
+                    if pumper is not None:
+                        await pumper.add("content", token)
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    reasoning_content += reasoning
+                    if pumper is not None:
+                        await pumper.add("reasoning", reasoning)
+                for tc_chunk in getattr(delta, "tool_calls", None) or []:
+                    chunk_dict = (
+                        tc_chunk.model_dump(exclude_none=True)
+                        if hasattr(tc_chunk, "model_dump")
+                        else {k: v for k, v in vars(tc_chunk).items() if v is not None}
+                    )
+                    idx = chunk_dict.get("index", 0)
+                    tool_call_buffer[idx] = dynamic_deep_merge(tool_call_buffer.get(idx, {}), chunk_dict)
+                if reason == "tool_calls" or (reason == "stop" and tool_call_buffer):
+                    tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
+                    tool_call_buffer.clear()
+        except Exception:
+            await _close_stream(response)
+            raise
+        if pumper is not None:
+            await pumper.flush()
+        # A non-empty leftover buffer means the tool_call JSON was cut off
+        # mid-stream; parse what arrived (broken JSON degrades to {}).
+        if tool_call_buffer:
+            tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
         usage = client.last_usage or {}
         return LLMResponse(
             content=content,
@@ -172,7 +295,36 @@ class LegacyLLMProvider:
             stop_requested=False,
             usage=dict(usage) if isinstance(usage, dict) else {},
             finish_reason=finish_reason,
+            reasoning=reasoning_content,
         )
+
+
+def _parse_merged_tool_calls(merged: Iterable[dict[str, Any]]) -> list[ToolCall]:
+    """ToolCalls from stream-merged tool_call chunks (wire-shaped dicts)."""
+    calls = []
+    for raw in merged:
+        function = raw.get("function") or {}
+        try:
+            arguments = json.loads(function.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
+        calls.append(
+            ToolCall(
+                id=str(raw.get("id") or f"tc_{len(calls)}"),
+                name=str(function.get("name") or "unknown"),
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        )
+    return calls
+
+
+async def _close_stream(response: Any) -> None:
+    close = getattr(response, "aclose", None) or getattr(response, "close", None)
+    if close is None:
+        return
+    result = close()
+    if inspect.isawaitable(result):
+        await result
 
 
 class _LegacyAgentBridge:
@@ -186,20 +338,53 @@ class _LegacyAgentBridge:
         self.working_directory = workspace_dir
         self.orchestration_mode = agent.settings.orchestration_mode.value
         self.session_id = agent.id
+        self._permissions = agent.capabilities.permissions
+
+    def permission_all(self):
+        """Legacy IntFlag projection of the v2 capability permission set."""
+        from cloudra.tools.core.permission_model import Permission
+
+        perms = Permission.NONE
+        granted = self._permissions
+        if granted.read:
+            perms |= Permission.READ
+        if granted.write:
+            perms |= Permission.WRITE
+        if granted.manage:
+            perms |= Permission.MANAGE
+        if granted.script:
+            perms |= Permission.SCRIPT
+        if granted.destructive:
+            perms |= Permission.DESTRUCTIVE
+        return perms
 
 
 class LegacyToolExecutor:
     """Execute calls through the existing tool registry.
 
     Destructive tools keep their own approval path; this bridge only sets the
-    session-level YOLO context from the agent's live settings.
+    session-level YOLO context from the agent's live settings.      The Managetool
+    dispatch tools (SubAgentLauncher/SubAgentSwarm/get_subagent_report) are
+    reimplemented on the v2 kernel — see runtime_v2/subagent_bridge.py; the
+    agent_hub forum likewise — see runtime_v2/hub_bridge.py; ``schedule``
+    reminders — see runtime_v2/reminders.py.
     """
 
     def __init__(self, core) -> None:
         self.core = core
 
     async def execute(self, agent: AgentSession, call: ToolCall) -> ToolResult:
+        from cloudra.runtime_v2.subagent_bridge import NATIVE_TOOL_NAMES, handle_native_tool
         from cloudra.tools import get_tools_lst
+
+        if call.name in NATIVE_TOOL_NAMES:
+            return await handle_native_tool(self.core, agent, call)
+        if call.name == "agent_hub":
+            from cloudra.runtime_v2.hub_bridge import handle_hub_tool
+
+            return await handle_hub_tool(self.core, agent, call)
+        if call.name == "schedule":
+            return await self.core.reminders.handle(agent, call)
 
         entry = next((e for e in get_tools_lst() if e.tool_name == call.name), None)
         if entry is None:
@@ -209,7 +394,12 @@ class LegacyToolExecutor:
             )
         project = self.core.require_project(agent.project_id)
         bridge = _LegacyAgentBridge(agent, project.workspace_dir)
-        tool = entry.instantiate(subagent=bridge)
+        # Several tool classes narrow the `subagent` field to the legacy Agent
+        # type, so pydantic construction with the duck-typed bridge fails
+        # (dag_*, goal_set, todo, bashtools, ...).  Construct bare and
+        # attach the bridge past validation instead.
+        tool = entry.instantiate()
+        object.__setattr__(tool, "subagent", bridge)
         schema_cls = entry.input_schema or LegacyInputSchema
         try:
             parsed = schema_cls.model_validate(call.arguments)
@@ -217,7 +407,20 @@ class LegacyToolExecutor:
             return ToolResult(is_success=False, summary=f"[Tool error] invalid arguments: {exc}")
         token = set_session_yolo(agent.settings.yolo)
         try:
-            output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
+            # v2-native user decisions: destructive-tool approvals and ask_user
+            # questions go to the kernel PendingBroker (events + futures)
+            # instead of the legacy conversation SQLite / event bus.
+            async def _approval(**fields):
+                return await self.core.pending.request_approval(agent, **fields)
+
+            async def _interaction(prompt: str) -> str:
+                return await self.core.pending.request_interaction(agent, prompt)
+
+            from cloudra.base.tools_class import use_approval_handler
+            from cloudra.tools.Interactool.ask_user import use_input_handler
+
+            with use_approval_handler(_approval), use_input_handler(_interaction):
+                output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
         except Exception as exc:
             return ToolResult(is_success=False, summary=str(exc))
         finally:

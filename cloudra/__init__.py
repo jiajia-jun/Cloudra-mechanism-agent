@@ -7,34 +7,20 @@ __version__ = "2.0.0-beta"
 _LAZY_EXPORTS = {
     "Agent": ("cloudra.core.agent", "Agent"),
     "Coordinator": ("cloudra.core.agent", "Coordinator"),
-    "Color": ("cloudra.infra.presentation", "Color"),
-    "Coordinator_reAct": ("cloudra.core.react", "Coordinator_reAct"),
-    "reAct": ("cloudra.core.react", "reAct"),
 }
 # 兼容垫片：包结构重排（core/services/persistence/base/infra）前的
 # `from cloudra import X` 老路径全部继续可用（惰性加载，不提前拉起重依赖）。
 _LAZY_MODULES = {
     # core
     "agent": "cloudra.core.agent",
-    "react": "cloudra.core.react",
     "supervisor": "cloudra.core.supervisor",
-    "main": "cloudra.core.main",
     # services
-    "service": "cloudra.services.service",
-    "api": "cloudra.services.api",
-    "api_v1": "cloudra.services.api_v1",
-    "backends": "cloudra.services.backends",
     "session_store": "cloudra.services.session_store",
-    "control_store": "cloudra.services.control_store",
-    "interactions": "cloudra.services.interactions",
     "nodes": "cloudra.services.nodes",
-    "device_broker": "cloudra.services.device_broker",
     # persistence
     "database": "cloudra.persistence.database",
-    "conversation_repo": "cloudra.persistence.conversation_repo",
     "artifacts": "cloudra.persistence.artifacts",
     "memory": "cloudra.persistence.memory",
-    "case_bank": "cloudra.persistence.case_bank",
     "context_manager": "cloudra.persistence.context_manager",
     "paths": "cloudra.persistence.paths",
     "fs_utils": "cloudra.persistence.fs_utils",
@@ -57,14 +43,8 @@ _LAZY_MODULES = {
     "compute_utils": "cloudra.infra.compute_utils",
     "operations": "cloudra.infra.operations",
     "yolo_guard": "cloudra.infra.yolo_guard",
-    "presentation": "cloudra.infra.presentation",
-    "tool_presentation": "cloudra.infra.tool_presentation",
     "platform_utils": "cloudra.infra.platform_utils",
     "runtime_profile": "cloudra.infra.runtime_profile",
-    "email_listener": "cloudra.infra.email_listener",
-    "mobile_storage": "cloudra.infra.mobile_storage",
-    "native_bridge": "cloudra.infra.native_bridge",
-    "android_build": "cloudra.infra.android_build",
 }
 
 __all__ = [*_LAZY_EXPORTS, *_LAZY_MODULES, "__version__"]

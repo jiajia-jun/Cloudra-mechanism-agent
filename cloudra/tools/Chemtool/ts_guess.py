@@ -391,8 +391,9 @@ def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-
             d = _dist_matrix(pos)[iu]
             diff = pos[iu[0]] - pos[iu[1]]  # (npair, 3)
             err = d - targets[k - 1]
-            # dS/d(diff) = 2 w err * diff / d
-            g_pair = 2.0 * weights[k - 1] * err * diff / np.clip(d, 1e-8, None)[:, None]
+            # dS/d(diff) = 2 w err * diff / d；先把 (npair,) 扩成 (npair,1) 再乘 (npair,3)
+            scale = (2.0 * weights[k - 1] * err / np.clip(d, 1e-8, None))[:, None]
+            g_pair = scale * diff
             np.add.at(grad[k], iu[0], g_pair)
             np.add.at(grad[k], iu[1], -g_pair)
 
@@ -1484,6 +1485,12 @@ class TsGuess(Tool):
 
 def get_class():
     return TsGuess
+
+
+def is_compute_entry_call(arguments: dict[str, Any]) -> bool:
+    """Phase-3 门槛谓词：interpolate/scan_prepare 会真正拉起计算（xtb/CREST），
+    scan_parse/verify 只是读已有日志，不算计算入口。"""
+    return (arguments or {}).get("mode") in {"interpolate", "scan_prepare"}
 
 
 def derive_delivery_changes(
