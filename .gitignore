@@ -83,3 +83,9 @@ frontend/dist/
 
 # runtime v2 local sqlite
 runtime-v2.db*
+
+# 运行时状态泄漏文件（如 Gaussian 作业 state json）
+state_*.json
+
+# 申报材料：本地留存，不上传公开仓库
+互联网加申报材料/

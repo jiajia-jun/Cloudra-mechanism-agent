@@ -34,7 +34,7 @@ cloudra/tools/Searchtool/chemrxiv_searcher.py:64	        }
 cloudra/tools/Searchtool/chemrxiv_searcher.py:65	
 cloudra/tools/Searchtool/chemrxiv_searcher.py:66	        # 建议在 Header 中加入一个邮箱（选填），这会让你的请求进入 OpenAlex 的“礼貌池”，速度更快更稳
 cloudra/tools/Searchtool/chemrxiv_searcher.py:67	        headers = {
-cloudra/tools/Searchtool/chemrxiv_searcher.py:68	            "User-Agent": "Cloudra/1.0 (mailto:951899550@qq.com)"
+cloudra/tools/Searchtool/chemrxiv_searcher.py:68	            "User-Agent": "Cloudra/1.0 (mailto:contact@cloudra.example)"
 cloudra/tools/Searchtool/chemrxiv_searcher.py:69	        }
 cloudra/tools/Searchtool/chemrxiv_searcher.py:70	
 cloudra/tools/Searchtool/chemrxiv_searcher.py:71	        try:
