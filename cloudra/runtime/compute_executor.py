@@ -43,7 +43,10 @@ def _iter_conversation_dbs() -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
     for child in root.iterdir():
         db_path = child / "tasks" / "database.db"
-        if db_path.is_file():
+        # A freshly created project touches the path before its schema is
+        # initialized; claiming from an empty SQLite file raises "no such
+        # table: compute_jobs" on every poll, so skip zero-byte files.
+        if db_path.is_file() and db_path.stat().st_size > 0:
             found.append((child.name, str(db_path)))
     return found
 
