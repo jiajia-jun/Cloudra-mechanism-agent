@@ -104,6 +104,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ),
     ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.mark_compute_job_failed',
+        class_name='MarkComputeJobFailed',
+        tool_name='mark_compute_job_failed',
+        dag_observe=False,
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.reaction_mapping',
         class_name='ReactionMapping',
         tool_name='reaction_mapping',
@@ -228,6 +234,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Plantool.dag_tools.dag_review_call',
         class_name='DagReviewCall',
         tool_name='dag_review_call',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
+        class_name='DagViewEvidence',
+        tool_name='dag_view_evidence',
         dag_observe=False,
     ),
     ToolRegistration(

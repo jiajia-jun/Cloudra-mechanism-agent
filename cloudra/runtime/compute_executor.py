@@ -33,6 +33,7 @@ logger = logging.getLogger("cloudra.compute_executor")
 _LOCAL_LEASE_AFTER_SPAWN = 14 * 24 * 3600
 _SLURM_LEASE_SECONDS = 60
 _SLURM_RENEW_EVERY = 20.0
+_REAP_INTERVAL = 30.0
 
 
 def _iter_conversation_dbs() -> list[tuple[str, str]]:
@@ -233,9 +234,14 @@ class ComputeBroker:
         return None
 
     async def _loop(self) -> None:
+        last_reap = 0.0
         while not self._stop.is_set():
             claimed = await asyncio.to_thread(self._claim_one)
             if claimed is None:
+                now = time.time()
+                if now - last_reap >= _REAP_INTERVAL:
+                    last_reap = now
+                    await asyncio.to_thread(self._reap_orphans)
                 try:
                     await asyncio.wait_for(self._stop.wait(), timeout=self.poll_interval)
                 except asyncio.TimeoutError:
@@ -248,6 +254,21 @@ class ComputeBroker:
             )
             self._jobs[task_id] = job
             job.add_done_callback(lambda _t, key=task_id: self._jobs.pop(key, None))
+
+    @staticmethod
+    def _reap_orphans() -> None:
+        """把已耗尽重试预算且租约过期的 running 作业置为 failed。
+
+        覆盖"executor 反复崩溃、最后一次租约过期后无人认领"的孤儿；
+        租约未到期或还有重试预算的作业不动（正常重试/等待路径照旧）。
+        """
+        from cloudra.services.session_store import reap_exhausted_leases
+
+        for _conv_id, db_path in _iter_conversation_dbs():
+            try:
+                reap_exhausted_leases(ConversationDB.from_path(db_path))
+            except Exception:
+                logger.exception("reap failed for %s", db_path)
 
     async def _run(self, task_id: int, db_path: str) -> None:
         try:

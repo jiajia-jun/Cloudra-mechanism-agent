@@ -37,9 +37,11 @@ class DagBindEvidence(DagToolBase):
     tool_id: str = "t-dag-bind"
     tool_name: str = "dag_bind_evidence"
     tool_description: str = (
-        "Bind a finished tool call to a declared stage of a delivery element "
-        "(Coordinator in dag_record only; in dag_guided the Supervisor binds "
-        "stages after review). "
+        "Bind a finished tool call to a declared stage of a delivery element. "
+        "In dag_record the Coordinator binds directly; in dag_guided this "
+        "submits the call's result into the review inbox for the Supervisor to "
+        "adjudicate (use it for evidence-bearing tools that do not auto-review, "
+        "e.g. format_converter or internal_coordinates). "
         "Use for: attaching a successful compute/parse result to the next "
         "pending stage of an element's stage contract. "
         "Do not use for: skipping stages (binds are strictly sequential), "
@@ -57,12 +59,38 @@ class DagBindEvidence(DagToolBase):
         mode = self._mode()
         if mode is OrchestrationMode.STANDARD:
             return self._standard_disabled()
+        ctx = await self._prepare(session)
+        controller = DagController(
+            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
+        )
         if mode is OrchestrationMode.DAG_GUIDED:
-            return fail(
-                "dag_bind_evidence",
-                "disabled in dag_guided; the Supervisor reviews finished calls "
-                "and binds stages — report your tool_call_id in your result",
-                accepted=False,
+            # 证据通交通道：dag_guided 下不直接绑定，而是把该调用的产物提交进
+            # review 收件箱，等 Supervisor 复核后绑定（绕过 dag_review 白名单）。
+            try:
+                submitted = await controller.submit_evidence_for_review(
+                    user_input.tool_call_id,
+                    user_input.bind_target,
+                    user_input.stage_kind,
+                )
+            except Exception as exc:
+                return fail("dag_bind_evidence", str(exc), accepted=False)
+            if not submitted["enqueued"]:
+                return DagToolOutput(
+                    is_success=False,
+                    action="dag_bind_evidence",
+                    accepted=False,
+                    error=(
+                        f"duplicate of already-queued review "
+                        f"{submitted['duplicate_review_id']}; re-submit only if the "
+                        "evidence changed, or wait for that review's verdict"
+                    ),
+                    result=submitted,
+                )
+            return DagToolOutput(
+                is_success=True,
+                action="dag_bind_evidence",
+                accepted=True,
+                result=submitted,
             )
         if self._actor_id() != "a-0":
             return fail(
@@ -71,10 +99,6 @@ class DagBindEvidence(DagToolBase):
                 "tool_call_id in your result instead",
                 accepted=False,
             )
-        ctx = await self._prepare(session)
-        controller = DagController(
-            ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
-        )
         try:
             bound = await controller.bind_stage_for_call(
                 user_input.tool_call_id,

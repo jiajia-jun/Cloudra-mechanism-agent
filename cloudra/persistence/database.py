@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 _T = TypeVar("_T")
 
 _warned_sync_sites: set[str] = set()
@@ -530,6 +530,11 @@ _RELATED_EXTRA_COLUMNS = {
     "dag_edges": {
         "stages": "TEXT NOT NULL DEFAULT '[]'",
     },
+    "dag_call_reviews": {
+        "source_path": "TEXT NOT NULL DEFAULT ''",
+        "result_kind": "TEXT NOT NULL DEFAULT ''",
+        "suggested_stage": "TEXT NOT NULL DEFAULT ''",
+    },
 }
 
 _CREATE_SUBAGENT_REQUESTS = """
@@ -867,8 +872,11 @@ _CREATE_DAG_CALL_REVIEWS = """
         caller_legacy_id TEXT NOT NULL DEFAULT '',
         arguments_digest TEXT NOT NULL DEFAULT '',
         result_summary TEXT NOT NULL DEFAULT '',
+        source_path TEXT NOT NULL DEFAULT '',
+        result_kind TEXT NOT NULL DEFAULT '',
         compute_job_id TEXT,
         suggested_target_id TEXT,
+        suggested_stage TEXT NOT NULL DEFAULT '',
         state TEXT NOT NULL DEFAULT 'pending'
             CHECK(state IN ('pending', 'reviewed', 'ignored')),
         created_at TEXT NOT NULL

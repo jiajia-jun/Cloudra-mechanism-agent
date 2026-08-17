@@ -166,7 +166,11 @@ class GjfWriter(Tool):
                 else:
                     keywords.append(f"{key}={value}")
 
-        keywords.append(f"{user_input.method}/{user_input.basis_set}")
+        if user_input.basis_set:
+            keywords.append(f"{user_input.method}/{user_input.basis_set}")
+        else:
+            # 半经验方法（pm6/am1/pm7 等）无基组：空 basis 不能再拼出 "pm6/" 尾斜杠。
+            keywords.append(user_input.method)
 
         if user_input.extra_keywords:
             keywords.append(user_input.extra_keywords)

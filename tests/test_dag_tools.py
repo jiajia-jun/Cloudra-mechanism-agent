@@ -760,19 +760,35 @@ async def test_bind_evidence_rejected_in_standard_mode(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_bind_evidence_disabled_in_guided_mode(tmp_path):
-    """dag_guided 下证据只能由 Supervisor 复核绑定（dag_review_call，Phase 2）。"""
-    agent, session, _db = await _seed_staged_step(
+async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
+    """dag_guided 下 dag_bind_evidence 是证据通交通道：把白名单外工具的
+    产物提交进 review 收件箱（不再 disabled）。"""
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    agent, session, db = await _seed_staged_step(
         tmp_path, "tool-bind-guided", _TS_FREQ_RESULT, mode="dag_guided"
     )
+    controller = DagController(db, "s1", "dag_guided", conversation_id=agent.conversation_id)
+    # format_converter 只登记证据、不入箱（非 dag_review 白名单）。
+    await controller.on_tool_finished(
+        "tc-conv", "format_converter", {"input_path": "irc.log"}, {"is_success": True, "output_path": "irc.csv"}
+    )
+    assert all(r.tool_name != "format_converter" for r in DagStore(db).list_call_reviews())
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-bind", bind_target="step1", stage_kind="ts_opt",
+        tool_call_id="tc-conv", bind_target="step1", stage_kind="short_irc",
     )
+    assert bound.is_success is True
+    assert bound.accepted is True
 
-    assert not bound.is_success
-    assert "dag_guided" in bound.error
+    submitted = next(
+        r for r in DagStore(db).list_call_reviews() if r.tool_name == "format_converter"
+    )
+    assert submitted.suggested_target_id == "step1"
+    assert submitted.suggested_stage == "short_irc"
+    assert submitted.state == "pending"
 
 
 @pytest.mark.asyncio

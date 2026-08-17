@@ -174,6 +174,8 @@ class DagController:
                 "tool_name": row.tool_name,
                 "is_success": row.is_success,
                 "caller": row.caller_legacy_id or row.caller_role_id,
+                "source_path": row.source_path,
+                "result_kind": row.result_kind,
                 **(
                     {"compute_job_id": row.compute_job_id}
                     if row.compute_job_id
@@ -275,6 +277,42 @@ class DagController:
         )
         return True, report
 
+    _SOURCE_PATH_KEYS = (
+        "log_path",
+        "freq_log",
+        "input_path",
+        "input_file_path",
+        "log_file",
+        "source_path",
+        "output_path",
+        "ts_candidate_path",
+    )
+
+    @staticmethod
+    def _source_path_from(arguments: dict[str, Any]) -> str:
+        for key in DagController._SOURCE_PATH_KEYS:
+            value = arguments.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    @staticmethod
+    def _result_kind(result: dict[str, Any], success: bool) -> str:
+        """机器可读的失败判别：区分证据坏 / 解析管线坏 / 环境问题。
+
+        只作 sidecar 提示，不构成绑定权威；完整 message 仍在 result_summary。
+        """
+        if success:
+            return "ok"
+        message = str(result.get("message") or "").lower()
+        if "not found" in message:
+            return "source_missing"
+        if "not installed" in message or "no module" in message or "importerror" in message:
+            return "environment"
+        if "parse" in message or "failed to" in message:
+            return "parse_failed"
+        return "failed"
+
     async def _enqueue_call_review(
         self,
         tool_call_id: str,
@@ -284,18 +322,34 @@ class DagController:
         success: bool,
         *,
         compute_job_id: str | None = None,
-    ) -> bool:
+        suggested_target_id: str | None = None,
+        suggested_stage: str = "",
+        force: bool = False,
+    ) -> tuple[bool, str | None]:
         """CallReview 收件箱 enqueue（D5 节流、D12 仅追加直连 INSERT）。
 
         只有 registry 声明 dag_review=True 的工具入箱（计算作业终态走
         enqueue_compute_review）；普通工具调用不入箱也不唤醒 Supervisor。
-        返回是否有新行入箱。
+        ``force=True`` 时跳过白名单（显式证据通交）。返回 (是否入新箱, 同构
+        重复的既有 review_id 或 None)。
         """
-        if not is_dag_reviewed(tool_name):
-            return False
+        if not force and not is_dag_reviewed(tool_name):
+            return False, None
         from cloudra.subagents.registry import legacy_agent_id_for_role
 
         role_id = self.role_id or ""
+        arguments_digest = "sha256:" + hashlib.sha256(
+            _canonical_json(arguments).encode("utf-8")
+        ).hexdigest()[:16]
+        result_summary = _canonical_json(result)
+        # 同构去重（仅 pending）：内容完全相同的 artifact 且已有排队中的 review
+        # 时不重复入箱——返回既有 review id 让 Coordinator 收到提示。已裁决的
+        # 同构重提照常生成新 review 周期。
+        duplicate = await asyncio.to_thread(
+            self.store.find_duplicate_review, tool_name, arguments_digest, result_summary
+        )
+        if duplicate is not None:
+            return False, duplicate
         review = CallReview(
             review_id="rev_" + uuid.uuid4().hex,
             tool_call_id=tool_call_id,
@@ -306,16 +360,18 @@ class DagController:
             caller_legacy_id=(
                 legacy_agent_id_for_role(role_id) if role_id else (self.agent_id or "")
             ),
-            arguments_digest="sha256:" + hashlib.sha256(
-                _canonical_json(arguments).encode("utf-8")
-            ).hexdigest()[:16],
-            result_summary=_canonical_json(result)[:300],
+            arguments_digest=arguments_digest,
+            result_summary=result_summary,
+            source_path=self._source_path_from(arguments),
+            result_kind=self._result_kind(result, success),
             compute_job_id=compute_job_id,
+            suggested_target_id=suggested_target_id,
+            suggested_stage=suggested_stage,
             state="pending",
             created_at=datetime.now(timezone.utc).isoformat(),
         )
         await asyncio.to_thread(self.store.enqueue_call_review, review)
-        return True
+        return True, None
 
     async def on_tool_finished(
         self,
@@ -347,26 +403,83 @@ class DagController:
         success = self._result_succeeded(result)
         # 不再有图上遥测（observed 节点/自动认领/自动绑定，证据 b/i-1）：
         # 只登记证据 + 收件箱 enqueue；绑定一律走显式阶段绑定。
-        enqueued = await self._enqueue_call_review(
+        enqueued, duplicate = await self._enqueue_call_review(
             tool_call_id, tool_name, arguments, result, success
         )
         if self.mode is OrchestrationMode.DAG_GUIDED and enqueued:
-            # D5/D14：入箱才唤醒，唤醒按 conversation 合并；附待审清单让
-            # Supervisor 不用猜 review_id。
-            pending = await asyncio.to_thread(self.store.list_call_reviews)
-            lines = [
-                f"- {row.review_id}: {row.tool_name} "
-                f"({'ok' if row.is_success else 'FAILED'}) "
-                f"by {row.caller_legacy_id or row.caller_role_id or 'unknown'}"
-                + (f" [job {row.compute_job_id}]" if row.compute_job_id else "")
-                + (f" — {row.result_summary[:80]}" if row.result_summary else "")
-                for row in pending[:12]
-            ]
-            await self.maybe_supervise(
-                "tool_call_review",
-                coordinator_request="Pending call reviews:\n" + "\n".join(lines),
+            await self._wake_supervisor_for_reviews()
+        return DeliveryDelta(
+            evidence_ref=evidence_ref,
+            tool_name=tool_name,
+            dedup_review_id=duplicate,
+        )
+
+    async def _wake_supervisor_for_reviews(self) -> None:
+        """D5/D14：入箱才唤醒，唤醒按 conversation 合并；附待审清单让
+        Supervisor 不用猜 review_id。"""
+        pending = await asyncio.to_thread(self.store.list_call_reviews)
+        lines = [
+            f"- {row.review_id}: {row.tool_name} "
+            f"({'ok' if row.is_success else 'FAILED'}) "
+            f"by {row.caller_legacy_id or row.caller_role_id or 'unknown'}"
+            + (f" [job {row.compute_job_id}]" if row.compute_job_id else "")
+            + (f" source={row.source_path}" if row.source_path else "")
+            + (f" kind={row.result_kind}" if row.result_kind and row.result_kind != "ok" else "")
+            + (f" → {row.suggested_target_id}.{row.suggested_stage}" if row.suggested_target_id and row.suggested_stage else "")
+            for row in pending[:12]
+        ]
+        await self.maybe_supervise(
+            "tool_call_review",
+            coordinator_request="Pending call reviews:\n" + "\n".join(lines),
+        )
+
+    async def submit_evidence_for_review(
+        self,
+        tool_call_id: str,
+        target_id: str,
+        stage_kind: str,
+    ) -> dict[str, Any]:
+        """Coordinator 把任意已完成工具调用的产物显式提交进 review 收件箱。
+
+        这是白名单（dag_review）之外的证据通交通道：format_converter /
+        internal_coordinates 等产出证据但不会自动入箱的工具，由 Coordinator
+        声明"此调用支撑 target 的 stage"后进箱，Supervisor 照常复核裁决。
+        """
+        if not self.enabled:
+            raise RuntimeError(
+                "evidence submission is disabled in standard orchestration mode"
             )
-        return DeliveryDelta(evidence_ref=evidence_ref, tool_name=tool_name)
+        await self.initialize()
+        ref = await asyncio.to_thread(self._evidence_for_call, tool_call_id)
+        source_name, payload = await asyncio.to_thread(
+            self.store.resolve_evidence_with_source, ref
+        )
+        result = payload.get("result") or {} if isinstance(payload, dict) else {}
+        arguments = payload.get("arguments") or {} if isinstance(payload, dict) else {}
+        if not self._result_succeeded(result):
+            raise RuntimeError(
+                f"tool call {tool_call_id!r} did not succeed; a failed computation "
+                "cannot be submitted as evidence"
+            )
+        enqueued, duplicate = await self._enqueue_call_review(
+            tool_call_id,
+            source_name,
+            arguments,
+            result,
+            True,
+            suggested_target_id=target_id,
+            suggested_stage=stage_kind,
+            force=True,
+        )
+        if self.mode is OrchestrationMode.DAG_GUIDED and enqueued:
+            await self._wake_supervisor_for_reviews()
+        return {
+            "tool_call_id": tool_call_id,
+            "target_id": target_id,
+            "stage_kind": stage_kind,
+            "enqueued": enqueued,
+            "duplicate_review_id": duplicate,
+        }
 
     async def _trigger_supervisor_after_tool(
         self,
@@ -528,7 +641,7 @@ class DagController:
                 agent_id="supervisor",
                 agent_type="supervisor",
                 parent_session_id=self.session_id,
-                query=query[:200],
+                query=query,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 orchestration_mode=self.mode.value,
             )
@@ -558,13 +671,13 @@ class DagController:
                 summary += f" note={result.note}"
             report = getattr(result, "report", "") or ""
             if report.strip():
-                summary += f" | {report.strip()[:200]}"
+                summary += f" | {report.strip()}"
         try:
             session_store.finalize_session(
                 self.db,
                 session_id,
                 state,
-                result=summary[:500] or None,
+                result=summary or None,
                 error=error_note,
             )
         except Exception as exc:

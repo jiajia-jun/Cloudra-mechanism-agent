@@ -417,3 +417,94 @@ async def test_supervisor_wakes_coalesce_while_running(tmp_path):
     # 3 个触发只跑出 2 轮：首轮 + 一次合并轮
     assert len(supervisor.triggers) == 2
     assert supervisor.triggers[0] == "tool_call_review"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_artifact_is_not_reenqueued(tmp_path):
+    """同构 artifact 重提不产生新 review 周期；来源与判别元数据落库。"""
+    from cloudra.dag.controller import DagController
+
+    await _seed_guided(
+        tmp_path,
+        "review-dedup",
+        calls=[
+            (
+                "tc-1",
+                "gaussian_log_parser",
+                {"log_path": "/x/da_ts.log"},
+                {"is_success": True, "frequencies_cm": [144.7], "imaginary_frequencies": [-951.72]},
+            ),
+        ],
+    )
+    db = ConversationDB("review-dedup")
+    controller = DagController(db, "s1", "dag_guided", conversation_id="review-dedup")
+    # 同构重提：不同 tool_call_id、相同 arguments + result。
+    delta = await controller.on_tool_finished(
+        "tc-2",
+        "gaussian_log_parser",
+        {"log_path": "/x/da_ts.log"},
+        {"is_success": True, "frequencies_cm": [144.7], "imaginary_frequencies": [-951.72]},
+    )
+    inbox = _inbox(db)
+    assert [row.tool_call_id for row in inbox] == ["tc-1"]
+    assert inbox[0].source_path == "/x/da_ts.log"
+    assert inbox[0].result_kind == "ok"
+    # 去重不是静默：Coordinator 收到可执行的提示（需说明变更）。
+    assert delta.dedup_review_id == inbox[0].review_id
+    assert "duplicate" in delta.summary_line() and "re-submitting" in delta.summary_line()
+
+    # 内容不同（结果变了）则照常入箱。
+    await controller.on_tool_finished(
+        "tc-3",
+        "gaussian_log_parser",
+        {"log_path": "/x/da_ts.log"},
+        {"is_success": True, "frequencies_cm": [144.7], "imaginary_frequencies": [-950.0]},
+    )
+    assert len(_inbox(db)) == 2
+
+
+@pytest.mark.asyncio
+async def test_review_provenance_classifies_failure(tmp_path):
+    """失败判别：source_missing / parse_failed / environment 挂进 review。"""
+    await _seed_guided(
+        tmp_path,
+        "review-kinds",
+        calls=[
+            ("tc-miss", "gaussian_log_parser", {"log_path": "/x/nope.log"},
+             {"is_success": False, "message": "Log file not found: /x/nope.log"}),
+            ("tc-parse", "gaussian_log_parser", {"log_path": "/x/bad.log"},
+             {"is_success": False, "message": "Failed to parse the log: truncated"}),
+        ],
+    )
+    inbox = {row.tool_call_id: row for row in _inbox(ConversationDB("review-kinds"))}
+    assert inbox["tc-miss"].result_kind == "source_missing"
+    assert inbox["tc-parse"].result_kind == "parse_failed"
+    assert inbox["tc-miss"].source_path == "/x/nope.log"
+
+
+@pytest.mark.asyncio
+async def test_view_evidence_returns_full_arguments_and_result(tmp_path):
+    """dag_view_evidence 开放 read：能取回完整 arguments + result。"""
+    from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
+
+    agent, session, db = await _seed_guided(
+        tmp_path,
+        "review-view-evidence",
+        calls=[
+            (
+                "tc-1",
+                "gaussian_log_parser",
+                {"log_path": "/x/da_ts.log", "requested": ["frequencies"]},
+                {"is_success": True, "imaginary_frequencies": [-951.72]},
+            ),
+        ],
+    )
+    review = _inbox(db)[0]
+    out = await _call(
+        DagViewEvidence, agent, session, review_id=review.review_id
+    )
+    assert out.is_success is True
+    assert out.result["source_name"] == "gaussian_log_parser"
+    assert out.result["arguments"]["log_path"] == "/x/da_ts.log"
+    assert out.result["result"]["imaginary_frequencies"] == [-951.72]
+    assert out.result["review_id"] == review.review_id

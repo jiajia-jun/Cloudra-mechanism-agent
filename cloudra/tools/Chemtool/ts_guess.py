@@ -1059,7 +1059,10 @@ class TsGuess(Tool):
             message=(
                 f"{user_input.engine} constrained-scan input written to {user_input.output_path}: "
                 f"{coord_letter} {'-'.join(str(a) for a in user_input.atoms)} scanned from {start:.4f} to {end:.4f} "
-                f"in {user_input.scan_steps} steps (step size {step_size:+.6f})."
+                f"in {user_input.scan_steps} steps (step size {step_size:+.6f}). "
+                "If you hand-edit the input: keep one blank line between the coordinate block and the "
+                "ModRedundant B/A/D lines, and do NOT add a second S line — two S lines are a 2D grid "
+                "scan (N×M points), not a 1D diagonal scan."
             ),
         )
 

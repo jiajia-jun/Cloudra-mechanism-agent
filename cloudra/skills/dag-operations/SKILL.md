@@ -12,11 +12,16 @@ There is exactly one persistent graph — the delivery (mechanism) graph. There 
 - `dag_accept_mechanism`: Supervisor only (`dag_guided`): accept commits the draft (all stages start `pending`) and unlocks compute; reject returns it with a mandatory reason. In `dag_record` the harness auto-accepts on proposal.
 - `dag_add_species` / `dag_add_step` / `dag_update_delivery_element`: Coordinator adjusts the accepted mechanism. Each change wakes the Supervisor for audit in `dag_guided`.
 - `dag_review_call`: Supervisor only (`dag_guided`): adjudicate one finished call from the review inbox and bind its stage verdict.
-- `dag_bind_evidence`: Coordinator only, `dag_record` only: bind a finished call to a declared stage yourself (requires `stage_kind`).
+- `dag_bind_evidence`: Coordinator binds a finished call to a declared stage. In `dag_record` it binds
+  directly; in `dag_guided` it **submits the call's result into the review inbox** for the Supervisor to
+  adjudicate — use it for evidence-bearing tools that do not auto-review (e.g. `format_converter`,
+  `internal_coordinates`), passing `tool_call_id`, `bind_target`, and `stage_kind`.
 - `dag_message_supervisor`: Coordinator leaves a note for Supervisor (appeal a verdict, explain a contract choice, report a blocker). Does not change the graph. Not available to sub-agents.
 - `dag_remove_edge`: delete a delivery edge; `rationale` is required (deletions stay in the change log). Supervisor is read-only on delivery, so structural cleanup is the Coordinator's job.
 - `dag_set_coverage_contract`: Supervisor only; strengthen the coverage contract (never weaken — waivers are user-only).
 - `dag_delivery_report` / `dag_view`: coverage self-check and graph/review-inbox inspection.
+- `dag_view_evidence`: read the full source arguments + parsed result behind one review (or evidence id) —
+  use it to distinguish a broken parser from a genuinely missing source file before appealing.
 
 ## The stage model
 
@@ -24,6 +29,8 @@ Every delivery element carries an ordered **stage contract**, chosen by the Coor
 
 - Occurrence stages: `geometry`, `frequency`, `single_point`.
 - Elementary-step stages: `ts_guess` (advisory; can never satisfy `ts_opt`/`frequency`), `ts_opt`, `frequency`, `short_irc`, `endpoint_a`, `endpoint_b`, `direction`, `identity`, `thermochemistry`.
+
+Endpoint convention (read this before naming endpoints): **`endpoint_a` is the step's target-node side (the product); `endpoint_b` is the source-node side (the reactant complex).** For a Diels-Alder step that is "reactant complex → product", `endpoint_a` = the product (e.g. cyclohexene) and `endpoint_b` = the reactant complex (e.g. s-cis-butadiene + ethylene). Do not guess — check the edge's source/target nodes with `dag_view`.
 
 Stage status: `pending` → `supported` (bound to a successful call), `skipped` (reason required — the only non-success disposal), or `rejected` (reason required — **an open gap that is still owed**, not a disposal; the only exits are a later re-bind or an explicit skip-with-reason).
 
@@ -115,3 +122,9 @@ Every rejection is actionable: the error includes the correct format, current st
 and resend; you do not need to look up revision numbers or ids again. A `stage_out_of_order` or
 `saddle_check_failed` rejection means the contract, not the tool call, is the constraint — bind the missing
 earlier stage (or skip it with a reason) first.
+
+Evidence timing is order-sensitive: a `frequency` bind is rejected until `ts_opt` is bound first. Land the
+evidence in contract order (or bind the earlier stage in the same pass). Re-running the same tool on the same
+unchanged source produces a **duplicate** — an already-queued review is not re-queued; if you are re-submitting
+on purpose, say what changed (new log, re-run job). Only post-completion artifacts count: submit the finished
+job's parser output, not the `submit_compute_job` call.

@@ -157,8 +157,15 @@ class CallReview(BaseModel):
     caller_legacy_id: str = ""  # legacy a-N（D13 单一映射路径）
     arguments_digest: str = ""
     result_summary: str = ""
+    # 来源/判别元数据（sidecar only，供 Supervisor 判断，不构成绑定权威）：
+    # source_path 是产生本 artifact 的源文件绝对路径（如解析工具的 log_path）；
+    # result_kind 是机器可读的失败类别（ok / source_missing / parse_failed /
+    # environment / failed），用于区分"证据坏"与"解析管线坏"。
+    source_path: str = ""
+    result_kind: str = ""
     compute_job_id: str | None = None
     suggested_target_id: str | None = None  # Coordinator 提示，sidecar only
+    suggested_stage: str = ""  # Coordinator 声明的目标阶段（sidecar only）
     state: Literal["pending", "reviewed", "ignored"] = "pending"
     created_at: str = ""
 
@@ -945,6 +952,24 @@ _DAG_GUIDED_FOLLOWER_GUIDANCE = (
 # 投影 _DAG_GUIDED_FOLLOWER_GUIDANCE。
 _COORDINATOR_ACTOR_IDS = frozenset({"a-0", "coordinator"})
 
+# 阶段语义词典：随投影注入，让 Coordinator 与子 agent 对每个阶段的含义
+# （尤其 endpoint_a/b 的端点定义）有共同理解，避免子 agent 凭直觉把
+# endpoint_a/b 命名反了。stage list 的顺序即绑定顺序。
+_STAGE_GLOSSARY = (
+    "Delivery stage semantics (list order is the bind order):\n"
+    "- geometry: optimized minimum structure of a species occurrence (0 imaginary frequencies).\n"
+    "- frequency: frequency analysis — for a species, all real; for a step, exactly one imaginary.\n"
+    "- single_point: a single-point energy of a species.\n"
+    "- ts_guess: advisory scan/guess for a transition structure; NEVER satisfies ts_opt/frequency.\n"
+    "- ts_opt: transition-state optimization converging to a first-order saddle point.\n"
+    "- short_irc: an IRC path from the saddle connecting both sides.\n"
+    "- endpoint_a: the TARGET-node side of the step (the product).\n"
+    "- endpoint_b: the SOURCE-node side of the step (the reactant complex).\n"
+    "- direction: the IRC direction/connectivity is consistent with the declared reaction coordinate.\n"
+    "- identity: the endpoint's structure matches the declared species (SMILES/connectivity).\n"
+    "- thermochemistry: energy corrections for the step."
+)
+
 
 class DagProjection(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -977,6 +1002,7 @@ class DagProjection(BaseModel):
         payload.pop("revisions", None)
         return (
             f"[DAG orchestration] {guidance}\n"
+            f"{_STAGE_GLOSSARY}\n"
             "Graph projection (bounded, stable refs only, no compute body):\n"
             + json.dumps(
                 payload,

@@ -429,9 +429,9 @@ class DagStore:
                     INSERT OR IGNORE INTO dag_call_reviews(
                         review_id, tool_call_id, tool_name, is_success,
                         caller_session_id, caller_role_id, caller_legacy_id,
-                        arguments_digest, result_summary, compute_job_id,
-                        suggested_target_id, state, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        arguments_digest, result_summary, source_path, result_kind,
+                        compute_job_id, suggested_target_id, suggested_stage, state, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         review.review_id,
@@ -443,8 +443,11 @@ class DagStore:
                         review.caller_legacy_id,
                         review.arguments_digest,
                         review.result_summary,
+                        review.source_path,
+                        review.result_kind,
                         review.compute_job_id,
                         review.suggested_target_id,
+                        review.suggested_stage,
                         review.state,
                         review.created_at,
                     ),
@@ -464,16 +467,20 @@ class DagStore:
             caller_legacy_id=row[6],
             arguments_digest=row[7],
             result_summary=row[8],
-            compute_job_id=row[9],
-            suggested_target_id=row[10],
-            state=row[11],
-            created_at=row[12],
+            source_path=row[9],
+            result_kind=row[10],
+            compute_job_id=row[11],
+            suggested_target_id=row[12],
+            suggested_stage=row[13],
+            state=row[14],
+            created_at=row[15],
         )
 
     _REVIEW_COLUMNS = (
         "review_id, tool_call_id, tool_name, is_success, caller_session_id, "
         "caller_role_id, caller_legacy_id, arguments_digest, result_summary, "
-        "compute_job_id, suggested_target_id, state, created_at"
+        "source_path, result_kind, compute_job_id, suggested_target_id, suggested_stage, "
+        "state, created_at"
     )
 
     def list_call_reviews(self, state: str | None = "pending") -> list[CallReview]:
@@ -486,6 +493,27 @@ class DagStore:
         with self.db.connect() as con:
             rows = con.execute(query, params).fetchall()
         return [self._review_from_row(row) for row in rows]
+
+    def find_duplicate_review(
+        self, tool_name: str, arguments_digest: str, result_summary: str
+    ) -> str | None:
+        """返回与 (tool_name, arguments, result) 完全同构的**仍 pending** 的
+        review_id，无则 None。
+
+        只对还在排队中的重复去重——防止同一份 artifact 灌满 inbox；一旦
+        已裁决（reviewed/ignored），Coordinator 有意重提应生成新 review 周期
+        （例如上次裁决后上游已修复）。
+        """
+        with self.db.connect() as con:
+            rows = con.execute(
+                "SELECT review_id, result_summary FROM dag_call_reviews "
+                "WHERE tool_name = ? AND arguments_digest = ? AND state = 'pending'",
+                (tool_name, arguments_digest),
+            ).fetchall()
+        for review_id, stored_summary in rows:
+            if stored_summary == result_summary:
+                return review_id
+        return None
 
     def get_call_review(self, review_id: str) -> CallReview | None:
         with self.db.connect() as con:
