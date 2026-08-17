@@ -90,7 +90,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。
 - `install.sh` / `install.ps1` — 安装脚本；`build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改。
-- `软著申请材料/`、`copyright_docs/`、`*.pdf` 研究报告 — 申报材料，非代码。
+- `软著申请材料/`、`copyright_docs/`、`*.pdf` 研究报告 — 申报材料，非代码。软著源程序清单由 `scripts/gen_copyright_source.py` 重建（改代码后重跑）；`软著申请材料/06_LaTeX排版/` 为打印递交版，用 conda 环境 `tectonic` 的 tectonic 编译（`conda create -n tectonic -c conda-forge tectonic`，一次性）。
 
 ## 工作约定
 

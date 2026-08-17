@@ -1,1620 +1,1622 @@
-Cloudra V1.6.2                                              第 1 页
+Cloudra V2.0                                                第 1 页
 ----------------------------------------------------------------------
 cloudra/__init__.py:1	"""Cloudra - AI Agent collaboration framework for chemical research."""
 cloudra/__init__.py:2	
-cloudra/__init__.py:3	__version__ = "1.6.2"
+cloudra/__init__.py:3	from importlib import import_module
+cloudra/__init__.py:4	
+cloudra/__init__.py:5	__version__ = "2.0.0-beta"
+cloudra/__init__.py:6	
+cloudra/__init__.py:7	_LAZY_EXPORTS = {
+cloudra/__init__.py:8	    "Agent": ("cloudra.core.agent", "Agent"),
+cloudra/__init__.py:9	    "Coordinator": ("cloudra.core.agent", "Coordinator"),
+cloudra/__init__.py:10	}
+cloudra/__init__.py:11	# 兼容垫片：包结构重排（core/services/persistence/base/infra）前的
+cloudra/__init__.py:12	# `from cloudra import X` 老路径全部继续可用（惰性加载，不提前拉起重依赖）。
+cloudra/__init__.py:13	_LAZY_MODULES = {
+cloudra/__init__.py:14	    # core
+cloudra/__init__.py:15	    "agent": "cloudra.core.agent",
+cloudra/__init__.py:16	    "supervisor": "cloudra.core.supervisor",
+cloudra/__init__.py:17	    # services
+cloudra/__init__.py:18	    "session_store": "cloudra.services.session_store",
+cloudra/__init__.py:19	    "nodes": "cloudra.services.nodes",
+cloudra/__init__.py:20	    # persistence
+cloudra/__init__.py:21	    "database": "cloudra.persistence.database",
+cloudra/__init__.py:22	    "artifacts": "cloudra.persistence.artifacts",
+cloudra/__init__.py:23	    "memory": "cloudra.persistence.memory",
+cloudra/__init__.py:24	    "context_manager": "cloudra.persistence.context_manager",
+cloudra/__init__.py:25	    "paths": "cloudra.persistence.paths",
+cloudra/__init__.py:26	    "fs_utils": "cloudra.persistence.fs_utils",
+cloudra/__init__.py:27	    "workspace": "cloudra.persistence.workspace",
+cloudra/__init__.py:28	    # base
+cloudra/__init__.py:29	    "session_class": "cloudra.base.session_class",
+cloudra/__init__.py:30	    "conversation_class": "cloudra.base.conversation_class",
+cloudra/__init__.py:31	    "log_class": "cloudra.base.log_class",
+cloudra/__init__.py:32	    "skill_class": "cloudra.base.skill_class",
+cloudra/__init__.py:33	    "tools_class": "cloudra.base.tools_class",
+cloudra/__init__.py:34	    # infra
+cloudra/__init__.py:35	    "config": "cloudra.infra.config",
+cloudra/__init__.py:36	    "llm_client": "cloudra.infra.llm_client",
+cloudra/__init__.py:37	    "events": "cloudra.infra.events",
+cloudra/__init__.py:38	    "ipc": "cloudra.infra.ipc",
+cloudra/__init__.py:39	    "streaming": "cloudra.infra.streaming",
+cloudra/__init__.py:40	    "token_estimator": "cloudra.infra.token_estimator",
+cloudra/__init__.py:41	    "web_search_native": "cloudra.infra.web_search_native",
+cloudra/__init__.py:42	    "slurm": "cloudra.infra.slurm",
+cloudra/__init__.py:43	    "compute_utils": "cloudra.infra.compute_utils",
+cloudra/__init__.py:44	    "operations": "cloudra.infra.operations",
+cloudra/__init__.py:45	    "yolo_guard": "cloudra.infra.yolo_guard",
+cloudra/__init__.py:46	    "platform_utils": "cloudra.infra.platform_utils",
+cloudra/__init__.py:47	    "runtime_profile": "cloudra.infra.runtime_profile",
+cloudra/__init__.py:48	}
+cloudra/__init__.py:49	
+cloudra/__init__.py:50	__all__ = [*_LAZY_EXPORTS, *_LAZY_MODULES, "__version__"]
+cloudra/__init__.py:51	
+cloudra/__init__.py:52	
+Cloudra V2.0                                                第 2 页
+----------------------------------------------------------------------
+cloudra/__init__.py:53	def __getattr__(name: str):
+cloudra/__init__.py:54	    """Keep legacy package exports without importing the Agent runtime eagerly."""
+cloudra/__init__.py:55	    target = _LAZY_EXPORTS.get(name)
+cloudra/__init__.py:56	    if target is not None:
+cloudra/__init__.py:57	        module_name, attribute = target
+cloudra/__init__.py:58	        value = getattr(import_module(module_name), attribute)
+cloudra/__init__.py:59	        globals()[name] = value
+cloudra/__init__.py:60	        return value
+cloudra/__init__.py:61	    module_path = _LAZY_MODULES.get(name)
+cloudra/__init__.py:62	    if module_path is not None:
+cloudra/__init__.py:63	        value = import_module(module_path)
+cloudra/__init__.py:64	        globals()[name] = value
+cloudra/__init__.py:65	        return value
+cloudra/__init__.py:66	    raise AttributeError(f"module 'cloudra' has no attribute {name!r}")
+cloudra/__init__.py:67	
+cloudra/__init__.py:68	
+cloudra/__init__.py:69	def __dir__() -> list[str]:
+cloudra/__init__.py:70	    return sorted(set(globals()) | set(__all__))
 cloudra/__main__.py:1	"""Allow running as `python -m cloudra`."""
 cloudra/__main__.py:2	from cloudra.cli import main
 cloudra/__main__.py:3	
 cloudra/__main__.py:4	if __name__ == "__main__":
 cloudra/__main__.py:5	    main()
-cloudra/agent.py:1	import os
-cloudra/agent.py:2	from pathlib import Path
-cloudra/agent.py:3	from typing import Optional, Union
-cloudra/agent.py:4	
-cloudra/agent.py:5	from dotenv import load_dotenv
-cloudra/agent.py:6	from openai import OpenAI, Stream
-cloudra/agent.py:7	from openai.types.chat import ChatCompletion, ChatCompletionChunk
-cloudra/agent.py:8	from pydantic import BaseModel
-cloudra/agent.py:9	
-cloudra/agent.py:10	from cloudra.context_manager import ContextManager
-cloudra/agent.py:11	from cloudra.tools import get_tools_lst
-cloudra/agent.py:12	from cloudra.tools.core.permission_model import Permission, check_permission
-cloudra/agent.py:13	from cloudra.tools_class import Tool
-cloudra/agent.py:14	
-cloudra/agent.py:15	load_dotenv()
-cloudra/agent.py:16	
-cloudra/agent.py:17	ChatResponse = Union[ChatCompletion, Stream[ChatCompletionChunk]]
-cloudra/agent.py:18	
-cloudra/agent.py:19	
-cloudra/agent.py:20	def load_prompt(agent_name: str) -> str:
-cloudra/agent.py:21	    """
-cloudra/agent.py:22	    从 prompts/{agent_name}.md 加载对应 Agent 的 prompt。
-cloudra/agent.py:23	    便于将 prompt 与代码分离，统一在 prompts/ 目录下管理。
-cloudra/agent.py:24	    """
-cloudra/agent.py:25	    prompts_dir = Path(__file__).parent / 'prompts'
-cloudra/agent.py:26	    prompt_path = prompts_dir / f"{agent_name}.md"
-cloudra/agent.py:27	    if not prompt_path.exists():
-cloudra/agent.py:28	        raise FileNotFoundError(f"找不到 prompt 文件: {prompt_path}")
-cloudra/agent.py:29	    return prompt_path.read_text(encoding='utf-8')
-cloudra/agent.py:30	
-cloudra/agent.py:31	
-cloudra/agent.py:32	class Agent(BaseModel):
-cloudra/agent.py:33	    '''agent父类，用于定义各类agent属性：
-cloudra/agent.py:34	    1.唯一标识符（id）
-cloudra/agent.py:35	    2.agent名称(name)
-cloudra/agent.py:36	    3.agent类型(type)
-cloudra/agent.py:37	    4.agent使用模型（model）
-cloudra/agent.py:38	    5.agent使用模型url（llm_site）
-cloudra/agent.py:39	    6.agent使用模型key（_api_key）
-cloudra/agent.py:40	    7.agent使用模型温度（temperature）
-cloudra/agent.py:41	    8.agent使用模型最大token（max_tokens）
-cloudra/agent.py:42	    9.agent使用模型top_p（top_p）
-
-
-Cloudra V1.6.2                                              第 2 页
+cloudra/base/__init__.py:1	"""cloudra.base 子包。"""
+cloudra/base/conversation_class.py:1	import json
+cloudra/base/conversation_class.py:2	import os
+cloudra/base/conversation_class.py:3	import re
+cloudra/base/conversation_class.py:4	import uuid
+cloudra/base/conversation_class.py:5	from datetime import datetime
+cloudra/base/conversation_class.py:6	
+cloudra/base/conversation_class.py:7	from cloudra.persistence import paths
+cloudra/base/conversation_class.py:8	from cloudra.persistence.fs_utils import atomic_write_json
+cloudra/base/conversation_class.py:9	
+cloudra/base/conversation_class.py:10	
+cloudra/base/conversation_class.py:11	class Conversation:
+cloudra/base/conversation_class.py:12	    """
+cloudra/base/conversation_class.py:13	    用户级会话容器，隔离不同对话的上下文和历史记录。
+cloudra/base/conversation_class.py:14	    一个 Conversation 包含：
+cloudra/base/conversation_class.py:15	      - contexts/   : 该会话下各 agent 的上下文文件
+cloudra/base/conversation_class.py:16	      - sessions/   : 该会话下 reAct 执行记录
+cloudra/base/conversation_class.py:17	      - meta.json   : 会话元数据（创建时间、最后活跃时间、状态）
+cloudra/base/conversation_class.py:18	
+cloudra/base/conversation_class.py:19	    状态说明：
+cloudra/base/conversation_class.py:20	      - active  : 新建或刚恢复，尚未开始运行
+cloudra/base/conversation_class.py:21	      - running : Coordinator 正在运行中
+cloudra/base/conversation_class.py:22	      - sleeping: Coordinator 已完成任务，处于休眠等待唤醒状态
+cloudra/base/conversation_class.py:23	      - archived: 已归档，不再活跃
+cloudra/base/conversation_class.py:24	    """
+cloudra/base/conversation_class.py:25	
+cloudra/base/conversation_class.py:26	    id: str
+cloudra/base/conversation_class.py:27	    path: str
+cloudra/base/conversation_class.py:28	    create_time: datetime
+Cloudra V2.0                                                第 3 页
 ----------------------------------------------------------------------
-cloudra/agent.py:43	    10.agent使用模型频率惩罚（frequency_penalty）
-cloudra/agent.py:44	    11.agent使用模型存在惩罚（presence_penalty）
-cloudra/agent.py:45	    12.agent身份prompt（prompt）
-cloudra/agent.py:46	    13.agent上下文管理器（context_manager）
-cloudra/agent.py:47	    14.agent输出方式（is_stream）
-cloudra/agent.py:48	
-cloudra/agent.py:49	    该类的其他方法:
-cloudra/agent.py:50	    权限：has_write_permission，has_read_permission，script_run_permission，destructive_permission(均为布尔值输出)
-cloudra/agent.py:51	    llm_call方法：调用llm，输出ChatResponse或ChatStream
-cloudra/agent.py:52	    后续可能加入的方法：调用本地专用模型，不能通过openai接口，因此待定，可以上github上看看有没有开源的逆合成分析模型等
-cloudra/agent.py:53	    '''
-cloudra/agent.py:54	    model_config = {"arbitrary_types_allowed": True}
-cloudra/agent.py:55	
-cloudra/agent.py:56	    #唯一标识符
-cloudra/agent.py:57	    id: str
-cloudra/agent.py:58	
-cloudra/agent.py:59	    #agent名称
-cloudra/agent.py:60	    name: str
-cloudra/agent.py:61	
-cloudra/agent.py:62	    #agent类型：coordinator,researcher,...other
-cloudra/agent.py:63	    type: str
-cloudra/agent.py:64	
-cloudra/agent.py:65	    #agent使用模型
-cloudra/agent.py:66	    model: str
-cloudra/agent.py:67	
-cloudra/agent.py:68	    #agent使用模型url
-cloudra/agent.py:69	    llm_site: str
-cloudra/agent.py:70	
-cloudra/agent.py:71	    #agent使用模型key
-cloudra/agent.py:72	    _api_key: str
-cloudra/agent.py:73	
-cloudra/agent.py:74	    #agent使用模型温度
-cloudra/agent.py:75	    temperature: float = 0.7
-cloudra/agent.py:76	
-cloudra/agent.py:77	    #agent使用模型最大token（生成限制）
-cloudra/agent.py:78	    max_tokens: int
-cloudra/agent.py:79	
-cloudra/agent.py:80	    #agent使用模型上下文窗口（用于上下文压缩阈值计算）
-cloudra/agent.py:81	    context_window: int = 128000
-cloudra/agent.py:82	
-cloudra/agent.py:83	    #agent使用模型top_p
-cloudra/agent.py:84	    top_p: float = 1.0
-cloudra/agent.py:85	
-cloudra/agent.py:86	    #agent使用模型频率惩罚
-cloudra/agent.py:87	    frequency_penalty: float = 0.0
-cloudra/agent.py:88	
-cloudra/agent.py:89	    #agent使用模型存在惩罚
-cloudra/agent.py:90	    presence_penalty: float = 0.0
-cloudra/agent.py:91	
-cloudra/agent.py:92	    #agent身份prompt，如：“你是一个多agent协作体系的协调器......”
-
-
-Cloudra V1.6.2                                              第 3 页
+cloudra/base/conversation_class.py:29	    last_active: datetime
+cloudra/base/conversation_class.py:30	    state: str = 'active'
+cloudra/base/conversation_class.py:31	
+cloudra/base/conversation_class.py:32	    VALID_STATES = {'active', 'running', 'sleeping', 'archived'}
+cloudra/base/conversation_class.py:33	    ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
+cloudra/base/conversation_class.py:34	
+cloudra/base/conversation_class.py:35	    def __init__(self, conv_id: str = None):
+cloudra/base/conversation_class.py:36	        if conv_id:
+cloudra/base/conversation_class.py:37	            if not self.ID_PATTERN.fullmatch(conv_id):
+cloudra/base/conversation_class.py:38	                raise ValueError("会话 ID 只能包含字母、数字、下划线和连字符，长度不超过 100")
+cloudra/base/conversation_class.py:39	            # 恢复已有对话
+cloudra/base/conversation_class.py:40	            self.id = conv_id
+cloudra/base/conversation_class.py:41	            self.path = str(paths.conversation_dir(conv_id))
+cloudra/base/conversation_class.py:42	            self._load_meta()
+cloudra/base/conversation_class.py:43	        else:
+cloudra/base/conversation_class.py:44	            # 新建对话
+cloudra/base/conversation_class.py:45	            self.id = self._generate_id()
+cloudra/base/conversation_class.py:46	            self.path = str(paths.conversation_dir(self.id))
+cloudra/base/conversation_class.py:47	            self.create_time = datetime.now()
+cloudra/base/conversation_class.py:48	            self.last_active = self.create_time
+cloudra/base/conversation_class.py:49	            self.state = 'active'
+cloudra/base/conversation_class.py:50	            self._ensure_dirs()
+cloudra/base/conversation_class.py:51	            self._save_meta()
+cloudra/base/conversation_class.py:52	
+cloudra/base/conversation_class.py:53	    def _generate_id(self) -> str:
+cloudra/base/conversation_class.py:54	        return f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+cloudra/base/conversation_class.py:55	
+cloudra/base/conversation_class.py:56	    def _ensure_dirs(self):
+cloudra/base/conversation_class.py:57	        os.makedirs(os.path.join(self.path, 'contexts'), exist_ok=True)
+cloudra/base/conversation_class.py:58	        os.makedirs(os.path.join(self.path, 'sessions'), exist_ok=True)
+cloudra/base/conversation_class.py:59	
+cloudra/base/conversation_class.py:60	    def _meta_path(self) -> str:
+cloudra/base/conversation_class.py:61	        return os.path.join(self.path, 'meta.json')
+cloudra/base/conversation_class.py:62	
+cloudra/base/conversation_class.py:63	    def _save_meta(self):
+cloudra/base/conversation_class.py:64	        atomic_write_json(
+cloudra/base/conversation_class.py:65	            self._meta_path(),
+cloudra/base/conversation_class.py:66	            {
+cloudra/base/conversation_class.py:67	                'id': self.id,
+cloudra/base/conversation_class.py:68	                'create_time': self.create_time.isoformat(),
+cloudra/base/conversation_class.py:69	                'last_active': self.last_active.isoformat(),
+cloudra/base/conversation_class.py:70	                'state': self.state,
+cloudra/base/conversation_class.py:71	            },
+cloudra/base/conversation_class.py:72	        )
+cloudra/base/conversation_class.py:73	
+cloudra/base/conversation_class.py:74	    def _load_meta(self):
+cloudra/base/conversation_class.py:75	        meta_path = self._meta_path()
+cloudra/base/conversation_class.py:76	        if os.path.exists(meta_path):
+cloudra/base/conversation_class.py:77	            with open(meta_path, 'r', encoding='utf-8') as f:
+cloudra/base/conversation_class.py:78	                meta = json.load(f)
+cloudra/base/conversation_class.py:79	                self.create_time = datetime.fromisoformat(meta['create_time'])
+cloudra/base/conversation_class.py:80	                self.last_active = datetime.fromisoformat(meta['last_active'])
+Cloudra V2.0                                                第 4 页
 ----------------------------------------------------------------------
-cloudra/agent.py:93	    prompt: str
-cloudra/agent.py:94	
-cloudra/agent.py:95	    #目标赋予prompt，如：“你的任务是......”
-cloudra/agent.py:96	    query: str
-cloudra/agent.py:97	
-cloudra/agent.py:98	    is_stream: bool
-cloudra/agent.py:99	
-cloudra/agent.py:100	    # 当前 Agent 使用的模型是否支持视觉输入（多模态）
-cloudra/agent.py:101	    @property
-cloudra/agent.py:102	    def supports_vision(self) -> bool:
-cloudra/agent.py:103	        return False
-cloudra/agent.py:104	
-cloudra/agent.py:105	    # 可选的会话级唯一标识。子 Agent 被启动时会被赋予独立的 session_id，
-cloudra/agent.py:106	    # 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
-cloudra/agent.py:107	    session_id: Optional[str] = None
-cloudra/agent.py:108	
-cloudra/agent.py:109	    # 上下文管理器：Agent 上下文的唯一真相来源
-cloudra/agent.py:110	    context_manager: Optional[ContextManager] = None
-cloudra/agent.py:111	
-cloudra/agent.py:112	    conversation_id: str
-cloudra/agent.py:113	
-cloudra/agent.py:114	    def _init_context_manager(self) -> None:
-cloudra/agent.py:115	        '''初始化本 Agent 的 ContextManager。'''
-cloudra/agent.py:116	        self.context_manager = ContextManager(
-cloudra/agent.py:117	            agent_id=self.id,
-cloudra/agent.py:118	            conversation_id=self.conversation_id,
-cloudra/agent.py:119	            prompt=self.prompt,
-cloudra/agent.py:120	            query=self.query,
-cloudra/agent.py:121	            session_id=getattr(self, 'session_id', None),
-cloudra/agent.py:122	        )
-cloudra/agent.py:123	
-cloudra/agent.py:124	    async def get_context(self) -> list:
-cloudra/agent.py:125	        '''
-cloudra/agent.py:126	        加载上下文。ContextManager 是上下文的唯一真相来源。
-cloudra/agent.py:127	        '''
-cloudra/agent.py:128	        if self.context_manager is None:
-cloudra/agent.py:129	            self._init_context_manager()
-cloudra/agent.py:130	        return await self.context_manager.load()
-cloudra/agent.py:131	
-cloudra/agent.py:132	    async def update_context(self, new_block: dict) -> None:
-cloudra/agent.py:133	        '''
-cloudra/agent.py:134	        更新上下文，新增一个块。
-cloudra/agent.py:135	        确保每条消息都有 role 字段。
-cloudra/agent.py:136	        文件路径根据 conversation_id 隔离。
-cloudra/agent.py:137	        '''
-cloudra/agent.py:138	        if self.context_manager is None:
-cloudra/agent.py:139	            self._init_context_manager()
-cloudra/agent.py:140	        await self.context_manager.append(new_block)
-cloudra/agent.py:141	
-cloudra/agent.py:142	    async def clear_context(self) -> None:
-
-
-Cloudra V1.6.2                                              第 4 页
+cloudra/base/conversation_class.py:81	                self.state = meta.get('state', 'active')
+cloudra/base/conversation_class.py:82	        else:
+cloudra/base/conversation_class.py:83	            self.create_time = datetime.now()
+cloudra/base/conversation_class.py:84	            self.last_active = self.create_time
+cloudra/base/conversation_class.py:85	            self.state = 'active'
+cloudra/base/conversation_class.py:86	
+cloudra/base/conversation_class.py:87	    def touch(self):
+cloudra/base/conversation_class.py:88	        """更新最后活跃时间并持久化。"""
+cloudra/base/conversation_class.py:89	        self.last_active = datetime.now()
+cloudra/base/conversation_class.py:90	        self._ensure_dirs()
+cloudra/base/conversation_class.py:91	        self._save_meta()
+cloudra/base/conversation_class.py:92	
+cloudra/base/conversation_class.py:93	    def set_state(self, state: str):
+cloudra/base/conversation_class.py:94	        """更新会话状态，仅接受预定义状态。"""
+cloudra/base/conversation_class.py:95	        if state not in self.VALID_STATES:
+cloudra/base/conversation_class.py:96	            raise ValueError(f"无效的会话状态: {state}，必须是 {self.VALID_STATES} 之一")
+cloudra/base/conversation_class.py:97	        self.state = state
+cloudra/base/conversation_class.py:98	        self.touch()
+cloudra/base/conversation_class.py:99	
+cloudra/base/conversation_class.py:100	    def get_context_path(self, agent_id: str) -> str:
+cloudra/base/conversation_class.py:101	        return os.path.join(self.path, 'contexts', f'{agent_id}.json')
+cloudra/base/conversation_class.py:102	
+cloudra/base/conversation_class.py:103	    def get_session_path(self, session_id: str) -> str:
+cloudra/base/conversation_class.py:104	        return os.path.join(self.path, 'sessions', f'{session_id}.json')
+cloudra/base/conversation_class.py:105	
+cloudra/base/conversation_class.py:106	    def list_contexts(self) -> list[str]:
+cloudra/base/conversation_class.py:107	        """列出该会话下所有已有的 agent context 文件。"""
+cloudra/base/conversation_class.py:108	        ctx_dir = os.path.join(self.path, 'contexts')
+cloudra/base/conversation_class.py:109	        if not os.path.exists(ctx_dir):
+cloudra/base/conversation_class.py:110	            return []
+cloudra/base/conversation_class.py:111	        return [f for f in os.listdir(ctx_dir) if f.endswith('.json')]
+cloudra/base/conversation_class.py:112	
+cloudra/base/conversation_class.py:113	    def archive(self):
+cloudra/base/conversation_class.py:114	        """归档会话，不再活跃。"""
+cloudra/base/conversation_class.py:115	        self.set_state('archived')
+cloudra/base/log_class.py:1	import os
+cloudra/base/log_class.py:2	
+cloudra/base/log_class.py:3	from cloudra.base.session_class import Session
+cloudra/base/log_class.py:4	from cloudra.infra.config import get_config
+cloudra/base/log_class.py:5	
+cloudra/base/log_class.py:6	
+cloudra/base/log_class.py:7	class Log:
+cloudra/base/log_class.py:8	    '''
+cloudra/base/log_class.py:9	    LOG类用于记录和管理reAct的日志信息，包括推理过程、行动结果和观察结果等。
+cloudra/base/log_class.py:10	    '''
+cloudra/base/log_class.py:11	    name: str = 'default.log'
+cloudra/base/log_class.py:12	    session: Session
+cloudra/base/log_class.py:13	    level: int
+cloudra/base/log_class.py:14	    is_main: bool
+cloudra/base/log_class.py:15	    path: str
+cloudra/base/log_class.py:16	    # 类级开关：TUI 模式置 False，终端输出改由 TUI 事件渲染器负责；
+cloudra/base/log_class.py:17	    # 日志文件写入不受此开关影响。
+Cloudra V2.0                                                第 5 页
 ----------------------------------------------------------------------
-cloudra/agent.py:143	        '''清空上下文（通常用于任务结束后释放）。'''
-cloudra/agent.py:144	        if self.context_manager is None:
-cloudra/agent.py:145	            self._init_context_manager()
-cloudra/agent.py:146	        await self.context_manager.clear()
-cloudra/agent.py:147	
-cloudra/agent.py:148	    def check_permission(self, tool: type[Tool] | Tool) -> bool:
-cloudra/agent.py:149	        '''
-cloudra/agent.py:150	        检查子agent的权限。
-cloudra/agent.py:151	        tool 可以是 Tool 类或已实例化的 Tool 对象。
-cloudra/agent.py:152	        '''
-cloudra/agent.py:153	        # NOTE: 为了兼容 get_tools_lst() 现在返回实例对象，这里先判断是否是已实例化的 Tool。
-cloudra/agent.py:154	        if isinstance(tool, Tool):
-cloudra/agent.py:155	            tool_instance = tool
-cloudra/agent.py:156	        else:
-cloudra/agent.py:157	            tool_instance = tool()
-cloudra/agent.py:158	        tool_perms = tool_instance.tool_permission_all()
-cloudra/agent.py:159	        agent_perms = self.permission_all()
-cloudra/agent.py:160	        return check_permission(agent_perms, tool_perms)    #No its not a recursion
-cloudra/agent.py:161	
-cloudra/agent.py:162	
-cloudra/agent.py:163	    def get_available_tools(self) -> list:
-cloudra/agent.py:164	        '''
-cloudra/agent.py:165	        逐个过滤tools父类池，得到子类池，该类的工具权限：
-cloudra/agent.py:166	        is_read [ ]
-cloudra/agent.py:167	        is_write [ ]
-cloudra/agent.py:168	        is_manage [ ]
-cloudra/agent.py:169	        is_script [ ]
-cloudra/agent.py:170	        is_destructive [ ]
-cloudra/agent.py:171	        '''
-cloudra/agent.py:172	        tools = get_tools_lst()
-cloudra/agent.py:173	        available_tools = []
-cloudra/agent.py:174	        for tool in tools:
-cloudra/agent.py:175	            if self.check_permission(tool):
-cloudra/agent.py:176	                # NOTE: get_tools_lst() 现已返回实例对象，无需再 tool() 构造。
-cloudra/agent.py:177	                # 需要注入 subagent 的 Bashtools/SubAgentLauncher 已在 reAct.py 中按需重新实例化。
-cloudra/agent.py:178	                available_tools.append(tool)
-cloudra/agent.py:179	        return available_tools
-cloudra/agent.py:180	
-cloudra/agent.py:181	    def has_manage_permission(self) -> bool:
-cloudra/agent.py:182	        '''
-cloudra/agent.py:183	        启动子agent的权限。
-cloudra/agent.py:184	        '''
-cloudra/agent.py:185	        return False
-cloudra/agent.py:186	
-cloudra/agent.py:187	    def has_write_permission(self) -> bool:
-cloudra/agent.py:188	        '''
-cloudra/agent.py:189	        正常情况下，agent不允许写入文件，除非在子类中额外开放。
-cloudra/agent.py:190	        '''
-cloudra/agent.py:191	        return False
-cloudra/agent.py:192	
-
-
-Cloudra V1.6.2                                              第 5 页
+cloudra/base/log_class.py:18	    terminal_output: bool = True
+cloudra/base/log_class.py:19	
+cloudra/base/log_class.py:20	    def __init__(self, log_name: str = 'default.log', log_path: str = None):
+cloudra/base/log_class.py:21	        self.name = log_name
+cloudra/base/log_class.py:22	        if log_path:
+cloudra/base/log_class.py:23	            self.path = log_path
+cloudra/base/log_class.py:24	        else:
+cloudra/base/log_class.py:25	            self.path = os.path.join(get_config().data_dir, 'logs', log_name)
+cloudra/base/log_class.py:26	        self.session = None
+cloudra/base/log_class.py:27	        self.level = 0
+cloudra/base/log_class.py:28	        self.is_main = False
+cloudra/base/log_class.py:29	        # 流式输出期间持有的文件句柄（见 begin_stream/end_stream）
+cloudra/base/log_class.py:30	        self._stream_file = None
+cloudra/base/log_class.py:31	
+cloudra/base/log_class.py:32	    def get_content(self) -> list:
+cloudra/base/log_class.py:33	        '''
+cloudra/base/log_class.py:34	        获取日志内容，返回一个列表。
+cloudra/base/log_class.py:35	        '''
+cloudra/base/log_class.py:36	        if os.path.exists(self.path):
+cloudra/base/log_class.py:37	            with open(self.path, 'r', encoding='utf-8') as f:
+cloudra/base/log_class.py:38	                content = f.readlines()
+cloudra/base/log_class.py:39	                return content
+cloudra/base/log_class.py:40	        else:
+cloudra/base/log_class.py:41	            with open(self.path, 'w', encoding='utf-8') as f:
+cloudra/base/log_class.py:42	                f.write('')
+cloudra/base/log_class.py:43	                return []
+cloudra/base/log_class.py:44	
+cloudra/base/log_class.py:45	    def begin_stream(self) -> None:
+cloudra/base/log_class.py:46	        """流式输出开始时持有文件句柄，避免每个 token 都 open/write/close。"""
+cloudra/base/log_class.py:47	        if self._stream_file is None:
+cloudra/base/log_class.py:48	            self._stream_file = open(self.path, 'a', encoding='utf-8')
+cloudra/base/log_class.py:49	
+cloudra/base/log_class.py:50	    def end_stream(self) -> None:
+cloudra/base/log_class.py:51	        """流式输出结束，关闭句柄（close 会顺带 flush 缓冲）。"""
+cloudra/base/log_class.py:52	        if self._stream_file is not None:
+cloudra/base/log_class.py:53	            self._stream_file.close()
+cloudra/base/log_class.py:54	            self._stream_file = None
+cloudra/base/log_class.py:55	
+cloudra/base/log_class.py:56	    def update_content(self, new_content: str, print_to_console: bool = True) -> None:
+cloudra/base/log_class.py:57	        '''
+cloudra/base/log_class.py:58	        更新日志内容，追加新的内容。
+cloudra/base/log_class.py:59	        '''
+cloudra/base/log_class.py:60	        if print_to_console and self.is_main and Log.terminal_output:
+cloudra/base/log_class.py:61	            print(new_content, end='', flush=True)
+cloudra/base/log_class.py:62	
+cloudra/base/log_class.py:63	        # 流式期间复用已持有的句柄；非流式维持原有一次一开的写法
+cloudra/base/log_class.py:64	        if self._stream_file is not None:
+cloudra/base/log_class.py:65	            self._stream_file.write(new_content)
+cloudra/base/log_class.py:66	            return
+cloudra/base/log_class.py:67	        with open(self.path, 'a', encoding='utf-8') as f:
+cloudra/base/log_class.py:68	            f.write(new_content)
+cloudra/base/session_class.py:1	
+Cloudra V2.0                                                第 6 页
 ----------------------------------------------------------------------
-cloudra/agent.py:193	    def has_read_permission(self) -> bool:
-cloudra/agent.py:194	        '''
-cloudra/agent.py:195	        检查是否有读取文件的权限。
-cloudra/agent.py:196	        '''
-cloudra/agent.py:197	        return True
-cloudra/agent.py:198	
-cloudra/agent.py:199	    def script_run_permission(self) -> bool:
-cloudra/agent.py:200	        '''
-cloudra/agent.py:201	        运行脚本的权限。
-cloudra/agent.py:202	        '''
-cloudra/agent.py:203	        return False
-cloudra/agent.py:204	
-cloudra/agent.py:205	    def destructive_permission(self) -> bool:
-cloudra/agent.py:206	        '''
-cloudra/agent.py:207	        如rm，mkdir等对目录结构进行变化的操作。
-cloudra/agent.py:208	        '''
-cloudra/agent.py:209	        return False
-cloudra/agent.py:210	
-cloudra/agent.py:211	    def permission_all(self) -> Permission:
-cloudra/agent.py:212	        perms = Permission.NONE
-cloudra/agent.py:213	        if self.has_read_permission():
-cloudra/agent.py:214	            perms |= Permission.READ
-cloudra/agent.py:215	        if self.has_write_permission():
-cloudra/agent.py:216	            perms |= Permission.WRITE
-cloudra/agent.py:217	        if self.has_manage_permission():
-cloudra/agent.py:218	            perms |= Permission.MANAGE
-cloudra/agent.py:219	        if self.script_run_permission():
-cloudra/agent.py:220	            perms |= Permission.SCRIPT
-cloudra/agent.py:221	        if self.destructive_permission():
-cloudra/agent.py:222	            perms |= Permission.DESTRUCTIVE
-cloudra/agent.py:223	        return perms
-cloudra/agent.py:224	
-cloudra/agent.py:225	    def _context_path(self) -> str:
-cloudra/agent.py:226	        '''
-cloudra/agent.py:227	        根据 conversation_id 返回上下文文件路径。
-cloudra/agent.py:228	        保留此方法以兼容旧代码，但新代码应优先使用 ContextManager。
-cloudra/agent.py:229	        '''
-cloudra/agent.py:230	        from cloudra.config import get_config
-cloudra/agent.py:231	        data_dir = get_config().data_dir
-cloudra/agent.py:232	        if self.conversation_id and self.conversation_id != 'default':
-cloudra/agent.py:233	            return os.path.join(data_dir, 'conversations', self.conversation_id, 'contexts', self.id + '.json')
-cloudra/agent.py:234	        return os.path.join(data_dir, 'contexts', self.id + '.json')
-cloudra/agent.py:235	
-cloudra/agent.py:236	    async def llm_call(self) -> ChatResponse:
-cloudra/agent.py:237	        '''
-cloudra/agent.py:238	        调用llm接口。
-cloudra/agent.py:239	        输出：
-cloudra/agent.py:240	        1.若实例的is_stream为True，则返回ChatStream对象(一个文本块生成器)
-cloudra/agent.py:241	        2.若实例的is_stream为False，则返回ChatResponse对象
-cloudra/agent.py:242	        '''
-
-
-Cloudra V1.6.2                                              第 6 页
+cloudra/base/session_class.py:2	import os
+cloudra/base/session_class.py:3	from datetime import datetime
+cloudra/base/session_class.py:4	
+cloudra/base/session_class.py:5	from cloudra.persistence.fs_utils import atomic_write_json
+cloudra/base/session_class.py:6	
+cloudra/base/session_class.py:7	
+cloudra/base/session_class.py:8	class Session:
+cloudra/base/session_class.py:9	    """内存态会话镜像；数据库（session 表）是唯一持久化事实来源。
+cloudra/base/session_class.py:10	
+cloudra/base/session_class.py:11	    默认不再写 per-session JSON 快照文件；调试时可设置环境变量
+cloudra/base/session_class.py:12	    ``CLOUDRA_DEBUG_SESSION_JSON=1`` 恢复写文件行为（upload_json 仍可显式调用）。
+cloudra/base/session_class.py:13	    """
+cloudra/base/session_class.py:14	    id: str
+cloudra/base/session_class.py:15	    path: str
+cloudra/base/session_class.py:16	    create_time: datetime
+cloudra/base/session_class.py:17	    state: str = 'sleeping'
+cloudra/base/session_class.py:18	
+cloudra/base/session_class.py:19	    def __init__(self, id: str, path: str) -> None:
+cloudra/base/session_class.py:20	        self.create_time = datetime.now()
+cloudra/base/session_class.py:21	        self.id = id
+cloudra/base/session_class.py:22	        self.path = path
+cloudra/base/session_class.py:23	        self.state = 'sleeping'
+cloudra/base/session_class.py:24	        if os.environ.get("CLOUDRA_DEBUG_SESSION_JSON") == "1":
+cloudra/base/session_class.py:25	            dir_name = os.path.dirname(self.path)
+cloudra/base/session_class.py:26	            if dir_name:
+cloudra/base/session_class.py:27	                os.makedirs(dir_name, exist_ok=True)
+cloudra/base/session_class.py:28	            self.upload_json()
+cloudra/base/session_class.py:29	
+cloudra/base/session_class.py:30	
+cloudra/base/session_class.py:31	    def to_json(self) -> dict:
+cloudra/base/session_class.py:32	        create_time = self.create_time
+cloudra/base/session_class.py:33	        if isinstance(create_time, datetime):
+cloudra/base/session_class.py:34	            create_time = create_time.isoformat()
+cloudra/base/session_class.py:35	        json_dict = {
+cloudra/base/session_class.py:36	            'id': self.id,
+cloudra/base/session_class.py:37	            'path': self.path,
+cloudra/base/session_class.py:38	            'create_time': create_time,
+cloudra/base/session_class.py:39	            'state': self.state,
+cloudra/base/session_class.py:40	        }
+cloudra/base/session_class.py:41	        return json_dict
+cloudra/base/session_class.py:42	
+cloudra/base/session_class.py:43	    def upload_json(self):
+cloudra/base/session_class.py:44	        atomic_write_json(self.path, self.to_json())
+cloudra/base/session_class.py:45	
+cloudra/base/skill_class.py:1	import hashlib
+cloudra/base/skill_class.py:2	import os
+cloudra/base/skill_class.py:3	
+cloudra/base/skill_class.py:4	import frontmatter as frt
+cloudra/base/skill_class.py:5	
+cloudra/base/skill_class.py:6	# 模块级缓存按 SKILL.md 内容 revision 失效。Phase 6 后 skill manifest
+cloudra/base/skill_class.py:7	# 允许在进程运行期间更新，不能再假设目录在整个进程生命周期中静态不变。
+cloudra/base/skill_class.py:8	_SKILL_DATAS_CACHE: dict[str, tuple[str, list[dict]]] = {}
+Cloudra V2.0                                                第 7 页
 ----------------------------------------------------------------------
-cloudra/agent.py:243	        tool_classes = get_tools_lst()
-cloudra/agent.py:244	        available_tool_classes = []
-cloudra/agent.py:245	        for tool in tool_classes:
-cloudra/agent.py:246	            if self.check_permission(tool):
-cloudra/agent.py:247	                # 重新实例化并注入当前 Agent，使依赖 subagent 的动态 tool_description 生效。
-cloudra/agent.py:248	                # 同时避免直接修改 get_tools_lst() 返回的全局缓存实例。
-cloudra/agent.py:249	                tool_instance = tool.__class__(subagent=self)
-cloudra/agent.py:250	                available_tool_classes.append(tool_instance.tool_schema_json())
-cloudra/agent.py:251	
-cloudra/agent.py:252	        client = OpenAI(
-cloudra/agent.py:253	            api_key=self._api_key,
-cloudra/agent.py:254	            base_url=self.llm_site,
-cloudra/agent.py:255	        )
-cloudra/agent.py:256	
-cloudra/agent.py:257	        if self.context_manager is None:
-cloudra/agent.py:258	            self._init_context_manager()
-cloudra/agent.py:259	        messages = await self.context_manager.build_messages(
-cloudra/agent.py:260	            supports_vision=self.supports_vision,
-cloudra/agent.py:261	            max_context_tokens=self.context_window // 2 if self.context_window else None,
-cloudra/agent.py:262	        )
-cloudra/agent.py:263	
-cloudra/agent.py:264	        request_kwargs = {
-cloudra/agent.py:265	            "model": self.model,
-cloudra/agent.py:266	            "messages": messages,
-cloudra/agent.py:267	            "temperature": self.temperature,
-cloudra/agent.py:268	            "max_tokens": self.max_tokens,
-cloudra/agent.py:269	            "top_p": self.top_p,
-cloudra/agent.py:270	            "stream": self.is_stream,
-cloudra/agent.py:271	        }
-cloudra/agent.py:272	        if available_tool_classes:
-cloudra/agent.py:273	            request_kwargs["tools"] = available_tool_classes
-cloudra/agent.py:274	
-cloudra/agent.py:275	        try:
-cloudra/agent.py:276	            return client.chat.completions.create(**request_kwargs)
-cloudra/agent.py:277	        except Exception as e:
-cloudra/agent.py:278	            print(f"\033[91m[LLM 异常]\033[0m {e}")
-cloudra/agent.py:279	            raise
-cloudra/agent.py:280	
-cloudra/agent.py:281	
-cloudra/agent.py:282	class Coordinator(Agent):
-cloudra/agent.py:283	    '''
-cloudra/agent.py:284	    父agent，用于协调子agent。仅拥有管理工具。
-cloudra/agent.py:285	    '''
-cloudra/agent.py:286	    id: str = 'a-0'
-cloudra/agent.py:287	
-cloudra/agent.py:288	    name: str = 'coordinator'
-cloudra/agent.py:289	
-cloudra/agent.py:290	    type: str = 'coordinator'
-cloudra/agent.py:291	
-cloudra/agent.py:292	    model: str = os.environ.get('COORDINATOR_MODEL')
-
-
-Cloudra V1.6.2                                              第 7 页
+cloudra/base/skill_class.py:9	
+cloudra/base/skill_class.py:10	# NOTE: Skills 模型仅作为 skill frontmatter 的字段参照，当前未被实例化使用。
+cloudra/base/skill_class.py:11	# 若后续需要校验 skill 元数据，可取消注释并补全默认值。
+cloudra/base/skill_class.py:12	# class Skills(BaseModel):
+cloudra/base/skill_class.py:13	#     name: str
+cloudra/base/skill_class.py:14	#     description: str
+cloudra/base/skill_class.py:15	#     path: str
+cloudra/base/skill_class.py:16	#     scripts: list = []
+cloudra/base/skill_class.py:17	#     references: list = []
+cloudra/base/skill_class.py:18	
+cloudra/base/skill_class.py:19	
+cloudra/base/skill_class.py:20	class skill_loader:
+cloudra/base/skill_class.py:21	
+cloudra/base/skill_class.py:22	    # Skills are bundled with the package, not user data（base/ 上溯一级到包根）
+cloudra/base/skill_class.py:23	    base_path: str = os.path.join(
+cloudra/base/skill_class.py:24	        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'skills'
+cloudra/base/skill_class.py:25	    )
+cloudra/base/skill_class.py:26	
+cloudra/base/skill_class.py:27	    def __init__(self):
+cloudra/base/skill_class.py:28	        # FIX: 原代码直接用了模块级变量 base_path（缺少 self.），在实例方法中访问类属性应加 self
+cloudra/base/skill_class.py:29	        self.namelst = os.listdir(self.base_path)
+cloudra/base/skill_class.py:30	
+cloudra/base/skill_class.py:31	        self.pathlst = [os.path.join(self.base_path, skill_name) for skill_name in self.namelst]
+cloudra/base/skill_class.py:32	
+cloudra/base/skill_class.py:33	        self.md_pathlst = [os.path.join(path,'SKILL.md') for path in self.pathlst if os.path.isdir(path)]
+cloudra/base/skill_class.py:34	
+cloudra/base/skill_class.py:35	    def skill_datas_get(self) -> list[dict]:
+cloudra/base/skill_class.py:36	        revision_hash = hashlib.sha256()
+cloudra/base/skill_class.py:37	        for md in sorted(self.md_pathlst):
+cloudra/base/skill_class.py:38	            revision_hash.update(md.encode("utf-8"))
+cloudra/base/skill_class.py:39	            try:
+cloudra/base/skill_class.py:40	                with open(md, "rb") as stream:
+cloudra/base/skill_class.py:41	                    revision_hash.update(stream.read())
+cloudra/base/skill_class.py:42	            except OSError:
+cloudra/base/skill_class.py:43	                continue
+cloudra/base/skill_class.py:44	        revision = revision_hash.hexdigest()
+cloudra/base/skill_class.py:45	        cached = _SKILL_DATAS_CACHE.get(self.base_path)
+cloudra/base/skill_class.py:46	        if cached is None or cached[0] != revision:
+cloudra/base/skill_class.py:47	            mds = self.md_pathlst
+cloudra/base/skill_class.py:48	            datas = []
+cloudra/base/skill_class.py:49	            for md in mds:
+cloudra/base/skill_class.py:50	                with open(md, 'r', encoding='utf-8') as f:
+cloudra/base/skill_class.py:51	                    post = frt.load(f)
+cloudra/base/skill_class.py:52	                    metadata = post.metadata
+cloudra/base/skill_class.py:53	                    content = post.content
+cloudra/base/skill_class.py:54	
+cloudra/base/skill_class.py:55	                    # FIX: dict.update() 返回 None，原代码把 None 当数据 append 了
+cloudra/base/skill_class.py:56	                    # 这里直接修改 metadata dict 后 append（frontmatter 的 metadata 是普通 dict）
+cloudra/base/skill_class.py:57	                    metadata['content'] = content
+cloudra/base/skill_class.py:58	                    datas.append(metadata)
+cloudra/base/skill_class.py:59	
+cloudra/base/skill_class.py:60	            _SKILL_DATAS_CACHE[self.base_path] = (revision, datas)
+Cloudra V2.0                                                第 8 页
 ----------------------------------------------------------------------
-cloudra/agent.py:293	
-cloudra/agent.py:294	    llm_site: str = os.environ.get('COORDINATOR_URL')
-cloudra/agent.py:295	
-cloudra/agent.py:296	    _api_key: str = os.environ.get('COORDINATOR_KEY')
-cloudra/agent.py:297	
-cloudra/agent.py:298	    temperature: float = 1.0
-cloudra/agent.py:299	
-cloudra/agent.py:300	    max_tokens: int = 8192
-cloudra/agent.py:301	
-cloudra/agent.py:302	    context_window: int = 1000000
-cloudra/agent.py:303	
-cloudra/agent.py:304	    top_p: float = 1.0
-cloudra/agent.py:305	
-cloudra/agent.py:306	    frequency_penalty: float = 0.0
-cloudra/agent.py:307	
-cloudra/agent.py:308	    presence_penalty: float = 0.0
-cloudra/agent.py:309	
-cloudra/agent.py:310	    prompt: str = load_prompt('coordinator')
-cloudra/agent.py:311	
-cloudra/agent.py:312	    #由用户输入总任务。
-cloudra/agent.py:313	    query: str
-cloudra/agent.py:314	
-cloudra/agent.py:315	    is_stream: bool = True
-cloudra/agent.py:316	
-cloudra/agent.py:317	    @property
-cloudra/agent.py:318	    def supports_vision(self) -> bool:
-cloudra/agent.py:319	        """从全局配置读取协调者模型是否支持视觉输入。"""
-cloudra/agent.py:320	        from cloudra.config import get_config
-cloudra/agent.py:321	        return get_config().coordinator.supports_vision
-cloudra/agent.py:322	
-cloudra/agent.py:323	    def __init__(self, **data):
-cloudra/agent.py:324	        super().__init__(**data)
-cloudra/agent.py:325	        cwd = os.getcwd()
-cloudra/agent.py:326	        # 列出工作目录顶层内容，帮助 Coordinator 知道当前有哪些文件/文件夹可用
-cloudra/agent.py:327	        listing_lines = []
-cloudra/agent.py:328	        try:
-cloudra/agent.py:329	            for name in sorted(os.listdir(cwd)):
-cloudra/agent.py:330	                # 跳过隐藏目录/文件和常见缓存目录，避免污染 prompt
-cloudra/agent.py:331	                if name.startswith('.') or name in ('__pycache__', '__init__.py'):
-cloudra/agent.py:332	                    continue
-cloudra/agent.py:333	                full_path = os.path.join(cwd, name)
-cloudra/agent.py:334	                listing_lines.append(f"{name}/" if os.path.isdir(full_path) else name)
-cloudra/agent.py:335	        except Exception:
-cloudra/agent.py:336	            listing_lines = ["<无法读取目录内容>"]
-cloudra/agent.py:337	
-cloudra/agent.py:338	        listing_str = "\n".join(listing_lines) if listing_lines else "<空目录>"
-cloudra/agent.py:339	        self.prompt += (
-cloudra/agent.py:340	            f"\n\n当前项目的工作目录是: {cwd}\n"
-cloudra/agent.py:341	            f"工作目录顶层内容:\n{listing_str}\n"
-cloudra/agent.py:342	            "在分发任务给子 Agent 时，请务必提供相关的绝对路径，确保它们能在正确的目录下操作。"
-
-
-Cloudra V1.6.2                                              第 8 页
+cloudra/base/skill_class.py:61	
+cloudra/base/skill_class.py:62	        return _SKILL_DATAS_CACHE[self.base_path][1]
+cloudra/base/skill_class.py:63	
+cloudra/base/skill_class.py:64	    def get_reference(self, skill_name, ref_name) -> str:
+cloudra/base/skill_class.py:65	        # 支持多种可能的资料文件夹命名约定
+cloudra/base/skill_class.py:66	        possible_dirs = ['references', 'reference', 'ref']
+cloudra/base/skill_class.py:67	
+cloudra/base/skill_class.py:68	        for dir_name in possible_dirs:
+cloudra/base/skill_class.py:69	            ref_path = os.path.join(self.base_path, skill_name, dir_name, ref_name)
+cloudra/base/skill_class.py:70	            if os.path.isfile(ref_path):
+cloudra/base/skill_class.py:71	                with open(ref_path, 'r', encoding='utf-8') as f:
+cloudra/base/skill_class.py:72	                    return f.read()
+cloudra/base/skill_class.py:73	            elif os.path.isdir(ref_path):
+cloudra/base/skill_class.py:74	                dir_filelst = os.listdir(ref_path)
+cloudra/base/skill_class.py:75	                return fr'该reference为文件夹，文件夹下有：{dir_filelst} ,请根据需要输入 {ref_name}/filename 调用资料，win系统请用 {ref_name}\filename'
+cloudra/base/skill_class.py:76	
+cloudra/base/skill_class.py:77	        return '该资料不存在。'
+cloudra/base/skill_class.py:78	
+cloudra/base/skill_class.py:79	    # FIX: 原拼写为 skill_dsatas_get（多打了个 s）
+cloudra/base/skill_class.py:80	    def get_content(self, skill_name) -> str:
+cloudra/base/skill_class.py:81	        datas = self.skill_datas_get()
+cloudra/base/skill_class.py:82	        for data in datas:
+cloudra/base/skill_class.py:83	            if data['name'] == skill_name:
+cloudra/base/skill_class.py:84	                return data['content']
+cloudra/base/skill_class.py:85	        return 'skill不存在。'
+cloudra/base/skill_class.py:86	
+cloudra/base/skill_class.py:87	
+cloudra/base/skill_class.py:88	
+cloudra/base/skill_class.py:89	
+cloudra/base/skill_class.py:90	
+cloudra/base/skill_class.py:91	
+cloudra/base/skill_class.py:92	
+cloudra/base/skill_class.py:93	
+cloudra/base/skill_class.py:94	
+cloudra/base/skill_class.py:95	
+cloudra/base/skill_class.py:96	
+cloudra/base/skill_class.py:97	
+cloudra/base/skill_class.py:98	
+cloudra/base/skill_class.py:99	
+cloudra/base/tools_class.py:1	from contextlib import contextmanager
+cloudra/base/tools_class.py:2	from contextvars import ContextVar
+cloudra/base/tools_class.py:3	from pathlib import Path
+cloudra/base/tools_class.py:4	from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
+cloudra/base/tools_class.py:5	
+cloudra/base/tools_class.py:6	from pydantic import BaseModel
+cloudra/base/tools_class.py:7	from pydantic_core import PydanticUndefined
+cloudra/base/tools_class.py:8	
+cloudra/base/tools_class.py:9	from cloudra.base.session_class import Session
+cloudra/base/tools_class.py:10	from cloudra.persistence.database import ConversationDB, get_database_path
+cloudra/base/tools_class.py:11	
+cloudra/base/tools_class.py:12	# HACK: 这里原本缺少 import，属于历史遗留问题；get_tools_lst 定义在 tools/__init__.py
+cloudra/base/tools_class.py:13	from cloudra.tools import get_tools_lst
+Cloudra V2.0                                                第 9 页
 ----------------------------------------------------------------------
-cloudra/agent.py:343	        )
-cloudra/agent.py:344	
-cloudra/agent.py:345	    def has_manage_permission(self) -> bool:
-cloudra/agent.py:346	        '''
-cloudra/agent.py:347	        协调者允许访问子agent。
-cloudra/agent.py:348	        '''
-cloudra/agent.py:349	        return True
-cloudra/agent.py:350	
-cloudra/agent.py:351	    def has_write_permission(self) -> bool:
-cloudra/agent.py:352	        '''
-cloudra/agent.py:353	        Coordinator 允许使用简单的 write 工具（如输出最终报告、发送邮件），
-cloudra/agent.py:354	        但不拥有 script 和 destructive 权限，不能自己执行脚本或危险操作。
-cloudra/agent.py:355	        '''
-cloudra/agent.py:356	        return True
-cloudra/agent.py:357	
-cloudra/agent.py:358	    def get_available_tools(self) -> list:
-cloudra/agent.py:359	        '''
-cloudra/agent.py:360	        Coordinator 实际可见的工具列表。
-cloudra/agent.py:361	        虽然拥有 write 权限，但只允许使用白名单中的 write 工具；
-cloudra/agent.py:362	        化学工具、脚本执行、破坏性工具等复杂任务必须委派给子 Agent。
-cloudra/agent.py:363	        '''
-cloudra/agent.py:364	        write_tool_allowlist = {'text_writer', 'email_sender'}
-cloudra/agent.py:365	        tools = super().get_available_tools()
-cloudra/agent.py:366	        available_tools = []
-cloudra/agent.py:367	        for tool in tools:
-cloudra/agent.py:368	            module = getattr(tool.__class__, '__module__', '')
-cloudra/agent.py:369	            # Coordinator 不直接处理化学/脚本类工具
-cloudra/agent.py:370	            if 'Chemtool' in module or 'Bashtool' in module:
-cloudra/agent.py:371	                continue
-cloudra/agent.py:372	            if tool.tool_name in write_tool_allowlist:
-cloudra/agent.py:373	                available_tools.append(tool)
-cloudra/agent.py:374	                continue
-cloudra/agent.py:375	            if not (tool.is_write() or tool.is_script() or tool.is_destructive()):
-cloudra/agent.py:376	                available_tools.append(tool)
-cloudra/agent.py:377	        return available_tools
-cloudra/agent.py:378	
-cloudra/agent.py:379	
-cloudra/agent.py:380	class Follower(Agent):
-cloudra/agent.py:381	    '''
-cloudra/agent.py:382	    子agent大类，后续有细分类型，再定义子类。
-cloudra/agent.py:383	    '''
-cloudra/agent.py:384	    id: str
-cloudra/agent.py:385	
-cloudra/agent.py:386	    name: str
-cloudra/agent.py:387	
-cloudra/agent.py:388	    type: str = 'follower'
-cloudra/agent.py:389	
-cloudra/agent.py:390	    model: str = os.environ.get('FOLLOWER_MODEL')
-cloudra/agent.py:391	
-cloudra/agent.py:392	    llm_site: str = os.environ.get('FOLLOWER_URL')
-
-
-Cloudra V1.6.2                                              第 9 页
+cloudra/base/tools_class.py:14	from cloudra.tools.core.permission_model import Permission
+cloudra/base/tools_class.py:15	
+cloudra/base/tools_class.py:16	if TYPE_CHECKING:
+cloudra/base/tools_class.py:17	    from cloudra.infra.yolo_guard import YoloGuard
+cloudra/base/tools_class.py:18	
+cloudra/base/tools_class.py:19	# runtime_v2 的审批钩子：LegacyToolExecutor 在执行工具前设置；未设置时
+cloudra/base/tools_class.py:20	# （CLI/Flet/旧服务层）request_approval 维持原有的 SQLite + 事件总线等待。
+cloudra/base/tools_class.py:21	# 签名: async (**fields) -> tuple[bool, str]，字段同 request_approval 的关键字参数。
+cloudra/base/tools_class.py:22	_APPROVAL_HANDLER: ContextVar[
+cloudra/base/tools_class.py:23	    Optional[Callable[..., Awaitable[tuple[bool, str]]]]
+cloudra/base/tools_class.py:24	] = ContextVar("cloudra_approval_handler", default=None)
+cloudra/base/tools_class.py:25	
+cloudra/base/tools_class.py:26	
+cloudra/base/tools_class.py:27	@contextmanager
+cloudra/base/tools_class.py:28	def use_approval_handler(handler: Callable[..., Awaitable[tuple[bool, str]]]):
+cloudra/base/tools_class.py:29	    """Scope a v2 approval handler to one tool execution (per-task isolation)."""
+cloudra/base/tools_class.py:30	    token = _APPROVAL_HANDLER.set(handler)
+cloudra/base/tools_class.py:31	    try:
+cloudra/base/tools_class.py:32	        yield
+cloudra/base/tools_class.py:33	    finally:
+cloudra/base/tools_class.py:34	        _APPROVAL_HANDLER.reset(token)
+cloudra/base/tools_class.py:35	
+cloudra/base/tools_class.py:36	
+cloudra/base/tools_class.py:37	def _tool_db_path(subagent) -> str:
+cloudra/base/tools_class.py:38	    """根据 tool 关联的 Agent 返回对应 conversation 的数据库路径。"""
+cloudra/base/tools_class.py:39	    conv_id = getattr(subagent, 'conversation_id', 'default') if subagent else 'default'
+cloudra/base/tools_class.py:40	    return get_database_path(conv_id)
+cloudra/base/tools_class.py:41	
+cloudra/base/tools_class.py:42	
+cloudra/base/tools_class.py:43	def get_tools() -> list[dict]:
+cloudra/base/tools_class.py:44	    """将工具类加载为 OpenAI function 格式的 dict 列表。"""
+cloudra/base/tools_class.py:45	    entries = get_tools_lst()
+cloudra/base/tools_class.py:46	    tools_list = []
+cloudra/base/tools_class.py:47	    for entry in entries:
+cloudra/base/tools_class.py:48	        tool_instance = entry.instantiate()
+cloudra/base/tools_class.py:49	        tools_list.append(tool_instance.tool_schema_json())
+cloudra/base/tools_class.py:50	    return tools_list
+cloudra/base/tools_class.py:51	
+cloudra/base/tools_class.py:52	
+cloudra/base/tools_class.py:53	class input_schema(BaseModel):
+cloudra/base/tools_class.py:54	    '''
+cloudra/base/tools_class.py:55	    工具输入模式基类，定义工具需要的输入参数和格式。
+cloudra/base/tools_class.py:56	
+cloudra/base/tools_class.py:57	    子类用法示例：
+cloudra/base/tools_class.py:58	        class MyInput(input_schema):
+cloudra/base/tools_class.py:59	            query: str = Field(description="搜索关键词")
+cloudra/base/tools_class.py:60	            max_results: int = Field(default=10, description="最大返回条数")
+cloudra/base/tools_class.py:61	
+cloudra/base/tools_class.py:62	    通过 to_parameters_schema() 可自动生成符合 OpenAI Function Calling 规范的 parameters 字典。
+cloudra/base/tools_class.py:63	    '''
+cloudra/base/tools_class.py:64	
+cloudra/base/tools_class.py:65	    @classmethod
+Cloudra V2.0                                               第 10 页
 ----------------------------------------------------------------------
-cloudra/agent.py:393	
-cloudra/agent.py:394	    _api_key: str = os.environ.get('FOLLOWER_KEY')
-cloudra/agent.py:395	
-cloudra/agent.py:396	    temperature: float = 1.0
-cloudra/agent.py:397	
-cloudra/agent.py:398	    max_tokens: int = 4096
-cloudra/agent.py:399	
-cloudra/agent.py:400	    context_window: int = 1000000
-cloudra/agent.py:401	
-cloudra/agent.py:402	    top_p: float = 1.0
-cloudra/agent.py:403	
-cloudra/agent.py:404	    frequency_penalty: float = 0.0
-cloudra/agent.py:405	
-cloudra/agent.py:406	    presence_penalty: float = 0.0
-cloudra/agent.py:407	
-cloudra/agent.py:408	    prompt: str
-cloudra/agent.py:409	
-cloudra/agent.py:410	    query: str
-cloudra/agent.py:411	
-cloudra/agent.py:412	    is_stream: bool = False
-cloudra/agent.py:413	
-cloudra/agent.py:414	    @property
-cloudra/agent.py:415	    def supports_vision(self) -> bool:
-cloudra/agent.py:416	        """从全局配置读取跟随者模型是否支持视觉输入。"""
-cloudra/agent.py:417	        from cloudra.config import get_config
-cloudra/agent.py:418	        return get_config().follower.supports_vision
-cloudra/agent.py:419	
-cloudra/agent.py:420	    def has_read_permission(self) -> bool:
-cloudra/agent.py:421	        return True
-cloudra/agent.py:422	
-cloudra/agent.py:423	    def has_write_permission(self) -> bool:
-cloudra/agent.py:424	        '''
-cloudra/agent.py:425	        正常情况下，agent不允许写入文件，除非在子类中额外开放。
-cloudra/agent.py:426	        '''
-cloudra/agent.py:427	        return False
-cloudra/agent.py:428	
-cloudra/agent.py:429	    def script_run_permission(self) -> bool:
-cloudra/agent.py:430	        '''
-cloudra/agent.py:431	        运行脚本的权限。
-cloudra/agent.py:432	        '''
-cloudra/agent.py:433	        return False
-cloudra/agent.py:434	
-cloudra/agent.py:435	    def destructive_permission(self) -> bool:
-cloudra/agent.py:436	        '''
-cloudra/agent.py:437	        如rm，mkdir等对目录结构进行变化的操作。
-cloudra/agent.py:438	        '''
-cloudra/agent.py:439	        return False
-cloudra/agent.py:440	
-cloudra/agent.py:441	
-cloudra/agent.py:442	def get_class():
-
-
-Cloudra V1.6.2                                              第 10 页
+cloudra/base/tools_class.py:66	    def to_parameters_schema(cls) -> dict:
+cloudra/base/tools_class.py:67	        '''
+cloudra/base/tools_class.py:68	        生成符合 OpenAI Function Calling 的 parameters 字典。
+cloudra/base/tools_class.py:69	        基于 Pydantic model_json_schema() 微调：
+cloudra/base/tools_class.py:70	        - properties / required 已由 Pydantic 根据字段声明自动生成
+cloudra/base/tools_class.py:71	        - 强制附加 additionalProperties: false，防止 LLM 传入未定义字段
+cloudra/base/tools_class.py:72	        '''
+cloudra/base/tools_class.py:73	        schema = cls.model_json_schema()
+cloudra/base/tools_class.py:74	        parameters = {
+cloudra/base/tools_class.py:75	            "type": "object",
+cloudra/base/tools_class.py:76	            "properties": schema.get("properties", {}),
+cloudra/base/tools_class.py:77	            "required": schema.get("required", []),
+cloudra/base/tools_class.py:78	            "additionalProperties": False,
+cloudra/base/tools_class.py:79	        }
+cloudra/base/tools_class.py:80	        if "$defs" in schema:
+cloudra/base/tools_class.py:81	            parameters["$defs"] = schema["$defs"]
+cloudra/base/tools_class.py:82	        return parameters
+cloudra/base/tools_class.py:83	
+cloudra/base/tools_class.py:84	    @classmethod
+cloudra/base/tools_class.py:85	    def from_args(cls, arg_dict: dict) -> "input_schema":
+cloudra/base/tools_class.py:86	        '''从 LLM 返回的 arguments dict 构造输入实例，带 Pydantic 类型校验。'''
+cloudra/base/tools_class.py:87	        return cls(**arg_dict)
+cloudra/base/tools_class.py:88	
+cloudra/base/tools_class.py:89	    def toClass(self, arg_dict: dict) -> "input_schema":
+cloudra/base/tools_class.py:90	        '''
+cloudra/base/tools_class.py:91	        兼容旧接口，供 reAct.py 调用。
+cloudra/base/tools_class.py:92	        实际调用链通常为 tool.input_schema.toClass(tool_args)，此时 self 为 input_schema 子类本身。
+cloudra/base/tools_class.py:93	        '''
+cloudra/base/tools_class.py:94	        # 当通过类调用时（如 TextReader_input_schema.toClass(args)），self 即为类对象
+cloudra/base/tools_class.py:95	        if isinstance(self, type) and issubclass(self, input_schema):
+cloudra/base/tools_class.py:96	            return self(**arg_dict)
+cloudra/base/tools_class.py:97	        return self.__class__(**arg_dict)
+cloudra/base/tools_class.py:98	
+cloudra/base/tools_class.py:99	    def toJson(self) -> dict:
+cloudra/base/tools_class.py:100	        '''实例序列化为 dict，用于日志或上下文回传。'''
+cloudra/base/tools_class.py:101	        return self.model_dump(mode="json")
+cloudra/base/tools_class.py:102	
+cloudra/base/tools_class.py:103	
+cloudra/base/tools_class.py:104	class output_schema(BaseModel):
+cloudra/base/tools_class.py:105	    '''
+cloudra/base/tools_class.py:106	    工具输出模式基类，定义工具输出的格式。
+cloudra/base/tools_class.py:107	    子类按普通 Pydantic Model 声明字段即可。
+cloudra/base/tools_class.py:108	    '''
+cloudra/base/tools_class.py:109	
+cloudra/base/tools_class.py:110	    def toJson(self) -> dict:
+cloudra/base/tools_class.py:111	        return self.model_dump(mode="json")
+cloudra/base/tools_class.py:112	
+cloudra/base/tools_class.py:113	
+cloudra/base/tools_class.py:114	class Tool(BaseModel):
+cloudra/base/tools_class.py:115	    '''
+cloudra/base/tools_class.py:116	    工具基类。所有具体工具应继承此类。
+cloudra/base/tools_class.py:117	
+Cloudra V2.0                                               第 11 页
 ----------------------------------------------------------------------
-cloudra/agent.py:443	    """兼容旧导入，返回 Agent 基类。"""
-cloudra/agent.py:444	    return Agent
-cloudra/api.py:1	import os
-cloudra/api.py:2	import json
-cloudra/api.py:3	import aiosqlite
-cloudra/api.py:4	import asyncio
-cloudra/api.py:5	import socket
-cloudra/api.py:6	from typing import Optional, List, Dict, Any
-cloudra/api.py:7	from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
-cloudra/api.py:8	from fastapi.middleware.cors import CORSMiddleware
-cloudra/api.py:9	from fastapi.staticfiles import StaticFiles
-cloudra/api.py:10	from pydantic import BaseModel
-cloudra/api.py:11	
-cloudra/api.py:12	# 导入你的核心逻辑
-cloudra/api.py:13	from cloudra.main import run_task
-cloudra/api.py:14	from cloudra.config import get_config
-cloudra/api.py:15	from cloudra.conversation_class import Conversation
-cloudra/api.py:16	from cloudra.skill_class import skill_loader
-cloudra/api.py:17	from cloudra import __version__
-cloudra/api.py:18	
-cloudra/api.py:19	app = FastAPI(
-cloudra/api.py:20	    title="Cloudra API (Mobile-Ready)",
-cloudra/api.py:21	    description="Cloudra AI 化学科研助手 - 增强型局域网服务",
-cloudra/api.py:22	    version=__version__
-cloudra/api.py:23	)
-cloudra/api.py:24	
-cloudra/api.py:25	# --- 跨域配置 (CORS) ---
-cloudra/api.py:26	app.add_middleware(
-cloudra/api.py:27	    CORSMiddleware,
-cloudra/api.py:28	    allow_origins=["*"],
-cloudra/api.py:29	    allow_credentials=True,
-cloudra/api.py:30	    allow_methods=["*"],
-cloudra/api.py:31	    allow_headers=["*"],
-cloudra/api.py:32	)
-cloudra/api.py:33	
-cloudra/api.py:34	# --- 静态文件挂载 ---
-cloudra/api.py:35	# 允许手机端访问生成的图片、报告等文件
-cloudra/api.py:36	data_dir = get_config().data_dir
-cloudra/api.py:37	app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
-cloudra/api.py:38	
-cloudra/api.py:39	# --- 数据模型 ---
-cloudra/api.py:40	class ChatRequest(BaseModel):
-cloudra/api.py:41	    query: str
-cloudra/api.py:42	    conv_id: Optional[str] = None
-cloudra/api.py:43	
-cloudra/api.py:44	class ApprovalDecision(BaseModel):
-cloudra/api.py:45	    decision: str  # 'approved' 或 'denied'
-cloudra/api.py:46	
-cloudra/api.py:47	# --- 辅助函数 ---
-cloudra/api.py:48	def get_local_ip():
-
-
-Cloudra V1.6.2                                              第 11 页
+cloudra/base/tools_class.py:118	    关于 input_schema / output_schema：
+cloudra/base/tools_class.py:119	    - 这里存放的是具体的 schema 类（如 TextReader_input_schema），而非实例。
+cloudra/base/tools_class.py:120	    - 使用 Any 类型并开启 arbitrary_types_allowed，避免 Pydantic 对类对象做字段校验。
+cloudra/base/tools_class.py:121	    - 子模块中覆盖时必须带类型注解，例如：
+cloudra/base/tools_class.py:122	          input_schema: Any = TextReader_input_schema
+cloudra/base/tools_class.py:123	    '''
+cloudra/base/tools_class.py:124	    model_config = {"arbitrary_types_allowed": True}
+cloudra/base/tools_class.py:125	
+cloudra/base/tools_class.py:126	    # 唯一标识符
+cloudra/base/tools_class.py:127	    tool_id: str = ''
+cloudra/base/tools_class.py:128	
+cloudra/base/tools_class.py:129	    # 工具名称（即 OpenAI function.name）
+cloudra/base/tools_class.py:130	    tool_name: str = ''
+cloudra/base/tools_class.py:131	
+cloudra/base/tools_class.py:132	    # 工具描述。改造后应仅保留【功能描述】+【使用场景】，不再包含参数细节。
+cloudra/base/tools_class.py:133	    # 参数说明通过 input_schema 的 Field(description="...") 提供，自动生成到 parameters 中。
+cloudra/base/tools_class.py:134	    tool_description: str = ''
+cloudra/base/tools_class.py:135	
+cloudra/base/tools_class.py:136	    # 工具的输入模式类（存放类对象，非实例）
+cloudra/base/tools_class.py:137	    input_schema: Any = input_schema
+cloudra/base/tools_class.py:138	
+cloudra/base/tools_class.py:139	    # 工具的输出模式类（存放类对象，非实例）
+cloudra/base/tools_class.py:140	    output_schema: Any = output_schema
+cloudra/base/tools_class.py:141	
+cloudra/base/tools_class.py:142	    # 引用调用该工具的 Agent 实例
+cloudra/base/tools_class.py:143	    subagent: Any = None
+cloudra/base/tools_class.py:144	
+cloudra/base/tools_class.py:145	    def is_read(self) -> bool:
+cloudra/base/tools_class.py:146	        return False
+cloudra/base/tools_class.py:147	
+cloudra/base/tools_class.py:148	    def is_write(self) -> bool:
+cloudra/base/tools_class.py:149	        return False
+cloudra/base/tools_class.py:150	
+cloudra/base/tools_class.py:151	    def is_manage(self) -> bool:
+cloudra/base/tools_class.py:152	        return False
+cloudra/base/tools_class.py:153	
+cloudra/base/tools_class.py:154	    def is_script(self) -> bool:
+cloudra/base/tools_class.py:155	        return False
+cloudra/base/tools_class.py:156	
+cloudra/base/tools_class.py:157	    def is_destructive(self) -> bool:
+cloudra/base/tools_class.py:158	        return False
+cloudra/base/tools_class.py:159	
+cloudra/base/tools_class.py:160	    def tool_permission_all(self) -> Permission:
+cloudra/base/tools_class.py:161	        """Return Permission flags for this tool."""
+cloudra/base/tools_class.py:162	        perms = Permission.NONE
+cloudra/base/tools_class.py:163	        if self.is_read():
+cloudra/base/tools_class.py:164	            perms |= Permission.READ
+cloudra/base/tools_class.py:165	        if self.is_write():
+cloudra/base/tools_class.py:166	            perms |= Permission.WRITE
+cloudra/base/tools_class.py:167	        if self.is_manage():
+cloudra/base/tools_class.py:168	            perms |= Permission.MANAGE
+cloudra/base/tools_class.py:169	        if self.is_script():
+Cloudra V2.0                                               第 12 页
 ----------------------------------------------------------------------
-cloudra/api.py:49	    """获取本机局域网 IP 地址"""
-cloudra/api.py:50	    try:
-cloudra/api.py:51	        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-cloudra/api.py:52	        # 不需要真的连接，只是为了获取本机出局 IP
-cloudra/api.py:53	        s.connect(("8.8.8.8", 80))
-cloudra/api.py:54	        ip = s.getsockname()[0]
-cloudra/api.py:55	        s.close()
-cloudra/api.py:56	        return ip
-cloudra/api.py:57	    except Exception:
-cloudra/api.py:58	        return "127.0.0.1"
-cloudra/api.py:59	
-cloudra/api.py:60	def get_db_path():
-cloudra/api.py:61	    return os.path.join(data_dir, 'tasks', 'database.db')
-cloudra/api.py:62	
-cloudra/api.py:63	# --- API 路由 ---
-cloudra/api.py:64	
-cloudra/api.py:65	@app.get("/")
-cloudra/api.py:66	async def root():
-cloudra/api.py:67	    local_ip = get_local_ip()
-cloudra/api.py:68	    return {
-cloudra/api.py:69	        "status": "online",
-cloudra/api.py:70	        "local_access": f"http://{local_ip}:8000",
-cloudra/api.py:71	        "docs": f"http://{local_ip}:8000/docs",
-cloudra/api.py:72	        "data_root": f"http://{local_ip}:8000/data",
-cloudra/api.py:73	        "device_ip": local_ip
-cloudra/api.py:74	    }
-cloudra/api.py:75	
-cloudra/api.py:76	@app.get("/conversations")
-cloudra/api.py:77	async def list_conversations():
-cloudra/api.py:78	    """获取所有历史对话"""
-cloudra/api.py:79	    conv_dir = data_dir / "conversations"
-cloudra/api.py:80	    if not conv_dir.exists():
-cloudra/api.py:81	        return []
-cloudra/api.py:82	    
-cloudra/api.py:83	    conversations = []
-cloudra/api.py:84	    for entry in conv_dir.iterdir():
-cloudra/api.py:85	        if entry.is_dir():
-cloudra/api.py:86	            meta_path = entry / "meta.json"
-cloudra/api.py:87	            if meta_path.exists():
-cloudra/api.py:88	                with open(meta_path, "r", encoding="utf-8") as f:
-cloudra/api.py:89	                    conversations.append(json.load(f))
-cloudra/api.py:90	    
-cloudra/api.py:91	    conversations.sort(key=lambda x: x.get("last_active", ""), reverse=True)
-cloudra/api.py:92	    return conversations
-cloudra/api.py:93	
-cloudra/api.py:94	@app.get("/conversations/{conv_id}")
-cloudra/api.py:95	async def get_conversation_history(conv_id: str):
-cloudra/api.py:96	    """获取对话记录，并将本地路径转换为 Web URL"""
-cloudra/api.py:97	    conv = Conversation(conv_id)
-cloudra/api.py:98	    ctx_path = conv.get_context_path("a-0")
-
-
-Cloudra V1.6.2                                              第 12 页
+cloudra/base/tools_class.py:170	            perms |= Permission.SCRIPT
+cloudra/base/tools_class.py:171	        if self.is_destructive():
+cloudra/base/tools_class.py:172	            perms |= Permission.DESTRUCTIVE
+cloudra/base/tools_class.py:173	        return perms
+cloudra/base/tools_class.py:174	
+cloudra/base/tools_class.py:175	    async def tool_call(self, user_input: input_schema, session: Session) -> output_schema:
+cloudra/base/tools_class.py:176	        '''
+cloudra/base/tools_class.py:177	        调用工具。子类必须重写此方法。
+cloudra/base/tools_class.py:178	        执行结果以 output_schema 实例返回。
+cloudra/base/tools_class.py:179	        '''
+cloudra/base/tools_class.py:180	        raise NotImplementedError("子类必须实现 tool_call 方法")
+cloudra/base/tools_class.py:181	
+cloudra/base/tools_class.py:182	    async def safe_call(self, user_input: input_schema, session: Session) -> output_schema:
+cloudra/base/tools_class.py:183	        '''
+cloudra/base/tools_class.py:184	        带有通用异常捕获的工具调用包装器。
+cloudra/base/tools_class.py:185	        工具执行失败时抛出包含工具名的 RuntimeError，由 reAct.act_result() 统一捕获并回传给 LLM。
+cloudra/base/tools_class.py:186	        消息以 [Tool error] 前缀 + 工具名 + 恢复指引成形；react 层识别该前缀后不再二次套壳。
+cloudra/base/tools_class.py:187	        '''
+cloudra/base/tools_class.py:188	        try:
+cloudra/base/tools_class.py:189	            return await self.tool_call(user_input, session)
+cloudra/base/tools_class.py:190	        except Exception as e:
+cloudra/base/tools_class.py:191	            error_msg = (
+cloudra/base/tools_class.py:192	                f"[Tool error] {self.tool_name}: {str(e)}. "
+cloudra/base/tools_class.py:193	                "Fix the arguments or use a different tool, then retry."
+cloudra/base/tools_class.py:194	            )
+cloudra/base/tools_class.py:195	            raise RuntimeError(error_msg) from e
+cloudra/base/tools_class.py:196	
+cloudra/base/tools_class.py:197	    async def ensure_safety(
+cloudra/base/tools_class.py:198	        self,
+cloudra/base/tools_class.py:199	        session: Session,
+cloudra/base/tools_class.py:200	        details: str,
+cloudra/base/tools_class.py:201	        tool_args: dict | None = None,
+cloudra/base/tools_class.py:202	    ) -> tuple[bool, str]:
+cloudra/base/tools_class.py:203	        '''
+cloudra/base/tools_class.py:204	        安全检查：如果工具被标记为 destructive，则必须经过审批。
+cloudra/base/tools_class.py:205	        默认通过数据库等待用户审批；若启用了 YOLO 模式，则调用独立 Agent 自动判断。
+cloudra/base/tools_class.py:206	        返回 (是否通过, 拒绝原因)。通过时拒绝原因为空字符串。
+cloudra/base/tools_class.py:207	        '''
+cloudra/base/tools_class.py:208	        from cloudra.infra.yolo_guard import YoloGuard, is_yolo_enabled
+cloudra/base/tools_class.py:209	
+cloudra/base/tools_class.py:210	        # 获取当前 Agent 名称
+cloudra/base/tools_class.py:211	        agent_name = self.subagent.name if self.subagent else "Unknown Agent"
+cloudra/base/tools_class.py:212	        full_details = f"【发起 Agent】: {agent_name}\n{details}"
+cloudra/base/tools_class.py:213	
+cloudra/base/tools_class.py:214	        print(f"\n\033[91m[安全审计]\033[0m 正在申请危险操作审批...\n{full_details}")
+cloudra/base/tools_class.py:215	
+cloudra/base/tools_class.py:216	        if is_yolo_enabled():
+cloudra/base/tools_class.py:217	            guard = YoloGuard()
+cloudra/base/tools_class.py:218	            return await self._yolo_judge(session, tool_args or {}, guard)
+cloudra/base/tools_class.py:219	
+cloudra/base/tools_class.py:220	        db_path = _tool_db_path(self.subagent)
+cloudra/base/tools_class.py:221	        risk_summary = next(
+Cloudra V2.0                                               第 13 页
 ----------------------------------------------------------------------
-cloudra/api.py:99	    
-cloudra/api.py:100	    if not os.path.exists(ctx_path):
-cloudra/api.py:101	        return []
-cloudra/api.py:102	    
-cloudra/api.py:103	    try:
-cloudra/api.py:104	        with open(ctx_path, "r", encoding="utf-8") as f:
-cloudra/api.py:105	            history = json.load(f)
-cloudra/api.py:106	            
-cloudra/api.py:107	        # 路径重写逻辑：将本地绝对路径转换为 /data/ 相对路径，方便手机访问
-cloudra/api.py:108	        for msg in history:
-cloudra/api.py:109	            content = msg.get('content')
-cloudra/api.py:110	            if isinstance(content, list):
-cloudra/api.py:111	                for part in content:
-cloudra/api.py:112	                    if part.get('type') == 'image_url':
-cloudra/api.py:113	                        local_path = part['image_url'].get('url')
-cloudra/api.py:114	                        if local_path and os.path.isabs(local_path):
-cloudra/api.py:115	                            # 计算相对于 data_dir 的路径
-cloudra/api.py:116	                            try:
-cloudra/api.py:117	                                rel_path = os.path.relpath(local_path, data_dir)
-cloudra/api.py:118	                                part['image_url']['url'] = f"/data/{rel_path}"
-cloudra/api.py:119	                            except ValueError:
-cloudra/api.py:120	                                pass
-cloudra/api.py:121	            elif isinstance(msg.get('image_path'), str):
-cloudra/api.py:122	                try:
-cloudra/api.py:123	                    rel_path = os.path.relpath(msg['image_path'], data_dir)
-cloudra/api.py:124	                    msg['image_path'] = f"/data/{rel_path}"
-cloudra/api.py:125	                except ValueError:
-cloudra/api.py:126	                    pass
-cloudra/api.py:127	                    
-cloudra/api.py:128	        return history
-cloudra/api.py:129	    except Exception as e:
-cloudra/api.py:130	        raise HTTPException(status_code=500, detail=str(e))
-cloudra/api.py:131	
-cloudra/api.py:132	@app.post("/chat")
-cloudra/api.py:133	async def chat_endpoint(req: ChatRequest):
-cloudra/api.py:134	    """执行对话任务"""
-cloudra/api.py:135	    try:
-cloudra/api.py:136	        # 注意：run_task 目前是同步的，对于耗时任务，后续建议改为异步或 WebSocket
-cloudra/api.py:137	        result = run_task(req.query, conv_id=req.conv_id, verbose=False)
-cloudra/api.py:138	        return {"status": "success", "data": result}
-cloudra/api.py:139	    except Exception as e:
-cloudra/api.py:140	        raise HTTPException(status_code=500, detail=str(e))
-cloudra/api.py:141	
-cloudra/api.py:142	@app.get("/approvals")
-cloudra/api.py:143	async def get_pending_approvals():
-cloudra/api.py:144	    """获取待审批请求"""
-cloudra/api.py:145	    db_path = get_db_path()
-cloudra/api.py:146	    if not os.path.exists(db_path):
-cloudra/api.py:147	        return []
-cloudra/api.py:148	    
-
-
-Cloudra V1.6.2                                              第 13 页
+cloudra/base/tools_class.py:222	            (
+cloudra/base/tools_class.py:223	                line.partition(":")[2].strip()
+cloudra/base/tools_class.py:224	                for line in details.splitlines()
+cloudra/base/tools_class.py:225	                if line.startswith("【动作】")
+cloudra/base/tools_class.py:226	            ),
+cloudra/base/tools_class.py:227	            details.splitlines()[0] if details.splitlines() else "危险工具调用",
+cloudra/base/tools_class.py:228	        )
+cloudra/base/tools_class.py:229	        candidate_diff = ""
+cloudra/base/tools_class.py:230	        diff_marker = "【Unified Diff】:\n"
+cloudra/base/tools_class.py:231	        if diff_marker in details:
+cloudra/base/tools_class.py:232	            candidate_diff = details.partition(diff_marker)[2]
+cloudra/base/tools_class.py:233	        return await self.request_approval(
+cloudra/base/tools_class.py:234	            db_path,
+cloudra/base/tools_class.py:235	            session.id,
+cloudra/base/tools_class.py:236	            full_details,
+cloudra/base/tools_class.py:237	            tool_name=self.tool_name,
+cloudra/base/tools_class.py:238	            normalized_arguments=tool_args or {},
+cloudra/base/tools_class.py:239	            risk_summary=risk_summary,
+cloudra/base/tools_class.py:240	            candidate_diff=candidate_diff,
+cloudra/base/tools_class.py:241	        )
+cloudra/base/tools_class.py:242	
+cloudra/base/tools_class.py:243	    async def record_session_event(
+cloudra/base/tools_class.py:244	        self,
+cloudra/base/tools_class.py:245	        session: Session,
+cloudra/base/tools_class.py:246	        event_type: str,
+cloudra/base/tools_class.py:247	        data: dict,
+cloudra/base/tools_class.py:248	    ) -> None:
+cloudra/base/tools_class.py:249	        """尽力记录工具事件；遥测失败不能反向破坏工具主流程。"""
+cloudra/base/tools_class.py:250	        from cloudra.services import session_store as _ss
+cloudra/base/tools_class.py:251	
+cloudra/base/tools_class.py:252	        try:
+cloudra/base/tools_class.py:253	            db = ConversationDB.from_path(_tool_db_path(self.subagent))
+cloudra/base/tools_class.py:254	            await _ss.arecord_event(db, session.id, event_type, data)
+cloudra/base/tools_class.py:255	        except Exception:
+cloudra/base/tools_class.py:256	            pass
+cloudra/base/tools_class.py:257	
+cloudra/base/tools_class.py:258	    async def _yolo_judge(
+cloudra/base/tools_class.py:259	        self,
+cloudra/base/tools_class.py:260	        session: Session,
+cloudra/base/tools_class.py:261	        tool_args: dict,
+cloudra/base/tools_class.py:262	        guard: 'YoloGuard',
+cloudra/base/tools_class.py:263	    ) -> tuple[bool, str]:
+cloudra/base/tools_class.py:264	        """调用 YoloGuard 做自动判断。"""
+cloudra/base/tools_class.py:265	        approved, reason = await guard.judge(
+cloudra/base/tools_class.py:266	            self.tool_name, tool_args, self.subagent, session
+cloudra/base/tools_class.py:267	        )
+cloudra/base/tools_class.py:268	        if approved:
+cloudra/base/tools_class.py:269	            print("\033[92m[安全审计/YOLO]\033[0m 自动审批通过。")
+cloudra/base/tools_class.py:270	            return True, ""
+cloudra/base/tools_class.py:271	        else:
+cloudra/base/tools_class.py:272	            reason_text = reason or "YOLO Agent 认为该操作存在风险"
+cloudra/base/tools_class.py:273	            print(f"\033[91m[安全审计/YOLO]\033[0m 自动审批拒绝。原因: {reason_text}")
+Cloudra V2.0                                               第 14 页
 ----------------------------------------------------------------------
-cloudra/api.py:149	    async with aiosqlite.connect(db_path) as conn:
-cloudra/api.py:150	        cur = await conn.execute("SELECT id, session_id, agent_name, details FROM approvals WHERE state = 'pending'")
-cloudra/api.py:151	        rows = await cur.fetchall()
-cloudra/api.py:152	    
-cloudra/api.py:153	    return [{"id": r[0], "session_id": r[1], "agent_name": r[2], "details": r[3]} for r in rows]
-cloudra/api.py:154	
-cloudra/api.py:155	@app.post("/approvals/{approval_id}")
-cloudra/api.py:156	async def process_approval(approval_id: int, dec: ApprovalDecision):
-cloudra/api.py:157	    """执行审批操作"""
-cloudra/api.py:158	    db_path = get_db_path()
-cloudra/api.py:159	    state = 'approved' if dec.decision.lower() == 'approved' else 'denied'
-cloudra/api.py:160	    
-cloudra/api.py:161	    async with aiosqlite.connect(db_path) as conn:
-cloudra/api.py:162	        await conn.execute("UPDATE approvals SET state = ? WHERE id = ?", (state, approval_id))
-cloudra/api.py:163	        await conn.commit()
-cloudra/api.py:164	    
-cloudra/api.py:165	    return {"status": "success", "id": approval_id, "new_state": state}
-cloudra/api.py:166	
-cloudra/api.py:167	@app.get("/skills")
-cloudra/api.py:168	async def get_available_skills():
-cloudra/api.py:169	    """查看可用技能"""
-cloudra/api.py:170	    loader = skill_loader()
-cloudra/api.py:171	    return loader.skill_datas_get()
-cloudra/api.py:172	
-cloudra/api.py:173	# --- 启动服务 ---
-cloudra/api.py:174	if __name__ == "__main__":
-cloudra/api.py:175	    import uvicorn
-cloudra/api.py:176	    local_ip = get_local_ip()
-cloudra/api.py:177	    print(f"\n🚀 Cloudra 增强版 API 已启动!")
-cloudra/api.py:178	    print(f"🏠 本地访问: http://127.0.0.1:8000")
-cloudra/api.py:179	    print(f"📱 局域网访问 (手机/平板): http://{local_ip}:8000")
-cloudra/api.py:180	    print(f"📂 静态资源根路径: {data_dir}")
-cloudra/api.py:181	    print(f"📖 交互式文档: http://{local_ip}:8000/docs\n")
-cloudra/api.py:182	    
-cloudra/api.py:183	    # 绑定 0.0.0.0 是局域网发现的关键
-cloudra/api.py:184	    uvicorn.run(app, host="0.0.0.0", port=8000)
+cloudra/base/tools_class.py:274	            return False, reason_text
+cloudra/base/tools_class.py:275	
+cloudra/base/tools_class.py:276	    async def request_approval(
+cloudra/base/tools_class.py:277	        self,
+cloudra/base/tools_class.py:278	        db_path: str,
+cloudra/base/tools_class.py:279	        session_id: str,
+cloudra/base/tools_class.py:280	        details: str,
+cloudra/base/tools_class.py:281	        *,
+cloudra/base/tools_class.py:282	        tool_name: str = "",
+cloudra/base/tools_class.py:283	        normalized_arguments: dict | None = None,
+cloudra/base/tools_class.py:284	        risk_summary: str = "",
+cloudra/base/tools_class.py:285	        candidate_diff: str = "",
+cloudra/base/tools_class.py:286	    ) -> tuple[bool, str]:
+cloudra/base/tools_class.py:287	        import asyncio
+cloudra/base/tools_class.py:288	
+cloudra/base/tools_class.py:289	        from cloudra.infra import events
+cloudra/base/tools_class.py:290	        from cloudra.services import session_store as _ss
+cloudra/base/tools_class.py:291	
+cloudra/base/tools_class.py:292	        handler = _APPROVAL_HANDLER.get()
+cloudra/base/tools_class.py:293	        if handler is not None:
+cloudra/base/tools_class.py:294	            # runtime_v2 上下文：审批请求与等待由内核 broker 承担，
+cloudra/base/tools_class.py:295	            # 不碰 conversation SQLite 与 legacy 事件总线。
+cloudra/base/tools_class.py:296	            return await handler(
+cloudra/base/tools_class.py:297	                details=details,
+cloudra/base/tools_class.py:298	                tool_name=tool_name,
+cloudra/base/tools_class.py:299	                normalized_arguments=normalized_arguments or {},
+cloudra/base/tools_class.py:300	                risk_summary=risk_summary,
+cloudra/base/tools_class.py:301	                candidate_diff=candidate_diff,
+cloudra/base/tools_class.py:302	            )
+cloudra/base/tools_class.py:303	
+cloudra/base/tools_class.py:304	        db = ConversationDB.from_path(db_path)
+cloudra/base/tools_class.py:305	        conversation_id = getattr(self.subagent, "conversation_id", None)
+cloudra/base/tools_class.py:306	        if not conversation_id:
+cloudra/base/tools_class.py:307	            conversation_id = Path(db_path).parent.parent.name
+cloudra/base/tools_class.py:308	        decisions = await events.subscribe_async(conversation_id, "approval_decided")
+cloudra/base/tools_class.py:309	        approval_id = await _ss.ainsert_approval(
+cloudra/base/tools_class.py:310	            db,
+cloudra/base/tools_class.py:311	            session_id,
+cloudra/base/tools_class.py:312	            details,
+cloudra/base/tools_class.py:313	            agent_name=(
+cloudra/base/tools_class.py:314	                self.subagent.name if self.subagent else "Unknown Agent"
+cloudra/base/tools_class.py:315	            ),
+cloudra/base/tools_class.py:316	            tool_name=tool_name,
+cloudra/base/tools_class.py:317	            normalized_arguments=normalized_arguments,
+cloudra/base/tools_class.py:318	            risk_summary=risk_summary,
+cloudra/base/tools_class.py:319	            candidate_diff=candidate_diff,
+cloudra/base/tools_class.py:320	        )
+cloudra/base/tools_class.py:321	        changed = await _ss.atransition_session_state(
+cloudra/base/tools_class.py:322	            db,
+cloudra/base/tools_class.py:323	            session_id,
+cloudra/base/tools_class.py:324	            expected={"running"},
+cloudra/base/tools_class.py:325	            target="waiting_for_approval",
+Cloudra V2.0                                               第 15 页
+----------------------------------------------------------------------
+cloudra/base/tools_class.py:326	        )
+cloudra/base/tools_class.py:327	        if changed:
+cloudra/base/tools_class.py:328	            await _ss.ainsert_session_event(
+cloudra/base/tools_class.py:329	                db,
+cloudra/base/tools_class.py:330	                session_id,
+cloudra/base/tools_class.py:331	                "waiting_for_approval",
+cloudra/base/tools_class.py:332	                {
+cloudra/base/tools_class.py:333	                    "approval_id": approval_id,
+cloudra/base/tools_class.py:334	                    "state": "waiting_for_approval",
+cloudra/base/tools_class.py:335	                },
+cloudra/base/tools_class.py:336	            )
+cloudra/base/tools_class.py:337	        try:
+cloudra/base/tools_class.py:338	            while True:
+cloudra/base/tools_class.py:339	                try:
+cloudra/base/tools_class.py:340	                    message = await asyncio.wait_for(decisions.get(), timeout=30.0)
+cloudra/base/tools_class.py:341	                except asyncio.TimeoutError:
+cloudra/base/tools_class.py:342	                    message = None
+cloudra/base/tools_class.py:343	                if message and message.get("approval_id") == approval_id:
+cloudra/base/tools_class.py:344	                    state = message.get("state")
+cloudra/base/tools_class.py:345	                    denial_reason = message.get("denial_reason", "")
+cloudra/base/tools_class.py:346	                    if state == "approved":
+cloudra/base/tools_class.py:347	                        print("\033[92m[安全审计]\033[0m 审批通过。")
+cloudra/base/tools_class.py:348	                        return True, ""
+cloudra/base/tools_class.py:349	                    if state == "denied":
+cloudra/base/tools_class.py:350	                        return False, denial_reason
+cloudra/base/tools_class.py:351	                row = await _ss.aread_approval_status(db, approval_id)
+cloudra/base/tools_class.py:352	                if row:
+cloudra/base/tools_class.py:353	                    state, denial_reason = row
+cloudra/base/tools_class.py:354	                    if state == 'approved':
+cloudra/base/tools_class.py:355	                        print("\033[92m[安全审计]\033[0m 审批通过。")
+cloudra/base/tools_class.py:356	                        return True, ''
+cloudra/base/tools_class.py:357	                    elif state == 'denied':
+cloudra/base/tools_class.py:358	                        reason = denial_reason or ''
+cloudra/base/tools_class.py:359	                        if reason:
+cloudra/base/tools_class.py:360	                            print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
+cloudra/base/tools_class.py:361	                        else:
+cloudra/base/tools_class.py:362	                            print("\033[91m[安全审计]\033[0m 审批拒绝。")
+cloudra/base/tools_class.py:363	                        return False, reason
+cloudra/base/tools_class.py:364	                    elif state == "expired":
+cloudra/base/tools_class.py:365	                        print("\033[91m[安全审计]\033[0m 审批已过期。")
+cloudra/base/tools_class.py:366	                        return False, "审批已过期"
+cloudra/base/tools_class.py:367	        finally:
+cloudra/base/tools_class.py:368	            restored = await _ss.atransition_session_state(
+cloudra/base/tools_class.py:369	                db,
+cloudra/base/tools_class.py:370	                session_id,
+cloudra/base/tools_class.py:371	                expected={"waiting_for_approval"},
+cloudra/base/tools_class.py:372	                target="running",
+cloudra/base/tools_class.py:373	            )
+cloudra/base/tools_class.py:374	            if restored:
+cloudra/base/tools_class.py:375	                await _ss.ainsert_session_event(
+cloudra/base/tools_class.py:376	                    db,
+cloudra/base/tools_class.py:377	                    session_id,
+Cloudra V2.0                                               第 16 页
+----------------------------------------------------------------------
+cloudra/base/tools_class.py:378	                    "running",
+cloudra/base/tools_class.py:379	                    {
+cloudra/base/tools_class.py:380	                        "approval_id": approval_id,
+cloudra/base/tools_class.py:381	                        "state": "running",
+cloudra/base/tools_class.py:382	                    },
+cloudra/base/tools_class.py:383	                )
+cloudra/base/tools_class.py:384	
+cloudra/base/tools_class.py:385	    @classmethod
+cloudra/base/tools_class.py:386	    def _get_field_default(cls, field_name: str):
+cloudra/base/tools_class.py:387	        '''获取类字段的默认值，兼容 Pydantic v2（类级别无法直接访问普通字段）。'''
+cloudra/base/tools_class.py:388	        field = cls.model_fields.get(field_name)
+cloudra/base/tools_class.py:389	        if field and field.default is not PydanticUndefined:
+cloudra/base/tools_class.py:390	            return field.default
+cloudra/base/tools_class.py:391	        return None
+cloudra/base/tools_class.py:392	
+cloudra/base/tools_class.py:393	    def tool_schema_json(self) -> dict:
+cloudra/base/tools_class.py:394	        '''
+cloudra/base/tools_class.py:395	        返回标准 OpenAI function 格式，可直接用于 client.chat.completions.create(..., tools=[...])。
+cloudra/base/tools_class.py:396	        优先读取实例级别的 tool_description，使动态生成的描述能够生效。
+cloudra/base/tools_class.py:397	        '''
+cloudra/base/tools_class.py:398	        # HACK: 这里用 getattr + or fallback 链是因为 Pydantic v2 的类字段默认值在实例上可能
+cloudra/base/tools_class.py:399	        # 被 shadow，但某些情况下实例属性又还没覆盖。动态 description（如 Bashtools 的权限列表、
+cloudra/base/tools_class.py:400	        # GetSkill 的 skills 列表）必须在 __init__ 之后才能确定，因此必须是实例方法而非类方法。
+cloudra/base/tools_class.py:401	        # 如果后续有更好方式（如 descriptor / property），可替换掉这个 ugly fallback。
+cloudra/base/tools_class.py:402	        description = getattr(self, 'tool_description', '') or self._get_field_default('tool_description') or ''
+cloudra/base/tools_class.py:403	        return {
+cloudra/base/tools_class.py:404	            "type": "function",
+cloudra/base/tools_class.py:405	            "function": {
+cloudra/base/tools_class.py:406	                "name": getattr(self, 'tool_name', '') or self._get_field_default('tool_name') or '',
+cloudra/base/tools_class.py:407	                "description": description,
+cloudra/base/tools_class.py:408	                "parameters": (self._get_field_default('input_schema') or input_schema).to_parameters_schema(),
+cloudra/base/tools_class.py:409	            }
+cloudra/base/tools_class.py:410	        }
+cloudra/base/tools_class.py:411	
+cloudra/base/tools_class.py:412	    def toJson(self) -> dict:
+cloudra/base/tools_class.py:413	        '''
+cloudra/base/tools_class.py:414	        实例级序列化，主要用于日志或调试。
+cloudra/base/tools_class.py:415	        若需获取 OpenAI schema，请使用类方法 tool_schema_json()。
+cloudra/base/tools_class.py:416	        '''
+cloudra/base/tools_class.py:417	        return {
+cloudra/base/tools_class.py:418	            "tool_id": self.tool_id,
+cloudra/base/tools_class.py:419	            "tool_name": self.tool_name,
+cloudra/base/tools_class.py:420	            "tool_description": self.tool_description,
+cloudra/base/tools_class.py:421	        }
+cloudra/base/tools_class.py:422	
+cloudra/base/tools_class.py:423	    @classmethod
+cloudra/base/tools_class.py:424	    def build_input(cls, arg_dict: dict) -> input_schema:
+cloudra/base/tools_class.py:425	        '''
+cloudra/base/tools_class.py:426	        将 LLM 返回的参数字典转换为 input_schema 实例。
+cloudra/base/tools_class.py:427	        供 reAct.py 调用，替代原有的 tool.input_schema.toClass(tool_args)。
+cloudra/base/tools_class.py:428	        '''
+cloudra/base/tools_class.py:429	        schema_cls = cls._get_field_default('input_schema') or input_schema
+Cloudra V2.0                                               第 17 页
+----------------------------------------------------------------------
+cloudra/base/tools_class.py:430	        return schema_cls.from_args(arg_dict)
 cloudra/cli.py:1	"""
 cloudra/cli.py:2	Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
 cloudra/cli.py:3	"""
 cloudra/cli.py:4	
 cloudra/cli.py:5	import os
 cloudra/cli.py:6	import sys
-cloudra/cli.py:7	import json
-cloudra/cli.py:8	import sqlite3
-cloudra/cli.py:9	from pathlib import Path
-cloudra/cli.py:10	from typing import Optional
-cloudra/cli.py:11	
-cloudra/cli.py:12	import click
-cloudra/cli.py:13	from rich.console import Console
-cloudra/cli.py:14	from rich.table import Table
-
-
-Cloudra V1.6.2                                              第 14 页
-----------------------------------------------------------------------
-cloudra/cli.py:15	from rich.panel import Panel
-cloudra/cli.py:16	from rich.text import Text
-cloudra/cli.py:17	
-cloudra/cli.py:18	from cloudra.config import get_config, reload_config, CloudraConfig
-cloudra/cli.py:19	from cloudra.main import run_task
-cloudra/cli.py:20	from cloudra import __version__
-cloudra/cli.py:21	
+cloudra/cli.py:7	from pathlib import Path
+cloudra/cli.py:8	
+cloudra/cli.py:9	import click
+cloudra/cli.py:10	from rich.console import Console
+cloudra/cli.py:11	from rich.panel import Panel
+cloudra/cli.py:12	from rich.table import Table
+cloudra/cli.py:13	
+cloudra/cli.py:14	from cloudra import __version__
+cloudra/cli.py:15	from cloudra.infra.config import get_config
+cloudra/cli.py:16	from cloudra.persistence import paths
+cloudra/cli.py:17	from cloudra.web_launcher import launch_browser, launch_electron
+cloudra/cli.py:18	
+cloudra/cli.py:19	console = Console()
+cloudra/cli.py:20	APP_NAME = "cloudra"
+cloudra/cli.py:21	VERSION = __version__
 cloudra/cli.py:22	
-cloudra/cli.py:23	console = Console()
-cloudra/cli.py:24	APP_NAME = "cloudra"
-cloudra/cli.py:25	VERSION = __version__
-cloudra/cli.py:26	
-cloudra/cli.py:27	
-cloudra/cli.py:28	@click.group(invoke_without_command=True)
-cloudra/cli.py:29	@click.option("--version", is_flag=True, help="显示版本信息")
-cloudra/cli.py:30	@click.option("--coordinator-model", envvar="CLOUDRA_COORDINATOR_MODEL", help="覆盖 Coordinator 模型")
-cloudra/cli.py:31	@click.option("--coordinator-url", envvar="CLOUDRA_COORDINATOR_URL", help="覆盖 Coordinator API 地址")
-cloudra/cli.py:32	@click.option("--coordinator-key", envvar="CLOUDRA_COORDINATOR_KEY", help="覆盖 Coordinator API Key")
-cloudra/cli.py:33	@click.option("--follower-model", envvar="CLOUDRA_FOLLOWER_MODEL", help="覆盖 Follower 模型")
-cloudra/cli.py:34	@click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
-cloudra/cli.py:35	@click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
-cloudra/cli.py:36	@click.pass_context
-cloudra/cli.py:37	def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
-cloudra/cli.py:38	        follower_model, follower_url, follower_key):
-cloudra/cli.py:39	    """Cloudra - AI 化学科研助手"""
-cloudra/cli.py:40	    if version:
-cloudra/cli.py:41	        console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
-cloudra/cli.py:42	        sys.exit(0)
-cloudra/cli.py:43	    
-cloudra/cli.py:44	    if ctx.invoked_subcommand is None:
-cloudra/cli.py:45	        console.print("[yellow]请使用子命令，或运行 `cloudra --help` 查看用法。[/yellow]")
-cloudra/cli.py:46	        sys.exit(0)
-cloudra/cli.py:47	    
-cloudra/cli.py:48	    # Apply CLI overrides to config
-cloudra/cli.py:49	    config = get_config()
-cloudra/cli.py:50	    if coordinator_model:
-cloudra/cli.py:51	        config.coordinator.model = coordinator_model
-cloudra/cli.py:52	    if coordinator_url:
-cloudra/cli.py:53	        config.coordinator.url = coordinator_url
-cloudra/cli.py:54	    if coordinator_key:
-cloudra/cli.py:55	        config.coordinator.key = coordinator_key
-cloudra/cli.py:56	    if follower_model:
-cloudra/cli.py:57	        config.follower.model = follower_model
-cloudra/cli.py:58	    if follower_url:
-cloudra/cli.py:59	        config.follower.url = follower_url
-cloudra/cli.py:60	    if follower_key:
-cloudra/cli.py:61	        config.follower.key = follower_key
-cloudra/cli.py:62	
-cloudra/cli.py:63	
-cloudra/cli.py:64	@cli.command()
-
-
-Cloudra V1.6.2                                              第 15 页
+cloudra/cli.py:23	
+cloudra/cli.py:24	@click.group(invoke_without_command=True)
+cloudra/cli.py:25	@click.option("--version", is_flag=True, help="显示版本信息")
+cloudra/cli.py:26	@click.option("--coordinator-model", envvar="CLOUDRA_COORDINATOR_MODEL", help="覆盖 Coordinator 模型")
+cloudra/cli.py:27	@click.option("--coordinator-url", envvar="CLOUDRA_COORDINATOR_URL", help="覆盖 Coordinator API 地址")
+cloudra/cli.py:28	@click.option("--coordinator-key", envvar="CLOUDRA_COORDINATOR_KEY", help="覆盖 Coordinator API Key")
+cloudra/cli.py:29	@click.option("--follower-model", envvar="CLOUDRA_FOLLOWER_MODEL", help="覆盖 Follower 模型")
+cloudra/cli.py:30	@click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
+cloudra/cli.py:31	@click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
+cloudra/cli.py:32	@click.pass_context
+cloudra/cli.py:33	def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:34	        follower_model, follower_url, follower_key):
+cloudra/cli.py:35	    """Cloudra - AI 化学科研助手"""
+cloudra/cli.py:36	    if version:
+cloudra/cli.py:37	        console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
+cloudra/cli.py:38	        sys.exit(0)
+cloudra/cli.py:39	
+cloudra/cli.py:40	    if ctx.invoked_subcommand is None:
+cloudra/cli.py:41	        _apply_config_overrides(
+cloudra/cli.py:42	            coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:43	            follower_model, follower_url, follower_key,
+cloudra/cli.py:44	        )
+cloudra/cli.py:45	        if sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+cloudra/cli.py:46	            console.print("[yellow]未检测到图形显示，回退到浏览器模式。[/yellow]")
+cloudra/cli.py:47	            sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
+cloudra/cli.py:48	        else:
+cloudra/cli.py:49	            sys.exit(launch_electron(_frontend_or_exit(), rebuild=False, skip_build=False))
+cloudra/cli.py:50	
+cloudra/cli.py:51	    _apply_config_overrides(
+Cloudra V2.0                                               第 18 页
 ----------------------------------------------------------------------
-cloudra/cli.py:65	@click.argument("query")
-cloudra/cli.py:66	@click.option("--conv-id", default=None, help="指定对话 ID")
-cloudra/cli.py:67	@click.option("--new", is_flag=True, help="启动新对话，不自动恢复")
-cloudra/cli.py:68	@click.option("--dry-run", is_flag=True, help="只显示配置，不实际执行")
-cloudra/cli.py:69	@click.option("--yolo", is_flag=True, help="启用 YOLO 全自动模式（危险操作由 LLM 自动审批）")
-cloudra/cli.py:70	def run(query, conv_id, new, dry_run, yolo):
-cloudra/cli.py:71	    """运行一个 Cloudra 任务。"""
-cloudra/cli.py:72	    if yolo:
-cloudra/cli.py:73	        os.environ["CLOUDRA_YOLO_MODE"] = "true"
-cloudra/cli.py:74	        console.print("[bold yellow]YOLO 模式已启用：危险操作将由 LLM 自动审批[/bold yellow]")
-cloudra/cli.py:75	    config = get_config()
-cloudra/cli.py:76	    # Logic for sticky conversation
-cloudra/cli.py:77	    if conv_id:
-cloudra/cli.py:78	        active_conv_id = conv_id
-cloudra/cli.py:79	    elif new:
-cloudra/cli.py:80	        active_conv_id = None
-cloudra/cli.py:81	    else:
-cloudra/cli.py:82	        active_conv_id = config.last_conversation_id
-cloudra/cli.py:83	        if active_conv_id:
-cloudra/cli.py:84	            console.print(f"[dim]自动恢复上次对话: {active_conv_id}[/dim]")
-cloudra/cli.py:85	
-cloudra/cli.py:86	    # Resolve actual ID (creates directory if new, but we need it for consistency)
-cloudra/cli.py:87	    from cloudra.conversation_class import Conversation
-cloudra/cli.py:88	    temp_conv = Conversation(active_conv_id)
-cloudra/cli.py:89	    active_conv_id = temp_conv.id
-cloudra/cli.py:90	
-cloudra/cli.py:91	    if dry_run:
-cloudra/cli.py:92	        console.print(Panel("[bold]Dry Run 模式[/bold]", style="yellow"))
-cloudra/cli.py:93	        console.print(f"Query: {query}")
-cloudra/cli.py:94	        console.print(f"Conversation ID: {active_conv_id}")
-cloudra/cli.py:95	        console.print(f"Data Dir: {config.data_dir}")
-cloudra/cli.py:96	        console.print(f"Coordinator Model: {config.coordinator.model}")
-cloudra/cli.py:97	        console.print(f"Follower Model: {config.follower.model}")
-cloudra/cli.py:98	        return
-cloudra/cli.py:99	
-cloudra/cli.py:100	    
-cloudra/cli.py:101	    # Validate API keys
-cloudra/cli.py:102	    if not config.coordinator.key:
-cloudra/cli.py:103	        console.print("[red]错误: Coordinator API Key 未设置。[/red]")
-cloudra/cli.py:104	        console.print("请运行 `cloudra config init` 进行配置，或通过环境变量设置。")
-cloudra/cli.py:105	        sys.exit(1)
-cloudra/cli.py:106	    
-cloudra/cli.py:107	    try:
-cloudra/cli.py:108	        result = run_task(query, conv_id=active_conv_id, verbose=True)
-cloudra/cli.py:109	        
-cloudra/cli.py:110	        # Save the used ID as the last one
-cloudra/cli.py:111	        config.last_conversation_id = active_conv_id
-cloudra/cli.py:112	        config.save()
-cloudra/cli.py:113	        
-cloudra/cli.py:114	    except KeyboardInterrupt:
-
-
-Cloudra V1.6.2                                              第 16 页
+cloudra/cli.py:52	        coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:53	        follower_model, follower_url, follower_key,
+cloudra/cli.py:54	    )
+cloudra/cli.py:55	
+cloudra/cli.py:56	
+cloudra/cli.py:57	def _apply_config_overrides(coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:58	                            follower_model, follower_url, follower_key):
+cloudra/cli.py:59	    """把 CLI 覆盖项写入全局配置。"""
+cloudra/cli.py:60	    config = get_config()
+cloudra/cli.py:61	    if coordinator_model:
+cloudra/cli.py:62	        config.coordinator.model = coordinator_model
+cloudra/cli.py:63	    if coordinator_url:
+cloudra/cli.py:64	        config.coordinator.url = coordinator_url
+cloudra/cli.py:65	    if coordinator_key:
+cloudra/cli.py:66	        config.coordinator.key = coordinator_key
+cloudra/cli.py:67	    if follower_model:
+cloudra/cli.py:68	        config.follower.model = follower_model
+cloudra/cli.py:69	    if follower_url:
+cloudra/cli.py:70	        config.follower.url = follower_url
+cloudra/cli.py:71	    if follower_key:
+cloudra/cli.py:72	        config.follower.key = follower_key
+cloudra/cli.py:73	
+cloudra/cli.py:74	
+cloudra/cli.py:75	def _frontend_or_exit():
+cloudra/cli.py:76	    from cloudra.web_launcher import _frontend_dir
+cloudra/cli.py:77	    try:
+cloudra/cli.py:78	        return _frontend_dir()
+cloudra/cli.py:79	    except RuntimeError as exc:
+cloudra/cli.py:80	        console.print(f"[red]{exc}[/red]")
+cloudra/cli.py:81	        sys.exit(1)
+cloudra/cli.py:82	
+cloudra/cli.py:83	
+cloudra/cli.py:84	@cli.command(name="web")
+cloudra/cli.py:85	@click.option("--browser", is_flag=True, help="在浏览器中打开，而不是启动 Electron")
+cloudra/cli.py:86	@click.option("--rebuild", is_flag=True, help="强制重新构建前端")
+cloudra/cli.py:87	@click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
+cloudra/cli.py:88	def web(browser, rebuild, skip_build):
+cloudra/cli.py:89	    """启动新的 Electron/Web 前端。"""
+cloudra/cli.py:90	    frontend = _frontend_or_exit()
+cloudra/cli.py:91	    if browser:
+cloudra/cli.py:92	        sys.exit(launch_browser(frontend, rebuild=rebuild, skip_build=skip_build))
+cloudra/cli.py:93	    sys.exit(launch_electron(frontend, rebuild=rebuild, skip_build=skip_build))
+cloudra/cli.py:94	
+cloudra/cli.py:95	
+cloudra/cli.py:96	@cli.group(name="config")
+cloudra/cli.py:97	def config_cmd():
+cloudra/cli.py:98	    """配置管理（init, show, get, set）"""
+cloudra/cli.py:99	    pass
+cloudra/cli.py:100	
+cloudra/cli.py:101	
+cloudra/cli.py:102	@config_cmd.command(name="init")
+cloudra/cli.py:103	@click.option("--force", is_flag=True, help="覆盖已有配置文件")
+Cloudra V2.0                                               第 19 页
 ----------------------------------------------------------------------
-cloudra/cli.py:115	        console.print("\n[yellow]任务被用户中断。[/yellow]")
-cloudra/cli.py:116	        sys.exit(130)
-cloudra/cli.py:117	    except Exception as e:
-cloudra/cli.py:118	        console.print(f"[red]任务执行失败: {e}[/red]")
-cloudra/cli.py:119	        import traceback
-cloudra/cli.py:120	        console.print(traceback.format_exc())
-cloudra/cli.py:121	        sys.exit(1)
-cloudra/cli.py:122	
-cloudra/cli.py:123	
-cloudra/cli.py:124	@cli.group(name="config")
-cloudra/cli.py:125	def config_cmd():
-cloudra/cli.py:126	    """配置管理（init, show, get, set）"""
-cloudra/cli.py:127	    pass
-cloudra/cli.py:128	
-cloudra/cli.py:129	
-cloudra/cli.py:130	@config_cmd.command(name="init")
-cloudra/cli.py:131	@click.option("--force", is_flag=True, help="覆盖已有配置文件")
-cloudra/cli.py:132	def config_init(force):
-cloudra/cli.py:133	    """交互式初始化配置文件。"""
-cloudra/cli.py:134	    cfg = get_config()
-cloudra/cli.py:135	    cfg_path = cfg.config_file
-cloudra/cli.py:136	    
-cloudra/cli.py:137	    if cfg_path.exists() and not force:
-cloudra/cli.py:138	        console.print(f"[yellow]配置文件已存在: {cfg_path}[/yellow]")
-cloudra/cli.py:139	        console.print("使用 `--force` 覆盖，或直接编辑该文件。")
-cloudra/cli.py:140	        return
-cloudra/cli.py:141	    
-cloudra/cli.py:142	    console.print("[bold]Cloudra 配置初始化[/bold]\n")
-cloudra/cli.py:143	    
-cloudra/cli.py:144	    # Prompt for values (use existing as defaults)
-cloudra/cli.py:145	    coord_model = click.prompt("Coordinator 模型", default=cfg.coordinator.model)
-cloudra/cli.py:146	    coord_url = click.prompt("Coordinator API 地址", default=cfg.coordinator.url)
-cloudra/cli.py:147	    coord_key = click.prompt("Coordinator API Key", default="", hide_input=True)
-cloudra/cli.py:148	    
-cloudra/cli.py:149	    follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
-cloudra/cli.py:150	    follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
-cloudra/cli.py:151	    follower_key = click.prompt("Follower API Key", default="", hide_input=True)
-cloudra/cli.py:152	    
-cloudra/cli.py:153	    cfg.coordinator.model = coord_model
-cloudra/cli.py:154	    cfg.coordinator.url = coord_url
-cloudra/cli.py:155	    cfg.coordinator.key = coord_key or cfg.coordinator.key
-cloudra/cli.py:156	    cfg.follower.model = follower_model
-cloudra/cli.py:157	    cfg.follower.url = follower_url
-cloudra/cli.py:158	    cfg.follower.key = follower_key or cfg.follower.key
-cloudra/cli.py:159	    
-cloudra/cli.py:160	    cfg.save()
-cloudra/cli.py:161	    console.print(f"[green]配置已保存至: {cfg_path}[/green]")
-cloudra/cli.py:162	
-cloudra/cli.py:163	
-cloudra/cli.py:164	@config_cmd.command(name="show")
-
-
-Cloudra V1.6.2                                              第 17 页
+cloudra/cli.py:104	def config_init(force):
+cloudra/cli.py:105	    """交互式初始化配置文件。"""
+cloudra/cli.py:106	    cfg = get_config()
+cloudra/cli.py:107	    cfg_path = cfg.config_file
+cloudra/cli.py:108	
+cloudra/cli.py:109	    if cfg_path.exists() and not force:
+cloudra/cli.py:110	        console.print(f"[yellow]配置文件已存在: {cfg_path}[/yellow]")
+cloudra/cli.py:111	        console.print("使用 `--force` 覆盖，或直接编辑该文件。")
+cloudra/cli.py:112	        return
+cloudra/cli.py:113	
+cloudra/cli.py:114	    console.print("[bold]Cloudra 配置初始化[/bold]\n")
+cloudra/cli.py:115	
+cloudra/cli.py:116	    # Prompt for values (use existing as defaults)
+cloudra/cli.py:117	    coord_model = click.prompt("Coordinator 模型", default=cfg.coordinator.model)
+cloudra/cli.py:118	    coord_url = click.prompt("Coordinator API 地址", default=cfg.coordinator.url)
+cloudra/cli.py:119	    coord_key = click.prompt("Coordinator API Key", default="", hide_input=True)
+cloudra/cli.py:120	
+cloudra/cli.py:121	    follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
+cloudra/cli.py:122	    follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
+cloudra/cli.py:123	    follower_key = click.prompt("Follower API Key", default="", hide_input=True)
+cloudra/cli.py:124	    openalex_key = click.prompt(
+cloudra/cli.py:125	        "OpenAlex API Key（可选，回车跳过；无 key 时匿名检索）",
+cloudra/cli.py:126	        default="",
+cloudra/cli.py:127	        hide_input=True,
+cloudra/cli.py:128	    )
+cloudra/cli.py:129	    openalex_mailto = click.prompt(
+cloudra/cli.py:130	        "OpenAlex 礼貌池邮箱（可选，回车跳过）",
+cloudra/cli.py:131	        default=cfg.openalex_mailto or "",
+cloudra/cli.py:132	    )
+cloudra/cli.py:133	
+cloudra/cli.py:134	    cfg.coordinator.model = coord_model
+cloudra/cli.py:135	    cfg.coordinator.url = coord_url
+cloudra/cli.py:136	    cfg.coordinator.key = coord_key or cfg.coordinator.key
+cloudra/cli.py:137	    cfg.follower.model = follower_model
+cloudra/cli.py:138	    cfg.follower.url = follower_url
+cloudra/cli.py:139	    cfg.follower.key = follower_key or cfg.follower.key
+cloudra/cli.py:140	    if openalex_key:
+cloudra/cli.py:141	        cfg.openalex_api_key = openalex_key
+cloudra/cli.py:142	    if openalex_mailto:
+cloudra/cli.py:143	        cfg.openalex_mailto = openalex_mailto
+cloudra/cli.py:144	
+cloudra/cli.py:145	    cfg.save()
+cloudra/cli.py:146	    console.print(f"[green]配置已保存至: {cfg_path}[/green]")
+cloudra/cli.py:147	
+cloudra/cli.py:148	
+cloudra/cli.py:149	@config_cmd.command(name="show")
+cloudra/cli.py:150	def config_show():
+cloudra/cli.py:151	    """显示当前生效的配置（敏感信息脱敏）。"""
+cloudra/cli.py:152	    cfg = get_config()
+cloudra/cli.py:153	    display = cfg.to_display_dict()
+cloudra/cli.py:154	
+cloudra/cli.py:155	    console.print(Panel("[bold]Cloudra 配置[/bold]", style="cyan"))
+Cloudra V2.0                                               第 20 页
 ----------------------------------------------------------------------
-cloudra/cli.py:165	def config_show():
-cloudra/cli.py:166	    """显示当前生效的配置（敏感信息脱敏）。"""
-cloudra/cli.py:167	    cfg = get_config()
-cloudra/cli.py:168	    display = cfg.to_display_dict()
-cloudra/cli.py:169	    
-cloudra/cli.py:170	    console.print(Panel("[bold]Cloudra 配置[/bold]", style="cyan"))
-cloudra/cli.py:171	    console.print(f"[bold]Data Directory:[/bold] {display['data_dir']}")
-cloudra/cli.py:172	    console.print(f"[bold]Config File:[/bold] {display['config_file']}")
-cloudra/cli.py:173	    console.print()
-cloudra/cli.py:174	    
-cloudra/cli.py:175	    table = Table(title="LLM 配置", show_header=True, header_style="bold magenta")
-cloudra/cli.py:176	    table.add_column("角色")
-cloudra/cli.py:177	    table.add_column("模型")
-cloudra/cli.py:178	    table.add_column("URL")
-cloudra/cli.py:179	    table.add_column("Key")
-cloudra/cli.py:180	    
-cloudra/cli.py:181	    table.add_row(
-cloudra/cli.py:182	        "Coordinator",
-cloudra/cli.py:183	        display['llm']['coordinator']['model'],
-cloudra/cli.py:184	        display['llm']['coordinator']['url'],
-cloudra/cli.py:185	        display['llm']['coordinator']['key'],
-cloudra/cli.py:186	    )
-cloudra/cli.py:187	    table.add_row(
-cloudra/cli.py:188	        "Follower",
-cloudra/cli.py:189	        display['llm']['follower']['model'],
-cloudra/cli.py:190	        display['llm']['follower']['url'],
-cloudra/cli.py:191	        display['llm']['follower']['key'],
-cloudra/cli.py:192	    )
-cloudra/cli.py:193	    
-cloudra/cli.py:194	    console.print(table)
-cloudra/cli.py:195	
-cloudra/cli.py:196	
-cloudra/cli.py:197	def _resolve_config_attr(cfg, key: str):
-cloudra/cli.py:198	    """Resolve a dot-path like 'llm.coordinator.model' against a Pydantic model."""
-cloudra/cli.py:199	    parts = key.split(".")
-cloudra/cli.py:200	    target = cfg
-cloudra/cli.py:201	    for part in parts[:-1]:
-cloudra/cli.py:202	        if hasattr(target, part):
-cloudra/cli.py:203	            target = getattr(target, part)
-cloudra/cli.py:204	        else:
-cloudra/cli.py:205	            return None, None
-cloudra/cli.py:206	    final_key = parts[-1]
-cloudra/cli.py:207	    if not hasattr(target, final_key):
-cloudra/cli.py:208	        return None, None
-cloudra/cli.py:209	    return target, final_key
+cloudra/cli.py:156	    console.print(f"[bold]Data Directory:[/bold] {display['data_dir']}")
+cloudra/cli.py:157	    console.print(f"[bold]Config File:[/bold] {display['config_file']}")
+cloudra/cli.py:158	    console.print()
+cloudra/cli.py:159	
+cloudra/cli.py:160	    table = Table(title="LLM 配置", show_header=True, header_style="bold magenta")
+cloudra/cli.py:161	    table.add_column("角色")
+cloudra/cli.py:162	    table.add_column("模型")
+cloudra/cli.py:163	    table.add_column("URL")
+cloudra/cli.py:164	    table.add_column("Key")
+cloudra/cli.py:165	
+cloudra/cli.py:166	    table.add_row(
+cloudra/cli.py:167	        "Coordinator",
+cloudra/cli.py:168	        display['llm']['coordinator']['model'],
+cloudra/cli.py:169	        display['llm']['coordinator']['url'],
+cloudra/cli.py:170	        display['llm']['coordinator']['key'],
+cloudra/cli.py:171	    )
+cloudra/cli.py:172	    table.add_row(
+cloudra/cli.py:173	        "Follower",
+cloudra/cli.py:174	        display['llm']['follower']['model'],
+cloudra/cli.py:175	        display['llm']['follower']['url'],
+cloudra/cli.py:176	        display['llm']['follower']['key'],
+cloudra/cli.py:177	    )
+cloudra/cli.py:178	
+cloudra/cli.py:179	    console.print(table)
+cloudra/cli.py:180	    console.print()
+cloudra/cli.py:181	    oa_key = display.get("openalex_api_key", "(not set)")
+cloudra/cli.py:182	    oa_mail = display.get("openalex_mailto", "(not set)")
+cloudra/cli.py:183	    console.print(f"[bold]OpenAlex API Key:[/bold] {oa_key}")
+cloudra/cli.py:184	    console.print(f"[bold]OpenAlex mailto:[/bold] {oa_mail}")
+cloudra/cli.py:185	
+cloudra/cli.py:186	
+cloudra/cli.py:187	def _resolve_config_attr(cfg, key: str):
+cloudra/cli.py:188	    """Backward-compatible alias; 实现已下沉到 cloudra.infra.config 供 API 复用。"""
+cloudra/cli.py:189	    from cloudra.infra.config import resolve_config_attr
+cloudra/cli.py:190	    return resolve_config_attr(cfg, key)
+cloudra/cli.py:191	
+cloudra/cli.py:192	
+cloudra/cli.py:193	@config_cmd.command(name="get")
+cloudra/cli.py:194	@click.argument("key")
+cloudra/cli.py:195	def config_get(key):
+cloudra/cli.py:196	    """读取单个配置项。例如: cloudra config get coordinator.model"""
+cloudra/cli.py:197	    cfg = get_config()
+cloudra/cli.py:198	
+cloudra/cli.py:199	    target, final_key = _resolve_config_attr(cfg, key)
+cloudra/cli.py:200	    if target is None:
+cloudra/cli.py:201	        # Try without 'llm.' prefix for convenience
+cloudra/cli.py:202	        target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
+cloudra/cli.py:203	    if target is None:
+cloudra/cli.py:204	        target, final_key = _resolve_config_attr(cfg, f"follower.{key}")
+cloudra/cli.py:205	    if target is None:
+cloudra/cli.py:206	        console.print(f"[red]配置项不存在: {key}[/red]")
+cloudra/cli.py:207	        sys.exit(1)
+Cloudra V2.0                                               第 21 页
+----------------------------------------------------------------------
+cloudra/cli.py:208	
+cloudra/cli.py:209	    value = getattr(target, final_key)
 cloudra/cli.py:210	
-cloudra/cli.py:211	
-cloudra/cli.py:212	@config_cmd.command(name="get")
-cloudra/cli.py:213	@click.argument("key")
-cloudra/cli.py:214	def config_get(key):
-
-
-Cloudra V1.6.2                                              第 18 页
-----------------------------------------------------------------------
-cloudra/cli.py:215	    """读取单个配置项。例如: cloudra config get coordinator.model"""
-cloudra/cli.py:216	    cfg = get_config()
-cloudra/cli.py:217	    
-cloudra/cli.py:218	    target, final_key = _resolve_config_attr(cfg, key)
-cloudra/cli.py:219	    if target is None:
-cloudra/cli.py:220	        # Try without 'llm.' prefix for convenience
-cloudra/cli.py:221	        target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
-cloudra/cli.py:222	    if target is None:
-cloudra/cli.py:223	        target, final_key = _resolve_config_attr(cfg, f"follower.{key}")
-cloudra/cli.py:224	    if target is None:
-cloudra/cli.py:225	        console.print(f"[red]配置项不存在: {key}[/red]")
-cloudra/cli.py:226	        sys.exit(1)
-cloudra/cli.py:227	    
-cloudra/cli.py:228	    value = getattr(target, final_key)
-cloudra/cli.py:229	    
-cloudra/cli.py:230	    # Mask keys
-cloudra/cli.py:231	    if "key" in key.lower() and isinstance(value, str) and value:
-cloudra/cli.py:232	        value = "***"
-cloudra/cli.py:233	    
-cloudra/cli.py:234	    console.print(value)
-cloudra/cli.py:235	
-cloudra/cli.py:236	
-cloudra/cli.py:237	@config_cmd.command(name="set")
-cloudra/cli.py:238	@click.argument("key")
-cloudra/cli.py:239	@click.argument("value")
-cloudra/cli.py:240	def config_set(key, value):
-cloudra/cli.py:241	    """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
-cloudra/cli.py:242	    cfg = get_config()
-cloudra/cli.py:243	    
-cloudra/cli.py:244	    target, final_key = _resolve_config_attr(cfg, key)
-cloudra/cli.py:245	    if target is None:
-cloudra/cli.py:246	        target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
-cloudra/cli.py:247	    if target is None:
-cloudra/cli.py:248	        target, final_key = _resolve_config_attr(cfg, f"follower.{key}")
-cloudra/cli.py:249	    if target is None:
-cloudra/cli.py:250	        console.print(f"[red]配置项不存在: {key}[/red]")
-cloudra/cli.py:251	        sys.exit(1)
-cloudra/cli.py:252	    
-cloudra/cli.py:253	    setattr(target, final_key, value)
-cloudra/cli.py:254	    cfg.save()
-cloudra/cli.py:255	    console.print(f"[green]已设置 {key} = {value}[/green]")
+cloudra/cli.py:211	    # Mask keys
+cloudra/cli.py:212	    if "key" in key.lower() and isinstance(value, str) and value:
+cloudra/cli.py:213	        value = "***"
+cloudra/cli.py:214	
+cloudra/cli.py:215	    console.print(value)
+cloudra/cli.py:216	
+cloudra/cli.py:217	
+cloudra/cli.py:218	@config_cmd.command(name="set")
+cloudra/cli.py:219	@click.argument("key")
+cloudra/cli.py:220	@click.argument("value")
+cloudra/cli.py:221	def config_set(key, value):
+cloudra/cli.py:222	    """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
+cloudra/cli.py:223	    from cloudra.infra.config import set_config_value
+cloudra/cli.py:224	
+cloudra/cli.py:225	    try:
+cloudra/cli.py:226	        set_config_value(key, value)
+cloudra/cli.py:227	    except ValueError as exc:
+cloudra/cli.py:228	        console.print(f"[red]{exc}[/red]")
+cloudra/cli.py:229	        sys.exit(1)
+cloudra/cli.py:230	    console.print(f"[green]已设置 {key} = {value}[/green]")
+cloudra/cli.py:231	
+cloudra/cli.py:232	
+cloudra/cli.py:233	@cli.command()
+cloudra/cli.py:234	@click.argument("conv_id")
+cloudra/cli.py:235	def logs(conv_id):
+cloudra/cli.py:236	    """查看某个对话的日志。"""
+cloudra/cli.py:237	    log_dir = paths.logs_dir(conv_id)
+cloudra/cli.py:238	
+cloudra/cli.py:239	    if not log_dir.exists():
+cloudra/cli.py:240	        console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
+cloudra/cli.py:241	        return
+cloudra/cli.py:242	
+cloudra/cli.py:243	    for log_file in sorted(log_dir.iterdir()):
+cloudra/cli.py:244	        if log_file.is_file():
+cloudra/cli.py:245	            console.print(Panel(f"[bold]{log_file.name}[/bold]", style="blue"))
+cloudra/cli.py:246	            try:
+cloudra/cli.py:247	                with open(log_file, "r", encoding="utf-8") as f:
+cloudra/cli.py:248	                    content = f.read()
+cloudra/cli.py:249	                console.print(content[:5000] if len(content) > 5000 else content)
+cloudra/cli.py:250	                if len(content) > 5000:
+cloudra/cli.py:251	                    console.print("[dim]... (日志过长，已截断)[/dim]")
+cloudra/cli.py:252	            except Exception as e:
+cloudra/cli.py:253	                console.print(f"[red]读取日志失败: {e}[/red]")
+cloudra/cli.py:254	            console.print()
+cloudra/cli.py:255	
 cloudra/cli.py:256	
-cloudra/cli.py:257	
-cloudra/cli.py:258	@cli.command()
-cloudra/cli.py:259	@click.option("--limit", default=20, help="最多显示多少条")
-cloudra/cli.py:260	def history(limit):
-cloudra/cli.py:261	    """查看历史对话列表。"""
-cloudra/cli.py:262	    data_dir = get_config().data_dir
-cloudra/cli.py:263	    conv_dir = data_dir / "conversations"
-cloudra/cli.py:264	    
-
-
-Cloudra V1.6.2                                              第 19 页
+cloudra/cli.py:257	@cli.command()
+cloudra/cli.py:258	def skills():
+cloudra/cli.py:259	    """列出可用的 Skills。"""
+Cloudra V2.0                                               第 22 页
 ----------------------------------------------------------------------
-cloudra/cli.py:265	    if not conv_dir.exists():
-cloudra/cli.py:266	        console.print("[yellow]暂无历史对话。[/yellow]")
+cloudra/cli.py:260	    from cloudra.base.skill_class import skill_loader
+cloudra/cli.py:261	
+cloudra/cli.py:262	    loader = skill_loader()
+cloudra/cli.py:263	    skills_data = loader.skill_datas_get()
+cloudra/cli.py:264	
+cloudra/cli.py:265	    if not skills_data:
+cloudra/cli.py:266	        console.print("[yellow]暂无可用 Skills。[/yellow]")
 cloudra/cli.py:267	        return
-cloudra/cli.py:268	    
-cloudra/cli.py:269	    conversations = []
-cloudra/cli.py:270	    for entry in conv_dir.iterdir():
-cloudra/cli.py:271	        if entry.is_dir():
-cloudra/cli.py:272	            meta_path = entry / "meta.json"
-cloudra/cli.py:273	            if meta_path.exists():
-cloudra/cli.py:274	                with open(meta_path, "r", encoding="utf-8") as f:
-cloudra/cli.py:275	                    meta = json.load(f)
-cloudra/cli.py:276	                conversations.append({
-cloudra/cli.py:277	                    "id": meta.get("id", entry.name),
-cloudra/cli.py:278	                    "create_time": meta.get("create_time", ""),
-cloudra/cli.py:279	                    "last_active": meta.get("last_active", ""),
-cloudra/cli.py:280	                    "state": meta.get("state", "active"),
-cloudra/cli.py:281	                })
-cloudra/cli.py:282	    
-cloudra/cli.py:283	    # Sort by last_active descending
-cloudra/cli.py:284	    conversations.sort(key=lambda x: x["last_active"], reverse=True)
-cloudra/cli.py:285	    conversations = conversations[:limit]
-cloudra/cli.py:286	    
-cloudra/cli.py:287	    table = Table(title="历史对话", show_header=True, header_style="bold magenta")
-cloudra/cli.py:288	    table.add_column("对话 ID", style="cyan")
-cloudra/cli.py:289	    table.add_column("创建时间")
-cloudra/cli.py:290	    table.add_column("最后活跃")
-cloudra/cli.py:291	    table.add_column("状态")
-cloudra/cli.py:292	    
-cloudra/cli.py:293	    for conv in conversations:
-cloudra/cli.py:294	        table.add_row(
-cloudra/cli.py:295	            conv["id"],
-cloudra/cli.py:296	            conv["create_time"][:19] if conv["create_time"] else "",
-cloudra/cli.py:297	            conv["last_active"][:19] if conv["last_active"] else "",
-cloudra/cli.py:298	            conv["state"],
-cloudra/cli.py:299	        )
-cloudra/cli.py:300	    
-cloudra/cli.py:301	    console.print(table)
+cloudra/cli.py:268	
+cloudra/cli.py:269	    table = Table(title="可用 Skills", show_header=True, header_style="bold green")
+cloudra/cli.py:270	    table.add_column("名称", style="cyan")
+cloudra/cli.py:271	    table.add_column("描述")
+cloudra/cli.py:272	
+cloudra/cli.py:273	    for skill in skills_data:
+cloudra/cli.py:274	        table.add_row(
+cloudra/cli.py:275	            skill.get("name", "N/A"),
+cloudra/cli.py:276	            skill.get("description", "")[:80],
+cloudra/cli.py:277	        )
+cloudra/cli.py:278	
+cloudra/cli.py:279	    console.print(table)
+cloudra/cli.py:280	
+cloudra/cli.py:281	
+cloudra/cli.py:282	@cli.group(name="backup")
+cloudra/cli.py:283	def backup_cmd():
+cloudra/cli.py:284	    """创建、校验和恢复 Cloudra 数据备份。"""
+cloudra/cli.py:285	    pass
+cloudra/cli.py:286	
+cloudra/cli.py:287	
+cloudra/cli.py:288	@backup_cmd.command(name="create")
+cloudra/cli.py:289	@click.argument("destination", type=click.Path(path_type=Path))
+cloudra/cli.py:290	def backup_create(destination: Path):
+cloudra/cli.py:291	    """在线快照 SQLite，并创建带 SHA-256 清单的备份。"""
+cloudra/cli.py:292	    from cloudra.infra.operations import BackupError, create_backup
+cloudra/cli.py:293	
+cloudra/cli.py:294	    try:
+cloudra/cli.py:295	        manifest = create_backup(Path(get_config().data_dir), destination)
+cloudra/cli.py:296	    except BackupError as exc:
+cloudra/cli.py:297	        raise click.ClickException(str(exc)) from exc
+cloudra/cli.py:298	    console.print(
+cloudra/cli.py:299	        f"[green]备份完成:[/green] {destination.resolve()} "
+cloudra/cli.py:300	        f"({len(manifest['files'])} files)"
+cloudra/cli.py:301	    )
 cloudra/cli.py:302	
 cloudra/cli.py:303	
-cloudra/cli.py:304	@cli.command()
-cloudra/cli.py:305	@click.argument("conv_id")
-cloudra/cli.py:306	def logs(conv_id):
-cloudra/cli.py:307	    """查看某个对话的日志。"""
-cloudra/cli.py:308	    data_dir = get_config().data_dir
-cloudra/cli.py:309	    log_dir = data_dir / "conversations" / conv_id / "logs"
-cloudra/cli.py:310	    
-cloudra/cli.py:311	    if not log_dir.exists():
-cloudra/cli.py:312	        console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
-cloudra/cli.py:313	        return
-cloudra/cli.py:314	    
-
-
-Cloudra V1.6.2                                              第 20 页
+cloudra/cli.py:304	@backup_cmd.command(name="verify")
+cloudra/cli.py:305	@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+cloudra/cli.py:306	def backup_verify(archive: Path):
+cloudra/cli.py:307	    """校验备份清单、成员范围与全部 SHA-256。"""
+cloudra/cli.py:308	    from cloudra.infra.operations import BackupError, verify_backup
+cloudra/cli.py:309	
+cloudra/cli.py:310	    try:
+cloudra/cli.py:311	        manifest = verify_backup(archive)
+Cloudra V2.0                                               第 23 页
 ----------------------------------------------------------------------
-cloudra/cli.py:315	    for log_file in sorted(log_dir.iterdir()):
-cloudra/cli.py:316	        if log_file.is_file():
-cloudra/cli.py:317	            console.print(Panel(f"[bold]{log_file.name}[/bold]", style="blue"))
-cloudra/cli.py:318	            try:
-cloudra/cli.py:319	                with open(log_file, "r", encoding="utf-8") as f:
-cloudra/cli.py:320	                    content = f.read()
-cloudra/cli.py:321	                console.print(content[:5000] if len(content) > 5000 else content)
-cloudra/cli.py:322	                if len(content) > 5000:
-cloudra/cli.py:323	                    console.print("[dim]... (日志过长，已截断)[/dim]")
-cloudra/cli.py:324	            except Exception as e:
-cloudra/cli.py:325	                console.print(f"[red]读取日志失败: {e}[/red]")
-cloudra/cli.py:326	            console.print()
-cloudra/cli.py:327	
-cloudra/cli.py:328	
-cloudra/cli.py:329	@cli.command()
-cloudra/cli.py:330	def skills():
-cloudra/cli.py:331	    """列出可用的 Skills。"""
-cloudra/cli.py:332	    from cloudra.skill_class import skill_loader
-cloudra/cli.py:333	    
-cloudra/cli.py:334	    loader = skill_loader()
-cloudra/cli.py:335	    skills_data = loader.skill_datas_get()
-cloudra/cli.py:336	    
-cloudra/cli.py:337	    if not skills_data:
-cloudra/cli.py:338	        console.print("[yellow]暂无可用 Skills。[/yellow]")
-cloudra/cli.py:339	        return
-cloudra/cli.py:340	    
-cloudra/cli.py:341	    table = Table(title="可用 Skills", show_header=True, header_style="bold green")
-cloudra/cli.py:342	    table.add_column("名称", style="cyan")
-cloudra/cli.py:343	    table.add_column("描述")
-cloudra/cli.py:344	    
-cloudra/cli.py:345	    for skill in skills_data:
-cloudra/cli.py:346	        table.add_row(
-cloudra/cli.py:347	            skill.get("name", "N/A"),
-cloudra/cli.py:348	            skill.get("description", "")[:80],
-cloudra/cli.py:349	        )
-cloudra/cli.py:350	    
-cloudra/cli.py:351	    console.print(table)
-cloudra/cli.py:352	
-cloudra/cli.py:353	
-cloudra/cli.py:354	@cli.command()
-cloudra/cli.py:355	@click.option("--state", default=None, help="按状态过滤 (sleeping, thinking, acting, killed)")
-cloudra/cli.py:356	def sessions(state):
-cloudra/cli.py:357	    """查看所有 Session 状态。"""
-cloudra/cli.py:358	    data_dir = get_config().data_dir
-cloudra/cli.py:359	    db_path = data_dir / "tasks" / "database.db"
-cloudra/cli.py:360	    
-cloudra/cli.py:361	    if not db_path.exists():
-cloudra/cli.py:362	        console.print("[yellow]数据库尚未创建。[/yellow]")
-cloudra/cli.py:363	        return
-cloudra/cli.py:364	    
-
-
-Cloudra V1.6.2                                              第 21 页
+cloudra/cli.py:312	    except BackupError as exc:
+cloudra/cli.py:313	        raise click.ClickException(str(exc)) from exc
+cloudra/cli.py:314	    console.print(f"[green]备份有效[/green] ({len(manifest['files'])} files)")
+cloudra/cli.py:315	
+cloudra/cli.py:316	
+cloudra/cli.py:317	@backup_cmd.command(name="restore")
+cloudra/cli.py:318	@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+cloudra/cli.py:319	@click.argument("destination", type=click.Path(path_type=Path))
+cloudra/cli.py:320	def backup_restore(archive: Path, destination: Path):
+cloudra/cli.py:321	    """恢复到不存在或空的目录；不会覆盖现有数据。"""
+cloudra/cli.py:322	    from cloudra.infra.operations import BackupError, restore_backup
+cloudra/cli.py:323	
+cloudra/cli.py:324	    try:
+cloudra/cli.py:325	        manifest = restore_backup(archive, destination)
+cloudra/cli.py:326	    except BackupError as exc:
+cloudra/cli.py:327	        raise click.ClickException(str(exc)) from exc
+cloudra/cli.py:328	    console.print(
+cloudra/cli.py:329	        f"[green]恢复完成:[/green] {destination.resolve()} "
+cloudra/cli.py:330	        f"({len(manifest['files'])} files)"
+cloudra/cli.py:331	    )
+cloudra/cli.py:332	
+cloudra/cli.py:333	
+cloudra/cli.py:334	def main():
+cloudra/cli.py:335	    """CLI 入口函数。"""
+cloudra/cli.py:336	    cli()
+cloudra/core/__init__.py:1	"""cloudra.core 子包。"""
+cloudra/core/agent.py:1	import asyncio
+cloudra/core/agent.py:2	import hashlib
+cloudra/core/agent.py:3	import inspect
+cloudra/core/agent.py:4	import json
+cloudra/core/agent.py:5	import os
+cloudra/core/agent.py:6	from datetime import datetime
+cloudra/core/agent.py:7	from typing import Any, Optional
+cloudra/core/agent.py:8	from urllib.parse import urlsplit
+cloudra/core/agent.py:9	from uuid import uuid4
+cloudra/core/agent.py:10	
+cloudra/core/agent.py:11	from pydantic import BaseModel, Field, PrivateAttr, model_validator
+cloudra/core/agent.py:12	
+cloudra/core/agent.py:13	from cloudra import __version__
+cloudra/core/agent.py:14	from cloudra.base.tools_class import Tool
+cloudra/core/agent.py:15	from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
+cloudra/core/agent.py:16	from cloudra.infra import events
+cloudra/core/agent.py:17	from cloudra.infra.config import get_config
+cloudra/core/agent.py:18	from cloudra.infra.llm_client import ChatResponse, LLMClient
+cloudra/core/agent.py:19	from cloudra.infra.runtime_profile import filter_tools_for_runtime
+cloudra/core/agent.py:20	from cloudra.infra.token_estimator import TokenEstimator
+cloudra/core/agent.py:21	from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+cloudra/core/agent.py:22	from cloudra.persistence.database import ConversationDB
+cloudra/core/agent.py:23	from cloudra.persistence.workspace import resolve_working_directory
+cloudra/core/agent.py:24	from cloudra.runtime.prompt_assembler import (
+cloudra/core/agent.py:25	    PromptAssembler,
+cloudra/core/agent.py:26	    PromptAssembly,
+Cloudra V2.0                                               第 24 页
 ----------------------------------------------------------------------
-cloudra/cli.py:365	    con = sqlite3.connect(str(db_path))
-cloudra/cli.py:366	    cur = con.cursor()
-cloudra/cli.py:367	    
-cloudra/cli.py:368	    if state:
-cloudra/cli.py:369	        cur.execute("SELECT session_id, state, result FROM session WHERE state = ? ORDER BY rowid DESC", (state,))
-cloudra/cli.py:370	    else:
-cloudra/cli.py:371	        cur.execute("SELECT session_id, state, result FROM session ORDER BY rowid DESC LIMIT 50")
-cloudra/cli.py:372	    
-cloudra/cli.py:373	    rows = cur.fetchall()
-cloudra/cli.py:374	    con.close()
-cloudra/cli.py:375	    
-cloudra/cli.py:376	    table = Table(title="Sessions", show_header=True, header_style="bold magenta")
-cloudra/cli.py:377	    table.add_column("Session ID", style="cyan")
-cloudra/cli.py:378	    table.add_column("State")
-cloudra/cli.py:379	    table.add_column("Result", max_width=60)
-cloudra/cli.py:380	    
-cloudra/cli.py:381	    for row in rows:
-cloudra/cli.py:382	        session_id, st, result = row
-cloudra/cli.py:383	        result = (result or "")[:100]
-cloudra/cli.py:384	        table.add_row(session_id, st, result)
-cloudra/cli.py:385	    
-cloudra/cli.py:386	    console.print(table)
-cloudra/cli.py:387	
-cloudra/cli.py:388	
-cloudra/cli.py:389	def main():
-cloudra/cli.py:390	    """CLI 入口函数。"""
-cloudra/cli.py:391	    cli()
-cloudra/compute_executor.py:1	import subprocess
-cloudra/compute_executor.py:2	import argparse
-cloudra/compute_executor.py:3	import sys
-cloudra/compute_executor.py:4	import aiosqlite
-cloudra/compute_executor.py:5	import json
-cloudra/compute_executor.py:6	import asyncio
-cloudra/compute_executor.py:7	import time
-cloudra/compute_executor.py:8	import os
-cloudra/compute_executor.py:9	from cloudra.compute_utils import check_job_type, launch_compute_processes
-cloudra/compute_executor.py:10	
-cloudra/compute_executor.py:11	
-cloudra/compute_executor.py:12	async def _mark_failed(dbpath: str, task_id: int, message: str):
-cloudra/compute_executor.py:13	    """将任务标记为 failed，并打印错误信息。"""
-cloudra/compute_executor.py:14	    print(f"Error: {message}")
-cloudra/compute_executor.py:15	    async with aiosqlite.connect(dbpath, timeout=10) as con:
-cloudra/compute_executor.py:16	        await con.execute(
-cloudra/compute_executor.py:17	            "UPDATE compute_jobs SET state=?, end_timestamp=? WHERE id=?",
-cloudra/compute_executor.py:18	            ('failed', time.time(), task_id)
-cloudra/compute_executor.py:19	        )
-cloudra/compute_executor.py:20	        await con.commit()
-cloudra/compute_executor.py:21	
-cloudra/compute_executor.py:22	
-cloudra/compute_executor.py:23	async def run_compute(task_id: int, dbpath: str):
-
-
-Cloudra V1.6.2                                              第 22 页
+cloudra/core/agent.py:27	    load_role_prompt,
+cloudra/core/agent.py:28	)
+cloudra/core/agent.py:29	from cloudra.tools import ToolEntry, get_tools_lst
+cloudra/core/agent.py:30	from cloudra.tools.core.permission_model import Permission, check_permission
+cloudra/core/agent.py:31	
+cloudra/core/agent.py:32	# todo 提醒注入间隔（推理轮数）：每 N 轮提醒一次模型读取任务清单
+cloudra/core/agent.py:33	_TODO_REMIND_EVERY = 10
+cloudra/core/agent.py:34	
+cloudra/core/agent.py:35	# 模型给出结论但未调用 stop 时，注入一次目标确认提醒（一次性 force）
+cloudra/core/agent.py:36	_GOAL_CONFIRM_REMINDER = (
+cloudra/core/agent.py:37	    "[System] You just stated a conclusion without calling the stop tool. "
+cloudra/core/agent.py:38	    "The task only ends after you call stop; prose alone leaves the loop spinning. "
+cloudra/core/agent.py:39	    "Use goal_set to reconfirm the objective and completion criteria, or todo_read to check the task list, "
+cloudra/core/agent.py:40	    "and decide whether the goal is actually met: if done, call stop with the final answer; "
+cloudra/core/agent.py:41	    "if not, keep going. If you already called stop and this round is only an event wakeup: "
+cloudra/core/agent.py:42	    "answer the user first if there is a user message; if there is no new work, call stop again to finish silently."
+cloudra/core/agent.py:43	)
+cloudra/core/agent.py:44	
+cloudra/core/agent.py:45	# 曾经 stop 过的实例被外部事件唤醒后，持续注入的复核轮提示（每轮都带，直到再次 stop）
+cloudra/core/agent.py:46	_REVIVED_AFTER_STOP_NOTICE = (
+cloudra/core/agent.py:47	    "[System] This task already finished via the stop tool; this is a review round woken by an external event "
+cloudra/core/agent.py:48	    "(message/reminder). Answer the user first: if this round has a user question, instruction, report request, or stop request, "
+cloudra/core/agent.py:49	    "reply in prose immediately (user messages are not small talk; do not check compute, change reminders, or stop first). "
+cloudra/core/agent.py:50	    "A `role=user` `[Incoming call]` line also counts as a user ask: answer it before considering a silent stop. "
+cloudra/core/agent.py:51	    "After answering, if the user asked you to stop, finish as requested; if background work is still running and the user did not ask to stop, you may stop to wait. "
+cloudra/core/agent.py:52	    "Only when the wakeup is an expired reminder, a no-reply notice, or there is truly no user request should you call stop again "
+cloudra/core/agent.py:53	    "to finish silently (repeat stop is safe and recommended). Do not emit idle prose unrelated to the user's question."
+cloudra/core/agent.py:54	)
+cloudra/core/agent.py:55	
+cloudra/core/agent.py:56	
+cloudra/core/agent.py:57	def load_prompt(agent_name: str) -> str:
+cloudra/core/agent.py:58	    """兼容入口：读取角色 prompt（按 mtime 缓存，文件变更立即生效）。"""
+cloudra/core/agent.py:59	    return load_role_prompt(agent_name)
+cloudra/core/agent.py:60	
+cloudra/core/agent.py:61	
+cloudra/core/agent.py:62	class Agent(BaseModel):
+cloudra/core/agent.py:63	    '''agent父类，用于定义各类agent属性：
+cloudra/core/agent.py:64	    1.唯一标识符（id）
+cloudra/core/agent.py:65	    2.agent名称(name)
+cloudra/core/agent.py:66	    3.agent类型(type)
+cloudra/core/agent.py:67	    4.agent使用模型（model）
+cloudra/core/agent.py:68	    5.agent使用模型url（llm_site）
+cloudra/core/agent.py:69	    6.agent使用模型key（_api_key）
+cloudra/core/agent.py:70	    7.agent使用模型温度（temperature）
+cloudra/core/agent.py:71	    8.agent使用模型最大token（max_tokens）
+cloudra/core/agent.py:72	    9.agent使用模型top_p（top_p）
+cloudra/core/agent.py:73	    10.agent使用模型频率惩罚（frequency_penalty）
+cloudra/core/agent.py:74	    11.agent使用模型存在惩罚（presence_penalty）
+cloudra/core/agent.py:75	    12.agent身份prompt（prompt）
+cloudra/core/agent.py:76	    13.agent上下文管理器（context_manager）
+cloudra/core/agent.py:77	    14.agent输出方式（is_stream）
+cloudra/core/agent.py:78	
+Cloudra V2.0                                               第 25 页
 ----------------------------------------------------------------------
-cloudra/compute_executor.py:24	
-cloudra/compute_executor.py:25	    # 接收main传来的id，改数据库，发射guard(与任务绑定，传id，路径，conv_id)和calculator.sh(健壮一点，方便以后解耦)两个子进程
-cloudra/compute_executor.py:26	    async with aiosqlite.connect(dbpath, timeout=10) as con:
-cloudra/compute_executor.py:27	        await con.execute("PRAGMA journal_mode=WAL;")
-cloudra/compute_executor.py:28	        await con.execute("PRAGMA busy_timeout=5000;")
-cloudra/compute_executor.py:29	        await con.execute("PRAGMA synchronous=NORMAL;")
-cloudra/compute_executor.py:30	        
-cloudra/compute_executor.py:31	        cur = await con.execute("SELECT conversation_id, path, jobtype FROM compute_jobs WHERE id=?", (task_id,))
-cloudra/compute_executor.py:32	        row = await cur.fetchone()
-cloudra/compute_executor.py:33	    
-cloudra/compute_executor.py:34	    data_dic = {'conversation_id': row[0], 'path': row[1], 'job_type': row[2]}
-cloudra/compute_executor.py:35	    workdir = os.path.dirname(data_dic['path'])
-cloudra/compute_executor.py:36	
-cloudra/compute_executor.py:37	    if any(data_dic.get(key, None) is None for key in data_dic):
-cloudra/compute_executor.py:38	        await _mark_failed(dbpath, task_id, f"{task_id} 计算任务关键参数不完整")
-cloudra/compute_executor.py:39	        return 1
-cloudra/compute_executor.py:40	
-cloudra/compute_executor.py:41	    # 前置依赖检查：避免在缺少计算软件时起空壳进程
-cloudra/compute_executor.py:42	    ok, msg = check_job_type(data_dic['job_type'], workdir)
-cloudra/compute_executor.py:43	    if not ok:
-cloudra/compute_executor.py:44	        await _mark_failed(dbpath, task_id, msg)
-cloudra/compute_executor.py:45	        return 1
-cloudra/compute_executor.py:46	
-cloudra/compute_executor.py:47	    # 正常情况下main已经改过state了，这里再确认一次
-cloudra/compute_executor.py:48	    try:
-cloudra/compute_executor.py:49	        async with aiosqlite.connect(dbpath, timeout=10) as con:
-cloudra/compute_executor.py:50	            await con.execute("UPDATE compute_jobs SET state=? WHERE id=?", ("running", task_id))
-cloudra/compute_executor.py:51	            await con.commit()
-cloudra/compute_executor.py:52	    except Exception as e:
-cloudra/compute_executor.py:53	        await _mark_failed(dbpath, task_id, f"更新任务状态失败：{e}")
-cloudra/compute_executor.py:54	        return 1
-cloudra/compute_executor.py:55	
-cloudra/compute_executor.py:56	    # 统一启动 guard 和 calculator
-cloudra/compute_executor.py:57	    ok, msg = await launch_compute_processes(
-cloudra/compute_executor.py:58	        task_id=task_id,
-cloudra/compute_executor.py:59	        input_file=data_dic['path'],
-cloudra/compute_executor.py:60	        job_type=data_dic['job_type'],
-cloudra/compute_executor.py:61	        conv_id=data_dic['conversation_id'],
-cloudra/compute_executor.py:62	        db_path=dbpath,
-cloudra/compute_executor.py:63	        wait_for_calculator=False,
-cloudra/compute_executor.py:64	    )
-cloudra/compute_executor.py:65	    if not ok:
-cloudra/compute_executor.py:66	        await _mark_failed(dbpath, task_id, msg)
-cloudra/compute_executor.py:67	        return 1
-cloudra/compute_executor.py:68	
-cloudra/compute_executor.py:69	    return 0
-cloudra/compute_executor.py:70	
-cloudra/compute_executor.py:71	
-cloudra/compute_executor.py:72	if __name__ == '__main__':
-cloudra/compute_executor.py:73	    parser = argparse.ArgumentParser()
-
-
-Cloudra V1.6.2                                              第 23 页
+cloudra/core/agent.py:79	    该类的其他方法:
+cloudra/core/agent.py:80	    权限：has_write_permission，has_read_permission，script_run_permission，destructive_permission(均为布尔值输出)
+cloudra/core/agent.py:81	    llm_call方法：调用llm，输出ChatResponse或ChatStream
+cloudra/core/agent.py:82	    后续可能加入的方法：调用本地专用模型，不能通过openai接口，因此待定，可以上github上看看有没有开源的逆合成分析模型等
+cloudra/core/agent.py:83	    '''
+cloudra/core/agent.py:84	    model_config = {"arbitrary_types_allowed": True}
+cloudra/core/agent.py:85	
+cloudra/core/agent.py:86	    #唯一标识符
+cloudra/core/agent.py:87	    id: str
+cloudra/core/agent.py:88	
+cloudra/core/agent.py:89	    #agent名称
+cloudra/core/agent.py:90	    name: str
+cloudra/core/agent.py:91	
+cloudra/core/agent.py:92	    #agent类型：'coordinator' 或 'follower'
+cloudra/core/agent.py:93	    type: str
+cloudra/core/agent.py:94	
+cloudra/core/agent.py:95	    #agent使用模型
+cloudra/core/agent.py:96	    model: str
+cloudra/core/agent.py:97	
+cloudra/core/agent.py:98	    #agent使用模型url
+cloudra/core/agent.py:99	    llm_site: str
+cloudra/core/agent.py:100	
+cloudra/core/agent.py:101	    #agent使用模型key
+cloudra/core/agent.py:102	    _api_key: str
+cloudra/core/agent.py:103	
+cloudra/core/agent.py:104	    #agent使用模型温度
+cloudra/core/agent.py:105	    temperature: float = 0.7
+cloudra/core/agent.py:106	
+cloudra/core/agent.py:107	    #agent使用模型最大token（生成限制）
+cloudra/core/agent.py:108	    max_tokens: int
+cloudra/core/agent.py:109	
+cloudra/core/agent.py:110	    #agent使用模型上下文窗口（用于上下文压缩阈值计算）
+cloudra/core/agent.py:111	    context_window: int = 200000
+cloudra/core/agent.py:112	
+cloudra/core/agent.py:113	    #agent使用模型top_p
+cloudra/core/agent.py:114	    top_p: Optional[float] = None  # None = 不发送 top_p，用服务商默认值
+cloudra/core/agent.py:115	
+cloudra/core/agent.py:116	    #agent使用模型频率惩罚
+cloudra/core/agent.py:117	    frequency_penalty: float = 0.0
+cloudra/core/agent.py:118	
+cloudra/core/agent.py:119	    #agent使用模型存在惩罚
+cloudra/core/agent.py:120	    presence_penalty: float = 0.0
+cloudra/core/agent.py:121	
+cloudra/core/agent.py:122	    # 可选的调用方身份 prompt 覆盖；None 时由 prompt_name 在请求期加载。
+cloudra/core/agent.py:123	    prompt: Optional[str] = None
+cloudra/core/agent.py:124	
+cloudra/core/agent.py:125	    # prompts/{prompt_name}.md 的动态角色来源。
+cloudra/core/agent.py:126	    prompt_name: Optional[str] = None
+cloudra/core/agent.py:127	
+cloudra/core/agent.py:128	    #目标赋予prompt，如：“你的任务是......”
+cloudra/core/agent.py:129	    query: str
+cloudra/core/agent.py:130	
+Cloudra V2.0                                               第 26 页
 ----------------------------------------------------------------------
-cloudra/compute_executor.py:74	    parser.add_argument('--task_id', type=int, required=True)
-cloudra/compute_executor.py:75	    parser.add_argument('--db_path', type=str, required=True)
-cloudra/compute_executor.py:76	    args = parser.parse_args()
-cloudra/compute_executor.py:77	    exit_code = asyncio.run(run_compute(args.task_id, args.db_path))
-cloudra/compute_executor.py:78	    sys.exit(exit_code)
-cloudra/compute_utils.py:1	"""计算任务相关的公共工具函数。"""
-cloudra/compute_utils.py:2	
-cloudra/compute_utils.py:3	import os
-cloudra/compute_utils.py:4	import shutil
-cloudra/compute_utils.py:5	import sys
-cloudra/compute_utils.py:6	import asyncio
-cloudra/compute_utils.py:7	import subprocess
-cloudra/compute_utils.py:8	from pathlib import Path
-cloudra/compute_utils.py:9	from typing import Optional
-cloudra/compute_utils.py:10	
-cloudra/compute_utils.py:11	# 各 job_type 所需的任一外部可执行程序（通过系统 PATH 查找）。
-cloudra/compute_utils.py:12	_REQUIRED_BINS = {
-cloudra/compute_utils.py:13	    "gaussian": ["g16", "g09", "g26"],
-cloudra/compute_utils.py:14	    "vasp": ["vasp_std", "vasp_gam", "vasp_ncl"],
-cloudra/compute_utils.py:15	    "orca": ["orca"],
-cloudra/compute_utils.py:16	}
-cloudra/compute_utils.py:17	
-cloudra/compute_utils.py:18	# guard 轮询间隔（秒）
-cloudra/compute_utils.py:19	GUARD_POLL_INTERVAL = 1800
-cloudra/compute_utils.py:20	
-cloudra/compute_utils.py:21	
-cloudra/compute_utils.py:22	def _default_calculator_path() -> str:
-cloudra/compute_utils.py:23	    """返回项目内置的 calculator.sh 绝对路径。"""
-cloudra/compute_utils.py:24	    return str(Path(__file__).parent / "calculator.sh")
-cloudra/compute_utils.py:25	
-cloudra/compute_utils.py:26	
-cloudra/compute_utils.py:27	def check_job_type(job_type: str, workdir: str) -> tuple[bool, str]:
-cloudra/compute_utils.py:28	    """检查系统 PATH 中是否具备执行指定 job_type 所需的任一外部程序。
-cloudra/compute_utils.py:29	
-cloudra/compute_utils.py:30	    Args:
-cloudra/compute_utils.py:31	        job_type: 计算任务类型
-cloudra/compute_utils.py:32	        workdir: 计算任务的工作目录（仅用于错误信息）
-cloudra/compute_utils.py:33	
-cloudra/compute_utils.py:34	    Returns:
-cloudra/compute_utils.py:35	        (is_ok, message): is_ok 为 True 表示环境可用；否则 message 为可读错误信息。
-cloudra/compute_utils.py:36	    """
-cloudra/compute_utils.py:37	    bins = _REQUIRED_BINS.get(job_type)
-cloudra/compute_utils.py:38	    if bins is None:
-cloudra/compute_utils.py:39	        return False, f"不支持的 job_type: {job_type}"
-cloudra/compute_utils.py:40	    found = [b for b in bins if shutil.which(b)]
-cloudra/compute_utils.py:41	    if found:
-cloudra/compute_utils.py:42	        return True, ""
-cloudra/compute_utils.py:43	
-cloudra/compute_utils.py:44	    return False, (
-cloudra/compute_utils.py:45	        f"系统 PATH 中缺少 {job_type} 计算所需的程序，"
-
-
-Cloudra V1.6.2                                              第 24 页
+cloudra/core/agent.py:131	    is_stream: bool
+cloudra/core/agent.py:132	
+cloudra/core/agent.py:133	    # 当前 Agent 使用的模型是否支持视觉输入（多模态）
+cloudra/core/agent.py:134	    @property
+cloudra/core/agent.py:135	    def supports_vision(self) -> bool:
+cloudra/core/agent.py:136	        return False
+cloudra/core/agent.py:137	
+cloudra/core/agent.py:138	    # 可选的会话级唯一标识。子 Agent 被启动时会被赋予独立的 session_id，
+cloudra/core/agent.py:139	    # 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
+cloudra/core/agent.py:140	    session_id: Optional[str] = None
+cloudra/core/agent.py:141	
+cloudra/core/agent.py:142	    # 上下文管理器：Agent 上下文的唯一真相来源
+cloudra/core/agent.py:143	    context_manager: Optional[ContextManager] = None
+cloudra/core/agent.py:144	
+cloudra/core/agent.py:145	    conversation_id: str
+cloudra/core/agent.py:146	
+cloudra/core/agent.py:147	    # API 会话可独立指定目录，避免修改进程级 cwd 导致并发任务互相影响。
+cloudra/core/agent.py:148	    # 构造后由 validator 收成绝对路径，不再保持 None。
+cloudra/core/agent.py:149	    working_directory: Optional[str] = None
+cloudra/core/agent.py:150	
+cloudra/core/agent.py:151	    orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
+cloudra/core/agent.py:152	    orchestration_config: dict = Field(default_factory=dict)
+cloudra/core/agent.py:153	
+cloudra/core/agent.py:154	    # LLM 传输层客户端（实例级缓存，惰性构造）：
+cloudra/core/agent.py:155	    # 三级 fallback 的级别记忆（_curl_mode/_use_custom_headers）在其中维护
+cloudra/core/agent.py:156	    _llm_client: Optional[LLMClient] = None
+cloudra/core/agent.py:157	
+cloudra/core/agent.py:158	    # 工具 schema 列表缓存：工具集与本 Agent 权限在进程内是静态的，
+cloudra/core/agent.py:159	    # 无需每个推理步骤都重新实例化全部工具并重新生成 pydantic schema。
+cloudra/core/agent.py:160	    _tools_schema_cache: Optional[list] = None
+cloudra/core/agent.py:161	    _tools_schema_revision: Optional[tuple[str, ...]] = None
+cloudra/core/agent.py:162	    # 工具 schema 的 token 估算缓存：(revision, 名称列表) -> tokens，
+cloudra/core/agent.py:163	    # 随 schema 缓存一起失效（schema 不变则估算不变）。
+cloudra/core/agent.py:164	    _tools_schema_tokens_cache: Optional[tuple] = None
+cloudra/core/agent.py:165	
+cloudra/core/agent.py:166	    _last_prompt_assembly: Optional[PromptAssembly] = PrivateAttr(default=None)
+cloudra/core/agent.py:167	    _last_request_diagnostics: dict = PrivateAttr(default_factory=dict)
+cloudra/core/agent.py:168	    _dag_projection_provider: Any = PrivateAttr(default=None)
+cloudra/core/agent.py:169	
+cloudra/core/agent.py:170	    # todo 提醒节流：每 _TODO_REMIND_EVERY 轮注入一次；supervisor 反对时强制注入一次
+cloudra/core/agent.py:171	    _reasoning_round: int = 0
+cloudra/core/agent.py:172	    _todo_reminder_force: bool = False
+cloudra/core/agent.py:173	    # 模型给出结论但未调用 stop 时，一次性强制注入目标确认提醒
+cloudra/core/agent.py:174	    _goal_confirm_force: bool = False
+cloudra/core/agent.py:175	    # 本实例曾成功 stop、后被外部事件唤醒：每轮请求都带复核轮提示，引导模型再次 stop
+cloudra/core/agent.py:176	    _revived_after_stop: bool = False
+cloudra/core/agent.py:177	
+cloudra/core/agent.py:178	    @model_validator(mode="after")
+cloudra/core/agent.py:179	    def _resolve_working_directory(self) -> "Agent":
+cloudra/core/agent.py:180	        self.working_directory = resolve_working_directory(self.working_directory)
+cloudra/core/agent.py:181	        return self
+cloudra/core/agent.py:182	
+Cloudra V2.0                                               第 27 页
 ----------------------------------------------------------------------
-cloudra/compute_utils.py:46	        f"请安装并确保以下任一命令可用: {', '.join(bins)}"
-cloudra/compute_utils.py:47	    )
-cloudra/compute_utils.py:48	
-cloudra/compute_utils.py:49	
-cloudra/compute_utils.py:50	def check_calculator_script(workdir: str) -> tuple[bool, str]:
-cloudra/compute_utils.py:51	    """检查 calculator.sh 是否可用。
-cloudra/compute_utils.py:52	
-cloudra/compute_utils.py:53	    优先查找工作目录下的 calculator.sh，允许用户按任务目录定制；
-cloudra/compute_utils.py:54	    找不到时回退到项目内置的 calculator.sh。
-cloudra/compute_utils.py:55	
-cloudra/compute_utils.py:56	    Returns:
-cloudra/compute_utils.py:57	        (is_ok, script_path): is_ok 为 False 时 script_path 为空字符串。
-cloudra/compute_utils.py:58	    """
-cloudra/compute_utils.py:59	    local_script = os.path.join(workdir, "calculator.sh")
-cloudra/compute_utils.py:60	    if os.access(local_script, os.X_OK):
-cloudra/compute_utils.py:61	        return True, local_script
-cloudra/compute_utils.py:62	
-cloudra/compute_utils.py:63	    default_script = _default_calculator_path()
-cloudra/compute_utils.py:64	    if os.access(default_script, os.X_OK):
-cloudra/compute_utils.py:65	        return True, default_script
-cloudra/compute_utils.py:66	
-cloudra/compute_utils.py:67	    return False, ""
-cloudra/compute_utils.py:68	
-cloudra/compute_utils.py:69	
-cloudra/compute_utils.py:70	def build_calculator_cmd(input_file: str, job_type: str) -> tuple[bool, list[str], str]:
-cloudra/compute_utils.py:71	    """构建 calculator 子进程命令。
-cloudra/compute_utils.py:72	
-cloudra/compute_utils.py:73	    Returns:
-cloudra/compute_utils.py:74	        (is_ok, cmd, message): is_ok 为 False 时 cmd 为空列表，message 为错误信息。
-cloudra/compute_utils.py:75	    """
-cloudra/compute_utils.py:76	    workdir = os.path.dirname(input_file)
-cloudra/compute_utils.py:77	    ok, script_path = check_calculator_script(workdir)
-cloudra/compute_utils.py:78	    if not ok:
-cloudra/compute_utils.py:79	        return False, [], (
-cloudra/compute_utils.py:80	            f"未找到 calculator.sh，请确认该脚本已安装。"
-cloudra/compute_utils.py:81	            f"可以在工作目录 {workdir} 下放一个可执行的 calculator.sh，"
-cloudra/compute_utils.py:82	            f"或者保留项目内置脚本 { _default_calculator_path() }。"
-cloudra/compute_utils.py:83	        )
-cloudra/compute_utils.py:84	    return True, [script_path, input_file, job_type], ""
-cloudra/compute_utils.py:85	
-cloudra/compute_utils.py:86	
-cloudra/compute_utils.py:87	def build_guard_cmd(
-cloudra/compute_utils.py:88	    task_id: int,
-cloudra/compute_utils.py:89	    input_file: str,
-cloudra/compute_utils.py:90	    conv_id: str,
-cloudra/compute_utils.py:91	    db_path: str,
-cloudra/compute_utils.py:92	    poll_interval: int = GUARD_POLL_INTERVAL,
-cloudra/compute_utils.py:93	) -> list[str]:
-cloudra/compute_utils.py:94	    """构建 guard 子进程命令。"""
-cloudra/compute_utils.py:95	    return [
-
-
-Cloudra V1.6.2                                              第 25 页
+cloudra/core/agent.py:183	    def _init_context_manager(self) -> None:
+cloudra/core/agent.py:184	        '''初始化本 Agent 的 ContextManager。'''
+cloudra/core/agent.py:185	        self.context_manager = ContextManager(
+cloudra/core/agent.py:186	            agent_id=self.id,
+cloudra/core/agent.py:187	            conversation_id=self.conversation_id,
+cloudra/core/agent.py:188	            prompt=self.prompt,
+cloudra/core/agent.py:189	            query=self.query,
+cloudra/core/agent.py:190	            session_id=getattr(self, 'session_id', None),
+cloudra/core/agent.py:191	            on_compaction_progress=self._report_compaction_progress,
+cloudra/core/agent.py:192	        )
+cloudra/core/agent.py:193	
+cloudra/core/agent.py:194	    async def _report_compaction_progress(self, progress: dict) -> None:
+cloudra/core/agent.py:195	        """Broadcast non-durable compression progress without touching SQLite."""
+cloudra/core/agent.py:196	        await events.aemit(
+cloudra/core/agent.py:197	            self.conversation_id,
+cloudra/core/agent.py:198	            "context_compaction",
+cloudra/core/agent.py:199	            agent_id=self.id,
+cloudra/core/agent.py:200	            agent_name=self.name,
+cloudra/core/agent.py:201	            session_id=getattr(self, "session_id", None),
+cloudra/core/agent.py:202	            **progress,
+cloudra/core/agent.py:203	        )
+cloudra/core/agent.py:204	
+cloudra/core/agent.py:205	    def _ensure_context_manager(self) -> ContextManager:
+cloudra/core/agent.py:206	        '''确保上下文管理器已初始化；返回实例。'''
+cloudra/core/agent.py:207	        if self.context_manager is None:
+cloudra/core/agent.py:208	            self._init_context_manager()
+cloudra/core/agent.py:209	        return self.context_manager
+cloudra/core/agent.py:210	
+cloudra/core/agent.py:211	    async def get_context(self) -> list:
+cloudra/core/agent.py:212	        '''
+cloudra/core/agent.py:213	        加载上下文。ContextManager 是上下文的唯一真相来源。
+cloudra/core/agent.py:214	        '''
+cloudra/core/agent.py:215	        return await self._ensure_context_manager().load()
+cloudra/core/agent.py:216	
+cloudra/core/agent.py:217	    async def update_context(self, new_block: dict) -> None:
+cloudra/core/agent.py:218	        '''
+cloudra/core/agent.py:219	        更新上下文，新增一个块。
+cloudra/core/agent.py:220	        确保每条消息都有 role 字段。
+cloudra/core/agent.py:221	        文件路径根据 conversation_id 隔离。
+cloudra/core/agent.py:222	        '''
+cloudra/core/agent.py:223	        await self._ensure_context_manager().append(new_block)
+cloudra/core/agent.py:224	
+cloudra/core/agent.py:225	    async def clear_context(self) -> None:
+cloudra/core/agent.py:226	        '''清空上下文（通常用于任务结束后释放）。'''
+cloudra/core/agent.py:227	        await self._ensure_context_manager().clear()
+cloudra/core/agent.py:228	
+cloudra/core/agent.py:229	    def check_permission(self, tool: ToolEntry | Tool) -> bool:
+cloudra/core/agent.py:230	        if isinstance(tool, Tool):
+cloudra/core/agent.py:231	            tool_instance = tool
+cloudra/core/agent.py:232	        else:
+cloudra/core/agent.py:233	            tool_instance = tool.instantiate()
+cloudra/core/agent.py:234	        tool_perms = tool_instance.tool_permission_all()
+Cloudra V2.0                                               第 28 页
 ----------------------------------------------------------------------
-cloudra/compute_utils.py:96	        sys.executable,
-cloudra/compute_utils.py:97	        "-m",
-cloudra/compute_utils.py:98	        "cloudra.guard",
-cloudra/compute_utils.py:99	        "--path",
-cloudra/compute_utils.py:100	        input_file,
-cloudra/compute_utils.py:101	        "--timeout",
-cloudra/compute_utils.py:102	        str(poll_interval),
-cloudra/compute_utils.py:103	        "--conv_id",
-cloudra/compute_utils.py:104	        conv_id,
-cloudra/compute_utils.py:105	        "--task_id",
-cloudra/compute_utils.py:106	        str(task_id),
-cloudra/compute_utils.py:107	        "--db_path",
-cloudra/compute_utils.py:108	        db_path,
-cloudra/compute_utils.py:109	    ]
-cloudra/compute_utils.py:110	
-cloudra/compute_utils.py:111	
-cloudra/compute_utils.py:112	async def launch_compute_processes(
-cloudra/compute_utils.py:113	    task_id: int,
-cloudra/compute_utils.py:114	    input_file: str,
-cloudra/compute_utils.py:115	    job_type: str,
-cloudra/compute_utils.py:116	    conv_id: str,
-cloudra/compute_utils.py:117	    db_path: str,
-cloudra/compute_utils.py:118	    *,
-cloudra/compute_utils.py:119	    wait_for_calculator: bool = False,
-cloudra/compute_utils.py:120	    poll_interval: int = GUARD_POLL_INTERVAL,
-cloudra/compute_utils.py:121	) -> tuple[bool, str]:
-cloudra/compute_utils.py:122	    """统一启动 guard 和 calculator 子进程。
-cloudra/compute_utils.py:123	
-cloudra/compute_utils.py:124	    Args:
-cloudra/compute_utils.py:125	        task_id: 计算任务在 compute_jobs 表中的 ID
-cloudra/compute_utils.py:126	        input_file: 输入文件绝对路径
-cloudra/compute_utils.py:127	        job_type: 计算任务类型
-cloudra/compute_utils.py:128	        conv_id: 所属 conversation_id
-cloudra/compute_utils.py:129	        db_path: 数据库路径
-cloudra/compute_utils.py:130	        wait_for_calculator: 是否在当前协程中等待 calculator 结束
-cloudra/compute_utils.py:131	        poll_interval: guard 轮询间隔
-cloudra/compute_utils.py:132	
-cloudra/compute_utils.py:133	    Returns:
-cloudra/compute_utils.py:134	        (is_ok, message): is_ok 为 True 表示子进程已正常启动/完成；
-cloudra/compute_utils.py:135	                         为 False 时 message 为错误信息。
-cloudra/compute_utils.py:136	    """
-cloudra/compute_utils.py:137	    ok, calculator_cmd, msg = build_calculator_cmd(input_file, job_type)
-cloudra/compute_utils.py:138	    if not ok:
-cloudra/compute_utils.py:139	        return False, msg
-cloudra/compute_utils.py:140	
-cloudra/compute_utils.py:141	    guard_cmd = build_guard_cmd(task_id, input_file, conv_id, db_path, poll_interval)
-cloudra/compute_utils.py:142	
-cloudra/compute_utils.py:143	    try:
-cloudra/compute_utils.py:144	        # 先启动 guard，再启动 calculator
-cloudra/compute_utils.py:145	        guard_proc = await asyncio.create_subprocess_exec(*guard_cmd)
-
-
-Cloudra V1.6.2                                              第 26 页
+cloudra/core/agent.py:235	        agent_perms = self.permission_all()
+cloudra/core/agent.py:236	        return check_permission(agent_perms, tool_perms)
+cloudra/core/agent.py:237	
+cloudra/core/agent.py:238	
+cloudra/core/agent.py:239	    def get_available_tools(self, tools: Optional[list] = None) -> list:
+cloudra/core/agent.py:240	        """Return tools permitted for both this Agent and the runtime.
+cloudra/core/agent.py:241	
+cloudra/core/agent.py:242	        ``tools`` is injectable so the reAct dispatcher can apply the exact
+cloudra/core/agent.py:243	        same checks to its current registry snapshot.
+cloudra/core/agent.py:244	        """
+cloudra/core/agent.py:245	        tools = filter_tools_for_runtime(get_tools_lst() if tools is None else tools)
+cloudra/core/agent.py:246	        if normalize_orchestration_mode(self.orchestration_mode) is OrchestrationMode.STANDARD:
+cloudra/core/agent.py:247	            tools = [entry for entry in tools if not entry.tool_name.startswith("dag_")]
+cloudra/core/agent.py:248	        available_tools = []
+cloudra/core/agent.py:249	        for tool in tools:
+cloudra/core/agent.py:250	            if self.check_permission(tool):
+cloudra/core/agent.py:251	                available_tools.append(tool)
+cloudra/core/agent.py:252	        return available_tools
+cloudra/core/agent.py:253	
+cloudra/core/agent.py:254	    def has_manage_permission(self) -> bool:
+cloudra/core/agent.py:255	        '''
+cloudra/core/agent.py:256	        启动子agent的权限。
+cloudra/core/agent.py:257	        '''
+cloudra/core/agent.py:258	        return False
+cloudra/core/agent.py:259	
+cloudra/core/agent.py:260	    def has_write_permission(self) -> bool:
+cloudra/core/agent.py:261	        '''
+cloudra/core/agent.py:262	        正常情况下，agent不允许写入文件，除非在子类中额外开放。
+cloudra/core/agent.py:263	        '''
+cloudra/core/agent.py:264	        return False
+cloudra/core/agent.py:265	
+cloudra/core/agent.py:266	    def has_read_permission(self) -> bool:
+cloudra/core/agent.py:267	        '''
+cloudra/core/agent.py:268	        检查是否有读取文件的权限。
+cloudra/core/agent.py:269	        '''
+cloudra/core/agent.py:270	        return True
+cloudra/core/agent.py:271	
+cloudra/core/agent.py:272	    def script_run_permission(self) -> bool:
+cloudra/core/agent.py:273	        '''
+cloudra/core/agent.py:274	        运行脚本的权限。
+cloudra/core/agent.py:275	        '''
+cloudra/core/agent.py:276	        return False
+cloudra/core/agent.py:277	
+cloudra/core/agent.py:278	    def destructive_permission(self) -> bool:
+cloudra/core/agent.py:279	        '''
+cloudra/core/agent.py:280	        如rm，mkdir等对目录结构进行变化的操作。
+cloudra/core/agent.py:281	        '''
+cloudra/core/agent.py:282	        return False
+cloudra/core/agent.py:283	
+cloudra/core/agent.py:284	    def permission_all(self) -> Permission:
+cloudra/core/agent.py:285	        perms = Permission.NONE
+cloudra/core/agent.py:286	        if self.has_read_permission():
+Cloudra V2.0                                               第 29 页
 ----------------------------------------------------------------------
-cloudra/compute_utils.py:146	
-cloudra/compute_utils.py:147	        # 短暂等待，检查 guard 是否瞬间崩溃
-cloudra/compute_utils.py:148	        await asyncio.sleep(0.3)
-cloudra/compute_utils.py:149	        if guard_proc.returncode is not None:
-cloudra/compute_utils.py:150	            return False, f"guard 进程启动失败，退出码: {guard_proc.returncode}"
-cloudra/compute_utils.py:151	
-cloudra/compute_utils.py:152	        if wait_for_calculator:
-cloudra/compute_utils.py:153	            # 同步阻塞模式：等待 calculator 结束
-cloudra/compute_utils.py:154	            calc_proc = await asyncio.create_subprocess_exec(*calculator_cmd)
-cloudra/compute_utils.py:155	            returncode = await calc_proc.wait()
-cloudra/compute_utils.py:156	
-cloudra/compute_utils.py:157	            # 给 guard 一段短暂的解析窗口（最多 10 秒）
-cloudra/compute_utils.py:158	            if guard_proc.returncode is None:
-cloudra/compute_utils.py:159	                try:
-cloudra/compute_utils.py:160	                    await asyncio.wait_for(guard_proc.wait(), timeout=10.0)
-cloudra/compute_utils.py:161	                except asyncio.TimeoutError:
-cloudra/compute_utils.py:162	                    pass
-cloudra/compute_utils.py:163	
-cloudra/compute_utils.py:164	            # 确保 guard 不会成为僵尸/常驻进程
-cloudra/compute_utils.py:165	            if guard_proc.returncode is None:
-cloudra/compute_utils.py:166	                guard_proc.kill()
-cloudra/compute_utils.py:167	                await guard_proc.wait()
-cloudra/compute_utils.py:168	
-cloudra/compute_utils.py:169	            if returncode != 0:
-cloudra/compute_utils.py:170	                return False, f"calculator 返回非零退出码: {returncode}"
-cloudra/compute_utils.py:171	            return True, ""
-cloudra/compute_utils.py:172	        else:
-cloudra/compute_utils.py:173	            # 异步后台模式：用 Popen + start_new_session 彻底脱离父进程，
-cloudra/compute_utils.py:174	            # 确保 compute_executor 退出后计算任务仍在运行。
-cloudra/compute_utils.py:175	            subprocess.Popen(
-cloudra/compute_utils.py:176	                calculator_cmd,
-cloudra/compute_utils.py:177	                stdout=subprocess.DEVNULL,
-cloudra/compute_utils.py:178	                stderr=subprocess.DEVNULL,
-cloudra/compute_utils.py:179	                stdin=subprocess.DEVNULL,
-cloudra/compute_utils.py:180	                start_new_session=True,
-cloudra/compute_utils.py:181	            )
-cloudra/compute_utils.py:182	            return True, ""
-cloudra/compute_utils.py:183	    except Exception as e:
-cloudra/compute_utils.py:184	        return False, f"启动计算子进程失败: {e}"
-cloudra/compute_utils.py:185	
-cloudra/compute_utils.py:186	
-cloudra/compute_utils.py:187	def get_log_path(input_file: str, job_type: str = "gaussian") -> str:
-cloudra/compute_utils.py:188	    """根据输入文件路径推导计算软件生成的日志文件路径。
-cloudra/compute_utils.py:189	
-cloudra/compute_utils.py:190	    Gaussian 默认生成与输入文件同名但后缀为 .log 的文件；
-cloudra/compute_utils.py:191	    ORCA 生成 .out；VASP 的日志命名不固定，默认仍按 .out 处理。
-cloudra/compute_utils.py:192	    """
-cloudra/compute_utils.py:193	    path = Path(input_file)
-cloudra/compute_utils.py:194	    if job_type == "gaussian":
-cloudra/compute_utils.py:195	        return str(path.with_suffix(".log"))
-
-
-Cloudra V1.6.2                                              第 27 页
+cloudra/core/agent.py:287	            perms |= Permission.READ
+cloudra/core/agent.py:288	        if self.has_write_permission():
+cloudra/core/agent.py:289	            perms |= Permission.WRITE
+cloudra/core/agent.py:290	        if self.has_manage_permission():
+cloudra/core/agent.py:291	            perms |= Permission.MANAGE
+cloudra/core/agent.py:292	        if self.script_run_permission():
+cloudra/core/agent.py:293	            perms |= Permission.SCRIPT
+cloudra/core/agent.py:294	        if self.destructive_permission():
+cloudra/core/agent.py:295	            perms |= Permission.DESTRUCTIVE
+cloudra/core/agent.py:296	        return perms
+cloudra/core/agent.py:297	
+cloudra/core/agent.py:298	    def _get_llm_client(self) -> LLMClient:
+cloudra/core/agent.py:299	        """返回实例级缓存的 LLM 传输层客户端（构造本身不做任何 I/O）。"""
+cloudra/core/agent.py:300	        if self._llm_client is None:
+cloudra/core/agent.py:301	            cfg = get_config()
+cloudra/core/agent.py:302	            role_cfg = cfg.coordinator if getattr(self, "type", "") == "coordinator" else cfg.follower
+cloudra/core/agent.py:303	            self._llm_client = LLMClient(
+cloudra/core/agent.py:304	                api_key=self._api_key,
+cloudra/core/agent.py:305	                base_url=self.llm_site,
+cloudra/core/agent.py:306	                timeout=role_cfg.timeout,
+cloudra/core/agent.py:307	            )
+cloudra/core/agent.py:308	        return self._llm_client
+cloudra/core/agent.py:309	
+cloudra/core/agent.py:310	    def _role_llm_config(self):
+cloudra/core/agent.py:311	        """返回本 Agent 所属角色（coordinator/follower）的 LLM 配置。"""
+cloudra/core/agent.py:312	        cfg = get_config()
+cloudra/core/agent.py:313	        return cfg.coordinator if getattr(self, "type", "") == "coordinator" else cfg.follower
+cloudra/core/agent.py:314	
+cloudra/core/agent.py:315	    def _native_search_adapter(self):
+cloudra/core/agent.py:316	        """解析本 Agent 的模型原生网页搜索适配器（None = 关闭/不可用）。"""
+cloudra/core/agent.py:317	        from cloudra.infra.web_search_native import resolve_native_search
+cloudra/core/agent.py:318	
+cloudra/core/agent.py:319	        role_cfg = self._role_llm_config()
+cloudra/core/agent.py:320	        return resolve_native_search(
+cloudra/core/agent.py:321	            base_url=self.llm_site or "",
+cloudra/core/agent.py:322	            model=self.model or "",
+cloudra/core/agent.py:323	            mode=role_cfg.native_search,
+cloudra/core/agent.py:324	            params=role_cfg.native_search_params,
+cloudra/core/agent.py:325	        )
+cloudra/core/agent.py:326	
+cloudra/core/agent.py:327	    def _uses_responses_transport(self) -> bool:
+cloudra/core/agent.py:328	        """原生搜索需要走 Responses API（如 DeepSeek）时返回 True。"""
+cloudra/core/agent.py:329	        adapter = self._native_search_adapter()
+cloudra/core/agent.py:330	        return adapter is not None and adapter.transport == "responses"
+cloudra/core/agent.py:331	
+cloudra/core/agent.py:332	    def _todo_reminder(self) -> str:
+cloudra/core/agent.py:333	        """返回 todo 提醒文案；该 agent 未建过清单时为空串（纯查询，不做节流）。"""
+cloudra/core/agent.py:334	        try:
+cloudra/core/agent.py:335	            from cloudra.tools.Plantool._store import agent_store_path, load_json
+cloudra/core/agent.py:336	
+cloudra/core/agent.py:337	            if load_json(agent_store_path(self, "todos.json"), default=None):
+cloudra/core/agent.py:338	                return (
+Cloudra V2.0                                               第 30 页
 ----------------------------------------------------------------------
-cloudra/compute_utils.py:196	    return str(path.with_suffix(".out"))
-cloudra/config.py:1	"""
-cloudra/config.py:2	Cloudra configuration management.
-cloudra/config.py:3	
-cloudra/config.py:4	Supports layered config:
-cloudra/config.py:5	  1. CLI arguments (highest priority)
-cloudra/config.py:6	  2. Environment variables (CLOUDRA_* and legacy COORDINATOR_* / FOLLOWER_*)
-cloudra/config.py:7	  3. Config file (~/.config/cloudra/config.yaml)
-cloudra/config.py:8	  4. Defaults (lowest priority)
-cloudra/config.py:9	"""
-cloudra/config.py:10	
-cloudra/config.py:11	import os
-cloudra/config.py:12	from pathlib import Path
-cloudra/config.py:13	from typing import Optional
-cloudra/config.py:14	
-cloudra/config.py:15	from pydantic import Field, field_validator
-cloudra/config.py:16	from pydantic_settings import BaseSettings, SettingsConfigDict
-cloudra/config.py:17	import yaml
-cloudra/config.py:18	
-cloudra/config.py:19	# Try platformdirs, fallback to appdirs or manual
-cloudra/config.py:20	try:
-cloudra/config.py:21	    from platformdirs import user_config_dir, user_data_dir
-cloudra/config.py:22	except ImportError:
-cloudra/config.py:23	    user_config_dir = lambda app: Path.home() / ".config" / app
-cloudra/config.py:24	    user_data_dir = lambda app: Path.home() / ".local" / "share" / app
-cloudra/config.py:25	
-cloudra/config.py:26	
-cloudra/config.py:27	APP_NAME = "cloudra"
-cloudra/config.py:28	DEFAULT_CONFIG_PATH = Path(user_config_dir(APP_NAME)) / "config.yaml"
-cloudra/config.py:29	DEFAULT_DATA_DIR = Path(user_data_dir(APP_NAME))
-cloudra/config.py:30	
-cloudra/config.py:31	
-cloudra/config.py:32	class LLMConfig(BaseSettings):
-cloudra/config.py:33	    """LLM provider configuration for a single agent type."""
-cloudra/config.py:34	    model: str = "deepseek-v4-pro"
-cloudra/config.py:35	    url: str = "https://api.deepseek.com/"
-cloudra/config.py:36	    key: str = ""
-cloudra/config.py:37	    supports_vision: bool = False
-cloudra/config.py:38	
-cloudra/config.py:39	    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
-cloudra/config.py:40	
-cloudra/config.py:41	
-cloudra/config.py:42	class EmailConfig(BaseSettings):
-cloudra/config.py:43	    """SMTP/IMAP configuration for notifications and interaction."""
-cloudra/config.py:44	    smtp_server: str = "smtp.gmail.com"
-cloudra/config.py:45	    smtp_port: int = 465
-cloudra/config.py:46	    imap_server: str = "imap.gmail.com"
-cloudra/config.py:47	    imap_port: int = 993
-cloudra/config.py:48	    user: str = ""
-cloudra/config.py:49	    password: str = ""  # Should be an app password
-
-
-Cloudra V1.6.2                                              第 28 页
-----------------------------------------------------------------------
-cloudra/config.py:50	    sender_name: str = "Cloudra Assistant"
-cloudra/config.py:51	    whitelist: list[str] = []
-cloudra/config.py:52	
-cloudra/config.py:53	    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
-cloudra/config.py:54	
-cloudra/config.py:55	
-cloudra/config.py:56	class CloudraConfig(BaseSettings):
-cloudra/config.py:57	    """Global Cloudra configuration."""
-cloudra/config.py:58	
-cloudra/config.py:59	    model_config = SettingsConfigDict(
-cloudra/config.py:60	        env_prefix="CLOUDRA_",
-cloudra/config.py:61	        env_nested_delimiter="__",
-cloudra/config.py:62	        extra="ignore",
-cloudra/config.py:63	        env_file=".env",
-cloudra/config.py:64	        env_file_encoding="utf-8",
-cloudra/config.py:65	    )
-cloudra/config.py:66	
-cloudra/config.py:67	    # Paths
-cloudra/config.py:68	    data_dir: Path = Field(default_factory=lambda: Path(user_data_dir(APP_NAME)))
-cloudra/config.py:69	    config_file: Path = Field(default_factory=lambda: Path(user_config_dir(APP_NAME)) / "config.yaml")
-cloudra/config.py:70	
-cloudra/config.py:71	    # LLM configs
-cloudra/config.py:72	    coordinator: LLMConfig = Field(default_factory=LLMConfig)
-cloudra/config.py:73	    follower: LLMConfig = Field(default_factory=LLMConfig)
-cloudra/config.py:74	
-cloudra/config.py:75	    # Email config
-cloudra/config.py:76	    email: EmailConfig = Field(default_factory=EmailConfig)
-cloudra/config.py:77	
-cloudra/config.py:78	    # UI/UX state
-cloudra/config.py:79	    last_conversation_id: Optional[str] = None
-cloudra/config.py:80	
-cloudra/config.py:81	    @field_validator("data_dir", "config_file", mode="before")
-cloudra/config.py:82	    @classmethod
-cloudra/config.py:83	    def _coerce_path(cls, v):
-cloudra/config.py:84	        if isinstance(v, str):
-cloudra/config.py:85	            return Path(v)
-cloudra/config.py:86	        return v
-cloudra/config.py:87	
-cloudra/config.py:88	    def model_post_init(self, __context):
-cloudra/config.py:89	        # Backward compatibility: read legacy .env vars
-cloudra/config.py:90	        self._load_legacy_env()
-cloudra/config.py:91	        # Load YAML config file if it exists
-cloudra/config.py:92	        self._load_yaml_config()
-cloudra/config.py:93	        # Ensure data dirs exist
-cloudra/config.py:94	        self._ensure_dirs()
-cloudra/config.py:95	
-cloudra/config.py:96	    def _load_legacy_env(self):
-cloudra/config.py:97	        """Read COORDINATOR_* / FOLLOWER_* from environment or .env."""
-cloudra/config.py:98	        # These may have been loaded by pydantic-settings from .env already,
-cloudra/config.py:99	        # but we also check them directly to be safe.
-
-
-Cloudra V1.6.2                                              第 29 页
-----------------------------------------------------------------------
-cloudra/config.py:100	        if os.getenv("COORDINATOR_MODEL"):
-cloudra/config.py:101	            self.coordinator.model = os.getenv("COORDINATOR_MODEL")
-cloudra/config.py:102	        if os.getenv("COORDINATOR_URL"):
-cloudra/config.py:103	            self.coordinator.url = os.getenv("COORDINATOR_URL")
-cloudra/config.py:104	        if os.getenv("COORDINATOR_KEY"):
-cloudra/config.py:105	            self.coordinator.key = os.getenv("COORDINATOR_KEY")
-cloudra/config.py:106	        if os.getenv("FOLLOWER_MODEL"):
-cloudra/config.py:107	            self.follower.model = os.getenv("FOLLOWER_MODEL")
-cloudra/config.py:108	        if os.getenv("FOLLOWER_URL"):
-cloudra/config.py:109	            self.follower.url = os.getenv("FOLLOWER_URL")
-cloudra/config.py:110	        if os.getenv("FOLLOWER_KEY"):
-cloudra/config.py:111	            self.follower.key = os.getenv("FOLLOWER_KEY")
-cloudra/config.py:112	        
-cloudra/config.py:113	        # Email legacy envs
-cloudra/config.py:114	        if os.getenv("SMTP_USER"):
-cloudra/config.py:115	            self.email.user = os.getenv("SMTP_USER")
-cloudra/config.py:116	        if os.getenv("SMTP_PASS"):
-cloudra/config.py:117	            self.email.password = os.getenv("SMTP_PASS")
-cloudra/config.py:118	
-cloudra/config.py:119	    def _load_yaml_config(self):
-cloudra/config.py:120	        """Load config from YAML file, overriding defaults."""
-cloudra/config.py:121	        cfg_path = self.config_file
-cloudra/config.py:122	        if not cfg_path.exists():
-cloudra/config.py:123	            return
-cloudra/config.py:124	        try:
-cloudra/config.py:125	            with open(cfg_path, "r", encoding="utf-8") as f:
-cloudra/config.py:126	                data = yaml.safe_load(f) or {}
-cloudra/config.py:127	            if "llm" in data:
-cloudra/config.py:128	                for role in ("coordinator", "follower"):
-cloudra/config.py:129	                    if role in data["llm"]:
-cloudra/config.py:130	                        cfg = getattr(self, role)
-cloudra/config.py:131	                        for k, v in data["llm"][role].items():
-cloudra/config.py:132	                            if hasattr(cfg, k) and v is not None:
-cloudra/config.py:133	                                setattr(cfg, k, v)
-cloudra/config.py:134	            
-cloudra/config.py:135	            if "email" in data:
-cloudra/config.py:136	                for k, v in data["email"].items():
-cloudra/config.py:137	                    if hasattr(self.email, k) and v:
-cloudra/config.py:138	                        setattr(self.email, k, v)
-cloudra/config.py:139	
-cloudra/config.py:140	            if "data_dir" in data:
-cloudra/config.py:141	                self.data_dir = Path(data["data_dir"])
-cloudra/config.py:142	            if "last_conversation_id" in data:
-cloudra/config.py:143	                self.last_conversation_id = data["last_conversation_id"]
-cloudra/config.py:144	        except Exception as e:
-cloudra/config.py:145	            print(f"[Config Warning] Failed to load {cfg_path}: {e}")
-cloudra/config.py:146	
-cloudra/config.py:147	    def _ensure_dirs(self):
-cloudra/config.py:148	        """Create data directories if they don't exist."""
-cloudra/config.py:149	        self.data_dir.mkdir(parents=True, exist_ok=True)
-
-
-Cloudra V1.6.2                                              第 30 页
-----------------------------------------------------------------------
-cloudra/config.py:150	        (self.data_dir / "conversations").mkdir(exist_ok=True)
-cloudra/config.py:151	        (self.data_dir / "logs").mkdir(exist_ok=True)
-cloudra/config.py:152	        (self.data_dir / "sessions").mkdir(exist_ok=True)
-cloudra/config.py:153	        (self.data_dir / "tasks").mkdir(exist_ok=True)
-cloudra/config.py:154	        (self.data_dir / "contexts").mkdir(exist_ok=True)
-cloudra/config.py:155	
-cloudra/config.py:156	    def save(self):
-cloudra/config.py:157	        """Persist current config to YAML file."""
-cloudra/config.py:158	        cfg_path = self.config_file
-cloudra/config.py:159	        cfg_path.parent.mkdir(parents=True, exist_ok=True)
-cloudra/config.py:160	        data = {
-cloudra/config.py:161	            "data_dir": str(self.data_dir),
-cloudra/config.py:162	            "last_conversation_id": self.last_conversation_id,
-cloudra/config.py:163	            "llm": {
-cloudra/config.py:164	                "coordinator": {
-cloudra/config.py:165	                    "model": self.coordinator.model,
-cloudra/config.py:166	                    "url": self.coordinator.url,
-cloudra/config.py:167	                    "key": self.coordinator.key,
-cloudra/config.py:168	                    "supports_vision": self.coordinator.supports_vision,
-cloudra/config.py:169	                },
-cloudra/config.py:170	                "follower": {
-cloudra/config.py:171	                    "model": self.follower.model,
-cloudra/config.py:172	                    "url": self.follower.url,
-cloudra/config.py:173	                    "key": self.follower.key,
-cloudra/config.py:174	                    "supports_vision": self.follower.supports_vision,
-cloudra/config.py:175	                },
-cloudra/config.py:176	            },
-cloudra/config.py:177	            "email": {
-cloudra/config.py:178	                "smtp_server": self.email.smtp_server,
-cloudra/config.py:179	                "smtp_port": self.email.smtp_port,
-cloudra/config.py:180	                "imap_server": self.email.imap_server,
-cloudra/config.py:181	                "imap_port": self.email.imap_port,
-cloudra/config.py:182	                "user": self.email.user,
-cloudra/config.py:183	                "password": self.email.password,
-cloudra/config.py:184	                "sender_name": self.email.sender_name,
-cloudra/config.py:185	                "whitelist": self.email.whitelist,
-cloudra/config.py:186	            }
-cloudra/config.py:187	        }
-cloudra/config.py:188	        with open(cfg_path, "w", encoding="utf-8") as f:
-cloudra/config.py:189	            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
-cloudra/config.py:190	
-cloudra/config.py:191	    def to_display_dict(self) -> dict:
-cloudra/config.py:192	        """Return a dict for display, masking sensitive keys."""
-cloudra/config.py:193	        return {
-cloudra/config.py:194	            "data_dir": str(self.data_dir),
-cloudra/config.py:195	            "config_file": str(self.config_file),
-cloudra/config.py:196	            "llm": {
-cloudra/config.py:197	                "coordinator": {
-cloudra/config.py:198	                    "model": self.coordinator.model,
-cloudra/config.py:199	                    "url": self.coordinator.url,
+cloudra/core/agent.py:339	                    "[System] You are maintaining a todo list. Before this round, call "
+cloudra/core/agent.py:340	                    "todo_read to see the current list, confirm which item is in progress, then decide the next step; "
+cloudra/core/agent.py:341	                    "after finishing an item, immediately todo_write to update its status."
+cloudra/core/agent.py:342	                )
+cloudra/core/agent.py:343	        except Exception:
+cloudra/core/agent.py:344	            pass
+cloudra/core/agent.py:345	        return ""
+cloudra/core/agent.py:346	
+cloudra/core/agent.py:347	    def _should_inject_todo_reminder(self) -> bool:
+cloudra/core/agent.py:348	        """todo 提醒注入节奏：每 _TODO_REMIND_EVERY 轮一次，或 supervisor
+cloudra/core/agent.py:349	        反对后强制注入一次（supervisor 反对是重要转向节点，模型需要重新
+cloudra/core/agent.py:350	        对照清单校正方向）。"""
+cloudra/core/agent.py:351	        self._reasoning_round += 1
+cloudra/core/agent.py:352	        force = self._todo_reminder_force
+cloudra/core/agent.py:353	        self._todo_reminder_force = False
+cloudra/core/agent.py:354	        return force or (self._reasoning_round % _TODO_REMIND_EVERY == 0)
+cloudra/core/agent.py:355	
+cloudra/core/agent.py:356	    def _has_goal_anchor(self) -> bool:
+cloudra/core/agent.py:357	        """该 agent 是否设过目标锚点（调用过 goal_set）。"""
+cloudra/core/agent.py:358	        try:
+cloudra/core/agent.py:359	            from cloudra.tools.Plantool._store import agent_store_path, load_json
+cloudra/core/agent.py:360	
+cloudra/core/agent.py:361	            return bool(load_json(agent_store_path(self, "goal.json"), default=None))
+cloudra/core/agent.py:362	        except Exception:
+cloudra/core/agent.py:363	            return False
+cloudra/core/agent.py:364	
+cloudra/core/agent.py:365	    def _goal_confirm_reminder(self) -> str:
+cloudra/core/agent.py:366	        """一次性目标确认提醒：仅当该 agent 设过目标锚点（goal_set）时有效。
+cloudra/core/agent.py:367	
+cloudra/core/agent.py:368	        reAct 在「无工具调用」轮置 force 后，下一轮请求注入——即首次出现
+cloudra/core/agent.py:369	        无工具轮时提醒模型确认 goal 是否完成、决定 stop 还是继续。
+cloudra/core/agent.py:370	        没设过 goal 时返回空串（无目标可确认，不注入）。
+cloudra/core/agent.py:371	        """
+cloudra/core/agent.py:372	        if not self._goal_confirm_force:
+cloudra/core/agent.py:373	            return ""
+cloudra/core/agent.py:374	        self._goal_confirm_force = False
+cloudra/core/agent.py:375	        return _GOAL_CONFIRM_REMINDER if self._has_goal_anchor() else ""
+cloudra/core/agent.py:376	
+cloudra/core/agent.py:377	    @staticmethod
+cloudra/core/agent.py:378	    def _tool_name_of(schema: dict) -> str:
+cloudra/core/agent.py:379	        function = schema.get("function", {}) if isinstance(schema, dict) else {}
+cloudra/core/agent.py:380	        return function.get("name") if isinstance(function, dict) else None
+cloudra/core/agent.py:381	
+cloudra/core/agent.py:382	    def _get_tools_schema(self) -> list[dict]:
+cloudra/core/agent.py:383	        """Cache schemas while invalidating when online device capabilities change."""
+cloudra/core/agent.py:384	        # Tests and embedders may explicitly inject a fixed schema list.
+cloudra/core/agent.py:385	        if (
+cloudra/core/agent.py:386	            self._tools_schema_cache is not None
+cloudra/core/agent.py:387	            and self._tools_schema_revision is None
+cloudra/core/agent.py:388	        ):
+cloudra/core/agent.py:389	            return self._tools_schema_cache
+cloudra/core/agent.py:390	        available_entries = self.get_available_tools()
 
 

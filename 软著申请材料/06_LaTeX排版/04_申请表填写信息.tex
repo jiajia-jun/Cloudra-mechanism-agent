@@ -1,0 +1,193 @@
+% Cloudra 软著登记申请表填写信息（多人著作权人），tectonic 直接编译
+\documentclass[zihao=-4,a4paper]{ctexart}
+\usepackage[top=22mm,bottom=22mm,left=22mm,right=22mm]{geometry}
+\usepackage{ctex}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Cloudra V2.0 软件著作权登记申请表填写信息}
+\fancyhead[R]{\small 第 \thepage{} 页}
+\renewcommand{\headrulewidth}{0.4pt}
+\emergencystretch=2em
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries 计算机软件著作权登记申请表}\\[4pt]
+  {\large 填写信息汇总（多人著作权人）}\\[8pt]
+  {\small 登记版本：V2.0 \quad 整理日期：2026年8月17日}
+\end{center}
+
+\section*{一、软件基本信息}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{5.4cm}>{\raggedright\arraybackslash}p{6.4cm}}
+  \toprule
+  填写项 & 填写内容 & 备注 \\
+  \midrule
+  软件全称 & Cloudra化学科研AI Agent协作框架软件 & \\
+  软件简称 & Cloudra & \\
+  版本号 & V2.0 & \\
+  开发完成日期 & 2026年08月17日 & \\
+  首次发表日期 & 未发表 & \\
+  开发方式 & 合作开发 & 多名著作权人共同开发 \\
+  权利取得方式 & 原始取得 & \\
+  权利范围 & 全部权利 & \\
+  软件分类 & 应用软件 & \\
+  \bottomrule
+\end{tabular}
+
+\section*{二、软件用途与技术特点}
+
+\subsection*{2.1 软件用途（300字以内）}
+本软件是一款面向化学科研领域的 AI Agent 协作框架。它以事件驱动的运行时内核协调一个总控 Agent 与八个专业领域子 Agent，为化学研究人员提供文献检索、分子结构处理、光谱数据解析、量子化学（DFT）与分子动力学（MD）计算任务提交与监控、机理图引导的反应机理研究以及科研文档撰写等一站式辅助服务。软件内置五级权限模型与危险操作审批机制保障运行安全，支持本地与 Slurm 集群计算任务的自动监视，并以不可变产物快照与事件日志实现全程可追溯。
+
+\subsection*{2.2 技术特点（300字以内）}
+1. 事件驱动运行时内核：事件日志、事件总线与命令总线分离，先事件后状态，多 Agent 真并发、可取消、崩溃自动重试。
+2. 固定轮次推理管道：权限、DAG、目标三阶段可插拔策略，LLM 输出 token 级流式推送，推理过程持久化。
+3. 多 Agent 协作：Coordinator 调度八个专业子 Agent，支持蜂群批量调度、AgentHub 论坛与统一信箱。
+4. DAG 机理编排：机理草稿、阶段契约、调用复核收件箱与交付覆盖率审计，保证研究结论可溯源。
+5. 安全体系：五级权限模型、人工审批流、YOLO 自动审批守卫及坐标/命令习惯/委派专项守卫。
+6. 持久化：SQLite 事件日志增量重放，不可变产物快照与 SHA-256 备份校验。
+
+\subsection*{2.3 硬件环境}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  项目 & 填写内容 \\
+  \midrule
+  CPU & 建议 2 核及以上 \\
+  内存 & 建议 4GB 及以上 \\
+  硬盘 & 建议 2GB 可用空间 \\
+  其他 & 网络连接（用于调用大语言模型 API） \\
+  \bottomrule
+\end{tabular}
+
+\subsection*{2.4 软件环境}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  项目 & 填写内容 \\
+  \midrule
+  操作系统 & Linux / macOS / Windows \\
+  支撑软件 & Python 3.11 及以上版本 \\
+  编程语言 & Python \\
+  源程序量 & 共 39,711 行 \\
+  主要功能和技术特点 & 参见 2.1 和 2.2 \\
+  \bottomrule
+\end{tabular}
+
+\section*{三、著作权人信息（多人合作开发）}
+
+\subsection*{3.1 著作权人一（主申请人）}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  填写项 & 填写内容 \\
+  \midrule
+  姓名 & 杨程驿 \\
+  类别 & 自然人 \\
+  证件类型 & 身份证 \\
+  证件号码 & 430622200703134876 \\
+  国籍 & 中国 \\
+  省份 & 湖南省 \\
+  城市 & 长沙市 \\
+  \bottomrule
+\end{tabular}
+
+\subsection*{3.2 著作权人二【待填写：队友姓名与证件信息】}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  填写项 & 填写内容 \\
+  \midrule
+  姓名 & 【待填写】 \\
+  类别 & 自然人 \\
+  证件类型 & 身份证 \\
+  证件号码 & 【待填写】 \\
+  国籍 & 中国 \\
+  省份 & 【待填写】 \\
+  城市 & 【待填写】 \\
+  \bottomrule
+\end{tabular}
+
+\subsection*{3.3 著作权人三【如无则删除本节】}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  填写项 & 填写内容 \\
+  \midrule
+  姓名 & 【待填写】 \\
+  类别 & 自然人 \\
+  证件类型 & 身份证 \\
+  证件号码 & 【待填写】 \\
+  国籍 & 中国 \\
+  省份 & 【待填写】 \\
+  城市 & 【待填写】 \\
+  \bottomrule
+\end{tabular}
+
+\begin{itemize}[itemsep=2pt]
+  \item 多人合作开发申请需同时提交《合作开发协议》（见配套文件），由全体著作权人签字。
+  \item 每位自然人著作权人需提交身份证复印件。
+\end{itemize}
+
+\section*{四、申请人信息}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  填写项 & 填写内容 \\
+  \midrule
+  申请人 & 杨程驿（与著作权人一一致） \\
+  联系人 & 杨程驿 \\
+  联系电话 & 18373911883 \\
+  电子邮箱 & 951899550@qq.com \\
+  通讯地址 & 湖南省长沙市岳麓区梅溪湖街道佳兆业天御 \\
+  邮政编码 & 410000 \\
+  \bottomrule
+\end{tabular}
+
+\section*{五、软件鉴别材料}
+
+\subsection*{5.1 源程序}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  项目 & 内容 \\
+  \midrule
+  提交方式 & 源程序前、后各连续 30 页，共 60 页 \\
+  每页行数 & 52 行（不少于 50 行） \\
+  对应文件 & 01\_源程序\_前30页.pdf（源程序第 1--30 页）\newline 02\_源程序\_后30页.pdf（源程序第 735--764 页） \\
+  打印要求 & A4 纸单面打印，页眉已标注软件名称、版本号与页码 \\
+  \bottomrule
+\end{tabular}
+
+\subsection*{5.2 文档}
+
+\begin{tabular}{>{\bfseries}l>{\raggedright\arraybackslash}p{11cm}}
+  \toprule
+  项目 & 内容 \\
+  \midrule
+  提交方式 & 使用说明书/操作手册（不足 60 页全部提交） \\
+  页数 & 共 8 页 \\
+  对应文件 & 03\_使用说明书.pdf \\
+  打印要求 & A4 纸单面打印，页眉已标注软件名称、版本号与页码 \\
+  \bottomrule
+\end{tabular}
+
+\section*{六、代理人信息}
+自行办理，无需填写。
+
+\section*{七、确认声明}
+本软件由全体著作权人合作开发，权利归属清晰，符合《计算机软件著作权登记办法》规定的登记条件。软件尚未公开发表。
+
+\vfill
+\begin{center}\small
+本表信息与在线填报内容一致，在线填报以中国版权保护中心官网（\url{https://www.ccopyright.com.cn}）为准。
+\end{center}
+
+\end{document}
