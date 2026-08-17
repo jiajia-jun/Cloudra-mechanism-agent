@@ -98,10 +98,28 @@ for "just adjusting a few atoms".
   call) are per-session choices — the effect of graph bookkeeping and the
   effect of Supervisor control can be measured separately.
 
-Underneath both pillars sits a durable session substrate: idempotent commands,
-resumable event cursors, leased workers with auditable terminal states, immutable
-artifacts, and recorded prompt-assembly revisions keep hour- to day-long
-experiments controllable across client, server, and process restarts.
+Underneath both pillars sits a durable session substrate that keeps hour- to
+day-long experiments controllable across client, server, and process restarts:
+every graph mutation, actor, rationale, and evidence reference is journaled;
+artifacts are immutable; and prompt-assembly revisions are recorded with each
+session.
+
+### Research-management facilities
+
+Beyond the two pillars, Cloudra ships the facilities a long-running study needs:
+
+- **Domain sub-agents** (literature, small-molecule quantum chemistry, molecular
+  dynamics, first-principles, experimental design, writing, environment), launched
+  in parallel swarms and reporting back to the Coordinator.
+- **Goal anchors and context compaction** (`/goal`, `/compact`): the objective
+  survives compaction, and long sessions can be summarized mid-flight.
+- **Reminders** for calculations, meetings, or ideas — they wake the agent on time.
+- **An agent forum** (`agent_hub`) where parallel sub-agents share findings and
+  call each other.
+- **Approvals and questions**: destructive operations require user approval; agents
+  can ask the user questions through in-UI panels.
+- **Automatic recovery**: failed turns retry in place; after a process restart,
+  messaging an interrupted agent reopens it without losing state.
 
 ## Demonstrated capability
 
@@ -158,8 +176,8 @@ actually occurs. Details and invariants are documented in
 The current tools and skills cover workflows such as:
 
 - small-molecule quantum chemistry: structure preparation, conformer search,
-  TS/IRC workflows, Gaussian / ORCA input generation, asynchronous submission,
-  state monitoring, and log parsing;
+  TS/IRC workflows, Gaussian / ORCA input generation, asynchronous submission
+  (Gaussian / VASP / ORCA / CP2K), state monitoring, and log parsing;
 - electronic-structure analysis, atom mapping, format conversion, visualization,
   and image-to-structure workflows;
 - literature retrieval, document conversion, evidence synthesis, and academic
@@ -276,13 +294,13 @@ mutation carries its actor, rationale, and base revision in an append-only journ
 
 ```text
 cloudra/
-├── core/                       reasoning loop, agent roles, supervisor
+├── core/                       agent/supervisor base classes, shared supervision
 ├── services/                   application service layer and FastAPI control plane
 ├── persistence/                SQLite store, artifacts, memory, paths
 ├── base/                       dataclasses and loader base types
 ├── infra/                      config, LLM transport, events, platform support
 ├── dag/                        DAG-driven harness (opt-in per session)
-├── runtime/                    prompt assembly, workspace observer, compute log monitor
+├── runtime/                    prompt assembly, workspace observer, compute job broker/monitor
 ├── runtime_v2/                 event-driven kernel (runs, commands, policies, bridges)
 ├── tools/, subagents/          perception tools, scientific capabilities, domain roles
 ├── skills/, prompts/           research methods and role policies

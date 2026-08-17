@@ -2,8 +2,8 @@
 
 本文说明 Cloudra 的 DAG 引导编排子系统（`cloudra/dag/`）的当前实现：单张 delivery
 机理图 + stage 契约 + CallReview 收件箱、三种编排模式、分权规则、阶段绑定契约与
-Supervisor 触发时机。面向需要理解或修改这条链路的开发者；用户使用入口见
-[`CLI_API_REFERENCE.md`](CLI_API_REFERENCE.md)；Web UI 在项目设置中选择模式。
+Supervisor 触发时机。面向需要理解或修改这条链路的开发者；用户使用入口：Web UI 在项目设置中选择模式
+（或创建会话时指定 `orchestration_mode`）。
 
 ## 解决什么问题
 
@@ -147,7 +147,7 @@ standard 模式不依赖图存储。`session_events` 是 best-effort 遥测，�
   字段含义与选用时机见 `cloudra/skills/dag-operations/`；被拒绝时错误信息附正确
   格式示例。
 - **服务/API**：delivery 图、交付报告、变更历史、投影（delivery + pending 复核 +
-  coverage）、复核收件箱、当前草稿、用户变更批次、replan，路径见
-  [`CLI_API_REFERENCE.md`](CLI_API_REFERENCE.md)；旧 `/dag/process` 返回 410。
+  coverage）、复核收件箱、当前草稿、用户变更批次、replan，路由定义见
+  `cloudra/services/api_v2.py`；旧 `/dag/process` 返回 410。
 - **Web UI**：DAG 面板展示机理图（带阶段状态）、复核收件箱、变更事件和 mutation
   编辑框。图事件是可靠事件，与 best-effort 遥测区分展示。

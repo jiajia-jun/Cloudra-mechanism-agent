@@ -13,10 +13,12 @@
 
 | 文档 | 内容 | 当前状态 |
 | --- | --- | --- |
-| [`PHASE8_NODE_REGISTRY.md`](PHASE8_NODE_REGISTRY.md) | 多服务器 profile、节点/工作区路由、能力命名空间、worker lease、Slurm 恢复语义 | 当前实现说明；物理多节点 gateway 待后续验证 |
+| [`PHASE8_NODE_REGISTRY.md`](PHASE8_NODE_REGISTRY.md) | JSON 节点注册表、工作区路由、local/Slurm 计算执行与恢复语义 | 当前实现说明；真实 Slurm 集群与多机路由待后续验证 |
 | [`DAG_ORCHESTRATION.md`](DAG_ORCHESTRATION.md) | DAG 引导编排：机理图 + 阶段契约 + CallReview 收件箱、三模式消融边界、分权与证据派生、Supervisor 触发 | 当前实现说明；按会话 opt-in |
 
-那份架构计划还在开发环境的次要目录，不会随 Python 包一起发布。如果要放到公开仓库引用，先整理成仓库内的稳定文档，不要引用某台机器上的绝对路径。
+设计计划与决策记录放在 [`superpowers/plans/`](superpowers/plans/)（如 DAG 编排的
+delivery-only 重构与验证计划），只随仓库发布，不随 Python 包安装。引用它们时用
+仓库内相对路径，不要引用某台机器上的绝对路径。
 
 ## 验证
 
