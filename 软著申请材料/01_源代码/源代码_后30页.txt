@@ -1,6 +1,5 @@
-Cloudra V2.0                                              第 735 页
+Cloudra V2.0                                              第 745 页
 ----------------------------------------------------------------------
-cloudra/tools/core/command_analyzer.py:70	        'ssh', 'scp', 'sftp', 'rsync',
 cloudra/tools/core/command_analyzer.py:71	        'wget', 'curl',
 cloudra/tools/core/command_analyzer.py:72	        'chmod', 'chown', 'chgrp',
 cloudra/tools/core/command_analyzer.py:73	        'mkfs', 'dd', 'fdisk', 'parted',
@@ -52,9 +51,9 @@ cloudra/tools/core/command_analyzer.py:118	                    analysis.has_redi
 cloudra/tools/core/command_analyzer.py:119	                    break
 cloudra/tools/core/command_analyzer.py:120	            # Pipes in Windows are also |
 cloudra/tools/core/command_analyzer.py:121	            if tok in ('|', '|&'):
-Cloudra V2.0                                              第 736 页
-----------------------------------------------------------------------
 cloudra/tools/core/command_analyzer.py:122	                analysis.has_pipe = True
+Cloudra V2.0                                              第 746 页
+----------------------------------------------------------------------
 cloudra/tools/core/command_analyzer.py:123	
 cloudra/tools/core/command_analyzer.py:124	        # 3. Split by pipes to get individual command segments
 cloudra/tools/core/command_analyzer.py:125	        pipe_indices = [-1]
@@ -106,9 +105,9 @@ cloudra/tools/core/command_analyzer.py:170	        # 4. Classify each command in
 cloudra/tools/core/command_analyzer.py:171	        perms = Permission.NONE
 cloudra/tools/core/command_analyzer.py:172	        for cmd in commands:
 cloudra/tools/core/command_analyzer.py:173	            cmd_lower = cmd.lower()
-Cloudra V2.0                                              第 737 页
-----------------------------------------------------------------------
 cloudra/tools/core/command_analyzer.py:174	            # Remove common version suffixes for matching
+Cloudra V2.0                                              第 747 页
+----------------------------------------------------------------------
 cloudra/tools/core/command_analyzer.py:175	            cmd_core = cmd_lower.rstrip('0123456789.')
 cloudra/tools/core/command_analyzer.py:176	
 cloudra/tools/core/command_analyzer.py:177	            if cmd_lower in cls.READ_CMDS or cmd_core in cls.READ_CMDS:
@@ -160,9 +159,9 @@ cloudra/tools/core/command_analyzer.py:222
 cloudra/tools/core/command_analyzer.py:223	            # Remove .exe
 cloudra/tools/core/command_analyzer.py:224	            if cmd.endswith('.exe'):
 cloudra/tools/core/command_analyzer.py:225	                cmd = cmd[:-4]
-Cloudra V2.0                                              第 738 页
-----------------------------------------------------------------------
 cloudra/tools/core/command_analyzer.py:226	
+Cloudra V2.0                                              第 748 页
+----------------------------------------------------------------------
 cloudra/tools/core/command_analyzer.py:227	            analysis.primary_cmd = cmd
 cloudra/tools/core/command_analyzer.py:228	            analysis.pipe_commands = [cmd]
 cloudra/tools/core/command_analyzer.py:229	
@@ -214,9 +213,9 @@ cloudra/tools/core/coord_guard.py:27	    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s+"
 cloudra/tools/core/coord_guard.py:28	    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s*$"
 cloudra/tools/core/coord_guard.py:29	)
 cloudra/tools/core/coord_guard.py:30	
-Cloudra V2.0                                              第 739 页
-----------------------------------------------------------------------
 cloudra/tools/core/coord_guard.py:31	# 几何/计算输入文件扩展名。刻意不含 .inp（ORCA/CP2K 输入常由 ASE 等脚本
+Cloudra V2.0                                              第 749 页
+----------------------------------------------------------------------
 cloudra/tools/core/coord_guard.py:32	# 程序化生成，误伤面大）与 .md 等报告文件（嵌入 xyz 块属正当内容）。
 cloudra/tools/core/coord_guard.py:33	_GEOMETRY_EXTENSIONS = frozenset({".xyz", ".gjf", ".com"})
 cloudra/tools/core/coord_guard.py:34	
@@ -268,9 +267,9 @@ cloudra/tools/core/coord_guard.py:79	        if not is_geometry_path(path):
 cloudra/tools/core/coord_guard.py:80	            return None
 cloudra/tools/core/coord_guard.py:81	        target = path
 cloudra/tools/core/coord_guard.py:82	    else:
-Cloudra V2.0                                              第 740 页
-----------------------------------------------------------------------
 cloudra/tools/core/coord_guard.py:83	        if not any(ext in text.lower() for ext in _GEOMETRY_EXTENSIONS):
+Cloudra V2.0                                              第 750 页
+----------------------------------------------------------------------
 cloudra/tools/core/coord_guard.py:84	            return None
 cloudra/tools/core/coord_guard.py:85	        target = "a geometry/compute input file"
 cloudra/tools/core/coord_guard.py:86	    return f"[Warning: suspected handwritten coordinates] Wrote a typed-in coordinate block to {target}. {_GUIDANCE}"
@@ -322,9 +321,9 @@ cloudra/tools/core/gaussian_frames.py:21	EV_PER_HARTREE = 27.211386245988
 cloudra/tools/core/gaussian_frames.py:22	
 cloudra/tools/core/gaussian_frames.py:23	
 cloudra/tools/core/gaussian_frames.py:24	@dataclass
-Cloudra V2.0                                              第 741 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:25	class FrameRecord:
+Cloudra V2.0                                              第 751 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:26	    """一个关键帧：优化步 / 扫描点 / IRC 路径点 / 单点结构。"""
 cloudra/tools/core/gaussian_frames.py:27	
 cloudra/tools/core/gaussian_frames.py:28	    frame: int
@@ -376,9 +375,9 @@ cloudra/tools/core/gaussian_frames.py:73	    Potential Surface Scan" 等）。`t
 cloudra/tools/core/gaussian_frames.py:74	
 cloudra/tools/core/gaussian_frames.py:75	    限制：Link1 多步任务不拆分 section，按整文件取合集（v1）。
 cloudra/tools/core/gaussian_frames.py:76	    """
-Cloudra V2.0                                              第 742 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:77	    text = _read_text(log_path)
+Cloudra V2.0                                              第 752 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:78	    route = _collect_route_card(text)
 cloudra/tools/core/gaussian_frames.py:79	    jobs: set[str] = set()
 cloudra/tools/core/gaussian_frames.py:80	
@@ -430,9 +429,9 @@ cloudra/tools/core/gaussian_frames.py:125	    re.S,
 cloudra/tools/core/gaussian_frames.py:126	)
 cloudra/tools/core/gaussian_frames.py:127	
 cloudra/tools/core/gaussian_frames.py:128	
-Cloudra V2.0                                              第 743 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:129	def _is_dash_line(line: str) -> bool:
+Cloudra V2.0                                              第 753 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:130	    s = line.strip()
 cloudra/tools/core/gaussian_frames.py:131	    return len(s) > 3 and set(s) == {"-"}
 cloudra/tools/core/gaussian_frames.py:132	
@@ -484,9 +483,9 @@ cloudra/tools/core/gaussian_frames.py:177
 cloudra/tools/core/gaussian_frames.py:178	    表中能量为相对 TS 能量的差值，行按反应坐标从负到正排列（TS 行为 rx=0）。
 cloudra/tools/core/gaussian_frames.py:179	    """
 cloudra/tools/core/gaussian_frames.py:180	    m_ts = _TS_ENERGY_RE.search(text)
-Cloudra V2.0                                              第 744 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:181	    m_tab = _SUMMARY_TABLE_RE.search(text)
+Cloudra V2.0                                              第 754 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:182	    if not m_ts or not m_tab:
 cloudra/tools/core/gaussian_frames.py:183	        raise ValueError("IRC 日志缺少 'Summary of reaction path following' 汇总表，无法提取反应坐标与能量。")
 cloudra/tools/core/gaussian_frames.py:184	    rows = []
@@ -538,9 +537,9 @@ cloudra/tools/core/gaussian_frames.py:229	    points: dict[int, list[dict]] = {1
 cloudra/tools/core/gaussian_frames.py:230	    for i, m in enumerate(headers):
 cloudra/tools/core/gaussian_frames.py:231	        point_no, path_no = int(m.group(1)), int(m.group(2))
 cloudra/tools/core/gaussian_frames.py:232	        seg_end = headers[i + 1].start() if i + 1 < len(headers) else len(text)
-Cloudra V2.0                                              第 745 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:233	        segment = text[m.end():seg_end]
+Cloudra V2.0                                              第 755 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:234	        coords = _parse_current_structure(segment)
 cloudra/tools/core/gaussian_frames.py:235	        if point_no == 0 and coords is None:
 cloudra/tools/core/gaussian_frames.py:236	            # TS 起始点：尝试取标记之前（初始结构 SCF）的最后一个 Input orientation
@@ -592,9 +591,9 @@ cloudra/tools/core/gaussian_frames.py:281	                [c[1:] for c in coords
 cloudra/tools/core/gaussian_frames.py:282	                comment=f"irc point={pt['point']} path={path_no} rx={rx:.5f} E={energy:.8f} Eh",
 cloudra/tools/core/gaussian_frames.py:283	            )
 cloudra/tools/core/gaussian_frames.py:284	        return FrameRecord(
-Cloudra V2.0                                              第 746 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:285	            frame=frame_idx,
+Cloudra V2.0                                              第 756 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:286	            path_number=path_no,
 cloudra/tools/core/gaussian_frames.py:287	            reaction_coordinate=rx,
 cloudra/tools/core/gaussian_frames.py:288	            scf_energy_hartree=energy,
@@ -646,9 +645,9 @@ cloudra/tools/core/gaussian_frames.py:333	            frames[0].scf_energy_hartr
 cloudra/tools/core/gaussian_frames.py:334	            frames[-1].scf_energy_hartree,
 cloudra/tools/core/gaussian_frames.py:335	        ) if frames else None,
 cloudra/tools/core/gaussian_frames.py:336	        "forward_converged": conv[1],
-Cloudra V2.0                                              第 747 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:337	        "backward_converged": conv[2],
+Cloudra V2.0                                              第 757 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:338	    }
 cloudra/tools/core/gaussian_frames.py:339	    return frames, meta
 cloudra/tools/core/gaussian_frames.py:340	
@@ -700,9 +699,9 @@ cloudra/tools/core/gaussian_frames.py:385	        frames.append(FrameRecord(
 cloudra/tools/core/gaussian_frames.py:386	            frame=i,
 cloudra/tools/core/gaussian_frames.py:387	            reaction_coordinate=rx,
 cloudra/tools/core/gaussian_frames.py:388	            scf_energy_hartree=energies_ev[i] / EV_PER_HARTREE,
-Cloudra V2.0                                              第 748 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:389	            xyz=xyz,
+Cloudra V2.0                                              第 758 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:390	        ))
 cloudra/tools/core/gaussian_frames.py:391	    return frames
 cloudra/tools/core/gaussian_frames.py:392	
@@ -754,9 +753,9 @@ cloudra/tools/core/gaussian_frames.py:437	    energies = getattr(data, "scfenerg
 cloudra/tools/core/gaussian_frames.py:438	    atomcoords = getattr(data, "atomcoords", None)
 cloudra/tools/core/gaussian_frames.py:439	    atomnos = getattr(data, "atomnos", None)
 cloudra/tools/core/gaussian_frames.py:440	    if atomcoords is None or atomnos is None or len(atomcoords) == 0:
-Cloudra V2.0                                              第 749 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:441	        return []
+Cloudra V2.0                                              第 759 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:442	    energy_hartree = None
 cloudra/tools/core/gaussian_frames.py:443	    if energies is not None and len(energies) > 0:
 cloudra/tools/core/gaussian_frames.py:444	        energy_hartree = _as_float_list(energies)[-1] / EV_PER_HARTREE
@@ -808,9 +807,9 @@ cloudra/tools/core/gaussian_frames.py:489	            writer.writerow({
 cloudra/tools/core/gaussian_frames.py:490	                "frame": fr.frame,
 cloudra/tools/core/gaussian_frames.py:491	                "path_number": "" if fr.path_number is None else fr.path_number,
 cloudra/tools/core/gaussian_frames.py:492	                "reaction_coordinate": "" if fr.reaction_coordinate is None else _fmt_float(fr.reaction_coordinate),
-Cloudra V2.0                                              第 750 页
-----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:493	                "scf_energy_hartree": "" if hartree is None else _fmt_float(hartree),
+Cloudra V2.0                                              第 760 页
+----------------------------------------------------------------------
 cloudra/tools/core/gaussian_frames.py:494	                "scf_energy_ev": "" if hartree is None else _fmt_float(hartree * EV_PER_HARTREE),
 cloudra/tools/core/gaussian_frames.py:495	                "frequencies_cm": ";".join(_fmt_float(v) for v in fr.frequencies_cm),
 cloudra/tools/core/gaussian_frames.py:496	                "xyz": fr.xyz,
@@ -862,9 +861,9 @@ cloudra/tools/core/permission_model.py:43	    }
 cloudra/tools/core/workspace_mutation.py:1	"""文件变更工具共享的审批、应用与事件流水线。"""
 cloudra/tools/core/workspace_mutation.py:2	
 cloudra/tools/core/workspace_mutation.py:3	from __future__ import annotations
-Cloudra V2.0                                              第 751 页
-----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:4	
+Cloudra V2.0                                              第 761 页
+----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:5	import asyncio
 cloudra/tools/core/workspace_mutation.py:6	from pathlib import Path
 cloudra/tools/core/workspace_mutation.py:7	from typing import TypeVar
@@ -916,9 +915,9 @@ cloudra/tools/core/workspace_mutation.py:52	        f"【变更规模】: +{chan
 cloudra/tools/core/workspace_mutation.py:53	        f"【修改前 SHA256】: {change.before_sha256 or 'missing'}\n"
 cloudra/tools/core/workspace_mutation.py:54	        f"【修改后 SHA256】: {change.after_sha256}\n"
 cloudra/tools/core/workspace_mutation.py:55	        f"【Unified Diff】:\n{diff_preview}"
-Cloudra V2.0                                              第 752 页
-----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:56	    )
+Cloudra V2.0                                              第 762 页
+----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:57	
 cloudra/tools/core/workspace_mutation.py:58	
 cloudra/tools/core/workspace_mutation.py:59	async def record_preparation_failure(
@@ -970,9 +969,9 @@ cloudra/tools/core/workspace_mutation.py:104	            session,
 cloudra/tools/core/workspace_mutation.py:105	            "file_change_declined",
 cloudra/tools/core/workspace_mutation.py:106	            change.event_data("declined", message),
 cloudra/tools/core/workspace_mutation.py:107	        )
-Cloudra V2.0                                              第 753 页
-----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:108	        return output_class(
+Cloudra V2.0                                              第 763 页
+----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:109	            is_written=False,
 cloudra/tools/core/workspace_mutation.py:110	            filepath=change.relative_path,
 cloudra/tools/core/workspace_mutation.py:111	            status="declined",
@@ -1024,9 +1023,9 @@ cloudra/tools/core/workspace_mutation.py:156	    await tool.record_session_event
 cloudra/tools/core/workspace_mutation.py:157	        session,
 cloudra/tools/core/workspace_mutation.py:158	        "file_change_applied",
 cloudra/tools/core/workspace_mutation.py:159	        change.event_data("applied"),
-Cloudra V2.0                                              第 754 页
-----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:160	    )
+Cloudra V2.0                                              第 764 页
+----------------------------------------------------------------------
 cloudra/tools/core/workspace_mutation.py:161	    conversation_id = getattr(tool.subagent, "conversation_id", "default")
 cloudra/tools/core/workspace_mutation.py:162	    from cloudra.persistence.database import ConversationDB
 cloudra/tools/core/workspace_mutation.py:163	
@@ -1078,9 +1077,9 @@ cloudra/tools/registry.py:2
 cloudra/tools/registry.py:3	Keep this module dependency-free: :mod:`cloudra.core.agent` imports
 cloudra/tools/registry.py:4	``cloudra.tools`` while several tool implementations import ``cloudra.core.agent``.
 cloudra/tools/registry.py:5	The registry therefore stores import paths instead of importing tool classes at
-Cloudra V2.0                                              第 755 页
-----------------------------------------------------------------------
 cloudra/tools/registry.py:6	module import time.
+Cloudra V2.0                                              第 765 页
+----------------------------------------------------------------------
 cloudra/tools/registry.py:7	
 cloudra/tools/registry.py:8	Optional semantic fields are the single source of truth for downstream policy
 cloudra/tools/registry.py:9	projections (DAG gate / runtime profiles / evidence derivation).  Downstream
@@ -1132,9 +1131,9 @@ cloudra/tools/registry.py:54	        class_name='WebFetcher',
 cloudra/tools/registry.py:55	        tool_name='web_fetcher',
 cloudra/tools/registry.py:56	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:57	    ),
-Cloudra V2.0                                              第 756 页
-----------------------------------------------------------------------
 cloudra/tools/registry.py:58	    ToolRegistration(
+Cloudra V2.0                                              第 766 页
+----------------------------------------------------------------------
 cloudra/tools/registry.py:59	        module='cloudra.tools.Chemtool.conformer_search',
 cloudra/tools/registry.py:60	        class_name='ConformerSearch',
 cloudra/tools/registry.py:61	        tool_name='conformer_search',
@@ -1183,227 +1182,239 @@ cloudra/tools/registry.py:103	        dag_substantive=True,
 cloudra/tools/registry.py:104	    ),
 cloudra/tools/registry.py:105	    ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
 cloudra/tools/registry.py:106	    ToolRegistration(
-cloudra/tools/registry.py:107	        module='cloudra.tools.Chemtool.reaction_mapping',
-cloudra/tools/registry.py:108	        class_name='ReactionMapping',
-cloudra/tools/registry.py:109	        tool_name='reaction_mapping',
-Cloudra V2.0                                              第 757 页
+cloudra/tools/registry.py:107	        module='cloudra.tools.Chemtool.mark_compute_job_failed',
+cloudra/tools/registry.py:108	        class_name='MarkComputeJobFailed',
+cloudra/tools/registry.py:109	        tool_name='mark_compute_job_failed',
+cloudra/tools/registry.py:110	        dag_observe=False,
+Cloudra V2.0                                              第 767 页
 ----------------------------------------------------------------------
-cloudra/tools/registry.py:110	        evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
-cloudra/tools/registry.py:111	        dag_review=True,
-cloudra/tools/registry.py:112	    ),
-cloudra/tools/registry.py:113	    ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
-cloudra/tools/registry.py:114	    ToolRegistration(
-cloudra/tools/registry.py:115	        module='cloudra.tools.Chemtool.submit_compute_job',
-cloudra/tools/registry.py:116	        class_name='SubmitComputeJob',
-cloudra/tools/registry.py:117	        tool_name='submit_compute_job',
-cloudra/tools/registry.py:118	        dag_substantive=True,
-cloudra/tools/registry.py:119	        dag_compute_entry=True,
-cloudra/tools/registry.py:120	    ),
-cloudra/tools/registry.py:121	    ToolRegistration(
-cloudra/tools/registry.py:122	        module='cloudra.tools.Chemtool.thermo_analysis',
-cloudra/tools/registry.py:123	        class_name='ThermoAnalysis',
-cloudra/tools/registry.py:124	        tool_name='thermo_analysis',
-cloudra/tools/registry.py:125	        dag_substantive=True,
-cloudra/tools/registry.py:126	        evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
-cloudra/tools/registry.py:127	        dag_review=True,
-cloudra/tools/registry.py:128	    ),
-cloudra/tools/registry.py:129	    ToolRegistration(
-cloudra/tools/registry.py:130	        module='cloudra.tools.Chemtool.ts_guess',
-cloudra/tools/registry.py:131	        class_name='TsGuess',
-cloudra/tools/registry.py:132	        tool_name='ts_guess',
-cloudra/tools/registry.py:133	        dag_substantive=True,
-cloudra/tools/registry.py:134	        evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
-cloudra/tools/registry.py:135	        dag_review=True,
-cloudra/tools/registry.py:136	        dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
-cloudra/tools/registry.py:137	    ),
-cloudra/tools/registry.py:138	    ToolRegistration('cloudra.tools.Interactool.ask_user', 'AskUser'),
-cloudra/tools/registry.py:139	    ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
-cloudra/tools/registry.py:140	    ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
-cloudra/tools/registry.py:141	    ToolRegistration(
-cloudra/tools/registry.py:142	        module='cloudra.tools.Managetool.agent_hub',
-cloudra/tools/registry.py:143	        class_name='AgentHub',
-cloudra/tools/registry.py:144	        tool_name='agent_hub',
-cloudra/tools/registry.py:145	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:146	    ),
+cloudra/tools/registry.py:111	    ),
+cloudra/tools/registry.py:112	    ToolRegistration(
+cloudra/tools/registry.py:113	        module='cloudra.tools.Chemtool.reaction_mapping',
+cloudra/tools/registry.py:114	        class_name='ReactionMapping',
+cloudra/tools/registry.py:115	        tool_name='reaction_mapping',
+cloudra/tools/registry.py:116	        evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
+cloudra/tools/registry.py:117	        dag_review=True,
+cloudra/tools/registry.py:118	    ),
+cloudra/tools/registry.py:119	    ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
+cloudra/tools/registry.py:120	    ToolRegistration(
+cloudra/tools/registry.py:121	        module='cloudra.tools.Chemtool.submit_compute_job',
+cloudra/tools/registry.py:122	        class_name='SubmitComputeJob',
+cloudra/tools/registry.py:123	        tool_name='submit_compute_job',
+cloudra/tools/registry.py:124	        dag_substantive=True,
+cloudra/tools/registry.py:125	        dag_compute_entry=True,
+cloudra/tools/registry.py:126	    ),
+cloudra/tools/registry.py:127	    ToolRegistration(
+cloudra/tools/registry.py:128	        module='cloudra.tools.Chemtool.thermo_analysis',
+cloudra/tools/registry.py:129	        class_name='ThermoAnalysis',
+cloudra/tools/registry.py:130	        tool_name='thermo_analysis',
+cloudra/tools/registry.py:131	        dag_substantive=True,
+cloudra/tools/registry.py:132	        evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
+cloudra/tools/registry.py:133	        dag_review=True,
+cloudra/tools/registry.py:134	    ),
+cloudra/tools/registry.py:135	    ToolRegistration(
+cloudra/tools/registry.py:136	        module='cloudra.tools.Chemtool.ts_guess',
+cloudra/tools/registry.py:137	        class_name='TsGuess',
+cloudra/tools/registry.py:138	        tool_name='ts_guess',
+cloudra/tools/registry.py:139	        dag_substantive=True,
+cloudra/tools/registry.py:140	        evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
+cloudra/tools/registry.py:141	        dag_review=True,
+cloudra/tools/registry.py:142	        dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
+cloudra/tools/registry.py:143	    ),
+cloudra/tools/registry.py:144	    ToolRegistration('cloudra.tools.Interactool.ask_user', 'AskUser'),
+cloudra/tools/registry.py:145	    ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
+cloudra/tools/registry.py:146	    ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
 cloudra/tools/registry.py:147	    ToolRegistration(
-cloudra/tools/registry.py:148	        module='cloudra.tools.Managetool.get_subagent_report',
-cloudra/tools/registry.py:149	        class_name='GetSubAgentReport',
-cloudra/tools/registry.py:150	        tool_name='get_subagent_report',
+cloudra/tools/registry.py:148	        module='cloudra.tools.Managetool.agent_hub',
+cloudra/tools/registry.py:149	        class_name='AgentHub',
+cloudra/tools/registry.py:150	        tool_name='agent_hub',
 cloudra/tools/registry.py:151	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:152	    ),
 cloudra/tools/registry.py:153	    ToolRegistration(
-cloudra/tools/registry.py:154	        module='cloudra.tools.Managetool.schedule',
-cloudra/tools/registry.py:155	        class_name='Schedule',
-cloudra/tools/registry.py:156	        tool_name='schedule',
+cloudra/tools/registry.py:154	        module='cloudra.tools.Managetool.get_subagent_report',
+cloudra/tools/registry.py:155	        class_name='GetSubAgentReport',
+cloudra/tools/registry.py:156	        tool_name='get_subagent_report',
 cloudra/tools/registry.py:157	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:158	    ),
 cloudra/tools/registry.py:159	    ToolRegistration(
-cloudra/tools/registry.py:160	        module='cloudra.tools.Managetool.subagent_launcher',
-cloudra/tools/registry.py:161	        class_name='SubAgentLauncher',
-Cloudra V2.0                                              第 758 页
+cloudra/tools/registry.py:160	        module='cloudra.tools.Managetool.schedule',
+cloudra/tools/registry.py:161	        class_name='Schedule',
+cloudra/tools/registry.py:162	        tool_name='schedule',
+Cloudra V2.0                                              第 768 页
 ----------------------------------------------------------------------
-cloudra/tools/registry.py:162	        tool_name='SubAgentLauncher',
 cloudra/tools/registry.py:163	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:164	        dag_substantive=True,
-cloudra/tools/registry.py:165	    ),
-cloudra/tools/registry.py:166	    ToolRegistration(
-cloudra/tools/registry.py:167	        module='cloudra.tools.Managetool.subagent_swarm',
-cloudra/tools/registry.py:168	        class_name='SubAgentSwarm',
-cloudra/tools/registry.py:169	        tool_name='SubAgentSwarm',
+cloudra/tools/registry.py:164	    ),
+cloudra/tools/registry.py:165	    ToolRegistration(
+cloudra/tools/registry.py:166	        module='cloudra.tools.Managetool.subagent_launcher',
+cloudra/tools/registry.py:167	        class_name='SubAgentLauncher',
+cloudra/tools/registry.py:168	        tool_name='SubAgentLauncher',
+cloudra/tools/registry.py:169	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:170	        dag_substantive=True,
 cloudra/tools/registry.py:171	    ),
-cloudra/tools/registry.py:172	    ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
-cloudra/tools/registry.py:173	    ToolRegistration(
-cloudra/tools/registry.py:174	        module='cloudra.tools.Plantool.dag_tools.dag_view',
-cloudra/tools/registry.py:175	        class_name='DagView',
-cloudra/tools/registry.py:176	        tool_name='dag_view',
-cloudra/tools/registry.py:177	        dag_observe=False,
-cloudra/tools/registry.py:178	    ),
+cloudra/tools/registry.py:172	    ToolRegistration(
+cloudra/tools/registry.py:173	        module='cloudra.tools.Managetool.subagent_swarm',
+cloudra/tools/registry.py:174	        class_name='SubAgentSwarm',
+cloudra/tools/registry.py:175	        tool_name='SubAgentSwarm',
+cloudra/tools/registry.py:176	        dag_substantive=True,
+cloudra/tools/registry.py:177	    ),
+cloudra/tools/registry.py:178	    ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
 cloudra/tools/registry.py:179	    ToolRegistration(
-cloudra/tools/registry.py:180	        module='cloudra.tools.Plantool.dag_tools.dag_delivery_report',
-cloudra/tools/registry.py:181	        class_name='DagDeliveryReport',
-cloudra/tools/registry.py:182	        tool_name='dag_delivery_report',
+cloudra/tools/registry.py:180	        module='cloudra.tools.Plantool.dag_tools.dag_view',
+cloudra/tools/registry.py:181	        class_name='DagView',
+cloudra/tools/registry.py:182	        tool_name='dag_view',
 cloudra/tools/registry.py:183	        dag_observe=False,
 cloudra/tools/registry.py:184	    ),
 cloudra/tools/registry.py:185	    ToolRegistration(
-cloudra/tools/registry.py:186	        module='cloudra.tools.Plantool.dag_tools.dag_add_species',
-cloudra/tools/registry.py:187	        class_name='DagAddSpecies',
-cloudra/tools/registry.py:188	        tool_name='dag_add_species',
+cloudra/tools/registry.py:186	        module='cloudra.tools.Plantool.dag_tools.dag_delivery_report',
+cloudra/tools/registry.py:187	        class_name='DagDeliveryReport',
+cloudra/tools/registry.py:188	        tool_name='dag_delivery_report',
 cloudra/tools/registry.py:189	        dag_observe=False,
 cloudra/tools/registry.py:190	    ),
 cloudra/tools/registry.py:191	    ToolRegistration(
-cloudra/tools/registry.py:192	        module='cloudra.tools.Plantool.dag_tools.dag_add_step',
-cloudra/tools/registry.py:193	        class_name='DagAddStep',
-cloudra/tools/registry.py:194	        tool_name='dag_add_step',
+cloudra/tools/registry.py:192	        module='cloudra.tools.Plantool.dag_tools.dag_add_species',
+cloudra/tools/registry.py:193	        class_name='DagAddSpecies',
+cloudra/tools/registry.py:194	        tool_name='dag_add_species',
 cloudra/tools/registry.py:195	        dag_observe=False,
 cloudra/tools/registry.py:196	    ),
 cloudra/tools/registry.py:197	    ToolRegistration(
-cloudra/tools/registry.py:198	        module='cloudra.tools.Plantool.dag_tools.dag_update_delivery_element',
-cloudra/tools/registry.py:199	        class_name='DagUpdateDeliveryElement',
-cloudra/tools/registry.py:200	        tool_name='dag_update_delivery_element',
+cloudra/tools/registry.py:198	        module='cloudra.tools.Plantool.dag_tools.dag_add_step',
+cloudra/tools/registry.py:199	        class_name='DagAddStep',
+cloudra/tools/registry.py:200	        tool_name='dag_add_step',
 cloudra/tools/registry.py:201	        dag_observe=False,
 cloudra/tools/registry.py:202	    ),
 cloudra/tools/registry.py:203	    ToolRegistration(
-cloudra/tools/registry.py:204	        module='cloudra.tools.Plantool.dag_tools.dag_remove_edge',
-cloudra/tools/registry.py:205	        class_name='DagRemoveEdge',
-cloudra/tools/registry.py:206	        tool_name='dag_remove_edge',
+cloudra/tools/registry.py:204	        module='cloudra.tools.Plantool.dag_tools.dag_update_delivery_element',
+cloudra/tools/registry.py:205	        class_name='DagUpdateDeliveryElement',
+cloudra/tools/registry.py:206	        tool_name='dag_update_delivery_element',
 cloudra/tools/registry.py:207	        dag_observe=False,
 cloudra/tools/registry.py:208	    ),
 cloudra/tools/registry.py:209	    ToolRegistration(
-cloudra/tools/registry.py:210	        module='cloudra.tools.Plantool.dag_tools.dag_bind_evidence',
-cloudra/tools/registry.py:211	        class_name='DagBindEvidence',
-cloudra/tools/registry.py:212	        tool_name='dag_bind_evidence',
+cloudra/tools/registry.py:210	        module='cloudra.tools.Plantool.dag_tools.dag_remove_edge',
+cloudra/tools/registry.py:211	        class_name='DagRemoveEdge',
+cloudra/tools/registry.py:212	        tool_name='dag_remove_edge',
 cloudra/tools/registry.py:213	        dag_observe=False,
-Cloudra V2.0                                              第 759 页
-----------------------------------------------------------------------
 cloudra/tools/registry.py:214	    ),
+Cloudra V2.0                                              第 769 页
+----------------------------------------------------------------------
 cloudra/tools/registry.py:215	    ToolRegistration(
-cloudra/tools/registry.py:216	        module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
-cloudra/tools/registry.py:217	        class_name='DagProposeMechanism',
-cloudra/tools/registry.py:218	        tool_name='dag_propose_mechanism',
+cloudra/tools/registry.py:216	        module='cloudra.tools.Plantool.dag_tools.dag_bind_evidence',
+cloudra/tools/registry.py:217	        class_name='DagBindEvidence',
+cloudra/tools/registry.py:218	        tool_name='dag_bind_evidence',
 cloudra/tools/registry.py:219	        dag_observe=False,
 cloudra/tools/registry.py:220	    ),
 cloudra/tools/registry.py:221	    ToolRegistration(
-cloudra/tools/registry.py:222	        module='cloudra.tools.Plantool.dag_tools.dag_accept_mechanism',
-cloudra/tools/registry.py:223	        class_name='DagAcceptMechanism',
-cloudra/tools/registry.py:224	        tool_name='dag_accept_mechanism',
+cloudra/tools/registry.py:222	        module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
+cloudra/tools/registry.py:223	        class_name='DagProposeMechanism',
+cloudra/tools/registry.py:224	        tool_name='dag_propose_mechanism',
 cloudra/tools/registry.py:225	        dag_observe=False,
 cloudra/tools/registry.py:226	    ),
 cloudra/tools/registry.py:227	    ToolRegistration(
-cloudra/tools/registry.py:228	        module='cloudra.tools.Plantool.dag_tools.dag_review_call',
-cloudra/tools/registry.py:229	        class_name='DagReviewCall',
-cloudra/tools/registry.py:230	        tool_name='dag_review_call',
+cloudra/tools/registry.py:228	        module='cloudra.tools.Plantool.dag_tools.dag_accept_mechanism',
+cloudra/tools/registry.py:229	        class_name='DagAcceptMechanism',
+cloudra/tools/registry.py:230	        tool_name='dag_accept_mechanism',
 cloudra/tools/registry.py:231	        dag_observe=False,
 cloudra/tools/registry.py:232	    ),
 cloudra/tools/registry.py:233	    ToolRegistration(
-cloudra/tools/registry.py:234	        module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
-cloudra/tools/registry.py:235	        class_name='DagSetCoverageContract',
-cloudra/tools/registry.py:236	        tool_name='dag_set_coverage_contract',
+cloudra/tools/registry.py:234	        module='cloudra.tools.Plantool.dag_tools.dag_review_call',
+cloudra/tools/registry.py:235	        class_name='DagReviewCall',
+cloudra/tools/registry.py:236	        tool_name='dag_review_call',
 cloudra/tools/registry.py:237	        dag_observe=False,
 cloudra/tools/registry.py:238	    ),
 cloudra/tools/registry.py:239	    ToolRegistration(
-cloudra/tools/registry.py:240	        module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
-cloudra/tools/registry.py:241	        class_name='DagMessageSupervisor',
-cloudra/tools/registry.py:242	        tool_name='dag_message_supervisor',
+cloudra/tools/registry.py:240	        module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
+cloudra/tools/registry.py:241	        class_name='DagViewEvidence',
+cloudra/tools/registry.py:242	        tool_name='dag_view_evidence',
 cloudra/tools/registry.py:243	        dag_observe=False,
 cloudra/tools/registry.py:244	    ),
-cloudra/tools/registry.py:245	    ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
-cloudra/tools/registry.py:246	    ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
-cloudra/tools/registry.py:247	    ToolRegistration(
-cloudra/tools/registry.py:248	        module='cloudra.tools.Searchtool.openalex_searcher',
-cloudra/tools/registry.py:249	        class_name='OpenAlexSearcher',
-cloudra/tools/registry.py:250	        tool_name='openalex_searcher',
-cloudra/tools/registry.py:251	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:252	    ),
-cloudra/tools/registry.py:253	    ToolRegistration(
-cloudra/tools/registry.py:254	        module='cloudra.tools.Searchtool.image_reader',
-cloudra/tools/registry.py:255	        class_name='ImageReader',
-cloudra/tools/registry.py:256	        tool_name='image_reader',
-cloudra/tools/registry.py:257	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:258	    ),
+cloudra/tools/registry.py:245	    ToolRegistration(
+cloudra/tools/registry.py:246	        module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
+cloudra/tools/registry.py:247	        class_name='DagSetCoverageContract',
+cloudra/tools/registry.py:248	        tool_name='dag_set_coverage_contract',
+cloudra/tools/registry.py:249	        dag_observe=False,
+cloudra/tools/registry.py:250	    ),
+cloudra/tools/registry.py:251	    ToolRegistration(
+cloudra/tools/registry.py:252	        module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
+cloudra/tools/registry.py:253	        class_name='DagMessageSupervisor',
+cloudra/tools/registry.py:254	        tool_name='dag_message_supervisor',
+cloudra/tools/registry.py:255	        dag_observe=False,
+cloudra/tools/registry.py:256	    ),
+cloudra/tools/registry.py:257	    ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
+cloudra/tools/registry.py:258	    ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
 cloudra/tools/registry.py:259	    ToolRegistration(
-cloudra/tools/registry.py:260	        module='cloudra.tools.Searchtool.paper_searcher',
-cloudra/tools/registry.py:261	        class_name='PaperSearcher',
-cloudra/tools/registry.py:262	        tool_name='paper_searcher',
+cloudra/tools/registry.py:260	        module='cloudra.tools.Searchtool.openalex_searcher',
+cloudra/tools/registry.py:261	        class_name='OpenAlexSearcher',
+cloudra/tools/registry.py:262	        tool_name='openalex_searcher',
 cloudra/tools/registry.py:263	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:264	    ),
-cloudra/tools/registry.py:265	    ToolRegistration('cloudra.tools.Searchtool.pdf2image', 'pdf2image'),
-Cloudra V2.0                                              第 760 页
+cloudra/tools/registry.py:265	    ToolRegistration(
+cloudra/tools/registry.py:266	        module='cloudra.tools.Searchtool.image_reader',
+Cloudra V2.0                                              第 770 页
 ----------------------------------------------------------------------
-cloudra/tools/registry.py:266	    ToolRegistration('cloudra.tools.Searchtool.pdf2md', 'pdf2md'),
-cloudra/tools/registry.py:267	    ToolRegistration(
-cloudra/tools/registry.py:268	        module='cloudra.tools.Searchtool.text_reader',
-cloudra/tools/registry.py:269	        class_name='TextReader',
-cloudra/tools/registry.py:270	        tool_name='text_reader',
-cloudra/tools/registry.py:271	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:272	    ),
-cloudra/tools/registry.py:273	    ToolRegistration(
-cloudra/tools/registry.py:274	        module='cloudra.tools.Searchtool.web_search',
-cloudra/tools/registry.py:275	        class_name='WebSearch',
-cloudra/tools/registry.py:276	        tool_name='web_search',
-cloudra/tools/registry.py:277	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:278	    ),
+cloudra/tools/registry.py:267	        class_name='ImageReader',
+cloudra/tools/registry.py:268	        tool_name='image_reader',
+cloudra/tools/registry.py:269	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:270	    ),
+cloudra/tools/registry.py:271	    ToolRegistration(
+cloudra/tools/registry.py:272	        module='cloudra.tools.Searchtool.paper_searcher',
+cloudra/tools/registry.py:273	        class_name='PaperSearcher',
+cloudra/tools/registry.py:274	        tool_name='paper_searcher',
+cloudra/tools/registry.py:275	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:276	    ),
+cloudra/tools/registry.py:277	    ToolRegistration('cloudra.tools.Searchtool.pdf2image', 'pdf2image'),
+cloudra/tools/registry.py:278	    ToolRegistration('cloudra.tools.Searchtool.pdf2md', 'pdf2md'),
 cloudra/tools/registry.py:279	    ToolRegistration(
-cloudra/tools/registry.py:280	        module='cloudra.tools.Skilltool.get_skill',
-cloudra/tools/registry.py:281	        class_name='GetSkill',
-cloudra/tools/registry.py:282	        tool_name='getskill',
+cloudra/tools/registry.py:280	        module='cloudra.tools.Searchtool.text_reader',
+cloudra/tools/registry.py:281	        class_name='TextReader',
+cloudra/tools/registry.py:282	        tool_name='text_reader',
 cloudra/tools/registry.py:283	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:284	        dag_observe=False,
-cloudra/tools/registry.py:285	    ),
-cloudra/tools/registry.py:286	    ToolRegistration(
-cloudra/tools/registry.py:287	        module='cloudra.tools.Stoptool.stop_tool',
-cloudra/tools/registry.py:288	        class_name='StopTool',
-cloudra/tools/registry.py:289	        tool_name='stop',
-cloudra/tools/registry.py:290	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:291	    ),
-cloudra/tools/registry.py:292	    ToolRegistration(
-cloudra/tools/registry.py:293	        module='cloudra.tools.Writetool.edit_file',
-cloudra/tools/registry.py:294	        class_name='EditFile',
-cloudra/tools/registry.py:295	        tool_name='edit_file',
-cloudra/tools/registry.py:296	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:297	        dag_substantive=True,
-cloudra/tools/registry.py:298	    ),
-cloudra/tools/registry.py:299	    ToolRegistration(
-cloudra/tools/registry.py:300	        module='cloudra.tools.Writetool.text_writer',
-cloudra/tools/registry.py:301	        class_name='TextWriter',
-cloudra/tools/registry.py:302	        tool_name='text_writer',
-cloudra/tools/registry.py:303	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:304	        dag_substantive=True,
-cloudra/tools/registry.py:305	    ),
-cloudra/tools/registry.py:306	    ToolRegistration(
-cloudra/tools/registry.py:307	        module='cloudra.tools.Writetool.update_memory',
-cloudra/tools/registry.py:308	        class_name='UpdateMemory',
-cloudra/tools/registry.py:309	        tool_name='update_memory',
-cloudra/tools/registry.py:310	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:311	    ),
-cloudra/tools/registry.py:312	)
+cloudra/tools/registry.py:284	    ),
+cloudra/tools/registry.py:285	    ToolRegistration(
+cloudra/tools/registry.py:286	        module='cloudra.tools.Searchtool.web_search',
+cloudra/tools/registry.py:287	        class_name='WebSearch',
+cloudra/tools/registry.py:288	        tool_name='web_search',
+cloudra/tools/registry.py:289	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:290	    ),
+cloudra/tools/registry.py:291	    ToolRegistration(
+cloudra/tools/registry.py:292	        module='cloudra.tools.Skilltool.get_skill',
+cloudra/tools/registry.py:293	        class_name='GetSkill',
+cloudra/tools/registry.py:294	        tool_name='getskill',
+cloudra/tools/registry.py:295	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:296	        dag_observe=False,
+cloudra/tools/registry.py:297	    ),
+cloudra/tools/registry.py:298	    ToolRegistration(
+cloudra/tools/registry.py:299	        module='cloudra.tools.Stoptool.stop_tool',
+cloudra/tools/registry.py:300	        class_name='StopTool',
+cloudra/tools/registry.py:301	        tool_name='stop',
+cloudra/tools/registry.py:302	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:303	    ),
+cloudra/tools/registry.py:304	    ToolRegistration(
+cloudra/tools/registry.py:305	        module='cloudra.tools.Writetool.edit_file',
+cloudra/tools/registry.py:306	        class_name='EditFile',
+cloudra/tools/registry.py:307	        tool_name='edit_file',
+cloudra/tools/registry.py:308	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:309	        dag_substantive=True,
+cloudra/tools/registry.py:310	    ),
+cloudra/tools/registry.py:311	    ToolRegistration(
+cloudra/tools/registry.py:312	        module='cloudra.tools.Writetool.text_writer',
+cloudra/tools/registry.py:313	        class_name='TextWriter',
+cloudra/tools/registry.py:314	        tool_name='text_writer',
+cloudra/tools/registry.py:315	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:316	        dag_substantive=True,
+cloudra/tools/registry.py:317	    ),
+cloudra/tools/registry.py:318	    ToolRegistration(
+Cloudra V2.0                                              第 771 页
+----------------------------------------------------------------------
+cloudra/tools/registry.py:319	        module='cloudra.tools.Writetool.update_memory',
+cloudra/tools/registry.py:320	        class_name='UpdateMemory',
+cloudra/tools/registry.py:321	        tool_name='update_memory',
+cloudra/tools/registry.py:322	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:323	    ),
+cloudra/tools/registry.py:324	)
 cloudra/web_launcher.py:1	"""Web frontend launcher used by the `cloudra` command.
 cloudra/web_launcher.py:2	
 cloudra/web_launcher.py:3	Keeps Node/npm knowledge out of the CLI module.  The launcher works for source
 cloudra/web_launcher.py:4	checkouts and editable installs; packaged wheels can point CLOUDRA_FRONTEND_DIR
 cloudra/web_launcher.py:5	at an unpacked frontend directory.
-Cloudra V2.0                                              第 761 页
-----------------------------------------------------------------------
 cloudra/web_launcher.py:6	"""
 cloudra/web_launcher.py:7	
 cloudra/web_launcher.py:8	from __future__ import annotations
@@ -1445,6 +1456,8 @@ cloudra/web_launcher.py:43	            f"Frontend found at {frontend}. Install f
 cloudra/web_launcher.py:44	        )
 cloudra/web_launcher.py:45	
 cloudra/web_launcher.py:46	
+Cloudra V2.0                                              第 772 页
+----------------------------------------------------------------------
 cloudra/web_launcher.py:47	def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool = False) -> None:
 cloudra/web_launcher.py:48	    _check_node(frontend)
 cloudra/web_launcher.py:49	    if not (frontend / "node_modules").is_dir():
@@ -1456,8 +1469,6 @@ cloudra/web_launcher.py:54	        if not (dist / "index.html").is_file():
 cloudra/web_launcher.py:55	            raise RuntimeError("--skip-build was requested but frontend/dist is missing")
 cloudra/web_launcher.py:56	        return
 cloudra/web_launcher.py:57	    if rebuild or not (dist / "index.html").is_file():
-Cloudra V2.0                                              第 762 页
-----------------------------------------------------------------------
 cloudra/web_launcher.py:58	        print("[cloudra] building frontend...", flush=True)
 cloudra/web_launcher.py:59	        subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
 cloudra/web_launcher.py:60	
@@ -1499,6 +1510,8 @@ cloudra/web_launcher.py:95	    port so the frontend never points at a stale or f
 cloudra/web_launcher.py:96	    """
 cloudra/web_launcher.py:97	    env_value = os.environ.get(env_name)
 cloudra/web_launcher.py:98	    if env_value:
+Cloudra V2.0                                              第 773 页
+----------------------------------------------------------------------
 cloudra/web_launcher.py:99	        port = int(env_value)
 cloudra/web_launcher.py:100	        return port, _runtime_is_healthy(port) and _runtime_serves_spa(port)
 cloudra/web_launcher.py:101	    if _port_is_bindable(preferred):
@@ -1510,8 +1523,6 @@ cloudra/web_launcher.py:106	        if _port_is_bindable(port):
 cloudra/web_launcher.py:107	            return port, False
 cloudra/web_launcher.py:108	    raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
 cloudra/web_launcher.py:109	
-Cloudra V2.0                                              第 763 页
-----------------------------------------------------------------------
 cloudra/web_launcher.py:110	
 cloudra/web_launcher.py:111	def _ensure_electron(frontend: Path) -> None:
 cloudra/web_launcher.py:112	    """npm install can finish with a broken electron package when its
@@ -1553,6 +1564,8 @@ cloudra/web_launcher.py:147	    # Electron main spawns `python3`; point it at th
 cloudra/web_launcher.py:148	    # running this CLI so venvs work out of the box.
 cloudra/web_launcher.py:149	    env["CLOUDRA_PYTHON"] = sys.executable
 cloudra/web_launcher.py:150	    print("[cloudra] starting Electron desktop frontend...", flush=True)
+Cloudra V2.0                                              第 774 页
+----------------------------------------------------------------------
 cloudra/web_launcher.py:151	    return subprocess.call(["npm", "run", "electron"], cwd=frontend, env=env)
 cloudra/web_launcher.py:152	
 cloudra/web_launcher.py:153	
@@ -1564,8 +1577,6 @@ cloudra/web_launcher.py:158
 cloudra/web_launcher.py:159	    store_path = os.environ.get(
 cloudra/web_launcher.py:160	        "CLOUDRA_RUNTIME_STORE",
 cloudra/web_launcher.py:161	        str(Path(get_config().data_dir) / "runtime-v2.db"),
-Cloudra V2.0                                              第 764 页
-----------------------------------------------------------------------
 cloudra/web_launcher.py:162	    )
 cloudra/web_launcher.py:163	    env = os.environ.copy()
 cloudra/web_launcher.py:164	    env["CLOUDRA_RUNTIME_STORE"] = store_path
