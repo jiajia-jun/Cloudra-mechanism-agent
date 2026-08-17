@@ -145,7 +145,7 @@ class AgentRunner:
                             data={
                                 "attempt": attempt,
                                 "max_retries": self.max_turn_retries,
-                                "error": str(exc)[:500],
+                                "error": str(exc),
                                 "next_delay_s": delay,
                             },
                         )

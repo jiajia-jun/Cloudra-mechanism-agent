@@ -90,7 +90,7 @@ class _SupervisionShell:
             content += f" note={result.note}"
         report = getattr(result, "report", "") or ""
         if report.strip():
-            content += f"\n{report.strip()[:500]}"
+            content += f"\n{report.strip()}"
         return content
 
 

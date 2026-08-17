@@ -9,7 +9,9 @@ exists, so this bridge re-implements the six actions on kernel primitives:
 - ``browse`` / ``read`` / ``search`` are pure projections over those events.
 - Notifications (to_agent / reply) and ``call`` to a live session go through
   ``Mailbox.deliver`` — the runner picks the message up at the next turn
-  boundary, which is the v2 equivalent of ContextManager.inject_event.
+  boundary, which is the v2 equivalent of ContextManager.inject_event.  A
+  sleeping/idle addressee is woken (``AgentHost.wake``) so the mention or call
+  takes effect immediately instead of sitting in the inbox.
 - ``call`` to a role/id spawns a fresh child via the same CommandBus path as
   the launcher bridge.
 
@@ -74,6 +76,10 @@ def _notify(core, project_id: str, target: AgentSession, *, sender: str, content
         content=content,
         sender=sender,
     )
+    # A sleeping or idle addressee would otherwise leave the message sitting
+    # in the inbox until some unrelated event; wake it so the mention/call
+    # takes effect immediately.
+    core.agent_host.wake(target, runner=core.runner)
 
 
 def _err(message: str) -> ToolResult:
@@ -124,7 +130,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
             sender=author.role_id,
             content=(
                 f"{author.role_id} mentioned you in AgentHub topic '{topic}' "
-                f"(post {envelope.event_id}): {content[:500]}"
+                f"(post {envelope.event_id}): {content}"
             ),
         )
         notices.append(f"Notified {to_agent}.")
@@ -140,7 +146,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
                     sender=author.role_id,
                     content=(
                         f"{author.role_id} replied to your AgentHub post in topic "
-                        f"'{parent['topic']}' {parent_id} (reply {envelope.event_id}): {content[:500]}"
+                        f"'{parent['topic']}' {parent_id} (reply {envelope.event_id}): {content}"
                     ),
                 )
                 notices.append(f"Notified original author {parent['author_agent']}.")
@@ -154,14 +160,35 @@ def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     limit = int(args.get("limit") or 20)
     topics: dict[str, dict[str, Any]] = {}
     for post in _posts(core, author.project_id):
-        entry = topics.setdefault(post["topic"], {"topic": post["topic"], "post_count": 0, "latest_at": ""})
+        entry = topics.setdefault(
+            post["topic"],
+            {
+                "topic": post["topic"],
+                "post_count": 0,
+                "latest_at": "",
+                "latest_seq": -1,
+                "latest_author": "",
+                "preview": "",
+                "latest_post_id": None,
+            },
+        )
         entry["post_count"] += 1
-        entry["latest_at"] = post["created_at"]
-    rows = sorted(topics.values(), key=lambda r: r["latest_at"], reverse=True)[:limit]
-    return _ok(
-        f"{len(rows)} topic(s)." if rows else "The forum has no posts yet.",
-        posts=rows,
+        if post["seq"] > entry["latest_seq"]:
+            entry["latest_seq"] = post["seq"]
+            entry["latest_at"] = post["created_at"]
+            entry["latest_author"] = post.get("author_agent") or ""
+            entry["preview"] = str(post.get("content") or "").strip()[:120]
+            entry["latest_post_id"] = post["id"]
+    rows = sorted(topics.values(), key=lambda r: r["latest_seq"], reverse=True)[:limit]
+    for row in rows:
+        row.pop("latest_seq", None)
+    if not rows:
+        return _ok("The forum has no posts yet.", posts=[])
+    summary = (
+        f"{len(rows)} topic(s). Browse shows only each topic's latest post preview; "
+        "call read with a topic name (or search with a keyword) to see the full posts."
     )
+    return _ok(summary, posts=rows)
 
 
 def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
@@ -272,4 +299,7 @@ async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolRes
             return await _call(core, author, args)
         except CommandRejected as exc:
             return _err(f"[dispatch rejected] {exc.message}")
-    return _err(f"Unknown action: {action}. Available: post / browse / read / search / directory / call")
+    return _err(
+        f"Unknown action: {action!r}. The 'action' argument is required — "
+        "one of: post / browse / read / search / directory / call"
+    )

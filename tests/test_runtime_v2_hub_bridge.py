@@ -96,9 +96,15 @@ async def test_post_read_browse_search_roundtrip():
     assert read.data["posts"][0]["author_agent"] == "coordinator"
 
     browse = await handle_hub_tool(core, coordinator, _hub({"action": "browse"}))
-    assert browse.data["posts"] == [
-        {"topic": "CO2 literature", "post_count": 1, "latest_at": browse.data["posts"][0]["latest_at"]}
-    ]
+    rows = browse.data["posts"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["topic"] == "CO2 literature"
+    assert row["post_count"] == 1
+    assert row["latest_author"] == "coordinator"
+    assert row["preview"] == "Catalyst X gives 90% selectivity"
+    assert row["latest_post_id"].startswith("evt_")
+    assert "read" in browse.data["message"]
 
     hit = await handle_hub_tool(core, coordinator, _hub({"action": "search", "keyword": "selectivity"}))
     assert hit.is_success is True and len(hit.data["posts"]) == 1
@@ -178,6 +184,42 @@ async def test_call_to_live_session_delivers_via_mailbox():
     assert result.data["session_id"] == child.id
     texts = _inbox_texts(core, child.id)
     assert any("[Incoming call]" in t and "ping me back" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_call_wakes_sleeping_agent():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    child = await _spawn(core, coordinator, "small_mol")
+    runs_before = [e for e in core.event_log.query_session(child.id) if e.type == "run.started"]
+    assert len(runs_before) == 1
+
+    result = await handle_hub_tool(
+        core, coordinator, _hub({"action": "call", "to": child.id, "message": "wake up"})
+    )
+    assert result.is_success is True
+    await _wait_state(child, "succeeded")
+    runs_after = [e for e in core.event_log.query_session(child.id) if e.type == "run.started"]
+    assert len(runs_after) == 2
+
+
+@pytest.mark.asyncio
+async def test_to_agent_mention_wakes_sleeping_agent():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    child = await _spawn(core, coordinator, "explorer")
+    runs_before = [e for e in core.event_log.query_session(child.id) if e.type == "run.started"]
+    assert len(runs_before) == 1
+
+    posted = await handle_hub_tool(
+        core,
+        coordinator,
+        _hub({"action": "post", "topic": "t", "content": "explorer please check", "to_agent": "explorer"}),
+    )
+    assert posted.is_success is True
+    await _wait_state(child, "succeeded")
+    runs_after = [e for e in core.event_log.query_session(child.id) if e.type == "run.started"]
+    assert len(runs_after) == 2
 
 
 @pytest.mark.asyncio

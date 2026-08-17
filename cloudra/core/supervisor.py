@@ -477,7 +477,7 @@ class GraphSupervisor:
                         ),
                     })
                     continue
-                args_summary = json.dumps(args, ensure_ascii=False, default=str)[:300]
+                args_summary = json.dumps(args, ensure_ascii=False, default=str)
                 await _emit("tool_started", {"tool": name, "arguments": args_summary})
                 try:
                     output = await entry.instantiate(subagent=agent).tool_call(
@@ -491,7 +491,7 @@ class GraphSupervisor:
                     await _emit("tool_finished", {
                         "tool": name,
                         "arguments": args_summary,
-                        "result": error_content[:500],
+                        "result": error_content,
                     })
                     await agent.update_context({
                         "role": "tool",
@@ -510,7 +510,7 @@ class GraphSupervisor:
                 await _emit("tool_finished", {
                     "tool": name,
                     "arguments": args_summary,
-                    "result": content[:500],
+                    "result": content,
                 })
                 await agent.update_context({
                     "role": "tool",
@@ -603,7 +603,7 @@ class Supervisor:
                 content = " ".join(
                     str(part.get("text", "")) for part in content if isinstance(part, dict)
                 )
-            content = str(content)[:500]  # 单条消息截断
+            content = str(content)
 
             if role == "system":
                 # 跳过 system prompt、supervisor advice、旧版 system 梗概
@@ -621,7 +621,7 @@ class Supervisor:
                     names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
                     events.append(f"Step {idx}: agent decided to call tools: {', '.join(names)}.")
                 elif content:
-                    events.append(f"Step {idx}: agent reasoned '{content[:240]}...'.")
+                    events.append(f"Step {idx}: agent reasoned '{content}'.")
             elif role == "tool":
                 tool_name = msg.get("name", "tool")
                 events.append(f"Step {idx}: tool '{tool_name}' returned result.")
@@ -726,7 +726,7 @@ class Supervisor:
             return self._fallback_case_data(timeline_summary, error)
 
         return {
-            "task_summary": data.get("task_summary", timeline_summary[:200]),
+            "task_summary": data.get("task_summary", timeline_summary),
             "outcome": data.get("outcome", "unknown"),
             "outcome_reason": data.get("outcome_reason", ""),
             "lesson": data.get("lesson", ""),

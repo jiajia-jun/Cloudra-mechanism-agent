@@ -191,13 +191,6 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
     content = str(command.payload.get("content") or "").strip()
     if not content:
         raise CommandRejected("invalid_request", "message content is required")
-    if agent.state.value in {"failed", "cancelled"}:
-        # A message to a terminal agent is a fresh instruction to the same
-        # identity: reopen it automatically instead of making the user
-        # perform a separate restart step.  Externalised context (goal pin,
-        # DAG, memory, workspace) is re-assembled every turn, so the new run
-        # picks up where the agent left off conceptually.
-        core.agent_host.restart(agent)
     core.mailbox.deliver(
         to_session_id=agent.id,
         project_id=agent.project_id,
@@ -205,16 +198,12 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
         sender=command.actor,
         run_id=agent.current_run.run_id if agent.current_run else None,
     )
-    if agent.state.value in {"queued", "succeeded"}:
-        if core.runner is not None:
-            core.agent_host.start_run(agent)
-            core.runner.schedule(agent.id)
-        else:
-            core.agent_host.start_run(agent)
-    elif agent.state.value in {"waiting_input", "waiting_approval"}:
-        if core.runner is not None:
-            core.agent_host.resume(agent)
-            core.runner.schedule(agent.id)
+    # A message to a sleeping or terminal agent is a fresh instruction to the
+    # same identity: wake it (reopening a new run) instead of making the user
+    # perform a separate restart step.  Externalised context (goal pin, DAG,
+    # memory, workspace) is re-assembled every turn, so the new run picks up
+    # where the agent left off conceptually.
+    core.agent_host.wake(agent, runner=core.runner)
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
 

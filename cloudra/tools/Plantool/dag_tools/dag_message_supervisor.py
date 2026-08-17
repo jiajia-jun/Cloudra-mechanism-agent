@@ -66,7 +66,7 @@ class DagMessageSupervisor(DagToolBase):
             is_success=True,
             action="dag_message_supervisor",
             accepted=True,
-            result={"delivered": True, "message": msg[:2000]},
+            result={"delivered": True, "message": msg},
         )
 
 

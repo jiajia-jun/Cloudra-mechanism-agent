@@ -632,7 +632,7 @@ def create_v2_app(
                 "is_success": row.is_success,
                 "caller": row.caller_legacy_id or row.caller_role_id,
                 "compute_job_id": row.compute_job_id,
-                "result_summary": row.result_summary[:200],
+                "result_summary": row.result_summary,
                 "created_at": row.created_at,
             }
             for row in reviews
@@ -666,7 +666,7 @@ def create_v2_app(
                 "caller_role_id": review.caller_role_id,
                 "caller_legacy_id": review.caller_legacy_id,
                 "arguments_digest": review.arguments_digest,
-                "result_summary": review.result_summary[:200],
+                "result_summary": review.result_summary,
                 "compute_job_id": review.compute_job_id,
                 "suggested_target_id": review.suggested_target_id,
                 "state": review.state,

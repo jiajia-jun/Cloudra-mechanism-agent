@@ -184,6 +184,28 @@ class AgentHost:
         self.transition(agent, AgentState.QUEUED, reason="restart")
         return new_id("run")
 
+    def wake(self, agent: AgentSession, runner: Any = None) -> None:
+        """Wake a sleeping or idle agent so pending inbox messages take effect.
+
+        A RUNNING agent is left alone — its next turn already drains the inbox.
+        Terminal agents (failed/cancelled) are reopened into a fresh run,
+        succeeded/queued agents start a new run, and waiting agents resume the
+        current one.  ``runner`` is optional so command handlers still work in
+        pure state mode (no live execution).
+        """
+        if agent.state is AgentState.RUNNING:
+            return
+        if agent.state in {AgentState.FAILED, AgentState.CANCELLED}:
+            self.restart(agent)
+        if agent.state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+            self.start_run(agent)
+            if runner is not None:
+                runner.schedule(agent.id)
+        elif agent.state in {AgentState.WAITING_INPUT, AgentState.WAITING_APPROVAL}:
+            if runner is not None:
+                self.resume(agent)
+                runner.schedule(agent.id)
+
     @staticmethod
     def patch_settings(agent: AgentSession, patch: RuntimeSettingsPatch) -> AgentSession:
         agent.settings = agent.settings.apply(patch)

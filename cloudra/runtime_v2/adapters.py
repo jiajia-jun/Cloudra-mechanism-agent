@@ -21,8 +21,6 @@ from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
 
-_OPENAI_MAX_SUMMARY = 4000
-
 
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
     """OpenAI tool schemas from the existing registry, filtered by names."""
@@ -427,5 +425,5 @@ class LegacyToolExecutor:
             reset_session_yolo(token)
         data = output.toJson() if hasattr(output, "toJson") else output.model_dump(mode="json")
         is_success = bool(data.get("is_success", True))
-        summary = json.dumps(data, ensure_ascii=False, default=str)[:_OPENAI_MAX_SUMMARY]
+        summary = json.dumps(data, ensure_ascii=False, default=str)
         return ToolResult(is_success=is_success, summary=summary, data=data)
