@@ -40,10 +40,12 @@ jobs:
         run: |
           python -c "import cloudra; print(cloudra.__version__)"
           python -c "from cloudra import cli, runtime"
-          python -c "from cloudra.core import agent, react, supervisor"
-          python -c "from cloudra.services import api, service, session_store"
+          python -c "from cloudra.core import agent, supervisor"
+          python -c "from cloudra.services import api_v2, session_store, nodes"
           python -c "from cloudra.persistence import database, context_manager"
           python -c "from cloudra.base import session_class, tools_class"
           python -c "from cloudra.infra import config, events, llm_client"
+          python -c "import cloudra.runtime_v2.schemas, cloudra.runtime_v2.core, cloudra.runtime_v2.commands, cloudra.runtime_v2.agent_host"
+          python -c "import cloudra.dag.models, cloudra.dag.store, cloudra.dag.engine, cloudra.dag.controller"
           # 兼容垫片：重排前的老导入路径必须继续可用
-          python -c "from cloudra import api as legacy_api, agent as legacy_agent"
+          python -c "from cloudra import agent as legacy_agent, supervisor as legacy_supervisor"
