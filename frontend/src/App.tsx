@@ -661,7 +661,6 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar-head">
           <img className="brand-logo" src="/logo.png" alt="Cloudra" />
-          <span className="brand">Cloudra</span>
         </div>
         <div className="sidebar-new">
           <input

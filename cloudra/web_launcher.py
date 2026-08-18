@@ -45,6 +45,24 @@ def _check_node(frontend: Path) -> None:
         )
 
 
+def _frontend_source_newer_than_dist(frontend: Path) -> bool:
+    dist_index = frontend / "dist" / "index.html"
+    if not dist_index.is_file():
+        return True
+    dist_mtime = dist_index.stat().st_mtime
+    for root in (frontend / "src", frontend / "public"):
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and path.stat().st_mtime > dist_mtime:
+                return True
+    for name in ("index.html", "vite.config.ts", "package.json"):
+        path = frontend / name
+        if path.is_file() and path.stat().st_mtime > dist_mtime:
+            return True
+    return False
+
+
 def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool = False) -> None:
     _check_node(frontend)
     if not (frontend / "node_modules").is_dir():
@@ -55,8 +73,12 @@ def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool 
         if not (dist / "index.html").is_file():
             raise RuntimeError("--skip-build was requested but frontend/dist is missing")
         return
-    if rebuild or not (dist / "index.html").is_file():
-        print("[cloudra] building frontend...", flush=True)
+    stale = _frontend_source_newer_than_dist(frontend)
+    if rebuild or not (dist / "index.html").is_file() or stale:
+        if stale and not rebuild and (dist / "index.html").is_file():
+            print("[cloudra] frontend source changed — rebuilding...", flush=True)
+        else:
+            print("[cloudra] building frontend...", flush=True)
         subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
 
 
