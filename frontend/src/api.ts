@@ -42,6 +42,14 @@ interface CommandResponse<T> {
   data: T;
 }
 
+// Bounded timeline window, shared by the history fetch and the live SSE
+// handler (which slices the in-memory list to the same size).  The endpoint
+// returns the LAST `limit` events per page; a single windowed fetch drowns
+// sparse message/thinking events in tool.*/llm.* noise, so we always load the
+// most recent window via `tail=true` — consistent with what the SSE stream
+// keeps, and O(1) instead of paging the entire session.
+export const EVENTS_WINDOW = 500;
+
 export const api = {
   listProjects: () => request<Project[]>('/api/v2/projects'),
   createProject: (name: string, workspace_dir?: string) =>
@@ -66,22 +74,10 @@ export const api = {
   getAgent: (agentId: string) => request<Agent>(`/api/v2/agents/${agentId}`),
   transcript: (agentId: string) =>
     request<{ messages: TranscriptMessage[] }>(`/api/v2/agents/${agentId}/transcript`),
-  events: async (agentId: string, after = 0, types?: string) => {
-    // Page through the entire history: the endpoint returns the LAST `limit`
-    // events per page, and long sessions drown sparse message/thinking events
-    // in llm.*/tool.* noise — a single windowed fetch swallows old content.
-    const pageSize = 1000;
-    const out: EventEnvelope[] = [];
-    let cursor = after;
-    for (;;) {
-      const page = await request<EventEnvelope[]>(
-        `/api/v2/agents/${agentId}/events?after=${cursor}&limit=${pageSize}${types ? `&types=${types}` : ''}`,
-      );
-      out.push(...page);
-      if (page.length < pageSize) return out;
-      cursor = Math.max(...page.map((e) => e.session_seq ?? 0));
-    }
-  },
+  events: (agentId: string, limit = EVENTS_WINDOW, types?: string) =>
+    request<EventEnvelope[]>(
+      `/api/v2/agents/${agentId}/events?after=0&limit=${limit}&tail=true${types ? `&types=${types}` : ''}`,
+    ),
   sendMessage: (agentId: string, content: string) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/messages`, {
       method: 'POST',

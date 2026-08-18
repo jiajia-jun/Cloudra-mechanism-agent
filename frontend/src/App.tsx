@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, streamProject } from './api';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { api, EVENTS_WINDOW, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
 import type { Agent, EventEnvelope, Project } from './types';
@@ -80,6 +80,42 @@ export default function App() {
   const maxSeqRef = useRef(0);
   const thinkingIdRef = useRef(0);
 
+  // SSE events arrive in bursts (full history replay on connect, and one
+  // llm.*/tool.* event per token/step during a run).  Feeding each event
+  // straight into `setEvents` re-runs `buildTimeline` (a full sort +
+  // stringification of the window) per event — thousands of times on open and
+  // on every tool burst.  We coalesce into one state update per animation
+  // frame so the transcript rebuilds once, not per event.
+  const eventBufferRef = useRef<EventEnvelope[]>([]);
+  const flushRafRef = useRef<number | null>(null);
+  const flushBufferedEvents = useCallback(() => {
+    flushRafRef.current = null;
+    const batch = eventBufferRef.current;
+    eventBufferRef.current = [];
+    if (batch.length === 0) return;
+    setEvents((prev) => {
+      const seen = new Set(prev.map((e) => e.event_id));
+      let next = prev;
+      let changed = false;
+      for (const event of batch) {
+        if (seen.has(event.event_id)) continue;
+        seen.add(event.event_id);
+        next = [...next, event];
+        changed = true;
+      }
+      return changed ? next.slice(-EVENTS_WINDOW) : prev;
+    });
+  }, []);
+  const bufferEvent = useCallback(
+    (event: EventEnvelope) => {
+      eventBufferRef.current.push(event);
+      if (flushRafRef.current == null) {
+        flushRafRef.current = requestAnimationFrame(flushBufferedEvents);
+      }
+    },
+    [flushBufferedEvents],
+  );
+
   const pushToast = useCallback((kind: ToastKind, text: string) => {
     const id = ++toastSeq;
     setToasts((prev) => [...prev.slice(-4), { id, kind, text }]);
@@ -107,6 +143,13 @@ export default function App() {
       setThinkingItems([]);
       maxSeqRef.current = 0;
       setSelectedEvent(null);
+      // Drop any buffered events from the previous agent: they must not leak
+      // into the freshly loaded transcript.
+      eventBufferRef.current = [];
+      if (flushRafRef.current != null) {
+        cancelAnimationFrame(flushRafRef.current);
+        flushRafRef.current = null;
+      }
       try {
         const [agent, eventList] = await Promise.all([api.getAgent(agentId), api.events(agentId)]);
         setAgents((prev) =>
@@ -262,10 +305,7 @@ export default function App() {
             });
           }
           setStreamView((prev) => applyStreamEvent(prev, event));
-          setEvents((prev) => {
-            if (prev.some((e) => e.event_id === event.event_id)) return prev;
-            return [...prev, event].slice(-500);
-          });
+          bufferEvent(event);
           if (event.type === 'agent.message_injected') {
             const content = String(event.data.content ?? '');
             setPendingMessages((prev) => {
@@ -479,18 +519,31 @@ export default function App() {
     () => (activeAgentId ? events.filter((e) => e.session_id === activeAgentId) : []),
     [events, activeAgentId],
   );
-  const timeline = useMemo(() => {
-    // Pending (optimistic) user messages are by definition the newest — keep
-    // them out of the seq sort so a thinking segment can never float above.
+  // Persisted events → timeline items is the expensive step (full sort +
+  // stringification of every tool args/result).  It must only re-run when the
+  // event list actually changes — NOT on every streaming token — otherwise a
+  // tool-heavy run re-builds the whole transcript per llm.chunk.
+  const persistedTimeline = useMemo(() => buildTimeline(sessionEvents, []), [sessionEvents]);
+  // Committed timeline: persisted items + frozen narration, sorted once.  The
+  // live streaming bubble and the transient thinking segments stay out of this
+  // memo so token deltas never re-trigger the O(n log n) sort.
+  const committedTimeline = useMemo(() => {
     const persisted = new Set(
-      sessionEvents
-        .filter((e) => e.type === 'agent.message_emitted')
-        .map((e) => String(e.data.content ?? '')),
+      persistedTimeline
+        .filter((i): i is MessageItem => i.kind === 'message')
+        .map((m) => m.content),
     );
     const frozen = streamView.frozen.filter((m) => !persisted.has(m.content));
-    const merged: TimelineItem[] = [...buildTimeline(sessionEvents, []), ...thinkingItems, ...frozen];
+    const merged: TimelineItem[] = [...persistedTimeline, ...frozen];
+    merged.sort((a, b) => a.seq - b.seq);
+    return merged;
+  }, [persistedTimeline, streamView.frozen]);
+  const timeline = useMemo(() => {
+    // Live bubble before the thinking block (seq 0.4 < 0.5), then any
+    // transient thinking segments, then optimistic pending user messages.
+    const items: TimelineItem[] = [...committedTimeline];
     if (streamView.streamText) {
-      merged.push({
+      items.push({
         kind: 'message',
         id: 'stream-live',
         seq: maxSeqRef.current + 0.4,
@@ -500,9 +553,9 @@ export default function App() {
         streaming: true,
       });
     }
-    merged.sort((a, b) => a.seq - b.seq);
-    return [...merged, ...pendingMessages];
-  }, [sessionEvents, pendingMessages, thinkingItems, streamView, activeAgent?.display_name]);
+    items.push(...thinkingItems);
+    return [...items, ...pendingMessages];
+  }, [committedTimeline, thinkingItems, streamView.streamText, pendingMessages, activeAgent?.display_name]);
   const runningTool = useMemo(
     () => timeline.find((item) => item.kind === 'tool' && item.running) as ToolItem | undefined,
     [timeline],
@@ -710,12 +763,15 @@ export default function App() {
                     <div className="msg-bubble">{item.content}</div>
                   ) : (
                     <div className="msg-body">
-                      <Markdown text={item.content} />
+                      {/* Streaming text renders as plain text to avoid a full
+                          remark/KaTeX parse on every token; committed messages
+                          get markdown. */}
+                      {item.streaming ? item.content : <Markdown text={item.content} />}
                     </div>
                   )}
                 </div>
               ) : item.kind === 'tool' ? (
-                <ToolRowView key={item.id} item={item} />
+                <ToolRow key={item.id} item={item} />
               ) : item.kind === 'thinking' ? (
                 <details key={item.id} className={`thinking${item.live ? ' live' : ''}`}>
                   <summary>
@@ -852,6 +908,10 @@ function ToolRowView({ item }: { item: ToolItem }) {
   );
 }
 
+// Memoized so a tool row re-renders only when its own item reference changes
+// (i.e. the persisted timeline rebuilt), not on every streaming token.
+const ToolRow = memo(ToolRowView);
+
 /* ------------------------------------------------------------------ inspector */
 
 type InspectorTab = 'events' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'context' | 'skills';
@@ -936,7 +996,10 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
     }
   }
 
-  const toolEvents = events.filter((e) => e.type.startsWith('tool.') || e.type.startsWith('llm.') || e.type.startsWith('run.'));
+  const toolEvents = useMemo(
+    () => events.filter((e) => e.type.startsWith('tool.') || e.type.startsWith('llm.') || e.type.startsWith('run.')),
+    [events],
+  );
 
   return (
     <aside className="inspector">

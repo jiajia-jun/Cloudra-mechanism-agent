@@ -318,11 +318,12 @@ def create_v2_app(
         after: int = 0,
         types: Optional[str] = Query(default=None),
         limit: int = Query(default=1000, ge=1, le=5000),
+        tail: bool = Query(default=False),
     ) -> list[dict[str, Any]]:
         core.require_agent(session_id)
         wanted = [t.strip() for t in types.split(",") if t.strip()] if types else None
         events = core.event_log.query_session(
-            session_id, after_session_seq=after, types=wanted, limit=limit, tail=False
+            session_id, after_session_seq=after, types=wanted, limit=limit, tail=tail
         )
         return [event.model_dump(mode="json") for event in events]
 
