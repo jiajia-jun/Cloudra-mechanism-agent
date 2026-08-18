@@ -1,6 +1,6 @@
 # Cloudra
 
-**An agent runtime for small-molecule mechanism discovery: geometric & electronic perception, driven by an evidence-graph harness**
+**Autonomous agent for organic small-molecule mechanism computation: geometric & electronic perception, driven by an evidence-graph harness**
 
 [![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
@@ -34,8 +34,8 @@ and electronic perception layer** that gives agents real eyes and hands on
 molecules, and a **DAG-driven harness** that turns a mechanism hypothesis into an
 auditable evidence graph whose completion is computed, not asserted.
 
-This stack has carried a **complete ethylene ozonolysis mechanism study
-end-to-end** (see [Demonstrated capability](#demonstrated-capability)).
+This stack has carried a **complete D-A cycloaddition mechanism study
+end-to-end** (see [Demonstrated capability: D-A cycloaddition](#demonstrated-capability-d-a-cycloaddition)).
 
 ## Pillar 1 — Geometric and electronic perception
 
@@ -123,7 +123,7 @@ Beyond the two pillars, Cloudra ships the facilities a long-running study needs:
 
 ## Demonstrated capability: D-A cycloaddition
 
-Cloudra has run a **complete ethylene ozonolysis mechanism study**
+Cloudra has run a **complete D-A cycloaddition mechanism study**
 end-to-end in guided mode:
 
 - the Coordinator decomposed the objective, dispatched literature and domain
@@ -195,7 +195,7 @@ permission boundaries), deterministic delivery completion, mode isolation, sessi
 persistence and restart recovery, the perception tools (atom mapping, internal
 coordinates, conformer search, TS/scan parsing, log parsing), prompt assembly,
 command idempotency, artifact boundaries, node
-routing, Slurm command construction, and backup/restore. CI runs the suite on CPython 3.11–3.13. The ozonolysis study above is a
+routing, Slurm command construction, and backup/restore. CI runs the suite on CPython 3.11–3.13. The D-A cycloaddition study above is a
 demonstrated end-to-end run, not a benchmark.
 
 The following evidence is still missing and is therefore **not claimed**:
@@ -319,7 +319,7 @@ repository together with the exact commit you used:
 
 ```bibtex
 @misc{cloudra,
-  title  = {Cloudra: An Agent Runtime for Small-Molecule Mechanism Discovery},
+  title  = {Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation},
   author = {{Cloudra Developers}},
   year   = {2026},
   url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},

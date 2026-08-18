@@ -1,5 +1,5 @@
 """
-Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
+Cloudra CLI - 自主有机小分子机理计算 Agent 命令行工具。
 """
 
 import os
@@ -32,7 +32,7 @@ VERSION = __version__
 @click.pass_context
 def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         follower_model, follower_url, follower_key):
-    """Cloudra - AI 化学科研助手"""
+    """Cloudra - 自主有机小分子机理计算 Agent"""
     if version:
         console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
         sys.exit(0)

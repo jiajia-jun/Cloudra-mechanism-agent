@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cloudra"
 version = "2.0.0-beta"
-description = "Persistent and auditable agent runtime for computational chemistry research"
+description = "Autonomous agent for organic small-molecule mechanism computation"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Cloudra Team"}
 ]
-keywords = ["ai-agent", "computational-chemistry", "scientific-workflow", "hpc", "reproducibility"]
+keywords = ["ai-agent", "organic-chemistry", "reaction-mechanism", "quantum-chemistry", "reproducibility"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",

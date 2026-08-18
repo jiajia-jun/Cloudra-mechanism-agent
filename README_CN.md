@@ -1,6 +1,6 @@
 # Cloudra
 
-**面向小分子反应机理研究的 AI 科研助手：给模型装上"看分子"的眼睛，把研究结论变成可审计的证据链。**
+**自主有机小分子机理计算 Agent：几何与电子感知 + 可审计机理证据链。**
 
 [![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
@@ -31,8 +31,8 @@ Cloudra 用两条互相咬合的设计对症这两种失败：
 - **机理证据图**——机理假设被落成一张可审计的证据图，完成度由确定性规则**算出来**，
   而不是由模型**说出来**。
 
-这套组合已经**完整跑通了一整个乙烯臭氧化机理研究**（见
-[一次完整的端到端演示](#一次完整的端到端演示)）。
+这套组合已经**完整跑通了一整个 D-A 环加成机理研究**（见
+[一次完整的端到端演示：D-A 环加成](#一次完整的端到端演示d-a环加成)）。
 
 ## 设计一：让模型真正"看见"分子
 
@@ -78,9 +78,9 @@ Cloudra 的 Agent 有一整套面向分子的"眼睛和手"，全部返回结构
   ——每一次图变更、操作者、理由和证据引用——都持久化在会话数据库里，事后可以
   完整审计。
 
-## 一次完整的端到端演示：D-A环加成
+## 一次完整的端到端演示：D-A 环加成
 
-Cloudra 已在引导模式下**完整跑通乙烯臭氧化机理研究**：
+Cloudra 已在引导模式下**完整跑通 D-A 环加成机理研究**：
 
 - 协调 Agent（Coordinator）拆解目标，派出文献与领域子 Agent，并把候选机理连同
   每个元素的证据清单设计成机理证据图；
@@ -146,7 +146,7 @@ Web UI 的项目设置中切换。
 检测、分权边界）、确定性交付完成度、模式隔离、会话持久化与重启恢复、感知工具
 （原子映射、内坐标、构象搜索、TS/扫描解析、日志解析）、prompt 组装、命令幂等、
 产物快照边界、节点路由、Slurm 命令构造和备份恢复。CI 在 CPython 3.11–3.13 上
-运行全套测试。上述臭氧化研究是一次已演示的端到端运行，不是 benchmark。
+运行全套测试。上述 D-A 环加成研究是一次已演示的端到端运行，不是 benchmark。
 
 以下证据仍然缺失，因此项目**不作对应声明**：
 
@@ -255,7 +255,7 @@ Cloudra 目前没有归档 release。在归档版本发布前，请连同使用�
 
 ```bibtex
 @misc{cloudra,
-  title  = {Cloudra: An Agent Runtime for Small-Molecule Mechanism Discovery},
+  title  = {Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation},
   author = {{Cloudra Developers}},
   year   = {2026},
   url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},

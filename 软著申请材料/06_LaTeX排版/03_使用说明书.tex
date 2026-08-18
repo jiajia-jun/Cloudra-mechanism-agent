@@ -47,14 +47,14 @@
 
 \subsection{软件名称与版本}
 \begin{itemize}[leftmargin=4em,itemsep=2pt]
-  \item 软件全称：Cloudra化学科研AI Agent协作框架软件
+  \item 软件全称：Cloudra自主有机小分子机理计算Agent软件
   \item 软件简称：Cloudra
   \item 版本号：V2.0
   \item 开发完成日期：2026年8月17日
 \end{itemize}
 
 \subsection{软件用途}
-Cloudra 是一款面向化学科研领域的 AI Agent 协作框架软件。它以事件驱动的运行时内核协调一个总控 Agent（Coordinator）与八个专业领域子 Agent，为化学研究人员提供文献检索、分子结构处理、光谱数据解析、量子化学（DFT）与分子动力学（MD）计算任务提交与监控、机理图（DAG）引导的反应机理研究以及科研文档撰写等一站式辅助服务。
+Cloudra 是一款面向有机小分子反应机理研究的自主计算 Agent 软件。它以事件驱动运行时协调总控 Agent（Coordinator）与领域子 Agent，从反应物出发自主提出机理假设、编排 DFT 验证链（原子映射、构象采样、过渡态搜索、IRC、热化学），并以机理证据图（DAG）与分阶段复核保证结论可审计。内置几何与电子感知工具禁止手写坐标，支持本地与 Slurm 计算监视、危险操作审批与不可变产物快照。
 
 \subsection{运行环境}
 \begin{itemize}[leftmargin=4em,itemsep=2pt]
@@ -202,7 +202,7 @@ cloudra backup restore # 恢复到空目录
 \section{典型使用场景}
 
 \subsection{反应机理研究（DAG 模式）}
-用户在项目设置中开启 DAG 引导编排，向 Coordinator 提出目标（如“研究某催化循环的完整机理”）。系统引导模型提出机理草稿，经接受后按阶段契约绑定证据：DFT 子 Agent 提交过渡态计算，计算作业完成后自动进入复核收件箱，由虚频检查器确定证据等级；全部必需阶段达成后经覆盖率审计交付完整机理图。
+用户在项目设置中开启 DAG 引导编排，向 Coordinator 提出 D-A 环加成机理研究目标。系统引导模型提出机理草稿，经接受后按阶段契约绑定证据：DFT 子 Agent 提交过渡态计算，计算作业完成后自动进入复核收件箱，由虚频检查器确定证据等级；全部必需阶段达成后经覆盖率审计交付完整机理图。
 
 \subsection{DFT 计算全流程}
 用户描述目标分子与计算需求，Coordinator 调度 dft 子 Agent：先生成 Gaussian 输入文件（经坐标守卫校验来源），提交计算后由监视进程实时解析输出，自动提取 SCF 能量、HOMO--LUMO 能隙、振动频率等关键指标并写入报告。

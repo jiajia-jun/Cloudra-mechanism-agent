@@ -913,7 +913,7 @@ cloudra/base/tools_class.py:429	        schema_cls = cls._get_field_default('inp
 \begin{lstlisting}[firstnumber=430,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/base/tools_class.py:430	        return schema_cls.from_args(arg_dict)
 cloudra/cli.py:1	"""
-cloudra/cli.py:2	Cloudra CLI - 面向化学科研的 AI Agent 协作框架命令行工具。
+cloudra/cli.py:2	Cloudra CLI - 自主有机小分子机理计算 Agent 命令行工具。
 cloudra/cli.py:3	"""
 cloudra/cli.py:4	
 cloudra/cli.py:5	import os
@@ -946,7 +946,7 @@ cloudra/cli.py:31	@click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY",
 cloudra/cli.py:32	@click.pass_context
 cloudra/cli.py:33	def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
 cloudra/cli.py:34	        follower_model, follower_url, follower_key):
-cloudra/cli.py:35	    """Cloudra - AI 化学科研助手"""
+cloudra/cli.py:35	    """Cloudra - 自主有机小分子机理计算 Agent"""
 cloudra/cli.py:36	    if version:
 cloudra/cli.py:37	        console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
 cloudra/cli.py:38	        sys.exit(0)
