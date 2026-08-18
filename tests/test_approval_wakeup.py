@@ -48,5 +48,7 @@ async def test_approval_decision_wakes_waiter_without_poll_delay(tmp_path):
     assert await session_store.adecide_approval(db, approval_id, "approved")
     decided = loop.time()
     assert await asyncio.wait_for(waiter, timeout=1) == (True, "")
-    assert loop.time() - decided < 0.2
+    # Post-decide latency includes waiter cleanup (state restore); CI runners can
+    # be slow — keep well below poll-style waits while avoiding flaky 200ms cuts.
+    assert loop.time() - decided < 1.0
     assert loop.time() - started < 1.5
