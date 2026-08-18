@@ -2,7 +2,7 @@
 
 **自主有机小分子机理计算 Agent：几何与电子感知 + 可审计机理证据链。**
 
-[![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
+[![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
@@ -160,8 +160,8 @@ Web UI 的项目设置中切换。
 Cloudra 需要 Python 3.11 或更新版本，以及 OpenAI 兼容的模型服务。
 
 ```bash
-git clone https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists.git
-cd Cloudra-an-ai-agent-for-chemists
+git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
+cd Cloudra-mechanism-agent
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[all]"
@@ -257,7 +257,7 @@ Cloudra 目前没有归档 release。在归档版本发布前，请连同使用�
   title  = {Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation},
   author = {{Cloudra Developers}},
   year   = {2026},
-  url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},
+  url    = {https://github.com/yyywaa/Cloudra-mechanism-agent},
   note   = {Commit-pinned research software; see repository README for evaluation status}
 }
 ```

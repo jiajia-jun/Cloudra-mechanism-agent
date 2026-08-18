@@ -47,6 +47,7 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [newProject, setNewProject] = useState('');
   const [newProjectWs, setNewProjectWs] = useState('');
+  const [inlineCreate, setInlineCreate] = useState<{ ws: string; name: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [connState, setConnState] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -71,6 +72,14 @@ export default function App() {
       a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
     );
   }, [projects]);
+
+  const workspaceSuggestions = useMemo(
+    () =>
+      [...new Set(projects.map((p) => p.workspace_dir?.trim()).filter(Boolean) as string[])].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [projects],
+  );
 
   // Refs so the long-lived SSE subscription always sees current values.
   const activeAgentIdRef = useRef(activeAgentId);
@@ -350,17 +359,32 @@ export default function App() {
 
   /* ------------------------------------------------------------- actions */
 
+  async function createProject(name: string, workspaceDir?: string) {
+    const resp = await api.createProject(name, workspaceDir);
+    const list = await api.listProjects();
+    setProjects(list);
+    setActiveProjectId(resp.data.id);
+    pushToast('ok', `Project "${name}" created`);
+  }
+
   async function createProjectAndSelect() {
     const name = newProject.trim();
     if (!name) return;
     try {
-      const resp = await api.createProject(name, newProjectWs.trim() || undefined);
-      const list = await api.listProjects();
-      setProjects(list);
-      setActiveProjectId(resp.data.id);
+      await createProject(name, newProjectWs.trim() || undefined);
       setNewProject('');
       setNewProjectWs('');
-      pushToast('ok', `Project "${name}" created`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function submitInlineCreate() {
+    const name = inlineCreate?.name.trim();
+    if (!name || !inlineCreate) return;
+    try {
+      await createProject(name, inlineCreate.ws || undefined);
+      setInlineCreate(null);
     } catch (e) {
       reportError(e);
     }
@@ -629,9 +653,14 @@ export default function App() {
 
   return (
     <div className="app">
+      <datalist id="workspace-dirs">
+        {workspaceSuggestions.map((ws) => (
+          <option key={ws} value={ws} />
+        ))}
+      </datalist>
       <aside className="sidebar">
         <div className="sidebar-head">
-          <span className="brand-dot" />
+          <img className="brand-logo" src="/logo.png" alt="Cloudra" />
           <span className="brand">Cloudra</span>
         </div>
         <div className="sidebar-new">
@@ -652,13 +681,47 @@ export default function App() {
             onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
             placeholder="workspace dir (optional)…"
             title="Workspace directory: agents read/write within it"
+            list="workspace-dirs"
           />
         </div>
         <div className="project-list">
           {projects.length === 0 && <div className="empty-hint">No projects yet — create one above.</div>}
           {groupedProjects.map(([ws, list]) => (
             <div key={ws || '__none'} className="ws-group">
-              <div className="ws-header" title={ws || undefined}>{ws || 'no workspace'}</div>
+              <div className="ws-header-row">
+                <div className="ws-header" title={ws || undefined}>{ws || 'no workspace'}</div>
+                <button
+                  type="button"
+                  className="btn ghost sm ws-add"
+                  title={ws ? `New project in ${ws}` : 'New project without workspace'}
+                  onClick={() => setInlineCreate({ ws, name: '' })}
+                >
+                  +
+                </button>
+              </div>
+              {inlineCreate?.ws === ws && (
+                <div className="ws-inline-create">
+                  <input
+                    className="input"
+                    autoFocus
+                    value={inlineCreate.name}
+                    onChange={(e) => setInlineCreate({ ws, name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void submitInlineCreate();
+                      if (e.key === 'Escape') setInlineCreate(null);
+                    }}
+                    placeholder="Project name…"
+                  />
+                  <button
+                    type="button"
+                    className="btn primary sm"
+                    disabled={!inlineCreate.name.trim()}
+                    onClick={() => void submitInlineCreate()}
+                  >
+                    Create
+                  </button>
+                </div>
+              )}
               {list.map((p) => (
                 <div
                   key={p.id}
@@ -684,6 +747,7 @@ export default function App() {
               defaultValue={activeProject.workspace_dir ?? ''}
               placeholder="workspace dir…"
               title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
+              list="workspace-dirs"
               onBlur={(e) => changeWorkspace(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             />

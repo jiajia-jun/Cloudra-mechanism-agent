@@ -124,22 +124,60 @@ body {
   align-items: center;
   gap: 8px;
 }
-.brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
 .brand { font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
 .sidebar-new { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 12px; }
 .sidebar-new .input { flex: 1; min-width: 0; height: 30px; }
 .sidebar-new .ws-path { flex-basis: 100%; font-family: var(--mono); font-size: 11.5px; }
 .ws-group { margin-bottom: 4px; }
+.ws-header-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 0 0;
+}
 .ws-header {
+  flex: 1;
+  min-width: 0;
   font-family: var(--mono);
   font-size: 10.5px;
   color: var(--fg-faint);
-  padding: 6px 8px 2px;
+  padding: 6px 4px 2px 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   direction: rtl; /* keep the tail (most specific part) of long paths visible */
   text-align: left;
+}
+.ws-add {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 12px;
+  opacity: 0.55;
+  transition: opacity 0.15s var(--ease);
+}
+.ws-group:hover .ws-add,
+.ws-add:focus-visible {
+  opacity: 1;
+}
+.ws-inline-create {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px 6px;
+}
+.ws-inline-create .input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  font-size: 12px;
 }
 .ws-input { flex: 1; min-width: 120px; max-width: 320px; height: 30px; font-family: var(--mono); font-size: 11.5px; }
 .project-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; }

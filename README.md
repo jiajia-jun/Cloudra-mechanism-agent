@@ -2,7 +2,7 @@
 
 **Autonomous agent for organic small-molecule mechanism computation: geometric & electronic perception, driven by an evidence-graph harness**
 
-[![CI](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists/actions/workflows/ci.yml)
+[![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
@@ -210,8 +210,8 @@ The following evidence is still missing and is therefore **not claimed**:
 Cloudra requires Python 3.11 or newer and an OpenAI-compatible model endpoint.
 
 ```bash
-git clone https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists.git
-cd Cloudra-an-ai-agent-for-chemists
+git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
+cd Cloudra-mechanism-agent
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[all]"
@@ -316,7 +316,7 @@ repository together with the exact commit you used:
   title  = {Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation},
   author = {{Cloudra Developers}},
   year   = {2026},
-  url    = {https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists},
+  url    = {https://github.com/yyywaa/Cloudra-mechanism-agent},
   note   = {Commit-pinned research software; see repository README for evaluation status}
 }
 ```

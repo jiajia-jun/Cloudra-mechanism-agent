@@ -49,3 +49,24 @@ jobs:
           python -c "import cloudra.dag.models, cloudra.dag.store, cloudra.dag.engine, cloudra.dag.controller"
           # 兼容垫片：重排前的老导入路径必须继续可用
           python -c "from cloudra import agent as legacy_agent, supervisor as legacy_supervisor"
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build

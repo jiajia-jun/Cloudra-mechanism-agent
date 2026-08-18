@@ -79,7 +79,7 @@ dev = [
 cloudra = "cloudra.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yyywaa/Cloudra-an-ai-agent-for-chemists"
+Homepage = "https://github.com/yyywaa/Cloudra-mechanism-agent"
 
 [tool.setuptools.packages.find]
 where = ["."]
