@@ -2,7 +2,6 @@
 Cloudra CLI - 自主有机小分子机理计算 Agent 命令行工具。
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -14,7 +13,7 @@ from rich.table import Table
 from cloudra import __version__
 from cloudra.infra.config import get_config
 from cloudra.persistence import paths
-from cloudra.web_launcher import launch_browser, launch_electron
+from cloudra.web_launcher import launch_browser
 
 console = Console()
 APP_NAME = "cloudra"
@@ -42,11 +41,7 @@ def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
             coordinator_model, coordinator_url, coordinator_key,
             follower_model, follower_url, follower_key,
         )
-        if sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-            console.print("[yellow]未检测到图形显示，回退到浏览器模式。[/yellow]")
-            sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
-        else:
-            sys.exit(launch_electron(_frontend_or_exit(), rebuild=False, skip_build=False))
+        sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
 
     _apply_config_overrides(
         coordinator_model, coordinator_url, coordinator_key,
@@ -82,15 +77,11 @@ def _frontend_or_exit():
 
 
 @cli.command(name="web")
-@click.option("--browser", is_flag=True, help="在浏览器中打开，而不是启动 Electron")
 @click.option("--rebuild", is_flag=True, help="强制重新构建前端")
 @click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
-def web(browser, rebuild, skip_build):
-    """启动新的 Electron/Web 前端。"""
-    frontend = _frontend_or_exit()
-    if browser:
-        sys.exit(launch_browser(frontend, rebuild=rebuild, skip_build=skip_build))
-    sys.exit(launch_electron(frontend, rebuild=rebuild, skip_build=skip_build))
+def web(rebuild, skip_build):
+    """启动 Web 前端（API + SPA 单端口服务）。"""
+    sys.exit(launch_browser(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build))
 
 
 @cli.group(name="config")

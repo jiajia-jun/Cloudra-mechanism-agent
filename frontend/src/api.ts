@@ -1,9 +1,8 @@
 import type { Agent, EventEnvelope, Project, TranscriptMessage } from './types';
 
-// Resolution order: Electron preload bridge -> ?runtime= query param ->
-// Vite env -> same origin (web mode serves the SPA and API on one port).
+// Resolution order: ?runtime= query param -> Vite env -> same origin
+// (production serves the SPA and API on one port).
 const runtimeUrl: string =
-  (window as any).cloudraRuntime?.runtimeBaseUrl ??
   new URLSearchParams(window.location.search).get('runtime') ??
   (import.meta.env.VITE_RUNTIME_URL ?? '');
 

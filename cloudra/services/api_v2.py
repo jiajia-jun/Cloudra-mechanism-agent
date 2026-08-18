@@ -153,7 +153,7 @@ def create_v2_app(
     app.state.runtime_core = core
     app.state.legacy_service = legacy_service
     app.state.compute_broker = compute_broker
-    # Local SPA origins (Electron file:// and browser dev/build servers) are
+    # Local SPA origins (browser dev/build servers) are
     # cross-origin to this runtime.  No credentials are allowed, so wildcard
     # CORS is safe for the local single-user trust model.
     app.add_middleware(

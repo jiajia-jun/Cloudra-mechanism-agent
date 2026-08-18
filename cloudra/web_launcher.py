@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import webbrowser
 from pathlib import Path
 
 
@@ -108,25 +109,6 @@ def _find_api_port(preferred: int, env_name: str) -> tuple[int, bool]:
     raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
 
 
-def _ensure_electron(frontend: Path) -> None:
-    """npm install can finish with a broken electron package when its
-    postinstall download was interrupted.  Re-run electron's install script
-    and verify the binary before launching."""
-    electron_dir = frontend / "node_modules" / "electron"
-    binary = electron_dir / "dist" / "electron"
-    if binary.is_file() and os.access(binary, os.X_OK):
-        return
-    print("[cloudra] electron binary missing, repairing electron install...", flush=True)
-    if not (electron_dir / "install.js").is_file():
-        subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
-    subprocess.run(["node", "install.js"], cwd=electron_dir, check=True)
-    if not (binary.is_file() and os.access(binary, os.X_OK)):
-        raise RuntimeError(
-            "electron failed to install its binary; run: "
-            f"rm -rf {electron_dir} && npm install --prefix {frontend}"
-        )
-
-
 def _wait_healthy(url: str, timeout: float = 30.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -138,17 +120,6 @@ def _wait_healthy(url: str, timeout: float = 30.0) -> None:
             pass
         time.sleep(0.25)
     raise RuntimeError(f"runtime did not become healthy at {url}")
-
-
-def launch_electron(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
-    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
-    _ensure_electron(frontend)
-    env = os.environ.copy()
-    # Electron main spawns `python3`; point it at the interpreter that is
-    # running this CLI so venvs work out of the box.
-    env["CLOUDRA_PYTHON"] = sys.executable
-    print("[cloudra] starting Electron desktop frontend...", flush=True)
-    return subprocess.call(["npm", "run", "electron"], cwd=frontend, env=env)
 
 
 def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
@@ -167,6 +138,7 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     if reused_runtime:
         print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
     else:
+        print(f"[cloudra] starting web server on port {api_port}...", flush=True)
         runtime = subprocess.Popen(
             [
                 sys.executable,
@@ -186,9 +158,12 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     try:
         _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
         url = f"http://127.0.0.1:{api_port}"
-        print(f"[cloudra] web frontend: {url}", flush=True)
-        print(f"[cloudra] open {url} in your browser", flush=True)
-        return runtime.wait() if runtime is not None else 0
+        print(f"[cloudra] web UI: {url}", flush=True)
+        if os.environ.get("CLOUDRA_NO_BROWSER", "").strip().lower() not in {"1", "true", "yes"}:
+            webbrowser.open(url)
+        if runtime is None:
+            return 0
+        return runtime.wait()
     except KeyboardInterrupt:
         return 0
     finally:

@@ -6,7 +6,7 @@
 
 | 文档 | 适用场景 | 当前状态 |
 | --- | --- | --- |
-| `cloudra` / `cloudra web` | 一键安装 npm 依赖、构建并启动 Electron/浏览器前端 | 当前推荐入口；Node.js >= 18 |
+| `cloudra` / `cloudra web` | 一键安装 npm 依赖、构建并启动 Web 前端（API + SPA 单端口） | 当前推荐入口；Node.js >= 18 |
 | [`deploy/node-registry.example.json`](../deploy/node-registry.example.json) | 多节点、工作区、local/Slurm scheduler 配置 | 配置示例；路径需按部署环境修改 |
 
 ## 架构与协议

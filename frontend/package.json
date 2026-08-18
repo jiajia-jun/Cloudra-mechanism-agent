@@ -2,13 +2,11 @@
   "name": "cloudra-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "Cloudra desktop/web frontend",
+  "description": "Cloudra web frontend",
   "type": "module",
-  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "electron": "electron .",
     "typecheck": "tsc --noEmit",
     "test:timeline": "node --experimental-strip-types src/timeline.test.ts"
   },
@@ -27,7 +25,6 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^35.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0"
   }

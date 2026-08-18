@@ -147,7 +147,7 @@ persisted in the session database and inspectable after the fact.
 
 ```mermaid
 flowchart LR
-    U["Researcher"] --> C["Electron / Web UI"]
+    U["Researcher"] --> C["Web UI"]
     C <-->|"idempotent commands + resumable events"| G["Gateway API"]
     G --> S["Durable Session and Event Store"]
     S <--> A["Coordinator + Domain Agents"]
@@ -246,25 +246,19 @@ search.
 
 ## Usage
 
-The recommended frontend is the Electron/Web UI (Node.js >= 18 required):
+The recommended frontend is the Web UI (Node.js >= 18 required):
 
 ```bash
 ./install.sh               # once: Python package + config
-cloudra                    # install npm deps, build, start Electron
-cloudra web --browser      # or serve the SPA in a plain browser
+cloudra                    # install npm deps, build, start web server
 cloudra web --skip-build   # reuse the existing frontend/dist build
 ```
+
+Set `CLOUDRA_NO_BROWSER=1` to skip auto-opening a browser tab.
 
 The web UI provides per-project workspaces, an AgentBar to switch among all
 parallel agents, an Inspector with per-event detail, live YOLO/model settings,
 approval/interaction/artifact control, and DAG panels.
-
-Entry points:
-
-```bash
-cloudra                             # build and launch the Electron frontend
-cloudra web --browser               # same runtime in the browser
-```
 
 Orchestration modes are per project: `standard` (default), `dag_record`, or
 `dag_guided`, switchable from the project settings in the UI; the DAG panel
@@ -302,7 +296,7 @@ cloudra/
 ├── runtime_v2/                 event-driven kernel (runs, commands, policies, bridges)
 ├── tools/, subagents/          perception tools, scientific capabilities, domain roles
 ├── skills/, prompts/           research methods and role policies
-└── frontend/                   Electron + React control surface
+└── frontend/                   React web control surface
 ```
 
 ## Development

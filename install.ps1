@@ -10,7 +10,7 @@
     4. 把 venv Scripts 目录加入用户 PATH
     5. 初始化 cloudra config
 
-    Python 端安装完成后，如需新的 Electron/Web 前端，再运行 .\web.ps1。
+    Python 端安装完成后，如需 Web 前端，再运行 cloudra 或 .\web.ps1。
 #>
 
 $ErrorActionPreference = "Stop"
@@ -187,12 +187,7 @@ try {
 }
 
 Write-Ok "安装完成！"
-Write-Info "推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）："
-Write-Host "  cloudra                    # 构建并启动 Electron 桌面前端"
-Write-Host "  cloudra web --browser      # 构建并在浏览器中打开"
+Write-Info "推荐使用 Web 前端（需要 Node.js >= 18）："
+Write-Host "  cloudra                    # 构建并启动 Web 服务（默认打开浏览器）"
 Write-Host "  cloudra web --skip-build   # 复用已构建的前端"
-Write-Host "  cloudra tui                # 过渡期终端界面"
-Write-Info "其他命令（过渡期保留）："
-Write-Host "  cloudra config show        # 查看当前配置"
-Write-Host "  cloudra run 'YOUR TASK'    # 运行任务"
-Write-Host "  cloudra                    # 启动 Electron 前端"
+Write-Host "  `$env:CLOUDRA_NO_BROWSER=1; cloudra   # 仅启动服务，不自动打开浏览器"

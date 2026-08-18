@@ -194,12 +194,11 @@ DuckDuckGo）作为兜底。启用后外部工具会被剔除，避免双重搜�
 
 ## 使用入口
 
-推荐使用 Electron/Web 前端（需要 Node.js >= 18）：
+推荐使用 Web 前端（需要 Node.js >= 18）：
 
 ```bash
 ./install.sh               # 首次：安装 Python 包并初始化配置
-cloudra                    # 安装 npm 依赖、构建并启动 Electron
-cloudra web --browser      # 或在普通浏览器中打开
+cloudra                    # 安装 npm 依赖、构建并启动 Web 服务
 cloudra web --skip-build   # 复用已经构建的 frontend/dist
 ```
 
@@ -238,7 +237,7 @@ cloudra/
 ├── runtime_v2/                  事件驱动推理内核（唯一推理循环）
 ├── tools/, subagents/           感知工具、科研能力与领域角色
 ├── skills/, prompts/            科研方法与角色策略
-└── frontend/                    Electron + React 控制界面
+└── frontend/                    React Web 控制界面
 ```
 
 ## 开发

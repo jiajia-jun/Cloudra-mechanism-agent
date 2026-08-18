@@ -10,7 +10,7 @@ set -euo pipefail
 #   5. 交互式初始化 cloudra config
 #   6. 把 cloudra 命令加入 PATH（可选）
 #
-# 注意：Python 端安装完成后，如需新的 Electron/Web 前端，再运行 ./web.sh
+# 注意：Python 端安装完成后，如需 Web 前端，再运行 cloudra 或 ./web.sh
 #（该脚本会自行安装 npm 依赖并构建前端）。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -279,12 +279,7 @@ EOF
 fi
 
 ok "安装完成！"
-info "推荐使用新的 Electron/Web 前端（需要 Node.js >= 18）："
-echo "  cloudra                    # 构建并启动 Electron 桌面前端"
-echo "  cloudra web --browser      # 构建并在浏览器中打开"
+info "推荐使用 Web 前端（需要 Node.js >= 18）："
+echo "  cloudra                    # 构建并启动 Web 服务（默认打开浏览器）"
 echo "  cloudra web --skip-build   # 复用已构建的前端"
-echo "  cloudra tui                # 过渡期终端界面"
-info "其他命令："
-echo "  cloudra config show        # 查看当前配置"
-echo "  cloudra run 'YOUR TASK'    # 运行任务"
-echo "  cloudra                    # 启动 Electron 前端"
+echo "  CLOUDRA_NO_BROWSER=1 cloudra   # 仅启动服务，不自动打开浏览器"

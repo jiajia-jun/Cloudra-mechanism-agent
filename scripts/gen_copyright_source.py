@@ -149,12 +149,15 @@ def main() -> None:
     compile_tex(tex_dir / "02_源程序_后30页.tex")
 
     manual_md = MATERIALS / "02_操作手册" / "Cloudra软件使用说明书.md"
-    manual_lines = manual_md.read_text(encoding="utf-8").splitlines()
-    manual_pages = [
-        manual_lines[i : i + LINES_PER_PAGE] for i in range(0, len(manual_lines), LINES_PER_PAGE)
-    ]
-    write_manual_paginated(pkg_dir / "04_操作手册_排版.txt", manual_pages)
-    print(f"manual pages={len(manual_pages)}")
+    if manual_md.is_file():
+        manual_lines = manual_md.read_text(encoding="utf-8").splitlines()
+        manual_pages = [
+            manual_lines[i : i + LINES_PER_PAGE] for i in range(0, len(manual_lines), LINES_PER_PAGE)
+        ]
+        write_manual_paginated(pkg_dir / "04_操作手册_排版.txt", manual_pages)
+        print(f"manual pages={len(manual_pages)}")
+    else:
+        print(f"skip manual paginated txt: {manual_md} not found")
     print("done")
 
 

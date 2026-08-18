@@ -8,11 +8,11 @@
 uv run pytest -q tests/            # 全套测试
 uv run pytest -q tests/test_dag*   # 聚焦某个子系统（按文件名前缀选）
 uv run ruff check cloudra tests    # lint（line-length 120，select E/F/W/I）
-cloudra                          # 构建并启动 Electron 前端（浏览器：cloudra web --browser）
+cloudra                          # 构建并启动 Web 前端（API + SPA 单端口）
 uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 ```
 
-入口：`cloudra`（CLI，`cloudra/cli.py`：默认启动 Electron 前端，`web`/`config`/`logs`/`skills`/`backup` 子命令；任务的执行面已收敛到 runtime_v2，CLI 不再直接跑任务）。HTTP 控制面唯一实现是 `cloudra/services/api_v2.py`（由 Electron/前端进程内 spawn）。Python >= 3.11。
+入口：`cloudra`（CLI，`cloudra/cli.py`：默认启动 Web 服务并打开浏览器，`web`/`config`/`logs`/`skills`/`backup` 子命令；任务的执行面已收敛到 runtime_v2，CLI 不再直接跑任务）。HTTP 控制面唯一实现是 `cloudra/services/api_v2.py`（由 `cloudra`/`cloudra web` 以 uvicorn 拉起，同端口托管 SPA）。Python >= 3.11。
 
 **v1 已删除**：旧 `services/api.py`/`api_v1.py`/`service.py`、`runtime/` 执行核心（runner/executor/workers/mobile_tasks）、`core/react.py`、Flet `ui/`、Android 全家桶、device 链均已移除；下列共享底座继续服役：`core/agent.py`（Agent/Coordinator/Follower 基类）、`core/supervisor.py`、`runtime/prompt_assembler.py` + `environment_observer.py`、`runtime/monitor.py`（计算任务日志监视子进程）、`runtime/compute_executor.py`（领取 `ready` 计算任务并拉起 guard/Slurm；`api_v2` lifespan 启动 `ComputeBroker`）、`services/session_store.py` + `nodes.py`、`persistence/`（除 conversation_repo/case_bank/context_stats）、`infra/`（除 presentation/tool_presentation/email_listener/mobile_storage/native_bridge/android_build）。
 
@@ -58,7 +58,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **UI 前端**
 
-- `frontend/` — Electron + React SPA（唯一前端）：`src/App.tsx`（项目栏 / AgentBar / 对话 / Inspector 六标签）、`src/DagPanel.tsx`（DAG 机理图 + 阶段状态/复核收件箱/覆盖率报告/mutation 历史/结构化编辑/supervisor replan）、`src/Markdown.tsx`（assistant 输出 markdown + KaTeX 渲染）、`src/api.ts`（v2 客户端）、`electron/main.cjs`（spawn `create_default_v2_app` runtime + 托盘壳）、`electron/preload.cjs`（只暴露 runtimeBaseUrl）。`npm run build` 通过才算前端可用；开发时 `npm run dev`，生产 Electron 加载 `dist/`。
+- `frontend/` — React SPA（唯一前端）：`src/App.tsx`（项目栏 / AgentBar / 对话 / Inspector 六标签）、`src/DagPanel.tsx`（DAG 机理图 + 阶段状态/复核收件箱/覆盖率报告/mutation 历史/结构化编辑/supervisor replan）、`src/Markdown.tsx`（assistant 输出 markdown + KaTeX 渲染）、`src/api.ts`（v2 客户端）。`npm run build` 通过才算前端可用；开发时 `npm run dev`；生产由 uvicorn 同端口托管 `dist/`。
 
 **能力与角色**
 

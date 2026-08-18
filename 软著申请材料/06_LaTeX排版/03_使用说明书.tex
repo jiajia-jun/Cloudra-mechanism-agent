@@ -61,7 +61,7 @@ Cloudra 是一款面向有机小分子反应机理研究的自主计算 Agent �
   \item 操作系统：Linux、macOS、Windows
   \item 编程语言：Python 3.11 及以上
   \item 依赖环境：OpenAI 兼容的大语言模型 API
-  \item 界面环境：Electron 桌面客户端或现代浏览器（Chrome / Edge / Firefox）
+  \item 界面环境：现代浏览器（Chrome / Edge / Firefox）
 \end{itemize}
 
 \section{软件功能模块}
@@ -178,8 +178,8 @@ cloudra config get coordinator.model           # 读取单个配置项
 
 \subsection{启动图形界面}
 \begin{lstlisting}[language=bash]
-cloudra                 # 构建并启动 Electron 桌面前端
-cloudra web --browser   # 在浏览器中打开前端（单端口模式）
+cloudra                 # 构建并启动 Web 服务（默认打开浏览器）
+cloudra web --skip-build   # 复用已有 frontend/dist 构建
 \end{lstlisting}
 
 前端界面由三部分组成：

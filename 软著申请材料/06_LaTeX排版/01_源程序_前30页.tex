@@ -916,356 +916,347 @@ cloudra/cli.py:1	"""
 cloudra/cli.py:2	Cloudra CLI - 自主有机小分子机理计算 Agent 命令行工具。
 cloudra/cli.py:3	"""
 cloudra/cli.py:4	
-cloudra/cli.py:5	import os
-cloudra/cli.py:6	import sys
-cloudra/cli.py:7	from pathlib import Path
-cloudra/cli.py:8	
-cloudra/cli.py:9	import click
-cloudra/cli.py:10	from rich.console import Console
-cloudra/cli.py:11	from rich.panel import Panel
-cloudra/cli.py:12	from rich.table import Table
-cloudra/cli.py:13	
-cloudra/cli.py:14	from cloudra import __version__
-cloudra/cli.py:15	from cloudra.infra.config import get_config
-cloudra/cli.py:16	from cloudra.persistence import paths
-cloudra/cli.py:17	from cloudra.web_launcher import launch_browser, launch_electron
-cloudra/cli.py:18	
-cloudra/cli.py:19	console = Console()
-cloudra/cli.py:20	APP_NAME = "cloudra"
-cloudra/cli.py:21	VERSION = __version__
+cloudra/cli.py:5	import sys
+cloudra/cli.py:6	from pathlib import Path
+cloudra/cli.py:7	
+cloudra/cli.py:8	import click
+cloudra/cli.py:9	from rich.console import Console
+cloudra/cli.py:10	from rich.panel import Panel
+cloudra/cli.py:11	from rich.table import Table
+cloudra/cli.py:12	
+cloudra/cli.py:13	from cloudra import __version__
+cloudra/cli.py:14	from cloudra.infra.config import get_config
+cloudra/cli.py:15	from cloudra.persistence import paths
+cloudra/cli.py:16	from cloudra.web_launcher import launch_browser
+cloudra/cli.py:17	
+cloudra/cli.py:18	console = Console()
+cloudra/cli.py:19	APP_NAME = "cloudra"
+cloudra/cli.py:20	VERSION = __version__
+cloudra/cli.py:21	
 cloudra/cli.py:22	
-cloudra/cli.py:23	
-cloudra/cli.py:24	@click.group(invoke_without_command=True)
-cloudra/cli.py:25	@click.option("--version", is_flag=True, help="显示版本信息")
-cloudra/cli.py:26	@click.option("--coordinator-model", envvar="CLOUDRA_COORDINATOR_MODEL", help="覆盖 Coordinator 模型")
-cloudra/cli.py:27	@click.option("--coordinator-url", envvar="CLOUDRA_COORDINATOR_URL", help="覆盖 Coordinator API 地址")
-cloudra/cli.py:28	@click.option("--coordinator-key", envvar="CLOUDRA_COORDINATOR_KEY", help="覆盖 Coordinator API Key")
-cloudra/cli.py:29	@click.option("--follower-model", envvar="CLOUDRA_FOLLOWER_MODEL", help="覆盖 Follower 模型")
-cloudra/cli.py:30	@click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
-cloudra/cli.py:31	@click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
-cloudra/cli.py:32	@click.pass_context
-cloudra/cli.py:33	def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
-cloudra/cli.py:34	        follower_model, follower_url, follower_key):
-cloudra/cli.py:35	    """Cloudra - 自主有机小分子机理计算 Agent"""
-cloudra/cli.py:36	    if version:
-cloudra/cli.py:37	        console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
-cloudra/cli.py:38	        sys.exit(0)
-cloudra/cli.py:39	
-cloudra/cli.py:40	    if ctx.invoked_subcommand is None:
-cloudra/cli.py:41	        _apply_config_overrides(
-cloudra/cli.py:42	            coordinator_model, coordinator_url, coordinator_key,
-cloudra/cli.py:43	            follower_model, follower_url, follower_key,
-cloudra/cli.py:44	        )
-cloudra/cli.py:45	        if sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-cloudra/cli.py:46	            console.print("[yellow]未检测到图形显示，回退到浏览器模式。[/yellow]")
-cloudra/cli.py:47	            sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
-cloudra/cli.py:48	        else:
-cloudra/cli.py:49	            sys.exit(launch_electron(_frontend_or_exit(), rebuild=False, skip_build=False))
+cloudra/cli.py:23	@click.group(invoke_without_command=True)
+cloudra/cli.py:24	@click.option("--version", is_flag=True, help="显示版本信息")
+cloudra/cli.py:25	@click.option("--coordinator-model", envvar="CLOUDRA_COORDINATOR_MODEL", help="覆盖 Coordinator 模型")
+cloudra/cli.py:26	@click.option("--coordinator-url", envvar="CLOUDRA_COORDINATOR_URL", help="覆盖 Coordinator API 地址")
+cloudra/cli.py:27	@click.option("--coordinator-key", envvar="CLOUDRA_COORDINATOR_KEY", help="覆盖 Coordinator API Key")
+cloudra/cli.py:28	@click.option("--follower-model", envvar="CLOUDRA_FOLLOWER_MODEL", help="覆盖 Follower 模型")
+cloudra/cli.py:29	@click.option("--follower-url", envvar="CLOUDRA_FOLLOWER_URL", help="覆盖 Follower API 地址")
+cloudra/cli.py:30	@click.option("--follower-key", envvar="CLOUDRA_FOLLOWER_KEY", help="覆盖 Follower API Key")
+cloudra/cli.py:31	@click.pass_context
+cloudra/cli.py:32	def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:33	        follower_model, follower_url, follower_key):
+cloudra/cli.py:34	    """Cloudra - 自主有机小分子机理计算 Agent"""
+cloudra/cli.py:35	    if version:
+cloudra/cli.py:36	        console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
+cloudra/cli.py:37	        sys.exit(0)
+cloudra/cli.py:38	
+cloudra/cli.py:39	    if ctx.invoked_subcommand is None:
+cloudra/cli.py:40	        _apply_config_overrides(
+cloudra/cli.py:41	            coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:42	            follower_model, follower_url, follower_key,
+cloudra/cli.py:43	        )
+cloudra/cli.py:44	        sys.exit(launch_browser(_frontend_or_exit(), rebuild=False, skip_build=False))
+cloudra/cli.py:45	
+cloudra/cli.py:46	    _apply_config_overrides(
+cloudra/cli.py:47	        coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:48	        follower_model, follower_url, follower_key,
+cloudra/cli.py:49	    )
 cloudra/cli.py:50	
-cloudra/cli.py:51	    _apply_config_overrides(
+cloudra/cli.py:51	
 \end{lstlisting}
 \clearpage
 \begin{lstlisting}[firstnumber=52,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/cli.py:52	        coordinator_model, coordinator_url, coordinator_key,
-cloudra/cli.py:53	        follower_model, follower_url, follower_key,
-cloudra/cli.py:54	    )
-cloudra/cli.py:55	
-cloudra/cli.py:56	
-cloudra/cli.py:57	def _apply_config_overrides(coordinator_model, coordinator_url, coordinator_key,
-cloudra/cli.py:58	                            follower_model, follower_url, follower_key):
-cloudra/cli.py:59	    """把 CLI 覆盖项写入全局配置。"""
-cloudra/cli.py:60	    config = get_config()
-cloudra/cli.py:61	    if coordinator_model:
-cloudra/cli.py:62	        config.coordinator.model = coordinator_model
-cloudra/cli.py:63	    if coordinator_url:
-cloudra/cli.py:64	        config.coordinator.url = coordinator_url
-cloudra/cli.py:65	    if coordinator_key:
-cloudra/cli.py:66	        config.coordinator.key = coordinator_key
-cloudra/cli.py:67	    if follower_model:
-cloudra/cli.py:68	        config.follower.model = follower_model
-cloudra/cli.py:69	    if follower_url:
-cloudra/cli.py:70	        config.follower.url = follower_url
-cloudra/cli.py:71	    if follower_key:
-cloudra/cli.py:72	        config.follower.key = follower_key
-cloudra/cli.py:73	
-cloudra/cli.py:74	
-cloudra/cli.py:75	def _frontend_or_exit():
-cloudra/cli.py:76	    from cloudra.web_launcher import _frontend_dir
-cloudra/cli.py:77	    try:
-cloudra/cli.py:78	        return _frontend_dir()
-cloudra/cli.py:79	    except RuntimeError as exc:
-cloudra/cli.py:80	        console.print(f"[red]{exc}[/red]")
-cloudra/cli.py:81	        sys.exit(1)
-cloudra/cli.py:82	
-cloudra/cli.py:83	
-cloudra/cli.py:84	@cli.command(name="web")
-cloudra/cli.py:85	@click.option("--browser", is_flag=True, help="在浏览器中打开，而不是启动 Electron")
-cloudra/cli.py:86	@click.option("--rebuild", is_flag=True, help="强制重新构建前端")
-cloudra/cli.py:87	@click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
-cloudra/cli.py:88	def web(browser, rebuild, skip_build):
-cloudra/cli.py:89	    """启动新的 Electron/Web 前端。"""
-cloudra/cli.py:90	    frontend = _frontend_or_exit()
-cloudra/cli.py:91	    if browser:
-cloudra/cli.py:92	        sys.exit(launch_browser(frontend, rebuild=rebuild, skip_build=skip_build))
-cloudra/cli.py:93	    sys.exit(launch_electron(frontend, rebuild=rebuild, skip_build=skip_build))
-cloudra/cli.py:94	
-cloudra/cli.py:95	
-cloudra/cli.py:96	@cli.group(name="config")
-cloudra/cli.py:97	def config_cmd():
-cloudra/cli.py:98	    """配置管理（init, show, get, set）"""
-cloudra/cli.py:99	    pass
-cloudra/cli.py:100	
-cloudra/cli.py:101	
-cloudra/cli.py:102	@config_cmd.command(name="init")
-cloudra/cli.py:103	@click.option("--force", is_flag=True, help="覆盖已有配置文件")
+cloudra/cli.py:52	def _apply_config_overrides(coordinator_model, coordinator_url, coordinator_key,
+cloudra/cli.py:53	                            follower_model, follower_url, follower_key):
+cloudra/cli.py:54	    """把 CLI 覆盖项写入全局配置。"""
+cloudra/cli.py:55	    config = get_config()
+cloudra/cli.py:56	    if coordinator_model:
+cloudra/cli.py:57	        config.coordinator.model = coordinator_model
+cloudra/cli.py:58	    if coordinator_url:
+cloudra/cli.py:59	        config.coordinator.url = coordinator_url
+cloudra/cli.py:60	    if coordinator_key:
+cloudra/cli.py:61	        config.coordinator.key = coordinator_key
+cloudra/cli.py:62	    if follower_model:
+cloudra/cli.py:63	        config.follower.model = follower_model
+cloudra/cli.py:64	    if follower_url:
+cloudra/cli.py:65	        config.follower.url = follower_url
+cloudra/cli.py:66	    if follower_key:
+cloudra/cli.py:67	        config.follower.key = follower_key
+cloudra/cli.py:68	
+cloudra/cli.py:69	
+cloudra/cli.py:70	def _frontend_or_exit():
+cloudra/cli.py:71	    from cloudra.web_launcher import _frontend_dir
+cloudra/cli.py:72	    try:
+cloudra/cli.py:73	        return _frontend_dir()
+cloudra/cli.py:74	    except RuntimeError as exc:
+cloudra/cli.py:75	        console.print(f"[red]{exc}[/red]")
+cloudra/cli.py:76	        sys.exit(1)
+cloudra/cli.py:77	
+cloudra/cli.py:78	
+cloudra/cli.py:79	@cli.command(name="web")
+cloudra/cli.py:80	@click.option("--rebuild", is_flag=True, help="强制重新构建前端")
+cloudra/cli.py:81	@click.option("--skip-build", is_flag=True, help="复用已有 frontend/dist 构建")
+cloudra/cli.py:82	def web(rebuild, skip_build):
+cloudra/cli.py:83	    """启动 Web 前端（API + SPA 单端口服务）。"""
+cloudra/cli.py:84	    sys.exit(launch_browser(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build))
+cloudra/cli.py:85	
+cloudra/cli.py:86	
+cloudra/cli.py:87	@cli.group(name="config")
+cloudra/cli.py:88	def config_cmd():
+cloudra/cli.py:89	    """配置管理（init, show, get, set）"""
+cloudra/cli.py:90	    pass
+cloudra/cli.py:91	
+cloudra/cli.py:92	
+cloudra/cli.py:93	@config_cmd.command(name="init")
+cloudra/cli.py:94	@click.option("--force", is_flag=True, help="覆盖已有配置文件")
+cloudra/cli.py:95	def config_init(force):
+cloudra/cli.py:96	    """交互式初始化配置文件。"""
+cloudra/cli.py:97	    cfg = get_config()
+cloudra/cli.py:98	    cfg_path = cfg.config_file
+cloudra/cli.py:99	
+cloudra/cli.py:100	    if cfg_path.exists() and not force:
+cloudra/cli.py:101	        console.print(f"[yellow]配置文件已存在: {cfg_path}[/yellow]")
+cloudra/cli.py:102	        console.print("使用 `--force` 覆盖，或直接编辑该文件。")
+cloudra/cli.py:103	        return
 \end{lstlisting}
 \clearpage
 \begin{lstlisting}[firstnumber=104,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/cli.py:104	def config_init(force):
-cloudra/cli.py:105	    """交互式初始化配置文件。"""
-cloudra/cli.py:106	    cfg = get_config()
-cloudra/cli.py:107	    cfg_path = cfg.config_file
-cloudra/cli.py:108	
-cloudra/cli.py:109	    if cfg_path.exists() and not force:
-cloudra/cli.py:110	        console.print(f"[yellow]配置文件已存在: {cfg_path}[/yellow]")
-cloudra/cli.py:111	        console.print("使用 `--force` 覆盖，或直接编辑该文件。")
-cloudra/cli.py:112	        return
-cloudra/cli.py:113	
-cloudra/cli.py:114	    console.print("[bold]Cloudra 配置初始化[/bold]\n")
-cloudra/cli.py:115	
-cloudra/cli.py:116	    # Prompt for values (use existing as defaults)
-cloudra/cli.py:117	    coord_model = click.prompt("Coordinator 模型", default=cfg.coordinator.model)
-cloudra/cli.py:118	    coord_url = click.prompt("Coordinator API 地址", default=cfg.coordinator.url)
-cloudra/cli.py:119	    coord_key = click.prompt("Coordinator API Key", default="", hide_input=True)
-cloudra/cli.py:120	
-cloudra/cli.py:121	    follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
-cloudra/cli.py:122	    follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
-cloudra/cli.py:123	    follower_key = click.prompt("Follower API Key", default="", hide_input=True)
-cloudra/cli.py:124	    openalex_key = click.prompt(
-cloudra/cli.py:125	        "OpenAlex API Key（可选，回车跳过；无 key 时匿名检索）",
-cloudra/cli.py:126	        default="",
-cloudra/cli.py:127	        hide_input=True,
-cloudra/cli.py:128	    )
-cloudra/cli.py:129	    openalex_mailto = click.prompt(
-cloudra/cli.py:130	        "OpenAlex 礼貌池邮箱（可选，回车跳过）",
-cloudra/cli.py:131	        default=cfg.openalex_mailto or "",
-cloudra/cli.py:132	    )
-cloudra/cli.py:133	
-cloudra/cli.py:134	    cfg.coordinator.model = coord_model
-cloudra/cli.py:135	    cfg.coordinator.url = coord_url
-cloudra/cli.py:136	    cfg.coordinator.key = coord_key or cfg.coordinator.key
-cloudra/cli.py:137	    cfg.follower.model = follower_model
-cloudra/cli.py:138	    cfg.follower.url = follower_url
-cloudra/cli.py:139	    cfg.follower.key = follower_key or cfg.follower.key
-cloudra/cli.py:140	    if openalex_key:
-cloudra/cli.py:141	        cfg.openalex_api_key = openalex_key
-cloudra/cli.py:142	    if openalex_mailto:
-cloudra/cli.py:143	        cfg.openalex_mailto = openalex_mailto
-cloudra/cli.py:144	
-cloudra/cli.py:145	    cfg.save()
-cloudra/cli.py:146	    console.print(f"[green]配置已保存至: {cfg_path}[/green]")
-cloudra/cli.py:147	
-cloudra/cli.py:148	
-cloudra/cli.py:149	@config_cmd.command(name="show")
-cloudra/cli.py:150	def config_show():
-cloudra/cli.py:151	    """显示当前生效的配置（敏感信息脱敏）。"""
-cloudra/cli.py:152	    cfg = get_config()
-cloudra/cli.py:153	    display = cfg.to_display_dict()
-cloudra/cli.py:154	
-cloudra/cli.py:155	    console.print(Panel("[bold]Cloudra 配置[/bold]", style="cyan"))
+cloudra/cli.py:104	
+cloudra/cli.py:105	    console.print("[bold]Cloudra 配置初始化[/bold]\n")
+cloudra/cli.py:106	
+cloudra/cli.py:107	    # Prompt for values (use existing as defaults)
+cloudra/cli.py:108	    coord_model = click.prompt("Coordinator 模型", default=cfg.coordinator.model)
+cloudra/cli.py:109	    coord_url = click.prompt("Coordinator API 地址", default=cfg.coordinator.url)
+cloudra/cli.py:110	    coord_key = click.prompt("Coordinator API Key", default="", hide_input=True)
+cloudra/cli.py:111	
+cloudra/cli.py:112	    follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
+cloudra/cli.py:113	    follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
+cloudra/cli.py:114	    follower_key = click.prompt("Follower API Key", default="", hide_input=True)
+cloudra/cli.py:115	    openalex_key = click.prompt(
+cloudra/cli.py:116	        "OpenAlex API Key（可选，回车跳过；无 key 时匿名检索）",
+cloudra/cli.py:117	        default="",
+cloudra/cli.py:118	        hide_input=True,
+cloudra/cli.py:119	    )
+cloudra/cli.py:120	    openalex_mailto = click.prompt(
+cloudra/cli.py:121	        "OpenAlex 礼貌池邮箱（可选，回车跳过）",
+cloudra/cli.py:122	        default=cfg.openalex_mailto or "",
+cloudra/cli.py:123	    )
+cloudra/cli.py:124	
+cloudra/cli.py:125	    cfg.coordinator.model = coord_model
+cloudra/cli.py:126	    cfg.coordinator.url = coord_url
+cloudra/cli.py:127	    cfg.coordinator.key = coord_key or cfg.coordinator.key
+cloudra/cli.py:128	    cfg.follower.model = follower_model
+cloudra/cli.py:129	    cfg.follower.url = follower_url
+cloudra/cli.py:130	    cfg.follower.key = follower_key or cfg.follower.key
+cloudra/cli.py:131	    if openalex_key:
+cloudra/cli.py:132	        cfg.openalex_api_key = openalex_key
+cloudra/cli.py:133	    if openalex_mailto:
+cloudra/cli.py:134	        cfg.openalex_mailto = openalex_mailto
+cloudra/cli.py:135	
+cloudra/cli.py:136	    cfg.save()
+cloudra/cli.py:137	    console.print(f"[green]配置已保存至: {cfg_path}[/green]")
+cloudra/cli.py:138	
+cloudra/cli.py:139	
+cloudra/cli.py:140	@config_cmd.command(name="show")
+cloudra/cli.py:141	def config_show():
+cloudra/cli.py:142	    """显示当前生效的配置（敏感信息脱敏）。"""
+cloudra/cli.py:143	    cfg = get_config()
+cloudra/cli.py:144	    display = cfg.to_display_dict()
+cloudra/cli.py:145	
+cloudra/cli.py:146	    console.print(Panel("[bold]Cloudra 配置[/bold]", style="cyan"))
+cloudra/cli.py:147	    console.print(f"[bold]Data Directory:[/bold] {display['data_dir']}")
+cloudra/cli.py:148	    console.print(f"[bold]Config File:[/bold] {display['config_file']}")
+cloudra/cli.py:149	    console.print()
+cloudra/cli.py:150	
+cloudra/cli.py:151	    table = Table(title="LLM 配置", show_header=True, header_style="bold magenta")
+cloudra/cli.py:152	    table.add_column("角色")
+cloudra/cli.py:153	    table.add_column("模型")
+cloudra/cli.py:154	    table.add_column("URL")
+cloudra/cli.py:155	    table.add_column("Key")
 \end{lstlisting}
 \clearpage
 \begin{lstlisting}[firstnumber=156,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/cli.py:156	    console.print(f"[bold]Data Directory:[/bold] {display['data_dir']}")
-cloudra/cli.py:157	    console.print(f"[bold]Config File:[/bold] {display['config_file']}")
-cloudra/cli.py:158	    console.print()
-cloudra/cli.py:159	
-cloudra/cli.py:160	    table = Table(title="LLM 配置", show_header=True, header_style="bold magenta")
-cloudra/cli.py:161	    table.add_column("角色")
-cloudra/cli.py:162	    table.add_column("模型")
-cloudra/cli.py:163	    table.add_column("URL")
-cloudra/cli.py:164	    table.add_column("Key")
-cloudra/cli.py:165	
-cloudra/cli.py:166	    table.add_row(
-cloudra/cli.py:167	        "Coordinator",
-cloudra/cli.py:168	        display['llm']['coordinator']['model'],
-cloudra/cli.py:169	        display['llm']['coordinator']['url'],
-cloudra/cli.py:170	        display['llm']['coordinator']['key'],
-cloudra/cli.py:171	    )
-cloudra/cli.py:172	    table.add_row(
-cloudra/cli.py:173	        "Follower",
-cloudra/cli.py:174	        display['llm']['follower']['model'],
-cloudra/cli.py:175	        display['llm']['follower']['url'],
-cloudra/cli.py:176	        display['llm']['follower']['key'],
-cloudra/cli.py:177	    )
-cloudra/cli.py:178	
-cloudra/cli.py:179	    console.print(table)
-cloudra/cli.py:180	    console.print()
-cloudra/cli.py:181	    oa_key = display.get("openalex_api_key", "(not set)")
-cloudra/cli.py:182	    oa_mail = display.get("openalex_mailto", "(not set)")
-cloudra/cli.py:183	    console.print(f"[bold]OpenAlex API Key:[/bold] {oa_key}")
-cloudra/cli.py:184	    console.print(f"[bold]OpenAlex mailto:[/bold] {oa_mail}")
-cloudra/cli.py:185	
-cloudra/cli.py:186	
-cloudra/cli.py:187	def _resolve_config_attr(cfg, key: str):
-cloudra/cli.py:188	    """Backward-compatible alias; 实现已下沉到 cloudra.infra.config 供 API 复用。"""
-cloudra/cli.py:189	    from cloudra.infra.config import resolve_config_attr
-cloudra/cli.py:190	    return resolve_config_attr(cfg, key)
-cloudra/cli.py:191	
-cloudra/cli.py:192	
-cloudra/cli.py:193	@config_cmd.command(name="get")
-cloudra/cli.py:194	@click.argument("key")
-cloudra/cli.py:195	def config_get(key):
-cloudra/cli.py:196	    """读取单个配置项。例如: cloudra config get coordinator.model"""
-cloudra/cli.py:197	    cfg = get_config()
-cloudra/cli.py:198	
-cloudra/cli.py:199	    target, final_key = _resolve_config_attr(cfg, key)
-cloudra/cli.py:200	    if target is None:
-cloudra/cli.py:201	        # Try without 'llm.' prefix for convenience
-cloudra/cli.py:202	        target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
-cloudra/cli.py:203	    if target is None:
-cloudra/cli.py:204	        target, final_key = _resolve_config_attr(cfg, f"follower.{key}")
-cloudra/cli.py:205	    if target is None:
-cloudra/cli.py:206	        console.print(f"[red]配置项不存在: {key}[/red]")
-cloudra/cli.py:207	        sys.exit(1)
+cloudra/cli.py:156	
+cloudra/cli.py:157	    table.add_row(
+cloudra/cli.py:158	        "Coordinator",
+cloudra/cli.py:159	        display['llm']['coordinator']['model'],
+cloudra/cli.py:160	        display['llm']['coordinator']['url'],
+cloudra/cli.py:161	        display['llm']['coordinator']['key'],
+cloudra/cli.py:162	    )
+cloudra/cli.py:163	    table.add_row(
+cloudra/cli.py:164	        "Follower",
+cloudra/cli.py:165	        display['llm']['follower']['model'],
+cloudra/cli.py:166	        display['llm']['follower']['url'],
+cloudra/cli.py:167	        display['llm']['follower']['key'],
+cloudra/cli.py:168	    )
+cloudra/cli.py:169	
+cloudra/cli.py:170	    console.print(table)
+cloudra/cli.py:171	    console.print()
+cloudra/cli.py:172	    oa_key = display.get("openalex_api_key", "(not set)")
+cloudra/cli.py:173	    oa_mail = display.get("openalex_mailto", "(not set)")
+cloudra/cli.py:174	    console.print(f"[bold]OpenAlex API Key:[/bold] {oa_key}")
+cloudra/cli.py:175	    console.print(f"[bold]OpenAlex mailto:[/bold] {oa_mail}")
+cloudra/cli.py:176	
+cloudra/cli.py:177	
+cloudra/cli.py:178	def _resolve_config_attr(cfg, key: str):
+cloudra/cli.py:179	    """Backward-compatible alias; 实现已下沉到 cloudra.infra.config 供 API 复用。"""
+cloudra/cli.py:180	    from cloudra.infra.config import resolve_config_attr
+cloudra/cli.py:181	    return resolve_config_attr(cfg, key)
+cloudra/cli.py:182	
+cloudra/cli.py:183	
+cloudra/cli.py:184	@config_cmd.command(name="get")
+cloudra/cli.py:185	@click.argument("key")
+cloudra/cli.py:186	def config_get(key):
+cloudra/cli.py:187	    """读取单个配置项。例如: cloudra config get coordinator.model"""
+cloudra/cli.py:188	    cfg = get_config()
+cloudra/cli.py:189	
+cloudra/cli.py:190	    target, final_key = _resolve_config_attr(cfg, key)
+cloudra/cli.py:191	    if target is None:
+cloudra/cli.py:192	        # Try without 'llm.' prefix for convenience
+cloudra/cli.py:193	        target, final_key = _resolve_config_attr(cfg, f"coordinator.{key}")
+cloudra/cli.py:194	    if target is None:
+cloudra/cli.py:195	        target, final_key = _resolve_config_attr(cfg, f"follower.{key}")
+cloudra/cli.py:196	    if target is None:
+cloudra/cli.py:197	        console.print(f"[red]配置项不存在: {key}[/red]")
+cloudra/cli.py:198	        sys.exit(1)
+cloudra/cli.py:199	
+cloudra/cli.py:200	    value = getattr(target, final_key)
+cloudra/cli.py:201	
+cloudra/cli.py:202	    # Mask keys
+cloudra/cli.py:203	    if "key" in key.lower() and isinstance(value, str) and value:
+cloudra/cli.py:204	        value = "***"
+cloudra/cli.py:205	
+cloudra/cli.py:206	    console.print(value)
+cloudra/cli.py:207	
 \end{lstlisting}
 \clearpage
 \begin{lstlisting}[firstnumber=208,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/cli.py:208	
-cloudra/cli.py:209	    value = getattr(target, final_key)
-cloudra/cli.py:210	
-cloudra/cli.py:211	    # Mask keys
-cloudra/cli.py:212	    if "key" in key.lower() and isinstance(value, str) and value:
-cloudra/cli.py:213	        value = "***"
-cloudra/cli.py:214	
-cloudra/cli.py:215	    console.print(value)
-cloudra/cli.py:216	
-cloudra/cli.py:217	
-cloudra/cli.py:218	@config_cmd.command(name="set")
-cloudra/cli.py:219	@click.argument("key")
-cloudra/cli.py:220	@click.argument("value")
-cloudra/cli.py:221	def config_set(key, value):
-cloudra/cli.py:222	    """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
-cloudra/cli.py:223	    from cloudra.infra.config import set_config_value
-cloudra/cli.py:224	
-cloudra/cli.py:225	    try:
-cloudra/cli.py:226	        set_config_value(key, value)
-cloudra/cli.py:227	    except ValueError as exc:
-cloudra/cli.py:228	        console.print(f"[red]{exc}[/red]")
-cloudra/cli.py:229	        sys.exit(1)
-cloudra/cli.py:230	    console.print(f"[green]已设置 {key} = {value}[/green]")
-cloudra/cli.py:231	
-cloudra/cli.py:232	
-cloudra/cli.py:233	@cli.command()
-cloudra/cli.py:234	@click.argument("conv_id")
-cloudra/cli.py:235	def logs(conv_id):
-cloudra/cli.py:236	    """查看某个对话的日志。"""
-cloudra/cli.py:237	    log_dir = paths.logs_dir(conv_id)
-cloudra/cli.py:238	
-cloudra/cli.py:239	    if not log_dir.exists():
-cloudra/cli.py:240	        console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
-cloudra/cli.py:241	        return
-cloudra/cli.py:242	
-cloudra/cli.py:243	    for log_file in sorted(log_dir.iterdir()):
-cloudra/cli.py:244	        if log_file.is_file():
-cloudra/cli.py:245	            console.print(Panel(f"[bold]{log_file.name}[/bold]", style="blue"))
-cloudra/cli.py:246	            try:
-cloudra/cli.py:247	                with open(log_file, "r", encoding="utf-8") as f:
-cloudra/cli.py:248	                    content = f.read()
-cloudra/cli.py:249	                console.print(content[:5000] if len(content) > 5000 else content)
-cloudra/cli.py:250	                if len(content) > 5000:
-cloudra/cli.py:251	                    console.print("[dim]... (日志过长，已截断)[/dim]")
-cloudra/cli.py:252	            except Exception as e:
-cloudra/cli.py:253	                console.print(f"[red]读取日志失败: {e}[/red]")
-cloudra/cli.py:254	            console.print()
+cloudra/cli.py:209	@config_cmd.command(name="set")
+cloudra/cli.py:210	@click.argument("key")
+cloudra/cli.py:211	@click.argument("value")
+cloudra/cli.py:212	def config_set(key, value):
+cloudra/cli.py:213	    """设置单个配置项。例如: cloudra config set coordinator.model gpt-4o"""
+cloudra/cli.py:214	    from cloudra.infra.config import set_config_value
+cloudra/cli.py:215	
+cloudra/cli.py:216	    try:
+cloudra/cli.py:217	        set_config_value(key, value)
+cloudra/cli.py:218	    except ValueError as exc:
+cloudra/cli.py:219	        console.print(f"[red]{exc}[/red]")
+cloudra/cli.py:220	        sys.exit(1)
+cloudra/cli.py:221	    console.print(f"[green]已设置 {key} = {value}[/green]")
+cloudra/cli.py:222	
+cloudra/cli.py:223	
+cloudra/cli.py:224	@cli.command()
+cloudra/cli.py:225	@click.argument("conv_id")
+cloudra/cli.py:226	def logs(conv_id):
+cloudra/cli.py:227	    """查看某个对话的日志。"""
+cloudra/cli.py:228	    log_dir = paths.logs_dir(conv_id)
+cloudra/cli.py:229	
+cloudra/cli.py:230	    if not log_dir.exists():
+cloudra/cli.py:231	        console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
+cloudra/cli.py:232	        return
+cloudra/cli.py:233	
+cloudra/cli.py:234	    for log_file in sorted(log_dir.iterdir()):
+cloudra/cli.py:235	        if log_file.is_file():
+cloudra/cli.py:236	            console.print(Panel(f"[bold]{log_file.name}[/bold]", style="blue"))
+cloudra/cli.py:237	            try:
+cloudra/cli.py:238	                with open(log_file, "r", encoding="utf-8") as f:
+cloudra/cli.py:239	                    content = f.read()
+cloudra/cli.py:240	                console.print(content[:5000] if len(content) > 5000 else content)
+cloudra/cli.py:241	                if len(content) > 5000:
+cloudra/cli.py:242	                    console.print("[dim]... (日志过长，已截断)[/dim]")
+cloudra/cli.py:243	            except Exception as e:
+cloudra/cli.py:244	                console.print(f"[red]读取日志失败: {e}[/red]")
+cloudra/cli.py:245	            console.print()
+cloudra/cli.py:246	
+cloudra/cli.py:247	
+cloudra/cli.py:248	@cli.command()
+cloudra/cli.py:249	def skills():
+cloudra/cli.py:250	    """列出可用的 Skills。"""
+cloudra/cli.py:251	    from cloudra.base.skill_class import skill_loader
+cloudra/cli.py:252	
+cloudra/cli.py:253	    loader = skill_loader()
+cloudra/cli.py:254	    skills_data = loader.skill_datas_get()
 cloudra/cli.py:255	
-cloudra/cli.py:256	
-cloudra/cli.py:257	@cli.command()
-cloudra/cli.py:258	def skills():
-cloudra/cli.py:259	    """列出可用的 Skills。"""
+cloudra/cli.py:256	    if not skills_data:
+cloudra/cli.py:257	        console.print("[yellow]暂无可用 Skills。[/yellow]")
+cloudra/cli.py:258	        return
+cloudra/cli.py:259	
 \end{lstlisting}
 \clearpage
 \begin{lstlisting}[firstnumber=260,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/cli.py:260	    from cloudra.base.skill_class import skill_loader
-cloudra/cli.py:261	
-cloudra/cli.py:262	    loader = skill_loader()
-cloudra/cli.py:263	    skills_data = loader.skill_datas_get()
-cloudra/cli.py:264	
-cloudra/cli.py:265	    if not skills_data:
-cloudra/cli.py:266	        console.print("[yellow]暂无可用 Skills。[/yellow]")
-cloudra/cli.py:267	        return
-cloudra/cli.py:268	
-cloudra/cli.py:269	    table = Table(title="可用 Skills", show_header=True, header_style="bold green")
-cloudra/cli.py:270	    table.add_column("名称", style="cyan")
-cloudra/cli.py:271	    table.add_column("描述")
+cloudra/cli.py:260	    table = Table(title="可用 Skills", show_header=True, header_style="bold green")
+cloudra/cli.py:261	    table.add_column("名称", style="cyan")
+cloudra/cli.py:262	    table.add_column("描述")
+cloudra/cli.py:263	
+cloudra/cli.py:264	    for skill in skills_data:
+cloudra/cli.py:265	        table.add_row(
+cloudra/cli.py:266	            skill.get("name", "N/A"),
+cloudra/cli.py:267	            skill.get("description", "")[:80],
+cloudra/cli.py:268	        )
+cloudra/cli.py:269	
+cloudra/cli.py:270	    console.print(table)
+cloudra/cli.py:271	
 cloudra/cli.py:272	
-cloudra/cli.py:273	    for skill in skills_data:
-cloudra/cli.py:274	        table.add_row(
-cloudra/cli.py:275	            skill.get("name", "N/A"),
-cloudra/cli.py:276	            skill.get("description", "")[:80],
-cloudra/cli.py:277	        )
+cloudra/cli.py:273	@cli.group(name="backup")
+cloudra/cli.py:274	def backup_cmd():
+cloudra/cli.py:275	    """创建、校验和恢复 Cloudra 数据备份。"""
+cloudra/cli.py:276	    pass
+cloudra/cli.py:277	
 cloudra/cli.py:278	
-cloudra/cli.py:279	    console.print(table)
-cloudra/cli.py:280	
-cloudra/cli.py:281	
-cloudra/cli.py:282	@cli.group(name="backup")
-cloudra/cli.py:283	def backup_cmd():
-cloudra/cli.py:284	    """创建、校验和恢复 Cloudra 数据备份。"""
-cloudra/cli.py:285	    pass
-cloudra/cli.py:286	
-cloudra/cli.py:287	
-cloudra/cli.py:288	@backup_cmd.command(name="create")
-cloudra/cli.py:289	@click.argument("destination", type=click.Path(path_type=Path))
-cloudra/cli.py:290	def backup_create(destination: Path):
-cloudra/cli.py:291	    """在线快照 SQLite，并创建带 SHA-256 清单的备份。"""
-cloudra/cli.py:292	    from cloudra.infra.operations import BackupError, create_backup
+cloudra/cli.py:279	@backup_cmd.command(name="create")
+cloudra/cli.py:280	@click.argument("destination", type=click.Path(path_type=Path))
+cloudra/cli.py:281	def backup_create(destination: Path):
+cloudra/cli.py:282	    """在线快照 SQLite，并创建带 SHA-256 清单的备份。"""
+cloudra/cli.py:283	    from cloudra.infra.operations import BackupError, create_backup
+cloudra/cli.py:284	
+cloudra/cli.py:285	    try:
+cloudra/cli.py:286	        manifest = create_backup(Path(get_config().data_dir), destination)
+cloudra/cli.py:287	    except BackupError as exc:
+cloudra/cli.py:288	        raise click.ClickException(str(exc)) from exc
+cloudra/cli.py:289	    console.print(
+cloudra/cli.py:290	        f"[green]备份完成:[/green] {destination.resolve()} "
+cloudra/cli.py:291	        f"({len(manifest['files'])} files)"
+cloudra/cli.py:292	    )
 cloudra/cli.py:293	
-cloudra/cli.py:294	    try:
-cloudra/cli.py:295	        manifest = create_backup(Path(get_config().data_dir), destination)
-cloudra/cli.py:296	    except BackupError as exc:
-cloudra/cli.py:297	        raise click.ClickException(str(exc)) from exc
-cloudra/cli.py:298	    console.print(
-cloudra/cli.py:299	        f"[green]备份完成:[/green] {destination.resolve()} "
-cloudra/cli.py:300	        f"({len(manifest['files'])} files)"
-cloudra/cli.py:301	    )
-cloudra/cli.py:302	
-cloudra/cli.py:303	
-cloudra/cli.py:304	@backup_cmd.command(name="verify")
-cloudra/cli.py:305	@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-cloudra/cli.py:306	def backup_verify(archive: Path):
-cloudra/cli.py:307	    """校验备份清单、成员范围与全部 SHA-256。"""
-cloudra/cli.py:308	    from cloudra.infra.operations import BackupError, verify_backup
-cloudra/cli.py:309	
-cloudra/cli.py:310	    try:
-cloudra/cli.py:311	        manifest = verify_backup(archive)
+cloudra/cli.py:294	
+cloudra/cli.py:295	@backup_cmd.command(name="verify")
+cloudra/cli.py:296	@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+cloudra/cli.py:297	def backup_verify(archive: Path):
+cloudra/cli.py:298	    """校验备份清单、成员范围与全部 SHA-256。"""
+cloudra/cli.py:299	    from cloudra.infra.operations import BackupError, verify_backup
+cloudra/cli.py:300	
+cloudra/cli.py:301	    try:
+cloudra/cli.py:302	        manifest = verify_backup(archive)
+cloudra/cli.py:303	    except BackupError as exc:
+cloudra/cli.py:304	        raise click.ClickException(str(exc)) from exc
+cloudra/cli.py:305	    console.print(f"[green]备份有效[/green] ({len(manifest['files'])} files)")
+cloudra/cli.py:306	
+cloudra/cli.py:307	
+cloudra/cli.py:308	@backup_cmd.command(name="restore")
+cloudra/cli.py:309	@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+cloudra/cli.py:310	@click.argument("destination", type=click.Path(path_type=Path))
+cloudra/cli.py:311	def backup_restore(archive: Path, destination: Path):
 \end{lstlisting}
 \clearpage
 \begin{lstlisting}[firstnumber=312,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/cli.py:312	    except BackupError as exc:
-cloudra/cli.py:313	        raise click.ClickException(str(exc)) from exc
-cloudra/cli.py:314	    console.print(f"[green]备份有效[/green] ({len(manifest['files'])} files)")
-cloudra/cli.py:315	
-cloudra/cli.py:316	
-cloudra/cli.py:317	@backup_cmd.command(name="restore")
-cloudra/cli.py:318	@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-cloudra/cli.py:319	@click.argument("destination", type=click.Path(path_type=Path))
-cloudra/cli.py:320	def backup_restore(archive: Path, destination: Path):
-cloudra/cli.py:321	    """恢复到不存在或空的目录；不会覆盖现有数据。"""
-cloudra/cli.py:322	    from cloudra.infra.operations import BackupError, restore_backup
+cloudra/cli.py:312	    """恢复到不存在或空的目录；不会覆盖现有数据。"""
+cloudra/cli.py:313	    from cloudra.infra.operations import BackupError, restore_backup
+cloudra/cli.py:314	
+cloudra/cli.py:315	    try:
+cloudra/cli.py:316	        manifest = restore_backup(archive, destination)
+cloudra/cli.py:317	    except BackupError as exc:
+cloudra/cli.py:318	        raise click.ClickException(str(exc)) from exc
+cloudra/cli.py:319	    console.print(
+cloudra/cli.py:320	        f"[green]恢复完成:[/green] {destination.resolve()} "
+cloudra/cli.py:321	        f"({len(manifest['files'])} files)"
+cloudra/cli.py:322	    )
 cloudra/cli.py:323	
-cloudra/cli.py:324	    try:
-cloudra/cli.py:325	        manifest = restore_backup(archive, destination)
-cloudra/cli.py:326	    except BackupError as exc:
-cloudra/cli.py:327	        raise click.ClickException(str(exc)) from exc
-cloudra/cli.py:328	    console.print(
-cloudra/cli.py:329	        f"[green]恢复完成:[/green] {destination.resolve()} "
-cloudra/cli.py:330	        f"({len(manifest['files'])} files)"
-cloudra/cli.py:331	    )
-cloudra/cli.py:332	
-cloudra/cli.py:333	
-cloudra/cli.py:334	def main():
-cloudra/cli.py:335	    """CLI 入口函数。"""
-cloudra/cli.py:336	    cli()
+cloudra/cli.py:324	
+cloudra/cli.py:325	def main():
+cloudra/cli.py:326	    """CLI 入口函数。"""
+cloudra/cli.py:327	    cli()
 cloudra/core/__init__.py:1	"""cloudra.core 子包。"""
 cloudra/core/agent.py:1	import asyncio
 cloudra/core/agent.py:2	import hashlib
@@ -1293,9 +1284,6 @@ cloudra/core/agent.py:23	from cloudra.persistence.workspace import resolve_worki
 cloudra/core/agent.py:24	from cloudra.runtime.prompt_assembler import (
 cloudra/core/agent.py:25	    PromptAssembler,
 cloudra/core/agent.py:26	    PromptAssembly,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=27,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:27	    load_role_prompt,
 cloudra/core/agent.py:28	)
 cloudra/core/agent.py:29	from cloudra.tools import ToolEntry, get_tools_lst
@@ -1305,6 +1293,9 @@ cloudra/core/agent.py:32	# todo 提醒注入间隔（推理轮数）：每 N 轮
 cloudra/core/agent.py:33	_TODO_REMIND_EVERY = 10
 cloudra/core/agent.py:34	
 cloudra/core/agent.py:35	# 模型给出结论但未调用 stop 时，注入一次目标确认提醒（一次性 force）
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=36,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:36	_GOAL_CONFIRM_REMINDER = (
 cloudra/core/agent.py:37	    "[System] You just stated a conclusion without calling the stop tool. "
 cloudra/core/agent.py:38	    "The task only ends after you call stop; prose alone leaves the loop spinning. "
@@ -1348,9 +1339,6 @@ cloudra/core/agent.py:75	    12.agent身份prompt（prompt）
 cloudra/core/agent.py:76	    13.agent上下文管理器（context_manager）
 cloudra/core/agent.py:77	    14.agent输出方式（is_stream）
 cloudra/core/agent.py:78	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=79,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:79	    该类的其他方法:
 cloudra/core/agent.py:80	    权限：has_write_permission，has_read_permission，script_run_permission，destructive_permission(均为布尔值输出)
 cloudra/core/agent.py:81	    llm_call方法：调用llm，输出ChatResponse或ChatStream
@@ -1360,6 +1348,9 @@ cloudra/core/agent.py:84	    model_config = {"arbitrary_types_allowed": True}
 cloudra/core/agent.py:85	
 cloudra/core/agent.py:86	    #唯一标识符
 cloudra/core/agent.py:87	    id: str
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=88,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:88	
 cloudra/core/agent.py:89	    #agent名称
 cloudra/core/agent.py:90	    name: str
@@ -1403,9 +1394,6 @@ cloudra/core/agent.py:127
 cloudra/core/agent.py:128	    #目标赋予prompt，如：“你的任务是......”
 cloudra/core/agent.py:129	    query: str
 cloudra/core/agent.py:130	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=131,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:131	    is_stream: bool
 cloudra/core/agent.py:132	
 cloudra/core/agent.py:133	    # 当前 Agent 使用的模型是否支持视觉输入（多模态）
@@ -1415,6 +1403,9 @@ cloudra/core/agent.py:136	        return False
 cloudra/core/agent.py:137	
 cloudra/core/agent.py:138	    # 可选的会话级唯一标识。子 Agent 被启动时会被赋予独立的 session_id，
 cloudra/core/agent.py:139	    # 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=140,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:140	    session_id: Optional[str] = None
 cloudra/core/agent.py:141	
 cloudra/core/agent.py:142	    # 上下文管理器：Agent 上下文的唯一真相来源
@@ -1458,9 +1449,6 @@ cloudra/core/agent.py:179	    def _resolve_working_directory(self) -> "Agent":
 cloudra/core/agent.py:180	        self.working_directory = resolve_working_directory(self.working_directory)
 cloudra/core/agent.py:181	        return self
 cloudra/core/agent.py:182	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=183,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:183	    def _init_context_manager(self) -> None:
 cloudra/core/agent.py:184	        '''初始化本 Agent 的 ContextManager。'''
 cloudra/core/agent.py:185	        self.context_manager = ContextManager(
@@ -1470,6 +1458,9 @@ cloudra/core/agent.py:188	            prompt=self.prompt,
 cloudra/core/agent.py:189	            query=self.query,
 cloudra/core/agent.py:190	            session_id=getattr(self, 'session_id', None),
 cloudra/core/agent.py:191	            on_compaction_progress=self._report_compaction_progress,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=192,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:192	        )
 cloudra/core/agent.py:193	
 cloudra/core/agent.py:194	    async def _report_compaction_progress(self, progress: dict) -> None:
@@ -1513,9 +1504,6 @@ cloudra/core/agent.py:231	            tool_instance = tool
 cloudra/core/agent.py:232	        else:
 cloudra/core/agent.py:233	            tool_instance = tool.instantiate()
 cloudra/core/agent.py:234	        tool_perms = tool_instance.tool_permission_all()
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=235,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:235	        agent_perms = self.permission_all()
 cloudra/core/agent.py:236	        return check_permission(agent_perms, tool_perms)
 cloudra/core/agent.py:237	
@@ -1525,6 +1513,9 @@ cloudra/core/agent.py:240	        """Return tools permitted for both this Agent 
 cloudra/core/agent.py:241	
 cloudra/core/agent.py:242	        ``tools`` is injectable so the reAct dispatcher can apply the exact
 cloudra/core/agent.py:243	        same checks to its current registry snapshot.
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=244,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:244	        """
 cloudra/core/agent.py:245	        tools = filter_tools_for_runtime(get_tools_lst() if tools is None else tools)
 cloudra/core/agent.py:246	        if normalize_orchestration_mode(self.orchestration_mode) is OrchestrationMode.STANDARD:
@@ -1568,9 +1559,6 @@ cloudra/core/agent.py:283
 cloudra/core/agent.py:284	    def permission_all(self) -> Permission:
 cloudra/core/agent.py:285	        perms = Permission.NONE
 cloudra/core/agent.py:286	        if self.has_read_permission():
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=287,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:287	            perms |= Permission.READ
 cloudra/core/agent.py:288	        if self.has_write_permission():
 cloudra/core/agent.py:289	            perms |= Permission.WRITE
@@ -1580,6 +1568,9 @@ cloudra/core/agent.py:292	        if self.script_run_permission():
 cloudra/core/agent.py:293	            perms |= Permission.SCRIPT
 cloudra/core/agent.py:294	        if self.destructive_permission():
 cloudra/core/agent.py:295	            perms |= Permission.DESTRUCTIVE
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=296,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:296	        return perms
 cloudra/core/agent.py:297	
 cloudra/core/agent.py:298	    def _get_llm_client(self) -> LLMClient:
@@ -1623,9 +1614,6 @@ cloudra/core/agent.py:335	            from cloudra.tools.Plantool._store import 
 cloudra/core/agent.py:336	
 cloudra/core/agent.py:337	            if load_json(agent_store_path(self, "todos.json"), default=None):
 cloudra/core/agent.py:338	                return (
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=339,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:339	                    "[System] You are maintaining a todo list. Before this round, call "
 cloudra/core/agent.py:340	                    "todo_read to see the current list, confirm which item is in progress, then decide the next step; "
 cloudra/core/agent.py:341	                    "after finishing an item, immediately todo_write to update its status."
@@ -1635,6 +1623,9 @@ cloudra/core/agent.py:344	            pass
 cloudra/core/agent.py:345	        return ""
 cloudra/core/agent.py:346	
 cloudra/core/agent.py:347	    def _should_inject_todo_reminder(self) -> bool:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=348,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/core/agent.py:348	        """todo 提醒注入节奏：每 _TODO_REMIND_EVERY 轮一次，或 supervisor
 cloudra/core/agent.py:349	        反对后强制注入一次（supervisor 反对是重要转向节点，模型需要重新
 cloudra/core/agent.py:350	        对照清单校正方向）。"""
@@ -1678,6 +1669,15 @@ cloudra/core/agent.py:387	            and self._tools_schema_revision is None
 cloudra/core/agent.py:388	        ):
 cloudra/core/agent.py:389	            return self._tools_schema_cache
 cloudra/core/agent.py:390	        available_entries = self.get_available_tools()
+cloudra/core/agent.py:391	        revision = tuple(sorted(entry.tool_name for entry in available_entries))
+cloudra/core/agent.py:392	        if (
+cloudra/core/agent.py:393	            self._tools_schema_cache is None
+cloudra/core/agent.py:394	            or self._tools_schema_revision != revision
+cloudra/core/agent.py:395	        ):
+cloudra/core/agent.py:396	            available_tool_classes = []
+cloudra/core/agent.py:397	            for entry in available_entries:
+cloudra/core/agent.py:398	                tool_instance = entry.instantiate(subagent=self)
+cloudra/core/agent.py:399	                available_tool_classes.append(tool_instance.tool_schema_json())
 \end{lstlisting}
 \clearpage
 \end{document}

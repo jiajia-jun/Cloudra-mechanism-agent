@@ -30,16 +30,7 @@
 \setlength{\headheight}{14pt}
 \begin{document}
 \setcounter{page}{745}
-\begin{lstlisting}[firstnumber=67,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/command_analyzer.py:67	        'rm', 'mv', 'cp', 'rmdir', 'unlink',
-cloudra/tools/core/command_analyzer.py:68	        'docker', 'docker-compose', 'podman',
-cloudra/tools/core/command_analyzer.py:69	        'kubectl', 'kubectx', 'kubens',
-cloudra/tools/core/command_analyzer.py:70	        'ssh', 'scp', 'sftp', 'rsync',
-cloudra/tools/core/command_analyzer.py:71	        'wget', 'curl',
-cloudra/tools/core/command_analyzer.py:72	        'chmod', 'chown', 'chgrp',
-cloudra/tools/core/command_analyzer.py:73	        'mkfs', 'dd', 'fdisk', 'parted',
-cloudra/tools/core/command_analyzer.py:74	        'kill', 'pkill', 'killall',
-cloudra/tools/core/command_analyzer.py:75	        'shutdown', 'reboot', 'poweroff',
+\begin{lstlisting}[firstnumber=76,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:76	        'tar', 'zip', 'unzip', 'gzip', 'gunzip',
 cloudra/tools/core/command_analyzer.py:77	        'source', 'export',
 cloudra/tools/core/command_analyzer.py:78	        'pip', 'pip3', 'conda', 'npm', 'npx', 'yarn',
@@ -83,9 +74,6 @@ cloudra/tools/core/command_analyzer.py:115	        for tok in tokens:
 cloudra/tools/core/command_analyzer.py:116	            for pattern in cls.REDIRECT_PATTERNS:
 cloudra/tools/core/command_analyzer.py:117	                if pattern.fullmatch(tok):
 cloudra/tools/core/command_analyzer.py:118	                    analysis.has_redirect = True
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=119,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:119	                    break
 cloudra/tools/core/command_analyzer.py:120	            # Pipes in Windows are also |
 cloudra/tools/core/command_analyzer.py:121	            if tok in ('|', '|&'):
@@ -95,6 +83,9 @@ cloudra/tools/core/command_analyzer.py:124	        # 3. Split by pipes to get in
 cloudra/tools/core/command_analyzer.py:125	        pipe_indices = [-1]
 cloudra/tools/core/command_analyzer.py:126	        for i, tok in enumerate(tokens):
 cloudra/tools/core/command_analyzer.py:127	            if tok == '|' or tok == '|&':
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=128,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:128	                pipe_indices.append(i)
 cloudra/tools/core/command_analyzer.py:129	        pipe_indices.append(len(tokens))
 cloudra/tools/core/command_analyzer.py:130	
@@ -138,9 +129,6 @@ cloudra/tools/core/command_analyzer.py:167	        analysis.primary_cmd = comman
 cloudra/tools/core/command_analyzer.py:168	        analysis.pipe_commands = commands
 cloudra/tools/core/command_analyzer.py:169	
 cloudra/tools/core/command_analyzer.py:170	        # 4. Classify each command in the pipeline
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=171,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:171	        perms = Permission.NONE
 cloudra/tools/core/command_analyzer.py:172	        for cmd in commands:
 cloudra/tools/core/command_analyzer.py:173	            cmd_lower = cmd.lower()
@@ -150,6 +138,9 @@ cloudra/tools/core/command_analyzer.py:176
 cloudra/tools/core/command_analyzer.py:177	            if cmd_lower in cls.READ_CMDS or cmd_core in cls.READ_CMDS:
 cloudra/tools/core/command_analyzer.py:178	                perms |= Permission.READ
 cloudra/tools/core/command_analyzer.py:179	            if cmd_lower in cls.WRITE_CMDS or cmd_core in cls.WRITE_CMDS:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=180,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:180	                perms |= Permission.WRITE
 cloudra/tools/core/command_analyzer.py:181	            if cmd_lower in cls.SCRIPT_CMDS or cmd_core in cls.SCRIPT_CMDS:
 cloudra/tools/core/command_analyzer.py:182	                perms |= Permission.SCRIPT
@@ -193,9 +184,6 @@ cloudra/tools/core/command_analyzer.py:219	            # Clean up Windows paths
 cloudra/tools/core/command_analyzer.py:220	            cmd_clean = cmd_full.replace('\\', '/')
 cloudra/tools/core/command_analyzer.py:221	            cmd = cmd_clean.split('/')[-1].lower()
 cloudra/tools/core/command_analyzer.py:222	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=223,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:223	            # Remove .exe
 cloudra/tools/core/command_analyzer.py:224	            if cmd.endswith('.exe'):
 cloudra/tools/core/command_analyzer.py:225	                cmd = cmd[:-4]
@@ -205,6 +193,9 @@ cloudra/tools/core/command_analyzer.py:228	            analysis.pipe_commands = 
 cloudra/tools/core/command_analyzer.py:229	
 cloudra/tools/core/command_analyzer.py:230	            perms = Permission.NONE
 cloudra/tools/core/command_analyzer.py:231	            cmd_core = cmd.rstrip('0123456789.')
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=232,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/command_analyzer.py:232	
 cloudra/tools/core/command_analyzer.py:233	            for pool, perm in [
 cloudra/tools/core/command_analyzer.py:234	                (cls.READ_CMDS, Permission.READ),
@@ -248,9 +239,6 @@ cloudra/tools/core/coord_guard.py:24	_COORD_LINE = re.compile(
 cloudra/tools/core/coord_guard.py:25	    r"^\s*[A-Z][a-z]?\s+"
 cloudra/tools/core/coord_guard.py:26	    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s+"
 cloudra/tools/core/coord_guard.py:27	    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s+"
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=28,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/coord_guard.py:28	    r"[-+]?\d+\.\d+(?:[eE][-+]?\d+)?\s*$"
 cloudra/tools/core/coord_guard.py:29	)
 cloudra/tools/core/coord_guard.py:30	
@@ -260,6 +248,9 @@ cloudra/tools/core/coord_guard.py:33	_GEOMETRY_EXTENSIONS = frozenset({".xyz", "
 cloudra/tools/core/coord_guard.py:34	
 cloudra/tools/core/coord_guard.py:35	# 至少连续这么多坐标行才判定为坐标块，避免误伤零散引用。
 cloudra/tools/core/coord_guard.py:36	MIN_COORD_LINES = 3
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=37,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/coord_guard.py:37	
 cloudra/tools/core/coord_guard.py:38	# 结构化坐标来源提示 + 绕开审查的定性：手写坐标不与计算记录绑定，
 cloudra/tools/core/coord_guard.py:39	# 挂 DAG 证据时可能不被采信，也绕过了 supervisor 对证据等级的审查。
@@ -303,9 +294,6 @@ cloudra/tools/core/coord_guard.py:76	    if count_consecutive_coord_lines(text) 
 cloudra/tools/core/coord_guard.py:77	        return None
 cloudra/tools/core/coord_guard.py:78	    if path is not None:
 cloudra/tools/core/coord_guard.py:79	        if not is_geometry_path(path):
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=80,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/coord_guard.py:80	            return None
 cloudra/tools/core/coord_guard.py:81	        target = path
 cloudra/tools/core/coord_guard.py:82	    else:
@@ -315,6 +303,9 @@ cloudra/tools/core/coord_guard.py:85	        target = "a geometry/compute input 
 cloudra/tools/core/coord_guard.py:86	    return f"[Warning: suspected handwritten coordinates] Wrote a typed-in coordinate block to {target}. {_GUIDANCE}"
 cloudra/tools/core/delegation_guard.py:1	"""Coordinator 自行下场计算的轻量提示（软警告，不硬拦）。
 cloudra/tools/core/delegation_guard.py:2	
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=3,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/delegation_guard.py:3	背景：Coordinator 故意持有工具全集，方便简单任务自己做；但长上下文下
 cloudra/tools/core/delegation_guard.py:4	容易把「自己做」放大成默认路径，本该派给 dft / small_mol / md 的正式计算
 cloudra/tools/core/delegation_guard.py:5	也自己 submit_compute_job。这里只在成功提交时附一句提醒，放行执行。
@@ -358,9 +349,6 @@ cloudra/tools/core/gaussian_frames.py:18	import re
 cloudra/tools/core/gaussian_frames.py:19	from dataclasses import dataclass, field
 cloudra/tools/core/gaussian_frames.py:20	
 cloudra/tools/core/gaussian_frames.py:21	EV_PER_HARTREE = 27.211386245988
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=22,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:22	
 cloudra/tools/core/gaussian_frames.py:23	
 cloudra/tools/core/gaussian_frames.py:24	@dataclass
@@ -370,6 +358,9 @@ cloudra/tools/core/gaussian_frames.py:27
 cloudra/tools/core/gaussian_frames.py:28	    frame: int
 cloudra/tools/core/gaussian_frames.py:29	    path_number: int | None = None          # IRC 路径号（1=正向 2=反向），其余任务为 None
 cloudra/tools/core/gaussian_frames.py:30	    reaction_coordinate: float | None = None  # IRC 反应坐标 / 扫描参数值
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=31,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:31	    scf_energy_hartree: float | None = None
 cloudra/tools/core/gaussian_frames.py:32	    frequencies_cm: list[float] = field(default_factory=list)  # 有符号，负值=虚频
 cloudra/tools/core/gaussian_frames.py:33	    xyz: str = ""                            # 标准 XYZ 块（原子数行+注释行+坐标行）
@@ -413,9 +404,6 @@ cloudra/tools/core/gaussian_frames.py:70
 cloudra/tools/core/gaussian_frames.py:71	    依据路由卡（` #` 回显行）+ 结构标记兜底（IRC 的 "IRC-IRC-IRC" 块与
 cloudra/tools/core/gaussian_frames.py:72	    "Summary of reaction path following"，扫描的 "Summary of Optimized
 cloudra/tools/core/gaussian_frames.py:73	    Potential Surface Scan" 等）。`ts` 只在路由中出现 opt=(ts...) / opt=ts 时给出。
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=74,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:74	
 cloudra/tools/core/gaussian_frames.py:75	    限制：Link1 多步任务不拆分 section，按整文件取合集（v1）。
 cloudra/tools/core/gaussian_frames.py:76	    """
@@ -425,6 +413,9 @@ cloudra/tools/core/gaussian_frames.py:79	    jobs: set[str] = set()
 cloudra/tools/core/gaussian_frames.py:80	
 cloudra/tools/core/gaussian_frames.py:81	    if (
 cloudra/tools/core/gaussian_frames.py:82	        re.search(r"\birc\b|irc\s*[=(]", route)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=83,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:83	        or "IRC-IRC-IRC" in text
 cloudra/tools/core/gaussian_frames.py:84	        or "Summary of reaction path following" in text
 cloudra/tools/core/gaussian_frames.py:85	    ):
@@ -468,9 +459,6 @@ cloudra/tools/core/gaussian_frames.py:122	_TS_ENERGY_RE = re.compile(r"Energies 
 cloudra/tools/core/gaussian_frames.py:123	_SUMMARY_TABLE_RE = re.compile(
 cloudra/tools/core/gaussian_frames.py:124	    r"Summary of reaction path following\s*\n\s*-+\s*\n\s*Energy\s+RxCoord\s*\n(.*?)\n\s*-+",
 cloudra/tools/core/gaussian_frames.py:125	    re.S,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=126,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:126	)
 cloudra/tools/core/gaussian_frames.py:127	
 cloudra/tools/core/gaussian_frames.py:128	
@@ -480,6 +468,9 @@ cloudra/tools/core/gaussian_frames.py:131	    return len(s) > 3 and set(s) == {"
 cloudra/tools/core/gaussian_frames.py:132	
 cloudra/tools/core/gaussian_frames.py:133	
 cloudra/tools/core/gaussian_frames.py:134	def _parse_coord_block_after(lines: list[str], start: int, has_type_col: bool):
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=135,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:135	    """从 lines[start] 之后第一个双虚线表的坐标区解析 (atomno, x, y, z) 列表。"""
 cloudra/tools/core/gaussian_frames.py:136	    dash_seen = 0
 cloudra/tools/core/gaussian_frames.py:137	    rows = []
@@ -523,9 +514,6 @@ cloudra/tools/core/gaussian_frames.py:174
 cloudra/tools/core/gaussian_frames.py:175	def _parse_irc_summary_table(text: str):
 cloudra/tools/core/gaussian_frames.py:176	    """解析结尾汇总表，返回 (ts_energy_hartree, [(energy_rel, rx_coord), ...])。
 cloudra/tools/core/gaussian_frames.py:177	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=178,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:178	    表中能量为相对 TS 能量的差值，行按反应坐标从负到正排列（TS 行为 rx=0）。
 cloudra/tools/core/gaussian_frames.py:179	    """
 cloudra/tools/core/gaussian_frames.py:180	    m_ts = _TS_ENERGY_RE.search(text)
@@ -535,6 +523,9 @@ cloudra/tools/core/gaussian_frames.py:183	        raise ValueError("IRC 日志�
 cloudra/tools/core/gaussian_frames.py:184	    rows = []
 cloudra/tools/core/gaussian_frames.py:185	    for line in m_tab.group(1).splitlines():
 cloudra/tools/core/gaussian_frames.py:186	        parts = line.split()
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=187,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:187	        if len(parts) == 3:
 cloudra/tools/core/gaussian_frames.py:188	            rows.append((float(parts[1]), float(parts[2])))
 cloudra/tools/core/gaussian_frames.py:189	    if not rows:
@@ -578,9 +569,6 @@ cloudra/tools/core/gaussian_frames.py:226	        raise ValueError("IRC 日志�
 cloudra/tools/core/gaussian_frames.py:227	
 cloudra/tools/core/gaussian_frames.py:228	    # 每个点段：从当前标记到下一标记
 cloudra/tools/core/gaussian_frames.py:229	    points: dict[int, list[dict]] = {1: [], 2: []}
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=230,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:230	    for i, m in enumerate(headers):
 cloudra/tools/core/gaussian_frames.py:231	        point_no, path_no = int(m.group(1)), int(m.group(2))
 cloudra/tools/core/gaussian_frames.py:232	        seg_end = headers[i + 1].start() if i + 1 < len(headers) else len(text)
@@ -590,6 +578,9 @@ cloudra/tools/core/gaussian_frames.py:235	        if point_no == 0 and coords is
 cloudra/tools/core/gaussian_frames.py:236	            # TS 起始点：尝试取标记之前（初始结构 SCF）的最后一个 Input orientation
 cloudra/tools/core/gaussian_frames.py:237	            coords = _parse_last_input_orientation(text[:m.start()])
 cloudra/tools/core/gaussian_frames.py:238	        m_net = _NET_RX_RE.search(segment)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=239,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:239	        points.setdefault(path_no, []).append({
 cloudra/tools/core/gaussian_frames.py:240	            "point": point_no,
 cloudra/tools/core/gaussian_frames.py:241	            "path": path_no,
@@ -633,9 +624,6 @@ cloudra/tools/core/gaussian_frames.py:278	        if coords:
 cloudra/tools/core/gaussian_frames.py:279	            xyz = _coords_to_xyz(
 cloudra/tools/core/gaussian_frames.py:280	                atomnos,
 cloudra/tools/core/gaussian_frames.py:281	                [c[1:] for c in coords],
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=282,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:282	                comment=f"irc point={pt['point']} path={path_no} rx={rx:.5f} E={energy:.8f} Eh",
 cloudra/tools/core/gaussian_frames.py:283	            )
 cloudra/tools/core/gaussian_frames.py:284	        return FrameRecord(
@@ -645,6 +633,9 @@ cloudra/tools/core/gaussian_frames.py:287	            reaction_coordinate=rx,
 cloudra/tools/core/gaussian_frames.py:288	            scf_energy_hartree=energy,
 cloudra/tools/core/gaussian_frames.py:289	            xyz=xyz,
 cloudra/tools/core/gaussian_frames.py:290	            converged=None,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=291,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:291	        )
 cloudra/tools/core/gaussian_frames.py:292	
 cloudra/tools/core/gaussian_frames.py:293	    frames: list[FrameRecord] = []
@@ -688,9 +679,6 @@ cloudra/tools/core/gaussian_frames.py:330	        "num_points_backward": len(pts
 cloudra/tools/core/gaussian_frames.py:331	        "rx_coord_range": (min(rx_values), max(rx_values)) if rx_values else None,
 cloudra/tools/core/gaussian_frames.py:332	        "endpoint_energies_hartree": (
 cloudra/tools/core/gaussian_frames.py:333	            frames[0].scf_energy_hartree,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=334,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:334	            frames[-1].scf_energy_hartree,
 cloudra/tools/core/gaussian_frames.py:335	        ) if frames else None,
 cloudra/tools/core/gaussian_frames.py:336	        "forward_converged": conv[1],
@@ -700,6 +688,9 @@ cloudra/tools/core/gaussian_frames.py:339	    return frames, meta
 cloudra/tools/core/gaussian_frames.py:340	
 cloudra/tools/core/gaussian_frames.py:341	
 cloudra/tools/core/gaussian_frames.py:342	def extract_irc(log_path: str):
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=343,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:343	    """解析 IRC 日志，返回 (list[FrameRecord], meta dict)。供 log_parser 汇总用。"""
 cloudra/tools/core/gaussian_frames.py:344	    return _parse_irc(_read_text(log_path))
 cloudra/tools/core/gaussian_frames.py:345	
@@ -743,9 +734,6 @@ cloudra/tools/core/gaussian_frames.py:382	        xyz = ""
 cloudra/tools/core/gaussian_frames.py:383	        if has_coords:
 cloudra/tools/core/gaussian_frames.py:384	            xyz = _coords_to_xyz(atomnos, coords[i], comment=f"scan point={i} parm={rx}")
 cloudra/tools/core/gaussian_frames.py:385	        frames.append(FrameRecord(
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=386,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:386	            frame=i,
 cloudra/tools/core/gaussian_frames.py:387	            reaction_coordinate=rx,
 cloudra/tools/core/gaussian_frames.py:388	            scf_energy_hartree=energies_ev[i] / EV_PER_HARTREE,
@@ -755,6 +743,9 @@ cloudra/tools/core/gaussian_frames.py:391	    return frames
 cloudra/tools/core/gaussian_frames.py:392	
 cloudra/tools/core/gaussian_frames.py:393	
 cloudra/tools/core/gaussian_frames.py:394	def _opt_converged(data) -> bool | None:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=395,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:395	    optdone = getattr(data, "optdone", None)
 cloudra/tools/core/gaussian_frames.py:396	    if isinstance(optdone, bool):
 cloudra/tools/core/gaussian_frames.py:397	        return optdone
@@ -798,9 +789,6 @@ cloudra/tools/core/gaussian_frames.py:434
 cloudra/tools/core/gaussian_frames.py:435	def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
 cloudra/tools/core/gaussian_frames.py:436	    data = _ccread(log_path)
 cloudra/tools/core/gaussian_frames.py:437	    energies = getattr(data, "scfenergies", None)
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=438,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:438	    atomcoords = getattr(data, "atomcoords", None)
 cloudra/tools/core/gaussian_frames.py:439	    atomnos = getattr(data, "atomnos", None)
 cloudra/tools/core/gaussian_frames.py:440	    if atomcoords is None or atomnos is None or len(atomcoords) == 0:
@@ -810,6 +798,9 @@ cloudra/tools/core/gaussian_frames.py:443	    if energies is not None and len(en
 cloudra/tools/core/gaussian_frames.py:444	        energy_hartree = _as_float_list(energies)[-1] / EV_PER_HARTREE
 cloudra/tools/core/gaussian_frames.py:445	    return [FrameRecord(
 cloudra/tools/core/gaussian_frames.py:446	        frame=0,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=447,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:447	        scf_energy_hartree=energy_hartree,
 cloudra/tools/core/gaussian_frames.py:448	        frequencies_cm=_get_vibfreqs(data),
 cloudra/tools/core/gaussian_frames.py:449	        xyz=_coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
@@ -853,9 +844,6 @@ cloudra/tools/core/gaussian_frames.py:486	        writer.writeheader()
 cloudra/tools/core/gaussian_frames.py:487	        for fr in frames:
 cloudra/tools/core/gaussian_frames.py:488	            hartree = fr.scf_energy_hartree
 cloudra/tools/core/gaussian_frames.py:489	            writer.writerow({
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=490,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/gaussian_frames.py:490	                "frame": fr.frame,
 cloudra/tools/core/gaussian_frames.py:491	                "path_number": "" if fr.path_number is None else fr.path_number,
 cloudra/tools/core/gaussian_frames.py:492	                "reaction_coordinate": "" if fr.reaction_coordinate is None else _fmt_float(fr.reaction_coordinate),
@@ -865,6 +853,9 @@ cloudra/tools/core/gaussian_frames.py:495	                "frequencies_cm": ";".
 cloudra/tools/core/gaussian_frames.py:496	                "xyz": fr.xyz,
 cloudra/tools/core/gaussian_frames.py:497	            })
 cloudra/tools/core/gaussian_frames.py:498	    return output_path
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=1,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/permission_model.py:1	"""
 cloudra/tools/core/permission_model.py:2	Permission Model for Cloudra Tools.
 cloudra/tools/core/permission_model.py:3	
@@ -908,9 +899,6 @@ cloudra/tools/core/permission_model.py:40	        'is_manage': bool(perms & Perm
 cloudra/tools/core/permission_model.py:41	        'is_script': bool(perms & Permission.SCRIPT),
 cloudra/tools/core/permission_model.py:42	        'is_destructive': bool(perms & Permission.DESTRUCTIVE),
 cloudra/tools/core/permission_model.py:43	    }
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=1,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:1	"""文件变更工具共享的审批、应用与事件流水线。"""
 cloudra/tools/core/workspace_mutation.py:2	
 cloudra/tools/core/workspace_mutation.py:3	from __future__ import annotations
@@ -920,6 +908,9 @@ cloudra/tools/core/workspace_mutation.py:6	from pathlib import Path
 cloudra/tools/core/workspace_mutation.py:7	from typing import TypeVar
 cloudra/tools/core/workspace_mutation.py:8	
 cloudra/tools/core/workspace_mutation.py:9	from pydantic import Field
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=10,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:10	
 cloudra/tools/core/workspace_mutation.py:11	from cloudra.base.session_class import Session
 cloudra/tools/core/workspace_mutation.py:12	from cloudra.base.tools_class import Tool, output_schema
@@ -963,9 +954,6 @@ cloudra/tools/core/workspace_mutation.py:49	    return (
 cloudra/tools/core/workspace_mutation.py:50	        f"【动作】: {action}\n"
 cloudra/tools/core/workspace_mutation.py:51	        f"【相对路径】: {change.relative_path}\n"
 cloudra/tools/core/workspace_mutation.py:52	        f"【变更规模】: +{change.additions} -{change.deletions}\n"
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=53,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:53	        f"【修改前 SHA256】: {change.before_sha256 or 'missing'}\n"
 cloudra/tools/core/workspace_mutation.py:54	        f"【修改后 SHA256】: {change.after_sha256}\n"
 cloudra/tools/core/workspace_mutation.py:55	        f"【Unified Diff】:\n{diff_preview}"
@@ -975,6 +963,9 @@ cloudra/tools/core/workspace_mutation.py:58
 cloudra/tools/core/workspace_mutation.py:59	async def record_preparation_failure(
 cloudra/tools/core/workspace_mutation.py:60	    tool: Tool,
 cloudra/tools/core/workspace_mutation.py:61	    session: Session,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=62,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:62	    relative_path: str,
 cloudra/tools/core/workspace_mutation.py:63	    status: str,
 cloudra/tools/core/workspace_mutation.py:64	    message: str,
@@ -1018,9 +1009,6 @@ cloudra/tools/core/workspace_mutation.py:101	            "or choose a different 
 cloudra/tools/core/workspace_mutation.py:102	        )
 cloudra/tools/core/workspace_mutation.py:103	        await tool.record_session_event(
 cloudra/tools/core/workspace_mutation.py:104	            session,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=105,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:105	            "file_change_declined",
 cloudra/tools/core/workspace_mutation.py:106	            change.event_data("declined", message),
 cloudra/tools/core/workspace_mutation.py:107	        )
@@ -1030,6 +1018,9 @@ cloudra/tools/core/workspace_mutation.py:110	            filepath=change.relativ
 cloudra/tools/core/workspace_mutation.py:111	            status="declined",
 cloudra/tools/core/workspace_mutation.py:112	            change_id=change.change_id,
 cloudra/tools/core/workspace_mutation.py:113	            before_sha256=change.before_sha256,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=114,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:114	            after_sha256=change.after_sha256,
 cloudra/tools/core/workspace_mutation.py:115	            diff=change.diff,
 cloudra/tools/core/workspace_mutation.py:116	            message=message,
@@ -1073,9 +1064,6 @@ cloudra/tools/core/workspace_mutation.py:153	            message=message,
 cloudra/tools/core/workspace_mutation.py:154	        )
 cloudra/tools/core/workspace_mutation.py:155	
 cloudra/tools/core/workspace_mutation.py:156	    await tool.record_session_event(
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=157,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:157	        session,
 cloudra/tools/core/workspace_mutation.py:158	        "file_change_applied",
 cloudra/tools/core/workspace_mutation.py:159	        change.event_data("applied"),
@@ -1085,6 +1073,9 @@ cloudra/tools/core/workspace_mutation.py:162	    from cloudra.persistence.databa
 cloudra/tools/core/workspace_mutation.py:163	
 cloudra/tools/core/workspace_mutation.py:164	    if Path(ConversationDB(conversation_id).path).is_file():
 cloudra/tools/core/workspace_mutation.py:165	        try:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=166,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/workspace_mutation.py:166	            from cloudra.persistence.artifacts import ArtifactService
 cloudra/tools/core/workspace_mutation.py:167	
 cloudra/tools/core/workspace_mutation.py:168	            await asyncio.to_thread(
@@ -1128,9 +1119,6 @@ cloudra/tools/core/workspace_mutation.py:205	        message="File change writte
 cloudra/tools/core/workspace_mutation.py:206	    )
 cloudra/tools/registry.py:1	"""Explicit built-in tool manifest.
 cloudra/tools/registry.py:2	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=3,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:3	Keep this module dependency-free: :mod:`cloudra.core.agent` imports
 cloudra/tools/registry.py:4	``cloudra.tools`` while several tool implementations import ``cloudra.core.agent``.
 cloudra/tools/registry.py:5	The registry therefore stores import paths instead of importing tool classes at
@@ -1140,6 +1128,9 @@ cloudra/tools/registry.py:8	Optional semantic fields are the single source of tr
 cloudra/tools/registry.py:9	projections (DAG gate / runtime profiles / evidence derivation).  Downstream
 cloudra/tools/registry.py:10	modules must query :mod:`cloudra.tools.capabilities` instead of maintaining
 cloudra/tools/registry.py:11	their own per-tool name sets.
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=12,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:12	"""
 cloudra/tools/registry.py:13	
 cloudra/tools/registry.py:14	from dataclasses import dataclass
@@ -1183,9 +1174,6 @@ cloudra/tools/registry.py:51	    ToolRegistration('cloudra.tools.Browsertool.hea
 cloudra/tools/registry.py:52	    ToolRegistration(
 cloudra/tools/registry.py:53	        module='cloudra.tools.Browsertool.web_fetcher',
 cloudra/tools/registry.py:54	        class_name='WebFetcher',
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=55,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:55	        tool_name='web_fetcher',
 cloudra/tools/registry.py:56	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:57	    ),
@@ -1195,6 +1183,9 @@ cloudra/tools/registry.py:60	        class_name='ConformerSearch',
 cloudra/tools/registry.py:61	        tool_name='conformer_search',
 cloudra/tools/registry.py:62	        dag_substantive=True,
 cloudra/tools/registry.py:63	        dag_compute_entry=True,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=64,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:64	    ),
 cloudra/tools/registry.py:65	    ToolRegistration(
 cloudra/tools/registry.py:66	        module='cloudra.tools.Chemtool.electronic_analysis',
@@ -1238,9 +1229,6 @@ cloudra/tools/registry.py:103	        dag_substantive=True,
 cloudra/tools/registry.py:104	    ),
 cloudra/tools/registry.py:105	    ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
 cloudra/tools/registry.py:106	    ToolRegistration(
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=107,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:107	        module='cloudra.tools.Chemtool.mark_compute_job_failed',
 cloudra/tools/registry.py:108	        class_name='MarkComputeJobFailed',
 cloudra/tools/registry.py:109	        tool_name='mark_compute_job_failed',
@@ -1250,6 +1238,9 @@ cloudra/tools/registry.py:112	    ToolRegistration(
 cloudra/tools/registry.py:113	        module='cloudra.tools.Chemtool.reaction_mapping',
 cloudra/tools/registry.py:114	        class_name='ReactionMapping',
 cloudra/tools/registry.py:115	        tool_name='reaction_mapping',
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=116,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:116	        evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
 cloudra/tools/registry.py:117	        dag_review=True,
 cloudra/tools/registry.py:118	    ),
@@ -1293,9 +1284,6 @@ cloudra/tools/registry.py:155	        class_name='GetSubAgentReport',
 cloudra/tools/registry.py:156	        tool_name='get_subagent_report',
 cloudra/tools/registry.py:157	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:158	    ),
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=159,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:159	    ToolRegistration(
 cloudra/tools/registry.py:160	        module='cloudra.tools.Managetool.schedule',
 cloudra/tools/registry.py:161	        class_name='Schedule',
@@ -1305,6 +1293,9 @@ cloudra/tools/registry.py:164	    ),
 cloudra/tools/registry.py:165	    ToolRegistration(
 cloudra/tools/registry.py:166	        module='cloudra.tools.Managetool.subagent_launcher',
 cloudra/tools/registry.py:167	        class_name='SubAgentLauncher',
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=168,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:168	        tool_name='SubAgentLauncher',
 cloudra/tools/registry.py:169	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:170	        dag_substantive=True,
@@ -1348,9 +1339,6 @@ cloudra/tools/registry.py:207	        dag_observe=False,
 cloudra/tools/registry.py:208	    ),
 cloudra/tools/registry.py:209	    ToolRegistration(
 cloudra/tools/registry.py:210	        module='cloudra.tools.Plantool.dag_tools.dag_remove_edge',
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=211,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:211	        class_name='DagRemoveEdge',
 cloudra/tools/registry.py:212	        tool_name='dag_remove_edge',
 cloudra/tools/registry.py:213	        dag_observe=False,
@@ -1360,6 +1348,9 @@ cloudra/tools/registry.py:216	        module='cloudra.tools.Plantool.dag_tools.d
 cloudra/tools/registry.py:217	        class_name='DagBindEvidence',
 cloudra/tools/registry.py:218	        tool_name='dag_bind_evidence',
 cloudra/tools/registry.py:219	        dag_observe=False,
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=220,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:220	    ),
 cloudra/tools/registry.py:221	    ToolRegistration(
 cloudra/tools/registry.py:222	        module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
@@ -1403,9 +1394,6 @@ cloudra/tools/registry.py:259	    ToolRegistration(
 cloudra/tools/registry.py:260	        module='cloudra.tools.Searchtool.openalex_searcher',
 cloudra/tools/registry.py:261	        class_name='OpenAlexSearcher',
 cloudra/tools/registry.py:262	        tool_name='openalex_searcher',
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=263,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:263	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:264	    ),
 cloudra/tools/registry.py:265	    ToolRegistration(
@@ -1415,6 +1403,9 @@ cloudra/tools/registry.py:268	        tool_name='image_reader',
 cloudra/tools/registry.py:269	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:270	    ),
 cloudra/tools/registry.py:271	    ToolRegistration(
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=272,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:272	        module='cloudra.tools.Searchtool.paper_searcher',
 cloudra/tools/registry.py:273	        class_name='PaperSearcher',
 cloudra/tools/registry.py:274	        tool_name='paper_searcher',
@@ -1458,9 +1449,6 @@ cloudra/tools/registry.py:311	    ToolRegistration(
 cloudra/tools/registry.py:312	        module='cloudra.tools.Writetool.text_writer',
 cloudra/tools/registry.py:313	        class_name='TextWriter',
 cloudra/tools/registry.py:314	        tool_name='text_writer',
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=315,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:315	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:316	        dag_substantive=True,
 cloudra/tools/registry.py:317	    ),
@@ -1470,6 +1458,9 @@ cloudra/tools/registry.py:320	        class_name='UpdateMemory',
 cloudra/tools/registry.py:321	        tool_name='update_memory',
 cloudra/tools/registry.py:322	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:323	    ),
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=324,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:324	)
 cloudra/web_launcher.py:1	"""Web frontend launcher used by the `cloudra` command.
 cloudra/web_launcher.py:2	
@@ -1487,195 +1478,170 @@ cloudra/web_launcher.py:13	import subprocess
 cloudra/web_launcher.py:14	import sys
 cloudra/web_launcher.py:15	import time
 cloudra/web_launcher.py:16	import urllib.request
-cloudra/web_launcher.py:17	from pathlib import Path
-cloudra/web_launcher.py:18	
+cloudra/web_launcher.py:17	import webbrowser
+cloudra/web_launcher.py:18	from pathlib import Path
 cloudra/web_launcher.py:19	
-cloudra/web_launcher.py:20	def _frontend_dir() -> Path:
-cloudra/web_launcher.py:21	    override = os.environ.get("CLOUDRA_FRONTEND_DIR", "").strip()
-cloudra/web_launcher.py:22	    candidates = []
-cloudra/web_launcher.py:23	    if override:
-cloudra/web_launcher.py:24	        candidates.append(Path(override))
-cloudra/web_launcher.py:25	    # cloudra/web_launcher.py -> cloudra/.. == repository root (source checkout)
-cloudra/web_launcher.py:26	    candidates.append(Path(__file__).resolve().parents[1] / "frontend")
-cloudra/web_launcher.py:27	    candidates.append(Path.cwd() / "frontend")
-cloudra/web_launcher.py:28	    for candidate in candidates:
-cloudra/web_launcher.py:29	        if (candidate / "package.json").is_file():
-cloudra/web_launcher.py:30	            return candidate.resolve()
-cloudra/web_launcher.py:31	    raise RuntimeError(
-cloudra/web_launcher.py:32	        "frontend directory not found; set CLOUDRA_FRONTEND_DIR to the "
-cloudra/web_launcher.py:33	        "directory containing frontend/package.json"
-cloudra/web_launcher.py:34	    )
-cloudra/web_launcher.py:35	
+cloudra/web_launcher.py:20	
+cloudra/web_launcher.py:21	def _frontend_dir() -> Path:
+cloudra/web_launcher.py:22	    override = os.environ.get("CLOUDRA_FRONTEND_DIR", "").strip()
+cloudra/web_launcher.py:23	    candidates = []
+cloudra/web_launcher.py:24	    if override:
+cloudra/web_launcher.py:25	        candidates.append(Path(override))
+cloudra/web_launcher.py:26	    # cloudra/web_launcher.py -> cloudra/.. == repository root (source checkout)
+cloudra/web_launcher.py:27	    candidates.append(Path(__file__).resolve().parents[1] / "frontend")
+cloudra/web_launcher.py:28	    candidates.append(Path.cwd() / "frontend")
+cloudra/web_launcher.py:29	    for candidate in candidates:
+cloudra/web_launcher.py:30	        if (candidate / "package.json").is_file():
+cloudra/web_launcher.py:31	            return candidate.resolve()
+cloudra/web_launcher.py:32	    raise RuntimeError(
+cloudra/web_launcher.py:33	        "frontend directory not found; set CLOUDRA_FRONTEND_DIR to the "
+cloudra/web_launcher.py:34	        "directory containing frontend/package.json"
+cloudra/web_launcher.py:35	    )
 cloudra/web_launcher.py:36	
-cloudra/web_launcher.py:37	def _check_node(frontend: Path) -> None:
-cloudra/web_launcher.py:38	    npm = shutil.which("npm")
-cloudra/web_launcher.py:39	    node = shutil.which("node")
-cloudra/web_launcher.py:40	    if npm is None or node is None:
-cloudra/web_launcher.py:41	        raise RuntimeError(
-cloudra/web_launcher.py:42	            "Node.js >= 18 and npm are required for the Cloudra web frontend. "
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=43,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/web_launcher.py:43	            f"Frontend found at {frontend}. Install from https://nodejs.org/"
-cloudra/web_launcher.py:44	        )
-cloudra/web_launcher.py:45	
+cloudra/web_launcher.py:37	
+cloudra/web_launcher.py:38	def _check_node(frontend: Path) -> None:
+cloudra/web_launcher.py:39	    npm = shutil.which("npm")
+cloudra/web_launcher.py:40	    node = shutil.which("node")
+cloudra/web_launcher.py:41	    if npm is None or node is None:
+cloudra/web_launcher.py:42	        raise RuntimeError(
+cloudra/web_launcher.py:43	            "Node.js >= 18 and npm are required for the Cloudra web frontend. "
+cloudra/web_launcher.py:44	            f"Frontend found at {frontend}. Install from https://nodejs.org/"
+cloudra/web_launcher.py:45	        )
 cloudra/web_launcher.py:46	
-cloudra/web_launcher.py:47	def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool = False) -> None:
-cloudra/web_launcher.py:48	    _check_node(frontend)
-cloudra/web_launcher.py:49	    if not (frontend / "node_modules").is_dir():
-cloudra/web_launcher.py:50	        print("[cloudra] installing frontend dependencies...", flush=True)
-cloudra/web_launcher.py:51	        subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
-cloudra/web_launcher.py:52	    dist = frontend / "dist"
-cloudra/web_launcher.py:53	    if skip_build:
-cloudra/web_launcher.py:54	        if not (dist / "index.html").is_file():
-cloudra/web_launcher.py:55	            raise RuntimeError("--skip-build was requested but frontend/dist is missing")
-cloudra/web_launcher.py:56	        return
-cloudra/web_launcher.py:57	    if rebuild or not (dist / "index.html").is_file():
-cloudra/web_launcher.py:58	        print("[cloudra] building frontend...", flush=True)
-cloudra/web_launcher.py:59	        subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
-cloudra/web_launcher.py:60	
+cloudra/web_launcher.py:47	
+cloudra/web_launcher.py:48	def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool = False) -> None:
+cloudra/web_launcher.py:49	    _check_node(frontend)
+cloudra/web_launcher.py:50	    if not (frontend / "node_modules").is_dir():
+cloudra/web_launcher.py:51	        print("[cloudra] installing frontend dependencies...", flush=True)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=52,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/web_launcher.py:52	        subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
+cloudra/web_launcher.py:53	    dist = frontend / "dist"
+cloudra/web_launcher.py:54	    if skip_build:
+cloudra/web_launcher.py:55	        if not (dist / "index.html").is_file():
+cloudra/web_launcher.py:56	            raise RuntimeError("--skip-build was requested but frontend/dist is missing")
+cloudra/web_launcher.py:57	        return
+cloudra/web_launcher.py:58	    if rebuild or not (dist / "index.html").is_file():
+cloudra/web_launcher.py:59	        print("[cloudra] building frontend...", flush=True)
+cloudra/web_launcher.py:60	        subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
 cloudra/web_launcher.py:61	
-cloudra/web_launcher.py:62	def _port_is_bindable(preferred: int) -> bool:
-cloudra/web_launcher.py:63	    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-cloudra/web_launcher.py:64	        try:
-cloudra/web_launcher.py:65	            sock.bind(("127.0.0.1", preferred))
-cloudra/web_launcher.py:66	        except OSError:
-cloudra/web_launcher.py:67	            return False
-cloudra/web_launcher.py:68	        return True
-cloudra/web_launcher.py:69	
+cloudra/web_launcher.py:62	
+cloudra/web_launcher.py:63	def _port_is_bindable(preferred: int) -> bool:
+cloudra/web_launcher.py:64	    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+cloudra/web_launcher.py:65	        try:
+cloudra/web_launcher.py:66	            sock.bind(("127.0.0.1", preferred))
+cloudra/web_launcher.py:67	        except OSError:
+cloudra/web_launcher.py:68	            return False
+cloudra/web_launcher.py:69	        return True
 cloudra/web_launcher.py:70	
-cloudra/web_launcher.py:71	def _runtime_is_healthy(port: int) -> bool:
-cloudra/web_launcher.py:72	    try:
-cloudra/web_launcher.py:73	        with urllib.request.urlopen(
-cloudra/web_launcher.py:74	            f"http://127.0.0.1:{port}/api/v2/runtime/health", timeout=1.0
-cloudra/web_launcher.py:75	        ) as resp:
-cloudra/web_launcher.py:76	            return 200 <= resp.status < 300
-cloudra/web_launcher.py:77	    except Exception:
-cloudra/web_launcher.py:78	        return False
-cloudra/web_launcher.py:79	
+cloudra/web_launcher.py:71	
+cloudra/web_launcher.py:72	def _runtime_is_healthy(port: int) -> bool:
+cloudra/web_launcher.py:73	    try:
+cloudra/web_launcher.py:74	        with urllib.request.urlopen(
+cloudra/web_launcher.py:75	            f"http://127.0.0.1:{port}/api/v2/runtime/health", timeout=1.0
+cloudra/web_launcher.py:76	        ) as resp:
+cloudra/web_launcher.py:77	            return 200 <= resp.status < 300
+cloudra/web_launcher.py:78	    except Exception:
+cloudra/web_launcher.py:79	        return False
 cloudra/web_launcher.py:80	
-cloudra/web_launcher.py:81	def _runtime_serves_spa(port: int) -> bool:
-cloudra/web_launcher.py:82	    try:
-cloudra/web_launcher.py:83	        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.0) as resp:
-cloudra/web_launcher.py:84	            body = resp.read(4096).decode("utf-8", "ignore")
-cloudra/web_launcher.py:85	            return 200 <= resp.status < 300 and '<div id="root"></div>' in body
-cloudra/web_launcher.py:86	    except Exception:
-cloudra/web_launcher.py:87	        return False
-cloudra/web_launcher.py:88	
+cloudra/web_launcher.py:81	
+cloudra/web_launcher.py:82	def _runtime_serves_spa(port: int) -> bool:
+cloudra/web_launcher.py:83	    try:
+cloudra/web_launcher.py:84	        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.0) as resp:
+cloudra/web_launcher.py:85	            body = resp.read(4096).decode("utf-8", "ignore")
+cloudra/web_launcher.py:86	            return 200 <= resp.status < 300 and '<div id="root"></div>' in body
+cloudra/web_launcher.py:87	    except Exception:
+cloudra/web_launcher.py:88	        return False
 cloudra/web_launcher.py:89	
-cloudra/web_launcher.py:90	def _find_api_port(preferred: int, env_name: str) -> tuple[int, bool]:
-cloudra/web_launcher.py:91	    """Return (port, reused_existing_runtime).
-cloudra/web_launcher.py:92	
-cloudra/web_launcher.py:93	    A runtime is only reused when it both serves the API and the built SPA on
-cloudra/web_launcher.py:94	    the same port; otherwise we start a fresh single-port runtime on a free
+cloudra/web_launcher.py:90	
+cloudra/web_launcher.py:91	def _find_api_port(preferred: int, env_name: str) -> tuple[int, bool]:
+cloudra/web_launcher.py:92	    """Return (port, reused_existing_runtime).
+cloudra/web_launcher.py:93	
+cloudra/web_launcher.py:94	    A runtime is only reused when it both serves the API and the built SPA on
+cloudra/web_launcher.py:95	    the same port; otherwise we start a fresh single-port runtime on a free
+cloudra/web_launcher.py:96	    port so the frontend never points at a stale or foreign server.
+cloudra/web_launcher.py:97	    """
+cloudra/web_launcher.py:98	    env_value = os.environ.get(env_name)
+cloudra/web_launcher.py:99	    if env_value:
+cloudra/web_launcher.py:100	        port = int(env_value)
+cloudra/web_launcher.py:101	        return port, _runtime_is_healthy(port) and _runtime_serves_spa(port)
+cloudra/web_launcher.py:102	    if _port_is_bindable(preferred):
+cloudra/web_launcher.py:103	        return preferred, False
 \end{lstlisting}
 \clearpage
-\begin{lstlisting}[firstnumber=95,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/web_launcher.py:95	    port so the frontend never points at a stale or foreign server.
-cloudra/web_launcher.py:96	    """
-cloudra/web_launcher.py:97	    env_value = os.environ.get(env_name)
-cloudra/web_launcher.py:98	    if env_value:
-cloudra/web_launcher.py:99	        port = int(env_value)
-cloudra/web_launcher.py:100	        return port, _runtime_is_healthy(port) and _runtime_serves_spa(port)
-cloudra/web_launcher.py:101	    if _port_is_bindable(preferred):
-cloudra/web_launcher.py:102	        return preferred, False
-cloudra/web_launcher.py:103	    if _runtime_is_healthy(preferred) and _runtime_serves_spa(preferred):
-cloudra/web_launcher.py:104	        return preferred, True
-cloudra/web_launcher.py:105	    for port in range(preferred + 1, preferred + 100):
-cloudra/web_launcher.py:106	        if _port_is_bindable(port):
-cloudra/web_launcher.py:107	            return port, False
-cloudra/web_launcher.py:108	    raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
-cloudra/web_launcher.py:109	
+\begin{lstlisting}[firstnumber=104,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/web_launcher.py:104	    if _runtime_is_healthy(preferred) and _runtime_serves_spa(preferred):
+cloudra/web_launcher.py:105	        return preferred, True
+cloudra/web_launcher.py:106	    for port in range(preferred + 1, preferred + 100):
+cloudra/web_launcher.py:107	        if _port_is_bindable(port):
+cloudra/web_launcher.py:108	            return port, False
+cloudra/web_launcher.py:109	    raise RuntimeError(f"no free port near {preferred}; set {env_name} explicitly")
 cloudra/web_launcher.py:110	
-cloudra/web_launcher.py:111	def _ensure_electron(frontend: Path) -> None:
-cloudra/web_launcher.py:112	    """npm install can finish with a broken electron package when its
-cloudra/web_launcher.py:113	    postinstall download was interrupted.  Re-run electron's install script
-cloudra/web_launcher.py:114	    and verify the binary before launching."""
-cloudra/web_launcher.py:115	    electron_dir = frontend / "node_modules" / "electron"
-cloudra/web_launcher.py:116	    binary = electron_dir / "dist" / "electron"
-cloudra/web_launcher.py:117	    if binary.is_file() and os.access(binary, os.X_OK):
-cloudra/web_launcher.py:118	        return
-cloudra/web_launcher.py:119	    print("[cloudra] electron binary missing, repairing electron install...", flush=True)
-cloudra/web_launcher.py:120	    if not (electron_dir / "install.js").is_file():
-cloudra/web_launcher.py:121	        subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
-cloudra/web_launcher.py:122	    subprocess.run(["node", "install.js"], cwd=electron_dir, check=True)
-cloudra/web_launcher.py:123	    if not (binary.is_file() and os.access(binary, os.X_OK)):
-cloudra/web_launcher.py:124	        raise RuntimeError(
-cloudra/web_launcher.py:125	            "electron failed to install its binary; run: "
-cloudra/web_launcher.py:126	            f"rm -rf {electron_dir} && npm install --prefix {frontend}"
-cloudra/web_launcher.py:127	        )
-cloudra/web_launcher.py:128	
+cloudra/web_launcher.py:111	
+cloudra/web_launcher.py:112	def _wait_healthy(url: str, timeout: float = 30.0) -> None:
+cloudra/web_launcher.py:113	    deadline = time.monotonic() + timeout
+cloudra/web_launcher.py:114	    while time.monotonic() < deadline:
+cloudra/web_launcher.py:115	        try:
+cloudra/web_launcher.py:116	            with urllib.request.urlopen(url, timeout=1.0) as resp:
+cloudra/web_launcher.py:117	                if 200 <= resp.status < 300:
+cloudra/web_launcher.py:118	                    return
+cloudra/web_launcher.py:119	        except Exception:
+cloudra/web_launcher.py:120	            pass
+cloudra/web_launcher.py:121	        time.sleep(0.25)
+cloudra/web_launcher.py:122	    raise RuntimeError(f"runtime did not become healthy at {url}")
+cloudra/web_launcher.py:123	
+cloudra/web_launcher.py:124	
+cloudra/web_launcher.py:125	def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
+cloudra/web_launcher.py:126	    api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT")
+cloudra/web_launcher.py:127	    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
+cloudra/web_launcher.py:128	    from cloudra.infra.config import get_config
 cloudra/web_launcher.py:129	
-cloudra/web_launcher.py:130	def _wait_healthy(url: str, timeout: float = 30.0) -> None:
-cloudra/web_launcher.py:131	    deadline = time.monotonic() + timeout
-cloudra/web_launcher.py:132	    while time.monotonic() < deadline:
-cloudra/web_launcher.py:133	        try:
-cloudra/web_launcher.py:134	            with urllib.request.urlopen(url, timeout=1.0) as resp:
-cloudra/web_launcher.py:135	                if 200 <= resp.status < 300:
-cloudra/web_launcher.py:136	                    return
-cloudra/web_launcher.py:137	        except Exception:
-cloudra/web_launcher.py:138	            pass
-cloudra/web_launcher.py:139	        time.sleep(0.25)
-cloudra/web_launcher.py:140	    raise RuntimeError(f"runtime did not become healthy at {url}")
-cloudra/web_launcher.py:141	
-cloudra/web_launcher.py:142	
-cloudra/web_launcher.py:143	def launch_electron(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
-cloudra/web_launcher.py:144	    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
-cloudra/web_launcher.py:145	    _ensure_electron(frontend)
-cloudra/web_launcher.py:146	    env = os.environ.copy()
+cloudra/web_launcher.py:130	    store_path = os.environ.get(
+cloudra/web_launcher.py:131	        "CLOUDRA_RUNTIME_STORE",
+cloudra/web_launcher.py:132	        str(Path(get_config().data_dir) / "runtime-v2.db"),
+cloudra/web_launcher.py:133	    )
+cloudra/web_launcher.py:134	    env = os.environ.copy()
+cloudra/web_launcher.py:135	    env["CLOUDRA_RUNTIME_STORE"] = store_path
+cloudra/web_launcher.py:136	    env["CLOUDRA_FRONTEND_SERVE_DIR"] = str(frontend / "dist")
+cloudra/web_launcher.py:137	    runtime = None
+cloudra/web_launcher.py:138	    if reused_runtime:
+cloudra/web_launcher.py:139	        print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
+cloudra/web_launcher.py:140	    else:
+cloudra/web_launcher.py:141	        print(f"[cloudra] starting web server on port {api_port}...", flush=True)
+cloudra/web_launcher.py:142	        runtime = subprocess.Popen(
+cloudra/web_launcher.py:143	            [
+cloudra/web_launcher.py:144	                sys.executable,
+cloudra/web_launcher.py:145	                "-m",
+cloudra/web_launcher.py:146	                "uvicorn",
+cloudra/web_launcher.py:147	                "cloudra.services.api_v2:create_default_v2_app",
+cloudra/web_launcher.py:148	                "--factory",
+cloudra/web_launcher.py:149	                "--host",
+cloudra/web_launcher.py:150	                "127.0.0.1",
+cloudra/web_launcher.py:151	                "--port",
+cloudra/web_launcher.py:152	                str(api_port),
+cloudra/web_launcher.py:153	                "--log-level",
+cloudra/web_launcher.py:154	                "warning",
+cloudra/web_launcher.py:155	            ],
 \end{lstlisting}
 \clearpage
-\begin{lstlisting}[firstnumber=147,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/web_launcher.py:147	    # Electron main spawns `python3`; point it at the interpreter that is
-cloudra/web_launcher.py:148	    # running this CLI so venvs work out of the box.
-cloudra/web_launcher.py:149	    env["CLOUDRA_PYTHON"] = sys.executable
-cloudra/web_launcher.py:150	    print("[cloudra] starting Electron desktop frontend...", flush=True)
-cloudra/web_launcher.py:151	    return subprocess.call(["npm", "run", "electron"], cwd=frontend, env=env)
-cloudra/web_launcher.py:152	
-cloudra/web_launcher.py:153	
-cloudra/web_launcher.py:154	def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
-cloudra/web_launcher.py:155	    api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT")
-cloudra/web_launcher.py:156	    _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
-cloudra/web_launcher.py:157	    from cloudra.infra.config import get_config
-cloudra/web_launcher.py:158	
-cloudra/web_launcher.py:159	    store_path = os.environ.get(
-cloudra/web_launcher.py:160	        "CLOUDRA_RUNTIME_STORE",
-cloudra/web_launcher.py:161	        str(Path(get_config().data_dir) / "runtime-v2.db"),
-cloudra/web_launcher.py:162	    )
-cloudra/web_launcher.py:163	    env = os.environ.copy()
-cloudra/web_launcher.py:164	    env["CLOUDRA_RUNTIME_STORE"] = store_path
-cloudra/web_launcher.py:165	    env["CLOUDRA_FRONTEND_SERVE_DIR"] = str(frontend / "dist")
-cloudra/web_launcher.py:166	    runtime = None
-cloudra/web_launcher.py:167	    if reused_runtime:
-cloudra/web_launcher.py:168	        print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
-cloudra/web_launcher.py:169	    else:
-cloudra/web_launcher.py:170	        runtime = subprocess.Popen(
-cloudra/web_launcher.py:171	            [
-cloudra/web_launcher.py:172	                sys.executable,
-cloudra/web_launcher.py:173	                "-m",
-cloudra/web_launcher.py:174	                "uvicorn",
-cloudra/web_launcher.py:175	                "cloudra.services.api_v2:create_default_v2_app",
-cloudra/web_launcher.py:176	                "--factory",
-cloudra/web_launcher.py:177	                "--host",
-cloudra/web_launcher.py:178	                "127.0.0.1",
-cloudra/web_launcher.py:179	                "--port",
-cloudra/web_launcher.py:180	                str(api_port),
-cloudra/web_launcher.py:181	                "--log-level",
-cloudra/web_launcher.py:182	                "warning",
-cloudra/web_launcher.py:183	            ],
-cloudra/web_launcher.py:184	            env=env,
-cloudra/web_launcher.py:185	        )
-cloudra/web_launcher.py:186	    try:
-cloudra/web_launcher.py:187	        _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
-cloudra/web_launcher.py:188	        url = f"http://127.0.0.1:{api_port}"
-cloudra/web_launcher.py:189	        print(f"[cloudra] web frontend: {url}", flush=True)
-cloudra/web_launcher.py:190	        print(f"[cloudra] open {url} in your browser", flush=True)
-cloudra/web_launcher.py:191	        return runtime.wait() if runtime is not None else 0
-cloudra/web_launcher.py:192	    except KeyboardInterrupt:
-cloudra/web_launcher.py:193	        return 0
-cloudra/web_launcher.py:194	    finally:
-cloudra/web_launcher.py:195	        if runtime is not None and runtime.poll() is None:
-cloudra/web_launcher.py:196	            runtime.terminate()
+\begin{lstlisting}[firstnumber=156,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/web_launcher.py:156	            env=env,
+cloudra/web_launcher.py:157	        )
+cloudra/web_launcher.py:158	    try:
+cloudra/web_launcher.py:159	        _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
+cloudra/web_launcher.py:160	        url = f"http://127.0.0.1:{api_port}"
+cloudra/web_launcher.py:161	        print(f"[cloudra] web UI: {url}", flush=True)
+cloudra/web_launcher.py:162	        if os.environ.get("CLOUDRA_NO_BROWSER", "").strip().lower() not in {"1", "true", "yes"}:
+cloudra/web_launcher.py:163	            webbrowser.open(url)
+cloudra/web_launcher.py:164	        if runtime is None:
+cloudra/web_launcher.py:165	            return 0
+cloudra/web_launcher.py:166	        return runtime.wait()
+cloudra/web_launcher.py:167	    except KeyboardInterrupt:
+cloudra/web_launcher.py:168	        return 0
+cloudra/web_launcher.py:169	    finally:
+cloudra/web_launcher.py:170	        if runtime is not None and runtime.poll() is None:
+cloudra/web_launcher.py:171	            runtime.terminate()
 \end{lstlisting}
 \clearpage
 \end{document}
