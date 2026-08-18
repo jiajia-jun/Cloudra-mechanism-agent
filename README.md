@@ -121,9 +121,9 @@ Beyond the two pillars, Cloudra ships the facilities a long-running study needs:
 - **Automatic recovery**: failed turns retry in place; after a process restart,
   messaging an interrupted agent reopens it without losing state.
 
-## Demonstrated capability
+## Demonstrated capability: D-A cycloaddition
 
-Cloudra has run a **complete ethylene ozonolysis (C₂H₄ + O₃) mechanism study**
+Cloudra has run a **complete ethylene ozonolysis mechanism study**
 end-to-end in guided mode:
 
 - the Coordinator decomposed the objective, dispatched literature and domain
@@ -135,10 +135,7 @@ end-to-end in guided mode:
   optimizations, endpoint matching, and thermochemistry — binding evidence
   stage by stage and reacting to failures and inadequate evidence;
 - the deterministic adapter validated every stage bind (order, call success,
-  no submit-call evidence, parser checks), promoting intermediates and steps
-  through the evidence levels; the strong multi-reference character of O₃ and
-  method-sensitivity issues surfaced during the run were recorded as graph
-  annotations rather than glossed over;
+  no submit-call evidence, parser checks);
 - the final delivery was gated by the deterministic coverage report: claimed steps
   reached endpoint-supported status with IRC-linked, optimized endpoints, and the
   reported energetics carry documented level-of-theory provenance.
@@ -244,7 +241,8 @@ export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # custom injection params 
 
 When native search is off, the agent falls back to the external `web_search` tool
 (Tavily / Brave / Bing / DuckDuckGo). When on, the external tool is removed to avoid
-double searching.
+double searching. Note that external search is generally weaker than provider-native
+search.
 
 ## Usage
 
