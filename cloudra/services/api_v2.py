@@ -101,6 +101,21 @@ class CompactRequest(BaseModel):
     keep_recent: int = Field(default=20, ge=1, le=500)
 
 
+class GlobalConfigFieldPatch(BaseModel):
+    """Fields of one global LLM slot; ``key`` is write-only (empty clears)."""
+
+    model: Optional[str] = None
+    url: Optional[str] = None
+    key: Optional[str] = None
+    context_window: Optional[int] = Field(default=None, ge=1)
+    timeout: Optional[int] = Field(default=None, ge=1)
+
+
+class GlobalConfigPatch(BaseModel):
+    slot: Literal["coordinator", "follower"]
+    changes: GlobalConfigFieldPatch
+
+
 class CommandResponse(BaseModel):
     command_id: str
     accepted: bool
@@ -229,6 +244,46 @@ def create_v2_app(
         command = Command(type="runtime.settings_update", payload=patch.model_dump(exclude_unset=True))
         return await execute(command)
 
+    @app.get("/api/v2/runtime/config", dependencies=protected)
+    async def runtime_config() -> dict[str, Any]:
+        """Global LLM config: the fallback behind empty per-agent settings."""
+        from cloudra.infra.config import get_config
+
+        cfg = get_config()
+
+        def slot(role) -> dict[str, Any]:
+            return {
+                "model": role.model,
+                "url": role.url,
+                "key_set": bool(role.key),
+                "context_window": role.context_window,
+                "timeout": role.timeout,
+            }
+
+        return {
+            "config_file": str(cfg.config_file),
+            "coordinator": slot(cfg.coordinator),
+            "follower": slot(cfg.follower),
+        }
+
+    @app.patch("/api/v2/runtime/config", dependencies=protected)
+    async def patch_runtime_config(body: GlobalConfigPatch) -> dict[str, Any]:
+        """Update one global LLM slot and persist it to the YAML config.
+
+        The in-memory config singleton is what empty per-agent settings fall
+        back to (adapters.legacy_default_settings), so the change is live on
+        the next LLM request.  ``key=""`` clears the stored key; keys are
+        write-only and never returned by the GET endpoint.
+        """
+        from cloudra.infra.config import get_config
+
+        cfg = get_config()
+        target = cfg.coordinator if body.slot == "coordinator" else cfg.follower
+        for field, value in body.changes.model_dump(exclude_unset=True).items():
+            setattr(target, field, value)
+        await asyncio.to_thread(cfg.save)
+        return await runtime_config()
+
     # ----------------------------------------------------------------- projects
 
     @app.get("/api/v2/projects", dependencies=protected)
@@ -316,14 +371,26 @@ def create_v2_app(
     async def agent_events(
         session_id: str,
         after: int = 0,
+        before: Optional[int] = Query(default=None, ge=0),
         types: Optional[str] = Query(default=None),
         limit: int = Query(default=1000, ge=1, le=5000),
         tail: bool = Query(default=False),
     ) -> list[dict[str, Any]]:
+        """Page through one session's events.
+
+        ``tail=true`` returns the most recent ``limit`` events (optionally at
+        or before the ``before`` session_seq cursor — used to page backwards
+        from the newest end); ``tail=false`` pages forward from ``after``.
+        """
         core.require_agent(session_id)
         wanted = [t.strip() for t in types.split(",") if t.strip()] if types else None
         events = core.event_log.query_session(
-            session_id, after_session_seq=after, types=wanted, limit=limit, tail=tail
+            session_id,
+            after_session_seq=after,
+            before_session_seq=before,
+            types=wanted,
+            limit=limit,
+            tail=tail,
         )
         return [event.model_dump(mode="json") for event in events]
 

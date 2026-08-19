@@ -75,3 +75,17 @@ export interface TranscriptMessage {
   event_id: string;
   created_at: string;
 }
+
+export interface RuntimeConfigSlot {
+  model: string;
+  url: string;
+  key_set: boolean;
+  context_window: number;
+  timeout: number;
+}
+
+export interface RuntimeConfig {
+  config_file: string;
+  coordinator: RuntimeConfigSlot;
+  follower: RuntimeConfigSlot;
+}

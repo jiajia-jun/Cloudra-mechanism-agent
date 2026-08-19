@@ -171,7 +171,9 @@ async def _patch_agent_settings(core: RuntimeCore, command: Command) -> CommandR
     patch = RuntimeSettingsPatch.model_validate(command.payload)
     changes = patch.model_dump(exclude_unset=True)
     if patch.api_key is not None:
-        changes["api_key_set"] = True
+        # 空字符串表示"清除覆盖、回落全局 key"；按实际值记布尔，别把
+        # api_key_set 记成 True（审计事件里要能区分覆盖/回落）。
+        changes["api_key_set"] = bool(patch.api_key)
     changes.pop("api_key", None)
     next_revision = agent.settings_revision + 1
     core.record(
@@ -263,6 +265,7 @@ async def _restart_agent(core: RuntimeCore, command: Command) -> CommandResult:
     agent = core.require_agent(command.target.get("session_id", ""))
     message = command.payload.get("message")
     settings_patch = RuntimeSettingsPatch.model_validate(command.payload.get("settings") or {})
+    previous_outcome = agent.state.value
     core.record(
         "agent.restart_requested",
         stream="project",
@@ -282,7 +285,7 @@ async def _restart_agent(core: RuntimeCore, command: Command) -> CommandResult:
     if settings_patch.model_fields_set:
         changes = settings_patch.model_dump(exclude_unset=True)
         if settings_patch.api_key is not None:
-            changes["api_key_set"] = True
+            changes["api_key_set"] = bool(settings_patch.api_key)
         changes.pop("api_key", None)
         next_revision = agent.settings_revision + 1
         core.record(
@@ -300,6 +303,22 @@ async def _restart_agent(core: RuntimeCore, command: Command) -> CommandResult:
         project_id=agent.project_id,
         session_id=agent.id,
         data={"run_id": run_id, "agent": agent.model_dump(mode="json")},
+    )
+    core.record(
+        "agent.context_reset",
+        stream="agent",
+        project_id=agent.project_id,
+        session_id=agent.id,
+        run_id=run_id,
+        data={
+            "reason": "restart_command",
+            "previous_outcome": previous_outcome,
+            "actor": command.actor,
+            "note": (
+                "dialogue history was reset; continuity via "
+                "goal/memory/workspace files"
+            ),
+        },
     )
     if message and core.runner is not None:
         core.runner.schedule(agent.id)

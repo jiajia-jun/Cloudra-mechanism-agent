@@ -367,3 +367,231 @@ async def test_restart_schedules_new_run_with_message():
         e for e in core.event_log.query_session(agent.id) if e.type == "agent.message_injected"
     ]
     assert messages[-1].data["content"] == "start over"
+
+
+class OverflowLLM:
+    """Raises a provider-style context-length 400 on the first N calls."""
+
+    def __init__(self, failures: int) -> None:
+        self.failures = failures
+        self.calls: list[list[dict]] = []
+
+    async def complete(self, agent, messages, tools, **_kwargs):
+        self.calls.append(list(messages))
+        if self.failures > 0:
+            self.failures -= 1
+            exc = RuntimeError("This model's maximum context length is 65536 tokens")
+            exc.status_code = 400
+            raise exc
+        return LLMResponse(content="done", stop_requested=True)
+
+
+@pytest.mark.asyncio
+async def test_context_length_error_classification():
+    from cloudra.runtime_v2.agent_runner import _is_context_length_error
+
+    overflow = RuntimeError("maximum context length exceeded")
+    overflow.status_code = 400
+    assert _is_context_length_error(overflow)
+
+    bad_request = RuntimeError("invalid tool schema")
+    bad_request.status_code = 400
+    assert not _is_context_length_error(bad_request)
+
+    server_error = RuntimeError("boom")
+    server_error.status_code = 500
+    assert not _is_context_length_error(server_error)
+
+
+@pytest.mark.asyncio
+async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeypatch):
+    async def fake_summarize(agent, messages):
+        return "SUMMARY"
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
+
+    class LLM:
+        def __init__(self) -> None:
+            self.calls: list[list[dict]] = []
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls.append(list(messages))
+            if len(self.calls) == 1:
+                # Grow the history past the emergency keep_recent so the
+                # compaction actually summarizes a head.
+                return LLMResponse(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id=f"tc{i}", name="echo", arguments={"x": i})
+                        for i in range(12)
+                    ],
+                )
+            if len(self.calls) == 2:
+                exc = RuntimeError("This model's maximum context length is 65536 tokens")
+                exc.status_code = 400
+                raise exc
+            return LLMResponse(content="done", stop_requested=True)
+
+    llm = LLM()
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+
+    events = list(core.event_log.query_session(agent.id))
+    types = [e.type for e in events]
+    assert "llm.failed" in types
+    assert types.count("compaction.started") == 1
+    started = next(e for e in events if e.type == "compaction.started")
+    assert started.data["trigger"] == "context_overflow"
+    finished = next(e for e in events if e.type == "compaction.finished")
+    assert finished.data["compacted"] is True
+    assert finished.data["trigger"] == "context_overflow"
+    # The retried turn opened with the compacted handoff.
+    retried = llm.calls[2]
+    assert any("[Context compact]" in str(m.get("content")) for m in retried)
+    assert any("SUMMARY" in str(m.get("content")) for m in retried)
+
+
+@pytest.mark.asyncio
+async def test_second_overflow_after_emergency_compaction_fails_run(monkeypatch):
+    async def fake_summarize(agent, messages):
+        return "SUMMARY"
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
+
+    class AlwaysOverflowLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return LLMResponse(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id=f"tc{i}", name="echo", arguments={"x": i})
+                        for i in range(12)
+                    ],
+                )
+            exc = RuntimeError("This model's maximum context length is 65536 tokens")
+            exc.status_code = 400
+            raise exc
+
+    core, _, agent = await _setup(AlwaysOverflowLLM())
+    await _wait_state(agent, "failed")
+    types = [e.type for e in core.event_log.query_session(agent.id)]
+    # One emergency compaction, then the retried turn fails fast (4xx).
+    assert types.count("compaction.started") == 1
+    assert types.count("llm.failed") == 2
+    assert "run.finished" in types
+    finished = [e for e in core.event_log.query_session(agent.id) if e.type == "run.finished"]
+    assert finished[-1].data["outcome"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path):
+    async def fake_summarize(agent, messages):
+        return "SUMMARY OF EVERYTHING"
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
+
+    class GatedLLM:
+        def __init__(self) -> None:
+            self.gate = asyncio.Event()
+            self.calls: list[list[dict]] = []
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls.append(list(messages))
+            if len(self.calls) == 1:
+                await self.gate.wait()
+                return LLMResponse(
+                    content="",
+                    tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+                )
+            return LLMResponse(content="done", stop_requested=True)
+
+    llm = GatedLLM()
+    core, _, agent = await _setup(llm)
+    bus = CommandBus(core)
+    await bus.execute(
+        Command(
+            type="project.update",
+            target={"project_id": agent.project_id},
+            payload={"workspace_dir": str(tmp_path)},
+        )
+    )
+    await asyncio.sleep(0.02)  # first LLM call in flight, gated
+    await bus.execute(
+        Command(
+            type="agent.compact",
+            target={"session_id": agent.id},
+            payload={"keep_recent": 1},
+        )
+    )
+    llm.gate.set()
+    await _wait_state(agent, "succeeded")
+
+    handoff_file = tmp_path / ".cloudra" / "context_compacts.md"
+    assert handoff_file.exists()
+    text = handoff_file.read_text(encoding="utf-8")
+    assert "SUMMARY OF EVERYTHING" in text
+    # The pointer note reached the model on the next turn.
+    assert any(".cloudra/context_compacts.md" in str(m.get("content")) for m in llm.calls[1])
+
+
+@pytest.mark.asyncio
+async def test_message_reopen_emits_context_reset_event():
+    llm = ScriptedLLM(
+        [
+            LLMResponse(content="first done", stop_requested=True),
+            LLMResponse(content="second done", stop_requested=True),
+        ]
+    )
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+    await CommandBus(core).execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "continue"},
+        )
+    )
+    await _wait_state(agent, "succeeded")
+    resets = [
+        e for e in core.event_log.query_session(agent.id) if e.type == "agent.context_reset"
+    ]
+    assert len(resets) == 1
+    assert resets[0].data["reason"] == "auto_reopen"
+    assert resets[0].data["previous_outcome"] == "succeeded"
+    assert resets[0].run_id is not None
+
+
+@pytest.mark.asyncio
+async def test_restart_command_emits_context_reset_event():
+    llm = ScriptedLLM(
+        [
+            LLMResponse(content="old run", stop_requested=True),
+            LLMResponse(content="new run", stop_requested=True),
+        ]
+    )
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+    await CommandBus(core).execute(
+        Command(
+            type="agent.restart",
+            target={"session_id": agent.id},
+            payload={"message": "start over"},
+        )
+    )
+    await _wait_state(agent, "succeeded")
+    resets = [
+        e for e in core.event_log.query_session(agent.id) if e.type == "agent.context_reset"
+    ]
+    assert len(resets) == 1
+    assert resets[0].data["reason"] == "restart_command"
+    assert resets[0].data["previous_outcome"] == "succeeded"

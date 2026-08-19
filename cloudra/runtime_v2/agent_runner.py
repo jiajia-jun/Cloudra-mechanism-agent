@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
@@ -31,6 +33,38 @@ def _is_retryable(exc: Exception) -> bool:
     if isinstance(status, int) and 400 <= status < 500 and status not in (408, 429):
         return False
     return True
+
+
+# Provider-specific phrasings for "input exceeded the model's context window".
+# A bare 400 is not enough: it can also mean a malformed request (bad tool
+# schema, invalid parameter) that no amount of compaction would fix.
+_CONTEXT_OVERFLOW_MARKERS = (
+    "context length",
+    "maximum context",
+    "context_length_exceeded",
+    "context window",
+    "exceeds the maximum",
+    "reduce the length",
+    "input is too long",
+    "prompt is too long",
+    "too many tokens",
+    "payload size exceeds",
+)
+
+# How many trailing messages the emergency compaction keeps verbatim.  Smaller
+# than the manual default (20) because a run that already overflowed the
+# window needs an aggressive cut; the recent tail usually contains the largest
+# tool results.
+EMERGENCY_COMPACT_KEEP_RECENT = 10
+
+
+def _is_context_length_error(exc: Exception) -> bool:
+    """True when the provider rejected the request for exceeding its window."""
+    status = getattr(exc, "status_code", None)
+    if status not in (400, 413):
+        return False
+    text = str(exc).lower()
+    return any(marker in text for marker in _CONTEXT_OVERFLOW_MARKERS)
 
 
 class AgentRunner:
@@ -115,6 +149,7 @@ class AgentRunner:
                         core.pending_compactions.pop(agent.id, None)
                         await self._apply_compaction(agent, run_id, history, keep_recent)
                 attempt = 0
+                emergency_compacted = False
                 while True:
                     try:
                         project = core.require_project(agent.project_id)
@@ -132,6 +167,24 @@ class AgentRunner:
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:
+                        if (
+                            not emergency_compacted
+                            and history
+                            and _is_context_length_error(exc)
+                        ):
+                            # The provider rejected the request for exceeding
+                            # its context window.  Compact the history once and
+                            # retry the same turn; a second overflow (or any
+                            # other 4xx) fails the run as before.
+                            emergency_compacted = True
+                            await self._apply_compaction(
+                                agent,
+                                run_id,
+                                history,
+                                keep_recent=EMERGENCY_COMPACT_KEEP_RECENT,
+                                trigger="context_overflow",
+                            )
+                            continue
                         attempt += 1
                         if attempt > self.max_turn_retries or not _is_retryable(exc):
                             raise
@@ -254,7 +307,12 @@ class AgentRunner:
             )
 
     async def _apply_compaction(
-        self, agent: AgentSession, run_id: str, history: list[dict], keep_recent: int
+        self,
+        agent: AgentSession,
+        run_id: str,
+        history: list[dict],
+        keep_recent: int,
+        trigger: str = "manual",
     ) -> None:
         from cloudra.runtime_v2.compaction import compact_history, summarize_with_agent_settings
 
@@ -265,8 +323,13 @@ class AgentRunner:
             project_id=agent.project_id,
             session_id=agent.id,
             run_id=run_id,
-            data={"keep_recent": keep_recent, "history_messages": len(history)},
+            data={
+                "keep_recent": keep_recent,
+                "history_messages": len(history),
+                "trigger": trigger,
+            },
         )
+        handoff_path: str | None = None
         try:
             new_history, stats = await compact_history(
                 history,
@@ -279,15 +342,68 @@ class AgentRunner:
             logger.exception("agent %s compaction failed", agent.id)
             stats = {"compacted": False, "error": str(exc)}
         else:
-            history[:] = new_history
+            if stats.get("compacted"):
+                history[:] = new_history
+                # The in-memory handoff dies with the run; append it to a
+                # workspace file so later runs and human auditors still have
+                # the summary.  Best-effort: a write failure only skips the
+                # file and the pointer note.
+                handoff_path = await self._persist_compaction_handoff(
+                    agent, stats, str(history[0].get("content") or "")
+                )
+                if handoff_path:
+                    history[0]["content"] = str(history[0].get("content") or "") + (
+                        f"\n\n(The full compaction summary was appended to the "
+                        f"workspace file: {handoff_path})"
+                    )
+        finished: dict = dict(stats)
+        finished["trigger"] = trigger
+        if handoff_path:
+            finished["handoff_path"] = handoff_path
         core.event_log.append(
             "compaction.finished",
             stream="agent",
             project_id=agent.project_id,
             session_id=agent.id,
             run_id=run_id,
-            data=stats,
+            data=finished,
         )
+
+    async def _persist_compaction_handoff(
+        self, agent: AgentSession, stats: dict, handoff_text: str
+    ) -> str | None:
+        """Append a compaction summary to the project's audit file.
+
+        Returns the workspace-relative path on success, ``None`` when there is
+        no workspace or the append failed — never raises.
+        """
+        try:
+            project = self.core.require_project(agent.project_id)
+        except Exception:
+            return None
+        workspace = project.workspace_dir
+        if not workspace:
+            return None
+        rel_path = ".cloudra/context_compacts.md"
+        path = os.path.join(workspace, rel_path)
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+        def write() -> str | None:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "a", encoding="utf-8") as fh:
+                    fh.write(
+                        f"\n## {stamp} — agent {agent.id}\n"
+                        f"before_messages={stats.get('before_messages')} "
+                        f"after_messages={stats.get('after_messages')}\n\n"
+                        f"{handoff_text}\n"
+                    )
+                return rel_path
+            except OSError:
+                logger.exception("compaction handoff write failed for %s", agent.id)
+                return None
+
+        return await asyncio.to_thread(write)
 
     async def _publish_new_events(self, before: int) -> None:
         for event in list(self.core.event_log)[before:]:

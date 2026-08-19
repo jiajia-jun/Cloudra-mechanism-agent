@@ -456,3 +456,76 @@ async def test_orchestration_mode_switch_opens_dag_tool(tmp_path):
     )
     allowed = await dag_view()
     assert allowed.is_success is True, allowed.summary
+
+
+def test_query_session_before_cursor_pages_backwards():
+    """`before_session_seq` is the lazy-audit backwards-paging cursor:
+    each page returns the newest `limit` events at or below the cursor."""
+    from cloudra.runtime_v2.events import EventLog
+
+    log = EventLog(strict=True)
+    for i in range(10):
+        log.append("heartbeat", stream="agent", project_id="p", session_id="s", data={"i": i})
+
+    newest = log.query_session("s", limit=3, tail=True)
+    assert [e.session_seq for e in newest] == [8, 9, 10]
+
+    older = log.query_session("s", before_session_seq=8, limit=3, tail=True)
+    assert [e.session_seq for e in older] == [6, 7, 8]
+
+    first = log.query_session("s", before_session_seq=6, limit=3, tail=True)
+    assert [e.session_seq for e in first] == [4, 5, 6]
+
+    # A short final page signals "no older events".
+    tail = log.query_session("s", before_session_seq=4, limit=3, tail=True)
+    assert [e.session_seq for e in tail] == [2, 3, 4]
+
+    # forward paging is unaffected by the new parameter
+    forward = log.query_session("s", limit=3, tail=False)
+    assert [e.session_seq for e in forward] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_runtime_config_endpoints_read_patch_and_persist(tmp_path, monkeypatch):
+    """Global config GET/PATCH: masked keys, live mutation of the singleton,
+    YAML persistence, and write-only key semantics."""
+    from cloudra.infra.config import get_config
+
+    cfg = get_config()
+    monkeypatch.setattr(cfg, "config_file", tmp_path / "config.yaml")
+    monkeypatch.setattr(cfg.coordinator, "model", "old-model")
+    monkeypatch.setattr(cfg.coordinator, "key", "old-key")
+
+    app = create_v2_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/api/v2/runtime/config")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["coordinator"]["model"] == "old-model"
+        assert body["coordinator"]["key_set"] is True
+        assert "key" not in body["coordinator"]  # write-only
+
+        resp = await client.patch(
+            "/api/v2/runtime/config",
+            json={"slot": "coordinator", "changes": {"model": "new-model", "key": "new-key"}},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["coordinator"]["model"] == "new-model"
+        assert body["coordinator"]["key_set"] is True
+        assert cfg.coordinator.model == "new-model"  # live on the singleton
+        assert "new-model" in (tmp_path / "config.yaml").read_text(encoding="utf-8")
+
+        resp = await client.patch(
+            "/api/v2/runtime/config",
+            json={"slot": "coordinator", "changes": {"key": ""}},
+        )
+        assert resp.json()["coordinator"]["key_set"] is False
+        assert cfg.coordinator.key == ""
+
+        # unknown slot is a 422, not a silent no-op
+        resp = await client.patch(
+            "/api/v2/runtime/config",
+            json={"slot": "other", "changes": {"model": "x"}},
+        )
+        assert resp.status_code == 422

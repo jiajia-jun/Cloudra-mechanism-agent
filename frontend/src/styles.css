@@ -181,6 +181,73 @@ body {
 }
 .ws-input { flex: 1; min-width: 120px; max-width: 320px; height: 30px; font-family: var(--mono); font-size: 11.5px; }
 .project-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
+
+.sidebar-foot {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+}
+.sidebar-foot .sidebar-global { width: 100%; justify-content: center; }
+
+/* -------------------------------------------------- global config modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.modal {
+  width: min(600px, calc(100vw - 40px));
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  padding: 16px 18px;
+}
+.modal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-sub {
+  font-size: 12px;
+  color: var(--fg-tertiary);
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+.modal-sub b { color: var(--fg); }
+.modal-sub .mono-path {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-secondary);
+  word-break: break-all;
+}
+.modal-section {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--bg-layer);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.modal-section-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.modal-section .muted-note { margin-bottom: 10px; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
 .project-item {
   padding: 8px 10px;
   border-radius: 8px;
@@ -575,6 +642,179 @@ body {
 }
 .inspector-body { flex: 1; overflow-y: auto; padding: 10px 12px; }
 
+/* ------------------------------------------------------- audit log (events) */
+/* Human-readable audit trail: two sections (tool activity / system events),
+   collapsible cards with structured fields instead of raw JSON, and full
+   untruncated payload text.  Slightly larger mono type than the old event
+   rows for readability. */
+
+.audit-log { display: flex; flex-direction: column; gap: 8px; }
+
+.audit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.audit-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 2px;
+  gap: 2px;
+  flex: 1;
+}
+.audit-seg-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--fg-tertiary);
+  font-family: var(--font);
+  font-size: 12.5px;
+  padding: 4px 10px;
+  border-radius: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+.audit-seg-btn:hover { color: var(--fg-secondary); }
+.audit-seg-btn.active { background: var(--bg-layer-2); color: var(--fg); }
+.audit-seg-btn .ac-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  margin-left: 3px;
+}
+.audit-search {
+  width: 100%;
+  height: 30px;
+  font-size: 12.5px;
+  font-family: var(--mono);
+}
+
+.audit-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.audit-page-info {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+
+.audit-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-layer);
+}
+.audit-card.alert { border-color: rgba(245, 158, 11, 0.4); }
+.audit-card summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.audit-card summary::-webkit-details-marker { display: none; }
+.audit-card summary::before { content: '▸'; font-size: 10px; color: var(--fg-faint); flex-shrink: 0; }
+.audit-card[open] summary::before { content: '▾'; }
+.audit-card summary:hover { background: var(--bg-hover); }
+
+.ac-time {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.ac-seq {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+.ac-type {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+.ac-type.tool { color: var(--yellow-soft); }
+.ac-type.llm { color: var(--green-soft); }
+.ac-type.compaction { color: var(--green-soft); }
+.ac-type.agent { color: var(--fg-secondary); }
+.ac-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--fg-tertiary);
+}
+.audit-card.alert .ac-type,
+.audit-card.alert .ac-summary { color: var(--yellow-soft); }
+.ac-run {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+.ac-body {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--fg-secondary);
+  word-break: break-word;
+}
+.ac-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 10.5px;
+  color: var(--fg-faint);
+}
+
+.af-row { display: flex; flex-direction: column; margin-bottom: 6px; }
+.af-row:last-child { margin-bottom: 0; }
+.af-key {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-faint);
+  margin-bottom: 2px;
+}
+.af-scalar { color: var(--fg); font-size: 12.5px; }
+.af-text {
+  margin: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--fg-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.af-object { padding-left: 10px; border-left: 2px solid var(--border); }
+.af-list { display: flex; flex-direction: column; gap: 4px; }
+.af-item .af-object { margin-top: 4px; }
+.af-item { display: flex; flex-direction: column; }
+
 .event-row {
   display: block;
   width: 100%;
@@ -624,6 +864,49 @@ body {
 .field .input { width: 100%; margin-top: 4px; }
 .field-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12.5px; color: var(--fg-secondary); }
 .muted-note { font-size: 11px; color: var(--fg-faint); margin-top: 4px; }
+
+/* settings tab: explain the per-agent override semantics */
+.settings-note {
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--green);
+  border-radius: 0;
+  background: var(--bg-layer);
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--fg-tertiary);
+}
+.settings-note-title {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-secondary);
+  margin-bottom: 6px;
+}
+.settings-note ul { margin: 0; padding-left: 16px; }
+.settings-note li { margin-bottom: 3px; }
+.settings-note b { color: var(--fg); font-weight: 600; }
+.field-hint {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--fg-faint);
+}
+.api-key-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.api-key-state {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 1px 8px;
+}
+.api-key-state.ok { color: var(--green-soft); border-color: rgba(34, 197, 94, 0.35); }
 
 /* ------------------------------------------------------------------ toasts */
 

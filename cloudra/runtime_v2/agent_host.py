@@ -192,13 +192,38 @@ class AgentHost:
         succeeded/queued agents start a new run, and waiting agents resume the
         current one.  ``runner`` is optional so command handlers still work in
         pure state mode (no live execution).
+
+        Reopening a terminal agent resets the run-local dialogue history, so an
+        ``agent.context_reset`` event marks the boundary explicitly: continuity
+        now comes from the goal pin, memory, DAG and workspace files.
         """
         if agent.state is AgentState.RUNNING:
             return
+        previous = agent.state
         if agent.state in {AgentState.FAILED, AgentState.CANCELLED}:
             self.restart(agent)
         if agent.state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
-            self.start_run(agent)
+            run_id = self.start_run(agent)
+            if previous in {
+                AgentState.FAILED,
+                AgentState.CANCELLED,
+                AgentState.SUCCEEDED,
+            }:
+                self.event_log.append(
+                    "agent.context_reset",
+                    stream="agent",
+                    project_id=agent.project_id,
+                    session_id=agent.id,
+                    run_id=run_id,
+                    data={
+                        "reason": "auto_reopen",
+                        "previous_outcome": previous.value,
+                        "note": (
+                            "dialogue history was reset; continuity via "
+                            "goal/memory/workspace files"
+                        ),
+                    },
+                )
             if runner is not None:
                 runner.schedule(agent.id)
         elif agent.state in {AgentState.WAITING_INPUT, AgentState.WAITING_APPROVAL}:

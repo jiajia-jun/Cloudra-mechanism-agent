@@ -34,6 +34,7 @@ EVENT_TYPES: dict[str, str] = {
     "agent.cancelled": "cancel completed, subprocesses reaped",
     "agent.restart_requested": "restart accepted",
     "agent.restarted": "new run started",
+    "agent.context_reset": "dialogue history reset at a new run; continuity via goal/memory/workspace",
     "approval.requested": "approval waiting",
     "approval.decided": "approval decided",
     "interaction.requested": "ask_user waiting",
@@ -171,6 +172,7 @@ class EventLog:
         session_id: str,
         *,
         after_session_seq: int = 0,
+        before_session_seq: int | None = None,
         types: Iterable[str] | None = None,
         limit: int = 500,
         tail: bool = True,
@@ -181,9 +183,14 @@ class EventLog:
             for event in self._events
             if event.session_id == session_id
             and (event.session_seq or 0) > after_session_seq
+            and (
+                before_session_seq is None
+                or (event.session_seq or 0) <= before_session_seq
+            )
             and (wanted is None or event.type in wanted)
         ]
-        # tail=True：最近 limit 条（默认，看最新）；tail=False：从头分页（全量回放）
+        # tail=True：最近 limit 条（默认，看最新；before_session_seq 是向后翻页游标）；
+        # tail=False：从头分页（全量回放）
         return matched[-limit:] if tail else matched[:limit]
 
 

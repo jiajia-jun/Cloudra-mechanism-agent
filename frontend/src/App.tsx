@@ -3,6 +3,8 @@ import { api, EVENTS_WINDOW, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
 import type { Agent, EventEnvelope, Project } from './types';
+import AuditLog from './AuditLog';
+import GlobalConfig from './GlobalConfig';
 import {
   applyStreamEvent,
   buildTimeline,
@@ -53,8 +55,8 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [approvals, setApprovals] = useState<Array<Record<string, unknown>>>([]);
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
-  const [selectedEvent, setSelectedEvent] = useState<EventEnvelope | null>(null);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
+  const [globalOpen, setGlobalOpen] = useState(false);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
@@ -151,7 +153,6 @@ export default function App() {
       setStreamView({ streamText: '', frozen: [] });
       setThinkingItems([]);
       maxSeqRef.current = 0;
-      setSelectedEvent(null);
       // Drop any buffered events from the previous agent: they must not leak
       // into the freshly loaded transcript.
       eventBufferRef.current = [];
@@ -189,7 +190,6 @@ export default function App() {
     setThinkingItems([]);
     maxSeqRef.current = 0;
     setPendingMessages([]);
-    setSelectedEvent(null);
     api
       .listAgents(activeProjectId)
       .then((list) => {
@@ -734,6 +734,16 @@ export default function App() {
             </div>
           ))}
         </div>
+        <div className="sidebar-foot">
+          <button
+            type="button"
+            className="btn outline sm sidebar-global"
+            title="Global LLM config: the fallback slots behind empty per-agent settings"
+            onClick={() => setGlobalOpen(true)}
+          >
+            ⚙ Global settings
+          </button>
+        </div>
       </aside>
 
       <main className="main">
@@ -919,9 +929,7 @@ export default function App() {
       <Inspector
         activeAgent={activeAgent}
         activeProject={activeProject}
-        events={sessionEvents}
-        selectedEvent={selectedEvent}
-        onSelectEvent={setSelectedEvent}
+        liveEvents={sessionEvents}
         onPatchSettings={patchSettings}
         approvals={approvals}
         interactions={interactions}
@@ -938,6 +946,7 @@ export default function App() {
           </div>
         ))}
       </div>
+      {globalOpen && <GlobalConfig onClose={() => setGlobalOpen(false)} onToast={pushToast} />}
     </div>
   );
 }
@@ -995,12 +1004,10 @@ interface ContextStats {
 
 const EMPTY_GOAL: GoalForm = { objective: '', completion_criteria: '', current_focus: '' };
 
-function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelectEvent, onPatchSettings, approvals, interactions, onRefreshApprovals, onRefreshInteractions, onError, onToast }: {
+function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, approvals, interactions, onRefreshApprovals, onRefreshInteractions, onError, onToast }: {
   activeAgent: Agent | null;
   activeProject: Project | null;
-  events: EventEnvelope[];
-  selectedEvent: EventEnvelope | null;
-  onSelectEvent: (e: EventEnvelope) => void;
+  liveEvents: EventEnvelope[];
   onPatchSettings: (patch: Record<string, unknown>) => void;
   approvals: Array<Record<string, unknown>>;
   interactions: Array<Record<string, unknown>>;
@@ -1059,11 +1066,6 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
     }
   }
 
-  const toolEvents = useMemo(
-    () => events.filter((e) => e.type.startsWith('tool.') || e.type.startsWith('llm.') || e.type.startsWith('run.')),
-    [events],
-  );
-
   return (
     <aside className="inspector">
       <div className="tabs">
@@ -1077,19 +1079,7 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
       </div>
       <div className="inspector-body">
         {tab === 'events' && (
-          <>
-            {toolEvents.length === 0 && <div className="empty-hint">No tool/LLM events yet.</div>}
-            {toolEvents.map((event) => (
-              <button
-                key={event.event_id}
-                className={`event-row ${selectedEvent?.event_id === event.event_id ? 'selected' : ''}`}
-                onClick={() => onSelectEvent(event)}
-              >
-                <span className="seq">#{event.session_seq ?? '?'}</span>
-                {event.type}
-              </button>
-            ))}
-          </>
+          <AuditLog agentId={activeAgent?.id ?? null} liveEvents={liveEvents} onError={onError} />
         )}
 
         {tab === 'dag' && (
@@ -1330,6 +1320,28 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
         {tab === 'settings' &&
           (activeAgent ? (
             <>
+              <div className="settings-note">
+                <div className="settings-note-title">Agent override — this session only</div>
+                <ul>
+                  <li>
+                    Edits the effective settings of <b>{activeAgent.display_name}</b> alone: a
+                    field-level override layered on top of project defaults and role defaults.
+                  </li>
+                  <li>
+                    Other agents — including sub-agents spawned later — are <b>not</b> affected
+                    and do not inherit these overrides.
+                  </li>
+                  <li>
+                    Empty model / base_url / api key fall back to the global config (
+                    <b>{activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'}</b>{' '}
+                    slot for this role).
+                  </li>
+                  <li>
+                    Effective on the next LLM request. The api key can be overridden per agent
+                    (write-only: the stored value is never shown).
+                  </li>
+                </ul>
+              </div>
               <label className="field">
                 model
                 <input
@@ -1338,6 +1350,9 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
                   defaultValue={activeAgent.settings.model}
                   onBlur={(e) => e.target.value !== activeAgent.settings.model && onPatchSettings({ model: e.target.value })}
                 />
+                <span className="field-hint">
+                  empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
+                </span>
               </label>
               <label className="field">
                 base_url
@@ -1347,7 +1362,43 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
                   defaultValue={activeAgent.settings.base_url}
                   onBlur={(e) => e.target.value !== activeAgent.settings.base_url && onPatchSettings({ base_url: e.target.value })}
                 />
+                <span className="field-hint">
+                  empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
+                </span>
               </label>
+              <div className="field">
+                api key
+                <div className="api-key-row">
+                  <span className={`api-key-state ${activeAgent.settings.api_key_set ? 'ok' : ''}`}>
+                    {activeAgent.settings.api_key_set ? 'overriding' : 'not set'}
+                  </span>
+                  {activeAgent.settings.api_key_set && (
+                    <button className="btn ghost sm" onClick={() => onPatchSettings({ api_key: '' })}>
+                      clear override
+                    </button>
+                  )}
+                </div>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="off"
+                  key={`key-${activeAgent.id}`}
+                  placeholder={
+                    activeAgent.settings.api_key_set
+                      ? 'type a new key to replace the override…'
+                      : 'type to override the global key for this agent…'
+                  }
+                  onBlur={(e) => {
+                    const value = e.target.value;
+                    e.target.value = '';
+                    if (value) onPatchSettings({ api_key: value });
+                  }}
+                />
+                <span className="field-hint">
+                  write-only: the stored key is never shown. Leave the box empty to keep the
+                  current setting; use “clear override” to fall back to the global key.
+                </span>
+              </div>
               <label className="field-row">
                 <input type="checkbox" checked={activeAgent.settings.yolo} onChange={(e) => onPatchSettings({ yolo: e.target.checked })} />
                 YOLO (this agent only; project-wide toggle is in the top bar)
@@ -1364,6 +1415,7 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
                   defaultValue={activeAgent.settings.temperature}
                   onBlur={(e) => Number(e.target.value) !== activeAgent.settings.temperature && onPatchSettings({ temperature: Number(e.target.value) })}
                 />
+                <span className="field-hint">sampling temperature, 0–2</span>
               </label>
               <div className="muted-note">Changes apply to this session on the next LLM request.</div>
             </>
@@ -1371,15 +1423,6 @@ function Inspector({ activeAgent, activeProject, events, selectedEvent, onSelect
             <div className="empty-hint">Select an agent to edit settings.</div>
           ))}
       </div>
-      {tab === 'events' && (
-        <div className="event-detail">
-          {selectedEvent ? (
-            <pre className="json-view">{JSON.stringify(selectedEvent, null, 2)}</pre>
-          ) : (
-            <div className="empty-hint">Select an event to inspect.</div>
-          )}
-        </div>
-      )}
     </aside>
   );
 }

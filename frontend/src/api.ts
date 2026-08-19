@@ -1,4 +1,4 @@
-import type { Agent, EventEnvelope, Project, TranscriptMessage } from './types';
+import type { Agent, EventEnvelope, Project, RuntimeConfig, TranscriptMessage } from './types';
 
 // Resolution order: ?runtime= query param -> Vite env -> same origin
 // (production serves the SPA and API on one port).
@@ -77,6 +77,17 @@ export const api = {
     request<EventEnvelope[]>(
       `/api/v2/agents/${agentId}/events?after=0&limit=${limit}&tail=true${types ? `&types=${types}` : ''}`,
     ),
+  /** One lazy page of the audit trail.  Omit `before` for the newest page;
+   * with `before` set, returns the page of `limit` events ending at that
+   * session_seq cursor (backwards paging). */
+  eventsPage: (
+    agentId: string,
+    opts: { before?: number; limit?: number } = {},
+  ) => {
+    const { before, limit = 200 } = opts;
+    const q = `after=0&limit=${limit}&tail=true${before != null ? `&before=${before}` : ''}`;
+    return request<EventEnvelope[]>(`/api/v2/agents/${agentId}/events?${q}`);
+  },
   sendMessage: (agentId: string, content: string) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/messages`, {
       method: 'POST',
@@ -98,6 +109,12 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   listRoles: () => request<Array<{ role_id: string; display_name: string }>>('/api/v2/roles'),
+  runtimeConfig: () => request<RuntimeConfig>('/api/v2/runtime/config'),
+  patchRuntimeConfig: (slot: 'coordinator' | 'follower', changes: Record<string, unknown>) =>
+    request<RuntimeConfig>('/api/v2/runtime/config', {
+      method: 'PATCH',
+      body: JSON.stringify({ slot, changes }),
+    }),
   approvals: (projectId: string) => request<Array<Record<string, unknown>>>(`/api/v2/projects/${projectId}/approvals`),
   decideApproval: (projectId: string, approvalId: number | string, decision: 'approve' | 'deny', reason = '') =>
     request<{ accepted: boolean }>(`/api/v2/projects/${projectId}/approvals/${approvalId}/decision`, {
@@ -170,7 +187,7 @@ const KNOWN_EVENT_TYPES = [
   'agent.spawn_requested', 'agent.spawned', 'agent.spawn_rejected',
   'agent.settings_changed', 'agent.message_injected', 'agent.message_emitted',
   'agent.cancel_requested', 'agent.cancelled',
-  'agent.restart_requested', 'agent.restarted',
+  'agent.restart_requested', 'agent.restarted', 'agent.context_reset',
   'approval.requested', 'approval.decided',
   'interaction.requested', 'interaction.responded', 'command.rejected',
   'agent.state_changed', 'run.started', 'run.retry', 'run.finished',
