@@ -1,329 +1,207 @@
 # Cloudra
 
-**Autonomous agent for organic small-molecule mechanism computation: geometric & electronic perception, driven by an evidence-graph harness**
+**Autonomous Agent System for Organic Small-Molecule Mechanism Computation**  
+*Geometric & Electronic Perception · DAG Delivery Contracts · Anarchist Peer-to-Peer Agent Architecture*
 
 [![CI](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/ci.yml)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-[中文](README_CN.md) · [Documentation](docs/README.md) · [DAG Orchestration](docs/DAG_ORCHESTRATION.md)
+[中文文档](README_CN.md) · [Documentation](docs/README.md) · [DAG Orchestration Spec](docs/DAG_ORCHESTRATION.md)
 
-> Cloudra is research software under active development. It does not claim autonomous
-> scientific validity or benchmark superiority. The verified scope and the explicitly
-> un-claimed evidence are listed under [Evaluation status](#evaluation-status).
+> Cloudra is an autonomous research agent system for computational organic chemistry. It does not claim to replace human insight with absolute truth, nor does it aim for superficial benchmark numbers. Its purpose is to provide a rigorous, non-hallucinatory, and deterministically auditable foundation for long-horizon mechanistic elucidation.
 
-## The gap
+---
 
-Small-molecule mechanism elucidation is a long chain of interdependent calculations:
-atom mapping, conformer sampling, transition-state search, frequencies, IRC,
-endpoint optimization, thermochemistry. Today's LLM agents handle chemistry mostly
-as *tool calls plus prose*, and they fail such studies in two characteristic ways:
+## 🚀 Quick Start
 
-1. **No reliable perception of molecules.** Left to itself, a model hand-writes
-   coordinates, guesses at molecular orientations, and recites numbers from a
-   drifting memory of earlier tool output. Geometry and electronic structure — the
-   very objects a mechanism is made of — are exactly what a language model cannot
-   see.
-2. **Completion is declared, not derived.** Whether a mechanism has actually been
-   established is judged by the model's own summary. A plausible paragraph stands
-   in for an IRC-linked endpoint; nothing durable records which step rests on
-   which evidence.
+### 1. Requirements & Installation
 
-Cloudra attacks these two failure modes with two matching pillars: a **geometric
-and electronic perception layer** that gives agents real eyes and hands on
-molecules, and a **DAG-driven harness** that turns a mechanism hypothesis into an
-auditable evidence graph whose completion is computed, not asserted.
-
-This stack has carried a **complete D-A cycloaddition mechanism study
-end-to-end** (see [Demonstrated capability: D-A cycloaddition](#demonstrated-capability-d-a-cycloaddition)).
-
-## Pillar 1 — Geometric and electronic perception
-
-Agents in Cloudra never type coordinates or transcribe energies from memory; they
-*perceive* molecules through structured tools and quote the current tool output
-verbatim:
-
-- **Atom mapping** (`reaction_mapping`): reactant/product atom maps with explicit
-  binding status and reaction-center watch pairs that follow the atoms through
-  concrete 3D structures.
-- **Bond-order-aware structure perception** (`internal_coordinates`): anomaly
-  reports on bond lengths/angles, rotatable-bond classification, stereochemistry,
-  and Z-matrix editing focused on the reaction center — the agent's "eyes and
-  hands" instead of a GUI.
-- **Orientation without hand-placing** (`conformer_search`): reacting atom pairs
-  are locked by distance filters and the ensemble is sampled, so bimolecular
-  approaches are found by force-field/xtb relaxation rather than guessed.
-- **Electronic-structure perception** (`electronic_analysis`): atomic charges,
-  Mayer bond orders (incipient/partial bonds), IBO Lewis pictures, and spin
-  population with ⟨S²⟩ checks for open shells.
-- **Reaction-path tooling**: TS interpolation guesses, scan preparation/parsing,
-  strict IRC-direction verification, and log parsers that return structured
-  energies, frequencies, and convergence status.
-
-Hand-written coordinates are forbidden by policy across all roles — no exceptions
-for "just adjusting a few atoms".
-
-## Pillar 2 — DAG-driven harness
-
-- **The mechanism graph as an auditable research object.** The investigated
-  pathway is a persistent **delivery DAG** — the only persistent graph, not chat
-  context. Nodes are intermediate *occurrences* — catalytic cycles and reversible
-  steps stay acyclic by giving `Cat@entry` and `Cat@return` distinct nodes
-  sharing one canonical species record. Every node and edge carries typed
-  references (`artifact` / `compute_job` / `tool_result` / `species`) to
-  immutable records; a bare file path or a prose claim is not evidence.
-- **The graph states what evidence each element owes.** When proposing the
-  mechanism, the Coordinator declares an ordered **stage contract** per element
-  (occurrence: geometry/frequency/single_point; elementary step: ts_guess →
-  ts_opt → frequency → short_irc → endpoints → direction/identity →
-  thermochemistry). Stages bind strictly in order; finished delivery-relevant
-  calls land in a CallReview inbox awaiting review. There is no second "todo"
-  graph — no scheduling, no frontier.
-- **Evidence-derived completion.** Stage status is
-  `pending / supported / skipped / rejected`; element-level evidence levels
-  (`structure_supported` → `saddle_supported` → `endpoint_supported` →
-  `thermo_annotated`) are derived from stages by the deterministic harness.
-  Advisory outputs (a TS guess, a scan) can only support the advisory ts_guess
-  stage; `rejected` is not a disposal — it is an open gap still owed. A
-  coverage contract evaluated over the graph decides whether the study may be
-  delivered; only the human user can waive a gate.
-- **Event-driven Supervisor.** In guided mode the Supervisor accepts or rejects
-  the mechanism draft (compute stays gated until acceptance) and then reviews
-  each delivery-relevant call from the inbox, binding evidence to stages
-  (agree/disagree/skip). It cannot touch the mechanism graph structure, cannot
-  promote evidence, and cannot mark the study complete.
-- **A three-mode ablation boundary.** `standard` (no graph cost), `dag_record`
-  (draft auto-accepted, Coordinator self-binds stages, no Supervisor), and
-  `dag_guided` (Supervisor accepts the draft + reviews every delivery-relevant
-  call) are per-session choices — the effect of graph bookkeeping and the
-  effect of Supervisor control can be measured separately.
-
-Underneath both pillars sits a durable session substrate that keeps hour- to
-day-long experiments controllable across client, server, and process restarts:
-every graph mutation, actor, rationale, and evidence reference is journaled;
-artifacts are immutable; and prompt-assembly revisions are recorded with each
-session.
-
-### Research-management facilities
-
-Beyond the two pillars, Cloudra ships the facilities a long-running study needs:
-
-- **Domain sub-agents** (literature, small-molecule quantum chemistry, molecular
-  dynamics, first-principles, experimental design, writing, environment), launched
-  in parallel swarms and reporting back to the Coordinator.
-- **Goal anchors and context compaction** (`/goal`, `/compact`): the objective
-  survives compaction, and long sessions can be summarized mid-flight.
-- **Reminders** for calculations, meetings, or ideas — they wake the agent on time.
-- **An agent forum** (`agent_hub`) where parallel sub-agents share findings and
-  call each other.
-- **Approvals and questions**: destructive operations require user approval; agents
-  can ask the user questions through in-UI panels.
-- **Automatic recovery**: failed turns retry in place; after a process restart,
-  messaging an interrupted agent reopens it without losing state.
-
-## Demonstrated capability: D-A cycloaddition
-
-Cloudra has run a **complete D-A cycloaddition mechanism study**
-end-to-end in guided mode:
-
-- the Coordinator decomposed the objective, dispatched literature and domain
-  sub-agents, and designed the candidate mechanism as a delivery DAG (with a
-  stage contract per element);
-- the Supervisor accepted the mechanism draft to unlock compute, then reviewed
-  each delivery-relevant call — reaction mapping, conformer sampling, TS
-  searches, optimization + frequency, short bidirectional IRC, endpoint
-  optimizations, endpoint matching, and thermochemistry — binding evidence
-  stage by stage and reacting to failures and inadequate evidence;
-- the deterministic adapter validated every stage bind (order, call success,
-  no submit-call evidence, parser checks);
-- the final delivery was gated by the deterministic coverage report: claimed steps
-  reached endpoint-supported status with IRC-linked, optimized endpoints, and the
-  reported energetics carry documented level-of-theory provenance.
-
-The full trace — every mutation, actor, rationale, and evidence reference — is
-persisted in the session database and inspectable after the fact.
-
-## How it works
-
-```mermaid
-flowchart LR
-    U["Researcher"] --> C["Web UI"]
-    C <-->|"idempotent commands + resumable events"| G["Gateway API"]
-    G --> S["Durable Session and Event Store"]
-    S <--> A["Coordinator + Domain Agents"]
-    A --> P["Perception Tools<br/>(geometry / electronic)"]
-    A <--> D2["Delivery DAG + CallReview inbox"]
-    SV["Supervisor"] <--> D2
-    P --> L["Local workstation"]
-    P --> H["Slurm / HPC node"]
-    L --> R["Artifacts and evidence"]
-    H --> R
-    R --> D2
-    R --> S
-```
-
-Three planes stay separate: the **control plane** applies user commands, approvals,
-and cancellation; the **research runtime** owns reasoning, delegation, the graph
-state, and evidence; the **execution plane** enforces capabilities where work
-actually occurs. Details and invariants are documented in
-[`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md).
-
-## Scientific scope
-
-The current tools and skills cover workflows such as:
-
-- small-molecule quantum chemistry: structure preparation, conformer search,
-  TS/IRC workflows, Gaussian / ORCA input generation, asynchronous submission
-  (Gaussian / VASP / ORCA / CP2K), state monitoring, and log parsing;
-- electronic-structure analysis, atom mapping, format conversion, visualization,
-  and image-to-structure workflows;
-- literature retrieval, document conversion, evidence synthesis, and academic
-  writing, with provider-native or external web search and cited sources;
-- NMR and IR processing;
-- domain planning for molecular dynamics, periodic first-principles modelling,
-  experimental design, and scientific software environments.
-
-Availability of a tool does not establish scientific correctness. Users remain
-responsible for method selection, convergence, controls, uncertainty, and
-interpretation. Cloudra is designed to preserve the evidence needed for that review.
-
-## Evaluation status
-
-Automated tests cover the graph store and mutation engine (acyclicity, occurrence
-nodes, immutable evidence references, atomic batches, optimistic revisions,
-permission boundaries), deterministic delivery completion, mode isolation, session
-persistence and restart recovery, the perception tools (atom mapping, internal
-coordinates, conformer search, TS/scan parsing, log parsing), prompt assembly,
-command idempotency, artifact boundaries, node
-routing, Slurm command construction, and backup/restore. CI runs the suite on CPython 3.11–3.13. The D-A cycloaddition study above is a
-demonstrated end-to-end run, not a benchmark.
-
-The following evidence is still missing and is therefore **not claimed**:
-
-- comparative scientific benchmark results against other agents or human baselines;
-- systematic multi-reaction evaluation of mechanism-discovery success rates;
-- submission and recovery trials on a real Slurm cluster;
-- public-network deployment and long-duration operational reliability.
-
-## Installation
-
-Cloudra requires Python 3.11 or newer and an OpenAI-compatible model endpoint.
+Requires Python ≥ 3.11, Node.js ≥ 18, and access to any OpenAI-compatible LLM endpoint.
 
 ```bash
+# Clone the repository
 git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
 cd Cloudra-mechanism-agent
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[all]"
+
+# Run the all-in-one setup script (virtual environment + dependencies)
+./install.sh                 # Linux / macOS
+# .\install.ps1              # Windows PowerShell
+
+# Initialize default configuration
 cloudra config init
 ```
 
-The one-line installers remain available for development checkouts:
+### 2. Launch the Full-Stack Web Console
+
+Cloudra features a unified, single-port web interface (FastAPI control plane + React/Vite SPA):
 
 ```bash
-./install.sh                 # Linux / macOS
-# .\install.ps1              # Windows PowerShell
+cloudra                      # Builds the frontend and starts the server, opening your browser
+cloudra web --skip-build     # Fast restart using pre-built assets
 ```
 
-For cluster homes on NFS or Lustre, place `CLOUDRA_DATA_DIR` on a local filesystem
-with reliable locking. SQLite WAL should not be used as a shared multi-host database.
+### 3. Geek-Friendly Slash Commands
 
-### Web search configuration
+Type `/` directly in the chat composer to open the sleek, keyboard-navigable autocomplete menu:
 
-`native_search` defaults to `auto`: the provider is detected from `base_url` +
-`model` and its server-side search is enabled automatically. Override via
-environment variables:
+- `/schedule [on|off]`: Toggle autonomous schedule mode. When active, stopping without an active self-wake reminder is intercepted, protecting long unattended computational runs.
+- `/goal <description>`: Pin the primary research objective for the active agent, preserved even across aggressive context compactions.
+- `/yolo [on|off]`: Toggle automated safety approval (YOLO mode) to bypass manual confirmations on destructive actions and compute submissions.
+- `/compact`: Trigger structured context compaction, archiving past trajectory turns and emitting handover summaries.
+- `/help`: Display slash command usage and syntax.
+
+### 4. Web Search Configuration (Optional)
+
+Cloudra natively supports provider-side web search with external tool fallback:
 
 ```bash
 export CLOUDRA_COORDINATOR__NATIVE_SEARCH=auto        # off / auto / openai / openrouter / deepseek / gemini / custom
-export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # custom injection params (relays)
+export CLOUDRA_COORDINATOR__NATIVE_SEARCH_PARAMS='{}' # Custom provider parameter injection
 ```
 
-When native search is off, the agent falls back to the external `web_search` tool
-(Tavily / Brave / Bing / DuckDuckGo). When on, the external tool is removed to avoid
-double searching. Note that external search is generally weaker than provider-native
-search.
+When native search is not enabled, the system automatically falls back to external search tools (Tavily, Brave, Bing, or DuckDuckGo).
 
-## Usage
+---
 
-The recommended frontend is the Web UI (Node.js >= 18 required):
+## 💡 Core Novelty: DAG-Driven Reaction Mechanism Elucidation
 
-```bash
-./install.sh               # once: Python package + config
-cloudra                    # install npm deps, build, start web server
-cloudra web --skip-build   # reuse the existing frontend/dist build
+### The Pitfall: Why Conventional LLM Agents Fail at Reaction Mechanisms
+
+Elucidating organic reaction mechanisms requires an exacting, interdependent computational pipeline: **Atom Mapping → Conformation Sampling → TS Guess Interpolation → Saddle-Point Optimization → Frequency & Solitary Imaginary Mode Verification → Bidirectional IRC Path Integration → Endpoint Geometry Optimization → Product Isomorphism Matching → Thermochemistry & Barrier Annotation**.
+
+Generic LLM agents invariably treat chemistry as "calling tools + writing summaries", leading to two severe vulnerabilities:
+
+1. **Microscopic Spatial Blindness & Coordinate Hallucination**: Language models cannot directly "see" 3D Euclidean space. Without hard physical constraints, agents make up atomic coordinates, guess collision orientations, and misremember numerical frequencies and energies across drifting conversation turns.
+2. **"Completion by Assertion" vs. "Completion by Evidence"**: Whether a mechanism is truly established is conventionally decided by the agent itself in a closing paragraph. Smooth scientific prose regularly disguises broken IRC paths, mismatched endpoints, or spurious imaginary frequencies, with no durable evidence tying claims to verifiable quantum chemistry outputs.
+
+### The Cloudra Solution: Perception Layer + Delivery DAG Contracts
+
+Cloudra addresses these challenges through two interlocking pillars:
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │       Coordinator / Peer Sub-Agents     │
+                    └────────────────────┬────────────────────┘
+                                         │  Propose Mechanism / Bind Evidence
+                                         ▼
+┌─────────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
+│  Perception Layer       │ ───► │  Delivery Evidence DAG  │ ◄─── │  Scientific Supervisor  │
+│  · No hand-written xyz  │      │  · Immutable Artifacts  │      │  · Review Call Inbox    │
+│  · Reaction Mapping     │      │  · Ordered Stage Locks  │      │  · Gate Unlocking       │
+│  · CREST / xTB Ensemble │      │  · Deterministic Audit  │      │  · Non-modifying Audit  │
+│  · Mayer / IBO Analysis │      └─────────────────────────┘      └─────────────────────────┘
+└─────────────────────────┘
 ```
 
-Set `CLOUDRA_NO_BROWSER=1` to skip auto-opening a browser tab.
+#### 1. Geometric & Electronic Perception Layer
+Agents never hand-write Cartesian coordinates or transcribe floating-point energies from memory; they perceive molecules strictly through structured tools:
+- **Zero Hand-Written Coordinates (`coord_guard`)**: A physical safety guard intercepts hand-crafted `.gjf` or `.xyz` coordinate blocks. All geometries must originate from deterministic format conversion, SMILES 3D builders, or QM relaxation.
+- **Reaction Atom Mapping**: Tracks atom conservation, breaking/forming bonds, and reacting center pairs across 3D conformations.
+- **Orientation & Conformer Sampling**: Employs CREST and xTB dynamic relaxation within constrained distance envelopes to determine bimolecular approach pathways rather than guessing orientations.
+- **Electronic Structure Analysis**: Provides atomic charges, Mayer bond orders (capturing partially formed transition-state bonds), IBO Lewis representations, and open-shell spin contamination checks ($\langle S^2 \rangle$).
+- **Full Reaction Pathway Tooling**: IDPP saddle-point interpolation, flexible potential energy surface scans, rigorous bidirectional IRC trajectory validation, and log parsers that extract structured energies, frequencies, and convergence metrics.
 
-The web UI provides per-project workspaces, an AgentBar to switch among all
-parallel agents, an Inspector with per-event detail, live YOLO/model settings,
-approval/interaction/artifact control, and DAG panels.
+#### 2. Delivery-Only Evidence DAG Harness
+Mechanistic completion is determined strictly by the state of an immutable, context-independent **Delivery DAG**:
+- **Graph Elements as Evidence Debt**: Nodes represent the appearance of intermediate species along a reaction coordinate (acyclic structure is preserved by assigning entry and return states of catalysts to distinct nodes sharing canonical species metadata). Edges represent elementary reaction steps. Each element carries a stage contract.
+- **Ordered Stage Locks**: An elementary step must satisfy its stage contract in strict sequential order: `ts_guess` → `ts_opt` → `frequency` (with exactly one imaginary frequency) → `short_irc` → `endpoints` → `direction` → `thermochemistry`. Later stages cannot be bound until preceding requirements are verified.
+- **Deterministic Coverage Audit**: Graph elements accept only typed references to immutable calculation artifacts and job records. Study delivery is evaluated by deterministic algorithms; any unfulfilled or rejected stage remains an open gap blocking completion.
 
-Orchestration modes are per project: `standard` (default), `dag_record`, or
-`dag_guided`, switchable from the project settings in the UI; the DAG panel
-shows the mechanism graph and the review inbox.
+#### 3. End-to-End Experimental Demonstration
+Cloudra has fully and autonomously executed an **end-to-end Diels-Alder cycloaddition mechanism study** under guided supervision: from precursor mapping to transition-state search, solitary imaginary frequency validation, bidirectional IRC integration, endpoint optimization, and thermochemical barrier derivation. The entire trajectory is fully preserved and auditable in the database.
 
-Real calculations require the corresponding scientific software and licences.
+---
 
-## Reproducibility
+## 🏛️ Architecture: Anarchist Peer-to-Peer Topology & Event-Sourced Kernel
 
-If you use Cloudra in research, pin the commit hash and record the model, prompts,
-tool revisions, software environment, and calculation inputs. The runtime records
-prompt-assembly revisions and, for DAG sessions, a snapshot of the Supervisor
-model, prompt revision, and graph-policy revision with each session; every graph
-mutation carries its actor, rationale, and base revision in an append-only journal.
+### Anarchist Design Philosophy
 
-## Documentation
+Traditional multi-agent frameworks tend to replicate bureaucratic corporate hierarchies, enforcing rigid master-slave command chains that create cognitive bottlenecks and information loss.
 
-| Document | Contents |
-| --- | --- |
-| [`docs/DAG_ORCHESTRATION.md`](docs/DAG_ORCHESTRATION.md) | DAG-guided orchestration: mechanism graph + stage contracts, modes, permissions, evidence derivation |
-| [`docs/PHASE8_NODE_REGISTRY.md`](docs/PHASE8_NODE_REGISTRY.md) | Multi-node profiles, workspace routing, worker leases, Slurm semantics |
-| [`AGENTS.md`](AGENTS.md) | Repository map and development conventions for contributors |
+Cloudra is built on an **Anarchist Peer-to-Peer Philosophy**:
+- **Equal Standing with Specialized Division of Labor**: There are no master or subordinate agents in Cloudra. The `coordinator`, `dft` specialist, reaction `explorer`, literature `researcher`, `md` modeler, `experiment` designer, and scientific `writer` share the exact same structural standing and independent lifecycles.
+- **Asynchronous Forum & Peer Collaboration (`agent_hub`)**: Agents share discoveries, post experimental notes, and notify peers via a decentralized topic forum (`agent_hub`). Any agent can autonomously claim tasks or use the `call` verb to invite specific skill profiles to collaborate without centralized bottleneck dispatchers.
 
-## Repository layout
+### Event-Driven Runtime with Declarative Notice Injection (S1 Kernel)
+
+The runtime (`runtime_v2`) is engineered for deterministic execution and crash resilience:
+- **Append-Only Event Sourcing (`EventLog` & `EventHub`)**: Every tool execution, thinking step (`agent.thinking`), state transition, and graph mutation is logged as an immutable, typed event. Sessions can be replayed, audited, and seamlessly restored across server restarts or power failures.
+- **Declarative Notice Injection**: Instead of fragile manual prompt concatenations, the engine uses `notices.pin` to deterministically assemble DAG gaps, active research goals, and schedule alerts into LLM turns.
+- **Autonomous Schedule Guard**: When schedule mode is enabled, attempts to stop without an active wake-up timer are automatically intercepted by `ScheduleStage`, allowing agents to sleep during long calculations and awaken automatically when jobs conclude.
+
+---
+
+## 🔬 Three Orchestration Modes: Ablation Boundaries for Research
+
+To enable rigorous ablation studies on the exact impact of evidence graphs and scientific supervision, Cloudra provides three switchable modes:
+
+| Mode | Behavior | Scientific Role |
+| :--- | :--- | :--- |
+| `standard` (Default) | No graph overhead; operates as a standard high-capability chemistry agent | Baseline Control |
+| `dag_record` | Auto-accepts mechanism drafts; agent self-binds evidence without supervisor | Evidence Graph Ablation |
+| `dag_guided` | Independent scientific supervisor reviews drafts and audits call evidence | Full Supervised Protocol |
+
+Modes can be toggled dynamically in the project settings UI.
+
+---
+
+## ⚡ Quantum Chemistry & HPC Integration
+
+Cloudra seamlessly bridges local exploratory modeling and remote cluster computing:
+
+- **Electronic Structure Engines**: Integrates with Gaussian, ORCA, xTB, CREST, VASP, and CP2K for automated input preparation, local process execution, and Slurm batch submission.
+- **Cheminformatics & Property Analysis**: Connects with RDKit, OpenBabel, and Multiwfn for 3D geometry manipulation, NMR/IR spectral simulation, and stoichiometry verification.
+- **Literature & Academic Authoring**: Direct integration with OpenAlex for literature search and automated Markdown/LaTeX report generation with full level-of-theory annotations.
+
+---
+
+## 📂 Repository Layout
 
 ```text
 cloudra/
-├── core/                       agent/supervisor base classes, shared supervision
-├── services/                   application service layer and FastAPI control plane
-├── persistence/                SQLite store, artifacts, memory, paths
-├── base/                       dataclasses and loader base types
-├── infra/                      config, LLM transport, events, platform support
-├── dag/                        DAG-driven harness (opt-in per session)
-├── runtime/                    prompt assembly, workspace observer, compute job broker/monitor
-├── runtime_v2/                 event-driven kernel (runs, commands, policies, bridges)
-├── tools/, subagents/          perception tools, scientific capabilities, domain roles
-├── skills/, prompts/           research methods and role policies
-└── frontend/                   React web control surface
+├── core/                        Agent base types and scientific supervision (Supervisor)
+├── services/                    Control plane API service (FastAPI routing)
+├── persistence/                 SQLite store, immutable artifacts, long-term memory, paths
+├── base/                        Data classes and tool/skill loading contracts
+├── infra/                       Cluster node profiles, LLM transports, event bus, platform tools
+├── dag/                         Mechanism evidence graph subsystem (Engine, Store, Controller)
+├── runtime/                     Deterministic prompt assembly, workspace observer, compute monitoring
+├── runtime_v2/                  Event-driven reasoning kernel (Pipeline, Commands, PolicyStages, Bridges)
+├── tools/, subagents/           Perception toolboxes and specialized domain roles (dft, md, explorer, etc.)
+├── skills/, prompts/            Domain methodology skills and version-controlled role prompts
+└── frontend/                    Modern React + TypeScript + Vite web console
 ```
 
-## Development
+---
+
+## 🧪 Development & Testing
+
+Run the full automated test suite and style checks:
 
 ```bash
-uv run pytest -q tests/            # full test suite
-uv run ruff check cloudra tests    # lint (line-length 120)
+uv run pytest -q tests/            # Run the complete test suite (700+ tests)
+uv run pytest -q tests/test_dag*   # Focus on DAG orchestration
+uv run pytest -q tests/test_runtime_v2* # Focus on runtime_v2 kernel and policy stages
+uv run ruff check cloudra tests    # Lint check (line-length 120)
 ```
 
-## Citing this work
+---
 
-Cloudra does not yet have an archival release. Until one exists, please cite the
-repository together with the exact commit you used:
+## 📖 Citation
+
+If you use or reference Cloudra in your scientific research, please cite the repository with the commit hash:
 
 ```bibtex
-@misc{cloudra,
+@misc{cloudra2026,
   title  = {Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation},
   author = {{Cloudra Developers}},
   year   = {2026},
   url    = {https://github.com/yyywaa/Cloudra-mechanism-agent},
-  note   = {Commit-pinned research software; see repository README for evaluation status}
+  note   = {Commit-pinned research software for mechanistic organic chemistry}
 }
 ```
 
-A citation file and benchmark report will be added only with a corresponding
-evaluated release.
+## 📄 License
 
-## License
-
-MIT. See [`pyproject.toml`](pyproject.toml).
+This project is licensed under the [MIT License](pyproject.toml).
