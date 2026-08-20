@@ -151,7 +151,7 @@ Cloudra 的执行面由轻量、确定性的 `runtime_v2` 驱动：
 Cloudra 深度集成了计算化学主流工具链与高性能计算基础设施：
 
 - **量子化学与物理计算**：支持 Gaussian、ORCA、xTB、CREST、VASP、CP2K 等主流程序；具备自动输入文件生成、本地执行守卫与 Slurm 集群作业异步托管能力。
-- **化学信息学与微观表征**：无缝对接 RDKit、OpenBabel、Multiwfn 接口，支持分子 3D 构型修正、NMR/IR 光谱解析与反应物料守恒计算。
+- **化学信息学与微观表征**：无缝对接 RDKit、OpenBabel、Multiwfn、Molli 接口，支持分子 3D 构型修正、NMR/IR 光谱解析、反应物料守恒计算，以及高保真 CDXML 反应式解析（保留手性、连接关系、电荷与多重度）。
 - **文献整合与学术写作**：内置 OpenAlex 科学文献检索与 LaTeX/Markdown 学术转化能力，所有结论均强制标注来源文献与理论级别（Level of Theory）。
 
 ---

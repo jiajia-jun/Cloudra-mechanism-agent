@@ -78,6 +78,11 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_compute_entry=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.cdxml_to_graph',
+        class_name='CdxmlToGraph',
+        tool_name='cdxml_to_graph',
+    ),
     ToolRegistration('cloudra.tools.Chemtool.internal_coordinates', 'InternalCoordinates'),
     ToolRegistration(
         module='cloudra.tools.Chemtool.ir_processor',

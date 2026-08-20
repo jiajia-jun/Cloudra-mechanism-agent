@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 新增
+- `cdxml_to_graph` 工具：基于 molli + RDKit 解析 ChemDraw CDXML 反应路线，生成节点为 isomeric SMILES 的候选机理图；多反应物/产物合并为反应物/产物络合物，支持 DAG 检测与 `dag_propose_mechanism` 提案生成，边信息携带溶剂/条件/试剂供计算参考，可选落盘 mol2。
 - runtime_v2 原生提醒唤醒：`reminders.py` 拦截 `schedule` 工具，提醒落 `reminder.scheduled` / `reminder.cancelled` / `reminder.fired`（`schedule_id` 为事件 seq）；到点经 `agent.message` 投递 `[Reminder]` 并自动 reopen 终态 agent。进程启动 `rearm_all()` 从事件投影重建，过期立即触发——修复 v2 下 `schedule` 无人触发、挂起 agent 永睡的停摆。
 - `NoticeManager`（`notices.py`）：统一上下文注入。`pin`/`unpin` 按键幂等的常驻注入（goal 钉、DAG 投影），`push` 一次性注入（交付 delta、唤醒附言）；`turn_pipeline` 拼消息时 `collect`（pins 在前，push 耗尽）。
 - DAG 工具族：删除未发布的 `dag_graph` 单工具，拆成平铺字段的 `dag_*` verb（`dag_view` / `dag_init_from_template` / `dag_add_species` / `dag_add_step` / `dag_update_delivery_element` / `dag_schedule_work` / `dag_update_process_node` / `dag_remove_edge` / `dag_bind_evidence` / `dag_review_evidence` / `dag_set_coverage_contract` / `dag_message_supervisor` / `dag_delivery_report`）。引擎、分权、变更日志与原子批次不变；督导循环按工具名调度，不再嗅探 `action`。

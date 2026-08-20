@@ -48,6 +48,7 @@ dependencies = [
 [project.optional-dependencies]
 chem = [
     "rdkit>=2023.0",
+    "molli>=1.3.0",
     "nmrglue>=0.10",
     "spectrochempy>=0.6.0",
     # chemcoord 2.2 改了内部模块结构，internal_coordinates 依赖其私有 API，钉在 2.1.x
@@ -62,6 +63,7 @@ pdf = [
 ]
 all = [
     "rdkit>=2023.0",
+    "molli>=1.3.0",
     "nmrglue>=0.10",
     "spectrochempy>=0.6.0",
     "chemcoord~=2.1.2",

@@ -151,7 +151,7 @@ Modes can be toggled dynamically in the project settings UI.
 Cloudra seamlessly bridges local exploratory modeling and remote cluster computing:
 
 - **Electronic Structure Engines**: Integrates with Gaussian, ORCA, xTB, CREST, VASP, and CP2K for automated input preparation, local process execution, and Slurm batch submission.
-- **Cheminformatics & Property Analysis**: Connects with RDKit, OpenBabel, and Multiwfn for 3D geometry manipulation, NMR/IR spectral simulation, and stoichiometry verification.
+- **Cheminformatics & Property Analysis**: Connects with RDKit, OpenBabel, Multiwfn, and Molli for 3D geometry manipulation, NMR/IR spectral simulation, stoichiometry verification, and high-fidelity CDXML reaction parsing (stereochemistry, connectivity, charge, and multiplicity preserved).
 - **Literature & Academic Authoring**: Direct integration with OpenAlex for literature search and automated Markdown/LaTeX report generation with full level-of-theory annotations.
 
 ---
