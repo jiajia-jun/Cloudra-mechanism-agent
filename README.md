@@ -13,7 +13,7 @@
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Requirements & Installation
 
@@ -64,7 +64,7 @@ When native search is not enabled, the system automatically falls back to extern
 
 ---
 
-## 💡 Core Novelty: DAG-Driven Reaction Mechanism Elucidation
+## Core Novelty: DAG-Driven Reaction Mechanism Elucidation
 
 ### The Pitfall: Why Conventional LLM Agents Fail at Reaction Mechanisms
 
@@ -113,7 +113,7 @@ Cloudra has fully and autonomously executed an **end-to-end Diels-Alder cycloadd
 
 ---
 
-## 🏛️ Architecture: Anarchist Peer-to-Peer Topology & Event-Sourced Kernel
+## Architecture: Anarchist Peer-to-Peer Topology & Event-Sourced Kernel
 
 ### Anarchist Design Philosophy
 
@@ -132,7 +132,7 @@ The runtime (`runtime_v2`) is engineered for deterministic execution and crash r
 
 ---
 
-## 🔬 Three Orchestration Modes: Ablation Boundaries for Research
+## Three Orchestration Modes: Ablation Boundaries for Research
 
 To enable rigorous ablation studies on the exact impact of evidence graphs and scientific supervision, Cloudra provides three switchable modes:
 
@@ -146,7 +146,7 @@ Modes can be toggled dynamically in the project settings UI.
 
 ---
 
-## ⚡ Quantum Chemistry & HPC Integration
+## Quantum Chemistry & HPC Integration
 
 Cloudra seamlessly bridges local exploratory modeling and remote cluster computing:
 
@@ -156,7 +156,7 @@ Cloudra seamlessly bridges local exploratory modeling and remote cluster computi
 
 ---
 
-## 📂 Repository Layout
+## Repository Layout
 
 ```text
 cloudra/
@@ -175,7 +175,7 @@ cloudra/
 
 ---
 
-## 🧪 Development & Testing
+## Development & Testing
 
 Run the full automated test suite and style checks:
 
@@ -188,7 +188,7 @@ uv run ruff check cloudra tests    # Lint check (line-length 120)
 
 ---
 
-## 📖 Citation
+## Citation
 
 If you use or reference Cloudra in your scientific research, please cite the repository with the commit hash:
 
@@ -202,6 +202,6 @@ If you use or reference Cloudra in your scientific research, please cite the rep
 }
 ```
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](pyproject.toml).
