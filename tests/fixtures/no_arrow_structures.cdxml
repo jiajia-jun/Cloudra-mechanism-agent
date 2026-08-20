@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CDXML BondLength="14.4" CreationProgram="test" Name="no_arrow" BoundingBox="0 0 200 50">
+<page BoundingBox="0 0 200 50">
+<fragment id="1" BoundingBox="10 10 40 40">
+<n id="10" p="10 20" Element="6" NumHydrogens="3"/>
+<n id="11" p="25 20" Element="6" NumHydrogens="3"/>
+<b id="12" B="10" E="11" Order="1"/>
+</fragment>
+<fragment id="2" BoundingBox="100 10 130 40">
+<n id="20" p="100 20" Element="8" NumHydrogens="1"/>
+<n id="21" p="115 20" Element="6" NumHydrogens="3"/>
+<b id="22" B="20" E="21" Order="1"/>
+</fragment>
+</page>
+</CDXML>

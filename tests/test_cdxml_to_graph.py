@@ -142,3 +142,28 @@ def test_registry_contains_tool():
     from cloudra.tools.registry import TOOL_REGISTRY
 
     assert any(r.tool_name == "cdxml_to_graph" for r in TOOL_REGISTRY)
+
+
+NO_ARROW_FIXTURE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "fixtures",
+    "no_arrow_structures.cdxml",
+)
+
+
+@pytest.mark.asyncio
+async def test_no_arrow_returns_standalone_structures(tool, mock_session):
+    """只有结构没有箭头时，返回独立节点而不是空图，且不生成 DAG 提案。"""
+    result = await _parse(tool, mock_session, path=NO_ARROW_FIXTURE)
+
+    assert result.is_success is True, result.message
+    graph = result.graph
+    assert len(graph["nodes"]) == 2
+    assert graph["edges"] == []
+    assert graph["is_dag"] is True
+    assert result.dag_proposal is None
+    assert any(
+        "no reaction arrows found" in w for w in result.warnings
+    )
+    assert all(n["smiles"] for n in graph["nodes"])
+    assert all(n["role"] is None for n in graph["nodes"])

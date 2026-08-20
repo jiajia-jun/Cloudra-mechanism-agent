@@ -399,7 +399,10 @@ _DEFAULT_EDGE_STAGES = [
 _DEFAULT_NODE_STAGES = ["geometry"]
 
 
-def _build_graph(reactions: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, Any] | None, list[str], list[dict[str, Any]]]:
+def _build_graph(
+    reactions: list[dict[str, Any]],
+    frag_infos: list[_FragmentInfo] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any] | None, list[str], list[dict[str, Any]]]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     node_by_complex: dict[str, str] = {}
@@ -523,6 +526,45 @@ def _build_graph(reactions: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[
             node["role"] = "product"
         elif node["node_id"] in sources:
             node["role"] = "reactant"
+
+    # If the CDXML contains structures but no arrows, still surface them as
+    # unconnected reference nodes instead of returning an empty graph.
+    if not edges and not nodes and frag_infos:
+        for info in frag_infos:
+            if not info.smiles:
+                unresolved.append({
+                    "fragment_id": info.frag_id,
+                    "formula": info.formula,
+                    "reason": "could not convert fragment to SMILES",
+                })
+                continue
+            nid = f"cdx_frag_{info.frag_id}"
+            nodes.append({
+                "node_id": nid,
+                "label": f"fragment {info.frag_id}",
+                "smiles": info.smiles,
+                "role": None,
+                "formula": info.formula,
+                "charge": info.charge,
+                "multiplicity": info.multiplicity,
+                "components": [{
+                    "fragment_id": info.frag_id,
+                    "smiles": info.smiles,
+                    "formula": info.formula,
+                    "charge": info.charge,
+                    "multiplicity": info.multiplicity,
+                }],
+                "metadata": {
+                    "fragment_ids": [info.frag_id],
+                    "component_smiles": [info.smiles],
+                    "formula_components": [info.formula],
+                },
+            })
+        if nodes:
+            warnings.append(
+                "no reaction arrows found; returning standalone structure nodes "
+                "as reference only, not a mechanism graph"
+            )
 
     graph = {
         "nodes": nodes,
@@ -672,7 +714,7 @@ class CdxmlToGraph(Tool):
                         for i in reaction[key]
                     ]
 
-            graph, dag_proposal, graph_warnings, unresolved = _build_graph(reactions)
+            graph, dag_proposal, graph_warnings, unresolved = _build_graph(reactions, list(frag_map.values()))
             warnings.extend(graph_warnings)
 
             message = (
