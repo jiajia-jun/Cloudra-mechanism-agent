@@ -62,6 +62,44 @@ function cleanPromptText(raw: unknown): string {
   return String(raw);
 }
 
+interface SlashCommandDef {
+  command: string;
+  args?: string;
+  desc: string;
+  insertText: string;
+}
+
+const SLASH_COMMANDS: SlashCommandDef[] = [
+  {
+    command: '/schedule',
+    args: '[on|off]',
+    desc: 'Toggle autonomous schedule mode & self-wake guard',
+    insertText: '/schedule ',
+  },
+  {
+    command: '/goal',
+    args: '<objective>',
+    desc: 'Set pinned task goal for active agent',
+    insertText: '/goal ',
+  },
+  {
+    command: '/yolo',
+    args: '[on|off]',
+    desc: 'Toggle background LLM auto-approval for actions',
+    insertText: '/yolo ',
+  },
+  {
+    command: '/compact',
+    desc: 'Compress conversation history and summarize past steps',
+    insertText: '/compact',
+  },
+  {
+    command: '/help',
+    desc: 'Show help guide and list of available slash commands',
+    insertText: '/help',
+  },
+];
+
 /* ------------------------------------------------------------------ app */
 
 export default function App() {
@@ -75,6 +113,9 @@ export default function App() {
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
   const [roles, setRoles] = useState<Array<{ role_id: string; display_name: string }>>([]);
   const [draft, setDraft] = useState('');
+  const [slashSelected, setSlashSelected] = useState(0);
+  const [slashDismissed, setSlashDismissed] = useState(false);
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newProject, setNewProject] = useState('');
   const [newProjectWs, setNewProjectWs] = useState('');
   const [inlineCreate, setInlineCreate] = useState<{ ws: string; name: string } | null>(null);
@@ -88,6 +129,25 @@ export default function App() {
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
+
+  // Slash commands autocomplete calculation
+  const isSlashPrompt = draft.startsWith('/') && !draft.includes('\n');
+  const slashPrefix = isSlashPrompt ? draft.trim().toLowerCase() : '';
+  const matchingSlash = useMemo(() => {
+    if (!isSlashPrompt || slashDismissed) return [];
+    return SLASH_COMMANDS.filter((cmd) => {
+      if (slashPrefix === '/') return true;
+      return cmd.command.toLowerCase().startsWith(slashPrefix);
+    });
+  }, [isSlashPrompt, slashPrefix, slashDismissed]);
+
+  const selectSlashCommand = (cmd: SlashCommandDef) => {
+    setDraft(cmd.insertText);
+    setSlashDismissed(true);
+    if (composerTextareaRef.current) {
+      composerTextareaRef.current.focus();
+    }
+  };
 
   // Sidebar grouping: projects bucketed by workspace_dir ('' = no workspace,
   // sorted last).
@@ -436,6 +496,61 @@ export default function App() {
     if (!content || !activeProject || sending) return;
     setSending(true);
     try {
+      if (content.startsWith('/')) {
+        const lower = content.toLowerCase();
+        if (lower.startsWith('/schedule')) {
+          setDraft('');
+          const arg = content.slice(9).trim().toLowerCase();
+          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !(activeAgent?.settings.schedule_mode ?? false);
+          if (activeAgent) {
+            await patchSettings({ schedule_mode: nextVal });
+            pushToast('ok', `Schedule mode ${nextVal ? 'enabled' : 'disabled'} for ${activeAgent.display_name}`);
+          } else {
+            pushToast('info', `Schedule mode ${nextVal ? 'enabled' : 'disabled'}`);
+          }
+          return;
+        }
+        if (lower.startsWith('/goal')) {
+          setDraft('');
+          const text = content.slice(5).trim();
+          if (!text) {
+            pushToast('info', 'Usage: /goal <task objective description>');
+            return;
+          }
+          if (activeAgent) {
+            await api.setGoal(activeAgent.id, { objective: text, completion_criteria: '', current_focus: '' });
+            pushToast('ok', `Goal set: ${short(text, 50)}`);
+          } else {
+            pushToast('info', 'Select an agent first to set goal');
+          }
+          return;
+        }
+        if (lower.startsWith('/yolo')) {
+          setDraft('');
+          const arg = content.slice(5).trim().toLowerCase();
+          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !(activeAgent?.settings.yolo ?? false);
+          if (activeAgent) {
+            await patchSettings({ yolo: nextVal });
+            pushToast('ok', `YOLO mode ${nextVal ? 'enabled' : 'disabled'} for ${activeAgent.display_name}`);
+          } else {
+            pushToast('info', `YOLO mode ${nextVal ? 'enabled' : 'disabled'}`);
+          }
+          return;
+        }
+        if (lower.startsWith('/compact')) {
+          setDraft('');
+          if (activeAgent) {
+            await api.compactAgent(activeAgent.id, 6);
+            pushToast('ok', 'Context compaction requested');
+          }
+          return;
+        }
+        if (lower === '/help') {
+          setDraft('');
+          pushToast('info', 'Commands: /schedule [on|off], /goal <text>, /yolo [on|off], /compact');
+          return;
+        }
+      }
       if (interactions.length > 0 && activeProject) {
         const first = interactions[0];
         const ixnId = (first.interaction_id ?? first.id) as string | number | undefined;
@@ -921,6 +1036,28 @@ export default function App() {
         </div>
 
         <div className="composer-wrap">
+          {matchingSlash.length > 0 && (
+            <div className="slash-menu">
+              <div className="slash-header">
+                <span>Commands</span>
+                <span className="slash-header-hint">Tab or Enter to select · Esc to dismiss</span>
+              </div>
+              <div className="slash-list">
+                {matchingSlash.map((cmd, idx) => (
+                  <div
+                    key={cmd.command}
+                    className={`slash-item ${idx === slashSelected ? 'selected' : ''}`}
+                    onClick={() => selectSlashCommand(cmd)}
+                    onMouseEnter={() => setSlashSelected(idx)}
+                  >
+                    <span className="slash-cmd">{cmd.command}</span>
+                    {cmd.args && <span className="slash-args">{cmd.args}</span>}
+                    <span className="slash-desc">{cmd.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {interactions.length > 0 && (
             <div className="ask-banner">
               <span className="state-dot waiting_input" />
@@ -932,10 +1069,43 @@ export default function App() {
           )}
           <div className="composer">
             <textarea
+              ref={composerTextareaRef}
               rows={2}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setSlashDismissed(false);
+                setSlashSelected(0);
+              }}
               onKeyDown={(e) => {
+                if (matchingSlash.length > 0) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSlashSelected((prev) => (prev + 1) % matchingSlash.length);
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSlashSelected((prev) => (prev - 1 + matchingSlash.length) % matchingSlash.length);
+                    return;
+                  }
+                  if (
+                    e.key === 'Tab' ||
+                    (e.key === 'Enter' && !e.shiftKey && slashPrefix !== matchingSlash[slashSelected]?.command.toLowerCase())
+                  ) {
+                    e.preventDefault();
+                    const selected = matchingSlash[slashSelected] || matchingSlash[0];
+                    if (selected) {
+                      selectSlashCommand(selected);
+                      return;
+                    }
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setSlashDismissed(true);
+                    return;
+                  }
+                }
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   void sendMessage();
@@ -1536,6 +1706,14 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
               <label className="field-row">
                 <input type="checkbox" checked={activeAgent.settings.yolo} onChange={(e) => onPatchSettings({ yolo: e.target.checked })} />
                 YOLO (this agent only; project-wide toggle is in the top bar)
+              </label>
+              <label className="field-row" title="Enforce autonomous wake-up timers before stopping">
+                <input
+                  type="checkbox"
+                  checked={Boolean(activeAgent.settings.schedule_mode)}
+                  onChange={(e) => onPatchSettings({ schedule_mode: e.target.checked })}
+                />
+                Schedule mode (autonomous self-wake guard)
               </label>
               <label className="field">
                 temperature

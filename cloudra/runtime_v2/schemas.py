@@ -53,6 +53,7 @@ class RuntimeSettingsPatch(BaseModel):
     presence_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
     timeout: Optional[int] = Field(default=None, ge=1)
     yolo: Optional[bool] = None
+    schedule_mode: Optional[bool] = None
     native_search: Optional[str] = None
     native_search_params: Optional[dict[str, Any]] = None
     orchestration_mode: Optional[OrchestrationMode] = None
@@ -76,6 +77,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
     presence_penalty: float = 0.0
     timeout: int = 300
     yolo: bool = False
+    schedule_mode: bool = False
     native_search: str = "auto"
     native_search_params: dict[str, Any] = Field(default_factory=dict)
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD

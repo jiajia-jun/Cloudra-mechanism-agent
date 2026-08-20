@@ -7,6 +7,7 @@ export interface RuntimeSettings {
   context_window: number;
   timeout: number;
   yolo: boolean;
+  schedule_mode?: boolean;
   native_search: string;
   native_search_params: Record<string, unknown>;
   orchestration_mode: 'standard' | 'dag_record' | 'dag_guided';
