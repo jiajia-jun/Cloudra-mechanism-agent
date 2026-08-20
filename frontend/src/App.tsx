@@ -501,12 +501,13 @@ export default function App() {
         if (lower.startsWith('/schedule')) {
           setDraft('');
           const arg = content.slice(9).trim().toLowerCase();
-          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !(activeAgent?.settings.schedule_mode ?? false);
-          if (activeAgent) {
+          const currentVal = activeAgent?.settings.schedule_mode ?? activeProject?.settings.defaults?.schedule_mode ?? false;
+          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !currentVal;
+          if (activeProject) {
+            await toggleProjectSchedule(nextVal);
+          } else if (activeAgent) {
             await patchSettings({ schedule_mode: nextVal });
             pushToast('ok', `Schedule mode ${nextVal ? 'enabled' : 'disabled'} for ${activeAgent.display_name}`);
-          } else {
-            pushToast('info', `Schedule mode ${nextVal ? 'enabled' : 'disabled'}`);
           }
           return;
         }
@@ -528,12 +529,13 @@ export default function App() {
         if (lower.startsWith('/yolo')) {
           setDraft('');
           const arg = content.slice(5).trim().toLowerCase();
-          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !(activeAgent?.settings.yolo ?? false);
-          if (activeAgent) {
+          const currentVal = activeAgent?.settings.yolo ?? activeProject?.settings.defaults?.yolo ?? false;
+          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !currentVal;
+          if (activeProject) {
+            await toggleProjectYolo(nextVal);
+          } else if (activeAgent) {
             await patchSettings({ yolo: nextVal });
             pushToast('ok', `YOLO mode ${nextVal ? 'enabled' : 'disabled'} for ${activeAgent.display_name}`);
-          } else {
-            pushToast('info', `YOLO mode ${nextVal ? 'enabled' : 'disabled'}`);
           }
           return;
         }
@@ -566,7 +568,11 @@ export default function App() {
         const resp = await api.spawnAgent(activeProject.id, {
           role_id: 'coordinator',
           query: content,
-          settings: { orchestration_mode: activeProject.settings.orchestration_mode },
+          settings: {
+            orchestration_mode: activeProject.settings.orchestration_mode,
+            yolo: activeProject.settings.defaults?.yolo ?? false,
+            schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
+          },
         });
         setDraft('');
         await selectAgent(resp.data.id);
@@ -592,7 +598,11 @@ export default function App() {
     try {
       const resp = await api.spawnAgent(activeProject.id, {
         role_id: roleId,
-        settings: { orchestration_mode: activeProject.settings.orchestration_mode },
+        settings: {
+          orchestration_mode: activeProject.settings.orchestration_mode,
+          yolo: activeProject.settings.defaults?.yolo ?? false,
+          schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
+        },
       });
       await selectAgent(resp.data.id);
       pushToast('ok', `Spawned ${roleId}`);
@@ -642,6 +652,35 @@ export default function App() {
       const resp = await api.cancel(activeAgent.id);
       setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === resp.data.id ? resp.data : a))));
       pushToast('ok', `Cancelled ${activeAgent.display_name}`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function toggleProjectSchedule(checked: boolean) {
+    if (!activeProject) return;
+    try {
+      const resp = await api.patchProject(activeProject.id, {
+        settings: {
+          orchestration_mode: activeProject.settings.orchestration_mode,
+          defaults: Object.fromEntries(
+            Object.entries({ ...activeProject.settings.defaults, schedule_mode: checked }).filter(
+              ([, v]) => v !== null && v !== undefined,
+            ),
+          ),
+        },
+      });
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
+      const targets = dedupeAgents(
+        agents.filter((a) => a.project_id === activeProject.id && a.settings.schedule_mode !== checked),
+      );
+      const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { schedule_mode: checked })));
+      if (updated.length > 0) {
+        setAgents((prev) =>
+          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
+        );
+      }
+      pushToast('ok', `Schedule mode ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
       reportError(e);
     }

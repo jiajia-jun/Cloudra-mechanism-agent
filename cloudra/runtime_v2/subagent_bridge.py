@@ -80,6 +80,7 @@ async def _spawn_child(
                 "settings": {
                     "orchestration_mode": _child_mode(parent),
                     "yolo": parent.settings.yolo,
+                    "schedule_mode": parent.settings.schedule_mode,
                 },
             },
         )
