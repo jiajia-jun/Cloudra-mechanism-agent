@@ -372,7 +372,7 @@ async def test_capability_change_updates_prompt_and_diagnostics(
         "prompt_revision"
     ]
     assert with_tools["tools"] == agent._tools_schema_cache
-    assert "- device.fs.read" in with_tools["messages"][0]["content"]
+    assert "device.fs.read" in second_diagnostics["tool_names"]
 
 
 @pytest.mark.asyncio

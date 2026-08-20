@@ -56,7 +56,7 @@ _AGENT_HUB_GUIDANCE = (
     "- Treat a `role=user` `[Incoming call]` line as a user message: **answer it first** before any other action."
 )
 
-# 所有角色注入：压缩不再保留近几轮 toolcall，状态必须落盘
+# 执行型角色（coordinator / 计算专家）注入完整版：强调落盘 handoff
 _CONTEXT_HANDOFF_GUIDANCE = (
     "## Context and handoff notes (important)\n"
     "On long tasks, conversation history is compacted automatically; **recent tool-call transcripts are not kept**. "
@@ -66,6 +66,18 @@ _CONTEXT_HANDOFF_GUIDANCE = (
     "- Treat files and the latest tool returns as source of truth for numbers and paths; do not paraphrase from memory;\n"
     "- After compact or a shift change, read the handoff note before acting; do not start from scratch."
 )
+
+# 纯输出型角色（researcher / writer / explorer / experiment）注入精简版：
+# 它们不跨会话持久化中间状态，只需要知道不要凭记忆捏造数据
+_CONTEXT_HANDOFF_GUIDANCE_LIGHT = (
+    "## Context notes (important)\n"
+    "Treat files and the latest tool returns as the source of truth for numbers and paths. "
+    "Do not paraphrase from memory or fabricate data — read the actual file if uncertain."
+)
+
+# 纯输出型角色名集合（不写 HANDOFF.md，不管理多阶段任务状态）
+_OUTPUT_ONLY_ROLES = frozenset({"researcher", "writer", "explorer", "experiment"})
+
 
 
 def _sha256_text(text: str) -> str:
@@ -389,18 +401,6 @@ class PromptAssembler:
             recent_changes = "<unavailable>"
             scan_note = "scan failed"
             workspace_revision = "unavailable"
-        device_section = ""
-        if device_environment:
-            rendered = json.dumps(
-                device_environment,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            device_section = (
-                "\n\n[Android Device environment observation]\n"
-                f"{rendered}"
-            )
         return (
             {
                 "role": "system",
@@ -414,11 +414,11 @@ class PromptAssembler:
                 "Task descriptions may cite absolute paths; filepath for text_reader, edit_file, and text_writer "
                 "must be relative to this working directory, and bashtools also starts here. "
                 "Do not create a second directory tree from the task text; relative paths always land under working_directory."
-                f"{device_section}"
                 ),
             },
             workspace_revision,
         )
+
 
     def assemble(
         self,
@@ -509,14 +509,17 @@ class PromptAssembler:
                 )
             )
 
-        identity_sections.append(
-            "## Currently available tools\n\n"
-            + (
-                "\n".join(f"- {name}" for name in tool_names)
-                if tool_names
-                else "No tools are available for this request."
+        # 仅在没有 schema 时注入纯工具名列表；有 schema 时 LLM 已经从 schema
+        # 里读到完整描述，再注入一遍无 description 的名字列表只是 token 浪费。
+        if not normalized_schemas:
+            identity_sections.append(
+                "## Currently available tools\n\n"
+                + (
+                    "\n".join(f"- {name}" for name in tool_names)
+                    if tool_names
+                    else "No tools are available for this request."
+                )
             )
-        )
         sources.append(
             PromptSource(
                 kind="capabilities",
@@ -542,11 +545,16 @@ class PromptAssembler:
                 )
             )
 
-        identity_sections.append(_CONTEXT_HANDOFF_GUIDANCE)
+        _handoff = (
+            _CONTEXT_HANDOFF_GUIDANCE_LIGHT
+            if self.prompt_name in _OUTPUT_ONLY_ROLES
+            else _CONTEXT_HANDOFF_GUIDANCE
+        )
+        identity_sections.append(_handoff)
         sources.append(
             PromptSource(
                 kind="context_handoff_guidance",
-                revision=f"sha256:{_sha256_text(_CONTEXT_HANDOFF_GUIDANCE)}",
+                revision=f"sha256:{_sha256_text(_handoff)}",
             )
         )
 
