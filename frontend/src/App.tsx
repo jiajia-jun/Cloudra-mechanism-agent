@@ -34,6 +34,34 @@ function dedupeAgents(list: Agent[]): Agent[] {
   return [...seen.values()];
 }
 
+function stamp(iso: unknown): string {
+  if (!iso || typeof iso !== 'string') return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function cleanPromptText(raw: unknown): string {
+  if (!raw) return '';
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return String(parsed.question ?? parsed.prompt ?? parsed.message ?? raw);
+      }
+    } catch {
+      return raw;
+    }
+    return raw;
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    return String(obj.question ?? obj.prompt ?? obj.message ?? JSON.stringify(raw));
+  }
+  return String(raw);
+}
+
 /* ------------------------------------------------------------------ app */
 
 export default function App() {
@@ -408,6 +436,17 @@ export default function App() {
     if (!content || !activeProject || sending) return;
     setSending(true);
     try {
+      if (interactions.length > 0 && activeProject) {
+        const first = interactions[0];
+        const ixnId = (first.interaction_id ?? first.id) as string | number | undefined;
+        if (ixnId) {
+          setDraft('');
+          await api.respondInteraction(activeProject.id, ixnId, content);
+          pushToast('ok', 'Response sent to agent');
+          api.interactions(activeProject.id).then(setInteractions).catch(reportError);
+          return;
+        }
+      }
       if (!activeAgent) {
         const resp = await api.spawnAgent(activeProject.id, {
           role_id: 'coordinator',
@@ -886,7 +925,7 @@ export default function App() {
             <div className="ask-banner">
               <span className="state-dot waiting_input" />
               <span>
-                Agent is asking: {short(interactions[0].prompt ?? interactions[0].message ?? '', 100)} — reply in the interactions tab
+                Agent is asking: {short(cleanPromptText(interactions[0].prompt ?? interactions[0].message), 100)} (type below to answer)
                 {interactions.length > 1 ? ` (+${interactions.length - 1} more)` : ''}
               </span>
             </div>
@@ -905,11 +944,13 @@ export default function App() {
               placeholder={
                 !activeProject
                   ? 'Select or create a project first…'
-                  : activeAgent
-                    ? activeAgent.state === 'failed' || activeAgent.state === 'cancelled'
-                      ? `Message ${activeAgent.display_name} — this reopens it with a fresh run…`
-                      : `Guide ${activeAgent.display_name}…`
-                    : 'Describe the task for the coordinator…'
+                  : interactions.length > 0
+                    ? `Reply to ${activeAgent?.display_name ?? 'agent'}: ${short(cleanPromptText(interactions[0].prompt ?? interactions[0].message), 60)}…`
+                    : activeAgent
+                      ? activeAgent.state === 'failed' || activeAgent.state === 'cancelled'
+                        ? `Message ${activeAgent.display_name} — this reopens it with a fresh run…`
+                        : `Guide ${activeAgent.display_name}…`
+                      : 'Describe the task for the coordinator…'
               }
               disabled={!activeProject}
             />
@@ -972,8 +1013,18 @@ function ToolRowView({ item }: { item: ToolItem }) {
       </div>
       {open && (
         <div className="tool-detail">
-          {item.argsSummary && <>IN{'\n'}{item.argsSummary}{'\n\n'}</>}
-          {item.resultSummary && <>OUT{'\n'}{item.resultSummary}</>}
+          {item.argsSummary && (
+            <div className="tool-detail-section">
+              <span className="tool-detail-label">Arguments</span>
+              <pre className="tool-detail-pre">{item.argsSummary}</pre>
+            </div>
+          )}
+          {item.resultSummary && (
+            <div className="tool-detail-section">
+              <span className="tool-detail-label">Output</span>
+              <pre className="tool-detail-pre">{item.resultSummary}</pre>
+            </div>
+          )}
         </div>
       )}
     </>
@@ -1003,6 +1054,89 @@ interface ContextStats {
 }
 
 const EMPTY_GOAL: GoalForm = { objective: '', completion_criteria: '', current_focus: '' };
+
+function InteractionCard({
+  item,
+  projectId,
+  onRefresh,
+  onError,
+  onToast,
+}: {
+  item: Record<string, unknown>;
+  projectId: string | null;
+  onRefresh: () => void;
+  onError: (e: unknown) => void;
+  onToast: (kind: ToastKind, text: string) => void;
+}) {
+  const [response, setResponse] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const interactionId = (item.interaction_id ?? item.id) as string | number | undefined;
+  const agentId = String(item.agent_id ?? item.session_id ?? 'agent');
+  const prompt = cleanPromptText(item.prompt ?? item.message);
+  const createdAt = String(item.created_at ?? '');
+
+  const handleSend = async () => {
+    if (!projectId || !interactionId) return;
+    const trimmed = response.trim();
+    if (!trimmed || submitting) return;
+    try {
+      setSubmitting(true);
+      await api.respondInteraction(projectId, interactionId, trimmed);
+      onToast('ok', 'Response sent to agent');
+      setResponse('');
+      onRefresh();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="card interaction-card">
+      <div className="card-header-row">
+        <span className="badge role-badge">{agentId}</span>
+        <span className="interaction-title">Needs your input</span>
+        {createdAt && (
+          <span className="card-meta" style={{ marginLeft: 'auto', marginBottom: 0 }}>
+            {stamp(createdAt)}
+          </span>
+        )}
+      </div>
+      <div className="interaction-prompt">
+        {prompt ? <Markdown text={prompt} /> : <span className="muted-note">(Empty prompt)</span>}
+      </div>
+      {projectId && interactionId && (
+        <div className="interaction-input-box">
+          <textarea
+            className="input interaction-textarea"
+            rows={2}
+            placeholder="Type your response here (Enter to send, Shift+Enter for new line)…"
+            value={response}
+            disabled={submitting}
+            onChange={(e) => setResponse(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+          />
+          <div className="interaction-actions">
+            <button
+              type="button"
+              className="btn green sm"
+              disabled={submitting || !response.trim()}
+              onClick={handleSend}
+            >
+              {submitting ? 'Sending…' : 'Send response ↵'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, approvals, interactions, onRefreshApprovals, onRefreshInteractions, onError, onToast }: {
   activeAgent: Agent | null;
@@ -1094,18 +1228,36 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
           <>
             {approvals.length === 0 && <div className="empty-hint">No pending approvals.</div>}
             {approvals.map((approval) => {
-              const id = approval.id as number;
+              const id = approval.id as number | string;
+              const tool = String(approval.tool_name ?? approval.tool ?? 'tool');
+              const agentName = String(approval.agent_name ?? '');
+              const details = String(approval.details ?? '');
+              const risk = String(approval.risk_summary ?? '');
+              const diff = String(approval.candidate_diff ?? '');
+              const createdAt = String(approval.created_at ?? '');
               return (
-                <div key={String(id)} className="card">
-                  <div className="card-title">{String(approval.tool_name ?? approval.tool ?? 'tool')}</div>
-                  <div className="card-meta">#{String(id)}</div>
-                  <pre className="json-view">{JSON.stringify(approval, null, 2)}</pre>
+                <div key={String(id)} className="card approval-card">
+                  <div className="card-header-row">
+                    <span className="badge tool-badge">{tool}</span>
+                    {agentName && <span className="badge role-badge">{agentName}</span>}
+                    <span className="card-meta" style={{ marginLeft: 'auto', marginBottom: 0 }}>
+                      #{String(id)}{createdAt ? ` · ${stamp(createdAt)}` : ''}
+                    </span>
+                  </div>
+                  {risk && <div className="approval-risk-banner">⚠️ {risk}</div>}
+                  {details && <div className="approval-details-text">{details}</div>}
+                  {diff && (
+                    <div className="approval-diff-wrap">
+                      <div className="approval-diff-title">Proposed Changes</div>
+                      <pre className="approval-diff-content">{diff}</pre>
+                    </div>
+                  )}
                   <div className="card-actions">
                     <button className="btn green sm" disabled={deciding !== null} onClick={() => decide(id, 'approve')}>
-                      {deciding === `${id}:approve` ? 'Approving…' : 'Approve'}
+                      {deciding === `${id}:approve` ? 'Approving…' : '✓ Approve'}
                     </button>
                     <button className="btn yellow sm" disabled={deciding !== null} onClick={() => decide(id, 'deny')}>
-                      {deciding === `${id}:deny` ? 'Denying…' : 'Deny'}
+                      {deciding === `${id}:deny` ? 'Denying…' : '✕ Deny'}
                     </button>
                   </div>
                 </div>
@@ -1117,34 +1269,16 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
         {tab === 'interactions' && (
           <>
             {interactions.length === 0 && <div className="empty-hint">No pending interactions.</div>}
-            {interactions.map((item) => {
-              const interactionId = item.interaction_id as number | string | undefined;
-              return (
-                <div key={String(interactionId ?? item.id ?? '')} className="card">
-                  <div className="card-meta">{String(item.session_id ?? '')}</div>
-                  <pre className="json-view">{JSON.stringify(item, null, 2)}</pre>
-                  {activeProject && interactionId && (
-                    <input
-                      className="input"
-                      placeholder="Type a response and press Enter…"
-                      style={{ width: '100%', marginTop: 8 }}
-                      onKeyDown={async (e) => {
-                        if (e.key !== 'Enter') return;
-                        const value = (e.target as HTMLInputElement).value;
-                        if (!value.trim()) return;
-                        try {
-                          await api.respondInteraction(activeProject.id, interactionId, value);
-                          onToast('ok', 'Response sent');
-                          onRefreshInteractions();
-                        } catch (err) {
-                          onError(err);
-                        }
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
+            {interactions.map((item) => (
+              <InteractionCard
+                key={String(item.interaction_id ?? item.id ?? '')}
+                item={item}
+                projectId={activeProject?.id ?? null}
+                onRefresh={onRefreshInteractions}
+                onError={onError}
+                onToast={onToast}
+              />
+            ))}
           </>
         )}
 

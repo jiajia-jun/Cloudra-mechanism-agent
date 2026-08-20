@@ -87,13 +87,16 @@ class MoleculeDrawer(Tool):
 
         # 安全审批
         details = (
-            f"【动作】: 绘制分子结构图\n"
-            f"【SMILES】: {smiles}\n"
-            f"【目标路径】: {path}\n"
-            f"【参数摘要】: 尺寸={user_input.width}x{user_input.height}, "
-            f"原子编号={user_input.add_atom_indices}, 手性标注={user_input.add_stereo_annotation}"
+            f"Action: Draw molecule structure to {path}\n"
+            f"SMILES: {smiles}\n"
+            f"Path: {path}\n"
+            f"Dimensions: {user_input.width}x{user_input.height}"
         )
-        approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=user_input.model_dump(mode="json"))
+        approved, denial_reason = await self.ensure_safety(
+            session,
+            details=details,
+            tool_args=user_input.model_dump(mode="json"),
+        )
         if not approved:
             message = (
                 "[Safety block] The operation was rejected. "

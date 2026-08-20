@@ -196,12 +196,17 @@ class Bashtools(Tool):
         # 触发安全检查
         analysis = BashCommandClassifier.classify(command)
         if analysis.permissions & (Permission.DESTRUCTIVE | Permission.SCRIPT):
+            cmd_preview = command if len(command) <= 60 else f"{command[:57]}..."
             details = (
-                f"【动作】: 执行危险终端命令\n"
-                f"【任务描述】: {task_description}\n"
-                f"【执行指令】: {command}"
+                f"Action: Execute shell command ({cmd_preview})\n"
+                f"Task: {task_description}\n"
+                f"Command: {command}"
             )
-            approved, denial_reason = await self.ensure_safety(session, details=details, tool_args=input_instance.model_dump(mode="json"))
+            approved, denial_reason = await self.ensure_safety(
+                session,
+                details=details,
+                tool_args=input_instance.model_dump(mode="json"),
+            )
             if not approved:
                 result_msg = (
                     "[Safety block] The command was rejected and was not executed. "

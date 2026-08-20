@@ -207,12 +207,6 @@ class Tool(BaseModel):
         '''
         from cloudra.infra.yolo_guard import YoloGuard, is_yolo_enabled
 
-        # 获取当前 Agent 名称
-        agent_name = self.subagent.name if self.subagent else "Unknown Agent"
-        full_details = f"【发起 Agent】: {agent_name}\n{details}"
-
-        print(f"\n\033[91m[安全审计]\033[0m 正在申请危险操作审批...\n{full_details}")
-
         if is_yolo_enabled():
             guard = YoloGuard()
             return await self._yolo_judge(session, tool_args or {}, guard)
@@ -222,18 +216,20 @@ class Tool(BaseModel):
             (
                 line.partition(":")[2].strip()
                 for line in details.splitlines()
-                if line.startswith("【动作】")
+                if line.lower().startswith("action:") or line.startswith("【动作】")
             ),
-            details.splitlines()[0] if details.splitlines() else "危险工具调用",
+            details.splitlines()[0] if details.splitlines() else "Dangerous tool call",
         )
         candidate_diff = ""
-        diff_marker = "【Unified Diff】:\n"
-        if diff_marker in details:
-            candidate_diff = details.partition(diff_marker)[2]
+        for marker in ("Unified Diff:\n", "【Unified Diff】:\n"):
+            if marker in details:
+                candidate_diff = details.partition(marker)[2]
+                break
+
         return await self.request_approval(
             db_path,
             session.id,
-            full_details,
+            details,
             tool_name=self.tool_name,
             normalized_arguments=tool_args or {},
             risk_summary=risk_summary,

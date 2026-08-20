@@ -39,14 +39,14 @@ def use_input_handler(handler: Callable[[str], Awaitable[str]]):
         _context_input_handler.reset(token)
 
 
-async def _read_input(prompt_text: str) -> str:
-    """优先走已注册的前端处理器，否则退回终端 input()（API/子进程场景）。"""
+async def _read_input(prompt_text: str, cli_prompt: str | None = None) -> str:
+    """优先走已注册的前端处理器（接收 clean prompt），否则退回终端 input()（API/子进程场景）。"""
     scoped_handler = _context_input_handler.get()
     if scoped_handler is not None:
         return await scoped_handler(prompt_text)
     if _input_handler is not None:
         return await _input_handler(prompt_text)
-    return await asyncio.to_thread(input, prompt_text)
+    return await asyncio.to_thread(input, cli_prompt or prompt_text)
 
 description = (
     "Ask the user a question and block until they answer; the answer is returned to the Agent as context. "
@@ -96,21 +96,25 @@ class AskUser(Tool):
         # 获取当前 Agent 名称，用于提示用户
         agent_name = self.subagent.name if self.subagent else "Agent"
 
-        # 构造提问文本
-        prompt_lines = [f"\n{'='*50}"]
-        prompt_lines.append(f"【来自 {agent_name} 的提问】")
-        prompt_lines.append(f"{question}")
+        # 构造纯净的前端提问文本（供 Web 界面直接 Markdown 渲染）
+        clean_prompt = question
         if default_answer is not None:
-            prompt_lines.append(f"[直接回车将使用默认值: {default_answer}]")
+            clean_prompt += f"\n\n*(Default: {default_answer})*"
+
+        # 构造 CLI 终端回退文本
+        cli_lines = [f"\n{'='*50}", f"【来自 {agent_name} 的提问】", question]
+        if default_answer is not None:
+            cli_lines.append(f"[直接回车将使用默认值: {default_answer}]")
         if allow_reject:
-            prompt_lines.append("[如需拒绝，请输入 '拒绝:<原因>' 或 'reject:<原因>']")
-        prompt_lines.append("="*50)
-        prompt_text = "\n".join(prompt_lines)
+            cli_lines.append("[如需拒绝，请输入 '拒绝:<原因>' 或 'reject:<原因>']")
+        cli_lines.append("="*50)
+        cli_lines.append("请输入您的回答: ")
+        cli_prompt = "\n".join(cli_lines)
 
         try:
             # input() 是同步阻塞调用，使用 asyncio.to_thread 避免阻塞事件循环；
-            # TUI 注册处理器后则改由前端收集输入。
-            raw_answer = await _read_input(prompt_text + "\n请输入您的回答: ")
+            # TUI/Web 注册处理器后则改由前端收集输入。
+            raw_answer = await _read_input(clean_prompt, cli_prompt)
             answer = raw_answer.strip()
 
             # 检测拒绝输入：
@@ -131,7 +135,7 @@ class AskUser(Tool):
                 if is_reject:
                     # 如果没有给出原因，再追问一次
                     if not reason:
-                        reason_raw = await _read_input("请说明拒绝原因（可直接回车跳过）: ")
+                        reason_raw = await _read_input("Please specify the rejection reason (press Enter to skip):", "请说明拒绝原因（可直接回车跳过）: ")
                         reason = reason_raw.strip()
                     return AskUser_output_schema(
                         is_success=False,

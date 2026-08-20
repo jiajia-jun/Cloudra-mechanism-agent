@@ -45,14 +45,13 @@ def workspace_for_tool(tool: Tool) -> WorkspaceService:
 def _approval_details(action: str, change: PreparedFileChange) -> str:
     diff_preview = change.diff
     if len(diff_preview) > 12_000:
-        diff_preview = diff_preview[:12_000] + "\n... 审批预览已截断，完整 diff 可在界面查看 ...\n"
+        diff_preview = diff_preview[:12_000] + "\n... diff preview truncated ...\n"
     return (
-        f"【动作】: {action}\n"
-        f"【相对路径】: {change.relative_path}\n"
-        f"【变更规模】: +{change.additions} -{change.deletions}\n"
-        f"【修改前 SHA256】: {change.before_sha256 or 'missing'}\n"
-        f"【修改后 SHA256】: {change.after_sha256}\n"
-        f"【Unified Diff】:\n{diff_preview}"
+        f"Action: {action}\n"
+        f"Path: {change.relative_path}\n"
+        f"Scale: +{change.additions} lines, -{change.deletions} lines\n"
+        f"SHA256: {change.after_sha256[:12]} (before: {change.before_sha256[:12] if change.before_sha256 else 'new file'})\n"
+        f"Unified Diff:\n{diff_preview}"
     )
 
 

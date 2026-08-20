@@ -109,6 +109,70 @@ export function applyStreamEvent(
   return view;
 }
 
+export function formatToolArgs(toolName: string, value: unknown): string {
+  if (value == null) return '';
+  let obj = value;
+  if (typeof value === 'string') {
+    try {
+      obj = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    const data = obj as Record<string, unknown>;
+    if (toolName === 'ask_user') {
+      const q = String(data.question ?? data.prompt ?? '');
+      if (data.default_answer) {
+        return `${q} (default: ${String(data.default_answer)})`;
+      }
+      return q || fullText(value);
+    }
+    if (toolName === 'bashtools' || toolName === 'bash') {
+      return String(data.command ?? data.cmd ?? fullText(value));
+    }
+    if (toolName === 'text_writer' || toolName === 'edit_file' || toolName === 'text_reader') {
+      return String(data.filepath ?? data.path ?? fullText(value));
+    }
+    if (toolName === 'submit_compute_job') {
+      const parts = [data.job_type, data.input_file || data.name].filter(Boolean);
+      return parts.length > 0 ? parts.join(' · ') : fullText(value);
+    }
+  }
+  return fullText(value);
+}
+
+export function formatToolResult(toolName: string, value: unknown): string {
+  if (value == null) return '';
+  let obj = value;
+  if (typeof value === 'string') {
+    try {
+      obj = JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    const data = obj as Record<string, unknown>;
+    if (toolName === 'ask_user') {
+      if (data.rejected) {
+        return `Rejected${data.reason ? `: ${String(data.reason)}` : ''}`;
+      }
+      if (data.answer != null && data.answer !== '') {
+        return `Answer: ${String(data.answer)}`;
+      }
+      if (data.message) return String(data.message);
+    }
+    if (data.result != null && typeof data.result === 'string') {
+      return data.result;
+    }
+    if (data.message != null && typeof data.message === 'string') {
+      return data.message;
+    }
+  }
+  return fullText(value);
+}
+
 export function buildTimeline(events: EventEnvelope[], pendingUserMessages: MessageItem[]): TimelineItem[] {
   const items: TimelineItem[] = [];
   const openTools = new Map<string, ToolItem>();
@@ -134,12 +198,13 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         live: false,
       });
     } else if (event.type === 'tool.started') {
+      const toolName = String(event.data.tool_name ?? 'tool');
       const item: ToolItem = {
         kind: 'tool',
         id: event.event_id,
         seq,
-        name: String(event.data.tool_name ?? 'tool'),
-        argsSummary: fullText(event.data.arguments_summary),
+        name: toolName,
+        argsSummary: formatToolArgs(toolName, event.data.arguments_summary),
         running: true,
         ok: null,
         resultSummary: '',
@@ -149,12 +214,13 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
       items.push(item);
     } else if (event.type === 'tool.finished') {
       const callId = String(event.data.tool_call_id ?? '');
+      const toolName = String(event.data.tool_name ?? 'tool');
       const open = openTools.get(callId);
       const ok = Boolean(event.data.is_success);
       if (open) {
         open.running = false;
         open.ok = ok;
-        open.resultSummary = fullText(event.data.result_summary);
+        open.resultSummary = formatToolResult(open.name, event.data.result_summary);
         open.durationMs = typeof event.data.duration_ms === 'number' ? event.data.duration_ms : null;
         openTools.delete(callId);
       } else {
@@ -162,11 +228,11 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
           kind: 'tool',
           id: event.event_id,
           seq,
-          name: String(event.data.tool_name ?? 'tool'),
+          name: toolName,
           argsSummary: '',
           running: false,
           ok,
-          resultSummary: fullText(event.data.result_summary),
+          resultSummary: formatToolResult(toolName, event.data.result_summary),
           durationMs: typeof event.data.duration_ms === 'number' ? event.data.duration_ms : null,
         });
       }

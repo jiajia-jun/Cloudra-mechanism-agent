@@ -510,19 +510,38 @@ body {
 }
 .tool-detail {
   margin: 2px 0 6px 30px;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--fg-tertiary);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
   max-height: 240px;
   overflow: auto;
+  max-width: 640px;
+}
+.tool-detail-section {
+  margin-bottom: 8px;
+}
+.tool-detail-section:last-child {
+  margin-bottom: 0;
+}
+.tool-detail-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-faint);
+  margin-bottom: 3px;
+}
+.tool-detail-pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-secondary);
   white-space: pre-wrap;
   word-break: break-word;
-  max-width: 640px;
 }
 
 /* live "thinking" status line */
@@ -859,6 +878,132 @@ body {
 .card-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .card-meta { font-size: 11px; color: var(--fg-tertiary); font-family: var(--mono); margin-bottom: 6px; }
 .card-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+/* ------------------------------------------------------------------ interactions & approvals */
+
+.card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tool-badge {
+  background: var(--bg-layer-2);
+  color: var(--yellow-soft);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.role-badge {
+  background: var(--bg-layer-2);
+  color: var(--green-soft);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.interaction-card {
+  border-left: 3px solid var(--green);
+  background: var(--bg-panel);
+}
+
+.interaction-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.interaction-prompt {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-secondary);
+  background: var(--bg-layer);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.interaction-prompt p:first-child { margin-top: 0; }
+.interaction-prompt p:last-child { margin-bottom: 0; }
+
+.interaction-input-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.interaction-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 52px;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.interaction-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.approval-card {
+  border-left: 3px solid var(--yellow);
+  background: var(--bg-panel);
+}
+
+.approval-risk-banner {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--yellow-soft);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.approval-details-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-secondary);
+  margin-bottom: 8px;
+}
+
+.approval-diff-wrap {
+  margin-bottom: 10px;
+}
+
+.approval-diff-title {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--fg-faint);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.approval-diff-content {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-secondary);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre;
+  margin: 0;
+}
 
 .field { display: block; margin-bottom: 12px; font-size: 12px; color: var(--fg-tertiary); }
 .field .input { width: 100%; margin-top: 4px; }
