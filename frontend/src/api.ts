@@ -94,11 +94,25 @@ export const api = {
     const q = `after=0&limit=${limit}&tail=true${before != null ? `&before=${before}` : ''}`;
     return request<EventEnvelope[]>(`/api/v2/agents/${agentId}/events?${q}`);
   },
-  sendMessage: (agentId: string, content: string) =>
+  sendMessage: (agentId: string, content: string, images?: string[], imageArtifactIds?: (string | null)[]) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(
+        images && images.length > 0
+          ? { content, images, image_artifact_ids: imageArtifactIds ?? [] }
+          : { content },
+      ),
     }),
+  uploadFile: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    // headers:{} replaces the JSON content-type so fetch sets the multipart boundary.
+    return request<{ path: string; artifact_id: string }>(`/api/v2/projects/${projectId}/uploads`, {
+      method: 'POST',
+      body: form,
+      headers: {},
+    });
+  },
   cancel: (agentId: string, message?: string) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/cancel`, {
       method: 'POST',

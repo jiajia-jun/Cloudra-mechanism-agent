@@ -7,6 +7,7 @@ export interface RuntimeSettings {
   context_window: number;
   timeout: number;
   yolo: boolean;
+  visual_mode?: boolean;
   schedule_mode?: boolean;
   native_search: string;
   native_search_params: Record<string, unknown>;
@@ -75,6 +76,7 @@ export interface RuntimeConfigSlot {
   key_set: boolean;
   context_window: number;
   timeout: number;
+  supports_vision?: boolean;
 }
 
 export interface RuntimeConfig {

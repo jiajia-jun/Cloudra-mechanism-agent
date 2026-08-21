@@ -89,6 +89,12 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
     insertText: '/yolo ',
   },
   {
+    command: '/visual',
+    args: '[on|off]',
+    desc: 'Toggle visual mode (vision tools + image input)',
+    insertText: '/visual ',
+  },
+  {
     command: '/compact',
     desc: 'Compress conversation history and summarize past steps',
     insertText: '/compact',
@@ -126,9 +132,19 @@ export default function App() {
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [globalOpen, setGlobalOpen] = useState(false);
+  const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string }>>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // path → artifact_id for images uploaded in this browser session, so the
+  // message_injected echo (which carries paths only) can still render them.
+  const uploadedArtifactsRef = useRef<Map<string, string>>(new Map());
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
+  // Visual mode gates the composer attach button; defaults to on.
+  const visualOn = activeProject
+    ? (activeAgent?.settings.visual_mode ?? activeProject.settings.defaults?.visual_mode ?? true) !== false
+    : false;
 
   // Slash commands autocomplete calculation
   const isSlashPrompt = draft.startsWith('/') && !draft.includes('\n');
@@ -281,6 +297,7 @@ export default function App() {
     setThinkingItems([]);
     maxSeqRef.current = 0;
     setPendingMessages([]);
+    setPendingImages([]);
     api
       .listAgents(activeProjectId)
       .then((list) => {
@@ -525,6 +542,8 @@ export default function App() {
   async function sendMessage() {
     const content = draft.trim();
     if (!content || !activeProject || sending) return;
+    const images = pendingImages.map((p) => p.path);
+    const imageArtifactIds = pendingImages.map((p) => p.artifactId);
     setSending(true);
     try {
       if (content.startsWith('/')) {
@@ -560,6 +579,14 @@ export default function App() {
           await toggleProjectYolo(nextVal);
           return;
         }
+        if (lower.startsWith('/visual')) {
+          setDraft('');
+          const arg = content.slice(7).trim().toLowerCase();
+          const currentVal = activeAgent?.settings.visual_mode ?? activeProject?.settings.defaults?.visual_mode ?? true;
+          const nextVal = arg === 'off' ? false : arg === 'on' ? true : !currentVal;
+          await toggleProjectVisual(nextVal);
+          return;
+        }
         if (lower.startsWith('/compact')) {
           setDraft('');
           if (activeAgent) {
@@ -570,7 +597,7 @@ export default function App() {
         }
         if (lower === '/help') {
           setDraft('');
-          pushToast('info', 'Commands: /schedule [on|off], /goal <text>, /yolo [on|off], /compact');
+          pushToast('info', 'Commands: /schedule [on|off], /goal <text>, /yolo [on|off], /visual [on|off], /compact');
           return;
         }
       }
@@ -585,29 +612,47 @@ export default function App() {
           return;
         }
       }
+      setPendingImages([]);
       if (!activeAgent) {
+        // With images attached the spawn `query` cannot carry them, so spawn
+        // idle and deliver text + images as the first message instead.
         const resp = await api.spawnAgent(activeProject.id, {
           role_id: 'coordinator',
-          query: content,
+          query: images.length > 0 ? undefined : content,
           settings: {
             orchestration_mode: activeProject.settings.orchestration_mode,
             yolo: activeProject.settings.defaults?.yolo ?? false,
+            visual_mode: activeProject.settings.defaults?.visual_mode ?? true,
             schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
           },
         });
         setDraft('');
+        if (images.length > 0) {
+          await api.sendMessage(resp.data.id, content, images, imageArtifactIds);
+        }
         await selectAgent(resp.data.id);
       } else {
         // Optimistic echo; reconciled when the SSE echo arrives.
         setPendingMessages((prev) => [
           ...prev,
-          { kind: 'message', id: `pending-${Date.now()}`, seq: Number.MAX_SAFE_INTEGER, sender: 'user', senderLabel: 'user', content, pending: true },
+          {
+            kind: 'message',
+            id: `pending-${Date.now()}`,
+            seq: Number.MAX_SAFE_INTEGER,
+            sender: 'user',
+            senderLabel: 'user',
+            content,
+            pending: true,
+            imagePaths: images.length > 0 ? images : undefined,
+            imageArtifactIds: imageArtifactIds.length > 0 ? imageArtifactIds : undefined,
+          },
         ]);
         setDraft('');
-        await api.sendMessage(activeAgent.id, content);
+        await api.sendMessage(activeAgent.id, content, images, imageArtifactIds);
       }
     } catch (e) {
       setPendingMessages((prev) => prev.filter((m) => m.content !== content));
+      setPendingImages((prev) => (prev.length === 0 ? pendingImages : prev));
       reportError(e);
     } finally {
       setSending(false);
@@ -622,6 +667,7 @@ export default function App() {
         settings: {
           orchestration_mode: activeProject.settings.orchestration_mode,
           yolo: activeProject.settings.defaults?.yolo ?? false,
+          visual_mode: activeProject.settings.defaults?.visual_mode ?? true,
           schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
         },
       });
@@ -739,6 +785,38 @@ export default function App() {
     }
   }
 
+  async function toggleProjectVisual(checked: boolean) {
+    if (!activeProject) return;
+    try {
+      // 项目级 visual 模式：与 YOLO 同构——写项目 defaults（新 spawn 继承）并级联
+      // PATCH 现存 agent（settings 是 spawn 时快照）。project settings 整对象
+      // 校验替换，orchestration_mode 必须带回。
+      const resp = await api.patchProject(activeProject.id, {
+        settings: {
+          orchestration_mode: activeProject.settings.orchestration_mode,
+          defaults: Object.fromEntries(
+            Object.entries({ ...activeProject.settings.defaults, visual_mode: checked }).filter(
+              ([, v]) => v !== null && v !== undefined,
+            ),
+          ),
+        },
+      });
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
+      const targets = dedupeAgents(
+        agents.filter((a) => a.project_id === activeProject.id && (a.settings.visual_mode ?? true) !== checked),
+      );
+      const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { visual_mode: checked })));
+      if (updated.length > 0) {
+        setAgents((prev) =>
+          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
+        );
+      }
+      pushToast('ok', `Visual mode ${checked ? 'on' : 'off'} (project-wide)`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function patchSettings(patch: Record<string, unknown>) {
     if (!activeAgent) return;
     try {
@@ -749,6 +827,37 @@ export default function App() {
     } catch (e) {
       reportError(e);
     }
+  }
+
+  async function onPickImages(files: FileList | null) {
+    if (!files || files.length === 0 || !activeProject) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const resp = await api.uploadFile(activeProject.id, file);
+        uploadedArtifactsRef.current.set(resp.path, resp.artifact_id);
+        setPendingImages((prev) => [...prev, { path: resp.path, artifactId: resp.artifact_id, name: file.name }]);
+      }
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  /** Resolve a message item's attachments to downloadable URLs (artifact id
+   * from the payload, else the session upload map keyed by path). */
+  function messageImageUrls(item: MessageItem): string[] {
+    if (!activeProject) return [];
+    const ids = item.imageArtifactIds ?? [];
+    const paths = item.imagePaths ?? [];
+    const urls: string[] = [];
+    for (let i = 0; i < Math.max(ids.length, paths.length); i++) {
+      const id = ids[i] ?? (paths[i] ? uploadedArtifactsRef.current.get(paths[i]) : undefined);
+      if (id) urls.push(api.artifactDownloadUrl(activeProject.id, id));
+    }
+    return urls;
   }
 
   /* ------------------------------------------------------------ rendering */
@@ -1084,7 +1193,18 @@ export default function App() {
                 >
                   <span className="msg-sender">{item.pending ? 'sending…' : item.senderLabel}</span>
                   {item.sender === 'user' ? (
-                    <div className="msg-bubble">{item.content}</div>
+                    <div className="msg-bubble">
+                      {item.content}
+                      {messageImageUrls(item).length > 0 && (
+                        <div className="msg-images">
+                          {messageImageUrls(item).map((url) => (
+                            <a key={url} href={url} target="_blank" rel="noreferrer">
+                              <img src={url} alt="attachment" loading="lazy" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="msg-body">
                       {/* Streaming text renders as plain text to avoid a full
@@ -1095,7 +1215,15 @@ export default function App() {
                   )}
                 </div>
               ) : item.kind === 'tool' ? (
-                <ToolRow key={item.id} item={item} />
+                <ToolRow
+                  key={item.id}
+                  item={item}
+                  imageUrl={
+                    item.imageArtifactId && activeProject
+                      ? api.artifactDownloadUrl(activeProject.id, item.imageArtifactId)
+                      : null
+                  }
+                />
               ) : item.kind === 'thinking' ? (
                 <details key={item.id} className={`thinking${item.live ? ' live' : ''}`}>
                   <summary>
@@ -1165,6 +1293,23 @@ export default function App() {
             </div>
           )}
           <div className="composer">
+            {pendingImages.length > 0 && activeProject && (
+              <div className="composer-attachments">
+                {pendingImages.map((img) => (
+                  <span key={img.path} className="composer-attachment" title={img.name}>
+                    <img src={api.artifactDownloadUrl(activeProject.id, img.artifactId)} alt={img.name} />
+                    <button
+                      type="button"
+                      className="attachment-remove"
+                      title="Remove attachment"
+                      onClick={() => setPendingImages((prev) => prev.filter((p) => p.path !== img.path))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <textarea
               ref={composerTextareaRef}
               rows={2}
@@ -1223,6 +1368,27 @@ export default function App() {
             />
             <div className="composer-actions">
               <span className="composer-hint">Enter to send · Shift+Enter for newline</span>
+              {visualOn && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                    multiple
+                    hidden
+                    onChange={(e) => void onPickImages(e.target.files)}
+                  />
+                  <button
+                    type="button"
+                    className="btn ghost sm"
+                    title="Attach images (png/jpg/jpeg/webp)"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? '…' : '📎'}
+                  </button>
+                </>
+              )}
               {activeAgent && activeAgent.state === 'running' && (
                 <button className="btn ghost sm" onClick={() => cancelAgent()}>Cancel</button>
               )}
@@ -1261,7 +1427,7 @@ export default function App() {
 
 /* ------------------------------------------------------------------ tool row */
 
-function ToolRowView({ item }: { item: ToolItem }) {
+function ToolRowView({ item, imageUrl }: { item: ToolItem; imageUrl?: string | null }) {
   const [open, setOpen] = useState(false);
   const icon = item.running ? '▸' : item.ok ? '✓' : '✗';
   const cls = item.running ? 'running' : item.ok ? 'ok' : 'fail';
@@ -1278,6 +1444,11 @@ function ToolRowView({ item }: { item: ToolItem }) {
         </span>
         {item.durationMs != null && <span className="tool-sep">{item.durationMs}ms</span>}
       </div>
+      {imageUrl && !item.running && (
+        <a className="tool-image" href={imageUrl} target="_blank" rel="noreferrer" title={item.imagePath ?? 'image output'}>
+          <img src={imageUrl} alt={`${item.name} output`} loading="lazy" />
+        </a>
+      )}
       {open && (
         <div className="tool-detail">
           {item.argsSummary && (
@@ -1558,6 +1729,20 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                 <div className="card-meta">
                   {String(artifact.mime_type ?? '')} · {String(artifact.size ?? '')} bytes
                 </div>
+                {activeProject && String(artifact.mime_type ?? '').startsWith('image/') && (
+                  <a
+                    className="artifact-thumb"
+                    href={api.artifactDownloadUrl(activeProject.id, String(artifact.artifact_id))}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img
+                      src={api.artifactDownloadUrl(activeProject.id, String(artifact.artifact_id))}
+                      alt={String(artifact.name)}
+                      loading="lazy"
+                    />
+                  </a>
+                )}
                 {activeProject && (
                   <div className="card-actions">
                     <a
@@ -1803,6 +1988,14 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
               <label className="field-row">
                 <input type="checkbox" checked={activeAgent.settings.yolo} onChange={(e) => onPatchSettings({ yolo: e.target.checked })} />
                 YOLO (this agent only; project-wide toggle is in the top bar)
+              </label>
+              <label className="field-row" title="Vision tools + image input for this agent">
+                <input
+                  type="checkbox"
+                  checked={activeAgent.settings.visual_mode !== false}
+                  onChange={(e) => onPatchSettings({ visual_mode: e.target.checked })}
+                />
+                Visual (this agent only; project-wide toggle via /visual)
               </label>
               <label className="field-row" title="Enforce autonomous wake-up timers before stopping">
                 <input

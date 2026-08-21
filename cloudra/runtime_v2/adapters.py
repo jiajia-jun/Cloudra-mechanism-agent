@@ -20,6 +20,7 @@ from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
+from cloudra.tools.capabilities import visual_tools
 
 
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
@@ -199,6 +200,16 @@ class LegacyLLMProvider:
             timeout=settings.timeout,
         )
 
+    def supports_vision(self, agent: AgentSession) -> bool:
+        """Whether the agent's effective LLM config accepts image input.
+
+        Vision capability lives on the legacy per-role LLMConfig slots; the
+        slot is selected by role id exactly like ``legacy_default_settings``.
+        """
+        cfg = get_config()
+        legacy = cfg.coordinator if agent.role_id == "coordinator" else cfg.follower
+        return bool(legacy.supports_vision)
+
     async def complete(
         self,
         agent: AgentSession,
@@ -217,6 +228,14 @@ class LegacyLLMProvider:
                 schema
                 for schema in tool_schemas
                 if (schema.get("function") or {}).get("name") != "web_search"
+            ]
+        if not settings.visual_mode:
+            # visual 模式关闭时剥掉视觉工具 schema，模型不可见即不会调用。
+            gated = visual_tools()
+            tool_schemas = [
+                schema
+                for schema in tool_schemas
+                if (schema.get("function") or {}).get("name") not in gated
             ]
         kwargs: dict[str, Any] = {
             "model": settings.model,

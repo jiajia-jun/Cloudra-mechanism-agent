@@ -764,6 +764,47 @@ def _responses_base_url(base_url: str) -> str:
     return base
 
 
+def _responses_message_content(content: Any) -> list[dict]:
+    """Translate chat-style content into Responses API content parts.
+
+    Plain strings become a single ``input_text``; parts lists keep their
+    text and map ``image_url`` parts to ``input_image`` so visual-mode
+    histories survive the /responses hop instead of being ``str()``-ed.
+    """
+    if isinstance(content, list):
+        parts: list[dict] = []
+        for part in content:
+            if not isinstance(part, dict):
+                parts.append({"type": "input_text", "text": str(part)})
+            elif part.get("type") == "image_url":
+                url = (part.get("image_url") or {}).get("url")
+                if url:
+                    parts.append({"type": "input_image", "image_url": str(url)})
+            else:
+                parts.append({"type": "input_text", "text": str(part.get("text") or "")})
+        return parts or [{"type": "input_text", "text": ""}]
+    return [{"type": "input_text", "text": content if isinstance(content, str) else str(content or "")}]
+
+
+def _responses_tool_output(content: Any) -> str:
+    """Flatten a tool result to a plain string (function_call_output is text-only).
+
+    Visual-mode tool results carry parts lists; image parts degrade to a
+    placeholder so the base64 payload never lands in the request body.
+    """
+    if isinstance(content, list):
+        texts = []
+        for part in content:
+            if not isinstance(part, dict):
+                texts.append(str(part))
+            elif part.get("type") == "image_url":
+                texts.append("[Image attached to this tool result]")
+            else:
+                texts.append(str(part.get("text") or ""))
+        return "\n".join(text for text in texts if text)
+    return content if isinstance(content, str) else str(content or "")
+
+
 def _build_responses_payload(kwargs: dict) -> dict:
     """把 chat.completions 风格的 kwargs 翻译成 Responses API 请求体。
 
@@ -808,12 +849,7 @@ def _build_responses_payload(kwargs: dict) -> dict:
                 {
                     "type": "message",
                     "role": "user" if role == "developer" else role,
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": content if isinstance(content, str) else str(content or ""),
-                        }
-                    ],
+                    "content": _responses_message_content(content),
                 }
             )
             for tc in msg.get("tool_calls") or []:
@@ -831,7 +867,7 @@ def _build_responses_payload(kwargs: dict) -> dict:
                 {
                     "type": "function_call_output",
                     "call_id": msg.get("tool_call_id") or "",
-                    "output": content if isinstance(content, str) else str(content or ""),
+                    "output": _responses_tool_output(content),
                 }
             )
     if instructions:

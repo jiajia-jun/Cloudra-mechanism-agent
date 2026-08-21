@@ -53,7 +53,9 @@ class ImageReader(Tool):
                 message=f"Error: unsupported file format {ext}. Only PNG, JPG, JPEG, WEBP are supported."
             )
 
-        # 返回路径。reAct.py 探测到 image_path 字段后，会自动触发多模态发送逻辑。
+        # 返回路径。runtime_v2 的 AgentRunner 探测到 tool result data 里的
+        # image_path 字段后，在 visual 模式下自动把图片以 image_url part 回注
+        # 进 LLM history（模型无视觉能力时降级为文本回落）。
         return ImageReader_output_schema(
             is_success=True,
             image_path=path,

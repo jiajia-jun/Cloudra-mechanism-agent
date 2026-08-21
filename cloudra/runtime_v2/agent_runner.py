@@ -143,6 +143,7 @@ class AgentRunner:
                     inbox = core.mailbox.ensure_inbox(agent.id)
                     message = await inbox.get()
                     inbox_messages.append(message)
+                inbox_messages = await self._prepare_inbox_messages(agent, inbox_messages)
                 if history:
                     keep_recent = core.pending_compactions.get(agent.id)
                     if keep_recent is not None:
@@ -206,7 +207,7 @@ class AgentRunner:
                     finally:
                         await self._publish_new_events(cursor)
                         cursor = len(core.event_log)
-                self._append_history(history, inbox_messages, outcome)
+                await self._append_history(agent, history, inbox_messages, outcome)
                 if outcome.decision == "stop":
                     if outcome.content:
                         core.event_log.append(
@@ -270,8 +271,90 @@ class AgentRunner:
             except asyncio.QueueEmpty:
                 return messages
 
+    def _provider_supports_vision(self, agent: AgentSession) -> bool:
+        """Vision capability of the configured provider/model.
+
+        The check lives on the LLM provider (adapters.LegacyLLMProvider);
+        providers without the method (test fakes, custom bridges) are
+        assumed vision-capable, matching the settings default.
+        """
+        checker = getattr(getattr(self.pipeline, "llm", None), "supports_vision", None)
+        if checker is None:
+            return True
+        try:
+            return bool(checker(agent))
+        except Exception:
+            return False
+
+    def _vision_enabled(self, agent: AgentSession) -> bool:
+        # getattr: the visual_mode setting is added to schemas by a sibling
+        # change; until then the default is on.
+        return bool(getattr(agent.settings, "visual_mode", True)) and self._provider_supports_vision(agent)
+
     @staticmethod
-    def _append_history(history: list[dict], inbox_messages: list[dict], outcome) -> None:
+    async def _image_part(path: str) -> dict | None:
+        """Encode a workspace image as an OpenAI image_url part (None on failure)."""
+        from cloudra.persistence.context_manager import encode_image_data_url
+
+        url = await asyncio.to_thread(encode_image_data_url, path)
+        if url is None:
+            return None
+        return {"type": "image_url", "image_url": {"url": url}}
+
+    async def _prepare_inbox_messages(self, agent: AgentSession, messages: list[dict]) -> list[dict]:
+        """Normalize user-attached images into the message content.
+
+        Vision on → content becomes a parts list (text + image_url parts);
+        vision off → one English fallback line per image.  The pipeline and
+        the history append both consume ``item["content"]``, so this single
+        normalization covers the current turn and later turns identically.
+        """
+        prepared = []
+        for item in messages:
+            images = [p for p in (item.get("images") or []) if isinstance(p, str) and p]
+            if not images:
+                prepared.append(item)
+                continue
+            content = str(item.get("content") or "")
+            if not self._vision_enabled(agent):
+                fallback = "".join(f"\n[User attached image: {path}]" for path in images)
+                prepared.append({**item, "content": content + fallback})
+                continue
+            parts: list[dict] = [{"type": "text", "text": content}]
+            for path in images:
+                part = await self._image_part(path)
+                if part is not None:
+                    parts.append(part)
+                else:
+                    parts.append({"type": "text", "text": f"[User attached image: {path} (could not be loaded)]"})
+            prepared.append({**item, "content": parts})
+        return prepared
+
+    async def _tool_result_content(self, agent: AgentSession, result) -> object:
+        """History content for one tool result, with image re-injection.
+
+        A result carrying ``image_path`` is re-injected as an image_url part
+        when visual mode is on and the model can see; otherwise the summary
+        text gains one English fallback line pointing at the file.
+        """
+        summary = result.summary
+        data = result.data if isinstance(result.data, dict) else {}
+        image_path = data.get("image_path")
+        if not image_path or not isinstance(image_path, str):
+            return summary
+        if not getattr(agent.settings, "visual_mode", True):
+            return summary
+        if not self._provider_supports_vision(agent):
+            return (summary or "") + (
+                f"\n[Image rendered at: {image_path} — the configured model has no "
+                "vision support; inspect the file directly if needed.]"
+            )
+        part = await self._image_part(image_path)
+        if part is None:
+            return summary
+        return [{"type": "text", "text": summary or ""}, part]
+
+    async def _append_history(self, agent: AgentSession, history: list[dict], inbox_messages: list[dict], outcome) -> None:
         for item in inbox_messages:
             history.append({"role": "user", "content": item.get("content", "")})
         tool_calls = [call for call, _ in outcome.tool_exchanges]
@@ -294,7 +377,7 @@ class AgentRunner:
                 {
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": result.summary,
+                    "content": await self._tool_result_content(agent, result),
                 }
             )
         if outcome.blocked_call is not None:

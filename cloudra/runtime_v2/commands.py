@@ -193,12 +193,26 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
     content = str(command.payload.get("content") or "").strip()
     if not content:
         raise CommandRejected("invalid_request", "message content is required")
+    images = command.payload.get("images")
+    if images is not None:
+        if not isinstance(images, list) or not all(isinstance(p, str) and p for p in images):
+            raise CommandRejected("invalid_request", "images must be a list of workspace-absolute paths")
+    image_artifact_ids = command.payload.get("image_artifact_ids")
+    if image_artifact_ids is not None:
+        if not isinstance(image_artifact_ids, list) or not all(
+            a is None or isinstance(a, str) for a in image_artifact_ids
+        ):
+            raise CommandRejected(
+                "invalid_request", "image_artifact_ids must be a list of strings or nulls"
+            )
     core.mailbox.deliver(
         to_session_id=agent.id,
         project_id=agent.project_id,
         content=content,
         sender=command.actor,
         run_id=agent.current_run.run_id if agent.current_run else None,
+        images=images or None,
+        image_artifact_ids=image_artifact_ids or None,
     )
     # A message to a sleeping or terminal agent is a fresh instruction to the
     # same identity: wake it (reopening a new run) instead of making the user

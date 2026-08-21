@@ -23,11 +23,12 @@ interface SlotDraft {
   context_window: string;
   timeout: string;
   key: string;
+  supports_vision: boolean;
 }
 
 type Slot = 'coordinator' | 'follower';
 
-const EMPTY_DRAFT: SlotDraft = { model: '', url: '', context_window: '', timeout: '', key: '' };
+const EMPTY_DRAFT: SlotDraft = { model: '', url: '', context_window: '', timeout: '', key: '', supports_vision: true };
 
 function draftFrom(cfg: RuntimeConfig, slot: Slot): SlotDraft {
   const s = cfg[slot];
@@ -37,6 +38,7 @@ function draftFrom(cfg: RuntimeConfig, slot: Slot): SlotDraft {
     context_window: String(s.context_window),
     timeout: String(s.timeout),
     key: '',
+    supports_vision: s.supports_vision !== false,
   };
 }
 
@@ -123,6 +125,14 @@ function SlotSection({
           />
         </label>
       </div>
+      <label className="field-row" title="Send image content to this model (multimodal/vision-capable)">
+        <input
+          type="checkbox"
+          checked={draft.supports_vision}
+          onChange={(e) => onChange({ supports_vision: e.target.checked })}
+        />
+        Supports vision
+      </label>
       <div className="modal-actions">
         {keySet && (
           <button
@@ -178,6 +188,7 @@ export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
       const changes: Record<string, unknown> = {
         model: d.model.trim(),
         url: d.url.trim(),
+        supports_vision: d.supports_vision,
       };
       const cw = parseInt(d.context_window, 10);
       if (Number.isFinite(cw) && cw >= 1) changes.context_window = cw;

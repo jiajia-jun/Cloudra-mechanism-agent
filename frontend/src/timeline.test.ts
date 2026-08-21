@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { applyStreamEvent, type StreamView } from './timeline.ts';
+import { applyStreamEvent, buildTimeline, type MessageItem, type StreamView, type ToolItem } from './timeline.ts';
+import type { EventEnvelope } from './types.ts';
 
 function view(partial: Partial<StreamView> = {}): StreamView {
   return { streamText: '', frozen: [], ...partial };
@@ -42,3 +43,65 @@ assert.equal(afterPersist.frozen.length, 0, 'persisted event replaces the freeze
 assert.equal(afterPersist.streamText, '');
 
 console.log('timeline.stream-commit ok');
+
+/* ------------------------------------------------------- image attachments */
+
+function ev(type: string, sessionSeq: number, data: Record<string, unknown>): EventEnvelope {
+  return {
+    stream: 'agent',
+    event_id: `e-${sessionSeq}-${type}`,
+    project_id: 'p1',
+    session_id: 's1',
+    run_id: null,
+    seq: sessionSeq,
+    session_seq: sessionSeq,
+    type,
+    data,
+    created_at: '2026-01-01T00:00:00Z',
+  };
+}
+
+// agent.message_injected carries image paths for the user bubble.
+const withImages = buildTimeline(
+  [ev('agent.message_injected', 1, { sender: 'user', content: 'look at this', images: ['/ws/uploads/a.png'] })],
+  [],
+);
+const userMsg = withImages[0] as MessageItem;
+assert.equal(userMsg.kind, 'message');
+assert.deepEqual(userMsg.imagePaths, ['/ws/uploads/a.png']);
+
+// tool.finished with artifact_id + image_path attaches the image to the tool
+// item — both for the paired (started→finished) and standalone shapes.
+const paired = buildTimeline(
+  [
+    ev('tool.started', 2, { tool_name: 'molecule_drawer', tool_call_id: 'c1' }),
+    ev('tool.finished', 3, {
+      tool_name: 'molecule_drawer',
+      tool_call_id: 'c1',
+      is_success: true,
+      artifact_id: 'art-1',
+      image_path: '/ws/mol.png',
+    }),
+  ],
+  [],
+);
+const pairedTool = paired[0] as ToolItem;
+assert.equal(pairedTool.kind, 'tool');
+assert.equal(pairedTool.imageArtifactId, 'art-1');
+assert.equal(pairedTool.imagePath, '/ws/mol.png');
+
+const standalone = buildTimeline(
+  [
+    ev('tool.finished', 4, {
+      tool_name: 'molecule_drawer',
+      is_success: true,
+      result: { artifact_id: 'art-2', image_path: '/ws/mol2.png' },
+    }),
+  ],
+  [],
+);
+const soloTool = standalone[0] as ToolItem;
+assert.equal(soloTool.imageArtifactId, 'art-2', 'artifact ref nested in result payload is found');
+assert.equal(soloTool.imagePath, '/ws/mol2.png');
+
+console.log('timeline.images ok');

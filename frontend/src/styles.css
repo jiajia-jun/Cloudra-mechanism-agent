@@ -416,6 +416,17 @@ body {
   word-break: break-word;
   color: var(--fg);
 }
+/* inline image attachments (user bubble + tool outputs) */
+.msg-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.msg-images img,
+.tool-image img {
+  max-width: 320px;
+  max-height: 240px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.tool-image { display: inline-block; margin: 4px 0 2px 30px; }
 /* live streaming bubble: dimmed with a blinking caret until message_emitted */
 .msg.assistant.streaming .msg-body { opacity: 0.8; }
 .msg.assistant.streaming .msg-body::after {
@@ -639,6 +650,30 @@ body {
 .composer textarea::placeholder { color: var(--fg-faint); }
 .composer-actions { display: flex; align-items: center; gap: 8px; }
 .composer-hint { font-size: 11px; color: var(--fg-faint); margin-right: auto; font-family: var(--mono); }
+.composer-attachments { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 2px 0; }
+.composer-attachment { position: relative; }
+.composer-attachment img {
+  height: 56px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.composer-attachment .attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.composer-attachment .attachment-remove:hover { color: var(--fg); }
 
 /* ------------------------------------------------------------------ inspector */
 
@@ -903,6 +938,14 @@ body {
 .card-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
 .card-meta { font-size: 11px; color: var(--fg-tertiary); font-family: var(--mono); margin-bottom: 6px; }
 .card-actions { display: flex; gap: 6px; margin-top: 8px; }
+.artifact-thumb { display: block; margin-top: 8px; }
+.artifact-thumb img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
 
 /* ------------------------------------------------------------------ interactions & approvals */
 

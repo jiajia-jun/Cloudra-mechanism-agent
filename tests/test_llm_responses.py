@@ -101,6 +101,44 @@ def test_build_responses_payload_roundtrips_tool_turn():
     assert payload["input"][4]["call_id"] == "c1"
 
 
+def test_build_responses_payload_carries_image_parts():
+    """visual 模式的多模态 content parts 必须翻译为 input_image，而不是被 str() 丢掉。"""
+    payload = _build_responses_payload(
+        _kwargs(
+            messages=[
+                {"role": "system", "content": "s"},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "what is this molecule?"},
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,QUJD"}},
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "c1",
+                    "content": [
+                        {"type": "text", "text": "rendered: /ws/render.png"},
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,REVG"}},
+                    ],
+                },
+            ]
+        )
+    )
+    user_item = payload["input"][0]
+    assert user_item["content"] == [
+        {"type": "input_text", "text": "what is this molecule?"},
+        {"type": "input_image", "image_url": "data:image/png;base64,QUJD"},
+    ]
+    # tool 结果仍是 function_call_output：图片部分降级为文本占位，
+    # output 字段必须是字符串。
+    tool_item = payload["input"][1]
+    assert tool_item["type"] == "function_call_output"
+    assert "rendered: /ws/render.png" in tool_item["output"]
+    assert "[Image attached to this tool result]" in tool_item["output"]
+    assert "REVG" not in tool_item["output"]
+
+
 def test_translate_responses_completion_non_stream():
     data = {
         "id": "r1",

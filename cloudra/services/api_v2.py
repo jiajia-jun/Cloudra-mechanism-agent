@@ -9,11 +9,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -53,6 +54,8 @@ class AgentSpawn(BaseModel):
 
 class MessagePost(BaseModel):
     content: str = Field(min_length=1)
+    images: Optional[list[str]] = None
+    image_artifact_ids: Optional[list[Optional[str]]] = None
 
 
 class CancelPost(BaseModel):
@@ -630,6 +633,63 @@ def create_v2_app(
             _artifacts_service().list, project_id, session_id=session_id
         )
         return [artifact.to_dict() for artifact in artifacts]
+
+    _UPLOAD_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+    _UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+
+    @app.post("/api/v2/projects/{project_id}/uploads", dependencies=protected, status_code=status.HTTP_201_CREATED)
+    async def upload_project_image(project_id: str, file: UploadFile = File(...)) -> dict[str, Any]:
+        """User image upload: stored under the project workspace and registered as an artifact.
+
+        The returned ``path`` is what ``agent.message`` accepts in ``images``;
+        ``artifact_id`` lets the frontend render the bubble from storage.
+        """
+        from cloudra.persistence.fs_utils import atomic_write_bytes
+        from cloudra.runtime_v2.turn_pipeline import register_workspace_image_artifact
+
+        project = core.require_project(project_id)
+        filename = Path(file.filename or "").name
+        ext = Path(filename).suffix.lower()
+        if ext not in _UPLOAD_IMAGE_EXTENSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"unsupported image type {ext or '(none)'}; allowed: png, jpg, jpeg, webp",
+            )
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="empty upload")
+        if len(data) > _UPLOAD_MAX_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="upload exceeds the 20MB limit",
+            )
+        if project.workspace_dir:
+            root = Path(project.workspace_dir)
+            upload_dir = root / ".cloudra" / "uploads"
+        else:
+            # No workspace configured: fall back to the data dir so the
+            # artifact boundary check still has a root to confine to.
+            from cloudra.infra.config import get_config
+
+            upload_dir = Path(get_config().data_dir) / "uploads" / project_id
+            root = upload_dir
+        path = upload_dir / f"{uuid.uuid4().hex[:12]}-{filename}"
+
+        def write() -> None:
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            atomic_write_bytes(str(path), data)
+
+        await asyncio.to_thread(write)
+        artifact_id = await asyncio.to_thread(
+            lambda: register_workspace_image_artifact(
+                project_id=project_id,
+                session_id="uploads",
+                agent_id=None,
+                workspace_root=str(root),
+                image_path=str(path),
+            )
+        )
+        return {"path": str(path), "artifact_id": artifact_id}
 
     @app.get("/api/v2/artifacts/{artifact_id}/download", dependencies=protected)
     async def download_artifact(artifact_id: str, project_id: str) -> StreamingResponse:

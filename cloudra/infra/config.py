@@ -46,7 +46,7 @@ class LLMConfig(BaseSettings):
     model: str = "deepseek-4-pro"
     url: str = "https://api.deepseek.com/"
     key: str = ""
-    supports_vision: bool = False
+    supports_vision: bool = True
     # 模型原生网页搜索：off / auto / openai / openrouter / deepseek / gemini / custom。
     # 默认 auto：按 base_url+model 自动识别并启用服务商侧搜索；
     # off 时保持传统 web_search 工具调用。

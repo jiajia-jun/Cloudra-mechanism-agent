@@ -10,6 +10,10 @@ export interface ToolItem {
   ok: boolean | null;
   resultSummary: string;
   durationMs: number | null;
+  /** Set when the tool produced an image artifact (artifact_id + image_path in
+   * the tool.finished payload); the render layer turns it into a download URL. */
+  imageArtifactId?: string;
+  imagePath?: string;
 }
 export interface MessageItem {
   kind: 'message';
@@ -20,6 +24,10 @@ export interface MessageItem {
   content: string;
   pending?: boolean;
   streaming?: boolean;
+  /** Image attachments on user messages: workspace paths (from the event
+   * payload) plus artifact ids when known (optimistic echo / future payloads). */
+  imagePaths?: string[];
+  imageArtifactIds?: string[];
 }
 export interface NoteItem {
   kind: 'note';
@@ -173,6 +181,32 @@ export function formatToolResult(toolName: string, value: unknown): string {
   return fullText(value);
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+/** Pull an image artifact reference out of a tool.finished payload: either
+ * top-level (`artifact_id`/`image_path`) or nested in the raw `result`
+ * (object or JSON string). */
+function extractToolImage(data: Record<string, unknown>): { artifactId?: string; imagePath?: string } {
+  let artifactId = typeof data.artifact_id === 'string' && data.artifact_id ? data.artifact_id : undefined;
+  let imagePath = typeof data.image_path === 'string' && data.image_path ? data.image_path : undefined;
+  let result: unknown = data.result;
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result);
+    } catch {
+      result = undefined;
+    }
+  }
+  if (result && typeof result === 'object') {
+    const r = result as Record<string, unknown>;
+    if (!artifactId && typeof r.artifact_id === 'string' && r.artifact_id) artifactId = r.artifact_id;
+    if (!imagePath && typeof r.image_path === 'string' && r.image_path) imagePath = r.image_path;
+  }
+  return { artifactId, imagePath };
+}
+
 export function buildTimeline(events: EventEnvelope[], pendingUserMessages: MessageItem[]): TimelineItem[] {
   const items: TimelineItem[] = [];
   const openTools = new Map<string, ToolItem>();
@@ -181,6 +215,8 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
     const seq = event.session_seq ?? event.seq;
     if (MESSAGE_TYPES.has(event.type)) {
       const sender = String(event.data.sender ?? 'agent');
+      const imagePaths = stringList(event.data.images);
+      const imageArtifactIds = stringList(event.data.image_artifact_ids);
       items.push({
         kind: 'message',
         id: event.event_id,
@@ -188,6 +224,8 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         sender: event.type === 'agent.message_injected' && (sender === 'user' || sender === 'system') ? 'user' : 'assistant',
         senderLabel: sender,
         content: String(event.data.content ?? ''),
+        imagePaths: imagePaths.length > 0 ? imagePaths : undefined,
+        imageArtifactIds: imageArtifactIds.length > 0 ? imageArtifactIds : undefined,
       });
     } else if (event.type === 'agent.thinking') {
       items.push({
@@ -217,11 +255,14 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
       const toolName = String(event.data.tool_name ?? 'tool');
       const open = openTools.get(callId);
       const ok = Boolean(event.data.is_success);
+      const image = extractToolImage(event.data);
       if (open) {
         open.running = false;
         open.ok = ok;
         open.resultSummary = formatToolResult(open.name, event.data.result_summary);
         open.durationMs = typeof event.data.duration_ms === 'number' ? event.data.duration_ms : null;
+        open.imageArtifactId = image.artifactId;
+        open.imagePath = image.imagePath;
         openTools.delete(callId);
       } else {
         items.push({
@@ -234,6 +275,8 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
           ok,
           resultSummary: formatToolResult(toolName, event.data.result_summary),
           durationMs: typeof event.data.duration_ms === 'number' ? event.data.duration_ms : null,
+          imageArtifactId: image.artifactId,
+          imagePath: image.imagePath,
         });
       }
     } else if (

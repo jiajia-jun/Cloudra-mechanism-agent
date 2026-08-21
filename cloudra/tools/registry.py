@@ -36,6 +36,10 @@ class ToolRegistration:
     # Runtime availability. The default keeps the Android allow-list opt-in.
     runtime_profiles: frozenset[str] = frozenset({"desktop"})
 
+    # Visual-mode gate: image-producing/consuming tools hidden unless the
+    # agent's visual_mode setting is on.
+    visual: bool = False
+
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
@@ -95,6 +99,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.nmr_processor',
         class_name='NMRProcessor',
         tool_name='nmr_processor',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.pymol_render',
+        class_name='PymolRender',
+        tool_name='pymol_render',
+        visual=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
     ToolRegistration(
@@ -256,6 +266,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='ImageReader',
         tool_name='image_reader',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        visual=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Searchtool.paper_searcher',

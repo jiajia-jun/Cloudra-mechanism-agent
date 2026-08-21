@@ -54,6 +54,7 @@ class RuntimeSettingsPatch(BaseModel):
     timeout: Optional[int] = Field(default=None, ge=1)
     yolo: Optional[bool] = None
     schedule_mode: Optional[bool] = None
+    visual_mode: Optional[bool] = None
     native_search: Optional[str] = None
     native_search_params: Optional[dict[str, Any]] = None
     orchestration_mode: Optional[OrchestrationMode] = None
@@ -78,6 +79,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
     timeout: int = 300
     yolo: bool = False
     schedule_mode: bool = False
+    visual_mode: bool = True
     native_search: str = "auto"
     native_search_params: dict[str, Any] = Field(default_factory=dict)
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD

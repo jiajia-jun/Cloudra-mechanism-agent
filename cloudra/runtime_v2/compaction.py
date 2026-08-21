@@ -38,12 +38,40 @@ def _split_tail_start(history: list[dict[str, Any]], keep_recent: int) -> int:
     return start
 
 
+def _content_to_text(content: Any) -> str:
+    """Flatten message content to plain text for the summarizer.
+
+    Visual-mode histories carry parts lists (text + image_url with a base64
+    data URL).  Feeding the raw list into ``str()`` would dump the whole
+    base64 payload into the summarization call, so image parts degrade to a
+    one-line text fallback here.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        texts = []
+        for part in content:
+            if not isinstance(part, dict):
+                texts.append(str(part))
+                continue
+            if part.get("type") == "image_url":
+                url = str((part.get("image_url") or {}).get("url") or "")
+                mime = url[5:].split(";", 1)[0] if url.startswith("data:") else "external"
+                texts.append(f"[Image: {mime} attachment omitted during compaction]")
+            else:
+                texts.append(str(part.get("text") or ""))
+        return " ".join(text for text in texts if text)
+    return str(content)
+
+
 def _serialize(messages: list[dict[str, Any]]) -> str:
     lines = []
     total = 0
     for message in messages:
         role = message.get("role", "?")
-        content = str(message.get("content") or "")
+        content = _content_to_text(message.get("content"))
         if message.get("tool_calls"):
             names = ", ".join(str(c.get("name", "?")) for c in message["tool_calls"])
             content = f"{content} [tool_calls: {names}]".strip()

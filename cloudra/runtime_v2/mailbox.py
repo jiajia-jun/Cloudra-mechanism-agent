@@ -33,18 +33,36 @@ class Mailbox:
         content: str,
         sender: str,
         run_id: str | None = None,
+        images: list[str] | None = None,
+        image_artifact_ids: list[str | None] | None = None,
     ) -> EventEnvelope:
         message_id = new_id("msg")
+        data: dict[str, Any] = {"message_id": message_id, "sender": sender, "content": content}
+        if images:
+            # Workspace-absolute image paths attached by the user; the runner
+            # turns them into vision parts (or a text fallback) and the
+            # frontend renders them on the user bubble.
+            data["images"] = list(images)
+        if image_artifact_ids:
+            # Parallel to images: artifact ids let the frontend rebuild bubble
+            # image URLs after a reload (paths alone are not HTTP-reachable).
+            data["image_artifact_ids"] = list(image_artifact_ids)
         envelope = self._event_log.append(
             "agent.message_injected",
             stream="project",
             project_id=project_id,
             session_id=to_session_id,
             run_id=run_id,
-            data={"message_id": message_id, "sender": sender, "content": content},
+            data=data,
         )
         inbox = self.ensure_inbox(to_session_id)
         inbox.put_nowait(
-            {"type": "message", "message_id": message_id, "sender": sender, "content": content}
+            {
+                "type": "message",
+                "message_id": message_id,
+                "sender": sender,
+                "content": content,
+                **({"images": list(images)} if images else {}),
+            }
         )
         return envelope

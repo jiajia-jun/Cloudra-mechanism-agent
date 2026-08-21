@@ -63,6 +63,11 @@ def android_tools() -> frozenset[str]:
     )
 
 
+def visual_tools() -> frozenset[str]:
+    """Tools gated behind the per-agent visual_mode setting."""
+    return frozenset(name for name, reg in _named().items() if reg.visual)
+
+
 def evidence_deriver_for(tool_name: str) -> EvidenceDeriver | None:
     reg = _named().get(tool_name)
     if reg is None or not reg.evidence_deriver:

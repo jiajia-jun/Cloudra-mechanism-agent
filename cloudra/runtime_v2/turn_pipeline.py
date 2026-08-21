@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, Protocol
 
 from cloudra.runtime_v2.events import EventLog
@@ -27,6 +30,8 @@ from cloudra.runtime_v2.schemas import (
     RuntimeSettings,
 )
 
+logger = logging.getLogger("runtime_v2.turn_pipeline")
+
 # Streaming delta sink: (kind, text) where kind is "content" or "reasoning".
 DeltaSink = Callable[[str, str], Awaitable[None]]
 
@@ -35,6 +40,60 @@ DeltaSink = Callable[[str, str], Awaitable[None]]
 # payload but no threshold; 3 matches the point where a repeated call has
 # demonstrably stopped producing new information.
 LOOP_DETECTION_THRESHOLD = 3
+
+
+def register_workspace_image_artifact(
+    *,
+    project_id: str,
+    session_id: str,
+    agent_id: str | None,
+    workspace_root: str,
+    image_path: str,
+) -> str | None:
+    """Best-effort artifact registration for one workspace image (sync — offload it).
+
+    Returns the artifact_id, or None when the path escapes the workspace, the
+    file is missing, or registration fails (registration must never break the
+    tool loop).  v2 agents have no legacy ``session`` row, so one is ensured
+    first — ArtifactService refuses to register against a missing session.
+    ``conversation_id`` is the project id, matching the v2 artifact reads.
+    """
+    from cloudra.persistence.artifacts import ArtifactService
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
+
+    try:
+        root = Path(workspace_root).expanduser().resolve()
+        source = Path(image_path).expanduser().resolve()
+        if not source.is_file():
+            return None
+        source.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    try:
+        db = ConversationDB(project_id)
+        if not Path(db.path).is_file():
+            db.init()
+        if session_store.get_session_row(db, session_id) is None:
+            session_store.create_session_record(
+                db,
+                session_id=session_id,
+                agent_id=agent_id,
+                agent_type=None,
+                parent_session_id=None,
+                query="",
+                created_at=datetime.now(timezone.utc).isoformat(),
+            )
+        artifact = ArtifactService().register_file(
+            conversation_id=project_id,
+            session_id=session_id,
+            source=source,
+            allowed_root=root,
+        )
+        return artifact.artifact_id
+    except Exception:
+        logger.exception("artifact registration failed for %s", image_path)
+        return None
 
 
 @dataclass(frozen=True)
@@ -360,19 +419,24 @@ class TurnPipeline:
             exchanges.append((call, result))
             for stage in self.stages:
                 await stage.after_tool(ctx, call, result)
+            artifact_id = await self._register_tool_image(ctx, result)
+            finished_data: dict[str, Any] = {
+                "tool_call_id": call.id,
+                "tool_name": call.name,
+                "is_success": result.is_success,
+                "result_summary": result.summary,
+                "duration_ms": result.duration_ms,
+            }
+            if artifact_id:
+                # The frontend builds the timeline download URL from this id.
+                finished_data["artifact_id"] = artifact_id
             self.event_log.append(
                 "tool.finished",
                 stream="agent",
                 project_id=agent.project_id,
                 session_id=agent.id,
                 run_id=run_id,
-                data={
-                    "tool_call_id": call.id,
-                    "tool_name": call.name,
-                    "is_success": result.is_success,
-                    "result_summary": result.summary,
-                    "duration_ms": result.duration_ms,
-                },
+                data=finished_data,
             )
             if call.name == self.stop_tool:
                 # 用户可见的最终消息是模型自己的陈述；stop 工具的 summary 是
@@ -392,6 +456,24 @@ class TurnPipeline:
             content=response.content,
             tool_exchanges=tuple(exchanges),
             reasoning=response.reasoning,
+        )
+
+    async def _register_tool_image(self, ctx: PipelineContext, result: ToolResult) -> str | None:
+        """Register a successful image result living in the workspace as an artifact."""
+        data = result.data if isinstance(result.data, dict) else {}
+        image_path = data.get("image_path")
+        if not result.is_success or not isinstance(image_path, str) or not image_path:
+            return None
+        if not ctx.workspace_dir:
+            return None
+        return await asyncio.to_thread(
+            lambda: register_workspace_image_artifact(
+                project_id=ctx.agent.project_id,
+                session_id=ctx.agent.id,
+                agent_id=ctx.agent.role_id,
+                workspace_root=ctx.workspace_dir,
+                image_path=image_path,
+            )
         )
 
     async def _apply_before_tool(self, ctx, call: ToolCall, emit) -> TurnOutcome | None:

@@ -35,6 +35,33 @@ _IMAGE_MIME_TYPES = {
 }
 
 
+def encode_image_base64(path: str) -> str:
+    """将本地图片文件编码为 Base64 字符串。"""
+    with open(path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+
+def encode_image_data_url(path: str) -> Optional[str]:
+    """把本地图片编码为 ``data:<mime>;base64,...`` URL；不可用时返回 None。
+
+    data URL 直接透传（不二次编码）；文件缺失、扩展名不在
+    ``_IMAGE_MIME_TYPES`` 或读取失败一律返回 None，由调用方决定文本回落。
+    runtime_v2 的图片回注（agent_runner）与下方的 ``_render_image_part``
+    共用此 helper。
+    """
+    if path.startswith("data:"):
+        return path
+    if not os.path.exists(path):
+        return None
+    mime = _IMAGE_MIME_TYPES.get(os.path.splitext(path)[1].lower())
+    if mime is None:
+        return None
+    try:
+        return f"data:{mime};base64,{encode_image_base64(path)}"
+    except Exception:
+        return None
+
+
 def _context_file_path(agent_id: str, conversation_id: str, session_id: Optional[str] = None) -> str:
     """返回指定 agent 在指定 conversation 下的上下文文件路径。
 
@@ -463,9 +490,8 @@ class ContextManager:
 
     @staticmethod
     def _encode_image(path: str) -> str:
-        """将本地图片文件编码为 Base64 字符串。"""
-        with open(path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode("utf-8")
+        """将本地图片文件编码为 Base64 字符串（委托给模块级 helper）。"""
+        return encode_image_base64(path)
 
     def _render_image_part(
         self,
