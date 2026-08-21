@@ -10,6 +10,7 @@ from collections import OrderedDict
 from typing import Any
 
 from cloudra.runtime_v2.agent_host import AgentHost
+from cloudra.runtime_v2.email_listener import EmailListenerBroker
 from cloudra.runtime_v2.events import EventHub, EventLog
 from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.notices import NoticeManager
@@ -48,6 +49,9 @@ class RuntimeCore:
         self.pending = PendingBroker(self)
         # v2-native schedule reminders (event projection + asyncio timers).
         self.reminders = ReminderBroker(self)
+        # Session-level inbound email listener (IMAP poll -> email.received
+        # event + agent.message to the active project's coordinator).
+        self.email_listener = EmailListenerBroker(self)
         # Unified per-session LLM context injection (pins + one-shot pushes).
         self.notices = NoticeManager()
         # Attached by the API/embedder when live execution is desired; command

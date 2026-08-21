@@ -74,6 +74,7 @@ class EmailConfig(BaseSettings):
     password: str = ""  # Should be an app password
     sender_name: str = "Cloudra Assistant"
     whitelist: list[str] = []
+    poll_interval: int = 60  # seconds between IMAP inbox polls (listener)
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -230,6 +231,7 @@ class CloudraConfig(BaseSettings):
                 "password": self.email.password,
                 "sender_name": self.email.sender_name,
                 "whitelist": self.email.whitelist,
+                "poll_interval": self.email.poll_interval,
             },
             "openalex_api_key": self.openalex_api_key,
             "openalex_mailto": self.openalex_mailto,

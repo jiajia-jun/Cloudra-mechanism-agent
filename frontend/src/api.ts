@@ -199,6 +199,7 @@ const KNOWN_EVENT_TYPES = [
   'hub.posted',
   'compaction.requested', 'compaction.started', 'compaction.finished',
   'reminder.scheduled', 'reminder.cancelled', 'reminder.fired',
+  'email.received',
   'loop.detected',
   'agent.warning', 'project.synced', 'heartbeat',
 ];

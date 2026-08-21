@@ -68,6 +68,7 @@ EVENT_TYPES: dict[str, str] = {
     "reminder.scheduled": "agent self-wake reminder created",
     "reminder.cancelled": "agent self-wake reminder cancelled",
     "reminder.fired": "agent self-wake reminder delivered",
+    "email.received": "inbound email delivered to a session by the listener",
     "loop.detected": "identical tool loop detected",
     "agent.warning": "non-fatal guard warning",
     "project.synced": "sse replay backlog boundary (hub-only control marker)",

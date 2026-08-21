@@ -157,11 +157,13 @@ def create_v2_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await core.reminders.rearm_all()
+        await core.email_listener.start()
         await compute_broker.start()
         try:
             yield
         finally:
             await compute_broker.close()
+            await core.email_listener.close()
             await core.reminders.close()
 
     app = FastAPI(title="Cloudra API v2", version=__version__, lifespan=lifespan)
