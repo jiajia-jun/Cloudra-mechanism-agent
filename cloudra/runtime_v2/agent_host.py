@@ -102,7 +102,6 @@ class AgentHost:
             )
         previous = agent.state
         agent.state = to
-        agent.state_since = utc_now()
         agent.touch()
         self.event_log.append(
             "agent.state_changed",

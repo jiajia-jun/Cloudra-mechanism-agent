@@ -1,6 +1,6 @@
 """Read-only projections over the explicit tool manifest.
 
-Downstream policy modules (DAG substantive gate, runtime profiles, evidence
+Downstream policy modules (DAG compute-entry gate, runtime profiles, evidence
 adapter) must query these helpers instead of keeping their own per-tool name
 sets.  Adding semantics to a tool only requires editing ``TOOL_REGISTRY``.
 """
@@ -29,33 +29,11 @@ def _load(path: str) -> Callable:
     return getattr(module, func_name)
 
 
-def substantive_tools() -> frozenset[str]:
-    return frozenset(name for name, reg in _named().items() if reg.dag_substantive)
-
-
-def is_substantive_tool(tool_name: str, arguments: dict[str, Any] | None = None) -> bool:
-    """Whether a tool call counts as substantive work for the DAG gate.
-
-    Entries without a declaration are non-substantive, so new tools default to
-    the safe "structure/read" bucket until the author opts them in.
-    """
-    reg = _named().get(tool_name)
-    if reg is None:
-        return False
-    if reg.substantive_predicate:
-        return bool(_load(reg.substantive_predicate)(arguments or {}))
-    return reg.dag_substantive
-
-
 def is_dag_observable(tool_name: str) -> bool:
     """Whether a tool call should be recorded as an observed process node."""
     reg = _named().get(tool_name)
     # Unregistered/test-injected tools are observed by default.
     return reg.dag_observe if reg is not None else True
-
-
-def supervisor_evidence_tools() -> frozenset[str]:
-    return frozenset(name for name, reg in _named().items() if reg.supervisor_evidence)
 
 
 def is_dag_reviewed(tool_name: str) -> bool:

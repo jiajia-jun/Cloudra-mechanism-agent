@@ -27,8 +27,6 @@ _LAZY_MODULES = {
     "workspace": "cloudra.persistence.workspace",
     # base
     "session_class": "cloudra.base.session_class",
-    "conversation_class": "cloudra.base.conversation_class",
-    "log_class": "cloudra.base.log_class",
     "skill_class": "cloudra.base.skill_class",
     "tools_class": "cloudra.base.tools_class",
     # infra

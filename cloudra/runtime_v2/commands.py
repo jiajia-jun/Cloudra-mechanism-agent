@@ -342,26 +342,6 @@ async def _update_role(core: RuntimeCore, command: Command) -> CommandResult:
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=updated)
 
 
-async def _update_runtime_defaults(core: RuntimeCore, command: Command) -> CommandResult:
-    patch = RuntimeSettingsPatch.model_validate(command.payload)
-    changes = patch.model_dump(exclude_unset=True)
-    if patch.api_key is not None:
-        changes["api_key_set"] = True
-    changes.pop("api_key", None)
-    core.record(
-        "runtime.settings_changed",
-        stream="project",
-        project_id="runtime",
-        data={"changes": changes, "actor": command.actor},
-    )
-    core.runtime_defaults = core.runtime_defaults.apply(patch)
-    return CommandResult(
-        command_id=command.command_id,
-        event_id=_last_event_id(core),
-        data=core.runtime_defaults.model_dump(mode="json"),
-    )
-
-
 async def _decide_approval(core: RuntimeCore, command: Command) -> CommandResult:
     project_id = _project_id(core, command)
     core.require_project(project_id)
@@ -402,7 +382,6 @@ HANDLERS: dict[str, Handler] = {
     "approval.decide": _decide_approval,
     "interaction.respond": _respond_interaction,
     "role.update": _update_role,
-    "runtime.settings_update": _update_runtime_defaults,
 }
 
 

@@ -28,11 +28,11 @@ class DagRemoveEdge(DagToolBase):
     tool_id: str = "t-dag-rm-edge"
     tool_name: str = "dag_remove_edge"
     tool_description: str = (
-        "Delete one edge from process or delivery with a mandatory rationale "
-        "(Supervisor executes; Coordinator or sub-agents may request on delivery). "
+        "Delete one edge from the delivery DAG with a mandatory rationale "
+        "(Coordinator or sub-agents in dag_record/dag_guided; Supervisor is read-only on delivery). "
         "Use for: scientifically justified edge removal with a logged reason. "
-        "Do not use for: omitting rationale; expecting immediate agent deletion on process edges. "
-        "Key discipline: agent process-edge removal is journaled and forwarded to Supervisor, not executed."
+        "Do not use for: omitting rationale; process-graph edges — the process graph is removed and writes are rejected. "
+        "Key discipline: every deletion needs a rationale and stays in the change log."
     )
     input_schema: Any = DagRemoveEdgeInput
     output_schema: Any = DagToolOutput

@@ -106,11 +106,7 @@ class CloudraConfig(BaseSettings):
     # 礼貌池邮箱，写入 User-Agent 的 mailto；空则只用通用 UA。可设 CLOUDRA_OPENALEX_MAILTO / OPENALEX_MAILTO。
     openalex_mailto: str = ""
 
-    # UI/UX state
-    last_conversation_id: Optional[str] = None
-    workspace_dir: Optional[Path] = None
-
-    @field_validator("data_dir", "config_file", "workspace_dir", mode="before")
+    @field_validator("data_dir", "config_file", mode="before")
     @classmethod
     def _coerce_path(cls, v):
         if isinstance(v, str):
@@ -176,10 +172,6 @@ class CloudraConfig(BaseSettings):
 
             if "data_dir" in data:
                 self.data_dir = Path(data["data_dir"])
-            if "last_conversation_id" in data:
-                self.last_conversation_id = data["last_conversation_id"]
-            if "workspace_dir" in data and data["workspace_dir"]:
-                self.workspace_dir = Path(data["workspace_dir"])
             if "openalex_api_key" in data and data["openalex_api_key"] is not None:
                 self.openalex_api_key = str(data["openalex_api_key"])
             if "openalex_mailto" in data and data["openalex_mailto"] is not None:
@@ -192,8 +184,6 @@ class CloudraConfig(BaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "conversations").mkdir(exist_ok=True)
         (self.data_dir / "logs").mkdir(exist_ok=True)
-        (self.data_dir / "sessions").mkdir(exist_ok=True)
-        (self.data_dir / "tasks").mkdir(exist_ok=True)
         (self.data_dir / "contexts").mkdir(exist_ok=True)
 
     def save(self):
@@ -202,14 +192,14 @@ class CloudraConfig(BaseSettings):
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "data_dir": str(self.data_dir),
-            "last_conversation_id": self.last_conversation_id,
-            "workspace_dir": str(self.workspace_dir) if self.workspace_dir else None,
             "llm": {
                 "coordinator": {
                     "model": self.coordinator.model,
                     "url": self.coordinator.url,
                     "key": self.coordinator.key,
                     "supports_vision": self.coordinator.supports_vision,
+                    "native_search": self.coordinator.native_search,
+                    "native_search_params": self.coordinator.native_search_params,
                     "context_window": self.coordinator.context_window,
                     "timeout": self.coordinator.timeout,
                 },
@@ -218,6 +208,8 @@ class CloudraConfig(BaseSettings):
                     "url": self.follower.url,
                     "key": self.follower.key,
                     "supports_vision": self.follower.supports_vision,
+                    "native_search": self.follower.native_search,
+                    "native_search_params": self.follower.native_search_params,
                     "context_window": self.follower.context_window,
                     "timeout": self.follower.timeout,
                 },
@@ -249,13 +241,14 @@ class CloudraConfig(BaseSettings):
         return {
             "data_dir": str(self.data_dir),
             "config_file": str(self.config_file),
-            "workspace_dir": str(self.workspace_dir) if self.workspace_dir else "(default)",
             "llm": {
                 "coordinator": {
                     "model": self.coordinator.model,
                     "url": self.coordinator.url,
                     "key": "***" if self.coordinator.key else "(not set)",
                     "supports_vision": self.coordinator.supports_vision,
+                    "native_search": self.coordinator.native_search,
+                    "native_search_params": self.coordinator.native_search_params,
                     "context_window": self.coordinator.context_window,
                     "timeout": self.coordinator.timeout,
                 },
@@ -264,6 +257,8 @@ class CloudraConfig(BaseSettings):
                     "url": self.follower.url,
                     "key": "***" if self.follower.key else "(not set)",
                     "supports_vision": self.follower.supports_vision,
+                    "native_search": self.follower.native_search,
+                    "native_search_params": self.follower.native_search_params,
                     "context_window": self.follower.context_window,
                     "timeout": self.follower.timeout,
                 },
@@ -305,6 +300,15 @@ def _coerce_value(current, value: str):
             return int(value.strip())
         except ValueError:
             raise ValueError(f"整数配置项收到非法值: {value}") from None
+    if isinstance(current, dict):
+        import json
+        try:
+            parsed = json.loads(value.strip())
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"字典配置项 JSON 解析失败: {exc}") from None
+        if not isinstance(parsed, dict):
+            raise ValueError("字典配置项需要 JSON 对象")
+        return parsed
     if isinstance(current, list):
         stripped = value.strip()
         if stripped.startswith("["):

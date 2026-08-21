@@ -1,20 +1,17 @@
 """科学督导 Agent（Supervisor）。
 
-包含两个部分：
-
-1. ``Supervisor``：case-bank 提取（任务结束后的经验沉淀），不干预在线执行。
-2. ``SupervisorAgent`` + ``GraphSupervisor``：dag_guided 模式下的科学督导 agent。
-   它复用 Agent 基类与持久 ContextManager（conversation 级上下文，跨触发、
-   跨 session、跨进程重启连续），只持有 ``dag_*`` 工具族：用 dag_view /
-   dag_delivery_report 自助读图，用 dag_accept_mechanism 裁决机理草稿、
-   dag_review_call 复核每次 delivery 相关调用并绑定阶段。delivery/机理 DAG
-   由 Coordinator 设计，Supervisor 对其只读（engine 按 actor 强制）；
-   阶段绑定由 harness 确定性校验后落图。
+``SupervisorAgent`` + ``GraphSupervisor``：dag_guided 模式下的科学督导 agent。
+它复用 Agent 基类与持久 ContextManager（conversation 级上下文，跨触发、
+跨 session、跨进程重启连续），只持有 ``dag_*`` 工具族：用 dag_view /
+dag_delivery_report 自助读图，用 dag_accept_mechanism 裁决机理草稿、
+dag_review_call 复核每次 delivery 相关调用并绑定阶段。delivery/机理 DAG
+由 Coordinator 设计，Supervisor 对其只读（engine 按 actor 强制）；
+阶段绑定由 harness 确定性校验后落图。
 
 核心设计：
 - 不按 ReAct 步数轮询；仅由图事件触发；
-- 结束时把结论文本钉进 Coordinator 的 ``[Supervisor]`` 建议（覆盖旧建议）；
-  仅当督导跑在 Coordinator 工具循环之外（子 Agent / API）时才 inject_event 唤醒；
+- 结论文本随 ``GraphSupervisorResult.report`` 返回调用方（DagController），
+  由它经 runtime_v2 的 NoticeManager pin / agent.message 回投 Coordinator；
 - 所有在线影响必须经过 DAG engine 的权限、revision 与无环校验；
 - 上下文每次触发不清空，只追加触发消息。
 """
@@ -24,18 +21,13 @@ from __future__ import annotations
 import json
 import logging
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-
-if TYPE_CHECKING:
-    # 仅用于类型注解；运行时在使用点惰性导入。
-    import numpy as np
 
 from cloudra.core.agent import Agent
 from cloudra.dag.models import OrchestrationMode
 from cloudra.infra.config import get_config
-from cloudra.infra.llm_client import LLMClient
 from cloudra.runtime.prompt_assembler import load_role_prompt
 
 logger = logging.getLogger("Supervisor")
@@ -45,37 +37,25 @@ def load_supervisor_prompt() -> str:
     """加载 supervisor 角色 prompt（按 mtime 缓存，改 prompt 文件立即生效）。
 
     与 PromptAssembler 的每请求 (mtime_ns, size) 重校验一致；文件缺失时
-    回退到与当前 graph-planning 角色一致的一句话描述。
+    回退到与当前 delivery-review 角色一致的一句话描述。
     """
     try:
         return load_role_prompt("supervisor")
     except FileNotFoundError:
         return (
             "You are Cloudra's graph-planning Supervisor in dag_guided mode: "
-            "maintain the process DAG so it schedules and covers the Coordinator's "
-            "delivery mechanism, using only the dag_* tool family."
+            "review the Coordinator's delivery mechanism DAG (read-only for you) — "
+            "adjudicate mechanism drafts and evidence call reviews — "
+            "using only the dag_* tool family."
         )
 
 
-# 兼容导出入口；新代码请调用 load_supervisor_prompt() 以获得 mtime 重校验。
-SUPERVISOR_SYSTEM_PROMPT = load_supervisor_prompt()
-
-
-class TimelineEvent(BaseModel):
-    """时间线事件，用于压缩轨迹。"""
-    step: int
-    timestamp: float
-    actor: str  # user / agent / tool
-    action_type: str  # think / tool_call / tool_result / user_input
-    summary: str  # 一句话摘要
-    details: dict = Field(default_factory=dict)
-
-
 class SupervisorAgent(Agent):
-    """dag_guided 下的图规划 agent：只持有 dag_* 工具族，上下文持久。
+    """dag_guided 下的科学督导 agent：只持有 dag_* 工具族，上下文持久。
 
     权限为 READ|MANAGE（dag_* 工具的权限类别为 MANAGE），写安全由 DAG
-    engine 按 actor=SUPERVISOR 强制：process DAG 可维护，delivery DAG 只读。
+    engine 按 actor=SUPERVISOR 强制：delivery DAG 只读，可裁决机理草稿、
+    复核调用并绑定阶段、加严 coverage contract。
     """
 
     id: str = "supervisor"
@@ -108,7 +88,7 @@ class SupervisorAgent(Agent):
         return True
 
     def get_available_tools(self, tools: Optional[list] = None) -> list:
-        """白名单：所有 dag_* 工具。读两张图、维护 process DAG 都经它们。"""
+        """白名单：所有 dag_* 工具。读 delivery 图、裁决草稿与复核都经它们。"""
         return [
             entry
             for entry in super().get_available_tools(tools)
@@ -270,8 +250,9 @@ class GraphSupervisor:
         if note:
             parts.append(f"note={note}. ")
         parts.append(
-            "This turn left no natural-language note; inspect process graph changes, "
-            "or use dag_message_supervisor to communicate again."
+            "This turn left no natural-language note; inspect the delivery "
+            "projection with dag_view, or use dag_message_supervisor to "
+            "communicate again."
         )
         return "".join(parts)
 
@@ -303,52 +284,12 @@ class GraphSupervisor:
             await emit("llm_stream_end", {})
         return text
 
-    async def _publish_report_to_coordinator(
-        self, report: str, *, wake_coordinator: bool
-    ) -> None:
-        """钉住 ``[Supervisor]`` 建议；仅在 Coordinator 可能 waiting 时发唤醒事件。
-
-        Coordinator 自己的 dag_add_species / dag_message_supervisor 路径里 Supervisor 是同步
-        await 的，下一轮推理 naturally 能读到钉住的建议——再 inject 会变成
-        重复的 ``【supervisor】`` 系统行。子 Agent 或 API（user_replan）触发时
-        Coordinator 往往在 waiting，必须 inject_event 才能拉起来。
-        """
-        if not report.strip():
-            return
-        from cloudra.persistence.context_manager import ContextManager
-        from cloudra.persistence.database import get_database_path
-
-        try:
-            cm = ContextManager(
-                agent_id="a-0",
-                conversation_id=self.conversation_id,
-                prompt=None,
-                query="",
-                session_id=None,
-            )
-            await cm.set_supervisor_advice(report.strip())
-        except Exception as exc:
-            logger.warning("[Supervisor] set_supervisor_advice failed: %s", exc)
-        if not wake_coordinator:
-            return
-        try:
-            await ContextManager.inject_event(
-                conversation_id=self.conversation_id,
-                agent_id="a-0",
-                event_type="supervisor",
-                content=report.strip(),
-                db_path=get_database_path(self.conversation_id),
-            )
-        except Exception as exc:
-            logger.warning("[Supervisor] inject_event to coordinator failed: %s", exc)
-
     async def run(
         self,
         trigger: str,
         coordinator_request: Optional[str] = None,
         session_id: Optional[str] = None,
         event_sink=None,
-        wake_coordinator: bool = False,
     ) -> GraphSupervisorResult:
         """追加一条触发消息并运行 Supervisor 的工具循环。
 
@@ -357,9 +298,10 @@ class GraphSupervisor:
         把运行过程写进 supervisor 自己的 session 事件流——TUI 选中它的
         session 行时才能看到推理与 dag_* 工具调用，否则窗口是空的。
 
-        结束时无论是否改图，都会把结论文本钉进 Coordinator 的 ``[Supervisor]``
-        建议；若模型空回复则强制再收尾一次。``wake_coordinator`` 为真时再
-        inject_event（子 Agent / API 触发，Coordinator 可能在 waiting）。
+        结束时无论是否改图，结论文本都随 ``GraphSupervisorResult.report``
+        返回；若模型空回复则强制再收尾一次。报告的投递（NoticeManager
+        pin / agent.message 唤醒）由调用方 DagController 负责——它持有
+        runtime_v2 的 core 句柄与触发者身份。
         """
         # 惰性导入，避免模块级依赖 tools 包。
         from cloudra.tools import get_tools_lst
@@ -539,10 +481,6 @@ class GraphSupervisor:
         elif not last_report.strip():
             last_report = self._fallback_report(trigger, rounds, mutations, note)
 
-        await self._publish_report_to_coordinator(
-            last_report, wake_coordinator=wake_coordinator
-        )
-
         return GraphSupervisorResult(
             trigger=trigger,
             rounds=rounds,
@@ -551,208 +489,3 @@ class GraphSupervisor:
             report=last_report,
         )
 
-
-class Supervisor:
-    """case-bank 提取器（任务结束后的经验沉淀，不参与在线图规划）。
-
-    Args:
-        model: 使用的 LLM 名称。
-        base_url: LLM API base URL。
-        api_key: LLM API key。
-    """
-
-    def __init__(
-        self,
-        model: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-    ):
-        cfg = get_config()
-        # 默认使用 follower 配置，但允许单独指定
-        self.model = model or cfg.follower.model
-        self.base_url = base_url or cfg.follower.url
-        self.api_key = api_key or cfg.follower.key
-        # LLM 传输层客户端缓存，供独立的 case extraction 复用。
-        self._llm_client: Optional[LLMClient] = None
-
-    def _get_client(self) -> LLMClient:
-        """返回缓存的 LLMClient（三级 fallback 由传输层内部处理）。"""
-        if self._llm_client is None:
-            self._llm_client = LLMClient(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                model=self.model,
-            )
-        return self._llm_client
-
-    def compress_timeline(
-        self,
-        messages: list[dict],
-        max_tokens: int = 3000,
-    ) -> str:
-        """按时间线压缩最近轨迹为一段话。
-
-        目前采用基于规则的压缩：保留关键角色、工具调用和决策点，
-        省略过长的观测内容。后续可替换为 LLM 摘要。
-        """
-        events: list[str] = []
-        for idx, msg in enumerate(messages):
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                content = " ".join(
-                    str(part.get("text", "")) for part in content if isinstance(part, dict)
-                )
-            content = str(content)
-
-            if role == "system":
-                # 跳过 system prompt、supervisor advice、旧版 system 梗概
-                if content.startswith("[Supervisor]") or "[Context compact]" in content:
-                    continue
-                events.append(f"Step {idx}: system instruction updated.")
-            elif role == "user":
-                if content.startswith("[Context compact]"):
-                    events.append(f"Step {idx}: compaction handoff injected.")
-                else:
-                    events.append(f"Step {idx}: user said '{content}'.")
-            elif role == "assistant":
-                tool_calls = msg.get("tool_calls")
-                if tool_calls:
-                    names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
-                    events.append(f"Step {idx}: agent decided to call tools: {', '.join(names)}.")
-                elif content:
-                    events.append(f"Step {idx}: agent reasoned '{content}'.")
-            elif role == "tool":
-                tool_name = msg.get("name", "tool")
-                events.append(f"Step {idx}: tool '{tool_name}' returned result.")
-
-        # 只保留最近的事件，避免过长
-        summary = " ".join(events[-40:])
-        if len(summary) > max_tokens * 4:  # 粗略按 1 token ≈ 4 字符估算
-            summary = summary[: max_tokens * 4]
-        return summary
-
-    async def embed_text(self, text: str) -> np.ndarray:
-        """将文本编码为向量。
-
-        默认使用 OpenAI embedding API。如果未配置，返回零向量（退化 gracefully）。
-        """
-        # numpy 仅在 embedding/检索路径使用，惰性导入以避免拖慢模块加载。
-        import numpy as np
-
-        if not all([self.model, self.base_url, self.api_key]):
-            # 未配置时返回零向量，避免阻塞
-            return np.zeros(1536, dtype=np.float32)
-
-        try:
-            # 注意：base_url 若指向 OpenAI 兼容服务，embedding 模型名可能不同
-            # 这里使用 text-embedding-3-small 作为默认值
-            response = await self._get_client().embed(
-                text[:8000],
-                model="text-embedding-3-small",
-            )
-            vec = np.array(response.data[0].embedding, dtype=np.float32)
-            return vec
-        except Exception as e:
-            logger.warning("[Supervisor] embedding 生成失败，退化为零向量: %s", e)
-            return np.zeros(1536, dtype=np.float32)
-
-    def retrieve_relevant_cases(
-        self,
-        query_vec: np.ndarray,
-        cases: list[dict],
-        k: int = 3,
-    ) -> list[dict]:
-        """根据向量内积从 case bank 中检索最相关的 k 个 cases。
-
-        兼容从数据库读取的 embedding（bytes）和内存中的 embedding（list）。
-        """
-        import numpy as np
-
-        if not cases or np.all(query_vec == 0):
-            return []
-
-        scored = []
-        for case in cases:
-            emb = case.get("embedding")
-            if emb is None:
-                continue
-            # 数据库中 embedding 以 BLOB 存储，需先还原为 numpy 数组
-            if isinstance(emb, (bytes, memoryview)):
-                try:
-                    emb = np.frombuffer(emb, dtype=np.float32)
-                except Exception:
-                    continue
-            case_vec = np.array(emb, dtype=np.float32)
-            if case_vec.size == 0 or np.all(case_vec == 0):
-                continue
-            norm = np.linalg.norm(query_vec) * np.linalg.norm(case_vec)
-            sim = float(np.dot(query_vec, case_vec) / norm) if norm > 0 else 0.0
-            scored.append((sim, case))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [case for _, case in scored[:k]]
-
-    async def extract_case(self, messages: list[dict]) -> dict:
-        """从完整 trajectory 中提取结构化 case。
-
-        Returns:
-            包含 task_summary、outcome、outcome_reason、lesson 的字典。
-            如果 LLM 调用失败，返回基于规则的兜底结果。
-        """
-        timeline_summary = self.compress_timeline(messages)
-
-        prompt = (
-            "Extract a structured experience case from the AI assistant's task log below.\n\n"
-            "Output must be a single JSON object with these fields:\n"
-            "- task_summary: one sentence summarizing the task goal\n"
-            '- outcome: "success" | "partial" | "failure"\n'
-            "- outcome_reason: the key reason for success or failure\n"
-            "- lesson: a reusable lesson for similar future tasks\n\n"
-            "--- Execution log ---\n\n"
-            f"{timeline_summary}\n\n"
-            "--- JSON ---"
-        )
-
-        data, error = await self._get_client().chat_json(
-            "You extract lessons from task records.",
-            prompt,
-            max_tokens=4096,
-            temperature=1.0,
-            response_format={"type": "json_object"},
-        )
-        if error is not None:
-            print(f"[Supervisor] 提取 Case JSON 解析失败: {error}")
-            return self._fallback_case_data(timeline_summary, error)
-
-        return {
-            "task_summary": data.get("task_summary", timeline_summary),
-            "outcome": data.get("outcome", "unknown"),
-            "outcome_reason": data.get("outcome_reason", ""),
-            "lesson": data.get("lesson", ""),
-        }
-
-    def _fallback_case_data(self, timeline_summary: str, exc: Exception) -> dict:
-        """extract_case 的 LLM 调用失败时的兜底返回。
-
-        task_summary 置空，让 _persist_case 提前返回、不沉淀残缺 case，
-        行为与提取失败不写入 case bank 的设计一致。
-        """
-        return {
-            "task_summary": "",
-            "outcome": "unknown",
-            "outcome_reason": f"Case extraction LLM call failed: {exc}",
-            "lesson": "",
-        }
-
-def get_supervisor(
-    model: Optional[str] = None,
-    base_url: Optional[str] = None,
-    api_key: Optional[str] = None,
-) -> Supervisor:
-    """工厂函数，便于从配置创建 Supervisor 实例。"""
-    return Supervisor(
-        model=model,
-        base_url=base_url,
-        api_key=api_key,
-    )

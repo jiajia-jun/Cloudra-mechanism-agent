@@ -18,6 +18,9 @@ class GetSkill_input_schema(input_schema):
 
 
 class GetSkill_output_schema(output_schema):
+    is_success: bool = Field(
+        description="Whether the skill content was loaded."
+    )
     content: str = Field(
         description="Loaded skill content."
     )
@@ -59,20 +62,22 @@ class GetSkill(Tool):
         content = loader.get_content(skill_name)
         if content == 'skill不存在。':
             return GetSkill_output_schema(
+                is_success=False,
                 content="",
-                result=f"Skill '{skill_name}' 不存在。"
+                result=f"Skill '{skill_name}' does not exist."
             )
 
-        result = f"成功获取 Skill '{skill_name}' 的内容。"
+        result = f"Loaded skill '{skill_name}'."
 
         # NOTE: other 参数用于读取 skill 的 reference 附件。由于 reference 可能是文件或文件夹，
         # 这里直接把内容拼接到 content 里返回，让 LLM 在同一轮上下文里看到完整资料。
         if other:
             ref_content = loader.get_reference(skill_name, other)
             content += f"\n\n--- Reference: {other} ---\n\n{ref_content}"
-            result += f" 并获取了 reference '{other}'。"
+            result += f" Also loaded reference '{other}'."
 
         return GetSkill_output_schema(
+            is_success=True,
             content=content,
             result=result
         )

@@ -55,6 +55,20 @@ def _strip_computed_fields(value: Any) -> Any:
     return value
 
 
+def _strip_removed_agent_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """Drop agent fields removed after older snapshots/events were written.
+
+    AgentSession validates with extra="forbid", so a pre-removal snapshot
+    carrying ``state_since`` or ``current_run.current_tool`` would fail to
+    restore; both fields had no readers, so dropping them is lossless.
+    """
+    data = {k: v for k, v in data.items() if k != "state_since"}
+    run = data.get("current_run")
+    if isinstance(run, dict):
+        data["current_run"] = {k: v for k, v in run.items() if k != "current_tool"}
+    return data
+
+
 class RuntimeStore:
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
@@ -185,7 +199,7 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
             for pid, data in snapshot.get("projects", {}).items()
         }
         core.agents = {
-            sid: AgentSession.model_validate(data)
+            sid: AgentSession.model_validate(_strip_removed_agent_fields(data))
             for sid, data in snapshot.get("agents", {}).items()
         }
         # 快照角色是内置角色表上的覆盖层（携带 role.update 补丁），不能整个
@@ -271,7 +285,7 @@ def _replay_event(core: Any, envelope: EventEnvelope) -> None:
         project.touch()
         core.projects[project.id] = project
     elif event_type == "agent.spawned":
-        agent = AgentSession.model_validate(data)
+        agent = AgentSession.model_validate(_strip_removed_agent_fields(data))
         core.agents[agent.id] = agent
         core.mailbox.ensure_inbox(agent.id)
     elif event_type == "agent.settings_changed":
@@ -298,8 +312,3 @@ def _replay_event(core: Any, envelope: EventEnvelope) -> None:
         agent.touch()
     elif event_type == "role.updated":
         core.roles.update(data["role_id"], data["changes"])
-    elif event_type == "runtime.settings_changed":
-        changes = {k: v for k, v in data.get("changes", {}).items() if k != "api_key_set"}
-        core.runtime_defaults = core.runtime_defaults.apply(
-            RuntimeSettingsPatch.model_validate(changes)
-        )

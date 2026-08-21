@@ -249,6 +249,7 @@ body {
   margin-top: 4px;
 }
 .project-item {
+  position: relative;
   padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
@@ -257,6 +258,30 @@ body {
 }
 .project-item:hover { background: var(--bg-hover); }
 .project-item.active { background: var(--bg-layer-2); }
+.project-item.archived { opacity: 0.6; }
+.project-archive {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 12px;
+  opacity: 0.55;
+  transition: opacity 0.15s var(--ease);
+}
+.project-item:hover .project-archive,
+.project-archive:focus-visible {
+  opacity: 1;
+}
+.archived-group { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 4px; }
+.archived-group > summary {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--fg-faint);
+  padding: 6px 4px 2px 8px;
+  cursor: pointer;
+}
 .project-name { font-weight: 500; font-size: 13px; line-height: 1.35; }
 .project-meta {
   font-size: 11px;

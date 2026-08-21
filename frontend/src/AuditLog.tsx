@@ -281,13 +281,13 @@ export default function AuditLog({ agentId, liveEvents, onError }: AuditLogProps
             className={`audit-seg-btn ${view === 'tools' ? 'active' : ''}`}
             onClick={() => setView('tools')}
           >
-            工具调用 <span className="ac-count">{toolCount}</span>
+            Tool activity <span className="ac-count">{toolCount}</span>
           </button>
           <button
             className={`audit-seg-btn ${view === 'system' ? 'active' : ''}`}
             onClick={() => setView('system')}
           >
-            系统事件 <span className="ac-count">{systemCount}</span>
+            System events <span className="ac-count">{systemCount}</span>
           </button>
         </div>
         <button

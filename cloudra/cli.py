@@ -12,7 +12,6 @@ from rich.table import Table
 
 from cloudra import __version__
 from cloudra.infra.config import get_config
-from cloudra.persistence import paths
 from cloudra.web_launcher import launch_browser
 
 console = Console()
@@ -219,30 +218,6 @@ def config_set(key, value):
         console.print(f"[red]{exc}[/red]")
         sys.exit(1)
     console.print(f"[green]已设置 {key} = {value}[/green]")
-
-
-@cli.command()
-@click.argument("conv_id")
-def logs(conv_id):
-    """查看某个对话的日志。"""
-    log_dir = paths.logs_dir(conv_id)
-
-    if not log_dir.exists():
-        console.print(f"[yellow]对话 {conv_id} 暂无日志。[/yellow]")
-        return
-
-    for log_file in sorted(log_dir.iterdir()):
-        if log_file.is_file():
-            console.print(Panel(f"[bold]{log_file.name}[/bold]", style="blue"))
-            try:
-                with open(log_file, "r", encoding="utf-8") as f:
-                    content = f.read()
-                console.print(content[:5000] if len(content) > 5000 else content)
-                if len(content) > 5000:
-                    console.print("[dim]... (日志过长，已截断)[/dim]")
-            except Exception as e:
-                console.print(f"[red]读取日志失败: {e}[/red]")
-            console.print()
 
 
 @cli.command()

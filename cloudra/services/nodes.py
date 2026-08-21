@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cloudra import __version__
-from cloudra.infra.config import get_config
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 _CAPABILITY = re.compile(r"[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+\Z")
@@ -165,8 +164,7 @@ class NodeRegistry:
                 raise NodeRegistryError(f"cannot load node registry: {path}") from exc
             return cls.from_dict(payload)
 
-        configured = getattr(get_config(), "workspace_dir", None)
-        candidate = Path(configured).expanduser() if configured else Path.cwd()
+        candidate = Path.cwd()
         try:
             workspace = candidate.resolve(strict=True)
         except OSError:

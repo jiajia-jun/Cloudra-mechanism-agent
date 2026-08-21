@@ -186,3 +186,60 @@ async def test_restore_merges_snapshot_roles_over_builtins(tmp_path):
 
     assert restored.roles.require("supervisor").role_id == "supervisor"
     assert restored.roles.require("researcher").default_settings.temperature == 0.9
+
+
+@pytest.mark.asyncio
+async def test_restore_tolerates_removed_agent_fields(tmp_path):
+    """旧快照/事件还带着已删除的 state_since 与 current_run.current_tool
+    （AgentSession 是 extra="forbid"）；恢复必须静默丢弃而不是崩。"""
+
+    class RawDump:
+        """save_snapshot 对 agents 调 model_dump；包一层传入预序列化的旧格式负载。"""
+
+        def __init__(self, data: dict) -> None:
+            self._data = data
+
+        def model_dump(self, mode: str = "json") -> dict:
+            return dict(self._data)
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    core.event_hub.subscribe(lambda event: _persist_event(store, event))
+    bus = CommandBus(core)
+
+    await bus.execute(Command(type="project.create", payload={"name": "legacy"}))
+    project = next(iter(core.projects.values()))
+    await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator"},
+        )
+    )
+    agent = next(iter(core.agents.values()))
+
+    # 手工落一个带已删字段的旧格式快照
+    legacy_agent = agent.model_dump(mode="json")
+    legacy_agent["state_since"] = "2026-01-01T00:00:00+00:00"
+    legacy_agent["current_run"] = {
+        "run_id": "run_old",
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "current_tool": "ts_guess",
+    }
+    store.save_snapshot(
+        projects=core.projects,
+        agents={agent.id: RawDump(legacy_agent)},
+        roles=core.roles._roles,
+        runtime_defaults=core.runtime_defaults,
+        last_seq=core.event_log.last_seq,
+    )
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+    revived = restored.agents[agent.id]
+    # 已删字段被静默丢弃，其余内容原样恢复
+    assert revived.state.value == "queued"
+    assert revived.current_run is not None
+    assert revived.current_run.run_id == "run_old"

@@ -8,6 +8,7 @@ instances; this module never special-cases a tool or orchestration mode.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Literal, Protocol
@@ -28,6 +29,12 @@ from cloudra.runtime_v2.schemas import (
 
 # Streaming delta sink: (kind, text) where kind is "content" or "reasoning".
 DeltaSink = Callable[[str, str], Awaitable[None]]
+
+# Consecutive identical tool calls (same name + normalized arguments) within
+# one run that trigger the loop.detected guard.  The S1 spec defines the event
+# payload but no threshold; 3 matches the point where a repeated call has
+# demonstrably stopped producing new information.
+LOOP_DETECTION_THRESHOLD = 3
 
 
 @dataclass(frozen=True)
@@ -89,6 +96,18 @@ class TurnPipeline:
         self.prompt_provider = prompt_provider
         self.event_hub = event_hub
         self.notices = notices
+        # Loop guard state, keyed by session id (one active run per agent):
+        # (run_id, call signature, consecutive repeat count).  A new run or a
+        # different call resets the streak.
+        self._loop_guard: dict[str, tuple[str, str, int]] = {}
+
+    def _track_tool_call(self, session_id: str, run_id: str, call: ToolCall) -> int:
+        """Count consecutive repeats of the same call within one run."""
+        signature = f"{call.name}:{json.dumps(call.arguments, sort_keys=True, default=str)}"
+        last = self._loop_guard.get(session_id)
+        count = last[2] + 1 if last is not None and last[:2] == (run_id, signature) else 1
+        self._loop_guard[session_id] = (run_id, signature, count)
+        return count
 
     def _emitter(self, agent: AgentSession, run_id: str):
         def emit(type: str, data: dict[str, Any] | None = None) -> None:
@@ -280,6 +299,21 @@ class TurnPipeline:
                     reasoning=response.reasoning,
                 )
             started_call = time.monotonic()
+            repeat = self._track_tool_call(agent.id, run_id, call)
+            if repeat >= LOOP_DETECTION_THRESHOLD:
+                # Soft guard per S1: the call still executes (no hard block),
+                # but the loop is audited and the model is told to change
+                # approach on the next turn.
+                emit("loop.detected", {"tool_name": call.name, "repeat": repeat})
+                if notice_sink is not None:
+                    notice_sink.push(
+                        agent.id,
+                        f"[Guard] Loop detected: `{call.name}` has been called {repeat} "
+                        "times in a row with identical arguments in this run. Repeating "
+                        "the same call will not produce new information — change your "
+                        "approach: vary the arguments, use a different tool, or report "
+                        "the blocker instead of retrying.",
+                    )
             try:
                 result = await self.tools.execute(agent, call)
             except asyncio.CancelledError:

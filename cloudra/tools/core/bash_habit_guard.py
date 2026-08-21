@@ -29,36 +29,19 @@ _HEREDOC_RE = re.compile(r"^<<-?")
 _CONTENT_WRITE_CMDS = frozenset({"echo", "printf", "print"})
 
 # 直接调用、且存在结构化替代的量化程序（submit_compute_job / conformer_search /
-# electronic_analysis 等）。只在长上下文或连续 bash 时据此发软警告。
+# electronic_analysis 等）。is_substantive_bash_command（DAG compute-entry 判定）
+# 据此识别绕过结构化工具的直调。
 _COMPUTE_PROGRAMS = frozenset({
     "g03", "g09", "g16", "gaussian",
     "orca", "cp2k", "vasp", "vasp_std", "vasp_gam", "nwchem",
     "xtb", "crest", "mopac", "gamess", "psi4", "qchem", "molpro",
 })
 
-# 上下文已用掉 context_window 的多少比例后判定为"长上下文"（模型退化窗口）。
-LONG_CONTEXT_RATIO = 0.5
-# 连续多少次 bashtools 调用后，即使命令本身不违规也要提示习惯性回归。
-CONSECUTIVE_BASH_WARN = 3
-
 _FILE_WRITE_GUIDANCE = (
     "You are using bash to write/edit workspace files (redirect / heredoc / tee / in-place edit), which bypasses "
     "text_writer / edit_file file-change approval, artifact recording, and the DAG evidence chain. Use "
     "text_reader + edit_file for existing files and text_writer for new files; do not use bash to bypass these "
     "structured tools, and do not try to bypass the DAG system."
-)
-
-_COMPUTE_GUIDANCE = (
-    "Quantum chemistry should go through structured tools: submit_compute_job (gaussian/vasp/orca/cp2k) "
-    "for async scheduling; conformer_search / electronic_analysis for conformers and electronic properties. "
-    "Direct CLI execution bypasses compute scheduling and evidence recording, and may not be accepted as DAG evidence; "
-    "do not try to bypass the DAG system."
-)
-
-_GENERAL_GUIDANCE = (
-    "Under long context you have used bash repeatedly, which tends to fall back to the CLI and bypass file approval and compute scheduling. "
-    "Write/edit files with text_writer / edit_file, and run quantum chemistry with submit_compute_job and other structured "
-    "tools; do not use bash to bypass chemistry tools or the DAG system."
 )
 
 
@@ -171,33 +154,6 @@ def _direct_compute_program(command: str) -> str | None:
         lowered = cmd.lower()
         if lowered in _COMPUTE_PROGRAMS:
             return lowered
-    return None
-
-
-def bash_habit_warning(
-    command: str,
-    *,
-    history_tokens: int | None = None,
-    context_window: int = 0,
-    consecutive_bash: int = 0,
-) -> str | None:
-    """长上下文下检查 bash 是否有结构化替代，命中返回警告消息；否则 None。
-
-    history_tokens 为当前持久上下文的估算 token 数，context_window 为模型窗口。
-    只有当上下文已进入"长上下文"退化窗口时才发警告（避免短任务里对每个 bash
-    都喋喋不休）；量化程序直调或连续多次 bash 是"习惯性回退"的最强信号。
-    """
-    if (
-        not context_window
-        or history_tokens is None
-        or history_tokens < context_window * LONG_CONTEXT_RATIO
-    ):
-        return None
-    program = _direct_compute_program(command)
-    if program:
-        return f"[Warning: suspected bash habit] Direct CLI call to {program} under long context. {_COMPUTE_GUIDANCE}"
-    if consecutive_bash >= CONSECUTIVE_BASH_WARN:
-        return f"[Warning: suspected bash habit] {consecutive_bash} consecutive bash calls. {_GENERAL_GUIDANCE}"
     return None
 
 

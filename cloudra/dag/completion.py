@@ -333,11 +333,13 @@ def build_projection(
     contract: CoverageContract,
     history: list[dict[str, Any]] | None = None,
     pending_reviews: list[dict[str, Any]] | None = None,
+    rejected_draft: dict[str, Any] | None = None,
 ) -> DagProjection:
-    """有界投影：delivery 缺口 + 待复核调用 + 近期变更。
+    """有界投影：delivery 缺口 + 待复核调用 + 近期变更 + 被驳回草稿。
 
     Phase 4 起 process 图已删除——不再有 frontier/blockers/assigned_to_me；
-    投影只讲交付面：每个元素欠哪些阶段、哪些调用在等复核。
+    投影只讲交付面：每个元素欠哪些阶段、哪些调用在等复核、最近被驳回的
+    机理草稿附驳回理由。
     """
     report = evaluate_delivery(snapshot.delivery, contract)
     gaps = [*report.unresolved, *report.inconclusive]
@@ -366,4 +368,5 @@ def build_projection(
         delivery_gaps=delivery_gaps,
         recent_mutations=safe_history,
         pending_reviews=list(pending_reviews or [])[:12],
+        rejected_draft=rejected_draft,
     )

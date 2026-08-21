@@ -70,7 +70,6 @@
   "display_name": "small_mol #2",
   "parent_session_id": "as_...",        // 只表达派生关系；不授予任何 API 特权
   "state": "running",
-  "state_since": "...",
   "settings": { /* RuntimeSettings，spawn 时的有效快照，运行中可变 */ },
   "settings_revision": 3,
   "capabilities": {
@@ -81,8 +80,7 @@
   },
   "current_run": {
     "run_id": "run_...",
-    "started_at": "...",
-    "current_tool": "ts_guess"          // 可空
+    "started_at": "..."
   },
   "children": ["as_...", "as_..."],     // 派生视图，不单独存储
   "created_at": "...",
@@ -194,7 +192,6 @@ SSE 与查询接口共用同一信封：
 | `approval.decided` | `approval_id`, `decision`, `actor` | 审批完成 |
 | `interaction.requested` | `interaction_id`, `session_id`, `prompt` | ask_user 等交互 |
 | `interaction.responded` | `interaction_id`, `actor` | 交互已回答 |
-| `runtime.settings_changed` | `changes`, `actor` | 全局运行时默认设置变化（后续 spawn 生效） |
 | `command.rejected` | `command_type`, `code`, `message` | 命令被拒绝也落审计事件 |
 
 ### 3.2 Agent 运行事件（`stream: "agent"`，并转发进 project 聚合流）
@@ -207,20 +204,14 @@ SSE 与查询接口共用同一信封：
 | `llm.request_started` | `model`, `prompt_revision`, `tool_revision` | 本轮请求配置快照 |
 | `llm.chunk` | `delta` | 流式增量 |
 | `llm.completed` | `usage`, `finish_reason`, `latency_ms` | 单请求完成 |
-| `llm.retried` | `attempt`, `reason` | 传输层重试 |
 | `llm.failed` | `error_code`, `message` | 请求失败 |
 | `tool.started` | `tool_call_id`, `tool_name`, `arguments_summary` | 工具开始；摘要不含大对象 |
 | `tool.blocked` | `tool_call_id`, `tool_name`, `stage`, `message` | policy stage 拦截工具 |
 | `tool.finished` | `tool_call_id`, `tool_name`, `is_success`, `result_summary`, `artifact_ref?`, `duration_ms` | 工具结束；大结果只放 artifact_ref |
 | `tool.approval_requested` | `tool_call_id`, `approval_id` | 与 `approval.requested` 对偶 |
-| `dag.mutation_proposed` | `operations_summary` | Agent 提交图变更 |
-| `dag.mutation_accepted` | `mutation_id`, `revisions` | harness 接受 |
-| `dag.mutation_rejected` | `mutation_id`, `code`, `reason` | harness 拒绝 |
-| `dag.evidence_bound` | `target_type`, `target_id`, `evidence_role`, `ref` | 证据挂载 |
 | `dag.gate_blocked` | `gate`, `message` | 实质性门槛拦截 |
-| `dag.supervisor_triggered` | `trigger` | Supervisor 被唤醒 |
 | `compaction.started` / `compaction.finished` | `summary_tokens`, `new_tokens` | 上下文压缩 |
-| `loop.detected` | `tool_name`, `repeat` | 相同调用循环检测 |
+| `loop.detected` | `tool_name`, `repeat` | 相同调用循环检测（已实现：turn_pipeline 按 run 跟踪连续相同 name+规范化 arguments 的工具调用，连续 3 次起每次落事件并向模型 push 换思路的 notices 软警告，不硬 block；阈值 spec 未定，实现取 3） |
 | `agent.warning` | `code`, `message` | 守卫类软警告 |
 
 ### 3.3 查询接口的事件过滤

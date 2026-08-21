@@ -16,12 +16,6 @@ from cloudra.subagents import Subagent_hash  # noqa: F401  (kept for external re
 MIN_ITEMS = 2
 MAX_ITEMS = 128
 
-_STATE_LABELS = {
-    "done": "succeeded",
-    "failed": "failed",
-    "cancelled": "cancelled",
-}
-
 description = (
     "Dispatch many distinct tasks in parallel to the same sub-agent role (swarm). The Coordinator expands a template once per item in items, starts one same-role instance each, runs them concurrently, and aggregates all results.\n"
     "Important guidelines:\n"
@@ -72,15 +66,10 @@ class SubAgentSwarm_input_schema(input_schema):
 
 
 class SubAgentSwarm_output_schema(output_schema):
+    is_success: bool = Field(default=False, description="Whether the swarm dispatch succeeded")
     session_ids: list[str] = Field(description="Session ID of each subtask (same order as items)")
     task_ids: list[int] = Field(description="Task ID of each subtask (same order as items)")
     result: str = Field(description="Aggregated report (is_wait=True) or dispatch receipt (is_wait=False)")
-
-
-def _summarize_item(item: str, limit: int = 40) -> str:
-    """item 摘要：单行化并截断，用于报告分节标题。"""
-    text = " ".join(str(item).split())
-    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 class SubAgentSwarm(Tool):

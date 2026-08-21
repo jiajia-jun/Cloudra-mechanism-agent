@@ -38,7 +38,7 @@ export interface Agent {
   settings: RuntimeSettings;
   settings_revision: number;
   capabilities: AgentCapabilities;
-  current_run: { run_id: string; started_at: string; current_tool: string | null } | null;
+  current_run: { run_id: string; started_at: string } | null;
   created_at: string;
   updated_at: string;
 }
@@ -66,14 +66,6 @@ export interface EventEnvelope {
   session_seq: number | null;
   type: string;
   data: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface TranscriptMessage {
-  message_id: string | null;
-  sender: string | null;
-  content: string;
-  event_id: string;
   created_at: string;
 }
 

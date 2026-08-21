@@ -981,6 +981,9 @@ class DagProjection(BaseModel):
     # 待 Supervisor 复核的调用（sidecar 摘要；guided 下 Coordinator 据此了解
     # 哪些证据在审）
     pending_reviews: list[dict[str, Any]] = Field(default_factory=list)
+    # 最近被 Supervisor 驳回的机理草稿（draft_id/rationale/reject_reason）；
+    # Coordinator 据此修订重提，否则驳回理由只躺在 dag_drafts 里无人读。
+    rejected_draft: dict[str, Any] | None = None
 
     def to_prompt_text(self, actor_id: str | None = None) -> str:
         import json

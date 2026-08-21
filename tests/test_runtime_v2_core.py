@@ -465,7 +465,7 @@ def test_query_session_before_cursor_pages_backwards():
 
     log = EventLog(strict=True)
     for i in range(10):
-        log.append("heartbeat", stream="agent", project_id="p", session_id="s", data={"i": i})
+        log.append("agent.warning", stream="agent", project_id="p", session_id="s", data={"i": i})
 
     newest = log.query_session("s", limit=3, tail=True)
     assert [e.session_seq for e in newest] == [8, 9, 10]

@@ -1,4 +1,4 @@
-import type { Agent, EventEnvelope, Project, RuntimeConfig, TranscriptMessage } from './types';
+import type { Agent, EventEnvelope, Project, RuntimeConfig } from './types';
 
 // Resolution order: ?runtime= query param -> Vite env -> same origin
 // (production serves the SPA and API on one port).
@@ -50,7 +50,8 @@ interface CommandResponse<T> {
 export const EVENTS_WINDOW = 500;
 
 export const api = {
-  listProjects: () => request<Project[]>('/api/v2/projects'),
+  listProjects: (includeArchived = false) =>
+    request<Project[]>(`/api/v2/projects${includeArchived ? '?include_archived=true' : ''}`),
   createProject: (name: string, workspace_dir?: string) =>
     request<CommandResponse<Project>>('/api/v2/projects', {
       method: 'POST',
@@ -60,6 +61,13 @@ export const api = {
     request<CommandResponse<Project>>(`/api/v2/projects/${projectId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
+    }),
+  archiveProject: (projectId: string) =>
+    request<CommandResponse<Project>>(`/api/v2/projects/${projectId}`, { method: 'DELETE' }),
+  unarchiveProject: (projectId: string) =>
+    request<CommandResponse<Project>>(`/api/v2/projects/${projectId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archived: false }),
     }),
   listAgents: (projectId: string) => request<Agent[]>(`/api/v2/projects/${projectId}/agents`),
   spawnAgent: (
@@ -71,8 +79,6 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getAgent: (agentId: string) => request<Agent>(`/api/v2/agents/${agentId}`),
-  transcript: (agentId: string) =>
-    request<{ messages: TranscriptMessage[] }>(`/api/v2/agents/${agentId}/transcript`),
   events: (agentId: string, limit = EVENTS_WINDOW, types?: string) =>
     request<EventEnvelope[]>(
       `/api/v2/agents/${agentId}/events?after=0&limit=${limit}&tail=true${types ? `&types=${types}` : ''}`,
@@ -95,11 +101,6 @@ export const api = {
     }),
   cancel: (agentId: string, message?: string) =>
     request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ message }),
-    }),
-  restart: (agentId: string, message?: string) =>
-    request<CommandResponse<Agent>>(`/api/v2/agents/${agentId}/restart`, {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
@@ -183,7 +184,7 @@ export const api = {
 // only fires for unnamed events — listeners must be registered per type.
 const KNOWN_EVENT_TYPES = [
   'project.created', 'project.updated', 'project.settings_changed',
-  'runtime.settings_changed', 'role.updated',
+  'role.updated',
   'agent.spawn_requested', 'agent.spawned', 'agent.spawn_rejected',
   'agent.settings_changed', 'agent.message_injected', 'agent.message_emitted',
   'agent.cancel_requested', 'agent.cancelled',
@@ -191,17 +192,16 @@ const KNOWN_EVENT_TYPES = [
   'approval.requested', 'approval.decided',
   'interaction.requested', 'interaction.responded', 'command.rejected',
   'agent.state_changed', 'run.started', 'run.retry', 'run.finished',
-  'llm.request_started', 'llm.chunk', 'llm.completed', 'llm.retried', 'llm.failed',
+  'llm.request_started', 'llm.chunk', 'llm.completed', 'llm.failed',
   'agent.thinking',
   'tool.started', 'tool.blocked', 'tool.finished', 'tool.approval_requested',
-  'dag.mutation_proposed', 'dag.mutation_accepted', 'dag.mutation_rejected',
-  'dag.evidence_bound', 'dag.gate_blocked', 'dag.supervisor_triggered',
+  'dag.gate_blocked',
   'hub.posted',
   'compaction.requested', 'compaction.started', 'compaction.finished',
   'reminder.scheduled', 'reminder.cancelled', 'reminder.fired',
   'email.received',
   'loop.detected',
-  'agent.warning', 'project.synced', 'heartbeat',
+  'agent.warning', 'project.synced',
 ];
 
 export interface StreamHandlers {

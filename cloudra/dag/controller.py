@@ -116,9 +116,9 @@ class DagController:
     async def initialize(self) -> None:
         """加载图存储与覆盖契约；不自动拉起 Supervisor。
 
-        用户追加/唤醒会再次进入 ``Coordinator.run()`` → ``initialize()``。
-        督导唤醒全部由 ``_trigger_supervisor_after_tool`` / 收件箱 /
-        ``user_replan`` / ``pre_delivery`` 显式触发。
+        用户追加消息/唤醒会重开 agent run，轮管道经 DagPolicyStage 再次调到
+        ``initialize()``。督导唤醒全部由 ``_trigger_supervisor_after_tool`` /
+        收件箱 / ``user_replan`` / ``pre_delivery`` 显式触发。
         """
         if not self.enabled or self._initialized:
             return
@@ -184,12 +184,23 @@ class DagController:
             }
             for row in reviews
         ]
+        # 最近被驳回的机理草稿：驳回理由随投影回给 Coordinator（open 草稿
+        # 优先于已裁决草稿——有新草稿在审时驳回即已被修订响应）。
+        rejected_draft = None
+        draft = await asyncio.to_thread(self.store.latest_draft)
+        if draft and draft["state"] == "rejected" and (draft["reject_reason"] or "").strip():
+            rejected_draft = {
+                "draft_id": draft["draft_id"],
+                "rationale": draft["rationale"],
+                "reject_reason": draft["reject_reason"],
+            }
         projection = build_projection(
             snapshot,
             mode=self.mode,
             contract=self.contract,
             history=history,
             pending_reviews=pending,
+            rejected_draft=rejected_draft,
         )
         return projection.to_prompt_text(actor_id=self.agent_id)
 
@@ -602,9 +613,6 @@ class DagController:
                 coordinator_request=coordinator_request,
                 session_id=self.session_id,
                 event_sink=event_sink,
-                # a-0 自己的工具循环里 Supervisor 是同步 await，钉建议即可；
-                # 子 Agent / API（agent_id 不是 a-0）时 Coordinator 可能 waiting。
-                wake_coordinator=self.agent_id != "a-0",
             )
             # Supervisor 可能经工具加严过 coverage contract，重新载入。
             # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
@@ -612,6 +620,11 @@ class DagController:
         except Exception as exc:  # Supervisor 是顾问角色：故障不炸 Coordinator 循环
             error_note = str(exc)
             logger.warning("[DagController] supervisor run failed (%s): %s", trigger, exc)
+        if result is not None:
+            try:  # 投递失败不炸督导：报告仍在 result/会话记录里
+                await self._deliver_supervisor_report(trigger, result.report)
+            except Exception as exc:
+                logger.warning("[DagController] supervisor report delivery failed: %s", exc)
         await asyncio.to_thread(
             self._finalize_supervisor_session, run_session_id, trigger, result, error_note
         )
@@ -621,6 +634,67 @@ class DagController:
             except Exception as exc:
                 logger.warning("[DagController] on_supervision(finish) failed: %s", exc)
         return result
+
+    async def _deliver_supervisor_report(self, trigger: str, report: str) -> None:
+        """督导结论回投 Coordinator（v2 反馈环的唯一投递口）。
+
+        报告 pin 进 ``core.notices``（key="supervisor"，常驻且覆盖旧建议），
+        下一轮 turn_pipeline collect pins 时注入 Coordinator 的 LLM 上下文。
+        触发方不是 Coordinator 自己（子 Agent / API user_replan，legacy
+        agent_id 非 a-0）时 Coordinator 可能在休眠，再经 ``agent.message``
+        投递同一文本唤醒（与 ReminderBroker 同一模式，终态 agent 自动
+        reopen）；Coordinator 自己的工具循环同步 await 督导，下轮自然读到
+        pin，重复发消息只会在时间线上多一条冗余行。
+
+        没有 core 句柄的调用方（api_v2 的 user_replan 直连 DagController）
+        触达不到内存 notices——其驳回理由仍经 DAG 投影的 rejected_draft
+        在下轮可见，HTTP 响应也已把督导摘要回给用户。
+        """
+        text = (report or "").strip()
+        if not text:
+            return
+        core = self._core
+        if core is None:
+            logger.info(
+                "[DagController] no runtime core handle; supervisor report (%s) "
+                "reaches the Coordinator via the DAG projection instead",
+                trigger,
+            )
+            return
+        coordinator = next(
+            (
+                agent
+                for agent in core.agents.values()
+                if agent.project_id == self.conversation_id
+                and agent.role_id == "coordinator"
+            ),
+            None,
+        )
+        if coordinator is None:
+            logger.info(
+                "[DagController] no coordinator agent in project %s; "
+                "supervisor report not delivered",
+                self.conversation_id,
+            )
+            return
+        content = f"[Supervisor] ({trigger}) {text}"
+        core.notices.pin(coordinator.id, "supervisor", content)
+        if self.agent_id == "a-0":
+            return
+        try:
+            from cloudra.runtime_v2.commands import CommandBus
+            from cloudra.runtime_v2.schemas import Command
+
+            await CommandBus(core).execute(
+                Command(
+                    type="agent.message",
+                    target={"session_id": coordinator.id},
+                    payload={"content": content},
+                    actor="system",
+                )
+            )
+        except Exception as exc:  # 唤醒失败不炸督导：pin 已在，下轮仍可读
+            logger.warning("[DagController] supervisor wake message failed: %s", exc)
 
     def _register_supervisor_session(
         self, trigger: str, coordinator_request: str | None

@@ -25,10 +25,7 @@ class ToolRegistration:
     tool_name: str = ""
 
     # DAG semantics. All flags default to the conservative/plain behavior.
-    dag_substantive: bool = False
-    substantive_predicate: str = ""  # "module:function(arguments)->bool", overrides dag_substantive
     dag_observe: bool = True
-    supervisor_evidence: bool = False
     evidence_deriver: str = ""  # "module:function(current, role, arguments, result)->dict"
     # D5：工具结束是否入 CallReview 收件箱（并唤醒 Supervisor 复核）。
     dag_review: bool = False
@@ -45,7 +42,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Bashtool.bashtools',
         class_name='Bashtools',
         tool_name='bashtools',
-        substantive_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
         dag_compute_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
     ),
     ToolRegistration('cloudra.tools.Browsertool.headless_browser', 'HeadlessBrowser'),
@@ -59,14 +55,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.conformer_search',
         class_name='ConformerSearch',
         tool_name='conformer_search',
-        dag_substantive=True,
         dag_compute_entry=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.electronic_analysis',
         class_name='ElectronicAnalysis',
         tool_name='electronic_analysis',
-        dag_substantive=True,
         dag_compute_entry=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
@@ -74,7 +68,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.gjf_writer',
         class_name='GjfWriter',
         tool_name='gjf_writer',
-        dag_substantive=True,
         dag_compute_entry=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
@@ -88,14 +81,11 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.ir_processor',
         class_name='IRProcessor',
         tool_name='ir_processor',
-        dag_substantive=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.log_parser',
         class_name='LogParser',
         tool_name='gaussian_log_parser',
-        dag_substantive=True,
-        supervisor_evidence=True,
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
         dag_review=True,
     ),
@@ -105,7 +95,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.nmr_processor',
         class_name='NMRProcessor',
         tool_name='nmr_processor',
-        dag_substantive=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
     ToolRegistration(
@@ -126,14 +115,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.submit_compute_job',
         class_name='SubmitComputeJob',
         tool_name='submit_compute_job',
-        dag_substantive=True,
         dag_compute_entry=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.thermo_analysis',
         class_name='ThermoAnalysis',
         tool_name='thermo_analysis',
-        dag_substantive=True,
         evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
         dag_review=True,
     ),
@@ -141,7 +128,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         module='cloudra.tools.Chemtool.ts_guess',
         class_name='TsGuess',
         tool_name='ts_guess',
-        dag_substantive=True,
         evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
         dag_review=True,
         dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
@@ -172,13 +158,11 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='SubAgentLauncher',
         tool_name='SubAgentLauncher',
         runtime_profiles=frozenset({'desktop', 'android'}),
-        dag_substantive=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Managetool.subagent_swarm',
         class_name='SubAgentSwarm',
         tool_name='SubAgentSwarm',
-        dag_substantive=True,
     ),
     ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
     ToolRegistration(
@@ -311,14 +295,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='EditFile',
         tool_name='edit_file',
         runtime_profiles=frozenset({'desktop', 'android'}),
-        dag_substantive=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Writetool.text_writer',
         class_name='TextWriter',
         tool_name='text_writer',
         runtime_profiles=frozenset({'desktop', 'android'}),
-        dag_substantive=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Writetool.update_memory',

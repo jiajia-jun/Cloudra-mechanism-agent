@@ -149,11 +149,12 @@ export default function App() {
     }
   };
 
-  // Sidebar grouping: projects bucketed by workspace_dir ('' = no workspace,
-  // sorted last).
+  // Sidebar grouping: active projects bucketed by workspace_dir ('' = no
+  // workspace, sorted last); archived ones live in a separate section below.
   const groupedProjects = useMemo(() => {
     const groups = new Map<string, Project[]>();
     for (const p of projects) {
+      if (p.archived) continue;
       const key = p.workspace_dir ?? '';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(p);
@@ -162,6 +163,8 @@ export default function App() {
       a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
     );
   }, [projects]);
+
+  const archivedProjects = useMemo(() => projects.filter((p) => p.archived), [projects]);
 
   const workspaceSuggestions = useMemo(
     () =>
@@ -228,7 +231,7 @@ export default function App() {
   /* ------------------------------------------------------- initial loading */
 
   useEffect(() => {
-    api.listProjects().then(setProjects).catch(reportError);
+    api.listProjects(true).then(setProjects).catch(reportError);
     api.listRoles().then(setRoles).catch(reportError);
   }, [reportError]);
 
@@ -449,7 +452,7 @@ export default function App() {
 
   async function createProject(name: string, workspaceDir?: string) {
     const resp = await api.createProject(name, workspaceDir);
-    const list = await api.listProjects();
+    const list = await api.listProjects(true);
     setProjects(list);
     setActiveProjectId(resp.data.id);
     pushToast('ok', `Project "${name}" created`);
@@ -491,6 +494,34 @@ export default function App() {
     }
   }
 
+  async function archiveProject(p: Project) {
+    if (
+      !window.confirm(
+        `Archive project "${p.name}"?\n\nIt will move to the Archived section; you can restore it later.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.archiveProject(p.id);
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, archived: true } : x)));
+      if (activeProjectId === p.id) setActiveProjectId(null);
+      pushToast('ok', `Project "${p.name}" archived`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function unarchiveProject(p: Project) {
+    try {
+      await api.unarchiveProject(p.id);
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, archived: false } : x)));
+      pushToast('ok', `Project "${p.name}" restored`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function sendMessage() {
     const content = draft.trim();
     if (!content || !activeProject || sending) return;
@@ -503,12 +534,7 @@ export default function App() {
           const arg = content.slice(9).trim().toLowerCase();
           const currentVal = activeAgent?.settings.schedule_mode ?? activeProject?.settings.defaults?.schedule_mode ?? false;
           const nextVal = arg === 'off' ? false : arg === 'on' ? true : !currentVal;
-          if (activeProject) {
-            await toggleProjectSchedule(nextVal);
-          } else if (activeAgent) {
-            await patchSettings({ schedule_mode: nextVal });
-            pushToast('ok', `Schedule mode ${nextVal ? 'enabled' : 'disabled'} for ${activeAgent.display_name}`);
-          }
+          await toggleProjectSchedule(nextVal);
           return;
         }
         if (lower.startsWith('/goal')) {
@@ -531,12 +557,7 @@ export default function App() {
           const arg = content.slice(5).trim().toLowerCase();
           const currentVal = activeAgent?.settings.yolo ?? activeProject?.settings.defaults?.yolo ?? false;
           const nextVal = arg === 'off' ? false : arg === 'on' ? true : !currentVal;
-          if (activeProject) {
-            await toggleProjectYolo(nextVal);
-          } else if (activeAgent) {
-            await patchSettings({ yolo: nextVal });
-            pushToast('ok', `YOLO mode ${nextVal ? 'enabled' : 'disabled'} for ${activeAgent.display_name}`);
-          }
+          await toggleProjectYolo(nextVal);
           return;
         }
         if (lower.startsWith('/compact')) {
@@ -922,10 +943,47 @@ export default function App() {
                 >
                   <div className="project-name">{p.name}</div>
                   <div className="project-meta">{p.settings.orchestration_mode}</div>
+                  <button
+                    type="button"
+                    className="btn ghost sm project-archive"
+                    title={`Archive "${p.name}"`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void archiveProject(p);
+                    }}
+                  >
+                    ⬇
+                  </button>
                 </div>
               ))}
             </div>
           ))}
+          {archivedProjects.length > 0 && (
+            <details className="archived-group">
+              <summary>Archived ({archivedProjects.length})</summary>
+              {archivedProjects.map((p) => (
+                <div
+                  key={p.id}
+                  className={`project-item archived ${p.id === activeProjectId ? 'active' : ''}`}
+                  onClick={() => setActiveProjectId(p.id)}
+                >
+                  <div className="project-name">{p.name}</div>
+                  <div className="project-meta">archived · {p.settings.orchestration_mode}</div>
+                  <button
+                    type="button"
+                    className="btn ghost sm project-archive"
+                    title={`Restore "${p.name}"`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void unarchiveProject(p);
+                    }}
+                  >
+                    ⬆
+                  </button>
+                </div>
+              ))}
+            </details>
+          )}
         </div>
         <div className="sidebar-foot">
           <button

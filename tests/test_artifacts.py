@@ -20,7 +20,6 @@ def artifact_environment(tmp_path, monkeypatch):
     reload_config()
     config = get_config()
     config.data_dir = data_dir
-    config.workspace_dir = workspace
     conversation_id = "conv_artifact"
     session_id = "a-0_run_artifact"
     db = ConversationDB(conversation_id).init()

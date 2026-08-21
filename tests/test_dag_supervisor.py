@@ -47,8 +47,9 @@ def _db(tmp_path, name, mode):
 class FakeSupervisor:
     """记录触发并返回空结果的 GraphSupervisor 替身。"""
 
-    def __init__(self):
+    def __init__(self, report: str = ""):
         self.calls = []
+        self.report = report
 
     async def run(
         self,
@@ -56,7 +57,6 @@ class FakeSupervisor:
         coordinator_request=None,
         session_id=None,
         event_sink=None,
-        wake_coordinator=False,
         **_kwargs,
     ):
         from cloudra.core.supervisor import GraphSupervisorResult
@@ -67,10 +67,9 @@ class FakeSupervisor:
                 "coordinator_request": coordinator_request,
                 "session_id": session_id,
                 "event_sink": event_sink,
-                "wake_coordinator": wake_coordinator,
             }
         )
-        return GraphSupervisorResult(trigger=trigger)
+        return GraphSupervisorResult(trigger=trigger, report=self.report)
 
 
 def _seed_delivery_hypothesis(store):
@@ -938,8 +937,8 @@ async def test_failed_bind_and_review_evidence_do_not_trigger(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_empty_closing_forces_wrapup_and_pins_advice(tmp_path):
-    """只 view 后空 content 结束 → 强制收尾；结论文本钉进 Coordinator [Supervisor]。"""
+async def test_empty_closing_forces_wrapup(tmp_path):
+    """只 view 后空 content 结束 → 强制收尾，结论文本随 result.report 返回。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -965,23 +964,6 @@ async def test_empty_closing_forces_wrapup_and_pins_advice(tmp_path):
 
     assert "未新增 planned" in result.report
     assert result.note == ""
-    from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
-
-    cm = ContextManager(
-        agent_id="a-0",
-        conversation_id=conv,
-        prompt=None,
-        query="",
-        session_id=None,
-    )
-    context = await cm.load()
-    advice = [
-        m for m in context
-        if m.get("role") == "system"
-        and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
-    ]
-    assert advice
-    assert "未新增 planned" in advice[0]["content"]
 
 
 @pytest.mark.asyncio
@@ -1045,8 +1027,8 @@ async def test_empty_turn_continues_and_can_mutate(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_nonempty_closing_pins_content_directly(tmp_path):
-    """有 content 结束 → 直接钉住该 content，不再强制二次收尾。"""
+async def test_nonempty_closing_returns_content_directly(tmp_path):
+    """有 content 结束 → 直接作为 report 返回，不再强制二次收尾。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -1067,21 +1049,6 @@ async def test_nonempty_closing_pins_content_directly(tmp_path):
 
     assert result.report == "已排产 work-ts-opt；请派 a-4。"
     assert llm.await_count == 1
-    from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
-
-    cm = ContextManager(
-        agent_id="a-0",
-        conversation_id=conv,
-        prompt=None,
-        query="",
-        session_id=None,
-    )
-    advice = [
-        m for m in await cm.load()
-        if m.get("role") == "system"
-        and str(m.get("content", "")).startswith(SUPERVISOR_ADVICE_MARKER)
-    ]
-    assert "已排产 work-ts-opt" in advice[0]["content"]
 
 
 @pytest.mark.asyncio
@@ -1172,70 +1139,6 @@ async def test_message_supervisor_empty_or_failed_does_not_trigger(tmp_path):
     )
 
     assert supervisor.calls == []
-
-
-@pytest.mark.asyncio
-async def test_maybe_supervise_wakes_only_off_coordinator_loop(tmp_path):
-    """a-0 自己的循环只钉建议；子 Agent / API（agent_id 非 a-0）才要求唤醒。"""
-    DagController, _, _ = _api()
-    db = _db(tmp_path, "supervisor-wake-flag", "dag_guided")
-    supervisor = FakeSupervisor()
-
-    coord = DagController(
-        db, "s1", "dag_guided", supervisor=supervisor, agent_id="a-0"
-    )
-    await coord.maybe_supervise("tool_call_review")
-    assert supervisor.calls[-1]["wake_coordinator"] is False
-
-    follower = DagController(
-        db, "s1", "dag_guided", supervisor=supervisor, agent_id="a-4"
-    )
-    await follower.maybe_supervise("tool_call_review")
-    assert supervisor.calls[-1]["wake_coordinator"] is True
-
-    api = DagController(db, "s1", "dag_guided", supervisor=supervisor)
-    await api.maybe_supervise("user_replan")
-    assert supervisor.calls[-1]["wake_coordinator"] is True
-
-
-@pytest.mark.asyncio
-async def test_publish_report_injects_event_only_when_waking(tmp_path):
-    """Coordinator 路径只钉 [Supervisor]；wake_coordinator 才写 context_events。"""
-    _, GraphSupervisor, _ = _api()
-
-    get_config().data_dir = tmp_path
-    conv = "supervisor-wake-event"
-    db = ConversationDB(conv, data_dir=tmp_path).init()
-    DagStore(db).ensure_bundle("s1")
-
-    supervisor = GraphSupervisor(conversation_id=conv)
-    agent = supervisor._ensure_agent()
-    object.__setattr__(
-        agent,
-        "llm_call",
-        AsyncMock(side_effect=[_response(content="已覆盖缺口，不改图。")]),
-    )
-    await supervisor.run("delivery_updated", session_id="s1", wake_coordinator=False)
-
-    with db.connect() as con:
-        n = con.execute(
-            "SELECT COUNT(*) FROM context_events WHERE event_type = 'supervisor'"
-        ).fetchone()[0]
-    assert n == 0
-
-    object.__setattr__(
-        agent,
-        "llm_call",
-        AsyncMock(side_effect=[_response(content="计算失败，建议重试 opt。")]),
-    )
-    await supervisor.run("process_node_failed", session_id="s1", wake_coordinator=True)
-
-    with db.connect() as con:
-        rows = con.execute(
-            "SELECT content FROM context_events WHERE event_type = 'supervisor'"
-        ).fetchall()
-    assert len(rows) == 1
-    assert "建议重试 opt" in rows[0][0]
 
 
 @pytest.mark.asyncio

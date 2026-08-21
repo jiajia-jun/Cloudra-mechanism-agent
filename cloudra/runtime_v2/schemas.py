@@ -147,7 +147,6 @@ class CurrentRun(BaseModel):
 
     run_id: str
     started_at: datetime
-    current_tool: Optional[str] = None
 
 
 class AgentSession(BaseModel):
@@ -159,7 +158,6 @@ class AgentSession(BaseModel):
     display_name: str
     parent_session_id: Optional[str] = None
     state: AgentState = AgentState.QUEUED
-    state_since: datetime = Field(default_factory=utc_now)
     settings: RuntimeSettings = Field(default_factory=RuntimeSettings)
     settings_revision: int = 0
     capabilities: AgentCapabilities = Field(

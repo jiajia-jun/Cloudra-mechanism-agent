@@ -50,6 +50,7 @@ class SubAgentLauncher_input_schema(input_schema):
 
 
 class SubAgentLauncher_output_schema(output_schema):
+    is_success: bool = Field(default=False, description="Whether the dispatch succeeded")
     session_id: str = Field(description="Sub-agent Session ID")
     act_agent: str = Field(description="Name of the Agent that actually ran the task")
     result: str = Field(description="Sub-agent's final result")
@@ -74,6 +75,7 @@ class SubAgentLauncher(Tool):
         # Legacy 派发已删除；runtime_v2 的 LegacyToolExecutor 在执行前按工具名
         # 拦截到 subagent_bridge，此 body 只是兜底。
         return SubAgentLauncher_output_schema(
+            is_success=False,
             session_id="error",
             act_agent="none",
             result="[System error] SubAgentLauncher is handled by runtime_v2; the legacy dispatch path no longer exists.",

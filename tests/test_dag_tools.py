@@ -11,10 +11,7 @@ from cloudra.tools.Plantool.dag_tools.dag_bind_evidence import DagBindEvidence
 from cloudra.tools.Plantool.dag_tools.dag_delivery_report import DagDeliveryReport
 from cloudra.tools.Plantool.dag_tools.dag_message_supervisor import DagMessageSupervisor
 from cloudra.tools.Plantool.dag_tools.dag_remove_edge import DagRemoveEdge, DagRemoveEdgeInput
-from cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract import (
-    DagSetCoverageContract,
-    DagSetCoverageContractInput,
-)
+from cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract import DagSetCoverageContract
 from cloudra.tools.Plantool.dag_tools.dag_update_delivery_element import DagUpdateDeliveryElement
 from cloudra.tools.Plantool.dag_tools.dag_view import DagView
 
@@ -433,7 +430,7 @@ async def test_remove_edge_requires_rationale_and_process_is_gone(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_set_coverage_contract_is_supervisor_only_and_engine_rejects_waive(tmp_path):
+async def test_set_coverage_contract_is_supervisor_only(tmp_path):
     from cloudra.core.supervisor import SupervisorAgent
 
     get_config().data_dir = tmp_path
@@ -453,18 +450,6 @@ async def test_set_coverage_contract_is_supervisor_only_and_engine_rejects_waive
         DagSetCoverageContract, supervisor, session, require_thermochemistry=True
     )
     assert tightened.accepted is True
-
-    waived = await DagSetCoverageContract(subagent=supervisor).tool_call(
-        DagSetCoverageContractInput(
-            gate_code="empty_delivery_graph",
-            target_type="graph",
-            target_id="delivery",
-            rationale="user asked to skip",
-        ),
-        session,
-    )
-    assert not waived.accepted
-    assert waived.rejection_code == "actor_forbidden"
 
 
 # ---------------------------------------------------------------------------

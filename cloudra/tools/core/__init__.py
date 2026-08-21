@@ -1,6 +1,5 @@
 from .bash_habit_guard import (
     bash_file_write_warning,
-    bash_habit_warning,
 )
 from .command_analyzer import BashCommandClassifier, CommandAnalysis
 from .coord_guard import (
@@ -26,6 +25,5 @@ __all__ = [
     'handwritten_coord_warning',
     'is_geometry_path',
     'bash_file_write_warning',
-    'bash_habit_warning',
     'coordinator_self_compute_warning',
 ]

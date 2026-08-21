@@ -1,8 +1,8 @@
-"""dag_set_coverage_contract: SetCoverageContract or WaiveGate (supervisor-gated)."""
+"""dag_set_coverage_contract: SetCoverageContract (supervisor-gated)."""
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field
 
@@ -11,11 +11,9 @@ from cloudra.base.tools_class import input_schema
 from cloudra.core.agent import Agent
 from cloudra.dag.models import (
     CoverageContract,
-    CoverageWaiver,
     GraphActor,
     OrchestrationMode,
     SetCoverageContract,
-    WaiveGate,
 )
 from cloudra.tools.Plantool.dag_tools._common import (
     DagToolBase,
@@ -28,7 +26,7 @@ from cloudra.tools.Plantool.dag_tools._common import (
 class DagSetCoverageContractInput(input_schema):
     contract: dict[str, Any] | None = Field(
         default=None,
-        description="Nested CoverageContract dict. Ignored when a waiver/gate_code is present.",
+        description="Nested CoverageContract dict.",
     )
     required_node_level: str | None = Field(
         default=None, description="CoverageContract.required_node_level override."
@@ -43,19 +41,8 @@ class DagSetCoverageContractInput(input_schema):
         default=None,
         description="CoverageContract.mechanism_default require_thermochemistry flag.",
     )
-    waiver: dict[str, Any] | None = Field(
-        default=None,
-        description="Nested CoverageWaiver dict. Presence (or gate_code) selects WaiveGate.",
-    )
-    gate_code: str | None = Field(
-        default=None, description="Waiver gate code (selects WaiveGate when set)."
-    )
-    target_type: Literal["graph", "node", "edge"] | None = Field(
-        default=None, description="Waiver target_type."
-    )
-    target_id: str | None = Field(default=None, description="Waiver target_id.")
     rationale: str | None = Field(
-        default=None, description="Waiver rationale (required for WaiveGate)."
+        default=None, description="Rationale recorded in the change log."
     )
 
 
@@ -64,7 +51,7 @@ class DagSetCoverageContract(DagToolBase):
     tool_name: str = "dag_set_coverage_contract"
     tool_description: str = (
         "Set or strengthen the delivery coverage contract via flat fields or a contract dict "
-        "(Supervisor only in dag_record or dag_guided). "
+        "(Supervisor only, dag_guided mode). "
         "Use for: raising required evidence levels or mechanism defaults. "
         "Do not use for: waiving or lowering gates — USER-only and engine rejects Supervisor waive; "
         "Coordinator or sub-agent calls. "
@@ -85,7 +72,6 @@ class DagSetCoverageContract(DagToolBase):
                 "dag_set_coverage_contract",
                 "dag_set_coverage_contract is supervisor-only",
             )
-        waive = user_input.waiver is not None or bool(user_input.gate_code)
         has_contract = (
             user_input.contract is not None
             or user_input.require_thermochemistry is not None
@@ -93,46 +79,12 @@ class DagSetCoverageContract(DagToolBase):
             or user_input.required_edge_level is not None
             or user_input.require_branch_disposition is not None
         )
-        if not waive and not has_contract:
+        if not has_contract:
             return fail(
                 "dag_set_coverage_contract",
-                "dag_set_coverage_contract requires contract fields or a waiver/gate_code",
+                "dag_set_coverage_contract requires at least one contract field",
             )
-        if waive:
-            raw = dict(user_input.waiver or {})
-            gate_code = user_input.gate_code or raw.get("gate_code")
-            target_type = user_input.target_type or raw.get("target_type")
-            target_id = user_input.target_id or raw.get("target_id")
-            rationale = user_input.rationale or raw.get("rationale") or ""
-            missing = [
-                name
-                for name, value in (
-                    ("gate_code", gate_code),
-                    ("target_type", target_type),
-                    ("target_id", target_id),
-                    ("rationale", rationale),
-                )
-                if not value
-            ]
-            if missing:
-                return fail(
-                    "dag_set_coverage_contract",
-                    f"waive_gate requires: {', '.join(missing)}",
-                )
-            op = WaiveGate(
-                op="waive_gate",
-                waiver=CoverageWaiver(
-                    gate_code=str(gate_code),
-                    target_type=target_type,
-                    target_id=str(target_id),
-                    user_id=self._actor_id(),
-                    session_id=session.id,
-                    rationale=str(rationale),
-                ),
-            )
-        else:
-            contract = _build_contract(user_input)
-            op = SetCoverageContract(op="set_coverage_contract", contract=contract)
+        op = SetCoverageContract(op="set_coverage_contract", contract=_build_contract(user_input))
         _, mutation = await self._apply(
             session,
             [op],

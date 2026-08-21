@@ -435,3 +435,86 @@ async def test_stop_turn_final_message_is_model_text_not_tool_json():
         inbox_messages=[],
     )
     assert outcome2.content == "Task stopped. Reason: done"
+
+
+@pytest.mark.asyncio
+async def test_loop_detected_after_threshold_identical_calls():
+    """同一 run 内连续 3 次（阈值，spec 未定）相同 name+arguments 的调用
+    触发 loop.detected 审计事件，并向模型 push 换思路的软警告（不 block）。"""
+    from cloudra.runtime_v2.notices import NoticeManager
+
+    core = RuntimeCore(strict_events=True)
+    _, agent = await _spawn_agent(core)
+    notices = NoticeManager()
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=default_stages(),
+        llm=FakeLLM(
+            LLMResponse(tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})])
+        ),
+        tools=FakeTools(ToolResult(is_success=True, summary="ok")),
+        notices=notices,
+    )
+    capabilities = AgentCapabilities(permissions=PermissionSet(), tools=["*"])
+    for turn in range(3):
+        outcome = await pipeline.run_turn(
+            agent=agent,
+            run_id="run_loop",
+            settings=RuntimeSettings(),
+            capabilities=capabilities,
+            inbox_messages=[] if turn else [{"content": "go"}],
+        )
+        assert outcome.decision == "continue"  # 软护栏：不阻断调用
+    events = core.event_log.query_session(agent.id, types={"loop.detected"})
+    assert len(events) == 1
+    assert events[0].data == {"tool_name": "echo", "repeat": 3}
+    warnings = notices.collect(agent.id)
+    assert len(warnings) == 1
+    assert "Loop detected" in warnings[0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_loop_guard_resets_on_different_call_or_new_run():
+    """不同参数/不同工具打断连续计数；新 run 重新计数。"""
+    core = RuntimeCore(strict_events=True)
+    _, agent = await _spawn_agent(core)
+    capabilities = AgentCapabilities(permissions=PermissionSet(), tools=["*"])
+    calls = [
+        ToolCall(id="tc1", name="echo", arguments={"x": 1}),
+        ToolCall(id="tc2", name="echo", arguments={"x": 1}),
+        ToolCall(id="tc3", name="echo", arguments={"x": 2}),  # 参数不同 → 重置
+        ToolCall(id="tc4", name="echo", arguments={"x": 1}),
+    ]
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=default_stages(),
+        llm=FakeLLM(LLMResponse(tool_calls=calls)),
+        tools=FakeTools(ToolResult(is_success=True, summary="ok")),
+    )
+    await pipeline.run_turn(
+        agent=agent,
+        run_id="run_a",
+        settings=RuntimeSettings(),
+        capabilities=capabilities,
+        inbox_messages=[{"content": "go"}],
+    )
+    assert core.event_log.query_session(agent.id, types={"loop.detected"}) == []
+
+    # 新 run 重新计数（同一 pipeline 实例，与生产共享单例一致）：
+    # 同样的调用再来两次不触发
+    pipeline.llm = FakeLLM(
+        LLMResponse(
+            tool_calls=[
+                ToolCall(id="tc5", name="echo", arguments={"x": 1}),
+                ToolCall(id="tc6", name="echo", arguments={"x": 1}),
+            ]
+        )
+    )
+    await pipeline.run_turn(
+        agent=agent,
+        run_id="run_b",
+        settings=RuntimeSettings(),
+        capabilities=capabilities,
+        inbox_messages=[],
+    )
+    assert core.event_log.query_session(agent.id, types={"loop.detected"}) == []

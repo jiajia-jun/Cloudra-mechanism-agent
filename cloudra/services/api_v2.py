@@ -237,15 +237,6 @@ def create_v2_app(
             "strict_events": core.event_log.strict,
         }
 
-    @app.get("/api/v2/runtime/settings", dependencies=protected)
-    async def runtime_settings() -> dict[str, Any]:
-        return core.runtime_defaults.model_dump(mode="json")
-
-    @app.patch("/api/v2/runtime/settings", dependencies=protected)
-    async def patch_runtime_settings(patch: RuntimeSettingsPatch) -> CommandResponse:
-        command = Command(type="runtime.settings_update", payload=patch.model_dump(exclude_unset=True))
-        return await execute(command)
-
     @app.get("/api/v2/runtime/config", dependencies=protected)
     async def runtime_config() -> dict[str, Any]:
         """Global LLM config: the fallback behind empty per-agent settings."""
@@ -572,6 +563,7 @@ def create_v2_app(
             project.settings.orchestration_mode,
             conversation_id=project_id,
             working_directory=project.workspace_dir,
+            core=core,
         )
 
     @app.get("/api/v2/projects/{project_id}/approvals", dependencies=protected)
@@ -785,6 +777,7 @@ def create_v2_app(
                 mode,
                 conversation_id=project_id,
                 supervisor=GraphSupervisor(conversation_id=project_id),
+                core=core,
             )
             controller.contract = controller.store.load_coverage_contract()
             controller._initialized = True
