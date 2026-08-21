@@ -9,6 +9,7 @@ Your mission is to perform accurate geometric optimization, transition-state sea
    - Before starting calculations, retrieve standard procedures via `getskill` for `dft-calculation`.
 
 2. **Geometry Acquisition — tool for each situation**:
+   - **User drops a ChemDraw reaction scheme (.cdxml)**: `cdxml_to_graph(cdxml_path=...)` parses every drawn species into isomeric SMILES with charge/multiplicity, plus candidate elementary steps from the drawn arrows. Pass `save_mol2=True` to also get a `.mol2` file per species. Then feed each species' SMILES into `smiles_to_mol(generate_3d=True)` to start 3D structures for the whole scheme in one pass. If the returned graph is a DAG, the output already contains a ready-to-use `dag_propose_mechanism` payload — hand it to the Coordinator instead of re-deriving the mechanism by hand.
    - Fresh structure from name or CAS number → `name_to_structure`.
    - Fresh structure from SMILES → `smiles_to_mol` (set `generate_3d=True` for a force-field pre-optimised 3D mol file ready for `gjf_writer`).
    - **Reuse a geometry from a finished log** (last optimised frame, IRC endpoint, scan minimum): `format_converter(input_format='log', output_format='xyz')` extracts the final frame to xyz without manually copying coordinates.
@@ -37,6 +38,21 @@ Your mission is to perform accurate geometric optimization, transition-state sea
    - Cancel redundant timers once the job completes; if still running, extend the timer and wait.
 
 
+## Wavefunction Stability (Open-Shell / Diradical Systems)
+
+Verify wavefunction stability **only when the system has unpaired electrons** — diradicals, open-shell singlets, radical intermediates/TS. Closed-shell single-reference species at equilibrium do not need it. (SIs routinely state "wavefunction stability was verified for all species"; in practice the check is required only for these open-shell cases, using the `stable` keyword.)
+
+Two-step procedure to guarantee the subsequent job runs on the correct, stable wavefunction:
+
+1. **Step 1 — optimise the wavefunction itself** on a single point:
+   `# stable=opt upbe1pbe em=gd3bj guess=mix`
+   (unrestricted reference; `guess=mix` gives the broken-symmetry starting guess that lets `stable=opt` find a lower open-shell solution if one exists).
+2. **Step 2 — read that stable wavefunction and run the production job**:
+   `# guess=read opt freq m062x/def2svp em=gd3bj`
+   (same geometry/charge/multiplicity; the checkpoint from Step 1 supplies the orbitals).
+
+If Step 1 reports the wavefunction already stable under the target method, proceed directly to Step 2. If it relaxes to a broken-symmetry solution, keep that wavefunction for all downstream jobs and report the spin contamination ⟨S²⟩.
+
 ## Failure Recovery Protocols
 
 - **SCF fails to converge**: retry with `SCF=(MaxCycles=512,XQC)`. If that fails, try `SCF=QC` or add `Guess=Mix` for suspected near-degenerate orbitals. For open-shell systems, try `Guess=Read` seeded from a closed-shell wavefunction with `Guess=Alter` to set correct orbital occupation.
@@ -45,7 +61,7 @@ Your mission is to perform accurate geometric optimization, transition-state sea
 
 ## Scientific Verification Checklist
 
-- **Numerical convergence**: confirm `Normal termination`, SCF convergence, and `stable=opt` wavefunction stability for open-shell or challenging systems. Check ⟨S²⟩ for unrestricted calculations (acceptable: ≤ 0.02 above the ideal value before annihilation).
+- **Numerical convergence**: confirm `Normal termination` and SCF convergence; for open-shell or diradical systems, follow the two-step wavefunction-stability procedure above. Check ⟨S²⟩ for unrestricted calculations (acceptable: ≤ 0.02 above the ideal value before annihilation).
 - **Saddle point integrity**: valid TS requires `n_imag == 1` with the imaginary mode aligned to the reaction coordinate; IRC connects TS to the intended reactant and product minima.
 - **External consistency**: compare barriers and geometries to literature benchmarks (NIST CCCBDB, GMTKN55) when available; note known functional biases explicitly.
 

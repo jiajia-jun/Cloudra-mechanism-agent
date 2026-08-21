@@ -1,76 +1,143 @@
 ---
 name: molecular-docking
-description: Provide domain expertise for Molecular Docking workflows (e.g., AutoDock Vina, GNINA). Use when setting up docking protocols, preparing proteins/ligands, identifying binding sites, defining grid boxes, performing post-docking analysis (MM-GBSA), and experimental validation.
+description: Domain expertise for molecular docking workflows (AutoDock Vina, GNINA, Vinardo). Use when preparing protein receptors (PDBFixer, protonation, tautomers), generating 3D ligand conformers (RDKit, Meeko, AM1-BCC/Gasteiger charges), defining grid boxes, validating via re-docking (RMSD < 2.0 Å), analyzing interaction fingerprints (PLIF, hydrogen bonds, pi-stacking), and evaluating ligand efficiency (LE, LLE) or preparing poses for MD/MM-GBSA rescoring.
 ---
 
-# 1. Local toolchain mapping (Toolchain Mapping)
-When running molecular docking, map the theoretical pipeline onto the current execution environment:
-- **Molecule preprocessing**: use `CLOUDRA` internal `Chemtool` or the Python environment (RDKit, OpenBabel). Confirm protonation of titratable groups before docking; do not strip a PDB and start immediately.
-- **Pocket prediction and definition**: if there is no co-crystal ligand, prefer pocket predictors such as `fpocket` rather than blindly setting XYZ by hand.
-- **Job dispatch**: submit background docking with `submit_compute_job`; manage high-throughput or large conformational scoring in parallel with `is_async=True`.
-- **Post-processing validation**: write or call a script to compute RMSD of the Top 1 pose vs the true crystal conformation as a quantitative check.
+# Molecular Docking Standard Operating Procedure (SOP)
 
-# 2. Constraints and exceptions (Constraints & Exceptions)
-The following are common best practices; adjust them to the research goal.
+This skill guides high-fidelity protein-ligand and receptor-substrate molecular docking, spanning receptor clean-up, ligand parameterization, grid-box calibration, docking execution, and post-docking interaction fingerprinting.
 
-1. **Blind docking**: for high-precision screening, focus the grid box on the co-crystal ligand or a predicted pocket. Whole-protein “blind docking” can be used for exploratory work (unknown targets, natural-product target fishing), but interpret results cautiously and follow up with pocket prediction, biological experiment, or MD. [CobDock blind docking](https://pmc.ncbi.nlm.nih.gov/articles/PMC10785400/) [Refining docking protocols](https://www.benchchem.com/pdf/Technical_Support_Center_Refining_Molecular_Docking_Protocols_for_Natural_Products.pdf)
-2. **Covalent docking**: standard Vina does not handle covalent bonds. For covalent inhibitors (e.g. Cys-targeting), switch to AutoDock4, CovDock, GOLD, or another covalent method; Vina may be used for non-covalent pre-screening but not as the final evidence of a covalent binding mode.
-3. **Metal coordination**: Vina’s scoring function is weak for Zn²⁺, Fe³⁺, and similar metal coordination; prefer AutoDock4Zn, GOLD, Glide, or other specialized methods. When data are limited and you only need a fast ranking, treat Vina as a reference only.
-4. **Water treatment**: usually delete crystal waters to reduce false positives; keep them if the literature or a pre-calculation clearly identifies a key bridging water in the pocket.
+---
 
-# 3. Scientific knowledge base: ligand and receptor preparation (Scientific Knowledge Base)
-Treat this section as a pre-flight checklist before submitting a docking job.
+## 1. Local Toolchain Mapping
 
-## 3.1 Extreme preparation of the protein receptor
-- **Resolution**: prefer crystal structures with resolution < 2.5 Å.
-- **Protonation states**: pKa of titratable residues at physiological pH (~7.4) must be predicted in advance. Pay special attention to histidine near the pocket and confirm HID, HIE, or HIP.
-- **Residue repair**: missing heavy atoms must be repaired, or force-field calculations will hit vacancy errors.
+Anchor docking tasks in the `CLOUDRA` toolchain and Python ecosystem:
 
-## 3.2 Ligand parameterization
-- **3D conformational optimization**: if the input is SMILES only, prefer `smiles_to_mol` with `generate_3d=True`.
-- **Physiological ionization**: confirm the state at pH 7.4 (e.g. -COOH becomes -COO⁻).
-- **Charges**: ordinary Vina can use default charges; if you later go to MM-GBSA, generate high-quality **AM1-BCC charges**.
+- **Receptor Preprocessing**: Use `PDBFixer` to repair missing heavy atoms/loops, remove non-structural heteroatoms, and assign protonation states at physiological pH (~7.4).
+- **Ligand Preparation**: Convert SMILES to 3D structures via `smiles_to_mol(generate_3d=True)` or RDKit (`AllChem.EmbedMolecule` with `ETKDGv3`). Assign Gasteiger or AM1-BCC charges and convert to PDBQT format using `Meeko` (`mk_prepare_ligand.py`) or OpenBabel.
+- **Pocket Detection & Grid Box**: If a co-crystal ligand exists, center the grid box on the ligand's geometric centroid. For unliganded apo-structures, detect binding pockets using `fpocket`.
+- **Docking Engines**:
+  - **AutoDock Vina**: Standard fast empirical scoring (Vina / Vinardo scoring functions).
+  - **GNINA**: Deep learning enhanced docking with CNN scoring (`--cnn_scoring rescore/refinement`) for superior pose ranking and binding affinity prediction.
+- **Job Submission**: Call `submit_compute_job` with `is_async=True` for high-throughput screening (HTVS) or exhaustiveness sweeps.
+- **Post-Docking Analysis**: Compute RMSD relative to co-crystal reference, perform pose clustering, and extract Protein-Ligand Interaction Fingerprints (PLIF: hydrogen bonds, $\pi$-$\pi$ stacking, salt bridges, halogen bonds) via Python/PLIP.
 
-# 4. Agent workflow: standard molecular-docking pipeline (Workflow State Machine)
+---
 
-**Step 1: Binding-site detection and box setup**
-- *With a co-crystal ligand*: take the geometric centroid of the co-crystal ligand as the grid-box center. Extend each side by 5–10 Å (usually not beyond 30×30×30 Å).
-- *Without a co-crystal ligand*: center on the highest-scoring pocket from a predictor (e.g. fpocket); preferably cross-check with biological mutation data.
+## 2. Constraints & Physical Red Lines
 
-**Step 2: Docking parameters and execution**
-- `exhaustiveness`:
-  - HTVS (high-throughput): 8.
-  - Fine docking / large flexible molecules: 32–64. Higher values cost more time with diminishing returns.
-- Launch `submit_compute_job` asynchronously.
+1. **Receptor Quality Criteria**:
+   - Prefer crystal structures with resolution $< 2.5\text{ \AA}$. Check for missing loops near the binding pocket.
+2. **Protonation & Tautomer States (pH 7.4)**:
+   - Titratable residues must be checked (PROPKA).
+   - **Histidine Tautomers**: Inspect pocket hydrogen-bonding networks to assign $\text{HID}$ ($\delta$-nitrogen protonated), $\text{HIE}$ ($\epsilon$-nitrogen protonated), or $\text{HIP}$ (doubly protonated cation).
+   - **Cysteines**: Distinguish catalytic free thiols ($\text{CYS}$) from structural disulfide bridges ($\text{CYX}$).
+3. **Crystallographic Water Policy**:
+   - Default rule: Strip bulk crystallographic water molecules to reduce false-positive sterics.
+   - **Exception (Structural Waters)**: Retain tightly bound, conserved structural waters that mediate essential bridging hydrogen bonds between ligand and receptor (verified across multiple PDB structures).
+4. **Blind Docking Limits**:
+   - Blind docking (whole-protein search box) is exploratory only (target fishing, allosteric site search). For quantitative ranking, always use a focused grid box centered on the pocket.
+5. **Covalent & Metalloenzyme Boundaries**:
+   - Standard Vina does not model covalent bond formation (e.g., covalent cysteine inhibitors). Use specialized tools (CovDock, AutoDock4) or constrain reactive distances.
+   - For metal-binding pockets ($\text{Zn}^{2+}, \text{Mg}^{2+}, \text{Fe}^{2+/3+}$), standard Vina electrostatics are insufficient; treat scores qualitatively and validate with MD / QM/MM.
 
-**Step 3: Re-docking validation gold standard**
-- Before scoring new ligands, re-dock the original co-crystal ligand.
-- If Top 1 pose **RMSD > 2.0 Å**, the current box or sampling may be unsuitable; return to Step 1 to adjust box size, raise exhaustiveness, consider flexible residues, or change the docking program — do not immediately declare all results meaningless.
+---
 
-**Step 4: Post-processing rescoring**
-- Take top poses as starting points; do not trust the Vina score alone.
-- Recommended workflow: import into Amber/GROMACS for a very short MD, or compute binding free energy with MM-GBSA, to include the desolvation penalty.
+## 3. Preparation & Execution Protocol
 
-# 5. Diagnostics and circuit breakers (Circuit Breakers)
-1. **All scores extremely poor (>0 kcal/mol)**:
-   - Check whether hydrogenation of ligand and protein produced severe steric clashes.
-   - Check whether the grid box missed the pocket center and squeezed the ligand out.
-2. **False positives for large molecules**:
-   - Vina scores have a size-additive effect. If ligand molecular weight is large, divide by heavy-atom count and re-evaluate with ligand efficiency (LE).
-3. **Missing key interactions**:
-   - Verify by script or interactive feedback: if the top-scoring pose fails to form a known core hydrogen bond of the target pocket, question that pose, but do not reject it outright; correct with MD or rescoring.
-
-# 6. Minimal runnable Vina Python example
-The following shows only the standard call flow; adjust parameters to the real system. No comments in the example, to avoid parse issues.
-
+### 3.1 Receptor Clean-Up Protocol
 ```python
-from vina import Vina
+from pdbfixer import PDBFixer
+from openmm.app import PDBFile
 
-v = Vina(sf_name='vina')
-v.set_receptor('receptor.pdbqt')
-v.set_ligand_from_file('ligand.pdbqt')
-v.compute_vina_maps(center=[10.0, 20.0, 30.0], box_size=[20, 20, 20])
-energy = v.score()
-v.dock(exhaustiveness=32, n_poses=9)
-v.write_poses('output_poses.pdbqt', n_poses=5, overwrite=True)
+def prepare_receptor(pdb_id_or_file, output_pdb, ph=7.4):
+    fixer = PDBFixer(filename=pdb_id_or_file)
+    fixer.findMissingResidues()
+    fixer.findNonstandardResidues()
+    fixer.replaceNonstandardResidues()
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens(ph)
+    # Remove solvent while keeping verified hetero ligands if desired
+    fixer.removeHeterogens(keepWater=False)
+    with open(output_pdb, 'w') as f:
+        PDBFile.writeFile(fixer.topology, fixer.positions, f)
 ```
+
+### 3.2 Ligand 3D & PDBQT Generation Protocol (Meeko)
+```python
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from meeko import MoleculePreparation, PDBQTWriterLegacy
+
+def prepare_ligand_from_smiles(smiles, output_pdbqt):
+    mol = Chem.MolFromSmiles(smiles)
+    mol = Chem.AddHs(mol)
+    # Generate 3D conformer via ETKDG
+    params = AllChem.ETKDGv3()
+    params.randomSeed = 42
+    AllChem.EmbedMolecule(mol, params)
+    AllChem.MMFFOptimizeMolecule(mol)
+    
+    # Setup Meeko preparation (rotatable bonds, Gasteiger charges)
+    preparator = MoleculePreparation()
+    mol_setups = preparator.prepare(mol)
+    pdbqt_string = PDBQTWriterLegacy.write_string(mol_setups[0])
+    
+    with open(output_pdbqt, 'w') as f:
+        f.write(pdbqt_string)
+```
+
+### 3.3 Grid Box Calibration & Sizing
+- **Center**: Set coordinates $(x, y, z)$ to the geometric center of the bound co-crystal ligand:
+  $$\mathbf{r}_{\text{center}} = \frac{1}{N_{\text{heavy}}} \sum_{i=1}^{N_{\text{heavy}}} \mathbf{r}_i$$
+- **Dimensions**: Add $8 \sim 12\text{ \AA}$ padding around the ligand envelope. Typical box sizes range from $18\times 18\times 18\text{ \AA}$ to $25\times 25\times 25\text{ \AA}$. Avoid excessively large boxes ($> 30\text{ \AA}$), which dilute conformational sampling.
+
+---
+
+## 4. End-to-End Docking Workflow
+
+```
+[1. Clean Receptor (PDBFixer)]      [1. Ligand 3D & PDBQT (Meeko)]
+             \                                    /
+              \                                  /
+          [2. Re-docking Validation (RMSD < 2.0 Å)]
+                           │
+          [3. Production Docking (Vina / GNINA)]
+           - exhaustiveness = 32 ~ 64
+           - output top 9 poses
+                           │
+          [4. Post-Docking Analysis & Fingerprints]
+           - Pose RMSD clustering (cutoff 2.0 Å)
+           - Interaction profiling (H-bonds, pi-stacking, salt bridges)
+           - Ligand Efficiency (LE, LLE) evaluation
+                           │
+          [5. Candidate Pose Export -> MD / MM-GBSA Rescoring]
+```
+
+### 4.1 Re-Docking Validation (Gold Standard)
+Before docking novel compounds, extract the native co-crystal ligand, prepare it, and re-dock it into the prepared receptor.
+- **Pass Criterion**: Top 1 pose **RMSD $\le 2.0\text{ \AA}$** relative to the original crystal pose.
+- **Failure Remedy**: If RMSD $> 2.0\text{ \AA}$, do not proceed. Increase `exhaustiveness`, adjust grid-box boundaries, or verify histidine protonation.
+
+### 4.2 Scoring & Efficiency Metrics
+Do not rely exclusively on raw Vina score (kcal/mol), as it has an additive molecular weight bias.
+
+1. **Ligand Efficiency (LE)**:
+   $$\text{LE} = \frac{-\Delta G_{\text{bind}}}{N_{\text{heavy}}} \quad (\text{kcal/mol per heavy atom})$$
+   - Acceptable drug-like benchmark: $\text{LE} \ge 0.30\text{ kcal/mol/heavy atom}$.
+2. **Lipophilic Ligand Efficiency (LLE)**:
+   $$\text{LLE} = \text{p}K_i - \text{cLogP} \approx \frac{-\Delta G_{\text{bind}}}{1.363} - \text{cLogP}$$
+   - Measures potency gained per unit of lipophilicity. Benchmark: $\text{LLE} \ge 5.0$.
+
+---
+
+## 5. Diagnostics & Troubleshooting
+
+1. **All binding scores positive ($> 0\text{ kcal/mol}$)**:
+   - Severe steric clashes: Check if receptor hydrogen addition placed protons too close to active site residues.
+   - Grid box offset: Verify that the box center actually encloses the cavity.
+2. **High score but missing key pharmacophore interaction**:
+   - The top pose lacks a known catalytic hydrogen bond: Inspect next top-ranked poses in the cluster ensemble (poses 2–5). Often, poses with slightly higher Vina energy ($+0.5\text{ kcal/mol}$) exhibit correct geometry.
+3. **Flexible Loop Movements**:
+   - In induced-fit binding pockets, rigid-receptor docking fails. Consider flexible residue docking (`--flex`) on 1–3 gating residues, or perform ensemble docking against multiple MD snapshots.

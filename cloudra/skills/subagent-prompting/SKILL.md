@@ -1,47 +1,77 @@
 ---
 name: subagent-prompting
-description: Provide best practices and templates for writing effective prompts for sub-agents (e.g., explorer, writer, researcher). Use when delegating tasks via SubAgentLauncher to ensure sub-agents operate correctly, avoid hallucinations, manage context, and handle errors robustly.
+description: Best practices, contracts, and templates for dispatching specialized sub-agents in Cloudra runtime_v2 (e.g. explorer, researcher, small_mol, dft, md, writer, experiment, env). Use when composing instructions for SubAgentLauncher or SubAgentSwarm, coordinating via agent_hub, isolating concurrent task directories, preventing hallucinations, and enforcing circuit breakers.
 ---
 
-# 1. Local toolchain mapping (Toolchain Mapping)
-In a complex agent architecture (ReAct or multi-agent collaboration), when the main agent dispatches work to a sub-agent via tools such as `SubAgentLauncher`, map state and tool permissions physically:
-- **Strip unnecessary dependencies**: a sub-agent does not necessarily inherit all of the parent’s tools and state. In the prompt, if the sub-agent only needs compute, explicitly forbid web search and other unrelated tools.
-- **Use absolute paths**: a sub-agent’s working directory (CWD) is independent. For any file the sub-agent must read or modify, put the **absolute path** in the instructions (e.g. `/path/to/workdir/file.txt`); avoid relative paths or vague references.
+# Sub-Agent Prompting & Multi-Agent Coordination Guide
 
-# 2. Constraints and anti-hallucination guardrails (Constraints & Guardrails)
-Without constraints, a large model will readily “pretend the task is done” and invent results.
-1. **Avoid vague reference**: do not write “process the result above”; restating the core entities and goal by name.
-2. **Trust but verify**: do not take a sub-agent’s claim that “the file was modified” or “the data was found” at face value. Require in its instructions that after a critical step it call the matching read tool (e.g. `gaussian_log_parser` or a file-slice read) and present the result in the reply as proof.
-3. **Stop log floods**: in the prompt, forbid the sub-agent from dumping extremely long files (e.g. `OUTCAR` or logs over 1000 lines); require a specific tool or script to parse the critical parts.
+This skill establishes operational contracts, prompt engineering templates, and safety guardrails when delegating tasks to sub-agents via `SubAgentLauncher`, `SubAgentSwarm`, and the `agent_hub` forum in Cloudra runtime_v2.
 
-# 3. Knowledge base: S.C.A.R.F. standard template (Scientific Knowledge Base)
-When sending instructions to a sub-agent, wrap complex-task prompts in the following blocks (S.C.A.R.F.); simple tasks may be trimmed — do not force the full template.
+---
 
-- **(S) System Role / role boundary**: define the professional role and behavioral red lines.
-  *(Example: You are an analytical agent that only handles crystal symmetry; avoid impressionistic inference.)*
-- **(C) Context / established facts**: pass already-confirmed facts so it need not re-verify them.
-  *(Example: Total electron count for this system is confirmed as 120; the target file is at /path/to/log.out.)*
-- **(A) Actionable Goal / precise objective**: an atomic task that must not wander.
-  *(Example: Extract the final SCF energy and convert it to kcal/mol.)*
-- **(R) Restrictions / limits and fallback**: circuit-breaker and error fallback when things go wrong.
-  *(Example: If extraction is empty, return `[Result: Empty]`; do not invent numbers.)*
-- **(F) Format / output contract**: agreed JSON or tagged output format.
+## 1. Built-in Sub-Agent Roles & Scope Boundaries
 
-# 4. Agent workflow: parallel and async dispatch (Workflow State Machine)
-When deciding whether a sub-agent should run synchronously (Wait) or asynchronously in the background (Async), follow this decision tree:
+Cloudra provides 8 specialized sub-agent roles (registered as `a-1` through `a-8`). When launching a sub-agent, select the role that strictly matches the task domain:
 
-**Step 1: Judge task dependence**
-- If it is a hard prerequisite in a linear workflow (e.g. checking that the environment is installed and configured), set it to **synchronous blocking**.
-- If it is large-scale data processing (e.g. independently scoring 10 different docking poses) or a broad literature search, set it to **async background**.
+| Role Identifier | Role Name | Domain & Tooling Boundary | Primary Use Cases |
+| :--- | :--- | :--- | :--- |
+| **a-1** | `explorer` | Read-only file discovery, codebase grepping, workspace mapping | Quick reconnaissance, locating log files, scanning directory trees |
+| **a-2** | `writer` | Writing/editing documents, formatting reports, Markdown | Drafting research reports, formatting summaries, organizing SI text |
+| **a-3** | `researcher` | Deep literature search (`openalex_searcher`, `paper_searcher`, `pdf2md`) | Paper retrieval, DOI extraction, surveying methodology, SI data lookup |
+| **a-4** | `small_mol` | Molecular processing, SMILES/3D generation, RDKit, conformer search | Ligand preparation, atom mapping, stereoisomer enumeration |
+| **a-5** | `md` | Molecular dynamics setup, OpenMM, GROMACS, trajectory parsing | System solvation, topology generation, equilibration, MM-GBSA |
+| **a-6** | `dft` | Quantum chemistry calculations, Gaussian/ORCA/VASP/CP2K inputs | Submitting compute jobs, TS search, IRC verification, frequency parsing |
+| **a-7** | `experiment` | Wet-lab protocols, synthetic routes, reagents, reaction safety | Designing experimental procedures, screening reagents, yield optimization |
+| **a-8** | `env` | Environment inspection, shell commands, dependency installation | Checking CLI binaries (`xtb`, `crest`, `vina`), setting environment paths |
 
-**Step 2: Resolve async conflicts**
-- All parallel async sub-agents must write results to a designated path with an **independent UUID or process-id suffix** (e.g. `result_1234.txt`), so concurrent agents do not overwrite one shared result file and dirty-write.
+---
 
-# 5. Diagnostics and circuit breakers (Circuit Breakers)
-The most dangerous sub-agent failure mode is a tool-call infinite loop. When dispatching, you may implant “step-back reasoning” in the prompt:
+## 2. Dispatch Mechanisms: Launcher, Swarm, & Agent Hub
 
-1. **Hard retry threshold**: state in the instructions: “If the same tool produces the same Error twice in a row, abandon that tool unconditionally.”
-2. **Circuit-break report**: after abandoning, the sub-agent must `send_message` the main agent, attaching:
-   - The original error (Stderr).
-   - The last method attempted.
-   - The specific step that is blocking the task.
+### 2.1 Single Dispatch (`SubAgentLauncher`)
+Use for linear prerequisites or domain-specific sub-tasks:
+- **`is_wait=True` (Synchronous)**: Blocks until the sub-agent completes. Use when the parent agent strictly depends on the sub-agent's return value (e.g. checking whether a toolchain binary exists).
+- **`is_wait=False` (Asynchronous)**: Sub-agent runs concurrently in the background. Use for compute-heavy calculations or broad literature surveys. Retrieve results later via `get_subagent_report`.
+
+### 2.2 Parallel Swarm Dispatch (`SubAgentSwarm`)
+Use when executing homogeneous parallel workloads (e.g. scoring 10 different conformers, screening 20 ligands, or evaluating multiple adsorption sites):
+- **Template Parameter `{{item}}`**: Embed `{{item}}` into the prompt template; `subagent_swarm` automatically expands each entry in the items list into an independent sub-agent.
+- **Concurrency & Resource Limits**: Swarm caps maximum parallel runs to prevent resource starvation.
+
+### 2.3 Forum Collaboration (`agent_hub`)
+Use for asynchronous communication, sharing intermediate discoveries, and collaborative peer reviews:
+- **`post`**: Publish findings under a designated `topic` with structured tags.
+- **`browse` / `read` / `search`**: Inspect peer agent findings without polluting the current LLM context window with raw conversation histories.
+- **Direct Calling**: Passing `to_agent` or calling by role name wakes the recipient agent via internal mailbox delivery.
+
+---
+
+## 3. The S.C.A.R.F. Prompt Engineering Standard
+
+When delegating complex tasks, structure the prompt using the **S.C.A.R.F.** framework:
+
+- **(S) System Role & Scope**: Explicitly declare role identity and behavioral red lines.
+  *(e.g., "You are a specialized DFT sub-agent (dft). Focus strictly on setting up the Gaussian input for transition state TS1; do not perform literature searches.")*
+- **(C) Context & Established Facts**: Provide verified ground truth (molecular SMILES, working directory, previous calculation energies) so the sub-agent does not re-compute or guess.
+  *(e.g., "The reactant complex energy is -450.2134 Hartree. The optimized coordinates are stored at /abs/path/to/reactant.xyz.")*
+- **(A) Actionable Atomic Goal**: Define unambiguous, verifiable goals.
+  *(e.g., "1. Run IDPP interpolation between reactant and product. 2. Prepare Gaussian input with opt=(ts,noeigen,calcfc). 3. Submit via submit_compute_job.")*
+- **(R) Restrictions & Workspace Isolation**:
+  - **Absolute file paths**: Always specify absolute paths (e.g. `/home/user/project/.cloudra/tasks/<uuid>/output.log`).
+  - **Isolated output directory**: Each async task must write to a unique path (`task_<uuid>/`) to prevent dirty writes and race conditions.
+  - **Log size guardrails**: Forbid dumping raw logs ($> 500$ lines) into conversation context; require parsing tools (`gaussian_log_parser`, `log_parser`).
+- **(F) Format Contract**: Specify exact return schema (Markdown table, JSON, or key metrics).
+  *(e.g., "Return: | Conformers | Final Energy (kcal/mol) | Imaginary Freq (cm^-1) |")*
+
+---
+
+## 4. Anti-Hallucination & Verification Guardrails
+
+1. **Trust But Verify**: Never accept a sub-agent's self-declaration that "the calculation converged" or "the structure is optimized" without concrete evidence. Require the sub-agent to invoke a parsing/reading tool (`gaussian_log_parser`, `text_reader`) and include parsed numbers (e.g., SCF energy, RMS force, single imaginary frequency) in its reply.
+2. **Atomic Failure Circuit Breaker**:
+   - If a tool fails with the same error twice in a row, the sub-agent must immediately abort that tool.
+   - The sub-agent must report to the Coordinator with:
+     - The exact error stderr / exception.
+     - The parameter set attempted.
+     - Actionable suggestions for fallback.
+3. **No Unbounded Retries**: Maximum automatic retry count for a sub-agent task is 2. If it still fails, escalate to the Coordinator or user.
