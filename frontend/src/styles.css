@@ -651,12 +651,21 @@ body {
 .composer-actions { display: flex; align-items: center; gap: 8px; }
 .composer-hint { font-size: 11px; color: var(--fg-faint); margin-right: auto; font-family: var(--mono); }
 .composer-attachments { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 2px 0; }
-.composer-attachment { position: relative; }
+.composer-attachment { position: relative; width: 88px; }
 .composer-attachment img {
   height: 56px;
   border-radius: 8px;
   border: 1px solid var(--border);
   display: block;
+}
+.attachment-name {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--fg-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .composer-attachment .attachment-remove {
   position: absolute;

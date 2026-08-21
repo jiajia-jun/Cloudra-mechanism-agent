@@ -28,6 +28,13 @@ function short(text: unknown, max = 80): string {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function dedupeAgents(list: Agent[]): Agent[] {
   const seen = new Map<string, Agent>();
   for (const a of list) seen.set(a.id, a);
@@ -132,7 +139,7 @@ export default function App() {
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [globalOpen, setGlobalOpen] = useState(false);
-  const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string }>>([]);
+  const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // path → artifact_id for images uploaded in this browser session, so the
@@ -836,7 +843,7 @@ export default function App() {
       for (const file of Array.from(files)) {
         const resp = await api.uploadFile(activeProject.id, file);
         uploadedArtifactsRef.current.set(resp.path, resp.artifact_id);
-        setPendingImages((prev) => [...prev, { path: resp.path, artifactId: resp.artifact_id, name: file.name }]);
+        setPendingImages((prev) => [...prev, { path: resp.path, artifactId: resp.artifact_id, name: file.name, size: file.size }]);
       }
     } catch (e) {
       reportError(e);
@@ -1296,12 +1303,17 @@ export default function App() {
             {pendingImages.length > 0 && activeProject && (
               <div className="composer-attachments">
                 {pendingImages.map((img) => (
-                  <span key={img.path} className="composer-attachment" title={img.name}>
+                  <span
+                    key={img.path}
+                    className="composer-attachment"
+                    title={`${img.name} · ${fmtBytes(img.size)}`}
+                  >
                     <img src={api.artifactDownloadUrl(activeProject.id, img.artifactId)} alt={img.name} />
+                    <span className="attachment-name">{img.name}</span>
                     <button
                       type="button"
                       className="attachment-remove"
-                      title="Remove attachment"
+                      title={`Remove ${img.name}`}
                       onClick={() => setPendingImages((prev) => prev.filter((p) => p.path !== img.path))}
                     >
                       ×
@@ -1381,11 +1393,11 @@ export default function App() {
                   <button
                     type="button"
                     className="btn ghost sm"
-                    title="Attach images (png/jpg/jpeg/webp)"
+                    title="Attach images to the message (png/jpg/jpeg/webp, max 20 MB each)"
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    {uploading ? '…' : '📎'}
+                    {uploading ? 'Uploading…' : '📎 Image'}
                   </button>
                 </>
               )}
