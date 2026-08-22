@@ -1132,14 +1132,23 @@ body {
 
 /* ------------------------------------------------------------------ toasts */
 
-.toasts {
+/* One fixed column in the corner: transient toasts on top, the persistent
+   attention dock below — so a toast never covers an actionable card. */
+.floating-stack {
   position: fixed;
   right: 16px;
   bottom: 16px;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
   z-index: 100;
+  max-width: 380px;
+}
+.toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   max-width: 380px;
 }
 .toast {
@@ -1160,6 +1169,71 @@ body {
   from { transform: translateY(8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* --------------------------------------------------------- attention dock */
+
+.attention-dock {
+  width: 360px;
+  max-height: 55vh;
+  overflow-y: auto;
+  background: var(--bg-layer);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attention-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--fg-secondary);
+}
+.attention-dock-toggle {
+  background: none;
+  border: none;
+  color: var(--fg-faint);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.attention-dock-title { flex: 1; }
+.attention-notif-state { color: var(--fg-faint); font-size: 11px; }
+.attention-notif-state.on { color: var(--green-soft); }
+.attention-card {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--yellow);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.attention-card.interaction { border-left-color: var(--green); }
+.attention-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.attention-kind { color: var(--yellow-soft); }
+.attention-card.interaction .attention-kind { color: var(--green-soft); }
+.attention-project {
+  flex: 1;
+  color: var(--fg-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attention-jump { flex-shrink: 0; }
+.attention-body { font-size: 12.5px; color: var(--fg-secondary); word-break: break-word; }
+.attention-actions { display: flex; gap: 6px; align-items: flex-end; }
+.attention-reply { flex: 1; font-size: 12.5px; }
 
 @media (prefers-reduced-motion: reduce) {
   .tool-row.running::after, .run-status .shimmer, .state-dot.running { animation: none; }

@@ -182,6 +182,16 @@ export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
 
   async function save(slot: Slot, clearKey: boolean) {
     if (!cfg) return;
+    if (
+      clearKey &&
+      !window.confirm(
+        `Clear the stored ${slot} API key?\n\n` +
+          'This cannot be undone: the key is never shown, so you will have to paste it again. ' +
+          'Agents falling back to this slot will fail on the next LLM request until a new key is set.',
+      )
+    ) {
+      return;
+    }
     setSaving(slot);
     try {
       const d = drafts[slot];

@@ -5,6 +5,8 @@ import DagPanel from './DagPanel';
 import type { Agent, EventEnvelope, Project } from './types';
 import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
+import AttentionDock, { type NotifPermission } from './AttentionDock';
+import { collectPending, diffNewItems, type PendingAttention, type ProjectPending } from './attention';
 import {
   applyStreamEvent,
   buildTimeline,
@@ -142,6 +144,18 @@ export default function App() {
   const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Cross-project pending approvals/ask_user (the AttentionDock + desktop
+  // notifications).  Keyed by project id; polled for every non-archived
+  // project since the SSE stream only covers the active one.
+  const [attention, setAttention] = useState<Map<string, ProjectPending>>(new Map());
+  const attentionSeenRef = useRef<Set<string>>(new Set());
+  const attentionBaselineRef = useRef(false);
+  const [notifPermission, setNotifPermission] = useState<NotifPermission>(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+  );
+  // Jump target set by the dock / a notification click when the owning
+  // project is not active yet; consumed by the project-switch effect.
+  const jumpTargetRef = useRef<{ projectId: string; sessionId: string } | null>(null);
   // path → artifact_id for images uploaded in this browser session, so the
   // message_injected echo (which carries paths only) can still render them.
   const uploadedArtifactsRef = useRef<Map<string, string>>(new Map());
@@ -310,7 +324,15 @@ export default function App() {
       .then((list) => {
         const agents = dedupeAgents(list);
         setAgents(agents);
-        if (agents[0]) void selectAgent(agents[0].id);
+        // A jump from the attention dock / a desktop notification overrides
+        // the default "select the first agent".
+        const jump = jumpTargetRef.current;
+        if (jump && jump.projectId === activeProjectId && agents.some((a) => a.id === jump.sessionId)) {
+          jumpTargetRef.current = null;
+          void selectAgent(jump.sessionId);
+        } else if (agents[0]) {
+          void selectAgent(agents[0].id);
+        }
       })
       .catch(reportError);
   }, [activeProjectId, selectAgent, reportError]);
@@ -471,6 +493,131 @@ export default function App() {
       window.clearInterval(timer);
     };
   }, [activeProjectId]);
+
+  /* ------------------------------------- cross-project attention polling */
+
+  const jumpTo = useCallback(
+    (projectId: string, sessionId: string) => {
+      if (projectId === activeProjectId) {
+        if (sessionId) void selectAgent(sessionId);
+        return;
+      }
+      jumpTargetRef.current = { projectId, sessionId };
+      setActiveProjectId(projectId);
+    },
+    [activeProjectId, selectAgent],
+  );
+  // Notification onclick handlers fire outside React; route through a ref
+  // so they always call the latest jumpTo.
+  const jumpFnRef = useRef(jumpTo);
+  jumpFnRef.current = jumpTo;
+
+  const notifyAttention = useCallback((item: PendingAttention) => {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const title =
+      item.kind === 'approval'
+        ? `Approval needed · ${item.projectName}`
+        : `Agent question · ${item.projectName}`;
+    // `tag` collapses repeat polls of the same request into one OS popup.
+    const n = new Notification(title, { body: short(`${item.title}: ${item.body}`, 140), tag: item.key });
+    n.onclick = () => {
+      window.focus();
+      jumpFnRef.current(item.projectId, item.sessionId);
+      n.close();
+    };
+  }, []);
+
+  // Poll approvals/ask_user for EVERY non-archived project: the SSE stream
+  // and the Inspector only cover the active one, and a request that parks
+  // an agent in another project must still reach the user.
+  useEffect(() => {
+    const targets = projects.filter((p) => !p.archived);
+    if (targets.length === 0) {
+      setAttention(new Map());
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      const results = await Promise.all(
+        targets.map(async (p) => {
+          try {
+            const [approvals, interactions] = await Promise.all([
+              api.approvals(p.id),
+              api.interactions(p.id),
+            ]);
+            return [p.id, { name: p.name, approvals, interactions } satisfies ProjectPending] as const;
+          } catch {
+            return null; // one unreachable project must not sink the rest
+          }
+        }),
+      );
+      if (cancelled) return;
+      const next = new Map<string, ProjectPending>();
+      for (const r of results) if (r) next.set(r[0], r[1]);
+      setAttention(next);
+      // First poll only seeds the baseline — re-opening the app must not
+      // re-alert for long-pending requests.
+      const items = collectPending(next);
+      if (!attentionBaselineRef.current) {
+        attentionBaselineRef.current = true;
+        attentionSeenRef.current = new Set(items.map((i) => i.key));
+        return;
+      }
+      const fresh = diffNewItems(items, attentionSeenRef.current);
+      attentionSeenRef.current = new Set(items.map((i) => i.key));
+      for (const item of fresh) notifyAttention(item);
+    };
+    void poll();
+    const timer = window.setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [projects, notifyAttention]);
+
+  const refreshProjectPending = useCallback(async (projectId: string) => {
+    try {
+      const [approvals, interactions] = await Promise.all([
+        api.approvals(projectId),
+        api.interactions(projectId),
+      ]);
+      setAttention((prev) => {
+        const next = new Map(prev);
+        next.set(projectId, { name: prev.get(projectId)?.name ?? '', approvals, interactions });
+        return next;
+      });
+    } catch {
+      /* the next poll reconciles */
+    }
+  }, []);
+
+  const handleAttentionDecide = useCallback(
+    async (item: PendingAttention, decision: 'approve' | 'deny') => {
+      try {
+        await api.decideApproval(item.projectId, item.id, decision, decision === 'deny' ? 'denied by user' : '');
+        pushToast('ok', `${decision === 'approve' ? 'Approved' : 'Denied'} · ${item.projectName}`);
+      } catch (e) {
+        reportError(e);
+      } finally {
+        await refreshProjectPending(item.projectId);
+      }
+    },
+    [pushToast, reportError, refreshProjectPending],
+  );
+
+  const handleAttentionRespond = useCallback(
+    async (item: PendingAttention, response: string) => {
+      try {
+        await api.respondInteraction(item.projectId, item.id, response);
+        pushToast('ok', `Response sent · ${item.projectName}`);
+      } catch (e) {
+        reportError(e);
+      } finally {
+        await refreshProjectPending(item.projectId);
+      }
+    },
+    [pushToast, reportError, refreshProjectPending],
+  );
 
   /* ------------------------------------------------------------- actions */
 
@@ -942,6 +1089,14 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // The dock covers only OTHER projects — the active one already surfaces
+  // requests via the Inspector tabs and the composer ask-banner.
+  const attentionItems = useMemo(() => {
+    const others = new Map(attention);
+    if (activeProjectId) others.delete(activeProjectId);
+    return collectPending(others);
+  }, [attention, activeProjectId]);
 
   const renderAgentChip = (a: Agent, depth: number): React.ReactNode => {
     const children = childrenOf.get(a.id) ?? [];
@@ -1425,12 +1580,27 @@ export default function App() {
         onToast={pushToast}
       />
 
-      <div className="toasts">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`} onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}>
-            {t.text}
-          </div>
-        ))}
+      <div className="floating-stack">
+        <div className="toasts">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast ${t.kind}`} onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}>
+              {t.text}
+            </div>
+          ))}
+        </div>
+        <AttentionDock
+          items={attentionItems}
+          notifPermission={notifPermission}
+          onEnableNotifications={() => {
+            if (typeof Notification === 'undefined') return;
+            Notification.requestPermission()
+              .then((p) => setNotifPermission(p))
+              .catch(() => undefined);
+          }}
+          onJump={(item) => jumpTo(item.projectId, item.sessionId)}
+          onDecide={handleAttentionDecide}
+          onRespond={handleAttentionRespond}
+        />
       </div>
       {globalOpen && <GlobalConfig onClose={() => setGlobalOpen(false)} onToast={pushToast} />}
     </div>
