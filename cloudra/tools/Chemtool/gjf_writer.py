@@ -84,7 +84,9 @@ class GjfWriter_input_schema(input_schema):
     )
     chk_name: Optional[str] = Field(
         default=None,
-        description="chk filename, e.g. H2O.chk"
+        description="chk filename, e.g. H2O.chk. By convention point it into the same directory "
+                    "as output_dir (absolute path preferred): the per-task Gaussian scratch is "
+                    "deleted after the run, so a checkpoint outside the .gjf directory is lost."
     )
     rwf_name: Optional[str] = Field(
         default=None,
@@ -92,7 +94,8 @@ class GjfWriter_input_schema(input_schema):
     )
     fchk_name: Optional[str] = Field(
         default=None,
-        description="fchk filename."
+        description="fchk filename. Same placement convention as chk_name: same directory as "
+                    "output_dir, absolute path preferred."
     )
 
 
