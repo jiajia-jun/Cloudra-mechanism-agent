@@ -13,10 +13,6 @@
 import { useState } from 'react';
 import type { PendingAttention } from './attention';
 
-function short(text: string, max = 140): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
-
 export type NotifPermission = NotificationPermission | 'unsupported';
 
 interface AttentionDockProps {
@@ -62,7 +58,7 @@ function ApprovalCard({
         </button>
       </div>
       <div className="attention-body">
-        <b>{item.title}</b> wants to run <span className="mono-path">{short(item.body, 160)}</span>
+        <b>{item.title}</b> wants to run <span className="mono-path">{item.body}</span>
       </div>
       <div className="attention-actions">
         <button className="btn green sm" disabled={busy !== null} onClick={() => void decide('approve')}>
@@ -113,7 +109,7 @@ function InteractionCard({
         </button>
       </div>
       <div className="attention-body">
-        <b>{item.title}</b> asks: {short(item.body, 200)}
+        <b>{item.title}</b> asks: {item.body}
       </div>
       <div className="attention-actions">
         <textarea
