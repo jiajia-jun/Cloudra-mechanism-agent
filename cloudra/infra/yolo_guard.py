@@ -194,7 +194,7 @@ class YoloGuard:
         ]
         request_kwargs = dict(
             model=self.model,
-            temperature=0.1,
+            temperature=1.0,  # 大量模型只接受 temperature=1
             # thinking 模型思考段会吃掉输出预算，500 可能截断 tool_call 的 JSON
             max_tokens=2000,
             tools=tools,

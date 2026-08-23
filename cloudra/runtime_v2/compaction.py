@@ -100,7 +100,8 @@ async def summarize_with_agent_settings(
     response = await client.create_with_retry(
         model=settings.model,
         messages=messages,
-        temperature=0.2,
+        # temperature=1: a growing set of models rejects anything else.
+        temperature=1.0,
         stream=False,
     )
     choices = getattr(response, "choices", None) or []

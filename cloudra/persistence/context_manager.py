@@ -1076,7 +1076,7 @@ class ContextManager:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.2,
+                temperature=1.0,  # 大量模型只接受 temperature=1
             )
             summary = response.choices[0].message.content
             return summary.strip() if summary else "[History too long; could not produce a valid summary]"

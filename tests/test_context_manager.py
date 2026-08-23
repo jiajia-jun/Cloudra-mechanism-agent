@@ -311,7 +311,7 @@ class TestHistoryCompression:
         assert create.call_count == 1
         kwargs = create.call_args.kwargs
         assert kwargs["model"] == "fake-model"
-        assert kwargs["temperature"] == 0.2
+        assert kwargs["temperature"] == 1.0
         assert "max_tokens" not in kwargs
         summary_prompt = kwargs["messages"][1]["content"]
         assert "历史问题 0" in summary_prompt

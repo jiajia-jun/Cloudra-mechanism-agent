@@ -102,7 +102,7 @@ class Agent(BaseModel):
     _api_key: str
 
     #agent使用模型温度
-    temperature: float = 0.7
+    temperature: float = 1.0
 
     #agent使用模型最大token（生成限制）
     max_tokens: int

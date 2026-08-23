@@ -70,7 +70,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
 
     model: str = ""
     base_url: str = ""
-    temperature: float = 0.7
+    temperature: float = 1.0
     max_tokens: int = 32768
     context_window: int = 200000
     top_p: Optional[float] = None

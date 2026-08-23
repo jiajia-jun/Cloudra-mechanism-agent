@@ -177,7 +177,7 @@ class MemoryManager:
                     {"role": "system", "content": "你是一个专门整理科研助手长期记忆的助手。"},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.3,
+                temperature=1.0,  # 大量模型只接受 temperature=1
                 max_tokens=2000,
             )
             result = response.choices[0].message.content

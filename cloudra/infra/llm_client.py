@@ -451,7 +451,7 @@ class LLMClient:
         user: str,
         *,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float = 1.0,  # 大量模型只接受 temperature=1
         **extra,
     ) -> tuple[Optional[dict], Optional[Exception]]:
         """JSON 补全助手：system+user 进，解析后的 dict 出。
