@@ -145,6 +145,9 @@ export const api = {
   artifacts: (projectId: string) => request<Array<Record<string, unknown>>>(`/api/v2/projects/${projectId}/artifacts`),
   artifactDownloadUrl: (projectId: string, artifactId: string) =>
     `${runtimeUrl}/api/v2/artifacts/${artifactId}/download?project_id=${encodeURIComponent(projectId)}`,
+  // Full human-readable Markdown dump of the project's event stream.
+  projectTranscriptUrl: (projectId: string) =>
+    `${runtimeUrl}/api/v2/projects/${projectId}/transcript`,
   dagDelivery: (projectId: string) =>
     request<{ mode: string; graph: Record<string, unknown> | null }>(`/api/v2/projects/${projectId}/dag/delivery`),
   dagReviews: (projectId: string) =>

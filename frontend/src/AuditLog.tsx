@@ -16,6 +16,7 @@ import type { EventEnvelope } from './types';
 
 interface AuditLogProps {
   agentId: string | null;
+  projectId: string | null;
   liveEvents: EventEnvelope[];
   onError: (e: unknown) => void;
 }
@@ -158,7 +159,7 @@ const EventCard = memo(function EventCard({ event }: { event: EventEnvelope }) {
   );
 });
 
-export default function AuditLog({ agentId, liveEvents, onError }: AuditLogProps) {
+export default function AuditLog({ agentId, projectId, liveEvents, onError }: AuditLogProps) {
   // Lazily fetched pages, oldest → newest.  The live SSE window (from the
   // parent) is merged on the newest end; only one page ever renders.
   const [loaded, setLoaded] = useState<EventEnvelope[] | null>(null);
@@ -300,6 +301,16 @@ export default function AuditLog({ agentId, liveEvents, onError }: AuditLogProps
         >
           reload
         </button>
+        {projectId && (
+          <a
+            className="btn ghost sm"
+            href={api.projectTranscriptUrl(projectId)}
+            download
+            title="Download the full project transcript as Markdown — every event with complete payloads (messages, thinking chains, tool arguments/results, compaction and context-tree snapshots)"
+          >
+            ⬇ full log
+          </a>
+        )}
       </div>
       <input
         className="input audit-search"

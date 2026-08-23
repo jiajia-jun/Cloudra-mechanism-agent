@@ -1833,7 +1833,12 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
       </div>
       <div className="inspector-body">
         {tab === 'events' && (
-          <AuditLog agentId={activeAgent?.id ?? null} liveEvents={liveEvents} onError={onError} />
+          <AuditLog
+            agentId={activeAgent?.id ?? null}
+            projectId={activeProject?.id ?? null}
+            liveEvents={liveEvents}
+            onError={onError}
+          />
         )}
 
         {tab === 'dag' && (

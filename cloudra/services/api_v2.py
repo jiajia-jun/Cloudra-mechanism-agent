@@ -16,7 +16,7 @@ from typing import Any, Literal, Optional
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -320,6 +320,31 @@ def create_v2_app(
     async def project_workspace(project_id: str) -> dict[str, Any]:
         project = core.require_project(project_id)
         return {"workspace_dir": project.workspace_dir, "valid": bool(project.workspace_dir)}
+
+    @app.get("/api/v2/projects/{project_id}/transcript", dependencies=protected)
+    async def project_transcript(project_id: str) -> Response:
+        """Full human-readable Markdown dump of the project's event stream.
+
+        Every persisted event with its complete payload (messages, thinking,
+        tool arguments/results, compaction and context-tree snapshots) — built
+        for offline diagnosis and ablation analysis.
+        """
+        from cloudra.runtime_v2.transcript import render_project_transcript
+
+        project = core.require_project(project_id)
+        events = core.event_log.query_project(project_id, limit=1_000_000)
+        text = render_project_transcript(project, core.agents, events)
+        safe = "".join(
+            ch if ch.isascii() and (ch.isalnum() or ch in "-_") else "-"
+            for ch in (project.name or project.id)
+        ).strip("-")[:60] or project.id
+        return Response(
+            content=text,
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="cloudra-transcript-{safe}.md"'
+            },
+        )
 
     @app.get("/api/v2/projects/{project_id}/agents", dependencies=protected)
     async def list_agents(project_id: str) -> list[dict[str, Any]]:
