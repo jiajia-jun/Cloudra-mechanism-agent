@@ -15,6 +15,7 @@
 | --- | --- | --- |
 | [`PHASE8_NODE_REGISTRY.md`](PHASE8_NODE_REGISTRY.md) | JSON 节点注册表、工作区路由、local/Slurm 计算执行与恢复语义 | 当前实现说明；真实 Slurm 集群与多机路由待后续验证 |
 | [`DAG_ORCHESTRATION.md`](DAG_ORCHESTRATION.md) | DAG 引导编排：机理图 + 阶段契约 + CallReview 收件箱、三模式消融边界、分权与证据派生、Supervisor 触发 | 当前实现说明；按会话 opt-in |
+| [`PLUGINS.md`](PLUGINS.md) | 通用插件契约：hooks（search / on_event / setup）、图书馆层证据分级、三种注册方式、`context.inject` 注入语义、无自演化边界 | 当前实现说明；GraphRAG 实现本体由用户插件提供 |
 
 设计计划与决策记录放在 [`superpowers/plans/`](superpowers/plans/)（如 DAG 编排的
 delivery-only 重构与验证计划），只随仓库发布，不随 Python 包安装。引用它们时用
