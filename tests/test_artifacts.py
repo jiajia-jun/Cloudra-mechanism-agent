@@ -185,3 +185,48 @@ def test_artifact_rejects_source_and_storage_symlinks(
         )
 
 
+
+def test_register_file_heals_empty_shell_db(artifact_environment):
+    """裸 connect() 留下的空库文件（无任何表）不能再炸出
+    'no such table: session'——register_file 先补 schema，ensure_session_record
+    再补 legacy session 行（v2 agent 没有 reAct 时代的 session 记录）。"""
+    env = artifact_environment
+    conversation_id = "conv_shell"
+    session_id = "as_shell"
+    db = ConversationDB(conversation_id)
+    # 模拟肇事路径：裸 connect 创建空库文件后退出，一张表都没有。
+    with db.connect():
+        pass
+
+    session_store.ensure_session_record(db, session_id, "coordinator")
+
+    source = env["workspace"] / "edit.txt"
+    source.write_text("edited", encoding="utf-8")
+    artifact = ArtifactService(env["data_dir"]).register_file(
+        conversation_id=conversation_id,
+        session_id=session_id,
+        source=source,
+        allowed_root=env["workspace"],
+    )
+    assert artifact.artifact_id
+    assert (ArtifactService(env["data_dir"]).root / artifact.storage_path).is_file()
+
+
+def test_register_file_migrates_schema_before_session_check(artifact_environment):
+    """空壳库先被 migrate_if_needed 补齐表，再按业务规则拒绝缺失的
+    session 行（ArtifactDownloadDenied），而不是 sqlite OperationalError。"""
+    env = artifact_environment
+    conversation_id = "conv_shell2"
+    db = ConversationDB(conversation_id)
+    with db.connect():
+        pass
+
+    source = env["workspace"] / "edit2.txt"
+    source.write_text("edited", encoding="utf-8")
+    with pytest.raises(ArtifactDownloadDenied, match="Session"):
+        ArtifactService(env["data_dir"]).register_file(
+            conversation_id=conversation_id,
+            session_id="as_missing",
+            source=source,
+            allowed_root=env["workspace"],
+        )

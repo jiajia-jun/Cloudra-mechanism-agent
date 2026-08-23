@@ -12,7 +12,6 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, Protocol
 
@@ -72,18 +71,7 @@ def register_workspace_image_artifact(
         return None
     try:
         db = ConversationDB(project_id)
-        if not Path(db.path).is_file():
-            db.init()
-        if session_store.get_session_row(db, session_id) is None:
-            session_store.create_session_record(
-                db,
-                session_id=session_id,
-                agent_id=agent_id,
-                agent_type=None,
-                parent_session_id=None,
-                query="",
-                created_at=datetime.now(timezone.utc).isoformat(),
-            )
+        session_store.ensure_session_record(db, session_id, agent_id)
         artifact = ArtifactService().register_file(
             conversation_id=project_id,
             session_id=session_id,

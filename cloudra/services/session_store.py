@@ -525,6 +525,28 @@ def get_session_row(db: ConversationDB, session_id: str) -> dict | None:
     return {"agent_id": row[0], "agent_type": row[1], "state": row[2]}
 
 
+def ensure_session_record(db: ConversationDB, session_id: str, agent_id: str | None) -> None:
+    """Get-or-create the legacy session row backing artifact/event writes.
+
+    runtime_v2 agents have no reAct-era session row, but ArtifactService and
+    session_event writers refuse to work against a missing one.  Also makes
+    sure the database itself is initialized: a bare ``connect()`` creates an
+    empty file, so "file exists" never implies "tables exist".
+    """
+    if not db.migrate_if_needed():
+        db.init()
+    if get_session_row(db, session_id) is None:
+        create_session_record(
+            db,
+            session_id=session_id,
+            agent_id=agent_id,
+            agent_type=None,
+            parent_session_id=None,
+            query="",
+            created_at=_utc_now(),
+        )
+
+
 def list_session_events(db: ConversationDB, session_id: str, *, limit: int = 2000) -> list[dict]:
     """Raw session_events rows for one session, in insertion order."""
     with db.connect() as con:

@@ -111,6 +111,9 @@ class ArtifactService:
         db = ConversationDB(conversation_id)
         if not Path(db.path).is_file():
             raise ArtifactDownloadDenied("Artifact 对应的 Conversation 不存在")
+        # 文件存在 ≠ 表存在：裸 connect() 会创建空库文件。版本检查是只读的，
+        # 版本落后/空库时一次性补齐 schema。
+        db.migrate_if_needed()
         with db.connect() as con:
             session_exists = con.execute(
                 "SELECT 1 FROM session WHERE session_id=?",

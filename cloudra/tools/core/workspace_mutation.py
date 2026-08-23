@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
+import sqlite3
 from typing import TypeVar
 
 from pydantic import Field
@@ -159,28 +159,36 @@ async def execute_prepared_change(
     )
     conversation_id = getattr(tool.subagent, "conversation_id", "default")
     from cloudra.persistence.database import ConversationDB
+    from cloudra.services import session_store
 
-    if Path(ConversationDB(conversation_id).path).is_file():
-        try:
+    try:
+        def register() -> None:
+            db = ConversationDB(conversation_id)
+            # 文件存在 ≠ 表存在（裸 connect 会留下空库文件），v2 agent 也没有
+            # legacy session 行——两者都先补齐，ArtifactService 才肯登记。
+            session_store.ensure_session_record(
+                db, session.id, getattr(tool.subagent, "agent_id", None)
+            )
             from cloudra.persistence.artifacts import ArtifactService
 
-            await asyncio.to_thread(
-                ArtifactService().register_file,
+            ArtifactService().register_file(
                 conversation_id=conversation_id,
                 session_id=session.id,
                 source=change.absolute_path,
                 allowed_root=service.root,
                 name=change.relative_path,
             )
-        except (OSError, ValueError) as exc:
-            await tool.record_session_event(
-                session,
-                "artifact_registration_failed",
-                {
-                    "path": change.relative_path,
-                    "message": str(exc),
-                },
-            )
+
+        await asyncio.to_thread(register)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        await tool.record_session_event(
+            session,
+            "artifact_registration_failed",
+            {
+                "path": change.relative_path,
+                "message": str(exc),
+            },
+        )
     session_key = f"{conversation_id}:{session.id}"
     aggregate_diff = turn_diff_tracker.record_applied(session_key, service, change)
     await tool.record_session_event(
