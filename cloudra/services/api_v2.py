@@ -104,6 +104,12 @@ class CompactRequest(BaseModel):
     keep_recent: int = Field(default=20, ge=1, le=500)
 
 
+class ContextInjectRequest(BaseModel):
+    kind: Literal["pin", "unpin", "push"] = "push"
+    key: str = ""
+    content: str = ""
+
+
 class GlobalConfigFieldPatch(BaseModel):
     """Fields of one global LLM slot; ``key`` is write-only (empty clears)."""
 
@@ -482,6 +488,25 @@ def create_v2_app(
             target={"session_id": session_id},
             payload=_command_payload(body),
         )
+        return await execute(command)
+
+    @app.post("/api/v2/agents/{session_id}/context/inject", dependencies=protected)
+    async def inject_context(session_id: str, body: ContextInjectRequest) -> CommandResponse:
+        """Lightweight context injection (pin/unpin/push a notice).
+
+        The notice reaches the agent's next LLM turn as a system message and
+        lands in the event log (context.pin_set / pin_cleared / injected) —
+        auditable, replayable, no wakeup.  Use /messages when a wakeup is
+        wanted.
+        """
+        command = Command(
+            type="context.inject",
+            target={"session_id": session_id},
+            payload=_command_payload(body),
+        )
+        # Validate here (not only in the command handler) so an unknown agent
+        # surfaces as 404 instead of an accepted=false 200.
+        core.require_agent(session_id)
         return await execute(command)
 
     @app.get("/api/v2/agents/{session_id}/context", dependencies=protected)
@@ -952,8 +977,14 @@ def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
         legacy_default_runtime_settings,
     )
     from cloudra.runtime_v2.persistence import restore_core
+    from cloudra.runtime_v2.plugins import attach_plugins, load_plugins_from_config
     from cloudra.runtime_v2.policies import default_stages
     from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+
+    # 通用插件面（GraphRAG 图书馆、事件观察者等，plugins 配置声明）：
+    # 加载即注册，attach 把 on_event 挂进事件总线、setup 拿到 core。
+    # 失败只记日志。无自演化——核心不回写，插件自维护存储。
+    load_plugins_from_config()
 
     core = RuntimeCore(strict_events=True)
     core.runtime_defaults = legacy_default_runtime_settings()
@@ -967,6 +998,10 @@ def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
         notices=core.notices,
     )
     app = create_v2_app(core, pipeline=pipeline, store_path=store_path)
+    # Attach after the hub/store exist: setup(core) hooks get a fully wired
+    # core, on_event hooks start receiving from this point (backfill events
+    # from restore are intentionally not replayed to plugins).
+    attach_plugins(core)
     if core.store is not None:
         restore_core(core, core.store)
     # Optional single-port browser mode: serve the built SPA from the same

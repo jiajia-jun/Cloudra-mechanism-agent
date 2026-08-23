@@ -66,6 +66,9 @@ EVENT_TYPES: dict[str, str] = {
     "agent.warning": "non-fatal guard warning",
     "context.run_summarized": "run trajectory compacted into the context tree",
     "context.handover_updated": "system-maintained handover snapshot updated",
+    "context.pin_set": "resident context notice pinned or replaced",
+    "context.pin_cleared": "resident context notice unpinned",
+    "context.injected": "one-shot context notice injected",
     "project.synced": "sse replay backlog boundary (hub-only control marker)",
 }
 

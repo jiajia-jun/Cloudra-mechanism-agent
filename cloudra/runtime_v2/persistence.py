@@ -226,6 +226,9 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
     core.event_log.restore(backfill)
     for envelope in envelopes:
         _replay_event(core, envelope)
+    # Notice pins are event-sourced too: rebuild them from the full
+    # projection (one-shot pushes are intentionally not restored).
+    core.notices.restore_from(core.event_log)
 
     # Runs live in memory only: an agent restored as RUNNING/WAITING died with
     # the previous process and has no runner anymore.  Mark the run failed so

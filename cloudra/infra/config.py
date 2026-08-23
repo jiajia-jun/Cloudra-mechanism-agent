@@ -106,6 +106,11 @@ class CloudraConfig(BaseSettings):
     # 礼貌池邮箱，写入 User-Agent 的 mailto；空则只用通用 UA。可设 CLOUDRA_OPENALEX_MAILTO / OPENALEX_MAILTO。
     openalex_mailto: str = ""
 
+    # 通用插件（知识图书馆层、事件观察者等）：dotted path 列表，
+    # "pkg.module:attr"，attr 为插件实例或无参工厂（带 name；hooks 可选：
+    # search / on_event / setup）。应用启动时加载一次；失败只记日志不阻塞。
+    plugins: list[str] = Field(default_factory=list)
+
     @field_validator("data_dir", "config_file", mode="before")
     @classmethod
     def _coerce_path(cls, v):
@@ -176,6 +181,8 @@ class CloudraConfig(BaseSettings):
                 self.openalex_api_key = str(data["openalex_api_key"])
             if "openalex_mailto" in data and data["openalex_mailto"] is not None:
                 self.openalex_mailto = str(data["openalex_mailto"])
+            if "plugins" in data and data["plugins"]:
+                self.plugins = [str(s) for s in data["plugins"]]
         except Exception as e:
             print(f"[Config Warning] Failed to load {cfg_path}: {e}")
 

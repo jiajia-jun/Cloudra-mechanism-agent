@@ -203,7 +203,21 @@ def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     )
 
 
-def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
+def _render_library(entries: list[dict[str, Any]]) -> str:
+    """Model-facing rendering of library hits (full dicts ride in data)."""
+    lines = []
+    for entry in entries:
+        flag = " [FALSIFIED — refuted, kept for audit]" if entry["falsified"] else ""
+        source = f" — source: {entry['source']}" if entry["source"] else ""
+        snippet = " ".join(str(entry["content"]).split())[:200]
+        lines.append(
+            f"- [{entry['evidence_level']}]{flag} {entry['title']}: {snippet}"
+            f" (provider: {entry['provider']}){source}"
+        )
+    return "\n".join(lines)
+
+
+async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     keyword = str(args.get("keyword") or "").strip()
     if not keyword:
         return _err("search requires a keyword.")
@@ -220,12 +234,20 @@ def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
             scored.append((score, post["seq"], post))
     scored.sort(key=lambda item: (-item[0], -item[1]))
     posts = [post for _, _, post in scored[:limit]]
-    return _ok(
+    # The library layer: registered knowledge providers (GraphRAG plugins)
+    # are queried on every hub search — same tool, no extra interface.
+    from cloudra.runtime_v2.knowledge import search_library
+
+    library = await search_library(keyword, limit=5)
+    forum_line = (
         f"Keyword '{keyword}' fuzzy-matched {len(posts)} post(s) (scanned the latest {len(scanned)})."
         if posts
-        else f"Keyword '{keyword}' had no hits.",
-        posts=posts,
+        else f"Keyword '{keyword}' had no forum hits."
     )
+    if not library:
+        return _ok(forum_line, posts=posts, library=[])
+    summary = f"{forum_line}\nLibrary hits ({len(library)}):\n{_render_library(library)}"
+    return _ok(summary, posts=posts, library=library)
 
 
 def _directory(core, author: AgentSession) -> ToolResult:
@@ -291,7 +313,7 @@ async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolRes
     if action == "read":
         return _read(core, author, args)
     if action == "search":
-        return _search(core, author, args)
+        return await _search(core, author, args)
     if action == "directory":
         return _directory(core, author)
     if action == "call":

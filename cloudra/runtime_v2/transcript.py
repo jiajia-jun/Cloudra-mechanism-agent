@@ -165,6 +165,16 @@ def render_project_transcript(
             lines.append(f"### 📦 {head} HANDOVER updated — {who} · revision {data.get('revision', '?')}")
             _text_block(lines, str(data.get("handover") or ""))
             lines.append("")
+        elif event.type == "context.pin_set":
+            lines.append(f"### 📌 {head} notice pin set — {who} · key `{data.get('key', '?')}`")
+            _text_block(lines, str(data.get("content") or ""))
+            lines.append("")
+        elif event.type == "context.pin_cleared":
+            lines.append(f"- {head} **context.pin_cleared** · {who} · key `{data.get('key', '?')}`")
+        elif event.type == "context.injected":
+            lines.append(f"### 💉 {head} one-shot notice injected — {who}")
+            _text_block(lines, str(data.get("content") or ""))
+            lines.append("")
         elif event.type in {"approval.requested", "interaction.requested"}:
             lines.append(f"### ✋ {head} {event.type} — {who}")
             _text_block(lines, str(data.get("message") or data.get("question") or json.dumps(data, ensure_ascii=False, default=str)))

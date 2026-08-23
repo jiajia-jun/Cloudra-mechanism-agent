@@ -385,6 +385,36 @@ async def _respond_interaction(core: RuntimeCore, command: Command) -> CommandRe
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=record)
 
 
+async def _inject_context(core: RuntimeCore, command: Command) -> CommandResult:
+    """Lightweight context injection: pin / unpin / push a notice.
+
+    The event-sourced NoticeManager writes the corresponding
+    context.pin_set / context.pin_cleared / context.injected event itself
+    (deduplicated), so this handler only validates and delegates.  The
+    injected content reaches the agent's next LLM turn as a system message;
+    the agent is NOT woken — use agent.message when a wakeup is wanted.
+    """
+    agent = core.require_agent(command.target.get("session_id", ""))
+    kind = str(command.payload.get("kind") or "push")
+    key = str(command.payload.get("key") or "")
+    content = str(command.payload.get("content") or "")
+    if kind == "pin":
+        if not key:
+            raise CommandRejected("invalid_request", "pin requires a key")
+        core.notices.pin(agent.id, key, content)
+    elif kind == "unpin":
+        if not key:
+            raise CommandRejected("invalid_request", "unpin requires a key")
+        core.notices.unpin(agent.id, key)
+    elif kind == "push":
+        if not content.strip():
+            raise CommandRejected("invalid_request", "push requires non-empty content")
+        core.notices.push(agent.id, content)
+    else:
+        raise CommandRejected("invalid_request", f"unknown inject kind {kind!r}")
+    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
+
+
 HANDLERS: dict[str, Handler] = {
     "project.create": _create_project,
     "project.update": _update_project,
@@ -397,6 +427,7 @@ HANDLERS: dict[str, Handler] = {
     "approval.decide": _decide_approval,
     "interaction.respond": _respond_interaction,
     "role.update": _update_role,
+    "context.inject": _inject_context,
 }
 
 

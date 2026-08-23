@@ -54,6 +54,9 @@ class RuntimeCore:
         self.email_listener = EmailListenerBroker(self)
         # Unified per-session LLM context injection (pins + one-shot pushes).
         self.notices = NoticeManager()
+        # Event-sourced: pin/push changes land in the log (deduplicated), so
+        # injections are auditable, replayable, and reachable via commands.
+        self.notices.attach(self.event_log, self._project_of_session)
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None
@@ -64,6 +67,10 @@ class RuntimeCore:
         self._max_command_results = 1024
 
     # ------------------------------------------------------------------ lookups
+
+    def _project_of_session(self, session_id: str) -> str | None:
+        agent = self.agents.get(session_id)
+        return agent.project_id if agent is not None else None
 
     def require_project(self, project_id: str) -> Project:
         project = self.projects.get(project_id)
