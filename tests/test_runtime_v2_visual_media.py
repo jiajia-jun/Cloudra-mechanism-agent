@@ -58,6 +58,12 @@ class ImageTools:
         return ToolResult(is_success=True, summary=f"rendered: {self.image_path}", data=data)
 
 
+async def _stub_summarizer(messages):
+    # Tests never hit the network; run-end summarization is covered in
+    # test_runtime_v2_context_tree.py with dedicated fakes.
+    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
+
+
 async def _setup(llm, tools, *, workspace_dir: str | None = None):
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -66,7 +72,7 @@ async def _setup(llm, tools, *, workspace_dir: str | None = None):
         llm=llm,
         tools=tools,
     )
-    core.runner = AgentRunner(core, pipeline)
+    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
     bus = CommandBus(core)
     payload = {"name": "visual demo"}
     if workspace_dir:

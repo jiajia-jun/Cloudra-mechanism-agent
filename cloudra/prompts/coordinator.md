@@ -61,7 +61,7 @@ Dispatch sub-agents by `agent_id` (e.g. `a-4`) or role name via `SubAgentLaunche
 - **File Paths**: Always use absolute paths or paths relative to the current working directory.
 - **Filesystem Authority**: Files and parser outputs are the ground truth. Read source files with `text_reader`; never guess or fabricate numbers.
 - **Background Tasks**: Wait on long jobs using `schedule` timers; never use bash `sleep` polling loops.
-- **Handoff Tracking**: When working across long multi-stage tasks, record milestone progress in `HANDOFF.md` or `progress.md` (goals, file paths, job IDs, numeric conclusions, next steps).
+- **Handoff Tracking**: Handover is maintained by the system, not by you. After each run ends, the harness rewrites the project-state handover (`.cloudra/handover.md`) and injects it — together with every past user message and compressed run summaries — when you wake for a new run. Do not create or maintain your own `HANDOFF.md`; you may still write detailed `progress.md` notes for fine-grained working state.
 
 ## User Communication & Final Output
 

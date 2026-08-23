@@ -31,6 +31,12 @@ class ScriptedLLM:
         return self.plan.pop(0)
 
 
+async def _stub_summarizer(messages):
+    # Tests never hit the network; run-end summarization is covered in
+    # test_runtime_v2_context_tree.py with dedicated fakes.
+    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
+
+
 async def _setup(llm=None):
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -39,7 +45,7 @@ async def _setup(llm=None):
         llm=llm or StopLLM(),
         tools=LegacyToolExecutor(core),
     )
-    core.runner = AgentRunner(core, pipeline)
+    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "pending"}))
     project = next(iter(core.projects.values()))

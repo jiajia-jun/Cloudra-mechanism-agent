@@ -330,6 +330,7 @@ async def _restart_agent(core: RuntimeCore, command: Command) -> CommandResult:
             "actor": command.actor,
             "note": (
                 "dialogue history was reset; continuity via "
+                "context tree (handover + run summaries), "
                 "goal/memory/workspace files"
             ),
         },

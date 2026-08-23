@@ -219,6 +219,7 @@ class AgentHost:
                         "previous_outcome": previous.value,
                         "note": (
                             "dialogue history was reset; continuity via "
+                            "context tree (handover + run summaries), "
                             "goal/memory/workspace files"
                         ),
                     },

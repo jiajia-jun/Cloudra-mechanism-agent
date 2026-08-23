@@ -34,6 +34,12 @@ class EchoTools:
         return ToolResult(is_success=True, summary=f"echo:{call.arguments.get('x')}", data={})
 
 
+async def _stub_summarizer(messages):
+    # Tests never hit the network; run-end summarization is covered in
+    # test_runtime_v2_context_tree.py with dedicated fakes.
+    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
+
+
 async def _setup(llm) -> tuple[RuntimeCore, object, object]:
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -42,7 +48,7 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
         llm=llm,
         tools=EchoTools(),
     )
-    core.runner = AgentRunner(core, pipeline)
+    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "runner demo"}))
     project = next(iter(core.projects.values()))
@@ -206,7 +212,7 @@ async def test_spawn_without_query_stays_queued_until_first_message():
         llm=llm,
         tools=EchoTools(),
     )
-    core.runner = AgentRunner(core, pipeline)
+    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "queued spawn"}))
     project = next(iter(core.projects.values()))
@@ -310,7 +316,7 @@ async def test_two_projects_run_agents_concurrently_and_stay_isolated():
         llm=RoutedLLM(),
         tools=EchoTools(),
     )
-    core.runner = AgentRunner(core, pipeline)
+    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
     bus = CommandBus(core)
     agents = []
     for name in ("A", "B"):

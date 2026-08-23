@@ -33,6 +33,12 @@ class FlakyLLM:
         return self.plan.pop(0)
 
 
+async def _stub_summarizer(messages):
+    # Tests never hit the network; run-end summarization is covered in
+    # test_runtime_v2_context_tree.py with dedicated fakes.
+    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
+
+
 async def _setup(llm, **runner_kwargs):
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -41,6 +47,7 @@ async def _setup(llm, **runner_kwargs):
         llm=llm,
         tools=LegacyToolExecutor(core),
     )
+    runner_kwargs.setdefault("run_summarizer", _stub_summarizer)
     core.runner = AgentRunner(core, pipeline, retry_backoff=(0.0, 0.0), **runner_kwargs)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "recovery"}))

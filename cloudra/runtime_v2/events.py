@@ -64,6 +64,8 @@ EVENT_TYPES: dict[str, str] = {
     "email.received": "inbound email delivered to a session by the listener",
     "loop.detected": "identical tool loop detected",
     "agent.warning": "non-fatal guard warning",
+    "context.run_summarized": "run trajectory compacted into the context tree",
+    "context.handover_updated": "system-maintained handover snapshot updated",
     "project.synced": "sse replay backlog boundary (hub-only control marker)",
 }
 

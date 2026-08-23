@@ -10,8 +10,17 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
+from cloudra.runtime_v2.context_tree import (
+    SEED_MARKER,
+    SUMMARY_EVENT_CAP,
+    build_seed_context,
+    build_summary_messages,
+    fallback_run_summary,
+    latest_handover,
+    parse_summary_output,
+)
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
 
 if TYPE_CHECKING:
@@ -19,6 +28,9 @@ if TYPE_CHECKING:
     from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 
 logger = logging.getLogger("runtime_v2.agent_runner")
+
+# messages -> generated text; injected in tests, defaults to the agent's model.
+RunSummarizer = Callable[[list[dict[str, Any]]], Awaitable[str]]
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -84,11 +96,13 @@ class AgentRunner:
         *,
         max_turn_retries: int = 2,
         retry_backoff: tuple[float, ...] = (2.0, 4.0),
+        run_summarizer: RunSummarizer | None = None,
     ) -> None:
         self.core = core
         self.pipeline = pipeline
         self.max_turn_retries = max_turn_retries
         self.retry_backoff = retry_backoff
+        self.run_summarizer = run_summarizer
         self._tasks: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------------ public
@@ -137,12 +151,30 @@ class AgentRunner:
             # A fresh run starts with empty history; any compaction requested
             # against the previous run's history is meaningless now.
             core.pending_compactions.pop(agent.id, None)
+            seed_count = 0
+            seeded = False
             while agent.state is AgentState.RUNNING:
                 inbox_messages = self._drain_inbox(agent)
                 if not history and not inbox_messages:
                     inbox = core.mailbox.ensure_inbox(agent.id)
                     message = await inbox.get()
                     inbox_messages.append(message)
+                if not seeded:
+                    # Continuity comes from the context tree: the newest
+                    # HANDOVER plus every verbatim instruction message paired
+                    # with compressed summaries of past runs.  Empty on the
+                    # very first run.  The messages this turn is about to
+                    # receive are excluded — they arrive via the inbox and
+                    # must not appear twice.
+                    seeded = True
+                    exclude = frozenset(
+                        str(m.get("message_id")) for m in inbox_messages if m.get("message_id")
+                    )
+                    seed = build_seed_context(
+                        core.event_log, agent.id, exclude_message_ids=exclude
+                    )
+                    history.extend(seed)
+                    seed_count = len(seed)
                 inbox_messages = await self._prepare_inbox_messages(agent, inbox_messages)
                 if history:
                     keep_recent = core.pending_compactions.get(agent.id)
@@ -229,6 +261,9 @@ class AgentRunner:
                         if hook is not None:
                             await hook(agent, explicit_stop=explicit_stop)
                     core.agent_host.finish_run(agent, outcome="succeeded")
+                    self._schedule_run_finalize(
+                        agent, run_id, history, seed_count, outcome="succeeded"
+                    )
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
                     core.agent_host.transition(
@@ -245,12 +280,15 @@ class AgentRunner:
                 # "continue" (including blocked-tool feedback) loops again
         except asyncio.CancelledError:
             # Command handler already transitioned the agent and emitted
-            # agent.cancelled after host.cancel().
+            # agent.cancelled after host.cancel().  Still record the partial
+            # trajectory in the context tree (deterministic summary only).
+            self._schedule_run_finalize(agent, run_id, history, seed_count, outcome="cancelled")
             raise
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
                 core.agent_host.finish_run(agent, outcome="failed", error=str(exc))
+            self._schedule_run_finalize(agent, run_id, history, seed_count, outcome="failed")
         finally:
             # Flush the tail events (message_emitted, finish_run's
             # state_changed/run.finished, or a crashed turn's partial events)
@@ -413,6 +451,7 @@ class AgentRunner:
             },
         )
         handoff_path: str | None = None
+        handoff_text = ""
         try:
             new_history, stats = await compact_history(
                 history,
@@ -431,8 +470,9 @@ class AgentRunner:
                 # workspace file so later runs and human auditors still have
                 # the summary.  Best-effort: a write failure only skips the
                 # file and the pointer note.
+                handoff_text = str(history[0].get("content") or "")
                 handoff_path = await self._persist_compaction_handoff(
-                    agent, stats, str(history[0].get("content") or "")
+                    agent, stats, handoff_text
                 )
                 if handoff_path:
                     history[0]["content"] = str(history[0].get("content") or "") + (
@@ -443,6 +483,10 @@ class AgentRunner:
         finished["trigger"] = trigger
         if handoff_path:
             finished["handoff_path"] = handoff_path
+        if handoff_text:
+            # Keep the compaction change itself in the context tree: the full
+            # summary text rides on the event, not just the workspace file.
+            finished["summary"] = handoff_text[:SUMMARY_EVENT_CAP]
         core.event_log.append(
             "compaction.finished",
             stream="agent",
@@ -484,6 +528,170 @@ class AgentRunner:
                 return rel_path
             except OSError:
                 logger.exception("compaction handoff write failed for %s", agent.id)
+                return None
+
+        return await asyncio.to_thread(write)
+
+    def _schedule_run_finalize(
+        self,
+        agent: AgentSession,
+        run_id: str,
+        history: list[dict],
+        seed_count: int,
+        *,
+        outcome: str,
+    ) -> None:
+        """Detach run-context finalization from the runner task.
+
+        Finalization makes an LLM call; if it ran inline, the runner task
+        would outlive the state transition and ``schedule()`` would dedupe a
+        newly woken run against the still-alive old task — the wake would be
+        swallowed.  The detached task publishes its own events to the hub.
+        """
+        asyncio.create_task(
+            self._finalize_run_context(agent, run_id, history, seed_count, outcome=outcome),
+            name=f"finalize:{agent.id}",
+        )
+
+    async def _finalize_run_context(
+        self,
+        agent: AgentSession,
+        run_id: str,
+        history: list[dict],
+        seed_count: int,
+        *,
+        outcome: str,
+    ) -> None:
+        """Fold a finished run into the context tree.  Best-effort throughout.
+
+        succeeded runs get one LLM call producing the run trajectory summary
+        plus a rewritten HANDOVER; failed/cancelled runs (or a broken
+        summarizer) degrade to a deterministic event-derived summary and keep
+        the previous handover.  Nothing here may break run teardown.
+        """
+        core = self.core
+        try:
+            # Exclude an intact seed block so summaries never summarize
+            # earlier summaries; a mid-run compaction already folded the seed
+            # into its handoff, in which case the whole history is new work.
+            body = history
+            if (
+                seed_count
+                and len(history) > seed_count
+                and str(history[0].get("content") or "").startswith(SEED_MARKER)
+            ):
+                body = history[seed_count:]
+            run_events = [
+                event
+                for event in core.event_log
+                if event.session_id == agent.id
+                and event.run_id == run_id
+                and event.type in {"tool.finished", "agent.message_emitted", "run.finished"}
+            ]
+            # A succeeded run with no work beyond the seed leaves nothing to
+            # record; failed/cancelled runs always record — even an empty one
+            # documents the crash through its run.finished event.
+            if not body and outcome == "succeeded":
+                return
+            session_seqs = [
+                event.session_seq
+                for event in core.event_log
+                if event.session_id == agent.id
+                and event.run_id == run_id
+                and event.session_seq is not None
+            ]
+            seq_range = (
+                {"start": min(session_seqs), "end": max(session_seqs)} if session_seqs else None
+            )
+            handover = latest_handover(core.event_log, agent.id)
+            fallback = outcome != "succeeded"
+            run_log = ""
+            new_handover: str | None = None
+            if not fallback:
+                try:
+                    from cloudra.runtime_v2.compaction import (
+                        _serialize,
+                        summarize_with_agent_settings,
+                    )
+
+                    summarizer = self.run_summarizer or (
+                        lambda messages: summarize_with_agent_settings(agent, messages)
+                    )
+                    output = await summarizer(
+                        build_summary_messages(
+                            handover[0] if handover else None, _serialize(body)
+                        )
+                    )
+                    run_log, new_handover = parse_summary_output(output or "")
+                    if not run_log:
+                        fallback = True
+                except Exception:
+                    # The summary must never kill teardown; fall back to the
+                    # deterministic trajectory and keep the old handover.
+                    logger.exception("agent %s run summarization failed", agent.id)
+                    fallback = True
+            if fallback:
+                run_log = fallback_run_summary(run_events)
+                new_handover = None
+            envelope = core.event_log.append(
+                "context.run_summarized",
+                stream="agent",
+                project_id=agent.project_id,
+                session_id=agent.id,
+                run_id=run_id,
+                data={
+                    "summary": run_log[:SUMMARY_EVENT_CAP],
+                    "outcome": outcome,
+                    "fallback": fallback,
+                    "seq_range": seq_range,
+                },
+            )
+            # Detached from the runner task, so publish directly — nobody else
+            # will flush these events to SSE subscribers.
+            await core.event_hub.publish(envelope)
+            if new_handover:
+                envelope = core.event_log.append(
+                    "context.handover_updated",
+                    stream="agent",
+                    project_id=agent.project_id,
+                    session_id=agent.id,
+                    run_id=run_id,
+                    data={
+                        "handover": new_handover,
+                        "based_on_run_id": run_id,
+                        "revision": (handover[1] if handover else 0) + 1,
+                    },
+                )
+                await core.event_hub.publish(envelope)
+                await self._persist_handover(agent, new_handover)
+        except Exception:
+            logger.exception("agent %s run-context finalization failed", agent.id)
+
+    async def _persist_handover(self, agent: AgentSession, handover_text: str) -> str | None:
+        """Overwrite the workspace handover file with the latest snapshot.
+
+        Returns the workspace-relative path on success, ``None`` otherwise —
+        never raises.  The file is an audit/readable copy; the authoritative
+        handover is the newest ``context.handover_updated`` event.
+        """
+        try:
+            project = self.core.require_project(agent.project_id)
+        except Exception:
+            return None
+        workspace = project.workspace_dir
+        if not workspace:
+            return None
+        rel_path = ".cloudra/handover.md"
+        path = os.path.join(workspace, rel_path)
+
+        def write() -> str | None:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(f"# Handover — agent {agent.id}\n\n{handover_text}\n")
+                return rel_path
+            except OSError:
+                logger.exception("handover write failed for %s", agent.id)
                 return None
 
         return await asyncio.to_thread(write)
