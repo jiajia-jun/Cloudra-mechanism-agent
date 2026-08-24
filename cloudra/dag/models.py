@@ -948,8 +948,21 @@ _DAG_GUIDED_FOLLOWER_GUIDANCE = (
     "request from the Coordinator."
 )
 
-# 机理设计职责的持有者：Coordinator（a-0）。其余 actor 在 dag_guided 下
-# 投影 _DAG_GUIDED_FOLLOWER_GUIDANCE。
+# dag_record 下子 agent（follower）的模式引导：机理设计与证据自绑是 Coordinator 专属职责；
+# 子 agent 只跑工具、报告结果。
+_DAG_RECORD_FOLLOWER_GUIDANCE = (
+    "Current orchestration mode: dag_record (DAG is recorded by the system; Supervisor is offline)\n"
+    "You are a sub-agent in this orchestration: the Coordinator designs the mechanism hypothesis, "
+    "chooses stage contracts, and binds evidence. You do not maintain the graph. "
+    "Your discipline:\n"
+    "1. Run the tools your task requires and report results with concrete tool_call_ids and file "
+    "paths; never write the graph yourself.\n"
+    "2. Only post-completion artifacts count as stage evidence (parser output on a finished job); "
+    "a submit_compute_job call or a ts_guess result is never proof of an optimized saddle point."
+)
+
+# 机理设计职责的持有者：Coordinator（a-0）。其余 actor 在 dag_guided / dag_record 下
+# 投影 follower 版引导。
 _COORDINATOR_ACTOR_IDS = frozenset({"a-0", "coordinator"})
 
 # 阶段语义词典：随投影注入，让 Coordinator 与子 agent 对每个阶段的含义
@@ -991,14 +1004,13 @@ class DagProjection(BaseModel):
         guidance = _MODE_GUIDANCE.get(
             self.mode, "Current orchestration mode: standard (no DAG orchestration; dag_* tools are unavailable)"
         )
-        # dag_guided 的完整版引导含机理设计职责，只对 Coordinator 投影；
+        # dag_guided / dag_record 的完整版引导含机理设计职责，只对 Coordinator 投影；
         # 子 agent 投影 follower 版。actor_id 缺省（如直接构造投影）时保持完整版，向后兼容。
-        if (
-            self.mode is OrchestrationMode.DAG_GUIDED
-            and actor_id is not None
-            and actor_id not in _COORDINATOR_ACTOR_IDS
-        ):
-            guidance = _DAG_GUIDED_FOLLOWER_GUIDANCE
+        if actor_id is not None and actor_id not in _COORDINATOR_ACTOR_IDS:
+            if self.mode is OrchestrationMode.DAG_GUIDED:
+                guidance = _DAG_GUIDED_FOLLOWER_GUIDANCE
+            elif self.mode is OrchestrationMode.DAG_RECORD:
+                guidance = _DAG_RECORD_FOLLOWER_GUIDANCE
         payload = self.model_dump(mode="json")
         # revisions 是存储层并发控制的内部状态，不投影给模型：
         # 写工具不传 base_revisions：由 harness 固定版本并自动重试。

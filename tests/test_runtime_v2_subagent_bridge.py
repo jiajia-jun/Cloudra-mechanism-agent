@@ -284,3 +284,39 @@ async def test_swarm_and_launcher_spawn_share_legacy_identity():
         assert legacy == "a-4"
         assert legacy != child.id
         assert DagPolicyStage._legacy_agent_id(child.role_id) == "a-4"
+
+
+@pytest.mark.asyncio
+async def test_child_inherits_parent_orchestration_mode():
+    from cloudra.runtime_v2.schemas import OrchestrationMode
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "dag_guided_proj"}))
+    project = next(iter(core.projects.values()))
+    parent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={
+                    "role_id": "coordinator",
+                    "settings": {"orchestration_mode": OrchestrationMode.DAG_GUIDED.value},
+                },
+            )
+        )
+    ).data
+    assert parent.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
+
+    launched = await handle_native_tool(
+        core,
+        parent,
+        ToolCall(
+            id="t1",
+            name="SubAgentLauncher",
+            arguments={"agent_id": "a-6", "query": "dft job", "is_wait": False},
+        ),
+    )
+    assert launched.is_success
+    child = [a for a in core.agents.values() if a.parent_session_id == parent.id][0]
+    assert child.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED

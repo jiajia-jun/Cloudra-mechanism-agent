@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from cloudra.dag.models import OrchestrationMode
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
@@ -44,10 +43,8 @@ def _role_id_for(agent_id: str) -> str:
 
 
 def _child_mode(parent: AgentSession) -> str:
-    """Mirror legacy: children of DAG sessions run dag_record, never guided."""
-    if parent.settings.orchestration_mode is OrchestrationMode.STANDARD:
-        return OrchestrationMode.STANDARD.value
-    return OrchestrationMode.DAG_RECORD.value
+    """Children inherit the parent's orchestration mode (standard / dag_record / dag_guided)."""
+    return parent.settings.orchestration_mode.value
 
 
 def _combined_query(query: str, context: list[Any]) -> str:
