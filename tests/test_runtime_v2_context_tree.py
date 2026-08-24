@@ -135,6 +135,78 @@ def test_build_seed_context_empty_without_run_summaries():
     assert build_seed_context(log, "s") == []
 
 
+def test_seed_includes_run_that_died_without_summary():
+    """A process kill skips finalization; the seed must not lose that run."""
+    log = EventLog()
+    log.append(
+        "agent.message_injected",
+        stream="project",
+        project_id="p",
+        session_id="s",
+        data={"sender": "user", "content": "run the calculation"},
+    )
+    log.append(
+        "tool.finished",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="dead-run",
+        data={"tool_name": "bash", "is_success": True, "result_summary": "energy=-40.2"},
+    )
+    log.append(
+        "run.finished",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="dead-run",
+        data={"outcome": "failed", "error": "interrupted by process restart"},
+    )
+    seed = build_seed_context(log, "s")
+    assert seed and seed[0]["role"] == "system"
+    summaries = [m for m in seed if m["role"] == "assistant"]
+    assert len(summaries) == 1
+    assert "auto-derived" in summaries[0]["content"]
+    assert "dead-run" in summaries[0]["content"]
+    assert "energy=-40.2" in summaries[0]["content"]
+    assert "interrupted by process restart" in summaries[0]["content"]
+    users = [m["content"] for m in seed if m["role"] == "user"]
+    assert users == ["run the calculation"]
+
+
+def test_seed_does_not_duplicate_activity_of_summarized_runs():
+    """Activity events of a finalized run must not add a second summary."""
+    log = EventLog()
+    log.append(
+        "tool.finished",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="r1",
+        data={"tool_name": "bash", "is_success": True, "result_summary": "ok"},
+    )
+    log.append(
+        "context.run_summarized",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="r1",
+        data={"summary": "r1 did things", "seq_range": {"start": 1, "end": 2}},
+    )
+    log.append(
+        "tool.finished",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="r2-dead",
+        data={"tool_name": "gjf_writer", "is_success": True, "result_summary": "wrote ts.gjf"},
+    )
+    seed = build_seed_context(log, "s")
+    summaries = [m["content"] for m in seed if m["role"] == "assistant"]
+    assert len(summaries) == 2
+    assert "r1 did things" in summaries[0] and "auto-derived" not in summaries[0]
+    assert "auto-derived" in summaries[1] and "wrote ts.gjf" in summaries[1]
+
+
 def test_seed_budget_shrinks_oldest_summaries():
     log = EventLog()
     log.append(

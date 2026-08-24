@@ -16,7 +16,10 @@ On a fresh run the runner seeds the LLM history from ``build_seed_context``:
 the newest HANDOVER plus, in chronological order, every injected instruction
 (user messages, spawn queries, peer/email/reminder deliveries) kept verbatim,
 paired with the compressed summaries of past runs — instructions keep full
-weight, the agent's own output is reduced to its trajectory summary.
+weight, the agent's own output is reduced to its trajectory summary.  A run
+that died with the process never got its ``context.run_summarized`` event; the
+seed derives a deterministic summary from its raw events so that work is not
+invisible to the next run.
 """
 
 from __future__ import annotations
@@ -154,6 +157,12 @@ def fallback_run_summary(events: list) -> str:
     return "\n".join(lines) or "(no recorded activity)"
 
 
+# Event types fallback_run_summary knows how to render.  A run carrying these
+# but no context.run_summarized died before finalization (process kill); its
+# trajectory is folded into the seed as an auto-derived summary.
+_ACTIVITY_EVENT_TYPES = frozenset({"tool.finished", "agent.message_emitted", "run.finished"})
+
+
 def build_seed_context(
     event_log: EventLog,
     session_id: str,
@@ -169,10 +178,61 @@ def build_seed_context(
     oldest summaries degrade to pointer lines naming the raw event seq range.
     ``exclude_message_ids`` skips the messages the current turn is about to
     receive — they arrive through the inbox and must not appear twice.
+
+    Runs that ended without a summary event (the process died mid-run, so the
+    detached finalizer never ran) contribute a deterministic event-derived
+    summary instead of vanishing from the seed.
     """
+    summarized_run_ids = {
+        event.run_id
+        for event in event_log
+        if event.session_id == session_id
+        and event.type == "context.run_summarized"
+        and event.run_id
+    }
     merged: list[dict[str, Any]] = []
+    orphan_run_id: str | None = None
+    orphan_events: list = []
+
+    def flush_orphan() -> None:
+        nonlocal orphan_run_id, orphan_events
+        if not orphan_events:
+            orphan_run_id = None
+            return
+        seqs = [e.session_seq for e in orphan_events if e.session_seq is not None]
+        seq_range = {"start": min(seqs), "end": max(seqs)} if seqs else None
+        merged.append(
+            {
+                "role": "assistant",
+                "content": (
+                    f"[Run summary — run {orphan_run_id} ended without a final "
+                    f"summary; auto-derived from raw events]\n"
+                    f"{fallback_run_summary(orphan_events)}"
+                ),
+                # Temporary budgeting metadata; stripped before returning.
+                "_pointer": (
+                    f"[Unsummarized run {orphan_run_id} omitted for budget; "
+                    f"raw events at seq {_fmt_seq_range(seq_range)} in the event log]"
+                ),
+            }
+        )
+        orphan_run_id = None
+        orphan_events = []
+
     for event in event_log:
         if event.session_id != session_id:
+            continue
+        if (
+            event.type in _ACTIVITY_EVENT_TYPES
+            and event.run_id
+            and event.run_id not in summarized_run_ids
+        ):
+            # Runs within a session are sequential; a run-id change (or the
+            # end of the log) closes the previous unsummarized run.
+            if orphan_run_id != event.run_id:
+                flush_orphan()
+                orphan_run_id = event.run_id
+            orphan_events.append(event)
             continue
         if event.type == "agent.message_injected":
             if exclude_message_ids and event.data.get("message_id") in exclude_message_ids:
@@ -190,6 +250,8 @@ def build_seed_context(
             summary = str(event.data.get("summary") or "").strip()
             if not summary:
                 continue
+            # A summarized run closes any earlier unsummarized one.
+            flush_orphan()
             merged.append(
                 {
                     "role": "assistant",
@@ -202,6 +264,7 @@ def build_seed_context(
                     ),
                 }
             )
+    flush_orphan()
     if not any(m["role"] == "assistant" for m in merged):
         # No run summary yet: nothing has ever completed, so a seed would only
         # duplicate messages the live history already carries.

@@ -1395,8 +1395,12 @@ export default function App() {
                   <div className="thinking-body">{item.text}</div>
                 </details>
               ) : (
-                <div key={item.id} className="tool-row fail" style={{ cursor: 'default' }}>
-                  <span className="tool-icon">!</span>
+                <div
+                  key={item.id}
+                  className={`tool-row ${item.level === 'warn' ? 'fail' : 'info'}`}
+                  style={{ cursor: 'default' }}
+                >
+                  <span className="tool-icon">{item.level === 'warn' ? '!' : 'ℹ'}</span>
                   <span className="tool-summary">{item.text}</span>
                 </div>
               ),

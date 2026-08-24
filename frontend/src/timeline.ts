@@ -210,6 +210,9 @@ function extractToolImage(data: Record<string, unknown>): { artifactId?: string;
 export function buildTimeline(events: EventEnvelope[], pendingUserMessages: MessageItem[]): TimelineItem[] {
   const items: TimelineItem[] = [];
   const openTools = new Map<string, ToolItem>();
+  // compaction.started shows a live note that compaction.finished rewrites in
+  // place (keyed by run); a crash in between is settled by run termination.
+  const openCompactions = new Map<string, NoteItem>();
   const sorted = [...events].sort((a, b) => (a.session_seq ?? a.seq) - (b.session_seq ?? b.seq));
   for (const event of sorted) {
     const seq = event.session_seq ?? event.seq;
@@ -279,6 +282,38 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
           imagePath: image.imagePath,
         });
       }
+    } else if (event.type === 'compaction.started') {
+      const item: NoteItem = {
+        kind: 'note',
+        id: event.event_id,
+        seq,
+        level: 'info',
+        text: 'Compacting context…',
+      };
+      openCompactions.set(String(event.run_id ?? event.event_id), item);
+      items.push(item);
+    } else if (event.type === 'compaction.finished') {
+      const key = String(event.run_id ?? '');
+      const open = openCompactions.get(key);
+      const d = event.data;
+      let level: NoteItem['level'] = 'info';
+      let text: string;
+      if (d.error) {
+        level = 'warn';
+        text = `Context compaction failed: ${short(d.error, 160)}`;
+      } else if (d.compacted) {
+        const overflow = d.trigger === 'context_overflow' ? ' — context window overflow' : '';
+        text = `Context compacted (${String(d.before_messages)} → ${String(d.after_messages)} messages${overflow})`;
+      } else {
+        text = 'Context already short — nothing to compact';
+      }
+      if (open) {
+        open.text = text;
+        open.level = level;
+        openCompactions.delete(key);
+      } else {
+        items.push({ kind: 'note', id: event.event_id, seq, level, text });
+      }
     } else if (
       event.type === 'run.finished' ||
       event.type === 'agent.cancelled' ||
@@ -292,6 +327,10 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         open.resultSummary = 'interrupted';
       }
       openTools.clear();
+      for (const pending of openCompactions.values()) {
+        pending.text = 'Context compaction interrupted';
+      }
+      openCompactions.clear();
     } else if (event.type === 'agent.warning' || event.type === 'llm.failed' || event.type === 'tool.blocked') {
       items.push({
         kind: 'note',

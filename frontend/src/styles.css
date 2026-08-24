@@ -533,6 +533,7 @@ body {
 .tool-row.ok .tool-summary { color: var(--fg-tertiary); }
 .tool-row.fail .tool-summary { color: var(--yellow-soft); }
 .tool-row.running { color: var(--green-soft); }
+.tool-row.info .tool-icon, .tool-row.info .tool-summary { color: var(--fg-tertiary); }
 .tool-row.running::after {
   content: '';
   position: absolute;

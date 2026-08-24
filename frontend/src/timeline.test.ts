@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { applyStreamEvent, buildTimeline, type MessageItem, type StreamView, type ToolItem } from './timeline.ts';
+import {
+  applyStreamEvent,
+  buildTimeline,
+  type MessageItem,
+  type NoteItem,
+  type StreamView,
+  type ToolItem,
+} from './timeline.ts';
 import type { EventEnvelope } from './types.ts';
 
 function view(partial: Partial<StreamView> = {}): StreamView {
@@ -105,3 +112,65 @@ assert.equal(soloTool.imageArtifactId, 'art-2', 'artifact ref nested in result p
 assert.equal(soloTool.imagePath, '/ws/mol2.png');
 
 console.log('timeline.images ok');
+
+/* ----------------------------------------------------- compaction notes */
+
+// compaction.started shows a live hint; compaction.finished rewrites the same
+// row in place (paired by run_id), so the timeline holds a single note.
+const compItems = buildTimeline(
+  [
+    { ...ev('compaction.started', 5, {}), run_id: 'r1' },
+    {
+      ...ev('compaction.finished', 6, {
+        compacted: true,
+        before_messages: 42,
+        after_messages: 7,
+        trigger: 'manual',
+      }),
+      run_id: 'r1',
+    },
+  ],
+  [],
+);
+assert.equal(compItems.length, 1);
+const compNote = compItems[0] as NoteItem;
+assert.equal(compNote.kind, 'note');
+assert.equal(compNote.level, 'info');
+assert.equal(compNote.text, 'Context compacted (42 → 7 messages)');
+
+// An overflow-triggered compaction says why it happened.
+const overflow = buildTimeline(
+  [
+    {
+      ...ev('compaction.finished', 7, {
+        compacted: true,
+        before_messages: 50,
+        after_messages: 11,
+        trigger: 'context_overflow',
+      }),
+      run_id: 'r2',
+    },
+  ],
+  [],
+);
+assert.match((overflow[0] as NoteItem).text, /context window overflow/);
+
+// A failed compaction warns instead of passing silently.
+const failedComp = buildTimeline(
+  [{ ...ev('compaction.finished', 8, { compacted: false, error: 'provider down' }), run_id: 'r3' }],
+  [],
+);
+assert.equal((failedComp[0] as NoteItem).level, 'warn');
+assert.match((failedComp[0] as NoteItem).text, /provider down/);
+
+// A crash between started and finished settles the live hint.
+const interrupted = buildTimeline(
+  [
+    { ...ev('compaction.started', 9, {}), run_id: 'r4' },
+    { ...ev('run.finished', 10, { outcome: 'failed' }), run_id: 'r4' },
+  ],
+  [],
+);
+assert.equal((interrupted[0] as NoteItem).text, 'Context compaction interrupted');
+
+console.log('timeline.compaction ok');
