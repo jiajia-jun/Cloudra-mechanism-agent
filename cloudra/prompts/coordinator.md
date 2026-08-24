@@ -53,8 +53,8 @@ Dispatch sub-agents by `agent_id` (e.g. `a-4`) or role name via `SubAgentLaunche
   Tool calls by sub-agents automatically enter the review inbox. `ts_guess` is advisory and never satisfies `ts_opt`/`frequency`. A `submit_compute_job` call is not evidence; bind the finished job's parsed log.
 - **Supervisor Dialogue (`dag_guided`)**:
   Read pinned `[Supervisor]` review feedback before proceeding. To appeal, explain blockers, or discuss changes, call `dag_message_supervisor`.
-- **Delivery Audit**:
-  Delivery completeness is evaluated by stage coverage (`dag_delivery_report`). Every required stage must be `supported` or explicitly `skipped` with a justified reason before declaring complete delivery.
+- **Delivery Audit & Method Limits**:
+  Delivery completeness is evaluated by stage coverage (`dag_delivery_report`). Every required stage must be `supported` or explicitly `skipped` with a justified scientific reason before declaring complete delivery. When an intermediate or reaction step exceeds the validity of current single-reference methods (e.g. confirmed strong multi-reference character, severe unresolvable spin contamination, or multiconfigurational states), do not force unphysical convergence or guess barriers; record a diagnostic-backed `skipped` stage to close coverage rigorously.
 
 ## Tool & System Guidelines
 

@@ -1,153 +1,118 @@
-# DAG 引导编排（dag_record / dag_guided）
+# DAG 引导编排系统设计（dag_record / dag_guided）
 
-本文说明 Cloudra 的 DAG 引导编排子系统（`cloudra/dag/`）的当前实现：单张 delivery
-机理图 + stage 契约 + CallReview 收件箱、三种编排模式、分权规则、阶段绑定契约与
-Supervisor 触发时机。面向需要理解或修改这条链路的开发者；用户使用入口：Web UI 在项目设置中选择模式
-（或创建会话时指定 `orchestration_mode`）。
+本文档介绍 Cloudra 的 DAG 引导编排子系统（`cloudra/dag/`）的当前架构与运行机制：机理传递图（Delivery DAG）、阶段证据契约（Stage Contracts）、调用复核收件箱（CallReview）、三种编排模式的消融边界、角色权限分工与证据绑定规则，以及 Supervisor 的事件驱动触发机制。
 
-## 解决什么问题
+面向需要理解或开发机理编排模块的开发者；前端使用入口：在 Web 界面项目设置中选择编排模式（或在创建项目/会话时指定 `orchestration_mode`）。
 
-机理研究是长链多步工作：文献调研、映射、构象搜索、TS 初猜、优化、频率、IRC、
-端点确认、热化学。纯对话驱动时，"做过什么、证据够不够"只存在于模型上下文里，
-随压缩和重开丢失。DAG 编排把被研究的化学机理本身（已经确立了什么）落到持久存储：
+## 解决的核心问题
 
-- **delivery DAG（机理图）是唯一持久图**：节点是中间体 occurrence，边是基元步；
-  每个元素携带一份有序 **stage 契约**（该元素欠哪些证据、按什么顺序绑定）。
-- **CallReview 收件箱**（`dag_call_reviews`，append-only 表，不是图）：每个交付相关的
-  已完成工具调用 / 计算作业终态落一行，等 Supervisor 复核。
-- 不存在 process DAG："下一步做什么"不落图，Coordinator 在草稿被接受后按自己的
-  节奏推进；没有 frontier、没有排产、没有 assignee 驱动的写图权限。
+有机反应机理研究是一项长链条、多步骤的严谨工作：包含文献调研、反应映射、构象搜索、过渡态（TS）初猜、结构优化、频率计算、内反应坐标（IRC）分析、反应物/产物端点确认以及热力学校正。
 
-图存储是权威。节点只存类型化引用（artifact / compute_job / tool_result / species）
-和小注解，不嵌几何、日志或工具输出正文；单独的 filesystem 路径不算证据。
+在传统的纯对话交互模式下，“具体完成了哪些计算、物理证据是否充分”只存在于大语言模型的上下文窗口中，随着对话轮次增加、上下文压缩或会话重启，这些关键状态极易丢失。
 
-## 三种模式与消融边界
+Cloudra 的 DAG 编排系统将化学机理研究的物理结论（已确立的化学事实与计算证据）固化到持久化存储中：
 
-`orchestration_mode` 是会话级枚举；runtime_v2 允许经 `agent.settings_update` 中途切换（前端模式下拉会同步 PATCH 项目内所有现存 agent）：
+- **机理传递图（Delivery DAG）是唯一的持久化机理图**：节点代表化学物种（反应物、中间体、产物），边代表基元反应步骤；每个图元素都关联一份有序的**阶段契约（Stage Contract）**（明确该物种或基元步需要哪些计算证据支撑、按什么先后顺序绑定）。
+- **调用复核收件箱（CallReview Inbox）**：基于 SQLite 的追加写入表（`dag_call_reviews`），记录每一个与交付相关的工具调用结果或量子化学计算作业终态，等待 Supervisor 统一复核。
+- **摒弃任务排产图（No Process DAG）**：系统不记录“下一步做什么”的工作流排产图。机理草稿被接受后，由 Coordinator 自主规划推进节奏；没有中心化的排产队列，也没有复杂的工单分配权限。
 
-| 模式 | 行为 |
+图数据库是机理事实的权威来源。图节点仅保存类型化引用（如产物文件 artifact、计算作业 ID、工具执行结果、物种标识）与轻量注解，不嵌入大体积的分子几何坐标、计算日志或原始工具输出；单纯的文件系统路径不能直接作为有效证据。
+
+## 三种编排模式与消融实验设计
+
+`orchestration_mode` 是项目与会话级别的枚举配置；在 runtime_v2 中支持动态切换（前端下拉切换模式时会自动同步给项目内的所有 Agent）：
+
+| 模式 | 运行机制与行为 |
 | --- | --- |
-| `standard`（默认） | 不读不写任何图，不运行 Supervisor，普通工作零图成本 |
-| `dag_record` | Coordinator 用 `dag_propose_mechanism` 提交草稿（harness 自动接受），并用 `dag_bind_evidence`（带 `stage_kind`）自绑阶段；Supervisor 不运行 |
-| `dag_guided` | Supervisor 用 `dag_accept_mechanism` 接受/驳回草稿（接受前计算入口保持关闭），并用 `dag_review_call` 复核收件箱里的每个交付相关调用、绑定阶段 |
+| `standard`（标准模式，默认） | 不读写机理图，不启动 Supervisor；作为无图基准，普通交互无额外图维护开销 |
+| `dag_record`（自主记录模式） | Coordinator 自主提交机理草稿（由系统环境自动接受），并通过 `dag_bind_evidence` 自行绑定各阶段证据；Supervisor 不参与运行 |
+| `dag_guided`（督导复核模式） | Supervisor 负责评审与接受/驳回机理草稿（草稿接受前计算入口保持锁定），并利用 `dag_review_call` 逐条复核收件箱中的计算调用并裁定证据绑定 |
 
-三档把"图簿记本身的效果"和"Supervisor 控制的效果"分开，支撑三方消融实验。
-Web UI（项目设置）、CLI（`--orchestration-mode`）、API（session 创建的
-`orchestration_mode` 字段）三入口等价。图按会话持久化，
-跨过 session 与进程重启存活；standard 会话不碰已有图，之后的 DAG 会话可以继续它。
+三档模式将“图结构本身的状态记录效果”与“Supervisor 督导复核的控制效果”严格解耦，为科研论文中的三方消融实验提供干净的对照基准。
 
-## 主循环与分权
+Web UI 设置、CLI 启动参数（`--orchestration-mode`）与 API 接口调用具有完全等价的控制能力。机理图按项目会话持久化存储，在进程重启后自动恢复；标准模式不会修改已存在的机理图，后续切换到 DAG 模式可以无缝继续研究。
+
+## 主循环流程与角色权限分工
 
 ```
-Coordinator dag_propose_mechanism（delivery 草稿 + 每元素 stage 契约 + rationale）
-  → dag_guided：Supervisor dag_accept_mechanism 接受（dag_record：harness 自动接受）
-  → 草稿落图，所有阶段 pending，计算入口解锁
-  → Coordinator / 子 agent 按自己的节奏工作（子 agent 只跑工具、不写图）
-  → 交付相关调用完成（parsers / ts_guess / thermo_analysis / 计算作业终态）
-      → CallReview 收件箱 + （合并后）唤醒 Supervisor
-  → Supervisor dag_review_call：target + stage_kind + agree|disagree|skip|ignore
-  → harness 确定性校验（顺序、调用成功、ref 是完工产物而非 submit、deriver 检查）
-  → stop / coverage：每个 required stage supported，或带非空理由 skipped
+Coordinator 提交草稿 dag_propose_mechanism（机理拓扑 + 各元素阶段契约 + 设计理由）
+  → dag_guided 模式：由 Supervisor 评审接受（dag_accept_mechanism）；dag_record 模式：系统环境自动接受
+  → 机理草稿落盘建图，所有阶段初始标记为 pending，量子化学计算入口解锁
+  → Coordinator 与领域子 Agent 协同推进工作（子 Agent 专注于运行专业工具，不直接写图）
+  → 交付相关的关键调用完成（日志解析、过渡态初猜、热力学分析或计算作业结束）
+      → 自动进入 CallReview 待审收件箱 + 触发 Supervisor 唤醒（相同周期内的触发自动合并）
+  → Supervisor 执行复核 dag_review_call：指定目标元素 + 阶段类型 + 裁决（agree / disagree / skip / ignore）
+  → 系统内核执行确定性校验（校验绑定顺序、调用成功状态、证据必须为完工解析产物、通过物理检查器验证）
+  → 交付与停止审计：每个必需阶段均达到 supported 状态，或附带有效理由被标记为 skipped
 ```
 
-- **delivery DAG 归 Coordinator 设计**：机理假设与 stage 契约都是它的
-  （`dag_propose_mechanism`，接受后仍可 `dag_add_species` / `dag_add_step` /
-  `dag_update_delivery_element` 调整）。Supervisor 对它完全只读。
-- **Supervisor 只做判定**：接受/驳回草稿（`dag_accept_mechanism`）、逐调用复核
-  （`dag_review_call`）、强化 coverage contract（`dag_set_coverage_contract`，
-  只能变严；豁免 gate 是用户专属）。它不调度工作、不运行计算。
-- **子 agent**：不维护图，跑工具并用具体 tool_call_id 报告结果；可以建议某个结果
-  支撑哪个元素/阶段，但这只是提示，绑定只经 Supervisor 复核（guided）或
-  Coordinator 自绑（record）发生。
-- **harness（确定性适配器）**：注册不可变产物与证据引用、执行阶段绑定的全部校验、
-  从阶段派生元素级证据级别。模型声明不能提升证据级别。
-- **删边**：走 `dag_remove_edge`，**必须带 rationale**（删除留在变更日志）。Supervisor 对
-  delivery 只读，结构性清理由 Coordinator 执行；复核中发现的剪枝诉求经
-  `dag_message_supervisor` 转达。
+- **机理图设计归 Coordinator 负责**：初始机理假设与阶段契约由 Coordinator 提出（`dag_propose_mechanism`，草稿接受后仍可调用 `dag_add_species`、`dag_add_step`、`dag_update_delivery_element` 动态增删调整）。Supervisor 对图结构仅具备只读权限，不能直接修改图拓扑。
+- **Supervisor 仅负责科学裁决**：评审接受或驳回草稿（`dag_accept_mechanism`）、逐项复核工具调用并裁定证据有效性（`dag_review_call`）、以及提升阶段覆盖率契约要求（`dag_set_coverage_contract`，契约要求只能收紧不能单方面放宽；阶段豁免必须由用户操作）。Supervisor 不直接调度任务，也不自行运行量子化学计算。
+- **子 Agent 专注于专业计算工具执行**：子 Agent 不直接维护图结构，通过具体的 `tool_call_id` 汇报计算结果；可以在汇报时建议该结果支撑哪个物种或步骤，但这仅作为参考提示，实际绑定必须由 Supervisor 复核（guided 模式）或 Coordinator 自行确认（record 模式）。
+- **确定性判定内核（Harness）**：统一负责不可变产物登记、证据引用的格式校验、以及阶段绑定的前置条件检查（例如验证 TS 频率计算中虚频数量必须为 1）。大模型的口头声明无法绕过内核检查提升证据等级。
+- **机理修剪与删边**：调用 `dag_remove_edge` 移除基元步时**必须附带科学理由（rationale）**，删除记录会永久留存在变更日志中。Supervisor 发现需要修剪的路径时，通过 `dag_message_supervisor` 与 Coordinator 沟通，由 Coordinator 执行结构修改。
 
-## stage 契约与绑定规则
+## 阶段契约与证据绑定规则
 
-Coordinator 在草稿里为每个元素选择有序阶段子集；harness 从不推断未声明的链。
-occurrence 阶段：`geometry` / `frequency` / `single_point`；基元步阶段：`ts_guess`
-（advisory，永远不能满足 `ts_opt`/`frequency`）/ `ts_opt` / `frequency` / `short_irc` /
-`endpoint_a` / `endpoint_b` / `direction` / `identity` / `thermochemistry`。
+Coordinator 在机理草稿中为每个图元素声明有序的阶段契约；系统从不凭空推断未声明的阶段要求。
 
-- **严格顺序**：绑定第 k 个阶段要求此前所有 required 阶段已 `supported` 或
-  `skipped`，否则 `stage_out_of_order`。
-- **校验**：绑定只接受成功调用的完工产物（parser 输出等）；追溯到
-  `submit_compute_job` 调用的绑定以 `bind_target_is_submit` 拒绝——submit 永远不是
-  证据。deriver 成为检查器（如 TS `frequency` 绑定要求解析日志里 n_imag==1，
-  否则 `saddle_check_failed`）。
-- **`rejected` 不是处置**：`disagree` 把阶段标为 `rejected`（必须附理由），它是
-  仍欠的开放缺口——只能靠后续调用的重新绑定（agree）或显式 skip-with-reason 关闭。
-  `skipped` 带理由是唯一的非成功处置。
-- 元素级证据级别（`structure_supported` / `saddle_supported` / `endpoint_supported` /
-  `thermo_annotated` 等）由阶段确定性派生，仅作展示与旧库兼容。
+物种节点阶段：`geometry`（几何结构优化） / `frequency`（振动分析） / `single_point`（高精度单点能）；
+基元步阶段：`ts_guess`（初猜构型，仅作参考，不能代替收敛过渡态） / `ts_opt`（过渡态优化） / `frequency`（虚频检验） / `short_irc`（IRC 快速连通测试） / `endpoint_a` / `endpoint_b`（反应物与产物端点确认） / `direction`（反应方向验证） / `identity`（产物身份核对） / `thermochemistry`（热力学校正）。
 
-## CallReview 收件箱
+- **严格按序绑定**：绑定第 k 个阶段时，必须确保该元素此前声明的所有必需阶段均已处于 `supported`（已支持）或 `skipped`（已附理由跳过）状态，否则会被系统拒绝并报错 `stage_out_of_order`。
+- **完工产物校验**：证据绑定只接受成功执行的解析产物（如计算日志解析器输出）；如果绑定目标是单纯的作业提交记录 `submit_compute_job`，会被直接拒绝（`bind_target_is_submit`）——提交作业本身绝不是完工证据。确定性检查器会严格校验物理指标（例如过渡态绑定必须满足唯一虚频 `n_imag==1`，否则触发 `saddle_check_failed` 拒绝绑定）。
+- **被驳回阶段的状态处理**：Supervisor 选择 `disagree` 时会将阶段标记为 `rejected`（必须附带科学反驳理由），该阶段会作为未解决的缺口继续保持开放——只能通过后续重新计算并重新绑定（agree），或由人工附带理由显式跳过（skip）。附带有效理由的 `skipped` 是唯一的非成功处置方式。
+- **证据等级派生**：元素级别的综合证据状态（如 `structure_supported` 结构已确立、`saddle_supported` 鞍点已验证、`endpoint_supported` 连通端点已确认、`thermo_annotated` 热力学已标注等）由底层阶段状态确定性派生，仅供展示及兼容查询使用。
 
-入箱节流：只有 registry 声明 `dag_review=True` 的工具（`gaussian_log_parser` /
-`reaction_mapping` / `thermo_analysis` / `ts_guess`）与计算作业的完成/失败会落
-`dag_call_reviews` 行；普通 bash/文件读写和 `submit_compute_job` 调用本身都不入箱、
-不唤醒 Supervisor。每行携带 sidecar 数据（caller role 与 legacy a-N id、父会话、
-工具名、参数摘要、成功位、compute_job_id 与终态），供 Supervisor 判断——sidecar
-不构成任何自动绑定权限。收件箱是 append-only 直连 INSERT（无乐观 revision），
-唤醒按触发合并（coalesced），已有排队/进行中的 Supervisor 运行时新触发折叠进去。
+## 调用复核收件箱（CallReview Inbox）
+
+为了避免频繁打扰 Supervisor，系统设计了入箱过滤机制：只有在工具注册表中声明了 `dag_review=True` 的解析与分析工具（如 `gaussian_log_parser`、`reaction_mapping`、`thermo_analysis`、`ts_guess`）以及量子化学计算作业的成功/失败，才会向 `dag_call_reviews` 表插入待审记录；常规的文件读写、目录查询以及 `submit_compute_job` 提交调用均不会入箱，也不会触发 Supervisor。
+
+每条待审记录携带上下文元数据（调用角色、工具名称、参数摘要、执行状态、计算作业 ID 等），供 Supervisor 评审时参考。收件箱采用追加写入设计，触发事件会自动进行合并（Coalescing），在 Supervisor 正在运行或排队时，新产生的待审记录会合并到下一次评审周期中统一处理。
 
 ## Supervisor 触发时机
 
-Supervisor 不再周期性醒来，由图事件驱动，触发消息附必要上下文：
+Supervisor 不再采用低效的周期性轮询，而是完全由图事件与调用事件驱动唤醒：
 
-- `mechanism_proposed`：Coordinator 提交了机理草稿（附 rationale），接受或驳回；
-- `tool_call_review`：收件箱有 pending 复核（附清单），逐条 `dag_review_call`；
-- `delivery_updated`：Coordinator 在接受后改了机理（附 rationale 摘要），审计变更；
-- `coordinator_message`：`dag_message_supervisor` 成功投递原文；
-- `user_replan` / `pre_delivery`：停止前审计——先读 coverage report 再放行。
+- `mechanism_proposed`：Coordinator 提交了初始机理草稿（附带设计理由），触发 Supervisor 进行整体评审与接受/驳回；
+- `tool_call_review`：收件箱中积累了待复核的计算结果，触发 Supervisor 逐条进行评审与阶段绑定；
+- `delivery_updated`：Coordinator 在草稿接受后对机理图进行了结构调整，触发 Supervisor 审计变更合理性；
+- `coordinator_message`：收到来自 Coordinator 的主动沟通消息（`dag_message_supervisor`）；
+- `user_replan` / `pre_delivery`：任务结束前的交付审计——在放行结束前先评估阶段覆盖率报告。
 
-Supervisor 的对话上下文跨触发保留。各 verb 工具经引擎校验后生效；被拒绝时先
-`dag_view` 再修订，不进入修复循环。
+Supervisor 的对话上下文在多次触发之间会完整保留。Agent 调用的各类图操作工具在经内核校验后生效；若被系统拒绝，系统会返回规范错误说明，Agent 可先通过 `dag_view` 查阅图状态后再做修订。
 
-## 交付完成度
+## 交付完成度与覆盖率审计
 
-"研究清楚了吗"由 coverage contract 按阶段确定性评估，不看模型声明：`complete` ⇔
-每个 required stage `supported`，或 `skipped` 且带非空理由；`pending` 与 `rejected`
-都是未决缺口（rejected 缺口连同理由出现在报告里）。contract 级要求（如必需
-thermochemistry）按阶段评估，对所有元素生效，不被"分支已处置"跳过。contract 随会话
-持久化、带 revision；`dag_delivery_report` 给出已满足 gate、未解决缺口、不确定 gate
-和用户豁免 gate。只有用户能 waive gate 或降低要求（豁免不能替代缺失的阶段理由）；
-Supervisor 可用 `dag_set_coverage_contract` 提出更严格的要求。停止审计：`stop`
-声明 `complete` 需通过覆盖率审计；未显式 stop 而结束的 run 在 dag 模式下记
-`partial`；有未终态子 agent / pending 提醒 / pending 计算作业时 stop 视为挂起。
-交付前报告未完成时，agent 必须继续推进、明确部分交付或请用户豁免/停止，
-不得自行宣布完成。
+机理是否“研究清楚”，完全由阶段覆盖率契约进行客观评估，不依赖大模型的口头宣称：
 
-## 持久化与失败行为
+- 任务标记为 `complete` 的充要条件是：图上所有必需阶段均已处于 `supported` 状态，或处于带有效理由的 `skipped` 状态；任何处于 `pending` 或 `rejected` 状态的阶段都会被视为未决缺口，并在交付报告中详细列出。
+- 全局性契约要求（例如全路径必须完成热力学分析）会对所有声明了该阶段的图元素统一生效。
+- 覆盖率契约随会话持久化存储；`dag_delivery_report` 工具可实时生成完整的交付报告（展示已达标门禁、未决缺口、不确定项以及用户豁免项）。
+- 只有人类用户有权豁免特定门禁（Waive Gate）或降低契约要求；Supervisor 只能调用 `dag_set_coverage_contract` 提出更严谨的要求。
+- **停止审计机制**：在 DAG 模式下，Agent 调用 `stop` 工具并声称任务完成时，系统会自动审计阶段覆盖率；如果存在未解决的缺口，系统会拦截停止操作并要求 Agent 继续推进、明确标记为部分交付（partial）或请求用户介入处理，禁止虚假汇报完成。
 
-图子系统在会话级 SQLite 里拥有自己的表：图元数据、节点、边、coverage contract、
-append-only 变更日志、`dag_drafts`（机理草稿；`mechanism_accepted` =
-存在 state='accepted' 的草稿，无需单独标志位）、`dag_call_reviews`（收件箱）；
-当前节点/边行是日志的物化视图，加载不需要重放全部历史。每次变更记录 revision、
-session、actor（harness/supervisor/agent/user）、操作、rationale 和时间戳；乐观
-revision 校验 + 事务，失败的操作图不变。旧库的 process 图行与日志只读兼容：
-重放时 process 操作记为 `ignored_legacy_process_op` 后跳过。重启恢复读物化状态
-并校验与日志的 revision 一致；物化视图损坏时从日志重建。图存储不可用时
-dag_record/dag_guided 明确报错（fail closed），不会静默降级为 standard；
-standard 模式不依赖图存储。`session_events` 是 best-effort 遥测，永远不作为交付证据。
+## 持久化存储与异常容错
 
-## 接口
+图子系统在 SQLite 数据库中独立维护专用表结构：包括图元数据表、节点表、边表、覆盖率契约表、变更日志表、机理草稿表（`dag_drafts`）和复核收件箱表（`dag_call_reviews`）。
 
-- **agent 工具族**（取代单一 `dag_graph`）：`dag_view`（默认投影 = delivery 缺口 +
-  pending 复核 + 近期变更；`graph_kind=delivery` 取紧凑分页子图）、
-  `dag_delivery_report`、`dag_propose_mechanism`（Coordinator 提交草稿 + stage 契约）、
-  `dag_accept_mechanism`（Supervisor 接受/驳回）、`dag_review_call`（Supervisor
-  逐调用阶段判定）、`dag_bind_evidence`（Coordinator 且仅 dag_record，必填
-  `stage_kind`）、`dag_add_species` / `dag_add_step` / `dag_update_delivery_element`
-  （Coordinator 设计 delivery）、`dag_remove_edge`（必填 rationale）、
-  `dag_set_coverage_contract`（Supervisor only，只能变严）、`dag_message_supervisor`。
-  字段含义与选用时机见 `cloudra/skills/dag-operations/`；被拒绝时错误信息附正确
-  格式示例。
-- **服务/API**：delivery 图、交付报告、变更历史、投影（delivery + pending 复核 +
-  coverage）、复核收件箱、当前草稿、用户变更批次、replan，路由定义见
-  `cloudra/services/api_v2.py`；旧 `/dag/process` 返回 410。
-- **Web UI**：DAG 面板展示机理图（带阶段状态）、复核收件箱、变更事件和 mutation
-  编辑框。图事件是可靠事件，与 best-effort 遥测区分展示。
+当前节点与边的数据是基于变更日志的物化视图，读取时无需重放全量历史日志。每次变更均记录版本号（revision）、会话 ID、操作主体、操作类型、原因阐述及时间戳，结合数据库事务保证原子性。对历史会话中的旧版数据保持向下兼容。
+
+重启恢复时系统会直接读取物化视图，并校验其与变更日志的 revision 版本一致性；若物化视图损坏，可自动从日志重建。当图存储发生异常时，`dag_record` 和 `dag_guided` 模式会明确报错并拒绝执行（Fail-Closed 原则），绝不会静默降级为标准模式；而在 `standard` 模式下则完全不依赖图存储模块。
+
+## 接口与工具体系
+
+- **Agent 工具族**（取代旧版单一的 `dag_graph` 工具）：
+  - `dag_view`：查询机理图当前状态（默认返回机理缺口、待审记录与近期变更的紧凑投影；支持按分页获取完整子图）；
+  - `dag_delivery_report`：生成阶段覆盖率审计报告；
+  - `dag_propose_mechanism`：Coordinator 提交初始机理草稿与阶段契约；
+  - `dag_accept_mechanism`：Supervisor 评审并接受/驳回机理草稿；
+  - `dag_review_call`：Supervisor 对具体计算调用进行裁决并绑定阶段；
+  - `dag_bind_evidence`：Coordinator 在自主记录模式下自行绑定阶段证据；
+  - `dag_add_species` / `dag_add_step` / `dag_update_delivery_element`：调整机理图节点与边；
+  - `dag_remove_edge`：删除机理边（必须附带科学理由）；
+  - `dag_set_coverage_contract`：Supervisor 收紧交付覆盖率要求；
+  - `dag_message_supervisor`：向 Supervisor 发送沟通消息。
+  字段说明与使用时机详见 `cloudra/skills/dag-operations/`。
+- **HTTP API 与服务**：提供机理图查询、交付报告获取、变更历史追踪、待审收件箱管理等 RESTful 路由（定义于 `cloudra/services/api_v2.py`）。
+- **前端可视化面板**：Web 界面中的 DAG 面板可直观展示机理网络拓扑（带各阶段颜色状态标注）、复核收件箱、历史变更事件流以及结构化编辑交互。

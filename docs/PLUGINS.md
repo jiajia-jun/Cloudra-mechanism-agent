@@ -1,118 +1,131 @@
-# 插件契约（plugins）
+# 插件机制与开发指南（Plugins）
 
-本文是 Cloudra 通用插件机制的契约文档，面向要写插件（GraphRAG 知识图谱、自定义
-触发器、外部分析等）的使用者。实现：`cloudra/runtime_v2/plugins.py`（注册/装载/挂接）、
-`cloudra/runtime_v2/knowledge.py`（图书馆层协议）。面向开发者的模块地图见根目录
-`AGENTS.md`。
+本文档介绍 Cloudra 的通用插件机制，说明如何开发和接入自定义插件（例如 GraphRAG 知识图谱、事件监听触发器、外部数据分析与统计等）。
 
-## 设计边界（先读）
+核心实现代码位于：
+- `cloudra/runtime_v2/plugins.py`：插件的注册、加载、初始化与事件挂接
+- `cloudra/runtime_v2/knowledge.py`：知识库与图书馆检索协议
 
-- **核心不回写插件存储——无自演化**。核心不会把 DAG 结论、hub 帖子、run 摘要自动
-  沉淀进任何知识库；插件的存储维护（建图、更新、淘汰）是插件自己的事，用
-  `on_event` 或外部调度驱动。这是刻意的：消融实验只需"接插件 vs 不接"一组对照。
-- **插件崩不坏核心**。`search` 抛异常只记日志并跳过；`on_event` 抛异常被事件总线
-  隔离；装载（import）失败只记日志、不阻塞启动。
-- **注入与唤醒是两件事**。`context.inject` 只注入提示（agent 下一轮自然看到）；
-  要让沉睡的 agent 立刻行动，用 `agent.message`。
+系统整体架构与代码布局请参考仓库根目录的 [`AGENTS.md`](../AGENTS.md)。
 
-## 插件定义
+## 设计原则与边界
 
-插件 = 一个带 `name` 属性的 Python 对象。所有 hook 都可选，能力由实现了哪些 hook
-决定：
+- **核心数据与插件存储相互独立（无隐式自演化）**：Cloudra 运行时不会自动把 DAG 计算结论、论坛讨论帖或对话运行摘要回写到外部插件的数据库中。插件自身数据的构建、更新和清理完全由插件自主管理（可以通过监听系统事件 `on_event` 或依靠插件自身的外部调度来完成）。这样设计是为了保证科研与消融实验的严谨性：评估时只需对比“接入插件 vs 不接插件”即可，避免系统在后台隐式修改外部知识库而干扰实验结论。
+- **故障隔离，插件异常不影响核心运行**：插件在执行 `search` 检索时若抛出异常，系统仅记录警告日志并跳过该插件；`on_event` 监听回调中的异常会被事件总线就地捕获并隔离；模块导入失败同样只记录日志，不会阻断整个系统的启动流程。
+- **提示注入与主动唤醒职责分离**：通过 `context.inject` 注入的内容只作为上下文提示提供给模型，Agent 会在进入下一个交互轮次时自然读取；如果需要让当前处于休眠或等待状态的 Agent 立即开始工作，请直接向其发送消息（`agent.message`）。
+
+## 插件接口定义
+
+在 Python 层面，一个插件就是一个具有 `name` 属性的普通对象。所有生命周期与功能钩子（hook）均为可选，插件具备什么能力取决于它实现了哪些方法：
 
 ```python
 class MyPlugin:
     name = "my-plugin"
 
-    def setup(self, core) -> None: ...            # 可选，attach 时调一次
-    def on_event(self, envelope) -> None: ...     # 可选，订阅全量事件
-    def search(self, query, *, limit=5): ...      # 可选，成为图书馆 provider
+    def setup(self, core) -> None: ...            # 可选：系统挂载时调用一次，用于初始化
+    def on_event(self, envelope) -> None: ...     # 可选：订阅系统全量事件
+    def search(self, query, *, limit=5): ...      # 可选：接入知识库，提供检索能力
 ```
 
-### `setup(core)` — 可选
+### 1. `setup(core)`（可选初始化）
 
-attach 时调用一次，参数是 `RuntimeCore` 实例。可以 sync 或 async（async 会被
-调度为任务）。典型用途：持有 `CommandBus(core)` 以便后续注入；读取 `core.agents` /
-`core.projects` 活状态。attach 发生在 store/restore 之前，**restore 回填的历史事件
-不会重放给插件**——`on_event` 只收 attach 之后的新事件。
+在插件被挂载到 `RuntimeCore` 运行时实例时调用一次。支持同步函数或异步协程（如果是 async 函数，系统会将其放入事件循环中调度）。
 
-### `on_event(envelope)` — 可选
+典型用途：
+- 保存 `CommandBus(core)` 实例，以便后续在插件中向系统发起指令；
+- 读取 `core.agents` 或 `core.projects` 的当前运行时状态。
 
-订阅事件总线（`EventHub`）的**全量**发布，包括 `llm.chunk` 这类瞬态事件——按需
-过滤 `envelope.type`。sync 实现自动 offload 到工作线程（不卡事件循环），async 实现
-直接 await。`envelope` 字段：`type / stream / project_id / session_id / run_id / seq /
-session_seq / data / created_at / event_id`。
+注意：挂载操作发生在历史状态加载与回放之前。系统从持久化存储恢复时，历史事件**不会**重复推送给插件，插件的 `on_event` 仅接收挂载之后产生的新事件。
 
-这是插件的**通用反应面**：关键节点触发（如 `run.finished`、
-`context.handover_updated`、`tool.finished` 特定工具）、自建索引、统计分析都挂这里。
+### 2. `on_event(envelope)`（可选事件监听）
 
-### `search(query, *, limit)` — 可选（图书馆 provider）
+订阅事件总线（`EventHub`）派发的**所有事件**，包括流式 token 等瞬态事件（如 `llm.chunk`）。插件可根据 `envelope.type` 过滤关注的事件类型。
 
-实现了 `search` 的插件自动成为 AgentHub 图书馆 provider：agent 每次调 `agent_hub`
-的 `search` 动作，所有 provider 都会被查询，命中随同一工具结果返回（summary 渲染
-等级/出处/证伪标记，完整字典在 `data["library"]`）。sync 实现同样 offload 到工作线程。
+如果是同步方法，系统会自动将其分发到后台线程池执行，不会阻塞主事件循环；如果是异步方法则直接 `await`。
 
-返回值：`KnowledgeEntry` 或同字段 dict 的列表：
+`envelope` 事件对象包含以下主要字段：
+`type`（事件类型）、`stream`、`project_id`、`session_id`、`run_id`、`seq`、`session_seq`、`data`（事件载荷）、`created_at`、`event_id`。
 
-| 字段 | 类型 | 默认 | 语义 |
+这是插件监听系统状态变化的主要途径。常见使用场景包括：
+- 监听关键生命周期节点（如 `run.finished` 运行结束、`context.handover_updated` 交接状态更新、`tool.finished` 工具调用完成等）；
+- 触发自定义的外部索引构建、数据同步或运行时统计分析。
+
+### 3. `search(query, *, limit=5)`（可选知识库检索）
+
+实现了 `search` 方法的插件会自动注册为 AgentHub 的知识源（Provider）。当 Agent 在工具中调用 `agent_hub` 的 `search` 操作时，系统会并发查询所有已注册的知识源，并将检索到的条目随同工具结果一并返回给模型。
+
+在给模型的展示摘要中，会呈现证据等级、出处和证伪标记；完整数据保存在 `data["library"]` 中。如果 `search` 是同步方法，同样会自动放入后台线程池执行以避免阻塞。
+
+`search` 方法需返回 `KnowledgeEntry` 对象列表，或包含相同字段的字典列表：
+
+| 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `title` | str | （必填） | 条目标题 |
-| `content` | str | （必填） | 条目正文（summary 截断展示，data 给全文） |
-| `evidence_level` | str | `"L0"` | `L0` 文献知识 / `L1` 已验证计算结论 / `L2` 模型假设 |
-| `source` | str | `""` | 出处指针（DOI、项目/run id、artifact id……），保证可追溯 |
-| `falsified` | bool | `False` | 已证伪标记：**保留但降权**，不删除 |
-| `score` | float | `0.0` | provider 自己的相关度，同级内排序用 |
+| `title` | str | （必填） | 知识条目的标题 |
+| `content` | str | （必填） | 知识条目的正文内容（摘要视图会做截断展示，数据中保留完整文本） |
+| `evidence_level` | str | `"L0"` | 证据等级：`L0`（文献常识与背景知识）/ `L1`（经过计算或实验验证的结论）/ `L2`（推测或模型假设） |
+| `source` | str | `""` | 来源出处指针（例如 DOI、关联的 project/run ID、artifact ID 等），确保结论可追溯 |
+| `falsified` | bool | `False` | 是否已被证伪：**证伪条目会保留在知识库中供模型参考，但排序权重会被大幅降低**，不会直接删除 |
+| `score` | float | `0.0` | 插件内部计算的相关度打分，用于同等级条目之间的相对排序 |
 
-合并排序规则：`L1 > L0 > L2`，同级内未证伪在前、再按 `score` 降序；非法
-`evidence_level` 归一为 `L0`；`title` 与 `content` 都空的条目被丢弃。返回条带
-`provider` 字段（插件名）。
+**知识合并与排序规则**：
+- 严格遵循证据等级优先：`L1 > L0 > L2`；
+- 在同一证据等级内，未被证伪的条目排在前面，之后按 `score` 打分降序排列；
+- 若传入了未知的 `evidence_level`，系统会自动归一化为 `L0` 处理；
+- `title` 与 `content` 均为空的无效条目会被自动过滤；
+- 返回给模型的条目中会附带 `provider` 字段标注插件名称。
 
-## 注册方式（三选一）
+## 插件注册与接入方式（三选一）
 
-**1. 声明式（推荐）**——`config.yaml`：
+开发者可以根据使用场景选择以下任意一种接入方式：
+
+### 方式一：配置文件声明（推荐）
+
+在 `config.yaml` 中配置插件模块路径：
 
 ```yaml
 plugins:
-  - "my_package.my_module:plugin"      # attr 是插件实例
-  - "my_package.my_module:get_plugin"  # attr 是无参工厂
-  - "my_package.my_module"             # 省略 attr 时按约定找 plugin / get_plugin
+  - "my_package.my_module:plugin"      # 指向模块中的插件实例对象
+  - "my_package.my_module:get_plugin"  # 指向无参数的工厂函数
+  - "my_package.my_module"             # 省略属性名时，默认查找模块中的 plugin 或 get_plugin
 ```
 
-应用启动（`create_default_v2_app`）时 import 并注册、attach；单个失败不影响其余。
+在系统初始化启动（`create_default_v2_app`）时，运行时会自动导入这些模块、完成注册并挂载。单个插件加载失败不会影响其余插件的正常运行。
 
-**2. 进程内**——嵌入场景/测试：
+### 方式二：Python 进程内编程式注册（适用于测试或嵌入式集成）
 
 ```python
 from cloudra.runtime_v2.plugins import register_plugin, attach_plugins
 
 register_plugin(MyPlugin())
-attach_plugins(core)   # 挂到某个 RuntimeCore
+attach_plugins(core)   # 挂载到指定的 RuntimeCore 实例上
 ```
 
-`register_plugin` 按身份去重；`clear_plugins()` 清空（测试隔离用，会连带清空图书馆
-provider 注册表）。
+- `register_plugin` 会自动根据插件对象的唯一身份进行去重；
+- 在测试用例中可以使用 `clear_plugins()` 清空注册表（同时会清理关联的知识源提供方）。
 
-**3. 进程外**——不注册任何东西，直接走 HTTP（适合独立服务/其他语言）：
+### 方式三：进程外 HTTP / SSE 接入（适用于独立服务或其他语言开发）
 
-- 注入：`POST /api/v2/agents/{session_id}/context/inject`，
-  body `{"kind": "pin"|"unpin"|"push", "key": "...", "content": "..."}`
-- 消息/唤醒：`POST /api/v2/agents/{session_id}/messages`
-- 事件流：`GET /api/v2/projects/{project_id}/stream`（SSE，全量事件实时推送）
+如果插件以独立微服务形式运行或由其他编程语言实现，无需在 Python 端注册代码，直接通过 HTTP API 即可与系统交互：
 
-## 注入语义（`context.inject`）
+- **注入提示信息**：`POST /api/v2/agents/{session_id}/context/inject`
+  请求体：`{"kind": "pin"|"unpin"|"push", "key": "...", "content": "..."}`
+- **发送消息并唤醒**：`POST /api/v2/agents/{session_id}/messages`
+- **监听实时事件流**：`GET /api/v2/projects/{project_id}/stream`（通过 SSE 接收全量系统事件推送）
 
-| kind | 行为 | 事件 | 生命周期 |
+## 上下文注入语义（`context.inject`）
+
+| 类型（kind） | 行为说明 | 产生的系统事件 | 生命周期与持久化 |
 | --- | --- | --- | --- |
-| `pin` | 常驻提示，同 key 覆盖，每轮渲染 | `context.pin_set` | 直到 unpin/覆盖；跨进程存活（restore 重建） |
-| `unpin` | 摘除常驻提示 | `context.pin_cleared` | — |
-| `push` | 一次性提示，下一轮渲染一次即销毁 | `context.injected` | 下一轮；进程死亡即失（事件留档） |
+| `pin` | 常驻提示，相同 key 会直接覆盖更新；在 Agent 的每一轮对话中都会渲染给模型 | `context.pin_set` | 持续生效，直到被主动 `unpin` 或覆盖；可跨进程持久化（恢复时从事件投影重建） |
+| `unpin` | 移除指定的常驻提示 | `context.pin_cleared` | 立即失效 |
+| `push` | 一次性提示，仅在 Agent 的下一轮对话中渲染一次，随后自动消费销毁 | `context.injected` | 仅在下一轮生效；内存中一次性消费，但在事件日志中永久留痕供审计 |
 
-渲染位置：每轮 LLM 请求消息列表**末尾**的 system 消息（recency 区）。写时去重：
-相同内容重复 pin 不产生新事件。注入**不唤醒** agent。
+**渲染机制**：
+注入的提示会统一附加在每轮发送给模型的 system 消息末尾（利用 recency 效应确保模型能优先注意到最新提示）。系统具备写时去重机制，对同一个 key 连续注入完全相同的内容不会产生冗余事件。注意：单纯注入提示**不会**唤醒处于空闲或等待状态的 Agent。
 
-## 最小示例
+## 完整代码示例
 
-图书馆 provider（GraphRAG 钩子面）：
+### 示例一：自定义知识库提供方（如接入 GraphRAG）
 
 ```python
 # my_graphrag.py
@@ -120,11 +133,12 @@ class MyGraphPlugin:
     name = "my-graphrag"
 
     def search(self, query, *, limit=5):
-        # 查自己的图谱存储（sqlite/向量库/远程服务均可；sync 会自动上工作线程）
+        # 查询自定义的图数据库、向量索引或外部知识服务
+        # 同步函数会自动交由后台线程池执行，不会卡顿事件循环
         return [
             {
-                "title": "HFIP 中醌骨架形成的已验证 TS",
-                "content": "IRC 确认，能垒 18.3 kcal/mol（xTB），详见 run run_9f2…",
+                "title": "HFIP 溶剂中醌骨架形成的已验证过渡态",
+                "content": "已通过 IRC 计算确认，xTB 能垒为 18.3 kcal/mol，详见计算记录 run_9f2...",
                 "evidence_level": "L1",
                 "source": "project prj_xxx / run_9f2",
                 "score": 0.87,
@@ -134,7 +148,7 @@ class MyGraphPlugin:
 plugin = MyGraphPlugin()
 ```
 
-事件驱动的被动注入（关键节点触发）：
+### 示例二：事件驱动的智能提示触发器
 
 ```python
 # my_trigger.py
@@ -148,25 +162,24 @@ class KeyNodeTrigger:
         self._bus = CommandBus(core)
 
     async def on_event(self, envelope):
-        # 例：机理草稿提案工具被调用时，给该 agent 推一条图书馆推荐
+        # 示例：当检测到 Agent 调用机理草稿提案工具时，主动向其推送相关的知识参考
         if envelope.type == "tool.started" and envelope.data.get("tool_name") == "dag_propose_mechanism":
             hint = self.lookup(envelope.data.get("arguments_summary"))
             if hint:
                 await self._bus.execute(Command(
                     type="context.inject",
                     target={"session_id": envelope.session_id},
-                    payload={"kind": "push", "content": f"[Library] {hint}"},
+                    payload={"kind": "push", "content": f"[知识库参考] {hint}"},
                 ))
 
-    def lookup(self, args): ...
+    def lookup(self, args):
+        # 根据参数查询推荐信息
+        ...
 
 plugin = KeyNodeTrigger()
 ```
 
-## 测试与审计
+## 测试与审计支持
 
-- 注入与插件相关行为全部有事件（`context.pin_set/pin_cleared/injected`、
-  `tool.started/finished`），项目级完整转录 `GET /api/v2/projects/{id}/transcript`
-  会渲染这些事件，消融诊断可直接统计。
-- 测试隔离：`clear_plugins()` / `clear_knowledge_providers()`；参考
-  `tests/test_runtime_v2_plugins.py`、`tests/test_runtime_v2_knowledge.py`。
+- **全量事件追溯**：所有的提示注入和插件交互行为都会完整记录到事件日志中（包括 `context.pin_set`、`context.pin_cleared`、`context.injected`、`tool.started` 等）。调用 `GET /api/v2/projects/{id}/transcript` 可以导出项目全量运行记录的 Markdown 文档，便于在消融实验和机制分析中进行量化统计。
+- **单元测试隔离**：在编写测试用例时，可调用 `clear_plugins()` 和 `clear_knowledge_providers()` 重置环境状态。具体用法可参考测试套件中的 `tests/test_runtime_v2_plugins.py` 和 `tests/test_runtime_v2_knowledge.py`。

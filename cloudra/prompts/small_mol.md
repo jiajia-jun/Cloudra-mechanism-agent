@@ -78,3 +78,4 @@ If a calculation cannot be completed, report:
 1. Steps completed and corresponding output file paths.
 2. Specific failure mode (SCF oscillation, geometry collapse, unexpected `n_imag`, resource limit).
 3. Recovery actions already attempted and what is needed from the Coordinator to proceed.
+4. Methodological boundaries reached: if diagnostic metrics (e.g. persistent spin contamination, severe multireference indicators, active space degeneracy) confirm the electronic state cannot be reliably solved by current single-reference DFT, state the diagnostic evidence clearly so the Coordinator can record a justified skip on the stage rather than speculating.
