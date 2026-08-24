@@ -221,7 +221,7 @@ export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-head">
           <span className="modal-title">Global config</span>
