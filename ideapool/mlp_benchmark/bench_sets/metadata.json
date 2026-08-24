@@ -1,0 +1,152 @@
+[
+  {
+    "id": "gmtkn55",
+    "title": "A look at the density functional theory zoo with the advanced GMTKN55 database for general main group thermochemistry, kinetics and noncovalent interactions",
+    "authors": ["Lars Goerigk", "Andreas Hansen", "Christoph Bauer", "Stephan Ehrlich", "Asim Najibi", "Stefan Grimme"],
+    "year": 2017,
+    "venue": "Physical Chemistry Chemical Physics, 19, 32184-32215",
+    "doi_or_url": "https://doi.org/10.1039/c7cp04913g",
+    "oa_status": "oa_cc_by_nc_published_version; PDF 下载被 RSC Cloudflare 拦截（HTTP 403），Wayback 亦限流（HTTP 429），Europe PMC/Unpaywall 无镜像；摘要经 OpenAlex 与 Europe PMC 双源核对一致",
+    "abstract_verbatim": "We present the GMTKN55 benchmark database for general main group thermochemistry, kinetics and noncovalent interactions. Compared to its popular predecessor GMTKN30 [Goerigk and Grimme J. Chem. Theory Comput., 2011, 7, 291], it allows assessment across a larger variety of chemical problems-with 13 new benchmark sets being presented for the first time-and it also provides reference values of significantly higher quality for most sets. GMTKN55 comprises 1505 relative energies based on 2462 single-point calculations and it is accessible to the user community via a dedicated website. Herein, we demonstrate the importance of better reference values, and we re-emphasise the need for London-dispersion corrections in density functional theory (DFT) treatments of thermochemical problems, including Minnesota methods. We assessed 217 variations of dispersion-corrected and -uncorrected density functional approximations, and carried out a detailed analysis of 83 of them to identify robust and reliable approaches. Double-hybrid functionals are the most reliable approaches for thermochemistry and noncovalent interactions, and they should be used whenever technically feasible. These are, in particular, DSD-BLYP-D3(BJ), DSD-PBEP86-D3(BJ), and B2GPPLYP-D3(BJ). The best hybrids are ωB97X-V, M052X-D3(0), and ωB97X-D3, but we also recommend PW6B95-D3(BJ) as the best conventional global hybrid. At the meta-generalised-gradient (meta-GGA) level, the SCAN-D3(BJ) method can be recommended. Other meta-GGAs are outperformed by the GGA functionals revPBE-D3(BJ), B97-D3(BJ), and OLYP-D3(BJ). We note that many popular methods, such as B3LYP, are not part of our recommendations. In fact, with our results we hope to inspire a change in the user community's perception of common DFT methods. We also encourage method developers to use GMTKN55 for cross-validation studies of new methodologies.",
+    "pdf_file": "",
+    "relevance": "MLP 热化学/动力学势垒评测的权威参照系。任务描述中'GMTKN55 (Acc. Chem. Res. 2021)'经 Crossref（ISSN 0009-2665 检索 GMTKN55 命中 0 条）与 OpenAlex 标题/全文检索核实为引用误记，正典定义文献即本篇 PCCP 2017。对 Cloudra 基准集设计：其 55 子集按'基础性质 18 + 大体系反应/异构化能 9 + 势垒 7 + 分子间 NCI 12 + 分子内 NCI 9'分类（AIMNet2 论文 p.10233 沿用此分类），可直接映射到四级机理基准的热化学(Easy/Normal)与动力学势垒(Hard)分层。",
+    "key_numbers": [
+      "55 个子集（摘要，OpenAlex/EPMC）",
+      "1505 个相对能量、基于 2462 个单点计算（摘要）",
+      "相对 GMTKN30 新增 13 个子集（摘要）",
+      "评估了 217 个色散校正/未校正 DFA 变体，详细分析其中 83 个（摘要）",
+      "子集分类：基础性质 18 + 反应/异构化能 9 + 势垒 7 + 分子间 NCI 12 + 分子内 NCI 9 = 55（AIMNet2, Chem. Sci. 2025, 16, 10233, DOI 10.1039/d4sc08572h）",
+      "被引 1964 次（OpenAlex，2026-02 查询）"
+    ]
+  },
+  {
+    "id": "bh9",
+    "title": "BH9, a New Comprehensive Benchmark Data Set for Barrier Heights and Reaction Energies: Assessment of Density Functional Approximations and Basis Set Incompleteness Potentials",
+    "authors": ["Viki Kumar Prasad", "Zhipeng Pei", "Simon Edelmann", "Alberto Otero-de-la-Roza", "Gino A. DiLabio"],
+    "year": 2021,
+    "venue": "Journal of Chemical Theory and Computation, 2021-12-16 在线发表（更正：J. Chem. Theory Comput. 2022, DOI 10.1021/acs.jctc.2c00362）；预印本 ChemRxiv DOI 10.33774/chemrxiv-2021-mdjwx",
+    "doi_or_url": "https://doi.org/10.1021/acs.jctc.1c00694",
+    "oa_status": "paywalled（JCTC 正式版无 OA 副本，OpenAlex best_oa_location=null；ChemRxiv 预印本 PDF 端点被 403 拦截）。本地已有 JCTC 支撑信息（SI）真 PDF，已复制入库",
+    "abstract_verbatim": "The calculation of accurate reaction energies and barrier heights is essential in computational studies of reaction mechanisms and thermochemistry. To assess methods regarding their ability to predict these two properties, high-quality benchmark sets are required that comprise a reasonably large and diverse set of organic reactions. Due to the time-consuming nature of both locating transition states and computing accurate reference energies for reactions involving large molecules, previous benchmark sets have been limited in scope, the number of reactions considered, and the size of the reactant and product molecules. Recent advances in coupled-cluster theory, in particular local correlation methods like DLPNO-CCSD(T), now allow the calculation of reaction energies and barrier heights for relatively large systems. In this work, we present a comprehensive, and diverse benchmark set of barrier heights and reaction energies based on DLPNO-CCSD(T)/CBS, called BH9. BH9 comprises 449 chemical reactions belonging to nine types common in organic chemistry and biochemistry. We examine the accuracy of DLPNO-CCSD(T) vis-a-vis canonical CCSD(T) for a subset of BH9 and conclude that, although there is a penalty in using the DLPNO approximation, the data are accurate enough to serve as a benchmark for density functional theory (DFT) methods. We then present two applications of the set. First, we examine the performance of several density functional approximations commonly used in thermochemical and mechanistic studies. Second, we assess our basis set incompleteness potentials regarding their ability to mitigate basis set incompleteness errors. The number of data points, the diversity of the reactions considered, and the relatively large size of the reactant molecules make BH9 the most comprehensive thermochemical benchmark set to date, and a useful tool for the development and assessment of computational methods.",
+    "pdf_file": "2021_prasad_bh9_si.pdf",
+    "relevance": "与本项目最直接相关：449 个有机/生化反应同时给出反应能+势垒高度（正逆两向），参考值为 DLPNO-CCSD(T)/CBS，是四级机理基准中'动力学势垒'分级的天然模板。注意：任务描述称 BH9 出自 Grimme 组，经 Crossref/OpenAlex 核实实为 DiLabio（UBC Okanagan）与 Otero-de-la-Roza（Oviedo）团队工作，需在汇总时更正。",
+    "key_numbers": [
+      "449 个化学反应（摘要）",
+      "9 类有机/生化常见反应类型（摘要）",
+      "参考能级 DLPNO-CCSD(T)/CBS（摘要）",
+      "作者自评'迄今最全面的热化学基准集'（摘要）",
+      "被引 86 次（OpenAlex，2026-02 查询）"
+    ]
+  },
+  {
+    "id": "qm9",
+    "title": "Quantum chemistry structures and properties of 134 kilo molecules",
+    "authors": ["Raghunathan Ramakrishnan", "Pavlo O. Dral", "Matthias Rupp", "O. Anatole von Lilienfeld"],
+    "year": 2014,
+    "venue": "Scientific Data, 1, 140022",
+    "doi_or_url": "https://doi.org/10.1038/sdata.2014.22",
+    "oa_status": "oa_cc_by（Nature Scientific Data 开放获取，PDF 直下成功）",
+    "abstract_verbatim": "Computational de novo design of new drugs and materials requires rigorous and unbiased exploration of chemical compound space. However, large uncharted territories persist due to its size scaling combinatorially with molecular size. We report computed geometric, energetic, electronic, and thermodynamic properties for 134k stable small organic molecules made up of CHONF. These molecules correspond to the subset of all 133,885 species with up to nine heavy atoms (CONF) out of the GDB-17 chemical universe of 166 billion organic molecules. We report geometries minimal in energy, corresponding harmonic frequencies, dipole moments, polarizabilities, along with energies, enthalpies, and free energies of atomization. All properties were calculated at the B3LYP/6-31G(2df,p) level of quantum chemistry. Furthermore, for the predominant stoichiometry, C7H10O2, there are 6,095 constitutional isomers among the 134k molecules. We report energies, enthalpies, and free energies of atomization at the more accurate G4MP2 level of theory for all of them. As such, this data set provides quantum chemical properties for a relevant, consistent, and comprehensive chemical space of small organic molecules. This database may serve the benchmarking of existing methods, development of new methods, such as hybrid quantum mechanics/machine learning, and systematic identification of structure-property relationships.",
+    "pdf_file": "2014_ramakrishnan_qm9.pdf",
+    "relevance": "MLP 领域最常用的平衡态分子热化学/性质回归基准（原子化能、HOMO/LUMO 等）。只含平衡几何、不含过渡态——衡量热化学外推而非动力学势垒。其 C7H10O2 异构体空间正是 ISO17 的母体。对舒适区判据：元素域 CHONF、分子 ≤9 重原子、闭壳层。",
+    "key_numbers": [
+      "133,885 个 CHONF 稳定小分子（≤9 重原子）（摘要）",
+      "母宇宙 GDB-17 含 1660 亿个有机分子（摘要）",
+      "主性质在 B3LYP/6-31G(2df,p) 计算（摘要）",
+      "C7H10O2 化学计量比含 6,095 个构造异构体，另给 G4MP2 原子化能/焓/自由能（摘要）",
+      "被引极高：OpenAlex 记录为 QM9 定义文（2026-02 查询）"
+    ]
+  },
+  {
+    "id": "rmd17_fchl19",
+    "title": "FCHL revisited: Faster and more accurate quantum machine learning",
+    "authors": ["Anders S. Christensen", "Lars A. Bratholm", "Felix A. Faber", "O. Anatole von Lilienfeld"],
+    "year": 2020,
+    "venue": "The Journal of Chemical Physics, 152, 044107（arXiv 版本 arXiv:1909.01946）",
+    "doi_or_url": "https://doi.org/10.1063/1.5126701",
+    "oa_status": "oa_cc_by（AIP 出版版为 CC-BY，但 pubs.aip.org/aip.scitation.org PDF 端点均 403 反爬；改用 arXiv:1909.01946 提交版 PDF，内容为同工作）",
+    "abstract_verbatim": "We introduce the FCHL19 representation for atomic environments in molecules or condensed-phase systems. Machine learning models based on FCHL19 are able to yield predictions of atomic forces and energies of query compounds with chemical accuracy on the scale of milliseconds. FCHL19 is a revision of our previous work [F. A. Faber et al., J. Chem. Phys. 148, 241717 (2018)] where the representation is discretized and the individual features are rigorously optimized using Monte Carlo optimization. Combined with a Gaussian kernel function that incorporates elemental screening, chemical accuracy is reached for energy learning on the QM7b and QM9 datasets after training for minutes and hours, respectively. The model also shows good performance for non-bonded interactions in the condensed phase for a set of water clusters with a mean absolute error (MAE) binding energy error of less than 0.1 kcal/mol/molecule after training on 3200 samples. For force learning on the MD17 dataset, our optimized model similarly displays state-of-the-art accuracy with a regressor based on Gaussian process regression. When the revised FCHL19 representation is combined with the operator quantum machine learning regressor, forces and energies can be predicted in only a few milliseconds per atom. The model presented herein is fast and lightweight enough for use in general chemistry problems as well as molecular dynamics simulations.",
+    "pdf_file": "2020_christensen_rmd17_fchl19.pdf",
+    "relevance": "rMD17（revised MD17）数据集的随文定义文献：对原 MD17 的 10 万帧/分子以 PBE/def2-SVP、极紧 SCF 收敛与极密 DFT 积分网格重算，修正了原 MD17 力数据的收敛噪声，是当前 MLP 分子动力学基准的事实标准。衡量能量/力面保真度与跨构型外推，不含反应势垒。",
+    "key_numbers": [
+      "rMD17：每分子 100,000 帧，PBE/def2-SVP、very tight SCF + 很密 DFT 积分网格重算（NequIP, Nat. Commun. 2022, 13, 3733, Methods 节，引 Christensen et al.；数据集 figshare.com/articles/dataset/12672038）",
+      "原 MD17：PBE+vdW-TS、500 K AIMD，每分子 133,770–993,237 帧（NequIP Methods 节）",
+      "rMD17 公开成绩（1000 训练构型，能量 MAE meV / 力 MAE meV/Å）：苯 NequIP(l=3) 0.04/0.3；乙醇 NequIP(l=3) 0.4/2.8、FCHL19 0.9/6.2；阿司匹林 NequIP(l=3) 2.3/8.2（NequIP 论文 Table 2）",
+      "水簇结合能 MAE < 0.1 kcal/mol/分子（3200 训练样本）（摘要，Europe PMC）"
+    ]
+  },
+  {
+    "id": "iso17_schnet",
+    "title": "SchNet – A deep learning architecture for molecules and materials（ISO17 基准的随文定义；arXiv:1706.08566 为 ISO17 的首次提出版本）",
+    "authors": ["Kristof T. Schütt", "Pieter-Jan Kindermans", "Huziel E. Sauceda", "Stefan Chmiela", "Alexandre Tkatchenko", "Klaus-Robert Müller"],
+    "year": 2018,
+    "venue": "The Journal of Chemical Physics, 148, 241722（arXiv:1706.08566, 2017）",
+    "doi_or_url": "https://doi.org/10.1063/1.5019779",
+    "oa_status": "paywalled（AIP 403 反爬，无法直下 JCP 版）；改用 arXiv:1706.08566（ISO17 首次提出、NeurIPS 2017 ML4Phys workshop 版）PDF，ISO17 定义与结果表齐全",
+    "abstract_verbatim": "Deep learning has led to a paradigm shift in artificial intelligence, including web, text, and image search, speech recognition, as well as bioinformatics, with growing impact in chemical physics. Machine learning, in general, and deep learning in particular, are ideally suitable for representing quantum-mechanical interactions, enabling us to model nonlinear potential-energy surfaces or enhancing the exploration of compound space. Here we present the deep learning architecture SchNet that is specifically designed for atomistic systems by making use of continuous-filter convolutional layers. We demonstrate the capabilities of SchNet by accurately predicting a range of properties across chemical space for molecules and materials, where our model learns chemically plausible embeddings of atom types across the periodic table. Finally, we employ SchNet to predict potential-energy surfaces and explore chemical space for molecular dynamics simulations of small molecules and perform an exemplary study on the quantum-mechanical properties across chemical space that would have been infeasible with regular ab initio dynamics.",
+    "pdf_file": "2017_schutt_schnet_iso17_arxiv.pdf",
+    "relevance": "ISO17 是'跨异构体泛化'基准：同一 C7O2H10 化学计量比的 129 个异构体各自 5000 帧 MD 轨迹，联合训练后测试对已知/未知分子的能量-力预测。它考察化学空间+构型空间双重泛化，仍不含反应势垒；对四级基准的 Normal/Hard 分层中'异构化能量排序'子任务有直接参考价值。",
+    "key_numbers": [
+      "ISO17：129 个 C7O2H10 异构体 × 每轨迹 5,000 帧 = 645,000 个标注样本（arXiv:1706.08566 §5.3）",
+      "训练/验证取 80% 轨迹各 4,000 帧；测试为已知分子余下 1,000 帧 + 未知分子全部 5,000 帧（arXiv §5.3）",
+      "SchNet 结果（能量 MAE，kcal/mol）：已知分子 0.36（能量+力训练）/ 0.52（仅能量）；未知分子 2.40 / 3.11；均值预测器基线 14.89 / 15.54（arXiv Table 3）",
+      "JCP 版被引 2261 次（OpenAlex，2026-02 查询）"
+    ]
+  },
+  {
+    "id": "spice",
+    "title": "SPICE, A Dataset of Drug-like Molecules and Peptides for Training Machine Learning Potentials",
+    "authors": ["Peter Eastman", "Pavan Kumar Behara", "David L. Dotson", "Ralf Galvelis", "John E. Herr", "Josh T. Horton", "Yuezhi Mao", "John D. Chodera", "Brian P. Pritchard", "Yuanqing Wang", "Gianni De Fabritiis", "Thomas E. Markland"],
+    "year": 2023,
+    "venue": "Scientific Data, 10, 62（arXiv:2209.10702, 2022）",
+    "doi_or_url": "https://doi.org/10.1038/s41597-022-01882-6",
+    "oa_status": "oa_cc_by（Nature Scientific Data 开放获取，PDF 直下成功）",
+    "abstract_verbatim": "Machine learning potentials are an important tool for molecular simulation, but their development is held back by a shortage of high quality datasets to train them on. We describe the SPICE dataset, a new quantum chemistry dataset for training potentials relevant to simulating drug-like small molecules interacting with proteins. It contains over 1.1 million conformations of a diverse set of molecules, dimers, dipeptides, and solvated amino acids. It includes 15 elements, charged and uncharged species, and a wide range of covalent and non-covalent interactions. It provides both forces and energies calculated at the ωB97M-D3(BJ)/def2-TZVPPD level of theory, along with other useful quantities such as multipole moments and bond orders. We train machine learning potentials on it and demonstrate that they can achieve chemical accuracy across a broad region of chemical space. It can serve as a valuable resource for the creation of transferable, ready to use potential functions for use in molecular simulations.",
+    "pdf_file": "2023_eastman_spice.pdf",
+    "relevance": "当前可迁移有机 MLP（MACE-OFF、Espaloma、AIMNet2 部分子集）的主流训练域来源。对'舒适区判据'最关键：元素域 15 种（含 P/S/Cl/Br/I）、含带电物种、≤50 原子小分子+二肽+溶剂化氨基酸——即'指定 MLP 金标准'的元素/电荷/体系大小边界可直接引用 SPICE 的子集构成来定义。",
+    "key_numbers": [
+      ">110 万（1.1 million）个构象（摘要）",
+      "15 种元素；带电与不带电物种（摘要）",
+      "能级：ωB97M-D3(BJ)/def2-TZVPPD，同时提供力、多极矩、键级（摘要）",
+      "子集构成（论文正文/表1）：PubChem 小分子、类肽二聚体、二肽、溶剂化氨基酸；MACE-OFF 论文（arXiv:2312.15211 §II）复述 SPICE 仅含 ≤50 原子分子",
+      "被引 184 次（OpenAlex，2026-02 查询）"
+    ]
+  },
+  {
+    "id": "nequip",
+    "title": "E(3)-equivariant graph neural networks for data-efficient and accurate interatomic potentials",
+    "authors": ["Simon Batzner", "Albert Musaelian", "Lixin Sun", "Mario Geiger", "Jonathan P. Mailoa", "Mordechai Kornbluth", "Nicola Molinari", "Tess Smidt", "Boris Kozinsky"],
+    "year": 2022,
+    "venue": "Nature Communications, 13, 3733",
+    "doi_or_url": "https://doi.org/10.1038/s41467-022-29939-5",
+    "oa_status": "oa_cc_by（Nature Communications 开放获取，PDF 直下成功）",
+    "abstract_verbatim": "This work presents Neural Equivariant Interatomic Potentials (NequIP), an E(3)-equivariant neural network approach for learning interatomic potentials from ab-initio calculations for molecular dynamics simulations. While most contemporary symmetry-aware models use invariant convolutions and only act on scalars, NequIP employs E(3)-equivariant convolutions for interactions of geometric tensors, resulting in a more information-rich and faithful representation of atomic environments. The method achieves state-of-the-art accuracy on a challenging and diverse set of molecules and materials while exhibiting remarkable data efficiency. NequIP outperforms existing models with up to three orders of magnitude fewer training data, challenging the widely held belief that deep neural networks require massive training sets. The high data efficiency of the method allows for the construction of accurate potentials using high-order quantum chemical level of theory as reference and enables high-fidelity molecular dynamics simulations over long time scales.",
+    "pdf_file": "2022_batzner_nequip.pdf",
+    "relevance": "交叉引用源：其 Table 2 是 rMD17 上最完整的公开横向对比（FCHL19/GAP/ANI/ACE/GemNet/NequIP 各阶），Table 1 是原 MD17 横向对比（含 SchNet/PaiNN/SpookyNet 等），可直接作为候选 MLP 在动力学基准上的公开成绩单。",
+    "key_numbers": [
+      "rMD17（1000 训练构型，能量/力 MAE，meV 与 meV/Å）：苯 NequIP(l=3) 0.04/0.3；乙醇 0.4/2.8；丙二醛 0.8/5.1；甲苯 0.3/1.6；尿嘧啶 0.4/3.1；萘 0.2/1.3；阿司匹林 2.3/8.2；对乙酰氨基酚 1.4/5.9（NequIP 论文 Table 2）",
+      "原 MD17（1000 训练构型）：乙醇 NequIP(l=3) 2.2/3.1，对比 SchNet 3.5/16.9、PaiNN 2.7/9.7、SpookyNet 2.3/4.1（NequIP 论文 Table 1）",
+      "数据效率：比既有模型少最多 3 个数量级的训练数据（摘要）",
+      "液态水/冰（PBE0-TS 参考）：仅 133 帧训练，力误差优于用 133,500 帧训练的 DeepMD（NequIP 论文 Table 3 及正文）"
+    ]
+  },
+  {
+    "id": "aimnet2",
+    "title": "AIMNet2: a neural network potential to meet your neutral, charged, organic, and elemental-organic needs",
+    "authors": ["Dylan M. Anstine", "Roman Zubatyuk", "Olexandr Isayev"],
+    "year": 2025,
+    "venue": "Chemical Science, 16, 10228-10244",
+    "doi_or_url": "https://doi.org/10.1039/d4sc08572h",
+    "oa_status": "oa_cc_by（RSC Chem. Sci. 开放获取；RSC 直下 403，经 Europe PMC PMC12057637 PDF 渲染端点成功下载）",
+    "abstract_verbatim": "Machine learned interatomic potentials (MLIPs) are reshaping computational chemistry practices because of their ability to drastically exceed the accuracy-length/time scale tradeoff. Despite this attraction, the benefits of such efficiency are only impactful when an MLIP uniquely enables insight into a target system or is broadly transferable outside of the training dataset. In this work, we present the 2<sup>nd</sup> generation of our atoms-in-molecules neural network potential (AIMNet2), which is applicable to species composed of up to 14 chemical elements in both neutral and charged states, making it a valuable method for modeling the majority of non-metallic compounds. Using an exhaustive dataset of 2 × 10<sup>7</sup> hybrid DFT level of theory quantum chemical calculations, AIMNet2 combines ML-parameterized short-range and physics-based long-range terms to attain generalizability that reaches from simple organics to diverse molecules with \"exotic\" element-organic bonding. We show that AIMNet2 outperforms semi-empirical GFN2-xTB and is on par with reference density functional theory for interaction energy contributions, conformer search tasks, torsion rotation profiles, and molecular-to-macromolecular geometry optimization. Overall, the demonstrated chemical coverage and computational efficiency of AIMNet2 is a significant step toward providing access to MLIPs that avoid the crucial limitation of curating additional quantum chemical data and retraining with each new application.",
+    "pdf_file": "2025_anstine_aimnet2.pdf",
+    "relevance": "唯一在正文中把 GMTKN55 作为 MLP 评测集并给出分类别 WTMAD2 的开源 MLP 论文（沿 OrbNet Denali 口径：仅对模型支持的子集加权）。其 GMTKN55 分类别成绩是'指定 MLP 金标准'在热化学/势垒上期望精度的最直接公开参照；其 14 元素+带电覆盖亦是舒适区判据的上界样本。",
+    "key_numbers": [
+      "GMTKN55 WTMAD2（kcal/mol，Fig. 5a 读图近似值）：'All'类 AIMNet2:B97-3c ≈12.6、AIMNet2:ωB97M-D3 ≈11.8、GFN2-xTB ≈20.0、B97-3c(DFT) ≈9.8、ωB97X-D3/def2-TZVP(DFT) ≈6.3、OrbNet Denali ≈9.3（Chem. Sci. 2025, 16, 10233, Fig. 5a）",
+      "分类别（同图）：Basic properties AIMNet2:ωB97M-D3 ≈4.0（优于 B97-3c DFT ≈9.5）；Barrier heights AIMNet2:B97-3c ≈8.1 ≈ B97-3c 自身 ≈8.2，最优为 ωB97X-D3 ≈4.6；Intermolecular 类 GFN2-xTB ≈9.8 反超 AIMNet2（≈12.4/16.6）",
+      "正文结论：AIMNet2 两版均显著优于 GFN2-xTB、约等于 OrbNet Denali；唯一不敌 GFN2-xTB 的类别是分子间相互作用（p.10233）",
+      "训练数据 2×10^7 个杂化 DFT 级计算；覆盖 ≤14 种元素、中性+带电（摘要，Europe PMC）",
+      "构象搜索成功率（676 例）：AIMNet2(uB97M) 77%，B97-3c 75%，GFN2-xTB 45.2%，GFN-FF 42.1%（p.10232-10233）"
+    ]
+  }
+]

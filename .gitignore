@@ -92,3 +92,19 @@ state_*.json
 
 # 软著材料打包产物（本地留存，源在 软著申请材料/）
 *.zip
+
+# Cloudra 运行时工作区目录与编译临时文件
+.cloudra/
+*.blg
+
+# 调研下载的大型 PDF 文献库与 OCR 缓存（保留 Markdown 笔记与结构化 JSON）
+docs/benchmark_survey/pdfs/
+docs/benchmark_survey/md/
+ideapool/**/*.pdf
+!ideapool/cloudra_novelty_and_validation_plan.pdf
+ideapool/**/images/
+ideapool/**/img_*/
+
+
+
+

@@ -1,0 +1,173 @@
+[
+  {
+    "id": "torchani-github-torchani2",
+    "title": "TorchANI 2.0: An Extensible, High-Performance Library for the Design, Training, and Use of NN-IPs（软件库 aiqm/torchani）",
+    "authors": "Ignacio Pickering, Jinze Xue, Kate Huddleston, Nicholas Terrel, Adrian E. Roitberg",
+    "year": 2025,
+    "venue": "J. Chem. Inf. Model. 65(21), 11656-11671; GitHub: aiqm/torchani (Roitberg group)",
+    "doi_or_url": "https://doi.org/10.1021/acs.jcim.5c01853 ; https://github.com/aiqm/torchani",
+    "oa_status": "paywalled (论文正文需订阅；代码与模型 MIT 开源)",
+    "abstract_verbatim": "In this work, we introduce TorchANI 2.0, a significantly improved version of the free and open source TorchANI software package for training and evaluation of ANI (ANAKIN-ME) deep learning models. TorchANI 2.0 builds upon the foundation of its predecessor, while addressing its limitations and introducing new features. These changes greatly enhance its extensibility, performance, and suitability as a framework for developing models ready for molecular dynamics applications. These improvements include the introduction of a modular system to add arbitrary pairwise potentials to models, CUDA-accelerated optimization for faster and more memory-efficient calculation of local atomic features, and a batched system for better performance of network ensembles, among others. Our benchmarks demonstrate that TorchANI 2.0 achieves significant speedup over previous versions in both training and inference, and the library enhancements allow users to train physically constrained models that better represent important qualities of chemical systems. We demonstrate this by introducing three new ANI models that incorporate these features and evaluating their capabilities.",
+    "pdf_file": "",
+    "relevance": "候选 MLP 库之一（ANI 系）。工程落地要点：pip install torchani；ASE 计算器经 model.ase() 获取（torchani/ase.py 的 Calculator 子类），支持 energy/free_energy/forces/stress，可接入 ASE 优化器与 geomeTRIC ASE Engine 完成 opt；数值 Hessian 可用 ase.vibrations（力由 autograd 得到）。官方 README 明确 GPU 强烈推荐、CPU 性能下降。摘要逐字取自 PubMed/Europe PMC 收录记录 (PMID 41105703)。",
+    "key_numbers": [
+      "代码 License: MIT（GitHub 仓库页面 license 徽章 'MIT license'，2026-08-24 访问）",
+      "TorchANI 2.0 要求 PyTorch >= 2.0（README Installation 节）",
+      "'If you don't run TorchANI on a GPU, expect degraded performance.'（README GPU support 节，逐字）",
+      "ASE Calculator implemented_properties = ['energy', 'free_energy', 'forces', 'stress']（main 分支 torchani/ase.py 源码）",
+      "ASE 计算器用法: calc = torchani.models.ANI1x().ase()（torchani/ase.py docstring 示例）",
+      "论文卷期页码 JCIM 65(21):11656-11671, 2025（Europe PMC MED41105703）",
+      "未找到公开的 <=50 重原子 CPU 单点实测毫秒数（本次检索 GitHub issues/README/论文均未见具体数值，如实记录）"
+    ]
+  },
+  {
+    "id": "mace-torch-pypi",
+    "title": "mace-torch · PyPI（MACE 参考实现发行包 + 预训练模型许可表）",
+    "authors": "Ilyes Batatia, Gregor Simm, David Kovacs, Gabor Csanyi 组及社区",
+    "year": 2026,
+    "venue": "PyPI 包 mace-torch v0.3.16（发布于 2026-05-10）；源码 github.com/ACEsuit/mace",
+    "doi_or_url": "https://pypi.org/project/mace-torch/",
+    "oa_status": "open (代码 MIT；各预训练模型许可证见 key_numbers)",
+    "abstract_verbatim": "MACE provides fast and accurate machine learning interatomic potentials with higher order equivariant message passing. This repository contains the MACE reference implementation developed by Ilyes Batatia, Gregor Simm, David Kovacs, and the group of Gabor Csanyi, and friends (see Contributors). [注：软件包条目无出版方论文摘要，此处为 PyPI 项目描述首两句逐字引用]",
+    "pdf_file": "",
+    "relevance": "mace-torch 是 MACE-OFF23/MACE-MP/MACE-OMol 等模型的官方 pip 发行渠道，pip install mace-torch 后直接提供 mace_mp()/mace_off() 等 ASE calculator 工厂函数，是本项目最省事的接入路径。PyPI 页面同时给出全部预训练模型的元素覆盖、训练数据、理论级别和 License 表，是判断'舒适区'的一手依据。",
+    "key_numbers": [
+      "当前版本 0.3.16（PyPI 页面 Released: May 10, 2026），Python>=3.9，PyTorch>=1.12",
+      "代码 License: MIT（PyPI 页面 'The MACE code is published and distributed under the MIT License'）；PR 亦要求 MIT",
+      "预训练模型 License 表（PyPI 页面表格）：MACE-MP-0a / MACE-MP-0b3 / MACE-MPA-0 = MIT；MACE-OFF23 = ASL (Academic Software License)；MACE-OMAT-0 / MATPES / OMOL-0 / MH-0/1 = ASL",
+      "MACE-OFF23 行：Elements Covered = 10；Training Dataset = SPICE v1；Level = DFT (wB97M+D3)；Target = Organic Chemistry；sizes small/medium/large；需要 mace-torch >= v0.3.6",
+      "MACE-OMOL-0 行：89 元素，OMOL 数据集，wB97M-VV10，large 模型，'Charge/Spin embedding, very good molecular accuracy'",
+      "ASE 用法示例：from mace.calculators import mace_off; calc = mace_off(model='medium', device='cuda')",
+      "自动下载的模型缓存于 ~/.cache/mace（可用 XDG_CACHE_HOME 改路径）"
+    ]
+  },
+  {
+    "id": "kovacs-mace-off23",
+    "title": "MACE-OFF: Transferable Short Range Machine Learning Force Fields for Organic Molecules（arXiv 版；期刊版发表于 JACS, DOI 10.1021/jacs.4c07099）",
+    "authors": "Dávid Péter Kovács, J. Harry Moore, Nicholas J. Browning, Ilyes Batatia, Joshua T. Horton, Yixuan Pu, Venkat Kapil, William C. Witt, Ioan-Bogdan Magdău, Daniel J. Cole, Gábor Csányi",
+    "year": 2023,
+    "venue": "arXiv:2312.15211 (v5, 2025-08 更新)；J. Am. Chem. Soc. (2025-05-19 上线), DOI 10.1021/jacs.4c07099",
+    "doi_or_url": "https://arxiv.org/abs/2312.15211 ; https://doi.org/10.1021/jacs.4c07099",
+    "oa_status": "open (arXiv 全文 PDF 已下载)",
+    "abstract_verbatim": "Classical empirical force fields have dominated biomolecular simulation for over 50 years. Although widely used in drug discovery, crystal structure prediction, and biomolecular dynamics, they generally lack the accuracy and transferability required for first-principles predictive modeling. In this paper, we introduce MACE-OFF, a series of short range transferable force fields for organic molecules created using state-of-the-art machine learning technology and first-principles reference data computed with a high level of quantum mechanical theory. MACE-OFF demonstrates the remarkable capabilities of short range models by accurately predicting a wide variety of gas and condensed phase properties of molecular systems. It produces accurate, easy-to-converge dihedral torsion scans of unseen molecules, as well as reliable descriptions of molecular crystals and liquids, including quantum nuclear effects. We further demonstrate the capabilities of MACE-OFF by determining free energy surfaces in explicit solvent, as well as the folding dynamics of peptides.Finally, we simulate a fully solvated small protein, observing accurate secondary structure and vibrational spectrum. These developments enable first-principles simulations of molecular systems for the broader chemistry community at high accuracy and relatively low computational cost. [注：'peptides.Finally' 处原文即连排，逐字保留]",
+    "pdf_file": "2023_kovacs_maceoff23.pdf",
+    "relevance": "有机化学域 MLP 的核心文献：定义了 H,C,N,O,F,P,S,Cl,Br,I 十元素、中性闭壳层的适用域，并给出 A100 上 OpenMM/LAMMPS 实测吞吐。对本项目意义：域内反应可直接选其做金标准能量方法；速度数字用于估算 CPU/GPU 上 opt+freq+TS 流程耗时。",
+    "key_numbers": [
+      "元素覆盖：H, C, N, O, F, P, S, Cl, Br, I 十种有机化学最重要元素；适用中性闭壳层体系（Main text 第 29 行段落）",
+      "~600 原子液体盒子 OpenMM 单卡 A100 80GB 吞吐：MACE-OFF23(S) 2.1e6 steps/day (~24 steps/s)，(M) 1.1e6 steps/day，(L) 2.8e5 steps/day（Sec III E 段落，第 234 行）",
+      "溶剂化 crambin ~18000 原子，OpenMM A100：3e5 steps/day（第 392 行）",
+      "LAMMPS CPU 基准在 Archer2 单节点 128 核（纯 C++ 实现，双精度），GPU 基准单卡 A100 80GB：OPT*(单精度)/Kokkos/Torch 三实现（Figure S6/S7 文字说明，第 1502-1504 行；正文未给具体 ms 数值）",
+      "训练数据 SPICE v1、理论级别 wB97M+D3；small/medium/large 三个尺寸（Table 2 及超参节）",
+      "训练成本：单卡 A100，small 约 6 天、medium 约 10 天（第 546-548 行）",
+      "旁证（来自 UMA 论文 Table 3）：MACE-OFF23-L 在 H100 上 100 原子体系 ~89 steps/s (~11 ms/次能量+力调用)"
+    ]
+  },
+  {
+    "id": "anstine-aimnet2-chemsci",
+    "title": "AIMNet2: a neural network potential to meet your neutral, charged, organic, and elemental-organic needs",
+    "authors": "Dylan M. Anstine, Roman Zubatyuk, Olexandr Isayev",
+    "year": 2025,
+    "venue": "Chemical Science 16(23), 10228-10244 (2025-04-29 出版)；代码 github.com/isayevlab/aimnetcentral",
+    "doi_or_url": "https://doi.org/10.1039/D4SC08572H ; https://pmc.ncbi.nlm.nih.gov/articles/PMC12057637/",
+    "oa_status": "open (Gold OA, CC-BY 3.0；全文 PDF 已下载)",
+    "abstract_verbatim": "Machine learned interatomic potentials (MLIPs) are reshaping computational chemistry practices because of their ability to drastically exceed the accuracy-length/time scale tradeoff. Despite this attraction, the benefits of such efficiency are only impactful when an MLIP uniquely enables insight into a target system or is broadly transferable outside of the training dataset. In this work, we present the 2nd generation of our atoms-in-molecules neural network potential (AIMNet2), which is applicable to species composed of up to 14 chemical elements in both neutral and charged states, making it a valuable method for modeling the majority of non-metallic compounds. Using an exhaustive dataset of 2 × 10^7 hybrid DFT level of theory quantum chemical calculations, AIMNet2 combines ML-parameterized short-range and physics-based long-range terms to attain generalizability that reaches from simple organics to diverse molecules with \"exotic\" element-organic bonding. We show that AIMNet2 outperforms semi-empirical GFN2-xTB and is on par with reference density functional theory for interaction energy contributions, conformer search tasks, torsion rotation profiles, and molecular-to-macromolecular geometry optimization. Overall, the demonstrated chemical coverage and computational efficiency of AIMNet2 is a significant step toward providing access to MLIPs that avoid the crucial limitation of curating additional quantum chemical data and retraining with each new application. [注：'2nd' 与 '10^7' 由 PMC 上标线性化，其余文字逐字]",
+    "pdf_file": "2025_anstine_aimnet2.pdf",
+    "relevance": "AIMNet2 主论文：14 元素 + 中性/带电体系，是四者中带电分子舒适区最宽的；明确给出 CPU(i7-9700K 单核) vs GPU(L40S) 几何优化耗时对比（CPU 慢约两个数量级、仍略快于 GFN2-xTB），是 CPU 成本量级的关键实测来源；训练集仅含 <20 重原子分子——超出该尺度的反应属于外推区，选反应时须注意。",
+    "key_numbers": [
+      "元素覆盖 14 种：H, B, C, N, O, F, Si, P, S, Cl, As, Se, Br, I；支持中性+带电（Abstract；Methods 元素集合）",
+      "训练集构建：master set ~1.2e8 个 B97-3c 标记构象 → 数据蒸馏到 ~2e7 个 → 全部用 ωB97M-D3/def2-TZVPP 重算；最终集成 4 个成员（Data distillation 节 + Fig. 2 说明）",
+      "训练集分子规模：'neutral and charged molecules under 20 heavy atoms'（Methods Dataset preparation，重原子数 <20）",
+      "几何优化效率标定（Fig. 6a 讨论）：GFN-FF/GFN2-xTB/AIMNet2(CPU&GPU) 均 O(N^2) 缩放；GPU(PyTorch, L40S) 对 <=80 原子比 GFN-FF 快 ~5x；'Carrying out AIMNet2 geometry optimization on a CPU results in a slower time-to-converge by approximately 2 orders of magnitude, being slightly faster than GFN2-xTB.'（CPU=i7-9700K 单核，逐字）",
+      "ASE LBFGS 经自定义 AIMNet2 calculator 插件，开销 ~5%（Fig. 6b/c 讨论段）",
+      "大体系 GPU：~1e5 原子聚合物单优化步 <=0.75 s；周期甲烷 9e4 原子一次力评估中 neighbor list 构建 2.16 s vs AIMNet2 推理 0.75 s，neighbor list 最高占总时间 65%",
+      "精度锚点：TorsionNet500 MAE 0.32 kcal/mol（GFN2-xTB 0.73、ANI-2x 1.30 kcal/mol）；构象搜索成功率 77% vs B97-3c 75%、GFN2-xTB 45.2%；113 个稀有键合 CSD 分子优化 RMSD 平均 0.38 Å（ωB97M-D3 版本）",
+      "局部截断 5.0 Å；长程 Coulomb/D3 显式包含于总能量 U_Total = U_Local + U_Disp + U_Coul（eqn 1）"
+    ]
+  },
+  {
+    "id": "aimnet2-rxn-hf",
+    "title": "AIMNet2-rxn: A Machine Learned Potential for Generalized Reaction Modeling on a Millions-of-Pathways Scale（HuggingFace checkpoint 卡片 + ChemRxiv 预印本）",
+    "authors": "Dylan M. Anstine, Qiyuan Zhao, Roman Zubatiuk, Shuhao Zhang, Veerupaksh Singla, Filipp Nikitin, Brett M. Savoie, Olexandr Isayev",
+    "year": 2025,
+    "venue": "HuggingFace: isayevlab/aimnet2-rxn（含 aimnet2-wb97m-d3 / -2025 / -nse / -pd 同族仓库）；ChemRxiv preprint DOI 10.26434/chemrxiv-2025-hpdmg",
+    "doi_or_url": "https://huggingface.co/isayevlab/aimnet2-rxn",
+    "oa_status": "open (checkpoint MIT 许可，可自由下载)",
+    "abstract_verbatim": "AIMNet2-rxn is a neural network interatomic potential specialized for generalized organic reaction modeling — energies, forces, charges, and electrostatic moments along reaction coordinates at near-ωB97M-V/def2-TZVPP accuracy. Trained on ~4.7M reaction-relevant geometries to handle bond breaking/forming, transition states, and minimum-energy pathways out of the box, without system-specific fine-tuning. [注：软件/checkpoint 条目，此处为 HF model card 开篇两句逐字引用]",
+    "pdf_file": "",
+    "relevance": "AIMNet2 的官方 ASE calculator 发布渠道就是 HuggingFace：pip install 'aimnet[hf]' 后 AIMNet2Calculator('isayevlab/aimnet2-rxn') 自动下载缓存；同族 aimnet2-wb97m-d3 覆盖 14 元素并显式输出 Hessian。对反应机理基准项目而言，-rxn 是唯一以反应势垒/IRC 为训练目标的候选；卡片明确了 TS/Hessian 工作流的 torch.compile 坑与开壳层限制。",
+    "key_numbers": [
+      "Checkpoint License: MIT（HF 页面 License 标签，逐字 'License: mit'）",
+      "元素范围：仅 H, C, N, O（config.json implemented_species=[1,6,7,8]）；净电荷 !=0 会 raise ValueError；开壳层/自由基不支持（改用 isayevlab/aimnet2-nse）",
+      "反应精度（卡片自引论文）：IRC 剖面 ~1 kcal/mol；反应能 RMSD ~1.6 kcal/mol；多样反应势垒 RMSD ~2 kcal/mol；Grambow 基准 RMSD ~3 kcal/mol，均无需微调",
+      "吞吐：单 GPU 批量 NEB ~10^6 反应/天；相对串行 NEB-DFT 端到端 ~10^6x，单次能量调用加速 ~10^3–10^4x",
+      "训练集 4,685,165 个几何（AIMNet2 base set + RGD-1 反应数据库，ωB97M-V/def2-TZVPP 重算）；截断半径 5.0 Å；集成 4 成员（ensemble_0..3.safetensors）",
+      "TS/Hessian 工作流必须 compile_model=False：'torch.compile (Dynamo) is known to hang on the double-backward path through GELU activations that Hessian autograd requires.'（逐字）；Hessian+torch.compile 同时使用会被 RuntimeError 拒绝",
+      "ASE 接入：from aimnet.calculators.aimnet2ase import AIMNet2ASE；卡片给出 ase.mep.NEB + LBFGS 最小能量路径示例",
+      "能量约定：learned per-element shifted 电子能标(eV)，只对同组成几何差分有意义，不能跨族比较或当绝对能量"
+    ]
+  },
+  {
+    "id": "meta-uma-fairchem",
+    "title": "UMA: A Family of Universal Models for Atoms（论文 arXiv + HuggingFace facebook/UMA checkpoint 仓库 + fairchem 代码库）",
+    "authors": "Brandon M. Wood, Misko Dzamba, Xiang Fu, Meng Gao, Muhammed Shuaibi, Luis Barroso-Luque, Kareem Abdelmaqsoud, Vahe Gharakhanyan, John R. Kitchin, Daniel S. Levine, Kyle Michel, Anuroop Sriram, Taco Cohen, Abhishek Das, Ammar Rizvi, Sushree Jagriti Sahoo, Zachary W. Ulissi, C. Lawrence Zitnick",
+    "year": 2025,
+    "venue": "arXiv:2506.23971 (cs.LG)；HuggingFace facebook/UMA；github.com/facebookresearch/fairchem (fairchem-core PyPI)",
+    "doi_or_url": "https://arxiv.org/abs/2506.23971 ; https://huggingface.co/facebook/UMA ; https://github.com/facebookresearch/fairchem",
+    "oa_status": "open (arXiv 论文 PDF 已下载；checkpoint 门控访问，FAIR Chemistry License v1)",
+    "abstract_verbatim": "The ability to quickly and accurately compute properties from atomic simulations is critical for advancing a large number of applications in chemistry and materials science including drug discovery, energy storage, and semiconductor manufacturing. To address this need, Meta FAIR presents a family of Universal Models for Atoms (UMA), designed to push the frontier of speed, accuracy, and generalization. UMA models are trained on half a billion unique 3D atomic structures (the largest training runs to date) by compiling data across multiple chemical domains, e.g. molecules, materials, and catalysts. We develop empirical scaling laws to help understand how to increase model capacity alongside dataset size to achieve the best accuracy. The UMA small and medium models utilize a novel architectural design we refer to as mixture of linear experts that enables increasing model capacity without sacrificing speed. For example, UMA-medium has 1.4B parameters but only ∼50M active parameters per atomic structure. We evaluate UMA models on a diverse set of applications across multiple domains and find that, remarkably, a single model without any fine-tuning can perform similarly or better than specialized models. We are releasing the UMA code, weights, and associated data to accelerate computational workflows and enable the community to continue to build increasingly capable AI models.",
+    "pdf_file": "2025_wood_uma.pdf",
+    "relevance": "UMA 是'指定一个 MLP 作金标准'路线里域最宽（omol 任务含变电荷/变自旋分子）但工程门槛最高的：checkpoint 在 HF 门控发放，需注册账号+实名信息+接受 FAIR Chemistry License v1 才能下载，且明确不对中国大陆等地区开放——本项目若选 UMA 必须先解决合规获取。速度表(Table 1/3)给出 ≤50 重原子体系的 GPU 推理量级锚点。",
+    "key_numbers": [
+      "checkpoint 获取方式：HF 仓库 facebook/UMA 门控——'You need to agree to share your contact information to access this model'，需提供 full legal name + date of birth + organization；huggingface-cli login 后 pretrained_mlip.get_predict_unit('uma-s-1p2') 自动拉取",
+      "License：FAIR Chemistry License v1 (Last Updated May 14, 2025)；'Models are made accessible for commercial and non-commerical use under a permissive license'；'UMA is available via HuggingFace globally, except in comprehensively sanctioned jurisdictions, and in China, Russia, and Belarus.'（逐字）",
+      "fairchem 代码 MIT，但 'Models/checkpoint licenses vary by application area.'（fairchem README LICENSE 节，逐字）",
+      "模型规格（fairchem README 表 + 论文 Table 1）：uma-s-1p1 150M 总参/6.6M active；uma-s-1p2 290M 总参/6.6M active；uma-m-1p1 1.4B 总参/50M active",
+      "推理速度 Table 1（H100，1k 原子，~50 近邻/原子，6 Å 截断）：UMA-S 16 inf/s；UMA-S-1.2 24 inf/s；UMA-M 3 inf/s；80GB 显存可容纳 S 系列 100k+ 原子",
+      "推理速度 Table 3（单卡 H100，FP32/TF32，steps/s）：100 原子：UMA-S 44 / S-1.2 53 / UMA-M 21 / eSEN 8 / Orb-v3 77 / MACE-MPA-0 38 / MACE-OFF23-L 89；1000 原子：16 / 24 / 3 / 1.7 / 30 / 24 / 20",
+      "MD 容量：UMA-S 1000 原子 16 steps/s ≈ 1.4 ns/day（单卡 80GB GPU）",
+      "训练规模：OC20+ODAC25+OMat24+OMC25+OMol25 合计近 5 亿结构、>300 亿原子；OMol25 任务支持非中性 charge/spin（论文 'One model for all tasks' 节）",
+      "版本注意：archived uma-s-1 有 extensivity bug；2026-03 发布 UMA-1.2（~50% 提速、OMol 测试集精度提升 ~40%，需 fairchem>=2.16.0）",
+      "自旋示例：README 给出 CH2 singlet/triplet 自旋隙计算的 info={'spin':...} 用法（task_name='omol'）"
+    ]
+  },
+  {
+    "id": "geometric-tric-workflow",
+    "title": "geomeTRIC：TRIC 内坐标几何优化器（软件 + 文档；配套论文 JCP 2016 与 NEB 论文 JCTC 2025）",
+    "authors": "Lee-Ping Wang, Chenchen Song, Heejune Park（及贡献者 Tamas K. Stenczel 等）",
+    "year": 2016,
+    "venue": "J. Chem. Phys. 144, 214108 (DOI 10.1063/1.4952956)；文档 geometric.readthedocs.io；代码 github.com/leeping/geometric；NEB 论文 JCTC 21, 12048 (DOI 10.1021/acs.jctc.5c01540)",
+    "doi_or_url": "https://doi.org/10.1063/1.4952956 ; https://github.com/leeping/geometric",
+    "oa_status": "paywalled (两篇论文均订阅制；软件 BSD-3-Clause 开源)",
+    "abstract_verbatim": "This is a geometry optimization code for molecular structures. The code works by calling external software for the energy and gradient through wrapper functions. Q-Chem, TeraChem, Psi4, Molpro, Gaussian 09/16, CFOUR, QUICK, BAGEL are supported quantum chemistry codes through the command line interface. The PySCF and QCArchive packages also provide interfaces to geomeTRIC for optimization. [注：软件条目，此处为 GitHub README 首段逐字引用替代出版方摘要；论文摘要见 DOI 链接]",
+    "pdf_file": "",
+    "relevance": "全流程可行性判定的关键：geomeTRIC 文档目录明确包含 Transition state optimization、Nudged elastic band、Intrinsic reaction coordinate、Hessian calculations & vibrational analysis，且 Engines 列表含 ASE Engine——即任何 ASE calculator（torchani/mace/aimnet/fairchem）都能挂上 geomeTRIC 完成 opt→freq→TS→IRC 闭环，无需 DFT。这是四个候选 MLP 共用的流程底座。",
+    "key_numbers": [
+      "功能清单（文档首页 'Main features'）：Energy minimization / Constrained minimization / Transition state optimization / Nudged elastic band / Conical intersection optimization",
+      "文档目录含独立章节：Transition states、Hessian calculations & vibrational analysis、Nudged elastic band、Intrinsic reaction coordinate（geometric.readthedocs.io/en/latest 目录树）",
+      "Engines 含 'ASE Engine'（文档 Engines 列表；ASE engine 贡献者 Tamas K. Stenczel）",
+      "安装：pip install geometric 或 conda install -c conda-forge geometric；Python 3.8+",
+      "License：BSD 3-clause（citation.html License 节，Copyright 2016-2024 Regents of the University of California）"
+    ]
+  },
+  {
+    "id": "marks-mlip-ts-benchmark",
+    "title": "Reliable and Efficient Automated Transition-State Searches with Machine-Learned Interatomic Potentials",
+    "authors": "Jonah Marks, Jonathon Vandezande, Joseph Gomes",
+    "year": 2026,
+    "venue": "arXiv:2604.00405 (preprint, 2026-04-01, 20 pages)",
+    "doi_or_url": "https://arxiv.org/abs/2604.00405",
+    "oa_status": "open (arXiv 全文 PDF 已下载)",
+    "abstract_verbatim": "Transition-state searches are central to understanding reaction mechanisms, but the high computational cost of density-functional theory (DFT) limits their application in high-throughput catalyst and materials discovery. Machine-learned interatomic potentials (MLIPs) offer near-DFT accuracy at orders-of-magnitude lower cost, yet their reliability for transition-state searches remains underexplored. Here, we systematically benchmark hybrid transition-state-search workflows combining six freely available potentials (MACE-OMol25, UMA-Small, UMA-Medium, eSEN-S, AIMNet2, and GFN2-xTB) with two reaction-path-finding algorithms (the freezing-string method and climbing-image nudged elastic band) across 58 diverse reactions spanning small organics, polymerization chemistry, and transition-metal catalysis. We find that models trained on the Open Molecules 2025 dataset exhibit markedly superior performance, with MACE-OMol25 achieving a 96.6% success rate while requiring fewer than four DFT-gradient evaluations per reaction on organic systems - a 94-96% reduction compared to conventional DFT-based searches. Low-level refinement on the MLIP surface before high-level DFT optimization reduces computational cost three-fold with minimal loss in reliability. For transition-metal systems, UMA-Medium demonstrates promising transferability to in-distribution transition metal complex reactions and out-of-distribution organometallic C-H activation. These results establish MLIP-accelerated workflows as practical tools for automated reaction discovery, enabling near-DFT accuracy at a fraction of traditional expense.",
+    "pdf_file": "2026_marks_mlip_tssearch.pdf",
+    "relevance": "迄今最直接的'候选 MLP 做 TS 搜索可靠吗'实证：对 UMA-S/M、AIMNet2、MACE-OMol25 等在 Baker(24)+Sharada(9) 有机反应用 FSM/CI-NEB 打分，并揭示 MLIP 数值 Hessian 曲率失真导致的系统性失败模式——为本项目 Hard/Impossible 档难度分层与 freq 校验环节提供设计依据。",
+    "key_numbers": [
+      "FSM 全体平均成功率 88.9%，成功搜索平均 9.9 次梯度评估；native 工作流 90.3%/14.7 次；low-level-refined 87.5%/5.0 次（成本降 ~3 倍/-66%）",
+      "Sharada 集（9 反应，含 alanine dipeptide、Diels-Alder、Ireland-Claisen）：总体 89.8%；native 90.7%（36.4 次评估）、refined 88.9%（8.0 次）；系统含 20–50+ 原子",
+      "MACE-OMol25：有机体系 TS 搜索成功率 96.6%，每反应 <4 次 DFT 梯度评估（较纯 DFT 减少 94–96%）",
+      "MLIP Hessian 曲率失真实例：ethane dehydrogenation (Baker #11)，UMA-M 有限差分 Hessian 给出虚频 3969i/949i/762i cm^-1，DFT(ωB97X-V/def2-TZVP) 为 2343i/843i/598i cm^-1，导致收敛到错误鞍点（Sec 4.1）",
+      "Baker #24 (HCNH2->HCN+H2)：所有 OMol25 训练模型 native 成功，refined 一致收敛到高能二级鞍点——P-RFO 对 Hessian 误差敏感",
+      "被测 AIMNet2 版本：ωB97M-D3/def2-TZVPP 蒸馏自 120M B97-3c master set，元素 C,H,N,O,S,F,Cl,Br,I,P,Si,B,As,Se（Sec 2.3）",
+      "过渡金属案例：UMA-M/MACE-OMol25 对 Rh 催化 C-H 活化 TS 的反应核几何误差 <=0.04 Å，SP 能垒偏差 ~1.4–1.6 kcal/mol"
+    ]
+  }
+]
