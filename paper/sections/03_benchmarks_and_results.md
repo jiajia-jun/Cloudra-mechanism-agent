@@ -68,7 +68,7 @@ We evaluate the three operational modes under identical LLM backbones without ex
 
 #### Stage 2: Computational Chemistry Knowledge Graph (GraphRAG) Augmentation
 Having established `dag_guided` as the superior orchestration foundation, we evaluate the impact of integrating the domain-specialized **Computational Chemistry Knowledge Graph (`dag_guided + GraphRAG`)**:
-- *Troubleshooting Acceleration:* When calculations fail (e.g., SCF oscillation, TS with $n_\mathrm{imag} > 1$, or IRC sliding into a single basin), GraphRAG retrieves structured decision trees from its L0/L1 experience base (e.g., Sobereva's proven protocols on coordinate displacement along secondary normal modes or activating quadratic convergence algorithms).
+- *Troubleshooting Acceleration:* When calculations fail (e.g., SCF oscillation, TS with $n_\mathrm{imag} > 1$, or IRC sliding into a single basin), GraphRAG retrieves structured decision trees from its L0/L1 experience base (e.g., proven protocols on coordinate displacement along secondary normal modes or activating quadratic convergence algorithms).
 - *Efficiency Gains & Cost Reduction:* Instead of unguided random parameter permutations, the agent executes targeted, causally grounded remediation actions. This significantly reduces error-recovery latency, lowers the wasted compute ratio, and shifts the Progress-Cost curve leftward (substantially increasing AUC).
 
 | Evaluation Metric | `standard` (Unconstrained) | `dag_record` (Ledger Only) | `dag_guided` (DAG + Supervisor) | `dag_guided + GraphRAG` (Full System) |

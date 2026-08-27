@@ -103,7 +103,7 @@ Cloudra is organized as an anarchic peer collective rather than a hierarchical a
 \draw[link] (hub) -- (writer);
 
 % Knowledge Graph Layer
-\node[kg] (kgnode) at (-6.8,0) {\textbf{Knowledge Graph (GraphRAG)}\\Decision DAG $\cdot$ Sobereva heuristics $\cdot$ $L_0/L_1$ troubleshooting};
+\node[kg] (kgnode) at (-6.8,0) {\textbf{Knowledge Graph (GraphRAG)}\\Decision DAG $\cdot$ Expert QC heuristics $\cdot$ $L_0/L_1$ troubleshooting};
 \draw[arrow, thick, draw=orange!80!black] (kgnode.east) -- (hub.west);
 
 % independent supervisor: gatekeeper of delivery, second guard
@@ -184,7 +184,7 @@ To rigorously benchmark the impact of these safeguards, Cloudra natively support
 \subsection{Computational Chemistry Knowledge Graph (GraphRAG) Layer}
 While pre-trained LLMs possess broad parametric chemistry knowledge, they frequently struggle when encountering domain-specific quantum-chemical execution failures---such as multi-imaginary frequency saddle points, oscillatory SCF non-convergence, disconnected IRC trajectories, severe spin contamination, or implicit solvation breakdowns in strong hydrogen-bonding media.
 
-To empower agents with actionable troubleshooting expertise, Cloudra integrates a domain-specialized \textbf{Computational Chemistry Knowledge Graph (GraphRAG)}. Grounded in established computational chemistry methodology (including Sobereva's canonical tutorials from the computational chemistry community and peer-reviewed benchmark literature), the knowledge graph is formulated as an actionable \textbf{Decision DAG} rather than a flat textual corpus:
+To empower agents with actionable troubleshooting expertise, Cloudra integrates a domain-specialized \textbf{Computational Chemistry Knowledge Graph (GraphRAG)}. Grounded in established computational chemistry methodology and expert troubleshooting protocols (distilled from canonical quantum-chemical guidelines and peer-reviewed literature), the knowledge graph is formulated as an actionable \textbf{Decision DAG} rather than a flat textual corpus:
 \begin{itemize}[leftmargin=*]
 \item \textbf{Ontological Nodes:} Comprise \textit{Symptom nodes} (e.g., $n_\mathrm{imag} > 1$, SCF energy divergence, IRC single-basin relapse, $\langle S^2 \rangle$ elevation), \textit{Diagnostic Criteria nodes} (e.g., verifying whether secondary imaginary modes $< 50\ \mathrm{cm^{-1}}$ represent methyl rotations, evaluating $T_1 / D_1$ multireference diagnostics), \textit{Mitigation Action nodes} (e.g., displacing along normal coordinates by $0.1\ \text{\AA}$, applying quadratic convergence \texttt{scf(xqc)}, twisting dihedral angles to break spurious higher-order saddle symmetries, activating broken-symmetry guess), and \textit{Fallback / Escalation nodes} (e.g., recomputing analytical Hessians with elevated basis sets or triggering justified rejection for multireference breakdown).
 \item \textbf{Relational Edges:} Link symptoms to diagnoses (\texttt{DIAGNOSED\_BY}), conditional branches (\texttt{BRANCHES\_IF}), actions (\texttt{RESOLVED\_BY}), and hierarchical fallbacks (\texttt{FALLBACK\_TO}).
