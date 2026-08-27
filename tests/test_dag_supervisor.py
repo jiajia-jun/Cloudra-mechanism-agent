@@ -470,7 +470,7 @@ async def test_graph_supervisor_agent_loop_accepts_mechanism_draft(tmp_path):
     assert [row[0] for row in actors] == ["harness"]
 
     # 上下文跨触发不清空：第二次触发后消息只增不减，且含首次触发内容。
-    # 注意 get_context 返回的是 ContextManager 的活缓存列表，必须先取长度快照。
+    # 注意 get_context 返回的是 message_history 的活缓存列表，必须先取长度快照。
     context_after_first = await agent.get_context()
     len_after_first = len(context_after_first)
     assert any(
@@ -674,7 +674,9 @@ async def test_graph_view_result_not_truncated(tmp_path):
     # 摘要视图：无完整 refs 列表，只有计数
     assert "refs" not in payload["result"]["nodes"][0]
     assert "n_refs" in payload["result"]["nodes"][0]
-    rendered = await agent.context_manager.build_messages()
+    rendered = await agent.message_history.build_messages(
+        identity_messages=[{"role": "system", "content": "supervisor"}],
+    )
     rendered_tool = next(m for m in rendered if m.get("role") == "tool")
     assert "已截断" not in str(rendered_tool["content"])
     assert json.loads(rendered_tool["content"])["result"]["total_nodes"] == 30

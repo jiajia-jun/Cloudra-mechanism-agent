@@ -701,7 +701,7 @@ class DagController:
     ) -> str | None:
         """把一次 Supervisor 触发登记为子 Agent 会话：侧栏可见、状态实时流转。
 
-        上下文文件本身由 SupervisorAgent 的 ContextManager 持久化（会话级），
+        上下文文件本身由 SupervisorAgent 的 JSONL 消息历史持久化（会话级），
         这里只补 session 记录让 UI 能列出它；登记失败不影响督导本身。
         """
         session_id = f"supervisor_{datetime.now(timezone.utc).isoformat()}"

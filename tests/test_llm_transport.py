@@ -32,8 +32,7 @@ def _make_client():
 
 
 def _make_agent():
-    """构造一个最小 Follower：工具缓存置空、context_manager 换成 mock，
-    使 _llm_call_once 不触碰工具注册表与上下文文件。"""
+    """构造一个最小 Follower：工具缓存置空、message_history 换成 mock。"""
     agent = Follower(
         id="a-llm",
         name="tester",
@@ -45,7 +44,7 @@ def _make_agent():
     cm = MagicMock()
     cm.build_messages = AsyncMock(return_value=[{"role": "user", "content": "你好"}])
     cm.load = AsyncMock(return_value=[])
-    agent.context_manager = cm
+    agent.message_history = cm
     return agent
 
 
@@ -466,7 +465,7 @@ class TestAgentDelegation:
         assert kwargs["messages"][1]["content"].startswith(
             "[Workspace observation]"
         )
-        identity_messages = agent.context_manager.build_messages.call_args.kwargs[
+        identity_messages = agent.message_history.build_messages.call_args.kwargs[
             "identity_messages"
         ]
         assert len(identity_messages) == 1

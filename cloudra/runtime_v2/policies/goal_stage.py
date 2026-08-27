@@ -3,7 +3,7 @@
 The legacy ``goal_set`` tool persists the goal to ``plan/{key}_goal.json``
 (via ``agent_store_path``), but PromptAssembler never reads that file — in
 legacy the goal reached the model only because the TUI also pinned it into the
-ContextManager message list.  runtime_v2 has no ContextManager, so this stage
+legacy Agent message list.  runtime_v2 has no JSONL history file, so this stage
 re-reads the file each turn and appends a fresh ``[Task goal]`` system
 message.  Replace semantics come free: the file holds exactly one goal.
 

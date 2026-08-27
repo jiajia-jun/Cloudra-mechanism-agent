@@ -21,7 +21,7 @@ _LAZY_MODULES = {
     "database": "cloudra.persistence.database",
     "artifacts": "cloudra.persistence.artifacts",
     "memory": "cloudra.persistence.memory",
-    "context_manager": "cloudra.persistence.context_manager",
+    "message_history": "cloudra.core.message_history",
     "paths": "cloudra.persistence.paths",
     "fs_utils": "cloudra.persistence.fs_utils",
     "workspace": "cloudra.persistence.workspace",

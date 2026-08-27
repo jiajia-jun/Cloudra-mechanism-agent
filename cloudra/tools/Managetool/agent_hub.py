@@ -5,7 +5,7 @@
 都可以发帖分享发现、提问、回答，或先查别人的帖子避免重复劳动。
 
 帖子一律公开：to_agent 只是"点名"，帖子本身仍是全论坛可见的讨论痕迹；
-被点名或被回复的 Agent 会收到事件通知（ContextManager.inject_event）。
+被点名或被回复的 Agent 会收到 Mailbox 投递与唤醒。
 检索为纯 Python 模糊匹配（英文按词、中文按 bigram 的 token 覆盖率），
 不引入向量检索依赖。
 """
@@ -110,7 +110,7 @@ class AgentHub(Tool):
         return True
 
     async def tool_call(self, user_input: AgentHub_input_schema, session: Session) -> AgentHub_output_schema:
-        # Legacy 论坛存储（hub_posts 表 + ContextManager 通知）已随 v1 删除；
+        # Legacy 论坛存储（hub_posts 表 + 旧上下文通知）已随 v1 删除；
         # runtime_v2 的 LegacyToolExecutor 按工具名拦截到 hub_bridge，此 body 只是兜底。
         return AgentHub_output_schema(
             is_success=False,

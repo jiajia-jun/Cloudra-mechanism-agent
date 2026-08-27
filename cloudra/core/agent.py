@@ -12,13 +12,12 @@ from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from cloudra import __version__
 from cloudra.base.tools_class import Tool
+from cloudra.core.message_history import SUPERVISOR_ADVICE_MARKER, JsonlMessageHistory
 from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
-from cloudra.infra import events
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import ChatResponse, LLMClient
 from cloudra.infra.runtime_profile import filter_tools_for_runtime
 from cloudra.infra.token_estimator import TokenEstimator
-from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
 from cloudra.persistence.database import ConversationDB
 from cloudra.persistence.workspace import resolve_working_directory
 from cloudra.runtime.prompt_assembler import (
@@ -73,7 +72,7 @@ class Agent(BaseModel):
     10.agent使用模型频率惩罚（frequency_penalty）
     11.agent使用模型存在惩罚（presence_penalty）
     12.agent身份prompt（prompt）
-    13.agent上下文管理器（context_manager）
+    13.agent 消息历史（message_history）
     14.agent输出方式（is_stream）
 
     该类的其他方法:
@@ -136,11 +135,11 @@ class Agent(BaseModel):
         return False
 
     # 可选的会话级唯一标识。子 Agent 被启动时会被赋予独立的 session_id，
-    # 用于在 ContextManager 中隔离同一 conversation 下的不同子任务上下文。
+    # 用于在同一 conversation 下隔离不同子任务的 JSONL 历史文件。
     session_id: Optional[str] = None
 
-    # 上下文管理器：Agent 上下文的唯一真相来源
-    context_manager: Optional[ContextManager] = None
+    # JSONL 消息历史（Supervisor 与 legacy llm_call 诊断路径）
+    message_history: Optional[JsonlMessageHistory] = None
 
     conversation_id: str
 
@@ -180,51 +179,32 @@ class Agent(BaseModel):
         self.working_directory = resolve_working_directory(self.working_directory)
         return self
 
-    def _init_context_manager(self) -> None:
-        '''初始化本 Agent 的 ContextManager。'''
-        self.context_manager = ContextManager(
-            agent_id=self.id,
+    def _init_message_history(self) -> None:
+        """Initialize JSONL-backed message history for this agent."""
+        self.message_history = JsonlMessageHistory(
             conversation_id=self.conversation_id,
-            prompt=self.prompt,
-            query=self.query,
-            session_id=getattr(self, 'session_id', None),
-            on_compaction_progress=self._report_compaction_progress,
-        )
-
-    async def _report_compaction_progress(self, progress: dict) -> None:
-        """Broadcast non-durable compression progress without touching SQLite."""
-        await events.aemit(
-            self.conversation_id,
-            "context_compaction",
             agent_id=self.id,
-            agent_name=self.name,
             session_id=getattr(self, "session_id", None),
-            **progress,
+            initial_query=self.query,
         )
 
-    def _ensure_context_manager(self) -> ContextManager:
-        '''确保上下文管理器已初始化；返回实例。'''
-        if self.context_manager is None:
-            self._init_context_manager()
-        return self.context_manager
+    def _ensure_message_history(self) -> JsonlMessageHistory:
+        """Ensure message history is initialized."""
+        if self.message_history is None:
+            self._init_message_history()
+        return self.message_history
 
     async def get_context(self) -> list:
-        '''
-        加载上下文。ContextManager 是上下文的唯一真相来源。
-        '''
-        return await self._ensure_context_manager().load()
+        """Load persisted LLM message history."""
+        return await self._ensure_message_history().load()
 
     async def update_context(self, new_block: dict) -> None:
-        '''
-        更新上下文，新增一个块。
-        确保每条消息都有 role 字段。
-        文件路径根据 conversation_id 隔离。
-        '''
-        await self._ensure_context_manager().append(new_block)
+        """Append one message block to persisted history."""
+        await self._ensure_message_history().append(new_block)
 
     async def clear_context(self) -> None:
-        '''清空上下文（通常用于任务结束后释放）。'''
-        await self._ensure_context_manager().clear()
+        """Clear persisted message history."""
+        await self._ensure_message_history().clear()
 
     def check_permission(self, tool: ToolEntry | Tool) -> bool:
         if isinstance(tool, Tool):
@@ -460,7 +440,7 @@ class Agent(BaseModel):
             self._native_search_adapter() is not None or "web_search" in tool_names
         )
         # assemble 每轮要读 prompt/MEMORY/AGENTS.md、扫 skills 与工作区，
-        # 是同步 IO+CPU 开销，移出事件循环（参照 ContextManager 的 to_thread 模式）。
+        # 是同步 IO+CPU 开销，移出事件循环。
         # PromptAssembler 实例每次新建、无可变共享状态，assemble 内部无 async 调用。
         assembly = await asyncio.to_thread(
             lambda: self._prompt_assembler().assemble(
@@ -470,26 +450,7 @@ class Agent(BaseModel):
             )
         )
         self._last_prompt_assembly = assembly
-        if self.model:
-            TokenEstimator.configure(model=self.model)
-        target_tokens = self.context_window // 2 if self.context_window else None
-        if target_tokens is not None:
-            # Tool schemas and runtime observations are part of the provider's
-            # prompt too. Previously they were appended after ContextManager's
-            # threshold check, so actual requests could pass 50% unnoticed.
-            schema_tokens = self._estimate_tools_schema_tokens(schemas)
-            observation_tokens = TokenEstimator.count_messages(
-                list(assembly.observation_messages)
-            )
-            history_budget = max(
-                1_024,
-                target_tokens - schema_tokens - observation_tokens,
-            )
-        else:
-            history_budget = None
-        messages = await self._ensure_context_manager().build_messages(
-            supports_vision=self.supports_vision,
-            max_context_tokens=history_budget,
+        messages = await self._ensure_message_history().build_messages(
             identity_messages=list(assembly.identity_messages),
         )
         messages.extend(assembly.observation_messages)
@@ -573,7 +534,7 @@ class Agent(BaseModel):
 
         assembly = self._last_prompt_assembly
         diagnostics = assembly.diagnostics() if assembly is not None else {}
-        persisted_history = await self._ensure_context_manager().load()
+        persisted_history = await self._ensure_message_history().load()
         # supervisor 建议 revision 只哈希带标记的消息（量小），保持
         # "建议变化则 revision 变化" 的语义；全量历史的 sha256 与逐条 token
         # 估算只是诊断元数据，默认用廉价近似值，设 CLOUDRA_DEBUG_DIAGNOSTICS

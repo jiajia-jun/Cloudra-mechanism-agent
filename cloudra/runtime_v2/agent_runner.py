@@ -332,7 +332,7 @@ class AgentRunner:
     @staticmethod
     async def _image_part(path: str) -> dict | None:
         """Encode a workspace image as an OpenAI image_url part (None on failure)."""
-        from cloudra.persistence.context_manager import encode_image_data_url
+        from cloudra.infra.media import encode_image_data_url
 
         url = await asyncio.to_thread(encode_image_data_url, path)
         if url is None:

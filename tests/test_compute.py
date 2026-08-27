@@ -10,7 +10,7 @@ from cloudra.infra.compute_utils import (
     check_job_type,
     get_log_path,
 )
-from cloudra.persistence.context_manager import ContextManager
+from cloudra.core.message_history import JsonlMessageHistory
 from cloudra.tools.Chemtool.submit_compute_job import (
     SubmitComputeJob,
     SubmitComputeJob_input_schema,
@@ -571,13 +571,12 @@ exit 0
 
 
 @pytest.mark.asyncio
-async def test_context_manager_load_and_append(isolated_db):
-    """ContextManager 能加载初始上下文并追加消息。"""
-    cm = ContextManager(
+async def test_message_history_load_and_append(isolated_db):
+    """JsonlMessageHistory 能加载初始上下文并追加消息。"""
+    cm = JsonlMessageHistory(
         agent_id="a-0",
         conversation_id="test_conv",
-        prompt="You are a helpful assistant.",
-        query="hello",
+        initial_query="hello",
     )
 
     ctx = await cm.load()
@@ -589,33 +588,6 @@ async def test_context_manager_load_and_append(isolated_db):
     ctx = await cm.load()
     assert len(ctx) == 2
     assert ctx[1]["content"] == "hi there"
-
-
-@pytest.mark.asyncio
-async def test_context_manager_poll_external_events(isolated_db):
-    """ContextManager 能轮询并消费外部事件。"""
-    await ContextManager.inject_event(
-        conversation_id="test_conv",
-        agent_id="a-0",
-        event_type="email",
-        content="用户发来新邮件",
-    )
-
-    cm = ContextManager(
-        agent_id="a-0",
-        conversation_id="test_conv",
-        prompt="You are a helpful assistant.",
-        query="hello",
-    )
-
-    events = await cm.poll_external_events()
-    assert len(events) == 1
-    assert events[0]["event_type"] == "email"
-    assert "新邮件" in events[0]["content"]
-
-    # 再次轮询应无 pending 事件
-    events = await cm.poll_external_events()
-    assert len(events) == 0
 
 
 def test_calculator_script_help():
@@ -643,22 +615,20 @@ def test_calculator_script_missing_input():
 
 
 @pytest.mark.asyncio
-async def test_context_manager_session_isolation(isolated_db):
+async def test_message_history_session_isolation(isolated_db):
     """同一 conversation_id 下，不同 session_id 的上下文文件应相互隔离。"""
-    cm1 = ContextManager(
+    cm1 = JsonlMessageHistory(
         agent_id="a-1",
         conversation_id="shared_conv",
-        prompt="You are agent a-1.",
-        query="task 1",
+        initial_query="task 1",
         session_id="session_1",
     )
     await cm1.append({"role": "assistant", "content": "result from task 1"})
 
-    cm2 = ContextManager(
+    cm2 = JsonlMessageHistory(
         agent_id="a-1",
         conversation_id="shared_conv",
-        prompt="You are agent a-1.",
-        query="task 2",
+        initial_query="task 2",
         session_id="session_2",
     )
     ctx2 = await cm2.load()

@@ -174,7 +174,6 @@ class ConversationDB:
             cur.execute(_CREATE_SUBAGENT_REQUESTS)
             cur.execute(_CREATE_APPROVALS)
             cur.execute(_CREATE_COMPUTE_JOBS)
-            cur.execute(_CREATE_CONTEXT_EVENTS)
             cur.execute(_CREATE_SCHEDULED_REMINDERS)
             cur.execute(_CREATE_SESSION_EVENTS)
             cur.execute(_CREATE_CLIENT_COMMANDS)
@@ -275,7 +274,6 @@ class ConversationDB:
             await cur.execute(_CREATE_SUBAGENT_REQUESTS)
             await cur.execute(_CREATE_APPROVALS)
             await cur.execute(_CREATE_COMPUTE_JOBS)
-            await cur.execute(_CREATE_CONTEXT_EVENTS)
             await cur.execute(_CREATE_SCHEDULED_REMINDERS)
             await cur.execute(_CREATE_SESSION_EVENTS)
             await cur.execute(_CREATE_CLIENT_COMMANDS)
@@ -500,9 +498,6 @@ _RELATED_EXTRA_COLUMNS = {
         "lease_expires_at": "REAL",
         "attempt_count": "INTEGER DEFAULT 0",
     },
-    "context_events": {
-        "session_id": "TEXT",
-    },
     "approvals": {
         "tool_name": "TEXT DEFAULT ''",
         "normalized_arguments": "TEXT DEFAULT '{}'",
@@ -586,19 +581,6 @@ _CREATE_COMPUTE_JOBS = """
         lease_owner TEXT,
         lease_expires_at REAL,
         attempt_count INTEGER DEFAULT 0
-    )
-"""
-
-_CREATE_CONTEXT_EVENTS = """
-    CREATE TABLE IF NOT EXISTS context_events(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id TEXT,
-        agent_id TEXT,
-        session_id TEXT,
-        event_type TEXT,
-        content TEXT,
-        state TEXT DEFAULT 'pending',
-        created_at REAL
     )
 """
 

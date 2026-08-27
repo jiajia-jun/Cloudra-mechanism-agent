@@ -23,7 +23,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 **`core/` — 共享基类与督导**
 
 - `agent.py` — `Agent`/`Coordinator`/`Follower` 基类与权限模型宿主（supervisor、subagents、部分工具直接继承；v2 会话不经过这里的执行方法）。
-- `supervisor.py` — 科学督导（SupervisorAgent、GraphSupervisor），只在 `dag_guided` 模式运行：接受/驳回机理草稿、复核 CallReview 并绑定阶段；对 delivery 图结构只读，不调度工作。督导报告由 `DagController._deliver_supervisor_report` 回投 Coordinator（notices.pin 常驻注入；非 Coordinator 触发时另发 `agent.message` 唤醒），不再走 legacy ContextManager；case-bank 检索版 `Supervisor` 已随 case_bank 一并删除。
+- `supervisor.py` — 科学督导（SupervisorAgent、GraphSupervisor），只在 `dag_guided` 模式运行：接受/驳回机理草稿、复核 CallReview 并绑定阶段；对 delivery 图结构只读，不调度工作。督导报告由 `DagController._deliver_supervisor_report` 回投 Coordinator（notices.pin 常驻注入；非 Coordinator 触发时另发 `agent.message` 唤醒）；case-bank 检索版 `Supervisor` 已随 case_bank 一并删除。
 - `dag/` — DAG 引导编排子系统（仍在包根一级），见下节。
 - 推理循环的唯一实现是 `runtime_v2/`（见下）；`runtime/` 只剩共享件：`prompt_assembler.py`（确定性 system prompt 组装：`load_role_prompt()` 读 `prompts/*.md`，按 (mtime_ns, size) 签名缓存；AGENTS.md 仅注入 Coordinator）、`environment_observer.py`（工作区快照）、`monitor.py`（计算日志监视子进程，由 `infra/compute_utils.py` 以 `python -m cloudra.runtime.monitor` 拉起；失败路径把可读原因落 `compute_jobs.last_error` 与 state json 的 `error` 字段）、`compute_executor.py`（`ComputeBroker` 扫描会话库 `claim_ready_compute_job`，本地任务 `launch_compute_processes(wait=False)` 后延长 lease 以免重复开算，Slurm 走 `run_slurm_compute` 并在轮询期间续租；周期 `_reap_orphans` 把已耗尽重试预算且租约过期的 running 作业置 failed——系统不主动杀进程，死作业靠 `mark_compute_job_failed` 工具显式对账）。
 
@@ -37,7 +37,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 - `database.py` — 会话级 SQLite（ConversationDB；v2 里主要服务 DAG 存储与 artifacts）。
 - `artifacts.py` — 不可变产物快照（ArtifactService）与短期下载授权。
-- `memory.py`（长期记忆 MEMORY.md，prompt_assembler 用）、`context_manager.py`（Agent 上下文文件；supervisor 与 dag/controller 用）。
+- `memory.py`（长期记忆 MEMORY.md，prompt_assembler 用）、`core/message_history.py`（JSONL 消息历史；Supervisor 与 legacy llm_call 路径）。
 - `paths.py` — data_dir 下所有路径的**唯一事实来源**；`fs_utils.py` — 原子写；`workspace.py` — 工作区受限读写。
 
 **`base/` — 数据类与基类**

@@ -59,24 +59,6 @@ class GoalSet(Tool):
             lines.append(f"Current focus: {goal['current_focus']}")
         return "\n".join(lines)
 
-    async def _pin_to_context(self, goal: dict) -> None:
-        """把目标锚点写入上下文（替换旧锚点）；上下文未初始化时跳过。"""
-        if self.subagent is None:
-            return
-        cm = getattr(self.subagent, "context_manager", None)
-        if cm is None:
-            return
-        context = await cm.load()
-        context = [
-            msg for msg in context
-            if not (
-                msg.get("role") == "system"
-                and str(msg.get("content", "")).startswith(GOAL_MARKER)
-            )
-        ]
-        context.append({"role": "system", "content": self._format(goal)})
-        await cm.replace(context)
-
     async def tool_call(
         self,
         user_input: GoalSet_input_schema,
@@ -88,7 +70,6 @@ class GoalSet(Tool):
             "current_focus": user_input.current_focus,
         }
         save_json(agent_store_path(self.subagent, "goal.json"), goal)
-        await self._pin_to_context(goal)
         await self.record_session_event(session, "goal_updated", {"goal": goal})
         return GoalSet_output_schema(
             result=f"Goal anchor set:\n{self._format(goal)}",

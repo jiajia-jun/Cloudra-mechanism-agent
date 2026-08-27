@@ -69,7 +69,6 @@ def test_conversation_db_init_creates_tables(isolated_db):
     assert "subagent_requests" in tables
     assert "approvals" in tables
     assert "compute_jobs" in tables
-    assert "context_events" in tables
     assert "session_events" in tables
     assert "client_commands" in tables
     assert "interactions" in tables
