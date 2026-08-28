@@ -1,0 +1,134 @@
+{
+  "task_id": "P3",
+  "tier": "easy",
+  "family": "P",
+  "name": "烯丙基乙烯基醚 Claisen 重排（[3,3]）",
+  "prompt": {
+    "query": "请推导以下反应/过程的机理（Easy 档）：烯丙基乙烯基醚 Claisen 重排（[3,3]）。反应物 SMILES：C=CCOC=C；产物 SMILES：O=CCCC=C；总电荷 0，多重度 1；条件：气相 ~200 °C。要求：定位过渡态（TS），用 IRC 连通反应物与产物端点，做频率验证（TS 有且仅有一个虚频），并给出活化能垒（kcal/mol）。**必须在沙箱根目录维护 `mechanism_graph.json`**，记录机理图的节点（reactant/product/transition_state，含 SMILES）与基元步边（含 via 指向的 TS 节点 id），评分器将读取该文件取证，缺失或不可解析将严重影响得分。允许的量化方法仅限 MACE-OMol25 与 xTB；不要尝试更高级别的泛函/基组，超出白名单的调用会被拦截。",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided",
+    "seed_graph_template": true
+  },
+  "system": {
+    "reactants": [
+      "C=CCOC=C"
+    ],
+    "products": [
+      "O=CCCC=C"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "气相 ~200 °C",
+    "elements": [
+      "C",
+      "H",
+      "O"
+    ],
+    "max_heavy_atoms": 6,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "allowed_basis_max": "def2-svp",
+    "forbid": [
+      "ccsd(t)",
+      "wb97m-v/def2-tzvpd",
+      "dlpno"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "P3_R",
+          "role": "reactant",
+          "smiles": [
+            "C=CCOC=C"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "P3_TS",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS"
+        },
+        {
+          "id": "P3_P",
+          "role": "product",
+          "smiles": [
+            "O=CCCC=C"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "P3_E1",
+          "from": "P3_R",
+          "to": "P3_P",
+          "via": "P3_TS",
+          "step_type": "[3,3]-σ 迁移，椅式 TS，含 O 的 Claisen（与 P1 全碳 Cope 互补）→ 4-戊烯醛",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": 30.6,
+      "barrier_type": "ΔH‡",
+      "verification": "verified",
+      "reference_doi": "",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "parse_structure_from_file"
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "identity_match": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": true,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}
