@@ -72,6 +72,13 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
             if data is None:
                 print(f'cclib 无法识别日志格式：{log_path}')
                 return None, None
+            # cclib 1.8+ 会容忍缺坐标/原子序数的日志并继续返回对象，但 ccwrite
+            # 会抛 'Must pass at least one of atomcoords or atomnos'；旧版 cclib
+            # 在 ccread 阶段就抛 AttributeError。统一在解析后做必需字段检查，
+            # 避免 CI/本地版本差异导致的行为分歧。
+            if not hasattr(data, 'atomcoords') or not hasattr(data, 'atomnos'):
+                print(f'日志缺少原子坐标或原子序数，视为不完整：{log_path}')
+                return None, None
             is_success = data.metadata.get('success', False)
             try:
                 state_str = cclib.io.ccwrite(data, outputtype="cjson")
