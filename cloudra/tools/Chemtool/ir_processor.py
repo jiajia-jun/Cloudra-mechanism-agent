@@ -25,7 +25,7 @@ description = (
     "Infrared (IR) spectrum processing and assignment: SpectroChemPy, supporting JCAMP-DX, Thermo Nicolet (SPA/SPG), CSV, etc., "
     "with baseline correction, smoothing, normalization, second-derivative analysis, and automatic functional-group ID. "
     "Use for: processing experimental IR raw spectra, assigning functional groups, comparing with computed spectra. "
-    "Do not use for: NMR processing (use nmr_processor) or reading a Gaussian frequency log (use gaussian_log_parser)."
+    "Do not use for: NMR processing (use nmr_processor) or reading a Gaussian frequency log (use log_parser)."
 )
 
 class IRProcessor_input_schema(input_schema):

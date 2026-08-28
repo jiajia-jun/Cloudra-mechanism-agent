@@ -4,18 +4,16 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.core.agent import Coordinator, Follower
-from cloudra.persistence.context_manager import SUPERVISOR_ADVICE_MARKER, ContextManager
+from cloudra.core.message_history import SUPERVISOR_ADVICE_MARKER, JsonlMessageHistory
 
 
-def _context_manager(tmp_path, *, agent_id="a-prompt", query="继续任务"):
-    manager = ContextManager(
-        agent_id=agent_id,
+def _message_history(tmp_path, *, agent_id="a-prompt", query="继续任务"):
+    manager = JsonlMessageHistory(
         conversation_id="prompt-conv",
-        prompt=None,
-        query=query,
-        db_path=str(tmp_path / "conversation.db"),
+        agent_id=agent_id,
+        initial_query=query,
+        context_file=str(tmp_path / f"{agent_id}-context.json"),
     )
-    manager.context_file = str(tmp_path / f"{agent_id}-context.json")
     return manager
 
 
@@ -30,7 +28,7 @@ def _agent(tmp_path, workspace, *, prompt_name=None, prompt=None):
         working_directory=str(workspace),
     )
     agent._tools_schema_cache = []
-    agent.context_manager = _context_manager(tmp_path)
+    agent.message_history = _message_history(tmp_path)
     return agent
 
 
@@ -43,7 +41,7 @@ def _coordinator(tmp_path, workspace, *, prompt_name=None, prompt=None):
         working_directory=str(workspace),
     )
     agent._tools_schema_cache = []
-    agent.context_manager = _context_manager(tmp_path)
+    agent.message_history = _message_history(tmp_path)
     return agent
 
 
@@ -252,7 +250,7 @@ async def test_follower_skips_agents_md_injection(
 
 @pytest.mark.asyncio
 async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
-    manager = _context_manager(tmp_path)
+    manager = _message_history(tmp_path)
     legacy = [
         {"role": "system", "content": "已经过期的身份"},
         {"role": "user", "content": "原始任务"},
@@ -272,7 +270,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
     migrated = await manager.load()
     assert migrated == legacy[1:]
     # 磁盘已迁移为 JSONL；用双格式读取器验证内容完整
-    from cloudra.persistence.context_manager import read_context_file
+    from cloudra.core.message_history import read_context_file
     assert read_context_file(manager.context_file) == legacy[1:]
 
     messages = await manager.build_messages(
@@ -298,7 +296,7 @@ async def test_agent_replays_legacy_history_with_current_identity(
         {"role": "assistant", "content": "旧会话已经完成第一步"},
         {"role": "user", "content": "继续第二步"},
     ]
-    with open(agent.context_manager.context_file, "w", encoding="utf-8") as stream:
+    with open(agent.message_history.context_file, "w", encoding="utf-8") as stream:
         json.dump(legacy_history, stream, ensure_ascii=False)
 
     request = await agent._build_request_kwargs()
@@ -309,8 +307,8 @@ async def test_agent_replays_legacy_history_with_current_identity(
     assert any("分析旧样品" in content for content in contents)
     assert any("旧会话已经完成第一步" in content for content in contents)
     assert any("继续第二步" in content for content in contents)
-    from cloudra.persistence.context_manager import read_context_file
-    assert read_context_file(agent.context_manager.context_file) == legacy_history[1:]
+    from cloudra.core.message_history import read_context_file
+    assert read_context_file(agent.message_history.context_file) == legacy_history[1:]
 
 
 @pytest.mark.asyncio
@@ -449,7 +447,9 @@ async def test_skill_manifest_and_supervisor_advice_have_revision_semantics(
 
     first_request = await agent._build_request_kwargs()
     first = agent.get_runtime_diagnostics()
-    await agent.context_manager.set_supervisor_advice("先检查输入。")
+    await agent.message_history.append(
+        {"role": "system", "content": f"{SUPERVISOR_ADVICE_MARKER} 先检查输入。"}
+    )
     skill.write_text(
         "---\nname: review\ndescription: 第二版\n---\n正文 v2",
         encoding="utf-8",

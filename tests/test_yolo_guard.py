@@ -52,25 +52,24 @@ class TestFormatContent:
 class TestFormatRecentContext:
     @pytest.fixture
     def fake_agent(self, tmp_path):
-        from cloudra.persistence.context_manager import ContextManager
+        from cloudra.core.message_history import JsonlMessageHistory
 
-        cm = ContextManager(
-            agent_id="test-agent",
+        cm = JsonlMessageHistory(
             conversation_id="test-conv",
-            prompt="你是一个测试助手。",
-            query="帮我分析数据",
+            agent_id="test-agent",
+            initial_query="帮我分析数据",
+            context_file=str(tmp_path / "context.json"),
         )
-        cm.context_file = str(tmp_path / "context.json")
 
         agent = MagicMock()
-        agent.context_manager = cm
+        agent.message_history = cm
         agent.name = "explorer"
         agent.query = "帮我分析数据"
         return agent
 
     @pytest.mark.asyncio
     async def test_format_recent_context(self, fake_agent):
-        cm = fake_agent.context_manager
+        cm = fake_agent.message_history
         await cm.append({"role": "user", "content": "你好"})
         await cm.append({"role": "assistant", "content": "我来帮你"})
         await cm.append({"role": "user", "content": "读取文件"})
@@ -88,7 +87,7 @@ class TestYoloGuardJudge:
         agent = MagicMock()
         agent.name = "explorer"
         agent.query = "帮我分析数据"
-        agent.context_manager = None
+        agent.message_history = None
         return agent
 
     @pytest.mark.asyncio

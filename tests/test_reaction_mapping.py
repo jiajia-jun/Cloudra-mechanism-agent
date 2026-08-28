@@ -347,6 +347,76 @@ async def test_missing_explicit_hydrogens_is_inconclusive_not_partial_map(tmp_pa
     assert result.atom_map == []
 
 
+def test_potential_axes_sp2_sp2_hindered_biphenyl():
+    """受阻联苯应检出潜在轴，对称/自由旋转体系不应检出。"""
+    result = analyze_reaction_mapping(
+        "Cc1cccc(Cl)c1-c1c(Cl)cccc1",
+        "Cc1cccc(Cl)c1-c1c(Cl)cccc1",
+    )
+    axes = result["potential_axes"]["reactant"]
+    assert len(axes) == 1
+    assert axes[0]["hybridization"] == ["SP2", "SP2"]
+    assert axes[0]["axis_congestion"] >= 9.0
+
+
+def test_potential_axes_reject_symmetric_and_sp3_sp3():
+    """对称联苯与 sp3-sp3 σ键不应报潜在轴（等价端/构象异构）。"""
+    for smiles in ("c1ccccc1-c1ccccc1", "Cc1cccc(C)c1-c1c(C)cccc1C", "CCCC"):
+        result = analyze_reaction_mapping(smiles, smiles)
+        assert result["potential_axes"]["reactant"] == []
+
+
+def test_potential_axes_sp3_tertiary_carbon_axis():
+    """叔碳 sp3-sp2 阻旋轴应检出；CH2 苄基（一端仅一个重取代基）应排除。"""
+    result = analyze_reaction_mapping(
+        "Cc1cccc(Cl)c1-C(C)c1c(C)cccc1Cl",
+        "Cc1cccc(Cl)c1-C(C)c1c(C)cccc1Cl",
+    )
+    axes = result["potential_axes"]["reactant"]
+    assert any("SP3" in ax["hybridization"] for ax in axes)
+
+    benzyl = analyze_reaction_mapping("Cc1ccccc1Cc1ccccc1Cl", "Cc1ccccc1Cc1ccccc1Cl")
+    assert benzyl["potential_axes"]["reactant"] == []
+
+
+def test_potential_axes_literature_aryl_ch_me_biaryl():
+    """文献经典阻旋骨架 Ar-CH(Me)-Ar'（Bringmann/Clayden 型邻位双取代）应检出 sp2-sp3 轴。"""
+    result = analyze_reaction_mapping(
+        "Cc1cccc(Cl)c1C(C)c1c(C)cccc1Cl",
+        "Cc1cccc(Cl)c1C(C)c1c(C)cccc1Cl",
+    )
+    axes = result["potential_axes"]["reactant"]
+    sp2_sp3 = [ax for ax in axes if sorted(ax["hybridization"]) == ["SP2", "SP3"]]
+    assert sp2_sp3, "Ar-CH(Me)-Ar' scaffold should expose an sp2-sp3 chiral axis"
+    for ax in sp2_sp3:
+        assert ax["axis_congestion"] >= 9.0
+        assert ax["configuration"] == "unspecified"
+
+
+def test_potential_axes_reject_equivalent_ends():
+    """叔丁基三个甲基等价、N-苄基端单取代，都不应误报为轴。"""
+    for smiles in (
+        "Cc1ccc2ccccc2c1C(C)(C)C",      # 1-tBu-2-Me 萘：叔丁基甲基等价
+        "CC(C)(C)c1ccccc1NCc1ccccc1Cl",  # N-苄基-2-叔丁基苯胺：N/苄基端单取代
+    ):
+        result = analyze_reaction_mapping(smiles, smiles)
+        assert result["potential_axes"]["reactant"] == []
+
+
+def test_axial_stereo_mismatch_counts_atropisomer_flip():
+    """sp2-sp2 轴经映射后 atropisomer 构型翻转到对映体应计入 stereo_mismatch。"""
+    retained = analyze_reaction_mapping(
+        "Cc1cccc(Cl)c1-c1c(Cl)cccc1 |wU:7.6,wU:8.8|",
+        "Cc1cccc(Cl)c1-c1c(Cl)cccc1 |wU:7.6,wU:8.8|",
+    )
+    flipped = analyze_reaction_mapping(
+        "Cc1cccc(Cl)c1-c1c(Cl)cccc1 |wU:7.6,wU:8.8|",
+        "Cc1cccc(Cl)c1-c1c(Cl)cccc1 |wD:7.6,wD:8.8|",
+    )
+    assert retained["candidates"][0]["stereo_mismatch"] == 0
+    assert flipped["candidates"][0]["stereo_mismatch"] >= 1
+
+
 def test_tool_is_registered():
     """防止工具实现存在但 agent manifest 永远发现不到它。"""
     from cloudra.tools.registry import TOOL_REGISTRY

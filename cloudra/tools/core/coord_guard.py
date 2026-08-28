@@ -2,7 +2,7 @@
 
 背景：机理任务中模型反复出现"手写坐标"行为——把凭记忆或凭感觉拼出的
 笛卡尔坐标块直接写进 .gjf/.xyz，绕开 smiles_to_mol / conformer_search /
-format_converter / gjf_writer 等结构化工具。prompt 层的禁令不够，这里在
+format_converter / qm_input_writer 等结构化工具。prompt 层的禁令不够，这里在
 harness 层检测并警告：text_writer / edit_file / bashtools 在写入几何或计算
 输入文件前调用本模块检查内容，命中时**放行写入但在返回消息里附警告**。
 刻意不硬拦——改 gjf 关键词、补 modredundant 等正当编辑不该被误伤，而且
@@ -40,7 +40,7 @@ MIN_COORD_LINES = 3
 _GUIDANCE = (
     "Coordinates should come from tools; do not type them by hand or transcribe from memory: "
     "use smiles_to_mol / conformer_search for structure generation; extract coordinates from compute logs with "
-    "format_converter (log→xyz) or gaussian_log_parser; prefer gjf_writer for Gaussian input; "
+    "format_converter (log→xyz) or log_parser; prefer qm_input_writer for Gaussian input; "
     "geometry tweaks should use the internal_coordinates Z-matrix flow. "
     "Hand-writing coordinates with bash means trying to bypass Supervisor review of mechanism evidence: handwritten coordinates are not bound "
     "to any compute record and may not be accepted as DAG evidence. "

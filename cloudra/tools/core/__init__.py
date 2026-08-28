@@ -10,6 +10,7 @@ from .coord_guard import (
 from .delegation_guard import coordinator_self_compute_warning
 from .gaussian_frames import FrameRecord, detect_job_types, extract_frames, frames_to_csv
 from .permission_model import Permission, check_permission, permission_to_dict
+from .qm_engine import detect_qm_engine
 
 __all__ = [
     'Permission',
@@ -18,6 +19,7 @@ __all__ = [
     'BashCommandClassifier',
     'CommandAnalysis',
     'detect_job_types',
+    'detect_qm_engine',
     'extract_frames',
     'frames_to_csv',
     'FrameRecord',

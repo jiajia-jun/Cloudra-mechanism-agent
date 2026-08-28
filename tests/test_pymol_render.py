@@ -7,15 +7,16 @@ paths run everywhere.
 
 from __future__ import annotations
 
-import importlib.util
-import shutil
-
 import pytest
 
 from cloudra.tools.Chemtool import pymol_render
-from cloudra.tools.Chemtool.pymol_render import PymolRender, PymolRender_input_schema
+from cloudra.tools.Chemtool.pymol_render import (
+    PymolRender,
+    PymolRender_input_schema,
+    pymol_available,
+)
 
-_HAS_PYMOL = importlib.util.find_spec("pymol") is not None or shutil.which("pymol") is not None
+_HAS_PYMOL = pymol_available()
 
 _MINIMAL_PDB = """\
 ATOM      1  N   GLY A   1       0.000   0.000   0.000  1.00  0.00           N

@@ -17,6 +17,13 @@ from cloudra.web_launcher import launch_browser
 console = Console()
 APP_NAME = "cloudra"
 VERSION = __version__
+_SENSITIVE_CONFIG_KEY_PARTS = {"key", "password", "secret", "token", "credential"}
+
+
+def _is_sensitive_config_key(key: str) -> bool:
+    """Return whether a dotted/underscored config path contains a secret field."""
+    parts = key.lower().replace(".", "_").split("_")
+    return any(part in _SENSITIVE_CONFIG_KEY_PARTS for part in parts)
 
 
 @click.group(invoke_without_command=True)
@@ -198,8 +205,8 @@ def config_get(key):
 
     value = getattr(target, final_key)
 
-    # Mask keys
-    if "key" in key.lower() and isinstance(value, str) and value:
+    # Mask sensitive values
+    if _is_sensitive_config_key(key) and isinstance(value, str) and value:
         value = "***"
 
     console.print(value)
@@ -217,7 +224,8 @@ def config_set(key, value):
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
         sys.exit(1)
-    console.print(f"[green]已设置 {key} = {value}[/green]")
+    display_value = "***" if _is_sensitive_config_key(key) else value
+    console.print(f"[green]已设置 {key} = {display_value}[/green]")
 
 
 @cli.command()

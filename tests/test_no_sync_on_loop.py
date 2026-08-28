@@ -108,8 +108,8 @@ def test_allowlist_entries_exist():
     assert not stale, f"白名单中的条目已不存在: {stale}"
 
 
-def test_yolo_guard_tolerates_missing_context_manager():
-    """v2 的 LegacyToolExecutor 传入壳 bridge（无 context_manager），
+def test_yolo_guard_tolerates_missing_message_history():
+    """v2 的 LegacyToolExecutor 传入壳 bridge（无 message_history），
     YOLO 守卫必须容错而不是 AttributeError。"""
     import asyncio
 

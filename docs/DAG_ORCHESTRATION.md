@@ -66,7 +66,7 @@ Coordinator 在机理草稿中为每个图元素声明有序的阶段契约；�
 
 ## 调用复核收件箱（CallReview Inbox）
 
-为了避免频繁打扰 Supervisor，系统设计了入箱过滤机制：只有在工具注册表中声明了 `dag_review=True` 的解析与分析工具（如 `gaussian_log_parser`、`reaction_mapping`、`thermo_analysis`、`ts_guess`）以及量子化学计算作业的成功/失败，才会向 `dag_call_reviews` 表插入待审记录；常规的文件读写、目录查询以及 `submit_compute_job` 提交调用均不会入箱，也不会触发 Supervisor。
+为了避免频繁打扰 Supervisor，系统设计了入箱过滤机制：只有在工具注册表中声明了 `dag_review=True` 的解析与分析工具（如 `log_parser`、`reaction_mapping`、`thermo_analysis`、`ts_guess`）以及量子化学计算作业的成功/失败，才会向 `dag_call_reviews` 表插入待审记录；常规的文件读写、目录查询以及 `submit_compute_job` 提交调用均不会入箱，也不会触发 Supervisor。
 
 每条待审记录携带上下文元数据（调用角色、工具名称、参数摘要、执行状态、计算作业 ID 等），供 Supervisor 评审时参考。收件箱采用追加写入设计，触发事件会自动进行合并（Coalescing），在 Supervisor 正在运行或排队时，新产生的待审记录会合并到下一次评审周期中统一处理。
 

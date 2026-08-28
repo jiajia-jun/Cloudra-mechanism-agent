@@ -7,13 +7,13 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "Convert among common computational-chemistry file formats (mol, xyz, gjf, pdb, SDF, cif, etc.) via ASE; "
+    "Convert among common computational-chemistry file formats (mol, xyz, gjf, inp (ORCA), pdb, SDF, cif, etc.) via ASE; "
     "coordinates stay in files and never appear in the return value. "
-    "Also extracts key frames from a Gaussian log (input_format='log') to CSV (output_format='csv'): "
+    "Also extracts key frames from a Gaussian or ORCA log (input_format='log') to CSV (output_format='csv'): "
     "optimization trajectories, scan curves, and IRC path structures/energies/reaction coordinates for programmatic analysis. "
-    "Use for: converting an existing structure file (e.g. xyz→gjf, cif→pdb) for downstream compute or visualization; "
+    "Use for: converting an existing structure file (e.g. xyz→gjf, xyz→inp, cif→pdb) for downstream compute or visualization; "
     "turning IRC/scan logs into CSV for pandas and similar. "
-    "Do not use for: generating an initial 3D structure from SMILES (use smiles_to_mol) or writing a Gaussian input (use gjf_writer)."
+    "Do not use for: generating an initial 3D structure from SMILES (use smiles_to_mol) or writing a Gaussian/ORCA input (use qm_input_writer)."
 )
 
 
@@ -29,10 +29,12 @@ class FormatConverter_input_schema(input_schema):
         description="Absolute path of the input file."
     )
     input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log"] = Field(
-        description="Input format. log means a Gaussian output log (.log/.out); then output must be csv."
+        description="Input format. log means a Gaussian or ORCA output log (.log/.out); then output must be csv."
     )
-    output_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "csv"] = Field(
-        description="Target output format. csv is only for log→key-frame tables."
+    output_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "csv"] = Field(
+        description="Target output format. 'inp' is an ORCA input (coordinates only, charge 0 / "
+                    "multiplicity 1 — edit method/charge with qm_input_writer instead for production). "
+                    "csv is only for log→key-frame tables."
     )
     output_path: str = Field(
         description="Absolute path of the output file."
@@ -61,6 +63,23 @@ class FormatConverter(Tool):
         return _ASE_FORMAT_MAP.get(fmt, fmt)
 
     @staticmethod
+    def _write_orca_inp(atoms, output_path: str) -> None:
+        """写 ORCA 坐标骨架（ASE 的 orca writer 不在 io 注册表中，需直接调用）。
+
+        ASE 只写几何骨架（charge 0 / mult 1，无方法行参数）；生产输入请用
+        qm_input_writer(engine='orca')。
+        """
+        import ase.io.orca
+
+        params = {
+            "orcasimpleinput": "",
+            "orcablocks": "",
+            "charge": 0,
+            "mult": 1,
+        }
+        ase.io.orca.write_orca(output_path, atoms, params)
+
+    @staticmethod
     def _convert_log_to_csv(user_input: "FormatConverter_input_schema") -> FormatConverter_output_schema:
         """Gaussian 日志 → 关键帧 CSV（优化轨迹/扫描/IRC 曲线）。"""
         if user_input.input_format != "log":
@@ -84,29 +103,33 @@ class FormatConverter(Tool):
                         "Check the path, then retry."
             )
         try:
-            from cloudra.tools.core.gaussian_frames import (
-                detect_job_types,
-                extract_frames,
-                frames_to_csv,
-            )
+            from cloudra.tools.core import gaussian_frames, orca_frames
+            from cloudra.tools.core.gaussian_frames import frames_to_csv
+            from cloudra.tools.core.qm_engine import detect_qm_engine
 
-            job_types = detect_job_types(user_input.input_path)
-            frames = extract_frames(user_input.input_path)
+            engine = detect_qm_engine(user_input.input_path)
+            frames_mod = orca_frames if engine == "orca" else gaussian_frames
+            job_types = frames_mod.detect_job_types(user_input.input_path)
+            frames = frames_mod.extract_frames(user_input.input_path)
             # 按规范顺序展示（opt+ts+freq 风格，而非字母序）
             ordered = [j for j in ("opt", "ts", "freq", "scan", "irc", "sp") if j in job_types]
             if not frames:
                 return FormatConverter_output_schema(
                     is_success=False,
                     output_path="",
-                    message=f"No key frames could be extracted from the log "
+                    message=f"No key frames could be extracted from the {engine or 'unknown'}-engine log "
                             f"(detected as {'+'.join(ordered) or 'unknown'}): {user_input.input_path}. "
-                            "Check that the log contains a finished opt/scan/irc job."
+                            "Check that the log contains a finished opt/scan job "
+                            "(ORCA IRC per-point coordinates live in the *_trj.xyz side "
+                            "files, so no coordinate frames here; IRC point counts, "
+                            "convergence and endpoint energies are still available via "
+                            "log_parser)."
                 )
             frames_to_csv(frames, user_input.output_path)
             return FormatConverter_output_schema(
                 is_success=True,
                 output_path=user_input.output_path,
-                message=f"Detected {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
+                message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
             )
         except Exception as e:
             return FormatConverter_output_schema(
@@ -114,7 +137,7 @@ class FormatConverter(Tool):
                 output_path="",
                 message=f"Failed to extract key frames from the log: {str(e)}. "
                         "Check that the input is a valid Gaussian log; "
-                        "you can also read it directly with gaussian_log_parser."
+                        "you can also read it directly with log_parser."
             )
 
     async def tool_call(self, user_input: FormatConverter_input_schema, session: Session) -> FormatConverter_output_schema:
@@ -163,7 +186,11 @@ class FormatConverter(Tool):
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
 
-            ase.io.write(output_path, atoms, format=ase_output_fmt)
+            if user_input.output_format == "inp":
+                # ASE 的 ORCA writer 不在 io 注册表中，走直接调用分支
+                self._write_orca_inp(atoms, output_path)
+            else:
+                ase.io.write(output_path, atoms, format=ase_output_fmt)
 
             return FormatConverter_output_schema(
                 is_success=True,

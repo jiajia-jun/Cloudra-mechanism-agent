@@ -12,10 +12,13 @@ import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from cloudra.infra import events
 from cloudra.infra.compute_utils import build_calculator_cmd
-from cloudra.persistence.context_manager import ContextManager
 from cloudra.persistence.database import ConversationDB
+from cloudra.runtime.compute_notify import (
+    build_compute_finish_content,
+    emit_compute_task_finished,
+    resolve_submission_info,
+)
 
 _SBATCH_VALUE = re.compile(r"[A-Za-z0-9_.:@+/%-]{1,100}\Z")
 _MEMORY = re.compile(r"[1-9][0-9]{0,6}(?:[KMGTP])?\Z", re.IGNORECASE)
@@ -254,25 +257,20 @@ async def run_slurm_compute(
                     ),
                 )
                 await con.commit()
-            try:
-                await ContextManager.inject_event(
-                    conversation_id=conversation_id,
-                    agent_id="a-0",
-                    event_type="compute_job",
-                    content=f"Slurm task_id={task_id}, job_id={scheduler_job_id} 已结束：{state}",
-                    db_path=db_path,
-                )
-            except Exception:
-                pass
-            try:
-                events.emit(
-                    conversation_id,
-                    "task_finished",
-                    task_id=task_id,
-                    task_kind="compute",
-                    state=final,
-                )
-            except Exception:
-                pass
+            info = await resolve_submission_info(db, task_id)
+            content = build_compute_finish_content(
+                task_id=task_id,
+                state=final,
+                input_path=str(info.get("path") or ""),
+                fail_reason="" if final == "done" else f"Slurm {state} ({exit_code})",
+            )
+            emit_compute_task_finished(
+                conversation_id,
+                task_id=task_id,
+                state=final,
+                content=content,
+                session_id=info.get("session_id"),
+                notify_coordinator=True,
+            )
             return 0 if final == "done" else 1
         await sleep(poll_seconds)

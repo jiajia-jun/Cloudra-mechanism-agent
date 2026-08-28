@@ -255,7 +255,7 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
     reviews = [
         {
             "review_id": f"rev-{index}",
-            "tool_name": "gaussian_log_parser",
+            "tool_name": "log_parser",
             "is_success": True,
             "caller": "a-4",
         }
@@ -521,3 +521,131 @@ def test_non_required_pending_stage_never_blocks_coverage():
 
     assert report.complete
     assert report.unresolved == []
+
+
+def test_not_applicable_with_reason_counts_as_complete():
+    """not_applicable（带理由）计入完成，且记独立的 stage_not_applicable code
+    与 skipped 的 branch_disposed 区分。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    # 无能垒步：ts_opt/frequency/short_irc 槽位不成立，endpoint 与 identity 仍算
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[
+            StageState(
+                kind="ts_opt",
+                status="not_applicable",
+                reason="barrierless association, no first-order saddle on this PES",
+            ),
+            StageState(
+                kind="frequency",
+                status="not_applicable",
+                reason="no TS to confirm",
+            ),
+            StageState(
+                kind="short_irc",
+                status="not_applicable",
+                reason="no saddle to launch IRC from",
+            ),
+            StageState(kind="endpoint_a", status="supported"),
+            StageState(kind="endpoint_b", status="supported"),
+            StageState(kind="direction", status="supported"),
+            StageState(kind="identity", status="supported"),
+        ]],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert report.complete
+    assert report.unresolved == []
+    assert "stage_not_applicable" in {gate.code for gate in report.satisfied}
+    assert "branch_disposed" not in {gate.code for gate in report.satisfied}
+
+
+def test_not_applicable_without_reason_is_not_waivable():
+    """无理由的 not_applicable 记 missing_stage_reason，且 USER waiver 不能豁免。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    delivery = _staged_delivery(
+        api,
+        node_stages=[_supported_geometry(api), _supported_geometry(api)],
+        edge_stages=[[StageState(kind="ts_opt", status="not_applicable", reason="  ")]],
+    )
+    waiver = api["CoverageWaiver"](
+        gate_code="missing_stage_reason",
+        target_type="edge",
+        target_id="e0",
+        user_id="chemist",
+        session_id="s1",
+        rationale="trying to excuse a missing reason",
+    )
+
+    plain = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+    waived = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default(waivers=[waiver])
+    )
+
+    assert not plain.complete
+    assert not waived.complete
+    assert "missing_stage_reason" in {gap.code for gap in plain.inconclusive}
+
+
+def test_not_applicable_does_not_block_stage_order_or_derive():
+    """顺序守卫把 not_applicable 视为已处置的前置阶段；derive 将其视为已满足。"""
+    api = _load_completion_api()
+    from cloudra.dag.engine import apply_stage_verdict
+    from cloudra.dag.models import GraphRef, StageKind, derive_evidence_level
+
+    StageState = api["StageState"]
+    stages = [
+        StageState(kind="ts_opt", status="not_applicable", reason="barrierless"),
+        StageState(kind="frequency", status="pending"),
+        StageState(kind="identity", status="pending"),
+    ]
+    ref = GraphRef(ref_type="tool_result", ref_id="x")
+    bound = apply_stage_verdict(
+        stages,
+        stage_kind=StageKind.FREQUENCY,
+        verdict="agree",
+        ref=ref,
+        tool_succeeded=True,
+    )
+    assert bound[1].status.value == "supported"
+
+    derived = derive_evidence_level(
+        [
+            StageState(kind="ts_opt", status="not_applicable", reason="barrierless"),
+            StageState(kind="frequency", status="not_applicable", reason="no TS"),
+            StageState(kind="short_irc", status="supported"),
+            StageState(kind="endpoint_a", status="supported"),
+            StageState(kind="endpoint_b", status="supported"),
+            StageState(kind="direction", status="supported"),
+            StageState(kind="identity", status="supported"),
+        ],
+        is_edge=True,
+    )
+    assert derived == "endpoint_supported"
+
+
+def test_not_applicable_verdict_requires_reason():
+    """apply_stage_verdict 的 not_applicable verdict 与 skip/disagree 一样 reason 必填。"""
+    api = _load_completion_api()
+    from cloudra.dag.engine import apply_stage_verdict
+    from cloudra.dag.models import StageKind
+
+    StageState = api["StageState"]
+    stages = [StageState(kind="ts_opt", status="pending")]
+
+    with pytest.raises(Exception) as excinfo:
+        apply_stage_verdict(
+            stages,
+            stage_kind=StageKind.TS_OPT,
+            verdict="not_applicable",
+            reason="   ",
+        )
+    assert getattr(excinfo.value, "code", None) == "reason_required"

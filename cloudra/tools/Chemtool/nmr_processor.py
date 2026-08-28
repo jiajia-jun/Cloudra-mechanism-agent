@@ -17,7 +17,7 @@ description = (
     "NMR raw-data processing via nmrglue: Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX, "
     "with a full time-to-frequency pipeline (window function, zero-fill, FT, phasing, baseline correction). "
     "Use for: processing experimental NMR raw data and obtaining a chemical-shift spectrum for structure elucidation. "
-    "Do not use for: IR processing (use ir_processor) or reading a theoretical chemical-shift log (use gaussian_log_parser)."
+    "Do not use for: IR processing (use ir_processor) or reading a theoretical chemical-shift log (use log_parser)."
 )
 
 class NMRProcessor_input_schema(input_schema):

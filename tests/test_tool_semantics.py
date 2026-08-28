@@ -66,12 +66,12 @@ def test_dag_observe_projection():
     assert not is_dag_observable("dag_view")
     assert not is_dag_observable("dag_add_species")
     assert not is_dag_observable("getskill")
-    assert is_dag_observable("gaussian_log_parser")
+    assert is_dag_observable("log_parser")
     assert is_dag_observable("unknown_plugin_tool")
 
 
 def test_evidence_derivers_are_loadable():
-    for tool_name in ("ts_guess", "gaussian_log_parser", "reaction_mapping", "thermo_analysis"):
+    for tool_name in ("ts_guess", "log_parser", "reaction_mapping", "thermo_analysis"):
         assert evidence_deriver_for(tool_name) is not None, tool_name
 
 

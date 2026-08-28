@@ -1,7 +1,7 @@
 """科学督导 Agent（Supervisor）。
 
 ``SupervisorAgent`` + ``GraphSupervisor``：dag_guided 模式下的科学督导 agent。
-它复用 Agent 基类与持久 ContextManager（conversation 级上下文，跨触发、
+它复用 Agent 基类与 JSONL 消息历史（conversation 级，跨触发、
 跨 session、跨进程重启连续），只持有 ``dag_*`` 工具族：用 dag_view /
 dag_delivery_report 自助读图，用 dag_accept_mechanism 裁决机理草稿、
 dag_review_call 复核每次 delivery 相关调用并绑定阶段。delivery/机理 DAG
@@ -111,7 +111,7 @@ class GraphSupervisorResult(BaseModel):
 class GraphSupervisor:
     """SupervisorAgent 的触发驱动器：每次图事件运行一轮 agent 循环。
 
-    上下文由 SupervisorAgent 的 ContextManager 持久化（conversation 级，
+    上下文由 SupervisorAgent 的 JSONL 消息历史持久化（conversation 级，
     session_id=None），跨触发/session/重启连续；本类与任何调用方都不得
     对其调用 clear_context。
     """
@@ -177,7 +177,10 @@ class GraphSupervisor:
                 "ts_guess result is advisory and never supports ts_opt/frequency, and a TS "
                 "frequency stage needs exactly one imaginary frequency. disagree means the "
                 "stage is still owed (it is NOT a disposal); skip with a reason only when "
-                "the stage is deliberately abandoned; ignore calls that are not delivery evidence."
+                "the stage is deliberately abandoned; not_applicable with a reason when the "
+                "stage slot does not apply to this element at all (e.g. a barrierless step has "
+                "no ts_opt/frequency, a unimolecular step has no endpoint_b complex); ignore "
+                "calls that are not delivery evidence."
             )
         parts.append(
             "First call dag_view to read the delivery projection and coverage gaps; fetch a "
@@ -233,7 +236,7 @@ class GraphSupervisor:
                     changed = True
             rewritten.append(block)
         if changed:
-            await agent._ensure_context_manager().replace(rewritten)
+            await agent._ensure_message_history().replace(rewritten)
 
     @staticmethod
     def _fallback_report(

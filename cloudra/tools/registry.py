@@ -69,9 +69,9 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ),
     ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
     ToolRegistration(
-        module='cloudra.tools.Chemtool.gjf_writer',
-        class_name='GjfWriter',
-        tool_name='gjf_writer',
+        module='cloudra.tools.Chemtool.qm_input_writer',
+        class_name='QmInputWriter',
+        tool_name='qm_input_writer',
         dag_compute_entry=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
@@ -89,7 +89,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
         module='cloudra.tools.Chemtool.log_parser',
         class_name='LogParser',
-        tool_name='gaussian_log_parser',
+        tool_name='log_parser',
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
         dag_review=True,
     ),

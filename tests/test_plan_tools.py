@@ -1,7 +1,7 @@
 """Plantool 规划工具（todo_write / goal_set）钉板测试：
 
 - todo_write：整体替换语义、id 自动分配与保留、in_progress 唯一软约束、清空、落盘持久化
-- goal_set：目标落盘、锚点注入上下文、重复设定替换旧锚点（不累积）、无上下文时不崩
+- goal_set：目标落盘、重复设定覆盖 goal.json、无 message_history 时不崩
 - 注册表：两个工具对 Coordinator 与 Follower 均可见
 """
 
@@ -12,7 +12,7 @@ import pytest
 from cloudra.core.agent import Follower
 from cloudra.tools import get_tools_lst
 from cloudra.tools.Plantool._store import agent_store_path
-from cloudra.tools.Plantool.goal import GOAL_MARKER, GoalSet, GoalSet_input_schema
+from cloudra.tools.Plantool.goal import GoalSet, GoalSet_input_schema
 from cloudra.tools.Plantool.todo import TodoWrite, TodoWrite_input_schema
 from cloudra.tools.Plantool.todo_read import TodoRead, TodoRead_input_schema
 
@@ -282,8 +282,7 @@ class TestGoalConfirm:
 
 @pytest.mark.asyncio
 class TestGoalSet:
-    async def test_goal_persisted_and_pinned_to_context(self, agent, mock_session):
-        await agent.get_context()  # 初始化 context_manager
+    async def test_goal_persisted(self, agent, mock_session):
         tool = GoalSet(subagent=agent)
         out = await tool.tool_call(GoalSet_input_schema(
             objective="完成 XX 体系的 DFT 计算",
@@ -293,32 +292,16 @@ class TestGoalSet:
         assert out.goal["objective"] == "完成 XX 体系的 DFT 计算"
         assert _read_store(agent, "goal.json")["completion_criteria"] == "能量收敛且报告写入 report.md"
 
-        context = await agent.get_context()
-        goals = [
-            m for m in context
-            if m.get("role") == "system" and str(m.get("content", "")).startswith(GOAL_MARKER)
-        ]
-        assert len(goals) == 1
-        assert "Completion criteria" in goals[0]["content"]
-
-    async def test_second_set_replaces_old_anchor(self, agent, mock_session):
-        await agent.get_context()
+    async def test_second_set_replaces_goal_json(self, agent, mock_session):
         tool = GoalSet(subagent=agent)
         await tool.tool_call(GoalSet_input_schema(objective="旧目标"), mock_session)
         await tool.tool_call(GoalSet_input_schema(objective="新目标"), mock_session)
 
-        context = await agent.get_context()
-        goals = [
-            m for m in context
-            if m.get("role") == "system" and str(m.get("content", "")).startswith(GOAL_MARKER)
-        ]
-        assert len(goals) == 1
-        assert "新目标" in goals[0]["content"]
         assert _read_store(agent, "goal.json")["objective"] == "新目标"
 
-    async def test_no_context_manager_does_not_crash(self, agent, mock_session):
-        """上下文未初始化时只落盘，不注入、不报错。"""
+    async def test_no_message_history_does_not_crash(self, agent, mock_session):
+        """无 message_history 时只落盘，不报错。"""
         tool = GoalSet(subagent=agent)
-        assert agent.context_manager is None
+        assert agent.message_history is None
         out = await tool.tool_call(GoalSet_input_schema(objective="目标"), mock_session)
         assert out.goal["objective"] == "目标"

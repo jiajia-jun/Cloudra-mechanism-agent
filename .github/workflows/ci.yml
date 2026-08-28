@@ -27,7 +27,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .[dev]
-          pip install ruff
 
       - name: Run ruff
         run: ruff check cloudra
@@ -42,7 +41,8 @@ jobs:
           python -c "from cloudra import cli, runtime"
           python -c "from cloudra.core import agent, supervisor"
           python -c "from cloudra.services import api_v2, session_store, nodes"
-          python -c "from cloudra.persistence import database, context_manager"
+          python -c "from cloudra.persistence import database"
+          python -c "from cloudra.core import message_history"
           python -c "from cloudra.base import session_class, tools_class"
           python -c "from cloudra.infra import config, events, llm_client"
           python -c "import cloudra.runtime_v2.schemas, cloudra.runtime_v2.core, cloudra.runtime_v2.commands, cloudra.runtime_v2.agent_host"

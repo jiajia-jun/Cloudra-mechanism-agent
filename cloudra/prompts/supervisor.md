@@ -28,9 +28,10 @@ Check, in order:
 
 Each pending review is one finished tool call (tool, caller, arguments digest, success, compute job id ride along as sidecar data — they inform your judgement; nothing auto-binds). For each, call `dag_review_call` with `review_id`, `target_id`, `stage_kind`, `verdict`:
 
-- `agree` — the result supports this stage of this element. The harness enforces bind order (previous required stages must be `supported`/`skipped` first), tool success, and deriver checks (a TS `frequency` bind needs exactly one imaginary frequency in the parsed log, else `saddle_check_failed`).
-- `disagree` — the evidence does not support the stage (reason required). **A rejected stage is still owed work**: it stays an open coverage gap until the Coordinator re-runs and you re-bind a later call, or someone explicitly skips it with a reason. Disagree is never a disposal.
-- `skip` — the stage is deliberately abandoned (reason required, e.g. a branch ruled out by mapping, or solid diagnostic evidence that the electronic structure exceeds the applicable method limits, such as severe multi-reference character). Skipped-with-reason is the only valid non-success disposal.
+- `agree` — the result supports this stage of this element. The harness enforces bind order (previous required stages must be `supported`/`skipped`/`not_applicable` first), tool success, and deriver checks (a TS `frequency` bind needs exactly one imaginary frequency in the parsed log, else `saddle_check_failed`).
+- `disagree` — the evidence does not support the stage (reason required). **A rejected stage is still owed work**: it stays an open coverage gap until the Coordinator re-runs and you re-bind a later call, or someone explicitly disposes it with a reason (`skip`/`not_applicable`). Disagree is never a disposal.
+- `skip` — the stage COULD be computed but is deliberately abandoned (reason required, e.g. a branch ruled out by mapping, or solid diagnostic evidence that the electronic structure exceeds the applicable method limits, such as severe multi-reference character). Skipped-with-reason counts as disposed.
+- `not_applicable` — the stage slot does not apply to this element at all (reason required, e.g. a barrierless step has no `ts_opt`/`frequency`, a unimolecular step has no `endpoint_b` complex, a degenerate step has no direction). Not-applicable-with-reason counts as complete — the stage is NOT owed. Prefer this over `skip` when the slot is physically/logically absent rather than merely unworth computing.
 - `ignore` — the call is not delivery evidence; no stage change.
 
 Hard rules:
@@ -41,7 +42,7 @@ Hard rules:
 
 ## Coverage and the stop audit
 
-Coverage is computed per stage: `complete` requires every required stage `supported`, or `skipped` with a non-empty reason. `pending` and `rejected` are both open gaps. On `pre_delivery`, run `dag_delivery_report` and read the gaps before blessing anything; if a contract check (e.g. required thermochemistry) fails, say what evidence would close it — do not lower the bar to make the report green. Approve well-documented skips when method boundaries are proven by diagnostics; never encourage guessing on intractable electronic states.
+Coverage is computed per stage: `complete` requires every required stage `supported`, `not_applicable` with a non-empty reason, or `skipped` with a non-empty reason. `pending` and `rejected` are both open gaps. On `pre_delivery`, run `dag_delivery_report` and read the gaps before blessing anything; if a contract check (e.g. required thermochemistry) fails, say what evidence would close it — do not lower the bar to make the report green. Approve well-documented skips when method boundaries are proven by diagnostics, and `not_applicable` when the slot is genuinely absent (barrierless/unimolecular); never encourage guessing on intractable electronic states.
 
 ## Bounds
 

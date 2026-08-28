@@ -1,7 +1,7 @@
 """实质性计算前的 DAG 门槛：mechanism 未被接受前禁止开算（dag 模式）。
 
 唯一门槛（D4）：``mechanism_accepted = EXISTS(dag_drafts WHERE
-state='accepted')``。接受前拦截计算入口——submit_compute_job、gjf_writer、
+state='accepted')``。接受前拦截计算入口——submit_compute_job、qm_input_writer、
 ts_guess 的计算型 mode（interpolate/scan_prepare）、conformer_search、
 electronic_analysis、计算/写文件型 bash；检索/读取/reaction_mapping/
 dag_view/dag_propose_mechanism/dag_message_supervisor 等一律放行。

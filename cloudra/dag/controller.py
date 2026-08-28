@@ -142,7 +142,7 @@ class DagController:
         """实质性计算前的 DAG 门槛（Phase 3：唯一门槛 = mechanism_accepted）。
 
         返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝。机理草稿被接受
-        之前拦截计算入口（submit_compute_job/gjf_writer/ts_guess 计算型
+        之前拦截计算入口（submit_compute_job/qm_input_writer/ts_guess 计算型
         mode 等，词表在 registry 的 dag_compute_entry）；检索/读取/机理
         提案工具始终放行；standard 模式无门槛。
         """
@@ -701,7 +701,7 @@ class DagController:
     ) -> str | None:
         """把一次 Supervisor 触发登记为子 Agent 会话：侧栏可见、状态实时流转。
 
-        上下文文件本身由 SupervisorAgent 的 ContextManager 持久化（会话级），
+        上下文文件本身由 SupervisorAgent 的 JSONL 消息历史持久化（会话级），
         这里只补 session 记录让 UI 能列出它；登记失败不影响督导本身。
         """
         session_id = f"supervisor_{datetime.now(timezone.utc).isoformat()}"
@@ -848,13 +848,14 @@ class DagController:
         reason: str = "",
         tool_succeeded: bool,
     ) -> MutationResult:
-        """阶段绑定的唯一 harness 入口（agree/disagree/skip）。
+        """阶段绑定的唯一 harness 入口（agree/disagree/skip/not_applicable）。
 
         守卫确定性（engine.apply_stage_verdict）：顺序（前面的必需阶段须
-        supported/skipped；rejected 可重绑，D2）、理由（disagree/skip 必填）、
-        工具成败；TS frequency 另有 n_imag==1 检查（D7，不过 ⇒
-        saddle_check_failed，阶段保持 pending）。守卫拒绝不落地；通过后
-        attach ref + 更新 stages，并由阶段重派生 evidence_level（D7）。
+        supported/skipped/not_applicable；rejected 可重绑，D2）、理由
+        （disagree/skip/not_applicable 必填）、工具成败；TS frequency
+        另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
+        pending）。守卫拒绝不落地；通过后 attach ref + 更新 stages，并由
+        阶段重派生 evidence_level（D7）。
         """
         if not self.enabled:
             raise RuntimeError(
@@ -868,9 +869,10 @@ class DagController:
                 f"unknown stage_kind {stage_kind!r}; "
                 f"allowed: {sorted(item.value for item in StageKind)}"
             ) from None
-        if verdict not in ("agree", "disagree", "skip"):
+        if verdict not in ("agree", "disagree", "skip", "not_applicable"):
             raise RuntimeError(
-                f"unknown verdict {verdict!r}; allowed: agree/disagree/skip"
+                f"unknown verdict {verdict!r}; "
+                "allowed: agree/disagree/skip/not_applicable"
             )
 
         def _guarded_stages():
@@ -1027,7 +1029,9 @@ class DagController:
 
         review 行不携带 ref——harness 从 review.tool_call_id 重解析证据
         （已登记、调用成功、目标存在、非 submit 调用 D11），阶段绑定守卫与
-        dag_bind_evidence 完全同构。ignore = 不是 delivery 证据，不改阶段。
+        dag_bind_evidence 完全同构。ignore = 不是 delivery 证据，不改阶段；
+        disagree/skip/not_applicable 不解析 ref、reason 必填（not_applicable
+        表示该槽位对此元素不成立，如无能垒步无 ts_opt）。
         """
         if not self.enabled:
             raise RuntimeError(

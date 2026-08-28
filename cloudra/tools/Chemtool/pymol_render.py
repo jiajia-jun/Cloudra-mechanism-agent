@@ -18,6 +18,25 @@ except Exception:
     pymol = None
     _PYMOL_MODULE_AVAILABLE = False
 
+
+def pymol_available() -> bool:
+    """Return True only when PyMOL can actually run (not just present on PATH)."""
+    if _PYMOL_MODULE_AVAILABLE:
+        return True
+    binary = shutil.which("pymol")
+    if not binary:
+        return False
+    try:
+        completed = subprocess.run(
+            [binary, "-cq", "-d", "quit"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return completed.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
 _SUPPORTED_FORMATS = {".pdb", ".mol", ".sdf", ".mol2", ".xyz", ".cif"}
 _STYLE_COMMANDS = {
     "sticks": "show sticks",
@@ -60,26 +79,59 @@ def _pml_quote(path: str) -> str:
     return '"' + path.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _pml_path(path: str) -> str:
+    """Format a path for PyMOL script lines (unquoted when safe; quoted otherwise)."""
+    if any(ch in path for ch in (' ', '"', "'")):
+        return _pml_quote(path)
+    return path
+
+
+def _png_base_path(output_path: str) -> str:
+    """PyMOL's ``png`` command always appends ``.png`` to the basename."""
+    if output_path.lower().endswith(".png"):
+        return output_path[:-4]
+    return output_path
+
+
 def _render_commands(structure_path: str, output_path: str, style: str,
                      width: int, height: int, dpi: int, ray: bool) -> list[str]:
     """The PyMOL command sequence shared by the module and CLI fallback paths."""
+    png_target = _png_base_path(output_path)
     return [
         "reinitialize",
-        f"load {_pml_quote(structure_path)}, mol",
+        f"load {_pml_path(structure_path)}, mol",
         "hide everything",
         _STYLE_COMMANDS[style],
         "bg_color white",
-        f"png {_pml_quote(output_path)}, width={width}, height={height}, dpi={dpi}, ray={1 if ray else 0}",
+        f"png {_pml_path(png_target)}, width={width}, height={height}, dpi={dpi}, ray={1 if ray else 0}",
     ]
 
 
-def _render_with_module(commands: list[str]) -> None:
+def _render_with_module(
+    structure_path: str,
+    output_path: str,
+    style: str,
+    width: int,
+    height: int,
+    dpi: int,
+    ray: bool,
+) -> None:
     """Render in-process via the pymol module (global state; reinitialize first)."""
     from pymol import cmd
 
     pymol.finish_launching(["pymol", "-cq"])
-    for command in commands:
-        cmd.do(command)
+    cmd.reinitialize()
+    cmd.load(os.path.abspath(structure_path), "mol")
+    cmd.hide("everything")
+    cmd.do(_STYLE_COMMANDS[style])
+    cmd.bg_color("white")
+    cmd.png(
+        _png_base_path(os.path.abspath(output_path)),
+        width=width,
+        height=height,
+        dpi=dpi,
+        ray=1 if ray else 0,
+    )
 
 
 def _render_with_binary(binary: str, commands: list[str]) -> None:
@@ -145,8 +197,8 @@ class PymolRender(Tool):
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
             output_path = os.path.join(root, ".cloudra", "visual", f"pymol-{stamp}.png")
 
-        binary = None if _PYMOL_MODULE_AVAILABLE else shutil.which("pymol")
-        if not _PYMOL_MODULE_AVAILABLE and binary is None:
+        binary = shutil.which("pymol")
+        if binary is None and not _PYMOL_MODULE_AVAILABLE:
             return PymolRender_output_schema(
                 is_success=False,
                 image_path="",
@@ -161,10 +213,18 @@ class PymolRender(Tool):
                 os.path.abspath(structure_path), os.path.abspath(output_path), style,
                 user_input.width, user_input.height, user_input.dpi, user_input.ray,
             )
-            if _PYMOL_MODULE_AVAILABLE:
-                _render_with_module(commands)
-            else:
+            if binary is not None:
                 _render_with_binary(binary, commands)
+            else:
+                _render_with_module(
+                    os.path.abspath(structure_path),
+                    os.path.abspath(output_path),
+                    style,
+                    user_input.width,
+                    user_input.height,
+                    user_input.dpi,
+                    user_input.ray,
+                )
 
         try:
             await asyncio.to_thread(render)

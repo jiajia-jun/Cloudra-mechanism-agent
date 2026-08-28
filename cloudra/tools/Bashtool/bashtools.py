@@ -59,7 +59,7 @@ class Bashtools(Tool):
         "Do not use for: modifying workspace files — never edit files with Bash, sed, redirection, tee, or throwaway scripts; "
         "edit existing files with text_reader + edit_file, create new files with text_writer. "
         "Note: embedding coordinate blocks in the command text (e.g. writing .gjf/.xyz via heredoc) triggers a harness warning; "
-        "coordinates must come from tools such as smiles_to_mol / format_converter / gjf_writer."
+        "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
     )
 
     def __init__(self, subagent: Agent = None, **data) -> None:
@@ -79,7 +79,7 @@ class Bashtools(Tool):
                     "Do not use it to modify workspace files — do not use Bash, sed, redirection, tee, or throwaway scripts; "
                     "use edit_file / text_writer instead. "
                     "Note: embedding coordinate blocks in the command text (e.g. writing .gjf/.xyz via heredoc) triggers a harness warning; "
-                    "coordinates must come from tools such as smiles_to_mol / format_converter / gjf_writer."
+                    "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
                 )
             else:
                 desc = 'No shell commands are currently permitted in this context.'

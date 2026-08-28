@@ -74,11 +74,13 @@ def evaluate_delivery(
     ) -> str:
         """逐阶段评估声明了阶段契约的元素，返回 supported/disposed/open。
 
-        complete 口径（D10）：每个必需阶段 supported，或带非空理由的
-        skipped。pending 与 rejected 都是开放缺口——rejected 不是处置，
-        只能重绑（D2）或显式 skip-with-reason（D6）；缺口带上其理由。
-        无理由的 skipped（missing_stage_reason）不可豁免（D9——USER
-        waiver 也不能让无理由处置计入完成）。
+        complete 口径（D10）：每个必需阶段 supported、带非空理由的
+        not_applicable（该槽不成立），或带非空理由的 skipped。pending 与
+        rejected 都是开放缺口——rejected 不是处置，只能重绑（D2）或显式
+        skip-with-reason（D6）；缺口带上其理由。无理由的 skipped /
+        not_applicable（missing_stage_reason）不可豁免（D9——USER waiver
+        也不能让无理由处置计入完成）。not_applicable 与 skipped 都计入完成
+        但记不同的 code，供审计区分"槽位不成立"与"主动放弃"。
         """
         required = [stage for stage in stages if stage.required]
         open_gap = False
@@ -96,14 +98,14 @@ def evaluate_delivery(
                     )
                 )
                 open_gap = True
-            elif stage.status is StageStatus.SKIPPED and not stage.reason.strip():
+            elif stage.status in (StageStatus.SKIPPED, StageStatus.NOT_APPLICABLE) and not stage.reason.strip():
                 record(
                     CoverageGateResult(
                         code="missing_stage_reason",
                         target_type=target_type,
                         target_id=target_id,
                         detail=(
-                            f"stage {stage.kind.value} is skipped "
+                            f"stage {stage.kind.value} is {stage.status.value} "
                             "without a persisted reason"
                         ),
                     ),
@@ -129,7 +131,35 @@ def evaluate_delivery(
             open_gap = True
         if open_gap:
             return "open"
-        if any(stage.status is StageStatus.SKIPPED for stage in required):
+        not_applicable = [
+            stage for stage in required if stage.status is StageStatus.NOT_APPLICABLE
+        ]
+        skipped = [
+            stage for stage in required if stage.status is StageStatus.SKIPPED
+        ]
+        if not_applicable:
+            satisfied.append(
+                CoverageGateResult(
+                    code="stage_not_applicable",
+                    target_type=target_type,
+                    target_id=target_id,
+                    detail=(
+                        "required stages not applicable with reasons: "
+                        + ", ".join(stage.kind.value for stage in not_applicable)
+                    ),
+                )
+            )
+            if skipped:
+                satisfied.append(
+                    CoverageGateResult(
+                        code="branch_disposed",
+                        target_type=target_type,
+                        target_id=target_id,
+                        detail="required stages are explicitly skipped with reasons",
+                    )
+                )
+            return "disposed"
+        if skipped:
             satisfied.append(
                 CoverageGateResult(
                     code="branch_disposed",

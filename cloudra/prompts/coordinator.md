@@ -22,7 +22,7 @@ Follow this execution loop to advance tasks:
    - When a sub-agent reports a blocker (SCF failure, format error, missing file), read the referenced output file with `text_reader` to assess the root cause before deciding whether to retry, redirect, or escalate to the user.
 
 4. **Verify & Deliver**:
-   - Verify key numeric findings by reading source files (`text_reader`) or running the relevant parser (`gaussian_log_parser`, `thermo_analysis`) before accepting a sub-agent's report.
+   - Verify key numeric findings by reading source files (`text_reader`) or running the relevant parser (`log_parser`, `thermo_analysis`) before accepting a sub-agent's report.
    - In DAG mode, self-check stage coverage (`dag_delivery_report`) before calling `stop`.
 
 ## Sub-Agent Roster & Delegation Rules

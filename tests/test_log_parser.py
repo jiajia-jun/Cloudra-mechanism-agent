@@ -55,3 +55,40 @@ Thermal correction to Energy= 0.120000
     assert values["zero_point_correction_hartree"] == pytest.approx(0.010000)
     assert values["thermal_energy_correction_hartree"] == pytest.approx(0.020000)
     assert values["total_gibbs_free_energy_hartree"] == pytest.approx(-9.960000)
+
+
+ORCA_FIXTURE = Path(__file__).parent / "fixtures" / "orca" / "co2_freq_orca42.out"
+
+
+@pytest.mark.asyncio
+async def test_orca_log_full_parse_matches_gaussian_field_semantics():
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(ORCA_FIXTURE)), session=None,
+    )
+
+    assert result.is_success is True
+    assert result.engine == "orca"
+    assert result.job_types == ["freq", "opt"]
+    assert result.normal_termination is True
+    assert result.scf_energy_hartree == pytest.approx(-184.75776616)
+    assert result.dipole_moment_debye == pytest.approx(0.0)
+    assert result.zero_point_correction_hartree == pytest.approx(0.00684398)
+    assert result.thermal_energy_correction_hartree == pytest.approx(0.00993959)
+    assert result.total_enthalpy_hartree == pytest.approx(-184.74688237)
+    assert result.total_gibbs_free_energy_hartree == pytest.approx(-184.77272599)
+    assert result.imaginary_frequencies == []
+    assert result.mulliken_charges is not None
+
+
+@pytest.mark.asyncio
+async def test_orca_opt_without_freq_does_not_fake_zero_imaginary():
+    fixture = Path(__file__).parent / "fixtures" / "orca" / "dvb_opt_orca42.out"
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(fixture)), session=None,
+    )
+
+    assert result.is_success is True
+    assert result.job_types == ["opt"]
+    # 无频率数据时必须保持 None（不得被 DAG 侧当成零虚频极小点）
+    assert result.frequencies_cm is None
+    assert result.imaginary_frequencies is None

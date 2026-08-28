@@ -8,9 +8,10 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "Deep-parse a Gaussian output log (.log / .out) and extract energies, dipole, HOMO/LUMO, "
-    "frequencies, thermochemical corrections, and other physicochemical properties. "
-    "Use for: a full analysis after a Gaussian job, or checking whether the job converged normally. "
+    "Deep-parse a quantum-chemistry output log (Gaussian .log/.out or ORCA .out; engine auto-detected) "
+    "and extract energies, dipole, HOMO/LUMO, frequencies, thermochemical corrections, and other "
+    "physicochemical properties. "
+    "Use for: a full analysis after a Gaussian/ORCA job, or checking whether the job converged normally. "
     "Do not use for: submitting a job (use submit_compute_job) or processing experimental spectra (use ir_processor / nmr_processor)."
 )
 
@@ -90,7 +91,7 @@ def _extract_gaussian_thermochemistry(log_path: str) -> dict[str, float]:
 
 class LogParser_input_schema(input_schema):
     log_path: str = Field(
-        description="Absolute path of the Gaussian output log (.log or .out)."
+        description="Absolute path of the output log (Gaussian .log/.out or ORCA .out)."
     )
     properties: Optional[list[str]] = Field(
         default=None,
@@ -138,7 +139,8 @@ class LogParser_output_schema(output_schema):
         description="Compatibility alias of total_gibbs_free_energy_hartree; this is total free energy, not the correction (Hartree)",
     )
     mulliken_charges: Optional[dict] = Field(default=None, description="Mulliken charges {atom index: charge}")
-    normal_termination: Optional[bool] = Field(default=None, description="Whether Gaussian terminated normally")
+    normal_termination: Optional[bool] = Field(default=None, description="Whether the job terminated normally")
+    engine: Optional[str] = Field(default=None, description="Detected QM program: gaussian / orca")
     job_types: Optional[list[str]] = Field(default=None, description="Detected job types (subset of opt/ts/freq/scan/irc/sp, sorted)")
     scan_parameter: Optional[list[float]] = Field(default=None, description="Scan parameter series (relaxed PES scan)")
     scan_energies_ev: Optional[list[float]] = Field(default=None, description="Energy at each scan point (eV)")
@@ -152,7 +154,7 @@ class LogParser_output_schema(output_schema):
 
 class LogParser(Tool):
     tool_id: str = 't-23'
-    tool_name: str = 'gaussian_log_parser'
+    tool_name: str = 'log_parser'
     tool_description: str = description
     input_schema: Any = LogParser_input_schema
     output_schema: Any = LogParser_output_schema
@@ -202,8 +204,14 @@ class LogParser(Tool):
                             "if the job failed, inspect the log tail to find the cause."
                 )
 
+            # 引擎嗅探：热化学/任务类型/IRC 的文本解析按引擎分派
+            from cloudra.tools.core import orca_frames
+            from cloudra.tools.core.qm_engine import detect_qm_engine
+
+            engine = detect_qm_engine(log_path)
+
             requested = self._resolve_requested_fields(user_input.properties)
-            result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully."}
+            result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully.", "engine": engine}
 
             # 3. 根据请求填充字段
             if "scf_energy_hartree" in requested or "scf_energy_ev" in requested:
@@ -246,7 +254,10 @@ class LogParser(Tool):
 
             thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
             if thermo_fields & requested:
-                thermo = _extract_gaussian_thermochemistry(log_path)
+                if engine == "orca":
+                    thermo = orca_frames.extract_thermochemistry(log_path)
+                else:
+                    thermo = _extract_gaussian_thermochemistry(log_path)
 
                 # cclib correctly exposes these as total quantities. Prefer the
                 # literal Gaussian summary when present and use cclib as fallback.
@@ -291,15 +302,14 @@ class LogParser(Tool):
                 elif hasattr(data, "optdone"):
                     result["normal_termination"] = bool(data.optdone)
 
-            # job_type / scan / irc 摘要（IRC 逐点解析在 core.gaussian_frames 中自写实现）
-            want_gaussian_frames = "job_types" in requested or any(
-                f.startswith("irc_") for f in requested
-            )
-            if want_gaussian_frames:
-                from cloudra.tools.core import gaussian_frames
+            # job_type / scan / irc 摘要（Gaussian IRC 逐点解析在 core.gaussian_frames 自写；
+            # ORCA 侧由 core.orca_frames.extract_irc 从主输出的 FORWARD/BACKWARD
+            # IRC 迭代块与 PATH SUMMARY 提取点数/收敛/端点能量）
+            from cloudra.tools.core import gaussian_frames
 
             if "job_types" in requested:
-                result["job_types"] = sorted(gaussian_frames.detect_job_types(log_path))
+                detect = orca_frames.detect_job_types if engine == "orca" else gaussian_frames.detect_job_types
+                result["job_types"] = sorted(detect(log_path))
 
             if {"scan_parameter", "scan_energies_ev"} & requested:
                 scanparm = getattr(data, "scanparm", None)
@@ -310,7 +320,22 @@ class LogParser(Tool):
                     result["scan_energies_ev"] = [float(v) for v in np.asarray(list(scanenergies), dtype=float)]
 
             if any(f.startswith("irc_") for f in requested):
-                if "irc" in gaussian_frames.detect_job_types(log_path):
+                if engine == "orca":
+                    if "irc" in result.get("job_types", []) or "irc" in orca_frames.detect_job_types(log_path):
+                        try:
+                            irc_meta = orca_frames.extract_irc(log_path)
+                            result["irc_num_points_forward"] = irc_meta["num_points_forward"]
+                            result["irc_num_points_backward"] = irc_meta["num_points_backward"]
+                            if irc_meta["endpoint_energies_hartree"] is not None:
+                                result["irc_endpoint_energies_hartree"] = [
+                                    float(v) for v in irc_meta["endpoint_energies_hartree"]
+                                ]
+                            result["irc_both_directions_converged"] = bool(
+                                irc_meta["forward_converged"] and irc_meta["backward_converged"]
+                            )
+                        except ValueError as e:
+                            result["message"] = f"Log parsed; ORCA IRC extraction failed: {e}"
+                elif "irc" in gaussian_frames.detect_job_types(log_path):
                     try:
                         _irc_frames, irc_meta = gaussian_frames.extract_irc(log_path)
                         result["irc_num_points_forward"] = irc_meta["num_points_forward"]

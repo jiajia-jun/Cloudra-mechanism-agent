@@ -180,27 +180,12 @@ fi
 info "升级 pip..."
 "$PYTHON_CMD" -m pip install --upgrade pip
 
-# 是否安装 GUI 依赖（Flet）
-INSTALL_GUI=""
-DEFAULT_GUI="n"
-if [[ "$OS" == "Darwin" ]]; then
-    DEFAULT_GUI="y"
+info "安装 ${PROJECT_NAME}（all + dev）..."
+if ! "$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}[all,dev]"; then
+    warn "部分 optional 依赖（如 pymol-open-source）在当前平台不可用，回落到 dev 核心依赖..."
+    "$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}[dev]"
+    warn "如需 PyMOL 渲染：macOS/Linux 推荐 conda install -c conda-forge pymol-open-source libxml2"
 fi
-while [[ "$INSTALL_GUI" != "y" && "$INSTALL_GUI" != "n" ]]; do
-    read -rp "是否安装 GUI 依赖（Flet，${DEFAULT_GUI}，推荐 n；新 Web UI 用 ./web.sh）？[Y/n] " INSTALL_GUI
-    INSTALL_GUI=${INSTALL_GUI:-$DEFAULT_GUI}
-    INSTALL_GUI=$(echo "$INSTALL_GUI" | tr '[:upper:]' '[:lower:]')
-done
-
-if [[ "$INSTALL_GUI" == "y" ]]; then
-    EXTRAS="all,gui"
-    info "安装 ${PROJECT_NAME}（完整工具链 + GUI）..."
-else
-    EXTRAS="all"
-    info "安装 ${PROJECT_NAME}（完整工具链，无 GUI）..."
-fi
-
-"$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}[${EXTRAS}]"
 
 # 如果存在 .env，询问是否迁移到 cloudra config
 ENV_FILE="${SCRIPT_DIR}/.env"

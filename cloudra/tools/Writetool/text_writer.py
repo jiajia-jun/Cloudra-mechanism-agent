@@ -20,7 +20,7 @@ description = (
     "Use for: creating a new file, or rewriting an existing file in full. "
     "Do not use for: local edits to an existing file (use text_reader + edit_file); never write files with bash redirection instead of this tool. "
     "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — "
-    "coordinates must come from tools such as smiles_to_mol / format_converter / gjf_writer."
+    "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
 )
 
 

@@ -6,12 +6,15 @@ import subprocess
 import time
 from pathlib import Path
 
-from cloudra.infra import events
 from cloudra.infra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
 from cloudra.infra.platform_utils import is_posix
-from cloudra.persistence.context_manager import ContextManager
 from cloudra.persistence.database import ConversationDB
 from cloudra.persistence.fs_utils import atomic_write_json
+from cloudra.runtime.compute_notify import (
+    build_compute_finish_content,
+    emit_compute_task_finished,
+    resolve_submission_info,
+)
 
 _LOG_TAIL_CHARS = 8000
 _REASON_MAX_CHARS = 500
@@ -45,10 +48,10 @@ def _log_tail_reason(log_path: Path) -> str:
 
 
 async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian"):
-    """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示超时/失败。
+    """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示失败。
 
-    若 calculator 已退出但日志文件不存在或为空，说明计算未产生有效输出，
-    应立即失败而不是空等整个解析窗口。
+    Guard 在 calculator 已退出后才调用本函数，日志应已写完；``parse_timeout``
+    仅保留 CLI 兼容，实际只做少量短间隔重试（应对文件系统延迟），不会空转半小时。
     """
     if not log_path.exists() or log_path.stat().st_size == 0:
         print(f'日志文件不存在或为空：{log_path}')
@@ -58,25 +61,41 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
         # cclib 1.8.x 已移除 CP2K 解析器，这里用轻量文本解析兜底。
         return _parse_cp2k_log(log_path)
 
-    # cclib 为重依赖且 CP2K 路径不需要它，惰性导入。
     import cclib
 
-    deadline = time.monotonic() + parse_timeout
+    max_attempts = 5
+    retry_sleep = 1.0
     last_error = None
-    while time.monotonic() < deadline:
+    for attempt in range(max_attempts):
         try:
             data = cclib.io.ccread(log_path)
+            if data is None:
+                print(f'cclib 无法识别日志格式：{log_path}')
+                return None, None
+            # cclib 1.8+ 会容忍缺坐标/原子序数的日志并继续返回对象，但 ccwrite
+            # 会抛 'Must pass at least one of atomcoords or atomnos'；旧版 cclib
+            # 在 ccread 阶段就抛 AttributeError。统一在解析后做必需字段检查，
+            # 避免 CI/本地版本差异导致的行为分歧。
+            if not hasattr(data, 'atomcoords') or not hasattr(data, 'atomnos'):
+                print(f'日志缺少原子坐标或原子序数，视为不完整：{log_path}')
+                return None, None
             is_success = data.metadata.get('success', False)
-            state_str = cclib.io.ccwrite(data, outputtype="cjson")
-            state_CJSON = cclib.io.cjsonreader.CJSON(io.StringIO(state_str))
-            data_dic = state_CJSON.parse()
+            try:
+                state_str = cclib.io.ccwrite(data, outputtype="cjson")
+                state_CJSON = cclib.io.cjsonreader.CJSON(io.StringIO(state_str))
+                data_dic = state_CJSON.parse()
+            except Exception as e:
+                print(f'日志解析后转换失败：{e}')
+                return None, None
             data_dic.pop('atomcoords', None)
             data_dic['is_success'] = is_success
             return data_dic, is_success
         except Exception as e:
             last_error = e
-            await asyncio.sleep(1.0)
-    print(f'日志解析失败或超时：{last_error}')
+            if attempt + 1 >= max_attempts:
+                break
+            await asyncio.sleep(retry_sleep)
+    print(f'日志解析失败：{last_error}')
     return None, None
 
 
@@ -235,87 +254,24 @@ async def run_guard(
     except Exception as e:
         print(f'[guard] enqueue compute review 失败（已忽略）: {e}')
 
-    # 终态事件路由给任务的提交者，而不是一律发给 Coordinator：
-    # 子 Agent 提交的任务由子 Agent 自己跟进；查不到时回退 Coordinator。
-    info = await _resolve_submission_info(db, taskid)
-    submitter = info["agent_id"]
-
-    if state == 'done':
-        guidance = "Next: use gaussian_log_parser on the log to extract energy/frequencies and other results."
-    else:
-        guidance = (
-            f"Failure reason: {fail_reason}\n"
-            "Next: use query_compute_job to inspect last_error, and read the log to locate the failure; "
-            "if needed, fix the input file and resubmit with submit_compute_job. "
-            "If you cannot resolve it, email the user."
-        )
-    event_content = (
-        f"Compute job task_id={taskid} finished, state={state}.\n"
-        f"Input file: {info['path']}\n"
-        f"Log file: {log_path}\n"
-        f"Structured result: {json_path}\n"
-        f"{guidance}"
+    info = await resolve_submission_info(db, taskid)
+    event_content = build_compute_finish_content(
+        task_id=taskid,
+        state=state,
+        input_path=str(info.get("path") or ""),
+        log_path=str(log_path),
+        json_path=json_path,
+        fail_reason=fail_reason,
     )
-    # 提交者不是 Coordinator 时，两边都通知：提交者跟进结果（定向到其 session，
-    # 避免并行同 agent_id 的兄弟 session 被误唤醒），Coordinator 保有全局视野。
-    targets = {submitter: info["session_id"], 'a-0': None}
-    for target, target_session in targets.items():
-        try:
-            await ContextManager.inject_event(
-                conversation_id=conv_id,
-                agent_id=target,
-                event_type='compute_job',
-                content=event_content,
-                db_path=db_path,
-                session_id=target_session,
-            )
-            print(f'[guard] 已向 {target} 注入计算任务事件: task_id={taskid}')
-        except Exception as e:
-            print(f'[guard] 注入上下文事件失败 ({target}): {e}')
-
-    # 广播事件，让等待方立即被唤醒
-    try:
-        events.emit(conv_id, "task_finished", task_id=taskid, task_kind="compute", state=state)
-    except Exception:
-        pass
-
-
-async def _resolve_submission_info(db: ConversationDB, taskid: int) -> dict:
-    """查询任务的提交信息：{"agent_id", "session_id", "path"}。
-
-    agent_id 查不到（无 session、老任务、表结构差异）时回退 'a-0'，
-    保证终态事件至少送达 Coordinator；session_id 用于把事件定向到提交者的
-    session，path 是输入文件路径。
-    """
-    info = {"agent_id": 'a-0', "session_id": None, "path": ""}
-    try:
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                "SELECT session_id, path FROM compute_jobs WHERE id=?", (taskid,)
-            )
-            row = await cur.fetchone()
-            if row:
-                info["session_id"] = row[0]
-                info["path"] = row[1] or ""
-            if row and row[0]:
-                cur = await con.execute(
-                    "SELECT agent_id FROM session WHERE session_id=?", (row[0],)
-                )
-                agent_row = await cur.fetchone()
-                if agent_row and agent_row[0]:
-                    info["agent_id"] = agent_row[0]
-    except Exception as e:
-        print(f'[guard] 查询任务提交者失败（回退 a-0）：{e}')
-    return info
-
-
-async def _resolve_submitter(db: ConversationDB, taskid: int) -> str:
-    """查询任务的提交者 agent_id（compute_jobs.session_id → session.agent_id）。
-
-    查不到（无 session、老任务、表结构差异）时回退 'a-0'，保证终态事件
-    至少送达 Coordinator。
-    """
-    return (await _resolve_submission_info(db, taskid))["agent_id"]
+    emit_compute_task_finished(
+        conv_id,
+        task_id=taskid,
+        state=state,
+        content=event_content,
+        session_id=info.get("session_id"),
+        notify_coordinator=True,
+    )
+    print(f'[guard] compute task_finished emitted: task_id={taskid}, state={state}')
 
 
 async def _mark_failed(db: ConversationDB, taskid: int, message: str):

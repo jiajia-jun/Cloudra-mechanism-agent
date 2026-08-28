@@ -4,17 +4,19 @@ from pathlib import Path
 
 import pytest
 
+from cloudra.core.message_history import JsonlMessageHistory
 from cloudra.infra.compute_utils import (
     build_calculator_cmd,
     check_calculator_script,
     check_job_type,
     get_log_path,
 )
-from cloudra.persistence.context_manager import ContextManager
 from cloudra.tools.Chemtool.submit_compute_job import (
     SubmitComputeJob,
     SubmitComputeJob_input_schema,
 )
+
+_GAUSSIAN_MOCK_LOG = Path(__file__).resolve().parent / "fixtures" / "gaussian" / "water_opt_freq_g16.out"
 
 
 @pytest.fixture
@@ -27,29 +29,13 @@ def mock_calc_workdir(tmp_path, monkeypatch):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     g16 = bindir / "g16"
-    # mock g16：输出一个 cclib 可解析的最小 Gaussian log
-    g16.write_text("""#!/bin/bash
+    # mock g16：复制 cclib 可完整解析的真实 Gaussian 日志（含坐标）
+    g16.write_text(f"""#!/bin/bash
 INPUT_FILE="$1"
 BASENAME=$(basename "$INPUT_FILE" .gjf)
-WORKDIR=$(cd "$(dirname \"$INPUT_FILE\")" && pwd)
-LOG="$WORKDIR/${BASENAME}.log"
-cat > "$LOG" <<'EOF'
- Gaussian, Inc.
-                          Gaussian 16:  ES64L-G16RevA.03
-
- Cite this work as:
- Gaussian 16, Revision A.03, M. J. Frisch et al.
-
- SCF Done:  E(RHF) =  -1.1175059892     A.U. after    8 cycles
-            Convg  =    0.2571D-08             -V/T =  2.0031
- S**2 =   0.0000
- Population analysis using the SCF density.
- Orbital energies:
-  1 0.000000
-          1          2
-    1   0.000000   0.000000
- Normal termination of Gaussian 16 at ...
-EOF
+WORKDIR=$(cd "$(dirname "$INPUT_FILE")" && pwd)
+LOG="$WORKDIR/${{BASENAME}}.log"
+cp "{_GAUSSIAN_MOCK_LOG}" "$LOG"
 exit 0
 """)
     g16.chmod(0o755)
@@ -571,13 +557,12 @@ exit 0
 
 
 @pytest.mark.asyncio
-async def test_context_manager_load_and_append(isolated_db):
-    """ContextManager 能加载初始上下文并追加消息。"""
-    cm = ContextManager(
+async def test_message_history_load_and_append(isolated_db):
+    """JsonlMessageHistory 能加载初始上下文并追加消息。"""
+    cm = JsonlMessageHistory(
         agent_id="a-0",
         conversation_id="test_conv",
-        prompt="You are a helpful assistant.",
-        query="hello",
+        initial_query="hello",
     )
 
     ctx = await cm.load()
@@ -589,33 +574,6 @@ async def test_context_manager_load_and_append(isolated_db):
     ctx = await cm.load()
     assert len(ctx) == 2
     assert ctx[1]["content"] == "hi there"
-
-
-@pytest.mark.asyncio
-async def test_context_manager_poll_external_events(isolated_db):
-    """ContextManager 能轮询并消费外部事件。"""
-    await ContextManager.inject_event(
-        conversation_id="test_conv",
-        agent_id="a-0",
-        event_type="email",
-        content="用户发来新邮件",
-    )
-
-    cm = ContextManager(
-        agent_id="a-0",
-        conversation_id="test_conv",
-        prompt="You are a helpful assistant.",
-        query="hello",
-    )
-
-    events = await cm.poll_external_events()
-    assert len(events) == 1
-    assert events[0]["event_type"] == "email"
-    assert "新邮件" in events[0]["content"]
-
-    # 再次轮询应无 pending 事件
-    events = await cm.poll_external_events()
-    assert len(events) == 0
 
 
 def test_calculator_script_help():
@@ -643,22 +601,20 @@ def test_calculator_script_missing_input():
 
 
 @pytest.mark.asyncio
-async def test_context_manager_session_isolation(isolated_db):
+async def test_message_history_session_isolation(isolated_db):
     """同一 conversation_id 下，不同 session_id 的上下文文件应相互隔离。"""
-    cm1 = ContextManager(
+    cm1 = JsonlMessageHistory(
         agent_id="a-1",
         conversation_id="shared_conv",
-        prompt="You are agent a-1.",
-        query="task 1",
+        initial_query="task 1",
         session_id="session_1",
     )
     await cm1.append({"role": "assistant", "content": "result from task 1"})
 
-    cm2 = ContextManager(
+    cm2 = JsonlMessageHistory(
         agent_id="a-1",
         conversation_id="shared_conv",
-        prompt="You are agent a-1.",
-        query="task 2",
+        initial_query="task 2",
         session_id="session_2",
     )
     ctx2 = await cm2.load()
@@ -668,6 +624,28 @@ async def test_context_manager_session_isolation(isolated_db):
     assert ctx2[0]["role"] == "user"
     assert ctx2[0]["content"] == "task 2"
     assert not any("task 1" in str(msg.get("content", "")) for msg in ctx2)
+
+
+@pytest.mark.asyncio
+async def test_parse_log_fail_fast_on_incomplete_gaussian_log(tmp_path):
+    """缺坐标的 stub 日志不应在 parse_timeout 窗口内空转重试。"""
+    import time
+
+    from cloudra.runtime.monitor import _parse_log
+
+    log = tmp_path / "incomplete.log"
+    log.write_text(
+        " Gaussian, Inc.\n"
+        " SCF Done:  E(RHF) =  -1.1175059892     A.U. after    8 cycles\n"
+        " Normal termination of Gaussian 16 at ...\n",
+        encoding="utf-8",
+    )
+    started = time.monotonic()
+    data, ok = await _parse_log(log, parse_timeout=1800)
+    elapsed = time.monotonic() - started
+
+    assert data is None and ok is None
+    assert elapsed < 10
 
 
 def test_log_tail_reason_extracts_gaussian_error(tmp_path):

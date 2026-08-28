@@ -44,7 +44,7 @@ Advance in this order (the harness hard-blocks skipping ahead; error messages na
 
 1. **User submits a task** → Coordinator is woken.
 2. **Initial research**: read skills, search literature / field consensus; dispatch `explorer(a-1)` /
-   `researcher(a-3)` when needed. Compute entry points (`submit_compute_job`, `gjf_writer` writes,
+   `researcher(a-3)` when needed. Compute entry points (`submit_compute_job`, `qm_input_writer` writes,
    compute-type `ts_guess` modes) are gated until the mechanism is accepted; search/read/mapping stay open.
 3. **Propose the mechanism**: `dag_propose_mechanism` with the delivery draft, stage contracts, and rationale.
 4. **Supervisor review**: Supervisor is woken (`mechanism_proposed`) and calls `dag_accept_mechanism`.
@@ -53,7 +53,7 @@ Advance in this order (the harness hard-blocks skipping ahead; error messages na
    `dag_message_supervisor(message="...")` (Coordinator only).
 5. **Work at your own pace**: dispatch `small_mol` / `dft` (etc.) sub-agents or execute yourself.
    Sub-agents run tools and report; they never write the graph.
-6. **Review inbox**: each finished delivery-relevant call (`gaussian_log_parser`, `reaction_mapping`,
+6. **Review inbox**: each finished delivery-relevant call (`log_parser`, `reaction_mapping`,
    `thermo_analysis`, `ts_guess`, plus compute-job completions/failures) lands in the CallReview inbox
    and wakes Supervisor (coalesced). Supervisor binds stages with `dag_review_call`; nothing auto-binds.
 7. **Delivery**: only `stop` for delivery after `dag_delivery_report` confirms coverage; if there are gaps, keep

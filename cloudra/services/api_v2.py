@@ -162,16 +162,21 @@ def create_v2_app(
         core.event_hub.subscribe(persist_event)
     bus = CommandBus(core)
     compute_broker = ComputeBroker()
+    from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+
+    compute_notify = ComputeNotifyBroker(core)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await core.reminders.rearm_all()
         await core.email_listener.start()
+        await compute_notify.start()
         await compute_broker.start()
         try:
             yield
         finally:
             await compute_broker.close()
+            await compute_notify.close()
             await core.email_listener.close()
             await core.reminders.close()
 

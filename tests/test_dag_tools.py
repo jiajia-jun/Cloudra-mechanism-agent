@@ -471,7 +471,7 @@ async def _seed_staged_step(
     stage_kinds=("ts_opt", "frequency"),
     mode="dag_record",
 ):
-    """种子：带阶段契约的 delivery 边 + 一次已完成的 gaussian_log_parser 调用。
+    """种子：带阶段契约的 delivery 边 + 一次已完成的 log_parser 调用。
 
     阶段契约由 Coordinator（actor=agent, a-0）以全 pending 声明——引擎守卫
     只允许模型声明 pending 阶段。
@@ -530,7 +530,7 @@ async def _seed_staged_step(
     controller = DagController(db, "s1", mode, conversation_id=agent.conversation_id)
     await controller.initialize()
     await controller.on_tool_finished(
-        "tc-bind", "gaussian_log_parser", {"log_path": "ts.log"}, result
+        "tc-bind", "log_parser", {"log_path": "ts.log"}, result
     )
     return agent, session, db
 
@@ -675,7 +675,7 @@ async def test_rejected_stage_blocks_later_stages_until_rebound(tmp_path):
     assert rejected.accepted
 
     ref = DagStore(db).register_evidence(
-        "s1", "gaussian_log_parser", {"tool_call_id": "tc-bind", "result": _TS_FREQ_RESULT}
+        "s1", "log_parser", {"tool_call_id": "tc-bind", "result": _TS_FREQ_RESULT}
     )
     blocked = await controller.apply_stage_bind(
         element_id="step1", stage_kind="frequency", ref=ref,

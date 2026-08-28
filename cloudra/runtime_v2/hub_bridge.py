@@ -1,7 +1,7 @@
 """v2-native AgentHub: the forum lives in the event log, calls in the Mailbox.
 
 The legacy ``agent_hub`` tool stores posts in the conversation SQLite
-(``hub_posts``) and notifies through ContextManager.  In runtime_v2 neither
+(``hub_posts``) and notifies through legacy context injection.  In runtime_v2 neither
 exists, so this bridge re-implements the six actions on kernel primitives:
 
 - ``post`` appends a ``hub.posted`` event (project stream); the event log is
@@ -9,7 +9,7 @@ exists, so this bridge re-implements the six actions on kernel primitives:
 - ``browse`` / ``read`` / ``search`` are pure projections over those events.
 - Notifications (to_agent / reply) and ``call`` to a live session go through
   ``Mailbox.deliver`` — the runner picks the message up at the next turn
-  boundary, which is the v2 equivalent of ContextManager.inject_event.  A
+  boundary, which is the v2 equivalent of legacy inject_event.  A
   sleeping/idle addressee is woken (``AgentHost.wake``) so the mention or call
   takes effect immediately instead of sitting in the inbox.
 - ``call`` to a role/id spawns a fresh child via the same CommandBus path as
