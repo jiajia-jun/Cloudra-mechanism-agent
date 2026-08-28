@@ -48,10 +48,10 @@ def _log_tail_reason(log_path: Path) -> str:
 
 
 async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian"):
-    """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示超时/失败。
+    """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示失败。
 
-    若 calculator 已退出但日志文件不存在或为空，说明计算未产生有效输出，
-    应立即失败而不是空等整个解析窗口。
+    Guard 在 calculator 已退出后才调用本函数，日志应已写完；``parse_timeout``
+    仅保留 CLI 兼容，实际只做少量短间隔重试（应对文件系统延迟），不会空转半小时。
     """
     if not log_path.exists() or log_path.stat().st_size == 0:
         print(f'日志文件不存在或为空：{log_path}')
@@ -61,25 +61,34 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
         # cclib 1.8.x 已移除 CP2K 解析器，这里用轻量文本解析兜底。
         return _parse_cp2k_log(log_path)
 
-    # cclib 为重依赖且 CP2K 路径不需要它，惰性导入。
     import cclib
 
-    deadline = time.monotonic() + parse_timeout
+    max_attempts = 5
+    retry_sleep = 1.0
     last_error = None
-    while time.monotonic() < deadline:
+    for attempt in range(max_attempts):
         try:
             data = cclib.io.ccread(log_path)
+            if data is None:
+                print(f'cclib 无法识别日志格式：{log_path}')
+                return None, None
             is_success = data.metadata.get('success', False)
-            state_str = cclib.io.ccwrite(data, outputtype="cjson")
-            state_CJSON = cclib.io.cjsonreader.CJSON(io.StringIO(state_str))
-            data_dic = state_CJSON.parse()
+            try:
+                state_str = cclib.io.ccwrite(data, outputtype="cjson")
+                state_CJSON = cclib.io.cjsonreader.CJSON(io.StringIO(state_str))
+                data_dic = state_CJSON.parse()
+            except Exception as e:
+                print(f'日志解析后转换失败：{e}')
+                return None, None
             data_dic.pop('atomcoords', None)
             data_dic['is_success'] = is_success
             return data_dic, is_success
         except Exception as e:
             last_error = e
-            await asyncio.sleep(1.0)
-    print(f'日志解析失败或超时：{last_error}')
+            if attempt + 1 >= max_attempts:
+                break
+            await asyncio.sleep(retry_sleep)
+    print(f'日志解析失败：{last_error}')
     return None, None
 
 
