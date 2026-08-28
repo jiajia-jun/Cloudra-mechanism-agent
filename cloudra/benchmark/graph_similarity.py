@@ -16,7 +16,8 @@ where each TS node is folded into its elementary-step edge so that a missing
 TS, a wrong TS, or a wrong connectivity all surface as edge edits. The public
 API returns both a scalar score in [0, 1] (1 = identical) and the edit script.
 
-RDKit and networkx are required (already project dependencies).
+RDKit is optional: without it node substitution degrades to exact set
+equality of the SMILES lists (0 or 1). networkx is a hard dependency.
 """
 
 from __future__ import annotations
@@ -124,9 +125,8 @@ def species_substitution_cost(smiles_a: list[str], smiles_b: list[str], cfg: Ged
     """
     if not smiles_a and not smiles_b:
         return 0.0
-    if set(smiles_a) == set(smiles_b) and not _HAVE_RDKIT:
-        return 0.0
     if not _HAVE_RDKIT:
+        # 无 RDKit 时退化为集合相等：相同 0，不同 1
         return 0.0 if set(smiles_a) == set(smiles_b) else 1.0
 
     # molhash shortcut: identical canonical hash for every species -> 0

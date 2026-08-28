@@ -29,8 +29,10 @@ from cloudra.benchmark.schema import (
 # file extensions we treat as computational evidence worth parsing for SMILES
 _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".mol", ".json"}
 
+# 超过该大小的文件只做类型分类、不整读扫 SMILES，避免评分期内存尖峰
+_MAX_SCAN_BYTES = 20 * 1024 * 1024
+
 _SMILES_LINE_RE = re.compile(r"\bsmiles\s*[:=]\s*([^\s,;]+)", re.IGNORECASE)
-_TITLE_SMILES_RE = re.compile(r"^([A-Za-z0-9@+\-\[\]\(\)=#\\/.:]+)$")
 
 
 @dataclass
@@ -112,7 +114,10 @@ def scan_evidence_files(sandbox: Path) -> list[EvidenceFile]:
             continue
         kind = _classify(p)
         try:
-            text = p.read_text(encoding="utf-8", errors="replace")
+            if p.stat().st_size > _MAX_SCAN_BYTES:
+                text = ""  # 超大日志不整读；保留分类结果，SMILES 扫描跳过
+            else:
+                text = p.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
         files.append(EvidenceFile(path=str(p.relative_to(sandbox)), smiles_found=_smiles_in_text(text), kind=kind))
@@ -130,9 +135,10 @@ def _classify(p: Path) -> str:
     if s == ".json":
         return "json"
     if s in (".log", ".out"):
-        # sniff engine by content header
+        # sniff engine by content header（只读头部，不整读）
         try:
-            head = p.read_text(encoding="utf-8", errors="replace")[:2000]
+            with p.open("r", encoding="utf-8", errors="replace") as fh:
+                head = fh.read(2000)
         except Exception:
             return "unknown"
         if "Entering Gaussian System" in head or "Gaussian" in head:
@@ -168,14 +174,23 @@ def bind_graph_to_evidence(
     one of its component SMILES is matched by at least one evidence file
     (union coverage), since a single log typically holds only one component.
     TS nodes carry no SMILES and are bound indirectly via their edge's
-    endpoints."""
+    endpoints: a TS counts as evidenced only when at least one edge routes
+    through it (`via`) and both endpoint species of that edge are themselves
+    bound to evidence."""
     cfg = cfg or GedConfig()
     bindings: list[NodeBinding] = []
+    by_id: dict[str, NodeBinding] = {}
+    ts_ids = {n.id for n in graph.nodes if n.role == NodeRole.TRANSITION_STATE}
+
+    # pass 1: species nodes
     for node in graph.nodes:
         nb = NodeBinding(node_id=node.id)
-        if node.role == NodeRole.TRANSITION_STATE or not node.smiles:
-            nb.matched = True  # TS nodes carry no SMILES; not directly bindable
-            bindings.append(nb)
+        by_id[node.id] = nb
+        bindings.append(nb)
+        if node.id in ts_ids:
+            continue  # 第二趟按边端点判定
+        if not node.smiles:
+            nb.matched = True  # 无 SMILES 的物种节点没有可绑定的内容
             continue
         all_components_matched = True
         for component in node.smiles:
@@ -189,7 +204,18 @@ def bind_graph_to_evidence(
                 all_components_matched = False
         nb.bound_files = sorted(set(nb.bound_files))
         nb.matched = all_components_matched and bool(nb.bound_files)
-        bindings.append(nb)
+
+    # pass 2: TS nodes — 仅当某条边经由它且两端物种都已绑定证据
+    for ts_id in ts_ids:
+        nb = by_id[ts_id]
+        for e in graph.edges:
+            if e.via != ts_id:
+                continue
+            a, b = by_id.get(e.from_node), by_id.get(e.to_node)
+            if a is not None and b is not None and a.matched and b.matched:
+                nb.matched = True
+                nb.bound_files = sorted(set(a.bound_files) | set(b.bound_files))
+                break
     return bindings
 
 

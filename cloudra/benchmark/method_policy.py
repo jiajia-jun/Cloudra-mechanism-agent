@@ -29,6 +29,10 @@ _FORBIDDEN_KEYWORDS = [
 # basis-set tokens above the allowed ceiling get flagged too
 _HIGH_BASIS = ["def2-tzvp", "def2-qzvp", "tzvpd", "qzvpp", "cc-pvtz", "cc-pvqz", "aug-cc"]
 
+# 构成“词内”的字符类；关键词两侧若紧邻这类字符则不视为独立 token。
+# 否则 "w1"/"g3"/"g4" 这类短词会误伤 "new1.xyz"/"log4.out"/"scan_g4.log"。
+_WORD_CHAR = r"[a-z0-9_]"
+
 
 @dataclass
 class MethodVerdict:
@@ -39,7 +43,16 @@ class MethodVerdict:
 
 
 def _normalize(s: str) -> str:
-    return re.sub(r"\s+", "", s.lower())
+    # 折叠（而非删除）空白，避免相邻词粘连后边界失效（"def2-tzvpd opt" 若删空白
+    # 会变成 "def2-tzvpdopt"，连 def2-tzvpd 本身都匹配不上）。
+    return re.sub(r"\s+", " ", s.lower())
+
+
+def _contains_token(text: str, token: str) -> bool:
+    """True if `token` appears in normalized `text` as a delimited token."""
+    tok = _normalize(token)
+    pattern = rf"(?<!{_WORD_CHAR}){re.escape(tok)}(?!{_WORD_CHAR})"
+    return re.search(pattern, text) is not None
 
 
 def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
@@ -59,12 +72,13 @@ def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
 
 def scan_text_for_forbidden(text: str, policy: MethodPolicy) -> MethodVerdict:
     """Heuristic free-text scan (bash path): flag forbidden method/basis
-    keywords appearing in QM input being written."""
+    keywords appearing in QM input being written. 匹配按词边界进行，避免
+    "w1"/"g4" 这类短词命中普通文件名。"""
     nt = _normalize(text)
-    matched = [k for k in _FORBIDDEN_KEYWORDS if _normalize(k) in nt]
-    matched += [b for b in _HIGH_BASIS if _normalize(b) in nt]
+    matched = [k for k in _FORBIDDEN_KEYWORDS if _contains_token(nt, k)]
+    matched += [b for b in _HIGH_BASIS if _contains_token(nt, b)]
     # explicitly declared forbid list from the task
-    matched += [f for f in policy.forbid if _normalize(f) in nt]
+    matched += [f for f in policy.forbid if _contains_token(nt, f)]
     matched = sorted(set(matched))
     if matched:
         return MethodVerdict(

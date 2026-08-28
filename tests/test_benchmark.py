@@ -8,19 +8,22 @@ Covers:
 - method-policy interception verdicts.
 - integrity audit on a synthetic sandbox.
 
-No LLM, no network. RDKit/networkx required (already deps).
+No LLM, no network. networkx is a hard dependency; RDKit is optional — node
+costs degrade to exact SMILES set equality without it (anchor orderings still
+hold).
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
-from cloudra.benchmark import gen_easy_tasks
+from cloudra.benchmark import gen_easy_tasks, selfconsistency
 from cloudra.benchmark.accuracy import score_accuracy
 from cloudra.benchmark.graph_similarity import GedConfig, mechanism_similarity
-from cloudra.benchmark.integrity import audit_integrity
+from cloudra.benchmark.integrity import EvidenceFile, audit_integrity, scan_evidence_files
 from cloudra.benchmark.method_policy import intercept
 from cloudra.benchmark.schema import (
     AccuracyRubric,
@@ -33,6 +36,8 @@ from cloudra.benchmark.schema import (
     ReferenceComputation,
     TaskSpec,
 )
+from cloudra.benchmark.selfconsistency import audit_self_consistency
+from cloudra.tools.core.gaussian_frames import FrameRecord
 
 
 def _graph(r, p, bc=None, with_ts=True):
@@ -161,3 +166,137 @@ def test_integrity_missing_graph_fails(tmp_path):
     rep = audit_integrity(tmp_path)
     assert not rep.graph_found
     assert not rep.passed
+
+
+def test_integrity_ts_bound_via_endpoints(tmp_path):
+    """TS 节点不再无条件通过：仅当经由它的边的两端物种都有证据时才算绑定。"""
+    base_nodes = [
+        {"id": "R", "role": "reactant", "smiles": ["C=CC=C", "C=C"]},
+        {"id": "TS", "role": "transition_state", "smiles": []},
+        {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"]},
+    ]
+    edge = {"id": "E1", "from": "R", "to": "P", "via": "TS"}
+
+    # 只有 R 端有证据：P 与 TS 都不应绑定
+    (tmp_path / "mechanism_graph.json").write_text(
+        json.dumps({"nodes": base_nodes, "edges": [edge]})
+    )
+    (tmp_path / "r.log").write_text("smiles: C=CC=C\nsmiles: C=C\n")
+    rep = audit_integrity(tmp_path)
+    matched = {b.node_id: b.matched for b in rep.node_bindings}
+    assert matched == {"R": True, "TS": False, "P": False}
+    assert not rep.passed
+
+    # 两端证据补齐后 TS 经端点间接绑定
+    (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
+    rep = audit_integrity(tmp_path)
+    matched = {b.node_id: b.matched for b in rep.node_bindings}
+    assert matched == {"R": True, "TS": True, "P": True}
+    assert rep.passed
+
+    # TS 未被任何边经由：即使物种证据齐全也不应绑定
+    orphan = {
+        "nodes": base_nodes,
+        "edges": [{"id": "E1", "from": "R", "to": "P", "via": None}],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(orphan))
+    rep = audit_integrity(tmp_path)
+    matched = {b.node_id: b.matched for b in rep.node_bindings}
+    assert matched["TS"] is False
+    assert not rep.passed
+
+
+# --- self-consistency ---
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_selfconsistency_real_fixtures_split_roles(tmp_path):
+    """真实日志：minimum 不再被误判为鞍点；IRC 元数据按真实解析器形状判定。"""
+    import shutil
+
+    shutil.copy(FIXTURES / "gaussian" / "water_opt_freq_g16.out", tmp_path / "reactant.log")
+    shutil.copy(FIXTURES / "orca" / "hcn_irc_orca60.out", tmp_path / "ts_irc.log")
+    files = scan_evidence_files(tmp_path)
+    rep = audit_self_consistency(files, tmp_path)
+    assert len(rep.ts_checks) == 1 and len(rep.min_checks) == 1
+    ts, mn = rep.ts_checks[0], rep.min_checks[0]
+    # ORCA IRC 日志无频率块 -> 不给鞍点判定；双向收敛 -> IRC 连通
+    assert ts.is_first_order_saddle is None
+    assert ts.irc_connects is True
+    # 水 opt+freq 是 minimum
+    assert mn.is_minimum is True
+    assert rep.all_minima is True
+    assert rep.all_irc_connect is True
+    # 没有含频率块的 TS 证据 -> 鞍点证据缺失，整体判负
+    assert rep.all_first_order is False
+    assert rep.passed is False
+
+
+def _fake_ts_frames(imag_freqs, irc_meta):
+    frames = [FrameRecord(frame=0, frequencies_cm=imag_freqs + [100.0, 200.0])]
+    return frames, irc_meta
+
+
+@pytest.mark.parametrize(
+    "imag_freqs,irc_meta,want_saddle,want_irc",
+    [
+        # 一阶鞍点 + 双向收敛 IRC -> 通过
+        ([-500.0], {"num_points_forward": 3, "num_points_backward": 3,
+                    "forward_converged": True, "backward_converged": True}, True, True),
+        # 两个虚频 -> 非一阶鞍点
+        ([-500.0, -300.0], {"num_points_forward": 3, "num_points_backward": 3,
+                            "forward_converged": True, "backward_converged": True}, False, True),
+        # 虚频低于阈值（构象假 TS）-> 判负
+        ([-50.0], {"num_points_forward": 3, "num_points_backward": 3,
+                   "forward_converged": True, "backward_converged": True}, False, True),
+        # 鞍点成立但 IRC 只有一个方向 -> IRC 判负
+        ([-500.0], {"num_points_forward": 3, "num_points_backward": 0,
+                    "forward_converged": True, "backward_converged": False}, True, False),
+    ],
+)
+def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_meta, want_saddle, want_irc):
+    monkeypatch.setattr(
+        selfconsistency, "_frames_for", lambda path: _fake_ts_frames(imag_freqs, irc_meta)
+    )
+    files = [EvidenceFile(path="ts_opt.log", kind="gaussian")]
+    rep = audit_self_consistency(files, Path("."))
+    chk = rep.ts_checks[0]
+    assert chk.is_first_order_saddle is (len(imag_freqs) == 1)
+    assert rep.all_first_order is want_saddle
+    assert rep.all_irc_connect is want_irc
+    assert rep.passed is (want_saddle and want_irc)
+
+
+# --- method policy 误伤回归 ---
+
+
+@pytest.mark.parametrize(
+    "command,allowed",
+    [
+        # 短关键词（w1/g3/g4）嵌在文件名里不得触发拦截
+        ("cat scan_g4.log", True),
+        ("tail -n 50 new1.out", True),
+        ("ls frag_w10/", True),
+        ("cat mg3x2.log", True),
+        # 作为独立 token 出现必须拦截
+        ("cat > t.gjf <<EOF\n# g4\nEOF", False),
+        ("grep -c g4 summary.log", False),
+        ("cat > t.inp <<EOF\n! dlpno-ccsd(t)\nEOF", False),
+    ],
+)
+def test_method_policy_filename_false_positives(command, allowed):
+    assert intercept("bash", {"command": command}, MethodPolicy()).allowed is allowed
+
+
+# --- 题库可复现性 ---
+
+
+def test_easy_tasks_regenerate_identically():
+    """版本化题库必须与生成器输出一致（generator 是唯一事实来源）。"""
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    for t in tasks:
+        committed = gen_easy_tasks.DEFAULT_OUT / f"{t.task_id}.json"
+        assert committed.is_file(), f"missing committed task file: {committed}"
+        regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
+        assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
