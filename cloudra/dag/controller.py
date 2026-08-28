@@ -142,7 +142,7 @@ class DagController:
         """实质性计算前的 DAG 门槛（Phase 3：唯一门槛 = mechanism_accepted）。
 
         返回 ``None`` 表示放行；``("block", msg)`` 硬拒绝。机理草稿被接受
-        之前拦截计算入口（submit_compute_job/gjf_writer/ts_guess 计算型
+        之前拦截计算入口（submit_compute_job/qm_input_writer/ts_guess 计算型
         mode 等，词表在 registry 的 dag_compute_entry）；检索/读取/机理
         提案工具始终放行；standard 模式无门槛。
         """

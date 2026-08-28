@@ -12,7 +12,7 @@ description = (
     "Query compute-job status: by job_id, show the current state, working directory, start/end times, and failure reason of a job submitted with submit_compute_job; "
     "without job_id, list recent jobs in this session. "
     "Use for: confirming an async job is ready/running/done/failed, or reading last_error on failure. "
-    "Do not use for: submitting a new job (use submit_compute_job) or parsing a finished log (use gaussian_log_parser). "
+    "Do not use for: submitting a new job (use submit_compute_job) or parsing a finished log (use log_parser). "
     "Note: the state is the executor's database record, not physical reality — the system never kills processes "
     "or marks a job failed on its own, so a job whose worker process died still reads 'running' until its lease "
     "expires. Manage compute tasks by pid yourself: cross-check with `ps -p <pid>` and file existence, and force "

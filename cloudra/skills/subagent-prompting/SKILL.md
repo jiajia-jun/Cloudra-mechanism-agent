@@ -59,7 +59,7 @@ When delegating complex tasks, structure the prompt using the **S.C.A.R.F.** fra
 - **(R) Restrictions & Workspace Isolation**:
   - **Absolute file paths**: Always specify absolute paths (e.g. `/home/user/project/.cloudra/tasks/<uuid>/output.log`).
   - **Isolated output directory**: Each async task must write to a unique path (`task_<uuid>/`) to prevent dirty writes and race conditions.
-  - **Log size guardrails**: Forbid dumping raw logs ($> 500$ lines) into conversation context; require parsing tools (`gaussian_log_parser`, `log_parser`).
+  - **Log size guardrails**: Forbid dumping raw logs ($> 500$ lines) into conversation context; require parsing tools (`log_parser`).
 - **(F) Format Contract**: Specify exact return schema (Markdown table, JSON, or key metrics).
   *(e.g., "Return: | Conformers | Final Energy (kcal/mol) | Imaginary Freq (cm^-1) |")*
 
@@ -67,7 +67,7 @@ When delegating complex tasks, structure the prompt using the **S.C.A.R.F.** fra
 
 ## 4. Anti-Hallucination & Verification Guardrails
 
-1. **Trust But Verify**: Never accept a sub-agent's self-declaration that "the calculation converged" or "the structure is optimized" without concrete evidence. Require the sub-agent to invoke a parsing/reading tool (`gaussian_log_parser`, `text_reader`) and include parsed numbers (e.g., SCF energy, RMS force, single imaginary frequency) in its reply.
+1. **Trust But Verify**: Never accept a sub-agent's self-declaration that "the calculation converged" or "the structure is optimized" without concrete evidence. Require the sub-agent to invoke a parsing/reading tool (`log_parser`, `text_reader`) and include parsed numbers (e.g., SCF energy, RMS force, single imaginary frequency) in its reply.
 2. **Atomic Failure Circuit Breaker**:
    - If a tool fails with the same error twice in a row, the sub-agent must immediately abort that tool.
    - The sub-agent must report to the Coordinator with:

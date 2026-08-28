@@ -17,10 +17,10 @@
 | 结构体检 | `internal_coordinates` mode=analyze | `reactive_atoms` / `watch_pairs` | 异常键/键角/二面角/立体化学报告 |
 | TS 初猜（端点已知） | `ts_guess` mode=interpolate | IDPP 插值，`watch_pairs` | 候选帧坐标（可作 NEB 初始路径） |
 | TS 初猜（约束扫描） | `ts_guess` mode=scan_prepare → `submit_compute_job` → `ts_guess` mode=scan_parse | Gaussian modredundant / ORCA `%geom Scan` | 探索性能量剖面 + TS 初猜 xyz；不作为 SI 验证证据 |
-| TS 优化+频率 | `gjf_writer` + `submit_compute_job` | `opt=(ts,noeigen,calcfc) freq` | TS 结构 + 频率 |
+| TS 优化+频率 | `qm_input_writer` + `submit_compute_job` | `opt=(ts,noeigen,calcfc) freq` | TS 结构 + 频率 |
 | TS 验证 | `ts_guess` mode=verify `strict=True` | 1 个虚频 + 双向部分 IRC + 两个外帧优化中间体；可用 `watch_pairs` | 路径方向一致性的 pass/fail/inconclusive（无需完整 IRC） |
 | 电子结构交叉验证 | `electronic_analysis` | `reactive_atoms` 聚焦；自由基用 spin>1 | partial bond / 自旋布居 / IBO 孤对 |
-| 结果解析 | `gaussian_log_parser` / `format_converter` | 避免 cat 大日志、避免手写正则 | 能量、收敛状态 |
+| 结果解析 | `log_parser` / `format_converter` | 避免 cat 大日志、避免手写正则 | 能量、收敛状态 |
 | 相对热化学 | `thermo_analysis` | 带符号系数、温度、标准态；`raw_rrho` 或显式 `goodvibes` | ΔE/ΔH/ΔG、假设与后端 provenance |
 
 # 2. 流程状态机
@@ -37,7 +37,7 @@
 - 初猜结构建议先展示给用户确认，再开正式 TS 搜索。
 - `ts_guess interpolate`、`scan_prepare`、`scan_parse` 和默认 `verify` 都是找方向的探索步骤。它们最多支撑 delivery 边的 `ts_guess` advisory 阶段，**不能**满足 `ts_opt` / `frequency`，更不能把 elementary edge 提升为鞍点或端点已验证；扫描结果也不作为 SI 证据。
 
-**Step 4 TS 优化 + 频率**：`gjf_writer` 生成 `opt=(ts,noeigen,calcfc) freq` 输入，收敛困难时加 `maxstep=10`、`int=ultrafine`。完成后可用默认 `ts_guess` verify 查看候选方向，但默认结果只是建议；严格验证要求恰好 1 个虚频。
+**Step 4 TS 优化 + 频率**：`qm_input_writer` 生成 `opt=(ts,noeigen,calcfc) freq` 输入，收敛困难时加 `maxstep=10`、`int=ultrafine`。完成后可用默认 `ts_guess` verify 查看候选方向，但默认结果只是建议；严格验证要求恰好 1 个虚频。
 
 **Step 5 IRC 验证**：`irc=(lqa,calcfc,maxpoint=80)`，级别与 TS 搜索一致。**双向每个方向至少 50 个有效点**（与 SKILL.md §4 Step 3 / 证据门槛对齐）；`maxpoint` 不足或一侧过早终止时加大重跑。不必等待 IRC 完整走到极小点：取 rx<0 与 rx>0 两侧最外有效帧，各自做无约束优化得到中间体；随后把 TS 频率日志、部分 IRC 日志和两个优化中间体传给 `ts_guess` verify，并设 `strict=True`。工具尝试两种无序配对，利用指定 `watch_pairs` 或自动选择的变化原子对，检查每个 IRC 外帧的距离坐标是否处于 TS 与对应中间体之间且更靠近中间体。随后用 `reaction_mapping` 把两个优化中间体的具体结构分别与原先声明的端点 SMILES 核对。`strict pass` 只证明路径方向一致，端点 `match` 只证明分子图身份；两者互不替代，也都不替代虚频振动模式、电子结构和化学合理性判断。曲线不平滑则按 SKILL.md §5 重搜策略处理。
 

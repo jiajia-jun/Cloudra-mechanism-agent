@@ -23,7 +23,7 @@ def build_compute_finish_content(
 ) -> str:
     if state == "done":
         guidance = (
-            "Next: use gaussian_log_parser on the log to extract energy/frequencies and other results."
+            "Next: use log_parser on the log to extract energy/frequencies and other results."
         )
     else:
         guidance = (

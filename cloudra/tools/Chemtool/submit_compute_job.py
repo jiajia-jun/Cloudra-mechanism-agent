@@ -16,9 +16,9 @@ from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
     "and let the framework Compute Executor pick it up; returns job_id immediately without waiting for the job to finish. "
-    "Use for: formally running long Gaussian, CP2K, VASP, or ORCA jobs; prepare the input first with gjf_writer or similar (CP2K uses .inp). "
-    "Do not use for: generating the input (use gjf_writer), querying progress (use query_compute_job), "
-    "or inspecting results (parse the log with gaussian_log_parser after the job finishes)."
+    "Use for: formally running long Gaussian, CP2K, VASP, or ORCA jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp). "
+    "Do not use for: generating the input (use qm_input_writer), querying progress (use query_compute_job), "
+    "or inspecting results (parse the log with log_parser after the job finishes)."
 )
 
 
@@ -84,7 +84,7 @@ class SubmitComputeJob(Tool):
             return SubmitComputeJob_output_schema(
                     is_success=False,
                     message=f"Input file does not exist: {f_path}. "
-                            "Check the path, or generate the input first with gjf_writer, then retry.")
+                            "Check the path, or generate the input first with qm_input_writer, then retry.")
 
         scheduler = user_input.execution_backend
         scheduler_options: dict = {"type": scheduler}

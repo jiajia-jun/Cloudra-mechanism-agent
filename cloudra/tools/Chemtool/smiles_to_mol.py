@@ -18,7 +18,7 @@ except Exception:
 description = (
     "Convert a chemical SMILES string to MOL (MDL MOLfile) via RDKit, with 2D or 3D coordinates, "
     "optionally saving to a file or returning MOL text. "
-    "Use for: generating an initial 3D structure from SMILES as input to gjf_writer or format_converter. "
+    "Use for: generating an initial 3D structure from SMILES as input to qm_input_writer or format_converter. "
     "Do not use for: converting an existing structure file (use format_converter) or drawing SMILES as an image (use molecule_drawer)."
 )
 
