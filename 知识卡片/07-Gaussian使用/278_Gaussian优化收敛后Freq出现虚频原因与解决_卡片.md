@@ -1,0 +1,97 @@
+---
+id: 278
+title: Gaussian中几何优化收敛后Freq时出现NO或虚频的原因和解决方法
+url: http://sobereva.com/278
+domain: Gaussian使用
+topic: Gaussian优化收敛后Freq出现虚频原因与解决
+cards: 14
+---
+
+# Gaussian优化收敛后Freq出现虚频原因与解决 — 知识卡片
+
+## 1. 几何优化收敛后Freq出现NO或虚频的普遍适用性
+
+几何优化收敛后Freq任务出现NO或虚频的问题及解决方法适用于过渡态优化，过渡态需消除的虚频是指多余存在的虚频而非感兴趣的那个；按本文所述做法消不掉虚频的情况不存在，消不掉一定是未认真领会本文并充分尝试；遇到数值非常小的虚频且仅关注能量相关问题时，并非必须不惜一切代价消除虚频。
+- 引用博文：《谈谈有小虚频时热力学量的计算》 http://sobereva.com/699
+
+---
+
+## 2. 几何优化收敛标准与Freq判断标准差异的原理
+
+Gaussian几何优化默认使用近似Hessian矩阵的准牛顿法，而Freq计算必须使用精确Hessian矩阵，这导致基于精确Hessian矩阵判断的最大位移和均方根位移与优化时可能存在差异；Freq任务会根据精确Hessian矩阵和当前结构受力重新用四个判断标准考察结构是否收敛；Opt显示YES但Freq显示NO说明优化精度不够，若出现较大虚频说明结构偏离极小点明显。
+- 引用博文：《基于fch中的Hessian矩阵计算振动频率的简单程序Hess2freq》 http://sobereva.com/328
+
+---
+
+## 3. Opt收敛但Freq出现NO的结果可用性判断
+
+如果Opt收敛但Freq出现NO，只要数值不超过默认收敛限的2倍且没有虚频出现，结果一般是可以接受的；如果对频率或结构准确度要求高，或者出现了虚频，则应当进行更精确的优化。
+
+---
+
+## 4. 使用Opt=Tight提升优化精度
+
+在Opt中加入tight关键词可以将默认优化收敛限设严一个数量级以上，能降低出现虚频的可能性；代价是达到收敛难度增加，优化步数和耗时大大提升，且增加了震荡无法收敛的概率；注意若写opt=tight freq，Freq最后也会用tight标准判断，但Freq只需满足默认标准即可。
+
+---
+
+## 5. DFT积分格点精度对虚频的影响
+
+DFT计算的积分格点质量不够理想会导致受力和Hessian精度不足，这往往是造成虚频的原因；使用Tight收敛限无法解决此问题；Gaussian 09用户使用opt=tight时应搭配int=ultrafine；Gaussian 16开始int=ultrafine为默认。
+- 引用博文：《密度泛函计算中的格点积分方法》 http://sobereva.com/69
+
+---
+
+## 6. 高精度积分格点Int=Superfine的使用场景
+
+明尼苏达系列泛函（如M06-2X）对积分格点精度要求比B3LYP、PBE0等高，在int=ultrafine下仍可能因精度不够出现微小虚频，可尝试int=superfine；对于极个别色散作用主导的弱相互作用体系，也可能需要int=superfine来消除微小虚频，但这非常昂贵且情况极度罕见。
+
+---
+
+## 7. 使用Opt=Calcall精确计算Hessian
+
+在Opt里写上calcall会使每一步都精确计算Hessian，优化结果比准牛顿法更准确，此时Opt和Freq的Hessian一致，收敛判断结果也相同；Opt=calcall结束后会自动做振动分析，无需再单独写freq；每步精确计算Hessian非常耗时。
+
+---
+
+## 8. 使用Opt=Calcfc在优化初始计算精确Hessian
+
+若已在默认情况下优化过，可取最后结构重新优化并在opt里写上calcfc，只在第一步精确计算Hessian，之后近似估计；这种方法往往能避免Freq后出现NO和虚频，但如果初始结构离极小点太远则无效。
+
+---
+
+## 9. 使用Opt=Recalc定期重算Hessian
+
+从Gaussian 16开始，opt加入recalc选项，opt=recalc=n代表第一步精确计算Hessian，之后每n步重算一次；效果和耗时介于calcfc和calcall之间；计算Hessian成本不高时n取3~5，成本较高时n取5~10。
+
+---
+
+## 10. 结构对称性过高导致虚频的解决方法
+
+虚频有时由初始结构对称性太高导致，如联苯平面构型会出现扭转虚频；解决方法是在GaussView中沿虚频模式略微调整结构，保存新结构后重新优化和做振动分析；此方法对由对称性导致的虚频有效，但不建议作为解决虚频的首选通用方法。
+
+---
+
+## 11. SMD隐式溶剂模型导致虚频的问题
+
+不建议对opt和freq任务使用SMD隐式模型，因为该模型容易因数值噪音产生虚假虚频并导致优化难收敛；优化和振动分析应在IEFPCM下进行，计算能量时再使用SMD；SMD的长处在于计算溶剂环境下的能量，而非对优化结构的影响。
+- 引用博文：《谈谈隐式溶剂模型下溶解自由能和体系自由能的计算》 http://sobereva.com/327
+
+---
+
+## 12. 使用IOp自定义泛函时的Opt与Freq分离
+
+使用IOp定义自定义泛函时，IOp无法传递到下一个任务，因此结合opt freq使用时只对opt有效，freq无效会导致势能面不同而产生虚频；使用自定义泛函时opt和freq必须分开做。
+- 引用博文：《Gaussian中非内置的理论方法和泛函的用法》 http://sobereva.com/344、《在Gaussian中自定义范围分离泛函的方法》 http://sobereva.com/550
+
+---
+
+## 13. Gaussian中DFT-D3(BJ)的解析二阶导数Bug
+
+Gaussian G09 D.01版中DFT-D3的BJ阻尼版本（em=gd3bj）解析二阶导数存在bug，会导致优化精确的情况下振动分析仍出现虚频；解决办法是使用G09 E.01及以后版本，或改用零阻尼版本DFT-D3(0)进行opt和freq。
+
+---
+
+## 14. 使用Calcall后Freq判断标准仍不同的原因
+
+即便Opt时用了calcall，单独做Freq时判断标准仍可能不同甚至出现NO，原因包括：(1)Freq时级别或数值设定与Opt不一致；(2)GaussView保存输入文件时小数位数有限导致误差；(3)Opt时使用了GDIIS，其参考历史信息预测位移与Freq基于牛顿法的判断不同；(4)Freq未收敛到与Opt相同的波函数，可用guess=read解决。
