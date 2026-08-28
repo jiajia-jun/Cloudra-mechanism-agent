@@ -75,7 +75,7 @@ async def test_delivery_delta_appended_to_tool_result_and_pushed():
     stage = DagPolicyStage()
     controller = _FakeController()
     controller.finished_return = DeliveryDelta(
-        tool_name="gaussian_log_parser",
+        tool_name="log_parser",
         bound_target="e_da_step",
         level_from="proposed",
         level_to="computed",
@@ -85,10 +85,10 @@ async def test_delivery_delta_appended_to_tool_result_and_pushed():
     result = ToolResult(is_success=True, summary='{"is_success": true}')
     await stage.after_tool(
         ctx,
-        ToolCall(id="tc1", name="gaussian_log_parser", arguments={}),
+        ToolCall(id="tc1", name="log_parser", arguments={}),
         result,
     )
-    assert "[DAG] evidence bound: gaussian_log_parser → e_da_step (proposed→computed)" in result.summary
+    assert "[DAG] evidence bound: log_parser → e_da_step (proposed→computed)" in result.summary
     pushed = ctx.notices.collect(ctx.agent.id)
     assert any("[DAG] evidence bound" in m["content"] for m in pushed)
 

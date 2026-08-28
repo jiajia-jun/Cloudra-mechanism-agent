@@ -198,7 +198,7 @@ def test_seed_does_not_duplicate_activity_of_summarized_runs():
         project_id="p",
         session_id="s",
         run_id="r2-dead",
-        data={"tool_name": "gjf_writer", "is_success": True, "result_summary": "wrote ts.gjf"},
+        data={"tool_name": "qm_input_writer", "is_success": True, "result_summary": "wrote ts.gjf"},
     )
     seed = build_seed_context(log, "s")
     summaries = [m["content"] for m in seed if m["role"] == "assistant"]

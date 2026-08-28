@@ -255,7 +255,7 @@ def test_projection_is_bounded_deterministic_and_contains_no_evidence_bodies():
     reviews = [
         {
             "review_id": f"rev-{index}",
-            "tool_name": "gaussian_log_parser",
+            "tool_name": "log_parser",
             "is_success": True,
             "caller": "a-4",
         }

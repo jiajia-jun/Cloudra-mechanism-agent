@@ -48,7 +48,7 @@ def _accept_draft(db):
 def test_compute_entry_vocabulary():
     for name in (
         "submit_compute_job",
-        "gjf_writer",
+        "qm_input_writer",
         "conformer_search",
         "electronic_analysis",
     ):
@@ -64,7 +64,7 @@ def test_compute_entry_vocabulary():
     assert not is_compute_entry_tool("bashtools", {"command": "ls -la"})
     # 检索/读取/映射/编排面始终放行
     for name in (
-        "gaussian_log_parser",
+        "log_parser",
         "reaction_mapping",
         "text_writer",
         "web_search",

@@ -176,7 +176,7 @@ async def test_agree_out_of_order_then_in_order(tmp_path):
         tmp_path,
         "review-order",
         calls=[
-            ("tc-opt", "gaussian_log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT),
+            ("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT),
         ],
     )
     supervisor = SupervisorAgent(
@@ -225,7 +225,7 @@ async def test_disagree_with_reason_leaves_coverage_incomplete(tmp_path):
         "review-veto-incomplete",
         calls=[
             ("tc-guess", "ts_guess", {"smiles": "C=COCC=C"}, {"is_success": True, "verdict": "pass"}),
-            ("tc-opt", "gaussian_log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT),
+            ("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT),
         ],
     )
     supervisor = SupervisorAgent(
@@ -430,7 +430,7 @@ async def test_duplicate_artifact_is_not_reenqueued(tmp_path):
         calls=[
             (
                 "tc-1",
-                "gaussian_log_parser",
+                "log_parser",
                 {"log_path": "/x/da_ts.log"},
                 {"is_success": True, "frequencies_cm": [144.7], "imaginary_frequencies": [-951.72]},
             ),
@@ -441,7 +441,7 @@ async def test_duplicate_artifact_is_not_reenqueued(tmp_path):
     # 同构重提：不同 tool_call_id、相同 arguments + result。
     delta = await controller.on_tool_finished(
         "tc-2",
-        "gaussian_log_parser",
+        "log_parser",
         {"log_path": "/x/da_ts.log"},
         {"is_success": True, "frequencies_cm": [144.7], "imaginary_frequencies": [-951.72]},
     )
@@ -456,7 +456,7 @@ async def test_duplicate_artifact_is_not_reenqueued(tmp_path):
     # 内容不同（结果变了）则照常入箱。
     await controller.on_tool_finished(
         "tc-3",
-        "gaussian_log_parser",
+        "log_parser",
         {"log_path": "/x/da_ts.log"},
         {"is_success": True, "frequencies_cm": [144.7], "imaginary_frequencies": [-950.0]},
     )
@@ -470,9 +470,9 @@ async def test_review_provenance_classifies_failure(tmp_path):
         tmp_path,
         "review-kinds",
         calls=[
-            ("tc-miss", "gaussian_log_parser", {"log_path": "/x/nope.log"},
+            ("tc-miss", "log_parser", {"log_path": "/x/nope.log"},
              {"is_success": False, "message": "Log file not found: /x/nope.log"}),
-            ("tc-parse", "gaussian_log_parser", {"log_path": "/x/bad.log"},
+            ("tc-parse", "log_parser", {"log_path": "/x/bad.log"},
              {"is_success": False, "message": "Failed to parse the log: truncated"}),
         ],
     )
@@ -493,7 +493,7 @@ async def test_view_evidence_returns_full_arguments_and_result(tmp_path):
         calls=[
             (
                 "tc-1",
-                "gaussian_log_parser",
+                "log_parser",
                 {"log_path": "/x/da_ts.log", "requested": ["frequencies"]},
                 {"is_success": True, "imaginary_frequencies": [-951.72]},
             ),
@@ -504,7 +504,7 @@ async def test_view_evidence_returns_full_arguments_and_result(tmp_path):
         DagViewEvidence, agent, session, review_id=review.review_id
     )
     assert out.is_success is True
-    assert out.result["source_name"] == "gaussian_log_parser"
+    assert out.result["source_name"] == "log_parser"
     assert out.result["arguments"]["log_path"] == "/x/da_ts.log"
     assert out.result["result"]["imaginary_frequencies"] == [-951.72]
     assert out.result["review_id"] == review.review_id
