@@ -303,7 +303,8 @@ class LogParser(Tool):
                     result["normal_termination"] = bool(data.optdone)
 
             # job_type / scan / irc 摘要（Gaussian IRC 逐点解析在 core.gaussian_frames 自写；
-            # ORCA 侧 job_types 由 core.orca_frames 识别，IRC 逐点暂不支持）
+            # ORCA 侧由 core.orca_frames.extract_irc 从主输出的 FORWARD/BACKWARD
+            # IRC 迭代块与 PATH SUMMARY 提取点数/收敛/端点能量）
             from cloudra.tools.core import gaussian_frames
 
             if "job_types" in requested:
@@ -321,8 +322,19 @@ class LogParser(Tool):
             if any(f.startswith("irc_") for f in requested):
                 if engine == "orca":
                     if "irc" in result.get("job_types", []) or "irc" in orca_frames.detect_job_types(log_path):
-                        result["message"] = ("Log parsed; ORCA IRC per-point extraction is not supported yet "
-                                             "(path points live in the _IRC.log side file).")
+                        try:
+                            irc_meta = orca_frames.extract_irc(log_path)
+                            result["irc_num_points_forward"] = irc_meta["num_points_forward"]
+                            result["irc_num_points_backward"] = irc_meta["num_points_backward"]
+                            if irc_meta["endpoint_energies_hartree"] is not None:
+                                result["irc_endpoint_energies_hartree"] = [
+                                    float(v) for v in irc_meta["endpoint_energies_hartree"]
+                                ]
+                            result["irc_both_directions_converged"] = bool(
+                                irc_meta["forward_converged"] and irc_meta["backward_converged"]
+                            )
+                        except ValueError as e:
+                            result["message"] = f"Log parsed; ORCA IRC extraction failed: {e}"
                 elif "irc" in gaussian_frames.detect_job_types(log_path):
                     try:
                         _irc_frames, irc_meta = gaussian_frames.extract_irc(log_path)

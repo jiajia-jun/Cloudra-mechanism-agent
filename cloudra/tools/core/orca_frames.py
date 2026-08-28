@@ -6,8 +6,9 @@
   vibfreqs / optdone / scanparm），cclib 对 ORCA 支持良好；
 - ORCA 的松弛面扫描（relaxed surface scan）在 cclib 1.8.x 中不暴露
   scanenergies/scancoords，仅给出 scfenergies + scanparm，几何序列暂缺；
-- IRC（`IRC` 关键字）目前不提取逐点反应坐标：ORCA IRC 的路径点坐标在
-  `_IRC.log` 附属文件而非主输出，v1 不做副文件追踪；
+- IRC（`IRC` 关键字）：逐点的能量/收敛/端点能量从主输出的 FORWARD/
+  BACKWARD IRC 迭代块与 IRC PATH SUMMARY 解析（`extract_irc`）；逐点坐标
+  在 `*_trj.xyz` 边文件，主输出没有，故 extract_frames 对 IRC 返回空；
 - 热化学（`FREQ` 后的 THERMOCHEMISTRY 块）为自写正则解析，对齐
   log_parser 的 corrections/totals 字段语义。
 
@@ -33,7 +34,7 @@ from cloudra.tools.core.gaussian_frames import (
 # 任务类型识别
 # ---------------------------------------------------------------------------
 
-_ORCA_KEYWORDS_RE = re.compile(r"^\s*!\s*(?P<kw>.+)$", re.M | re.I)
+_ORCA_KEYWORDS_RE = re.compile(r"^\s*(?:\|\s*\d+>\s*)?!\s*(?P<kw>.+)$", re.M | re.I)
 
 
 def _collect_keyword_lines(text: str) -> str:
@@ -47,7 +48,7 @@ def detect_job_types(log_path: str) -> set[str]:
     keywords = _collect_keyword_lines(text)
     jobs: set[str] = set()
 
-    if re.search(r"\birc\b", keywords) or "IRC ITERATION" in text:
+    if re.search(r"\birc\b", keywords) or "IRC ITERATION" in text or "IRC PATH SUMMARY" in text:
         jobs.add("irc")
     if (
         re.search(r"\bscan\b", keywords)
@@ -238,7 +239,8 @@ def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
 
 
 def extract_frames(log_path: str) -> list[FrameRecord]:
-    """按识别到的任务类型提取关键帧。IRC 暂不支持逐点提取（返回空）。"""
+    """按识别到的任务类型提取关键帧。IRC 的逐点坐标在 trj 边文件（主输出无），
+    这里对 IRC 返回空；IRC 的点数/收敛/能量走 extract_irc。"""
     jobs = detect_job_types(log_path)
     if "irc" in jobs:
         return []
@@ -247,3 +249,92 @@ def extract_frames(log_path: str) -> list[FrameRecord]:
     if "opt" in jobs or "ts" in jobs:
         return _extract_opt_frames(log_path)
     return _extract_sp_frames(log_path)
+
+
+# ---------------------------------------------------------------------------
+# IRC 主输出解析（点数 / 收敛 / 能量）
+# ---------------------------------------------------------------------------
+
+# 迭代行：" 0 -1967.123694 -0.987880 0.009347 0.001949"
+_IRCA_ITER_RE = re.compile(
+    r"^\s*(\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s*$"
+)
+# PATH SUMMARY 行，TS 行尾部带 "<= TS"
+_IRCA_SUMMARY_RE = re.compile(
+    r"^\s*(\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)(?:\s*<=\s*TS)?\s*$"
+)
+_IRCA_BLOCK_RE = re.compile(r"\*\s*(FORWARD|BACKWARD)\s+IRC\s*\*")
+_IRCA_CONVERGED_RE = re.compile(r"THE IRC HAS CONVERGED")
+
+
+def _parse_irc_direction_block(text: str) -> tuple[int, bool]:
+    """解析一个 FORWARD/BACKWARD IRC 块，返回 (点数, 是否收敛)。
+
+    点数为迭代行数（不含表头/阈值行）；收敛以块尾 "THE IRC HAS CONVERGED"
+    （HURRAY 段）为准——步数耗尽而终止的块没有该标记。
+    """
+    n_points = 0
+    for line in text.splitlines():
+        if _IRCA_ITER_RE.match(line):
+            n_points += 1
+    return n_points, bool(_IRCA_CONVERGED_RE.search(text))
+
+
+def extract_irc(log_path: str) -> dict:
+    """从 ORCA 主输出解析 IRC 元数据，对齐 gaussian_frames.extract_irc 的 meta dict。
+
+    ORCA 把 IRC 逐点的能量/梯度直接打在主输出（FORWARD IRC / BACKWARD IRC
+    迭代块 + 结尾 IRC PATH SUMMARY），无需追 `_IRC.log`/`*_trj.xyz` 边文件
+    （边文件只额外提供逐点坐标，这里不取）。返回键：
+    num_points_forward/backward、forward_converged/backward_converged、
+    endpoint_energies_hartree（PATH SUMMARY 首/末行能量）、ts_energy_hartree
+    （带 "<= TS" 标记行的能量）。找不到 IRC 段时抛 ValueError。
+    """
+    text = _read_text(log_path)
+    blocks = list(_IRCA_BLOCK_RE.finditer(text))
+    if not blocks:
+        raise ValueError("ORCA 日志中未找到 FORWARD/BACKWARD IRC 段。")
+
+    num_points: dict[str, int] = {"FORWARD": 0, "BACKWARD": 0}
+    converged: dict[str, bool] = {"FORWARD": False, "BACKWARD": False}
+    for i, m in enumerate(blocks):
+        direction = m.group(1)
+        seg_end = blocks[i + 1].start() if i + 1 < len(blocks) else len(text)
+        # 截到 PATH SUMMARY 之前，避免把汇总表行也数进迭代点
+        segment = text[m.end():seg_end]
+        summary_idx = segment.find("IRC PATH SUMMARY")
+        if summary_idx >= 0:
+            segment = segment[:summary_idx]
+        n, conv = _parse_irc_direction_block(segment)
+        num_points[direction] = n
+        converged[direction] = conv
+
+    meta: dict = {
+        "num_points_forward": num_points["FORWARD"],
+        "num_points_backward": num_points["BACKWARD"],
+        "forward_converged": converged["FORWARD"],
+        "backward_converged": converged["BACKWARD"],
+        "ts_energy_hartree": None,
+        "rx_coord_range": None,
+        "endpoint_energies_hartree": None,
+    }
+
+    # PATH SUMMARY：首行=反应物端、末行=产物端、"<= TS" 行=TS 能量。
+    # 用 rfind 取最后一次出现（真实输出在文件尾部；避免命中开头注释/回显里的
+    # 同名字样），且从该段标题的分隔线之后开始读数据行。
+    summary_idx = text.rfind("IRC PATH SUMMARY")
+    if summary_idx >= 0:
+        summary_rows = []
+        for line in text[summary_idx:].splitlines():
+            m = _IRCA_SUMMARY_RE.match(line)
+            if m:
+                summary_rows.append((float(m.group(2)), "<=" in line and "TS" in line))
+        if summary_rows:
+            meta["endpoint_energies_hartree"] = (
+                summary_rows[0][0],
+                summary_rows[-1][0],
+            )
+            ts_rows = [e for e, is_ts in summary_rows if is_ts]
+            if ts_rows:
+                meta["ts_energy_hartree"] = ts_rows[0]
+    return meta

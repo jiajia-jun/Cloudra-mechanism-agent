@@ -119,8 +119,11 @@ class FormatConverter(Tool):
                     output_path="",
                     message=f"No key frames could be extracted from the {engine or 'unknown'}-engine log "
                             f"(detected as {'+'.join(ordered) or 'unknown'}): {user_input.input_path}. "
-                            "Check that the log contains a finished opt/scan/irc job "
-                            "(ORCA IRC per-point extraction is not supported yet)."
+                            "Check that the log contains a finished opt/scan job "
+                            "(ORCA IRC per-point coordinates live in the *_trj.xyz side "
+                            "files, so no coordinate frames here; IRC point counts, "
+                            "convergence and endpoint energies are still available via "
+                            "log_parser)."
                 )
             frames_to_csv(frames, user_input.output_path)
             return FormatConverter_output_schema(
