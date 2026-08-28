@@ -19,6 +19,106 @@ _MAX_EXHAUSTIVE_MAPPINGS = 100_000
 _MAX_RETURNED_CANDIDATES = 16
 _AMBIGUITY_SCORE_WINDOW = 2.0
 
+# 潜在手性轴启发式：近端范德华半径按图距离衰减加和，低于阈值的键不视为可归属轴。
+_AXIS_BULK_RHO = 0.5
+_AXIS_BULK_MAX_DEPTH = 5
+_AXIS_BULK_BRANCH_BOOST = 1.5
+_AXIS_MIN_CONGESTION = 9.0
+_VDW_RADIUS = {
+    "H": 1.20, "B": 1.92, "C": 1.70, "N": 1.55, "O": 1.52, "F": 1.47,
+    "P": 1.80, "S": 1.80, "Cl": 1.75, "Br": 1.85, "I": 1.98,
+}
+
+
+def _substituent_bulk(mol, root_idx: int, axis_idx: int) -> float:
+    """轴端一侧取代基的位阻权重：BFS 子图，范德华半径按图距离 rho^d 衰减。"""
+    total = 0.0
+    seen = {axis_idx}
+    frontier = [(root_idx, 0)]
+    while frontier:
+        idx, dist = frontier.pop()
+        if idx in seen:
+            continue
+        seen.add(idx)
+        atom = mol.GetAtomWithIdx(idx)
+        weight = _VDW_RADIUS.get(atom.GetSymbol(), 1.70) * _AXIS_BULK_RHO ** dist
+        if dist == 0 and atom.GetDegree() >= 3:
+            weight *= _AXIS_BULK_BRANCH_BOOST
+        total += weight
+        if dist < _AXIS_BULK_MAX_DEPTH:
+            frontier.extend((n.GetIdx(), dist + 1) for n in atom.GetNeighbors())
+    return round(total, 3)
+
+
+def _small_ring_bonds(mol, max_ring: int = 6) -> set[tuple[int, int]]:
+    from rdkit import Chem
+
+    bonds: set[tuple[int, int]] = set()
+    for ring in Chem.GetSymmSSSR(mol):
+        if len(ring) <= max_ring:
+            for i in range(len(ring)):
+                bonds.add(tuple(sorted((ring[i], ring[(i + 1) % len(ring)]))))
+    return bonds
+
+
+def find_potential_chiral_axes(mol) -> list[dict]:
+    """启发式列出分子中的潜在手性轴。
+
+    闸门顺序：两端杂化（至少一端 sp2/sp，允许另一端 sp3）→ 小环排除 →
+    每端两个图不等价取代基（canonical rank 对称类）→ 位阻拥挤度阈值。
+    普通键与低拥挤键一律不进输出，agent 只看到可归属的轴。
+    """
+    from rdkit import Chem
+
+    ranks = list(Chem.CanonicalRankAtoms(mol, breakTies=False))
+    ring_bonds = _small_ring_bonds(mol)
+    pi_hybrids = {Chem.HybridizationType.SP2, Chem.HybridizationType.SP}
+    axes: list[dict] = []
+    for bond in mol.GetBonds():
+        a1, a2 = bond.GetBeginAtom(), bond.GetEndAtom()
+        pair = tuple(sorted((a1.GetIdx(), a2.GetIdx())))
+        if pair in ring_bonds:
+            continue
+        hyb = (a1.GetHybridization(), a2.GetHybridization())
+        pi_ends = sum(h in pi_hybrids for h in hyb)
+        sp3_ends = sum(h == Chem.HybridizationType.SP3 for h in hyb)
+        if not (pi_ends >= 1 and pi_ends + sp3_ends == 2):
+            continue
+
+        ends = []
+        for axis_atom, other in ((a1, a2), (a2, a1)):
+            subs = [
+                n.GetIdx() for n in axis_atom.GetNeighbors()
+                if n.GetIdx() != other.GetIdx() and n.GetAtomicNum() != 1
+            ]
+            if len(subs) != 2 or ranks[subs[0]] == ranks[subs[1]]:
+                break
+            bulk = sorted(
+                (_substituent_bulk(mol, s, axis_atom.GetIdx()) for s in subs),
+                reverse=True,
+            )
+            ends.append({"substituents": sorted(s + 1 for s in subs), "bulk": bulk})
+        if len(ends) != 2:
+            continue
+
+        congestion = round(sum(sum(end["bulk"]) for end in ends), 3)
+        if congestion < _AXIS_MIN_CONGESTION:
+            continue
+        stereo = str(bond.GetStereo())
+        axes.append({
+            "bond": [pair[0] + 1, pair[1] + 1],
+            "hybridization": [str(hyb[0]), str(hyb[1])],
+            "substituents": [ends[0]["substituents"], ends[1]["substituents"]],
+            "bulk": [ends[0]["bulk"], ends[1]["bulk"]],
+            "axis_congestion": congestion,
+            "configuration": (
+                "atrop_cw" if stereo == "STEREOATROPCW"
+                else "atrop_ccw" if stereo == "STEREOATROPCCW"
+                else "unspecified"
+            ),
+        })
+    return axes
+
 
 def _parse_heavy_smiles(smiles: str, role: str):
     from rdkit import Chem
@@ -241,6 +341,44 @@ def _stereo_mismatch(reactant, product, mapping: list[int]) -> int:
             mismatch += int(p_stereo != r_stereo)
         else:
             mismatch += 1
+    mismatch += _axial_stereo_mismatch(reactant, product, mapping)
+    return mismatch
+
+
+def _axis_config_rank_order(mol, axis_idx: int, other_idx: int, ranks: list[int]) -> list[int] | None:
+    """轴一端两个取代基按 canonical rank 排序后的 [低rank原子, 高rank原子]。"""
+    subs = [
+        n.GetIdx() for n in mol.GetAtomWithIdx(axis_idx).GetNeighbors()
+        if n.GetIdx() != other_idx and n.GetAtomicNum() != 1
+    ]
+    if len(subs) != 2 or ranks[subs[0]] == ranks[subs[1]]:
+        return None
+    return sorted(subs, key=lambda i: ranks[i])
+
+
+def _axial_stereo_mismatch(reactant, product, mapping: list[int]) -> int:
+    """比较映射后潜在轴的构型守恒。
+
+    sp2-sp2 轴读 RDKit atropisomer stereo（CW/CCW）；含 sp3 端的轴 RDKit
+    不携带轴构型，改用取代基 rank 顺序经映射翻译后比对低/高 rank 取代基
+    在轴两端的相对同侧/异侧关系是否翻转。只覆盖已声明构型的轴。
+    """
+    from rdkit import Chem
+
+    atrop = {Chem.BondStereo.STEREOATROPCW, Chem.BondStereo.STEREOATROPCCW}
+    mismatch = 0
+
+    # sp2-sp2 轴：RDKit atropisomer stereo，经映射比较轴键 CW/CCW。
+    r_axes = {}
+    for r_bond in reactant.GetBonds():
+        if r_bond.GetStereo() in atrop:
+            r_axes[tuple(sorted((r_bond.GetBeginAtomIdx(), r_bond.GetEndAtomIdx())))] = r_bond.GetStereo()
+    for p_bond in product.GetBonds():
+        if p_bond.GetStereo() not in atrop:
+            continue
+        pair = tuple(sorted((mapping[p_bond.GetBeginAtomIdx()], mapping[p_bond.GetEndAtomIdx()])))
+        if pair in r_axes and r_axes[pair] != p_bond.GetStereo():
+            mismatch += 1
     return mismatch
 
 
@@ -331,6 +469,10 @@ def analyze_reaction_mapping(
         raise ValueError(f"Heavy-atom element counts differ before and after the reaction: {dict(r_inventory)} vs {dict(p_inventory)}")
 
     candidates, authoritative = _candidate_mappings(reactant, product)
+    potential_axes = {
+        "reactant": find_potential_chiral_axes(reactant),
+        "product": find_potential_chiral_axes(product),
+    }
     if not candidates:
         return {
             "mapping_status": "inconclusive",
@@ -340,6 +482,7 @@ def analyze_reaction_mapping(
             "broken_bonds": [],
             "order_changes": [],
             "watch_pairs": [],
+            "potential_axes": potential_axes,
             "message": "No usable element-conserving mapping candidate was generated.",
         }
     if not 0 <= selected_candidate < len(candidates):
@@ -372,6 +515,7 @@ def analyze_reaction_mapping(
         "broken_bonds": selected["broken_bonds"],
         "order_changes": selected["order_changes"],
         "watch_pairs": watch_pairs,
+        "potential_axes": potential_axes,
         "message": message,
     }
 
@@ -393,6 +537,38 @@ def _canonical_heavy_smiles(mol) -> str:
         canonical=True,
         isomericSmiles=True,
     )
+
+
+def _axis_config_from_3d(mol, conf, axis_a: int, axis_b: int, ranks: list[int]) -> Optional[str]:
+    """从 3D 坐标定一根潜在轴的构型（atrop_cw/atrop_ccw），与 RDKit stereo 无关。
+
+    取轴两端 rank 最低的两个取代基，量二面角 low(a)-a-b-low(b)，按符号定号。
+    取代基经 canonical rank 排序保证跨端一致可比。
+    """
+    import math
+
+    low = {}
+    for axis_idx, other_idx in ((axis_a, axis_b), (axis_b, axis_a)):
+        order = _axis_config_rank_order(mol, axis_idx, other_idx, ranks)
+        if order is None:
+            return None
+        low[axis_idx] = order[0]
+    import numpy as np
+
+    p0 = np.array(conf.GetAtomPosition(low[axis_a]))
+    p1 = np.array(conf.GetAtomPosition(axis_a))
+    p2 = np.array(conf.GetAtomPosition(axis_b))
+    p3 = np.array(conf.GetAtomPosition(low[axis_b]))
+    b0 = -(p1 - p0)
+    b1 = p2 - p1
+    b2 = p3 - p2
+    b1 /= np.linalg.norm(b1)
+    v = b0 - np.dot(b0, b1) * b1
+    w = b2 - np.dot(b2, b1) * b1
+    x = np.dot(v, w)
+    y = np.dot(np.cross(b1, v), w)
+    dihedral = math.degrees(math.atan2(y, x))
+    return "atrop_ccw" if dihedral > 0 else "atrop_cw"
 
 
 def _read_structure(
@@ -472,6 +648,11 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
     )
     if not matches:
         return "inconclusive", [], "Same molecular graph, but SMILES atoms could not be bound to the concrete structure."
+    # useChirality 对 atropisomer/轴手性子结构匹配未实现；声明了轴构型时用
+    # 3D 二面角单独校验，不一致则身份判 mismatch。
+    axis_diag = _axis_config_consistency(expected, structure, matches)
+    if axis_diag is not None:
+        return "mismatch", [], axis_diag
     original_heavy_indices = [
         atom.GetIdx() for atom in structure.GetAtoms() if atom.GetAtomicNum() != 1
     ]
@@ -483,6 +664,31 @@ def _identity_and_binding(expected_smiles: str, structure) -> tuple[str, list[in
             f"The concrete structure has {len(distinct)} symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.",
         )
     return "match", [original_heavy_indices[idx] for idx in distinct[0]], ""
+
+
+def _axis_config_consistency(expected, structure, matches) -> Optional[str]:
+    """校验具体结构 3D 坐标体现的轴构型与 SMILES 声明一致；不一致返回诊断串。"""
+    from rdkit import Chem
+
+    declared = [
+        ax for ax in find_potential_chiral_axes(expected)
+        if ax["configuration"] in {"atrop_cw", "atrop_ccw"}
+    ]
+    if not declared or structure.GetNumConformers() == 0:
+        return None
+    conf = structure.GetConformer()
+    s_ranks = list(Chem.CanonicalRankAtoms(structure, breakTies=False))
+    for match in matches[:1]:
+        for ax in declared:
+            a = match[ax["bond"][0] - 1]
+            b = match[ax["bond"][1] - 1]
+            cfg = _axis_config_from_3d(structure, conf, a, b, s_ranks)
+            if cfg is not None and cfg != ax["configuration"]:
+                return (
+                    f"Concrete structure's axial configuration at bond {ax['bond']} "
+                    f"is {cfg}, but the SMILES declares {ax['configuration']}."
+                )
+    return None
 
 
 def _expand_full_atom_map(
@@ -651,6 +857,10 @@ class ReactionMapping_output_schema(output_schema):
     order_changes: list[dict] = Field(default_factory=list)
     graph_watch_pairs: list[list[int]] = Field(default_factory=list)
     concrete_watch_pairs: list[list[int]] = Field(default_factory=list)
+    potential_axes: dict = Field(
+        default_factory=dict,
+        description="Potential chiral axes on reactant/product (heuristic: both ends bear two graph-distinct substituents and pass a steric-congestion threshold).",
+    )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
         description="Reaction atom pairs usable on the currently bound coordinates; graph-level indices when there is no safe concrete binding.",
