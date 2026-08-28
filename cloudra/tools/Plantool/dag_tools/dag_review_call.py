@@ -29,18 +29,23 @@ class DagReviewCallInput(input_schema):
             "advisory and never satisfies ts_opt/frequency."
         ),
     )
-    verdict: Literal["agree", "disagree", "skip", "ignore"] = Field(
+    verdict: Literal["agree", "disagree", "skip", "not_applicable", "ignore"] = Field(
         description=(
             "agree binds the call's evidence to the stage (order and harness "
             "checks apply); disagree marks the stage rejected (reason "
             "required, the stage is still owed — it is NOT a disposal); "
-            "skip marks it skipped (reason required, counts as disposed); "
-            "ignore means the call is not delivery evidence (no stage change)."
+            "skip marks it skipped (reason required, counts as disposed — "
+            "the stage COULD be computed but you choose not to); "
+            "not_applicable marks the slot as not applying to this element "
+            "(reason required, counts as complete — e.g. a barrierless step "
+            "has no ts_opt/frequency, a unimolecular step has no endpoint_b "
+            "complex); ignore means the call is not delivery evidence (no "
+            "stage change)."
         ),
     )
     reason: str = Field(
         default="",
-        description="Mandatory for disagree/skip; recorded with the stage.",
+        description="Mandatory for disagree/skip/not_applicable; recorded with the stage.",
     )
 
 
@@ -56,7 +61,7 @@ class DagReviewCall(DagToolBase):
         "Do not use for: binding submit_compute_job calls (submit is never "
         "evidence), skipping stages out of order, or treating disagree as a "
         "disposal — a rejected stage stays an open gap until re-bound or "
-        "explicitly skipped with a reason. "
+        "explicitly skipped/not_applicable with a reason. "
         "Key discipline: the harness resolves and validates the evidence ref "
         "from the review's tool_call_id; the verdict only decides the stage."
     )

@@ -116,7 +116,7 @@ def apply_stage_verdict(
     stages: list[StageState],
     *,
     stage_kind: StageKind,
-    verdict: Literal["agree", "disagree", "skip"],
+    verdict: Literal["agree", "disagree", "skip", "not_applicable"],
     reason: str = "",
     ref: GraphRef | None = None,
     tool_succeeded: bool = False,
@@ -125,10 +125,13 @@ def apply_stage_verdict(
 
     - disagree ⇒ rejected（reason 必填，清 ref）
     - skip ⇒ skipped（reason 必填，清 ref）
-    - agree ⇒ tool_succeeded 且带 ref，且前面所有**必需**阶段 supported/skipped
-      才 supported（stage_out_of_order）；顺序守卫只看前面的阶段，rejected
-      阶段可被后来的 agree 重绑（D2）。ts_guess 只推进它自己那个阶段，
-      永远不能充抵 ts_opt/frequency。
+    - not_applicable ⇒ not_applicable（reason 必填，清 ref）——该槽对此
+      元素不成立（无能垒步无 TS、单分子步无 endpoint_b 络合物）；语义上
+      是完成态，与 skipped 的"主动放弃"区分开
+    - agree ⇒ tool_succeeded 且带 ref，且前面所有**必需**阶段
+      supported/skipped/not_applicable 才 supported（stage_out_of_order）；
+      顺序守卫只看前面的阶段，rejected 阶段可被后来的 agree 重绑（D2）。
+      ts_guess 只推进它自己那个阶段，永远不能充抵 ts_opt/frequency。
     """
     index = next(
         (i for i, stage in enumerate(stages) if stage.kind == stage_kind), None
@@ -140,15 +143,17 @@ def apply_stage_verdict(
             "the Coordinator declares stages when proposing the mechanism",
         )
     target = stages[index]
-    if verdict in ("disagree", "skip"):
+    if verdict in ("disagree", "skip", "not_applicable"):
         if not reason.strip():
             raise _Rejected(
                 "reason_required",
                 f"a {verdict!r} verdict requires a non-empty reason",
             )
-        status = (
-            StageStatus.REJECTED if verdict == "disagree" else StageStatus.SKIPPED
-        )
+        status = {
+            "disagree": StageStatus.REJECTED,
+            "skip": StageStatus.SKIPPED,
+            "not_applicable": StageStatus.NOT_APPLICABLE,
+        }[verdict]
         updated = target.model_copy(
             update={"status": status, "reason": reason, "ref": None}
         )
@@ -167,12 +172,17 @@ def apply_stage_verdict(
         stage.kind.value
         for stage in stages[:index]
         if stage.required
-        and stage.status not in {StageStatus.SUPPORTED, StageStatus.SKIPPED}
+        and stage.status
+        not in {
+            StageStatus.SUPPORTED,
+            StageStatus.SKIPPED,
+            StageStatus.NOT_APPLICABLE,
+        }
     ]
     if blockers:
         raise _Rejected(
             "stage_out_of_order",
-            "previous required stages must be supported or skipped first: "
+            "previous required stages must be supported, skipped, or not_applicable first: "
             + ", ".join(blockers),
         )
     updated = target.model_copy(

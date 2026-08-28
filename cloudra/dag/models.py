@@ -98,11 +98,16 @@ class StageStatus(str, Enum):
     PENDING = "pending"
     SUPPORTED = "supported"
     SKIPPED = "skipped"
+    # 该证据槽对此元素物理上/逻辑上不成立（无能垒步无 TS、单分子步无
+    # endpoint_b 络合物等）；带理由时计入完成，语义上"不欠"，区别于
+    # skipped 的"本该算但选择不算"。
+    NOT_APPLICABLE = "not_applicable"
     REJECTED = "rejected"
 
 
 class StageState(BaseModel):
-    """元素上一个阶段的绑定状态；skipped/rejected 必须附非空 reason 才算处置。"""
+    """元素上一个阶段的绑定状态；skipped/not_applicable/rejected 必须附非空
+    reason 才算处置（not_applicable 的 reason 须说明该槽为何不成立）。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -223,7 +228,13 @@ def map_legacy_stages(
 def derive_evidence_level(
     stages: list[StageState], *, is_edge: bool
 ) -> DeliveryEvidenceLevel:
-    """由阶段状态确定性派生证据等级（display/compat 专用，模型永不直写）。"""
+    """由阶段状态确定性派生证据等级（display/compat 专用，模型永不直写）。
+
+    not_applicable 阶段视为"该槽不成立、已正确处理"：不计入 pending，也
+    不触发 inconclusive；派生时把 supported 与 not_applicable 一并视为已
+    满足，使无能垒步（无 ts_opt/frequency 槽）仍能按其余 supported 阶段
+    派生到 endpoint_supported 等。
+    """
     required = [stage for stage in stages if stage.required]
     if not required:
         return "proposed"
@@ -235,11 +246,13 @@ def derive_evidence_level(
         return "rejected"
     if has_skipped and not has_rejected and not all_supported:
         return "inconclusive"
-    supported = {
-        stage.kind for stage in stages if stage.status is StageStatus.SUPPORTED
+    satisfied = {
+        stage.kind
+        for stage in stages
+        if stage.status in {StageStatus.SUPPORTED, StageStatus.NOT_APPLICABLE}
     }
     if is_edge:
-        if StageKind.THERMOCHEMISTRY in supported:
+        if StageKind.THERMOCHEMISTRY in satisfied:
             return "thermo_annotated"
         if {
             StageKind.SHORT_IRC,
@@ -247,15 +260,15 @@ def derive_evidence_level(
             StageKind.ENDPOINT_B,
             StageKind.DIRECTION,
             StageKind.IDENTITY,
-        } <= supported:
+        } <= satisfied:
             return "endpoint_supported"
-        if {StageKind.TS_OPT, StageKind.FREQUENCY} <= supported:
+        if {StageKind.TS_OPT, StageKind.FREQUENCY} <= satisfied:
             return "saddle_supported"
         return "proposed"
     if all_supported:
         return (
             "thermo_annotated"
-            if StageKind.SINGLE_POINT in supported
+            if StageKind.SINGLE_POINT in satisfied
             else "structure_supported"
         )
     return "proposed"
@@ -980,7 +993,14 @@ _STAGE_GLOSSARY = (
     "- endpoint_b: the SOURCE-node side of the step (the reactant complex).\n"
     "- direction: the IRC direction/connectivity is consistent with the declared reaction coordinate.\n"
     "- identity: the endpoint's structure matches the declared species (SMILES/connectivity).\n"
-    "- thermochemistry: energy corrections for the step."
+    "- thermochemistry: energy corrections for the step.\n"
+    "Stage statuses: pending (not yet bound); supported (evidence bound); "
+    "skipped (the stage COULD be computed but you deliberately abandoned it — "
+    "reason required, counts as disposed); not_applicable (the slot does not "
+    "apply to this element — e.g. a barrierless step has no ts_opt/frequency, a "
+    "unimolecular step has no endpoint_b complex — reason required, counts as "
+    "complete and is NOT owed); rejected (binding failed — still an open gap, "
+    "NOT a disposal)."
 )
 
 

@@ -177,7 +177,10 @@ class GraphSupervisor:
                 "ts_guess result is advisory and never supports ts_opt/frequency, and a TS "
                 "frequency stage needs exactly one imaginary frequency. disagree means the "
                 "stage is still owed (it is NOT a disposal); skip with a reason only when "
-                "the stage is deliberately abandoned; ignore calls that are not delivery evidence."
+                "the stage is deliberately abandoned; not_applicable with a reason when the "
+                "stage slot does not apply to this element at all (e.g. a barrierless step has "
+                "no ts_opt/frequency, a unimolecular step has no endpoint_b complex); ignore "
+                "calls that are not delivery evidence."
             )
         parts.append(
             "First call dag_view to read the delivery projection and coverage gaps; fetch a "

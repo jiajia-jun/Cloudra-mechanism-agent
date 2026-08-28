@@ -51,7 +51,7 @@
 
 # 3. delivery 图与 stage 契约的维护规则
 
-delivery DAG 不使用 `verified/failed` 真值标签。每个元素携带 Coordinator 在机理草稿中声明的有序 **stage 契约**，阶段状态为 `pending / supported / skipped / rejected`（后两者必须附原因）：`skipped` 带理由是唯一的非成功处置；`rejected` 不是处置——它是仍欠的开放缺口，只能靠后续重新绑定或显式 skip 关闭。元素级证据层级 `proposed / structure-supported / saddle-supported / endpoint-supported / thermo-annotated / rejected / inconclusive` 由 harness 从阶段确定性派生，只作展示；模型只能手动设 proposed/rejected/inconclusive。命名在存储中可用下划线形式，文档中的连字符表示同一语义。
+delivery DAG 不使用 `verified/failed` 真值标签。每个元素携带 Coordinator 在机理草稿中声明的有序 **stage 契约**，阶段状态为 `pending / supported / skipped / not_applicable / rejected`（后三者必须附原因）：`skipped` 带理由是"本可算但主动放弃"的处置；`not_applicable` 带理由是"该证据槽对此元素物理/逻辑上不成立"的处置——**无能垒步没有 `ts_opt`/`frequency`、单分子步没有 `endpoint_b` 络合物、简并步没有方向性**，这类槽位用 `not_applicable` 而非 `skipped`，它计入完成且不算"欠账"；`rejected` 不是处置——它是仍欠的开放缺口，只能靠后续重新绑定或显式 skip/not_applicable 关闭。元素级证据层级 `proposed / structure-supported / saddle-supported / endpoint-supported / thermo-annotated / rejected / inconclusive` 由 harness 从阶段确定性派生，只作展示；模型只能手动设 proposed/rejected/inconclusive。命名在存储中可用下划线形式，文档中的连字符表示同一语义。
 
 delivery 节点是同一 canonical species 在某条路径中的 occurrence。节点的 `geometry` 阶段至少要绑定优化极小点证据；SMILES 嵌入、初始构象或模型猜测不够。delivery 边的阶段通过指针引用 TS、频率、short IRC、optimized endpoints、endpoint mapping 与热化学结果。剪枝、决速步和选择性判断继续遵守本 SOP 的化学规则，图状态不能替代它们。
 
@@ -70,6 +70,8 @@ delivery 节点是同一 canonical species 在某条路径中的 occurrence。�
 | 能量与交付 | 若用户要求能垒/选择性，运行统一条件下的单点和 `thermo_analysis`，绑定 `thermochemistry` 阶段。coverage contract 要求热化学时该阶段为 required，绑定后元素升 `thermo-annotated`。默认 contract 不要求热化学，不能反过来冒充用户已要求的自由能报告 |
 
 交付前由 harness 从 delivery DAG 计算 coverage report。Claisen 主路径至少应有 R、P 两个 occurrence 的 required stages 全部 `supported`（或带理由 `skipped`）和一条达到 `endpoint-supported` 的边，所有竞争分支有明确 disposition；若用户要求自由能剖面，还必须满足热化学 gate。这个 report 证明“约定的证据槽已填齐”，不证明协同 Claisen 是宇宙中唯一可能的机理，agent 仍要检查电子结构、方法依赖与实验条件。
+
+**无能垒/非典型步的处置**：机理中有些 elementary step 在物理上没有独立 TS（如无能垒的质子转移、离子-偶极络合物的直接解离、自由基-自由基复合），或某些阶段槽位对该步逻辑上不成立（单分子步无 `endpoint_b` 络合物、简并步无方向性）。这类槽位**不要硬凑 TS 证据，也不要用 `skipped`**——`skipped` 隐含"本可算但放弃"。正确做法是把对应阶段显式 `not_applicable` 并附具体理由（如"barrierless association, no first-order saddle exists on this PES"）。带理由的 `not_applicable` 与 `skipped` 都计入完成，但审计时区分"槽位不成立"与"主动放弃"，避免事后把无能垒步误读为漏算。若仍想要能量学描述，可只优化两侧极小点 + `single_point`，把 `ts_opt`/`frequency`/`short_irc` 标 `not_applicable`。
 
 # 4. 失败诊断决策表
 
