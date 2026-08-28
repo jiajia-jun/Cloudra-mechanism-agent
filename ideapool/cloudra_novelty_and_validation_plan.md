@@ -1,6 +1,13 @@
-# Cloudra 创新点定位与验证计划（v0.6）
+# Cloudra 创新点定位与验证计划（v0.7）
 
-> 日期：2026-08-25 修订（v0.5 同日早些时候，v0.4 为 2026-08-24，v0.3 同日早些时候，v0.2 为 2026-08-23，v0.1 为 2026-08-08 讨论稿）
+> 日期：2026-08-29 修订（v0.6 为 2026-08-25，v0.5 同日早些时候，v0.4 为 2026-08-24，v0.3 同日早些时候，v0.2 为 2026-08-23，v0.1 为 2026-08-08 讨论稿）
+>
+> **v0.7 变更摘要**（根据 2026-08-29 benchmark 题目 JSON 与评分器设计讨论定稿）：
+> (1) **Easy 档定稿 30 题**：候选池 41 条经评审台筛选圈定 30 条（化学反应 21 + 分子内过程 9），落盘 `ideapool/reaction_candidates/easy.md`；评审中间态文件（打标页/生成器/标记 JSON）已清理；
+> (2) **题目数据结构化（task JSON schema 定稿）**：新增第五节步骤 2 专项小节《题目 JSON Schema 与评分器架构》——题目从 markdown 表格升级为机器可读 JSON，含 prompt（含"必须写图 JSON"的明确指令）、system（SMILES/电荷/多重度）、method_policy（计算方法拦截白名单）、gold（结构化机理图 + 参考能垒）、rubric（四层评分规则）；
+> (3) **评分哲学确定为三层取证式审计**：Layer 1 交付诚信（沙箱递归扫描比对机理图与计算文件，测"声称的交付是否真实存在"，非机理对错）→ Layer 2 自洽性（有证据绑定子图的 TS/IRC/频率/identity 内部自洽）→ Layer 3 准确性（对参考答案做高斯容差评分，max_penalty 封顶防扣多）；impossible 档标准答案 = 想出机理 + 图内标注节点不可达；
+> (4) **图相似度锁定化学参数化 GED**（复用 v0.6 第 3 条定义：molhash 短路 + sigmoid 指纹代价 + 立体分层 + 键变边代价，networkx 实现）；standard 模式 agent 自建图 JSON 与 gold_dag 比对，DAG 模式直接投影交付图；
+> (5) **评测 runner 独立成模块**：复用全部 API 但更严格沙箱隔离 + 独立数据库管理；计算方法拦截层挂在 bashtool（command_analyzer/bash_habit_guard）与计算提交 tool（submit_compute_job/qm_input_writer），agent 尝试超纲方法（高级泛函/基组）由 harness 主动拦截、不扣分不记负。
 >
 > **v0.6 变更摘要**（根据 2026-08-25 benchmark 设计讨论定稿）：
 > (1) **金标准引擎单点锁定 MACE-OMol25**：撤销 v0.5 的"MACE 系列（OMol25/OFF）"表述，不引入 AIMNet2 或其他 MLIP 交叉验证器；xTB 保留为预松弛/采样辅助级别；
@@ -220,6 +227,45 @@ v0.2 版本规划的“四项任务”已由 v0.3 与 v0.4 完善后的五步走
 - 允许 Agent 自主决定算力调用策略，并在轨迹审计中评估其工具选型合理性（xTB/MACE 调用比本身即诊断信号）。
 
 **待办事项**：候选池已建成（`ideapool/reaction_candidates/`，179 个超采候选，含各档 top 短名单与出处核实状态标注），下一步**组内评审短名单、按「类型不重复 + 能垒梯度拉开 + 舒适区命中」圈定最终 100 题，并回补入选条的 [未核实] 锚点**；RXNMapper 批量生成 atom-mapped SMILES + 人工抽检；**冻结前用 MACE-OMol25 对 Easy 档 30 题试算，以实测误差标定各档容差（容差 ≥ 金标准实测误差），并验证可解档全部跑通（Solvability 准则）**；编写基于 Trajectory 解析的多维自动评测脚本（含事件日志 → 进度-成本曲线的效率度量管线）；**实现机理相似度指标原型（molhash 短路 + sigmoid 代价 + networkx GED）并配锚点单测，参数冻结进评测规范；投稿前完成机理图比对的 novelty 核查（KinBot/AutoMeKin 谱系）**。
+
+#### 题目 JSON Schema 与评分器架构（2026-08-29 定稿）
+
+候选池 markdown 是"人读"形态；进入评测前需升级为**机器可读的 task JSON**。本节定稿题目数据结构与评分器架构。
+
+**1. 设计约束（来自现有系统摸底）**：系统内无独立"题目"概念——一次任务 = Project + coordinator AgentSession + query 文本；DAG stage 契约由**被测 agent 自己声明**（预声明会泄题）；评分基础已存在：`dag/completion.py` 的 `evaluate_delivery`（确定性覆盖判定）、`dag/controller.py` 的 `audit_stop`、TS 频率 `n_imag==1` 硬检查。题目 JSON 因此只描述"**喂给 agent 什么 + 跑完拿什么确定性打分**"，不预声明 stage 契约。
+
+**2. task JSON 顶层字段**（一题一文件，`ideapool/tasks/{tier}/{task_id}.json`）：
+
+| 字段 | 内容 | 评分侧可见 |
+|---|---|---|
+| `task_id` / `tier` / `family` / `name` | 如 `easy-D1`；tier ∈ easy/normal/hard/impossible | 否（仅标识） |
+| `prompt` | `query`（题目文本，**显式要求 agent 在沙箱根目录维护 `mechanism_graph.json`**）、`role`、`orchestration_mode`、`seed_graph_template` | 否（喂给 agent） |
+| `system` | `reactants`/`products`（SMILES 分开存）、`charge`、`multiplicity`、`conditions`、`elements`、`max_heavy_atoms`、`closed_shell`、`single_step` | 部分（题面只给 SMILES/电荷/多重度/条件） |
+| `method_policy` | `allowed_methods`（**默认 `["mace-omol25","xtb"]` 双引擎放开**，2026-08-29 确认）、`allowed_basis_max`、`forbid`（如 `["ccsd(t)","wb97m-v/def2-tzvpd","dlpno"]`）、`intercept_layers` | 部分（允许级别告知 agent，拦截规则不细说） |
+| `gold` | `mechanism_graph`（结构化：nodes=物种/TS、edges=基元步+键变集合+可达性标注）、`reference_computation`（`level_of_theory`、`barrier_kcal_mol`、`barrier_type`、`verification`、`reference_doi`、`computed_by_us`） | **是**（仅评分侧） |
+| `rubric` | `expected_outcome`、`integrity`、`self_consistency`、`graph_similarity`、`accuracy`、`impossible_case` | **是**（仅评分侧） |
+
+**3. 评分三层取证式审计（forensic audit）**：与"监督 agent 声明"不同，是**跑完后对沙箱的事后取证**。
+
+- **Layer 1 · 交付诚信分（Delivery Integrity）**：沙箱递归扫描 → 提取机理图 JSON + 遍历目录找计算产物文件。图里每个节点/边能否在沙箱找到对应计算文件（优化 .log/.out、频率、IRC、能量）？**能完整对上图 → 诚信分满分；图里声称算了但目录无对应文件 → 扣分**（谎报交付）。注意：这不评"机理对不对"，只评"声称的交付是否真实存在"。
+  - 图来源：**DAG 模式**（dag_guided/dag_record）直接投影交付图为 JSON（权威）；**standard 模式** agent 按沙箱模板自建 `mechanism_graph.json`，跑完与 gold_dag 做图相似比对。
+  - 题面必须在 query 里**明确告知**写图 JSON 的义务（杜绝"agent 不知道要写"的冤枉分），但不引导"填满才算诚信"——填不填、填得对不对、有无真实文件支撑，都是被测能力。
+- **Layer 2 · 自洽性分（Self-consistency）**：只评 Layer 1 里**有证据绑定的子图**——TS 是否一阶鞍点（n_imag==1）、IRC 是否连通两端、频率全实（极小）/恰一虚（TS）、端点 identity 是否对得上声明物种、能垒是否内部自洽。
+- **Layer 3 · 准确性分（Accuracy，软）**：我们用规定计算级别算参考答案（gold barrier）设范围；agent 能垒 vs 参考值用**高斯衰减**评分（非硬阈值）——偏差小满分、偏差大扣分、偏差很大扣多。`max_penalty_fraction` 封顶（默认 0.3）防扣多（参数不同计算结果难相同，但偏差很大要扣多）。
+
+**4. 各题精确度可调**：能垒高斯 `sigma_kcal_mol` 每题独立（非全局）。分档梯度定稿 **easy σ=3.0 / normal σ=2.0 / hard σ=1.5 kcal/mol**（2026-08-29 确认），`max_penalty_fraction=0.3` 统一；最终数值由 Easy 档 MACE 试算实测误差标定（容差 ≥ 金标准实测误差）。允许 `accuracy.enabled=false`（该题只评自洽不评精度）。
+
+**5. 图相似度 = 化学参数化 GED**（复用第 3 条，不另造）：molhash 零代价短路（tautomer/protonation-insensitive）→ Morgan 指纹 Tanimoto 过双参数 sigmoid（中心 ~0.40）→ 立体分层（Easy/Normal 不标立体失配同价 0，Hard 高代价）→ 边代价 = 基元步键变集合对称差。networkx GED 实现，产出标量分数 + 编辑脚本（失败归因 diff）。
+
+**6. Impossible 档标准答案**：agent 能想出机理 + **在图里把对应节点显式标注 `accessible=false`**（物理上不可达）。评分 = 识别出正确机理 AND 正确标注不可达性；硬凑出能量反而扣分。`impossible_case.require_inaccessible_annotation=true` + `gold_inaccessible_nodes` 列表驱动。
+
+**7. 评测 runner 独立模块**：复用全部现有 API 但做更严格沙箱隔离 + **独立数据库管理**（与交互式会话库分离，防污染）。
+
+**8. 计算方法拦截层（harness 主动拦截，不扣分）**：agent 尝试超出 `method_policy` 白名单的高级泛函/基组/方法时，harness **主动拦截**（拒绝执行 + 明确理由），**不扣分不记负**——尝试作弊/超纲不是罪，由系统拦住即可。拦截点：
+- **bashtool**：`tools/core/command_analyzer.py` / `bash_habit_guard.py` 拦截命令行里手写高级方法关键字（直接写 `! wB97M-V def2-TZVPD` 的 ORCA 输入、调用未授权二进制）；
+- **计算任务提交 tool**：`submit_compute_job` + `qm_input_writer` 校验 `method`/`basis`/`level_of_theory` 是否在白名单内，超出即拒。
+
+**9. 待办（本小节新增）**：编写 task JSON 的 Pydantic schema（落 `ideapool/tasks/schema.py` 或独立评测包）；编写 easy 30 题 JSON 生成器（解析 `easy.md`）；实现评分器三层管线（沙箱扫描 → 证据绑定 → 图 GED → 能垒高斯打分）；实现方法拦截层（bashtool + 计算提交 tool 白名单校验）；搭建独立 runner 模块与独立数据库；**先用 MACE-OMol25 亲手算 easy 30 题参考答案**（`reference_computation.computed_by_us=true`），标定各题 `sigma` 并验证可解档全跑通。
 
 ### 步骤 3：两级串行消融实验（DAG 编排模式 → 知识图谱）
 - **第一级：DAG 编排三模式消融**——在测试集上分别运行 standard（无图）、dag_record（自主记录）与 dag_guided（严谨督导）三组实验，**选取综合表现最优的模式**进入后续实验。除精度与完备性指标外，按模式报告效率账本与进度-成本曲线，刻画「DAG 编排以效率换精度」的代价-收益结构（多损耗多少工具调用/计算作业，换取多少精度与交付完备性提升）——这是本工作的核心叙事之一，也是第二级知识图谱消融的重要观察点（图谱若能减少浪费计算，应表现为曲线左移）。
