@@ -764,7 +764,16 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
                 converged = True
             atomnos = getattr(data, "atomnos", None)
             atomcoords = getattr(data, "atomcoords", None)
-            if atomnos is not None and atomcoords is not None and len(atomcoords) > 0:
+            # openbabel 回退解析失败时会给 shape (n,0) 的畸形空 atomcoords：
+            # len(atomcoords)>0（帧数非零）但无原子。必须同时校验 atomnos 与
+            # 末帧原子数非空，否则空 symbols/positions 会挡住标准取向回退。
+            if (
+                atomnos is not None
+                and atomcoords is not None
+                and len(atomnos) > 0
+                and len(atomcoords) > 0
+                and getattr(atomcoords[-1], "size", 0) > 0
+            ):
                 import numpy as np
                 from cclib.parser.utils import PeriodicTable
 
