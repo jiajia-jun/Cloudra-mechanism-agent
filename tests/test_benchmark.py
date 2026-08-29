@@ -28,6 +28,7 @@ from cloudra.benchmark.integrity import EvidenceFile, audit_integrity, scan_evid
 from cloudra.benchmark.method_policy import check_input_content, check_input_files, intercept
 from cloudra.benchmark.schema import (
     AccuracyRubric,
+    BarrierReference,
     BondChangeSet,
     GoldMechanismGraph,
     MechanismEdge,
@@ -113,6 +114,26 @@ def test_easy_query_requests_barrier():
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
     for t in tasks:
         assert "report the computed barrier in kcal/mol" in t.prompt.query
+
+
+def test_easy_gold_bond_changes_and_barrier_frame():
+    """gold 边必须携带键变化（否则 agent 填了 bond_changes 反而被对称差扣分），
+    且索引约定必须与 query 展示的原子映射 SMILES 一致；能垒口径统一
+    central_complex（TS 相对反应物络合物）。"""
+    tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
+    no_bond_change = {"M1", "M3", "M6", "M8", "M10", "M14", "M15"}  # 纯构象/翻转步
+    for tid, t in tasks.items():
+        assert gen_easy_tasks._MAPPED_REACTANTS[tid] in t.prompt.query
+        assert "bond_changes" in t.prompt.query
+        edge = t.gold.mechanism_graph.edges[0]
+        bc = edge.bond_changes
+        if tid in no_bond_change:
+            assert not bc.break_ and not bc.form, f"{tid} 纯构象/翻转步应为空键变化"
+        else:
+            assert bc.break_ or bc.form, f"{tid} gold edge missing bond_changes"
+        ref = t.gold.reference_computation
+        if ref.barrier_kcal_mol is not None:
+            assert ref.barrier_reference == BarrierReference.CENTRAL, f"{tid} barrier frame"
 
 
 # --- runner ---
@@ -272,8 +293,9 @@ def test_ged_edit_script_uses_species_not_ids():
 
 
 def test_ged_oversized_delivery_short_circuits():
-    """失控交付的超大图直接判最大差异（score 0.0），不调用 networkx——
-    optimize_graph_edit_distance 最坏指数复杂度，不能让它挂住评分器。"""
+    """对称 GED 诊断模式下，失控交付的超大图直接判最大差异（score 0.0），
+    不调用 networkx——optimize_graph_edit_distance 最坏指数复杂度。
+    （默认的子图打分模式是多项式的指派评估，不需要这个守卫。）"""
     gold = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"])  # 3 nodes -> 守卫上限 30
     big = GoldMechanismGraph(
         nodes=[
@@ -282,10 +304,46 @@ def test_ged_oversized_delivery_short_circuits():
         ],
         edges=[],
     )
-    res = mechanism_similarity(big, gold, GedConfig())
+    res = mechanism_similarity(big, gold, GedConfig(subgraph_scoring=False))
     assert res.score == 0.0
     assert res.distance == res.max_distance
     assert any("short-circuited" in s for s in res.edit_script)
+
+
+def test_subgraph_extra_nodes_and_edges_are_free():
+    """子图打分：交付图多出节点/边（含前置的分离反应物平衡步）不扣分。"""
+    gold = _graph(["[F-]", "CCl"], ["CF", "[Cl-]"])
+    extra_species = GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id="sep", role=NodeRole.REACTANT, smiles=["[F-]", "CCl"]),
+            MechanismNode(id="RC", role=NodeRole.REACTANT, smiles=["[F-]", "CCl"]),
+            MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]),
+            MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CF", "[Cl-]"]),
+        ],
+        edges=[
+            MechanismEdge(id="E0", **{"from": "sep", "to": "RC"}),  # 多出的络合平衡步
+            MechanismEdge(id="E1", **{"from": "RC", "to": "P"}, via="TS"),
+        ],
+    )
+    res = mechanism_similarity(extra_species, gold, GedConfig())
+    assert res.score == pytest.approx(1.0)
+
+
+def test_subgraph_missing_and_mismatch_still_cost():
+    """缺失 gold 物种扣一个节点插入代价；化学不符的物种同样拉低分数。"""
+    gold = _graph(["[F-]", "CCl"], ["CF", "[Cl-]"])
+    # 空交付 -> 0 分（3 节点 + 1 边全缺）
+    empty = GoldMechanismGraph(nodes=[], edges=[])
+    assert mechanism_similarity(empty, gold, GedConfig()).score == 0.0
+    # 只有反应物、缺产物 -> 扣 1 节点 + 1 边（gold lift 后 2 物种节点 + 1 边，分母 3）-> 1/3
+    only_r = GoldMechanismGraph(
+        nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["[F-]", "CCl"])],
+        edges=[],
+    )
+    assert mechanism_similarity(only_r, gold, GedConfig()).score == pytest.approx(1 / 3)
+    # 产物错误（CCl4 而非 CF/Cl-）-> 产物节点替换代价 ≈1，边也随之配不上
+    wrong_p = _graph(["[F-]", "CCl"], ["ClC(Cl)(Cl)Cl"])
+    assert mechanism_similarity(wrong_p, gold, GedConfig()).score < 0.6
 
 
 # --- accuracy ---
@@ -726,3 +784,520 @@ def test_easy_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+
+
+# --- 方法白名单 policy stage + runtime_v2 后端接线 ---
+
+
+def test_referenced_input_paths_extraction():
+    from cloudra.benchmark.method_policy import referenced_input_paths
+
+    cmd = (
+        "g16 ts_opt.gjf && orca run.inp > run.out\n"
+        "cat > new.gjf <<'EOF'\n#p external=\"mace\" opt\nEOF\n"
+    )
+    refs = referenced_input_paths(cmd)
+    assert "ts_opt.gjf" in refs
+    assert "run.inp" in refs
+    # 写入目标也会出现；调用方按 is_file 过滤，其内容已被 heredoc 抽取覆盖
+    assert "new.gjf" in refs
+    assert referenced_input_paths("ls -la") == []
+
+
+def _stage_ctx(workspace: Path):
+    from cloudra.runtime_v2.policies.base import PipelineContext
+    from cloudra.runtime_v2.schemas import (
+        AgentCapabilities,
+        AgentSession,
+        PermissionSet,
+        RuntimeSettings,
+    )
+
+    agent = AgentSession(id="as_b", project_id="prj", role_id="coordinator", display_name="c")
+    return PipelineContext(
+        agent=agent,
+        run_id="run1",
+        settings_snapshot=RuntimeSettings(),
+        capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
+        inbox_messages=[],
+        emit=lambda *_a, **_k: None,
+        workspace_dir=str(workspace),
+    )
+
+
+@pytest.mark.asyncio
+async def test_method_policy_stage_blocks_and_allows(tmp_path):
+    from cloudra.benchmark.policy_stage import MethodPolicyStage
+    from cloudra.runtime_v2.policies.base import ToolCall
+
+    stage = MethodPolicyStage(MethodPolicy(), base_dir=tmp_path)
+    ctx = _stage_ctx(tmp_path)
+
+    # bash heredoc 写非白名单方法 -> 拦
+    cmd = "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
+    res = await stage.before_tool(ctx, ToolCall(id="c1", name="bashtools", arguments={"command": cmd}))
+    assert res.outcome == "block" and "b3lyp" in res.message
+
+    # 白名单方法（Gaussian external MLIP 路由）-> 放行
+    cmd_ok = "cat > ts.gjf <<'EOF'\n#p external=\"mace\" opt freq\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
+    res = await stage.before_tool(ctx, ToolCall(id="c2", name="bashtools", arguments={"command": cmd_ok}))
+    assert res.outcome == "allow"
+
+    # 引用磁盘已有输入（g16 evil.gjf）-> 查文件内容，非白名单 -> 拦
+    (tmp_path / "evil.gjf").write_text("#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\n")
+    res = await stage.before_tool(ctx, ToolCall(id="c3", name="bashtools", arguments={"command": "g16 evil.gjf"}))
+    assert res.outcome == "block"
+
+    # submit_compute_job 层：按 input_file 内容判定（相对路径基于沙箱解析）
+    (tmp_path / "ok.gjf").write_text("#p external=\"mace\" opt\n\nt\n\n0 1\nC 0 0 0\n")
+    res = await stage.before_tool(ctx, ToolCall(id="c4", name="submit_compute_job", arguments={"input_file": "ok.gjf"}))
+    assert res.outcome == "allow"
+    res = await stage.before_tool(ctx, ToolCall(id="c5", name="submit_compute_job", arguments={"input_file": "evil.gjf"}))
+    assert res.outcome == "block"
+
+    # 与拦截层无关的工具不受影响
+    res = await stage.before_tool(ctx, ToolCall(id="c6", name="text_writer", arguments={}))
+    assert res.outcome == "allow"
+
+
+# --- runtime_v2 后端端到端（FakeLLM，无网络） ---
+
+
+class _ScriptedLLM:
+    def __init__(self, responses):
+        self.responses = list(responses)
+
+    async def complete(self, agent, messages, tools, **_kwargs):
+        assert self.responses, "no scripted LLM response left"
+        return self.responses.pop(0)
+
+
+class _RecordingTools:
+    def __init__(self):
+        self.calls: list[str] = []
+
+    async def execute(self, agent, call):
+        from cloudra.runtime_v2.policies.base import ToolResult
+
+        self.calls.append(call.name)
+        return ToolResult(is_success=True, summary="ok")
+
+
+async def _stub_summarizer(messages):
+    return "[RUN LOG]\nstub\n[HANDOVER]\nstub"
+
+
+def _tiny_task(**kwargs) -> TaskSpec:
+    from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec
+    from cloudra.runtime_v2.schemas import OrchestrationMode
+
+    return TaskSpec(
+        task_id="BENCH_T",
+        tier="easy",
+        prompt=PromptSpec(query="do it", orchestration_mode=OrchestrationMode.STANDARD),
+        system=SystemSpec(reactants=["C"]),
+        gold=GoldSpec(mechanism_graph=_graph(["C"], ["C"])),
+        **kwargs,
+    )
+
+
+def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path):
+    from cloudra.benchmark.backend import RuntimeV2Backend
+    from cloudra.runtime_v2.policies.base import ToolCall as PToolCall
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    llm = _ScriptedLLM([
+        LLMResponse(
+            content="",
+            tool_calls=[PToolCall(
+                id="t1",
+                name="bashtools",
+                arguments={"command": "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nEOF\n"},
+            )],
+        ),
+        LLMResponse(content="Done. The computed barrier is 12.3 kcal/mol."),
+    ])
+    tools = _RecordingTools()
+    backend = RuntimeV2Backend(
+        llm=llm,
+        tools=tools,
+        run_summarizer=_stub_summarizer,
+        start_compute_broker=False,
+        poll_interval_s=0.01,
+        run_timeout_s=30.0,
+        stuck_grace_s=5.0,
+    )
+    barrier = backend(_tiny_task(), tmp_path / "sandbox")
+    assert barrier == 12.3
+    # b3lyp 调用被 MethodPolicyStage 拦截，工具从未真正执行
+    assert tools.calls == []
+    blocked = [
+        e for e in backend.last_core.event_log.query_session(_last_agent_id(backend.last_core))
+        if e.type == "tool.blocked" and e.data.get("stage") == "method_policy"
+    ]
+    assert blocked and "b3lyp" in blocked[0].data.get("message", "")
+
+
+def _last_agent_id(core) -> str:
+    return next(iter(core.agents))
+
+
+def test_extract_reported_barrier():
+    from cloudra.benchmark.backend import extract_reported_barrier
+
+    assert extract_reported_barrier("The barrier is 12.3 kcal/mol.") == 12.3
+    assert extract_reported_barrier("Ea = -1.5 kcal / mol relative to the complex") == -1.5
+    # 取最后一次出现（总结陈述通常在末尾）
+    assert extract_reported_barrier("first guess 20.0 kcal/mol; final: 8.4 kcal/mol") == 8.4
+    assert extract_reported_barrier("no number here") is None
+
+
+# --- 证据绑定的 partial credit（质子化/电荷态变体） ---
+
+
+def _graph_with_ts(r_smiles, p_smiles):
+    return GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id="R", role=NodeRole.REACTANT, smiles=r_smiles),
+            MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]),
+            MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=p_smiles),
+        ],
+        edges=[MechanismEdge(id="E", **{"from": "R", "to": "P"}, via="TS")],
+    )
+
+
+def test_binding_protonation_variant_partial_credit():
+    """质子化变体（[OH3+] vs O、乙酸根 vs 乙酸）给 partial 分而非判零；
+    真不同物种仍不绑。TS 继承较弱端点的质量。"""
+    pytest.importorskip("rdkit")  # 质子化骨架通道依赖 RDKit；CI 只装 dev extra
+    from cloudra.benchmark.integrity import bind_graph_to_evidence
+
+    graph = _graph_with_ts(["[OH3+]"], ["CC(=O)[O-]"])
+    files = [
+        EvidenceFile(path="rc.log", smiles_found=["O"]),          # 质子化变体（指纹退化 -> 扣满 0.3）
+        EvidenceFile(path="pc.log", smiles_found=["CC(=O)O"]),    # 质子化变体（tanimoto 0.5 -> 扣 0.15）
+    ]
+    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files)}
+    assert bindings["R"].matched and bindings["R"].quality == pytest.approx(0.7)
+    assert bindings["P"].matched and bindings["P"].quality == pytest.approx(0.85)
+    assert bindings["TS"].matched and bindings["TS"].quality == pytest.approx(0.7)  # 继承较弱端点
+
+    # 真不同物种不绑（乙烷 vs 乙烯骨架不同）
+    files_bad = [EvidenceFile(path="rc.log", smiles_found=["C=C"]),
+                 EvidenceFile(path="pc.log", smiles_found=["CC(=O)O"])]
+    bindings_bad = {b.node_id: b for b in bind_graph_to_evidence(graph, files_bad)}
+    assert not bindings_bad["R"].matched and bindings_bad["R"].quality == 0.0
+    assert not bindings_bad["TS"].matched  # 端点未绑 -> TS 不绑
+
+
+def test_binding_full_match_quality_one():
+    """指纹/哈希级匹配（含 kekulé 写法差异）仍是满分。"""
+    from cloudra.benchmark.integrity import bind_graph_to_evidence
+
+    graph = _graph_with_ts(["c1ccccc1"], ["C1=CC=CC=C1"])
+    files = [EvidenceFile(path="a.log", smiles_found=["C1=CC=CC=C1"]),
+             EvidenceFile(path="b.log", smiles_found=["c1ccccc1"])]
+    bindings = {b.node_id: b for b in bind_graph_to_evidence(graph, files)}
+    assert all(b.matched and b.quality == 1.0 for b in bindings.values())
+
+
+def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
+    """端到端：质子化变体证据 -> integrity 通过但 binding_quality<1，
+    runner composite 被乘性扣减而不是判零。"""
+    pytest.importorskip("rdkit")  # 同上：质子化 partial 通道依赖 RDKit
+    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec, TaskSpec
+
+    graph = _graph_with_ts(["[OH3+]"], ["CC(=O)[O-]"])
+    (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
+    (tmp_path / "rc.log").write_text("gaussian log\n# smiles: O\n")
+    (tmp_path / "pc.log").write_text("gaussian log\n# smiles: CC(=O)O\n")
+
+    rep = audit_integrity(tmp_path)
+    assert rep.passed
+    assert rep.fraction_bound == 1.0
+    assert rep.binding_quality == pytest.approx((0.7 + 0.85 + 0.7) / 3)
+    assert any("partial-credit" in n for n in rep.notes)
+
+    task = TaskSpec(
+        task_id="PROTO_T",
+        tier="easy",
+        prompt=PromptSpec(query="q"),
+        system=SystemSpec(reactants=["[OH3+]"]),
+        gold=GoldSpec(mechanism_graph=graph),
+    )
+    runner = BenchmarkRunner(tmp_path / "data")
+    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    # graph=1.0（交付=gold），sc 无 QM 证据判负，accuracy 无 gold barrier 记 1.0
+    # blend = 0.5*1.0 + 0.2*0 + 0.3*1.0 = 0.8；× 0.75 = 0.6
+    assert res.integrity_passed
+    assert res.final_score == pytest.approx(0.8 * 0.75, abs=1e-4)
+    assert any("binding quality" in n for n in res.notes)
+
+
+# --- 评分语义与取证修复（2a/2b/2c + 分级 composite） ---
+
+
+def _runner_task(graph):
+    from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec
+
+    return TaskSpec(
+        task_id="SEMI_T",
+        tier="easy",
+        prompt=PromptSpec(query="q"),
+        system=SystemSpec(reactants=["C"]),
+        gold=GoldSpec(mechanism_graph=graph),
+    )
+
+
+def test_scan_excludes_graph_shaped_json_copies(tmp_path):
+    """2b：交付图的改名拷贝（任何顶层 nodes+edges 的 JSON）不算证据，
+    不能拿自己的图给自己的节点当证据。"""
+    graph = _graph_with_ts(["C"], ["O"])
+    payload = graph.model_dump_json(by_alias=True)
+    (tmp_path / "mechanism_graph.json").write_text(payload)
+    sub = tmp_path / "notes"
+    sub.mkdir()
+    (sub / "draft.json").write_text(payload)  # 改名拷贝
+    files = scan_evidence_files(tmp_path, exclude=tmp_path / "mechanism_graph.json")
+    assert files == []  # 拷贝被排除，没有任何证据文件
+    rep = audit_integrity(tmp_path)
+    assert rep.fraction_bound == 0.0 and not rep.passed
+
+
+def test_edit_script_reflects_missing_ts():
+    """2a：缺 TS 的交付在诊断 diff 里可见（步骤键含 has_ts）。"""
+    gold = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"], with_ts=True)
+    agent = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"], with_ts=False)
+    res = mechanism_similarity(agent, gold, GedConfig())
+    assert res.score < 1.0
+    assert any("step_missing" in s or "step_removed" in s for s in res.edit_script)
+
+
+def test_selfconsistency_skips_oversized_logs(tmp_path, monkeypatch):
+    """2c：超过共享上限的 QM 日志两层都不整读（用 monkeypatch 缩小上限模拟）。"""
+    from cloudra.benchmark import selfconsistency as sc_mod
+
+    big = tmp_path / "ts_opt.log"
+    big.write_text(" Entering Gaussian System\n" + "x" * 100)
+    monkeypatch.setattr(sc_mod, "MAX_SCAN_BYTES", 10)
+    files = [EvidenceFile(path="ts_opt.log", kind="gaussian", size=big.stat().st_size)]
+    rep = sc_mod.audit_self_consistency(files, tmp_path)
+    assert rep.ts_checks == []  # 超限文件被跳过，不产生 TS 检查项
+
+
+def test_composite_no_evidence_penalty(tmp_path):
+    """图缺失 / 图在但零证据绑定 -> 倒扣 no_evidence_penalty（默认 -1）。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    task = _runner_task(_graph_with_ts(["C"], ["O"]))
+    runner = BenchmarkRunner(tmp_path / "data")
+
+    # 图缺失
+    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    assert res.final_score == -1.0
+
+    # 图可解析但没有任何证据
+    sb2 = tmp_path / "sb2"
+    sb2.mkdir()
+    (sb2 / "mechanism_graph.json").write_text(task.gold.mechanism_graph.model_dump_json(by_alias=True))
+    res2 = runner.score_sandbox(task, sb2, agent_barrier=None)
+    assert res2.final_score == -1.0
+    assert any("no evidence bound" in n for n in res2.notes)
+
+
+def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
+    """缺部分证据：按 binding_quality 比例扣，不是判零也不是倒扣。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    graph = _graph_with_ts(["C"], ["O"])
+    task = _runner_task(graph)
+    (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
+    (tmp_path / "rc.log").write_text("gaussian log\n# smiles: C\n")  # 只绑上 R
+
+    runner = BenchmarkRunner(tmp_path / "data")
+    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    # R 全绑 1.0，P/TS 未绑 0 -> quality = 1/3；blend = 0.5*1 + 0 + 0.3*1 = 0.8
+    assert res.final_score == pytest.approx(0.8 / 3, abs=1e-4)
+    assert res.final_score > 0.0
+
+
+def test_composite_full_evidence_full_blend(tmp_path):
+    """证据完整 + 机理正确（交付=gold）-> 满分通道不受新语义影响。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    graph = _graph_with_ts(["C"], ["O"])
+    task = _runner_task(graph)
+    (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
+    (tmp_path / "rc.log").write_text("gaussian log\n# smiles: C\n")
+    (tmp_path / "pc.log").write_text("gaussian log\n# smiles: O\n")
+
+    runner = BenchmarkRunner(tmp_path / "data")
+    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    assert res.final_score == pytest.approx(0.8, abs=1e-4)  # sc 无频率证据判负，其余满
+
+
+# --- 受控并行 ---
+
+
+def test_run_all_parallel_controlled(tmp_path):
+    """concurrency>1：结果按提交顺序返回、崩溃隔离保持、DB 每题一行、
+    并行确实比串行快。"""
+    import sqlite3
+    import time
+
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:5]
+
+    def backend(task, sandbox):
+        sandbox.mkdir(parents=True, exist_ok=True)
+        if task.task_id == tasks[1].task_id:
+            raise RuntimeError("boom")
+        time.sleep(0.3)
+        return None
+
+    runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
+    t0 = time.monotonic()
+    results = runner.run_all(tasks, concurrency=3)
+    dt = time.monotonic() - t0
+    assert [r.task_id for r in results] == [t.task_id for t in tasks]
+    assert any("boom" in n for n in results[1].notes)
+    assert results[1].final_score == 0.0  # 崩溃题 0 分，不是 no_evidence_penalty
+    # 串行 4×0.3s=1.2s+；并发 3 应明显更快（阈值留足 CI 抖动余量）
+    assert dt < 1.0
+    with sqlite3.connect(runner.db.db_path) as c:
+        assert c.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 5
+
+
+def test_run_all_serial_default_unchanged(tmp_path):
+    """concurrency=1（默认）保持串行语义：逐题顺序执行。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:3]
+    order: list[str] = []
+
+    def backend(task, sandbox):
+        order.append(task.task_id)
+        sandbox.mkdir(parents=True, exist_ok=True)
+        return None
+
+    runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
+    results = runner.run_all(tasks)
+    assert order == [t.task_id for t in tasks]
+    assert [r.task_id for r in results] == order
+
+
+# --- API 端点池（防 429） ---
+
+
+def _rate_limit_error():
+    import httpx
+    import openai
+
+    req = httpx.Request("POST", "https://x/v1/chat/completions")
+    return openai.RateLimitError("rate limited", response=httpx.Response(429, request=req), body=None)
+
+
+class _FixedRng:
+    def __init__(self, order):
+        self._order = order
+
+    def sample(self, population, k):
+        return [x for x in self._order if x in population]
+
+
+def test_api_pool_load_and_fallback_fields(tmp_path):
+    from cloudra.benchmark.api_pool import Endpoint, load_endpoints
+
+    p = tmp_path / "pool.json"
+    p.write_text(json.dumps([
+        {"base_url": "https://a", "api_key": "ka", "label": "A"},
+        {"base_url": "https://b"},  # api_key 留空 -> 回落 settings
+    ]))
+    eps = load_endpoints(p)
+    assert eps[0] == Endpoint(base_url="https://a", api_key="ka", label="A")
+    assert eps[1].api_key == "" and eps[1].display() == "https://b"
+    assert Endpoint().display() == "(settings default)"
+    bad = tmp_path / "bad.json"
+    bad.write_text("{}")
+    with pytest.raises(ValueError):
+        load_endpoints(bad)
+
+
+@pytest.mark.asyncio
+async def test_api_pool_failover_on_429(monkeypatch):
+    """首个端点 429 -> 换下一个且不重复；成功的端点收到完整调用。"""
+    import cloudra.benchmark.api_pool as api_pool
+    from cloudra.benchmark.api_pool import Endpoint, PooledLLMProvider
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    ep_a, ep_b = Endpoint(base_url="https://a", label="A"), Endpoint(base_url="https://b", label="B")
+    seen: list[str] = []
+
+    async def fake_complete(self, agent, messages, tools, on_delta=None):
+        ep = api_pool._current_endpoint.get()
+        seen.append(ep.display())
+        if ep is ep_a:
+            raise _rate_limit_error()
+        return LLMResponse(content="ok")
+
+    monkeypatch.setattr(api_pool.LegacyLLMProvider, "complete", fake_complete)
+    pool = PooledLLMProvider([ep_a, ep_b], rng=_FixedRng([ep_a, ep_b]))
+    resp = await pool.complete(None, [], [])
+    assert resp.content == "ok"
+    assert seen == ["A", "B"]
+
+
+@pytest.mark.asyncio
+async def test_api_pool_does_not_retry_non_429(monkeypatch):
+    """非 429 错误（认证、参数等确定性错误）不重试、直接抛。"""
+    import cloudra.benchmark.api_pool as api_pool
+    from cloudra.benchmark.api_pool import Endpoint, PooledLLMProvider
+
+    ep_a, ep_b = Endpoint(base_url="https://a"), Endpoint(base_url="https://b")
+    seen: list[str] = []
+
+    async def fake_complete(self, agent, messages, tools, on_delta=None):
+        seen.append(api_pool._current_endpoint.get().base_url)
+        raise RuntimeError("deterministic failure")
+
+    monkeypatch.setattr(api_pool.LegacyLLMProvider, "complete", fake_complete)
+    pool = PooledLLMProvider([ep_a, ep_b], rng=_FixedRng([ep_a, ep_b]))
+    with pytest.raises(RuntimeError):
+        await pool.complete(None, [], [])
+    assert seen == ["https://a"]  # 没试第二个
+
+
+@pytest.mark.asyncio
+async def test_api_pool_all_429_raises_last(monkeypatch):
+    import cloudra.benchmark.api_pool as api_pool
+    from cloudra.benchmark.api_pool import Endpoint, PooledLLMProvider
+
+    ep_a, ep_b = Endpoint(base_url="https://a"), Endpoint(base_url="https://b")
+
+    async def fake_complete(self, agent, messages, tools, on_delta=None):
+        raise _rate_limit_error()
+
+    monkeypatch.setattr(api_pool.LegacyLLMProvider, "complete", fake_complete)
+    pool = PooledLLMProvider([ep_a, ep_b], rng=_FixedRng([ep_a, ep_b]))
+    import openai
+
+    with pytest.raises(openai.RateLimitError):
+        await pool.complete(None, [], [])
+
+
+@pytest.mark.asyncio
+async def test_api_pool_empty_pool_passthrough(monkeypatch):
+    """空池 = 不启用池化，透传默认端点（_current_endpoint 不设置）。"""
+    import cloudra.benchmark.api_pool as api_pool
+    from cloudra.benchmark.api_pool import PooledLLMProvider
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    async def fake_complete(self, agent, messages, tools, on_delta=None):
+        assert api_pool._current_endpoint.get() is None
+        return LLMResponse(content="plain")
+
+    monkeypatch.setattr(api_pool.LegacyLLMProvider, "complete", fake_complete)
+    resp = await PooledLLMProvider([]).complete(None, [], [])
+    assert resp.content == "plain"

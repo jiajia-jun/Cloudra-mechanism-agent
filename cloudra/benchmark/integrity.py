@@ -8,7 +8,10 @@ disk. Binding uses the `smiles:` annotation line that the delivery contract
 into QM logs because Gaussian/ORCA echo their input title/comment lines.
 The result is an integrity report: is there a parseable graph, and is every
 claimed node/step backed by at least one evidence file whose annotation
-matches the claimed SMILES.
+matches the claimed SMILES. Binding is graded: fingerprint/hash-level matches
+give quality 1.0, protonation/charge-state-only variants give partial credit
+(the rubric's `protonation_partial_quality`) — deducted via the composite
+multiplier, never a zero by themselves.
 
 Pure filesystem + parsing; no LLM, no DB.
 """
@@ -23,7 +26,11 @@ from typing import Optional
 
 from pydantic import ConfigDict
 
-from cloudra.benchmark.graph_similarity import GedConfig, species_substitution_cost
+from cloudra.benchmark.graph_similarity import (
+    GedConfig,
+    protonation_variant_quality,
+    species_substitution_cost,
+)
 from cloudra.benchmark.schema import (
     GoldMechanismGraph,
     IntegrityRubric,
@@ -49,8 +56,9 @@ class _DeliveredEdge(MechanismEdge):
 # file extensions we treat as computational evidence worth parsing for SMILES
 _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".mol", ".json"}
 
-# 超过该大小的文件只做类型分类、不整读扫 SMILES，避免评分期内存尖峰
-_MAX_SCAN_BYTES = 20 * 1024 * 1024
+# 超过该大小的文件只做类型分类、不整读扫 SMILES，也不进 Layer 2 的帧解析
+# （两层共享同一上限：超大文件在 Layer 1 没贡献绑定，cclib 整读只会拖住评分器）
+MAX_SCAN_BYTES = 20 * 1024 * 1024
 
 # `smiles:` 注释行是交付协议的一部分（query 明确要求证据文件携带）。
 # 容忍 JSON/YAML 引号与注释前缀："smiles": "X"、smiles: 'X'、# smiles: X。
@@ -65,6 +73,7 @@ class EvidenceFile:
     path: str
     smiles_found: list[str] = field(default_factory=list)
     kind: str = ""  # 'gaussian'|'orca'|'xyz'|'json'|'unknown'
+    size: int = 0   # 字节数；Layer 2 据此跳过超过 MAX_SCAN_BYTES 的文件
 
 
 @dataclass
@@ -72,6 +81,9 @@ class NodeBinding:
     node_id: str
     bound_files: list[str] = field(default_factory=list)
     matched: bool = False
+    # 绑定质量：1.0 = 指纹/哈希级全绑；(0, 1) = 仅质子化/电荷态不同的骨架
+    # 匹配（partial credit，扣分不判零）；0 = 未绑定。
+    quality: float = 0.0
 
 
 @dataclass
@@ -83,6 +95,8 @@ class IntegrityReport:
     evidence_files: list[EvidenceFile] = field(default_factory=list)
     node_bindings: list[NodeBinding] = field(default_factory=list)
     fraction_bound: float = 0.0
+    # 平均绑定质量（含 partial credit），runner 把它作为 composite 的乘性因子
+    binding_quality: float = 1.0
     passed: bool = False
     notes: list[str] = field(default_factory=list)
 
@@ -178,13 +192,28 @@ def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[E
             continue
         kind = _classify(p)
         try:
-            if p.stat().st_size > _MAX_SCAN_BYTES:
+            size = p.stat().st_size
+            if size > MAX_SCAN_BYTES:
                 text = ""  # 超大日志不整读；保留分类结果，SMILES 扫描跳过
             else:
                 text = p.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
-        files.append(EvidenceFile(path=str(p.relative_to(sandbox)), smiles_found=_smiles_in_text(text), kind=kind))
+        # 机理图形状的 JSON（顶层 nodes+edges）一律不是证据：交付图的多份改名
+        # 拷贝若算证据，其内嵌 SMILES 会让图节点绑定到自己，零计算证据过 Layer 1
+        if p.suffix.lower() == ".json" and text:
+            try:
+                data = json.loads(text)
+            except Exception:
+                data = None
+            if isinstance(data, dict) and "nodes" in data and "edges" in data:
+                continue
+        files.append(EvidenceFile(
+            path=str(p.relative_to(sandbox)),
+            smiles_found=_smiles_in_text(text),
+            kind=kind,
+            size=size,
+        ))
     return files
 
 
@@ -218,13 +247,37 @@ def _classify(p: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _component_in_file(component: str, file_smiles: list[str], cfg: GedConfig, threshold: float) -> bool:
-    """True if `component` matches any single SMILES in the file (subset
-    match: a log file holding several species still evidences each one)."""
-    for fs in file_smiles:
-        if species_substitution_cost([component], [fs], cfg) <= threshold:
-            return True
-    return False
+def _component_file_qualities(
+    component: str,
+    files: list[EvidenceFile],
+    cfg: GedConfig,
+    match_threshold: float,
+    partial_quality: float,
+) -> tuple[float, list[str]]:
+    """逐证据文件评估该组分的绑定质量，返回 (best_quality, [path, ...])。
+
+    三档：指纹/哈希 cost ≤ match_threshold → 1.0；否则查质子化骨架——仅电荷
+    态/质子化形式不同 → `protonation_variant_quality`（质量 = 1-(1-partial)·w，
+    w = 指纹相对误差 1-Tanimoto：指纹退化的小分子离子对扣满到 partial_quality，
+    大分子小扰动扣得少）；其余 → 0（不绑）。指纹对单重原子物种会退化
+    （O vs [OH-] 的 Tanimoto=0），所以质子化通道必须在指纹之后独立兜底。"""
+    best = 0.0
+    paths: list[str] = []
+    for f in files:
+        if not f.smiles_found:
+            continue
+        q = 0.0
+        for fs in f.smiles_found:
+            if species_substitution_cost([component], [fs], cfg) <= match_threshold:
+                q = 1.0
+                break
+            if partial_quality > 0.0:
+                vq = protonation_variant_quality(component, fs, cfg, partial_quality)
+                q = max(q, vq)
+        if q > 0.0:
+            paths.append(f.path)
+            best = max(best, q)
+    return best, paths
 
 
 def bind_graph_to_evidence(
@@ -232,15 +285,19 @@ def bind_graph_to_evidence(
     files: list[EvidenceFile],
     cfg: Optional[GedConfig] = None,
     match_threshold: float = 0.2,
+    partial_quality: float = 0.7,
 ) -> list[NodeBinding]:
     """Bind each non-TS node to evidence files whose parsed SMILES match the
     node's claimed SMILES. A multi-species node (complex) is bound when every
     one of its component SMILES is matched by at least one evidence file
     (union coverage), since a single log typically holds only one component.
-    TS nodes carry no SMILES and are bound indirectly via their edge's
-    endpoints: a TS counts as evidenced only when at least one edge routes
-    through it (`via`) and both endpoint species of that edge are themselves
-    bound to evidence."""
+    Binding is graded: fingerprint/hash-level matches give quality 1.0;
+    protonation/charge-state-only variants give `partial_quality` (the node's
+    quality is its weakest component). TS nodes carry no SMILES and are bound
+    indirectly via their edge's endpoints: a TS counts as evidenced only when
+    at least one edge routes through it (`via`) and both endpoint species of
+    that edge are themselves bound to evidence; its quality inherits the
+    weaker endpoint."""
     cfg = cfg or GedConfig()
     bindings: list[NodeBinding] = []
     by_id: dict[str, NodeBinding] = {}
@@ -258,17 +315,19 @@ def bind_graph_to_evidence(
             # 否则 agent 把 SMILES 全留空即可零证据通过本层。
             continue
         all_components_matched = True
+        node_quality = 1.0
         for component in node.smiles:
-            component_files = [
-                f.path for f in files
-                if f.smiles_found and _component_in_file(component, f.smiles_found, cfg, match_threshold)
-            ]
-            if component_files:
-                nb.bound_files.extend(component_files)
+            q, qpaths = _component_file_qualities(
+                component, files, cfg, match_threshold, partial_quality
+            )
+            if qpaths:
+                nb.bound_files.extend(qpaths)
             else:
                 all_components_matched = False
+            node_quality = min(node_quality, q)
         nb.bound_files = sorted(set(nb.bound_files))
         nb.matched = all_components_matched and bool(nb.bound_files)
+        nb.quality = node_quality if nb.matched else 0.0
 
     # pass 2: TS nodes — 仅当某条边经由它且两端物种都已绑定证据
     for ts_id in ts_ids:
@@ -279,6 +338,7 @@ def bind_graph_to_evidence(
             a, b = by_id.get(e.from_node), by_id.get(e.to_node)
             if a is not None and b is not None and a.matched and b.matched:
                 nb.matched = True
+                nb.quality = min(a.quality, b.quality)
                 nb.bound_files = sorted(set(a.bound_files) | set(b.bound_files))
                 break
     return bindings
@@ -319,11 +379,25 @@ def audit_integrity(
         )
     # 兜底发现的交付图文件自身排除出证据扫描：其内嵌 SMILES 不构成计算证据
     report.evidence_files = scan_evidence_files(sandbox, exclude=graph_path)
-    report.node_bindings = bind_graph_to_evidence(graph, report.evidence_files, cfg)
+    report.node_bindings = bind_graph_to_evidence(
+        graph,
+        report.evidence_files,
+        cfg,
+        match_threshold=rubric.match_threshold,
+        partial_quality=rubric.protonation_partial_quality,
+    )
 
     bindable = [b for b in report.node_bindings]
     bound = [b for b in bindable if b.matched]
     report.fraction_bound = (len(bound) / len(bindable)) if bindable else 0.0
+    report.binding_quality = (
+        sum(b.quality for b in bindable) / len(bindable)
+    ) if bindable else 0.0  # 空图 = 没有任何可绑声明，与零证据同等对待
+    partial = [b.node_id for b in bound if b.quality < 1.0]
+    if partial:
+        report.notes.append(
+            f"partial-credit binds (protonation/charge-state variants): {partial}"
+        )
 
     ok_graph = report.graph_found and report.graph_parseable
     ok_evidence = (report.fraction_bound == 1.0) if rubric.require_evidence_files else True
