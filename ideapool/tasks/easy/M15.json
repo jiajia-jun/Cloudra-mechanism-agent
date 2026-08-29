@@ -1,0 +1,127 @@
+{
+  "task_id": "M15",
+  "tier": "easy",
+  "family": "M",
+  "name": "HONO cis-trans isomerization",
+  "prompt": {
+    "query": "Determine the mechanism of the following process: HONO cis-trans isomerization. Reactant SMILES: O=NO; product SMILES: O=NO; total charge 0, multiplicity 1; conditions: gas phase. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step (relative to the separated reactants). Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "O=NO"
+    ],
+    "products": [
+      "O=NO"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase",
+    "elements": [
+      "N",
+      "O",
+      "H"
+    ],
+    "max_heavy_atoms": 3,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "M15_R",
+          "role": "reactant",
+          "smiles": [
+            "O=NO"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "M15_TS",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS"
+        },
+        {
+          "id": "M15_P",
+          "role": "product",
+          "smiles": [
+            "O=NO"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "M15_E1",
+          "from": "M15_R",
+          "to": "M15_P",
+          "via": "M15_TS",
+          "step_type": "conformational isomerization: N-O torsion, trans ground state, cis ~0.5-0.6 kcal/mol higher",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": 9.7,
+      "barrier_type": null,
+      "barrier_reference": "reactants",
+      "verification": "verified",
+      "reference_doi": "10.1021/j100296a013",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation"
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": true,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

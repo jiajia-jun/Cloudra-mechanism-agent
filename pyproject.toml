@@ -41,6 +41,8 @@ dependencies = [
     "python-multipart>=0.0.9",
     "uvicorn>=0.22.0",
     "tiktoken>=0.7.0",
+    # benchmark 模块（cloudra/benchmark）的 GED 评分硬依赖；纯 Python 包
+    "networkx>=3.0",
 ]
 
 [project.optional-dependencies]
