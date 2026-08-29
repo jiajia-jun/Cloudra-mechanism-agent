@@ -3,8 +3,9 @@
 Independent of the gold reference: a TS must be a first-order saddle
 (exactly one imaginary frequency, excluding conformational fake TS below
 `min_abs_imag_freq_cm1`), its IRC must connect the two endpoints, and each
-species must pass a frequency (no imaginary) and identity (matches claimed
-SMILES) check. Operates on the evidence files the integrity layer bound to
+species must pass a minimum check (no imaginary frequencies). Species
+identity (SMILES consistency) is Layer 1's evidence-binding job and is not
+re-checked here. Operates on the evidence files the integrity layer bound to
 each graph node/step.
 
 File roles are decided by filename token: a `ts` token in the stem
@@ -25,9 +26,9 @@ from cloudra.benchmark.integrity import EvidenceFile
 from cloudra.benchmark.schema import SelfConsistencyRubric
 from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
 
-# "ts" 必须作为独立 token 出现，否则 "reactants"/"products" 这类以 ts 结尾的
-# 文件名会被误判为 TS 证据。
-_TS_TOKEN_RE = re.compile(r"(?:^|[^a-z0-9])ts(?:[^a-z0-9]|$)")
+# "ts" 必须作为独立 token 出现（可带编号后缀如 ts1/ts2），否则
+# "reactants"/"products" 这类以 ts 结尾的文件名会被误判为 TS 证据。
+_TS_TOKEN_RE = re.compile(r"(?:^|[^a-z0-9])ts\d*(?:[^a-z0-9]|$)")
 
 
 @dataclass

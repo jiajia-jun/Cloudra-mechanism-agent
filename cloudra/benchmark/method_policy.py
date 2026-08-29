@@ -9,11 +9,12 @@ always be bypassed, so every layer does positive (whitelist) matching:
   from that file's *content* (strict mode: an input that cannot be verified
   as requesting a whitelisted method is blocked).
 - `bash`: the verdict comes from the *content of QM input files*, never from
-  keyword-matching the command text. Heredoc/redirect payloads writing
-  `.gjf`/`.com`/`.inp` files are extracted from the command and parsed
-  (Gaussian route card / ORCA keyword lines); a QM program invoked on a
-  pre-existing file (`g16 foo.gjf`) is covered by `check_input_files`, which
-  the caller runs with sandbox access.
+  keyword-matching the command text. Heredoc and echo/printf-redirect
+  payloads writing `.gjf`/`.com`/`.inp` files are extracted from the command
+  (nested one level when a payload is itself a script) and parsed — Gaussian
+  route cards (all of them, across `--Link1--` steps) / ORCA keyword lines.
+  A QM program invoked on a pre-existing file (`g16 foo.gjf`) is covered by
+  `check_input_files`, which the caller runs with sandbox access.
 
 Parsing is done with small deterministic route-card/keyword-line readers. The
 obvious library alternative (cclib) parses *output* logs, not input route
@@ -51,14 +52,27 @@ _ORCA_JOB_TOKENS = {
     # 波函数类型修饰符，不是方法本身
     "rks", "uks", "roks", "rhf", "uhf", "rohf", "hf",
 }
-# basis-set shaped tokens (def2-svp, 6-31g(d), cc-pvtz, sto-3g, ...) never
-# carry method information; ignored while locating the method token.
+# basis-set tokens never carry method information; ignored while locating the
+# method token. Regex covers prefixed families; the alias set covers ORCA's
+# bare aliases (svp/tzvp/qzvpp/lanl2dz/...) that have no prefix.
 _BASIS_RE = re.compile(
-    r"^(?:def2|cc-pv|aug-cc-pv|sto|pcseg|pc|ano|minao|ma-def2)-|^\d+-\d+"
+    r"^(?:def2-|cc-pv|aug-|sto-|pcseg|pc-\d|ano|minao|ma-|jun-|jul-|\d+-\d+)"
 )
+_BASIS_ALIAS = {
+    "sv", "svp", "sv(p)", "dz", "dzp", "tz", "tzp", "tzvp", "tzvpp",
+    "qz", "qzvp", "qzvpp", "lanl2dz", "lanl2mb", "minis", "midi",
+}
 # heredoc opener: `<<EOF` / `<<-EOF` / `<<"EOF"` / `<<'EOF'`
 _HEREDOC_OPEN_RE = re.compile(r"<<-?\s*['\"]?([A-Za-z_]\w*)['\"]?")
 _REDIRECT_RE = re.compile(r">{1,2}\s*([^\s>;|&]+)")
+# 单行 echo/printf 直写重定向：echo 'payload' > file / printf "...\n" > file
+_REDIRECT_WRITE_RE = re.compile(
+    r"^(?:echo|printf)\s+(?:-[a-zA-Z]+\s+)*(['\"])(.*?)\1\s*>>?\s*([^\s>;|&]+)\s*$"
+)
+# 算术展开 $((a << b)) 里的位移不是 heredoc
+_ARITH_RE = re.compile(r"\$\(\(.*?\)\)")
+# 嵌套脚本载荷的递归解析深度上限
+_MAX_EMBED_DEPTH = 2
 
 
 @dataclass
@@ -66,7 +80,7 @@ class MethodVerdict:
     allowed: bool
     method: str = ""
     reason: str = ""
-    matched_forbidden: list[str] = field(default_factory=list)  # 保留字段：拦截详情
+    matched_forbidden: list[str] = field(default_factory=list)  # 拦截详情
 
 
 def _normalize(s: str) -> str:
@@ -74,8 +88,8 @@ def _normalize(s: str) -> str:
 
 
 def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
-    """Structured check for an explicit method string (submit_compute_job /
-    qm_input_writer path): exact whitelist membership after normalization."""
+    """Structured check for an explicit method string (qm_input_writer path):
+    exact whitelist membership after normalization."""
     nm = _normalize(method)
     allowed = {_normalize(a) for a in policy.allowed_methods}
     if nm in allowed:
@@ -95,7 +109,101 @@ def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
 
 
 def _is_basis_token(tok: str) -> bool:
-    return bool(_BASIS_RE.match(tok))
+    return tok in _BASIS_ALIAS or bool(_BASIS_RE.match(tok))
+
+
+def _gaussian_route_cards(content: str) -> list[list[str]]:
+    """全部路由卡的 token 序列（拼接跨行缠绕；覆盖 --Link1-- 多步输入的
+    每一张卡）。每张卡 = 从 `#` 行到空行。"""
+    cards: list[list[str]] = []
+    current: list[str] = []
+    in_route = False
+    for line in content.splitlines():
+        s = line.strip()
+        if s.startswith("#!"):  # shebang 不是路由卡
+            continue
+        if s.startswith("#"):
+            if current:
+                cards.append(current)
+            current = []
+            in_route = True
+            s = s[1:]
+            head, _, rest = s.partition(" ")
+            if head.lower() in ("p", "n", "t"):
+                s = rest  # `#p`/`#n`/`#t` 前缀
+            elif not head:
+                s = rest
+            else:
+                s = s  # `#opt ...`：head 即首个有效 token
+                current.extend(head.split())
+                s = rest
+        elif in_route and not s:
+            in_route = False
+            if current:
+                cards.append(current)
+                current = []
+            continue
+        elif not in_route:
+            continue
+        current.extend(s.split())
+    if current:
+        cards.append(current)
+    return cards
+
+
+def _extract_gaussian_methods(content: str) -> list[list[str]]:
+    """每张路由卡的方法候选列表。`method/basis` slash 形式是权威声明；无
+    slash 时（半经验如 `# am1 opt`）取非作业类型/非 key=value/非基组的裸
+    token。"""
+    per_card: list[list[str]] = []
+    for tokens in _gaussian_route_cards(content):
+        slashed: list[str] = []
+        bare: list[str] = []
+        for tok in tokens:
+            t = tok.lower()
+            if "/" in t:
+                head = t.split("/", 1)[0]
+                if head:
+                    slashed.append(head)
+                continue
+            if "=" in t or "(" in t or _is_basis_token(t) or t in _GAUSSIAN_JOB_TOKENS:
+                continue
+            bare.append(t)
+        # slash 方法存在时只看 slash：防止在禁用方法旁填充白名单裸 token
+        per_card.append(slashed if slashed else bare)
+    return per_card
+
+
+def _extract_orca_methods(content: str) -> list[str]:
+    """ORCA 关键字行的方法候选：跳过 `%` 块（maxcore/pal 等控制段），候选 =
+    `!` 行上既非作业类型/波函数修饰也非基组形状的 token。ORCA 每个输入只有
+    一个电子结构方法，多个候选即异常。"""
+    candidates: list[str] = []
+    for line in content.splitlines():
+        s = line.strip()
+        if s.startswith("!/"):  # shebang
+            continue
+        if not s.startswith("!"):
+            continue
+        for tok in s[1:].split():
+            t = tok.lower()
+            if t in _ORCA_JOB_TOKENS or _is_basis_token(t):
+                continue
+            candidates.append(t)
+    return candidates
+
+
+def _looks_gaussian_route(content: str) -> bool:
+    """无后缀内容嗅探：`#` 段需含 method/basis 形 token 或作业关键字才算
+    路由卡——脚本里的普通注释行（`# compute barrier with mace`）不算。"""
+    for tokens in _gaussian_route_cards(content):
+        for tok in tokens:
+            t = tok.lower()
+            if "/" in t:
+                return True
+            if t.split("(", 1)[0].split("=", 1)[0] in _GAUSSIAN_JOB_TOKENS:
+                return True
+    return False
 
 
 def _detect_input_engine(filename: str, content: str) -> Optional[str]:
@@ -112,131 +220,80 @@ def _detect_input_engine(filename: str, content: str) -> Optional[str]:
         if not s or s.startswith("%"):
             continue
         if s.startswith("#"):
-            return "gaussian"
+            return "gaussian" if _looks_gaussian_route(content) else None
         if s.startswith("!"):
-            return "orca"
+            return None if s.startswith("!/") else "orca"  # shebang 除外
         # 第一有效行既不是路由卡也不是 ORCA 关键字：不像 QM 输入
         return None
     return None
 
 
-def _extract_gaussian_methods(content: str) -> list[str]:
-    """从 Gaussian 路由卡提取方法候选：`# opt b3lyp/6-31g(d) freq` → [b3lyp]。
-    路由卡可跨行缠绕，到空行为止。方法通常是含 `/` 的 token 的左半；无 `/` 时
-    （半经验如 `# am1 opt`）取非作业类型/非 key=value 的裸 token。跳过 Link0
-    的 `%chk`/`%mem` 行。"""
-    lines = content.splitlines()
-    route_lines: list[str] = []
-    in_route = False
-    for line in lines:
-        s = line.strip()
-        if not in_route:
-            if s.startswith("#"):
-                in_route = True
-                route_lines.append(s)
-            continue
-        if not s:
-            break
-        route_lines.append(s)
-    if not route_lines:
-        return []
-    route = " ".join(route_lines)
-    tokens = route.split()
-    if tokens and tokens[0].startswith("#"):
-        tokens = tokens[1:]  # 去掉 # / #p / #n
-    slashed: list[str] = []
-    bare: list[str] = []
-    for tok in tokens:
-        t = tok.lower()
-        if "/" in t:
-            head = t.split("/", 1)[0]
-            if head:
-                slashed.append(head)
-            continue
-        if "=" in t or "(" in t or _is_basis_token(t) or t in _GAUSSIAN_JOB_TOKENS:
-            continue
-        bare.append(t)
-    # 路由卡里 method/basis 形式的 token 才是确定的方法声明；存在时只看它们，
-    # 裸 token（无 `/` 的半经验写法如 am1）仅在没有 slash 形式时作准——防止在
-    # 禁用方法旁填充白名单 token 蒙混过关。
-    return slashed if slashed else bare
-
-
-def _extract_orca_methods(content: str) -> list[str]:
-    """从 ORCA 关键字行提取方法候选：`! rks b3lyp def2-svp opt` → [b3lyp]。
-    跳过 `%` 块（maxcore/pal 等控制段）；候选 = `!` 行上既非作业类型
-    也非基组形状的 token。"""
-    candidates: list[str] = []
-    for line in content.splitlines():
-        s = line.strip()
-        if not s.startswith("!"):
-            continue
-        for tok in s[1:].split():
-            t = tok.lower()
-            if t in _ORCA_JOB_TOKENS or _is_basis_token(t):
-                continue
-            candidates.append(t)
-    return candidates
-
-
 def check_input_content(
     content: str, policy: MethodPolicy, filename: str = "", strict: bool = False
 ) -> MethodVerdict:
-    """Whitelist-check QM input *content* (Gaussian route card / ORCA keyword
+    """Whitelist-check QM input *content* (Gaussian route cards / ORCA keyword
     lines). Content that does not look like a QM input is out of scope
     (allowed) unless `strict` — e.g. `submit_compute_job` submissions, where an
     unverifiable input must be blocked. A QM input without a parseable method
-    is always blocked fail-closed.
-    方法候选中任一命中白名单即放行——白名单方法（如 xtb）不会合法出现在
-    gaussian/orca 输入里，掺杂 token 绕过在实际场景不成立。"""
+    is always blocked fail-closed. 所有方法候选都必须命中白名单（任一候选
+    未命中即拦截），防掺杂绕过。"""
     engine = _detect_input_engine(filename, content)
     if engine is None:
         if strict:
             return MethodVerdict(
                 allowed=False,
                 reason="input file is not recognizable as a Gaussian/ORCA input; "
-                "whitelist cannot be verified "
-                f"(allowed: {policy.allowed_methods})",
+                f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
             )
         return MethodVerdict(allowed=True)
-    candidates = (
-        _extract_gaussian_methods(content)
-        if engine == "gaussian"
-        else _extract_orca_methods(content)
-    )
-    if not candidates:
+    allowed = {_normalize(a) for a in policy.allowed_methods}
+    if engine == "gaussian":
+        cards = _extract_gaussian_methods(content)
+        if not cards or any(not c for c in cards):
+            return MethodVerdict(
+                allowed=False,
+                reason="gaussian input has route card(s) with no parseable method "
+                f"directive; whitelist cannot be verified (allowed: {policy.allowed_methods})",
+            )
+        candidates = [c for card in cards for c in card]
+    else:
+        candidates = _extract_orca_methods(content)
+        if not candidates:
+            return MethodVerdict(
+                allowed=False,
+                reason="orca input has no parseable method directive; "
+                f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
+            )
+    bad = [c for c in candidates if c not in allowed]
+    if bad:
         return MethodVerdict(
             allowed=False,
-            reason=f"{engine} input has no parseable method directive; "
-            f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
+            method=bad[0],
+            reason=f"{engine} input requests method(s) {bad} not in "
+            f"allowed_methods {policy.allowed_methods}; fall back to an allowed "
+            f"method (e.g. {policy.allowed_methods[0]})",
+            matched_forbidden=bad,
         )
-    allowed = {_normalize(a) for a in policy.allowed_methods}
-    hit = next((c for c in candidates if c in allowed), None)
-    if hit is not None:
-        return MethodVerdict(allowed=True, method=hit)
-    return MethodVerdict(
-        allowed=False,
-        method=candidates[0],
-        reason=f"{engine} input requests method(s) {candidates} not in "
-        f"allowed_methods {policy.allowed_methods}; fall back to an allowed "
-        f"method (e.g. {policy.allowed_methods[0]})",
-        matched_forbidden=candidates,
-    )
+    return MethodVerdict(allowed=True, method=candidates[0])
 
 
 def check_input_files(
     paths: Iterable[Path], policy: MethodPolicy
 ) -> MethodVerdict:
     """Content check for QM inputs already on disk — covers a bash command
-    invoking a QM program on a previously written file (`g16 foo.gjf`)."""
+    invoking a QM program on a previously written file (`g16 foo.gjf`).
+    文件不可读时 fail-closed（白名单语义下"读不了"等于"验不了"）。"""
     for p in paths:
         p = Path(p)
         if p.suffix.lower() not in _QM_INPUT_SUFFIXES or not p.is_file():
             continue
         try:
             content = p.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            continue
+        except Exception as exc:
+            return MethodVerdict(
+                allowed=False,
+                reason=f"cannot read QM input {p}: {exc}; whitelist cannot be verified",
+            )
         verdict = check_input_content(content, policy, filename=p.name)
         if not verdict.allowed:
             return verdict
@@ -248,24 +305,31 @@ def check_input_files(
 # ---------------------------------------------------------------------------
 
 
-def extract_embedded_inputs(command: str) -> list[tuple[str, str]]:
-    """Extract (filename, content) pairs written by heredocs in a bash command.
-
-    Handles `cat > file <<EOF` and `cat <<EOF > file`; unparseable targets
-    keep an empty filename, in which case content sniffing still applies.
-    """
+def extract_embedded_inputs(command: str, _depth: int = 0) -> list[tuple[str, str]]:
+    """Extract (filename, content) pairs written by a bash command — heredocs
+    (`cat > file <<EOF` / `cat <<EOF > file`) and one-line echo/printf
+    redirects. Payloads that are themselves scripts（如 `cat > run.sh <<EOF`
+    里再写 QM 输入）递归提取一层。无目标文件名的载荷保留空文件名，由内容
+    嗅探兜底。"""
     out: list[tuple[str, str]] = []
     lines = command.splitlines()
     i = 0
     while i < len(lines):
         line = lines[i]
-        m = _HEREDOC_OPEN_RE.search(line)
+        rw = _REDIRECT_WRITE_RE.match(line.strip())
+        if rw is not None:
+            payload = rw.group(2).replace("\\n", "\n")  # printf 转义
+            out.append((rw.group(3), payload))
+            i += 1
+            continue
+        line_nc = _ARITH_RE.sub("", line)  # 位移运算 $((a << b)) 不是 heredoc
+        m = _HEREDOC_OPEN_RE.search(line_nc)
         if m is None:
             i += 1
             continue
         delim = m.group(1)
-        target = _REDIRECT_RE.search(line[: m.start()]) or _REDIRECT_RE.search(
-            line[m.end():]
+        target = _REDIRECT_RE.search(line_nc[: m.start()]) or _REDIRECT_RE.search(
+            line_nc[m.end():]
         )
         fname = target.group(1).strip("'\"") if target else ""
         body: list[str] = []
@@ -275,6 +339,9 @@ def extract_embedded_inputs(command: str) -> list[tuple[str, str]]:
             i += 1
         out.append((fname, "\n".join(body)))
         i += 1
+    if _depth < _MAX_EMBED_DEPTH:
+        for _fname, body in list(out):
+            out.extend(extract_embedded_inputs(body, _depth + 1))
     return out
 
 

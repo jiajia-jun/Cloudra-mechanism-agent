@@ -15,8 +15,10 @@ provided for dry-run / pipeline testing.
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import time
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -69,7 +71,8 @@ class BenchmarkDB:
         return sqlite3.connect(str(self.db_path))
 
     def _init(self) -> None:
-        with self._connect() as c:
+        # sqlite3 的 with 块只管 commit/rollback、不管关闭，外层套 closing
+        with closing(self._connect()) as c, c:
             c.execute(
                 """CREATE TABLE IF NOT EXISTS runs (
                     task_id TEXT, sandbox TEXT,
@@ -80,7 +83,7 @@ class BenchmarkDB:
             )
 
     def record(self, result: RunResult) -> None:
-        with self._connect() as c:
+        with closing(self._connect()) as c, c:
             c.execute(
                 "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?)", result.to_row()
             )
@@ -110,16 +113,36 @@ class BenchmarkRunner:
     def sandbox_for(self, task_id: str) -> Path:
         return self.sandboxes / task_id
 
+    def _ged_config_for(self, task: TaskSpec) -> GedConfig:
+        """Per-task GED 参数（rubric.graph_similarity）覆盖 runner 默认值。"""
+        base = self.ged_config
+        gs = task.rubric.graph_similarity
+        return GedConfig(
+            sigmoid_center=gs.sigmoid_center,
+            sigmoid_steepness=(
+                gs.sigmoid_steepness
+                if gs.sigmoid_steepness is not None
+                else base.sigmoid_steepness
+            ),
+            node_delete_cost=base.node_delete_cost,
+            node_insert_cost=base.node_insert_cost,
+            edge_delete_cost=base.edge_delete_cost,
+            edge_insert_cost=base.edge_insert_cost,
+            morgan_radius=base.morgan_radius,
+            morgan_nbits=base.morgan_nbits,
+        )
+
     def score_sandbox(self, task: TaskSpec, sandbox: Path, agent_barrier: Optional[float]) -> RunResult:
         res = RunResult(task_id=task.task_id, sandbox=str(sandbox))
+        ged_config = self._ged_config_for(task)
 
-        integ: IntegrityReport = audit_integrity(sandbox, task.rubric.integrity, self.ged_config)
+        integ: IntegrityReport = audit_integrity(sandbox, task.rubric.integrity, ged_config)
         res.integrity_passed = integ.passed
         res.notes.extend(integ.notes)
 
         if integ.delivered_graph is not None:
             ged: GedResult = mechanism_similarity(
-                integ.delivered_graph, task.gold.mechanism_graph, self.ged_config
+                integ.delivered_graph, task.gold.mechanism_graph, ged_config
             )
             res.graph_score = ged.score
         else:
@@ -153,6 +176,9 @@ class BenchmarkRunner:
 
     def run_task(self, task: TaskSpec) -> RunResult:
         sandbox = self.sandbox_for(task.task_id)
+        # 复跑从干净沙箱开始：上一轮的证据文件残留会污染取证扫描
+        if sandbox.exists():
+            shutil.rmtree(sandbox)
         agent_barrier = self.backend(task, sandbox)
         result = self.score_sandbox(task, sandbox, agent_barrier)
         self.db.record(result)

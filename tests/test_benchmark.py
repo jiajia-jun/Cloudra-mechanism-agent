@@ -74,6 +74,41 @@ def test_easy_charge_and_smiles():
     assert tasks["M6"].system.products == ["CC"]
 
 
+def test_easy_barrier_parsing_no_garbage():
+    """能垒解析不得抓年份/键长/百分数：F2 与 M12 无锚点数字 -> None；
+    F3 的锚点是 ≈33 而非降幅 ~30%；T3 的 DOI 含括号不得截断。"""
+    tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
+    ref = {tid: t.gold.reference_computation for tid, t in tasks.items()}
+    assert ref["F2"].barrier_kcal_mol is None
+    assert ref["F3"].barrier_kcal_mol == 33.0
+    assert ref["M12"].barrier_kcal_mol is None
+    assert ref["D1"].barrier_kcal_mol == 27.5
+    assert ref["E1"].barrier_kcal_mol == 6.9  # 经典值（范围下界约定）
+    assert ref["T3"].reference_doi == "10.1016/s0009-2614(96)01253-5"
+    for tid, t in tasks.items():
+        b = t.gold.reference_computation.barrier_kcal_mol
+        assert b is None or 0.0 <= b <= 200.0, f"{tid} implausible barrier {b}"
+        assert t.name.isascii(), f"{tid} name not English: {t.name!r}"
+        assert t.system.conditions.isascii()
+        assert t.prompt.query.isascii() and "Determine the mechanism" in t.prompt.query
+
+
+# --- runner ---
+
+
+def test_runner_rerun_starts_from_clean_sandbox(tmp_path):
+    """复跑同一 task 时上一轮残留文件必须清掉，否则污染取证扫描。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    runner = BenchmarkRunner(tmp_path / "bench")
+    sandbox = runner.sandbox_for(tasks[0].task_id)
+    sandbox.mkdir(parents=True)
+    (sandbox / "stale_evidence.log").write_text("smiles: C=CC=C\n")  # 上一轮残留
+    runner.run_task(tasks[0])  # 默认 no-op backend
+    assert not (sandbox / "stale_evidence.log").exists()
+
+
 # --- GED anchors ---
 
 
@@ -97,6 +132,55 @@ def test_ged_missing_ts_lowers_score():
     no_ts = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"], with_ts=False)
     cfg = GedConfig()
     assert mechanism_similarity(no_ts, gold, cfg).score < 1.0
+
+
+def test_ged_node_insertion_order_irrelevant():
+    """同一拓扑不同节点写入顺序应得同一分数（GED 取最优近似值，而非第一个）。"""
+    g1 = GoldMechanismGraph(nodes=[
+        MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C=CC=C", "C=C"]),
+        MechanismNode(id="TS", role=NodeRole.TRANSITION_STATE, smiles=[]),
+        MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["C1CC=CCC1"]),
+    ], edges=[MechanismEdge(id="E", **{"from": "R", "to": "P"}, via="TS")])
+    g2 = GoldMechanismGraph(nodes=list(reversed(g1.nodes)), edges=list(g1.edges))
+    assert mechanism_similarity(g2, g1, GedConfig()).score == pytest.approx(1.0)
+
+
+def test_ged_parallel_edges_preserved():
+    """双通道机理：gold 两条 R->P 边（不同键变化），agent 只交付一条 -> 扣分。"""
+    nodes = [
+        MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["[F-]", "CCl"]),
+        MechanismNode(id="TS1", role=NodeRole.TRANSITION_STATE, smiles=[]),
+        MechanismNode(id="TS2", role=NodeRole.TRANSITION_STATE, smiles=[]),
+        MechanismNode(id="P", role=NodeRole.PRODUCT, smiles=["CF", "[Cl-]"]),
+    ]
+    e1 = MechanismEdge(id="E1", **{"from": "R", "to": "P"}, via="TS1",
+                       bond_changes=BondChangeSet(**{"break": [[1, 2]]}, form=[[1, 3]]))
+    e2 = MechanismEdge(id="E2", **{"from": "R", "to": "P"}, via="TS2",
+                       bond_changes=BondChangeSet(**{"break": [[1, 2]]}, form=[[4, 5]]))
+    gold = GoldMechanismGraph(nodes=nodes, edges=[e1, e2])
+    one_path = GoldMechanismGraph(
+        nodes=[n for n in nodes if n.id != "TS2"], edges=[e1],
+    )
+    both = mechanism_similarity(gold, gold, GedConfig())
+    missing = mechanism_similarity(one_path, gold, GedConfig())
+    assert both.score == pytest.approx(1.0)
+    assert missing.score < 1.0  # 平行边没有被覆盖丢失
+
+
+def test_ged_edit_script_uses_species_not_ids():
+    """edit_script 按物种 SMILES 描述差异，不受 agent/gold 节点 id 命名影响。"""
+    gold = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"])
+    # 与 gold 完全同构但节点 id 完全不同：无差异（按 id 做差会全报 missing）
+    agent = GoldMechanismGraph(nodes=[
+        MechanismNode(id="n0", role=NodeRole.REACTANT, smiles=["C=CC=C", "C=C"]),
+        MechanismNode(id="n1", role=NodeRole.TRANSITION_STATE, smiles=[]),
+        MechanismNode(id="n2", role=NodeRole.PRODUCT, smiles=["C1CC=CCC1"]),
+    ], edges=[MechanismEdge(id="e0", **{"from": "n0", "to": "n2"}, via="n1")])
+    assert mechanism_similarity(agent, gold, GedConfig()).edit_script == []
+    # 产物不同：出现 species_missing，且内容是 SMILES 而非节点 id
+    other = _graph(["C=CC=C", "C=C"], ["C1CCCC1"])
+    script = mechanism_similarity(other, gold, GedConfig()).edit_script
+    assert any("species_missing" in s and "C1CC=CCC1" in s for s in script)
 
 
 # --- accuracy ---
@@ -186,10 +270,35 @@ def test_method_policy_submit_compute_job_by_content(tmp_path):
         ("cat > t.inp <<EOF\n! b3lyp def2-svp opt\nEOF", False),
         # QM 输入无方法指令 -> fail-closed
         ("cat > t.gjf <<EOF\njust some coordinates\nEOF", False),
+        # echo/printf 直写重定向同样按内容判定
+        ("printf '# ccsd(t)/cc-pvtz sp\\n' > t.gjf", False),
+        ('echo "# b3lyp/6-31g(d) opt" > t.gjf', False),
+        # 嵌套：QM heredoc 藏进脚本 heredoc 里也要被看到
+        ("cat > run.sh <<OUTER\ncat > t.gjf <<EOF\n# wb97m-v/def2-tzvpd\nEOF\nOUTER", False),
+        # 位移运算与 python heredoc（首行 # 注释）不是 QM 输入
+        ("echo $((1 << 2))", True),
+        ("python3 - <<EOF\n# compute barrier with mace\nprint(1)\nEOF", True),
     ],
 )
 def test_method_policy_bash_content(command, allowed):
     assert intercept("bash", {"command": command}, MethodPolicy()).allowed is allowed
+
+
+def test_method_policy_link1_and_multi_candidate():
+    """--Link1-- 多步输入的每张路由卡都要过白名单；ORCA 多个方法候选即拦。"""
+    policy = MethodPolicy(allowed_methods=["b3lyp"])
+    link1 = (
+        "%chk=s.chk\n#p b3lyp/6-31g(d) opt\n\n0 1\nC 0 0 0\n\n"
+        "--Link1--\n%chk=s.chk\n#p ccsd(t)/cc-pvtz sp\n"
+    )
+    assert not check_input_content(link1, policy, "t.gjf").allowed
+    # 两张卡都白名单 -> 放行
+    link1_ok = link1.replace("ccsd(t)/cc-pvtz", "b3lyp/6-31g(d)")
+    assert check_input_content(link1_ok, policy, "t.gjf").allowed
+    # 白名单方法旁掺杂第二个方法候选 -> 拦
+    assert not check_input_content("! b3lyp dlpno-ccsd(t) def2-svp", policy, "t.inp").allowed
+    # ORCA 裸基组别名不是方法候选
+    assert check_input_content("! rks b3lyp tzvp opt", policy, "t.inp").allowed
 
 
 def test_method_policy_content_whitelisted_method():
@@ -223,6 +332,14 @@ def test_method_policy_files_on_disk(tmp_path):
     # 非 QM 后缀直接跳过
     (tmp_path / "data.xyz").write_text("3\n\nO 0 0 0\n")
     assert check_input_files([tmp_path / "data.xyz"], policy).allowed
+    # QM 后缀文件不可读 -> fail-closed（白名单语义下"读不了"等于"验不了"）
+    unreadable = tmp_path / "locked.gjf"
+    unreadable.write_text("# b3lyp/6-31g(d) opt\n")
+    unreadable.chmod(0)
+    try:
+        assert not check_input_files([unreadable], policy).allowed
+    finally:
+        unreadable.chmod(0o644)
 
 
 # --- integrity ---
@@ -291,6 +408,76 @@ def test_integrity_ts_bound_via_endpoints(tmp_path):
     assert not rep.passed
 
 
+def test_integrity_evidence_smiles_tolerant_formats(tmp_path):
+    """证据 SMILES 注释容忍 JSON/YAML 引号与注释前缀（交付协议的注释行会
+    出现在 .gjf 标题、日志回显、JSON 摘要等各种格式里）。"""
+    g = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["C=CC=C", "C=C"]},
+            {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"]},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P"}],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    (tmp_path / "r.log").write_text('title\n{"smiles": "C=CC=C"}\n# smiles: C=C\n')
+    (tmp_path / "p.log").write_text("smiles: 'C1CC=CCC1'\n")
+    rep = audit_integrity(tmp_path)
+    assert rep.passed, rep.notes
+
+
+def test_integrity_evidence_bracket_smiles_not_truncated(tmp_path):
+    """离子 bracket SMILES（[F-]、[Cl-]）必须完整捕获——正则排除集若误含
+    方括号会把 [Cl-] 截成 [Cl- 导致永远绑不上（干跑实测抓出）。"""
+    g = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["[F-]", "CCl"]},
+            {"id": "P", "role": "product", "smiles": ["CF", "[Cl-]"]},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P"}],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    (tmp_path / "r.gjf").write_text("# title\nsmiles: [F-]\nsmiles: CCl\n")
+    (tmp_path / "p_summary.json").write_text(json.dumps({"smiles": ["CF", "[Cl-]"]}))
+    rep = audit_integrity(tmp_path)
+    assert rep.passed, rep.notes
+
+
+def test_integrity_empty_smiles_species_not_bound(tmp_path):
+    """物种节点不带 SMILES = 只有声明没有可取证内容，不得自动通过。"""
+    g = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": []},
+            {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"]},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P"}],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    (tmp_path / "p.log").write_text("smiles: C1CC=CCC1\n")
+    rep = audit_integrity(tmp_path)
+    matched = {b.node_id: b.matched for b in rep.node_bindings}
+    assert matched["R"] is False
+    assert not rep.passed
+
+
+def test_integrity_delivered_graph_lenient_loading(tmp_path):
+    """交付图宽松加载：agent 多写的键忽略、边缺 id 自动补。"""
+    g = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["CC"], "energy": -40.1},
+            {"id": "P", "role": "product", "smiles": ["CC"], "note": "same"},
+        ],
+        "edges": [{"from": "R", "to": "P", "via": None}],
+        "metadata": {"tool": "whatever"},
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    (tmp_path / "r.log").write_text("smiles: CC\n")
+    rep = audit_integrity(tmp_path)
+    assert rep.graph_parseable
+    assert rep.delivered_graph is not None
+    assert rep.delivered_graph.edges[0].id  # 缺省 id 已自动补
+    assert rep.passed
+
+
 # --- self-consistency ---
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -351,6 +538,23 @@ def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_meta, want_sa
     assert rep.all_first_order is want_saddle
     assert rep.all_irc_connect is want_irc
     assert rep.passed is (want_saddle and want_irc)
+
+
+def test_selfconsistency_ts_numbered_filenames(monkeypatch):
+    """ts1.log / TS2.out 这类编号命名也是 TS 证据（reactants/products 不算）。"""
+    monkeypatch.setattr(
+        selfconsistency, "_frames_for",
+        lambda path: _fake_ts_frames([-500.0], None),
+    )
+    files = [
+        EvidenceFile(path="ts1.log", kind="gaussian"),
+        EvidenceFile(path="TS2.out", kind="orca"),
+        EvidenceFile(path="reactants.log", kind="gaussian"),
+        EvidenceFile(path="products.log", kind="orca"),
+    ]
+    rep = audit_self_consistency(files, Path("."))
+    assert len(rep.ts_checks) == 2
+    assert len(rep.min_checks) == 2  # reactants/products 按极小值检查
 
 
 # --- 题库可复现性 ---

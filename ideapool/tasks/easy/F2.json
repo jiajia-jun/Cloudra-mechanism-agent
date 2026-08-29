@@ -2,12 +2,11 @@
   "task_id": "F2",
   "tier": "easy",
   "family": "F",
-  "name": "CN⁻ + 甲醛 → 氰醇负离子",
+  "name": "CN- + formaldehyde -> cyanohydrin alkoxide",
   "prompt": {
-    "query": "Determine the mechanism of the following reaction (easy tier): CN⁻ + 甲醛 → 氰醇负离子. Reactant SMILES: [C-]#N.C=O; product SMILES: N#CC[O-]; total charge -1, multiplicity 1; conditions: gas phase or aqueous solution. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: CN- + formaldehyde -> cyanohydrin alkoxide. Reactant SMILES: [C-]#N.C=O; product SMILES: N#CC[O-]; total charge -1, multiplicity 1; conditions: gas phase or aqueous solution. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
-    "orchestration_mode": "dag_guided",
-    "seed_graph_template": true
+    "orchestration_mode": "dag_guided"
   },
   "system": {
     "reactants": [
@@ -88,7 +87,7 @@
     },
     "reference_computation": {
       "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 2023.0,
+      "barrier_kcal_mol": null,
       "barrier_type": "Ea",
       "verification": "verified",
       "reference_doi": "10.1021/acs.jctc.3c00907",
@@ -100,12 +99,11 @@
     "integrity": {
       "require_graph_json": true,
       "require_evidence_files": true,
-      "evidence_match": "parse_structure_from_file"
+      "evidence_match": "smiles_annotation"
     },
     "self_consistency": {
       "ts_first_order_saddle": true,
       "irc_connects_endpoints": true,
-      "identity_match": true,
       "min_abs_imag_freq_cm1": 100.0
     },
     "graph_similarity": {

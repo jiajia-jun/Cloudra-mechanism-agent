@@ -3,10 +3,12 @@
 The scorer never trusts the agent's self-declared mechanism. It recursively
 walks the agent's sandbox, extracts the delivered `mechanism_graph.json`, and
 binds each graph element to concrete computational evidence files found on
-disk (parsed structure match, not filename convention). The result is an
-integrity report: is there a parseable graph, and is every claimed node/step
-backed by at least one evidence file whose parsed structure matches the
-claimed SMILES.
+disk. Binding uses the `smiles:` annotation line that the delivery contract
+(the task query) requires in every evidence file — the annotation propagates
+into QM logs because Gaussian/ORCA echo their input title/comment lines.
+The result is an integrity report: is there a parseable graph, and is every
+claimed node/step backed by at least one evidence file whose annotation
+matches the claimed SMILES.
 
 Pure filesystem + parsing; no LLM, no DB.
 """
@@ -19,12 +21,30 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from pydantic import ConfigDict
+
 from cloudra.benchmark.graph_similarity import GedConfig, species_substitution_cost
 from cloudra.benchmark.schema import (
     GoldMechanismGraph,
     IntegrityRubric,
+    MechanismEdge,
+    MechanismNode,
     NodeRole,
 )
+
+
+class _DeliveredNode(MechanismNode):
+    """交付侧节点：忽略 agent 多写的键。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+
+class _DeliveredEdge(MechanismEdge):
+    """交付侧边：忽略多写的键，id 可缺省（加载时补）。"""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    id: str = ""
 
 # file extensions we treat as computational evidence worth parsing for SMILES
 _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".mol", ".json"}
@@ -32,7 +52,12 @@ _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".
 # 超过该大小的文件只做类型分类、不整读扫 SMILES，避免评分期内存尖峰
 _MAX_SCAN_BYTES = 20 * 1024 * 1024
 
-_SMILES_LINE_RE = re.compile(r"\bsmiles\s*[:=]\s*([^\s,;]+)", re.IGNORECASE)
+# `smiles:` 注释行是交付协议的一部分（query 明确要求证据文件携带）。
+# 容忍 JSON/YAML 引号与注释前缀："smiles": "X"、smiles: 'X'、# smiles: X。
+# 注意不能把 [ ] 排除在捕获集外——离子/ bracket SMILES（[F-]、[OH3+]）依赖它们。
+_SMILES_LINE_RE = re.compile(
+    r"[\"']?\bsmiles\b[\"']?\s*[:=]\s*[\"']?([^\s,;\"'}]+)", re.IGNORECASE
+)
 
 
 @dataclass
@@ -84,22 +109,57 @@ def find_graph_json(sandbox: Path) -> Optional[Path]:
 
 
 def load_delivered_graph(path: Path) -> Optional[GoldMechanismGraph]:
-    """Parse a delivered graph JSON into GoldMechanismGraph (the agent-facing
-    wire shape is the same node/edge structure)."""
+    """Parse a delivered graph JSON into GoldMechanismGraph.
+
+    交付侧宽松加载（Postel）：agent 多写的键（energy/metadata 等）忽略、
+    边缺 id 自动补；gold 侧仍由 strict schema 约束。"""
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except Exception:
         return None
+    if not isinstance(data, dict):
+        return None
     try:
-        return GoldMechanismGraph.model_validate(data)
+        nodes = [_DeliveredNode.model_validate(n) for n in data.get("nodes", [])]
+        edges = [_DeliveredEdge.model_validate(e) for e in data.get("edges", [])]
+        return GoldMechanismGraph(
+            nodes=[MechanismNode(**n.model_dump()) for n in nodes],
+            edges=[
+                MechanismEdge(**(e.model_dump() | {"id": e.id or f"e{i}"}))
+                for i, e in enumerate(edges)
+            ],
+        )
     except Exception:
         return None
 
 
+def _smiles_in_json(obj) -> list[str]:
+    """结构化收集 JSON 里 smiles 键的值（含数组）。"""
+    found: list[str] = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k.lower() == "smiles":
+                if isinstance(v, str):
+                    found.append(v)
+                elif isinstance(v, list):
+                    found.extend(s for s in v if isinstance(s, str))
+            else:
+                found.extend(_smiles_in_json(v))
+    elif isinstance(obj, list):
+        for item in obj:
+            found.extend(_smiles_in_json(item))
+    return found
+
+
 def _smiles_in_text(text: str) -> list[str]:
-    out: list[str] = []
-    for m in _SMILES_LINE_RE.finditer(text):
-        out.append(m.group(1))
+    out = [m.group(1) for m in _SMILES_LINE_RE.finditer(text)]
+    # JSON 摘要文件：正则抓到的是引号内首个值，数组形式走结构化兜底
+    try:
+        data = json.loads(text)
+    except Exception:
+        data = None
+    if isinstance(data, (dict, list)):
+        out.extend(_smiles_in_json(data))
     return out
 
 
@@ -190,7 +250,8 @@ def bind_graph_to_evidence(
         if node.id in ts_ids:
             continue  # 第二趟按边端点判定
         if not node.smiles:
-            nb.matched = True  # 无 SMILES 的物种节点没有可绑定的内容
+            # 物种节点不带 SMILES = 只有声明没有可取证内容，不予绑定；
+            # 否则 agent 把 SMILES 全留空即可零证据通过本层。
             continue
         all_components_matched = True
         for component in node.smiles:
@@ -247,6 +308,11 @@ def audit_integrity(
     report.graph_parseable = True
     report.delivered_graph = graph
 
+    if rubric.evidence_match != "smiles_annotation":
+        report.notes.append(
+            f"evidence_match='{rubric.evidence_match}' not implemented; "
+            "falling back to smiles_annotation binding"
+        )
     report.evidence_files = scan_evidence_files(sandbox)
     report.node_bindings = bind_graph_to_evidence(graph, report.evidence_files, cfg)
 

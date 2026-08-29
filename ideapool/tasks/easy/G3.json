@@ -2,12 +2,11 @@
   "task_id": "G3",
   "tier": "easy",
   "family": "G",
-  "name": "丙烯 + 乙烯 ene 反应（Alder-ene）",
+  "name": "propylene + ethylene ene reaction (Alder-ene)",
   "prompt": {
-    "query": "Determine the mechanism of the following reaction (easy tier): 丙烯 + 乙烯 ene 反应（Alder-ene）. Reactant SMILES: C=CC.C=C; product SMILES: C=CCCC; total charge 0, multiplicity 1; conditions: gas phase, high temperature. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: propylene + ethylene ene reaction (Alder-ene). Reactant SMILES: C=CC.C=C; product SMILES: C=CCCC; total charge 0, multiplicity 1; conditions: gas phase, high temperature. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
-    "orchestration_mode": "dag_guided",
-    "seed_graph_template": true
+    "orchestration_mode": "dag_guided"
   },
   "system": {
     "reactants": [
@@ -98,12 +97,11 @@
     "integrity": {
       "require_graph_json": true,
       "require_evidence_files": true,
-      "evidence_match": "parse_structure_from_file"
+      "evidence_match": "smiles_annotation"
     },
     "self_consistency": {
       "ts_first_order_saddle": true,
       "irc_connects_endpoints": true,
-      "identity_match": true,
       "min_abs_imag_freq_cm1": 100.0
     },
     "graph_similarity": {

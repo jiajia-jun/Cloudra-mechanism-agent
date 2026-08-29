@@ -126,8 +126,8 @@ def species_substitution_cost(smiles_a: list[str], smiles_b: list[str], cfg: Ged
     if not smiles_a and not smiles_b:
         return 0.0
     if not _HAVE_RDKIT:
-        # 无 RDKit 时退化为集合相等：相同 0，不同 1
-        return 0.0 if set(smiles_a) == set(smiles_b) else 1.0
+        # 无 RDKit 时退化为多重集相等（排序列表比较，保留重复组分）：相同 0，不同 1
+        return 0.0 if sorted(smiles_a) == sorted(smiles_b) else 1.0
 
     # molhash shortcut: identical canonical hash for every species -> 0
     ha = sorted(_molhash(s, cfg.stereo_free) or s for s in smiles_a)
@@ -161,12 +161,15 @@ def species_substitution_cost(smiles_a: list[str], smiles_b: list[str], cfg: Ged
 # ---------------------------------------------------------------------------
 
 
-def _lift(graph: GoldMechanismGraph) -> nx.DiGraph:
+def _lift(graph: GoldMechanismGraph) -> nx.MultiDiGraph:
     """Fold TS nodes into edges: node attribute 'smiles'; edge attribute
     'bond_changes' (frozenset) and 'has_ts' bool. TS nodes carry no SMILES in
     the gold reference, so they are not compared as species; their presence /
-    correctness is encoded on the edge."""
-    g = nx.DiGraph()
+    correctness is encoded on the edge.
+
+    MultiDiGraph：同一对物种间可能有多条基元步边（双通道机理），普通
+    DiGraph 会互相覆盖丢边。"""
+    g = nx.MultiDiGraph()
     ts_ids = {n.id for n in graph.nodes if n.role.value == "transition_state"}
     for n in graph.nodes:
         if n.id in ts_ids:
@@ -221,7 +224,7 @@ def mechanism_similarity(
     def edge_subst(a, b):
         return _edge_subst(a, b, cfg)
 
-    distance = nx.optimize_graph_edit_distance(
+    gen = nx.optimize_graph_edit_distance(
         ga,
         gg,
         node_subst_cost=node_subst,
@@ -231,9 +234,9 @@ def mechanism_similarity(
         edge_del_cost=lambda e: cfg.edge_delete_cost,
         edge_ins_cost=lambda e: cfg.edge_insert_cost,
     )
-    # next() gives the best (first) result of the generator
-    if not isinstance(distance, (int, float)):
-        distance = next(distance)
+    # 生成器逐个产出逐步改进的上界（networkx 文档语义），取最小值即最优近似；
+    # 取第一个产出会系统性高估距离。
+    distance = min(gen) if not isinstance(gen, (int, float)) else gen
 
     max_distance = (
         cfg.node_delete_cost * max(ga.number_of_nodes(), gg.number_of_nodes())
@@ -246,17 +249,32 @@ def mechanism_similarity(
     return GedResult(score=score, distance=float(distance), max_distance=float(max_distance), edit_script=edit_script)
 
 
-def _describe_edits(ga: nx.DiGraph, gg: nx.DiGraph) -> list[str]:
+def _describe_edits(ga: nx.MultiDiGraph, gg: nx.MultiDiGraph) -> list[str]:
+    """Human-readable structural diff. Agent 与 gold 的节点 id 命名空间不同，
+    按 id 做差永远得到"全 removed/missing"，因此按物种 SMILES 多重集与
+    （端点 SMILES + 键变化）描述的步骤多重集来描述差异。"""
+    def species(multigraph):
+        return sorted(tuple(sorted(attrs.get("smiles", ()))) for _, attrs in multigraph.nodes(data=True))
+
+    def steps(multigraph):
+        return sorted(
+            (
+                tuple(sorted(multigraph.nodes[u].get("smiles", ()))),
+                tuple(sorted(multigraph.nodes[v].get("smiles", ()))),
+                tuple(sorted(attrs.get("bond_changes", frozenset()))),
+            )
+            for u, v, attrs in multigraph.edges(data=True)
+        )
+
     out = []
-    ga_nodes, gg_nodes = set(ga.nodes), set(gg.nodes)
-    for n in sorted(ga_nodes - gg_nodes):
-        out.append(f"node_removed:{n}")
-    for n in sorted(gg_nodes - ga_nodes):
-        out.append(f"node_missing:{n}")
-    ga_edges = set(ga.edges())
-    gg_edges = set(gg.edges())
-    for a, b in sorted(ga_edges - gg_edges):
-        out.append(f"edge_removed:{a}->{b}")
-    for a, b in sorted(gg_edges - ga_edges):
-        out.append(f"edge_missing:{a}->{b}")
+    sa, sg = species(ga), species(gg)
+    for s in sorted(set(sa) - set(sg)):
+        out.append(f"species_removed:{list(s)}")
+    for s in sorted(set(sg) - set(sa)):
+        out.append(f"species_missing:{list(s)}")
+    ea, eg = steps(ga), steps(gg)
+    for e in sorted(set(ea) - set(eg)):
+        out.append(f"step_removed:{e}")
+    for e in sorted(set(eg) - set(ea)):
+        out.append(f"step_missing:{e}")
     return out

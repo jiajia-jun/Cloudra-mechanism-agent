@@ -137,7 +137,6 @@ class PromptSpec(BaseModel):
     query: str = Field(min_length=1)
     role: str = "coordinator"
     orchestration_mode: OrchestrationMode = OrchestrationMode.DAG_GUIDED
-    seed_graph_template: bool = True
 
 
 class SystemSpec(BaseModel):
@@ -221,17 +220,21 @@ class IntegrityRubric(BaseModel):
 
     require_graph_json: bool = True
     require_evidence_files: bool = True
-    evidence_match: Literal["parse_structure_from_file", "filename_convention"] = (
-        "parse_structure_from_file"
+    # 证据绑定方式：当前实现是 smiles 注释匹配（交付协议要求证据文件携带
+    # `smiles:` 注释行）；parse_structure_from_file 为保留档位，未实现。
+    evidence_match: Literal["smiles_annotation", "parse_structure_from_file"] = (
+        "smiles_annotation"
     )
 
 
 class SelfConsistencyRubric(BaseModel):
+    """Layer 2 物理自检。物种身份（SMILES 一致性）由 Layer 1 的证据绑定承担，
+    不在此重复检查。"""
+
     model_config = ConfigDict(extra="forbid")
 
     ts_first_order_saddle: bool = True   # n_imag == 1
     irc_connects_endpoints: bool = True
-    identity_match: bool = True
     min_abs_imag_freq_cm1: float = 100.0  # exclude conformational fake TS
 
 
