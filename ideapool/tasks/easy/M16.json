@@ -24,7 +24,7 @@
       "H",
       "O"
     ],
-    "max_heavy_atoms": 2,
+    "max_heavy_atoms": 3,
     "closed_shell": true,
     "single_step": true
   },
@@ -85,10 +85,11 @@
       ]
     },
     "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
+      "level_of_theory": "literature anchor (curated in easy.md; no DOI on record)",
       "barrier_kcal_mol": 65.0,
-      "barrier_type": "Ea",
-      "verification": "verified",
+      "barrier_type": "ΔE‡",
+      "barrier_reference": "reactants",
+      "verification": "partial",
       "reference_doi": "",
       "computed_by_us": false
     }

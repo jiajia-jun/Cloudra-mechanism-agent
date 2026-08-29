@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 from cloudra.benchmark.schema import (
+    BarrierReference,
     BarrierType,
     GoldMechanismGraph,
     GoldSpec,
@@ -55,6 +56,15 @@ _BARRIER_TYPE_MAP = {
     "ΔE‡": BarrierType.DE,
     "ΔG‡": BarrierType.DG,
     "Ea": BarrierType.EA,
+}
+
+# 能垒口径（barrier_reference）按 task_id 显式登记：双阱型离子-分子反应里
+# "中央能垒"（TS 相对离子-偶极络合物）与"TS 相对反应物渐近线"相差一个
+# 络合物阱深，无法从单元格文本可靠解析，只能人工登记。未登记且能垒非空的
+# 题默认 REACTANTS（中性体系与分子内过程的天然口径）；能垒缺测时记 None。
+_BARRIER_REFERENCE = {
+    "C1": BarrierReference.CENTRAL,
+    "E1": BarrierReference.CENTRAL,
 }
 
 # 条件列中译英（按原字符串映射；新增条件必须在此登记，否则生成直接报错）。
@@ -125,7 +135,7 @@ _STEP_TYPE_EN = {
     "X1": "concerted asynchronous C-C/C-O cleavage, CO2 extrusion",
     "C1": "backside attack, single step, exothermic",
     "C2": "backside attack, single step (C-end attack of ambident nucleophile)",
-    "C3": "proton-abstraction-induced inversion followed by second inversion, Cs-symmetric double-inversion TS, net retention",
+    "C3": "double inversion (retention): proton-abstraction-induced inversion to a [FH...CH2Cl]- intermediate, then a second inversion; gold models the rate-determining Cs-symmetric TS as a single step",
     "E1": "anti-periplanar concerted elimination, single step (competes with SN2)",
     "F1": "hydride transfer, single step via asynchronous TS",
     "F2": "anion nucleophilic addition to carbonyl, single step (Burgi-Dunitz trajectory ~107 deg)",
@@ -169,13 +179,14 @@ def _parse_smiles_cell(cell: str) -> tuple[list[str], list[str], int, int] | Non
     return r, p, q, mult
 
 
-def _parse_barrier(cell: str) -> tuple[float | None, BarrierType, VerificationStatus, str]:
+def _parse_barrier(cell: str) -> tuple[float | None, BarrierType | None, VerificationStatus, str]:
     """Return (barrier_kcal, barrier_type, verification, doi).
 
     能垒锚点只取引用括号之前的文本——括号里是文献出处（年份、卷页、DOI），
     从整格抓第一个数字会把年份（2023）或键长（2.4 Å）当成能垒。百分数
     （"能垒降 ~30%"）跳过。找不到锚点数字时返回 None（诚实缺测），并拒绝
-    >200 kcal/mol 的离谱值（fail-loud 防回归）。"""
+    >200 kcal/mol 的离谱值（fail-loud 防回归）。类型只认单元格里显式写的
+    Ea/ΔH‡/ΔE‡/ΔG‡ 记号；没写就是 None，不默认贴 Ea 标签。"""
     vtag = VERIFY_RE.search(cell)
     verification = _VERIFY_MAP.get(vtag.group(1), VerificationStatus.UNVERIFIED) if vtag else VerificationStatus.UNVERIFIED
     doi_m = re.search(r"DOI\s+([0-9.]+/\S*?)(?=[\s，。；）]|$)", cell)
@@ -184,7 +195,7 @@ def _parse_barrier(cell: str) -> tuple[float | None, BarrierType, VerificationSt
     while doi.endswith(")") and doi.count(")") > doi.count("("):
         doi = doi[:-1]
 
-    btype = BarrierType.EA
+    btype: BarrierType | None = None
     for k, v in _BARRIER_TYPE_MAP.items():
         if k in cell:
             btype = v
@@ -279,6 +290,9 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
             continue
         reactants, products, q, mult = parsed
         barrier, btype, verification, doi = _parse_barrier(barrier_cell)
+        # 口径无法从文本可靠解析，按 task_id 登记（见 _BARRIER_REFERENCE）；
+        # 有能垒但未登记的题默认 reactants 口径
+        barrier_ref = _BARRIER_REFERENCE.get(task_id, BarrierReference.REACTANTS) if barrier is not None else None
         elements, heavy = _parse_comfort(comfort_cell)
         # M 组第 4 列是过程类型而非条件（类型已并入 step_type 英译）；
         # 映射表未收录的条件/概要直接 KeyError 报错，防止静默漏译。
@@ -309,9 +323,14 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
             gold=GoldSpec(
                 mechanism_graph=graph,
                 reference_computation=ReferenceComputation(
-                    level_of_theory="literature anchor (see reference_doi)",
+                    level_of_theory=(
+                        "literature anchor (see reference_doi)"
+                        if doi
+                        else "literature anchor (curated in easy.md; no DOI on record)"
+                    ),
                     barrier_kcal_mol=barrier,
                     barrier_type=btype,
+                    barrier_reference=barrier_ref,
                     verification=verification,
                     reference_doi=doi,
                     computed_by_us=False,

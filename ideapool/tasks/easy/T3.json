@@ -84,8 +84,9 @@
     },
     "reference_computation": {
       "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 29.0,
-      "barrier_type": "Ea",
+      "barrier_kcal_mol": 34.9,
+      "barrier_type": "ΔE‡",
+      "barrier_reference": "reactants",
       "verification": "verified",
       "reference_doi": "10.1016/s0009-2614(96)01253-5",
       "computed_by_us": false

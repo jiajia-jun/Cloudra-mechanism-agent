@@ -57,8 +57,8 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **`benchmark/` — 基准评测框架（独立于会话运行时）**
 
-- `schema.py` — 任务 JSON 的唯一 schema（`TaskSpec`：prompt/system/method_policy/gold/rubric）；机理图节点/边携带原子映射的键变化集，agent 侧线缆键用别名（`from`/`to`/`break`）。
-- `gen_easy_tasks.py` — 从 `ideapool/reaction_candidates/easy.md` 确定性生成 `ideapool/tasks/easy/*.json`（30 题）；改题源后重跑 `python -m cloudra.benchmark.gen_easy_tasks`，`test_easy_tasks_regenerate_identically` 守卫题库与生成器同步。
+- `schema.py` — 任务 JSON 的唯一 schema（`TaskSpec`：prompt/system/method_policy/gold/rubric）；机理图节点/边携带原子映射的键变化集，agent 侧线缆键用别名（`from`/`to`/`break`）。gold 的能垒锚点另记类型（`barrier_type`，题源未显式注明则为 null，不默认贴 Ea）与口径（`barrier_reference`：`central_complex` = TS 相对离子-偶极络合物 / `reactants` = TS 相对反应物渐近线；仅元数据，评分只读 `barrier_kcal_mol`）。
+- `gen_easy_tasks.py` — 从 `ideapool/reaction_candidates/easy.md` 确定性生成 `ideapool/tasks/easy/*.json`（30 题）；改题源后重跑 `python -m cloudra.benchmark.gen_easy_tasks`，`test_easy_tasks_regenerate_identically` 守卫题库与生成器同步。能垒口径无法从题源文本解析，按 task_id 登记在 `_BARRIER_REFERENCE`（默认 reactants，C1/E1 为中央能垒）。
 - `graph_similarity.py` — 化学参数化 GED（networkx 硬依赖；RDKit 可选，缺失时节点代价退化为 SMILES 集合相等）。
 - `integrity.py` / `selfconsistency.py` / `accuracy.py` — 三层取证评分：沙箱扫描+证据绑定（证据文件按交付协议携带 `smiles:` 注释行；TS 节点仅经边端点间接绑定；交付图宽松加载、gold 图 strict）→ 鞍点/IRC/极小值物理自检（复用 `tools/core` 的 gaussian/orca frames 解析；TS 证据按文件名 `ts` token 识别，其余 QM 日志按极小值检查）→ 能垒高斯容差评分。
 - `method_policy.py` — 方法白名单拦截判定（纯函数；`qm_input_writer` 查 method 字段精确白名单；`submit_compute_job` 无 method 字段，读 input_file **文件内容**判定；bash 层解析 heredoc/echo-printf 重定向写入的 QM 输入内容（Gaussian 全部路由卡含 --Link1--/ORCA 关键字行），不扫描命令文本；引用磁盘已有输入的调用走 `check_input_files`；所有方法候选须全部命中白名单，无法解析方法时 fail-closed）。

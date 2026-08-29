@@ -87,6 +87,7 @@
       "level_of_theory": "literature anchor (see reference_doi)",
       "barrier_kcal_mol": 27.5,
       "barrier_type": "Ea",
+      "barrier_reference": "reactants",
       "verification": "verified",
       "reference_doi": "10.1021/jp012740f",
       "computed_by_us": false

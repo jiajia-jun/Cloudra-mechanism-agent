@@ -82,9 +82,10 @@
       ]
     },
     "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
+      "level_of_theory": "literature anchor (curated in easy.md; no DOI on record)",
       "barrier_kcal_mol": 5.8,
-      "barrier_type": "Ea",
+      "barrier_type": null,
+      "barrier_reference": "reactants",
       "verification": "verified",
       "reference_doi": "",
       "computed_by_us": false

@@ -42,6 +42,15 @@ class BarrierType(str, Enum):
     DG = "ΔG‡"         # activation free energy
 
 
+class BarrierReference(str, Enum):
+    """能垒锚点的参考系。双阱型离子-分子反应里"中央能垒"（TS 相对离子-偶极
+    络合物）与"TS 相对反应物渐近线"相差一个络合物阱深，必须分开记录，
+    否则同一体系的两个口径会被误判成 ~10 kcal/mol 的偏差。"""
+
+    CENTRAL = "central_complex"  # TS relative to the ion-dipole complex
+    REACTANTS = "reactants"      # TS relative to the separated reactants
+
+
 class VerificationStatus(str, Enum):
     VERIFIED = "verified"          # literature confirmed via web search
     PARTIAL = "partial"            # literature exists, numbers from memory
@@ -189,7 +198,9 @@ class ReferenceComputation(BaseModel):
 
     level_of_theory: str = ""
     barrier_kcal_mol: Optional[float] = None
-    barrier_type: BarrierType = BarrierType.EA
+    # 源文档未显式注明类型/口径时保持 None（诚实缺测），不默认贴 Ea 标签
+    barrier_type: Optional[BarrierType] = None
+    barrier_reference: Optional[BarrierReference] = None
     verification: VerificationStatus = VerificationStatus.UNVERIFIED
     reference_doi: str = ""
     computed_by_us: bool = False
