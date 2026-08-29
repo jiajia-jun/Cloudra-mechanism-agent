@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: 基于SAPT与AIM分析氢键本质及强度估算
 cards: 13
 ---
-
-# 基于SAPT与AIM分析氢键本质及强度估算 — 知识卡片
-
 ## 1. 文献来源与背景
 
-2019年9月北京科音自然科学研究中心、伊朗Islamic Azad大学以及捷克科学院的研究者在J. Comput. Chem.发表了题为Exploring Nature and Predicting Strength of Hydrogen Bonds: A Correlation Analysis Between Atoms-in-Molecules Descriptors, Binding Energy and SAPT theory的文章(DOI: 10.1002/jcc.26068)。此文章利用量子化学计算和波函数分析充分讨论了氢键的本质，提出了新的氢键分类和估计氢键强度的方法，文中波函数分析全部使用Multiwfn程序完成。
-
----
+2019年9月北京科音自然科学研究中心、伊朗Islamic Azad大学以及捷克科学院的研究者在J. Comput. Chem.发表了题为Exploring Nature and Predicting Strength of Hydrogen Bonds: A Correlation Analysis Between Atoms-in-Molecules Descriptors, Binding Energy and SAPT theory的文章(DOI: 10.1002/jcc.26068)。该文章利用量子化学计算和波函数分析充分讨论了氢键的本质，提出了新的氢键分类和估计氢键强度的方法，文中波函数分析全部使用Multiwfn程序完成。
 
 ## 2. 氢键数据集构成与计算级别
 

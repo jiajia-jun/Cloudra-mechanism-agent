@@ -6,21 +6,16 @@ domain: Gaussian使用
 topic: GauMD2xyz转换BOMD轨迹为xyz
 cards: 3
 ---
+## 1. GauMD2xyz程序简介与下载
 
-# GauMD2xyz转换BOMD轨迹为xyz — 知识卡片
+GauMD2xyz程序用于将Gaussian的BOMD或ADMP任务产生的轨迹转化为多帧.xyz格式以便进行动力学可视化分析。当前程序最新版本为1.2，下载地址为http://原作者.com/soft/GauMD2xyz_1.2.zip。压缩包中带.exe后缀的文件为Windows版可执行文件，无后缀的文件为Linux版可执行文件。xyz格式介绍见http://原作者.com/477。
 
-## 1. GauMD2xyz程序简介与版本
+## 2. GauMD2xyz程序操作步骤
 
-GauMD2xyz程序用于将Gaussian的BOMD或ADMP任务产生的轨迹转化为多帧.xyz格式，以便被VMD等动力学可视化程序分析。当前最新版本为1.2，下载地址为http://sobereva.com/soft/GauMD2xyz_1.2.zip。压缩包中带.exe后缀的是Windows版可执行文件，无后缀的是Linux版可执行文件。
-
----
-
-## 2. 程序的操作步骤
-
-首先在Gaussian中执行BOMD或ADMP任务，之后启动GauMD2xyz程序。用户需输入fch/fchk文件名或者Gaussian输出文件名（必须以.out或.log为后缀），然后输入要产生的.xyz文件路径。文件包中的test目录包含了一些例子可供参考。
+使用GauMD2xyz程序需首先在Gaussian中执行BOMD或ADMP任务。启动本程序后，需要输入fch/fchk文件名或者Gaussian输出文件名（必须以.out或.log为后缀），然后输入要产生的.xyz文件路径。文件包中的test目录包含了一些示例文件。
 
 ---
 
-## 3. 多轨迹轨迹选择
+## 3. 多轨迹处理机制
 
-如果Gaussian中的BOMD任务参数ntraj设为大于1，即计算了多条轨迹，本程序会提示用户选择具体要读入并转换哪一条轨迹。
+如果BOMD任务的参数ntraj被设置为大于1，即计算包含多条轨迹，本程序在运行过程中会提示用户选择要读入哪条轨迹。

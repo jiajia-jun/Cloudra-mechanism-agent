@@ -6,9 +6,6 @@ domain: 软件安装与环境
 topic: MOPAC程序Windows及Linux安装配置
 cards: 5
 ---
-
-# MOPAC程序Windows及Linux安装配置 — 知识卡片
-
 ## 1. 下载MOPAC程序及版本选择建议
 
 Windows版下载页面上最新的即可；Linux版建议下载"Download 64-bit MOPAC2016 for LINUX"，不要下载Latest open-source release下面的Linux版，否则安装时需要图形库；GPU版加速效果很有限，可以无视。
@@ -20,7 +17,7 @@ Windows版下载页面上最新的即可；Linux版建议下载"Download 64-bit 
 
 启动Multiwfn，载入含有结构信息的文件，进入主功能100的子功能2，再选14，输入要产生的MOPAC输入文件路径，选一个理论方法如PM7；选择理论方法之前可以设置是否用溶剂模型、是否冻结原子、要做的任务之类。
 - 支持的输入文件格式: xyz/pdb/gjf/fch/mol/mol2/mwfn等
-- 出处: http://sobereva.com/multiwfn
+- 出处: http://原作者.com/multiwfn
 
 ---
 
@@ -35,9 +32,9 @@ Windows版下载页面上最新的即可；Linux版建议下载"Download 64-bit 
 
 将压缩包解压到目标目录（如/sob/MOPAC2016），在用户主目录下的.bashrc文件末尾添加环境变量，重新进入终端使设置生效，然后给目录下的文件加上可执行权限。
 - 环境变量设置:
-  `export MOPAC_LICENSE=/sob/MOPAC2016`
-  `export PATH=$PATH:/sob/MOPAC2016`
-  `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sob/MOPAC2016`
+ `export MOPAC_LICENSE=/sob/MOPAC2016`
+ `export PATH=$PATH:/sob/MOPAC2016`
+ `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sob/MOPAC2016`
 - 添加权限命令: `chmod +x /sob/MOPAC2016/*`
 
 ---

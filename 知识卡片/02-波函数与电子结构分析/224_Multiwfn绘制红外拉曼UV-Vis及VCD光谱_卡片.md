@@ -6,15 +6,16 @@ domain: 波函数与电子结构分析
 topic: Multiwfn绘制红外拉曼UV-Vis及VCD光谱
 cards: 20
 ---
-
-# Multiwfn绘制红外拉曼UV-Vis及VCD光谱 — 知识卡片
-
 ## 1. 理论光谱产生的原理
 
 理论光谱计算给出离散的跃迁数据（如跃迁能和振子强度），实验光谱是连续的吸收曲线。将理论模拟与实验对比需对每个跃迁进行展宽形成峰形，再将所有跃迁展宽后的曲线Y值相加得到总曲线。峰位置不一定总是对应特定跃迁能，因所有跃迁对附近范围皆有贡献。考察各跃迁独立贡献有助于避免对峰本质的错误指认。
 - 光谱类型包括红外、拉曼、UV-Vis、ECD、VCD。
 - 展宽过程通过展宽函数和半高全宽FWHM实现。
-- 引用来源：http://sobereva.com/multiwfn
+- 引用来源：http://原作者.com/multiwfn
+
+---
+
+
 
 ---
 
@@ -88,10 +89,14 @@ ROA（拉曼光学活性）测量散射右旋与左旋圆偏振光强度差值(I
 
 ## 10. Multiwfn支持的输入文件格式
 
-Multiwfn支持从Gaussian、ORCA、sTDA、xtb、CP2K的输出文件或自定义文本文件读取数据。文本文件格式要求首行为“numdata inptype”，后续行为“energy strength [FWHM]”。
+Multiwfn支持从Gaussian、ORCA、sTDA、xtb、CP2K的输出文件或自定义文该资料件读取数据。文该资料件格式要求首行为“numdata inptype”，后续行为“energy strength [FWHM]”。
 - intype为1时自动设定FWHM，为2时读取各跃迁FWHM。
 - 振动光谱能量单位为cm^-1，电子光谱为eV。
 - xtb 6.5+版本输出vibspectrum文件可用于红外光谱。
+
+---
+
+
 
 ---
 
@@ -161,7 +166,7 @@ VCD光谱选主功能11->5，ECD选4。ECD可选长度或速度表象转子强�
 ## 19. 构象权重平均光谱
 
 柔性分子实际光谱需考虑玻尔兹曼分布下各构象的权重。在Multiwfn中可极为容易地绘制此类权重平均光谱。
-- 具体方法见《使用Multiwfn绘制构象权重平均的光谱》(http://sobereva.com/383)。
+- 具体方法见《使用Multiwfn绘制构象权重平均的光谱》(http://原作者.com/383)。
 
 ---
 

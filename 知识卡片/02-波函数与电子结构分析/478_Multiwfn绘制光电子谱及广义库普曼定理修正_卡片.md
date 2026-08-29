@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn绘制光电子谱及广义库普曼定理修正
 cards: 13
 ---
-
-# Multiwfn绘制光电子谱及广义库普曼定理修正 — 知识卡片
-
 ## 1. 光电子谱绘制功能的发布时间与文献应用
 
 Multiwfn程序自2019年4月27日更新后加入了专门的光电子谱(PES)绘制功能，在此之前版本无法使用此功能。该功能发布后已被多篇文献使用作图发表，如Mater. Today Adv., 6, 100070 (2020)、J. Phys. Chem. C, 123, 28561 (2019)、Comput. Theor. Chem., 1170, 112635 (2019)、Int. J. Quantum Chem., 120, e26087 (2019)、Int. J. Quantum Chem., e26457 (2020)以及New J. Chem. (2020) DOI: 10.1039/D0NJ03483E等。
@@ -47,7 +44,7 @@ PES曲线通过给每个轨道赋予强度值，利用Gaussian函数展宽后叠
 
 ## 7. Multiwfn绘制PES的输入文件类型
 
-绘制PES支持的输入文件类型包括fch/fchk、chk、molden、gms、Gaussian的pop=full输出文件，或符合手册3.12.2节格式的包含轨道能级信息的文本文件。使用chk文件需在settings.ini中设定formchkpath，具体说明详见《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》。
+绘制PES支持的输入文件类型包括fch/fchk、chk、molden、gms、Gaussian的pop=full输出文件，或符合手册3.12.2节格式的包含轨道能级信息的文该资料件。使用chk文件需在settings.ini中设定formchkpath，具体说明详见《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》。
 
 ---
 

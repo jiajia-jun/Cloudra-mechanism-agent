@@ -6,12 +6,13 @@ domain: 软件安装与环境
 topic: GROMACS原生Windows版编译与GPU加速
 cards: 17
 ---
-
-# GROMACS原生Windows版编译与GPU加速 — 知识卡片
-
 ## 1. 原生Windows版GROMACS编译适用范围
 
-本文以2019.1版为例说明编译过程。纯CPU版编译方法经测试适用于GROMACS 2018、2019各版本，编译CUDA GPU加速版的方法经测试适用于GROMACS 2019.1及之后的2019.x版、2020.x版。本文仅涉及编译单精度版、单节点并行、64bit版本的情况。
+以2019.1版为例说明编译过程。纯CPU版编译方法经测试适用于GROMACS 2018、2019各版本，编译CUDA GPU加速版的方法经测试适用于GROMACS 2019.1及之后的2019.x版、2020.x版。此处仅涉及编译单精度版、单节点并行、64bit版本的情况。
+
+---
+
+
 
 ---
 
@@ -109,7 +110,7 @@ cmake --build . --target INSTALL --config Release
 
 ## 14. 预编译版GROMACS的获取与版本信息
 
-博主提供了预编译的GROMACS Windows 64bit版，包括2018.8 CPU版（AVX）、2019.6 CUDA GPU加速版（AVX）、2020.3 CUDA GPU加速版（AVX）和2020.6 CUDA GPU加速版（AVX2，需驱动>=471.11版）。
+原作者提供了预编译的GROMACS Windows 64bit版，包括2018.8 CPU版（AVX）、2019.6 CUDA GPU加速版（AVX）、2020.3 CUDA GPU加速版（AVX）和2020.6 CUDA GPU加速版（AVX2，需驱动>=471.11版）。
 
 ---
 

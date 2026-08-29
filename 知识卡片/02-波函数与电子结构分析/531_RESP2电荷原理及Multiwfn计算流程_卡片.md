@@ -6,12 +6,13 @@ domain: 波函数与电子结构分析
 topic: RESP2电荷原理及Multiwfn计算流程
 cards: 12
 ---
-
-# RESP2电荷原理及Multiwfn计算流程 — 知识卡片
-
 ## 1. RESP电荷及其对计算级别的依赖性
 
-RESP是几乎最适合用于分子动力学模拟的原子电荷计算方法，其具体数值明显依赖于计算电子波函数用的量子化学方法和基组，以及对溶剂效应的考虑。相关详细介绍见《RESP拟合静电势电荷的原理以及在Multiwfn中的计算》(http://sobereva.com/441)。目前已有使用Multiwfn计算RESP2电荷的文章发表，如Nature Energy (2023) DOI: 10.1038/s41560-023-01275-y、Chem. Phys. Lett., 754, 137707 (2020)。使用本文介绍的方法需要在文章中恰当引用Multiwfn，引用方式见《Multiwfn FAQ》(http://sobereva.com/452)。
+RESP是几乎最适合用于分子动力学模拟的原子电荷计算方法，其具体数值明显依赖于计算电子波函数用的量子化学方法和基组，以及对溶剂效应的考虑。相关详细介绍见《RESP拟合静电势电荷的原理以及在Multiwfn中的计算》(http://原作者.com/441)。目前已有使用Multiwfn计算RESP2电荷的文章发表，如Nature Energy (2023) DOI: 10.1038/s41560-023-01275-y、Chem. Phys. Lett., 754, 137707 (2020)。使用该方法需要在文章中恰当引用Multiwfn，引用方式见《Multiwfn FAQ》(http://原作者.com/452)。
+
+---
+
+
 
 ---
 
@@ -77,5 +78,5 @@ Linux脚本calcRESP.sh位于Multiwfn文件包的examples\RESP2目录下，使用
 
 ## 12. 基于已有结构或使用ORCA计算RESP2电荷的脚本选项
 
-若输入结构文件已足够好，可使用examples\RESP\目录下的RESP2_noopt.sh跳过优化步骤，用法与RESP2.sh完全相同。如果没有购买Gaussian，可以使用免费的ORCA量子化学程序结合Multiwfn计算RESP2电荷，详见《ORCA结合Multiwfn计算RESP、RESP2和1.2*CM5原子电荷的懒人脚本》(http://sobereva.com/637)。
+若输入结构文件已足够好，可使用examples\RESP\目录下的RESP2_noopt.sh跳过优化步骤，用法与RESP2.sh完全相同。如果没有购买Gaussian，可以使用免费的ORCA量子化学程序结合Multiwfn计算RESP2电荷，详见《ORCA结合Multiwfn计算RESP、RESP2和1.2*CM5原子电荷的懒人脚本》(http://原作者.com/637)。
 ---

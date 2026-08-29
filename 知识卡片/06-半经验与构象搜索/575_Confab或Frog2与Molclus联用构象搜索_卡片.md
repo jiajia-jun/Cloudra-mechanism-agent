@@ -6,11 +6,6 @@ domain: 半经验与构象搜索
 topic: Confab或Frog2与Molclus联用构象搜索
 cards: 1
 ---
+## 1. Confab/Frog2与Molclus联用方法
 
-# Confab或Frog2与Molclus联用构象搜索 — 知识卡片
-
-## 1. Molclus联用Confab或Frog2进行构象搜索
-
-Confab或Frog2构象生成程序可与molclus程序联用，用于柔性有机体系的构象搜索。相关教程可在Molclus官网或北京科音科学论坛查看。
-- Molclus官方链接: http://www.keinsci.com/research/molclus.html
-- 论坛讨论链接: http://bbs.keinsci.com/thread-20063-1-1.html
+本介绍将构象生成程序Confab或Frog2与molclus程序联用进行柔性有机体系构象搜索的方法。相关资源下载地址为http://www.keinsci.com/research/molclus.html。详细讨论及演示可参考http://bbs.keinsci.com/thread-20063-1-1.html。

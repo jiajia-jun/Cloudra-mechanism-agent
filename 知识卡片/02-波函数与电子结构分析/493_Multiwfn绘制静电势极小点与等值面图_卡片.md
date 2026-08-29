@@ -6,21 +6,26 @@ domain: 波函数与电子结构分析
 topic: Multiwfn绘制静电势极小点与等值面图
 cards: 9
 ---
-
-# Multiwfn绘制静电势极小点与等值面图 — 知识卡片
-
 ## 1. 静电势全局极小点与孤对电子定位
 
 使用静电势全局极小点位置可以展现孤对电子区域，这种方法能合理地展现孤对电子出现区域且与化学直觉一致。考察孤对电子位置还可以通过轨道定域化分析看对应孤对电子的轨道质心位置，或通过ELF/LOL函数绘图及临界点位置考察。参考Suresh的文章及J. Comput. Chem., 39, 488 (2018)中的图示，极小点连同周围的静电势等值面共同展现了该区域。
-- 参考文献：http://sobereva.com/380, http://sobereva.com/108, http://bbs.keinsci.com/thread-2100-1-1.html, J. Comput. Chem., 39, 488 (2018)
+- 参考文献：http://原作者.com/380, http://原作者.com/108, http://bbs.keinsci.com/thread-2100-1-1.html, J. Comput. Chem., 39, 488 (2018)
+
+---
+
+
 
 ---
 
 ## 2. 计算设置与输入文件准备
 
-本文以乙硫醛为例，使用Gaussian在B3LYP/def2-TZVP级别下对结构进行优化并产生波函数文件（fch格式）。为了加快静电势计算，强烈建议让Multiwfn调用本机Gaussian中的cubegen工具。Multiwfn应使用官网最新版本，VMD推荐使用1.9.3版。
+以乙硫醛为例，使用Gaussian在B3LYP/def2-TZVP级别下对结构进行优化并产生波函数文件（fch格式）。为了加快静电势计算，建议让Multiwfn调用本机Gaussian中的cubegen工具。Multiwfn应使用官网最新版本，VMD推荐使用1.9.3版。
 - 计算级别：B3LYP/def2-TZVP
 - 软件：Multiwfn (官网最新版), VMD 1.9.3
+
+---
+
+
 
 ---
 
@@ -74,5 +79,5 @@ cards: 9
 
 ## 9. 静电势拓扑分析的高精度替代方案
 
-本文原用盆分析方法得到静电势极小点位置和数值，但使用Multiwfn的拓扑分析功能可实现同样目的且精度更高。若对精度有较高要求，应当用拓扑分析代替盆分析。
-- 参考文献：《使用Multiwfn对静电势和范德华势做拓扑分析精确得到极小点位置和数值》(http://sobereva.com/645)
+原用盆分析方法得到静电势极小点位置和数值，但使用Multiwfn的拓扑分析功能可实现同样目的且精度更高。若对精度有较高要求，应当用拓扑分析代替盆分析。
+- 参考文献：《使用Multiwfn对静电势和范德华势做拓扑分析精确得到极小点位置和数值》(http://原作者.com/645)

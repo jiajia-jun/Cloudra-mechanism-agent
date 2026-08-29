@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn计算超瑞利散射HRS相关量
 cards: 12
 ---
-
-# Multiwfn计算超瑞利散射HRS相关量 — 知识卡片
-
 ## 1. HRS实验基础与定义
 
 超瑞利散射(HRS)是测定分子第一超极化率beta(-2w;w,w)的实验手段。HRS测得的beta_HRS值是各向平均属性，不受分子朝向影响。退偏比(DR)的理论最小值为1.5，对应Td点群的分子。相关细节可参考Acc. Chem. Res., 31, 675 (1998)及PCCP,10,6223(2008)。
@@ -35,7 +32,7 @@ cards: 12
 
 ## 5. Multiwfn版本要求与功能来源
 
-使用Multiwfn计算HRS相关量必须使用2019年7月30日更新的3.7(dev)或更新版本。Multiwfn可在其主页http://sobereva.com/multiwfn免费下载。
+计算HRS相关量必须使用2019年7月30日更新的3.7(dev)或更新版本。Multiwfn可在其主页http://原作者.com/multiwfn免费下载。
 
 ---
 

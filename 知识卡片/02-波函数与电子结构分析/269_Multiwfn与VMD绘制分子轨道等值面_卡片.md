@@ -6,30 +6,43 @@ domain: 波函数与电子结构分析
 topic: Multiwfn与VMD绘制分子轨道等值面
 cards: 26
 ---
-
-# Multiwfn与VMD绘制分子轨道等值面 — 知识卡片
-
 ## 1. 推荐阅读的补充文章
 
-作者补充了《使用Multiwfn+VMD快速绘制高质量分子轨道等值面图》（http://sobereva.com/447）和《用VMD绘制艺术级轨道等值面图的方法》（http://sobereva.com/449），配有演示视频，介绍了基于脚本方便快速地将Multiwfn与VMD结合绘制轨道图像的方法，建议看完本文后阅读。
+补充文章《使用Multiwfn+VMD快速绘制高质量分子轨道等值面图》（http://原作者.com/447）和《用VMD绘制艺术级轨道等值面图的方法》（http://原作者.com/449）配有演示视频，介绍了基于脚本方便快速地将Multiwfn与VMD结合绘制轨道图像的方法，建议阅读完该资料档后阅读。
+
+---
+
+
 
 ---
 
 ## 2. 引用要求与相关资源
 
-使用Multiwfn绘制轨道图用于发表文章或给别人代算时，必须按照Multiwfn启动时的提示正确引用Multiwfn。如果不了解Multiwfn，建议阅读《Multiwfn FAQ》（http://sobereva.com/452）和《Multiwfn入门tips》（http://sobereva.com/167）。
+使用Multiwfn绘制轨道图用于发表文章或给别人代算时，必须按照Multiwfn启动时的提示正确引用Multiwfn。如果不了解Multiwfn，建议阅读《Multiwfn FAQ》（http://原作者.com/452）和《Multiwfn入门tips》（http://原作者.com/167）。
+
+---
+
+
 
 ---
 
 ## 3. 观看轨道的输入文件类型选择
 
-Gaussian、Q-Chem、PSI4用户使用fch文件；ORCA、Molpro、MRCC、NWChem、xtb、Dalton、deMon2k、BDF用户使用molden文件；GAMESS-US用户需将输出文件后缀改为.gms。详情参见《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》（http://sobereva.com/379）。
+Gaussian、Q-Chem、PSI4用户使用fch文件；ORCA、Molpro、MRCC、NWChem、xtb、Dalton、deMon2k、BDF用户使用molden文件；GAMESS-US用户需将输出文件后缀改为.gms。详情参见《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》（http://原作者.com/379）。
+
+---
+
+
 
 ---
 
 ## 4. 非标准molden文件的处理与周期性体系
 
-Molcas、CFour、Turbomole等生成的非标准.molden文件需先用molden2aim程序转换成标准.molden文件（见Multiwfn手册5.1节）。Multiwfn可观看CP2K产生的包含晶胞信息的.molden文件来显示周期性体系轨道（http://sobereva.com/588），具体例子见http://sobereva.com/634。
+Molcas、CFour、Turbomole等生成的非标准.molden文件需先用molden2aim程序转换成标准.molden文件（见Multiwfn手册5.1节）。Multiwfn可观看CP2K产生的包含晶胞信息的.molden文件来显示周期性体系轨道（http://原作者.com/588），具体例子见http://原作者.com/634。
+
+---
+
+
 
 ---
 
@@ -161,4 +174,4 @@ Tools菜单包含保存绘图设置到GUIsettings.ini、测量键长/键角/二�
 
 ## 26. 计算轨道的体积
 
-Multiwfn还可以计算轨道的体积，具体方法参见《使用Multiwfn计算轨道的体积》（http://sobereva.com/734）。
+Multiwfn还可以计算轨道的体积，具体方法参见《使用Multiwfn计算轨道的体积》（http://原作者.com/734）。

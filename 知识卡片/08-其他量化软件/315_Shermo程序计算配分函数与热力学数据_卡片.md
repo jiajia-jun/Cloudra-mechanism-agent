@@ -6,12 +6,13 @@ domain: 其他量化软件
 topic: Shermo程序计算配分函数与热力学数据
 cards: 13
 ---
-
-# Shermo程序计算配分函数与热力学数据 — 知识卡片
-
 ## 1. Shermo 1.0版已过时
 
-2020年5月19日注记表明Shermo 1.0版已完全没有意义，因为作者后来发布了Shermo 2.0版（介绍见《使用Shermo结合量子化学程序方便地计算分子的各种热力学数据》，http://sobereva.com/552）。Shermo 2.0版比1.0版在好用性、强大性和灵活性上要多得多，是日常量子化学研究者计算分子热力学数据离不开的工具。
+2020年5月19日注记表明Shermo 1.0版已完全没有意义，因为原作者后来发布了Shermo 2.0版（介绍见《使用Shermo结合量子化学程序方便地计算分子的各种热力学数据》，http://原作者.com/552）。Shermo 2.0版比1.0版在好用性、强大性和灵活性上要多得多，是日常量子化学研究者计算分子热力学数据离不开的工具。
+
+---
+
+
 
 ---
 
@@ -23,13 +24,17 @@ Shermo程序（Sob+Thermo）由Fortran编写，既有实用意义也有教学意
 
 ## 3. Shermo程序的下载内容
 
-Shermo程序的下载链接为http://sobereva.com/soft/Shermo.rar。压缩包里包含Windows版可执行程序、源代码、文档、示例输入文件以及与之对应的Gaussian freq任务的输出文件。
+Shermo程序的下载链接为http://原作者.com/soft/Shermo.rar。压缩包里包含Windows版可执行程序、源代码、文档、示例输入文件以及与之对应的Gaussian freq任务的输出文件。
+
+---
+
+
 
 ---
 
 ## 4. Shermo程序的引用方式
 
-如果在研究中使用了Shermo程序，请引用为：Tian Lu, Shermo program, http://sobereva.com/315 (accessed month day, year)。
+如果在研究中使用了Shermo程序，请引用为：Tian Lu, Shermo program, http://原作者.com/315 (accessed month day, year)。
 
 ---
 

@@ -6,13 +6,14 @@ domain: Gaussian使用
 topic: Gaussian03_Linda并行与VMware虚拟集群配
 cards: 17
 ---
-
-# Gaussian03_Linda并行与VMware虚拟集群配 — 知识卡片
-
 ## 1. Gaussian03 Linda并行环境配置准备
 
-本文使用Gaussian03 C.02版本，压缩包自带Linda程序7.1版，无需另行下载。压缩包内linda-exe子目录包含了已编译好的.exel后缀的专用于Linda并行的高斯子程序。跨节点运算必须使用ACSI的Linda软件，Linda提供了虚拟共享内存(VSM)环境将集群主机结合为全局逻辑共享内存，使基于OpenMP并行的Gaussian能在集群环境中运行。
+Gaussian03 C.02版本自带Linda程序7.1版，无需另行下载。压缩包内linda-exe子目录包含了已编译好的.exel后缀的专用于Linda并行的高斯子程序。跨节点运算必须使用ACSI的Linda软件，Linda提供了虚拟共享内存(VSM)环境将集群主机结合为全局逻辑共享内存，使基于OpenMP并行的Gaussian能在集群环境中运行。
 - 压缩包下载地址：http://pan.baidu.com/s/1qWyKTmG
+
+---
+
+
 
 ---
 
@@ -54,7 +55,7 @@ f71和f72两个节点都需要修改/etc/hosts文件，删除默认内容，添�
 
 ## 8. Linda配置文件tsnet.config修改
 
-Linda默认跨节点连接方式为rsh，本文使用ssh。需修改默认全局配置文件/sob/g03/linda7.1/common/lib/tsnet.config，将Tsnet.Node.lindarsharg参数后的rsh改为ssh。其他参数保持不变，Linda参数详细含义可参考http://www.lindaspaces.com/downloads/lindamanual.pdf第三章。
+Linda默认跨节点连接方式为rsh，此处使用ssh。需修改默认全局配置文件/sob/g03/linda7.1/common/lib/tsnet.config，将Tsnet.Node.lindarsharg参数后的rsh改为ssh。其他参数保持不变，Linda参数详细含义可参考http://www.lindaspaces.com/downloads/lindamanual.pdf第三章。
 
 ---
 

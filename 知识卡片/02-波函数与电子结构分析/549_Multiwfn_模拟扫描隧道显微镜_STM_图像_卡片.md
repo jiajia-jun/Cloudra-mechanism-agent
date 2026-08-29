@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn_模拟扫描隧道显微镜_STM_图像
 cards: 19
 ---
-
-# Multiwfn_模拟扫描隧道显微镜_STM_图像 — 知识卡片
-
 ## 1. 补充文献：周期性体系STM图像模拟
 
-针对固体表面体系的STM图像绘制，建议阅读《使用Multiwfn结合CP2K的波函数模拟周期性体系的隧道扫描显微镜（STM）图像》（http://sobereva.com/671）作为本文的重要补充。
+针对固体表面体系的STM图像绘制，建议阅读《使用Multiwfn结合CP2K的波函数模拟周期性体系的隧道扫描显微镜（STM）图像》（http://原作者.com/671）作为该资料的重要补充。
 
 ---
 
@@ -113,7 +110,7 @@ Multiwfn默认费米能级为HOMO和LUMO能量的平均值，默认偏压为费�
 
 ## 18. 固体表面STM模拟程序推荐
 
-研究固体表面的STM不适用本文方法，推荐使用直接支持STM模拟的第一性原理程序，如Abinit、WIEN2k、CASTEP、OpenMX、GPAW、exciting等。
+研究固体表面的STM不适用该方法，推荐使用直接支持STM模拟的第一性原理程序，如Abinit、WIEN2k、CASTEP、OpenMX、GPAW、exciting等。
 
 ---
 

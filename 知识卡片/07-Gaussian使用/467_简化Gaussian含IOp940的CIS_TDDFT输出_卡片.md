@@ -6,9 +6,6 @@ domain: Gaussian使用
 topic: 简化Gaussian含IOp940的CIS_TDDFT输出
 cards: 6
 ---
-
-# 简化Gaussian含IOp940的CIS_TDDFT输出 — 知识卡片
-
 ## 1. simpIOp940程序的功能与用途
 
 simpIOp940程序用于简化使用了IOp(9/40=x)关键词的Gaussian CIS/TDDFT计算输出文件。该程序允许用户输入组态系数绝对值的阈值，仅输出大于该阈值的组态系数，以便于人工查看激发态主要信息。
@@ -29,7 +26,7 @@ simpIOp940程序处理输入文件后，会生成包含激发态信息及大于�
 
 ## 4. simpIOp940程序的下载与版本
 
-simpIOp940程序可在此下载：http://sobereva.com/soft/simpIOp940.rar。程序包中包含Windows版（带.exe后缀）和Linux版（不带后缀）的可执行文件，以及Fortran源文件。
+simpIOp940程序可在此下载：http://原作者.com/soft/simpIOp940.rar。程序包中包含Windows版（带.exe后缀）和Linux版（不带后缀）的可执行文件，以及Fortran源文件。
 
 ---
 

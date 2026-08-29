@@ -6,12 +6,9 @@ domain: Gaussian使用
 topic: Gaussian输入文件优化flag与MM电荷设定工具
 cards: 6
 ---
-
-# Gaussian输入文件优化flag与MM电荷设定工具 — 知识卡片
-
 ## 1. 设定Gaussian优化flag的工具optflag
 
-optflag程序用于设定Gaussian输入文件中原子坐标后的优化flag（如0、-1），其中0代表允许移动，-1代表冻结；对于ONIOM计算，设为同样负值的原子可被当作刚性片段优化。程序Windows版及源代码下载地址为：http://sobereva.com/usr/uploads/file/20160606/20160606120820_60028.rar。
+optflag程序用于设定Gaussian输入文件中原子坐标后的优化flag（如0、-1），其中0代表允许移动，-1代表冻结；对于ONIOM计算，设为同样负值的原子可被当作刚性片段优化。程序Windows版及源代码下载地址为：http://原作者.com/usr/uploads/file/20160606/20160606120820_60028.rar。
 
 ---
 
@@ -23,7 +20,7 @@ optflag程序的索引文件第一行输入原子数，随后列出原子序号�
 
 ## 3. optflag批量设定优化flag的操作流程
 
-使用optflag时需依次输入：包含坐标的文本文件名、总原子数（如4530）、当前文件是否已有优化flag（0无/1有）、原子范围选择（如all或索引文件）、要设定的flag值。程序会在当前目录生成new.txt，其中包含更新后的优化flag信息。
+使用optflag时需依次输入：包含坐标的文该资料件名、总原子数（如4530）、当前文件是否已有优化flag（0无/1有）、原子范围选择（如all或索引文件）、要设定的flag值。程序会在当前目录生成new.txt，其中包含更新后的优化flag信息。
 
 ---
 

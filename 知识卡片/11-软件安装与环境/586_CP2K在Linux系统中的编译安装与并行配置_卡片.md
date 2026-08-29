@@ -6,18 +6,15 @@ domain: 软件安装与环境
 topic: CP2K在Linux系统中的编译安装与并行配置
 cards: 16
 ---
-
-# CP2K在Linux系统中的编译安装与并行配置 — 知识卡片
-
 ## 1. CP2K程序简介与编译建议
 
-CP2K是开源免费的第一性原理程序，计算中、大周期性体系的速度极快，优于基于平面波的程序如VASP和Quantum ESPRESSO。建议使用自行编译的标准安装方式，因为预编译版本为兼容性无法充分利用CPU指令集和架构优化，性能不如自己编译。CP2K从2026.1版本开始编译方式发生重大变化，本文针对>=2026.2版本和<=2025.2版本分别介绍安装方法。
+CP2K是开源免费的第一性原理程序，计算中、大周期性体系的速度极快，优于基于平面波的程序如VASP和Quantum ESPRESSO。建议使用自行编译的标准安装方式，因为预编译版本为兼容性无法充分利用CPU指令集和架构优化，性能不如自己编译。CP2K从2026.1版本开始编译方式发生重大变化，此处针对>=2026.2版本和<=2025.2版本分别介绍安装方法。
 
 ---
 
 ## 2. CP2K 2026.2版本系统与编译器要求
 
-安装CP2K 2026.2版本建议使用Rocky Linux 9或10系统，CentOS Stream、Fedora、Redhat也可直接使用，不建议使用更老系统。CP2K基于Fortran编写但依赖C/C++库，需安装gcc和gfortran编译器，若未安装可运行dnf install gcc和dnf install gcc-gfortran。CP2K默认使用OpenBLAS库，虽Intel MKL可能更快但本文为省事不使用MKL；GPU加速仅对昂贵专业显卡有效，消费级显卡无效故不涉及。
+安装CP2K 2026.2版本建议使用Rocky Linux 9或10系统，CentOS Stream、Fedora、Redhat也可直接使用，不建议使用更老系统。CP2K基于Fortran编写但依赖C/C++库，需安装gcc和gfortran编译器，若未安装可运行dnf install gcc和dnf install gcc-gfortran。CP2K默认使用OpenBLAS库，虽Intel MKL可能更快但此处为省事不使用MKL；GPU加速仅对昂贵专业显卡有效，消费级显卡无效故不涉及。
 
 ---
 

@@ -6,14 +6,9 @@ domain: 反应机理与过渡态
 topic: concvar程序模拟复杂反应浓度随时间变化
 cards: 14
 ---
-
-# concvar程序模拟复杂反应浓度随时间变化 — 知识卡片
-
 ## 1. concvar程序简介与下载
 
-concvar是求解复杂化学反应中各物质浓度随时间变化的免费程序，用户只需提供各极小点和过渡态结构的自由能及模拟条件即可开始模拟。concvar程序的Windows和Linux版可执行文件及手册可在http://sobereva.com/soft/concvar免费下载。相关研究必须引用文献：Tian Lu, concvar: A program solving time-dependent concentration variation for complex reactions, *ChemRxiv* (2022) DOI: 10.26434/chemrxiv-2022-r6rh8。
-
----
+concvar是求解复杂化学反应中各物质浓度随时间变化的免费程序，只需提供各极小点和过渡态结构的自由能及模拟条件即可开始模拟。concvar程序的Windows和Linux版可执行文件及手册可在http://原作者.com/soft/concvar免费下载。相关研究必须引用文献：Tian Lu, concvar: A program solving time-dependent concentration variation for complex reactions, *ChemRxiv* (2022) DOI: 10.26434/chemrxiv-2022-r6rh8。
 
 ## 2. concvar模拟的核心计算公式
 

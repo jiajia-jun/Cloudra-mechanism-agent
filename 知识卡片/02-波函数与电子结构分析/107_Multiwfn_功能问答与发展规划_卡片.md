@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn_功能问答与发展规划
 cards: 19
 ---
-
-# Multiwfn_功能问答与发展规划 — 知识卡片
-
 ## 1. Multiwfn的主要用途
 
 Multiwfn是一款用于波函数分析的程序。波函数蕴藏了量子体系的一切信息，但常规量化计算往往只提取势能面或偶极矩等侧面信息，Multiwfn能够挖掘电荷、键级、AIM、NBO、电子定域性、轨道成分及密度差等深层电子结构信息，帮助研究者透彻理解体系状态并提升文章档次。
@@ -35,7 +32,11 @@ Multiwfn不直接解决含糊的具体问题，而是提供支持的分析方法
 
 ## 5. Multiwfn的主页与下载
 
-Multiwfn的主页是http://multiwfn.codeplex.com（2017年4月5日注：主页已变更为http://sobereva.com/multiwfn）。用户可在主页免费下载最新版本可执行文件和源代码，若发现Bug可下载老版本并联系开发者。
+Multiwfn的主页是http://multiwfn.codeplex.com（2017年4月5日注：主页已变更为http://原作者.com/multiwfn）。用户可在主页免费下载最新版本可执行文件和源代码，若发现Bug可下载老版本并联系开发者。
+
+---
+
+
 
 ---
 
@@ -107,7 +108,7 @@ Multiwfn的Logo是Li6团簇的ELF函数图，寓意艺术、自然与科学的�
 
 ## 17. Multiwfn的引用方式
 
-使用Multiwfn时应按照程序启动时的说明进行引用。介绍Multiwfn的文章已被J. Comp. Chem接受，刊登后可引用此文章替代网址，开发者欢迎用户在文章发表后提供副本以供主页展示。
+使用Multiwfn时应按照程序启动时的说明进行引用。介绍Multiwfn的文章已被J. Comp. Chem接受，刊登后可引用该资料章替代网址，原作者欢迎在文章发表后提供副本以供主页展示。
 
 ---
 

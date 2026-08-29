@@ -6,13 +6,12 @@ domain: 波函数与电子结构分析
 topic: Multiwfn计算绘制超极化率密度
 cards: 13
 ---
-
-# Multiwfn计算绘制超极化率密度 — 知识卡片
-
 ## 1. (超)极化率密度的定义与用途
 
 (超)极化率密度是电子密度对外电场各阶响应的函数，能够图形化直观展现体系不同区域对(超)极化率数值的贡献。将超极化率密度绘图放入论文可以增色很多，且有助于深入讨论；相关的应用实例文献包括 J. Comput. Chem., 38, 1574 (2017) 和 Carbon, 165, 461 (2020) 等。
-- 本文涉及的输入文件下载地址：http://sobereva.com/attach/305/file.rar
+- 相关的输入文件下载地址：http://原作者.com/attach/305/file.rar
+
+---
 
 ---
 
@@ -89,10 +88,8 @@ cards: 13
 
 ## 12. 使用命令行批量导出格点数据
 
-为避免重复输入繁琐的操作步骤，可以建立包含Multiwfn命令的文本文件（如hyperdens.txt），通过重定向方式运行Multiwfn来批量生成$\rho^{(3)}_{zzzz}$和$-Z \cdot \rho^{(3)}_{zzzz}$的cube文件。
+为避免重复输入繁琐的操作步骤，可以建立包含Multiwfn命令的文该资料件（如hyperdens.txt），通过重定向方式运行Multiwfn来批量生成$\rho^{(3)}_{zzzz}$和$-Z \cdot \rho^{(3)}_{zzzz}$的cube文件。
 - 运行命令为：Multiwfn < hyperdens.txt，生成的文件分别为density.cub和-Zrho3zzz.cub。
-
----
 
 ## 13. 原子对超极化率的定量贡献分析
 

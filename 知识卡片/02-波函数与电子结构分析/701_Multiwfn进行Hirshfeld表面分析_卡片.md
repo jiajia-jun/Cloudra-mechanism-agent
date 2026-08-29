@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn进行Hirshfeld表面分析
 cards: 16
 ---
-
-# Multiwfn进行Hirshfeld表面分析 — 知识卡片
-
 ## 1. Hirshfeld surface分析的定义与基本功能
 
 Hirshfeld surface分析是展现分子晶体中特定分子与周围分子间相互作用的方法，也可用于孤立体系中特定片段与周围原子间的相互作用。HS分析通过构造Hirshfeld表面（即分子权重函数数值为0.5的等值面）并将电子密度等实空间函数映射到表面上，直观考察分子间相互作用特征。
@@ -58,10 +55,8 @@ HS分析常将特定三维实空间函数映射到Hirshfeld surface上，以分�
 
 ## 7. Becke surface分析
 
-Becke surface分析是用Becke权重函数的0.5等值面定义表面，是本文作者提出的概念。它与HS分析的区别在于可以在电子密度为0的区域（无法定义Hirshfeld权重）构造表面，除此之外一般使用Hirshfeld surface即可。
+Becke surface分析是用Becke权重函数的0.5等值面定义表面，是该分析提出的概念。它与HS分析的区别在于可以在电子密度为0的区域（无法定义Hirshfeld权重）构造表面，除此之外一般使用Hirshfeld surface即可。
 - Becke权重函数定义见《密度泛函计算中的格点积分方法》
-
----
 
 ## 8. Multiwfn做HS分析前的簇模型构建
 

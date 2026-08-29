@@ -6,9 +6,6 @@ domain: Gaussian使用
 topic: Sadlej极化基组定义及使用
 cards: 13
 ---
-
-# Sadlej极化基组定义及使用 — 知识卡片
-
 ## 1. Sadlej基组的适用性
 
 Sadlej基组是专用于计算电场响应性质的基组，包括偶极矩、极化率、超极化率。这类基组在计算此类问题上比普适的Dunning系列基组更具成本效益。
@@ -47,9 +44,7 @@ Sadlej POL基组（也称Sadlej pVTZ）大小与cc-pVTZ相近，但第二、三�
 
 ## 7. Sadlej POL基组在Gaussian中的计算效率
 
-EMSL提供的Sadlej pVTZ基组与本文提供的POL基组不完全相同，前者为片段收缩，后者为广义收缩。在Gaussian等基于片段收缩的程序中，使用广义收缩基组（本文提供版本）计算速度会显著变慢。
-
----
+EMSL提供的Sadlej pVTZ基组与该资料提供的POL基组不完全相同，前者为片段收缩，后者为广义收缩。在Gaussian等基于片段收缩的程序中，使用广义收缩基组（该资料提供版本）计算速度会显著变慢。
 
 ## 8. Sadlej POL_F基组定义
 

@@ -6,13 +6,14 @@ domain: 波函数与电子结构分析
 topic: Multiwfn使用IRI方法图形化考察化学键和弱相互作用
 cards: 14
 ---
-
-# Multiwfn使用IRI方法图形化考察化学键和弱相互作用 — 知识卡片
-
 ## 1. IRI方法基本概念与文献
 
-IRI（Interaction Region Indicator，相互作用区域指示函数）通过图形化等值面能在一幅图中同时清晰展现化学键和弱相互作用，定义简单、计算快速、图像效果优于RDG和DORI等方法。该方法对应的文献为：Tian Lu, Qinxue Chen, *Chemistry—Methods*, **1**, 231-239 (2021)，引用时应记得引用此文。
+IRI（Interaction Region Indicator，相互作用区域指示函数）通过图形化等值面能在一幅图中同时清晰展现化学键和弱相互作用，定义简单、计算快速、图像效果优于RDG和DORI等方法。该方法对应的文献为：Tian Lu, Qinxue Chen, *Chemistry—Methods*, **1**, 231-239 (2021)，引用时应记得引用该资料。
 - 相关文献：Tian Lu,* Qinxue Chen, Interaction Region Indicator (IRI): A Simple Real Space Function Clearly Revealing Both Chemical Bonds and Weak Interactions, *Chemistry—Methods*, **1**, 231-239 (2021) https://chemistry-europe.onlinelibrary.wiley.com/doi/10.1002/cmtd.202100007
+
+---
+
+
 
 ---
 
@@ -47,7 +48,7 @@ AIM理论有时会漏掉某些明显存在的氢键（找不到键临界点BCP�
 ## 6. IRI用于化学反应过程分析
 
 IRI是单一且随核坐标平滑变化的函数，适用于势能面极小点、过渡态及IRC路径上的点。通过绘制IRC路径上各点的IRI图或动画，可以生动展示化学过程中相互作用的变化，如Diels-Alder反应中共价键的逐渐形成或SN2反应中新旧键的更替。
-- 参考文献：http://sobereva.com/200
+- 参考文献：http://原作者.com/200
 
 ---
 

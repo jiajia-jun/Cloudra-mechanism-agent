@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn计算过渡金属d带中心
 cards: 9
 ---
-
-# Multiwfn计算过渡金属d带中心 — 知识卡片
-
 ## 1. 软件版本与前置要求
 
-使用Multiwfn计算d带中心必须使用2021-Jan-14及以后更新的版本，且用户需先阅读《使用Multiwfn绘制态密度(DOS)图考察电子结构》（http://sobereva.com/482）以理解相关功能。此方法既适用于孤立团簇也适用于周期性体系，周期性体系需按《详谈使用CP2K产生给Multiwfn用的molden格式的波函数文件》（http://sobereva.com/651）生成输入文件。
-
----
+使用Multiwfn计算d带中心必须使用2021-Jan-14及以后更新的版本，且需先阅读《使用Multiwfn绘制态密度(DOS)图考察电子结构》（http://原作者.com/482）以理解相关功能。此方法既适用于孤立团簇也适用于周期性体系，周期性体系需按《详谈使用CP2K产生给Multiwfn用的molden格式的波函数文件》（http://原作者.com/651）生成输入文件。
 
 ## 2. d带中心模型与原理
 

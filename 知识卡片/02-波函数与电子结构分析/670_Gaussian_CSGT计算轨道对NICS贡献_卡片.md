@@ -6,13 +6,14 @@ domain: 波函数与电子结构分析
 topic: Gaussian_CSGT计算轨道对NICS贡献
 cards: 6
 ---
-
-# Gaussian_CSGT计算轨道对NICS贡献 — 知识卡片
-
 ## 1. 轨道对NICS贡献方法的理论基础
 
 利用Gaussian的AICD程序界面结合NMR=CSGT任务可以将NICS分解为不同类型分子轨道的贡献，该方法基于CSGT而非NCS。计算所有电子贡献的总NICS时，NCS(GIAO)与CSGT结果差异很小可忽略，但单个轨道的贡献可能相差很大，而同类轨道的总和差异通常很小。此方法适用于Gaussian G09 D.01及之后版本。
-- 原文引用：http://sobereva.com/176, http://sobereva.com/carbon_ring.html, http://sobereva.com/294
+- 原文引用：http://原作者.com/176, http://原作者.com/carbon_ring.html, http://原作者.com/294
+
+---
+
+
 
 ---
 
@@ -33,7 +34,11 @@ cards: 6
 ## 4. 计算所有轨道对NICS贡献的脚本准备步骤
 
 使用orbNICS.sh脚本自动计算各轨道贡献需要三个准备步骤：首先进行单点计算生成NICS.chk文件；其次创建NICS.gjf模板文件，必须包含`Bq`原子、`IOp(10/93=2)`、`guess=read`，且轨道序号行写为`orbidx`；最后修改脚本中循环的起始和终止轨道序号，并设置正确的Gaussian运行命令（默认为g16）。
-- 脚本文件：orbNICS.sh
+- 脚该资料件：orbNICS.sh
+
+---
+
+
 
 ---
 
@@ -47,4 +52,4 @@ cards: 6
 ## 6. 开壳层体系轨道序号的特殊规则
 
 对于非限制性开壳层体系，在使用Gaussian的AICD界面或orbNICS.sh脚本指定轨道序号时，beta占据轨道的序号规则与fch文件中的显示不同，必须特别注意。若直接使用fch文件中的轨道序号进行指定会导致错误，具体规则需参考相关文献说明。
-- 参考资料：http://sobereva.com/294
+- 参考资料：http://原作者.com/294

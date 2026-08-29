@@ -6,9 +6,6 @@ domain: 分子动力学与力场
 topic: OPLS-AA力场1.2倍CM5电荷计算脚本
 cards: 14
 ---
-
-# OPLS-AA力场1.2倍CM5电荷计算脚本 — 知识卡片
-
 ## 1. OPLS-AA力场推荐使用1.2*CM5原子电荷
 
 根据J. Phys. Chem. B., 121, 3864 (2017)中的测试，基于OPLS-AA力场的模拟很适合结合1.2*CM5原子电荷。1.2*CM5电荷在水合自由能计算精度上稍逊于1.14*CM1A-LBCC，但在计算蒸发焓、密度等其他属性时误差更小，且经验性更低、更有普适性。1.2*CM5电荷是在Truhlar等人提出的原始CM5电荷基础上乘上1.2，等效体现出了溶剂环境对溶质的极化作用。
@@ -17,7 +14,7 @@ cards: 14
 
 ## 2. 1.2*CM5电荷懒人脚本的位置与版本要求
 
-计算1.2*CM5原子电荷的懒人Linux脚本是Multiwfn文件包里的examples\scripts\1.2CM5.sh，该脚本在2021-Jan-28及之后更新的Multiwfn版本中才有。Multiwfn程序可以在其主页http://sobereva.com/multiwfn免费下载。
+计算1.2*CM5原子电荷的Linux脚本位于Multiwfn文件包中的examples\scripts\1.2CM5.sh，该脚本在2021-Jan-28及之后更新的Multiwfn版本中才有。Multiwfn程序可以在其主页免费下载。
 
 ---
 
@@ -89,4 +86,4 @@ J. Phys. Chem. B.文章仅考虑了中性体系，带电体系一般情况下不
 
 ## 14. 免费程序ORCA替代方案
 
-如果没有购买Gaussian，可以使用免费的ORCA量子化学程序结合Multiwfn计算1.2*CM5原子电荷，相应的傻瓜式脚本见《ORCA结合Multiwfn计算RESP、RESP2和1.2*CM5原子电荷的懒人脚本》（http://sobereva.com/637）。
+如果没有购买Gaussian，可以使用免费的ORCA量子化学程序结合Multiwfn计算1.2*CM5原子电荷，相应的脚本见《ORCA结合Multiwfn计算RESP、RESP2和1.2*CM5原子电荷的懒人脚本》。

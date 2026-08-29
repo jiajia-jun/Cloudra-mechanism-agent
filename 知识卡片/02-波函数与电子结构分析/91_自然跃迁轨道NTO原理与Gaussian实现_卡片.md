@@ -6,15 +6,10 @@ domain: 波函数与电子结构分析
 topic: 自然跃迁轨道NTO原理与Gaussian实现
 cards: 19
 ---
-
-# 自然跃迁轨道NTO原理与Gaussian实现 — 知识卡片
-
 ## 1. NTO分析工具推荐
 
 Multiwfn支持NTO分析且功能远优于Gaussian内置方法，支持周期性体系并能批量处理激发态；空穴-电子分析比NTO更强大、普适性更强，如今非常流行。
-- 参考《使用Multiwfn做自然跃迁轨道(NTO)分析》(http://sobereva.com/377)、《使用CP2K结合Multiwfn对周期性体系模拟UV-Vis光谱和考察电子激发态》(http://sobereva.com/634)、《使用Multiwfn做空穴-电子分析全面考察电子激发特征》(http://sobereva.com/434)
-
----
+- 参考《使用Multiwfn做自然跃迁轨道(NTO)分析》(http://原作者.com/377)、《使用CP2K结合Multiwfn对周期性体系模拟UV-Vis光谱和考察电子激发态》(http://原作者.com/634)、《使用Multiwfn做空穴-电子分析全面考察电子激发特征》(http://原作者.com/434)
 
 ## 2. 电子跃迁的轨道描述
 

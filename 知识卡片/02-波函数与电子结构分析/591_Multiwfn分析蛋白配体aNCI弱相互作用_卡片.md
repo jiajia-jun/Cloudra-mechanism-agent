@@ -6,24 +6,29 @@ domain: 波函数与电子结构分析
 topic: Multiwfn分析蛋白配体aNCI弱相互作用
 cards: 21
 ---
-
-# Multiwfn分析蛋白配体aNCI弱相互作用 — 知识卡片
-
 ## 1. aNCI方法已被amIGM方法取代
 
-aNCI分析方法已经被笔者于2025年提出的amIGM方法完全取代，amIGM方法比aNCI好太多，因此aNCI分析已经完全没有必要再使用。强烈建议阅读《使用amIGM方法图形化直观展现动态过程中的平均弱相互作用》（http://sobereva.com/759）了解amIGM方法的特点以及在Multiwfn中的使用方法。
+aNCI分析方法已经被于2025年提出的amIGM方法完全取代，amIGM方法比aNCI好太多，因此aNCI分析已经完全没有必要再使用。强烈建议阅读《使用amIGM方法图形化直观展现动态过程中的平均弱相互作用》（http://原作者.com/759）了解amIGM方法的特点以及在Multiwfn中的使用方法。
+
+---
+
+
 
 ---
 
 ## 2. aNCI分析蛋白-配体相互作用的参考依据
 
-aNCI方法在《使用Multiwfn研究分子动力学中的弱相互作用》（http://sobereva.com/186）中已介绍，可将动态过程中的平均化相互作用予以直观展现。此外，推荐阅读《一篇最全面介绍各种弱相互作用可视化分析方法的文章已发表！》（http://sobereva.com/667）中的综述文章，其中含有对aNCI的详细介绍并给出了典型的应用例子。
+aNCI方法在《使用Multiwfn研究分子动力学中的弱相互作用》（http://原作者.com/186）中已介绍，可将动态过程中的平均化相互作用予以直观展现。此外，推荐阅读《一篇最全面介绍各种弱相互作用可视化分析方法的文章已发表！》（http://原作者.com/667）中的综述文章，其中含有对aNCI的详细介绍并给出了典型的应用例子。
+
+---
+
+
 
 ---
 
 ## 3. 软件版本要求
 
-进行本文操作请使用2021年3月4日及以后更新的Multiwfn版本，否则有的地方和本文所述不符。Multiwfn可以在http://sobereva.com/multiwfn免费下载，本文用的VMD是1.9.3版，可以在http://www.ks.uiuc.edu/Research/vmd/免费下载。
+进行该操作请使用2021年3月4日及以后更新的Multiwfn版本，否则有的地方和该内容所述不符。Multiwfn可以在http://原作者.com/multiwfn免费下载，该内容用的VMD是1.9.3版，可以在http://www.ks.uiuc.edu/Research/vmd/免费下载。
 
 ---
 

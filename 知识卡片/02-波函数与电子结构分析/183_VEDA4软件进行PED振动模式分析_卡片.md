@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: VEDA4软件进行PED振动模式分析
 cards: 13
 ---
-
-# VEDA4软件进行PED振动模式分析 — 知识卡片
-
 ## 1. VEDA4软件功能与简介
 
 VEDA4是一个免费的基于Windows平台的PED（势能分布）分析程序，支持目前全系列Gaussian程序。该程序用于对小分子振动模式进行指认，Journal of Molecular Structure 787 (2006) 172–183是使用VEDA对小分子振动模式进行指认的研究实例。
@@ -17,9 +14,7 @@ VEDA4是一个免费的基于Windows平台的PED（势能分布）分析程序�
 
 ## 2. VEDA4基本操作流程
 
-VEDA4的基本操作流程为：先用Gaussian进行freq计算，将得到的fch文件改名为file1.fmu；启动VEDA并选择此文件，点击Create .DD2产生skra.dd2文件；随后点击Calculate按钮生成file1.ved和file.vd文件；最后点View .VED按钮查看结果。
-
----
+VEDA4的基本操作流程为：先用Gaussian进行freq计算，将得到的fch文件改名为file1.fmu；启动VEDA并选择该资料件，点击Create .DD2产生skra.dd2文件；随后点击Calculate按钮生成file1.ved和file.vd文件；最后点View .VED按钮查看结果。
 
 ## 3. VEDA4运行输出文件说明
 

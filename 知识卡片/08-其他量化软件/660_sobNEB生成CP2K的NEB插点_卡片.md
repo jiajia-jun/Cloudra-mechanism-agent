@@ -6,9 +6,6 @@ domain: 其他量化软件
 topic: sobNEB生成CP2K的NEB插点
 cards: 6
 ---
-
-# sobNEB生成CP2K的NEB插点 — 知识卡片
-
 ## 1. sobNEB工具功能与优势
 
 sobNEB是产生CP2K的NEB插点的工具，解决了CP2K自带NEB自动线性插点时存在偶发性bug（初始间距不均匀）且无法人为控制中间结构对应点号的问题。sobNEB允许用户直接控制提供的结构对应的初始点号，其余点在相邻提供的结构间线性插入；它能直接输出对应CP2K &BAND部分的信息以方便写输入文件；它还会将用户提供的点和插值点写入traj.xyz文件以便在VMD中预览轨迹。注意sobNEB不会对输入的结构自动消除平动转动。
@@ -17,7 +14,11 @@ sobNEB是产生CP2K的NEB插点的工具，解决了CP2K自带NEB自动线性插
 
 ## 2. sobNEB下载地址与版本
 
-sobNEB工具的下载地址为 http://sobereva.com/soft/sobNEB_1.0.zip；压缩包中后缀为.exe的是Windows版，无后缀的是Linux版。
+sobNEB工具的下载地址为 http://原作者.com/soft/sobNEB_1.0.zip；压缩包中后缀为.exe的是Windows版，无后缀的是Linux版。
+
+---
+
+
 
 ---
 
@@ -48,4 +49,4 @@ COORD_FILE_NAME [文件名]
 
 ## 6. 轨迹预览文件traj.xyz用途
 
-sobNEB生成的traj.xyz文件包含了用户提供的点和所有插值点的结构，用户可以使用VMD软件打开此文件来叠加显示所有帧。通过观察VMD中的显示效果，可以判断初始点的分布是否合理，确认其是否适合用于NEB计算。
+sobNEB生成的traj.xyz文件包含了用户提供的点和所有插值点的结构，可以使用VMD软件打开该资料件来叠加显示所有帧。通过观察VMD中的显示效果，可以判断初始点的分布是否合理，确认其是否适合用于NEB计算。

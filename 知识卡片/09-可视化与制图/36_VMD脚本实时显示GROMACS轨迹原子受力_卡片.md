@@ -6,9 +6,6 @@ domain: 可视化与制图
 topic: VMD脚本实时显示GROMACS轨迹原子受力
 cards: 6
 ---
-
-# VMD脚本实时显示GROMACS轨迹原子受力 — 知识卡片
-
 ## 1. 从GROMACS轨迹提取特定原子受力
 
 结合gmxdump和grep可以从.trr文件中提取指定序号原子的受力数据，虽然速度较慢但很方便；若要使每一行对应一帧结构，需确保.mdp文件中的nstxout和nstfout参数相同。
@@ -73,7 +70,7 @@ $sel delete
 
 ---
 
-## 6. 使用脚本文件简化操作流程
+## 6. 使用脚该资料件简化操作流程
 
 将数据读取和绘图过程整合进showforce.tcl文件，放入VMD默认文件夹，在VMD中载入轨迹后依次执行source和set命令即可快速使用。
 - 操作步骤：启动VMD并载入轨迹 -> 控制台运行source showforce.tcl -> 运行set atom 977

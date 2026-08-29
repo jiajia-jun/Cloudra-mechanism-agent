@@ -6,13 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn进行电荷分解分析与轨道相互作用图绘制
 cards: 12
 ---
-
-# Multiwfn进行电荷分解分析与轨道相互作用图绘制 — 知识卡片
-
 ## 1. Multiwfn周期性体系CDA支持更新
 
-从2024年6月更新的Multiwfn开始，Multiwfn支持了结合CP2K对周期性体系做CDA分析，详见《使用Multiwfn结合CP2K对周期性体系做电荷分解分析（CDA）》（http://sobereva.com/716）。
-
+从2024年6月更新的Multiwfn开始，Multiwfn支持了结合CP2K对周期性体系做CDA分析，详见《使用Multiwfn结合CP2K对周期性体系做电荷分解分析（CDA）》（http://原作者.com/716）。
 ---
 
 ## 2. 电荷分解分析(CDA)定义

@@ -6,9 +6,6 @@ domain: 软件安装与环境
 topic: Multiwfn在Linux下的环境配置与安装
 cards: 14
 ---
-
-# Multiwfn在Linux下的环境配置与安装 — 知识卡片
-
 ## 1. Multiwfn普通版与noGUI版的区别
 
 Multiwfn的Linux版分为普通版和noGUI版，普通版具备完整功能但运行依赖motif图形库提供的libXm.so.4文件，安装该库需要root权限。noGUI版不需要motif库因此适合无root权限的普通用户，但缺点是无法使用任何图形相关功能。高性能Linux服务器上运行高耗时任务通常不直接涉及图像显示，因此noGUI版足以应对。
@@ -35,8 +32,7 @@ Debian系Linux如Ubuntu的用户，在连接Internet的情况下可以用`sudo a
 
 ## 5. 检查SysV共享内存段配置
 
-Rocky Linux、CentOS用户无需此步骤，其他系统需运行`cat /proc/sys/kernel/shmmax`检查SysV共享内存段的值（字节）。若默认值过小（如32MB）会导致Multiwfn崩溃，可在/etc/sysctl.conf里加入`kernel.shmmax = 2000000000`然后重启系统以将上限提升到约2GB，修改此文件需要root权限。
-
+Rocky Linux、CentOS用户无需此步骤，其他系统需运行`cat /proc/sys/kernel/shmmax`检查SysV共享内存段的值（字节）。若默认值过小（如32MB）会导致Multiwfn崩溃，可在/etc/sysctl.conf里加入`kernel.shmmax = 2000000000`然后重启系统以将上限提升到约2GB，修改该资料件需要root权限。
 ---
 
 ## 6. 解压Multiwfn程序包

@@ -6,12 +6,9 @@ domain: 可视化与制图
 topic: Multiwfn与GaussView标注键级
 cards: 6
 ---
-
-# Multiwfn与GaussView标注键级 — 知识卡片
-
 ## 1. 软件版本要求
 
-将Multiwfn计算的键级标注在分子结构图上需要使用特定版本的软件：Multiwfn必须使用2019-Dec-4及以后更新的版本，GaussView必须使用>=6.0的版本（本文演示用的是GaussView 6.0.16）。
+将Multiwfn计算的键级标注在分子结构图上需要使用特定版本的软件：Multiwfn必须使用2019-Dec-4及以后更新的版本，GaussView必须使用>=6.0的版本（本演示用的是GaussView 6.0.16）。
 
 ---
 

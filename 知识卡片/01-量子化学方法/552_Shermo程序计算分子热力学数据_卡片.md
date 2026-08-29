@@ -6,12 +6,9 @@ domain: 量子化学方法
 topic: Shermo程序计算分子热力学数据
 cards: 18
 ---
-
-# Shermo程序计算分子热力学数据 — 知识卡片
-
 ## 1. Shermo程序简介及文献引用
 
-Shermo是一个免费的独立运行的程序，用于基于理想气体假设和量子化学程序振动分析的输出文件计算分子热力学数据。使用Shermo程序计算热力学数据发表文章时请务必引用：Tian Lu, Qinxue Chen, Shermo: A general code for calculating molecular thermochemistry properties, *Comput. Theor. Chem.*, **12** **00**, 113249 (2021) DOI: 10.1016/j.comptc.2021.113249。Shermo的前身1.0版功能较少，本文介绍的是功能更强大的后续版本。
+Shermo是一个免费的独立运行的程序，用于基于理想气体假设和量子化学程序振动分析的输出文件计算分子热力学数据。使用Shermo程序计算热力学数据发表文章时请务必引用：Tian Lu, Qinxue Chen, Shermo: A general code for calculating molecular thermochemistry properties, *Comput. Theor. Chem.*, **12** **00**, 113249 (2021) DOI: 10.1016/j.comptc.2021.113249。Shermo的前身1.0版功能较少，此处介绍的是功能更强大的后续版本。
 
 ---
 
@@ -83,9 +80,7 @@ Shermo输出的总热力学量中，配分函数是平动、转动、振动、�
 
 ## 13. 使用Shermo计算构象分布与权重平均热力学数据
 
-创建一个文本文件（如list.txt），每行写入振动分析输出文件路径，并在分号后写上更高级别计算的电子能量（如`example\ensemble\gau00001.out;-2321.367718855799`）。Shermo载入该文件后会计算各构象的相对自由能、Boltzmann权重（分布比例），并输出考虑了构象平均的电子能量、内能、焓、自由能、熵（包含构象熵）等热力学数据。
-
----
+创建一个文该资料件（如list.txt），每行写入振动分析输出文件路径，并在分号后写上更高级别计算的电子能量（如`example\ensemble\gau00001.out;-2321.367718855799`）。Shermo载入该文件后会计算各构象的相对自由能、Boltzmann权重（分布比例），并输出考虑了构象平均的电子能量、内能、焓、自由能、熵（包含构象熵）等热力学数据。
 
 ## 14. 使用Shell脚本调用Shermo进行批量处理
 

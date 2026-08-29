@@ -6,22 +6,27 @@ domain: 可视化与制图
 topic: Multiwfn与VMD联用绘制分子轨道等值面
 cards: 13
 ---
-
-# Multiwfn与VMD联用绘制分子轨道等值面 — 知识卡片
-
 ## 1. 绘制分子轨道的Multiwfn与VMD联用方法
 
-本文介绍利用脚本将Multiwfn与VMD联用绘制分子轨道等值面图。此方法相比GaussView具有完全免费、视觉效果更佳、计算耗时极低（对大体系耗时少两个数量级以上）的优势。具体操作涉及Multiwfn计算波函数格点数据并导出cube文件，再由VMD进行高质量可视化。完整演示视频见 https://www.bilibili.com/video/av34024335/。
-- Multiwfn官网：http://sobereva.com/multiwfn
+本部分介绍利用脚本将Multiwfn与VMD联用绘制分子轨道等值面图。此方法相比GaussView具有完全免费、视觉效果更佳、计算耗时极低（对大体系耗时少两个数量级以上）的优势。具体操作涉及Multiwfn计算波函数格点数据并导出cube文件，再由VMD进行高质量可视化。完整演示视频见 https://www.bilibili.com/video/av34024335/。
+- Multiwfn官网：http://原作者.com/multiwfn
 - VMD版本：1.9.3
-- 参考：《使用Multiwfn观看分子轨道》http://sobereva.com/269
+- 参考：《使用Multiwfn观看分子轨道》http://原作者.com/269
 
 ---
 
-## 2. 脚本文件准备与配置步骤
+
+
+---
+
+## 2. 脚该资料件准备与配置步骤
 
 将Multiwfn文件包examples\scripts目录下的showorb.bat和showorb.txt拷贝到Multiwfn可执行文件所在目录。编辑showorb.bat，将其中的输入文件名改为实际文件名（如1.fch），并将VMD路径修改为实际路径（若路径含空格需加双引号）。编辑showorb.txt，将第三行设为要绘制的轨道序号范围（格式如10,20-23,28-30）。
 - 命令行示例：move /Y *.cub "D:\study\VMD 193"
+
+---
+
+
 
 ---
 
@@ -86,7 +91,7 @@ orbiso命令用于修改当前显示的轨道等值面数值，例如输入orbis
 ## 11. 使用Tachyon渲染器提升图像质量
 
 建议使用Tachyon渲染器进行渲染以获得抗锯齿效果和更好的材质显示效果。Tachyon的使用方法详见《用Multiwfn+VMD做RDG分析时的一些要点和常见问题》。使用EdgyGlass或Translucent材质时，渲染与直接在图形窗口查看的效果差异明显。
-- 参考：http://sobereva.com/291
+- 参考：http://原作者.com/291
 
 ---
 

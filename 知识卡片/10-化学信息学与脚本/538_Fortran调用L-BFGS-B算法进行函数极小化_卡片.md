@@ -6,9 +6,6 @@ domain: 化学信息学与脚本
 topic: Fortran调用L-BFGS-B算法进行函数极小化
 cards: 13
 ---
-
-# Fortran调用L-BFGS-B算法进行函数极小化 — 知识卡片
-
 ## 1. L-BFGS-B算法简介
 
 L-BFGS-B是支持变量约束的有限内存BFGS算法，通过近似Hessian逆矩阵避免精确计算，内存消耗随变量数线性增长。该算法适合变量数目巨大的优化问题，目前量子化学程序几何优化主要基于BFGS思想。相关知识见 https://en.wikipedia.org/wiki/Limited-memory_BFGS 。
@@ -25,7 +22,7 @@ L-BFGS-B是支持变量约束的有限内存BFGS算法，通过近似Hessian逆�
 
 ## 3. 代码与模块获取
 
-L-BFGS-B源文件、作者编写的Fortran 90界面（LBFGSB_module.f90）及例子代码（test_LBFGSB.f90）可在 http://sobereva.com/attach/538/file.rar 下载。L-BFGS-B子程序利用了BLAS和LINPACK库的部分子程序（后者已被LAPACK库取代）。
+L-BFGS-B源文件、编写的Fortran 90界面（LBFGSB_module.f90）及例子代码（test_LBFGSB.f90）可在 http://原作者.com/attach/538/file.rar 下载。L-BFGS-B子程序利用了BLAS和LINPACK库的部分子程序（后者已被LAPACK库取代）。
 - 将文件包里所有文件一起编译即可得到可执行文件。
 
 ---

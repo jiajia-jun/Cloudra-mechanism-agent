@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn_拓扑分析与孤对电子角度计算
 cards: 24
 ---
-
-# Multiwfn_拓扑分析与孤对电子角度计算 — 知识卡片
-
 ## 1. Multiwfn拓扑分析模块概述
 
-Multiwfn程序的拓扑分析模块原理上可用于各种实空间函数（如电子密度、ELF、LOL、电子密度拉普拉斯函数、轨道波函数等）的拓扑分析，是Atoms in molecules (AIM)分析的重要组成部分。该模块功能强大、高效、灵活且普适，程序可在主页[http://sobereva.com/multiwfn](http://sobereva.com/multiwfn)免费下载。
-
----
+Multiwfn程序的拓扑分析模块原理上可用于各种实空间函数（如电子密度、ELF、LOL、电子密度拉普拉斯函数、轨道波函数等）的拓扑分析，是Atoms in molecules (AIM)分析的重要组成部分。该模块功能强大、高效、灵活且普适，程序可在主页[http://原作者.com/multiwfn](http://原作者.com/multiwfn)免费下载。
 
 ## 2. 临界点的定义与分类
 

@@ -6,18 +6,23 @@ domain: 分子动力学与力场
 topic: GROMACS有机分子拓扑文件生成工具汇总
 cards: 25
 ---
-
-# GROMACS有机分子拓扑文件生成工具汇总 — 知识卡片
-
 ## 1. 原子电荷推荐与Multiwfn计算RESP/RESP2电荷
 
-RESP电荷是最适合分子动力学模拟使用的电荷之一，AMBER、GAFF、GLYCAM等力场将之作为御用的原子电荷，将RESP电荷与UFF力场结合使用也是得当的。Multiwfn是计算RESP电荷最简单、最好、最灵活而且完全免费的工具，原理、用法和实例见《RESP拟合静电势电荷的原理以及在Multiwfn中的计算》（http://sobereva.com/441）、《计算RESP原子电荷的超级懒人脚本（一行命令就算出结果）》（http://sobereva.com/476）、《RESP2原子电荷的思想以及在Multiwfn中的计算》（http://sobereva.com/531）。
+RESP电荷是最适合分子动力学模拟使用的电荷之一，AMBER、GAFF、GLYCAM等力场将之作为御用的原子电荷，将RESP电荷与UFF力场结合使用也是得当的。Multiwfn是计算RESP电荷最简单、最好、最灵活而且完全免费的工具，原理、用法和实例见《RESP拟合静电势电荷的原理以及在Multiwfn中的计算》（http://原作者.com/441）、《计算RESP原子电荷的超级懒人脚本（一行命令就算出结果）》（http://原作者.com/476）、《RESP2原子电荷的思想以及在Multiwfn中的计算》（http://原作者.com/531）。
+
+---
+
+
 
 ---
 
 ## 2. OPLS-AA力场推荐电荷与Multiwfn计算CM5电荷
 
-OPLS-AA力场很适合结合1.2*CM5电荷使用，用Multiwfn的主功能7的子功能16直接就能计算出CM5电荷，将之手动乘以1.2即是1.2*CM5电荷。可以用Gaussian、ORCA等程序产生的fch/wfn/wfx/molden等格式作为Multiwfn的输入文件，详见《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》（http://sobereva.com/379）。《计算适用于OPLS-AA力场做模拟的1.2*CM5原子电荷的懒人脚本》（http://sobereva.com/585）可以直接用一行命令算出结果，《ORCA结合Multiwfn计算RESP、RESP2和1.2*CM5原子电荷的懒人脚本》（http://sobereva.com/637）是专门结合ORCA用的傻瓜式脚本。
+OPLS-AA力场很适合结合1.2*CM5电荷使用，用Multiwfn的主功能7的子功能16直接就能计算出CM5电荷，将之手动乘以1.2即是1.2*CM5电荷。可以用Gaussian、ORCA等程序产生的fch/wfn/wfx/molden等格式作为Multiwfn的输入文件，详见《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》（http://原作者.com/379）。《计算适用于OPLS-AA力场做模拟的1.2*CM5原子电荷的懒人脚本》（http://原作者.com/585）可以直接用一行命令算出结果，《ORCA结合Multiwfn计算RESP、RESP2和1.2*CM5原子电荷的懒人脚本》（http://原作者.com/637）是专门结合ORCA用的傻瓜式脚本。
+
+---
+
+
 
 ---
 
@@ -77,13 +82,21 @@ ATB虽然设计得不错，可以作为产生小分子GROMOS力场的GROMACS拓�
 
 ## 12. LigParGen工具简介与电荷模型
 
-LigParGen（http://zarbi.chem.yale.edu/ligpargen/）是生成GROMACS, NAMD, CHARMM, LAMMPS等程序OPLS-AA力场的拓扑文件的工具，毕竟这是OPLS力场开发者自己搞的，因此原则上比MKTOP、TPPmktop更靠谱。可以通过SMILES字符串、.mol、.pdb文件进行输入（用pdb格式时老是报错，我建议用.mol），原子上限200个，可以顺带着让服务器对分子在OPLS-AA力场下做几何优化。分配的原子电荷是1.14*CM1A或1.14*CM1A-LBCC，前者是把CM1A电荷数值乘上1.14得到的，后者是在1.14*CM1A基础上再引入LBCC校正得到的，在J. Phys. Chem. B, 121, 3864 (2017)中已证明这两种原子电荷结合OPLS-AA模拟有机体系凝聚相可以得到不错结果。
+LigParGen（http://zarbi.chem.yale.edu/ligpargen/）是生成GROMACS, NAMD, CHARMM, LAMMPS等程序OPLS-AA力场的拓扑文件的工具，毕竟这是OPLS力场开发者自己搞的，因此原则上比MKTOP、TPPmktop更靠谱。可以通过SMILES字符串、.mol、.pdb文件进行输入（用pdb格式时老是报错，建议用.mol），原子上限200个，可以顺带着让服务器对分子在OPLS-AA力场下做几何优化。分配的原子电荷是1.14*CM1A或1.14*CM1A-LBCC，前者是把CM1A电荷数值乘上1.14得到的，后者是在1.14*CM1A基础上再引入LBCC校正得到的，在J. Phys. Chem. B, 121, 3864 (2017)中已证明这两种原子电荷结合OPLS-AA模拟有机体系凝聚相可以得到不错结果。
+
+---
+
+
 
 ---
 
 ## 13. LigParGen的电荷替换建议
 
-本文开头所述的Multiwfn可以计算的1.2*CM5电荷比LigParGen直接给出的电荷在多数情况下更适合做动力学模拟，特别是对于密度、蒸发焓的精度方面而言，这点在J. Phys. Chem. B, 121, 3864 (2017)的测试中充分体现了。而且对于一些分子，LigParGen给出的原子电荷加和不精确为0，而是比如0.0001，这导致此类分子数目较多时体系总电荷对整数有不可忽视的偏离，对模拟造成不良影响。因此建议大家将LigParGen给出的itp文件里的原子电荷部分替换为Multiwfn得到的1.2*CM5电荷。
+该资料开头所述的Multiwfn可以计算的1.2*CM5电荷比LigParGen直接给出的电荷在多数情况下更适合做动力学模拟，特别是对于密度、蒸发焓的精度方面而言，这点在J. Phys. Chem. B, 121, 3864 (2017)的测试中充分体现了。而且对于一些分子，LigParGen给出的原子电荷加和不精确为0，而是比如0.0001，这导致此类分子数目较多时体系总电荷对整数有不可忽视的偏离，对模拟造成不良影响。因此建议将LigParGen给出的itp文件里的原子电荷部分替换为Multiwfn得到的1.2*CM5电荷。
+
+---
+
+
 
 ---
 
@@ -131,7 +144,11 @@ PRODRG2（http://davapc1.bioch.dundee.ac.uk/cgi-bin/prodrg）是历史非常悠�
 
 ## 21. 旧版CGenFF的文件转换与运行命令
 
-进入旧版CGenFF网页里的More Info & Tools - Utilities，点击GROMACS conversion program，可下载把str文件转换为GROMACS格式的Python脚本cgenff_charmm2gmx.py。对于CentOS 7.2，应运行yum install numpy和yum install python-networkx把这个脚本所需的包装上。去http://mackerell.umaryland.edu/charmm_ff.shtml#gromacs里面下载用于GROMACS的CHARMM36力场文件，解压得到比如charmm36-nov2016.ff文件夹，将它和Actos.str、cgenff_charmm2gmx.py都放到当前目录，另外也把此文件夹拷到gromacs的top目录下。假设Actos.str里RESI后面的词是Molecu，最初上传的是Actos.mol2，则运行./cgenff_charmm2gmx.py Molecu Actos.mol2 Actos.str charmm36-nov2016.ff。
+进入旧版CGenFF网页里的More Info & Tools - Utilities，点击GROMACS conversion program，可下载把str文件转换为GROMACS格式的Python脚本cgenff_charmm2gmx.py。对于CentOS 7.2，应运行yum install numpy和yum install python-networkx把这个脚本所需的包装上。去http://mackerell.umaryland.edu/charmm_ff.shtml#gromacs里面下载用于GROMACS的CHARMM36力场文件，解压得到比如charmm36-nov2016.ff文件夹，将它和Actos.str、cgenff_charmm2gmx.py都放到当前目录，另外也把该资料件夹拷到gromacs的top目录下。假设Actos.str里RESI后面的词是Molecu，最初上传的是Actos.mol2，则运行./cgenff_charmm2gmx.py Molecu Actos.mol2 Actos.str charmm36-nov2016.ff。
+
+---
+
+
 
 ---
 
@@ -143,7 +160,11 @@ PRODRG2（http://davapc1.bioch.dundee.ac.uk/cgi-bin/prodrg）是历史非常悠�
 
 ## 23. TPPmktop工具简介与问题
 
-TPPmktop（http://erg.biophys.msu.ru/tpp/）是在线工具，提供pdb文件，能产生OPLS-AA力场参数的GROMACS拓扑文件，速度比较快。但是得到的拓扑文件里有时候会缺参数，或者出现额外的原子类型，需要再手工处理（需要引入额外的力场文件，但是笔者发现在网上下载不到）。此服务器有时候有其它任务在跑，此时无法提交任务，只能等过一阵服务器没任务时再提交。
+TPPmktop（http://erg.biophys.msu.ru/tpp/）是在线工具，提供pdb文件，能产生OPLS-AA力场参数的GROMACS拓扑文件，速度比较快。但是得到的拓扑文件里有时候会缺参数，或者出现额外的原子类型，需要再手工处理（需要引入额外的力场文件，但是在网上下载不到）。此服务器有时候有其它任务在跑，此时无法提交任务，只能等过一阵服务器没任务时再提交。
+
+---
+
+
 
 ---
 
@@ -155,4 +176,4 @@ YASARA AutoSMILES Server（http://www.yasara.org/autosmilesserver.htm）是在�
 
 ## 25. RED工具简介
 
-RED（RESP ESP charge Derive，http://q4md-forcefieldtools.org/REDServer-Development/）专门生成RESP电荷的，也能搞力场参数。页面做得不是一般的糟糕，结构十分混乱，令我摸不到头绪，因此笔者也没怎么仔细研究，由于Multiwfn已经完美支持RESP电荷计算了，RED已没有必要使用了。
+RED（RESP ESP charge Derive，http://q4md-forcefieldtools.org/REDServer-Development/）专门生成RESP电荷的，也能搞力场参数。页面做得不是一般的糟糕，结构十分混乱，摸不到头绪，因此也没怎么仔细研究，由于Multiwfn已经完美支持RESP电荷计算了，RED已没有必要使用了。

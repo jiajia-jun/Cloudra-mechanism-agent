@@ -4,56 +4,65 @@ title: Amber14安装方法
 url: http://sobereva.com/263
 domain: 软件安装与环境
 topic: Amber14及AmberTools14编译安装
-cards: 1
+cards: 10
+---
+## 1. Amber14版本构成与功能分布
+
+Amber14仅包含PMEMD模块，曾经核心的sander模块及其它所有模块均已移至免费开源的AmberTools14中。光靠AmberTools已足以进行动力学模拟，若需要更快的速度和GPU加速才需要购买付费的Amber。
+- 编译环境：RHEL6U1-64bit, root, bash
+- 硬件：Core 2 Q6600，GTX770
+- 安装路径：/sob/amber14
+
 ---
 
-# Amber14及AmberTools14编译安装 — 知识卡片
+## 2. 历史版本安装方法参考
 
-## 1. Amber14与AmberTools14的模块构成关系
+Amber11+AmberTools1.5及CUDA版、Amber12、Amber10的安装方法参见博客《Amber11+AmberTools1.5及CUDA版安装方法，以及Amber12安装方法》（http://原作者.com/103）和《Amber10安装方法》（http://原作者.com/103）。
 
-Amber14仅包含PMEMD一个模块，曾经最核心的sander模块及其它所有模块已被移至免费的AmberTools14中。仅依靠AmberTools14即可进行动力学模拟，若需要更快的速度和GPU加速才需购买Amber。
-- 引用自《Amber14安装方法》
+---
 
-## Amber14安装所需的编译环境与依赖
-编译环境为RHEL6U1-64bit，硬件为Core 2 Q6600和GTX770。需要安装ifort和icc 12.1.0到默认路径，并编译OpenMPI 1.6.5。配置OpenMPI时运行命令 `./configure CC=icc CXX=icpc FC=ifort F77=ifort; make all install`，此时OpenMPI相关文件会被装到/usr/local目录下。
-- 引用自《Amber14安装方法》
+## 3. 编译器与OpenMPI环境准备
 
-## Amber14的环境变量配置
-需要在.bashrc文件中添加环境变量：`export AMBERHOME=/sob/amber14`、`export PATH=$PATH:$AMBERHOME/bin`、`export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$AMBERHOME/lib`。配置后运行bash使环境变量生效。
-- 引用自《Amber14安装方法》
+安装ifort和icc 12.1.0到默认路径，MKL对性能影响很小故不使用。编译OpenMPI 1.6.5（或更新版本），解压后进入目录运行 `./configure CC=icc CXX=icpc FC=ifort F77=ifort; make all install`，将可执行文件等安装到/usr/local目录下。
 
-## Amber14的文件解压与准备
-将AmberTools14.tar.bz2和Amber14.tar.bz2在/sob目录下解压，后者会合并目录并覆盖部分文件。解压后amber14目录下应包含Ambertools、src、benchmarks等目录，安装期间需保持联网以自动应用官网补丁。
-- 引用自《Amber14安装方法》
+---
 
-## Amber14串行版本的编译与测试
-进入/sob/amber14目录，运行 `./configure intel`，检测到补丁时输入y。运行 `make install` 进行编译，耗时约20多分钟；运行 `make test` 进行测试，耗时约2小时。
-- 引用自《Amber14安装方法》
+## 4. 环境变量设置与解压
 
-## Amber14串行版本测试的注意事项
-测试内容包括面向第三方量化程序的QMMM接口，会调用机子上的gaussian、orca、terachem等程序。测试日志汇总在/sob/amber14/logs目录下，部分与orca有关的failure无关紧要。
-- 引用自《Amber14安装方法》
+在.bashrc中添加环境变量：`export AMBERHOME=/sob/amber14`，`export PATH=$PATH:$AMBERHOME/bin`，`export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$AMBERHOME/lib`。运行bash使环境变量生效，在/sob目录下解压AmberTools14.tar.bz2和Amber14.tar.bz2，保持联网以便安装程序自动应用补丁。
 
-## Amber14并行版本(MMPI)的编译与测试
-运行 `./configure -mpi intel` 和 `make install`，会在bin目录下生成MMPBSA.py.MPI、pmemd.amoeba.MPI、pmemd.MPI、sander.LES.MPI、sander.MPI等后缀为.MPI的文件。测试时设置 `export DO_PARALLEL="mpirun -np 4"` 并运行 `make test`，四核机子约半小时完成。
-- 引用自《Amber14安装方法》
+---
 
-## Amber14 OpenMP并行版NAB和Cpptraj的编译
-运行 `./configure -openmp intel` 和 `make openmp`，编译出来的程序名称仍为nab和cpptraj。
-- 引用自《Amber14安装方法》
+## 5. 串行版本编译与测试
 
-## Amber14 GPU版PMEMD的环境配置
-需安装CUDA toolkit到默认路径（版本为5.5），并在.bashrc中添加：`export CUDA_HOME=/usr/local/cuda-5.5`、`export PATH=$PATH:$CUDA_HOME/bin`、`export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_HOME/lib64`。运行bash使之生效。
-- 引用自《Amber14安装方法》
+在/sob/amber14目录运行 `./configure intel`，检测到补丁时输入y。运行 `make install` 编译（耗时20多分钟），运行 `make test` 测试（耗时约两小时）。测试结果汇总在/sob/amber14/logs目录，部分与orca等程序有关的failure可以忽略。
 
-## Amber14 GPU版PMEMD的编译方法
-进入/sob/amber14目录，依次运行 `./configure -cuda intel` 和 `make install` 编译串行版，运行 `./configure -cuda -mpi intel` 和 `make install` 编译并行版。编译完成后bin目录下产生pmemd.cuda和pmemd.cuda.MPI。
-- 引用自《Amber14安装方法》
+---
 
-## Amber14 GPU版PMEMD的精度版本说明
-默认编译的GPU版PMEMD为SPFP版本，是精度和速度的最佳平衡。另一种DPFP版本精度更高但计算消耗也明显更高，编译时将-cuda改为-cuda_DPFP即可，一般没必要使用。
-- 引用自《Amber14安装方法》
+## 6. 并行版本编译与测试
 
-## Amber14 GPU版PMEMD的测试与结果分析
-运行 `make test.cuda` 测试串行版，设置 `export DO_PARALLEL="mpirun -np 4"` 后运行 `make test.cuda_parallel` 测试并行版。由于GPU跑动力学的重现性比CPU低，容易产生接近半数的Possible failure，但这通常是探索相空间不同区域导致的偏差，不代表结果不合理。
-- 引用自《Amber14安装方法》
+运行 `./configure -mpi intel` 和 `make install`，在bin目录生成MMPBSA.py.MPI、pmemd.amoeba.MPI、pmemd.MPI、sander.LES.MPI、sander.MPI等文件。设置 `export DO_PARALLEL="mpirun -np 4"` 后运行 `make test`，四核机子半小时内完成。
+
+---
+
+## 7. OpenMP并行版NAB和Cpptraj编译
+
+运行 `./configure -openmp intel` 和 `make openmp` 编译OpenMP并行版，生成的程序名仍为nab和cpptraj。
+
+---
+
+## 8. GPU版编译环境配置
+
+下载并安装CUDA toolkit到默认路径（如5.5版本）。在.bashrc中添加：`export CUDA_HOME=/usr/local/cuda-5.5`，`export PATH=$PATH:$CUDA_HOME/bin`，`export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_HOME/lib64`，运行bash生效。
+
+---
+
+## 9. GPU版PMEMD编译步骤
+
+依次运行 `./configure -cuda intel`、`make install`、`./configure -cuda -mpi intel`、`make install`。bin目录下产生pmemd.cuda和pmemd.cuda.MPI，默认为SPFP版本（精度和速度最佳平衡）。若需更高精度可改用-cuda_DPFP编译DPFP版本，但计算消耗明显更高。
+
+---
+
+## 10. GPU版PMEMD测试
+
+运行 `make test.cuda` 测试串行版，设置 `export DO_PARALLEL="mpirun -np 4"` 后运行 `make test.cuda_parallel` 测试并行版。测试中可能出现半数左右的Possible failure，这是由于GPU动力学重现性低于CPU导致与参考值偏差，不代表设备结果不合理。

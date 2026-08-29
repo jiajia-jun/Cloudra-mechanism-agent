@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn结合VMD绘制RDG图的要点与常见问题
 cards: 24
 ---
-
-# Multiwfn结合VMD绘制RDG图的要点与常见问题 — 知识卡片
-
 ## 1. RDG分析背景与相关方法介绍
 
 用Multiwfn结合VMD绘制RDG填色等值面图是研究弱相互作用的常用方法，详见《使用Multiwfn图形化研究弱相互作用》。文中讨论的很多问题对于绘制IGM图、IGMH图、IRI图也是通用的，相关方法介绍见《通过独立梯度模型(IGM)考察分子间弱相互作用》、《使用Multiwfn做IGMH分析非常清晰直观地展现化学体系中的相互作用》和《使用IRI方法图形化考察化学体系中的化学键和弱相互作用》。所有这些方法的全面介绍见《一篇最全面介绍各种弱相互作用可视化分析方法的文章已发表！》和《Angew. Chem.上发表了全面介绍各种共价和非共价相互作用可视化分析方法的综述》。
@@ -89,7 +86,7 @@ RDG定量讨论可看spike的位置，或结合AIM定量分析（见《AIM学习
 
 ## 14. 区分散点图中不同spike对应的相互作用
 
-区分散点图spike对应相互作用的方法有：(1)用Multiwfn做AIM分析得到BCP的sign(lambda2)rho值并与散点图对照；(2)设定格点数据计算范围仅囊括某个弱相互作用区域；(3)在Multiwfn中选择"Set function2 value where the value of function1 is out of a certain range"屏蔽特定sign(lambda2)rho范围的格点，仅显示特定spike对应的等值面；(4)绘制带有填色效果的散点图对比等值面颜色（见http://sobereva.com/399）。
+区分散点图spike对应相互作用的方法有：(1)用Multiwfn做AIM分析得到BCP的sign(lambda2)rho值并与散点图对照；(2)设定格点数据计算范围仅囊括某个弱相互作用区域；(3)在Multiwfn中选择"Set function2 value where the value of function1 is out of a certain range"屏蔽特定sign(lambda2)rho范围的格点，仅显示特定spike对应的等值面；(4)绘制带有填色效果的散点图对比等值面颜色（见http://原作者.com/399）。
 
 ---
 

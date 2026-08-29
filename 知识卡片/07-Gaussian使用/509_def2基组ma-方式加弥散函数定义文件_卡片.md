@@ -6,12 +6,9 @@ domain: Gaussian使用
 topic: def2基组ma-方式加弥散函数定义文件
 cards: 10
 ---
-
-# def2基组ma-方式加弥散函数定义文件 — 知识卡片
-
 ## 1. def2基组ma-方式加弥散的定义文件
 
-def2系列基组没有官方标配的带弥散函数版本，Truhlar课题组网站提供的ma-基组定义文件关键缺点是元素不全。笔者写程序基于BSE上的def2系列基组支持的所有元素的定义文件，自动批量按照ma-方式添加弥散函数，生成的文件包包含ma-QZVPP.txt等文件和共用的赝势文件def2-ECP.txt。这些文件可以在这里下载：http://sobereva.com/attach/509/file.zip。
+def2系列基组没有官方标配的带弥散函数版本，Truhlar课题组网站提供的ma-基组定义文件关键缺点是元素不全。基于BSE上的def2系列基组支持的所有元素的定义文件，自动批量按照ma-方式添加弥散函数，生成的文件包包含ma-QZVPP.txt等文件和共用的赝势文件def2-ECP.txt。这些文件可以在这里下载：http://原作者.com/attach/509/file.zip。
 
 ---
 
@@ -65,4 +62,4 @@ def2-TZVP(-f)比def-TZVP更大，例如对于碳，前者有两层d极化而后�
 
 ## 10. 自动构建ma-基组定义的工具ma-diffuse
 
-构建ma-基组定义的程序ma-diffuse可在此下载：http://sobereva.com/soft/ma-diffuse.rar。这是一个Windows版可执行文件，使用Def2-SVP.gbs等原始定义文件作为输入。程序运行时可以由用户设定最小的s和p指数要除的因子，如果设成3，对应的就是以标准的ma-方式加弥散函数的情况。新产生的基组会输出到当前目录下的new.txt。
+构建ma-基组定义的程序ma-diffuse可在此下载：http://原作者.com/soft/ma-diffuse.rar。这是一个Windows版可执行文件，使用Def2-SVP.gbs等原始定义文件作为输入。程序运行时可以设定最小的s和p指数要除的因子，如果设成3，对应的就是以标准的ma-方式加弥散函数的情况。新产生的基组会输出到当前目录下的new.txt。

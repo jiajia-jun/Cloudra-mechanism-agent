@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: 基于wfn文件计算电子密度的Fortran代码
 cards: 10
 ---
-
-# 基于wfn文件计算电子密度的Fortran代码 — 知识卡片
-
 ## 1. 程序结构与模块定义
 
 程序包含module defvar定义全局变量和类型，module function包含计算子程序，program wfnprop为交互主程序，readwfn子程序用于读取wfn文件，uc2lc和lc2uc用于字符大小写转换。type atomtype定义了原子名、序号、坐标和核电荷数，type primtype定义了高斯函数所属中心、类型和指数。name2ind数组存储了原子名到原子序号的映射表，type2ix/y/z数组存储了GTF类型到x,y,z指数的映射。
@@ -89,5 +86,5 @@ fgrad函数计算电子密度在x、y、z方向的导数或梯度的模，由参
 
 ## 10. 代码使用引用说明
 
-本文提供的代码源自Multiwfn 3.0并进行了精简，若需更强的功能、更快的速度或更好的兼容性，应直接提取Multiwfn源码中的完整子程序。如果读者在自行开发的程序中使用了本文代码或Multiwfn的代码并打算发表文章，必须引用Multiwfn的原始文献。代码文件可从博文提供的链接下载，并在CVF6.5、Intel Visual Fortran上编译通过。
+该代码源自Multiwfn 3.0并进行了精简，若需更强的功能、更快的速度或更好的兼容性，应直接提取Multiwfn源码中的完整子程序。如果在自行开发的程序中使用了该代码或Multiwfn的代码并打算发表文章，必须引用Multiwfn的原始文献。代码文件可从资料提供的链接下载，并在CVF6.5、Intel Visual Fortran上编译通过。
 - 引用文献: Tian Lu, Feiwu Chen, J. Comp. Chem. 33, 580-592 (2012)

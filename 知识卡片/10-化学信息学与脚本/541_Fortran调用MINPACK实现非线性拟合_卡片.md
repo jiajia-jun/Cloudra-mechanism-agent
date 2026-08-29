@@ -6,14 +6,11 @@ domain: 化学信息学与脚本
 topic: Fortran调用MINPACK实现非线性拟合
 cards: 9
 ---
-
-# Fortran调用MINPACK实现非线性拟合 — 知识卡片
-
 ## 1. 非线性拟合与Levenberg-Marquardt算法
 
 非线性拟合通过调整系数最小化误差函数来实现，误差函数定义为所有拟合点上实际与拟合数据差值的平方和。Levenberg-Marquardt算法是使用最多、效率最高且效果最好的方法之一，它是一个迭代算法，结果依赖于初猜参数，并且需要导数信息。具体的算法细节可以参考Wikipedia页面。
-http://sobereva.com/538
-http://sobereva.com/536
+http://原作者.com/538
+http://原作者.com/536
 https://en.wikipedia.org/wiki/Levenberg%E2%80%93Marquardt_algorithm
 
 ---
@@ -28,7 +25,7 @@ https://people.sc.fsu.edu/~jburkardt/f_src/minpack/minpack.html
 ## 3. Morse势拟合乙烷碳碳键断裂案例背景
 
 本例使用Morse势对乙烷碳碳键断裂的柔性扫描曲线进行拟合，扫描数据可以从Gaussian计算后用GaussView导出为.txt文件。Morse势表达式中额外引入了S参数用于上下移动曲线，因为扫描数据中可能没有点恰好落在势能曲线真正的精确谷底位置，拟合应允许曲线整体移动。
-http://sobereva.com/474
+http://原作者.com/474
 
 ---
 

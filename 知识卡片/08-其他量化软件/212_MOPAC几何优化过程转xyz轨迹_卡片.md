@@ -6,9 +6,6 @@ domain: 其他量化软件
 topic: MOPAC几何优化过程转xyz轨迹
 cards: 6
 ---
-
-# MOPAC几何优化过程转xyz轨迹 — 知识卡片
-
 ## 1. mopac2xyz工具功能与用途
 
 mopac2xyz是将MOPAC程序的几何优化过程转换为xyz轨迹文件的工具，旨在解决现有支持MOPAC的可视化程序界面不佳且无法直观观看优化过程结构变化的问题。该工具将MOPAC优化任务的输出文件转化为xyz格式的轨迹文件，用户可以直接将生成的xyz文件拖入VMD软件中方便地观看优化过程中结构的变化。
@@ -17,7 +14,7 @@ mopac2xyz是将MOPAC程序的几何优化过程转换为xyz轨迹文件的工具
 
 ## 2. 版本兼容性与文件下载
 
-mopac2xyz 1.0.3版下载地址为 http://sobereva.com/soft/mopac2xyz_1.0.3.zip。当前版本已测试能够兼容MOPAC 2012和MOPAC 2016，不保证能兼容其它版本的MOPAC输出文件。
+mopac2xyz 1.0.3版下载地址为 http://原作者.com/soft/mopac2xyz_1.0.3.zip。当前版本已测试能够兼容MOPAC 2012和MOPAC 2016，不保证能兼容其它版本的MOPAC输出文件。
 
 ---
 

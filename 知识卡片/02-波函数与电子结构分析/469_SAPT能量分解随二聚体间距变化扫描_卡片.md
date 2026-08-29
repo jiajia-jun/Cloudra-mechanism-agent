@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: SAPT能量分解随二聚体间距变化扫描
 cards: 20
 ---
-
-# SAPT能量分解随二聚体间距变化扫描 — 知识卡片
-
 ## 1. 推荐使用sobEDA方法进行能量项扫描
 
 如今推荐使用sobEDA方法做能量项随二聚体间距离变化的扫描，sobEDA比SAPT普适得多，速度快得多且内存消耗少得多。具体做法在《使用sobEDA和sobEDAw方法做非常准确、快速、方便、普适的能量分解分析》中提到的sobEDA原文附带的教程里给出了，提供的脚本做扫描极为方便。
@@ -29,25 +26,41 @@ dimerscan程序结合Gaussian可以非常容易地实现二聚体间距的刚性
 
 ## 4. 复杂二聚体SAPT扫描的通用方法
 
-大多数实际情况下（例如扫描水二聚体中的O...H距离），仅通过单个PSI4输入文件难以容易地实现扫描SAPT相互作用项随分子二聚体距离变化的目的。本文介绍了一种简单且通用的方法来获得随分子间距离变化的所有SAPT项，该方法包含三个步骤：生成SAPT输入文件、在批处理模式下运行PSI4、提取数据并绘制成曲线图。
+大多数实际情况下（例如扫描水二聚体中的O...H距离），仅通过单个PSI4输入文件难以容易地实现扫描SAPT相互作用项随分子二聚体距离变化的目的。这里介绍了一种简单且通用的方法来获得随分子间距离变化的所有SAPT项，该方法包含三个步骤：生成SAPT输入文件、在批处理模式下运行PSI4、提取数据并绘制成曲线图。
+
+---
+
+
 
 ---
 
 ## 5. 扫描参数的定义与实例
 
-本文所说的“距离”是指两个单体间一对原子的间距，在变化过程中单体的取向和结构保持固定。以水二聚体为例，将H2-O4距离从1.5埃变到3.5埃，步长为0.2埃，因此共有10步。
+这里所说的“距离”是指两个单体间一对原子的间距，在变化过程中单体的取向和结构保持固定。以水二聚体为例，将H2-O4距离从1.5埃变到3.5埃，步长为0.2埃，因此共有10步。
+
+---
+
+
 
 ---
 
 ## 6. 相关研究文献引用
 
-本文介绍的扫描方法已在关于氢键的系统性研究中被采用，强烈建议阅读：Exploring Nature and Predicting Strength of Hydrogen Bonds: A Correlation Analysis Between Atoms-in-Molecules Descriptors, Binding Energies, and Energy Components of Symmetry-Adapted Perturbation Theory, J. Comput. Chem., 40, 2868–2881 (2019) DOI: 10.1002/jcc.26068。
+这里介绍的扫描方法已在关于氢键的系统性研究中被采用，强烈建议阅读：Exploring Nature and Predicting Strength of Hydrogen Bonds: A Correlation Analysis Between Atoms-in-Molecules Descriptors, Binding Energies, and Energy Components of Symmetry-Adapted Perturbation Theory, J. Comput. Chem., 40, 2868–2881 (2019) DOI: 10.1002/jcc.26068。
+
+---
+
+
 
 ---
 
 ## 7. dimerscan程序的获取与引用
 
-dimerscan代码用于生成各种分子间距离下的PSI4 SAPT输入文件，可从此页面下载：http://sobereva.com/soft/dimerscan。如果在工作中使用了dimerscan，请引用如下格式：Tian Lu, dimerscan program, http://sobereva.com/soft/dimerscan (accessed month day, year)。
+dimerscan代码用于生成各种分子间距离下的PSI4 SAPT输入文件，可从此页面下载：http://原作者.com/soft/dimerscan。如果在工作中使用了dimerscan，请引用如下格式：原作者, dimerscan program, http://原作者.com/soft/dimerscan (accessed month day, year)。
+
+---
+
+
 
 ---
 
@@ -65,7 +78,7 @@ dimerscan程序包中，“dimerscan.exe”是Windows下的可执行文件，“
 
 ## 10. 单体结构优化的输入文件格式
 
-需要先在合理水平（例如B3LYP-D3(BJ)/def2-TZVP）下优化水二聚体结构，然后创建一个纯文本文件。第一行是单体1和单体2的原子数，第二行是单体1和单体2的净电荷和自旋多重度，从第3行开始是二聚体坐标（单位为埃）。
+需要先在合理水平（例如B3LYP-D3(BJ)/def2-TZVP）下优化水二聚体结构，然后创建一个纯文该资料件。第一行是单体1和单体2的原子数，第二行是单体1和单体2的净电荷和自旋多重度，从第3行开始是二聚体坐标（单位为埃）。
 
 ---
 

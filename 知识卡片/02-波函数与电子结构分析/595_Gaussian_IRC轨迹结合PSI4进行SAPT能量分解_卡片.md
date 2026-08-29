@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: Gaussian_IRC轨迹结合PSI4进行SAPT能量分解
 cards: 8
 ---
-
-# Gaussian_IRC轨迹结合PSI4进行SAPT能量分解 — 知识卡片
-
 ## 1. IRC_SAPT工具的功能与下载
 
-IRC_SAPT工具用于将Gaussian计算产生的IRC轨迹输出文件便捷地转换为对应于每个IRC点的PSI4 SAPT输入文件。该工具可从 http://www.keinsci.com 获取，下载链接为 http://sobereva.com/soft/IRC_SAPT.zip，压缩包内无后缀文件为Linux平台可执行程序，有后缀文件为Windows平台可执行程序。SAPT原则上适用于弱相互作用分解，不适合存在化学键作用的片段间相互作用分解。
-
----
+IRC_SAPT工具用于将Gaussian计算产生的IRC轨迹输出文件便捷地转换为对应于每个IRC点的PSI4 SAPT输入文件。该工具可从 http://www.keinsci.com 获取，下载链接为 http://原作者.com/soft/IRC_SAPT.zip，压缩包内无后缀文件为Linux平台可执行程序，有后缀文件为Windows平台可执行程序。SAPT原则上适用于弱相互作用分解，不适合存在化学键作用的片段间相互作用分解。
 
 ## 2. SAPT模板文件SAPT_template.inp的格式要求
 

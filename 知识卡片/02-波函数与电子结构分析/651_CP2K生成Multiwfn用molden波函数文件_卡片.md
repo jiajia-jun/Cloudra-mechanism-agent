@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: CP2K生成Multiwfn用molden波函数文件
 cards: 16
 ---
-
-# CP2K生成Multiwfn用molden波函数文件 — 知识卡片
-
 ## 1. 在CP2K中开启Molden文件输出
 
 在CP2K输入文件的&DFT字段中加入PRINT和MO_MOLDEN模块，并设置NDIGITS参数，可以在SCF收敛后在当前目录下产生.molden为后缀的文件。代码示例为 &PRINT &MO_MOLDEN NDIGITS 9 &END MO_MOLDEN &END PRINT。其中NDIGITS控制输出的轨道展开系数，上例要求绝对值大于1E-9的展开系数才会被输出，NDIGITS 9对于波函数分析的目的足够精确了。
@@ -35,7 +32,11 @@ cards: 16
 
 ## 5. 向Molden文件添加盒子信息方法二
 
-用文本编辑器打开molden文件，在开头部分插入[Cell]字段，里面通过三行来分别定义盒子的三个平移矢量的X、Y、Z分量（以埃为单位），或者通过一行定义盒子的三个边长(a,b,c)和夹角(α,β,γ)。如果不想修改molden文件，可以在当前目录下创建一个叫[Cell].txt的文件，Multiwfn载入时会询问是否从此文件读取。
+用文本编辑器打开molden文件，在开头部分插入[Cell]字段，里面通过三行来分别定义盒子的三个平移矢量的X、Y、Z分量（以埃为单位），或者通过一行定义盒子的三个边长(a,b,c)和夹角(α,β,γ)。如果不想修改molden文件，可以在当前目录下创建一个叫[Cell].txt的文件，Multiwfn载入时会询问是否从该资料件读取。
+
+---
+
+
 
 ---
 
@@ -53,7 +54,7 @@ cards: 16
 
 ## 8. 合并添加盒子信息和核电荷数
 
-在计算是在远程服务器上进行且编辑molden文件不方便时，可以在本机写一个包含[Cell]和[Nval]字段的文本文件。上传后运行cat add.txt org.molden > final.molden，就把[Cell]和[Nval]字段加入到原先的org.molden文件开头，得到了可以用于Multiwfn做分析的final.molden。
+在计算是在远程服务器上进行且编辑molden文件不方便时，可以在本机写一个包含[Cell]和[Nval]字段的文该资料件。上传后运行cat add.txt org.molden > final.molden，就把[Cell]和[Nval]字段加入到原先的org.molden文件开头，得到了可以用于Multiwfn做分析的final.molden。
 
 ---
 

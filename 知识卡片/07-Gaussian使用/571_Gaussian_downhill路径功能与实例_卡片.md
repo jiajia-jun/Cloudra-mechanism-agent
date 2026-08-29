@@ -6,14 +6,9 @@ domain: Gaussian使用
 topic: Gaussian_downhill路径功能与实例
 cards: 7
 ---
-
-# Gaussian_downhill路径功能与实例 — 知识卡片
-
 ## 1. Gaussian的IRC=downhill功能定义
 
-Gaussian程序的IRC关键词中的downhill选项可以以任意位置作为起点，通过IRC算法得到一条downhill轨迹。这条轨迹相当于在质权势能面上体系不断沿着受力方向行进而走出的理想轨迹，也可以认为是原子运动速度无穷慢的情况下原子走的真实运动轨迹。利用这个功能，可以考察体系从非平衡状态向极小点结构弛豫的真实过程。详见《在Gaussian中计算IRC的方法和常见问题》（http://sobereva.com/400）。
-
----
+Gaussian程序的IRC关键词中的downhill选项可以以任意位置作为起点，通过IRC算法得到一条downhill轨迹。这条轨迹相当于在质权势能面上体系不断沿着受力方向行进而走出的理想轨迹，也可以认为是原子运动速度无穷慢的情况下原子走的真实运动轨迹。利用这个功能，可以考察体系从非平衡状态向极小点结构弛豫的真实过程。详见《在Gaussian中计算IRC的方法和常见问题》。
 
 ## 2. 吡咯T1态结构弛豫计算设置
 

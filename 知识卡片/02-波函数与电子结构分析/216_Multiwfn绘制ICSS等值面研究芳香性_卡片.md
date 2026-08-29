@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn绘制ICSS等值面研究芳香性
 cards: 21
 ---
-
-# Multiwfn绘制ICSS等值面研究芳香性 — 知识卡片
-
 ## 1. ICSS的定义与符号
 
 等化学屏蔽表面（ICSS）是在J. Chem. Soc., Perkin Trans. 2, 2001, 1893提出的概念，它计算磁屏蔽值在三维空间中的格点数据并绘制成等值面图。ICSS直接展现不同位置的磁屏蔽值，而NICS（核独立化学位移）取的是磁屏蔽值的负值，因此ICSS和NICS的符号定义是恰好相反的。
@@ -138,10 +135,14 @@ ICSS_ZZ方法被用于研究特殊电子结构体系，如具有双芳香性的1
 
 ## 20. ICSS绘制插值方法的更新建议
 
-原文使用用户自定义函数-1进行三线性插值，但新版Multiwfn支持更好的三维B-spline插值（iuserfunc=-3），得到的插值函数及图像更平滑。建议将本文中设iuserfunc为-1的地方都改为-3来使用B-spline插值。
+原文使用用户自定义函数-1进行三线性插值，但新版Multiwfn支持更好的三维B-spline插值（iuserfunc=-3），得到的插值函数及图像更平滑。建议将文中设iuserfunc为-1的地方都改为-3来使用B-spline插值。
+
+---
+
+
 
 ---
 
 ## 21. 一维和二维NICS曲线/平面图的替代方案
 
-Multiwfn后来加入了专门绘制一维NICS曲线图和二维NICS平面图的功能，步骤更简单且耗时极低。如果只是要绘制曲线图或平面图，强烈推荐使用《使用Multiwfn绘制一维NICS曲线并通过积分衡量芳香性》（http://sobereva.com/681）和《使用Multiwfn巨方便地绘制二维NICS平面图考察芳香性》（http://sobereva.com/682）介绍的方法，不建议用本文ICSS格点插值的方式。
+Multiwfn后来加入了专门绘制一维NICS曲线图和二维NICS平面图的功能，步骤更简单且耗时极低。如果只是要绘制曲线图或平面图，强烈推荐使用《使用Multiwfn绘制一维NICS曲线并通过积分衡量芳香性》（http://原作者.com/681）和《使用Multiwfn巨方便地绘制二维NICS平面图考察芳香性》（http://原作者.com/682）介绍的方法，不建议用该资料ICSS格点插值的方式。

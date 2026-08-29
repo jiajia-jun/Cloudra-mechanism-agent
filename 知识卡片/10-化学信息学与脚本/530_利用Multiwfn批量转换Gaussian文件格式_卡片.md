@@ -6,12 +6,9 @@ domain: 化学信息学与脚本
 topic: 利用Multiwfn批量转换Gaussian文件格式
 cards: 9
 ---
-
-# 利用Multiwfn批量转换Gaussian文件格式 — 知识卡片
-
 ## 1. 脚本功能与依赖环境
 
-本文提供两个Linux下的Bash shell脚本，利用Multiwfn程序将gjf文件转为xyz文件、或将Gaussian输出文件转为gjf文件。使用前必须恰当安装Multiwfn程序并能通过Multiwfn命令直接启动，建议使用最新版本。脚本可以在Multiwfn的examples\scripts目录下找到，且可改写以支持Multiwfn支持的其他格式转换。相关安装、格式支持及批量运行方法的细节分别参考Multiwfn手册2.1.2节、博文《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》及《详谈Multiwfn的命令行方式运行和批量运行的方法》。
+此处提供两个Linux下的Bash shell脚本，利用Multiwfn程序将gjf文件转为xyz文件、或将Gaussian输出文件转为gjf文件。使用前必须恰当安装Multiwfn程序并能通过Multiwfn命令直接启动，建议使用最新版本。脚本可以在Multiwfn的examples\scripts目录下找到，且可改写以支持Multiwfn支持的其他格式转换。相关安装、格式支持及批量运行方法的细节分别参考Multiwfn手册2.1.2节、资料《详谈Multiwfn支持的输入文件类型、产生方法以及相互转换》及《详谈Multiwfn的命令行方式运行和批量运行的方法》。
 
 ---
 

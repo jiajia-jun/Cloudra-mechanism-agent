@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: NBO程序bndidx键级定义与适用性辨析
 cards: 11
 ---
-
-# NBO程序bndidx键级定义与适用性辨析 — 知识卡片
-
 ## 1. NBO键级分析的推荐工具与相关阅读
 
-一般没必要用NBO算键级。Multiwfn（可在http://sobereva.com/multiwfn免费下载）支持非常全面的键级计算方法，Gaussian用户只要提供fch文件即可。使用方法见Multiwfn手册4.9节，原理见3.11节。更多和键级有关的博文见《谈谈原子间是否成键的判断问题》（http://sobereva.com/414）和《通过键级曲线和ELF/LOL/RDG等值面动画研究化学反应过程》（http://sobereva.com/200）。
+一般没必要用NBO算键级。Multiwfn支持非常全面的键级计算方法，Gaussian用户只要提供fch文件即可。使用方法见Multiwfn手册4.9节，原理见3.11节。更多和键级有关的博文见《谈谈原子间是否成键的判断问题》和《通过键级曲线和ELF/LOL/RDG等值面动画研究化学反应过程》。
 
 ---
 

@@ -6,32 +6,41 @@ domain: 波函数与电子结构分析
 topic: Multiwfn与VMD绘制ALIE着色分子表面图
 cards: 8
 ---
-
-# Multiwfn与VMD绘制ALIE着色分子表面图 — 知识卡片
-
 ## 1. ALIE函数的应用价值与简介
 
 平均局部离子化能(ALIE)是考察分子亲电反应位点及活性的重要指标，通过分析其在分子表面的分布可以揭示反应活性区域。不熟悉ALIE的用户建议阅读《静电势与平均局部离子化能综述合集》。相关补充函数LEAE详见文章《使用Multiwfn通过局部电子附着能(LEAE)考察亲核反应位点、难易及弱相互作用》。
 - ALIE常用于分析亲电反应位点
-- 推荐阅读互补文献：http://sobereva.com/676
+- 推荐阅读互补文献：http://原作者.com/676
 - 综述合集链接：http://bbs.keinsci.com/thread-219-1-1.html
+
+---
+
+
 
 ---
 
 ## 2. 绘制ALIE图的软件版本与环境要求
 
-使用Multiwfn和VMD绘制ALIE着色分子表面图需要特定版本的软件支持，本文基于Windows环境演示。必须使用2019年9月17日及之后更新的Multiwfn版本以获取所需脚本。VMD版本本文使用的是1.9.3，Linux用户需灵活变通实现。
+使用Multiwfn和VMD绘制ALIE着色分子表面图需要特定版本的软件支持，该方法基于Windows环境演示。必须使用2019年9月17日及之后更新的Multiwfn版本以获取所需脚本。VMD版本该示例使用的是1.9.3，Linux用户需灵活变通实现。
 - Multiwfn版本要求：2019-Sep-17及之后
 - VMD版本示例：1.9.3
-- 下载地址：Multiwfn在http://sobereva.com/multiwfn，VMD在http://www.ks.uiuc.edu/Research/vmd/
+- 下载地址：Multiwfn在http://原作者.com/multiwfn，VMD在http://www.ks.uiuc.edu/Research/vmd/
 
 ---
 
-## 3. 绘制ALIE图的脚本文件准备与配置
+
+
+---
+
+## 3. 绘制ALIE图的脚该资料件准备与配置
 
 将Multiwfn和VMD的示例脚本复制到相应目录并配置路径是自动绘图的关键步骤。需将examples\scripts下的ALIE.vmd复制到VMD目录，ALIE_isoext.bat和ALIE_isoext.txt复制到Multiwfn.exe所在目录。必须编辑ALIE_isoext.bat，修改其中的输入文件路径和VMD路径为实际路径。
 - 输入文件格式支持：.wfn、.fch、.molden等
 - 脚本操作：复制文件并编辑ALIE_isoext.bat中的路径
+
+---
+
+
 
 ---
 
@@ -73,5 +82,5 @@ cards: 8
 ## 8. 色彩刻度轴绘制与极值点查询
 
 若需要在图像上绘制色彩刻度轴或查询分子表面ALIE极值点的具体数值，可参考《使用Multiwfn+VMD快速地绘制静电势着色的分子范德华表面图和分子间穿透图》一文中的具体操作方法。
-- 参考文献链接：http://sobereva.com/443
+- 参考文献链接：http://原作者.com/443
 - 功能包含：绘制色彩刻度轴、查询具体极值点数值

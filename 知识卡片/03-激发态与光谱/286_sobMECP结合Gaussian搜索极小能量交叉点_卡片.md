@@ -6,9 +6,6 @@ domain: 激发态与光谱
 topic: sobMECP结合Gaussian搜索极小能量交叉点
 cards: 16
 ---
-
-# sobMECP结合Gaussian搜索极小能量交叉点 — 知识卡片
-
 ## 1. 势能面交叉条件
 
 两个态波函数分别为|1>和|2>，构成2*2哈密顿矩阵，矩阵元包括对角元H11=<1|H|1>、H22=<2|H|2>和耦合矩阵元H12=<1|H|2>=H21。两态能量E1、E2相同需同时满足两个条件：(1) H11=H22 (2) H12=0。对于自旋多重度不同的态，不考虑旋轨耦合时H12总为0，只需满足H11=H22。
@@ -47,9 +44,7 @@ MECP搜索一般同时使用位移、受力、两个态能量差作为收敛判�
 
 ## 7. sobMECP程序引用与下载
 
-sobMECP是Harvey的MECP程序的修改版，使用更方便，下载地址：http://sobereva.com/soft/sobMECP.zip。如果使用了sobMECP发表文章，请引用：Tian Lu, sobMECP program, http://sobereva.com/286 (accessed month day, year)。
-
----
+sobMECP是Harvey的MECP程序的修改版，使用更方便，下载地址：http://原作者.com/soft/sobMECP.zip。如果使用了sobMECP发表文章，请引用：Tian Lu, sobMECP program, http://原作者.com/286 (accessed month day, year)。
 
 ## 8. sobMECP的Input_Header文件设置
 

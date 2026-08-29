@@ -6,14 +6,9 @@ domain: 软件安装与环境
 topic: GROMACS_Linux下编译安装及依赖配置
 cards: 17
 ---
-
-# GROMACS_Linux下编译安装及依赖配置 — 知识卡片
-
 ## 1. GROMACS在Linux下的安装概述与适用性
 
-本文介绍GROMACS 2018.8在Linux下的编译和安装方法，该方法对GROMACS 2018及之后的各个版本（经测试一直到2025.x版）均完全适用。该安装方法基于CentOS 7.6系统，实测对CentOS/RockyLinux 8、9也完全适用，安装目录默认为/sob，编译使用系统自带的gcc编译器。对于GROMACS在Windows下的编译安装，请参阅《GROMACS的原生Windows版的编译和安装方法》（http://sobereva.com/458）。
-
----
+本内容介绍GROMACS 2018.8在Linux下的编译和安装方法，该方法对GROMACS 2018及之后的各个版本（经测试一直到2025.x版）均完全适用。该安装方法基于CentOS 7.6系统，实测对CentOS/RockyLinux 8、9也完全适用，安装目录默认为/sob，编译使用系统自带的gcc编译器。对于GROMACS在Windows下的编译安装，请参阅《GROMACS的原生Windows版的编译和安装方法》（http://原作者.com/458）。
 
 ## 2. GROMACS各版本对编译器和系统环境的最低要求
 

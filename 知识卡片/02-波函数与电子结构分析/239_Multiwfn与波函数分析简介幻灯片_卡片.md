@@ -9,12 +9,12 @@ cards: 2
 
 # Multiwfn与波函数分析简介幻灯片 — 知识卡片
 
-## 1. Multiwfn与波函数分析简介幻灯片
+## 1. Multiwfn简介与波函数分析重要性
 
-该幻灯片包含300多页内容，简要介绍了波函数分析的基本概念和Multiwfn程序的基本情况。如果对波函数分析和Multiwfn完全不了解，阅读此幻灯片将十分有益，有助于理解波函数分析的重要性。此幻灯片可能每一两年更新一次。下载地址为Multiwfn官网Resources页面的 "A brief introduction to Multiwfn and wavefunction analysis"。
+Multiwfn与波函数分析简介（2019版）是一个300多页的幻灯片，适合对波函数分析和Multiwfn完全不了解的用户观看，以便了解波函数分析的重要性。该幻灯片位于Multiwfn官网Resources页面中的 "A brief introduction to Multiwfn and wavefunction analysis"。幻灯片可能每一两年更新一次。
 
 ---
 
-## 2. 量子化学波函数分析与Multiwfn程序培训班
+## 2. 波函数分析与Multiwfn系统学习途径
 
-北京科音自然科学研究中心每年举办“量子化学波函数分析与Multiwfn程序培训班”，由Multiwfn开发者讲授。该培训班适合希望全面、系统性地学习波函数分析的理论知识和Multiwfn使用的学员，讲授内容详情见[http://www.keinsci.com/workshop/WFN_content.html](http://www.keinsci.com/workshop/WFN_content.html)。具体的培训时间安排请关注北京科音官网[http://www.keinsci.com](http://www.keinsci.com)。
+如需全面、系统性地学习波函数分析的理论知识和Multiwfn的使用，可参加由北京科音自然科学研究中心每年举办的“量子化学波函数分析与Multiwfn程序培训班”。培训班由Multiwfn开发者讲授，讲授内容详见http://www.keinsci.com/workshop/WFN_content.html。具体时间安排请关注北京科音官网http://www.keinsci.com。

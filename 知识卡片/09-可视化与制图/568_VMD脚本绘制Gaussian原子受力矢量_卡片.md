@@ -6,12 +6,9 @@ domain: 可视化与制图
 topic: VMD脚本绘制Gaussian原子受力矢量
 cards: 6
 ---
-
-# VMD脚本绘制Gaussian原子受力矢量 — 知识卡片
-
 ## 1. VMD显示Gaussian原子受力的准备步骤
 
-使用VMD通过笔者自写的tcl脚本将Gaussian计算的原子受力直观地通过箭头展现出来。需要从指定链接下载绘图脚本和示例文件，将forcevec.tcl和drawarrow.tcl复制到VMD目录下。本文使用VMD 1.9.3和Gaussian G16 A.03。
+使用VMD通过自写的tcl脚本将Gaussian计算的原子受力直观地通过箭头展现出来。需要从指定链接下载绘图脚本和示例文件，将forcevec.tcl和drawarrow.tcl复制到VMD目录下。该过程使用VMD 1.9.3和Gaussian G16 A.03。
 
 ---
 

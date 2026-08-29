@@ -6,12 +6,9 @@ domain: 反应机理与过渡态
 topic: Gaussian与xtb联用搜索过渡态及IRC分析
 cards: 10
 ---
-
-# Gaussian与xtb联用搜索过渡态及IRC分析 — 知识卡片
-
 ## 1. gau_xtb接口与引用方式
 
-gau_xtb是将Gaussian与Grimme的xtb程序联用的接口脚本，支持利用Gaussian的external功能调用xtb进行极小点/过渡态优化、IRC及振动分析等任务。此接口利用Gaussian作为优化器，读取由xtb产生的能量、受力和Hessian信息，弥补了xtb无法搜索过渡态和产生IRC的缺陷。实际研究中若使用此接口，必须按如下格式引用：Tian Lu, gau_xtb: A Gaussian interface for xtb code, http://sobereva.com/soft/gau_xtb (accessed month day, year)。该脚本始终兼容最新版xtb，若出现调用失败应首先更新xtb和gau_xtb，并避免使用稀奇古怪的运行环境。
+gau_xtb是将Gaussian与Grimme的xtb程序联用的接口脚本，支持利用Gaussian的external功能调用xtb进行极小点/过渡态优化、IRC及振动分析等任务。此接口利用Gaussian作为优化器，读取由xtb产生的能量、受力和Hessian信息，弥补了xtb无法搜索过渡态和产生IRC的缺陷。实际研究中若使用此接口，必须按如下格式引用：Tian Lu, gau_xtb: A Gaussian interface for xtb code, http://原作者.com/soft/gau_xtb (accessed month day, year)。该脚本始终兼容最新版xtb，若出现调用失败应首先更新xtb和gau_xtb，并避免使用稀奇古怪的运行环境。
 
 ---
 

@@ -6,9 +6,6 @@ domain: 化学信息学与脚本
 topic: Multiwfn命令行运行与批量处理脚本
 cards: 15
 ---
-
-# Multiwfn命令行运行与批量处理脚本 — 知识卡片
-
 ## 1. Multiwfn命令行启动与参数设置
 
 Multiwfn可通过命令行启动，格式为Multiwfn [输入文件路径] [选项/参数]。支持-nt设置线程数、-uf指定用户自定义函数序号、-silent开启静默模式避免图形窗口弹出、-set指定settings.ini路径。例如：Multiwfn /nico/COCl2.fch -nt 36 -set /sob/tmp/settings.ini -silent。
@@ -17,7 +14,11 @@ Multiwfn可通过命令行启动，格式为Multiwfn [输入文件路径] [选�
 
 ## 2. 重定向输入运行Multiwfn
 
-可将记录指令的文本文件通过重定向传递给Multiwfn执行。例如创建LBO.txt包含"9\n8\ny"，运行Multiwfn /sob/Rio.molden < LBO.txt，即可计算拉普拉斯键级并导出矩阵文件bndmat.txt。输出信息可重定向到文件：Multiwfn /sob/Rio.molden < LBO.txt > out.txt。
+可将记录指令的文该资料件通过重定向传递给Multiwfn执行。例如创建LBO.txt包含"9\n8\ny"，运行Multiwfn /sob/Rio.molden < LBO.txt，即可计算拉普拉斯键级并导出矩阵文件bndmat.txt。输出信息可重定向到文件：Multiwfn /sob/Rio.molden < LBO.txt > out.txt。
+
+---
+
+
 
 ---
 
@@ -83,7 +84,7 @@ Windows batch脚本利用for /f命令遍历文件。语法示例：for /f %%i in
 
 ## 13. AIMD轨迹自旋布居提取
 
-针对AIMD产生的轨迹文件，脚本调用Multiwfn主功能7子功能5计算Mulliken自旋布居。利用grep -A 100定位Population of atoms区块，提取特定原子（如4(H)）的自旋布居数值，并追加到文本文件中用于绘图。
+针对AIMD产生的轨迹文件，脚本调用Multiwfn主功能7子功能5计算Mulliken自旋布居。利用grep -A 100定位Population of atoms区块，提取特定原子（如4(H)）的自旋布居数值，并追加到文该资料件中用于绘图。
 
 ---
 

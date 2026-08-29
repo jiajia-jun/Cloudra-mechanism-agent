@@ -6,9 +6,6 @@ domain: Gaussian使用
 topic: R-ORP基组Gaussian格式定义
 cards: 8
 ---
-
-# R-ORP基组Gaussian格式定义 — 知识卡片
-
 ## 1. R-ORP基组的定义与性能
 
 R-ORP基组提出于Int. J. Quantum Chem., 116, 1084 (2016)，其大小与aug-cc-pVDZ相当。根据文中测试，该基组计算第一超极化率的精度甚至超过d-aug-cc-pVDZ，非常适合中、大体系的第一超极化率计算。此基组目前只对H、C、N、O、F元素有定义。
@@ -228,4 +225,4 @@ R-ORP基组中氟元素（F）在Gaussian自定义基组格式下的定义包含
 
 ## 8. Gaussian自定义基组的使用方法参考
 
-若用户不清楚如何在Gaussian中使用上述自定义基组格式，可参考文章《详解Gaussian中混合基组、自定义基组和赝势基组的输入》，链接为http://sobereva.com/60。
+若用户不清楚如何在Gaussian中使用上述自定义基组格式，可参考文章《详解Gaussian中混合基组、自定义基组和赝势基组的输入》，链接为http://原作者.com/60。

@@ -6,12 +6,13 @@ domain: 可视化与制图
 topic: VMD制作太极拳动画与脚本技巧
 cards: 15
 ---
-
-# VMD制作太极拳动画与脚本技巧 — 知识卡片
-
 ## 1. 太极拳动画展示与资源下载
 
-使用VMD制作了小人打太极拳的轨迹动画，所用版本为windows版1.8.6；动画预览地址为http://sobereva.com/attach/41/VMD_Taiji.avi。动画文件下载地址为http://sobereva.com/usr/uploads/file/20150605/20150605011055_88604.rar；下载后需将解压后的文件放到VMD默认目录下（通过控制台输入pwd查看），启动VMD后输入source start.tcl即可播放。
+使用VMD制作了小人打太极拳的轨迹动画，所用版本为windows版1.8.6；动画预览地址为http://原作者.com/attach/41/VMD_Taiji.avi。动画文件下载地址为http://原作者.com/usr/uploads/file/20150605/20150605011055_88604.rar；下载后需将解压后的文件放到VMD默认目录下（通过控制台输入pwd查看），启动VMD后输入source start.tcl即可播放。
+
+---
+
+
 
 ---
 
@@ -23,7 +24,7 @@ cards: 15
 
 ## 3. 模型文件格式与工具准备
 
-将绘制好的小人保存为man.mol2格式，因mol2格式包含原子间拓扑关系，可避免读入VMD后胡乱判断成键。制作动画的工作目录假定为d:\study\VMD186\manmovie，需将man.mol2拷入该目录。使用vmdmovie工具生成过渡帧，下载地址为http://sobereva.com/usr/uploads/file/20150605/20150605011319_86069.rar，需将压缩包内的vmdmovie.exe拷到工作目录下。
+将绘制好的小人保存为man.mol2格式，因mol2格式包含原子间拓扑关系，可避免读入VMD后胡乱判断成键。制作动画的工作目录假定为d:\study\VMD186\manmovie，需将man.mol2拷入该目录。使用vmdmovie工具生成过渡帧，下载地址为http://原作者.com/usr/uploads/file/20150605/20150605011319_86069.rar，需将压缩包内的vmdmovie.exe拷到工作目录下。
 
 ---
 

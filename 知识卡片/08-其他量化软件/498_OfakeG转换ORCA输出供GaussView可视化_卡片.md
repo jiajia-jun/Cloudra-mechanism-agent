@@ -6,18 +6,19 @@ domain: 其他量化软件
 topic: OfakeG转换ORCA输出供GaussView可视化
 cards: 8
 ---
-
-# OfakeG转换ORCA输出供GaussView可视化 — 知识卡片
-
 ## 1. OfakeG工具简介与用途
 
-OfakeG是笔者开发的程序，用于将ORCA的几何优化、频率分析及优化+频率分析任务的输出文件“伪造”成Gaussian的输出文件，从而可以使用GaussView直接可视化查看。该程序解决了ORCA用户在几何优化轨迹/收敛情况考察以及振动模式观看方面的不便，尤其适用于习惯使用GaussView的用户。演示视频可见《基于ORCA量子化学程序对分子做优化、振动分析、观看红外光谱、观看轨道的简单演示》。
+OfakeG是用于将ORCA的几何优化、频率分析及优化+频率分析任务的输出文件“伪造”成Gaussian的输出文件，从而可以使用GaussView直接可视化查看的程序。该程序解决了ORCA用户在几何优化轨迹/收敛情况考察以及振动模式观看方面的不便，尤其适用于习惯使用GaussView的用户。演示视频可见《基于ORCA量子化学程序对分子做优化、振动分析、观看红外光谱、观看轨道的简单演示》。
+
+---
+
+
 
 ---
 
 ## 2. OfakeG的下载地址与版本支持
 
-OfakeG程序可在官方页面下载：http://sobereva.com/soft/OfakeG，其中带.exe后缀的是Windows版，不带后缀的是Linux版。此程序经测试支持ORCA 4.x、5.x、6.x版本，目前仅支持处理ORCA的opt、freq和opt freq任务的输出文件，不支持单点任务文件。
+OfakeG程序可在官方页面下载：http://原作者.com/soft/OfakeG，其中带.exe后缀的是Windows版，不带后缀的是Linux版。此程序经测试支持ORCA 4.x、5.x、6.x版本，目前仅支持处理ORCA的opt、freq和opt freq任务的输出文件，不支持单点任务文件。
 
 ---
 

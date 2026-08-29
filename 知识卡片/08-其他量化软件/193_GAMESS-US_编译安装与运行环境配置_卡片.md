@@ -6,12 +6,9 @@ domain: 其他量化软件
 topic: GAMESS-US_编译安装与运行环境配置
 cards: 23
 ---
-
-# GAMESS-US_编译安装与运行环境配置 — 知识卡片
-
 ## 1. GAMESS-US 2024-R2 Patch 1编译环境配置
 
-本文介绍的GAMESS-US程序编译方法版本为2024-R2 Patch 1。编译环境为RockyLinux 9.0系统、双路AMD EPYC 7R32 CPU、root用户，安装目录为/sob/gamess。编译器使用Intel oneAPI HPC 2024.0提供的Intel Fortran和Intel oneAPI base提供的MKL数学库，安装顺序为先装base再装HPC。
+介绍的GAMESS-US程序编译方法版本为2024-R2 Patch 1。编译环境为RockyLinux 9.0系统、双路AMD EPYC 7R32 CPU、root用户，安装目录为/sob/gamess。编译器使用Intel oneAPI HPC 2024.0提供的Intel Fortran和Intel oneAPI base提供的MKL数学库，安装顺序为先装base再装HPC。
 
 ---
 
@@ -95,9 +92,7 @@ cards: 23
 
 ## 15. GAMESS-US老版本编译注意事项
 
-不同版本的GAMESS-US编译方法有所不同，本文老版本部分介绍2013-May和2014-Dec版。2016-Aug版编译方法与本文一致，但输入skip那一步需改为输入proceed。2011-Aug-11版和2009 R3版需参考相应的单独文章。
-
----
+不同版本的GAMESS-US编译方法有所不同，老版本部分介绍2013-May和2014-Dec版。2016-Aug版编译方法与此处一致，但输入skip那一步需改为输入proceed。2011-Aug-11版和2009 R3版需参考相应的单独文章。
 
 ## 16. GAMESS-US老版本编译环境
 

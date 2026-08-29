@@ -6,9 +6,6 @@ domain: 量子化学方法
 topic: 基组弥散函数even-tempered扩展工具adddiff
 cards: 8
 ---
-
-# 基组弥散函数even-tempered扩展工具adddiff — 知识卡片
-
 ## 1. Even-tempered方式构建弥散函数的指数计算公式
 
 Even-tempered构建基组的方式指相邻高斯型函数（GTF）的指数成比例；若当前基组中某个角动量函数中指数最小的是ζ(n)，第二小的是ζ(n-1)，则这个角动量的弥散函数的指数应当为ζ(n)*[ζ(n)/ζ(n-1)]。
@@ -23,9 +20,7 @@ Even-tempered构建基组的方式指相邻高斯型函数（GTF）的指数成�
 
 ## 3. adddiffuse工具的获取与平台版本
 
-adddiffuse是用于按照even-tempered方式增加弥散函数的工具，下载地址为http://sobereva.com/soft/adddiffuse.zip；压缩包中带.exe后缀的是Windows版可执行文件，无后缀的是Linux版可执行文件，需要源程序可直接联系作者。
-
----
+adddiffuse是用于按照even-tempered方式增加弥散函数的工具，下载地址为http://原作者.com/soft/adddiffuse.zip；压缩包中带.exe后缀的是Windows版可执行文件，无后缀的是Linux版可执行文件，需要源程序可直接联系原作者。
 
 ## 4. adddiffuse工具的输入文件格式要求
 

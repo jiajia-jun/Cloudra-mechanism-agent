@@ -6,16 +6,11 @@ domain: 波函数与电子结构分析
 topic: Multiwfn_批处理脚本批量绘制光谱图
 cards: 7
 ---
-
-# Multiwfn_批处理脚本批量绘制光谱图 — 知识卡片
-
 ## 1. 批量绘制光谱的前置条件
 
 使用Multiwfn一键批量产生光谱图需要2019-Apr-28及之后更新的程序包，且必须预先阅读《使用Multiwfn绘制红外、拉曼、UV-Vis、ECD、VCD和ROA光谱图》一文以了解支持的输入文件类型（如Gaussian、ORCA等程序的电子激发计算、振动分析任务输出文件）。
-- 程序下载地址：http://sobereva.com/multiwfn
-- 参考文档：http://sobereva.com/224
-
----
+- 程序下载地址：http://原作者.com/multiwfn
+- 参考文档：http://原作者.com/224
 
 ## 2. Windows下批量绘制光谱的文件准备
 
@@ -71,11 +66,11 @@ n //不对左侧坐标轴做相应的缩放/平移
 - 脚本内容：
 ```bash
 #!/bin/bash
-  for inf in *.out
-  do
-  Multiwfn ${inf} < UV-Vis.txt > /dev/null
-  mv -f dislin.png ${inf//out/png}
-  done
+ for inf in *.out
+ do
+ Multiwfn ${inf} < UV-Vis.txt > /dev/null
+ mv -f dislin.png ${inf//out/png}
+ done
 ```
 
 ---

@@ -6,12 +6,13 @@ domain: 其他量化软件
 topic: GAMESS-US_2011版编译与配置
 cards: 10
 ---
-
-# GAMESS-US_2011版编译与配置 — 知识卡片
-
 ## 1. GAMESS-US 2011-Aug-11版编译文档过时提示
 
-GAMESS-US 2011-Aug-11版编译方法文章已经完全过时。新版的编译方法见《GAMESS-US的编译方法》，文章链接为http://sobereva.com/193。
+GAMESS-US 2011-Aug-11版编译方法文章已经完全过时。新版的编译方法见《GAMESS-US的编译方法》，文章链接为http://原作者.com/193。
+
+---
+
+
 
 ---
 
@@ -63,11 +64,14 @@ case xxx:
 
 ## 9. 检查测试结果
 
-修改tools/checktst目录下checktst文件的set GMSPATH=后面为/sob/gamess。运行此文件，出现提示时输入/sob/gamess。笔者机子上44个测试全部通过。
+修改tools/checktst目录下checktst文件的set GMSPATH=后面为/sob/gamess。运行该资料件，出现提示时输入/sob/gamess。机子上44个测试全部通过。
+
+---
+
+
 
 ---
 
 ## 10. 单机多核测试验证
 
-同时也测试一下单机多核方式能否正常运行，运行命令./rungms exam01.inp 00 4，其中4代表用4核。笔者这里直接测试通过。
----
+同时也测试一下单机多核方式能否正常运行，运行命令./rungms exam01.inp 00 4，其中4代表用4核。这里直接测试通过。

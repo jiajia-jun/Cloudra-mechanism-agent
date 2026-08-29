@@ -6,14 +6,9 @@ domain: 分子动力学与力场
 topic: 利用Chem3D与Packmol搭建生物膜及嵌入蛋白
 cards: 16
 ---
-
-# 利用Chem3D与Packmol搭建生物膜及嵌入蛋白 — 知识卡片
-
 ## 1. 推荐使用genmixmem和membed工具
 
-本文所述的磷脂膜搭建和蛋白嵌入方法已不再推荐，建议使用笔者开发的genmixmem工具构建磷脂膜，以及GROMACS直接支持的membed方法将蛋白嵌入膜。相关内容见http://sobereva.com/245及北京科音举办的分子动力学与GROMACS培训班。
-
----
+所述的磷脂膜搭建和蛋白嵌入方法已不再推荐，建议使用genmixmem工具构建磷脂膜，以及GROMACS直接支持的membed方法将蛋白嵌入膜。相关内容见http://原作者.com/245及分子动力学与GROMACS培训班。
 
 ## 2. 磷脂缩写命名规则
 

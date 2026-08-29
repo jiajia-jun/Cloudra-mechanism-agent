@@ -6,9 +6,6 @@ domain: 量子化学方法
 topic: 长程校正泛函w参数优化工具optDFTw
 cards: 9
 ---
-
-# 长程校正泛函w参数优化工具optDFTw — 知识卡片
-
 ## 1. 优化长程校正泛函w参数的背景
 
 调节长程校正泛函的w参数（ω）可提高计算激发能、(超)极化率、fundamental gap、单-三重态激发态能量差等问题的准确性。调节w参数的一种较好方法是使当前w下计算的HOMO轨道能量尽可能接近电离能，基于Koopmans定理对于精确交换相关泛函HOMO能量精确等于电离能的物理思想。由于w对体系依赖性大，每个被计算的体系都需要优化w，因此比普通泛函计算要多花不少代价。
@@ -17,7 +14,11 @@ cards: 9
 
 ## 2. optDFTw和scanDFTw程序基本信息
 
-optDFTw是用于优化长程校正泛函w参数的工具，scanDFTw是对w做扫描的工具，二者目前只支持Gaussian程序且只支持中性体系计算。程序下载地址分为Gaussian09版（http://sobereva.com/soft/optDFTw_1.0_g09.zip）和Gaussian16版（http://sobereva.com/soft/optDFTw_1.0_g16.zip）。Windows下运行前需设置GAUSS_EXEDIR环境变量指向g09.exe或g16.exe所在目录，并将该目录加入PATH环境变量。
+optDFTw是用于优化长程校正泛函w参数的工具，scanDFTw是对w做扫描的工具，二者目前只支持Gaussian程序且只支持中性体系计算。程序下载地址分为Gaussian09版（http://原作者.com/soft/optDFTw_1.0_g09.zip）和Gaussian16版（http://原作者.com/soft/optDFTw_1.0_g16.zip）。Windows下运行前需设置GAUSS_EXEDIR环境变量指向g09.exe或g16.exe所在目录，并将该目录加入PATH环境变量。
+
+---
+
+
 
 ---
 
@@ -29,7 +30,11 @@ optDFTw程序通过令J或J^2函数最小化来寻找最优的w参数，J和J^2�
 
 ## 4. optDFTw程序的模板文件设置
 
-使用optDFTw程序前需在当前目录下编辑名为template.gjf的Gaussian长程校正泛函单点任务文件作为模板。泛函可以是LC-wPBE、LC-BLYP等标准长程校正泛函，wB97、wB97XD等近程HF成分不为0的泛函可能也能用但结果未必可靠。程序运行时会基于此文件产生N.gjf、N-1.gjf、N+1.gjf并调用Gaussian计算，从输出文件中读取HOMO轨道能量和体系总能量。
+使用optDFTw程序前需在当前目录下编辑名为template.gjf的Gaussian长程校正泛函单点任务文件作为模板。泛函可以是LC-wPBE、LC-BLYP等标准长程校正泛函，wB97、wB97XD等近程HF成分不为0的泛函可能也能用但结果未必可靠。程序运行时会基于该资料件产生N.gjf、N-1.gjf、N+1.gjf并调用Gaussian计算，从输出文件中读取HOMO轨道能量和体系总能量。
+
+---
+
+
 
 ---
 
@@ -53,7 +58,7 @@ scanDFTw程序是在指定范围内按照指定步长对w进行扫描，对每�
 
 ## 8. optDFTw/scanDFTw计算出错的处理
 
-若程序调用Gaussian计算时意外中断，需打开提示的Gaussian out文件查看报错信息，>90%的概率是SCF不收敛。解决方法包括参考《解决SCF不收敛问题的方法》（http://sobereva.com/61）在模板文件里加帮助收敛的关键词，或者尝试其它基组、几何结构。出错原因也可能是净电荷/自旋多重度设置不对、Gaussian运行环境有问题、内存不够等。
+若程序调用Gaussian计算时意外中断，需打开提示的Gaussian out文件查看报错信息，>90%的概率是SCF不收敛。解决方法包括参考《解决SCF不收敛问题的方法》（http://原作者.com/61）在模板文件里加帮助收敛的关键词，或者尝试其它基组、几何结构。出错原因也可能是净电荷/自旋多重度设置不对、Gaussian运行环境有问题、内存不够等。
 
 ---
 

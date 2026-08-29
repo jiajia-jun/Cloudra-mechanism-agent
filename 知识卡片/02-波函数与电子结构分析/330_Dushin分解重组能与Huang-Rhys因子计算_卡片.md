@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Dushin分解重组能与Huang-Rhys因子计算
 cards: 17
 ---
-
-# Dushin分解重组能与Huang-Rhys因子计算 — 知识卡片
-
 ## 1. Huang-Rhys因子计算的新替代方案
 
 Gaussian 16计算振动电子光谱的功能直接就能给出Huang-Rhys因子。相比dushin程序，Gaussian 16更好用，且没有dushin程序有时无法载入文件的问题。北京科音高级量子化学培训班（http://www.keinsci.com/workshop/KAQC_content.html）讲授了具体的使用例子。
@@ -53,7 +50,7 @@ S0和T1极小点下的正则坐标间存在线性变换关系，即Duschinsky旋
 
 ## 8. Dushin程序的编译与引用
 
-Dushin程序由Reimers开发，原理细节见JCP,115,9103(2001)，引用程序应引用此文。Linux下编译需注释掉compile文件中包含plot-modes.for的行，然后执行./compile，生成的可执行文件在~/bin/下。Windows版和Linux编译版可从特定链接下载。
+Dushin程序由Reimers开发，原理细节见JCP,115,9103(2001)，引用程序应引用该资料。Linux下编译需注释掉compile文件中包含plot-modes.for的行，然后执行./compile，生成的可执行文件在~/bin/下。Windows版和Linux编译版可从特定链接下载。
 
 ---
 

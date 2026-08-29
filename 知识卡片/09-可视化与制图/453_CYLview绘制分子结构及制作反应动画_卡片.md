@@ -6,12 +6,13 @@ domain: 可视化与制图
 topic: CYLview绘制分子结构及制作反应动画
 cards: 13
 ---
-
-# CYLview绘制分子结构及制作反应动画 — 知识卡片
-
 ## 1. CYLview软件简介与演示视频
 
-CYLview虽然功能不算强大，但在作图的很多特性方面没有其它程序能很好取代。笔者特意录制了长为11分钟的使用CYLview绘制分子结构图和制作各种类型动画的演示视频，见：https://www.bilibili.com/video/av39041185。本文内容是对视频内容进行一些补充说明，着重讲解新用户容易犯懵、不是显而易见的操作。
+CYLview虽然功能不算强大，但在作图的很多特性方面没有其它程序能很好取代。特意录制了长为11分钟的使用CYLview绘制分子结构图和制作各种类型动画的演示视频，见：https://www.bilibili.com/video/av39041185。此内容是对视频内容进行一些补充说明，着重讲解新用户容易犯懵、不是显而易见的操作。
+
+---
+
+
 
 ---
 
@@ -23,7 +24,11 @@ CYLview的下载地址是http://www.cylview.org。视频里用的版本是CYLvie
 
 ## 3. 安装OpenBabel扩展文件支持
 
-如果机子里没装化学文件格式转换程序Openbabel的话，CYLview只能载入Gaussian输出文件，因此很不方便。所以强烈建议在机子里装上Openbabel，是个免费程序，在此文里有简单介绍：《基于OpenBabel批量产生特定基团以任意方式接到苯上的结构的方法》（http://sobereva.com/440）。
+如果机子里没装化学文件格式转换程序Openbabel的话，CYLview只能载入Gaussian输出文件，因此很不方便。所以强烈建议在机子里装上Openbabel，是个免费程序，在该资料里有简单介绍：《基于OpenBabel批量产生特定基团以任意方式接到苯上的结构的方法》（http://原作者.com/440）。
+
+---
+
+
 
 ---
 
@@ -45,7 +50,11 @@ CYLview的下载地址是http://www.cylview.org。视频里用的版本是CYLvie
 for /f %%i in ('dir *.pov /b') do (
 povray +W640 +H480 +A %%i
 )
-将这些内容复制到一个文本文件里，改名成renderall.bat即可使用。此脚本会调用当前目录下的povray.exe对当前目录下的所有povray渲染器文件（.pov）进行渲染，产生出同名图像文件。
+将这些内容复制到一个文该资料件里，改名成renderall.bat即可使用。此脚本会调用当前目录下的povray.exe对当前目录下的所有povray渲染器文件（.pov）进行渲染，产生出同名图像文件。
+
+---
+
+
 
 ---
 
@@ -80,16 +89,24 @@ gif文件比mp4大得多，而且只能包含256色，但好处是可以直接�
 
 ## 11. CYL_mergeTXT.exe工具介绍与下载
 
-视频里笔者写的用于合并带_txt后缀和不带这个后缀的.pov文件的CYL_mergeTXT.exe工具在这里下载：http://sobereva.com/attach/453/CYL_mergeTXT.rar。带_txt后缀的文件只包含标签内容，而不带这个后缀的包含的是分子结构信息。
+视频里用于合并带_txt后缀和不带这个后缀的.pov文件的CYL_mergeTXT.exe工具在这里下载：http://原作者.com/attach/453/CYL_mergeTXT.rar。带_txt后缀的文件只包含标签内容，而不带这个后缀的包含的是分子结构信息。
+
+---
+
+
 
 ---
 
 ## 12. GauIRC2xyz工具下载地址
 
-视频里用的GauIRC2xyz在这里下载：《将Gaussian的IRC任务输出转换为.xyz轨迹文件的工具》（http://sobereva.com/285）。
+视频里用的GauIRC2xyz在这里下载：《将Gaussian的IRC任务输出转换为.xyz轨迹文件的工具》（http://原作者.com/285）。
+
+---
+
+
 
 ---
 
 ## 13. 相关动画制作工具文章推荐
 
-笔者还写过其它与制作计算化学相关视频有关的文章，如下所示，里面用的imagemagick工具也都可以改用ffmpeg工具，速度更快而且还有Windows版。制作动画分析电子结构特征 http://sobereva.com/86，通过键级曲线和ELF/LOL/RDG等值面动画研究化学反应过程 http://sobereva.com/200。
+还有其它与制作计算化学相关视频有关的文章，如下所示，里面用的imagemagick工具也都可以改用ffmpeg工具，速度更快而且还有Windows版。制作动画分析电子结构特征 http://原作者.com/86，通过键级曲线和ELF/LOL/RDG等值面动画研究化学反应过程 http://原作者.com/200。

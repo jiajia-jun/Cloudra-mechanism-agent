@@ -4,65 +4,91 @@ title: 谈谈体数据3：用Multiwfn、Gaussview、Molekel、VMD观看龙虾、
 url: http://sobereva.com/130
 domain: 可视化与制图
 topic: Multiwfn及VMD等软件可视化非化学体数据
-cards: 1
+cards: 11
 ---
 
 # Multiwfn及VMD等软件可视化非化学体数据 — 知识卡片
 
-## 1. 龙虾体数据获取与参数
+## 1. 使用Multiwfn显示龙虾体数据
 
-Volrenapp老版体数据库提供名为lobster.raw.gz的龙虾CT扫描体数据，点数为301x324x56，格子比例为1:1:1.4。此数据为8bit精度，下载后需解压为lobster.raw并使用vodaconv转换为cube文件。
+从Multiwfn 2.3版本开始支持读入cube文件并直接显示等值面。操作前需在settings.ini中将aug3D参数从默认的6改为16，以确保坐标轴足够长。载入lobster.cub后选择功能0，在默认isovalue为0.05时图像不可见，需在文本框输入50并回车才可显示龙虾。由于 lobster.raw 是8bit精度（范围0~255），需要在该范围内反复调整isovalue以消除噪音或空气信号干扰获得最佳效果。Multiwfn显示高格点数等值面的速度远低于Molekel和VMD。
+- 原始数据：http://www.gris.uni-tuebingen.de/edu/areas/scivis/volren/datasets/datasets.html (lobster.raw.gz, 301x324x56, 比例1:1:1.4)
+- vodaconv参数：文件名 lobster.raw，点数 301,324,56，间距 0.1,0.1,0.14，数据类型 1，scale类型 2，输出 lobster.cub
 
-## 龙虾体数据转换操作
-将lobster.raw拷至vodaconv目录，运行vodaconv.exe，依次输入：文件名lobster.raw，点数301,324,56，间距0.1,0.1,0.14（保持1:1:1.4比例），原点直接回车（自动设为中心），数据类型1（8bit整数），缩放选项2（不做scale），输出文件名lobster.cub。
+---
 
-## Cube文件体积膨胀原因
-转换后的lobster.cub文件大小为69.5MB，远大于原始lobster.raw文件的5.2MB，这是因为.raw是二进制文件每个数据点占1字节，而cube文件记录字符数据每个数据点需13个字符，导致体积膨胀约13倍。
+## 2. vodaconv转换raw文件导致体积增大的原因
 
-## Multiwfn显示大型体数据设置
-在Multiwfn的settings.ini文件中将aug3D参数从默认的6改为16，确保坐标轴足够长以显示完整龙虾；启动Multiwfn载入lobster.cub，选择功能0显示等值面。
+cube文件体积远大于raw文件是因为文件存储格式不同。raw文件是二进制文件，8bit数据点仅占用1个字节；而cube文件记录的是字符数据，每个数据点需要13个字符来表达（即13字节），因此转换后的文件大小约为原始文件的13倍（如lobster.raw从5.2MB增至69.5MB）。
+- 数据对比：lobster.raw (5.2MB) -> lobster.cub (69.5MB)
 
-## Multiwfn显示龙虾的等值面设置
-在Multiwfn中显示龙虾时需将等值面数值设为50。默认的0.05值过小会导致图像被CT扫描噪音或空气信号掩盖；8bit整数数据范围在0~255，需在该范围内调整数值以获得最佳图像效果。
+---
 
-## 转换文件中的氢原子标签
-使用vodaconv转换raw文件为cube文件时，程序会在原点自动加入一个氢原子标签以保持兼容性，在Multiwfn中可通过取消勾选Show label复选框将其隐藏。
+## 3. 使用GaussView显示盆景体数据
 
-## 盆景体数据转换与参数
-从Volrenapp数据库下载盆景体数据bonsai.raw.gz，使用vodaconv转换时输入点数256,256,256，间距直接回车使用默认值0.1,0.1,0.1（1:1:1比例），其他步骤与龙虾数据转换相同。
+启动GaussView后，文件类型选Cube files并载入bonsai.cub。进入Results-Surfaces/Contours，将Density设为50（即isovalue），点击Surface Actions-New surface生成等值面。生成完毕后需拉远视角观察，并可通过View-Hydrogens屏蔽掉为了兼容性而自动加入的氢原子标签。
+- 原始数据：bonsai.raw.gz (256,256,256, 1:1:1间距)
+- 转换参数：间距使用默认0.1,0.1,0.1
 
-## GaussView显示盆景操作
-启动GaussView打开bonsai.cub文件，进入Results-Surfaces/Contours，将Density设为50，点击Surface Actions-New surface生成等值面；可通过右键菜单View-Hydrogens屏蔽额外加入的氢原子。
+---
 
-## GaussView显示大型体数据的局限
-GaussView显示大型体数据等值面速度很慢，对于256^3=1600万个点的体数据尚可显示，但对于更高精度如512^3=1.34亿个点的情况则无法实际应用。
+## 4. GaussView处理大型体数据的性能限制
 
-## 16位骨盆体数据转换
-在Volrenapp新版数据库下载Stented Abdominal Aorta 16Bits数据stent16.raw.zip，解压后使用vodaconv_LE.exe进行转换，因为该数据库16位整数数据为Little Endian顺序。
+GaussView在显示大型体数据等值面时速度较慢，缺乏实际应用价值。处理几百万个点的体数据速度尚可，但对于256^3（约1600万）个点的数据已显得吃力，若体数据精度达到512^3（约1.34亿）个点则无法进行等值面显示。
+- 性能阈值：256^3 = 16,777,216 points (勉强可用); 512^3 = 134,217,728 points (不可用)
 
-## 骨盆体数据转换参数
-运行vodaconv_LE.exe，依次输入：文件名stent16.raw，点数512,512,174，间距0.8398,0.8398,3.2，原点回车，数据类型2（16bit整数），缩放选项2，输出文件名stent16.cube（Molekel要求后缀为.cube）。
+---
 
-## Molekel显示骨盆支架设置
-在Molekel 5.4.0.8中打开stent16.cube，选择Surfaces-Grid data，在Value中填入1300以显示腹部动脉支架；若将Value设为700则可显示身体表层及背板结构。
+## 5. 使用Molekel显示骨盆和动脉支架体数据
 
-## Molekel内存与显示设置
-在Molekel中显示大型体数据需保证有1.5GB空余内存以全精度显示；若需节省内存或加快显示速度，可将Step Multiplier设为2或更大；Molekel在生成等值面时可能崩溃。
+对于Volrenapp新版数据库中的16bit整数体数据（如Stented Abdominal Aorta），因其为Little Endian顺序，必须使用vodaconv_LE.exe进行转换。在Molekel中打开生成的stent16.cube，选择Surfaces-Grid data，在Value栏输入1300。由于数据量巨大，显示需1.5GB空余内存；若需节省内存或加快速度，可将Step Multiplier设为2或更大。
+- 原始数据：stent16.raw.zip (512,512,174, 间距 0.8398,0.8398,3.2)
+- 转换工具：vodaconv_LE.exe (针对Little Endian)
+- 转换参数：数据类型 2，scale类型 2，输出后缀必须为.cube
 
-## 大脑DTI数据格式转换
-从Volrenapp库下载DTI-B0.pvm，使用pvm2raw程序将其转换为DTI-B0.raw格式，再使用vodaconv.exe（Big Endian顺序）转换为DTI-B0.cub供VMD显示。
+---
 
-## VMD显示大脑等值面基础操作
-将DTI-B0.cub拖入VMD，在Graphics-Representation中将Drawing Method设为Isosurface，Draw改为Solid surface，拖动Isovalue滑条至500左右即可看到大脑外层轮廓。
+## 6. Molekel中Isovalue设置对图像显示的影响
 
-## VMD多层透明等值面设置
-在VMD中将Display-Rendermode设为GLSL以支持透明效果，创建三个Isosurface显示方式：Isovalue 260（Transparent材质），Isovalue 720（Transparent材质，ColorID 4黄色），Isovalue 1250（Opaque材质，ColorID 1红色）。
+在Molekel中调整Isosurface的Value值可以改变显示的结构层次。将Value设为1300时主要显示腹部动脉支架等高密度物体；若将Value设为700，X射线易穿透的区域（如身体表层结构及扫描背板）也会被显示出来。Molekel在生成等值面过程中可能存在崩溃或不显示的bug。
+- Value 1300：显示支架
+- Value 700：显示表层及背板
 
-## VMD显示大脑切片图
-在VMD中建立VolumeSlice显示方式，拖动Slice Offset可查看不同位置的截面图；关闭Display-depth cueing可使切片图更鲜亮，配合Color scale设置可模拟黑白医疗影像效果。
+---
 
-## 使用Multiwfn提取大脑截面数据
-启动Multiwfn载入DTI-B0.cub，利用主功能13提取XY平面数据，输入Z值-0.181埃（根据VMD中Z offset=0.44及体数据Z范围计算得出），数据将输出至output.txt。
+## 7. VMD显示大脑体数据的等值面设置
 
-## Sigmaplot绘制精细截面图
-使用Sigmaplot导入Multiwfn生成的output.txt，选择contour plot的Filled color模式，X,Y,Z分别对应第1、2、4列，将绘图上下限设为100和1100，可获得比VMD更精细的截面图。
+启动VMD并载入DTI-B0.cub，在Graphics-Representation中将Drawing Method设为Isosurface，Draw改为Solid surface，拖动Isovalue滑条到500左右可见大脑外层轮廓。为了同时显示内外层结构，需建立三个Isosurface显示方式：第一个isovalue 260 (Transparent材质)；第二个isovalue 720 (Transparent材质, ColorID 4黄色)；第三个isovalue 1250 (Opaque材质, ColorID 1红色)。将Show选项从Box+Isosurface改为Isosurface以去除边缘。
+- 渲染模式：Display-Rendermode设为GLSL以支持透明效果
+- 外部渲染：可使用POVray获得更好效果
+
+---
+
+## 8. VMD中显示体数据切片图
+
+在VMD中建立VolumeSlice显示方式，拖动Slice Offset滑条可查看不同位置的截面图。为了获得黑白医院风格的图像，需在Graphics-color-Color scale将Method设为BlkW，并将截面图的Coloring Method设为Volume。在Trajectory标签页调节Color Scale Data Range（如设为0到1000）可增强对比度，建议关闭Display中的所有光源。
+- 操作路径：Graphics-Representation -> VolumeSlice
+- 颜色设置：Method: BlkW; Coloring Method: Volume
+
+---
+
+## 9. 使用pvm2raw转换DTI大脑体数据格式
+
+V3体数据可视化软件专用的pvm格式文件需先转换为raw格式。下载并运行pvm2raw程序，需建立内容为“pvm2raw DTI-B0.pvm DTI-B0.raw”的bat批处理文件并执行，生成DTI-B0.raw文件。随后使用vodaconv.exe（针对Big Endian顺序）将其转换为cube文件。
+- 转换工具：pvm2raw.exe
+- vodaconv参数：DTI-B0.raw，点数 128,128,58，间距回车，原点回车，数据类型 2，scale类型 2，输出 DTI-B0.cub
+
+---
+
+## 10. 使用Multiwfn提取指定平面数据
+
+Multiwfn可利用主功能13（格点数据处理功能）提取指定平面的数据。载入cube文件后，通过统计信息得知Z范围（例如-2.85到2.85 bohr），根据VMD中的offset值计算实际坐标（如Z offset 0.44对应-0.181埃）。输入“13”进入功能，选“2”提取XY平面，输入计算出的Z值，数据将输出到output.txt。
+- 操作步骤：输入 13 -> 2 -> Z值(埃)
+- 坐标计算示例：((2.85*2)*0.44-2.85)*0.5292 = -0.181埃
+
+---
+
+## 11. 使用Sigmaplot绘制高质量大脑截面图
+
+将Multiwfn提取的output.txt导入Sigmaplot（File-import file），选择contour plot按钮及Filled color模式。将数据设为XYZ Triplet，X、Y、Z分别对应第1、2、4列。在图像属性中将Plots-Scale的上下限设为100和1100以优化显示效果。此方法生成的图像比VMD直接显示的截面图更为精细。
+- 绘图设置：XYZ Triplet (Cols 1,2,4); Scale: 100~1100

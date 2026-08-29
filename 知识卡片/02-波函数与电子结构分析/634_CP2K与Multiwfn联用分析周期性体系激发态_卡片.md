@@ -6,18 +6,19 @@ domain: 波函数与电子结构分析
 topic: CP2K与Multiwfn联用分析周期性体系激发态
 cards: 17
 ---
-
-# CP2K与Multiwfn联用分析周期性体系激发态 — 知识卡片
-
 ## 1. Multiwfn与CP2K结合的功能与版本要求
 
-Multiwfn程序支持CP2K程序的电子激发分析功能，可绘制UV-Vis谱并分析周期性体系的电子激发特征。读者须使用2023-Feb-10及以后更新的Multiwfn版本，本文示例使用CP2K 9.1版。CP2K计算周期性大体系的TDDFT速度较快，且Multiwfn具备创建CP2K的TDDFT输入文件的功能。
+Multiwfn程序支持CP2K程序的电子激发分析功能，可绘制UV-Vis谱并分析周期性体系的电子激发特征。须使用2023-Feb-10及以后更新的Multiwfn版本，示例使用CP2K 9.1版。CP2K计算周期性大体系的TDDFT速度较快，且Multiwfn具备创建CP2K的TDDFT输入文件的功能。
+
+---
+
+
 
 ---
 
 ## 2. 示例体系的结构与超胞设置
 
-本文示例为Donor-π-Acceptor型分子4-(N,N-dimethyl-amino)-4′-(2,3,5,6-tetrafluorostyryl)-stilbene的晶体，晶胞含4个分子共192个原子，结构文件为bulk.cif。原胞边长为7.59、5.87、41.51埃，因CP2K的TDDFT计算不能考虑k点，建议将体系复制成2*3*1的超胞以提高准确性。实际研究时应先对氢原子位置进行优化。
+示例为Donor-π-Acceptor型分子4-(N,N-dimethyl-amino)-4′-(2,3,5,6-tetrafluorostyryl)-stilbene的晶体，晶胞含4个分子共192个原子，结构文件为bulk.cif。原胞边长为7.59、5.87、41.51埃，因CP2K的TDDFT计算不能考虑k点，建议将体系复制成2*3*1的超胞以提高准确性。实际研究时应先对氢原子位置进行优化。
 
 ---
 

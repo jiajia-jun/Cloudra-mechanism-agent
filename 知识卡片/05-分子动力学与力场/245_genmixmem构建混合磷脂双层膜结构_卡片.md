@@ -6,12 +6,13 @@ domain: 分子动力学与力场
 topic: genmixmem构建混合磷脂双层膜结构
 cards: 14
 ---
-
-# genmixmem构建混合磷脂双层膜结构 — 知识卡片
-
 ## 1. genmixmem程序简介与下载
 
-genmixmem是专门开发的用于构建磷脂双分子膜结构的工具，支持混合组分，适合GROMACS模拟。程序下载地址为http://sobereva.com/soft/genmixmem_1.2.zip，包含Windows和Linux可执行文件、源代码及示例。如果此程序在文章中被使用，应引用为：Tian Lu, genmixmem program, http://sobereva.com/245 (accessed month day, year)。
+genmixmem是专门开发的用于构建磷脂双分子膜结构的工具，支持混合组分，适合GROMACS模拟。程序下载地址为http://原作者.com/soft/genmixmem_1.2.zip，包含Windows和Linux可执行文件、源代码及示例。如果此程序在文章中被使用，应引用为：Tian Lu, genmixmem program, http://原作者.com/245 (accessed month day, year)。
+
+---
+
+
 
 ---
 
@@ -59,7 +60,7 @@ genmixmem是专门开发的用于构建磷脂双分子膜结构的工具，支�
 
 ## 9. 磷脂分子结构的几何要求
 
-输入的磷脂结构文件应当比较直，以避免生成的结构中分子相互交错而导致不合理接触。可以使用SAMSON软件的twist工具（需付费）或参考《利用Gaussian或ORCA程序把分子结构拉直的几种方法》（http://sobereva.com/594）将分子拉直。
+输入的磷脂结构文件应当比较直，以避免生成的结构中分子相互交错而导致不合理接触。可以使用SAMSON软件的twist工具（需付费）或参考《利用Gaussian或ORCA程序把分子结构拉直的几种方法》（http://原作者.com/594）将分子拉直。
 
 ---
 

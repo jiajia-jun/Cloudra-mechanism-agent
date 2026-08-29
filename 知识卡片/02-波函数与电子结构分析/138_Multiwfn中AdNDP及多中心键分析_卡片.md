@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn中AdNDP及多中心键分析
 cards: 17
 ---
-
-# Multiwfn中AdNDP及多中心键分析 — 知识卡片
-
 ## 1. AdNDP方法的基本定义与文献
 
 Adaptive natural density partitioning (AdNDP，适应性自然密度划分) 是一种分析化学体系中多中心键、局部离域的方法，原文见 PCCP, 10, 5207。AdNDP 已被用于不少体系，目前已有不少相关文章发表，比如 J. Am. Chem. Soc., 134, 13228 (2012)、RSC Adv., 5, 87855 (2015)、Chem. Asian J., 13, 1751 (2018)、Angew. Chem. Int. Ed. (2023) DOI: 10.1002/anie.202317312。
@@ -95,7 +92,11 @@ B11- 体系先找到了 10 条 2c-2e AdNDP 轨道，剩余电子 16.307。随后
 
 ## 15. 在Multiwfn中计算AdNDP轨道能量
 
-在挑出轨道后选 "16 Evaluate and output energy of AdNDP orbitals"，输入含有 Fock/KS 矩阵元数据的文本文件，Multiwfn 根据 <i|F|i> 计算轨道能量。Gaussian 用户最简单的方式是产生 .47 文件（GENNBO 输入文件），即在输入文件末尾写 $NBO archive file=路径 $END，计算完成后将 .47 文件路径输入给 Multiwfn。
+在挑出轨道后选 "16 Evaluate and output energy of AdNDP orbitals"，输入含有 Fock/KS 矩阵元数据的文该资料件，Multiwfn 根据 <i|F|i> 计算轨道能量。Gaussian 用户最简单的方式是产生 .47 文件（GENNBO 输入文件），即在输入文件末尾写 $NBO archive file=路径 $END，计算完成后将 .47 文件路径输入给 Multiwfn。
+
+---
+
+
 
 ---
 
@@ -107,4 +108,4 @@ AdNDP 分析的经验准则包括：1.剩余电子数越少越好 2.每个 AdNDP
 
 ## 17. 后记：Multiwfn轨道定域化功能与AdNDP的替代关系
 
-Multiwfn 从 3.4 版开始支持了轨道定域化功能，如果没有离域范围很大的 AdNDP 轨道时可以直接代替 AdNDP 分析，结果基本相同，但用起来方便得多，详见《Multiwfn 的轨道定域化功能的使用以及与 NBO、AdNDP 分析的对比》（http://sobereva.com/380）。
+Multiwfn 从 3.4 版开始支持了轨道定域化功能，如果没有离域范围很大的 AdNDP 轨道时可以直接代替 AdNDP 分析，结果基本相同，但用起来方便得多，详见《Multiwfn 的轨道定域化功能的使用以及与 NBO、AdNDP 分析的对比》（http://原作者.com/380）。

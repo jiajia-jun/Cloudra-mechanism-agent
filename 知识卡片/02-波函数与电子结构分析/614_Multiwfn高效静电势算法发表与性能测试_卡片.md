@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn高效静电势算法发表与性能测试
 cards: 10
 ---
-
-# Multiwfn高效静电势算法发表与性能测试 — 知识卡片
-
 ## 1. Multiwfn高效静电势算法的PCCP发表文献
 
-深圳湾实验室张鋆和北京科音自然科学研究中心卢天在 *Phys. Chem. Chem. Phys.* 期刊 23, 20323 (2021) 发表了题为 Efficient Evaluation of Electrostatic Potential with Computerized Optimized Code 的文章，DOI为 10.1039/d1cp02805g。这篇文章专门介绍了一种非常高效的静电势计算算法，该算法已实现在波函数分析程序Multiwfn中，并作为当前版本计算静电势时的默认代码。
+深圳湾实验室张鋆和北京科音自然科学研究中心的研究人员在 *Phys. Chem. Chem. Phys.* 期刊 23, 20323 (2021) 发表了题为 Efficient Evaluation of Electrostatic Potential with Computerized Optimized Code 的文章，DOI为 10.1039/d1cp02805g。这篇文章专门介绍了一种非常高效的静电势计算算法，该算法已实现在波函数分析程序Multiwfn中，并作为当前版本计算静电势时的默认代码。
 
 ---
 
@@ -23,7 +20,7 @@ cards: 10
 
 ## 3. Multiwfn静电势计算代码的演变
 
-Multiwfn最早的静电势计算代码写于2011年，速度较慢；后来程序支持调用Gaussian的cubegen程序使耗时大幅下降。最终在Multiwfn 3.7版中，张鋆与卢天合作实现了一种非常高效的静电势计算算法，该算法如今是当前版本计算静电势时默认使用的，并正式发表于 *Phys. Chem. Chem. Phys.* 期刊。
+Multiwfn最早的静电势计算代码写于2011年，速度较慢；后来程序支持调用Gaussian的cubegen程序使耗时大幅下降。最终在Multiwfn 3.7版中，研究人员合作实现了一种非常高效的静电势计算算法，该算法如今是当前版本计算静电势时默认使用的，并正式发表于 *Phys. Chem. Chem. Phys.* 期刊。
 
 ---
 

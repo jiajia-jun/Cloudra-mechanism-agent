@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn与CP2K联用做周期性体系CDA分析
 cards: 9
 ---
-
-# Multiwfn与CP2K联用做周期性体系CDA分析 — 知识卡片
-
 ## 1. CP2K与Multiwfn进行周期性体系CDA分析的前提条件
 
 使用Multiwfn结合CP2K对周期性体系进行CDA分析需要满足四个关键条件：整体和片段的molden文件里的原子坐标必须对应；整体和片段的计算必须使用严格相同的级别和设置，用的盒子（&CELL信息）也应当一致；必须要求CP2K计算所有空轨道，即&SCF里必须有ADDED_MOS；整体的molden文件里需要加入[Cell]字段定义晶胞信息，而片段的molden文件里加不加入不影响CDA结果。
@@ -59,4 +56,4 @@ cards: 9
 
 ## 9. 论文引用要求
 
-使用Multiwfn进行本文介绍的CDA分析时，发表文章必须引用Multiwfn程序启动时提示的原文，以及介绍CDA/GCDA方法的文章（Multiwfn使用的是广义化的CDA形式）。进入Multiwfn的CDA功能时屏幕上会明确提示相关文献引用信息。
+使用Multiwfn进行CDA分析时，发表文章必须引用Multiwfn程序启动时提示的原文，以及介绍CDA/GCDA方法的文章（Multiwfn使用的是广义化的CDA形式）。进入Multiwfn的CDA功能时屏幕上会明确提示相关文献引用信息。

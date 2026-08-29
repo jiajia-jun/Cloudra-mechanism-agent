@@ -6,35 +6,48 @@ domain: 其他量化软件
 topic: ORCA中利用Multiwfn做BSSE校正
 cards: 11
 ---
-
-# ORCA中利用Multiwfn做BSSE校正 — 知识卡片
-
 ## 1. ORCA程序实现counterpoise校正的方式
 
 ORCA程序（截至4.2.1版）没有提供现成的counterpoise关键词，只能通过定义鬼原子的方式手工实现，因此实现起来比Gaussian麻烦。在ORCA输入文件中，原子名后面带冒号说明这个原子是鬼原子。
-- 来源：http://sobereva.com/46
-- 相关链接：http://sobereva.com
+- 来源：http://原作者.com/46
+- 相关链接：http://原作者.com
+
+---
+
+
 
 ---
 
 ## 2. Multiwfn生成ORCA的counterpoise校正输入文件
 
 Multiwfn程序支持生成包含counterpoise校正任务的ORCA输入文件。用户载入结构文件并确定两个片段的原子序号范围后，在主功能菜单中选择生成ORCA输入文件功能，随后选择任务类型为考虑counterpoise校正的结合能，并输入片段序号、加弥散函数选项及计算方法即可自动生成。
-- 相关链接：http://sobereva.com/490, http://sobereva.com/multiwfn, http://sobereva.com/452
+- 相关链接：http://原作者.com/490, http://原作者.com/multiwfn, http://原作者.com/452
+
+---
+
+
 
 ---
 
 ## 3. 示例体系的计算级别与结构获取
 
-本文示例体系是S66弱相互作用测试集中的一个结构，使用DLPNO-CCSD(T)/aug-cc-pVTZ with normalPNO级别计算其结合能并考虑counterpoise校正。相关的xyz格式结构文件、输入输出文件及处理脚本均可从指定链接下载。
-- 相关链接：http://sobereva.com/attach/542/file.rar
+该示例体系是S66弱相互作用测试集中的一个结构，使用DLPNO-CCSD(T)/aug-cc-pVTZ with normalPNO级别计算其结合能并考虑counterpoise校正。相关的xyz格式结构文件、输入输出文件及处理脚本均可从指定链接下载。
+- 相关链接：http://原作者.com/attach/542/file.rar
+
+---
+
+
 
 ---
 
 ## 4. 使用Multiwfn确定单体片段原子序号
 
 启动Multiwfn载入二聚体结构文件后，若不清楚两个单体的原子序号范围，可进入主功能0，选择Tools - Select fragment，输入其中一个片段中的任意一个原子序号，整个片段会被高亮并显示序号范围。
-- 支持的输入文件格式见：http://sobereva.com/379
+- 支持的输入文件格式见：http://原作者.com/379
+
+---
+
+
 
 ---
 
@@ -81,4 +94,4 @@ getEbind.sh脚本可处理当前目录下的所有out文件，自动提取整体
 ## 11. 使用ORCA_CP.sh脚本处理完整counterpoise输出
 
 ORCA_CP.sh脚本用于处理包含5个能量计算的ORCA输出文件。该脚本会输出：(1)5个能量的具体数值；(2)原始的相互作用能；(3)BSSE校正后的相互作用能；(4)BSSE校正能；(5)BSSE校正后的整体的能量。
-- 相关链接：http://sobereva.com/46
+- 相关链接：http://原作者.com/46

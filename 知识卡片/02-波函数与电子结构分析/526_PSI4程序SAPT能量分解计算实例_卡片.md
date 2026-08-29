@@ -6,12 +6,13 @@ domain: 波函数与电子结构分析
 topic: PSI4程序SAPT能量分解计算实例
 cards: 16
 ---
-
-# PSI4程序SAPT能量分解计算实例 — 知识卡片
-
 ## 1. SAPT方法的推荐替代方案
 
-sobEDAw能量分解方法在2023年被提出，计算耗时以及对内存和硬盘的要求都远远低于SAPT0，且精度可以达到较高阶SAPT水平，因此强烈建议使用sobEDAw代替SAPT。相关介绍和用法详见《使用sobEDA和sobEDAw方法做非常准确、快速、方便、普适的能量分解分析》（[http://sobereva.com/685](http://sobereva.com/685)）。
+sobEDAw能量分解方法在2023年被提出，计算耗时以及对内存和硬盘的要求都远远低于SAPT0，且精度可以达到较高阶SAPT水平，因此建议使用sobEDAw代替SAPT。相关介绍和用法详见《使用sobEDA和sobEDAw方法做非常准确、快速、方便、普适的能量分解分析》（[http://原作者.com/685](http://原作者.com/685)）。
+
+---
+
+
 
 ---
 
@@ -65,7 +66,7 @@ PSI4输出文件末尾汇总了SAPT结果，包含Electrostatics、Exchange、In
 
 ## 10. 大体系的计算选择
 
-sSAPT0/jun-cc-pVDZ对很大体系可能算不动，此时不适合使用基于量子化学的能量分解，建议使用Multiwfn做基于分子力场的能量分解，详见《使用Multiwfn做基于分子力场的能量分解分析》（[http://sobereva.com/442](http://sobereva.com/442)）。
+sSAPT0/jun-cc-pVDZ对很大体系可能算不动，此时不适合使用基于量子化学的能量分解，建议使用Multiwfn做基于分子力场的能量分解，详见《使用Multiwfn做基于分子力场的能量分解分析》（[http://原作者.com/442](http://原作者.com/442)）。
 
 ---
 

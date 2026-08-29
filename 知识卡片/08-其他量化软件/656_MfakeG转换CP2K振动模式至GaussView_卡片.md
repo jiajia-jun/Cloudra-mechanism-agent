@@ -6,12 +6,13 @@ domain: 其他量化软件
 topic: MfakeG转换CP2K振动模式至GaussView
 cards: 5
 ---
-
-# MfakeG转换CP2K振动模式至GaussView — 知识卡片
-
 ## 1. MfakeG程序的功能与用途
 
-MfakeG是一个工具，能够将CP2K程序计算得到的振动模式转换为GaussView可识别的格式，从而利用GaussView查看振动矢量、播放和保存振动动画以及沿特定振动模式对结构进行位移。该程序是作者继OfakeG（将ORCA输出文件转化为Gaussian格式）之后编写的，旨在解决GaussView仅支持Gaussian程序振动分析输出文件的限制，同时利用了Molden格式简单通用的特点。MfakeG免费下载地址为 http://sobereva.com/soft/MfakeG，提供Windows和Linux版。
+MfakeG是一个工具，能够将CP2K程序计算得到的振动模式转换为GaussView可识别的格式，从而利用GaussView查看振动矢量、播放和保存振动动画以及沿特定振动模式对结构进行位移。该程序是原作者继OfakeG（将ORCA输出文件转化为Gaussian格式）之后编写的，旨在解决GaussView仅支持Gaussian程序振动分析输出文件的限制，同时利用了Molden格式简单通用的特点。MfakeG免费下载地址为 http://原作者.com/soft/MfakeG，提供Windows和Linux版。
+
+---
+
+
 
 ---
 
@@ -22,7 +23,7 @@ MfakeG是一个工具，能够将CP2K程序计算得到的振动模式转换为G
 &MOLDEN_VIB
 &END MOLDEN_VIB
 &END PRINT
-如果使用Multiwfn生成CP2K输入文件（参考《使用Multiwfn非常便利地创建CP2K程序的输入文件》 http://sobereva.com/587），默认也会产生此.mol文件。
+如果使用Multiwfn生成CP2K输入文件（参考《使用Multiwfn非常便利地创建CP2K程序的输入文件》 http://原作者.com/587），默认也会产生此.mol文件。
 
 ---
 

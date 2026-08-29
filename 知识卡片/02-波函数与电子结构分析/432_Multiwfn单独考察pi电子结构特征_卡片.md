@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn单独考察pi电子结构特征
 cards: 19
 ---
-
-# Multiwfn单独考察pi电子结构特征 — 知识卡片
-
 ## 1. 方法引用与来源
 
-在Multiwfn中单独考察pi电子结构特征的方法来源于笔者的论文Theor. Chem. Acc., 139, 25 (2020) DOI: 10.1007/s00214-019-2541-z，使用该功能的读者除引用Multiwfn原文外务必同时引用此文。此外，IRI-pi分析方法发表于Chemistry—Methods, 1, 231 (2021)，可直观考察pi作用类型和强度。
+在Multiwfn中单独考察pi电子结构特征的方法来源于论文Theor. Chem. Acc., 139, 25 (2020) DOI: 10.1007/s00214-019-2541-z，使用该功能的读者除引用Multiwfn原文外务必同时引用该资料。此外，IRI-pi分析方法发表于Chemistry—Methods, 1, 231 (2021)，可直观考察pi作用类型和强度。
 
 ---
 

@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn程序常见问题解答与使用指南
 cards: 43
 ---
-
-# Multiwfn程序常见问题解答与使用指南 — 知识卡片
-
 ## 1. Multiwfn程序引用规范
 
-使用Multiwfn发文章必须同时引用其两篇原文，即J. Comput. Chem., 33, 580-592 (2012)和J. Chem. Phys., 161, 082503 (2024)。如果使用了Multiwfn中未发表为论文形式的独家功能，除了引用原文外，还应当引用Multiwfn手册里介绍相应功能的章节，格式为：Tian Lu, Section [章节号] of Multiwfn manual version [实际版本] (accessed 日月年） available at http://sobereva.com/multiwfn。
-
----
+使用Multiwfn发文章必须同时引用其两篇原文，即J. Comput. Chem., 33, 580-592 (2012)和J. Chem. Phys., 161, 082503 (2024)。如果使用了Multiwfn中未发表为论文形式的独家功能，除了引用原文外，还应当引用Multiwfn手册里介绍相应功能的章节，格式为：Section [章节号] of Multiwfn manual version [实际版本] (accessed 日月年） available at http://原作者.com/multiwfn。
 
 ## 2. Multiwfn支持的量子化学程序
 

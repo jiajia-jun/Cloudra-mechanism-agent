@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn_培训班感想与波函数分析普及
 cards: 10
 ---
-
-# Multiwfn_培训班感想与波函数分析普及 — 知识卡片
-
 ## 1. 第一届Multiwfn培训班资料下载
 
 第一届波函数分析暨Multiwfn培训班于2013年8月13日至15日在北京科技大学召开，培训班全部所用的幻灯片及现场演示动画可以通过百度网盘下载[http://pan.baidu.com/share/link?shareid=759751855&uk=1074012119](http://pan.baidu.com/share/link?shareid=759751855&uk=1074012119)。
@@ -67,7 +64,7 @@ cards: 10
 
 ## 9. Multiwfn操作与学习建议
 
-学习Multiwfn不应死记硬背操作指令（如4-9-2-enter-3-0），而应理解屏幕上显示的选项含义；快速入门务必先认真阅读《Multiwfn入门tips》[http://sobereva.com/167](http://sobereva.com/167)，并深入阅读手册第四章的60多个实例。
+学习Multiwfn不应死记硬背操作指令（如4-9-2-enter-3-0），而应理解屏幕上显示的选项含义；快速入门务必先认真阅读《Multiwfn入门tips》[http://原作者.com/167](http://原作者.com/167)，并深入阅读手册第四章的60多个实例。
 - Multiwfn功能强大但极其容易入门，通过理解原理和参考手册实例即可举一反三。
 
 ---

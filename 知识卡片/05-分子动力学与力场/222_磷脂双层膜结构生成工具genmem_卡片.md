@@ -6,20 +6,21 @@ domain: 分子动力学与力场
 topic: 磷脂双层膜结构生成工具genmem
 cards: 6
 ---
-
-# 磷脂双层膜结构生成工具genmem — 知识卡片
-
 ## 1. genmem工具的替代版本
 
-genmem已被笔者开发的genmixmem取代，genmixmem具备genmem的所有功能且支持生成混合膜，因此genmem已无存在意义。
-- 出处见《生成混合组分的磷脂双层膜结构文件的工具genmixmem》(http://sobereva.com/245)
+genmem已被genmixmem取代，genmixmem具备genmem的所有功能且支持生成混合膜，因此genmem已无存在意义。
+- 出处见《生成混合组分的磷脂双层膜结构文件的工具genmixmem》(http://原作者.com/245)
+
+---
+
+
 
 ---
 
 ## 2. 磷脂双层膜构建工具对比
 
 常用构建工具有packmol、CHARMM-GUI和VMD的Membrane Builder插件；Membrane Builder支持的磷脂类型太少，CHARMM-GUI支持的类型有限且难以构建特殊磷脂膜，packmol普适性强但搭建膜体系时常无法顺利收敛，且运行时间长，可能产生分布不均、孔洞及不合理接触。
-- 出处见《Sob谈生物膜体系的搭建》(http://sobereva.com/23)
+- 出处见《Sob谈生物膜体系的搭建》(http://原作者.com/23)
 
 ---
 

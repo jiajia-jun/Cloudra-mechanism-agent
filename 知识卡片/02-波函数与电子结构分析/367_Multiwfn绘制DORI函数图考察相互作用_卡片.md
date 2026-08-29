@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn绘制DORI函数图考察相互作用
 cards: 7
 ---
-
-# Multiwfn绘制DORI函数图考察相互作用 — 知识卡片
-
 ## 1. DORI方法已过时建议使用IRI
 
-DORI函数已没有任何使用价值，强烈不建议使用。推荐使用IRI方法（见http://sobereva.com/598），其定义更简单且图像效果更好，已完全取代DORI。
+DORI函数已没有任何使用价值，强烈不建议使用。推荐使用IRI方法，其定义更简单且图像效果更好，已完全取代DORI。
 
 ---
 

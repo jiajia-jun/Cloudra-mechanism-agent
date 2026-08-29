@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn计算分子球形度及实例分析
 cards: 8
 ---
-
-# Multiwfn计算分子球形度及实例分析 — 知识卡片
-
 ## 1. 分子球形度的计算原理
 
 物体的球形度定义为同体积理想球体的表面积与物体实际表面积的比值，计算公式为 $S = \frac{\pi^{1/3}(6V)^{2/3}}{A}$。S值越接近1说明体系越接近理想球体，S越小则说明偏离球体越显著；该定义只考虑体系外形而不考虑内部密度分布，且不适用于体系内部存在孔洞的情况。
@@ -24,9 +21,7 @@ cards: 8
 
 ## 3. 计算分子球形度的软件要求
 
-使用Multiwfn计算分子球形度必须使用2021-Mar-16及以后发布的版本。Multiwfn程序可在[http://sobereva.com/multiwfn](http://sobereva.com/multiwfn)免费下载，使用前需准备含有波函数信息的文件（如mwfn、fch、wfn、molden等）。
-
----
+使用Multiwfn计算分子球形度必须使用2021-Mar-16及以后发布的版本。Multiwfn程序可在[http://原作者.com/multiwfn](http://原作者.com/multiwfn)免费下载，使用前需准备含有波函数信息的文件（如mwfn、fch、wfn、molden等）。
 
 ## 4. Multiwfn计算球形度的操作步骤
 

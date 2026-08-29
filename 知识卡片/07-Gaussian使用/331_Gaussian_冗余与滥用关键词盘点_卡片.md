@@ -6,9 +6,6 @@ domain: Gaussian使用
 topic: Gaussian_冗余与滥用关键词盘点
 cards: 30
 ---
-
-# Gaussian_冗余与滥用关键词盘点 — 知识卡片
-
 ## 1. Sobereva的剃刀原理
 
 达到同一个计算目的，用的关键词越少，通常体现经验越丰富；计算化学输入文件应遵循“如无必要，勿增关键词”的原则。
@@ -19,7 +16,11 @@ cards: 30
 ## 2. 冗余关键词scf=maxcyc与opt=maxcyc
 
 使用scf=maxcyc=几百或opt=maxcyc=几百通常是无用且有害的，解决SCF不收敛或几何优化收敛问题应当采用科学的方法而非盲目增加循环次数。
-- 出处: http://sobereva.com/61; http://sobereva.com/164
+- 出处: http://原作者.com/61; http://原作者.com/164
+
+---
+
+
 
 ---
 
@@ -32,21 +33,33 @@ Gaussian仅对于HF方法做振动分析时才默认计算Raman活性，对于�
 ## 4. 滥用IOp(5/13=1)
 
 IOp(5/13=1)是一种饮鸩止渴、掩耳盗铃的逃避（而不是解决）SCF不收敛的方法，官方也明确表态使用该选项是愚蠢的。
-- 出处: http://sobereva.com/61; http://bbs.keinsci.com/forum.php?mod=viewthread&tid=3344
+- 出处: http://原作者.com/61; http://bbs.keinsci.com/forum.php?mod=viewthread&tid=3344
+
+---
+
+
 
 ---
 
 ## 5. scrf关键词下的模型选择冗余
 
 Gaussian里scrf默认就用PCM（等价于IEFPCM），写PCM或IEFPCM纯属多余；除非有特殊理由，否则应优先使用SMD模型计算溶解自由能和体系自由能，而非盲目使用CPCM。
-- 出处: http://sobereva.com/327
+- 出处: http://原作者.com/327
+
+---
+
+
 
 ---
 
 ## 6. 滥用nosymm关键词
 
 不应在不需要的时候使用nosymm关键词，只有在特定情况下才需要使用该选项，具体使用场景需参考关于对称性与nosymm使用的专门文章。
-- 出处: http://sobereva.com/297
+- 出处: http://原作者.com/297
+
+---
+
+
 
 ---
 
@@ -77,7 +90,11 @@ test关键词根本毫无意义；sp代表做单点计算，这是默认行为�
 ## 11. 激发态计算关键词root与自旋态关键词
 
 CIS、TD计算默认就是root=1，关注第一激发态时无需写root=1；singlet、triplet、50-50关键词仅对闭壳层参考态有意义，对非限制性开壳层参考态不起作用，此时需根据输出的<S**2>确定自旋多重度。
-- 出处: http://sobereva.com/82
+- 出处: http://原作者.com/82
+
+---
+
+
 
 ---
 
@@ -102,7 +119,11 @@ scrf默认就是水做溶剂，写scrf=solvent=water纯属多余。
 ## 15. density关键词的使用规范
 
 density含义是产生/导出/分析当前级别下的波函数，SCF类型计算（半经验/HF/DFT/MCSCF）写density纯属多余；density默认就是density=current；从G09 C.01开始，后HF计算用out=wfn/wfx时默认已用了density关键词。
-- 出处: http://sobereva.com/231
+- 出处: http://原作者.com/231
+
+---
+
+
 
 ---
 
@@ -115,7 +136,11 @@ density含义是产生/导出/分析当前级别下的波函数，SCF类型计�
 ## 17. 滥用polar=enonly
 
 常用DFT方法在Gaussian中有三阶解析导数，计算第一超极化率时写polar=enonly（基于解析一阶导数做两阶有限差分）会白白糟蹋大量计算资源且精度更低。
-- 出处: http://sobereva.com/231
+- 出处: http://原作者.com/231
+
+---
+
+
 
 ---
 
@@ -128,7 +153,11 @@ density含义是产生/导出/分析当前级别下的波函数，SCF类型计�
 ## 19. 误用scf=conver=6
 
 单点计算可以将SCF收敛限从默认的8降到6以降低不收敛几率和耗时，但在几何优化、频率计算、超极化率计算等涉及能量导数计算时用scf=conver=6可能导致极小点/过渡态定位精度不够、几何优化时震荡、频率计算不准等问题。
-- 出处: http://sobereva.com/61
+- 出处: http://原作者.com/61
+
+---
+
+
 
 ---
 
@@ -141,7 +170,11 @@ IOp(6/7=3)相当于pop=full，IOp(1/8=x)相当于在opt里定义maxstep，有对
 ## 21. 滥用scf=xqc与scf=qc
 
 scf=qc（二次收敛）每步迭代比一般方式多花好几倍时间，不应作为默认关键词或首选解决不收敛的方法；如果迫不得已只能用qc方式收敛，极有可能最后得到的波函数并不稳定，暗示当前体系结构、方法、自旋多重度、基组等可能不合适。
-- 出处: http://sobereva.com/61
+- 出处: http://原作者.com/61
+
+---
+
+
 
 ---
 
@@ -178,14 +211,22 @@ gfinput和gfprint用来输出基组详细定义，初学者通常读不懂也用
 ## 27. 冗余关键词pop=full
 
 pop=full会输出所有轨道展开系数，导致输出文件巨大且难以查找数据；如需考察轨道系数，应保留fch文件并使用Multiwfn程序主功能6的选项4进行输出，比在文本输出文件中查找方便得多。
-- 出处: http://sobereva.com/multiwfn
+- 出处: http://原作者.com/multiwfn
+
+---
+
+
 
 ---
 
 ## 28. QST任务中误用noeigen
 
 在opt=TS任务中一般需要写noeigen，但QST2、QST3任务在计算时根本不会自动对每一步做Hessian矩阵本征值检测，因此对QST任务写noeigen毫无意义。
-- 出处: http://sobereva.com/460
+- 出处: http://原作者.com/460
+
+---
+
+
 
 ---
 
@@ -198,4 +239,4 @@ pop=full会输出所有轨道展开系数，导致输出文件巨大且难以查
 ## 30. scrf里乱写read
 
 scrf里写read代表从输入文件末尾读取自定义溶剂信息；如果在scrf里写了read但输入文件末尾没有任何自定义溶剂信息，这毫无意义且可能导致程序误读其它信息并报错。
-- 出处: http://sobereva.com/327
+- 出处: http://原作者.com/327

@@ -6,18 +6,19 @@ domain: 波函数与电子结构分析
 topic: Multiwfn结合VMD绘制AIM拓扑分析图
 cards: 13
 ---
-
-# Multiwfn结合VMD绘制AIM拓扑分析图 — 知识卡片
-
 ## 1. AIM拓扑分析图绘制视频演示
 
-本文介绍的操作有对应的视频演示，按照本文叙述的步骤操作如果做不出来，务必观看B站视频：https://www.bilibili.com/video/av33724816/。
+介绍的操作有对应的视频演示，按照叙述的步骤操作如果做不出来，务必观看B站视频：https://www.bilibili.com/video/av33724816/。
+
+---
+
+
 
 ---
 
 ## 2. 基础文献与软件版本要求
 
-AIM方法是Bader发展的考察电子结构的重要方法，相关资料见《AIM学习资料和重要文献合集》。本文内容对应于Multiwfn官网最新版本，使用VMD 1.9.3版，假定用户使用Windows系统（如Win7-64bit），Linux下同样可以轻易实现但需适当变通。
+AIM方法是Bader发展的考察电子结构的重要方法，相关资料见《AIM学习资料和重要文献合集》。内容对应于Multiwfn官网最新版本，使用VMD 1.9.3版，假定用户使用Windows系统（如Win7-64bit），Linux下同样可以轻易实现但需适当变通。
 
 ---
 

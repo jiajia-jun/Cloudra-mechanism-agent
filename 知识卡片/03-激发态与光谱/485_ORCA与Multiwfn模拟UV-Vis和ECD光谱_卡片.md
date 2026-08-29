@@ -6,14 +6,15 @@ domain: 激发态与光谱
 topic: ORCA与Multiwfn模拟UV-Vis和ECD光谱
 cards: 11
 ---
-
-# ORCA与Multiwfn模拟UV-Vis和ECD光谱 — 知识卡片
-
 ## 1. 教程说明与环境配置
 
 本教程演示使用ORCA和Multiwfn模拟水环境中丙氨酸的UV-Vis和ECD光谱，ORCA版本为4.1.1，Multiwfn版本为3.7(dev)。ORCA是免费量子化学程序，Multiwfn是基于波函数分析且能绘制光谱的代码，两者均支持Windows、Linux和MacOS平台。教程中所有涉及的文件可从http://www.keinsci.com下载，普通Intel四核CPU上的计算耗时预计少于10分钟。
-- Multiwfn下载地址：http://sobereva.com/multiwfn
+- Multiwfn下载地址：http://原作者.com/multiwfn
 - ORCA下载地址：https://orcaforum.kofo.mpg.de/app.php/portal
+
+---
+
+
 
 ---
 
@@ -59,7 +60,7 @@ cards: 11
 
 ## 7. ORCA输出文件编码问题解决
 
-若Multiwfn在进入绘图界面前崩溃，可能是ORCA输出文件为Unicode编码，而Multiwfn仅支持ASCII编码。解决方法请参考链接：http://sobereva.com/wfnbbs/viewtopic.php?id=213。
+若Multiwfn在进入绘图界面前崩溃，可能是ORCA输出文件为Unicode编码，而Multiwfn仅支持ASCII编码。解决方法请参考链接：http://原作者.com/wfnbbs/viewtopic.php?id=213。
 - 编码要求：ASCII
 
 ---

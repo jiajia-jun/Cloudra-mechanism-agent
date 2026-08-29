@@ -1,19 +1,19 @@
 # 10-化学信息学与脚本 — 卡片索引
 
-共 19 篇 / 153 张卡片
+共 19 篇 / 180 张卡片
 
 | id | 主题 | 卡片数 |
 |---|---|---|
 | 28 | Gromacs轨迹gro文件空间区域筛选工具 | 9 |
 | 32 | 原子与残基B因子及RMSF转换工具ba2r | 6 |
-| 104 | 富勒烯螺旋算法及CaGe与Fowler-Manolopoul | 1 |
+| 104 | 富勒烯螺旋算法及CaGe与Fowler-Manolopoul | 16 |
 | 128 | 体数据格式转换工具vodaconv使用与原理 | 14 |
-| 143 | MS_xtd轨迹转xyz格式Perl脚本 | 3 |
+| 143 | MS_xtd轨迹转xyz格式Perl脚本 | 7 |
 | 280 | 利用Acrobat与批处理拆分合并双页PDF | 6 |
 | 302 | 计算两个平面夹角的Fortran程序 | 4 |
-| 311 | 球面上随机均匀分布点算法 | 3 |
+| 311 | 球面上随机均匀分布点算法 | 4 |
 | 440 | OpenBabel批量生成取代苯三维结构 | 10 |
-| 472 | xyz2QC多帧转Gaussian与ORCA输入 | 1 |
+| 472 | xyz2QC多帧转Gaussian与ORCA输入 | 8 |
 | 477 | 化学结构xyz文件格式定义与转换 | 22 |
 | 530 | 利用Multiwfn批量转换Gaussian文件格式 | 9 |
 | 536 | 无需导数局部极小化算法NEWUOA的Fortran使用 | 9 |

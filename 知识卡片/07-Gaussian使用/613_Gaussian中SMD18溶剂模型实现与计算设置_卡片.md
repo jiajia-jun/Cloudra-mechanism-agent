@@ -6,13 +6,14 @@ domain: Gaussian使用
 topic: Gaussian中SMD18溶剂模型实现与计算设置
 cards: 13
 ---
-
-# Gaussian中SMD18溶剂模型实现与计算设置 — 知识卡片
-
 ## 1. SMD模型原子半径定义规则
 
 SMD溶剂模型通过原子球叠加构建溶质孔洞以计算溶剂-溶质相互作用的静电部分。SMD原文仅对H、C、N、O、F、Si、P、S、Cl、Br专门优化了原子半径，对其它元素使用Bondi范德华半径，若Bondi半径缺失则使用2.0埃。
-- 参考链接：[http://sobereva.com/327](http://sobereva.com/327)
+- 参考链接：[http://原作者.com/327](http://原作者.com/327)
+
+---
+
+
 
 ---
 
@@ -37,14 +38,22 @@ SMD18模型非常适合结合M06-2X泛函使用。为最大程度实现误差抵
 ## 5. SMD18推荐的基组设置
 
 按照SMD18原文，对Cl、Br、I应当使用def2-TZVPD基组（对I需结合相应赝势），对其它元素使用def2-TZVP。Gaussian中相关设置可参考《给ahlrichs的def2系列基组加弥散的方法》和《详解Gaussian中混合基组、自定义基组和赝势基组的输入》。
-- 参考链接：[http://sobereva.com/340](http://sobereva.com/340), [http://sobereva.com/60](http://sobereva.com/60)
+- 参考链接：[http://原作者.com/340](http://原作者.com/340), [http://原作者.com/60](http://原作者.com/60)
+
+---
+
+
 
 ---
 
 ## 6. 低频振动时的热力学校正方法
 
 根据SMD18原文，若存在100 cm^-1以下的低频振动频率，应使用Grimme的准RRHO模型计算热力学量，而非Gaussian默认的RRHO模型。这可以通过Shermo程序实现，详见《使用Shermo结合量子化学程序方便地计算分子的各种热力学数据》。
-- 参考链接：[http://sobereva.com/552](http://sobereva.com/552)
+- 参考链接：[http://原作者.com/552](http://原作者.com/552)
+
+---
+
+
 
 ---
 
@@ -62,7 +71,7 @@ def2-TZVP和def2-TZVPD基组用于opt freq计算昂贵，为与SMD18优化半径
 
 ## 9. Gaussian中SMD18计算的完整输入示例
 
-以下为使用M062X/def2-TZVP(D)级别在乙腈中做opt freq的Gaussian 16输入示例，包含引入外部基组文件、赝势文件及修改Br、I半径的设定。输入文件和输出文件可在[http://sobereva.com/attach/613/file.zip](http://sobereva.com/attach/613/file.zip)下载。
+以下为使用M062X/def2-TZVP(D)级别在乙腈中做opt freq的Gaussian 16输入示例，包含引入外部基组文件、赝势文件及修改Br、I半径的设定。输入文件和输出文件可在[http://原作者.com/attach/613/file.zip](http://原作者.com/attach/613/file.zip)下载。
 ```
 #P M062X/genecp SCRF(SMD,solvent=acetonitrile,read) opt freq
 
@@ -84,9 +93,13 @@ Br 2.60
 
 ---
 
+
+
+---
+
 ## 10. SMD18计算所需的外部基组与赝势文件
 
-SMD18.gbs是基于BSE数据库def2-TZVP基组文件并将Cl、Br、I替换为def2-TZVPD后的基组文件。def2-ECP.txt是def2系列标配的Stuttgart赝势基组定义。即使体系不含I，也可使用通用输入文件（此时I的赝势及半径修改不生效）。文件可在[http://sobereva.com/attach/613/SMD18.gbs](http://sobereva.com/attach/613/SMD18.gbs)和[http://sobereva.com/attach/613/def2-ECP.txt](http://sobereva.com/attach/613/def2-ECP.txt)下载。
+SMD18.gbs是基于BSE数据库def2-TZVP基组文件并将Cl、Br、I替换为def2-TZVPD后的基组文件。def2-ECP.txt是def2系列标配的Stuttgart赝势基组定义。即使体系不含I，也可使用通用输入文件（此时I的赝势及半径修改不生效）。文件可在[http://原作者.com/attach/613/SMD18.gbs](http://原作者.com/attach/613/SMD18.gbs)和[http://原作者.com/attach/613/def2-ECP.txt](http://原作者.com/attach/613/def2-ECP.txt)下载。
 
 ---
 

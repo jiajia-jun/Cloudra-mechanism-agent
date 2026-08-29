@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn与Antechamber的RESP电荷差异原
 cards: 7
 ---
-
-# Multiwfn与Antechamber的RESP电荷差异原 — 知识卡片
-
 ## 1. Multiwfn与Antechamber计算RESP电荷差异的主要原因
 
-Multiwfn算出的RESP电荷与antechamber不同主要有两点原因：拟合点的分布不同以及等价约束设置不同。Multiwfn 3.6、3.7版默认使用MK方式设置拟合点，而Antechamber从Gaussian的pop=MK IOp(6/33=2) IOp(6/42=6)输出文件中直接读取拟合点坐标和静电势。本文涉及的体系相关文件下载链接为http://sobereva.com/attach/516/file.rar，使用的是2019-Sep-26更新的Multiwfn 3.7(dev)版。
-
----
+Multiwfn算出的RESP电荷与antechamber不同主要有两点原因：拟合点的分布不同以及等价约束设置不同。Multiwfn 3.6、3.7版默认使用MK方式设置拟合点，而Antechamber从Gaussian的pop=MK IOp(6/33=2) IOp(6/42=6)输出文件中直接读取拟合点坐标和静电势。涉及的体系相关文件下载链接为http://原作者.com/attach/516/file.rar，使用的是2019-Sep-26更新的Multiwfn 3.7(dev)版。
 
 ## 2. 拟合点分布差异的具体细节
 

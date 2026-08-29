@@ -6,12 +6,9 @@ domain: 分子动力学与力场
 topic: Gromacs格点文件分析工具gmxgrid
 cards: 8
 ---
-
-# Gromacs格点文件分析工具gmxgrid — 知识卡片
-
 ## 1. gmxgrid v1.2 程序概述
 
-gmxgrid v1.2 是由 Sobereva 于 2009 年 10 月 29 日编写的工具，用于将 Gromacs 的 g_spatial 生成的 Gaussian 格点文件转换为特定平面可识别的格式。程序将读取的变量从双精度改为单精度，使内存使用量减少为以前的 1/4，并增加了内存占用提示和读取进度提示。输出精度小数点后扩展为 6 位，Bug 汇报邮箱为 sobereva[at]sina.com。
+gmxgrid v1.2 是由原作者于 2009 年 10 月 29 日编写的工具，用于将 Gromacs 的 g_spatial 生成的 Gaussian 格点文件转换为特定平面可识别的格式。程序将读取的变量从双精度改为单精度，使内存使用量减少为以前的 1/4，并增加了内存占用提示和读取进度提示。输出精度小数点后扩展为 6 位，Bug 汇报邮箱为 原作者[at]sina.com。
 
 ---
 

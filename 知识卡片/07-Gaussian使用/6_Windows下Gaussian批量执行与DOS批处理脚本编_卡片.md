@@ -6,14 +6,9 @@ domain: Gaussian使用
 topic: Windows下Gaussian批量执行与DOS批处理脚本编
 cards: 10
 ---
-
-# Windows下Gaussian批量执行与DOS批处理脚本编 — 知识卡片
-
 ## 1. Windows下Gaussian批量执行方法一
 
-Windows下高斯批量执行的第一种方法是创建.bcf批处理列表文件。每一行写入输入文件路径和输出文件路径，如C:\QCexperiment\exp3\b1.gjf , b1.out，没用的行开头写!注释掉。用gaussian打开此文件后，先exit再点三角箭头开始运行，也可以用Utilities-edit batch list编辑并保存。
-
----
+Windows下高斯批量执行的第一种方法是创建.bcf批处理列表文件。每一行写入输入文件路径和输出文件路径，如C:\QCexperiment\exp3\b1.gjf , b1.out，没用的行开头写!注释掉。用gaussian打开该资料件后，先exit再点三角箭头开始运行，也可以用Utilities-edit batch list编辑并保存。
 
 ## 2. 批量任务出错处理设置
 

@@ -6,24 +6,33 @@ domain: 可视化与制图
 topic: 基于xtb与Multiwfn绘制大体系表面静电势
 cards: 13
 ---
-
-# 基于xtb与Multiwfn绘制大体系表面静电势 — 知识卡片
-
 ## 1. 当前最佳实践：绘制静电势着色的范德华表面图
 
-如今绘制分子范德华表面静电势图的最佳做法是使用Multiwfn官网最新版本，结合xtb产生的molden文件作为输入，利用《使用Multiwfn+VMD快速地绘制静电势着色的分子范德华表面图和分子间穿透图》（http://sobereva.com/443）介绍的ESPiso脚本。这种方法得益于Multiwfn在PCCP期刊发表的高效静电势算法（http://sobereva.com/614）以及巨幅降低耗时的关键技巧（http://sobereva.com/602），比旧方法更省事省时且无需调用收费的Gaussian cubegen。
+如今绘制分子范德华表面静电势图的最佳做法是使用Multiwfn官网最新版本，结合xtb产生的molden文件作为输入，利用《使用Multiwfn+VMD快速地绘制静电势着色的分子范德华表面图和分子间穿透图》（http://原作者.com/443）介绍的ESPiso脚本。该方法得益于Multiwfn在PCCP期刊发表的高效静电势算法（http://原作者.com/614）以及巨幅降低耗时的关键技巧（http://原作者.com/602），比旧方法更省事省时且无需调用收费的Gaussian cubegen。
+
+---
+
+
 
 ---
 
 ## 2. 超大体系静电势图的绘制方法
 
-如果要绘制1000原子以上的特大体系的表面静电势图，应当使用《基于原子电荷极快速绘制超大体系的分子表面静电势图》（http://sobereva.com/639）里的做法。该方法用Multiwfn基于原子坐标和原子电荷来计算，耗时超级低。
+如果要绘制1000原子以上的特大体系的表面静电势图，应当使用《基于原子电荷极快速绘制超大体系的分子表面静电势图》（http://原作者.com/639）里的做法。该方法用Multiwfn基于原子坐标和原子电荷来计算，耗时超级低。
+
+---
+
+
 
 ---
 
 ## 3. 巨大体系波函数计算推荐方案
 
-对于300多个原子的大体系，在普通四核机子上使用Gaussian算DFT或ORCA算RI都很困难，且一般程序不支持基于半经验方法（如PM6）的波函数计算静电势。最佳方案是使用Grimme的xtb程序，其安装和基本用法详见《将Gaussian与Grimme的xtb程序联用搜索过渡态、产生IRC、做振动分析》（http://sobereva.com/421）。
+对于300多个原子的大体系，在普通四核机子上使用Gaussian算DFT或ORCA算RI都很困难，且一般程序不支持基于半经验方法（如PM6）的波函数计算静电势。最佳方案是使用Grimme的xtb程序，其安装和基本用法详见《将Gaussian与Grimme的xtb程序联用搜索过渡态、产生IRC、做振动分析》（http://原作者.com/421）。
+
+---
+
+
 
 ---
 
@@ -47,7 +56,7 @@ cards: 13
 
 ## 7. 设置cubegen路径
 
-修改Multiwfn目录下的settings.ini，将其中的cubegenpath路径设为机子里实际的Gaussian目录下的cubegen可执行文件的路径，例如`D:\study\G16W\cubegen.exe`。更多说明参见http://sobereva.com/435。
+修改Multiwfn目录下的settings.ini，将其中的cubegenpath路径设为机子里实际的Gaussian目录下的cubegen可执行文件的路径，例如`D:\study\G16W\cubegen.exe`。更多说明参见http://原作者.com/435。
 
 ---
 

@@ -6,17 +6,18 @@ domain: Gaussian使用
 topic: Gaussian势能面扫描与辅助工具应用
 cards: 16
 ---
-
-# Gaussian势能面扫描与辅助工具应用 — 知识卡片
-
 ## 1. 势能面扫描的定义与分类
 
 势能面扫描用于考察体系能量随一个或多个几何变量改变而发生的变化，分为刚性扫描和柔性扫描。刚性扫描仅改变指定变量并计算单点能，其余变量保持初始值；柔性扫描则对每个扫描点进行限制性优化，允许未扫描变量弛豫。势能面扫描常用于构造势能面、产生力场参数、确定过渡态初猜、求解振动问题、寻找构象及研究反应机理等。
 - 北京科音初级/中级量子化学培训班：[http://www.keinsci.com/workshop/KEQC_content.html](http://www.keinsci.com/workshop/KEQC_content.html), [http://www.keinsci.com/workshop/KBQC_content.html](http://www.keinsci.com/workshop/KBQC_content.html)
 - 《gentor：扫描方式做分子构象搜索的便捷工具》：[http://bbs.keinsci.com/thread-2388-1-1.html](http://bbs.keinsci.com/thread-2388-1-1.html)
-- 《Molcas的计算双原子分子光谱常数的模块vibrot使用简介》：[http://sobereva.com/372](http://sobereva.com/372)
-- 《谈谈温度、压力、同位素设定对量子化学计算结果产生的影响》：[http://sobereva.com/423](http://sobereva.com/423)
-- 《制作动画分析电子结构特征》：[http://sobereva.com/86](http://sobereva.com/86)
+- 《Molcas的计算双原子分子光谱常数的模块vibrot使用简介》：[http://原作者.com/372](http://原作者.com/372)
+- 《谈谈温度、压力、同位素设定对量子化学计算结果产生的影响》：[http://原作者.com/423](http://原作者.com/423)
+- 《制作动画分析电子结构特征》：[http://原作者.com/86](http://原作者.com/86)
+
+---
+
+
 
 ---
 
@@ -31,7 +32,11 @@ cards: 16
 
 对甲醇分子进行刚性旋转扫描，考察羟基旋转的能量变化。在B3LYP/6-31G*级别下优化甲醇后，将H6-O5-C1-H2二面角变量D3设为180.0 18 10.0，即每10度变化一次，共18步。由于扫描涉及点群从Cs变为C1，需加入nosymm关键词以避免问题。扫描结果可通过GaussView的Results - Scan查看能量曲线，从极大点与相邻极小点可粗略估计旋转势垒，精确计算需对极值点进行进一步优化。
 - 输入文件对应methanol_scan.gjf
-- 相关文献：《谈谈Gaussian中的对称性与nosymm关键词的使用》：[http://sobereva.com/297](http://sobereva.com/297)
+- 相关文献：《谈谈Gaussian中的对称性与nosymm关键词的使用》：[http://原作者.com/297](http://原作者.com/297)
+
+---
+
+
 
 ---
 
@@ -47,7 +52,11 @@ cards: 16
 
 扫描氟化氢H-F键长获得解离曲线时，需考虑从闭壳层到双自由基的转变。建议做法是先在键长很长时用UB3LYP/def2TZVP guess=mix stable=opt产生对称破缺波函数，接着用guess=read从长键向短键扫描，并在扫描中加入nosymm。若使用guess(always,mix) scan，每步重新产生初猜，可能对某些体系（如HF）失效，导致能量曲线不合理。精确解离曲线可考虑UCCSD(T)或多参考方法如CASPT2。
 - 输入文件对应HF_broken.gjf, HF_scan.gjf
-- 相关文献：《谈谈片段组合波函数与自旋极化单重态》：[http://sobereva.com/82](http://sobereva.com/82)
+- 相关文献：《谈谈片段组合波函数与自旋极化单重态》：[http://原作者.com/82](http://原作者.com/82)
+
+---
+
+
 
 ---
 
@@ -61,8 +70,12 @@ cards: 16
 ## 7. 使用dimerscan进行二聚体刚性扫描
 
 对于GaussView内坐标中无对应变量的二聚体距离扫描（如苯酚二聚体氢键距离），可使用dimerscan程序。将二聚体结构拆分为两个单体的笛卡尔坐标写入dimer.txt（首行为原子数和电荷多重度），运行dimerscan输入要扫描的原子序号、初始距离、步数和步长。程序生成scan.xyz轨迹文件，再用xyz2QC转化为Gaussian多步输入文件进行计算，最后提取能量作图。
-- 相关文献：《考察SAPT能量分解的能量项随分子二聚体间距变化的简单方法》：[http://sobereva.com/469](http://sobereva.com/469)
+- 相关文献：《考察SAPT能量分解的能量项随分子二聚体间距变化的简单方法》：[http://原作者.com/469](http://原作者.com/469)
 - 下载地址：[http://www.keinsci.com/research/molclus.html](http://www.keinsci.com/research/molclus.html)
+
+---
+
+
 
 ---
 
@@ -70,7 +83,11 @@ cards: 16
 
 扫描主-客体复合物接触距离时，若接触点无原子，需在主体和客体接触位点分别添加虚原子(X)。将包含虚原子的结构保存并合并为dimer.txt，在dimerscan中输入两个虚原子的全局序号及扫描参数。生成的轨迹经xyz2QC转化后计算，即可得到复合物解离或结合的能量曲线。绘图时应将能量最低点设为零点以体现相对能量变化。
 - 输入文件对应host-guest.gjf
-- 相关文献：《调节平面分子间距的方法》：[http://sobereva.com/178](http://sobereva.com/178)
+- 相关文献：《调节平面分子间距的方法》：[http://原作者.com/178](http://原作者.com/178)
+
+---
+
+
 
 ---
 
@@ -85,15 +102,23 @@ cards: 16
 ## 10. Gaussian柔性扫描的基本用法
 
 在Gaussian中进行柔性扫描需使用opt=modredundant关键词，在坐标末尾定义扫描变量，格式为：原子1 原子2 [原子3] [原子4] S 步数 步长。柔性扫描对每个点进行限制性优化，允许非扫描变量弛豫，无需输入文件中预存对应变量。可同时扫描多个变量，也可结合原子冻结设定（如原子序号 F）。柔性扫描只能在冗余内坐标或内坐标下进行。
-- 相关文献：《在Gaussian中做限制性优化的方法》：[http://sobereva.com/404](http://sobereva.com/404)
+- 相关文献：《在Gaussian中做限制性优化的方法》：[http://原作者.com/404](http://原作者.com/404)
+
+---
+
+
 
 ---
 
 ## 11. 柔性扫描的注意事项与局限性
 
 柔性扫描比刚性扫描昂贵至少一个数量级，建议使用便宜级别（如PM7）进行，之后对点做单点能校正。柔性扫描无法得到精确的极小点或过渡态结构，也不能替代IRC。若曲线出现能量突跃，通常是因为被扫描变量越过过渡态，优化收敛到了不同的极小点，断崖处的极大点结构可能作为过渡态初猜。柔性扫描存在滞后性，旋转360度时首尾可能不重合。
-- 相关文献：《量子化学计算中帮助几何优化收敛的常用方法》：[http://sobereva.com/164](http://sobereva.com/164)
-- 相关文献：《浅谈为什么优化和振动分析不需要用大基组》：[http://sobereva.com/387](http://sobereva.com/387)
+- 相关文献：《量子化学计算中帮助几何优化收敛的常用方法》：[http://原作者.com/164](http://原作者.com/164)
+- 相关文献：《浅谈为什么优化和振动分析不需要用大基组》：[http://原作者.com/387](http://原作者.com/387)
+
+---
+
+
 
 ---
 
@@ -101,7 +126,11 @@ cards: 16
 
 利用柔性扫描辅助寻找乙醇脱水过渡态初猜时，应扫描反应坐标即H2-O8距离。从初始距离2.667埃扫17步，每步减少0.1埃，使用PM7级别。能量曲线最高点对应的结构介于反应物和产物之间，可用作opt=TS的初猜。扫描曲线断崖处代表反应完成。注意只有最高点结构符合化学直觉时才适合作为初猜，且因柔性扫描昂贵，仅在其他方法难以确定初猜时使用。
 - 输入文件对应ethanol_relax.gjf
-- 相关文献：《简谈Gaussian里找过渡态的关键词opt=TS和QST2、3》：[http://sobereva.com/460](http://sobereva.com/460)
+- 相关文献：《简谈Gaussian里找过渡态的关键词opt=TS和QST2、3》：[http://原作者.com/460](http://原作者.com/460)
+
+---
+
+
 
 ---
 
@@ -109,7 +138,11 @@ cards: 16
 
 将环丁烷C-C键拉长形成丁烷双自由基的柔性扫描中，需使用guess(mix,always)产生对称破缺波函数，并加入nosymm。扫描M06-2X/def2SVP级别，每步拉长0.2埃。当键长超过约2.5埃时能量不再显著上升，表明键已断裂。通过GaussView绘制Mulliken自旋布居可观察自由基形成过程，注意因guess(mix,always)每步重置初猜，自旋符号可能随机翻转，应关注数值大小。
 - 输入文件对应cyclobutane_relax.gjf
-- 相关文献：《谈谈自旋密度、自旋布居以及在Multiwfn中的绘制和计算》：[http://sobereva.com/353](http://sobereva.com/353)
+- 相关文献：《谈谈自旋密度、自旋布居以及在Multiwfn中的绘制和计算》：[http://原作者.com/353](http://原作者.com/353)
+
+---
+
+
 
 ---
 
@@ -132,6 +165,6 @@ GIC可实现多个变量的同步扫描或约束。例如令1,3-丁二烯两个�
 ## 16. 势能面扫描的扩展应用
 
 Gaussian支持对所有理论方法（含激发态TDDFT）进行势能面扫描。对于分子力场，柔性扫描需在opt中加入nomicro关键词。通过外部程序联用，可使用Gaussian不支持的其它方法（如CCSD(T)-F12, GFN-xTB）进行扫描。对于极特殊的扫描（如pi-pi堆积的平移扫描），需自行编写脚本生成多帧xyz文件，再转化为Gaussian输入计算。
-- 相关文献：《将Gaussian与ORCA联用搜索过渡态、产生IRC、做振动分析》：[http://sobereva.com/422](http://sobereva.com/422)
-- 相关文献：《将Gaussian与Grimme的xtb程序联用搜索过渡态、产生IRC、做振动分析》：[http://sobereva.com/421](http://sobereva.com/421)
-- 相关文献：《Gaussian中用TDDFT计算激发态和吸收、荧光、磷光光谱的方法》：[http://sobereva.com/314](http://sobereva.com/314)
+- 相关文献：《将Gaussian与ORCA联用搜索过渡态、产生IRC、做振动分析》：[http://原作者.com/422](http://原作者.com/422)
+- 相关文献：《将Gaussian与Grimme的xtb程序联用搜索过渡态、产生IRC、做振动分析》：[http://原作者.com/421](http://原作者.com/421)
+- 相关文献：《Gaussian中用TDDFT计算激发态和吸收、荧光、磷光光谱的方法》：[http://原作者.com/314](http://原作者.com/314)

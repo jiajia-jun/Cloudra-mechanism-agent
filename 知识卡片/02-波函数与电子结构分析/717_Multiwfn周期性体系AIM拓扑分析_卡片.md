@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn周期性体系AIM拓扑分析
 cards: 13
 ---
-
-# Multiwfn周期性体系AIM拓扑分析 — 知识卡片
-
 ## 1. Multiwfn周期性体系AIM分析版本与环境要求
 
-使用Multiwfn对周期性体系做AIM拓扑分析必须使用2024-Jun-16及以后更新的版本。该程序可在官网http://sobereva.com/multiwfn免费下载，结合第一性原理程序CP2K（本文示例为2024.1版）使用。发表文章时必须按照Multiwfn启动时的提示恰当引用原文，不了解Multiwfn者建议阅读入门Tips和FAQ。
+使用Multiwfn对周期性体系做AIM拓扑分析必须使用2024-Jun-16及以后更新的版本。该程序可在官网http://原作者.com/multiwfn免费下载，结合第一性原理程序CP2K（示例为2024.1版）使用。发表文章时必须按照Multiwfn启动时的提示恰当引用原文，不了解Multiwfn者建议阅读入门Tips和FAQ。
 
 ---
 
@@ -83,4 +80,4 @@ Multiwfn支持基于cube等格点数据文件（如VASP的CHGCAR）通过B-splin
 
 ## 13. Multiwfn拓扑分析功能的普适性
 
-Multiwfn的拓扑分析功能不仅限于电子密度，对于自身可直接计算的函数（如静电势、范德华势、ELF-pi）以及载入的格点数据里记录的函数，均可对分子或周期性体系做拓扑分析。使用本文方法发表文章时必须按程序启动提示引用Multiwfn原文。
+Multiwfn的拓扑分析功能不仅限于电子密度，对于自身可直接计算的函数（如静电势、范德华势、ELF-pi）以及载入的格点数据里记录的函数，均可对分子或周期性体系做拓扑分析。使用该方法发表文章时必须按程序启动提示引用Multiwfn原文。

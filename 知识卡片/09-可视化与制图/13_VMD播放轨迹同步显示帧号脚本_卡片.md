@@ -4,28 +4,32 @@ title: 使VMD播放轨迹时同步显示帧号
 url: http://sobereva.com/13
 domain: 可视化与制图
 topic: VMD播放轨迹同步显示帧号脚本
-cards: 2
+cards: 3
 ---
 
 # VMD播放轨迹同步显示帧号脚本 — 知识卡片
 
-## 1. VMD同步显示轨迹帧号的操作步骤
+## 1. VMD播放轨迹同步显示帧号的脚本代码
 
-将提供的TCL代码保存为showframe.tcl文件并放入vmd文件夹，启动VMD后在文本控制台运行source showframe.tcl。
-- 载入轨迹后，轨迹ID必须是1，因为vmd_frame(1)代表ID=1体系当前的帧号。
-- 一旦检测到帧号变化，系统会调用sdf命令在三维坐标(0,0,0)处绘制当前帧号。
-- 播放轨迹时，帧数会同步显示，旋转图像调整文字位置到合适区域（如屏幕右下角），然后将ID=0的图层（显示帧数的文字层）fix住（鼠标点ID右边的F字母），即可在录制轨迹动画时同步显示帧数。
+将代码段存为showframe.tcl文件并保存在vmd文件夹内，启动VMD后在文本控制台运行source showframe.tcl即可加载功能。代码内容包括trace变量绑定、加载分子、以及定义sdf绘图过程，其中vmd_frame(1)代表ID=1体系的当前帧号。脚本内容如下：trace variable vmd_frame(1) w sdf、mol new、proc sdf {args} {global vmd_frame; graphics 0 delete all; graphics 0 color 8; graphics 0 text {0 0 0} "[expr $vmd_frame(1)*1]ps" size 6}。
+- 每张卡片一个且只有一个知识点
+- 覆盖原文全部知识内核,宁多勿漏
+- 卡片顺序按原文出现顺序
 
 ---
 
-## 2. 同步显示帧号的TCL代码
+## 2. 同步显示帧号的功能原理与操作步骤
 
-使用以下TCL代码实现帧号追踪与显示功能：
-```
-trace variable vmd_frame(1) w sdf
-mol new
-proc sdf {args} {global vmd_frame
-graphics 0 delete all
-graphics 0 color 8
-graphics 0 text {0 0 0} "[expr $vmd_frame(1)*1]ps" size 6}
-```
+脚本通过监测vmd_frame(1)变量的变化来触发sdf命令，从而在三维坐标(0,0,0)位置绘制出当前帧号（单位为ps），文字颜色为8号色且字号为6。载入轨迹后，需确保轨迹ID为1，播放时帧号文字会随动画同步更新；可通过旋转图像调整文字位置至屏幕合适区域（如右下角），并点击ID为0那一层的F字母将该层fix住以固定文字显示。
+- 每张卡片一个且只有一个知识点
+- 覆盖原文全部知识内核,宁多勿漏
+- 卡片顺序按原文出现顺序
+
+---
+
+## 3. 使用轨迹ID的限制与录制动画注意事项
+
+使用此方法时必须注意，播放的轨迹ID必须是1，因为代码中固定指定了vmd_frame(1)来获取帧号。在确保ID正确的前提下，录制轨迹动画即可实现同步显示帧数的效果。
+- 每张卡片一个且只有一个知识点
+- 覆盖原文全部知识内核,宁多勿漏
+- 卡片顺序按原文出现顺序

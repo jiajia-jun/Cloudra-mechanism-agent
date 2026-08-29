@@ -6,12 +6,9 @@ domain: Gaussian使用
 topic: Gaussian与ORCA联用搜索过渡态及IRC
 cards: 11
 ---
-
-# Gaussian与ORCA联用搜索过渡态及IRC — 知识卡片
-
 ## 1. Gaussian与ORCA联用的引用方式
 
-如果实际研究中使用了Gaussian与ORCA联用的接口，请按照以下格式引用：Tian Lu, gau_orca: A Gaussian interface for ORCA program, http://sobereva.com/422 (accessed month day, year)。
+如果实际研究中使用了Gaussian与ORCA联用的接口，请按照以下格式引用：Tian Lu, gau_orca: A Gaussian interface for ORCA program, http://原作者.com/422 (accessed month day, year)。
 - 原文明确要求在研究中使用该接口时需进行文献引用，引用格式包含了作者、接口名称、描述、网址及访问日期。
 
 ---

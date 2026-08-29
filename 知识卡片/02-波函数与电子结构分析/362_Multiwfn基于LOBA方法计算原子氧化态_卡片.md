@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn基于LOBA方法计算原子氧化态
 cards: 13
 ---
-
-# Multiwfn基于LOBA方法计算原子氧化态 — 知识卡片
-
 ## 1. 周期性体系氧化态计算支持
 
-Multiwfn从2024-5-23更新的版本开始已支持对周期性体系计算氧化态，具体做法和例子见《使用Multiwfn结合CP2K计算晶体中原子的氧化态》（http://sobereva.com/711）。
+Multiwfn从2024-5-23更新的版本开始已支持对周期性体系计算氧化态，具体做法和例子见《使用Multiwfn结合CP2K计算晶体中原子的氧化态》。
 
 ---
 

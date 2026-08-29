@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn分析周期性体系键级与NAdO
 cards: 20
 ---
-
-# Multiwfn分析周期性体系键级与NAdO — 知识卡片
-
 ## 1. 周期性体系成键分析准备工作
 
-使用Multiwfn结合CP2K对周期性体系进行键级和NAdO分析，需使用2024-Jun-24及以后更新的Multiwfn版本。使用本文方法计算结果用于发表时，需按照Multiwfn启动时的提示恰当引用Multiwfn原文。相关示例文件可在http://sobereva.com/attach/719/file.rar下载。
-
----
+使用Multiwfn结合CP2K对周期性体系进行键级和NAdO分析，需使用2024-Jun-24及以后更新的Multiwfn版本。使用该方法计算结果用于发表时，需按照Multiwfn启动时的提示恰当引用Multiwfn原文。相关示例文件可在http://原作者.com/attach/719/file.rar下载。
 
 ## 2. COF体系周期性计算设置
 

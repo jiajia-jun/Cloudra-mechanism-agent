@@ -6,14 +6,15 @@ domain: 可视化与制图
 topic: Multiwfn生成超胞格点数据用于VMD显示
 cards: 5
 ---
-
-# Multiwfn生成超胞格点数据用于VMD显示 — 知识卡片
-
 ## 1. VMD显示原胞格点数据的局限性
 
 VMD在显示周期性体系时，通过Periodic标签页设置副本会导致等值面在周期接壤处无法严丝合缝且无法显示跨周期的化学键。
 - 这种显示方式无法令VMD显示出跨周期的化学键，且显示的等值面在周期接壤处存在瑕疵。
-- 参考《在VMD里将cube文件瞬间绘制成效果极佳的等值面图的方法》（http://sobereva.com/483）。
+- 参考《在VMD里将cube文件瞬间绘制成效果极佳的等值面图的方法》（http://原作者.com/483）。
+
+---
+
+
 
 ---
 
@@ -21,7 +22,11 @@ VMD在显示周期性体系时，通过Periodic标签页设置副本会导致等
 
 Multiwfn从2026.4.10版开始加入了基于原胞的格点数据构造超胞格点数据的功能，解决了没有现成且易用程序的问题。
 - 利用该功能可以生成用于可视化的超胞格点数据文件。
-- Multiwfn可以在官网http://sobereva.com/multiwfn免费下载。
+- Multiwfn可以在官网http://原作者.com/multiwfn免费下载。
+
+---
+
+
 
 ---
 
@@ -37,7 +42,7 @@ Multiwfn从2026.4.10版开始加入了基于原胞的格点数据构造超胞格
 
 将COF_rho.cub生成为2*2*1超胞格点数据的具体输入命令序列如下。
 - 输入序列：`13` -> `20` -> `2` -> `2` -> `[回车]` -> `y` -> `0` -> `new.cub`。
-- 示例数据COF_rho.cub可在http://sobereva.com/attach/770/COF_rho.rar下载。
+- 示例数据COF_rho.cub可在http://原作者.com/attach/770/COF_rho.rar下载。
 
 ---
 

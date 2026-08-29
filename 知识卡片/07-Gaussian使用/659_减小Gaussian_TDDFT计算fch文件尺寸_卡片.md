@@ -6,9 +6,6 @@ domain: Gaussian使用
 topic: 减小Gaussian_TDDFT计算fch文件尺寸
 cards: 7
 ---
-
-# 减小Gaussian_TDDFT计算fch文件尺寸 — 知识卡片
-
 ## 1. Gaussian 16 C.01起TDDFT的fch文件尺寸巨大
 
 Gaussian 16从C.01版开始，对大体系做TDDFT计算得到的chk转换成的fch文件尺寸颇大，尤其是算的激发态数目多的时候。例如用Gaussian 16 C.02对C60富勒烯在6-31G*下做TDDFT计算50个激发态，产生的chk文件是1356 MB，formchk转换出来的fch文件达到1915MB。相比之下，G16 B.01版生成的fch文件仅38MB，差异巨大。
@@ -17,13 +14,17 @@ Gaussian 16从C.01版开始，对大体系做TDDFT计算得到的chk转换成的
 
 ## 2. fch文件尺寸巨大的原因
 
-从G16 C.01版开始fch文件里额外保存了Excited state densities和G to E trans densities字段，分别记录激发态密度矩阵和基态到激发态的跃迁密度矩阵，导致文件体积显著增加。这两个信息对绝大多数用户没用，需要时可用Multiwfn计算，详见《使用Multiwfn绘制跃迁密度矩阵和电荷转移矩阵考察电子激发特征》（http://sobereva.com/436）。
+从G16 C.01版开始fch文件里额外保存了Excited state densities和G to E trans densities字段，分别记录激发态密度矩阵和基态到激发态的跃迁密度矩阵，导致文件体积显著增加。这两个信息对绝大多数用户没用，需要时可用Multiwfn计算，详见《使用Multiwfn绘制跃迁密度矩阵和电荷转移矩阵考察电子激发特征》（http://原作者.com/436）。
+
+---
+
+
 
 ---
 
 ## 3. 使用fchred程序减小fch文件尺寸
 
-fchred程序用于去除fch中占空间极大的Excited state densities和G to E trans densities字段以减小体积，可在http://sobereva.com/soft/fchred.zip免费下载。对于G16 C.02计算C60富勒烯TDDFT的例子，原fch文件经fchred处理后，尺寸从1915MB减小到了38MB。
+fchred程序用于去除fch中占空间极大的Excited state densities和G to E trans densities字段以减小体积，可在http://原作者.com/soft/fchred.zip免费下载。对于G16 C.02计算C60富勒烯TDDFT的例子，原fch文件经fchred处理后，尺寸从1915MB减小到了38MB。
 
 ---
 

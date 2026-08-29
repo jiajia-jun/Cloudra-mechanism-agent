@@ -6,9 +6,6 @@ domain: 其他量化软件
 topic: GAMESS-US_2009_R3版编译与安装
 cards: 17
 ---
-
-# GAMESS-US_2009_R3版编译与安装 — 知识卡片
-
 ## 1. GAMESS-US 2009 R3版环境配置与软件准备
 
 操作系统为Fedora7-64bit，已装gcc 4.1.2和csh，CPU为Intel Core2 Q6600，2G内存。对于Intel CPU，使用ifort编译器结合MKL数学库可使代码执行速度大大提升，故采用ifort+MKL方案。C语言代码部分使用gcc即可。文中Intel Fortran Compiler版本为10.1.015，安装在/opt/intel/fce/10.1.015；Intel MKL版本为10.0.4.023，安装在/opt/intel/mkl/10.0.4.023。
@@ -51,8 +48,12 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/mkl/10.0.4.023/lib/em64t
 
 ## 7. DDI库编译配置
 
-无论是否并行计算都必须编译DDI库，否则lked步骤无法通过。在/etc/hosts中填入主机IP和主机名（如192.168.153.3 f71）。进入/sob/gamess/ddi目录，修改compddi文件开头的set TARGET =为linux-ia64。将set MAXCPUS（每个节点内SMP并行的核心数）和set MAXNODES（最多节点数）设为实际情况或更大，本文均设为2。
+无论是否并行计算都必须编译DDI库，否则lked步骤无法通过。在/etc/hosts中填入主机IP和主机名（如192.168.153.3 f71）。进入/sob/gamess/ddi目录，修改compddi文件开头的set TARGET =为linux-ia64。将set MAXCPUS（每个节点内SMP并行的核心数）和set MAXNODES（最多节点数）设为实际情况或更大，此处均设为2。
 - 在/sob/gamess/ddi/src/std_system.c里面的`struct hostent *hp;`后面加入一行`name="f71";`（f71为主机名），这是为了修复GAMESS将主机名误认为localhost导致TCP error的bug。
+
+---
+
+
 
 ---
 
@@ -76,7 +77,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/mkl/10.0.4.023/lib/em64t
 
 ## 11. GAMESS-US编译测试与结果检验
 
-在/sob/gamess目录下运行`./runall`自动运行44个测试文件，生成exam??.log文件。修改tools/checktst目录下checktst文件的set GMSPATH=为/sob/gamess，运行此文件并输入/sob/gamess路径，程序会将log结果与标准结果对比，检查任务结束状态及计算误差是否超阈值。对于failed的任务需检查log文件，排查故障后删掉scr目录下文件并重新测试。
+在/sob/gamess目录下运行`./runall`自动运行44个测试文件，生成exam??.log文件。修改tools/checktst目录下checktst文件的set GMSPATH=为/sob/gamess，运行该资料件并输入/sob/gamess路径，程序会将log结果与标准结果对比，检查任务结束状态及计算误差是否超阈值。对于failed的任务需检查log文件，排查故障后删掉scr目录下文件并重新测试。
 
 ---
 

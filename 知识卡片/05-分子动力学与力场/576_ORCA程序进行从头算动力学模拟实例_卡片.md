@@ -6,9 +6,6 @@ domain: 分子动力学与力场
 topic: ORCA程序进行从头算动力学模拟实例
 cards: 12
 ---
-
-# ORCA程序进行从头算动力学模拟实例 — 知识卡片
-
 ## 1. ORCA做AIMD的优势与适用范围
 
 ORCA量子化学程序拥有BOMD形式的从头算动力学功能，因其DFT计算效率高、使用方便，是做孤立体系AIMD的首选程序之一。相比于Gaussian的ADMP或BOMD，ORCA的输入文件更直观、速度更快且具备像样的热浴。ORCA只适合跑孤立体系的从头算动力学，若要做周期性体系的从头算动力学，CP2K是最佳选择。
@@ -74,8 +71,8 @@ ORCA在AIMD模拟过程中会产生complex.md.log（MD模块输出信息）、co
 
 ## 10. VMD测量距离随时间的变化
 
-在VMD中按键盘2键后点击两个原子中心可添加Bond label显示距离，在Graphics - Labels的Bonds选项卡中点击Graph和Show preview可预览距离随时间的变化曲线。点击Graph按钮可在大窗口查看曲线，Labels窗口中的save按钮可将距离数据保存为文本文件用于Origin绘图。
-- 文中示例显示N-H键在约60 fs基本形成。
+在VMD中按键盘2键后点击两个原子中心可添加Bond label显示距离，在Graphics - Labels的Bonds选项卡中点击Graph和Show preview可预览距离随时间的变化曲线。点击Graph按钮可在大窗口查看曲线，Labels窗口中的save按钮可将距离数据保存为文该资料件用于Origin绘图。
+- 示例显示N-H键在约60 fs基本形成。
 
 ---
 

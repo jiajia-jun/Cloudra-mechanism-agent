@@ -6,12 +6,9 @@ domain: 波函数与电子结构分析
 topic: Multiwfn进行自然跃迁轨道NTO分析
 cards: 13
 ---
-
-# Multiwfn进行自然跃迁轨道NTO分析 — 知识卡片
-
 ## 1. Multiwfn对周期性体系做NTO分析的支持
 
-Multiwfn已经支持结合CP2K程序对周期性体系做自然跃迁轨道(NTO)分析。具体操作和示例详见《使用CP2K结合Multiwfn对周期性体系模拟UV-Vis光谱和考察电子激发态》（http://sobereva.com/634）。
+Multiwfn已经支持结合CP2K程序对周期性体系做自然跃迁轨道(NTO)分析。具体操作和示例详见《使用CP2K结合Multiwfn对周期性体系模拟UV-Vis光谱和考察电子激发态》（http://原作者.com/634）。
 
 ---
 
@@ -77,7 +74,7 @@ Multiwfn可对NTO轨道进行成分分析（如通过SCPA方法计算原子贡�
 
 ## 12. 批量NTO分析的Shell脚本实现
 
-通过编写Linux bash shell脚本，可以快速批量生成多个激发态的NTO轨道文件。脚本通过生成包含Multiwfn命令的文本文件（如allNTO.txt），利用循环结构对不同激发态执行NTO分析并导出.fch文件，最后通过重定向方式运行Multiwfn。
+通过编写Linux bash shell脚本，可以快速批量生成多个激发态的NTO轨道文件。脚本通过生成包含Multiwfn命令的文该资料件（如allNTO.txt），利用循环结构对不同激发态执行NTO分析并导出.fch文件，最后通过重定向方式运行Multiwfn。
 
 ---
 

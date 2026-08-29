@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: GIMIC计算磁感应电流密度及可视化
 cards: 22
 ---
-
-# GIMIC计算磁感应电流密度及可视化 — 知识卡片
-
 ## 1. GIMIC程序的现状与适用性
 
 GIMIC程序用于计算和分析磁感应电流密度，基于GIAO方法并利用磁性质计算产生的密度矩阵及其导数矩阵。相比AICD程序，GIMIC支持任何使用GIAO方法计算磁性质的量子化学程序（如CFOUR、Turbomole），能直接输出格点数据便于后续分析，且使用GIAO方法使基组收敛速度优于CSGT方法。GIMIC方法的原文见JCP,121,3952，综述见PCCP,13,20500。
@@ -137,4 +134,4 @@ integral任务输出`integral.xyz`文件，包含分子结构及用4个X原子�
 
 ## 22. 自定义数据点位置的设置
 
-若要在自定义位置计算数据，需编辑一个文本文件（如extgrd）记录坐标（Bohr），并在gimic.inp中将原格点设定替换为`grid(file) { file=extgrd }`。输出文件如JVEC.txt将记录这些位置的值。
+若要在自定义位置计算数据，需编辑一个文该资料件（如extgrd）记录坐标（Bohr），并在gimic.inp中将原格点设定替换为`grid(file) { file=extgrd }`。输出文件如JVEC.txt将记录这些位置的值。

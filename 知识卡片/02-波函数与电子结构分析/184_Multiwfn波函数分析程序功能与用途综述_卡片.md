@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn波函数分析程序功能与用途综述
 cards: 30
 ---
-
-# Multiwfn波函数分析程序功能与用途综述 — 知识卡片
-
 ## 1. Multiwfn程序的意义与解决的核心问题
 
 Multiwfn程序旨在为科研工作者提供一个免费开源、功能全面、使用便捷、计算高效且高度灵活的波函数分析程序，以解决现有波函数分析程序收费不开源、速度慢无并行、操作复杂、功能单一等问题。该程序不仅集成了几乎所有重要的波函数分析方法，还通过详尽的600多页手册和丰富的网络资源降低了学习门槛，已在全球被超过3000篇SCI论文引用并拥有中华人民共和国计算机软件著作权登记（登记号：2016SR010661）。
@@ -59,19 +56,27 @@ Multiwfn提供检查和修改波函数的功能，包括输出为新wfn文件、
 
 ## 9. 布居分析与原子电荷计算方法
 
-Multiwfn提供丰富的布居分析与原子电荷计算方法，包括Hirshfeld、Hirshfeld-I、VDD、Mulliken、Lowdin、修改的Mulliken（SCPA、Stout-Politzer、Bickelhaupt）、Becke、CHELPG、MK、CM5、EEM电荷，以及笔者提出的ADCH（原子偶极矩校正的Hirshfeld）方法。其中ADCH方法在J. Theor. Comput. Chem., 11, 163 (2012)中提出，能精确重现分子偶极矩，且Multiwfn是唯一能实现该方法的程序。CHELPG和MK电荷分析支持任意设定拟合点分布和额外拟合中心。
+Multiwfn提供丰富的布居分析与原子电荷计算方法，包括Hirshfeld、Hirshfeld-I、VDD、Mulliken、Lowdin、修改的Mulliken（SCPA、Stout-Politzer、Bickelhaupt）、Becke、CHELPG、MK、CM5、EEM电荷，以及ADCH（原子偶极矩校正的Hirshfeld）方法。其中ADCH方法在J. Theor. Comput. Chem., 11, 163 (2012)中提出，能精确重现分子偶极矩，且Multiwfn是唯一能实现该方法的程序。CHELPG和MK电荷分析支持任意设定拟合点分布和额外拟合中心。
+
+---
+
+
 
 ---
 
 ## 10. 轨道成分分析方法
 
-Multiwfn支持多种轨道成分分析方法，包括Mulliken、Stout-Politzer、SCPA、NAOMO、Hirshfeld、Hirshfeld-I和Becke，用于得到原子轨道、壳层和原子对轨道的贡献。NAOMO和Hirshfeld方法用于轨道成分分析由笔者在《分子轨道成分的计算》（物理化学学报,69,2393）中首次明确提出，且目前只有Multiwfn能实现。此外，还支持利用定域化轨道成分的LOBA方法考察氧化态，详见Phys. Chem. Chem. Phys., 11, 11297 (2009)。
+Multiwfn支持多种轨道成分分析方法，包括Mulliken、Stout-Politzer、SCPA、NAOMO、Hirshfeld、Hirshfeld-I和Becke，用于得到原子轨道、壳层和原子对轨道的贡献。NAOMO和Hirshfeld方法用于轨道成分分析在《分子轨道成分的计算》（物理化学学报,69,2393）中首次明确提出，且目前只有Multiwfn能实现。此外，还支持利用定域化轨道成分的LOBA方法考察氧化态，详见Phys. Chem. Chem. Phys., 11, 11297 (2009)。
+
+---
+
+
 
 ---
 
 ## 11. 键级分析支持的方法
 
-Multiwfn支持多种键级计算方法：(1)Mayer键级；(2)轨道占据扰动的Mayer键级；(3)Wiberg键级（自动做Lowdin正交化，也可基于NAO计算并分解）；(4)多中心键级（最多支持12中心，可自动搜索）；(5)Mulliken键级（可分解为轨道贡献）；(6)模糊键级(Fuzzy bond order)；(7)Laplacian键级(LBO)，由笔者在J. Phys. Chem. A, 117, 3100 (2013)提出，基于成键区域电子密度Laplacian负值积分。对于部分键级，可定义片段计算片段间键级总和。
+Multiwfn支持多种键级计算方法：(1)Mayer键级；(2)轨道占据扰动的Mayer键级；(3)Wiberg键级（自动做Lowdin正交化，也可基于NAO计算并分解）；(4)多中心键级（最多支持12中心，可自动搜索）；(5)Mulliken键级（可分解为轨道贡献）；(6)模糊键级(Fuzzy bond order)；(7)Laplacian键级(LBO)，在J. Phys. Chem. A, 117, 3100 (2013)提出，基于成键区域电子密度Laplacian负值积分。对于部分键级，可定义片段计算片段间键级总和。
 
 ---
 

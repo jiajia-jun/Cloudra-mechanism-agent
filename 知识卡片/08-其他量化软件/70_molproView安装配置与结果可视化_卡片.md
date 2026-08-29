@@ -6,16 +6,11 @@ domain: 其他量化软件
 topic: molproView安装配置与结果可视化
 cards: 7
 ---
-
-# molproView安装配置与结果可视化 — 知识卡片
-
 ## 1. molproView的功能与替代方案
 
 molproView可以将Molpro计算生成的.xml结果文件转化为网页文件以便在浏览器中查看；若仅用于查看结构或轨道，导出.molden文件使用Multiwfn更为省事。
-- 参考文献：http://sobereva.com/379，http://sobereva.com/269
+- 参考文献：http://原作者.com/379，http://原作者.com/269
 - 下载地址：http://www.molpro.net/molproView
-
----
 
 ## 2. molproView基于web服务器的模式
 

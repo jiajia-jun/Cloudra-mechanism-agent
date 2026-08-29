@@ -6,12 +6,13 @@ domain: 可视化与制图
 topic: GROMACS原子电荷读入VMD
 cards: 9
 ---
-
-# GROMACS原子电荷读入VMD — 知识卡片
-
 ## 1. VMD读取GROMACS原子电荷的推荐方法
 
-2023-Jun-8注：推荐用北京科音论坛里介绍的VMD载入tpr文件的插件，比本文的做法更方便；VMD载入tpr文件后直接就有了tpr中的原子电荷信息。
+2023-Jun-8注：推荐用北京科音论坛里介绍的VMD载入tpr文件的插件，比该资料的做法更方便；VMD载入tpr文件后直接就有了tpr中的原子电荷信息。
+
+---
+
+
 
 ---
 
@@ -29,7 +30,7 @@ VMD可以载入GROMACS的gro、trr、xtc文件，但不会载入速度、受力�
 
 ## 4. 导出tpr文件中的电荷数据
 
-tpr文件里蕴含了模拟所需的一切信息，包括原子电荷；使用GROMACS里的dump命令将二进制的tpr文件转化成文本文件dump.txt，执行命令：gmx dump -s test.tpr > dump.txt。
+tpr文件里蕴含了模拟所需的一切信息，包括原子电荷；使用GROMACS里的dump命令将二进制的tpr文件转化成文该资料件dump.txt，执行命令：gmx dump -s test.tpr > dump.txt。
 
 ---
 

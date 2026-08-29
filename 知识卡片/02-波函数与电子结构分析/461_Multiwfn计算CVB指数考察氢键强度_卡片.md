@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn计算CVB指数考察氢键强度
 cards: 10
 ---
-
-# Multiwfn计算CVB指数考察氢键强度 — 知识卡片
-
 ## 1. CVB指数的定义与原理
 
 CVB (core-valence bifurcation) 指数是基于电子定域化函数(ELF)拓扑分析定义的用于衡量氢键强度的指标，由Silvi等人最初在Theor. Chem. Acc., 104, 13 (2000)中提出。该指数定义为CVB index = ELF(C-V) - ELF(DH-A)，其中ELF(C-V)代表给体原子内核盆与价层盆之间的二分点数值，ELF(DH-A)代表V(D,H)与V(A)之间的二分点数值即(3,-1)型ELF临界点数值。CVB指数越负通常代表氢键越强，极强共价性氢键数值很负，中等强度在0附近，较弱氢键数值明显为正。
@@ -41,7 +38,7 @@ CVB指数的两个组成部分ELF(C-V,D)和ELF(DH-A)自身也与氢键强度存�
 
 ## 6. AIM理论键临界点电子密度与氢键强度的关系
 
-对于测试的氢键二聚体，AIM理论里的键临界点(BCP)的电子密度ρ(BCP)与结合能具有良好的关系。BCP处势能密度与结合能的线性关系远没有ρ(BCP)好，相关研究见J. Chem. Theory Comput.文章介绍链接http://sobereva.com/513。
+对于测试的氢键二聚体，AIM理论里的键临界点(BCP)的电子密度ρ(BCP)与结合能具有良好的关系。BCP处势能密度与结合能的线性关系远没有ρ(BCP)好，相关研究见J. Chem. Theory Comput.文章介绍链接http://原作者.com/513。
 
 ---
 

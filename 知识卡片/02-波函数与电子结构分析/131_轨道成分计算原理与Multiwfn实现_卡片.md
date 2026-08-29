@@ -6,14 +6,9 @@ domain: 波函数与电子结构分析
 topic: 轨道成分计算原理与Multiwfn实现
 cards: 20
 ---
-
-# 轨道成分计算原理与Multiwfn实现 — 知识卡片
-
 ## 1. 轨道成份计算文献引用要求
 
-按照本文使用Multiwfn计算轨道成份的数据发表文章时必须按照Multiwfn启动时显示的信息引用Multiwfn原文，同时也必须这样引用《分子轨道成份的计算》: Tian Lu, Feiwu Chen, Calculation of Molecular Orbital Composition, Acta Chim. Sinica, 69, 2393-2406 (2011) (in Chinese)。
-
----
+使用Multiwfn计算轨道成份的数据发表文章时必须按照Multiwfn启动时显示的信息引用Multiwfn原文，同时也必须这样引用《分子轨道成份的计算》: Tian Lu, Feiwu Chen, Calculation of Molecular Orbital Composition, Acta Chim. Sinica, 69, 2393-2406 (2011) (in Chinese)。
 
 ## 2. 轨道成份的概念与层次
 

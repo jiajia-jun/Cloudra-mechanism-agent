@@ -6,9 +6,6 @@ domain: 化学信息学与脚本
 topic: ORCA结合Multiwfn计算RESP与CM5电荷脚本
 cards: 6
 ---
-
-# ORCA结合Multiwfn计算RESP与CM5电荷脚本 — 知识卡片
-
 ## 1. ORCA结合Multiwfn计算原子电荷的脚本
 
 作者提供了Linux shell脚本用于自动调用ORCA和Multiwfn程序，实现一键计算RESP、RESP2和1.2*CM5原子电荷。这些脚本包含在2022年3月8日及以后更新的Multiwfn程序文件包中，路径分别为examples\RESP\RESP_ORCA.sh、examples\RESP\RESP2_ORCA.sh和examples\scripts\1.2CM5_ORCA.sh。脚本主要服务于使用ORCA程序且未购买Gaussian的用户，便于进行经典力场分子动力学模拟所需的电荷计算。
@@ -41,4 +38,4 @@ RESP_ORCA.sh和RESP2_ORCA.sh脚本默认使用ORCA支持的B97-3c级别进行结
 
 ## 6. 引用规范与术语准确性
 
-使用这些脚本计算原子电荷发表文章时，必须在文中恰当引用Multiwfn，具体引用方式见《Multiwfn FAQ》。在提问或描述情况时，应明确表述为“使用本文提供的脚本，用Multiwfn基于ORCA产生的波函数计算RESP或RESP2电荷”，严禁表述为“ORCA计算了RESP电荷”，因为ORCA程序本身不具备计算RESP电荷的功能。
+使用这些脚本计算原子电荷发表文章时，必须在文中恰当引用Multiwfn，具体引用方式见《Multiwfn FAQ》。在提问或描述情况时，应明确表述为“使用此处提供的脚本，用Multiwfn基于ORCA产生的波函数计算RESP或RESP2电荷”，严禁表述为“ORCA计算了RESP电荷”，因为ORCA程序本身不具备计算RESP电荷的功能。

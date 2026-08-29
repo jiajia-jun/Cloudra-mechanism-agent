@@ -6,12 +6,9 @@ domain: 软件安装与环境
 topic: Quantum_ESPRESSO_Linux环境编译安装
 cards: 9
 ---
-
-# Quantum_ESPRESSO_Linux环境编译安装 — 知识卡片
-
 ## 1. Quantum ESPRESSO安装环境与基础
 
-本文适用于CentOS 7.x系统下安装QE 6.5，基于OpenMPI库+MKL库+gfortran/gcc编译器编译纯CPU版本。安装使用root账户，普通用户需安装在有读写权限的目录；若未安装gcc和gfortran，需先用yum install gcc命令安装。更多编译细节详见QE手册[https://www.quantum-espresso.org/Doc/user_guide/node10.html](https://www.quantum-espresso.org/Doc/user_guide/node10.html)。
+本卡片适用于CentOS 7.x系统下安装QE 6.5，基于OpenMPI库+MKL库+gfortran/gcc编译器编译纯CPU版本。安装使用root账户，普通用户需安装在有读写权限的目录；若未安装gcc和gfortran，需先用yum install gcc命令安装。更多编译细节详见QE手册[https://www.quantum-espresso.org/Doc/user_guide/node10.html](https://www.quantum-espresso.org/Doc/user_guide/node10.html)。
 
 ---
 

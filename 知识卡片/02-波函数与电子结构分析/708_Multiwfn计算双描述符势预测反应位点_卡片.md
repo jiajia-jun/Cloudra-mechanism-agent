@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn计算双描述符势预测反应位点
 cards: 13
 ---
-
-# Multiwfn计算双描述符势预测反应位点 — 知识卡片
-
 ## 1. 双描述符势的定义与来源
 
 双描述符势（dual descriptor potential）是J. Math. Chem., 62, 1094 (2024)中提出的预测反应位点的方法，它在预测反应位点方面比双描述符具有一定优势，原理上也更严格。从2024-May-13更新的Multiwfn开始，双描述符势的计算已被纳入到了Multiwfn做概念密度泛函理论分析的功能（主功能22）当中。
@@ -47,7 +44,11 @@ cards: 13
 
 ## 7. 计算双描述符势的准备工作
 
-使用Multiwfn计算双描述符势需要2024-May-13及以后版本的Multiwfn。读者需先了解Multiwfn的主功能22的基本用法。实例文件如吲哚的Gaussian优化输出文件indole.out等可以在http://sobereva.com/attach/708/file.zip里得到。
+使用Multiwfn计算双描述符势需要2024-May-13及以后版本的Multiwfn。需先了解Multiwfn的主功能22的基本用法。实例文件如吲哚的Gaussian优化输出文件indole.out等可以在http://原作者.com/attach/708/file.zip里得到。
+
+---
+
+
 
 ---
 
@@ -83,5 +84,5 @@ cards: 13
 
 ## 13. Multiwfn的引用要求
 
-使用本文的方法计算在发表结果时务必记得按照Multiwfn程序启动时的提示对Multiwfn进行正确的引用。
+使用该方法计算在发表结果时务必记得按照Multiwfn程序启动时的提示对Multiwfn进行正确的引用。
 ---

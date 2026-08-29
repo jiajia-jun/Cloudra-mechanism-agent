@@ -6,9 +6,6 @@ domain: 分子动力学与力场
 topic: PRODRG生成itp转rtp程序itp2rtp
 cards: 4
 ---
-
-# PRODRG生成itp转rtp程序itp2rtp — 知识卡片
-
 ## 1. itp2rtp V1.0程序功能与用途
 
 itp2rtp V1.0用于将prodrg生成的.itp文件转换为.rtp文件。通过prodrg获得的小分子.itp文件中原子顺序总是发生变化，无法直接include使用；对于分子数众多的磷脂层等情况手动修改十分麻烦。此程序对.itp格式进行简单转换，输入.itp文件得到result.rtp，将其内容拷进力场的.rtp中，即可使pdb2gmx识别该分子。
@@ -29,4 +26,4 @@ pdb2gmx读取的结构如果原子顺序和itp中不符，输出的结构会按�
 
 ## 4. 程序下载地址
 
-itp2rtp V1.0程序的下载地址为[/usr/uploads/file/20150602/20150602213936_34328.rar](http://sobereva.com/usr/uploads/file/20150602/20150602213936_34328.rar)。
+itp2rtp V1.0程序的下载地址为[/usr/uploads/file/20150602/20150602213936_34328.rar](http://原作者.com/usr/uploads/file/20150602/20150602213936_34328.rar)。

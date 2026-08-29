@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn实现ETS-NOCV轨道相互作用分析
 cards: 22
 ---
-
-# Multiwfn实现ETS-NOCV轨道相互作用分析 — 知识卡片
-
 ## 1. ETS-NOCV方法的定义与来源
 
 ETS-NOCV (Extended Transition State - Natural Orbitals for Chemical Valence) 是由Ziegler等人于J. Chem. Theory Comput., 5, 962 (2009)提出的一种分析片段间轨道相互作用的方法。该方法常用于考察片段间的化学键作用，也可用于分析氢键、卤键等弱相互作用中的轨道贡献。Multiwfn程序从2021-Jul-28更新的版本开始正式支持此方法。
@@ -17,25 +14,37 @@ ETS-NOCV (Extended Transition State - Natural Orbitals for Chemical Valence) 是
 
 ## 2. 体系结合过程的能量划分公式
 
-片段A和B形成复合物AB的能量变化可表示为公式：![](http://sobereva.com/images/609/1.png)。其中E_iso(A)和E_iso(B)是孤立片段的能量，ΔE_prep是片段几何结构从孤立状态变为复合物状态（preparation阶段）的能量变化。E_A[ΨA]和E_B[ΨB]是片段在复合物结构下单独存在时的能量，ΨAΨB是片段波函数的简单乘积，E[ΨAΨB]与之差对应静电作用(ΔE_els)和交换-相关能变化(ΔE_0_XC)。Ψ_0_AB是考虑Pauli互斥后的冻结态波函数，E[Ψ_0_AB]与E[ΨAΨB]之差是Pauli互斥能ΔE_Pauli。ΨAB是最终复合物波函数，E[ΨAB]与E[Ψ_0_AB]之差是轨道相互作用能ΔE_orb。
+片段A和B形成复合物AB的能量变化可表示为公式：![](http://原作者.com/images/609/1.png)。其中E_iso(A)和E_iso(B)是孤立片段的能量，ΔE_prep是片段几何结构从孤立状态变为复合物状态（preparation阶段）的能量变化。E_A[ΨA]和E_B[ΨB]是片段在复合物结构下单独存在时的能量，ΨAΨB是片段波函数的简单乘积，E[ΨAΨB]与之差对应静电作用(ΔE_els)和交换-相关能变化(ΔE_0_XC)。Ψ_0_AB是考虑Pauli互斥后的冻结态波函数，E[Ψ_0_AB]与E[ΨAΨB]之差是Pauli互斥能ΔE_Pauli。ΨAB是最终复合物波函数，E[ΨAB]与E[Ψ_0_AB]之差是轨道相互作用能ΔE_orb。
+
+---
+
+
 
 ---
 
 ## 3. NOCV轨道与轨道变形密度的关系
 
-轨道相互作用对密度矩阵的影响表示为ΔP_orb = P[ΨAB] - P[Ψ_0_AB]，对其进行对角化得到NOCV轨道。轨道变形密度Δρ_orb可用NOCV轨道表示：![](http://sobereva.com/images/609/2.png)。其中φ(i)和v(i)分别是第i个NOCV轨道波函数和本征值，N是轨道总数。NOCV理论将轨道相互作用造成的密度变化分解为各个NOCV轨道的贡献，权重即为本征值，这能将不同方式的轨道作用区分开来。
+轨道相互作用对密度矩阵的影响表示为ΔP_orb = P[ΨAB] - P[Ψ_0_AB]，对其进行对角化得到NOCV轨道。轨道变形密度Δρ_orb可用NOCV轨道表示：![](http://原作者.com/images/609/2.png)。其中φ(i)和v(i)分别是第i个NOCV轨道波函数和本征值，N是轨道总数。NOCV理论将轨道相互作用造成的密度变化分解为各个NOCV轨道的贡献，权重即为本征值，这能将不同方式的轨道作用区分开来。
+
+---
+
+
 
 ---
 
 ## 4. NOCV pair的定义与密度贡献
 
-由于ΔP_orb矩阵特性，NOCV轨道成对出现，即若一个本征值为v(i)，必有另一个为v(-i)=-v(i)。将N个NOCV轨道匹配成N/2个NOCV pair，其对轨道变形密度的贡献为：![](http://sobereva.com/images/609/3.png)。基于NOCV pair讨论更为方便且物理意义清晰，因为配对的轨道来自于同一种轨道相互作用。
+由于ΔP_orb矩阵特性，NOCV轨道成对出现，即若一个本征值为v(i)，必有另一个为v(-i)=-v(i)。将N个NOCV轨道匹配成N/2个NOCV pair，其对轨道变形密度的贡献为：![](http://原作者.com/images/609/3.png)。基于NOCV pair讨论更为方便且物理意义清晰，因为配对的轨道来自于同一种轨道相互作用。
+
+---
+
+
 
 ---
 
 ## 5. ETS-NOCV中轨道相互作用能的计算
 
-ETS理论证明轨道相互作用能可计算为：![](http://sobereva.com/images/609/4.png)。其中F_TS是扩展过渡态（即实际复合物波函数与冻结态波函数的中点状态）的Fock矩阵。结合NOCV后，每个NOCV轨道的能量贡献为：![](http://sobereva.com/images/609/5.png)。ΔE_orb(i)是轨道i的本征值乘以该轨道在F_TS矩阵下的对角元（即期望值）。NOCV pair的能量是其配对轨道能量贡献之和。
+ETS理论证明轨道相互作用能可计算为：![](http://原作者.com/images/609/4.png)。其中F_TS是扩展过渡态（即实际复合物波函数与冻结态波函数的中点状态）的Fock矩阵。结合NOCV后，每个NOCV轨道的能量贡献为：![](http://原作者.com/images/609/5.png)。ΔE_orb(i)是轨道i的本征值乘以该轨道在F_TS矩阵下的对角元（即期望值）。NOCV pair的能量是其配对轨道能量贡献之和。
 
 ---
 

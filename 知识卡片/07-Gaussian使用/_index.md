@@ -1,6 +1,6 @@
 # 07-Gaussian使用 — 卡片索引
 
-共 43 篇 / 489 张卡片
+共 43 篇 / 558 张卡片
 
 | id | 主题 | 卡片数 |
 |---|---|---|
@@ -21,8 +21,8 @@
 | 258 | Gaussian批量运行与文件处理脚本 | 10 |
 | 278 | Gaussian优化收敛后Freq出现虚频原因与解决 | 14 |
 | 285 | Gaussian_IRC输出转xyz轨迹工具GauIRC2x | 4 |
-| 289 | GaussView查看优化轨迹避免结构跳变 | 1 |
-| 292 | GaussView内坐标变量字母化及Multiwfn替代方案 | 1 |
+| 289 | GaussView查看优化轨迹避免结构跳变 | 7 |
+| 292 | GaussView内坐标变量字母化及Multiwfn替代方案 | 5 |
 | 297 | Gaussian对称性利用与nosymm关键词 | 13 |
 | 308 | Gaussian单点能自动运算与CBS外推工具enecalc | 8 |
 | 327 | 隐式溶剂模型下溶解自由能与体系自由能计算 | 21 |
@@ -33,8 +33,8 @@
 | 344 | Gaussian非内置方法与泛函IOp实现 | 22 |
 | 345 | Sadlej极化基组定义及使用 | 13 |
 | 348 | Gaussian分批计算激发态与Multiwfn绘制光谱 | 7 |
-| 400 | Gaussian中IRC计算方法与常见问题 | 1 |
-| 404 | Gaussian限制性优化与坐标冻结设置 | 1 |
+| 400 | Gaussian中IRC计算方法与常见问题 | 24 |
+| 404 | Gaussian限制性优化与坐标冻结设置 | 12 |
 | 422 | Gaussian与ORCA联用搜索过渡态及IRC | 11 |
 | 467 | 简化Gaussian含IOp940的CIS_TDDFT输出 | 6 |
 | 474 | Gaussian势能面扫描与辅助工具应用 | 16 |
@@ -42,8 +42,8 @@
 | 509 | def2基组ma-方式加弥散函数定义文件 | 10 |
 | 550 | Gaussian自定义范围分离泛函参数 | 11 |
 | 571 | Gaussian_downhill路径功能与实例 | 7 |
-| 581 | 镧系金属配合物DFT计算与波函数分析 | 1 |
+| 581 | 镧系金属配合物DFT计算与波函数分析 | 19 |
 | 594 | 利用Gaussian或ORCA拉直分子结构 | 10 |
 | 613 | Gaussian中SMD18溶剂模型实现与计算设置 | 13 |
-| 625 | Gaussian_16_绕过_SCF_收敛检查的_IOp_设 | 1 |
+| 625 | Gaussian_16_绕过_SCF_收敛检查的_IOp_设 | 8 |
 | 659 | 减小Gaussian_TDDFT计算fch文件尺寸 | 7 |

@@ -6,12 +6,9 @@ domain: 分子动力学与力场
 topic: AMBER程序支持的力场版本及特点
 cards: 25
 ---
-
-# AMBER程序支持的力场版本及特点 — 知识卡片
-
 ## 1. AMBER力场概述
 
-AMBER全称为Assisted Model Building with Energy Refinement，主要适合蛋白和核酸的凝聚相模拟，对有机小分子支持较少。该力场函数形式简单，后期版本均采用RESP电荷，计算RESP电荷的最佳工具是Multiwfn。计算RESP电荷的方法可参考《RESP拟合静电势电荷的原理以及在Multiwfn中的计算》（http://sobereva.com/441）。
+AMBER全称为Assisted Model Building with Energy Refinement，主要适合蛋白和核酸的凝聚相模拟，对有机小分子支持较少。该力场函数形式简单，后期版本均采用RESP电荷，计算RESP电荷的最佳工具是Multiwfn。计算RESP电荷的方法可参考《RESP拟合静电势电荷的原理以及在Multiwfn中的计算》（http://原作者.com/441）。
 
 ---
 

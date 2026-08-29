@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn输入文件类型选择与格式转换
 cards: 28
 ---
-
-# Multiwfn输入文件类型选择与格式转换 — 知识卡片
-
 ## 1. Multiwfn功能所需的信息类型
 
 Multiwfn的绝大多数功能需要的信息可归为四大类：(1)原子坐标，用于基于promolecular的RDG/aRDG分析、计算HOMA/Bird芳香性指标等；(2)GTF信息（原始高斯型函数定义、轨道系数等），用于绘制实空间函数图、拓扑分析、计算ADCH/CHELPG/Hirshfeld电荷等；(3)基函数信息（收缩基函数定义、轨道系数等），用于计算Mayer/Lowdin/Mulliken键级、绘制PDOS/OPDOS、轨道成份分析、CDA分析等；(4)格点数据，用于主功能13的格点数据处理。某些功能如光谱图绘制需要跃迁能量和强度，AdNDP分析需要NBO输出信息，ICSS计算需要磁屏蔽张量。
@@ -23,7 +20,11 @@ Multiwfn的绝大多数功能需要的信息可归为四大类：(1)原子坐标
 
 ## 3. 特殊输入文件格式的说明
 
-手册2.5节表中提到的"plain text file"指文本文件（如量化程序输出文件），Multiwfn默认不从中读取基函数/GTF/坐标/格点数据。若将settings.ini里的iloadGaugeom设为1，Multiwfn会尝试从中读取最后一次输出的几何结构（优先输入朝向，其次标准朝向），从而进行只依赖原子坐标的任务。
+手册2.5节表中提到的"plain text file"指文该资料件（如量化程序输出文件），Multiwfn默认不从中读取基函数/GTF/坐标/格点数据。若将settings.ini里的iloadGaugeom设为1，Multiwfn会尝试从中读取最后一次输出的几何结构（优先输入朝向，其次标准朝向），从而进行只依赖原子坐标的任务。
+
+---
+
+
 
 ---
 
@@ -47,7 +48,11 @@ wfn文件是广泛支持的记录GTF信息的格式，但不包含空轨道，�
 
 ## 7. wfn文件在Gaussian不同任务类型中的适用性
 
-Gaussian的单点、opt、freq、NMR、polar等任务均可同时产生当前计算级别的波函数文件（wfn或wfx或fch），只要波函数是分析所需的，即可直接使用，无需必须是单点任务产生。对于scan、IRC任务，若想产生每个点的wfn文件，可参考工具文章http://sobereva.com/199。
+Gaussian的单点、opt、freq、NMR、polar等任务均可同时产生当前计算级别的波函数文件（wfn或wfx或fch），只要波函数是分析所需的，即可直接使用，无需必须是单点任务产生。对于scan、IRC任务，若想产生每个点的wfn文件，可参考工具文章http://原作者.com/199。
+
+---
+
+
 
 ---
 
@@ -77,7 +82,11 @@ chk转换为fch时出错通常有三种可能：(1)chk文件损坏，需删除�
 
 ## 12. 基于fch文件进行后HF或TDDFT自然轨道分析
 
-默认情况下fch文件记录HF或基态DFT轨道。若想基于后HF或TDDFT自然轨道分析，推荐使用方法1：见《在Multiwfn中基于fch产生自然轨道的方法与激发态波函数、自旋自然轨道分析实例》（http://sobereva.com/403）。方法2（不推荐）需：(1)带`density`关键词计算；(2)用`# guess(save,only,naturalorbitals) chkbasis`计算；(3)在fch文件第一行插入`saveNO`。
+默认情况下fch文件记录HF或基态DFT轨道。若想基于后HF或TDDFT自然轨道分析，推荐使用方法1：见《在Multiwfn中基于fch产生自然轨道的方法与激发态波函数、自旋自然轨道分析实例》（http://原作者.com/403）。方法2（不推荐）需：(1)带`density`关键词计算；(2)用`# guess(save,only,naturalorbitals) chkbasis`计算；(3)在fch文件第一行插入`saveNO`。
+
+---
+
+
 
 ---
 
@@ -155,7 +164,11 @@ Multiwfn可从CP2K和Quantum ESPRESSO的输入文件载入原子坐标和晶胞�
 
 ## 25. 文件转换用途：可视化与跨程序协作
 
-将波函数文件转换为pdb或xyz格式，便于使用VMD、Avogadro、xtb等通用可视化或计算程序。转换为mkl格式可用于ORCA的初猜波函数（见http://sobereva.com/517）。将VASP、Dmol3、VMD的格点数据转换为cub格式，便于利用支持cub的程序查看。
+将波函数文件转换为pdb或xyz格式，便于使用VMD、Avogadro、xtb等通用可视化或计算程序。转换为mkl格式可用于ORCA的初猜波函数（见http://原作者.com/517）。将VASP、Dmol3、VMD的格点数据转换为cub格式，便于利用支持cub的程序查看。
+
+---
+
+
 
 ---
 
@@ -167,7 +180,7 @@ Multiwfn可从CP2K和Quantum ESPRESSO的输入文件载入原子坐标和晶胞�
 
 ## 27. Gaussian输出文件转化为gjf格式
 
-利用Multiwfn将Gaussian输出文件转化为gjf格式，可将优化任务的最后一帧结构保存为新的单点任务输入文件，此功能有批量转换脚本可用（见http://sobereva.com/530）。
+利用Multiwfn将Gaussian输出文件转化为gjf格式，可将优化任务的最后一帧结构保存为新的单点任务输入文件，此功能有批量转换脚本可用（见http://原作者.com/530）。
 
 ---
 

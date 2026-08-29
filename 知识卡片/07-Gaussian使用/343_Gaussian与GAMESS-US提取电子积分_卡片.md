@@ -6,9 +6,6 @@ domain: Gaussian使用
 topic: Gaussian与GAMESS-US提取电子积分
 cards: 10
 ---
-
-# Gaussian与GAMESS-US提取电子积分 — 知识卡片
-
 ## 1. 电子积分定义与对称性
 
 无论输出的是单电子积分还是双电子积分，都是基函数已归一化后的值。双电子积分形式是(IJ|KL)，I,J基函数是r1坐标，K,L基函数是r2坐标。由于积分有对称性，即IJKL=IJLK=JIKL=JILK=KLIJ=LKIJ=KLJI=LKJI，所以程序输出双电子积分的时候都只输出对称唯一的部分。
@@ -47,9 +44,7 @@ Gaussian计算并输出双电子积分的值阈值可以用IOp(3/27=N)调节，�
 
 ## 7. GAMESS-US单电子积分提取方法2
 
-在gamess/source/int1.src中----- OPTIONAL DEBUG PRINTOUT -----第一处的下面加上特定代码，重新编译此文件并链接成新的可执行文件（在GAMESS-US目录下执行./comp int1;./lked gamess 00），即可直接输出重叠积分、动能积分、核哈密顿矩阵以及考虑电子带负电荷的核吸引势积分。
-
----
+在gamess/source/int1.src中----- OPTIONAL DEBUG PRINTOUT -----第一处的下面加上特定代码，重新编译该资料件并链接成新的可执行文件（在GAMESS-US目录下执行./comp int1;./lked gamess 00），即可直接输出重叠积分、动能积分、核哈密顿矩阵以及考虑电子带负电荷的核吸引势积分。
 
 ## 8. GAMESS-US双电子积分提取设置
 

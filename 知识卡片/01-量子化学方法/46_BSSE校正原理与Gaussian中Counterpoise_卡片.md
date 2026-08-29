@@ -4,65 +4,116 @@ title: 谈谈BSSE校正与Gaussian对它的处理
 url: http://sobereva.com/46
 domain: 量子化学方法
 topic: BSSE校正原理与Gaussian中Counterpoise
-cards: 1
+cards: 19
 ---
-
-# BSSE校正原理与Gaussian中Counterpoise — 知识卡片
-
 ## 1. 基组重叠误差(BSSE)的定义与来源
 
-计算两个分子A、B间的相互作用能时，除非基组很大如def2-QZVP这样的4-zeta档次，或者aug-cc-pVTZ这样带非常充分弥散函数的3-zeta档次基组，否则不宜简单地通过E_interaction = E_AB - E(A) - E(B)来计算。E_AB能量相对于E(A) + E(B)的降低一方面来自真实的A、B分子间的相互作用能，另一方面来自于A、B分子的基函数在复合物体系中重叠，相当于增大了复合物的基组而使E(AB)能量降低，这部分贡献会高估相互作用强度，称为基组重叠误差(BSSE)。BSSE问题的大小直接取决于计算的问题和用的基组。
+计算分子间相互作用能时，若不使用def2-QZVP或aug-cc-pVTZ等大基组，直接使用E_interaction = E_AB - E(A) - E(B)计算会高估相互作用强度。这是因为复合物AB中基函数重叠相当于增大了基组使能量降低，从而引入了基组重叠误差(BSSE)，而真实的相互作用能应当考虑BSSE校正，即E_interaction = E_AB - E(A) - E(B) + E_BSSE。
 
-## BSSE校正公式与必要性
-为了解决BSSE问题，严格的双分子的相互作用能应该表述为E_interaction = E_AB - E(A) - E(B) + E_BSSE，这里E_BSSE称为BSSE校正能。当基组不很大而相互作用本身又较弱时，E_BSSE所占E_interaction的比例往往不小，不考虑BSSE校正的话甚至可能结果定性不合理。由于BSSE问题会影响势能面，因此BSSE效应不仅影响弱相互作用能，也会影响几何优化、振动分析等任务的结果，只不过一般只是对计算弱相互作用能进行校正。
+---
 
-## 不同基组下的BSSE显著性
-用2-Zeta基组如6-31G*、def2-SVP算弱相互作用能时BSSE问题是极为显著的，必须解决。3-zeta基组如6-311G**、def-TZVP算弱相互作用的BSSE问题比2-Zeta基组轻，但依然必须解决，否则结果定量不准。def/def2系列基组比6-311G系列的BSSE问题更小。对于4-Zeta基组，BSSE问题通常很不显著，故一般可以不考虑。给3-zeta及以下档次的基组加上弥散函数能显著减小BSSE问题。
+## 2. BSSE校正能的影响因素与范围
 
-## 不同类型弱相互作用的BSSE处理策略
-对于氢键、卤键等静电主导的强度不很弱的作用，用了带弥散的3-Zeta级别的基组后，不做BSSE校正算出来的相互作用能也还行。而范德华吸引、pi-pi堆积作用能一般强度很弱，即便用了带弥散函数的3-Zeta基组计算它们，BSSE问题往往仍然不可充分忽略，故最好考虑BSSE校正，而若是仅仅用带弥散的2-Zeta基组的话则更必须考虑BSSE校正。
+BSSE效应不仅影响弱相互作用能计算，也会影响依赖势能面的几何优化和振动分析，但对弱相互作用能影响最大。BSSE的大小直接取决于所研究的问题和所选用的基组，提及或判断是否需要考虑BSSE时必须明确这两点前提；随着基组趋于完备，E_BSSE会逐渐减小至0。
 
-## Counterpoise方法计算BSSE的原理
-目前计算E_BSSE最广泛的方法是Boys和Bernardi发展的counterpoise方法。设E_i为第i个分子在自身基组下的能量，E_i'为第i个分子在全部n个分子的基函数都出现下的能量，则n个分子间的相互作用能的E_BSSE=∑[i]( E_i - E_i' )。对于变分的方法，E_i'比E_i更负，故E_BSSE必为正值。注意计算E_i与E_i'时的分子几何结构必须与i处在复合物时的一致。
+---
 
-## Gaussian中双分子Counterpoise计算的输出
-若要计算A、B两个分子的E_BSSE，在Gaussian中使用counterpoise=2关键字，会自动依次计算5个体系，依次输出以下能量：E_AB（A、B基函数下AB复合物的能量）、E_A,bAB（A、B基函数下A的能量）、E_B,bAB（A、B基函数下B的能量）、E_A（A基组下A的能量）、E_B（B基组下B的能量）。计算过程中输出"doing DCBS calculation"代表计算E_i'，输出"doing MCBS calculation"代表计算E_i。
+## 3. 不同基组档次下的BSSE显著程度
 
-## 不同Gaussian版本的BSSE输出结果
-G09早期版本或更早版本任务最后会输出"Counterpoise: BSSE energy"即E_BSSE，即(E_A - E_A,bAB) + (E_B - E_B,bAB)，还会输出"Counterpoise: corrected energy"，这是消除了虚假能量降低后的AB复合物能量。Gaussian09后期版本或G16的输出更直接：Counterpoise corrected energy（校正后的整体能量）、BSSE energy（BSSE校正能）、complexation energy (raw)（校正前的相互作用能）、complexation energy (corrected)（校正后的相互作用能）。
+使用2-Zeta基组(如6-31G*、def2-SVP)计算弱相互作用能时BSSE极为显著，必须校正；使用3-Zeta基组(如6-311G**、def-TZVP)时BSSE问题较轻但仍需解决以保证定量准确。def/def2系列基组因弥散程度高于6-311G系列，BSSE问题更小；给3-Zeta及以下基组加弥散函数能显著减小BSSE。
 
-## 多分子体系的Counterpoise计算
-若计算n个分子间的E_BSSE，则关键词为counterpoise=n，能量按如下顺序输出：E_complex, E_1', E_2'...E_n', E_1, E_2...E_n。E_BSSE = (E_1 - E_1') + (E_2 - E_2') + ... + (E_n - E_n')。计算过程中DCBS中的D的含义指多分子复合物而非具体指Dimer。
+---
 
-## 手动进行Counterpoise计算的方法
-如果有特殊原因需要手动进行counterpoise计算，可以通过设定Ghost原子来实现：把某个原子名后面加上-Bq就说明它是Ghost原子，即这个原子照常有它原本的基函数，但是没有原子核和电子。要计算E_A,bAB，只需要在复合物的输入文件中把B片段的所有原子后面都加上-Bq即可。注意Bq原子若破坏了原有对称性，最好加上nosymm。手动做counterpoise的每个步骤比直接用counterpoise关键词可能更省时，因为可以利用对称性。
+## 4. 不同弱相互作用类型的BSSE处理建议
 
-## 强相互作用能计算中禁止使用Counterpoise
-计算强相互作用能，即牵扯到化学键作用时，绝对不要用counterpoise考虑BSSE问题，否则自取其辱。计算强相互作用能的时候直接用一个足够大的基组就完了，通常至少def-TZVP，用def2-TZVP更好，如果是后HF方法或双杂化泛函并想得到尽可能好的结果则建议cc-pVQZ或def2-QZVP。两个片段间如果既有显著的弱相互作用也有化学键作用，也属于这种情况。
+对于氢键、卤键等静电主导的较强作用，使用带弥散的3-Zeta基组时可不进行BSSE校正，结果尚可；对于范德华吸引、pi-pi堆积等极弱作用，即便使用带弥散的3-Zeta基组也最好考虑BSSE校正，若仅使用带弥散的2-Zeta基组则必须校正。弱相互作用类型定义可参考文献http://原作者.com/413。
 
-## gCP校正方法的特点与应用
-Grimme提出的gCP是如今挺常用的解决BSSE的方法。counterpoise任务的耗时是复合物单点耗时的三倍多，而gCP校正是“免费”的，而且涉及到强相互作用时也能用。此外，gCP校正有解析导数，因此带着gCP做几何优化、振动分析也不会带来额外的成本。gCP可以结合不带弥散的一些极小基、2-zeta和3-zeta基组使用，在ORCA、CP2K里支持，Gaussian 16不支持。
+---
 
-## 分子内弱相互作用的BSSE处理
-涉及分子内弱相互作用时一般也要考虑BSSE。由于两个片段属于同一个分子，不能直接用counterpoise方法处理。非要用counterpoise的话，可以将分子人为地切成两段，悬键用比如H来封闭，然后适当调整两个片段。而更优雅的做法是直接在计算时令基组带充分的弥散函数，或者不带弥散函数但是用gCP，这就省得切割片段了。
+## 5. Counterpoise方法的原理与公式
 
-## Counterpoise方法可能存在的过校正问题
-Counterpoise有时有过校正问题，因为计算E_A,bAB时A感受到的是完全“空闲”的B的基函数，能被A充分利用；而在复合物中A感受到的B的基函数已经有一定占据，不能被A充分利用。JCTC, 10, 49 (2010)发现，对于CCSD(T)计算相互作用能，使用aug-cc-pVTZ及以下基组时，BSSE校正能取一半比取完整的BSSE校正能更好；而对于aug-cc-pVQZ及以上级别的基组，或者进行基组外推，最好用完整的BSSE校正能。
+计算E_BSSE最广泛使用的是Boys和Bernardi发展的counterpoise方法，计算结果为实际值的近似。设E_i为第i个分子在自身基组下的能量，E_i'为该分子在全部n个分子基函数下的能量，则n个分子间相互作用能的BSSE校正能为E_BSSE=∑[i]( E_i - E_i' )。对于变分方法，E_BSSE必为正值，计算时分子几何结构必须与处于复合物时一致。
 
-## Gaussian中Counterpoise计算优化的局限性
-Gaussian中使用counterpoise时没有能量的解析导数，只能通过有限差分以数值方式获得导数，因此优化和频率计算极慢，强烈不建议在counterpoise下进行优化和计算频率。BSSE问题对于优化出的几何结构的影响一般很小，因此通常的弱相互作用计算，都应当在不使用counterpoise的情况下先做优化，然后再带着counterpoise计算相互作用能。若想在优化时明确考虑BSSE校正，应该用gCP方法。
+---
 
-## 溶剂模型下的BSSE校正策略
-溶剂模型下以counterpoise方式考虑BSSE问题没有严格的办法，一般做法是在气相下做counterpoise计算得到E_BSSE，然后加到溶剂模型下以常规方式E(AB)-E(A)-E(B)计算的相互作用能上。gCP可以直接兼容溶剂模型。
+## 6. Gaussian中双分子Counterpoise计算输出
 
-## 不同基组下是否考虑BSSE的建议
-用def2-QZVP、cc-pVQZ、aug-cc-pVTZ及其月份基组变体时可以不考虑BSSE校正。对于3-zeta档次基组，def2-TZVP和6-311+G(2d,p)算弱相互作用能能及格，但考虑counterpoise后才能足够理想。对于明显更小的基组，如6-311G**、6-31+G**、def2-SVP等，算相互作用能如今不考虑BSSE校正能绝对不能接受，若嫌counterpoise明显增加耗时至少也应当用免费的gCP。
+在Gaussian中使用counterpoise=2关键字计算A、B分子的E_BSSE及校正后相互作用能时，程序会依次输出E_AB、E_A,bAB、E_B,bAB、E_A、E_B五个能量。输出中DCBS (dimer centered basis set) 代表计算E_A,bAB或E_B,bAB（引入对方基函数），MCBS (monomer centered basis set) 代表计算E_A或E_B（仅自身基函数）。
 
-## 相互作用能与结合能的区别及BSSE校正对象
-counterpoise关键词给出的complexation energy是相互作用能而不是结合能，仅当单体的变形能非常小的时候二者才近似等价。对于计算结合能的BSSE校正来说，counterpoise校正的对象是复合物能量，也就是说BSSE校正后的结合能等于BSSE校正后的复合物能量减去各个分子在孤立状态几何结构下的能量。
+---
 
-## Gaussian中Counterpoise输入文件的写法
-Gaussian中做counterpoise计算时，每个原子最后需要有一个整数说明这个原子属于第几个片段。若整体与片段的电荷和自旋多重度不一样，应该按顺序写：整体电荷，整体自旋多重度，片段1电荷，片段1自旋多重度，片段2电荷，片段2自旋多重度。坐标部分也可以用"fragment="关键字来设置片段。
+## 7. Gaussian不同版本对BSSE结果的输出形式
 
-## BSSE产生的根源分析
-BSSE的根源在于计算复合物和计算单体时不在相同的基组级别下。A单体中靠近B单体的原子的基组完备性在复合物状态下高（因为B的基函数侵入此原子空间），而在A单体单独计算时低，这就导致能量在求差值时基组误差无法被抵消。正确的写法是E_interaction = E_AB - E_A,bAB - E_B,bAB，即计算复合物和单体的能量时都在AB基组下（文中E_AB和E_AB,bAB在符号上是等价的）。
+Gaussian早期版本在counterpoise任务末尾输出"Counterpoise: BSSE energy"即E_BSSE，以及"Counterpoise: corrected energy"即消除虚假降低后的复合物能量E_corrected = E_AB + E_BSSE。G09后期版本及G16会直接输出"Counterpoise corrected energy"、"BSSE energy"、"sum of monomers"以及校正前后的"complexation energy"。
+
+---
+
+## 8. 多分子体系的Counterpoise计算设置
+
+计算n个分子间的E_BSSE时，Gaussian关键词设为counterpoise=n，能量输出顺序为E_complex, E_1', E_2'...E_n', E_1, E_2...E_n。BSSE校正能计算公式为E_BSSE = (E_1 - E_1') + (E_2 - E_2') + ... + (E_n - E_n')，此时DCBS中的D指代多分子复合物而非二聚体。
+
+---
+
+## 9. 使用Ghost原子手动进行Counterpoise计算
+
+在无法使用counterpoise关键字时（如旧版本），可通过Ghost原子手动计算，即在输入文件中将原子名后加-Bq（如Na-Bq）使其保留基函数但无原子核和电子。计算E_A,bAB时需将B片段原子设为Ghost；若Ghost原子破坏对称性应加nosymm；手动计算虽繁琐但可利用对称性节省时间。
+
+---
+
+## 10. 强相互作用体系禁止使用Counterpoise校正
+
+计算涉及化学键的强相互作用能时绝对不要使用counterpoise考虑BSSE，否则结果错误。对于强相互作用，直接使用足够大的基组（如def-TZVP、def2-TZVP，后HF或双杂化泛函建议cc-pVQZ或def2-QZVP）即可，一般不需要弥散函数（除非作用区域带显著负电荷）。详见文献http://原作者.com/381和http://原作者.com/336。
+
+---
+
+## 11. gCP校正方法的特点与优势
+
+Grimme提出的gCP是解决BSSE的另一种常用方法，相比counterpoise它是“免费”的（不显著增加耗时），且可用于强相互作用及配合溶剂模型。gCP有解析导数，可无额外成本地用于几何优化和振动分析，在ORCA、CP2K中支持，Gaussian 16不支持。应用实例见Chem. Eur. J., 30, e202402227 (2024) DOI: 10.1002/chem.202402227。
+
+---
+
+## 12. 分子内弱相互作用的BSSE处理策略
+
+涉及分子内弱相互作用（如长链分子构象能差）时一般需考虑BSSE，但不能直接用counterpoise方法。处理方法可将分子人为切成两段用H封闭悬键并拉开距离后按分子间处理，或更优雅地直接使用带充分弥散函数的基组或结合gCP方法，从而省去切割步骤。
+
+---
+
+## 13. Counterpoise方法的过校正问题
+
+Counterpoise方法可能存在过校正问题，因为计算E_A,bAB时A利用的是完全空闲的B基函数，而在复合物中B基函数已被占据。JCTC, 10, 49 (2010)发现，对CCSD(T)计算，使用aug-cc-pVTZ及以下基组时取一半BSSE校正能更好，而aug-cc-pVQZ及以上基组或进行基组外推时最好用完整BSSE校正能。
+
+---
+
+## 14. Counterpoise下的优化与频率计算限制
+
+Gaussian中使用counterpoise时无能量解析导数，需通过有限差分求数值导数，导致优化和频率计算极慢，因此强烈不建议在counterpoise下进行此类任务。通常应先在不使用counterpoise时优化几何（推荐def-TZVP基组），再做counterpoise单点计算；若必须在优化时考虑BSSE（如只能用2-zeta基组），建议使用ORCA的gCP或counterpoise解析导数功能。
+
+---
+
+## 15. 溶剂模型下的BSSE处理方式
+
+溶剂模型下以counterpoise方式考虑BSSE没有严格办法，通常做法是先在气相下做counterpoise计算得到E_BSSE，然后将其加到溶剂模型下以常规方式E(AB)-E(A)-E(B)计算得到的相互作用能上。相比之下，gCP方法可以直接兼容溶剂模型进行计算。
+
+---
+
+## 16. 基组大小对Counterpoise必要性的影响
+
+使用def2-QZVP、cc-pVQZ、aug-cc-pVTZ等大基组时可忽略BSSE校正；使用def2-TZVP和6-311+G(2d,p)等3-zeta基组需考虑counterpoise才能得到理想结果；使用6-311G**、6-31+G**、def2-SVP等更小基组时不考虑BSSE校正绝对不能接受，若嫌counterpoise耗时至少应使用gCP。更多基组误差测试见http://原作者.com/685。
+
+---
+
+## 17. 相互作用能与结合能的区别及BSSE校正对象
+
+Gaussian的counterpoise关键词输出的是相互作用能而非结合能，仅当单体变形能极小时二者才近似等价。对于结合能的BSSE校正，校正对象是复合物能量，即BSSE校正后的结合能等于BSSE校正后的复合物能量减去各个分子在孤立状态几何结构下的能量。详见文献http://原作者.com/733。
+
+---
+
+## 18. Gaussian中Counterpoise输入文件的写法
+
+Gaussian中counterpoise输入文件需在每个原子坐标后加一个整数指明所属片段，若整体与片段电荷及自旋多重度不同需依次列出。例如`# B2PLYPD3/jul-cc-pVTZ counterpoise=2`配合坐标`H 0.00 0.00 0.92 1`，或使用`H(fragment=1) 0.00 0.00 0.92`格式，片段设置效果一致。
+
+---
+
+## 19. BSSE根源的数学表达与基组一致性
+
+BSSE根源在于计算复合物和单体能量时基组级别不一致，导致能量差无法抵消基组误差。正确的计算方式应确保基组一致，即E_interaction = E_AB - E_A,bAB - E_B,bAB，也就是在计算单体A时使用AB复合物的全套基函数(E_A,bAB)，而非仅使用A自身的基函数(E_A,bA)。

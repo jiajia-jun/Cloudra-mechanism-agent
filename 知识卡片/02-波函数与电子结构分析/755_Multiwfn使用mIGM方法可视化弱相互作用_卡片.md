@@ -6,9 +6,6 @@ domain: 波函数与电子结构分析
 topic: Multiwfn使用mIGM方法可视化弱相互作用
 cards: 9
 ---
-
-# Multiwfn使用mIGM方法可视化弱相互作用 — 知识卡片
-
 ## 1. mIGM方法的原理与优势
 
 mIGM（modified independent gradient model）是IGMH的变体，将基于波函数的实际电子密度替换为准分子密度，仅需元素和原子坐标信息即可计算。该方法不依赖波函数文件，计算速度远快于IGMH且图像效果优于IGM，使得IGM方法可被淘汰。mIGM适合快速预览、大体系分析或无法获得波函数文件的情况，但对于片段带显著净电荷的情况精度可能略低。
@@ -33,14 +30,22 @@ IGMH图像等值面光滑且形状优雅，能很好展现范德华和氢键区�
 ## 4. 使用VMD绘制mIGM相互作用等值面
 
 将Multiwfn生成的sl2r.cub和dg_inter.cub以及Multiwfn自带的IGM_inter.vmd脚本放入VMD目录，启动VMD并在文本窗口输入source IGM_inter.vmd加载脚本。默认δg_inter等值面数值为0.01，若需修改可在VMD Main窗口的Graphics - Representation中输入新数值；可通过修改Drawing Method为Licorice及Material为AOShiny来优化图像效果。
-- 脚本文件: IGM_inter.vmd
+- 脚该资料件: IGM_inter.vmd
+
+---
+
+
 
 ---
 
 ## 5. 计算原子和原子对相互作用贡献指数（δG_atom和δG_pair）
 
 在Multiwfn的mIGM分析后处理菜单中选择6计算δG_atom和δG_pair指数，输入目标片段序号并选择Ultrafine格点，结果将导出至atmdg.txt和atmdg.pdb。atmdg.pdb中Beta因子对应δG_atom指数，可在VMD中通过Coloring Method设为Beta及BWR色阶直观显示原子对相互作用的重要性。
-- 相关文献: [http://sobereva.com/621](http://sobereva.com/621)
+- 相关文献: [http://原作者.com/621](http://原作者.com/621)
+
+---
+
+
 
 ---
 
@@ -60,12 +65,16 @@ IGMH图像等值面光滑且形状优雅，能很好展现范德华和氢键区�
 
 ## 8. mIGM方法的局限性及适用范围
 
-mIGM基于准分子密度近似，适用于电子密度较低的分子间弱相互作用区域，但不适用于描述化学键，因为化学键形成会导致实际密度显著偏离准分子密度。若体系巨大或格点间距很小导致计算耗时，可使用格点屏蔽方法（见sobereva.com/756）来大幅降低计算时间。
-- 扩展阅读: [http://sobereva.com/756](http://sobereva.com/756)
+mIGM基于准分子密度近似，适用于电子密度较低的分子间弱相互作用区域，但不适用于描述化学键，因为化学键形成会导致实际密度显著偏离准分子密度。若体系巨大或格点间距很小导致计算耗时，可使用格点屏蔽方法（见原作者.com/756）来大幅降低计算时间。
+- 扩展阅读: [http://原作者.com/756](http://原作者.com/756)
+
+---
+
+
 
 ---
 
 ## 9. amIGM方法对动态过程的扩展应用
 
 基于mIGM的高效性，可将其扩展用于可视化研究动态环境中的平均弱相互作用，称为amIGM方法。amIGM方法比aNCI方法更好用，适用于分析分子动力学过程中产生的几百、几千帧结构，详细介绍及计算示例见专门文章。
-- 详细教程: [http://sobereva.com/759](http://sobereva.com/759)
+- 详细教程: [http://原作者.com/759](http://原作者.com/759)
