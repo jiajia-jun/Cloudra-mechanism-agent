@@ -14,7 +14,7 @@
 > (2) **题面规范确定**：全档 SMILES-only（atom-mapped），不提供 3D 几何；3D 构想/构象搜索成为全档第一个可独立计分阶段；gold 数据与容差等元数据仅评分侧可见；
 > (3) **效率量化框架定稿**：成本轴 = 计算作业数 + 工具调用数（token 降级为参考量；预算帽方案否决）；进度轴细粒度化为"所有引起 DAG 正向改动的行为"（对齐 gold_dag 的净覆盖）；核心产物为进度-成本曲线（AUC / 收敛拐点 / 平台期）+ 浪费/纠错诊断；"DAG 编排以效率换精度"确立为消融核心叙事之一；借鉴来源：Terminal-Bench 三准则、SWE-bench F2P/P2P、Cybench 子目标分解、τ-bench pass^k、SimpleQA 三态计分。
 > (4) **评测体系补齐验证链四层与机理相似度指标**：L0 物理门禁（n_imag==1、|ν_imag|≥100 cm⁻¹、IRC 连通）→ L1 预注册容差能量比对 → L2 机理图比对 → L3 三态计分；L2 采用**化学参数化图编辑距离**（molhash 零代价短路 + sigmoid 指纹代价 + 立体分层 + 键变边代价，networkx 实现，锚点单测替代标定），最优对齐的编辑脚本同时产出分数与失败归因 diff——该指标定位为可独立发布的化学信息学方法学贡献（**表述口径：不进标题级 claim，在摘要中以一句方法论陈述呈现**，已落实于 `paper/main.tex` / `draft.md` / `sections/01_introduction.md`；投稿前做 KinBot/AutoMeKin 谱系 novelty 核查）。
-> (5) **反应选型路线改向并建成候选池**：原 `ideapool/benchmark_literature/` 文献池（52 篇）经评审判定与四档定义错位、经典性不足，已标注废弃；新原则为四档定义不变 + MACE-OMol25 舒适区命中为硬门槛 + 经典权威/可复现优先（gold 数值只需文献锚点）。已按新原则建成超采候选池 **`ideapool/reaction_candidates/`（179 个候选：Easy 47 / Normal 62 / Hard 38 / Impossible 32）**，全部 SMILES 经 RDKit 程序化校验（含立体化学），锚点文献逐条 WebSearch 核实并标注核实状态，每档附 top 短名单待组内评审圈定最终 100 题。
+> (5) **反应选型路线改向并建成候选池**：原 `ideapool/benchmark_literature/` 文献池（52 篇）经评审判定与四档定义错位、经典性不足，已标注废弃；新原则为四档定义不变 + MACE-OMol25 舒适区命中为硬门槛 + 经典权威/可复现优先（gold 数值只需文献锚点）。已按新原则建成超采候选池 **`ideapool/reaction_candidates/`（179 个候选：Easy 47 / Normal 62 / Hard 38 / Impossible 32）**，全部 SMILES 经 RDKit 程序化校验（含立体化学），锚点文献逐条 WebSearch 核实并标注核实状态，每档附 top 短名单待组内评审圈定最终 100 题。**（2026-08-30 更新：Easy 档已定稿为 30 题任务 JSON（`easy.md` + `ideapool/tasks/easy/`）；Normal 档重写为 40 条精编候选池（`normal.md`，easy.md 同款线缆格式，含 30 正选建议 + 10 替补；文献存在性核实 36/40，修正旧池多处著录错误，见 `normal_research_notes.md`）；旧 Normal 62 条超采池在 git 历史中可恢复。）**
 >
 > **v0.5 变更摘要**（根据 2026-08-25 组内讨论与化学信息学定位）：
 > (1) **明确方法学定位与化学信息学底座**：强调扎实的化学信息学基础、微观 3D 几何感知与机器学习势（MLIP）行为边界探索；
@@ -226,7 +226,7 @@ v0.2 版本规划的“四项任务”已由 v0.3 与 v0.4 完善后的五步走
   - `mace` 引擎（MACE-OMol25）：负责高精度过渡态（TS）寻优、虚频分析、IRC 反应路径追踪及竞争路径能垒精修。
 - 允许 Agent 自主决定算力调用策略，并在轨迹审计中评估其工具选型合理性（xTB/MACE 调用比本身即诊断信号）。
 
-**待办事项**：候选池已建成（`ideapool/reaction_candidates/`，179 个超采候选，含各档 top 短名单与出处核实状态标注），下一步**组内评审短名单、按「类型不重复 + 能垒梯度拉开 + 舒适区命中」圈定最终 100 题，并回补入选条的 [未核实] 锚点**；RXNMapper 批量生成 atom-mapped SMILES + 人工抽检；**冻结前用 MACE-OMol25 对 Easy 档 30 题试算，以实测误差标定各档容差（容差 ≥ 金标准实测误差），并验证可解档全部跑通（Solvability 准则）**；编写基于 Trajectory 解析的多维自动评测脚本（含事件日志 → 进度-成本曲线的效率度量管线）；**实现机理相似度指标原型（molhash 短路 + sigmoid 代价 + networkx GED）并配锚点单测，参数冻结进评测规范；投稿前完成机理图比对的 novelty 核查（KinBot/AutoMeKin 谱系）**。
+**待办事项**：候选池已建成（`ideapool/reaction_candidates/`；截至 2026-08-30：Easy 已定稿 30 题任务 JSON，Normal 为 40 条精编候选池待评审圈定，Hard/Impossible 仍为超采池），下一步**评审 Normal 精编池并圈定 30 题、编写 `gen_normal_tasks.py`（多步 gold 图构建 + 逐题 bond_changes 登记，详见 normal.md 头部约定与调研笔记），并回补入选条的 [未核实] 锚点**；RXNMapper 批量生成 atom-mapped SMILES + 人工抽检；**冻结前用 MACE-OMol25 对 Easy 档 30 题试算，以实测误差标定各档容差（容差 ≥ 金标准实测误差），并验证可解档全部跑通（Solvability 准则）**；编写基于 Trajectory 解析的多维自动评测脚本（含事件日志 → 进度-成本曲线的效率度量管线）；**机理相似度指标已实现为子图覆盖打分（`cloudra/benchmark/graph_similarity.py`，多出元素不罚 + 键变边代价 + 立体分层，配锚点单测）；投稿前完成机理图比对的 novelty 核查（KinBot/AutoMeKin 谱系）**。
 
 #### 题目 JSON Schema 与评分器架构（2026-08-29 定稿）
 
