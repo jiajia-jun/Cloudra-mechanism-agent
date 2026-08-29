@@ -123,20 +123,47 @@ def test_accuracy_disabled_passthrough():
 
 # --- method policy ---
 
-# 结构化工具：method 字段精确白名单；缺 method 字段 fail-closed
+# qm_input_writer：method 字段精确白名单；缺 method 字段 fail-closed
 @pytest.mark.parametrize(
     "tool,args,allowed",
     [
-        ("submit_compute_job", {"method": "mace-omol25"}, True),
-        ("submit_compute_job", {"method": "xtb"}, True),
-        ("submit_compute_job", {"method": "wb97m-v"}, False),
+        ("qm_input_writer", {"method": "mace-omol25"}, True),
+        ("qm_input_writer", {"method": "xtb"}, True),
+        ("qm_input_writer", {"method": "wb97m-v"}, False),
         ("qm_input_writer", {"method": "ccsd(t)"}, False),
-        ("submit_compute_job", {}, False),
+        ("qm_input_writer", {}, False),
         ("read_file", {"path": "x"}, True),
     ],
 )
 def test_method_policy(tool, args, allowed):
     assert intercept(tool, args, MethodPolicy()).allowed is allowed
+
+
+def test_method_policy_submit_compute_job_by_content(tmp_path):
+    """submit_compute_job 没有 method 字段：按 input_file 的文件内容判定。"""
+    policy = MethodPolicy(allowed_methods=["b3lyp", "xtb"])
+    (tmp_path / "ok.gjf").write_text("#p b3lyp/6-31g(d) opt freq\n")
+    (tmp_path / "bad.gjf").write_text("# wb97m-v/def2-tzvpd opt\n")
+    (tmp_path / "junk.inp").write_text("not a QM input at all\n")
+    assert intercept(
+        "submit_compute_job", {"input_file": str(tmp_path / "ok.gjf")}, policy
+    ).allowed
+    assert not intercept(
+        "submit_compute_job", {"input_file": str(tmp_path / "bad.gjf")}, policy
+    ).allowed
+    # 无法识别为 QM 输入：strict 模式 fail-closed
+    assert not intercept(
+        "submit_compute_job", {"input_file": str(tmp_path / "junk.inp")}, policy
+    ).allowed
+    # 文件不存在 / 缺参数：fail-closed
+    assert not intercept(
+        "submit_compute_job", {"input_file": str(tmp_path / "missing.gjf")}, policy
+    ).allowed
+    assert not intercept("submit_compute_job", {}, policy).allowed
+    # 相对路径经 base_dir 解析
+    assert intercept(
+        "submit_compute_job", {"input_file": "ok.gjf"}, policy, base_dir=tmp_path
+    ).allowed
 
 
 # bash 层：判定基于写入的 QM 输入文件内容，不扫描命令文本
@@ -180,6 +207,8 @@ def test_method_policy_content_whitelisted_method():
     assert check_input_content("! rks b3lyp def2-svp tightscf opt", policy, "t.inp").allowed
     # 无后缀时按内容嗅探引擎
     assert check_input_content("# b3lyp/6-31g(d) opt", policy).allowed
+    # slash 方法优先于裸 token：禁用方法旁填充白名单词不能蒙混
+    assert not check_input_content("# ccsd(t)/cc-pvtz xtb\n", policy, "t.gjf").allowed
     # 非 QM 输入内容不在管辖范围
     assert check_input_content("hello world", policy, "notes.txt").allowed
 

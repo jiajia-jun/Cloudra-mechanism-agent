@@ -3,8 +3,11 @@
 Only whitelisted methods may run — anything else is blocked. A blacklist can
 always be bypassed, so every layer does positive (whitelist) matching:
 
-- `submit_compute_job` / `qm_input_writer`: structured tools with an explicit
-  method field — exact whitelist membership after normalization.
+- `qm_input_writer`: structured tool with an explicit method field — exact
+  whitelist membership after normalization.
+- `submit_compute_job`: submits a prepared `input_file`, so the verdict comes
+  from that file's *content* (strict mode: an input that cannot be verified
+  as requesting a whitelisted method is blocked).
 - `bash`: the verdict comes from the *content of QM input files*, never from
   keyword-matching the command text. Heredoc/redirect payloads writing
   `.gjf`/`.com`/`.inp` files are extracted from the command and parsed
@@ -141,18 +144,22 @@ def _extract_gaussian_methods(content: str) -> list[str]:
     tokens = route.split()
     if tokens and tokens[0].startswith("#"):
         tokens = tokens[1:]  # 去掉 # / #p / #n
-    candidates: list[str] = []
+    slashed: list[str] = []
+    bare: list[str] = []
     for tok in tokens:
         t = tok.lower()
         if "/" in t:
             head = t.split("/", 1)[0]
             if head:
-                candidates.append(head)
+                slashed.append(head)
             continue
         if "=" in t or "(" in t or _is_basis_token(t) or t in _GAUSSIAN_JOB_TOKENS:
             continue
-        candidates.append(t)
-    return candidates
+        bare.append(t)
+    # 路由卡里 method/basis 形式的 token 才是确定的方法声明；存在时只看它们，
+    # 裸 token（无 `/` 的半经验写法如 am1）仅在没有 slash 形式时作准——防止在
+    # 禁用方法旁填充白名单 token 蒙混过关。
+    return slashed if slashed else bare
 
 
 def _extract_orca_methods(content: str) -> list[str]:
@@ -173,15 +180,24 @@ def _extract_orca_methods(content: str) -> list[str]:
 
 
 def check_input_content(
-    content: str, policy: MethodPolicy, filename: str = ""
+    content: str, policy: MethodPolicy, filename: str = "", strict: bool = False
 ) -> MethodVerdict:
     """Whitelist-check QM input *content* (Gaussian route card / ORCA keyword
     lines). Content that does not look like a QM input is out of scope
-    (allowed); a QM input without a parseable method is blocked fail-closed.
+    (allowed) unless `strict` — e.g. `submit_compute_job` submissions, where an
+    unverifiable input must be blocked. A QM input without a parseable method
+    is always blocked fail-closed.
     方法候选中任一命中白名单即放行——白名单方法（如 xtb）不会合法出现在
     gaussian/orca 输入里，掺杂 token 绕过在实际场景不成立。"""
     engine = _detect_input_engine(filename, content)
     if engine is None:
+        if strict:
+            return MethodVerdict(
+                allowed=False,
+                reason="input file is not recognizable as a Gaussian/ORCA input; "
+                "whitelist cannot be verified "
+                f"(allowed: {policy.allowed_methods})",
+            )
         return MethodVerdict(allowed=True)
     candidates = (
         _extract_gaussian_methods(content)
@@ -267,27 +283,60 @@ def extract_embedded_inputs(command: str) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 
-def intercept(tool_name: str, arguments: dict, policy: MethodPolicy) -> MethodVerdict:
+def intercept(
+    tool_name: str,
+    arguments: dict,
+    policy: MethodPolicy,
+    base_dir: Path | str | None = None,
+) -> MethodVerdict:
     """Dispatch entry: route a tool call to the right check based on the
     interception layer it belongs to. Returns allowed=True for tools/layers
     not covered by the policy.
 
-    bash calls are judged by the *content* of QM inputs they write; the raw
-    command text is never keyword-scanned. Calls that merely reference an
-    existing on-disk QM input (`g16 foo.gjf`) are the caller's responsibility
-    via `check_input_files`."""
+    - `qm_input_writer` carries an explicit `method` field → structured
+      whitelist check.
+    - `submit_compute_job` carries no method field — it submits a prepared
+      `input_file`, so the verdict comes from that file's *content*
+      (strict: unverifiable input is blocked). Relative paths resolve
+      against `base_dir` (the sandbox root the caller runs in).
+    - bash calls are judged by the *content* of QM inputs they write; the raw
+      command text is never keyword-scanned. Calls that merely reference an
+      existing on-disk QM input (`g16 foo.gjf`) are the caller's responsibility
+      via `check_input_files`."""
     layers = set(policy.intercept_layers)
-    if tool_name in ("submit_compute_job", "qm_input_writer") and (
-        "submit_compute_job" in layers or "qm_input_writer" in layers
-    ):
+    if tool_name == "qm_input_writer" and "qm_input_writer" in layers:
         method = str(arguments.get("method") or arguments.get("functional") or "")
         if not method:
             return MethodVerdict(
                 allowed=False,
-                reason=f"{tool_name} call carries no method; whitelist requires an "
+                reason="qm_input_writer call carries no method; whitelist requires an "
                 f"explicit whitelisted method {policy.allowed_methods}",
             )
         return check_method(method, policy)
+    if tool_name == "submit_compute_job" and "submit_compute_job" in layers:
+        input_file = str(arguments.get("input_file") or "")
+        if not input_file:
+            return MethodVerdict(
+                allowed=False,
+                reason="submit_compute_job call carries no input_file; "
+                "cannot verify the whitelist",
+            )
+        p = Path(input_file)
+        if not p.is_absolute() and base_dir is not None:
+            p = Path(base_dir) / p
+        if not p.is_file():
+            return MethodVerdict(
+                allowed=False,
+                reason=f"input file not found: {input_file}; cannot verify the whitelist",
+            )
+        try:
+            content = p.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            return MethodVerdict(
+                allowed=False,
+                reason=f"cannot read input file {input_file}: {exc}",
+            )
+        return check_input_content(content, policy, filename=p.name, strict=True)
     if tool_name == "bash" and "bash" in layers:
         command = str(arguments.get("command") or arguments.get("script") or "")
         for fname, content in extract_embedded_inputs(command):

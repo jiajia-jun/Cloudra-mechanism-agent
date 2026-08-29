@@ -159,12 +159,12 @@ class MethodPolicy(BaseModel):
     blocked. A blacklist can always be bypassed, so interception is strictly
     positive (whitelist) matching, wired in at the layers named by
     `intercept_layers`:
-    - `submit_compute_job` / `qm_input_writer`: structured computation entry
-      tools, where the method is an explicit field.
+    - `qm_input_writer`: structured computation entry with an explicit
+      method field.
+    - `submit_compute_job`: submits a prepared input file, so interception
+      parses that file's content (Gaussian route card / ORCA keyword lines).
     - `bash`: the *content* of QM input files being written or executed is
-      parsed (Gaussian route card / ORCA keyword lines) and the requested
-      method must be whitelisted — the raw command text is never
-      keyword-scanned.
+      parsed the same way — the raw command text is never keyword-scanned.
 
     The easy-tier whitelist (MACE-OMol25 / xTB) has no basis-set concept at
     all, so the policy carries no basis fields. Attempting a non-whitelisted
