@@ -4,7 +4,7 @@
   "family": "P",
   "name": "cyclopentadiene [1,5]-H shift (degenerate)",
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: cyclopentadiene [1,5]-H shift (degenerate). Reactant SMILES: C1=CCC=C1; product SMILES: C1=CCC=C1; total charge 0, multiplicity 1; conditions: gas phase or solution, fast at room temperature. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step (relative to the separated reactants). Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: cyclopentadiene [1,5]-H shift (degenerate). Reactant SMILES: C1=CCC=C1; product SMILES: C1=CCC=C1; total charge 0, multiplicity 1; conditions: gas phase or solution, fast at room temperature. Atom-mapped reactant SMILES: [CH:1]1=[CH:2][CH:3]([H:6])[CH:4]=[CH:5]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -74,8 +74,34 @@
           "via": "P2_TS",
           "step_type": "[1,5]-sigmatropic H shift, suprafacially allowed, unimolecular",
           "bond_changes": {
-            "break": [],
-            "form": []
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                6
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                1,
+                5
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                6
+              ]
+            ]
           },
           "accessible": true
         }
@@ -85,7 +111,7 @@
       "level_of_theory": "literature anchor (see reference_doi)",
       "barrier_kcal_mol": 25.0,
       "barrier_type": "ΔG‡",
-      "barrier_reference": "reactants",
+      "barrier_reference": "central_complex",
       "verification": "verified",
       "reference_doi": "10.1021/acs.joc.2c02145",
       "computed_by_us": false
@@ -96,7 +122,10 @@
     "integrity": {
       "require_graph_json": true,
       "require_evidence_files": true,
-      "evidence_match": "smiles_annotation"
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
     },
     "self_consistency": {
       "ts_first_order_saddle": true,
@@ -105,6 +134,7 @@
     },
     "graph_similarity": {
       "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
       "node_cost": "molhash_shortcut_then_morgan_sigmoid",
       "sigmoid_center": 0.4,
       "sigmoid_steepness": null,

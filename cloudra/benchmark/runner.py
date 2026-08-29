@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
+import threading
 import time
 from contextlib import closing
 from dataclasses import dataclass, field
@@ -65,6 +66,9 @@ class BenchmarkDB:
     def __init__(self, db_path: Path):
         self.db_path = db_path
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        # 并行跑题时多个 worker 线程共写同一库；sqlite 的 busy 等待是概率性
+        # 兜底， determinism 靠这把进程内锁。
+        self._lock = threading.Lock()
         self._init()
 
     def _connect(self) -> sqlite3.Connection:
@@ -84,7 +88,7 @@ class BenchmarkDB:
 
     def record(self, result: RunResult) -> None:
         # latest-result-per-task：复跑先删该题旧行再插入，runs 表每题恒一行
-        with closing(self._connect()) as c, c:
+        with self._lock, closing(self._connect()) as c, c:
             c.execute("DELETE FROM runs WHERE task_id = ?", (result.task_id,))
             c.execute(
                 "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?)", result.to_row()
@@ -126,6 +130,7 @@ class BenchmarkRunner:
                 if gs.sigmoid_steepness is not None
                 else base.sigmoid_steepness
             ),
+            subgraph_scoring=gs.subgraph_scoring,
             node_delete_cost=base.node_delete_cost,
             node_insert_cost=base.node_insert_cost,
             edge_delete_cost=base.edge_delete_cost,
@@ -163,17 +168,30 @@ class BenchmarkRunner:
         res.accuracy_score = acc.final_score
         res.notes.extend(acc.notes)
 
-        # composite: integrity gates everything; then a weighted blend.
-        if not res.integrity_passed:
-            res.final_score = 0.0
-            res.notes.append("integrity failed -> final score 0")
+        # composite: integrity 不再一票否决，证据质量是分级因子——
+        # 证据完整且机理正确得满分；缺证据按 binding_quality 比例扣（缺一个
+        # 不判零）；完全没证据（图缺失/不可解析/零绑定）倒扣 no_evidence_penalty
+        # 分：无证据支撑的机理声明比没交付更糟。
+        blend = (
+            0.5 * res.graph_score
+            + 0.2 * (1.0 if res.selfconsistency_passed else 0.0)
+            + 0.3 * res.accuracy_score
+        )
+        rub = task.rubric.integrity
+        if not (rub.require_graph_json and rub.require_evidence_files):
+            res.final_score = round(blend, 4)
+        elif not integ.graph_parseable:
+            res.final_score = -rub.no_evidence_penalty
+            res.notes.append("no parseable mechanism graph -> no evidence possible; penalty applied")
+        elif integ.binding_quality <= 0.0:
+            res.final_score = -rub.no_evidence_penalty
+            res.notes.append("no evidence bound to any graph node -> unsupported claims; penalty applied")
         else:
-            res.final_score = round(
-                0.5 * res.graph_score
-                + 0.2 * (1.0 if res.selfconsistency_passed else 0.0)
-                + 0.3 * res.accuracy_score,
-                4,
-            )
+            res.final_score = round(blend * integ.binding_quality, 4)
+            if integ.binding_quality < 1.0:
+                res.notes.append(
+                    f"binding quality {integ.binding_quality:.2f} applied as composite multiplier"
+                )
         return res
 
     def run_task(self, task: TaskSpec) -> RunResult:
@@ -189,19 +207,33 @@ class BenchmarkRunner:
         self.db.record(result)
         return result
 
-    def run_all(self, tasks: list[TaskSpec]) -> list[RunResult]:
-        # 单题异常不拖垮整批：失败题落一条 notes 带原因的零分结果行并继续
-        results: list[RunResult] = []
-        for t in tasks:
-            try:
-                results.append(self.run_task(t))
-            except Exception as exc:
-                print(f"[benchmark] task {t.task_id} crashed: {exc!r}")
-                res = RunResult(task_id=t.task_id, sandbox=str(self.sandbox_for(t.task_id)))
-                res.notes.append(f"task crashed: {exc!r}")
-                self.db.record(res)
-                results.append(res)
-        return results
+    def _run_one_guarded(self, task: TaskSpec) -> RunResult:
+        """单题异常不拖垮整批：失败题落一条 notes 带原因的零分结果行并继续。
+        （后端崩溃记 0 而不是 no_evidence_penalty：基建失败不是 agent 的锅。）"""
+        try:
+            return self.run_task(task)
+        except Exception as exc:
+            print(f"[benchmark] task {task.task_id} crashed: {exc!r}")
+            res = RunResult(task_id=task.task_id, sandbox=str(self.sandbox_for(task.task_id)))
+            res.notes.append(f"task crashed: {exc!r}")
+            self.db.record(res)
+            return res
+
+    def run_all(self, tasks: list[TaskSpec], concurrency: int = 1) -> list[RunResult]:
+        """串行（concurrency=1，默认）或受控并行。并行用线程池：单题都是
+        IO 密集（LLM 请求 / 计算子进程），每题一个线程、线程内独立事件循环；
+        沙箱按题隔离，benchmark.db 写入由 BenchmarkDB 内部锁串行化。"""
+        if concurrency <= 1:
+            return [self._run_one_guarded(t) for t in tasks]
+        import concurrent.futures as cf
+
+        results: dict[str, RunResult] = {}
+        with cf.ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = {pool.submit(self._run_one_guarded, t): t for t in tasks}
+            for fut in cf.as_completed(futures):
+                res = fut.result()
+                results[res.task_id] = res
+        return [results[t.task_id] for t in tasks]
 
 
 def load_tasks(tasks_dir: Path) -> list[TaskSpec]:

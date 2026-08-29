@@ -309,6 +309,21 @@ def check_input_content(
     return MethodVerdict(allowed=True, method=candidates[0])
 
 
+# bash 命令里对磁盘已有 QM 输入文件的引用（`g16 foo.gjf` / `orca run.inp`）。
+# 只按后缀抓路径 token，不判断语义；不存在的路径由 check_input_files 跳过。
+_QM_INPUT_REF_RE = re.compile(r"[^\s\"'>;|&()]+\.(?:gjf|com|inp)\b", re.IGNORECASE)
+
+
+def referenced_input_paths(command: str) -> list[str]:
+    """Extract paths of QM input files a bash command *references* (as opposed
+    to writes). Callers resolve them against the sandbox and pass the existing
+    ones to `check_input_files`. Redirect targets written by this same command
+    (`cat > ts.gjf <<EOF`) show up here too, but they do not exist on disk at
+    interception time and their content was already checked via
+    `extract_embedded_inputs`, so they are harmless duplicates."""
+    return _QM_INPUT_REF_RE.findall(command)
+
+
 def check_input_files(
     paths: Iterable[Path], policy: MethodPolicy
 ) -> MethodVerdict:

@@ -1,0 +1,209 @@
+"""runtime_v2-backed agent backend for the benchmark runner.
+
+Per task this spins up an in-process runtime_v2 kernel (RuntimeCore +
+TurnPipeline + AgentRunner), spawns the task's coordinator agent with the task
+query against the per-task sandbox as the project workspace, waits for a
+terminal state, then extracts the agent-reported barrier from its final
+message. The method whitelist is enforced by appending `MethodPolicyStage` to
+the pipeline; compute jobs submitted via `submit_compute_job` are executed by
+a per-task `ComputeBroker`, same as the production API lifespan.
+
+Process-wide isolation is the caller's job: the benchmark CLI points the
+global config's `data_dir` at the benchmark data dir before any tool runs, so
+session stores, compute jobs and MEMORY.md never touch the live conversation
+data dir. LLM credentials still come from the normal global config slots
+(coordinator/follower), unchanged.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import re
+import threading
+from pathlib import Path
+from typing import Any, Awaitable, Callable, Optional
+
+from cloudra.benchmark.policy_stage import MethodPolicyStage
+from cloudra.benchmark.schema import TaskSpec
+from cloudra.runtime_v2.schemas import AgentState
+
+logger = logging.getLogger("benchmark.backend")
+
+TERMINAL_STATES = frozenset({AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED})
+
+# waiting_input / waiting_approval 不是终态：benchmark 无人值守，挂起超过
+# stuck_grace 就取消该题（yolo 已开，正常路径不该出现审批等待）。
+_STUCK_STATE_VALUES = frozenset({AgentState.WAITING_INPUT.value, AgentState.WAITING_APPROVAL.value})
+
+# 最终总结里的能垒抓取：query 要求 agent 以 kcal/mol 报告能垒，取文本中
+# 最后一个 "<number> kcal/mol" 出现（总结陈述通常在最末）。
+_BARRIER_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*kcal\s*/?\s*mol", re.IGNORECASE)
+
+
+def extract_reported_barrier(text: str) -> Optional[float]:
+    """Last "<number> kcal/mol" in the agent's final summary, or None."""
+    matches = _BARRIER_RE.findall(text or "")
+    return float(matches[-1]) if matches else None
+
+
+class RuntimeV2Backend:
+    """`AgentBackend` implementation: run each task on the real runtime_v2.
+
+    `llm` / `tools` / `run_summarizer` are injectable so tests can run the
+    whole wiring hermetically; production defaults are the legacy bridges.
+    """
+
+    def __init__(
+        self,
+        *,
+        run_timeout_s: float = 7200.0,
+        stuck_grace_s: float = 300.0,
+        poll_interval_s: float = 2.0,
+        llm: Any = None,
+        tools: Any = None,
+        run_summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None,
+        start_compute_broker: bool = True,
+    ) -> None:
+        self.run_timeout_s = run_timeout_s
+        self.stuck_grace_s = stuck_grace_s
+        self.poll_interval_s = poll_interval_s
+        self.llm = llm
+        self.tools = tools
+        self.run_summarizer = run_summarizer
+        self.start_compute_broker = start_compute_broker
+        # 每次任务的 RuntimeCore 按 task_id 留存，供测试与调试内省事件日志；
+        # 并行跑题时多线程并发写，用锁保护。
+        self._cores: dict[str, Any] = {}
+        self._cores_lock = threading.Lock()
+
+    @property
+    def last_core(self) -> Any:
+        """最近一次任务的 core（串行调试便利）；并行时用 core_by_task()。"""
+        with self._cores_lock:
+            return next(reversed(self._cores.values())) if self._cores else None
+
+    def core_by_task(self, task_id: str) -> Any:
+        with self._cores_lock:
+            return self._cores.get(task_id)
+
+    def __call__(self, task: TaskSpec, sandbox: Path) -> Optional[float]:
+        return asyncio.run(self._run_task(task, Path(sandbox)))
+
+    async def _run_task(self, task: TaskSpec, sandbox: Path) -> Optional[float]:
+        from cloudra.runtime_v2.adapters import (
+            LegacyLLMProvider,
+            LegacyPromptProvider,
+            LegacyToolExecutor,
+            legacy_default_runtime_settings,
+        )
+        from cloudra.runtime_v2.agent_runner import AgentRunner
+        from cloudra.runtime_v2.commands import CommandBus
+        from cloudra.runtime_v2.core import RuntimeCore
+        from cloudra.runtime_v2.policies import default_stages
+        from cloudra.runtime_v2.schemas import Command
+        from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+
+        sandbox.mkdir(parents=True, exist_ok=True)
+        sandbox = sandbox.resolve()
+
+        core = RuntimeCore(strict_events=True)
+        with self._cores_lock:
+            self._cores[task.task_id] = core
+        core.runtime_defaults = legacy_default_runtime_settings()
+        stage = MethodPolicyStage(task.method_policy, base_dir=sandbox)
+        pipeline = TurnPipeline(
+            event_log=core.event_log,
+            stages=[*default_stages(core), stage],
+            llm=self.llm or LegacyLLMProvider(),
+            tools=self.tools or LegacyToolExecutor(core),
+            prompt_provider=LegacyPromptProvider(),
+            event_hub=core.event_hub,
+            notices=core.notices,
+        )
+        core.runner = AgentRunner(core, pipeline, run_summarizer=self.run_summarizer)
+        broker = None
+        if self.start_compute_broker:
+            from cloudra.runtime.compute_executor import ComputeBroker
+
+            # worker_id 含 pid+task_id：并行跑题时同进程多个 broker 实例不能
+            # 共享默认的 compute:<pid>，否则租约归属互相串。
+            broker = ComputeBroker(worker_id=f"compute:{os.getpid()}:{task.task_id}")
+            await broker.start()
+
+        agent = None
+        try:
+            bus = CommandBus(core)
+            project = (
+                await bus.execute(
+                    Command(
+                        type="project.create",
+                        payload={"name": f"benchmark:{task.task_id}", "workspace_dir": str(sandbox)},
+                    )
+                )
+            ).data
+            agent = (
+                await bus.execute(
+                    Command(
+                        type="agent.spawn",
+                        target={"project_id": project.id},
+                        payload={
+                            "role_id": task.prompt.role,
+                            "query": task.prompt.query,
+                            "settings": {
+                                "orchestration_mode": task.prompt.orchestration_mode.value,
+                                # 无人值守：破坏性工具审批走 yolo 自动通道
+                                "yolo": True,
+                            },
+                        },
+                    )
+                )
+            ).data
+            await self._wait_terminal(bus, agent)
+            return self._final_barrier(core, agent.id)
+        finally:
+            if agent is not None and core.runner is not None:
+                await core.runner.cancel(agent.id)
+            if broker is not None:
+                await broker.close()
+
+    async def _wait_terminal(self, bus, agent) -> None:
+        from cloudra.runtime_v2.schemas import Command
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.run_timeout_s
+        stuck_since: float | None = None
+        while agent.state not in TERMINAL_STATES:
+            now = loop.time()
+            reason = ""
+            if now > deadline:
+                reason = f"benchmark run timeout ({self.run_timeout_s}s)"
+            elif agent.state.value in _STUCK_STATE_VALUES:
+                stuck_since = stuck_since if stuck_since is not None else now
+                if now - stuck_since > self.stuck_grace_s:
+                    reason = f"agent stuck in {agent.state.value} with nobody to answer"
+            else:
+                stuck_since = None
+            if reason:
+                logger.warning("cancelling benchmark agent %s: %s", agent.id, reason)
+                await bus.execute(
+                    Command(
+                        type="agent.cancel",
+                        target={"session_id": agent.id},
+                        payload={"message": f"[benchmark] cancelled: {reason}"},
+                    )
+                )
+                break
+            await asyncio.sleep(self.poll_interval_s)
+
+    def _final_barrier(self, core, session_id: str) -> Optional[float]:
+        events = core.event_log.query_session(session_id)
+        for envelope in reversed(events):
+            if envelope.type == "agent.message_emitted":
+                content = str((envelope.data or {}).get("content") or "")
+                barrier = extract_reported_barrier(content)
+                if barrier is None:
+                    logger.warning("agent %s final message reports no barrier", session_id)
+                return barrier
+        return None
