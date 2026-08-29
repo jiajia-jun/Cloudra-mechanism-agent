@@ -1,37 +1,61 @@
 """Method-policy interception: whitelist checking for computational methods.
 
-A pure validator that decides whether a requested computational method is
-allowed under a task's `MethodPolicy`. The harness wires this in at two
-layers (declared in `MethodPolicy.intercept_layers`):
-- `submit_compute_job` / `qm_input_writer`: the structured computation entry
-  tools, where the method/basis are explicit fields.
-- `bash`: free-form shell commands, where a heuristic scan looks for
-  high-level method keywords in QM input text being written.
+Only whitelisted methods may run — anything else is blocked. A blacklist can
+always be bypassed, so every layer does positive (whitelist) matching:
 
-An intercepted (forbidden) method is *blocked*, never penalized: the agent is
-told to fall back to an allowed method. This module only computes the verdict;
-the actual blocking is done by the caller.
+- `submit_compute_job` / `qm_input_writer`: structured tools with an explicit
+  method field — exact whitelist membership after normalization.
+- `bash`: the verdict comes from the *content of QM input files*, never from
+  keyword-matching the command text. Heredoc/redirect payloads writing
+  `.gjf`/`.com`/`.inp` files are extracted from the command and parsed
+  (Gaussian route card / ORCA keyword lines); a QM program invoked on a
+  pre-existing file (`g16 foo.gjf`) is covered by `check_input_files`, which
+  the caller runs with sandbox access.
+
+Parsing is done with small deterministic route-card/keyword-line readers. The
+obvious library alternative (cclib) parses *output* logs, not input route
+cards, so it does not apply here. A file that looks like a QM input but has no
+parseable method directive is blocked (fail-closed): under a whitelist,
+"cannot verify" means "cannot allow".
+
+This module only computes verdicts; the caller performs the actual blocking.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable, Optional
 
 from cloudra.benchmark.schema import MethodPolicy
 
-# canonical method keywords that signal a forbidden high level of theory when
-# they appear in free-form text (QM input files, bash heredocs).
-_FORBIDDEN_KEYWORDS = [
-    "ccsd(t)", "ccsd", "dlpno", "wb97m-v", "w1", "cbs-qb3", "g4", "g3",
-    "def2-tzvpd", "def2-qzvpp", "cc-pvtz", "cc-pvqz", "casscf", "mrci",
-]
-# basis-set tokens above the allowed ceiling get flagged too
-_HIGH_BASIS = ["def2-tzvp", "def2-qzvp", "tzvpd", "qzvpp", "cc-pvtz", "cc-pvqz", "aug-cc"]
+# suffixes we treat as QM input files
+_QM_INPUT_SUFFIXES = {".gjf", ".com", ".inp"}
 
-# 构成“词内”的字符类；关键词两侧若紧邻这类字符则不视为独立 token。
-# 否则 "w1"/"g3"/"g4" 这类短词会误伤 "new1.xyz"/"log4.out"/"scan_g4.log"。
-_WORD_CHAR = r"[a-z0-9_]"
+# job-type / control tokens that may appear on a Gaussian route card or an
+# ORCA "!" keyword line and are NOT the method. This is a parsing ignore-list,
+# not a security boundary: anything unrecognized is treated as a method
+# candidate and must pass the whitelist, so gaps here fail closed.
+_GAUSSIAN_JOB_TOKENS = {
+    "opt", "freq", "irc", "scan", "sp", "stable", "pop", "force", "volume",
+    "density", "symmetry", "symm", "temperature", "pressure",
+}
+_ORCA_JOB_TOKENS = {
+    "opt", "freq", "irc", "scan", "sp", "ts", "optts", "numfreq", "tightscf",
+    "verytightscf", "slowconv", "normalprint", "smallprint", "largeprint",
+    "noproperty", "d3", "d4", "ri", "rijcosx", "noautostart", "enzym",
+    # 波函数类型修饰符，不是方法本身
+    "rks", "uks", "roks", "rhf", "uhf", "rohf", "hf",
+}
+# basis-set shaped tokens (def2-svp, 6-31g(d), cc-pvtz, sto-3g, ...) never
+# carry method information; ignored while locating the method token.
+_BASIS_RE = re.compile(
+    r"^(?:def2|cc-pv|aug-cc-pv|sto|pcseg|pc|ano|minao|ma-def2)-|^\d+-\d+"
+)
+# heredoc opener: `<<EOF` / `<<-EOF` / `<<"EOF"` / `<<'EOF'`
+_HEREDOC_OPEN_RE = re.compile(r"<<-?\s*['\"]?([A-Za-z_]\w*)['\"]?")
+_REDIRECT_RE = re.compile(r">{1,2}\s*([^\s>;|&]+)")
 
 
 @dataclass
@@ -39,25 +63,16 @@ class MethodVerdict:
     allowed: bool
     method: str = ""
     reason: str = ""
-    matched_forbidden: list[str] = field(default_factory=list)
+    matched_forbidden: list[str] = field(default_factory=list)  # 保留字段：拦截详情
 
 
 def _normalize(s: str) -> str:
-    # 折叠（而非删除）空白，避免相邻词粘连后边界失效（"def2-tzvpd opt" 若删空白
-    # 会变成 "def2-tzvpdopt"，连 def2-tzvpd 本身都匹配不上）。
-    return re.sub(r"\s+", " ", s.lower())
-
-
-def _contains_token(text: str, token: str) -> bool:
-    """True if `token` appears in normalized `text` as a delimited token."""
-    tok = _normalize(token)
-    pattern = rf"(?<!{_WORD_CHAR}){re.escape(tok)}(?!{_WORD_CHAR})"
-    return re.search(pattern, text) is not None
+    return re.sub(r"\s+", " ", s.strip().lower())
 
 
 def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
     """Structured check for an explicit method string (submit_compute_job /
-    qm_input_writer path)."""
+    qm_input_writer path): exact whitelist membership after normalization."""
     nm = _normalize(method)
     allowed = {_normalize(a) for a in policy.allowed_methods}
     if nm in allowed:
@@ -67,53 +82,217 @@ def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
         method=method,
         reason=f"method '{method}' not in allowed_methods {policy.allowed_methods}; "
         f"fall back to an allowed method (e.g. {policy.allowed_methods[0]})",
+        matched_forbidden=[method],
     )
 
 
-def scan_text_for_forbidden(text: str, policy: MethodPolicy) -> MethodVerdict:
-    """Heuristic free-text scan (bash path): flag forbidden method/basis
-    keywords appearing in QM input being written. 匹配按词边界进行，避免
-    "w1"/"g4" 这类短词命中普通文件名。"""
-    nt = _normalize(text)
-    matched = [k for k in _FORBIDDEN_KEYWORDS if _contains_token(nt, k)]
-    matched += [b for b in _HIGH_BASIS if _contains_token(nt, b)]
-    # explicitly declared forbid list from the task
-    matched += [f for f in policy.forbid if _contains_token(nt, f)]
-    matched = sorted(set(matched))
-    if matched:
+# ---------------------------------------------------------------------------
+# QM input content parsing
+# ---------------------------------------------------------------------------
+
+
+def _is_basis_token(tok: str) -> bool:
+    return bool(_BASIS_RE.match(tok))
+
+
+def _detect_input_engine(filename: str, content: str) -> Optional[str]:
+    """Decide whether the payload is a Gaussian or ORCA input (or neither)."""
+    suffix = Path(filename).suffix.lower() if filename else ""
+    if suffix in (".gjf", ".com"):
+        return "gaussian"
+    if suffix == ".inp":
+        return "orca"
+    for line in content.splitlines():
+        s = line.strip()
+        # `%` 行有歧义（Gaussian Link0 的 %chk/%mem 与 ORCA 的 %maxcore/%pal
+        # 都是 `%` 开头），不能作为引擎判据，跳过继续找决定性行。
+        if not s or s.startswith("%"):
+            continue
+        if s.startswith("#"):
+            return "gaussian"
+        if s.startswith("!"):
+            return "orca"
+        # 第一有效行既不是路由卡也不是 ORCA 关键字：不像 QM 输入
+        return None
+    return None
+
+
+def _extract_gaussian_methods(content: str) -> list[str]:
+    """从 Gaussian 路由卡提取方法候选：`# opt b3lyp/6-31g(d) freq` → [b3lyp]。
+    路由卡可跨行缠绕，到空行为止。方法通常是含 `/` 的 token 的左半；无 `/` 时
+    （半经验如 `# am1 opt`）取非作业类型/非 key=value 的裸 token。跳过 Link0
+    的 `%chk`/`%mem` 行。"""
+    lines = content.splitlines()
+    route_lines: list[str] = []
+    in_route = False
+    for line in lines:
+        s = line.strip()
+        if not in_route:
+            if s.startswith("#"):
+                in_route = True
+                route_lines.append(s)
+            continue
+        if not s:
+            break
+        route_lines.append(s)
+    if not route_lines:
+        return []
+    route = " ".join(route_lines)
+    tokens = route.split()
+    if tokens and tokens[0].startswith("#"):
+        tokens = tokens[1:]  # 去掉 # / #p / #n
+    candidates: list[str] = []
+    for tok in tokens:
+        t = tok.lower()
+        if "/" in t:
+            head = t.split("/", 1)[0]
+            if head:
+                candidates.append(head)
+            continue
+        if "=" in t or "(" in t or _is_basis_token(t) or t in _GAUSSIAN_JOB_TOKENS:
+            continue
+        candidates.append(t)
+    return candidates
+
+
+def _extract_orca_methods(content: str) -> list[str]:
+    """从 ORCA 关键字行提取方法候选：`! rks b3lyp def2-svp opt` → [b3lyp]。
+    跳过 `%` 块（maxcore/pal 等控制段）；候选 = `!` 行上既非作业类型
+    也非基组形状的 token。"""
+    candidates: list[str] = []
+    for line in content.splitlines():
+        s = line.strip()
+        if not s.startswith("!"):
+            continue
+        for tok in s[1:].split():
+            t = tok.lower()
+            if t in _ORCA_JOB_TOKENS or _is_basis_token(t):
+                continue
+            candidates.append(t)
+    return candidates
+
+
+def check_input_content(
+    content: str, policy: MethodPolicy, filename: str = ""
+) -> MethodVerdict:
+    """Whitelist-check QM input *content* (Gaussian route card / ORCA keyword
+    lines). Content that does not look like a QM input is out of scope
+    (allowed); a QM input without a parseable method is blocked fail-closed.
+    方法候选中任一命中白名单即放行——白名单方法（如 xtb）不会合法出现在
+    gaussian/orca 输入里，掺杂 token 绕过在实际场景不成立。"""
+    engine = _detect_input_engine(filename, content)
+    if engine is None:
+        return MethodVerdict(allowed=True)
+    candidates = (
+        _extract_gaussian_methods(content)
+        if engine == "gaussian"
+        else _extract_orca_methods(content)
+    )
+    if not candidates:
         return MethodVerdict(
             allowed=False,
-            reason=f"forbidden computational method/basis detected: {matched}; "
-            f"allowed methods are {policy.allowed_methods}",
-            matched_forbidden=matched,
+            reason=f"{engine} input has no parseable method directive; "
+            f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
         )
+    allowed = {_normalize(a) for a in policy.allowed_methods}
+    hit = next((c for c in candidates if c in allowed), None)
+    if hit is not None:
+        return MethodVerdict(allowed=True, method=hit)
+    return MethodVerdict(
+        allowed=False,
+        method=candidates[0],
+        reason=f"{engine} input requests method(s) {candidates} not in "
+        f"allowed_methods {policy.allowed_methods}; fall back to an allowed "
+        f"method (e.g. {policy.allowed_methods[0]})",
+        matched_forbidden=candidates,
+    )
+
+
+def check_input_files(
+    paths: Iterable[Path], policy: MethodPolicy
+) -> MethodVerdict:
+    """Content check for QM inputs already on disk — covers a bash command
+    invoking a QM program on a previously written file (`g16 foo.gjf`)."""
+    for p in paths:
+        p = Path(p)
+        if p.suffix.lower() not in _QM_INPUT_SUFFIXES or not p.is_file():
+            continue
+        try:
+            content = p.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        verdict = check_input_content(content, policy, filename=p.name)
+        if not verdict.allowed:
+            return verdict
     return MethodVerdict(allowed=True)
+
+
+# ---------------------------------------------------------------------------
+# bash layer: embedded QM input payloads
+# ---------------------------------------------------------------------------
+
+
+def extract_embedded_inputs(command: str) -> list[tuple[str, str]]:
+    """Extract (filename, content) pairs written by heredocs in a bash command.
+
+    Handles `cat > file <<EOF` and `cat <<EOF > file`; unparseable targets
+    keep an empty filename, in which case content sniffing still applies.
+    """
+    out: list[tuple[str, str]] = []
+    lines = command.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = _HEREDOC_OPEN_RE.search(line)
+        if m is None:
+            i += 1
+            continue
+        delim = m.group(1)
+        target = _REDIRECT_RE.search(line[: m.start()]) or _REDIRECT_RE.search(
+            line[m.end():]
+        )
+        fname = target.group(1).strip("'\"") if target else ""
+        body: list[str] = []
+        i += 1
+        while i < len(lines) and lines[i].strip() != delim:
+            body.append(lines[i])
+            i += 1
+        out.append((fname, "\n".join(body)))
+        i += 1
+    return out
+
+
+# ---------------------------------------------------------------------------
+# dispatch
+# ---------------------------------------------------------------------------
 
 
 def intercept(tool_name: str, arguments: dict, policy: MethodPolicy) -> MethodVerdict:
     """Dispatch entry: route a tool call to the right check based on the
     interception layer it belongs to. Returns allowed=True for tools/layers
-    not covered by the policy."""
+    not covered by the policy.
+
+    bash calls are judged by the *content* of QM inputs they write; the raw
+    command text is never keyword-scanned. Calls that merely reference an
+    existing on-disk QM input (`g16 foo.gjf`) are the caller's responsibility
+    via `check_input_files`."""
     layers = set(policy.intercept_layers)
     if tool_name in ("submit_compute_job", "qm_input_writer") and (
         "submit_compute_job" in layers or "qm_input_writer" in layers
     ):
         method = str(arguments.get("method") or arguments.get("functional") or "")
-        basis = str(arguments.get("basis") or "")
-        if method:
-            v = check_method(method, policy)
-            if not v.allowed:
-                return v
-        if basis:
-            nb = _normalize(basis)
-            if any(_normalize(h) in nb for h in _HIGH_BASIS):
-                return MethodVerdict(
-                    allowed=False,
-                    reason=f"basis '{basis}' exceeds allowed ceiling '{policy.allowed_basis_max}'",
-                    matched_forbidden=[basis],
-                )
-        return MethodVerdict(allowed=True, method=method)
+        if not method:
+            return MethodVerdict(
+                allowed=False,
+                reason=f"{tool_name} call carries no method; whitelist requires an "
+                f"explicit whitelisted method {policy.allowed_methods}",
+            )
+        return check_method(method, policy)
     if tool_name == "bash" and "bash" in layers:
-        text = str(arguments.get("command") or arguments.get("script") or "")
-        return scan_text_for_forbidden(text, policy)
+        command = str(arguments.get("command") or arguments.get("script") or "")
+        for fname, content in extract_embedded_inputs(command):
+            verdict = check_input_content(content, policy, filename=fname)
+            if not verdict.allowed:
+                return verdict
+        return MethodVerdict(allowed=True)
     return MethodVerdict(allowed=True)

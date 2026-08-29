@@ -147,7 +147,7 @@ class SystemSpec(BaseModel):
     products: list[str] = Field(default_factory=list)
     charge: int = 0
     multiplicity: int = Field(default=1, ge=1)
-    conditions: str = "气相"
+    conditions: str = "gas phase"
     elements: list[str] = Field(default_factory=list)
     max_heavy_atoms: Optional[int] = None
     closed_shell: bool = True
@@ -155,19 +155,25 @@ class SystemSpec(BaseModel):
 
 
 class MethodPolicy(BaseModel):
-    """Whitelisted computation levels. The harness intercepts anything beyond
-    this at the bash layer (command_analyzer/bash_habit_guard) and the compute
-    submission tools (submit_compute_job/qm_input_writer). Attempting a
-    forbidden method is intercepted, never penalized."""
+    """Whitelisted computation levels: any method not in `allowed_methods` is
+    blocked. A blacklist can always be bypassed, so interception is strictly
+    positive (whitelist) matching, wired in at the layers named by
+    `intercept_layers`:
+    - `submit_compute_job` / `qm_input_writer`: structured computation entry
+      tools, where the method is an explicit field.
+    - `bash`: the *content* of QM input files being written or executed is
+      parsed (Gaussian route card / ORCA keyword lines) and the requested
+      method must be whitelisted — the raw command text is never
+      keyword-scanned.
+
+    The easy-tier whitelist (MACE-OMol25 / xTB) has no basis-set concept at
+    all, so the policy carries no basis fields. Attempting a non-whitelisted
+    method is intercepted, never penalized."""
 
     model_config = ConfigDict(extra="forbid")
 
     allowed_methods: list[str] = Field(
         default_factory=lambda: ["mace-omol25", "xtb"]
-    )
-    allowed_basis_max: str = "def2-svp"
-    forbid: list[str] = Field(
-        default_factory=lambda: ["ccsd(t)", "wb97m-v/def2-tzvpd", "dlpno"]
     )
     intercept_layers: list[str] = Field(
         default_factory=lambda: ["bash", "submit_compute_job", "qm_input_writer"]

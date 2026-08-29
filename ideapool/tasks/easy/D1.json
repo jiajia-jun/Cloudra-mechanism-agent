@@ -4,7 +4,7 @@
   "family": "D",
   "name": "丁二烯+乙烯 Diels-Alder（parent DA）",
   "prompt": {
-    "query": "请推导以下反应/过程的机理（Easy 档）：丁二烯+乙烯 Diels-Alder（parent DA）。反应物 SMILES：C=CC=C.C=C；产物 SMILES：C1CC=CCC1；总电荷 0，多重度 1；条件：气相 487–648 °C 动力学。要求：定位过渡态（TS），用 IRC 连通反应物与产物端点，做频率验证（TS 有且仅有一个虚频），并给出活化能垒（kcal/mol）。**必须在沙箱根目录维护 `mechanism_graph.json`**，记录机理图的节点（reactant/product/transition_state，含 SMILES）与基元步边（含 via 指向的 TS 节点 id），评分器将读取该文件取证，缺失或不可解析将严重影响得分。允许的量化方法仅限 MACE-OMol25 与 xTB；不要尝试更高级别的泛函/基组，超出白名单的调用会被拦截。",
+    "query": "Determine the mechanism of the following reaction (easy tier): 丁二烯+乙烯 Diels-Alder（parent DA）. Reactant SMILES: C=CC=C.C=C; product SMILES: C1CC=CCC1; total charge 0, multiplicity 1; conditions: gas phase, 487–648 °C kinetics. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided",
     "seed_graph_template": true
@@ -19,7 +19,7 @@
     ],
     "charge": 0,
     "multiplicity": 1,
-    "conditions": "气相 487–648 °C 动力学",
+    "conditions": "gas phase, 487–648 °C kinetics",
     "elements": [
       "C",
       "H"
@@ -32,12 +32,6 @@
     "allowed_methods": [
       "mace-omol25",
       "xtb"
-    ],
-    "allowed_basis_max": "def2-svp",
-    "forbid": [
-      "ccsd(t)",
-      "wb97m-v/def2-tzvpd",
-      "dlpno"
     ],
     "intercept_layers": [
       "bash",
@@ -81,7 +75,7 @@
           "from": "D1_R",
           "to": "D1_P",
           "via": "D1_TS",
-          "step_type": "协同 [4+2] 环加成，单步过对称 TS",
+          "step_type": "concerted [4+2] cycloaddition, single step via symmetric TS",
           "bond_changes": {
             "break": [],
             "form": []

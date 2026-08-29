@@ -59,6 +59,61 @@ _BARRIER_TYPE_MAP = {
     "Ea": BarrierType.EA,
 }
 
+# 条件列中译英（按原字符串映射；新增条件必须在此登记，否则生成直接报错）。
+# M 组表第 4 列是过程类型而非条件，Easy 档统一定义为气相可算，故 M 题
+# conditions 一律 "gas phase"，过程类型并入 step_type 英译。
+_CONDITIONS_EN = {
+    "气相": "gas phase",
+    "气相 487–648 °C 动力学": "gas phase, 487–648 °C kinetics",
+    "气相/液相室温慢": "gas/liquid phase, slow at room temperature",
+    "气相/烃溶剂加热": "gas phase or hydrocarbon solvent, heated",
+    "气相 ~250 °C": "gas phase, ~250 °C",
+    "气相/溶液室温即快": "gas phase or solution, fast at room temperature",
+    "气相 ~200 °C": "gas phase, ~200 °C",
+    "气相 403–448 K": "gas phase, 403–448 K",
+    "气相 390–434 K": "gas phase, 390–434 K",
+    "气相 ~350 °C": "gas phase, ~350 °C",
+    "气相/溶液": "gas phase or solution",
+    "气相/水溶液": "gas phase or aqueous solution",
+    "气相微溶剂化": "gas phase, microsolvated",
+    "气相/星际": "gas phase / interstellar",
+    "气相高温": "gas phase, high temperature",
+}
+
+# gold 机理概要（step_type）英译，按 task_id 映射；新增题目必须登记。
+_STEP_TYPE_EN = {
+    "D1": "concerted [4+2] cycloaddition, single step via symmetric TS",
+    "D3": "concerted [4+2], bispericyclic TS; one molecule as diene, one as dienophile",
+    "D4": "concerted [4+2], endo/exo selectivity, aldehyde dienophile",
+    "P1": "[3,3]-sigmatropic shift, chair TS, degenerate rearrangement",
+    "P2": "[1,5]-sigmatropic H shift, suprafacially allowed, unimolecular",
+    "P3": "[3,3]-sigmatropic shift, chair TS, Claisen (O-containing complement to all-carbon Cope P1) -> pent-4-enal",
+    "L1": "4pi electrocyclic ring opening, conrotatory, single step",
+    "L2": "6pi electrocyclic ring closure, disrotatory, single step",
+    "X1": "concerted asynchronous C-C/C-O cleavage, CO2 extrusion",
+    "C1": "backside attack, single step, exothermic",
+    "C2": "backside attack, single step (C-end attack of ambident nucleophile)",
+    "C3": "proton-abstraction-induced inversion followed by second inversion, Cs-symmetric double-inversion TS, net retention",
+    "E1": "anti-periplanar concerted elimination, single step (competes with SN2)",
+    "F1": "hydride transfer, single step via asynchronous TS",
+    "F2": "anion nucleophilic addition to carbonyl, single step (Burgi-Dunitz trajectory ~107 deg)",
+    "F3": "extra water as proton shuttle, six-center cyclic TS, single step",
+    "T1": "water as proton shuttle, six-center cyclic TS, single step",
+    "T3": "intramolecular 1,2-H shift; anomalous IRC - separate C-H cleavage and N-H formation transition regions with an all-real-frequency quasi-state between",
+    "G1": "four-center cyclic TS, concerted C-B and C-H formation with B-H cleavage, syn addition; nearly barrierless in gas phase, TST failure (kinetic anomaly)",
+    "G2": "concerted [sigma2s+sigma2s+pi2s] double H transfer, syn stereospecific, N2 release",
+    "G3": "concerted [sigma2s+pi2s+pi2s], allylic H shift + C-C formation + pi shift",
+    "M1": "atropisomerism: ortho-methyl hindered rotation, Ra<->Sa via near-planar TS",
+    "M3": "N inversion: double-well inversion via planar D3h TS, tunneling splitting",
+    "M6": "conformational rotation: C-C torsion, threefold-symmetric TS",
+    "M8": "conformational inversion: chair-chair interconversion via half-chair TS",
+    "M10": "methyl rotation: threefold methyl torsion, focal-point benchmark",
+    "M12": "proton cluster transfer: shared proton between two waters; O-O distance decides single/double well",
+    "M14": "conformational rotation: C(sp2)-C(sp2) single-bond torsion, trans more stable",
+    "M15": "conformational isomerization: N-O torsion, trans ground state, cis ~0.5-0.6 kcal/mol higher",
+    "M16": "dehydrogenation: concerted H2 elimination to CO2 (competes with dehydration to CO+H2O)",
+}
+
 
 def _split_cells(line: str) -> list[str]:
     cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -113,7 +168,7 @@ def _parse_comfort(cell: str) -> tuple[list[str], int | None]:
     return elements, heavy
 
 
-def _build_graph(task_id: str, reactants: list[str], products: list[str], mechanism_summary: str) -> GoldMechanismGraph:
+def _build_graph(task_id: str, reactants: list[str], products: list[str], step_type: str) -> GoldMechanismGraph:
     """Build a minimal single-step mechanism graph (reactant -> TS -> product).
 
     Easy-tier tasks are all single-step; degenerate processes (product ==
@@ -133,7 +188,7 @@ def _build_graph(task_id: str, reactants: list[str], products: list[str], mechan
         id=f"{task_id}_E1",
         **{"from": r_node.id, "to": p_node.id},
         via=ts_node.id,
-        step_type=mechanism_summary,
+        step_type=step_type,
     )
     return GoldMechanismGraph(nodes=[r_node, ts_node, p_node], edges=[edge])
 
@@ -141,14 +196,19 @@ def _build_graph(task_id: str, reactants: list[str], products: list[str], mechan
 def _query(task_id: str, name: str, reactants: list[str], products: list[str], q: int, mult: int, conditions: str) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products) if products else rs
+    kind = "process" if task_id.startswith("M") else "reaction"
+    # 只给任务与交付协议，不教练式地点名 TS/IRC/频率——"determine the
+    # mechanism" 对合格的 agent 已隐含这些要求。
     return (
-        f"请推导以下反应/过程的机理（Easy 档）：{name}。"
-        f"反应物 SMILES：{rs}；产物 SMILES：{ps}；总电荷 {q}，多重度 {mult}；条件：{conditions}。"
-        "要求：定位过渡态（TS），用 IRC 连通反应物与产物端点，做频率验证（TS 有且仅有一个虚频），"
-        "并给出活化能垒（kcal/mol）。"
-        "**必须在沙箱根目录维护 `mechanism_graph.json`**，记录机理图的节点（reactant/product/transition_state，"
-        "含 SMILES）与基元步边（含 via 指向的 TS 节点 id），评分器将读取该文件取证，缺失或不可解析将严重影响得分。"
-        "允许的量化方法仅限 MACE-OMol25 与 xTB；不要尝试更高级别的泛函/基组，超出白名单的调用会被拦截。"
+        f"Determine the mechanism of the following {kind} (easy tier): {name}. "
+        f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
+        f"conditions: {conditions}. "
+        "You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: "
+        "nodes (reactant/product/transition_state, with SMILES) and elementary-step edges "
+        "(with `via` pointing to the TS node id). The scorer reads this file forensically; "
+        "a missing or unparseable file severely impacts the score. "
+        "Allowed computational methods are limited to MACE-OMol25 and xTB; "
+        "calls beyond the whitelist are intercepted."
     )
 
 
@@ -163,7 +223,7 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
         if len(cells) < 8:
             continue
         task_id, name = cells[0], cells[1]
-        smiles_cell, conditions, mechanism, barrier_cell, comfort_cell, _ref_cell = (
+        smiles_cell, conditions_cell, _mechanism_cell, barrier_cell, comfort_cell, _ref_cell = (
             cells[2], cells[3], cells[4], cells[5], cells[6], cells[7],
         )
         parsed = _parse_smiles_cell(smiles_cell)
@@ -172,8 +232,15 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
         reactants, products, q, mult = parsed
         barrier, btype, verification, doi = _parse_barrier(barrier_cell)
         elements, heavy = _parse_comfort(comfort_cell)
+        # M 组第 4 列是过程类型而非条件（类型已并入 step_type 英译）；
+        # 映射表未收录的条件/概要直接 KeyError 报错，防止静默漏译。
+        if task_id.startswith("M"):
+            conditions = "gas phase"
+        else:
+            conditions = _CONDITIONS_EN[conditions_cell]
+        step_type = _STEP_TYPE_EN[task_id]
 
-        graph = _build_graph(task_id, reactants, products, mechanism)
+        graph = _build_graph(task_id, reactants, products, step_type)
         spec = TaskSpec(
             task_id=task_id,
             tier=Tier.EASY,

@@ -4,7 +4,7 @@
   "family": "G",
   "name": "BH₃ + 乙烯 氢硼化（协同顺式）",
   "prompt": {
-    "query": "请推导以下反应/过程的机理（Easy 档）：BH₃ + 乙烯 氢硼化（协同顺式）。反应物 SMILES：B.C=C；产物 SMILES：CCB；总电荷 0，多重度 1；条件：气相。要求：定位过渡态（TS），用 IRC 连通反应物与产物端点，做频率验证（TS 有且仅有一个虚频），并给出活化能垒（kcal/mol）。**必须在沙箱根目录维护 `mechanism_graph.json`**，记录机理图的节点（reactant/product/transition_state，含 SMILES）与基元步边（含 via 指向的 TS 节点 id），评分器将读取该文件取证，缺失或不可解析将严重影响得分。允许的量化方法仅限 MACE-OMol25 与 xTB；不要尝试更高级别的泛函/基组，超出白名单的调用会被拦截。",
+    "query": "Determine the mechanism of the following reaction (easy tier): BH₃ + 乙烯 氢硼化（协同顺式）. Reactant SMILES: B.C=C; product SMILES: CCB; total charge 0, multiplicity 1; conditions: gas phase. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided",
     "seed_graph_template": true
@@ -19,7 +19,7 @@
     ],
     "charge": 0,
     "multiplicity": 1,
-    "conditions": "气相",
+    "conditions": "gas phase",
     "elements": [
       "B",
       "C",
@@ -33,12 +33,6 @@
     "allowed_methods": [
       "mace-omol25",
       "xtb"
-    ],
-    "allowed_basis_max": "def2-svp",
-    "forbid": [
-      "ccsd(t)",
-      "wb97m-v/def2-tzvpd",
-      "dlpno"
     ],
     "intercept_layers": [
       "bash",
@@ -82,7 +76,7 @@
           "from": "G1_R",
           "to": "G1_P",
           "via": "G1_TS",
-          "step_type": "4 中心环状 TS，C-B 与 C-H 协同形成、B-H 断裂，syn 加成；**气相近无能垒，TST 失效**（动力学反常）",
+          "step_type": "four-center cyclic TS, concerted C-B and C-H formation with B-H cleavage, syn addition; nearly barrierless in gas phase, TST failure (kinetic anomaly)",
           "bond_changes": {
             "break": [],
             "form": []

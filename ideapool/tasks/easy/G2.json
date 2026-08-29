@@ -4,7 +4,7 @@
   "family": "G",
   "name": "二亚胺 N₂H₂ 顺式还原乙烯（双 H 转移）",
   "prompt": {
-    "query": "请推导以下反应/过程的机理（Easy 档）：二亚胺 N₂H₂ 顺式还原乙烯（双 H 转移）。反应物 SMILES：N=N.C=C；产物 SMILES：N#N.CC；总电荷 0，多重度 1；条件：气相。要求：定位过渡态（TS），用 IRC 连通反应物与产物端点，做频率验证（TS 有且仅有一个虚频），并给出活化能垒（kcal/mol）。**必须在沙箱根目录维护 `mechanism_graph.json`**，记录机理图的节点（reactant/product/transition_state，含 SMILES）与基元步边（含 via 指向的 TS 节点 id），评分器将读取该文件取证，缺失或不可解析将严重影响得分。允许的量化方法仅限 MACE-OMol25 与 xTB；不要尝试更高级别的泛函/基组，超出白名单的调用会被拦截。",
+    "query": "Determine the mechanism of the following reaction (easy tier): 二亚胺 N₂H₂ 顺式还原乙烯（双 H 转移）. Reactant SMILES: N=N.C=C; product SMILES: N#N.CC; total charge 0, multiplicity 1; conditions: gas phase. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided",
     "seed_graph_template": true
@@ -20,7 +20,7 @@
     ],
     "charge": 0,
     "multiplicity": 1,
-    "conditions": "气相",
+    "conditions": "gas phase",
     "elements": [
       "N",
       "C",
@@ -34,12 +34,6 @@
     "allowed_methods": [
       "mace-omol25",
       "xtb"
-    ],
-    "allowed_basis_max": "def2-svp",
-    "forbid": [
-      "ccsd(t)",
-      "wb97m-v/def2-tzvpd",
-      "dlpno"
     ],
     "intercept_layers": [
       "bash",
@@ -84,7 +78,7 @@
           "from": "G2_R",
           "to": "G2_P",
           "via": "G2_TS",
-          "step_type": "协同 [σ2s+σ2s+π2s] 双氢转移，syn 立体专一，放出 N₂",
+          "step_type": "concerted [sigma2s+sigma2s+pi2s] double H transfer, syn stereospecific, N2 release",
           "bond_changes": {
             "break": [],
             "form": []

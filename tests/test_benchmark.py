@@ -24,7 +24,7 @@ from cloudra.benchmark import gen_easy_tasks, selfconsistency
 from cloudra.benchmark.accuracy import score_accuracy
 from cloudra.benchmark.graph_similarity import GedConfig, mechanism_similarity
 from cloudra.benchmark.integrity import EvidenceFile, audit_integrity, scan_evidence_files
-from cloudra.benchmark.method_policy import intercept
+from cloudra.benchmark.method_policy import check_input_content, check_input_files, intercept
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BondChangeSet,
@@ -123,21 +123,77 @@ def test_accuracy_disabled_passthrough():
 
 # --- method policy ---
 
-
+# 结构化工具：method 字段精确白名单；缺 method 字段 fail-closed
 @pytest.mark.parametrize(
     "tool,args,allowed",
     [
         ("submit_compute_job", {"method": "mace-omol25"}, True),
         ("submit_compute_job", {"method": "xtb"}, True),
-        ("submit_compute_job", {"method": "wb97m-v", "basis": "def2-tzvpd"}, False),
-        ("qm_input_writer", {"method": "ccsd(t)", "basis": "cc-pvtz"}, False),
-        ("bash", {"command": "xtb ts.xyz --opt"}, True),
-        ("bash", {"command": "cat > t.gjf <<EOF\n# wb97m-v/def2-tzvpd opt\nEOF"}, False),
+        ("submit_compute_job", {"method": "wb97m-v"}, False),
+        ("qm_input_writer", {"method": "ccsd(t)"}, False),
+        ("submit_compute_job", {}, False),
         ("read_file", {"path": "x"}, True),
     ],
 )
 def test_method_policy(tool, args, allowed):
     assert intercept(tool, args, MethodPolicy()).allowed is allowed
+
+
+# bash 层：判定基于写入的 QM 输入文件内容，不扫描命令文本
+@pytest.mark.parametrize(
+    "command,allowed",
+    [
+        # 引用已有文件 / 普通命令：无内嵌 QM 输入 -> 放行
+        ("xtb ts.xyz --opt", True),
+        ("cat scan_g4.log", True),
+        ("tail -n 50 new1.out", True),
+        ("grep -c ccsd summary.log", True),
+        # 内嵌写入非 QM 输入（坐标/脚本）-> 放行
+        ("cat > t.xyz <<EOF\n3\n\nO 0.0 0.0 0.0\nEOF", True),
+        ("cat > run.sh <<EOF\nxtb a.xyz --opt\nEOF", True),
+        # 内嵌写入 QM 输入：easy 白名单（mace/xtb）下任何 gaussian/orca 输入都拦截
+        ("cat > t.gjf <<EOF\n# wb97m-v/def2-tzvpd opt\nEOF", False),
+        ("cat > t.gjf <<EOF\n# b3lyp/6-31g(d) opt freq\nEOF", False),
+        ("cat > t.com <<EOF\n#p opt=(ts) pbe1pbe/6-311++g(d,p)\nEOF", False),
+        ("cat <<EOF > t.inp\n! dlpno-ccsd(t) cc-pvtz tightscf\nEOF", False),
+        ("cat > t.inp <<EOF\n! b3lyp def2-svp opt\nEOF", False),
+        # QM 输入无方法指令 -> fail-closed
+        ("cat > t.gjf <<EOF\njust some coordinates\nEOF", False),
+    ],
+)
+def test_method_policy_bash_content(command, allowed):
+    assert intercept("bash", {"command": command}, MethodPolicy()).allowed is allowed
+
+
+def test_method_policy_content_whitelisted_method():
+    """白名单放宽后，内容匹配到白名单方法的输入放行（覆盖 normal/hard 档语义）。"""
+    policy = MethodPolicy(allowed_methods=["b3lyp", "xtb"])
+    assert check_input_content("# b3lyp/6-31g(d) opt freq", policy, "t.gjf").allowed
+    assert not check_input_content("# wb97m-v/def2-tzvpd opt", policy, "t.gjf").allowed
+    assert check_input_content("! b3lyp def2-svp opt", policy, "t.inp").allowed
+    assert not check_input_content("! dlpno-ccsd(t) cc-pvtz", policy, "t.inp").allowed
+    # Gaussian Link0 行（%chk/%mem）在路由卡之前，不干扰方法提取
+    assert check_input_content(
+        "%chk=t.chk\n%mem=4GB\n#p opt=(ts,calcfc) b3lyp/6-31g(d) freq\n", policy, "t.gjf"
+    ).allowed
+    # ORCA 波函数类型修饰符（rks/uks/...）不是方法
+    assert check_input_content("! rks b3lyp def2-svp tightscf opt", policy, "t.inp").allowed
+    # 无后缀时按内容嗅探引擎
+    assert check_input_content("# b3lyp/6-31g(d) opt", policy).allowed
+    # 非 QM 输入内容不在管辖范围
+    assert check_input_content("hello world", policy, "notes.txt").allowed
+
+
+def test_method_policy_files_on_disk(tmp_path):
+    """`g16 foo.gjf` 这类引用磁盘已有输入的调用由 check_input_files 覆盖。"""
+    (tmp_path / "ok.gjf").write_text("# b3lyp/6-31g(d) opt\n")
+    (tmp_path / "bad.inp").write_text("! wb97m-v def2-tzvpd opt\n")
+    policy = MethodPolicy(allowed_methods=["b3lyp"])
+    assert check_input_files([tmp_path / "ok.gjf"], policy).allowed
+    assert not check_input_files([tmp_path / "bad.inp"], policy).allowed
+    # 非 QM 后缀直接跳过
+    (tmp_path / "data.xyz").write_text("3\n\nO 0 0 0\n")
+    assert check_input_files([tmp_path / "data.xyz"], policy).allowed
 
 
 # --- integrity ---
@@ -266,27 +322,6 @@ def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_meta, want_sa
     assert rep.all_first_order is want_saddle
     assert rep.all_irc_connect is want_irc
     assert rep.passed is (want_saddle and want_irc)
-
-
-# --- method policy 误伤回归 ---
-
-
-@pytest.mark.parametrize(
-    "command,allowed",
-    [
-        # 短关键词（w1/g3/g4）嵌在文件名里不得触发拦截
-        ("cat scan_g4.log", True),
-        ("tail -n 50 new1.out", True),
-        ("ls frag_w10/", True),
-        ("cat mg3x2.log", True),
-        # 作为独立 token 出现必须拦截
-        ("cat > t.gjf <<EOF\n# g4\nEOF", False),
-        ("grep -c g4 summary.log", False),
-        ("cat > t.inp <<EOF\n! dlpno-ccsd(t)\nEOF", False),
-    ],
-)
-def test_method_policy_filename_false_positives(command, allowed):
-    assert intercept("bash", {"command": command}, MethodPolicy()).allowed is allowed
 
 
 # --- 题库可复现性 ---
