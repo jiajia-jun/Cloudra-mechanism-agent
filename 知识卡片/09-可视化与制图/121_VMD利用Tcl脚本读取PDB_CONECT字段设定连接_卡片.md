@@ -1,109 +1,46 @@
 ---
 id: 121
 title: 使VMD根据pdb文件中的CONECT字段设定原子连接关系
-url: http://sobereva.com/121
 domain: 可视化与制图
 topic: VMD利用Tcl脚本读取PDB_CONECT字段设定连接
-cards: 8
+cards: 7
 ---
 
-# VMD利用Tcl脚本读取PDB_CONECT字段设定连接 — 知识卡片
-
 ## 1. VMD默认不使用PDB文件的CONECT字段
-
 VMD在读取pdb文件时不会利用CONECT字段信息，无论文件中是否包含该字段，VMD都是根据距离范围自动猜测原子间的连接关系。这种处理方式往往不能满足涉及非标准键长、特殊残基或特殊残基与标准残基相连等情况的特殊要求。
-- DynamicBonds显示方式和conect2psf程序（http://www.ks.uiuc.edu/Development/MDTools/conect2psf/）也难以完全解决此问题，后者仅有IRIX 5.x下预编译版本。
+- DynamicBonds显示方式和conect2psf程序也难以完全解决此问题，后者仅有IRIX 5.x下预编译版本。
 
 ---
 
 ## 2. PDB文件CONECT字段的含义与用途
-
 CONECT字段一般出现在原子坐标定义之后，用于明确指定原子间的连接关系，例如`CONECT 1787 1786 1788 1789`代表1787号原子与1786、1788、1789号原子相连。该字段主要用于描述涉及非标准键长、特殊残基（如血红素）、特殊残基与标准残基相连的情况，以及二硫键。
 - 普通残基和水分子不需要CONECT字段，因为程序可根据原子类型和键长明确确定连接关系。
 
 ---
 
 ## 3. 在VMD中查看原子连接关系的方法
-
 在VMD的Tcl窗口中可以使用`atomselect`命令选择原子并查看其连接列表。输入`set sel [atomselect top "serial 3 to 5"]`选择原子，然后输入`$sel getbonds`，返回的列表（如`{20 8} {10 21} {5 19 18}`）代表了选择范围内各原子（按serial排序）所连接的原子索引。
 - 注意返回的是index编号，而非serial编号。
 
 ---
 
 ## 4. 在VMD中修改原子连接关系的方法
-
 用户可以通过`setbonds`命令修改选中原子的连接关系，例如`$sel setbonds {4 {} {5 19 18 8}}`。若只有原子A的连接列表里有B而B里没有A，图形窗口中往往只会显示出从A延伸向B的半个键，只有当两个原子的连接关系列表里都有对方时才会显示完整的键。
 
 ---
 
 ## 5. VMD连接关系设定脚本的参数设置
-
 提供的Tcl脚本允许VMD根据PDB文件的CONECT字段设定连接关系，需要用户设置`natm`（总原子数）、`nskipline`（CONECT段落之前需跳过的行数）和`itype`（模式控制）。`itype`为0代表CONECT定义的连接关系覆盖原有关系，`itype`为1代表将CONECT定义的附加到原有连接关系上。
 - 脚本允许CONECT字段中每个原子最多与12个其它原子相连，且CONECT字段第一列参考原子序号要求从小到大排序。
 
 ---
 
-## 6. 连接关系设定Tcl脚本源码
-
-```tcl
-#Programmed by Sobereva, 2012-Jan-25
-set natm 8312
-set nskipline 8313
-#itype=0 means reset connectivity by user-defined list, =1 means add self-defined connectivity list to the original one
-set itype 0
-set rdpdbcon [open "D://CM//my program//Multiwfn//vtx.pdb" r]
-
-#Skip other lines
-for {set i 1} {$i<=$nskipline} {incr i} {
-gets $rdpdbcon line
-}
-
-#Cycle each atom
-set ird 1
-for {set iatm 1} {$iatm<=$natm} {incr iatm} {
-
-if {$ird==1} {
-  for {set i 1} {$i<=12} {incr i} {set cn($i) 0}
-  gets $rdpdbcon line
-  scan [string range $line 6 84] "%d %d %d %d %d %d %d %d %d %d %d %d %d" self cn(1) cn(2) cn(3) cn(4) cn(5) cn(6) cn(7) cn(8) cn(9) cn(10) cn(11) cn(12)
-
-  set tmplist {}
-  #Formation of connectivity list
-  for {set i 1} {$i<=12} {incr i} {
-  if {$cn($i)==0} {break}
-  lappend tmplist [expr $cn($i)-1]
-  }
-}
-
-if {$self==$iatm} {
-  #puts Atom\ serial:\ $iatm\ \ User-connectivity:\ $tmplist
-  set sel [atomselect top "serial $iatm"]
-  if {$itype==0} {
-  $sel setbonds "{$tmplist}"
-  } else {
-  set orglist [$sel getbonds]
-  $sel setbonds "{[concat [lindex $orglist 0] $tmplist]}"
-  }
-  $sel delete
-  set ird 1
-} else {
-  set ird 0
-}
-
-}
-close $rdpdbcon
-```
-
----
-
 ## 7. 使用脚本添加多巴胺分子连接关系的操作示例
-
 若要将多巴胺分子的氮原子(3号)、对位羟基氧(2号)和羟基氢(22号)连上，应在PDB文件末尾添加CONECT行：`CONECT 2 3`、`CONECT 3 2 22`、`CONECT 22 3`。注意必须先定义原子编号小的再定义大的，加载PDB文件后，将脚本参数设为`natm 22`、`nskipline 23`、`itype 1`并运行。
 - 这种场景下`itype`设为1是为了保留VMD自动判断的标准键，同时添加自定义的特殊连接。
 
 ---
 
 ## 8. 利用脚本显示分子表面网格的方法
-
 为了显示Marching tetrahedron算法生成的分子表面顶点和三角网格，可将程序输出的顶点和连接关系写入PDB及CONECT字段。在VMD中加载文件后，将脚本参数`itype`设为0（使用CONECT覆盖自动判断的连接），即可正确显示出描述分子表面的三角形网状图案。
 - 文中案例为水分子电子密度0.001的表面，包含9654个顶点。

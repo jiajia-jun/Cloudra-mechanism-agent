@@ -1,64 +1,53 @@
 ---
 id: 403
 title: 在Multiwfn中基于fch产生自然轨道的方法与激发态波函数、自旋自然轨道分析实例
-url: http://sobereva.com/403
 domain: 波函数与电子结构分析
 topic: Multiwfn基于fch生成自然轨道及激发态分析
 cards: 8
 ---
 
-# Multiwfn基于fch生成自然轨道及激发态分析 — 知识卡片
-
 ## 1. fch文件中密度矩阵的对应关系
-
 Gaussian的fch文件包含SCF级别密度矩阵，对于后HF、双杂化泛函、TDDFT等任务还会包含其他类型密度矩阵，常见任务对应的密度矩阵字段如下：HF、DFT、CASSCF对应SCF；CIS、TDDFT对应CI、CI Rho(1)；CCSD对应CC；MP2、双杂化泛函对应MP2；MP3对应MP3；MP4SDQ对应MP4。开壳层体系（参考态）还包含自旋密度矩阵，例如三重态MP2计算包含Total SCF Density、Spin SCF Density、Total MP2 Density、Spin MP2 Density。
 - 总密度矩阵是Alpha和Beta密度矩阵的加和，自旋密度矩阵是Alpha密度矩阵减去Beta密度矩阵。
 
 ---
 
 ## 2. 自然轨道的分类与定义
-
 Multiwfn能产生三类自然轨道，分别对应不同密度矩阵的对角化：(a)自然轨道(NO)由总密度矩阵对角化得到，本征值（占据数）范围是0.0~2.0，开壳层时也称为unrestricted natural orbital (UNO)；(b)Alpha自然轨道和Beta自然轨道分别由Alpha和Beta密度矩阵对角化得到，占据数范围是0.0~1.0，也称为自然自旋轨道(NSO)；(c)自旋自然轨道(SNO)由自旋密度矩阵对角化得到，占据数范围是-1.0至1.0，正负值分别描述Alpha单电子和Beta单电子。
 - 本征矢即自然轨道系数，占据数轻微超过理论范围属正常情况。
 
 ---
 
 ## 3. TDDFT激发态密度矩阵的fch文件设置
-
 对甲醛进行TD-PBE0/6-31G*级别计算并将S1态密度矩阵存入chk，需要在Gaussian输入文件中使用`# PBE1PBE/6-31G* TD density`关键词（TD默认root=1）。使用formchk将chk转换为fch后，文件内会包含Total SCF Density（基态DFT）、Total CI Rho(1) Density（TDDFT非弛豫S1态）、Total CI Density（TDDFT弛豫S1态）三个字段。
 - 必须包含density关键词，且理论方法需有解析梯度，以确保密度矩阵被正确写入fch文件。
 
 ---
 
 ## 4. 在Multiwfn中基于fch产生自然轨道的步骤
-
 在Multiwfn中载入fch文件后，依次输入主菜单200、子功能16，并选择密度矩阵级别（如CI），程序即可读取fch中的特定密度矩阵并产生对应的自然轨道。产生的自然轨道占据数会直接显示在屏幕上，此时内存中的基函数信息已更新为自然轨道情况。
 - 若需进行依赖GTF信息的分析（如ADCH电荷），应选择y将当前波函数导出为new.mwfn并自动载入，以同步更新GTF信息。
 
 ---
 
 ## 5. 甲醛TDDFT激发态S1态的性质分析结果
-
 基于产生的S1态自然轨道，计算得到甲醛C-O Mayer键级为1.18，O的ADCH电荷为-0.128。相比之下，基态DFT计算的C-O Mayer键级为1.98，O的ADCH电荷为-0.296。
 - 激发态键级减小且O原子负电荷减少（即正得更多），表明该激发为n->pi*激发，削弱了C-O键并使电子从氧转移向碳。
 
 ---
 
 ## 6. 丁烷双自由基SNO轨道的占据数特征
-
 对丁烷双自由基体系，基于SCF密度矩阵选择产生自旋自然轨道(SNO)，其占据数显示正值中仅有一个显著值0.957908，负值中仅有一个显著值-0.957908。这对应于理想双自由基体系中的一个Alpha单电子和一个Beta单电子。
 - 这两个主要SNO轨道分别描述了未成对的Alpha电子和Beta电子的分布特征。
 
 ---
 
 ## 7. 基于SNO轨道的单电子分布定量分析
-
 在Multiwfn中载入包含SNO轨道的new.mwfn文件，通过主功能0可查看轨道图形，并通过主功能8（Hirshfeld方式）对轨道进行成分分析。对主要描述Alpha单电子的SNO1轨道分析发现，Alpha单电子主要分布在C1（70.15%）及相连H原子上，在C4-C7之间也有少量分布。
 - SNO轨道占用的是记录Alpha轨道的空间，Beta轨道部分无意义（占据数为0），这仅是形式上的存储安排，不代表SNO物理意义是Alpha轨道。
 
 ---
 
 ## 8. 自旋密度与自旋自然轨道分析的异同
-
 对丁烷双自由基体系，自旋密度分析（原子自旋布居）显示C1为0.709、C10为-0.709，C4和C7由于正负抵消布居接近0。自旋密度分布特征等于主要描述Alpha单电子的SNO1和主要描述Beta单电子的SNO96特征的叠加，SNO重叠区（如C4-C7）在自旋密度中相互抵消。
 - 分析SNO可分别考察Alpha和Beta电子的原始分布及轨道特征，分析自旋密度便于了解抵消后的“净”分布，两者互补。
