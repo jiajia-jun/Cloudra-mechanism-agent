@@ -969,6 +969,7 @@ def _graph_with_ts(r_smiles, p_smiles):
 def test_binding_protonation_variant_partial_credit():
     """质子化变体（[OH3+] vs O、乙酸根 vs 乙酸）给 partial 分而非判零；
     真不同物种仍不绑。TS 继承较弱端点的质量。"""
+    pytest.importorskip("rdkit")  # 质子化骨架通道依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark.integrity import bind_graph_to_evidence
 
     graph = _graph_with_ts(["[OH3+]"], ["CC(=O)[O-]"])
@@ -1003,6 +1004,7 @@ def test_binding_full_match_quality_one():
 def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
     """端到端：质子化变体证据 -> integrity 通过但 binding_quality<1，
     runner composite 被乘性扣减而不是判零。"""
+    pytest.importorskip("rdkit")  # 同上：质子化 partial 通道依赖 RDKit
     from cloudra.benchmark.runner import BenchmarkRunner
     from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec, TaskSpec
 
