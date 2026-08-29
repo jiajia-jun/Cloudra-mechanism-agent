@@ -45,7 +45,8 @@ class BarrierType(str, Enum):
 class BarrierReference(str, Enum):
     """能垒锚点的参考系。双阱型离子-分子反应里"中央能垒"（TS 相对离子-偶极
     络合物）与"TS 相对反应物渐近线"相差一个络合物阱深，必须分开记录，
-    否则同一体系的两个口径会被误判成 ~10 kcal/mol 的偏差。"""
+    否则同一体系的两个口径会被误判成 ~10 kcal/mol 的偏差。easy 档统一记
+    CENTRAL（反应物络合物口径；登记细节见 gen_easy_tasks）。"""
 
     CENTRAL = "central_complex"  # TS relative to the ion-dipole complex
     REACTANTS = "reactants"      # TS relative to the separated reactants
@@ -91,8 +92,14 @@ class MechanismNode(BaseModel):
 class BondChangeSet(BaseModel):
     """Bond changes for one elementary step, as atom-mapped index pairs.
 
-    `break_`/`form` hold [i, j] atom-mapped index pairs (1-based, matching the
-    atom-mapped reaction SMILES). The symmetric difference of two steps' bond
+    `break_`/`form` hold [i, j] atom-mapped index pairs (1-based). The index
+    convention is fixed per task by the atom-mapped reactant SMILES shown to
+    the agent in the query (`gen_easy_tasks._MAPPED_REACTANTS`), and gold edges
+    use the same numbers, so agent and gold bond change sets are directly
+    comparable. A pair belongs to `break` if the bond order between the two
+    atoms decreases over the step (including full cleavage), to `form` if it
+    increases (including newly formed bonds); purely conformational/inversion
+    steps carry two empty lists. The symmetric difference of two steps' bond
     change sets is the GED edge-substitution cost.
     """
 
@@ -240,6 +247,17 @@ class IntegrityRubric(BaseModel):
     evidence_match: Literal["smiles_annotation", "parse_structure_from_file"] = (
         "smiles_annotation"
     )
+    # 全绑阈值：指纹/哈希 cost ≤ 此值记质量 1.0。超过时查质子化骨架——仅
+    # 电荷态/质子化形式不同的变体按可变 partial 记分（质量 = 1-(1-锚点)·w，
+    # w = 指纹相对误差 1-Tanimoto；protonation_partial_quality 是最差锚点，
+    # 即指纹完全退化时的质量），其余不绑。binding_quality（平均质量）作为
+    # composite 的乘性因子进入 runner。
+    match_threshold: float = 0.2
+    protonation_partial_quality: float = 0.7
+    # 零证据倒扣分（负分下限）：图缺失/不可解析/没有任何节点绑到证据时，
+    # final = -no_evidence_penalty。缺部分证据不触发本条（走 binding_quality
+    # 比例扣），只有"完全没有证据支撑"才倒扣。
+    no_evidence_penalty: float = 1.0
 
 
 class SelfConsistencyRubric(BaseModel):
@@ -257,6 +275,8 @@ class GraphSimilarityRubric(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     algorithm: Literal["chemical_parameterized_ged"] = "chemical_parameterized_ged"
+    # 子图打分：交付图覆盖 gold 即满分，多出的节点/边不罚（多想总是好事）。
+    subgraph_scoring: bool = True
     node_cost: str = "molhash_shortcut_then_morgan_sigmoid"
     sigmoid_center: float = 0.40
     sigmoid_steepness: Optional[float] = None

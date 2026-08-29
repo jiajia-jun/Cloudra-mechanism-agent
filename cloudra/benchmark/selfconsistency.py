@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from cloudra.benchmark.integrity import EvidenceFile
+from cloudra.benchmark.integrity import MAX_SCAN_BYTES, EvidenceFile
 from cloudra.benchmark.schema import SelfConsistencyRubric
 from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
 
@@ -159,7 +159,12 @@ def audit_self_consistency(
 ) -> SelfConsistencyReport:
     rubric = rubric or SelfConsistencyRubric()
     report = SelfConsistencyReport()
-    qm_files = [f for f in evidence_files if f.kind in ("gaussian", "orca")]
+    # 超过共享大小上限的文件在 Layer 1 没整读（无 SMILES 绑定），这里也不让
+    # cclib 整读——两层对齐，避免超大日志拖住评分器。
+    qm_files = [
+        f for f in evidence_files
+        if f.kind in ("gaussian", "orca") and f.size <= MAX_SCAN_BYTES
+    ]
     ts_files = [f for f in qm_files if _is_ts_path(Path(f.path).stem)]
     species_files = [f for f in qm_files if not _is_ts_path(Path(f.path).stem)]
 
