@@ -3,18 +3,27 @@
 Only whitelisted methods may run — anything else is blocked. A blacklist can
 always be bypassed, so every layer does positive (whitelist) matching:
 
-- `qm_input_writer`: structured tool with an explicit method field — exact
-  whitelist membership after normalization.
+- `qm_input_writer`: structured tool with an explicit method field — whitelist
+  membership at method-family granularity after normalization.
 - `submit_compute_job`: submits a prepared `input_file`, so the verdict comes
   from that file's *content* (strict mode: an input that cannot be verified
   as requesting a whitelisted method is blocked).
-- `bash`: the verdict comes from the *content of QM input files*, never from
-  keyword-matching the command text. Heredoc and echo/printf-redirect
-  payloads writing `.gjf`/`.com`/`.inp` files are extracted from the command
-  (nested one level when a payload is itself a script) and parsed — Gaussian
-  route cards (all of them, across `--Link1--` steps) / ORCA keyword lines.
-  A QM program invoked on a pre-existing file (`g16 foo.gjf`) is covered by
-  `check_input_files`, which the caller runs with sandbox access.
+- `bash` (registered tool name: `bashtools`): the verdict comes from the
+  *content of QM input files*, never from keyword-matching the command text.
+  Heredoc and echo/printf-redirect payloads writing `.gjf`/`.com`/`.inp` files
+  are extracted from the command (nested one level when a payload is itself a
+  script) and parsed — Gaussian route cards (all of them, across `--Link1--`
+  steps) / ORCA keyword lines. A QM program invoked on a pre-existing file
+  (`g16 foo.gjf`) is covered by `check_input_files`, which the caller runs with
+  sandbox access.
+
+Whitelist matching is at method-*family* granularity: any token containing
+`xtb` (`xtb2`, `gfn2-xtb`, `xtbff`) matches an `xtb` entry, and any `mace-*`
+token matches a `mace` entry. Route text cannot distinguish MLIP model
+variants (mace-omol25 vs mace-off), so variant-level enforcement is out of
+band, at the method-provisioning side. Gaussian MLIP runs go through the
+`external="engine"` route keyword; the engine value is the method candidate,
+and a bare `external` with no value stays fail-closed.
 
 Parsing is done with small deterministic route-card/keyword-line readers. The
 obvious library alternative (cclib) parses *output* logs, not input route
@@ -73,6 +82,9 @@ _REDIRECT_WRITE_RE = re.compile(
 _ARITH_RE = re.compile(r"\$\(\(.*?\)\)")
 # 嵌套脚本载荷的递归解析深度上限
 _MAX_EMBED_DEPTH = 2
+# Gaussian `external="mace"` / `external='mace'` / `external=mace`：外部引擎值
+# 才是方法候选；裸 `external`（无值）保持 fail-closed
+_EXTERNAL_VALUE_RE = re.compile(r"^external=[\"']?([a-z0-9_.-]+)[\"']?$")
 
 
 @dataclass
@@ -87,11 +99,23 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip().lower())
 
 
+def _family(token: str) -> str:
+    """方法族归一：白名单按方法族粒度匹配（`xtb2`/`gfn2-xtb`/`xtbff` → `xtb`，
+    `mace-*` → `mace`）。路线卡文本无法区分 MLIP 模型变体（mace-omol25 vs
+    mace-off），变体级管控在带外（方法供给端），不在本层。"""
+    t = token.lower()
+    if "xtb" in t:
+        return "xtb"
+    if t.startswith("mace"):
+        return "mace"
+    return t
+
+
 def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
     """Structured check for an explicit method string (qm_input_writer path):
-    exact whitelist membership after normalization."""
-    nm = _normalize(method)
-    allowed = {_normalize(a) for a in policy.allowed_methods}
+    whitelist membership at method-family granularity after normalization."""
+    nm = _family(_normalize(method))
+    allowed = {_family(_normalize(a)) for a in policy.allowed_methods}
     if nm in allowed:
         return MethodVerdict(allowed=True, method=method)
     return MethodVerdict(
@@ -154,13 +178,21 @@ def _gaussian_route_cards(content: str) -> list[list[str]]:
 def _extract_gaussian_methods(content: str) -> list[list[str]]:
     """每张路由卡的方法候选列表。`method/basis` slash 形式是权威声明；无
     slash 时（半经验如 `# am1 opt`）取非作业类型/非 key=value/非基组的裸
-    token。"""
+    token。`external="engine"` 是 MLIP 外部路由：引擎值（小写）作为方法候选
+    计入权威声明位；裸 `external` 无引擎值时保留为候选（白名单外必拦）。"""
     per_card: list[list[str]] = []
     for tokens in _gaussian_route_cards(content):
         slashed: list[str] = []
         bare: list[str] = []
         for tok in tokens:
             t = tok.lower()
+            if t == "external" or t.startswith("external="):
+                m = _EXTERNAL_VALUE_RE.match(t)
+                if m is not None:
+                    slashed.append(m.group(1))
+                elif t == "external":
+                    bare.append(t)  # 裸 external：留候选，白名单外 fail-closed
+                continue
             if "/" in t:
                 head = t.split("/", 1)[0]
                 if head:
@@ -246,7 +278,7 @@ def check_input_content(
                 f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
             )
         return MethodVerdict(allowed=True)
-    allowed = {_normalize(a) for a in policy.allowed_methods}
+    allowed = {_family(_normalize(a)) for a in policy.allowed_methods}
     if engine == "gaussian":
         cards = _extract_gaussian_methods(content)
         if not cards or any(not c for c in cards):
@@ -264,7 +296,7 @@ def check_input_content(
                 reason="orca input has no parseable method directive; "
                 f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
             )
-    bad = [c for c in candidates if c not in allowed]
+    bad = [c for c in candidates if _family(c) not in allowed]
     if bad:
         return MethodVerdict(
             allowed=False,
@@ -366,9 +398,10 @@ def intercept(
       `input_file`, so the verdict comes from that file's *content*
       (strict: unverifiable input is blocked). Relative paths resolve
       against `base_dir` (the sandbox root the caller runs in).
-    - bash calls are judged by the *content* of QM inputs they write; the raw
-      command text is never keyword-scanned. Calls that merely reference an
-      existing on-disk QM input (`g16 foo.gjf`) are the caller's responsibility
+    - bash calls (tool names `bash` and `bashtools`) are judged by the
+      *content* of QM inputs they write; the raw command text is never
+      keyword-scanned. Calls that merely reference an existing on-disk QM
+      input (`g16 foo.gjf`) are the caller's responsibility
       via `check_input_files`."""
     layers = set(policy.intercept_layers)
     if tool_name == "qm_input_writer" and "qm_input_writer" in layers:
@@ -404,7 +437,8 @@ def intercept(
                 reason=f"cannot read input file {input_file}: {exc}",
             )
         return check_input_content(content, policy, filename=p.name, strict=True)
-    if tool_name == "bash" and "bash" in layers:
+    if tool_name in ("bash", "bashtools") and "bash" in layers:
+        # 注册的 bash 工具真实名是 bashtools（tools/registry.py），两个名字都匹配
         command = str(arguments.get("command") or arguments.get("script") or "")
         for fname, content in extract_embedded_inputs(command):
             verdict = check_input_content(content, policy, filename=fname)

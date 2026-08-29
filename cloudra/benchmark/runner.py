@@ -83,7 +83,9 @@ class BenchmarkDB:
             )
 
     def record(self, result: RunResult) -> None:
+        # latest-result-per-task：复跑先删该题旧行再插入，runs 表每题恒一行
         with closing(self._connect()) as c, c:
+            c.execute("DELETE FROM runs WHERE task_id = ?", (result.task_id,))
             c.execute(
                 "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?)", result.to_row()
             )
@@ -176,8 +178,11 @@ class BenchmarkRunner:
 
     def run_task(self, task: TaskSpec) -> RunResult:
         sandbox = self.sandbox_for(task.task_id)
-        # 复跑从干净沙箱开始：上一轮的证据文件残留会污染取证扫描
-        if sandbox.exists():
+        # 复跑从干净沙箱开始：上一轮的证据文件残留会污染取证扫描。
+        # 沙箱路径可能是上一轮后端留下的 symlink 或普通文件（rmtree 会抛 OSError）。
+        if sandbox.is_symlink() or sandbox.is_file():
+            sandbox.unlink()
+        elif sandbox.exists():
             shutil.rmtree(sandbox)
         agent_barrier = self.backend(task, sandbox)
         result = self.score_sandbox(task, sandbox, agent_barrier)
@@ -185,7 +190,18 @@ class BenchmarkRunner:
         return result
 
     def run_all(self, tasks: list[TaskSpec]) -> list[RunResult]:
-        return [self.run_task(t) for t in tasks]
+        # 单题异常不拖垮整批：失败题落一条 notes 带原因的零分结果行并继续
+        results: list[RunResult] = []
+        for t in tasks:
+            try:
+                results.append(self.run_task(t))
+            except Exception as exc:
+                print(f"[benchmark] task {t.task_id} crashed: {exc!r}")
+                res = RunResult(task_id=t.task_id, sandbox=str(self.sandbox_for(t.task_id)))
+                res.notes.append(f"task crashed: {exc!r}")
+                self.db.record(res)
+                results.append(res)
+        return results
 
 
 def load_tasks(tasks_dir: Path) -> list[TaskSpec]:

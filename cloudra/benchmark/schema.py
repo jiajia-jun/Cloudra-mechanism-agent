@@ -175,8 +175,12 @@ class MethodPolicy(BaseModel):
       parsed the same way — the raw command text is never keyword-scanned.
 
     The easy-tier whitelist (MACE-OMol25 / xTB) has no basis-set concept at
-    all, so the policy carries no basis fields. Attempting a non-whitelisted
-    method is intercepted, never penalized."""
+    all, so the policy carries no basis fields. Whitelist matching happens at
+    method-*family* granularity (any `mace-*` token matches the MACE entry, any
+    token containing `xtb` matches the xTB entry): route-card text cannot
+    distinguish MLIP model variants (mace-omol25 vs mace-off), so variant-level
+    enforcement is out of band, at the method-provisioning side. Attempting a
+    non-whitelisted method is intercepted, never penalized."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -324,7 +328,8 @@ class RubricSpec(BaseModel):
 class TaskSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    task_id: str = Field(min_length=1)
+    # task_id 会被拼进沙箱路径并整目录删除（runner.run_task），必须挡住路径逃逸
+    task_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
     tier: Tier
     family: str = ""
     name: str = ""

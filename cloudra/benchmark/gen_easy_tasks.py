@@ -265,6 +265,8 @@ def _query(task_id: str, name: str, reactants: list[str], products: list[str], q
         "Every computational evidence file you produce for a species or step (QM input or log) "
         "must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer "
         "can bind each graph element to concrete evidence. "
+        "In your final summary you must report the computed barrier in kcal/mol for the "
+        "rate-determining step (relative to the separated reactants). "
         "Allowed computational methods are limited to MACE-OMol25 and xTB; "
         "calls beyond the whitelist are intercepted."
     )

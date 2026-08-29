@@ -163,7 +163,7 @@ def _smiles_in_text(text: str) -> list[str]:
     return out
 
 
-def scan_evidence_files(sandbox: Path) -> list[EvidenceFile]:
+def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[EvidenceFile]:
     files: list[EvidenceFile] = []
     for p in sorted(sandbox.rglob("*")):
         if not p.is_file():
@@ -171,6 +171,10 @@ def scan_evidence_files(sandbox: Path) -> list[EvidenceFile]:
         if p.suffix.lower() not in _EVIDENCE_SUFFIXES:
             continue
         if p.name == "mechanism_graph.json":
+            continue
+        # 兜底发现加载的交付图（如 sub/my_graph.json）同样不得计入证据——
+        # 否则图文件内嵌的 SMILES 会自绑，零计算证据也能过 Layer 1
+        if exclude is not None and p == exclude:
             continue
         kind = _classify(p)
         try:
@@ -313,7 +317,8 @@ def audit_integrity(
             f"evidence_match='{rubric.evidence_match}' not implemented; "
             "falling back to smiles_annotation binding"
         )
-    report.evidence_files = scan_evidence_files(sandbox)
+    # 兜底发现的交付图文件自身排除出证据扫描：其内嵌 SMILES 不构成计算证据
+    report.evidence_files = scan_evidence_files(sandbox, exclude=graph_path)
     report.node_bindings = bind_graph_to_evidence(graph, report.evidence_files, cfg)
 
     bindable = [b for b in report.node_bindings]

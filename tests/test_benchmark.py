@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.benchmark import gen_easy_tasks, selfconsistency
 from cloudra.benchmark.accuracy import score_accuracy
@@ -93,6 +94,27 @@ def test_easy_barrier_parsing_no_garbage():
         assert t.prompt.query.isascii() and "Determine the mechanism" in t.prompt.query
 
 
+def test_task_id_rejects_path_traversal():
+    """task_id 会拼进沙箱路径并被整目录删除：必须拒绝路径逃逸字符。"""
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    dumped = tasks[0].model_dump(mode="json", by_alias=True)
+    dumped["task_id"] = "../escape"
+    with pytest.raises(ValidationError):
+        TaskSpec.model_validate(dumped)
+    dumped["task_id"] = "a/b"
+    with pytest.raises(ValidationError):
+        TaskSpec.model_validate(dumped)
+    dumped["task_id"] = "ok_TASK-1"
+    assert TaskSpec.model_validate(dumped).task_id == "ok_TASK-1"
+
+
+def test_easy_query_requests_barrier():
+    """accuracy 层按 agent 报告的能垒评分：query 必须显式要求报告能垒。"""
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    for t in tasks:
+        assert "report the computed barrier in kcal/mol" in t.prompt.query
+
+
 # --- runner ---
 
 
@@ -107,6 +129,72 @@ def test_runner_rerun_starts_from_clean_sandbox(tmp_path):
     (sandbox / "stale_evidence.log").write_text("smiles: C=CC=C\n")  # 上一轮残留
     runner.run_task(tasks[0])  # 默认 no-op backend
     assert not (sandbox / "stale_evidence.log").exists()
+
+
+def test_runner_rerun_over_symlink_or_file_sandbox(tmp_path):
+    """上一轮后端若在沙箱路径留下 symlink 或普通文件，复跑不得抛 OSError。"""
+    import shutil
+
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    runner = BenchmarkRunner(tmp_path / "bench")
+    sandbox = runner.sandbox_for(tasks[0].task_id)
+
+    target = tmp_path / "real_target"
+    target.mkdir()
+    (target / "stale.txt").write_text("x")
+    try:
+        sandbox.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("当前平台不允许创建符号链接")
+    runner.run_task(tasks[0])
+    assert sandbox.is_dir() and not sandbox.is_symlink()
+    assert (target / "stale.txt").exists()  # unlink 只删链接，不碰目标目录
+
+    shutil.rmtree(sandbox)
+    sandbox.write_text("leftover")  # 普通文件占位同理
+    runner.run_task(tasks[0])
+    assert sandbox.is_dir() and not sandbox.is_symlink()
+
+
+def test_run_all_isolates_task_failure(tmp_path, capsys):
+    """单题后端异常不拖垮整批：失败题落 notes 带原因的零分行并继续。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:2]
+
+    def backend(task, sandbox):
+        if task.task_id == tasks[0].task_id:
+            raise RuntimeError("backend exploded")
+        sandbox.mkdir(parents=True, exist_ok=True)
+        return None
+
+    runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
+    results = runner.run_all(tasks)
+    assert [r.task_id for r in results] == [t.task_id for t in tasks]
+    assert results[0].final_score == 0.0
+    assert any("backend exploded" in n for n in results[0].notes)
+    assert "backend exploded" in capsys.readouterr().out
+    # 后续题目照常评分（no-op 交付：无图，integrity 判负）
+    assert any("mechanism_graph.json not found" in n for n in results[1].notes)
+
+
+def test_runner_rerun_keeps_single_runs_row(tmp_path):
+    """runs 表是 latest-result-per-task：复跑同题只保留一行。"""
+    import sqlite3
+
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:1]
+    runner = BenchmarkRunner(tmp_path / "bench")
+    runner.run_task(tasks[0])
+    runner.run_task(tasks[0])
+    with sqlite3.connect(runner.db.db_path) as c:
+        rows = c.execute(
+            "SELECT task_id FROM runs WHERE task_id = ?", (tasks[0].task_id,)
+        ).fetchall()
+    assert len(rows) == 1
 
 
 # --- GED anchors ---
@@ -181,6 +269,23 @@ def test_ged_edit_script_uses_species_not_ids():
     other = _graph(["C=CC=C", "C=C"], ["C1CCCC1"])
     script = mechanism_similarity(other, gold, GedConfig()).edit_script
     assert any("species_missing" in s and "C1CC=CCC1" in s for s in script)
+
+
+def test_ged_oversized_delivery_short_circuits():
+    """失控交付的超大图直接判最大差异（score 0.0），不调用 networkx——
+    optimize_graph_edit_distance 最坏指数复杂度，不能让它挂住评分器。"""
+    gold = _graph(["C=CC=C", "C=C"], ["C1CC=CCC1"])  # 3 nodes -> 守卫上限 30
+    big = GoldMechanismGraph(
+        nodes=[
+            MechanismNode(id=f"n{i}", role=NodeRole.INTERMEDIATE, smiles=["CC"])
+            for i in range(31)
+        ],
+        edges=[],
+    )
+    res = mechanism_similarity(big, gold, GedConfig())
+    assert res.score == 0.0
+    assert res.distance == res.max_distance
+    assert any("short-circuited" in s for s in res.edit_script)
 
 
 # --- accuracy ---
@@ -282,6 +387,38 @@ def test_method_policy_submit_compute_job_by_content(tmp_path):
 )
 def test_method_policy_bash_content(command, allowed):
     assert intercept("bash", {"command": command}, MethodPolicy()).allowed is allowed
+
+
+def test_method_policy_bashtools_real_tool_name():
+    """注册的 bash 工具真实名是 bashtools：真实工具名下 bash 层拦截同样生效。"""
+    policy = MethodPolicy()
+    bad = "cat > t.gjf <<EOF\n# b3lyp/6-31g(d) opt freq\nEOF"
+    assert not intercept("bashtools", {"command": bad}, policy).allowed
+    good = "cat > t.inp <<EOF\n! XTB2 OPT FREQ\nEOF"
+    assert intercept("bashtools", {"command": good}, policy).allowed
+
+
+def test_method_policy_family_granularity():
+    """白名单按方法族匹配：xtb2/gfn2-xtb -> xtb，mace-off -> mace；
+    族外方法（wb97m-v）仍拦。"""
+    policy = MethodPolicy()  # ["mace-omol25", "xtb"]
+    assert check_input_content("! XTB2 OPT FREQ\n", policy, "t.inp").allowed
+    assert check_input_content("! gfn2-xtb opt\n", policy, "t.inp").allowed
+    assert intercept("qm_input_writer", {"method": "mace-off"}, policy).allowed
+    assert not intercept("qm_input_writer", {"method": "wb97m-v"}, policy).allowed
+
+
+def test_method_policy_gaussian_external_route():
+    """Gaussian MLIP 走 external 路由：引擎值即方法候选；裸 external 无值
+    保持 fail-closed。"""
+    policy = MethodPolicy()
+    assert check_input_content(
+        '#p opt=(ts,noeigen,calcfc) freq external="mace"\n', policy, "t.gjf"
+    ).allowed
+    assert check_input_content("#p freq external='mace'\n", policy, "t.gjf").allowed
+    assert check_input_content("#p freq external=mace\n", policy, "t.gjf").allowed
+    assert not check_input_content("#p b3lyp/6-31g* opt\n", policy, "t.gjf").allowed
+    assert not check_input_content("#p opt external\n", policy, "t.gjf").allowed
 
 
 def test_method_policy_link1_and_multi_candidate():
@@ -476,6 +613,27 @@ def test_integrity_delivered_graph_lenient_loading(tmp_path):
     assert rep.delivered_graph is not None
     assert rep.delivered_graph.edges[0].id  # 缺省 id 已自动补
     assert rep.passed
+
+
+def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
+    """兜底发现的交付图（sub/my_graph.json）不得充当自身证据：图内嵌 SMILES
+    不构成计算证据，零计算证据的交付必须判负。"""
+    g = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["C=CC=C", "C=C"]},
+            {"id": "P", "role": "product", "smiles": ["C1CC=CCC1"]},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P"}],
+    }
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "my_graph.json").write_text(json.dumps(g))
+    rep = audit_integrity(tmp_path)
+    assert rep.graph_found and rep.graph_parseable
+    assert rep.graph_path == "sub/my_graph.json"
+    assert rep.evidence_files == []  # 交付图自身被排除出证据扫描
+    assert rep.fraction_bound == 0.0
+    assert not rep.passed
 
 
 # --- self-consistency ---

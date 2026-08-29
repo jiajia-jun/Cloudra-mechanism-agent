@@ -208,6 +208,13 @@ def _edge_subst(e1, e2, cfg: GedConfig) -> float:
 # ---------------------------------------------------------------------------
 
 
+# 交付图规模守卫：optimize_graph_edit_distance 最坏指数复杂度，失控 agent 交付
+# 超大图会挂住评分器。交付节点数超过 max(比值 * gold 节点数, 绝对上限) 时直接判
+# 最大差异，不调用 networkx。
+_GED_SIZE_GUARD_RATIO = 4
+_GED_SIZE_GUARD_ABS = 30
+
+
 def mechanism_similarity(
     agent: GoldMechanismGraph,
     gold: GoldMechanismGraph,
@@ -216,6 +223,18 @@ def mechanism_similarity(
     """Score agent mechanism against gold. Returns GedResult with score in
     [0, 1] (1 = identical) plus a human-readable edit script."""
     cfg = cfg or GedConfig()
+    guard_limit = max(_GED_SIZE_GUARD_RATIO * len(gold.nodes), _GED_SIZE_GUARD_ABS)
+    if len(agent.nodes) > guard_limit:
+        max_distance = (
+            cfg.node_delete_cost * max(len(agent.nodes), len(gold.nodes))
+            + cfg.edge_delete_cost * max(len(agent.edges), len(gold.edges))
+        )
+        note = (
+            f"delivered graph too large ({len(agent.nodes)} nodes > guard limit "
+            f"{guard_limit}, gold has {len(gold.nodes)}); short-circuited to "
+            "maximally different without running GED"
+        )
+        return GedResult(score=0.0, distance=max_distance, max_distance=max_distance, edit_script=[note])
     ga, gg = _lift(agent), _lift(gold)
 
     def node_subst(a, b):
