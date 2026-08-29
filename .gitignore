@@ -39,11 +39,12 @@ env/
 *.env
 
 # Runtime data (managed by platformdirs, not version control)
-conversations/
-logs/
-sessions/
-tasks/
-contexts/
+# 根级运行时目录；不递归命中 ideapool/tasks/ 等版本化题库源资产。
+/conversations/
+/logs/
+/sessions/
+/tasks/
+/contexts/
 
 # OS
 .DS_Store

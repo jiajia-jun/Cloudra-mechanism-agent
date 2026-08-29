@@ -1,0 +1,128 @@
+{
+  "task_id": "D1",
+  "tier": "easy",
+  "family": "D",
+  "name": "butadiene + ethylene Diels-Alder (parent DA)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: butadiene + ethylene Diels-Alder (parent DA). Reactant SMILES: C=CC=C.C=C; product SMILES: C1CC=CCC1; total charge 0, multiplicity 1; conditions: gas phase, 487-648 degC kinetics. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step (relative to the separated reactants). Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C=CC=C",
+      "C=C"
+    ],
+    "products": [
+      "C1CC=CCC1"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase, 487-648 degC kinetics",
+    "elements": [
+      "C",
+      "H"
+    ],
+    "max_heavy_atoms": 6,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "D1_R",
+          "role": "reactant",
+          "smiles": [
+            "C=CC=C",
+            "C=C"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "D1_TS",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS"
+        },
+        {
+          "id": "D1_P",
+          "role": "product",
+          "smiles": [
+            "C1CC=CCC1"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "D1_E1",
+          "from": "D1_R",
+          "to": "D1_P",
+          "via": "D1_TS",
+          "step_type": "concerted [4+2] cycloaddition, single step via symmetric TS",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": 27.5,
+      "barrier_type": "Ea",
+      "barrier_reference": "reactants",
+      "verification": "verified",
+      "reference_doi": "10.1021/jp012740f",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation"
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": true,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}
