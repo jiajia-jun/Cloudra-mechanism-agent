@@ -341,7 +341,7 @@ def ego_graph(
               FROM walk w JOIN kg_relations r ON w.id IN (r.src_id, r.dst_id)
               WHERE w.hop < ?
             ),""" + _DEG_CTE + """
-            SELECT e.id, e.type, e.label, e.n_sources, MIN(w.hop) AS hop,
+            SELECT e.id, e.type, e.label, e.n_sources, e.props, MIN(w.hop) AS hop,
                    COALESCE(d.degree, 0) AS degree
             FROM walk w JOIN kg_entities e ON e.id = w.id LEFT JOIN deg d ON d.id = e.id
             GROUP BY e.id
@@ -363,6 +363,7 @@ def ego_graph(
                 "id": str(r["id"]),
                 "type": r["type"],
                 "label": r["label"],
+                "label_en": _label_en(r["props"]),
                 "n_sources": int(r["n_sources"] or 1),
                 "degree": int(r["degree"] or 0),
                 "hop": int(r["hop"] or 0),
@@ -400,6 +401,7 @@ def ego_graph(
         return {
             "focus": {
                 "id": str(focus["id"]), "type": focus["type"], "label": focus["label"],
+                "label_en": _label_en(focus["props"]),
                 "n_sources": int(focus["n_sources"] or 1),
                 "degree": int(by_id[focus_id]["degree"] or 0), "hop": 0,
             },

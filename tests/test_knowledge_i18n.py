@@ -87,6 +87,19 @@ def test_label_en_none_for_missing_props(bilingual_db: Path):
     assert g["label_en"] is None
 
 
+def test_ego_graph_passes_label_en(bilingual_db: Path):
+    """前端图谱视图的数据源：ego 节点与 focus 都要透传 label_en。"""
+    eg = store.ego_graph(bilingual_db, "concept:过渡态", hops=1)
+    assert eg is not None
+    node = next(n for n in eg["nodes"] if n["id"] == "concept:过渡态")
+    assert node["label_en"] == "transition state"
+    assert node["label"] == "过渡态"
+    assert eg["focus"]["label_en"] == "transition state"
+    # 无 props 的实体：label_en 为 None 而非报错
+    gauss = next(n for n in eg["nodes"] if n["id"] == "software:Gaussian")
+    assert gauss["label_en"] is None
+
+
 # ---------------------------------------------------------------- plugin
 
 def test_ascii_dominant_graph_title_uses_label_en(bilingual_db, monkeypatch):

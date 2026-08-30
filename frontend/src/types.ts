@@ -98,6 +98,7 @@ export interface KgSearchRow {
   id: string;
   type: string;
   label: string;
+  label_en: string | null;
   content: string;
   score: number;
   hop: number;
@@ -109,6 +110,7 @@ export interface KgNode {
   id: string;
   type: string;
   label: string;
+  label_en: string | null;
   n_sources: number;
   degree: number;
   hop: number;

@@ -12,7 +12,7 @@ scripts/kg_vec_service.ps1 或直接：
 需自行用所选模型重新编码向量库。非默认模型首次使用从 HF 下载。
 
 端点：
-    GET /health          → {"ok": true, "model": ..., "library_model": ..., "count": 14994}
+    GET /health          → {"ok": true, "model": ..., "library_model": ..., "count": 14986}
     GET /search?q=&k=[&lang=zh|en] → {"hits": [{card_id, lang, blog_id, domain, heading, content, score}]}
     POST /search {"query": "...", "k": 5, "lang": "en"}
                          → 同上（chem-kb 混合 provider 走这条；GET 供人工/脚本调试）

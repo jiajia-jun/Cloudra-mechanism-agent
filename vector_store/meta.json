@@ -1,7 +1,7 @@
 {
   "model": "BAAI/bge-m3",
   "dim": 1024,
-  "count": 14990,
+  "count": 14986,
   "batch_size": 64,
   "created_at": "2026-08-30 23:42:15",
   "backend": "local",
@@ -9,7 +9,8 @@
   "elapsed_s": 3209.6,
   "text_recipe": "heading\\n+content, L2-normalized, float16",
   "langs": {
-    "zh": 7497,
+    "zh": 7493,
     "en": 7493
-  }
+  },
+  "v11_1_note": "4 schedule cards (kb:201:3/4/5, kb:714:6) removed bilingually; vectors surgically row-deleted, not re-encoded"
 }

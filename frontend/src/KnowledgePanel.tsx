@@ -138,7 +138,14 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
   const [graph, setGraph] = useState<KgGraph | null>(null);
   const [merged, setMerged] = useState<Array<KgEdge & { sources: string[] }>>([]);
   const [hops, setHops] = useState<1 | 2>(1);
+  const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const [sel, setSel] = useState<Sel>(null);
+
+  // EN 模式显示 label_en（缺失回退中文 label）；子行展示另一语言（可溯源）。
+  const displayName = (n: { label: string; label_en?: string | null }) =>
+    lang === 'en' ? n.label_en || n.label : n.label;
+  const subName = (n: { label: string; label_en?: string | null }) =>
+    lang === 'en' ? (n.label_en && n.label !== n.label_en ? n.label : '') : n.label_en || '';
 
   useEffect(() => {
     api
@@ -203,6 +210,19 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
                 {h}
               </button>
             ))}
+            <span className="kg-hops" style={{ marginLeft: 8 }}>
+              lang:
+              {(['zh', 'en'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  className={`btn ghost sm${lang === l ? ' active' : ''}`}
+                  onClick={() => setLang(l)}
+                >
+                  {l === 'zh' ? '中' : 'EN'}
+                </button>
+              ))}
+            </span>
           </div>
           <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={onClose}>
             close
@@ -293,7 +313,7 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
                           }}
                         />
                         <text className="dag-node-label" x={n.w / 2} y={n.h / 2 - 3} textAnchor="middle">
-                          {trunc(n.data.label || n.id, maxChars)}
+                          {trunc(displayName(n.data) || n.id, maxChars)}
                         </text>
                         <text
                           className="dag-node-sub"
@@ -302,7 +322,7 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
                           textAnchor="middle"
                           style={{ fill: stroke }}
                         >
-                          {trunc(n.data.type, maxChars + 8)}
+                          {trunc(subName(n.data) || n.data.type, maxChars + 8)}
                           {isFocus ? ' · focus' : ''}
                         </text>
                       </g>
@@ -314,11 +334,21 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
               <div className="kg-side">
                 {selNode ? (
                   <div className="modal-section">
-                    <div className="modal-section-title">{selNode.label}</div>
+                    <div className="modal-section-title">{displayName(selNode)}</div>
                     <div className="kg-fields">
                       <div>
                         <span>type</span> <b style={{ color: typeColor(selNode.type) }}>{selNode.type}</b>
                       </div>
+                      {selNode.label_en ? (
+                        <div>
+                          <span>label_en</span> <b>{selNode.label_en}</b>
+                        </div>
+                      ) : null}
+                      {selNode.label !== selNode.label_en ? (
+                        <div>
+                          <span>label_zh</span> <b>{selNode.label}</b>
+                        </div>
+                      ) : null}
                       <div>
                         <span>sources</span> <b>{selNode.n_sources}</b>
                       </div>
@@ -456,7 +486,9 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
                         <span className="kg-result-type" style={{ color: typeColor(r.type) }}>
                           {r.type}
                         </span>
-                        <span className="kg-result-label">{r.label}</span>
+                        <span className="kg-result-label">
+                          {lang === 'en' ? r.label_en || r.label : r.label}
+                        </span>
                         {r.hop > 0 && <span className="kg-result-hop">hop {r.hop}</span>}
                         <span className="kg-result-src">{r.source}</span>
                       </div>
