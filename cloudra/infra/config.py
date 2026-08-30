@@ -194,7 +194,13 @@ class CloudraConfig(BaseSettings):
         (self.data_dir / "contexts").mkdir(exist_ok=True)
 
     def save(self):
-        """Persist current config to YAML file."""
+        """Persist current config to YAML file.
+
+        plugins 键采用磁盘优先合并：磁盘 YAML 里存在非 None 的 plugins 就原样
+        保留磁盘值，否则落内存值。这堵住"运行中的服务用旧内存快照整文件重写、
+        抹掉期间由 knowledge install 手写的 plugins"的竞态。代价：save() 无法
+        移除 plugins 条目——卸载插件请手改 YAML。
+        """
         cfg_path = self.config_file
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
@@ -235,6 +241,21 @@ class CloudraConfig(BaseSettings):
             "openalex_api_key": self.openalex_api_key,
             "openalex_mailto": self.openalex_mailto,
         }
+        # plugins 磁盘优先合并（见 docstring）；读失败按无磁盘值处理。
+        disk_plugins = None
+        try:
+            if cfg_path.exists():
+                disk = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+                raw = disk.get("plugins")
+                if raw is not None:
+                    disk_plugins = [str(s) for s in raw]
+        except Exception as e:
+            print(f"[Config Warning] Failed to merge plugins from {cfg_path}: {e}")
+        final_plugins = disk_plugins if disk_plugins is not None else (
+            [str(s) for s in self.plugins] if self.plugins else None
+        )
+        if final_plugins:
+            data["plugins"] = final_plugins
         text = yaml.dump(
             data,
             allow_unicode=True,

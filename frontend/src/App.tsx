@@ -5,6 +5,7 @@ import DagPanel from './DagPanel';
 import type { Agent, EventEnvelope, Project } from './types';
 import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
+import KnowledgePanel from './KnowledgePanel';
 import AttentionDock, { type NotifPermission } from './AttentionDock';
 import { collectPending, diffNewItems, type PendingAttention, type ProjectPending } from './attention';
 import {
@@ -141,6 +142,7 @@ export default function App() {
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [globalOpen, setGlobalOpen] = useState(false);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1265,6 +1267,14 @@ export default function App() {
           >
             ⚙ Global settings
           </button>
+          <button
+            type="button"
+            className="btn outline sm sidebar-knowledge"
+            title="chem-kb knowledge base: overview, entity search and ego graph"
+            onClick={() => setKnowledgeOpen(true)}
+          >
+            ⌘ Knowledge
+          </button>
         </div>
       </aside>
 
@@ -1606,7 +1616,8 @@ export default function App() {
           onRespond={handleAttentionRespond}
         />
       </div>
-      {globalOpen && <GlobalConfig onClose={() => setGlobalOpen(false)} onToast={pushToast} />}
+        {globalOpen && <GlobalConfig onClose={() => setGlobalOpen(false)} onToast={pushToast} />}
+        {knowledgeOpen && <KnowledgePanel onClose={() => setKnowledgeOpen(false)} onToast={pushToast} />}
     </div>
   );
 }

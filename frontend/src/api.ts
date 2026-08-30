@@ -1,4 +1,12 @@
-import type { Agent, EventEnvelope, Project, RuntimeConfig } from './types';
+import type {
+  Agent,
+  EventEnvelope,
+  KgGraph,
+  KgOverview,
+  KgSearchResponse,
+  Project,
+  RuntimeConfig,
+} from './types';
 
 // Resolution order: ?runtime= query param -> Vite env -> same origin
 // (production serves the SPA and API on one port).
@@ -194,6 +202,15 @@ export const api = {
       body: JSON.stringify({ keep_recent: keepRecent }),
     }),
   listSkills: () => request<Array<Record<string, unknown>>>('/api/v2/skills'),
+  knowledgeOverview: () => request<KgOverview>('/api/v2/knowledge/overview'),
+  knowledgeSearch: (q: string, limit = 10) =>
+    request<KgSearchResponse>(
+      `/api/v2/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  knowledgeGraph: (focus: string, hops: 1 | 2) =>
+    request<KgGraph>(
+      `/api/v2/knowledge/graph?focus=${encodeURIComponent(focus)}&hops=${hops}`,
+    ),
 };
 
 // Must stay in sync with cloudra/runtime_v2/events.py EVENT_TYPES: the server

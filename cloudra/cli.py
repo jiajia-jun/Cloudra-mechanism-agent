@@ -228,6 +228,137 @@ def config_set(key, value):
     console.print(f"[green]已设置 {key} = {display_value}[/green]")
 
 
+@cli.group(name="knowledge")
+def knowledge_cmd():
+    """知识图谱（chem-kb）：导入 CSV、统计、检索与 provider 激活。"""
+    pass
+
+
+@knowledge_cmd.command(name="import")
+@click.option("--entities", "entities_csv", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              default=Path("KG数据/kg-entities.csv"), show_default=True, help="实体 CSV（utf-8-sig）")
+@click.option("--relations", "relations_csv", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              default=Path("KG数据/kg-relations.csv"), show_default=True, help="关系 CSV（utf-8-sig）")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None,
+              help="目标库路径（默认 data_dir/knowledge/chem_kg.db）")
+def knowledge_import(entities_csv, relations_csv, db_path):
+    """导入 KG CSV 到 chem_kg.db（幂等，可重复执行）。"""
+    from cloudra.knowledge import store
+    from cloudra.persistence.paths import knowledge_graph_db_path
+
+    db = db_path or knowledge_graph_db_path()
+    report = store.import_csv(db, entities_csv, relations_csv)
+    console.print(f"[green]导入完成:[/green] {db}")
+    console.print(f"  entities: {report['entities']}  relations: {report['relations']}  "
+                  f"encoding: {report['encoding']['entities']}/{report['encoding']['relations']}")
+    if report["bad_rows"]:
+        console.print(f"[yellow]坏行 {len(report['bad_rows'])} 条（悬挂引用，已跳过）:[/yellow]")
+        for bad in report["bad_rows"][:10]:
+            console.print(f"    line {bad['line']}: {bad['reason']}")
+    if report.get("smiles_invalid"):
+        console.print(f"[yellow]SMILES 校验失败 {report['smiles_invalid']} 条（rdkit 软告警）[/yellow]")
+    console.print(f"  耗时 {report['seconds']}s")
+
+
+@knowledge_cmd.command(name="stats")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
+def knowledge_stats(db_path):
+    """库概览：计数、类型/关系分布、corroborated 数。"""
+    from cloudra.knowledge import store
+    from cloudra.persistence.paths import knowledge_graph_db_path
+
+    db = db_path or knowledge_graph_db_path()
+    info = store.overview(db)
+    if not info["db_present"]:
+        console.print(f"[yellow]库不存在: {db}（先运行 cloudra knowledge import）[/yellow]")
+        return
+    console.print(Panel(f"[bold]chem_kg.db[/bold]  {db}", style="cyan"))
+    console.print(f"实体 {info['entities']}  关系 {info['relations']}  corroborated {info['corroborated']}")
+    table = Table(title="类型分布", show_header=True, header_style="bold magenta")
+    table.add_column("type")
+    table.add_column("count", justify="right")
+    for k, v in info["type_dist"].items():
+        table.add_row(k, str(v))
+    console.print(table)
+    table = Table(title="关系分布 (top 15)", show_header=True, header_style="bold magenta")
+    table.add_column("rel_type")
+    table.add_column("count", justify="right")
+    for k, v in list(info["rel_dist"].items())[:15]:
+        table.add_row(k, str(v))
+    console.print(table)
+
+
+@knowledge_cmd.command(name="search")
+@click.argument("query")
+@click.option("--limit", type=int, default=8, show_default=True)
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
+def knowledge_search(query, limit, db_path):
+    """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域）。"""
+    from cloudra.knowledge import store
+    from cloudra.persistence.paths import knowledge_graph_db_path
+
+    db = db_path or knowledge_graph_db_path()
+    rows = store.search_graph(db, query, limit=limit)
+    if not rows:
+        console.print("[yellow]无命中。[/yellow]" if db.exists() else f"[yellow]库不存在: {db}[/yellow]")
+        return
+    table = Table(title=f"chem-kb 检索（{rows[0]['fallback']}）", show_header=True, header_style="bold magenta")
+    table.add_column("hop", justify="right")
+    table.add_column("label")
+    table.add_column("type")
+    table.add_column("source")
+    table.add_column("score", justify="right")
+    for r in rows:
+        table.add_row(str(r["hop"]), r["label"], r["type"], r["source"], f"{r['score']:.3f}")
+    console.print(table)
+
+
+@knowledge_cmd.command(name="export")
+@click.argument("out_dir", type=click.Path(file_okay=False, path_type=Path))
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
+def knowledge_export(out_dir, db_path):
+    """把库导出为 kg-entities.csv / kg-relations.csv。"""
+    import csv
+
+    from cloudra.knowledge import store
+    from cloudra.persistence.paths import knowledge_graph_db_path
+
+    db = db_path or knowledge_graph_db_path()
+    if not db.exists():
+        console.print(f"[yellow]库不存在: {db}[/yellow]")
+        sys.exit(1)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    con = store._open_ro(db)
+    try:
+        with (out_dir / "kg-entities.csv").open("w", encoding="utf-8-sig", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["id", "type", "label", "smiles", "props", "n_sources"])
+            for row in con.execute("SELECT id, type, label, smiles, props, n_sources FROM kg_entities ORDER BY id"):
+                w.writerow(row)
+        with (out_dir / "kg-relations.csv").open("w", encoding="utf-8-sig", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["src_id", "dst_id", "rel_type", "evidence_level", "source", "falsified", "note"])
+            for row in con.execute("SELECT src_id, dst_id, rel_type, evidence_level, source, falsified, note "
+                                   "FROM kg_relations ORDER BY id"):
+                w.writerow(row)
+    finally:
+        con.close()
+    console.print(f"[green]导出完成:[/green] {out_dir.resolve()}")
+
+
+@knowledge_cmd.command(name="install")
+def knowledge_install():
+    """把 chem-kb 混合 provider 写进 config.yaml 的 plugins 列表（幂等）。"""
+    from cloudra.knowledge.installer import install_plugin_spec
+
+    cfg_path, added = install_plugin_spec()
+    if added:
+        console.print(f"[green]已写入 plugins:[/green] {cfg_path}")
+    else:
+        console.print(f"[yellow]已存在，跳过:[/yellow] {cfg_path}")
+    console.print("重启 uvicorn 后生效（插件在 app 启动时加载）。")
+
+
 @cli.command()
 def skills():
     """列出可用的 Skills。"""

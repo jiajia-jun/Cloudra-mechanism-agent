@@ -84,3 +84,54 @@ export interface RuntimeConfig {
   coordinator: RuntimeConfigSlot;
   follower: RuntimeConfigSlot;
 }
+
+export interface KgOverview {
+  db_present: boolean;
+  entities: number;
+  relations: number;
+  corroborated: number;
+  type_dist: Record<string, number>;
+  rel_dist: Record<string, number>;
+}
+
+export interface KgSearchRow {
+  id: string;
+  type: string;
+  label: string;
+  content: string;
+  score: number;
+  hop: number;
+  fallback: string;
+  source: string;
+}
+
+export interface KgNode {
+  id: string;
+  type: string;
+  label: string;
+  n_sources: number;
+  degree: number;
+  hop: number;
+}
+
+export interface KgEdge {
+  src_id: string;
+  dst_id: string;
+  rel_type: string;
+  corroborated: boolean;
+  source: string;
+  falsified: boolean;
+}
+
+export interface KgGraph {
+  focus: KgNode | null;
+  nodes: KgNode[];
+  edges: KgEdge[];
+  truncated: boolean;
+}
+
+export interface KgSearchResponse {
+  query: string;
+  fallback: string | null;
+  results: KgSearchRow[];
+}

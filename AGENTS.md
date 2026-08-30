@@ -35,10 +35,18 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **`persistence/` — 持久化 / 状态**
 
-- `database.py` — 会话级 SQLite（ConversationDB；v2 里主要服务 DAG 存储与 artifacts）。
+- `database.py` — 会话级 SQLite（ConversationDB；v2里主要服务 DAG 存储与 artifacts）。
 - `artifacts.py` — 不可变产物快照（ArtifactService）与短期下载授权。
 - `memory.py`（长期记忆 MEMORY.md，prompt_assembler 用）、`core/message_history.py`（JSONL 消息历史；Supervisor 与 legacy llm_call 路径）。
-- `paths.py` — data_dir 下所有路径的**唯一事实来源**；`fs_utils.py` — 原子写；`workspace.py` — 工作区受限读写。
+- `paths.py` — data_dir 下所有路径的**唯一事实来源**（含 `knowledge_dir()` / `knowledge_graph_db_path()` = data_dir/knowledge/chem_kg.db）；`fs_utils.py` — 原子写；`workspace.py` — 工作区受限读写。
+
+**`knowledge/` — 化学知识库（chem-kb）**
+
+- 数据侧实现，与 `runtime_v2/knowledge.py`（图书馆协议）互补：协议管合并排序，本包管存储与检索。
+- `store.py` — chem_kg.db 的 DDL/导入/查询（sync-only，async 调用方 `to_thread`）。实体 12.7k + 行级关系 9k，源自 知识卡片 洁净版抽取（`KG数据/` CSV）。FTS5 trigram + LIKE 回退、1~2 跳 ego 邻域（递归 CTE 取 MIN(hop)、度预聚合、确定性排序）、`relations_of_source`（卡→图缝合，走 `idx_rel_source`）。读路径只读连接、缺库返回空**绝不建库**；写路径只有 `ensure_schema`/`import_csv`（WAL + checkpoint TRUNCATE）。导入幂等（两表 ON CONFLICT DO UPDATE），悬挂引用进坏行报告不中断。
+- `plugin.py` — 单一混合 provider（`cloudra.knowledge.plugin:plugin`）：语义通道 = 向量微服务（`CLOUDRA_KG_VEC_URL`，默认 127.0.0.1:8765，httpx 超时 3s，异常该通道为空绝不抛）+ 图谱通道 = 本地 SQLite。配额结构性保证双通道全带上：limit=5 → 语义 ceil(3/5)=3 + 图谱 floor(2/5)=2；单通道为空时另一通道补满；双缺 → []。语义命中按 blog_id 缝合 1~2 条卡内关系（"‖图:" 行，content ≤200 码点）。只返回 `KnowledgeEntry` 实例（dict 路径的 float() 会穿透异常隔离，绝不走）。条目前缀 〔卡片〕/〔图谱〕；跨通道分数只是近似排序（bm25 与余弦不同量纲），最终排序以图书馆层的 (level, falsified, -score) 为准。
+- `installer.py` — `cloudra knowledge install`：把插件 spec 幂等写进 config.yaml 的 plugins 列表（直接编辑 YAML，非 `save()`）。
+- CLI：`cloudra knowledge import/stats/export/search/install`（延迟 import；数据默认取仓库 `KG数据/`）。
 
 **`base/` — 数据类与基类**
 
@@ -52,7 +60,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 - `slurm.py`、`compute_utils.py`、`operations.py`（数据目录备份/恢复）、`yolo_guard.py`（自动审批安全守卫）。
 - `platform_utils.py`、`runtime_profile.py`（运行能力 profile，registry 的 runtime_profiles 过滤用）。
 - `json_args.py` — 工具参数 JSON 的宽松解析/修复（LLM 产出的畸形 JSON 在此兜底）。
-
+- `infra/` 基础设施备注：`config.py` 的 `save()` 对 `plugins` 键**磁盘优先合并**（磁盘 YAML 存在非 None 值就原样保留，否则落内存值）——堵住运行中服务用旧内存快照整文件重写、抹掉 `knowledge install` 手写 plugins 的竞态；代价是 `save()` 无法移除 plugins 条目，卸载插件手改 YAML。
 **包根一级子包**：`dag/`、`runtime/`（仅剩共享件，见上）、`tools/`、`subagents/`、`prompts/`、`skills/`、`benchmark/`。
 
 **`benchmark/` — 基准评测框架（独立于会话运行时）**
@@ -102,6 +110,8 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 ## 顶层散件
 
+- `KG数据/` — 知识图谱 CSV（kg-entities/kg-relations/kg-stats，utf-8-sig；`cloudra knowledge import` 的输入）。
+- `向量库/` — 知识卡片 bge-m3 向量四件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py）；`scripts/kg_vec_service.py` 微服务只读这套文件，向量侧依赖（torch/sentence-transformers）全部留在外部 .venv-trans，cloudra venv 不装 torch；服务不随 cloudra 自启（`scripts/kg_vec_service.ps1` 手动拉起）。
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。
 - `install.sh` / `install.ps1` — 安装脚本；`web.sh` / `web.ps1` — 开发便捷启动脚本（`run.sh` 调已删的 v1 子命令，已删）；`README_CN.md` 为中文 README。`build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改。

@@ -101,7 +101,9 @@ cloudra = ["prompts/*.md", "skills/**/*", "calculator.sh"]
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-addopts = "-q"
+# no:dash — 用户级 site-packages 里残缺的 dash（pytest11 插件）会让收集阶段
+# 直接 ImportError；本仓库不用 dash.testing，显式禁掉（无 dash 的机器无影响）。
+addopts = "-q -p no:dash"
 
 [tool.ruff]
 line-length = 120

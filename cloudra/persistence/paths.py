@@ -79,3 +79,13 @@ def memory_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "memory" / "MEMORY.md"
 
 
+def knowledge_dir(data_dir: Optional[PathLike] = None) -> Path:
+    """知识图谱子系统的数据目录（chem-kb SQLite 所在地）。"""
+    return _root(data_dir) / "knowledge"
+
+
+def knowledge_graph_db_path(data_dir: Optional[PathLike] = None) -> Path:
+    """知识图谱数据库路径（kg-entities/kg-relations CSV 导入产物）。"""
+    return knowledge_dir(data_dir) / "chem_kg.db"
+
+

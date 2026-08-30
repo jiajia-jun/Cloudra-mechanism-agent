@@ -186,8 +186,95 @@ body {
   flex-shrink: 0;
   border-top: 1px solid var(--border);
   padding: 10px 12px;
+  display: flex;
+  gap: 8px;
 }
-.sidebar-foot .sidebar-global { width: 100%; justify-content: center; }
+.sidebar-foot .sidebar-global,
+.sidebar-foot .sidebar-knowledge { flex: 1 1 0; justify-content: center; width: auto; }
+
+/* -------------------------------------------------- knowledge panel (kg) */
+.kg-modal {
+  width: min(1200px, calc(100vw - 40px));
+  height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+}
+.kg-modal .kg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.kg-toolbar .kg-query { flex: 1 1 auto; }
+.kg-fallback { font-size: 12px; color: var(--fg-tertiary); }
+.kg-hops { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fg-tertiary); margin-left: 12px; }
+.kg-hops .btn.active { color: var(--green); border-color: rgba(34, 197, 94, 0.4); }
+.kg-modal .kg-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 12px; }
+.kg-main { flex: 1 1 auto; min-width: 0; overflow: auto; }
+.kg-overview { display: flex; flex-direction: column; gap: 14px; }
+.kg-stat-row { display: flex; gap: 12px; }
+.kg-stat {
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+}
+.kg-stat b { font-size: 20px; color: var(--fg); }
+.kg-stat span { font-size: 12px; color: var(--fg-tertiary); }
+.kg-dist { display: flex; flex-wrap: wrap; gap: 6px; }
+.kg-chip {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.kg-chip:hover { background: var(--bg-hover); }
+.kg-results { display: flex; flex-direction: column; gap: 4px; }
+.kg-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.kg-result:hover { background: var(--bg-hover); }
+.kg-result-type { font-size: 11px; flex-shrink: 0; }
+.kg-result-label { font-size: 13px; }
+.kg-result-hop { font-size: 11px; color: var(--fg-tertiary); }
+.kg-result-src { font-size: 11px; color: var(--fg-faint); margin-left: auto; font-family: var(--mono); }
+.kg-side {
+  flex: 0 0 280px;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+  overflow-y: auto;
+}
+.kg-fields { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 12.5px; }
+.kg-fields span { color: var(--fg-tertiary); display: inline-block; min-width: 76px; }
+.kg-edges-list { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; margin-bottom: 8px; }
+.kg-edge-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.kg-corr {
+  font-size: 10px;
+  color: var(--green);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.kg-src-list {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
 
 /* -------------------------------------------------- global config modal */
 .modal-backdrop {

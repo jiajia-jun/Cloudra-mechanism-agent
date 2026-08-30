@@ -179,6 +179,29 @@ class KeyNodeTrigger:
 plugin = KeyNodeTrigger()
 ```
 
+## 实战：chem-kb 混合知识库（仓库自带）
+
+仓库自带一个完整的双通道知识库插件 `cloudra.knowledge.plugin:plugin`，作为上述协议的参考实现。它把知识卡片语义检索（向量微服务）与知识图谱（本地 SQLite）缝合成单一 provider。
+
+### 数据与约定
+
+- 数据源：`KG数据/`（12.7k 实体 / 9k 行级关系，知识卡片洁净版抽取）与 `向量库/`（7497 卡的 bge-m3 向量）。
+- 全部条目 `evidence_level="L0"`（文献常识层——博客知识按 L0 对待）、`falsified=false`；`source` 是 `kb:{id}` 指针（不是 URL），条目内顺序按通道原始分近似排序（bm25 与余弦不同量纲，跨通道顺序只是观感；最终排序以图书馆层的 `(level, falsified, -score)` 为准）。
+
+### 部署三步
+
+1. **建库**：`uv run cloudra knowledge import`（从仓库 `KG数据/` 导入 `data_dir/knowledge/chem_kg.db`，幂等可重跑；二次导入计数不变）。
+2. **起向量微服务**：`powershell -File scripts\kg_vec_service.ps1`（默认 8765 端口；用外部 `.venv-trans` 跑 bge-m3，`HF_HUB_OFFLINE=1` 离线加载，启动后台预热约 5-10s 后 `/health` 的 model 字段就绪。服务**不随 cloudra 自启**，停了也不影响 cloudra 运行——语义通道为空时图谱通道补满配额）。
+3. **激活插件**：`uv run cloudra knowledge install`（把 spec 幂等写进 config.yaml 的 `plugins` 列表）→ **重启 uvicorn**（插件在 app 启动时加载一次）。
+
+### 配额语义（v9.1）
+
+`search(query, limit=5)` 时语义通道取 `ceil(3/5)=3` 条、图谱通道 `floor(2/5)=2` 条——**结构性保证双通道全带上**：即使语义命中分数再高也挤不掉图谱名额。降级矩阵：微服务停 → KG-only 补满；缺库 → 语义-only 补满（缺库不建库不抛）；双缺 → 空列表。`limit<2` 时两通道各保 1。语义命中会按 `blog_id` 缝合 1~2 条卡内关系（content 里形如 `‖图: A—rel→B` 的行）。
+
+### 卸载
+
+手改 YAML 删掉 `plugins:` 里的对应行（`config.save()` 的 plugins 磁盘优先合并语义使其无法经 save 移除条目），重启生效。
+
 ## 测试与审计支持
 
 - **全量事件追溯**：所有的提示注入和插件交互行为都会完整记录到事件日志中（包括 `context.pin_set`、`context.pin_cleared`、`context.injected`、`tool.started` 等）。调用 `GET /api/v2/projects/{id}/transcript` 可以导出项目全量运行记录的 Markdown 文档，便于在消融实验和机制分析中进行量化统计。
