@@ -12,10 +12,14 @@ scripts/kg_vec_service.ps1 或直接：
 需自行用所选模型重新编码向量库。非默认模型首次使用从 HF 下载。
 
 端点：
-    GET /health          → {"ok": true, "model": ..., "library_model": ..., "count": 7497}
-    GET /search?q=&k=    → {"hits": [{card_id, blog_id, domain, heading, content, score}]}
-    POST /search {"query": "...", "k": 5}
-                        → 同上（chem-kb 混合 provider 走这条；GET 供人工/脚本调试）
+    GET /health          → {"ok": true, "model": ..., "library_model": ..., "count": 14994}
+    GET /search?q=&k=[&lang=zh|en] → {"hits": [{card_id, lang, blog_id, domain, heading, content, score}]}
+    POST /search {"query": "...", "k": 5, "lang": "en"}
+                         → 同上（chem-kb 混合 provider 走这条；GET 供人工/脚本调试）
+
+双语库（cards.jsonl 每卡 zh+en 两行，"lang" 字段区分）：lang 缺省混合检索；
+指定 zh/en 只在该语言行上排名。同 card_id 的双行**去重**——按分数序保留
+高分行，防止同一张卡中英双占 top-k（旧单语库无 lang 字段视为 zh，行为不变）。
 
 查询侧对 bge 系模型加专用指令前缀、库侧再归一化（f16 量化微偏差校正），与
 vector_store/retrieve.py 口径一致。只绑定 127.0.0.1。
@@ -104,7 +108,41 @@ def _clamp_k(raw: Any) -> int:
         return 5
 
 
-def _search(query: str, k: int) -> list[dict]:
+def _clamp_lang(raw: Any) -> str | None:
+    """lang 参数白名单：zh/en，其余（含缺省）→ None 表示混合。"""
+    val = str(raw or "").strip().lower()
+    return val if val in ("zh", "en") else None
+
+
+def _select_hits(cards: list[dict], scores, order, k: int,
+                 lang: str | None) -> list[dict]:
+    """按分数序选 top-k：语言过滤 + 同 card_id 去重（保留高分行）。"""
+    hits: list[dict] = []
+    seen: set[str] = set()
+    for i in order:
+        row = cards[int(i)]
+        row_lang = row.get("lang") or "zh"  # 单语旧库无 lang 字段 → zh
+        if lang and row_lang != lang:
+            continue
+        cid = row.get("card_id", "")
+        if cid in seen:
+            continue
+        seen.add(cid)
+        hits.append({
+            "card_id": cid,
+            "lang": row_lang,
+            "blog_id": row.get("blog_id", ""),
+            "domain": row.get("domain", ""),
+            "heading": row.get("heading", ""),
+            "content": row.get("content", "")[:CONTENT_CAP],
+            "score": float(scores[int(i)]),
+        })
+        if len(hits) >= k:
+            break
+    return hits
+
+
+def _search(query: str, k: int, lang: str | None = None) -> list[dict]:
     import numpy as np
 
     model = _get_model()
@@ -114,19 +152,7 @@ def _search(query: str, k: int) -> list[dict]:
     m_norm = np.linalg.norm(_mat, axis=1)
     m_norm[m_norm == 0] = 1.0
     scores = (_mat @ q) / m_norm  # 库侧再归一化 → 严格余弦
-    top = np.argsort(-scores)[:k]
-    hits = []
-    for i in top:
-        row = _cards[int(i)]
-        hits.append({
-            "card_id": row.get("card_id", ""),
-            "blog_id": row.get("blog_id", ""),
-            "domain": row.get("domain", ""),
-            "heading": row.get("heading", ""),
-            "content": row.get("content", "")[:CONTENT_CAP],
-            "score": float(scores[int(i)]),
-        })
-    return hits
+    return _select_hits(_cards, scores, np.argsort(-scores), k, lang)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -156,7 +182,8 @@ class Handler(BaseHTTPRequestHandler):
             qs = parse_qs(parsed.query)
             q = (qs.get("q") or [""])[0].strip()
             k = _clamp_k((qs.get("k") or ["5"])[0])
-            self._handle_search(q, k)
+            lang = _clamp_lang((qs.get("lang") or [None])[0])
+            self._handle_search(q, k, lang)
             return
         self._send_json({"error": "not found"}, code=404)
 
@@ -168,19 +195,20 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
                 q = str(body.get("query") or "").strip()
                 k = _clamp_k(body.get("k", 5))
+                lang = _clamp_lang(body.get("lang"))
             except Exception:
                 self._send_json({"error": "bad request"}, code=400)
                 return
-            self._handle_search(q, k)
+            self._handle_search(q, k, lang)
             return
         self._send_json({"error": "not found"}, code=404)
 
-    def _handle_search(self, q: str, k: int) -> None:
+    def _handle_search(self, q: str, k: int, lang: str | None = None) -> None:
         if not q:
             self._send_json({"error": "missing q"}, code=400)
             return
         try:
-            self._send_json({"hits": _search(q, k)})
+            self._send_json({"hits": _search(q, k, lang)})
         except Exception as exc:  # noqa: BLE001
             self._send_json({"error": str(exc)}, code=500)
 

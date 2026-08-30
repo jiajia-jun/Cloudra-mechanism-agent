@@ -1,21 +1,15 @@
 {
   "model": "BAAI/bge-m3",
   "dim": 1024,
-  "count": 7497,
-  "dropped_empty": 0,
-  "sanitize_stats": {
-    "link_removed": 0,
-    "url_removed": 0,
-    "line_removed": 0,
-    "term_removed": 0
-  },
-  "manual_skipped": 0,
+  "count": 14990,
   "batch_size": 64,
-  "created_at": "2026-08-30 06:22:14",
-  "files_total": 537,
-  "cards_enumerated": 7497,
-  "id_fallback": 0,
+  "created_at": "2026-08-30 23:42:15",
   "backend": "local",
   "device": "cpu",
-  "elapsed_s": 6.5
+  "elapsed_s": 3209.6,
+  "text_recipe": "heading\\n+content, L2-normalized, float16",
+  "langs": {
+    "zh": 7497,
+    "en": 7493
+  }
 }

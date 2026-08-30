@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import re
 import sqlite3
 import time
@@ -149,13 +150,20 @@ _DEG_CTE = """
 
 
 def _match_seeds(con: sqlite3.Connection, query: str, cap: int) -> tuple[list[sqlite3.Row], str]:
-    """直接命中（FTS 优先，短 token / 零命中时整体 LIKE 回退）。"""
+    """直接命中（FTS 优先，整体 LIKE 回退）。
+
+    v11 语义：≥3 字符的 token 进 FTS（先全 AND，零命中再 OR——bm25 排序天然
+    压低英文停用词权重）；短 token（"to"/"TS"/2 字中文）不参与 FTS，保留给
+    整串 LIKE 兜底。英文自然语句（"how to find …"）由此可经 props.label_en
+    命中图谱。fallback 标记：fts / fts_or / like。
+    """
     tokens = [t for t in query.split() if t]
-    if tokens and all(len(t) >= 3 for t in tokens):
-        match = " ".join('"' + t.replace('"', '""') + '"' for t in tokens)
+    fts_tokens = [t for t in tokens if len(t) >= 3]
+    if fts_tokens:
+        match = " ".join('"' + t.replace('"', '""') + '"' for t in fts_tokens)
         rows = con.execute(
             """
-            SELECT e.id, e.type, e.label, e.smiles, e.n_sources,
+            SELECT e.id, e.type, e.label, e.smiles, e.n_sources, e.props,
                    bm25(kg_entities_fts) AS r
             FROM kg_entities_fts f JOIN kg_entities e ON e.rowid = f.rowid
             WHERE kg_entities_fts MATCH ?
@@ -165,10 +173,24 @@ def _match_seeds(con: sqlite3.Connection, query: str, cap: int) -> tuple[list[sq
         ).fetchall()
         if rows:
             return rows, "fts"
+        if len(fts_tokens) > 1:
+            match_or = " OR ".join('"' + t.replace('"', '""') + '"' for t in fts_tokens)
+            rows = con.execute(
+                """
+                SELECT e.id, e.type, e.label, e.smiles, e.n_sources, e.props,
+                       bm25(kg_entities_fts) AS r
+                FROM kg_entities_fts f JOIN kg_entities e ON e.rowid = f.rowid
+                WHERE kg_entities_fts MATCH ?
+                ORDER BY r LIMIT ?
+                """,
+                (match_or, cap),
+            ).fetchall()
+            if rows:
+                return rows, "fts_or"
     like = "%" + _escape_like(" ".join(tokens)) + "%"
     rows = con.execute(
         """
-        SELECT id, type, label, smiles, n_sources, NULL AS r
+        SELECT id, type, label, smiles, n_sources, props, NULL AS r
         FROM kg_entities
         WHERE label LIKE ? ESCAPE '\\' OR smiles LIKE ? ESCAPE '\\'
            OR props LIKE ? ESCAPE '\\'
@@ -177,6 +199,17 @@ def _match_seeds(con: sqlite3.Connection, query: str, cap: int) -> tuple[list[sq
         (like, like, like, cap),
     ).fetchall()
     return rows, "like"
+
+
+def _label_en(props: Any) -> str | None:
+    """props 列（JSON 字符串）里的 label_en；解析失败/缺失返回 None。"""
+    if not props:
+        return None
+    try:
+        val = json.loads(props).get("label_en")
+        return str(val) if val else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _bm25_score(raw: Any, n_sources: int) -> float:
@@ -217,7 +250,7 @@ def search_graph(db_path: PathLike, query: str, limit: int = 8) -> list[dict[str
               FROM walk w JOIN kg_relations r ON w.id IN (r.src_id, r.dst_id)
               WHERE w.hop < 2
             ),""" + _DEG_CTE + """
-            SELECT e.id, e.type, e.label, e.smiles, e.n_sources,
+            SELECT e.id, e.type, e.label, e.smiles, e.n_sources, e.props,
                    MIN(w.hop) AS hop, COALESCE(d.degree, 0) AS degree
             FROM walk w JOIN kg_entities e ON e.id = w.id LEFT JOIN deg d ON d.id = e.id
             GROUP BY e.id
@@ -243,6 +276,7 @@ def search_graph(db_path: PathLike, query: str, limit: int = 8) -> list[dict[str
                 "id": eid,
                 "type": r["type"],
                 "label": r["label"],
+                "label_en": _label_en(r["props"]),
                 "content": content,
                 "score": score,
                 "hop": int(r["hop"] or 0),

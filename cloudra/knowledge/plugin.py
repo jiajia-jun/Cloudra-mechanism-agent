@@ -63,6 +63,13 @@ def _stitch_content(content: str, db_path, blog_id: str) -> str:
     return store._fold(content + graph_line)
 
 
+def _ascii_dominant(query: str) -> bool:  # v11：英文查询启发（确定性）
+    tokens = [t for t in query.split() if t]
+    if not tokens:
+        return False
+    return sum(1 for t in tokens if t.isascii()) / len(tokens) >= 0.7
+
+
 class ChemKBPlugin:
     name = "chem-kb"
 
@@ -141,17 +148,20 @@ class ChemKBPlugin:
         if quota <= 0 or not db_path.exists():
             return []
         rows = store.search_graph(db_path, query, limit=quota)
-        return [
-            KnowledgeEntry(
-                title=f"〔图谱〕{r['label']}",
+        en = _ascii_dominant(query)
+        out: list[KnowledgeEntry] = []
+        for r in rows:
+            # 英文查询优先展示 label_en（回退 label）；content 保留原 label 可溯源。
+            label = (r.get("label_en") if en else None) or r["label"]
+            out.append(KnowledgeEntry(
+                title=f"〔图谱〕{label}",
                 content=str(r["content"]),
                 evidence_level="L0",
                 source=str(r["source"]),
                 falsified=False,
                 score=float(r["score"]),
-            )
-            for r in rows
-        ]
+            ))
+        return out
 
     def _semantic_channel(self, query: str, quota: int) -> list[KnowledgeEntry]:
         if quota <= 0:

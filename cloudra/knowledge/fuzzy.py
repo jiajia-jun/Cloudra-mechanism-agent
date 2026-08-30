@@ -57,6 +57,7 @@ def _parse(path: Path) -> list[dict[str, Any]]:
                 "domain": str(row.get("domain") or ""),
                 "heading": heading,
                 "content": content,
+                "lang": str(row.get("lang") or "zh"),
                 "text": heading + "\n" + content,
                 "text_low": (heading + "\n" + content).lower(),
             })
@@ -114,14 +115,25 @@ def search(query: str, limit: int = 5) -> list[dict[str, Any]]:
             continue
         score = 0.6 * (1.0 if heading_hit else 0.0) + 0.4 * (1.0 / (1.0 + first_pos / 500.0))
         hits.append((score, card))
-    hits.sort(key=lambda x: (-x[0], x[1]["card_id"]))
-    return [
-        {
+    # 双语库：同 card_id 的 zh/en 行都可能命中——按查询语言偏好决胜后去重
+    # （ASCII 主导查询偏 en 行，否则偏 zh 行），保留高分行，防止同卡双占。
+    ascii_dom = sum(1 for t in tokens if t.isascii()) / len(tokens) >= 0.7 if tokens else False
+    hits.sort(key=lambda x: (-x[0], 0 if (x[1]["lang"] == "en") == ascii_dom else 1,
+                             x[1]["card_id"]))
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for s, c in hits:
+        if c["card_id"] in seen:
+            continue
+        seen.add(c["card_id"])
+        out.append({
             "card_id": c["card_id"],
             "domain": c["domain"],
             "heading": c["heading"],
             "content": c["content"],
+            "lang": c["lang"],
             "score": s,
-        }
-        for s, c in hits[:limit]
-    ]
+        })
+        if len(out) >= limit:
+            break
+    return out

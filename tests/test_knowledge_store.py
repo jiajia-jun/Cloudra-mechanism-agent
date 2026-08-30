@@ -118,10 +118,14 @@ def test_search_chinese_trigram_and_short_token_fallback(sample_db: Path):
     # ASCII 长词 → FTS
     rows = store.search_graph(sample_db, "def2-TZVP", limit=5)
     assert rows and rows[0]["fallback"] == "fts"
-    # 混合 token（一个短一个长）→ 整体 LIKE：无整串命中时为空、不抛错
+    # 混合 token（短+长）：短 token 不进 FTS，长 token 的 FTS 命中即返回
     rows = store.search_graph(sample_db, "TS Gaussian", limit=5)
-    assert rows == []
-    # 长 token FTS 零命中 → LIKE 回退（有整串命中时可见 fallback=like）
+    assert rows and rows[0]["fallback"] == "fts"
+    assert any(r["label"] == "Gaussian" for r in rows)
+    # AND 零命中 → OR 档：两个 token 各自存在但无实体同时包含
+    rows = store.search_graph(sample_db, "Gaussian 过渡态", limit=5)
+    assert rows and rows[0]["fallback"] == "fts_or"
+    # 全零 → 整串 LIKE 回退（有整串命中时可见 fallback=like）
     rows = store.search_graph(sample_db, "过渡态搜索", limit=5)
     assert rows and rows[0]["fallback"] in ("fts", "like")
 

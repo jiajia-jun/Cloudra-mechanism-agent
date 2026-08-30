@@ -218,6 +218,14 @@ plugin = KeyNodeTrigger()
 - 优先级链固定为 语义 > 模糊 > 图谱补位；模糊层按 card_id 去重，不与语义命中共存于同一条。
 - pip 安装场景没有 `vector_store\` 目录：此层零参与，行为与 v9.1 完全一致。
 
+### 双语（v11：英语适配）
+
+- 向量库 `vector_store/cards.jsonl` 每卡两行：同 `card_id` + `"lang":"zh"/"en"`（中文行是唯一事实源，英文行挂在同一把 `kb:{id}` 钥匙上）；`/search` 接受可选 `lang=zh|en`（缺省混合），同 card_id 双行去重（保留高分行，防止同一卡双占 top-k）。
+- KG 侧不重抽：实体 `props` 列装载 `{"label_en": ...}`（导入即进 FTS）→ 英文查询自动可搜图谱；混合 provider 对 ASCII 主导查询（≥70% token 为 ASCII）的图谱条目 title 优先 `label_en`（回退 label），content 保留原 label 可溯源。
+- 语义/模糊通道自动双语：bge-m3 多语单索引天然让 en 查询优先命中 en 行；模糊层对同卡双行按查询语言偏好去重。
+- 增量路径：新卡片 → 翻译（同批管线）→ cards.jsonl 追加 zh+en 两行 → `vector_store/encode.py` 全量重编码（原子覆写）。
+- 关系 quote 保持中文（回溯原文）；`《中文标题》` 交叉引用不译（标题是指针）。
+
 ### 卸载
 
 手改 YAML 删掉 `plugins:` 里的对应行（`config.save()` 的 plugins 磁盘优先合并语义使其无法经 save 移除条目），重启生效。
