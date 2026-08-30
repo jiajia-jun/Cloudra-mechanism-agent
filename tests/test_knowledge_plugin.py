@@ -1,4 +1,10 @@
-"""chem-kb 混合 provider：配额、缝合、降级矩阵与故障隔离。"""
+"""chem-kb 混合 provider：配额、缝合、降级矩阵与故障隔离。
+
+v10 起语义通道有模糊兜底层（``cloudra/knowledge/fuzzy.py``）。本文件默认
+把 ``fuzzy._cards_file`` 指向不存在的路径（隔离出 v9.1 行为域）；涉及新
+退化矩阵（3 模糊 + 2 图谱）的用例在 ``test_knowledge_fuzzy.py``，或在此
+显式覆盖 cards 路径。
+"""
 
 from __future__ import annotations
 
@@ -9,16 +15,20 @@ from pathlib import Path
 
 import pytest
 
+from cloudra.knowledge import fuzzy
 from cloudra.knowledge import plugin as kg_plugin
 from cloudra.knowledge.plugin import ChemKBPlugin
 
 
 @pytest.fixture(autouse=True)
-def _clear_plugins():
+def _clear_plugins(tmp_path, monkeypatch):
     from cloudra.runtime_v2.plugins import clear_plugins
 
     clear_plugins()
+    monkeypatch.setattr(fuzzy, "_cards_file", lambda: tmp_path / "no-cards-in-these-tests.jsonl")
+    fuzzy._reset_cache()
     yield
+    fuzzy._reset_cache()
     clear_plugins()
 
 
@@ -133,6 +143,14 @@ def test_degradation_service_dead_kg_only(kg_db, monkeypatch):
     monkeypatch.setenv("CLOUDRA_KG_VEC_URL", "http://127.0.0.1:1")  # 无人监听
     entries = ChemKBPlugin().search("过渡态", limit=5)
     assert entries and len(entries) == 3  # KG-only 补满配额（库内可命中实体共 3 个）
+    assert all(e.title.startswith("〔图谱〕") for e in entries)
+
+
+def test_degradation_service_dead_no_cards_still_kg_only(kg_db, monkeypatch, tmp_path):
+    # v10 回归：cards.jsonl 缺失（fuzzy._cards_file 已被 autouse 指向不存在路径）
+    monkeypatch.setenv("CLOUDRA_KG_VEC_URL", "http://127.0.0.1:1")
+    entries = ChemKBPlugin().search("过渡态", limit=5)
+    assert len(entries) == 3
     assert all(e.title.startswith("〔图谱〕") for e in entries)
 
 
