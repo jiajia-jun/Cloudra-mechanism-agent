@@ -788,6 +788,7 @@ def test_easy_tasks_regenerate_identically():
 
 def test_normal_tasks_regenerate_identically():
     """normal 档题库（30 题多步网络）必须与生成器输出一致。"""
+    pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_normal_tasks
 
     tasks = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
