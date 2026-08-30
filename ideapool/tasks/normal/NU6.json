@@ -1,0 +1,190 @@
+{
+  "task_id": "NU6",
+  "tier": "normal",
+  "family": "U",
+  "name": "Staudinger beta-lactam synthesis: ketene + methanimine -> 2-azetidinone",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: Staudinger beta-lactam synthesis: ketene + methanimine -> 2-azetidinone. Reactant SMILES: C=C=O.C=N; product SMILES: O=C1CCN1; total charge 0, multiplicity 1; conditions: ketene generated in situ; inert solvent. Atom-mapped reactant SMILES: [CH2:1]=[C:2]=[O:3].[CH2:4]=[NH:5]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C=C=O",
+      "C=N"
+    ],
+    "products": [
+      "O=C1CCN1"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "ketene generated in situ; inert solvent",
+    "elements": [
+      "C",
+      "H",
+      "N",
+      "O"
+    ],
+    "max_heavy_atoms": 5,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "NU6_R",
+          "role": "reactant",
+          "smiles": [
+            "C=C=O",
+            "C=N"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "NU6_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "NU6_I1",
+          "role": "intermediate",
+          "smiles": [
+            "C=[NH+]C(=C)[O-]"
+          ],
+          "accessible": true,
+          "label": "intermediate 1"
+        },
+        {
+          "id": "NU6_TS2",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS2"
+        },
+        {
+          "id": "NU6_P",
+          "role": "product",
+          "smiles": [
+            "O=C1CCN1"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "NU6_E1",
+          "from": "NU6_R",
+          "to": "NU6_I1",
+          "via": "NU6_TS1",
+          "step_type": "imine nitrogen attack on the ketene central carbon: C-N formation with C=O pi cleavage -> zwitterionic enolate",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                3
+              ]
+            ],
+            "form": [
+              [
+                2,
+                5
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NU6_E2",
+          "from": "NU6_I1",
+          "to": "NU6_P",
+          "via": "NU6_TS2",
+          "step_type": "conrotatory 4pi electrocyclization: terminal-C to imine-C bond formation, C=N pi cleavage and enolate collapse to the lactam C=O",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "verified",
+      "reference_doi": "10.1021/ar800033j",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

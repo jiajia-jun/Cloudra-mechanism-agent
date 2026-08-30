@@ -1,0 +1,346 @@
+{
+  "task_id": "NA5",
+  "tier": "normal",
+  "family": "A",
+  "name": "Mannich reaction: formaldehyde + methylamine + acetaldehyde -> 3-(methylamino)propanal (acid-catalyzed)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: Mannich reaction: formaldehyde + methylamine + acetaldehyde -> 3-(methylamino)propanal (acid-catalyzed). Reactant SMILES: [OH3+].C=O.CN.CC=O; product SMILES: [OH3+].CNCCC=O.O; total charge 1, multiplicity 1; conditions: weakly acidic water/alcohol solution (acid catalysis written as [OH3+] into the SMILES on both sides). Atom-mapped reactant SMILES: [OH2+:1]([H:2]).[CH2:3]=[O:4].[CH3:6][NH:5]([H:7]).[CH2:8]([H:11])[CH:9]=[O:10]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[OH3+]",
+      "C=O",
+      "CN",
+      "CC=O"
+    ],
+    "products": [
+      "[OH3+]",
+      "CNCCC=O",
+      "O"
+    ],
+    "charge": 1,
+    "multiplicity": 1,
+    "conditions": "weakly acidic water/alcohol solution (acid catalysis written as [OH3+] into the SMILES on both sides)",
+    "elements": [
+      "C",
+      "H",
+      "N",
+      "O"
+    ],
+    "max_heavy_atoms": 8,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "NA5_R",
+          "role": "reactant",
+          "smiles": [
+            "[OH3+]",
+            "C=O",
+            "CN",
+            "CC=O"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "NA5_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "NA5_I1",
+          "role": "intermediate",
+          "smiles": [
+            "[OH3+]",
+            "CNCO",
+            "CC=O"
+          ],
+          "accessible": true,
+          "label": "intermediate 1"
+        },
+        {
+          "id": "NA5_TS2",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS2"
+        },
+        {
+          "id": "NA5_I2",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "O",
+            "C=[NH+]C",
+            "CC=O"
+          ],
+          "accessible": true,
+          "label": "intermediate 2"
+        },
+        {
+          "id": "NA5_TS3",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS3"
+        },
+        {
+          "id": "NA5_I3",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "O",
+            "C=[NH+]C",
+            "C=CO"
+          ],
+          "accessible": true,
+          "label": "intermediate 3"
+        },
+        {
+          "id": "NA5_TS4",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS4"
+        },
+        {
+          "id": "NA5_I4",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "O",
+            "CNCCC=[OH+]"
+          ],
+          "accessible": true,
+          "label": "intermediate 4"
+        },
+        {
+          "id": "NA5_TS5",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS5"
+        },
+        {
+          "id": "NA5_P",
+          "role": "product",
+          "smiles": [
+            "[OH3+]",
+            "CNCCC=O",
+            "O"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "NA5_E1",
+          "from": "NA5_R",
+          "to": "NA5_I1",
+          "via": "NA5_TS1",
+          "step_type": "methylamine addition to formaldehyde with merged intramolecular N-H -> O-H proton transfer -> carbinolamine",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                7
+              ]
+            ],
+            "form": [
+              [
+                3,
+                5
+              ],
+              [
+                4,
+                7
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NA5_E2",
+          "from": "NA5_I1",
+          "to": "NA5_I2",
+          "via": "NA5_TS2",
+          "step_type": "carbinolamine O protonation by H3O+ with dehydration -> iminium [CH2=NHMe]+ (Eschenmoser salt parent) + 2 water",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                2,
+                4
+              ],
+              [
+                3,
+                5
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NA5_E3",
+          "from": "NA5_I2",
+          "to": "NA5_I3",
+          "via": "NA5_TS3",
+          "step_type": "acetaldehyde tautomerizes to the enol (net step: alpha-C-H breaks, C=O pi shifts to C=C, O-H forms)",
+          "bond_changes": {
+            "break": [
+              [
+                8,
+                11
+              ],
+              [
+                9,
+                10
+              ]
+            ],
+            "form": [
+              [
+                8,
+                9
+              ],
+              [
+                10,
+                11
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NA5_E4",
+          "from": "NA5_I3",
+          "to": "NA5_I4",
+          "via": "NA5_TS4",
+          "step_type": "rate-determining C-C formation: enol alpha-carbon attacks the iminium carbon -> oxocarbenium (neutral amine)",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                5
+              ],
+              [
+                8,
+                9
+              ]
+            ],
+            "form": [
+              [
+                3,
+                8
+              ],
+              [
+                9,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NA5_E5",
+          "from": "NA5_I4",
+          "to": "NA5_P",
+          "via": "NA5_TS5",
+          "step_type": "water deprotonates the oxocarbenium, regenerating H3O+ -> Mannich base",
+          "bond_changes": {
+            "break": [
+              [
+                10,
+                11
+              ]
+            ],
+            "form": [
+              [
+                1,
+                11
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (curated in normal.md; no DOI on record)",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

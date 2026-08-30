@@ -786,6 +786,19 @@ def test_easy_tasks_regenerate_identically():
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
 
 
+def test_normal_tasks_regenerate_identically():
+    """normal 档题库（30 题多步网络）必须与生成器输出一致。"""
+    from cloudra.benchmark import gen_normal_tasks
+
+    tasks = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
+    assert len(tasks) == 30
+    for t in tasks:
+        committed = gen_normal_tasks.DEFAULT_OUT / f"{t.task_id}.json"
+        assert committed.is_file(), f"missing committed task file: {committed}"
+        regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
+        assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+
+
 # --- 方法白名单 policy stage + runtime_v2 后端接线 ---
 
 

@@ -1,0 +1,432 @@
+{
+  "task_id": "NH1",
+  "tier": "normal",
+  "family": "H",
+  "name": "Fischer indole synthesis core steps: phenylhydrazine + acetaldehyde -> indole + NH3 + H2O (acid-catalyzed)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: Fischer indole synthesis core steps: phenylhydrazine + acetaldehyde -> indole + NH3 + H2O (acid-catalyzed). Reactant SMILES: [OH3+].NNc1ccccc1.CC=O; product SMILES: [OH3+].c1ccc2[nH]ccc2c1.N.O; total charge 1, multiplicity 1; conditions: AcOH/HCl or ZnCl2 (acid catalysis, H3O+ written into the SMILES on both sides), heated. Atom-mapped reactant SMILES: [OH2+:12]([H:13]).[N:1]([H:14])([H:15])[N:2]([H:17])[c:3]1[c:4]([H:19])[cH:5][cH:6][cH:7][cH:8]1.[CH:9]([H:16])([H:18])[CH:10]=[O:11]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[OH3+]",
+      "NNc1ccccc1",
+      "CC=O"
+    ],
+    "products": [
+      "[OH3+]",
+      "c1ccc2[nH]ccc2c1",
+      "N",
+      "O"
+    ],
+    "charge": 1,
+    "multiplicity": 1,
+    "conditions": "AcOH/HCl or ZnCl2 (acid catalysis, H3O+ written into the SMILES on both sides), heated",
+    "elements": [
+      "C",
+      "H",
+      "N",
+      "O"
+    ],
+    "max_heavy_atoms": 12,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "NH1_R",
+          "role": "reactant",
+          "smiles": [
+            "[OH3+]",
+            "NNc1ccccc1",
+            "CC=O"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "NH1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "NH1_I1",
+          "role": "intermediate",
+          "smiles": [
+            "[OH3+]",
+            "CC=NNc1ccccc1",
+            "O"
+          ],
+          "accessible": true,
+          "label": "intermediate 1"
+        },
+        {
+          "id": "NH1_TS2",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS2"
+        },
+        {
+          "id": "NH1_I2",
+          "role": "intermediate",
+          "smiles": [
+            "[OH3+]",
+            "C=CNNc1ccccc1",
+            "O"
+          ],
+          "accessible": true,
+          "label": "intermediate 2"
+        },
+        {
+          "id": "NH1_TS3",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS3"
+        },
+        {
+          "id": "NH1_I3",
+          "role": "intermediate",
+          "smiles": [
+            "[OH3+]",
+            "N=CCC1C=CC=CC1=N",
+            "O"
+          ],
+          "accessible": true,
+          "label": "intermediate 3"
+        },
+        {
+          "id": "NH1_TS4",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS4"
+        },
+        {
+          "id": "NH1_I4",
+          "role": "intermediate",
+          "smiles": [
+            "[OH3+]",
+            "NC1CC2C=CC=CC2=N1",
+            "O"
+          ],
+          "accessible": true,
+          "label": "intermediate 4"
+        },
+        {
+          "id": "NH1_TS5",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS5"
+        },
+        {
+          "id": "NH1_P",
+          "role": "product",
+          "smiles": [
+            "[OH3+]",
+            "c1ccc2[nH]ccc2c1",
+            "N",
+            "O"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "NH1_E1",
+          "from": "NH1_R",
+          "to": "NH1_I1",
+          "via": "NH1_TS1",
+          "step_type": "hydrazone formation: terminal nitrogen condenses with acetaldehyde, C=O pi becomes C=N pi and water is expelled (H3O+ spectator)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                14
+              ],
+              [
+                1,
+                15
+              ],
+              [
+                10,
+                11
+              ]
+            ],
+            "form": [
+              [
+                1,
+                10
+              ],
+              [
+                11,
+                14
+              ],
+              [
+                11,
+                15
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NH1_E2",
+          "from": "NH1_I1",
+          "to": "NH1_I2",
+          "via": "NH1_TS2",
+          "step_type": "hydrazone-enehydrazine tautomerization: methyl C-H migrates to the imine nitrogen, C=N pi shifts to C=C pi",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                10
+              ],
+              [
+                9,
+                16
+              ]
+            ],
+            "form": [
+              [
+                1,
+                16
+              ],
+              [
+                9,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NH1_E3",
+          "from": "NH1_I2",
+          "to": "NH1_I3",
+          "via": "NH1_TS3",
+          "step_type": "[3,3]-sigmatropic rearrangement (rate-determining): N-N cleavage with new C-C bond from the enehydrazine terminus to the ortho carbon; dearomatized cyclohexadienimine intermediate (capturable)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                3,
+                8
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                6,
+                7
+              ],
+              [
+                9,
+                10
+              ]
+            ],
+            "form": [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                9
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                7,
+                8
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NH1_E4",
+          "from": "NH1_I3",
+          "to": "NH1_I4",
+          "via": "NH1_TS4",
+          "step_type": "ring closure: the aryl-bound nitrogen attacks the imine carbon to close the five-membered ring, with intramolecular proton transfer from N2 onto N1 -> cyclic aminal/imine intermediate",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                17
+              ]
+            ],
+            "form": [
+              [
+                1,
+                17
+              ],
+              [
+                2,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NH1_E5",
+          "from": "NH1_I4",
+          "to": "NH1_P",
+          "via": "NH1_TS5",
+          "step_type": "NH3 elimination with rearomatization: C-N cleavage, ring pi rearrangement back to aromatic indole, and proton relocation (C9-H and the former ortho C4-H) onto the two nitrogens -> indole + NH3",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                10
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                19
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                7,
+                8
+              ],
+              [
+                9,
+                18
+              ]
+            ],
+            "form": [
+              [
+                1,
+                18
+              ],
+              [
+                2,
+                10
+              ],
+              [
+                2,
+                19
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                3,
+                8
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                4,
+                9
+              ],
+              [
+                6,
+                7
+              ],
+              [
+                9,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "verified",
+      "reference_doi": "10.1016/j.tet.2021.132116",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

@@ -43,7 +43,53 @@
 
 ## 格式与解析纪律（给生成器作者）
 
-- normal.md 可直接过 easy 生成器的 ROW_RE/SMILES_RE/VERIFY_RE/能垒格/舒适区格解析（已用脚本全量验证：40/40 行解析成功，锚点数值=预期，DOI 提取=预期主出处）。
+- normal.md 可直接过 easy 生成器的 ROW_RE/SMILES_RE/VERIFY_RE/能垒格/舒适区格解析（已用脚本全量验证：40/40 行解析成功，锚点数值=预期，DOI 提取=预期主出处；2026-08-30 扩编后 48/48 通过同款自检，见末节）。
 - 关键纪律：(i) 能垒格第一个括号（中英文括号都算）前的第一个阿拉伯数字 = 锚点值，故"3 步/¹⁴C/2017"之类数字一律放括号内；(ii) 每格只出现锚点本人的类型记号（ΔH‡/ΔE‡/ΔG‡/Ea），其余写"垒"；(iii) DOI 后必须随中文标点（；，。）或）；(iv) 无锚点数值就不写数字，JSON barrier=null。
 - 我手上的验证脚本在 /tmp/validate_normal.py（一次性，未入仓库）：ROW_RE 行解析 + RDKit 校验（SMILES 合法、原子配平、电荷一致、重原子数与舒适区格一致）。生成器写好前可用同款逻辑做回归。
 - 注意 RDKit 写法：水合氢离子必须写 `[OH3+]`（`[H3O+]` 解析失败）；烯醇盐 `[O-]` 单键接碳（`C=C[O-]`，不能 `C=[O-]`）。
+
+---
+
+## 2026-08-30 扩编（40 → 48，只增不删）：新条目锚点查证记录
+
+Normal 定义当日更新为**循序渐进三带**（路线竞争判别 → 简单多步 → 复杂人名网络），扩编方向为经典竞争（新 X 族）与杂环化学（H3–H5），另补 U7（铵叶立德，Wittig 考点的 CHNO 版）。**新增条目一律纯 CHNO(F)**；存量含 P/Cl 的 S1/R5/U3 保留，去留待评审打标。以下查证全部由子代理经 Crossref API + PMC/PubMed 全文/摘要直读完成，DOI 逐条核实、未凭记忆填写。
+
+### X 族（取代/消除/取向竞争）
+
+- **X1（F⁻ + 2-氟丙烷，SN2 vs E2）**：二级**氟**代物的气相 PES 是文献空白（Zhen 2023 原文明示 "there is no report available previously for isopropyl halide reactions"，且该文做的也是 Cl/I）。主锚点取最近的二级体系 **F⁻ + iPrCl**：Zhen 等，*Molecules* **2023**, 28, 6269（DOI 10.3390/molecules28176269，PMC10488877 全文 Table 1 直读）：MP2/aug-cc-pVDZ，络合物 −20.7；anti-E2 ΔE₀‡ = **9.1**、inv-SN2 = **11.6** kcal/mol（TS 相对反应物络合物口径，直接符合 central_complex）；CCSD(T)/aug-cc-pVTZ 单点复核 9.0/10.4。体系差异（Cl→F）已登记口径降级。补充：Gronert 1993 JACS 115, 652（DOI 10.1021/ja00055a039，[已核实存在]）；一级氟代物参照 Bento/Bickelhaupt 2008 JCTC 4, 929（DOI 10.1021/ct700318e，[部分核实]）与 Ensing & Klein 2005 PNAS 102, 6755（DOI 10.1073/pnas.0408094102，PMC 直读，有限温自由能口径）。
+- **X2（F⁻ + 2-氟丁烷，Zaitsev vs Hofmann 取向）**：Saunders & Gronert, *JOC* **2015**, 80, 10787–10793（DOI 10.1021/acs.joc.5b01983，PubMed 摘要直读）：体系精确命中；结论 E1cb-like TS → **Hofmann（1-丁烯）取向占优**；能垒数值公开渠道查不到（正文付费、SI 无相对能量表）→ 能垒未核，机理锚点 [已核实存在]。注意该文仅 3 次引用，无数值转录可借。
+- **X3（乙基三甲基铵 + OH⁻，Hofmann 消除）**：Chempath 等，*JPCC* **2010**, 114, 11977–11983（DOI 10.1021/jp9122198，Crossref+OSTI 双核，摘要直读）：Hofmann 消除 ΔG‡ = **12.8**、SN2 = 23.0 kcal/mol（溶液相 DFT 自由能垒 298 K；参考态未明，已登记口径降级）。辅助：Long 2012 JPCC 116, 9419（DOI 10.1021/jp3014964）、Edson 2012 J. Membr. Sci. 399-400, 49（DOI 10.1016/j.memsci.2012.01.025）。
+- **X4（Cope 消除，syn Ei）**：正向气相垒未能核到（Komáromi & Tronchet 1997 JPCA 101, 3554，DOI 10.1021/jp970617b，付费墙 → [已核实存在] 机理锚点）。**逆 Cope** 方向有可核对数值：Krenske & Houk 2012 JACS 134, 2434（DOI 10.1021/ja211568k，PMC3271141 全文直读）：气相分子间 ΔH‡ = 18.2（M06-2X）、ΔG‡ ≈ 31.7（CBS-QB3，相对分离反应物）——方向相反，只写在格内作参考、不作锚点。溶剂效应：Acevedo & Jorgensen 2006 JACS 128, 6141（DOI 10.1021/ja057523x）。
+
+### H 族扩编（杂环化学）
+
+- **H3（Paal–Knorr 呋喃）**：Abbat, Dhaked, Arfeen & Bharatam, *RSC Adv.* **2015**, 5, 88353（DOI 10.1039/c5ra16246g，Crossref 核实；原文被 RSC 反爬挡住）：水介导环化步 Ea = **11.5** kcal/mol、无催化路径垒约 40，总反应气相吸热 +2.5——数值经奥克兰大学学位论文（70–71 页）二手转录、方法级别（M06 vs G2MP2）未核 → [部分核实] + 口径登记。经典实验机理锚点：Amarnath & Amarnath 1995 JOC 60, 301（DOI 10.1021/jo00107a006，注意不是直觉的 jo00108a003）——H2 所引 Amarnath 吡咯版的呋喃姊妹篇。**配平勘误**：呋喃版只脱 **1** 分子水（一个羰基 O 成为呋喃环氧），RDKit 校验时发现初稿写 2 水不配平，已修正。
+- **H4（Knorr 吡唑）**：无能垒数值锚点。机理锚点：Singh 等 2000 Can. J. Chem. 78, 1109（DOI 10.1139/v00-104，半经验机理计算，[已核实存在]）；Flood & Dawson 2018 Angew 57, 11634（DOI 10.1002/anie.201805191，PMC6126375 全文直读：腙形成快、**分子内环化决速**、pH 7 时腙被困）。量级估计（室温 ~1 h ⇒ ΔG‡ 约 20–22）为速率反推，不入 gold。
+- **H5（雷酸 + 乙炔 → 异噁唑）**：Nguyen, Chandra, Sakai & Morokuma, *JOC* **1999**, 64, 65–69（DOI 10.1021/jo980723p，原文 PDF 直读）：经典垒 **13–14** kcal/mol（CCSD(T)/G2/CASPT2 互证，含 ZPE，**相对分离反应物渐近线** → 口径登记）；SC-VB 独立值 13.5（Karadakov/Cooper/Gerratt 1998）。机理史锚点：Hiberty, Ohanessian & Schlegel 1983 JACS 105, 719（DOI 10.1021/ja00342a007，支持双自由基路径的早期多参考计算——剪枝考点）。Sexton 2016 JPCA 120, 8400（DOI 10.1021/acs.jpca.6b07975）：HCNO+乙烯 11.3（CCSD(T)-F12），vdW 络合物稳定化 1.4–5.8。
+
+### U7（铵叶立德 [2,3] vs [1,2]）
+
+- 主锚点：Heard & Yates, *JOC* **1996**, 61, 7276–7284（DOI 10.1021/jo952227w，Crossref+PubMed 双核）：[1,2] 与 [2,3] 活化能差仅 2 kJ/mol @ ROMP/6-311+G(d,p)（摘要直读）；绝对垒（MP2/6-31G(d) 气相相对叶立德，单分子体系即 central 口径）：[2,3] ≈ 32 kJ/mol（**7.6** kcal/mol）、[1,2] ≈ 44 kJ/mol（10.5）——绝对值转录自 Denmark 组 2005 组会幻灯片扫描件（Table 9 逐字核读），未独立核对原文 → [部分核实]。
+- 机理锚点：Biswas, Collins & Singleton 2014 JACS 136, 3740（DOI 10.1021/ja4128289，PMC3971961 全文直读：[1,2] 产物大部分穿过同一 [2,3] TS 后动力学分叉产生）；Ghigo 2010 JOC 75, 3608（DOI 10.1021/jo100367z：Stevens 通道双自由基 vs 协同的底物依赖性）。
+- **出题注意**：未取代烯丙基叶立德的 [1,2] 与 [2,3] 产物 connectivity 简并（同为 N,N-二甲基丁-3-烯-1-胺），必须用巴豆基（或同位素标记）才可区分——题面因此取巴豆基底物 `[CH2-][N+](C)(C)CC=CC`（8 重原子）。
+
+### 扩编后的回归
+
+- 全表 48/48 行通过解析纪律自检（ROW_RE/SMILES_RE/VERIFY_RE/能垒格/DOI）+ RDKit 校验（合法、配平、电荷一致、重原子数与舒适区格一致）；新 SMILES 与既有 40 条及 easy 档无重叠。
+- 新增口径登记：X1（氯代物转录）、X3（溶液自由能、参考态未明）、H3（二手转录/路径中间体络合物基准）、H5（渐近线口径）；U7 单分子叶立德可挂 CENTRAL。
+
+### 2026-08-30 规范化二轮（题面对 agent 零猜测）
+
+- 规则变更：**催化剂与副产物一律写入 SMILES 两侧**（头部 SMILES 约定已改；原"哌啶等有机碱催化剂不入 SMILES"条款作废）。
+- 改动 8 条：A4 哌啶以二甲胺 `CNC` 建模写入（重原子 9→12，上限边缘；JPC B 2017 锚点的哌啶/甲醇体系变为近似建模，已在格内注明）；A5/I2/O3/H1/H2/H3/H4 的酸催化以 `[OH3+]` 写入两侧（电荷 0→+1，重原子各 +1）。
+- Q2 条件列 "热反应或 Lewis 酸催化" 改为 "气相热反应（Lewis 酸为经典加速条件，本基准不加入）"——消去可选催化剂歧义。
+- 回归：48/48 通过解析纪律 + RDKit 校验 + 新催化剂写入检查（条件列点名催化/酸碱时 SMILES 必含对应物种）；计量性碱（Y3/O4/R5/U1/X3 的 OH⁻）只出现在反应物侧属正常消耗，不算违规。
+- 统计联动：电荷态 0×18 / −1×15 / +1×14 / −2×1；重原子 3–7×32 / 8–10×12 / 11–12×4（U4/H1/A3/A4）。
+
+## 2026-08-31 定稿 30 题 + 生成器落地
+
+- **定稿**（按 normal_essence_mining.md 的本质覆盖最大化）：正选 A1 A2 A4 A5 A7 I1 I3 Y2 Y3 O2 O3 O4 O5 X1 X2 X3 X4 R1 R2 R3 U1 U5 U6 U7 Q2 Q3 H1 H2 H3 H5；裁掉 18 条（S1/U3/R5/S2 四个本质整条裁，高周期元素或苯环冗余；其余为同本质归并）。判别对偶双收：Y2/Y3、O4/O5、X1/X2、H2/H3。本质覆盖 27/32。
+- **Q2 池子 bug 修正**：产物 SMILES 曾误写 `C1=COCCC1`（3,4-二氢-2H-吡喃，烯醇醚异构体，与题名"3,6-二氢-2H-吡喃"名实不符；Q/H 登记代理穷举发现纯 [4+2] 键账无法得到该连通性）。已改为 `C1=CCOCC1`。
+- **生成器**：`cloudra/benchmark/gen_normal_tasks.py`（`python -m cloudra.benchmark.gen_normal_tasks`）+ `cloudra/benchmark/normal_registry/` 按族登记（ai/yo/x/ru/qh.py）。bond_changes 不手填——由相邻步映射 SMILES 差集推导；校验 fail-loud（逐步映射号守恒/电荷守恒/去映射=池内 SMILES/每步有键变化）。task_id 加 N 前缀（normal X 族与 easy X1 撞号）。
+- 产物：`ideapool/tasks/normal/N*.json` 30 题（1–5 基元步，single_step=false，accuracy σ=2.0，无锚点题 enabled=false，口径登记 10 题降 unverified）。`test_normal_tasks_regenerate_identically` 守卫同步；tests/test_benchmark.py 86 项全绿。
+- H5 注记：池内雷酸 `[C-]#[N+]O` 的 H 在 O 上（RDKit 解析），环加成步含 O→C 质子迁移（登记已处理，显式 [H:6]）。

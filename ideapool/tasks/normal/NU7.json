@@ -1,0 +1,149 @@
+{
+  "task_id": "NU7",
+  "tier": "normal",
+  "family": "U",
+  "name": "ammonium ylide [2,3]-sigmatropic rearrangement (Sommelet-Hauser type) vs [1,2]-Stevens competition: crotyltrimethylammonium ylide (written line: [2,3] product)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: ammonium ylide [2,3]-sigmatropic rearrangement (Sommelet-Hauser type) vs [1,2]-Stevens competition: crotyltrimethylammonium ylide (written line: [2,3] product). Reactant SMILES: [CH2-][N+](C)(C)CC=CC; product SMILES: CN(C)CC(C)C=C; total charge 0, multiplicity 1; conditions: salt-free model conditions (gas-phase ylide, closest to model chemistry). Atom-mapped reactant SMILES: [CH2-:1][N+:2]([CH3:3])([CH3:4])[CH2:5][CH:6]=[CH:7][CH3:8]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[CH2-][N+](C)(C)CC=CC"
+    ],
+    "products": [
+      "CN(C)CC(C)C=C"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "salt-free model conditions (gas-phase ylide, closest to model chemistry)",
+    "elements": [
+      "C",
+      "H",
+      "N"
+    ],
+    "max_heavy_atoms": 8,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "NU7_R",
+          "role": "reactant",
+          "smiles": [
+            "[CH2-][N+](C)(C)CC=CC"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "NU7_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "NU7_P",
+          "role": "product",
+          "smiles": [
+            "CN(C)CC(C)C=C"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "NU7_E1",
+          "from": "NU7_R",
+          "to": "NU7_P",
+          "via": "NU7_TS1",
+          "step_type": "concerted closed-shell [2,3]-sigmatropic rearrangement: new C-C bond between the ylide carbon and the allyl gamma-carbon, N-C(alpha) cleavage, pi shift to the terminal alkene (competing [1,2]-Stevens channel not in gold)",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                5
+              ],
+              [
+                6,
+                7
+              ]
+            ],
+            "form": [
+              [
+                1,
+                7
+              ],
+              [
+                5,
+                6
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": 7.6,
+      "barrier_type": "ΔE‡",
+      "barrier_reference": "central_complex",
+      "verification": "partial",
+      "reference_doi": "10.1021/jo952227w",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": true,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

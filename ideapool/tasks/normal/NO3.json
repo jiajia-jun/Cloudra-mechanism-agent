@@ -1,0 +1,284 @@
+{
+  "task_id": "NO3",
+  "tier": "normal",
+  "family": "O",
+  "name": "Baeyer-Villiger oxidation: acetone + performic acid -> methyl acetate + formic acid (acid-catalyzed)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: Baeyer-Villiger oxidation: acetone + performic acid -> methyl acetate + formic acid (acid-catalyzed). Reactant SMILES: [OH3+].CC(C)=O.O=COO; product SMILES: [OH3+].CC(=O)OC.O=CO; total charge 1, multiplicity 1; conditions: peracid, inert solvent; acid-catalyzed (H3O+ written into the SMILES on both sides). Atom-mapped reactant SMILES: [OH2+:1]([H:10]).[CH3:2][C:3](=[O:4])[CH3:5].[CH:6](=[O:7])[O:8][O:9][H:11]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[OH3+]",
+      "CC(C)=O",
+      "O=COO"
+    ],
+    "products": [
+      "[OH3+]",
+      "CC(=O)OC",
+      "O=CO"
+    ],
+    "charge": 1,
+    "multiplicity": 1,
+    "conditions": "peracid, inert solvent; acid-catalyzed (H3O+ written into the SMILES on both sides)",
+    "elements": [
+      "C",
+      "H",
+      "O"
+    ],
+    "max_heavy_atoms": 9,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "NO3_R",
+          "role": "reactant",
+          "smiles": [
+            "[OH3+]",
+            "CC(C)=O",
+            "O=COO"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "NO3_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "NO3_I1",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "CC(C)=[OH+]",
+            "O=COO"
+          ],
+          "accessible": true,
+          "label": "intermediate 1"
+        },
+        {
+          "id": "NO3_TS2",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS2"
+        },
+        {
+          "id": "NO3_I2",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "CC(C)(O)[OH+]OC=O"
+          ],
+          "accessible": true,
+          "label": "intermediate 2"
+        },
+        {
+          "id": "NO3_TS3",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS3"
+        },
+        {
+          "id": "NO3_I3",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "COC(C)=[OH+]",
+            "O=CO"
+          ],
+          "accessible": true,
+          "label": "intermediate 3"
+        },
+        {
+          "id": "NO3_TS4",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS4"
+        },
+        {
+          "id": "NO3_P",
+          "role": "product",
+          "smiles": [
+            "[OH3+]",
+            "CC(=O)OC",
+            "O=CO"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "NO3_E1",
+          "from": "NO3_R",
+          "to": "NO3_I1",
+          "via": "NO3_TS1",
+          "step_type": "carbonyl oxygen protonation by hydronium (PT, pre-equilibrium)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                10
+              ]
+            ],
+            "form": [
+              [
+                4,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NO3_E2",
+          "from": "NO3_I1",
+          "to": "NO3_I2",
+          "via": "NO3_TS2",
+          "step_type": "performic acid terminal oxygen addition to the protonated carbonyl -> protonated Criegee tetrahedral intermediate (rate-determining per computation)",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                3,
+                9
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NO3_E3",
+          "from": "NO3_I2",
+          "to": "NO3_I3",
+          "via": "NO3_TS3",
+          "step_type": "1,2-methyl migration to the terminal oxygen concerted with O-O cleavage and proton shuffle onto the departing formate oxygen -> protonated methyl acetate + formic acid",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                3
+              ],
+              [
+                8,
+                9
+              ],
+              [
+                9,
+                11
+              ]
+            ],
+            "form": [
+              [
+                2,
+                9
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                8,
+                11
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "NO3_E4",
+          "from": "NO3_I3",
+          "to": "NO3_P",
+          "via": "NO3_TS4",
+          "step_type": "deprotonation of the ester carbonyl by water, regenerating H3O+ (PT)",
+          "bond_changes": {
+            "break": [
+              [
+                4,
+                10
+              ]
+            ],
+            "form": [
+              [
+                1,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "verified",
+      "reference_doi": "10.1021/ol060261z",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

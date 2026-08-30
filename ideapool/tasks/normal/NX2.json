@@ -1,0 +1,155 @@
+{
+  "task_id": "NX2",
+  "tier": "normal",
+  "family": "X",
+  "name": "F- + 2-fluorobutane E2: Zaitsev (2-butene, written line) vs Hofmann (1-butene) orientation competition",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: F- + 2-fluorobutane E2: Zaitsev (2-butene, written line) vs Hofmann (1-butene) orientation competition. Reactant SMILES: [F-].CCC(F)C; product SMILES: CC=CC.F.[F-]; total charge -1, multiplicity 1; conditions: gas phase. Atom-mapped reactant SMILES: [F-:1].[CH3:2][CH:3]([H:7])[CH:4]([F:5])[CH3:6]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[F-]",
+      "CCC(F)C"
+    ],
+    "products": [
+      "CC=CC",
+      "F",
+      "[F-]"
+    ],
+    "charge": -1,
+    "multiplicity": 1,
+    "conditions": "gas phase",
+    "elements": [
+      "C",
+      "H",
+      "F"
+    ],
+    "max_heavy_atoms": 6,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "NX2_R",
+          "role": "reactant",
+          "smiles": [
+            "[F-]",
+            "CCC(F)C"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "NX2_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "NX2_P",
+          "role": "product",
+          "smiles": [
+            "CC=CC",
+            "F",
+            "[F-]"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "NX2_E1",
+          "from": "NX2_R",
+          "to": "NX2_P",
+          "via": "NX2_TS1",
+          "step_type": "anti-E2 elimination toward the more substituted alkene (Zaitsev channel); E1cb-like TS can flip orientation to Hofmann - the discrimination point",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                7
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                7
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "literature anchor (see reference_doi)",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "verified",
+      "reference_doi": "10.1021/acs.joc.5b01983",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

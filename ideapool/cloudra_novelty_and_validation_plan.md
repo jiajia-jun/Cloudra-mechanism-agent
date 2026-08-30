@@ -14,14 +14,14 @@
 > (2) **题面规范确定**：全档 SMILES-only（atom-mapped），不提供 3D 几何；3D 构想/构象搜索成为全档第一个可独立计分阶段；gold 数据与容差等元数据仅评分侧可见；
 > (3) **效率量化框架定稿**：成本轴 = 计算作业数 + 工具调用数（token 降级为参考量；预算帽方案否决）；进度轴细粒度化为"所有引起 DAG 正向改动的行为"（对齐 gold_dag 的净覆盖）；核心产物为进度-成本曲线（AUC / 收敛拐点 / 平台期）+ 浪费/纠错诊断；"DAG 编排以效率换精度"确立为消融核心叙事之一；借鉴来源：Terminal-Bench 三准则、SWE-bench F2P/P2P、Cybench 子目标分解、τ-bench pass^k、SimpleQA 三态计分。
 > (4) **评测体系补齐验证链四层与机理相似度指标**：L0 物理门禁（n_imag==1、|ν_imag|≥100 cm⁻¹、IRC 连通）→ L1 预注册容差能量比对 → L2 机理图比对 → L3 三态计分；L2 采用**化学参数化图编辑距离**（molhash 零代价短路 + sigmoid 指纹代价 + 立体分层 + 键变边代价，networkx 实现，锚点单测替代标定），最优对齐的编辑脚本同时产出分数与失败归因 diff——该指标定位为可独立发布的化学信息学方法学贡献（**表述口径：不进标题级 claim，在摘要中以一句方法论陈述呈现**，已落实于 `paper/main.tex` / `draft.md` / `sections/01_introduction.md`；投稿前做 KinBot/AutoMeKin 谱系 novelty 核查）。
-> (5) **反应选型路线改向并建成候选池**：原 `ideapool/benchmark_literature/` 文献池（52 篇）经评审判定与四档定义错位、经典性不足，已标注废弃；新原则为四档定义不变 + MACE-OMol25 舒适区命中为硬门槛 + 经典权威/可复现优先（gold 数值只需文献锚点）。已按新原则建成超采候选池 **`ideapool/reaction_candidates/`（179 个候选：Easy 47 / Normal 62 / Hard 38 / Impossible 32）**，全部 SMILES 经 RDKit 程序化校验（含立体化学），锚点文献逐条 WebSearch 核实并标注核实状态，每档附 top 短名单待组内评审圈定最终 100 题。**（2026-08-30 更新：Easy 档已定稿为 30 题任务 JSON（`easy.md` + `ideapool/tasks/easy/`）；Normal 档重写为 40 条精编候选池（`normal.md`，easy.md 同款线缆格式，含 30 正选建议 + 10 替补；文献存在性核实 36/40，修正旧池多处著录错误，见 `normal_research_notes.md`）；旧 Normal 62 条超采池在 git 历史中可恢复。）**
+> (5) **反应选型路线改向并建成候选池**：原 `ideapool/benchmark_literature/` 文献池（52 篇）经评审判定与四档定义错位、经典性不足，已标注废弃；新原则为四档定义不变 + MACE-OMol25 舒适区命中为硬门槛 + 经典权威/可复现优先（gold 数值只需文献锚点）。已按新原则建成超采候选池 **`ideapool/reaction_candidates/`（179 个候选：Easy 47 / Normal 62 / Hard 38 / Impossible 32）**，全部 SMILES 经 RDKit 程序化校验（含立体化学），锚点文献逐条 WebSearch 核实并标注核实状态，每档附 top 短名单待组内评审圈定最终 100 题。**（2026-08-30 更新：Easy 档已定稿为 30 题任务 JSON（`easy.md` + `ideapool/tasks/easy/`）；Normal 档重写为精编候选池（`normal.md`，easy.md 同款线缆格式，修正旧池多处著录错误，见 `normal_research_notes.md`）并于当日扩编为 48 条（新增 X 族取代/消除/取向竞争 4 条、杂环化学 H3–H5、铵叶立德 U7——只增不删，最终圈定待评审打标）；Normal 定义同日更新为循序渐进三带（路线竞争判别 → 简单多步 → 复杂人名网络），新增条目一律纯 CHNO(F)（不引入第三周期及以上元素），存量含 P/Cl 条目去留待打标；旧 Normal 62 条超采池在 git 历史中可恢复。）**
 >
 > **v0.5 变更摘要**（根据 2026-08-25 组内讨论与化学信息学定位）：
 > (1) **明确方法学定位与化学信息学底座**：强调扎实的化学信息学基础、微观 3D 几何感知与机器学习势（MLIP）行为边界探索；
 > (2) **底层物理计算引擎全面升级至 MACE 系列（MACE-OMol25 / MACE-OFF）**：取代传统半经验 xTB，利用高阶等变图神经网络的高精度势能面，消除常规反应能垒的粗糙误差；
 > (3) **四级基准测试集（100 题）围绕 MACE 训练偏向与物理边界重新精准重构**：
 >     - **Easy（30 题）**：教材级单步基元反应（CHNO 主族、小分子原型），直击 MACE-OMol25 核心高频区，检验「SMILES→3D TS→虚频/IRC→DAG 绑定」基础链路；
->     - **Normal（30 题）**：经典可算的多步人名反应（Aldol、Claisen、Beckmann、Wittig 等，2–4 步），考验多步假设生成、中间体捕获与反应网络 DAG 剪枝；
+>     - **Normal（30 题）**：循序渐进的经典可算反应（路线竞争判别 → 简单多步网络 → 复杂人名反应三层递进；Aldol、Claisen、Beckmann、Hofmann/Cope 消除、Paal–Knorr、Huisgen 1,3-偶极环加成等；Wittig 含 P 属第三周期，去留待评审打标），考验竞争路径能垒排序、多步假设生成、中间体捕获与反应网络 DAG 剪枝；新增题目一律纯 CHNO(F) 以命中 MACE-OMol25 训练高密度区（2026-08-30 修订）；
 >     - **Hard（20 题）**：近几年文献中的精细立体化学与手性体系（顺旋/对旋 torquoselectivity、微观位阻控制、轴手性消旋阻垒），考验 Agent 的 3D 结构感知与构象采样；
 >     - **Impossible（20 题）**：强多参考态与近简并双自由基体系（环丁二烯、四亚甲基乙烷、苯炔体系等），直击 MACE/单参考 DFT 的物理死穴，核心考核 Agent 的自旋/电子态诊断与**主动科学拒答（Abstention）**；
 > (4) **评测体系由单一标量得分升级为运行轨迹多维评估（Trajectory-Level Multi-dimensional Evaluation）**：重点考察假设构建完整性、工具调用物理自洽性、报错闭环纠错韧性与方法边界自知度；
@@ -185,8 +185,8 @@ v0.2 版本规划的“四项任务”已由 v0.3 与 v0.4 完善后的五步走
 - **四难度梯队具体重构定义**：
   - **Easy（30 题）—— 教材级经典单步反应（重原子 $\le 7$，CHNO 主族原型）**：
     丁二烯+乙烯 Diels-Alder、丙烯醛环加成、经典 SN2/E2、环丁烯顺旋开环、小分子酮式-烯醇式互变。完全命中 MACE-OMol25 核心高频舒适区，重点考核 Agent「SMILES 输入 → 3D 构想 → MACE+NEB/Sella 寻找 TS → 虚频与 IRC 物理核验 → 绑定 DAG」的端到端基础闭环能力。
-  - **Normal（30 题）—— 经典可算的多步人名反应（2–4 步经典小分子网络）**：
-    Aldol 缩合、Claisen 重排、Beckmann 重排、简化的 Wittig 反应、Baeyer-Villiger 氧化、Mannich 反应、Fischer 吲哚合成核心步骤等。底物采用局部电荷明确的小骨架，MACE 具备局部键变计算能力但未见过完整多步流程，重点考验 Agent 自主提出多步机理假设、中间体捕获、竞争路径能垒排序与反应网络 DAG 剪枝能力。
+  - **Normal（30 题）—— 循序渐进的经典可算反应（路线竞争 → 简单多步 → 复杂人名网络，2026-08-30 修订）**：
+    三层递进：N1 路线竞争判别（二级碳 SN2 vs E2、E2 的 Zaitsev vs Hofmann 取向、Hofmann/Cope 消除、1,2 vs 1,4 加成、spiro vs planar 氧转移等单底物多通道体系）；N2 简单多步网络（Aldol 加成、Henry、Cannizzaro、Paal–Knorr 呋喃/吡咯、Knorr 吡唑、Huisgen 1,3-偶极环加成等 2–3 步体系）；N3 复杂人名反应网络（Claisen 重排、Beckmann 重排、Baeyer-Villiger 氧化、Mannich 反应、Fischer 吲哚合成核心步骤等 3–4 步级联；简化的 Wittig 反应含 P 属第三周期元素，其去留待评审打标，CHNO 替代考点为铵叶立德 [2,3]/[1,2] 竞争）。底物采用局部电荷明确的小骨架，**新增题目一律纯 CHNO(F)（第 2 周期元素）以命中 MACE-OMol25 训练高密度区**；MACE 具备局部键变计算能力但未见过完整多步流程，重点考验 Agent 竞争路径能垒排序、自主提出多步机理假设、中间体捕获与反应网络 DAG 剪枝能力。（注：easy 档已定稿的含 Cl 气相 SN2/E2 条目 C1/C2/C3/E1 为例外，不追溯整改。）
   - **Hard（20 题）—— 新颖微观立体化学与手性体系**：
     精选近几年文献中小分子量、高立体敏锐度的体系（顺旋/对旋 torquoselectivity、特征性 endo/exo 偏好翻转、阻转异构消旋阻垒、手性小分子/氢键诱导的微观立体位阻选择性）。利用 MACE 的高阶等变张量积对 3D 几何构象的高度敏感性，考核 Agent 的三维几何感知、原子空间映射与精细构象搜索能力。
   - **Impossible（20 题）—— 强多参考态与近简并双自由基体系（方法边界与科学拒答）**：
@@ -226,7 +226,7 @@ v0.2 版本规划的“四项任务”已由 v0.3 与 v0.4 完善后的五步走
   - `mace` 引擎（MACE-OMol25）：负责高精度过渡态（TS）寻优、虚频分析、IRC 反应路径追踪及竞争路径能垒精修。
 - 允许 Agent 自主决定算力调用策略，并在轨迹审计中评估其工具选型合理性（xTB/MACE 调用比本身即诊断信号）。
 
-**待办事项**：候选池已建成（`ideapool/reaction_candidates/`；截至 2026-08-30：Easy 已定稿 30 题任务 JSON，Normal 为 40 条精编候选池待评审圈定，Hard/Impossible 仍为超采池），下一步**评审 Normal 精编池并圈定 30 题、编写 `gen_normal_tasks.py`（多步 gold 图构建 + 逐题 bond_changes 登记，详见 normal.md 头部约定与调研笔记），并回补入选条的 [未核实] 锚点**；RXNMapper 批量生成 atom-mapped SMILES + 人工抽检；**冻结前用 MACE-OMol25 对 Easy 档 30 题试算，以实测误差标定各档容差（容差 ≥ 金标准实测误差），并验证可解档全部跑通（Solvability 准则）**；编写基于 Trajectory 解析的多维自动评测脚本（含事件日志 → 进度-成本曲线的效率度量管线）；**机理相似度指标已实现为子图覆盖打分（`cloudra/benchmark/graph_similarity.py`，多出元素不罚 + 键变边代价 + 立体分层，配锚点单测）；投稿前完成机理图比对的 novelty 核查（KinBot/AutoMeKin 谱系）**。
+**待办事项**：候选池已建成（`ideapool/reaction_candidates/`；截至 2026-08-30：Easy 已定稿 30 题任务 JSON，Normal 为 48 条扩编候选池——当日新增 X 族取代/消除/取向竞争 4 条 + 杂环 H3–H5 + 铵叶立德 U7，只增不删、含三带循序渐进映射，催化剂/副产物已全部写入 SMILES，**待评审打标圈定 30 题**，Hard/Impossible 仍为超采池），下一步**评审打标 Normal 池并圈定 30 题、编写 `gen_normal_tasks.py`（多步 gold 图构建 + 逐题 bond_changes 登记，详见 normal.md 头部约定与调研笔记）**；锚点不完整条目**不作回补硬要求**——选题判据优先级为 MACE 可算性 > 机理判别价值 > 锚点完整度，最终参考值由 MACE-OMol25 试算标定（computed_by_us，2026-08-30 定）；RXNMapper 批量生成 atom-mapped SMILES + 人工抽检；**冻结前用 MACE-OMol25 对 Easy 档 30 题试算，以实测误差标定各档容差（容差 ≥ 金标准实测误差），并验证可解档全部跑通（Solvability 准则）**；编写基于 Trajectory 解析的多维自动评测脚本（含事件日志 → 进度-成本曲线的效率度量管线）；**机理相似度指标已实现为子图覆盖打分（`cloudra/benchmark/graph_similarity.py`，多出元素不罚 + 键变边代价 + 立体分层，配锚点单测）；投稿前完成机理图比对的 novelty 核查（KinBot/AutoMeKin 谱系）**。
 
 #### 题目 JSON Schema 与评分器架构（2026-08-29 定稿）
 

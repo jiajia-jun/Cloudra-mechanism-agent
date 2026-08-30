@@ -1,0 +1,918 @@
+{
+  "rows": [
+    {
+      "id": "A1",
+      "name": "乙醛自缩合 Aldol 加成（aldol addition）",
+      "smiles": "[OH-].CC=O.CC=O>>[OH-].CC(O)CC=O",
+      "formed": [
+        "C1h3-C3h1×1",
+        "C2h1-C2h2×1",
+        "C2h2-C3h1×1",
+        "C3h1-O1h1×1"
+      ],
+      "broken": [
+        "C1h3-C2h1×2",
+        "C2h1=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "A2",
+      "name": "丙酮自缩合 Aldol 缩合 → 异亚丙基丙酮（aldol condensation → mesityl oxide）",
+      "smiles": "[OH-].CC(=O)C.CC(=O)C>>[OH-].CC(=O)C=C(C)C.O",
+      "formed": [
+        "C2h1-C3h0×1",
+        "C2h1=C3h0×1"
+      ],
+      "broken": [
+        "C1h3-C3h0×1",
+        "C3h0=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "A3",
+      "name": "Claisen–Schmidt 缩合（苯甲醛+乙醛 → 肉桂醛）",
+      "smiles": "[OH-].O=Cc1ccccc1.CC=O>>[OH-].O=CC=Cc1ccccc1.O",
+      "formed": [
+        "C2h1-C2h1×1",
+        "C2h1=C2h1×1"
+      ],
+      "broken": [
+        "C1h3-C2h1×1",
+        "C2h1=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "A4",
+      "name": "Knoevenagel 缩合（甲醛+丙二酸 → 丙烯酸+CO₂）",
+      "smiles": "C=O.O=C(O)CC(=O)O.CNC>>C=CC(=O)O.C(=O)=O.O.CNC",
+      "formed": [
+        "C1h2=C2h1×1",
+        "C2h0=O1h0×2",
+        "C2h1-C3h0×1"
+      ],
+      "broken": [
+        "C1h2=O1h0×1",
+        "C2h2-C3h0×2",
+        "C3h0-O1h1×1",
+        "C3h0=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "A5",
+      "name": "Mannich 反应（甲醛+甲胺+乙醛 → 3-甲氨基丙醛，酸催化）",
+      "smiles": "[OH3+].C=O.CN.CC=O>>[OH3+].CNCCC=O.O",
+      "formed": [
+        "C1h3-N2h1×1",
+        "C2h1-C2h2×1",
+        "C2h2-C2h2×1",
+        "C2h2-N2h1×1"
+      ],
+      "broken": [
+        "C1h2=O1h0×1",
+        "C1h3-C2h1×1",
+        "C1h3-N1h2×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "A6",
+      "name": "Henry 反应（硝基甲烷+甲醛 → 2-硝基乙醇）",
+      "smiles": "[OH-].C[N+](=O)[O-].C=O>>[OH-].OCC[N+](=O)[O-]",
+      "formed": [
+        "C2h2-C2h2×1",
+        "C2h2-N3h0×1",
+        "C2h2-O1h1×1"
+      ],
+      "broken": [
+        "C1h2=O1h0×1",
+        "C1h3-N3h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "A7",
+      "name": "Michael 加成（硝基甲烷+丙烯醛 → 4-硝基丁醛）",
+      "smiles": "[OH-].C[N+](=O)[O-].C=CC=O>>[OH-].O=CCCC[N+](=O)[O-]",
+      "formed": [
+        "C2h1-C2h2×1",
+        "C2h2-C2h2×2",
+        "C2h2-N3h0×1"
+      ],
+      "broken": [
+        "C1h2=C2h1×1",
+        "C1h3-N3h0×1",
+        "C2h1-C2h1×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "I1",
+      "name": "亚胺形成（甲醛+甲胺 ⇌ N-甲基甲亚胺+水）",
+      "smiles": "C=O.CN>>C=NC.O",
+      "formed": [
+        "C1h2=N2h0×1",
+        "C1h3-N2h0×1"
+      ],
+      "broken": [
+        "C1h2=O1h0×1",
+        "C1h3-N1h2×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "I2",
+      "name": "烯胺形成（乙醛+二甲胺 → N,N-二甲基乙烯胺+水，酸催化）",
+      "smiles": "[OH3+].CC=O.CNC>>[OH3+].C=CN(C)C.O",
+      "formed": [
+        "C1h2=C2h1×1",
+        "C1h3-N3h0×2",
+        "C2h1-N3h0×1"
+      ],
+      "broken": [
+        "C1h3-C2h1×1",
+        "C1h3-N2h1×2",
+        "C2h1=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "I3",
+      "name": "缩醛水解 A-1 机理（二甲氧基甲烷+H₃O⁺ → 甲醛+2 甲醇）",
+      "smiles": "[OH3+].COCOC.O>>[OH3+].C=O.CO.CO",
+      "formed": [
+        "C1h2=O1h0×1",
+        "C1h3-O1h1×2"
+      ],
+      "broken": [
+        "C1h3-O2h0×2",
+        "C2h2-O2h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "I4",
+      "name": "Strecker 合成（甲醛+氨+HCN → 氨基乙腈）",
+      "smiles": "C=O.N.C#N>>NCC#N.O",
+      "formed": [
+        "C2h0#N1h0×1",
+        "C2h0-C2h2×1",
+        "C2h2-N1h2×1"
+      ],
+      "broken": [
+        "C1h1#N1h0×1",
+        "C1h2=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Y1",
+      "name": "Fischer 酯化（乙酸+甲醇，酸催化 → 乙酸甲酯+水）",
+      "smiles": "[OH3+].CC(=O)O.CO>>[OH3+].CC(=O)OC.O",
+      "formed": [
+        "C1h3-O2h0×1",
+        "C3h0-O2h0×1"
+      ],
+      "broken": [
+        "C1h3-O1h1×1",
+        "C3h0-O1h1×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Y2",
+      "name": "酯酸催化水解 AAC2（甲酸甲酯+H₃O⁺ → 甲酸+甲醇）",
+      "smiles": "[OH3+].COC=O.O>>[OH3+].O=CO.CO",
+      "formed": [
+        "C1h3-O1h1×1",
+        "C2h1-O1h1×1"
+      ],
+      "broken": [
+        "C1h3-O2h0×1",
+        "C2h1-O2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Y3",
+      "name": "酯皂化 BAC2（甲酸甲酯+OH⁻ → 甲酸根+甲醇）",
+      "smiles": "[OH-].COC=O>>O=C[O-].CO",
+      "formed": [
+        "C1h3-O1h1×1",
+        "C2h1-O1h0×1"
+      ],
+      "broken": [
+        "C1h3-O2h0×1",
+        "C2h1-O2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Y4",
+      "name": "酰胺碱水解（甲酰胺+OH⁻ → 甲酸根+氨）",
+      "smiles": "[OH-].NC=O>>O=C[O-].N",
+      "formed": [
+        "C2h1-O1h0×1"
+      ],
+      "broken": [
+        "C2h1-N1h2×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "O1",
+      "name": "Prilezhaev 环氧化（乙烯+过甲酸 → 环氧乙烷+甲酸）",
+      "smiles": "C=C.O=COO>>C1CO1.O=CO",
+      "formed": [
+        "C2h1-O1h1×1",
+        "C2h2-C2h2r×1",
+        "C2h2-O2h0r×2"
+      ],
+      "broken": [
+        "C1h2=C1h2×1",
+        "C2h1-O2h0×1",
+        "O1h1-O2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "O2",
+      "name": "DMDO 环氧化（二甲基双环氧乙烷+乙烯 → 环氧乙烷+丙酮）",
+      "smiles": "CC1(C)OO1.C=C>>CC(C)=O.C1CO1",
+      "formed": [
+        "C1h3-C3h0×2",
+        "C2h2-C2h2r×1",
+        "C2h2-O2h0r×2",
+        "C3h0=O1h0×1"
+      ],
+      "broken": [
+        "C1h2=C1h2×1",
+        "C1h3-C4h0×2",
+        "C4h0-O2h0r×2",
+        "O2h0-O2h0r×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "O3",
+      "name": "Baeyer–Villiger 氧化（丙酮+过甲酸 → 乙酸甲酯+甲酸，酸催化）",
+      "smiles": "[OH3+].CC(C)=O.O=COO>>[OH3+].CC(=O)OC.O=CO",
+      "formed": [
+        "C1h3-O2h0×1",
+        "C2h1-O1h1×1",
+        "C3h0-O2h0×1"
+      ],
+      "broken": [
+        "C1h3-C3h0×1",
+        "C2h1-O2h0×1",
+        "O1h1-O2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "O4",
+      "name": "环氧开环碱催化（环氧乙烷+OH⁻ → 乙二醇盐）",
+      "smiles": "C1CO1.[OH-]>>OCC[O-]",
+      "formed": [
+        "C2h2-C2h2×1",
+        "C2h2-O1h0×1",
+        "C2h2-O1h1×1"
+      ],
+      "broken": [
+        "C2h2-C2h2r×1",
+        "C2h2-O2h0r×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "O5",
+      "name": "环氧开环酸催化（环氧乙烷+H₃O⁺/水 → 乙二醇）",
+      "smiles": "[OH3+].C1CO1.O>>[OH3+].OCCO",
+      "formed": [
+        "C2h2-C2h2×1",
+        "C2h2-O1h1×2"
+      ],
+      "broken": [
+        "C2h2-C2h2r×1",
+        "C2h2-O2h0r×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "S1",
+      "name": "Menshutkin 反应（氨+氯甲烷 → 甲铵氯化物）",
+      "smiles": "N.CCl>>C[NH3+].[Cl-]",
+      "formed": [
+        "C1h3-N1h3×1"
+      ],
+      "broken": [
+        "C1h3-Cl1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "S2",
+      "name": "Kolbe–Schmitt 反应（苯酚盐+CO₂ → 水杨酸盐）",
+      "smiles": "[O-]c1ccccc1.O=C=O>>O=C([O-])c1ccccc1O",
+      "formed": [
+        "C3h0-C3h0a×1",
+        "C3h0-O1h0×1",
+        "C3h0=O1h0×1",
+        "C3h0a-O1h1×1",
+        "C3h0a~C3h0ar×1"
+      ],
+      "broken": [
+        "C2h0=O1h0×2",
+        "C2h1a~C2h1ar×1",
+        "C3h0a-O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "X1",
+      "name": "F⁻ + 2-氟丙烷：SN2 vs E2 竞争（二级碳，写出线为 anti-E2 → 丙烯）",
+      "smiles": "[F-].CC(F)C>>C=CC.F.[F-]",
+      "formed": [
+        "C1h2=C2h1×1",
+        "C1h3-C2h1×1"
+      ],
+      "broken": [
+        "C1h3-C3h1×2",
+        "C3h1-F1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "X2",
+      "name": "F⁻ + 2-氟丁烷 E2：Zaitsev（2-丁烯，写出线）vs Hofmann（1-丁烯）取向竞争",
+      "smiles": "[F-].CCC(F)C>>CC=CC.F.[F-]",
+      "formed": [
+        "C1h3-C2h1×2",
+        "C2h1=C2h1×1"
+      ],
+      "broken": [
+        "C1h3-C2h2×1",
+        "C1h3-C3h1×1",
+        "C2h2-C3h1×1",
+        "C3h1-F1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "X3",
+      "name": "Hofmann 消除（乙基三甲基铵 + OH⁻ → 乙烯 + 三甲胺 + 水，E2）",
+      "smiles": "[OH-].CC[N+](C)(C)C>>C=C.O.CN(C)C",
+      "formed": [
+        "C1h2=C1h2×1",
+        "C1h3-N3h0×3"
+      ],
+      "broken": [
+        "C1h3-C2h2×1",
+        "C1h3-N4h0×3",
+        "C2h2-N4h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "X4",
+      "name": "Cope 消除（N,N-二甲基乙胺-N-氧化物 → 乙烯 + 二甲基羟胺，syn Ei）",
+      "smiles": "CC[N+](C)(C)[O-]>>C=C.CN(C)O",
+      "formed": [
+        "C1h2=C1h2×1",
+        "C1h3-N3h0×2",
+        "N3h0-O1h1×1"
+      ],
+      "broken": [
+        "C1h3-C2h2×1",
+        "C1h3-N4h0×2",
+        "C2h2-N4h0×1",
+        "N4h0-O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "R1",
+      "name": "频哪醇重排（pinacol → pinacolone，酸催化）",
+      "smiles": "[OH3+].CC(C)(O)C(C)(C)O>>[OH3+].CC(=O)C(C)(C)C.O",
+      "formed": [
+        "C1h3-C3h0×1",
+        "C3h0-C4h0×1",
+        "C3h0=O1h0×1"
+      ],
+      "broken": [
+        "C1h3-C4h0×1",
+        "C4h0-C4h0×1",
+        "C4h0-O1h1×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "R2",
+      "name": "Beckmann 重排（丙酮肟，酸催化 → N-甲基乙酰胺）",
+      "smiles": "[OH3+].CC(C)=NO>>[OH3+].CNC(C)=O",
+      "formed": [
+        "C1h3-N2h1×1",
+        "C3h0-N2h1×1",
+        "C3h0=O1h0×1"
+      ],
+      "broken": [
+        "C1h3-C3h0×1",
+        "C3h0=N2h0×1",
+        "N2h0-O1h1×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "R3",
+      "name": "Curtius 重排（乙酰叠氮 → 甲基异氰酸酯+N₂）",
+      "smiles": "CC(=O)N=[N+]=[N-]>>CN=C=O.N#N",
+      "formed": [
+        "C1h3-N2h0×1",
+        "C2h0=N2h0×1",
+        "C2h0=O1h0×1",
+        "N1h0#N1h0×1"
+      ],
+      "broken": [
+        "C1h3-C3h0×1",
+        "C3h0-N2h0×1",
+        "C3h0=O1h0×1",
+        "N1h0=N2h0×1",
+        "N2h0=N2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "R4",
+      "name": "Wolff 重排（2-重氮基乙醛 → 乙烯酮+N₂）",
+      "smiles": "O=CC=[N+]=[N-]>>C=C=O.N#N",
+      "formed": [
+        "C1h2=C2h0×1",
+        "C2h0=O1h0×1",
+        "N1h0#N1h0×1"
+      ],
+      "broken": [
+        "C2h1-C2h1×1",
+        "C2h1=N2h0×1",
+        "C2h1=O1h0×1",
+        "N1h0=N2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "R5",
+      "name": "Favorskii 重排（氯丙酮+OH⁻ → 丙酸根，经环丙酮）",
+      "smiles": "[OH-].[OH-].CC(=O)CCl>>CCC(=O)[O-].[Cl-].O",
+      "formed": [
+        "C1h3-C2h2×1",
+        "C3h0-O1h0×1"
+      ],
+      "broken": [
+        "C1h3-C3h0×1",
+        "C2h2-Cl1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "R6",
+      "name": "二苯乙醇酸重排最小版（乙二醛+OH⁻ → 乙醇酸根）",
+      "smiles": "[OH-].O=CC=O>>O=C([O-])CO",
+      "formed": [
+        "C2h2-C3h0×1",
+        "C2h2-O1h1×1",
+        "C3h0-O1h0×1",
+        "C3h0=O1h0×1"
+      ],
+      "broken": [
+        "C2h1-C2h1×1",
+        "C2h1=O1h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U1",
+      "name": "Cannizzaro 反应（2 甲醛+OH⁻ → 甲醇+甲酸根）",
+      "smiles": "[OH-].C=O.C=O>>CO.O=C[O-]",
+      "formed": [
+        "C1h3-O1h1×1",
+        "C2h1-O1h0×1",
+        "C2h1=O1h0×1"
+      ],
+      "broken": [
+        "C1h2=O1h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U2",
+      "name": "苯偶姻缩合最小版（2 甲醛+CN⁻ 催化 → 乙醇醛）",
+      "smiles": "[C-]#N.C=O.C=O>>[C-]#N.OCC=O",
+      "formed": [
+        "C2h1-C2h2×1",
+        "C2h1=O1h0×1",
+        "C2h2-O1h1×1"
+      ],
+      "broken": [
+        "C1h2=O1h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U3",
+      "name": "Wittig 反应简化版（H₃P=CH₂+甲醛 → 乙烯+H₃P=O）",
+      "smiles": "[CH2-][PH3+].C=O>>C=C.O=[PH3]",
+      "formed": [
+        "C1h2=C1h2×1",
+        "O1h0=P1h3×1"
+      ],
+      "broken": [
+        "C1h2-P1h3×1",
+        "C1h2=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U4",
+      "name": "Morita–Baylis–Hillman 反应（甲醛+丙烯酸甲酯+NMe₃ 催化）",
+      "smiles": "C=O.C=CC(=O)OC.CN(C)C>>C=C(CO)C(=O)OC.CN(C)C",
+      "formed": [
+        "C1h2=C3h0×1",
+        "C2h2-C3h0×1",
+        "C2h2-O1h1×1",
+        "C3h0-C3h0×1"
+      ],
+      "broken": [
+        "C1h2=C2h1×1",
+        "C1h2=O1h0×1",
+        "C2h1-C3h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U5",
+      "name": "Passerini 反应（甲醛+甲酸+甲基异腈 → α-酰氧基酰胺）",
+      "smiles": "C=O.O=CO.C[N+]#[C-]>>CNC(=O)COC=O",
+      "formed": [
+        "C1h3-N2h1×1",
+        "C2h1-O2h0×1",
+        "C2h2-C3h0×1",
+        "C2h2-O2h0×1",
+        "C3h0-N2h1×1",
+        "C3h0=O1h0×1"
+      ],
+      "broken": [
+        "C1h0#N2h0×1",
+        "C1h2=O1h0×1",
+        "C1h3-N2h0×1",
+        "C2h1-O1h1×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U6",
+      "name": "Staudinger β-内酰胺合成（乙烯酮+甲亚胺 → β-内酰胺）",
+      "smiles": "C=C=O.C=N>>O=C1CCN1",
+      "formed": [
+        "C2h2-C2h2r×1",
+        "C2h2-C3h0r×1",
+        "C2h2-N2h1r×1",
+        "C3h0-N2h1r×1",
+        "C3h0=O1h0×1"
+      ],
+      "broken": [
+        "C1h2=C2h0×1",
+        "C1h2=N1h1×1",
+        "C2h0=O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "U7",
+      "name": "铵叶立德 [2,3]-σ 迁移（Sommelet–Hauser 型）vs [1,2]-Stevens 竞争（巴豆基三甲基铵叶立德，写出线为 [2,3] 产物）",
+      "smiles": "[CH2-][N+](C)(C)CC=CC>>CN(C)CC(C)C=C",
+      "formed": [
+        "C1h2=C2h1×1",
+        "C1h3-C3h1×1",
+        "C1h3-N3h0×2",
+        "C2h1-C3h1×1",
+        "C2h2-C3h1×1",
+        "C2h2-N3h0×1"
+      ],
+      "broken": [
+        "C1h2-N4h0×1",
+        "C1h3-C2h1×1",
+        "C1h3-N4h0×2",
+        "C2h1-C2h2×1",
+        "C2h1=C2h1×1",
+        "C2h2-N4h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Q1",
+      "name": "芳香 Claisen 重排（烯丙基苯基醚 → 2-烯丙基苯酚）",
+      "smiles": "C=CCOc1ccccc1>>C=CCc1ccccc1O",
+      "formed": [
+        "C2h2-C3h0a×1",
+        "C3h0a-O1h1×1",
+        "C3h0a~C3h0ar×1"
+      ],
+      "broken": [
+        "C2h1a~C2h1ar×1",
+        "C2h2-O2h0×1",
+        "C3h0a-O2h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Q2",
+      "name": "杂原子 Diels–Alder（丁二烯+甲醛 → 3,6-二氢-2H-吡喃）",
+      "smiles": "C=CC=C.C=O>>C1=CCOCC1",
+      "formed": [
+        "C2h1-C2h2r×2",
+        "C2h1=C2h1r×1",
+        "C2h2-C2h2r×1",
+        "C2h2-O2h0r×2"
+      ],
+      "broken": [
+        "C1h2=C2h1×2",
+        "C1h2=O1h0×1",
+        "C2h1-C2h1×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Q3",
+      "name": "Nazarov 环化（二乙烯基酮酸活化 → 环戊-2-烯酮）",
+      "smiles": "[OH3+].C=CC(=O)C=C>>[OH3+].O=C1C=CCC1",
+      "formed": [
+        "C2h1-C2h2r×1",
+        "C2h1-C3h0r×1",
+        "C2h1=C2h1r×1",
+        "C2h2-C2h2r×1",
+        "C2h2-C3h0r×1"
+      ],
+      "broken": [
+        "C1h2=C2h1×2",
+        "C2h1-C3h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "Q4",
+      "name": "阴离子 oxy-Cope 重排（1,5-己二烯-3-醇盐 → 烯醇盐）",
+      "smiles": "C=CC([O-])CC=C>>C=CCCC=C[O-]",
+      "formed": [
+        "C2h1-C2h2×1",
+        "C2h1-O1h0×1",
+        "C2h1=C2h1×1",
+        "C2h2-C2h2×1"
+      ],
+      "broken": [
+        "C1h2=C2h1×1",
+        "C2h1-C3h1×1",
+        "C2h2-C3h1×1",
+        "C3h1-O1h0×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "H1",
+      "name": "Fischer 吲哚合成核心步（苯肼+乙醛 → 吲哚+NH₃+H₂O，酸催化）",
+      "smiles": "[OH3+].NNc1ccccc1.CC=O>>[OH3+].c1ccc2[nH]ccc2c1.N.O",
+      "formed": [
+        "C2h1a~C3h0ar×1",
+        "C2h1a~N2h1ar×1",
+        "C3h0a~C3h0ar×1",
+        "C3h0a~N2h1ar×1"
+      ],
+      "broken": [
+        "C1h3-C2h1×1",
+        "C2h1=O1h0×1",
+        "C3h0a-N2h1×1",
+        "N1h2-N2h1×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "H2",
+      "name": "Paal–Knorr 吡咯合成（2,5-己二酮+氨 → 2,5-二甲基吡咯+2 水，酸催化）",
+      "smiles": "[OH3+].CC(=O)CCC(C)=O.N>>[OH3+].Cc1ccc(C)[nH]1.O.O",
+      "formed": [
+        "C1h3-C3h0a×2",
+        "C2h1a~C2h1ar×1",
+        "C2h1a~C3h0ar×2",
+        "C3h0a~N2h1ar×2"
+      ],
+      "broken": [
+        "C1h3-C3h0×2",
+        "C2h2-C2h2×1",
+        "C2h2-C3h0×2",
+        "C3h0=O1h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "H3",
+      "name": "Paal–Knorr 呋喃合成（2,5-己二酮 → 2,5-二甲基呋喃 + 水，酸催化）",
+      "smiles": "[OH3+].CC(=O)CCC(C)=O>>[OH3+].Cc1ccc(C)o1.O",
+      "formed": [
+        "C1h3-C3h0a×2",
+        "C2h1a~C2h1ar×1",
+        "C2h1a~C3h0ar×2",
+        "C3h0a~O2h0ar×2"
+      ],
+      "broken": [
+        "C1h3-C3h0×2",
+        "C2h2-C2h2×1",
+        "C2h2-C3h0×2",
+        "C3h0=O1h0×2"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "H4",
+      "name": "Knorr 吡唑合成（肼 + 2,4-戊二酮 → 3,5-二甲基吡唑 + 2 水，弱酸催化）",
+      "smiles": "[OH3+].NN.CC(=O)CC(C)=O>>[OH3+].Cc1cc(C)n[nH]1.O.O",
+      "formed": [
+        "C1h3-C3h0a×2",
+        "C2h1a~C3h0ar×2",
+        "C3h0a~N2h0ar×1",
+        "C3h0a~N2h1ar×1",
+        "N2h0a~N2h1ar×1"
+      ],
+      "broken": [
+        "C1h3-C3h0×2",
+        "C2h2-C3h0×2",
+        "C3h0=O1h0×2",
+        "N1h2-N1h2×1"
+      ],
+      "cluster_size": 1
+    },
+    {
+      "id": "H5",
+      "name": "Huisgen 1,3-偶极环加成（雷酸 + 乙炔 → 异噁唑）",
+      "smiles": "[C-]#[N+]O.C#C>>c1cnoc1",
+      "formed": [
+        "C2h1a~C2h1ar×2",
+        "C2h1a~N2h0ar×1",
+        "C2h1a~O2h0ar×1",
+        "N2h0a~O2h0ar×1"
+      ],
+      "broken": [
+        "C1h0#N2h0×1",
+        "C1h1#C1h1×1",
+        "N2h0-O1h1×1"
+      ],
+      "cluster_size": 1
+    }
+  ],
+  "clusters": {
+    "+[C1h3-C3h1×1, C2h1-C2h2×1, C2h2-C3h1×1, C3h1-O1h1×1] -[C1h3-C2h1×2, C2h1=O1h0×1]": [
+      "A1"
+    ],
+    "+[C2h1-C3h0×1, C2h1=C3h0×1] -[C1h3-C3h0×1, C3h0=O1h0×1]": [
+      "A2"
+    ],
+    "+[C2h1-C2h1×1, C2h1=C2h1×1] -[C1h3-C2h1×1, C2h1=O1h0×1]": [
+      "A3"
+    ],
+    "+[C1h2=C2h1×1, C2h0=O1h0×2, C2h1-C3h0×1] -[C1h2=O1h0×1, C2h2-C3h0×2, C3h0-O1h1×1, C3h0=O1h0×1]": [
+      "A4"
+    ],
+    "+[C1h3-N2h1×1, C2h1-C2h2×1, C2h2-C2h2×1, C2h2-N2h1×1] -[C1h2=O1h0×1, C1h3-C2h1×1, C1h3-N1h2×1]": [
+      "A5"
+    ],
+    "+[C2h2-C2h2×1, C2h2-N3h0×1, C2h2-O1h1×1] -[C1h2=O1h0×1, C1h3-N3h0×1]": [
+      "A6"
+    ],
+    "+[C2h1-C2h2×1, C2h2-C2h2×2, C2h2-N3h0×1] -[C1h2=C2h1×1, C1h3-N3h0×1, C2h1-C2h1×1]": [
+      "A7"
+    ],
+    "+[C1h2=N2h0×1, C1h3-N2h0×1] -[C1h2=O1h0×1, C1h3-N1h2×1]": [
+      "I1"
+    ],
+    "+[C1h2=C2h1×1, C1h3-N3h0×2, C2h1-N3h0×1] -[C1h3-C2h1×1, C1h3-N2h1×2, C2h1=O1h0×1]": [
+      "I2"
+    ],
+    "+[C1h2=O1h0×1, C1h3-O1h1×2] -[C1h3-O2h0×2, C2h2-O2h0×2]": [
+      "I3"
+    ],
+    "+[C2h0#N1h0×1, C2h0-C2h2×1, C2h2-N1h2×1] -[C1h1#N1h0×1, C1h2=O1h0×1]": [
+      "I4"
+    ],
+    "+[C1h3-O2h0×1, C3h0-O2h0×1] -[C1h3-O1h1×1, C3h0-O1h1×1]": [
+      "Y1"
+    ],
+    "+[C1h3-O1h1×1, C2h1-O1h1×1] -[C1h3-O2h0×1, C2h1-O2h0×1]": [
+      "Y2"
+    ],
+    "+[C1h3-O1h1×1, C2h1-O1h0×1] -[C1h3-O2h0×1, C2h1-O2h0×1]": [
+      "Y3"
+    ],
+    "+[C2h1-O1h0×1] -[C2h1-N1h2×1]": [
+      "Y4"
+    ],
+    "+[C2h1-O1h1×1, C2h2-C2h2r×1, C2h2-O2h0r×2] -[C1h2=C1h2×1, C2h1-O2h0×1, O1h1-O2h0×1]": [
+      "O1"
+    ],
+    "+[C1h3-C3h0×2, C2h2-C2h2r×1, C2h2-O2h0r×2, C3h0=O1h0×1] -[C1h2=C1h2×1, C1h3-C4h0×2, C4h0-O2h0r×2, O2h0-O2h0r×1]": [
+      "O2"
+    ],
+    "+[C1h3-O2h0×1, C2h1-O1h1×1, C3h0-O2h0×1] -[C1h3-C3h0×1, C2h1-O2h0×1, O1h1-O2h0×1]": [
+      "O3"
+    ],
+    "+[C2h2-C2h2×1, C2h2-O1h0×1, C2h2-O1h1×1] -[C2h2-C2h2r×1, C2h2-O2h0r×2]": [
+      "O4"
+    ],
+    "+[C2h2-C2h2×1, C2h2-O1h1×2] -[C2h2-C2h2r×1, C2h2-O2h0r×2]": [
+      "O5"
+    ],
+    "+[C1h3-N1h3×1] -[C1h3-Cl1h0×1]": [
+      "S1"
+    ],
+    "+[C3h0-C3h0a×1, C3h0-O1h0×1, C3h0=O1h0×1, C3h0a-O1h1×1, C3h0a~C3h0ar×1] -[C2h0=O1h0×2, C2h1a~C2h1ar×1, C3h0a-O1h0×1]": [
+      "S2"
+    ],
+    "+[C1h2=C2h1×1, C1h3-C2h1×1] -[C1h3-C3h1×2, C3h1-F1h0×1]": [
+      "X1"
+    ],
+    "+[C1h3-C2h1×2, C2h1=C2h1×1] -[C1h3-C2h2×1, C1h3-C3h1×1, C2h2-C3h1×1, C3h1-F1h0×1]": [
+      "X2"
+    ],
+    "+[C1h2=C1h2×1, C1h3-N3h0×3] -[C1h3-C2h2×1, C1h3-N4h0×3, C2h2-N4h0×1]": [
+      "X3"
+    ],
+    "+[C1h2=C1h2×1, C1h3-N3h0×2, N3h0-O1h1×1] -[C1h3-C2h2×1, C1h3-N4h0×2, C2h2-N4h0×1, N4h0-O1h0×1]": [
+      "X4"
+    ],
+    "+[C1h3-C3h0×1, C3h0-C4h0×1, C3h0=O1h0×1] -[C1h3-C4h0×1, C4h0-C4h0×1, C4h0-O1h1×2]": [
+      "R1"
+    ],
+    "+[C1h3-N2h1×1, C3h0-N2h1×1, C3h0=O1h0×1] -[C1h3-C3h0×1, C3h0=N2h0×1, N2h0-O1h1×1]": [
+      "R2"
+    ],
+    "+[C1h3-N2h0×1, C2h0=N2h0×1, C2h0=O1h0×1, N1h0#N1h0×1] -[C1h3-C3h0×1, C3h0-N2h0×1, C3h0=O1h0×1, N1h0=N2h0×1, N2h0=N2h0×1]": [
+      "R3"
+    ],
+    "+[C1h2=C2h0×1, C2h0=O1h0×1, N1h0#N1h0×1] -[C2h1-C2h1×1, C2h1=N2h0×1, C2h1=O1h0×1, N1h0=N2h0×1]": [
+      "R4"
+    ],
+    "+[C1h3-C2h2×1, C3h0-O1h0×1] -[C1h3-C3h0×1, C2h2-Cl1h0×1]": [
+      "R5"
+    ],
+    "+[C2h2-C3h0×1, C2h2-O1h1×1, C3h0-O1h0×1, C3h0=O1h0×1] -[C2h1-C2h1×1, C2h1=O1h0×2]": [
+      "R6"
+    ],
+    "+[C1h3-O1h1×1, C2h1-O1h0×1, C2h1=O1h0×1] -[C1h2=O1h0×2]": [
+      "U1"
+    ],
+    "+[C2h1-C2h2×1, C2h1=O1h0×1, C2h2-O1h1×1] -[C1h2=O1h0×2]": [
+      "U2"
+    ],
+    "+[C1h2=C1h2×1, O1h0=P1h3×1] -[C1h2-P1h3×1, C1h2=O1h0×1]": [
+      "U3"
+    ],
+    "+[C1h2=C3h0×1, C2h2-C3h0×1, C2h2-O1h1×1, C3h0-C3h0×1] -[C1h2=C2h1×1, C1h2=O1h0×1, C2h1-C3h0×1]": [
+      "U4"
+    ],
+    "+[C1h3-N2h1×1, C2h1-O2h0×1, C2h2-C3h0×1, C2h2-O2h0×1, C3h0-N2h1×1, C3h0=O1h0×1] -[C1h0#N2h0×1, C1h2=O1h0×1, C1h3-N2h0×1, C2h1-O1h1×1]": [
+      "U5"
+    ],
+    "+[C2h2-C2h2r×1, C2h2-C3h0r×1, C2h2-N2h1r×1, C3h0-N2h1r×1, C3h0=O1h0×1] -[C1h2=C2h0×1, C1h2=N1h1×1, C2h0=O1h0×1]": [
+      "U6"
+    ],
+    "+[C1h2=C2h1×1, C1h3-C3h1×1, C1h3-N3h0×2, C2h1-C3h1×1, C2h2-C3h1×1, C2h2-N3h0×1] -[C1h2-N4h0×1, C1h3-C2h1×1, C1h3-N4h0×2, C2h1-C2h2×1, C2h1=C2h1×1, C2h2-N4h0×1]": [
+      "U7"
+    ],
+    "+[C2h2-C3h0a×1, C3h0a-O1h1×1, C3h0a~C3h0ar×1] -[C2h1a~C2h1ar×1, C2h2-O2h0×1, C3h0a-O2h0×1]": [
+      "Q1"
+    ],
+    "+[C2h1-C2h2r×2, C2h1=C2h1r×1, C2h2-C2h2r×1, C2h2-O2h0r×2] -[C1h2=C2h1×2, C1h2=O1h0×1, C2h1-C2h1×1]": [
+      "Q2"
+    ],
+    "+[C2h1-C2h2r×1, C2h1-C3h0r×1, C2h1=C2h1r×1, C2h2-C2h2r×1, C2h2-C3h0r×1] -[C1h2=C2h1×2, C2h1-C3h0×2]": [
+      "Q3"
+    ],
+    "+[C2h1-C2h2×1, C2h1-O1h0×1, C2h1=C2h1×1, C2h2-C2h2×1] -[C1h2=C2h1×1, C2h1-C3h1×1, C2h2-C3h1×1, C3h1-O1h0×1]": [
+      "Q4"
+    ],
+    "+[C2h1a~C3h0ar×1, C2h1a~N2h1ar×1, C3h0a~C3h0ar×1, C3h0a~N2h1ar×1] -[C1h3-C2h1×1, C2h1=O1h0×1, C3h0a-N2h1×1, N1h2-N2h1×1]": [
+      "H1"
+    ],
+    "+[C1h3-C3h0a×2, C2h1a~C2h1ar×1, C2h1a~C3h0ar×2, C3h0a~N2h1ar×2] -[C1h3-C3h0×2, C2h2-C2h2×1, C2h2-C3h0×2, C3h0=O1h0×2]": [
+      "H2"
+    ],
+    "+[C1h3-C3h0a×2, C2h1a~C2h1ar×1, C2h1a~C3h0ar×2, C3h0a~O2h0ar×2] -[C1h3-C3h0×2, C2h2-C2h2×1, C2h2-C3h0×2, C3h0=O1h0×2]": [
+      "H3"
+    ],
+    "+[C1h3-C3h0a×2, C2h1a~C3h0ar×2, C3h0a~N2h0ar×1, C3h0a~N2h1ar×1, N2h0a~N2h1ar×1] -[C1h3-C3h0×2, C2h2-C3h0×2, C3h0=O1h0×2, N1h2-N1h2×1]": [
+      "H4"
+    ],
+    "+[C2h1a~C2h1ar×2, C2h1a~N2h0ar×1, C2h1a~O2h0ar×1, N2h0a~O2h0ar×1] -[C1h0#N2h0×1, C1h1#C1h1×1, N2h0-O1h1×1]": [
+      "H5"
+    ]
+  }
+}
