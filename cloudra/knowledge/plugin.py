@@ -1,10 +1,22 @@
-"""chem-kb 混合图书馆 provider：图谱通道（本地 SQLite）+ 语义通道（向量微服务）。
+"""chem-kb 混合图书馆 provider：图谱通道（本地 SQLite）+ 语义通道（向量微服务）+ 模糊兜底层。
 
 配额结构性保证双通道全带上：``limit=5`` 时语义通道 ``ceil(3/5)=3`` 条、
-图谱通道 ``floor(2/5)=2`` 条；``limit < 2`` 时各保 1。降级矩阵：向量服务
-停 → 图谱配额补满（KG-only）；缺库 → 语义配额补满；双缺 → ``[]``。
-条目内顺序按各通道原始分排序——跨通道分数只是近似（bm25 与余弦不同量纲），
-最终排序以 ``runtime_v2/knowledge.py`` 的 (level, falsified, -score) 为准。
+图谱通道 ``floor(2/5)=2`` 条；``limit < 2`` 时各保 1。
+
+终版退化矩阵（微服务 / KG 库 / cards.jsonl → 行为）：
+
+    ✓    ✓    —    3 语义 + 2 图谱（满血，模糊层零参与）
+    ✗    ✓    ✓    3 模糊 + 2 图谱（零部署兜底，降级叙事仍双通道）
+    ✗    ✓    ✗    5 图谱（KG 补位不变）
+    ✓    ✗    —    5 语义（补位不变）
+    ✗    ✗    ✓    5 模糊
+    ✗    ✗    ✗    []
+
+附加规则：语义通道返回不足配额（服务活着但命中少）→ 模糊层按 card_id
+去重补足语义槽；补完仍有空槽才轮到 KG 补位——优先级链固定为
+语义 > 模糊 > 图谱补位。条目内顺序按各通道原始分排序——跨通道分数只是
+近似（bm25 / 余弦 / 子串分不同量纲），最终排序以 ``runtime_v2/knowledge.py``
+的 (level, falsified, -score) 为准。
 
 本模块禁止模块级/构造期的 DB/网络操作：provider 可能被 uvicorn 事件循环
 线程实例化（``plugins`` 配置列表在 app 启动时加载），一切资源都在
@@ -14,14 +26,17 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 
 import httpx
 
-from cloudra.knowledge import store
+from cloudra.knowledge import fuzzy, store
 from cloudra.persistence.paths import knowledge_graph_db_path
 from cloudra.runtime_v2.knowledge import KnowledgeEntry
+
+logger = logging.getLogger(__name__)
 
 PLUGIN_SPEC = "cloudra.knowledge.plugin:plugin"
 VEC_URL_ENV = "CLOUDRA_KG_VEC_URL"
@@ -66,14 +81,61 @@ class ChemKBPlugin:
         sem = self._semantic_channel(query, sem_quota)
         graph = self._graph_channel(db_path, query, graph_quota)
 
-        # 降级矩阵：单通道为空时另一通道补满全部配额。
-        if not sem:
+        # 卡片通道补位（优先级链：语义 > 模糊 > 图谱补位，见模块 docstring）。
+        # 图谱通道死 → 卡片槽目标扩到 limit（先放大 k 重取语义，与 v9.1 补位
+        # 行为一致）；语义槽未满（服务停/命中少）→ 模糊层按 card_id 去重补足。
+        card_target = limit if not graph else sem_quota
+        if len(sem) < card_target:
+            if not graph:
+                sem = self._semantic_channel(query, card_target)
+            if len(sem) < card_target:
+                sem = sem + self._fuzzy_topup(query, card_target - len(sem), sem)
+        # 模糊层也没填满语义槽 → KG 补满全部配额。
+        if graph and len(sem) < sem_quota:
             graph = self._graph_channel(db_path, query, limit)
-        if not graph:
-            sem = self._semantic_channel(query, limit)
 
         entries = sorted(sem + graph, key=lambda e: -e.score)
         return entries[:limit]
+
+    def _fuzzy_topup(
+        self, query: str, need: int, existing: list[KnowledgeEntry]
+    ) -> list[KnowledgeEntry]:
+        """模糊层补位：〔卡片·模糊〕条目（诚实标记，agent 可感知降级）。
+
+        过量取回 ``need + len(existing)``：去重最多吃掉与既有语义命中同卡的
+        那些行，不过量就会"差一条"漏给 KG 补位。
+        """
+        if need <= 0:
+            return []
+        try:
+            hits = fuzzy.search(query, need + len(existing))
+        except Exception:
+            logger.exception("chem-kb fuzzy fallback failed")
+            return []
+        have = {e.source for e in existing}
+        out: list[KnowledgeEntry] = []
+        for h in hits:
+            card_id = str(h.get("card_id") or "")
+            if not card_id or card_id in have:
+                continue
+            have.add(card_id)
+            try:
+                score = float(h.get("score") or 0.0)
+            except (TypeError, ValueError):
+                score = 0.0
+            out.append(KnowledgeEntry(
+                title=f"〔卡片·模糊〕{h.get('heading') or card_id}",
+                content=store._fold(str(h.get("content") or "")),
+                evidence_level="L0",
+                source=card_id,
+                falsified=False,
+                score=score,
+            ))
+            if len(out) >= need:
+                break
+        if out:
+            logger.debug("chem-kb fuzzy fallback: +%d card(s) for %r", len(out), query)
+        return out
 
     def _graph_channel(self, db_path, query: str, quota: int) -> list[KnowledgeEntry]:
         if quota <= 0 or not db_path.exists():
