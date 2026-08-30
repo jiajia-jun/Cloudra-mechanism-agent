@@ -45,6 +45,25 @@ def _check_node(frontend: Path) -> None:
         )
 
 
+def _npm_argv() -> list[str]:
+    """npm as an invokable argv prefix.
+
+    On Windows npm is a ``npm.cmd`` batch file: ``shutil.which`` finds it (it
+    honours PATHEXT) but ``CreateProcess`` cannot execute ``.cmd`` scripts
+    directly — ``subprocess.run(["npm", ...])`` dies with ``WinError 2`` even
+    though the pre-check passed.  Route through ``cmd /c`` with the fully
+    resolved path; POSIX keeps the resolved executable directly.
+    """
+    npm = shutil.which("npm")
+    if npm is None:
+        raise RuntimeError(
+            "npm not found on PATH; install Node.js >= 18 or run with --skip-build"
+        )
+    if os.name == "nt":
+        return ["cmd", "/c", npm]
+    return [npm]
+
+
 def _frontend_source_newer_than_dist(frontend: Path) -> bool:
     dist_index = frontend / "dist" / "index.html"
     if not dist_index.is_file():
@@ -67,7 +86,7 @@ def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool 
     _check_node(frontend)
     if not (frontend / "node_modules").is_dir():
         print("[cloudra] installing frontend dependencies...", flush=True)
-        subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
+        subprocess.run(_npm_argv() + ["install", "--no-audit", "--no-fund"], cwd=frontend, check=True)
     dist = frontend / "dist"
     if skip_build:
         if not (dist / "index.html").is_file():
@@ -79,7 +98,7 @@ def _ensure_frontend(frontend: Path, *, rebuild: bool = False, skip_build: bool 
             print("[cloudra] frontend source changed — rebuilding...", flush=True)
         else:
             print("[cloudra] building frontend...", flush=True)
-        subprocess.run(["npm", "run", "build"], cwd=frontend, check=True)
+        subprocess.run(_npm_argv() + ["run", "build"], cwd=frontend, check=True)
 
 
 def _port_is_bindable(preferred: int) -> bool:
