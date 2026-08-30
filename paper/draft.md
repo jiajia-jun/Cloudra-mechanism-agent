@@ -1,7 +1,7 @@
 # Cloudra: An Autonomous Multi-Agent Research Runtime for Quantum-Chemical Organic Reaction Mechanism Elucidation
 
-**Authors:** Chengyi Yang¹\*, Yang Li¹\*, Jierui Liu², Yuzhou Chen¹, Xirui Cao¹, Ruhan Zeng¹, Jun Zhou¹† (\* equal contribution; † corresponding author, to be finalized among Prof. Wenkun Luo, Prof. Weiwei Luo, and Prof. Jun Zhou)  
-**Affiliations:** ¹Changsha University of Science and Technology, Changsha, China; ²Central South University, Changsha, China  
+**Authors:** Cloudra Team  
+**Affiliations:** Changsha University of Science and Technology, Changsha, China  
 **Correspondence:** 951899550@qq.com  
 
 ---
