@@ -205,8 +205,8 @@ def test_ego_truncation_deterministic(tmp_path: Path):
 
 
 def test_full_repo_import_seconds_level(project_root):
-    e = Path(project_root) / "KG数据" / "kg-entities.csv"
-    r = Path(project_root) / "KG数据" / "kg-relations.csv"
+    e = Path(project_root) / "kg_data" / "kg-entities.csv"
+    r = Path(project_root) / "kg_data" / "kg-relations.csv"
     if not e.exists():
         pytest.skip("repo KG CSVs not present")
     db = Path(tempfile.mkdtemp()) / "kg.db"

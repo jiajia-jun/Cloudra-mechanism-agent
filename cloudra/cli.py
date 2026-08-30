@@ -236,9 +236,9 @@ def knowledge_cmd():
 
 @knowledge_cmd.command(name="import")
 @click.option("--entities", "entities_csv", type=click.Path(exists=True, dir_okay=False, path_type=Path),
-              default=Path("KG数据/kg-entities.csv"), show_default=True, help="实体 CSV（utf-8-sig）")
+              default=Path("kg_data/kg-entities.csv"), show_default=True, help="实体 CSV（utf-8-sig）")
 @click.option("--relations", "relations_csv", type=click.Path(exists=True, dir_okay=False, path_type=Path),
-              default=Path("KG数据/kg-relations.csv"), show_default=True, help="关系 CSV（utf-8-sig）")
+              default=Path("kg_data/kg-relations.csv"), show_default=True, help="关系 CSV（utf-8-sig）")
 @click.option("--db", "db_path", type=click.Path(path_type=Path), default=None,
               help="目标库路径（默认 data_dir/knowledge/chem_kg.db）")
 def knowledge_import(entities_csv, relations_csv, db_path):

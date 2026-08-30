@@ -1,8 +1,8 @@
 """零部署兜底：语义通道的子串模糊匹配层（v10）。
 
-数据源是仓库内 ``向量库/cards.jsonl``（7497 卡，静态提交）。微服务不可用或
+数据源是仓库内 ``vector_store/cards.jsonl``（7497 卡，静态提交）。微服务不可用或
 返回不足配额时，用确定性子串匹配补位卡片槽——克隆仓库零操作也有基础知识
-检索。pip 安装场景没有 ``向量库\\`` 目录：路径不存在时返回 ``[]``，行为与
+检索。pip 安装场景没有 ``vector_store\\`` 目录：路径不存在时返回 ``[]``，行为与
 v9.1 完全一致。匹配是"关键词包含"级：无语义泛化，质量预期见
 docs/PLUGINS.md 的"零部署兜底"小节。
 
@@ -26,7 +26,7 @@ _LOCK = threading.Lock()
 
 def _cards_file() -> Path:
     # cloudra/knowledge/fuzzy.py -> parents[2] == 仓库根（源码检出/可编辑安装）。
-    return Path(__file__).resolve().parents[2] / "向量库" / "cards.jsonl"
+    return Path(__file__).resolve().parents[2] / "vector_store" / "cards.jsonl"
 
 
 def _reset_cache() -> None:

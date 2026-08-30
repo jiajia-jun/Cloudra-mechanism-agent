@@ -185,12 +185,12 @@ plugin = KeyNodeTrigger()
 
 ### 数据与约定
 
-- 数据源：`KG数据/`（12.7k 实体 / 9k 行级关系，知识卡片洁净版抽取）与 `向量库/`（7497 卡的 bge-m3 向量）。
+- 数据源：`kg_data/`（12.7k 实体 / 9k 行级关系，知识卡片洁净版抽取）与 `vector_store/`（7497 卡的 bge-m3 向量）。
 - 全部条目 `evidence_level="L0"`（文献常识层——博客知识按 L0 对待）、`falsified=false`；`source` 是 `kb:{id}` 指针（不是 URL），条目内顺序按通道原始分近似排序（bm25 与余弦不同量纲，跨通道顺序只是观感；最终排序以图书馆层的 `(level, falsified, -score)` 为准）。
 
 ### 部署三步
 
-1. **建库**：`uv run cloudra knowledge import`（从仓库 `KG数据/` 导入 `data_dir/knowledge/chem_kg.db`，幂等可重跑；二次导入计数不变）。
+1. **建库**：`uv run cloudra knowledge import`（从仓库 `kg_data/` 导入 `data_dir/knowledge/chem_kg.db`，幂等可重跑；二次导入计数不变）。
 2. **起向量微服务**：`powershell -File scripts\kg_vec_service.ps1`（默认 8765 端口；用外部 `.venv-trans` 跑 bge-m3，`HF_HUB_OFFLINE=1` 离线加载，启动后台预热约 5-10s 后 `/health` 的 model 字段就绪。服务**不随 cloudra 自启**，停了也不影响 cloudra 运行——语义通道为空时图谱通道补满配额）。
 3. **激活插件**：`uv run cloudra knowledge install`（把 spec 幂等写进 config.yaml 的 `plugins` 列表）→ **重启 uvicorn**（插件在 app 启动时加载一次）。
 
@@ -200,7 +200,7 @@ plugin = KeyNodeTrigger()
 
 ### 零部署兜底（v10：模糊匹配 fallback）
 
-微服务没起也能有基础检索：语义通道不可用或返回不足配额时，provider 用**确定性子串匹配**扫仓库内 `向量库/cards.jsonl`（7,497 卡）补位卡片槽——**克隆仓库零操作即用**。退化矩阵：
+微服务没起也能有基础检索：语义通道不可用或返回不足配额时，provider 用**确定性子串匹配**扫仓库内 `vector_store/cards.jsonl`（7,497 卡）补位卡片槽——**克隆仓库零操作即用**。退化矩阵：
 
 | 微服务 | KG 库 | cards.jsonl | 行为 |
 | --- | --- | --- | --- |
@@ -216,7 +216,7 @@ plugin = KeyNodeTrigger()
 - 模糊条目前缀 **〔卡片·模糊〕**（与〔卡片〕/〔图谱〕并列的诚实标记，agent 可感知降级）；补位触发时打 debug 日志。
 - 匹配是**关键词包含**级（token AND、ASCII 大小写不敏感、heading 加权），**无语义泛化**——质量预期低于向量通道，仅作兜底。
 - 优先级链固定为 语义 > 模糊 > 图谱补位；模糊层按 card_id 去重，不与语义命中共存于同一条。
-- pip 安装场景没有 `向量库\` 目录：此层零参与，行为与 v9.1 完全一致。
+- pip 安装场景没有 `vector_store\` 目录：此层零参与，行为与 v9.1 完全一致。
 
 ### 卸载
 

@@ -5,16 +5,20 @@
 cloudra 自身 venv 不装 torch。本服务不随 cloudra 自启，用
 scripts/kg_vec_service.ps1 或直接：
 
-    <venv-trans>/Scripts/python.exe scripts/kg_vec_service.py [--port 8765]
+    <venv-trans>/Scripts/python.exe scripts/kg_vec_service.py [--port 8765] [--model NAME]
+
+模型可用 --model 或环境变量 KG_VEC_MODEL 自选（默认 BAAI/bge-m3，离线加载）；
+换成与 vector_store/meta.json 记录不同的模型时启动即告警——跨模型余弦分数无效，
+需自行用所选模型重新编码向量库。非默认模型首次使用从 HF 下载。
 
 端点：
-    GET /health          → {"ok": true, "model": "BAAI/bge-m3", "count": 7497}
+    GET /health          → {"ok": true, "model": ..., "library_model": ..., "count": 7497}
     GET /search?q=&k=    → {"hits": [{card_id, blog_id, domain, heading, content, score}]}
     POST /search {"query": "...", "k": 5}
                         → 同上（chem-kb 混合 provider 走这条；GET 供人工/脚本调试）
 
-查询侧加 bge 指令前缀、库侧再归一化（f16 量化微偏差校正），与
-向量库/retrieve.py 口径一致。只绑定 127.0.0.1。
+查询侧对 bge 系模型加专用指令前缀、库侧再归一化（f16 量化微偏差校正），与
+vector_store/retrieve.py 口径一致。只绑定 127.0.0.1。
 """
 
 from __future__ import annotations
@@ -30,19 +34,22 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-LIB_DIR = REPO_ROOT / "向量库"
-QUERY_INSTRUCTION = "为这个句子生成表示以用于检索相关文章："
+LIB_DIR = REPO_ROOT / "vector_store"
+DEFAULT_MODEL = "BAAI/bge-m3"
+BGE_QUERY_INSTRUCTION = "为这个句子生成表示以用于检索相关文章："  # bge 系专用查询前缀
 CONTENT_CAP = 600  # 单条 content 码点上限（调用方还会再折叠）
 
 _cards: list[dict] = []
 _mat = None  # np.ndarray (n, dim) float32
 _model = None
+_model_name = DEFAULT_MODEL  # main() 里被 --model / KG_VEC_MODEL 覆盖
+_lib_model: str | None = None  # meta.json 记录的库编码模型
 _model_lock = threading.Lock()
 _encode_lock = threading.Lock()
 
 
 def _load_library() -> None:
-    global _cards, _mat
+    global _cards, _mat, _lib_model
     import numpy as np
 
     cards_p, vec_p = LIB_DIR / "cards.jsonl", LIB_DIR / "vectors.f16.npy"
@@ -55,6 +62,26 @@ def _load_library() -> None:
     if len(_cards) != _mat.shape[0]:
         print(f"行数不一致: cards={len(_cards)} vecs={_mat.shape[0]}", file=sys.stderr)
         sys.exit(2)
+    meta_p = LIB_DIR / "meta.json"
+    if meta_p.exists():
+        try:
+            _lib_model = json.loads(meta_p.read_text(encoding="utf-8")).get("model")
+        except Exception:  # noqa: BLE001 — meta 损坏不阻断服务，只是无法校验模型
+            _lib_model = None
+
+
+def _query_instruction() -> str:
+    """查询指令前缀：bge 系模型需要专用前缀，其余模型裸查询。"""
+    return BGE_QUERY_INSTRUCTION if "bge" in _model_name.lower() else ""
+
+
+def _check_model_match() -> str | None:
+    """查询模型与库编码模型不一致时返回告警文本（跨模型余弦分数无意义）。"""
+    if _lib_model and _model_name != _lib_model:
+        return (f"模型不匹配：向量库由 {_lib_model!r} 编码，当前查询模型为 {_model_name!r}。"
+                "跨模型检索的相似度分数无效——请先用所选模型重新编码向量库"
+                "（一键入口：vector_store/encode.py --model 模型名），或把 --model 换回库编码模型。")
+    return None
 
 
 def _get_model():
@@ -62,10 +89,11 @@ def _get_model():
     if _model is None:
         with _model_lock:
             if _model is None:
-                os.environ.setdefault("HF_HUB_OFFLINE", "1")  # 模型已缓存，离线加载
+                if _model_name == DEFAULT_MODEL:
+                    os.environ.setdefault("HF_HUB_OFFLINE", "1")  # 默认模型已缓存，离线加载
                 from sentence_transformers import SentenceTransformer
 
-                _model = SentenceTransformer("BAAI/bge-m3", device="cpu")
+                _model = SentenceTransformer(_model_name, device="cpu")
     return _model
 
 
@@ -81,7 +109,7 @@ def _search(query: str, k: int) -> list[dict]:
 
     model = _get_model()
     with _encode_lock:  # torch encode 释放 GIL，串行化避免并发竞态
-        q = model.encode([QUERY_INSTRUCTION + query], normalize_embeddings=True,
+        q = model.encode([_query_instruction() + query], normalize_embeddings=True,
                          show_progress_bar=False)[0].astype(np.float32)
     m_norm = np.linalg.norm(_mat, axis=1)
     m_norm[m_norm == 0] = 1.0
@@ -113,11 +141,16 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self._send_json({
+            payload = {
                 "ok": True,
-                "model": "BAAI/bge-m3" if _model is not None else None,
+                "model": _model_name if _model is not None else None,
+                "library_model": _lib_model,
                 "count": len(_cards),
-            })
+            }
+            mismatch = _check_model_match()
+            if mismatch:
+                payload["warning"] = mismatch
+            self._send_json(payload)
             return
         if parsed.path == "/search":
             qs = parse_qs(parsed.query)
@@ -156,19 +189,28 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="知识卡片语义检索微服务（bge-m3，外部 venv 运行）")
+    global _model_name
+    ap = argparse.ArgumentParser(description="知识卡片语义检索微服务（外部 venv 运行）")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--model", default=os.environ.get("KG_VEC_MODEL", DEFAULT_MODEL),
+                    help=f"查询侧 embedding 模型（默认 {DEFAULT_MODEL}，也可用环境变量 "
+                         "KG_VEC_MODEL 指定）。换成与向量库不同的模型时必须自行重新编码"
+                         "向量库，否则检索分数无效；非默认模型首次使用会从 HF 下载。")
     args = ap.parse_args()
+    _model_name = args.model
 
     _load_library()
-    # 后台预热 bge-m3：懒加载逻辑保留兜底，但冷启动（CPU 首载约 5-10s）必须
+    mismatch = _check_model_match()
+    if mismatch:
+        print(f"[kg_vec] ⚠ {mismatch}", file=sys.stderr)
+    # 后台预热模型：懒加载逻辑保留兜底，但冷启动（CPU 首载约 5-10s）必须
     # 不与调用方的 3s 超时赛跑——监听立即可用，模型在后台线程就绪。
     warm = threading.Thread(target=_get_model, daemon=True)
     warm.start()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"[kg_vec] listening on http://{args.host}:{args.port}  cards={len(_cards)}  "
-          f"(bge-m3 首次 /search 时懒加载)", file=sys.stderr)
+          f"model={_model_name}  library_model={_lib_model}", file=sys.stderr)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
