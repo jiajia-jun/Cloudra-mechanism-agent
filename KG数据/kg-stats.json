@@ -1,0 +1,272 @@
+{
+ "states": 744,
+ "triples_raw": 9088,
+ "triples_kept": 9065,
+ "dropped_pollution": 0,
+ "dropped_label_len": 23,
+ "dropped_label_empty": 0,
+ "type_fallback_concept": 1709,
+ "label_dedup_merges": 0,
+ "extracted_cards": 7497,
+ "manual_cards": 0,
+ "cards_total_in_states": 7497,
+ "quote_verbatim_pass": 8780,
+ "quote_verbatim_fail": 285,
+ "label_in_text_pass": 16026,
+ "label_in_text_fail": 2104,
+ "join_source_violations": 0,
+ "entities": 12765,
+ "relation_rows": 9056,
+ "corroborated_triples": 33,
+ "custom_rel_types": {
+  "proposed": 14,
+  "developed": 6,
+  "researches": 1,
+  "founded": 1,
+  "translates_to": 38,
+  "": 1,
+  "causes": 3,
+  "produces": 1,
+  "enables": 6,
+  "controls": 2,
+  "incompatible_with": 3,
+  "recommended_for": 2,
+  "estimates": 1,
+  "supports_batch_processing": 1,
+  "avoids": 1,
+  "translated_as": 15,
+  "affects": 1
+ },
+ "type_distribution": {
+  "concept": 6719,
+  "method": 4872,
+  "software": 2207,
+  "parameter": 1798,
+  "pitfall": 1372,
+  "condition": 943,
+  "molecule": 171,
+  "reaction": 48
+ },
+ "rel_distribution": {
+  "applies_to": 3120,
+  "common_error_of": 1369,
+  "parameter_of": 1266,
+  "alternative_to": 831,
+  "part_of": 789,
+  "depends_on": 727,
+  "recommends": 499,
+  "validates": 367,
+  "translates_to": 38,
+  "translated_as": 15,
+  "proposed": 14,
+  "developed": 6,
+  "enables": 6,
+  "causes": 3,
+  "incompatible_with": 3,
+  "controls": 2,
+  "recommended_for": 2,
+  "researches": 1,
+  "founded": 1,
+  "": 1,
+  "produces": 1,
+  "estimates": 1,
+  "supports_batch_processing": 1,
+  "avoids": 1,
+  "affects": 1
+ },
+ "case_diff_pairs": [
+  [
+   "-B",
+   "-b"
+  ],
+  [
+   "ALPHA",
+   "alpha"
+  ],
+  [
+   "AMBER",
+   "Amber"
+  ],
+  [
+   "CPHF=RdFreq",
+   "CPHF=rdfreq"
+  ],
+  [
+   "Counterpoise",
+   "counterpoise"
+  ],
+  [
+   "Counterpoise方式",
+   "counterpoise方式"
+  ],
+  [
+   "Counterpoise方法",
+   "counterpoise方法"
+  ],
+  [
+   "Counterpoise校正",
+   "counterpoise校正"
+  ],
+  [
+   "DIRAC",
+   "Dirac"
+  ],
+  [
+   "EPS",
+   "eps"
+  ],
+  [
+   "EPSINF",
+   "epsinf"
+  ],
+  [
+   "FCClasses程序",
+   "FCclasses程序"
+  ],
+  [
+   "Fundamental gap",
+   "fundamental gap"
+  ],
+  [
+   "G09",
+   "g09"
+  ],
+  [
+   "G16",
+   "g16"
+  ],
+  [
+   "GROMACS",
+   "Gromacs"
+  ],
+  [
+   "Gentor",
+   "gentor"
+  ],
+  [
+   "GsGrid",
+   "gsgrid"
+  ],
+  [
+   "IOP(3/93=1",
+   "IOp(3/93=1"
+  ],
+  [
+   "IOp(9/40=4",
+   "iop(9/40=4"
+  ],
+  [
+   "IOp(9/40=5",
+   "iop(9/40=5"
+  ],
+  [
+   "ImageMagick",
+   "imagemagick"
+  ],
+  [
+   "Improper项",
+   "improper项"
+  ],
+  [
+   "Isovalue",
+   "isovalue"
+  ],
+  [
+   "Libint电子积分库",
+   "libint电子积分库"
+  ],
+  [
+   "MOPAC2XYZ",
+   "mopac2xyz"
+  ],
+  [
+   "ODFT",
+   "odft"
+  ],
+  [
+   "OpenBabel",
+   "Openbabel"
+  ],
+  [
+   "Opt=Calcfc",
+   "opt=calcfc"
+  ],
+  [
+   "Opt=Recalc",
+   "opt=recalc"
+  ],
+  [
+   "Optical gap",
+   "optical gap"
+  ],
+  [
+   "PDB文件",
+   "pdb文件"
+  ],
+  [
+   "Packmol",
+   "packmol"
+  ],
+  [
+   "SCF=conver=6",
+   "scf=conver=6"
+  ],
+  [
+   "Sobtop",
+   "sobtop"
+  ],
+  [
+   "TEMPERATURE关键词",
+   "temperature关键词"
+  ],
+  [
+   "United-atom力场",
+   "united-atom力场"
+  ],
+  [
+   "int=NoBasisTransform",
+   "int=nobasistransform"
+  ],
+  [
+   "Δ",
+   "δ"
+  ]
+ ],
+ "case_diff_hint": "收紧prompt",
+ "join_integrity": "PASS",
+ "corroborated_sample": [
+  {
+   "triple": [
+    "concept:molden文件",
+    "applies_to",
+    "software:Multiwfn"
+   ],
+   "sources": [
+    "kb:167",
+    "kb:379"
+   ]
+  },
+  {
+   "triple": [
+    "concept:双描述符势",
+    "alternative_to",
+    "concept:双描述符"
+   ],
+   "sources": [
+    "kb:708",
+    "kb:767"
+   ]
+  },
+  {
+   "triple": [
+    "method:IEFPCM",
+    "alternative_to",
+    "method:SMD"
+   ],
+   "sources": [
+    "kb:164",
+    "kb:327"
+   ]
+  }
+ ]
+}
