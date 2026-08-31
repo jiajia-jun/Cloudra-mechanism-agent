@@ -201,7 +201,8 @@
       "verification": "partial",
       "reference_doi": "10.1021/jo0503409",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

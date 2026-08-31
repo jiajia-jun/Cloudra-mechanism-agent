@@ -1,0 +1,320 @@
+{
+  "task_id": "HL1",
+  "tier": "hard",
+  "family": "L",
+  "name": "Beckmann rearrangement of (E)-butanone oxime (oxime geometry selects the migrating group -> N-ethylacetamide)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: Beckmann rearrangement of (E)-butanone oxime (oxime geometry selects the migrating group -> N-ethylacetamide). Reactant SMILES: [OH3+].CC/C(=N/O)/C; product SMILES: [OH3+].CCNC(C)=O; total charge 1, multiplicity 1; conditions: concentrated H2SO4 or acid catalysis, heated. Atom-mapped reactant SMILES: [O+:1]([H:2])([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O:7][H:8])/[CH3:3]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). This task probes stereochemistry: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum); for each competing stereochemical channel also report the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol and which channel it favors. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[OH3+]",
+      "CC/C(=N/O)/C"
+    ],
+    "products": [
+      "[OH3+]",
+      "CCNC(C)=O"
+    ],
+    "charge": 1,
+    "multiplicity": 1,
+    "conditions": "concentrated H2SO4 or acid catalysis, heated",
+    "elements": [
+      "C",
+      "H",
+      "N",
+      "O"
+    ],
+    "max_heavy_atoms": 7,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "HL1_R",
+          "role": "reactant",
+          "smiles": [
+            "[OH3+]",
+            "CC/C(=N/O)/C"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "HL1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "HL1_I1",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "CC/C(C)=N/[OH2+]"
+          ],
+          "accessible": true,
+          "label": "intermediate 1"
+        },
+        {
+          "id": "HL1_TS2",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS2"
+        },
+        {
+          "id": "HL1_I2",
+          "role": "intermediate",
+          "smiles": [
+            "O",
+            "O",
+            "CC#[N+]CC"
+          ],
+          "accessible": true,
+          "label": "intermediate 2"
+        },
+        {
+          "id": "HL1_TS3",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS3"
+        },
+        {
+          "id": "HL1_I3",
+          "role": "intermediate",
+          "smiles": [
+            "CCN=C(C)[OH2+]",
+            "O"
+          ],
+          "accessible": true,
+          "label": "intermediate 3"
+        },
+        {
+          "id": "HL1_TS4",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS4"
+        },
+        {
+          "id": "HL1_I4",
+          "role": "intermediate",
+          "smiles": [
+            "CCN=C(C)O",
+            "[OH3+]"
+          ],
+          "accessible": true,
+          "label": "intermediate 4"
+        },
+        {
+          "id": "HL1_TS5",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS5"
+        },
+        {
+          "id": "HL1_P",
+          "role": "product",
+          "smiles": [
+            "[OH3+]",
+            "CCNC(C)=O"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "HL1_E1",
+          "from": "HL1_R",
+          "to": "HL1_I1",
+          "via": "HL1_TS1",
+          "step_type": "proton transfer from H3O+ to the oxime OH (leaving-group activation)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ]
+            ],
+            "form": [
+              [
+                2,
+                7
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "HL1_E2",
+          "from": "HL1_I1",
+          "to": "HL1_I2",
+          "via": "HL1_TS2",
+          "step_type": "concerted Beckmann rearrangement (rate-determining): N-O cleavage with anti 1,2-ethyl migration from C to N and C-N pi bond formation -> nitrilium ion + water ((E)-oxime geometry puts the ethyl group anti to OH, so ethyl migrates)",
+          "bond_changes": {
+            "break": [
+              [
+                4,
+                5
+              ],
+              [
+                6,
+                7
+              ]
+            ],
+            "form": [
+              [
+                4,
+                6
+              ],
+              [
+                5,
+                6
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "HL1_E3",
+          "from": "HL1_I2",
+          "to": "HL1_I3",
+          "via": "HL1_TS3",
+          "step_type": "water attack on the nitrilium carbon: C-O formation with one C-N pi bond broken -> O-protonated imidic acid",
+          "bond_changes": {
+            "break": [
+              [
+                4,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "HL1_E4",
+          "from": "HL1_I3",
+          "to": "HL1_I4",
+          "via": "HL1_TS4",
+          "step_type": "proton transfer from the imidic acid OH2+ to water -> neutral imidic acid + H3O+",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                9
+              ]
+            ],
+            "form": [
+              [
+                7,
+                9
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "HL1_E5",
+          "from": "HL1_I4",
+          "to": "HL1_P",
+          "via": "HL1_TS5",
+          "step_type": "imidic acid -> amide tautomerization: intramolecular O-to-N proton shift with C=N pi to C=O pi migration -> N-ethylacetamide",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                10
+              ],
+              [
+                4,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                6,
+                10
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    },
+    "selectivity": null
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "hard_stereo_costly",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

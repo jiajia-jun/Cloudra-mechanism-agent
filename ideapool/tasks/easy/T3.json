@@ -100,7 +100,8 @@
       "verification": "verified",
       "reference_doi": "10.1016/s0009-2614(96)01253-5",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

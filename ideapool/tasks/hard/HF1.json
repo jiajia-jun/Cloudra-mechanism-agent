@@ -1,0 +1,224 @@
+{
+  "task_id": "HF1",
+  "tier": "hard",
+  "family": "F",
+  "name": "cyclohex-2-en-1-ol peracid epoxidation (Henbest hydrogen-bond-directed, cis)",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: cyclohex-2-en-1-ol peracid epoxidation (Henbest hydrogen-bond-directed, cis). Reactant SMILES: OC1C=CCCC1.O=COO; product SMILES: O[C@H]1[C@H]2O[C@H]2CCC1.O=CO; total charge 0, multiplicity 1; conditions: performic or perbenzoic acid, CH2Cl2 or benzene, 0-25 degC. Atom-mapped reactant SMILES: [OH:2][CH:1]1[CH:3]=[CH:4][CH2:5][CH2:6][CH2:7]1.[O:9]=[CH:8][O:10][O:11][H:12]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). This task probes stereochemistry: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum); for each competing stereochemical channel also report the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol and which channel it favors. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "OC1C=CCCC1",
+      "O=COO"
+    ],
+    "products": [
+      "O[C@H]1[C@H]2O[C@H]2CCC1",
+      "O=CO"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "performic or perbenzoic acid, CH2Cl2 or benzene, 0-25 degC",
+    "elements": [
+      "C",
+      "H",
+      "O"
+    ],
+    "max_heavy_atoms": 11,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "HF1_R",
+          "role": "reactant",
+          "smiles": [
+            "OC1C=CCCC1",
+            "O=COO"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "HF1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "HF1_P",
+          "role": "product",
+          "smiles": [
+            "O[C@H]1[C@H]2O[C@H]2CCC1",
+            "O=CO"
+          ],
+          "accessible": true,
+          "label": "product"
+        },
+        {
+          "id": "HF1_TSM1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS minor 1"
+        },
+        {
+          "id": "HF1_M1",
+          "role": "product",
+          "smiles": [
+            "O[C@@H]1CCC[C@@H]2O[C@@H]12",
+            "O=CO"
+          ],
+          "accessible": true,
+          "label": "minor product 1"
+        }
+      ],
+      "edges": [
+        {
+          "id": "HF1_E1",
+          "from": "HF1_R",
+          "to": "HF1_P",
+          "via": "HF1_TS1",
+          "step_type": "concerted epoxidation via butterfly TS, allylic OH...OOH hydrogen bond directs O delivery to the syn face: O-O and terminal O-H cleavage with internal proton transfer to the carbonyl-side oxygen, C=C pi cleavage, two epoxide C-O formations -> cis-2,3-epoxycyclohexanol",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                4
+              ],
+              [
+                10,
+                11
+              ],
+              [
+                11,
+                12
+              ]
+            ],
+            "form": [
+              [
+                3,
+                11
+              ],
+              [
+                4,
+                11
+              ],
+              [
+                10,
+                12
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "HF1_EM1",
+          "from": "HF1_R",
+          "to": "HF1_M1",
+          "via": "HF1_TSM1",
+          "step_type": "same concerted epoxidation on the undirected (opposite) face -> trans-2,3-epoxycyclohexanol (minor channel)",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                4
+              ],
+              [
+                10,
+                11
+              ],
+              [
+                11,
+                12
+              ]
+            ],
+            "form": [
+              [
+                3,
+                11
+              ],
+              [
+                4,
+                11
+              ],
+              [
+                10,
+                12
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    },
+    "selectivity": {
+      "spread_kcal_mol": 1.4,
+      "spread_type": "ΔG‡",
+      "minor_channel": "undirected opposite-face epoxidation -> trans-2,3-epoxycyclohexanol",
+      "verification": "verified",
+      "reference_doi": "",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "hard_stereo_costly",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

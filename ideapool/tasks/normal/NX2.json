@@ -114,7 +114,8 @@
       "verification": "verified",
       "reference_doi": "10.1021/acs.joc.5b01983",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

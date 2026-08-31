@@ -1,489 +1,192 @@
-# Hard 档候选反应清单 — 新颖微观立体化学与手性体系
+# Hard 档候选反应池（立体化学：微观 3D 选择性与构型映射，候选 51 条）
 
-> 生成日期：2026-08-25。超采 38 个候选（目标最终 20 个）。
-> 考核点：三维几何感知、原子空间映射、精细构象搜索 —— torquoselectivity（顺旋方向竞争）、endo/exo 偏好、π-面选择性、椅式/船式竞争、阻转异构消旋阻垒、手性小分子/氢键诱导立体选择性。
+> 日期：2026-08-31。Hard 档 = **立体化学**，三类考点：(i) 立体专一性（底物构型/几何 → 产物的确定性映射：Woodward–Hoffmann 规则、syn/anti 加成与消除、SN2 构型翻转、几何 → 产物判定）；(ii) 立体选择性竞争（两个非对映过渡态的能垒差决定 dr/ee/endo:exo/面选择性）；(iii) 构型稳定阻垒（阻转异构消旋化）。单步多步皆可，只要有立体上的选择性。本文件为评审用候选池（51 条超采，已定稿正选 20 条见文末"定稿圈定"），表格列结构与 `easy.md`/`normal.md` 完全对齐（同一套解析正则 ROW_RE/SMILES_RE/VERIFY_RE/能垒格规则可读）。**池子只增不删：落选条目留档。**
 >
-> **舒适区约束（MACE-OMol25）**：候选体系以小分子量 CHNO 有机体系为主；除特别标注外重原子数 ≤20、闭壳层、单重态。个别候选含 B/Si/S（已在"舒适区自查"中显式标注），均在 OMol25 元素覆盖范围内但训练密度低于 CHNO，入选时需权衡。
+> **本文件取代 2026-08-25 旧版 hard.md**（H-01~H-38 编号条目体例，git 历史可查）：升级为表格线缆格式并重新编号（A1…L4），旧→新编号映射见文末"使用注意"；旧池 38 条全部保留，新增 13 条（B9 + J 族 6 + K 族 2 + L 族 4）扩充反应多样性。**勘误两条旧池立体化学错误**：旧 H-19（现 D1）把 trans-2,3-二甲基环氧乙烷酸水解产物误写为 dl-2,3-丁二醇——anti 开环翻转一个中心，实际得 **meso**（(2R,3S)），dl 才是错误非对映体；旧 H-05（现 A5）产物 canonical SMILES 与 (2E,4Z) 名称的对应关系已程序化核对（RDKit 确认 `C/C=C/C=C\C` = 2E,4Z）。
 >
-> **数值约定**：gold 数值（ΔΔG‡/能垒差/选择性比值）为文献锚点的**量级参考**，判题容差建议 ±1 kcal/mol（能垒差）或对数级（比值）。标注"≈"者为从文献数值换算/记忆的近似值，gold 构建阶段需回查原文取准值。
+> **与 easy/normal 档的边界**：easy 已定稿 30 体系一律不重复——parent DA（D1）、未取代环丁烯/己三烯电环化（L1/L2）、Claisen（P3）、Cope（P1）、二亚胺+乙烯（G2）、氢硼化乙烯（G1）、联苯阻转（M1）等无立体维度的原型不再出现于本档；hard 的周环/加成条目全部带立体化学维度（取代基 torquoselection、构型映射、面选择性）。J1（二亚胺+2-丁炔）与 easy G2（二亚胺+乙烯）、J2（氢硼化 1-甲基环己烯）与 easy G1（氢硼化乙烯）同试剂不同考点（syn 立体专一/区域+立体），特此说明。normal 的 O1/O2（环氧乙烷氧转移）、X 族（开链 SN2/E2 取向）、R2（对称丙酮肟 Beckmann）等同样不重复——hard 的 D/J/L 族均取带立体化学的底物（L1 丁酮肟 E/Z 是 normal R2 对称肟的立体化版本，L2 是 normal O3 的迁移保持版本）。
 >
-> **核实状态**：`[已核实]` = 经 WebSearch 核实文献存在且卷期页码/DOI 与多个独立来源一致；`[部分核实]` = 文献确实存在（有可靠二手引证），但页码或数值未逐字核对；`[未核实]` = 凭领域常识给出，须回查。
+> **舒适区约束（MACE-OMol25）**：候选体系以 CHNO 小分子为主，反应物装配体（含写入 SMILES 的试剂/催化剂）重原子 ≤20 为宜；超出者（H2=24、H3=22、I2=21、I3=21）与恰在边界者（H1=20、I1=20、I4=20）显式标注，去留由打标裁决。含 B（E1–E3/J2/K1/K2）、Si（G3）、S（I4/L4）、Br（J3/J6）、F（J4）的条目均在 OMol25 元素覆盖内但训练密度低于 CHNO，"舒适区自查"格有 ⚠ 标注。
 >
-> **SMILES 说明**：所有含立体化学标记的 SMILES 已用 RDKit 逐一解析验证（重原子数、CIP R/S、E/Z 归属均程序化核对）。个别产物（如 norbornene 系 endo/exo SMILES）的相对构型归属按 PubChem 同系物模式类推，标注"构型待 3D 核对"。
+> **SMILES 约定**：立体化学一律写入 SMILES（`@`/`@@` 四面体、`/`/`\` 双键几何）；均为原子数配平的净反应式；试剂与催化剂一律写入 SMILES 两侧（同 normal 2026-08-30 规范化），条件列只记录实验经典条件供参考；产物相对/绝对构型归属未经 3D 核对的，在 SMILES 后括注"构型待 3D 核对"。全部闭壳层单重态；气相/微溶剂化模型可算。
+>
+> **能垒锚点标注约定**（沿用 easy/normal，并按 hard 特点补充）：
+> - 核实状态标签同前：[已核实]/[已核实存在]/[部分核实]/[未核实]。
+> - **hard 档锚点多为选择性差值**（竞争非对映 TS 的 ΔΔG‡/ΔΔE‡，kcal/mol）或绝对阻垒（H 族消旋 ΔG‡）；纯立体专一条目（选择性为 0/1 映射、无能垒差数值）能垒格不写数字（barrier=null）。评分绑定 agent 实际计算证据（两个竞争 TS + IRC + 频率），锚点只作容差参考，不作 pass/fail 硬线；选题判据优先级沿用 normal：**MACE 可算性 > 机理判别价值 > 锚点完整度**，锚点缺失/口径偏差不构成剔除理由，最终参考值可由 MACE 试算标定（computed_by_us）。
+> - 解析纪律同 normal：能垒格第一个括号之前的第一个阿拉伯数字即锚点数值（dr/ee/比值/年份等一律进括号）；范围值取下界；DOI 以 `DOI 10.xxxx` 形式给出且后随中文标点。
+> - **ΔΔ 记号注意**：easy 生成器的 `_BARRIER_TYPE_MAP` 会把 `ΔΔG‡` 子串匹配成 `ΔG‡`——hard 生成器需为选择性差值单独登记语义（selectivity spread，非绝对垒），见文末"使用注意"。
+> - gold 机理概要列写竞争通道（"竞争：…"）；多步条目按 ①②③ 列基元步并标（决速）。
+>
+> **验证**：全部 51 条通过 RDKit 程序化校验（SMILES 合法、重原子/H/电荷配平、E/Z 与 CIP R/S 归属核对；环 cis/trans 与环氧 syn/anti 归属经 3D 嵌入核对；syn/anti 无环产物归属经 Fischer-CIP 推导核对）。标注"构型待 3D 核对"者（B2–B4、B6–B9、C2/C3、E1/E3、F2、G2/G3、I1–I4、K2、L3/L4 产物）在 gold 构建阶段以文献结构图/计算 3D 锚定。
 
 ---
 
-## A. Torquoselectivity 与电环化立体专一性（H-01 ~ H-07）
+## A. Torquoselectivity 与电环化立体专一性（旧 H-01~H-07，7 个）
 
-### H-01 3-甲基环丁烯顺旋开环（3-methylcyclobutene conrotatory ring opening）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| A1 | 3-甲基环丁烯顺旋开环（3-methylcyclobutene，torquoselectivity 母体）| `CC1CC=C1>>C=C/C=C/C`（主产物 (E)-1,3-戊二烯；(Z) 副产物见机理格），0/1 | 气相或惰性溶剂，~150–200 °C | 协同顺旋开环；给电子甲基**外向**旋转占优（σ→σ* 超共轭+位阻）→ (E) 主产物。竞争：内向旋转 → (Z) `C=C/C=C\C` | ΔΔE‡ ≈ 2 kcal/mol（外向:内向，150 °C 对应 E:Z ≈ 9:1；Rondan & Houk 1985 JACS 107, 2099，DOI 10.1021/ja00293a046；Niwayama 1996 JOC 61, 2813，DOI 10.1021/jo950884i）[已核实] | C,H；5 重原子；✅ | torquoselectivity 奠基计算研究（Houk 组）；Bachrach 教科书收录 |
+| A2 | 3-甲酰基环丁烯"反向"torquoselectivity（3-formylcyclobutene，受体内向）| `O=CC1CC=C1>>C=C/C=C\C=O`（主产物 (Z)-2,4-戊二烯醛），0/1 | 加热 ~120–180 °C | 强 π-受体 CHO **内向**旋转占优（与给体相反）→ (Z) 主产物。竞争：外向 → (E) `C=C/C=C/C=O` | ΔΔE‡ ≈ 2–3 kcal/mol（内向:外向；Kirmse, Rondan & Houk 1984 JACS 106, 7989；Rudolf 1987 JOC 52, 3708，DOI 10.1021/jo00392a047；综述 Dolbier 1996 ACR 29, 471）[已核实] | C,H,O；6 重原子；✅ | "理论预测先于实验证实"经典案例 |
+| A3 | 3-甲氧基环丁烯（3-methoxycyclobutene，强给体外向）| `COC1CC=C1>>C=C/C=C/OC`（主产物 (E)），0/1 | 气相热解 | 给体 OMe 强烈外向（孤对供体效应叠加位阻）→ 几乎单一 (E)。竞争：内向 → (Z) | ΔΔE‡ ≈ 5–7 kcal/mol（外向:内向，给体序列上限量级；Niwayama 1996 JOC 61, 2813；具体数值回查原文）[部分核实] | C,H,O；6 重原子；✅ | 与 A1/A2 构成给体-受体对比组 |
+| A4 | 3-(甲氧羰基)环丁烯（methyl cyclobut-3-ene-1-carboxylate，受体内向）| `COC(=O)C1CC=C1>>C=C/C=C\C(=O)OC`（主产物 (Z)-2,4-戊二烯酸甲酯），0/1 | 加热 | 受体 CO2Me **内向**旋转占优（与 A2 同族，略弱）。竞争：外向 → (E) | ΔΔE‡ ≈ 2–3 kcal/mol（内向:外向；Niwayama 1996；Dolbier 1996 ACR 29, 471）[部分核实] | C,H,O；8 重原子；✅ | 受体系列内梯度 |
+| A5 | 顺-3,4-二甲基环丁烯立体专一开环（cis-3,4-dimethylcyclobutene，WH 规则）| `C[C@@H]1C=C[C@@H]1C>>C/C=C/C=C\C`（meso 底物 (3R,4S) → 唯一产物 (2E,4Z)-2,4-己二烯，RDKit 已核对），0/1 | 加热 ~175 °C | 4π 热顺旋立体专一：meso 底物只给 (E,Z) 二烯（顺时针/逆时针殊途同归）。竞争：对旋为对称禁阻路径 | 能垒数值未核（顺旋唯一允许；对旋禁阻垒差 ≫10 kcal/mol 量级；Woodward & Hoffmann 1965 JACS 87, 395，DOI 10.1021/ja01080a054；Winter 1965 TL 实验）[已核实] | C,H；6 重原子；✅ | 轨道对称性守恒教科书标准案例 |
+| A6 | 反-3,4-二甲基环丁烯（trans-3,4-dimethylcyclobutene，顺旋方向×位阻双重选择）| `C[C@H]1C=C[C@@H]1C>>C/C=C/C=C/C`（(3R,4R) 底物 → 主产物 (E,E)，双甲基外向），0/1 | 加热 | WH 允许的两条顺旋路径分别给 (E,E) 与 (Z,Z) `C/C=C\C=C/C`（登记阶段勘误：池初稿误写 `C/C=C\C=C\C`，该串实为 (Z,E)）；位阻使双外向占优。竞争：双内向 → (Z,Z) | ΔΔE‡ ≈ 2–4 kcal/mol（双外向:双内向；Woodward & Hoffmann 1965；Rondan & Houk 1985）[已核实] | C,H；6 重原子；✅ | 对称性约束×torquoselection 双重考点 |
+| A7 | (2E,4Z,6E)-辛三烯对旋闭环（6π disrotatory stereospecificity）| `C/C=C/C=C\C=C\C>>C[C@@H]1C=CC=C[C@@H]1C`（主产物 cis，meso (5R,6S)），0/1 | 加热 | 6π 热对旋立体专一：(E,Z,E) → cis。竞争：顺旋对称禁阻 → trans 不出现 | 能垒数值未核（Woodward & Hoffmann 1965；Marvell 组取代己三烯电环化系列 1970 前后）[部分核实] | C,H；8 重原子；✅ | 6π 电环化立体专一定义性案例 |
 
-1. 反应/底物：3-甲基环丁烯热开环 → 1,3-戊二烯，外向/内向旋转竞争。
-2. SMILES：`CC1CC=C1` → 主产物 (E)：`C=C/C=C/C`；副产物 (Z)：`C=C/C=C\C`
-3. 电荷/自旋：0 / 单重态（闭壳层）
-4. 条件：气相或惰性溶剂，~150–200 °C，热反应。
-5. gold 机理/选择性：协同顺旋开环；给电子甲基**外向**旋转占优（σ→σ* 超共轭 + 位阻），外向:内向 ΔΔE‡ ≈ 2 kcal/mol（计算），对应 (E):(Z) ≈ 9:1（150 °C 量级）。
-6. 锚点：Rondan & Houk, *J. Am. Chem. Soc.* **1985**, 107, 2099–2111, DOI 10.1021/ja00293a046 `[已核实]`；Niwayama, Kallel, Spellmeyer, Sheu & Houk, *J. Org. Chem.* **1996**, 61, 2813–2825, DOI 10.1021/jo950884i `[已核实]`。
-7. 舒适区：{C,H}；5 重原子；闭壳层 ✓
-8. 权威性：torquoselectivity 奠基性计算研究（Houk 组）；Bachrach《Computational Organic Chemistry》教科书收录。
+## B. Diels–Alder endo/exo、π-面与立体专一性（旧 H-08~H-15 + 新 B9，9 个）
 
-### H-02 3-甲酰基环丁烯"反向"torquoselectivity（3-formylcyclobutene — inward rotation of an acceptor）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| B1 | 环戊二烯 + 顺丁烯二酸酐（cyclopentadiene + maleic anhydride，Alder endo 规则）| `C1=CCC=C1.O=C1OC(=O)C=C1>>C1[C@@H]2C=C[C@H]1[C@@H]3[C@H]2C(=O)OC3=O`（endo，PubChem CID 2723766），0/1 | 室温或温和加热，苯/醚类溶剂 | 协同 [4+2]，动力学 **endo** 近乎专一（次级轨道相互作用+位阻）。竞争：exo | ΔΔG‡ ≈ 1.5–2 kcal/mol（endo:exo >100:1；Alder & Stein 1937 Angew 50, 510；Hoffmann & Woodward 1965 JACS 87, 4388）[已核实] | C,H,O；12 重原子；✅ | 有机化学最著名的选择性规则 |
+| B2 | 环戊二烯 + 丙烯醛（cyclopentadiene + acrolein，弱 endo 偏好基线）| `C1=CCC=C1.C=CC=O>>O=C[C@H]1[C@@H]2C=C[C@H]1CC2`（endo，构型待 3D 核对），0/1 | 无催化室温（Lewis 酸 BF3 催化增强 endo，本基准不加入） | 协同 [4+2]，无催化 endo 略占优。竞争：exo——偏好强度随取代基变化的梯度题 | ΔΔG‡ ≈ 0.6 kcal/mol（无催化 endo:exo ≈ 3:1；BF3 催化增至 ≈ 2（endo:exo >95:5）；Houk & Strozier 1973 JACS 95, 4094，DOI 10.1021/ja00793a070；Birney & Houk 1990 JACS 112, 4127）[已核实] | C,H,O；9 重原子；✅ | Houk 组 DA 选择性物理有机奠基文献 |
+| B3 | 环戊二烯 + 丙烯腈（cyclopentadiene + acrylonitrile，最弱 endo 偏好）| `C1=CCC=C1.C=CC#N>>N#C[C@H]1[C@@H]2C=C[C@H]1CC2`（endo，构型待 3D 核对），0/1 | 加热 ~80–110 °C | endo 偏好明显弱于丙烯醛/顺酐（次级轨道作用随亲双烯体电负性减弱）。竞争：exo | ΔΔG‡ ≈ 0.3–0.8 kcal/mol（endo:exo ≈ 1.3–2:1 量级；Hoffmann & Woodward 1965；Sauer & Sustmann 1980 Angew 19, 779）[部分核实] | C,H,N；9 重原子；✅ | endo 规则强度梯度对照 |
+| B4 | 环戊二烯 + 对苯醌（cyclopentadiene + p-benzoquinone）| `C1=CCC=C1.O=C1C=CC(=O)C=C1>>O=C1C=CC(=O)[C@H]2[C@@H]1[C@H]1C=C[C@@H]2C1`（endo 单加成物，构型待 3D 核对），0/1 | 室温，苯/乙醇 | 醌亲双烯体 endo 加成（醌羰基指向双烯 π 面下方）。竞争：exo；二次加成副通道 | ΔΔG‡ ≈ 1.5–2 kcal/mol（量级类比 MA 体系；Alder & Stein 1937；教材 Clayden ch.34）[部分核实] | C,H,O；13 重原子；✅ | Alder 学派经典底物组合 |
+| B5 | 环戊二烯自二聚（cyclopentadiene dimerization，动力学 endo vs 热力学 exo）| `C1=CCC=C1.C1=CCC=C1>>C1C=C[C@@H]2[C@H]1[C@H]3C[C@@H]2C=C3`（endo，PubChem CID 10176158），0/1 | 室温自发二聚；高温平衡 | 动力学 **endo** 主产物；可逆条件下 exo 更稳定（热力学产物）——动力学/热力学选择性分离。竞争：exo；retro-DA | ΔΔG‡ ≈ 2 kcal/mol（endo:exo 动力学偏好量级；Woodward & Katz 1959 Tetrahedron 5, 70；Hoffmann & Woodward 1965）[部分核实] | C,H；10 重原子；✅ | endo/exo 与可逆性结合的最佳教学案例 |
+| B6 | 呋喃 + N-甲基马来酰亚胺（furan + N-methylmaleimide，可逆 DA 选择性漂移）| `c1ccoc1.CN1C(=O)C=CC1=O>>CN1C(=O)[C@H]2[C@H](C1=O)[C@H]1C=C[C@@H]2O1`（endo，构型待 3D 核对），0/1 | 室温（动力学控制）或加热长时间（平衡） | 呋喃 DA 高度可逆：低温短时 **endo** 主产物；高温长时 **exo**（热力学）累积——endo 规则"失效"经典反例 | 能垒数值未核（选择性随时间/温度漂移，无单一数值锚点；教材 Clayden ch.34、Carey & Sundberg Part B）[已核实] | C,H,N,O；13 重原子；✅ | 可逆反应选择性漂移判别题，Hard 区分点 |
+| B7 | 5-甲基环戊二烯 + 顺丁烯二酸酐（5-methylcyclopentadiene + MA，π-面 syn/anti）| `CC1C=CC=C1.O=C1OC(=O)C=C1>>O=C1OC(=O)C2C1C1C=CC2C1C`（anti 主产物；连接性程序化核对，syn/anti 归属名称锚定、构型待 3D 核对；注意 5-取代 Cp 经 1,5-H 迁移快速异构化，题目锁定该异构体），0/1 | 低温快速捕获 | 亲双烯体从取代基**异面（anti）**进攻占优（位阻控制）；给氧取代基（5-OAc）出现"反位阻"syn 偏好——电子 vs 位阻竞争标杆 | 能垒数值未核（anti:syn 位阻控制高比例；Gleiter & Paquette 1983 ACR 16, 328；Fallis 组 5-取代 Cp 实验系列 Can. J. Chem. 1984 起）[部分核实] | C,H,O；13 重原子；✅ | π-面选择性概念发源地体系 |
+| B8 | (E)-1-甲氧基丁二烯 + 丙烯醛（regioselectivity × endo）| `CO/C=C/C=C.C=CC=O>>COC1C=CCCC1C=O`（邻位加成物即 OMe 与 CHO 相邻，endo 主，构型待 3D 核对），0/1 | 加热或 Lewis 酸催化 | FMO 预测"邻位"区域异构体为主 + endo 取向。竞争："对位"区域异构体；exo | ΔΔG‡ ≈ 1–2 kcal/mol（区域选择性量级；Houk 1973 JACS 95, 4092，DOI 10.1021/ja00793a069；Houk 1975 ACR 8, 361，DOI 10.1021/ar50095a001）[已核实] | C,H,O；10 重原子；✅ | DA 区域选择性 FMO 解释原始文献 |
+| B9 | 环戊二烯 + 富马酸二甲酯（Cp + dimethyl fumarate，亲双烯体立体专一 cis principle）| `C1=CCC=C1.COC(=O)/C=C/C(=O)OC>>COC(=O)[C@H]1[C@@H](C(=O)OC)[C@H]2C=C[C@@H]1C2`（trans-2,3 加成物，构型待 3D 核对），0/1 | 加热 | E 亲双烯体取代基相对构型保持 → trans-2,3；与 B1（cis 亲双烯体 → cis 稠合）构成亲双烯体立体专一对照。竞争：endo/exo 取向叠加 | 能垒数值未核（cis principle 教材锚点；Alder & Stein 规则）[已核实] | C,H,O；15 重原子；✅ | DA 立体专一性（cis principle）定义性对照 |
 
-1. 反应/底物：3-甲酰基环丁烯热开环 → (Z)/(E)-2,4-戊二烯醛。
-2. SMILES：`O=CC1CC=C1` → 主产物 (Z)：`C=C/C=C\C/C=O`（canonical `C=C/C=C\C=O`）；副产物 (E)：`C=C/C=C/C=O`
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热（实验 ~120–180 °C）。
-5. gold 机理/选择性：强 π-受体 CHO **内向**旋转占优（与给体相反，torquoselectivity 的标志性"理论先于实验"案例），内向:外向 ΔΔE‡ ≈ 2–3 kcal/mol → (Z) 主产物。
-6. 锚点：Kirmse, Rondan & Houk, *J. Am. Chem. Soc.* **1984**, 106, 7989–7991 `[已核实]`；Rudolf, Spellmeyer & Houk, *J. Org. Chem.* **1987**, 52, 3708–3710, DOI 10.1021/jo00392a047（"Prediction and experimental verification"，理论预测后被实验证实）`[已核实]`；综述 Dolbier, Koroniak, Houk & Sheu, *Acc. Chem. Res.* **1996**, 29, 471–477 `[已核实]`。
-7. 舒适区：{C,H,O}；6 重原子；闭壳层 ✓
-8. 权威性：Houk 组"理论预测先于实验"的经典案例，被广泛引用于选择性计算教材。
+## C. Nitrone [3+2] 环加成（旧 H-16~H-18，3 个）
 
-### H-03 3-甲氧基环丁烯（3-methoxycyclobutene — strong donor outward）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| C1 | C,N-二甲基硝酮 + 乙烯（最小 [3+2] TS 基线）| `C/C=[N+](/C)[O-].C=C>>CC1CCN(C)O1`（2,3-二甲基异噁唑烷），0/1 | 加热（模型体系） | 协同、异步性小的 [3+2]；无立体中心的基线体系（标定 TS 搜索与 FMO 类型归属，供 C2/C3 对照；旧池产物 SMILES 漏写 C-甲基，已勘误配平） | 能垒数值未核（Houk 1973 双论文 JACS 95, 7287，DOI 10.1021/ja00803a017 与 JACS 95, 7301，DOI 10.1021/ja00803a018）[已核实] | C,H,N,O；7 重原子；✅ | 1,3-偶极环加成 FMO 理论奠基双论文 |
+| C2 | (Z)-C-苯基-N-甲基硝酮 + 丙烯酸甲酯（regio/endo-exo）| `C/[N+]([O-])=C/c1ccccc1.C=CC(=O)OC>>COC(=O)[C@@H]1C[C@H](c2ccccc2)N(C)O1`（5-CO2Me 区域异构体，相对构型待 3D 核对），0/1 | 苯，回流或室温长时间 | Type-I FMO 环加成：5-取代异噁唑烷区域异构体为主；endo（CO2Me 指向硝酮 π 面下）略占优。竞争：4-取代区域异构体；exo | ΔΔG‡ ≈ 2–3 kcal/mol（5- vs 4-取代区域选择性量级；Houk 1973 双论文；Tufariello in Padwa《1,3-Dipolar Cycloaddition Chemistry》Wiley 1984）[部分核实] | C,H,N,O；16 重原子；✅ | 硝酮化学最经典底物组合 |
+| C3 | (Z)-C-苯基-N-甲基硝酮 + (E)-巴豆酸甲酯（[3+2] 立体专一性）| `C/[N+]([O-])=C/c1ccccc1.C/C=C/C(=O)OC>>CN1O[C@H](C(=O)OC)[C@@H](C)[C@@H]1c1ccccc1`（trans-4,5，相对构型待 3D 核对），0/1 | 加热，苯 | 双超面协同加成 → E→trans 立体专一（dr 接近单一）；(Z)-巴豆酸酯对照应给 cis-4,5。竞争：分步双自由基路径（剪枝考点） | 能垒数值未核（Huisgen 立体专一性原理 Angew 1963, 2, 565/633；Tufariello 1984）[部分核实] | C,H,N,O；17 重原子；✅ | [3+2] 立体专一性的定义性案例 |
 
-1. 反应/底物：3-甲氧基环丁烯热开环 → 1-甲氧基-1,3-丁二烯。
-2. SMILES：`COC1CC=C1` → 主产物 (E)：`C=C/C=C/OC`；副产物 (Z)：`C=C/C=C\OC`
-3. 电荷/自旋：0 / 单重态
-4. 条件：气相热解（计算对象为主）。
-5. gold 机理/选择性：给体 OMe 强烈外向（孤对电子供体效应叠加位阻），外向:内向 ΔΔE‡ 显著大于甲基体系（≈5–7 kcal/mol 量级）→ 几乎单一 (E)。
-6. 锚点：Niwayama et al., *J. Org. Chem.* **1996**, 61, 2813–2825 `[已核实]`（该文系统给出 3-取代环丁烯外向/内向能垒差序列）；Rondan & Houk 1985 `[已核实]`。具体数值回查原文 `[部分核实]`。
-7. 舒适区：{C,H,O}；6 重原子；闭壳层 ✓
-8. 权威性：同 H-01/H-02 系列，构成"给体-受体 torquoselectivity 对比组"。
+## D. 小环开环立体专属性（旧 H-19~H-23，5 个）
 
-### H-04 3-(甲氧羰基)环丁烯（methyl cyclobut-3-ene-1-carboxylate — acceptor inward）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| D1 | 反-2,3-二甲基环氧乙烷酸催化水解（trans-2,3-dimethyloxirane，anti 开环→meso）| `[OH3+].C[C@H]1[C@@H](O1)C.O>>[OH3+].C[C@H]([C@H](C)O)O`（meso-2,3-丁二醇 (2R,3S)），+1/1 | 稀酸水溶液，室温 | ① 环氧 O 质子化；② 水背面 SN2 型开环（决速），受进攻碳构型翻转。trans 环氧 → **meso** 二醇；dl（(2R,3R)/(2S,3S)）为错误非对映体（旧池 H-19 误写为 dl，已勘误）。竞争：cis-2-丁烯经环氧水解应给 dl（整体 anti 双羟化的立体化学对应） | 能垒数值未核（教材标准案例 Clayden ch.33、Carey & Sundberg Part A ch.5；Fürst & Plattner 1949 HCA 32, 275）[已核实] | C,H,O；7 重原子；✅ | 环氧开环立体专属性必修案例 |
+| D2 | 环氧环己烷亲核开环（cyclohexene oxide，Fürst–Plattner trans-diaxial）| `C1CCC2OC2C1.[OH-]>>O[C@@H]1CCCC[C@H]1[O-]`（trans-1,2-环己二醇盐 (1R,2R) 对映对之一），−1/1 | NaOH 水溶液加热 | 反式双轴向开环唯一产物：椅式构象锁定下 SN2 进攻必须轴向进入；顺式/双赤道开环为高能路径。竞争：无（构象锁死） | 能垒数值未核（Fürst & Plattner 1949 HCA 32, 275；教材 Clayden、Eliel）[部分核实] | C,H,O；8 重原子；✅ | 构象分析×立体电子效应经典交汇 |
+| D3 | 氧化苯乙烯酸/碱条件区位翻转（styrene oxide，regioselectivity switch）| `c1ccccc1[C@@H]2CO2.C[O-]>>COC[C@@H](c1ccccc1)[O-]`（碱性：进攻末端碳，苄位中心不动 (R) 保持），−1/1 | NaOMe/MeOH（碱）；MeOH/H⁺（酸，走苄位进攻翻转，写入机理格） | 碱性 SN2 进攻末端碳（位阻控制），苄位立体中心不受触及；酸性条件下进攻苄位（部分 SN1 特征稳定化）并构型翻转——区位随条件翻转。竞争：两条区位通道互为竞争（条件依赖） | ΔΔG‡ ≈ 1.5–3 kcal/mol（区位选择性量级；教材 Clayden ch.33、March）[已核实] | C,H,O；11 重原子；✅ | 区域/立体选择性耦合经典 |
+| D4 | 环氧丙烷碱性开环（propylene oxide，最小 SN2 位阻选择性）| `C[C@H]1CO1.[OH-]>>C[C@H]([O-])CO`（(S)→(S) 空间保持，末端进攻），−1/1 | NaOH 水溶液 | SN2 少取代碳进攻 ≫ 多取代碳；立体中心不被触及（区域选择性题+立体"不动点"对照）。竞争：多取代碳进攻 | ΔΔG‡ ≈ 2–3 kcal/mol（区位选择性量级；教材 Clayden ch.33）[已核实] | C,H,O；5 重原子；✅ | 最简位阻控制区位选择性模型 |
+| D5 | 2-甲基氮杂环丙烷活化开环（2-methylaziridine，O/N 类比）| `[OH3+].C[C@H]1CN1.CO>>[OH3+].C[C@@H](OC)CN`（(S) 底物→进攻取代碳构型翻转为 (R)），+1/1 | 酸性醇溶液 | N 质子化活化后进攻**取代碳**占优（与未活化底物相反），背面进攻构型翻转；与 D3 环氧体系构成 O/N 类比对照。竞争：进攻末端碳 | 能垒数值未核（Dermer & Ham《Ethylenimine and Other Aziridines》Academic Press 1969；教材 Clayden ch.33）[部分核实] | C,H,N,O；7 重原子；✅ | 氮杂环化学标准专著覆盖体系 |
 
-1. 反应/底物：3-(甲氧羰基)环丁烯热开环 → (Z)/(E)-2,4-戊二烯酸甲酯。
-2. SMILES：`COC(=O)C1CC=C1` → 主产物 (Z)：`C=C/C=C\C(=O)OC`；副产物 (E)：`C=C/C=C/C(=O)OC`
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热。
-5. gold 机理/选择性：受体 CO2Me **内向**旋转占优，ΔΔE‡ ≈ 2–3 kcal/mol（与 CHO 同族行为，略弱）。
-6. 锚点：Niwayama et al., *J. Org. Chem.* **1996**, 61, 2813–2825 `[已核实]`；Dolbier et al., *Acc. Chem. Res.* **1996**, 29, 471 `[已核实]`。数值回查原文 `[部分核实]`。
-7. 舒适区：{C,H,O}；8 重原子；闭壳层 ✓
-8. 权威性：同上；与 H-02 构成受体系列内梯度。
+## E. 羰基 π-面选择性与手性还原（旧 H-24~H-26，3 个）
 
-### H-05 顺-3,4-二甲基环丁烯立体专一开环（cis-3,4-dimethylcyclobutene — Woodward–Hoffmann stereospecificity）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| E1 | (S)-3-苯基-2-丁酮硼氢化（Felkin–Anh π-面选择）| `[BH4-].CC(=O)[C@@H](C)c1ccccc1>>C[C@@H]([O-])[C@@H](C)c1ccccc1.B`（Felkin–Anh 主非对映体 (2R,3S)：氢负转移不动 C3，(S)-底物 C3 保持——旧写 (2S,3R) 令 C3 反转、从 (S)-底物不可达，2026-08-31 登记阶段勘误；另一非对映体 (2S,3S) `C[C@H]([O-])[C@@H](C)c1ccccc1`），−1/1 | NaBH4/MeOH 或 LiAlH4/Et2O，0 °C–室温 | Felkin–Anh 构象（Ph 垂直羰基平面，亲核试剂沿 Bürgi–Dunitz 从最小取代基侧进入）预测主非对映体。考核：无环构象系综+σ* 立体电子效应 | ΔΔG‡ ≈ 0.7–0.9 kcal/mol（dr ≈ 3–5:1（LAH 量级）；Chérest, Felkin & Prudent 1968 TL 2199，DOI 10.1016/S0040-4039(00)89719-1；Paddon-Row, Rondan & Houk 1982 JACS 104, 7162）[已核实] | C,H,O,B；12 重原子；⚠ 含 B | 无环羰基面选择性最被引用模型体系 |
+| E2 | 4-叔丁基环己酮还原（axial vs equatorial attack）| `[BH4-].CC(C)(C)C1CCC(=O)CC1>>CC(C)(C)[C@H]1CC[C@H]([O-])CC1.B`（trans：赤道 O⁻，轴向进攻主产物；cis 副产物 `CC(C)(C)[C@H]1CC[C@@H]([O-])CC1`），−1/1 | LiAlH4/Et2O 或 NaBH4/醇 | 构象锁定环己酮：小亲核试剂**轴向进攻**占优（扭转应变控制，Wu–Houk）→ 赤道醇为主；大位阻试剂反转为赤道进攻 | ΔΔG‡ ≈ 1.3–1.5 kcal/mol（LAH 约 8–9:1 量级；Chérest 1968；Wu, Tucker & Houk 1991 JACS 113, 5018，DOI 10.1021/ja00013a042）[已核实] | C,H,O,B；12 重原子；⚠ 含 B | 构象-选择性耦合教科书标杆 |
+| E3 | CBS 还原苯乙酮简化模型（Corey–Bakshi–Shibata，手性催化剂诱导）| `B.CC(=O)c1ccccc1.C[C@H]1COBN1>>C[C@@H](OB)c1ccccc1.C[C@H]1COBN1`（(S)-催化剂→(R)-产物烷氧基硼烷，归属待 gold 核对），0/1 | THF，−20 °C~室温，催化量 oxazaborolidine | 双配位六元环椅式 TS：酮氧配位催化剂 B、BH3 配位 N，B–H 从较小位阻面转移。考核：手性催化剂-底物装配体 3D 构想 | ΔΔG‡ ≈ 2 kcal/mol（对应 ≈95% ee 量级，实验 CBS 苯乙酮 96–97% ee；Corey, Bakshi & Shibata 1987 JACS 109, 5551，DOI 10.1021/ja00252a056；Quallich 1994 JACS 116, 8516；Alagona 2003 DOI 10.1021/ja034928d）[已核实] | C,H,O,N,B；16 重原子；⚠ 含 B | 诺贝尔级不对称催化，小模型 TS 反复复核 |
 
-1. 反应/底物：顺-3,4-二甲基环丁烯（内消旋 3R,4S）热开环。
-2. SMILES：`C[C@@H]1C=C[C@@H]1C`（meso）→ 唯一产物 (2E,4Z)-2,4-己二烯：`C/C=C\C=C\C`（顺时针/逆时针顺旋殊途同归）
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热，~175 °C。
-5. gold 机理/选择性：4π 热顺旋（WH 规则）立体专一：meso 底物只给 (E,Z) 二烯；对旋为对称禁阻路径，能垒高 ≫10 kcal/mol。
-6. 锚点：Woodward & Hoffmann, *J. Am. Chem. Soc.* **1965**, 87, 395–397, DOI 10.1021/ja01080a054 `[已核实]`；实验：Winter, *Tetrahedron Lett.* **1965**（3,4-二甲基环丁烯开环立体化学）`[部分核实]`；所有本科教科书（Clayden ch.34；Carey & Sundberg Part A）。
-7. 舒适区：{C,H}；6 重原子；闭壳层 ✓
-8. 权威性：轨道对称性守恒的教科书标准案例。
+## F. 氢键导向环氧化（旧 H-27~H-28，2 个）
 
-### H-06 反-3,4-二甲基环丁烯（trans-3,4-dimethylcyclobutene — 顺旋方向 × 位阻双重选择）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| F1 | 环己-2-烯-1-醇过酸环氧化（Henbest directed epoxidation）| `OC1C=CCCC1.O=COO>>O[C@H]1[C@H]2O[C@H]2CCC1.O=CO`（cis：OH 与环氧同侧，3D 嵌入已核对 syn），0/1 | 过苯甲酸/过甲酸，CH2Cl2 或苯，0–25 °C | 烯丙位 OH 与过酸氢键缔合导向 **syn/cis** 环氧化（Henbest 规则），蝶形 TS。竞争：trans（非导向面） | ΔΔG‡ ≈ 1.4 kcal/mol（cis:trans ≈ 91:9（Whitham 重测 Henbest 体系）；Henbest & Wilson 1957 JCS 1958；Houk 1986 Science 231, 1108）[已核实] | C,H,O；11 重原子；✅ | 底物导向立体选择性开端文献 |
+| F2 | 无环手性烯丙醇过酸环氧化（(S)-(E)-pent-3-en-2-ol，acyclic π-face）| `C/C=C/[C@H](C)O.O=COO>>C[C@H]1O[C@@H]1[C@H](C)O.O=CO`（主/次归属按 Houk 模型，构型待 3D 核对），0/1 | 过酸，非配位溶剂 | OH 导向+无环构象竞争（"inside alkoxy"效应）预测主非对映体；比环状体系弱，更考验构象搜索完备性 | ΔΔG‡ ≈ 0.5–0.8 kcal/mol（dr ≈ 2–3:1 量级；Houk 1986 Science 231, 1108；Chamberlin 1987 JACS 109, 672）[部分核实] | C,H,O；10 重原子；✅ | Houk"立体选择性反应的理论与建模"名文体系 |
 
-1. 反应/底物：反-3,4-二甲基环丁烯（3R,4R/3S,4S 对映对）热开环。
-2. SMILES：`C[C@H]1C=C[C@@H]1C` → 主产物 (E,E)（双甲基外向）：`C/C=C/C=C/C`；副产物 (Z,Z)（双甲基内向）：`C/C=C\C=C/C`
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热。
-5. gold 机理/选择性：WH 允许的两条顺旋路径分别给 (E,E) 与 (Z,Z)；位阻使"双外向"占优，实验上 (E,E) 为主（ΔΔE‡ ≈ 2–4 kcal/mol 量级）。
-6. 锚点：Woodward & Hoffmann 1965 `[已核实]`；Rondan & Houk 1985（取代基旋转方向理论）`[已核实]`；教材（Clayden ch.34）。
-7. 舒适区：{C,H}；6 重原子；闭壳层 ✓
-8. 权威性：同 H-05；考核 agent 同时处理对称性约束与 torquoselectivity 位阻偏好。
+## G. [3,3]-σ 迁移：椅式/船式竞争（旧 H-29~H-31，3 个）
 
-### H-07 (2E,4Z,6E)-辛三烯对旋闭环（(2E,4Z,6E)-octatriene disrotatory 6π electrocyclization）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| G1 | meso-3,4-二甲基-1,5-己二烯 Cope 重排（chair TS 立体专一）| `C=C[C@H](C)[C@H](C)C=C>>C/C=C\CC/C=C/C`（meso (3S,4R) 底物 → (2E,6Z)-辛-2,6-二烯；对称分子 (E,Z)≡(Z,E)，RDKit 已核对），0/1 | 气相热解 ~200–250 °C | 椅式 TS ≫ 船式 → meso 底物立体专一给出 (E,Z) 二烯。竞争：船式 TS（给 (E,E)/(Z,Z) 组合） | ΔΔG‡ ≈ 5.8 kcal/mol（椅:船实验差；高级别计算椅-船差 11.4（CASPT2，Khaledy–Houk 2003 转引）；Doering & Roth 1962 Tetrahedron 18, 67；Khaledy 2003 JOC 68, 572，DOI 10.1021/jo020595b）[部分核实] | C,H；8 重原子；✅ | Cope 立体化学"罗塞塔石碑"实验 |
+| G2 | (E,E)-巴豆基丙烯基醚 Claisen 重排（chair preference，syn/anti）| `C/C=C/CO/C=C/C>>C=C[C@H](C)[C@H](C)C=O`（syn-2,3-二甲基戊-4-烯醛 dl 对之一，(S,S) 经 Fischer-CIP 推导核对），0/1 | ~150–200 °C | 椅式 TS 强烈占优（双甲基假赤道），(E,E) → syn 主产物。竞争：船式 TS → anti（副产物 SMILES `C=C[C@H](C)[C@@H](C)C=O`） | ΔΔG‡ ≈ 2–3 kcal/mol（syn:anti 量级；椅:船 ≥ 95:5；Vance, Rondan, Houk 1988 JACS 110, 2314，DOI 10.1021/ja00215a059；Vittorelli 1968 HCA 51, 1457）[部分核实] | C,H,O；8 重原子；✅ | Claisen 立体化学实验（Schmid）+计算（Houk）双经典 |
+| G3 | (E)-巴豆基丙酸酯 Ireland–Claisen（硅基烯酮缩醇几何×椅式）| `C/C=C/CO/C(=C/C)/O[Si](C)(C)C>>C=C[C@H](C)[C@H](C)C(=O)O[Si](C)(C)C`（(E)-巴豆基 + (Z(O))-烯酮缩醇，几何经 RDKit 核对；syn/anti 归属待 gold 核对），0/1 | LDA/THF/−78 °C → TMSCl → 室温重排（本题从烯酮缩醇出发，单步） | 烯酮缩醇几何决定相对构型：E(O)/Z(O) 分别经椅式 TS 给出相反非对映体；取代基假赤道排布。竞争：船式 TS | 能垒数值未核（dr 常 >95:5；E(O)/Z(O)→syn/anti 助记对应关系待 gold 核对；Ireland, Mueller & Willard 1976 JACS 98, 2868，DOI 10.1021/ja00426a033；Khaledy 2003 JOC 68, 572，DOI 10.1021/jo020595b）[已核实] | C,H,O,Si；13 重原子；⚠ 含 Si | 立体选择性烯醇化学教科书反应 |
 
-1. 反应/底物：(2E,4Z,6E)-辛三烯热闭环 → 顺-5,6-二甲基-1,3-环己二烯。
-2. SMILES：`C/C=C/C=C\C=C\C` → 主产物 cis（meso, 5R,6S）：`C[C@@H]1C=CC=C[C@@H]1C`；对映/副产物 trans：`C[C@H]1C=CC=C[C@@H]1C`
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热（6π 热对旋）。
-5. gold 机理/选择性：6π 热对旋立体专一：(E,Z,E) → cis 产物；顺旋路径对称禁阻。
-6. 锚点：Woodward & Hoffmann 1965 `[已核实]`；Marvell 组取代己三烯电环化系列实验（Marvell, Caple & Shahidi, *J. Am. Chem. Soc.* **1970** 前后）`[部分核实]`；教材标准案例。
-7. 舒适区：{C,H}；8 重原子；闭壳层 ✓
-8. 权威性：6π 电环化立体专一性的经典判据反应。
+## H. 阻转异构消旋阻垒（旧 H-32~H-34，3 个）
 
----
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| H1 | 1,1′-联萘消旋化（1,1′-binaphthyl atropisomerization）| `C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43`（Ra↔Sa 消旋体表示；轴手性标记 gold 构建时以 3D 锚定），0/1 | 热消旋 ~50 °C，极性溶剂 | 经 peri-H 挤过的双叶翻转 TS 消旋；两条路径（syn/anti peri-H 对穿）能差 ~1 kcal/mol 量级 | ΔG‡ ≈ 23.5 kcal/mol（t1/2 ≈ 14.5 min @ 50 °C；Cooke & Harris 1963 JCS（经二手文献一致转引）；Carter & Liljefors 1976 Tetrahedron 32, 2915，DOI 10.1016/0040-4020(76)80145-7）[部分核实] | C,H；20 重原子（恰在边界）；✅ | 轴手性消旋动力学第一个定量经典体系 |
+| H2 | 6,6′-二硝基联苯-2,2′-二甲酸消旋（6,6′-dinitrodiphenic acid，首例拆分阻转异构体）| `O=C(O)c1cccc([N+](=O)[O-])c1-c1c(C(=O)O)cccc1[N+](=O)[O-]>>O=C(O)c1cccc([N+](=O)[O-])c1-c1c(C(=O)O)cccc1[N+](=O)[O-]`（消旋体表示），0/1 | 加热消旋（溶液） | 邻位四取代（2,2′-COOH+6,6′-NO2）使室温可拆分；阻转阻垒测定对象 | ΔG‡ ≈ 28–32 kcal/mol（估计值，gold 构建需查原始动力学文献或 Eliel 教材表格；Christie & Kenner 1922 JCS 121, 614，DOI 10.1039/CT9222100614）[未核实] | C,H,N,O；**24 重原子，超预算标注**；闭壳层 ✓ | 阻转异构现象开天辟地文献（1922 首例拆分） |
+| H3 | 1,1′-联萘-2,2′-二酚消旋（BINOL racemization barrier）| `Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12>>Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12`（消旋体表示），0/1 | 高温（>100 °C）溶液消旋；酸/碱催化加速 | 消旋阻垒高（中性条件 100 °C 长期稳定）；syn/anti 路径竞争 | ΔG‡ ≈ 35–37 kcal/mol（diglyme 150 °C 20 h 仅 ~10% 消旋实验锚点；Can. J. Chem. 1980, 58, 2134，DOI 10.1139/v80-021；DFT 阻垒 Meca, Řeha & Havlas 2003 JOC 68, 5677 页码待回查）[部分核实] | C,H,O；**22 重原子，略超预算标注**；闭壳层 ✓ | 不对称催化最著名轴手性骨架 |
 
-## B. Diels–Alder endo/exo 与 π-面选择性（H-08 ~ H-15）
+## I. 手性小分子/氢键催化诱导（旧 H-35~H-38，4 个）
 
-### H-08 环戊二烯 + 顺丁烯二酸酐（cyclopentadiene + maleic anhydride — Alder endo rule）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| I1 | 脯氨酸催化直接 Aldol（List–Barbas aldol：acetone + benzaldehyde）| `CC(C)=O.O=Cc1ccccc1.O=C(O)[C@@H]1CCCN1>>CC(=O)C[C@H](O)c1ccccc1.O=C(O)[C@@H]1CCCN1`（(S)-脯氨酸催化，产物绝对构型归属待 gold 核对），0/1 | 20–30 mol% (S)-脯氨酸，DMSO，室温 | 烯胺机理+Houk–List 椅式 TS（羧基质子转移+氢键网络），单分子脯氨酸参与。① 烯胺生成；② C–C 加成（立体决定步）；③ 水解。竞争：另一对映面 TS | ΔΔG‡ ≈ 1.2 kcal/mol（苯甲醛 ee ≈ 60–76%（对硝基苯甲醛 76%，List 2000）；List, Lerner & Barbas 2000 JACS 122, 2395，DOI 10.1021/ja994280y；Bahmanyar & Houk 2001 JACS 123, 11273，DOI 10.1021/ja011403h；Hoang 2003 JACS 125, 16，DOI 10.1021/ja028634o）[已核实] | C,H,N,O；20 重原子（恰在边界）；✅ | 2021 诺贝尔化学奖核心反应+Houk–List TS 模型 |
+| I2 | 脯氨酸催化 Mannich（丙醛供体，syn-β-氨基醛）| `CCC=O.C/N=C/c1ccccc1.O=C(O)[C@@H]1CCCN1>>C[C@H](C=O)[C@@H](NC)c1ccccc1.O=C(O)[C@@H]1CCCN1`（syn 主产物，归属待 gold 核对；旧池 H-36 为丙酮供体单中心版，本题换丙醛供体以考核 dr+ee 双维），0/1 | 脯氨酸催化，DMSO/DMF，室温 | 烯胺对亚胺 si/re 面进攻 → **syn** 非对映体高 dr+高 ee；TS 中羧基同时活化亚胺并定向烯胺。竞争：anti；另一对映面 | 能垒数值未核（实验 syn:anti >10:1、ee >90% 量级；List 2002 JACS 124, 8272（醛供体 syn Mannich，DOI 未核）；Bahmanyar, Houk, Martin & List 2003 JACS 125, 2475）[部分核实] | C,H,N,O；**21 重原子，略超预算标注**；闭壳层 ✓ | List 诺奖工作+Houk 组定量 TS 分析 |
+| I3 | Hajos–Parrish 环化（proline-catalyzed intramolecular aldol 去对称化）| `CC(=O)CCC1(C)C(=O)CCC1=O.O=C(O)[C@@H]1CCCN1>>C[C@]12CCC(=O)C[C@]1(O)CCC2=O.O=C(O)[C@@H]1CCCN1`（双环酮醇；连接性经配平与环系程序化核对，立体归属待 gold 核对），0/1 | 1–3 mol% (S)-脯氨酸，DMF/DMSO，室温 | 去对称化分子内羟醛：① 烯胺生成；② 烯胺进攻两个前手性羰基之一（立体决定步）；③ 水解得双环酮醇（可再脱水成 Wieland–Miescher 型烯二酮，本题止于酮醇）。竞争：另一前手性羰基/另一面 | 能垒数值未核（ee ≈ 93%（原始 Hajos–Parrish，已优化至 >99%）；Hajos & Parrish 1974 JOC 39, 1615；Bahmanyar & Houk 2001 JACS 123, 12911，DOI 10.1021/ja011714s；Hoang 2003 DOI 10.1021/ja028634o）[已核实] | C,H,N,O；**21 重原子，略超预算标注**；闭壳层 ✓ | 有机催化"创世纪"反应（1971/1974） |
+| I4 | 手性硫脲催化 Strecker 简化模型（thiourea-catalyzed Strecker）| `C#N.C/N=C/c1ccccc1.CC[C@H](C)NC(=S)NC>>CN[C@H](C#N)c1ccccc1.CC[C@H](C)NC(=S)NC`（(S)-催化剂模型，产物构型归属待 gold 核对），0/1 | 低温，甲苯（模型体系为计算对象） | 硫脲双氢键结合亚胺 N、定向 + 多重非共价作用稳定优势 TS（Zuend–Jacobsen 机理）。注意：催化剂为人工截短模型，gold 以"催化剂两个非对映 TS 竞争"形式出题，不直接对标实验 ee | ΔΔG‡ 预期 ≈ 1–2 kcal/mol（模型体系量级；Sigman & Jacobsen 1998 JACS 120, 4901，DOI 10.1021/ja980139y；Zuend & Jacobsen 2009 JACS 131, 15358）[已核实] | C,H,N,O,S；20 重原子（恰在边界）；⚠ 含 S | 氢键有机催化奠基工作（Jacobsen 组） |
 
-1. 反应/底物：[4+2] 环加成 → endo-双环[2.2.1]庚-5-烯-2,3-二甲酸酐（carbic anhydride）。
-2. SMILES：`C1=CCC=C1` + `O=C1OC(=O)C=C1` → endo 主产物（PubChem CID 2723766）：`C1[C@@H]2C=C[C@H]1[C@@H]3[C@H]2C(=O)OC3=O`
-3. 电荷/自旋：0 / 单重态
-4. 条件：室温或温和加热，苯/醚类溶剂；不可逆捕获动力学产物。
-5. gold 机理/选择性：动力学 **endo** 加成近乎专一（次级轨道相互作用 + 位阻），endo:exo >100:1；endo/exo ΔΔG‡ ≈ 1.5–2 kcal/mol。
-6. 锚点：Alder & Stein, *Angew. Chem.* **1937**, 50, 510（endo 规则原始文献）`[已核实]`；Hoffmann & Woodward, *J. Am. Chem. Soc.* **1965**, 87, 4388–4389（次级轨道相互作用解释）`[已核实]`。
-7. 舒适区：{C,H,O}；TS 复合物 12 重原子；闭壳层 ✓
-8. 权威性：有机化学最著名的选择性规则之一；W–H 原始通讯直接讨论该体系。
+## J. syn/anti 加成与消除立体化学（2026-08-31 新增，6 个）
 
-### H-09 环戊二烯 + 丙烯醛 ± Lewis 酸（cyclopentadiene + acrolein — Lewis-acid enhanced endo selectivity）
+> 与 easy G1/G2（乙烯，无立体维度）和 normal X 族（开链取向竞争）互补：本族全部是"几何/构象 → 产物构型"的立体专一映射——炔顺式还原（J1）、syn 氢硼化（J2）、溴鎓 anti 加成（J3/J6）、构象锁定 anti-E2（J4）、烯烃环氧化几何保持（J5）。
 
-1. 反应/底物：[4+2] → norborn-5-烯-2-甲醛的 endo/exo 比；对比无催化与 BF3 催化。
-2. SMILES：`C1=CCC=C1` + `C=CC=O` → endo 主产物（构型待 3D 核对）：`O=C[C@H]1[C@@H]2C=C[C@H]1CC2`；exo：`O=C[C@H]1[C@@H]2C=C[C@@H]1CC2`
-3. 电荷/自旋：0 / 单重态（Lewis 酸变体含 BF3 → 元素 B、F，另作标注）
-4. 条件：无催化（室温，苯）；或 BF3·Et2O 催化（低温）。
-5. gold 机理/选择性：无催化 endo:exo ≈ 3:1；Lewis 酸配位提高 endo 偏好至 >95:5 并加速（FMO 系数/能量变化）。endo/exo ΔΔG‡ 从无催化 ~0.6 kcal/mol 增至催化 ~2 kcal/mol（量级）。
-6. 锚点：Houk & Strozier, *J. Am. Chem. Soc.* **1973**, 95, 4094–4096, DOI 10.1021/ja00793a070（Lewis 酸催化 DA 的 FMO 解释）`[已核实]`；Birney & Houk, *J. Am. Chem. Soc.* **1990**, 112, 4127–4133（BF3 催化丁二烯+丙烯醛 TS，选择性起源）`[已核实]`。
-7. 舒适区：{C,H,O}；TS 9 重原子（无催化变体纯 CHNO）✓
-8. 权威性：Houk 组 DA 选择性物理有机奠基文献。
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| J1 | 二亚胺顺式还原 2-丁炔（diimide + 2-butyne，syn 加成立体专一）| `N=N.CC#CC>>N#N.C/C=C\C`（唯一产物 (Z)-2-丁烯，RDKit 已核对），0/1 | 气相/溶液温和加热 | 协同 [σ2s+σ2s+π2s] 双氢转移（cis-HN=NH 供体），syn 立体专一 → 唯一 cis 烯。竞争：分步/反式通道（对称禁阻，高垒背景） | 能垒数值未核（二亚胺还原立体专一性教材锚点；与 easy G2（乙烯，TST/机理判别）同试剂互补——本题考 syn 立体维度；具体垒值量级参 G2）[已核实] | C,H,N；6 重原子；✅ | 炔烃顺式还原教科书原型 |
+| J2 | 1-甲基环己烯氢硼化（hydroboration，syn + anti-Markovnikov）| `B.CC1=CCCCC1>>C[C@H]1[C@H](B)CCCC1`（trans-2-甲基环己基硼烷：B 与甲基 trans，3D 嵌入已核对），0/1 | BH3·THF，0 °C–室温 | 4 中心环状 TS，H 与 B 同面加成（syn 立体专一），B 至少取代碳（anti-Markovnikov 区域选择性）→ trans 关系唯一。竞争：Markovnikov 区域异构体；反面加成 | 能垒数值未核（区域与立体选择性教材锚点；与 easy G1（乙烯，气相近无能垒/TST 失效警示）同试剂带立体维度）[已核实] | C,H,B；8 重原子；⚠ 含 B | 氢硼化立体化学教科书原型（Brown 诺奖工作） |
+| J3 | 环己烯 + Br2（bromonium anti 加成）| `C1=CCCCC1.BrBr>>Br[C@H]1CCCC[C@@H]1Br`（trans-1,2-二溴环己烷 (1R,2R)/(1S,2S) 对映对之一，RDKit+3D 已核对），0/1 | CCl4 或惰性溶剂，室温 | 溴鎓离子中间体，Br⁻ 背面进攻 → anti 加成唯一通道；cis（meso (1R,2S)）为错误非对映体。竞争：自由基/顺式通道（背景） | 能垒数值未核（溴鎓离子 anti 加成教材锚点；立体专一性实验证据经典）[已核实] | C,H,Br；8 重原子；⚠ Br 低密度但 OMol25 覆盖 | 烯烃卤化立体专一性定义性案例 |
+| J4 | trans-2-甲基环己基氟 anti-E2（构象锁定消除，Hofmann 取向反转）| `[F-].C[C@@H]1CCCC[C@H]1F>>CC1C=CCCC1.F.[F-]`（trans 底物 (1R,2R) 型，3D 嵌入已核对；唯一产物 3-甲基环己烯），−1/1 | 气相（本基准模型）；溶液为经典条件 | 反式双轴向要求：F 必须轴向的椅式构象中 C2 位轴向被甲基占据 → 只能向 C6 消除 → Hofmann 产物 3-甲基环己烯唯一；cis 异构体对照给 Zaitsev 产物 1-甲基环己烯（写入竞争）。竞争：SN2 背景通道（二级碳） | 能垒数值未核（二级氟代物气相 PES 文献空白，量级参 normal 档 X 族二级碳体系；trans-diaxial 取向反转教材锚点 Eliel）[部分核实] | C,H,F；9 重原子；✅ | 构象分析×E2 立体专一性教科书案例 |
+| J5 | (E)-2-丁烯过酸环氧化（Prilezhaev stereospecificity）| `C/C=C/C.O=COO>>C[C@H]1[C@H](C)O1.O=CO`（trans-2,3-二甲基环氧乙烷 (2R,3R)/(2S,3S) 对映对之一，RDKit 已核对），0/1 | 过酸，惰性溶剂，0–25 °C | 协同蝶形 TS syn 氧转移 → 烯烃几何保持：E → trans 环氧（dl 对）；cis-2-丁烯对照给 meso（写入竞争）。与 normal O1（乙烯，无立体维度）互补 | ΔE‡ ≈ 15.6 kcal/mol（过氧酸+乙烯蝶形 TS，UQCISD(T) 级（Bach/Schlegel 组，同 normal O1 锚点；底物为乙烯、按类似体系转录——口径登记见文末）[部分核实] | C,H,O；8 重原子；✅（O–O 过氧键注意） | 环氧化立体专一性原型 |
+| J6 | 环己烯 + Br2/H2O 溴醇形成（bromohydrin，anti + 捕获竞争）| `C1=CCCCC1.BrBr.O>>O[C@H]1CCCC[C@@H]1Br.Br`（trans-2-溴环己醇对映对之一，3D 嵌入已核对；HBr 副产物），0/1 | 溴水，室温 | 溴鎓离子被水背面进攻 → anti 溴醇；与 J3（Br⁻ 捕获给二溴化物）构成亲核捕获化学选择性竞争。竞争：Br⁻ 捕获（→ J3 产物）；syn 通道（背景） | 能垒数值未核（溴醇 anti 立体专一性教材锚点；捕获竞争为判别考点）[已核实] | C,H,O,Br；9 重原子；⚠ Br 低密度 | 卤醇化学经典；与 J3 刻意的捕获竞争对偶 |
 
-### H-10 环戊二烯 + 丙烯腈（cyclopentadiene + acrylonitrile — weak endo preference）
+## K. Zimmerman–Traxler 椅式过渡态（2026-08-31 新增，2 个）
 
-1. 反应/底物：[4+2] → 2-氰基 norbornene endo/exo。
-2. SMILES：`C1=CCC=C1` + `C=CC#N` → endo（构型待 3D 核对）：`N#C[C@H]1[C@@H]2C=C[C@H]1CC2`
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热，~80–110 °C。
-5. gold 机理/选择性：endo 偏好明显弱于丙烯醛/顺酐体系（endo:exo ≈ 1.3–2:1，量级）；次级轨道相互作用随亲双烯体取代基电负性减弱。
-6. 锚点：Hoffmann & Woodward 1965 `[已核实]`；Sauer & Sustmann, *Angew. Chem. Int. Ed.* **1980**, 19, 779（DA 机理与选择性经典综述）`[部分核实]`；实验比值见教材（Carey & Sundberg Part B）。
-7. 舒适区：{C,H,N}；TS 9 重原子；闭壳层 ✓
-8. 权威性：endo 规则"强度随取代基变化"的对照案例，区分度好。
+> 羰基加成立体化学的"椅式 TS"超族：硼烯醇盐 aldol（Z(O)→syn）与巴豆基硼化（E→anti）——与 E 族（构象系综π-面）和 G 族（[3,3] 椅/船）互补，考核椅式 TS 的 3D 构想与取代基假赤道排布。
 
-### H-11 环戊二烯 + 对苯醌（cyclopentadiene + p-benzoquinone — endo with quinone dienophile）
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| K1 | (Z)-丙烯醛硼烯醇盐 + 乙醛 aldol（Zimmerman–Traxler：Z(O)→syn）| `C/C=C\OB.CC=O>>C[C@@H](OB)[C@@H](C)C=O`（syn-3-羟基-2-甲基丁醛硼酸酯，(2R,3R) 型经 Fischer-CIP 推导核对），0/1 | 硼烯醇盐模型（气相/惰性溶剂计算对象） | 六元环椅式 TS：(Z)-烯醇盐 → syn aldol（甲基假赤道排布）。竞争：船式/扭船式 TS → anti（副产物 SMILES `C[C@@H](OB)[C@H](C)C=O`）；另一对映面（外消旋底物→dl） | 能垒数值未核（硼 aldol 立体选择性实验 dr 常 >95:5；Zimmerman & Traxler 1957 JACS 79, 1920；教材 Clayden ch.26）[部分核实] | C,H,O,B；8 重原子；⚠ 含 B | Z–T 椅式模型定义性反应 |
+| K2 | (E)-巴豆基硼烷 + 乙醛（crotylboration：E→anti）| `C/C=C/CB.CC=O>>C=C[C@H](C)[C@H](C)OB`（anti-3-甲基戊-1-烯-4-醇硼酸酯，(R,R)/(S,S) 对映对之一经 Fischer-CIP 推导核对），0/1 | 巴豆基硼烷模型（气相/惰性溶剂计算对象） | 椅式 TS 烯丙基转位：(E)-巴豆基 → anti 高烯丙醇（甲基与烷氧基 anti）；(Z)-巴豆基对照给 syn。竞争：另一椅式排布 → syn（副产物 SMILES `C=C[C@H](C)[C@@H](C)OB`） | 能垒数值未核（巴豆基硼烷立体专一性实验 dr 常 >95:5；Brown 组巴豆基硼化系列；Org. React. 综述锚点）[部分核实] | C,H,O,B；8 重原子；⚠ 含 B | 烯丙基硼化立体化学教科书原型 |
 
-1. 反应/底物：[4+2]（单加成）→ endo-1,4,4a,8a-四氢-1,4-亚甲基萘-5,8-二酮。
-2. SMILES：`C1=CCC=C1` + `O=C1C=CC(=O)C=C1` → endo 加成物（SMILES 构型待 3D 核对）：`O=C1C=CC(=O)[C@H]2[C@@H]1[C@H]1C=C[C@@H]2C1`
-3. 电荷/自旋：0 / 单重态
-4. 条件：室温，苯/乙醇。
-5. gold 机理/选择性：endo 加成主产物（醌羰基指向双烯 π 面下方）；ΔΔG‡ ≈ 1.5–2 kcal/mol（量级，类比 MA 体系）。
-6. 锚点：Alder & Stein 1937 `[已核实]`；教材（Clayden ch.34 用醌 DA 讲解 endo 规则）。
-7. 舒适区：{C,H,O}；TS 13 重原子；闭壳层 ✓
-8. 权威性：Alder 学派经典底物组合。
+## L. 几何→产物映射与手性转移（2026-08-31 新增，4 个）
 
-### H-12 环戊二烯自二聚（cyclopentadiene dimerization — endo kinetic vs exo thermodynamic）
+> 立体化学信息的"读取与搬运"：肟几何决定迁移基团（L1，normal R2 对称肟的立体化版）、迁移碳构型保持（L2，normal O3 的立体化版）、[3,3] 的 1,3-手性转移（L3）、[2,3] 的 S→C 手性转移（L4）。
 
-1. 反应/底物：两分子 Cp → endo/exo-二环戊二烯。
-2. SMILES：2 × `C1=CCC=C1` → endo 主产物（PubChem CID 10176158）：`C1C=C[C@@H]2[C@H]1[C@H]3C[C@@H]2C=C3`；exo 热力学产物：`C1C=C[C@H]2[C@@H]1[C@@H]3C[C@H]2C=C3`
-3. 电荷/自旋：0 / 单重态
-4. 条件：室温自发二聚（动力学 endo）；高温平衡可 retro-DA → 热力学比较。
-5. gold 机理/选择性：动力学 **endo** 主产物（ΔΔG‡ ≈ 2 kcal/mol 量级）；可逆条件下 exo 更稳定（热力学产物）——动力学/热力学选择性分离的教科书案例。
-6. 锚点：Woodward & Katz（二环戊二烯结构/机理，*Tetrahedron* **1959**, 5, 70）`[部分核实]`；Hoffmann & Woodward 1965 `[已核实]`；教材。
-7. 舒适区：{C,H}；TS 10 重原子；闭壳层 ✓
-8. 权威性：每个有机实验室都观察到的自发过程，endo/exo 与可逆性结合的最佳教学案例。
-
-### H-13 呋喃 + N-甲基马来酰亚胺（furan + N-methylmaleimide — reversible DA, endo→exo drift）
-
-1. 反应/底物：[4+2] → 7-氧杂 norbornene 酰亚胺 endo/exo。
-2. SMILES：`c1ccoc1` + `CN1C(=O)C=CC1=O` → endo 动力学主产物（构型待 3D 核对）：`CN1C(=O)[C@H]2[C@H](C1=O)[C@H]1C=C[C@@H]2O1`
-3. 电荷/自旋：0 / 单重态
-4. 条件：室温（动力学控制）或加热长时间（平衡）。
-5. gold 机理/选择性：呋喃 DA 高度可逆：低温/短时 **endo** 主产物；高温/长时 **exo**（热力学）累积——endo 规则"失效"的经典反例（动力学 vs 热力学）。
-6. 锚点：教材（Clayden ch.34；Carey & Sundberg Part B）`[已核实，教材级]`；定量研究见 DA 可逆性文献（如 Anselme 等呋喃-酰亚胺体系）`[部分核实]`。
-7. 舒适区：{C,H,N,O}；TS 13 重原子；闭壳层 ✓
-8. 权威性：考核 agent 是否识别"可逆反应中选择性随时间/温度漂移"，Hard 档区分点。
-
-### H-14 5-甲基环戊二烯 + 顺丁烯二酸酐（5-methylcyclopentadiene + maleic anhydride — π-facial syn/anti）
-
-1. 反应/底物：5-取代 Cp 的 DA π-面选择性（亲双烯体从取代基同面/异面进攻）。
-2. SMILES：`CC1C=CC=C1` + `O=C1OC(=O)C=C1` → anti 主产物（syn/anti 加成物 SMILES 构型待 3D 核对，名称给出即可）
-3. 电荷/自旋：0 / 单重态
-4. 条件：低温快速捕获（注意 5-取代 Cp 经 1,5-H 迁移快速异构化——题目需注明锁定异构体）。
-5. gold 机理/选择性：小位阻给体取代基 → **anti** 进攻占优（位阻控制，anti:syn 高）；给氧取代基（5-OAc 等）出现"反位阻"（contrasteric）syn 偏好——电子 vs 位阻竞争的标杆体系。
-6. 锚点：Gleiter & Paquette, *Acc. Chem. Res.* **1983**, 16, 328（π-面选择性综述）`[已核实]`；Fallis 组 5-取代 Cp 实验系列（*Can. J. Chem.* 1984 起）`[部分核实]`；现代计算复核见 Burnell 等及 distortion/interaction 分析 `[部分核实]`。
-7. 舒适区：{C,H,O}；TS 13 重原子；闭壳层 ✓
-8. 权威性：π-面选择性概念的发源地体系之一。
-
-### H-15 (E)-1-甲氧基丁二烯 + 丙烯醛（trans-1-methoxybutadiene + acrolein — regioselectivity × endo）
-
-1. 反应/底物：给体-取代双烯与受体亲双烯体的区域选择性（"邻位" vs "对位"加成物）叠加 endo/exo。
-2. SMILES：`CO/C=C/C=C` + `C=CC=O` → "邻位"主产物 2-甲氧基-3-甲酰基环己烯（endo，名称锚定，SMILES 构型待 3D 核对）
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热或 Lewis 酸催化。
-5. gold 机理/选择性：FMO 预测"邻位"（OMe 与 CHO 1,2-关系）区域异构体为主 + endo 取向；区域选择性 ΔΔG‡ ≈ 1–2 kcal/mol（量级）。
-6. 锚点：Houk, *J. Am. Chem. Soc.* **1973**, 95, 4092–4094, DOI 10.1021/ja00793a069（广义前线轨道与 DA 区域选择性）`[已核实]`；Houk, *Acc. Chem. Res.* **1975**, 8, 361, DOI 10.1021/ar50095a001 `[已核实]`。
-7. 舒适区：{C,H,O}；TS 10 重原子；闭壳层 ✓
-8. 权威性：DA 区域选择性 FMO 解释的原始文献。
+| # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
+|---|---|---|---|---|---|---|---|
+| L1 | (E)-丁酮肟 Beckmann 重排（oxime geometry → 迁移基团映射）| `[OH3+].CC/C(=N/O)/C>>[OH3+].CCNC(C)=O`（(E)-肟经 RDKit 核对，乙基 anti 迁移 → N-乙基乙酰胺），+1/1 | 浓 H2SO4 或酸催化，加热 | ① OH 质子化；② 脱水与 **anti 基团** 1,2-迁移协同（决速）→ nitrilium；③ 水加成；④ 互变异构 → 酰胺。(E)-肟乙基与 OH 反式 → 乙基迁移；(Z)-肟 `CC/C(=N\O)/C` 对照给 N-甲基丙酰胺（写入竞争）——肟几何直接决定产物骨架 | 能垒数值未核（机理与决速步同 normal R2（对称丙酮肟）；anti 迁移立体专属性教材锚点）[部分核实] | C,H,N,O；7 重原子；✅ | Beckmann 立体专属性的定义性考点 |
+| L2 | (S)-3-甲基-2-戊酮 Baeyer–Villiger（迁移性排序 + 构型保持）| `[OH3+].CC[C@H](C)C(C)=O.O=COO>>[OH3+].CC[C@H](C)OC(C)=O.O=CO`（(S)→(S) 迁移碳构型保持，RDKit 已核对），+1/1 | 过酸，酸催化（以 `[OH3+]` 写入两侧） | ① 过酸加成 → Criegee 中间体；② 二级碳（3-甲基戊基侧）优先迁移（2°>1° 排序）伴 O–O 断裂（决速区），**迁移碳构型保持**。竞争：甲基迁移 → 另一酯（次要） | 能垒数值未核（迁移性排序与构型保持教材锚点（同位素/立体化学证明经典）；normal O3 锚点作量级参考）[已核实] | C,H,O；12 重原子；✅ | 1,2-迁移立体化学证明经典体系 |
+| L3 | (R,E)-戊-3-烯-2-基乙烯基醚 Claisen（1,3-手性转移）| `C=CO[C@H](C)/C=C/C>>C/C=C/[C@H](C)CC=O`（(R,E) 底物经 RDKit 核对 → (E)-3-甲基-4-己烯醛；产物绝对构型待 gold 核对），0/1 | ~150–200 °C | [3,3]-σ 迁移经椅式 TS（甲基假赤道 → E 双键几何）；烯丙位立体中心消毁、新立体中心生成——自消毁式手性转移（chirality transfer 方向由椅式排布唯一决定）。竞争：船式/另一面椅式 → (Z) 或差向 | 能垒数值未核（Claisen 手性转移经典（Eschenmoser/Johnson-Claisen 系列）；综述 Ziegler 1988 Chem. Rev. 88, 1423）[部分核实] | C,H,O；8 重原子；✅ | 不对称 Claisen 手性转移教科书案例 |
+| L4 | (S,E)-巴豆基甲基亚砜 Mislow–Evans 重排（[2,3] S→C 手性转移）| `C/C=C/C[S@@](=O)C>>C=C[C@@H](C)OSC`（(S,E) 底物经 RDKit 核对 → 磺酸酯新立体中心，构型归属待 gold 核对），0/1 | 室温–温和加热 | [2,3]-σ 迁移：烯丙基亚砜 → 烯丙基磺酸酯，硫立体中心的手性经内型/外型 TS 偏好转移到碳（S→C chirality transfer）。竞争：另一面 TS → 差向 | 能垒数值未核（Mislow–Evans 重排手性转移经典（Mislow 组 JACS 1968 前后）；教材锚点）[部分核实] | C,H,O,S；7 重原子；⚠ 含 S | [2,3] 手性转移定义性体系 |
 
 ---
 
-## C. Nitrone [3+2] 环加成（H-16 ~ H-18）
+## 汇总
 
-### H-16 C,N-二甲基硝酮 + 乙烯（C,N-dimethyl nitrone + ethylene — minimal [3+2] TS 基线）
+### 数量与分布
 
-1. 反应/底物：最小硝酮 1,3-偶极环加成模型 → N-甲基异噁唑烷；考核协同 [3+2] TS 几何与 endo/exo 概念基线。
-2. SMILES：`C/C=[N+](/C)[O-]`（(Z)-硝酮）+ `C=C` → 产物 `CN1CCCO1`（异噁唑烷骨架：`CN1CCCO1`）
-3. 电荷/自旋：0 / 单重态（硝酮为两性离子共振式，净中性闭壳层）
-4. 条件：加热（模型体系，计算对象）。
-5. gold 机理/选择性：协同、异步性小的 [3+2]；无立体中心的基线体系，用于标定 TS 搜索与 FMO 类型（Type I/II 归属）。
-6. 锚点：Houk, Sims, Duke, Strozier & George, *J. Am. Chem. Soc.* **1973**, 95, 7287–7301, DOI 10.1021/ja00803a017 `[已核实]`；Houk, Sims, Watts & Luskus, *J. Am. Chem. Soc.* **1973**, 95, 7301–7315, DOI 10.1021/ja00803a018 `[已核实]`。
-7. 舒适区：{C,H,N,O}；TS 7 重原子；闭壳层 ✓
-8. 权威性：1,3-偶极环加成 FMO 理论奠基双论文。
+- 候选总数：**51**（旧池 38 + 新增 13：B9、J1–J6、K1–K2、L1–L4；超采，目标圈定 20）。
+- 族分布：A 电环化/torquoselection 7；B DA 9；C nitrone [3+2] 3；D 小环开环 5；E 羰基π-面/手性还原 3；F 导向环氧化 2；G [3,3] 椅/船 3；H 阻转消旋 3；I 有机催化诱导 4；J syn/anti 加成消除 6；K Z–T 椅式 2；L 几何映射/手性转移 4。
+- 立体化学考点覆盖：立体专一映射（A5/A7/B9/C3/D1–D5/J1–J6/L1/L2）× 立体选择性竞争（A1–A4/A6/B1–B8/C2/E1–E3/F1/F2/G1–G3/K1/K2/L3/L4）× 构型稳定阻垒（H1–H3）；多步网络条目（I1–I3、L1、L2、D1、D5 等）自带中间体捕获考点。
+- 重原子分布（反应物装配体）：≤9 个 29 条；10–13 个 10 条（B1/B4/B6/B7/D3/E1/E2/F1/G3/L2）；15–17 个 4 条（B9/C2/C3/E3）；20+ 8 条（H1/I1/I4=20 恰界、I2/I3=21、H3=22、H2=24）。
+- 元素覆盖：纯 CHO/CHN/CHNO 为主 40 条；含 B 6 条（E1/E2/E3/J2/K1/K2）；含 Si 1 条（G3）；含 S 2 条（I4/L4）；含 Br 2 条（J3/J6）；含 F 1 条（J4）。
+- 电荷态：0 为主；−1（D2–D4/E1/E2/J4/J6）；+1（D1/D5/L1/L2）。全部闭壳层单重态。
+- 有数值锚点约 19/51；核实状态：已核实 ~24 / 部分核实 ~22 / 未核实 1（H2 阻垒估计值）；立体专一条目（能垒格无数字）由 MACE 试算标定。
+- 刻意的对照/对偶设计：A1 vs A2（给体 vs 受体 torquoselection）、A5 vs A6（meso vs dl 底物）、B1 vs B9（cis vs trans 亲双烯体）、B5 vs B6（动力学/热力学分离两种机制）、D3 vs D5（O/N 类比）、J3 vs J6（Br⁻ vs H₂O 捕获）、G2 vs K1（[3,3] vs aldol 两种椅式）、L1/L2 分别与 normal R2/O3 的"对称→立体化"对照。打标时按"对偶保留 vs 单收"逐组决策，不机械裁。
 
-### H-17 (Z)-C-苯基-N-甲基硝酮 + 丙烯酸甲酯（nitrone + methyl acrylate — regio/endo-exo）
+### 打标带映射（供评审打标参考，不构成门禁）
 
-1. 反应/底物：Type-I FMO 环加成 → 2-甲基-3-苯基异噁唑烷-5-甲酸酯（5-取代区域异构体为主）+ endo/exo 竞争。
-2. SMILES：`C/[N+]([O-])=C/c1ccccc1`（(Z)-硝酮）+ `C=CC(=O)OC` → 主产物（5-CO2Me 区域异构体，反式 C3/C5 相对构型为例）：`COC(=O)[C@@H]1C[C@H](c2ccccc2)N(C)O1`
-3. 电荷/自旋：0 / 单重态
-4. 条件：苯，回流或室温长时间。
-5. gold 机理/选择性：FMO 预测 5-取代异噁唑烷区域异构体为主（5- vs 4-取代 ΔΔG‡ ≈ 2–3 kcal/mol 量级）；endo（CO2Me 指向硝酮 π 面下）略占优。
-6. 锚点：Houk et al. 1973 双论文 `[已核实]`；硝酮环加成实验/综述：Tufariello 载 Padwa 编《1,3-Dipolar Cycloaddition Chemistry》（Wiley, 1984）`[部分核实]`；现代 DFT 复核文献众多 `[部分核实]`。
-7. 舒适区：{C,H,N,O}；TS 16 重原子；闭壳层 ✓
-8. 权威性：硝酮化学最经典底物组合；区域选择性解释是 FMO 理论标志性成功案例。
+- **带1 周环立体专一/选择性**（A/B/C/G 族，22 条）：A1 A2 A3 A4 A5 A6 A7 B1 B2 B3 B4 B5 B6 B7 B8 B9 C1 C2 C3 G1 G2 G3。
+- **带2 极性开环/加成/消除立体化学**（D/J 族，11 条）：D1 D2 D3 D4 D5 J1 J2 J3 J4 J5 J6。
+- **带3 π-面/椅式 TS 选择性**（E/F/K 族，7 条）：E1 E2 E3 F1 F2 K1 K2。
+- **带4 几何映射与手性转移**（L 族，4 条）：L1 L2 L3 L4。
+- **带5 阻转消旋阻垒**（H 族，3 条）：H1 H2 H3。
+- **带6 不对称有机催化诱导**（I 族，4 条）：I1 I2 I3 I4。
 
-### H-18 (Z)-C-苯基-N-甲基硝酮 + (E)-巴豆酸甲酯（nitrone + methyl crotonate — stereospecificity）
+### 定稿圈定（20 条，2026-08-31 打标定稿）
 
-1. 反应/底物：[3+2] 对双键构型的立体专一保持：E 亲偶极体 → trans-4,5-二取代异噁唑烷。
-2. SMILES：`C/[N+]([O-])=C/c1ccccc1` + `C/C=C/C(=O)OC` → 主产物 trans-4,5：`CN1O[C@H](C(=O)OC)[C@@H](C)[C@@H]1c1ccccc1`（相对构型 trans；绝对描述符随面对而异）
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热，苯。
-5. gold 机理/选择性：双超面（suprafacial-suprafacial）协同加成 → E→trans 立体专一（dr 接近单一）；(Z)-巴豆酸酯对照应给 cis-4,5。
-6. 锚点：Huisgen 1,3-偶极环加成立体专一性原理（*Angew. Chem. Int. Ed.* **1963**, 2, 565/633）`[部分核实]`；Tufariello 1984 `[部分核实]`。
-7. 舒适区：{C,H,N,O}；TS 17 重原子；闭壳层 ✓
-8. 权威性：[3+2] 立体专一性的定义性案例。
+> 经评审台打标（`hard_tags.json`）+ 两条收录规则裁决定稿。**收录规则**：(i) 1,3-偶极环加成不考虑——C 族（C1/C2/C3）整体剔除；(ii) 多参考体系划归 impossible 档——本池 51 条主通道全部闭壳层单重态，无涉。**冗余裁决**：H3（与 H1 同为联萘骨架消旋阻垒）降替补、留 H1（尺寸 20 vs 22）；I3（与 I1 同为脯氨酸烯胺催化）降替补、留 I1，I4（硫脲氢键催化 Strecker）升正选补催化模式多样性。**空缺不补裁决**：A5/B1/J5 等"协同单 TS + 立体读出"题型与现有正选的建模回路同构（SMILES→3D→TS→IRC 同一链路，无新能力轴），评审决定不为它们占名额。**回补裁决**：冗余裁减后按回补优先序将 J2（氢硼化，区域×立体耦合加成）升正选，凑满 20。打标台默认值已同步为此名单。
 
----
+- **正选 20**：A1, A2, A6, B7, D2, E1, E2, E3, F1, G1, G2, H1, I1, I4, J1, J2, J4, K1, L1, L4。
+- **替补 11**：A5, B1, B5, B9, D1, H3, I3, J3, J5, K2, L3。
+- **剔除 3**：C1, C2, C3（1,3-偶极规则）。
+- 其余 17 条留档未定（A3/A4/A7/B2/B3/B4/B6/B8/D3/D4/D5/F2/G3/H2/I2/J6/L2）。
+- 未来生成器 `cloudra/benchmark/gen_hard_tasks.py` 只读正选名单，替补/留档不生成；task_id 统一加 "H" 前缀（同 normal 的 N 前缀纪律）。
 
-## D. 小环开环立体专属性（H-19 ~ H-23）
+### 原建议名单（2026-08-31 打标前，已被定稿取代）
 
-### H-19 反-2,3-二甲基环氧乙烷酸催化水解（trans-2,3-dimethyloxirane acid hydrolysis — anti opening）
+> 打标台初始默认值曾按"立体化学考点覆盖最大化 + MACE 舒适区优先"建议正选 20（A1, A2, A5, B1, B5, B7, C2, C3, D2, E1, E2, F1, G1, G2, H1, I1, J1, J4, K1, K2）、替补 10（A6, B9, D1, E3, I4, J2, J3, J5, L1, L3）。评审打标后已被上方定稿取代，留档备查。
 
-1. 反应/底物：(2R,3R)-反-2,3-二甲基环氧乙烷 + H3O+ → 2,3-丁二醇。
-2. SMILES：`C[C@H]1[C@@H](O1)C`（(2S,3S) 对映体之一）→ 主产物 anti 开环、受进攻碳构型翻转：dl-2,3-丁二醇 (2R,3R)/(2S,3S)：`C[C@H]([C@@H](C)O)O`；meso (2R,3S)：`C[C@H]([C@H](C)O)O` 为"错误"非对映体
-3. 电荷/自旋：0 / 单重态（酸催化变体 TS 含质子化环氧 → +1 电荷，标注）
-4. 条件：稀酸水溶液，室温。
-5. gold 机理/选择性：背面 SN2 型开环 → 反式（anti）邻二醇；立体专一构型翻转，dl 产物（若底物为外消旋）。考核：SN2 背面进攻几何 + 环状底物立体化学映射。
-6. 锚点：教材标准案例（Clayden ch.33；Carey & Sundberg Part A ch.5）`[已核实，教材级]`；反式双轴向开环规则 Fürst & Plattner, *Helv. Chim. Acta* **1949**, 32, 275 `[部分核实]`。
-7. 舒适区：{C,H,O}；5–6 重原子；闭壳层 ✓
-8. 权威性：环氧开环立体专属性是所有物理有机教材的必修案例。
+### 口径核对登记（供未来 hard 生成器降级名单使用）
 
-### H-20 环氧环己烷亲核开环（cyclohexene oxide ring opening — Fürst–Plattner trans-diaxial）
+- **J5**：锚点（15.6）来自 normal O1 的过氧酸+**乙烯**体系，底物为 (E)-2-丁烯，按类似体系转录 → JSON `verification` 降 `unverified`。
+- 其余数值锚点均为选择性差值（ΔΔ）而非绝对能垒——**生成器需为 hard 新增"选择性锚点"字段语义**（如 `selectivity_anchor`），不要塞进 `barrier_kcal_mol`；H 族（H1–H3）为绝对阻垒 ΔG‡，可正常挂 barrier 字段。
+- B5/B6（可逆体系）与 I4（截短模型催化剂）的锚点语义特殊，gold 构建时按机理格说明处理。
 
-1. 反应/底物：环氧环己烷 + 氢氧根（或氢化物）→ 反-2-羟基环己醇。
-2. SMILES：`C1CCC2OC2C1` + `[OH-]` → 反式产物：`O[C@@H]1CCCC[C@H]1O`（(1R,2R)-反-1,2-环己二醇单醇形式，构型待 3D 核对）
-3. 电荷/自旋：0 / 单重态（亲核试剂为 −1）
-4. 条件：NaOH 水溶液加热。
-5. gold 机理/选择性：反式双轴向（trans-diaxial）开环唯一产物——椅式构象锁定下 SN2 进攻必须轴向进入；顺式/双赤道开环为高能路径。
-6. 锚点：Fürst & Plattner, *Helv. Chim. Acta* **1949**, 32, 275 `[部分核实]`；教材（Clayden；Eliel《Stereochemistry of Carbon Compounds》）。
-7. 舒适区：{C,H,O}；TS ≤8 重原子；闭壳层 ✓
-8. 权威性：构象分析 × 立体电子效应的经典交汇点。
+### 使用注意
 
-### H-21 氧化苯乙烯酸/碱条件区位翻转（styrene oxide — regioselectivity switch with inversion）
-
-1. 反应/底物：氧化苯乙烯 + 亲核试剂（如甲氧基）：碱性条件进攻末端碳，酸性条件进攻苄位碳，两者均构型翻转。
-2. SMILES：`c1ccccc1[C@@H]2CO2`（(R)）→ 碱：苄位保留（未断裂）+ 末端被进攻 → (R)-1-甲氧基? 更正：碱性 → `COCC(O)c1ccccc1`（苄位立体中心保留）；酸性 → `COC[C@@H](c1ccccc1)O` 苄位被进攻翻转
-3. 电荷/自旋：0 / 单重态（酸催化 TS 带 +1）
-4. 条件：NaOMe/MeOH（碱）；MeOH/H+（酸）。
-5. gold 机理/选择性：区位选择性随条件翻转（SN2 位阻控制 vs 部分 SN1 特征的苄位稳定化），立体化学均为背面进攻翻转；ΔΔG‡ ≈ 1.5–3 kcal/mol 量级。
-6. 锚点：教材标准案例（Clayden ch.33；March's Advanced Organic Chemistry）`[已核实，教材级]`。
-7. 舒适区：{C,H,O}；TS ~11 重原子；闭壳层 ✓
-8. 权威性：区域/立体选择性耦合的经典案例。
-
-### H-22 环氧丙烷碱性开环（propylene oxide + hydroxide — 最小 SN2 位阻选择性）
-
-1. 反应/底物：环氧丙烷 + [OH-] → 1,2-丙二醇，SN2 进攻少取代碳。
-2. SMILES：`C[C@H]1CO1`（(R)）+ `[OH-]` → 主产物（末端进攻，构型保留）：`C[C@H](O)CO`
-3. 电荷/自旋：−1（试剂）/ 单重态
-4. 条件：NaOH 水溶液。
-5. gold 机理/选择性：SN2 少取代碳进攻 ≫ 多取代碳（ΔΔG‡ ≈ 2–3 kcal/mol 量级）；立体中心不被触及（区域选择性题 + 立体化学"不动点"对照）。
-6. 锚点：教材（Clayden ch.33）`[已核实，教材级]`。
-7. 舒适区：{C,H,O}；TS ~5 重原子；闭壳层 ✓
-8. 权威性：最简单的位阻控制区位选择性模型，作为 D 组基线。
-
-### H-23 2-甲基氮杂环丙烷活化开环（2-methylaziridine — aziridine ring opening stereospecificity）
-
-1. 反应/底物：(R)-2-甲基氮杂环丙烷酸催化（N 质子化活化）醇解开环 → β-氨基醚，进攻位置与构型翻转分析。
-2. SMILES：`C[C@H]1CN1`（(R)）+ MeOH/H+ → 主产物（取代碳进攻、翻转）：`C[C@@H](OC)CN` 或区域异构体 `C[C@H](N)COC`（构型待 3D 核对）
-3. 电荷/自旋：+1（质子化底物）/ 单重态
-4. 条件：酸性醇溶液。
-5. gold 机理/选择性：N 活化后进攻取代碳占优（与未活化底物相反），背面进攻翻转；与 H-21 环氧体系构成 O/N 类比对照。
-6. 锚点：Dermer & Ham,《Ethylenimine and Other Aziridines》（Academic Press, 1969）`[部分核实]`；教材（Clayden ch.33 氮杂环开环）。
-7. 舒适区：{C,H,N,O}；TS ~7 重原子；闭壳层 ✓
-8. 权威性：氮杂环化学标准参考专著覆盖的体系。
-
----
-
-## E. 羰基 π-面选择性与手性还原（H-24 ~ H-26）
-
-### H-24 (S)-3-苯基-2-丁酮硼氢化（Felkin–Anh π-facial selection）
-
-1. 反应/底物：(S)-3-苯基-2-丁酮 + 硼氢化钠 → 赤式/苏式-3-苯基-2-丁醇。
-2. SMILES：`CC(=O)[C@@H](C)c1ccccc1`（(S)）+ `[BH4-]` → 两个非对映体：(2S,3R) 型 `C[C@H](O)[C@H](C)c1ccccc1` 与 (2S,3S) 型 `C[C@H](O)[C@@H](C)c1ccccc1`（哪个为主由 Felkin–Anh 预测：绝对描述符归属在 gold 构建时按模型核对）
-3. 电荷/自旋：−1（试剂）/ 单重态
-4. 条件：NaBH4/MeOH 或 LiAlH4/Et2O，0 °C–室温。
-5. gold 机理/选择性：Felkin–Anh 构象（Ph 垂直羰基平面，亲核试剂沿 Bürgi–Dunitz 从最小取代基侧进入）预测主非对映体；实验 dr ≈ 3–5:1（LAH，量级）。考核：无环体系构象系综 + σ* 立体电子效应。
-6. 锚点：Chérest, Felkin & Prudent, *Tetrahedron Lett.* **1968**, 2199–2204, DOI 10.1016/S0040-4039(00)89719-1 `[已核实]`；Paddon-Row, Rondan & Houk, *J. Am. Chem. Soc.* **1982**, 104, 7162–7166（Anh–Eisenstein 模型的计算验证）`[已核实]`。
-7. 舒适区：{C,H,O,B}；TS ~12 重原子；闭壳层 ✓
-8. 权威性：无环羰基面选择性最被引用的模型体系与计算验证。
-
-### H-25 4-叔丁基环己酮还原（4-tert-butylcyclohexanone — axial vs equatorial attack）
-
-1. 反应/底物：构象锁定环己酮 + 氢化物 → 反式（赤道 OH）/顺式（轴向 OH）-4-叔丁基环己醇。
-2. SMILES：`CC(C)(C)C1CCC(=O)CC1` + `[BH4-]` → 主产物 trans（赤道 OH，轴向进攻）：`CC(C)(C)[C@H]1CC[C@@H](O)CC1`；副产物 cis：`CC(C)(C)[C@H]1CC[C@H](O)CC1`
-3. 电荷/自旋：−1（试剂）/ 单重态
-4. 条件：LiAlH4/Et2O 或 NaBH4/醇。
-5. gold 机理/选择性：小亲核试剂**轴向进攻**占优（扭转应变控制，Wu–Houk）→ 赤道醇为主（LAH 约 8–9:1，量级）；大位阻试剂反转为赤道进攻。ΔΔG‡ ≈ 1.3–1.5 kcal/mol。
-6. 锚点：Chérest, Felkin & Prudent 1968 `[已核实]`；Wu, Tucker & Houk, *J. Am. Chem. Soc.* **1991**, 113, 5018–5027, DOI 10.1021/ja00013a042 `[已核实]`；Eliel 教材。
-7. 舒适区：{C,H,O,B}；TS ~12 重原子；闭壳层 ✓
-8. 权威性：构象-选择性耦合的教科书标杆，且被 Houk 组定量计算解释。
-
-### H-26 CBS 还原苯乙酮简化模型（Corey–Bakshi–Shibata reduction, small-model）
-
-1. 反应/底物：苯乙酮 + BH3 + 手性 1,3,2-氧氮硼杂环戊烷（简化 CBS 模型：(S)-5-甲基取代）→ 1-苯基乙醇。
-2. SMILES：`CC(=O)c1ccccc1` + `B`（BH3）+ 催化剂模型 `C[C@H]1COBN1` → 主产物 (R)-1-苯基乙醇（对映面由催化剂构型决定）：`C[C@H](C1=CC=CC=C1)O`
-3. 电荷/自旋：0 / 单重态
-4. 条件：THF，−20 °C~室温，催化量 oxazaborolidine。
-5. gold 机理/选择性：双配位六元环椅式 TS（B–H 从较小位阻面转移）：酮氧配位催化剂 B、BH3 配位 N；预测 ee 对应 ΔΔG‡ ≈ 2 kcal/mol（≈95% ee 量级，实验 CBS 苯乙酮 96–97% ee）。
-6. 锚点：Corey, Bakshi & Shibata, *J. Am. Chem. Soc.* **1987**, 109, 5551–5553, DOI 10.1021/ja00252a056 `[已核实]`；Quallich, Blake & Woodall, *J. Am. Chem. Soc.* **1994**, 116, 8516（小模型 TS 从头算）`[已核实]`；综述 Corey & Helal, *Angew. Chem. Int. Ed.* **1998**, 37, 1986–2012 `[已核实]`；Alagona et al. 2003, DOI 10.1021/ja034928d `[已核实]`。
-7. 舒适区：{C,H,O,N,B}；TS 复合物 ~16 重原子；闭壳层 ✓（**含 B，标注**）
-8. 权威性：诺贝尔级不对称催化（Corey），小模型 TS 计算自 1994 年起反复复核。
-
----
-
-## F. 氢键导向环氧化（H-27 ~ H-28）
-
-### H-27 环己-2-烯-1-醇过酸环氧化（Henbest directed epoxidation）
-
-1. 反应/底物：环己-2-烯-1-醇 + 过甲酸 → 顺-2,3-环氧环己醇。
-2. SMILES：`OC1C=CCCC1` + `OC(=O)OO` → 主产物 cis（OH 与环氧同侧）：`O[C@H]1[C@@H]2O[C@H]2CCC1`（构型待 3D 核对）
-3. 电荷/自旋：0 / 单重态
-4. 条件：过苯甲酸/过甲酸，CH2Cl2 或苯，0–25 °C。
-5. gold 机理/选择性：烯丙位 OH 与过酸氢键缔合导向 **syn/cis** 环氧化（Henbest 规则）：实验 cis:trans ≈ 91:9（ΔΔG‡ ≈ 1.4 kcal/mol）；蝶形（butterfly）TS 几何。
-6. 锚点：Henbest & Wilson, *J. Chem. Soc.* **1957**, 1958–1965 `[已核实]`；计算/模型：Houk et al., *Science* **1986**, 231, 1108–1117 `[已核实]`；91:9 数值出自 Whitham 对 Henbest 体系的重测（见 Glasgow 大学学位论文综述转引）`[部分核实]`。
-7. 舒适区：{C,H,O}；TS 9 重原子；闭壳层 ✓
-8. 权威性：底物导向立体选择性（substrate-directable reaction）的开端文献；Hoveyda-Evans-Fu *Chem. Rev.* 1993 综述将其列为导向反应范式。
-
-### H-28 无环手性烯丙醇过酸环氧化（(S)-(E)-pent-3-en-2-ol — acyclic allylic alcohol π-face）
-
-1. 反应/底物：(S)-(E)-戊-3-烯-2-醇 + 过甲酸 → threo/erythro-2,3-环氧戊醇。
-2. SMILES：`C/C=C/[C@H](C)O`（(4S,E)）+ `OC(=O)OO` → 两个非对映环氧醇（主/次归属按 Houk 模型，构型待 3D 核对）
-3. 电荷/自旋：0 / 单重态
-4. 条件：过酸，非配位溶剂。
-5. gold 机理/选择性：OH 导向 + 无环构象（"inside alkoxy"效应前的 Houk 烯丙醇模型）预测主非对映体；dr ≈ 2–3:1（量级）——比环状体系弱，更考验构象搜索完备性。
-6. 锚点：Houk et al., *Science* **1986**, 231, 1108 `[已核实]`；Chamberlin, Mulholland, Kahn & Hehre, *J. Am. Chem. Soc.* **1987**, 109, 672（"inside alkoxy"效应）`[部分核实]`。
-7. 舒适区：{C,H,O}；TS 8 重原子；闭壳层 ✓
-8. 权威性：Houk "立体选择性反应的理论与建模"名文覆盖的体系。
-
----
-
-## G. [3,3]-σ 迁移：椅式/船式竞争（H-29 ~ H-31）
-
-### H-29 meso-3,4-二甲基-1,5-己二烯 Cope 重排（Cope rearrangement — chair TS stereospecificity）
-
-1. 反应/底物：meso-(3R,4S)-3,4-二甲基-1,5-己二烯热重排 → (2E,6Z)-辛-2,6-二烯。
-2. SMILES：`C=C[C@H](C)[C@H](C)C=C`（meso, (3S,4R)）→ 椅式 TS 主产物 (E,Z)：`C/C=C/CC/C=C\C`（canonical `C/C=C\CC/C=C/C`）
-3. 电荷/自旋：0 / 单重态
-4. 条件：气相热解，~200–250 °C。
-5. gold 机理/选择性：椅式 TS ≫ 船式（实验 ΔΔG‡ ≈ 5.8 kcal/mol；高级别计算椅-船差 11.4 kcal/mol，CASPT2，Khaledy–Houk 2003 转引）→ meso 底物立体专一给出 (E,Z) 二烯。
-6. 锚点：Doering & Roth, *Tetrahedron* **1962**, 18, 67（椅/船 TS 与立体专一的奠基实验）`[部分核实，经 Bachrach 教科书引证列表核实存在]`；Khaledy et al., *J. Org. Chem.* **2003**, 68, 572–577, DOI 10.1021/jo020595b `[已核实]`。
-7. 舒适区：{C,H}；8 重原子；闭壳层 ✓
-8. 权威性：Cope 立体化学的"罗塞塔石碑"实验。
-
-### H-30 (E,E)-巴豆基丙烯基醚 Claisen 重排（Claisen rearrangement — chair preference, syn/anti）
-
-1. 反应/底物：(E)-巴豆基-(E)-丙烯基乙烯基醚热重排 → syn/anti-2,3-二甲基戊-4-烯醛。
-2. SMILES：`C/C=C/CO/C=C/C`（(E,E)）→ 椅式（双甲基假赤道）主产物 syn-2,3-二甲基戊-4-烯醛（dl 对之一）：`C=C[C@H](C)[C@H](C)C=O`；anti（meso 型）：`C=C[C@H](C)[C@@H](C)C=O`（syn/anti 与 CIP 对应关系待 gold 构建核对）
-3. 电荷/自旋：0 / 单重态
-4. 条件：~150–200 °C。
-5. gold 机理/选择性：椅式 TS 强烈占优（椅:船 ≥ 95:5，量级），(E,E) → syn 主产物；syn:anti ΔΔG‡ ≈ 2–3 kcal/mol。
-6. 锚点：Vance, Rondan, Houk et al., *J. Am. Chem. Soc.* **1988**, 110, 2314, DOI 10.1021/ja00215a059（Claisen TS 从头算）`[已核实 DOI/标题]`；Vittorelli, Winkler, Hansen & Schmid, *Helv. Chim. Acta* **1968**, 51, 1457（椅/船产物比实验）`[部分核实]`。
-7. 舒适区：{C,H,O}；8 重原子；闭壳层 ✓
-8. 权威性：Claisen 立体化学的实验（Schmid 学派）与计算（Houk 组）双经典。
-
-### H-31 (E)-巴豆基丙酸酯 Ireland–Claisen（Ireland–Claisen — silyl ketene acetal E/Z × chair）
-
-1. 反应/底物：(E)-巴豆基丙酸酯 → LDA/TMSCl 捕获为 (E)- 或 (Z)-O-硅基烯酮缩醇 → 椅式重排 → syn/anti-2,3-二甲基戊-4-烯酸（TMS 酯水解后）。
-2. SMILES：底物 `C/C=C/COC(=O)CC`；(E)-烯酮缩醇 `C/C=C/CO/C(=C/C)/O[Si](C)(C)C`；(Z)-烯酮缩醇 `C/C=C/CO/C(=C\C)/O[Si](C)(C)C` → 产物酸：`C=C[C@H](C)[C@H](C)C(=O)O`（dl 对之一）
-3. 电荷/自旋：0 / 单重态
-4. 条件：LDA/THF/−78 °C → TMSCl（THF 给 Z(O)，HMPA 添加给 E(O)）→ 室温重排 → 水解。
-5. gold 机理/选择性：烯酮缩醇几何决定相对构型（E(O)/Z(O) 分别经椅式 TS 给出相反的非对映体）；椅式 TS 中取代基假赤道排布；dr 常 >95:5。
-6. 锚点：Ireland, Mueller & Willard, *J. Am. Chem. Soc.* **1976**, 98, 2868–2877, DOI 10.1021/ja00426a033 `[已核实]`；计算：Khaledy, Kalani, Khuong, Houk, Aviyente, Neier, Soldermann & Velker, *J. Org. Chem.* **2003**, 68, 572–577, DOI 10.1021/jo020595b `[已核实]`。E(O)/Z(O)→syn/anti 助记对应关系 `[部分核实，gold 构建时按原文图核对]`。
-7. 舒适区：{C,H,O,Si}；TS ~13 重原子；闭壳层 ✓（**含 Si，标注**）
-8. 权威性：立体选择性烯醇化学的教科书反应（Ireland 1976 被引 >2000）；Houk 组直接计算过椅/船偏好起源。
-
----
-
-## H. 阻转异构消旋阻垒（H-32 ~ H-34）
-
-### H-32 1,1′-联萘消旋化（1,1′-binaphthyl atropisomerization）
-
-1. 反应/底物：(R)/(S)-1,1′-联萘经 peri-H 挤过的双叶翻转 TS 消旋。
-2. SMILES：对映体（轴手性 R_a/S_a）：`C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43`（消旋体表示；轴手性标记可用 `[C@]`/`[C@@]` 四面体约定或 PubChem 3D 锚定，gold 构建时确认）
-3. 电荷/自旋：0 / 单重态
-4. 条件：热消旋（动力学测定 ~50 °C，极性溶剂）。
-5. gold 机理/选择性：消旋阻垒 ΔG‡ ≈ 23.5 kcal/mol（t1/2 ≈ 14.5 min @ 50 °C）；两条路径（syn/anti peri-H 对穿）能差 ~1 kcal/mol 量级。
-6. 锚点：Cooke & Harris, *J. Chem. Soc.* **1963**（消旋动力学测定，23.5 kcal/mol 与 14.5 min 半衰期经二手文献一致转引）`[部分核实]`；Carter & Liljefors, *Tetrahedron* **1976**, 32, 2915–2922, DOI 10.1016/0040-4020(76)80145-7（构象反转的分子力学研究）`[已核实]`。
-7. 舒适区：{C,H}；20 重原子（恰在边界）；闭壳层 ✓
-8. 权威性：轴手性消旋动力学的第一个定量经典体系之一。
-
-### H-33 6,6′-二硝基联苯-2,2′-二甲酸（6,6′-dinitrodiphenic acid — first resolved atropisomer）
-
-1. 反应/底物：历史上首例被拆分的阻转异构体（Christie & Kenner 1922）；热消旋阻垒测定对象。
-2. SMILES（PubChem CID 95234）：`C1=CC(=C(C(=C1)[N+](=O)[O-])C2=C(C=CC=C2[N+](=O)[O-])C(=O)O)C(=O)O`
-3. 电荷/自旋：0 / 单重态
-4. 条件：加热消旋（溶液）。
-5. gold 机理/选择性：邻位四取代（2,2′-COOH + 6,6′-NO2）使室温可拆分；阻垒估计 ~28–32 kcal/mol `[未核实具体数值，gold 构建需查原始动力学文献或 Eliel 教材表格]`。
-6. 锚点：Christie & Kenner, *J. Chem. Soc., Trans.* **1922**, 121, 614–620, DOI 10.1039/CT9222100614 `[已核实]`。
-7. 舒适区：{C,H,N,O}；**24 重原子，超出 ≤20 预算，标注**；若超限可降级为 2,2′-二硝基联苯（18 重原子）变体。闭壳层 ✓
-8. 权威性：阻转异构现象的"开天辟地"文献，史论意义极高。
-
-### H-34 1,1′-联萘-2,2′-二酚（BINOL racemization barrier）
-
-1. 反应/底物：(R)/(S)-BINOL 热消旋。
-2. SMILES（消旋体表示）：`Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12`
-3. 电荷/自旋：0 / 单重态
-4. 条件：高温（>100 °C）溶液消旋；酸/碱催化加速。
-5. gold 机理/选择性：消旋阻垒 ΔG‡ ≈ 35–37 kcal/mol（中性条件 100 °C 长期稳定；diglyme 150 °C 20 h 仅 ~10% 消旋——实验锚点）；计算研究给出 syn 路径 ~37 kcal/mol。
-6. 锚点：实验稳定性与消旋速率：*Can. J. Chem.* **1980**, 58, 2134（DOI 10.1139/v80-021）`[已核实]`；DFT 阻垒：Meca, Řeha & Havlas, *J. Org. Chem.* **2003**, 68, 5677 `[未核实页码，需回查]`。
-7. 舒适区：{C,H,O}；**22 重原子，略超预算，标注**；闭壳层 ✓
-8. 权威性：不对称催化中最著名的轴手性骨架，消旋稳定性是其实用性的根基。
-
----
-
-## I. 手性小分子/氢键催化诱导（H-35 ~ H-38）
-
-### H-35 脯氨酸催化直接 Aldol（List–Barbas aldol：acetone + benzaldehyde）
-
-1. 反应/底物：(S)-脯氨酸催化丙酮与苯甲醛直接羟醛 → 4-羟基-4-苯基-2-丁酮，单一绝对构型为主。
-2. SMILES：`CC(C)=O` + `O=Cc1ccccc1` + 催化剂 `O=C(O)[C@@H]1CCCN1`（L-脯氨酸 (S)）→ 主产物（(S)-脯氨酸 → 可预测绝对构型，gold 构建按 Houk–List TS 核对）：`CC(=O)C[C@H](O)c1ccccc1`
-3. 电荷/自旋：0 / 单重态
-4. 条件：20–30 mol% (S)-脯氨酸，DMSO，室温。
-5. gold 机理/选择性：烯胺机理 + Houk–List 金属自由 Zimmerman–Traxler 型椅式 TS（羧基质子转移 + 氢键网络），单分子脯氨酸参与；苯甲醛 ee ≈ 60–76%（对硝基苯甲醛 76%，List 2000），ΔΔG‡ ≈ 1.2 kcal/mol。
-6. 锚点：List, Lerner & Barbas, *J. Am. Chem. Soc.* **2000**, 122, 2395–2396, DOI 10.1021/ja994280y `[已核实]`；Bahmanyar & Houk, *J. Am. Chem. Soc.* **2001**, 123, 11273–11283, DOI 10.1021/ja011403h `[已核实]`；Hoang, Bahmanyar, Houk & List, *J. Am. Chem. Soc.* **2003**, 125, 16–17, DOI 10.1021/ja028634o `[已核实]`。
-7. 舒适区：{C,H,N,O}；TS ~20 重原子（边界）；闭壳层 ✓
-8. 权威性：2021 诺贝尔化学奖核心反应 + Houk–List TS 模型（不对称有机催化计算解释的范式）。
-
-### H-36 脯氨酸催化三组份 Mannich（List Mannich：syn-β-氨基酮）
-
-1. 反应/底物：(S)-脯氨酸催化丙酮 + N-苄亚甲基甲胺（模型亚胺）→ syn-4-甲氨基-4-苯基-2-丁酮。
-2. SMILES：`CC(C)=O` + `C/N=C/c1ccccc1` + `O=C(O)[C@@H]1CCCN1` → syn 主产物：`CC(=O)C[C@H](c1ccccc1)NC` 的对映/非对映归属按 Houk–List TS 核对
-3. 电荷/自旋：0 / 单重态
-4. 条件：脯氨酸催化，DMSO/DMF，室温。
-5. gold 机理/选择性：烯胺对亚胺 si/re 面进攻 → **syn** 非对映体高 dr + 高 ee（实验 syn:anti >10:1，ee >90% 量级）；TS 中羧基同时活化亚胺并定向烯胺。
-6. 锚点：List, *J. Am. Chem. Soc.* **2000**, 122, 9336–9337, DOI 10.1021/ja001923x `[已核实]`；Bahmanyar, Houk, Martin & List, *J. Am. Chem. Soc.* **2003**, 125, 2475（Mannich 选择性的量子力学预测）`[已核实，经多个引证来源]`。
-7. 舒适区：{C,H,N,O}；TS ~21 重原子（**略超，标注**；可换甲醛亚胺变体降载）；闭壳层 ✓
-8. 权威性：List 诺奖工作 + Houk 组定量 TS 分析。
-
-### H-37 Hajos–Parrish 环化（proline-catalyzed intramolecular aldol desymmetrization）
-
-1. 反应/底物：前手性三酮 2-甲基-2-(3-氧丁基)环戊烷-1,3-二酮 + (S)-脯氨酸 → 双环烯二酮（Wieland–Miescher 型），去对称化。
-2. SMILES：`CC(=O)CCC1(C)C(=O)CCC1=O` + `O=C(O)[C@@H]1CCCN1` → 主产物（(S)-(+)-双环酮醇，绝对构型按文献核对）
-3. 电荷/自旋：0 / 单重态
-4. 条件：1–3 mol% (S)-脯氨酸，DMF/DMSO，室温。
-5. gold 机理/选择性：去对称化分子内羟醛：烯胺进攻两个前手性羰基之一 → 93% ee（原始 Hajos–Parrish 数据，已优化至 >99%）；单脯氨酸 Houk–List TS。
-6. 锚点：Hajos & Parrish, *J. Org. Chem.* **1974**, 39, 1615–1621 `[已核实]`；Hoang, Bahmanyar, Houk & List 2003, DOI 10.1021/ja028634o `[已核实]`；Bahmanyar & Houk, *J. Am. Chem. Soc.* **2001**, 123, 12911–12912, DOI 10.1021/ja011714s `[已核实]`。
-7. 舒适区：{C,H,N,O}；TS ~21 重原子（**略超，标注**）；闭壳层 ✓
-8. 权威性：有机催化的"创世纪"反应（1971/1974），去对称化立体选择性的原型。
-
-### H-38 手性硫脲催化 Strecker 简化模型（thiourea-catalyzed Strecker, minimal chiral model）
-
-1. 反应/底物：简化 Jacobsen 模型：(S)-N-甲基-N′-(仲丁基)硫脲催化 HCN 对 N-苄亚甲基甲胺的加成 → α-氨基腈。
-2. SMILES：催化剂 `CC[C@H](C)NC(=S)NC`（(S)）+ 亚胺 `C/N=C/c1ccccc1` + `C#N` → 主产物：`CNC[C@H](C#N)c1ccccc1`（构型归属按 gold 核对）
-3. 电荷/自旋：0 / 单重态
-4. 条件：低温，甲苯（模型体系为计算对象）。
-5. gold 机理/选择性：硫脲双氢键结合亚胺 N、酰胺 NH 定向 + 多重非共价作用稳定优势 TS（Zuend–Jacobsen 机理研究）；模型体系 ΔΔG‡ 预期 1–2 kcal/mol 量级。注意：催化剂为人工截短模型，gold 以"催化剂两个非对映 TS 竞争"形式出题，不直接对标实验 ee。
-6. 锚点：Sigman & Jacobsen, *J. Am. Chem. Soc.* **1998**, 120, 4901–4902, DOI 10.1021/ja980139y `[已核实]`；Zuend & Jacobsen, *J. Am. Chem. Soc.* **2009**, 131, 15358–15374（TS 多重非共价作用机理）`[已核实，经 CORE 引证库]`。
-7. 舒适区：{C,H,N,O,S}；TS 复合物 ~20 重原子；闭壳层 ✓（**含 S，标注**）
-8. 权威性：氢键有机催化的奠基工作（Jacobsen 组），机理被 JACS 2009 大篇幅计算解析。
-
----
-
-## 汇总表
-
-| 组 | 选择性类型 | 候选编号 | 数量 |
-|---|---|---|---|
-| A | torquoselectivity / 电环化立体专一 | H-01–H-07 | 7 |
-| B | Diels–Alder endo/exo、π-面、区域 | H-08–H-15 | 8 |
-| C | [3+2] 面/区域/立体专一 | H-16–H-18 | 3 |
-| D | 小环开环立体专属/区位翻转 | H-19–H-23 | 5 |
-| E | 羰基 π-面 / CBS 手性还原 | H-24–H-26 | 3 |
-| F | 氢键导向环氧化 | H-27–H-28 | 2 |
-| G | [3,3]-σ 迁移椅/船竞争 | H-29–H-31 | 3 |
-| H | 阻转异构消旋阻垒 | H-32–H-34 | 3 |
-| I | 手性小分子/氢键催化诱导 | H-35–H-38 | 4 |
-| **合计** | | | **38** |
-
-## 入选权衡说明
-
-- 纯 CHNO 候选：除 H-24/H-25（B）、H-26（B）、H-31（Si）、H-38（S）外全部满足；四个例外均可在 gold 构建阶段替换等效试剂（如 BH4− → 无金属氢化物模型）或直接接受（OMol25 覆盖 B/Si/S）。
-- 重原子边界：H-32=20（恰界）、H-34=22、H-33=24（超，附降级建议）、H-36/H-37=21（略超，附降载建议）。
-- 题面为 SMILES-only：所有底物均有程序化验证过的立体化学 SMILES；产物 SMILES 中标注"构型待 3D 核对"者（H-09、H-10、H-11、H-13、H-14、H-20、H-23、H-27、H-28、H-30、H-31、H-32、H-35、H-36、H-37、H-38）在 gold 构建时需以文献结构图/PubChem 3D 锚定。
+- **旧→新编号映射**（2026-08-25 旧 hard.md，git 历史可查）：A1–A7 = H-01~H-07；B1–B8 = H-08~H-15；C1–C3 = H-16~H-18；D1–D5 = H-19~H-23；E1–E3 = H-24~H-26；F1–F2 = H-27~H-28；G1–G3 = H-29~H-31；H1–H3 = H-32~H-34；I1–I4 = H-35~H-38；B9/J/K/L 族为 2026-08-31 新增。
+- **勘误记录**：旧 H-19（现 D1）产物 dl → meso 已勘误（anti 开环翻转一个中心）；旧 H-05（现 A5）产物 SMILES 与 (2E,4Z) 名称对应关系已程序化核对；旧 H-36（现 I2）丙酮供体改丙醛供体（单立体中心无法考核 dr）。
+- 族前缀与 easy（D/P/L/X/C/E/F/T/G/M）/normal（A/I/Y/O/S/X/R/U/Q/H）在池文件层面有重叠（A–L 为 hard 池内部编号）；**生成 task JSON 时 task_id 统一加 "H" 前缀**（如 HA1、HJ4），同 normal 的 N 前缀纪律。
+- 产物 SMILES 标注"构型待 3D 核对"者（B2–B4、B6–B9、C2/C3、E1/E3、F2、G2/G3、I1–I4、K2、L3/L4），gold 构建阶段以文献结构图/计算 3D 锚定后替换。
+- 轴手性条目（H1–H3）SMILES 为消旋体表示（无 `@` 标记）——轴手性/Ra/Sa 由 query 文本与 gold 3D 锚定；RDKit 对联芳轴手性支持有限，生成器注意。
+- **评审打标台**：`ideapool/reaction_candidates/hard_tagging.html`（浏览器直接打开；由 `scripts/gen_hard_tagging.py` 从本文件生成，条目变更后重跑脚本重建）。打标存浏览器 localStorage、不回写本文件，可导出/导入 JSON 与正选/替补名单文本。

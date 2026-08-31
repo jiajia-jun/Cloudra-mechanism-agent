@@ -130,6 +130,8 @@ class BenchmarkRunner:
                 if gs.sigmoid_steepness is not None
                 else base.sigmoid_steepness
             ),
+            # hard 档立体化学计代价；easy/normal 忽略立体（stereo_free）
+            stereo_free=gs.stereo_tier_rule == "easy_normal_stereo_free",
             subgraph_scoring=gs.subgraph_scoring,
             node_delete_cost=base.node_delete_cost,
             node_insert_cost=base.node_insert_cost,

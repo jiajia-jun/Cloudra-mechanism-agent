@@ -287,7 +287,8 @@
       "verification": "partial",
       "reference_doi": "10.1021/ja01626a040",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

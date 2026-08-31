@@ -90,7 +90,8 @@
       "verification": "verified",
       "reference_doi": "10.1021/j100296a013",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

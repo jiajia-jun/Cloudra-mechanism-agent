@@ -120,7 +120,8 @@
       "verification": "unverified",
       "reference_doi": "10.1016/j.cplett.2013.12.062",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

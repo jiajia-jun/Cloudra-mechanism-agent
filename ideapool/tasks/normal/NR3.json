@@ -115,7 +115,8 @@
       "verification": "verified",
       "reference_doi": "10.1007/s11172-006-0109-2",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

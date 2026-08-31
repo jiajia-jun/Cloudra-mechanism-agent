@@ -107,7 +107,8 @@
       "verification": "verified",
       "reference_doi": "",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

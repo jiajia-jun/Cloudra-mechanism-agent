@@ -57,9 +57,10 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **`benchmark/` — 基准评测框架（独立于会话运行时）**
 
-- `schema.py` — 任务 JSON 的唯一 schema（`TaskSpec`）；机理图边带原子映射键变化 `bond_changes`（[i, j] 对引用 query 的原子映射 SMILES 编号，键级降记 break、升记 form）；gold 能垒锚点另记 `barrier_type`（未注明为 null，不默认贴 Ea）与 `barrier_reference`（central_complex/reactants，仅元数据，评分只读 `barrier_kcal_mol`）。
+- `schema.py` — 任务 JSON 的唯一 schema（`TaskSpec`）；机理图边带原子映射键变化 `bond_changes`（[i, j] 对引用 query 的原子映射 SMILES 编号，键级降记 break、升记 form）；gold 能垒锚点另记 `barrier_type`（未注明为 null，不默认贴 Ea）与 `barrier_reference`（central_complex/reactants，仅元数据，评分只读 `barrier_kcal_mol`）；hard 档选择性锚点（竞争非对映 TS 的 ΔΔ 能垒差）走 `gold.selectivity`（`SelectivityReference`），绝不塞进 `barrier_kcal_mol`。
 - `gen_easy_tasks.py` — 从 `ideapool/reaction_candidates/easy.md` 确定性生成 `ideapool/tasks/easy/*.json`；改题源后重跑 `python -m cloudra.benchmark.gen_easy_tasks`，`test_easy_tasks_regenerate_identically` 守卫同步。原子映射 SMILES 与 bond_changes 按 task_id 登记在 `_MAPPED_REACTANTS`/`_BOND_CHANGES`（漏登 KeyError）。
 - `gen_normal_tasks.py` — normal 档同款生成器（`normal.md` → `ideapool/tasks/normal/N*.json`，只生成定稿 30 题 `TASK_IDS`，池子落选条目留档）。与 easy 的差异：多步 gold 图（中间体节点 + 逐基元步边）；登记拆到 `normal_registry/` 按族分文件（ai/yo/x/ru/qh.py，每题登记 mapped_reactants + 每步全体系映射 SMILES），**bond_changes 由生成器从相邻步映射 SMILES 差集自动推导、禁止手填**；校验 fail-loud（逐步映射号守恒/电荷守恒/去映射=池内 SMILES/每步有键变化），分族自检 `python -m cloudra.benchmark.gen_normal_tasks --only A1 ... --check`。task_id 加 N 前缀（normal X 族与 easy X1 撞号）；single_step 一律 false；accuracy σ=2.0、无锚点题 `enabled=false`；`test_normal_tasks_regenerate_identically` 守卫同步。
+- `gen_hard_tasks.py` — hard 档（立体化学档）同款生成器（`hard.md` → `ideapool/tasks/hard/H*.json`，只生成定稿 20 题；登记拆到 `hard_registry/`（ab/de/fgk/hi/jl.py，格式契约见其 `__init__.py`），映射 SMILES **保留立体标记**（去映射校验立体敏感，标错即 fail-loud）。hard 特有：gold 图带竞争立体化学副通道（registry `competing` 键：副产物/副中间体节点 + 副 TS 边，子图覆盖要求两条 TS 都交付）；锚点路由 `anchor` 键——"selectivity"（ΔΔ 能垒差入 `gold.selectivity`（`SelectivityReference`），accuracy 暂 disable 待 runner 支持 spread 评分）/"barrier"（绝对垒如 HH1 消旋 ΔG‡ 23.5 入 `reference_computation`，accuracy σ=2.0 照常）/None（无锚点）；rubric 一律 `stereo_tier_rule="hard_stereo_costly"`（runner `_ged_config_for` 已接线到 `GedConfig.stereo_free`）。分族自检 `--only ... --check`；`test_hard_tasks_regenerate_identically` 守卫同步。
 - `graph_similarity.py` — 化学参数化图评分，默认**子图覆盖**打分（gold 嵌入交付图即满分，多出不罚）；`GedConfig(subgraph_scoring=False)` 退回对称 GED 诊断。RDKit 可选，缺失时节点代价退化为 SMILES 集合相等。
 - `integrity.py` / `selfconsistency.py` / `accuracy.py` — 三层取证评分：证据绑定（`smiles:` 注释行；机理图形状的 JSON 不算证据；骨架级 partial credit；`binding_quality` 作 composite 乘性因子）→ 鞍点/IRC/极小值物理自检 → 能垒高斯容差评分。
 - `method_policy.py` — 方法白名单拦截判定（纯函数；`submit_compute_job` 读 input_file 内容判定；bash 层解析 heredoc/重定向写入的 QM 输入；**无法解析方法时 fail-closed**）。`policy_stage.py` — 运行时执行点 `MethodPolicyStage`。
@@ -107,7 +108,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 ## 顶层散件
 
 - `kg_data/` — 知识图谱 CSV（kg-entities/kg-relations/kg-stats，utf-8-sig；`cloudra knowledge import` 的输入）。v12 后含动力学讲义增量、v12.1 移除软件安装类目：14,203 实体（props.label_en 全覆盖）/ 10,266 行级关系（source 含 `kb:dyn01`~`kb:dyn08`）。
-- `ideapool/reaction_candidates/` — benchmark 候选池（easy.md 已定稿 30 题；normal.md 48 条池、已定稿 30 题见文末"定稿圈定"）；打标台为 `ideapool/reaction_candidates/normal_tagging.html`（自包含 HTML，打标存 localStorage 不回写 md），由 `scripts/gen_normal_tagging.py` 从 normal.md 重新生成（条目变更后重跑）。
+- `ideapool/reaction_candidates/` — benchmark 候选池（easy.md 已定稿 30 题；normal.md 48 条池、已定稿 30 题见文末"定稿圈定"；hard.md 51 条池（立体化学档，2026-08-31 升级为线缆格式）、已定稿 20 条见文末"定稿圈定"（C 族 1,3-偶极按规则整体剔除））；打标台为自包含 HTML（normal_tagging.html / hard_tagging.html，打标存 localStorage 不回写 md），由 `scripts/gen_normal_tagging.py` / `scripts/gen_hard_tagging.py` 从对应 md 重新生成（条目变更后重跑）。
 - `vector_store/` — 知识卡片 bge-m3 向量五件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py / encode.py）；`scripts/kg_vec_service.py` 微服务只读这套文件（向量侧依赖 torch/sentence-transformers 全部留在外部 .venv-trans，cloudra venv 不装 torch；服务不随 cloudra 自启）。查询模型与 meta.json 记录的库编码模型不一致时启动即告警；一键重编码入口 `vector_store/encode.py --model 模型名`；bge 系模型自动加专用查询前缀。v12.1 后 17,188 行（8,594 卡 zh+en 成对，其中动力学 1,569 卡）。
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。

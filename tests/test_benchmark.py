@@ -800,6 +800,65 @@ def test_normal_tasks_regenerate_identically():
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
 
 
+def test_hard_tasks_regenerate_identically():
+    """hard 档题库（20 题立体化学档）必须与生成器输出一致。"""
+    pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
+    from cloudra.benchmark import gen_hard_tasks
+
+    tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
+    assert len(tasks) == 20
+    for t in tasks:
+        committed = gen_hard_tasks.DEFAULT_OUT / f"{t.task_id}.json"
+        assert committed.is_file(), f"missing committed task file: {committed}"
+        regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
+        assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+        # hard 档一律 stereo 计代价
+        assert t.rubric.graph_similarity.stereo_tier_rule == "hard_stereo_costly"
+
+
+def test_runner_wires_stereo_tier_rule():
+    """runner._ged_config_for 必须把 rubric 的 stereo_tier_rule 接到 GedConfig.stereo_free。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.schema import GraphSimilarityRubric
+
+    runner = BenchmarkRunner.__new__(BenchmarkRunner)
+    runner.ged_config = GedConfig()
+
+    class _FakeTask:
+        pass
+
+    hard_task = _FakeTask()
+    hard_task.rubric = type("R", (), {"graph_similarity": GraphSimilarityRubric(stereo_tier_rule="hard_stereo_costly")})()
+    assert runner._ged_config_for(hard_task).stereo_free is False
+
+    easy_task = _FakeTask()
+    easy_task.rubric = type("R", (), {"graph_similarity": GraphSimilarityRubric()})()
+    assert runner._ged_config_for(easy_task).stereo_free is True
+
+
+def test_gold_selectivity_reference_roundtrip():
+    """SelectivityReference（hard 档 ΔΔ 选择性锚点）schema 往返与默认值。"""
+    from cloudra.benchmark.schema import BarrierType, GoldSpec, SelectivityReference
+
+    gold = GoldSpec(
+        mechanism_graph=GoldMechanismGraph(nodes=[]),
+        selectivity=SelectivityReference(
+            spread_kcal_mol=2.0,
+            spread_type=BarrierType.DE,
+            minor_channel="inward rotation -> (Z)-diene",
+        ),
+    )
+    dumped = gold.model_dump(mode="json")
+    assert dumped["selectivity"]["spread_kcal_mol"] == 2.0
+    assert dumped["selectivity"]["spread_type"] == "ΔE‡"
+    assert dumped["reference_computation"]["barrier_kcal_mol"] is None
+    back = GoldSpec.model_validate(dumped)
+    assert back.selectivity.spread_kcal_mol == 2.0
+    # 无选择性锚点时默认 None
+    plain = GoldSpec(mechanism_graph=GoldMechanismGraph(nodes=[]))
+    assert plain.selectivity is None
+
+
 # --- 方法白名单 policy stage + runtime_v2 后端接线 ---
 
 

@@ -1,0 +1,201 @@
+{
+  "task_id": "HE1",
+  "tier": "hard",
+  "family": "E",
+  "name": "(S)-3-phenyl-2-butanone borohydride reduction: Felkin-Anh pi-face selection",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: (S)-3-phenyl-2-butanone borohydride reduction: Felkin-Anh pi-face selection. Reactant SMILES: [BH4-].CC(=O)[C@@H](C)c1ccccc1; product SMILES: C[C@@H]([O-])[C@@H](C)c1ccccc1.B; total charge -1, multiplicity 1; conditions: NaBH4/MeOH or LiAlH4/Et2O, 0 degC to rt. Atom-mapped reactant SMILES: [BH3-:1]([H:2]).[CH3:3][C:4](=[O:5])[C@@H:6]([CH3:7])[c:8]1[cH:9][cH:10][cH:11][cH:12][cH:13]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). This task probes stereochemistry: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. In your final summary you must report the computed barrier in kcal/mol for the rate-determining step, relative to the reactant complex (the pre-reaction complex, e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process this is simply the reactant minimum); for each competing stereochemical channel also report the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol and which channel it favors. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "[BH4-]",
+      "CC(=O)[C@@H](C)c1ccccc1"
+    ],
+    "products": [
+      "C[C@@H]([O-])[C@@H](C)c1ccccc1",
+      "B"
+    ],
+    "charge": -1,
+    "multiplicity": 1,
+    "conditions": "NaBH4/MeOH or LiAlH4/Et2O, 0 degC to rt",
+    "elements": [
+      "C",
+      "H",
+      "O",
+      "B"
+    ],
+    "max_heavy_atoms": 12,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "HE1_R",
+          "role": "reactant",
+          "smiles": [
+            "[BH4-]",
+            "CC(=O)[C@@H](C)c1ccccc1"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "HE1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "HE1_P",
+          "role": "product",
+          "smiles": [
+            "C[C@@H]([O-])[C@@H](C)c1ccccc1",
+            "B"
+          ],
+          "accessible": true,
+          "label": "product"
+        },
+        {
+          "id": "HE1_TSM1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS minor 1"
+        },
+        {
+          "id": "HE1_M1",
+          "role": "product",
+          "smiles": [
+            "C[C@H]([O-])[C@@H](C)c1ccccc1",
+            "B"
+          ],
+          "accessible": true,
+          "label": "minor product 1"
+        }
+      ],
+      "edges": [
+        {
+          "id": "HE1_E1",
+          "from": "HE1_R",
+          "to": "HE1_P",
+          "via": "HE1_TS1",
+          "step_type": "single-step hydride transfer from BH4- to the Felkin-Anh favored carbonyl pi-face (Ph perpendicular, nucleophile passes the small H substituent) -> (2R,3S) alkoxide; C3 configuration retained from the (S) substrate",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                2,
+                4
+              ]
+            ]
+          },
+          "accessible": true
+        },
+        {
+          "id": "HE1_EM1",
+          "from": "HE1_R",
+          "to": "HE1_M1",
+          "via": "HE1_TSM1",
+          "step_type": "hydride transfer to the opposite pi-face -> (2S,3S) diastereomer (anti-Felkin-Anh minor channel)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                2,
+                4
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    },
+    "selectivity": {
+      "spread_kcal_mol": 0.7,
+      "spread_type": "ΔG‡",
+      "minor_channel": "hydride attack on the opposite (anti-Felkin-Anh) pi-face -> (2S,3S)-3-phenylbutan-2-olate diastereomer",
+      "verification": "verified",
+      "reference_doi": "10.1016/S0040-4039(00)89719-1",
+      "computed_by_us": false
+    }
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "hard_stereo_costly",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

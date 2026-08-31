@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Hard 档打标台（51 条候选）</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; margin: 0; background: #0f1115; color: #d7dae0; }
+  header { position: sticky; top: 0; z-index: 10; background: #161a22; border-bottom: 1px solid #2a2f3a; padding: 10px 16px; }
+  header h1 { font-size: 15px; margin: 0 0 8px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+  .counter { padding: 2px 10px; border-radius: 10px; background: #222836; font-variant-numeric: tabular-nums; }
+  .counter b { color: #7ec8ff; }
+  .counter.over b { color: #ff7e7e; }
+  select, input[type=search] { background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; border-radius: 6px; padding: 4px 8px; font-size: 13px; }
+  button { background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; border-radius: 6px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+  button:hover { border-color: #5a6580; }
+  main { padding: 12px 16px 60px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid #242a36; padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 92px; background: #161a22; font-size: 12px; color: #8b93a5; }
+  td.id { font-weight: 700; white-space: nowrap; }
+  code { font-size: 11.5px; color: #9fd3a8; word-break: break-all; }
+  .band { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: #222836; white-space: nowrap; }
+  .tag-btns button { margin-right: 4px; opacity: 0.45; }
+  .tag-btns button.on { opacity: 1; font-weight: 700; }
+  .b-pick.on { background: #1d4a2c; border-color: #3a8f56; color: #9fe6b5; }
+  .b-alt.on  { background: #4a3a1d; border-color: #a8823a; color: #f0d59a; }
+  .b-drop.on { background: #4a1d22; border-color: #a83a46; color: #f0a3ab; }
+  tr.st-pick { background: rgba(40, 120, 70, 0.10); }
+  tr.st-alt  { background: rgba(150, 110, 40, 0.10); }
+  tr.st-drop { opacity: 0.38; }
+  .vtag { font-size: 11px; padding: 1px 6px; border-radius: 8px; white-space: nowrap; }
+  .v-已核实 { background: #1d4a2c; color: #9fe6b5; }
+  .v-已核实存在 { background: #1d3a4a; color: #9ad4f0; }
+  .v-部分核实 { background: #4a3a1d; color: #f0d59a; }
+  .v-未核实 { background: #4a1d22; color: #f0a3ab; }
+  .mech, .barrier { max-width: 420px; }
+  .hidden { display: none; }
+  textarea#importbox { width: 100%; height: 90px; background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hard 档打标台（立体化学）· 51 条候选 · 已定稿：正选 20 / 替补 11 / 剔除 3（打标存 localStorage，不回写 hard.md）</h1>
+  <div class="bar">
+    <span class="counter" id="c-pick">正选 <b>0</b>/20</span>
+    <span class="counter" id="c-alt">替补 <b>0</b>/11</span>
+    <span class="counter" id="c-drop">剔除 <b>0</b></span>
+    <span class="counter" id="c-todo">未定 <b>0</b></span>
+    <select id="f-band"><option value="">全部带</option></select>
+    <select id="f-fam"><option value="">全部族</option></select>
+    <select id="f-tag">
+      <option value="">全部标签</option><option value="pick">正选</option>
+      <option value="alt">替补</option><option value="drop">剔除</option><option value="todo">未定</option>
+    </select>
+    <input type="search" id="f-q" placeholder="搜 id / 反应名 / SMILES" size="22">
+    <button onclick="exportJSON()">导出 JSON</button>
+    <button onclick="exportNames()">导出名单</button>
+    <button onclick="document.getElementById('importwrap').classList.toggle('hidden')">导入 JSON</button>
+    <button onclick="resetDefaults()">重置为定稿名单</button>
+    <button onclick="clearAll()">全部清空</button>
+  </div>
+  <div id="importwrap" class="hidden" style="margin-top:8px">
+    <textarea id="importbox" placeholder='粘贴之前导出的 JSON（{"tags": {"A1": "pick", ...}}）'></textarea>
+    <button onclick="importJSON()">导入</button>
+  </div>
+</header>
+<main>
+<table>
+  <thead><tr>
+    <th>#</th><th>打标</th><th>带/族</th><th>反应</th><th>SMILES, q/mult</th>
+    <th class="mech">机理概要</th><th class="barrier">能垒锚点</th><th>舒适区</th>
+  </tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+</main>
+<script>
+const ENTRIES = [{"id": "A1", "band": "带1 周环立体专一/选择", "family": "A", "name": "3-甲基环丁烯顺旋开环（3-methylcyclobutene，torquoselectivity 母体）", "smiles": "CC1CC=C1>>C=C/C=C/C", "qm": "0/1", "mech": "协同顺旋开环；给电子甲基**外向**旋转占优（σ→σ* 超共轭+位阻）→ (E) 主产物。竞争：内向旋转 → (Z) `C=C/C=C\\C`", "barrier": "ΔΔE‡ ≈ 2 kcal/mol（外向:内向，150 °C 对应 E:Z ≈ 9:1；Rondan & Houk 1985 JACS 107, 2099，DOI 10.1021/ja00293a046；Niwayama 1996 JOC 61, 2813，DOI 10.1021/jo950884i）[已核实]", "verify": "已核实", "comfort": "C,H；5 重原子；✅", "def": "pick"}, {"id": "A2", "band": "带1 周环立体专一/选择", "family": "A", "name": "3-甲酰基环丁烯\"反向\"torquoselectivity（3-formylcyclobutene，受体内向）", "smiles": "O=CC1CC=C1>>C=C/C=C\\C=O", "qm": "0/1", "mech": "强 π-受体 CHO **内向**旋转占优（与给体相反）→ (Z) 主产物。竞争：外向 → (E) `C=C/C=C/C=O`", "barrier": "ΔΔE‡ ≈ 2–3 kcal/mol（内向:外向；Kirmse, Rondan & Houk 1984 JACS 106, 7989；Rudolf 1987 JOC 52, 3708，DOI 10.1021/jo00392a047；综述 Dolbier 1996 ACR 29, 471）[已核实]", "verify": "已核实", "comfort": "C,H,O；6 重原子；✅", "def": "pick"}, {"id": "A3", "band": "带1 周环立体专一/选择", "family": "A", "name": "3-甲氧基环丁烯（3-methoxycyclobutene，强给体外向）", "smiles": "COC1CC=C1>>C=C/C=C/OC", "qm": "0/1", "mech": "给体 OMe 强烈外向（孤对供体效应叠加位阻）→ 几乎单一 (E)。竞争：内向 → (Z)", "barrier": "ΔΔE‡ ≈ 5–7 kcal/mol（外向:内向，给体序列上限量级；Niwayama 1996 JOC 61, 2813；具体数值回查原文）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；6 重原子；✅", "def": null}, {"id": "A4", "band": "带1 周环立体专一/选择", "family": "A", "name": "3-(甲氧羰基)环丁烯（methyl cyclobut-3-ene-1-carboxylate，受体内向）", "smiles": "COC(=O)C1CC=C1>>C=C/C=C\\C(=O)OC", "qm": "0/1", "mech": "受体 CO2Me **内向**旋转占优（与 A2 同族，略弱）。竞争：外向 → (E)", "barrier": "ΔΔE‡ ≈ 2–3 kcal/mol（内向:外向；Niwayama 1996；Dolbier 1996 ACR 29, 471）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；8 重原子；✅", "def": null}, {"id": "A5", "band": "带1 周环立体专一/选择", "family": "A", "name": "顺-3,4-二甲基环丁烯立体专一开环（cis-3,4-dimethylcyclobutene，WH 规则）", "smiles": "C[C@@H]1C=C[C@@H]1C>>C/C=C/C=C\\C", "qm": "0/1", "mech": "4π 热顺旋立体专一：meso 底物只给 (E,Z) 二烯（顺时针/逆时针殊途同归）。竞争：对旋为对称禁阻路径", "barrier": "能垒数值未核（顺旋唯一允许；对旋禁阻垒差 ≫10 kcal/mol 量级；Woodward & Hoffmann 1965 JACS 87, 395，DOI 10.1021/ja01080a054；Winter 1965 TL 实验）[已核实]", "verify": "已核实", "comfort": "C,H；6 重原子；✅", "def": "alt"}, {"id": "A6", "band": "带1 周环立体专一/选择", "family": "A", "name": "反-3,4-二甲基环丁烯（trans-3,4-dimethylcyclobutene，顺旋方向×位阻双重选择）", "smiles": "C[C@H]1C=C[C@@H]1C>>C/C=C/C=C/C", "qm": "0/1", "mech": "WH 允许的两条顺旋路径分别给 (E,E) 与 (Z,Z) `C/C=C\\C=C\\C`；位阻使双外向占优。竞争：双内向 → (Z,Z)", "barrier": "ΔΔE‡ ≈ 2–4 kcal/mol（双外向:双内向；Woodward & Hoffmann 1965；Rondan & Houk 1985）[已核实]", "verify": "已核实", "comfort": "C,H；6 重原子；✅", "def": "pick"}, {"id": "A7", "band": "带1 周环立体专一/选择", "family": "A", "name": "(2E,4Z,6E)-辛三烯对旋闭环（6π disrotatory stereospecificity）", "smiles": "C/C=C/C=C\\C=C\\C>>C[C@@H]1C=CC=C[C@@H]1C", "qm": "0/1", "mech": "6π 热对旋立体专一：(E,Z,E) → cis。竞争：顺旋对称禁阻 → trans 不出现", "barrier": "能垒数值未核（Woodward & Hoffmann 1965；Marvell 组取代己三烯电环化系列 1970 前后）[部分核实]", "verify": "部分核实", "comfort": "C,H；8 重原子；✅", "def": null}, {"id": "B1", "band": "带1 周环立体专一/选择", "family": "B", "name": "环戊二烯 + 顺丁烯二酸酐（cyclopentadiene + maleic anhydride，Alder endo 规则）", "smiles": "C1=CCC=C1.O=C1OC(=O)C=C1>>C1[C@@H]2C=C[C@H]1[C@@H]3[C@H]2C(=O)OC3=O", "qm": "0/1", "mech": "协同 [4+2]，动力学 **endo** 近乎专一（次级轨道相互作用+位阻）。竞争：exo", "barrier": "ΔΔG‡ ≈ 1.5–2 kcal/mol（endo:exo >100:1；Alder & Stein 1937 Angew 50, 510；Hoffmann & Woodward 1965 JACS 87, 4388）[已核实]", "verify": "已核实", "comfort": "C,H,O；12 重原子；✅", "def": "alt"}, {"id": "B2", "band": "带1 周环立体专一/选择", "family": "B", "name": "环戊二烯 + 丙烯醛（cyclopentadiene + acrolein，弱 endo 偏好基线）", "smiles": "C1=CCC=C1.C=CC=O>>O=C[C@H]1[C@@H]2C=C[C@H]1CC2", "qm": "0/1", "mech": "协同 [4+2]，无催化 endo 略占优。竞争：exo——偏好强度随取代基变化的梯度题", "barrier": "ΔΔG‡ ≈ 0.6 kcal/mol（无催化 endo:exo ≈ 3:1；BF3 催化增至 ≈ 2（endo:exo >95:5）；Houk & Strozier 1973 JACS 95, 4094，DOI 10.1021/ja00793a070；Birney & Houk 1990 JACS 112, 4127）[已核实]", "verify": "已核实", "comfort": "C,H,O；9 重原子；✅", "def": null}, {"id": "B3", "band": "带1 周环立体专一/选择", "family": "B", "name": "环戊二烯 + 丙烯腈（cyclopentadiene + acrylonitrile，最弱 endo 偏好）", "smiles": "C1=CCC=C1.C=CC#N>>N#C[C@H]1[C@@H]2C=C[C@H]1CC2", "qm": "0/1", "mech": "endo 偏好明显弱于丙烯醛/顺酐（次级轨道作用随亲双烯体电负性减弱）。竞争：exo", "barrier": "ΔΔG‡ ≈ 0.3–0.8 kcal/mol（endo:exo ≈ 1.3–2:1 量级；Hoffmann & Woodward 1965；Sauer & Sustmann 1980 Angew 19, 779）[部分核实]", "verify": "部分核实", "comfort": "C,H,N；9 重原子；✅", "def": null}, {"id": "B4", "band": "带1 周环立体专一/选择", "family": "B", "name": "环戊二烯 + 对苯醌（cyclopentadiene + p-benzoquinone）", "smiles": "C1=CCC=C1.O=C1C=CC(=O)C=C1>>O=C1C=CC(=O)[C@H]2[C@@H]1[C@H]1C=C[C@@H]2C1", "qm": "0/1", "mech": "醌亲双烯体 endo 加成（醌羰基指向双烯 π 面下方）。竞争：exo；二次加成副通道", "barrier": "ΔΔG‡ ≈ 1.5–2 kcal/mol（量级类比 MA 体系；Alder & Stein 1937；教材 Clayden ch.34）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；13 重原子；✅", "def": null}, {"id": "B5", "band": "带1 周环立体专一/选择", "family": "B", "name": "环戊二烯自二聚（cyclopentadiene dimerization，动力学 endo vs 热力学 exo）", "smiles": "C1=CCC=C1.C1=CCC=C1>>C1C=C[C@@H]2[C@H]1[C@H]3C[C@@H]2C=C3", "qm": "0/1", "mech": "动力学 **endo** 主产物；可逆条件下 exo 更稳定（热力学产物）——动力学/热力学选择性分离。竞争：exo；retro-DA", "barrier": "ΔΔG‡ ≈ 2 kcal/mol（endo:exo 动力学偏好量级；Woodward & Katz 1959 Tetrahedron 5, 70；Hoffmann & Woodward 1965）[部分核实]", "verify": "部分核实", "comfort": "C,H；10 重原子；✅", "def": "alt"}, {"id": "B6", "band": "带1 周环立体专一/选择", "family": "B", "name": "呋喃 + N-甲基马来酰亚胺（furan + N-methylmaleimide，可逆 DA 选择性漂移）", "smiles": "c1ccoc1.CN1C(=O)C=CC1=O>>CN1C(=O)[C@H]2[C@H](C1=O)[C@H]1C=C[C@@H]2O1", "qm": "0/1", "mech": "呋喃 DA 高度可逆：低温短时 **endo** 主产物；高温长时 **exo**（热力学）累积——endo 规则\"失效\"经典反例", "barrier": "能垒数值未核（选择性随时间/温度漂移，无单一数值锚点；教材 Clayden ch.34、Carey & Sundberg Part B）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；13 重原子；✅", "def": null}, {"id": "B7", "band": "带1 周环立体专一/选择", "family": "B", "name": "5-甲基环戊二烯 + 顺丁烯二酸酐（5-methylcyclopentadiene + MA，π-面 syn/anti）", "smiles": "CC1C=CC=C1.O=C1OC(=O)C=C1>>O=C1OC(=O)C2C1C1C=CC2C1C", "qm": "0/1", "mech": "亲双烯体从取代基**异面（anti）**进攻占优（位阻控制）；给氧取代基（5-OAc）出现\"反位阻\"syn 偏好——电子 vs 位阻竞争标杆", "barrier": "能垒数值未核（anti:syn 位阻控制高比例；Gleiter & Paquette 1983 ACR 16, 328；Fallis 组 5-取代 Cp 实验系列 Can. J. Chem. 1984 起）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；13 重原子；✅", "def": "pick"}, {"id": "B8", "band": "带1 周环立体专一/选择", "family": "B", "name": "(E)-1-甲氧基丁二烯 + 丙烯醛（regioselectivity × endo）", "smiles": "CO/C=C/C=C.C=CC=O>>COC1C=CCCC1C=O", "qm": "0/1", "mech": "FMO 预测\"邻位\"区域异构体为主 + endo 取向。竞争：\"对位\"区域异构体；exo", "barrier": "ΔΔG‡ ≈ 1–2 kcal/mol（区域选择性量级；Houk 1973 JACS 95, 4092，DOI 10.1021/ja00793a069；Houk 1975 ACR 8, 361，DOI 10.1021/ar50095a001）[已核实]", "verify": "已核实", "comfort": "C,H,O；10 重原子；✅", "def": null}, {"id": "B9", "band": "带1 周环立体专一/选择", "family": "B", "name": "环戊二烯 + 富马酸二甲酯（Cp + dimethyl fumarate，亲双烯体立体专一 cis principle）", "smiles": "C1=CCC=C1.COC(=O)/C=C/C(=O)OC>>COC(=O)[C@H]1[C@@H](C(=O)OC)[C@H]2C=C[C@@H]1C2", "qm": "0/1", "mech": "E 亲双烯体取代基相对构型保持 → trans-2,3；与 B1（cis 亲双烯体 → cis 稠合）构成亲双烯体立体专一对照。竞争：endo/exo 取向叠加", "barrier": "能垒数值未核（cis principle 教材锚点；Alder & Stein 规则）[已核实]", "verify": "已核实", "comfort": "C,H,O；15 重原子；✅", "def": "alt"}, {"id": "C1", "band": "带1 周环立体专一/选择", "family": "C", "name": "C,N-二甲基硝酮 + 乙烯（最小 [3+2] TS 基线）", "smiles": "C/C=[N+](/C)[O-].C=C>>CC1CCN(C)O1", "qm": "0/1", "mech": "协同、异步性小的 [3+2]；无立体中心的基线体系（标定 TS 搜索与 FMO 类型归属，供 C2/C3 对照；旧池产物 SMILES 漏写 C-甲基，已勘误配平）", "barrier": "能垒数值未核（Houk 1973 双论文 JACS 95, 7287，DOI 10.1021/ja00803a017 与 JACS 95, 7301，DOI 10.1021/ja00803a018）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；7 重原子；✅", "def": "drop"}, {"id": "C2", "band": "带1 周环立体专一/选择", "family": "C", "name": "(Z)-C-苯基-N-甲基硝酮 + 丙烯酸甲酯（regio/endo-exo）", "smiles": "C/[N+]([O-])=C/c1ccccc1.C=CC(=O)OC>>COC(=O)[C@@H]1C[C@H](c2ccccc2)N(C)O1", "qm": "0/1", "mech": "Type-I FMO 环加成：5-取代异噁唑烷区域异构体为主；endo（CO2Me 指向硝酮 π 面下）略占优。竞争：4-取代区域异构体；exo", "barrier": "ΔΔG‡ ≈ 2–3 kcal/mol（5- vs 4-取代区域选择性量级；Houk 1973 双论文；Tufariello in Padwa《1,3-Dipolar Cycloaddition Chemistry》Wiley 1984）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；16 重原子；✅", "def": "drop"}, {"id": "C3", "band": "带1 周环立体专一/选择", "family": "C", "name": "(Z)-C-苯基-N-甲基硝酮 + (E)-巴豆酸甲酯（[3+2] 立体专一性）", "smiles": "C/[N+]([O-])=C/c1ccccc1.C/C=C/C(=O)OC>>CN1O[C@H](C(=O)OC)[C@@H](C)[C@@H]1c1ccccc1", "qm": "0/1", "mech": "双超面协同加成 → E→trans 立体专一（dr 接近单一）；(Z)-巴豆酸酯对照应给 cis-4,5。竞争：分步双自由基路径（剪枝考点）", "barrier": "能垒数值未核（Huisgen 立体专一性原理 Angew 1963, 2, 565/633；Tufariello 1984）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；17 重原子；✅", "def": "drop"}, {"id": "D1", "band": "带2 极性开环/加成/消除", "family": "D", "name": "反-2,3-二甲基环氧乙烷酸催化水解（trans-2,3-dimethyloxirane，anti 开环→meso）", "smiles": "[OH3+].C[C@H]1[C@@H](O1)C.O>>[OH3+].C[C@H]([C@H](C)O)O", "qm": "+1/1", "mech": "① 环氧 O 质子化；② 水背面 SN2 型开环（决速），受进攻碳构型翻转。trans 环氧 → **meso** 二醇；dl（(2R,3R)/(2S,3S)）为错误非对映体（旧池 H-19 误写为 dl，已勘误）。竞争：cis-2-丁烯经环氧水解应给 dl（整体 anti 双羟化的立体化学对应）", "barrier": "能垒数值未核（教材标准案例 Clayden ch.33、Carey & Sundberg Part A ch.5；Fürst & Plattner 1949 HCA 32, 275）[已核实]", "verify": "已核实", "comfort": "C,H,O；7 重原子；✅", "def": "alt"}, {"id": "D2", "band": "带2 极性开环/加成/消除", "family": "D", "name": "环氧环己烷亲核开环（cyclohexene oxide，Fürst–Plattner trans-diaxial）", "smiles": "C1CCC2OC2C1.[OH-]>>O[C@@H]1CCCC[C@H]1[O-]", "qm": "−1/1", "mech": "反式双轴向开环唯一产物：椅式构象锁定下 SN2 进攻必须轴向进入；顺式/双赤道开环为高能路径。竞争：无（构象锁死）", "barrier": "能垒数值未核（Fürst & Plattner 1949 HCA 32, 275；教材 Clayden、Eliel）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；8 重原子；✅", "def": "pick"}, {"id": "D3", "band": "带2 极性开环/加成/消除", "family": "D", "name": "氧化苯乙烯酸/碱条件区位翻转（styrene oxide，regioselectivity switch）", "smiles": "c1ccccc1[C@@H]2CO2.C[O-]>>COC[C@@H](c1ccccc1)[O-]", "qm": "−1/1", "mech": "碱性 SN2 进攻末端碳（位阻控制），苄位立体中心不受触及；酸性条件下进攻苄位（部分 SN1 特征稳定化）并构型翻转——区位随条件翻转。竞争：两条区位通道互为竞争（条件依赖）", "barrier": "ΔΔG‡ ≈ 1.5–3 kcal/mol（区位选择性量级；教材 Clayden ch.33、March）[已核实]", "verify": "已核实", "comfort": "C,H,O；11 重原子；✅", "def": null}, {"id": "D4", "band": "带2 极性开环/加成/消除", "family": "D", "name": "环氧丙烷碱性开环（propylene oxide，最小 SN2 位阻选择性）", "smiles": "C[C@H]1CO1.[OH-]>>C[C@H]([O-])CO", "qm": "−1/1", "mech": "SN2 少取代碳进攻 ≫ 多取代碳；立体中心不被触及（区域选择性题+立体\"不动点\"对照）。竞争：多取代碳进攻", "barrier": "ΔΔG‡ ≈ 2–3 kcal/mol（区位选择性量级；教材 Clayden ch.33）[已核实]", "verify": "已核实", "comfort": "C,H,O；5 重原子；✅", "def": null}, {"id": "D5", "band": "带2 极性开环/加成/消除", "family": "D", "name": "2-甲基氮杂环丙烷活化开环（2-methylaziridine，O/N 类比）", "smiles": "[OH3+].C[C@H]1CN1.CO>>[OH3+].C[C@@H](OC)CN", "qm": "+1/1", "mech": "N 质子化活化后进攻**取代碳**占优（与未活化底物相反），背面进攻构型翻转；与 D3 环氧体系构成 O/N 类比对照。竞争：进攻末端碳", "barrier": "能垒数值未核（Dermer & Ham《Ethylenimine and Other Aziridines》Academic Press 1969；教材 Clayden ch.33）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；7 重原子；✅", "def": null}, {"id": "E1", "band": "带3 π-面/椅式TS选择", "family": "E", "name": "(S)-3-苯基-2-丁酮硼氢化（Felkin–Anh π-面选择）", "smiles": "[BH4-].CC(=O)[C@@H](C)c1ccccc1>>C[C@H]([O-])[C@H](C)c1ccccc1.B", "qm": "−1/1", "mech": "Felkin–Anh 构象（Ph 垂直羰基平面，亲核试剂沿 Bürgi–Dunitz 从最小取代基侧进入）预测主非对映体。考核：无环构象系综+σ* 立体电子效应", "barrier": "ΔΔG‡ ≈ 0.7–0.9 kcal/mol（dr ≈ 3–5:1（LAH 量级）；Chérest, Felkin & Prudent 1968 TL 2199，DOI 10.1016/S0040-4039(00)89719-1；Paddon-Row, Rondan & Houk 1982 JACS 104, 7162）[已核实]", "verify": "已核实", "comfort": "C,H,O,B；12 重原子；⚠ 含 B", "def": "pick"}, {"id": "E2", "band": "带3 π-面/椅式TS选择", "family": "E", "name": "4-叔丁基环己酮还原（axial vs equatorial attack）", "smiles": "[BH4-].CC(C)(C)C1CCC(=O)CC1>>CC(C)(C)[C@H]1CC[C@H]([O-])CC1.B", "qm": "−1/1", "mech": "构象锁定环己酮：小亲核试剂**轴向进攻**占优（扭转应变控制，Wu–Houk）→ 赤道醇为主；大位阻试剂反转为赤道进攻", "barrier": "ΔΔG‡ ≈ 1.3–1.5 kcal/mol（LAH 约 8–9:1 量级；Chérest 1968；Wu, Tucker & Houk 1991 JACS 113, 5018，DOI 10.1021/ja00013a042）[已核实]", "verify": "已核实", "comfort": "C,H,O,B；12 重原子；⚠ 含 B", "def": "pick"}, {"id": "E3", "band": "带3 π-面/椅式TS选择", "family": "E", "name": "CBS 还原苯乙酮简化模型（Corey–Bakshi–Shibata，手性催化剂诱导）", "smiles": "B.CC(=O)c1ccccc1.C[C@H]1COBN1>>C[C@@H](OB)c1ccccc1.C[C@H]1COBN1", "qm": "0/1", "mech": "双配位六元环椅式 TS：酮氧配位催化剂 B、BH3 配位 N，B–H 从较小位阻面转移。考核：手性催化剂-底物装配体 3D 构想", "barrier": "ΔΔG‡ ≈ 2 kcal/mol（对应 ≈95% ee 量级，实验 CBS 苯乙酮 96–97% ee；Corey, Bakshi & Shibata 1987 JACS 109, 5551，DOI 10.1021/ja00252a056；Quallich 1994 JACS 116, 8516；Alagona 2003 DOI 10.1021/ja034928d）[已核实]", "verify": "已核实", "comfort": "C,H,O,N,B；16 重原子；⚠ 含 B", "def": "pick"}, {"id": "F1", "band": "带3 π-面/椅式TS选择", "family": "F", "name": "环己-2-烯-1-醇过酸环氧化（Henbest directed epoxidation）", "smiles": "OC1C=CCCC1.O=COO>>O[C@H]1[C@H]2O[C@H]2CCC1.O=CO", "qm": "0/1", "mech": "烯丙位 OH 与过酸氢键缔合导向 **syn/cis** 环氧化（Henbest 规则），蝶形 TS。竞争：trans（非导向面）", "barrier": "ΔΔG‡ ≈ 1.4 kcal/mol（cis:trans ≈ 91:9（Whitham 重测 Henbest 体系）；Henbest & Wilson 1957 JCS 1958；Houk 1986 Science 231, 1108）[已核实]", "verify": "已核实", "comfort": "C,H,O；11 重原子；✅", "def": "pick"}, {"id": "F2", "band": "带3 π-面/椅式TS选择", "family": "F", "name": "无环手性烯丙醇过酸环氧化（(S)-(E)-pent-3-en-2-ol，acyclic π-face）", "smiles": "C/C=C/[C@H](C)O.O=COO>>C[C@H]1O[C@@H]1[C@H](C)O.O=CO", "qm": "0/1", "mech": "OH 导向+无环构象竞争（\"inside alkoxy\"效应）预测主非对映体；比环状体系弱，更考验构象搜索完备性", "barrier": "ΔΔG‡ ≈ 0.5–0.8 kcal/mol（dr ≈ 2–3:1 量级；Houk 1986 Science 231, 1108；Chamberlin 1987 JACS 109, 672）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；10 重原子；✅", "def": null}, {"id": "G1", "band": "带1 周环立体专一/选择", "family": "G", "name": "meso-3,4-二甲基-1,5-己二烯 Cope 重排（chair TS 立体专一）", "smiles": "C=C[C@H](C)[C@H](C)C=C>>C/C=C\\CC/C=C/C", "qm": "0/1", "mech": "椅式 TS ≫ 船式 → meso 底物立体专一给出 (E,Z) 二烯。竞争：船式 TS（给 (E,E)/(Z,Z) 组合）", "barrier": "ΔΔG‡ ≈ 5.8 kcal/mol（椅:船实验差；高级别计算椅-船差 11.4（CASPT2，Khaledy–Houk 2003 转引）；Doering & Roth 1962 Tetrahedron 18, 67；Khaledy 2003 JOC 68, 572，DOI 10.1021/jo020595b）[部分核实]", "verify": "部分核实", "comfort": "C,H；8 重原子；✅", "def": "pick"}, {"id": "G2", "band": "带1 周环立体专一/选择", "family": "G", "name": "(E,E)-巴豆基丙烯基醚 Claisen 重排（chair preference，syn/anti）", "smiles": "C/C=C/CO/C=C/C>>C=C[C@H](C)[C@H](C)C=O", "qm": "0/1", "mech": "椅式 TS 强烈占优（双甲基假赤道），(E,E) → syn 主产物。竞争：船式 TS → anti（副产物 SMILES `C=C[C@H](C)[C@@H](C)C=O`）", "barrier": "ΔΔG‡ ≈ 2–3 kcal/mol（syn:anti 量级；椅:船 ≥ 95:5；Vance, Rondan, Houk 1988 JACS 110, 2314，DOI 10.1021/ja00215a059；Vittorelli 1968 HCA 51, 1457）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；8 重原子；✅", "def": "pick"}, {"id": "G3", "band": "带1 周环立体专一/选择", "family": "G", "name": "(E)-巴豆基丙酸酯 Ireland–Claisen（硅基烯酮缩醇几何×椅式）", "smiles": "C/C=C/CO/C(=C/C)/O[Si](C)(C)C>>C=C[C@H](C)[C@H](C)C(=O)O[Si](C)(C)C", "qm": "0/1", "mech": "烯酮缩醇几何决定相对构型：E(O)/Z(O) 分别经椅式 TS 给出相反非对映体；取代基假赤道排布。竞争：船式 TS", "barrier": "能垒数值未核（dr 常 >95:5；E(O)/Z(O)→syn/anti 助记对应关系待 gold 核对；Ireland, Mueller & Willard 1976 JACS 98, 2868，DOI 10.1021/ja00426a033；Khaledy 2003 JOC 68, 572，DOI 10.1021/jo020595b）[已核实]", "verify": "已核实", "comfort": "C,H,O,Si；13 重原子；⚠ 含 Si", "def": null}, {"id": "H1", "band": "带5 阻转消旋阻垒", "family": "H", "name": "1,1′-联萘消旋化（1,1′-binaphthyl atropisomerization）", "smiles": "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43", "qm": "0/1", "mech": "经 peri-H 挤过的双叶翻转 TS 消旋；两条路径（syn/anti peri-H 对穿）能差 ~1 kcal/mol 量级", "barrier": "ΔG‡ ≈ 23.5 kcal/mol（t1/2 ≈ 14.5 min @ 50 °C；Cooke & Harris 1963 JCS（经二手文献一致转引）；Carter & Liljefors 1976 Tetrahedron 32, 2915，DOI 10.1016/0040-4020(76)80145-7）[部分核实]", "verify": "部分核实", "comfort": "C,H；20 重原子（恰在边界）；✅", "def": "pick"}, {"id": "H2", "band": "带5 阻转消旋阻垒", "family": "H", "name": "6,6′-二硝基联苯-2,2′-二甲酸消旋（6,6′-dinitrodiphenic acid，首例拆分阻转异构体）", "smiles": "O=C(O)c1cccc([N+](=O)[O-])c1-c1c(C(=O)O)cccc1[N+](=O)[O-]>>O=C(O)c1cccc([N+](=O)[O-])c1-c1c(C(=O)O)cccc1[N+](=O)[O-]", "qm": "0/1", "mech": "邻位四取代（2,2′-COOH+6,6′-NO2）使室温可拆分；阻转阻垒测定对象", "barrier": "ΔG‡ ≈ 28–32 kcal/mol（估计值，gold 构建需查原始动力学文献或 Eliel 教材表格；Christie & Kenner 1922 JCS 121, 614，DOI 10.1039/CT9222100614）[未核实]", "verify": "未核实", "comfort": "C,H,N,O；**24 重原子，超预算标注**；闭壳层 ✓", "def": null}, {"id": "H3", "band": "带5 阻转消旋阻垒", "family": "H", "name": "1,1′-联萘-2,2′-二酚消旋（BINOL racemization barrier）", "smiles": "Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12>>Oc1ccc2ccccc2c1-c1c(O)ccc2ccccc12", "qm": "0/1", "mech": "消旋阻垒高（中性条件 100 °C 长期稳定）；syn/anti 路径竞争", "barrier": "ΔG‡ ≈ 35–37 kcal/mol（diglyme 150 °C 20 h 仅 ~10% 消旋实验锚点；Can. J. Chem. 1980, 58, 2134，DOI 10.1139/v80-021；DFT 阻垒 Meca, Řeha & Havlas 2003 JOC 68, 5677 页码待回查）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；**22 重原子，略超预算标注**；闭壳层 ✓", "def": "alt"}, {"id": "I1", "band": "带6 不对称有机催化", "family": "I", "name": "脯氨酸催化直接 Aldol（List–Barbas aldol：acetone + benzaldehyde）", "smiles": "CC(C)=O.O=Cc1ccccc1.O=C(O)[C@@H]1CCCN1>>CC(=O)C[C@H](O)c1ccccc1.O=C(O)[C@@H]1CCCN1", "qm": "0/1", "mech": "烯胺机理+Houk–List 椅式 TS（羧基质子转移+氢键网络），单分子脯氨酸参与。① 烯胺生成；② C–C 加成（立体决定步）；③ 水解。竞争：另一对映面 TS", "barrier": "ΔΔG‡ ≈ 1.2 kcal/mol（苯甲醛 ee ≈ 60–76%（对硝基苯甲醛 76%，List 2000）；List, Lerner & Barbas 2000 JACS 122, 2395，DOI 10.1021/ja994280y；Bahmanyar & Houk 2001 JACS 123, 11273，DOI 10.1021/ja011403h；Hoang 2003 JACS 125, 16，DOI 10.1021/ja028634o）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；20 重原子（恰在边界）；✅", "def": "pick"}, {"id": "I2", "band": "带6 不对称有机催化", "family": "I", "name": "脯氨酸催化 Mannich（丙醛供体，syn-β-氨基醛）", "smiles": "CCC=O.C/N=C/c1ccccc1.O=C(O)[C@@H]1CCCN1>>C[C@H](C=O)[C@@H](NC)c1ccccc1.O=C(O)[C@@H]1CCCN1", "qm": "0/1", "mech": "烯胺对亚胺 si/re 面进攻 → **syn** 非对映体高 dr+高 ee；TS 中羧基同时活化亚胺并定向烯胺。竞争：anti；另一对映面", "barrier": "能垒数值未核（实验 syn:anti >10:1、ee >90% 量级；List 2002 JACS 124, 8272（醛供体 syn Mannich，DOI 未核）；Bahmanyar, Houk, Martin & List 2003 JACS 125, 2475）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；**21 重原子，略超预算标注**；闭壳层 ✓", "def": null}, {"id": "I3", "band": "带6 不对称有机催化", "family": "I", "name": "Hajos–Parrish 环化（proline-catalyzed intramolecular aldol 去对称化）", "smiles": "CC(=O)CCC1(C)C(=O)CCC1=O.O=C(O)[C@@H]1CCCN1>>C[C@]12CCC(=O)C[C@]1(O)CCC2=O.O=C(O)[C@@H]1CCCN1", "qm": "0/1", "mech": "去对称化分子内羟醛：① 烯胺生成；② 烯胺进攻两个前手性羰基之一（立体决定步）；③ 水解得双环酮醇（可再脱水成 Wieland–Miescher 型烯二酮，本题止于酮醇）。竞争：另一前手性羰基/另一面", "barrier": "能垒数值未核（ee ≈ 93%（原始 Hajos–Parrish，已优化至 >99%）；Hajos & Parrish 1974 JOC 39, 1615；Bahmanyar & Houk 2001 JACS 123, 12911，DOI 10.1021/ja011714s；Hoang 2003 DOI 10.1021/ja028634o）[已核实]", "verify": "已核实", "comfort": "C,H,N,O；**21 重原子，略超预算标注**；闭壳层 ✓", "def": "alt"}, {"id": "I4", "band": "带6 不对称有机催化", "family": "I", "name": "手性硫脲催化 Strecker 简化模型（thiourea-catalyzed Strecker）", "smiles": "C#N.C/N=C/c1ccccc1.CC[C@H](C)NC(=S)NC>>CN[C@H](C#N)c1ccccc1.CC[C@H](C)NC(=S)NC", "qm": "0/1", "mech": "硫脲双氢键结合亚胺 N、定向 + 多重非共价作用稳定优势 TS（Zuend–Jacobsen 机理）。注意：催化剂为人工截短模型，gold 以\"催化剂两个非对映 TS 竞争\"形式出题，不直接对标实验 ee", "barrier": "ΔΔG‡ 预期 ≈ 1–2 kcal/mol（模型体系量级；Sigman & Jacobsen 1998 JACS 120, 4901，DOI 10.1021/ja980139y；Zuend & Jacobsen 2009 JACS 131, 15358）[已核实]", "verify": "已核实", "comfort": "C,H,N,O,S；20 重原子（恰在边界）；⚠ 含 S", "def": "pick"}, {"id": "J1", "band": "带2 极性开环/加成/消除", "family": "J", "name": "二亚胺顺式还原 2-丁炔（diimide + 2-butyne，syn 加成立体专一）", "smiles": "N=N.CC#CC>>N#N.C/C=C\\C", "qm": "0/1", "mech": "协同 [σ2s+σ2s+π2s] 双氢转移（cis-HN=NH 供体），syn 立体专一 → 唯一 cis 烯。竞争：分步/反式通道（对称禁阻，高垒背景）", "barrier": "能垒数值未核（二亚胺还原立体专一性教材锚点；与 easy G2（乙烯，TST/机理判别）同试剂互补——本题考 syn 立体维度；具体垒值量级参 G2）[已核实]", "verify": "已核实", "comfort": "C,H,N；6 重原子；✅", "def": "pick"}, {"id": "J2", "band": "带2 极性开环/加成/消除", "family": "J", "name": "1-甲基环己烯氢硼化（hydroboration，syn + anti-Markovnikov）", "smiles": "B.CC1=CCCCC1>>C[C@H]1[C@H](B)CCCC1", "qm": "0/1", "mech": "4 中心环状 TS，H 与 B 同面加成（syn 立体专一），B 至少取代碳（anti-Markovnikov 区域选择性）→ trans 关系唯一。竞争：Markovnikov 区域异构体；反面加成", "barrier": "能垒数值未核（区域与立体选择性教材锚点；与 easy G1（乙烯，气相近无能垒/TST 失效警示）同试剂带立体维度）[已核实]", "verify": "已核实", "comfort": "C,H,B；8 重原子；⚠ 含 B", "def": "pick"}, {"id": "J3", "band": "带2 极性开环/加成/消除", "family": "J", "name": "环己烯 + Br2（bromonium anti 加成）", "smiles": "C1=CCCCC1.BrBr>>Br[C@H]1CCCC[C@@H]1Br", "qm": "0/1", "mech": "溴鎓离子中间体，Br⁻ 背面进攻 → anti 加成唯一通道；cis（meso (1R,2S)）为错误非对映体。竞争：自由基/顺式通道（背景）", "barrier": "能垒数值未核（溴鎓离子 anti 加成教材锚点；立体专一性实验证据经典）[已核实]", "verify": "已核实", "comfort": "C,H,Br；8 重原子；⚠ Br 低密度但 OMol25 覆盖", "def": "alt"}, {"id": "J4", "band": "带2 极性开环/加成/消除", "family": "J", "name": "trans-2-甲基环己基氟 anti-E2（构象锁定消除，Hofmann 取向反转）", "smiles": "[F-].C[C@@H]1CCCC[C@H]1F>>CC1C=CCCC1.F.[F-]", "qm": "−1/1", "mech": "反式双轴向要求：F 必须轴向的椅式构象中 C2 位轴向被甲基占据 → 只能向 C6 消除 → Hofmann 产物 3-甲基环己烯唯一；cis 异构体对照给 Zaitsev 产物 1-甲基环己烯（写入竞争）。竞争：SN2 背景通道（二级碳）", "barrier": "能垒数值未核（二级氟代物气相 PES 文献空白，量级参 normal 档 X 族二级碳体系；trans-diaxial 取向反转教材锚点 Eliel）[部分核实]", "verify": "部分核实", "comfort": "C,H,F；9 重原子；✅", "def": "pick"}, {"id": "J5", "band": "带2 极性开环/加成/消除", "family": "J", "name": "(E)-2-丁烯过酸环氧化（Prilezhaev stereospecificity）", "smiles": "C/C=C/C.O=COO>>C[C@H]1[C@H](C)O1.O=CO", "qm": "0/1", "mech": "协同蝶形 TS syn 氧转移 → 烯烃几何保持：E → trans 环氧（dl 对）；cis-2-丁烯对照给 meso（写入竞争）。与 normal O1（乙烯，无立体维度）互补", "barrier": "ΔE‡ ≈ 15.6 kcal/mol（过氧酸+乙烯蝶形 TS，UQCISD(T) 级（Bach/Schlegel 组，同 normal O1 锚点；底物为乙烯、按类似体系转录——口径登记见文末）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；8 重原子；✅（O–O 过氧键注意）", "def": "alt"}, {"id": "J6", "band": "带2 极性开环/加成/消除", "family": "J", "name": "环己烯 + Br2/H2O 溴醇形成（bromohydrin，anti + 捕获竞争）", "smiles": "C1=CCCCC1.BrBr.O>>O[C@H]1CCCC[C@@H]1Br.Br", "qm": "0/1", "mech": "溴鎓离子被水背面进攻 → anti 溴醇；与 J3（Br⁻ 捕获给二溴化物）构成亲核捕获化学选择性竞争。竞争：Br⁻ 捕获（→ J3 产物）；syn 通道（背景）", "barrier": "能垒数值未核（溴醇 anti 立体专一性教材锚点；捕获竞争为判别考点）[已核实]", "verify": "已核实", "comfort": "C,H,O,Br；9 重原子；⚠ Br 低密度", "def": null}, {"id": "K1", "band": "带3 π-面/椅式TS选择", "family": "K", "name": "(Z)-丙烯醛硼烯醇盐 + 乙醛 aldol（Zimmerman–Traxler：Z(O)→syn）", "smiles": "C/C=C\\OB.CC=O>>C[C@@H](OB)[C@@H](C)C=O", "qm": "0/1", "mech": "六元环椅式 TS：(Z)-烯醇盐 → syn aldol（甲基假赤道排布）。竞争：船式/扭船式 TS → anti（副产物 SMILES `C[C@@H](OB)[C@H](C)C=O`）；另一对映面（外消旋底物→dl）", "barrier": "能垒数值未核（硼 aldol 立体选择性实验 dr 常 >95:5；Zimmerman & Traxler 1957 JACS 79, 1920；教材 Clayden ch.26）[部分核实]", "verify": "部分核实", "comfort": "C,H,O,B；8 重原子；⚠ 含 B", "def": "pick"}, {"id": "K2", "band": "带3 π-面/椅式TS选择", "family": "K", "name": "(E)-巴豆基硼烷 + 乙醛（crotylboration：E→anti）", "smiles": "C/C=C/CB.CC=O>>C=C[C@H](C)[C@H](C)OB", "qm": "0/1", "mech": "椅式 TS 烯丙基转位：(E)-巴豆基 → anti 高烯丙醇（甲基与烷氧基 anti）；(Z)-巴豆基对照给 syn。竞争：另一椅式排布 → syn（副产物 SMILES `C=C[C@H](C)[C@@H](C)OB`）", "barrier": "能垒数值未核（巴豆基硼烷立体专一性实验 dr 常 >95:5；Brown 组巴豆基硼化系列；Org. React. 综述锚点）[部分核实]", "verify": "部分核实", "comfort": "C,H,O,B；8 重原子；⚠ 含 B", "def": "alt"}, {"id": "L1", "band": "带4 几何映射/手性转移", "family": "L", "name": "(E)-丁酮肟 Beckmann 重排（oxime geometry → 迁移基团映射）", "smiles": "[OH3+].CC/C(=N/O)/C>>[OH3+].CCNC(C)=O", "qm": "+1/1", "mech": "① OH 质子化；② 脱水与 **anti 基团** 1,2-迁移协同（决速）→ nitrilium；③ 水加成；④ 互变异构 → 酰胺。(E)-肟乙基与 OH 反式 → 乙基迁移；(Z)-肟 `CC/C(=N\\O)/C` 对照给 N-甲基丙酰胺（写入竞争）——肟几何直接决定产物骨架", "barrier": "能垒数值未核（机理与决速步同 normal R2（对称丙酮肟）；anti 迁移立体专属性教材锚点）[部分核实]", "verify": "部分核实", "comfort": "C,H,N,O；7 重原子；✅", "def": "pick"}, {"id": "L2", "band": "带4 几何映射/手性转移", "family": "L", "name": "(S)-3-甲基-2-戊酮 Baeyer–Villiger（迁移性排序 + 构型保持）", "smiles": "[OH3+].CC[C@H](C)C(C)=O.O=COO>>[OH3+].CC[C@H](C)OC(C)=O.O=CO", "qm": "+1/1", "mech": "① 过酸加成 → Criegee 中间体；② 二级碳（3-甲基戊基侧）优先迁移（2°>1° 排序）伴 O–O 断裂（决速区），**迁移碳构型保持**。竞争：甲基迁移 → 另一酯（次要）", "barrier": "能垒数值未核（迁移性排序与构型保持教材锚点（同位素/立体化学证明经典）；normal O3 锚点作量级参考）[已核实]", "verify": "已核实", "comfort": "C,H,O；12 重原子；✅", "def": null}, {"id": "L3", "band": "带4 几何映射/手性转移", "family": "L", "name": "(R,E)-戊-3-烯-2-基乙烯基醚 Claisen（1,3-手性转移）", "smiles": "C=CO[C@H](C)/C=C/C>>C/C=C/[C@H](C)CC=O", "qm": "0/1", "mech": "[3,3]-σ 迁移经椅式 TS（甲基假赤道 → E 双键几何）；烯丙位立体中心消毁、新立体中心生成——自消毁式手性转移（chirality transfer 方向由椅式排布唯一决定）。竞争：船式/另一面椅式 → (Z) 或差向", "barrier": "能垒数值未核（Claisen 手性转移经典（Eschenmoser/Johnson-Claisen 系列）；综述 Ziegler 1988 Chem. Rev. 88, 1423）[部分核实]", "verify": "部分核实", "comfort": "C,H,O；8 重原子；✅", "def": "alt"}, {"id": "L4", "band": "带4 几何映射/手性转移", "family": "L", "name": "(S,E)-巴豆基甲基亚砜 Mislow–Evans 重排（[2,3] S→C 手性转移）", "smiles": "C/C=C/C[S@@](=O)C>>C=C[C@@H](C)OSC", "qm": "0/1", "mech": "[2,3]-σ 迁移：烯丙基亚砜 → 烯丙基磺酸酯，硫立体中心的手性经内型/外型 TS 偏好转移到碳（S→C chirality transfer）。竞争：另一面 TS → 差向", "barrier": "能垒数值未核（Mislow–Evans 重排手性转移经典（Mislow 组 JACS 1968 前后）；教材锚点）[部分核实]", "verify": "部分核实", "comfort": "C,H,O,S；7 重原子；⚠ 含 S", "def": "pick"}];
+const LS_KEY = "hard-tagging-v1";
+let tags = {};
+try { tags = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { tags = {}; }
+if (!Object.keys(tags).length) {
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+}
+
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(tags)); }
+
+function render() {
+  const fb = document.getElementById("f-band").value;
+  const ff = document.getElementById("f-fam").value;
+  const ft = document.getElementById("f-tag").value;
+  const q = document.getElementById("f-q").value.trim().toLowerCase();
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+  const counts = { pick: 0, alt: 0, drop: 0, todo: 0 };
+  for (const e of ENTRIES) {
+    const st = tags[e.id] || "todo";
+    counts[st] = (counts[st] || 0) + 1;
+    if (fb && e.band !== fb) continue;
+    if (ff && e.family !== ff) continue;
+    if (ft && st !== ft) continue;
+    if (q && !(e.id.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.smiles.toLowerCase().includes(q))) continue;
+    const tr = document.createElement("tr");
+    tr.className = "st-" + st;
+    const cells = [
+      `<td class="id">${e.id}</td>`,
+      `<td class="tag-btns">
+         <button class="b-pick ${st === "pick" ? "on" : ""}" onclick="setTag('${e.id}','pick')">正选</button>
+         <button class="b-alt ${st === "alt" ? "on" : ""}" onclick="setTag('${e.id}','alt')">替补</button>
+         <button class="b-drop ${st === "drop" ? "on" : ""}" onclick="setTag('${e.id}','drop')">剔除</button>
+       </td>`,
+      `<td><span class="band">${e.band}</span><br><span class="band">${e.family} 族</span></td>`,
+      `<td>${e.name}</td>`,
+      `<td><code>${e.smiles}</code><br>${e.qm}</td>`,
+      `<td class="mech">${e.mech}</td>`,
+      `<td class="barrier">${e.barrier} <span class="vtag v-${e.verify}">${e.verify}</span></td>`,
+      `<td>${e.comfort}</td>`,
+    ];
+    tr.innerHTML = cells.join("");
+    tb.appendChild(tr);
+  }
+  const cp = document.getElementById("c-pick");
+  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/20`;
+  cp.className = "counter" + ((counts.pick || 0) > 20 ? " over" : "");
+  document.getElementById("c-alt").innerHTML = `替补 <b>${counts.alt || 0}</b>/11`;
+  document.getElementById("c-drop").innerHTML = `剔除 <b>${counts.drop || 0}</b>`;
+  document.getElementById("c-todo").innerHTML = `未定 <b>${counts.todo || 0}</b>`;
+}
+
+function setTag(id, st) {
+  tags[id] = (tags[id] === st) ? "todo" : st;
+  if (tags[id] === "todo") delete tags[id];
+  save(); render();
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({ tags }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "hard_tags.json";
+  a.click();
+}
+
+function exportNames() {
+  const pick = ENTRIES.filter(e => tags[e.id] === "pick").map(e => e.id);
+  const alt = ENTRIES.filter(e => tags[e.id] === "alt").map(e => e.id);
+  const drop = ENTRIES.filter(e => tags[e.id] === "drop").map(e => e.id);
+  const txt = `正选 ${pick.length}：${pick.join(", ")}
+
+替补 ${alt.length}：${alt.join(", ")}
+
+剔除 ${drop.length}：${drop.join(", ")}
+`;
+  const blob = new Blob([txt], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "hard_selection.txt";
+  a.click();
+}
+
+function importJSON() {
+  try {
+    const obj = JSON.parse(document.getElementById("importbox").value);
+    tags = obj.tags || obj;
+    save(); render();
+    document.getElementById("importwrap").classList.add("hidden");
+  } catch (e) { alert("JSON 解析失败：" + e); }
+}
+
+function resetDefaults() {
+  if (!confirm("把所有条目的打标重置为定稿名单（正选 20 / 替补 10，其余未定）？")) return;
+  tags = {};
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+  save(); render();
+}
+
+function clearAll() {
+  if (!confirm("清空全部打标？")) return;
+  tags = {}; save(); render();
+}
+
+for (const id of ["f-band", "f-fam", "f-tag", "f-q"]) document.getElementById(id).addEventListener("input", render);
+const bands = [...new Set(ENTRIES.map(e => e.band))];
+const fams = [...new Set(ENTRIES.map(e => e.family))];
+for (const b of bands) document.getElementById("f-band").insertAdjacentHTML("beforeend", `<option>${b}</option>`);
+for (const f of fams) document.getElementById("f-fam").insertAdjacentHTML("beforeend", `<option>${f} 族</option>`);
+render();
+</script>
+</body>
+</html>

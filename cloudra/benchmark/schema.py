@@ -217,6 +217,24 @@ class ReferenceComputation(BaseModel):
     computed_by_us: bool = False
 
 
+class SelectivityReference(BaseModel):
+    """Hard 档选择性锚点：两个竞争非对映过渡态的能垒差（副通道 TS − 主通道 TS，
+    同一反应物络合物基准），不是绝对能垒——绝不要塞进 barrier_kcal_mol
+    （类型记号仍是 ΔΔG‡/ΔΔE‡ 等差值）。gold 机理图把两条竞争通道都带上，
+    accuracy 层对该差值的高斯容差评分待 runner 支持；当前只作参考记录。
+
+    `minor_channel` 描述副通道（如 "inward rotation -> (Z)-diene"）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    spread_kcal_mol: Optional[float] = None
+    spread_type: Optional[BarrierType] = None
+    minor_channel: str = ""
+    verification: VerificationStatus = VerificationStatus.UNVERIFIED
+    reference_doi: str = ""
+    computed_by_us: bool = False
+
+
 class GoldSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -224,6 +242,8 @@ class GoldSpec(BaseModel):
     reference_computation: ReferenceComputation = Field(
         default_factory=ReferenceComputation
     )
+    # hard 档选择性锚点（ΔΔ）；绝对能垒锚点仍走 reference_computation
+    selectivity: Optional[SelectivityReference] = None
 
 
 # ---------------------------------------------------------------------------

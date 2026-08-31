@@ -123,7 +123,8 @@
       "verification": "unverified",
       "reference_doi": "10.1021/jo980723p",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

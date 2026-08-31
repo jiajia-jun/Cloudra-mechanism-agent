@@ -192,7 +192,8 @@
       "verification": "unverified",
       "reference_doi": "10.3390/life14080933",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

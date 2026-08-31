@@ -391,7 +391,8 @@
       "verification": "verified",
       "reference_doi": "10.1016/j.tet.2021.132116",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

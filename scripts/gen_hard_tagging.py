@@ -1,0 +1,272 @@
+"""从 ideapool/reaction_candidates/hard.md 生成 Hard 档评审打标台（自包含 HTML）。
+
+用法：.venv/bin/python scripts/gen_hard_tagging.py
+产物：ideapool/reaction_candidates/hard_tagging.html（浏览器直接打开；
+打标状态存 localStorage，可导出/导入 JSON，可导出正选/替补名单文本）。
+
+池子条目变更后重跑本脚本即可重建打标台；localStorage 里的打标按条目 id 对齐，
+增删条目不会串位。打标台只是一层标注 UI，不回写 hard.md——名单定稿后人工更新。
+"""
+
+import json
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SRC = ROOT / "ideapool" / "reaction_candidates" / "hard.md"
+OUT = ROOT / "ideapool" / "reaction_candidates" / "hard_tagging.html"
+
+ROW_RE = re.compile(r"^\|\s*([A-Z]\d+)\s*\|")
+SMILES_RE = re.compile(r"`([^`]+)`(?:（[^）]*）)?\s*[，,]\s*([+−\-]?\d+)\s*/\s*(\d+)")
+VERIFY_RE = re.compile(r"\[(已核实存在|已核实|部分核实|未核实)\]")
+
+# 打标带映射（hard.md 汇总段的权威映射，改池子时同步维护）。
+BANDS: dict[str, list[str]] = {
+    "带1 周环立体专一/选择": "A1 A2 A3 A4 A5 A6 A7 B1 B2 B3 B4 B5 B6 B7 B8 B9 C1 C2 C3 G1 G2 G3".split(),
+    "带2 极性开环/加成/消除": "D1 D2 D3 D4 D5 J1 J2 J3 J4 J5 J6".split(),
+    "带3 π-面/椅式TS选择": "E1 E2 E3 F1 F2 K1 K2".split(),
+    "带4 几何映射/手性转移": "L1 L2 L3 L4".split(),
+    "带5 阻转消旋阻垒": "H1 H2 H3".split(),
+    "带6 不对称有机催化": "I1 I2 I3 I4".split(),
+}
+# 2026-08-31 打标定稿名单（hard.md"定稿圈定"段为权威；此处只作打标台初始默认值）。
+# 收录规则：C 族（1,3-偶极）整体剔除；多参考体系划归 impossible 档。
+SUGGESTED_PICK = "A1 A2 A6 B7 D2 E1 E2 E3 F1 G1 G2 H1 I1 I4 J1 J2 J4 K1 L1 L4".split()
+SUGGESTED_ALT = "A5 B1 B5 B9 D1 H3 I3 J3 J5 K2 L3".split()
+SUGGESTED_DROP = "C1 C2 C3".split()
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Hard 档打标台（__N__ 条候选）</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; margin: 0; background: #0f1115; color: #d7dae0; }
+  header { position: sticky; top: 0; z-index: 10; background: #161a22; border-bottom: 1px solid #2a2f3a; padding: 10px 16px; }
+  header h1 { font-size: 15px; margin: 0 0 8px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+  .counter { padding: 2px 10px; border-radius: 10px; background: #222836; font-variant-numeric: tabular-nums; }
+  .counter b { color: #7ec8ff; }
+  .counter.over b { color: #ff7e7e; }
+  select, input[type=search] { background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; border-radius: 6px; padding: 4px 8px; font-size: 13px; }
+  button { background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; border-radius: 6px; padding: 4px 10px; font-size: 12.5px; cursor: pointer; }
+  button:hover { border-color: #5a6580; }
+  main { padding: 12px 16px 60px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid #242a36; padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { position: sticky; top: 92px; background: #161a22; font-size: 12px; color: #8b93a5; }
+  td.id { font-weight: 700; white-space: nowrap; }
+  code { font-size: 11.5px; color: #9fd3a8; word-break: break-all; }
+  .band { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: #222836; white-space: nowrap; }
+  .tag-btns button { margin-right: 4px; opacity: 0.45; }
+  .tag-btns button.on { opacity: 1; font-weight: 700; }
+  .b-pick.on { background: #1d4a2c; border-color: #3a8f56; color: #9fe6b5; }
+  .b-alt.on  { background: #4a3a1d; border-color: #a8823a; color: #f0d59a; }
+  .b-drop.on { background: #4a1d22; border-color: #a83a46; color: #f0a3ab; }
+  tr.st-pick { background: rgba(40, 120, 70, 0.10); }
+  tr.st-alt  { background: rgba(150, 110, 40, 0.10); }
+  tr.st-drop { opacity: 0.38; }
+  .vtag { font-size: 11px; padding: 1px 6px; border-radius: 8px; white-space: nowrap; }
+  .v-已核实 { background: #1d4a2c; color: #9fe6b5; }
+  .v-已核实存在 { background: #1d3a4a; color: #9ad4f0; }
+  .v-部分核实 { background: #4a3a1d; color: #f0d59a; }
+  .v-未核实 { background: #4a1d22; color: #f0a3ab; }
+  .mech, .barrier { max-width: 420px; }
+  .hidden { display: none; }
+  textarea#importbox { width: 100%; height: 90px; background: #1d2230; color: #d7dae0; border: 1px solid #333a4a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hard 档打标台（立体化学）· __N__ 条候选 · 已定稿：正选 20 / 替补 11 / 剔除 3（打标存 localStorage，不回写 hard.md）</h1>
+  <div class="bar">
+    <span class="counter" id="c-pick">正选 <b>0</b>/20</span>
+    <span class="counter" id="c-alt">替补 <b>0</b>/11</span>
+    <span class="counter" id="c-drop">剔除 <b>0</b></span>
+    <span class="counter" id="c-todo">未定 <b>0</b></span>
+    <select id="f-band"><option value="">全部带</option></select>
+    <select id="f-fam"><option value="">全部族</option></select>
+    <select id="f-tag">
+      <option value="">全部标签</option><option value="pick">正选</option>
+      <option value="alt">替补</option><option value="drop">剔除</option><option value="todo">未定</option>
+    </select>
+    <input type="search" id="f-q" placeholder="搜 id / 反应名 / SMILES" size="22">
+    <button onclick="exportJSON()">导出 JSON</button>
+    <button onclick="exportNames()">导出名单</button>
+    <button onclick="document.getElementById('importwrap').classList.toggle('hidden')">导入 JSON</button>
+    <button onclick="resetDefaults()">重置为定稿名单</button>
+    <button onclick="clearAll()">全部清空</button>
+  </div>
+  <div id="importwrap" class="hidden" style="margin-top:8px">
+    <textarea id="importbox" placeholder='粘贴之前导出的 JSON（{"tags": {"A1": "pick", ...}}）'></textarea>
+    <button onclick="importJSON()">导入</button>
+  </div>
+</header>
+<main>
+<table>
+  <thead><tr>
+    <th>#</th><th>打标</th><th>带/族</th><th>反应</th><th>SMILES, q/mult</th>
+    <th class="mech">机理概要</th><th class="barrier">能垒锚点</th><th>舒适区</th>
+  </tr></thead>
+  <tbody id="tbody"></tbody>
+</table>
+</main>
+<script>
+const ENTRIES = __DATA__;
+const LS_KEY = "hard-tagging-v1";
+let tags = {};
+try { tags = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { tags = {}; }
+if (!Object.keys(tags).length) {
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+}
+
+function save() { localStorage.setItem(LS_KEY, JSON.stringify(tags)); }
+
+function render() {
+  const fb = document.getElementById("f-band").value;
+  const ff = document.getElementById("f-fam").value;
+  const ft = document.getElementById("f-tag").value;
+  const q = document.getElementById("f-q").value.trim().toLowerCase();
+  const tb = document.getElementById("tbody");
+  tb.innerHTML = "";
+  const counts = { pick: 0, alt: 0, drop: 0, todo: 0 };
+  for (const e of ENTRIES) {
+    const st = tags[e.id] || "todo";
+    counts[st] = (counts[st] || 0) + 1;
+    if (fb && e.band !== fb) continue;
+    if (ff && e.family !== ff) continue;
+    if (ft && st !== ft) continue;
+    if (q && !(e.id.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.smiles.toLowerCase().includes(q))) continue;
+    const tr = document.createElement("tr");
+    tr.className = "st-" + st;
+    const cells = [
+      `<td class="id">${e.id}</td>`,
+      `<td class="tag-btns">
+         <button class="b-pick ${st === "pick" ? "on" : ""}" onclick="setTag('${e.id}','pick')">正选</button>
+         <button class="b-alt ${st === "alt" ? "on" : ""}" onclick="setTag('${e.id}','alt')">替补</button>
+         <button class="b-drop ${st === "drop" ? "on" : ""}" onclick="setTag('${e.id}','drop')">剔除</button>
+       </td>`,
+      `<td><span class="band">${e.band}</span><br><span class="band">${e.family} 族</span></td>`,
+      `<td>${e.name}</td>`,
+      `<td><code>${e.smiles}</code><br>${e.qm}</td>`,
+      `<td class="mech">${e.mech}</td>`,
+      `<td class="barrier">${e.barrier} <span class="vtag v-${e.verify}">${e.verify}</span></td>`,
+      `<td>${e.comfort}</td>`,
+    ];
+    tr.innerHTML = cells.join("");
+    tb.appendChild(tr);
+  }
+  const cp = document.getElementById("c-pick");
+  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/20`;
+  cp.className = "counter" + ((counts.pick || 0) > 20 ? " over" : "");
+  document.getElementById("c-alt").innerHTML = `替补 <b>${counts.alt || 0}</b>/11`;
+  document.getElementById("c-drop").innerHTML = `剔除 <b>${counts.drop || 0}</b>`;
+  document.getElementById("c-todo").innerHTML = `未定 <b>${counts.todo || 0}</b>`;
+}
+
+function setTag(id, st) {
+  tags[id] = (tags[id] === st) ? "todo" : st;
+  if (tags[id] === "todo") delete tags[id];
+  save(); render();
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({ tags }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "hard_tags.json";
+  a.click();
+}
+
+function exportNames() {
+  const pick = ENTRIES.filter(e => tags[e.id] === "pick").map(e => e.id);
+  const alt = ENTRIES.filter(e => tags[e.id] === "alt").map(e => e.id);
+  const drop = ENTRIES.filter(e => tags[e.id] === "drop").map(e => e.id);
+  const txt = `正选 ${pick.length}：${pick.join(", ")}\n\n替补 ${alt.length}：${alt.join(", ")}\n\n剔除 ${drop.length}：${drop.join(", ")}\n`;
+  const blob = new Blob([txt], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "hard_selection.txt";
+  a.click();
+}
+
+function importJSON() {
+  try {
+    const obj = JSON.parse(document.getElementById("importbox").value);
+    tags = obj.tags || obj;
+    save(); render();
+    document.getElementById("importwrap").classList.add("hidden");
+  } catch (e) { alert("JSON 解析失败：" + e); }
+}
+
+function resetDefaults() {
+  if (!confirm("把所有条目的打标重置为定稿名单（正选 20 / 替补 10，其余未定）？")) return;
+  tags = {};
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+  save(); render();
+}
+
+function clearAll() {
+  if (!confirm("清空全部打标？")) return;
+  tags = {}; save(); render();
+}
+
+for (const id of ["f-band", "f-fam", "f-tag", "f-q"]) document.getElementById(id).addEventListener("input", render);
+const bands = [...new Set(ENTRIES.map(e => e.band))];
+const fams = [...new Set(ENTRIES.map(e => e.family))];
+for (const b of bands) document.getElementById("f-band").insertAdjacentHTML("beforeend", `<option>${b}</option>`);
+for (const f of fams) document.getElementById("f-fam").insertAdjacentHTML("beforeend", `<option>${f} 族</option>`);
+render();
+</script>
+</body>
+</html>
+"""
+
+
+def parse_entries() -> list[dict]:
+    band_of = {tid: band for band, ids in BANDS.items() for tid in ids}
+    entries = []
+    for line in SRC.read_text(encoding="utf-8").splitlines():
+        m = ROW_RE.match(line)
+        if not m:
+            continue
+        tid = m.group(1)
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 8:
+            raise SystemExit(f"{tid}: 行解析失败（列数 {len(cells)}）")
+        sm = SMILES_RE.search(cells[2])
+        if not sm:
+            raise SystemExit(f"{tid}: SMILES 格解析失败")
+        vm = VERIFY_RE.search(cells[5])
+        default = ("pick" if tid in SUGGESTED_PICK else "alt" if tid in SUGGESTED_ALT
+                  else "drop" if tid in SUGGESTED_DROP else None)
+        entries.append({
+            "id": tid,
+            "band": band_of.get(tid, "?"),
+            "family": tid[0],
+            "name": cells[1],
+            "smiles": sm.group(1),
+            "qm": f"{sm.group(2)}/{sm.group(3)}",
+            "mech": cells[4],
+            "barrier": cells[5],
+            "verify": vm.group(1) if vm else "未核实",
+            "comfort": cells[6],
+            "def": default,
+        })
+    return entries
+
+
+def main() -> None:
+    entries = parse_entries()
+    missing = [e["id"] for e in entries if e["band"] == "?"]
+    if missing:
+        raise SystemExit(f"以下条目未登记打标带映射（在 BANDS 里补上）：{missing}")
+    data = json.dumps(entries, ensure_ascii=False).replace("</", "<\\/")
+    html = HTML_TEMPLATE.replace("__DATA__", data).replace("__N__", str(len(entries)))
+    OUT.write_text(html, encoding="utf-8")
+    print(f"OK: {len(entries)} 条 → {OUT}")
+
+
+if __name__ == "__main__":
+    main()

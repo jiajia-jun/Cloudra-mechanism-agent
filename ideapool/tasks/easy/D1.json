@@ -117,7 +117,8 @@
       "verification": "unverified",
       "reference_doi": "10.1021/jp012740f",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",

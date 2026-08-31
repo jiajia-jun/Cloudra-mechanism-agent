@@ -275,7 +275,8 @@
       "verification": "unverified",
       "reference_doi": "10.1039/c5ra16246g",
       "computed_by_us": false
-    }
+    },
+    "selectivity": null
   },
   "rubric": {
     "expected_outcome": "mechanism_found",
