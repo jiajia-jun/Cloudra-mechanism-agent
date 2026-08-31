@@ -15,9 +15,9 @@
  "label_in_text_pass": 16026,
  "label_in_text_fail": 2104,
  "join_source_violations": 0,
- "entities": 12765,
- "relation_rows": 9056,
- "corroborated_triples": 33,
+ "entities": 15098,
+ "relation_rows": 10811,
+ "corroborated_triples": 41,
  "custom_rel_types": {
   "proposed": 14,
   "developed": 6,
@@ -268,5 +268,6 @@
     "kb:327"
    ]
   }
- ]
+ ],
+ "v12_note": "dyn dynamics training cards incremental extraction; see _state/kg_dyn/_post_stats.json"
 }
