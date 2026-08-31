@@ -185,7 +185,7 @@ plugin = KeyNodeTrigger()
 
 ### 数据与约定
 
-- 数据源：`kg_data/`（12.7k 实体 / 9k 行级关系，知识卡片洁净版抽取）与 `vector_store/`（7,493 卡的 bge-m3 双语向量）。
+- 数据源：`kg_data/`（15.1k 实体 / 10.8k 行级关系，知识卡片洁净版 + 动力学讲义增量抽取）与 `vector_store/`（9,062 卡的 bge-m3 双语向量，18,124 行）。
 - 全部条目 `evidence_level="L0"`（文献常识层——博客知识按 L0 对待）、`falsified=false`；`source` 是 `kb:{id}` 指针（不是 URL），条目内顺序按通道原始分近似排序（bm25 与余弦不同量纲，跨通道顺序只是观感；最终排序以图书馆层的 `(level, falsified, -score)` 为准）。
 
 ### 部署三步
