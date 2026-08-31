@@ -15,8 +15,8 @@
  "label_in_text_pass": 16026,
  "label_in_text_fail": 2104,
  "join_source_violations": 0,
- "entities": 15098,
- "relation_rows": 10811,
+ "entities": 14203,
+ "relation_rows": 10266,
  "corroborated_triples": 41,
  "custom_rel_types": {
   "proposed": 14,
@@ -269,5 +269,6 @@
    ]
   }
  ],
- "v12_note": "dyn dynamics training cards incremental extraction; see _state/kg_dyn/_post_stats.json"
+ "v12_note": "dyn dynamics training cards incremental extraction; see _state/kg_dyn/_post_stats.json",
+ "v12_1_note": "category 11 removed: -545 relations, -895 orphan entities (props of survivors untouched)"
 }

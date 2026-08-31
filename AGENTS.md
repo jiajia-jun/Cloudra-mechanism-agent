@@ -106,9 +106,9 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 ## 顶层散件
 
-- `kg_data/` — 知识图谱 CSV（kg-entities/kg-relations/kg-stats，utf-8-sig；`cloudra knowledge import` 的输入）。v12 起含动力学讲义增量：15,098 实体（props.label_en 全覆盖）/ 10,811 行级关系（source 含 `kb:dyn01`~`kb:dyn08`）。
+- `kg_data/` — 知识图谱 CSV（kg-entities/kg-relations/kg-stats，utf-8-sig；`cloudra knowledge import` 的输入）。v12 后含动力学讲义增量、v12.1 移除软件安装类目：14,203 实体（props.label_en 全覆盖）/ 10,266 行级关系（source 含 `kb:dyn01`~`kb:dyn08`）。
 - `ideapool/reaction_candidates/` — benchmark 候选池（easy.md 已定稿 30 题；normal.md 48 条池、已定稿 30 题见文末"定稿圈定"）；打标台为 `ideapool/reaction_candidates/normal_tagging.html`（自包含 HTML，打标存 localStorage 不回写 md），由 `scripts/gen_normal_tagging.py` 从 normal.md 重新生成（条目变更后重跑）。
-- `vector_store/` — 知识卡片 bge-m3 向量五件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py / encode.py）；`scripts/kg_vec_service.py` 微服务只读这套文件（向量侧依赖 torch/sentence-transformers 全部留在外部 .venv-trans，cloudra venv 不装 torch；服务不随 cloudra 自启）。查询模型与 meta.json 记录的库编码模型不一致时启动即告警；一键重编码入口 `vector_store/encode.py --model 模型名`；bge 系模型自动加专用查询前缀。v12 起 18,124 行（9,062 卡 zh+en 成对，其中动力学 1,569 卡）。
+- `vector_store/` — 知识卡片 bge-m3 向量五件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py / encode.py）；`scripts/kg_vec_service.py` 微服务只读这套文件（向量侧依赖 torch/sentence-transformers 全部留在外部 .venv-trans，cloudra venv 不装 torch；服务不随 cloudra 自启）。查询模型与 meta.json 记录的库编码模型不一致时启动即告警；一键重编码入口 `vector_store/encode.py --model 模型名`；bge 系模型自动加专用查询前缀。v12.1 后 17,188 行（8,594 卡 zh+en 成对，其中动力学 1,569 卡）。
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。
 - `install.sh` / `install.ps1` — 安装脚本；`web.sh` / `web.ps1` — 开发便捷启动脚本；`README_CN.md` 为中文 README。`build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改。
