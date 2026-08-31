@@ -215,8 +215,8 @@ def test_full_repo_import_seconds_level(project_root):
         pytest.skip("repo KG CSVs not present")
     db = Path(tempfile.mkdtemp()) / "kg.db"
     rep = store.import_csv(db, e, r)
-    assert rep["entities"] == 15098
-    assert rep["relations"] == 10811
+    assert rep["entities"] == 14203
+    assert rep["relations"] == 10266
     assert rep["bad_rows"] == []
     assert rep["seconds"] < 60  # 秒级
     for q in ("过渡态", "TS", "def2-TZVP"):

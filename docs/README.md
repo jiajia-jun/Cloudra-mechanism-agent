@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `cloudra` / `cloudra web` | 一键安装 npm 依赖、构建并启动 Web 前端（API + SPA 单端口） | 当前推荐入口；Node.js >= 18 |
 | [`deploy/node-registry.example.json`](../deploy/node-registry.example.json) | 多节点、工作区、local/Slurm scheduler 配置 | 配置示例；路径需按部署环境修改 |
-| `kg_data/` + `vector_store/` | 知识库数据（v12：15,098 实体 / 10,811 关系；9,062 卡双语向量 18,124 行） | 随仓库发布；重建管线在外部维护 |
+| `kg_data/` + `vector_store/` | 知识库数据（v12.1：14,203 实体 / 10,266 关系；8,594 卡双语向量 17,188 行） | 随仓库发布；重建管线在外部维护 |
 
 ## 架构与协议
 
