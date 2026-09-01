@@ -783,6 +783,8 @@ body {
 .inspector {
   width: 380px;
   flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
   background: var(--bg-panel);
   border-left: 1px solid var(--border);
   display: flex;
@@ -794,6 +796,7 @@ body {
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
+  flex-shrink: 0;
 }
 .tab {
   background: none;
@@ -805,6 +808,7 @@ body {
   cursor: pointer;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: color 0.12s var(--ease);
 }
 .tab:hover { color: var(--fg-secondary); }
@@ -822,7 +826,13 @@ body {
   margin-left: 4px;
   font-weight: 600;
 }
-.inspector-body { flex: 1; overflow-y: auto; padding: 10px 12px; }
+.inspector-body {
+  flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
 
 /* ------------------------------------------------------- audit log (events) */
 /* Human-readable audit trail: two sections (tool activity / system events),
@@ -891,6 +901,8 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-layer);
+  min-width: 0;
+  overflow: hidden;
 }
 .audit-card.alert { border-color: rgba(245, 158, 11, 0.4); }
 .audit-card summary {
@@ -901,6 +913,7 @@ body {
   cursor: pointer;
   list-style: none;
   user-select: none;
+  min-width: 0;
 }
 .audit-card summary::-webkit-details-marker { display: none; }
 .audit-card summary::before { content: '▸'; font-size: 10px; color: var(--fg-faint); flex-shrink: 0; }
@@ -925,7 +938,11 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: var(--fg-secondary);
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ac-type.tool { color: var(--yellow-soft); }
 .ac-type.llm { color: var(--green-soft); }
@@ -947,6 +964,7 @@ body {
   font-size: 10.5px;
   color: var(--fg-faint);
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .ac-body {
