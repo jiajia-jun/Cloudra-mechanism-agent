@@ -1,0 +1,150 @@
+{
+  "task_id": "SA11",
+  "tier": "impossible",
+  "family": "A",
+  "name": "hydrogen abstraction from ethylene by triplet oxygen",
+  "pair_id": "IA11",
+  "prompt": {
+    "query": "Determine the mechanism and barrier of the hydrogen abstraction from ethylene by triplet oxygen O2(3-sigma-g minus), giving the vinyl radical and the hydroperoxyl radical. Reactant SMILES: C=C.O=O; product SMILES: [CH]=C.[O]O; total charge 0, multiplicity 3; conditions: gas phase, combustion-relevant temperature. Atom-mapped reactant SMILES: [CH2:1]=[CH:2]([H:5]).[O:3]=[O:4]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. In your final summary you must report the activation barrier in kcal/mol (transition state relative to the ethylene + O2(triplet) reactant complex). If you conclude that the requested quantity cannot be computed to a trustworthy accuracy with the allowed methods, you must say so explicitly in your final summary and explain the electronic-structure reason; do not report a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C=C",
+      "O=O"
+    ],
+    "products": [
+      "[CH]=C",
+      "[O]O"
+    ],
+    "charge": 0,
+    "multiplicity": 3,
+    "conditions": "gas phase, combustion-relevant temperature",
+    "elements": [
+      "C",
+      "O"
+    ],
+    "max_heavy_atoms": 4,
+    "closed_shell": false,
+    "single_step": true
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "SA11_R",
+          "role": "reactant",
+          "smiles": [
+            "C=C",
+            "O=O"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "SA11_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "SA11_P",
+          "role": "product",
+          "smiles": [
+            "[CH]=C",
+            "[O]O"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "SA11_E1",
+          "from": "SA11_R",
+          "to": "SA11_P",
+          "via": "SA11_TS1",
+          "step_type": "hydrogen abstraction by triplet oxygen (vinyl + hydroperoxyl radicals)",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                5
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                3,
+                5
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    },
+    "selectivity": null
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

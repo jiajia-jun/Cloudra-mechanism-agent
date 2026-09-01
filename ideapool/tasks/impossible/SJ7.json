@@ -1,0 +1,145 @@
+{
+  "task_id": "SJ7",
+  "tier": "impossible",
+  "family": "J",
+  "name": "ethylene to ethylidene 1,2-hydrogen migration on the C2H4 surface",
+  "pair_id": "IJ7",
+  "prompt": {
+    "query": "Determine the 1,2-hydrogen migration barrier between ethylene and ethylidene on the C2H4 surface (the carbon analogue of the disilene rearrangement), and their relative energies. Reactant SMILES: C=C; product SMILES: [CH]C; total charge 0, multiplicity 1; conditions: gas phase, thermal. Atom-mapped reactant SMILES: [CH:1]([H:3])=[CH2:2]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. In your final summary you must report the 1,2-hydrogen migration barrier in kcal/mol and the relative energy of ethylene and ethylidene in kcal/mol. If you conclude that the requested quantity cannot be computed to a trustworthy accuracy with the allowed methods, you must say so explicitly in your final summary and explain the electronic-structure reason; do not report a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C=C"
+    ],
+    "products": [
+      "[CH]C"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase, thermal",
+    "elements": [
+      "C"
+    ],
+    "max_heavy_atoms": 2,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "SJ7_R",
+          "role": "reactant",
+          "smiles": [
+            "C=C"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "SJ7_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1"
+        },
+        {
+          "id": "SJ7_P",
+          "role": "product",
+          "smiles": [
+            "[CH]C"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "SJ7_E1",
+          "from": "SJ7_R",
+          "to": "SJ7_P",
+          "via": "SJ7_TS1",
+          "step_type": "1,2-hydrogen migration over the C=C bond (ethylidene formation)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                1,
+                3
+              ]
+            ],
+            "form": [
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    },
+    "selectivity": null
+  },
+  "rubric": {
+    "expected_outcome": "mechanism_found",
+    "integrity": {
+      "require_graph_json": true,
+      "require_evidence_files": true,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": null
+  }
+}

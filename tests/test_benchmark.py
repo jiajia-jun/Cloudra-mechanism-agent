@@ -816,6 +816,44 @@ def test_hard_tasks_regenerate_identically():
         assert t.rubric.graph_similarity.stereo_tier_rule == "hard_stereo_costly"
 
 
+def test_impossible_tasks_regenerate_identically():
+    """impossible 档题库（20 拒答题 + 20 兄弟对照题）必须与生成器输出一致。
+
+    同时锚定结构性纪律：I/S 配对双向互指、I 题 correct_refusal 且带
+    impossible_case（至少一个不可达节点）、S 题 mechanism_found 且全图可达、
+    refusal.should_refuse 的 ground truth 与 expected_outcome 对齐。"""
+    pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
+    from cloudra.benchmark import gen_impossible_tasks
+    from cloudra.benchmark.refusal import should_refuse
+    from cloudra.benchmark.schema import ExpectedOutcome
+
+    tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
+    assert len(tasks) == 40
+    by_id = {t.task_id: t for t in tasks}
+    assert sum(t.task_id.startswith("I") for t in tasks) == 20
+    assert sum(t.task_id.startswith("S") for t in tasks) == 20
+    for t in tasks:
+        committed = gen_impossible_tasks.DEFAULT_OUT / f"{t.task_id}.json"
+        assert committed.is_file(), f"missing committed task file: {committed}"
+        regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
+        assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+        # 配对双向互指
+        assert by_id[t.pair_id].pair_id == t.task_id
+        graph = t.gold.mechanism_graph
+        if t.task_id.startswith("I"):
+            assert t.rubric.expected_outcome is ExpectedOutcome.CORRECT_REFUSAL
+            assert t.rubric.impossible_case is not None
+            inaccessible = {n.id for n in graph.nodes if not n.accessible}
+            assert inaccessible
+            assert set(t.rubric.impossible_case.gold_inaccessible_nodes) == inaccessible
+            assert should_refuse(t)
+        else:
+            assert t.rubric.expected_outcome is ExpectedOutcome.MECHANISM_FOUND
+            assert t.rubric.impossible_case is None
+            assert all(n.accessible for n in graph.nodes)
+            assert not should_refuse(t)
+
+
 def test_runner_wires_stereo_tier_rule():
     """runner._ged_config_for 必须把 rubric 的 stereo_tier_rule 接到 GedConfig.stereo_free。"""
     from cloudra.benchmark.runner import BenchmarkRunner

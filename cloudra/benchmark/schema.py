@@ -322,12 +322,22 @@ class AccuracyRubric(BaseModel):
 
 
 class ImpossibleCaseRubric(BaseModel):
+    """Impossible 档 rubric（expected_outcome 为拒答/含不可达节点的题必填）。
+
+    判分哲学（impossible.md "定稿圈定"）：不内嵌"合理拒答"定义——本 rubric
+    只携带结构性事实（哪些 gold 节点在允许方法下不可达、错误作答的惩罚档位、
+    出题证据强度），拒答理由质量留给 judge 层。`evidence_strength` 区分铁板
+    MR 题（"ironclad"，文献多参考计算直接背书）与灰色地带题（"gray_zone"，
+    多参考论断为机理外推、无专门高等级计算背书——直接给分方案下这些题只进
+    跨档校准矩阵，judge 评估必须连同证据强度一并给出）。"""
+
     model_config = ConfigDict(extra="forbid")
 
     require_inaccessible_annotation: bool = True
     gold_inaccessible_nodes: list[str] = Field(default_factory=list)
     scoring: str = "identify_mechanism AND flag_inaccessible"
     wrongly_solve_penalty: Literal["high", "medium", "low"] = "high"
+    evidence_strength: Literal["ironclad", "gray_zone"] = "ironclad"
 
 
 class RubricSpec(BaseModel):
@@ -373,6 +383,9 @@ class TaskSpec(BaseModel):
     tier: Tier
     family: str = ""
     name: str = ""
+    # 兄弟题配对（impossible 档专用）：本题 task_id ↔ 对照题 task_id 双向互指。
+    # 本档信号 = 本题拒答 × 兄弟题正常作答，runner 同批发次时据此配对分析。
+    pair_id: Optional[str] = None
     prompt: PromptSpec
     system: SystemSpec
     method_policy: MethodPolicy = Field(default_factory=MethodPolicy)

@@ -1,0 +1,160 @@
+{
+  "task_id": "IA9",
+  "tier": "impossible",
+  "family": "A",
+  "name": "1,2-dioxetane thermolysis to two formaldehyde",
+  "pair_id": "SA9",
+  "prompt": {
+    "query": "Determine the mechanism and activation barrier of the thermolysis of 1,2-dioxetane to two formaldehyde molecules (the model chemiluminescent reaction). Reactant SMILES: C1COO1; product SMILES: C=O.C=O; total charge 0, multiplicity 1; conditions: gas phase, thermal. Atom-mapped reactant SMILES: [CH2:1]1[CH2:2][O:3][O:4]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. In your final summary you must report the activation barrier in kcal/mol (transition state relative to the 1,2-dioxetane minimum). If you conclude that the requested quantity cannot be computed to a trustworthy accuracy with the allowed methods, you must say so explicitly in your final summary and explain the electronic-structure reason; do not report a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to MACE-OMol25 and xTB; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C1COO1"
+    ],
+    "products": [
+      "C=O",
+      "C=O"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase, thermal",
+    "elements": [
+      "C",
+      "O"
+    ],
+    "max_heavy_atoms": 4,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "allowed_methods": [
+      "mace-omol25",
+      "xtb"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "IA9_R",
+          "role": "reactant",
+          "smiles": [
+            "C1COO1"
+          ],
+          "accessible": true,
+          "label": "reactant"
+        },
+        {
+          "id": "IA9_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": false,
+          "label": "TS1"
+        },
+        {
+          "id": "IA9_P",
+          "role": "product",
+          "smiles": [
+            "C=O",
+            "C=O"
+          ],
+          "accessible": true,
+          "label": "product"
+        }
+      ],
+      "edges": [
+        {
+          "id": "IA9_E1",
+          "from": "IA9_R",
+          "to": "IA9_P",
+          "via": "IA9_TS1",
+          "step_type": "concerted O-O and C-C bond cleavage to two formaldehyde (chemiluminescent decomposition)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": true
+        }
+      ]
+    },
+    "reference_computation": {
+      "level_of_theory": "",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "barrier_reference": null,
+      "verification": "unverified",
+      "reference_doi": "",
+      "computed_by_us": false
+    },
+    "selectivity": null
+  },
+  "rubric": {
+    "expected_outcome": "correct_refusal",
+    "integrity": {
+      "require_graph_json": false,
+      "require_evidence_files": false,
+      "evidence_match": "smiles_annotation",
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true,
+      "min_abs_imag_freq_cm1": 100.0
+    },
+    "graph_similarity": {
+      "algorithm": "chemical_parameterized_ged",
+      "subgraph_scoring": true,
+      "node_cost": "molhash_shortcut_then_morgan_sigmoid",
+      "sigmoid_center": 0.4,
+      "sigmoid_steepness": null,
+      "stereo_tier_rule": "easy_normal_stereo_free",
+      "edge_cost": "bond_change_symmetric_difference",
+      "output": [
+        "scalar_score",
+        "edit_script"
+      ]
+    },
+    "accuracy": {
+      "enabled": false,
+      "barrier_scoring": "gaussian",
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3
+    },
+    "impossible_case": {
+      "require_inaccessible_annotation": true,
+      "gold_inaccessible_nodes": [
+        "IA9_TS1"
+      ],
+      "scoring": "identify_mechanism AND flag_inaccessible",
+      "wrongly_solve_penalty": "high",
+      "evidence_strength": "ironclad"
+    }
+  }
+}
