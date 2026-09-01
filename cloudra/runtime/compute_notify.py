@@ -6,9 +6,29 @@ guard/Slurm 终态只 CAS 写中央 compute.db；API 进程的 ``ComputeNotifyBr
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from cloudra.persistence.database import ComputeDB
+
+
+def build_compute_knowledge_query(
+    *,
+    state: str,
+    job_type: str = "gaussian",
+    fail_reason: str = "",
+    input_path: str = "",
+) -> str:
+    """Pure decision: terminal compute job → chem-kb library query string.
+
+    Failed jobs query by the readable failure reason (which carries the
+    termination marker / SCF / imaginary-frequency diagnostics the KB indexes);
+    successful jobs fall back to the engine + input-file stem.
+    """
+    if state == "failed":
+        return (fail_reason or f"{job_type} computation failed")[:500]
+    stem = Path(input_path).stem if input_path else ""
+    return " ".join(part for part in (job_type, stem) if part)[:300]
 
 
 def build_compute_finish_content(
@@ -19,6 +39,7 @@ def build_compute_finish_content(
     log_path: str = "",
     json_path: str = "",
     fail_reason: str = "",
+    library_hits: list[dict[str, Any]] | None = None,
 ) -> str:
     if state == "done":
         guidance = (
@@ -41,6 +62,13 @@ def build_compute_finish_content(
     if json_path:
         lines.append(f"Structured result: {json_path}")
     lines.append(guidance)
+    if library_hits:
+        from cloudra.runtime_v2.knowledge import render_library_hits
+
+        lines.append(
+            "Knowledge base suggestions (auto-retrieved for this terminal state):\n"
+            + render_library_hits(library_hits)
+        )
     return "\n".join(lines)
 
 

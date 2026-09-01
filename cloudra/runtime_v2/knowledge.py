@@ -141,3 +141,25 @@ async def search_library(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
         )
     )
     return hits[:limit]
+
+
+def render_library_hits(hits: list[dict[str, Any]]) -> str:
+    """Render merged library hits into a compact bullet list (no header).
+
+    Shared by the hub search result, the compute-notify broker and the
+    knowledge policy stage, so one hit renders identically in every channel.
+    Callers prepend their own header ("Library hits", "Knowledge base
+    suggestions", …).
+    """
+    if not hits:
+        return ""
+    lines: list[str] = []
+    for entry in hits:
+        flag = " [FALSIFIED — refuted, kept for audit]" if entry.get("falsified") else ""
+        source = f" — source: {entry['source']}" if entry.get("source") else ""
+        snippet = " ".join(str(entry.get("content") or "").split())[:200]
+        lines.append(
+            f"- [{entry.get('evidence_level', 'L0')}]{flag} {entry.get('title') or ''}: "
+            f"{snippet} (provider: {entry.get('provider', '?')}){source}"
+        )
+    return "\n".join(lines)

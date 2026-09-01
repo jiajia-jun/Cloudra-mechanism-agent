@@ -12,7 +12,33 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.knowledge import (
+    KnowledgeEntry,
+    clear_knowledge_providers,
+    register_knowledge_provider,
+)
 from cloudra.runtime_v2.schemas import Command
+
+
+@pytest.fixture(autouse=True)
+def _clean_registry():
+    clear_knowledge_providers()
+    yield
+    clear_knowledge_providers()
+
+
+class _KBProvider:
+    name = "fake-kb"
+
+    def search(self, query, *, limit=5):
+        return [
+            KnowledgeEntry(
+                title="SCF convergence fix",
+                content="switch to quadratically convergent SCF",
+                evidence_level="L0",
+                source="kb:1",
+            )
+        ]
 
 
 async def _setup_core():
@@ -45,19 +71,21 @@ def _inbox_texts(core, session_id: str) -> list[str]:
     return texts
 
 
-def _insert_terminal_job(project_id: str, *, session_id: str | None, state: str = "done") -> int:
+def _insert_terminal_job(
+    project_id: str, *, session_id: str | None, state: str = "done", last_error: str | None = None
+) -> int:
     """往中央 compute.db 写一条终态 compute_jobs 行（notified_at 留 NULL）。"""
     db = ComputeDB().init()
     with db.connect() as con:
         cur = con.execute(
             """INSERT INTO compute_jobs
             (conversation_id, session_id, path, state, jobtype,
-             start_timestamp, end_timestamp, scheduler, scheduler_options)
-            VALUES (?,?,?,?,?,?,?,?,?)""",
+             start_timestamp, end_timestamp, scheduler, scheduler_options, last_error)
+            VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (
                 project_id, session_id, "/tmp/x.gjf", state, "gaussian",
                 time.time() - 100, time.time(), "local",
-                json.dumps({"type": "local"}),
+                json.dumps({"type": "local"}), last_error,
             ),
         )
         job_id = int(cur.lastrowid)
@@ -160,3 +188,56 @@ async def test_ensure_project_scans_immediately():
         len(core.event_log.query_session(coordinator.id, types={"agent.message_injected"}))
         == 1
     )
+
+
+def _delivered_content(core, session_id: str) -> str:
+    events = core.event_log.query_session(session_id, types={"agent.message_injected"})
+    assert len(events) == 1
+    return events[0].data["content"]
+
+
+@pytest.mark.asyncio
+async def test_failed_job_delivers_knowledge_suggestions():
+    """失败终态自动检索知识库，命中建议拼进 agent.message。"""
+    register_knowledge_provider(_KBProvider())
+    core, project, coordinator = await _setup_core()
+    _insert_terminal_job(
+        project.id, session_id=coordinator.id, state="failed", last_error="SCF did not converge"
+    )
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+
+    await broker._poll_project(project.id)
+
+    content = _delivered_content(core, coordinator.id)
+    assert "SCF convergence fix" in content
+    assert "Knowledge base suggestions" in content
+
+
+@pytest.mark.asyncio
+async def test_done_job_delivers_knowledge_suggestions():
+    """成功终态同样自动检索（engine + input stem 作为 query）。"""
+    register_knowledge_provider(_KBProvider())
+    core, project, coordinator = await _setup_core()
+    _insert_terminal_job(project.id, session_id=coordinator.id, state="done")
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+
+    await broker._poll_project(project.id)
+
+    content = _delivered_content(core, coordinator.id)
+    assert "SCF convergence fix" in content
+    assert "Knowledge base suggestions" in content
+
+
+@pytest.mark.asyncio
+async def test_no_provider_notification_unchanged():
+    """无 provider（知识库未装）时通知文本不夹带知识建议。"""
+    core, project, coordinator = await _setup_core()
+    _insert_terminal_job(
+        project.id, session_id=coordinator.id, state="failed", last_error="SCF did not converge"
+    )
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+
+    await broker._poll_project(project.id)
+
+    content = _delivered_content(core, coordinator.id)
+    assert "Knowledge base suggestions" not in content

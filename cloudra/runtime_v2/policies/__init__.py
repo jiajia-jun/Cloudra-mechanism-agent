@@ -9,9 +9,16 @@ from __future__ import annotations
 from cloudra.runtime_v2.policies.base import PolicyStage
 from cloudra.runtime_v2.policies.dag_stage import DagPolicyStage
 from cloudra.runtime_v2.policies.goal_stage import GoalStage
+from cloudra.runtime_v2.policies.knowledge_stage import KnowledgeStage
 from cloudra.runtime_v2.policies.permission import PermissionStage
 from cloudra.runtime_v2.policies.schedule_stage import ScheduleStage
 
 
 def default_stages(core=None) -> list[PolicyStage]:
-    return [PermissionStage(), DagPolicyStage(core), GoalStage(), ScheduleStage(core)]
+    return [
+        PermissionStage(),
+        DagPolicyStage(core),
+        GoalStage(),
+        ScheduleStage(core),
+        KnowledgeStage(),
+    ]

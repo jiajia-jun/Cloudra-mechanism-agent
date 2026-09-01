@@ -203,20 +203,6 @@ def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     )
 
 
-def _render_library(entries: list[dict[str, Any]]) -> str:
-    """Model-facing rendering of library hits (full dicts ride in data)."""
-    lines = []
-    for entry in entries:
-        flag = " [FALSIFIED — refuted, kept for audit]" if entry["falsified"] else ""
-        source = f" — source: {entry['source']}" if entry["source"] else ""
-        snippet = " ".join(str(entry["content"]).split())[:200]
-        lines.append(
-            f"- [{entry['evidence_level']}]{flag} {entry['title']}: {snippet}"
-            f" (provider: {entry['provider']}){source}"
-        )
-    return "\n".join(lines)
-
-
 async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     keyword = str(args.get("keyword") or "").strip()
     if not keyword:
@@ -236,7 +222,7 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
     posts = [post for _, _, post in scored[:limit]]
     # The library layer: registered knowledge providers (GraphRAG plugins)
     # are queried on every hub search — same tool, no extra interface.
-    from cloudra.runtime_v2.knowledge import search_library
+    from cloudra.runtime_v2.knowledge import render_library_hits, search_library
 
     library = await search_library(keyword, limit=5)
     forum_line = (
@@ -246,7 +232,7 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
     )
     if not library:
         return _ok(forum_line, posts=posts, library=[])
-    summary = f"{forum_line}\nLibrary hits ({len(library)}):\n{_render_library(library)}"
+    summary = f"{forum_line}\nLibrary hits ({len(library)}):\n{render_library_hits(library)}"
     return _ok(summary, posts=posts, library=library)
 
 

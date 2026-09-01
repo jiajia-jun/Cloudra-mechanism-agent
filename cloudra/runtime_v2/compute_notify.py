@@ -153,6 +153,7 @@ class ComputeNotifyBroker:
         except Exception:
             pass
         input_path = str(info.get("path") or "")
+        library_hits = await self._library_hits(state, job_type, fail_reason, input_path)
         return build_compute_finish_content(
             task_id=task_id,
             state=state,
@@ -160,7 +161,32 @@ class ComputeNotifyBroker:
             # 纯字符串推导，不碰文件系统
             log_path=get_log_path(input_path, job_type=job_type) if input_path else "",
             fail_reason=fail_reason,
+            library_hits=library_hits,
         )
+
+    async def _library_hits(
+        self,
+        state: str,
+        job_type: str,
+        fail_reason: str,
+        input_path: str,
+    ) -> list[dict]:
+        """Auto-retrieve the chem-kb library for a terminal state.
+
+        Retrieval is best-effort: a broken provider / uninstalled plugin
+        yields no hits and the notification is delivered unchanged.
+        """
+        from cloudra.runtime.compute_notify import build_compute_knowledge_query
+        from cloudra.runtime_v2.knowledge import search_library
+
+        query = build_compute_knowledge_query(
+            state=state, job_type=job_type, fail_reason=fail_reason, input_path=input_path
+        )
+        try:
+            return await search_library(query, limit=3)
+        except Exception:
+            logger.exception("compute notify knowledge retrieval failed for %s", state)
+            return []
 
     @staticmethod
     def _mark_notified(task_id: int) -> None:
