@@ -44,11 +44,10 @@ jobs:
           python -c "from cloudra.persistence import database"
           python -c "from cloudra.core import message_history"
           python -c "from cloudra.base import session_class, tools_class"
-          python -c "from cloudra.infra import config, events, llm_client"
-          python -c "import cloudra.runtime_v2.schemas, cloudra.runtime_v2.core, cloudra.runtime_v2.commands, cloudra.runtime_v2.agent_host"
+          python -c "from cloudra.infra import config, flocks, logging_setup, llm_client"
+          python -c "import cloudra.runtime_v2.schemas, cloudra.runtime_v2.core, cloudra.runtime_v2.commands, cloudra.runtime_v2.agent_host, cloudra.runtime_v2.apply, cloudra.runtime_v2.effects"
           python -c "import cloudra.dag.models, cloudra.dag.store, cloudra.dag.engine, cloudra.dag.controller"
-          # 兼容垫片：重排前的老导入路径必须继续可用
-          python -c "from cloudra import agent as legacy_agent, supervisor as legacy_supervisor"
+          python -c "import cloudra.scheduler.daemon, cloudra.services.compute_store, cloudra.knowledge.health"
 
   frontend:
     runs-on: ubuntu-latest
