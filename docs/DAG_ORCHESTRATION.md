@@ -114,5 +114,5 @@ Supervisor 的对话上下文在多次触发之间会完整保留。Agent 调用
   - `dag_set_coverage_contract`：Supervisor 收紧交付覆盖率要求；
   - `dag_message_supervisor`：向 Supervisor 发送沟通消息。
   字段说明与使用时机详见 `cloudra/skills/dag-operations/`。
-- **HTTP API 与服务**：提供机理图查询、交付报告获取、变更历史追踪、待审收件箱管理等 RESTful 路由（定义于 `cloudra/services/api_v2.py`）。
+- **HTTP API 与服务**：提供机理图查询、交付报告获取、变更历史追踪、待审收件箱管理等 RESTful 路由（定义于 `cloudra/services/api_v2/` 包的 `routers/dag.py`）。
 - **前端可视化面板**：Web 界面中的 DAG 面板可直观展示机理网络拓扑（带各阶段颜色状态标注）、复核收件箱、历史变更事件流以及结构化编辑交互。

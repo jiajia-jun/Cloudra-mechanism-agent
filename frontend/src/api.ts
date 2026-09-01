@@ -2,6 +2,7 @@ import type {
   Agent,
   EventEnvelope,
   KgGraph,
+  KgHealth,
   KgOverview,
   KgSearchResponse,
   Project,
@@ -203,6 +204,7 @@ export const api = {
     }),
   listSkills: () => request<Array<Record<string, unknown>>>('/api/v2/skills'),
   knowledgeOverview: () => request<KgOverview>('/api/v2/knowledge/overview'),
+  knowledgeHealth: () => request<KgHealth>('/api/v2/knowledge/health'),
   knowledgeSearch: (q: string, limit = 10) =>
     request<KgSearchResponse>(
       `/api/v2/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`,

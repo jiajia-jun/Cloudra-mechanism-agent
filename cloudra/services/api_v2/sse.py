@@ -1,0 +1,31 @@
+"""SSE framing helpers for the project event stream."""
+
+from __future__ import annotations
+
+import json
+
+
+def _sse(event) -> str:
+    return f"event: {event.type}\ndata: {json.dumps(event.model_dump(mode='json'), ensure_ascii=False)}\n\n"
+
+
+async def _sse_replay(core, project, cursor: int):
+    """回放历史事件并以 project.synced 边界标记收尾（前端据此抑制历史事件
+    触发的提示）。抽成模块级 helper 是为了可测：httpx ASGITransport 缓冲整个
+    响应，无限 SSE 流无法经它断言，测试直接驱动这个生成器。"""
+    from cloudra.runtime_v2.schemas import EventEnvelope
+
+    replayed_through = cursor
+    for event in core.event_log.query_project(project.id, after_seq=cursor):
+        replayed_through = max(replayed_through, event.seq)
+        yield _sse(event)
+    # seq=0 不影响客户端 cursor
+    yield _sse(
+        EventEnvelope(
+            stream="project",
+            project_id=project.id,
+            seq=0,
+            type="project.synced",
+            data={"replayed_through": replayed_through},
+        )
+    )

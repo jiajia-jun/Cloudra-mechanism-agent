@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from cloudra.infra.config import get_config, reload_config
+from cloudra.infra.config import _reset_for_tests, get_config
 from cloudra.persistence.artifacts import (
     ArtifactDownloadDenied,
     ArtifactService,
@@ -17,18 +17,20 @@ def artifact_environment(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
-    reload_config()
+    _reset_for_tests()
     config = get_config()
     config.data_dir = data_dir
     conversation_id = "conv_artifact"
     session_id = "a-0_run_artifact"
     db = ConversationDB(conversation_id).init()
-    session_store.insert_queued_session(
+    session_store.create_session_record(
         db,
         session_id=session_id,
         agent_id="a-0",
         agent_type="coordinator",
+        parent_session_id=None,
         query="生成文件",
+        created_at=datetime.now(timezone.utc).isoformat(),
     )
     return {
         "data_dir": data_dir,

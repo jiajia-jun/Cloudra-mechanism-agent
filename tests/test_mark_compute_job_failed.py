@@ -4,14 +4,14 @@ import json
 
 import pytest
 
-from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.database import ComputeDB
 from cloudra.tools.Chemtool.mark_compute_job_failed import (
     MarkComputeJobFailed,
     MarkComputeJobFailed_input_schema,
 )
 
 
-def _insert_job(db: ConversationDB, *, state: str = "running") -> int:
+def _insert_job(db: ComputeDB, *, state: str = "running") -> int:
     with db.connect() as con:
         cur = con.execute(
             """INSERT INTO compute_jobs
@@ -19,7 +19,7 @@ def _insert_job(db: ConversationDB, *, state: str = "running") -> int:
              start_timestamp, end_timestamp, scheduler, scheduler_options)
             VALUES (?,?,?,?,?,?,?,?,?)""",
             (
-                db.conversation_id, "sess-1", "/tmp/h2.gjf", state, "gaussian",
+                "default", "sess-1", "/tmp/h2.gjf", state, "gaussian",
                 -1, -1, "local", json.dumps({"type": "local"}),
             ),
         )
@@ -30,8 +30,8 @@ def _insert_job(db: ConversationDB, *, state: str = "running") -> int:
 
 @pytest.mark.asyncio
 async def test_running_job_marked_failed_with_reason():
-    # 工具 subagent 为 None 时落到 "default" 会话库
-    db = ConversationDB("default").init()
+    # 工具 subagent 为 None 时落到 "default" 会话归属
+    db = ComputeDB().init()
     job_id = _insert_job(db, state="running")
 
     result = await MarkComputeJobFailed().tool_call(
@@ -51,7 +51,7 @@ async def test_running_job_marked_failed_with_reason():
 
 @pytest.mark.asyncio
 async def test_terminal_job_marking_refused():
-    db = ConversationDB("default").init()
+    db = ComputeDB().init()
     job_id = _insert_job(db, state="done")
 
     result = await MarkComputeJobFailed().tool_call(

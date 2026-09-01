@@ -2,7 +2,7 @@
 
 import pytest
 
-from cloudra.infra.config import get_config, reload_config
+from cloudra.infra.config import _reset_for_tests, get_config, set_config_value
 from cloudra.tools.Searchtool.openalex_searcher import (
     OpenAlexSearcher,
     OpenAlexSearcher_input_schema,
@@ -59,11 +59,12 @@ class TestOpenAlexConfig:
     def test_save_roundtrip_openalex_api_key(self, tmp_path, monkeypatch):
         cfg = get_config()
         monkeypatch.setattr(cfg, "config_file", tmp_path / "config.yaml")
-        cfg.openalex_api_key = "oa-test-key"
-        cfg.save()
+        monkeypatch.setattr(cfg, "openalex_api_key", "")
+        set_config_value("openalex_api_key", "oa-test-key")
         text = (tmp_path / "config.yaml").read_text(encoding="utf-8")
         assert "oa-test-key" in text
         assert "openalex_api_key" in text
+        assert get_config().openalex_api_key == "oa-test-key"  # 单例与磁盘一致
 
     def test_display_masks_openalex_api_key(self, monkeypatch):
         cfg = get_config()
@@ -83,24 +84,25 @@ class TestOpenAlexConfig:
         monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(cfg_path))
         monkeypatch.delenv("CLOUDRA_OPENALEX_API_KEY", raising=False)
         monkeypatch.delenv("OPENALEX_API_KEY", raising=False)
-        cfg = reload_config()
+        cfg = _reset_for_tests()
         assert cfg.openalex_api_key == "from-yaml"
 
     def test_openalex_env_fallback_when_yaml_absent(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "missing.yaml"))
         monkeypatch.delenv("CLOUDRA_OPENALEX_API_KEY", raising=False)
         monkeypatch.setenv("OPENALEX_API_KEY", "from-env")
-        cfg = reload_config()
+        cfg = _reset_for_tests()
         assert cfg.openalex_api_key == "from-env"
 
     def test_save_roundtrip_openalex_mailto(self, tmp_path, monkeypatch):
         cfg = get_config()
         monkeypatch.setattr(cfg, "config_file", tmp_path / "config.yaml")
-        cfg.openalex_mailto = "lab@example.edu"
-        cfg.save()
+        monkeypatch.setattr(cfg, "openalex_mailto", "")
+        set_config_value("openalex_mailto", "lab@example.edu")
         text = (tmp_path / "config.yaml").read_text(encoding="utf-8")
         assert "lab@example.edu" in text
         assert "openalex_mailto" in text
+        assert get_config().openalex_mailto == "lab@example.edu"  # 单例与磁盘一致
 
     def test_display_shows_openalex_mailto(self, monkeypatch):
         cfg = get_config()
@@ -119,14 +121,14 @@ class TestOpenAlexConfig:
         monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(cfg_path))
         monkeypatch.delenv("CLOUDRA_OPENALEX_MAILTO", raising=False)
         monkeypatch.delenv("OPENALEX_MAILTO", raising=False)
-        cfg = reload_config()
+        cfg = _reset_for_tests()
         assert cfg.openalex_mailto == "yaml@example.edu"
 
     def test_openalex_mailto_env_fallback_when_yaml_absent(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "missing.yaml"))
         monkeypatch.delenv("CLOUDRA_OPENALEX_MAILTO", raising=False)
         monkeypatch.setenv("OPENALEX_MAILTO", "env@example.edu")
-        cfg = reload_config()
+        cfg = _reset_for_tests()
         assert cfg.openalex_mailto == "env@example.edu"
 
 

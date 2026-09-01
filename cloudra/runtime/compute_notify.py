@@ -1,15 +1,14 @@
-"""Compute job terminal notifications: IPC payload for runtime_v2 delivery.
+"""Compute job terminal notification content builders.
 
-Guard/Slurm/executor processes emit ``task_finished`` with a full message body;
-the API process ``ComputeNotifyBroker`` turns that into ``agent.message``.
+guard/Slurm 终态只 CAS 写中央 compute.db；API 进程的 ``ComputeNotifyBroker``
+轮询 compute_jobs 表并用这里的构建件把终态重建为 ``agent.message`` 文本。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from cloudra.infra import events
-from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.database import ComputeDB
 
 
 def build_compute_finish_content(
@@ -45,44 +44,16 @@ def build_compute_finish_content(
     return "\n".join(lines)
 
 
-async def resolve_submission_info(db: ConversationDB, task_id: int) -> dict[str, Any]:
+async def resolve_submission_info(db: ComputeDB, task_id: int) -> dict[str, Any]:
     """Return submitter session_id and input path for one compute job."""
+    from cloudra.services.compute_store import aget_compute_job
+
     info: dict[str, Any] = {"session_id": None, "path": ""}
     try:
-        async with db.aconnect() as con:
-            cur = await con.execute(
-                "SELECT session_id, path FROM compute_jobs WHERE id=?",
-                (task_id,),
-            )
-            row = await cur.fetchone()
-            if row:
-                info["session_id"] = row[0]
-                info["path"] = row[1] or ""
+        row = await aget_compute_job(db, task_id)
     except Exception:
-        pass
+        row = None
+    if row:
+        info["session_id"] = row["session_id"]
+        info["path"] = row["path"] or ""
     return info
-
-
-def emit_compute_task_finished(
-    conversation_id: str,
-    *,
-    task_id: int,
-    state: str,
-    content: str,
-    session_id: str | None,
-    notify_coordinator: bool = True,
-) -> None:
-    """Broadcast a compute terminal event to the API process (best-effort)."""
-    try:
-        events.emit(
-            conversation_id,
-            "task_finished",
-            task_id=task_id,
-            task_kind="compute",
-            state=state,
-            content=content,
-            session_id=session_id,
-            notify_coordinator=notify_coordinator,
-        )
-    except Exception:
-        pass

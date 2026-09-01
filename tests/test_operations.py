@@ -22,10 +22,17 @@ def test_backup_snapshots_sqlite_and_restores_verified_files(tmp_path):
         con.execute("CREATE TABLE devices(id TEXT PRIMARY KEY)")
         con.execute("INSERT INTO devices VALUES ('phone-a')")
         con.commit()
+    # 中央计算库也在 data_dir 备份清单内（rglob 枚举 + 在线 backup API）
+    compute_database = data / "compute.db"
+    with sqlite3.connect(compute_database) as con:
+        con.execute("CREATE TABLE compute_jobs(id INTEGER PRIMARY KEY, state TEXT)")
+        con.execute("INSERT INTO compute_jobs(state) VALUES ('ready')")
+        con.commit()
 
     backup = tmp_path / "backup.zip"
     manifest = create_backup(data, backup)
     assert {item["path"] for item in manifest["files"]} == {
+        "compute.db",
         "device-broker.db",
         "memory/MEMORY.md",
     }
@@ -36,6 +43,8 @@ def test_backup_snapshots_sqlite_and_restores_verified_files(tmp_path):
     assert (restored / "memory" / "MEMORY.md").read_text() == "remember me"
     with sqlite3.connect(restored / "device-broker.db") as con:
         assert con.execute("SELECT id FROM devices").fetchone() == ("phone-a",)
+    with sqlite3.connect(restored / "compute.db") as con:
+        assert con.execute("SELECT state FROM compute_jobs").fetchone() == ("ready",)
 
 
 def test_backup_rejects_tampering_and_nonempty_restore(tmp_path):
@@ -62,8 +71,12 @@ def test_operational_status_is_bounded_and_alerts_without_content(tmp_path):
     database.parent.mkdir(parents=True)
     with sqlite3.connect(database) as con:
         con.execute("CREATE TABLE session(state TEXT, query TEXT)")
-        con.execute("CREATE TABLE compute_jobs(state TEXT, last_error TEXT)")
         con.execute("INSERT INTO session VALUES ('interrupted', 'private prompt')")
+        con.commit()
+    # compute_jobs 状态计数读中央库 data_dir/compute.db
+    compute_database = root / "compute.db"
+    with sqlite3.connect(compute_database) as con:
+        con.execute("CREATE TABLE compute_jobs(state TEXT, last_error TEXT)")
         con.execute("INSERT INTO compute_jobs VALUES ('failed', 'secret error')")
         con.commit()
 

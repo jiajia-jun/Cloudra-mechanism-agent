@@ -36,7 +36,17 @@ INTERCEPT_MESSAGE = (
 
 
 class ScheduleStage:
-    """Enforce autonomous schedule wake-up timers before stopping."""
+    """Enforce autonomous schedule wake-up timers before stopping.
+
+    ``_intercepted_stops`` is **deliberately volatile** (shell-private,
+    discarded on restart): it tracks the in-dialogue confirmation handshake
+    "first stop blocked → immediate second stop confirms completion", which
+    only makes sense against a live run's conversation.  A restarted process
+    rebuilds the agent's context from scratch, so a stale pre-restart
+    intercept must NOT count as confirmation — otherwise the first stop after
+    a restart would slip through unaudited.  The pending-reminder check itself
+    reads ``core.reminders``' event projection, which is restart-safe.
+    """
 
     name = "schedule"
 

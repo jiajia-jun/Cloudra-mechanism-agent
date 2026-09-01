@@ -35,7 +35,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from cloudra.runtime_v2.knowledge import register_knowledge_provider
 
-logger = logging.getLogger("runtime_v2.plugins")
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable

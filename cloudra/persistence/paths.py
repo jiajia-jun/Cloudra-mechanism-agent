@@ -42,6 +42,11 @@ def conversation_db_path(conv_id: str, data_dir: Optional[PathLike] = None) -> P
     return conversation_dir(conv_id, data_dir) / "tasks" / "database.db"
 
 
+def compute_db_path(data_dir: Optional[PathLike] = None) -> Path:
+    """中央计算作业数据库路径（compute_jobs 表的唯一宿主）。"""
+    return _root(data_dir) / "compute.db"
+
+
 def contexts_dir(conv_id: Optional[str] = None, data_dir: Optional[PathLike] = None) -> Path:
     """会话级 contexts 目录；conv_id 为空或 'default' 时回退到全局 contexts。"""
     if conv_id and conv_id != "default":

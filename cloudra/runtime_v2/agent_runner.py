@@ -2,6 +2,11 @@
 
 The runner owns the loop around TurnPipeline.  Commands only mutate state or
 deliver inbox messages; execution concurrency lives here.
+
+易失状态（3e）：``history``（本 run 的 LLM 对话原文）与 ``_tasks`` 都是
+**刻意易失**的——对话原文不跨 run、不跨进程；跨 run 连续性由 context
+tree（handover + run 摘要）与 goal/DAG/memory/工作区的外化状态承载，
+重启恢复靠事件投影重建后由新消息驱动。
 """
 
 from __future__ import annotations
@@ -27,7 +32,7 @@ if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
     from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 
-logger = logging.getLogger("runtime_v2.agent_runner")
+logger = logging.getLogger(__name__)
 
 # messages -> generated text; injected in tests, defaults to the agent's model.
 RunSummarizer = Callable[[list[dict[str, Any]]], Awaitable[str]]
@@ -141,6 +146,12 @@ class AgentRunner:
             }:
                 run_id = agent.current_run.run_id
                 core.agent_host.resume(agent)
+                # A fresh run starts with empty history; any compaction
+                # requested against the previous in-memory history is
+                # meaningless now.  resume has no run.started event (whose
+                # apply clears the projection on the other two paths), so the
+                # shell discards the entry here.
+                core.pending_compactions.pop(agent.id, None)
             elif agent.current_run is not None and agent.state is AgentState.RUNNING:
                 # The command layer already started/resumed this run and only
                 # scheduled the task afterwards.
@@ -148,9 +159,6 @@ class AgentRunner:
             else:
                 run_id = core.agent_host.start_run(agent)
             history: list[dict] = []
-            # A fresh run starts with empty history; any compaction requested
-            # against the previous run's history is meaningless now.
-            core.pending_compactions.pop(agent.id, None)
             seed_count = 0
             seeded = False
             while agent.state is AgentState.RUNNING:

@@ -26,7 +26,7 @@ from cloudra.runtime_v2.schemas import AgentSession, Command
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
 
-logger = logging.getLogger("runtime_v2.reminders")
+logger = logging.getLogger(__name__)
 
 _REMINDER_TYPES = {"reminder.scheduled", "reminder.cancelled", "reminder.fired"}
 

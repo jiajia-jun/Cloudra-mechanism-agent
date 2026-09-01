@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dagre from 'dagre';
 import { api } from './api';
-import type { KgEdge, KgGraph, KgNode, KgOverview, KgSearchResponse } from './types';
+import type { KgEdge, KgGraph, KgHealth, KgHealthChannel, KgNode, KgOverview, KgSearchResponse } from './types';
 
 interface KnowledgePanelProps {
   onClose: () => void;
@@ -55,6 +55,27 @@ function relColor(r: string): string {
 
 function trunc(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+}
+
+/* Channel health pill: green when ok, red when down (hover shows the error),
+   gray while the health probe has not landed yet. */
+function HealthPill({
+  label,
+  ch,
+  okText,
+}: {
+  label: string;
+  ch: KgHealthChannel | undefined;
+  okText: (c: KgHealthChannel) => string;
+}) {
+  const state = !ch ? 'unknown' : ch.ok ? 'ok' : 'bad';
+  const text = !ch ? '…' : ch.ok ? okText(ch) : 'down';
+  return (
+    <span className={`kg-health-item ${state}`} title={ch?.error || undefined}>
+      <i className="kg-dot" />
+      {label}: {text}
+    </span>
+  );
 }
 
 /* Merge per-source edge rows into one edge per (src, dst, rel): corroborated
@@ -132,6 +153,7 @@ function layoutGraph(graph: KgGraph, edges: Array<KgEdge & { sources: string[] }
 
 export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps) {
   const [overview, setOverview] = useState<KgOverview | null>(null);
+  const [health, setHealth] = useState<KgHealth | null>(null);
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState<KgSearchResponse | null>(null);
   const [searching, setSearching] = useState(false);
@@ -152,6 +174,11 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
       .knowledgeOverview()
       .then(setOverview)
       .catch((e) => onToast('error', e instanceof Error ? e.message : String(e)));
+    // 通道健康条与 overview 同拉；健康探测失败不打扰（状态条保持灰显）。
+    api
+      .knowledgeHealth()
+      .then(setHealth)
+      .catch(() => setHealth(null));
   }, [onToast]);
 
   const runSearch = () => {
@@ -227,6 +254,20 @@ export default function KnowledgePanel({ onClose, onToast }: KnowledgePanelProps
           <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={onClose}>
             close
           </button>
+        </div>
+
+        <div className="kg-health">
+          <HealthPill
+            label="semantic"
+            ch={health?.semantic}
+            okText={(c) => `${c.model || 'warming'} · ${c.count ?? '?'} cards`}
+          />
+          <HealthPill
+            label="graph"
+            ch={health?.graph}
+            okText={(c) => `${(c.entities ?? 0).toLocaleString()} entities`}
+          />
+          <HealthPill label="fuzzy" ch={health?.fuzzy} okText={(c) => `${c.cards ?? '?'} cards`} />
         </div>
 
         <div className="kg-toolbar">

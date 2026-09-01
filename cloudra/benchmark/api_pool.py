@@ -24,7 +24,7 @@ from typing import Any, Optional
 
 from cloudra.runtime_v2.adapters import LegacyLLMProvider
 
-logger = logging.getLogger("benchmark.api_pool")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)

@@ -43,12 +43,15 @@ def operational_status(data_dir: Path, *, min_free_bytes: int = 1024**3) -> dict
     conversation_databases = list(root.glob("conversations/*/tasks/database.db"))
     for database in conversation_databases:
         try:
-            sessions.update(_count_states(database, "session", {"session", "compute_jobs"}))
-            compute.update(_count_states(database, "compute_jobs", {"session", "compute_jobs"}))
+            sessions.update(_count_states(database, "session", {"session"}))
             with sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True) as con:
                 con.execute("PRAGMA quick_check").fetchone()
         except sqlite3.Error:
             database_errors += 1
+    # compute_jobs 已迁到中央库：状态计数只读 data_dir/compute.db
+    compute_database = root / "compute.db"
+    if compute_database.is_file():
+        compute.update(_count_states(compute_database, "compute_jobs", {"compute_jobs"}))
     devices: Counter = Counter()
     device_database = root / "device-broker.db"
     if device_database.is_file():

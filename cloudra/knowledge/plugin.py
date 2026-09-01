@@ -29,6 +29,8 @@ from __future__ import annotations
 import logging
 import math
 import os
+from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
@@ -74,6 +76,41 @@ class ChemKBPlugin:
     name = "chem-kb"
 
     # 禁止构造期 IO（见模块 docstring）；db/httpx 客户端都在 search 期获取。
+    def __init__(self) -> None:
+        # 语义通道最近一次检索调用的健康记录：
+        # {"ok": bool, "at": iso, "error"?: str}；尚无检索调用时为 None。
+        self.last_health: dict[str, Any] | None = None
+
+    def _record_health(self, ok: bool, error: str | None = None) -> None:
+        record: dict[str, Any] = {
+            "ok": ok,
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        if error:
+            record["error"] = error
+        self.last_health = record
+
+    def health(self) -> dict[str, Any]:
+        """语义通道健康：实时代理一次 GET /health，叠加上次检索错误（若有）。
+
+        返回 ``{"ok", "url", "model"?, "library_model"?, "count"?, "warning"?,
+        "error"?, "last_error"?}``；探测本身失败时 ok=False 且带 error，绝不抛。
+        """
+        url = _vec_url()
+        out: dict[str, Any] = {"ok": False, "url": url}
+        try:
+            resp = httpx.get(f"{url}/health", timeout=_VEC_TIMEOUT)
+            resp.raise_for_status()
+            data = resp.json()
+            out["ok"] = bool(data.get("ok"))
+            for key in ("model", "library_model", "count", "warning"):
+                if data.get(key) is not None:
+                    out[key] = data[key]
+        except Exception as exc:
+            out["error"] = f"{type(exc).__name__}: {exc}"
+        if self.last_health and not self.last_health.get("ok"):
+            out["last_error"] = self.last_health.get("error")
+        return out
 
     def search(self, query: str, *, limit: int = 5) -> list[KnowledgeEntry]:
         if limit < 1:
@@ -174,9 +211,13 @@ class ChemKBPlugin:
             )
             resp.raise_for_status()
             hits = resp.json().get("hits") or []
-        except Exception:
-            # 服务不在 / 超时 / 响应畸形：该通道为空，绝不抛。
+        except Exception as exc:
+            # 服务不在 / 超时 / 响应畸形：该通道为空，绝不抛——但不再静默：
+            # 告警日志 + 实例健康记录（health() 与 /api/v2/knowledge/health 可见）。
+            logger.warning("chem-kb semantic channel unavailable (%s): %s", _vec_url(), exc)
+            self._record_health(False, f"{type(exc).__name__}: {exc}")
             return []
+        self._record_health(True)
         db_path = knowledge_graph_db_path()
         out: list[KnowledgeEntry] = []
         for h in hits:

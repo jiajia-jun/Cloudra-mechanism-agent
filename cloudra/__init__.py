@@ -32,8 +32,6 @@ _LAZY_MODULES = {
     # infra
     "config": "cloudra.infra.config",
     "llm_client": "cloudra.infra.llm_client",
-    "events": "cloudra.infra.events",
-    "ipc": "cloudra.infra.ipc",
     "streaming": "cloudra.infra.streaming",
     "token_estimator": "cloudra.infra.token_estimator",
     "web_search_native": "cloudra.infra.web_search_native",

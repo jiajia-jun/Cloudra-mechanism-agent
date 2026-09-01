@@ -3,6 +3,10 @@
 LLM and tool execution are injected protocols, so tests run without network or
 external programs.  Harness behaviour is added exclusively through PolicyStage
 instances; this module never special-cases a tool or orchestration mode.
+
+易失状态（3e）：``_loop_guard``（同一 run 内连续重复调用的计数）是
+**刻意易失**的 per-run 护栏状态——run 不跨进程，重启后计数随进程消失，
+语义正确（新 run 的重复检测从零开始）。
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from cloudra.runtime_v2.policies.base import (
     ToolCall,
     ToolResult,
 )
+from cloudra.runtime_v2.policies.goal_stage import read_goal
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
     AgentSession,
@@ -29,7 +34,7 @@ from cloudra.runtime_v2.schemas import (
     RuntimeSettings,
 )
 
-logger = logging.getLogger("runtime_v2.turn_pipeline")
+logger = logging.getLogger(__name__)
 
 # Streaming delta sink: (kind, text) where kind is "content" or "reasoning".
 DeltaSink = Callable[[str, str], Awaitable[None]]
@@ -134,6 +139,7 @@ class TurnPipeline:
         prompt_provider=None,
         event_hub=None,
         notices=None,
+        goal_reader=read_goal,
     ) -> None:
         self.event_log = event_log
         self.stages = list(stages)
@@ -143,6 +149,12 @@ class TurnPipeline:
         self.prompt_provider = prompt_provider
         self.event_hub = event_hub
         self.notices = notices
+        # Shell-side goal IO: ``goal_reader(agent) -> dict | None`` reads the
+        # persisted goal anchor (sync file IO, offloaded per turn) so stages
+        # receive it read-only via PipelineContext.goal and stay IO-free.
+        # The default is the built-in file reader; pass None to disable goal
+        # injection entirely, or a custom callable to source it elsewhere.
+        self.goal_reader = goal_reader
         # Loop guard state, keyed by session id (one active run per agent):
         # (run_id, call signature, consecutive repeat count).  A new run or a
         # different call resets the streak.
@@ -192,6 +204,9 @@ class TurnPipeline:
     ) -> TurnOutcome:
         emit = self._emitter(agent, run_id)
         notice_sink = notices if notices is not None else self.notices
+        goal = None
+        if self.goal_reader is not None:
+            goal = await asyncio.to_thread(self.goal_reader, agent)
         ctx = PipelineContext(
             agent=agent,
             run_id=run_id,
@@ -201,6 +216,7 @@ class TurnPipeline:
             emit=emit,
             workspace_dir=workspace_dir,
             notices=notice_sink,
+            goal=goal,
         )
 
         messages: list[dict[str, Any]] = []

@@ -10,10 +10,13 @@ Rules:
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from typing import Any, Awaitable, Callable, Iterable
 
 from cloudra.runtime_v2.schemas import EventEnvelope
+
+logger = logging.getLogger(__name__)
 
 # Allowed event types -> short contract description.  Unknown types are rejected
 # in test mode (CLOUDRA_STRICT_EVENTS=1) and always rejected in strict=True.
@@ -36,8 +39,10 @@ EVENT_TYPES: dict[str, str] = {
     "agent.context_reset": "dialogue history reset at a new run; continuity via goal/memory/workspace",
     "approval.requested": "approval waiting",
     "approval.decided": "approval decided",
+    "approval.expired": "approval expired without a decision (process restart)",
     "interaction.requested": "ask_user waiting",
     "interaction.responded": "ask_user answered",
+    "interaction.expired": "ask_user expired without a response (process restart)",
     "command.rejected": "command rejected with stable error code",
     # agent run events
     "agent.state_changed": "state machine transition",
@@ -100,9 +105,7 @@ class EventLog:
                 raise UnknownEventType(type)
             # Unknown types are allowed for forward evolution, but never silent:
             # strict mode and tests catch typos.
-            import logging
-
-            logging.getLogger("runtime_v2.events").warning("unregistered event type %s", type)
+            logger.warning("unregistered event type %s", type)
         self._project_seqs[project_id] += 1
         session_seq = None
         if session_id is not None:
@@ -132,8 +135,11 @@ class EventLog:
         return len(self._events)
 
     @property
-    def last_seq(self) -> int:
-        return max(self._project_seqs.values(), default=0)
+    def high_watermarks(self) -> dict[str, int]:
+        """每项目的 seq 高水位。seq 是 per-project 计数，快照水位必须逐项目
+        记录——单个全局 max 会让快照后他项目 seq ≤ max 的新事件被增量重放
+        永久漏掉（3b 修复的丢事件 bug）。"""
+        return dict(self._project_seqs)
 
     def restore(self, envelopes: list[EventEnvelope]) -> None:
         """Replay persisted envelopes without generating new seq numbers."""
@@ -214,8 +220,4 @@ class EventHub:
                 # Observers must never break the command pipeline.  The hub is
                 # fire-and-forget broadcast; failing subscribers are logged by
                 # the API/SSE layer through its own diagnostics later.
-                import logging
-
-                logging.getLogger("runtime_v2.events").exception(
-                    "event subscriber failed for %s", envelope.type
-                )
+                logger.exception("event subscriber failed for %s", envelope.type)

@@ -41,11 +41,13 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
             payload={"yolo": True, "temperature": 0.2},
         )
     )
+    # 3b 起快照是节流缓存，测试显式冻结快照点。
+    await bus.flush_snapshot()
 
     # 新 core 从同一 store 恢复
     core2 = RuntimeCore(strict_events=True)
-    last_seq = restore_core(core2, store)
-    assert last_seq == core.event_log.last_seq
+    last_seqs = restore_core(core2, store)
+    assert last_seqs == core.event_log.high_watermarks
     assert core2.projects[project.id].name == "durable"
     restored_agent = core2.agents[agent.id]
     assert restored_agent.state == "queued"
@@ -72,6 +74,8 @@ async def test_events_after_snapshot_are_replayed(tmp_path):
     agent = (await bus.execute(
         Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"})
     )).data
+    # 冻结点：快照停在最后一次 bus 命令
+    await bus.flush_snapshot()
 
     # 快照之后、下一次命令之前，模拟运行期状态事件未进快照
     before = len(core.event_log)
@@ -128,7 +132,7 @@ async def test_restore_marks_zombie_running_agents_failed(tmp_path):
         agents=core.agents,
         roles=core.roles._roles,
         runtime_defaults=core.runtime_defaults,
-        last_seq=core.event_log.last_seq,
+        last_seqs=core.event_log.high_watermarks,
     )
 
     restored = RuntimeCore(strict_events=True)
@@ -177,7 +181,7 @@ async def test_restore_merges_snapshot_roles_over_builtins(tmp_path):
         agents=core.agents,
         roles=stale_roles,
         runtime_defaults=core.runtime_defaults,
-        last_seq=core.event_log.last_seq,
+        last_seqs=core.event_log.high_watermarks,
     )
 
     restored = RuntimeCore(strict_events=True)
@@ -232,7 +236,7 @@ async def test_restore_tolerates_removed_agent_fields(tmp_path):
         agents={agent.id: RawDump(legacy_agent)},
         roles=core.roles._roles,
         runtime_defaults=core.runtime_defaults,
-        last_seq=core.event_log.last_seq,
+        last_seqs=core.event_log.high_watermarks,
     )
 
     restored = RuntimeCore(strict_events=True)
@@ -243,3 +247,63 @@ async def test_restore_tolerates_removed_agent_fields(tmp_path):
     assert revived.state.value == "queued"
     assert revived.current_run is not None
     assert revived.current_run.run_id == "run_old"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_is_throttled_cache_not_per_command(tmp_path, monkeypatch):
+    """快照降级为缓存（3b）：命令路径不再每命令整库快照，而是按事件数/时间
+    节流；无快照时 restore 靠全量重放也等价（缓存不是权威）。"""
+    from cloudra.runtime_v2 import commands as commands_mod
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    core.event_hub.subscribe(lambda event: _persist_event(store, event))
+    bus = CommandBus(core)
+
+    saves = 0
+    original_save = store.save_snapshot
+
+    def counting_save(**kwargs):
+        nonlocal saves
+        saves += 1
+        return original_save(**kwargs)
+
+    monkeypatch.setattr(store, "save_snapshot", counting_save)
+
+    await bus.execute(Command(type="project.create", payload={"name": "throttle"}))
+    project = next(iter(core.projects.values()))
+    # 低于阈值：不落快照
+    assert saves == 0
+
+    # 无快照恢复：纯事件重放依然等价（缓存不是权威的直接证据）
+    core2 = RuntimeCore(strict_events=True)
+    restore_core(core2, store)
+    assert core2.projects[project.id].name == "throttle"
+
+    # 事件阈值触发：把阈值压到 2，下一条命令（1 条事件 + 之前 1 条）越阈
+    monkeypatch.setattr(commands_mod, "_SNAPSHOT_EVENT_INTERVAL", 2)
+    await bus.execute(
+        Command(type="project.update", target={"project_id": project.id}, payload={"name": "t2"})
+    )
+    assert saves == 1
+    # 节流复位后未越阈不再落
+    await bus.execute(
+        Command(type="project.update", target={"project_id": project.id}, payload={"name": "t3"})
+    )
+    assert saves == 1
+
+    # 时间阈值触发：间隔压到 0，任何命令都落
+    monkeypatch.setattr(commands_mod, "_SNAPSHOT_TIME_INTERVAL_S", 0.0)
+    await bus.execute(
+        Command(type="project.update", target={"project_id": project.id}, payload={"name": "t4"})
+    )
+    assert saves == 2
+
+    # 关机路径：显式 flush 无条件补一次
+    await bus.flush_snapshot()
+    assert saves == 3
+    # flush 后水位覆盖全部事件：restore 无增量尾巴
+    core3 = RuntimeCore(strict_events=True)
+    restore_core(core3, store)
+    assert core3.projects[project.id].name == "t4"

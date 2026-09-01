@@ -3,23 +3,36 @@ import asyncio
 import io
 import os
 import subprocess
-import time
+import sys
 from pathlib import Path
 
-from cloudra.infra.compute_utils import build_calculator_cmd, check_job_type, get_log_path
-from cloudra.infra.platform_utils import is_posix
-from cloudra.persistence.database import ConversationDB
-from cloudra.persistence.fs_utils import atomic_write_json
-from cloudra.runtime.compute_notify import (
-    build_compute_finish_content,
-    emit_compute_task_finished,
-    resolve_submission_info,
+from cloudra.infra.compute_utils import (
+    build_calculator_cmd,
+    calc_lock_path,
+    check_job_type,
+    get_log_path,
+    guard_lock_path,
 )
+from cloudra.infra.flocks import try_acquire_lock
+from cloudra.infra.platform_utils import is_posix
+from cloudra.persistence.database import ComputeDB
+from cloudra.persistence.fs_utils import atomic_write_json
+from cloudra.services.compute_store import afinalize_compute_job, aupdate_compute_pid
 
 _LOG_TAIL_CHARS = 8000
 _REASON_MAX_CHARS = 500
 # 终止标记：Gaussian "Error termination"、CP2K "PROGRAM FAILED/ABORT" 等
 _FAILURE_MARKERS = ("Error termination", "PROGRAM FAILED", "ABORT", "Error:", "ERROR")
+# adopt 模式等 calc 锁释放的探测间隔（秒）
+_ADOPT_POLL_SECONDS = 5
+# calculator 的 nice 降权幅度：CPU 打满时控制面（API/调度守护）按 CFS 权重
+# 优先分到时间片，状态同步链路不被计算任务饿死。降权不需要特权。
+_CALC_NICE_LEVEL = 10
+
+
+def _lower_sched_priority() -> None:
+    """calculator 子进程 preexec：nice 降权（exec 后仍然继承，POSIX only）。"""
+    os.nice(_CALC_NICE_LEVEL)
 
 
 def _log_tail_reason(log_path: Path) -> str:
@@ -141,69 +154,28 @@ def _parse_cp2k_log(log_path: Path) -> tuple[dict, bool] | None:
     return data_dic, is_success
 
 
-async def run_guard(
-    taskid: int,
-    path: str,
-    conv_id: str,
-    parse_timeout: int,
-    db_path: str,
-    job_type: str = "gaussian",
-):
-    """
-    Guard：calculator 的父进程。
-
-    1. 启动 calculator 子进程并 wait()（事件驱动，不再轮询 mtime）。
-    2. calculator 退出后，在 parse_timeout 窗口内尝试解析日志。
-    3. 解析成功则写 state.json、更新数据库、注入事件；失败则标记 failed。
-    """
-    log_path = Path(get_log_path(path, job_type=job_type))
-    workdir = os.path.dirname(log_path)
-    db = ConversationDB.from_path(db_path)
-
-    ok, msg = check_job_type(job_type, workdir)
-    if not ok:
-        print(f'[guard] 环境检查失败：{msg}')
-        await _mark_failed(db, taskid, msg)
-        return
-
-    ok, calculator_cmd, msg = build_calculator_cmd(path, job_type=job_type)
-    if not ok:
-        print(f'[guard] 无法构建 calculator 命令：{msg}')
-        await _mark_failed(db, taskid, msg)
-        return
-
-    # 启动 calculator；start_new_session 保证 guard 意外退出时 calculator 不被连带杀死。
-    # Windows 不支持 start_new_session，仅 POSIX 传入。
-    from cloudra.infra.compute_utils import (
-        allocate_gaussian_scratch,
-        cleanup_gaussian_scratch,
-    )
-
-    calc_env = os.environ.copy()
-    scratch_dir = None
-    if job_type == "gaussian":
-        scratch_dir = allocate_gaussian_scratch(taskid, workdir)
-        calc_env["GAUSS_SCRDIR"] = str(scratch_dir)
-        print(f'[guard] Gaussian scratch: {scratch_dir}')
-
-    calc_kwargs = {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "stdin": subprocess.DEVNULL,
-        "cwd": workdir,
-        "env": calc_env,
-    }
-    if is_posix():
-        calc_kwargs["start_new_session"] = True
+async def _register_pid(db: ComputeDB, taskid: int, column: str, pid: int):
+    """登记 guard/calc PID。仅作观测取证（agent 可自行 ps 排查），不参与存活判定。"""
     try:
-        calc_proc = await asyncio.create_subprocess_exec(*calculator_cmd, **calc_kwargs)
-        print(f'[guard] calculator 启动 (PID {calc_proc.pid})，等待其结束...')
-        returncode = await calc_proc.wait()
-        print(f'[guard] calculator 退出，退出码：{returncode}')
-    finally:
-        # 必须在 g16 退出后再清；运行中删除会制造 FileIO / 假“输入被删”。
-        cleanup_gaussian_scratch(scratch_dir)
+        await aupdate_compute_pid(db, taskid, column, pid)
+    except Exception as e:
+        print(f'[guard] 登记 {column} 失败（已忽略）: {e}')
 
+
+async def _finalize(
+    db: ComputeDB,
+    taskid: int,
+    log_path: Path,
+    workdir: str,
+    parse_timeout: int,
+    job_type: str,
+    returncode: int | None,
+):
+    """calculator 退出后的统一收尾：解析日志 → 写 state json → CAS 落库 → 入箱。
+
+    终态通知由 API 进程的 ComputeNotifyBroker 轮询 compute_jobs 表补投，
+    guard 不再发进程间事件。
+    """
     data_dic, is_success = await _parse_log(log_path, parse_timeout, job_type=job_type)
     if data_dic is None:
         reason = _log_tail_reason(log_path)
@@ -234,12 +206,8 @@ async def run_guard(
         return
 
     try:
-        async with db.aconnect() as con:
-            await con.execute(
-                "UPDATE compute_jobs SET state=?, end_timestamp=?, last_error=? WHERE id=?",
-                (state, time.time(), fail_reason or None, taskid)
-            )
-            await con.commit()
+        # CAS：同步路径 run_now 或其他收尾方已写终态时不覆盖
+        await afinalize_compute_job(db, taskid, state, last_error=fail_reason or None)
         print(f'[guard] 数据库状态已更新: task_id={taskid}, state={state}')
     except Exception as e:
         print(f'[guard] 更新数据库失败：{e}')
@@ -250,40 +218,147 @@ async def run_guard(
     try:
         from cloudra.dag.controller import enqueue_compute_review
 
-        await enqueue_compute_review(db, taskid, state)
+        await enqueue_compute_review(taskid, state)
     except Exception as e:
         print(f'[guard] enqueue compute review 失败（已忽略）: {e}')
 
-    info = await resolve_submission_info(db, taskid)
-    event_content = build_compute_finish_content(
-        task_id=taskid,
-        state=state,
-        input_path=str(info.get("path") or ""),
-        log_path=str(log_path),
-        json_path=json_path,
-        fail_reason=fail_reason,
-    )
-    emit_compute_task_finished(
-        conv_id,
-        task_id=taskid,
-        state=state,
-        content=event_content,
-        session_id=info.get("session_id"),
-        notify_coordinator=True,
-    )
-    print(f'[guard] compute task_finished emitted: task_id={taskid}, state={state}')
+
+async def run_guard(
+    taskid: int,
+    path: str,
+    conv_id: str,
+    parse_timeout: int,
+    db_path: str,
+    job_type: str = "gaussian",
+):
+    """
+    Guard：calculator 的父进程。
+
+    0. 对 guard-<id>.lock 持排他 flock（进程死内核放锁）——OS 级防重 + 存活证据。
+    1. 经 calc_lock_wrapper 启动 calculator 并 wait()（事件驱动，不再轮询 mtime）。
+    2. calculator 退出后，在 parse_timeout 窗口内尝试解析日志。
+    3. 解析成功则写 state.json、更新数据库、注入事件；失败则标记 failed。
+    """
+    log_path = Path(get_log_path(path, job_type=job_type))
+    workdir = os.path.dirname(log_path)
+    db = ComputeDB.from_path(db_path)
+
+    guard_fd = try_acquire_lock(guard_lock_path(workdir, taskid))
+    if guard_fd is None:
+        print(f'[guard] task {taskid} 已有 guard 持锁在管，退出（OS 级防重）')
+        return
+    try:
+        await _register_pid(db, taskid, "guard_pid", os.getpid())
+
+        ok, msg = check_job_type(job_type, workdir)
+        if not ok:
+            print(f'[guard] 环境检查失败：{msg}')
+            await _mark_failed(db, taskid, msg)
+            return
+
+        ok, calculator_cmd, msg = build_calculator_cmd(path, job_type=job_type)
+        if not ok:
+            print(f'[guard] 无法构建 calculator 命令：{msg}')
+            await _mark_failed(db, taskid, msg)
+            return
+
+        # 启动 calculator；start_new_session 保证 guard 意外退出时 calculator 不被连带杀死。
+        # Windows 不支持 start_new_session，仅 POSIX 传入。
+        from cloudra.infra.compute_utils import (
+            allocate_gaussian_scratch,
+            cleanup_gaussian_scratch,
+        )
+
+        calc_env = os.environ.copy()
+        scratch_dir = None
+        if job_type == "gaussian":
+            scratch_dir = allocate_gaussian_scratch(taskid, workdir)
+            calc_env["GAUSS_SCRDIR"] = str(scratch_dir)
+            print(f'[guard] Gaussian scratch: {scratch_dir}')
+
+        # calculator 必须经锁 wrapper 拉起：calc-<id>.lock 跨 exec 继承，
+        # calculator 全家存续期间锁有效——这是对账判定"计算是否还在跑"的唯一权威。
+        wrapped_cmd = [
+            sys.executable,
+            "-m",
+            "cloudra.runtime.calc_lock_wrapper",
+            calc_lock_path(workdir, taskid),
+            "--",
+            *calculator_cmd,
+        ]
+        calc_kwargs = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "stdin": subprocess.DEVNULL,
+            "cwd": workdir,
+            "env": calc_env,
+        }
+        if is_posix():
+            calc_kwargs["start_new_session"] = True
+            calc_kwargs["preexec_fn"] = _lower_sched_priority
+        returncode: int | None = None
+        try:
+            calc_proc = await asyncio.create_subprocess_exec(*wrapped_cmd, **calc_kwargs)
+            await _register_pid(db, taskid, "calc_pid", calc_proc.pid)
+            print(f'[guard] calculator 启动 (PID {calc_proc.pid})，等待其结束...')
+            returncode = await calc_proc.wait()
+            print(f'[guard] calculator 退出，退出码：{returncode}')
+        finally:
+            # 必须在 g16 退出后再清；运行中删除会制造 FileIO / 假“输入被删”。
+            cleanup_gaussian_scratch(scratch_dir)
+
+        await _finalize(db, taskid, log_path, workdir, parse_timeout, job_type, returncode)
+    finally:
+        os.close(guard_fd)
 
 
-async def _mark_failed(db: ConversationDB, taskid: int, message: str):
+async def run_adopt(
+    taskid: int,
+    path: str,
+    conv_id: str,
+    parse_timeout: int,
+    db_path: str,
+    job_type: str = "gaussian",
+):
+    """对账接管：guard 已死但作业仍 running 时由调度器拉起。
+
+    不启动新计算：阻塞等 calc 锁释放（内核保证进程死锁必放，无死等），
+    然后走与正常 guard 完全相同的解析/落库/通知路径。calc 锁未被持有
+    （guard 死在 spawn 前或 calc 已结束）时立即进入解析——日志缺失或
+    不可解析则置 failed。全程零 PID 探测。
+    """
+    log_path = Path(get_log_path(path, job_type=job_type))
+    workdir = os.path.dirname(log_path)
+    db = ComputeDB.from_path(db_path)
+
+    guard_fd = try_acquire_lock(guard_lock_path(workdir, taskid))
+    if guard_fd is None:
+        print(f'[guard adopt] task {taskid} 已有 guard 持锁在管，退出')
+        return
+    try:
+        await _register_pid(db, taskid, "guard_pid", os.getpid())
+        calc_lock = calc_lock_path(workdir, taskid)
+        while True:
+            calc_fd = try_acquire_lock(calc_lock)
+            if calc_fd is not None:
+                os.close(calc_fd)
+                break
+            print(f'[guard adopt] calc 锁仍被持有，calculator 还在跑；{_ADOPT_POLL_SECONDS}s 后再探...')
+            await asyncio.sleep(_ADOPT_POLL_SECONDS)
+        await _finalize(db, taskid, log_path, workdir, parse_timeout, job_type, None)
+    finally:
+        os.close(guard_fd)
+
+
+async def _mark_failed(
+    db: ComputeDB,
+    taskid: int,
+    message: str,
+):
     """将任务标记为 failed，错误信息同时落 last_error（query_compute_job 直接可读）。"""
     print(f'Error: {message}')
     try:
-        async with db.aconnect() as con:
-            await con.execute(
-                "UPDATE compute_jobs SET state=?, end_timestamp=?, last_error=? WHERE id=?",
-                ('failed', time.time(), message[:500], taskid)
-            )
-            await con.commit()
+        await afinalize_compute_job(db, taskid, 'failed', last_error=message[:500])
     except Exception as e:
         print(f'[guard] 标记 failed 失败：{e}')
         return
@@ -291,9 +366,11 @@ async def _mark_failed(db: ConversationDB, taskid: int, message: str):
     try:
         from cloudra.dag.controller import enqueue_compute_review
 
-        await enqueue_compute_review(db, taskid, 'failed')
+        await enqueue_compute_review(taskid, 'failed')
     except Exception as e:
         print(f'[guard] enqueue compute review 失败（已忽略）: {e}')
+    # 早期失败（环境检查等）的终态通知由 ComputeNotifyBroker 轮询补投，
+    # guard 不再发进程间事件。
 
 
 if __name__ == '__main__':
@@ -304,9 +381,12 @@ if __name__ == '__main__':
     parser.add_argument('--timeout', type=int, required=True)
     parser.add_argument('--db_path', type=str, required=True)
     parser.add_argument('--job_type', type=str, default='gaussian')
+    parser.add_argument('--adopt', action='store_true',
+                        help='对账接管模式：不启动新计算，等 calc 锁释放后收尾')
     args = parser.parse_args()
 
-    asyncio.run(run_guard(
+    runner = run_adopt if args.adopt else run_guard
+    asyncio.run(runner(
         taskid=args.task_id,
         path=args.path,
         conv_id=args.conv_id,

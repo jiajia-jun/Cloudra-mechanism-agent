@@ -104,6 +104,10 @@ class RoleRegistry:
 
     def update(self, role_id: str, patch: dict) -> RoleProfile:
         role = self.require(role_id)
-        updated = role.model_copy(update=patch)
+        # 整模型重校验：patch 里的嵌套 dict（default_settings/permissions/
+        # tool_policy）必须落成对应模型实例。裸 model_copy 不校验，会让活
+        # core 持 dict 而快照恢复持模型——同一份 role.updated 事件在两条
+        # 路径上推出不同形态（等价性门禁实测漂移点）。
+        updated = RoleProfile.model_validate({**role.model_dump(mode="json"), **patch})
         self._roles[role_id] = updated
         return updated

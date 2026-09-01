@@ -1,4 +1,4 @@
-"""手写坐标守卫（text_writer / edit_file / bashtools，放行+警告）与会话复活状态测试。"""
+"""手写坐标守卫（text_writer / edit_file / bashtools，放行+警告）测试。"""
 
 import hashlib
 from types import SimpleNamespace
@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.persistence.database import ConversationDB
-from cloudra.services import session_store
 from cloudra.tools.Bashtool.bashtools import Bashtools, Bashtools_input_schema
 from cloudra.tools.core.coord_guard import (
     count_consecutive_coord_lines,
@@ -136,65 +135,3 @@ async def test_bash_allows_normal_commands(tmp_path):
     )
     assert out.exit_code == 0
     assert "hello" in out.result
-
-
-@pytest.mark.asyncio
-async def test_aresume_session_revives_completed_and_waiting(tmp_path):
-    db = ConversationDB(f"resume-{tmp_path.name}").init()
-    session_store.create_session_record(
-        db,
-        session_id="s1",
-        agent_id="a-0",
-        agent_type="coordinator",
-        parent_session_id=None,
-        query="q",
-        created_at="2026-08-12T00:00:00+00:00",
-    )
-    await session_store.afinalize_session(db, "s1", "completed", result="done")
-
-    assert await session_store.aresume_session(db, "s1") is True
-    async with db.aconnect() as con:
-        cur = await con.execute(
-            "SELECT state, finished_at, result FROM session WHERE session_id='s1'"
-        )
-        state, finished_at, result = await cur.fetchone()
-    assert state == "running"
-    assert finished_at is None
-    assert result == "done"
-
-    # 挂起（waiting）同样应被唤醒续跑
-    session_store.create_session_record(
-        db,
-        session_id="s1b",
-        agent_id="a-0",
-        agent_type="coordinator",
-        parent_session_id=None,
-        query="q",
-        created_at="2026-08-12T00:00:00+00:00",
-    )
-    await session_store.asuspend_session(db, "s1b", result="挂起等后台")
-    assert await session_store.aresume_session(db, "s1b") is True
-    async with db.aconnect() as con:
-        cur = await con.execute(
-            "SELECT state, finished_at, result FROM session WHERE session_id='s1b'"
-        )
-        state, finished_at, result = await cur.fetchone()
-    assert state == "running"
-    assert finished_at is None
-    assert result == "挂起等后台"
-
-    # cancelled 是用户明确终态，绝不被唤醒覆盖
-    session_store.create_session_record(
-        db,
-        session_id="s2",
-        agent_id="a-0",
-        agent_type="coordinator",
-        parent_session_id=None,
-        query="q",
-        created_at="2026-08-12T00:00:00+00:00",
-    )
-    await session_store.afinalize_session(db, "s2", "cancelled")
-    assert await session_store.aresume_session(db, "s2") is False
-    async with db.aconnect() as con:
-        cur = await con.execute("SELECT state FROM session WHERE session_id='s2'")
-        assert (await cur.fetchone())[0] == "cancelled"

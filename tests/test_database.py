@@ -5,9 +5,10 @@ import sqlite3
 
 import pytest
 
-from cloudra.infra.config import get_config, reload_config
+from cloudra.infra.config import _reset_for_tests, get_config
 from cloudra.persistence.database import (
     SCHEMA_VERSION,
+    ComputeDB,
     ConversationDB,
     aretry_on_locked,
     get_database_path,
@@ -21,7 +22,7 @@ def isolated_db(tmp_path, monkeypatch):
     data_dir = tmp_path / "cloudra_data"
     data_dir.mkdir()
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
-    reload_config()
+    _reset_for_tests()
     cfg = get_config()
     cfg.data_dir = data_dir
     return str(data_dir)
@@ -66,41 +67,74 @@ def test_conversation_db_init_creates_tables(isolated_db):
         tables = {row[0] for row in cur.fetchall()}
 
     assert "session" in tables
-    assert "subagent_requests" in tables
-    assert "approvals" in tables
-    assert "compute_jobs" in tables
+    # compute_jobs 已迁到中央库（ComputeDB），会话库不再建此表
+    assert "compute_jobs" not in tables
+    # 六张 legacy 表已删除，init 不再创建
+    for dead_table in (
+        "subagent_requests",
+        "approvals",
+        "scheduled_reminders",
+        "client_commands",
+        "interactions",
+        "hub_posts",
+    ):
+        assert dead_table not in tables
     assert "session_events" in tables
-    assert "client_commands" in tables
-    assert "interactions" in tables
     assert "artifacts" in tables
     assert "artifact_download_tokens" in tables
-    assert "hub_posts" in tables
     assert "schema_migrations" in tables
     with sqlite3.connect(db.path) as con:
         session_columns = {row[1] for row in con.execute("PRAGMA table_info(session)")}
-    assert {"agent_id", "query", "error", "pid", "started_at", "finished_at"} <= session_columns
-    with sqlite3.connect(db.path) as con:
-        compute_columns = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
-        subagent_columns = {row[1] for row in con.execute("PRAGMA table_info(subagent_requests)")}
-        approval_columns = {
-            row[1] for row in con.execute("PRAGMA table_info(approvals)")
-        }
         version = con.execute(
             "SELECT MAX(version) FROM schema_migrations"
         ).fetchone()[0]
-    assert "session_id" in compute_columns
-    assert {"session_id", "parent_session_id"} <= subagent_columns
-    assert {
-        "tool_name",
-        "normalized_arguments",
-        "risk_summary",
-        "candidate_diff",
-        "requested_at",
-        "expires_at",
-        "decided_by",
-        "decided_at",
-    } <= approval_columns
+    assert {"agent_id", "query", "error", "pid", "started_at", "finished_at"} <= session_columns
     assert version == SCHEMA_VERSION
+
+
+def test_compute_db_init_creates_central_schema(isolated_db):
+    """中央 ComputeDB：compute_jobs 全列内置（含 session_id）+ 认领/通知索引 + WAL。"""
+    db = ComputeDB().init()
+    assert db.path.endswith(os.path.join("compute.db"))
+    assert os.path.dirname(db.path) == str(get_config().data_dir)
+
+    with db.connect() as con:
+        tables = {
+            row[0]
+            for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert tables >= {"compute_jobs"}
+        columns = {row[1] for row in con.execute("PRAGMA table_info(compute_jobs)")}
+        assert {
+            "id", "conversation_id", "session_id", "state", "path",
+            "start_timestamp", "end_timestamp", "jobtype", "scheduler",
+            "scheduler_options", "scheduler_job_id", "scheduler_state",
+            "scheduler_script", "last_error", "lease_owner", "lease_expires_at",
+            "attempt_count", "priority", "req_cpus", "req_memory_mb",
+            "guard_pid", "calc_pid", "notified_at",
+        } == columns
+        indexes = {
+            row[0]
+            for row in con.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        }
+        assert {"idx_compute_jobs_claim", "idx_compute_jobs_notify"} <= indexes
+        # conversation_id 是 NOT NULL（作业归属必填）
+        assert con.execute(
+            "SELECT \"notnull\" FROM pragma_table_info('compute_jobs') WHERE name='conversation_id'"
+        ).fetchone()[0] == 1
+        cur = con.execute("PRAGMA journal_mode")
+        assert cur.fetchone()[0].upper() == "WAL"
+
+
+def test_compute_db_from_path_bypasses_config(tmp_path):
+    """from_path：guard/Slurm 子进程拿显式 --db_path，不解析全局配置。"""
+    custom = tmp_path / "elsewhere" / "compute.db"
+    db = ComputeDB.from_path(str(custom)).init()
+    assert db.path == str(custom)
+    with db.connect() as con:
+        assert con.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='compute_jobs'"
+        ).fetchone() is not None
 
 
 def test_conversation_db_isolation(isolated_db):
@@ -191,18 +225,19 @@ def test_concurrent_init_does_not_raise_duplicate_column(tmp_path):
     db = ConversationDB("race-init", data_dir=tmp_path)
     db.ensure_dir()
     with sqlite3.connect(db.path) as con:
-        # 缺 to_agent 的旧 hub_posts：CREATE IF NOT EXISTS 不会重建，迁移会 ADD COLUMN。
+        # 缺 stages 的旧 dag_nodes：CREATE IF NOT EXISTS 不会重建，迁移会 ADD COLUMN。
         con.execute(
             """
-            CREATE TABLE hub_posts(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                topic TEXT NOT NULL,
-                kind TEXT NOT NULL,
-                author_agent TEXT NOT NULL,
-                author_session TEXT NOT NULL DEFAULT '',
-                parent_id INTEGER,
-                content TEXT NOT NULL,
-                created_at TEXT NOT NULL
+            CREATE TABLE dag_nodes(
+                graph_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                node_type TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                refs TEXT NOT NULL DEFAULT '[]',
+                payload TEXT NOT NULL DEFAULT '{}',
+                created_revision INTEGER NOT NULL,
+                updated_revision INTEGER NOT NULL,
+                PRIMARY KEY(graph_id, node_id)
             )
             """
         )
@@ -223,9 +258,9 @@ def test_concurrent_init_does_not_raise_duplicate_column(tmp_path):
         thread.join()
     assert errors == [], errors
     with sqlite3.connect(db.path) as con:
-        cols = {row[1] for row in con.execute("PRAGMA table_info(hub_posts)")}
+        cols = {row[1] for row in con.execute("PRAGMA table_info(dag_nodes)")}
         version = con.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
-    assert "to_agent" in cols
+    assert "stages" in cols
     assert version == SCHEMA_VERSION
 
 
@@ -233,8 +268,8 @@ def test_add_column_ignores_duplicate_column(tmp_path):
     db = ConversationDB("dup-col", data_dir=tmp_path).init()
     with db.connect() as con:
         cur = con.cursor()
-        ConversationDB._add_column(cur, "hub_posts", "to_agent", "TEXT")
-        ConversationDB._add_column(cur, "hub_posts", "to_agent", "TEXT")
+        ConversationDB._add_column(cur, "session", "orchestration_mode", "TEXT")
+        ConversationDB._add_column(cur, "session", "orchestration_mode", "TEXT")
 
 
 def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):
@@ -256,13 +291,3 @@ def test_init_migrates_legacy_session_table_without_losing_rows(isolated_db):
             ("legacy-1",),
         ).fetchone()
     assert row == ("legacy-1", "sleeping", "old result", None, None)
-
-
-class TestApprovalSanitize:
-    """终端粘贴的 GBK 字节会以孤立代理符残留，审批写库前必须净化。"""
-
-    def test_sanitize_db_text_passthrough_clean(self):
-        from cloudra.services import session_store
-
-        assert session_store.sanitize_db_text("正常中文 abc 123") == "正常中文 abc 123"
-        assert session_store.sanitize_db_text("") == ""

@@ -32,7 +32,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
-logger = logging.getLogger("runtime_v2.knowledge")
+logger = logging.getLogger(__name__)
 
 EVIDENCE_LEVELS = ("L0", "L1", "L2")
 # Retrieval ranking per the validation plan: verified computation first,

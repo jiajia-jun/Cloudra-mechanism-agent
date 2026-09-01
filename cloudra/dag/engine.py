@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import uuid
 from collections import deque
@@ -925,8 +926,7 @@ class DagEngine:
                 self._validate_ref(con, ref)
         self._validate_acyclic(state)
 
-    @staticmethod
-    def _validate_ref(con: sqlite3.Connection, ref: GraphRef) -> None:
+    def _validate_ref(self, con: sqlite3.Connection, ref: GraphRef) -> None:
         if ref.ref_type == "species":
             row = con.execute(
                 "SELECT 1 FROM dag_species WHERE species_id = ?", (ref.ref_id,)
@@ -951,7 +951,8 @@ class DagEngine:
             except (TypeError, ValueError):
                 row = None
             else:
-                row = con.execute("SELECT 1 FROM compute_jobs WHERE id = ?", (job_id,)).fetchone()
+                # compute_jobs 已迁到中央 compute.db（不再属于会话库）
+                row = self._find_compute_job(job_id)
         else:  # GraphRef validation should make this unreachable.
             row = None
         if row is None:
@@ -959,6 +960,19 @@ class DagEngine:
                 "invalid_reference",
                 f"{ref.ref_type} reference {ref.ref_id!r} does not resolve",
             )
+
+    def _find_compute_job(self, job_id: int):
+        """compute_job 引用的存在性校验打中央 compute.db；库不存在即不存在。"""
+        from cloudra.persistence.database import ComputeDB
+        from cloudra.services.compute_store import get_compute_job
+
+        db = ComputeDB(data_dir=self.store.db.data_dir)
+        try:
+            if not os.path.isfile(db.path) or os.path.getsize(db.path) == 0:
+                return None
+        except OSError:
+            return None
+        return get_compute_job(db, job_id)
 
     @staticmethod
     def _validate_acyclic(state: _GraphState) -> None:

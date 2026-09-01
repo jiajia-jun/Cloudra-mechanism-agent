@@ -220,10 +220,15 @@ class CommandResult(BaseModel):
 
 
 class CommandRejected(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, *, events: tuple = ()):
         super().__init__(message)
         self.code = code
         self.message = message
+        # 拒绝前的领域审计草稿（如 agent.spawn_requested / agent.spawn_rejected /
+        # agent.restart_requested）：decide 是纯函数不能自行落日志，把草稿挂在
+        # 异常上，CommandBus 的拒绝路径先落这些再落 command.rejected。
+        # 类型为 tuple[EventDraft, ...]（effects.py，避免 schemas->effects 之外的回环）。
+        self.events: tuple = events
 
 
 class EventEnvelope(BaseModel):

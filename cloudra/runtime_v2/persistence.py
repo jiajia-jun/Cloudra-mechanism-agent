@@ -2,6 +2,14 @@
 
 SQLite is used synchronously behind ``asyncio.to_thread`` only; this module
 never runs on the event-loop thread.
+
+快照是缓存不是权威：权威是 events 表，快照只是 restore 的加速点。
+``seq`` 是 per-project 计数（见 events.py），所以快照 meta 存**每项目高水
+位** ``last_seqs: {project_id: seq}``，``events_after`` 按项目过滤——单个
+全局 max 水位会让多项目交错时快照后他项目的新事件（seq ≤ max）被永久漏
+重放（3b 修复的丢事件 bug，等价门禁场景 D 守这条）。beta 不留兼容：旧
+库只有 ``last_seq`` meta、没有 ``last_seqs``，水位按空处理——快照载荷
+照装，但尾巴退化为全量重放（投影幂等，终态与纯重放一致）。
 """
 
 from __future__ import annotations
@@ -11,13 +19,17 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from cloudra.runtime_v2.apply import (
+    _strip_computed_fields,
+    _strip_removed_agent_fields,
+    apply_event,
+)
 from cloudra.runtime_v2.schemas import (
     AgentSession,
     EventEnvelope,
     Project,
     RoleProfile,
     RuntimeSettings,
-    RuntimeSettingsPatch,
 )
 
 _SCHEMA = """
@@ -44,29 +56,6 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 """
-
-
-def _strip_computed_fields(value: Any) -> Any:
-    """Remove computed-only keys (currently api_key_set) before persistence."""
-    if isinstance(value, dict):
-        return {k: _strip_computed_fields(v) for k, v in value.items() if k != "api_key_set"}
-    if isinstance(value, list):
-        return [_strip_computed_fields(item) for item in value]
-    return value
-
-
-def _strip_removed_agent_fields(data: dict[str, Any]) -> dict[str, Any]:
-    """Drop agent fields removed after older snapshots/events were written.
-
-    AgentSession validates with extra="forbid", so a pre-removal snapshot
-    carrying ``state_since`` or ``current_run.current_tool`` would fail to
-    restore; both fields had no readers, so dropping them is lossless.
-    """
-    data = {k: v for k, v in data.items() if k != "state_since"}
-    run = data.get("current_run")
-    if isinstance(run, dict):
-        data["current_run"] = {k: v for k, v in run.items() if k != "current_tool"}
-    return data
 
 
 class RuntimeStore:
@@ -111,7 +100,7 @@ class RuntimeStore:
         agents: dict[str, AgentSession],
         roles: dict[str, RoleProfile],
         runtime_defaults: RuntimeSettings,
-        last_seq: int,
+        last_seqs: dict[str, int],
     ) -> None:
         payload = _strip_computed_fields(
             {
@@ -127,30 +116,50 @@ class RuntimeStore:
                 (json.dumps(payload, ensure_ascii=False),),
             )
             con.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES ('last_seq', ?)",
-                (str(last_seq),),
+                "INSERT OR REPLACE INTO meta(key, value) VALUES ('last_seqs', ?)",
+                (json.dumps(last_seqs),),
             )
 
-    def load_snapshot(self) -> tuple[dict[str, Any], int]:
+    def load_snapshot(self) -> tuple[dict[str, Any] | None, dict[str, int]]:
         with self._connect() as con:
             row = con.execute(
                 "SELECT data FROM objects WHERE kind='snapshot' AND obj_id='state'"
             ).fetchone()
             meta = con.execute(
-                "SELECT value FROM meta WHERE key='last_seq'"
+                "SELECT value FROM meta WHERE key='last_seqs'"
             ).fetchone()
         data = json.loads(row[0]) if row else None
-        last_seq = int(meta[0]) if meta else 0
-        return data, last_seq
+        last_seqs = {str(k): int(v) for k, v in json.loads(meta[0]).items()} if meta else {}
+        return data, last_seqs
 
-    def events_after(self, last_seq: int) -> list[dict[str, Any]]:
+    def events_after(self, last_seqs: dict[str, int]) -> list[dict[str, Any]]:
+        """Events past the per-project high watermarks, in append (rowid) order.
+
+        Projects absent from ``last_seqs`` are replayed from their beginning
+        (they postdate the snapshot); ``{}`` therefore means "everything".
+        rowid order preserves the global append order across projects, so the
+        replayed tail is causally ordered (and the full backfill no longer
+        interleaves projects by their independent seq counters).
+        """
+        params: list[Any] = []
+        if not last_seqs:
+            where = "1=1"
+        else:
+            clauses = []
+            for project_id, seq in last_seqs.items():
+                clauses.append("(project_id = ? AND seq > ?)")
+                params.extend([project_id, seq])
+            placeholders = ",".join("?" for _ in last_seqs)
+            clauses.append(f"project_id NOT IN ({placeholders})")
+            params.extend(last_seqs.keys())
+            where = " OR ".join(clauses)
         with self._connect() as con:
             rows = con.execute(
-                """
+                f"""
                 SELECT event_id, stream, project_id, session_id, run_id, seq, session_seq, type, data, created_at
-                FROM events WHERE seq > ? ORDER BY seq
+                FROM events WHERE {where} ORDER BY rowid
                 """,
-                (last_seq,),
+                params,
             ).fetchall()
         events = []
         for row in rows:
@@ -185,14 +194,18 @@ class RuntimeStore:
         )) for row in reversed(rows)]
 
 
-def restore_core(core: Any, store: RuntimeStore) -> int:
+def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     """Load the latest snapshot, then replay state-relevant events after it.
 
-    Returns the last replayed project seq.  Events are appended back into the
-    in-memory log with their original seq so new events continue monotonically.
+    Returns the per-project high watermarks after restore.  Events are
+    appended back into the in-memory log with their original seq so new
+    events continue monotonically.  Restore also closes what the dead process
+    left open: zombie RUNNING/WAITING agents are finalized as failed, and
+    orphaned pending approvals/interactions get explicit
+    approval.expired / interaction.expired terminal events (3c).
     """
 
-    snapshot, last_seq = store.load_snapshot()
+    snapshot, last_seqs = store.load_snapshot()
     if snapshot:
         core.projects = {
             pid: Project.model_validate(data)
@@ -217,15 +230,15 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
-    raw_events = store.events_after(last_seq)
+    raw_events = store.events_after(last_seqs)
     envelopes = [EventEnvelope.model_validate(raw) for raw in raw_events]
     # Backfill the full event history into the in-memory log so transcripts
     # and per-session queries survive restarts; only post-snapshot events
     # drive state replay.  restore() keeps seq counters monotonic via max().
-    backfill = [EventEnvelope.model_validate(raw) for raw in store.events_after(0)]
+    backfill = [EventEnvelope.model_validate(raw) for raw in store.events_after({})]
     core.event_log.restore(backfill)
     for envelope in envelopes:
-        _replay_event(core, envelope)
+        apply_event(core, envelope)
     # Notice pins are event-sourced too: rebuild them from the full
     # projection (one-shot pushes are intentionally not restored).
     core.notices.restore_from(core.event_log)
@@ -254,6 +267,13 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
                 agent, AgentState.FAILED, reason="interrupted by process restart"
             )
         new_events.extend(list(core.event_log)[before:])
+    # Orphaned pending entries (a requested approval/interaction whose waiter
+    # died with the previous process) get an explicit terminal
+    # approval.expired / interaction.expired event, so a woken agent sees a
+    # definite terminal state in the event stream instead of the request
+    # silently vanishing.  Same append + apply + persist path as the zombie
+    # finalization above (no hub publish: restore runs before subscribers).
+    new_events.extend(core.pending.expire_orphans())
     for envelope in new_events:
         store.append_event(envelope)
     if new_events:
@@ -262,56 +282,6 @@ def restore_core(core: Any, store: RuntimeStore) -> int:
             agents=core.agents,
             roles=core.roles._roles,
             runtime_defaults=core.runtime_defaults,
-            last_seq=core.event_log.last_seq,
+            last_seqs=core.event_log.high_watermarks,
         )
-    return envelopes[-1].seq if envelopes else last_seq
-
-
-def _replay_event(core: Any, envelope: EventEnvelope) -> None:
-    data = envelope.data
-    event_type = envelope.type
-    if event_type == "project.created":
-        project = Project.model_validate(data)
-        core.projects[project.id] = project
-    elif event_type == "project.updated":
-        project = core.require_project(envelope.project_id)
-        changes = data.get("changes", {})
-        project = project.model_copy(update=changes)
-        project.touch()
-        core.projects[project.id] = project
-    elif event_type == "project.settings_changed":
-        project = core.require_project(envelope.project_id)
-        from cloudra.runtime_v2.schemas import ProjectSettings
-
-        settings = ProjectSettings.model_validate(data["changes"])
-        project = project.model_copy(update={"settings": settings})
-        project.touch()
-        core.projects[project.id] = project
-    elif event_type == "agent.spawned":
-        agent = AgentSession.model_validate(_strip_removed_agent_fields(data))
-        core.agents[agent.id] = agent
-        core.mailbox.ensure_inbox(agent.id)
-    elif event_type == "agent.settings_changed":
-        agent = core.require_agent(envelope.session_id or "")
-        changes = {k: v for k, v in data.get("changes", {}).items() if k != "api_key_set"}
-        agent.settings = agent.settings.apply(RuntimeSettingsPatch.model_validate(changes))
-        agent.settings_revision = int(data.get("settings_revision", agent.settings_revision))
-        agent.touch()
-    elif event_type == "agent.state_changed":
-        agent = core.require_agent(envelope.session_id or "")
-        from cloudra.runtime_v2.schemas import AgentState
-
-        agent.state = AgentState(data["to"])
-        agent.touch()
-    elif event_type == "run.started":
-        agent = core.require_agent(envelope.session_id or "")
-        from cloudra.runtime_v2.schemas import CurrentRun
-
-        agent.current_run = CurrentRun(run_id=envelope.run_id or "", started_at=envelope.created_at)
-        agent.touch()
-    elif event_type in {"run.finished", "agent.cancelled"}:
-        agent = core.require_agent(envelope.session_id or "")
-        agent.current_run = None
-        agent.touch()
-    elif event_type == "role.updated":
-        core.roles.update(data["role_id"], data["changes"])
+    return core.event_log.high_watermarks

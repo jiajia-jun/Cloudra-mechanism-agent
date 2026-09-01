@@ -1,6 +1,5 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from pydantic import BaseModel
@@ -16,8 +15,8 @@ from cloudra.tools.core.permission_model import Permission
 if TYPE_CHECKING:
     from cloudra.infra.yolo_guard import YoloGuard
 
-# runtime_v2 的审批钩子：LegacyToolExecutor 在执行工具前设置；未设置时
-# （CLI/Flet/旧服务层）request_approval 维持原有的 SQLite + 事件总线等待。
+# runtime_v2 的审批钩子：LegacyToolExecutor 在执行工具前总是设置；
+# 未设置即生产外路径（v1/CLI/Flet 已删除），request_approval 直接抛错。
 # 签名: async (**fields) -> tuple[bool, str]，字段同 request_approval 的关键字参数。
 _APPROVAL_HANDLER: ContextVar[
     Optional[Callable[..., Awaitable[tuple[bool, str]]]]
@@ -280,103 +279,21 @@ class Tool(BaseModel):
         risk_summary: str = "",
         candidate_diff: str = "",
     ) -> tuple[bool, str]:
-        import asyncio
-
-        from cloudra.infra import events
-        from cloudra.services import session_store as _ss
-
         handler = _APPROVAL_HANDLER.get()
-        if handler is not None:
-            # runtime_v2 上下文：审批请求与等待由内核 broker 承担，
-            # 不碰 conversation SQLite 与 legacy 事件总线。
-            return await handler(
-                details=details,
-                tool_name=tool_name,
-                normalized_arguments=normalized_arguments or {},
-                risk_summary=risk_summary,
-                candidate_diff=candidate_diff,
+        if handler is None:
+            # v1 时代"SQLite + 事件总线等待"的审批回退已随旧服务层删除。
+            raise RuntimeError(
+                "no approval handler installed: runtime_v2 LegacyToolExecutor always sets one"
             )
-
-        db = ConversationDB.from_path(db_path)
-        conversation_id = getattr(self.subagent, "conversation_id", None)
-        if not conversation_id:
-            conversation_id = Path(db_path).parent.parent.name
-        decisions = await events.subscribe_async(conversation_id, "approval_decided")
-        approval_id = await _ss.ainsert_approval(
-            db,
-            session_id,
-            details,
-            agent_name=(
-                self.subagent.name if self.subagent else "Unknown Agent"
-            ),
+        # runtime_v2 上下文：审批请求与等待由内核 broker 承担，
+        # 不碰 conversation SQLite。
+        return await handler(
+            details=details,
             tool_name=tool_name,
-            normalized_arguments=normalized_arguments,
+            normalized_arguments=normalized_arguments or {},
             risk_summary=risk_summary,
             candidate_diff=candidate_diff,
         )
-        changed = await _ss.atransition_session_state(
-            db,
-            session_id,
-            expected={"running"},
-            target="waiting_for_approval",
-        )
-        if changed:
-            await _ss.ainsert_session_event(
-                db,
-                session_id,
-                "waiting_for_approval",
-                {
-                    "approval_id": approval_id,
-                    "state": "waiting_for_approval",
-                },
-            )
-        try:
-            while True:
-                try:
-                    message = await asyncio.wait_for(decisions.get(), timeout=30.0)
-                except asyncio.TimeoutError:
-                    message = None
-                if message and message.get("approval_id") == approval_id:
-                    state = message.get("state")
-                    denial_reason = message.get("denial_reason", "")
-                    if state == "approved":
-                        print("\033[92m[安全审计]\033[0m 审批通过。")
-                        return True, ""
-                    if state == "denied":
-                        return False, denial_reason
-                row = await _ss.aread_approval_status(db, approval_id)
-                if row:
-                    state, denial_reason = row
-                    if state == 'approved':
-                        print("\033[92m[安全审计]\033[0m 审批通过。")
-                        return True, ''
-                    elif state == 'denied':
-                        reason = denial_reason or ''
-                        if reason:
-                            print(f"\033[91m[安全审计]\033[0m 审批拒绝。原因: {reason}")
-                        else:
-                            print("\033[91m[安全审计]\033[0m 审批拒绝。")
-                        return False, reason
-                    elif state == "expired":
-                        print("\033[91m[安全审计]\033[0m 审批已过期。")
-                        return False, "审批已过期"
-        finally:
-            restored = await _ss.atransition_session_state(
-                db,
-                session_id,
-                expected={"waiting_for_approval"},
-                target="running",
-            )
-            if restored:
-                await _ss.ainsert_session_event(
-                    db,
-                    session_id,
-                    "running",
-                    {
-                        "approval_id": approval_id,
-                        "state": "running",
-                    },
-                )
 
     @classmethod
     def _get_field_default(cls, field_name: str):

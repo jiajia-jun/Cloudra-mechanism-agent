@@ -1,29 +1,73 @@
-"""Command bus: every user operation becomes an event, then mutates memory.
+"""Command bus: decide（纯）→ 落日志/发布/持久化 → apply_event → effects。
 
-Handler contract:
-- record all control events *before* applying the corresponding state change;
-- return a ``CommandResult`` whose ``data`` is the latest resource snapshot;
-- raise ``CommandRejected`` for stable, user-visible errors.
-The bus publishes newly appended events to the hub after the handler returns.
+固定四拍（FP 内核化 3b）：
+
+1. **decide**：``DECIDERS[type](core, command) -> Decision``，纯函数——全部
+   守卫校验在这里（非法抛 ``CommandRejected``，拒绝前要留审计轨迹的草稿
+   挂在异常的 ``events`` 上），零 IO、零 mutate、零 await 副作用。
+2. **append + publish + persist**：逐草稿 ``event_log.append``，每条随即
+   ``event_hub.publish`` 并 ``to_thread(store.append_event)``（store 存在
+   时）。事件顺序即因果序（如 agent.spawned 先于 agent.message_injected）。
+3. **apply**：逐事件 ``apply_event``（唯一状态应用器）。
+4. **effects**：shell 统一执行副作用（EnsureDir 走 to_thread；runner
+   schedule/cancel；mailbox enqueue；api_key 内存覆盖补挂）。
+
+已是事件投影的 broker 不强行进 decide：``approval.decide`` /
+``interaction.respond`` / ``context.inject`` / ``agent.compact`` 保持薄包装
+（WRAPPERS）直接调 broker/manager——它们的"状态"本就事件可推导，且
+future 解析是刻意的 shell 行为（等待者必须在本进程内被唤醒，无法从事件
+重放）。包装路径的事件由 bus 在执行后统一扫尾发布/持久化；状态投影在
+wrapper 内紧跟 append 过 ``apply_event``（如 agent.compact 的
+pending_compactions 投影）。
+
+快照是缓存不是权威：权威是事件表，纯重放（``events_after({})`` 全量）
+必须与"快照+尾巴"逐字段等价（tests/test_runtime_v2_replay_equivalence.py
+守这条）。execute 因此不再每命令整库快照，改为节流后台落（每
+``_SNAPSHOT_EVENT_INTERVAL`` 条事件或 ``_SNAPSHOT_TIME_INTERVAL_S`` 秒，
+取先到，在命令边界检查）；进程关闭路径（api_v2 lifespan finally /
+benchmark backend finally）显式调 ``flush_snapshot()`` 补一次。
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from cloudra.runtime_v2.agent_host import _CONTEXT_RESET_NOTE, plan_cancel, plan_restart, plan_wake
+from cloudra.runtime_v2.apply import apply_event
 from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.effects import (
+    CancelRunner,
+    Decision,
+    DeliverMessage,
+    Effect,
+    EnsureDir,
+    EventDraft,
+    PatchApiKey,
+    ResultRef,
+    ScheduleAgent,
+)
+from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.schemas import (
+    AgentState,
     Command,
     CommandRejected,
     CommandResult,
+    EventEnvelope,
     Project,
     ProjectSettings,
     RuntimeSettingsPatch,
     new_id,
 )
 
-Handler = Callable[[RuntimeCore, Command], Awaitable[CommandResult]]
+Decider = Callable[[RuntimeCore, Command], Decision]
+Wrapper = Callable[[RuntimeCore, Command], Awaitable[CommandResult]]
+
+# 快照节流参数（见模块 docstring"快照是缓存不是权威"）。
+_SNAPSHOT_EVENT_INTERVAL = 200
+_SNAPSHOT_TIME_INTERVAL_S = 60.0
 
 
 def _project_id(core: RuntimeCore, command: Command) -> str:
@@ -31,87 +75,134 @@ def _project_id(core: RuntimeCore, command: Command) -> str:
 
 
 def _normalize_workspace(raw: Any) -> str:
-    """Normalize a workspace dir at the command layer.
+    """Pure workspace validation/normalization; creation is an EnsureDir effect.
 
     A relative path would silently resolve against the server process cwd
     downstream (tools compose it with the workspace and produce nonsense
-    nested paths), so reject it here instead; `~` is expanded and a missing
-    directory is created.
+    nested paths), so reject it here instead; `~` is expanded.  The missing
+    directory is created by the shell (EnsureDir), not here.
     """
-    from pathlib import Path
-
     p = Path(str(raw)).expanduser()
     if not p.is_absolute():
         raise CommandRejected(
             "invalid_request",
             f"workspace_dir must be an absolute path (got {raw!r})",
         )
-    p.mkdir(parents=True, exist_ok=True)
     return str(p)
 
 
-async def _create_project(core: RuntimeCore, command: Command) -> CommandResult:
+def _message_drafts(
+    *,
+    project_id: str,
+    session_id: str,
+    sender: str,
+    content: str,
+    run_id: str | None = None,
+    images: list[str] | None = None,
+    image_artifact_ids: list[str | None] | None = None,
+) -> tuple[EventDraft, DeliverMessage]:
+    """一条投递 = message_injected 草稿 + DeliverMessage 效果（message_id 一致）。
+
+    事件由 bus 在第二拍落日志，inbox 入队在第四拍——事件先于投递落地。
+    """
+    message_id = new_id("msg")
+    return (
+        EventDraft(
+            "agent.message_injected",
+            stream="project",
+            project_id=project_id,
+            session_id=session_id,
+            run_id=run_id,
+            data=Mailbox.message_data(
+                message_id=message_id,
+                sender=sender,
+                content=content,
+                images=images,
+                image_artifact_ids=image_artifact_ids,
+            ),
+        ),
+        DeliverMessage(
+            session_id,
+            Mailbox.message_payload(message_id=message_id, sender=sender, content=content, images=images),
+        ),
+    )
+
+
+# --------------------------------------------------------------------- deciders
+
+
+def _decide_create_project(core: RuntimeCore, command: Command) -> Decision:
     payload = command.payload
     name = str(payload.get("name") or "").strip()
     if not name:
         raise CommandRejected("invalid_request", "project name is required")
     project_id = new_id("prj")
     settings = ProjectSettings.model_validate(payload.get("settings") or {})
-    workspace = payload.get("workspace_dir")
-    project = Project(
-        id=project_id,
-        name=name,
-        workspace_dir=_normalize_workspace(workspace) if workspace else None,
-        settings=settings,
+    workspace_dir: str | None = None
+    effects: list[Effect] = []
+    if payload.get("workspace_dir"):
+        workspace_dir = _normalize_workspace(payload["workspace_dir"])
+        effects.append(EnsureDir(workspace_dir))
+    project = Project(id=project_id, name=name, workspace_dir=workspace_dir, settings=settings)
+    return Decision(
+        events=(
+            EventDraft(
+                "project.created",
+                stream="project",
+                project_id=project_id,
+                data=project.model_dump(mode="json"),
+            ),
+        ),
+        effects=tuple(effects),
+        result=ResultRef("project", project_id),
     )
-    core.record(
-        "project.created",
-        stream="project",
-        project_id=project_id,
-        data=project.model_dump(mode="json"),
-    )
-    core.projects[project_id] = project
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=project)
 
 
-async def _update_project(core: RuntimeCore, command: Command) -> CommandResult:
+def _decide_update_project(core: RuntimeCore, command: Command) -> Decision:
     project = core.require_project(_project_id(core, command))
     payload = command.payload
     changes: dict[str, Any] = {}
     for field in ("name", "workspace_dir", "archived"):
         if field in payload:
             changes[field] = payload[field]
+    effects: list[Effect] = []
     if changes.get("workspace_dir"):
         changes["workspace_dir"] = _normalize_workspace(changes["workspace_dir"])
+        effects.append(EnsureDir(changes["workspace_dir"]))
+    drafts: list[EventDraft] = []
     if changes:
-        core.record(
-            "project.updated",
-            stream="project",
-            project_id=project.id,
-            data={"changes": changes, "actor": command.actor},
+        # dict(changes) 冻结事件负载：settings 合并走独立事件，绝不能让
+        # 后续的本地变更漏进已落日志的 envelope（旧代码的引用泄漏曾让
+        # project.updated 的 data 混入 ProjectSettings 对象，落盘即崩）。
+        drafts.append(
+            EventDraft(
+                "project.updated",
+                stream="project",
+                project_id=project.id,
+                data={"changes": dict(changes), "actor": command.actor},
+            )
         )
     if "settings" in payload:
-        settings = ProjectSettings.model_validate(payload["settings"])
-        core.record(
-            "project.settings_changed",
-            stream="project",
-            project_id=project.id,
-            data={"changes": payload["settings"], "actor": command.actor},
+        # decide 侧校验：非法 settings 必须在事件落日志之前抛错。
+        ProjectSettings.model_validate(payload["settings"])
+        drafts.append(
+            EventDraft(
+                "project.settings_changed",
+                stream="project",
+                project_id=project.id,
+                data={"changes": payload["settings"], "actor": command.actor},
+            )
         )
-        changes["settings"] = settings
-    project = project.model_copy(update=changes)
-    project.touch()
-    core.projects[project.id] = project
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=project)
+    return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("project", project.id))
 
 
-async def _spawn_agent(core: RuntimeCore, command: Command) -> CommandResult:
+def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
     project_id = _project_id(core, command)
     project = core.require_project(project_id)
     payload = command.payload
     role_id = str(payload.get("role_id") or "")
     parent_session_id = payload.get("parent_session_id")
-    core.record(
+    requested = EventDraft(
         "agent.spawn_requested",
         stream="project",
         project_id=project_id,
@@ -137,58 +228,76 @@ async def _spawn_agent(core: RuntimeCore, command: Command) -> CommandResult:
             settings=settings,
         )
     except CommandRejected as exc:
-        core.record(
-            "agent.spawn_rejected",
+        # 拒绝也要留领域审计轨迹：spawn_requested + spawn_rejected 随拒绝落日志。
+        raise CommandRejected(
+            exc.code,
+            exc.message,
+            events=(
+                requested,
+                EventDraft(
+                    "agent.spawn_rejected",
+                    stream="project",
+                    project_id=project_id,
+                    data={"code": exc.code, "message": exc.message, "actor": command.actor},
+                ),
+            ),
+        ) from exc
+    drafts: list[EventDraft] = [
+        requested,
+        EventDraft(
+            "agent.spawned",
             stream="project",
             project_id=project_id,
-            data={"code": exc.code, "message": exc.message, "actor": command.actor},
-        )
-        raise
-    core.agents[agent.id] = agent
-    core.mailbox.ensure_inbox(agent.id)
+            session_id=agent.id,
+            data=agent.model_dump(mode="json"),
+        ),
+    ]
+    effects: list[Effect] = []
+    if settings.api_key:
+        # api_key 是 write-only 秘密，不进事件/快照；活对象在 apply 后由
+        # PatchApiKey 补挂内存覆盖（重放/恢复出的 core 回落全局 key，与既有语义一致）。
+        effects.append(PatchApiKey(agent.id, settings.api_key))
     query = str(payload.get("query") or "").strip()
     if query:
-        core.mailbox.deliver(
-            to_session_id=agent.id,
-            project_id=project_id,
-            content=query,
-            sender="system",
+        message_draft, deliver = _message_drafts(
+            project_id=project_id, session_id=agent.id, sender="system", content=query
         )
-    core.record(
-        "agent.spawned",
-        stream="project",
-        project_id=project_id,
-        session_id=agent.id,
-        data=agent.model_dump(mode="json"),
-    )
-    if query and core.runner is not None:
-        core.runner.schedule(agent.id)
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
+        drafts.append(message_draft)
+        effects.append(deliver)
+        effects.append(ScheduleAgent(agent.id))
+    return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("agent", agent.id))
 
 
-async def _patch_agent_settings(core: RuntimeCore, command: Command) -> CommandResult:
+def _decide_patch_agent_settings(core: RuntimeCore, command: Command) -> Decision:
     agent = core.require_agent(command.target.get("session_id", ""))
     patch = RuntimeSettingsPatch.model_validate(command.payload)
     changes = patch.model_dump(exclude_unset=True)
+    effects: list[Effect] = []
     if patch.api_key is not None:
         # 空字符串表示"清除覆盖、回落全局 key"；按实际值记布尔，别把
         # api_key_set 记成 True（审计事件里要能区分覆盖/回落）。
         changes["api_key_set"] = bool(patch.api_key)
+        # api_key 不进事件：apply 后由 PatchApiKey 补挂内存覆盖（含清 key）。
+        effects.append(PatchApiKey(agent.id, patch.api_key))
     changes.pop("api_key", None)
     next_revision = agent.settings_revision + 1
-    core.record(
-        "agent.settings_changed",
-        stream="project",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        run_id=agent.current_run.run_id if agent.current_run else None,
-        data={"changes": changes, "actor": command.actor, "settings_revision": next_revision},
+    return Decision(
+        events=(
+            EventDraft(
+                "agent.settings_changed",
+                stream="project",
+                project_id=agent.project_id,
+                session_id=agent.id,
+                run_id=agent.current_run.run_id if agent.current_run else None,
+                data={"changes": changes, "actor": command.actor, "settings_revision": next_revision},
+            ),
+        ),
+        effects=tuple(effects),
+        result=ResultRef("agent", agent.id),
     )
-    core.agent_host.patch_settings(agent, patch)
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
 
-async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandResult:
+def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decision:
     agent = core.require_agent(command.target.get("session_id", ""))
     content = str(command.payload.get("content") or "").strip()
     if not content:
@@ -205,11 +314,11 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
             raise CommandRejected(
                 "invalid_request", "image_artifact_ids must be a list of strings or nulls"
             )
-    core.mailbox.deliver(
-        to_session_id=agent.id,
+    message_draft, deliver = _message_drafts(
         project_id=agent.project_id,
-        content=content,
+        session_id=agent.id,
         sender=command.actor,
+        content=content,
         run_id=agent.current_run.run_id if agent.current_run else None,
         images=images or None,
         image_artifact_ids=image_artifact_ids or None,
@@ -219,15 +328,187 @@ async def _inject_agent_message(core: RuntimeCore, command: Command) -> CommandR
     # perform a separate restart step.  Externalised context (goal pin, DAG,
     # memory, workspace) is re-assembled every turn, so the new run picks up
     # where the agent left off conceptually.
-    core.agent_host.wake(agent, runner=core.runner)
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
+    wake_drafts, should_schedule = plan_wake(agent)
+    effects: list[Effect] = [deliver]
+    if should_schedule:
+        effects.append(ScheduleAgent(agent.id))
+    return Decision(
+        events=(message_draft, *wake_drafts),
+        effects=tuple(effects),
+        result=ResultRef("agent", agent.id),
+    )
+
+
+def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
+    agent = core.require_agent(command.target.get("session_id", ""))
+    cancel_drafts = plan_cancel(agent)  # succeeded/failed 抛错；cancelled 幂等空计划
+    if not cancel_drafts:
+        return Decision(result=ResultRef("agent", agent.id))
+    message = command.payload.get("message")
+    drafts: list[EventDraft] = [
+        EventDraft(
+            "agent.cancel_requested",
+            stream="project",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            data={"message": message, "actor": command.actor},
+        )
+    ]
+    effects: list[Effect] = []
+    if message:
+        message_draft, deliver = _message_drafts(
+            project_id=agent.project_id,
+            session_id=agent.id,
+            sender=command.actor,
+            content=str(message),
+        )
+        drafts.append(message_draft)
+        effects.append(deliver)
+    drafts.extend(cancel_drafts)
+    drafts.append(
+        EventDraft(
+            "agent.cancelled",
+            stream="project",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            data={"session_id": agent.id},
+        )
+    )
+    effects.append(CancelRunner(agent.id))
+    return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("agent", agent.id))
+
+
+def _decide_restart_agent(core: RuntimeCore, command: Command) -> Decision:
+    agent = core.require_agent(command.target.get("session_id", ""))
+    message = command.payload.get("message")
+    settings_patch = RuntimeSettingsPatch.model_validate(command.payload.get("settings") or {})
+    previous_outcome = agent.state.value
+    requested = EventDraft(
+        "agent.restart_requested",
+        stream="project",
+        project_id=agent.project_id,
+        session_id=agent.id,
+        data={"message": message, "actor": command.actor},
+    )
+    try:
+        run_id, restart_drafts = plan_restart(agent)
+    except CommandRejected as exc:
+        # restart_requested 是已接受意图的审计，随拒绝一起落日志。
+        raise CommandRejected(exc.code, exc.message, events=(requested,)) from exc
+    drafts: list[EventDraft] = [requested, *restart_drafts]
+    effects: list[Effect] = []
+    if message:
+        message_draft, deliver = _message_drafts(
+            project_id=agent.project_id,
+            session_id=agent.id,
+            sender=command.actor,
+            content=str(message),
+            run_id=run_id,
+        )
+        drafts.append(message_draft)
+        effects.append(deliver)
+    planned_settings = None
+    next_revision = agent.settings_revision
+    if settings_patch.model_fields_set:
+        changes = settings_patch.model_dump(exclude_unset=True)
+        if settings_patch.api_key is not None:
+            changes["api_key_set"] = bool(settings_patch.api_key)
+            effects.append(PatchApiKey(agent.id, settings_patch.api_key))
+        changes.pop("api_key", None)
+        next_revision = agent.settings_revision + 1
+        drafts.append(
+            EventDraft(
+                "agent.settings_changed",
+                stream="project",
+                project_id=agent.project_id,
+                session_id=agent.id,
+                run_id=run_id,
+                data={"changes": changes, "actor": command.actor, "settings_revision": next_revision},
+            )
+        )
+        planned_settings = agent.settings.apply(settings_patch)
+    # restarted 载荷里的 agent 快照：decide 不 apply，按草稿将推出的状态构造
+    # （state=queued、current_run=None、settings/revision 已补丁）。updated_at
+    # 是 decide 前的值——该载荷仅审计展示，无程序化消费方。
+    snapshot_agent = agent.model_copy(
+        update={
+            "state": AgentState.QUEUED,
+            "current_run": None,
+            "settings_revision": next_revision,
+            **({"settings": planned_settings} if planned_settings is not None else {}),
+        }
+    )
+    drafts.append(
+        EventDraft(
+            "agent.restarted",
+            stream="project",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            data={"run_id": run_id, "agent": snapshot_agent.model_dump(mode="json")},
+        )
+    )
+    drafts.append(
+        EventDraft(
+            "agent.context_reset",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data={
+                "reason": "restart_command",
+                "previous_outcome": previous_outcome,
+                "actor": command.actor,
+                "note": _CONTEXT_RESET_NOTE,
+            },
+        )
+    )
+    if message:
+        effects.append(ScheduleAgent(agent.id))
+    return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("agent", agent.id))
+
+
+def _decide_update_role(core: RuntimeCore, command: Command) -> Decision:
+    role = core.roles.require(command.target.get("role_id", ""))
+    payload = command.payload
+    allowed = {"default_settings", "permissions", "tool_policy", "can_spawn", "spawn_roles"}
+    changes = {key: value for key, value in payload.items() if key in allowed}
+    if not changes:
+        raise CommandRejected("invalid_request", "no mutable role fields supplied")
+    return Decision(
+        events=(
+            EventDraft(
+                "role.updated",
+                stream="project",
+                project_id=_project_id(core, command),
+                data={"role_id": role.role_id, "changes": changes, "actor": command.actor},
+            ),
+        ),
+        result=ResultRef("role", role.role_id),
+    )
+
+
+DECIDERS: dict[str, Decider] = {
+    "project.create": _decide_create_project,
+    "project.update": _decide_update_project,
+    "agent.spawn": _decide_spawn_agent,
+    "agent.settings_update": _decide_patch_agent_settings,
+    "agent.message": _decide_inject_agent_message,
+    "agent.cancel": _decide_cancel_agent,
+    "agent.restart": _decide_restart_agent,
+    "role.update": _decide_update_role,
+}
+
+
+# --------------------------------------------------------------------- wrappers
+# 已是事件投影的 broker 不进 decide（理由见模块 docstring）：这些 handler
+# 只做校验 + 委托，事件由 broker/manager 自己落，bus 在执行后扫尾发布/持久化。
 
 
 async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
     agent = core.require_agent(command.target.get("session_id", ""))
     keep_recent = int(command.payload.get("keep_recent") or 20)
     keep_recent = max(1, min(keep_recent, 500))
-    core.record(
+    envelope = core.record(
         "compaction.requested",
         stream="agent",
         project_id=agent.project_id,
@@ -237,124 +518,10 @@ async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
     )
     # The runner picks this up at the next turn boundary; history is
     # in-memory, so compaction only has meaning while a run is alive.
-    core.pending_compactions[agent.id] = keep_recent
+    # pending_compactions 是 compaction.requested 的事件投影：唯一写入点是
+    # apply_event（这里），消费/作废在 runner 与 run.started 的 apply。
+    apply_event(core, envelope)
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
-
-
-async def _cancel_agent(core: RuntimeCore, command: Command) -> CommandResult:
-    agent = core.require_agent(command.target.get("session_id", ""))
-    if agent.state.value in {"succeeded", "failed"}:
-        raise CommandRejected("state_conflict", "agent already reached a terminal state")
-    if agent.state.value == "cancelled":
-        return CommandResult(command_id=command.command_id, event_id="", data=agent)
-    message = command.payload.get("message")
-    core.record(
-        "agent.cancel_requested",
-        stream="project",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        data={"message": message, "actor": command.actor},
-    )
-    if message:
-        core.mailbox.deliver(
-            to_session_id=agent.id,
-            project_id=agent.project_id,
-            content=str(message),
-            sender=command.actor,
-        )
-    if core.runner is not None:
-        await core.runner.cancel(agent.id)
-    core.agent_host.cancel(agent)
-    core.record(
-        "agent.cancelled",
-        stream="project",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        data={"session_id": agent.id},
-    )
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
-
-
-async def _restart_agent(core: RuntimeCore, command: Command) -> CommandResult:
-    agent = core.require_agent(command.target.get("session_id", ""))
-    message = command.payload.get("message")
-    settings_patch = RuntimeSettingsPatch.model_validate(command.payload.get("settings") or {})
-    previous_outcome = agent.state.value
-    core.record(
-        "agent.restart_requested",
-        stream="project",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        data={"message": message, "actor": command.actor},
-    )
-    run_id = core.agent_host.restart(agent)
-    if message:
-        core.mailbox.deliver(
-            to_session_id=agent.id,
-            project_id=agent.project_id,
-            content=str(message),
-            sender=command.actor,
-            run_id=run_id,
-        )
-    if settings_patch.model_fields_set:
-        changes = settings_patch.model_dump(exclude_unset=True)
-        if settings_patch.api_key is not None:
-            changes["api_key_set"] = bool(settings_patch.api_key)
-        changes.pop("api_key", None)
-        next_revision = agent.settings_revision + 1
-        core.record(
-            "agent.settings_changed",
-            stream="project",
-            project_id=agent.project_id,
-            session_id=agent.id,
-            run_id=run_id,
-            data={"changes": changes, "actor": command.actor, "settings_revision": next_revision},
-        )
-        core.agent_host.patch_settings(agent, settings_patch)
-    core.record(
-        "agent.restarted",
-        stream="project",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        data={"run_id": run_id, "agent": agent.model_dump(mode="json")},
-    )
-    core.record(
-        "agent.context_reset",
-        stream="agent",
-        project_id=agent.project_id,
-        session_id=agent.id,
-        run_id=run_id,
-        data={
-            "reason": "restart_command",
-            "previous_outcome": previous_outcome,
-            "actor": command.actor,
-            "note": (
-                "dialogue history was reset; continuity via "
-                "context tree (handover + run summaries), "
-                "goal/memory/workspace files"
-            ),
-        },
-    )
-    if message and core.runner is not None:
-        core.runner.schedule(agent.id)
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
-
-
-async def _update_role(core: RuntimeCore, command: Command) -> CommandResult:
-    role = core.roles.require(command.target.get("role_id", ""))
-    payload = command.payload
-    allowed = {"default_settings", "permissions", "tool_policy", "can_spawn", "spawn_roles"}
-    changes = {key: value for key, value in payload.items() if key in allowed}
-    if not changes:
-        raise CommandRejected("invalid_request", "no mutable role fields supplied")
-    core.record(
-        "role.updated",
-        stream="project",
-        project_id=_project_id(core, command),
-        data={"role_id": role.role_id, "changes": changes, "actor": command.actor},
-    )
-    updated = core.roles.update(role.role_id, changes)
-    return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=updated)
 
 
 async def _decide_approval(core: RuntimeCore, command: Command) -> CommandResult:
@@ -415,18 +582,10 @@ async def _inject_context(core: RuntimeCore, command: Command) -> CommandResult:
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
 
-HANDLERS: dict[str, Handler] = {
-    "project.create": _create_project,
-    "project.update": _update_project,
-    "agent.spawn": _spawn_agent,
-    "agent.settings_update": _patch_agent_settings,
-    "agent.message": _inject_agent_message,
-    "agent.cancel": _cancel_agent,
+WRAPPERS: dict[str, Wrapper] = {
     "agent.compact": _compact_agent,
-    "agent.restart": _restart_agent,
     "approval.decide": _decide_approval,
     "interaction.respond": _respond_interaction,
-    "role.update": _update_role,
     "context.inject": _inject_context,
 }
 
@@ -436,23 +595,128 @@ def _last_event_id(core: RuntimeCore) -> str:
     return events[-1].event_id if events else ""
 
 
+# ------------------------------------------------------------------ effects shell
+
+
+def _mkdir(path: str) -> None:
+    Path(path).mkdir(parents=True, exist_ok=True)
+
+
+async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
+    """执行单个效果。只在第四拍被 CommandBus 调用（事件与状态均已落地）。"""
+    if isinstance(effect, EnsureDir):
+        await asyncio.to_thread(_mkdir, effect.path)
+    elif isinstance(effect, PatchApiKey):
+        core.require_agent(effect.session_id).settings.api_key = effect.api_key
+    elif isinstance(effect, DeliverMessage):
+        core.mailbox.enqueue(effect.session_id, effect.message)
+    elif isinstance(effect, ScheduleAgent):
+        if core.runner is not None:
+            core.runner.schedule(effect.session_id)
+    elif isinstance(effect, CancelRunner):
+        if core.runner is not None:
+            await core.runner.cancel(effect.session_id)
+    else:
+        raise TypeError(f"unknown effect {effect!r}")
+
+
 class CommandBus:
+    """命令入口：四拍执行 + 快照节流（语义见模块 docstring）。"""
+
     def __init__(self, core: RuntimeCore) -> None:
         self.core = core
+        self._snapshot_event_mark = len(core.event_log)
+        self._snapshot_at = time.monotonic()
 
     async def execute(self, command: Command) -> CommandResult:
         core = self.core
         cached = core.cached_result(command.command_id)
         if cached is not None:
             return cached
-        handler = HANDLERS.get(command.type)
-        if handler is None:
+        decider = DECIDERS.get(command.type)
+        wrapper = WRAPPERS.get(command.type)
+        if decider is None and wrapper is None:
             raise CommandRejected("invalid_request", f"unknown command type {command.type!r}")
-        before = len(core.event_log)
         try:
-            result = await handler(core, command)
+            if decider is not None:
+                # 拍 1：纯 decide（守卫校验在这里抛 CommandRejected）
+                decision = decider(core, command)
+                # 拍 2-4：落日志/发布/持久化 → apply → effects
+                result = await self._apply_decision(command, decision)
+            else:
+                # 薄包装：broker 自带事件流与 future 解析，bus 扫尾发布/持久化
+                before = len(core.event_log)
+                result = await wrapper(core, command)
+                await self._flush(list(core.event_log)[before:])
         except CommandRejected as exc:
-            envelope = core.record(
+            result = await self._reject(command, exc)
+        core.remember(command, result)
+        await self._maybe_snapshot()
+        return result
+
+    # -------------------------------------------------------------- internals
+
+    def _append_draft(self, draft: EventDraft) -> EventEnvelope:
+        return self.core.event_log.append(
+            draft.type,
+            stream=draft.stream,
+            project_id=draft.project_id,
+            session_id=draft.session_id,
+            run_id=draft.run_id,
+            data=draft.data,
+        )
+
+    async def _flush(self, envelopes: list[EventEnvelope]) -> None:
+        """拍 2：逐事件发布到 hub 并持久化（store 存在时）。
+
+        bus 直接持久化自己的事件，不再依赖 API 层的 hub 持久化订阅搭车；
+        订阅仍在（运行期 turn 内事件靠它），append_event 幂等（INSERT OR
+        IGNORE），重叠写无害。
+        """
+        core = self.core
+        for envelope in envelopes:
+            await core.event_hub.publish(envelope)
+            if core.store is not None:
+                await asyncio.to_thread(core.store.append_event, envelope)
+
+    async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
+        core = self.core
+        envelopes = [self._append_draft(draft) for draft in decision.events]
+        await self._flush(envelopes)
+        # 拍 3：状态投影（唯一应用器；纯通知事件 no-op）
+        for envelope in envelopes:
+            apply_event(core, envelope)
+        # 拍 4：副作用（runner/mailbox/文件系统/内存秘密覆盖）
+        for effect in decision.effects:
+            await _execute_effect(core, effect)
+        return CommandResult(
+            command_id=command.command_id,
+            event_id=envelopes[-1].event_id if envelopes else "",
+            data=self._resolve_result(decision.result),
+        )
+
+    def _resolve_result(self, result: Any) -> Any:
+        """ResultRef 在 apply+effects 之后解析为活对象；字面量原样返回。"""
+        core = self.core
+        if isinstance(result, ResultRef):
+            if result.kind == "project":
+                return core.require_project(result.key)
+            if result.kind == "agent":
+                return core.require_agent(result.key)
+            if result.kind == "role":
+                return core.roles.require(result.key)
+        return result
+
+    async def _reject(self, command: Command, exc: CommandRejected) -> CommandResult:
+        """拒绝路径：先落异常携带的领域审计草稿，再落 command.rejected。
+
+        （顺带修复旧行为：spawn_requested/spawn_rejected 等拒绝轨迹此前只进
+        内存日志、从不发布/持久化，重启即丢。）
+        """
+        core = self.core
+        appended = [self._append_draft(draft) for draft in exc.events]
+        appended.append(
+            core.record(
                 "command.rejected",
                 stream="project",
                 project_id=_project_id(core, command),
@@ -462,26 +726,42 @@ class CommandBus:
                     "message": exc.message,
                 },
             )
-            await core.event_hub.publish(envelope)
-            result = CommandResult(
-                command_id=command.command_id,
-                accepted=False,
-                event_id=envelope.event_id,
-                data={"error": {"code": exc.code, "message": exc.message}},
-            )
-            core.remember(command, result)
-            return result
-        new_events = list(core.event_log)[before:]
-        for envelope in new_events:
-            await core.event_hub.publish(envelope)
-        if core.store is not None:
-            await asyncio.to_thread(
-                core.store.save_snapshot,
-                projects=core.projects,
-                agents=core.agents,
-                roles=core.roles._roles,
-                runtime_defaults=core.runtime_defaults,
-                last_seq=core.event_log.last_seq,
-            )
-        core.remember(command, result)
-        return result
+        )
+        await self._flush(appended)
+        return CommandResult(
+            command_id=command.command_id,
+            accepted=False,
+            event_id=appended[-1].event_id,
+            data={"error": {"code": exc.code, "message": exc.message}},
+        )
+
+    # ---------------------------------------------------------- snapshot cache
+
+    async def _maybe_snapshot(self) -> None:
+        """节流快照：距上次满 _SNAPSHOT_EVENT_INTERVAL 条事件或
+        _SNAPSHOT_TIME_INTERVAL_S 秒（取先到，命令边界检查）落一次。"""
+        core = self.core
+        if core.store is None:
+            return
+        if (
+            len(core.event_log) - self._snapshot_event_mark < _SNAPSHOT_EVENT_INTERVAL
+            and time.monotonic() - self._snapshot_at < _SNAPSHOT_TIME_INTERVAL_S
+        ):
+            return
+        await self.flush_snapshot()
+
+    async def flush_snapshot(self) -> None:
+        """无条件落一次快照（节流旁路）。进程关闭路径显式调用；无 store no-op。"""
+        core = self.core
+        if core.store is None:
+            return
+        await asyncio.to_thread(
+            core.store.save_snapshot,
+            projects=core.projects,
+            agents=core.agents,
+            roles=core.roles._roles,
+            runtime_defaults=core.runtime_defaults,
+            last_seqs=core.event_log.high_watermarks,
+        )
+        self._snapshot_event_mark = len(core.event_log)
+        self._snapshot_at = time.monotonic()

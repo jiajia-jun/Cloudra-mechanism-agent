@@ -137,3 +137,20 @@ export interface KgSearchResponse {
   fallback: string | null;
   results: KgSearchRow[];
 }
+
+export interface KgHealthChannel {
+  ok: boolean;
+  url?: string;
+  model?: string | null;
+  count?: number;
+  entities?: number;
+  relations?: number;
+  cards?: number;
+  error?: string;
+}
+
+export interface KgHealth {
+  semantic: KgHealthChannel;
+  graph: KgHealthChannel;
+  fuzzy: KgHealthChannel;
+}

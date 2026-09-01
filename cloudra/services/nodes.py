@@ -49,6 +49,7 @@ class NodeRoute:
     workspaces: tuple[WorkspaceRoute, ...]
     scheduler: dict
     capabilities: tuple[str, ...]
+    resources: dict
 
     def public(self) -> dict:
         return {
@@ -59,7 +60,22 @@ class NodeRoute:
             "protocol_version": 1,
             "scheduler": str(self.scheduler.get("type", "local")),
             "capabilities": list(self.capabilities),
+            "resources": dict(self.resources),
         }
+
+
+def default_resources() -> dict:
+    """本地节点的兜底资源量：半机记账（槽位 2、全核、半内存）。
+
+    守护进程只按 agent 声明的 req_* 记账，default 偏保守以防超订。
+    """
+    cpus = os.cpu_count() or 1
+    memory_mb = 4096
+    try:
+        memory_mb = (os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")) // 2 // (1024 * 1024)
+    except (ValueError, OSError, AttributeError):
+        pass
+    return {"max_concurrent": 2, "cpus": cpus, "memory_mb": memory_mb}
 
 
 class NodeRegistry:
@@ -145,6 +161,7 @@ class NodeRegistry:
                         raw_node.get("capabilities"),
                         scheduler_type=str(scheduler.get("type")),
                     ),
+                    resources=cls._resources(raw_node.get("resources")),
                 )
             )
         default_node_id = cls._identifier(
@@ -194,6 +211,7 @@ class NodeRegistry:
                         "artifact.download",
                         "compute.local",
                     ),
+                    resources=default_resources(),
                 ),
             ),
             node_id,
@@ -244,6 +262,30 @@ class NodeRegistry:
                 f"unknown scheduler fields: {sorted(unknown)}"
             )
         return dict(value, type=scheduler_type)
+
+    @staticmethod
+    def _resources(value: object) -> dict:
+        """节点资源量（调度器容量记账依据）；缺省用本地兜底值。"""
+        if value is None:
+            return default_resources()
+        if not isinstance(value, dict):
+            raise NodeRegistryError("resources must be an object")
+        allowed = {"max_concurrent", "cpus", "memory_mb"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise NodeRegistryError(f"unknown resources fields: {sorted(unknown)}")
+        merged = default_resources()
+        for key in allowed:
+            if key not in value:
+                continue
+            try:
+                num = int(value[key])
+            except (TypeError, ValueError) as exc:
+                raise NodeRegistryError(f"resources.{key} must be a positive integer") from exc
+            if num < 1:
+                raise NodeRegistryError(f"resources.{key} must be a positive integer")
+            merged[key] = num
+        return merged
 
     @staticmethod
     def _capabilities(value: object, *, scheduler_type: str) -> tuple[str, ...]:

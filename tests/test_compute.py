@@ -157,11 +157,11 @@ def isolated_db(tmp_path, monkeypatch):
     data_dir = tmp_path / "cloudra_data"
     data_dir.mkdir()
 
-    from cloudra.infra.config import get_config, reload_config
+    from cloudra.infra.config import _reset_for_tests, get_config
 
     # 强制重新加载配置，指向临时目录
     monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
-    reload_config()
+    _reset_for_tests()
     cfg = get_config()
     cfg.data_dir = data_dir
     cfg._ensure_dirs()
@@ -679,15 +679,16 @@ def test_log_tail_reason_falls_back_to_last_lines(tmp_path):
 @pytest.mark.asyncio
 async def test_mark_failed_writes_last_error(isolated_db):
     """guard 标记失败时 last_error 落库，query_compute_job 直接可读。"""
-    from cloudra.persistence.database import ConversationDB
+    from cloudra.persistence.database import ComputeDB
     from cloudra.runtime.monitor import _mark_failed
 
-    db = ConversationDB("test_conv")  # isolated_db fixture 已初始化过该库
+    db = ComputeDB().init()
     # 直接插一行 compute_jobs（绕过 submit 工具，只测落库语义）
     async with db.aconnect() as con:
         cur = await con.execute(
-            "INSERT INTO compute_jobs (session_id, path, state, start_timestamp) VALUES (?, ?, ?, ?)",
-            ("s1", "/tmp/x.gjf", "running", 1.0),
+            "INSERT INTO compute_jobs (conversation_id, session_id, path, state, start_timestamp) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("test_conv", "s1", "/tmp/x.gjf", "running", 1.0),
         )
         await con.commit()
         task_id = cur.lastrowid
@@ -699,3 +700,63 @@ async def test_mark_failed_writes_last_error(isolated_db):
         )).fetchone()
     assert row[0] == "failed"
     assert "g16 not found" in row[1]
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_over_capacity_request(isolated_db, mock_calc_workdir, monkeypatch):
+    """资源申请超过节点容量 → 提交即拒绝，错误文本给出节点上限。"""
+    from cloudra.services import nodes as nodes_mod
+
+    monkeypatch.setattr(
+        nodes_mod, "default_resources",
+        lambda: {"max_concurrent": 2, "cpus": 4, "memory_mb": 4096},
+    )
+    gjf = os.path.join(mock_calc_workdir, "h2.gjf")
+    tool = SubmitComputeJob()
+    tool.subagent = MockAgent("a-0", "test_conv")
+
+    result = await tool.tool_call(
+        SubmitComputeJob_input_schema(
+            input_file=gjf, job_type="gaussian", is_async=True, cpus=8,
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "exceeds node capacity" in result.message
+
+    result = await tool.tool_call(
+        SubmitComputeJob_input_schema(
+            input_file=gjf, job_type="gaussian", is_async=True, cpus=2, memory_mb=8192,
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "exceeds node capacity" in result.message
+
+
+@pytest.mark.asyncio
+async def test_submit_records_resource_request(isolated_db, mock_calc_workdir):
+    """资源申请与优先级落列，供调度器容量认领读取。"""
+    gjf = os.path.join(mock_calc_workdir, "h2.gjf")
+    tool = SubmitComputeJob()
+    tool.subagent = MockAgent("a-0", "test_conv")
+
+    result = await tool.tool_call(
+        SubmitComputeJob_input_schema(
+            input_file=gjf, job_type="gaussian", is_async=True,
+            cpus=2, memory_mb=1024, priority=3,
+        ),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.state == "ready"
+
+    from cloudra.persistence.database import ComputeDB
+
+    db = ComputeDB()
+    with db.connect() as con:
+        row = con.execute(
+            "SELECT priority, req_cpus, req_memory_mb, state FROM compute_jobs WHERE id=?",
+            (result.job_id,),
+        ).fetchone()
+    assert tuple(row) == (3, 2, 1024, "ready")

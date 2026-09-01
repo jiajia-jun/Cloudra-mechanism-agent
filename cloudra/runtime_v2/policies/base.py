@@ -1,8 +1,23 @@
 """Policy stage contract: the only harness extension point.
 
 A stage observes one pipeline turn and may allow, warn, block or ask about a
-tool call.  Stages are stateless; any cross-turn state lives in PipelineContext
-or the owning AgentSession.
+tool call.  Stages are *decisionally* stateless: a verdict must be derivable
+from the turn inputs (PipelineContext, tool call/result) plus projections of
+durable state — never from mutable stage-private bookkeeping that a restart
+could not reproduce.
+
+Cross-turn state rules (3d):
+- Anything that must survive a process restart lives outside the stage:
+  event projections on the core, or each store's own authority (the DAG
+  graph lives in the project's ConversationDB, the goal anchor in its file).
+- A stage may keep **deliberately volatile** shell-private caches only when
+  they are meaningless across restarts by construction (e.g. a per-run
+  stop-confirmation tracker, a single tool call's before/after pairing
+  window, a lazily rebuildable controller cache).  Each such cache carries
+  an explicit "deliberately volatile" note on its owning class stating why
+  discarding it on restart is correct.
+- Stage-side file IO is pushed to the shell: TurnPipeline reads the goal via
+  its ``goal_reader`` and hands it over on ``PipelineContext.goal`` (3d).
 """
 
 from __future__ import annotations
@@ -69,6 +84,7 @@ class PipelineContext:
         emit,
         workspace_dir: str | None = None,
         notices=None,
+        goal: dict[str, Any] | None = None,
     ) -> None:
         self.agent = agent
         self.run_id = run_id
@@ -77,6 +93,9 @@ class PipelineContext:
         self.inbox_messages = list(inbox_messages)
         self.workspace_dir = workspace_dir
         self.notices = notices
+        # The persisted goal anchor, read by the shell (TurnPipeline's
+        # goal_reader) before stages run — stages never do that file IO.
+        self.goal = goal
         self._emit = emit
 
     def emit(self, type: str, data: dict[str, Any] | None = None) -> None:

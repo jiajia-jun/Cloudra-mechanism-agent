@@ -995,7 +995,7 @@ def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path):
         llm=llm,
         tools=tools,
         run_summarizer=_stub_summarizer,
-        start_compute_broker=False,
+        start_scheduler=False,
         poll_interval_s=0.01,
         run_timeout_s=30.0,
         stuck_grace_s=5.0,

@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 from cloudra.infra.platform_utils import get_bash_path, is_posix
-from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.database import ComputeDB
+from cloudra.services.compute_store import aget_compute_job
 
 # 各 job_type 所需的任一外部可执行程序（通过系统 PATH 查找）。
 _REQUIRED_BINS = {
@@ -20,6 +21,25 @@ _REQUIRED_BINS = {
 
 # guard 轮询间隔（秒）
 GUARD_POLL_INTERVAL = 1800
+
+
+def cloudra_run_dir(workdir: str) -> Path:
+    """作业运行时目录（flock 锁文件、guard 日志），确保存在。"""
+    run_dir = Path(workdir) / ".cloudra"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def guard_lock_path(workdir: str, task_id: int) -> str:
+    return str(cloudra_run_dir(workdir) / f"guard-{task_id}.lock")
+
+
+def calc_lock_path(workdir: str, task_id: int) -> str:
+    return str(cloudra_run_dir(workdir) / f"calc-{task_id}.lock")
+
+
+def guard_log_path(workdir: str, task_id: int) -> str:
+    return str(cloudra_run_dir(workdir) / f"guard-{task_id}.log")
 
 
 def _default_calculator_path() -> str:
@@ -100,9 +120,10 @@ def build_guard_cmd(
     db_path: str,
     poll_interval: int = GUARD_POLL_INTERVAL,
     job_type: str = "gaussian",
+    adopt: bool = False,
 ) -> list[str]:
-    """构建 guard 子进程命令。"""
-    return [
+    """构建 guard 子进程命令（adopt=True 时构建对账接管用的 adopt guard）。"""
+    cmd = [
         sys.executable,
         "-m",
         "cloudra.runtime.monitor",
@@ -119,6 +140,29 @@ def build_guard_cmd(
         "--job_type",
         job_type,
     ]
+    if adopt:
+        cmd.append("--adopt")
+    return cmd
+
+
+def spawn_detached(cmd: list[str], log_path: str) -> None:
+    """detach 拉起子进程（POSIX start_new_session），stdout/stderr 追加到 log_path。
+
+    调用方（守护进程/对账器）退出不影响子进程；日志落盘替代过去的 DEVNULL，
+    保证调度层故障可事后取证。
+    """
+    log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    try:
+        popen_kwargs: dict = {
+            "stdout": log_fd,
+            "stderr": log_fd,
+            "stdin": subprocess.DEVNULL,
+        }
+        if is_posix():
+            popen_kwargs["start_new_session"] = True
+        subprocess.Popen(cmd, **popen_kwargs)
+    finally:
+        os.close(log_fd)
 
 
 async def launch_compute_processes(
@@ -149,20 +193,27 @@ async def launch_compute_processes(
     guard_cmd = build_guard_cmd(
         task_id, input_file, conv_id, db_path, poll_interval, job_type=job_type
     )
+    workdir = os.path.dirname(input_file)
+    log_path = guard_log_path(workdir, task_id)
 
     try:
         if wait_for_calculator:
-            # 同步阻塞模式：等待 guard 完成任务（事件驱动 waitpid）
-            guard_proc = await asyncio.create_subprocess_exec(*guard_cmd)
-            await guard_proc.wait()
-
-            db = ConversationDB.from_path(db_path)
-            async with db.aconnect() as con:
-                cur = await con.execute(
-                    "SELECT state FROM compute_jobs WHERE id=?", (task_id,)
+            # 同步阻塞模式：等待 guard 完成任务（事件驱动 waitpid）；输出落盘可取证
+            log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+            try:
+                guard_proc = await asyncio.create_subprocess_exec(
+                    *guard_cmd,
+                    stdout=log_fd,
+                    stderr=log_fd,
+                    stdin=subprocess.DEVNULL,
                 )
-                row = await cur.fetchone()
-            final_state = row[0] if row else None
+                await guard_proc.wait()
+            finally:
+                os.close(log_fd)
+
+            db = ComputeDB.from_path(db_path)
+            row = await aget_compute_job(db, task_id)
+            final_state = row["state"] if row else None
             if final_state == "done":
                 return True, ""
             if final_state == "failed":
@@ -176,15 +227,9 @@ async def launch_compute_processes(
                 f"task_id={task_id} guard exited abnormally without writing a terminal state; check the logs.",
             )
 
-        # 异步后台模式：guard 与 calculator 脱离当前进程会话，独立运行。
-        popen_kwargs = {
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
-            "stdin": subprocess.DEVNULL,
-        }
-        if is_posix():
-            popen_kwargs["start_new_session"] = True
-        subprocess.Popen(guard_cmd, **popen_kwargs)
+        # 异步后台模式：guard 与 calculator 脱离当前进程会话，独立运行；
+        # guard 输出落盘 .cloudra/guard-<id>.log（替代 DEVNULL，故障可取证）。
+        spawn_detached(guard_cmd, log_path)
         return True, ""
     except Exception as e:
         return False, f"Failed to start compute subprocess: {e}"

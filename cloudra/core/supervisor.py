@@ -30,7 +30,7 @@ from cloudra.dag.models import OrchestrationMode
 from cloudra.infra.config import get_config
 from cloudra.runtime.prompt_assembler import load_role_prompt
 
-logger = logging.getLogger("Supervisor")
+logger = logging.getLogger(__name__)
 
 
 def load_supervisor_prompt() -> str:

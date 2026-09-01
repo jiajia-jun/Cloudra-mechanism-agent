@@ -13,9 +13,16 @@ so values set via `cloudra config init` / `cloudra config set` are always
 effective. Environment variables are still supported for backward compatibility
 and CI/automation use cases, but the YAML config is the recommended source of
 truth for local development.
+
+写路径纪律：磁盘 YAML 是唯一事实源，进程内单例只是其缓存。所有写一律走
+``mutate_config(fn)``——flock（config.yaml.lock）下读磁盘最新状态 → fn 修改
+→ atomic_write_text 原子写回 → 单例从磁盘重载。多进程并发写不丢更新；
+不存在任何"内存快照整文件重写"的路径。
 """
 
+import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +31,8 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from cloudra.persistence.fs_utils import atomic_write_text
+
+logger = logging.getLogger(__name__)
 
 # Try platformdirs, fallback to appdirs or manual
 try:
@@ -111,6 +120,11 @@ class CloudraConfig(BaseSettings):
     # search / on_event / setup）。应用启动时加载一次；失败只记日志不阻塞。
     plugins: list[str] = Field(default_factory=list)
 
+    # 知识向量微服务（kg_vec）的解释器：指向装 torch/sentence-transformers 的
+    # .venv-trans python；空串时 web_launcher 按仓库根 .venv-trans/bin/python
+    # 自动探测。env CLOUDRA_KNOWLEDGE_VEC_PYTHON 可覆盖。
+    knowledge_vec_python: str = ""
+
     @field_validator("data_dir", "config_file", mode="before")
     @classmethod
     def _coerce_path(cls, v):
@@ -155,7 +169,11 @@ class CloudraConfig(BaseSettings):
             self.openalex_mailto = os.getenv("OPENALEX_MAILTO") or ""
 
     def _load_yaml_config(self):
-        """Load config from YAML file, overriding defaults."""
+        """Load config from YAML file, overriding in-memory values.
+
+        磁盘 YAML 是唯一事实源：文件里出现的键原样生效（含空串/空列表，
+        清空语义要能往返）；只有 None（手写 YAML 的"留空"）才跳过。
+        """
         cfg_path = self.config_file
         if not cfg_path.exists():
             return
@@ -172,19 +190,21 @@ class CloudraConfig(BaseSettings):
 
             if "email" in data:
                 for k, v in data["email"].items():
-                    if hasattr(self.email, k) and v:
+                    if hasattr(self.email, k) and v is not None:
                         setattr(self.email, k, v)
 
-            if "data_dir" in data:
+            if "data_dir" in data and data["data_dir"] is not None:
                 self.data_dir = Path(data["data_dir"])
             if "openalex_api_key" in data and data["openalex_api_key"] is not None:
                 self.openalex_api_key = str(data["openalex_api_key"])
             if "openalex_mailto" in data and data["openalex_mailto"] is not None:
                 self.openalex_mailto = str(data["openalex_mailto"])
-            if "plugins" in data and data["plugins"]:
+            if "plugins" in data and data["plugins"] is not None:
                 self.plugins = [str(s) for s in data["plugins"]]
+            if "knowledge_vec_python" in data and data["knowledge_vec_python"] is not None:
+                self.knowledge_vec_python = str(data["knowledge_vec_python"])
         except Exception as e:
-            print(f"[Config Warning] Failed to load {cfg_path}: {e}")
+            logger.warning("Failed to load %s: %s", cfg_path, e)
 
     def _ensure_dirs(self):
         """Create data directories if they don't exist."""
@@ -192,77 +212,6 @@ class CloudraConfig(BaseSettings):
         (self.data_dir / "conversations").mkdir(exist_ok=True)
         (self.data_dir / "logs").mkdir(exist_ok=True)
         (self.data_dir / "contexts").mkdir(exist_ok=True)
-
-    def save(self):
-        """Persist current config to YAML file.
-
-        plugins 键采用磁盘优先合并：磁盘 YAML 里存在非 None 的 plugins 就原样
-        保留磁盘值，否则落内存值。这堵住"运行中的服务用旧内存快照整文件重写、
-        抹掉期间由 knowledge install 手写的 plugins"的竞态。代价：save() 无法
-        移除 plugins 条目——卸载插件请手改 YAML。
-        """
-        cfg_path = self.config_file
-        cfg_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "data_dir": str(self.data_dir),
-            "llm": {
-                "coordinator": {
-                    "model": self.coordinator.model,
-                    "url": self.coordinator.url,
-                    "key": self.coordinator.key,
-                    "supports_vision": self.coordinator.supports_vision,
-                    "native_search": self.coordinator.native_search,
-                    "native_search_params": self.coordinator.native_search_params,
-                    "context_window": self.coordinator.context_window,
-                    "timeout": self.coordinator.timeout,
-                },
-                "follower": {
-                    "model": self.follower.model,
-                    "url": self.follower.url,
-                    "key": self.follower.key,
-                    "supports_vision": self.follower.supports_vision,
-                    "native_search": self.follower.native_search,
-                    "native_search_params": self.follower.native_search_params,
-                    "context_window": self.follower.context_window,
-                    "timeout": self.follower.timeout,
-                },
-            },
-            "email": {
-                "smtp_server": self.email.smtp_server,
-                "smtp_port": self.email.smtp_port,
-                "imap_server": self.email.imap_server,
-                "imap_port": self.email.imap_port,
-                "user": self.email.user,
-                "password": self.email.password,
-                "sender_name": self.email.sender_name,
-                "whitelist": self.email.whitelist,
-                "poll_interval": self.email.poll_interval,
-            },
-            "openalex_api_key": self.openalex_api_key,
-            "openalex_mailto": self.openalex_mailto,
-        }
-        # plugins 磁盘优先合并（见 docstring）；读失败按无磁盘值处理。
-        disk_plugins = None
-        try:
-            if cfg_path.exists():
-                disk = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-                raw = disk.get("plugins")
-                if raw is not None:
-                    disk_plugins = [str(s) for s in raw]
-        except Exception as e:
-            print(f"[Config Warning] Failed to merge plugins from {cfg_path}: {e}")
-        final_plugins = disk_plugins if disk_plugins is not None else (
-            [str(s) for s in self.plugins] if self.plugins else None
-        )
-        if final_plugins:
-            data["plugins"] = final_plugins
-        text = yaml.dump(
-            data,
-            allow_unicode=True,
-            default_flow_style=False,
-            sort_keys=False,
-        )
-        atomic_write_text(str(cfg_path), text)
 
     def to_display_dict(self) -> dict:
         """Return a dict for display, masking sensitive keys."""
@@ -355,20 +304,22 @@ def _coerce_value(current, value: str):
 
 
 def set_config_value(key: str, value: str) -> None:
-    """设置单个配置项并保存。未知配置项或非法值抛出 ValueError。
+    """设置单个配置项并原子落盘。未知配置项或非法值抛出 ValueError。
 
     解析顺序与 CLI 一致：原样路径 → coordinator.<key> → follower.<key>。
     """
-    cfg = get_config()
-    target, final_key = resolve_config_attr(cfg, key)
-    if target is None:
-        target, final_key = resolve_config_attr(cfg, f"coordinator.{key}")
-    if target is None:
-        target, final_key = resolve_config_attr(cfg, f"follower.{key}")
-    if target is None:
-        raise ValueError(f"配置项不存在: {key}")
-    setattr(target, final_key, _coerce_value(getattr(target, final_key), value))
-    cfg.save()
+
+    def _apply(work: CloudraConfig) -> None:
+        target, final_key = resolve_config_attr(work, key)
+        if target is None:
+            target, final_key = resolve_config_attr(work, f"coordinator.{key}")
+        if target is None:
+            target, final_key = resolve_config_attr(work, f"follower.{key}")
+        if target is None:
+            raise ValueError(f"配置项不存在: {key}")
+        setattr(target, final_key, _coerce_value(getattr(target, final_key), value))
+
+    mutate_config(_apply)
 
 
 # Global config instance (lazy singleton pattern)
@@ -383,8 +334,88 @@ def get_config() -> CloudraConfig:
     return _config
 
 
-def reload_config() -> CloudraConfig:
-    """Force reload config from disk/env."""
+def _model_to_yaml_data(cfg: CloudraConfig) -> dict:
+    """从 model_dump 派生 YAML 文档，不维护手抄字段清单。
+
+    唯一的结构映射：两个 LLM 槽位在磁盘上嵌套于 llm 键；其余顶层字段
+    （email/openalex_*/plugins 及未来新增字段）随 model_dump 自动跟随。
+    config_file 是进程内寻址信息，不落盘。
+    """
+    dump = cfg.model_dump(mode="json", exclude={"config_file"})
+    data = {
+        "data_dir": dump.pop("data_dir"),
+        "llm": {
+            "coordinator": dump.pop("coordinator"),
+            "follower": dump.pop("follower"),
+        },
+    }
+    data.update(dump)
+    return data
+
+
+def mutate_config(fn: Callable[[CloudraConfig], None]) -> CloudraConfig:
+    """唯一配置写入口：flock 下读磁盘 → fn(工作副本) → 原子写回 → 单例从磁盘重载。
+
+    fn 收到的工作副本 = 进程当前配置叠加磁盘 YAML 最新状态（磁盘优先），
+    因此多进程并发的读-改-写不会互相抹键；flock（config.yaml 旁的
+    config.yaml.lock）把临界区跨进程/线程串行化。fn 抛错时不写盘、
+    不动单例。返回刷新后的全局单例。
+    """
+    from cloudra.infra.flocks import locked  # 惰性导入：flocks 依赖 POSIX fcntl
+
+    cfg = get_config()
+    cfg_path = Path(cfg.config_file)
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    with locked(str(cfg_path) + ".lock"):
+        work = cfg.model_copy(deep=True)
+        work._load_yaml_config()  # 磁盘覆盖内存：并发的最新写入不被旧快照抹掉
+        fn(work)
+        atomic_write_text(str(cfg_path), yaml.dump(
+            _model_to_yaml_data(work),
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False,
+        ))
+        # 单例回填为刚落盘的磁盘状态（就地更新，嵌套对象身份不变，
+        # 持有 get_config() 引用的调用方立即可见）。
+        cfg._load_yaml_config()
+    return cfg
+
+
+def add_plugin(spec: str) -> bool:
+    """幂等把插件 spec（"pkg.module:attr"）加进 plugins；返回是否新增。"""
+    added = False
+
+    def _apply(work: CloudraConfig) -> None:
+        nonlocal added
+        if spec not in work.plugins:
+            work.plugins = [*work.plugins, spec]
+            added = True
+
+    mutate_config(_apply)
+    return added
+
+
+def remove_plugin(spec: str) -> bool:
+    """幂等从 plugins 移除插件 spec；返回是否移除。"""
+    removed = False
+
+    def _apply(work: CloudraConfig) -> None:
+        nonlocal removed
+        if spec in work.plugins:
+            work.plugins = [s for s in work.plugins if s != spec]
+            removed = True
+
+    mutate_config(_apply)
+    return removed
+
+
+def _reset_for_tests() -> CloudraConfig:
+    """测试专用：丢弃进程内单例并按当前环境重建。生产代码禁止调用。
+
+    测试用 monkeypatch.setenv 改 CLOUDRA_* / legacy env 后调用它，
+    让单例反映新环境。
+    """
     global _config
     _config = CloudraConfig()
     return _config

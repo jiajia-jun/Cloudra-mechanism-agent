@@ -29,7 +29,7 @@ from cloudra.tools.Interactool.email_reader import EmailReader, EmailReader_inpu
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
 
-logger = logging.getLogger("runtime_v2.email_listener")
+logger = logging.getLogger(__name__)
 
 # Kept well under prompt budgets; the full mail stays in the mailbox, the
 # agent can re-read via the email_reader tool when it needs more.

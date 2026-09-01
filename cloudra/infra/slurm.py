@@ -8,16 +8,17 @@ import re
 import shlex
 import shutil
 import subprocess
-import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from cloudra.infra.compute_utils import build_calculator_cmd
-from cloudra.persistence.database import ConversationDB
-from cloudra.runtime.compute_notify import (
-    build_compute_finish_content,
-    emit_compute_task_finished,
-    resolve_submission_info,
+from cloudra.persistence.database import ComputeDB
+from cloudra.services.compute_store import (
+    acancel_compute_job,
+    afinalize_compute_job,
+    aget_compute_job,
+    amark_slurm_submitted,
+    aupdate_scheduler_state,
 )
 
 _SBATCH_VALUE = re.compile(r"[A-Za-z0-9_.:@+/%-]{1,100}\Z")
@@ -148,42 +149,6 @@ def cancel_job(job_id: str) -> None:
         raise SlurmError((completed.stderr or "scancel failed")[:2000])
 
 
-def cancel_interrupted_jobs(db: ConversationDB) -> int:
-    """Best-effort cancellation for Slurm jobs orphaned by server recovery."""
-    with db.connect() as con:
-        rows = con.execute(
-            """SELECT id, scheduler_job_id FROM compute_jobs
-            WHERE scheduler='slurm' AND state='failed'
-            AND last_error='parent session heartbeat expired'
-            AND scheduler_job_id IS NOT NULL
-            AND COALESCE(scheduler_state, '') NOT IN
-            ('COMPLETED', 'CANCELLED', 'FAILED', 'TIMEOUT', 'CANCEL_FAILED')"""
-        ).fetchall()
-    cancelled = 0
-    for task_id, job_id in rows:
-        try:
-            cancel_job(str(job_id))
-            scheduler_state = "CANCELLED"
-            cancelled += 1
-        except Exception as exc:
-            scheduler_state = "CANCEL_FAILED"
-            error = f"Slurm orphan cancellation failed: {exc}"[:2000]
-        with db.connect() as con:
-            if scheduler_state == "CANCELLED":
-                con.execute(
-                    "UPDATE compute_jobs SET scheduler_state=? WHERE id=?",
-                    (scheduler_state, task_id),
-                )
-            else:
-                con.execute(
-                    """UPDATE compute_jobs SET scheduler_state=?, last_error=?
-                    WHERE id=?""",
-                    (scheduler_state, error, task_id),
-                )
-            con.commit()
-    return cancelled
-
-
 async def run_slurm_compute(
     task_id: int,
     db_path: str,
@@ -191,86 +156,40 @@ async def run_slurm_compute(
     scheduler: dict,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> int:
-    db = ConversationDB.from_path(db_path)
-    async with db.aconnect() as con:
-        row = await (
-            await con.execute(
-                "SELECT conversation_id, path, jobtype, state, scheduler_job_id "
-                "FROM compute_jobs WHERE id=?",
-                (task_id,),
-            )
-        ).fetchone()
+    db = ComputeDB.from_path(db_path)
+    row = await aget_compute_job(db, task_id)
     if not row:
         raise SlurmError(f"compute job {task_id} 不存在")
-    conversation_id, raw_path, job_type, db_state, scheduler_job_id = row
-    input_file = Path(raw_path).expanduser().resolve(strict=True)
+    scheduler_job_id = row["scheduler_job_id"]
+    input_file = Path(row["path"]).expanduser().resolve(strict=True)
     if not scheduler_job_id:
         script_path = input_file.parent / f".cloudra-slurm-{task_id}.sh"
         script_path.write_text(
-            build_batch_script(input_file, job_type, task_id, scheduler),
+            build_batch_script(input_file, row["jobtype"], task_id, scheduler),
             encoding="utf-8",
         )
         os.chmod(script_path, 0o700)
         scheduler_job_id = submit_batch(script_path)
-        async with db.aconnect() as con:
-            await con.execute(
-                """UPDATE compute_jobs SET scheduler_job_id=?, scheduler_script=?,
-                scheduler_state='PENDING', start_timestamp=? WHERE id=?""",
-                (str(scheduler_job_id), str(script_path), time.time(), task_id),
-            )
-            await con.commit()
+        await amark_slurm_submitted(db, task_id, str(scheduler_job_id), str(script_path))
 
     poll_seconds = min(max(float(scheduler.get("poll_seconds", 15)), 1), 300)
     while True:
-        async with db.aconnect() as con:
-            current = await (
-                await con.execute("SELECT state FROM compute_jobs WHERE id=?", (task_id,))
-            ).fetchone()
-        if current and current[0] in {"cancelled", "cancel_requested"}:
+        current = await aget_compute_job(db, task_id)
+        if current and current["state"] in {"cancelled", "cancel_requested"}:
             await asyncio.to_thread(cancel_job, str(scheduler_job_id))
-            async with db.aconnect() as con:
-                await con.execute(
-                    """UPDATE compute_jobs SET state='cancelled',
-                    scheduler_state='CANCELLED', end_timestamp=? WHERE id=?""",
-                    (time.time(), task_id),
-                )
-                await con.commit()
+            await acancel_compute_job(db, task_id)
             return 1
         state, exit_code = await asyncio.to_thread(query_job, str(scheduler_job_id))
-        async with db.aconnect() as con:
-            await con.execute(
-                "UPDATE compute_jobs SET scheduler_state=? WHERE id=?",
-                (state, task_id),
-            )
-            await con.commit()
+        await aupdate_scheduler_state(db, task_id, state)
         if state in SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE:
             final = "done" if state in SLURM_TERMINAL_SUCCESS else "failed"
-            async with db.aconnect() as con:
-                await con.execute(
-                    """UPDATE compute_jobs SET state=?, end_timestamp=?, last_error=?
-                    WHERE id=?""",
-                    (
-                        final,
-                        time.time(),
-                        None if final == "done" else f"Slurm {state} ({exit_code})",
-                        task_id,
-                    ),
-                )
-                await con.commit()
-            info = await resolve_submission_info(db, task_id)
-            content = build_compute_finish_content(
-                task_id=task_id,
-                state=final,
-                input_path=str(info.get("path") or ""),
-                fail_reason="" if final == "done" else f"Slurm {state} ({exit_code})",
+            await afinalize_compute_job(
+                db,
+                task_id,
+                final,
+                last_error=None if final == "done" else f"Slurm {state} ({exit_code})",
+                only_running=False,
             )
-            emit_compute_task_finished(
-                conversation_id,
-                task_id=task_id,
-                state=final,
-                content=content,
-                session_id=info.get("session_id"),
-                notify_coordinator=True,
-            )
+            # 终态通知由 ComputeNotifyBroker 轮询 compute_jobs 表补投，不再发 IPC
             return 0 if final == "done" else 1
         await sleep(poll_seconds)

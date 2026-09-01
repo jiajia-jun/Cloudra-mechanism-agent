@@ -2,6 +2,17 @@
 
 Projects, agents and role overrides live here.  SQLite projections are layered
 on later; command handlers only talk to this object, never to storage.
+
+状态外化契约（3e）——运行时状态分两类：
+- 事件可推导（重启可重建）：projects/agents/roles/pending_compactions 由
+  apply_event 投影（状态承载事件清单见 apply.py docstring）；notices pins、
+  pending、reminders 由各 broker 对事件日志的投影重建（pending 孤儿由
+  restore 落 approval.expired / interaction.expired 显式闭合）。
+- 刻意易失（shell 私有，重启即弃）：mailbox 的 inbox 队列、runner 的 LLM
+  history（对话原文不跨 run）、pipeline 的 loop_guard 计数、notices 的
+  one-shot pushes、pending._waiters 的 future、reminders/email_listener 的
+  asyncio 任务、policy stage 声明为易失的缓存（规则见 policies/base.py）。
+明细见各宿主模块 docstring；write-only 秘密 api_key 永不进事件/快照。
 """
 
 from __future__ import annotations
@@ -37,13 +48,16 @@ class RuntimeCore:
         self.event_log = EventLog(strict=strict_events)
         self.event_hub = EventHub()
         self.mailbox = Mailbox(self.event_log)
-        self.agent_host = AgentHost(self.event_log)
+        self.agent_host = AgentHost(self)
         self.roles = RoleRegistry(roles if roles is not None else BUILTIN_ROLES)
         self.runtime_defaults = RuntimeSettings()
         self.projects: dict[str, Project] = {}
         self.agents: dict[str, AgentSession] = {}
-        # Pending manual compactions (session_id -> keep_recent); the runner
-        # applies them at the next turn boundary when history is non-empty.
+        # Pending manual compactions (session_id -> keep_recent): an event
+        # projection of compaction.requested — the single writer is
+        # apply_event; run.started's apply expires entries (a new run's
+        # in-memory history is unrelated), the runner consumes at turn
+        # boundaries.  Rebuilt by event replay on restore.
         self.pending_compactions: dict[str, int] = {}
         # Pending approvals / ask_user interactions (events + futures).
         self.pending = PendingBroker(self)

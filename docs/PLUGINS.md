@@ -228,7 +228,7 @@ plugin = KeyNodeTrigger()
 
 ### 卸载
 
-手改 YAML 删掉 `plugins:` 里的对应行（`config.save()` 的 plugins 磁盘优先合并语义使其无法经 save 移除条目），重启生效。
+`cloudra knowledge uninstall`（内部走 `remove_plugin`，幂等从 `plugins:` 删掉对应条目），重启生效。
 
 ## 测试与审计支持
 

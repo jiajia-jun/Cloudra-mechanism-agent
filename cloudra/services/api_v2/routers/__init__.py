@@ -1,0 +1,26 @@
+"""Router assembly: one APIRouter factory per domain.
+
+``build_routers`` returns routers in the exact registration order of the
+original single-file app, so route matching precedence is unchanged.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+from ..context import ApiContext
+from . import agents, artifacts, dag, events, knowledge, pending, projects, roles, runtime
+
+
+def build_routers(ctx: ApiContext) -> list[APIRouter]:
+    return [
+        runtime.build_router(ctx),
+        projects.build_router(ctx),
+        agents.build_router(ctx),
+        knowledge.build_router(ctx),
+        roles.build_router(ctx),
+        pending.build_router(ctx),
+        artifacts.build_router(ctx),
+        dag.build_router(ctx),
+        events.build_router(ctx),
+    ]

@@ -7,14 +7,14 @@ to expire.
 """
 
 import os
-import time
 from typing import Any
 
 from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.persistence.database import ConversationDB, get_database_path
+from cloudra.persistence.database import ComputeDB
+from cloudra.services.compute_store import afail_compute_job, aget_compute_job
 
 description = (
     "Force a compute job into the failed state with a recorded reason. "
@@ -63,39 +63,28 @@ class MarkComputeJobFailed(Tool):
             return MarkComputeJobFailed_output_schema(
                 is_success=False, job_id=user_input.job_id, message="reason is required"
             )
-        conv_id = getattr(self.subagent, "conversation_id", "default")
-        db = ConversationDB.from_path(get_database_path(conv_id))
+        conv_id = getattr(self.subagent, "conversation_id", None) or "default"
+        db = ComputeDB()
         if not os.path.exists(db.path):
             return MarkComputeJobFailed_output_schema(
                 is_success=False, job_id=user_input.job_id,
-                message="no compute-jobs database in this conversation",
+                message="no compute-jobs database on this node yet",
             )
         try:
-            async with db.aconnect() as con:
-                cur = await con.execute(
-                    "SELECT state FROM compute_jobs WHERE id=? AND conversation_id=?",
-                    (user_input.job_id, conv_id),
+            row = await aget_compute_job(db, user_input.job_id)
+            if row is None or row["conversation_id"] != conv_id:
+                return MarkComputeJobFailed_output_schema(
+                    is_success=False, job_id=user_input.job_id,
+                    message=f"No compute job found for job_id={user_input.job_id}.",
                 )
-                row = await cur.fetchone()
-                if row is None:
-                    return MarkComputeJobFailed_output_schema(
-                        is_success=False, job_id=user_input.job_id,
-                        message=f"No compute job found for job_id={user_input.job_id}.",
-                    )
-                previous_state = row[0] or ""
-                if previous_state in ("done", "failed"):
-                    return MarkComputeJobFailed_output_schema(
-                        is_success=False, job_id=user_input.job_id,
-                        previous_state=previous_state,
-                        message=f"job {user_input.job_id} is already terminal ({previous_state}).",
-                    )
-                now = time.time()
-                await con.execute(
-                    "UPDATE compute_jobs SET state='failed', end_timestamp=?, "
-                    "last_error=?, lease_expires_at=0 WHERE id=?",
-                    (now, reason, user_input.job_id),
+            previous_state = row["state"] or ""
+            if previous_state in ("done", "failed"):
+                return MarkComputeJobFailed_output_schema(
+                    is_success=False, job_id=user_input.job_id,
+                    previous_state=previous_state,
+                    message=f"job {user_input.job_id} is already terminal ({previous_state}).",
                 )
-                await con.commit()
+            await afail_compute_job(db, user_input.job_id, reason)
         except Exception as exc:
             return MarkComputeJobFailed_output_schema(
                 is_success=False, job_id=user_input.job_id, message=f"mark failed: {exc}"
@@ -103,7 +92,7 @@ class MarkComputeJobFailed(Tool):
         try:
             from cloudra.dag.controller import enqueue_compute_review
 
-            await enqueue_compute_review(db, user_input.job_id, "failed")
+            await enqueue_compute_review(user_input.job_id, "failed")
         except Exception:
             pass  # 非 dag 模式/无 session 时内部跳过；失败不影响落库
         return MarkComputeJobFailed_output_schema(

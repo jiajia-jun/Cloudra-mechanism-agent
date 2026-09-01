@@ -3,6 +3,25 @@
 The stage wraps the deterministic dag/ engine (DagController) without making
 the turn pipeline aware of graphs.  ``dag_record`` / ``dag_guided`` are just
 the same stage enabled by the agent's settings.
+
+State & side-effect declaration (3d):
+
+- The graph itself is NOT stage state: the single authority is the project's
+  ConversationDB (dag store, on-disk SQLite), so every restart rebuilds it
+  losslessly.  ``_controllers`` is a **deliberately volatile**, lazily
+  rebuilt cache of DagController instances (``_controller()`` recreates them
+  on demand); dropping it on restart costs one reconstruction, nothing else.
+- ``_subagent_windows`` (tool_call_id → delivery fingerprint) pairs one tool
+  call's before/after within a live turn; it is meaningless once the turn
+  dies, hence **deliberately volatile** and never restored.
+- Side effects (SQLite via DagController, the supervisor's LLM loop,
+  CommandBus spawn for the supervision shell) stay inside the stage by
+  exemption: DagController is an imperative engine over its own durable
+  store and the supervisor call is inherently IO, so purifying them into
+  Decision/Effect objects would build a parallel command system for no
+  recoverability gain — the recoverable state already lives in the dag store
+  and the event log (the supervision shell's lifecycle is plain
+  agent.spawned/state_changed events).
 """
 
 from __future__ import annotations
@@ -25,6 +44,11 @@ class _SupervisionShell:
     shell never goes through the LLM pipeline — it exists so the UI shows the
     Supervisor as a child agent (running → succeeded with a summary) instead
     of the parent looking frozen while the supervisor is awaited inline.
+
+    ``self.shell`` is a **deliberately volatile** reference cache: the shell
+    agent's actual lifecycle (spawn/restart/run start/finish) is event-sourced
+    via CommandBus and AgentHost, so a restart rebuilds the agent from the
+    log and a fresh shell would simply spawn again on the next supervision.
     """
 
     def __init__(self, core, parent) -> None:

@@ -107,6 +107,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         visual=True,
     ),
     ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
+    ToolRegistration('cloudra.tools.Chemtool.query_compute_queue', 'QueryComputeQueue'),
     ToolRegistration(
         module='cloudra.tools.Chemtool.mark_compute_job_failed',
         class_name='MarkComputeJobFailed',

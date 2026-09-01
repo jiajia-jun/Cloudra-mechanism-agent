@@ -2,10 +2,22 @@
 
 纯标准库 HTTP 服务器（ThreadingHTTPServer）；模型与向量计算依赖留在
 外部 .venv-trans（sentence-transformers + numpy + 本机 HF 缓存的 bge-m3），
-cloudra 自身 venv 不装 torch。本服务不随 cloudra 自启，用
+cloudra 自身 venv 不装 torch。chem-kb 插件激活时本服务由 cloudra web
+启动器自动 detach 拉起（``CLOUDRA_KG_VEC=off`` 关闭自启）；也可手动：
 scripts/kg_vec_service.ps1 或直接：
 
-    <venv-trans>/Scripts/python.exe scripts/kg_vec_service.py [--port 8765] [--model NAME]
+    <venv-trans>/bin/python scripts/kg_vec_service.py [--port 8765] [--model NAME] [--lock-file PATH]
+
+**约束**：本脚本跑在外部 .venv-trans 解释器下，cloudra 包不可导入——logging
+只能 stdlib ``basicConfig`` 自理（main() 入口，级别取环境变量
+``KG_VEC_LOG_LEVEL``，缺省 INFO），不能复用 cloudra.infra.logging_setup。
+detach 拉起时 stdout/stderr 已被重定向进 logs/kg_vec.log，日志写 stdout 即落盘。
+
+单实例：--lock-file（或环境变量 KG_VEC_LOCK_FILE）给定路径时启动即抢排他
+flock 并持有到进程退出——锁已被别的实例持有则直接退出（返回码 0，防重不
+算错误）；启动方的判定链（/health 探测 + 同一把锁的探测）见
+cloudra/web_launcher.py 的 _ensure_kg_vec。平台无 fcntl（Windows）时锁
+退化不启用，仅靠启动方的 /health 探测防重。
 
 模型可用 --model 或环境变量 KG_VEC_MODEL 自选（默认 BAAI/bge-m3，离线加载）；
 换成与 vector_store/meta.json 记录不同的模型时启动即告警——跨模型余弦分数无效，
@@ -29,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import threading
@@ -42,6 +55,8 @@ LIB_DIR = REPO_ROOT / "vector_store"
 DEFAULT_MODEL = "BAAI/bge-m3"
 BGE_QUERY_INSTRUCTION = "为这个句子生成表示以用于检索相关文章："  # bge 系专用查询前缀
 CONTENT_CAP = 600  # 单条 content 码点上限（调用方还会再折叠）
+
+logger = logging.getLogger("kg_vec")
 
 _cards: list[dict] = []
 _mat = None  # np.ndarray (n, dim) float32
@@ -59,12 +74,12 @@ def _load_library() -> None:
     cards_p, vec_p = LIB_DIR / "cards.jsonl", LIB_DIR / "vectors.f16.npy"
     for p in (cards_p, vec_p):
         if not p.exists():
-            print(f"缺少产物文件: {p}", file=sys.stderr)
+            logger.error("缺少产物文件: %s", p)
             sys.exit(2)
     _cards = [json.loads(line) for line in cards_p.open(encoding="utf-8")]
     _mat = np.load(vec_p).astype(np.float32)
     if len(_cards) != _mat.shape[0]:
-        print(f"行数不一致: cards={len(_cards)} vecs={_mat.shape[0]}", file=sys.stderr)
+        logger.error("行数不一致: cards=%d vecs=%d", len(_cards), _mat.shape[0])
         sys.exit(2)
     meta_p = LIB_DIR / "meta.json"
     if meta_p.exists():
@@ -112,6 +127,33 @@ def _clamp_lang(raw: Any) -> str | None:
     """lang 参数白名单：zh/en，其余（含缺省）→ None 表示混合。"""
     val = str(raw or "").strip().lower()
     return val if val in ("zh", "en") else None
+
+
+def _try_hold_lock(path: str):
+    """非阻塞抢排他 flock 并持有到进程退出（单实例守卫，scheduler.lock 同款）。
+
+    返回持有锁的 fd；锁已被别的实例持有返回 ``False``；未配置路径、锁文件
+    不可达或平台无 fcntl（Windows）返回 ``None``——退化为仅靠启动方的
+    /health 探测防重，服务照常运行。
+    """
+    if not path:
+        return None
+    try:
+        import fcntl
+    except ImportError:
+        logger.warning("平台无 fcntl，单实例锁未启用（仅靠 /health 探测防重）")
+        return None
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    except OSError as exc:
+        logger.warning("锁文件不可达（%s），单实例锁未启用", exc)
+        return None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        return False
+    return fd  # 故意不关闭：进程退出（含 kill -9）时内核自动放锁
 
 
 def _select_hits(cards: list[dict], scores, order, k: int,
@@ -212,12 +254,18 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             self._send_json({"error": str(exc)}, code=500)
 
-    def log_message(self, fmt: str, *args) -> None:  # 精简默认噪音
-        sys.stderr.write(f"[kg_vec] {self.address_string()} {fmt % args}\n")
+    def log_message(self, fmt: str, *args) -> None:  # 访问日志默认静音，DEBUG 级可取
+        logger.debug("%s %s", self.address_string(), fmt % args)
 
 
 def main() -> int:
     global _model_name
+    # cloudra 包在本解释器下不可导入，logging 用 stdlib 自理（见模块 docstring）。
+    logging.basicConfig(
+        stream=sys.stdout,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        level=os.environ.get("KG_VEC_LOG_LEVEL", "INFO").upper(),
+    )
     ap = argparse.ArgumentParser(description="知识卡片语义检索微服务（外部 venv 运行）")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1")
@@ -225,24 +273,35 @@ def main() -> int:
                     help=f"查询侧 embedding 模型（默认 {DEFAULT_MODEL}，也可用环境变量 "
                          "KG_VEC_MODEL 指定）。换成与向量库不同的模型时必须自行重新编码"
                          "向量库，否则检索分数无效；非默认模型首次使用会从 HF 下载。")
+    ap.add_argument("--lock-file", default=os.environ.get("KG_VEC_LOCK_FILE", ""),
+                    help="单实例 flock 路径（web_launcher 自启动时传入，也可用环境变量 "
+                         "KG_VEC_LOCK_FILE）：抢到才运行，已被持有则直接退出。")
     args = ap.parse_args()
     _model_name = args.model
+
+    lock_fd = _try_hold_lock(args.lock_file)
+    if lock_fd is False:
+        logger.info("已有活实例（锁被持有: %s），退出。", args.lock_file)
+        return 0
 
     _load_library()
     mismatch = _check_model_match()
     if mismatch:
-        print(f"[kg_vec] ⚠ {mismatch}", file=sys.stderr)
+        logger.warning("%s", mismatch)
     # 后台预热模型：懒加载逻辑保留兜底，但冷启动（CPU 首载约 5-10s）必须
     # 不与调用方的 3s 超时赛跑——监听立即可用，模型在后台线程就绪。
     warm = threading.Thread(target=_get_model, daemon=True)
     warm.start()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"[kg_vec] listening on http://{args.host}:{args.port}  cards={len(_cards)}  "
-          f"model={_model_name}  library_model={_lib_model}", file=sys.stderr)
+    logger.info("listening on http://%s:%d  cards=%d  model=%s  library_model=%s",
+                args.host, args.port, len(_cards), _model_name, _lib_model)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        if isinstance(lock_fd, int):
+            os.close(lock_fd)  # 进程退出内核同样会放锁；显式关闭只是整洁
     return 0
 
 

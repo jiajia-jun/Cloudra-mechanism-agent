@@ -17,7 +17,7 @@
 
 ### 1. 环境准备与安装
 
-系统需要 Python ≥ 3.11 与 Node.js ≥ 18，以及可访问的 OpenAI 兼容大模型 API。
+系统需要 Python ≥ 3.11、Node.js ≥ 18、POSIX 环境（Linux/macOS——执行面依赖 `flock`/`nice` 语义），以及可访问的 OpenAI 兼容大模型 API。
 
 ```bash
 # 克隆仓库
@@ -25,8 +25,7 @@ git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
 cd Cloudra-mechanism-agent
 
 # 一键安装环境（自动配置 Python 虚拟环境与依赖）
-./install.sh                 # Linux / macOS
-# .\install.ps1              # Windows PowerShell
+./install.sh
 
 # 初始化配置文件
 cloudra config init
@@ -129,6 +128,17 @@ Cloudra 的执行面由轻量、确定性的 `runtime_v2` 驱动：
 - **全生命周期事件日志（EventLog & EventHub）**：每一次工具调用、大模型思考片段（`agent.thinking`）、状态迁移与图突变，均以只追加（append-only）的强类型事件落盘。系统天然具备审计重放、单轮崩溃退避重试（Retry）与跨进程断电恢复能力。
 - **声明式 Notice 注入机制**：系统告别了容易引发脏状态污染的全局上下文拼接，而是通过 `notices.pin`（常驻置顶）与一次性推送管线，在 LLM 轮次拼装时以确定性规则注入当前的 DAG 缺口、研究目标（Goal）与调度提醒。
 - **离线守护与自主 Schedule 机制**：结合底层 `ScheduleStage` 门禁与内置定时器系统，Agent 可以在提交长周期计算任务后主动设定闹钟并安全挂起；当闹钟触发或计算作业就绪时，系统会自动唤醒沉睡的 Agent 继续推进，真正实现离开电脑的无人值守长程探索。
+- **函数式内核与状态外化**：命令处理被拆成纯决策函数（无 IO，只产出事件草稿与副作用指令）、唯一无守卫的 `apply_event` 状态应用器（在线路径与崩溃恢复重放共用同一份逻辑）、以及负责执行副作用的薄壳层。快照只是节流缓存——恢复按每项目高水位线增量重放事件。任何持久状态都不留在进程内存里：审批、压缩请求、Agent 状态全部是事件投影，重启时孤儿审批/提问会被显式落 `approval.expired` / `interaction.expired` 终态事件，而不是无声消失。
+
+### 进程拓扑：崩溃隔离的执行面
+
+一个运行中的 Cloudra 实例是三个刻意分离的操作系统进程：
+
+- **Web 进程**（`api_v2` + SPA，单端口）：控制面。它随时可以崩溃或重启——没有任何计算会随它死掉。
+- **计算调度守护进程**（`cloudra scheduler`，自动 detach 拉起）：在容量记账下认领队列中的作业并拉起 detach 的 `guard` 进程。Cloudra 永不主动 kill 计算进程；进程存活判定只用 `flock` 探测。终态以 CAS 写入中央 `compute.db`，完成通知经细粒度数据库轮询送达控制面——API 宕机窗口内完成的作业不再丢通知。
+- **知识向量服务**（`kg_vec_service.py`，chem-kb 插件安装后自动拉起）：跑在独立解释器下，把 torch/sentence-transformers 隔离在主环境之外。
+
+进程间的状态同步只走 SQLite（WAL）与文件锁——绝不走内存通道。
 
 ---
 
@@ -161,12 +171,13 @@ Cloudra 深度集成了计算化学主流工具链与高性能计算基础设施
 ```text
 cloudra/
 ├── core/                        Agent 基类与科学督导（Supervisor）
-├── services/                    控制面 API 服务（薄路由，基于 FastAPI）
+├── services/                    控制面 API 服务（api_v2 包：app/routers/context/models）
 ├── persistence/                 SQLite 持久化、不可变产物快照、长期记忆、路径管理
 ├── base/                        数据契约与工具/技能加载基类
-├── infra/                       多节点配置、LLM 传输层、事件总线、平台适配
+├── infra/                       配置（磁盘 YAML 唯一事实源）、LLM 传输层、flock 原语、统一日志
 ├── dag/                         机理证据交付图子系统（Engine, Store, Controller）
-├── runtime/                     确定性 prompt 组装、工作区快照、计算作业代理与监视
+├── runtime/                     确定性 prompt 组装、工作区快照、计算 guard 与日志监视
+├── scheduler/                   进程隔离的计算调度守护进程（排队/容量记账/flock 崩溃对账）
 ├── runtime_v2/                  事件驱动推理新内核（Pipeline, Commands, PolicyStages, Bridges）
 ├── tools/, subagents/           几何与电子感知工具库、领域专长 Agent（dft, md, explorer 等）
 ├── skills/, prompts/            实验方法学技能包与经过版本控制的角色策略
@@ -180,7 +191,7 @@ cloudra/
 运行全套单元测试与代码风格静态检查：
 
 ```bash
-uv run pytest -q tests/            # 执行全套 700+ 项自动化测试
+uv run pytest -q tests/            # 执行全套 1100+ 项自动化测试
 uv run pytest -q tests/test_dag*   # 聚焦 DAG 编排子系统
 uv run pytest -q tests/test_runtime_v2* # 聚焦新内核与策略门禁
 uv run ruff check cloudra tests    # 代码规范检查（line-length 120）

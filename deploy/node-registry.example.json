@@ -6,6 +6,11 @@
       "display_name": "Lab Workstation",
       "state": "online",
       "capabilities": ["agent.session", "artifact.download", "compute.local"],
+      "resources": {
+        "max_concurrent": 2,
+        "cpus": 16,
+        "memory_mb": 32768
+      },
       "workspaces": [
         {
           "workspace_id": "default",

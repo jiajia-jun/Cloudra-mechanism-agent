@@ -203,17 +203,27 @@ async def test_permission_stage_allows_visual_tools_when_visual_mode_on():
 # --- config round-trip -------------------------------------------------------
 
 
-def test_supports_vision_yaml_round_trip(tmp_path):
-    from cloudra.infra.config import CloudraConfig
+def test_supports_vision_yaml_round_trip(tmp_path, monkeypatch):
+    """supports_vision 经 mutate 落盘后可从 YAML 原样读回（含 False）。"""
+    from cloudra.infra.config import CloudraConfig, get_config, mutate_config
 
-    cfg_file = tmp_path / "config.yaml"
-    cfg = CloudraConfig(config_file=cfg_file, data_dir=tmp_path / "data")
+    cfg = get_config()
+    monkeypatch.setattr(cfg, "config_file", tmp_path / "config.yaml")
+    # teardown 复位到改前默认值 True
+    monkeypatch.setattr(cfg.coordinator, "supports_vision", True)
+    monkeypatch.setattr(cfg.follower, "supports_vision", True)
     assert cfg.coordinator.supports_vision is True  # default on
-    cfg.coordinator.supports_vision = False
-    cfg.follower.supports_vision = False
-    cfg.save()
 
-    reloaded = CloudraConfig(config_file=cfg_file, data_dir=tmp_path / "data")
+    def _turn_off(work):
+        work.coordinator.supports_vision = False
+        work.follower.supports_vision = False
+
+    mutate_config(_turn_off)
+    assert cfg.coordinator.supports_vision is False
+    assert cfg.follower.supports_vision is False
+
+    # 磁盘是事实源：从 YAML 重建的实例同样读到 False
+    reloaded = CloudraConfig(config_file=tmp_path / "config.yaml", data_dir=tmp_path / "data")
     assert reloaded.coordinator.supports_vision is False
     assert reloaded.follower.supports_vision is False
     display = reloaded.to_display_dict()

@@ -3,7 +3,6 @@ import hashlib
 import inspect
 import json
 import os
-from datetime import datetime
 from typing import Any, Optional
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -18,7 +17,6 @@ from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import ChatResponse, LLMClient
 from cloudra.infra.runtime_profile import filter_tools_for_runtime
 from cloudra.infra.token_estimator import TokenEstimator
-from cloudra.persistence.database import ConversationDB
 from cloudra.persistence.workspace import resolve_working_directory
 from cloudra.runtime.prompt_assembler import (
     PromptAssembler,
@@ -697,97 +695,6 @@ class Coordinator(Agent):
         self.llm_site = self.llm_site or cfg.url
         self.context_window = self.context_window or cfg.context_window
         self._api_key = self._api_key or cfg.key
-
-    def _build_subagent_status_snapshot(self) -> str:
-        """从 conversation DB 拉取子 Agent 请求与 session 状态快照（供动态 prompt 使用）。"""
-        try:
-            db = ConversationDB(self.conversation_id)
-            with db.connect() as con:
-                rows = con.execute(
-                    """SELECT id, session_id, state, input_data
-                    FROM subagent_requests
-                    WHERE conversation_id = ?
-                    ORDER BY id DESC
-                    LIMIT 20""",
-                    (self.conversation_id,),
-                ).fetchall()
-                if not rows:
-                    return ""
-
-                lines = ["[Current sub-agent task status]"]
-                for task_id, session_id, state, input_data in rows:
-                    agent_id = "unknown"
-                    query = ""
-                    try:
-                        payload = json.loads(input_data or "{}")
-                        agent_id = payload.get("agent_id", "unknown")
-                        query = payload.get("query", "")[:80]
-                    except Exception:
-                        pass
-                    lines.append(f"- task_id={task_id} agent={agent_id} state={state} query={query}")
-
-                session_ids = [row[1] for row in rows if row[1]]
-                if session_ids:
-                    placeholders = ",".join("?" * len(session_ids))
-                    sessions = con.execute(
-                        f"SELECT session_id, state, error FROM session WHERE session_id IN ({placeholders})",
-                        session_ids,
-                    ).fetchall()
-                    if sessions:
-                        lines.append("[Sub-agent session status]")
-                        for sid, sstate, error in sessions:
-                            err = f" error={error[:60]}" if error else ""
-                            lines.append(f"- session={sid} state={sstate}{err}")
-                return "\n".join(lines)
-        except Exception:
-            return ""
-
-    def _build_schedule_status_snapshot(self) -> str:
-        """把当前待触发提醒放进动态 prompt，供 Coordinator 管理和去重。"""
-        try:
-            db = ConversationDB(self.conversation_id)
-            with db.connect() as con:
-                rows = con.execute(
-                    """SELECT id, wake_at, content
-                    FROM scheduled_reminders
-                    WHERE conversation_id = ? AND agent_id = ? AND state = 'pending'
-                    ORDER BY wake_at, id
-                    LIMIT 20""",
-                    (self.conversation_id, self.id),
-                ).fetchall()
-            if not rows:
-                return ""
-
-            lines = [
-                "[Pending schedules]",
-                "These reminders are independent and each will fire. Before creating a new one, decide whether old ones are still needed; "
-                "cancel superseded or unused reminders with schedule(action='cancel', schedule_id=...).",
-            ]
-            for schedule_id, wake_at, content in rows:
-                wake_iso = datetime.fromtimestamp(float(wake_at)).astimezone().isoformat(
-                    timespec="seconds"
-                )
-                summary = " ".join(str(content).split())[:160]
-                lines.append(f"- schedule_id={schedule_id} wake_at={wake_iso} message={summary}")
-            return "\n".join(lines)
-        except Exception:
-            return ""
-
-    async def _build_messages(
-        self,
-        tool_schemas: Optional[list[dict]] = None,
-    ) -> list[dict]:
-        """Coordinator 每次推理前附加运行状态快照，实现动态 prompt。"""
-        messages = await super()._build_messages(tool_schemas)
-        # 快照各开一次同步 SQLite 连接（makedirs + PRAGMA），移出事件循环
-        snapshots = await asyncio.gather(
-            asyncio.to_thread(self._build_subagent_status_snapshot),
-            asyncio.to_thread(self._build_schedule_status_snapshot),
-        )
-        for snapshot in snapshots:
-            if snapshot:
-                messages.append({"role": "system", "content": snapshot})
-        return messages
 
     def has_manage_permission(self) -> bool:
         '''

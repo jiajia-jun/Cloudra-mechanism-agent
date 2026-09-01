@@ -327,8 +327,10 @@ async def test_review_call_mode_and_actor_gates(tmp_path):
 @pytest.mark.asyncio
 async def test_compute_job_terminal_state_enqueues_review(tmp_path):
     """D11：计算作业的终态入箱（带作业终态，而非 submit 调用的成败）；
-    review_id 按作业确定，重复回调去重。"""
+    review_id 按作业确定，重复回调去重。compute_jobs 已迁中央 compute.db，
+    入箱时从中央库读回归属会话，再开会话库读编排模式。"""
     from cloudra.dag.controller import enqueue_compute_review
+    from cloudra.persistence.database import ComputeDB
     from cloudra.services import session_store
 
     get_config().data_dir = tmp_path
@@ -343,15 +345,16 @@ async def test_compute_job_terminal_state_enqueues_review(tmp_path):
         created_at="2026-08-10T00:00:00+00:00",
         orchestration_mode="dag_guided",
     )
-    with db.connect() as con:
+    compute_db = ComputeDB().init()
+    with compute_db.connect() as con:
         con.execute(
             "INSERT INTO compute_jobs(conversation_id, session_id, state, path) "
             "VALUES ('review-compute', 's-child', 'done', 'ts.gjf')"
         )
         taskid = con.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    await enqueue_compute_review(db, taskid, "done")
-    await enqueue_compute_review(db, taskid, "done")  # 幂等去重
+    await enqueue_compute_review(taskid, "done")
+    await enqueue_compute_review(taskid, "done")  # 幂等去重
 
     inbox = _inbox(db)
     assert len(inbox) == 1
@@ -372,13 +375,13 @@ async def test_compute_job_terminal_state_enqueues_review(tmp_path):
         created_at="2026-08-10T00:00:00+00:00",
         orchestration_mode="standard",
     )
-    with db.connect() as con:
+    with compute_db.connect() as con:
         con.execute(
             "INSERT INTO compute_jobs(conversation_id, session_id, state, path) "
             "VALUES ('review-compute', 's-std', 'failed', 'x.gjf')"
         )
         std_task = con.execute("SELECT last_insert_rowid()").fetchone()[0]
-    await enqueue_compute_review(db, std_task, "failed")
+    await enqueue_compute_review(std_task, "failed")
     assert len(_inbox(db)) == 1
 
 

@@ -2,6 +2,7 @@
 Cloudra CLI - 自主有机小分子机理计算 Agent 命令行工具。
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from rich.table import Table
 
 from cloudra import __version__
 from cloudra.infra.config import get_config
+from cloudra.infra.logging_setup import setup_logging
 from cloudra.web_launcher import launch_browser
 
 console = Console()
@@ -38,6 +40,8 @@ def _is_sensitive_config_key(key: str) -> bool:
 def cli(ctx, version, coordinator_model, coordinator_url, coordinator_key,
         follower_model, follower_url, follower_key):
     """Cloudra - 自主有机小分子机理计算 Agent"""
+    # CLI 场景只让 warning+ 上屏（stderr）；面向用户的输出仍走 rich Console。
+    setup_logging("cloudra", stream=sys.stderr, level=os.environ.get("CLOUDRA_LOG_LEVEL", "WARNING"))
     if version:
         console.print(f"[bold cyan]Cloudra[/bold cyan] version {VERSION}")
         sys.exit(0)
@@ -128,18 +132,23 @@ def config_init(force):
         default=cfg.openalex_mailto or "",
     )
 
-    cfg.coordinator.model = coord_model
-    cfg.coordinator.url = coord_url
-    cfg.coordinator.key = coord_key or cfg.coordinator.key
-    cfg.follower.model = follower_model
-    cfg.follower.url = follower_url
-    cfg.follower.key = follower_key or cfg.follower.key
-    if openalex_key:
-        cfg.openalex_api_key = openalex_key
-    if openalex_mailto:
-        cfg.openalex_mailto = openalex_mailto
+    from cloudra.infra.config import mutate_config
 
-    cfg.save()
+    def _apply(work):
+        work.coordinator.model = coord_model
+        work.coordinator.url = coord_url
+        if coord_key:
+            work.coordinator.key = coord_key
+        work.follower.model = follower_model
+        work.follower.url = follower_url
+        if follower_key:
+            work.follower.key = follower_key
+        if openalex_key:
+            work.openalex_api_key = openalex_key
+        if openalex_mailto:
+            work.openalex_mailto = openalex_mailto
+
+    mutate_config(_apply)
     console.print(f"[green]配置已保存至: {cfg_path}[/green]")
 
 
@@ -346,6 +355,36 @@ def knowledge_export(out_dir, db_path):
     console.print(f"[green]导出完成:[/green] {out_dir.resolve()}")
 
 
+@knowledge_cmd.command(name="status")
+def knowledge_status():
+    """三通道健康：语义（kg_vec 微服务）/ 图谱库 / 模糊兜底卡片。"""
+    from cloudra.knowledge.health import knowledge_health
+
+    health = knowledge_health()
+    sem, graph, fuzzy = health["semantic"], health["graph"], health["fuzzy"]
+    if sem["ok"]:
+        model = sem.get("model") or sem.get("library_model") or "(模型预热中)"
+        sem_detail = f"model={model}  cards={sem.get('count', '?')}"
+    else:
+        sem_detail = sem.get("error") or "不可用"
+    graph_detail = (f"实体 {graph.get('entities')}  关系 {graph.get('relations')}"
+                    if graph["ok"] else graph.get("error") or "不可用")
+    fuzzy_detail = (f"{fuzzy.get('cards')} 卡"
+                    if fuzzy["ok"] else fuzzy.get("error") or "不可用")
+
+    def _row(name: str, ok: bool, detail: str) -> None:
+        mark = "[green]✓[/green]" if ok else "[red]✗[/red]"
+        console.print(f"  {mark} {name}: {detail}")
+
+    console.print("[bold]chem-kb 通道健康[/bold]")
+    _row(f"语义（{sem['url']}）", sem["ok"], sem_detail)
+    _row("图谱（chem_kg.db）", graph["ok"], graph_detail)
+    _row("模糊兜底（cards.jsonl）", fuzzy["ok"], fuzzy_detail)
+    if not sem["ok"]:
+        console.print("[yellow]语义通道不可用：cloudra web 启动时会自动拉起 kg_vec"
+                      "（CLOUDRA_KG_VEC=off 已禁用或服务异常时见 data_dir/logs/kg_vec.log）。[/yellow]")
+
+
 @knowledge_cmd.command(name="install")
 def knowledge_install():
     """把 chem-kb 混合 provider 写进 config.yaml 的 plugins 列表（幂等）。"""
@@ -357,6 +396,27 @@ def knowledge_install():
     else:
         console.print(f"[yellow]已存在，跳过:[/yellow] {cfg_path}")
     console.print("重启 uvicorn 后生效（插件在 app 启动时加载）。")
+
+
+@knowledge_cmd.command(name="uninstall")
+def knowledge_uninstall():
+    """把 chem-kb 混合 provider 从 config.yaml 的 plugins 列表移除（幂等）。"""
+    from cloudra.knowledge.installer import uninstall_plugin_spec
+
+    cfg_path, removed = uninstall_plugin_spec()
+    if removed:
+        console.print(f"[green]已从 plugins 移除:[/green] {cfg_path}")
+    else:
+        console.print(f"[yellow]不存在，跳过:[/yellow] {cfg_path}")
+    console.print("重启 uvicorn 后生效（插件在 app 启动时加载）。")
+
+
+@cli.command(name="scheduler")
+def scheduler_cmd():
+    """前台运行计算调度守护进程（排队/容量/对账；单实例 flock）。"""
+    from cloudra.scheduler.daemon import main as scheduler_main
+
+    sys.exit(scheduler_main())
 
 
 @cli.command()

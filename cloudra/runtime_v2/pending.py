@@ -11,7 +11,18 @@ state is kernel-native instead:
   and resolve the future;
 - listing is a pure projection over the event log, so a restart still shows
   (stale) pending entries; deciding a dead entry is accepted and simply has
-  no waiter left to wake.
+  no waiter left to wake;
+- on restore (``persistence.restore_core``) every orphaned entry — a
+  ``*.requested`` with no terminal event, i.e. a waiter that died with the
+  previous process — is closed explicitly with ``approval.expired`` /
+  ``interaction.expired`` (``reason="restart"``) via ``expire_orphans``, so
+  the event stream shows a definite terminal state instead of the request
+  silently vanishing.  Expired entries leave the pending projection, and the
+  expiry events are themselves terminal, so re-restores are idempotent.
+
+The ``_waiters`` futures are deliberately volatile (shell-private): a parked
+waiter can only be woken inside this process, so the map is never rebuilt
+from events — restore closes the orphan's projection entry instead.
 
 Events are appended mid-turn (the run is blocked inside the tool call), so
 the broker publishes them to the hub itself — the runner's per-turn flush
@@ -28,15 +39,16 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from cloudra.runtime_v2.schemas import AgentSession, AgentState, CommandRejected, new_id
+from cloudra.runtime_v2.apply import apply_event
+from cloudra.runtime_v2.schemas import AgentSession, AgentState, CommandRejected, EventEnvelope, new_id
 
 if TYPE_CHECKING:
     from cloudra.runtime_v2.core import RuntimeCore
 
-logger = logging.getLogger("runtime_v2.pending")
+logger = logging.getLogger(__name__)
 
-_APPROVAL_TYPES = {"approval.requested", "approval.decided"}
-_INTERACTION_TYPES = {"interaction.requested", "interaction.responded"}
+_APPROVAL_TYPES = {"approval.requested", "approval.decided", "approval.expired"}
+_INTERACTION_TYPES = {"interaction.requested", "interaction.responded", "interaction.expired"}
 
 
 class PendingBroker:
@@ -246,6 +258,51 @@ class PendingBroker:
             else:
                 responded.add(str(env.data.get("interaction_id") or ""))
         return [row for iid, row in requested.items() if iid not in responded]
+
+    # ------------------------------------------------------------------ restore
+
+    def expire_orphans(self) -> list[EventEnvelope]:
+        """Close every orphaned pending entry with an explicit terminal event.
+
+        An orphan is a ``*.requested`` with no matching terminal event — the
+        parked future died with the previous process, so no decide/respond
+        will ever arrive.  Each orphan gets ``approval.expired`` /
+        ``interaction.expired`` with ``reason="restart"``; the event goes
+        through append + ``apply_event`` (a no-op notification for core state)
+        like any other, and the caller (``persistence.restore_core``) persists
+        the returned envelopes.  The expiry events are themselves terminal, so
+        a second restore finds no orphans and appends nothing (idempotent).
+        """
+        orphans: list[tuple[str, str, dict[str, Any]]] = []
+        for project_id in self.core.projects:
+            for row in self.list_pending_approvals(project_id):
+                orphans.append(("approval", project_id, row))
+            for row in self.list_pending_interactions(project_id):
+                orphans.append(("interaction", project_id, row))
+        emitted: list[EventEnvelope] = []
+        for kind, project_id, row in orphans:
+            if kind == "approval":
+                data = {
+                    "approval_id": row["id"],
+                    "agent_id": row["agent_name"],
+                    "reason": "restart",
+                }
+            else:
+                data = {
+                    "interaction_id": row["interaction_id"],
+                    "agent_id": row["agent_id"],
+                    "reason": "restart",
+                }
+            envelope = self.core.event_log.append(
+                f"{kind}.expired",
+                stream="agent",
+                project_id=project_id,
+                session_id=row["session_id"],
+                data=data,
+            )
+            apply_event(self.core, envelope)
+            emitted.append(envelope)
+        return emitted
 
     # ------------------------------------------------------------------ helpers
 

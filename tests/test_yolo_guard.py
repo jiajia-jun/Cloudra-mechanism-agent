@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cloudra.infra.config import reload_config
+from cloudra.infra.config import _reset_for_tests
 from cloudra.infra.yolo_guard import (
     YoloGuard,
     _format_content,
@@ -95,7 +95,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -128,7 +128,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
         response = MagicMock()
@@ -160,7 +160,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -189,7 +189,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -220,7 +220,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
 
@@ -260,7 +260,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
         mock_response = MagicMock()
@@ -293,7 +293,7 @@ class TestYoloGuardJudge:
         monkeypatch.setenv("FOLLOWER_MODEL", "test-model")
         monkeypatch.setenv("FOLLOWER_URL", "http://localhost")
         monkeypatch.setenv("FOLLOWER_KEY", "test-key")
-        reload_config()
+        _reset_for_tests()
 
         guard = YoloGuard()
         create = AsyncMock(side_effect=Exception("Error code: 400 - tool_choice 'specified' is incompatible with thinking enabled"))

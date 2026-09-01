@@ -17,7 +17,7 @@
 
 ### 1. Requirements & Installation
 
-Requires Python ≥ 3.11, Node.js ≥ 18, and access to any OpenAI-compatible LLM endpoint.
+Requires Python ≥ 3.11, Node.js ≥ 18, a POSIX environment (Linux/macOS — the execution plane relies on `flock`/`nice` semantics), and access to any OpenAI-compatible LLM endpoint.
 
 ```bash
 # Clone the repository
@@ -25,8 +25,7 @@ git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
 cd Cloudra-mechanism-agent
 
 # Run the all-in-one setup script (virtual environment + dependencies)
-./install.sh                 # Linux / macOS
-# .\install.ps1              # Windows PowerShell
+./install.sh
 
 # Initialize default configuration
 cloudra config init
@@ -129,6 +128,17 @@ The runtime (`runtime_v2`) is engineered for deterministic execution and crash r
 - **Append-Only Event Sourcing (`EventLog` & `EventHub`)**: Every tool execution, thinking step (`agent.thinking`), state transition, and graph mutation is logged as an immutable, typed event. Sessions can be replayed, audited, and seamlessly restored across server restarts or power failures.
 - **Declarative Notice Injection**: Instead of fragile manual prompt concatenations, the engine uses `notices.pin` to deterministically assemble DAG gaps, active research goals, and schedule alerts into LLM turns.
 - **Autonomous Schedule Guard**: When schedule mode is enabled, attempts to stop without an active wake-up timer are automatically intercepted by `ScheduleStage`, allowing agents to sleep during long calculations and awaken automatically when jobs conclude.
+- **Functional Core with Externalized State**: Command handling is split into pure, IO-free deciders that emit event drafts and effects, a single guard-free `apply_event` applier shared by the online path and crash-recovery replay, and a thin shell that executes the effects. Snapshots are only throttled caches — recovery replays events after per-project high-water marks. Nothing durable lives in process memory: approvals, compaction requests, and agent state are all event projections, explicitly expired (`approval.expired` / `interaction.expired`) on restart rather than silently dropped.
+
+### Process Topology: A Crash-Isolated Execution Plane
+
+A running Cloudra deployment is three deliberately separate OS processes:
+
+- **Web process** (`api_v2` + SPA, single port): the control plane. It may crash or restart at any time — no computation dies with it.
+- **Compute scheduler daemon** (`cloudra scheduler`, auto-spawned detached): claims queued jobs under capacity accounting and launches detached `guard` processes. Cloudra never kills a compute process; liveness is judged exclusively by `flock` probing. Terminal states are CAS-written to the central `compute.db`, and completion notifications reach the control plane through fine-grained DB polling — notifications are never lost across API downtime.
+- **Knowledge vector service** (`kg_vec_service.py`, auto-spawned when the chem-kb plugin is installed): runs under a separate interpreter so that torch/sentence-transformers stay out of the main environment.
+
+State synchronization between processes goes through SQLite (WAL) and file locks — never through in-memory channels.
 
 ---
 
@@ -161,12 +171,13 @@ Cloudra seamlessly bridges local exploratory modeling and remote cluster computi
 ```text
 cloudra/
 ├── core/                        Agent base types and scientific supervision (Supervisor)
-├── services/                    Control plane API service (FastAPI routing)
+├── services/                    Control plane API service (api_v2 package: app/routers/context/models)
 ├── persistence/                 SQLite store, immutable artifacts, long-term memory, paths
 ├── base/                        Data classes and tool/skill loading contracts
-├── infra/                       Cluster node profiles, LLM transports, event bus, platform tools
+├── infra/                       Config (disk-YAML source of truth), LLM transports, flock primitives, unified logging
 ├── dag/                         Mechanism evidence graph subsystem (Engine, Store, Controller)
-├── runtime/                     Deterministic prompt assembly, workspace observer, compute monitoring
+├── runtime/                     Deterministic prompt assembly, workspace observer, compute guard & monitoring
+├── scheduler/                   Process-isolated compute scheduler daemon (queueing, capacity accounting, flock-based crash reconciliation)
 ├── runtime_v2/                  Event-driven reasoning kernel (Pipeline, Commands, PolicyStages, Bridges)
 ├── tools/, subagents/           Perception toolboxes and specialized domain roles (dft, md, explorer, etc.)
 ├── skills/, prompts/            Domain methodology skills and version-controlled role prompts
@@ -180,7 +191,7 @@ cloudra/
 Run the full automated test suite and style checks:
 
 ```bash
-uv run pytest -q tests/            # Run the complete test suite (700+ tests)
+uv run pytest -q tests/            # Run the complete test suite (1100+ tests)
 uv run pytest -q tests/test_dag*   # Focus on DAG orchestration
 uv run pytest -q tests/test_runtime_v2* # Focus on runtime_v2 kernel and policy stages
 uv run ruff check cloudra tests    # Lint check (line-length 120)

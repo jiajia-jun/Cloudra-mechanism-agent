@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### 变更
+- 上线前可靠性大重构（beta 不留兼容）：计算执行面三进程拓扑定型——Web 控制面（api_v2）、计算调度守护进程（`cloudra scheduler`，flock 单实例，web 启动时自动 detach 拉起）、知识向量服务（chem-kb 插件安装后自动拉起，`CLOUDRA_KG_VEC=off` 关闭）；进程间状态同步只走 SQLite（WAL）与文件锁。执行面铁律固化：永不 kill 计算进程、存活判定只用 flock 探测、核心链路零输入文件解析（资源量由 agent 提交时显式申请）。
+- runtime_v2 函数式内核化：CommandBus 四拍（纯 decider → append+publish+persist → 唯一无守卫 `apply_event` → effect 执行），恢复重放与在线路径共用同一应用器（`test_runtime_v2_replay_equivalence.py` 门禁常驻）；快照降级为节流缓存，按每项目高水位线增量重放（修复旧 seq 高水位在多项目交错下丢事件）；重启恢复时孤儿审批/提问显式落 `approval.expired`/`interaction.expired`；compact 请求走 `compaction.requested` 事件；状态外化契约（事件可推导 vs 刻意易失）固化进各模块 docstring。
+- config 子系统重做：磁盘 YAML 是唯一事实源，唯一写入口 `mutate_config(fn)`（flock 排他 + 读磁盘 → 应用 → 原子写回 → 刷新单例），序列化由 `model_dump` 派生；`save()`/`reload_config()`/plugins 磁盘合并 hack 删除；新增 `add_plugin`/`remove_plugin` 与 `cloudra knowledge uninstall`/`status`。
+- `compute_jobs` 迁中央 `data_dir/compute.db`（`ComputeDB` + `services/compute_store.py`），调度守护单库认领；会话库六张 legacy 死表（subagent_requests/approvals/scheduled_reminders/client_commands/interactions/hub_posts）及读写函数删除；进程内 IPC 事件总线删除，compute 完成通知改纯 DB 细粒度轮询（`ComputeNotifyBroker`），API 宕机窗口不再丢通知。
+- 统一日志基建 `infra/logging_setup.py`：api_v2 落 `logs/api.log`，scheduler/kg_vec 经 stream 走各自重定向日志，logger 名全部归一化到 `cloudra.*` 树；`CLOUDRA_LOG_LEVEL` 控级别。
+- 上帝文件拆分：`dag/controller.py`（1384 行）拆为门面 + supervision/evidence_inbox/stop_audit/drafts 四个 mixin（公开签名与 `_SUPERVISION_STATES` 类级共享语义不变）；`services/api_v2.py`（1105 行）拆为 `api_v2/` 包（app/context/models/sse + 九组 routers，`ApiContext` 显式注入、路由零闭包，create_v2_app 签名与路由表逐字节不变）。
+- calculator 进程 nice +10 降权（`monitor.py` preexec_fn），保控制面调度份额；知识向量服务解释器可由 config `knowledge_vec_python` 指定（缺省探测仓库根 `.venv-trans`）；语义检索通道异常不再静默（warning + `last_health`），新增 `GET /api/v2/knowledge/health` 三通道健康聚合与前端 KnowledgePanel 健康状态条。
+- 运行时环境定位 POSIX-only（flock/nice 依赖 fcntl 与 POSIX 语义），README 声明并撤下 Windows 安装指引。
+
+### 修复
+- config 并发写丢键：旧 `save()` 用内存快照整文件重写 YAML，运行中服务会抹掉并发写入（如 `knowledge install` 的 plugins）；且 plugins 条目无法经 save 移除。改 `mutate_config` 后结构性消灭。
+- 重启后 pending 投影孤儿（审批/提问）无声消失，agent 唤醒看不到终态；现显式落过期事件。
+- 快照恢复在多项目交错写入下按全局 seq 高水位过滤会丢事件；改每项目 `last_seqs` + ORDER BY rowid 增量重放。
+- 计算完成通知依赖进程内 IPC 总线，API 进程重启即丢；改纯 DB 轮询投递。
+
 ### 新增
 - `cdxml_to_graph` 工具：基于 molli + RDKit 解析 ChemDraw CDXML 反应路线，生成节点为 isomeric SMILES 的候选机理图；多反应物/产物合并为反应物/产物络合物，支持 DAG 检测与 `dag_propose_mechanism` 提案生成，边信息携带溶剂/条件/试剂供计算参考，可选落盘 mol2。
 - runtime_v2 原生提醒唤醒：`reminders.py` 拦截 `schedule` 工具，提醒落 `reminder.scheduled` / `reminder.cancelled` / `reminder.fired`（`schedule_id` 为事件 seq）；到点经 `agent.message` 投递 `[Reminder]` 并自动 reopen 终态 agent。进程启动 `rearm_all()` 从事件投影重建，过期立即触发——修复 v2 下 `schedule` 无人触发、挂起 agent 永睡的停摆。

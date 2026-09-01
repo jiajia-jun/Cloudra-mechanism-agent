@@ -1,8 +1,9 @@
 """Conversation-scoped SQLite 数据库管理。
 
-本模块提供 ``ConversationDB`` 作为数据库路径、初始化、连接参数的
-唯一事实来源。所有需要访问 Cloudra 任务状态数据库的代码都应通过
-此类，避免在多处硬编码 ``data_dir/.../database.db`` 路径或连接参数。
+本模块提供 ``ConversationDB``（会话级 ``conversations/<id>/tasks/database.db``）
+与 ``ComputeDB``（中央计算作业库 ``data_dir/compute.db``）作为数据库路径、
+初始化、连接参数的唯一事实来源。所有需要访问 Cloudra 状态数据库的代码都应
+通过这两个类，避免在多处硬编码路径或连接参数。
 """
 
 from __future__ import annotations
@@ -171,18 +172,9 @@ class ConversationDB:
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(_CREATE_SESSION)
-            cur.execute(_CREATE_SUBAGENT_REQUESTS)
-            cur.execute(_CREATE_APPROVALS)
-            cur.execute(_CREATE_COMPUTE_JOBS)
-            cur.execute(_CREATE_SCHEDULED_REMINDERS)
             cur.execute(_CREATE_SESSION_EVENTS)
-            cur.execute(_CREATE_CLIENT_COMMANDS)
-            cur.execute(_CREATE_INTERACTIONS)
             cur.execute(_CREATE_ARTIFACTS)
             cur.execute(_CREATE_ARTIFACT_DOWNLOAD_TOKENS)
-            cur.execute(_CREATE_HUB_POSTS)
-            cur.execute(_CREATE_HUB_POSTS_TOPIC_INDEX)
-            cur.execute(_CREATE_HUB_POSTS_PARENT_INDEX)
             cur.execute(_CREATE_DAG_GRAPHS)
             cur.execute(_CREATE_DAG_SPECIES)
             cur.execute(_CREATE_DAG_NODES)
@@ -195,8 +187,6 @@ class ConversationDB:
             cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
             cur.execute(_CREATE_DAG_CALL_REVIEWS)
             cur.execute(_CREATE_DAG_DRAFTS)
-            cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
-            cur.execute(_CREATE_INTERACTIONS_INDEX)
             cur.execute(_CREATE_ARTIFACTS_INDEX)
             cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             self._migrate_session_schema(cur)
@@ -271,18 +261,9 @@ class ConversationDB:
                 await con.execute("PRAGMA journal_mode=WAL;")
             cur = await con.cursor()
             await cur.execute(_CREATE_SESSION)
-            await cur.execute(_CREATE_SUBAGENT_REQUESTS)
-            await cur.execute(_CREATE_APPROVALS)
-            await cur.execute(_CREATE_COMPUTE_JOBS)
-            await cur.execute(_CREATE_SCHEDULED_REMINDERS)
             await cur.execute(_CREATE_SESSION_EVENTS)
-            await cur.execute(_CREATE_CLIENT_COMMANDS)
-            await cur.execute(_CREATE_INTERACTIONS)
             await cur.execute(_CREATE_ARTIFACTS)
             await cur.execute(_CREATE_ARTIFACT_DOWNLOAD_TOKENS)
-            await cur.execute(_CREATE_HUB_POSTS)
-            await cur.execute(_CREATE_HUB_POSTS_TOPIC_INDEX)
-            await cur.execute(_CREATE_HUB_POSTS_PARENT_INDEX)
             await cur.execute(_CREATE_DAG_GRAPHS)
             await cur.execute(_CREATE_DAG_SPECIES)
             await cur.execute(_CREATE_DAG_NODES)
@@ -295,8 +276,6 @@ class ConversationDB:
             await cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
             await cur.execute(_CREATE_DAG_CALL_REVIEWS)
             await cur.execute(_CREATE_DAG_DRAFTS)
-            await cur.execute(_CREATE_CLIENT_COMMANDS_INDEX)
-            await cur.execute(_CREATE_INTERACTIONS_INDEX)
             await cur.execute(_CREATE_ARTIFACTS_INDEX)
             await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             await self._amigrate_session_schema(cur)
@@ -430,6 +409,99 @@ class ConversationDB:
 
 
 # SQL 建表语句统一放在这里，作为唯一表结构定义。
+class ComputeDB:
+    """中央计算作业库（``data_dir/compute.db``），compute_jobs 表的唯一宿主。
+
+    提交（submit_compute_job）、认领（调度守护）、guard/Slurm 终态 CAS、
+    完成通知轮询全部打这一份库。与 ConversationDB 同风格的连接参数
+    （WAL + busy_timeout），但**无 schema 迁移**：beta 阶段 schema 新建即新版。
+    """
+
+    def __init__(self, data_dir: Optional[PathLike] = None):
+        # data_dir 覆盖仅供测试/多实例场景注入；默认在构造时经 paths 惰性解析配置
+        self.data_dir = data_dir
+        self.path = str(paths.compute_db_path(data_dir))
+
+    @classmethod
+    def from_path(cls, path: str) -> "ComputeDB":
+        """从已有路径构造 ComputeDB 实例（guard/Slurm 子进程拿显式 --db_path）。"""
+        instance = cls.__new__(cls)
+        instance.data_dir = None
+        instance.path = path
+        return instance
+
+    def ensure_dir(self) -> "ComputeDB":
+        """确保数据库所在目录存在。"""
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        return self
+
+    def init(self) -> "ComputeDB":
+        """初始化数据库：建目录、建表、启用 WAL。"""
+        _check_sync_on_loop("init")
+        with _lock_for_init(self.path):
+            self.ensure_dir()
+            # journal_mode 是持久设置：只在当前不是 WAL 时才切换，避免多进程
+            # 并发时无谓的重复切换引发锁竞争（与 ConversationDB 同理）。
+            with contextlib.closing(
+                sqlite3.connect(self.path, timeout=DEFAULT_BUSY_TIMEOUT)
+            ) as con:
+                con.execute(f"PRAGMA busy_timeout={int(DEFAULT_BUSY_TIMEOUT * 1000)};")
+                row = con.execute("PRAGMA journal_mode;").fetchone()
+                if not row or str(row[0]).lower() != "wal":
+                    con.execute("PRAGMA journal_mode=WAL;")
+                con.commit()
+            with self.connect() as con:
+                cur = con.cursor()
+                cur.execute(_CREATE_COMPUTE_JOBS)
+                cur.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
+                cur.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
+                con.commit()
+        return self
+
+    async def ainit(self) -> "ComputeDB":
+        """异步初始化数据库（语义同 :meth:`init`）。"""
+        self.ensure_dir()
+        async with self.aconnect() as con:
+            cur = await con.execute("PRAGMA journal_mode;")
+            row = await cur.fetchone()
+            if not row or str(row[0]).lower() != "wal":
+                await con.execute("PRAGMA journal_mode=WAL;")
+            await con.execute(_CREATE_COMPUTE_JOBS)
+            await con.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
+            await con.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
+            await con.commit()
+        return self
+
+    @contextlib.contextmanager
+    def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
+        """返回统一配置且退出时显式关闭的同步 SQLite 连接上下文。"""
+        _check_sync_on_loop("connect")
+        self.ensure_dir()
+        con = sqlite3.connect(self.path, timeout=timeout)
+        try:
+            cur = con.cursor()
+            cur.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
+            cur.execute("PRAGMA synchronous=NORMAL;")
+            # 保留 sqlite3.Connection 原有的提交/回滚上下文语义。
+            with con:
+                yield con
+        finally:
+            con.close()
+
+    @contextlib.asynccontextmanager
+    async def aconnect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
+        """返回一个统一配置 busy_timeout 的异步 SQLite 连接上下文。"""
+        self.ensure_dir()
+        con = await aiosqlite.connect(self.path, timeout=timeout)
+        try:
+            await con.execute(f"PRAGMA busy_timeout={int(timeout * 1000)};")
+            await con.execute("PRAGMA synchronous=NORMAL;")
+            yield con
+        finally:
+            await con.close()
+
+
+# SQL 建表语句统一放在这里，作为唯一表结构定义。
 _CREATE_SESSION = """
     CREATE TABLE IF NOT EXISTS session (
         session_id TEXT PRIMARY KEY,
@@ -476,38 +548,6 @@ _SESSION_EXTRA_COLUMNS = {
 }
 
 _RELATED_EXTRA_COLUMNS = {
-    "hub_posts": {
-        "to_agent": "TEXT",
-    },
-    "subagent_requests": {
-        "session_id": "TEXT",
-        "parent_session_id": "TEXT",
-        "lease_owner": "TEXT",
-        "lease_expires_at": "REAL",
-        "attempt_count": "INTEGER DEFAULT 0",
-    },
-    "compute_jobs": {
-        "session_id": "TEXT",
-        "scheduler": "TEXT DEFAULT 'local'",
-        "scheduler_options": "TEXT DEFAULT '{}'",
-        "scheduler_job_id": "TEXT",
-        "scheduler_state": "TEXT",
-        "scheduler_script": "TEXT",
-        "last_error": "TEXT",
-        "lease_owner": "TEXT",
-        "lease_expires_at": "REAL",
-        "attempt_count": "INTEGER DEFAULT 0",
-    },
-    "approvals": {
-        "tool_name": "TEXT DEFAULT ''",
-        "normalized_arguments": "TEXT DEFAULT '{}'",
-        "risk_summary": "TEXT DEFAULT ''",
-        "candidate_diff": "TEXT DEFAULT ''",
-        "requested_at": "TEXT",
-        "expires_at": "TEXT",
-        "decided_by": "TEXT",
-        "decided_at": "TEXT",
-    },
     "dag_mutations": {
         "session_id": "TEXT NOT NULL DEFAULT ''",
         "rationale": "TEXT NOT NULL DEFAULT ''",
@@ -532,41 +572,12 @@ _RELATED_EXTRA_COLUMNS = {
     },
 }
 
-_CREATE_SUBAGENT_REQUESTS = """
-    CREATE TABLE IF NOT EXISTS subagent_requests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        state TEXT,
-        input_data TEXT,
-        conversation_id TEXT,
-        lease_owner TEXT,
-        lease_expires_at REAL,
-        attempt_count INTEGER DEFAULT 0
-    )
-"""
-
-_CREATE_APPROVALS = """
-    CREATE TABLE IF NOT EXISTS approvals (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT,
-        agent_name TEXT,
-        details TEXT,
-        state TEXT DEFAULT 'pending',
-        denial_reason TEXT DEFAULT '',
-        tool_name TEXT DEFAULT '',
-        normalized_arguments TEXT DEFAULT '{}',
-        risk_summary TEXT DEFAULT '',
-        candidate_diff TEXT DEFAULT '',
-        requested_at TEXT,
-        expires_at TEXT,
-        decided_by TEXT,
-        decided_at TEXT
-    )
-"""
-
+# compute_jobs 只住在中央库（ComputeDB，data_dir/compute.db）；会话库不再建此表。
 _CREATE_COMPUTE_JOBS = """
     CREATE TABLE IF NOT EXISTS compute_jobs(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id TEXT,
+        conversation_id TEXT NOT NULL,
+        session_id TEXT,
         state TEXT,
         path TEXT,
         start_timestamp INTEGER,
@@ -580,22 +591,27 @@ _CREATE_COMPUTE_JOBS = """
         last_error TEXT,
         lease_owner TEXT,
         lease_expires_at REAL,
-        attempt_count INTEGER DEFAULT 0
+        attempt_count INTEGER DEFAULT 0,
+        -- 调度器：排队优先级与 agent 声明的资源申请（核心链路不解析输入文件）
+        priority INTEGER NOT NULL DEFAULT 0,
+        req_cpus INTEGER NOT NULL DEFAULT 1,
+        req_memory_mb INTEGER,
+        -- 观测/取证用进程号（存活判定的权威是 .cloudra/ 下的 flock，不读 PID）
+        guard_pid INTEGER,
+        calc_pid INTEGER,
+        -- 完成通知投递标记（ComputeNotifyBroker 补投对账依据）
+        notified_at REAL
     )
 """
 
-_CREATE_SCHEDULED_REMINDERS = """
-    CREATE TABLE IF NOT EXISTS scheduled_reminders(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
-        session_id TEXT,
-        content TEXT NOT NULL,
-        wake_at REAL NOT NULL,
-        state TEXT NOT NULL DEFAULT 'pending',
-        created_at REAL NOT NULL,
-        fired_at REAL
-    )
+_CREATE_COMPUTE_JOBS_CLAIM_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_compute_jobs_claim
+    ON compute_jobs(state, lease_expires_at)
+"""
+
+_CREATE_COMPUTE_JOBS_NOTIFY_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_compute_jobs_notify
+    ON compute_jobs(state, notified_at)
 """
 
 _CREATE_SESSION_EVENTS = """
@@ -606,44 +622,6 @@ _CREATE_SESSION_EVENTS = """
         data TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
     )
-"""
-
-_CREATE_CLIENT_COMMANDS = """
-    CREATE TABLE IF NOT EXISTS client_commands(
-        command_id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        session_id TEXT,
-        command_type TEXT NOT NULL,
-        payload TEXT NOT NULL DEFAULT '{}',
-        state TEXT NOT NULL DEFAULT 'received',
-        result TEXT,
-        error TEXT,
-        created_at TEXT NOT NULL,
-        applied_at TEXT
-    )
-"""
-
-_CREATE_CLIENT_COMMANDS_INDEX = """
-    CREATE INDEX IF NOT EXISTS idx_client_commands_session
-    ON client_commands(session_id, created_at)
-"""
-
-_CREATE_INTERACTIONS = """
-    CREATE TABLE IF NOT EXISTS interactions(
-        interaction_id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        agent_id TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        state TEXT NOT NULL DEFAULT 'pending',
-        response TEXT,
-        created_at TEXT NOT NULL,
-        responded_at TEXT
-    )
-"""
-
-_CREATE_INTERACTIONS_INDEX = """
-    CREATE INDEX IF NOT EXISTS idx_interactions_pending
-    ON interactions(state, session_id, created_at)
 """
 
 _CREATE_ARTIFACTS = """
@@ -671,30 +649,6 @@ _CREATE_ARTIFACT_DOWNLOAD_TOKENS = """
         expires_at TEXT NOT NULL,
         created_at TEXT NOT NULL
     )
-"""
-
-_CREATE_HUB_POSTS = """
-    CREATE TABLE IF NOT EXISTS hub_posts(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        topic TEXT NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'finding',
-        author_agent TEXT NOT NULL,
-        author_session TEXT NOT NULL DEFAULT '',
-        to_agent TEXT,
-        parent_id INTEGER,
-        content TEXT NOT NULL,
-        created_at TEXT NOT NULL
-    )
-"""
-
-_CREATE_HUB_POSTS_TOPIC_INDEX = """
-    CREATE INDEX IF NOT EXISTS idx_hub_posts_topic
-    ON hub_posts(topic, created_at)
-"""
-
-_CREATE_HUB_POSTS_PARENT_INDEX = """
-    CREATE INDEX IF NOT EXISTS idx_hub_posts_parent
-    ON hub_posts(parent_id)
 """
 
 _CREATE_DAG_GRAPHS = """

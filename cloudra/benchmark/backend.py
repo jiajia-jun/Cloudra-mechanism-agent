@@ -5,8 +5,9 @@ TurnPipeline + AgentRunner), spawns the task's coordinator agent with the task
 query against the per-task sandbox as the project workspace, waits for a
 terminal state, then extracts the agent-reported barrier from its final
 message. The method whitelist is enforced by appending `MethodPolicyStage` to
-the pipeline; compute jobs submitted via `submit_compute_job` are executed by
-a per-task `ComputeBroker`, same as the production API lifespan.
+the pipeline; compute jobs submitted via `submit_compute_job` are claimed and
+executed by a per-task in-process `SchedulerDaemon` (production runs it as a
+separate `cloudra scheduler` process instead).
 
 Process-wide isolation is the caller's job: the benchmark CLI points the
 global config's `data_dir` at the benchmark data dir before any tool runs, so
@@ -29,7 +30,7 @@ from cloudra.benchmark.policy_stage import MethodPolicyStage
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.runtime_v2.schemas import AgentState
 
-logger = logging.getLogger("benchmark.backend")
+logger = logging.getLogger(__name__)
 
 TERMINAL_STATES = frozenset({AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED})
 
@@ -64,7 +65,7 @@ class RuntimeV2Backend:
         llm: Any = None,
         tools: Any = None,
         run_summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None,
-        start_compute_broker: bool = True,
+        start_scheduler: bool = True,
     ) -> None:
         self.run_timeout_s = run_timeout_s
         self.stuck_grace_s = stuck_grace_s
@@ -72,7 +73,7 @@ class RuntimeV2Backend:
         self.llm = llm
         self.tools = tools
         self.run_summarizer = run_summarizer
-        self.start_compute_broker = start_compute_broker
+        self.start_scheduler = start_scheduler
         # 每次任务的 RuntimeCore 按 task_id 留存，供测试与调试内省事件日志；
         # 并行跑题时多线程并发写，用锁保护。
         self._cores: dict[str, Any] = {}
@@ -123,18 +124,18 @@ class RuntimeV2Backend:
             notices=core.notices,
         )
         core.runner = AgentRunner(core, pipeline, run_summarizer=self.run_summarizer)
-        broker = None
-        if self.start_compute_broker:
-            from cloudra.runtime.compute_executor import ComputeBroker
+        scheduler = None
+        if self.start_scheduler:
+            from cloudra.scheduler.daemon import SchedulerDaemon
 
-            # worker_id 含 pid+task_id：并行跑题时同进程多个 broker 实例不能
-            # 共享默认的 compute:<pid>，否则租约归属互相串。
-            broker = ComputeBroker(worker_id=f"compute:{os.getpid()}:{task.task_id}")
-            await broker.start()
+            # worker_id 含 pid+task_id：并行跑题时同进程多个实例不能共享
+            # 默认的 scheduler:<pid>，否则租约归属互相串。
+            scheduler = SchedulerDaemon(worker_id=f"scheduler:{os.getpid()}:{task.task_id}")
+            await scheduler.start()
 
         agent = None
+        bus = CommandBus(core)
         try:
-            bus = CommandBus(core)
             project = (
                 await bus.execute(
                     Command(
@@ -165,8 +166,11 @@ class RuntimeV2Backend:
         finally:
             if agent is not None and core.runner is not None:
                 await core.runner.cancel(agent.id)
-            if broker is not None:
-                await broker.close()
+            # benchmark core 默认无 store（不落盘），这里是契约性的关机补快照：
+            # 将来接入持久化时无需再改。
+            await bus.flush_snapshot()
+            if scheduler is not None:
+                await scheduler.close()
 
     async def _wait_terminal(self, bus, agent) -> None:
         from cloudra.runtime_v2.schemas import Command

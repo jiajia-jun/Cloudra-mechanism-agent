@@ -5,12 +5,10 @@ import pytest
 from cloudra.infra.slurm import (
     SlurmError,
     build_batch_script,
-    cancel_interrupted_jobs,
     cancel_job,
     query_job,
     submit_batch,
 )
-from cloudra.persistence.database import ConversationDB
 
 
 def test_batch_script_uses_validated_directives_and_shell_quoting(
@@ -87,29 +85,3 @@ def test_slurm_commands_use_argument_arrays_and_validate_job_ids(
     assert all(isinstance(call[0], list) for call in calls)
     with pytest.raises(SlurmError, match="job id"):
         cancel_job("123; rm -rf x")
-
-
-def test_recovery_cancels_orphaned_slurm_job(tmp_path, monkeypatch):
-    db = ConversationDB("slurm-recovery", data_dir=tmp_path).init()
-    with db.connect() as con:
-        con.execute(
-            """INSERT INTO compute_jobs
-            (conversation_id, state, path, scheduler, scheduler_job_id,
-             scheduler_state, last_error)
-            VALUES (?, 'failed', ?, 'slurm', '9988', 'RUNNING', ?)""",
-            (
-                "slurm-recovery",
-                "/tmp/job.gjf",
-                "parent session heartbeat expired",
-            ),
-        )
-        con.commit()
-    cancelled = []
-    monkeypatch.setattr("cloudra.infra.slurm.cancel_job", cancelled.append)
-
-    assert cancel_interrupted_jobs(db) == 1
-    assert cancelled == ["9988"]
-    with db.connect() as con:
-        assert con.execute(
-            "SELECT scheduler_state FROM compute_jobs WHERE id=1"
-        ).fetchone()[0] == "CANCELLED"
