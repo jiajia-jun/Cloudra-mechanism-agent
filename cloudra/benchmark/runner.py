@@ -10,6 +10,11 @@ This is the orchestration skeleton: `run_task` prepares the sandbox, invokes
 the (pluggable) agent backend, then scores. The agent backend is injected so
 the runner stays decoupled from runtime_v2 wiring; a default no-op backend is
 provided for dry-run / pipeline testing.
+
+Every run is also classified into a refusal outcome (answered/refused/failed,
+see `refusal.py`) — refusal is a first-class, tier-agnostic outcome: agents may
+refuse on any tier, and the impossible tier's main metric is the cross-tier
+refusal precision/recall, not a per-tier refusal rate.
 """
 
 from __future__ import annotations
@@ -27,12 +32,25 @@ from typing import Callable, Optional
 from cloudra.benchmark.accuracy import AccuracyReport, score_accuracy
 from cloudra.benchmark.graph_similarity import GedConfig, GedResult, mechanism_similarity
 from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
+from cloudra.benchmark.refusal import RunOutcome, classify_outcome
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
 
+
+@dataclass
+class BackendResult:
+    """Agent backend 的结构化产出：最终消息全文 + 从中提取的能垒。
+
+    最终消息是拒答分类的唯一文本来源（v1 启发式见 refusal.classify_outcome），
+    必须原样保留，不能只回传能垒数字。"""
+
+    barrier: Optional[float] = None
+    final_message: str = ""
+
+
 # Agent backend signature: given (task, sandbox_dir) it runs the agent and
-# returns the agent-reported barrier (kcal/mol) if it reported one.
-AgentBackend = Callable[[TaskSpec, Path], Optional[float]]
+# returns a BackendResult (final message + agent-reported barrier, if any).
+AgentBackend = Callable[[TaskSpec, Path], BackendResult]
 
 
 @dataclass
@@ -44,6 +62,10 @@ class RunResult:
     selfconsistency_passed: bool = False
     accuracy_score: float = 0.0
     final_score: float = 0.0
+    # 拒答分类（answered/refused/failed，见 refusal.RunOutcome）；与得分正交：
+    # 拒答题 final_score 照常按零交付算（其他档拒答自然零分），outcome 只服务
+    # 跨档拒答 precision/recall 统计。
+    outcome: str = RunOutcome.FAILED.value
     notes: list[str] = field(default_factory=list)
 
     def to_row(self) -> tuple:
@@ -55,9 +77,18 @@ class RunResult:
             int(self.selfconsistency_passed),
             self.accuracy_score,
             self.final_score,
+            self.outcome,
             json.dumps(self.notes, ensure_ascii=False),
             int(time.time()),
         )
+
+
+_RUNS_DDL = """CREATE TABLE IF NOT EXISTS runs (
+    task_id TEXT, sandbox TEXT,
+    integrity_passed INTEGER, graph_score REAL,
+    selfconsistency_passed INTEGER, accuracy_score REAL,
+    final_score REAL, outcome TEXT, notes TEXT, ts INTEGER
+)"""
 
 
 class BenchmarkDB:
@@ -77,29 +108,38 @@ class BenchmarkDB:
     def _init(self) -> None:
         # sqlite3 的 with 块只管 commit/rollback、不管关闭，外层套 closing
         with closing(self._connect()) as c, c:
-            c.execute(
-                """CREATE TABLE IF NOT EXISTS runs (
-                    task_id TEXT, sandbox TEXT,
-                    integrity_passed INTEGER, graph_score REAL,
-                    selfconsistency_passed INTEGER, accuracy_score REAL,
-                    final_score REAL, notes TEXT, ts INTEGER
-                )"""
-            )
+            c.execute(_RUNS_DDL)
+            # outcome 列是后加的：旧库按新列序整表重建（ALTER ADD COLUMN 会把
+            # 新列追加到末尾，与 to_row 的位置序不一致）。旧行没有拒答分类
+            # 信息，按 'failed'（未知）记——refused 统计只看 outcome='refused'，
+            # 不受影响。
+            cols = {row[1] for row in c.execute("PRAGMA table_info(runs)")}
+            if "outcome" not in cols:
+                c.execute("ALTER TABLE runs RENAME TO runs_old")
+                c.execute(_RUNS_DDL)
+                c.execute(
+                    """INSERT INTO runs SELECT
+                        task_id, sandbox, integrity_passed, graph_score,
+                        selfconsistency_passed, accuracy_score, final_score,
+                        'failed', notes, ts
+                    FROM runs_old"""
+                )
+                c.execute("DROP TABLE runs_old")
 
     def record(self, result: RunResult) -> None:
         # latest-result-per-task：复跑先删该题旧行再插入，runs 表每题恒一行
         with self._lock, closing(self._connect()) as c, c:
             c.execute("DELETE FROM runs WHERE task_id = ?", (result.task_id,))
             c.execute(
-                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?)", result.to_row()
+                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?)", result.to_row()
             )
 
 
-def _default_backend(task: TaskSpec, sandbox: Path) -> Optional[float]:
-    """No-op backend: creates the sandbox and returns no barrier. Used for
+def _default_backend(task: TaskSpec, sandbox: Path) -> BackendResult:
+    """No-op backend: creates the sandbox and returns nothing. Used for
     pipeline dry-runs; real runs inject a runtime_v2-backed backend."""
     sandbox.mkdir(parents=True, exist_ok=True)
-    return None
+    return BackendResult()
 
 
 class BenchmarkRunner:
@@ -141,7 +181,7 @@ class BenchmarkRunner:
             morgan_nbits=base.morgan_nbits,
         )
 
-    def score_sandbox(self, task: TaskSpec, sandbox: Path, agent_barrier: Optional[float]) -> RunResult:
+    def score_sandbox(self, task: TaskSpec, sandbox: Path, agent: BackendResult) -> RunResult:
         res = RunResult(task_id=task.task_id, sandbox=str(sandbox))
         ged_config = self._ged_config_for(task)
 
@@ -165,7 +205,7 @@ class BenchmarkRunner:
         res.notes.extend(sc.notes)
 
         acc: AccuracyReport = score_accuracy(
-            agent_barrier, task.gold.reference_computation, task.rubric.accuracy
+            agent.barrier, task.gold.reference_computation, task.rubric.accuracy
         )
         res.accuracy_score = acc.final_score
         res.notes.extend(acc.notes)
@@ -194,6 +234,10 @@ class BenchmarkRunner:
                 res.notes.append(
                     f"binding quality {integ.binding_quality:.2f} applied as composite multiplier"
                 )
+
+        res.outcome = classify_outcome(
+            graph_found=integ.graph_found, final_message=agent.final_message
+        ).value
         return res
 
     def run_task(self, task: TaskSpec) -> RunResult:
@@ -204,8 +248,8 @@ class BenchmarkRunner:
             sandbox.unlink()
         elif sandbox.exists():
             shutil.rmtree(sandbox)
-        agent_barrier = self.backend(task, sandbox)
-        result = self.score_sandbox(task, sandbox, agent_barrier)
+        agent = self.backend(task, sandbox)
+        result = self.score_sandbox(task, sandbox, agent)
         self.db.record(result)
         return result
 
@@ -216,7 +260,11 @@ class BenchmarkRunner:
             return self.run_task(task)
         except Exception as exc:
             print(f"[benchmark] task {task.task_id} crashed: {exc!r}")
-            res = RunResult(task_id=task.task_id, sandbox=str(self.sandbox_for(task.task_id)))
+            res = RunResult(
+                task_id=task.task_id,
+                sandbox=str(self.sandbox_for(task.task_id)),
+                outcome=RunOutcome.FAILED.value,
+            )
             res.notes.append(f"task crashed: {exc!r}")
             self.db.record(res)
             return res

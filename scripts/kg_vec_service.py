@@ -16,7 +16,7 @@ detach 拉起时 stdout/stderr 已被重定向进 logs/kg_vec.log，日志写 st
 单实例：--lock-file（或环境变量 KG_VEC_LOCK_FILE）给定路径时启动即抢排他
 flock 并持有到进程退出——锁已被别的实例持有则直接退出（返回码 0，防重不
 算错误）；启动方的判定链（/health 探测 + 同一把锁的探测）见
-cloudra/web_launcher.py 的 _ensure_kg_vec。平台无 fcntl（Windows）时锁
+cloudra/services/daemon_supervisor.py 的 ensure_kg_vec。平台无 fcntl（Windows）时锁
 退化不启用，仅靠启动方的 /health 探测防重。
 
 模型可用 --model 或环境变量 KG_VEC_MODEL 自选（默认 BAAI/bge-m3，离线加载）；

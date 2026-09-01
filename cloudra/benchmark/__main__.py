@@ -5,8 +5,14 @@ Default is a dry-run (no-op backend: sandboxes stay empty, every task scores
 `--backend runtime_v2` runs each task on the real in-process runtime_v2 kernel
 with the method whitelist enforced.
 
+每题除三层评分外还按拒答分类（answered/refused/failed，见 refusal.py）；
+批次结束后打印跨档拒答 precision/recall（ground truth =
+task.rubric.expected_outcome）。`--tasks-dir` 可重复传入多个目录——拒答
+统计需要"应当拒答"（impossible）与"应当作答"（其他档/兄弟题）同批对照。
+
 Example:
     python -m cloudra.benchmark --backend runtime_v2 --data-dir bench_out --only C1,D3
+    python -m cloudra.benchmark --tasks-dir ideapool/tasks/easy --tasks-dir ideapool/tasks/impossible
 """
 
 from __future__ import annotations
@@ -15,13 +21,21 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Optional
+
+
+def _fmt(x: Optional[float]) -> str:
+    return f"{x:.3f}" if x is not None else "—"
 
 
 def main(argv: list[str] | None = None) -> int:
+    from cloudra.benchmark.refusal import RunOutcome, refusal_stats, should_refuse
     from cloudra.benchmark.runner import BenchmarkRunner, load_tasks
 
     ap = argparse.ArgumentParser(prog="cloudra.benchmark")
-    ap.add_argument("--tasks-dir", type=Path, default=Path("ideapool/tasks/easy"))
+    ap.add_argument("--tasks-dir", type=Path, action="append", default=None,
+                    help="task JSON dir; repeatable for cross-tier refusal stats "
+                         "(default: ideapool/tasks/easy)")
     ap.add_argument("--data-dir", type=Path, default=Path("benchmark_data"),
                     help="benchmark data dir (sandboxes + benchmark.db)")
     ap.add_argument("--backend", choices=["none", "runtime_v2"], default="none")
@@ -34,7 +48,9 @@ def main(argv: list[str] | None = None) -> int:
                          "each LLM call picks a random endpoint, 429 fails over to the next")
     args = ap.parse_args(argv)
 
-    tasks = load_tasks(args.tasks_dir)
+    tasks = []
+    for d in (args.tasks_dir or [Path("ideapool/tasks/easy")]):
+        tasks.extend(load_tasks(d))
     if args.only:
         wanted = {t.strip() for t in args.only.split(",") if t.strip()}
         tasks = [t for t in tasks if t.task_id in wanted]
@@ -65,10 +81,19 @@ def main(argv: list[str] | None = None) -> int:
     results = runner.run_all(tasks, concurrency=max(1, args.concurrency))
     for r in results:
         print(
-            f"{r.task_id:>6}  final={r.final_score:.3f}  "
+            f"{r.task_id:>6}  final={r.final_score:.3f}  outcome={r.outcome:<8} "
             f"integrity={int(r.integrity_passed)} graph={r.graph_score:.3f} "
             f"selfcons={int(r.selfconsistency_passed)} accuracy={r.accuracy_score:.3f}"
         )
+
+    stats = refusal_stats(
+        (should_refuse(t), r.outcome == RunOutcome.REFUSED.value)
+        for t, r in zip(tasks, results)
+    )
+    print(
+        f"\nrefusal: TP={stats.tp} FP={stats.fp} FN={stats.fn} TN={stats.tn}  "
+        f"precision={_fmt(stats.precision)} recall={_fmt(stats.recall)} f1={_fmt(stats.f1)}"
+    )
     return 0
 
 

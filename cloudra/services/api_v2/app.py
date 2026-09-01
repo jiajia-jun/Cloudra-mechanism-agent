@@ -7,6 +7,7 @@ handlers live in runtime_v2.commands.  No business logic is allowed here.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -24,6 +25,36 @@ from cloudra.runtime_v2.schemas import CommandRejected
 
 from .context import ApiContext
 from .routers import build_routers
+
+logger = logging.getLogger(__name__)
+
+
+def _daemon_watchdog_interval() -> float:
+    """巡检间隔秒数（CLOUDRA_DAEMON_WATCHDOG_SECONDS，缺省 30；非法值回落缺省）。"""
+    raw = os.environ.get("CLOUDRA_DAEMON_WATCHDOG_SECONDS", "").strip()
+    try:
+        return float(raw) if raw else 30.0
+    except ValueError:
+        return 30.0
+
+
+async def _daemon_watchdog_loop(interval: float) -> None:
+    """周期 ensure 守护进程（scheduler/kg_vec）：守护崩溃退出后由本循环重拉起。
+
+    首轮延迟一个间隔——web_launcher 启动时已 ensure 过一次，避免重复探测。
+    ensure_daemons 自身只记日志不外抛，这里的 except 是兜底中的兜底。
+    """
+    await asyncio.sleep(interval)
+    while True:
+        try:
+            from cloudra.services.daemon_supervisor import ensure_daemons
+
+            await asyncio.to_thread(ensure_daemons)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("daemon watchdog tick failed", exc_info=True)
+        await asyncio.sleep(interval)
 
 
 def create_v2_app(
@@ -61,10 +92,19 @@ def create_v2_app(
         await core.email_listener.start()
         await compute_notify.start()
         # 计算认领只由独立守护进程（cloudra scheduler）承担，与 API 分家；
-        # web 启动时无活实例会自动 detach 拉起（web_launcher）。
+        # web 启动时无活实例会自动 detach 拉起（web_launcher），之后由下面的
+        # 自愈巡检兜底重拉起（CLOUDRA_DAEMON_WATCHDOG=off 关闭，测试默认关）。
+        watchdog_task: asyncio.Task | None = None
+        if os.environ.get("CLOUDRA_DAEMON_WATCHDOG", "").strip().lower() not in {"off", "0", "false"}:
+            watchdog_task = asyncio.create_task(
+                _daemon_watchdog_loop(_daemon_watchdog_interval()), name="daemon-watchdog"
+            )
         try:
             yield
         finally:
+            if watchdog_task is not None:
+                watchdog_task.cancel()
+                await asyncio.gather(watchdog_task, return_exceptions=True)
             # 快照是缓存不是权威（事件表才是），但关机前补一次让下次 restore
             # 的增量尾巴尽量短；失败不阻断关停。
             await bus.flush_snapshot()

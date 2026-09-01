@@ -3,11 +3,13 @@
 Per task this spins up an in-process runtime_v2 kernel (RuntimeCore +
 TurnPipeline + AgentRunner), spawns the task's coordinator agent with the task
 query against the per-task sandbox as the project workspace, waits for a
-terminal state, then extracts the agent-reported barrier from its final
-message. The method whitelist is enforced by appending `MethodPolicyStage` to
-the pipeline; compute jobs submitted via `submit_compute_job` are claimed and
-executed by a per-task in-process `SchedulerDaemon` (production runs it as a
-separate `cloudra scheduler` process instead).
+terminal state, then returns the agent's final message plus the barrier
+extracted from it (the final message is the input to refusal classification —
+see `refusal.py`). The method whitelist is enforced by appending
+`MethodPolicyStage` to the pipeline; compute jobs submitted via
+`submit_compute_job` are claimed and executed by a per-task in-process
+`SchedulerDaemon` (production runs it as a separate `cloudra scheduler`
+process instead).
 
 Process-wide isolation is the caller's job: the benchmark CLI points the
 global config's `data_dir` at the benchmark data dir before any tool runs, so
@@ -27,6 +29,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from cloudra.benchmark.policy_stage import MethodPolicyStage
+from cloudra.benchmark.runner import BackendResult
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.runtime_v2.schemas import AgentState
 
@@ -89,10 +92,10 @@ class RuntimeV2Backend:
         with self._cores_lock:
             return self._cores.get(task_id)
 
-    def __call__(self, task: TaskSpec, sandbox: Path) -> Optional[float]:
+    def __call__(self, task: TaskSpec, sandbox: Path) -> BackendResult:
         return asyncio.run(self._run_task(task, Path(sandbox)))
 
-    async def _run_task(self, task: TaskSpec, sandbox: Path) -> Optional[float]:
+    async def _run_task(self, task: TaskSpec, sandbox: Path) -> BackendResult:
         from cloudra.runtime_v2.adapters import (
             LegacyLLMProvider,
             LegacyPromptProvider,
@@ -162,7 +165,11 @@ class RuntimeV2Backend:
                 )
             ).data
             await self._wait_terminal(bus, agent)
-            return self._final_barrier(core, agent.id)
+            message = self._final_message(core, agent.id)
+            barrier = extract_reported_barrier(message)
+            if message and barrier is None:
+                logger.warning("agent %s final message reports no barrier", agent.id)
+            return BackendResult(barrier=barrier, final_message=message)
         finally:
             if agent is not None and core.runner is not None:
                 await core.runner.cancel(agent.id)
@@ -201,13 +208,12 @@ class RuntimeV2Backend:
                 break
             await asyncio.sleep(self.poll_interval_s)
 
-    def _final_barrier(self, core, session_id: str) -> Optional[float]:
+    def _final_message(self, core, session_id: str) -> str:
+        """agent 最后一条 message_emitted 的原文（无则空串）。
+
+        拒答分类与能垒抓取共用这一条消息：拒答声明通常就是收尾陈述。"""
         events = core.event_log.query_session(session_id)
         for envelope in reversed(events):
             if envelope.type == "agent.message_emitted":
-                content = str((envelope.data or {}).get("content") or "")
-                barrier = extract_reported_barrier(content)
-                if barrier is None:
-                    logger.warning("agent %s final message reports no barrier", session_id)
-                return barrier
-        return None
+                return str((envelope.data or {}).get("content") or "")
+        return ""

@@ -9,7 +9,8 @@
 
 与 hard 打标台的差异：impossible.md 是 `### ID. 标题` + 7 个编号字段的小节格式
 （非表格），解析器按小节切；每条证据链很长，UI 提供"详"按钮就地展开全文；
-无打标带映射，改为族过滤 + 边缘标注过滤；暂无定稿名单，打标默认全未定。
+无打标带映射，改为族过滤 + 边缘标注过滤。2026-09-01 已定稿（正选 20 / 剔除 6），
+打标台默认值为定稿名单（权威以 impossible.md 文末"定稿圈定"段为准）。
 """
 
 import json
@@ -26,6 +27,10 @@ FIELD_RE = re.compile(r"^\d+\.\s+\*\*(.+?)\*\*[:：]\s*(.*)$")
 EDGE_RE = re.compile(r"【(.+?)】")
 SMILES_RE = re.compile(r"`([^`]+)`")
 FIELD_ORDER = ["体系", "结构", "多参考性质", "诊断证据", "兄弟题", "权威性依据", "拒答判据"]
+
+# 2026-09-01 打标定稿名单（impossible.md"定稿圈定"段为权威；此处只作打标台初始默认值）。
+SUGGESTED_PICK = "A1 A5 A7 A8 A9 A11 B5 C3 D2 E2 F3 G6 G7 G8 H7 H8 I2 I8 J6 J7".split()
+SUGGESTED_DROP = "A2 A3 A4 A6 B1 H2".split()
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -75,7 +80,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <h1>Impossible 档打标台（强多参考/近简并双自由基）· __N__ 条候选 · 目标正选 20（打标存 localStorage，不回写 impossible.md）</h1>
+  <h1>Impossible 档打标台（强多参考/近简并双自由基）· __N__ 条候选 · 已定稿：正选 20 / 剔除 6（打标存 localStorage，不回写 impossible.md）</h1>
   <div class="bar">
     <span class="counter" id="c-pick">正选 <b>0</b>/20</span>
     <span class="counter" id="c-alt">替补 <b>0</b></span>
@@ -96,6 +101,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <button onclick="exportJSON()">导出 JSON</button>
     <button onclick="exportNames()">导出名单</button>
     <button onclick="document.getElementById('importwrap').classList.toggle('hidden')">导入 JSON</button>
+    <button onclick="resetDefaults()">重置为定稿名单</button>
     <button onclick="clearAll()">全部清空</button>
   </div>
   <div id="importwrap" class="hidden" style="margin-top:8px">
@@ -117,6 +123,9 @@ const ENTRIES = __DATA__;
 const LS_KEY = "impossible-tagging-v1";
 let tags = {};
 try { tags = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { tags = {}; }
+if (!Object.keys(tags).length) {
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+}
 
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(tags)); }
 function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -214,6 +223,13 @@ function importJSON() {
   } catch (e) { alert("JSON 解析失败：" + e); }
 }
 
+function resetDefaults() {
+  if (!confirm("把所有条目的打标重置为定稿名单（正选 20 / 剔除 6，其余未定）？")) return;
+  tags = {};
+  for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
+  save(); render();
+}
+
 function clearAll() {
   if (!confirm("清空全部打标？")) return;
   tags = {}; save(); render();
@@ -263,6 +279,7 @@ def parse_entries() -> list[dict]:
         smiles = " / ".join(SMILES_RE.findall(structure)) or "—"
         joined = " ".join(fields.values())
         verify = "未核实" if "[未核实" in joined else ("约" if "[约" in joined else "已核实")
+        default = "pick" if tid in SUGGESTED_PICK else ("drop" if tid in SUGGESTED_DROP else None)
         raw = f"### {tid}. {title}\n" + "\n".join(
             f"{i}. **{k}**：{fields[k]}" for i, k in enumerate(FIELD_ORDER, 1) if k in fields
         )
@@ -276,6 +293,7 @@ def parse_entries() -> list[dict]:
             "mr": fields.get("多参考性质", ""),
             "sibling": fields.get("兄弟题", ""),
             "verify": verify,
+            "def": default,
             "raw": raw,
         })
     return entries

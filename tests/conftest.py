@@ -18,6 +18,8 @@ def _isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(tmp_path / "config.yaml"))
     # 避免宿主环境残留的 runtime URL 让 Textual 测试误走隔离 HTTP 路径
     monkeypatch.delenv("CLOUDRA_TUI_RUNTIME_URL", raising=False)
+    # 守护进程自愈巡检默认关闭：测试进程绝不承担拉起 scheduler/kg_vec 的职责
+    monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG", "off")
     monkeypatch.setattr(get_config(), "data_dir", tmp_path / "data")
 
 

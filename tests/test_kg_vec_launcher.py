@@ -1,4 +1,4 @@
-"""web_launcher._ensure_kg_vec：kg_vec 向量微服务自启动判定链。
+"""daemon_supervisor.ensure_kg_vec：kg_vec 向量微服务自启动判定链。
 
 测试绝不真起 .venv-trans 服务：spawn_detached 一律 monkeypatch 拦截；健康
 探测走本地临时 HTTP 服务或死端口（127.0.0.1:1 立即拒连）。
@@ -15,9 +15,9 @@ from pathlib import Path
 
 import pytest
 
-from cloudra import web_launcher
 from cloudra.infra.config import get_config
 from cloudra.knowledge.plugin import PLUGIN_SPEC
+from cloudra.services import daemon_supervisor
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +29,7 @@ def _data_dir_exists():
 
 @pytest.fixture
 def spawn_calls(monkeypatch):
-    """拦截 compute_utils.spawn_detached（_ensure_kg_vec 惰性导入源模块属性）。"""
+    """拦截 compute_utils.spawn_detached（ensure_kg_vec 惰性导入源模块属性）。"""
     calls: list[tuple[list[str], str]] = []
     monkeypatch.setattr(
         "cloudra.infra.compute_utils.spawn_detached",
@@ -76,28 +76,28 @@ def healthy_vec_server(monkeypatch):
 
 def test_off_switch_never_spawns(spawn_calls, plugin_installed, dead_vec_url, monkeypatch):
     monkeypatch.setenv("CLOUDRA_KG_VEC", "off")
-    web_launcher._ensure_kg_vec()
+    daemon_supervisor.ensure_kg_vec()
     assert spawn_calls == []
 
 
 def test_plugin_not_installed_skips(spawn_calls, dead_vec_url, monkeypatch):
     monkeypatch.setattr(get_config(), "plugins", [])
-    web_launcher._ensure_kg_vec()
+    daemon_supervisor.ensure_kg_vec()
     assert spawn_calls == []
 
 
 def test_healthy_service_not_respawned(spawn_calls, plugin_installed, healthy_vec_server):
-    web_launcher._ensure_kg_vec()
+    daemon_supervisor.ensure_kg_vec()
     assert spawn_calls == []
 
 
 def test_lock_held_skips(spawn_calls, plugin_installed, dead_vec_url):
     from cloudra.infra.flocks import try_acquire_lock
 
-    fd = try_acquire_lock(web_launcher.kg_vec_lock_path())
+    fd = try_acquire_lock(daemon_supervisor.kg_vec_lock_path())
     assert fd is not None
     try:
-        web_launcher._ensure_kg_vec()
+        daemon_supervisor.ensure_kg_vec()
         assert spawn_calls == []
     finally:
         os.close(fd)
@@ -106,9 +106,9 @@ def test_lock_held_skips(spawn_calls, plugin_installed, dead_vec_url):
 def test_missing_vec_python_warns_and_skips(
     spawn_calls, plugin_installed, dead_vec_url, monkeypatch, caplog
 ):
-    monkeypatch.setattr(web_launcher, "_resolve_vec_python", lambda _configured="": None)
-    with caplog.at_level(logging.WARNING, logger="cloudra.web_launcher"):
-        web_launcher._ensure_kg_vec()
+    monkeypatch.setattr(daemon_supervisor, "resolve_vec_python", lambda _configured="": None)
+    with caplog.at_level(logging.WARNING, logger="cloudra.services.daemon_supervisor"):
+        daemon_supervisor.ensure_kg_vec()
     assert spawn_calls == []
     assert "kg_vec" in caplog.text
 
@@ -117,16 +117,16 @@ def test_spawns_detached_when_all_clear(spawn_calls, plugin_installed, monkeypat
     fake_py = tmp_path / ".venv-trans" / "bin" / "python"
     fake_py.parent.mkdir(parents=True)
     fake_py.touch()
-    monkeypatch.setattr(web_launcher, "_resolve_vec_python", lambda _configured="": str(fake_py))
+    monkeypatch.setattr(daemon_supervisor, "resolve_vec_python", lambda _configured="": str(fake_py))
     # 死端口（无人监听）但端口号必须透传给 spawn argv
     monkeypatch.setenv("CLOUDRA_KG_VEC_URL", "http://127.0.0.1:19123")
-    web_launcher._ensure_kg_vec()
+    daemon_supervisor.ensure_kg_vec()
     assert len(spawn_calls) == 1
     cmd, log_path = spawn_calls[0]
     assert cmd[0] == str(fake_py)
     assert cmd[1].endswith(os.path.join("scripts", "kg_vec_service.py"))
     assert cmd[cmd.index("--port") + 1] == "19123"
-    assert cmd[cmd.index("--lock-file") + 1] == web_launcher.kg_vec_lock_path()
+    assert cmd[cmd.index("--lock-file") + 1] == daemon_supervisor.kg_vec_lock_path()
     assert log_path.endswith("kg_vec.log")
 
 
@@ -134,12 +134,12 @@ def test_resolve_vec_python_prefers_configured(tmp_path):
     py = tmp_path / "bin" / "python"
     py.parent.mkdir()
     py.touch()
-    assert web_launcher._resolve_vec_python(str(py)) == str(py)
+    assert daemon_supervisor.resolve_vec_python(str(py)) == str(py)
 
 
 def test_resolve_vec_python_configured_missing_returns_none(tmp_path):
     # 显式配置的路径不存在 → None（不静默回落默认探测，错误配置要暴露）
-    assert web_launcher._resolve_vec_python(str(tmp_path / "nope" / "python")) is None
+    assert daemon_supervisor.resolve_vec_python(str(tmp_path / "nope" / "python")) is None
 
 
 def test_knowledge_vec_python_env_override(monkeypatch, tmp_path):

@@ -181,7 +181,7 @@ def test_runner_rerun_over_symlink_or_file_sandbox(tmp_path):
 
 def test_run_all_isolates_task_failure(tmp_path, capsys):
     """单题后端异常不拖垮整批：失败题落 notes 带原因的零分行并继续。"""
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:2]
 
@@ -189,7 +189,7 @@ def test_run_all_isolates_task_failure(tmp_path, capsys):
         if task.task_id == tasks[0].task_id:
             raise RuntimeError("backend exploded")
         sandbox.mkdir(parents=True, exist_ok=True)
-        return None
+        return BackendResult()
 
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     results = runner.run_all(tasks)
@@ -1000,8 +1000,9 @@ def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path):
         run_timeout_s=30.0,
         stuck_grace_s=5.0,
     )
-    barrier = backend(_tiny_task(), tmp_path / "sandbox")
-    assert barrier == 12.3
+    result = backend(_tiny_task(), tmp_path / "sandbox")
+    assert result.barrier == 12.3
+    assert "12.3 kcal/mol" in result.final_message
     # b3lyp 调用被 MethodPolicyStage 拦截，工具从未真正执行
     assert tools.calls == []
     blocked = [
@@ -1078,7 +1079,7 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
     """端到端：质子化变体证据 -> integrity 通过但 binding_quality<1，
     runner composite 被乘性扣减而不是判零。"""
     pytest.importorskip("rdkit")  # 同上：质子化 partial 通道依赖 RDKit
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
     from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec, TaskSpec
 
     graph = _graph_with_ts(["[OH3+]"], ["CC(=O)[O-]"])
@@ -1100,7 +1101,7 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
         gold=GoldSpec(mechanism_graph=graph),
     )
     runner = BenchmarkRunner(tmp_path / "data")
-    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
     # graph=1.0（交付=gold），sc 无 QM 证据判负，accuracy 无 gold barrier 记 1.0
     # blend = 0.5*1.0 + 0.2*0 + 0.3*1.0 = 0.8；× 0.75 = 0.6
     assert res.integrity_passed
@@ -1161,27 +1162,27 @@ def test_selfconsistency_skips_oversized_logs(tmp_path, monkeypatch):
 
 def test_composite_no_evidence_penalty(tmp_path):
     """图缺失 / 图在但零证据绑定 -> 倒扣 no_evidence_penalty（默认 -1）。"""
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
 
     task = _runner_task(_graph_with_ts(["C"], ["O"]))
     runner = BenchmarkRunner(tmp_path / "data")
 
     # 图缺失
-    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
     assert res.final_score == -1.0
 
     # 图可解析但没有任何证据
     sb2 = tmp_path / "sb2"
     sb2.mkdir()
     (sb2 / "mechanism_graph.json").write_text(task.gold.mechanism_graph.model_dump_json(by_alias=True))
-    res2 = runner.score_sandbox(task, sb2, agent_barrier=None)
+    res2 = runner.score_sandbox(task, sb2, agent=BackendResult())
     assert res2.final_score == -1.0
     assert any("no evidence bound" in n for n in res2.notes)
 
 
 def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     """缺部分证据：按 binding_quality 比例扣，不是判零也不是倒扣。"""
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
     task = _runner_task(graph)
@@ -1189,7 +1190,7 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     (tmp_path / "rc.log").write_text("gaussian log\n# smiles: C\n")  # 只绑上 R
 
     runner = BenchmarkRunner(tmp_path / "data")
-    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
     # R 全绑 1.0，P/TS 未绑 0 -> quality = 1/3；blend = 0.5*1 + 0 + 0.3*1 = 0.8
     assert res.final_score == pytest.approx(0.8 / 3, abs=1e-4)
     assert res.final_score > 0.0
@@ -1197,7 +1198,7 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
 
 def test_composite_full_evidence_full_blend(tmp_path):
     """证据完整 + 机理正确（交付=gold）-> 满分通道不受新语义影响。"""
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
     task = _runner_task(graph)
@@ -1206,7 +1207,7 @@ def test_composite_full_evidence_full_blend(tmp_path):
     (tmp_path / "pc.log").write_text("gaussian log\n# smiles: O\n")
 
     runner = BenchmarkRunner(tmp_path / "data")
-    res = runner.score_sandbox(task, tmp_path, agent_barrier=None)
+    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
     assert res.final_score == pytest.approx(0.8, abs=1e-4)  # sc 无频率证据判负，其余满
 
 
@@ -1219,7 +1220,7 @@ def test_run_all_parallel_controlled(tmp_path):
     import sqlite3
     import time
 
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:5]
 
@@ -1228,7 +1229,7 @@ def test_run_all_parallel_controlled(tmp_path):
         if task.task_id == tasks[1].task_id:
             raise RuntimeError("boom")
         time.sleep(0.3)
-        return None
+        return BackendResult()
 
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     t0 = time.monotonic()
@@ -1245,7 +1246,7 @@ def test_run_all_parallel_controlled(tmp_path):
 
 def test_run_all_serial_default_unchanged(tmp_path):
     """concurrency=1（默认）保持串行语义：逐题顺序执行。"""
-    from cloudra.benchmark.runner import BenchmarkRunner
+    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:3]
     order: list[str] = []
@@ -1253,7 +1254,7 @@ def test_run_all_serial_default_unchanged(tmp_path):
     def backend(task, sandbox):
         order.append(task.task_id)
         sandbox.mkdir(parents=True, exist_ok=True)
-        return None
+        return BackendResult()
 
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     results = runner.run_all(tasks)

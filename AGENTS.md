@@ -30,13 +30,14 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **`scheduler/` — 计算调度守护进程（进程隔离）**
 
-- `daemon.py` — `cloudra scheduler` 入口：与 API 彻底分家，状态同步只走中央 `compute.db` 的 `compute_jobs` 表（已迁出会话库，认领/对账每 tick 只打这一份）。职责：容量感知认领（`claim_ready_compute_job_with_capacity`，`priority DESC, id ASC`，槽位+CPU/内存记账，单库即全节点在用量）、对账器（30s+启动：running 的 local 作业逐条探 guard 锁——锁空闲 → spawn adopt guard 接管（conv_id 从行里取）；锁持有 → 续租防重领；Slurm 走既有租约重领）、孤儿 reap。单实例：`data_dir/scheduler.lock` 排他 flock。`web_launcher` 启动 Web 时无活实例则自动 detach 拉起。
+- `daemon.py` — `cloudra scheduler` 入口：与 API 彻底分家，状态同步只走中央 `compute.db` 的 `compute_jobs` 表（已迁出会话库，认领/对账每 tick 只打这一份）。职责：容量感知认领（`claim_ready_compute_job_with_capacity`，`priority DESC, id ASC`，槽位+CPU/内存记账，单库即全节点在用量）、对账器（30s+启动：running 的 local 作业逐条探 guard 锁——锁空闲 → spawn adopt guard 接管（conv_id 从行里取）；锁持有 → 续租防重领；Slurm 走既有租约重领）、孤儿 reap。单实例：`data_dir/scheduler.lock` 排他 flock。拉起与自愈由 `services/daemon_supervisor.py` 负责（见 services 节）。
 - 资源模型：agent 提交时显式申请（`submit_compute_job` 的 `cpus`/`memory_mb`/`priority`），**核心链路零输入文件解析**；提交时对照节点 `resources`（`nodes.py` 的 `max_concurrent`/`cpus`/`memory_mb`，注册表可配，缺省半机保守值）硬校验，超容拒收。
 - 完成通知：guard/Slurm 终态 CAS 写中央库；`ComputeNotifyBroker` 纯 DB 轮询（每 tick 一条全局小 SELECT 扫"终态且 notified_at NULL"，只投递 `conversation_id in core.projects` 的行，未加载项目跳过不落 notified_at，逐作业投递后落 notified_at）——API 宕机窗口内完成的作业不再丢通知。
 
 **`services/` — 服务层 / 控制面**
 
-- `api_v2/` — 包：`app.py`（create_v2_app/create_default_v2_app 装配 + lifespan + SPA 托管）、`context.py`（`ApiContext` 显式持有 core/bus/protected，路由零闭包）、`models.py`（全部 pydantic 请求模型）、`sse.py`、`routers/`（runtime/projects/agents/knowledge/roles/pending/artifacts/dag/events 九组 APIRouter）。薄路由：写操作一律走 CommandBus；唯一例外是 `GET/PATCH /api/v2/runtime/config`（经 `mutate_config` 改 YAML 并刷新内存单例——per-agent 设置留空时的全局回落槽位，key 只写不读）。
+- `api_v2/` — 包：`app.py`（create_v2_app/create_default_v2_app 装配 + lifespan + SPA 托管；lifespan 内挂 daemon-watchdog 任务——每 30s（`CLOUDRA_DAEMON_WATCHDOG_SECONDS`）`to_thread(ensure_daemons)` 自愈拉起死掉的守护进程，`CLOUDRA_DAEMON_WATCHDOG=off` 关闭，测试 conftest 默认 off）、`context.py`（`ApiContext` 显式持有 core/bus/protected，路由零闭包）、`models.py`（全部 pydantic 请求模型）、`sse.py`、`routers/`（runtime/projects/agents/knowledge/roles/pending/artifacts/dag/events 九组 APIRouter）。薄路由：写操作一律走 CommandBus；唯一例外是 `GET/PATCH /api/v2/runtime/config`（经 `mutate_config` 改 YAML 并刷新内存单例——per-agent 设置留空时的全局回落槽位，key 只写不读）。
+- `daemon_supervisor.py` — 守护进程拉起判定链唯一事实源（`ensure_scheduler`/`ensure_kg_vec`/`ensure_daemons`）：env 开关 → 插件已装检查（kg_vec）→ 端口健康探测 → flock 单实例探测 → spawn_detached。**崩溃循环节流**：真实拉起成功后落 `<lock>.last_spawn` 时间戳（原子写），守护死掉但距上次拉起 <60s 则跳过并告警；活实例路径不读时间戳。web_launcher 启动与 api_v2 watchdog 共用这一套。
 - `session_store.py` — 会话库中 `session` / `session_events` 两表的共享写入助手与只读查询（`create_session_record`/`ensure_session_record`/`finalize_session`/`arecord_event`/`insert_session_event` 等；compute_jobs 已迁出，六张 legacy 表已删除，本模块不再出现这些表。死代码清理后仅约 260 行，拆分评估为无必要）；`compute_store.py` — 中央 `compute.db` 的 compute_jobs 全部 SQL 入口（提交/认领/租约/终态 CAS/通知扫描，函数显式收 `ComputeDB`）；`nodes.py` — 多节点/Slurm 计算注册表。
 
 **`persistence/` — 持久化 / 状态**
@@ -71,8 +72,9 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 - `graph_similarity.py` — 化学参数化图评分，默认**子图覆盖**打分（gold 嵌入交付图即满分，多出不罚）；`GedConfig(subgraph_scoring=False)` 退回对称 GED 诊断。RDKit 可选，缺失时节点代价退化为 SMILES 集合相等。
 - `integrity.py` / `selfconsistency.py` / `accuracy.py` — 三层取证评分：证据绑定（`smiles:` 注释行；机理图形状的 JSON 不算证据；骨架级 partial credit；`binding_quality` 作 composite 乘性因子）→ 鞍点/IRC/极小值物理自检 → 能垒高斯容差评分。
 - `method_policy.py` — 方法白名单拦截判定（纯函数；`submit_compute_job` 读 input_file 内容判定；bash 层解析 heredoc/重定向写入的 QM 输入；**无法解析方法时 fail-closed**）。`policy_stage.py` — 运行时执行点 `MethodPolicyStage`。
-- `backend.py` — runtime_v2 后端（每题一个进程内 RuntimeCore+管线；yolo 无人值守；数据目录隔离由 CLI 负责 `CLOUDRA_DATA_DIR`）。`api_pool.py` — API 端点池防 429（`--api-pool pool.json`）。
-- `runner.py` — `BenchmarkRunner` + 专用 benchmark.db（同步 sqlite3，仅 CLI/测试上下文）；composite = (0.5·graph + 0.2·selfconsistency + 0.3·accuracy) × binding_quality，零证据绑定时倒扣 `no_evidence_penalty`。CLI：`python -m cloudra.benchmark`（`--backend none/runtime_v2`、`--only`、`--timeout`、`--concurrency`）。
+- `backend.py` — runtime_v2 后端（每题一个进程内 RuntimeCore+管线；yolo 无人值守；数据目录隔离由 CLI 负责 `CLOUDRA_DATA_DIR`）；返回 `BackendResult`（最终消息原文 + 提取的能垒——最终消息是拒答分类的输入）。`api_pool.py` — API 端点池防 429（`--api-pool pool.json`）。
+- `refusal.py` — 拒答行为分类与跨档统计：每题归 answered/refused/failed（v1 确定性启发式：有交付=answered、无交付+明确拒答声明=refused、其余=failed；只判行为不评理由，拒答质量留给 LLM judge 诊断层）；ground truth = `rubric.expected_outcome`（CORRECT_REFUSAL 应拒、其余应答）；`refusal_stats` 出 TP/FP/FN/TN 与 precision/recall/F1（分母为零记 None）。impossible 档主指标即跨档拒答 precision/recall——单档拒答率会被"什么都拒"刷分。
+- `runner.py` — `BenchmarkRunner` + 专用 benchmark.db（同步 sqlite3，仅 CLI/测试上下文）；composite = (0.5·graph + 0.2·selfconsistency + 0.3·accuracy) × binding_quality，零证据绑定时倒扣 `no_evidence_penalty`；每题另记拒答 outcome（runs 表 outcome 列，旧库整表重建迁移）与最终得分正交。CLI：`python -m cloudra.benchmark`（`--backend none/runtime_v2`、`--only`、`--timeout`、`--concurrency`；`--tasks-dir` 可重复传入多目录做跨档拒答统计）。
 
 **`runtime_v2/` — 事件驱动内核（推理循环唯一实现）**
 
@@ -115,8 +117,8 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 ## 顶层散件
 
 - `kg_data/` — 知识图谱 CSV（kg-entities/kg-relations/kg-stats，utf-8-sig；`cloudra knowledge import` 的输入）。v12 后含动力学讲义增量、v12.1 移除软件安装类目：14,203 实体（props.label_en 全覆盖）/ 10,266 行级关系（source 含 `kb:dyn01`~`kb:dyn08`）。
-- `ideapool/reaction_candidates/` — benchmark 候选池（easy.md 已定稿 30 题；normal.md 48 条池、已定稿 30 题见文末"定稿圈定"；hard.md 51 条池（立体化学档，2026-08-31 升级为线缆格式）、已定稿 20 条见文末"定稿圈定"（C 族 1,3-偶极按规则整体剔除））；打标台为自包含 HTML（normal_tagging.html / hard_tagging.html，打标存 localStorage 不回写 md），由 `scripts/gen_normal_tagging.py` / `scripts/gen_hard_tagging.py` 从对应 md 重新生成（条目变更后重跑）。
-- `vector_store/` — 知识卡片 bge-m3 向量五件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py / encode.py）；`scripts/kg_vec_service.py` 微服务只读这套文件（向量侧依赖 torch/sentence-transformers 全部留在外部 .venv-trans，cloudra venv 不装 torch；kg_vec 跑在 .venv-trans 解释器下、cloudra 包不可导入，只能 stdlib 自理）。**插件已装时 `web_launcher` 自动 detach 拉起该服务**（flock 单实例 `data_dir/kg_vec.lock` 由服务进程经 `--lock-file` 自持，端口健康探测防重，`CLOUDRA_KG_VEC=off` 关闭；解释器取 config `knowledge_vec_python`，缺省探测仓库根 `.venv-trans`）。查询模型与 meta.json 记录的库编码模型不一致时启动即告警；一键重编码入口 `vector_store/encode.py --model 模型名`；bge 系模型自动加专用查询前缀。v12.1 后 17,188 行（8,594 卡 zh+en 成对，其中动力学 1,569 卡）。
+- `ideapool/reaction_candidates/` — benchmark 候选池（easy.md 已定稿 30 题；normal.md 48 条池、已定稿 30 题见文末"定稿圈定"；hard.md 51 条池（立体化学档，2026-08-31 升级为线缆格式）、已定稿 20 条见文末"定稿圈定"（C 族 1,3-偶极按规则整体剔除）；impossible.md 70 条池（强多参考/拒答档：初批 A–E 32 + 2026-08-31 扩建 F–J 38），已定稿 20 条见文末"定稿圈定"——选题意图为单参考不可算体系的科学拒答，gold 是拒答质量而非机理图，含兄弟题对照设计）；打标台为自包含 HTML（normal_tagging.html / hard_tagging.html / impossible_tagging.html，打标存 localStorage 不回写 md），由 `scripts/gen_normal_tagging.py` / `scripts/gen_hard_tagging.py` / `scripts/gen_impossible_tagging.py` 从对应 md 重新生成（条目变更后重跑）。
+- `vector_store/` — 知识卡片 bge-m3 向量五件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py / encode.py）；`scripts/kg_vec_service.py` 微服务只读这套文件（向量侧依赖 torch/sentence-transformers 全部留在外部 .venv-trans，cloudra venv 不装 torch；kg_vec 跑在 .venv-trans 解释器下、cloudra 包不可导入，只能 stdlib 自理）。**插件已装时自动 detach 拉起该服务**（拉起判定链在 `services/daemon_supervisor.py`，web 启动与 api_v2 watchdog 共用；flock 单实例 `data_dir/kg_vec.lock` 由服务进程经 `--lock-file` 自持，端口健康探测防重，`CLOUDRA_KG_VEC=off` 关闭；解释器取 config `knowledge_vec_python`，缺省探测仓库根 `.venv-trans`）。查询模型与 meta.json 记录的库编码模型不一致时启动即告警；一键重编码入口 `vector_store/encode.py --model 模型名`；bge 系模型自动加专用查询前缀。v12.1 后 17,188 行（8,594 卡 zh+en 成对，其中动力学 1,569 卡）。
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。
 - `install.sh` / `install.ps1` — 安装脚本；`web.sh` / `web.ps1` — 开发便捷启动脚本；`README_CN.md` 为中文 README。`build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改。
