@@ -28,7 +28,10 @@ class RoleRoutedLLM:
             user_msgs = [m for m in messages if m.get("role") == "user"]
             task = str(user_msgs[-1].get("content", "") if user_msgs else "")[:40]
             return LLMResponse(content=f"{agent.role_id} done: {task}", stop_requested=True)
-        assert self.plan, "no scripted coordinator response left"
+        if not self.plan:
+            # Async child completion wakes the parent with a mailbox report;
+            # extra coordinator turns after the scripted plan are acks.
+            return LLMResponse(content="acked sub-agent report", stop_requested=True)
         return self.plan.pop(0)
 
 
@@ -145,6 +148,62 @@ async def test_launcher_nowait_then_report():
         core, coordinator, ToolCall(id="t3", name="get_subagent_report", arguments={"session_id": "as_nope"})
     )
     assert missing.is_success is False
+
+
+def _completion_injections(core, parent_id: str, child_id: str):
+    return [
+        e
+        for e in core.event_log.query_session(parent_id, types={"agent.message_injected"})
+        if child_id in str(e.data.get("content", ""))
+    ]
+
+
+@pytest.mark.asyncio
+async def test_async_child_completion_injects_parent_mailbox_and_wakes():
+    """is_wait=False: child terminal must land in the parent's mailbox and wake it."""
+    llm = RoleRoutedLLM(
+        [
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        id="t1",
+                        name="SubAgentLauncher",
+                        arguments={"agent_id": "a-1", "query": "explore X", "is_wait": False},
+                    )
+                ],
+            ),
+            LLMResponse(content="dispatched", stop_requested=True),
+            LLMResponse(content="received child report", stop_requested=True),
+        ]
+    )
+    core, _, coordinator = await _setup(llm)
+    deadline = asyncio.get_running_loop().time() + 5.0
+    children: list = []
+    while asyncio.get_running_loop().time() < deadline:
+        children = _children(core, coordinator.id)
+        if children:
+            break
+        await asyncio.sleep(0.01)
+    assert len(children) == 1
+    child = children[0]
+    await _wait_state(child, "succeeded")
+
+    reports = _completion_injections(core, coordinator.id, child.id)
+    assert reports, "child completion must be delivered to the parent mailbox"
+    body = reports[0].data["content"]
+    assert "[Sub-agent finished]" in body
+    assert child.id in body
+    assert "succeeded" in body
+    assert "explore X" in body
+
+    await _wait_state(coordinator, "succeeded")
+    emitted = [
+        e
+        for e in core.event_log.query_session(coordinator.id, types={"agent.message_emitted"})
+        if "received child report" in str(e.data.get("content", ""))
+    ]
+    assert emitted, "parent must wake on the mailbox report and continue"
 
 
 @pytest.mark.asyncio

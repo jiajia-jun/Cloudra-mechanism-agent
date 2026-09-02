@@ -31,7 +31,7 @@ Cloudra provides 8 specialized sub-agent roles (registered as `a-1` through `a-8
 ### 2.1 Single Dispatch (`SubAgentLauncher`)
 Use for linear prerequisites or domain-specific sub-tasks:
 - **`is_wait=True` (Synchronous)**: Blocks until the sub-agent completes. Use when the parent agent strictly depends on the sub-agent's return value (e.g. checking whether a toolchain binary exists).
-- **`is_wait=False` (Asynchronous)**: Sub-agent runs concurrently in the background. Use for compute-heavy calculations or broad literature surveys. Retrieve results later via `get_subagent_report`.
+- **`is_wait=False` (Asynchronous)**: Sub-agent runs concurrently in the background. Use for compute-heavy calculations or broad literature surveys. When it finishes, the harness delivers `[Sub-agent finished]` into the parent's mailbox and wakes the parent; `get_subagent_report` remains available for an explicit pull.
 
 ### 2.2 Parallel Swarm Dispatch (`SubAgentSwarm`)
 Use when executing homogeneous parallel workloads (e.g. scoring 10 different conformers, screening 20 ligands, or evaluating multiple adsorption sites):

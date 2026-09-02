@@ -118,6 +118,35 @@ def _final_text(core, agent: AgentSession) -> str:
     return f"Sub-agent ended with state {agent.state.value} and no final message."
 
 
+def _parent_report_text(core, child: AgentSession) -> str:
+    return (
+        f"[Sub-agent finished] role={child.role_id} session_id={child.id} "
+        f"state={child.state.value}\n\n{_final_text(core, child)}"
+    )
+
+
+def deliver_child_completion_to_parent(core, child: AgentSession) -> None:
+    """Push a finished child's report into the parent's mailbox and wake it.
+
+    Async (``is_wait=False``) dispatch otherwise leaves the parent with no
+    signal; the mailbox is the same channel hub mentions already use.  A
+    cancelled parent is left alone so cascade-cancel does not reopen it.
+    """
+    parent_id = child.parent_session_id
+    if not parent_id:
+        return
+    parent = core.agents.get(parent_id)
+    if parent is None or parent.state is AgentState.CANCELLED:
+        return
+    core.mailbox.deliver(
+        to_session_id=parent.id,
+        project_id=child.project_id,
+        content=_parent_report_text(core, child),
+        sender=child.role_id,
+    )
+    core.agent_host.wake(parent, runner=core.runner)
+
+
 async def _cancel_child(core, session_id: str) -> None:
     try:
         await CommandBus(core).execute(

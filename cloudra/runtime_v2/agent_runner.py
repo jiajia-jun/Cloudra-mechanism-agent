@@ -290,6 +290,7 @@ class AgentRunner:
                         if hook is not None:
                             await hook(agent, explicit_stop=explicit_stop)
                     core.agent_host.finish_run(agent, outcome="succeeded")
+                    self._deliver_child_completion(agent)
                     self._schedule_run_finalize(
                         agent, run_id, history, seed_count, outcome="succeeded"
                     )
@@ -311,12 +312,14 @@ class AgentRunner:
             # Command handler already transitioned the agent and emitted
             # agent.cancelled after host.cancel().  Still record the partial
             # trajectory in the context tree (deterministic summary only).
+            self._deliver_child_completion(agent)
             self._schedule_run_finalize(agent, run_id, history, seed_count, outcome="cancelled")
             raise
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
                 core.agent_host.finish_run(agent, outcome="failed", error=str(exc))
+            self._deliver_child_completion(agent)
             self._schedule_run_finalize(agent, run_id, history, seed_count, outcome="failed")
         finally:
             # Flush the tail events (message_emitted, finish_run's
@@ -326,6 +329,11 @@ class AgentRunner:
                 await self._publish_new_events(cursor)
             except Exception:
                 logger.exception("agent %s final event flush failed", agent.id)
+
+    def _deliver_child_completion(self, agent: AgentSession) -> None:
+        from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+        deliver_child_completion_to_parent(self.core, agent)
 
     def _drain_inbox(self, agent: AgentSession) -> list[dict]:
         inbox = self.core.mailbox.inbox(agent.id)
