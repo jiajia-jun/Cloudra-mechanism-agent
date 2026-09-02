@@ -385,26 +385,32 @@ class AgentRunner:
     async def _tool_result_content(self, agent: AgentSession, result) -> object:
         """History content for one tool result, with image re-injection.
 
-        A result carrying ``image_path`` is re-injected as an image_url part
-        when visual mode is on and the model can see; otherwise the summary
-        text gains one English fallback line pointing at the file.
+        A result carrying ``image_paths`` (or a single ``image_path``) is
+        re-injected as image_url parts when visual mode is on and the model
+        can see; otherwise the summary gains one English fallback line per
+        path.  There is no N-image cap.
         """
+        from cloudra.runtime_v2.turn_pipeline import image_paths_from_tool_result
+
         summary = result.summary
-        data = result.data if isinstance(result.data, dict) else {}
-        image_path = data.get("image_path")
-        if not image_path or not isinstance(image_path, str):
+        paths = image_paths_from_tool_result(result)
+        if not paths:
             return summary
-        if not getattr(agent.settings, "visual_mode", True):
-            return summary
-        if not self._provider_supports_vision(agent):
-            return (summary or "") + (
-                f"\n[Image rendered at: {image_path} — the configured model has no "
+        if not self._vision_enabled(agent):
+            extra = "".join(
+                f"\n[Image rendered at: {path} — the configured model has no "
                 "vision support; inspect the file directly if needed.]"
+                for path in paths
             )
-        part = await self._image_part(image_path)
-        if part is None:
+            return (summary or "") + extra
+        parts: list[dict] = [{"type": "text", "text": summary or ""}]
+        for path in paths:
+            part = await self._image_part(path)
+            if part is not None:
+                parts.append(part)
+        if len(parts) == 1:
             return summary
-        return [{"type": "text", "text": summary or ""}, part]
+        return parts
 
     async def _append_history(self, agent: AgentSession, history: list[dict], inbox_messages: list[dict], outcome) -> None:
         for item in inbox_messages:
