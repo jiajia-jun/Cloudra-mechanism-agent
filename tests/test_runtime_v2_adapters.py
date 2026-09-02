@@ -203,6 +203,12 @@ async def test_legacy_tool_executor_reports_unknown_tool():
     assert output.is_success is False
     assert "unknown tool" in output.summary
 
+    retired = await LegacyToolExecutor(core).execute(
+        result.data, ToolCall(id="tc2", name="text_reader", arguments={})
+    )
+    assert retired.is_success is False
+    assert "read" in retired.summary
+
 
 def _chunk(content=None, finish_reason=None):
     delta = SimpleNamespace(content=content, tool_calls=None, reasoning_content=None)

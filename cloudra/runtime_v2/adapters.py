@@ -21,6 +21,7 @@ from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
 from cloudra.tools.capabilities import visual_tools
+from cloudra.tools.name_hints import hint_unknown_tool, is_retired_tool_name
 
 
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
@@ -406,11 +407,17 @@ class LegacyToolExecutor:
         if call.name == "schedule":
             return await self.core.reminders.handle(agent, call)
 
+        if is_retired_tool_name(call.name):
+            return ToolResult(
+                is_success=False,
+                summary=hint_unknown_tool(call.name),
+            )
+
         entry = next((e for e in get_tools_lst() if e.tool_name == call.name), None)
         if entry is None:
             return ToolResult(
                 is_success=False,
-                summary=f"[Tool error] unknown tool {call.name!r}. Choose an available tool and retry.",
+                summary=hint_unknown_tool(call.name),
             )
         project = self.core.require_project(agent.project_id)
         bridge = _LegacyAgentBridge(agent, project.workspace_dir)
