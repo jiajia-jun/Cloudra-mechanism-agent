@@ -302,8 +302,13 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         level = 'warn';
         text = `Context compaction failed: ${short(d.error, 160)}`;
       } else if (d.compacted) {
-        const overflow = d.trigger === 'context_overflow' ? ' — context window overflow' : '';
-        text = `Context compacted (${String(d.before_messages)} → ${String(d.after_messages)} messages${overflow})`;
+        const why =
+          d.trigger === 'context_overflow'
+            ? ' — context window overflow'
+            : d.trigger === 'stop'
+              ? ' — after last user/schedule message'
+              : '';
+        text = `Context compacted (${String(d.before_messages)} → ${String(d.after_messages)} messages${why})`;
       } else {
         text = 'Context already short — nothing to compact';
       }

@@ -164,14 +164,35 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
     assert "compaction.requested" in types
     assert types.index("compaction.requested") < types.index("compaction.started")
     assert "compaction.finished" in types
-    # The second turn's messages open with the compacted handoff.
+    # The second turn still runs (compact is not a new user message that
+    # ends the run).  The handoff is an assistant summary, not role=user.
     second_turn = llm.calls[1]
-    assert any("[Context compact]" in str(m.get("content")) for m in second_turn)
-    assert any("SUMMARY" in str(m.get("content")) for m in second_turn)
+    compact_msgs = [m for m in second_turn if "[Context compact]" in str(m.get("content"))]
+    assert compact_msgs
+    assert compact_msgs[0]["role"] == "assistant"
+    assert any("SUMMARY" in str(m.get("content")) for m in compact_msgs)
+
+
+def test_instruction_message_includes_user_and_schedule_reminder():
+    from cloudra.runtime_v2.compaction import is_instruction_message
+
+    assert is_instruction_message({"role": "user", "content": "solve it"})
+    assert is_instruction_message({"role": "user", "content": "[Reminder] check the gaussian log"})
+    # Schedule wake-ups count even if the role is not user.
+    assert is_instruction_message({"role": "assistant", "content": "[Reminder] check the gaussian log"})
+    assert not is_instruction_message({"role": "assistant", "content": "working"})
+    assert not is_instruction_message({"role": "tool", "content": "echo:1"})
+    # A compact handoff is not a new instruction — the previous user/schedule stays the boundary.
+    assert not is_instruction_message(
+        {"role": "assistant", "content": "[Context compact] earlier work was summarized"}
+    )
+    assert not is_instruction_message(
+        {"role": "user", "content": "[Context compact] earlier work was summarized"}
+    )
 
 
 @pytest.mark.asyncio
-async def test_compact_history_split_and_summary():
+async def test_compact_history_folds_agent_tail_after_last_instruction():
     from cloudra.runtime_v2.compaction import compact_history
 
     history = [
@@ -179,27 +200,35 @@ async def test_compact_history_split_and_summary():
         {"role": "assistant", "content": "", "tool_calls": [{"id": "t1", "name": "echo", "arguments": {}}]},
         {"role": "tool", "tool_call_id": "t1", "content": "r1"},
         {"role": "assistant", "content": "a1"},
-        {"role": "user", "content": "q2"},
+        {"role": "user", "content": "[Reminder] check job"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "t2", "name": "echo", "arguments": {}}]},
+        {"role": "tool", "tool_call_id": "t2", "content": "r2"},
+        {"role": "assistant", "content": "a2"},
     ]
 
     async def summarize(messages):
         return "SUM"
 
-    new_history, stats = await compact_history(history, 2, summarize)
-    assert stats == {"compacted": True, "before_messages": 5, "after_messages": 3}
-    assert new_history[0]["role"] == "user"
-    assert "[Context compact]" in new_history[0]["content"]
-    assert new_history[1:] == history[3:]
+    # keep_recent=0: compact every agent message after the last user/schedule.
+    new_history, stats = await compact_history(history, 0, summarize)
+    assert stats["compacted"] is True
+    assert new_history[0] == history[0]
+    assert new_history[4]["content"] == "[Reminder] check job"
+    assert new_history[5]["role"] == "assistant"
+    assert "[Context compact]" in new_history[5]["content"]
+    assert "SUM" in new_history[5]["content"]
+    assert len(new_history) == 6
 
-    # keep_recent landing on a tool message slides forward to keep the
-    # assistant tool_calls / tool response pair intact.
-    new_history, stats = await compact_history(history, 3, summarize)
-    assert new_history[1:] == history[3:]
-
-    # Already short enough: untouched.
+    # keep_recent large enough to cover the agent tail: nothing to fold.
     same, stats = await compact_history(history, 10, summarize)
     assert same is history
     assert stats["compacted"] is False
+
+    # keep_recent landing on a tool message still slides forward so the
+    # assistant tool_calls / tool response pair stays intact.
+    new_history, stats = await compact_history(history, 1, summarize)
+    assert stats["compacted"] is True
+    assert new_history[-1] == history[-1]
 
 
 @pytest.mark.asyncio
@@ -438,6 +467,13 @@ async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeyp
                 exc = RuntimeError("This model's maximum context length is 65536 tokens")
                 exc.status_code = 400
                 raise exc
+            if len(self.calls) == 3:
+                # Overflow compact must retry the same turn and keep working,
+                # not treat the handoff as a new user message that stops.
+                return LLMResponse(
+                    content="",
+                    tool_calls=[ToolCall(id="tc-after", name="echo", arguments={"x": 99})],
+                )
             return LLMResponse(content="done", stop_requested=True)
 
     llm = LLM()
@@ -447,16 +483,52 @@ async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeyp
     events = list(core.event_log.query_session(agent.id))
     types = [e.type for e in events]
     assert "llm.failed" in types
-    assert types.count("compaction.started") == 1
-    started = next(e for e in events if e.type == "compaction.started")
-    assert started.data["trigger"] == "context_overflow"
-    finished = next(e for e in events if e.type == "compaction.finished")
-    assert finished.data["compacted"] is True
-    assert finished.data["trigger"] == "context_overflow"
-    # The retried turn opened with the compacted handoff.
+    overflow = [
+        e for e in events if e.type == "compaction.started" and e.data.get("trigger") == "context_overflow"
+    ]
+    assert len(overflow) == 1
+    # The retried turn opened with an assistant handoff (not a user message)
+    # and kept working: a tool ran after compact, then the run stopped.
     retried = llm.calls[2]
-    assert any("[Context compact]" in str(m.get("content")) for m in retried)
-    assert any("SUMMARY" in str(m.get("content")) for m in retried)
+    compact_msgs = [m for m in retried if "[Context compact]" in str(m.get("content"))]
+    assert compact_msgs
+    assert compact_msgs[0]["role"] == "assistant"
+    assert any("SUMMARY" in str(m.get("content")) for m in compact_msgs)
+    stop_compacts = [
+        e for e in events if e.type == "compaction.finished" and e.data.get("trigger") == "stop"
+    ]
+    assert stop_compacts, "stop must compact the agent tail after the last user/schedule message"
+
+
+@pytest.mark.asyncio
+async def test_stop_compacts_agent_tail_after_last_user(monkeypatch):
+    """Each stop folds agent/tool messages after the last user (or schedule) message."""
+
+    async def fake_summarize(agent, messages):
+        return "AGENT TAIL SUMMARY"
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
+
+    llm = ScriptedLLM(
+        [
+            LLMResponse(
+                content="",
+                tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+            ),
+            LLMResponse(content="done", stop_requested=True),
+        ]
+    )
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+    finished = [
+        e for e in core.event_log.query_session(agent.id) if e.type == "compaction.finished"
+    ]
+    assert len(finished) == 1
+    assert finished[0].data["trigger"] == "stop"
+    assert finished[0].data["compacted"] is True
+    assert "AGENT TAIL SUMMARY" in (finished[0].data.get("summary") or "")
 
 
 @pytest.mark.asyncio

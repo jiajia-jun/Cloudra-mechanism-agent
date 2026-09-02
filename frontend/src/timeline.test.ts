@@ -155,6 +155,23 @@ const overflow = buildTimeline(
 );
 assert.match((overflow[0] as NoteItem).text, /context window overflow/);
 
+// Stop-triggered compaction names the user/schedule boundary.
+const afterStop = buildTimeline(
+  [
+    {
+      ...ev('compaction.finished', 7.5, {
+        compacted: true,
+        before_messages: 20,
+        after_messages: 4,
+        trigger: 'stop',
+      }),
+      run_id: 'r2b',
+    },
+  ],
+  [],
+);
+assert.match((afterStop[0] as NoteItem).text, /last user\/schedule message/);
+
 // A failed compaction warns instead of passing silently.
 const failedComp = buildTimeline(
   [{ ...ev('compaction.finished', 8, { compacted: false, error: 'provider down' }), run_id: 'r3' }],

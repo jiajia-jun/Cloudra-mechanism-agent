@@ -249,6 +249,12 @@ class AgentRunner:
                         cursor = len(core.event_log)
                 await self._append_history(agent, history, inbox_messages, outcome)
                 if outcome.decision == "stop":
+                    # Primary cadence: one stop → one compact of the agent
+                    # tail after the last user/schedule message.  400 overflow
+                    # compact (above) is a mid-run fallback, not a substitute.
+                    await self._apply_compaction(
+                        agent, run_id, history, keep_recent=0, trigger="stop"
+                    )
                     if outcome.content:
                         core.event_log.append(
                             "agent.message_emitted",
@@ -465,6 +471,7 @@ class AgentRunner:
                 history,
                 keep_recent,
                 lambda messages: summarize_with_agent_settings(agent, messages),
+                trigger=trigger,
             )
         except Exception as exc:
             # Compaction is best-effort: a summarization failure must never
@@ -478,14 +485,25 @@ class AgentRunner:
                 # workspace file so later runs and human auditors still have
                 # the summary.  Best-effort: a write failure only skips the
                 # file and the pointer note.
-                handoff_text = str(history[0].get("content") or "")
+                handoff_idx = int(stats.get("handoff_index") or 0)
+                handoff_text = str(history[handoff_idx].get("content") or "")
                 handoff_path = await self._persist_compaction_handoff(
                     agent, stats, handoff_text
                 )
                 if handoff_path:
-                    history[0]["content"] = str(history[0].get("content") or "") + (
+                    history[handoff_idx]["content"] = str(
+                        history[handoff_idx].get("content") or ""
+                    ) + (
                         f"\n\n(The full compaction summary was appended to the "
                         f"workspace file: {handoff_path})"
+                    )
+                if trigger == "context_overflow" and core.notices is not None:
+                    core.notices.push(
+                        agent.id,
+                        "[Context compact] History after the last user/schedule "
+                        "message was compacted because the context window overflowed. "
+                        "Continue the current task by calling tools. This is not a "
+                        "new user request — do not stop just to acknowledge the compact.",
                     )
         finished: dict = dict(stats)
         finished["trigger"] = trigger
