@@ -12,6 +12,29 @@ description = (
     "or extracting content from a known PDF (download with web_fetcher then pdf2md)."
 )
 
+_VALID_SORT_BY = ("Relevance", "SubmittedDate", "LastUpdatedDate")
+_VALID_SORT_ORDER = ("Ascending", "Descending")
+_VALID_MODES = ("light", "normal", "weight")
+_ARXIV_PAGE_CAP = 2000
+
+
+def _fetch_arxiv(query: str, max_results: int, sort_by: str, sort_order: str) -> list:
+    """同步拉取 arXiv；由 tool_call 经 to_thread 卸载，避免冻住事件循环。
+
+    arxiv 2.0+ 用 Client.results(Search)；4.0 删除了 Search.results()。
+    """
+    import arxiv
+
+    page_size = max(1, min(int(max_results), _ARXIV_PAGE_CAP))
+    client = arxiv.Client(page_size=page_size)
+    search = arxiv.Search(
+        query=query,
+        max_results=max_results,
+        sort_by=getattr(arxiv.SortCriterion, sort_by),
+        sort_order=getattr(arxiv.SortOrder, sort_order),
+    )
+    return list(client.results(search))
+
 
 class PaperSearcher_input_schema(input_schema):
     query: str = Field(description="Search keywords")
@@ -48,40 +71,33 @@ class PaperSearcher(Tool):
         return True
 
     async def tool_call(self, user_input: PaperSearcher_input_schema, session: Session) -> PaperSearcher_output_schema:
-        import arxiv
+        import asyncio
+
         try:
             message = ""
-            if user_input.sort_by not in ['Relevance', 'SubmittedDate', 'LastUpdatedDate']:
-                user_input.sort_by = 'Relevance'
-            if user_input.sort_order not in ['Ascending', 'Descending']:
-                user_input.sort_order = 'Descending'
-            if user_input.mode not in ['light', 'normal', 'weight']:
+            sort_by = user_input.sort_by if user_input.sort_by in _VALID_SORT_BY else "Relevance"
+            sort_order = user_input.sort_order if user_input.sort_order in _VALID_SORT_ORDER else "Descending"
+            mode = user_input.mode
+            if mode not in _VALID_MODES:
                 message = f"Unknown mode '{user_input.mode}'; falling back to the default 'normal'."
-                user_input.mode = 'normal'
+                mode = "normal"
 
-            sort_by = getattr(arxiv.SortCriterion, user_input.sort_by)
-            sort_order = getattr(arxiv.SortOrder, user_input.sort_order)
-
-            arxiv_search = arxiv.Search(
-                query=user_input.query,
-                max_results=user_input.max_results,
-                sort_by=sort_by,
-                sort_order=sort_order,
+            raw = await asyncio.to_thread(
+                _fetch_arxiv, user_input.query, user_input.max_results, sort_by, sort_order
             )
 
             results_list = []
-            # 核心优化：只迭代一次 search.results()，获取所有数据
-            for result in arxiv_search.results():
+            for result in raw:
                 item = {
                     'title': result.title,
                     'journal_ref': result.journal_ref,
                     'doi': result.doi
                 }
 
-                if user_input.mode in ['normal', 'weight']:
-                    item['abstract'] = result.summary.strip('\n')
+                if mode in ['normal', 'weight']:
+                    item['abstract'] = (result.summary or "").strip('\n')
 
-                if user_input.mode == 'weight':
+                if mode == 'weight':
                     item['authors'] = [author.name for author in result.authors]
                     item['categories'] = list(result.categories)
                     item['primary_category'] = result.primary_category
@@ -91,9 +107,13 @@ class PaperSearcher(Tool):
 
                 results_list.append(item)
 
+            if not results_list:
+                return PaperSearcher_output_schema(
+                    content=[],
+                    message=message or "No matching papers found.",
+                )
             return PaperSearcher_output_schema(content=results_list, message=message)
         except Exception as e:
-            # 捕获所有 arxiv 库抛出的网络异常
             return PaperSearcher_output_schema(is_success=False, error=f'arXiv API temporarily unavailable: {str(e)}')
 
 

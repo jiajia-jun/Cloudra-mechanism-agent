@@ -315,7 +315,7 @@ visual = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20" },
-    { name = "arxiv", specifier = ">=1.4" },
+    { name = "arxiv", specifier = ">=2.0" },
     { name = "ase", specifier = ">=3.28.0" },
     { name = "cclib", specifier = ">=1.8.1" },
     { name = "certifi", specifier = ">=2024" },
