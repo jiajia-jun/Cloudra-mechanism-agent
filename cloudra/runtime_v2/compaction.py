@@ -6,9 +6,11 @@ message.  Instruction messages are user turns and schedule wake-ups
 later compact still folds against the same user/schedule boundary.
 
 Cadence:
-- each ``stop`` folds that tail once (keep_recent=0)
-- a 400/413 context-window overflow still emergency-compacts once and retries
-- ``/compact`` uses the same unit, optionally keeping a recent verbatim tail
+- ``stop`` after a ``[Reminder]`` folds that tail (keep_recent=0)
+- ``stop`` after a user message does not compact
+- a 400/413 overflow first folds earlier completed user turns, then the
+  current tail (keep_recent), then fails
+- ``/compact`` uses the last-instruction unit, optionally keeping a verbatim tail
 
 The handoff is an **assistant** summary, never ``role: user``: injecting a
 user message made the model treat compact as a new turn and stop working.
@@ -39,14 +41,27 @@ _MAX_HEAD_CHARS = 12000
 _PER_MESSAGE_CHARS = 2000
 
 
-def is_instruction_message(message: dict[str, Any]) -> bool:
-    """True for a user turn or schedule wake-up; false for compact handoffs."""
+def is_reminder_message(message: dict[str, Any]) -> bool:
+    """True for a schedule wake-up (``[Reminder] ...``), not a compact handoff."""
     content = _content_to_text(message.get("content"))
     if content.startswith(_COMPACT_MARKER):
         return False
-    if content.startswith(_REMINDER_PREFIX):
+    return content.startswith(_REMINDER_PREFIX)
+
+
+def is_instruction_message(message: dict[str, Any]) -> bool:
+    """True for a user turn or schedule wake-up; false for compact handoffs."""
+    if is_reminder_message(message):
         return True
+    content = _content_to_text(message.get("content"))
+    if content.startswith(_COMPACT_MARKER):
+        return False
     return message.get("role") == "user"
+
+
+def last_instruction_is_reminder(history: list[dict[str, Any]]) -> bool:
+    idx = _last_instruction_index(history)
+    return idx >= 0 and is_reminder_message(history[idx])
 
 
 def _last_instruction_index(history: list[dict[str, Any]]) -> int:
@@ -76,6 +91,37 @@ def _split_compact_range(history: list[dict[str, Any]], keep_recent: int) -> tup
         return dropped_start, len(history)
     tail_start = max(_split_tail_start(history, keep_recent), dropped_start)
     return dropped_start, tail_start
+
+
+def _instruction_chapters(history: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Split history into chapters that start at each instruction message."""
+    chapters: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for message in history:
+        if is_instruction_message(message):
+            if current:
+                chapters.append(current)
+            current = [message]
+        elif current:
+            current.append(message)
+        else:
+            current = [message]
+    if current:
+        chapters.append(current)
+    return chapters
+
+
+def _handoff_text_prior_turns(dropped_count: int, summary: str, trigger: str) -> str:
+    body = (
+        f"{_COMPACT_MARKER} {dropped_count} agent messages from earlier user "
+        f"turns were compacted into this summary."
+    )
+    if trigger == "context_overflow":
+        body += (
+            " Continue the current task by calling tools; this is not a new "
+            "user request."
+        )
+    return f"{body}\n{summary}"
 
 
 def _content_to_text(content: Any) -> str:
@@ -195,4 +241,75 @@ async def compact_history(
         "after_messages": len(new_history),
         "handoff_index": dropped_start,
         "keep_recent": keep_recent,
+    }
+
+
+def _prior_turn_dropped(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    chapters = _instruction_chapters(history)
+    last_instr = None
+    for index, chapter in enumerate(chapters):
+        if chapter and is_instruction_message(chapter[0]):
+            last_instr = index
+    if last_instr is None:
+        return []
+    dropped: list[dict[str, Any]] = []
+    for chapter in chapters[:last_instr]:
+        if chapter and is_instruction_message(chapter[0]):
+            dropped.extend(chapter[1:])
+    return dropped
+
+
+def can_compact_completed_user_turns(history: list[dict[str, Any]]) -> bool:
+    return bool(_prior_turn_dropped(history))
+
+
+async def compact_completed_user_turns(
+    history: list[dict[str, Any]],
+    summarize: Summarizer,
+    *,
+    trigger: str = "context_overflow",
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fold agent tails of completed instruction chapters; keep the current turn.
+
+    Instruction messages (user / reminder) stay verbatim.  A leading
+    non-instruction prefix (the restored-context seed) is kept as-is.
+    ``stats["compacted"]`` is False when there is no prior chapter tail.
+    """
+    chapters = _instruction_chapters(history)
+    last_instr = None
+    for index, chapter in enumerate(chapters):
+        if chapter and is_instruction_message(chapter[0]):
+            last_instr = index
+    dropped = _prior_turn_dropped(history)
+    if last_instr is None or not dropped:
+        return history, {"compacted": False, "keep_recent": 0}
+    summary = (
+        await summarize(
+            [
+                {"role": "system", "content": _COMPACT_INSTRUCTION},
+                {"role": "user", "content": _serialize(dropped)},
+            ]
+        )
+    ).strip() or "(no summary produced)"
+    handoff = {
+        "role": "assistant",
+        "content": _handoff_text_prior_turns(len(dropped), summary, trigger),
+    }
+    new_history: list[dict[str, Any]] = []
+    for index, chapter in enumerate(chapters):
+        if index == last_instr:
+            new_history.append(handoff)
+            new_history.extend(chapter)
+        elif chapter and is_instruction_message(chapter[0]):
+            new_history.append(chapter[0])
+        else:
+            new_history.extend(chapter)
+    handoff_index = new_history.index(handoff)
+    return new_history, {
+        "compacted": True,
+        "before_messages": len(history),
+        "after_messages": len(new_history),
+        "handoff_index": handoff_index,
+        "keep_recent": 0,
+        "unit": "prior_turns",
     }

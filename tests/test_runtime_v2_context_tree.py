@@ -207,6 +207,70 @@ def test_seed_does_not_duplicate_activity_of_summarized_runs():
     assert "auto-derived" in summaries[1] and "wrote ts.gjf" in summaries[1]
 
 
+def test_seed_keeps_only_the_latest_reminder_chapter():
+    """Long-running schedule polls are duplicate junk; keep one chapter."""
+    log = EventLog()
+    log.append(
+        "agent.message_injected",
+        stream="project",
+        project_id="p",
+        session_id="s",
+        data={"sender": "user", "content": "watch the gaussian job"},
+    )
+    log.append(
+        "context.run_summarized",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="r-user",
+        data={"summary": "submitted job.gjf", "seq_range": {"start": 1, "end": 2}},
+    )
+    for i in range(3):
+        log.append(
+            "agent.message_injected",
+            stream="project",
+            project_id="p",
+            session_id="s",
+            data={"sender": "agent", "content": f"[Reminder] check log pass {i}"},
+        )
+        log.append(
+            "context.run_summarized",
+            stream="agent",
+            project_id="p",
+            session_id="s",
+            run_id=f"r-poll-{i}",
+            data={"summary": f"still running {i}", "seq_range": {"start": 10 + i, "end": 11 + i}},
+        )
+    log.append(
+        "agent.message_injected",
+        stream="project",
+        project_id="p",
+        session_id="s",
+        data={"sender": "user", "content": "is it done?"},
+    )
+    log.append(
+        "context.run_summarized",
+        stream="agent",
+        project_id="p",
+        session_id="s",
+        run_id="r-user-2",
+        data={"summary": "told the user not yet", "seq_range": {"start": 20, "end": 21}},
+    )
+    seed = build_seed_context(log, "s")
+    users = [m["content"] for m in seed if m["role"] == "user"]
+    assert users == [
+        "watch the gaussian job",
+        "[Reminder] check log pass 2",
+        "is it done?",
+    ]
+    summaries = [m["content"] for m in seed if m["role"] == "assistant"]
+    assert any("submitted job.gjf" in s for s in summaries)
+    assert any("still running 2" in s for s in summaries)
+    assert any("told the user not yet" in s for s in summaries)
+    assert not any("still running 0" in s or "still running 1" in s for s in summaries)
+    assert not any("check log pass 0" in s or "check log pass 1" in s for s in summaries)
+
+
 def test_seed_budget_shrinks_oldest_summaries():
     log = EventLog()
     log.append(

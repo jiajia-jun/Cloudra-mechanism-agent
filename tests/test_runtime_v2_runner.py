@@ -209,7 +209,7 @@ async def test_compact_history_folds_agent_tail_after_last_instruction():
     async def summarize(messages):
         return "SUM"
 
-    # keep_recent=0: compact every agent message after the last user/schedule.
+    # keep_recent=0: compact every agent message after the last instruction.
     new_history, stats = await compact_history(history, 0, summarize)
     assert stats["compacted"] is True
     assert new_history[0] == history[0]
@@ -229,6 +229,41 @@ async def test_compact_history_folds_agent_tail_after_last_instruction():
     new_history, stats = await compact_history(history, 1, summarize)
     assert stats["compacted"] is True
     assert new_history[-1] == history[-1]
+
+
+@pytest.mark.asyncio
+async def test_compact_completed_user_turns_keeps_current_chapter():
+    from cloudra.runtime_v2.compaction import compact_completed_user_turns
+
+    history = [
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "tool", "tool_call_id": "t1", "content": "r1"},
+        {"role": "user", "content": "q2"},
+        {"role": "assistant", "content": "a2"},
+        {"role": "tool", "tool_call_id": "t2", "content": "r2"},
+        {"role": "user", "content": "q3"},
+        {"role": "assistant", "content": "a3"},
+    ]
+
+    async def summarize(messages):
+        return "PRIOR TURNS"
+
+    new_history, stats = await compact_completed_user_turns(history, summarize)
+    assert stats["compacted"] is True
+    users = [m["content"] for m in new_history if m["role"] == "user"]
+    assert users == ["q1", "q2", "q3"]
+    assert new_history[-2] == history[-2]
+    assert new_history[-1] == history[-1]
+    handoffs = [m for m in new_history if "[Context compact]" in str(m.get("content"))]
+    assert len(handoffs) == 1
+    assert "PRIOR TURNS" in handoffs[0]["content"]
+    assert not any(m.get("tool_call_id") == "t1" for m in new_history)
+
+    current = history[-2:]
+    same, stats = await compact_completed_user_turns(current, summarize)
+    assert stats["compacted"] is False
+    assert same is current
 
 
 @pytest.mark.asyncio
@@ -497,12 +532,12 @@ async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeyp
     stop_compacts = [
         e for e in events if e.type == "compaction.finished" and e.data.get("trigger") == "stop"
     ]
-    assert stop_compacts, "stop must compact the agent tail after the last user/schedule message"
+    assert stop_compacts == [], "a user-turn stop must not compact"
 
 
 @pytest.mark.asyncio
-async def test_stop_compacts_agent_tail_after_last_user(monkeypatch):
-    """Each stop folds agent/tool messages after the last user (or schedule) message."""
+async def test_stop_does_not_compact_after_user(monkeypatch):
+    """User-turn stops keep the tool trajectory; schedule stops are the cadence."""
 
     async def fake_summarize(agent, messages):
         return "AGENT TAIL SUMMARY"
@@ -523,12 +558,51 @@ async def test_stop_compacts_agent_tail_after_last_user(monkeypatch):
     core, _, agent = await _setup(llm)
     await _wait_state(agent, "succeeded")
     finished = [
-        e for e in core.event_log.query_session(agent.id) if e.type == "compaction.finished"
+        e
+        for e in core.event_log.query_session(agent.id)
+        if e.type == "compaction.finished" and e.data.get("trigger") == "stop"
+    ]
+    assert finished == []
+
+
+@pytest.mark.asyncio
+async def test_stop_compacts_after_schedule_reminder(monkeypatch):
+    async def fake_summarize(agent, messages):
+        return "POLL TAIL SUMMARY"
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
+    )
+
+    llm = ScriptedLLM(
+        [
+            LLMResponse(content="watching", stop_requested=True),
+            LLMResponse(
+                content="",
+                tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+            ),
+            LLMResponse(content="still running", stop_requested=True),
+        ]
+    )
+    core, _, agent = await _setup(llm)
+    await _wait_state(agent, "succeeded")
+    bus = CommandBus(core)
+    await bus.execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "[Reminder] check the gaussian log"},
+        )
+    )
+    await _wait_state(agent, "succeeded")
+    finished = [
+        e
+        for e in core.event_log.query_session(agent.id)
+        if e.type == "compaction.finished" and e.data.get("trigger") == "stop"
     ]
     assert len(finished) == 1
-    assert finished[0].data["trigger"] == "stop"
     assert finished[0].data["compacted"] is True
-    assert "AGENT TAIL SUMMARY" in (finished[0].data.get("summary") or "")
+    assert "POLL TAIL SUMMARY" in (finished[0].data.get("summary") or "")
 
 
 @pytest.mark.asyncio

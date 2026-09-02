@@ -13,19 +13,20 @@ layers two derived event types on top instead of a separate store:
   maintain handoff files themselves.
 
 On a fresh run the runner seeds the LLM history from ``build_seed_context``:
-the newest HANDOVER plus, in chronological order, every injected instruction
-(user messages, spawn queries, peer/email/reminder deliveries) kept verbatim,
-paired with the compressed summaries of past runs — instructions keep full
-weight, the agent's own output is reduced to its trajectory summary.  A run
-that died with the process never got its ``context.run_summarized`` event; the
-seed derives a deterministic summary from its raw events so that work is not
-invisible to the next run.
+the newest HANDOVER plus, in chronological order, every injected user
+instruction kept verbatim, paired with compressed summaries of those runs.
+Consecutive ``[Reminder]`` schedule chapters collapse to the latest reminder
+and its run summary — older polls are junk and stay only in the event log.
+A run that died with the process never got its ``context.run_summarized``
+event; the seed derives a deterministic summary from its raw events so that
+work is not invisible to the next run.
 """
 
 from __future__ import annotations
 
 from typing import Any, Iterable
 
+from cloudra.runtime_v2.compaction import is_reminder_message
 from cloudra.runtime_v2.events import EventLog
 
 # Prefix of the seed block's leading system message.  The runner uses it to
@@ -163,6 +164,39 @@ def fallback_run_summary(events: list) -> str:
 _ACTIVITY_EVENT_TYPES = frozenset({"tool.finished", "agent.message_emitted", "run.finished"})
 
 
+def _collapse_schedule_chapters(merged: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep every user chapter; keep only the latest ``[Reminder]`` chapter.
+
+    Long-running schedule polls replay the same status.  Older reminder
+    injections and their run summaries stay in the event log but drop out of
+    the seed.  A leading non-user prefix (if any) is kept.
+    """
+    chapters: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for message in merged:
+        if message.get("role") == "user":
+            if current:
+                chapters.append(current)
+            current = [message]
+        elif current:
+            current.append(message)
+        else:
+            current = [message]
+    if current:
+        chapters.append(current)
+
+    last_reminder = None
+    for index, chapter in enumerate(chapters):
+        if chapter and is_reminder_message(chapter[0]):
+            last_reminder = index
+    out: list[dict[str, Any]] = []
+    for index, chapter in enumerate(chapters):
+        if chapter and is_reminder_message(chapter[0]) and index != last_reminder:
+            continue
+        out.extend(chapter)
+    return out
+
+
 def build_seed_context(
     event_log: EventLog,
     session_id: str,
@@ -265,6 +299,7 @@ def build_seed_context(
                 }
             )
     flush_orphan()
+    merged = _collapse_schedule_chapters(merged)
     if not any(m["role"] == "assistant" for m in merged):
         # No run summary yet: nothing has ever completed, so a seed would only
         # duplicate messages the live history already carries.
@@ -277,8 +312,9 @@ def build_seed_context(
     header = (
         f"{SEED_MARKER} This agent ran before; its dialogue history was reset. "
         "Restored context follows: the system-maintained HANDOVER (current "
-        "project state), every user message verbatim, and compressed summaries "
-        "of past runs. Raw trajectories remain in the event log."
+        "project state), every user message verbatim, the latest schedule "
+        "reminder with its run summary, and compressed summaries of past "
+        "user-triggered runs. Raw trajectories remain in the event log."
     )
     if handover_text:
         header += f"\n\n{HANDOVER_MARKER} — current project state\n{handover_text}"

@@ -190,7 +190,7 @@ class AgentRunner:
                         core.pending_compactions.pop(agent.id, None)
                         await self._apply_compaction(agent, run_id, history, keep_recent)
                 attempt = 0
-                emergency_compacted = False
+                overflow_phase = 0
                 while True:
                     try:
                         project = core.require_project(agent.project_id)
@@ -208,16 +208,27 @@ class AgentRunner:
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:
-                        if (
-                            not emergency_compacted
-                            and history
-                            and _is_context_length_error(exc)
-                        ):
-                            # The provider rejected the request for exceeding
-                            # its context window.  Compact the history once and
-                            # retry the same turn; a second overflow (or any
-                            # other 4xx) fails the run as before.
-                            emergency_compacted = True
+                        if history and _is_context_length_error(exc) and overflow_phase < 2:
+                            from cloudra.runtime_v2.compaction import (
+                                can_compact_completed_user_turns,
+                            )
+
+                            # Phase 0: fold earlier completed user turns.
+                            # Empty prior tails skip straight to the current
+                            # chapter so a first overflow still emits one compact.
+                            if overflow_phase == 0 and can_compact_completed_user_turns(
+                                history
+                            ):
+                                await self._apply_compaction(
+                                    agent,
+                                    run_id,
+                                    history,
+                                    keep_recent=0,
+                                    trigger="context_overflow",
+                                    unit="prior_turns",
+                                )
+                                overflow_phase = 1
+                                continue
                             await self._apply_compaction(
                                 agent,
                                 run_id,
@@ -225,6 +236,7 @@ class AgentRunner:
                                 keep_recent=EMERGENCY_COMPACT_KEEP_RECENT,
                                 trigger="context_overflow",
                             )
+                            overflow_phase = 2
                             continue
                         attempt += 1
                         if attempt > self.max_turn_retries or not _is_retryable(exc):
@@ -249,12 +261,15 @@ class AgentRunner:
                         cursor = len(core.event_log)
                 await self._append_history(agent, history, inbox_messages, outcome)
                 if outcome.decision == "stop":
-                    # Primary cadence: one stop → one compact of the agent
-                    # tail after the last user/schedule message.  400 overflow
-                    # compact (above) is a mid-run fallback, not a substitute.
-                    await self._apply_compaction(
-                        agent, run_id, history, keep_recent=0, trigger="stop"
-                    )
+                    # Schedule polls compact on stop; user-turn stops keep the
+                    # tool trajectory.  400 overflow compact (above) is the
+                    # fallback for a user conversation that outgrew the window.
+                    from cloudra.runtime_v2.compaction import last_instruction_is_reminder
+
+                    if last_instruction_is_reminder(history):
+                        await self._apply_compaction(
+                            agent, run_id, history, keep_recent=0, trigger="stop"
+                        )
                     if outcome.content:
                         core.event_log.append(
                             "agent.message_emitted",
@@ -448,8 +463,14 @@ class AgentRunner:
         history: list[dict],
         keep_recent: int,
         trigger: str = "manual",
-    ) -> None:
-        from cloudra.runtime_v2.compaction import compact_history, summarize_with_agent_settings
+        *,
+        unit: str = "tail",
+    ) -> dict:
+        from cloudra.runtime_v2.compaction import (
+            compact_completed_user_turns,
+            compact_history,
+            summarize_with_agent_settings,
+        )
 
         core = self.core
         core.event_log.append(
@@ -462,17 +483,27 @@ class AgentRunner:
                 "keep_recent": keep_recent,
                 "history_messages": len(history),
                 "trigger": trigger,
+                "unit": unit,
             },
         )
         handoff_path: str | None = None
         handoff_text = ""
+
+        async def summarizer(messages):
+            return await summarize_with_agent_settings(agent, messages)
+
         try:
-            new_history, stats = await compact_history(
-                history,
-                keep_recent,
-                lambda messages: summarize_with_agent_settings(agent, messages),
-                trigger=trigger,
-            )
+            if unit == "prior_turns":
+                new_history, stats = await compact_completed_user_turns(
+                    history, summarizer, trigger=trigger
+                )
+            else:
+                new_history, stats = await compact_history(
+                    history,
+                    keep_recent,
+                    summarizer,
+                    trigger=trigger,
+                )
         except Exception as exc:
             # Compaction is best-effort: a summarization failure must never
             # kill the run; the uncompacted history stays in place.
@@ -521,6 +552,7 @@ class AgentRunner:
             run_id=run_id,
             data=finished,
         )
+        return finished
 
     async def _persist_compaction_handoff(
         self, agent: AgentSession, stats: dict, handoff_text: str
