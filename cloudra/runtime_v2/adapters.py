@@ -405,7 +405,7 @@ class LegacyToolExecutor:
 
     Destructive tools keep their own approval path; this bridge only sets the
     session-level YOLO context from the agent's live settings.      The Managetool
-    dispatch tools (SubAgentLauncher/SubAgentSwarm/get_subagent_report) are
+    dispatch tools (subagent_launcher/subagent_swarm/get_subagent_report) are
     reimplemented on the v2 kernel — see runtime_v2/subagent_bridge.py; the
     agent_hub forum likewise — see runtime_v2/hub_bridge.py; ``schedule``
     reminders — see runtime_v2/reminders.py.
@@ -454,7 +454,7 @@ class LegacyToolExecutor:
         bridge = _LegacyAgentBridge(agent, project.workspace_dir)
         # Several tool classes narrow the `subagent` field to the legacy Agent
         # type, so pydantic construction with the duck-typed bridge fails
-        # (dag_*, goal_set, todo, bashtools, ...).  Construct bare and
+        # (dag_*, goal_set, todo, bash, ...).  Construct bare and
         # attach the bridge past validation instead.
         tool = entry.instantiate()
         object.__setattr__(tool, "subagent", bridge)

@@ -379,7 +379,7 @@ def test_accuracy_disabled_passthrough():
         ("qm_input_writer", {"method": "wb97m-v"}, False),
         ("qm_input_writer", {"method": "ccsd(t)"}, False),
         ("qm_input_writer", {}, False),
-        ("read_file", {"path": "x"}, True),
+        ("read", {"path": "x"}, True),
     ],
 )
 def test_method_policy(tool, args, allowed):

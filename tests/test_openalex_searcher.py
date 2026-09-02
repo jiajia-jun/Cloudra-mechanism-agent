@@ -1,4 +1,4 @@
-"""openalex_searcher：可选 API key / 礼貌池邮箱进配置，缺省时降级。"""
+"""search (source=openalex)：可选 API key / 礼貌池邮箱进配置，缺省时降级。"""
 
 import pytest
 

@@ -108,7 +108,7 @@ class TestYoloGuardJudge:
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
-                "text_reader",
+                "read",
                 {"path": "/data.txt"},
                 fake_agent,
                 None,
@@ -147,8 +147,8 @@ class TestYoloGuardJudge:
         ):
             create = AsyncMock(return_value=response)
             mock_client.return_value.create = create
-            await guard.judge("text_reader", {"path": "a"}, fake_agent, None)
-            await guard.judge("text_reader", {"path": "b"}, fake_agent, None)
+            await guard.judge("read", {"path": "a"}, fake_agent, None)
+            await guard.judge("read", {"path": "b"}, fake_agent, None)
 
         first_messages = create.call_args_list[0].kwargs["messages"]
         second_messages = create.call_args_list[1].kwargs["messages"]

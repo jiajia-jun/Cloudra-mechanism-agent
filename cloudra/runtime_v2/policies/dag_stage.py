@@ -127,7 +127,7 @@ class DagPolicyStage:
         # running" check in the stop gate.  Tests without a core fall back to
         # the controller's own (legacy-table) background check.
         self._core = core
-        # SubAgentLauncher/Swarm window: tool_call_id → (delivery revision, ref count)
+        # subagent_launcher/subagent_swarm window: tool_call_id → (delivery revision, ref count)
         self._subagent_windows: dict[str, tuple[int, int]] = {}
 
     @staticmethod

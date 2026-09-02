@@ -1,6 +1,7 @@
 """v2-native execution for the legacy Managetool dispatch tools.
 
-``SubAgentLauncher`` / ``SubAgentSwarm`` / ``get_subagent_report`` are
+``subagent_launcher`` / ``subagent_swarm`` / ``get_subagent_report``
+(legacy classes ``SubAgentLauncher`` / ``SubAgentSwarm``) are
 intercepted by LegacyToolExecutor and reimplemented on the v2 kernel:
 children become first-class v2 agents (streaming, cancel, message injection,
 DAG policy stage) instead of legacy executor sessions in the conversation DB.
@@ -19,7 +20,7 @@ from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected
 
-# Stable ids from the SubAgentLauncher prompt; values are v2 role ids.
+# Stable ids from the subagent_launcher prompt; values are v2 role ids.
 _AGENT_ID_TO_ROLE = {
     "a-1": "explorer",
     "a-2": "writer",
