@@ -7,6 +7,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import WorkspaceError
+from cloudra.tools.Searchtool._document import OFFICE_EXTS, read_pdf
 from cloudra.tools.Searchtool._image import read_image
 from cloudra.tools.Searchtool._text import IMAGE_EXTS, PDF_EXTS, read_text
 
@@ -85,11 +86,12 @@ class Read(Tool):
                     message=f"Image loaded: {absolute}.",
                 )
             if suffix in PDF_EXTS:
-                return self._fail(
-                    path,
-                    "PDF support lands in the document branch of `read`; "
-                    "this path is not implemented yet.",
+                data = await read_pdf(
+                    root, path, user_input.offset, user_input.limit, user_input.focus
                 )
+                return Read_output_schema(is_success=True, kind="document", **data)
+            if suffix in OFFICE_EXTS:
+                return self._fail(path, "Only PDF documents are supported.")
             data = await read_text(root, path, user_input.offset, user_input.limit)
             return Read_output_schema(is_success=True, kind="text", **data)
         except (OSError, WorkspaceError, ValueError) as exc:

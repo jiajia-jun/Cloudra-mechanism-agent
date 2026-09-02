@@ -268,8 +268,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='paper_searcher',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
-    ToolRegistration('cloudra.tools.Searchtool.pdf2image', 'pdf2image'),
-    ToolRegistration('cloudra.tools.Searchtool.pdf2md', 'pdf2md'),
     ToolRegistration(
         module='cloudra.tools.Searchtool.read',
         class_name='Read',

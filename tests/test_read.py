@@ -70,12 +70,77 @@ async def test_read_png_sets_image_path(tmp_path, mock_session):
     assert result.image_paths == [result.image_path]
 
 
+def _pdf_with_text(path):
+    fitz = pytest.importorskip("fitz")
+    doc = fitz.open()
+    page = doc.new_page()
+    # insert_text clips to page width; stack lines so scan (sum < 200 or avg < 50) does not fire.
+    for i, line in enumerate(["Hello paper body"] + ["The paper continues with results. " * 2] * 8):
+        page.insert_text((72, 72 + i * 14), line)
+    doc.save(str(path))
+    doc.close()
+
+def _pdf_scan(path):
+    fitz = pytest.importorskip("fitz")
+    doc = fitz.open()
+    page = doc.new_page()
+    # 1x1 pixmap painted, no text layer
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 8, 8), False)
+    pix.clear_with(127)
+    page.insert_image(page.rect, pixmap=pix)
+    doc.save(str(path))
+    doc.close()
+
 @pytest.mark.asyncio
-async def test_read_pdf_fails_until_document_branch(tmp_path, mock_session):
-    (tmp_path / "paper.pdf").write_bytes(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+async def test_read_pdf_auto_returns_text_and_figure_inventory(tmp_path, mock_session):
+    _pdf_with_text(tmp_path / "p.pdf")
     tool = Read(subagent=_subagent(tmp_path))
-    result = await tool.tool_call(Read_input_schema(path="paper.pdf"), mock_session)
+    result = await tool.tool_call(Read_input_schema(path="p.pdf"), mock_session)
+    assert result.is_success
+    assert result.kind == "document"
+    assert "Hello paper body" in result.content
+    assert result.image_paths == []  # auto + text layer: do not inject figures
+    # images inventory may be empty if insert_text created no xrefs; that's fine
+
+@pytest.mark.asyncio
+async def test_read_pdf_docx_is_rejected(tmp_path, mock_session):
+    (tmp_path / "x.docx").write_bytes(b"PK\x03\x04not-a-pdf")
+    tool = Read(subagent=_subagent(tmp_path))
+    result = await tool.tool_call(Read_input_schema(path="x.docx"), mock_session)
     assert result.is_success is False
     assert "pdf" in result.message.lower()
-    assert "document" in result.message.lower()
-    assert "pdf2md" not in result.message.lower()
+
+@pytest.mark.asyncio
+async def test_read_scan_pdf_injects_every_page(tmp_path, mock_session):
+    _pdf_scan(tmp_path / "s.pdf")
+    # make 3 pages
+    fitz = pytest.importorskip("fitz")
+    doc = fitz.open(tmp_path / "s.pdf")
+    doc.new_page()
+    doc.new_page()
+    doc.save(tmp_path / "s3.pdf")
+    doc.close()
+    tool = Read(subagent=_subagent(tmp_path))
+    result = await tool.tool_call(Read_input_schema(path="s3.pdf", focus="auto"), mock_session)
+    assert result.is_success
+    assert len(result.image_paths) == 3
+    assert len(result.images) == 3
+    assert result.image_path == result.image_paths[0]
+
+@pytest.mark.asyncio
+async def test_read_scan_focus_text_does_not_inject_images(tmp_path, mock_session):
+    _pdf_scan(tmp_path / "s.pdf")
+    tool = Read(subagent=_subagent(tmp_path))
+    result = await tool.tool_call(Read_input_schema(path="s.pdf", focus="text"), mock_session)
+    assert result.is_success
+    assert result.image_paths == []
+    assert "text layer" in result.message.lower() or "no text" in result.message.lower()
+
+@pytest.mark.asyncio
+async def test_explorer_can_read_pdf(tmp_path, mock_session):
+    _pdf_with_text(tmp_path / "p.pdf")
+    tool = Read(subagent=_subagent(tmp_path))
+    assert tool.is_read() is True
+    assert tool.is_script() is False
+    result = await tool.tool_call(Read_input_schema(path="p.pdf"), mock_session)
+    assert result.is_success
