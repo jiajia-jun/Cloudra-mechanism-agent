@@ -263,13 +263,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
-        module='cloudra.tools.Searchtool.image_reader',
-        class_name='ImageReader',
-        tool_name='image_reader',
-        runtime_profiles=frozenset({'desktop', 'android'}),
-        visual=True,
-    ),
-    ToolRegistration(
         module='cloudra.tools.Searchtool.paper_searcher',
         class_name='PaperSearcher',
         tool_name='paper_searcher',
@@ -278,9 +271,9 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration('cloudra.tools.Searchtool.pdf2image', 'pdf2image'),
     ToolRegistration('cloudra.tools.Searchtool.pdf2md', 'pdf2md'),
     ToolRegistration(
-        module='cloudra.tools.Searchtool.text_reader',
-        class_name='TextReader',
-        tool_name='text_reader',
+        module='cloudra.tools.Searchtool.read',
+        class_name='Read',
+        tool_name='read',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(

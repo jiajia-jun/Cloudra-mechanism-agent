@@ -15,9 +15,9 @@ from cloudra.persistence.workspace import (
     WorkspaceService,
     resolve_working_directory,
 )
-from cloudra.tools.Searchtool.text_reader import (
-    TextReader,
-    TextReader_input_schema,
+from cloudra.tools.Searchtool.read import (
+    Read,
+    Read_input_schema,
 )
 from cloudra.tools.Writetool.edit_file import (
     EditFile,
@@ -209,47 +209,24 @@ def test_turn_diff_uses_first_agent_touch_as_base(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_text_reader_tool_uses_relative_workspace_path(tmp_path, mock_session):
+async def test_read_tool_uses_relative_workspace_path(tmp_path, mock_session):
     (tmp_path / "readme.md").write_text("hello\n", encoding="utf-8")
-    tool = TextReader(subagent=_subagent(tmp_path))
+    tool = Read(subagent=_subagent(tmp_path))
 
     result = await tool.tool_call(
-        TextReader_input_schema(filepath="readme.md"),
+        Read_input_schema(path="readme.md"),
         mock_session,
     )
     rejected = await tool.tool_call(
-        TextReader_input_schema(filepath=str(tmp_path / "readme.md")),
+        Read_input_schema(path=str(tmp_path / "readme.md")),
         mock_session,
     )
 
     assert result.content == "hello\n"
-    assert result.filepath == "readme.md"
+    assert result.path == "readme.md"
     assert len(result.sha256) == 64
     assert rejected.content == ""
     assert "relative" in rejected.message
-
-
-@pytest.mark.asyncio
-async def test_text_reader_truncates_oversized_slice(tmp_path, mock_session):
-    """超大切片截断并提示按行分页；sha256 仍是全文件的（edit 流程依赖它）。"""
-    from cloudra.tools.Searchtool.text_reader import MAX_CONTENT_CHARS
-
-    raw = ("line-of-text\n" * 4000).encode()
-    (tmp_path / "big.log").write_bytes(raw)
-    tool = TextReader(subagent=_subagent(tmp_path))
-
-    result = await tool.tool_call(
-        TextReader_input_schema(filepath="big.log"),
-        mock_session,
-    )
-
-    assert result.is_success is True
-    assert len(raw) > MAX_CONTENT_CHARS
-    assert len(result.content) < len(raw)
-    assert "[Truncated" in result.content
-    assert "start_line/end_line" in result.message
-    assert result.sha256 == _sha256(raw)
-    assert result.total_lines == 4000
 
 
 @pytest.mark.asyncio

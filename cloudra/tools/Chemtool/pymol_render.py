@@ -244,7 +244,7 @@ class PymolRender(Tool):
         return PymolRender_output_schema(
             is_success=True,
             image_path=output_path,
-            message=f"Image rendered: {output_path}. Inspect it with image_reader to verify the result.",
+            message=f"Image rendered: {output_path}. Inspect it with read to verify the result.",
         )
 
 

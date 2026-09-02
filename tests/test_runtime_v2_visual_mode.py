@@ -62,7 +62,7 @@ async def test_visual_mode_defaults_on_and_merges_through_spawn_chain():
 def test_visual_tools_projection_reads_registry_metadata():
     # Metadata-only: no tool modules are imported (pymol_render may still be
     # in flight from a parallel change).
-    assert visual_tools() == frozenset({"image_reader", "pymol_render"})
+    assert visual_tools() == frozenset({"pymol_render"})
 
 
 # --- LLM-side gate: strip visual tool schemas --------------------------------
@@ -110,7 +110,7 @@ def _visual_agent(visual_mode: bool):
 
 
 _FAKE_SCHEMAS = [
-    {"type": "function", "function": {"name": "image_reader"}},
+    {"type": "function", "function": {"name": "read"}},
     {"type": "function", "function": {"name": "pymol_render"}},
     {"type": "function", "function": {"name": "stop"}},
 ]
@@ -129,10 +129,10 @@ async def test_complete_strips_visual_tool_schemas_when_visual_mode_off(monkeypa
     await provider.complete(
         _visual_agent(False),
         [{"role": "user", "content": "hi"}],
-        ["image_reader", "pymol_render", "stop"],
+        ["read", "pymol_render", "stop"],
     )
     names = [t["function"]["name"] for t in sent["tools"]]
-    assert names == ["stop"]
+    assert names == ["read", "stop"]
 
 
 @pytest.mark.asyncio
@@ -146,10 +146,10 @@ async def test_complete_keeps_visual_tool_schemas_when_visual_mode_on(monkeypatc
     await provider.complete(
         _visual_agent(True),
         [{"role": "user", "content": "hi"}],
-        ["image_reader", "pymol_render", "stop"],
+        ["read", "pymol_render", "stop"],
     )
     names = [t["function"]["name"] for t in sent["tools"]]
-    assert names == ["image_reader", "pymol_render", "stop"]
+    assert names == ["read", "pymol_render", "stop"]
 
 
 def test_supports_vision_reads_resolved_legacy_slot(monkeypatch):
@@ -184,11 +184,11 @@ def _ctx(settings: RuntimeSettings) -> PipelineContext:
 async def test_permission_stage_blocks_visual_tools_when_visual_mode_off():
     stage = PermissionStage()
     ctx = _ctx(RuntimeSettings(visual_mode=False))
-    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="image_reader"))
+    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="pymol_render"))
     assert result.outcome == "block"
     assert "/visual" in result.message
-    # Non-visual tools are unaffected.
-    allowed = await stage.before_tool(ctx, ToolCall(id="tc2", name="stop"))
+    # read is not visual-gated; it stays available when visual mode is off.
+    allowed = await stage.before_tool(ctx, ToolCall(id="tc2", name="read"))
     assert allowed.outcome == "allow"
 
 
@@ -196,7 +196,7 @@ async def test_permission_stage_blocks_visual_tools_when_visual_mode_off():
 async def test_permission_stage_allows_visual_tools_when_visual_mode_on():
     stage = PermissionStage()
     ctx = _ctx(RuntimeSettings())  # visual_mode defaults to True
-    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="image_reader"))
+    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="pymol_render"))
     assert result.outcome == "allow"
 
 
