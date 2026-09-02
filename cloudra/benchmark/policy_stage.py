@@ -48,7 +48,7 @@ class MethodPolicyStage:
         verdict = intercept(call.name, call.arguments, self.policy, base_dir=base)
         if not verdict.allowed:
             return PolicyResult.block(f"[method_policy] {verdict.reason}")
-        if call.name in ("bash", "bashtools") and "bash" in set(self.policy.intercept_layers):
+        if call.name == "bash" and "bash" in set(self.policy.intercept_layers):
             command = str(call.arguments.get("command") or call.arguments.get("script") or "")
             refs = []
             for raw in referenced_input_paths(command):

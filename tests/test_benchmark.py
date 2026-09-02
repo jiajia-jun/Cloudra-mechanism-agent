@@ -970,6 +970,13 @@ async def test_method_policy_stage_blocks_and_allows(tmp_path):
     res = await stage.before_tool(ctx, ToolCall(id="c6", name="write", arguments={}))
     assert res.outcome == "allow"
 
+    # Retired wire name bashtools is not bash policy — on-disk QM refs are not checked here
+    # (unknown-tool hint is the executor's job; this stage must not dual-name treat it).
+    res = await stage.before_tool(
+        ctx, ToolCall(id="c7", name="bashtools", arguments={"command": "g16 evil.gjf"})
+    )
+    assert res.outcome == "allow"
+
 
 # --- runtime_v2 后端端到端（FakeLLM，无网络） ---
 
