@@ -9,17 +9,17 @@ When planning and executing periodic first-principles calculations (VASP / CP2K)
 ## 1.1 VASP Toolchain & Python Automation
 - **Configuration generation and crystal modeling**: Rely on the ASE (Atomic Simulation Environment) library. Write Python automation scripts using `ase.io`, `ase.build` (`bulk`, `surface`, `add_adsorbate`), and `FixAtoms` constraints. Avoid blindly hand-typing POSCAR coordinates or concatenating raw text with shell `echo`.
 - **Extended methodology & reference library**: Before starting surface modeling, reaction network construction, or production runs, load the detailed reference guides:
-  - Surface & Slab Modeling SOP: `getskill("first-principles-calculation", other="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, and adsorbate placement rules).
-  - Heterogeneous Catalysis & CHE Electrocatalysis: `getskill("first-principles-calculation", other="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, scaling relations, and CI-NEB / Partial Hessian SOP).
-  - Production INCAR / CP2K Blueprints & Troubleshooting: `getskill("first-principles-calculation", other="vasp-cp2k-production-blueprints.md")` (bulk opt, slab relaxation, PDOS/d-band center, DFT+U table, HSE06 two-stage acceleration, and failure diagnosis decision trees).
-  - ASE code library: `getskill("first-principles-calculation", other="ase-guide.md")` and `examples/` (`adsorption_energy.py`, `lattice_optimization.py`, `neb_barrier.py`, `che_electrocatalysis.py`).
+  - Surface & Slab Modeling SOP: `get_skill("first-principles-calculation", reference="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, and adsorbate placement rules).
+  - Heterogeneous Catalysis & CHE Electrocatalysis: `get_skill("first-principles-calculation", reference="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, scaling relations, and CI-NEB / Partial Hessian SOP).
+  - Production INCAR / CP2K Blueprints & Troubleshooting: `get_skill("first-principles-calculation", reference="vasp-cp2k-production-blueprints.md")` (bulk opt, slab relaxation, PDOS/d-band center, DFT+U table, HSE06 two-stage acceleration, and failure diagnosis decision trees).
+  - ASE code library: `get_skill("first-principles-calculation", reference="ase-guide.md")` and `examples/` (`adsorption_energy.py`, `lattice_optimization.py`, `neb_barrier.py`, `che_electrocatalysis.py`).
 - **Job submission**: Submit compute tasks via `submit_compute_job` with `job_type="vasp"`. Set `is_async=True` for long relaxation, DOS, or NEB jobs.
-- **Result parsing and monitoring**: Avoid running `cat` on giant `OUTCAR` or `vasprun.xml` files. Use Python scripts (`ase.io.read`, `pymatgen`, or regex log parsers) via `bashtools` to extract energies, forces, magnetic moments, and stress tensors.
+- **Result parsing and monitoring**: Avoid running `cat` on giant `OUTCAR` or `vasprun.xml` files. Use Python scripts (`ase.io.read`, `pymatgen`, or regex log parsers) via `bash` to extract energies, forces, magnetic moments, and stress tensors.
 
 ## 1.2 CP2K Toolchain
 - **Input generation**: Use Multiwfn or ASE's `CP2K` calculator for `.inp` files. For 2D surface slabs, strictly use `&POISSON` with `PSOLVER MT` (Martyna-Tuckerman) and `PERIODIC XY`.
 - **Job dispatch**: Call `submit_compute_job` with `job_type="cp2k"`.
-- **Result parsing**: Monitor `SCF run converged`, total energies, and `MAX gradient` in `.out` files. Read slices using `text_reader` or parse with Python.
+- **Result parsing**: Monitor `SCF run converged`, total energies, and `MAX gradient` in `.out` files. Read slices using `read` or parse with Python.
 
 ---
 

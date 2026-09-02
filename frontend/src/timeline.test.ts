@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   applyStreamEvent,
   buildTimeline,
+  formatToolArgs,
   type MessageItem,
   type NoteItem,
   type StreamView,
@@ -191,3 +192,18 @@ const interrupted = buildTimeline(
 assert.equal((interrupted[0] as NoteItem).text, 'Context compaction interrupted');
 
 console.log('timeline.compaction ok');
+
+/* ----------------------------------------------------- tool arg summaries */
+
+assert.equal(
+  formatToolArgs('read', { path: 'src/foo.py' }),
+  'src/foo.py',
+  'live read tool summarizes path',
+);
+assert.equal(
+  formatToolArgs('text_reader', { filepath: 'legacy/bar.py' }),
+  'legacy/bar.py',
+  'historical text_reader events still summarize filepath',
+);
+
+console.log('timeline.tool-args ok');

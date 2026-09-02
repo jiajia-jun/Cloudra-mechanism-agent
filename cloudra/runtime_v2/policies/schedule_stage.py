@@ -5,7 +5,7 @@ When `agent.settings.schedule_mode` is True:
 - Intercepts `stop` tool calls:
   - If a reminder is active (`core.reminders.pending(agent.id)` is truthy): allows `stop` so the agent can sleep until woken.
   - If no reminder is active:
-    - On first attempt: blocks `stop`, instructs the model to either call `schedule(DurationSeconds=..., Prompt=...)` or verify completion and call `stop` again.
+    - On first attempt: blocks `stop`, instructs the model to either call `schedule(delay_seconds=..., message=...)` or verify completion and call `stop` again.
     - On second consecutive `stop` attempt: allows `stop` as explicit confirmation that the goal is 100% complete.
   - Calling any tool other than `stop` resets the confirmation tracker.
 """
@@ -21,7 +21,7 @@ SCHEDULE_NOTICE = (
     "You are running in autonomous schedule mode.\n"
     "- If tasks, calculations, or simulations are in progress (or if you submitted background jobs via "
     "submit_compute_job, SSH/Slurm sbatch, background scripts, or multi-step experiments), you MUST call "
-    "`schedule(DurationSeconds=<seconds>, Prompt='<wake up instruction>')` to set a wake-up timer before stopping.\n"
+    "`schedule(delay_seconds=<seconds>, message='<wake up instruction>')` to set a wake-up timer before stopping.\n"
     "- Do not stop without a pending schedule timer while work is ongoing.\n"
     "- If and only if the user's objective is 100% achieved and fully verified, confirm your conclusions and call `stop`."
 )
@@ -30,7 +30,7 @@ INTERCEPT_MESSAGE = (
     "Stop intercepted by Schedule Mode: You have no active wake-up timer scheduled.\n"
     "Either:\n"
     "1. If background jobs/simulations/tasks are still running or future checks are needed, call "
-    "schedule(DurationSeconds=..., Prompt='...') now to schedule your next wake-up.\n"
+    "schedule(delay_seconds=..., message='...') now to schedule your next wake-up.\n"
     "2. If the user's goal is 100% completed and fully verified, call stop again to confirm completion."
 )
 

@@ -208,7 +208,7 @@ class TestWebFetcherGuards:
             WebFetcher_input_schema(url="https://x.com/a.pdf"), None
         )
         assert result.is_success is False
-        assert "pdf2md" in result.error and "download_path" in result.error
+        assert "read" in result.error and "download_path" in result.error
 
     @pytest.mark.asyncio
     async def test_pdf_detected_by_magic_bytes(self, monkeypatch):
@@ -218,7 +218,7 @@ class TestWebFetcherGuards:
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/download?id=1"), None
         )
-        assert result.is_success is False and "pdf2md" in result.error
+        assert result.is_success is False and "read" in result.error
 
     @pytest.mark.asyncio
     async def test_giant_html_not_truncated(self, monkeypatch):

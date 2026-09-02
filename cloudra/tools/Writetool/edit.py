@@ -40,7 +40,7 @@ class EditOperation(BaseModel):
 
 class Edit_input_schema(input_schema):
     path: str = Field(description="Target file path relative to the Agent working directory")
-    expected_sha256: str = Field(description="Full-file sha256 returned by the latest text_reader call")
+    expected_sha256: str = Field(description="Full-file sha256 returned by the latest read call")
     edits: list[EditOperation] = Field(description="Exact text replacements to apply in order")
 
 
@@ -53,8 +53,8 @@ class Edit(Tool):
     tool_name: str = "edit"
     tool_description: str = (
         "Structured edit of an existing text file by exact old-text match; each old_text must match once by default, and multiple matches are rejected. "
-        "Use for: local edits to existing files — this is the preferred file-edit tool; call text_reader first to get the latest sha256. "
-        "Do not use for: creating a file or rewriting it wholesale (use text_writer); never edit files with Bash, sed, redirection, or throwaway scripts. "
+        "Use for: local edits to existing files — this is the preferred file-edit tool; call read first to get the latest sha256. "
+        "Do not use for: creating a file or rewriting it wholesale (use write); never edit files with Bash, sed, redirection, or throwaway scripts. "
         "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — coordinates must come from tools."
     )
     input_schema: Any = Edit_input_schema

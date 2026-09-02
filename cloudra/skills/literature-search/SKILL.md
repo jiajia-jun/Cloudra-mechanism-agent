@@ -1,6 +1,6 @@
 ---
 name: literature-search
-description: Professional academic literature search, metadata retrieval, and full-text analysis. Guides converting a research question into a reproducible retrieval chain, dispatching Cloudra native tools (openalex_searcher, paper_searcher, web_search, web_fetcher, pdf2md) for grounded evidence and provenance.
+description: Professional academic literature search, metadata retrieval, and full-text analysis. Guides converting a research question into a reproducible retrieval chain, dispatching Cloudra native tools (search with source=openalex/arxiv/web, web_fetch, read) for grounded evidence and provenance.
 license: MIT
 metadata:
   version: "2.1"
@@ -19,18 +19,18 @@ In a scientific research setting, **a conclusion without provenance is invalid**
 
 Cloudra provides a multi-tiered literature toolchain:
 
-1.  **Structured Bibliographic Search (`openalex_searcher`)**:
+1.  **Structured Bibliographic Search (`search` with `source=openalex`)**:
     - **Primary choice** for literature exploration, citation graph navigation, author/concept filtering, and locating direct Open Access (OA) PDF URLs.
     - Yields rich structured metadata: DOIs, publication year, venue, citation count, OA status, and direct PDF landing URLs.
-2.  **Specialized Paper Search (`paper_searcher`)**:
+2.  **Specialized Paper Search (`search` with `source=arxiv`)**:
     - Querying across PubMed, arXiv, and Semantic Scholar indices for targeted keywords and abstracts.
-3.  **General Web & Academic Landing Search (`web_search`)**:
+3.  **General Web & Academic Landing Search (`search` with `source=web`)**:
     - Broad discovery when exact DOIs or author records are ambiguous, or searching publisher landing pages.
-4.  **Web Fetcher & HTML Parser (`web_fetcher`)**:
+4.  **Web Fetcher & HTML Parser (`web_fetch`)**:
     - Fetching unpaywalled HTML articles, publisher pages, and preprint landing pages.
-5.  **Full-Text & SI Document Conversion (`pdf2md`, `pdf2image`)**:
+5.  **Full-Text & SI Document Conversion (`read`)**:
     - **Crucial for deep research**: Key experimental conditions, catalyst loadings, reaction barriers, and spectroscopic data are rarely in abstracts — they live in Methods or Supplementary Information (SI) tables.
-    - Download the OA PDF/SI via `web_fetcher` or `curl`, then run `pdf2md` to convert tables and text into clean Markdown for inspection via `text_reader`.
+    - Download the OA PDF/SI via `web_fetch` or `curl`, then run `read` to convert tables and text into clean Markdown for inspection.
 
 ---
 
@@ -38,11 +38,11 @@ Cloudra provides a multi-tiered literature toolchain:
 
 | User Intent | Preferred Native Tool | Secondary / Extraction Step |
 | :--- | :--- | :--- |
-| **Broad topic review & citation ranking** | `openalex_searcher` | Follow high-citation DOIs with `paper_searcher` |
-| **Direct DOI / OA PDF retrieval** | `openalex_searcher` | Download OA PDF $\to$ `pdf2md` for full text |
-| **Biomedical / PubMed lookup** | `paper_searcher` | Fetch PMC full-text XML via `web_fetcher` |
-| **Physics / Math / CS preprints** | `paper_searcher` | Search arXiv ID $\to$ download PDF $\to$ `pdf2md` |
-| **Specific experimental number / SI data** | `openalex_searcher` / `web_search` | Download SI PDF $\to$ `pdf2md` $\to$ grep target data |
+| **Broad topic review & citation ranking** | `search` (`source=openalex`) | Follow high-citation DOIs with `search` (`source=arxiv`) |
+| **Direct DOI / OA PDF retrieval** | `search` (`source=openalex`) | Download OA PDF $\to$ `read` for full text |
+| **Biomedical / PubMed lookup** | `search` (`source=arxiv`) | Fetch PMC full-text XML via `web_fetch` |
+| **Physics / Math / CS preprints** | `search` (`source=arxiv`) | Search arXiv ID $\to$ download PDF $\to$ `read` |
+| **Specific experimental number / SI data** | `search` (`source=openalex`) / `search` (`source=web`) | Download SI PDF $\to$ `read` $\to$ grep target data |
 
 ---
 
@@ -69,6 +69,6 @@ Structure literature outputs with "Conclusion first, Provenance after":
 - **Key References**:
   1. [Author et al., *Journal*, Year, DOI] — [Core finding / metric]
   2. [Author et al., *Journal*, Year, DOI] — [Supporting evidence]
-- **Retrieval Trace**: [e.g. OpenAlex query -> located OA PDF -> pdf2md extracted Table S2]
+- **Retrieval Trace**: [e.g. OpenAlex query -> located OA PDF -> read extracted Table S2]
 - **Uncertainty / Data Limits**: [e.g. unindexed, closed-access, or conflicting experimental reports]
 ```

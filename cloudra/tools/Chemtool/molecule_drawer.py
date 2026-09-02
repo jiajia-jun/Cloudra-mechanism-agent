@@ -19,7 +19,7 @@ except Exception:
 description = (
     "Draw a chemical SMILES as a molecular-structure image (PNG/SVG) with RDKit, "
     "supporting size, highlights, atom indices, stereo labels, bond width, and nearly all other RDKit drawing options. "
-    "Use for: showing a structure to the user or making a report figure; re-check with image_reader after drawing. "
+    "Use for: showing a structure to the user or making a report figure; re-check with read after drawing. "
     "Do not use for: recovering SMILES from an image (use image_to_smiles) or generating a 3D coordinate file (use smiles_to_mol)."
 )
 

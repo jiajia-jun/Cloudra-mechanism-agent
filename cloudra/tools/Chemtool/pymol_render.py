@@ -50,7 +50,7 @@ description = (
     "Render a 3D molecular structure file (PDB/MOL/SDF/MOL2/XYZ/CIF) to a publication-style PNG "
     "with PyMOL (headless), supporting style presets, size, DPI, and ray tracing. "
     "Use for: showing a 3D structure to the user or making a report figure; "
-    "re-check the rendered image with image_reader afterwards. "
+    "re-check the rendered image with read afterwards. "
     "Do not use for: 2D structure diagrams (use molecule_drawer) or generating 3D coordinates (use smiles_to_mol)."
 )
 

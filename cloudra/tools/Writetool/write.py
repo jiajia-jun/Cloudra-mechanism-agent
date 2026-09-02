@@ -16,9 +16,9 @@ from cloudra.tools.core.workspace_mutation import (
 
 description = (
     "Create or wholesale-overwrite a UTF-8 text file in the Agent working directory; "
-    "pass expected_sha256='missing' for a new file, and call text_reader first to get the latest sha256 before overwriting. "
+    "pass expected_sha256='missing' for a new file, and call read first to get the latest sha256 before overwriting. "
     "Use for: creating a new file, or rewriting an existing file in full. "
-    "Do not use for: local edits to an existing file (use text_reader + edit_file); never write files with bash redirection instead of this tool. "
+    "Do not use for: local edits to an existing file (use read + edit); never write files with bash redirection instead of this tool. "
     "Note: writing hand-typed coordinate blocks into .gjf/.xyz/.com triggers a harness warning — "
     "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
 )
@@ -29,7 +29,7 @@ class Write_input_schema(input_schema):
     content: str = Field(description="Text content to write")
     expected_sha256: str = Field(
         default="missing",
-        description="Pass missing for a new file; for overwrite, pass the sha256 returned by text_reader",
+        description="Pass missing for a new file; for overwrite, pass the sha256 returned by read",
     )
 
 

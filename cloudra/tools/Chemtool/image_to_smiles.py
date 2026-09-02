@@ -9,7 +9,7 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 description = (
     "Chemical structure image recognition (OCSR): convert printed or hand-drawn structure figures (PNG/JPG screenshots, etc.) to SMILES using the DECIMER deep-learning model. "
     "Use for: recovering a molecule from a paper screenshot or a sketch, then feeding SMILES to smiles_to_mol or molecule_drawer. "
-    "Do not use for: merely viewing an image (use image_reader) or drawing from an existing SMILES (use molecule_drawer)."
+    "Do not use for: merely viewing an image (use read) or drawing from an existing SMILES (use molecule_drawer)."
 )
 
 

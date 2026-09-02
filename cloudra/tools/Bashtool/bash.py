@@ -46,7 +46,7 @@ class Bash(Tool):
         "Run terminal commands for search, environment checks, builds, and tests; judge success by exit code. "
         "Use for: running tests, installing dependencies, inspecting the environment, invoking CLI tools. "
         "Do not use for: modifying workspace files — never edit files with Bash, sed, redirection, tee, or throwaway scripts; "
-        "edit existing files with text_reader + edit_file, create new files with text_writer. "
+        "edit existing files with read + edit, create new files with write. "
         "Note: embedding coordinate blocks in the command text (e.g. writing .gjf/.xyz via heredoc) triggers a harness warning; "
         "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
     )
@@ -66,7 +66,7 @@ class Bash(Tool):
                     f"Available commands:\n{tool_str}\n"
                     "This tool is for search, environment checks, builds, and tests; judge success by exit code. "
                     "Do not use it to modify workspace files — do not use Bash, sed, redirection, tee, or throwaway scripts; "
-                    "use edit_file / text_writer instead. "
+                    "use edit / write instead. "
                     "Note: embedding coordinate blocks in the command text (e.g. writing .gjf/.xyz via heredoc) triggers a harness warning; "
                     "coordinates must come from tools such as smiles_to_mol / format_converter / qm_input_writer."
                 )

@@ -92,7 +92,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **能力与角色**
 
-- `tools/` — 按领域分组的工具（Bashtool/Chemtool/Searchtool/Writetool/Plantool 等；QM 输入/解析双引擎 Gaussian/ORCA：`qm_input_writer`/`log_parser`/`format_converter`；DAG 面是 `dag_tools/` verb 族）。`tools/registry.py` 注册（`ToolRegistration` 可声明 `dag_review`/`dag_compute_entry`/`visual` 等语义），下游只能经 `tools/capabilities.py` 投影查询，**禁止在别处新建工具名集合**。`tools/core/` 含权限模型、审批流水线、gaussian/orca frames 解析（纯函数）与各守卫（coord_guard/bash_habit_guard/delegation_guard/memory_scope_guard）。Managetool 的 SubAgentLauncher/SubAgentSwarm/get_subagent_report/agent_hub/schedule 五类只保留 schema 作线缆格式，执行被 runtime_v2 按名拦截。工具**无持久状态**；输出 schema 成功字段统一 `is_success`，给模型的文本一律英文；超大工具结果（>30k 字符）全文落盘 `.cloudra/tool_output/`，模型只收截断摘要。
+- `tools/` — 按领域分组的工具（Bashtool/Chemtool/Searchtool/Writetool/Plantool 等；QM 输入/解析双引擎 Gaussian/ORCA：`qm_input_writer`/`log_parser`/`format_converter`；DAG 面是 `dag_tools/` verb 族）。`tools/registry.py` 注册（`ToolRegistration` 可声明 `dag_review`/`dag_compute_entry`/`visual` 等语义），下游只能经 `tools/capabilities.py` 投影查询，**禁止在别处新建工具名集合**。`tools/core/` 含权限模型、审批流水线、gaussian/orca frames 解析（纯函数）与各守卫（coord_guard/bash_habit_guard/delegation_guard/memory_scope_guard）。Managetool 的 subagent_launcher/subagent_swarm/get_subagent_report/agent_hub/schedule 五类只保留 schema 作线缆格式，执行被 runtime_v2 按名拦截。工具**无持久状态**；输出 schema 成功字段统一 `is_success`，给模型的文本一律英文；超大工具结果（>30k 字符）全文落盘 `.cloudra/tool_output/`，模型只收截断摘要。
 - `subagents/` — 领域子 Agent（8 个角色；`registry.py` 是 a-1..a-8 显式注册清单）。
 - `prompts/*.md`、`skills/*` — 角色 prompt 与科研方法技能包。
 
