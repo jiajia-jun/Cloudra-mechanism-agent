@@ -20,15 +20,13 @@ _EXPECTED_ANDROID = frozenset(
         "edit_file",
         "get_subagent_report",
         "getskill",
-        "openalex_searcher",
-        "paper_searcher",
         "read",
         "schedule",
+        "search",
         "stop",
         "text_writer",
         "update_memory",
         "web_fetcher",
-        "web_search",
     }
 )
 
@@ -48,7 +46,7 @@ def test_android_projection_keeps_prior_behavior():
 
 
 def test_compute_entry_defaults_to_false_for_plain_tools():
-    assert not is_dag_compute_entry("web_search")
+    assert not is_dag_compute_entry("search")
     assert not is_dag_compute_entry("not_a_tool")
 
 

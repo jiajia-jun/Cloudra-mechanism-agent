@@ -1,4 +1,4 @@
-"""paper_searcher：arxiv 4.x 已删除 Search.results()，必须走 Client.results()。
+"""search source=arxiv：arxiv 4.x 已删除 Search.results()，必须走 Client.results()。
 
 钉板：
 - 4.x 形态（Search 无 results）时仍能返回论文
@@ -10,10 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from cloudra.tools.Searchtool.paper_searcher import (
-    PaperSearcher,
-    PaperSearcher_input_schema,
-)
+from cloudra.tools.Searchtool._arxiv import run as arxiv_run
+from cloudra.tools.Searchtool.search import Search, Search_input_schema
 
 
 class FakePaper:
@@ -59,8 +57,8 @@ def _install_client(monkeypatch, papers, *, explode=None):
 @pytest.mark.asyncio
 async def test_returns_papers_via_client_results(mock_session, monkeypatch):
     captured = _install_client(monkeypatch, [FakePaper()])
-    out = await PaperSearcher().tool_call(
-        PaperSearcher_input_schema(query="DFT catalysis", max_results=3),
+    out = await Search().tool_call(
+        Search_input_schema(query="DFT catalysis", max_results=3, source="arxiv"),
         mock_session,
     )
     assert out.is_success is True
@@ -77,8 +75,8 @@ async def test_returns_papers_via_client_results(mock_session, monkeypatch):
 @pytest.mark.asyncio
 async def test_empty_results_are_success_with_message(mock_session, monkeypatch):
     _install_client(monkeypatch, [])
-    out = await PaperSearcher().tool_call(
-        PaperSearcher_input_schema(query="zzzz-no-such-paper"),
+    out = await Search().tool_call(
+        Search_input_schema(query="zzzz-no-such-paper", source="arxiv"),
         mock_session,
     )
     assert out.is_success is True
@@ -89,8 +87,8 @@ async def test_empty_results_are_success_with_message(mock_session, monkeypatch)
 @pytest.mark.asyncio
 async def test_weight_mode_includes_authors_and_pdf(mock_session, monkeypatch):
     _install_client(monkeypatch, [FakePaper()])
-    out = await PaperSearcher().tool_call(
-        PaperSearcher_input_schema(query="DFT", mode="weight"),
+    out = await Search().tool_call(
+        Search_input_schema(query="DFT", source="arxiv", mode="weight"),
         mock_session,
     )
     item = out.content[0]
@@ -100,19 +98,17 @@ async def test_weight_mode_includes_authors_and_pdf(mock_session, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_invalid_sort_and_mode_fall_back(mock_session, monkeypatch):
+async def test_invalid_sort_and_mode_fall_back(monkeypatch):
     captured = _install_client(monkeypatch, [FakePaper()])
-    out = await PaperSearcher().tool_call(
-        PaperSearcher_input_schema(
-            query="DFT",
-            sort_by="NotASort",
-            sort_order="Sideways",
-            mode="verbose",
-        ),
-        mock_session,
+    out = await arxiv_run(
+        query="DFT",
+        max_results=8,
+        mode="verbose",
+        sort_by="NotASort",
+        sort_order="Sideways",
     )
-    assert out.is_success is True
-    assert "normal" in out.message
+    assert out["is_success"] is True
+    assert "normal" in out["message"]
     search = captured["search"]
     import arxiv
 
@@ -123,8 +119,8 @@ async def test_invalid_sort_and_mode_fall_back(mock_session, monkeypatch):
 @pytest.mark.asyncio
 async def test_client_failure_is_reported(mock_session, monkeypatch):
     _install_client(monkeypatch, [], explode=RuntimeError("connection reset"))
-    out = await PaperSearcher().tool_call(
-        PaperSearcher_input_schema(query="DFT"),
+    out = await Search().tool_call(
+        Search_input_schema(query="DFT", source="arxiv"),
         mock_session,
     )
     assert out.is_success is False

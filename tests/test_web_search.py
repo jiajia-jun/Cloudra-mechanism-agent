@@ -1,19 +1,14 @@
-"""web_search 多后端工具钉板测试：
+"""web search backend 钉板测试：
 
-- 注册：web_search / openalex_searcher 在册，chemrxiv_searcher 已除名
+- 注册：search 在册，旧 web_search / openalex_searcher / paper_searcher / chemrxiv_searcher 已除名
 - DDG HTML 解析器：fixture 解析标题/真实 URL（uddg 解包）/摘要
 - 后端链：tavily/brave 解析、key 缺失跳过、auto fallback 顺序、全部失败不炸
 """
 
 import pytest
 
-from cloudra.core.agent import Follower
 from cloudra.tools import get_tools_lst
-from cloudra.tools.Searchtool.web_search import (
-    WebSearch,
-    WebSearch_input_schema,
-    _DDGResultParser,
-)
+from cloudra.tools.Searchtool._web import _DDGResultParser, run
 
 DDG_HTML = """
 <html><body>
@@ -76,24 +71,18 @@ class FakeClient:
         return self._routes[url]
 
 
-@pytest.fixture
-def agent():
-    return Follower(
-        id="a-web", name="searcher", prompt="测试", query="q",
-        conversation_id="test-websearch",
-    )
-
-
 def _install_fake_client(monkeypatch, routes, calls):
     import httpx
     monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **kw: FakeClient(routes, calls))
 
 
 class TestRegistry:
-    def test_web_search_registered_and_old_name_gone(self):
+    def test_search_registered_and_old_names_gone(self):
         names = {e.tool_name for e in get_tools_lst()}
-        assert "web_search" in names
-        assert "openalex_searcher" in names
+        assert "search" in names
+        assert "web_search" not in names
+        assert "openalex_searcher" not in names
+        assert "paper_searcher" not in names
         assert "chemrxiv_searcher" not in names
 
 
@@ -111,7 +100,7 @@ class TestDDGParser:
 
 class TestBingParser:
     def test_parse_results(self):
-        from cloudra.tools.Searchtool.web_search import _BingResultParser
+        from cloudra.tools.Searchtool._web import _BingResultParser
         parser = _BingResultParser()
         parser.feed(BING_HTML)
         assert len(parser.results) == 2
@@ -123,7 +112,7 @@ class TestBingParser:
 
 @pytest.mark.asyncio
 class TestBackends:
-    async def test_tavily_preferred_when_key_set(self, agent, mock_session, monkeypatch):
+    async def test_tavily_preferred_when_key_set(self, monkeypatch):
         monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
         calls = []
         _install_fake_client(monkeypatch, {
@@ -132,13 +121,12 @@ class TestBackends:
             }),
         }, calls)
 
-        out = await WebSearch(subagent=agent).tool_call(
-            WebSearch_input_schema(query="vasp encut"), mock_session)
-        assert out.is_success and out.backend_used == "tavily"
-        assert out.results[0]["url"] == "https://t.example"
+        out = await run(query="vasp encut", max_results=8)
+        assert out["is_success"] and out["backend_used"] == "tavily"
+        assert out["results"][0]["url"] == "https://t.example"
         assert calls == [("POST", "https://api.tavily.com/search")]
 
-    async def test_fallback_to_bing_without_keys(self, agent, mock_session, monkeypatch):
+    async def test_fallback_to_bing_without_keys(self, monkeypatch):
         monkeypatch.delenv("TAVILY_API_KEY", raising=False)
         monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
         calls = []
@@ -146,13 +134,12 @@ class TestBackends:
             "https://www.bing.com/search": FakeResponse(text=BING_HTML),
         }, calls)
 
-        out = await WebSearch(subagent=agent).tool_call(
-            WebSearch_input_schema(query="vasp encut"), mock_session)
-        assert out.is_success and out.backend_used == "bing"
-        assert len(out.results) == 2
+        out = await run(query="vasp encut", max_results=8)
+        assert out["is_success"] and out["backend_used"] == "bing"
+        assert len(out["results"]) == 2
         assert calls == [("GET", "https://www.bing.com/search")]
 
-    async def test_fallback_chain_on_backend_failure(self, agent, mock_session, monkeypatch):
+    async def test_fallback_chain_on_backend_failure(self, monkeypatch):
         monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
         calls = []
         _install_fake_client(monkeypatch, {
@@ -161,16 +148,15 @@ class TestBackends:
             "https://html.duckduckgo.com/html/": FakeResponse(text=DDG_HTML),
         }, calls)
 
-        out = await WebSearch(subagent=agent).tool_call(
-            WebSearch_input_schema(query="vasp encut"), mock_session)
-        assert out.is_success and out.backend_used == "duckduckgo"
+        out = await run(query="vasp encut", max_results=8)
+        assert out["is_success"] and out["backend_used"] == "duckduckgo"
         assert [c[1] for c in calls] == [
             "https://api.tavily.com/search",
             "https://www.bing.com/search",
             "https://html.duckduckgo.com/html/",
         ]
 
-    async def test_all_backends_fail_returns_error(self, agent, mock_session, monkeypatch):
+    async def test_all_backends_fail_returns_error(self, monkeypatch):
         monkeypatch.delenv("TAVILY_API_KEY", raising=False)
         monkeypatch.delenv("BRAVE_SEARCH_API_KEY", raising=False)
         _install_fake_client(monkeypatch, {
@@ -178,25 +164,21 @@ class TestBackends:
             "https://html.duckduckgo.com/html/": FakeResponse(status=403),
         }, [])
 
-        out = await WebSearch(subagent=agent).tool_call(
-            WebSearch_input_schema(query="vasp encut"), mock_session)
-        assert not out.is_success
-        assert "bing" in out.error and "duckduckgo" in out.error
+        out = await run(query="vasp encut", max_results=8)
+        assert not out["is_success"]
+        assert "bing" in out["error"] and "duckduckgo" in out["error"]
 
-    async def test_explicit_backend_and_validation(self, agent, mock_session, monkeypatch):
+    async def test_explicit_backend_and_validation(self, monkeypatch):
         calls = []
         _install_fake_client(monkeypatch, {
             "https://html.duckduckgo.com/html/": FakeResponse(text=DDG_HTML),
         }, calls)
-        tool = WebSearch(subagent=agent)
 
-        out = await tool.tool_call(
-            WebSearch_input_schema(query="q", backend="duckduckgo"), mock_session)
-        assert out.is_success and out.backend_used == "duckduckgo"
+        out = await run(query="q", max_results=8, backend="duckduckgo")
+        assert out["is_success"] and out["backend_used"] == "duckduckgo"
 
-        out = await tool.tool_call(
-            WebSearch_input_schema(query="q", backend="google"), mock_session)
-        assert not out.is_success
+        out = await run(query="q", max_results=8, backend="google")
+        assert not out["is_success"]
 
-        out = await tool.tool_call(WebSearch_input_schema(query="  "), mock_session)
-        assert not out.is_success
+        out = await run(query="  ", max_results=8)
+        assert not out["is_success"]

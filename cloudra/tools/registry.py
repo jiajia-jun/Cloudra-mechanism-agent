@@ -257,27 +257,15 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
     ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
     ToolRegistration(
-        module='cloudra.tools.Searchtool.openalex_searcher',
-        class_name='OpenAlexSearcher',
-        tool_name='openalex_searcher',
-        runtime_profiles=frozenset({'desktop', 'android'}),
-    ),
-    ToolRegistration(
-        module='cloudra.tools.Searchtool.paper_searcher',
-        class_name='PaperSearcher',
-        tool_name='paper_searcher',
-        runtime_profiles=frozenset({'desktop', 'android'}),
-    ),
-    ToolRegistration(
         module='cloudra.tools.Searchtool.read',
         class_name='Read',
         tool_name='read',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
-        module='cloudra.tools.Searchtool.web_search',
-        class_name='WebSearch',
-        tool_name='web_search',
+        module='cloudra.tools.Searchtool.search',
+        class_name='Search',
+        tool_name='search',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
