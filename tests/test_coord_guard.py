@@ -1,4 +1,4 @@
-"""手写坐标守卫（text_writer / edit_file / bashtools，放行+警告）测试。"""
+"""手写坐标守卫（write / edit / bash，放行+警告）测试。"""
 
 import hashlib
 from types import SimpleNamespace
@@ -6,14 +6,14 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.persistence.database import ConversationDB
-from cloudra.tools.Bashtool.bashtools import Bashtools, Bashtools_input_schema
+from cloudra.tools.Bashtool.bash import Bash, Bash_input_schema
 from cloudra.tools.core.coord_guard import (
     count_consecutive_coord_lines,
     handwritten_coord_warning,
 )
 from cloudra.tools.core.permission_model import Permission
-from cloudra.tools.Writetool.edit_file import EditFile, EditFile_input_schema
-from cloudra.tools.Writetool.text_writer import TextWriter, TextWriter_input_schema
+from cloudra.tools.Writetool.edit import Edit, Edit_input_schema
+from cloudra.tools.Writetool.write import Write, Write_input_schema
 
 _XYZ_BLOCK = (
     "C   1.662573  -0.673401   0.051393\n"
@@ -61,13 +61,13 @@ def test_warning_only_for_geometry_paths():
 
 
 @pytest.mark.asyncio
-async def test_text_writer_warns_but_writes_handwritten_coords(tmp_path, monkeypatch):
+async def test_write_warns_but_writes_handwritten_coords(tmp_path, monkeypatch):
     """命中手写坐标时照常写入，只在返回消息里附警告（不硬拦）。"""
-    monkeypatch.setattr(TextWriter, "ensure_safety", _approve)
-    tool = TextWriter(subagent=_subagent(tmp_path))
+    monkeypatch.setattr(Write, "ensure_safety", _approve)
+    tool = Write(subagent=_subagent(tmp_path))
     out = await tool.tool_call(
-        TextWriter_input_schema(
-            filepath="ts3_qst2.gjf",
+        Write_input_schema(
+            path="ts3_qst2.gjf",
             content=f"%chk=ts.chk\n#p opt b3lyp/def2svp\n\nt\n\n0 1\n{_XYZ_BLOCK}",
         ),
         SimpleNamespace(id="s1"),
@@ -78,26 +78,26 @@ async def test_text_writer_warns_but_writes_handwritten_coords(tmp_path, monkeyp
 
 
 @pytest.mark.asyncio
-async def test_text_writer_allows_plain_text(tmp_path, monkeypatch):
-    monkeypatch.setattr(TextWriter, "ensure_safety", _approve)
-    tool = TextWriter(subagent=_subagent(tmp_path))
+async def test_write_allows_plain_text(tmp_path, monkeypatch):
+    monkeypatch.setattr(Write, "ensure_safety", _approve)
+    tool = Write(subagent=_subagent(tmp_path))
     out = await tool.tool_call(
-        TextWriter_input_schema(filepath="notes.md", content="# 记录\n没有坐标。"),
+        Write_input_schema(path="notes.md", content="# 记录\n没有坐标。"),
         SimpleNamespace(id="s1"),
     )
     assert out.is_written
 
 
 @pytest.mark.asyncio
-async def test_edit_file_warns_on_coord_insertion(tmp_path, monkeypatch):
-    monkeypatch.setattr(EditFile, "ensure_safety", _approve)
+async def test_edit_warns_on_coord_insertion(tmp_path, monkeypatch):
+    monkeypatch.setattr(Edit, "ensure_safety", _approve)
     content = "%chk=ts.chk\n#p opt b3lyp/def2svp\n"
     target = tmp_path / "ts.gjf"
     target.write_text(content, encoding="utf-8")
-    tool = EditFile(subagent=_subagent(tmp_path))
+    tool = Edit(subagent=_subagent(tmp_path))
     out = await tool.tool_call(
-        EditFile_input_schema(
-            filepath="ts.gjf",
+        Edit_input_schema(
+            path="ts.gjf",
             expected_sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
             edits=[{
                 "old_str": "#p opt b3lyp/def2svp",
@@ -114,11 +114,11 @@ async def test_edit_file_warns_on_coord_insertion(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_bash_warns_on_heredoc_coords(tmp_path, monkeypatch):
     """heredoc 写坐标不拦截：命令照常执行，结果里附警告。"""
-    monkeypatch.setattr(Bashtools, "ensure_safety", _approve)
-    tool = Bashtools(subagent=_subagent(tmp_path))
+    monkeypatch.setattr(Bash, "ensure_safety", _approve)
+    tool = Bash(subagent=_subagent(tmp_path))
     command = f"cat > ts.gjf <<'EOF'\n%chk=ts.chk\n0 1\n{_XYZ_BLOCK}EOF"
     out = await tool.tool_call(
-        Bashtools_input_schema(command=command, task_description="写输入"),
+        Bash_input_schema(command=command, task_description="写输入"),
         SimpleNamespace(id="s1"),
     )
     assert out.exit_code == 0
@@ -128,9 +128,9 @@ async def test_bash_warns_on_heredoc_coords(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_bash_allows_normal_commands(tmp_path):
-    tool = Bashtools(subagent=_subagent(tmp_path))
+    tool = Bash(subagent=_subagent(tmp_path))
     out = await tool.tool_call(
-        Bashtools_input_schema(command="echo hello", task_description="测试"),
+        Bash_input_schema(command="echo hello", task_description="测试"),
         SimpleNamespace(id="s1"),
     )
     assert out.exit_code == 0

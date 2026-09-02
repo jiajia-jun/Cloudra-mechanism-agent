@@ -309,7 +309,7 @@ class Tool(BaseModel):
         优先读取实例级别的 tool_description，使动态生成的描述能够生效。
         '''
         # HACK: 这里用 getattr + or fallback 链是因为 Pydantic v2 的类字段默认值在实例上可能
-        # 被 shadow，但某些情况下实例属性又还没覆盖。动态 description（如 Bashtools 的权限列表、
+        # 被 shadow，但某些情况下实例属性又还没覆盖。动态 description（如 Bash 的权限列表、
         # GetSkill 的 skills 列表）必须在 __init__ 之后才能确定，因此必须是实例方法而非类方法。
         # 如果后续有更好方式（如 descriptor / property），可替换掉这个 ugly fallback。
         description = getattr(self, 'tool_description', '') or self._get_field_default('tool_description') or ''

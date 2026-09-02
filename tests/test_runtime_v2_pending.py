@@ -80,7 +80,7 @@ async def test_approval_approve_and_deny():
     async def ask():
         return await core.pending.request_approval(
             agent,
-            tool_name="text_writer",
+            tool_name="write",
             details="write file",
             normalized_arguments={"path": "a.txt"},
             risk_summary="write a.txt",
@@ -91,7 +91,7 @@ async def test_approval_approve_and_deny():
     await _wait_for(lambda: agent.state is AgentState.WAITING_APPROVAL)
     pending = core.pending.list_pending_approvals(project.id)
     assert len(pending) == 1
-    assert pending[0]["tool_name"] == "text_writer"
+    assert pending[0]["tool_name"] == "write"
     assert pending[0]["candidate_diff"] == "+hello"
 
     await core.pending.decide_approval(project.id, pending[0]["id"], "approved", "")

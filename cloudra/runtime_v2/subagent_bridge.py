@@ -32,8 +32,8 @@ _AGENT_ID_TO_ROLE = {
 }
 
 _TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
-_LAUNCHER = "SubAgentLauncher"
-_SWARM = "SubAgentSwarm"
+_LAUNCHER = "subagent_launcher"
+_SWARM = "subagent_swarm"
 _REPORT = "get_subagent_report"
 NATIVE_TOOL_NAMES = {_LAUNCHER, _SWARM, _REPORT}
 

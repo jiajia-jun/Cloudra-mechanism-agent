@@ -11,7 +11,7 @@ class GetSkill_input_schema(input_schema):
     skill_name: str = Field(
         description="Name of the skill to load."
     )
-    other: str = Field(
+    reference: str = Field(
         default="",
         description="After reading a skill, pass this to load a reference mentioned in the parent skill (the ref name)."
     )
@@ -32,7 +32,7 @@ class GetSkill_output_schema(output_schema):
 class GetSkill(Tool):
 
     tool_id: str = 't-25'
-    tool_name: str = 'getskill'
+    tool_name: str = 'get_skill'
     # NOTE: description 保持惰性，不内嵌 skill 清单——system prompt 的
     # "Current skill manifest" 区块已对所有角色注入同一份清单，
     # 这里再列一遍会让每个请求带上双份。
@@ -42,7 +42,7 @@ class GetSkill(Tool):
         "you must call this tool to load that skill and follow its procedure, completion criteria, and caveats. "
         "See the \"Current skill manifest\" section of the system prompt for the available skill names "
         "and pass one as skill_name. "
-        "When the skill mentions references, pass the ref name in other to read the corresponding reference file."
+        "When the skill mentions references, pass the ref name in reference to read the corresponding reference file."
     )
     input_schema: Any = GetSkill_input_schema
     output_schema: Any = GetSkill_output_schema
@@ -57,7 +57,7 @@ class GetSkill(Tool):
     ) -> GetSkill_output_schema:
         loader = skill_loader()
         skill_name = user_input.skill_name
-        other = user_input.other
+        other = user_input.reference
 
         content = loader.get_content(skill_name)
         if content == 'skill不存在。':

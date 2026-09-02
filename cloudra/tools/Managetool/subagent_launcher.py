@@ -58,7 +58,7 @@ class SubAgentLauncher_output_schema(output_schema):
 
 class SubAgentLauncher(Tool):
     tool_id: str = 't-0'
-    tool_name: str = 'SubAgentLauncher'
+    tool_name: str = 'subagent_launcher'
     tool_description: str = description
     input_schema: Any = SubAgentLauncher_input_schema
     output_schema: Any = SubAgentLauncher_output_schema

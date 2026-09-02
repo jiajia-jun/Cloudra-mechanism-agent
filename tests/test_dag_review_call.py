@@ -156,7 +156,7 @@ async def test_review_tool_enqueues_but_submit_and_bash_do_not(tmp_path):
         calls=[
             ("tc-guess", "ts_guess", {"smiles": "C=COCC=C"}, {"is_success": True, "verdict": "pass"}),
             ("tc-submit", "submit_compute_job", {"input_file": "ts.gjf"}, {"is_success": True, "job_id": 4}),
-            ("tc-bash", "bashtools", {"command": "cat ts.log"}, {"is_success": True, "output": "ok"}),
+            ("tc-bash", "bash", {"command": "cat ts.log"}, {"is_success": True, "output": "ok"}),
         ],
     )
     db = ConversationDB("review-throttle")

@@ -1,9 +1,9 @@
 """Bash 习惯守卫：检测 agent 用 bash 完成本该走结构化工具的工作（软警告）。
 
 背景：长上下文后期模型判断力下降，习惯性退回 bash——用 cat/echo/tee/heredoc
-键入文件内容、sed -i 原地改文件、直接命令行调用量化程序，绕开 text_writer /
-edit_file / submit_compute_job 等结构化工具。这些行为绕过文件变更审批、产物
-记录与 DAG 证据链；prompt 层已明令禁止（bashtools 描述"严禁用 Bash、sed、
+键入文件内容、sed -i 原地改文件、直接命令行调用量化程序，绕开 write /
+edit / submit_compute_job 等结构化工具。这些行为绕过文件变更审批、产物
+记录与 DAG 证据链；prompt 层已明令禁止（bash 描述"严禁用 Bash、sed、
 重定向、tee 或临时脚本改文件"），但长上下文下仍然复发，这里在 harness 层
 检测并**在工具结果里附警告**（照常执行，不硬拦）——让模型读到"这是绕开
 结构化工具/DAG 系统"的明确信号后自行纠正，而不是逼它换更隐蔽的路径。
@@ -39,8 +39,8 @@ _COMPUTE_PROGRAMS = frozenset({
 
 _FILE_WRITE_GUIDANCE = (
     "You are using bash to write/edit workspace files (redirect / heredoc / tee / in-place edit), which bypasses "
-    "text_writer / edit_file file-change approval, artifact recording, and the DAG evidence chain. Use "
-    "text_reader + edit_file for existing files and text_writer for new files; do not use bash to bypass these "
+    "write / edit file-change approval, artifact recording, and the DAG evidence chain. Use "
+    "read + edit for existing files and write for new files; do not use bash to bypass these "
     "structured tools, and do not try to bypass the DAG system."
 )
 
@@ -158,7 +158,7 @@ def _direct_compute_program(command: str) -> str | None:
 
 
 def is_substantive_bash_command(arguments: dict) -> bool:
-    """DAG-gate predicate for the bashtools registration.
+    """DAG-gate predicate for the bash registration.
 
     True when a bash call writes/edits workspace files or directly invokes a
     compute program, i.e. the same signals the habit guard watches for.

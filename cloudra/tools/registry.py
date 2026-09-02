@@ -43,16 +43,20 @@ class ToolRegistration:
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
-        module='cloudra.tools.Bashtool.bashtools',
-        class_name='Bashtools',
-        tool_name='bashtools',
+        module='cloudra.tools.Bashtool.bash',
+        class_name='Bash',
+        tool_name='bash',
         dag_compute_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
     ),
-    ToolRegistration('cloudra.tools.Browsertool.headless_browser', 'HeadlessBrowser'),
     ToolRegistration(
-        module='cloudra.tools.Browsertool.web_fetcher',
+        module='cloudra.tools.Browsertool.browser',
+        class_name='HeadlessBrowser',
+        tool_name='browser',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Browsertool.web_fetch',
         class_name='WebFetcher',
-        tool_name='web_fetcher',
+        tool_name='web_fetch',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
@@ -167,13 +171,13 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
         module='cloudra.tools.Managetool.subagent_launcher',
         class_name='SubAgentLauncher',
-        tool_name='SubAgentLauncher',
+        tool_name='subagent_launcher',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
         module='cloudra.tools.Managetool.subagent_swarm',
         class_name='SubAgentSwarm',
-        tool_name='SubAgentSwarm',
+        tool_name='subagent_swarm',
     ),
     ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
     ToolRegistration(
@@ -271,7 +275,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
         module='cloudra.tools.Skilltool.get_skill',
         class_name='GetSkill',
-        tool_name='getskill',
+        tool_name='get_skill',
         runtime_profiles=frozenset({'desktop', 'android'}),
         dag_observe=False,
     ),
@@ -282,15 +286,15 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
-        module='cloudra.tools.Writetool.edit_file',
-        class_name='EditFile',
-        tool_name='edit_file',
+        module='cloudra.tools.Writetool.edit',
+        class_name='Edit',
+        tool_name='edit',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(
-        module='cloudra.tools.Writetool.text_writer',
-        class_name='TextWriter',
-        tool_name='text_writer',
+        module='cloudra.tools.Writetool.write',
+        class_name='Write',
+        tool_name='write',
         runtime_profiles=frozenset({'desktop', 'android'}),
     ),
     ToolRegistration(

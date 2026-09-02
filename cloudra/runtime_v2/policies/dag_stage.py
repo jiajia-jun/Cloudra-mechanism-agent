@@ -234,7 +234,7 @@ class DagPolicyStage:
         if controller is None:
             return PolicyResult.allow()
         await controller.initialize()
-        if call.name in {"SubAgentLauncher", "SubAgentSwarm"} and controller.mode.value == "dag_guided":
+        if call.name in {"subagent_launcher", "subagent_swarm"} and controller.mode.value == "dag_guided":
             self._subagent_windows[call.id] = await asyncio.to_thread(
                 self._delivery_fingerprint, controller
             )
@@ -267,7 +267,7 @@ class DagPolicyStage:
         if (
             window is not None
             and controller.mode.value == "dag_guided"
-            and call.name in {"SubAgentLauncher", "SubAgentSwarm"}
+            and call.name in {"subagent_launcher", "subagent_swarm"}
         ):
             after = await asyncio.to_thread(self._delivery_fingerprint, controller)
             if after != window:

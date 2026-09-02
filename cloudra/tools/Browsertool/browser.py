@@ -96,7 +96,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 class HeadlessBrowser(Tool):
     tool_id: str = 't-28'
-    tool_name: str = 'headless_browser'
+    tool_name: str = 'browser'
     tool_description: str = description
     input_schema: Any = HeadlessBrowser_input_schema
     output_schema: Any = HeadlessBrowser_output_schema

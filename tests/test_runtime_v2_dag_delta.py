@@ -97,11 +97,11 @@ async def test_delivery_delta_appended_to_tool_result_and_pushed():
 async def test_no_delta_adds_no_noise():
     stage = DagPolicyStage()
     controller = _FakeController()
-    controller.finished_return = DeliveryDelta(tool_name="bashtools")
+    controller.finished_return = DeliveryDelta(tool_name="bash")
     ctx = _ctx(NoticeManager())
     stage._controllers[ctx.agent.id] = controller
     result = ToolResult(is_success=True, summary="ok")
-    await stage.after_tool(ctx, ToolCall(id="tc1", name="bashtools", arguments={}), result)
+    await stage.after_tool(ctx, ToolCall(id="tc1", name="bash", arguments={}), result)
     assert result.summary == "ok"
     assert ctx.notices.collect(ctx.agent.id) == []
 
@@ -112,7 +112,7 @@ async def test_subagent_launcher_evidence_change_wakes_supervisor():
     controller = _FakeController()
     ctx = _ctx()
     stage._controllers[ctx.agent.id] = controller
-    call = ToolCall(id="launch1", name="SubAgentLauncher", arguments={"agent_id": "a-6"})
+    call = ToolCall(id="launch1", name="subagent_launcher", arguments={"agent_id": "a-6"})
     await stage.before_tool(ctx, call)
     controller.engine = _FakeEngine(revision=2, n_refs=1)
     await stage.after_tool(ctx, call, ToolResult(is_success=True, summary="done"))
@@ -125,7 +125,7 @@ async def test_subagent_launcher_no_change_does_not_wake():
     controller = _FakeController()
     ctx = _ctx()
     stage._controllers[ctx.agent.id] = controller
-    call = ToolCall(id="launch1", name="SubAgentLauncher", arguments={"agent_id": "a-6"})
+    call = ToolCall(id="launch1", name="subagent_launcher", arguments={"agent_id": "a-6"})
     await stage.before_tool(ctx, call)
     await stage.after_tool(ctx, call, ToolResult(is_success=True, summary="done"))
     assert controller.supervise_calls == []

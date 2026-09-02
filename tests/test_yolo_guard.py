@@ -173,7 +173,7 @@ class TestYoloGuardJudge:
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.create = AsyncMock(return_value=mock_response)
             approved, reason = await guard.judge(
-                "bashtools",
+                "bash",
                 {"command": "rm -rf /"},
                 fake_agent,
                 None,
@@ -202,7 +202,7 @@ class TestYoloGuardJudge:
             create = AsyncMock(return_value=mock_response)
             mock_client.return_value.create = create
             approved, reason = await guard.judge(
-                "text_writer",
+                "write",
                 {"path": "/x.txt", "content": "hello"},
                 fake_agent,
                 None,
@@ -237,7 +237,7 @@ class TestYoloGuardJudge:
             create = AsyncMock(side_effect=[bad_response, good_response])
             mock_client.return_value.create = create
             approved, reason = await guard.judge(
-                "text_writer",
+                "write",
                 {"path": "/x.txt", "content": "hello"},
                 fake_agent,
                 None,
@@ -275,7 +275,7 @@ class TestYoloGuardJudge:
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.create = create
             approved, reason = await guard.judge(
-                "text_writer",
+                "write",
                 {"path": "/x.txt", "content": "hello"},
                 fake_agent,
                 None,
@@ -300,7 +300,7 @@ class TestYoloGuardJudge:
         with patch.object(guard, "_client") as mock_client:
             mock_client.return_value.create = create
             approved, reason = await guard.judge(
-                "text_writer",
+                "write",
                 {"path": "/x.txt", "content": "hello"},
                 fake_agent,
                 None,
@@ -335,7 +335,7 @@ class TestEnsureSafetyYoloRoute:
         from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
 
         monkeypatch.delenv("CLOUDRA_YOLO_MODE", raising=False)
-        tool = Tool(tool_name="bashtools")
+        tool = Tool(tool_name="bash")
         tool.subagent = MagicMock(name="explorer")
         tool.subagent.name = "explorer"
         session = MagicMock()
@@ -367,7 +367,7 @@ class TestEnsureSafetyYoloRoute:
 
         assert ok is True
         assert reason == ""
-        assert judged["call"] == ("bashtools", {"command": "rm -rf /tmp/x"})
+        assert judged["call"] == ("bash", {"command": "rm -rf /tmp/x"})
         assert approval_called == []
 
     @pytest.mark.asyncio
@@ -378,7 +378,7 @@ class TestEnsureSafetyYoloRoute:
         monkeypatch.delenv("CLOUDRA_YOLO_MODE", raising=False)
         assert is_yolo_enabled() is False
 
-        tool = Tool(tool_name="bashtools")
+        tool = Tool(tool_name="bash")
         tool.subagent = MagicMock()
         tool.subagent.name = "explorer"
         tool.subagent.conversation_id = "test-conv"

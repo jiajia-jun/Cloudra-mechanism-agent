@@ -33,10 +33,10 @@ def test_agent_available_tools():
     agent = explorer(query="test", conversation_id="test")
     tools = agent.get_available_tools()
 
-    # explorer 应该能看到 bashtools (read), 但不应该看到 molecule_drawer (destructive)
+    # explorer 应该能看到 bash (read), 但不应该看到 molecule_drawer (destructive)
     # 注意：molecule_drawer 现在的权限设置可能允许 read? 检查一下
     tool_names = [t.tool_name for t in tools]
-    assert 'bashtools' in tool_names
+    assert 'bash' in tool_names
     # 假设 molecule_drawer 是 destructive，explorer 不该有
     # assert 'molecule_drawer' not in tool_names
 

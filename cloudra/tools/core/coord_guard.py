@@ -3,7 +3,7 @@
 背景：机理任务中模型反复出现"手写坐标"行为——把凭记忆或凭感觉拼出的
 笛卡尔坐标块直接写进 .gjf/.xyz，绕开 smiles_to_mol / conformer_search /
 format_converter / qm_input_writer 等结构化工具。prompt 层的禁令不够，这里在
-harness 层检测并警告：text_writer / edit_file / bashtools 在写入几何或计算
+harness 层检测并警告：write / edit / bash 在写入几何或计算
 输入文件前调用本模块检查内容，命中时**放行写入但在返回消息里附警告**。
 刻意不硬拦——改 gjf 关键词、补 modredundant 等正当编辑不该被误伤，而且
 直接拒绝只会逼模型换一条更隐蔽的路径；让它在结果里读到"这是绕过 supervisor

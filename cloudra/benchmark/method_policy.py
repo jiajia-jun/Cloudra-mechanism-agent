@@ -8,7 +8,7 @@ always be bypassed, so every layer does positive (whitelist) matching:
 - `submit_compute_job`: submits a prepared `input_file`, so the verdict comes
   from that file's *content* (strict mode: an input that cannot be verified
   as requesting a whitelisted method is blocked).
-- `bash` (registered tool name: `bashtools`): the verdict comes from the
+- `bash`: the verdict comes from the
   *content of QM input files*, never from keyword-matching the command text.
   Heredoc and echo/printf-redirect payloads writing `.gjf`/`.com`/`.inp` files
   are extracted from the command (nested one level when a payload is itself a
@@ -413,7 +413,7 @@ def intercept(
       `input_file`, so the verdict comes from that file's *content*
       (strict: unverifiable input is blocked). Relative paths resolve
       against `base_dir` (the sandbox root the caller runs in).
-    - bash calls (tool names `bash` and `bashtools`) are judged by the
+    - bash calls (tool name `bash`) are judged by the
       *content* of QM inputs they write; the raw command text is never
       keyword-scanned. Calls that merely reference an existing on-disk QM
       input (`g16 foo.gjf`) are the caller's responsibility
@@ -452,8 +452,7 @@ def intercept(
                 reason=f"cannot read input file {input_file}: {exc}",
             )
         return check_input_content(content, policy, filename=p.name, strict=True)
-    if tool_name in ("bash", "bashtools") and "bash" in layers:
-        # 注册的 bash 工具真实名是 bashtools（tools/registry.py），两个名字都匹配
+    if tool_name == "bash" and "bash" in layers:
         command = str(arguments.get("command") or arguments.get("script") or "")
         for fname, content in extract_embedded_inputs(command):
             verdict = check_input_content(content, policy, filename=fname)

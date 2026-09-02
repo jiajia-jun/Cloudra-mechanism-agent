@@ -272,13 +272,13 @@ async def test_agent_request_kwargs_use_native_search(monkeypatch):
                 },
             },
         },
-        {"type": "function", "function": {"name": "bashtools"}},
+        {"type": "function", "function": {"name": "bash"}},
     ]
 
     kwargs = await agent._build_request_kwargs()
     tool_names = [t["function"]["name"] for t in kwargs["tools"]]
     assert "search" in tool_names
-    assert "bashtools" in tool_names
+    assert "bash" in tool_names
     search = next(t for t in kwargs["tools"] if t["function"]["name"] == "search")
     assert set(search["function"]["parameters"]["properties"]["source"]["enum"]) == {
         "arxiv",
@@ -314,7 +314,7 @@ async def test_agent_request_kwargs_keep_search_when_off(monkeypatch):
                 },
             },
         },
-        {"type": "function", "function": {"name": "bashtools"}},
+        {"type": "function", "function": {"name": "bash"}},
     ]
 
     kwargs = await agent._build_request_kwargs()

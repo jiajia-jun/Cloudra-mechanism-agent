@@ -89,7 +89,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 class WebFetcher(Tool):
     tool_id: str = 't-7'
-    tool_name: str = 'web_fetcher'
+    tool_name: str = 'web_fetch'
     tool_description: str = description
     input_schema: Any = WebFetcher_input_schema
     output_schema: Any = WebFetcher_output_schema

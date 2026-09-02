@@ -74,7 +74,7 @@ class SubAgentSwarm_output_schema(output_schema):
 
 class SubAgentSwarm(Tool):
     tool_id: str = 't-47'
-    tool_name: str = 'SubAgentSwarm'
+    tool_name: str = 'subagent_swarm'
     tool_description: str = description
     input_schema: Any = SubAgentSwarm_input_schema
     output_schema: Any = SubAgentSwarm_output_schema

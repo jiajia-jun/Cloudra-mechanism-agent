@@ -19,13 +19,13 @@ from cloudra.tools.Searchtool.read import (
     Read,
     Read_input_schema,
 )
-from cloudra.tools.Writetool.edit_file import (
-    EditFile,
-    EditFile_input_schema,
+from cloudra.tools.Writetool.edit import (
+    Edit,
+    Edit_input_schema,
 )
-from cloudra.tools.Writetool.text_writer import (
-    TextWriter,
-    TextWriter_input_schema,
+from cloudra.tools.Writetool.write import (
+    Write,
+    Write_input_schema,
 )
 
 
@@ -242,7 +242,7 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
     async def approve(self, session, details, tool_args=None):
         assert "Unified Diff" in details
-        assert tool_args["filepath"] == "agent.txt"
+        assert tool_args["path"] == "agent.txt"
         return True, ""
 
     async def record(self, session, event_type, data):
@@ -250,11 +250,11 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
     monkeypatch.setattr(Tool, "ensure_safety", approve)
     monkeypatch.setattr(Tool, "record_session_event", record)
-    tool = EditFile(subagent=_subagent(tmp_path))
+    tool = Edit(subagent=_subagent(tmp_path))
 
     result = await tool.tool_call(
-        EditFile_input_schema(
-            filepath="agent.txt",
+        Edit_input_schema(
+            path="agent.txt",
             expected_sha256=snapshot.sha256,
             edits=[{"old_text": "old", "new_text": "new"}],
         ),
@@ -273,13 +273,13 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
 
 @pytest.mark.asyncio
-async def test_text_writer_tool_returns_structured_conflict(
+async def test_write_tool_returns_structured_conflict(
     tmp_path,
     mock_session,
     monkeypatch,
 ):
     (tmp_path / "exists.txt").write_text("keep\n", encoding="utf-8")
-    tool = TextWriter(subagent=_subagent(tmp_path))
+    tool = Write(subagent=_subagent(tmp_path))
     events: list[tuple[str, dict]] = []
 
     async def record(self, session, event_type, data):
@@ -288,8 +288,8 @@ async def test_text_writer_tool_returns_structured_conflict(
     monkeypatch.setattr(Tool, "record_session_event", record)
 
     result = await tool.tool_call(
-        TextWriter_input_schema(
-            filepath="exists.txt",
+        Write_input_schema(
+            path="exists.txt",
             content="replace\n",
             expected_sha256="missing",
         ),

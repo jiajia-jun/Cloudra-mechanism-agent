@@ -54,7 +54,7 @@ async def _crash_with_orphan(core, store, project, agent, kind: str, request_id:
         data = {
             "approval_id": request_id,
             "agent_name": agent.role_id,
-            "tool_name": "text_writer",
+            "tool_name": "write",
             "details": "write file",
             "risk_summary": "risk",
             "candidate_diff": "+x",
