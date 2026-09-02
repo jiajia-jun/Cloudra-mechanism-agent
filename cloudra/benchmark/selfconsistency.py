@@ -1,12 +1,15 @@
 """Layer 2 — self-consistency: physical validity of the delivered evidence.
 
 Independent of the gold reference: a TS must be a first-order saddle
-(exactly one imaginary frequency, excluding conformational fake TS below
-`min_abs_imag_freq_cm1`), its IRC must connect the two endpoints, and each
-species must pass a minimum check (no imaginary frequencies). Species
-identity (SMILES consistency) is Layer 1's evidence-binding job and is not
-re-checked here. Operates on the evidence files the integrity layer bound to
-each graph node/step.
+(exactly one imaginary frequency, n_imag == 1), its IRC must connect the two
+endpoints, and each species must pass a minimum check (no imaginary
+frequencies). No imaginary-frequency magnitude lower bound is imposed —
+whether a single imaginary mode is "appropriate" is delegated to IRC
+connectivity (`irc_connects_endpoints`) and the frequency-direction/IRC
+verification in the validation layer, not to a `min_abs_imag_freq_cm1`
+threshold. Species identity (SMILES consistency) is Layer 1's evidence-binding
+job and is not re-checked here. Operates on the evidence files the integrity
+layer bound to each graph node/step.
 
 File roles are decided by filename token: a `ts` token in the stem
 (`ts.log`, `M6_ts_opt.out`) marks TS evidence; other Gaussian/ORCA logs are
@@ -37,7 +40,6 @@ class TsCheck:
     n_imag: Optional[int] = None
     imag_freqs_cm: list[float] = field(default_factory=list)
     is_first_order_saddle: Optional[bool] = None
-    min_abs_imag_ok: Optional[bool] = None
     irc_connects: Optional[bool] = None
     notes: list[str] = field(default_factory=list)
 
@@ -111,8 +113,6 @@ def check_ts_file(path: Path, rubric: SelfConsistencyRubric) -> TsCheck:
         chk.n_imag = len(imag)
         if rubric.ts_first_order_saddle:
             chk.is_first_order_saddle = len(imag) == 1
-        if imag:
-            chk.min_abs_imag_ok = min(abs(f) for f in imag) >= rubric.min_abs_imag_freq_cm1
     if rubric.irc_connects_endpoints:
         chk.irc_connects = _irc_connects(irc_meta)
     if not freqs and irc_meta is None:
@@ -174,7 +174,7 @@ def audit_self_consistency(
         report.min_checks.append(check_minimum_file(sandbox / f.path))
 
     saddle_verdicts = [
-        c.is_first_order_saddle and c.min_abs_imag_ok is not False
+        c.is_first_order_saddle
         for c in report.ts_checks
         if c.is_first_order_saddle is not None
     ]

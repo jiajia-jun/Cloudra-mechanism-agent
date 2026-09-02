@@ -282,13 +282,18 @@ class IntegrityRubric(BaseModel):
 
 class SelfConsistencyRubric(BaseModel):
     """Layer 2 物理自检。物种身份（SMILES 一致性）由 Layer 1 的证据绑定承担，
-    不在此重复检查。"""
+    不在此重复检查。
+
+    TS 合格判定仅由 n_imag == 1（一阶鞍点）与 IRC 连通性
+    （irc_connects_endpoints）构成；不设任何虚频绝对值下限。
+    min_abs_imag_freq_cm1 已按用户决策移除——虚频大小是否"合适"交由 IRC
+    连通性/虚频方向判断，两者由验证层（ts_guess/IRC）实现，本层不再引入
+    虚频大小下限判断。"""
 
     model_config = ConfigDict(extra="forbid")
 
     ts_first_order_saddle: bool = True   # n_imag == 1
     irc_connects_endpoints: bool = True
-    min_abs_imag_freq_cm1: float = 100.0  # exclude conformational fake TS
 
 
 class GraphSimilarityRubric(BaseModel):

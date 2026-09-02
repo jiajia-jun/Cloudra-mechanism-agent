@@ -735,9 +735,10 @@ def _fake_ts_frames(imag_freqs, irc_meta):
         # 两个虚频 -> 非一阶鞍点
         ([-500.0, -300.0], {"num_points_forward": 3, "num_points_backward": 3,
                             "forward_converged": True, "backward_converged": True}, False, True),
-        # 虚频低于阈值（构象假 TS）-> 判负
+        # 单个虚频即为合法一阶鞍点：虚频大小不再是判负条件（用户决策），
+        # 是否"合适"交由 IRC 连通性判定，此处双向收敛 -> 通过
         ([-50.0], {"num_points_forward": 3, "num_points_backward": 3,
-                   "forward_converged": True, "backward_converged": True}, False, True),
+                   "forward_converged": True, "backward_converged": True}, True, True),
         # 鞍点成立但 IRC 只有一个方向 -> IRC 判负
         ([-500.0], {"num_points_forward": 3, "num_points_backward": 0,
                     "forward_converged": True, "backward_converged": False}, True, False),

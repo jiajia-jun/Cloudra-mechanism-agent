@@ -121,6 +121,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 - `ideapool/reaction_candidates/` — benchmark 候选池（easy.md 已定稿 30 题；normal.md 48 条池、已定稿 30 题见文末"定稿圈定"；hard.md 51 条池（立体化学档，2026-08-31 升级为线缆格式）、已定稿 20 条见文末"定稿圈定"（C 族 1,3-偶极按规则整体剔除）；impossible.md 70 条池（强多参考/拒答档：初批 A–E 32 + 2026-08-31 扩建 F–J 38），已定稿 20 条见文末"定稿圈定"——选题意图为单参考不可算体系的科学拒答，gold 是拒答质量而非机理图，含兄弟题对照设计）；打标台为自包含 HTML（normal_tagging.html / hard_tagging.html / impossible_tagging.html，打标存 localStorage 不回写 md），由 `scripts/gen_normal_tagging.py` / `scripts/gen_hard_tagging.py` / `scripts/gen_impossible_tagging.py` 从对应 md 重新生成（条目变更后重跑）。
 - `vector_store/` — 知识卡片 bge-m3 向量五件（cards.jsonl / vectors.f16.npy / meta.json / retrieve.py / encode.py）；`scripts/kg_vec_service.py` 微服务只读这套文件（向量侧依赖 torch/sentence-transformers 全部留在外部 .venv-trans，cloudra venv 不装 torch；kg_vec 跑在 .venv-trans 解释器下、cloudra 包不可导入，只能 stdlib 自理）。**插件已装时自动 detach 拉起该服务**（拉起判定链在 `services/daemon_supervisor.py`，web 启动与 api_v2 watchdog 共用；flock 单实例 `data_dir/kg_vec.lock` 由服务进程经 `--lock-file` 自持，端口健康探测防重，`CLOUDRA_KG_VEC=off` 关闭；解释器取 config `knowledge_vec_python`，缺省探测仓库根 `.venv-trans`）。查询模型与 meta.json 记录的库编码模型不一致时启动即告警；一键重编码入口 `vector_store/encode.py --model 模型名`；bge 系模型自动加专用查询前缀。v12.1 后 17,188 行（8,594 卡 zh+en 成对，其中动力学 1,569 卡）。
 - `deploy/node-registry.example.json` — 多节点/Slurm 注册表示例。
+- `deploy/mace_omol25_orca_external_setup.md` — MACE-OMol25 + ORCA external 计算栈环境配置（P1 能垒标定用；已核实 g16/g16-mlips 缺失，等价替代=ORCA external="mace"，含可复现的 ORCA 输入模版、KMP_DUPLICATE_LIB_OK 坑点与探针结果）。
 - `docs/` — 专题文档索引；`docs/superpowers/plans/` 存放设计计划（如 DAG 设计）。
 - `install.sh` / `install.ps1` — 安装脚本；`web.sh` / `web.ps1` — 开发便捷启动脚本；`README_CN.md` 为中文 README。`build/`、`.worktrees/`、`cloudra.egg-info/` 为构建副产物，勿手改。
 - `软著申请材料/`、`copyright_docs/`、`*.pdf` 研究报告 — 申报材料，非代码。软著源程序清单由 `scripts/gen_copyright_source.py` 重建（改代码后重跑）；`软著申请材料/06_LaTeX排版/` 用 conda 环境 `tectonic` 编译（一次性）。
@@ -129,6 +130,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 - **禁止补丁式修复**：项目仍是 beta、尚未上线，**不考虑向后兼容**。发现问题必须在架构级根治——能改数据结构就改数据结构、能删代码就删代码、能拆模块就拆模块；不允许打补丁盖过问题（不留 legacy 回退分支、不加兼容 shim、不保留死代码、不用"文档注明"替代修复）。任何修复必须配能直接把问题测红的测试，先红后绿，修完即绿。
 - 最小改动：修 bug 不顺手重构；新代码跟随所在文件的既有风格与注释密度。
+- **化学/科学设计决策必须问用户**：任何涉及化学或科学方法的设计决策——评分阈值、方法学验收红线、力场/泛函/基组选择、能垒基准定义、评分权重、拒答规则等——必须先向用户确认清楚，**不允许 agent 自作主张拍板**。曾发生 agent 未经确认便在 `SelfConsistencyRubric` 写入 `min_abs_imag_freq_cm1=100.0`（要求 TS 虚频 ≥100 cm⁻¹）这类化学阈值；此类影响科学结论的参数必须经用户批准后才能生效。
 - **事件循环线程禁止同步阻塞调用**：`async` 函数体内不得直接调用同步 SQLite（`db.connect()`/`retry_on_locked`）、`time.sleep`、`subprocess.run`、同步网络库——一律 `asyncio.to_thread` 卸载或用 `a` 前缀异步变体。同步 SQLite 只允许在守护线程 / CLI / 测试上下文使用。曾因此造成跨进程 5 分钟级 "database is locked" 死锁。护栏：运行时 `ConversationDB.connect()`/`retry_on_locked()`/`init()` 会告警（`CLOUDRA_DB_SYNC_ON_LOOP=raise` 抛错、`=off` 关闭），`tests/test_no_sync_on_loop.py` 静态扫描常驻。
 - **执行面可靠性铁律**：调度器/guard 任何路径不得 kill 计算进程（取消只走用户/agent 显式 `cancel_requested` → Slurm scancel 既有路径）；进程存活判定一律 `infra/flocks.py` 的 flock 探测，禁止 PID/`ps`//proc 文本判定；核心链路禁止解析计算输入文件（资源量来自 agent 提交时显式申请）。
 - 不引入项目未依赖的库；可选能力走 `pyproject.toml` 的 extras（chem/browser/pdf/visual/dev，`all` 聚合全部）。

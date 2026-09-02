@@ -104,8 +104,7 @@
     },
     "self_consistency": {
       "ts_first_order_saddle": true,
-      "irc_connects_endpoints": true,
-      "min_abs_imag_freq_cm1": 100.0
+      "irc_connects_endpoints": true
     },
     "graph_similarity": {
       "algorithm": "chemical_parameterized_ged",
