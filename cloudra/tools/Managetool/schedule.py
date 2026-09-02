@@ -31,7 +31,36 @@ class ScheduleInput(input_schema):
     delay_seconds: Optional[float] = Field(
         default=None,
         ge=0,
-        description="Wake this many seconds from now. Mutually exclusive with wake_at.",
+        description=(
+            "Wake this many seconds from now. Mutually exclusive with wake_at. "
+            "With check_command this is the timeout (same as timeout_seconds)."
+        ),
+    )
+    timeout_seconds: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Required with check_command unless wake_at or delay_seconds is set: "
+            "give up and wake this many seconds from now if the check never exits 0."
+        ),
+    )
+    check_command: Optional[str] = Field(
+        default=None,
+        description=(
+            "Read-only shell check polled until it exits 0, then the agent wakes. "
+            "Must be paired with interval_seconds and a timeout (timeout_seconds, "
+            "delay_seconds, or wake_at). Bake paths, pids, and job ids into the "
+            "string. Allowed: test/grep/ps/squeue/ssh/curl (GET/HEAD) and similar "
+            "read-only commands; no writes, no $(), no interactive ssh."
+        ),
+    )
+    interval_seconds: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description=(
+            "With check_command: seconds between polls (minimum 5). "
+            "The first check runs immediately."
+        ),
     )
     schedule_id: Optional[int] = Field(
         default=None,
@@ -52,8 +81,10 @@ class Schedule(Tool):
     tool_name: str = "schedule"
     tool_description: str = (
         "Have the current Agent wake itself later with a given reminder — for monitoring background compute or rechecking status. "
+        "Time-only: wake_at or delay_seconds. Event-driven: check_command (read-only shell, exit 0 = ready) "
+        "plus interval_seconds plus a timeout (timeout_seconds / delay_seconds / wake_at); whichever comes first wakes you. "
         "While a reminder exists, the current task stays waiting in the background; after waking you can set the next reminder from the new state. "
-        "message is a memo to yourself: on wake only it and the then-current runtime state are available, "
+        "message is a memo to yourself: on wake only it, the wake reason (check_succeeded or check_timeout), and the then-current runtime state are available, "
         "so spell out what to check, the done criteria, and the next action. "
         "Use list to see all unfired reminders, and cancel with schedule_id to drop stale or superseded ones. "
         "Multiple create reminders all fire independently; they do not overwrite each other."

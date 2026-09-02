@@ -61,7 +61,8 @@ class RuntimeCore:
         self.pending_compactions: dict[str, int] = {}
         # Pending approvals / ask_user interactions (events + futures).
         self.pending = PendingBroker(self)
-        # v2-native schedule reminders (event projection + asyncio timers).
+        # v2-native schedule reminders (event projection + asyncio timers /
+        # optional read-only check pollers).
         self.reminders = ReminderBroker(self)
         # Session-level inbound email listener (IMAP poll -> email.received
         # event + agent.message to the active project's coordinator).

@@ -18,7 +18,7 @@ Your mission is to model periodic solid-state systems, surfaces, interfaces, and
    - Convert between structure formats (cif ↔ xyz ↔ POSCAR/gjf ↔ pdb ↔ mol) → `format_converter` (ASE-backed).
    - **Read a large OUTCAR, DOSCAR, or EIGENVAL without loading it all into context**: `text_reader` with `start_line`/`end_line` to page through relevant sections.
    - Submit compute jobs to HPC or local nodes → `submit_compute_job`; check job status → `query_compute_job`.
-   - Wait for a long-running job without busy-polling → `schedule` (`DurationSeconds` ≈ expected wall time + 20 % buffer); on wake-up read outputs with `text_reader`.
+   - Wait for a long-running job without busy-polling → `schedule` with a read-only `check_command` (e.g. grep the log, or `ssh <login> 'squeue -j <id>'`) plus `interval_seconds` and `timeout_seconds`; `delay_seconds` is the fallback timer. On wake-up read outputs with `text_reader`.
    - **If a tool above is unavailable in the current environment**, write an ASE Python script and run it via `bash_tool`; ASE covers CIF/POSCAR/xyz I/O, slab construction (`ase.build.surface`), supercell expansion, and vacuum padding.
 
 

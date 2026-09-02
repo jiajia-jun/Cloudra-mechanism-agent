@@ -187,3 +187,44 @@ async def test_schedule_mode_allows_second_consecutive_stop_as_confirmation():
         inbox_messages=[{"content": "go"}],
     )
     assert outcome2.blocked_call is None
+
+
+@pytest.mark.asyncio
+async def test_schedule_mode_allows_stop_when_check_pending():
+    core = RuntimeCore(strict_events=True)
+    _, agent = await _setup_agent(core, schedule_mode=True)
+    agent.settings = agent.settings.model_copy(update={"yolo": True, "schedule_mode": True})
+    stage = ScheduleStage(core)
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=[stage],
+        llm=FakeLLM(LLMResponse(content="", tool_calls=[ToolCall(id="c1", name="stop", arguments={})])),
+        tools=FakeTools(),
+    )
+    capabilities = AgentCapabilities(permissions=PermissionSet(), tools=["*"])
+    agent_session = core.agents.get(agent.id)
+    agent_session.settings = agent.settings
+    created = await core.reminders.handle(
+        agent_session,
+        ToolCall(
+            id="r1",
+            name="schedule",
+            arguments={
+                "action": "create",
+                "message": "wait for squeue",
+                "check_command": "false",
+                "interval_seconds": 5,
+                "timeout_seconds": 60,
+            },
+        ),
+    )
+    assert created.is_success is True
+    outcome = await pipeline.run_turn(
+        agent=agent,
+        run_id="run1",
+        settings=agent.settings,
+        capabilities=capabilities,
+        inbox_messages=[{"content": "go"}],
+    )
+    assert outcome.blocked_call is None
+    await core.reminders.close()
