@@ -60,20 +60,69 @@ def _log_tail_reason(log_path: Path) -> str:
     return " | ".join(unique)[:_REASON_MAX_CHARS]
 
 
-async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian"):
+def _resolve_log_target(log_path: Path, fallback_log_path: Path | None) -> tuple[Path | None, bool]:
+    """挑选实际解析目标：(target, used_fallback)。
+
+    推导日志（引擎惯例路径，如 ``x.out``）有效则用之；缺失/为空时若
+    calculator 的 stdout/stderr 落盘文件（``fallback_log_path``）有内容，
+    回退解析它——部分引擎（如本机 ORCA 6.1.1 macOS 构建）从不落 ``.out``，
+    主输出全部写 stdout。两处皆不可用时返回 (None, False)。
+    """
+    if log_path.exists() and log_path.stat().st_size > 0:
+        return log_path, False
+    if (
+        fallback_log_path is not None
+        and fallback_log_path.exists()
+        and fallback_log_path.stat().st_size > 0
+    ):
+        print(
+            f"推导日志不存在或为空：{log_path}；"
+            f"回退解析 calculator 输出落盘：{fallback_log_path}"
+        )
+        return fallback_log_path, True
+    print(f'日志文件不存在或为空：{log_path}')
+    return None, False
+
+
+async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian", fallback_log_path: Path | None = None):
     """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示失败。
 
     Guard 在 calculator 已退出后才调用本函数，日志应已写完；``parse_timeout``
     仅保留 CLI 兼容，实际只做少量短间隔重试（应对文件系统延迟），不会空转半小时。
+
+    ``fallback_log_path`` 是 calculator 的 stdout/stderr 落盘文件：部分引擎
+    不自写日志文件（如本机 ORCA 6.1.1 macOS 构建把主输出全部写 stdout、从不落
+    ``.out``），推导的日志路径会缺失/为空——此时回退解析落盘文件，避免正常
+    完成的作业被误判为"日志为空或缺失"。实际解析的日志路径会写进
+    ``data_dic["log_file"]``（agent 按惯例路径找不到日志时，从 state json 取它）。
     """
-    if not log_path.exists() or log_path.stat().st_size == 0:
-        print(f'日志文件不存在或为空：{log_path}')
+    target, _ = _resolve_log_target(log_path, fallback_log_path)
+    if target is None:
         return None, None
 
     if job_type == "cp2k":
         # cclib 1.8.x 已移除 CP2K 解析器，这里用轻量文本解析兜底。
-        return _parse_cp2k_log(log_path)
+        data_dic, is_success = _parse_cp2k_log(target)
+        if data_dic is not None:
+            data_dic["log_file"] = str(target)
+        return data_dic, is_success
 
+    if job_type == "orca":
+        return await _parse_orca_log(target)
+
+    parsed = await _cclib_parse(target)
+    if parsed is None:
+        return None, None
+    return parsed
+
+
+async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:
+    """cclib 数据提取（短间隔重试，应对文件系统延迟）。
+
+    返回 ``(data_dic, cclib_success)``；日志无法识别、必需字段缺失或转换失败
+    返回 None。``cclib_success`` 只是 cclib 的自报 metadata.success，是否采信
+    由调用方按引擎决定（ORCA 不采信，见 :func:`_parse_orca_log`）。
+    """
     import cclib
 
     max_attempts = 5
@@ -81,17 +130,17 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
     last_error = None
     for attempt in range(max_attempts):
         try:
-            data = cclib.io.ccread(log_path)
+            data = cclib.io.ccread(target)
             if data is None:
-                print(f'cclib 无法识别日志格式：{log_path}')
-                return None, None
+                print(f'cclib 无法识别日志格式：{target}')
+                return None
             # cclib 1.8+ 会容忍缺坐标/原子序数的日志并继续返回对象，但 ccwrite
             # 会抛 'Must pass at least one of atomcoords or atomnos'；旧版 cclib
             # 在 ccread 阶段就抛 AttributeError。统一在解析后做必需字段检查，
             # 避免 CI/本地版本差异导致的行为分歧。
             if not hasattr(data, 'atomcoords') or not hasattr(data, 'atomnos'):
-                print(f'日志缺少原子坐标或原子序数，视为不完整：{log_path}')
-                return None, None
+                print(f'日志缺少原子坐标或原子序数，视为不完整：{target}')
+                return None
             is_success = data.metadata.get('success', False)
             try:
                 state_str = cclib.io.ccwrite(data, outputtype="cjson")
@@ -99,9 +148,10 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
                 data_dic = state_CJSON.parse()
             except Exception as e:
                 print(f'日志解析后转换失败：{e}')
-                return None, None
+                return None
             data_dic.pop('atomcoords', None)
             data_dic['is_success'] = is_success
+            data_dic['log_file'] = str(target)
             return data_dic, is_success
         except Exception as e:
             last_error = e
@@ -109,7 +159,42 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
                 break
             await asyncio.sleep(retry_sleep)
     print(f'日志解析失败：{last_error}')
-    return None, None
+    return None
+
+
+async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
+    """ORCA 日志解析：终止标记定成败，cclib 只负责提取数据字段。
+
+    成功判据是日志中出现 ``ORCA TERMINATED NORMALLY``（引擎自报正常结束）；
+    标记缺失（error termination、被 kill、崩溃截断）即 failed。cclib 解析失败
+    不等于任务失败：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，cclib 常抛
+    "Unexpectedly encountered end of logfile" 或缺 spin multiplicity
+    （GH #17/#18：正常终止的 MACE NumFreq/IRC 作业被误判 failed）。cclib
+    失败时退化为文本提取的最小数据（最终能量 + is_success + log_file）。
+    终止/能量的文本权威判据与 log_parser 共用 tools.core.orca_frames。
+    """
+    from cloudra.tools.core import orca_frames
+
+    try:
+        text = target.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        print(f'读取 ORCA 日志失败：{e}')
+        return {"is_success": False, "log_file": str(target)}, False
+    is_success = orca_frames.normal_termination(text)
+
+    parsed = await _cclib_parse(target)
+    if parsed is not None:
+        data_dic, _ = parsed
+    else:
+        # 最小数据：cclib 不可用时至少给出最终能量（外部 MLIP 的唯一能量行）
+        data_dic = {"log_file": str(target)}
+        energy = orca_frames.final_energy_hartree(text)
+        if energy is not None:
+            data_dic["total_energy_hartree"] = energy
+            data_dic["scf_energy_hartree"] = energy
+            data_dic["scf_energy_ev"] = energy * 27.211386245988
+    data_dic["is_success"] = is_success
+    return data_dic, is_success
 
 
 def _parse_cp2k_log(log_path: Path) -> tuple[dict, bool] | None:
@@ -162,6 +247,17 @@ async def _register_pid(db: ComputeDB, taskid: int, column: str, pid: int):
         print(f'[guard] 登记 {column} 失败（已忽略）: {e}')
 
 
+def _calc_output_log_path(workdir: str, taskid: int) -> Path:
+    """calculator 的 stdout/stderr 落盘路径（.cloudra/calc-<id>.out.log）。
+
+    引擎未必自写日志文件（如本机 ORCA 6.1.1 macOS 构建把主输出全部写 stdout、
+    从不落 .out），guard 必须保留其输出才能解析；同时 stderr 有了失败取证。
+    """
+    run_dir = Path(workdir) / ".cloudra"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir / f"calc-{taskid}.out.log"
+
+
 async def _finalize(
     db: ComputeDB,
     taskid: int,
@@ -170,15 +266,20 @@ async def _finalize(
     parse_timeout: int,
     job_type: str,
     returncode: int | None,
+    fallback_log_path: Path | None = None,
 ):
     """calculator 退出后的统一收尾：解析日志 → 写 state json → CAS 落库 → 入箱。
 
     终态通知由 API 进程的 ComputeNotifyBroker 轮询 compute_jobs 表补投，
     guard 不再发进程间事件。
     """
-    data_dic, is_success = await _parse_log(log_path, parse_timeout, job_type=job_type)
+    data_dic, is_success = await _parse_log(
+        log_path, parse_timeout, job_type=job_type, fallback_log_path=fallback_log_path
+    )
     if data_dic is None:
-        reason = _log_tail_reason(log_path)
+        # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
+        target, _ = _resolve_log_target(log_path, fallback_log_path)
+        reason = _log_tail_reason(target) if target is not None else ""
         await _mark_failed(
             db,
             taskid,
@@ -191,9 +292,12 @@ async def _finalize(
     state = 'done' if is_success else 'failed'
     fail_reason = ""
     if state == 'failed':
+        # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
+        target, _ = _resolve_log_target(log_path, fallback_log_path)
+        tail = _log_tail_reason(target) if target is not None else ""
         fail_reason = (
             f"calculator 退出码 {returncode}；" if returncode else ""
-        ) + (_log_tail_reason(log_path) or "未在日志尾部找到明确错误段")
+        ) + (tail or "未在日志尾部找到明确错误段")
         data_dic["error"] = fail_reason
 
     json_nm = f'state_{taskid}.json'
@@ -286,9 +390,19 @@ async def run_guard(
             "--",
             *calculator_cmd,
         ]
+        # calculator stdout/stderr 落盘而非 DEVNULL：引擎未必自写日志文件
+        # （本机 ORCA 6.1.1 macOS 构建把主输出全部写 stdout、从不落 .out），
+        # 丢弃即丢主输出；落盘同时保留 stderr 供失败取证。
+        # O_TRUNC：同一 task 重试时新 guard 必须从头写，避免新旧输出混叠
+        # （cclib 读到多个 TERMINATION 标记会解析混乱）。
+        calc_log_fd = os.open(
+            _calc_output_log_path(workdir, taskid),
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            0o644,
+        )
         calc_kwargs = {
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
+            "stdout": calc_log_fd,
+            "stderr": calc_log_fd,
             "stdin": subprocess.DEVNULL,
             "cwd": workdir,
             "env": calc_env,
@@ -304,10 +418,20 @@ async def run_guard(
             returncode = await calc_proc.wait()
             print(f'[guard] calculator 退出，退出码：{returncode}')
         finally:
+            os.close(calc_log_fd)
             # 必须在 g16 退出后再清；运行中删除会制造 FileIO / 假“输入被删”。
             cleanup_gaussian_scratch(scratch_dir)
 
-        await _finalize(db, taskid, log_path, workdir, parse_timeout, job_type, returncode)
+        await _finalize(
+            db,
+            taskid,
+            log_path,
+            workdir,
+            parse_timeout,
+            job_type,
+            returncode,
+            fallback_log_path=_calc_output_log_path(workdir, taskid),
+        )
     finally:
         os.close(guard_fd)
 
@@ -345,7 +469,16 @@ async def run_adopt(
                 break
             print(f'[guard adopt] calc 锁仍被持有，calculator 还在跑；{_ADOPT_POLL_SECONDS}s 后再探...')
             await asyncio.sleep(_ADOPT_POLL_SECONDS)
-        await _finalize(db, taskid, log_path, workdir, parse_timeout, job_type, None)
+        await _finalize(
+            db,
+            taskid,
+            log_path,
+            workdir,
+            parse_timeout,
+            job_type,
+            None,
+            fallback_log_path=_calc_output_log_path(workdir, taskid),
+        )
     finally:
         os.close(guard_fd)
 

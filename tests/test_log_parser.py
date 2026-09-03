@@ -92,3 +92,75 @@ async def test_orca_opt_without_freq_does_not_fake_zero_imaginary():
     # 无频率数据时必须保持 None（不得被 DAG 侧当成零虚频极小点）
     assert result.frequencies_cm is None
     assert result.imaginary_frequencies is None
+
+
+ORCA_EXTOPT_FIXTURE = Path(__file__).parent / "fixtures" / "orca" / "cope_irc_extopt_mace_orca611.out"
+
+
+@pytest.mark.asyncio
+async def test_orca_extopt_energy_and_termination_from_text_when_cclib_fails(monkeypatch):
+    """GH #17：外部 MLIP（ExtOpt）日志无 SCF 块，cclib 解析抛错——能量回退取
+    FINAL SINGLE POINT ENERGY (From external program)，终止判定认
+    ORCA TERMINATED NORMALLY 文本标记，整体解析仍成功。"""
+    import cclib
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("Unexpectedly encountered end of logfile")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(
+            log_path=str(ORCA_EXTOPT_FIXTURE), properties=["energy", "convergence"]
+        ),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.engine == "orca"
+    assert result.normal_termination is True
+    assert result.scf_energy_hartree == pytest.approx(-234.506295105500)
+
+
+@pytest.mark.asyncio
+async def test_orca_normal_termination_marker_overrides_cclib_metadata(monkeypatch):
+    """GH #17 job17：cclib 可解析但 metadata.success=False（MLIP 日志无 SCF
+    完成标记）——ORCA 的终止判定以文本标记为权威，不采信 cclib metadata。"""
+    import types
+
+    import cclib
+
+    stub = types.SimpleNamespace(metadata={"success": False})
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: stub)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(
+            log_path=str(ORCA_EXTOPT_FIXTURE), properties=["convergence", "energy"]
+        ),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.normal_termination is True
+    assert result.scf_energy_hartree == pytest.approx(-234.506295105500)
+
+
+@pytest.mark.asyncio
+async def test_orca_extopt_abnormal_termination_reported_false(tmp_path, monkeypatch):
+    """终止标记缺失（error termination / 被 kill）→ normal_termination=False；
+    日志里有能量行也不反推成功。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(
+        "                         * O   R   C   A *\n"
+        "FINAL SINGLE POINT ENERGY (From external program)     -234.500000000000\n"
+        "ORCA finished by error termination in ORCA_GSTEP\n",
+        encoding="utf-8",
+    )
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["convergence", "energy"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.normal_termination is False
+    assert result.scf_energy_hartree == pytest.approx(-234.5)

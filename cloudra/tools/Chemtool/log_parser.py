@@ -191,12 +191,27 @@ class LogParser(Tool):
             )
 
         try:
-            # 2. 使用 cclib 解析日志（重依赖惰性导入，避免拖慢工具模块加载）
+            # 2. 引擎嗅探先于 cclib：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，
+            # cclib 常整体解析失败或 metadata.success 失真——ORCA 路径把 cclib
+            # 降级为可选数据源，能量/终止判定退回文本权威提取（GH #17）。
+            from cloudra.tools.core import orca_frames
+            from cloudra.tools.core.qm_engine import detect_qm_engine
+
+            engine = detect_qm_engine(log_path)
+
             import cclib
             import numpy as np
 
-            data = cclib.io.ccread(log_path)
-            if data is None:
+            data = None
+            cclib_error: Exception | None = None
+            try:
+                data = cclib.io.ccread(log_path)
+            except Exception as e:
+                cclib_error = e
+
+            if data is None and engine != "orca":
+                if cclib_error is not None:
+                    raise cclib_error
                 return LogParser_output_schema(
                     is_success=False,
                     message=f"cclib could not parse any data from: {log_path}. "
@@ -204,22 +219,34 @@ class LogParser(Tool):
                             "if the job failed, inspect the log tail to find the cause."
                 )
 
-            # 引擎嗅探：热化学/任务类型/IRC 的文本解析按引擎分派
-            from cloudra.tools.core import orca_frames
-            from cloudra.tools.core.qm_engine import detect_qm_engine
-
-            engine = detect_qm_engine(log_path)
+            # ORCA 文本只读一次：终止判定与外部能量回退共用
+            orca_text: str | None = None
+            if engine == "orca":
+                with open(log_path, encoding="utf-8", errors="replace") as handle:
+                    orca_text = handle.read()
 
             requested = self._resolve_requested_fields(user_input.properties)
             result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully.", "engine": engine}
+            if data is None:
+                result["message"] = (
+                    "cclib could not parse the log (external-MLIP/ExtOpt logs have no SCF blocks); "
+                    "fell back to text extraction for energy/termination/job-type/IRC fields."
+                )
 
             # 3. 根据请求填充字段
             if "scf_energy_hartree" in requested or "scf_energy_ev" in requested:
-                if hasattr(data, "scfenergies") and data.scfenergies is not None and len(data.scfenergies) > 0:
+                if data is not None and hasattr(data, "scfenergies") and data.scfenergies is not None and len(data.scfenergies) > 0:
                     # cclib 的 scfenergies 单位为 eV
                     ev = float(data.scfenergies[-1])
                     result["scf_energy_ev"] = ev
                     result["scf_energy_hartree"] = ev / 27.211386245988
+                elif orca_text is not None:
+                    # 外部 MLIP 日志无 SCF 能量段，唯一能量行是
+                    # FINAL SINGLE POINT ENERGY (From external program)
+                    e_hartree = orca_frames.final_energy_hartree(orca_text)
+                    if e_hartree is not None:
+                        result["scf_energy_hartree"] = e_hartree
+                        result["scf_energy_ev"] = e_hartree * 27.211386245988
 
             if {"homo_ev", "lumo_ev", "homo_lumo_gap_ev"} & requested:
                 if (
@@ -297,7 +324,11 @@ class LogParser(Tool):
                         }
 
             if "normal_termination" in requested:
-                if hasattr(data, "metadata") and data.metadata is not None:
+                if engine == "orca":
+                    # 文本标记权威：cclib metadata 对无 SCF 块的外部 MLIP 日志
+                    # 不可靠（GH #17 job17：正常终止却报 success=False）
+                    result["normal_termination"] = orca_frames.normal_termination(orca_text or "")
+                elif hasattr(data, "metadata") and data.metadata is not None:
                     result["normal_termination"] = bool(data.metadata.get("success", False))
                 elif hasattr(data, "optdone"):
                     result["normal_termination"] = bool(data.optdone)

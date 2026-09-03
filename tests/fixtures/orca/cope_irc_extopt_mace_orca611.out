@@ -1,0 +1,72 @@
+
+                                 ***************************
+                                 *  O   R   C   A  6.1.1   *
+                                 *       www.cec.mpg.de    *
+                                 ***************************
+
+Your ORCA version: 6.1.1
+
+================================================================================
+                                        WARNINGS
+                       Please study these warnings very carefully!
+================================================================================
+
+INFO: the flag for usage of PNO has been reset!
+
+Reading input:  ts_irc.inp
+
+! ExtOpt IRC
+
+%method
+   ProgExt "/Users/cloudrayyy/miniconda3/envs/chemai/bin/mace"
+   Ext_Params "/Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model"
+end
+
+* xyz 0 1
+ C    0.000000    0.000000    0.000000
+ C    1.400000    0.000000    0.000000
+ C    2.100000    1.210000    0.000000
+ C    2.100000   -1.210000    0.000000
+ C    1.400000    2.420000    0.000000
+ C    0.000000    2.420000    0.000000
+ H   -0.540000   -0.890000    0.000000
+ H   -0.540000    3.310000    0.000000
+ H    2.640000    1.210000    0.890000
+ H    2.640000   -1.210000   -0.890000
+*
+
+================================================================================
+                       EXTERNAL PROGRAM ENERGY/GRADIENT
+================================================================================
+
+Calling external program: /Users/cloudrayyy/miniconda3/envs/chemai/bin/mace
+External energy and gradient     ...      207.205 sec   87.3 %
+
+-------------------------
+FINAL SINGLE POINT ENERGY (From external program)     -234.506295105500
+-------------------------
+
+================================================================================
+                            IRC PATH SUMMARY
+================================================================================
+
+  Step      E(path)    Length    r(C1) ... r(C6)
+    73   -234.506295   0.000
+
+------------------------------------------------------------------------------
+                       FORWARD IRC THE IRC HAS CONVERGED
+------------------------------------------------------------------------------
+
+  Number of points:    69
+
+------------------------------------------------------------------------------
+                       BACKWARD IRC THE IRC HAS CONVERGED
+------------------------------------------------------------------------------
+
+  Number of points:    72
+
+External energy and gradient     ...      207.205 sec   87.3 %
+Timings for individual modules:
+Sum of individual times         ...      246.050 sec (=   4.101 min)
+                              ****ORCA TERMINATED NORMALLY****
+TOTAL RUN TIME: 0 days 0 hours 4 minutes 6 seconds 85 msec

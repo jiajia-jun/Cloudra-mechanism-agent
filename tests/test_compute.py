@@ -648,6 +648,313 @@ async def test_parse_log_fail_fast_on_incomplete_gaussian_log(tmp_path):
     assert elapsed < 10
 
 
+_CP2K_OK_LOG = (
+    " GLOBAL WALL CLOCK TIME (seconds): 1.2\n"
+    " PROGRAM ENDED IN CP2K\n"
+    "ENERGY| Total FORCE_EVAL energy [a.u.]            -76.433670\n"
+)
+_CP2K_FAIL_LOG = (
+    " PROGRAM ABORTED\n"
+    " PROGRAM FAILED IN CP2K\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_parse_log_falls_back_to_captured_stdout_when_derived_log_missing(tmp_path):
+    """引擎不自写日志文件（本机 ORCA 6.1.1 macOS 把主输出全写 stdout、从不落 .out）：
+    推导日志缺失时回退解析 calculator 的 stdout/stderr 落盘文件。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    derived = tmp_path / "job.out"
+    fallback = tmp_path / "calc-1.out.log"
+    fallback.write_text(_CP2K_OK_LOG, encoding="utf-8")
+
+    data, ok = await _parse_log(
+        derived, parse_timeout=60, job_type="cp2k", fallback_log_path=fallback
+    )
+    assert data is not None and ok is True
+    assert data["total_energy_hartree"] == pytest.approx(-76.433670)
+
+
+@pytest.mark.asyncio
+async def test_parse_log_fallback_used_when_derived_log_empty(tmp_path):
+    """推导日志为空（引擎没写）而落盘有内容时同样回退。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    derived = tmp_path / "job.out"
+    derived.write_text("", encoding="utf-8")
+    fallback = tmp_path / "calc-1.out.log"
+    fallback.write_text(_CP2K_OK_LOG, encoding="utf-8")
+
+    data, ok = await _parse_log(
+        derived, parse_timeout=60, job_type="cp2k", fallback_log_path=fallback
+    )
+    assert data is not None and ok is True
+
+
+@pytest.mark.asyncio
+async def test_parse_log_keeps_derived_log_when_present(tmp_path):
+    """自写日志的引擎（Gaussian 等）：推导日志存在时不用落盘回退。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    derived = tmp_path / "job.out"
+    derived.write_text(_CP2K_OK_LOG, encoding="utf-8")
+    fallback = tmp_path / "calc-1.out.log"
+    fallback.write_text(_CP2K_FAIL_LOG, encoding="utf-8")
+
+    data, ok = await _parse_log(
+        derived, parse_timeout=60, job_type="cp2k", fallback_log_path=fallback
+    )
+    assert data is not None and ok is True
+
+
+@pytest.mark.asyncio
+async def test_parse_log_fallback_reports_failure_from_capture(tmp_path):
+    """落盘内容带失败标记（ABORT/FAILED）：回退解析仍如实报 failed。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    derived = tmp_path / "job.out"
+    fallback = tmp_path / "calc-1.out.log"
+    fallback.write_text(_CP2K_FAIL_LOG, encoding="utf-8")
+
+    data, ok = await _parse_log(
+        derived, parse_timeout=60, job_type="cp2k", fallback_log_path=fallback
+    )
+    assert data is not None and ok is False
+
+
+_ORCA_FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orca"
+_ORCA_EXTOPT_IRC_LOG = _ORCA_FIXTURE_DIR / "cope_irc_extopt_mace_orca611.out"
+
+
+@pytest.mark.skipif(
+    not __import__("cloudra.infra.platform_utils", fromlist=["is_posix"]).is_posix(),
+    reason="calculator.sh 需要 POSIX bash",
+)
+def test_calculator_sh_resolves_orca_symlink_and_exposes_helpers(tmp_path):
+    """GH #15：PATH 上的 orca 是符号链接（conda 风格）时，calculator.sh 必须解析
+    到真实安装路径调用（并行 ORCA 要求 full pathname，exit 126），并把真实目录
+    prepend 到 PATH 让 orca_util 等 helpers 可见。"""
+    from cloudra.infra.compute_utils import _default_calculator_path
+    from cloudra.infra.platform_utils import get_bash_path
+
+    # 真实 ORCA 安装目录：orca + helper，均不在 PATH 上
+    install = tmp_path / "orca_6_1_1"
+    install.mkdir()
+    orca_util = install / "orca_util"
+    orca_util.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+    orca_util.chmod(0o755)
+    orca_real = install / "orca"
+    orca_real.write_text(
+        "#!/bin/bash\n"
+        'case "$0" in /*) ;; *) echo "orca not invoked with full pathname: $0" >&2; exit 126;; esac\n'
+        'command -v orca_util >/dev/null 2>&1 || { echo "sh: orca_util: command not found" >&2; exit 127; }\n'
+        'echo "FAKE ORCA RUN: $1"\n',
+        encoding="utf-8",
+    )
+    orca_real.chmod(0o755)
+
+    # conda 风格 bin 目录：只有 orca 符号链接，无 helpers
+    bindir = tmp_path / "conda_bin"
+    bindir.mkdir()
+    (bindir / "orca").symlink_to(orca_real)
+
+    workdir = tmp_path / "job"
+    workdir.mkdir()
+    inp = workdir / "job.inp"
+    inp.write_text("! ExtOpt Opt\n* xyz 0 1\n*\n", encoding="utf-8")
+
+    env = dict(os.environ)
+    env["PATH"] = f"{bindir}:/usr/bin:/bin"
+    result = subprocess.run(
+        [get_bash_path(), _default_calculator_path(), str(inp), "orca"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=workdir,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "FAKE ORCA RUN" in result.stdout
+
+
+@pytest.mark.asyncio
+async def test_parse_orca_log_extopt_done_even_when_cclib_fails(monkeypatch):
+    """GH #17/#18：外部 MLIP（ExtOpt）日志无 SCF 块，cclib 解析抛错（ccdata 缺
+    spin multiplicity / Unexpectedly encountered end of logfile），但日志以
+    ORCA TERMINATED NORMALLY 结束——终止标记是终态权威、cclib 只取数据，
+    任务必须落 done，且文本提取到外部能量。"""
+    import cclib
+
+    from cloudra.runtime.monitor import _parse_log
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("ccdata object does not have spin multiplicity")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+
+    data, ok = await _parse_log(_ORCA_EXTOPT_IRC_LOG, parse_timeout=60, job_type="orca")
+    assert data is not None and ok is True
+    assert data["is_success"] is True
+    assert data["total_energy_hartree"] == pytest.approx(-234.506295105500)
+
+
+@pytest.mark.asyncio
+async def test_parse_orca_log_failed_without_normal_termination(tmp_path):
+    """正常终止标记缺失（error termination / 被 kill）即 failed——即使日志里
+    有能量行也不能靠数据反推成功。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    log = tmp_path / "job.out"
+    log.write_text(
+        "FINAL SINGLE POINT ENERGY (From external program)     -234.500000000000\n"
+        "ORCA finished by error termination in ORCA_GSTEP\n",
+        encoding="utf-8",
+    )
+    data, ok = await _parse_log(log, parse_timeout=60, job_type="orca")
+    assert ok is False
+    assert data["is_success"] is False
+
+
+@pytest.mark.asyncio
+async def test_parse_orca_log_keeps_cclib_data_when_parseable():
+    """普通 DFT ORCA 日志：cclib 可解析时仍用 cclib 数据（不丢字段），
+    终态同样由终止标记决定。"""
+    from cloudra.runtime.monitor import _parse_log
+
+    data, ok = await _parse_log(
+        _ORCA_FIXTURE_DIR / "co2_freq_orca42.out", parse_timeout=60, job_type="orca"
+    )
+    assert ok is True
+    assert data["is_success"] is True
+    assert "vibfreqs" in data or "properties" in data
+
+
+@pytest.mark.asyncio
+async def test_guard_marks_done_for_extopt_orca_stdout_only(
+    isolated_db, monkeypatch, tmp_path
+):
+    """GH #18 端到端：macOS ORCA 不落 .out（主输出全在 stdout 落盘）且 ExtOpt
+    日志 cclib 无法解析——guard 回退解析落盘输出、按终止标记落 done。"""
+    import sys
+
+    import cclib
+
+    import cloudra.runtime.monitor as monitor
+    from cloudra.persistence.database import ComputeDB
+
+    workdir = tmp_path / "calc_task"
+    workdir.mkdir()
+    inp = workdir / "ts_irc.inp"
+    inp.write_text("! ExtOpt IRC\n* xyz 0 1\n*\n", encoding="utf-8")
+    db_path = os.path.join(isolated_db, "compute.db")
+
+    ComputeDB(isolated_db).init()
+    async with ComputeDB(isolated_db).aconnect() as con:
+        cur = await con.execute(
+            "INSERT INTO compute_jobs (conversation_id, session_id, path, state, start_timestamp) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("test_conv", "s1", str(inp), "running", 1.0),
+        )
+        await con.commit()
+        task_id = cur.lastrowid
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("Unexpectedly encountered end of logfile")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+    monkeypatch.setattr(monitor, "check_job_type", lambda _jt, _wd: (True, ""))
+    stdout_code = (
+        "import sys; sys.stdout.write("
+        f"open({str(_ORCA_EXTOPT_IRC_LOG)!r}).read())"
+    )
+    monkeypatch.setattr(
+        monitor,
+        "build_calculator_cmd",
+        lambda input_file, job_type: (True, [sys.executable, "-c", stdout_code], ""),
+    )
+
+    await monitor.run_guard(
+        task_id, str(inp), "test_conv", parse_timeout=60, db_path=db_path, job_type="orca"
+    )
+
+    async with ComputeDB(isolated_db).aconnect() as con:
+        row = await (await con.execute(
+            "SELECT state FROM compute_jobs WHERE id=?", (task_id,)
+        )).fetchone()
+    assert row[0] == "done"
+
+    state_json = workdir / f"state_{task_id}.json"
+    assert state_json.exists()
+    import json as _json
+
+    payload = _json.loads(state_json.read_text(encoding="utf-8"))
+    assert payload["is_success"] is True
+    assert payload["total_energy_hartree"] == pytest.approx(-234.506295105500)
+
+
+@pytest.mark.asyncio
+async def test_guard_marks_done_via_captured_stdout_for_stdout_only_engine(
+    isolated_db, monkeypatch, tmp_path
+):
+    """stdout-only 引擎（orca macOS 行为）端到端：guard 落盘 calculator 输出、
+    推导 .out 缺失时回退解析 → 正常完成的作业落 done，不再误判失败。"""
+    import sys
+
+    import cloudra.runtime.monitor as monitor
+
+    workdir = tmp_path / "calc_task"
+    workdir.mkdir()
+    inp = workdir / "job.inp"
+    inp.write_text("dummy input", encoding="utf-8")
+    db_path = os.path.join(isolated_db, "compute.db")
+
+    from cloudra.persistence.database import ComputeDB
+
+    ComputeDB(isolated_db).init()
+    async with ComputeDB(isolated_db).aconnect() as con:
+        cur = await con.execute(
+            "INSERT INTO compute_jobs (conversation_id, session_id, path, state, start_timestamp) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("test_conv", "s1", str(inp), "running", 1.0),
+        )
+        await con.commit()
+        task_id = cur.lastrowid
+
+    def _fake_check(job_type, workdir):
+        return True, ""
+
+    stdout_code = (
+        "import sys; sys.stdout.write("
+        "'GLOBAL WALL CLOCK TIME (seconds): 1.2\\nPROGRAM ENDED IN CP2K\\n"
+        "ENERGY| Total FORCE_EVAL energy [a.u.]            -76.433670\\n')"
+    )
+    monkeypatch.setattr(monitor, "check_job_type", _fake_check)
+    monkeypatch.setattr(
+        monitor,
+        "build_calculator_cmd",
+        lambda input_file, job_type: (True, [sys.executable, "-c", stdout_code], ""),
+    )
+
+    await monitor.run_guard(
+        task_id, str(inp), "test_conv", parse_timeout=60, db_path=db_path, job_type="cp2k"
+    )
+
+    async with ComputeDB(isolated_db).aconnect() as con:
+        row = await (await con.execute(
+            "SELECT state FROM compute_jobs WHERE id=?", (task_id,)
+        )).fetchone()
+    assert row[0] == "done"
+
+    capture = workdir / ".cloudra" / f"calc-{task_id}.out.log"
+    assert capture.exists() and capture.stat().st_size > 0
+    state_json = workdir / f"state_{task_id}.json"
+    assert state_json.exists()
+    import json as _json
+
+    payload = _json.loads(state_json.read_text(encoding="utf-8"))
+    assert payload["is_success"] is True
+
+
 def test_log_tail_reason_extracts_gaussian_error(tmp_path):
     """失败原因提取：Gaussian Error termination 段（带上下文行）。"""
     from cloudra.runtime.monitor import _log_tail_reason

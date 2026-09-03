@@ -75,6 +75,8 @@ fort.*
 # 测试用的真实 Gaussian 输出样本仍需入库
 !tests/fixtures/gaussian/*.log
 !tests/fixtures/gaussian/*.out
+# ORCA 日志样本同理
+!tests/fixtures/orca/*.out
 
 # 测试泄漏的 mock 数据目录
 MagicMock/

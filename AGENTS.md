@@ -26,7 +26,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 - `agent.py` — `Agent`/`Coordinator`/`Follower` 基类与权限模型宿主（v2 会话不经过这里的执行方法）。
 - `supervisor.py` — 科学督导，只在 `dag_guided` 模式运行：接受/驳回机理草稿、复核 CallReview 绑阶段；对 delivery 图只读。报告由 `DagController._deliver_supervisor_report` 回投 Coordinator。
 - `dag/` — DAG 引导编排子系统（包根一级），见下节。
-- `runtime/` 只剩共享件：`prompt_assembler.py`（确定性 system prompt 组装，读 `prompts/*.md` 按签名缓存；AGENTS.md 仅注入 Coordinator）、`environment_observer.py`、`monitor.py`（guard 进程：持 `guard-<id>.lock` 排他 flock → 经 `calc_lock_wrapper` 拉起 calculator（`calc-<id>.lock` 跨 exec 继承，nice +10 降权保控制面调度份额）→ 解析日志写终态 + state json；`--adopt` 对账接管模式：等 calc 锁释放后走同一收尾路径）、`compute_executor.py`（共享执行件 `run_compute`，认领方只有 `scheduler/` 守护进程与 benchmark 进程内实例）、`calc_lock_wrapper.py`（calc 锁 wrapper）。
+- `runtime/` 只剩共享件：`prompt_assembler.py`（确定性 system prompt 组装，读 `prompts/*.md` 按签名缓存；AGENTS.md 仅注入 Coordinator）、`environment_observer.py`、`monitor.py`（guard 进程：持 `guard-<id>.lock` 排他 flock → 经 `calc_lock_wrapper` 拉起 calculator（`calc-<id>.lock` 跨 exec 继承，nice +10 降权保控制面调度份额）→ 解析日志写终态 + state json——**终态判定按引擎分派：CP2K/ORCA 走文本终止标记（ORCA 认 `ORCA TERMINATED NORMALLY`，与 log_parser 共用 `tools/core/orca_frames.py` 原语），cclib 只取数据不定成败**（外部 MLIP/ExtOpt 日志无 SCF 块，cclib 失败不退化终态，GH #17/#18）；`--adopt` 对账接管模式：等 calc 锁释放后走同一收尾路径）、`compute_executor.py`（共享执行件 `run_compute`，认领方只有 `scheduler/` 守护进程与 benchmark 进程内实例）、`calc_lock_wrapper.py`（calc 锁 wrapper）。
 
 **`scheduler/` — 计算调度守护进程（进程隔离）**
 

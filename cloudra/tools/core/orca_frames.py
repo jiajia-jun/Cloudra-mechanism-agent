@@ -89,12 +89,38 @@ _ORCA_THERMO_PATTERNS = {
 }
 
 
-def _extract_electronic_energy(text: str) -> float | None:
-    """取最后一个 FINAL SINGLE POINT ENERGY（电子能，Eh）。"""
-    matches = re.findall(rf"FINAL SINGLE POINT ENERGY\s+{_FLOAT}", text)
-    if not matches:
-        return None
-    return float(matches[-1])
+# ---------------------------------------------------------------------------
+# 终止判定与最终能量（文本权威，不依赖 cclib）
+# ---------------------------------------------------------------------------
+
+# ORCA 正常终止标记：作业成败的文本权威判据。cclib 不感知外部 MLIP
+# （ExtOpt/ProgExt 日志无 SCF 块，ccdata 常缺 spin multiplicity），其
+# metadata.success 对这类日志不可靠——guard 与 log_parser 都以该标记为准
+# （GH #17/#18）。
+NORMAL_TERMINATION_MARKER = "ORCA TERMINATED NORMALLY"
+
+
+def normal_termination(text: str) -> bool:
+    """ORCA 日志文本是否含正常终止标记（引擎自报，不依赖 cclib）。"""
+    return NORMAL_TERMINATION_MARKER in text
+
+
+_FINAL_ENERGY_RE = re.compile(
+    rf"FINAL SINGLE POINT ENERGY(?:\s*\([^)]*\))?\s+{_FLOAT}"
+)
+
+
+def final_energy_hartree(text: str) -> float | None:
+    """取最后一次 FINAL SINGLE POINT ENERGY（Eh；含外部 MLIP 变体）。
+
+    外部 MLIP（ExtOpt/ProgExt）日志没有 SCF 能量段，唯一能量行是
+    ``FINAL SINGLE POINT ENERGY (From external program)``；几何优化每步
+    打印一次，取最后一次。
+    """
+    energy: float | None = None
+    for match in _FINAL_ENERGY_RE.finditer(text):
+        energy = float(match.group(1).replace("D", "E").replace("d", "e"))
+    return energy
 
 
 def extract_thermochemistry(log_path: str) -> dict[str, float]:
@@ -129,7 +155,7 @@ def extract_thermochemistry(log_path: str) -> dict[str, float]:
             values.get("thermal_energy_correction_hartree", 0.0) + zpe
         )
 
-    e_el = _extract_electronic_energy(text)
+    e_el = final_energy_hartree(text)
     if e_el is not None:
         if zpe is not None:
             values["total_zero_point_energy_hartree"] = e_el + zpe

@@ -10,7 +10,8 @@
 #
 # 注意：
 # - 本脚本不捕获/重定向 stdout/stderr，计算软件自身会写日志。
-# - 本脚本通过系统 PATH 查找外部计算程序，不依赖工作目录下的本地副本。
+# - 可执行文件查找：优先系统 PATH（gaussian/cp2k/orca/vasp），
+#   运行目录下的本地副本（./orca、./vasp_std 等）仅作兜底。
 
 set -e
 
@@ -82,24 +83,53 @@ run_orca() {
         echo "[calculator] MLIP external route detected: KMP_DUPLICATE_LIB_OK=TRUE OMP_NUM_THREADS=1" >&2
     fi
 
-    if [ -x "./orca" ]; then
-        ./orca "$INPUT_FILE"
+    local orca_bin=""
+    if command -v orca >/dev/null 2>&1; then
+        orca_bin=$(command -v orca)
+    elif [ -x "./orca" ]; then
+        orca_bin="$WORKDIR/orca"
     else
-        echo "在当前工作目录 $WORKDIR 中未找到 ORCA 可执行文件（./orca）" >&2
+        echo "系统 PATH 中未找到 orca，运行目录 $WORKDIR 下也无 ./orca 本地副本。" \
+             "请安装 ORCA 并确保 orca 命令在 PATH 中可用，或将 orca 复制到作业目录。" >&2
         exit 1
     fi
+
+    # 解析符号链接链到真实安装路径，并把真实目录 prepend 到 PATH：
+    # 并行 ORCA 拒绝裸名启动（"For parallel runs ORCA has to be called with
+    # full pathname"，exit 126），helpers（orca_util/orca_scf/...）也按 orca
+    # 可执行文件所在目录定位——conda 符号链接场景两者都会踩（GH #15）。
+    # POSIX 展开，不依赖 GNU readlink -f（macOS 无此选项）。
+    while [ -L "$orca_bin" ]; do
+        local link
+        link=$(readlink "$orca_bin")
+        case "$link" in
+            /*) orca_bin="$link" ;;
+            *)  orca_bin="$(cd "$(dirname "$orca_bin")" && pwd)/$link" ;;
+        esac
+    done
+    orca_bin="$(cd "$(dirname "$orca_bin")" && pwd)/$(basename "$orca_bin")"
+    export PATH="$(dirname "$orca_bin"):$PATH"
+    echo "[calculator] orca resolved: $orca_bin" >&2
+    "$orca_bin" "$INPUT_FILE"
 }
 
 run_vasp() {
-    # VASP 读取当前目录下的 INCAR/POSCAR/POTCAR/KPOINTS，不接收输入文件参数
-    if [ -x "./vasp_std" ]; then
+    # VASP 读取当前目录下的 INCAR/POSCAR/POTCAR/KPOINTS，不接收输入文件参数。
+    # PATH 优先（vasp_std/vasp_gam/vasp_ncl），运行目录本地副本兜底（HPC 惯例）。
+    if command -v vasp_std >/dev/null 2>&1; then
+        vasp_std
+    elif command -v vasp_gam >/dev/null 2>&1; then
+        vasp_gam
+    elif command -v vasp_ncl >/dev/null 2>&1; then
+        vasp_ncl
+    elif [ -x "./vasp_std" ]; then
         ./vasp_std
     elif [ -x "./vasp_gam" ]; then
         ./vasp_gam
     elif [ -x "./vasp_ncl" ]; then
         ./vasp_ncl
     else
-        echo "在当前工作目录 $WORKDIR 中未找到 VASP 可执行文件（./vasp_std, ./vasp_gam 或 ./vasp_ncl）" >&2
+        echo "系统 PATH 中未找到 VASP 可执行文件（vasp_std/vasp_gam/vasp_ncl），运行目录 $WORKDIR 下也无本地副本。" >&2
         exit 1
     fi
 }
