@@ -168,7 +168,7 @@ async def test_async_child_completion_injects_parent_mailbox_and_wakes():
                 tool_calls=[
                     ToolCall(
                         id="t1",
-                        name="SubAgentLauncher",
+                        name="subagent_launcher",
                         arguments={"agent_id": "a-1", "query": "explore X", "is_wait": False},
                     )
                 ],
