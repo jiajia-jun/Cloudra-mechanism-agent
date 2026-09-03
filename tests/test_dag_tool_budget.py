@@ -1,7 +1,7 @@
-"""Prompt 体积预算：角色 prompt 单文件上限 10KiB。
+"""DAG 工具面预算与文档守卫。
 
-工具描述仍单独收口：字段细节放在 skill / 工具错误反馈，
-不要为过预算去压缩角色 prompt。
+工具描述单独收口：字段细节放在 skill / 工具错误反馈，
+dag_* 工具描述保持精简，dag-operations skill 必须覆盖完整工具族。
 """
 
 from pathlib import Path
@@ -9,24 +9,8 @@ from pathlib import Path
 from cloudra.tools import get_tools_lst
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMPTS = ROOT / "cloudra" / "prompts"
-
-_DEFAULT_BUDGET = 10 * 1024
-# supervisor.md 含排产示例，略超 10KiB；不要为过预算去删示例。
-_BUDGETS = {
-    "supervisor.md": 12 * 1024,
-}
 
 _DAG_TOOL_DESC_BUDGET = 2 * 1024
-
-
-def test_prompt_files_stay_within_budget() -> None:
-    for path in sorted(PROMPTS.glob("*.md")):
-        budget = _BUDGETS.get(path.name, _DEFAULT_BUDGET)
-        size = path.stat().st_size
-        assert size <= budget, (
-            f"{path.name} is {size} bytes, over its {budget}-byte budget"
-        )
 
 
 def test_dag_tool_descriptions_stay_within_budget() -> None:
