@@ -23,7 +23,9 @@ token matches a `mace` entry. Route text cannot distinguish MLIP model
 variants (mace-omol25 vs mace-off), so variant-level enforcement is out of
 band, at the method-provisioning side. Gaussian MLIP runs go through the
 `external="engine"` route keyword; the engine value is the method candidate,
-and a bare `external` with no value stays fail-closed.
+and a bare `external` with no value stays fail-closed. The ORCA equivalent is
+`! ExtOpt` + `%method ProgExt "<exe>"`: the executable basename is the method
+candidate, and a bare `ExtOpt` with no ProgExt stays fail-closed.
 
 Parsing is done with small deterministic route-card/keyword-line readers. The
 obvious library alternative (cclib) parses *output* logs, not input route
@@ -85,6 +87,9 @@ _MAX_EMBED_DEPTH = 2
 # Gaussian `external="mace"` / `external='mace'` / `external=mace`：外部引擎值
 # 才是方法候选；裸 `external`（无值）保持 fail-closed
 _EXTERNAL_VALUE_RE = re.compile(r"^external=[\"']?([a-z0-9_.-]+)[\"']?$")
+# ORCA `%method` 块里的 ProgExt 外部程序（ExtOpt 路由）：程序路径的 basename
+# 才是方法候选；裸 `ExtOpt`（无 ProgExt）保持 fail-closed
+_PROGEXT_RE = re.compile(r'^\s*ProgExt\s+"?([^"\s]+)"?', re.I | re.M)
 
 
 @dataclass
@@ -209,8 +214,14 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
 def _extract_orca_methods(content: str) -> list[str]:
     """ORCA 关键字行的方法候选：跳过 `%` 块（maxcore/pal 等控制段），候选 =
     `!` 行上既非作业类型/波函数修饰也非基组形状的 token。ORCA 每个输入只有
-    一个电子结构方法，多个候选即异常。"""
+    一个电子结构方法，多个候选即异常。
+
+    `! ExtOpt` 是外部 MLIP 路由：能量/梯度由 `%method` 块里 ProgExt 指定的
+    外部程序给出，方法候选取该程序的 basename（如 mace）——与 Gaussian
+    `external="engine"` 的"引擎值即方法候选"对齐。裸 ExtOpt（无 ProgExt）
+    保留 extopt 候选，白名单外必拦（fail-closed）。"""
     candidates: list[str] = []
+    has_extopt = False
     for line in content.splitlines():
         s = line.strip()
         if s.startswith("!/"):  # shebang
@@ -219,9 +230,18 @@ def _extract_orca_methods(content: str) -> list[str]:
             continue
         for tok in s[1:].split():
             t = tok.lower()
+            if t == "extopt":
+                has_extopt = True
+                continue  # 路由标记不是方法本身；真正的候选来自 ProgExt
             if t in _ORCA_JOB_TOKENS or _is_basis_token(t):
                 continue
             candidates.append(t)
+    if has_extopt:
+        m = _PROGEXT_RE.search(content)
+        if m is not None:
+            candidates.append(Path(m.group(1)).name.lower())
+        else:
+            candidates.append("extopt")  # 裸 ExtOpt：方法不可验证，fail-closed
     return candidates
 
 
@@ -420,6 +440,12 @@ def intercept(
       via `check_input_files`."""
     layers = set(policy.intercept_layers)
     if tool_name == "qm_input_writer" and "qm_input_writer" in layers:
+        # 外部 MLIP 路由：方法候选是外部程序名（ORCA ProgExt 可执行的 basename /
+        # Gaussian external="..." 引擎值）；此时 method 字段是工具默认值残留，
+        # 不参与判定。
+        ext = str(arguments.get("external_program") or "").strip()
+        if ext:
+            return check_method(Path(ext).name, policy)
         method = str(arguments.get("method") or arguments.get("functional") or "")
         if not method:
             return MethodVerdict(

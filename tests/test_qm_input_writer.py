@@ -135,3 +135,81 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert content.startswith("! Opt b3lyp def2-svp")
     assert "\n* xyz 0 1\n" in content
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
+    """外部 MLIP 路由（GH #16）：! ExtOpt + %method ProgExt/Ext_Params 块；
+    method/basis_set 不进入输入（外部势没有基组概念）。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    out = tmp_path / "ts_opt.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_program="/opt/conda/envs/chemai/bin/mace",
+            external_params="--model /opt/MACE-omol-0.model --device cpu --dtype float64",
+            task_type=[{"opt": "ts,calcfc,noeigen"}, {"freq": None}],
+            nproc=1,
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+
+    assert result.is_success is True, result.message
+    content = out.read_text(encoding="utf-8")
+    assert content.startswith("! ExtOpt OptTS Freq")
+    assert 'ProgExt "/opt/conda/envs/chemai/bin/mace"' in content
+    assert 'Ext_Params "--model /opt/MACE-omol-0.model --device cpu --dtype float64"' in content
+    assert "b3lyp" not in content and "6-31g" not in content
+    assert "\n* xyz 0 1\n" in content
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_gaussian_external_route(tmp_path):
+    """Gaussian 外部 MLIP 路由：external="..." 进 route 卡，method/basis 不进入。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    out = tmp_path / "water_opt.gjf"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="gaussian",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_program="mace",
+            task_type=[{"opt": None}],
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+
+    assert result.is_success is True, result.message
+    content = out.read_text(encoding="utf-8")
+    route = next(line for line in content.splitlines() if line.startswith("#"))
+    assert 'external="mace"' in route
+    assert "b3lyp" not in route and "6-31g" not in route
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_external_params_requires_external_program(tmp_path):
+    """external_params 单独出现（无 external_program）是配置错误，fail-loud。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_params="--model /opt/x.model",
+            task_type=[{"opt": None}],
+            output_dir=str(tmp_path / "bad.inp"),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "external_program" in result.message

@@ -20,6 +20,8 @@ description = (
     "Generate a complete quantum-chemistry input file (Gaussian .gjf or ORCA .inp, selected by `engine`) "
     "from a molecular source, method, basis, and related parameters, and save it to a given path; "
     "coordinates are generated from a file or SMILES and never appear in the return value. "
+    "External MLIP potentials (e.g. MACE) are supported via external_program/external_params "
+    "(ORCA '! ExtOpt' + %method ProgExt block; Gaussian external=\"...\" route). "
     "Use for: preparing Gaussian/ORCA inputs (opt, freq, TS search, etc.) to submit with submit_compute_job "
     "(job_type='gaussian' or 'orca', matching `engine`). "
     "Do not use for: parsing results (use log_parser) or converting an existing structure file (use format_converter)."
@@ -47,12 +49,27 @@ class QmInputWriter_input_schema(input_schema):
     method: str = Field(
         default="b3lyp",
         description="Electronic-structure method, e.g. 'b3lyp', 'hf', 'mp2', 'wb97xd', 'pbe0' "
-                    "(written as-is; ORCA expects e.g. 'wB97X-V', Gaussian 'wb97xd')."
+                    "(written as-is; ORCA expects e.g. 'wB97X-V', Gaussian 'wb97xd'). "
+                    "Ignored when external_program is set (external potentials carry no method/basis)."
     )
     basis_set: str = Field(
         default="6-31g(d)",
         description="Basis set, e.g. '6-31g(d)', '6-311+g(d,p)', 'def2tzvp', 'cc-pvdz'. "
-                    "Empty string selects the no-basis branch (semi-empirical / external)."
+                    "Empty string selects the no-basis branch (semi-empirical / external). "
+                    "Ignored when external_program is set."
+    )
+    external_program: Optional[str] = Field(
+        default=None,
+        description="External MLIP route (replaces method/basis_set). ORCA: absolute path of the "
+                    "ProgExt executable — emits '! ExtOpt <tasks>' plus a %method ProgExt block, "
+                    "e.g. '/opt/conda/envs/chemai/bin/mace'. Gaussian: engine value of the "
+                    "external=\"...\" route keyword, e.g. 'mace' (may include program arguments)."
+    )
+    external_params: Optional[str] = Field(
+        default=None,
+        description="ORCA only, requires external_program: Ext_Params string handed to the external "
+                    "program, e.g. '--model /abs/model --device cpu --dtype float64'. For Gaussian, "
+                    "fold program arguments into external_program instead."
     )
     task_type: list[dict] = Field(
         default=[{"opt": None}],
@@ -196,7 +213,10 @@ class QmInputWriter(Tool):
                 else:
                     keywords.append(f"{key}={value}")
 
-        if user_input.basis_set:
+        if user_input.external_program:
+            # Gaussian 外部 MLIP 路由：external="engine"，无 method/basis
+            keywords.append(f'external="{user_input.external_program}"')
+        elif user_input.basis_set:
             keywords.append(f"{user_input.method}/{user_input.basis_set}")
         else:
             # 半经验方法（pm6/am1/pm7 等）无基组：空 basis 不能再拼出 "pm6/" 尾斜杠。
@@ -228,12 +248,22 @@ class QmInputWriter(Tool):
 
     @staticmethod
     def _build_orca_input(user_input: QmInputWriter_input_schema, coords: str) -> str:
-        """拼装 ORCA .inp：! 行 + %pal/%maxcore + 坐标块。"""
+        """拼装 ORCA .inp：! 行 + %pal/%maxcore（+%method 外部势块）+ 坐标块。"""
         simple = QmInputWriter._orca_task_keywords(user_input.task_type)
-        if user_input.method:
-            simple.append(user_input.method)
-        if user_input.basis_set:
-            simple.append(user_input.basis_set)
+        method_block = ""
+        if user_input.external_program:
+            # 外部 MLIP 路由：ExtOpt 把能量/梯度交给外部程序，输入不含
+            # method/basis（外部势没有基组概念），GH #16
+            simple.insert(0, "ExtOpt")
+            method_block = f'%method\n  ProgExt "{user_input.external_program}"\n'
+            if user_input.external_params:
+                method_block += f'  Ext_Params "{user_input.external_params}"\n'
+            method_block += "end"
+        else:
+            if user_input.method:
+                simple.append(user_input.method)
+            if user_input.basis_set:
+                simple.append(user_input.basis_set)
         if user_input.extra_keywords:
             simple.append(user_input.extra_keywords)
 
@@ -248,6 +278,8 @@ class QmInputWriter(Tool):
             mb = amount * 1024 if m.group(2).lower().startswith("g") else amount
             per_core = max(256, int(mb / max(1, user_input.nproc)))
             lines.append(f"%maxcore {per_core}")
+        if method_block:
+            lines.append(method_block)
         if user_input.orca_blocks:
             lines.append(user_input.orca_blocks.strip())
 
@@ -292,6 +324,21 @@ class QmInputWriter(Tool):
                 input_path="",
                 message="RDKit is not installed; cannot generate the input file. "
                         "Install it with: pip install 'cloudra[chem]', then retry."
+            )
+        # 外部 MLIP 路由的参数校验（fail-loud，不静默吞掉配错的字段）
+        if user_input.external_params and not user_input.external_program:
+            return QmInputWriter_output_schema(
+                is_success=False,
+                input_path="",
+                message="external_params requires external_program: the Ext_Params string is only "
+                        "meaningful together with a ProgExt executable. Set external_program, then retry.",
+            )
+        if user_input.external_params and user_input.engine == "gaussian":
+            return QmInputWriter_output_schema(
+                is_success=False,
+                input_path="",
+                message="external_params is ORCA-only; for the Gaussian external route fold program "
+                        "arguments into external_program (e.g. external_program='mace --model x.model').",
             )
         try:
             coords = self._get_coordinates(user_input.source_type, user_input.source_value)

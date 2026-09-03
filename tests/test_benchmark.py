@@ -479,6 +479,48 @@ def test_method_policy_gaussian_external_route():
     assert not check_input_content("#p opt external\n", policy, "t.gjf").allowed
 
 
+def test_method_policy_orca_extopt_route():
+    """ORCA MLIP 走 ExtOpt 路由：%method 块里 ProgExt 的外部程序名即方法候选
+    （与 Gaussian external="engine" 对齐）；裸 ExtOpt 无 ProgExt 保持 fail-closed。
+    GH #16：否则 MACE 白名单下的合法 ExtOpt 输入会被当成方法不明拦截。"""
+    policy = MethodPolicy()
+    content = (
+        "! ExtOpt Opt\n"
+        "%pal nprocs 1 end\n"
+        "%method\n"
+        '  ProgExt "/opt/conda/envs/chemai/bin/mace"\n'
+        '  Ext_Params "--model /opt/MACE-omol-0.model --device cpu --dtype float64"\n'
+        "end\n"
+        "* xyz 0 1\nC 0.0 0.0 0.0\n*\n"
+    )
+    verdict = check_input_content(content, policy, "t.inp")
+    assert verdict.allowed, verdict.reason
+    # 白名单外外部程序：拦截
+    blocked = content.replace("chemai/bin/mace", "opt/bin/g16")
+    assert not check_input_content(blocked, policy, "t.inp").allowed
+    # 裸 ExtOpt（无 %method ProgExt）：无法验证 -> fail-closed
+    bare = "! ExtOpt Opt\n* xyz 0 1\nC 0.0 0.0 0.0\n*\n"
+    assert not check_input_content(bare, policy, "t.inp").allowed
+
+
+def test_method_policy_qm_input_writer_external_program():
+    """qm_input_writer 结构化拦截：带 external_program 时以外部程序名为方法候选，
+    method 字段（工具默认值残留）不再参与判定。"""
+    policy = MethodPolicy()
+    ok = intercept(
+        "qm_input_writer",
+        {"method": "b3lyp", "external_program": "/opt/conda/envs/chemai/bin/mace"},
+        policy,
+    )
+    assert ok.allowed, ok.reason
+    bad = intercept(
+        "qm_input_writer",
+        {"method": "mace", "external_program": "/opt/bin/g16"},
+        policy,
+    )
+    assert not bad.allowed
+
+
 def test_method_policy_link1_and_multi_candidate():
     """--Link1-- 多步输入的每张路由卡都要过白名单；ORCA 多个方法候选即拦。"""
     policy = MethodPolicy(allowed_methods=["b3lyp"])
