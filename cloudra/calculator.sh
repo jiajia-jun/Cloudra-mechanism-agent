@@ -71,6 +71,17 @@ run_gaussian() {
 }
 
 run_orca() {
+    # ORCA external MLIP（输入含 `%method ProgExt`，如 MACE-OMol25）会把能量/梯度
+    # 卸载给 Python 侧的 mace/ase：macOS 上其 libomp 与 ORCA 自带 OpenMP 重复装载
+    # 会报 OMP Error #15，且 MACE 需要单线程调用（OMP Error #15 探针见
+    # deploy/mace_omol25_orca_external_setup.md §3.1）。仅在输入声明外部 MLIP 时注入，
+    # 普通 DFT 任务不设 OMP_NUM_THREADS=1，避免锁死 ORCA 的 OpenMP 线程层。
+    if grep -qE 'ExtOpt|ProgExt' "$INPUT_FILE"; then
+        export KMP_DUPLICATE_LIB_OK=TRUE
+        export OMP_NUM_THREADS=1
+        echo "[calculator] MLIP external route detected: KMP_DUPLICATE_LIB_OK=TRUE OMP_NUM_THREADS=1" >&2
+    fi
+
     if [ -x "./orca" ]; then
         ./orca "$INPUT_FILE"
     else

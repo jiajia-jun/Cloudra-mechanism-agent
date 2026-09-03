@@ -119,7 +119,7 @@ fi
 
 | 文件 | 说明 |
 | :--- | :--- |
-| `cloudra/skills/dft-calculation/references/mlip-gaussian-external.md` | `external="mace"` 集成说明（默认走 Gaussian，本机缺 g16） |
+| `cloudra/skills/dft-calculation/references/mlip-gaussian-external.md` | MLIP external 引擎说明（公用 skill）：Gaussian g16-mlips 通用段 + ORCA `ExtOpt` 路线（qm_input_writer `engine="orca"` 生成；ProgExt/权重路径为部署占位，本机具体值见本文档 §3.3/§6；运行时环境变量已由 `calculator.sh` orca 分支自动注入） |
 | `paper/reference_answer_task_P1.md` | P1 能垒标定任务单（具体题号列表在文档后段） |
 | `paper/reference_calc_plan.md` | 能垒标定宏观分工计划 |
 | `ideapool/tasks/<tier>/<task_id>.json` | 题目定义；回填目标字段 `gold.reference_computation` |
