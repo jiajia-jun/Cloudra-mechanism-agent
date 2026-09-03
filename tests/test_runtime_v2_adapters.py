@@ -210,9 +210,34 @@ async def test_legacy_tool_executor_reports_unknown_tool():
     assert "read" in retired.summary
 
 
-def _chunk(content=None, finish_reason=None):
-    delta = SimpleNamespace(content=content, tool_calls=None, reasoning_content=None)
-    return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)])
+def _chunk(content=None, finish_reason=None, tool_calls=None):
+    delta = SimpleNamespace(
+        content=content,
+        tool_calls=tool_calls,
+        reasoning_content=None,
+    )
+    return SimpleNamespace(
+        choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)]
+    )
+
+
+def _tool_call_chunk(index, name, arguments):
+    """完整（非分片）tool_call delta chunk（model_dump 产出 wire dict 形态）。"""
+
+    class _FakeToolCall:
+        def __init__(self):
+            self.index = index
+            self.id = f"tc_{index}"
+            self.function = SimpleNamespace(name=name, arguments=arguments)
+
+        def model_dump(self, exclude_none=True):
+            return {
+                "index": self.index,
+                "id": self.id,
+                "function": {"name": name, "arguments": arguments},
+            }
+
+    return _chunk(finish_reason="tool_calls", tool_calls=[_FakeToolCall()])
 
 
 class _FakeStream:
@@ -239,9 +264,9 @@ def _deepseek_agent():
 
 
 @pytest.mark.asyncio
-async def test_native_search_keeps_search_and_uses_responses_transport():
-    """命中原生搜索适配器（DeepSeek）时：保留 search、source 去掉 web、
-    注入服务端 web_search 工具、走 /responses 传输。"""
+async def test_native_search_renames_search_schema_and_unwires_response():
+    """DeepSeek Responses 原生搜索：发送 schema 的 search 改名 search_sources
+    （服务端拒绝与 web_search 同存的 function "search"），响应侧还原为 search。"""
     sent = {}
 
     class FakeClient:
@@ -252,7 +277,16 @@ async def test_native_search_keeps_search_and_uses_responses_transport():
 
         async def create_responses_with_retry(self, **kwargs):
             sent.update(kwargs)
-            return _FakeStream([_chunk(content="ok", finish_reason="stop")])
+            return _FakeStream(
+                [
+                    _tool_call_chunk(
+                        0,
+                        "search_sources",
+                        '{"source": "arxiv", "query": "cope rearrangement"}',
+                    ),
+                    _chunk(content="ok", finish_reason="stop"),
+                ]
+            )
 
     provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
     response = await provider.complete(
@@ -260,16 +294,48 @@ async def test_native_search_keeps_search_and_uses_responses_transport():
     )
 
     tool_names = [t["function"]["name"] for t in sent["tools"]]
-    assert "search" in tool_names
+    assert "search_sources" in tool_names
+    assert "search" not in tool_names
     assert "stop" in tool_names
-    search = next(t for t in sent["tools"] if t["function"]["name"] == "search")
+    search = next(t for t in sent["tools"] if t["function"]["name"] == "search_sources")
     assert set(search["function"]["parameters"]["properties"]["source"]["enum"]) == {
         "arxiv",
         "openalex",
     }
     assert search["function"]["parameters"]["properties"]["source"]["default"] == "arxiv"
     assert {"type": "web_search"} in sent["extra_body"]["tools"]
+
     assert response.content == "ok"
+    assert len(response.tool_calls) == 1
+    assert response.tool_calls[0].name == "search"
+    assert response.tool_calls[0].arguments == {
+        "source": "arxiv",
+        "query": "cope rearrangement",
+    }
+
+
+def test_apply_native_search_to_schemas_rename_search_flag():
+    """rename_search 仅对 DeepSeek 场景打开：普通原生搜索（openrouter 等）不改名。"""
+    from cloudra.runtime_v2.adapters import (
+        DEEPSEEK_WIRE_SEARCH_NAME,
+        apply_native_search_to_schemas,
+    )
+
+    schema = {
+        "type": "function",
+        "function": {
+            "name": "search",
+            "parameters": {
+                "properties": {
+                    "source": {"enum": ["web", "arxiv", "openalex"], "default": "web"}
+                }
+            },
+        },
+    }
+    renamed = apply_native_search_to_schemas([schema], native_on=True, rename_search=True)
+    assert renamed[0]["function"]["name"] == DEEPSEEK_WIRE_SEARCH_NAME
+    kept = apply_native_search_to_schemas([schema], native_on=True)
+    assert kept[0]["function"]["name"] == "search"
 
 
 @pytest.mark.asyncio

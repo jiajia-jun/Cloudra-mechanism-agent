@@ -38,6 +38,28 @@ def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, A
     return schemas
 
 
+# DeepSeek Responses 端把名为 ``search`` 的本地 function 视为与 server 端
+# web_search 冲突（400 invalid_request_error: "The tool search in your request
+# conflicts with server side web_search calls"）。原生搜索启用（deepseek）时
+# 发送 schema 改名为 ``search_sources`` 避开保留名，响应侧再映射回 ``search``
+# 交回 harness——工具注册与执行语义不变，仅请求线缆名隔离。
+DEEPSEEK_WIRE_SEARCH_NAME = "search_sources"
+
+
+def unwire_search_name(calls: list[ToolCall], *, rename_search: bool) -> list[ToolCall]:
+    """把响应里 ``search_sources`` 调用名还原为 ``search``（未启用改名时原样返回）。"""
+    if not rename_search:
+        return calls
+    return [
+        ToolCall(
+            id=call.id,
+            name="search" if call.name == DEEPSEEK_WIRE_SEARCH_NAME else call.name,
+            arguments=call.arguments,
+        )
+        for call in calls
+    ]
+
+
 def _parse_tool_calls(choice: Any) -> list[ToolCall]:
     calls = []
     for raw in getattr(getattr(choice, "message", None), "tool_calls", None) or []:
@@ -96,8 +118,17 @@ def _native_search_adapter_for(settings: RuntimeSettings):
     )
 
 
-def apply_native_search_to_schemas(schemas: list[dict], native_on: bool) -> list[dict]:
-    """If native_on, mutate search.source to arxiv|openalex (default arxiv). Never drop the tool."""
+def apply_native_search_to_schemas(
+    schemas: list[dict], native_on: bool, rename_search: bool = False
+) -> list[dict]:
+    """If native_on, mutate search.source to arxiv|openalex (default arxiv).
+    Never drop the tool.
+
+    ``rename_search`` additionally renames the wire function to
+    ``search_sources`` — required on DeepSeek Responses, whose server-side
+    web_search tool rejects a local function named ``search``; the response
+    name is mapped back by :func:`unwire_search_name`.
+    """
     if not native_on:
         return schemas
     out: list[dict] = []
@@ -108,6 +139,8 @@ def apply_native_search_to_schemas(schemas: list[dict], native_on: bool) -> list
             continue
         schema = copy.deepcopy(schema)
         function = schema.get("function") or {}
+        if rename_search:
+            function["name"] = DEEPSEEK_WIRE_SEARCH_NAME
         properties = (function.get("parameters") or {}).get("properties") or {}
         source = properties.get("source")
         if isinstance(source, dict):
@@ -250,8 +283,11 @@ class LegacyLLMProvider:
         settings = legacy_default_settings(agent)
         client = self._make_client(settings)
         native_adapter = _native_search_adapter_for(settings)
+        rename_search = native_adapter is not None and native_adapter.name == "deepseek"
         tool_schemas = apply_native_search_to_schemas(
-            legacy_tool_schemas(tools), native_adapter is not None
+            legacy_tool_schemas(tools),
+            native_adapter is not None,
+            rename_search=rename_search,
         )
         if not settings.visual_mode:
             # visual 模式关闭时剥掉视觉工具 schema，模型不可见即不会调用。
@@ -332,7 +368,7 @@ class LegacyLLMProvider:
         usage = client.last_usage or {}
         return LLMResponse(
             content=content,
-            tool_calls=tool_calls,
+            tool_calls=unwire_search_name(tool_calls, rename_search=rename_search),
             stop_requested=False,
             usage=dict(usage) if isinstance(usage, dict) else {},
             finish_reason=finish_reason,
