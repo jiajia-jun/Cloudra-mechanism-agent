@@ -65,7 +65,7 @@ def test_is_compute_tool_semantics():
     assert is_compute_tool("thermo_analysis")  # dag_review
     assert not is_compute_tool("agent_hub")
     assert not is_compute_tool("stop")
-    assert not is_compute_tool("bashtools")
+    assert not is_compute_tool("bash")
 
 
 def test_build_knowledge_query_includes_tool_and_summary():

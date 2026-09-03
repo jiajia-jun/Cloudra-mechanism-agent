@@ -14,7 +14,7 @@ description = (
     "- **Safety**: a security audit is enabled. explorer is read-only; writer may write files but cannot run scripts or destructive operations; the other sub-agents (researcher, small_mol, md, dft, experiment, env) may write/script/delete. Instruct them to spell out intent, blast radius, and rollback in Thought to aid approval.\n"
     "- **Task definition**: the task description must be extremely specific: name the tools to use, and explicitly forbid tools unrelated to the task.\n"
     "- **AgentHub**: sub-agents can share findings/questions/answers with other parallel Agents via `agent_hub`, and can address someone with to_agent (posts are public; addressees and authors of replied-to posts are notified). When dispatching overlapping work, tell them to check the hub first and post conclusions to the hub.\n"
-    "- **agent_id is a stable role id**: pass ids such as a-1, a-2 — not names like explorer or writer; the same role id may be dispatched repeatedly for different tasks to run in parallel; for batch parallelism prefer SubAgentSwarm.\n"
+    "- **agent_id is a stable role id**: pass ids such as a-1, a-2 — not names like explorer or writer; the same role id may be dispatched repeatedly for different tasks to run in parallel; for batch parallelism prefer subagent_swarm.\n"
     "Available sub-agents:\n"
     "1. explorer (a-1): explore + review. Map project structure and locate files; read-only review of code/docs/data with an evidence-backed report. Read-only.\n"
     "2. writer (a-2): papers and documents. Write reports, papers, docs. May write files, but cannot run scripts or destructive operations; must pass the security audit.\n"
@@ -58,7 +58,7 @@ class SubAgentLauncher_output_schema(output_schema):
 
 class SubAgentLauncher(Tool):
     tool_id: str = 't-0'
-    tool_name: str = 'SubAgentLauncher'
+    tool_name: str = 'subagent_launcher'
     tool_description: str = description
     input_schema: Any = SubAgentLauncher_input_schema
     output_schema: Any = SubAgentLauncher_output_schema

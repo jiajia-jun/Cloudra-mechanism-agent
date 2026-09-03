@@ -7,6 +7,7 @@ becomes native to runtime_v2.
 
 from __future__ import annotations
 
+import copy
 import inspect
 import json
 from typing import Any, Iterable
@@ -21,6 +22,7 @@ from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
 from cloudra.tools.capabilities import visual_tools
+from cloudra.tools.name_hints import hint_unknown_tool, is_retired_tool_name
 
 
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
@@ -94,6 +96,31 @@ def _native_search_adapter_for(settings: RuntimeSettings):
     )
 
 
+def apply_native_search_to_schemas(schemas: list[dict], native_on: bool) -> list[dict]:
+    """If native_on, mutate search.source to arxiv|openalex (default arxiv). Never drop the tool."""
+    if not native_on:
+        return schemas
+    out: list[dict] = []
+    for schema in schemas:
+        name = (schema.get("function") or {}).get("name")
+        if name != "search":
+            out.append(schema)
+            continue
+        schema = copy.deepcopy(schema)
+        function = schema.get("function") or {}
+        properties = (function.get("parameters") or {}).get("properties") or {}
+        source = properties.get("source")
+        if isinstance(source, dict):
+            source["enum"] = ["arxiv", "openalex"]
+            source["default"] = "arxiv"
+        description = function.get("description") or ""
+        note = "Web search is provided natively; use source=arxiv or source=openalex."
+        if note not in description:
+            function["description"] = f"{description} {note}".strip()
+        out.append(schema)
+    return out
+
+
 def legacy_default_runtime_settings() -> RuntimeSettings:
     """Global defaults seeded from the existing config at startup."""
     cfg = get_config()
@@ -133,11 +160,11 @@ class LegacyPromptProvider:
                 include_agents_md=is_coordinator,
                 observer_id=agent.id,
             )
-            # 有联网搜索能力（模型端原生搜索或外置 web_search 工具）时，
+            # 有联网搜索能力（模型端原生搜索或外置 search 工具）时，
             # system prompt 注入「联网搜索（重要）」段，要求先搜再答。
             settings = legacy_default_settings(agent)
             web_search_available = (
-                _native_search_adapter_for(settings) is not None or "web_search" in tool_names
+                _native_search_adapter_for(settings) is not None or "search" in tool_names
             )
             assembly = assembler.assemble(
                 capability_names=tool_names,
@@ -223,15 +250,9 @@ class LegacyLLMProvider:
         settings = legacy_default_settings(agent)
         client = self._make_client(settings)
         native_adapter = _native_search_adapter_for(settings)
-        tool_schemas = legacy_tool_schemas(tools)
-        if native_adapter is not None:
-            # 模型端原生搜索启用时剔除外置 web_search 函数工具——否则模型既走
-            # function call 转第三方搜索、又走 provider 端原生搜索（双重搜索）。
-            tool_schemas = [
-                schema
-                for schema in tool_schemas
-                if (schema.get("function") or {}).get("name") != "web_search"
-            ]
+        tool_schemas = apply_native_search_to_schemas(
+            legacy_tool_schemas(tools), native_adapter is not None
+        )
         if not settings.visual_mode:
             # visual 模式关闭时剥掉视觉工具 schema，模型不可见即不会调用。
             gated = visual_tools()
@@ -384,7 +405,7 @@ class LegacyToolExecutor:
 
     Destructive tools keep their own approval path; this bridge only sets the
     session-level YOLO context from the agent's live settings.      The Managetool
-    dispatch tools (SubAgentLauncher/SubAgentSwarm/get_subagent_report) are
+    dispatch tools (subagent_launcher/subagent_swarm/get_subagent_report) are
     reimplemented on the v2 kernel — see runtime_v2/subagent_bridge.py; the
     agent_hub forum likewise — see runtime_v2/hub_bridge.py; ``schedule``
     reminders — see runtime_v2/reminders.py.
@@ -406,17 +427,34 @@ class LegacyToolExecutor:
         if call.name == "schedule":
             return await self.core.reminders.handle(agent, call)
 
+        if is_retired_tool_name(call.name):
+            return ToolResult(
+                is_success=False,
+                summary=hint_unknown_tool(call.name),
+            )
+
+        if call.name == "search":
+            source = (call.arguments or {}).get("source") or "web"
+            if source == "web" and _native_search_adapter_for(agent.settings) is not None:
+                return ToolResult(
+                    is_success=False,
+                    summary=(
+                        "Web search is provided natively by the model. "
+                        "Call search with source='arxiv' or source='openalex' instead."
+                    ),
+                )
+
         entry = next((e for e in get_tools_lst() if e.tool_name == call.name), None)
         if entry is None:
             return ToolResult(
                 is_success=False,
-                summary=f"[Tool error] unknown tool {call.name!r}. Choose an available tool and retry.",
+                summary=hint_unknown_tool(call.name),
             )
         project = self.core.require_project(agent.project_id)
         bridge = _LegacyAgentBridge(agent, project.workspace_dir)
         # Several tool classes narrow the `subagent` field to the legacy Agent
         # type, so pydantic construction with the duck-typed bridge fails
-        # (dag_*, goal_set, todo, bashtools, ...).  Construct bare and
+        # (dag_*, goal_set, todo, bash, ...).  Construct bare and
         # attach the bridge past validation instead.
         tool = entry.instantiate()
         object.__setattr__(tool, "subagent", bridge)

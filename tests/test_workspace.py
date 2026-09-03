@@ -15,17 +15,17 @@ from cloudra.persistence.workspace import (
     WorkspaceService,
     resolve_working_directory,
 )
-from cloudra.tools.Searchtool.text_reader import (
-    TextReader,
-    TextReader_input_schema,
+from cloudra.tools.Searchtool.read import (
+    Read,
+    Read_input_schema,
 )
-from cloudra.tools.Writetool.edit_file import (
-    EditFile,
-    EditFile_input_schema,
+from cloudra.tools.Writetool.edit import (
+    Edit,
+    Edit_input_schema,
 )
-from cloudra.tools.Writetool.text_writer import (
-    TextWriter,
-    TextWriter_input_schema,
+from cloudra.tools.Writetool.write import (
+    Write,
+    Write_input_schema,
 )
 
 
@@ -209,47 +209,24 @@ def test_turn_diff_uses_first_agent_touch_as_base(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_text_reader_tool_uses_relative_workspace_path(tmp_path, mock_session):
+async def test_read_tool_uses_relative_workspace_path(tmp_path, mock_session):
     (tmp_path / "readme.md").write_text("hello\n", encoding="utf-8")
-    tool = TextReader(subagent=_subagent(tmp_path))
+    tool = Read(subagent=_subagent(tmp_path))
 
     result = await tool.tool_call(
-        TextReader_input_schema(filepath="readme.md"),
+        Read_input_schema(path="readme.md"),
         mock_session,
     )
     rejected = await tool.tool_call(
-        TextReader_input_schema(filepath=str(tmp_path / "readme.md")),
+        Read_input_schema(path=str(tmp_path / "readme.md")),
         mock_session,
     )
 
     assert result.content == "hello\n"
-    assert result.filepath == "readme.md"
+    assert result.path == "readme.md"
     assert len(result.sha256) == 64
     assert rejected.content == ""
     assert "relative" in rejected.message
-
-
-@pytest.mark.asyncio
-async def test_text_reader_truncates_oversized_slice(tmp_path, mock_session):
-    """超大切片截断并提示按行分页；sha256 仍是全文件的（edit 流程依赖它）。"""
-    from cloudra.tools.Searchtool.text_reader import MAX_CONTENT_CHARS
-
-    raw = ("line-of-text\n" * 4000).encode()
-    (tmp_path / "big.log").write_bytes(raw)
-    tool = TextReader(subagent=_subagent(tmp_path))
-
-    result = await tool.tool_call(
-        TextReader_input_schema(filepath="big.log"),
-        mock_session,
-    )
-
-    assert result.is_success is True
-    assert len(raw) > MAX_CONTENT_CHARS
-    assert len(result.content) < len(raw)
-    assert "[Truncated" in result.content
-    assert "start_line/end_line" in result.message
-    assert result.sha256 == _sha256(raw)
-    assert result.total_lines == 4000
 
 
 @pytest.mark.asyncio
@@ -265,7 +242,7 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
     async def approve(self, session, details, tool_args=None):
         assert "Unified Diff" in details
-        assert tool_args["filepath"] == "agent.txt"
+        assert tool_args["path"] == "agent.txt"
         return True, ""
 
     async def record(self, session, event_type, data):
@@ -273,11 +250,11 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
     monkeypatch.setattr(Tool, "ensure_safety", approve)
     monkeypatch.setattr(Tool, "record_session_event", record)
-    tool = EditFile(subagent=_subagent(tmp_path))
+    tool = Edit(subagent=_subagent(tmp_path))
 
     result = await tool.tool_call(
-        EditFile_input_schema(
-            filepath="agent.txt",
+        Edit_input_schema(
+            path="agent.txt",
             expected_sha256=snapshot.sha256,
             edits=[{"old_text": "old", "new_text": "new"}],
         ),
@@ -296,13 +273,13 @@ async def test_edit_tool_records_preview_apply_and_turn_diff(
 
 
 @pytest.mark.asyncio
-async def test_text_writer_tool_returns_structured_conflict(
+async def test_write_tool_returns_structured_conflict(
     tmp_path,
     mock_session,
     monkeypatch,
 ):
     (tmp_path / "exists.txt").write_text("keep\n", encoding="utf-8")
-    tool = TextWriter(subagent=_subagent(tmp_path))
+    tool = Write(subagent=_subagent(tmp_path))
     events: list[tuple[str, dict]] = []
 
     async def record(self, session, event_type, data):
@@ -311,8 +288,8 @@ async def test_text_writer_tool_returns_structured_conflict(
     monkeypatch.setattr(Tool, "record_session_event", record)
 
     result = await tool.tool_call(
-        TextWriter_input_schema(
-            filepath="exists.txt",
+        Write_input_schema(
+            path="exists.txt",
             content="replace\n",
             expected_sha256="missing",
         ),

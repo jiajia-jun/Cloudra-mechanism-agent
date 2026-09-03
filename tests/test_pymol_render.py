@@ -48,7 +48,7 @@ async def test_render_minimal_pdb(tmp_path, pdb_file, mock_session):
     assert result.image_path == output
     with open(output, "rb") as fh:
         assert fh.read(8) == b"\x89PNG\r\n\x1a\n"
-    assert "image_reader" in result.message
+    assert "read" in result.message
 
 
 @pytest.mark.asyncio

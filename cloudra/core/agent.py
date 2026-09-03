@@ -433,9 +433,9 @@ class Agent(BaseModel):
         """在请求期装配当前身份层、持久历史和环境 observation。"""
         schemas = self._get_tools_schema() if tool_schemas is None else tool_schemas
         tool_names = self._tool_names_from_schemas(schemas)
-        # 有联网搜索能力：原生搜索（服务端工具不在 function 列表里）或外部 web_search 工具
+        # 有联网搜索能力：原生搜索（服务端工具不在 function 列表里）或外部 search 工具
         web_search_available = (
-            self._native_search_adapter() is not None or "web_search" in tool_names
+            self._native_search_adapter() is not None or "search" in tool_names
         )
         # assemble 每轮要读 prompt/MEMORY/AGENTS.md、扫 skills 与工作区，
         # 是同步 IO+CPU 开销，移出事件循环。
@@ -484,19 +484,19 @@ class Agent(BaseModel):
     async def _build_request_kwargs(self) -> dict:
         """组装一次 chat completions 的请求参数（工具 schema + 上下文消息）。
 
-        启用模型原生网页搜索时，剔除外置 ``web_search`` 工具（避免模型既走
-        function call 转第三方搜索、又走 provider 端原生搜索），并通过
-        ``extra_body`` 注入服务商的原生搜索参数。
+        启用模型原生网页搜索时，保留 ``search`` 并把 ``source`` 收成
+        arxiv|openalex（避免 source=web 与 provider 端原生搜索双重检索），
+        并通过 ``extra_body`` 注入服务商的原生搜索参数。
         """
+        from cloudra.runtime_v2.adapters import apply_native_search_to_schemas
+
         available_tool_classes = self._get_tools_schema()
         native_adapter = self._native_search_adapter()
         native_name = native_adapter.name if native_adapter is not None else None
         if native_name is not None:
-            available_tool_classes = [
-                schema
-                for schema in available_tool_classes
-                if self._tool_name_of(schema) != "web_search"
-            ]
+            available_tool_classes = apply_native_search_to_schemas(
+                available_tool_classes, native_on=True
+            )
         messages = await self._build_messages(available_tool_classes)
         if self._should_inject_todo_reminder():
             reminder = self._todo_reminder()

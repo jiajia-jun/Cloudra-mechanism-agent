@@ -14,7 +14,7 @@ description = (
     "Visit a URL with a headless browser (Playwright Chromium) and return rendered page text, title, or a screenshot; "
     "falls back to static HTTP fetch if the browser environment is not ready. "
     "Use for: JS-rendered pages, SPAs, or full-page screenshots. "
-    "Do not use for: ordinary static fetches and file downloads (web_fetcher is faster) or keyword search (use web_search/paper_searcher)."
+    "Do not use for: ordinary static fetches and file downloads (web_fetch is faster) or keyword search (use search with source=web or source=arxiv)."
 )
 
 
@@ -96,7 +96,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 class HeadlessBrowser(Tool):
     tool_id: str = 't-28'
-    tool_name: str = 'headless_browser'
+    tool_name: str = 'browser'
     tool_description: str = description
     input_schema: Any = HeadlessBrowser_input_schema
     output_schema: Any = HeadlessBrowser_output_schema

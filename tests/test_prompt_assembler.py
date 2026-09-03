@@ -165,7 +165,7 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
         include_memory=False,
     )
 
-    with_hub = assembler.assemble(["bashtools", "agent_hub"])
+    with_hub = assembler.assemble(["bash", "agent_hub"])
     assert "AgentHub" in with_hub.identity_messages[0]["content"]
     assert "agent_hub" in with_hub.identity_messages[0]["content"]
     assert "handoff" in with_hub.identity_messages[0]["content"]
@@ -173,7 +173,7 @@ def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
     assert "call" in with_hub.identity_messages[0]["content"]
     assert "[Incoming call]" in with_hub.identity_messages[0]["content"]
 
-    without_hub = assembler.assemble(["bashtools"])
+    without_hub = assembler.assemble(["bash"])
     assert "AgentHub" not in without_hub.identity_messages[0]["content"]
     assert "handoff" in without_hub.identity_messages[0]["content"]
 
@@ -333,7 +333,7 @@ async def test_ordinary_workspace_change_is_observation_only(
     assert second_observation != first_observation
     assert "new-result.txt" in second_observation
     assert f"working_directory={workspace.resolve()}" in first_observation
-    assert "bashtools" in first_observation
+    assert "bash" in first_observation
     assert "relative to this working directory" in first_observation
 
 

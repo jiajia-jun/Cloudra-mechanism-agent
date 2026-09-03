@@ -150,7 +150,7 @@ async def test_tool_result_image_text_fallback_when_no_vision(tmp_path):
 async def test_tool_result_image_plain_text_when_visual_mode_off(tmp_path):
     # visual_mode=False 时 visual 工具在 permission stage 就被拦（见
     # policies/permission.py），所以这里用一个普通工具验证 runner 侧的回退：
-    # 带 image_path 的结果保持纯文本，不回注图片。
+    # 带 image_path 的结果保持纯文本，每条路径一行 fallback，不回注图片。
     image = _write_png(tmp_path)
     llm = RecordingLLM([])
     _scripted_tool_turn(llm, tool_name="echo")
@@ -158,7 +158,10 @@ async def test_tool_result_image_plain_text_when_visual_mode_off(tmp_path):
     agent.settings = agent.settings.model_copy(update={"visual_mode": False})
     await _wait_for(lambda: len(llm.calls) >= 2, message="second LLM call never happened")
     content = [m for m in llm.calls[1] if m.get("role") == "tool"][0]["content"]
-    assert content == f"rendered: {image}"
+    assert isinstance(content, str)
+    assert content.startswith(f"rendered: {image}")
+    assert "Image rendered at:" in content
+    assert image in content
 
 
 @pytest.mark.asyncio
@@ -286,6 +289,40 @@ async def test_tool_image_registered_as_artifact(tmp_path):
     artifacts = await asyncio.to_thread(service.list, project.id)
     assert [a.artifact_id for a in artifacts] == [artifact_id]
     assert artifacts[0].name == "render.png"
+
+
+@pytest.mark.asyncio
+async def test_tool_finished_event_includes_all_image_paths(tmp_path):
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    pngs = []
+    for i in range(3):
+        path = workspace / f"{i}.png"
+        path.write_bytes(_PNG_BYTES)
+        pngs.append(str(path))
+    llm = RecordingLLM([])
+    _scripted_tool_turn(llm)
+    core, project, agent = await _setup(
+        llm,
+        ImageTools(pngs[0], data={"image_paths": pngs, "image_path": pngs[0]}),
+        workspace_dir=str(workspace),
+    )
+    await _wait_for(lambda: agent.state.value == "succeeded", message="run never finished")
+    finished = [
+        e for e in core.event_log.query_session(agent.id)
+        if e.type == "tool.finished" and e.data.get("is_success")
+    ]
+    assert finished, "tool.finished not found"
+    data = finished[-1].data
+    assert data["image_path"] == pngs[0]
+    assert data["image_paths"] == pngs
+    assert data.get("artifact_id")
+
+    from cloudra.infra.config import get_config
+    from cloudra.persistence.artifacts import ArtifactService
+
+    artifacts = await asyncio.to_thread(ArtifactService(Path(get_config().data_dir)).list, project.id)
+    assert len(artifacts) == 3
 
 
 @pytest.mark.asyncio

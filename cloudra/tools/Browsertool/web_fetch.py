@@ -11,8 +11,8 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 description = (
     "Generic HTTP fetch/download tool: fetch page HTML and extract body text, or save the response bytes to a local file. "
     "Use for: fetching known-URL literature pages, web content, or data files; binary downloads must set download_path. "
-    "Do not use for: JS-rendered dynamic pages (use headless_browser) or keyword search (use web_search). "
-    "Note: do not fetch PDFs in text mode (you will get garbage); download with download_path and pass the file to pdf2md."
+    "Do not use for: JS-rendered dynamic pages (use browser) or keyword search (use search with source=web). "
+    "Note: do not fetch PDFs in text mode (you will get garbage); download with download_path and pass the file to read."
 )
 
 
@@ -89,7 +89,7 @@ class _HTMLTextExtractor(HTMLParser):
 
 class WebFetcher(Tool):
     tool_id: str = 't-7'
-    tool_name: str = 'web_fetcher'
+    tool_name: str = 'web_fetch'
     tool_description: str = description
     input_schema: Any = WebFetcher_input_schema
     output_schema: Any = WebFetcher_output_schema
@@ -178,7 +178,7 @@ class WebFetcher(Tool):
                 error=(
                     f"The target is a PDF file (~{len(response.content) // 1024} KB); "
                     "text fetch is not suitable for PDF. Use download_path to save it locally, "
-                    "then extract with the pdf2md tool."
+                    "then extract with the read tool."
                 )
             )
 

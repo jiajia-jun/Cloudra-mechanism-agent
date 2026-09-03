@@ -49,7 +49,7 @@ def _kwargs(**overrides) -> dict:
             {"role": "user", "content": "hi"},
         ],
         "tools": [
-            {"type": "function", "function": {"name": "bashtools", "description": "d", "parameters": {}}}
+            {"type": "function", "function": {"name": "bash", "description": "d", "parameters": {}}}
         ],
         "extra_body": {"tools": [{"type": "web_search"}]},
     }
@@ -67,7 +67,7 @@ def test_build_responses_payload_translates_kwargs():
     assert payload["tool_choice"] == "auto"
     # function 工具 + extra_body 里的原生 web_search 工具合并（不重复 function）
     assert payload["tools"] == [
-        {"type": "function", "name": "bashtools", "description": "d"},
+        {"type": "function", "name": "bash", "description": "d"},
         {"type": "web_search"},
     ]
     assert payload["input"] == [
@@ -87,7 +87,7 @@ def test_build_responses_payload_roundtrips_tool_turn():
                     "content": "let me",
                     "reasoning_content": "think",
                     "tool_calls": [
-                        {"id": "c1", "type": "function", "function": {"name": "bashtools", "arguments": "{}"}}
+                        {"id": "c1", "type": "function", "function": {"name": "bash", "arguments": "{}"}}
                     ],
                 },
                 {"role": "tool", "tool_call_id": "c1", "content": "ok"},
@@ -97,7 +97,7 @@ def test_build_responses_payload_roundtrips_tool_turn():
     types = [item["type"] for item in payload["input"]]
     assert types == ["message", "reasoning", "message", "function_call", "function_call_output"]
     assert payload["input"][1]["content"][0]["text"] == "think"
-    assert payload["input"][3]["name"] == "bashtools"
+    assert payload["input"][3]["name"] == "bash"
     assert payload["input"][4]["call_id"] == "c1"
 
 
@@ -146,7 +146,7 @@ def test_translate_responses_completion_non_stream():
         "output": [
             {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "think"}]},
             {"type": "message", "content": [{"type": "output_text", "text": "answer"}]},
-            {"type": "function_call", "name": "bashtools", "arguments": "{}", "call_id": "call_1"},
+            {"type": "function_call", "name": "bash", "arguments": "{}", "call_id": "call_1"},
             {"type": "web_search_call", "status": "completed", "action": {"query": "q1"}},
         ],
         "usage": {"input_tokens": 10, "output_tokens": 20},
@@ -155,7 +155,7 @@ def test_translate_responses_completion_non_stream():
     message = completion["choices"][0]["message"]
     assert message["content"] == "answer"
     assert message["reasoning_content"] == "think"
-    assert message["tool_calls"][0]["function"]["name"] == "bashtools"
+    assert message["tool_calls"][0]["function"]["name"] == "bash"
     assert completion["choices"][0]["finish_reason"] == "tool_calls"
     assert completion["_web_search"] == [{"query": "q1", "status": "completed"}]
     assert completion["usage"] == {
@@ -230,7 +230,7 @@ def test_stream_events_translate_chunks_and_capture_web_search():
         {
             "type": "response.output_item.added",
             "output_index": 0,
-            "item": {"type": "function_call", "name": "bashtools", "call_id": "call_1"},
+            "item": {"type": "function_call", "name": "bash", "call_id": "call_1"},
         },
         {"type": "response.function_call_arguments.delta", "output_index": 0, "delta": '{"a":1}'},
         {"type": "response.reasoning_text.delta", "delta": "think "},
@@ -240,7 +240,7 @@ def test_stream_events_translate_chunks_and_capture_web_search():
             "type": "response.completed",
             "response": {
                 "status": "completed",
-                "output": [{"type": "function_call", "name": "bashtools"}],
+                "output": [{"type": "function_call", "name": "bash"}],
                 "usage": {"input_tokens": 5, "output_tokens": 7},
             },
         },
@@ -256,7 +256,7 @@ def test_stream_events_translate_chunks_and_capture_web_search():
         if chunk["choices"][0]["delta"].get("tool_calls")
     ]
     assert tool_chunks[0]["id"] == "call_1"
-    assert tool_chunks[0]["function"]["name"] == "bashtools"
+    assert tool_chunks[0]["function"]["name"] == "bash"
     assert tool_chunks[0]["function"]["arguments"] == ""
     assert tool_chunks[1]["function"]["arguments"] == '{"a":1}'
     assert "id" not in tool_chunks[1]

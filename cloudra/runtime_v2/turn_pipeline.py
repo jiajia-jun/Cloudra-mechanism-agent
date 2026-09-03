@@ -89,6 +89,22 @@ def register_workspace_image_artifact(
         return None
 
 
+def image_paths_from_tool_result(result: ToolResult) -> list[str]:
+    """Collect every injectable image path from a tool result (no cap).
+
+    ``image_paths`` wins when it is a list; otherwise a non-empty
+    ``image_path`` string is treated as a one-element list.
+    """
+    data = result.data if isinstance(result.data, dict) else {}
+    raw = data.get("image_paths")
+    if isinstance(raw, list):
+        return [p for p in raw if isinstance(p, str) and p]
+    path = data.get("image_path")
+    if isinstance(path, str) and path:
+        return [path]
+    return []
+
+
 @dataclass(frozen=True)
 class LLMResponse:
     content: str = ""
@@ -434,6 +450,10 @@ class TurnPipeline:
             if artifact_id:
                 # The frontend builds the timeline download URL from this id.
                 finished_data["artifact_id"] = artifact_id
+            image_paths = image_paths_from_tool_result(result)
+            if image_paths:
+                finished_data["image_path"] = image_paths[0]
+                finished_data["image_paths"] = image_paths
             self.event_log.append(
                 "tool.finished",
                 stream="agent",
@@ -463,22 +483,36 @@ class TurnPipeline:
         )
 
     async def _register_tool_image(self, ctx: PipelineContext, result: ToolResult) -> str | None:
-        """Register a successful image result living in the workspace as an artifact."""
-        data = result.data if isinstance(result.data, dict) else {}
-        image_path = data.get("image_path")
-        if not result.is_success or not isinstance(image_path, str) or not image_path:
+        """Register every workspace image on a successful result as an artifact.
+
+        Returns the last registered artifact id so ``tool.finished`` can keep a
+        single ``artifact_id`` slot.
+        """
+        if not result.is_success or not ctx.workspace_dir:
             return None
-        if not ctx.workspace_dir:
+        paths = image_paths_from_tool_result(result)
+        if not paths:
             return None
-        return await asyncio.to_thread(
-            lambda: register_workspace_image_artifact(
-                project_id=ctx.agent.project_id,
-                session_id=ctx.agent.id,
-                agent_id=ctx.agent.role_id,
-                workspace_root=ctx.workspace_dir,
-                image_path=image_path,
-            )
-        )
+        workspace_root = ctx.workspace_dir
+        project_id = ctx.agent.project_id
+        session_id = ctx.agent.id
+        agent_id = ctx.agent.role_id
+
+        def _register_all() -> str | None:
+            last_id: str | None = None
+            for image_path in paths:
+                artifact_id = register_workspace_image_artifact(
+                    project_id=project_id,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    workspace_root=workspace_root,
+                    image_path=image_path,
+                )
+                if artifact_id:
+                    last_id = artifact_id
+            return last_id
+
+        return await asyncio.to_thread(_register_all)
 
     async def _apply_before_tool(self, ctx, call: ToolCall, emit) -> TurnOutcome | None:
         for stage in self.stages:

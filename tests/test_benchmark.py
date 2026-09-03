@@ -379,7 +379,7 @@ def test_accuracy_disabled_passthrough():
         ("qm_input_writer", {"method": "wb97m-v"}, False),
         ("qm_input_writer", {"method": "ccsd(t)"}, False),
         ("qm_input_writer", {}, False),
-        ("read_file", {"path": "x"}, True),
+        ("read", {"path": "x"}, True),
     ],
 )
 def test_method_policy(tool, args, allowed):
@@ -447,13 +447,13 @@ def test_method_policy_bash_content(command, allowed):
     assert intercept("bash", {"command": command}, MethodPolicy()).allowed is allowed
 
 
-def test_method_policy_bashtools_real_tool_name():
-    """注册的 bash 工具真实名是 bashtools：真实工具名下 bash 层拦截同样生效。"""
+def test_method_policy_bash_tool_name():
+    """注册的 bash 工具真实名是 bash：bash 层拦截生效。"""
     policy = MethodPolicy()
     bad = "cat > t.gjf <<EOF\n# b3lyp/6-31g(d) opt freq\nEOF"
-    assert not intercept("bashtools", {"command": bad}, policy).allowed
+    assert not intercept("bash", {"command": bad}, policy).allowed
     good = "cat > t.inp <<EOF\n! XTB2 OPT FREQ\nEOF"
-    assert intercept("bashtools", {"command": good}, policy).allowed
+    assert intercept("bash", {"command": good}, policy).allowed
 
 
 def test_method_policy_family_granularity():
@@ -947,17 +947,17 @@ async def test_method_policy_stage_blocks_and_allows(tmp_path):
 
     # bash heredoc 写非白名单方法 -> 拦
     cmd = "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
-    res = await stage.before_tool(ctx, ToolCall(id="c1", name="bashtools", arguments={"command": cmd}))
+    res = await stage.before_tool(ctx, ToolCall(id="c1", name="bash", arguments={"command": cmd}))
     assert res.outcome == "block" and "b3lyp" in res.message
 
     # 白名单方法（Gaussian external MLIP 路由）-> 放行
     cmd_ok = "cat > ts.gjf <<'EOF'\n#p external=\"mace\" opt freq\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
-    res = await stage.before_tool(ctx, ToolCall(id="c2", name="bashtools", arguments={"command": cmd_ok}))
+    res = await stage.before_tool(ctx, ToolCall(id="c2", name="bash", arguments={"command": cmd_ok}))
     assert res.outcome == "allow"
 
     # 引用磁盘已有输入（g16 evil.gjf）-> 查文件内容，非白名单 -> 拦
     (tmp_path / "evil.gjf").write_text("#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\n")
-    res = await stage.before_tool(ctx, ToolCall(id="c3", name="bashtools", arguments={"command": "g16 evil.gjf"}))
+    res = await stage.before_tool(ctx, ToolCall(id="c3", name="bash", arguments={"command": "g16 evil.gjf"}))
     assert res.outcome == "block"
 
     # submit_compute_job 层：按 input_file 内容判定（相对路径基于沙箱解析）
@@ -968,7 +968,14 @@ async def test_method_policy_stage_blocks_and_allows(tmp_path):
     assert res.outcome == "block"
 
     # 与拦截层无关的工具不受影响
-    res = await stage.before_tool(ctx, ToolCall(id="c6", name="text_writer", arguments={}))
+    res = await stage.before_tool(ctx, ToolCall(id="c6", name="write", arguments={}))
+    assert res.outcome == "allow"
+
+    # Retired wire name bashtools is not bash policy — on-disk QM refs are not checked here
+    # (unknown-tool hint is the executor's job; this stage must not dual-name treat it).
+    res = await stage.before_tool(
+        ctx, ToolCall(id="c7", name="bashtools", arguments={"command": "g16 evil.gjf"})
+    )
     assert res.outcome == "allow"
 
 
@@ -1023,7 +1030,7 @@ def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path):
             content="",
             tool_calls=[PToolCall(
                 id="t1",
-                name="bashtools",
+                name="bash",
                 arguments={"command": "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nEOF\n"},
             )],
         ),

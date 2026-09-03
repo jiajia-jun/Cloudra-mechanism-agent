@@ -1,12 +1,9 @@
-"""openalex_searcher：可选 API key / 礼貌池邮箱进配置，缺省时降级。"""
+"""search (source=openalex)：可选 API key / 礼貌池邮箱进配置，缺省时降级。"""
 
 import pytest
 
 from cloudra.infra.config import _reset_for_tests, get_config, set_config_value
-from cloudra.tools.Searchtool.openalex_searcher import (
-    OpenAlexSearcher,
-    OpenAlexSearcher_input_schema,
-)
+from cloudra.tools.Searchtool.search import Search, Search_input_schema
 
 SAMPLE_WORKS = {
     "results": [
@@ -139,8 +136,8 @@ class TestOpenAlexAuth:
         monkeypatch.setattr(get_config(), "openalex_mailto", "")
         calls = []
         _install_client(monkeypatch, calls)
-        out = await OpenAlexSearcher().tool_call(
-            OpenAlexSearcher_input_schema(query="dft"), mock_session
+        out = await Search().tool_call(
+            Search_input_schema(query="dft", source="openalex"), mock_session
         )
         assert out.content[0]["title"] == "A paper"
         assert calls[0]["params"]["api_key"] == "oa-live-key"
@@ -150,8 +147,8 @@ class TestOpenAlexAuth:
         monkeypatch.setattr(get_config(), "openalex_mailto", "")
         calls = []
         _install_client(monkeypatch, calls)
-        out = await OpenAlexSearcher().tool_call(
-            OpenAlexSearcher_input_schema(query="dft"), mock_session
+        out = await Search().tool_call(
+            Search_input_schema(query="dft", source="openalex"), mock_session
         )
         assert out.content[0]["title"] == "A paper"
         assert "api_key" not in calls[0]["params"]
@@ -161,8 +158,8 @@ class TestOpenAlexAuth:
         monkeypatch.setattr(get_config(), "openalex_mailto", "lab@example.edu")
         calls = []
         _install_client(monkeypatch, calls)
-        await OpenAlexSearcher().tool_call(
-            OpenAlexSearcher_input_schema(query="dft"), mock_session
+        await Search().tool_call(
+            Search_input_schema(query="dft", source="openalex"), mock_session
         )
         ua = calls[0]["headers"]["User-Agent"]
         assert "mailto:lab@example.edu" in ua
@@ -173,8 +170,8 @@ class TestOpenAlexAuth:
         monkeypatch.setattr(get_config(), "openalex_mailto", "")
         calls = []
         _install_client(monkeypatch, calls)
-        await OpenAlexSearcher().tool_call(
-            OpenAlexSearcher_input_schema(query="dft"), mock_session
+        await Search().tool_call(
+            Search_input_schema(query="dft", source="openalex"), mock_session
         )
         ua = calls[0]["headers"]["User-Agent"]
         assert "mailto:" not in ua

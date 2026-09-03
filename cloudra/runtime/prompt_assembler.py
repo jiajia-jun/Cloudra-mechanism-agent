@@ -411,8 +411,8 @@ class PromptAssembler:
                 f"{scan_note}\n"
                 f"Top-level contents:\n{listing}\n"
                 f"Recent changes:\n{recent_changes}\n"
-                "Task descriptions may cite absolute paths; filepath for text_reader, edit_file, and text_writer "
-                "must be relative to this working directory, and bashtools also starts here. "
+                "Task descriptions may cite absolute paths; path for read, edit, and write "
+                "must be relative to this working directory, and bash also starts here. "
                 "Do not create a second directory tree from the task text; relative paths always land under working_directory."
                 ),
             },

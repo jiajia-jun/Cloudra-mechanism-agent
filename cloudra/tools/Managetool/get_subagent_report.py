@@ -7,7 +7,7 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
     "Fetch the full execution report of a given sub-agent task. Looks up the complete reasoning, "
-    "tool-call log, and final conclusion by Session ID. Use when the brief result from SubAgentLauncher is not enough to decide."
+    "tool-call log, and final conclusion by Session ID. Use when the brief result from subagent_launcher is not enough to decide."
 )
 
 class GetSubAgentReport_input_schema(input_schema):

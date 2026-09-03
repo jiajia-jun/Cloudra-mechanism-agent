@@ -48,8 +48,8 @@ def test_tool_loading():
     """测试工具加载机制和缓存。"""
     tools = get_tools_lst()
     assert len(tools) > 0
-    assert any(t.tool_name == 'bashtools' for t in tools)
-    assert any(t.tool_name == 'edit_file' for t in tools)
+    assert any(t.tool_name == 'bash' for t in tools)
+    assert any(t.tool_name == 'edit' for t in tools)
 
     # 测试缓存
     tools_again = get_tools_lst()
@@ -80,49 +80,49 @@ def test_skill_loader_cache_invalidates_when_manifest_changes(
     assert skill_class.skill_loader().get_content("live") == "content-v2"
 
 @pytest.mark.asyncio
-async def test_bashtools_permission():
-    """测试 bashtools 的权限识别。"""
-    from cloudra.tools.Bashtool.bashtools import Bashtools
-    tool = Bashtools()
+async def test_bash_permission():
+    """测试 bash 的权限识别。"""
+    from cloudra.tools.Bashtool.bash import Bash
+    tool = Bash()
 
     # review 修复：subagent 为 None 时不再默认放行全部权限，只允许只读命令，
     # 防止注入空子 Agent 获得完整执行权限。
     assert tool.has_command_permission("ls -la") is True
     assert tool.has_command_permission("rm -rf /") is False
 
-def test_text_writer_schema():
-    """测试 TextWriter 的 Schema 校验。"""
-    from cloudra.tools.Writetool.text_writer import TextWriter, TextWriter_input_schema
-    tool = TextWriter()
+def test_write_schema():
+    """测试 Write 的 Schema 校验。"""
+    from cloudra.tools.Writetool.write import Write, Write_input_schema
+    tool = Write()
 
     # 正确参数
-    input_data = TextWriter_input_schema(filepath="test.txt", content="hello")
-    assert input_data.filepath == "test.txt"
+    input_data = Write_input_schema(path="test.txt", content="hello")
+    assert input_data.path == "test.txt"
     assert input_data.expected_sha256 == "missing"
 
     # 验证 tool 属性
-    assert tool.tool_name == 'text_writer'
+    assert tool.tool_name == 'write'
     assert tool.is_write() is True
 
 
-def test_edit_file_schema_keeps_nested_operation_definition():
-    from cloudra.tools.Writetool.edit_file import EditFile_input_schema
+def test_edit_schema_keeps_nested_operation_definition():
+    from cloudra.tools.Writetool.edit import Edit_input_schema
 
-    parameters = EditFile_input_schema.to_parameters_schema()
+    parameters = Edit_input_schema.to_parameters_schema()
     assert parameters["properties"]["edits"]["items"]["$ref"] == "#/$defs/EditOperation"
     assert parameters["$defs"]["EditOperation"]["additionalProperties"] is False
 
 
-def test_text_writer_multiline_parsing():
+def test_write_multiline_parsing():
     """回归测试：LLM 返回的含未转义换行符的 JSON 参数应能被正确解析并保留换行。"""
     import json
 
-    from cloudra.tools.Writetool.text_writer import TextWriter_input_schema
+    from cloudra.tools.Writetool.write import Write_input_schema
 
     # 模拟 LLM 生成的 arguments 中直接包含换行符（未转义）
-    raw_args = '{"filepath": "multi.txt", "content": "line1\nline2\nline3"}'
+    raw_args = '{"path": "multi.txt", "content": "line1\nline2\nline3"}'
     parsed = json.loads(raw_args, strict=False)
-    input_data = TextWriter_input_schema(**parsed)
+    input_data = Write_input_schema(**parsed)
     assert input_data.content == "line1\nline2\nline3"
 
 
@@ -137,12 +137,12 @@ def test_subagent_hash_caching():
     assert hasattr(h1, 'a-1') or 'a-1' in h1.subagents_dict
 
 
-def test_web_fetcher_schema():
+def test_web_fetch_schema():
     """测试 WebFetcher 工具 Schema 与 HTML 文本提取。"""
-    from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema, _HTMLTextExtractor
+    from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema, _HTMLTextExtractor
 
     tool = WebFetcher()
-    assert tool.tool_name == 'web_fetcher'
+    assert tool.tool_name == 'web_fetch'
     assert tool.is_read() is True
 
     inp = WebFetcher_input_schema(url='https://example.com')
@@ -156,12 +156,12 @@ def test_web_fetcher_schema():
     assert extractor.get_text() == 'Hello'
 
 
-def test_headless_browser_schema():
+def test_browser_schema():
     """测试 HeadlessBrowser 工具 Schema。"""
-    from cloudra.tools.Browsertool.headless_browser import HeadlessBrowser, HeadlessBrowser_input_schema
+    from cloudra.tools.Browsertool.browser import HeadlessBrowser, HeadlessBrowser_input_schema
 
     tool = HeadlessBrowser()
-    assert tool.tool_name == 'headless_browser'
+    assert tool.tool_name == 'browser'
     assert tool.is_read() is True
 
     inp = HeadlessBrowser_input_schema(url='https://example.com', action='fetch')
@@ -171,7 +171,7 @@ def test_headless_browser_schema():
 
 
 class TestWebFetcherGuards:
-    """web_fetcher 的 PDF 防护；正文不截断。"""
+    """web_fetch 的 PDF 防护；正文不截断。"""
 
     @staticmethod
     def _resp(content: bytes, content_type: str, status: int = 200):
@@ -200,7 +200,7 @@ class TestWebFetcherGuards:
 
     @pytest.mark.asyncio
     async def test_pdf_rejected_with_guidance(self, monkeypatch):
-        from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
+        from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
 
         resp = self._resp(b"%PDF-1.7 fake\n" + b"\x00" * 100, "application/pdf")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
@@ -208,24 +208,24 @@ class TestWebFetcherGuards:
             WebFetcher_input_schema(url="https://x.com/a.pdf"), None
         )
         assert result.is_success is False
-        assert "pdf2md" in result.error and "download_path" in result.error
+        assert "read" in result.error and "download_path" in result.error
 
     @pytest.mark.asyncio
     async def test_pdf_detected_by_magic_bytes(self, monkeypatch):
         resp = self._resp(b"%PDF-1.3 xxx\n" + b"0" * 50, "application/octet-stream")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
-        from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
+        from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/download?id=1"), None
         )
-        assert result.is_success is False and "pdf2md" in result.error
+        assert result.is_success is False and "read" in result.error
 
     @pytest.mark.asyncio
     async def test_giant_html_not_truncated(self, monkeypatch):
         html = ("<html><body><p>" + "x" * 250_000 + "</p></body></html>").encode()
         resp = self._resp(html, "text/html; charset=utf-8")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
-        from cloudra.tools.Browsertool.web_fetcher import WebFetcher, WebFetcher_input_schema
+        from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/page"), None
         )
@@ -235,16 +235,12 @@ class TestWebFetcherGuards:
 
 
 @pytest.mark.asyncio
-async def test_bashtools_oversized_output_offloads_to_workspace(tmp_path, mock_session):
+async def test_bash_oversized_output_offloads_to_workspace(tmp_path, mock_session):
     """超大 stdout 落盘到 .cloudra/tool_output/，observation 只回截断摘要 + 路径。"""
     from types import SimpleNamespace
 
-    from cloudra.tools.Bashtool.bashtools import (
-        MAX_OBSERVATION_CHARS,
-        TOOL_OUTPUT_DIR,
-        Bashtools,
-        Bashtools_input_schema,
-    )
+    from cloudra.tools.Bashtool.bash import Bash, Bash_input_schema
+    from cloudra.tools.core.observation_offload import MAX_OBSERVATION_CHARS, TOOL_OUTPUT_DIR
     from cloudra.tools.core.permission_model import Permission
 
     big = "x" * (MAX_OBSERVATION_CHARS + 5_000) + "\n"
@@ -256,16 +252,16 @@ async def test_bashtools_oversized_output_offloads_to_workspace(tmp_path, mock_s
             Permission.READ | Permission.WRITE | Permission.SCRIPT | Permission.DESTRUCTIVE
         ),
     )
-    tool = Bashtools(subagent=subagent)
+    tool = Bash(subagent=subagent)
     result = await tool.tool_call(
-        Bashtools_input_schema(command="cat big.txt", task_description="read big file"),
+        Bash_input_schema(command="cat big.txt", task_description="read big file"),
         mock_session,
     )
 
     assert result.exit_code == 0
     assert len(result.result) < MAX_OBSERVATION_CHARS
-    assert "[Output truncated" in result.result
-    assert "text_reader" in result.result
+    assert "`read`" in result.result
+    assert "offset" in result.result
     assert TOOL_OUTPUT_DIR.replace(os.sep, "/") in result.result
 
     dumped = list((tmp_path / TOOL_OUTPUT_DIR).glob("bash-*.log"))
@@ -274,16 +270,13 @@ async def test_bashtools_oversized_output_offloads_to_workspace(tmp_path, mock_s
 
 
 @pytest.mark.asyncio
-async def test_bashtools_oversized_output_fallback_truncates(tmp_path, mock_session, monkeypatch):
+async def test_bash_oversized_output_fallback_truncates(tmp_path, mock_session, monkeypatch):
     """落盘失败时优雅降级为纯截断并注明，工具本身不炸。"""
     from types import SimpleNamespace
 
-    import cloudra.tools.Bashtool.bashtools as bashtools_mod
-    from cloudra.tools.Bashtool.bashtools import (
-        MAX_OBSERVATION_CHARS,
-        Bashtools,
-        Bashtools_input_schema,
-    )
+    import cloudra.tools.core.observation_offload as offload_mod
+    from cloudra.tools.Bashtool.bash import Bash, Bash_input_schema
+    from cloudra.tools.core.observation_offload import MAX_OBSERVATION_CHARS
     from cloudra.tools.core.permission_model import Permission
 
     (tmp_path / "big.txt").write_text("y" * (MAX_OBSERVATION_CHARS + 5_000), encoding="utf-8")
@@ -291,16 +284,16 @@ async def test_bashtools_oversized_output_fallback_truncates(tmp_path, mock_sess
     def _failing_write(path, content, encoding="utf-8"):
         raise OSError("disk full")
 
-    monkeypatch.setattr(bashtools_mod, "atomic_write_text", _failing_write)
+    monkeypatch.setattr(offload_mod, "atomic_write_text", _failing_write)
     subagent = SimpleNamespace(
         working_directory=str(tmp_path),
         permission_all=lambda: (
             Permission.READ | Permission.WRITE | Permission.SCRIPT | Permission.DESTRUCTIVE
         ),
     )
-    tool = Bashtools(subagent=subagent)
+    tool = Bash(subagent=subagent)
     result = await tool.tool_call(
-        Bashtools_input_schema(command="cat big.txt", task_description="read big file"),
+        Bash_input_schema(command="cat big.txt", task_description="read big file"),
         mock_session,
     )
 
@@ -310,23 +303,23 @@ async def test_bashtools_oversized_output_fallback_truncates(tmp_path, mock_sess
 
 
 @pytest.mark.asyncio
-async def test_bashtools_small_output_untouched(tmp_path, mock_session):
+async def test_bash_small_output_untouched(tmp_path, mock_session):
     """阈值以下的输出原样返回，不触发落盘。"""
     from types import SimpleNamespace
 
-    from cloudra.tools.Bashtool.bashtools import Bashtools, Bashtools_input_schema
+    from cloudra.tools.Bashtool.bash import Bash, Bash_input_schema
     from cloudra.tools.core.permission_model import Permission
 
     subagent = SimpleNamespace(
         working_directory=str(tmp_path),
         permission_all=lambda: Permission.READ,
     )
-    tool = Bashtools(subagent=subagent)
+    tool = Bash(subagent=subagent)
     result = await tool.tool_call(
-        Bashtools_input_schema(command="ls", task_description="list files"),
+        Bash_input_schema(command="ls", task_description="list files"),
         mock_session,
     )
 
     assert result.exit_code == 0
-    assert "[Output truncated" not in result.result
+    assert "Full output" not in result.result
     assert not (tmp_path / ".cloudra").exists()

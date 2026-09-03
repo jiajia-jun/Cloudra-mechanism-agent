@@ -84,7 +84,7 @@ async def test_launcher_wait_spawns_v2_child_and_returns_result():
                 tool_calls=[
                     ToolCall(
                         id="t1",
-                        name="SubAgentLauncher",
+                        name="subagent_launcher",
                         arguments={"agent_id": "a-1", "query": "explore X", "is_wait": True},
                     )
                 ],
@@ -104,7 +104,7 @@ async def test_launcher_wait_spawns_v2_child_and_returns_result():
     tool_events = [
         e
         for e in core.event_log.query_session(coordinator.id)
-        if e.type == "tool.finished" and e.data.get("tool_name") == "SubAgentLauncher"
+        if e.type == "tool.finished" and e.data.get("tool_name") == "subagent_launcher"
     ]
     assert tool_events, "launcher tool call missing"
     assert tool_events[0].data["is_success"] is True
@@ -124,7 +124,7 @@ async def test_launcher_nowait_then_report():
                 tool_calls=[
                     ToolCall(
                         id="t1",
-                        name="SubAgentLauncher",
+                        name="subagent_launcher",
                         arguments={"agent_id": "a-4", "query": "optimize water", "is_wait": False},
                     )
                 ],
@@ -215,7 +215,7 @@ async def test_swarm_expands_items_and_aggregates():
                 tool_calls=[
                     ToolCall(
                         id="t1",
-                        name="SubAgentSwarm",
+                        name="subagent_swarm",
                         arguments={
                             "agent_id": "a-1",
                             "prompt_template": "scan {{item}}",
@@ -237,7 +237,7 @@ async def test_swarm_expands_items_and_aggregates():
     tool_events = [
         e
         for e in core.event_log.query_session(coordinator.id)
-        if e.type == "tool.finished" and e.data.get("tool_name") == "SubAgentSwarm"
+        if e.type == "tool.finished" and e.data.get("tool_name") == "subagent_swarm"
     ]
     assert "alpha" in tool_events[0].data["result_summary"]
     assert "beta" in tool_events[0].data["result_summary"]
@@ -251,7 +251,7 @@ async def test_spawn_permission_enforced_for_roles():
     fake = coordinator.model_copy(update={"id": "as_fake_explorer", "role_id": "explorer"})
     core.agents[fake.id] = fake
     result = await handle_native_tool(
-        core, fake, ToolCall(id="t9", name="SubAgentLauncher", arguments={"agent_id": "a-1", "query": "x", "is_wait": True})
+        core, fake, ToolCall(id="t9", name="subagent_launcher", arguments={"agent_id": "a-1", "query": "x", "is_wait": True})
     )
     assert result.is_success is False
     assert "cannot spawn" in result.summary
@@ -268,7 +268,7 @@ async def test_child_inherits_parent_yolo_at_spawn():
                 tool_calls=[
                     ToolCall(
                         id="t1",
-                        name="SubAgentLauncher",
+                        name="subagent_launcher",
                         arguments={"agent_id": "a-1", "query": "explore X", "is_wait": False},
                     )
                 ],
@@ -314,7 +314,7 @@ async def test_swarm_and_launcher_spawn_share_legacy_identity():
         parent,
         ToolCall(
             id="t1",
-            name="SubAgentLauncher",
+            name="subagent_launcher",
             arguments={"agent_id": "a-4", "query": "", "is_wait": False},
         ),
     )
@@ -323,7 +323,7 @@ async def test_swarm_and_launcher_spawn_share_legacy_identity():
         parent,
         ToolCall(
             id="t2",
-            name="SubAgentSwarm",
+            name="subagent_swarm",
             arguments={
                 "agent_id": "a-4",
                 "prompt_template": "do {{item}}",
@@ -372,7 +372,7 @@ async def test_child_inherits_parent_orchestration_mode():
         parent,
         ToolCall(
             id="t1",
-            name="SubAgentLauncher",
+            name="subagent_launcher",
             arguments={"agent_id": "a-6", "query": "dft job", "is_wait": False},
         ),
     )

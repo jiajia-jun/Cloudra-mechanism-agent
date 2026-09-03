@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -62,7 +63,7 @@ async def test_visual_mode_defaults_on_and_merges_through_spawn_chain():
 def test_visual_tools_projection_reads_registry_metadata():
     # Metadata-only: no tool modules are imported (pymol_render may still be
     # in flight from a parallel change).
-    assert visual_tools() == frozenset({"image_reader", "pymol_render"})
+    assert visual_tools() == frozenset({"pymol_render"})
 
 
 # --- LLM-side gate: strip visual tool schemas --------------------------------
@@ -110,7 +111,7 @@ def _visual_agent(visual_mode: bool):
 
 
 _FAKE_SCHEMAS = [
-    {"type": "function", "function": {"name": "image_reader"}},
+    {"type": "function", "function": {"name": "read"}},
     {"type": "function", "function": {"name": "pymol_render"}},
     {"type": "function", "function": {"name": "stop"}},
 ]
@@ -129,10 +130,10 @@ async def test_complete_strips_visual_tool_schemas_when_visual_mode_off(monkeypa
     await provider.complete(
         _visual_agent(False),
         [{"role": "user", "content": "hi"}],
-        ["image_reader", "pymol_render", "stop"],
+        ["read", "pymol_render", "stop"],
     )
     names = [t["function"]["name"] for t in sent["tools"]]
-    assert names == ["stop"]
+    assert names == ["read", "stop"]
 
 
 @pytest.mark.asyncio
@@ -146,10 +147,10 @@ async def test_complete_keeps_visual_tool_schemas_when_visual_mode_on(monkeypatc
     await provider.complete(
         _visual_agent(True),
         [{"role": "user", "content": "hi"}],
-        ["image_reader", "pymol_render", "stop"],
+        ["read", "pymol_render", "stop"],
     )
     names = [t["function"]["name"] for t in sent["tools"]]
-    assert names == ["image_reader", "pymol_render", "stop"]
+    assert names == ["read", "pymol_render", "stop"]
 
 
 def test_supports_vision_reads_resolved_legacy_slot(monkeypatch):
@@ -184,11 +185,11 @@ def _ctx(settings: RuntimeSettings) -> PipelineContext:
 async def test_permission_stage_blocks_visual_tools_when_visual_mode_off():
     stage = PermissionStage()
     ctx = _ctx(RuntimeSettings(visual_mode=False))
-    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="image_reader"))
+    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="pymol_render"))
     assert result.outcome == "block"
     assert "/visual" in result.message
-    # Non-visual tools are unaffected.
-    allowed = await stage.before_tool(ctx, ToolCall(id="tc2", name="stop"))
+    # read is not visual-gated; it stays available when visual mode is off.
+    allowed = await stage.before_tool(ctx, ToolCall(id="tc2", name="read"))
     assert allowed.outcome == "allow"
 
 
@@ -196,7 +197,7 @@ async def test_permission_stage_blocks_visual_tools_when_visual_mode_off():
 async def test_permission_stage_allows_visual_tools_when_visual_mode_on():
     stage = PermissionStage()
     ctx = _ctx(RuntimeSettings())  # visual_mode defaults to True
-    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="image_reader"))
+    result = await stage.before_tool(ctx, ToolCall(id="tc1", name="pymol_render"))
     assert result.outcome == "allow"
 
 
@@ -229,3 +230,129 @@ def test_supports_vision_yaml_round_trip(tmp_path, monkeypatch):
     display = reloaded.to_display_dict()
     assert display["llm"]["coordinator"]["supports_vision"] is False
     assert display["llm"]["follower"]["supports_vision"] is False
+
+
+# --- tool-result visual injection --------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tool_result_injects_all_image_paths(tmp_path):
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.policies.base import ToolResult
+    pngs = []
+    for i in range(3):
+        p = tmp_path / f"{i}.png"
+        p.write_bytes(
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+            b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        pngs.append(str(p))
+    runner = AgentRunner(
+        core=SimpleNamespace(),
+        pipeline=SimpleNamespace(llm=SimpleNamespace(supports_vision=lambda _a: True)),
+    )
+    agent = _visual_agent(True)
+    content = await runner._tool_result_content(
+        agent,
+        ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
+    )
+    assert isinstance(content, list)
+    urls = [p for p in content if p.get("type") == "image_url"]
+    assert len(urls) == 3
+
+
+_TINY_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+    b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def _write_pngs(directory, n=3):
+    pngs = []
+    for i in range(n):
+        p = directory / f"{i}.png"
+        p.write_bytes(_TINY_PNG)
+        pngs.append(str(p))
+    return pngs
+
+
+def _injection_runner(*, supports_vision=True):
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+
+    return AgentRunner(
+        core=SimpleNamespace(),
+        pipeline=SimpleNamespace(
+            llm=SimpleNamespace(supports_vision=lambda _a: supports_vision)
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_tool_result_fallback_line_per_path_when_visual_off(tmp_path):
+    from cloudra.runtime_v2.policies.base import ToolResult
+
+    pngs = _write_pngs(tmp_path)
+    content = await _injection_runner()._tool_result_content(
+        _visual_agent(False),
+        ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
+    )
+    assert isinstance(content, str)
+    assert content.startswith("scan")
+    assert content.count("Image rendered at:") == 3
+    for path in pngs:
+        assert path in content
+
+
+@pytest.mark.asyncio
+async def test_tool_result_fallback_line_per_path_when_no_vision(tmp_path):
+    from cloudra.runtime_v2.policies.base import ToolResult
+
+    pngs = _write_pngs(tmp_path)
+    content = await _injection_runner(supports_vision=False)._tool_result_content(
+        _visual_agent(True),
+        ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
+    )
+    assert isinstance(content, str)
+    assert content.count("Image rendered at:") == 3
+    for path in pngs:
+        assert path in content
+
+
+@pytest.mark.asyncio
+async def test_register_tool_image_registers_every_path(tmp_path):
+    from cloudra.infra.config import get_config
+    from cloudra.persistence.artifacts import ArtifactService
+    from cloudra.runtime_v2.events import EventLog
+    from cloudra.runtime_v2.policies.base import PipelineContext, ToolResult
+    from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    pngs = _write_pngs(workspace)
+    pipeline = TurnPipeline(
+        event_log=EventLog(),
+        stages=[],
+        llm=SimpleNamespace(),
+        tools=SimpleNamespace(),
+    )
+    ctx = PipelineContext(
+        agent=SimpleNamespace(project_id="proj_images", id="sess_images", role_id="coordinator"),
+        run_id="run_1",
+        settings_snapshot=RuntimeSettings(),
+        capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["*"]),
+        inbox_messages=[],
+        emit=lambda *_args, **_kwargs: None,
+        workspace_dir=str(workspace),
+    )
+    last_id = await pipeline._register_tool_image(
+        ctx,
+        ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
+    )
+    assert last_id
+    artifacts = await asyncio.to_thread(ArtifactService(get_config().data_dir).list, "proj_images")
+    assert [a.artifact_id for a in artifacts]
+    assert len(artifacts) == 3
+    names = {a.name for a in artifacts}
+    assert names == {"0.png", "1.png", "2.png"}

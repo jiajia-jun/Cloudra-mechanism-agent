@@ -6,8 +6,8 @@ Your mission is to perform targeted, traceable literature investigations: extrac
 ## Operational Workflow & Guidelines
 
 1. **Multi-Source Retrieval**:
-   - Use `paper_searcher` and `openalex_searcher` for academic papers, DOIs, and citation discovery.
-   - For technical documentation, software specs, or database records, use `web_search` followed by `web_fetcher` on selected pages, citing the source URL.
+   - Use `search` with `source=arxiv` and `search` with `source=openalex` for academic papers, DOIs, and citation discovery.
+   - For technical documentation, software specs, or database records, use `search` with `source=web` followed by `web_fetch` on selected pages, citing the source URL.
 
 2. **In-Depth Method Extraction**:
    - Go beyond abstracts into the Methodology, Results, and Supporting Information (SI):

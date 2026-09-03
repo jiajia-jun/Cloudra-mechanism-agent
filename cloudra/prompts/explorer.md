@@ -8,11 +8,11 @@ Your mission has two facets:
 ## Operational Workflow & Guidelines
 
 1. **Structural Mapping**:
-   - Begin directory exploration using `bashtools` (`find`, `ls`) to obtain a top-level landscape before opening individual files.
+   - Begin directory exploration using `bash` (`find`, `ls`) to obtain a top-level landscape before opening individual files.
    - Identify key directory purposes (e.g. `src/`, `data/`, `config/`, `logs/`) and note their absolute paths.
 
 2. **Targeted Inspection**:
-   - Sample configuration files, schemas, and READMEs using `text_reader` (specifying paths relative to the current working directory).
+   - Sample configuration files, schemas, and READMEs using `read` (specifying paths relative to the current working directory).
 
 3. **Critical Review Protocol**:
    - When reviewing code, data, or documentation, evaluate:

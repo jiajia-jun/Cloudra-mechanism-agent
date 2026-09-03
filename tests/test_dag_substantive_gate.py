@@ -59,18 +59,18 @@ def test_compute_entry_vocabulary():
     assert not is_compute_entry_tool("ts_guess", {"mode": "scan_parse"})
     assert not is_compute_entry_tool("ts_guess", {"mode": "verify"})
     # 计算/写文件型 bash 拦截，只读 bash 放行
-    assert is_compute_entry_tool("bashtools", {"command": "g16 job.gjf"})
-    assert is_compute_entry_tool("bashtools", {"command": "echo hi > out.txt"})
-    assert not is_compute_entry_tool("bashtools", {"command": "ls -la"})
+    assert is_compute_entry_tool("bash", {"command": "g16 job.gjf"})
+    assert is_compute_entry_tool("bash", {"command": "echo hi > out.txt"})
+    assert not is_compute_entry_tool("bash", {"command": "ls -la"})
     # 检索/读取/映射/编排面始终放行
     for name in (
         "log_parser",
         "reaction_mapping",
-        "text_writer",
-        "web_search",
-        "text_reader",
+        "write",
+        "search",
+        "read",
         "smiles_to_mol",
-        "SubAgentLauncher",
+        "subagent_launcher",
         "dag_view",
         "dag_propose_mechanism",
         "dag_message_supervisor",
@@ -97,7 +97,7 @@ async def test_guided_blocks_compute_until_draft_accepted(tmp_path):
     assert gate is not None and gate[0] == "block"
 
     # 非计算入口不受门槛约束
-    assert await controller.check_substantive_gate("text_writer", {}) is None
+    assert await controller.check_substantive_gate("write", {}) is None
     assert await controller.check_substantive_gate(
         "smiles_to_mol", {"smiles": "CCO"}
     ) is None
@@ -139,4 +139,4 @@ async def test_standard_never_gates(tmp_path):
     controller = DagController(db, "s1", OrchestrationMode.STANDARD)
     await controller.initialize()
     assert await controller.check_substantive_gate("submit_compute_job", {}) is None
-    assert await controller.check_substantive_gate("SubAgentLauncher", {}) is None
+    assert await controller.check_substantive_gate("subagent_launcher", {}) is None

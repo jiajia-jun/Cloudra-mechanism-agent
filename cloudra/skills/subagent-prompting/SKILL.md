@@ -1,11 +1,11 @@
 ---
 name: subagent-prompting
-description: Best practices, contracts, and templates for dispatching specialized sub-agents in Cloudra runtime_v2 (e.g. explorer, researcher, small_mol, dft, md, writer, experiment, env). Use when composing instructions for SubAgentLauncher or SubAgentSwarm, coordinating via agent_hub, isolating concurrent task directories, preventing hallucinations, and enforcing circuit breakers.
+description: Best practices, contracts, and templates for dispatching specialized sub-agents in Cloudra runtime_v2 (e.g. explorer, researcher, small_mol, dft, md, writer, experiment, env). Use when composing instructions for subagent_launcher or subagent_swarm, coordinating via agent_hub, isolating concurrent task directories, preventing hallucinations, and enforcing circuit breakers.
 ---
 
 # Sub-Agent Prompting & Multi-Agent Coordination Guide
 
-This skill establishes operational contracts, prompt engineering templates, and safety guardrails when delegating tasks to sub-agents via `SubAgentLauncher`, `SubAgentSwarm`, and the `agent_hub` forum in Cloudra runtime_v2.
+This skill establishes operational contracts, prompt engineering templates, and safety guardrails when delegating tasks to sub-agents via `subagent_launcher`, `subagent_swarm`, and the `agent_hub` forum in Cloudra runtime_v2.
 
 ---
 
@@ -17,7 +17,7 @@ Cloudra provides 8 specialized sub-agent roles (registered as `a-1` through `a-8
 | :--- | :--- | :--- | :--- |
 | **a-1** | `explorer` | Read-only file discovery, codebase grepping, workspace mapping | Quick reconnaissance, locating log files, scanning directory trees |
 | **a-2** | `writer` | Writing/editing documents, formatting reports, Markdown | Drafting research reports, formatting summaries, organizing SI text |
-| **a-3** | `researcher` | Deep literature search (`openalex_searcher`, `paper_searcher`, `pdf2md`) | Paper retrieval, DOI extraction, surveying methodology, SI data lookup |
+| **a-3** | `researcher` | Deep literature search (`search` with `source=openalex`/`arxiv`, `read`) | Paper retrieval, DOI extraction, surveying methodology, SI data lookup |
 | **a-4** | `small_mol` | Molecular processing, SMILES/3D generation, RDKit, conformer search | Ligand preparation, atom mapping, stereoisomer enumeration |
 | **a-5** | `md` | Molecular dynamics setup, OpenMM, GROMACS, trajectory parsing | System solvation, topology generation, equilibration, MM-GBSA |
 | **a-6** | `dft` | Quantum chemistry calculations, Gaussian/ORCA/VASP/CP2K inputs | Submitting compute jobs, TS search, IRC verification, frequency parsing |
@@ -28,12 +28,12 @@ Cloudra provides 8 specialized sub-agent roles (registered as `a-1` through `a-8
 
 ## 2. Dispatch Mechanisms: Launcher, Swarm, & Agent Hub
 
-### 2.1 Single Dispatch (`SubAgentLauncher`)
+### 2.1 Single Dispatch (`subagent_launcher`)
 Use for linear prerequisites or domain-specific sub-tasks:
 - **`is_wait=True` (Synchronous)**: Blocks until the sub-agent completes. Use when the parent agent strictly depends on the sub-agent's return value (e.g. checking whether a toolchain binary exists).
 - **`is_wait=False` (Asynchronous)**: Sub-agent runs concurrently in the background. Use for compute-heavy calculations or broad literature surveys. When it finishes, the harness delivers `[Sub-agent finished]` into the parent's mailbox and wakes the parent; `get_subagent_report` remains available for an explicit pull.
 
-### 2.2 Parallel Swarm Dispatch (`SubAgentSwarm`)
+### 2.2 Parallel Swarm Dispatch (`subagent_swarm`)
 Use when executing homogeneous parallel workloads (e.g. scoring 10 different conformers, screening 20 ligands, or evaluating multiple adsorption sites):
 - **Template Parameter `{{item}}`**: Embed `{{item}}` into the prompt template; `subagent_swarm` automatically expands each entry in the items list into an independent sub-agent.
 - **Concurrency & Resource Limits**: Swarm caps maximum parallel runs to prevent resource starvation.
@@ -67,7 +67,7 @@ When delegating complex tasks, structure the prompt using the **S.C.A.R.F.** fra
 
 ## 4. Anti-Hallucination & Verification Guardrails
 
-1. **Trust But Verify**: Never accept a sub-agent's self-declaration that "the calculation converged" or "the structure is optimized" without concrete evidence. Require the sub-agent to invoke a parsing/reading tool (`log_parser`, `text_reader`) and include parsed numbers (e.g., SCF energy, RMS force, single imaginary frequency) in its reply.
+1. **Trust But Verify**: Never accept a sub-agent's self-declaration that "the calculation converged" or "the structure is optimized" without concrete evidence. Require the sub-agent to invoke a parsing/reading tool (`log_parser`, `read`) and include parsed numbers (e.g., SCF energy, RMS force, single imaginary frequency) in its reply.
 2. **Atomic Failure Circuit Breaker**:
    - If a tool fails with the same error twice in a row, the sub-agent must immediately abort that tool.
    - The sub-agent must report to the Coordinator with:

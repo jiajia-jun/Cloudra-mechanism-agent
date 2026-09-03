@@ -11,7 +11,7 @@ description = (
     "Append lessons learned and best practices from this task to the Coordinator's long-term memory (MEMORY.md); "
     "memory is loaded into context when the Coordinator starts, and is compacted/archived when it exceeds the size threshold. "
     "Use for: capturing reusable experience after a task (e.g. pitfalls of a calculation class, usage notes for a tool) for later tasks. "
-    "Do not use for: recording ephemeral intermediate results of this task (write workspace files with text_writer) or loading an existing skill SOP (use getskill). "
+    "Do not use for: recording ephemeral intermediate results of this task (write workspace files with write) or loading an existing skill SOP (use get_skill). "
     "MEMORY.md is global — it is injected into EVERY project's Coordinator. Lessons must be project-agnostic: "
     "no absolute paths, project names, or job IDs; the guard rejects project-specific content and asks for a generic rewrite."
 )

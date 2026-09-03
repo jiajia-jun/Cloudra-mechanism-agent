@@ -273,7 +273,7 @@ async def test_ordinary_tool_success_does_not_trigger(tmp_path):
 
     await controller.on_tool_finished(
         "tc-1",
-        "bashtools",
+        "bash",
         {"command": "cat ts1.log"},
         {"is_success": True, "output": "normal termination"},
     )
@@ -322,7 +322,7 @@ async def test_review_tool_failure_enqueues_with_failed_state(tmp_path):
         "tc-3", "log_parser", {"log_path": "bad.log"}, {"is_success": False, "error": "parse error"}
     )
     await controller.on_tool_finished(
-        "tc-4", "bashtools", {"command": "false"}, {"is_success": False, "error": "exit 1"}
+        "tc-4", "bash", {"command": "false"}, {"is_success": False, "error": "exit 1"}
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["tool_call_review"]

@@ -203,6 +203,12 @@ async def test_legacy_tool_executor_reports_unknown_tool():
     assert output.is_success is False
     assert "unknown tool" in output.summary
 
+    retired = await LegacyToolExecutor(core).execute(
+        result.data, ToolCall(id="tc2", name="text_reader", arguments={})
+    )
+    assert retired.is_success is False
+    assert "read" in retired.summary
+
 
 def _chunk(content=None, finish_reason=None):
     delta = SimpleNamespace(content=content, tool_calls=None, reasoning_content=None)
@@ -233,9 +239,9 @@ def _deepseek_agent():
 
 
 @pytest.mark.asyncio
-async def test_native_search_strips_web_search_and_uses_responses_transport():
-    """命中原生搜索适配器（DeepSeek）时：剔除外置 web_search 函数工具（避免
-    双重搜索）、注入服务端 web_search 工具、走 /responses 传输。"""
+async def test_native_search_keeps_search_and_uses_responses_transport():
+    """命中原生搜索适配器（DeepSeek）时：保留 search、source 去掉 web、
+    注入服务端 web_search 工具、走 /responses 传输。"""
     sent = {}
 
     class FakeClient:
@@ -250,19 +256,25 @@ async def test_native_search_strips_web_search_and_uses_responses_transport():
 
     provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
     response = await provider.complete(
-        _deepseek_agent(), [{"role": "user", "content": "hi"}], ["web_search", "stop"]
+        _deepseek_agent(), [{"role": "user", "content": "hi"}], ["search", "stop"]
     )
 
     tool_names = [t["function"]["name"] for t in sent["tools"]]
-    assert "web_search" not in tool_names
+    assert "search" in tool_names
     assert "stop" in tool_names
+    search = next(t for t in sent["tools"] if t["function"]["name"] == "search")
+    assert set(search["function"]["parameters"]["properties"]["source"]["enum"]) == {
+        "arxiv",
+        "openalex",
+    }
+    assert search["function"]["parameters"]["properties"]["source"]["default"] == "arxiv"
     assert {"type": "web_search"} in sent["extra_body"]["tools"]
     assert response.content == "ok"
 
 
 @pytest.mark.asyncio
-async def test_no_native_adapter_keeps_web_search_tool():
-    """未命中适配器时 web_search 保留、走 chat 传输。"""
+async def test_no_native_adapter_keeps_search_tool():
+    """未命中适配器时 search 保留（含 source=web）、走 chat 传输。"""
     sent = {}
 
     class FakeClient:
@@ -277,10 +289,12 @@ async def test_no_native_adapter_keeps_web_search_tool():
         role_id="coordinator",
         settings=RuntimeSettings(model="m", base_url="https://api.example/", api_key="sk-x"),
     )
-    await provider.complete(agent, [{"role": "user", "content": "hi"}], ["web_search"])
+    await provider.complete(agent, [{"role": "user", "content": "hi"}], ["search"])
 
     tool_names = [t["function"]["name"] for t in sent["tools"]]
-    assert "web_search" in tool_names
+    assert "search" in tool_names
+    search = next(t for t in sent["tools"] if t["function"]["name"] == "search")
+    assert "web" in search["function"]["parameters"]["properties"]["source"]["enum"]
     assert "extra_body" not in sent
 
 

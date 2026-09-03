@@ -139,7 +139,10 @@ export function formatToolArgs(toolName: string, value: unknown): string {
     if (toolName === 'bashtools' || toolName === 'bash') {
       return String(data.command ?? data.cmd ?? fullText(value));
     }
-    if (toolName === 'text_writer' || toolName === 'edit_file' || toolName === 'text_reader') {
+    if (
+      toolName === 'text_writer' || toolName === 'edit_file' || toolName === 'text_reader' ||
+      toolName === 'write' || toolName === 'edit' || toolName === 'read'
+    ) {
       return String(data.filepath ?? data.path ?? fullText(value));
     }
     if (toolName === 'submit_compute_job') {
