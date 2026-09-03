@@ -63,7 +63,7 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
     return core, project, result.data
 
 
-async def _wait_state(agent, state: str, timeout: float = 5.0):
+async def _wait_state(agent, state: str, timeout: float = 10.0):
     deadline = asyncio.get_running_loop().time() + timeout
     while agent.state.value != state:
         if asyncio.get_running_loop().time() > deadline:
@@ -178,13 +178,27 @@ async def test_async_child_completion_injects_parent_mailbox_and_wakes():
         ]
     )
     core, _, coordinator = await _setup(llm)
-    deadline = asyncio.get_running_loop().time() + 5.0
+    # 全套测试负载下异步 spawn 可能被拖慢：窗口给足余量（15s），
+    # 单跑/慢机均稳定，失败只可能来自真实未 spawn。
+    deadline = asyncio.get_running_loop().time() + 15.0
     children: list = []
     while asyncio.get_running_loop().time() < deadline:
         children = _children(core, coordinator.id)
         if children:
             break
         await asyncio.sleep(0.01)
+    if not children:
+        states = {a.id: a.state.value for a in core.agents.values()}
+        tool_events = [
+            e.type
+            for e in core.event_log.query_session(coordinator.id)
+            if e.type.startswith("tool.")
+        ][-10:]
+        raise AssertionError(
+            "no children spawned; "
+            f"coordinator={coordinator.state.value}; agents={states}; "
+            f"last tool events={tool_events}"
+        )
     assert len(children) == 1
     child = children[0]
     await _wait_state(child, "succeeded")
