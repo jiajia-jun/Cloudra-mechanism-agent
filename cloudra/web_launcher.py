@@ -201,6 +201,12 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
                 "warning",
             ],
             env=env,
+            # 固定子进程 cwd：`python -m` 会把 cwd 放到 sys.path 最前面，
+            # cwd 下一个无 __init__.py 的 `cloudra` 目录会把已安装包遮蔽成
+            # namespace 包（__version__ 缺失、子模块却能被 editable finder
+            # 加载，报 "unknown location"）。frontend 目录已校验存在且不
+            # 含 cloudra 子目录，是确定无遮蔽的工作目录。
+            cwd=frontend,
         )
     try:
         _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
