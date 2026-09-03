@@ -221,6 +221,61 @@ async def test_async_child_completion_injects_parent_mailbox_and_wakes():
 
 
 @pytest.mark.asyncio
+async def test_stop_with_pending_inbox_continues_instead_of_finishing():
+    """stop 竞态（CI 3.13 红点的确定性复现）：轮次中途收件箱来消息——异步
+    子 agent 终态回报在父 agent 仍在 RUNNING 时 deliver+wake，而 wake 对
+    RUNNING 是 no-op（"下个轮次 drain 收件箱"）。若本轮以 stop 收尾，消息将
+    无人 drain。不变量：stop 前收件箱非空必须续跑一轮，不得直接 finish。"""
+    core = RuntimeCore(strict_events=True)
+
+    class MidTurnDeliveryLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                # 轮次进行中投递收件箱消息（此刻 wake 对 RUNNING 无效）
+                core.mailbox.deliver(
+                    to_session_id=agent.id,
+                    project_id=agent.project_id,
+                    content="late child report",
+                    sender="a-1",
+                )
+                return LLMResponse(content="done", stop_requested=True)
+            return LLMResponse(content="processed late report", stop_requested=True)
+
+    llm = MidTurnDeliveryLLM()
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=default_stages(),
+        llm=llm,
+        tools=LegacyToolExecutor(core),
+    )
+    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "race"}))
+    project = next(iter(core.projects.values()))
+    result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator", "query": "go"},
+        )
+    )
+    coordinator = result.data
+    await _wait_state(coordinator, "succeeded")
+
+    assert llm.calls >= 2, "pending inbox message must force one more turn before stop"
+    emitted = [
+        e
+        for e in core.event_log.query_session(coordinator.id, types={"agent.message_emitted"})
+        if "processed late report" in str(e.data.get("content", ""))
+    ]
+    assert emitted, "the late inbox message must be drained by a follow-up turn"
+
+
+@pytest.mark.asyncio
 async def test_swarm_expands_items_and_aggregates():
     llm = RoleRoutedLLM(
         [

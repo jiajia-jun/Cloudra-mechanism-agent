@@ -261,6 +261,12 @@ class AgentRunner:
                         cursor = len(core.event_log)
                 await self._append_history(agent, history, inbox_messages, outcome)
                 if outcome.decision == "stop":
+                    # 不变量"RUNNING 的下个轮次 drain 收件箱"只在还有下个轮次时
+                    # 成立：轮次中途到达的消息（如异步子 agent 终态回报，其 wake
+                    # 对 RUNNING 是 no-op）在 stop 收尾后将无人 drain。收件箱非空
+                    # 时续跑一轮而不是收尾。
+                    if self._inbox_has_pending(agent):
+                        continue
                     # Schedule polls compact on stop; user-turn stops keep the
                     # tool trajectory.  400 overflow compact (above) is the
                     # fallback for a user conversation that outgrew the window.
@@ -290,6 +296,11 @@ class AgentRunner:
                         if hook is not None:
                             await hook(agent, explicit_stop=explicit_stop)
                     core.agent_host.finish_run(agent, outcome="succeeded")
+                    # peek 与 finish 之间到达的消息：deliver 方的 wake 此刻仍可能
+                    # 撞在 RUNNING 上（事件未应用前）；状态已 SUCCEEDED 后复查并
+                    # 显式 wake 开新 run，关掉最后一段竞态窗口。
+                    if self._inbox_has_pending(agent):
+                        core.agent_host.wake(agent, runner=core.runner)
                     self._deliver_child_completion(agent)
                     self._schedule_run_finalize(
                         agent, run_id, history, seed_count, outcome="succeeded"
@@ -345,6 +356,11 @@ class AgentRunner:
                 messages.append(inbox.get_nowait())
             except asyncio.QueueEmpty:
                 return messages
+
+    def _inbox_has_pending(self, agent: AgentSession) -> bool:
+        """收件箱是否有未读消息（不消费）。"""
+        inbox = self.core.mailbox.inbox(agent.id)
+        return inbox is not None and not inbox.empty()
 
     def _provider_supports_vision(self, agent: AgentSession) -> bool:
         """Vision capability of the configured provider/model.
