@@ -6,7 +6,7 @@
 # 用法：
 #   calculator.sh <input_file> <job_type>
 #
-# 其中 job_type 支持：gaussian, vasp, orca, cp2k
+# 其中 job_type 支持：gaussian, vasp, orca, cp2k, xtb
 #
 # 注意：
 # - 本脚本不捕获/重定向 stdout/stderr，计算软件自身会写日志。
@@ -71,6 +71,27 @@ run_gaussian() {
     fi
 }
 
+_resolve_symlink_chain() {
+    # 把符号链接链展开为真实文件的绝对路径并打印；任一环节失败（悬挂链接、
+    # 目录不可达）返回非零。纯 POSIX 展开：不依赖 GNU readlink -f（macOS 无
+    # 此选项），也不依赖 python3（guard 环境未必有）。
+    local path="$1"
+    local link dir
+    while [ -L "$path" ]; do
+        link=$(readlink "$path") || return 1
+        case "$link" in
+            /*) path="$link" ;;
+            *)
+                dir=$(cd "$(dirname "$path")" 2>/dev/null && pwd) || return 1
+                path="$dir/$link"
+                ;;
+        esac
+    done
+    [ -e "$path" ] || return 1
+    dir=$(cd "$(dirname "$path")" 2>/dev/null && pwd) || return 1
+    printf '%s/%s\n' "$dir" "$(basename "$path")"
+}
+
 run_orca() {
     # ORCA external MLIP（输入含 `%method ProgExt`，如 MACE-OMol25）会把能量/梯度
     # 卸载给 Python 侧的 mace/ase：macOS 上其 libomp 与 ORCA 自带 OpenMP 重复装载
@@ -89,28 +110,44 @@ run_orca() {
     elif [ -x "./orca" ]; then
         orca_bin="$WORKDIR/orca"
     else
-        echo "系统 PATH 中未找到 orca，运行目录 $WORKDIR 下也无 ./orca 本地副本。" \
-             "请安装 ORCA 并确保 orca 命令在 PATH 中可用，或将 orca 复制到作业目录。" >&2
-        exit 1
+        # command -v 对悬挂符号链接也报找不到（bash 要求可执行）：手工扫 PATH
+        # 找回同名条目，交给下方解析/调用阶段给出明确诊断（解析失败回退裸调用，
+        # exec 悬挂链接失败按 127 传播，而不是误报"未安装 orca"，GH #15）。
+        local _dir
+        for _dir in ${PATH//:/ }; do
+            if [ -L "$_dir/orca" ] || [ -e "$_dir/orca" ]; then
+                orca_bin="$_dir/orca"
+                break
+            fi
+        done
+        if [ -z "$orca_bin" ]; then
+            echo "系统 PATH 中未找到 orca，运行目录 $WORKDIR 下也无 ./orca 本地副本。" \
+                 "请安装 ORCA 并确保 orca 命令在 PATH 中可用，或将 orca 复制到作业目录。" >&2
+            exit 1
+        fi
     fi
 
     # 解析符号链接链到真实安装路径，并把真实目录 prepend 到 PATH：
     # 并行 ORCA 拒绝裸名启动（"For parallel runs ORCA has to be called with
     # full pathname"，exit 126），helpers（orca_util/orca_scf/...）也按 orca
     # 可执行文件所在目录定位——conda 符号链接场景两者都会踩（GH #15）。
-    # POSIX 展开，不依赖 GNU readlink -f（macOS 无此选项）。
-    while [ -L "$orca_bin" ]; do
-        local link
-        link=$(readlink "$orca_bin")
-        case "$link" in
-            /*) orca_bin="$link" ;;
-            *)  orca_bin="$(cd "$(dirname "$orca_bin")" && pwd)/$link" ;;
-        esac
-    done
-    orca_bin="$(cd "$(dirname "$orca_bin")" && pwd)/$(basename "$orca_bin")"
-    export PATH="$(dirname "$orca_bin"):$PATH"
-    echo "[calculator] orca resolved: $orca_bin" >&2
+    # 解析失败（悬挂链接等）时回退裸调用，维持修复前行为。
+    local orca_resolved
+    if orca_resolved=$(_resolve_symlink_chain "$orca_bin"); then
+        orca_bin="$orca_resolved"
+        export PATH="$(dirname "$orca_bin"):$PATH"
+        echo "[calculator] orca resolved: $orca_bin" >&2
+    else
+        echo "[calculator] orca 路径解析失败，回退裸调用: $orca_bin" >&2
+    fi
+    # 显式传播 orca 退出码：bash 3.2（macOS 自带）在 set -e 语义下（含 || 捕获）
+    # 会把命令失败的状态统一改写成 1，吞掉 exec 失败的 127 与 orca 真实退出码；
+    # 只能暂时关 set -e 取到真实状态再退出（GH #15）。
+    set +e
     "$orca_bin" "$INPUT_FILE"
+    local orca_status=$?
+    set -e
+    [ "$orca_status" -eq 0 ] || exit "$orca_status"
 }
 
 run_vasp() {
@@ -154,6 +191,21 @@ run_cp2k() {
     "$cp2k_bin" -i "$INPUT_FILE" -o "$output"
 }
 
+run_xtb() {
+    # xtb 是 CLI 标志驱动：输入文件即 .xyz 坐标文件（无输入文件格式），主输出
+    # 走 stdout、自身不落日志文件，且终止标记（normal termination of xtb）
+    # 打印在 stderr——stdout+stderr 一并重定向到 <输入stem>.out，与
+    # compute_utils.get_log_path 的推导保持一致（参照 run_cp2k 的 -o 语义）。
+    # 运行级别（--opt/--hess 等标志）的声明途径属输入侧设计（GH #26 后续，
+    # 与 qm_input_writer 的 xtb 支持一并定义），当前按默认单点执行。
+    if ! command -v xtb >/dev/null 2>&1; then
+        echo "系统 PATH 中未找到 xtb。请安装 xTB 并确保 xtb 命令在 PATH 中可用。" >&2
+        exit 1
+    fi
+    local output="${INPUT_FILE%.*}.out"
+    xtb "$INPUT_FILE" > "$output" 2>&1
+}
+
 case "$JOB_TYPE" in
     gaussian)
         run_gaussian
@@ -166,6 +218,9 @@ case "$JOB_TYPE" in
         ;;
     cp2k)
         run_cp2k
+        ;;
+    xtb)
+        run_xtb
         ;;
     *)
         echo "不支持的 job_type: $JOB_TYPE" >&2

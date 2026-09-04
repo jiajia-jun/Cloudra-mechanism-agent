@@ -44,7 +44,11 @@ def _collect_keyword_lines(text: str) -> str:
 
 def detect_job_types(log_path: str) -> set[str]:
     """识别 ORCA 日志的任务类型，返回 {"opt","ts","freq","scan","irc","sp"} 的子集。"""
-    text = _read_text(log_path)
+    return detect_job_types_from_text(_read_text(log_path))
+
+
+def detect_job_types_from_text(text: str) -> set[str]:
+    """detect_job_types 的文本变体：调用方已读过日志时避免重复 IO。"""
     keywords = _collect_keyword_lines(text)
     jobs: set[str] = set()
 
@@ -105,21 +109,52 @@ def normal_termination(text: str) -> bool:
     return NORMAL_TERMINATION_MARKER in text
 
 
+# ORCA 优化收敛标记：跑满最大步数未收敛时进程仍正常终止（照常打印
+# ORCA TERMINATED NORMALLY），终止标记不构成优化收敛的判据（GH #21）。
+_OPT_NOT_CONVERGED_MARKER = "The optimization did not converge"
+_OPT_CONVERGED_MARKER = "THE OPTIMIZATION HAS CONVERGED"
+
+
+def opt_converged(text: str) -> bool | None:
+    """几何优化/TS 优化的收敛状态（文本权威，不依赖 cclib）。
+
+    True=收敛，False=达到最大步数未收敛，None=非优化任务或日志判不出
+    （两个标记都不出现，如中途被 kill 的优化日志）。
+    """
+    if _OPT_NOT_CONVERGED_MARKER in text:
+        return False
+    if _OPT_CONVERGED_MARKER in text:
+        return True
+    return None
+
+
 _FINAL_ENERGY_RE = re.compile(
     rf"FINAL SINGLE POINT ENERGY(?:\s*\([^)]*\))?\s+{_FLOAT}"
 )
+# 公开别名：跨模块复用（如 ts_guess 的扫描能量解析）应走公开名，私有名可能重构
+FINAL_ENERGY_RE = _FINAL_ENERGY_RE
+# 几何优化逐周期能量行："Current Energy ....  -383.544742265 Eh"
+_CURRENT_ENERGY_RE = re.compile(rf"Current Energy\s+\.+\s*{_FLOAT}\s+Eh")
 
 
 def final_energy_hartree(text: str) -> float | None:
-    """取最后一次 FINAL SINGLE POINT ENERGY（Eh；含外部 MLIP 变体）。
+    """取最终能量（Eh；含外部 MLIP 变体），按文本位置取最后出现的能量行。
 
     外部 MLIP（ExtOpt/ProgExt）日志没有 SCF 能量段，唯一能量行是
-    ``FINAL SINGLE POINT ENERGY (From external program)``；几何优化每步
-    打印一次，取最后一次。
+    ``FINAL SINGLE POINT ENERGY (From external program)``。未收敛的优化
+    （max-cycles）只打印一次 FINAL SP（起始几何），逐周期能量以
+    ``Current Energy .... <E> Eh`` 给出——此时最后的 Current Energy 才是
+    最佳几何能量（GH #22）；收敛的优化会在末几何再打印一次 FINAL SP，
+    位置在最后，按位置取最后者天然正确，单点/无 Current Energy 的日志
+    行为不变。
     """
+    best_pos = -1
     energy: float | None = None
-    for match in _FINAL_ENERGY_RE.finditer(text):
-        energy = float(match.group(1).replace("D", "E").replace("d", "e"))
+    for pattern in (_FINAL_ENERGY_RE, _CURRENT_ENERGY_RE):
+        for match in pattern.finditer(text):
+            if match.start() > best_pos:
+                best_pos = match.start()
+                energy = float(match.group(1).replace("D", "E").replace("d", "e"))
     return energy
 
 
@@ -166,6 +201,31 @@ def extract_thermochemistry(log_path: str) -> dict[str, float]:
         if energy_corr is not None and "total_thermal_energy_hartree" not in values:
             values["total_thermal_energy_hartree"] = e_el + energy_corr
     return values
+
+
+# ---------------------------------------------------------------------------
+# 频率（VIBRATIONAL FREQUENCIES 块，文本权威回退）
+# ---------------------------------------------------------------------------
+
+# 模式行："   5:       289.50 cm**-1"；虚频为负值，尾部或带 ***imaginary mode***
+# 标记。NORMAL MODES 等后续章节的行不匹配此模式，全局 finditer 天然只命中
+# 频率块内的模式行。
+_VIBFREQ_LINE_RE = re.compile(rf"^\s*\d+:\s*{_FLOAT}\s+cm\*\*-1", re.M)
+
+
+def vibfreqs_from_text(text: str) -> list[float]:
+    """解析最后一个 VIBRATIONAL FREQUENCIES 块的频率（cm⁻¹，负值=虚频）。
+
+    外部 MLIP（ExtOpt NumFreq）日志无 SCF 块，cclib 常整体解析失败，
+    频率只能从文本回退（GH #16）。只取最后一个频率块（Opt+NumFreq 的
+    日志可能逐周期多次打印）；与 cclib 的差异是保留打头的平动/转动
+    零频模式（cclib 会裁掉），调用方按符号拆分实频/虚频即可。无频率块
+    时返回空列表——调用方须保持 None 语义，不得当成零虚频。
+    """
+    idx = text.rfind("VIBRATIONAL FREQUENCIES")
+    if idx < 0:
+        return []
+    return [float(m.group(1)) for m in _VIBFREQ_LINE_RE.finditer(text, idx)]
 
 
 # ---------------------------------------------------------------------------

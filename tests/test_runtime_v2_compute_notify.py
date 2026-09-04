@@ -72,7 +72,13 @@ def _inbox_texts(core, session_id: str) -> list[str]:
 
 
 def _insert_terminal_job(
-    project_id: str, *, session_id: str | None, state: str = "done", last_error: str | None = None
+    project_id: str,
+    *,
+    session_id: str | None,
+    state: str = "done",
+    last_error: str | None = None,
+    path: str = "/tmp/x.gjf",
+    jobtype: str = "gaussian",
 ) -> int:
     """往中央 compute.db 写一条终态 compute_jobs 行（notified_at 留 NULL）。"""
     db = ComputeDB().init()
@@ -83,7 +89,7 @@ def _insert_terminal_job(
              start_timestamp, end_timestamp, scheduler, scheduler_options, last_error)
             VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (
-                project_id, session_id, "/tmp/x.gjf", state, "gaussian",
+                project_id, session_id, path, state, jobtype,
                 time.time() - 100, time.time(), "local",
                 json.dumps({"type": "local"}), last_error,
             ),
@@ -241,3 +247,34 @@ async def test_no_provider_notification_unchanged():
 
     content = _delivered_content(core, coordinator.id)
     assert "Knowledge base suggestions" not in content
+
+
+@pytest.mark.asyncio
+async def test_notification_log_path_prefers_guard_state_json(tmp_path):
+    """GH #20：通知里的 log_path 与 guard 实际解析的日志一致——优先取
+    state json 的 log_file（macOS ORCA 不落 .out，真实日志是
+    .cloudra/calc-<id>.out.log），不再报不存在的预测路径。"""
+    core, project, coordinator = await _setup_core()
+
+    workdir = tmp_path / "calc_task"
+    workdir.mkdir()
+    inp = workdir / "acetaldehyde_opt.inp"
+    inp.write_text("! ExtOpt Opt\n", encoding="utf-8")
+    # 先建行拿 task_id，再按真实 id 落 state json / calc 落盘
+    job_id = _insert_terminal_job(
+        project.id, session_id=coordinator.id, path=str(inp), jobtype="orca"
+    )
+    run_dir = workdir / ".cloudra"
+    run_dir.mkdir()
+    captured = run_dir / f"calc-{job_id}.out.log"
+    captured.write_text("ORCA TERMINATED NORMALLY\n", encoding="utf-8")
+    (workdir / f"state_{job_id}.json").write_text(
+        json.dumps({"log_file": str(captured)}), encoding="utf-8"
+    )
+
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+    await broker._poll_project(project.id)
+
+    content = _delivered_content(core, coordinator.id)
+    assert str(captured) in content
+    assert f"{inp.stem}.out" not in content

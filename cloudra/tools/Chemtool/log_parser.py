@@ -8,10 +8,10 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "Deep-parse a quantum-chemistry output log (Gaussian .log/.out or ORCA .out; engine auto-detected) "
+    "Deep-parse a quantum-chemistry output log (Gaussian .log/.out, ORCA .out, or xtb .out; engine auto-detected) "
     "and extract energies, dipole, HOMO/LUMO, frequencies, thermochemical corrections, and other "
     "physicochemical properties. "
-    "Use for: a full analysis after a Gaussian/ORCA job, or checking whether the job converged normally. "
+    "Use for: a full analysis after a Gaussian/ORCA/xtb job, or checking whether the job converged normally. "
     "Do not use for: submitting a job (use submit_compute_job) or processing experimental spectra (use ir_processor / nmr_processor)."
 )
 
@@ -37,7 +37,7 @@ _AVAILABLE_PROPERTIES = {
         "gibbs_free_energy_hartree",
     ],
     "mulliken_charges": ["mulliken_charges"],
-    "convergence": ["normal_termination"],
+    "convergence": ["normal_termination", "opt_converged"],
     "job_type": ["job_types"],
     "scan": ["scan_parameter", "scan_energies_ev"],
     "irc": [
@@ -91,7 +91,7 @@ def _extract_gaussian_thermochemistry(log_path: str) -> dict[str, float]:
 
 class LogParser_input_schema(input_schema):
     log_path: str = Field(
-        description="Absolute path of the output log (Gaussian .log/.out or ORCA .out)."
+        description="Absolute path of the output log (Gaussian .log/.out, ORCA .out, or xtb .out)."
     )
     properties: Optional[list[str]] = Field(
         default=None,
@@ -140,7 +140,13 @@ class LogParser_output_schema(output_schema):
     )
     mulliken_charges: Optional[dict] = Field(default=None, description="Mulliken charges {atom index: charge}")
     normal_termination: Optional[bool] = Field(default=None, description="Whether the job terminated normally")
-    engine: Optional[str] = Field(default=None, description="Detected QM program: gaussian / orca")
+    opt_converged: Optional[bool] = Field(
+        default=None,
+        description="Geometry/TS optimization convergence: True=converged, False=reached max cycles unconverged, "
+                    "None=not an optimization or undeterminable. Independent of normal_termination: "
+                    "ORCA still terminates normally when an optimization hits the max-cycle limit.",
+    )
+    engine: Optional[str] = Field(default=None, description="Detected QM program: gaussian / orca / xtb")
     job_types: Optional[list[str]] = Field(default=None, description="Detected job types (subset of opt/ts/freq/scan/irc/sp, sorted)")
     scan_parameter: Optional[list[float]] = Field(default=None, description="Scan parameter series (relaxed PES scan)")
     scan_energies_ev: Optional[list[float]] = Field(default=None, description="Energy at each scan point (eV)")
@@ -194,7 +200,8 @@ class LogParser(Tool):
             # 2. 引擎嗅探先于 cclib：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，
             # cclib 常整体解析失败或 metadata.success 失真——ORCA 路径把 cclib
             # 降级为可选数据源，能量/终止判定退回文本权威提取（GH #17）。
-            from cloudra.tools.core import orca_frames
+            # xtb 同理：cclib 对 xtb 支持薄弱，全程走 xtb_frames 文本原语（GH #26）。
+            from cloudra.tools.core import orca_frames, xtb_frames
             from cloudra.tools.core.qm_engine import detect_qm_engine
 
             engine = detect_qm_engine(log_path)
@@ -209,7 +216,7 @@ class LogParser(Tool):
             except Exception as e:
                 cclib_error = e
 
-            if data is None and engine != "orca":
+            if data is None and engine not in ("orca", "xtb"):
                 if cclib_error is not None:
                     raise cclib_error
                 return LogParser_output_schema(
@@ -219,19 +226,29 @@ class LogParser(Tool):
                             "if the job failed, inspect the log tail to find the cause."
                 )
 
-            # ORCA 文本只读一次：终止判定与外部能量回退共用
+            # ORCA/xtb 文本只读一次：终止判定与外部能量回退共用
             orca_text: str | None = None
-            if engine == "orca":
+            xtb_text: str | None = None
+            if engine in ("orca", "xtb"):
                 with open(log_path, encoding="utf-8", errors="replace") as handle:
-                    orca_text = handle.read()
+                    if engine == "orca":
+                        orca_text = handle.read()
+                    else:
+                        xtb_text = handle.read()
 
             requested = self._resolve_requested_fields(user_input.properties)
             result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully.", "engine": engine}
             if data is None:
-                result["message"] = (
-                    "cclib could not parse the log (external-MLIP/ExtOpt logs have no SCF blocks); "
-                    "fell back to text extraction for energy/termination/job-type/IRC fields."
-                )
+                if engine == "xtb":
+                    result["message"] = (
+                        "cclib has no xtb parser; energy/termination/convergence/frequency "
+                        "fields come from text extraction (tools.core.xtb_frames)."
+                    )
+                else:
+                    result["message"] = (
+                        "cclib could not parse the log (external-MLIP/ExtOpt logs have no SCF blocks); "
+                        "fell back to text extraction for energy/termination/job-type/IRC fields."
+                    )
 
             # 3. 根据请求填充字段
             if "scf_energy_hartree" in requested or "scf_energy_ev" in requested:
@@ -244,6 +261,12 @@ class LogParser(Tool):
                     # 外部 MLIP 日志无 SCF 能量段，唯一能量行是
                     # FINAL SINGLE POINT ENERGY (From external program)
                     e_hartree = orca_frames.final_energy_hartree(orca_text)
+                    if e_hartree is not None:
+                        result["scf_energy_hartree"] = e_hartree
+                        result["scf_energy_ev"] = e_hartree * 27.211386245988
+                elif xtb_text is not None:
+                    # xtb：最终 TOTAL ENERGY 块 / :: total energy / opt 周期能量行
+                    e_hartree = xtb_frames.final_energy_hartree(xtb_text)
                     if e_hartree is not None:
                         result["scf_energy_hartree"] = e_hartree
                         result["scf_energy_ev"] = e_hartree * 27.211386245988
@@ -266,25 +289,47 @@ class LogParser(Tool):
 
                     if result.get("homo_ev") is not None and result.get("lumo_ev") is not None:
                         result["homo_lumo_gap_ev"] = result["lumo_ev"] - result["homo_ev"]
+                elif xtb_text is not None:
+                    # xtb：cclib 对其日志解析不可靠，gap 从 SUMMARY 块文本回退
+                    gap = xtb_frames.homo_lumo_gap_ev(xtb_text)
+                    if gap is not None:
+                        result["homo_lumo_gap_ev"] = gap
 
             if "dipole_moment_debye" in requested:
                 if hasattr(data, "moments") and data.moments is not None and len(data.moments) >= 2:
                     # moments[1] 为偶极矩向量 (Debye)
                     dipole_vec = np.asarray(data.moments[1], dtype=float)
                     result["dipole_moment_debye"] = float(np.linalg.norm(dipole_vec))
+                elif xtb_text is not None:
+                    # xtb：Property Printout 的 "full:" 行第四列（Debye）
+                    dipole = xtb_frames.dipole_debye(xtb_text)
+                    if dipole is not None:
+                        result["dipole_moment_debye"] = dipole
 
             if {"frequencies_cm", "imaginary_frequencies"} & requested:
+                vibfreqs: list[float] | None = None
                 if hasattr(data, "vibfreqs") and data.vibfreqs is not None and len(data.vibfreqs) > 0:
-                    freqs = np.asarray(data.vibfreqs, dtype=float)
-                    result["frequencies_cm"] = [float(f) for f in freqs if f >= 0]
-                    result["imaginary_frequencies"] = [float(abs(f)) for f in freqs if f < 0]
+                    vibfreqs = [float(f) for f in np.asarray(data.vibfreqs, dtype=float)]
+                elif orca_text is not None:
+                    # 外部 MLIP（ExtOpt NumFreq）日志无 SCF 块，cclib 常整体
+                    # 失败——频率从 VIBRATIONAL FREQUENCIES 块文本回退（GH #16）
+                    vibfreqs = orca_frames.vibfreqs_from_text(orca_text) or None
+                elif xtb_text is not None:
+                    # xtb：projected vibrational frequencies 块的 eigval 行
+                    vibfreqs = xtb_frames.vibfreqs_from_text(xtb_text) or None
+                if vibfreqs is not None:
+                    result["frequencies_cm"] = [f for f in vibfreqs if f >= 0]
+                    result["imaginary_frequencies"] = [abs(f) for f in vibfreqs if f < 0]
 
             thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
             if thermo_fields & requested:
                 if engine == "orca":
                     thermo = orca_frames.extract_thermochemistry(log_path)
-                else:
+                elif engine == "gaussian":
                     thermo = _extract_gaussian_thermochemistry(log_path)
+                else:
+                    # xtb/未知引擎：无热化学提取路径，留空（cclib 属性同样缺失）
+                    thermo = {}
 
                 # cclib correctly exposes these as total quantities. Prefer the
                 # literal Gaussian summary when present and use cclib as fallback.
@@ -328,10 +373,34 @@ class LogParser(Tool):
                     # 文本标记权威：cclib metadata 对无 SCF 块的外部 MLIP 日志
                     # 不可靠（GH #17 job17：正常终止却报 success=False）
                     result["normal_termination"] = orca_frames.normal_termination(orca_text or "")
+                elif engine == "xtb":
+                    # 同款文本权威：normal termination of xtb（GH #26）
+                    result["normal_termination"] = xtb_frames.normal_termination(xtb_text or "")
                 elif hasattr(data, "metadata") and data.metadata is not None:
                     result["normal_termination"] = bool(data.metadata.get("success", False))
                 elif hasattr(data, "optdone"):
                     result["normal_termination"] = bool(data.optdone)
+
+            if "opt_converged" in requested:
+                # 优化收敛与正常终止语义分开（GH #21）：ORCA 优化跑满最大步数
+                # 未收敛时仍正常终止。ORCA 走文本标记为主、cclib optdone 为辅
+                # （外部 MLIP 日志 cclib 可能解析失败，不能依赖它）。
+                if engine == "orca":
+                    converged = orca_frames.opt_converged(orca_text or "")
+                    if converged is None and data is not None:
+                        optdone = getattr(data, "optdone", None)
+                        if optdone is not None and (
+                            {"opt", "ts"} & orca_frames.detect_job_types_from_text(orca_text or "")
+                        ):
+                            converged = bool(optdone)
+                    result["opt_converged"] = converged
+                elif engine == "xtb":
+                    # xtb 同款语义（GH #26）：FAILED TO CONVERGE 即 False
+                    result["opt_converged"] = xtb_frames.opt_converged(xtb_text or "")
+                elif data is not None:
+                    optdone = getattr(data, "optdone", None)
+                    if optdone is not None:
+                        result["opt_converged"] = bool(optdone)
 
             # job_type / scan / irc 摘要（Gaussian IRC 逐点解析在 core.gaussian_frames 自写；
             # ORCA 侧由 core.orca_frames.extract_irc 从主输出的 FORWARD/BACKWARD
@@ -339,8 +408,14 @@ class LogParser(Tool):
             from cloudra.tools.core import gaussian_frames
 
             if "job_types" in requested:
-                detect = orca_frames.detect_job_types if engine == "orca" else gaussian_frames.detect_job_types
-                result["job_types"] = sorted(detect(log_path))
+                if engine == "xtb":
+                    # xtb stdout 不回显 CLI 标志，从输出节判定（opt/freq/sp）
+                    result["job_types"] = sorted(
+                        xtb_frames.detect_job_types_from_text(xtb_text or "")
+                    )
+                else:
+                    detect = orca_frames.detect_job_types if engine == "orca" else gaussian_frames.detect_job_types
+                    result["job_types"] = sorted(detect(log_path))
 
             if {"scan_parameter", "scan_energies_ev"} & requested:
                 scanparm = getattr(data, "scanparm", None)
@@ -366,7 +441,7 @@ class LogParser(Tool):
                             )
                         except ValueError as e:
                             result["message"] = f"Log parsed; ORCA IRC extraction failed: {e}"
-                elif "irc" in gaussian_frames.detect_job_types(log_path):
+                elif engine == "gaussian" and "irc" in gaussian_frames.detect_job_types(log_path):
                     try:
                         _irc_frames, irc_meta = gaussian_frames.extract_irc(log_path)
                         result["irc_num_points_forward"] = irc_meta["num_points_forward"]

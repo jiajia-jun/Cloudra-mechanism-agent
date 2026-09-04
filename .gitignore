@@ -77,6 +77,9 @@ fort.*
 !tests/fixtures/gaussian/*.out
 # ORCA 日志样本同理
 !tests/fixtures/orca/*.out
+!tests/fixtures/orca/extopt_relaxed_scan/*.out
+# xtb 日志样本同理（GH #26）
+!tests/fixtures/xtb/*.out
 
 # 测试泄漏的 mock 数据目录
 MagicMock/

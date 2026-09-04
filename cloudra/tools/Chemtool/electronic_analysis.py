@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -560,18 +559,20 @@ class ElectronicAnalysis(Tool):
 
     @staticmethod
     def _parse_xtb_stdout(stdout: str) -> dict:
+        # 能量/gap/偶极的文本判据与 guard、log_parser 共用公共层
+        # tools.core.xtb_frames（GH #26），此处只做键名映射。
+        from cloudra.tools.core import xtb_frames
+
         data = {}
-        m = re.search(r"::\s*total energy\s+(-?\d+\.\d+)", stdout)
-        if not m:
-            m = re.search(r"TOTAL ENERGY\s+(-?\d+\.\d+)", stdout)
-        if m:
-            data["total_energy_eh"] = float(m.group(1))
-        m = re.search(r"HOMO-LUMO GAP\s+(-?\d+\.\d+)", stdout, re.IGNORECASE)
-        if m:
-            data["gap_ev"] = float(m.group(1))
-        m = re.search(r"full:\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)", stdout)
-        if m:
-            data["dipole_debye"] = float(m.group(4))
+        energy = xtb_frames.final_energy_hartree(stdout)
+        if energy is not None:
+            data["total_energy_eh"] = energy
+        gap = xtb_frames.homo_lumo_gap_ev(stdout)
+        if gap is not None:
+            data["gap_ev"] = gap
+        dipole = xtb_frames.dipole_debye(stdout)
+        if dipole is not None:
+            data["dipole_debye"] = dipole
         return data
 
     def _run_xtb(self, user_input: ElectronicAnalysis_input_schema,

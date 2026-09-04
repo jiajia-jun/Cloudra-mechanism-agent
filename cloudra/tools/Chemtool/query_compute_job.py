@@ -50,11 +50,15 @@ def _iso(ts) -> str:
 
 def _row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
     path = row["path"] or ""
-    log_path = ""
-    if path:
-        base, ext = os.path.splitext(path)
-        if ext.lower() in (".gjf", ".com", ".inp"):
-            log_path = base + ".log"
+    # log_path 与完成通知统一走 resolve_log_path（GH #20）：优先 guard state
+    # json 记录的真实日志 / calc 落盘文件，都没有才回退引擎惯例预测。
+    from cloudra.infra.compute_utils import resolve_log_path
+
+    log_path = (
+        resolve_log_path(path, job_type=row["jobtype"] or "gaussian", task_id=row["id"])
+        if path
+        else ""
+    )
     return {
         "job_id": row["id"],
         "state": row["state"],

@@ -1,4 +1,4 @@
-"""量子化学日志引擎嗅探：区分 Gaussian / ORCA 输出。
+"""量子化学日志引擎嗅探：区分 Gaussian / ORCA / xtb 输出。
 
 供 log_parser / format_converter 选择后端解析器。检测基于头部横幅，
 纯文本、不做完整解析，开销为读取前 16 KiB。
@@ -21,6 +21,11 @@ _ORCA_MARKERS = (
     "ORCA VERSION",
     "An ab initio, DFT and semiempirical SCF-MO package",
 )
+_XTB_MARKERS = (
+    "xtb version",
+    "x T B",
+    "Mulliken Center for Theoretical Chemistry",
+)
 
 
 def _read_head(log_path: str) -> str:
@@ -29,7 +34,7 @@ def _read_head(log_path: str) -> str:
 
 
 def detect_qm_engine(log_path: str) -> str:
-    """识别日志来源程序，返回 "gaussian" / "orca" / "unknown"。"""
+    """识别日志来源程序，返回 "gaussian" / "orca" / "xtb" / "unknown"。"""
     try:
         head = _read_head(log_path)
     except OSError:
@@ -40,4 +45,7 @@ def detect_qm_engine(log_path: str) -> str:
     for marker in _ORCA_MARKERS:
         if marker in head:
             return "orca"
+    for marker in _XTB_MARKERS:
+        if marker in head:
+            return "xtb"
     return "unknown"

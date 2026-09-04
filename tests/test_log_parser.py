@@ -78,6 +78,8 @@ async def test_orca_log_full_parse_matches_gaussian_field_semantics():
     assert result.total_gibbs_free_energy_hartree == pytest.approx(-184.77272599)
     assert result.imaginary_frequencies == []
     assert result.mulliken_charges is not None
+    # cclib 可用时频率仍走 cclib（文本回退不得改变既有行为，GH #16 回归）
+    assert result.frequencies_cm == pytest.approx([289.50, 458.10, 1114.50, 1142.05])
 
 
 @pytest.mark.asyncio
@@ -164,3 +166,116 @@ async def test_orca_extopt_abnormal_termination_reported_false(tmp_path, monkeyp
     assert result.is_success is True
     assert result.normal_termination is False
     assert result.scf_energy_hartree == pytest.approx(-234.5)
+
+
+# GH #21：取自真实日志 NA1_run/.cloudra/calc-27.out.log（未收敛的 MACE ExtOpt Opt）
+_ORCA_EXTOPT_OPT_NOT_CONVERGED = (
+    "                         * O   R   C   A *\n"
+    "! ExtOpt Opt\n"
+    "FINAL SINGLE POINT ENERGY (From external program)      -383.418935837100\n"
+    "                        GEOMETRY OPTIMIZATION CYCLE   1\n"
+    "Current Energy                          ....  -383.544742265 Eh\n"
+    "                                  WARNING !!!\n"
+    "       The optimization did not converge but reached the maximum number of\n"
+    "       optimization cycles.\n"
+    "       Please check your results very carefully.\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+
+
+# GH #16：合成的最小 ExtOpt NumFreq 日志（频率块格式取自真实 ORCA NumFreq
+# 输出；外部 MLIP 日志无 SCF 块，cclib 整体失败时频率须从文本回退）。
+_ORCA_EXTOPT_NUMFREQ = (
+    "                         * O   R   C   A *\n"
+    "! ExtOpt NumFreq\n"
+    "FINAL SINGLE POINT ENERGY (From external program)      -234.506295105500\n"
+    "VIBRATIONAL FREQUENCIES\n"
+    "-----------------------\n"
+    "\n"
+    "   0:      -294.67 cm**-1 ***imaginary mode***\n"
+    "   1:       289.50 cm**-1\n"
+    "   2:       458.10 cm**-1\n"
+    "\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_orca_extopt_numfreq_frequencies_from_text_when_cclib_fails(tmp_path, monkeypatch):
+    """GH #16：cclib 对 ExtOpt NumFreq 日志解析失败时，频率从
+    VIBRATIONAL FREQUENCIES 块文本回退，负值导出虚频（n_imag 正确）。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(_ORCA_EXTOPT_NUMFREQ, encoding="utf-8")
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["frequencies", "convergence"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.engine == "orca"
+    assert result.normal_termination is True
+    assert result.frequencies_cm == pytest.approx([289.50, 458.10])
+    assert result.imaginary_frequencies == pytest.approx([294.67])
+
+
+@pytest.mark.asyncio
+async def test_orca_extopt_opt_without_freq_keeps_none(tmp_path, monkeypatch):
+    """GH #16：无频率块的 ExtOpt 日志回退后仍保持 None（不得当成零虚频）。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(_ORCA_EXTOPT_OPT_NOT_CONVERGED, encoding="utf-8")
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["frequencies"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.frequencies_cm is None
+    assert result.imaginary_frequencies is None
+
+
+@pytest.mark.asyncio
+async def test_orca_opt_converged_exposed_separately_from_normal_termination(tmp_path, monkeypatch):
+    """GH #21：未收敛的 Opt 仍 normal_termination=True（进程正常结束）但
+    opt_converged=False——两者语义分开；能量取最后的 Current Energy（GH #22）。"""
+    import cclib
+
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: None)
+    log = tmp_path / "job.out"
+    log.write_text(_ORCA_EXTOPT_OPT_NOT_CONVERGED, encoding="utf-8")
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(log), properties=["convergence", "energy"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.normal_termination is True
+    assert result.opt_converged is False
+    assert result.scf_energy_hartree == pytest.approx(-383.544742265)
+
+
+@pytest.mark.asyncio
+async def test_orca_opt_converged_true_for_converged_opt():
+    """收敛的 DFT Opt（dvb fixture）：opt_converged=True。"""
+    fixture = Path(__file__).parent / "fixtures" / "orca" / "dvb_opt_orca42.out"
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(fixture), properties=["convergence"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.normal_termination is True
+    assert result.opt_converged is True
+
+
+@pytest.mark.asyncio
+async def test_orca_opt_converged_none_for_non_opt_log():
+    """非优化日志（freq-only / sp）：opt_converged 为 None，不误报收敛状态。"""
+    fixture = Path(__file__).parent / "fixtures" / "orca" / "dvb_scan_unrelaxed_orca42.out"
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(fixture), properties=["convergence"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.opt_converged is None

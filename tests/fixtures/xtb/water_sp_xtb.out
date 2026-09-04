@@ -1,0 +1,63 @@
+      -----------------------------------------------------------
+     |                   =====================                   |
+     |                           x T B                           |
+     |                   =====================                   |
+     |                         S. Grimme                         |
+     |          Mulliken Center for Theoretical Chemistry        |
+     |                    University of Bonn                     |
+      -----------------------------------------------------------
+
+   * xtb version 6.7.1 (edcfbbe) compiled by 'runner@localhost' on 2026-06-10
+
+   xtb is free software: you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+           -------------------------------------------------
+          |                Calculation Setup                |
+           -------------------------------------------------
+
+          3
+ water from fixture
+O            0.00000000000000        0.00000000000000        0.11730000000000
+H            0.00000000000000        0.75720000000000       -0.46920000000000
+H            0.00000000000000       -0.75720000000000       -0.46920000000000
+
+           -------------------------------------------------
+          |  S C F                                            |
+           -------------------------------------------------
+
+ iter      E             dE          RMSdq      gap      omega  full diag
+   1     -5.0703200 -0.507032E+01  0.596E-03    12.35       0.0  T
+   2     -5.0703201 -0.215281E-07  0.126E-03    12.35      32.3  T
+     SCC iter.                  ...        0 min,  0.001 sec
+
+         :::::::::::::::::::::::::::::::::::::::::::::::::::::
+         ::                     SUMMARY                     ::
+         :::::::::::::::::::::::::::::::::::::::::::::::::::::
+         :: total energy              -5.070320041234 Eh    ::
+         :: gradient norm              0.000123456789 Eh/a0 ::
+         :: HOMO-LUMO gap             12.345678901234 eV    ::
+         :::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+molecular dipole:
+                 x           y           z            tot (Debye)
+ q only:        0.000       0.000       0.000
+   full:        0.123      -0.456       1.789        1.852
+
+           -------------------------------------------------
+          | TOTAL ENERGY               -5.070320041234 Eh   |
+          | GRADIENT NORM               0.000123456789 Eh/α |
+          | HOMO-LUMO GAP              12.345678901234 eV   |
+           -------------------------------------------------
+
+------------------------------------------------------------------------
+ * finished run on 2026/09/04 at 02:25:54.048
+------------------------------------------------------------------------
+ total:
+ * wall-time:     0 d,  0 h,  0 min,  0.012 sec
+ *  cpu-time:     0 d,  0 h,  0 min,  0.048 sec
+ * ratio c/w:     4.000 speedup
+
+normal termination of xtb

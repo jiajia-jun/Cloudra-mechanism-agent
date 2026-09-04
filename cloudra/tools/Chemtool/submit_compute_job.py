@@ -16,7 +16,7 @@ from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
     "and let the framework Compute Scheduler pick it up; returns job_id immediately without waiting for the job to finish. "
-    "Use for: formally running long Gaussian, CP2K, VASP, or ORCA jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp). "
+    "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; xtb takes a plain .xyz coordinate file). "
     "Do not use for: generating the input (use qm_input_writer), querying progress (use query_compute_job), "
     "or inspecting results (parse the log with log_parser after the job finishes). "
     "Resource contract: you write the input file, so declare exactly what it asks for — "
@@ -30,9 +30,10 @@ class SubmitComputeJob_input_schema(input_schema):
     input_file: str = Field(
         description="Absolute path of the input file (e.g. a .gjf file)."
     )
-    job_type: Literal["gaussian", "vasp", "orca", "cp2k"] = Field(
+    job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb"] = Field(
         default="gaussian",
-        description="Job type. Currently supports 'gaussian', 'vasp', 'orca', and 'cp2k'."
+        description="Job type. Currently supports 'gaussian', 'vasp', 'orca', 'cp2k', and 'xtb'. "
+                    "For 'xtb' the input file is a plain .xyz coordinate file (xtb is CLI-flag driven and has no input-file format)."
     )
     is_async: bool = Field(
         default=False,

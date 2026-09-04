@@ -1,6 +1,7 @@
 """计算任务相关的公共工具函数。"""
 
 import asyncio
+import json
 import os
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ _REQUIRED_BINS = {
     "vasp": ["vasp_std", "vasp_gam", "vasp_ncl"],
     "orca": ["orca"],
     "cp2k": ["cp2k.popt", "cp2k.ssmp", "cp2k.psmp", "cp2k"],
+    "xtb": ["xtb"],
 }
 
 # guard 轮询间隔（秒）
@@ -239,12 +241,39 @@ def get_log_path(input_file: str, job_type: str = "gaussian") -> str:
     """根据输入文件路径推导计算软件生成的日志文件路径。
 
     Gaussian 默认生成与输入文件同名但后缀为 .log 的文件；
-    ORCA、CP2K 生成 .out；VASP 的日志命名不固定，默认仍按 .out 处理。
+    ORCA、CP2K 生成 .out；xtb 主输出由 calculator.sh 重定向到 .out；
+    VASP 的日志命名不固定，默认仍按 .out 处理。
     """
     path = Path(input_file)
     if job_type == "gaussian":
         return str(path.with_suffix(".log"))
     return str(path.with_suffix(".out"))
+
+
+def resolve_log_path(input_file: str, job_type: str = "gaussian", task_id: int | None = None) -> str:
+    """解析计算作业的真实日志路径——query_compute_job 与完成通知统一走这里（GH #20）。
+
+    预测路径（引擎惯例后缀）常与 guard 实际解析的日志不一致：部分引擎不自写
+    日志文件（如本机 ORCA 6.1.1 macOS 构建把主输出全部写 stdout、从不落 .out），
+    guard 会把 calculator stdout 捕获到 ``.cloudra/calc-<id>.out.log`` 并回退解析它，
+    实际解析路径记录在 guard state json 的 ``log_file`` 字段。
+    优先级：state json 记录的真实 log_file（文件仍存在）→ calc 落盘文件
+    （存在时）→ get_log_path 的纯字符串预测。
+    """
+    if input_file and task_id is not None:
+        workdir = Path(input_file).parent
+        try:
+            recorded = json.loads(
+                (workdir / f"state_{task_id}.json").read_text(encoding="utf-8")
+            ).get("log_file")
+        except (OSError, ValueError):
+            recorded = None
+        if recorded and Path(recorded).is_file():
+            return str(recorded)
+        captured = workdir / ".cloudra" / f"calc-{task_id}.out.log"
+        if captured.is_file():
+            return str(captured)
+    return get_log_path(input_file, job_type=job_type)
 
 
 def allocate_gaussian_scratch(task_id: int, workdir: str) -> Path:

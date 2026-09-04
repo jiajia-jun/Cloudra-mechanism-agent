@@ -237,6 +237,56 @@ def test_get_log_path():
     assert get_log_path("/tmp/test.inp", job_type="cp2k") == "/tmp/test.out"
 
 
+def test_resolve_log_path_prefers_guard_state_json(tmp_path):
+    """GH #20：guard state json 的 log_file 是实际解析的日志（如 macOS ORCA
+    不落 .out，真实日志是 .cloudra/calc-<id>.out.log）——存在时优先于预测。"""
+    import json as _json
+
+    from cloudra.infra.compute_utils import resolve_log_path
+
+    inp = tmp_path / "job.inp"
+    inp.write_text("! ExtOpt Opt\n", encoding="utf-8")
+    run_dir = tmp_path / ".cloudra"
+    run_dir.mkdir()
+    captured = run_dir / "calc-7.out.log"
+    captured.write_text("ORCA TERMINATED NORMALLY\n", encoding="utf-8")
+    (tmp_path / "state_7.json").write_text(
+        _json.dumps({"log_file": str(captured)}), encoding="utf-8"
+    )
+
+    assert resolve_log_path(str(inp), job_type="orca", task_id=7) == str(captured)
+
+
+def test_resolve_log_path_prefers_captured_stdout_over_prediction(tmp_path):
+    """GH #20：无 state json 时，calc 落盘文件存在即优先于预测的 .out。"""
+    from cloudra.infra.compute_utils import resolve_log_path
+
+    inp = tmp_path / "job.inp"
+    inp.write_text("! ExtOpt Opt\n", encoding="utf-8")
+    run_dir = tmp_path / ".cloudra"
+    run_dir.mkdir()
+    captured = run_dir / "calc-7.out.log"
+    captured.write_text("partial output\n", encoding="utf-8")
+
+    assert resolve_log_path(str(inp), job_type="orca", task_id=7) == str(captured)
+
+
+def test_resolve_log_path_falls_back_to_prediction(tmp_path):
+    """state json 与落盘文件都不存在时回退引擎惯例预测路径。"""
+    from cloudra.infra.compute_utils import resolve_log_path
+
+    inp = tmp_path / "job.inp"
+    inp.write_text("! Opt\n", encoding="utf-8")
+
+    assert resolve_log_path(str(inp), job_type="orca", task_id=7) == str(tmp_path / "job.out")
+    assert resolve_log_path(str(inp), job_type="gaussian", task_id=7) == str(tmp_path / "job.log")
+    # state json 记录的 log_file 已不存在（被清理）时同样回退
+    (tmp_path / "state_7.json").write_text(
+        '{"log_file": "/nonexistent/gone.out.log"}', encoding="utf-8"
+    )
+    assert resolve_log_path(str(inp), job_type="orca", task_id=7) == str(tmp_path / "job.out")
+
+
 def test_allocate_gaussian_scratch_is_unique_and_safe_to_clean(tmp_path, monkeypatch):
     """并行任务必须落到 cloudra_g16_* 子目录；清理不得误删全局 SCRDIR。"""
     from cloudra.infra.compute_utils import (
@@ -503,6 +553,90 @@ async def test_query_compute_job_list_and_missing(isolated_db, mock_calc_workdir
     missing = await query.tool_call(QueryComputeJob_input_schema(job_id=99999), session=None)
     assert missing.is_success is False
     assert "No compute job found" in missing.message
+
+
+@pytest.mark.asyncio
+async def test_query_compute_job_log_path_prefers_guard_state_json(isolated_db, tmp_path):
+    """GH #20：query 的 log_path 与 guard 实际解析的日志一致——优先取
+    state json 的 log_file（macOS ORCA 不落 .out/.log，真实日志是
+    .cloudra/calc-<id>.out.log），不再报不存在的预测路径。"""
+    import json as _json
+
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.tools.Chemtool.query_compute_job import (
+        QueryComputeJob,
+        QueryComputeJob_input_schema,
+    )
+
+    workdir = tmp_path / "calc_task"
+    workdir.mkdir()
+    inp = workdir / "acetaldehyde_opt.inp"
+    inp.write_text("! ExtOpt Opt\n", encoding="utf-8")
+
+    ComputeDB(isolated_db).init()
+    async with ComputeDB(isolated_db).aconnect() as con:
+        cur = await con.execute(
+            "INSERT INTO compute_jobs (conversation_id, session_id, path, state, jobtype, start_timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("test_conv", "s1", str(inp), "done", "orca", 1.0),
+        )
+        await con.commit()
+        task_id = cur.lastrowid
+
+    run_dir = workdir / ".cloudra"
+    run_dir.mkdir()
+    captured = run_dir / f"calc-{task_id}.out.log"
+    captured.write_text("ORCA TERMINATED NORMALLY\n", encoding="utf-8")
+    (workdir / f"state_{task_id}.json").write_text(
+        _json.dumps({"log_file": str(captured)}), encoding="utf-8"
+    )
+
+    query = QueryComputeJob()
+    query.subagent = MockAgent("a-0", "test_conv")
+    result = await query.tool_call(
+        QueryComputeJob_input_schema(job_id=task_id), session=None,
+    )
+    assert result.is_success is True
+    assert result.jobs[0]["log_path"] == str(captured)
+
+
+@pytest.mark.asyncio
+async def test_query_compute_job_log_path_prefers_captured_stdout(isolated_db, tmp_path):
+    """GH #20：state json 缺失（guard 死在写 json 前）时退到 calc 落盘文件，
+    仍优先于预测的 .out。"""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.tools.Chemtool.query_compute_job import (
+        QueryComputeJob,
+        QueryComputeJob_input_schema,
+    )
+
+    workdir = tmp_path / "calc_task"
+    workdir.mkdir()
+    inp = workdir / "job.inp"
+    inp.write_text("! Opt\n", encoding="utf-8")
+
+    ComputeDB(isolated_db).init()
+    async with ComputeDB(isolated_db).aconnect() as con:
+        cur = await con.execute(
+            "INSERT INTO compute_jobs (conversation_id, session_id, path, state, jobtype, start_timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("test_conv", "s1", str(inp), "running", "orca", 1.0),
+        )
+        await con.commit()
+        task_id = cur.lastrowid
+
+    run_dir = workdir / ".cloudra"
+    run_dir.mkdir()
+    captured = run_dir / f"calc-{task_id}.out.log"
+    captured.write_text("partial output\n", encoding="utf-8")
+
+    query = QueryComputeJob()
+    query.subagent = MockAgent("a-0", "test_conv")
+    result = await query.tool_call(
+        QueryComputeJob_input_schema(job_id=task_id), session=None,
+    )
+    assert result.is_success is True
+    assert result.jobs[0]["log_path"] == str(captured)
 
 
 @pytest.mark.asyncio
@@ -777,6 +911,40 @@ def test_calculator_sh_resolves_orca_symlink_and_exposes_helpers(tmp_path):
     assert "FAKE ORCA RUN" in result.stdout
 
 
+@pytest.mark.skipif(
+    not __import__("cloudra.infra.platform_utils", fromlist=["is_posix"]).is_posix(),
+    reason="calculator.sh 需要 POSIX bash",
+)
+def test_calculator_sh_orca_resolution_failure_falls_back_to_bare_call(tmp_path):
+    """GH #15：orca 是悬挂符号链接（解析失败）时，calculator.sh 不得在解析阶段
+    崩溃——回退到修复前的裸调用行为（exec 失败按 127 传播，而非解析器报错）。"""
+    from cloudra.infra.compute_utils import _default_calculator_path
+    from cloudra.infra.platform_utils import get_bash_path
+
+    bindir = tmp_path / "conda_bin"
+    bindir.mkdir()
+    # 悬挂链接：目标不存在，符号链接链解析必然失败
+    (bindir / "orca").symlink_to(tmp_path / "nonexistent_orca_install" / "orca")
+
+    workdir = tmp_path / "job"
+    workdir.mkdir()
+    inp = workdir / "job.inp"
+    inp.write_text("! Opt\n* xyz 0 1\n*\n", encoding="utf-8")
+
+    env = dict(os.environ)
+    env["PATH"] = f"{bindir}:/usr/bin:/bin"
+    result = subprocess.run(
+        [get_bash_path(), _default_calculator_path(), str(inp), "orca"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=workdir,
+    )
+    assert "orca 路径解析失败，回退裸调用" in result.stderr
+    # 回退后 exec 悬挂链接失败：127，而不是解析阶段的 set -e 中止
+    assert result.returncode == 127
+
+
 @pytest.mark.asyncio
 async def test_parse_orca_log_extopt_done_even_when_cclib_fails(monkeypatch):
     """GH #17/#18：外部 MLIP（ExtOpt）日志无 SCF 块，cclib 解析抛错（ccdata 缺
@@ -827,6 +995,167 @@ async def test_parse_orca_log_keeps_cclib_data_when_parseable():
     assert ok is True
     assert data["is_success"] is True
     assert "vibfreqs" in data or "properties" in data
+
+
+# GH #21/#22：取自真实日志 NA1_run/.cloudra/calc-27.out.log（未收敛的 MACE
+# ExtOpt Opt——跑满最大步数仍打印 ORCA TERMINATED NORMALLY）。
+_ORCA_EXTOPT_OPT_NOT_CONVERGED = (
+    "! ExtOpt Opt\n"
+    "FINAL SINGLE POINT ENERGY (From external program)      -383.418935837100\n"
+    "                        GEOMETRY OPTIMIZATION CYCLE   1\n"
+    "Current Energy                          ....  -383.543545238 Eh\n"
+    "                        GEOMETRY OPTIMIZATION CYCLE  25\n"
+    "Current Energy                          ....  -383.544742265 Eh\n"
+    "                                  WARNING !!!\n"
+    "       The optimization did not converge but reached the maximum number of\n"
+    "       optimization cycles.\n"
+    "       Please check your results very carefully.\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+# 收敛对照（calc-25 型）：收敛标记 + 收敛几何的 FINAL SP 在 Current Energy 之后。
+_ORCA_EXTOPT_OPT_CONVERGED = (
+    "! ExtOpt Opt\n"
+    "FINAL SINGLE POINT ENERGY (From external program)      -153.826408146800\n"
+    "                        GEOMETRY OPTIMIZATION CYCLE   1\n"
+    "Current Energy                          ....  -153.827552874 Eh\n"
+    "                    ***        THE OPTIMIZATION HAS CONVERGED     ***\n"
+    "FINAL SINGLE POINT ENERGY (From external program)      -153.827552913800\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_parse_orca_log_unconverged_opt_is_failed(tmp_path, monkeypatch):
+    """GH #21：优化跑满最大步数未收敛时 ORCA 仍打印 TERMINATED NORMALLY——
+    终止标记不构成成功判据，文本收敛标记判 failed 且错误信息指出未收敛；
+    能量取最后的 Current Energy（GH #22，起始几何的 FINAL SP 是错的）。"""
+    import cclib
+
+    from cloudra.runtime.monitor import _parse_log
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("Unexpectedly encountered end of logfile")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+
+    log = tmp_path / "job.out"
+    log.write_text(_ORCA_EXTOPT_OPT_NOT_CONVERGED, encoding="utf-8")
+    data, ok = await _parse_log(log, parse_timeout=60, job_type="orca")
+    assert ok is False
+    assert data["is_success"] is False
+    assert data["opt_converged"] is False
+    assert "未收敛" in data["error"]
+    assert data["total_energy_hartree"] == pytest.approx(-383.544742265)
+
+
+@pytest.mark.asyncio
+async def test_parse_orca_log_converged_opt_stays_done(tmp_path, monkeypatch):
+    """收敛的 ExtOpt Opt 仍判 done（opt_converged=True），能量取收敛几何的
+    FINAL SP（位置在最后）。"""
+    import cclib
+
+    from cloudra.runtime.monitor import _parse_log
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("Unexpectedly encountered end of logfile")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+
+    log = tmp_path / "job.out"
+    log.write_text(_ORCA_EXTOPT_OPT_CONVERGED, encoding="utf-8")
+    data, ok = await _parse_log(log, parse_timeout=60, job_type="orca")
+    assert ok is True
+    assert data["is_success"] is True
+    assert data["opt_converged"] is True
+    assert data["total_energy_hartree"] == pytest.approx(-153.827552913800)
+
+
+@pytest.mark.asyncio
+async def test_parse_orca_log_unconverged_opt_via_cclib_optdone(tmp_path, monkeypatch):
+    """GH #21 cclib 辅助路径：文本收敛标记缺失（如版本差异）但 cclib 可解析
+    且 optdone=False 的 Opt 日志，同样判 failed。"""
+    import cloudra.runtime.monitor as monitor
+
+    async def _fake_cclib(target):
+        return {"log_file": str(target), "optdone": False}, True
+
+    monkeypatch.setattr(monitor, "_cclib_parse", _fake_cclib)
+
+    log = tmp_path / "job.out"
+    log.write_text(
+        "! Opt\n"
+        "                        GEOMETRY OPTIMIZATION CYCLE   1\n"
+        "FINAL SINGLE POINT ENERGY     -76.000000000001\n"
+        "                             ****ORCA TERMINATED NORMALLY****\n",
+        encoding="utf-8",
+    )
+    data, ok = await monitor._parse_log(log, parse_timeout=60, job_type="orca")
+    assert ok is False
+    assert data["is_success"] is False
+    assert data["opt_converged"] is False
+    assert "未收敛" in data["error"]
+
+
+@pytest.mark.asyncio
+async def test_guard_marks_failed_for_unconverged_extopt_opt(
+    isolated_db, monkeypatch, tmp_path
+):
+    """GH #21 端到端：guard 对未收敛的 ExtOpt Opt 落 failed，last_error 与
+    state json 明确指出未收敛（不能因 TERMINATED NORMALLY 误判 done）。"""
+    import json as _json
+    import sys
+
+    import cclib
+
+    import cloudra.runtime.monitor as monitor
+    from cloudra.persistence.database import ComputeDB
+
+    workdir = tmp_path / "calc_task"
+    workdir.mkdir()
+    inp = workdir / "ts_opt.inp"
+    inp.write_text("! ExtOpt Opt\n* xyz 0 1\n*\n", encoding="utf-8")
+    db_path = os.path.join(isolated_db, "compute.db")
+
+    ComputeDB(isolated_db).init()
+    async with ComputeDB(isolated_db).aconnect() as con:
+        cur = await con.execute(
+            "INSERT INTO compute_jobs (conversation_id, session_id, path, state, start_timestamp) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("test_conv", "s1", str(inp), "running", 1.0),
+        )
+        await con.commit()
+        task_id = cur.lastrowid
+
+    def _boom(*_args, **_kwargs):
+        raise ValueError("Unexpectedly encountered end of logfile")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+    monkeypatch.setattr(monitor, "check_job_type", lambda _jt, _wd: (True, ""))
+    stdout_code = (
+        "import sys; sys.stdout.write("
+        f"{_ORCA_EXTOPT_OPT_NOT_CONVERGED!r})"
+    )
+    monkeypatch.setattr(
+        monitor,
+        "build_calculator_cmd",
+        lambda input_file, job_type: (True, [sys.executable, "-c", stdout_code], ""),
+    )
+
+    await monitor.run_guard(
+        task_id, str(inp), "test_conv", parse_timeout=60, db_path=db_path, job_type="orca"
+    )
+
+    async with ComputeDB(isolated_db).aconnect() as con:
+        row = await (await con.execute(
+            "SELECT state, last_error FROM compute_jobs WHERE id=?", (task_id,)
+        )).fetchone()
+    assert row[0] == "failed"
+    assert "未收敛" in row[1]
+
+    payload = _json.loads((workdir / f"state_{task_id}.json").read_text(encoding="utf-8"))
+    assert payload["is_success"] is False
+    assert "未收敛" in payload["error"]
+    assert payload["total_energy_hartree"] == pytest.approx(-383.544742265)
 
 
 @pytest.mark.asyncio

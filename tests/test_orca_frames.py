@@ -98,3 +98,121 @@ async def test_log_parser_orca_irc_end_to_end():
     assert result.irc_endpoint_energies_hartree == pytest.approx(
         [-1404.7228, -1404.7223]
     )
+
+
+# ---------------------------------------------------------------------------
+# GH #21：几何优化未收敛（max-cycles）判定；GH #22：未收敛 ExtOpt Opt 的能量
+# ---------------------------------------------------------------------------
+
+# 取自真实日志 NA1_run/.cloudra/calc-27.out.log（未收敛的 MACE ExtOpt Opt）：
+# FINAL SP 只在起始几何打印一次，逐周期能量以 Current Energy 行给出。
+_EXTOPT_OPT_NOT_CONVERGED_SNIPPET = (
+    "FINAL SINGLE POINT ENERGY (From external program)      -383.418935837100\n"
+    "Current Energy                          ....  -383.543545238 Eh\n"
+    "Current Energy                          ....  -383.544742265 Eh\n"
+    "                                  WARNING !!!\n"
+    "       The optimization did not converge but reached the maximum number of\n"
+    "       optimization cycles.\n"
+    "       Please check your results very carefully.\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+
+# 取自 calc-25.out.log（收敛的 ExtOpt Opt）：收敛后在末几何再打印一次 FINAL SP。
+_EXTOPT_OPT_CONVERGED_SNIPPET = (
+    "Current Energy                          ....  -153.827552874 Eh\n"
+    "                    ***        THE OPTIMIZATION HAS CONVERGED     ***\n"
+    "FINAL SINGLE POINT ENERGY (From external program)      -153.827552913800\n"
+    "                             ****ORCA TERMINATED NORMALLY****\n"
+)
+
+
+def test_final_energy_returns_later_current_energy_for_unconverged_extopt():
+    """GH #22：未收敛（max-cycles）只打印一次 FINAL SP（起始几何），最后的
+    Current Energy 才是最佳几何能量——按文本位置取更靠后者。"""
+    energy = orca_frames.final_energy_hartree(_EXTOPT_OPT_NOT_CONVERGED_SNIPPET)
+    assert energy == pytest.approx(-383.544742265)
+
+
+def test_final_energy_keeps_final_sp_when_printed_last():
+    """收敛的 Opt（DFT/ExtOpt）在收敛几何后再打印 FINAL SP，位置在最后，
+    位置规则天然返回它——收敛作业行为不变。"""
+    energy = orca_frames.final_energy_hartree(_EXTOPT_OPT_CONVERGED_SNIPPET)
+    assert energy == pytest.approx(-153.827552913800)
+
+
+def test_final_energy_single_point_log_unchanged():
+    """单点/无 Current Energy 的日志行为不变：仍取最后的 FINAL SP。"""
+    text = (
+        "FINAL SINGLE POINT ENERGY     -76.000000000001\n"
+        "FINAL SINGLE POINT ENERGY     -76.000000000002\n"
+    )
+    assert orca_frames.final_energy_hartree(text) == pytest.approx(-76.000000000002)
+    assert orca_frames.final_energy_hartree("no energy here") is None
+
+
+def test_final_energy_dft_opt_fixture_uses_last_final_sp():
+    """DFT 收敛 Opt（dvb fixture）回归守卫：最后的 FINAL SP 在 Current Energy
+    之后打印，位置规则不得改变既有行为。"""
+    text = (ORCA_FIXTURES / "dvb_opt_orca42.out").read_text(encoding="utf-8")
+    assert orca_frames.final_energy_hartree(text) == pytest.approx(-382.050786152426)
+
+
+def test_opt_converged_text_markers():
+    """GH #21：优化收敛状态文本判定（不依赖 cclib）；非优化日志返回 None。"""
+    assert orca_frames.opt_converged(_EXTOPT_OPT_NOT_CONVERGED_SNIPPET) is False
+    assert orca_frames.opt_converged(_EXTOPT_OPT_CONVERGED_SNIPPET) is True
+    assert orca_frames.opt_converged("FINAL SINGLE POINT ENERGY     -76.0\n") is None
+
+
+# ---------------------------------------------------------------------------
+# GH #16：频率文本回退（外部 MLIP ExtOpt NumFreq 日志无 SCF 块，cclib 常整体失败）
+# ---------------------------------------------------------------------------
+
+# VIBRATIONAL FREQUENCIES 块格式取自真实 ORCA NumFreq 输出（模式行
+# `N: <freq> cm**-1`；虚频为负值，尾部带 ***imaginary mode*** 标记）。
+_NUMFREQ_BLOCK_WITH_IMAGINARY = (
+    "VIBRATIONAL FREQUENCIES\n"
+    "-----------------------\n"
+    "\n"
+    "Scaling factor for frequencies =  1.0000\n"
+    "\n"
+    "   0:      -294.67 cm**-1 ***imaginary mode***\n"
+    "   1:         0.00 cm**-1\n"
+    "   2:       289.50 cm**-1\n"
+    "   3:       458.10 cm**-1\n"
+    "\n"
+    "\n"
+    "-------------\n"
+    "NORMAL MODES\n"
+    "-------------\n"
+)
+
+
+def test_vibfreqs_from_text_parses_imaginary_as_negative():
+    """GH #16：虚频以负值解析（***imaginary mode*** 标记行照常取数）。"""
+    freqs = orca_frames.vibfreqs_from_text(_NUMFREQ_BLOCK_WITH_IMAGINARY)
+    assert freqs == pytest.approx([-294.67, 0.00, 289.50, 458.10])
+
+
+def test_vibfreqs_from_text_takes_only_last_block():
+    """多次打印频率块（如 Opt+NumFreq 逐周期）时只取最后一个块。"""
+    first_block = (
+        "VIBRATIONAL FREQUENCIES\n"
+        "-----------------------\n"
+        "\n"
+        "   0:       111.11 cm**-1\n"
+    )
+    freqs = orca_frames.vibfreqs_from_text(first_block + "\n" + _NUMFREQ_BLOCK_WITH_IMAGINARY)
+    assert freqs == pytest.approx([-294.67, 0.00, 289.50, 458.10])
+
+
+def test_vibfreqs_from_text_no_block_returns_empty():
+    """无频率块的日志返回空列表（调用方保持 None 语义，不得当成零虚频）。"""
+    assert orca_frames.vibfreqs_from_text("FINAL SINGLE POINT ENERGY     -76.0\n") == []
+
+
+def test_vibfreqs_from_text_co2_fixture_matches_block():
+    """co2 fixture 回归：文本解析结果与块内数值一致（前 5 个零为平动/转动模式）。"""
+    text = (ORCA_FIXTURES / "co2_freq_orca42.out").read_text(encoding="utf-8")
+    freqs = orca_frames.vibfreqs_from_text(text)
+    assert freqs == pytest.approx([0.0] * 5 + [289.50, 458.10, 1114.50, 1142.05])

@@ -107,6 +107,14 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
             data_dic["log_file"] = str(target)
         return data_dic, is_success
 
+    if job_type == "xtb":
+        # xtb 主输出全部走 stdout（calculator.sh 重定向到 .out），cclib 对
+        # xtb 支持薄弱——纯文本判定（GH #26），与 CP2K 同款轻量路径。
+        data_dic, is_success = _parse_xtb_log(target)
+        if data_dic is not None:
+            data_dic["log_file"] = str(target)
+        return data_dic, is_success
+
     if job_type == "orca":
         return await _parse_orca_log(target)
 
@@ -172,6 +180,10 @@ async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
     （GH #17/#18：正常终止的 MACE NumFreq/IRC 作业被误判 failed）。cclib
     失败时退化为文本提取的最小数据（最终能量 + is_success + log_file）。
     终止/能量的文本权威判据与 log_parser 共用 tools.core.orca_frames。
+
+    优化收敛是独立于终止标记的第二判据（GH #21）：跑满最大步数未收敛时
+    ORCA 仍打印 TERMINATED NORMALLY——文本收敛标记为主，cclib optdone 为辅
+    （外部 MLIP 日志 cclib 可能解析失败，不能依赖它）。
     """
     from cloudra.tools.core import orca_frames
 
@@ -193,7 +205,56 @@ async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
             data_dic["total_energy_hartree"] = energy
             data_dic["scf_energy_hartree"] = energy
             data_dic["scf_energy_ev"] = energy * 27.211386245988
+
+    opt_ok = orca_frames.opt_converged(text)
+    if opt_ok is None and parsed is not None:
+        # cclib 辅助：文本标记缺失时（如版本差异）看 optdone，仅对 opt/ts 类任务
+        if {"opt", "ts"} & orca_frames.detect_job_types_from_text(text):
+            optdone = data_dic.get("optdone")
+            if optdone is not None:
+                opt_ok = bool(optdone)
+    data_dic["opt_converged"] = opt_ok
+    if is_success and opt_ok is False:
+        is_success = False
+        data_dic["error"] = "ORCA 几何优化未收敛（达到最大优化步数），结果不可信"
     data_dic["is_success"] = is_success
+    return data_dic, is_success
+
+
+def _parse_xtb_log(log_path: Path) -> tuple[dict, bool] | None:
+    """轻量解析 xtb 输出日志（calculator stdout 重定向的 .out）。
+
+    成功判据：正常终止标记 ``normal termination of xtb``（文本权威，与
+    log_parser 共用 tools.core.xtb_frames 原语，GH #26）。优化收敛是独立
+    的第二判据（GH #21 同款语义）：未收敛的优化仍打印 normal termination，
+    ``FAILED TO CONVERGE`` 标记即判 failed。能量按文本位置取最后的能量行。
+    """
+    from cloudra.tools.core import xtb_frames
+
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        print(f'读取 xtb 日志失败：{e}')
+        return None
+    if not text.strip():
+        return None
+
+    is_success = xtb_frames.normal_termination(text)
+    opt_ok = xtb_frames.opt_converged(text)
+    energy = xtb_frames.final_energy_hartree(text)
+
+    data_dic: dict = {
+        "is_success": is_success,
+        "opt_converged": opt_ok,
+    }
+    if energy is not None:
+        data_dic["total_energy_hartree"] = energy
+        data_dic["scf_energy_hartree"] = energy
+        data_dic["scf_energy_ev"] = energy * 27.211386245988
+    if is_success and opt_ok is False:
+        is_success = False
+        data_dic["is_success"] = False
+        data_dic["error"] = "xtb 几何优化未收敛（达到最大优化步数），结果不可信"
     return data_dic, is_success
 
 
@@ -292,10 +353,13 @@ async def _finalize(
     state = 'done' if is_success else 'failed'
     fail_reason = ""
     if state == 'failed':
+        # 解析器已给出明确原因时优先采用（如 ORCA 优化未收敛——日志尾部没有
+        # 已知失败标记，通用尾部提取只会捞到无信息的几行）
+        parser_reason = str(data_dic.get("error") or "")
         # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
         target, _ = _resolve_log_target(log_path, fallback_log_path)
         tail = _log_tail_reason(target) if target is not None else ""
-        fail_reason = (
+        fail_reason = parser_reason or (
             f"calculator 退出码 {returncode}；" if returncode else ""
         ) + (tail or "未在日志尾部找到明确错误段")
         data_dic["error"] = fail_reason

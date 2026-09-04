@@ -137,7 +137,7 @@ class ComputeNotifyBroker:
 
     async def _content_for(self, task_id: int, state: str) -> str:
         """通知文本一律由 DB 重建（唯一路径）：提交者信息 + 终态错误 + 日志路径。"""
-        from cloudra.infra.compute_utils import get_log_path
+        from cloudra.infra.compute_utils import resolve_log_path
         from cloudra.services.compute_store import aget_compute_job
 
         db = ComputeDB()
@@ -158,8 +158,9 @@ class ComputeNotifyBroker:
             task_id=task_id,
             state=state,
             input_path=input_path,
-            # 纯字符串推导，不碰文件系统
-            log_path=get_log_path(input_path, job_type=job_type) if input_path else "",
+            # log_path 与 query_compute_job 统一走 resolve_log_path（GH #20）：
+            # 优先 guard state json 记录的真实日志，回退引擎惯例预测
+            log_path=resolve_log_path(input_path, job_type=job_type, task_id=task_id) if input_path else "",
             fail_reason=fail_reason,
             library_hits=library_hits,
         )
