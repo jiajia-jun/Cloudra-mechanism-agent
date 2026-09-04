@@ -258,3 +258,48 @@ async def test_executor_intercepts_agent_hub():
     result = await executor.execute(coordinator, _hub({"action": "browse"}))
     assert result.is_success is True
     assert "forum" in result.summary
+
+
+@pytest.mark.asyncio
+async def test_browse_cursor_and_search_sources_status():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    for i in range(3):
+        await handle_hub_tool(
+            core,
+            coordinator,
+            _hub({"action": "post", "topic": f"topic-{i}", "content": f"content {i}"}),
+        )
+    first = await handle_hub_tool(core, coordinator, _hub({"action": "browse", "limit": 1}))
+    assert first.is_success is True
+    assert first.data["next_cursor"] is not None
+    second = await handle_hub_tool(
+        core, coordinator, _hub({"action": "browse", "limit": 1, "cursor": first.data["next_cursor"]})
+    )
+    assert second.is_success is True
+    assert second.data["posts"]
+    assert second.data["posts"][0]["topic"] != first.data["posts"][0]["topic"]
+
+    search = await handle_hub_tool(core, coordinator, _hub({"action": "search", "keyword": "content"}))
+    assert search.is_success is True
+    assert search.data.get("sources_status", {}).get("project_posts") == "available"
+
+
+@pytest.mark.asyncio
+async def test_notification_consumed_event_emitted_when_context_built():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    child = await _spawn(core, coordinator, "explorer")
+    posted = await handle_hub_tool(
+        core,
+        coordinator,
+        _hub({"action": "post", "topic": "t", "content": "explorer please read", "to_agent": "explorer"}),
+    )
+    assert posted.is_success is True
+    await _wait_state(child, "succeeded")
+    consumed = [
+        e for e in core.event_log.query_session(child.id)
+        if e.type == "hub.notification_consumed"
+    ]
+    assert consumed
+    assert consumed[-1].data.get("post_id")

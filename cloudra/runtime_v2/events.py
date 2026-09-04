@@ -60,6 +60,7 @@ EVENT_TYPES: dict[str, str] = {
     "tool.approval_requested": "tool approval requested",
     "dag.gate_blocked": "substantive gate blocked a tool",
     "hub.posted": "agent forum post",
+    "hub.notification_consumed": "agent consumed a directed hub notification",
     "compaction.started": "context compaction started",
     "compaction.finished": "context compaction finished",
     "compaction.requested": "manual context compaction requested",

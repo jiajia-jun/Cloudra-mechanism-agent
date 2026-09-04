@@ -248,6 +248,27 @@ class TurnPipeline:
             {"role": "user", "content": item.get("content", "")}
             for item in inbox_messages
         )
+        # Only messages that are actually entering the model context count as
+        # consumed.  AgentHub-targeted mentions/replies carry a text marker.
+        for item in inbox_messages:
+            content = str(item.get("content") or "")
+            if "AgentHub" in content or "mentioned you in AgentHub" in content or "replied to your AgentHub" in content:
+                self.event_log.append(
+                    "hub.notification_consumed",
+                    stream="agent",
+                    project_id=agent.project_id,
+                    session_id=agent.id,
+                    run_id=run_id,
+                    data={
+                        "session_id": agent.id,
+                        "message_id": str(item.get("message_id") or ""),
+                        "post_id": str(item.get("post_id") or ""),
+                        "consumed_at": __import__("datetime").datetime.now(
+                            __import__("datetime").timezone.utc
+                        ).isoformat(),
+                        "content": content[:200],
+                    },
+                )
         for stage in self.stages:
             await stage.before_llm(ctx, messages)
         if notice_sink is not None:

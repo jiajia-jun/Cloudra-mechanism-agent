@@ -44,9 +44,12 @@ class Mailbox:
         content: str,
         images: list[str] | None = None,
         image_artifact_ids: list[str | None] | None = None,
+        post_id: str | None = None,
     ) -> dict[str, Any]:
         """agent.message_injected 的事件载荷。"""
         data: dict[str, Any] = {"message_id": message_id, "sender": sender, "content": content}
+        if post_id:
+            data["post_id"] = post_id
         if images:
             # Workspace-absolute image paths attached by the user; the runner
             # turns them into vision parts (or a text fallback) and the
@@ -65,15 +68,19 @@ class Mailbox:
         sender: str,
         content: str,
         images: list[str] | None = None,
+        post_id: str | None = None,
     ) -> dict[str, Any]:
         """inbox 入队载荷（artifact id 只走事件，不进队列）。"""
-        return {
+        payload = {
             "type": "message",
             "message_id": message_id,
             "sender": sender,
             "content": content,
             **({"images": list(images)} if images else {}),
         }
+        if post_id:
+            payload["post_id"] = post_id
+        return payload
 
     # ------------------------------------------------------------- delivery
 
@@ -91,6 +98,7 @@ class Mailbox:
         run_id: str | None = None,
         images: list[str] | None = None,
         image_artifact_ids: list[str | None] | None = None,
+        post_id: str | None = None,
     ) -> EventEnvelope:
         message_id = new_id("msg")
         envelope = self._event_log.append(
@@ -105,10 +113,17 @@ class Mailbox:
                 content=content,
                 images=images,
                 image_artifact_ids=image_artifact_ids,
+                post_id=post_id,
             ),
         )
         self.enqueue(
             to_session_id,
-            self.message_payload(message_id=message_id, sender=sender, content=content, images=images),
+            self.message_payload(
+                message_id=message_id,
+                sender=sender,
+                content=content,
+                images=images,
+                post_id=post_id,
+            ),
         )
         return envelope

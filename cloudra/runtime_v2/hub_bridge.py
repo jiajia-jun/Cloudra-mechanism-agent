@@ -69,12 +69,13 @@ def _resolve_live_target(core, project_id: str, target: str) -> AgentSession | N
     return matches[-1] if matches else None
 
 
-def _notify(core, project_id: str, target: AgentSession, *, sender: str, content: str) -> None:
+def _notify(core, project_id: str, target: AgentSession, *, sender: str, content: str, post_id: str | None = None) -> None:
     core.mailbox.deliver(
         to_session_id=target.id,
         project_id=project_id,
         content=content,
         sender=sender,
+        post_id=post_id,
     )
     # A sleeping or idle addressee would otherwise leave the message sitting
     # in the inbox until some unrelated event; wake it so the mention/call
@@ -134,6 +135,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
                 f"{author.role_id} mentioned you in AgentHub topic '{topic}' "
                 f"(post {envelope.event_id}): {content}"
             ),
+            post_id=envelope.event_id,
         )
         notices.append(f"Notified {to_agent}.")
     if parent_id:
@@ -150,6 +152,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
                         f"{author.role_id} replied to your AgentHub post in topic "
                         f"'{parent['topic']}' {parent_id} (reply {envelope.event_id}): {content}"
                     ),
+                    post_id=envelope.event_id,
                 )
                 notices.append(f"Notified original author {parent['author_agent']}.")
     message = f"Posted to topic '{topic}' (id={envelope.event_id})."
@@ -168,7 +171,8 @@ def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         cursor_post = next((p for p in posts if str(p["id"]) == str(cursor)), None)
         if cursor_post is None:
             return _err(f"cursor not found: {cursor!r}")
-        posts = [p for p in posts if p["seq"] > cursor_post["seq"]]
+        # Browse is newest-first; a cursor advances to older activity.
+        posts = [p for p in posts if p["seq"] < cursor_post["seq"]]
     topics: dict[str, dict[str, Any]] = {}
     for post in posts:
         entry = topics.setdefault(
