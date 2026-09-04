@@ -80,6 +80,9 @@ class RuntimeCore:
         # Optional async review worker (Task 7). It is an ephemeral executor;
         # the authoritative review queue is in each project's DAG store.
         self.review_worker = None
+        # Optional launch group manager (Task 10). Ephemeral/process-local;
+        # child lifecycle remains in the event log.
+        self.launch_groups = None
         # Idempotency window: recent command_id -> first CommandResult.
         self._command_results: OrderedDict[str, CommandResult] = OrderedDict()
         self._max_command_results = 1024
