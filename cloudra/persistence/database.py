@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 _T = TypeVar("_T")
 
 _warned_sync_sites: set[str] = set()
@@ -190,6 +190,8 @@ class ConversationDB:
             cur.execute(_CREATE_DAG_CALL_REVIEWS_CALL_INDEX)
             cur.execute(_CREATE_DAG_CALL_REVIEWS_JOB_INDEX)
             cur.execute(_CREATE_DAG_DRAFTS)
+            cur.execute(_CREATE_DAG_REVIEW_REQUESTS)
+            cur.execute(_CREATE_DAG_REVIEW_DECISIONS)
             cur.execute(_CREATE_ARTIFACTS_INDEX)
             cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             self._migrate_session_schema(cur)
@@ -282,6 +284,8 @@ class ConversationDB:
             await cur.execute(_CREATE_DAG_CALL_REVIEWS_CALL_INDEX)
             await cur.execute(_CREATE_DAG_CALL_REVIEWS_JOB_INDEX)
             await cur.execute(_CREATE_DAG_DRAFTS)
+            await cur.execute(_CREATE_DAG_REVIEW_REQUESTS)
+            await cur.execute(_CREATE_DAG_REVIEW_DECISIONS)
             await cur.execute(_CREATE_ARTIFACTS_INDEX)
             await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             await self._amigrate_session_schema(cur)
@@ -969,6 +973,41 @@ _CREATE_DAG_DRAFTS = """
         reject_reason TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,
         decided_at TEXT
+    )
+"""
+
+# 结构化审查请求/裁决（contract_version=2）：请求与 CallReview 收件箱正交，
+# 一个请求可以带多目标、多证据与 proposal；裁决按 request+basis 幂等落账。
+_CREATE_DAG_REVIEW_REQUESTS = """
+    CREATE TABLE IF NOT EXISTS dag_review_requests(
+        request_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK(kind IN ('draft', 'evidence', 'exception', 'exit')),
+        requester TEXT NOT NULL,
+        target_ids TEXT NOT NULL DEFAULT '[]',
+        question TEXT NOT NULL,
+        supporting_refs TEXT NOT NULL DEFAULT '[]',
+        counterevidence_refs TEXT NOT NULL DEFAULT '[]',
+        proposal TEXT NOT NULL DEFAULT '{}',
+        basis_fingerprint TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'queued'
+            CHECK(state IN ('queued', 'resolved', 'superseded')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+"""
+
+_CREATE_DAG_REVIEW_DECISIONS = """
+    CREATE TABLE IF NOT EXISTS dag_review_decisions(
+        decision_id TEXT PRIMARY KEY,
+        request_id TEXT NOT NULL,
+        basis_fingerprint TEXT NOT NULL,
+        verdict TEXT NOT NULL CHECK(verdict IN ('accept', 'reject', 'needs_evidence')),
+        reason TEXT NOT NULL,
+        evidence_refs TEXT NOT NULL DEFAULT '[]',
+        findings TEXT NOT NULL DEFAULT '[]',
+        next_action TEXT,
+        claim_token INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
     )
 """
 

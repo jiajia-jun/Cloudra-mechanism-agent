@@ -78,6 +78,13 @@ class DagView(DagToolBase):
             result = render_projection_view(
                 snapshot, mode=ctx.mode, contract=ctx.contract, history=history
             )
+            review_requests = await asyncio.to_thread(
+                lambda: [
+                    item.model_dump(mode="json")
+                    for item in ctx.store.list_review_requests(state="queued")
+                ]
+            )
+            result["review_requests"] = review_requests
             return DagToolOutput(is_success=True, action="dag_view", result=result)
 
         wanted = list(user_input.node_ids or [])

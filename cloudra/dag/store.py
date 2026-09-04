@@ -521,6 +521,362 @@ class DagStore:
             )
         return facts
 
+    # --- 结构化审查请求/裁决（contract_version=2） ---
+
+    def enqueue_review(self, request) -> str:
+        """持久化一个 ReviewRequest；同 kind+scope+basis 仍 queued 时去重合并。
+
+        New contradictions/evidence produce a new basis_fingerprint, so they
+        enqueue a new request even if the question text is identical.
+        """
+        from cloudra.dag.review_requests import ReviewRequest, scope_key
+
+        if not isinstance(request, ReviewRequest):
+            request = ReviewRequest.model_validate(request)
+        if not request.request_id:
+            request = request.model_copy(
+                update={"request_id": "req_" + uuid.uuid4().hex}
+            )
+        kind, targets = scope_key(request)
+        request_json = request.model_dump(mode="json")
+        del request_json["request_id"]
+        request_json.pop("state", None)
+        request_json.pop("created_at", None)
+        request_json.pop("updated_at", None)
+        encoded_identity = _canonical_json(request_json)
+
+        def operation() -> None:
+            with self.db.connect() as con:
+                # All evidence refs are project-local: they must resolve in this
+                # conversation's evidence store. Cross-project ids are rejected.
+                for ref in [*request.supporting_refs, *request.counterevidence_refs]:
+                    if ref.ref_type != "tool_result":
+                        continue
+                    evidence_row = con.execute(
+                        "SELECT content_hash FROM dag_evidence WHERE evidence_id = ?",
+                        (ref.ref_id,),
+                    ).fetchone()
+                    if evidence_row is None or (
+                        ref.content_hash is not None
+                        and ref.content_hash != evidence_row[0]
+                    ):
+                        raise InvalidGraphReference(
+                            f"evidence reference {ref.ref_id!r} does not resolve "
+                            "in this conversation's evidence store"
+                        )
+                row = con.execute(
+                    """
+                    SELECT request_id FROM dag_review_requests
+                    WHERE kind = ? AND target_ids = ? AND basis_fingerprint = ?
+                      AND state = 'queued' ORDER BY rowid LIMIT 1
+                    """,
+                    (kind, _canonical_json(list(targets)), request.basis_fingerprint),
+                ).fetchone()
+                if row is not None:
+                    return row[0]
+                con.execute(
+                    """
+                    INSERT INTO dag_review_requests(
+                        request_id, kind, requester, target_ids, question,
+                        supporting_refs, counterevidence_refs, proposal,
+                        basis_fingerprint, state, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', datetime('now'), datetime('now'))
+                    """,
+                    (
+                        request.request_id,
+                        request.kind,
+                        request.requester,
+                        _canonical_json(request.target_ids),
+                        request.question,
+                        _canonical_json(
+                            [ref.model_dump(mode="json") for ref in request.supporting_refs]
+                        ),
+                        _canonical_json(
+                            [ref.model_dump(mode="json") for ref in request.counterevidence_refs]
+                        ),
+                        _canonical_json(request.proposal),
+                        request.basis_fingerprint,
+                    ),
+                )
+                return request.request_id
+
+        return retry_on_locked(operation)
+
+    @staticmethod
+    def _review_request_from_row(row) -> Any:
+        from cloudra.dag.review_requests import ReviewRequest
+
+        return ReviewRequest(
+            request_id=row[0],
+            kind=row[1],
+            requester=row[2],
+            target_ids=json.loads(row[3]),
+            question=row[4],
+            supporting_refs=[GraphRef(**item) for item in json.loads(row[5])],
+            counterevidence_refs=[GraphRef(**item) for item in json.loads(row[6])],
+            proposal=json.loads(row[7]),
+            basis_fingerprint=row[8],
+            state=row[9],
+            created_at=row[10],
+            updated_at=row[11],
+        )
+
+    _REVIEW_REQUEST_COLUMNS = (
+        "request_id, kind, requester, target_ids, question, supporting_refs, "
+        "counterevidence_refs, proposal, basis_fingerprint, state, created_at, updated_at"
+    )
+
+    def get_review_request(self, request_id: str):
+        from cloudra.dag.review_requests import ReviewRequest
+
+        with self.db.connect() as con:
+            row = con.execute(
+                f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests "
+                "WHERE request_id = ?",
+                (request_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._review_request_from_row(row)
+
+    def list_review_requests(self, state: str = "queued"):
+        query = (
+            f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests"
+        )
+        params: tuple = ()
+        if state is not None:
+            query += " WHERE state = ?"
+            params = (state,)
+        query += " ORDER BY created_at, rowid"
+        with self.db.connect() as con:
+            rows = con.execute(query, params).fetchall()
+        return [self._review_request_from_row(row) for row in rows]
+
+    def resolve_review(
+        self,
+        decision,
+        *,
+        expected_basis: str,
+        claim_token: int,
+    ) -> dict[str, Any]:
+        """Atomic resolve of a ReviewDecision.
+
+        The request's stored basis must equal ``expected_basis``; a stale basis
+        means the decision cannot be applied (superseded request).
+        """
+        from cloudra.dag.review_requests import ReviewDecision
+
+        if not isinstance(decision, ReviewDecision):
+            decision = ReviewDecision.model_validate(decision)
+        if not decision.decision_id:
+            decision = decision.model_copy(
+                update={"decision_id": "dec_" + uuid.uuid4().hex}
+            )
+
+        def operation() -> dict[str, Any]:
+            with self.db.connect() as con:
+                row = con.execute(
+                    f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests "
+                    "WHERE request_id = ?",
+                    (decision.request_id,),
+                ).fetchone()
+                if row is None:
+                    return {
+                        "accepted": False,
+                        "rejection_code": "missing_request",
+                        "rejection_reason": f"review request {decision.request_id!r} does not exist",
+                        "request_id": decision.request_id,
+                    }
+                request = self._review_request_from_row(row)
+                if request.basis_fingerprint != expected_basis:
+                    return {
+                        "accepted": False,
+                        "rejection_code": "stale_basis",
+                        "rejection_reason": (
+                            "the decision basis no longer matches the request; "
+                            "a related target/evidence changed after the request was created"
+                        ),
+                        "request_id": decision.request_id,
+                    }
+                for ref in decision.evidence_refs:
+                    if ref.ref_type != "tool_result":
+                        continue
+                    evidence_row = con.execute(
+                        "SELECT content_hash FROM dag_evidence WHERE evidence_id = ?",
+                        (ref.ref_id,),
+                    ).fetchone()
+                    if evidence_row is None or (
+                        ref.content_hash is not None
+                        and ref.content_hash != evidence_row[0]
+                    ):
+                        return {
+                            "accepted": False,
+                            "rejection_code": "invalid_evidence_ref",
+                            "rejection_reason": (
+                                f"decision evidence reference {ref.ref_id!r} does not "
+                                "resolve in this conversation"
+                            ),
+                            "request_id": decision.request_id,
+                        }
+                existing = con.execute(
+                    "SELECT 1 FROM dag_review_decisions WHERE request_id = ? "
+                    "AND basis_fingerprint = ? LIMIT 1",
+                    (decision.request_id, decision.basis_fingerprint),
+                ).fetchone()
+                if existing is not None:
+                    return {
+                        "accepted": False,
+                        "rejection_code": "duplicate_decision",
+                        "rejection_reason": (
+                            "a decision for this request+basis already exists; "
+                            "do not resolve the same basis twice"
+                        ),
+                        "request_id": decision.request_id,
+                    }
+                con.execute(
+                    """
+                    INSERT INTO dag_review_decisions(
+                        decision_id, request_id, basis_fingerprint, verdict,
+                        reason, evidence_refs, findings, next_action,
+                        claim_token, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (
+                        decision.decision_id,
+                        decision.request_id,
+                        decision.basis_fingerprint,
+                        decision.verdict,
+                        decision.reason,
+                        _canonical_json(
+                            [ref.model_dump(mode="json") for ref in decision.evidence_refs]
+                        ),
+                        _canonical_json(decision.findings),
+                        decision.next_action,
+                        claim_token,
+                    ),
+                )
+                con.execute(
+                    "UPDATE dag_review_requests SET state='resolved', updated_at=datetime('now') "
+                    "WHERE request_id = ?",
+                    (decision.request_id,),
+                )
+                return {
+                    "accepted": True,
+                    "decision_id": decision.decision_id,
+                    "request_id": decision.request_id,
+                    "basis_fingerprint": decision.basis_fingerprint,
+                }
+
+        return retry_on_locked(operation)
+
+    def collect_review_exceptions(self, target_ids: list[str]) -> list[dict[str, Any]]:
+        """Return stable exceptions relevant to the given delivery targets.
+
+        Categories:
+        - ``coverage_gap``: required stage/check evidence is still missing.
+        - ``contradiction``: a registered refutes fact targets this target.
+        - ``known_target_unbound_fact``: a target-hinted fact is not yet bound.
+        - ``untargeted_key_fact``: a key fact has no target hint and is not bound.
+        """
+        from cloudra.dag.completion import evaluate_delivery
+        from cloudra.dag.evidence_facts import EvidenceFact, FactSubject
+
+        snapshot = self.load_snapshot()
+        contract = self.load_coverage_contract()
+        exceptions: list[dict[str, Any]] = []
+
+        with self.db.connect() as con:
+            all_facts = con.execute(
+                "SELECT fact_id, check_name, outcome, subject, source_refs, "
+                "details, adapter_version FROM dag_evidence_facts"
+            ).fetchall()
+            bound_by_target: dict[str, set[str]] = {}
+            for target_id, evidence_id in con.execute(
+                "SELECT target_id, evidence_id FROM dag_evidence_bindings"
+            ).fetchall():
+                bound_by_target.setdefault(target_id, set()).add(evidence_id)
+        # Load all facts once.
+        facts_by_id: dict[str, EvidenceFact] = {}
+        for fact_id, check, outcome, subject, source_refs, details, adapter_version in all_facts:
+            subj = FactSubject.model_validate(json.loads(subject))
+            refs = [GraphRef(**item) for item in json.loads(source_refs)]
+            facts_by_id[fact_id] = EvidenceFact(
+                fact_id=fact_id,
+                check=check,
+                outcome=outcome,
+                subject=subj,
+                source_refs=refs,
+                details=json.loads(details),
+                adapter_version=adapter_version,
+            )
+
+        report = evaluate_delivery(snapshot.delivery, contract)
+        target_gaps: dict[str, list[str]] = {}
+        for gate in [*report.unresolved, *report.inconclusive]:
+            target_gaps.setdefault(gate.target_id, []).append(gate.code)
+
+        for target_id in target_ids:
+            if target_id in target_gaps:
+                for code in target_gaps[target_id]:
+                    key = f"{target_id}:coverage_gap:{code}"
+                    if not any(item.get("exception_key") == key for item in exceptions):
+                        exceptions.append({
+                            "exception_key": key,
+                            "category": "coverage_gap",
+                            "target_id": target_id,
+                            "code": code,
+                            "detail": "required coverage evidence is missing or inconclusive",
+                        })
+            bound_ids = bound_by_target.get(target_id, set())
+            for fact_id, fact in facts_by_id.items():
+                if fact.outcome != "refutes":
+                    continue
+                fact_targets = {ref.ref_id for ref in fact.source_refs} & bound_ids
+                hint = fact.subject.target_hint
+                if target_id in fact_targets or hint == target_id:
+                    key = f"{target_id}:contradiction:{fact.check}:{fact.fact_id}"
+                    if not any(item.get("exception_key") == key for item in exceptions):
+                        exceptions.append({
+                            "exception_key": key,
+                            "category": "contradiction",
+                            "target_id": target_id,
+                            "check": fact.check,
+                            "fact_id": fact.fact_id,
+                            "detail": "registered evidence refutes this target",
+                        })
+            # Target-hinted facts not yet bound to this target.
+            for fact_id, fact in facts_by_id.items():
+                if fact.subject.target_hint == target_id and not (bound_ids & {ref.ref_id for ref in fact.source_refs}):
+                    key = f"{target_id}:known_target_unbound_fact:{fact.fact_id}"
+                    if not any(item.get("exception_key") == key for item in exceptions):
+                        exceptions.append({
+                            "exception_key": key,
+                            "category": "known_target_unbound_fact",
+                            "target_id": target_id,
+                            "fact_id": fact.fact_id,
+                            "check": fact.check,
+                            "detail": "evidence targets this element but is not yet bound",
+                        })
+
+        # Untargeted key facts: no target hint, not bound to any target.
+        bound_anywhere = {eid for ids in bound_by_target.values() for eid in ids}
+        for fact_id, fact in facts_by_id.items():
+            if fact.subject.target_hint:
+                continue
+            if any(ref.ref_id in bound_anywhere for ref in fact.source_refs):
+                continue
+            key = f"untargeted:{fact.check}:{fact.fact_id}"
+            if not any(item.get("exception_key") == key for item in exceptions):
+                exceptions.append({
+                    "exception_key": key,
+                    "category": "untargeted_key_fact",
+                    "target_id": None,
+                    "fact_id": fact.fact_id,
+                    "check": fact.check,
+                    "detail": "key evidence has no target binding or target hint",
+                })
+        return exceptions
+
     # --- CallReview 收件箱（D12：append-only，不经 DagEngine 版本化 mutation） ---
 
     def enqueue_call_review(self, review: CallReview) -> None:

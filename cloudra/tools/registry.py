@@ -261,6 +261,13 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         supervisor_access='review_decision',
     ),
     ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_review_evidence',
+        class_name='DagReviewEvidence',
+        tool_name='dag_review_evidence',
+        dag_observe=False,
+        supervisor_access='review_decision',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
         class_name='DagViewEvidence',
         tool_name='dag_view_evidence',

@@ -159,9 +159,10 @@ async def test_deleted_process_tools_are_unregistered(tmp_path):
         "dag_schedule_work",
         "dag_update_process_node",
         "dag_init_from_template",
-        "dag_review_evidence",
     ):
         assert name not in record_names
+    # Task 6 reintroduces dag_review_evidence for v2 structured review requests.
+    assert "dag_review_evidence" in record_names
 
 
 @pytest.mark.asyncio
