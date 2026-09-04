@@ -302,6 +302,10 @@ def derive_evidence_level(
     不触发 inconclusive；派生时把 supported 与 not_applicable 一并视为已
     满足，使无能垒步（无 ts_opt/frequency 槽）仍能按其余 supported 阶段
     派生到 endpoint_supported 等。
+
+    v2 修复：不会因为单一 ``thermochemistry`` 阶段就跳到 ``thermo_annotated``
+    或因为出现端点阶段就跳过 saddle 阶段。旧 evidence_level 只作为兼容展示；
+    新 v2 科学结论由 ``requirements.evaluate_claim`` 按 checks 计算。
     """
     required = [stage for stage in stages if stage.required]
     if not required:
@@ -320,9 +324,26 @@ def derive_evidence_level(
         if stage.status in {StageStatus.SUPPORTED, StageStatus.NOT_APPLICABLE}
     }
     if is_edge:
-        if StageKind.THERMOCHEMISTRY in satisfied:
+        # Keep the old ladder meaningful: an edge's top level should imply the
+        # saddle/path chain, not merely the presence of one thermochemistry
+        # stage or one endpoint stage.
+        if (
+            {
+                StageKind.TS_OPT,
+                StageKind.FREQUENCY,
+                StageKind.SHORT_IRC,
+                StageKind.ENDPOINT_A,
+                StageKind.ENDPOINT_B,
+                StageKind.DIRECTION,
+                StageKind.IDENTITY,
+                StageKind.THERMOCHEMISTRY,
+            }
+            <= satisfied
+        ):
             return "thermo_annotated"
         if {
+            StageKind.TS_OPT,
+            StageKind.FREQUENCY,
             StageKind.SHORT_IRC,
             StageKind.ENDPOINT_A,
             StageKind.ENDPOINT_B,
@@ -333,7 +354,7 @@ def derive_evidence_level(
         if {StageKind.TS_OPT, StageKind.FREQUENCY} <= satisfied:
             return "saddle_supported"
         return "proposed"
-    if all_supported:
+    if all_supported and StageKind.GEOMETRY in satisfied:
         return (
             "thermo_annotated"
             if StageKind.SINGLE_POINT in satisfied

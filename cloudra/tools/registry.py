@@ -135,6 +135,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='ReactionMapping',
         tool_name='reaction_mapping',
         evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
+        dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
         dag_review=True,
         supervisor_access='evidence_read',
     ),

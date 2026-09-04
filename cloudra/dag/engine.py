@@ -121,6 +121,7 @@ def apply_stage_verdict(
     reason: str = "",
     ref: GraphRef | None = None,
     tool_succeeded: bool = False,
+    allow_out_of_order: bool = False,
 ) -> list[StageState]:
     """单阶段绑定的确定性守卫，返回更新后的阶段列表（不改动输入）。
 
@@ -129,9 +130,11 @@ def apply_stage_verdict(
     - not_applicable ⇒ not_applicable（reason 必填，清 ref）——该槽对此
       元素不成立（无能垒步无 TS、单分子步无 endpoint_b 络合物）；语义上
       是完成态，与 skipped 的"主动放弃"区分开
-    - agree ⇒ tool_succeeded 且带 ref，且前面所有**必需**阶段
-      supported/skipped/not_applicable 才 supported（stage_out_of_order）；
-      顺序守卫只看前面的阶段，rejected 阶段可被后来的 agree 重绑（D2）。
+    - agree ⇒ tool_succeeded 且带 ref。legacy/contract_version=1 项目保持
+      顺序门禁：前面所有**必需**阶段 supported/skipped/not_applicable 才
+      supported（stage_out_of_order），rejected 阶段可被后来的 agree 重绑
+      （D2）。contract_version=2（allow_out_of_order=True）允许证据乱序到
+      达/绑定；缺失的依赖由 requirements 层计算，不再拒绝绑定本身。
       ts_guess 只推进它自己那个阶段，永远不能充抵 ts_opt/frequency。
     """
     index = next(
@@ -169,23 +172,24 @@ def apply_stage_verdict(
             "missing_ref",
             "an agree verdict requires the evidence ref being bound",
         )
-    blockers = [
-        stage.kind.value
-        for stage in stages[:index]
-        if stage.required
-        and stage.status
-        not in {
-            StageStatus.SUPPORTED,
-            StageStatus.SKIPPED,
-            StageStatus.NOT_APPLICABLE,
-        }
-    ]
-    if blockers:
-        raise _Rejected(
-            "stage_out_of_order",
-            "previous required stages must be supported, skipped, or not_applicable first: "
-            + ", ".join(blockers),
-        )
+    if not allow_out_of_order:
+        blockers = [
+            stage.kind.value
+            for stage in stages[:index]
+            if stage.required
+            and stage.status
+            not in {
+                StageStatus.SUPPORTED,
+                StageStatus.SKIPPED,
+                StageStatus.NOT_APPLICABLE,
+            }
+        ]
+        if blockers:
+            raise _Rejected(
+                "stage_out_of_order",
+                "previous required stages must be supported, skipped, or not_applicable first: "
+                + ", ".join(blockers),
+            )
     updated = target.model_copy(
         update={"status": StageStatus.SUPPORTED, "reason": "", "ref": ref}
     )

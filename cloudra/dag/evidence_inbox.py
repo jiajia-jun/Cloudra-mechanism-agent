@@ -343,11 +343,14 @@ class EvidenceInboxMixin:
         verdict: str,
         reason: str = "",
         tool_succeeded: bool,
+        expected_revision: int | None = None,
     ) -> MutationResult:
         """阶段绑定的唯一 harness 入口（agree/disagree/skip/not_applicable）。
 
-        守卫确定性（engine.apply_stage_verdict）：顺序（前面的必需阶段须
-        supported/skipped/not_applicable；rejected 可重绑，D2）、理由
+        守卫确定性（engine.apply_stage_verdict）：contract_version=1 保持
+        顺序门禁（前面的必需阶段须 supported/skipped/not_applicable；
+        rejected 可重绑，D2）；已接受 v2 ClaimSpec 后允许证据乱序绑定，
+        缺失依赖由 requirements 层汇总。其他守卫包括理由
         （disagree/skip/not_applicable 必填）、工具成败；TS frequency
         另有 n_imag==1 检查（D7，不过 ⇒ saddle_check_failed，阶段保持
         pending）。守卫拒绝不落地；通过后 attach ref + 更新 stages，并由
@@ -374,6 +377,9 @@ class EvidenceInboxMixin:
         def _guarded_stages():
             # snapshot 是同步 sqlite 读，连同守卫一起放进 worker 线程
             snapshot = self.engine.snapshot()
+            # v2 is per-project: an accepted ClaimSpec activates the new
+            # evidence protocol. Legacy projects remain v1/strict-order.
+            accepted_spec = self.store.accepted_claim_spec()
             target_type, element = self._delivery_target(
                 snapshot.delivery, element_id
             )
@@ -384,6 +390,7 @@ class EvidenceInboxMixin:
                 reason=reason,
                 ref=ref,
                 tool_succeeded=tool_succeeded,
+                allow_out_of_order=accepted_spec is not None,
             )
             if verdict == "agree" and ref is not None:
                 # D11：submit_compute_job 的调用永远不是阶段证据——计算阶段
@@ -463,10 +470,57 @@ class EvidenceInboxMixin:
                 changes=changes,
             )
         )
+        if expected_revision is None:
+            return await asyncio.to_thread(
+                self._apply_harness,
+                operations,
+                f"stage bind {verdict}: {element_id}.{kind.value}",
+            )
         return await asyncio.to_thread(
-            self._apply_harness,
+            self._apply_harness_once,
             operations,
             f"stage bind {verdict}: {element_id}.{kind.value}",
+            expected_revision=expected_revision,
+        )
+
+    def _apply_harness_once(
+        self,
+        operations: list[GraphOperation],
+        rationale: str,
+        *,
+        expected_revision: int | None,
+    ) -> MutationResult:
+        """Apply exactly one batch at the caller's expected delivery revision.
+
+        If the caller supplied ``expected_revision``, a concurrent update is
+        surfaced as ``revision_conflict`` instead of being silently retried.
+        Without expected_revision callers use the auto-retry path.
+        """
+        bundle = self.store.load_bundle()
+        if (
+            expected_revision is not None
+            and bundle.revisions["delivery"] != expected_revision
+        ):
+            return MutationResult(
+                accepted=False,
+                mutation_id="mut_" + uuid.uuid4().hex,
+                revisions=dict(bundle.revisions),
+                rejection_code="revision_conflict",
+                rejection_reason=(
+                    f"expected delivery revision {expected_revision}, "
+                    f"current is {bundle.revisions['delivery']}; the graph moved "
+                    "so this batch was not applied"
+                ),
+            )
+        return self.engine.apply_batch(
+            MutationBatch(
+                session_id=self.session_id,
+                actor=GraphActor.HARNESS,
+                actor_id="dag-controller",
+                base_revisions=bundle.revisions,
+                operations=operations,
+                rationale=rationale,
+            )
         )
 
     async def bind_stage_for_call(
@@ -474,11 +528,14 @@ class EvidenceInboxMixin:
         tool_call_id: str,
         target_id: str,
         stage_kind: str,
+        *,
+        expected_revision: int | None = None,
     ) -> dict[str, Any]:
         """dag_bind_evidence 的阶段形态：tool_call_id → 已登记证据 → agree 绑定。
 
         确定性校验与 bind_evidence_for_call 同构（证据已登记、该次调用确实
-        成功），随后走 apply_stage_bind 的顺序/检查守卫。
+        成功），随后走 apply_stage_bind 的顺序/检查守卫。expected_revision
+        用于单条绑定的 revision 冲突保护。
         """
         if not self.enabled:
             raise RuntimeError(
@@ -500,11 +557,200 @@ class EvidenceInboxMixin:
             ref=ref,
             verdict="agree",
             tool_succeeded=True,
+            expected_revision=expected_revision,
         )
         return {
             "target_id": target_id,
             "stage_kind": stage_kind,
             "ref_id": ref.ref_id,
+            "accepted": mutation.accepted,
+            "rejection_code": mutation.rejection_code,
+            "rejection_reason": mutation.rejection_reason,
+            "mutation_id": mutation.mutation_id,
+            "revisions": mutation.revisions,
+        }
+
+    async def bind_stage_attachments(
+        self,
+        attachments: list[dict[str, str]],
+        *,
+        expected_revision: int | None = None,
+    ) -> dict[str, Any]:
+        """Atomically bind several evidence attachments to delivery stages.
+
+        Each attachment has tool_call_id/bind_target/stage_kind.  The batch is
+        validated against one snapshot and applied in one DAG mutation when no
+        per-attachment guard rejects it.  If ``expected_revision`` is supplied,
+        the whole batch is refused with ``revision_conflict`` when the graph has
+        moved.
+        """
+        if not self.enabled:
+            raise RuntimeError(
+                "bind_evidence is disabled in standard orchestration mode"
+            )
+        if not attachments:
+            raise RuntimeError("bind_stage_attachments requires at least one attachment")
+        await self.initialize()
+
+        def _guarded_batch():
+            snapshot = self.engine.snapshot()
+            accepted_spec = self.store.accepted_claim_spec()
+            allow_out_of_order = accepted_spec is not None
+            if (
+                expected_revision is not None
+                and snapshot.bundle.revisions["delivery"] != expected_revision
+            ):
+                raise _Rejected(
+                    "revision_conflict",
+                    f"expected delivery revision {expected_revision}, current is "
+                    f"{snapshot.bundle.revisions['delivery']}",
+                )
+            # Per-target mutable state in memory. Graph objects are frozen, so
+            # we hold the current stage/ref lists and build one final mutation.
+            target_types: dict[str, str] = {}
+            originals: dict[str, Any] = {}
+            final_stages: dict[str, list[Any]] = {}
+            queued_refs: dict[str, set[str]] = {}
+            all_ops: list[GraphOperation] = []
+            for item in attachments:
+                tool_call_id = item["tool_call_id"]
+                target_id = item["bind_target"]
+                stage_kind = item["stage_kind"]
+                try:
+                    kind = StageKind(stage_kind)
+                except ValueError:
+                    raise _Rejected(
+                        "unknown_stage",
+                        f"unknown stage_kind {stage_kind!r}; allowed: "
+                        f"{sorted(item.value for item in StageKind)}",
+                    ) from None
+                target_type, element = self._delivery_target(
+                    snapshot.delivery, target_id
+                )
+                target_types[target_id] = target_type
+                originals.setdefault(target_id, element)
+                current_stages = list(
+                    final_stages.get(target_id, element.stages)
+                )
+                # A repeated stage inside one batch should not silently replace
+                # an earlier successful binding with a second, unrelated one.
+                if any(stage.kind == kind for stage in current_stages):
+                    idx = next(i for i, stage in enumerate(current_stages) if stage.kind == kind)
+                    if current_stages[idx].status.value != "pending":
+                        raise _Rejected(
+                            "stage_already_bound",
+                            f"stage {kind.value} on {target_id} is already bound "
+                            "within this batch; split unrelated attempts into separate batches",
+                        )
+                ref = self._evidence_for_call(tool_call_id)
+                try:
+                    source_name, payload = self.store.resolve_evidence_with_source(ref)
+                except InvalidGraphReference:
+                    raise _Rejected(
+                        "invalid_reference",
+                        f"evidence reference {ref.ref_id!r} does not resolve",
+                    ) from None
+                if not self._result_succeeded(payload.get("result") or {}):
+                    raise _Rejected(
+                        "tool_not_succeeded",
+                        f"tool call {tool_call_id!r} did not succeed; a failed or "
+                        "unsuccessful computation cannot be bound as evidence",
+                    )
+                if source_name == "submit_compute_job":
+                    raise _Rejected(
+                        "bind_target_is_submit",
+                        "a submit_compute_job call is never stage evidence; bind "
+                        "the parser output of the finished compute job instead",
+                    )
+                if (
+                    target_type == "edge"
+                    and kind is StageKind.FREQUENCY
+                    and not self._passes_saddle_check(ref)
+                ):
+                    raise _Rejected(
+                        "saddle_check_failed",
+                        "TS frequency evidence must show exactly one imaginary "
+                        "frequency (n_imag == 1); the stage stays pending",
+                    )
+                updated_stages = apply_stage_verdict(
+                    current_stages,
+                    stage_kind=kind,
+                    verdict="agree",
+                    ref=ref,
+                    tool_succeeded=True,
+                    allow_out_of_order=allow_out_of_order,
+                )
+                final_stages[target_id] = updated_stages
+                seen = queued_refs.setdefault(target_id, set())
+                if ref.ref_id not in seen:
+                    seen.add(ref.ref_id)
+                    all_ops.append(
+                        AttachRef(
+                            op="attach_ref",
+                            graph="delivery",
+                            target_type=target_type,  # type: ignore[arg-type]
+                            target_id=target_id,
+                            ref=ref,
+                        )
+                    )
+            for target_id, target_type in target_types.items():
+                stages = final_stages[target_id]
+                changes = {
+                    "stages": [stage.model_dump(mode="json") for stage in stages],
+                    "evidence_level": derive_evidence_level(
+                        stages, is_edge=target_type == "edge"
+                    ),
+                }
+                all_ops.append(
+                    UpdateNode(
+                        op="update_node",
+                        graph="delivery",
+                        node_id=target_id,
+                        changes=changes,
+                    )
+                    if target_type == "node"
+                    else UpdateEdge(
+                        op="update_edge",
+                        graph="delivery",
+                        edge_id=target_id,
+                        changes=changes,
+                    )
+                )
+            return all_ops
+
+        try:
+            operations = await asyncio.to_thread(_guarded_batch)
+        except _Rejected as exc:
+            rejection = exc
+            revisions = await asyncio.to_thread(
+                lambda: dict(self.store.load_bundle().revisions)
+            )
+            return {
+                "attachments": attachments,
+                "accepted": False,
+                "rejection_code": rejection.code,
+                "rejection_reason": rejection.reason,
+                "mutation_id": "mut_" + uuid.uuid4().hex,
+                "revisions": revisions,
+            }
+        rationale = "stage bind attachments: " + ", ".join(
+            f"{item['bind_target']}.{item['stage_kind']}" for item in attachments
+        )
+        if expected_revision is None:
+            mutation = await asyncio.to_thread(
+                self._apply_harness,
+                operations,
+                rationale,
+            )
+        else:
+            mutation = await asyncio.to_thread(
+                self._apply_harness_once,
+                operations,
+                rationale,
+                expected_revision=expected_revision,
+            )
+        return {
+            "attachments": attachments,
             "accepted": mutation.accepted,
             "rejection_code": mutation.rejection_code,
             "rejection_reason": mutation.rejection_reason,
