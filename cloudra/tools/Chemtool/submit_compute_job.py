@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Literal
@@ -92,6 +93,52 @@ class SubmitComputeJob(Tool):
     def is_write(self) -> bool:
         return True
 
+    @staticmethod
+    def _resource_underestimate(
+        job_type: str, input_file: str, cpus: int, memory_mb: int | None
+    ) -> str | None:
+        """申请量低于输入文件自述需求的诊断（ORCA %pal/%maxcore、Gaussian
+        %nprocshared/%mem）。输入未声明的资源不猜；ORCA maxcore 是每核值，
+        总需求 = nprocs * maxcore。外部程序的资源占用未知时不推断其内存。"""
+        try:
+            with open(input_file, encoding="utf-8", errors="replace") as handle:
+                content = handle.read(200_000)
+        except OSError:
+            return None
+        required_cpus = required_mem_mb = None
+        if job_type == "orca":
+            pal = re.search(r"%pal\s+nprocs\s+(\d+)", content, re.I)
+            maxcore = re.search(r"%maxcore\s+(\d+)", content, re.I)
+            if pal:
+                required_cpus = int(pal.group(1))
+            if pal and maxcore:
+                required_mem_mb = int(pal.group(1)) * int(maxcore.group(1))
+        elif job_type == "gaussian":
+            nproc = re.search(r"%nprocshared=(\d+)|%nproc=(\d+)", content, re.I)
+            mem = re.search(r"%mem=(\d+(?:\.\d+)?)([GgMm][Bb]?)", content, re.I)
+            if nproc:
+                required_cpus = int(nproc.group(1) or nproc.group(2))
+            if mem:
+                amount = float(mem.group(1))
+                required_mem_mb = int(amount * 1024) if mem.group(2).lower().startswith("g") else int(amount)
+        if required_cpus is not None and cpus < required_cpus:
+            return (
+                f"Resource under-provisioned: the input asks for {required_cpus} cores "
+                f"but cpus={cpus} was requested. Request cpus={required_cpus} to match "
+                "the input (under-declaring oversubscribes the node)."
+            )
+        if (
+            required_mem_mb is not None
+            and memory_mb is not None
+            and memory_mb < required_mem_mb
+        ):
+            return (
+                f"Resource under-provisioned: the input asks for {required_mem_mb} MB total "
+                f"but memory_mb={memory_mb} was requested. Request memory_mb={required_mem_mb} "
+                "to match the input (ORCA maxcore is per-core: total = nprocs * maxcore)."
+            )
+        return None
+
     def _with_delegation_hint(
         self, out: SubmitComputeJob_output_schema
     ) -> SubmitComputeJob_output_schema:
@@ -163,6 +210,13 @@ class SubmitComputeJob(Tool):
                     "(check query_compute_queue for current capacity) and resubmit."
                 ),
             )
+
+        # 显式申请低于输入自述需求：返回诊断，不静默超额占用节点。
+        underestimate = self._resource_underestimate(
+            user_input.job_type, f_path, user_input.cpus, user_input.memory_mb
+        )
+        if underestimate:
+            return SubmitComputeJob_output_schema(is_success=False, message=underestimate)
 
         if scheduler == "local":
             ok, msg = check_job_type(user_input.job_type, workdir)

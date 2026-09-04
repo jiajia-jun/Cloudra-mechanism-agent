@@ -15,6 +15,11 @@ except Exception:
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.tools.core.calculation_intent import (
+    inspect_input,
+    intent_from_writer,
+    validate_writer_request,
+)
 
 description = (
     "Generate a complete quantum-chemistry input file (Gaussian .gjf or ORCA .inp, selected by `engine`) "
@@ -77,6 +82,12 @@ class QmInputWriter_input_schema(input_schema):
                     Gaussian example: [{"opt":"TS,calcfc,noeigen"},{"freq":None}];
                     the same dict works for ORCA (mapped to `! OptTS Freq` etc.).'''
     )
+    frequency_mode: Literal["auto", "analytic", "numeric"] = Field(
+        default="auto",
+        description="Frequency evaluation mode. ORCA: 'numeric' with task_type=[{'freq':None}] "
+                    "emits NumFreq (required for external potentials); 'analytic'/'auto' emit Freq. "
+                    "Rejected when no frequency task is requested.",
+    )
 
     charge: int = Field(
         default=0,
@@ -88,8 +99,9 @@ class QmInputWriter_input_schema(input_schema):
     )
     mem: str = Field(
         default="4GB",
-        description="Memory allocated to the job, e.g. '4GB', '8GB' "
-                    "(Gaussian %mem; ORCA %maxcore, per-core)."
+        description="TOTAL memory for the whole job, e.g. '4GB', '8GB'. Gaussian writes %mem "
+                    "verbatim (a total); ORCA writes %maxcore = mem/nproc because ORCA maxcore "
+                    "is a PER-CORE value. Request memory_mb equal to this total when submitting."
     )
     nproc: int = Field(
         default=4,
@@ -138,6 +150,20 @@ class QmInputWriter_output_schema(output_schema):
     is_success: bool = Field(description="Whether the file was generated")
     input_path: str = Field(default="", description="Absolute path of the generated input file (.gjf or .inp, per `engine`)")
     message: str = Field(default="", description="Status or error message")
+    interpreted_intent: dict = Field(
+        default_factory=dict,
+        description="CalculationIntent re-inspected from the GENERATED text (not from the "
+                    "writer's own claim): tasks, frequency_mode, constraints, method signature.",
+    )
+    unapplied_options: list[str] = Field(
+        default_factory=list,
+        description="Requested options that could NOT be realized in the file. Empty on success; "
+                    "a successful write never silently drops an option.",
+    )
+    generation_path: str = Field(
+        default="",
+        description="How the file was produced, e.g. 'orca:simple+orca_blocks' or 'gaussian:route'.",
+    )
 
 
 # Gaussian 风格 task key -> ORCA simple-input 关键字（参数太 Gaussian 化时保守降级）
@@ -206,7 +232,10 @@ class QmInputWriter(Tool):
 
         for task in user_input.task_type:
             for key, value in task.items():
-                if value is None:
+                if key.lower() == "freq" and user_input.frequency_mode != "auto":
+                    mode = "numer" if user_input.frequency_mode == "numeric" else "analytic"
+                    keywords.append(f"freq={mode}")
+                elif value is None:
                     keywords.append(key)
                 elif "," in str(value):
                     keywords.append(f"{key}=({value})")
@@ -232,24 +261,38 @@ class QmInputWriter(Tool):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _orca_task_keywords(task_type: list[dict]) -> list[str]:
+    def _orca_task_keywords(task_type: list[dict], frequency_mode: str = "auto") -> list[str]:
+        """严格任务归一化：只翻译已支持的键；无法实现的选项在
+        validate_writer_request 阶段已经报错，这里不会静默丢弃。"""
         keywords: list[str] = []
         for task in task_type:
             for key, value in task.items():
                 key_l = key.lower()
                 params = str(value).lower() if value is not None else ""
-                if key_l == "opt" and "ts" in params.split(","):
-                    keywords.append("OptTS")
-                    continue
-                mapped = _ORCA_TASK_KEYWORDS.get(key_l)
-                if mapped and mapped not in keywords:
-                    keywords.append(mapped)
+                if key_l == "opt":
+                    keyword = "OptTS" if "ts" in {p.strip() for p in params.split(",")} else "Opt"
+                elif key_l == "freq":
+                    numeric = frequency_mode == "numeric" or params.strip() in {
+                        "num", "numer", "numeric", "numfreq",
+                    }
+                    keyword = "NumFreq" if numeric else "Freq"
+                elif key_l == "irc":
+                    keyword = "IRC"
+                elif key_l == "scan":
+                    # 松弛扫描由 orca_blocks 的 %geom Scan 定义驱动，仍需 Opt 关键字
+                    keyword = "Opt"
+                elif key_l == "sp":
+                    continue  # 单点：! 行只留方法/基组
+                else:
+                    continue  # 前置校验已拒绝未知键，这里只是防御
+                if keyword not in keywords:
+                    keywords.append(keyword)
         return keywords
 
     @staticmethod
     def _build_orca_input(user_input: QmInputWriter_input_schema, coords: str) -> str:
         """拼装 ORCA .inp：! 行 + %pal/%maxcore（+%method 外部势块）+ 坐标块。"""
-        simple = QmInputWriter._orca_task_keywords(user_input.task_type)
+        simple = QmInputWriter._orca_task_keywords(user_input.task_type, user_input.frequency_mode)
         method_block = ""
         if user_input.external_program:
             # 外部 MLIP 路由：ExtOpt 把能量/梯度交给外部程序，输入不含
@@ -267,7 +310,17 @@ class QmInputWriter(Tool):
         if user_input.extra_keywords:
             simple.append(user_input.extra_keywords)
 
-        lines = ["! " + " ".join(simple), f"%pal nprocs {user_input.nproc} end"]
+        lines = []
+        default_title = QmInputWriter_input_schema.model_fields["title"].default
+        if user_input.title and user_input.title != default_title:
+            lines.append(f"# {user_input.title}")
+        if user_input.source_type == "smiles":
+            lines.append(
+                f"# expected_smiles: {user_input.source_value} "
+                "(user-declared expectation; NOT an evidence-verified identity)"
+            )
+        lines.append("! " + " ".join(simple))
+        lines.append(f"%pal nprocs {user_input.nproc} end")
 
         # %maxcore 按核均分（ORCA 语义是每核 MB）；mem 解析失败则不写
         import re as _re
@@ -298,12 +351,20 @@ class QmInputWriter(Tool):
         """
         link0 = QmInputWriter._build_link0(user_input)
         route = QmInputWriter._build_route(user_input)
+        title = user_input.title
+        if user_input.source_type == "smiles":
+            # provenance：声明的期望身份，不是证据验证过的身份（GH 协议：
+            # 只有 evidence 绑定能证明身份，写注释不产生 verified 标签）
+            title = (
+                f"{title} | expected_smiles: {user_input.source_value} "
+                "(unverified expectation)"
+            )
 
         sections = [
             link0,
             route,
             "",                    # Route 后空行
-            user_input.title,
+            title,
             "",                    # Title 后空行
             f"{user_input.charge} {user_input.multiplicity}",
             coords,
@@ -342,12 +403,50 @@ class QmInputWriter(Tool):
             )
         try:
             coords = self._get_coordinates(user_input.source_type, user_input.source_value)
+            # 输入冲突前置校验：无法实现的选项明确报错，绝不写出看似成功
+            # 的计算文件（成功时 unapplied_options 必为空）。
+            conflicts = validate_writer_request(user_input.model_dump())
+            if conflicts:
+                return QmInputWriter_output_schema(
+                    is_success=False,
+                    input_path="",
+                    message="qm_input_writer refused: " + " | ".join(
+                        f"[{c['code']}] {c['message']}" for c in conflicts
+                    ),
+                    unapplied_options=[c["message"] for c in conflicts],
+                )
             if user_input.engine == "orca":
                 content = self._build_orca_input(user_input, coords)
                 engine_label = "ORCA"
+                generation_path = "orca:simple+orca_blocks"
             else:
                 content = self._build_gjf(user_input, coords)
                 engine_label = "Gaussian"
+                generation_path = "gaussian:route"
+
+            # 不信 writer 自述：从生成文本重新 inspect，任务集合不一致即失败。
+            inspected = inspect_input(content, engine=user_input.engine)
+            requested = intent_from_writer(user_input.model_dump())
+            if inspected.tasks != requested.tasks:
+                return QmInputWriter_output_schema(
+                    is_success=False,
+                    input_path="",
+                    message=(
+                        "qm_input_writer internal mismatch: the generated file encodes "
+                        f"tasks {sorted(inspected.tasks)} but {sorted(requested.tasks)} "
+                        "were requested; no file was written."
+                    ),
+                    interpreted_intent=inspected.model_dump(mode="json"),
+                    unapplied_options=sorted(requested.tasks - inspected.tasks),
+                )
+
+            limitation = ""
+            if "ts_opt" in inspected.tasks and inspected.constraints:
+                limitation = (
+                    " NOTE: this input keeps constraints during a TS optimization; "
+                    "the result may only be claimed as a CONSTRAINED saddle point, "
+                    "not a full-space transition state."
+                )
 
             output_dir = os.path.dirname(user_input.output_dir)
             if output_dir:
@@ -359,7 +458,10 @@ class QmInputWriter(Tool):
             return QmInputWriter_output_schema(
                 is_success=True,
                 input_path=input_path,
-                message=f"{engine_label} input file generated successfully.",
+                message=f"{engine_label} input file generated successfully.{limitation}",
+                interpreted_intent=inspected.model_dump(mode="json"),
+                unapplied_options=[],
+                generation_path=generation_path,
             )
         except FileNotFoundError as e:
             missing = e.filename or user_input.source_value

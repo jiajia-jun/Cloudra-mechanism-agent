@@ -164,14 +164,14 @@ class CalculationIntent(BaseModel):
 
 tasks 新写入仅接受 minimum_opt、ts_opt、frequency、single_point、irc、relaxed_scan；解析不完整不得猜成某个类型。writer 新增 frequency_mode 参数，ORCA 的 task_type=[{"freq":null}] 配 frequency_mode="numeric" 明确生成 NumFreq；没有 frequency 任务却指定该参数时拒绝。TS 初始 Hessian 控制仍通过原生 orca_blocks 表达。validate_writer_request 的条目固定为 code/field/message，空列表表示此层没有发现输入冲突，并非科学有效性已通过。
 
-- [ ] 写失败回归：未知 numfreq 键、Gaussian 子选项 calcfc/noeigen、ORCA end_setting、重复冲突的任务块必须给明确错误；显式 numeric frequency 路径生成 NumFreq，不带默认 Opt。
-- [ ] writer 实现任务归一化和原生参数输出，回传 interpreted_intent、unapplied_options（成功时为空）、生成路径；无法实现的选项返回失败，不写出看似成功的计算文件。
-- [ ] 添加 ExtOpt OptTS／NumFreq／IRC 三个完整 golden 输入；断言没有默认 DFT method/basis、没有继承扫描约束。故意保留约束的输入必须声明受限任务并输出限制信息。
-- [ ] 从已生成文本重新 inspect_input，比较关键意图；不能只信 writer 的声明。检查实际方法时复用现有 MethodPolicy 的 fail-closed 规则，不因新的意图模型放宽允许方法。
-- [ ] 补 provenance 注释，区分 expected_smiles 与经过证据验证的身份。对既有 benchmark smiles 绑定协议保留来源说明，禁止自动生成 verified 标签。
-- [ ] 明确 mem 总量与 maxcore 每进程换算；显式申请资源不足返回诊断。调度器本身不解析输入。外部程序资源未知时说明未知，不自动推断其模型内存。
-- [ ] Run: uv run pytest -q tests/test_calculation_intent.py tests/test_qm_input_writer.py tests/test_runtime_v2_method_policy.py；用临时目录生成文件，不提交作业。
-- [ ] 同步 skill 的 workaround 与已修复行为，单独提交。
+- [x] 写失败回归：未知 numfreq 键、Gaussian 子选项 calcfc/noeigen、ORCA end_setting、重复冲突的任务块必须给明确错误；显式 numeric frequency 路径生成 NumFreq，不带默认 Opt。
+- [x] writer 实现任务归一化和原生参数输出，回传 interpreted_intent、unapplied_options（成功时为空）、生成路径；无法实现的选项返回失败，不写出看似成功的计算文件。
+- [x] 添加 ExtOpt OptTS／NumFreq／IRC 三个完整 golden 输入；断言没有默认 DFT method/basis、没有继承扫描约束。故意保留约束的输入必须声明受限任务并输出限制信息。
+- [x] 从已生成文本重新 inspect_input，比较关键意图；不能只信 writer 的声明。检查实际方法时复用现有 MethodPolicy 的 fail-closed 规则，不因新的意图模型放宽允许方法。
+- [x] 补 provenance 注释，区分 expected_smiles 与经过证据验证的身份。对既有 benchmark smiles 绑定协议保留来源说明，禁止自动生成 verified 标签。
+- [x] 明确 mem 总量与 maxcore 每进程换算；显式申请资源不足返回诊断。调度器本身不解析输入。外部程序资源未知时说明未知，不自动推断其模型内存。
+- [x] Run: uv run pytest -q tests/test_calculation_intent.py tests/test_qm_input_writer.py tests/test_runtime_v2_method_policy.py；用临时目录生成文件，不提交作业。
+- [x] 同步 skill 的 workaround 与已修复行为，单独提交。
 
 **验收：**传入但无法实现的选项不会静默消失；程序返回的意图与真实输入相符。
 

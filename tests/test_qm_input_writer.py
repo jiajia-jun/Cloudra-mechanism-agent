@@ -90,7 +90,7 @@ async def test_qm_input_writer_orca_engine_produces_valid_inp(tmp_path):
             source_value=str(xyz),
             method="wB97X-V",
             basis_set="def2-TZVP",
-            task_type=[{"opt": "ts,calcfc,noeigen"}, {"freq": None}],
+            task_type=[{"opt": "ts"}, {"freq": None}],
             charge=-1,
             multiplicity=1,
             mem="8GB",
@@ -145,6 +145,8 @@ async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     out = tmp_path / "ts_opt.inp"
 
+    # TS 初始 Hessian 控制走原生 orca_blocks；Gaussian 子选项 calcfc/noeigen
+    # 对 ORCA 是配置错误（见 test_orca_rejects_gaussian_opt_suboptions）。
     result = await QmInputWriter().tool_call(
         QmInputWriter_input_schema(
             engine="orca",
@@ -152,7 +154,7 @@ async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
             source_value=str(xyz),
             external_program="/opt/conda/envs/chemai/bin/mace",
             external_params="--model /opt/MACE-omol-0.model --device cpu --dtype float64",
-            task_type=[{"opt": "ts,calcfc,noeigen"}, {"freq": None}],
+            task_type=[{"opt": "ts"}, {"freq": None}],
             nproc=1,
             output_dir=str(out),
         ),
