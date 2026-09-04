@@ -321,6 +321,93 @@ class ConformerSearch(Tool):
 
     # ---------- RDKit 后端 ----------
 
+    @staticmethod
+    def _interfragment_nonbonded_pairs(mol) -> list[tuple[int, int]]:
+        """不同碎片原子对清单（碎片叠放校验用；键不跨碎片，故不同碎片即未成键）。单碎片体系返回空。"""
+        frags = Chem.GetMolFrags(mol)
+        if len(frags) <= 1:
+            return []
+        frag_of = {}
+        for fi, frag in enumerate(frags):
+            for a in frag:
+                frag_of[a] = fi
+        n = mol.GetNumAtoms()
+        return [(i, j) for i in range(n) for j in range(i + 1, n) if frag_of[i] != frag_of[j]]
+
+    @staticmethod
+    def _has_overlap(mol, cid: int, pairs: list[tuple[int, int]], cutoff: float = 1.0) -> bool:
+        """指定构象中是否存在 <cutoff Å 的碎片间非键接触（视为碎片叠放）。"""
+        pos = mol.GetConformer(cid).GetPositions()
+        for i, j in pairs:
+            d = pos[i] - pos[j]
+            if float((d * d).sum()) < cutoff * cutoff:
+                return True
+        return False
+
+    @staticmethod
+    def _optimize_single(mol, cid: int, use_mmff: bool, ignore_interfrag: bool,
+                         max_iters: int = 2000) -> Optional[tuple[float, str]]:
+        """优化单个构象：use_mmff 时先试 MMFF（加大迭代次数），不收敛回退 UFF；皆败返回 None。
+        成功返回 (能量 kcal/mol, 力场名)。"""
+        if use_mmff and AllChem.MMFFOptimizeMolecule(
+                mol, confId=cid, maxIters=max_iters, ignoreInterfragInteractions=ignore_interfrag) == 0:
+            props = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94")
+            ff = AllChem.MMFFGetMoleculeForceField(
+                mol, props, confId=cid, ignoreInterfragInteractions=ignore_interfrag) if props else None
+            if ff is not None:
+                return float(ff.CalcEnergy()), "MMFF"
+        if AllChem.UFFOptimizeMolecule(
+                mol, confId=cid, maxIters=max_iters, ignoreInterfragInteractions=ignore_interfrag) == 0:
+            ff = AllChem.UFFGetMoleculeForceField(mol, confId=cid, ignoreInterfragInteractions=ignore_interfrag)
+            if ff is not None:
+                return float(ff.CalcEnergy()), "UFF"
+        return None
+
+    @staticmethod
+    def _separate_fragment_centroids(mol, cid: int, gap: float = 1.5):
+        """把各碎片沿 x 轴按质心拉开（相邻碎片间距 = 半径和 + gap），确定性消除碎片叠放。"""
+        import numpy as np
+
+        conf = mol.GetConformer(cid)
+        pos = conf.GetPositions()
+        frags = Chem.GetMolFrags(mol)
+        offset = 0.0
+        for fi, frag in enumerate(frags):
+            pts = pos[list(frag)]
+            center = pts.mean(axis=0)
+            radius = float(np.linalg.norm(pts - center, axis=1).max())
+            shift = np.array([offset, 0.0, 0.0]) - center
+            for a in frag:
+                conf.SetAtomPosition(a, pos[a] + shift)
+            if fi + 1 < len(frags):
+                next_pts = pos[list(frags[fi + 1])]
+                next_radius = float(np.linalg.norm(next_pts - next_pts.mean(axis=0), axis=1).max())
+                offset += radius + gap + next_radius
+
+    def _resolve_overlap(self, mol, cid: int, overlap_pairs: list[tuple[int, int]],
+                         base_seed: int, max_attempts: int = 3) -> bool:
+        """解除碎片叠放：useRandomCoords 加大盒子原位重嵌 max_attempts 次，仍叠放则质心分离兜底。
+        返回最终是否无叠放。"""
+        if not self._has_overlap(mol, cid, overlap_pairs):
+            return True
+        target = mol.GetConformer(cid)
+        for attempt in range(max_attempts):
+            params = AllChem.ETKDGv3()
+            params.randomSeed = base_seed + 1000 * (attempt + 1) + cid
+            params.useRandomCoords = True
+            params.boxSizeMult = 8.0
+            params.clearConfs = False
+            new_id = AllChem.EmbedMolecule(mol, params=params)
+            if new_id >= 0:
+                new_conf = mol.GetConformer(new_id)
+                for i in range(mol.GetNumAtoms()):
+                    target.SetAtomPosition(i, new_conf.GetAtomPosition(i))
+                mol.RemoveConformer(new_id)
+                if not self._has_overlap(mol, cid, overlap_pairs):
+                    return True
+        self._separate_fragment_centroids(mol, cid)
+        return not self._has_overlap(mol, cid, overlap_pairs)
+
     def _run_rdkit(self, user_input: ConformerSearch_input_schema) -> ConformerSearch_output_schema:
         try:
             mol = self._load_mol(user_input)
@@ -336,28 +423,76 @@ class ConformerSearch(Tool):
                 return ConformerSearch_output_schema(is_success=False, message="RDKit conformer generation failed (no conformers embedded).")
             counts = {"generated": len(cids)}
 
-            # MMFF 优化；力场参数缺失时回退 UFF
-            ff_name = "MMFF"
-            if AllChem.MMFFHasAllMoleculeParams(mol):
-                opt_results = AllChem.MMFFOptimizeMoleculeConfs(mol)
-            else:
-                ff_name = "UFF"
-                opt_results = AllChem.UFFOptimizeMoleculeConfs(mol)
-            energies = {cid: float(e) for cid, (_, e) in zip(cids, opt_results)}
-            counts["optimized"] = len(energies)
+            # 多碎片体系需要碎片间相互作用参与优化（RDKit 默认 ignoreInterfragInteractions=True 会让各碎片
+            # 独立收敛到各自极小值：叠放不修复、能量全同、相对能量全零，见 issue #19）
+            overlap_pairs = self._interfragment_nonbonded_pairs(mol)
+            ignore_interfrag = not overlap_pairs
 
+            # 碎片间去重叠校验：ETKDG 逐碎片嵌入随机摆放，多碎片输入常互相叠放；先解除叠放再优化
+            counts["overlap_dropped"] = 0
+            if overlap_pairs:
+                n_before = len(cids)
+                cids = [cid for cid in cids
+                        if self._resolve_overlap(mol, cid, overlap_pairs, user_input.random_seed)]
+                counts["overlap_dropped"] = n_before - len(cids)
+                if not cids:
+                    return ConformerSearch_output_schema(
+                        is_success=False,
+                        message="All conformers showed inter-fragment overlap (<1.0 Å non-bonded contacts) "
+                                "that re-embedding could not resolve; aborting.",
+                    )
+
+            # MMFF 优化；逐构象检查收敛标志，失败者加大迭代次数重试并回退 UFF，两者皆败剔除（0.0 绝不当作能量）
+            use_mmff = AllChem.MMFFHasAllMoleculeParams(mol)
+            ff_name = "MMFF" if use_mmff else "UFF"
+            if use_mmff:
+                opt_results = AllChem.MMFFOptimizeMoleculeConfs(mol, ignoreInterfragInteractions=ignore_interfrag)
+            else:
+                opt_results = AllChem.UFFOptimizeMoleculeConfs(mol, ignoreInterfragInteractions=ignore_interfrag)
+            energies = {cid: float(e) for cid, (ok, e) in zip(cids, opt_results) if ok == 0}
+            failed_cids = [cid for cid in cids if cid not in energies]
+            uff_rescued = 0
+            for cid in failed_cids:
+                res = self._optimize_single(mol, cid, use_mmff, ignore_interfrag)
+                if res is not None:
+                    energies[cid] = res[0]
+                    uff_rescued += res[1] == "UFF"
+            if use_mmff and uff_rescued:
+                ff_name = f"MMFF (UFF fallback for {uff_rescued} unconverged conformer(s))"
+            counts["optimized"] = len(energies)
+            counts["optimization_failed"] = len(cids) - len(energies)
+            if not energies:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message="Force-field optimization failed for all conformers (MMFF and UFF); no valid energies, aborting.",
+                )
+
+            # 优化后复查叠放（分离起点 + 碎片间相互作用理论上不会叠放，仍出现则剔除）
+            if overlap_pairs:
+                n_before = len(energies)
+                energies = {cid: e for cid, e in energies.items()
+                            if not self._has_overlap(mol, cid, overlap_pairs)}
+                counts["overlap_dropped"] += n_before - len(energies)
+                if not energies:
+                    return ConformerSearch_output_schema(
+                        is_success=False,
+                        message="All conformers showed inter-fragment overlap (<1.0 Å non-bonded contacts) "
+                                "after optimization; aborting.",
+                    )
+
+            valid_cids = [cid for cid in cids if cid in energies]
             e_min = min(energies.values())
             rel = {cid: (e - e_min) for cid, e in energies.items()}
             has_filters = bool(user_input.distance_filters)
             passes_by_cid = {
                 cid: (self._filter_pass(mol.GetConformer(cid).GetPositions(), user_input.distance_filters)
                       if has_filters else True)
-                for cid in cids
+                for cid in valid_cids
             }
-            within_window = [cid for cid in cids if rel[cid] <= user_input.energy_window_kcal]
+            within_window = [cid for cid in valid_cids if rel[cid] <= user_input.energy_window_kcal]
             counts["within_window"] = len(within_window)
             candidate_cids = _select_energy_window_candidates(
-                cids, rel, passes_by_cid, user_input.energy_window_kcal, has_filters,
+                valid_cids, rel, passes_by_cid, user_input.energy_window_kcal, has_filters,
             )
             counts["reactive_rescued"] = sum(
                 1 for cid in candidate_cids

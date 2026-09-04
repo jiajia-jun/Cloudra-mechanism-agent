@@ -163,3 +163,129 @@ def test_tool_metadata():
     assert tool.tool_id == "t-43"
     assert tool.tool_name == "conformer_search"
     assert tool.is_write() is True
+
+
+# ---------- issue #19：带电多碎片输入的全零能量与碎片叠放 ----------
+
+MULTI_FRAG_SMILES = "[O-]C=C.O.CC=O"
+
+
+def _min_interfragment_distance(xyz_path: str, smiles: str) -> float:
+    """解析多帧 xyz，返回所有帧中不同碎片原子对的最小距离（Å）。"""
+    import numpy as np
+    from rdkit import Chem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    frag_of = {}
+    for fi, frag in enumerate(Chem.GetMolFrags(mol)):
+        for a in frag:
+            frag_of[a] = fi
+    with open(xyz_path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    min_d = float("inf")
+    idx = 0
+    while idx < len(lines):
+        n = int(lines[idx].strip())
+        pos = np.asarray(
+            [[float(x) for x in ln.split()[1:4]] for ln in lines[idx + 2: idx + 2 + n]],
+            dtype=float,
+        )
+        for i in range(n):
+            for j in range(i + 1, n):
+                if frag_of[i] != frag_of[j]:
+                    min_d = min(min_d, float(np.linalg.norm(pos[i] - pos[j])))
+        idx += 2 + n
+    return min_d
+
+
+@pytest.mark.asyncio
+async def test_charged_multifragment_no_zero_energies_no_overlap(tool, mock_session, tmp_path):
+    """issue #19 复现输入：带电三碎片体系。修复后相对能量不得全零、几何不得有 <1.0 Å 碎片间非键接触。"""
+    out_dir = tmp_path / "confs_reactant"
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles=MULTI_FRAG_SMILES,
+            charge=-1,
+            num_confs=40,
+            distance_filters=[{"atoms": [2, 6], "min_ang": 2.8, "max_ang": 3.9}],
+            output_dir=str(out_dir),
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+    rel = [c["rel_energy_kcal"] for c in result.conformers]
+    assert len(rel) >= 2
+    assert max(rel) > 1e-3, f"相对能量全零：{rel}"
+    min_d = _min_interfragment_distance(str(out_dir / "confs.xyz"), MULTI_FRAG_SMILES)
+    assert min_d >= 1.0, f"存在亚 1 Å 碎片间接触：{min_d:.3f} Å"
+
+
+@pytest.mark.asyncio
+async def test_mmff_failure_falls_back_to_uff(tool, mock_session, tmp_path, monkeypatch):
+    """MMFF 优化全部失败（flag!=0, E=0.0）时回退 UFF；0.0 不得被当作能量。"""
+    monkeypatch.setattr(
+        conformer_mod.AllChem, "MMFFOptimizeMoleculeConfs",
+        lambda mol, **kw: [(1, 0.0)] * mol.GetNumConformers(),
+    )
+    monkeypatch.setattr(conformer_mod.AllChem, "MMFFOptimizeMolecule", lambda mol, **kw: 1)
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCCC", num_confs=30, output_dir=str(tmp_path / "uff_fallback")),
+        mock_session,
+    )
+    assert result.is_success is True
+    assert "UFF" in result.message
+    rel = [c["rel_energy_kcal"] for c in result.conformers]
+    assert max(rel) > 1e-3
+
+
+@pytest.mark.asyncio
+async def test_all_forcefield_failures_return_error(tool, mock_session, tmp_path, monkeypatch):
+    """MMFF 与 UFF 都失败：必须 is_success=False，绝不输出全零能量表。"""
+    monkeypatch.setattr(
+        conformer_mod.AllChem, "MMFFOptimizeMoleculeConfs",
+        lambda mol, **kw: [(1, 0.0)] * mol.GetNumConformers(),
+    )
+    monkeypatch.setattr(conformer_mod.AllChem, "MMFFOptimizeMolecule", lambda mol, **kw: 1)
+    monkeypatch.setattr(conformer_mod.AllChem, "UFFOptimizeMolecule", lambda mol, **kw: 1)
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCCC", num_confs=10, output_dir=str(tmp_path / "all_fail")),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "UFF" in result.message
+
+
+@pytest.mark.asyncio
+async def test_unresolvable_overlap_returns_error(tool, mock_session, tmp_path, monkeypatch):
+    """碎片叠放且重嵌不可行（EmbedMolecule 失败）时，全部构象剔除后必须 is_success=False。"""
+    monkeypatch.setattr(ConformerSearch, "_has_overlap", staticmethod(lambda *a, **kw: True))
+    monkeypatch.setattr(conformer_mod.AllChem, "EmbedMolecule", lambda *a, **kw: -1)
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCO.O", num_confs=10, output_dir=str(tmp_path / "overlap")),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "overlap" in result.message.lower()
+
+
+def test_interfragment_overlap_detection(tool):
+    """去重叠原语：单碎片无校验对；人为压扁的两碎片必检出，拉开后不检出。"""
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    from rdkit.Geometry import Point3D
+
+    butane = Chem.AddHs(Chem.MolFromSmiles("CCCC"))
+    assert ConformerSearch._interfragment_nonbonded_pairs(butane) == []
+
+    mol = Chem.AddHs(Chem.MolFromSmiles("O.O"))
+    pairs = ConformerSearch._interfragment_nonbonded_pairs(mol)
+    assert pairs, "两碎片体系必须存在碎片间原子对"
+    AllChem.EmbedMolecule(mol, randomSeed=1)
+    conf = mol.GetConformer(0)
+    for i in range(mol.GetNumAtoms()):
+        conf.SetAtomPosition(i, Point3D(0.0, 0.0, 0.0))
+    assert ConformerSearch._has_overlap(mol, 0, pairs) is True
+    frag1 = set(Chem.GetMolFrags(mol)[1])
+    for i in frag1:
+        conf.SetAtomPosition(i, Point3D(5.0, 5.0, 5.0))
+    assert ConformerSearch._has_overlap(mol, 0, pairs) is False
