@@ -11,7 +11,8 @@ description = (
 )
 
 class GetSubAgentReport_input_schema(input_schema):
-    session_id: str = Field(description="Sub-agent Session ID to retrieve")
+    session_id: str = Field(default="", description="Sub-agent Session ID to retrieve")
+    group_id: str = Field(default="", description="Launch group ID to retrieve")
     detail_level: str = Field(
         default="full",
         description="Report detail: 'full' (full context and logs), 'summary' (final conclusion only), 'steps' (reasoning steps and tool calls only)"
@@ -22,6 +23,7 @@ class GetSubAgentReport_output_schema(output_schema):
     agent_name: str = Field(default="", description="Sub-agent name")
     report_content: str = Field(default="", description="Report body")
     message: str = Field(default="", description="Status note")
+    group_id: str = Field(default="", description="Launch group ID, when querying a group")
 
 class GetSubAgentReport(Tool):
     tool_id: str = 't-report'

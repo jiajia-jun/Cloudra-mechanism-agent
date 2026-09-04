@@ -121,7 +121,24 @@ class AgentRunner:
             return
         task = asyncio.create_task(self._run(agent), name=f"agent:{session_id}")
         self._tasks[session_id] = task
-        task.add_done_callback(lambda _done: self._tasks.pop(session_id, None))
+        task.add_done_callback(lambda done: self._task_finished(session_id, done))
+
+    def _task_finished(self, session_id: str, task: asyncio.Task) -> None:
+        """Drop a completed task, then close the wakeup race at its boundary.
+
+        A mailbox delivery can observe WAITING/RUNNING while the runner is in
+        its final event flush.  ``schedule`` correctly refuses a second task
+        while the old task is alive, so the done callback must retry after the
+        task is actually gone if the wake changed the projection to RUNNING.
+        """
+        if self._tasks.get(session_id) is not task:
+            return
+        self._tasks.pop(session_id, None)
+        agent = self.core.agents.get(session_id)
+        if agent is None or agent.state is not AgentState.RUNNING:
+            return
+        if self._inbox_has_pending(agent):
+            self.schedule(session_id)
 
     async def cancel(self, session_id: str) -> None:
         task = self._tasks.get(session_id)
@@ -317,6 +334,22 @@ class AgentRunner:
                         reason=outcome.decision,
                         run_id=run_id,
                     )
+                    # A durable review/approval notification may have been
+                    # delivered while the policy was deciding.  Check after
+                    # entering WAITING so the notifier cannot lose this wake
+                    # in the RUNNING -> WAITING race.
+                    if self._inbox_has_pending(agent):
+                        # The current runner task is still alive, so
+                        # AgentHost.wake() would refuse to schedule a second
+                        # task. Resume this task explicitly and let its next
+                        # iteration drain the notification.
+                        core.agent_host.transition(
+                            agent,
+                            AgentState.RUNNING,
+                            reason="review_notification_received",
+                            run_id=run_id,
+                        )
+                        continue
                     break
                 # "continue" (including blocked-tool feedback) loops again
         except asyncio.CancelledError:

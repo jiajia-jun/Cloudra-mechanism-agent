@@ -55,13 +55,13 @@
 - `paper/reference_answer_task_P1.md`（工作分 ~421）：normal A/U/X + hard E/I/G/J/H/B/K + easy M/L/C/T/X + impossible 10 对（IA11/IA7/IA8/IE2/IG7/IH8/II2/II8/IJ6/IJ7）。
 
 **口径（沿用 reference_calc_plan.md）**：
-- 能垒标定 = easy 30 + normal 30 + hard 20 = **80 题**；统一 **MACE-OMol25** 为唯一物理金标准（单引擎，2026-08-25 决策），参考值=自算标定、不把文献二手数字当 ground truth。xTB 仅作结构/TS 预筛。
+- 能垒标定 = easy 30 + normal 30 + hard 20 = **80 题**；统一 **MACE-OMol25** 为唯一物理金标准（2026-08-25 决策，指模型唯一；驱动层二选一且等价：ORCA `ExtOpt`/Gaussian `external="mace"`，本机为 ORCA 路径，见任务单 §0），参考值=自算标定、不把文献二手数字当 ground truth。xTB 仅作结构/TS 预筛。
 - `barrier_reference` 统一 `central_complex`；`barrier_type` 按题目（ΔE‡ 缺省）。
 - 每题产物：`reference_computation` 回填 `level_of_theory="MACE-OMol25"`、`barrier_kcal_mol`（RDS/唯一 TS）、`verification="computed_by_us"`、`computed_by_us=true`；hard 另回填 `selectivity.spread_kcal_mol`（ΔΔ = 副TS − 主TS）。
 
 **impossible 档（40 题）不走能垒计算**，是「确不可算」验证：20 I 题 × 20 S 兄弟题，按 I 题均分 10/10 给两位计算者。每对 I/S：先用 MACE 跑 **S 兄弟题**证明该族可算（对照），再对 I 题 `accessible=False` 节点做电子结构诊断（<S^2>/自旋布居/IBO/MR 特征 + 单参考 TS 失败）坐实不可算；`evidence_strength`/`wrongly_solve_penalty` 回填 `impossible_case`。若发现某题其实可算则标记回退，不强行凑拒答。
 
-**⚠️ 关键阻塞（未解决）**：本机沙箱**未安装** MACE-OMol25/Gaussian 计算栈（无 g16、g16-mlips、mace 包、xtb 二进制）。两位计算者必须在装有该栈的机器上执行。权重文件在 `ideapool/mlp_benchmark/models/md_omol25/2025_levine_omol25/2025_levine_omol25.md`；经 Gaussian `external="mace"`（g16-mlips）驱动，见 `cloudra/skills/dft-calculation/references/mlip-gaussian-external.md`。
+**✅ 计算栈已就绪（2026-09-03）**：本机 chemai env 装好 mace 0.3.16 + `orca-mlips-mace` 1.2.1 + ORCA 6.1.1 + xtb；**ORCA `ExtOpt`（`%method ProgExt`→mace）驱动端到端验证通过**（H2O Opt/NumFreq）；g16/g16-mlips 缺失故 Gaussian external 路线本机不可用。真权重 `/Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model`；仓库 `ideapool/…/2025_levine_omol25.md` 是论文文本非权重。环境细节与引擎写法见两份任务单 §0、`deploy/mace_omol25_orca_external_setup.md`、skill `mlip-gaussian-external.md`（双引擎版）。剩余待验证：`ExtOpt OptTS`/IRC（试点题首探，不通回退 ASE 直驱 MACE）。
 
 ## 下一步候选（待用户选择）
 - 是否把 tools-as-instruments 提法补进架构图注或 §2.5，使图与五支柱完全对齐。

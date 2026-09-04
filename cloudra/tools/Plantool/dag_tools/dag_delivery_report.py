@@ -39,7 +39,19 @@ class DagDeliveryReport(DagToolBase):
             return self._standard_disabled()
         ctx = await self._prepare(session)
         snapshot = await asyncio.to_thread(ctx.engine.snapshot)
-        report = evaluate_delivery(snapshot.delivery, ctx.contract)
+        claim = ctx.store.accepted_claim_spec()
+        targets = (
+            set(claim.scope.get("targets", [])) | set(claim.reference.get("targets", []))
+            if claim is not None else set()
+        )
+        facts = {target: ctx.store.facts_for_target(target) for target in targets}
+        report = evaluate_delivery(
+            snapshot.delivery,
+            ctx.contract,
+            claim_kind=claim.kind.value if claim is not None else None,
+            claim_spec=claim,
+            evidence_facts=facts,
+        )
         return DagToolOutput(
             is_success=True,
             action="dag_delivery_report",

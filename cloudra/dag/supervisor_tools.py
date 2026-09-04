@@ -20,6 +20,7 @@ from the prompt. This module enforces; it does not re-declare the allow-list.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -83,7 +84,9 @@ class SupervisorToolExecutor:
         return capabilities.supervisor_allowed_tools()
 
     def _allowed_roots(self) -> list[Path]:
-        return [root for root in (self._workspace_root, self._artifact_root) if root]
+        # Check the global artifact root first when roots overlap; otherwise a
+        # broad workspace root could bypass per-project artifact ownership.
+        return [root for root in (self._artifact_root, self._workspace_root) if root]
 
     def _resolve_evidence_path(self, raw_path: str) -> Path:
         """Resolve a user-supplied path and require containment in an allowed root.
@@ -104,10 +107,44 @@ class SupervisorToolExecutor:
                 resolved.relative_to(root)
             except ValueError:
                 continue
+            if self._artifact_root is not None and root == self._artifact_root:
+                return self._validate_registered_artifact(candidate, resolved, root)
             return resolved
         raise WorkspaceError(
             f"Evidence path escapes the project workspace and artifact root: {raw_path}"
         )
+
+    def _validate_registered_artifact(self, candidate: Path, resolved: Path, root: Path) -> Path:
+        """Allow only this project's immutable, registered artifact snapshot."""
+        try:
+            relative = candidate.relative_to(root)
+        except ValueError as exc:
+            raise WorkspaceError("Evidence path is not inside the artifact root") from exc
+        if not relative.parts:
+            raise WorkspaceError("An artifact id is required")
+        # Reject symlinks anywhere in the artifact path, including a symlinked
+        # file that resolves back inside the global root.
+        for index in range(1, len(relative.parts) + 1):
+            if (root.joinpath(*relative.parts[:index])).is_symlink():
+                raise WorkspaceError("symlinked artifact paths are not allowed")
+        if self._project_id is None:
+            raise WorkspaceError("artifact evidence requires a project id")
+        from cloudra.persistence.artifacts import ArtifactService
+
+        artifact = ArtifactService(data_dir=root.parent).get(
+            self._project_id, relative.parts[0]
+        )
+        if artifact is None:
+            raise WorkspaceError(
+                f"artifact {relative.parts[0]!r} is not registered for this project"
+            )
+        stored = (root / artifact.storage_path).resolve(strict=False)
+        if stored != resolved or not stored.is_file() or stored.is_symlink():
+            raise WorkspaceError("artifact storage path does not match its registered snapshot")
+        digest = hashlib.sha256(stored.read_bytes()).hexdigest()
+        if digest != artifact.sha256:
+            raise WorkspaceError("registered artifact content hash does not match storage")
+        return resolved
 
     def _normalize_path_arguments(self, name: str, arguments: dict[str, Any]) -> str | None:
         """Containment-check path arguments and rewrite them to resolved absolute

@@ -4,7 +4,7 @@
 > 本文件记录 P1 的逐题进度与环境状态；数值结论以工具输出为准。
 
 ## 统一口径（must-follow）
-- 方法：**MACE-OMol25**（唯一金标准，单引擎，2026-08-25 决策）。
+- 方法：**MACE-OMol25**（唯一金标准，2026-08-25 决策）；驱动层等价二选一：ORCA `ExtOpt`（本机路径）/ Gaussian `external="mace"`（g16 环境）。
 - 能垒基准：`central_complex`（TS 相对反应物/离子-偶极络合物）。
 - 能垒类型：按题定义（Ea/ΔE‡/ΔH‡/ΔG‡），不明确保持 null。
 - TS 验收：n_imag==1（排除 <100 cm^-1 伪低频）+ 双向 IRC 端点连通。
@@ -27,18 +27,20 @@
 ## 执行顺序（P1）
 1. 试点 NA1 → 2. normal A→U→X → 3. hard E→I→G→J→H→B→K → 4. easy M→L→C→T→X → 5. impossible I/S 验证。
 
-## 环境诊断（2026-09-02）
+## 环境诊断（2026-09-02 — 已过时；2026-09-03 已解决，见下方「计算栈验证」与「待决策」）
 | 成分 | 状态 | 说明 |
 |:--|:--|:--|
 | mace python 包 | ✅ 0.3.16 | 需 `KMP_DUPLICATE_LIB_OK=TRUE` 规避 libomp 警告 |
 | MACE-OMol25 权重 | ✅ | `~/.cache/mace/MACE-omol-0-extra-large-1024.model` → `/Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model`（repo 里的 `.md` 其实是论文，不是权重） |
 | ASE | ✅ 3.29.0 | |
 | xtb | ✅ | 辅助 |
-| ORCA 6.1.1 | ✅ | `/Users/cloudrayyy/opt/orca_6_1_1/orca`；**无 MACE/MLIP 支持**（二进制无 mace/mlip 关键字），不能驱动 MACE |
-| Gaussian g16 | ❌ 缺失 | 任务单指定 `external="mace"` 所需的驱动 |
+| ORCA 6.1.1 | ✅ | `/Users/cloudrayyy/opt/orca_6_1_1/orca`；~~无 MACE/MLIP 支持，不能驱动 MACE~~（此为该时刻结论；2026-09-03 装 `orca-mlips-mace` 后经 `%method ProgExt` 可驱动，见下） |
+| Gaussian g16 | ❌ 缺失 | 任务单原指定的 `external="mace"` 驱动；本机始终无 g16 |
 | g16-mlips | ❌ 缺失 | 可 pip 装（g16_mlips-1.1.1），但运行时需 g16 |
 
-**核心阻塞**：任务单指定的金标准驱动是 **Gaussian g16 + g16-mlips** 经 `external="mace"`；本机无 g16。唯一能在本机实际运行 MACE-OMol25 的驱动是 **ASE 直驱 MACE**（实测 H2O 单点 0.2s，float64 高精度可跑）。
+**（过时）核心阻塞**：~~任务单指定的金标准驱动是 Gaussian g16 + g16-mlips 经 `external="mace"`；本机无 g16。
+唯一能在本机实际运行 MACE-OMol25 的驱动是 ASE 直驱 MACE（实测 H2O 单点 0.2s，float64 高精度可跑）。~~
+→ 已由 2026-09-03 驱动选型解决（ORCA `ExtOpt` + orca-mlips-mace，见「待决策」与「计算栈验证」）。
 仓库内"OMol25 权重"文件 `ideapool/mlp_benchmark/models/md_omol25/2025_levine_omol25/2025_levine_omol25.md` 实为 **arXiv:2505.08762 论文 Markdown**，不是模型权重；真实权重在 `/Users/cloudrayyy/opt/mace-omol25/`。
 
 ## 待决策

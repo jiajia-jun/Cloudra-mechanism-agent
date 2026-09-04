@@ -75,6 +75,9 @@ def fact_dedup_key(fact: EvidenceFact) -> str:
     """
     identity = {
         "check": fact.check,
+        # Supports and refutes from the same parser/source are distinct
+        # immutable facts; collapsing them would erase counterevidence.
+        "outcome": fact.outcome,
         "subject": fact.subject.model_dump(),
         "sources": [
             {"ref_type": ref.ref_type, "ref_id": ref.ref_id, "hash": ref.content_hash}

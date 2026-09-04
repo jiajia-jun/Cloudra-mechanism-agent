@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 from cloudra.dag.review_requests import ClaimedReview, ReviewDecision
 
@@ -91,6 +91,21 @@ class ReviewWorker:
                 continue
             try:
                 store = self.store_factory(project_id)
+                # Notification delivery is independent of whether this project
+                # is still in guided mode; a mode switch must not strand a verdict
+                # already committed during the previous run.
+                for item in await asyncio.to_thread(store.pending_review_notifications):
+                    await self._notify(project_id, item["decision_id"])
+            except Exception:
+                logger.exception("review notification recovery failed for project %s", project_id)
+                continue
+            # Do not claim requests for projects whose production factory has
+            # no Supervisor (e.g. standard/dag_record); otherwise the lease
+            # would be held until expiry with no consumer.
+            supervisor = self.supervisor_factory(project_id)
+            if supervisor is None:
+                continue
+            try:
                 claimed = await asyncio.to_thread(
                     store.claim_review,
                     self.owner,
@@ -102,7 +117,7 @@ class ReviewWorker:
             if claimed is None:
                 continue
             try:
-                await self._process_claimed(project_id, claimed)
+                await self._process_claimed(project_id, claimed, supervisor=supervisor)
             except Exception:
                 logger.exception(
                     "review processing failed for project %s request %s",
@@ -110,8 +125,35 @@ class ReviewWorker:
                     claimed.request.request_id,
                 )
 
-    async def _process_claimed(self, project_id: str, claimed: ClaimedReview) -> None:
-        supervisor = self.supervisor_factory(project_id)
+    async def _process_claimed(self, project_id: str, claimed: ClaimedReview, *, supervisor=None) -> None:
+        renewal = asyncio.create_task(
+            self._renew_claim(project_id, claimed),
+            name=f"review-lease:{claimed.request.request_id}",
+        )
+        try:
+            await self._process_claimed_once(project_id, claimed, supervisor=supervisor)
+        finally:
+            renewal.cancel()
+            await asyncio.gather(renewal, return_exceptions=True)
+
+    async def _renew_claim(self, project_id: str, claimed: ClaimedReview) -> None:
+        interval = max(0.01, min(self.lease_seconds / 3, 30.0))
+        while True:
+            await asyncio.sleep(interval)
+            store = self.store_factory(project_id)
+            alive = await asyncio.to_thread(
+                store.renew_review_claim,
+                claimed.request.request_id,
+                self.owner,
+                claimed.claim_token,
+                lease_seconds=self.lease_seconds,
+            )
+            if not alive:
+                logger.warning("review lease lost for %s", claimed.request.request_id)
+                return
+
+    async def _process_claimed_once(self, project_id: str, claimed: ClaimedReview, *, supervisor=None) -> None:
+        supervisor = supervisor or self.supervisor_factory(project_id)
         if supervisor is None:
             return
         review = getattr(supervisor, "review", None)
@@ -120,11 +162,15 @@ class ReviewWorker:
             if not isinstance(decision, ReviewDecision):
                 decision = ReviewDecision.model_validate(decision)
             store = self.store_factory(project_id)
+            current_basis = None
+            if claimed.request.basis_fingerprint.startswith("sha256:"):
+                current_basis = await asyncio.to_thread(store.review_basis, claimed.request)
             result = await asyncio.to_thread(
                 store.resolve_review,
                 decision,
                 expected_basis=claimed.request.basis_fingerprint,
                 claim_token=claimed.claim_token,
+                current_basis=current_basis,
             )
             if result.get("accepted"):
                 await self._notify(project_id, result["decision_id"])
@@ -133,8 +179,19 @@ class ReviewWorker:
         if callable(run):
             await run(
                 trigger="review_request",
-                coordinator_request=claimed.request.question,
+                coordinator_request=(
+                    f"request_id={claimed.request.request_id}\n"
+                    f"request={claimed.request.model_dump_json()}"
+                ),
+                review_claim=claimed,
             )
+            # GraphSupervisor resolves through dag_review_evidence when the
+            # model calls it.  Deliver the durable notification after the run
+            # instead of treating merely waking the Supervisor as a verdict.
+            store = self.store_factory(project_id)
+            for item in await asyncio.to_thread(store.pending_review_notifications):
+                if item["request_id"] == claimed.request.request_id:
+                    await self._notify(project_id, item["decision_id"])
             return
         logger.warning("supervisor factory returned an object without review/run")
 
@@ -155,15 +212,48 @@ class ReviewWorker:
                 if item["decision_id"] != decision_id:
                     continue
                 recipient = item["recipient_session_id"]
-                if recipient:
+                decision = await asyncio.to_thread(store.get_review_decision, decision_id)
+                reason = decision.reason if decision is not None else ""
+                next_action = decision.next_action if decision is not None else None
+                content = (
+                    f"[Supervisor review decision] decision_id={decision_id} "
+                    f"request_id={item['request_id']} "
+                    f"verdict={decision.verdict if decision is not None else 'unknown'} "
+                    f"reason={reason} "
+                    f"next_action={next_action or 'none'}"
+                )
+                agent = self.core.agents.get(recipient) if recipient else None
+                # A cancelled user run must not be resurrected by a late
+                # review decision.  Marking the durable notification sent is
+                # still safe: the cancelled request has no live consumer.
+                agent_state = getattr(getattr(agent, "state", None), "value", None)
+                if recipient and agent_state != "cancelled":
+                    before_events = len(self.core.event_log)
                     self.core.notices.pin(
                         recipient,
                         key=f"review-{decision_id}",
-                        content=(
-                            f"[Supervisor review decision] {decision_id} "
-                            f"request {item['request_id']} resolved"
-                        ),
+                        content=content,
                     )
+                    # Mailbox delivery is the durable wake handshake.  If the
+                    # decision races the transition into WAITING_APPROVAL,
+                    # AgentRunner's post-transition inbox check observes it
+                    # and wakes deterministically (no timing sleep).
+                    self.core.mailbox.deliver(
+                        to_session_id=recipient,
+                        project_id=project_id,
+                        content=content,
+                        sender="supervisor",
+                    )
+                    if agent is not None:
+                        self.core.agent_host.wake(agent, runner=self.core.runner)
+                    # This path is outside CommandBus, so it owns the same
+                    # publish+persist boundary explicitly.  Marking the
+                    # notification sent before these events are durable would
+                    # lose the wake across a crash.
+                    for envelope in list(self.core.event_log)[before_events:]:
+                        await self.core.event_hub.publish(envelope)
+                        if self.core.store is not None:
+                            await asyncio.to_thread(self.core.store.append_event, envelope)
                 await asyncio.to_thread(
                     store.mark_review_notification_sent, decision_id
                 )

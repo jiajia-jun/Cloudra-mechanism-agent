@@ -326,3 +326,77 @@ async def test_failed_result_can_be_submitted_for_review(tmp_path):
     assert len(pending) == 1
     assert pending[0].is_success is False
     assert pending[0].suggested_target_id == "step1"
+
+
+@pytest.mark.asyncio
+async def test_public_v2_claim_and_bound_facts_are_scoped_per_target(tmp_path):
+    """The public propose/bind path must not let A's evidence satisfy B."""
+    from cloudra.base.session_class import Session
+    from cloudra.core.agent import Coordinator
+    from cloudra.infra.config import get_config
+    from cloudra.tools.Plantool.dag_tools.dag_bind_evidence import DagBindEvidence
+    from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanism
+
+    get_config().data_dir = tmp_path
+    conversation_id = "scoped-claim"
+    agent = Coordinator(
+        query="claim",
+        conversation_id=conversation_id,
+        orchestration_mode="dag_record",
+    )
+    session = Session("s1", str(tmp_path / "session.json"))
+    operations = [
+        {"op": "add_node", "graph": "delivery", "node": {
+            "node_id": "r", "node_type": "occurrence", "label": "R", "role": "reactant"
+        }},
+        {"op": "add_node", "graph": "delivery", "node": {
+            "node_id": "p", "node_type": "occurrence", "label": "P", "role": "product"
+        }},
+        {"op": "add_edge", "graph": "delivery", "edge": {
+            "edge_id": "stepA", "edge_type": "elementary_step",
+            "source_node_id": "r", "target_node_id": "p"
+        }},
+    ]
+    claim = {
+        "kind": "mechanism",
+        "scope": {"targets": ["stepA", "stepB"]},
+        "required_checks": ["identity", "energy"],
+    }
+    proposed = await DagProposeMechanism(subagent=agent).tool_call(
+        DagProposeMechanism.model_fields["input_schema"].default(
+            operations=operations,
+            stage_contracts={"stepA": ["identity"]},
+            rationale="scoped claim",
+            claim_spec=claim,
+            contract_version=2,
+        ),
+        session,
+    )
+    assert proposed.is_success and proposed.result["state"] == "accepted"
+    db = ConversationDB(conversation_id, data_dir=tmp_path).init()
+    store = DagStore(db)
+    ref_a = store.register_evidence("s1", "log_parser", {
+        "tool_call_id": "call-a", "arguments": {}, "result": {"is_success": True}
+    })
+    store.record_facts([EvidenceFact(
+        fact_id="fact-a", check="identity", outcome="supports",
+        source_refs=[ref_a], subject=FactSubject(),
+    ), EvidenceFact(
+        fact_id="fact-a-refute", check="identity", outcome="refutes",
+        source_refs=[ref_a], subject=FactSubject(),
+    )])
+    bind = await DagBindEvidence(subagent=agent).tool_call(
+        DagBindEvidence.model_fields["input_schema"].default(
+            tool_call_id="call-a", bind_target="stepA", stage_kind="identity"
+        ),
+        session,
+    )
+    assert bind.is_success
+    report = DagStore(db).facts_for_target("stepA")
+    assert {fact.fact_id for fact in report} == {"fact-a", "fact-a-refute"}
+    delivery = __import__("cloudra.dag.controller", fromlist=["DagController"]).DagController(
+        db, "s1", "dag_record", conversation_id=conversation_id
+    ).delivery_report()
+    assert any(g.target_id == "stepA" and g.code == "missing_claim_check" for g in delivery.unresolved)
+    assert any(g.target_id == "stepA" and g.code == "claim_contradiction" for g in delivery.unresolved)
+    assert any(g.target_id == "stepB" and g.code == "missing_claim_check" for g in delivery.unresolved)

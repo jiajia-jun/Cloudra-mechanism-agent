@@ -543,8 +543,6 @@ class DagStore:
         request_json.pop("state", None)
         request_json.pop("created_at", None)
         request_json.pop("updated_at", None)
-        encoded_identity = _canonical_json(request_json)
-
         def operation() -> None:
             with self.db.connect() as con:
                 # All evidence refs are project-local: they must resolve in this
@@ -568,7 +566,7 @@ class DagStore:
                     """
                     SELECT request_id FROM dag_review_requests
                     WHERE kind = ? AND target_ids = ? AND basis_fingerprint = ?
-                      AND state = 'queued' ORDER BY rowid LIMIT 1
+                      AND state != 'superseded' ORDER BY rowid LIMIT 1
                     """,
                     (kind, _canonical_json(list(targets)), request.basis_fingerprint),
                 ).fetchone()
@@ -627,8 +625,6 @@ class DagStore:
     )
 
     def get_review_request(self, request_id: str):
-        from cloudra.dag.review_requests import ReviewRequest
-
         with self.db.connect() as con:
             row = con.execute(
                 f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests "
@@ -638,6 +634,68 @@ class DagStore:
         if row is None:
             return None
         return self._review_request_from_row(row)
+
+    def get_review_decision(self, decision_id: str):
+        """Load one durable decision for stop-gate validation."""
+        from cloudra.dag.review_requests import ReviewDecision
+
+        with self.db.connect() as con:
+            row = con.execute(
+                "SELECT decision_id, request_id, basis_fingerprint, verdict, reason, "
+                "evidence_refs, findings, next_action FROM dag_review_decisions "
+                "WHERE decision_id = ?",
+                (decision_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return ReviewDecision(
+            decision_id=row[0], request_id=row[1], basis_fingerprint=row[2],
+            verdict=row[3], reason=row[4],
+            evidence_refs=[GraphRef(**item) for item in json.loads(row[5])],
+            findings=json.loads(row[6]), next_action=row[7],
+        )
+
+    def get_review_decision_for_request(self, request_id: str):
+        """Load the durable decision for a request, if it has been resolved."""
+        with self.db.connect() as con:
+            row = con.execute(
+                "SELECT decision_id FROM dag_review_decisions "
+                "WHERE request_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (request_id,),
+            ).fetchone()
+        return self.get_review_decision(row[0]) if row is not None else None
+
+    def review_basis(self, request) -> str:
+        """Fingerprint the current scoped evidence, graph and contract.
+
+        A decision is valid only for the same target snapshot and contract;
+        unrelated project changes therefore do not invalidate it.
+        """
+        snapshot = self.load_snapshot()
+        contract = self.load_coverage_contract()
+        accepted_claim = self.accepted_claim_spec()
+        target_ids = set(request.target_ids)
+        delivery = snapshot.delivery.model_dump(mode="json")
+        scoped = [
+            item for item in [*delivery.get("nodes", []), *delivery.get("edges", [])]
+            if item.get("node_id", item.get("edge_id")) in target_ids
+        ]
+        payload = {
+            "kind": request.kind,
+            "targets": sorted(target_ids),
+            "question": request.question,
+            "proposal": request.proposal,
+            "supporting_refs": [ref.model_dump(mode="json") for ref in request.supporting_refs],
+            "counterevidence_refs": [ref.model_dump(mode="json") for ref in request.counterevidence_refs],
+            "delivery": scoped,
+            "contract": contract.model_dump(mode="json"),
+            "accepted_claim_spec": (
+                accepted_claim.model_dump(mode="json") if accepted_claim is not None else None
+            ),
+            "exceptions": self.collect_review_exceptions(sorted(target_ids)) if target_ids else [],
+        }
+        encoded = _canonical_json(payload)
+        return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
     def list_review_requests(self, state: str = "queued"):
         query = (
@@ -743,6 +801,7 @@ class DagStore:
         *,
         expected_basis: str,
         claim_token: int,
+        current_basis: str | None = None,
     ) -> dict[str, Any]:
         """Atomic resolve of a ReviewDecision.
 
@@ -783,6 +842,20 @@ class DagStore:
                         ),
                         "request_id": decision.request_id,
                     }
+                if current_basis is not None and request.basis_fingerprint != current_basis:
+                    return {
+                        "accepted": False,
+                        "rejection_code": "stale_basis",
+                        "rejection_reason": "the scoped graph, contract, or evidence changed",
+                        "request_id": decision.request_id,
+                    }
+                if decision.basis_fingerprint != request.basis_fingerprint:
+                    return {
+                        "accepted": False,
+                        "rejection_code": "stale_basis",
+                        "rejection_reason": "decision basis does not match the request basis",
+                        "request_id": decision.request_id,
+                    }
                 claim_row = con.execute(
                     "SELECT owner, claim_token, lease_expires_at FROM dag_review_requests "
                     "WHERE request_id = ?",
@@ -790,6 +863,20 @@ class DagStore:
                 ).fetchone()
                 stored_owner = claim_row[0] if claim_row else None
                 stored_token = int(claim_row[1] or 0) if claim_row else 0
+                lease_expires_at = claim_row[2] if claim_row else None
+                if stored_owner is not None and lease_expires_at:
+                    from datetime import datetime, timezone
+
+                    expires = datetime.fromisoformat(lease_expires_at)
+                    if expires.tzinfo is None:
+                        expires = expires.replace(tzinfo=timezone.utc)
+                    if expires <= datetime.now(timezone.utc):
+                        return {
+                            "accepted": False,
+                            "rejection_code": "stale_claim",
+                            "rejection_reason": "the review lease expired before the decision was submitted",
+                            "request_id": decision.request_id,
+                        }
                 if stored_owner is not None and claim_token != stored_token:
                     return {
                         "accepted": False,
@@ -879,6 +966,40 @@ class DagStore:
                     "request_id": decision.request_id,
                     "basis_fingerprint": decision.basis_fingerprint,
                 }
+
+        return retry_on_locked(operation)
+
+    def renew_review_claim(
+        self,
+        request_id: str,
+        owner: str,
+        claim_token: int,
+        *,
+        lease_seconds: int,
+    ) -> bool:
+        """Extend a live review lease; return false after expiry/reclaim."""
+        from datetime import datetime, timedelta, timezone
+
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
+
+        def operation() -> bool:
+            with self.db.connect() as con:
+                now = datetime.now(timezone.utc)
+                result = con.execute(
+                    "UPDATE dag_review_requests SET lease_expires_at=? "
+                    "WHERE request_id=? AND state='queued' AND owner=? "
+                    "AND claim_token=? AND lease_expires_at IS NOT NULL "
+                    "AND lease_expires_at > ?",
+                    (
+                        (now + timedelta(seconds=lease_seconds)).isoformat(),
+                        request_id,
+                        owner,
+                        claim_token,
+                        now.isoformat(),
+                    ),
+                )
+                return result.rowcount == 1
 
         return retry_on_locked(operation)
 

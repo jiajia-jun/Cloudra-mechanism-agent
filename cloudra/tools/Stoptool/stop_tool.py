@@ -24,6 +24,14 @@ class StopTool_input_schema(input_schema):
             "If background jobs/reminders are still pending, stop only suspends — no audit and no disposition is recorded."
         ),
     )
+    approval_id: str | None = Field(
+        default=None,
+        description="Durable Supervisor exit decision id approving a partial result.",
+    )
+    user_stop_event_id: str | None = Field(
+        default=None,
+        description="Event id of the user's explicit stop/cancel command.",
+    )
 
 
 class StopTool_output_schema(output_schema):

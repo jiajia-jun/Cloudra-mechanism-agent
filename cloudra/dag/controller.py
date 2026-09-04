@@ -163,4 +163,18 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
     def delivery_report(self):
         if not self.enabled:
             return None
-        return evaluate_delivery(self.engine.snapshot().delivery, self.contract)
+        claim = self.store.accepted_claim_spec()
+        facts = {
+            target: self.store.facts_for_target(target)
+            for target in (
+                set(claim.scope.get("targets", [])) | set(claim.reference.get("targets", []))
+                if claim is not None else set()
+            )
+        }
+        return evaluate_delivery(
+            self.engine.snapshot().delivery,
+            self.contract,
+            claim_kind=claim.kind.value if claim is not None else None,
+            claim_spec=claim,
+            evidence_facts=facts,
+        )

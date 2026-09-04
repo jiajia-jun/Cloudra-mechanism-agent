@@ -51,6 +51,8 @@ def evaluate_delivery(
     delivery: GraphData,
     contract: CoverageContract,
     claim_kind: str | None = None,
+    claim_spec=None,
+    evidence_facts: list | None = None,
 ) -> DeliveryReport:
     satisfied: list[CoverageGateResult] = []
     unresolved: list[CoverageGateResult] = []
@@ -354,6 +356,43 @@ def evaluate_delivery(
                     detail="thermochemistry was requested but no supported energy annotation is linked",
                 )
             )
+
+    if claim_spec is not None:
+        from cloudra.dag.requirements import evaluate_claim
+
+        # Only facts explicitly scoped to this claim can satisfy its checks;
+        # unrelated project evidence must never masquerade as support.
+        targets = set()
+        for container in (claim_spec.scope, claim_spec.reference):
+            targets.update(str(item) for item in (container.get("targets") or []))
+        scoped_targets = sorted(targets) or [delivery.graph_id]
+        for target in scoped_targets:
+            if isinstance(evidence_facts, dict):
+                relevant_facts = evidence_facts.get(target, [])
+            else:
+                relevant_facts = [
+                    fact for fact in evidence_facts or []
+                    if not targets or getattr(fact.subject, "target_hint", None) == target
+                ]
+            claim_result = evaluate_claim(claim_spec, relevant_facts)
+            for check in claim_result["missing"]:
+                unresolved.append(
+                    CoverageGateResult(
+                        code="missing_claim_check",
+                        target_type="node" if target != delivery.graph_id else "graph",
+                        target_id=target,
+                        detail=f"claim requires supported evidence for {check}",
+                    )
+                )
+            for fact in claim_result["contradictions"]:
+                unresolved.append(
+                    CoverageGateResult(
+                        code="claim_contradiction",
+                        target_type="node" if target != delivery.graph_id else "graph",
+                        target_id=target,
+                        detail=f"claim check {fact.check} is refuted by {fact.fact_id}",
+                    )
+                )
 
     return DeliveryReport(
         complete=not unresolved and not inconclusive,

@@ -32,6 +32,7 @@ from typing import Any
 
 from cloudra.dag.controller import DagController
 from cloudra.persistence.database import ConversationDB
+from cloudra.persistence.paths import data_dir
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,9 @@ class DagPolicyStage:
                 supervisor = GraphSupervisor(
                     conversation_id=agent.project_id,
                     working_directory=ctx.workspace_dir,
+                    project_id=agent.project_id,
+                    artifact_root=str(data_dir() / "artifacts"),
+                    core=self._core,
                 )
             controller = DagController(
                 db,
@@ -198,6 +202,10 @@ class DagPolicyStage:
             user_stop_event_id=call.arguments.get("user_stop_event_id"),
         )
         if gate.action in {"allow_final", "wait_background", "wait_review"}:
+            if gate.action == "wait_review":
+                return PolicyResult.ask(
+                    gate.reason or "A Supervisor review is required before this delivery can finish."
+                )
             return PolicyResult.allow()
         report = gate.report
         gaps = [*(report.unresolved if report else []), *(report.inconclusive if report else [])]

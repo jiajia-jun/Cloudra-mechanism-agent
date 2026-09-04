@@ -85,12 +85,43 @@ def create_v2_app(
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
 
     compute_notify = ComputeNotifyBroker(core)
+    from cloudra.core.supervisor import GraphSupervisor
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence import paths
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.runtime_v2.review_worker import ReviewWorker
+
+    def review_store(project_id: str):
+        db = ConversationDB(project_id)
+        if not Path(db.path).is_file():
+            db.init()
+        return DagStore(db)
+
+    def review_supervisor(project_id: str):
+        project = core.projects.get(project_id)
+        if project is None or project.settings.orchestration_mode.value != "dag_guided":
+            return None
+        workspace = project.workspace_dir or str(paths.project_workspace_dir(project_id))
+        return GraphSupervisor(
+            conversation_id=project_id,
+            project_id=project_id,
+            working_directory=workspace,
+            artifact_root=str(Path(getattr(paths, "data_dir")()) / "artifacts"),
+            core=core,
+        )
+
+    core.review_worker = ReviewWorker(
+        core=core,
+        store_factory=review_store,
+        supervisor_factory=review_supervisor,
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await core.reminders.rearm_all()
         await core.email_listener.start()
         await compute_notify.start()
+        await core.review_worker.start()
         # 计算认领只由独立守护进程（cloudra scheduler）承担，与 API 分家；
         # web 启动时无活实例会自动 detach 拉起（web_launcher），之后由下面的
         # 自愈巡检兜底重拉起（CLOUDRA_DAEMON_WATCHDOG=off 关闭，测试默认关）。
@@ -109,6 +140,7 @@ def create_v2_app(
             # 的增量尾巴尽量短；失败不阻断关停。
             await bus.flush_snapshot()
             await compute_notify.close()
+            await core.review_worker.close()
             await core.email_listener.close()
             await core.reminders.close()
 

@@ -62,7 +62,7 @@
 
 - 键变化：断 σ 键（C3–C4）与成 σ 键（C1–C6），两 π 键移位。`watch_pairs` 两 σ 键；扫描坐标 = 断键拉长或成键缩短。
 - 两个 SMILES 的落地例：`C=COCC=C` → `C=CCCC=O` 在无标签时原子映射并不唯一，先让 `reaction_mapping` 返回候选。教材 [3,3] 候选的 product-heavy→reactant-heavy 映射为 `[4,5,6,1,2,3]`，对应断 C3–O4、成 C1–C6；应显式选择该候选，再把具体显式氢结构绑定所得 `atom_map` 交给 `ts_guess interpolate`，不能因为另一个候选图编辑数更少就静默换掉机理。
-- 该反应在 `mechanism-elucidation-sop.md` §3 有完整 Claisen DAG-guided 示例：delivery DAG 由 Coordinator 设计——保存中间体 occurrence、候选 elementary edges、每元素的有序 stage 契约及证据指针；Supervisor 接受草稿并逐调用复核绑定阶段。初猜和扫描只能支撑 `ts_guess` advisory 阶段；只有独立的鞍点、短 IRC、两侧优化极小点、strict 方向一致与端点身份匹配各阶段齐全，才能达到 `endpoint-supported`。
+- 该反应在 `mechanism-elucidation-sop.md` §3 有 Claisen DAG-guided 示例：delivery DAG 保存中间体 occurrence、候选 elementary edges、stage 契约及证据指针。初猜和扫描只能支撑 `ts_guess` advisory 阶段；鞍点、双向路径、两侧优化极小点、方向与身份需要独立证据。当前绑定顺序和 ORCA strict 验证器限制见 SOP；不能为满足工具形式要求而重复已充分的计算。
 - 预组织：1,5-二烯骨架须能取六元环状椅式排列；`distance_filters` 成键端基对（C1–C6）< 3.0 Å 筛预组织构象。
 - TS 期望：椅式六元环 TS 优先；断/成 σ 键均典型 1.95–2.25 Å（典型区间，芳香性稳定化体系如 Claisen 可偏早）。船式高 5–10 kcal/mol（教材值，随底物漂移）；简并 Cope（bullvalene 类）注意 TS 与中间体之分——某些体系"TS"实为双自由基中间体两侧的耦合鞍点。
 - 必须并建的竞争边：椅式多种取向（决定 Claisen E/Z、手性转移）；船式；解离为两个烯丙基自由基的分步边（含稳定自由基取代基时，如 2,5-二苯基体系，diradical 路径可与协同竞争——`electronic_analysis` spin>1 检查）。

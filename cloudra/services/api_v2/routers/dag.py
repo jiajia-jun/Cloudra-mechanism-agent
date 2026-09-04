@@ -181,6 +181,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
             )
 
         def _controller() -> DagController:
+            project = ctx.core.require_project(project_id)
+            from cloudra.persistence.paths import data_dir
             db = ConversationDB(project_id)
             db.migrate_if_needed()
             controller = DagController(
@@ -188,7 +190,13 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 "user_replan",
                 mode,
                 conversation_id=project_id,
-                supervisor=GraphSupervisor(conversation_id=project_id),
+                supervisor=GraphSupervisor(
+                    conversation_id=project_id,
+                    project_id=project_id,
+                    working_directory=project.workspace_dir,
+                    artifact_root=str(data_dir() / "artifacts"),
+                    core=ctx.core,
+                ),
                 core=ctx.core,
             )
             controller.contract = controller.store.load_coverage_contract()

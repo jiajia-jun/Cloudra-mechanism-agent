@@ -1,97 +1,133 @@
-# 有机反应机理计算 SOP（无视觉闭环）
+# 机理计算 SOP
 
-适用场景：从反应 SMILES / 三维结构出发，自主完成机理假设生成 → 过渡态定位 → 验证 → 能量学报告的全流程。
-所有坐标与图像文件一律落盘；上下文只保留数值表、判定与文件路径。开始前先记录真实反应条件：温度、溶剂/标准态、浓度、催化剂/添加剂、质子化态、电荷/自旋以及是否有光照；缺失项是显式假设，不从两个 SMILES 中臆造。**每个 TS 必须三证齐全**：恰好 1 个虚频、双向 IRC 外帧处于 TS 与两侧优化中间体之间、电子结构与机理假设自洽。IRC 可以不走到极小点，但外帧必须另行优化并用分子图与预期中间体核对。
+本流程回答四个问题：现在缺什么证据、下一次计算解决什么、什么结果才算成功、失败后是否值得继续。引擎参数分别见 `orca-inputs.md` / `gaussian-inputs.md`；方法知识见 `method-selection.md`。具体反应的坐标选择查 `reaction-class-geometry.md`，再读对应领域文件。
 
-若会话启用了 DAG，系统只维护一张持久图。**delivery DAG** 就是化学机理图：节点是中间体 occurrence，边是 elementary step；节点和边只保存指向 species、完整工具结果、作业与 artifact 的不可变指针，不把坐标、日志或大段结果塞进图内。催化循环用指向同一 species 的多个 occurrence 展开，不能为了画成环而破坏 DAG。不存在 process DAG——"下一步做什么"不再落图，由 Coordinator 按自己的节奏推进，交付相关的工具结果进 CallReview 收件箱等待复核。
+## 1. 先确定任务与证据标准
 
-会话模式决定 agent 如何使用它：`standard` 完全不读写 DAG，也不调用 Supervisor；`dag_record` 中 Coordinator 用 `dag_propose_mechanism` 提交机理草稿（harness 自动接受），并用 `dag_bind_evidence`（带 `stage_kind`）把完成的调用按序绑到各阶段，Supervisor 不运行；`dag_guided` 在相同基础上由 Supervisor 用 `dag_accept_mechanism` 接受草稿（接受前计算入口保持关闭）、用 `dag_review_call` 复核收件箱里每个交付相关调用并绑定阶段。分工不可逾越：**机理假设与 stage 契约由 Coordinator 提出**（mapping 后提交 occurrence 节点、候选边和每个元素的有序阶段清单，阶段初始为 `pending`），Supervisor 对图结构只读，只做接受/复核。Supervisor 的判定不是化学事实，agent 可以用新证据反驳；任何模式下都不得编造 evidence 指针。DAG 的 complete 只是 coverage contract 已满足（每个 required stage `supported` 或带理由 `skipped`；`pending`/`rejected` 都是未决缺口），不代替科学判断。交付仍有缺口时不能以 `complete` 停止，只能继续，或明确选择保留缺口的 `partial` / `user_terminated`。
+开始时留下简短记录：**目标量与参照物；物种/原子组成；电荷和多重度；溶剂、温度与标准态等相关条件；允许方法；已有证据；预算**。未知条件写成假设；影响任务定义的缺失信息才需要询问。不要默认所有任务都需要同一套计算。
 
-# 1. 工具链总览
+| 请求 | 应交付的证据 |
+| --- | --- |
+| 探索候选路径/生成 TS 初猜 | 坐标来源、反应中心、扫描/插值结果及局限；明确尚未验证 |
+| 确认一个极小点 | 无约束优化收敛、频率支持极小点、具体结构身份一致 |
+| 确认一条普通基元反应路径 | 无约束一阶鞍点、反应相关虚频模式、双向路径与两侧正确极小点 |
+| 电子能垒 ΔE‡ | 已验证 TS 与指定参照物的可比较电子能；不加 ZPE/热/熵校正 |
+| ΔG‡、速率或选择性 | 路径证据，加统一温度、溶剂、标准态、构象处理与热化学；速率/选择性另查动力学适用条件 |
+| 允许方法下不可可信回答的量 | 具体方法边界及依据；明确拒绝该定量结论，保留可成立的局部结果 |
 
-| 环节 | 工具 | 关键参数/用法 | 产出 |
-| :--- | :--- | :--- | :--- |
-| 机理假设 | RDKit 反应模板（`smiles_to_mol` / Bash 调 rdChemReactions） | reaction SMARTS 枚举候选中间体/产物 | 假设图（节点=物种，边=基元步） |
-| 原子映射 | `reaction_mapping` | 两端 SMILES；可加具体 mol/sdf/xyz 与 `selected_candidate` | 映射候选、键变化、`watch_pairs`、可执行全原子 `atom_map` |
-| 构象搜索 | `conformer_search` | `distance_filters` 锁定反应原子对 | 系综文件 + reactive conformer 候选 |
-| 结构体检 | `internal_coordinates` mode=analyze | `reactive_atoms` / `watch_pairs` | 异常键/键角/二面角/立体化学报告 |
-| TS 初猜（端点已知） | `ts_guess` mode=interpolate | IDPP 插值，`watch_pairs` | 候选帧坐标（可作 NEB 初始路径） |
-| TS 初猜（约束扫描） | `ts_guess` mode=scan_prepare → `submit_compute_job` → `ts_guess` mode=scan_parse | Gaussian modredundant / ORCA `%geom Scan` | 探索性能量剖面 + TS 初猜 xyz；不作为 SI 验证证据 |
-| TS 优化+频率 | `qm_input_writer` + `submit_compute_job` | `opt=(ts,noeigen,calcfc) freq` | TS 结构 + 频率 |
-| TS 验证 | `ts_guess` mode=verify `strict=True` | 1 个虚频 + 双向部分 IRC + 两个外帧优化中间体；可用 `watch_pairs` | 路径方向一致性的 pass/fail/inconclusive（无需完整 IRC） |
-| 电子结构交叉验证 | `electronic_analysis` | `reactive_atoms` 聚焦；自由基用 spin>1 | partial bond / 自旋布居 / IBO 孤对 |
-| 结果解析 | `log_parser` / `format_converter` | 避免 cat 大日志、避免手写正则 | 能量、收敛状态 |
-| 相对热化学 | `thermo_analysis` | 带符号系数、温度、标准态；`raw_rrho` 或显式 `goodvibes` | ΔE/ΔH/ΔG、假设与后端 provenance |
+先判断方法是否能描述所需电子态/成键变化。强多参考、态交叉等问题不能靠普通基态 TS+IRC 流程硬套。方法受限时，升级 DFT/CAS 只能是后续建议，不能擅自提交。普通闭壳层有机体系不例行增加稳定性/FOD 作业；有近简并、均裂、异常自旋等迹象再诊断。MLIP 无波函数，不要求其交付轨道分析。
 
-# 2. 流程状态机
+### 用 AgentHub 复用知识和已有工作
 
-**Step 0 条件与假设生成**：先把实验条件写成当前计算的显式假设，再判定反应类（见 `reaction-class-geometry.md` 查表），列出候选基元步与中间体，构成机理假设图。对每条有明确两端的边先调用 `reaction_mapping`：完整 atom-map 标签优先；未标号结果为 `ambiguous` 时保留候选并结合该边的机理选择，不能把低编辑数映射直接宣布为正确。每条边是一个待验证的 TS。工具本身不保存“已验证”状态；DAG 模式下由 harness 注册完整结构化结果，`dag_guided` 经 Supervisor 复核、`dag_record` 由 Coordinator 自绑后，才以证据指针绑定到对应阶段。
+**鼓励主动使用 `agent_hub search`**：它同时检索当前项目的帖子和已接入的本地化学知识库。规划候选机理、拿不准引擎参数、遇到新的失败而准备重试时，先查是否已有可用知识或同伴结果，再决定计算。查询围绕反应类、方法/引擎和具体问题，避免只搜“计算失败”。例如：
 
-**Step 1 构象**：对反应物/中间体跑 `conformer_search`。若已知反应原子对，把映射输出的 `watch_pairs` 转成合适的 `distance_filters`，筛出 reactive conformer（成键原子已预组织靠近的构象）。注意 Curtin-Hammett：反应物全局最低构象不一定通向产物，不要只取 conf0。工具会保留最低能 reactive 候选，即使它在普通能窗外；必须连同它相对全局最低构象的能量罚分解释。
+```json
+{"action":"search","keyword":"ORCA ExtOpt 数值 Hessian","limit":5}
+```
 
-**Step 2 结构体检**：`internal_coordinates` analyze 确认结构合理（无 clash/异常键角），记录立体化学（R/S、E/Z），为后续机理报告留档。
+- 同时查看返回的 `posts` 和 `library`；“没有论坛帖子”不等于“知识库没有命中”。`browse` 是项目话题概览，`read` 读取指定话题，二者不代替知识库检索。
+- 采用命中建议前核对来源、证据等级、是否被证伪，以及体系、电荷/自旋、方法和软件版本是否适用。知识卡片能指导操作，不能代替本次计算的原始证据或绕过方法白名单。
+- 得到可复用的参数设置、已验证路径、错误物种或失败策略时，用 `post`、`kind="finding"` 记录：**问题/条件 → 结果与适用范围 → 作业/工具调用/文件指针 → 对下一步的影响**。已有同话题时复用话题名；影响同伴正在做的工作时填写 `to_agent` 定向通知。帖子保存在项目论坛，不能声称自动写入了全局知识库。
+- 相同问题复用已读结果；出现新证据或诊断方向再检索。没有命中或知识库不可用时，继续用已有 skill、原始证据和需要时的官方资料推进，不把检索变成每次工具调用前的固定仪式。
 
-**Step 3 TS 初猜（二选一或联用）**：
-- 端点已知（假设明确的基元步）：对已有坐标，仅在 `reaction_mapping binding_status=complete` 且 `binding_source=concrete` 后，将全原子 `atom_map` 与已翻译到反应物坐标序号的顶层 `watch_pairs` 传给 `ts_guess` interpolate，生成 IDPP 图像并取推荐候选帧；或直接作为 ORCA NEB 的初始路径。`graph_watch_pairs` 仍是 SMILES 图序号，重原子映射或 `internal_generated` 映射不能冒充任意外部显式氢 XYZ 的全映射。
-- 通用主路线：`ts_guess` scan_prepare 生成约束扫描输入（坐标选择查 `reaction-class-geometry.md`），`submit_compute_job` 提交（`is_async=True`），完成后 scan_parse 读剖面与判定。
-- 初猜结构建议先展示给用户确认，再开正式 TS 搜索。
-- `ts_guess interpolate`、`scan_prepare`、`scan_parse` 和默认 `verify` 都是找方向的探索步骤。它们最多支撑 delivery 边的 `ts_guess` advisory 阶段，**不能**满足 `ts_opt` / `frequency`，更不能把 elementary edge 提升为鞍点或端点已验证；扫描结果也不作为 SI 证据。
+## 2. 从结构到结论
 
-**Step 4 TS 优化 + 频率**：`qm_input_writer` 生成 `opt=(ts,noeigen,calcfc) freq` 输入，收敛困难时加 `maxstep=10`、`int=ultrafine`。完成后可用默认 `ts_guess` verify 查看候选方向，但默认结果只是建议；严格验证要求恰好 1 个虚频。
+### 2.1 建立端点与反应假设
 
-**Step 5 IRC 验证**：`irc=(lqa,calcfc,maxpoint=80)`，级别与 TS 搜索一致。**双向每个方向至少 50 个有效点**（与 SKILL.md §4 Step 3 / 证据门槛对齐）；`maxpoint` 不足或一侧过早终止时加大重跑。不必等待 IRC 完整走到极小点：取 rx<0 与 rx>0 两侧最外有效帧，各自做无约束优化得到中间体；随后把 TS 频率日志、部分 IRC 日志和两个优化中间体传给 `ts_guess` verify，并设 `strict=True`。工具尝试两种无序配对，利用指定 `watch_pairs` 或自动选择的变化原子对，检查每个 IRC 外帧的距离坐标是否处于 TS 与对应中间体之间且更靠近中间体。随后用 `reaction_mapping` 把两个优化中间体的具体结构分别与原先声明的端点 SMILES 核对。`strict pass` 只证明路径方向一致，端点 `match` 只证明分子图身份；两者互不替代，也都不替代虚频振动模式、电子结构和化学合理性判断。曲线不平滑则按 SKILL.md §5 重搜策略处理。
+用可靠工具生成/提取结构，用 `internal_coordinates` 检查反应中心、clash、质子化态与立体化学。初始普通极小点连接正确、无明显冲突即可优化；柔性体系在影响路径/选择性时筛选 reactive conformers，并保留相对参照构象的能量代价。
 
-在 delivery DAG 中，`endpoint-supported` 必须由相互独立的阶段证据按序合成：`ts_opt` + `frequency`（TS 优化收敛、恰好一个虚频），`short_irc`（short bidirectional IRC **两向均有足够有效点（各 ≥50）**），`endpoint_a` / `endpoint_b`（两侧 optimized endpoint 都正常收敛为无虚频极小点），`direction`（`ts_guess strict=True` 确认外帧位于 TS 与对应极小点之间），`identity`（`reaction_mapping` 确认两个优化端点与该边声明的中间体分子图一致）。少任何一个 required stage 都保持 `saddle-supported` 或更低；`strict pass`、扫描峰或初猜好看均不能单独越级。
+对每条候选边写出成断键变化。`reaction_mapping` 的两个判断要分开读取：
 
-**Step 6 能量学**：**仅在 Step 5 路径/端点验证通过后**，再提高泛函级别算单点能（SKILL.md §3 高低搭配；顺序见 SKILL.md §4 Step 3→4）。用 `thermo_analysis` 把 Gaussian 原文的频率级 H/G correction 叠到相应单点能，并用带符号化学计量系数组合 ΔE/ΔH/ΔG；`raw_rrho` 只表示日志原始 RRHO，只有显式 `goodvibes` 后端才应用准谐振低频修正。溶剂化按 SKILL.md §3.3。所有剖面必须写明日志温度/压力、目标 1 atm/1 M（或自定义浓度）、后端和能量来源；日志缺温度/压力不能默认为完整结果，非 1 atm 原始压力要先正规化。GoodVibes 缺失时的 `inconclusive` 不得静默退回 raw RRHO。能垒比较一律用同一约定下的 ΔG‡，不要只比电子能。疑似强多参考时按 SKILL.md §3.1.1 诊断并降级定量结论。
+- **身份**：具体 XYZ/mol/sdf 是否与声明端点相符。`mismatch` 时先核实实际连接、原子组成、电荷/立体信息；暂停把该结构当作目标物种的后续计算。错误产物可作为新候选单独保存，不能改写原目标 SMILES 来让验证变绿。若确是声明错误，记录依据后显式修订。
+- **原子对应**：用于路径插值的全原子编号是否可执行。两端 identity 都 `match` 而 `binding_status=inconclusive`，可能仅是对称映射不唯一。保留身份结论；依据原子来源/标号/机理选择映射，不能反复用相同输入重跑，也不能把重原子 map 或 `internal_generated` map 用到任意显式氢 XYZ。
 
-**Step 7 电子结构交叉验证**：对 TS 与关键中间体跑 `electronic_analysis`：成/断键应表现为 partial bond（非整数 Mayer 键级）；自由基步骤检查自旋布居迁移方向与 IBO 孤对变化是否与假设的电子推动一致。
+`ts_guess interpolate` 需要 `binding_status=complete`、`binding_source=concrete` 的 `atom_map`。传顶层、已转为坐标序号的 `watch_pairs`，不是 SMILES 序号的 `graph_watch_pairs`。映射尚未完成时，身份明确的独立极小点计算仍可继续。
 
-**Step 8 报告**：以反应物为零点的相对 ΔG 剖面表（中间体、各 TS），标注决速步（已验证边中 ΔG‡ 最高者），与实验证据（速率、选择性、ee、KIE、中间体捕捉）对照。
+### 2.2 选一个能回答问题的初猜路线
 
-# 3. delivery 图与 stage 契约的维护规则
+| 已知信息 | 主路线 | 检查什么 |
+| --- | --- | --- |
+| 一个反应距离/角度能描述主要变化 | **柔性（relaxed）扫描**：固定扫描坐标，各点放松其余自由度 | `scan_prepare` → 提交 → `scan_parse`；检查内部峰值、连续性、每帧实际结构 |
+| 两端结构可信且全原子对应已绑定 | IDPP 插值；需要时用支持的路径优化方法 | 插值只给几何路径，推荐帧不代表能量最高点；必须实际求能/优化 |
+| 两个键变化明显耦合，1D 扫描滑谷/单调 | 换坐标、构象，或有依据的耦合扫描/路径搜索 | 写出缺失自由度与预计成本；不直接堆大网格 |
 
-delivery DAG 不使用 `verified/failed` 真值标签。每个元素携带 Coordinator 在机理草稿中声明的有序 **stage 契约**，阶段状态为 `pending / supported / skipped / not_applicable / rejected`（后三者必须附原因）：`skipped` 带理由是"本可算但主动放弃"的处置；`not_applicable` 带理由是"该证据槽对此元素物理/逻辑上不成立"的处置——**无能垒步没有 `ts_opt`/`frequency`、单分子步没有 `endpoint_b` 络合物、简并步没有方向性**，这类槽位用 `not_applicable` 而非 `skipped`，它计入完成且不算"欠账"；`rejected` 不是处置——它是仍欠的开放缺口，只能靠后续重新绑定或显式 skip/not_applicable 关闭。元素级证据层级 `proposed / structure-supported / saddle-supported / endpoint-supported / thermo-annotated / rejected / inconclusive` 由 harness 从阶段确定性派生，只作展示；模型只能手动设 proposed/rejected/inconclusive。命名在存储中可用下划线形式，文档中的连字符表示同一语义。
+粗扫先用能覆盖相关结构的允许方法。一个扫描点通常包含多次能量/梯度评估，不能按“一点=一个单点”估价。可从十几个点定位区域，再局部加密；端点边界的最高点不能直接当作峰顶。低级别路径上的高级别单点仅重评该组几何，不能称为高级别 relaxed scan。
 
-delivery 节点是同一 canonical species 在某条路径中的 occurrence。节点的 `geometry` 阶段至少要绑定优化极小点证据；SMILES 嵌入、初始构象或模型猜测不够。delivery 边的阶段通过指针引用 TS、频率、short IRC、optimized endpoints、endpoint mapping 与热化学结果。剪枝、决速步和选择性判断继续遵守本 SOP 的化学规则，图状态不能替代它们。
+ORCA 的 `ts_guess scan_prepare` **当前只支持一条扫描坐标**；这不是 ORCA 原生能力的上限。需要原生多维扫描/NEB 时先核对安装版本和可用接口。项目不使用 Gaussian QST2/QST3。
 
-## Claisen 示例：`C=COCC=C` → `C=CCCC=O`
+### 2.3 从初猜精修为无约束 TS
 
-这是展示图如何随证据演化的例子，不是所有反应都照抄的固定脚本。开始时先记录未知实验条件；在 `standard` 中执行同样的化学流程但没有下面的图操作，在 `dag_record` 中 Coordinator 自提草稿（harness 自动接受）并用 `dag_bind_evidence` 自绑阶段，在 `dag_guided` 中还有 Supervisor 接受草稿并逐调用复核绑定。
+从扫描峰附近或可信路径候选提取 XYZ，建立**新作业**，清除扫描和冻结约束。用引擎对应的 TS 优化与合适 Hessian：ORCA `OptTS`，Gaussian `Opt=TS`；详细参数见引擎参考。跟踪反应中心与梯度，判断是否仍在目标鞍点区域。
 
-| 阶段 | delivery DAG 与证据指针 |
-| :--- | :--- |
-| 假设与映射 | `reaction_mapping` 显式选中教材 [3,3] 候选 `[4,5,6,1,2,3]`，断 C3–O4、成 C1–C6。Coordinator 用 `dag_propose_mechanism` 提交草稿：R、P occurrence 分别指向 `C=COCC=C`、`C=CCCC=O` species；椅式、船式两条 R→P 候选边，以及需要时展开的双自由基 R→I→P 分支。occurrence 的 stage 契约取 `geometry`（可选 `frequency` / `single_point`），边取 `ts_guess → ts_opt → frequency → short_irc → endpoint_a → endpoint_b → direction → identity`（可选 `thermochemistry`），全部初始 `pending`。`dag_guided` 下 Supervisor 用 `dag_accept_mechanism` 接受后才解锁计算 |
-| reactive conformer | 椅式/船式构象搜索；成键 C1···C6 `< 3.0 Å` 只作筛选，不能只拿 conf0。构象文件与搜索结果以 artifact/tool-result 指针挂到候选 |
-| 初猜 | 对每个构象分别运行 IDPP `ts_guess interpolate`，必要时并行约束扫描与 `scan_parse`。初猜、扫描峰和默认 `verify` 只是 advisory evidence，只能支撑 `ts_guess` 阶段，不能证明 TS |
-| TS 与频率 | `opt=(ts,noeigen,calcfc) freq` 的作业与日志解析留完整结果指针。恰好一个虚频且模式符合断/成键方向时，按序绑定 `ts_opt` 与 `frequency`（组合后即为 `saddle-supported`）；错误虚频数则换构象或重搜，塌缩或高阶鞍点保留失败原因，不删除 |
-| 短 IRC 与端点 | 从 TS 双向各走部分 IRC，取两侧外帧分别无约束优化；再做 strict 方向检查和端点 `reaction_mapping`。IRC、两个极小点、strict 结果与 identity match 是独立指针，依次绑定 `short_irc → endpoint_a → endpoint_b → direction → identity` 后椅式边才达到 `endpoint-supported` |
-| 竞争路径 | 船式及双自由基候选各自走同样验证；证据不足不能因“教材预期”直接关闭。不计算的分支把相应阶段显式 `skipped` 并附计算原因（唯一非成功处置）；被复核否定的证据是 `rejected` 开放缺口，必须重算重绑或显式跳过，不能删除来制造完整性 |
-| 能量与交付 | 若用户要求能垒/选择性，运行统一条件下的单点和 `thermo_analysis`，绑定 `thermochemistry` 阶段。coverage contract 要求热化学时该阶段为 required，绑定后元素升 `thermo-annotated`。默认 contract 不要求热化学，不能反过来冒充用户已要求的自由能报告 |
+验收同时检查：
 
-交付前由 harness 从 delivery DAG 计算 coverage report。Claisen 主路径至少应有 R、P 两个 occurrence 的 required stages 全部 `supported`（或带理由 `skipped`）和一条达到 `endpoint-supported` 的边，所有竞争分支有明确 disposition；若用户要求自由能剖面，还必须满足热化学 gate。这个 report 证明“约定的证据槽已填齐”，不证明协同 Claisen 是宇宙中唯一可能的机理，agent 仍要检查电子结构、方法依赖与实验条件。
+1. 实际输入、方法和结构一致；没有把 constrained `Opt` 当成无约束 TS。
+2. 优化真正收敛；**全自由度梯度**符合所选收敛标准。正常终止不等于优化收敛，受限方向上仍有力也不叫驻点。
+3. 在最终几何、同一势能面上求频率，恰好一个反应相关虚频；检查位移模式对应成断键，不能只读虚频数。近零数值模式需要结合梯度/数值精度诊断，不随意删频率。
 
-**无能垒/非典型步的处置**：机理中有些 elementary step 在物理上没有独立 TS（如无能垒的质子转移、离子-偶极络合物的直接解离、自由基-自由基复合），或某些阶段槽位对该步逻辑上不成立（单分子步无 `endpoint_b` 络合物、简并步无方向性）。这类槽位**不要硬凑 TS 证据，也不要用 `skipped`**——`skipped` 隐含"本可算但放弃"。正确做法是把对应阶段显式 `not_applicable` 并附具体理由（如"barrierless association, no first-order saddle exists on this PES"）。带理由的 `not_applicable` 与 `skipped` 都计入完成，但审计时区分"槽位不成立"与"主动放弃"，避免事后把无能垒步误读为漏算。若仍想要能量学描述，可只优化两侧极小点 + `single_point`，把 `ts_opt`/`frequency`/`short_irc` 标 `not_applicable`。
+约束结构即使出现一个很大的 H 转移虚频，也仅是候选。`ts_guess` 初猜、扫描峰、默认 `verify` 都不能替代上述验收。频率可与优化合并；昂贵数值频率可在确认候选收敛后单独做。初始 Hessian 若不在最终几何上，不能当成最终频率证据。
 
-# 4. 失败诊断决策表
+### 2.4 验证连到哪两个物种
 
-| 现象 | 可能原因 | 动作 |
-| :--- | :--- | :--- |
-| 扫描曲线全程单调 | 坐标选错 / 该步无势垒 | 核对 watch_pairs 是否覆盖全部成/断键；改扫另一坐标或改 NEB；若确认无垒则该步为扩散/络合控制 |
-| 扫描曲线突跳（滑谷） | 其余自由度弛豫到别的构象谷 | 取跳变前帧作 TS 初猜；缩小扫描步长；或改用 NEB |
-| 极大值在扫描边界 | 扫描范围不足 | 扩大范围重扫 |
-| 多峰 | 途径多个浅中间体（如络合物） | 分段处理：每个峰一个 TS，中间谷一个中间体 |
-| TS 优化塌缩回反应物/产物 | 初猜离 TS 太远 / 构象不对 | 回 `conformer_search` 换 reactive conformer；或用离扫描峰更近的帧 |
-| verify 报 2+ 虚频 | 高阶鞍点 | 沿最大虚频振动模式双向位移扰动后重新 TS 优化 |
-| IRC 接到错误产物 | 该 TS 属于别的基元步 | 记录此边（可能是新路径）；核对机理假设图，必要时重猜 |
-| 自由基体系 `<S^2>` 偏差 > 0.1 | 自旋污染 | 检查对称性破缺是否合理；换泛函复算；结论标注不确定性 |
-| SCF 不收敛 | 初猜差 / 近简并 | 换初猜（`guess=mix` 开壳层单重态）、小基组预收敛后 read、或 `stable=opt` 检查波函数稳定性 |
-| 半经验（xTB）扫描结果奇异 | 半经验对 TS 精度不足 | 用 DFT 级别重扫（见 SKILL.md §4 Step 1 警告） |
-| FOD / T1 / 破缺 ⟨S²⟩ 提示强多参考 | 单参考 DFT 边界 | 按 SKILL.md §3.1.1：r2SCAN/TPSS 缓解 + 标注不确定度；能垒降为定性；建议用户 NEVPT2/CASPT2 复核 |
-| IRC 单侧有效点 < 50 | maxpoints/步长不足 | 加大 `maxpoint` 或调整步长重跑该向（SKILL.md §4 Step 3） |
+从已验收 TS 沿相关模式做双向 IRC，保持方法/基组、外部模型、环境与电荷/多重度一致。检查两向真实步数、收敛标记、轨迹连续性与端点；各外帧无约束优化，并核对极小点性质及具体结构身份。
 
-# 5. 禁令与一致性
+**IRC 不需要为了形式凑满 50 点。** 两向真正收敛、路径连通且端点正确时，可短于该数。若只得到 partial IRC，需要外帧到极小点的优化及方向一致性证据，并如实报告路径范围；不能把达到步数上限称为收敛。延长路径的理由应是连通性未决，不能关闭收敛检查或重复帧来凑数。原生参数与轨迹文件见 [ORCA IRC](https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/irc.html)。
 
-- **不使用 QST2/QST3**（项目既定政策）：统一走约束扫描 / IDPP 插值 + `opt=(ts,noeigen,calcfc)`。
-- IRC 与振动分析与几何优化同基组；单点能可升基组（SKILL.md §2-6）。
-- 弥散函数规则见 SKILL.md §2-7；`electronic_analysis` 的键级/布居分析避免弥散基组。
+`ts_guess mode=verify, strict=True` 检查双向外帧与两侧 optimized endpoint 的方向关系；`pass` 不是整条机理的真值判定。**当前该工具仅从 Gaussian IRC 日志提取路径端点**。ORCA 应保留主日志及 `*_IRC_F/B_trj.xyz`、最终 XYZ，用受支持的提取/结构分析工具检查。未实现的解析能力应报告为工具限制，不能重跑相同 ORCA 计算直到解析器“通过”，也不能伪造 strict pass。
+
+当前 `log_parser` 的 `short_irc` 证据条件是“两向都收敛”**或**“每向至少 50 个点”；这不是独立的化学充分条件。若工具/复核仍拒绝，检查其具体理由，提供原始收敛与结构证据；所需阶段未完成时保留交付缺口。
+
+### 2.5 计算所需的能量差
+
+先核对参照是哪个物种/络合物、计量关系与电荷/自旋，所有能量必须来自可比较的设置。每个数附几何、作业、日志及方法来源。
+
+- ΔE‡ = E(TS) − E(指定参照)。现有同级别电子能足够时直接使用；明确是否包含 ZPE，纯电子能不包含。
+- ΔG‡ 用明确的温度、标准态与频率级校正；高级别单点配低级别热校正时记录组合公式，避免把总 G 当作 correction 再加一次。`thermo_analysis` 的 `raw_rrho` 与 `goodvibes` 不能静默互换。
+- 昂贵的最终单点留到路径可信后；用于诊断的少量低成本单点可以提前做。新增单点不修复错误结构/路径。
+- 竞争构象/路径用同一参照比较，保留反应构象代价。不能仅从图上“最高 TS”宣布催化循环的决速步，需考虑占据态、浓度、可逆性及动力学。
+
+## 3. 证据交付与 DAG
+
+科学上独立的工作可并行，证据按真实依赖复用；绑定顺序不应成为重复计算的理由。**当前代码仍按 stage 契约顺序绑定**，遇到 `stage_out_of_order` 保存已有结果，先处理前置阶段，再绑定原调用。
+
+系统仅有 **delivery DAG**（机理图），不存在 process DAG。节点为 species 的 occurrence，边为候选基元步；证据用完整工具结果、完成作业和 artifact 的不可变**指针**保存。催化循环通过重复 occurrence 展开。
+
+| 模式 | 当前行为 |
+| --- | --- |
+| `standard` | 同样的科学标准；不调用 DAG/Supervisor |
+| `dag_record` | Coordinator 提交草稿，自动接受；用 `dag_bind_evidence` 自绑 |
+| `dag_guided` | Supervisor 接受草稿后解锁计算，复核入箱证据；Coordinator 可用 `dag_bind_evidence` 提交未自动入箱的成功工具结果 |
+
+具体 API 读 `dag-operations`，以当前 schema 为准。当前存在自动入箱和有序绑定；按实际角色与工具权限操作。`submit_compute_job` 只是提交记录，不是完成证据。失败计算/身份矛盾也要保存并在报告中指出；手动提交通道要求成功结果时，不能把失败改写成成功来入箱。
+
+典型 TS 边声明 `ts_opt`、`frequency`、`short_irc`、`endpoint_a`、`endpoint_b`、`direction`、`identity`，`ts_guess` 仅 advisory。`endpoint_a` 是目标/产物侧，`endpoint_b` 是源/反应物侧，与 IRC 的 forward/backward 标签无必然对应。**单分子反应仍有两侧极小点**，不能因此省略 endpoint_b。热化学按任务需要声明。
+
+`supported` 表示相应证据成立；`rejected` 仍是缺口；`skipped` 是明确放弃；`not_applicable` 是该证据槽确实不适用，后两者必须有理由并遵守角色权限。没有找到 TS 不等于证明没有 TS，不能据此写 `not_applicable`。模型不能手写 `endpoint-supported` 等派生等级。
+
+### Claisen 示例：`C=COCC=C` → `C=CCCC=O`
+
+R/P 节点保留声明物种，椅式/船式路径是不同候选边。先根据 [3,3] 成断键选映射，再绑定实际坐标；不能照抄固定原子序号。筛选反应构象后，扫描/插值只支持 `ts_guess`。无约束 TS 的收敛与频率证据支持 `ts_opt`/`frequency`；short bidirectional IRC、两侧极小点、方向与身份分别交付。证据齐全才支持 `endpoint-supported`；不能因“教材反应”跳过验证。要求 ΔG‡ 时再交付相应热化学；只要电子能垒则按 ΔE‡ 报告。未算的竞争分支保留原因。
+
+用 `dag_delivery_report` 检查缺口。coverage complete 仅表示契约处置完毕；skipped 不能被描述成科学验证通过。预算/方法限制下可以明确 `partial`，不需要为了 complete 无限重试。后台仍运行时 stop 是等待；真正结束前处理已有后台工作，避免把暂时休眠写成最终交付。
+
+## 4. 失败后怎么决定
+
+每次重试前写一句：**观测 → 假设原因 → 改什么 → 哪个结果会证伪该假设**。新故障优先通过 AgentHub 检索本地知识和同伴经验；已查过的相同问题复用结果。没有新诊断、新结构或新路径时，不增加同类作业。
+
+| 现象 | 有信息增益的动作 | 不应做的事 |
+| --- | --- | --- |
+| 输入/程序错误 | 查生成文件、安装版本、外部程序参数；修正后复用可用产物 | 随机换科学方法来试语法 |
+| 连续 TS 优化早早落入同一极小点 | 回看滑谷前几何；有依据地换构象/反应坐标/初猜，预算不足则结束该搜索 | 只把 MaxIter 从 200 加到 300 再重跑 |
+| 扫描单调或边界最高 | 检查缺失成断键坐标、范围与端点；有明确假设才补扫 | 宣称所有路径无垒；把 xTB 几何上的 MACE 单点称为 MACE 扫描 |
+| 扫描突跳 | 检查前后连接/构象；局部加密或改路径 | 自动取最后/最高帧便宣布 TS |
+| 2+ 虚频、错误模式、大梯度 | 查未收敛自由度、模式/构象与数值噪声；针对性重精修 | 只追求 n_imag=1 或降低验收标准 |
+| 正确的完整 IRC，验证器却不支持 | 保留原生证据，说明能力缺口并请求针对性复核 | 凑点数、改日志、重新跑相同计算 |
+| 强多参考/模型域外导致目标量不可信 | 明确方法边界；有允许且适用的方法才换方法 | 把“单参考算完了”当成可靠，或绕过白名单 |
+
+默认在一个策略出现重复的同类失败时停下来诊断；这不是固定“两次失败就证明不可算”。能够提出新的可检验路径且预算能覆盖必要验证时再继续。**计算未找到、方法不适用、证据已反驳**是不同结论。
+
+结束/交接用短表：`对象与声明 | 已成立证据/指针 | 未决或反证 | 方法/预算限制 | 下一项有价值的验证`。例如：“在允许的 MACE/xTB 和本轮预算内未定位已验证 TS；两次优化落入产物谷，所采样单坐标剖面单调。这不足以证明无垒，当前不报告活化能垒。保留初猜、轨迹与端点结果，交付为 partial。”
+
+## 5. 方法一致性
+
+优化、频率、IRC 描述同一势能面；提高最终单点级别须显式记录。溶剂化、弥散基组、自旋诊断与热化学细节见 `method-selection.md`，不要把 Gaussian 关键字搬到 ORCA，也不要在 MLIP 上增加并不存在的 SCF/积分网格配置。

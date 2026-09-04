@@ -207,20 +207,16 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
     # covers child lifetime (not just spawn), unlike the legacy is_wait=false
     # path which returns immediately and cannot enforce active children.
     if not is_wait and max_concurrency > 0:
-        from cloudra.runtime_v2.launch_groups import LaunchGroupManager
         manager = _launch_group_manager(core)
-        # Rebind the manager's spawner to this project/role. The manager is
-        # intentionally ephemeral per host; parallel projects should use one
-        # manager per core+project pair.
         async def spawner(query):
             return await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
-        object.__setattr__(manager, "_spawner", spawner)
         group_id = "grp_" + asyncio.get_running_loop().time().__str__().replace(".", "_")
         manager.create(
             group_id=group_id,
             parent_session_id=parent.id,
             items=[(f"{item[:20]}-{idx}", template.replace("{{item}}", item)) for idx, item in enumerate(items)],
             max_concurrency=max_concurrency,
+            spawner=spawner,
         )
         summary = f"Dispatched launch group {group_id} with {len(items)} items; pending_count={len(items)}"
         return ToolResult(

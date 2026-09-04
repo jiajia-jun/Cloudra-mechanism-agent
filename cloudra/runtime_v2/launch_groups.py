@@ -35,6 +35,9 @@ class LaunchGroup:
     parent_session_id: str
     items: list[LaunchGroupItem]
     max_concurrency: int
+    # The spawner is part of the group identity.  A manager is shared by the
+    # runtime, but each group must retain its project/parent/role closure.
+    spawner: Callable[[str], Any] | None = field(default=None, repr=False)
     state: GroupState = "running"
     _task: asyncio.Task | None = field(default=None, repr=False)
 
@@ -85,6 +88,7 @@ class LaunchGroupManager:
         parent_session_id: str,
         items: list[tuple[str, str]],
         max_concurrency: int,
+        spawner: Callable[[str], Any] | None = None,
     ) -> LaunchGroup:
         group = LaunchGroup(
             group_id=group_id,
@@ -94,6 +98,7 @@ class LaunchGroupManager:
                 for item_id, query in items
             ],
             max_concurrency=max_concurrency,
+            spawner=spawner or self._spawner,
         )
         self._groups[group_id] = group
         group._task = asyncio.create_task(self._run(group))
@@ -106,10 +111,16 @@ class LaunchGroupManager:
         sem = asyncio.Semaphore(group.max_concurrency)
 
         async def run_one(item: LaunchGroupItem) -> None:
-            item.state = "running"
             try:
                 async with sem:
-                    child = await self._spawner(item.query)
+                    # Waiting for a slot is still queued.  Mark running only
+                    # once the permit is acquired so the public counters
+                    # describe actual child lifetimes.
+                    if group.state == "cancelled":
+                        item.state = "cancelled"
+                        return
+                    item.state = "running"
+                    child = await group.spawner(item.query)
                     item.child_session_id = child.id
                     await self._wait_terminal(child)
                     item.state = (
@@ -135,11 +146,12 @@ class LaunchGroupManager:
         # AgentHost state changes are published via the core event hub, but the
         # spawner may return a plain object in tests.  Polling is the portable
         # fallback for launch-group unit tests.
-        for _ in range(3000):
+        # This is a production lifecycle wait, not a test timeout.  The
+        # semaphore remains held until the child reaches a terminal state.
+        while True:
             if child.state in _TERMINAL:
                 return child
             await asyncio.sleep(0.01)
-        raise TimeoutError(f"child {child.id} did not reach terminal state")
 
     async def cancel(self, group_id: str) -> LaunchGroup | None:
         group = self._groups.get(group_id)

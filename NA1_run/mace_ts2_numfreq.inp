@@ -1,0 +1,29 @@
+# smiles: [O-]C=C.O.CC=O  (TS2 RDS C-C addition; MACE NumFreq on converged TS2 saddle, C1-C8=1.948 A; confirm n_imag=1 + imaginary freq)
+! ExtOpt Freq NumFreq
+%pal nprocs 4 end
+%maxcore 1024
+%method
+  ProgExt "/Users/cloudrayyy/miniconda3/envs/chemai/bin/mace"
+  Ext_Params "--model /Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model --device cpu --dtype float64"
+end
+%geom
+  MaxIter 300
+end
+* xyz -1 1
+C       -0.92713458    -0.59660051     1.01811506
+C        0.34052639    -0.77623162     0.41867586
+O        1.11425456    -1.73691102     0.58663606
+H       -1.62355202     0.03359462     0.47852971
+H       -1.35344448    -1.48154117     1.48758764
+H        0.70409564     0.08654168    -0.17049255
+C        0.53125173     0.08632985     3.22574251
+C       -0.60684218     0.71350772     2.42439340
+O       -0.45506172     1.87736610     1.95811330
+H        0.62366072     0.63623091     4.16784867
+H        0.35101073    -0.96947966     3.44007141
+H        1.47293072     0.17652855     2.68359242
+H       -1.58807526     0.46002506     2.89208584
+O        3.40961059    -1.94515923    -0.86642153
+H        3.07306662    -2.50971096    -1.56637878
+H        2.62330252    -1.81909032    -0.27959903
+*

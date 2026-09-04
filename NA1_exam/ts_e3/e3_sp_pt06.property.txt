@@ -1,0 +1,54 @@
+*************************************************
+******************* ORCA 6.1.1 ******************
+*************************************************
+$Calculation_Status
+   &GeometryIndex 0
+   &version [&Type "String"] "6.1.1"
+   &progName [&Type "String"] "orca"
+   &Status [&Type "String"] "NORMAL TERMINATION"
+$End
+$Geometry
+   &GeometryIndex 1
+   &NAtoms [&Type "Integer"] 16
+   &NCorelessECP [&Type "Integer"] 0
+   &NGhostAtoms [&Type "Integer"] 0
+   &CartesianCoordinates [&Type "Coordinates", &Dim(16,4), &Units "Bohr"] 
+              C     -5.824889473041  -12.223109231744    8.678479945789
+              C     -8.697499056669  -11.864962797945    8.368438871784
+              O    -10.075947104996  -13.574581515097    9.645227175216
+              C     -9.306408728034  -12.044454352967    5.430386333591
+              C    -11.862717179688  -11.049630177355    4.984785963239
+              O    -12.392684052035   -9.143489372008    3.820191191707
+              O     -8.405236696208  -13.760931018540   14.178314225027
+              H     -5.245754742382  -14.024237048760    7.870826170652
+              H     -4.775127122572  -10.694882378214    7.781954845012
+              H     -5.427979068160  -12.256210449493   10.693524477706
+              H     -9.140696318988   -9.883314148774    8.948321329280
+              H     -9.217393821003  -14.052702843892    4.984093832145
+              H     -7.903343481923  -10.982413015614    4.354427597898
+              H    -13.362071247769  -12.168298726784    5.917751012105
+              H     -9.235725222749  -13.686964813295   11.882945356247
+              H     -9.920572310484  -14.272282066461   15.028588429854
+$End
+$Single_Point_Data
+   &GeometryIndex 1
+   &FinalEnergy [&Type "Double"]      -3.8354199779480001e+02  "Final single point energy"
+   &Converged [&Type "Boolean"] true
+$End
+$Calculation_Info
+   &GeometryIndex 1
+   &Mult [&Type "Integer"] 1
+   &Charge [&Type "Integer"] -1
+   &NumOfAtoms [&Type "Integer"] 16
+   &NumOfElectrons [&Type "Integer"] 0
+   &NumOfBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxCBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJBasisFuncts [&Type "Integer"] 0
+   &NumOfAuxJKBasisFuncts [&Type "Integer"] 0
+   &NumOfCABSBasisFuncts [&Type "Integer"] 0
+$End
+$Calculation_Timings
+   &GeometryIndex 1
+   &EXT [&Type "Double"]       4.0561300000000006e-01
+   &SUM [&Type "Double"]       4.0561300000000006e-01
+$End

@@ -340,6 +340,43 @@ async def test_message_wakes_succeeded_agent_with_new_run():
 
 
 @pytest.mark.asyncio
+async def test_wake_during_final_event_flush_reschedules_after_task_done():
+    """A wake racing the final flush must not strand RUNNING without a task."""
+    llm = ScriptedLLM(
+        [
+            LLMResponse(content="first", stop_requested=True),
+            LLMResponse(content="second", stop_requested=True),
+        ]
+    )
+    core, _, agent = await _setup(llm)
+    runner = core.runner
+    original_publish = runner._publish_new_events
+    delivered = False
+
+    async def publish(cursor):
+        nonlocal delivered
+        # The outer flush runs after finish_run has made the agent SUCCEEDED,
+        # while the runner task itself is still alive.
+        if agent.state.value == "succeeded" and not delivered:
+            delivered = True
+            core.mailbox.deliver(
+                to_session_id=agent.id,
+                project_id=agent.project_id,
+                content="late review decision",
+                sender="supervisor",
+            )
+            core.agent_host.wake(agent, runner=runner)
+            assert agent.state.value == "running"
+        await asyncio.sleep(0)
+        await original_publish(cursor)
+
+    runner._publish_new_events = publish
+    await _wait_state(agent, "succeeded")
+    assert delivered
+    assert len(llm.responses) == 0
+
+
+@pytest.mark.asyncio
 async def test_cancel_terminates_hanging_agent_and_closes_run():
     core, _, agent = await _setup(HangingLLM())
     await _wait_state(agent, "running")

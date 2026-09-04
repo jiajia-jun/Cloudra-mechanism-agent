@@ -150,41 +150,23 @@ class DagMessageSupervisor(DagToolBase):
                 GraphRef(**item) if isinstance(item, dict) else item
                 for item in user_input.counterevidence_refs
             ]
-            # Server-side scope enrichment: relevant registered contradictions
-            # are included in the basis even if the requester omitted them.
-            exceptions = await asyncio.to_thread(
-                store.collect_review_exceptions, list(user_input.target_ids)
-            )
-            basis_payload = {
-                "kind": kind,
-                "targets": sorted(user_input.target_ids),
-                "supporting_refs": [
-                    ref.model_dump(mode="json") for ref in supporting_refs
-                ],
-                "counterevidence_refs": [
-                    ref.model_dump(mode="json") for ref in counter_refs
-                ],
-                "registered_exceptions": [
-                    {
-                        "exception_key": item.get("exception_key"),
-                        "category": item.get("category"),
-                        "target_id": item.get("target_id"),
-                        "fact_id": item.get("fact_id"),
-                    }
-                    for item in exceptions
-                ],
-            }
-            basis = _canonical_hash(basis_payload)
             request = ReviewRequest(
                 kind=kind,
-                requester=caller_id or caller_type,
+                # Notifications must address the actual v2 session, not the
+                # legacy role id; this is what lets a waiting runner wake.
+                requester=session.id,
                 target_ids=list(user_input.target_ids or []),
                 question=question,
                 supporting_refs=supporting_refs,
                 counterevidence_refs=counter_refs,
                 proposal=user_input.proposal,
-                basis_fingerprint=basis,
+                # The store adds the current graph/contract snapshot to the
+                # fingerprint.  A request must not be resolvable after its
+                # scoped evidence changes.
+                basis_fingerprint="sha256:pending",
             )
+            basis = await asyncio.to_thread(store.review_basis, request)
+            request = request.model_copy(update={"basis_fingerprint": basis})
             request_id = await asyncio.to_thread(store.enqueue_review, request)
         except Exception as exc:
             return fail("dag_message_supervisor", str(exc), accepted=False)

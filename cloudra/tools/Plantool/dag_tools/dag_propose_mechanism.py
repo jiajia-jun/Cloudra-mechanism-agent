@@ -39,6 +39,14 @@ class DagProposeMechanismInput(input_schema):
         min_length=1,
         description="Mechanism hypothesis reasoning (literature/mapping basis).",
     )
+    claim_spec: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Optional v2 scientific claim contract: kind, quantity, unit, "
+            "reference/scope, required_checks and optional_checks."
+        ),
+    )
+    contract_version: int = Field(default=1, ge=1)
 
 
 class DagProposeMechanism(DagToolBase):
@@ -81,6 +89,8 @@ class DagProposeMechanism(DagToolBase):
                 stage_contracts=user_input.stage_contracts,
                 rationale=user_input.rationale,
                 actor_id=self._actor_id(),
+                claim_spec=user_input.claim_spec,
+                contract_version=user_input.contract_version,
             )
         except Exception as exc:
             # 契约引用不完整/词表不符/落图被拒等确定性拒绝，原文回报给模型自纠

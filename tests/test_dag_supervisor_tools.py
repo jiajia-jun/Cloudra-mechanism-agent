@@ -117,12 +117,50 @@ async def test_read_inside_workspace_returns_content_and_reference(tmp_path):
 
 @pytest.mark.asyncio
 async def test_read_inside_artifact_root_allowed(tmp_path):
+    from cloudra.infra.config import get_config
+    from cloudra.persistence.artifacts import ArtifactService
+    from cloudra.persistence.database import ConversationDB
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("prj_test", data_dir=tmp_path).init()
+    with db.connect() as con:
+        con.execute("INSERT INTO session(session_id, created_at) VALUES ('sup', '2026-01-01')")
     executor = _executor(tmp_path)
-    artifact = tmp_path / "artifacts" / "snapshot.log"
-    artifact.write_text("artifact line\n")
-    result = await executor.execute("read", {"path": str(artifact)}, session_id="sup")
+    source = tmp_path / "workspace" / "snapshot.log"
+    source.write_text("artifact line\n")
+    artifact = ArtifactService(data_dir=tmp_path).register_file(
+        conversation_id="prj_test", session_id="sup", source=source,
+        allowed_root=tmp_path / "workspace",
+    )
+    stored = tmp_path / "artifacts" / artifact.storage_path
+    result = await executor.execute("read", {"path": str(stored)}, session_id="sup")
     assert result["is_success"] is True
     assert "artifact line" in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_artifact_path_must_belong_to_current_project(tmp_path):
+    from cloudra.infra.config import get_config
+    from cloudra.persistence.artifacts import ArtifactService
+    from cloudra.persistence.database import ConversationDB
+
+    get_config().data_dir = tmp_path
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+    source = workspace / "foreign.log"
+    source.write_text("foreign\n")
+    db = ConversationDB("project-b", data_dir=tmp_path).init()
+    with db.connect() as con:
+        con.execute("INSERT INTO session(session_id, created_at) VALUES ('sup-b', '2026-01-01')")
+    artifact = ArtifactService(data_dir=tmp_path).register_file(
+        conversation_id="project-b", session_id="sup-b", source=source,
+        allowed_root=workspace,
+    )
+    foreign_path = tmp_path / "artifacts" / artifact.storage_path
+    executor = _executor(tmp_path, project_id="project-a")
+    result = await executor.execute("read", {"path": str(foreign_path)}, session_id="sup-a")
+    assert result["is_success"] is False
+    assert "not registered for this project" in result["message"]
 
 
 @pytest.mark.asyncio

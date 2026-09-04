@@ -1,0 +1,5 @@
+$constrain
+    atoms: 1,8
+    distance: 1,8,2.450
+    force constant=1.0
+$end

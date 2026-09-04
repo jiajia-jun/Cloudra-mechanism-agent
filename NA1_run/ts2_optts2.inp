@@ -1,0 +1,29 @@
+# smiles: [O].C=C[O-].CC=O  (TS2 RDS C-C addition, guess from relaxed scan frame 7, C(alpha)-C(carbonyl)=2.09 A)
+! ExtOpt OptTS NumFreq
+%pal nprocs 4 end
+%maxcore 1024
+%method
+  ProgExt "/Users/cloudrayyy/miniconda3/envs/chemai/bin/mace"
+  Ext_Params "--model /Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model --device cpu --dtype float64"
+end
+%geom
+  MaxIter 300
+end
+* xyz -1 1
+C        1.37628324    -0.93779015     1.07421729
+C        1.82357025     0.41890629     0.22345657
+O        2.29609221     1.42123511     0.73788665
+H       -1.33549767    -1.51021108    -0.87357397
+H        2.26388959    -1.23227659     1.78660082
+H        1.66958247     0.31215494    -0.86268637
+C       -0.91487646    -0.24484380     2.39836130
+C        0.50135424    -0.45637425     2.91282799
+O        0.74410574    -1.36492294     3.70700144
+H       -1.51765489     0.24915865     3.16909246
+H       -0.92266205     0.37245229     1.49691524
+H       -1.36785650    -1.21428385     2.18385876
+H        1.12442095     0.45186137     2.88145857
+O        1.38285800    -0.60462236     0.91271539
+H       -0.88818647    -1.47615476    -0.27873496
+H        1.45417736    -1.94888886     0.42910282
+*

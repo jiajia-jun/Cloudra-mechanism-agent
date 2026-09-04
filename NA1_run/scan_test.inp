@@ -1,0 +1,19 @@
+! OPT ExtOpt
+%pal nprocs 4 end
+%geom
+    Scan B 0 1 = 1.498897, 1.500000, 16 end
+end
+%method
+  ProgExt "/Users/cloudrayyy/miniconda3/envs/chemai/bin/mace"
+  Ext_Params "--model /Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model --device cpu --dtype float64"
+end
+
+* xyz 0 1
+C      -0.64698613    -0.05469803    -0.01478627
+C       0.84813199     0.04777163     0.01373998
+O       1.59695372    -0.86476856    -0.21326093
+H      -1.04466886     0.65484732    -0.74389545
+H      -0.95738170    -1.06596499    -0.26585660
+H      -1.04878137     0.23368689     0.95913390
+H       1.25273136     1.04912574     0.26492436
+*

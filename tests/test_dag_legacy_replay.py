@@ -16,7 +16,6 @@ DELETED_TOOLS = (
     "dag_schedule_work",
     "dag_update_process_node",
     "dag_init_from_template",
-    "dag_review_evidence",
 )
 
 

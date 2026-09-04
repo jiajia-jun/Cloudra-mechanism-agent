@@ -305,6 +305,7 @@ class GraphSupervisor:
         coordinator_request: Optional[str] = None,
         session_id: Optional[str] = None,
         event_sink=None,
+        review_claim=None,
     ) -> GraphSupervisorResult:
         """追加一条触发消息并运行 Supervisor 的工具循环。
 
@@ -344,7 +345,7 @@ class GraphSupervisor:
         )
         await _emit("user_message", {"content": trigger_message})
         # DAG 写工具只读取 session.id 作为 mutation 的 session 归属。
-        session = SimpleNamespace(id=session_id or "supervisor")
+        session = SimpleNamespace(id=session_id or "supervisor", review_claim=review_claim)
         executor.bind_run(agent=agent, session=session)
         mutations: list[dict] = []
         rounds = 0

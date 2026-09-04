@@ -54,3 +54,35 @@ async def test_max_concurrency_covers_child_lifetime():
     assert len(started) == 10
     assert all(item.state == "succeeded" for item in group.items)
     assert group.summary()["pending_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_each_group_keeps_its_project_spawner_context():
+    seen = []
+
+    async def spawner_a(query):
+        child = FakeChild("a-" + query)
+        seen.append(("project-a", query))
+        child.state = AgentState.SUCCEEDED
+        return child
+
+    async def spawner_b(query):
+        child = FakeChild("b-" + query)
+        seen.append(("project-b", query))
+        child.state = AgentState.SUCCEEDED
+        return child
+
+    manager = LaunchGroupManager(spawner=lambda _query: None)
+    manager.create(
+        group_id="group-a", parent_session_id="parent-a", items=[("a", "task-a")],
+        max_concurrency=1, spawner=spawner_a,
+    )
+    manager.create(
+        group_id="group-b", parent_session_id="parent-b", items=[("b", "task-b")],
+        max_concurrency=1, spawner=spawner_b,
+    )
+    for _ in range(100):
+        if manager.get("group-a").state == "finished" and manager.get("group-b").state == "finished":
+            break
+        await asyncio.sleep(0.01)
+    assert seen == [("project-a", "task-a"), ("project-b", "task-b")]
