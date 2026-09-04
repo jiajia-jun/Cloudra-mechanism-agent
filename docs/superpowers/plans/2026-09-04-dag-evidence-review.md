@@ -190,12 +190,12 @@ tasks 新写入仅接受 minimum_opt、ts_opt、frequency、single_point、irc�
 - 复用已有 FrameRecord；新增 extract_irc_endpoints(log_path: str) -> dict，返回 forward/backward 的 geometry_ref、origin 和 availability，不直接命名 reactant/product。
 - scan_parse 返回候选时必须同时有 scan_index、energy、geometry_ref、source。峰值坐标缺失时 candidate=null，另返回 candidate_unavailable。
 
-- [ ] 写回归：最大能量点不是最后一帧时取正确坐标；峰值对应 sidecar 丢失时不得使用末帧替代；多个同名旧文件存在时按本次产物 manifest 取源。
-- [ ] 在 orca_frames 增加原生 F/B trajectory 与 final endpoint 读取；ts_guess strict 复用它，log_parser 不复制解析规则。
-- [ ] IRC 有终止但路径未收敛时保持缺口；少于固定点数但两侧收敛、端点已验证时不报告“必须补点”。不自动把 F/B 映射成 R/P。
-- [ ] Gaussian scan_start 与真实起点不同，默认返回 start_geometry_mismatch，并建议先生成目标起点几何；不能只调整增量。若未来提供显式几何调整，另作可验证操作。
-- [ ] Run: uv run pytest -q tests/test_orca_frames.py tests/test_ts_guess.py。检查现有 Gaussian 路径不退化；无需真实 ORCA/MLIP。
-- [ ] 更新 skill 的已知限制，单独提交。
+- [x] 写回归：最大能量点不是最后一帧时取正确坐标；峰值对应 sidecar 丢失时不得使用末帧替代；多个同名旧文件存在时按本次产物 manifest 取源。
+- [x] 在 orca_frames 增加原生 F/B trajectory 与 final endpoint 读取；ts_guess strict 复用它，log_parser 不复制解析规则。
+- [x] IRC 有终止但路径未收敛时保持缺口；少于固定点数但两侧收敛、端点已验证时不报告“必须补点”。不自动把 F/B 映射成 R/P。
+- [x] Gaussian scan_start 与真实起点不同，默认返回 start_geometry_mismatch，并建议先生成目标起点几何；不能只调整增量。若未来提供显式几何调整，另作可验证操作。
+- [x] Run: uv run pytest -q tests/test_orca_frames.py tests/test_ts_guess.py。检查现有 Gaussian 路径不退化；无需真实 ORCA/MLIP。
+- [x] 更新 skill 的已知限制，单独提交。
 
 **验收：**Agent 不再因工具缺少端点提取或错误扫描坐标而重做有效计算。
 

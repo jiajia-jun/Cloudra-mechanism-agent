@@ -216,3 +216,75 @@ def test_vibfreqs_from_text_co2_fixture_matches_block():
     text = (ORCA_FIXTURES / "co2_freq_orca42.out").read_text(encoding="utf-8")
     freqs = orca_frames.vibfreqs_from_text(text)
     assert freqs == pytest.approx([0.0] * 5 + [289.50, 458.10, 1114.50, 1142.05])
+
+
+# ---------------------------------------------------------------------------
+# IRC 端点几何（extract_irc_endpoints / read_endpoint_geometry）
+# ---------------------------------------------------------------------------
+
+_IRC_ENDPOINT_XYZ = "3\nendpoint frame\nC 0.0 0.0 0.0\nN 0.0 0.0 1.2\nH 0.0 0.0 2.2\n"
+
+
+def _write_synthetic_irc_log(tmp_path, name="ircjob"):
+    """最小 ORCA IRC 日志：输入回显带 NAME，F 收敛、B 未收敛。"""
+    log = tmp_path / "harness_calc_log.txt"  # 日志名与 ORCA 作业名刻意不同
+    log.write_text(
+        f"NAME = {tmp_path / name}.inp\n"
+        "* FORWARD IRC *\n"
+        " 0 -100.123694 -0.987880 0.009347 0.001949\n"
+        " 1 -100.223694 -0.887880 0.009347 0.001949\n"
+        "THE IRC HAS CONVERGED\n"
+        "* BACKWARD IRC *\n"
+        " 0 -100.123694 -0.987880 0.009347 0.001949\n"
+        " 1 -100.023694 -0.787880 0.009347 0.001949\n",
+        encoding="utf-8",
+    )
+    return log
+
+
+def test_extract_irc_endpoints_fixture_without_sidecars_is_unavailable():
+    """真实 IRC fixture 无边文件：收敛标记可读，端点几何必须标 unavailable，
+    不得用同一侧或末帧顶替。"""
+    result = orca_frames.extract_irc_endpoints(str(ORCA_FIXTURES / "hcn_irc_orca60.out"))
+    for direction in ("forward", "backward"):
+        assert result[direction]["converged"] is True
+        assert result[direction]["availability"] == "unavailable"
+        assert result[direction]["geometry_ref"] is None
+        assert orca_frames.read_endpoint_geometry(result[direction]) is None
+
+
+def test_extract_irc_endpoints_uses_input_echo_name_and_prefers_final_files(tmp_path):
+    """harness 日志名与作业名不同时按输入回显的 NAME 定位边文件；
+    final endpoint 文件优先于 trajectory。"""
+    log = _write_synthetic_irc_log(tmp_path)
+    (tmp_path / "ircjob_IRC_F.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+    (tmp_path / "ircjob_IRC_B.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
+    # 同时放置 trajectory：final endpoint 文件必须赢
+    (tmp_path / "ircjob_IRC_F_trj.xyz").write_text(
+        _IRC_ENDPOINT_XYZ.replace("endpoint frame", "trj frame"), encoding="utf-8"
+    )
+
+    result = orca_frames.extract_irc_endpoints(str(log))
+    assert result["forward"]["origin"] == "final_endpoint_file"
+    assert result["forward"]["availability"] == "available"
+    assert result["forward"]["converged"] is True
+    assert result["backward"]["converged"] is False
+    xyz = orca_frames.read_endpoint_geometry(result["forward"])
+    assert xyz is not None and "endpoint frame" in xyz
+
+
+def test_read_endpoint_geometry_trajectory_returns_last_frame(tmp_path):
+    """只有 F/B trajectory 时取末帧，origin 标记为 trajectory_last_frame。"""
+    log = _write_synthetic_irc_log(tmp_path)
+    frames = [
+        _IRC_ENDPOINT_XYZ.replace("endpoint frame", f"trj frame {i}") for i in range(3)
+    ]
+    (tmp_path / "ircjob_IRC_F_trj.xyz").write_text("".join(frames), encoding="utf-8")
+
+    result = orca_frames.extract_irc_endpoints(str(log))
+    forward = result["forward"]
+    assert forward["origin"] == "trajectory_last_frame"
+    xyz = orca_frames.read_endpoint_geometry(forward)
+    assert xyz is not None
+    assert "trj frame 2" in xyz
+    assert "trj frame 0" not in xyz

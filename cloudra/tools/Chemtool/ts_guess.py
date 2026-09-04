@@ -166,6 +166,17 @@ class TsGuess_output_schema(output_schema):
     profile_table: str = Field(default="", description="scan_parse: per-point relative-energy text table (kcal/mol)")
     verdicts: list[str] = Field(default_factory=list, description="scan_parse: profile verdicts")
     barrier_kcal: Optional[float] = Field(default=None, description="scan_parse: barrier (highest point − first point, kcal/mol)")
+    candidate: Optional[dict] = Field(
+        default=None,
+        description="scan_parse: TS candidate as {scan_index, energy, geometry_ref, source}; "
+                    "null when no internal peak exists or its geometry is unavailable.",
+    )
+    candidate_unavailable: bool = Field(
+        default=False,
+        description="scan_parse: an internal peak exists but its geometry could not be "
+                    "recovered from this run's artifacts (a missing sidecar frame is NEVER "
+                    "substituted with the last frame).",
+    )
 
     # verify
     verdict: str = Field(
@@ -561,6 +572,14 @@ def _parse_orca_scan(text: str) -> tuple[list[float], list[list[tuple[str, float
 _ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
 
 
+class _SidecarIncomplete(Exception):
+    """relaxscanact.dat 存在但逐帧几何缺失/不匹配：峰值帧严禁用末帧替代。"""
+
+    def __init__(self, message: str, energies: Optional[list] = None):
+        super().__init__(message)
+        self.energies = energies
+
+
 def _find_orca_sidecar_dat(log_path: str, workdir: str) -> Optional[str]:
     """stem 不匹配时定位 relaxscanact.dat，找不到或无法唯一确定返回 None。
 
@@ -625,21 +644,29 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
                     energies.append(float(parts[1]))
                 except ValueError:
                     continue
-    except OSError:
-        return None
+    except OSError as exc:
+        raise _SidecarIncomplete(f"{dat_path} exists but cannot be read: {exc}") from exc
     if not energies:
-        return None
+        raise _SidecarIncomplete(f"{dat_path} contains no parseable energy rows.")
 
     frame_paths = sorted(
         glob.glob(os.path.join(workdir, f"{stem}.[0-9][0-9][0-9].xyz")),
     )
     if len(frame_paths) != len(energies):
-        return None
+        raise _SidecarIncomplete(
+            f"{dat_path} lists {len(energies)} scan points but only "
+            f"{len(frame_paths)} {stem}.NNN.xyz frame files exist next to it.",
+            energies=energies,
+        )
     # 帧号必须 1..N 连续（NNN 与 dat 行号一一对应）；glob 排序按文件名即号码序
     for i, p in enumerate(frame_paths):
         number = os.path.splitext(os.path.basename(p))[0].rsplit(".", 1)[-1]
         if not number.isdigit() or int(number) != i + 1:
-            return None
+            raise _SidecarIncomplete(
+                f"frame numbering next to {dat_path} is not continuous 1..N "
+                f"(offending file: {os.path.basename(p)}).",
+                energies=energies,
+            )
 
     try:
         import ase.io
@@ -648,8 +675,11 @@ def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
         for p in frame_paths:
             atoms = ase.io.read(p, format="xyz")
             frames.append((atoms.get_chemical_symbols(), np.asarray(atoms.get_positions(), dtype=float)))
-    except Exception:
-        return None
+    except Exception as exc:
+        raise _SidecarIncomplete(
+            f"a scan frame file next to {dat_path} is unreadable: {exc}",
+            energies=energies,
+        ) from exc
     return {"energies": energies, "frames": frames}
 
 
@@ -1121,6 +1151,7 @@ class TsGuess(Tool):
             return _dihedral_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]], pos[idx[3]])
 
         specs = []
+        start_mismatches: list[str] = []
         for raw in user_input.scans:
             coord_type = raw.get("coord_type") or "bond"
             if coord_type not in need:
@@ -1141,8 +1172,17 @@ class TsGuess(Tool):
                         f"Scanned atom indices out of range: {atoms_list} (system has {n} atoms)"
                     )
             current = _coord_current(coord_type, idx)
-            start = raw.get("scan_start")
-            start = float(start) if start is not None else current
+            explicit_start = raw.get("scan_start")
+            start = float(explicit_start) if explicit_start is not None else current
+            if explicit_start is not None:
+                # Gaussian modredundant 扫描从当前几何值出发只加增量；
+                # scan_start 与真实起点不同只调整增量会静默扫错区间。
+                tolerance = 0.005 if coord_type == "bond" else 0.5
+                if abs(start - current) > tolerance:
+                    start_mismatches.append(
+                        f"{coord_type} {atoms_list}: requested scan_start={start} "
+                        f"but the current geometry value is {current:.4f}"
+                    )
             end = float(raw.get("scan_end") or 0.0)
             specs.append({
                 "coord_type": coord_type,
@@ -1152,6 +1192,19 @@ class TsGuess(Tool):
                 "steps": steps,
                 "step_size": (end - start) / steps,
             })
+
+        if start_mismatches and user_input.engine == "gaussian":
+            return TsGuess_output_schema(
+                is_success=False,
+                message=(
+                    "start_geometry_mismatch: "
+                    + "; ".join(start_mismatches)
+                    + ". A Gaussian modredundant scan starts from the CURRENT geometry "
+                    "value and only applies the increment — generate the target start "
+                    "geometry first (e.g. a constrained optimization to the requested "
+                    "start value) instead of merely adjusting scan_start."
+                ),
+            )
 
         method = user_input.method.strip()
         extra = user_input.extra_route.strip()
@@ -1254,6 +1307,7 @@ class TsGuess(Tool):
         symbols: Optional[list[str]] = None
         ts_coords = None
         notes: list[str] = []
+        candidate_source = ""
 
         if user_input.engine == "gaussian":
             if text is None:
@@ -1278,6 +1332,7 @@ class TsGuess(Tool):
                     pt = PeriodicTable()
                     symbols = [pt.element[int(z)] for z in atomnos]
                     ts_coords = np.asarray(scancoords[ts_index], dtype=float)
+                    candidate_source = "gaussian_log:cclib_scancoords"
             except Exception as e:
                 notes.append(f"cclib geometry extraction failed ({e}); falling back to Standard orientation parsing.")
 
@@ -1299,11 +1354,53 @@ class TsGuess(Tool):
                 pt = PeriodicTable()
                 symbols = [pt.element[int(z)] for z, *_ in rows]
                 ts_coords = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
+                candidate_source = "gaussian_log:std_orientation"
         else:
             # ORCA relaxed scan：sidecar（relaxscanact.dat 逐帧能量 + ts_scan.NNN.xyz
             # 逐帧几何）优先——能量最高帧往往不是末帧，.out 的 rfind 末帧会选错
             # TS 候选；.out 文本仅作无 sidecar 时的回退。
-            sidecar = _parse_orca_relaxed_scan_sidecar(user_input.log_path)
+            try:
+                sidecar = _parse_orca_relaxed_scan_sidecar(user_input.log_path)
+            except _SidecarIncomplete as exc:
+                # 本次产物的 sidecar 存在但峰值帧丢失/不可读：严禁拿 .out
+                # 文本的末帧块顶替——candidate=null + candidate_unavailable。
+                if exc.energies:
+                    energies_eh = exc.energies
+                    e0 = energies_eh[0]
+                    rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
+                    profile = analyze_scan_profile(rel_kcal)
+                    peak = profile["ts_index"]
+                    lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
+                    for k, e in enumerate(rel_kcal):
+                        lines.append(f"{k:>4}  {e:>18.4f}")
+                    return TsGuess_output_schema(
+                        is_success=True,
+                        profile_table="\n".join(lines),
+                        verdicts=[
+                            f"Scan sidecar is incomplete: {exc}",
+                            f"The energy-maximum frame is {peak} (1-based {peak + 1}) but its "
+                            "geometry is unavailable; the last frame was NOT substituted. "
+                            "Re-run or recover the missing per-frame xyz before extracting a TS guess.",
+                        ],
+                        barrier_kcal=round(profile["barrier_kcal"], 4),
+                        candidate=None,
+                        candidate_unavailable=True,
+                        message=(
+                            "Scan profile parsed, but the TS-candidate geometry is unavailable: "
+                            f"{exc}. The energy-maximum frame was not replaced by any other frame."
+                        ),
+                    )
+                return TsGuess_output_schema(
+                    is_success=True,
+                    verdicts=[
+                        f"Scan sidecar is incomplete: {exc}",
+                        "No TS candidate could be derived; the log text was not used as a "
+                        "substitute for the missing per-frame geometries.",
+                    ],
+                    candidate=None,
+                    candidate_unavailable=True,
+                    message=f"Scan sidecar is present but unusable: {exc}",
+                )
             if sidecar is not None:
                 energies_eh = sidecar["energies"]
                 e0 = energies_eh[0]
@@ -1312,6 +1409,7 @@ class TsGuess(Tool):
                 ts_index = profile["ts_index"]
                 frame_symbols, ts_coords = sidecar["frames"][ts_index]
                 symbols = frame_symbols
+                candidate_source = "orca_relaxed_scan_sidecar"
                 notes.append(
                     "ORCA relaxed-scan sidecar used (relaxscanact.dat + per-frame xyz): "
                     f"TS-guess geometry is the energy-maximum frame {ts_index} (1-based {ts_index + 1}), not the last frame."
@@ -1333,6 +1431,7 @@ class TsGuess(Tool):
                 geom = blocks[block_idx]
                 symbols = [g[0] for g in geom]
                 ts_coords = np.asarray([[g[1], g[2], g[3]] for g in geom], dtype=float)
+                candidate_source = "orca_log_text"
                 notes.append("ORCA scan text parsing is best-effort: the TS-guess geometry is the last Cartesian block "
                              "within the energy-maximum frame's share of the file's coordinate blocks (frames are assumed "
                              "to contribute equal block counts); prefer the relaxscanact.dat sidecar "
@@ -1396,6 +1495,14 @@ class TsGuess(Tool):
                 "not submit a TS optimization from it), so no TS-guess geometry was written. Choose a "
                 "different/extra scan coordinate before hunting a TS."
             )
+        candidate = None
+        if has_internal_peak and ts_path:
+            candidate = {
+                "scan_index": ts_candidate_index,
+                "energy": energies_eh[ts_index],
+                "geometry_ref": ts_path,
+                "source": candidate_source,
+            }
         return TsGuess_output_schema(
             is_success=True,
             profile_table=profile_table,
@@ -1403,6 +1510,7 @@ class TsGuess(Tool):
             barrier_kcal=round(profile["barrier_kcal"], 4),
             ts_candidate_index=ts_candidate_index,
             ts_candidate_path=ts_path,
+            candidate=candidate,
             message=message,
         )
 
@@ -1522,9 +1630,9 @@ class TsGuess(Tool):
             return None
         if not os.path.isfile(user_input.irc_log):
             raise ValueError(f"IRC log does not exist: {user_input.irc_log}")
-        if user_input.engine != "gaussian":
-            checks.append("Only Gaussian IRC logs are currently supported for path-endpoint extraction.")
-            return None
+
+        if user_input.engine == "orca":
+            return TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides)
 
         from cloudra.tools.core import gaussian_frames
 
@@ -1574,6 +1682,72 @@ class TsGuess(Tool):
             "end_b": end_b,
             "frames": frames,
             "meta": meta,
+            "path_a": path_a,
+            "path_b": path_b,
+        }
+
+    @staticmethod
+    def _extract_orca_irc_endpoints(user_input: TsGuess_input_schema, checks: list[str],
+                                    require_two_sides: bool) -> Optional[dict]:
+        """ORCA IRC 端点：复用 orca_frames 的 final endpoint / F-B trajectory
+        读取（解析规则不在这里复制）。forward/backward 是轨迹方向标签，
+        不自动映射 reactant/product；一侧已终止但未收敛时该侧缺口保持开放，
+        收敛短路径不按固定点数要求补点。"""
+        from types import SimpleNamespace
+
+        from cloudra.tools.core import orca_frames
+
+        endpoints = orca_frames.extract_irc_endpoints(user_input.irc_log)
+        forward, backward = endpoints["forward"], endpoints["backward"]
+        for label, info in (("forward", forward), ("backward", backward)):
+            converged = info.get("converged")
+            if converged is False:
+                checks.append(
+                    f"The ORCA IRC {label} direction terminated WITHOUT converging; "
+                    "that side's path gap stays open (this is not a point-count issue)."
+                )
+            elif converged:
+                checks.append(
+                    f"The ORCA IRC {label} direction converged; a short converged path "
+                    "needs no padding to a fixed point count."
+                )
+        # strict：明确未收敛的方向保持缺口，不把未验证端点当路径证据。
+        if require_two_sides and (
+            forward.get("converged") is False or backward.get("converged") is False
+        ):
+            return None
+
+        xyz_a = orca_frames.read_endpoint_geometry(forward)
+        xyz_b = orca_frames.read_endpoint_geometry(backward)
+        if xyz_a is None or xyz_b is None:
+            checks.append(
+                "ORCA IRC endpoint geometries are not available on both sides "
+                "(final endpoint files or F/B trajectories are missing); one side's "
+                "geometry is never reused as the other side."
+            )
+            return None
+
+        end_a = SimpleNamespace(xyz=xyz_a, reaction_coordinate=None)
+        end_b = SimpleNamespace(xyz=xyz_b, reaction_coordinate=None)
+        out_dir = user_input.output_dir or os.path.splitext(user_input.freq_log)[0] + "_verify"
+        os.makedirs(out_dir, exist_ok=True)
+        path_a = os.path.join(out_dir, "irc_end_a.xyz")
+        path_b = os.path.join(out_dir, "irc_end_b.xyz")
+        atomic_write_text(path_a, xyz_a.rstrip() + "\n")
+        atomic_write_text(path_b, xyz_b.rstrip() + "\n")
+        checks.append(
+            "ORCA IRC endpoints extracted (forward/backward are trajectory directions, "
+            f"NOT reactant/product assignments): irc_end_a.xyz ({forward.get('origin')}), "
+            f"irc_end_b.xyz ({backward.get('origin')}) -> {out_dir}"
+        )
+        return {
+            "end_a": end_a,
+            "end_b": end_b,
+            "frames": [end_a, end_b],
+            "meta": {
+                "forward_converged": bool(forward.get("converged")),
+                "backward_converged": bool(backward.get("converged")),
+            },
             "path_a": path_a,
             "path_b": path_b,
         }

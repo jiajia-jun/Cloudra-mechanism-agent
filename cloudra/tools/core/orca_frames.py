@@ -17,6 +17,7 @@ cclib / numpy 在函数内惰性导入。
 
 from __future__ import annotations
 
+import os
 import re
 
 from cloudra.tools.core.gaussian_frames import (
@@ -424,3 +425,107 @@ def extract_irc(log_path: str) -> dict:
             if ts_rows:
                 meta["ts_energy_hartree"] = ts_rows[0]
     return meta
+
+
+# ---------------------------------------------------------------------------
+# IRC 端点几何（final endpoint 文件 / F/B trajectory 末帧）
+# ---------------------------------------------------------------------------
+
+_ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
+
+
+def _irc_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
+    """IRC 边文件的 (目录, 作业名) 候选：优先日志开头输入回显的 NAME 记录
+    （harness 日志名与 ORCA 作业名无关），其次日志自身 stem。"""
+    roots: list[tuple[str, str]] = []
+    m = _ORCA_NAME_RE.search(text[:200_000])
+    if m:
+        job = os.path.splitext(m.group("path"))[0]
+        roots.append((os.path.dirname(job), os.path.basename(job)))
+    stem = os.path.splitext(os.path.basename(log_path))[0]
+    roots.append((os.path.dirname(os.path.abspath(log_path)), stem))
+    return roots
+
+
+def _irc_endpoint_sidecar(
+    roots: list[tuple[str, str]], suffix: str
+) -> tuple[str | None, str | None]:
+    """定位一个方向的端点来源：final endpoint 文件优先，trajectory 末帧其次。
+
+    返回 (geometry_ref, origin)；都找不到返回 (None, None)。
+    """
+    for directory, stem in roots:
+        final = os.path.join(directory, f"{stem}{suffix}.xyz")
+        if os.path.isfile(final):
+            return final, "final_endpoint_file"
+    for directory, stem in roots:
+        trajectory = os.path.join(directory, f"{stem}{suffix}_trj.xyz")
+        if os.path.isfile(trajectory):
+            return trajectory, "trajectory_last_frame"
+    return None, None
+
+
+def extract_irc_endpoints(log_path: str) -> dict:
+    """定位 ORCA IRC forward/backward 端点几何（不命名 reactant/product）。
+
+    返回 {"forward": {...}, "backward": {...}}，每方向含：
+    - geometry_ref：端点几何来源路径（final endpoint 文件或 F/B trajectory），
+      无来源时 None；
+    - origin：final_endpoint_file / trajectory_last_frame / None；
+    - availability：available / unavailable；
+    - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）——块已终止但
+      未收敛时端点缺口保持开放，不按固定点数要求补点。
+    """
+    text = _read_text(log_path)
+    roots = _irc_sidecar_roots(log_path, text)
+    converged: dict[str, bool | None] = {"FORWARD": None, "BACKWARD": None}
+    try:
+        meta = extract_irc(log_path)
+        converged["FORWARD"] = bool(meta.get("forward_converged"))
+        converged["BACKWARD"] = bool(meta.get("backward_converged"))
+    except ValueError:
+        pass
+
+    result: dict[str, dict] = {}
+    for direction, suffix in (("forward", "_IRC_F"), ("backward", "_IRC_B")):
+        geometry_ref, origin = _irc_endpoint_sidecar(roots, suffix)
+        result[direction] = {
+            "geometry_ref": geometry_ref,
+            "origin": origin,
+            "availability": "available" if geometry_ref else "unavailable",
+            "converged": converged["FORWARD" if direction == "forward" else "BACKWARD"],
+        }
+    return result
+
+
+def read_endpoint_geometry(endpoint: dict) -> str | None:
+    """读取 extract_irc_endpoints 返回的一个端点几何（xyz 文本）。
+
+    final_endpoint_file 直接读取；trajectory_last_frame 取多帧 xyz 的最后一帧。
+    解析规则只住在这里，调用方（ts_guess strict 等）不复制。"""
+    ref = endpoint.get("geometry_ref")
+    if not ref:
+        return None
+    try:
+        with open(ref, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+    except OSError:
+        return None
+    if endpoint.get("origin") != "trajectory_last_frame":
+        return text if text.strip() else None
+    frames: list[str] = []
+    lines = text.splitlines(keepends=True)
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.isdigit() and i + 1 < len(lines):
+            count = int(stripped)
+            block = lines[i : i + 2 + count]
+            if len(block) == 2 + count:
+                frames.append("".join(block))
+            i += 2 + count
+        else:
+            i += 1
+    if frames:
+        return frames[-1]
+    return text if text.strip() else None

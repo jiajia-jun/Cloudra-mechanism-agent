@@ -1235,3 +1235,208 @@ async def test_scan_parse_orca_sidecar_ambiguous_glob_refuses_to_guess(tmp_path,
     assert result.is_success, result.message
     assert result.ts_candidate_index == 2  # 文本路径按能量最高帧选帧
     assert not any("sidecar used" in v for v in result.verdicts)
+
+
+# ---------------------------------------------------------------------------
+# Task 3 回归：candidate 结构、缺帧不顶替、scan_start 守卫、ORCA IRC 端点
+# ---------------------------------------------------------------------------
+
+
+def _copy_scan_fixture_with_peak(tmp_path, peak_lineno=9, peak_energy="300.0"):
+    """复制 cope_relaxed_scan sidecar，把第 peak_lineno（0-based）行能量调到全场最高。"""
+    import shutil
+
+    shutil.copy(_ORCA_SCAN_FIXTURE / "ts_scan.relaxscanact.dat", tmp_path / "ts_scan.relaxscanact.dat")
+    for p in sorted(_ORCA_SCAN_FIXTURE.glob("ts_scan.[0-9][0-9][0-9].xyz")):
+        shutil.copy(p, tmp_path / p.name)
+    dat = tmp_path / "ts_scan.relaxscanact.dat"
+    lines = dat.read_text(encoding="utf-8").splitlines()
+    fields = lines[peak_lineno].split()
+    fields[1] = peak_energy
+    lines[peak_lineno] = "  ".join(fields)
+    dat.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_candidate_carries_provenance_fields(tmp_path, mock_session):
+    """内部峰存在时 candidate 必须同时带 scan_index/energy/geometry_ref/source。"""
+    _copy_scan_fixture_with_peak(tmp_path)
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(tmp_path / "ts_scan.out"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.candidate_unavailable is False
+    candidate = result.candidate
+    assert candidate is not None
+    assert candidate["scan_index"] == 9
+    assert candidate["energy"] == pytest.approx(300.0)
+    assert candidate["geometry_ref"] == result.ts_candidate_path
+    assert Path(candidate["geometry_ref"]).exists()
+    assert candidate["source"] == "orca_relaxed_scan_sidecar"
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_missing_peak_frame_never_substitutes_last_frame(tmp_path, mock_session):
+    """峰值帧 sidecar 丢失：candidate=null + candidate_unavailable，严禁用末帧顶替。"""
+    _copy_scan_fixture_with_peak(tmp_path)
+    (tmp_path / "ts_scan.010.xyz").unlink()  # 峰值帧（1-based 10）丢失
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(tmp_path / "ts_scan.out"),
+    }), mock_session)
+
+    assert result.is_success, result.message  # 剖面仍可读，但候选不可得
+    assert result.candidate is None
+    assert result.candidate_unavailable is True
+    assert not result.ts_candidate_path
+    assert "NOT" in result.message or "not replaced" in result.message
+    # 不得有任何用其它帧写出的 TS-guess 几何
+    assert not list(tmp_path.glob("*_ts_guess.xyz"))
+
+
+@pytest.mark.asyncio
+async def test_scan_prepare_gaussian_scan_start_mismatch_rejected(tmp_path, mock_session):
+    """Gaussian：scan_start 与当前几何值不同 → start_geometry_mismatch，
+    而不是静默只调增量扫错区间。"""
+    tool = _make_tool()
+    out = tmp_path / "scan.gjf"
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_prepare",
+        "input_text": _WATER_XYZ,
+        "engine": "gaussian",
+        "scans": [{
+            "coord_type": "bond",
+            "atoms": [1, 2],
+            "scan_start": 1.5,  # 当前 O-H ≈ 0.9589 Å，差距远超容差
+            "scan_end": 2.0,
+            "scan_steps": 10,
+        }],
+        "output_path": str(out),
+    }), mock_session)
+
+    assert not result.is_success
+    assert "start_geometry_mismatch" in result.message
+    assert not out.exists()
+
+
+@pytest.mark.asyncio
+async def test_scan_prepare_gaussian_scan_start_matching_current_accepted(tmp_path, mock_session):
+    """scan_start 与当前几何值一致（容差内）时不误伤。"""
+    import math as _math
+
+    tool = _make_tool()
+    out = tmp_path / "scan.gjf"
+    current = _math.dist((0.0, 0.0, 0.1173), (0.0, 0.7572, -0.4692))
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_prepare",
+        "input_text": _WATER_XYZ,
+        "engine": "gaussian",
+        "scans": [{
+            "coord_type": "bond",
+            "atoms": [1, 2],
+            "scan_start": current,
+            "scan_end": 2.0,
+            "scan_steps": 10,
+        }],
+        "output_path": str(out),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert out.exists()
+
+
+def _orca_irc_log_with_sidecars(tmp_path, backward_converged):
+    """合成 ORCA IRC 日志 + F/B final endpoint 边文件，返回日志路径。"""
+    log = tmp_path / "calc-1.out.log"
+    backward_marker = "THE IRC HAS CONVERGED\n" if backward_converged else ""
+    log.write_text(
+        f"NAME = {tmp_path / 'ircjob'}.inp\n"
+        "* FORWARD IRC *\n"
+        " 0 -100.123694 -0.987880 0.009347 0.001949\n"
+        "THE IRC HAS CONVERGED\n"
+        "* BACKWARD IRC *\n"
+        " 0 -100.123694 -0.987880 0.009347 0.001949\n"
+        f"{backward_marker}",
+        encoding="utf-8",
+    )
+    xyz = "3\nend\nC 0.0 0.0 0.0\nN 0.0 0.0 1.2\nH 0.0 0.0 2.2\n"
+    (tmp_path / "ircjob_IRC_F.xyz").write_text(xyz, encoding="utf-8")
+    (tmp_path / "ircjob_IRC_B.xyz").write_text(xyz, encoding="utf-8")
+    return log
+
+
+def test_orca_irc_endpoints_unconverged_side_keeps_gap_in_strict(tmp_path):
+    """strict：一侧已终止但未收敛 → 保持缺口（返回 None），不把未验证端点当路径证据。"""
+    from types import SimpleNamespace
+
+    log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=False)
+    user_input = SimpleNamespace(
+        irc_log=str(log), output_dir=str(tmp_path / "out"), freq_log=str(log),
+    )
+    checks: list[str] = []
+    result = TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides=True)
+
+    assert result is None
+    assert any("backward" in c and "WITHOUT converging" in c for c in checks)
+    assert any("gap stays open" in c for c in checks)
+
+
+def test_orca_irc_endpoints_converged_short_path_needs_no_padding(tmp_path):
+    """两侧收敛（即使点数很少）→ 端点可提取，且明确 F/B 不等于 R/P。"""
+    from types import SimpleNamespace
+
+    log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=True)
+    out_dir = tmp_path / "out"
+    user_input = SimpleNamespace(
+        irc_log=str(log), output_dir=str(out_dir), freq_log=str(log),
+    )
+    checks: list[str] = []
+    result = TsGuess._extract_orca_irc_endpoints(user_input, checks, require_two_sides=True)
+
+    assert result is not None
+    assert Path(result["path_a"]).exists()
+    assert Path(result["path_b"]).exists()
+    assert result["meta"]["forward_converged"] is True
+    assert result["meta"]["backward_converged"] is True
+    assert any("NOT reactant/product" in c for c in checks)
+    assert any("needs no padding" in c for c in checks)
+
+
+@pytest.mark.asyncio
+async def test_verify_orca_engine_dispatches_native_irc_endpoints(tmp_path, mock_session, monkeypatch):
+    """verify(engine=orca) 端到端：走 orca_frames 原生端点提取并落盘两侧几何。"""
+    import cloudra.tools.Chemtool.ts_guess as ts_mod
+
+    log = _orca_irc_log_with_sidecars(tmp_path, backward_converged=True)
+    freq_log = tmp_path / "ts_freq.out"
+    freq_log.write_text("placeholder (freq parsing stubbed)\n", encoding="utf-8")
+    monkeypatch.setattr(ts_mod, "_parse_freq_log", lambda path, engine: {
+        "vibfreqs": [-512.3, 100.0, 200.0],
+        "vibdisps": None,
+        "converged": True,
+        "symbols": None,
+        "positions": None,
+    })
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "engine": "orca",
+        "freq_log": str(freq_log),
+        "irc_log": str(log),
+        "output_dir": str(tmp_path / "verify"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.n_imag == 1
+    assert Path(result.irc_end_a_path).exists()
+    assert Path(result.irc_end_b_path).exists()
+    assert any("NOT reactant/product" in c for c in result.checks)
