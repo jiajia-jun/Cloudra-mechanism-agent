@@ -1,10 +1,40 @@
-"""Stop-time delivery coverage audit and partial-disposition recording."""
+"""Stop-time delivery coverage audit, approvals, and scientific-outcome separation."""
 
 from __future__ import annotations
 
 import asyncio
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from cloudra.dag.models import OrchestrationMode
+
+StopAction = Literal[
+    "allow_final",
+    "wait_background",
+    "wait_review",
+    "needs_work",
+]
+
+
+class StopGate(BaseModel):
+    """Deterministic result of a delivery stop audit.
+
+    - allow_final: the run may finish and the disposition is recorded.
+    - wait_background: the stop is a suspension because background work is
+      still active; no delivery disposition is recorded.
+    - wait_review: a Supervisor/approval is required before this disposition
+      may be recorded.
+    - needs_work: the stop is blocked until concrete gaps are resolved or a
+      required approval/scope change is granted.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    action: StopAction
+    report: Any = None
+    request_id: str | None = None
+    reason: str = Field(default="", description="Human-readable audit reason.")
 
 
 class StopAuditMixin:
@@ -56,28 +86,127 @@ class StopAuditMixin:
             report,
         )
 
-    async def audit_stop(self, disposition: str):
+    async def audit_stop(
+        self,
+        disposition: str,
+        *,
+        approval_id: str | None = None,
+        user_stop_event_id: str | None = None,
+    ) -> StopGate:
+        """Audit an explicit stop and return a :class:`StopGate`.
+
+        Legacy callers that previously unpacked a tuple should use
+        ``gate.action``/``gate.report`` instead.  The delivery disposition is
+        recorded only when ``action == allow_final``.
+        """
         if not self.enabled:
-            return True, None
+            return StopGate(action="allow_final", report=None)
         await self.initialize()
+
+        # A real user termination is allowed regardless of graph coverage, but
+        # the model must not be able to invent that source.
+        if disposition == "user_terminated":
+            if not user_stop_event_id:
+                return StopGate(
+                    action="needs_work",
+                    report=None,
+                    reason=(
+                        "user_terminated requires a real user stop event id; "
+                        "a model cannot self-declare user termination"
+                    ),
+                )
+            return StopGate(action="allow_final", report=None)
+
         if await self._has_pending_background():
-            # 挂起而非交付：后台还有计算/提醒/子任务在跑，stop 只是休眠等唤醒。
-            # 不做交付审计、不记录 disposition——否则 agent 会把 partial 当
-            # "暂停"用，污染交付审计轨迹；真正的交付审计发生在后台排空后的
-            # 最终 stop。
-            return True, None
+            return StopGate(
+                action="wait_background",
+                report=None,
+                reason="background work is still pending; stop only suspends",
+            )
+
         report = self.delivery_report()
-        if disposition == "complete" and not report.complete:
-            if self.mode is OrchestrationMode.DAG_GUIDED:
+        if disposition == "complete" and report.complete:
+            await asyncio.to_thread(
+                self.store.record_delivery_disposition,
+                self.session_id,
+                disposition,
+                report,
+            )
+            return StopGate(
+                action="allow_final",
+                report=report,
+                reason="coverage audit passed",
+            )
+
+        if disposition == "complete":
+            # Complete with gaps requires a review/approval path.  In guided
+            # mode give the Supervisor one pre-delivery chance; otherwise block.
+            if self.mode is OrchestrationMode.DAG_GUIDED and approval_id is None:
                 await self.maybe_supervise("pre_delivery")
                 report = self.delivery_report()
-            if not report.complete:
-                return False, report
-        # 同步写 dag_delivery_dispositions 不能在事件循环线程上执行，offload 到 worker 线程
-        await asyncio.to_thread(
-            self.store.record_delivery_disposition,
-            self.session_id,
-            disposition,
-            report,
+                if report.complete:
+                    await asyncio.to_thread(
+                        self.store.record_delivery_disposition,
+                        self.session_id,
+                        disposition,
+                        report,
+                    )
+                    return StopGate(
+                        action="allow_final",
+                        report=report,
+                        reason="coverage became complete after pre-delivery review",
+                    )
+                return StopGate(
+                    action="needs_work",
+                    report=report,
+                    reason="complete was declared but required coverage is still missing",
+                )
+            if approval_id is not None:
+                # Approval-id path is accepted as a scoped partial/complete
+                # grant; the original gaps remain visible in the report.
+                await asyncio.to_thread(
+                    self.store.record_delivery_disposition,
+                    self.session_id,
+                    disposition,
+                    report,
+                )
+                return StopGate(
+                    action="allow_final",
+                    report=report,
+                    reason=f"approved by {approval_id}",
+                )
+            return StopGate(
+                action="needs_work",
+                report=report,
+                reason="complete was declared but required coverage is missing",
+            )
+
+        # partial without approval in dag_guided must wait for a Supervisor
+        # decision; in dag_record partial is the ordinary unaudited stop.
+        if disposition == "partial":
+            if (
+                self.mode is OrchestrationMode.DAG_GUIDED
+                and approval_id is None
+            ):
+                return StopGate(
+                    action="wait_review",
+                    report=report,
+                    reason="partial delivery requires Supervisor approval in dag_guided",
+                )
+            await asyncio.to_thread(
+                self.store.record_delivery_disposition,
+                self.session_id,
+                disposition,
+                report,
+            )
+            return StopGate(
+                action="allow_final",
+                report=report,
+                reason="partial delivery recorded",
+            )
+
+        return StopGate(
+            action="needs_work",
+            report=report,
+            reason=f"unsupported delivery disposition {disposition!r}",
         )
-        return True, report

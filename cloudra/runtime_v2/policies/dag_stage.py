@@ -192,9 +192,14 @@ class DagPolicyStage:
             return PolicyResult.allow()  # suspend, not delivery — no audit trail
         # D8.1：缺省不再声称 complete——只有显式 complete 才进入完成审计
         disposition = str(call.arguments.get("delivery_disposition") or "partial")
-        allowed, report = await controller.audit_stop(disposition)
-        if allowed:
+        gate = await controller.audit_stop(
+            disposition,
+            approval_id=call.arguments.get("approval_id"),
+            user_stop_event_id=call.arguments.get("user_stop_event_id"),
+        )
+        if gate.action in {"allow_final", "wait_background", "wait_review"}:
             return PolicyResult.allow()
+        report = gate.report
         gaps = [*(report.unresolved if report else []), *(report.inconclusive if report else [])]
         lines = [
             f"- {g.code} on {g.target_type} {g.target_id}: {g.detail}" for g in gaps[:12]
