@@ -1,0 +1,760 @@
+{
+ "provenance": {
+  "result_summary_sha256": "c0bce39c5bcb33f2c30b71325a0d582f4170de89964661de1193ce0d1f52e7ec",
+  "sanitized": true,
+  "source": "na1 snapshot dag_call_reviews row rev_7e536dfb36c0441a819c4ee88b3b197a",
+  "tool": "reaction_mapping"
+ },
+ "result_summary": {
+  "atom_map": [],
+  "binding_diagnostics": [
+   "The concrete structure's molecular graph differs from the declared SMILES.",
+   "The concrete structure's molecular graph differs from the declared SMILES."
+  ],
+  "binding_source": "not_available",
+  "binding_status": "inconclusive",
+  "broken_bonds": [
+   [
+    2,
+    3
+   ]
+  ],
+  "candidates": [
+   {
+    "bond_edit_count": 2,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      2,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     2,
+     7,
+     4,
+     5,
+     6
+    ],
+    "hydrogen_mismatch": 2,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 12.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 6,
+    "broken_bonds": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     5,
+     7,
+     4,
+     2,
+     6
+    ],
+    "hydrogen_mismatch": 2,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 20.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 4,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      2,
+      6
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     2,
+     6,
+     4,
+     5,
+     7
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 24.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 4,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      5
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     4,
+     2,
+     7,
+     1,
+     5,
+     6
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 24.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 0,
+    "broken_bonds": [],
+    "charge_mismatch": 2,
+    "formed_bonds": [],
+    "heavy_atom_map": [
+     7,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "hydrogen_mismatch": 2,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 24.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 5,
+    "broken_bonds": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     5,
+     6,
+     4,
+     2,
+     7
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [
+     {
+      "atoms": [
+       5,
+       6
+      ],
+      "product_order": 1.0,
+      "reactant_order": 2.0
+     }
+    ],
+    "radical_mismatch": 0,
+    "score": 25.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 6,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      4,
+      6
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     2,
+     7,
+     5,
+     4,
+     6
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 28.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 6,
+    "broken_bonds": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      5
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      4,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     4,
+     7,
+     2,
+     5,
+     6
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 28.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 6,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     4,
+     5,
+     7,
+     1,
+     2,
+     6
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 28.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 4,
+    "broken_bonds": [
+     [
+      1,
+      2
+     ]
+    ],
+    "charge_mismatch": 2,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ]
+    ],
+    "heavy_atom_map": [
+     7,
+     1,
+     5,
+     6,
+     4,
+     2,
+     3
+    ],
+    "hydrogen_mismatch": 2,
+    "order_changes": [
+     {
+      "atoms": [
+       2,
+       3
+      ],
+      "product_order": 2.0,
+      "reactant_order": 1.0
+     },
+     {
+      "atoms": [
+       5,
+       6
+      ],
+      "product_order": 1.0,
+      "reactant_order": 2.0
+     }
+    ],
+    "radical_mismatch": 0,
+    "score": 30.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 8,
+    "broken_bonds": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      4,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     4,
+     7,
+     5,
+     2,
+     6
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 32.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 8,
+    "broken_bonds": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     1,
+     5,
+     7,
+     2,
+     4,
+     6
+    ],
+    "hydrogen_mismatch": 4,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 32.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 4,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     2,
+     1,
+     7,
+     4,
+     5,
+     6
+    ],
+    "hydrogen_mismatch": 6,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 32.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 4,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 2,
+    "formed_bonds": [
+     [
+      2,
+      7
+     ],
+     [
+      3,
+      5
+     ]
+    ],
+    "heavy_atom_map": [
+     6,
+     1,
+     2,
+     7,
+     4,
+     5,
+     3
+    ],
+    "hydrogen_mismatch": 2,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 32.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 4,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "charge_mismatch": 2,
+    "formed_bonds": [
+     [
+      2,
+      6
+     ],
+     [
+      3,
+      5
+     ]
+    ],
+    "heavy_atom_map": [
+     7,
+     1,
+     2,
+     6,
+     4,
+     5,
+     3
+    ],
+    "hydrogen_mismatch": 2,
+    "order_changes": [],
+    "radical_mismatch": 0,
+    "score": 32.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   },
+   {
+    "bond_edit_count": 5,
+    "broken_bonds": [
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ]
+    ],
+    "charge_mismatch": 0,
+    "formed_bonds": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      7
+     ]
+    ],
+    "heavy_atom_map": [
+     3,
+     4,
+     5,
+     6,
+     1,
+     2,
+     7
+    ],
+    "hydrogen_mismatch": 6,
+    "order_changes": [
+     {
+      "atoms": [
+       5,
+       6
+      ],
+      "product_order": 1.0,
+      "reactant_order": 2.0
+     }
+    ],
+    "radical_mismatch": 0,
+    "score": 33.0,
+    "source": "rdkit_graph_search",
+    "stereo_mismatch": 0
+   }
+  ],
+  "concrete_watch_pairs": [],
+  "formed_bonds": [
+   [
+    2,
+    7
+   ]
+  ],
+  "graph_watch_pairs": [
+   [
+    2,
+    3
+   ],
+   [
+    2,
+    7
+   ]
+  ],
+  "heavy_atom_map": [
+   3,
+   1,
+   2,
+   7,
+   4,
+   5,
+   6
+  ],
+  "is_success": true,
+  "mapping_status": "unique",
+  "message": "Graph-edit and atom-environment scoring produced a single leading candidate; still check it against the mechanism. The concrete structure's molecular graph differs from the declared SMILES. The concrete structure's molecular graph differs from the declared SMILES.",
+  "order_changes": [],
+  "potential_axes": {
+   "product": [],
+   "reactant": []
+  },
+  "product_identity": "mismatch",
+  "reactant_identity": "mismatch",
+  "watch_pairs": [
+   [
+    2,
+    3
+   ],
+   [
+    2,
+    7
+   ]
+  ]
+ }
+}
