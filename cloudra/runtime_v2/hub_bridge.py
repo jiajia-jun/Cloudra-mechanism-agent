@@ -100,6 +100,8 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         return _err(f"Unknown kind: {kind}")
     to_agent = str(args.get("to_agent") or "").strip()
     parent_id = args.get("parent_id") or None
+    if parent_id is not None:
+        parent_id = str(parent_id)
     if kind == "message" and not to_agent:
         return _err("message posts need to_agent to name the addressee (the post is still public).")
     # A valid name may have no live session in this project; the post is still
@@ -157,9 +159,18 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
 
 
 def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
-    limit = int(args.get("limit") or 20)
+    limit = max(1, min(int(args.get("limit") or 20), 100))
+    cursor = str(args.get("cursor") or "").strip()
+    posts = _posts(core, author.project_id)
+    # Cursor is an event id (string). Old integer cursors are accepted for
+    # backward compatibility and normalized to the matching event id.
+    if cursor:
+        cursor_post = next((p for p in posts if str(p["id"]) == str(cursor)), None)
+        if cursor_post is None:
+            return _err(f"cursor not found: {cursor!r}")
+        posts = [p for p in posts if p["seq"] > cursor_post["seq"]]
     topics: dict[str, dict[str, Any]] = {}
-    for post in _posts(core, author.project_id):
+    for post in posts:
         entry = topics.setdefault(
             post["topic"],
             {
@@ -179,16 +190,19 @@ def _browse(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
             entry["latest_author"] = post.get("author_agent") or ""
             entry["preview"] = str(post.get("content") or "").strip()[:120]
             entry["latest_post_id"] = post["id"]
-    rows = sorted(topics.values(), key=lambda r: r["latest_seq"], reverse=True)[:limit]
+    rows = sorted(topics.values(), key=lambda r: r["latest_seq"], reverse=True)
+    has_more = len(rows) > limit
+    rows = rows[:limit]
     for row in rows:
         row.pop("latest_seq", None)
+    next_cursor = rows[-1]["latest_post_id"] if has_more and rows else None
     if not rows:
-        return _ok("The forum has no posts yet.", posts=[])
+        return _ok("The forum has no posts yet.", posts=[], next_cursor=None)
     summary = (
         f"{len(rows)} topic(s). Browse shows only each topic's latest post preview; "
         "call read with a topic name (or search with a keyword) to see the full posts."
     )
-    return _ok(summary, posts=rows)
+    return _ok(summary, posts=rows, next_cursor=next_cursor)
 
 
 def _read(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
@@ -230,10 +244,27 @@ async def _search(core, author: AgentSession, args: dict[str, Any]) -> ToolResul
         if posts
         else f"Keyword '{keyword}' had no forum hits."
     )
+    sources_status = {
+        "project_posts": "available",
+        "library": "available" if _providers_present() else (
+            "no_hits" if not library else "available"
+        ),
+    }
     if not library:
-        return _ok(forum_line, posts=posts, library=[])
+        return _ok(
+            forum_line,
+            posts=posts,
+            library=[],
+            sources_status=sources_status,
+        )
     summary = f"{forum_line}\nLibrary hits ({len(library)}):\n{render_library_hits(library)}"
-    return _ok(summary, posts=posts, library=library)
+    return _ok(summary, posts=posts, library=library, sources_status=sources_status)
+
+
+def _providers_present() -> bool:
+    from cloudra.runtime_v2.knowledge import registered_providers
+
+    return bool(registered_providers())
 
 
 def _directory(core, author: AgentSession) -> ToolResult:
@@ -259,8 +290,10 @@ async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn
         return _err("call requires a non-empty to.")
 
     post_line = None
-    if args.get("post_id"):
-        post = next((p for p in _posts(core, author.project_id) if p["id"] == args["post_id"]), None)
+    raw_post_id = args.get("post_id")
+    if raw_post_id is not None:
+        raw_post_id = str(raw_post_id)
+        post = next((p for p in _posts(core, author.project_id) if p["id"] == raw_post_id), None)
         if post is not None:
             post_line = f"Related post {post['id']} (topic {post['topic']})."
     text = format_incoming_call(

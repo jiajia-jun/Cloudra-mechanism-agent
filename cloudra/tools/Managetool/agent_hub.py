@@ -82,16 +82,19 @@ class AgentHub_input_schema(input_schema):
         description="call target: session_id, agent_id (e.g. a-4), role name (e.g. small_mol), or coordinator",
     )
     message: str = Field(default="", description="What you say to the other side on call (not a role prompt)")
-    post_id: Optional[int] = Field(default=None, description="Optional related post ID for call")
-    parent_id: Optional[int] = Field(default=None, description="Post ID to reply to (optional); a reply notifies the original author")
+    post_id: Optional[str] = Field(default=None, description="Optional related post ID for call (string event id)")
+    parent_id: Optional[str] = Field(default=None, description="Post ID to reply to (string event id; old integer ids are accepted by the bridge)")
     keyword: str = Field(default="", description="Search keyword (required for search); fuzzy match, synonyms/inexact phrasing OK")
     limit: int = Field(default=20, description="Maximum number of items to return")
+    cursor: Optional[str] = Field(default=None, description="Opaque browse cursor returned by a previous browse page")
 
 
 class AgentHub_output_schema(output_schema):
     is_success: bool = Field(description="Whether the action succeeded")
     posts: list = Field(default_factory=list, description="Post list (read/search/browse results)")
-    post_id: int = Field(default=0, description="New post ID (post result)")
+    post_id: Optional[str] = Field(default=None, description="New post ID (post result)")
+    next_cursor: Optional[str] = Field(default=None, description="Opaque cursor for the next browse page")
+    sources_status: dict = Field(default_factory=dict, description="Search source status (posts/library availability)")
     message: str = Field(default="", description="Status note")
     sessions: list = Field(default_factory=list, description="directory result")
     session_id: str = Field(default="", description="call result: the other party's session_id")
