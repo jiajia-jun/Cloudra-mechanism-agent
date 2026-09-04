@@ -88,11 +88,18 @@ class SupervisorAgent(Agent):
         return True
 
     def get_available_tools(self, tools: Optional[list] = None) -> list:
-        """白名单：所有 dag_* 工具。读 delivery 图、裁决草稿与复核都经它们。"""
+        """能力门控的工具面：证据只读、skill、AgentHub 与 dag_* 裁决工具。
+
+        名单唯一来源是 tools/registry.py 的 supervisor_access 声明，
+        经 tools/capabilities.py 投影；执行层（dag/supervisor_tools.py）
+        用同一投影再做一次拒绝，prompt 隐藏不等于不可用。
+        """
+        from cloudra.tools import capabilities
+
         return [
             entry
             for entry in super().get_available_tools(tools)
-            if entry.tool_name.startswith("dag_")
+            if capabilities.supervisor_access_for(entry.tool_name) != "none"
         ]
 
 
@@ -137,9 +144,15 @@ class GraphSupervisor:
         *,
         conversation_id: str,
         working_directory: Optional[str] = None,
+        core=None,
+        project_id: Optional[str] = None,
+        artifact_root: Optional[str] = None,
     ):
         self.conversation_id = conversation_id
         self.working_directory = working_directory
+        self.core = core
+        self.project_id = project_id
+        self.artifact_root = artifact_root
         self._agent: Optional[SupervisorAgent] = None
 
     def _ensure_agent(self) -> SupervisorAgent:
@@ -179,8 +192,7 @@ class GraphSupervisor:
                 "stage is still owed (it is NOT a disposal); skip with a reason only when "
                 "the stage is deliberately abandoned; not_applicable with a reason when the "
                 "stage slot does not apply to this element at all (e.g. a barrierless step has "
-                "no ts_opt/frequency, a unimolecular step has no endpoint_b complex); ignore "
-                "calls that are not delivery evidence."
+                "no ts_opt/frequency stages); ignore calls that are not delivery evidence."
             )
         parts.append(
             "First call dag_view to read the delivery projection and coverage gaps; fetch a "
@@ -306,14 +318,16 @@ class GraphSupervisor:
         pin / agent.message 唤醒）由调用方 DagController 负责——它持有
         runtime_v2 的 core 句柄与触发者身份。
         """
-        # 惰性导入，避免模块级依赖 tools 包。
-        from cloudra.tools import get_tools_lst
+        # 工具发现与执行共用 capabilities 的 supervisor_access 投影：
+        # prompt 里看到的集合与执行层允许的集合必然一致。
+        from cloudra.dag.supervisor_tools import SupervisorToolExecutor, dumps_result
 
-        dag_tools = {
-            entry.tool_name: entry
-            for entry in get_tools_lst()
-            if entry.tool_name.startswith("dag_")
-        }
+        executor = SupervisorToolExecutor(
+            core=self.core,
+            project_id=self.project_id,
+            workspace_root=self.working_directory,
+            artifact_root=self.artifact_root,
+        )
 
         async def _emit(event_type: str, data: dict) -> None:
             if event_sink is None:
@@ -331,6 +345,7 @@ class GraphSupervisor:
         await _emit("user_message", {"content": trigger_message})
         # DAG 写工具只读取 session.id 作为 mutation 的 session 归属。
         session = SimpleNamespace(id=session_id or "supervisor")
+        executor.bind_run(agent=agent, session=session)
         mutations: list[dict] = []
         rounds = 0
         note = ""
@@ -398,60 +413,16 @@ class GraphSupervisor:
                         "content": f"[System error] Failed to parse tool arguments: {exc.msg}",
                     })
                     continue
-                entry = dag_tools.get(name)
-                if entry is None:
-                    await agent.update_context({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "content": (
-                            f"[System error] Tool {name!r} is not available; "
-                            "you only have dag_* tools."
-                        ),
-                    })
-                    continue
-                try:
-                    input_obj = entry.input_schema(**args)
-                except Exception as exc:
-                    # Pydantic v2 ValidationError 不是 ValueError；统一回喂便于模型改参。
-                    await agent.update_context({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "content": (
-                            f"[System error] {name} argument validation failed: {exc}. "
-                            "Use this tool's flat fields; do not send a mutate operations array."
-                        ),
-                    })
-                    continue
                 args_summary = json.dumps(args, ensure_ascii=False, default=str)
                 await _emit("tool_started", {"tool": name, "arguments": args_summary})
-                try:
-                    output = await entry.instantiate(subagent=agent).tool_call(
-                        input_obj, session
-                    )
-                except Exception as exc:
-                    # 工具层异常回喂模型让它调整，而不是炸掉整个督导运行——
-                    # 否则一次 dag_view / dag_review_call 崩溃就会把 Supervisor session 直接终结。
-                    logger.warning("[Supervisor] %s failed: %s", name, exc)
-                    error_content = f"[System error] {name} failed: {exc}"
-                    await _emit("tool_finished", {
-                        "tool": name,
-                        "arguments": args_summary,
-                        "result": error_content,
-                    })
-                    await agent.update_context({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "content": error_content,
-                    })
-                    continue
-                payload = output.model_dump(mode="json")
-                if name in self._WRITE_DAG_TOOLS and output.accepted is not None:
+                payload = await executor.execute(name, args, session_id=session_id)
+                if name in self._WRITE_DAG_TOOLS and payload.get("accepted") is not None:
                     mutations.append({
-                        "accepted": output.accepted,
-                        "rejection_code": output.rejection_code,
+                        "accepted": payload.get("accepted"),
+                        "rejection_code": payload.get("rejection_code"),
                         "revisions": payload.get("result", {}).get("revisions"),
                     })
-                content = json.dumps(payload, ensure_ascii=False, default=str)
+                content = dumps_result(payload)
                 await _emit("tool_finished", {
                     "tool": name,
                     "arguments": args_summary,
@@ -464,7 +435,7 @@ class GraphSupervisor:
                 })
                 action = payload.get("action")
                 if (
-                    output.is_success
+                    payload.get("is_success")
                     and (name == "dag_view" or action in {"view", "dag_view"})
                 ):
                     await self._fold_stale_views(agent, tool_call_id)
@@ -491,4 +462,3 @@ class GraphSupervisor:
             note=note,
             report=last_report,
         )
-

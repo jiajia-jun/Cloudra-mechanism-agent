@@ -250,7 +250,7 @@ def _directory(core, author: AgentSession) -> ToolResult:
     return _ok(f"{len(rows)} session(s)." if rows else "No sessions right now.", sessions=rows)
 
 
-async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
+async def _call(core, author: AgentSession, args: dict[str, Any], *, allow_spawn: bool = True) -> ToolResult:
     spoken = str(args.get("message") or "").strip()
     if not spoken:
         return _err("call requires a non-empty message.")
@@ -275,6 +275,12 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         _notify(core, author.project_id, target, sender=author.role_id, content=text)
         return _ok(f"Called {target.id} (non-blocking).", session_id=target.id)
 
+    if not allow_spawn:
+        return _err(
+            f"target_not_found: no live session matches {raw_to!r} in this project. "
+            "Spawning a new agent from call is not allowed in this context."
+        )
+
     # No live session: role names / a-N ids spawn a fresh child, mirroring the
     # legacy spawn-from-call path.
     role_id = _role_id_for(raw_to)
@@ -289,7 +295,9 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     return _ok(f"Called {child.id} (non-blocking).", session_id=child.id)
 
 
-async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolResult:
+async def handle_hub_tool(
+    core, author: AgentSession, call: ToolCall, *, allow_spawn: bool = True
+) -> ToolResult:
     args = call.arguments or {}
     action = str(args.get("action") or "").strip().lower()
     if action == "post":
@@ -304,7 +312,7 @@ async def handle_hub_tool(core, author: AgentSession, call: ToolCall) -> ToolRes
         return _directory(core, author)
     if action == "call":
         try:
-            return await _call(core, author, args)
+            return await _call(core, author, args, allow_spawn=allow_spawn)
         except CommandRejected as exc:
             return _err(f"[dispatch rejected] {exc.message}")
     return _err(

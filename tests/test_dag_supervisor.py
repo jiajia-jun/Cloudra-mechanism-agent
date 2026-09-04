@@ -489,8 +489,8 @@ async def test_graph_supervisor_agent_loop_accepts_mechanism_draft(tmp_path):
 
 @pytest.mark.asyncio
 async def test_graph_supervisor_delivery_mutation_is_rejected_in_loop(tmp_path):
-    """Supervisor 试图改机理图 → actor_forbidden 回到其上下文，可同轮改提
-    合规的契约变更。"""
+    """Supervisor 试图改机理图 → 能力层直接拒绝（dag_add_species 不在
+    supervisor_access 白名单），可同轮改提合规的契约变更。"""
     _, GraphSupervisor, _ = _api()
 
     get_config().data_dir = tmp_path
@@ -534,12 +534,10 @@ async def test_graph_supervisor_delivery_mutation_is_rejected_in_loop(tmp_path):
 
     result = await supervisor.run("mechanism_proposed", session_id="s1")
 
-    assert result.mutations[0]["accepted"] is False
-    assert result.mutations[0]["rejection_code"] == "actor_forbidden"
-    assert result.mutations[1]["accepted"] is True
+    assert result.mutations[0]["accepted"] is True
     context = await agent.get_context()
     assert any(
-        "actor_forbidden" in str(block.get("content", "")) for block in context
+        "permission denied" in str(block.get("content", "")) for block in context
     )
 
 
@@ -1162,3 +1160,378 @@ async def test_supervision_projection_failure_does_not_kill_run(tmp_path):
 
     assert result is not None
     assert [c["trigger"] for c in supervisor.calls] == ["tool_call_review"]
+
+
+# --- Task 1 轨迹：fake LLM 多轮工具链（执行层真实工具，非字符串包含断言） ---
+
+
+async def _seed_step_with_calls(
+    tmp_path,
+    conversation_id,
+    *,
+    stage_kinds,
+    calls,
+):
+    """guided 种子：step1 边（声明阶段契约）+ 若干已完成工具调用
+    （经 controller.on_tool_finished 登记证据并入 pending CallReview）。"""
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        StageState,
+    )
+    from cloudra.dag.store import DagStore
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB(conversation_id, data_dir=tmp_path).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    for node_id, label, role in (("r", "R", "reactant"), ("p", "P", "product")):
+        seeded = DagEngine(store).apply_batch(
+            MutationBatch(
+                session_id="s1",
+                actor=GraphActor.HARNESS,
+                actor_id="test-harness",
+                base_revisions=store.load_bundle().revisions,
+                rationale=f"seed {role}",
+                operations=[
+                    AddNode(
+                        op="add_node",
+                        graph="delivery",
+                        node=OccurrenceNode(
+                            node_id=node_id,
+                            label=label,
+                            role=role,
+                            evidence_level="structure_supported",
+                        ),
+                    )
+                ],
+            )
+        )
+        assert seeded.accepted
+    seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="declare stage contract for step1",
+            operations=[
+                AddEdge(
+                    op="add_edge",
+                    graph="delivery",
+                    edge=ElementaryStepEdge(
+                        edge_id="step1",
+                        source_node_id="r",
+                        target_node_id="p",
+                        stages=[StageState(kind=kind) for kind in stage_kinds],
+                    ),
+                )
+            ],
+        )
+    )
+    assert seeded.accepted
+    controller = DagController(db, "s1", "dag_guided", conversation_id=conversation_id)
+    for call_id, tool_name, arguments, result in calls:
+        await controller.on_tool_finished(call_id, tool_name, arguments, result)
+    return db, store
+
+
+def _pending_review_id(store):
+    reviews = store.list_call_reviews()
+    assert len(reviews) == 1
+    return reviews[0].review_id
+
+
+def _stage_state(store, edge_id, kind):
+    snapshot = store.load_snapshot()
+    edge = next(e for e in snapshot.delivery.edges if e.edge_id == edge_id)
+    return next(s for s in edge.stages if s.kind == kind).status.value
+
+
+@pytest.mark.asyncio
+async def test_trajectory_constrained_opt_single_imag_rejects_full_ts(tmp_path):
+    """查原始 Opt 输入后否定完整 TS：Supervisor 先 read 约束输入文件，
+    再以「约束未解除的单虚频」disagree frequency 阶段。"""
+    _, GraphSupervisor, _ = _api()
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "e1_c130.inp").write_text(
+        open("tests/fixtures/dag_efficiency/na1_constrained_opt.inp").read()
+    )
+    _, store = await _seed_step_with_calls(
+        tmp_path,
+        "traj-constrained",
+        stage_kinds=("ts_opt", "frequency"),
+        calls=[
+            (
+                "tc_freq",
+                "log_parser",
+                {"log_path": "freq.log"},
+                {
+                "is_success": True,
+                "opt_converged": True,
+                "imaginary_frequencies": [-1347.12],
+                },
+            )
+        ],
+    )
+    review_id = _pending_review_id(store)
+
+    supervisor = GraphSupervisor(
+        conversation_id="traj-constrained", working_directory=str(workspace)
+    )
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response([_tool_call("c-read", {"path": "e1_c130.inp"}, name="read")]),
+                _response(
+                    [
+                        _tool_call(
+                            "c-verdict",
+                            {
+                                "review_id": review_id,
+                                "target_id": "step1",
+                                "stage_kind": "frequency",
+                                "verdict": "disagree",
+                                "reason": (
+                                    "The input keeps an active bond constraint "
+                                    "(B 0 8 1.30 C); one imaginary frequency at a "
+                                    "constrained point is not a full-space TS."
+                                ),
+                            },
+                            name="dag_review_call",
+                        )
+                    ]
+                ),
+                _response(content="频率阶段不予绑定：约束未解除，需无约束精修后再评。"),
+            ]
+        ),
+    )
+
+    result = await supervisor.run(
+        "tool_call_review", coordinator_request="pending: rev_freq", session_id="s1"
+    )
+
+    context = await agent.get_context()
+    assert any("Constraints" in str(block.get("content", "")) for block in context), (
+        "supervisor must actually read the raw input before judging"
+    )
+    assert result.mutations and result.mutations[0]["accepted"] is True
+    assert _stage_state(store, "step1", "frequency") == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_trajectory_short_converged_irc_no_point_rerun(tmp_path):
+    """短 IRC＋端点证据不要求补点：Supervisor 用 log_parser 解析 IRC 日志后
+    agree short_irc，结论不追加固定点数要求。"""
+    _, GraphSupervisor, _ = _api()
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    import shutil
+
+    shutil.copy("tests/fixtures/orca/hcn_irc_orca60.out", workspace / "irc.log")
+    _, store = await _seed_step_with_calls(
+        tmp_path,
+        "traj-short-irc",
+        stage_kinds=("short_irc",),
+        calls=[
+            (
+                "tc_irc",
+                "log_parser",
+                {"log_path": "irc.log"},
+                {
+                "is_success": True,
+                "irc_both_directions_converged": True,
+                "irc_num_points_forward": 8,
+                "irc_num_points_backward": 9,
+                },
+            )
+        ],
+    )
+    review_id = _pending_review_id(store)
+
+    supervisor = GraphSupervisor(
+        conversation_id="traj-short-irc", working_directory=str(workspace)
+    )
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response(
+                    [_tool_call("c-parse", {"log_path": "irc.log"}, name="log_parser")]
+                ),
+                _response(
+                    [
+                        _tool_call(
+                            "c-verdict",
+                            {
+                                "review_id": review_id,
+                                "target_id": "step1",
+                                "stage_kind": "short_irc",
+                                "verdict": "agree",
+                                "reason": (
+                                    "Both IRC directions terminated at converged "
+                                    "endpoints; point count is not a defect."
+                                ),
+                            },
+                            name="dag_review_call",
+                        )
+                    ]
+                ),
+                _response(
+                    content="IRC 两个方向均收敛至端点，short_irc 成立；无需补点重算。"
+                ),
+            ]
+        ),
+    )
+
+    result = await supervisor.run(
+        "tool_call_review", coordinator_request="pending: rev_irc", session_id="s1"
+    )
+
+    context = await agent.get_context()
+    assert any(
+        "irc_both_directions_converged" in str(block.get("content", ""))
+        or "ORCA TERMINATED" in str(block.get("content", ""))
+        for block in context
+    ), "supervisor must actually parse the IRC log"
+    assert result.mutations and result.mutations[0]["accepted"] is True
+    assert _stage_state(store, "step1", "short_irc") == "supported"
+    assert "补点" in result.report  # 结论明确：不补点
+
+
+@pytest.mark.asyncio
+async def test_trajectory_method_limited_checks_skill_and_hub_first(tmp_path):
+    """方法受限申请先查 skill/Hub 再决定：get_skill → agent_hub search →
+    有据 skip（方法适用性边界），而非直接拒绝或盲目要求重算。"""
+    _, GraphSupervisor, _ = _api()
+
+    class _FakeEventLog:
+        def __init__(self):
+            self.envelopes = []
+            self._seq = 0
+
+        def query_project(self, project_id, *, types=None, limit=500):
+            rows = [
+                env
+                for env in self.envelopes
+                if env.project_id == project_id and (types is None or env.type in types)
+            ]
+            return rows[-limit:]
+
+        def append(self, type_, *, stream, project_id, session_id, data):
+            self._seq += 1
+            env = SimpleNamespace(
+                event_id=f"evt_{self._seq:04d}",
+                seq=self._seq,
+                type=type_,
+                project_id=project_id,
+                session_id=session_id,
+                created_at=__import__("datetime").datetime(
+                    2026, 9, 4, tzinfo=__import__("datetime").timezone.utc
+                ),
+                data=data,
+            )
+            self.envelopes.append(env)
+            return env
+
+    core = SimpleNamespace(event_log=_FakeEventLog(), agents={}, project_id="prj_traj3")
+    _, store = await _seed_step_with_calls(
+        tmp_path,
+        "traj-method-limited",
+        stage_kinds=("single_point",),
+        calls=[
+            (
+                "tc_sp",
+                "log_parser",
+                {"log_path": "sp.log"},
+                {
+                "is_success": False,
+                "message": "SCF not converged; strong spin contamination suspected",
+                },
+            )
+        ],
+    )
+    review_id = _pending_review_id(store)
+
+    supervisor = GraphSupervisor(
+        conversation_id="traj-method-limited",
+        working_directory=str(tmp_path),
+        core=core,
+        project_id="prj_traj3",
+    )
+    agent = supervisor._ensure_agent()
+    object.__setattr__(
+        agent,
+        "llm_call",
+        AsyncMock(
+            side_effect=[
+                _response(
+                    [
+                        _tool_call(
+                            "c-skill", {"skill_name": "dft-calculation"}, name="get_skill"
+                        )
+                    ]
+                ),
+                _response(
+                    [
+                        _tool_call(
+                            "c-hub",
+                            {"action": "search", "keyword": "multireference diagnostics"},
+                            name="agent_hub",
+                        )
+                    ]
+                ),
+                _response(
+                    [
+                        _tool_call(
+                            "c-verdict",
+                            {
+                                "review_id": review_id,
+                                "target_id": "step1",
+                                "stage_kind": "single_point",
+                                "verdict": "skip",
+                                "reason": (
+                                    "Diagnostics indicate multi-reference character "
+                                    "beyond the allowed single-reference methods; "
+                                    "skipping with a documented method limit."
+                                ),
+                            },
+                            name="dag_review_call",
+                        )
+                    ]
+                ),
+                _response(
+                    content="方法适用性边界已确认：单参考方法不可信，阶段以方法受限关闭。"
+                ),
+            ]
+        ),
+    )
+
+    result = await supervisor.run(
+        "tool_call_review", coordinator_request="pending: rev_sp", session_id="s1"
+    )
+
+    context = await agent.get_context()
+    contents = [str(block.get("content", "")) for block in context]
+    assert any("mechanism" in text.lower() and "is_success" in text for text in contents), (
+        "get_skill must really load the skill content into context"
+    )
+    assert any('"posts"' in text for text in contents), (
+        "agent_hub search must go through the native bridge and return posts"
+    )
+    assert result.mutations and result.mutations[0]["accepted"] is True
+    assert _stage_state(store, "step1", "single_point") == "skipped"

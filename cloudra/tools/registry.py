@@ -40,6 +40,13 @@ class ToolRegistration:
     # agent's visual_mode setting is on.
     visual: bool = False
 
+    # Supervisor capability: whether the scientific Supervisor may discover and
+    # execute this tool. One of: "none" (default, hidden), "evidence_read"
+    # (read-only evidence access), "skill_read", "hub" (AgentHub, action-gated),
+    # "review_decision" (control-plane verdicts). Projected exclusively via
+    # tools/capabilities.py; do not keep separate supervisor tool name sets.
+    supervisor_access: str = "none"
+
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
@@ -96,6 +103,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='log_parser',
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
         dag_review=True,
+        supervisor_access='evidence_read',
     ),
     ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
     ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
@@ -124,6 +132,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='reaction_mapping',
         evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
         dag_review=True,
+        supervisor_access='evidence_read',
     ),
     ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
     ToolRegistration(
@@ -155,6 +164,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='AgentHub',
         tool_name='agent_hub',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        supervisor_access='hub',
     ),
     ToolRegistration(
         module='cloudra.tools.Managetool.get_subagent_report',
@@ -185,12 +195,14 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='DagView',
         tool_name='dag_view',
         dag_observe=False,
+        supervisor_access='evidence_read',
     ),
     ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_delivery_report',
         class_name='DagDeliveryReport',
         tool_name='dag_delivery_report',
         dag_observe=False,
+        supervisor_access='evidence_read',
     ),
     ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_add_species',
@@ -233,30 +245,35 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='DagAcceptMechanism',
         tool_name='dag_accept_mechanism',
         dag_observe=False,
+        supervisor_access='review_decision',
     ),
     ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_review_call',
         class_name='DagReviewCall',
         tool_name='dag_review_call',
         dag_observe=False,
+        supervisor_access='review_decision',
     ),
     ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
         class_name='DagViewEvidence',
         tool_name='dag_view_evidence',
         dag_observe=False,
+        supervisor_access='evidence_read',
     ),
     ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
         class_name='DagSetCoverageContract',
         tool_name='dag_set_coverage_contract',
         dag_observe=False,
+        supervisor_access='review_decision',
     ),
     ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
         class_name='DagMessageSupervisor',
         tool_name='dag_message_supervisor',
         dag_observe=False,
+        supervisor_access='review_decision',
     ),
     ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
     ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
@@ -265,6 +282,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='Read',
         tool_name='read',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        supervisor_access='evidence_read',
     ),
     ToolRegistration(
         module='cloudra.tools.Searchtool.search',
@@ -278,6 +296,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='get_skill',
         runtime_profiles=frozenset({'desktop', 'android'}),
         dag_observe=False,
+        supervisor_access='skill_read',
     ),
     ToolRegistration(
         module='cloudra.tools.Stoptool.stop_tool',

@@ -73,3 +73,34 @@ def evidence_deriver_for(tool_name: str) -> EvidenceDeriver | None:
     if reg is None or not reg.evidence_deriver:
         return None
     return _load(reg.evidence_deriver)
+
+
+SUPERVISOR_ACCESS_LEVELS = frozenset(
+    {"none", "evidence_read", "skill_read", "hub", "review_decision"}
+)
+
+
+def supervisor_access_for(tool_name: str) -> str:
+    """Supervisor capability of one tool; unregistered tools get "none"."""
+    reg = _named().get(tool_name)
+    if reg is None:
+        return "none"
+    access = reg.supervisor_access or "none"
+    if access not in SUPERVISOR_ACCESS_LEVELS:
+        raise ValueError(
+            f"unknown supervisor_access {access!r} declared for tool {tool_name!r}"
+        )
+    return access
+
+
+def supervisor_allowed_tools() -> dict[str, str]:
+    """tool_name -> supervisor_access for every tool the Supervisor may call.
+
+    This projection is the single source of truth for Supervisor tool
+    discovery AND execution gating; both paths must query it.
+    """
+    return {
+        name: reg.supervisor_access
+        for name, reg in _named().items()
+        if reg.supervisor_access and reg.supervisor_access != "none"
+    }

@@ -102,10 +102,10 @@ def test_missing_consumption_is_not_zero_latency():
 - SupervisorToolExecutor.execute(name: str, arguments: dict, *, session_id: str) -> dict；返回现有工具结果形状。构造时注入 core、project_id、workspace_root 和 artifact 根目录。
 - GraphSupervisor 的发现与执行均使用同一个 capability 投影；不只改 roles.py 的壳权限。
 
-- [ ] 写执行级测试：get_skill 成功；Hub search 真正进入原生 bridge；解析引用可读；科研文件写操作、越界 symlink、compute 提交、未知工具均被拒绝。测试不得只断言工具出现在 prompt。
-- [ ] supervisor_tools.py 实现受限执行入口；复用 loader 与只读解析原语。读取上限、分页／截断和完整引用一并返回；解析工具若含导出副作用，先调用纯解析函数，不直接开放原工具全功能。
-- [ ] Hub 允许 search/browse/read/directory/post；call 仅允许已经存在的会话，找不到时返回 target_not_found，不隐式 spawn。post/裁决是显式控制面能力，不能因此获得文件写权限。
-- [ ] 重写 prompt 与新增 review reference，使用设计 §10 的判断表。最低应包含以下指令块：
+- [x] 写执行级测试：get_skill 成功；Hub search 真正进入原生 bridge；解析引用可读；科研文件写操作、越界 symlink、compute 提交、未知工具均被拒绝。测试不得只断言工具出现在 prompt。
+- [x] supervisor_tools.py 实现受限执行入口；复用 loader 与只读解析原语。读取上限、分页／截断和完整引用一并返回；解析工具若含导出副作用，先调用纯解析函数，不直接开放原工具全功能。
+- [x] Hub 允许 search/browse/read/directory/post；call 仅允许已经存在的会话，找不到时返回 target_not_found，不隐式 spawn。post/裁决是显式控制面能力，不能因此获得文件写权限。
+- [x] 重写 prompt 与新增 review reference，使用设计 §10 的判断表。最低应包含以下指令块：
 
 ```text
 Review the requested claim under the allowed methods and available evidence.
@@ -118,9 +118,9 @@ because a stage is unfilled or an IRC has fewer than a fixed number of points.
 Approve partial or method-limited delivery only with a scoped, cited reason.
 ```
 
-- [ ] 删除“单分子没有 endpoint_b”等误导性示例；保留现有 v1 工具协议段直到 Task 7 接线完成，新协议段按 contract_version 选择，避免 prompt 宣称不可调用的新工具。
-- [ ] 通过可注入的 fake LLM 跑三个多轮工具轨迹：查原始 Opt 输入后否定完整 TS；短 IRC＋端点证据不要求补点；方法受限申请先查 skill/Hub 再决定。固定工具可达性与结构化裁决；另保存真实模型练习记录评估判断质量，不把字符串包含测试当科学评估。
-- [ ] Run: uv run pytest -q tests/test_dag_supervisor.py tests/test_dag_supervisor_tools.py tests/test_prompt_assembler.py。只提交本任务所改区块，保留此前角色 prompt 工作。
+- [x] 删除“单分子没有 endpoint_b”等误导性示例；保留现有 v1 工具协议段直到 Task 7 接线完成，新协议段按 contract_version 选择，避免 prompt 宣称不可调用的新工具。
+- [x] 通过可注入的 fake LLM 跑三个多轮工具轨迹：查原始 Opt 输入后否定完整 TS；短 IRC＋端点证据不要求补点；方法受限申请先查 skill/Hub 再决定。固定工具可达性与结构化裁决；另保存真实模型练习记录评估判断质量，不把字符串包含测试当科学评估。
+- [x] Run: uv run pytest -q tests/test_dag_supervisor.py tests/test_dag_supervisor_tools.py tests/test_prompt_assembler.py。只提交本任务所改区块，保留此前角色 prompt 工作。
 
 **验收：**Supervisor 确实可以查证据，不能改科研文件；不需要构建任意 Python 沙箱。
 
