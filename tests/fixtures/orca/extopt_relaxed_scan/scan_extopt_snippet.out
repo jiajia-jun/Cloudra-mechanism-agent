@@ -1,0 +1,77 @@
+                         *****************
+                         * O   R   C   A *
+                         *****************
+
+NAME = /work/ts2_scan.inp
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      0.000000    0.000000    0.000000
+  H      1.090000    0.000000    0.000000
+  N      0.000000    1.500000    0.000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      0.100000    0.000000    0.000000
+  H      1.190000    0.000000    0.000000
+  N      0.000000    1.500000    0.100000
+
+FINAL SINGLE POINT ENERGY (From external program)      -100.500000000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      1.000000    0.000000    0.000000
+  H      2.090000    0.000000    0.000000
+  N      0.000000    2.500000    0.000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      1.100000    0.000000    0.000000
+  H      2.190000    0.000000    0.000000
+  N      0.000000    2.500000    0.100000
+
+FINAL SINGLE POINT ENERGY (From external program)      -100.490000000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      2.000000    0.000000    0.000000
+  H      3.090000    0.000000    0.000000
+  N      0.000000    3.500000    0.000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      2.100000    0.000000    0.000000
+  H      3.190000    0.000000    0.000000
+  N      0.000000    3.500000    0.100000
+
+FINAL SINGLE POINT ENERGY (From external program)      -100.470000000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      3.000000    0.000000    0.000000
+  H      4.090000    0.000000    0.000000
+  N      0.000000    4.500000    0.000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      3.100000    0.000000    0.000000
+  H      4.190000    0.000000    0.000000
+  N      0.000000    4.500000    0.100000
+
+FINAL SINGLE POINT ENERGY (From external program)      -100.480000000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      4.000000    0.000000    0.000000
+  H      5.090000    0.000000    0.000000
+  N      0.000000    5.500000    0.000000
+
+CARTESIAN COORDINATES (ANGSTROEM)
+---------------------------------
+  C      4.100000    0.000000    0.000000
+  H      5.190000    0.000000    0.000000
+  N      0.000000    5.500000    0.100000
+
+FINAL SINGLE POINT ENERGY (From external program)      -100.495000000000
+
+                       ****ORCA TERMINATED NORMALLY****

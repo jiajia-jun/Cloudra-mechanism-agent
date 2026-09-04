@@ -19,6 +19,7 @@ import ase.io
 import numpy as np
 
 from cloudra.tools.Chemtool.ts_guess import (
+    KCAL_PER_HARTREE,
     TsGuess,
     TsGuess_input_schema,
     _assign_irc_endpoints,
@@ -387,10 +388,12 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
         "mode": "scan_prepare",
         "input_text": _WATER_XYZ,
         "engine": "gaussian",
-        "coord_type": "bond",
-        "atoms": [1, 2],
-        "scan_end": 2.0,
-        "scan_steps": 10,
+        "scans": [{
+            "coord_type": "bond",
+            "atoms": [1, 2],
+            "scan_end": 2.0,
+            "scan_steps": 10,
+        }],
         "output_path": str(out),
         "job_name": "h2o_scan",
     }), mock_session)
@@ -412,6 +415,31 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
+async def test_scan_prepare_gaussian_two_coupled_coordinates(tmp_path, mock_session):
+    """Gaussian 双坐标耦合扫描：两个 S 行（2D 网格），各自步长独立。"""
+    tool = _make_tool()
+    out = tmp_path / "scan2d.gjf"
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_prepare",
+        "input_text": _WATER_XYZ,
+        "engine": "gaussian",
+        "scans": [
+            {"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 10},
+            {"coord_type": "bond", "atoms": [1, 3], "scan_end": 1.2, "scan_steps": 8},
+        ],
+        "output_path": str(out),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    content = out.read_text()
+    lines = [ln for ln in content.splitlines() if ln.startswith("B 1")]
+    assert len(lines) == 2, content
+    assert lines[0].startswith("B 1 2 S 10")
+    assert lines[1].startswith("B 1 3 S 8")
+    assert "2D coupled" in result.run_hint
+
+
+@pytest.mark.asyncio
 async def test_scan_prepare_orca(tmp_path, mock_session):
     """ORCA inp：%geom Scan 块、原子序号 0-based、%pal，无 QST。"""
     tool = _make_tool()
@@ -420,11 +448,13 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
         "mode": "scan_prepare",
         "input_text": _WATER_XYZ,
         "engine": "orca",
-        "coord_type": "angle",
-        "atoms": [2, 1, 3],
-        "scan_start": 90.0,
-        "scan_end": 120.0,
-        "scan_steps": 6,
+        "scans": [{
+            "coord_type": "angle",
+            "atoms": [2, 1, 3],
+            "scan_start": 90.0,
+            "scan_end": 120.0,
+            "scan_steps": 6,
+        }],
         "nprocs": 8,
         "output_path": str(out),
     }), mock_session)
@@ -442,16 +472,66 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
-    """原子个数/序号校验：bond 需要 2 个原子。"""
+async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
+    """ORCA external/MLIP 势通道：method='ExtOpt' + orca_blocks 注入 %method ProgExt 块。"""
+    tool = _make_tool()
+    out = tmp_path / "scan_mlip.inp"
+    prog_block = (
+        "%method\n"
+        '  ProgExt "/Users/x/envs/chemai/bin/mace"\n'
+        '  Ext_Params "--model /Users/x/mace.model --device cpu --dtype float64"\n'
+        "end"
+    )
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_prepare",
+        "input_text": _WATER_XYZ,
+        "engine": "orca",
+        "method": "ExtOpt",
+        "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 10}],
+        "orca_blocks": prog_block,
+        "output_path": str(out),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    content = out.read_text()
+    assert content.startswith("! OPT ExtOpt")
+    assert "Scan B 0 1 = " in content
+    assert "ProgExt" in content and "--model" in content
+    # %method 块位于坐标块之前
+    assert content.index("%method") < content.index("* xyz")
+
+
+@pytest.mark.asyncio
+async def test_scan_prepare_rejects_multi_coord_on_orca(tmp_path, mock_session):
+    """ORCA relaxed scan 是 1D：两个扫描坐标报错并提示用 Gaussian。"""
     tool = _make_tool()
     result = await tool.safe_call(TsGuess_input_schema(**{
         "mode": "scan_prepare",
         "input_text": _WATER_XYZ,
-        "coord_type": "dihedral",
-        "atoms": [1, 2, 3],
-        "scan_end": 180.0,
-        "scan_steps": 5,
+        "engine": "orca",
+        "scans": [
+            {"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 10},
+            {"coord_type": "bond", "atoms": [1, 3], "scan_end": 1.2, "scan_steps": 8},
+        ],
+        "output_path": str(tmp_path / "x.inp"),
+    }), mock_session)
+    assert not result.is_success
+    assert "1D" in result.message
+
+
+@pytest.mark.asyncio
+async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
+    """原子个数/序号校验：dihedral 需要 4 个原子。"""
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_prepare",
+        "input_text": _WATER_XYZ,
+        "scans": [{
+            "coord_type": "dihedral",
+            "atoms": [1, 2, 3],
+            "scan_end": 180.0,
+            "scan_steps": 5,
+        }],
         "output_path": str(tmp_path / "x.gjf"),
     }), mock_session)
     assert not result.is_success
@@ -464,13 +544,14 @@ async def test_scan_prepare_atoms_validation(tmp_path, mock_session):
 
 @pytest.mark.asyncio
 async def test_scan_parse_h2_fixture(tmp_path, mock_session):
-    """h2_scan_g09.log：101 点剖面、势垒人工核对值、边界判定、TS 初猜几何提取。
+    """h2_scan_g09.log：101 点剖面、势垒人工核对值、边界判定、单调无峰不产 TS 初猜。
 
     人工核对（Summary of Optimized Potential Surface Scan 表，Eigenvalues 单位 Eh）：
     - 首点（帧 0，R=0.60 Å）：-1.15022
     - 最高点（帧 100，R=1.60 Å）：-1.04070
     - 势垒 = (-1.04070 - (-1.15022)) × 627.5095 = 0.10952 Eh × 627.5095 ≈ 68.72 kcal/mol
     能量从帧 15（R=0.75 Å，极小 -1.17060）之后单调上升至末端，最高点在扫描边界。
+    H2 均裂解离无鞍点：边界极大不是 TS 候选，工具必须拒绝产出 TS-guess。
     """
     tool = _make_tool()
     ts_path = tmp_path / "h2_ts_guess.xyz"
@@ -492,16 +573,17 @@ async def test_scan_parse_h2_fixture(tmp_path, mock_session):
     assert result.barrier_kcal == pytest.approx(expected, abs=1e-3)
 
     # 最高点在末帧 → 边界判定
-    assert result.ts_candidate_index == 100
     assert any("boundary" in v for v in result.verdicts)
 
-    # TS 初猜 xyz：2 个 H，键长 ≈ 1.60 Å（末帧扫描点几何）
-    assert ts_path.is_file()
-    assert result.ts_candidate_path == str(ts_path)
-    atoms = ase.io.read(str(ts_path), format="xyz")
-    assert len(atoms) == 2
-    assert atoms.get_chemical_symbols() == ["H", "H"]
-    assert atoms.get_distance(0, 1) == pytest.approx(1.60, abs=1e-3)
+    # H2 解离剖面单调无内部峰：端点最高不是 TS 候选 —— 不写 TS-guess 文件，
+    # 并给出明确告警（防止把解离扫描端点误当 TS 初猜提交 OptTS）。
+    assert result.ts_candidate_index is None
+    assert result.ts_candidate_path == ""
+    assert not ts_path.exists()
+    assert any("no internal energy peak" in v for v in result.verdicts)
+    assert "NOT a TS candidate" in result.message
+    # profile 表不标 TS guess
+    assert "TS guess" not in result.profile_table
 
 
 # ---------------------------------------------------------------------------
@@ -938,3 +1020,218 @@ def test_imag_mode_alignment_helper_uses_relative_displacement_ratio():
     )
     assert missing["status"] == "missing"
     assert missing["aligned"] is None
+
+
+# ---------------------------------------------------------------------------
+# mode=scan_parse（ORCA relaxed-scan sidecar：能量最高帧优先于末帧）
+# ---------------------------------------------------------------------------
+
+_ORCA_SCAN_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "orca" / "cope_relaxed_scan"
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_sidecar_picks_energy_max_frame(tmp_path, mock_session):
+    """ORCA relaxed scan：TS 候选几何 = relaxscanact.dat 能量最高帧（.out 缺失也可）。
+
+    把第 10 帧（1-based）能量改为全场最高（+300）→ 能量最高点落在帧 10，
+    TS-guess xyz 必须等于 ts_scan.010.xyz 的几何，而不是 rfind 末帧（帧 20）。
+    """
+    import shutil
+
+    shutil.copy(_ORCA_SCAN_FIXTURE / "ts_scan.relaxscanact.dat", tmp_path / "ts_scan.relaxscanact.dat")
+    for p in sorted(_ORCA_SCAN_FIXTURE.glob("ts_scan.[0-9][0-9][0-9].xyz")):
+        shutil.copy(p, tmp_path / p.name)
+
+    dat = tmp_path / "ts_scan.relaxscanact.dat"
+    lines = dat.read_text(encoding="utf-8").splitlines()
+    fields = lines[9].split()
+    fields[1] = "300.0"
+    lines[9] = "  ".join(fields)
+    dat.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(tmp_path / "ts_scan.out"),  # .out 不存在 → 走 sidecar
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.ts_candidate_index == 9
+    guess = Path(result.ts_candidate_path)
+    assert guess.exists()
+    assert "frame=9" in guess.read_text(encoding="utf-8").splitlines()[1]
+
+    expected = (tmp_path / "ts_scan.010.xyz").read_text(encoding="utf-8").splitlines()[2:]
+    actual = guess.read_text(encoding="utf-8").splitlines()[2:]
+    assert len(actual) == len(expected) == 16
+    for a_line, e_line in zip(actual, expected):
+        a = [float(v) for v in a_line.split()[1:]]
+        e = [float(v) for v in e_line.split()[1:]]
+        assert a == pytest.approx(e, abs=1e-6)
+    assert any("sidecar" in v for v in result.verdicts)
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_sidecar_monotonic_profile_max_at_last_frame(tmp_path, mock_session):
+    """不改能量：真实剖面沿扫描坐标单调升——无内部峰，不产出 TS-guess（端点帧不是候选）。"""
+    import shutil
+
+    shutil.copy(_ORCA_SCAN_FIXTURE / "ts_scan.relaxscanact.dat", tmp_path / "ts_scan.relaxscanact.dat")
+    for p in sorted(_ORCA_SCAN_FIXTURE.glob("ts_scan.[0-9][0-9][0-9].xyz")):
+        shutil.copy(p, tmp_path / p.name)
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(tmp_path / "ts_scan.out"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    # 单调剖面（无论升/降）无内部峰：不产出 TS-guess，端点帧不得当候选
+    assert result.ts_candidate_index is None
+    assert result.ts_candidate_path == ""
+    assert any("no internal energy peak" in v for v in result.verdicts)
+    assert "NOT a TS candidate" in result.message
+    assert "TS guess" not in result.profile_table
+
+
+# ---------------------------------------------------------------------------
+# mode=scan_parse（GH #23：ORCA 外部 MLIP ExtOpt 松弛扫描解析）
+# ---------------------------------------------------------------------------
+
+_EXTOPT_SCAN_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "orca" / "extopt_relaxed_scan"
+
+
+def _copy_extopt_log(tmp_path: Path, name: str = "extopt_scan.out") -> Path:
+    import shutil
+
+    dst = tmp_path / name
+    shutil.copy(_EXTOPT_SCAN_FIXTURE / "scan_extopt_snippet.out", dst)
+    return dst
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_extopt_text_parses_external_program_energies(tmp_path, mock_session):
+    """ExtOpt 日志的能量行带 "(From external program)" 后缀，文本路径必须能解析；
+    且 TS-guess 几何取能量最高帧（帧 3，0-based 2）的坐标块，不是 rfind 末帧。"""
+    log = _copy_extopt_log(tmp_path)
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(log),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    # 5 帧能量 [-100.500, -100.490, -100.470, -100.480, -100.495] Eh，内部峰在帧 2
+    assert result.ts_candidate_index == 2
+    assert result.barrier_kcal == pytest.approx(0.030 * KCAL_PER_HARTREE, abs=1e-3)
+    guess_lines = Path(result.ts_candidate_path).read_text(encoding="utf-8").splitlines()
+    assert "frame=2" in guess_lines[1]
+    # 帧 2 的最后一块（每帧 2 块，块索引 5）：C(2.1, 0, 0) / H(3.19, 0, 0) / N(0, 3.5, 0.1)
+    rows = [[float(v) for v in line.split()[1:]] for line in guess_lines[2:]]
+    assert rows[0] == pytest.approx([2.1, 0.0, 0.0], abs=1e-6)
+    assert rows[1] == pytest.approx([3.19, 0.0, 0.0], abs=1e-6)
+    assert rows[2] == pytest.approx([0.0, 3.5, 0.1], abs=1e-6)
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_sidecar_stem_derived_from_log_name(tmp_path, mock_session):
+    """harness 真实布局：日志在 .cloudra/calc-99.out.log（stem 与作业名不符），
+    sidecar 在工作目录；应从日志里的 NAME = <作业>.inp 记录推导真实 stem。"""
+    import shutil
+
+    workdir = tmp_path / "work"
+    logdir = workdir / ".cloudra"
+    logdir.mkdir(parents=True)
+    log = logdir / "calc-99.out.log"
+    log.write_text(
+        f"NAME = {workdir / 'ts2_scan.inp'}\n\n"
+        "FINAL SINGLE POINT ENERGY (From external program)      -383.038699298900\n",
+        encoding="utf-8",
+    )
+    shutil.copy(_ORCA_SCAN_FIXTURE / "ts_scan.relaxscanact.dat", workdir / "ts2_scan.relaxscanact.dat")
+    for p in sorted(_ORCA_SCAN_FIXTURE.glob("ts_scan.[0-9][0-9][0-9].xyz")):
+        shutil.copy(p, workdir / p.name.replace("ts_scan", "ts2_scan", 1))
+
+    # 第 10 帧改为全场最高 → 内部峰，验证确实走了 sidecar 路径
+    dat = workdir / "ts2_scan.relaxscanact.dat"
+    lines = dat.read_text(encoding="utf-8").splitlines()
+    fields = lines[9].split()
+    fields[1] = "300.0"
+    lines[9] = "  ".join(fields)
+    dat.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(log),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.ts_candidate_index == 9
+    assert any("sidecar" in v for v in result.verdicts)
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_sidecar_unique_glob_fallback(tmp_path, mock_session):
+    """日志无 NAME 记录且 stem 不匹配：日志目录/工作目录只有唯一 sidecar 时可定位。"""
+    import shutil
+
+    workdir = tmp_path / "work"
+    logdir = workdir / ".cloudra"
+    logdir.mkdir(parents=True)
+    log = logdir / "calc-99.out.log"
+    log.write_text("FINAL SINGLE POINT ENERGY (From external program)      -383.038699298900\n", encoding="utf-8")
+    shutil.copy(_ORCA_SCAN_FIXTURE / "ts_scan.relaxscanact.dat", workdir / "ts2_scan.relaxscanact.dat")
+    for p in sorted(_ORCA_SCAN_FIXTURE.glob("ts_scan.[0-9][0-9][0-9].xyz")):
+        shutil.copy(p, workdir / p.name.replace("ts_scan", "ts2_scan", 1))
+
+    dat = workdir / "ts2_scan.relaxscanact.dat"
+    lines = dat.read_text(encoding="utf-8").splitlines()
+    fields = lines[9].split()
+    fields[1] = "300.0"
+    lines[9] = "  ".join(fields)
+    dat.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(log),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.ts_candidate_index == 9
+    assert any("sidecar" in v for v in result.verdicts)
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_sidecar_ambiguous_glob_refuses_to_guess(tmp_path, mock_session):
+    """同目录出现多个 *.relaxscanact.dat 时拒绝猜测，回退 .out 文本解析。"""
+    import shutil
+
+    workdir = tmp_path / "work"
+    logdir = workdir / ".cloudra"
+    logdir.mkdir(parents=True)
+    log = logdir / "calc-99.out.log"
+    shutil.copy(_EXTOPT_SCAN_FIXTURE / "scan_extopt_snippet.out", log)
+    # 抹掉 NAME 行，迫使走 glob；两个 sidecar → 不得猜测
+    log.write_text(log.read_text(encoding="utf-8").replace("NAME = /work/ts2_scan.inp\n", ""), encoding="utf-8")
+    for stem in ("job_a", "job_b"):
+        shutil.copy(_ORCA_SCAN_FIXTURE / "ts_scan.relaxscanact.dat", workdir / f"{stem}.relaxscanact.dat")
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(log),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.ts_candidate_index == 2  # 文本路径按能量最高帧选帧
+    assert not any("sidecar used" in v for v in result.verdicts)

@@ -24,6 +24,7 @@ from cloudra.tools.Chemtool.internal_coordinates import (
     _angle_deg,
     _dihedral_deg,
 )
+from cloudra.tools.core import orca_frames
 
 KCAL_PER_HARTREE = 627.5095
 _STRICT_PAIR_DELTA_MIN_ANG = 0.15
@@ -37,9 +38,13 @@ description = (
     "Transition-state (TS) guess workflow: four sub-functions selected by mode. "
     "interpolate: linear or IDPP interpolation from reactant/product xyz to generate NEB candidate-path images "
     "(auto-align, optional atom_map reordering, distance-monitor table, and TS-candidate frame verdict); "
-    "scan_prepare: write a Gaussian/ORCA constrained-scan input (bond/angle/dihedral, modredundant or %geom Scan); "
+    "scan_prepare: write a Gaussian/ORCA constrained-scan input — one scan coordinate or two coupled ones "
+    "(bond/angle/dihedral, modredundant or %geom Scan); for MLIP/external potentials pass "
+    "method='ExtOpt' (ORCA, plus orca_blocks with the %method ProgExt block) or method='external' "
+    "(Gaussian, plus extra_route='external=\"mace\"'); "
     "scan_parse: parse a scan log into a relative-energy profile table, barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
-    "and extract the highest-energy geometry as a TS-guess xyz; "
+    "and extract the highest-energy geometry as a TS-guess xyz — for ORCA relaxed scans it reads "
+    "relaxscanact.dat + ts_scan.NNN.xyz frame files so the TS guess is the energy-maximum frame, not the last frame; "
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
     "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two optimized intermediates, "
     "and checks that each partial IRC endpoint lies between the TS and the matching intermediate, yielding a path-direction-consistency pass/fail/inconclusive. "
@@ -98,20 +103,29 @@ class TsGuess_input_schema(input_schema):
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute path, or relative to the agent process's current working directory.")
     input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
     engine: Literal["gaussian", "orca"] = Field(default="gaussian", description="Target QM program.")
-    coord_type: Literal["bond", "angle", "dihedral"] = Field(default="bond", description="Scanned coordinate type.")
-    atoms: list[int] = Field(
-        default_factory=list, description="Scanned-coordinate atom indices (1-based; 2/3/4 atoms for bond/angle/dihedral)."
+    scans: Optional[list[dict]] = Field(
+        default=None,
+        description=(
+            "scan_prepare: scan-coordinate list, one entry per scanned coordinate. "
+            "Each entry: {\"coord_type\": \"bond\"|\"angle\"|\"dihedral\", \"atoms\": [2|3|4 atom indices, 1-based], "
+            "\"scan_start\": optional start value (default the current geometry value), \"scan_end\": end value, "
+            "\"scan_steps\": step count}. A single entry drives a 1D scan; a second entry makes a 2D coupled scan "
+            "(Gaussian only — ORCA relaxed scans are 1D, so pass exactly one entry). "
+            "Scanning only one geometric coordinate is often not enough: TS search frequently needs a second, "
+            "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
+        )
     )
-    scan_start: Optional[float] = Field(default=None, description="Scan start value (Å or degrees). Default is the current geometry value.")
-    scan_end: float = Field(default=0.0, description="Scan end value (Å or degrees).")
-    scan_steps: int = Field(default=10, description="Number of scan steps.")
-    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'.")
+    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'. For an MLIP/external potential pass 'ExtOpt' (ORCA external engine; pair with orca_blocks carrying the %method ProgExt block) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
-    extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)').")
+    extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
     nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
     output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the input file (gjf/inp, required). Absolute path, or relative to the agent process's current working directory.")
     job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
+    orca_blocks: Optional[str] = Field(
+        default=None,
+        description="scan_prepare, ORCA only: raw % blocks appended after %pal/%geom, e.g. the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Ignored for engine='gaussian'.",
+    )
 
     # ---------- scan_parse ----------
     log_path: Optional[str] = Field(default=None, description="scan_parse: scan log file path. Absolute path, or relative to the agent process's current working directory.")
@@ -508,20 +522,26 @@ def _parse_std_orientation_blocks(text: str) -> list[list[tuple[int, float, floa
     return blocks
 
 
-_ORCA_SPE_RE = re.compile(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)")
+# 复用 orca_frames 的同一正则（容忍 "(From external program)" 后缀与 D 指数），
+# 避免两处对同一日志行的解析规则漂移（GH #23）。
+_ORCA_SPE_RE = orca_frames.FINAL_ENERGY_RE
 
 
-def _parse_orca_scan(text: str) -> tuple[list[float], list[tuple[str, float, float, float]]]:
-    """尽力而为解析 ORCA 扫描输出：各步单点能量（Eh）+ 末帧几何。"""
-    energies = [float(v) for v in _ORCA_SPE_RE.findall(text)]
+def _parse_orca_scan(text: str) -> tuple[list[float], list[list[tuple[str, float, float, float]]]]:
+    """尽力而为解析 ORCA 扫描输出：各步单点能量（Eh）+ 全部直角坐标块（按出现顺序）。
+
+    坐标块数通常多于扫描帧数（每帧优化含若干块）；由调用方按能量最高帧
+    在块序列上均分定位取帧（同 Gaussian 路径的 Standard orientation 启发式），
+    而不是无脑取 rfind 出来的末帧（GH #16）。
+    """
+    energies = [float(v.replace("D", "E").replace("d", "e")) for v in _ORCA_SPE_RE.findall(text)]
     if not energies:
         tail = text[-1500:]
         raise ValueError(f"Failed to parse scan energies from ORCA output ('FINAL SINGLE POINT ENERGY' not found).\nOutput tail:\n{tail}")
-    # 末帧几何：最后一个 "CARTESIAN COORDINATES (ANGSTROEM)" 块
-    geom: list[tuple[str, float, float, float]] = []
-    idx = text.rfind("CARTESIAN COORDINATES (ANGSTROEM)")
-    if idx >= 0:
-        for line in text[idx:].splitlines()[2:]:
+    blocks: list[list[tuple[str, float, float, float]]] = []
+    for m in re.finditer(r"CARTESIAN COORDINATES \(ANGSTROEM\)", text):
+        geom: list[tuple[str, float, float, float]] = []
+        for line in text[m.end():].splitlines()[2:]:
             parts = line.split()
             if len(parts) >= 4 and parts[0].isalpha():
                 try:
@@ -530,10 +550,107 @@ def _parse_orca_scan(text: str) -> tuple[list[float], list[tuple[str, float, flo
                 except ValueError:
                     pass
             break
-    if not geom:
+        if geom:
+            blocks.append(geom)
+    if not blocks:
         tail = text[-1500:]
-        raise ValueError(f"Failed to parse the final-frame geometry from ORCA output.\nOutput tail:\n{tail}")
-    return energies, geom
+        raise ValueError(f"Failed to parse Cartesian geometry blocks from ORCA output.\nOutput tail:\n{tail}")
+    return energies, blocks
+
+
+_ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
+
+
+def _find_orca_sidecar_dat(log_path: str, workdir: str) -> Optional[str]:
+    """stem 不匹配时定位 relaxscanact.dat，找不到或无法唯一确定返回 None。
+
+    优先从日志的输入回显（``NAME = <作业>.inp``）推导真实作业名——harness 的
+    日志名（如 .cloudra/calc-28.out.log）与 ORCA 作业名无关；其次在日志目录
+    与其父目录（计算工作目录）找唯一的 sidecar，多于一个时拒绝猜测（GH #23）。
+    """
+    try:
+        with open(log_path, encoding="utf-8", errors="replace") as f:
+            head = f.read(200_000)  # NAME 在日志开头的输入回显段
+    except OSError:
+        head = ""
+    m = _ORCA_NAME_RE.search(head)
+    if m:
+        candidate = os.path.splitext(m.group("path"))[0] + ".relaxscanact.dat"
+        if os.path.isfile(candidate):
+            return candidate
+    import glob
+
+    found = set(glob.glob(os.path.join(workdir, "*.relaxscanact.dat")))
+    found.update(glob.glob(os.path.join(os.path.dirname(workdir), "*.relaxscanact.dat")))
+    if len(found) == 1:
+        return found.pop()
+    return None
+
+
+def _parse_orca_relaxed_scan_sidecar(log_path: str) -> Optional[dict]:
+    """解析 ORCA relaxed scan 的 sidecar 产物（优先于 .out 文本）。
+
+    ORCA 沿作业名写 ``<job>.relaxscanact.dat``（每帧一行：扫描坐标值 + 总能量 Eh）
+    与逐帧几何 ``<job>.NNN.xyz``（NNN=帧号，1-based，与 dat 行号一一对应）。
+    返回 {"energies": [...], "frames": [(symbols, positions), ...]}，帧数必须与
+    dat 行数一致；任何缺失/不一致返回 None（调用方回退 .out 文本解析）。
+
+    能量最高帧（TS 候选）通常不是末帧；sidecar 让 scan_parse 能按能量最高帧
+    而不是 ``rfind`` 出来的末帧取几何。
+
+    sidecar 定位：先按日志名 stem 在日志同目录找；不匹配时经
+    ``_find_orca_sidecar_dat`` 从日志 NAME 记录/唯一 glob 推导（GH #23）。
+    """
+    import glob
+
+    import numpy as np
+
+    stem = os.path.splitext(os.path.basename(log_path))[0]
+    workdir = os.path.dirname(os.path.abspath(log_path))
+    dat_path = os.path.join(workdir, f"{stem}.relaxscanact.dat")
+    if not os.path.isfile(dat_path):
+        dat_path = _find_orca_sidecar_dat(log_path, workdir)
+        if dat_path is None:
+            return None
+        workdir = os.path.dirname(dat_path)
+        stem = os.path.basename(dat_path)[: -len(".relaxscanact.dat")]
+    try:
+        with open(dat_path, encoding="utf-8", errors="replace") as f:
+            energies = []
+            for line in f:
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                try:
+                    energies.append(float(parts[1]))
+                except ValueError:
+                    continue
+    except OSError:
+        return None
+    if not energies:
+        return None
+
+    frame_paths = sorted(
+        glob.glob(os.path.join(workdir, f"{stem}.[0-9][0-9][0-9].xyz")),
+    )
+    if len(frame_paths) != len(energies):
+        return None
+    # 帧号必须 1..N 连续（NNN 与 dat 行号一一对应）；glob 排序按文件名即号码序
+    for i, p in enumerate(frame_paths):
+        number = os.path.splitext(os.path.basename(p))[0].rsplit(".", 1)[-1]
+        if not number.isdigit() or int(number) != i + 1:
+            return None
+
+    try:
+        import ase.io
+
+        frames = []
+        for p in frame_paths:
+            atoms = ase.io.read(p, format="xyz")
+            frames.append((atoms.get_chemical_symbols(), np.asarray(atoms.get_positions(), dtype=float)))
+    except Exception:
+        return None
+    return {"energies": energies, "frames": frames}
 
 
 # ---------------------------------------------------------------------------
@@ -890,7 +1007,11 @@ class TsGuess(Tool):
             p_pos = new_pos
             p_syms = new_syms
         elif r_syms != p_syms:
-            raise ValueError("Reactant and product atom orders differ and no atom_map was provided; cannot pair atoms one-to-one")
+            raise ValueError(
+                "Reactant and product atom orders differ and no atom_map was provided; cannot pair atoms one-to-one. "
+                "Run reaction_mapping on the reactant/product SMILES first and pass its atom_map — "
+                "degenerate/rearrangement systems (reactant = product with permuted atom numbering) always need one."
+            )
 
         # Kabsch 对齐（各自去质心后旋转产物到反应物取向）
         r_centered = r_pos - r_pos.mean(axis=0)
@@ -976,36 +1097,71 @@ class TsGuess(Tool):
     def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
         import numpy as np
 
-        need = {"bond": 2, "angle": 3, "dihedral": 4}[user_input.coord_type]
-        if len(user_input.atoms) != need:
-            raise ValueError(f"coord_type={user_input.coord_type} requires {need} atom indices, got {len(user_input.atoms)}")
+        need = {"bond": 2, "angle": 3, "dihedral": 4}
+        if not user_input.scans:
+            raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
+        if user_input.engine == "orca" and len(user_input.scans) > 1:
+            raise ValueError(
+                "ORCA relaxed scans are 1D: pass exactly one scan entry. "
+                "For a coupled two-coordinate scan use engine='gaussian'."
+            )
         if not user_input.output_path:
             raise ValueError("scan_prepare requires output_path (the path to write the input file)")
-        if user_input.scan_steps < 1:
-            raise ValueError("scan_steps must be ≥ 1")
 
         atoms = _load_xyz(user_input.input_path, user_input.input_text)
         syms = atoms.get_chemical_symbols()
         pos = np.asarray(atoms.get_positions(), dtype=float)
         n = len(syms)
-        idx = [a - 1 for a in user_input.atoms]
-        for a in idx:
-            if not (0 <= a < n):
-                raise ValueError(f"Scanned atom indices out of range: {user_input.atoms} (system has {n} atoms)")
 
-        if user_input.coord_type == "bond":
-            current = float(np.linalg.norm(pos[idx[0]] - pos[idx[1]]))
-        elif user_input.coord_type == "angle":
-            current = _angle_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]])
-        else:
-            current = _dihedral_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]], pos[idx[3]])
+        def _coord_current(coord_type: str, idx: list[int]) -> float:
+            if coord_type == "bond":
+                return float(np.linalg.norm(pos[idx[0]] - pos[idx[1]]))
+            if coord_type == "angle":
+                return _angle_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]])
+            return _dihedral_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]], pos[idx[3]])
 
-        start = user_input.scan_start if user_input.scan_start is not None else current
-        end = user_input.scan_end
-        step_size = (end - start) / user_input.scan_steps
+        specs = []
+        for raw in user_input.scans:
+            coord_type = raw.get("coord_type") or "bond"
+            if coord_type not in need:
+                raise ValueError(f"coord_type must be one of bond/angle/dihedral, got: {coord_type}")
+            atoms_list = raw.get("atoms") or []
+            if len(atoms_list) != need[coord_type]:
+                raise ValueError(
+                    f"coord_type={coord_type} requires {need[coord_type]} atom indices, "
+                    f"got {len(atoms_list)} (in {raw})"
+                )
+            steps = int(raw.get("scan_steps") or 0)
+            if steps < 1:
+                raise ValueError(f"scan_steps must be ≥ 1 (in {raw})")
+            idx = [a - 1 for a in atoms_list]
+            for a in idx:
+                if not (0 <= a < n):
+                    raise ValueError(
+                        f"Scanned atom indices out of range: {atoms_list} (system has {n} atoms)"
+                    )
+            current = _coord_current(coord_type, idx)
+            start = raw.get("scan_start")
+            start = float(start) if start is not None else current
+            end = float(raw.get("scan_end") or 0.0)
+            specs.append({
+                "coord_type": coord_type,
+                "idx": idx,
+                "start": start,
+                "end": end,
+                "steps": steps,
+                "step_size": (end - start) / steps,
+            })
+
         method = user_input.method.strip()
         extra = user_input.extra_route.strip()
-        coord_letter = {"bond": "B", "angle": "A", "dihedral": "D"}[user_input.coord_type]
+        coord_letter = {"bond": "B", "angle": "A", "dihedral": "D"}
+        scan_labels = [
+            f"{coord_letter[spec['coord_type']]} {' '.join(str(a + 1) for a in spec['idx'])}"
+            f" from {spec['start']:.4f} to {spec['end']:.4f} "
+            f"({spec['steps']} steps, {spec['step_size']:+.6f})"
+            for spec in specs
+        ]
 
         if user_input.engine == "gaussian":
             route = f"# opt=(modredundant,maxstep=10) {method}"
@@ -1014,7 +1170,11 @@ class TsGuess(Tool):
             coord_lines = "\n".join(
                 f"{s:<4} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
             )
-            scan_block = f"{coord_letter} {' '.join(str(a) for a in user_input.atoms)} S {user_input.scan_steps} {step_size:.6f}"
+            scan_block = "\n".join(
+                f"{coord_letter[spec['coord_type']]} {' '.join(str(a + 1) for a in spec['idx'])} "
+                f"S {spec['steps']} {spec['step_size']:.6f}"
+                for spec in specs
+            )
             content = "\n".join([
                 f"%nprocshared={user_input.nprocs}",
                 f"%chk={user_input.job_name}.chk",
@@ -1029,29 +1189,33 @@ class TsGuess(Tool):
                 "",
                 "",
             ])
+            dim = "2D coupled" if len(specs) > 1 else "1D"
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='gaussian'); "
-                "afterwards parse the log with ts_guess mode='scan_parse' and extract a TS guess."
+                f"afterwards parse the log with ts_guess mode='scan_parse' and extract a TS guess. "
+                f"This is a {dim} scan over {len(specs)} coordinate(s) — cost grows with every additional "
+                "scanned coordinate."
             )
         else:
             orca_method = method.replace("/", " ")
             header = f"! OPT {orca_method}"
             if extra:
                 header += f" {extra}"
-            idx0 = [a - 1 for a in user_input.atoms]  # ORCA 原子序号 0-based
-            xyz_lines = "\n".join(f"{s:<3} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos))
-            content = "\n".join([
-                header,
-                f"%pal nprocs {user_input.nprocs} end",
-                "%geom",
-                f"    Scan {coord_letter} {' '.join(str(a) for a in idx0)} = {start:.6f}, {end:.6f}, {user_input.scan_steps} end",
-                "end",
-                "",
-                f"* xyz {user_input.charge} {user_input.spin}",
-                xyz_lines,
-                "*",
-                "",
-            ])
+            spec = specs[0]
+            idx0 = [a for a in spec["idx"]]  # ORCA 原子序号 0-based
+            xyz_lines = "\n".join(
+                f"{s:<3} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}" for s, p in zip(syms, pos)
+            )
+            blocks = [header, f"%pal nprocs {user_input.nprocs} end", "%geom"]
+            blocks.append(
+                f"    Scan {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in idx0)} "
+                f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']} end"
+            )
+            blocks.append("end")
+            if user_input.orca_blocks:
+                blocks.append(user_input.orca_blocks.strip())
+            blocks.extend(["", f"* xyz {user_input.charge} {user_input.spin}", xyz_lines, "*", ""])
+            content = "\n".join(blocks)
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='orca'); "
                 "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' and extract a TS guess."
@@ -1067,11 +1231,10 @@ class TsGuess(Tool):
             run_hint=run_hint,
             message=(
                 f"{user_input.engine} constrained-scan input written to {user_input.output_path}: "
-                f"{coord_letter} {'-'.join(str(a) for a in user_input.atoms)} scanned from {start:.4f} to {end:.4f} "
-                f"in {user_input.scan_steps} steps (step size {step_size:+.6f}). "
-                "If you hand-edit the input: keep one blank line between the coordinate block and the "
-                "ModRedundant B/A/D lines, and do NOT add a second S line — two S lines are a 2D grid "
-                "scan (N×M points), not a 1D diagonal scan."
+                + "; ".join(scan_labels)
+                + ". If you hand-edit the input: for Gaussian keep one blank line between the coordinate "
+                "block and the ModRedundant B/A/D lines; each scanned coordinate takes exactly one S line "
+                "(two S lines in the same job = a 2D grid scan, N×M points, not a 1D diagonal scan)."
             ),
         )
 
@@ -1082,16 +1245,19 @@ class TsGuess(Tool):
 
         if not user_input.log_path:
             raise ValueError("scan_parse requires log_path")
-        if not os.path.isfile(user_input.log_path):
-            raise ValueError(f"Log file does not exist: {user_input.log_path}")
-        with open(user_input.log_path, encoding="utf-8", errors="replace") as f:
-            text = f.read()
+        log_exists = os.path.isfile(user_input.log_path)
+        text = None
+        if log_exists:
+            with open(user_input.log_path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
 
         symbols: Optional[list[str]] = None
         ts_coords = None
         notes: list[str] = []
 
         if user_input.engine == "gaussian":
+            if text is None:
+                raise ValueError(f"Gaussian scan parsing requires the scan log file: {user_input.log_path}")
             energies_eh = _parse_gaussian_scan_summary(text)
             n_pts = len(energies_eh)
             e0 = energies_eh[0]
@@ -1134,45 +1300,110 @@ class TsGuess(Tool):
                 symbols = [pt.element[int(z)] for z, *_ in rows]
                 ts_coords = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
         else:
-            energies_eh, geom = _parse_orca_scan(text)
-            e0 = energies_eh[0]
-            rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
-            profile = analyze_scan_profile(rel_kcal)
-            ts_index = profile["ts_index"]
-            symbols = [g[0] for g in geom]
-            ts_coords = np.asarray([[g[1], g[2], g[3]] for g in geom], dtype=float)
-            notes.append("ORCA scan parsing is best-effort: the geometry is the last Cartesian block of the file (final frame); "
-                         "if the energy maximum is not the final frame, pick the frame manually from the profile table.")
+            # ORCA relaxed scan：sidecar（relaxscanact.dat 逐帧能量 + ts_scan.NNN.xyz
+            # 逐帧几何）优先——能量最高帧往往不是末帧，.out 的 rfind 末帧会选错
+            # TS 候选；.out 文本仅作无 sidecar 时的回退。
+            sidecar = _parse_orca_relaxed_scan_sidecar(user_input.log_path)
+            if sidecar is not None:
+                energies_eh = sidecar["energies"]
+                e0 = energies_eh[0]
+                rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
+                profile = analyze_scan_profile(rel_kcal)
+                ts_index = profile["ts_index"]
+                frame_symbols, ts_coords = sidecar["frames"][ts_index]
+                symbols = frame_symbols
+                notes.append(
+                    "ORCA relaxed-scan sidecar used (relaxscanact.dat + per-frame xyz): "
+                    f"TS-guess geometry is the energy-maximum frame {ts_index} (1-based {ts_index + 1}), not the last frame."
+                )
+            elif text is not None:
+                energies_eh, blocks = _parse_orca_scan(text)
+                e0 = energies_eh[0]
+                rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
+                profile = analyze_scan_profile(rel_kcal)
+                ts_index = profile["ts_index"]
+                # 能量最高帧（TS 候选）通常不是末帧：坐标块按帧均分，取该帧最后一块
+                # （同 Gaussian 路径的 Standard orientation 启发式；GH #16）
+                if len(blocks) >= len(rel_kcal):
+                    per = len(blocks) / len(rel_kcal)
+                    block_idx = min(int(round((ts_index + 1) * per)) - 1, len(blocks) - 1)
+                else:
+                    block_idx = len(blocks) - 1
+                    notes.append("Fewer Cartesian blocks than scan points; taking the last block of the file as an approximation.")
+                geom = blocks[block_idx]
+                symbols = [g[0] for g in geom]
+                ts_coords = np.asarray([[g[1], g[2], g[3]] for g in geom], dtype=float)
+                notes.append("ORCA scan text parsing is best-effort: the TS-guess geometry is the last Cartesian block "
+                             "within the energy-maximum frame's share of the file's coordinate blocks (frames are assumed "
+                             "to contribute equal block counts); prefer the relaxscanact.dat sidecar "
+                             "(<job>.relaxscanact.dat + <job>.NNN.xyz) for exact per-frame geometries.")
+            else:
+                raise ValueError(
+                    f"Cannot parse the ORCA scan: {user_input.log_path} does not exist and no "
+                    "relaxscanact.dat sidecar was found next to it. ORCA relaxed scans write "
+                    "<job>.relaxscanact.dat and <job>.NNN.xyz — point log_path at the job name "
+                    "(e.g. .../ts_scan.out even if the .out file is absent) to use them."
+                )
+
+        # 内部峰判定：TS 候选只在存在内部能量极大（0 < i < n-1）时成立。
+        # 单调（升或降）或极值落在扫描边界的剖面没有鞍点证据——端点"最高"
+        # 只是扫描范围/坐标选择的假象，升/降在这里语义完全同构：都不产出
+        # TS-guess，防止把解离/无垒扫描的端点帧误当 TS 初猜去提交 OptTS。
+        has_internal_peak = 0 < ts_index < len(rel_kcal) - 1
 
         # 剖面文本表
         lines = [f"{'frame':>4}  {'rel. energy (kcal/mol)':>18}"]
         for k, e in enumerate(rel_kcal):
-            marker = "  <- highest (TS guess)" if k == ts_index else ""
+            marker = "  <- internal peak (TS guess)" if has_internal_peak and k == ts_index else ""
             lines.append(f"{k:>4}  {e:>18.4f}{marker}")
         profile_table = "\n".join(lines)
 
-        ts_path = user_input.ts_candidate_path or os.path.splitext(user_input.log_path)[0] + "_ts_guess.xyz"
-        out_dir = os.path.dirname(os.path.abspath(ts_path))
-        os.makedirs(out_dir, exist_ok=True)
-        atomic_write_text(ts_path, _atoms_to_xyz_block(
-            symbols, ts_coords,
-            comment=f"ts_guess scan_parse TS candidate frame={ts_index} from {os.path.basename(user_input.log_path)}",
-        ))
-
         verdicts = list(profile["verdicts"]) + notes
+        if not has_internal_peak:
+            verdicts.append(
+                "The scan has no internal energy peak (the maximum sits on a scan endpoint or the "
+                "profile is monotonic): an endpoint maximum is NOT a TS candidate — do not submit a TS "
+                "optimization from it. Re-choose the reaction coordinate, extend/refine the scan, or use a "
+                "two-coordinate coupled scan (scan_prepare with two scan entries, Gaussian) to locate a barrier."
+            )
+
+        ts_path = ""
+        ts_candidate_index = None
+        if has_internal_peak:
+            ts_candidate_index = ts_index
+            ts_path = (
+                user_input.ts_candidate_path
+                or os.path.splitext(user_input.log_path)[0] + "_ts_guess.xyz"
+            )
+            out_dir = os.path.dirname(os.path.abspath(ts_path))
+            os.makedirs(out_dir, exist_ok=True)
+            atomic_write_text(ts_path, _atoms_to_xyz_block(
+                symbols, ts_coords,
+                comment=f"ts_guess scan_parse TS candidate frame={ts_index} from {os.path.basename(user_input.log_path)}",
+            ))
+
+        if has_internal_peak:
+            message = (
+                f"Scan parsing complete: {len(rel_kcal)} points, barrier (highest point − first point) {profile['barrier_kcal']:.2f} kcal/mol, "
+                f"internal energy maximum at frame {ts_index}; TS-guess geometry written to {ts_path}. "
+                "Recommended next step: submit a TS optimization with opt=(ts,calcfc,noeigentest) plus a frequency calculation from this geometry, "
+                "then verify with ts_guess mode='verify'."
+            )
+        else:
+            message = (
+                f"Scan parsing complete: {len(rel_kcal)} points; NO internal energy peak found — the "
+                "highest point sits on a scan endpoint (an endpoint maximum is NOT a TS candidate; do "
+                "not submit a TS optimization from it), so no TS-guess geometry was written. Choose a "
+                "different/extra scan coordinate before hunting a TS."
+            )
         return TsGuess_output_schema(
             is_success=True,
             profile_table=profile_table,
             verdicts=verdicts,
             barrier_kcal=round(profile["barrier_kcal"], 4),
-            ts_candidate_index=ts_index,
+            ts_candidate_index=ts_candidate_index,
             ts_candidate_path=ts_path,
-            message=(
-                f"Scan parsing complete: {len(rel_kcal)} points, barrier (highest point − first point) {profile['barrier_kcal']:.2f} kcal/mol, "
-                f"highest point at frame {ts_index}; TS-guess geometry written to {ts_path}. "
-                "Recommended next step: submit a TS optimization with opt=(ts,calcfc,noeigentest) plus a frequency calculation from this geometry, "
-                "then verify with ts_guess mode='verify'."
-            ),
+            message=message,
         )
 
     # ---------- mode=verify ----------
