@@ -232,3 +232,52 @@ async def test_dag_message_supervisor_structured_request_allows_follower_evidenc
     )
     assert sv_out.is_success and sv_out.accepted
     assert DagStore(db).get_review_request(request_id).state == "resolved"
+
+
+def test_claim_review_and_stale_claim_rejected(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    store = _store(tmp_path, "claim-reviews")
+    request_id = store.enqueue_review(_req())
+    claimed = store.claim_review("worker-a", lease_seconds=60)
+    assert claimed is not None
+    assert claimed.request.request_id == request_id
+    assert claimed.claim_token == 1
+    assert claimed.expires_at > datetime.now(timezone.utc).isoformat()
+
+    # A second claim is blocked while the lease is active.
+    assert store.claim_review("worker-b", lease_seconds=60) is None
+
+    # Resolving with the wrong token is rejected.
+    decision = ReviewDecision(
+        request_id=request_id,
+        basis_fingerprint="basis-v1",
+        verdict="accept",
+        reason="wrong worker",
+    )
+    out = store.resolve_review(decision, expected_basis="basis-v1", claim_token=99)
+    assert out["accepted"] is False
+    assert out["rejection_code"] == "stale_claim"
+
+    # Correct token resolves and queues a notification.
+    out = store.resolve_review(decision, expected_basis="basis-v1", claim_token=1)
+    assert out["accepted"] is True
+    assert len(store.pending_review_notifications()) == 1
+    store.mark_review_notification_sent(out["decision_id"])
+    assert store.pending_review_notifications() == []
+
+
+def test_claim_review_expired_lease_can_be_reclaimed(tmp_path):
+    store = _store(tmp_path, "claim-expired")
+    request_id = store.enqueue_review(_req())
+    claimed = store.claim_review("worker-old", lease_seconds=-1) if False else None
+    # Manually force an expired lease.
+    with store.db.connect() as con:
+        con.execute(
+            "UPDATE dag_review_requests SET owner='worker-old', "
+            "lease_expires_at='2000-01-01T00:00:00+00:00' WHERE request_id=?",
+            (request_id,),
+        )
+    new_claim = store.claim_review("worker-new", lease_seconds=60)
+    assert new_claim is not None
+    assert new_claim.claim_token == 1

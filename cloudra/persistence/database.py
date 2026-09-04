@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 _T = TypeVar("_T")
 
 _warned_sync_sites: set[str] = set()
@@ -192,6 +192,7 @@ class ConversationDB:
             cur.execute(_CREATE_DAG_DRAFTS)
             cur.execute(_CREATE_DAG_REVIEW_REQUESTS)
             cur.execute(_CREATE_DAG_REVIEW_DECISIONS)
+            cur.execute(_CREATE_DAG_REVIEW_NOTIFICATIONS)
             cur.execute(_CREATE_ARTIFACTS_INDEX)
             cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             self._migrate_session_schema(cur)
@@ -286,6 +287,7 @@ class ConversationDB:
             await cur.execute(_CREATE_DAG_DRAFTS)
             await cur.execute(_CREATE_DAG_REVIEW_REQUESTS)
             await cur.execute(_CREATE_DAG_REVIEW_DECISIONS)
+            await cur.execute(_CREATE_DAG_REVIEW_NOTIFICATIONS)
             await cur.execute(_CREATE_ARTIFACTS_INDEX)
             await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
             await self._amigrate_session_schema(cur)
@@ -670,6 +672,12 @@ _RELATED_EXTRA_COLUMNS = {
     "dag_drafts": {
         "claim_spec": "TEXT NOT NULL DEFAULT ''",
     },
+    # 结构化审查 worker 的租约与并发令牌（Task 7）：claim_review 独占更新。
+    "dag_review_requests": {
+        "owner": "TEXT",
+        "claim_token": "INTEGER NOT NULL DEFAULT 0",
+        "lease_expires_at": "TEXT",
+    },
 }
 
 # compute_jobs 只住在中央库（ComputeDB，data_dir/compute.db）；会话库不再建此表。
@@ -1007,6 +1015,19 @@ _CREATE_DAG_REVIEW_DECISIONS = """
         findings TEXT NOT NULL DEFAULT '[]',
         next_action TEXT,
         claim_token INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )
+"""
+
+# 审查裁决通知（Task 7）：decision_id 幂等，恢复后补投不重复影响流程。
+_CREATE_DAG_REVIEW_NOTIFICATIONS = """
+    CREATE TABLE IF NOT EXISTS dag_review_notifications(
+        notification_id TEXT PRIMARY KEY,
+        decision_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        recipient_session_id TEXT NOT NULL DEFAULT '',
+        state TEXT NOT NULL DEFAULT 'pending'
+            CHECK(state IN ('pending', 'sent')),
         created_at TEXT NOT NULL
     )
 """

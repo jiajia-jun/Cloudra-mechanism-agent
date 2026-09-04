@@ -652,6 +652,91 @@ class DagStore:
             rows = con.execute(query, params).fetchall()
         return [self._review_request_from_row(row) for row in rows]
 
+    def claim_review(
+        self,
+        owner: str,
+        *,
+        lease_seconds: int,
+    ):
+        """Atomically claim one queued review for a project-local worker.
+
+        Only requests without an active lease are claimable.  The lease is
+        encoded as ``owner`` + ``lease_expires_at``; the token is incremented
+        on each claim so a stale worker cannot resolve a request after losing
+        its lease.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from cloudra.dag.review_requests import ClaimedReview
+
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
+
+        def operation():
+            with self.db.connect() as con:
+                now = datetime.now(timezone.utc).isoformat()
+                expires = (
+                    datetime.now(timezone.utc) + timedelta(seconds=lease_seconds)
+                ).isoformat()
+                row = con.execute(
+                    f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests "
+                    "WHERE state='queued' AND (owner IS NULL OR lease_expires_at IS NULL "
+                    "OR lease_expires_at < ?) ORDER BY created_at, rowid LIMIT 1",
+                    (now,),
+                ).fetchone()
+                if row is None:
+                    return None
+                request = self._review_request_from_row(row)
+                token = (con.execute(
+                    "SELECT claim_token FROM dag_review_requests WHERE request_id = ?",
+                    (request.request_id,),
+                ).fetchone()[0] or 0) + 1
+                con.execute(
+                    "UPDATE dag_review_requests SET owner=?, claim_token=?, "
+                    "lease_expires_at=? WHERE request_id=? AND state='queued'",
+                    (owner, token, expires, request.request_id),
+                )
+                return ClaimedReview(
+                    request=request,
+                    owner=owner,
+                    claim_token=token,
+                    expires_at=expires,
+                )
+
+        return retry_on_locked(operation)
+
+    def pending_review_notifications(self) -> list[dict[str, Any]]:
+        """Pending decision notifications (decision_id idempotent)."""
+        with self.db.connect() as con:
+            rows = con.execute(
+                "SELECT notification_id, decision_id, request_id, "
+                "recipient_session_id, state, created_at "
+                "FROM dag_review_notifications WHERE state = 'pending' "
+                "ORDER BY created_at, rowid"
+            ).fetchall()
+        return [
+            {
+                "notification_id": row[0],
+                "decision_id": row[1],
+                "request_id": row[2],
+                "recipient_session_id": row[3],
+                "state": row[4],
+                "created_at": row[5],
+            }
+            for row in rows
+        ]
+
+    def mark_review_notification_sent(self, decision_id: str) -> None:
+        def operation() -> None:
+            with self.db.connect() as con:
+                con.execute(
+                    "UPDATE dag_review_notifications SET state='sent' "
+                    "WHERE decision_id = ?",
+                    (decision_id,),
+                )
+
+        retry_on_locked(operation)
+
     def resolve_review(
         self,
         decision,
@@ -695,6 +780,23 @@ class DagStore:
                         "rejection_reason": (
                             "the decision basis no longer matches the request; "
                             "a related target/evidence changed after the request was created"
+                        ),
+                        "request_id": decision.request_id,
+                    }
+                claim_row = con.execute(
+                    "SELECT owner, claim_token, lease_expires_at FROM dag_review_requests "
+                    "WHERE request_id = ?",
+                    (decision.request_id,),
+                ).fetchone()
+                stored_owner = claim_row[0] if claim_row else None
+                stored_token = int(claim_row[1] or 0) if claim_row else 0
+                if stored_owner is not None and claim_token != stored_token:
+                    return {
+                        "accepted": False,
+                        "rejection_code": "stale_claim",
+                        "rejection_reason": (
+                            "the request is leased to a different claim_token; "
+                            "the resolving worker no longer owns this request"
                         ),
                         "request_id": decision.request_id,
                     }
@@ -759,6 +861,17 @@ class DagStore:
                     "UPDATE dag_review_requests SET state='resolved', updated_at=datetime('now') "
                     "WHERE request_id = ?",
                     (decision.request_id,),
+                )
+                con.execute(
+                    "INSERT INTO dag_review_notifications("
+                    "notification_id, decision_id, request_id, recipient_session_id, "
+                    "state, created_at) VALUES (?, ?, ?, ?, 'pending', datetime('now'))",
+                    (
+                        "notif_" + uuid.uuid4().hex,
+                        decision.decision_id,
+                        decision.request_id,
+                        request.requester,
+                    ),
                 )
                 return {
                     "accepted": True,
