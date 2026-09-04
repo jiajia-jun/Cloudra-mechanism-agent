@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 
 from cloudra.dag.models import (
     ELEMENTARY_STEP_STAGE_KINDS,
     OCCURRENCE_STAGE_KINDS,
     AddEdge,
     AddNode,
+    ClaimSpec,
     GraphActor,
     GraphKind,
     GraphOperation,
@@ -25,6 +26,43 @@ from cloudra.dag.models import (
     UpdateNode,
     parse_graph_operation,
 )
+
+
+def _contract_targets(spec: ClaimSpec) -> set[str]:
+    """契约声明的目标集合（scope.targets 优先，reference.targets 兼容）。"""
+    for container in (spec.scope, spec.reference):
+        targets = container.get("targets")
+        if targets:
+            return {str(item) for item in targets}
+    return set()
+
+
+def classify_contract_change(
+    old: ClaimSpec | None, new: ClaimSpec
+) -> Literal["compatible", "scope_change"]:
+    """已接受契约 → 新提案的变更分类。
+
+    scope_change（必须重新审批，未批准不改变当前范围）：
+    - kind 变化（回答的科学问题变了，如电子能垒改成结构展示）；
+    - 删除任何 required_checks（降低要求）；
+    - 移除已声明目标（targets 收缩）；
+    - 已声明 quantity/unit 被改写（所回答的量变了）。
+    compatible：新增检查、补充 optional、显示标签修正等不缩小科学范围的
+    变更。旧契约不存在（首次）一律 compatible。
+    """
+    if old is None:
+        return "compatible"
+    if new.kind != old.kind:
+        return "scope_change"
+    if old.required_checks - new.required_checks:
+        return "scope_change"
+    if _contract_targets(old) - _contract_targets(new):
+        return "scope_change"
+    if old.quantity and new.quantity != old.quantity:
+        return "scope_change"
+    if old.unit is not None and new.unit != old.unit:
+        return "scope_change"
+    return "compatible"
 
 
 class DraftsMixin:
@@ -170,9 +208,17 @@ class DraftsMixin:
         stage_contracts: dict[str, list[str]],
         rationale: str,
         actor_id: str,
+        claim_spec: dict[str, Any] | None = None,
+        contract_version: int = 1,
     ) -> dict[str, Any]:
         """Coordinator 的机理草稿（D1）：guided 落 open 草稿等 Supervisor
-        接受；record 由 harness 立即自动接受（actor="harness:auto"）。"""
+        接受；record 由 harness 立即自动接受（actor="harness:auto"）。
+
+        contract_version=2 时草稿按请求量携带 ClaimSpec（检查词受版本化
+        词表校验）；已接受契约存在时的降级/kind 变更/移除目标属于
+        scope_change——record 模式也不自动接受，落 open 草稿待审批，
+        未经同意不改变当前范围。method policy 只从项目设置读取，草稿
+        不另设方法判据来源。"""
         if not self.enabled:
             raise RuntimeError(
                 "propose_mechanism is disabled in standard orchestration mode"
@@ -181,6 +227,29 @@ class DraftsMixin:
             raise RuntimeError("a mechanism proposal requires a non-empty rationale")
         await self.initialize()
         draft = self._validate_draft(operations, stage_contracts, rationale)
+        if claim_spec is not None:
+            spec = ClaimSpec.model_validate(claim_spec)
+            draft = draft.model_copy(
+                update={"claim_spec": spec, "contract_version": 2}
+            )
+            contract_version = 2
+        if contract_version >= 2 and draft.claim_spec is not None:
+            accepted_spec = await asyncio.to_thread(self.store.accepted_claim_spec)
+            if (
+                classify_contract_change(accepted_spec, draft.claim_spec)
+                == "scope_change"
+            ):
+                # 范围变更：两种模式都先产生待审批版本，当前范围不变。
+                draft_id = await asyncio.to_thread(
+                    self.store.save_draft, draft, actor_id=actor_id
+                )
+                return {
+                    "draft_id": draft_id,
+                    "state": "open",
+                    "accepted": False,
+                    "pending_approval": True,
+                    "scope_change": True,
+                }
         if self.mode is OrchestrationMode.DAG_RECORD:
             mutation = await asyncio.to_thread(
                 self._apply_draft, draft, "harness:auto"

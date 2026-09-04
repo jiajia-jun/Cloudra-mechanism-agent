@@ -75,6 +75,14 @@ def evidence_deriver_for(tool_name: str) -> EvidenceDeriver | None:
     return _load(reg.evidence_deriver)
 
 
+def fact_adapter_for(tool_name: str) -> Callable | None:
+    """Declared EvidenceFact adapter for a tool (contract_version=2)."""
+    reg = _named().get(tool_name)
+    if reg is None or not reg.dag_fact_adapter:
+        return None
+    return _load(reg.dag_fact_adapter)
+
+
 SUPERVISOR_ACCESS_LEVELS = frozenset(
     {"none", "evidence_read", "skill_read", "hub", "review_decision"}
 )

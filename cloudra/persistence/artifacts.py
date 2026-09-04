@@ -50,6 +50,7 @@ class Artifact:
     size: int
     sha256: str
     storage_path: str
+    source_path: str
     created_at: str
 
     def to_dict(self) -> dict:
@@ -61,6 +62,7 @@ class Artifact:
             "mime_type": self.mime_type,
             "size": self.size,
             "sha256": self.sha256,
+            "source_path": self.source_path,
             "created_at": self.created_at,
         }
 
@@ -82,7 +84,8 @@ class ArtifactService:
             size=int(row[4]),
             sha256=row[5],
             storage_path=row[6],
-            created_at=row[7],
+            source_path=row[7],
+            created_at=row[8],
         )
 
     def register_file(
@@ -144,8 +147,8 @@ class ArtifactService:
                 con.execute(
                     """INSERT INTO artifacts
                     (artifact_id, session_id, name, mime_type, size, sha256,
-                     storage_path, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                     storage_path, source_path, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         artifact_id,
                         session_id,
@@ -154,6 +157,7 @@ class ArtifactService:
                         size,
                         sha256,
                         storage_path,
+                        str(resolved),
                         created_at,
                     ),
                 )
@@ -169,6 +173,7 @@ class ArtifactService:
             size=size,
             sha256=sha256,
             storage_path=storage_path,
+            source_path=str(resolved),
             created_at=created_at,
         )
         session_store.insert_session_event(
@@ -188,13 +193,80 @@ class ArtifactService:
             with db.connect() as con:
                 return con.execute(
                     """SELECT artifact_id, session_id, name, mime_type, size,
-                    sha256, storage_path, created_at FROM artifacts
+                    sha256, storage_path, source_path, created_at FROM artifacts
                     WHERE artifact_id=?""",
                     (artifact_id,),
                 ).fetchone()
 
         row = retry_on_locked(read)
         return self._from_row(conversation_id, row) if row else None
+
+    def find_by_source(
+        self,
+        conversation_id: str,
+        source_path: str,
+        sha256: str,
+    ) -> Artifact | None:
+        """按（来源路径, 内容 hash）查找已登记快照；用于重复解析复用。
+
+        同名文件被覆盖后 hash 变化 ⇒ 查不到 ⇒ 新 artifact（独立作业
+        attempt 绝不合并）；同一文件重复收集 ⇒ 命中复用，不重复拷贝。
+        """
+        db = ConversationDB(conversation_id)
+        if not Path(db.path).is_file():
+            return None
+        db.migrate_if_needed()
+
+        def read():
+            with db.connect() as con:
+                return con.execute(
+                    """SELECT artifact_id, session_id, name, mime_type, size,
+                    sha256, storage_path, source_path, created_at FROM artifacts
+                    WHERE source_path=? AND sha256=?
+                    ORDER BY created_at DESC LIMIT 1""",
+                    (source_path, sha256),
+                ).fetchone()
+
+        row = retry_on_locked(read)
+        return self._from_row(conversation_id, row) if row else None
+
+    def snapshot_file(
+        self,
+        *,
+        conversation_id: str,
+        session_id: str,
+        source: Path,
+        allowed_root: Path,
+        name: str | None = None,
+    ) -> tuple[Artifact, bool]:
+        """登记一个不可变快照；返回 (artifact, created)。
+
+        与 register_file 相同的边界检查；登记前先按（来源路径, hash）
+        复用已有 artifact（created=False 时不产生新拷贝）。
+        """
+        root = Path(allowed_root).expanduser().resolve(strict=True)
+        source_path = Path(source)
+        if source_path.is_symlink():
+            raise ArtifactDownloadDenied("不允许把符号链接登记为 artifact")
+        resolved = source_path.expanduser().resolve(strict=True)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise ArtifactDownloadDenied("Artifact 来源越过工作区边界") from exc
+        if not resolved.is_file():
+            raise ArtifactDownloadDenied("Artifact 来源不是普通文件")
+        digest = _sha256_file(resolved)
+        existing = self.find_by_source(conversation_id, str(resolved), digest)
+        if existing is not None:
+            return existing, False
+        artifact = self.register_file(
+            conversation_id=conversation_id,
+            session_id=session_id,
+            source=resolved,
+            allowed_root=root,
+            name=name,
+        )
+        return artifact, True
 
     def list(
         self,
@@ -212,12 +284,12 @@ class ArtifactService:
                 if session_id is None:
                     return con.execute(
                         """SELECT artifact_id, session_id, name, mime_type,
-                        size, sha256, storage_path, created_at FROM artifacts
+                        size, sha256, storage_path, source_path, created_at FROM artifacts
                         ORDER BY created_at DESC"""
                     ).fetchall()
                 return con.execute(
                     """SELECT artifact_id, session_id, name, mime_type,
-                    size, sha256, storage_path, created_at FROM artifacts
+                    size, sha256, storage_path, source_path, created_at FROM artifacts
                     WHERE session_id=? ORDER BY created_at DESC""",
                     (session_id,),
                 ).fetchall()

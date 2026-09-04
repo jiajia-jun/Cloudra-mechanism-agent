@@ -6,7 +6,15 @@ import hashlib
 from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, computed_field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 
 class OrchestrationMode(str, Enum):
@@ -118,12 +126,72 @@ class StageState(BaseModel):
     ref: GraphRef | None = None
 
 
+# 版本化检查词表（contract_version=2）：EvidenceFact.check 与
+# ClaimSpec.required_checks/optional_checks 只接受这里的词；不允许 Agent
+# 自造检查项。词表变更即版本变更。
+CHECK_VOCABULARY_VERSION = 1
+CHECK_VOCABULARY = frozenset({
+    "stationary_point",
+    "curvature",
+    "mode_relevance",
+    "path",
+    "identity",
+    "mapping",
+    "energy",
+    "thermochemistry",
+    "method_applicability",
+})
+
+
+class ClaimKind(str, Enum):
+    """任务要回答的科学问题类型（与实际作业类型正交）。"""
+
+    MECHANISM = "mechanism"
+    ELECTRONIC_BARRIER = "electronic_barrier"
+    FREE_ENERGY_BARRIER = "free_energy_barrier"
+    SELECTIVITY = "selectivity"
+    PROPERTY = "property"
+
+
+class ClaimSpec(BaseModel):
+    """交付契约：任务需要证明什么（contract_version=2）。
+
+    required_checks 是结论成立所需的证据条件集合；optional_checks 是可解释
+    的加分项。降低要求/改 kind/移除目标属于范围变更，必须重新审批
+    （见 drafts.classify_contract_change）。检查词受 CHECK_VOCABULARY 约束。
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: ClaimKind
+    quantity: str = ""
+    unit: str | None = None
+    reference: dict = Field(default_factory=dict)
+    scope: dict = Field(default_factory=dict)
+    required_checks: set[str] = Field(default_factory=set)
+    optional_checks: set[str] = Field(default_factory=set)
+
+    @field_validator("required_checks", "optional_checks")
+    @classmethod
+    def _checks_in_vocabulary(cls, value: set[str]) -> set[str]:
+        unknown = value - CHECK_VOCABULARY
+        if unknown:
+            raise ValueError(
+                f"unknown checks {sorted(unknown)}; vocabulary "
+                f"v{CHECK_VOCABULARY_VERSION}: {sorted(CHECK_VOCABULARY)}"
+            )
+        return value
+
+
 class StageContract(BaseModel):
     """元素的阶段契约：list 顺序即允许的绑定顺序。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     stages: list[StageState]
+    # contract_version=2 起携带 claim_spec；旧数据无该字段，读取为 1/None。
+    contract_version: int = 1
+    claim_spec: ClaimSpec | None = None
 
 
 # occurrence 与 elementary-step 边各自的合法阶段词表（frequency 两边共用）。
@@ -837,6 +905,9 @@ class MechanismDraft(BaseModel):
     stage_contracts: dict[str, StageContract] = Field(default_factory=dict)
     rationale: str = ""
     state: Literal["open", "accepted", "rejected"] = "open"
+    # contract_version=2：草稿携带按请求量生成的交付契约；旧行为 1/None。
+    contract_version: int = 1
+    claim_spec: ClaimSpec | None = None
 
 
 class MutationBatch(BaseModel):

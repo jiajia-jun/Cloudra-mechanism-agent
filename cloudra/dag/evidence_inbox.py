@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -35,6 +36,8 @@ from cloudra.tools.capabilities import (
     is_dag_observable,
     is_dag_reviewed,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class EvidenceInboxMixin:
@@ -163,6 +166,9 @@ class EvidenceInboxMixin:
                 "result": result,
             },
         )
+        await self._derive_facts(tool_name, {"tool_call_id": tool_call_id,
+                                             "arguments": arguments,
+                                             "result": result}, evidence_ref)
         success = self._result_succeeded(result)
         # 不再有图上遥测（observed 节点/自动认领/自动绑定，证据 b/i-1）：
         # 只登记证据 + 收件箱 enqueue；绑定一律走显式阶段绑定。
@@ -176,6 +182,29 @@ class EvidenceInboxMixin:
             tool_name=tool_name,
             dedup_review_id=duplicate,
         )
+
+    async def _derive_facts(
+        self,
+        tool_name: str,
+        payload: dict[str, Any],
+        evidence_ref: GraphRef,
+    ) -> None:
+        """声明了事实适配器的工具：从已登记证据抽类型化事实并幂等落库。
+
+        适配器是纯函数；异常不阻断证据登记主路径（事实可离线重派生补齐）。
+        """
+        from cloudra.tools.capabilities import fact_adapter_for
+
+        adapter = fact_adapter_for(tool_name)
+        if adapter is None:
+            return
+        try:
+            facts = adapter(payload, evidence_ref)
+        except Exception:
+            logger.warning("fact adapter failed for %s", tool_name, exc_info=True)
+            return
+        if facts:
+            await asyncio.to_thread(self.store.record_facts, facts)
 
     async def submit_evidence_for_review(
         self,
@@ -200,17 +229,16 @@ class EvidenceInboxMixin:
         )
         result = payload.get("result") or {} if isinstance(payload, dict) else {}
         arguments = payload.get("arguments") or {} if isinstance(payload, dict) else {}
-        if not self._result_succeeded(result):
-            raise RuntimeError(
-                f"tool call {tool_call_id!r} did not succeed; a failed computation "
-                "cannot be submitted as evidence"
-            )
+        # 失败结果同样可送审：失败日志/错误产物/结构不匹配都是合法审查
+        # 材料（负结果可送审）；但 is_success 如实记录——失败结果不能充作
+        # 对应成功计算的支持（绑定支持仍由 engine 的 tool_not_succeeded 拦）。
+        succeeded = self._result_succeeded(result)
         enqueued, duplicate = await self._enqueue_call_review(
             tool_call_id,
             source_name,
             arguments,
             result,
-            True,
+            succeeded,
             suggested_target_id=target_id,
             suggested_stage=stage_kind,
             force=True,

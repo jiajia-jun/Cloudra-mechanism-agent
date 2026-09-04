@@ -50,6 +50,7 @@ def _waiver_for(
 def evaluate_delivery(
     delivery: GraphData,
     contract: CoverageContract,
+    claim_kind: str | None = None,
 ) -> DeliveryReport:
     satisfied: list[CoverageGateResult] = []
     unresolved: list[CoverageGateResult] = []
@@ -184,13 +185,20 @@ def evaluate_delivery(
         )
         return "supported"
 
-    if not delivery.nodes or not delivery.edges:
+    # property 契约（contract_version=2）回答的是物种/性质问题，不继承
+    # "必须有 elementary-step 边"的机理空图判据；mechanism 等旧判据不变。
+    requires_edges = claim_kind != "property"
+    if not delivery.nodes or (requires_edges and not delivery.edges):
         record(
             CoverageGateResult(
                 code="empty_delivery_graph",
                 target_type="graph",
                 target_id=delivery.graph_id,
-                detail="a mechanism delivery requires intermediates and at least one elementary step",
+                detail=(
+                    "a mechanism delivery requires intermediates and at least one elementary step"
+                    if requires_edges
+                    else "a property delivery requires at least one subject species node"
+                ),
             )
         )
 

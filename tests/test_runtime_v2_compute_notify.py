@@ -278,3 +278,69 @@ async def test_notification_log_path_prefers_guard_state_json(tmp_path):
     content = _delivered_content(core, coordinator.id)
     assert str(captured) in content
     assert f"{inp.stem}.out" not in content
+
+
+@pytest.mark.asyncio
+async def test_terminal_job_snapshots_core_evidence_before_notify(tmp_path):
+    """终态通知前登记核心文件的 Artifact 快照；通知文本带快照引用。"""
+    core, project, coordinator = await _setup_core()
+
+    workdir = tmp_path / "calc_snap"
+    workdir.mkdir()
+    inp = workdir / "opt.gjf"
+    inp.write_text("%chk=opt\n#p b3lyp/def2svp opt\n", encoding="utf-8")
+    job_id = _insert_terminal_job(project.id, session_id=coordinator.id, path=str(inp))
+
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+    await broker._poll_project(project.id)
+
+    content = _delivered_content(core, coordinator.id)
+    assert "[Evidence snapshot]" in content
+    assert "opt.gjf" in content and "registered" in content
+    # 惯例预测的日志未落盘：标注但不误报 unavailable、不进重试
+    assert "log_not_collected" in content
+    assert job_id not in broker._snapshot_retries
+
+    from cloudra.persistence.artifacts import ArtifactService
+
+    artifacts = ArtifactService().list(project.id)
+    assert any(a.source_path == str(inp.resolve()) for a in artifacts)
+
+    # 同一路径同一内容的后续作业：复用 hash，不重复拷贝
+    job_id2 = _insert_terminal_job(project.id, session_id=coordinator.id, path=str(inp))
+    await broker._poll_project(project.id)
+    artifacts_after = ArtifactService().list(project.id)
+    assert len(artifacts_after) == len(artifacts)
+
+
+@pytest.mark.asyncio
+async def test_unavailable_evidence_retried_without_resending(tmp_path):
+    """核心文件暂不可读：通知照常投递并标 evidence_unavailable（不丢消息、
+    不落 fake 可复查）；文件到位后静默重试，收齐一次性补发。"""
+    core, project, coordinator = await _setup_core()
+
+    workdir = tmp_path / "calc_late"
+    workdir.mkdir()
+    inp = workdir / "late.inp"
+    job_id = _insert_terminal_job(
+        project.id, session_id=coordinator.id, path=str(inp), jobtype="orca"
+    )
+
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+    await broker._poll_project(project.id)
+
+    content = _delivered_content(core, coordinator.id)
+    assert "evidence_unavailable" in content
+    assert _notified_at(job_id) is not None  # 消息不丢
+    assert job_id in broker._snapshot_retries
+
+    # 文件到位：静默重试成功 → 一次性补发可复查通知，原通知不重复投递
+    inp.write_text("! ExtOpt Opt\n", encoding="utf-8")
+    events_before = len(
+        core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    )
+    await broker._retry_snapshots()
+    assert job_id not in broker._snapshot_retries
+    events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    assert len(events) == events_before + 1
+    assert "now available for review" in events[-1].data["content"]

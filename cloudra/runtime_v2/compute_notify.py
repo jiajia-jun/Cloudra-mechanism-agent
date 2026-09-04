@@ -42,6 +42,10 @@ class ComputeNotifyBroker:
         self.core = core
         self.poll_interval = poll_interval
         self._poll_task: asyncio.Task | None = None
+        # 证据快照待收集：核心文件暂不可读时入此表，后续 tick 静默重试
+        # （不重复投递通知）；收齐后一次性补发"证据已可复查"。
+        # task_id -> (project_id, session_id, recovered)
+        self._snapshot_retries: dict[int, tuple[str, str | None, bool]] = {}
 
     async def start(self) -> None:
         if self._poll_task is not None:
@@ -82,6 +86,7 @@ class ComputeNotifyBroker:
                 logger.exception(
                     "compute notify delivery failed for %s job %s", conversation_id, task_id
                 )
+        await self._retry_snapshots()
 
     async def _poll_project(self, project_id: str) -> None:
         if project_id not in self.core.projects:
@@ -123,6 +128,13 @@ class ComputeNotifyBroker:
         if project_id not in self.core.projects:
             return
         content = await self._content_for(task_id, state)
+        snapshot_note, complete = await self._snapshot_core_evidence(
+            project_id, task_id, session_id
+        )
+        if snapshot_note:
+            content = f"{content}\n{snapshot_note}"
+        if not complete:
+            self._snapshot_retries[task_id] = (project_id, session_id, False)
 
         delivered: set[str] = set()
         if isinstance(session_id, str) and session_id in self.core.agents:
@@ -196,6 +208,132 @@ class ComputeNotifyBroker:
             mark_notified(ComputeDB(), task_id)
         except Exception:
             logger.exception("could not mark compute job %s notified", task_id)
+
+    async def _core_files_for(self, task_id: int) -> tuple[list[str], str]:
+        """作业的核心证据文件与未落盘日志。
+
+        返回 (files, missing_log)：输入文件总是入快照候选；日志按 GH #20
+        同口径解析，但只有真实存在的才入候选——引擎惯例预测的日志可能
+        从不落盘（如本机 ORCA stdout 构建），那不是"暂不可读"，标
+        log_not_collected 但不进入重试循环。"""
+        from cloudra.infra.compute_utils import resolve_log_path
+        from cloudra.services.compute_store import aget_compute_job
+
+        input_path = ""
+        job_type = "gaussian"
+        try:
+            row = await aget_compute_job(ComputeDB(), task_id)
+            if row:
+                input_path = row["path"] or ""
+                job_type = row["jobtype"] or job_type
+        except Exception:
+            return [], ""
+        files = [input_path] if input_path else []
+        missing_log = ""
+        if input_path:
+            from pathlib import Path
+
+            log_path = resolve_log_path(input_path, job_type=job_type, task_id=task_id)
+            if log_path and Path(log_path).is_file():
+                if log_path not in files:
+                    files.append(log_path)
+            elif log_path:
+                missing_log = log_path
+        return files, missing_log
+
+    async def _snapshot_core_evidence(
+        self,
+        project_id: str,
+        task_id: int,
+        session_id: str | None,
+    ) -> tuple[str, bool]:
+        """终态通知前登记核心文件的不可变 ArtifactService 快照。
+
+        返回 (note, complete)：可读的登记/复用快照（同一文件重复收集按
+        hash 复用，同名覆盖的新内容是新 attempt 绝不合并）；不可读源
+        显式标 evidence_unavailable（complete=False，进入静默重试，
+        不吞异常假装可复查）。
+        """
+        from pathlib import Path
+
+        from cloudra.persistence.artifacts import ArtifactService
+        from cloudra.persistence.database import ConversationDB
+        from cloudra.services import session_store
+
+        files, missing_log = await self._core_files_for(task_id)
+        if not files and not missing_log:
+            return "", True
+        owner_session = session_id
+        if not owner_session:
+            coordinator = self._coordinator_for(project_id)
+            owner_session = coordinator.id if coordinator is not None else None
+        if not owner_session:
+            return "[Evidence snapshot] evidence_unavailable: no live session to own artifacts", False
+        # ArtifactService 要求 legacy session 行存在；runtime_v2 agent 不一定有，
+        # 与 turn_pipeline 同一助手 get-or-create。
+        await asyncio.to_thread(
+            session_store.ensure_session_record,
+            ConversationDB(project_id),
+            owner_session,
+            owner_session,
+        )
+
+        service = ArtifactService()
+        lines: list[str] = []
+        complete = True
+        if missing_log:
+            lines.append(f"log_not_collected: {missing_log}")
+        for path_str in files:
+            path = Path(path_str)
+            try:
+                artifact, created = await asyncio.to_thread(
+                    service.snapshot_file,
+                    conversation_id=project_id,
+                    session_id=owner_session,
+                    source=path,
+                    allowed_root=path.parent,
+                )
+            except Exception as exc:
+                complete = False
+                logger.warning(
+                    "compute evidence snapshot failed for job %s file %s: %s",
+                    task_id, path_str, exc,
+                )
+                lines.append(f"evidence_unavailable: {path_str} ({type(exc).__name__})")
+                continue
+            tag = "registered" if created else "reused"
+            lines.append(
+                f"{artifact.artifact_id} {artifact.name} "
+                f"(sha256:{artifact.sha256[:12]}…, {tag})"
+            )
+        header = "[Evidence snapshot]"
+        return f"{header} " + "; ".join(lines), complete
+
+    async def _retry_snapshots(self) -> None:
+        """静默重试暂不可读的快照收集；收齐后一次性补发可复查通知。"""
+        for task_id, (project_id, session_id, recovered) in list(self._snapshot_retries.items()):
+            if recovered or project_id not in self.core.projects:
+                continue
+            try:
+                note, complete = await self._snapshot_core_evidence(
+                    project_id, task_id, session_id
+                )
+            except Exception:
+                logger.exception("compute evidence snapshot retry failed for job %s", task_id)
+                continue
+            if not complete:
+                continue
+            self._snapshot_retries[task_id] = (project_id, session_id, True)
+            target = session_id
+            if target is None or target not in self.core.agents:
+                coordinator = self._coordinator_for(project_id)
+                target = coordinator.id if coordinator is not None else None
+            if target is not None:
+                await self._send_message(
+                    target,
+                    f"[Compute job] Evidence for job {task_id} is now available for review.\n{note}",
+                )
+            del self._snapshot_retries[task_id]
 
     def _coordinator_for(self, project_id: str):
         return next(

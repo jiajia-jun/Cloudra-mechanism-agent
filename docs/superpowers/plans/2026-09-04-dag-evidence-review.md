@@ -243,15 +243,15 @@ subject 的固定键为 candidate_id、geometry_hash、method_signature、target
 - DagStore.facts_for_target(target_id: str) -> list[EvidenceFact]：包含绑定与 target_hint 可归属条目。
 - StageContract 增加 contract_version 与 claim_spec；保留旧阶段形状读取。
 
-- [ ] 新迁移为证据登记增加 tool_call_id/compute_job_id 索引；历史可解析记录逐批回填，不能改写旧 hash；不可解析条目保留 legacy 来源状态。
-- [ ] 新事实表存不可变 payload 和 adapter_version；证据关联使用现有 bindings 表扩展，不在每个节点 metadata 复制完整事实。
-- [ ] 计算终态通知路径先登记可读核心文件的 ArtifactService 快照，再通知；重复解析复用 hash，独立作业 attempt 不去重合并。不可读源标记 unavailable，回收重试不丢消息。
-- [ ] 显式送审和记录失败结果都不再因 is_success=false 被拒绝；但失败结果不能充作对应成功计算的支持。
-- [ ] 草稿按请求量生成契约，method policy 只从项目设置读取；property 契约不继承“必须有 elementary-step 边”的空图判据。
-- [ ] 已接受契约的降级或任务类型变更先产生待审批版本；未经同意不改变当前范围。测试通过删除 required_checks、改 kind、移除目标等方式都不能绕过科学范围审批。
-- [ ] 持久化回归覆盖：同一文件重复解析、同名文件被覆盖、不同作业重复失败、进程中断后补收文件、legacy row 不可解析；artifact 引用校验失败保持 unresolved。
-- [ ] Run: uv run pytest -q tests/test_dag_store.py tests/test_dag_propose.py tests/test_dag_evidence_bindings.py tests/test_dag_evidence_facts.py。
-- [ ] 提交存储与类型层；v2 尚不启用。
+- [x] 新迁移为证据登记增加 tool_call_id/compute_job_id 索引；历史可解析记录逐批回填，不能改写旧 hash；不可解析条目保留 legacy 来源状态。
+- [x] 新事实表存不可变 payload 和 adapter_version；证据关联使用现有 bindings 表扩展，不在每个节点 metadata 复制完整事实。
+- [x] 计算终态通知路径先登记可读核心文件的 ArtifactService 快照，再通知；重复解析复用 hash，独立作业 attempt 不去重合并。不可读源标记 unavailable，回收重试不丢消息。
+- [x] 显式送审和记录失败结果都不再因 is_success=false 被拒绝；但失败结果不能充作对应成功计算的支持。
+- [x] 草稿按请求量生成契约，method policy 只从项目设置读取；property 契约不继承“必须有 elementary-step 边”的空图判据。
+- [x] 已接受契约的降级或任务类型变更先产生待审批版本；未经同意不改变当前范围。测试通过删除 required_checks、改 kind、移除目标等方式都不能绕过科学范围审批。
+- [x] 持久化回归覆盖：同一文件重复解析、同名文件被覆盖、不同作业重复失败、进程中断后补收文件、legacy row 不可解析；artifact 引用校验失败保持 unresolved。
+- [x] Run: uv run pytest -q tests/test_dag_store.py tests/test_dag_propose.py tests/test_dag_evidence_bindings.py tests/test_dag_evidence_facts.py。
+- [x] 提交存储与类型层；v2 尚不启用。
 
 **验收：**证据可复查，反证可保存；已有 API 与旧会话仍可读取。
 

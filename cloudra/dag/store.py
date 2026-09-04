@@ -19,7 +19,6 @@ from cloudra.dag.models import (
     MechanismDraft,
     SpeciesRecord,
     StageContract,
-    StageState,
     map_legacy_stages,
     parse_dag_edge,
     parse_dag_node,
@@ -342,12 +341,14 @@ class DagStore:
 
         def operation() -> None:
             with self.db.connect() as con:
+                keys = ConversationDB.evidence_source_keys(encoded) or ("", "")
                 con.execute(
                     """
                     INSERT OR IGNORE INTO dag_evidence(
                         evidence_id, session_id, source_type, source_name,
-                        content_hash, payload, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+                        content_hash, payload, created_at,
+                        tool_call_id, compute_job_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)
                     """,
                     (
                         evidence_id,
@@ -356,6 +357,8 @@ class DagStore:
                         source_name,
                         content_hash,
                         encoded,
+                        keys[0],
+                        keys[1],
                     ),
                 )
 
@@ -400,11 +403,24 @@ class DagStore:
         """按 tool_call_id 反查已登记的 tool_result 证据（payload 内嵌）；无则 None。
 
         process 遥测节点删除后（D12），tool_call_id → 证据的解析走证据库
-        本身，不再经过图上的 observed 节点。
+        本身，不再经过图上的 observed 节点。索引列命中优先；NULL 行是
+        迁移前不可解析/未回填的 legacy 行，回退 payload 扫描。
         """
         with self.db.connect() as con:
+            row = con.execute(
+                "SELECT evidence_id, content_hash FROM dag_evidence "
+                "WHERE tool_call_id = ?",
+                (tool_call_id,),
+            ).fetchone()
+            if row is not None:
+                return GraphRef(
+                    ref_type="tool_result",
+                    ref_id=row[0],
+                    content_hash=row[1],
+                )
             rows = con.execute(
-                "SELECT evidence_id, content_hash, payload FROM dag_evidence"
+                "SELECT evidence_id, content_hash, payload FROM dag_evidence "
+                "WHERE tool_call_id IS NULL"
             ).fetchall()
         for evidence_id, content_hash, payload in rows:
             try:
@@ -418,6 +434,92 @@ class DagStore:
                     content_hash=content_hash,
                 )
         return None
+
+    # --- 类型化证据事实（contract_version=2；dag_evidence_facts 不可变） ---
+
+    def record_facts(self, facts: list) -> list[str]:
+        """登记 EvidenceFact 列表，按 dedup_key 幂等；返回 fact_id 列表
+        （与输入同序；重复解析命中既有行时返回原 fact_id）。
+
+        dedup_key 覆盖来源引用（含 content_hash）、实际尝试内容与解析版本：
+        同一文件的重复解析去重，一次真实重算（新来源或新 hash）绝不合并。
+        """
+        from cloudra.dag.evidence_facts import fact_dedup_key
+
+        ids: list[str] = []
+
+        def operation() -> None:
+            with self.db.connect() as con:
+                for fact in facts:
+                    key = fact_dedup_key(fact)
+                    con.execute(
+                        """
+                        INSERT OR IGNORE INTO dag_evidence_facts(
+                            fact_id, check_name, outcome, subject, source_refs,
+                            details, adapter_version, dedup_key, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                        """,
+                        (
+                            fact.fact_id,
+                            fact.check,
+                            fact.outcome,
+                            _canonical_json(fact.subject.model_dump()),
+                            _canonical_json(
+                                [ref.model_dump() for ref in fact.source_refs]
+                            ),
+                            _canonical_json(fact.details),
+                            fact.adapter_version,
+                            key,
+                        ),
+                    )
+                    row = con.execute(
+                        "SELECT fact_id FROM dag_evidence_facts WHERE dedup_key = ?",
+                        (key,),
+                    ).fetchone()
+                    ids.append(row[0])
+
+        if facts:
+            retry_on_locked(operation)
+        return ids
+
+    def facts_for_target(self, target_id: str) -> list:
+        """目标可归属的事实：经 bindings 表绑定到该 target 的证据来源，
+        或 subject.target_hint 直接指向该 target。"""
+        from cloudra.dag.evidence_facts import EvidenceFact
+
+        with self.db.connect() as con:
+            rows = con.execute(
+                "SELECT fact_id, check_name, outcome, subject, source_refs, "
+                "details, adapter_version FROM dag_evidence_facts"
+            ).fetchall()
+            bound_evidence = {
+                row[0]
+                for row in con.execute(
+                    "SELECT DISTINCT evidence_id FROM dag_evidence_bindings "
+                    "WHERE target_id = ?",
+                    (target_id,),
+                ).fetchall()
+            }
+        facts: list = []
+        for fact_id, check, outcome, subject, source_refs, details, adapter_version in rows:
+            subject_data = json.loads(subject)
+            refs = [GraphRef(**item) for item in json.loads(source_refs)]
+            if subject_data.get("target_hint") != target_id and not (
+                bound_evidence & {ref.ref_id for ref in refs}
+            ):
+                continue
+            facts.append(
+                EvidenceFact(
+                    fact_id=fact_id,
+                    check=check,
+                    outcome=outcome,
+                    subject=subject_data,
+                    source_refs=refs,
+                    details=json.loads(details),
+                    adapter_version=adapter_version,
+                )
+            )
+        return facts
 
     # --- CallReview 收件箱（D12：append-only，不经 DagEngine 版本化 mutation） ---
 
@@ -548,6 +650,11 @@ class DagStore:
             {key: contract.model_dump(mode="json")
              for key, contract in draft.stage_contracts.items()}
         )
+        claim_spec = (
+            _canonical_json(draft.claim_spec.model_dump(mode="json"))
+            if draft.claim_spec is not None
+            else ""
+        )
 
         def operation() -> None:
             with self.db.connect() as con:
@@ -555,8 +662,8 @@ class DagStore:
                     """
                     INSERT INTO dag_drafts(
                         draft_id, state, rationale, operations, stage_contracts,
-                        actor_id, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+                        actor_id, claim_spec, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
                     (
                         draft_id,
@@ -565,6 +672,7 @@ class DagStore:
                         operations,
                         contracts,
                         actor_id,
+                        claim_spec,
                     ),
                 )
 
@@ -573,22 +681,29 @@ class DagStore:
 
     @staticmethod
     def _draft_from_row(row) -> MechanismDraft:
+        from cloudra.dag.models import ClaimSpec
+
+        claim_spec = None
+        contract_version = 1
+        if len(row) > 4 and row[4]:
+            claim_spec = ClaimSpec.model_validate(json.loads(row[4]))
+            contract_version = 2
         return MechanismDraft(
             operations=[parse_graph_operation(op) for op in json.loads(row[0])],
             stage_contracts={
-                key: StageContract(
-                    stages=[StageState.model_validate(s) for s in value.get("stages", [])]
-                )
+                key: StageContract.model_validate(value)
                 for key, value in json.loads(row[1]).items()
             },
             rationale=row[2],
             state=row[3],
+            contract_version=contract_version,
+            claim_spec=claim_spec,
         )
 
     def get_draft(self, draft_id: str) -> MechanismDraft | None:
         with self.db.connect() as con:
             row = con.execute(
-                "SELECT operations, stage_contracts, rationale, state "
+                "SELECT operations, stage_contracts, rationale, state, claim_spec "
                 "FROM dag_drafts WHERE draft_id = ?",
                 (draft_id,),
             ).fetchone()
@@ -597,7 +712,7 @@ class DagStore:
     def latest_open_draft(self) -> tuple[str, MechanismDraft] | None:
         with self.db.connect() as con:
             row = con.execute(
-                "SELECT draft_id, operations, stage_contracts, rationale, state "
+                "SELECT draft_id, operations, stage_contracts, rationale, state, claim_spec "
                 "FROM dag_drafts WHERE state = 'open' ORDER BY rowid DESC LIMIT 1"
             ).fetchone()
         if row is None:
@@ -628,13 +743,27 @@ class DagStore:
             ).fetchone()
         return row is not None
 
+    def accepted_claim_spec(self):
+        """当前已接受的交付契约（contract_version=2）；无则 None。"""
+        from cloudra.dag.models import ClaimSpec
+
+        with self.db.connect() as con:
+            row = con.execute(
+                "SELECT claim_spec FROM dag_drafts "
+                "WHERE state = 'accepted' AND claim_spec != '' "
+                "ORDER BY rowid DESC LIMIT 1"
+            ).fetchone()
+        if row is None:
+            return None
+        return ClaimSpec.model_validate(json.loads(row[0]))
+
     def latest_draft(self) -> dict[str, Any] | None:
         """最新草稿（open 优先，其次最近裁决）+ 元信息，供 /dag/draft 投影。"""
         with self.db.connect() as con:
             row = con.execute(
                 """
                 SELECT draft_id, state, rationale, operations, stage_contracts,
-                       actor_id, reject_reason, created_at
+                       actor_id, reject_reason, created_at, claim_spec
                 FROM dag_drafts
                 ORDER BY (state = 'open') DESC, rowid DESC LIMIT 1
                 """
@@ -650,6 +779,7 @@ class DagStore:
             "actor_id": row[5],
             "reject_reason": row[6],
             "created_at": row[7],
+            "claim_spec": json.loads(row[8]) if row[8] else None,
         }
 
     def upsert_species(

@@ -27,6 +27,9 @@ class ToolRegistration:
     # DAG semantics. All flags default to the conservative/plain behavior.
     dag_observe: bool = True
     evidence_deriver: str = ""  # "module:function(current, role, arguments, result)->dict"
+    # 事实适配器（contract_version=2）："module:function(payload, source_ref)
+    # -> list[EvidenceFact]"；从已登记证据中抽类型化事实（含反证）。
+    dag_fact_adapter: str = ""
     # D5：工具结束是否入 CallReview 收件箱（并唤醒 Supervisor 复核）。
     dag_review: bool = False
     # Phase 3 门槛：mechanism 未被接受前拦截的计算入口（开算/写计算输入）。
@@ -102,6 +105,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='LogParser',
         tool_name='log_parser',
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
+        dag_fact_adapter='cloudra.dag.fact_adapters:log_parser_facts',
         dag_review=True,
         supervisor_access='evidence_read',
     ),
@@ -153,6 +157,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='TsGuess',
         tool_name='ts_guess',
         evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
+        dag_fact_adapter='cloudra.dag.fact_adapters:ts_guess_facts',
         dag_review=True,
         dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
     ),

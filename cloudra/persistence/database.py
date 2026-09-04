@@ -182,10 +182,13 @@ class ConversationDB:
             cur.execute(_CREATE_DAG_EVIDENCE_BINDINGS)
             cur.execute(_CREATE_DAG_LINKS)
             cur.execute(_CREATE_DAG_EVIDENCE)
+            cur.execute(_CREATE_DAG_EVIDENCE_FACTS)
             cur.execute(_CREATE_DAG_MUTATIONS)
             cur.execute(_CREATE_DAG_COVERAGE)
             cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
             cur.execute(_CREATE_DAG_CALL_REVIEWS)
+            cur.execute(_CREATE_DAG_CALL_REVIEWS_CALL_INDEX)
+            cur.execute(_CREATE_DAG_CALL_REVIEWS_JOB_INDEX)
             cur.execute(_CREATE_DAG_DRAFTS)
             cur.execute(_CREATE_ARTIFACTS_INDEX)
             cur.execute(_CREATE_SCHEMA_MIGRATIONS)
@@ -271,10 +274,13 @@ class ConversationDB:
             await cur.execute(_CREATE_DAG_EVIDENCE_BINDINGS)
             await cur.execute(_CREATE_DAG_LINKS)
             await cur.execute(_CREATE_DAG_EVIDENCE)
+            await cur.execute(_CREATE_DAG_EVIDENCE_FACTS)
             await cur.execute(_CREATE_DAG_MUTATIONS)
             await cur.execute(_CREATE_DAG_COVERAGE)
             await cur.execute(_CREATE_DAG_DELIVERY_DISPOSITIONS)
             await cur.execute(_CREATE_DAG_CALL_REVIEWS)
+            await cur.execute(_CREATE_DAG_CALL_REVIEWS_CALL_INDEX)
+            await cur.execute(_CREATE_DAG_CALL_REVIEWS_JOB_INDEX)
             await cur.execute(_CREATE_DAG_DRAFTS)
             await cur.execute(_CREATE_ARTIFACTS_INDEX)
             await cur.execute(_CREATE_SCHEMA_MIGRATIONS)
@@ -328,6 +334,10 @@ class ConversationDB:
                 if name not in existing:
                     ConversationDB._add_column(cur, table, name, definition)
         ConversationDB._migrate_dag_evidence_bindings(cur)
+        ConversationDB._migrate_dag_evidence_source_keys(cur)
+        # 反查索引依赖迁移列，必须建在列迁移之后。
+        cur.execute(_CREATE_DAG_EVIDENCE_CALL_INDEX)
+        cur.execute(_CREATE_DAG_EVIDENCE_JOB_INDEX)
 
     @staticmethod
     async def _amigrate_related_schema(cur) -> None:
@@ -338,6 +348,77 @@ class ConversationDB:
                 if name not in existing:
                     await ConversationDB._aadd_column(cur, table, name, definition)
         await ConversationDB._amigrate_dag_evidence_bindings(cur)
+        await ConversationDB._amigrate_dag_evidence_source_keys(cur)
+        await cur.execute(_CREATE_DAG_EVIDENCE_CALL_INDEX)
+        await cur.execute(_CREATE_DAG_EVIDENCE_JOB_INDEX)
+
+    @staticmethod
+    def evidence_source_keys(payload: str) -> tuple[str | None, str | None] | None:
+        """从 evidence payload 提取反查键；payload 不可解析返回 None
+        （保持 NULL 的 legacy 状态），可解析但无键返回 ("" , "")。"""
+        try:
+            data = json.loads(payload)
+        except (ValueError, TypeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        tool_call_id = data.get("tool_call_id")
+        compute_job_id = data.get("compute_job_id")
+        return (
+            str(tool_call_id) if tool_call_id else "",
+            str(compute_job_id) if compute_job_id else "",
+        )
+
+    @staticmethod
+    def _migrate_dag_evidence_source_keys(cur) -> None:
+        """旧证据行反查键回填：只更新索引列，不改写 payload/hash；
+        可解析但无键的行写空串哨兵（不再重复扫描）；不可解析行保持 NULL
+        （legacy 来源状态，读取侧对 NULL 行回退 payload 扫描，语义与
+        迁移前一致）。逐批进行，本批无进展即停。"""
+        while True:
+            rows = cur.execute(
+                "SELECT evidence_id, payload FROM dag_evidence "
+                "WHERE tool_call_id IS NULL AND compute_job_id IS NULL LIMIT 200"
+            ).fetchall()
+            if not rows:
+                return
+            progressed = False
+            for evidence_id, payload in rows:
+                keys = ConversationDB.evidence_source_keys(payload)
+                if keys is None:
+                    continue
+                cur.execute(
+                    "UPDATE dag_evidence SET tool_call_id = ?, compute_job_id = ? "
+                    "WHERE evidence_id = ?",
+                    (keys[0], keys[1], evidence_id),
+                )
+                progressed = True
+            if not progressed:
+                return
+
+    @staticmethod
+    async def _amigrate_dag_evidence_source_keys(cur) -> None:
+        while True:
+            await cur.execute(
+                "SELECT evidence_id, payload FROM dag_evidence "
+                "WHERE tool_call_id IS NULL AND compute_job_id IS NULL LIMIT 200"
+            )
+            rows = await cur.fetchall()
+            if not rows:
+                return
+            progressed = False
+            for evidence_id, payload in rows:
+                keys = ConversationDB.evidence_source_keys(payload)
+                if keys is None:
+                    continue
+                await cur.execute(
+                    "UPDATE dag_evidence SET tool_call_id = ?, compute_job_id = ? "
+                    "WHERE evidence_id = ?",
+                    (keys[0], keys[1], evidence_id),
+                )
+                progressed = True
+            if not progressed:
+                return
 
     @staticmethod
     def _migrate_dag_evidence_bindings(cur) -> None:
@@ -570,6 +651,21 @@ _RELATED_EXTRA_COLUMNS = {
         "result_kind": "TEXT NOT NULL DEFAULT ''",
         "suggested_stage": "TEXT NOT NULL DEFAULT ''",
     },
+    # 证据登记的反查键（Task 4）：新行写入时从 payload 提取；旧行由
+    # _migrate_dag_evidence_source_keys 逐批回填，不可解析行保持 NULL。
+    "dag_evidence": {
+        "tool_call_id": "TEXT",
+        "compute_job_id": "TEXT",
+    },
+    # 计算终态快照的来源路径（Task 4）：同名文件被覆盖 ⇒ hash 变化 ⇒
+    # 新 artifact；同一路径同一内容复用既有 artifact，不重复拷贝。
+    "artifacts": {
+        "source_path": "TEXT NOT NULL DEFAULT ''",
+    },
+    # 草稿的交付契约（contract_version=2）：ClaimSpec JSON；空串=旧契约。
+    "dag_drafts": {
+        "claim_spec": "TEXT NOT NULL DEFAULT ''",
+    },
 }
 
 # compute_jobs 只住在中央库（ComputeDB，data_dir/compute.db）；会话库不再建此表。
@@ -633,6 +729,7 @@ _CREATE_ARTIFACTS = """
         size INTEGER NOT NULL,
         sha256 TEXT NOT NULL,
         storage_path TEXT NOT NULL,
+        source_path TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL
     )
 """
@@ -752,6 +849,46 @@ _CREATE_DAG_EVIDENCE = """
         created_at TEXT NOT NULL,
         UNIQUE(source_type, source_name, content_hash)
     )
+"""
+
+# 证据登记反查索引（tool_call_id / compute_job_id 为可空列，见
+# _RELATED_EXTRA_COLUMNS；旧行由 _migrate_dag_evidence_source_keys 回填，
+# 不可解析行保持 NULL 的 legacy 状态，不改写 payload/hash）。
+_CREATE_DAG_EVIDENCE_CALL_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_dag_evidence_tool_call
+    ON dag_evidence(tool_call_id)
+"""
+
+_CREATE_DAG_EVIDENCE_JOB_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_dag_evidence_compute_job
+    ON dag_evidence(compute_job_id)
+"""
+
+# 类型化证据事实（contract_version=2）：不可变 payload + adapter_version；
+# dedup_key 保证"同一来源 + 同一实际尝试 + 同一解析版本"幂等。
+_CREATE_DAG_EVIDENCE_FACTS = """
+    CREATE TABLE IF NOT EXISTS dag_evidence_facts(
+        fact_id TEXT PRIMARY KEY,
+        check_name TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK(outcome IN ('supports', 'refutes', 'inconclusive')),
+        subject TEXT NOT NULL DEFAULT '{}',
+        source_refs TEXT NOT NULL DEFAULT '[]',
+        details TEXT NOT NULL DEFAULT '{}',
+        adapter_version TEXT NOT NULL,
+        dedup_key TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(dedup_key)
+    )
+"""
+
+_CREATE_DAG_CALL_REVIEWS_CALL_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_dag_call_reviews_tool_call
+    ON dag_call_reviews(tool_call_id)
+"""
+
+_CREATE_DAG_CALL_REVIEWS_JOB_INDEX = """
+    CREATE INDEX IF NOT EXISTS idx_dag_call_reviews_compute_job
+    ON dag_call_reviews(compute_job_id)
 """
 
 _CREATE_DAG_MUTATIONS = """
