@@ -183,6 +183,13 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     )
 
 
+def _launch_group_manager(core):
+    if getattr(core, "launch_groups", None) is None:
+        from cloudra.runtime_v2.launch_groups import LaunchGroupManager
+        core.launch_groups = LaunchGroupManager(spawner=lambda _query: None)
+    return core.launch_groups
+
+
 async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> ToolResult:
     bus = CommandBus(core)
     role_id = _role_id_for(str(args.get("agent_id") or ""))
@@ -195,6 +202,32 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
         return ToolResult(is_success=False, summary="prompt_template must contain the {{item}} placeholder")
     if not items:
         return ToolResult(is_success=False, summary="items must be a non-empty list")
+
+    # New non-blocking + capped path uses LaunchGroupManager.  The semaphore
+    # covers child lifetime (not just spawn), unlike the legacy is_wait=false
+    # path which returns immediately and cannot enforce active children.
+    if not is_wait and max_concurrency > 0:
+        from cloudra.runtime_v2.launch_groups import LaunchGroupManager
+        manager = _launch_group_manager(core)
+        # Rebind the manager's spawner to this project/role. The manager is
+        # intentionally ephemeral per host; parallel projects should use one
+        # manager per core+project pair.
+        async def spawner(query):
+            return await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
+        object.__setattr__(manager, "_spawner", spawner)
+        group_id = "grp_" + asyncio.get_running_loop().time().__str__().replace(".", "_")
+        manager.create(
+            group_id=group_id,
+            parent_session_id=parent.id,
+            items=[(f"{item[:20]}-{idx}", template.replace("{{item}}", item)) for idx, item in enumerate(items)],
+            max_concurrency=max_concurrency,
+        )
+        summary = f"Dispatched launch group {group_id} with {len(items)} items; pending_count={len(items)}"
+        return ToolResult(
+            is_success=True,
+            summary=summary,
+            data={"group_id": group_id, "session_ids": [], "pending_count": len(items), "result": summary},
+        )
 
     semaphore = asyncio.Semaphore(max_concurrency) if max_concurrency > 0 else None
 
@@ -241,6 +274,18 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
 
 
 async def _handle_report(core, args: dict[str, Any]) -> ToolResult:
+    group_id = str(args.get("group_id") or "")
+    if group_id:
+        manager = _launch_group_manager(core)
+        group = manager.get(group_id)
+        if group is None:
+            return ToolResult(is_success=False, summary=f"Unknown launch group {group_id!r}")
+        summary_obj = group.summary()
+        summary = (
+            f"Launch group {group_id}: state={summary_obj['state']} "
+            f"pending={summary_obj['pending_count']} running={summary_obj['running_count']}"
+        )
+        return ToolResult(is_success=True, summary=summary, data=summary_obj)
     session_id = str(args.get("session_id") or "")
     agent = core.agents.get(session_id)
     if agent is None:
