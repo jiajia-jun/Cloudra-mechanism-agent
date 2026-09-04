@@ -94,3 +94,13 @@ def knowledge_graph_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return knowledge_dir(data_dir) / "chem_kg.db"
 
 
+def workspaces_dir(data_dir: Optional[PathLike] = None) -> Path:
+    """per-project 默认工作区的根目录。"""
+    return _root(data_dir) / "workspaces"
+
+
+def project_workspace_dir(project_id: str, data_dir: Optional[PathLike] = None) -> Path:
+    """未显式指定 workspace_dir 的项目的默认工作区（GH #24：消除 None → 进程 cwd）。"""
+    return workspaces_dir(data_dir) / project_id
+
+

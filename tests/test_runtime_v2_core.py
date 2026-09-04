@@ -420,6 +420,24 @@ async def test_workspace_dir_normalized_and_relative_rejected(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_project_create_defaults_workspace_under_data_dir():
+    """未提供 workspace_dir 时必须落到 per-project 默认工作区
+    （data_dir/workspaces/<project_id>），而不是留 None 让下游
+    文件/bash 工具解析到进程 cwd（GH #24）。"""
+    from pathlib import Path
+
+    from cloudra.infra.config import get_config
+
+    bus = CommandBus(RuntimeCore(strict_events=True))
+    result = await bus.execute(Command(type="project.create", payload={"name": "auto"}))
+    assert result.accepted
+    project = result.data
+    expected = Path(get_config().data_dir) / "workspaces" / project.id
+    assert project.workspace_dir == str(expected)
+    assert expected.is_dir()
+
+
+@pytest.mark.asyncio
 async def test_orchestration_mode_switch_opens_dag_tool(tmp_path):
     """发出消息后切换编排模式：agent.settings_update 落 dag_record 后，
     dag_view 工具门禁必须打开（此前 agent 报 disabled in standard mode）。"""

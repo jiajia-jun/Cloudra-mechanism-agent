@@ -391,3 +391,28 @@ async def test_prompt_provider_marks_web_search_available_with_native_adapter(mo
     messages = await LegacyPromptProvider()(agent=agent, workspace_dir=str(tmp_path), tool_names=["stop"])
     assert captured["web_search_available"] is True
     assert messages[0]["content"] == "id"
+
+
+def test_legacy_agent_bridge_falls_back_to_default_workspace():
+    """存量 workspace_dir=None 的项目：bridge 构造时兜底 per-project 默认工作区，
+    不再让 read/write/bash 等工具落进程 cwd（GH #24）。"""
+    from pathlib import Path
+
+    from cloudra.infra.config import get_config
+    from cloudra.persistence.paths import project_workspace_dir
+    from cloudra.runtime_v2.adapters import _LegacyAgentBridge
+
+    agent = SimpleNamespace(
+        id="agent-1",
+        role_id="coordinator",
+        project_id="prj-legacy",
+        settings=SimpleNamespace(orchestration_mode=SimpleNamespace(value="standard")),
+        capabilities=SimpleNamespace(
+            permissions=SimpleNamespace(read=True, write=True, manage=False, script=False, destructive=False)
+        ),
+    )
+    bridge = _LegacyAgentBridge(agent, None)
+    assert bridge.working_directory == str(project_workspace_dir("prj-legacy"))
+    assert Path(bridge.working_directory).parent == Path(get_config().data_dir) / "workspaces"
+    explicit = _LegacyAgentBridge(agent, "/tmp/explicit-ws")
+    assert explicit.working_directory == "/tmp/explicit-ws"

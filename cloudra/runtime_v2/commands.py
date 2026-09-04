@@ -35,6 +35,7 @@ import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from cloudra.persistence.paths import project_workspace_dir
 from cloudra.runtime_v2.agent_host import _CONTEXT_RESET_NOTE, plan_cancel, plan_restart, plan_wake
 from cloudra.runtime_v2.apply import apply_event
 from cloudra.runtime_v2.core import RuntimeCore
@@ -138,11 +139,14 @@ def _decide_create_project(core: RuntimeCore, command: Command) -> Decision:
         raise CommandRejected("invalid_request", "project name is required")
     project_id = new_id("prj")
     settings = ProjectSettings.model_validate(payload.get("settings") or {})
-    workspace_dir: str | None = None
     effects: list[Effect] = []
     if payload.get("workspace_dir"):
         workspace_dir = _normalize_workspace(payload["workspace_dir"])
-        effects.append(EnsureDir(workspace_dir))
+    else:
+        # 未提供时默认 per-project 工作区：workspace_dir=None 会让下游
+        # 文件/bash 工具的相对路径解析到进程 cwd，串到别的任务目录（GH #24）。
+        workspace_dir = str(project_workspace_dir(project_id))
+    effects.append(EnsureDir(workspace_dir))
     project = Project(id=project_id, name=name, workspace_dir=workspace_dir, settings=settings)
     return Decision(
         events=(

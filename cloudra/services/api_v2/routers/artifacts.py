@@ -62,16 +62,12 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 status_code=413,
                 detail="upload exceeds the 20MB limit",
             )
-        if project.workspace_dir:
-            root = Path(project.workspace_dir)
-            upload_dir = root / ".cloudra" / "uploads"
-        else:
-            # No workspace configured: fall back to the data dir so the
-            # artifact boundary check still has a root to confine to.
-            from cloudra.infra.config import get_config
+        # 存量 workspace_dir=None 的项目与文件工具同一兜底：per-project 默认
+        # 工作区（GH #24），artifact 边界检查也因此与工具写入同一根。
+        from cloudra.persistence.paths import project_workspace_dir
 
-            upload_dir = Path(get_config().data_dir) / "uploads" / project_id
-            root = upload_dir
+        root = Path(project.workspace_dir) if project.workspace_dir else project_workspace_dir(project_id)
+        upload_dir = root / ".cloudra" / "uploads"
         path = upload_dir / f"{uuid.uuid4().hex[:12]}-{filename}"
 
         def write() -> None:

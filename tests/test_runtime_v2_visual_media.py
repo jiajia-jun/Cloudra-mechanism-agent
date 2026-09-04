@@ -396,7 +396,9 @@ def test_upload_endpoint_rejects_oversize(tmp_path):
     assert response.status_code == 413
 
 
-def test_upload_endpoint_without_workspace_falls_back_to_data_dir(tmp_path):
+def test_upload_endpoint_without_workspace_falls_back_to_default_workspace(tmp_path):
+    """未显式指定 workspace 的项目：上传落到 per-project 默认工作区的
+    .cloudra/uploads（与 read/write/bash 同一根，GH #24），不再走 data_dir/uploads 旁路。"""
     client, project_id = _upload_client(tmp_path, with_workspace=False)
     response = client.post(
         f"/api/v2/projects/{project_id}/uploads",
@@ -409,4 +411,5 @@ def test_upload_endpoint_without_workspace_falls_back_to_data_dir(tmp_path):
 
     from cloudra.infra.config import get_config
 
-    assert Path(get_config().data_dir) / "uploads" / project_id == path.parent
+    default_ws = Path(get_config().data_dir) / "workspaces" / project_id
+    assert path.parent == default_ws / ".cloudra" / "uploads"

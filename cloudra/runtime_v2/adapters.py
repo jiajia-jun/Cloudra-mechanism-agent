@@ -18,6 +18,7 @@ from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import LLMClient
 from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
+from cloudra.persistence.paths import project_workspace_dir
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
@@ -412,7 +413,10 @@ class _LegacyAgentBridge:
         self.name = agent.role_id
         self.type = "coordinator" if agent.role_id == "coordinator" else "follower"
         self.conversation_id = agent.project_id
-        self.working_directory = workspace_dir
+        # workspace_dir=None 的存量项目不能落 None：read/write/bash 会把裸相对
+        # 路径解析到进程 cwd，串到别的任务目录（GH #24）——统一兜底到
+        # per-project 默认工作区，与 project.create 的缺省推导同一事实源。
+        self.working_directory = workspace_dir or str(project_workspace_dir(agent.project_id))
         self.orchestration_mode = agent.settings.orchestration_mode.value
         self.session_id = agent.id
         self._permissions = agent.capabilities.permissions
