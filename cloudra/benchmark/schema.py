@@ -25,7 +25,10 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from cloudra.runtime_v2.schemas import OrchestrationMode
+from cloudra.runtime_v2.schemas import MethodPolicy, OrchestrationMode
+
+# GH #25：MethodPolicy 模型已上移到 runtime_v2.schemas（per-project live
+# 拦截与 benchmark 任务共用），此处转引保持 benchmark 侧导入路径不变。
 
 
 class Tier(str, Enum):
@@ -167,36 +170,6 @@ class SystemSpec(BaseModel):
     max_heavy_atoms: Optional[int] = None
     closed_shell: bool = True
     single_step: bool = True
-
-
-class MethodPolicy(BaseModel):
-    """Whitelisted computation levels: any method not in `allowed_methods` is
-    blocked. A blacklist can always be bypassed, so interception is strictly
-    positive (whitelist) matching, wired in at the layers named by
-    `intercept_layers`:
-    - `qm_input_writer`: structured computation entry with an explicit
-      method field.
-    - `submit_compute_job`: submits a prepared input file, so interception
-      parses that file's content (Gaussian route card / ORCA keyword lines).
-    - `bash`: the *content* of QM input files being written or executed is
-      parsed the same way — the raw command text is never keyword-scanned.
-
-    The easy-tier whitelist (MACE-OMol25 / xTB) has no basis-set concept at
-    all, so the policy carries no basis fields. Whitelist matching happens at
-    method-*family* granularity (any `mace-*` token matches the MACE entry, any
-    token containing `xtb` matches the xTB entry): route-card text cannot
-    distinguish MLIP model variants (mace-omol25 vs mace-off), so variant-level
-    enforcement is out of band, at the method-provisioning side. Attempting a
-    non-whitelisted method is intercepted, never penalized."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    allowed_methods: list[str] = Field(
-        default_factory=lambda: ["mace-omol25", "xtb"]
-    )
-    intercept_layers: list[str] = Field(
-        default_factory=lambda: ["bash", "submit_compute_job", "qm_input_writer"]
-    )
 
 
 # ---------------------------------------------------------------------------
