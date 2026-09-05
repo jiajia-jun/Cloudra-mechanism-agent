@@ -62,7 +62,7 @@
 - 输入：现有事件 JSON、作业 JSON、只读会话 DB；每种来源可缺失，但输出必须标记 unavailable。
 - 输出：summarize_run(events: list[dict], jobs: list[dict], reviews: list[dict]) -> dict；统计窗口、计数、时延分母和缺失字段同时返回。
 
-- [x] 从 /tmp/cloudra-na1-review 与 NA1_exam 提取最小片段，登记原文件、hash、抽取范围及关键字段；脱敏路径，不复制整份运行目录／数据库入 git。
+- [x] 从 /tmp/cloudra-na1-review 与 NA1_exam 提取最小片段，登记原文件、hash、抽取范围及关键字段；脱敏路径，不复制整份运行目录／数据库入 git。（NA1_exam 原始运行目录已随后续工作区清理删除，fixtures 自包含。）
 - [x] cases.json 固定六类案例：约束 Opt＋单虚频、错误产物、对称映射歧义、收敛短 IRC、乱序证据、等待 swarm 时的中途告警。每例写预期可成立与不可成立的结论。
 - [x] 实现计数与时延统计；Supervisor 累计时间与墙钟时间分别输出，不能混算；缺 consumed 事件时不凭下一条任意事件假造消费时延。
 - [x] 增加下面的最小统计回归，再加入重复事件去重和不完整时间窗案例。

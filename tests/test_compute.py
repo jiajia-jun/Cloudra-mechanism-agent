@@ -997,8 +997,8 @@ async def test_parse_orca_log_keeps_cclib_data_when_parseable():
     assert "vibfreqs" in data or "properties" in data
 
 
-# GH #21/#22：取自真实日志 NA1_run/.cloudra/calc-27.out.log（未收敛的 MACE
-# ExtOpt Opt——跑满最大步数仍打印 ORCA TERMINATED NORMALLY）。
+# GH #21/#22：未收敛的 MACE ExtOpt Opt 日志片段（GH #21/#22 真实样本，原日志已随工作区清理删除
+# ——跑满最大步数仍打印 ORCA TERMINATED NORMALLY）。
 _ORCA_EXTOPT_OPT_NOT_CONVERGED = (
     "! ExtOpt Opt\n"
     "FINAL SINGLE POINT ENERGY (From external program)      -383.418935837100\n"

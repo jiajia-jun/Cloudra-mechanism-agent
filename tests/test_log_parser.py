@@ -168,7 +168,7 @@ async def test_orca_extopt_abnormal_termination_reported_false(tmp_path, monkeyp
     assert result.scf_energy_hartree == pytest.approx(-234.5)
 
 
-# GH #21：取自真实日志 NA1_run/.cloudra/calc-27.out.log（未收敛的 MACE ExtOpt Opt）
+# GH #21：未收敛的 MACE ExtOpt Opt 日志片段（GH #21/#22 真实样本，原日志已随工作区清理删除）
 _ORCA_EXTOPT_OPT_NOT_CONVERGED = (
     "                         * O   R   C   A *\n"
     "! ExtOpt Opt\n"

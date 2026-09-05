@@ -227,6 +227,18 @@ class ConversationDB:
             self.init()
         return True
 
+    def ensure_schema(self) -> "ConversationDB":
+        """幂等确保数据库处于最新 schema：既有库升级、新库建表。
+
+        旧库可能缺新版本才引入的表族（如 dag_review_*），而 write/read 路径
+        不能假设调用方先 init()；统一经此入口补齐（CREATE IF NOT EXISTS 幂等）。
+        """
+        if os.path.isfile(self.path):
+            self.migrate_if_needed()
+        else:
+            self.init()
+        return self
+
     @contextlib.contextmanager
     def connect(self, timeout: float = DEFAULT_BUSY_TIMEOUT):
         """返回统一配置且退出时显式关闭的同步 SQLite 连接上下文。"""

@@ -11,6 +11,7 @@ from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
+    InvocationProtocol,
     OrchestrationMode,
     PermissionSet,
 )
@@ -48,7 +49,11 @@ async def _agent(core):
             payload={"role_id": "coordinator"},
         )
     )
-    return project, result.data
+    agent = result.data
+    # 本文件测试用 FakeLLM 直接发业务工具调用，走传统协议；
+    # 默认 javascript 协议只放 js_exec + 直接控制类，与 DAG 门槛无关。
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    return project, agent
 
 
 @pytest.mark.asyncio

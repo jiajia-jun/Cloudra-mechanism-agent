@@ -15,6 +15,7 @@ from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
+    InvocationProtocol,
     PermissionSet,
     ProjectSettings,
     RuntimeSettings,
@@ -69,7 +70,11 @@ async def _spawn(core: RuntimeCore, tmp_path, settings: dict | None = None):
     await CommandBus(core).execute(
         Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"})
     )
-    return project, next(iter(core.agents.values()))
+    agent = next(iter(core.agents.values()))
+    # 本文件测试用 FakeLLM 直接发业务工具调用，固定传统协议；
+    # 默认 javascript 协议只放 js_exec + 直接控制类。
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    return project, agent
 
 
 async def _run_tool_turn(core: RuntimeCore, agent, tmp_path, call: ToolCall, run_id: str = "run_t"):

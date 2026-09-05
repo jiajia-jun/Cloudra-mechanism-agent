@@ -104,7 +104,7 @@ async def test_log_parser_orca_irc_end_to_end():
 # GH #21：几何优化未收敛（max-cycles）判定；GH #22：未收敛 ExtOpt Opt 的能量
 # ---------------------------------------------------------------------------
 
-# 取自真实日志 NA1_run/.cloudra/calc-27.out.log（未收敛的 MACE ExtOpt Opt）：
+# 未收敛的 MACE ExtOpt Opt 日志片段（GH #21/#22 真实样本，原日志已随工作区清理删除）：
 # FINAL SP 只在起始几何打印一次，逐周期能量以 Current Energy 行给出。
 _EXTOPT_OPT_NOT_CONVERGED_SNIPPET = (
     "FINAL SINGLE POINT ENERGY (From external program)      -383.418935837100\n"

@@ -92,7 +92,7 @@
       "id": "converged_short_irc",
       "class": "converged_short_irc",
       "fixtures": [],
-      "source_note": "NA1_exam/ts_e2 fallback IRC: TS +/- displacement unconstrained opts converged to endpoints (e2_irc_plus/minus_opt)",
+      "source_note": "NA1_exam/ts_e2 fallback IRC: TS +/- displacement unconstrained opts converged to endpoints (e2_irc_plus/minus_opt; 原始运行目录已随工作区清理删除)",
       "key_fields": {
         "both_directions_converged": true,
         "fixed_point_count_required": false

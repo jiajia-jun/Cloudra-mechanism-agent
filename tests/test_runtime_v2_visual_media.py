@@ -20,7 +20,7 @@ from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import Command
+from cloudra.runtime_v2.schemas import Command, InvocationProtocol
 from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
 
 # 1x1 transparent PNG
@@ -86,7 +86,11 @@ async def _setup(llm, tools, *, workspace_dir: str | None = None):
             payload={"role_id": "coordinator", "query": "render it"},
         )
     )
-    return core, project, result.data
+    agent = result.data
+    # RecordingLLM 直接发业务工具调用（pymol_render 等），固定传统协议；
+    # 默认 javascript 协议只放 js_exec + 直接控制类。
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    return core, project, agent
 
 
 async def _wait_for(predicate, timeout: float = 2.0, message: str = "condition not met"):

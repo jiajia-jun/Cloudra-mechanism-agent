@@ -279,12 +279,52 @@ async def test_propose_in_guided_wakes_supervisor(tmp_path):
     supervisor = FakeSupervisor()
     controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
 
+    # guided 模式提案的真实返回形状：草稿落 open 待 supervisor 裁决，
+    # accepted=False。唤醒判定必须认 draft_id，而不是只看 accepted。
     await controller.on_tool_finished(
         "tc-propose",
         "dag_propose_mechanism",
         {"rationale": "Claisen chair hypothesis"},
-        {"is_success": True, "accepted": True},
+        {
+            "is_success": True,
+            "accepted": False,
+            "result": {"draft_id": "draft_1", "state": "open", "accepted": False},
+        },
     )
 
     assert [call["trigger"] for call in supervisor.calls] == ["mechanism_proposed"]
     assert "Claisen" in supervisor.calls[0]["coordinator_request"]
+
+
+@pytest.mark.asyncio
+async def test_failed_proposal_does_not_wake_supervisor(tmp_path):
+    """校验失败/被拒的提案不落草稿，不唤醒 supervisor。"""
+    from cloudra.dag.controller import DagController
+
+    class FakeSupervisor:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def run(self, trigger, coordinator_request=None, **_kwargs):
+            self.calls.append(
+                {"trigger": trigger, "coordinator_request": coordinator_request}
+            )
+            return None
+
+    get_config().data_dir = tmp_path
+    db = ConversationDB("propose-no-wake").init()
+    supervisor = FakeSupervisor()
+    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+
+    await controller.on_tool_finished(
+        "tc-propose-bad",
+        "dag_propose_mechanism",
+        {"rationale": "invalid"},
+        {
+            "is_success": False,
+            "accepted": False,
+            "error": "a mechanism proposal requires a non-empty rationale",
+        },
+    )
+
+    assert supervisor.calls == []

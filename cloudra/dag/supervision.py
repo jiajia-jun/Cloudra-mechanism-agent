@@ -47,7 +47,13 @@ class SupervisionMixin:
         if self.supervisor is None:
             return
         accepted = bool(result.get("accepted"))
-        if tool_name == "dag_propose_mechanism" and accepted:
+        # guided 模式下提案成功也返回 accepted=False（草稿落 open 等督导裁决），
+        # 唤醒判据是"草稿已落库"（内层 result.draft_id），不是科学接受。
+        inner = result.get("result")
+        draft_recorded = accepted or (
+            isinstance(inner, dict) and bool(inner.get("draft_id"))
+        )
+        if tool_name == "dag_propose_mechanism" and success and draft_recorded:
             await self.maybe_supervise(
                 "mechanism_proposed",
                 coordinator_request=str(arguments.get("rationale") or ""),

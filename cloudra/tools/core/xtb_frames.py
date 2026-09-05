@@ -33,9 +33,9 @@ def normal_termination(text: str) -> bool:
     return NORMAL_TERMINATION_MARKER in text
 
 
-# 优化收敛标记：未收敛（跑满最大步数）时 xtb 仍打印 normal termination
-# （真实日志见 NA1_run/scan_d2.90.log），终止标记不构成收敛判据（GH #21
-# 同款语义）。两个标记互斥：FAILED 行是 "CONVERGE GEOMETRY OPTIMIZATION"，
+# 优化收敛标记：未收敛（跑满最大步数）时 xtb 仍打印 normal termination，
+# 终止标记不构成收敛判据（GH #21 同款语义）。两个标记互斥：FAILED 行是
+# "CONVERGE GEOMETRY OPTIMIZATION"，
 # 不含 "GEOMETRY OPTIMIZATION CONVERGED" 子串。
 _OPT_CONVERGED_MARKER = "GEOMETRY OPTIMIZATION CONVERGED"
 _OPT_NOT_CONVERGED_MARKER = "FAILED TO CONVERGE GEOMETRY OPTIMIZATION"

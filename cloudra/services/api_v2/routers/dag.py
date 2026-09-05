@@ -22,7 +22,7 @@ def _dag_read_context(ctx: ApiContext, project_id: str):
     db = ConversationDB(project_id)
     if not Path(db.path).is_file():
         return None
-    db.migrate_if_needed()
+    db.ensure_schema()
     store = DagStore(db)
     try:
         store.load_bundle()
@@ -39,10 +39,7 @@ def _dag_controller(ctx: ApiContext, project_id: str):
     if project.settings.orchestration_mode.value == "standard":
         return None
     db = ConversationDB(project_id)
-    if Path(db.path).is_file():
-        db.migrate_if_needed()
-    else:
-        db.init()
+    db.ensure_schema()
     return DagController(
         db,
         project_id,

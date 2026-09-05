@@ -19,6 +19,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from cloudra import __version__
+from cloudra.dag.store import DagStore
+from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import CommandRejected
@@ -57,6 +59,18 @@ async def _daemon_watchdog_loop(interval: float) -> None:
         await asyncio.sleep(interval)
 
 
+def _review_store(project_id: str) -> Any:
+    """Review worker 的 DAG 存储工厂。
+
+    旧库（早于 dag_review_* 表族建库的会话）必须先补全 schema，否则
+    pending_review_notifications 每 tick 抛 "no such table"。建库/升级
+    统一走 ConversationDB.ensure_schema()（幂等）。
+    """
+    db = ConversationDB(project_id)
+    db.ensure_schema()
+    return DagStore(db)
+
+
 def create_v2_app(
     core: RuntimeCore | None = None,
     pipeline: Any = None,
@@ -86,16 +100,12 @@ def create_v2_app(
 
     compute_notify = ComputeNotifyBroker(core)
     from cloudra.core.supervisor import GraphSupervisor
-    from cloudra.dag.store import DagStore
     from cloudra.persistence import paths
     from cloudra.persistence.database import ConversationDB
     from cloudra.runtime_v2.review_worker import ReviewWorker
 
     def review_store(project_id: str):
-        db = ConversationDB(project_id)
-        if not Path(db.path).is_file():
-            db.init()
-        return DagStore(db)
+        return _review_store(project_id)
 
     def review_supervisor(project_id: str):
         project = core.projects.get(project_id)

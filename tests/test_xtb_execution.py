@@ -3,7 +3,7 @@
 覆盖：xtb_frames 文本原语、guard（monitor）终态判定、log_parser 解析、
 submit_compute_job job_type 放行、calculator.sh run_xtb 分支、
 method_policy 的 xtb 提交分支。fixtures 按真实 xtb 6.7.1 输出格式合成
-（参照 NA1_run 下的真实日志）。
+（GH #26）。
 """
 
 import os

@@ -11,7 +11,7 @@ from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import Command
+from cloudra.runtime_v2.schemas import Command, InvocationProtocol
 from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
 
 
@@ -59,7 +59,11 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
             payload={"role_id": "coordinator", "query": "solve it"},
         )
     )
-    return core, project, result.data
+    agent = result.data
+    # ScriptedLLM 直接发业务工具调用，固定传统协议；
+    # 默认 javascript 协议只放 js_exec + 直接控制类。
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    return core, project, agent
 
 
 async def _wait_state(agent, state: str, timeout: float = 2.0):
@@ -430,6 +434,9 @@ async def test_two_projects_run_agents_concurrently_and_stay_isolated():
                 payload={"role_id": "coordinator", "query": f"task {name}"},
             )
         )
+        # RoutedLLM 直接发业务工具调用，固定传统协议（默认 javascript 只放
+        # js_exec + 直接控制类）。
+        result.data.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
         agents.append(result.data)
 
     deadline = asyncio.get_running_loop().time() + 2.0

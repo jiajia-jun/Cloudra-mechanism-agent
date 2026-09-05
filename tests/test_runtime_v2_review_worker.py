@@ -357,3 +357,39 @@ async def test_real_runner_waits_then_finishes_after_worker_approval(tmp_path):
     assert agent.state.value == "succeeded"
     assert llm.calls >= 2
     assert store_factory(project.id).list_review_requests(state="resolved")
+
+
+def test_review_store_ensures_schema_on_legacy_db(tmp_path):
+    """review worker 的 store 工厂必须把旧库补到最新 schema。
+
+    回归：早于 dag_review_* 表族建库的会话库没有
+    dag_review_notifications/schema_migrations，store 工厂此前只在文件
+    不存在时 init()，旧库每 tick 抛 "no such table"，api.log 被刷爆。
+    建/升级统一走 ConversationDB.ensure_schema()，此处直接验证工厂。
+    """
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.services.api_v2.app import _review_store
+
+    def tables(db: ConversationDB) -> set[str]:
+        with db.connect() as con:
+            rows = con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        return {r[0] for r in rows}
+
+    project_id = "prj_legacy_schema_test"
+    db = ConversationDB(project_id).init()
+    # 模拟旧版建库：没有 dag_review_* 表族，也没有 schema_migrations 迁移记录。
+    with db.connect() as con:
+        con.execute("DROP TABLE dag_review_notifications")
+        con.execute("DROP TABLE dag_review_requests")
+        con.execute("DROP TABLE dag_review_decisions")
+        con.execute("DROP TABLE schema_migrations")
+    assert "dag_review_notifications" not in tables(db)
+
+    store = _review_store(project_id)
+    assert isinstance(store, DagStore)
+    assert store.pending_review_notifications() == []
+    assert "dag_review_notifications" in tables(db)
+    assert "schema_migrations" in tables(db)

@@ -1,6 +1,6 @@
 # xtb 输出测试样本
 
-xtb stdout 日志（calculator.sh 重定向落盘的 `.out`），供 `cloudra/tools/core/xtb_frames.py`、`runtime/monitor.py` 的 xtb 终态判定与 `log_parser` 的测试使用。全部为合成小片段，格式参照 NA1_run 工作区真实 xtb 6.7.1 输出（GH #26）。
+xtb stdout 日志（calculator.sh 重定向落盘的 `.out`），供 `cloudra/tools/core/xtb_frames.py`、`runtime/monitor.py` 的 xtb 终态判定与 `log_parser` 的测试使用。全部为合成小片段，格式按真实 xtb 6.7.1 输出合成（GH #26）。
 
 | 文件 | 任务类型 | 来源 | 许可 |
 | --- | --- | --- | --- |

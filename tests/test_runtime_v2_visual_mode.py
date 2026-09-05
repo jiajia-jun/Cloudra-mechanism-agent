@@ -15,6 +15,7 @@ from cloudra.runtime_v2.policies.permission import PermissionStage
 from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
     Command,
+    InvocationProtocol,
     PermissionSet,
     RuntimeSettings,
 )
@@ -106,6 +107,9 @@ def _visual_agent(visual_mode: bool):
             base_url="https://api.example/",
             api_key="sk-x",
             visual_mode=visual_mode,
+            # 本文件测试直接传业务工具 schema 列表，固定传统协议；
+            # 默认 javascript 协议的线缆投影是 js_exec + 直接控制类。
+            invocation_protocol=InvocationProtocol.TRADITIONAL,
         ),
     )
 
