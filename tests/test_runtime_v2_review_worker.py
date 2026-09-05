@@ -203,7 +203,7 @@ async def test_expired_review_claim_cannot_resolve(tmp_path):
 async def test_long_review_renews_lease_before_resolving(tmp_path):
     class SlowSupervisor(FakeSupervisor):
         async def review(self, request):
-            await asyncio.sleep(0.12)
+            await asyncio.sleep(1.5)
             return await super().review(request)
 
     conversation_id = "renew-review"
@@ -215,10 +215,13 @@ async def test_long_review_renews_lease_before_resolving(tmp_path):
         store_factory=store_factory,
         supervisor_factory=lambda _pid: SlowSupervisor(),
         poll_interval=0.01,
-        lease_seconds=0.05,
+        # lease=1s < review=1.5s：不续约就会在 resolve 时 stale_claim。
+        # 续约间隔 lease/3≈0.33s，容忍 CI 上 0.6s+ 的事件循环饥饿；
+        # 勿再把 lease 压到 0.05s 量级，调度抖动会直接吃掉余量。
+        lease_seconds=1,
     )
     await worker.start()
-    for _ in range(80):
+    for _ in range(800):
         await asyncio.sleep(0.01)
         if store_factory(project.id).list_review_requests(state="resolved"):
             break
