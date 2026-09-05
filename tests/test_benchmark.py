@@ -1064,10 +1064,10 @@ def _tiny_task(**kwargs) -> TaskSpec:
 
 def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path, monkeypatch):
     from cloudra.benchmark.backend import RuntimeV2Backend
-    from cloudra.runtime_v2.policies.base import ToolCall as PToolCall
-    from cloudra.runtime_v2.turn_pipeline import LLMResponse
     from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+    from cloudra.runtime_v2.policies.base import ToolCall as PToolCall
     from cloudra.runtime_v2.schemas import InvocationProtocol
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
 
     monkeypatch.setattr(
         "cloudra.runtime_v2.adapters.legacy_default_runtime_settings",

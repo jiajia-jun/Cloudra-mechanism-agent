@@ -101,7 +101,6 @@ def create_v2_app(
     compute_notify = ComputeNotifyBroker(core)
     from cloudra.core.supervisor import GraphSupervisor
     from cloudra.persistence import paths
-    from cloudra.persistence.database import ConversationDB
     from cloudra.runtime_v2.review_worker import ReviewWorker
 
     def review_store(project_id: str):
