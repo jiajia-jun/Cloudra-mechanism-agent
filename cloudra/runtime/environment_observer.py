@@ -31,6 +31,18 @@ _IGNORED_NAMES = frozenset(
 _SNAPSHOT_CACHE: dict[tuple[str, str], dict[str, str]] = {}
 
 
+def is_application_checkout(root: Path) -> bool:
+    """Recognize Cloudra source checkouts, including separate git worktrees.
+
+    A research workspace may be explicitly located here, but its developer
+    instructions and unrelated file inventory must not be injected as task context.
+    """
+    root = root.resolve()
+    return (root / "pyproject.toml").is_file() and (
+        root / "cloudra" / "runtime" / "prompt_assembler.py"
+    ).is_file()
+
+
 def _digest(value: object) -> str:
     encoded = json.dumps(
         value,

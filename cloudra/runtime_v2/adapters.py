@@ -10,13 +10,17 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import logging
 from typing import Any, Iterable
+
+from pydantic import ValidationError
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema as LegacyInputSchema
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import LLMClient
 from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
+from cloudra.infra.tool_errors import validation_feedback
 from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
 from cloudra.persistence.paths import project_workspace_dir
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
@@ -179,7 +183,6 @@ class LegacyPromptProvider:
         tool_names: list[str],
     ) -> list[dict[str, Any]]:
         import asyncio
-        import os
 
         from cloudra.runtime.prompt_assembler import PromptAssembler
 
@@ -189,7 +192,7 @@ class LegacyPromptProvider:
                 prompt_name=agent.role_id,
                 custom_prompt=None,
                 conversation_id=agent.project_id,
-                working_directory=workspace_dir or os.getcwd(),
+                working_directory=workspace_dir or str(project_workspace_dir(agent.project_id)),
                 include_memory=is_coordinator,
                 include_agents_md=is_coordinator,
                 observer_id=agent.id,
@@ -523,8 +526,8 @@ class LegacyToolExecutor:
         schema_cls = entry.input_schema or LegacyInputSchema
         try:
             parsed = schema_cls.model_validate(call.arguments)
-        except Exception as exc:
-            return ToolResult(is_success=False, summary=f"[Tool error] invalid arguments: {exc}")
+        except ValidationError as exc:
+            return ToolResult(is_success=False, summary=validation_feedback(exc))
         token = set_session_yolo(agent.settings.yolo)
         try:
             # v2-native user decisions: destructive-tool approvals and ask_user
@@ -541,17 +544,19 @@ class LegacyToolExecutor:
 
             with use_approval_handler(_approval), use_input_handler(_interaction):
                 output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
-        except Exception as exc:
+        except Exception:
             # An unexpected safe_call fault is not a business failure: package
             # it as structured tool_exception metadata so the invocation
             # service closes the lifecycle with effect_state=unknown.
             # Validation errors above stay ordinary unsuccessful results.
             from cloudra.runtime_v2.invocation_types import InvocationError
 
+            logging.getLogger(__name__).exception("Tool execution failed: %s", call.name)
+            message = "Tool execution failed internally. The error was logged; report the tool call instead of inspecting application source."
             return ToolResult(
                 is_success=False,
-                summary=str(exc),
-                error=InvocationError(code="tool_exception", message=str(exc), effect_state="unknown"),
+                summary=message,
+                error=InvocationError(code="tool_exception", message=message, effect_state="unknown"),
             )
         finally:
             reset_session_yolo(token)

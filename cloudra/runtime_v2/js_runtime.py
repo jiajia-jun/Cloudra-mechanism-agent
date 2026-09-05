@@ -150,7 +150,7 @@ class JavaScriptRuntime:
         )
         node = shutil.which(self.node_binary)
         if node is None:
-            return f"node executable not found on PATH; {install_hint}"
+            return f"JavaScript runtime prerequisites are unavailable; {install_hint}"
         version_out = b""
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -160,15 +160,14 @@ class JavaScriptRuntime:
             version_out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
             major = int(version_out.decode("utf-8", "replace").strip().lstrip("v").split(".")[0])
         except Exception:
-            return f"failed to execute node --version; {install_hint}"
+            return f"JavaScript runtime prerequisites are unavailable; {install_hint}"
         if major < 22:
-            found = version_out.decode("utf-8", "replace").strip()
-            return f"Node >= 22 is required (found {found}); {install_hint}"
+            return f"JavaScript runtime prerequisites are unavailable (Node >= 22 required); {install_hint}"
         if not self.host_path.is_file():
-            return f"js_host entrypoint missing at {self.host_path}"
+            return "JavaScript runtime prerequisites are unavailable (host entrypoint missing)."
         dependency = self.host_path.parent / "node_modules" / "quickjs-emscripten" / "package.json"
         if not dependency.is_file():
-            return f"quickjs-emscripten is not installed for the js_host; {install_hint}"
+            return f"JavaScript runtime prerequisites are unavailable; {install_hint}"
         return None
 
     async def _launch(self, node: str, cwd: str) -> asyncio.subprocess.Process:

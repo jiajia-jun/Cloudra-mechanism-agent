@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
+from pydantic import ValidationError
+
 from cloudra.dag.models import (
     ELEMENTARY_STEP_STAGE_KINDS,
     OCCURRENCE_STAGE_KINDS,
@@ -26,6 +28,7 @@ from cloudra.dag.models import (
     UpdateNode,
     parse_graph_operation,
 )
+from cloudra.infra.tool_errors import validation_feedback
 
 
 def _contract_targets(spec: ClaimSpec) -> set[str]:
@@ -78,11 +81,13 @@ class DraftsMixin:
         只由 harness 推进）；stage_contracts 的键必须解析到草稿自身 add 的
         元素，且阶段词表与元素种类匹配。"""
         operations: list[GraphOperation] = []
-        for raw in operations_raw:
+        for index, raw in enumerate(operations_raw):
             try:
                 op = parse_graph_operation(raw)
+            except ValidationError as exc:
+                raise RuntimeError(validation_feedback(exc, prefix=f"operations.{index}")) from exc
             except ValueError as exc:
-                raise RuntimeError(f"invalid draft operation: {exc}") from exc
+                raise RuntimeError(f"operations.{index}: invalid operation; use the documented delivery operation shape") from exc
             if (
                 not isinstance(op, (AddNode, AddEdge, UpdateNode, UpdateEdge))
                 or op.graph is not GraphKind.DELIVERY

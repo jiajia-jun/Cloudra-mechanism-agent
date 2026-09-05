@@ -21,7 +21,7 @@ import yaml
 
 from cloudra.infra.config import get_config
 from cloudra.persistence.memory import get_memory_manager
-from cloudra.runtime.environment_observer import observe_workspace
+from cloudra.runtime.environment_observer import is_application_checkout, observe_workspace
 
 PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
 SKILLS_DIR = Path(__file__).resolve().parents[1] / "skills"
@@ -186,6 +186,7 @@ class PromptAssembler:
         self.include_memory = include_memory
         self.observer_id = observer_id or conversation_id
         self.include_agents_md = include_agents_md
+        self.application_checkout = is_application_checkout(Path(self.working_directory))
 
     @staticmethod
     def _source(kind: str, content: str, path: Optional[Path] = None) -> PromptSource:
@@ -220,6 +221,8 @@ class PromptAssembler:
         sections = []
         seen_paths: set[Path] = set()
         for kind, label, path in candidates:
+            if self.application_checkout and kind == "workspace_agents_md":
+                continue
             resolved = path.resolve()
             if resolved in seen_paths or not resolved.is_file():
                 continue
@@ -386,6 +389,18 @@ class PromptAssembler:
         device_environment: list[dict],
     ) -> tuple[dict, str]:
         root = Path(self.working_directory)
+        if self.application_checkout:
+            return ({
+                "role": "system",
+                "content": (
+                    "[Workspace observation]\n"
+                    f"working_directory={self.working_directory}\n"
+                    "Use explicit task paths for your own inputs and results. "
+                    "Use the public tool schemas and skills to learn tool usage. "
+                    "Do not inspect application source, developer instructions or unrelated prior-task files "
+                    "to discover tool arguments or recover answers. Report tool failures by tool name and call id."
+                ),
+            }, "task-paths-only")
         try:
             observation = observe_workspace(
                 root,

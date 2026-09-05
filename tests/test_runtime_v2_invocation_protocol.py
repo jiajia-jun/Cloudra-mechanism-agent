@@ -47,20 +47,20 @@ def _run_started_events(core: RuntimeCore, agent_id: str):
 
 
 @pytest.mark.asyncio
-async def test_traditional_is_the_default_protocol():
+async def test_javascript_is_the_default_protocol():
     core = RuntimeCore(strict_events=True)
     _, agent = await _spawn_agent(core)
-    assert configured_invocation_protocol(agent) is InvocationProtocol.TRADITIONAL
-    assert effective_invocation_protocol(agent) is InvocationProtocol.TRADITIONAL
+    assert configured_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT
+    assert effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT
     bus = CommandBus(core)
     await bus.execute(
         Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "hi"})
     )
     started = _run_started_events(core, agent.id)[-1]
-    assert started.data["invocation_protocol"] == "traditional"
-    assert started.data["settings_summary"]["invocation_protocol"] == "traditional"
+    assert started.data["invocation_protocol"] == "javascript"
+    assert started.data["settings_summary"]["invocation_protocol"] == "javascript"
     assert "api_key" not in started.data
-    assert agent.current_run.invocation_protocol is InvocationProtocol.TRADITIONAL
+    assert agent.current_run.invocation_protocol is InvocationProtocol.JAVASCRIPT
 
 
 @pytest.mark.asyncio

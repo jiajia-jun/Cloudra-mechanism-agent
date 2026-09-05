@@ -10,12 +10,13 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema
 from cloudra.core.agent import Agent
 from cloudra.dag.controller import DagController
-from cloudra.dag.models import OrchestrationMode
+from cloudra.dag.models import OrchestrationMode, StageKind
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail
+from cloudra.tools.Plantool.dag_tools.proposal_inputs import ProposalOperation
 
 
 class DagProposeMechanismInput(input_schema):
-    operations: list[dict[str, Any]] = Field(
+    operations: list[ProposalOperation] = Field(
         min_length=1,
         description=(
             "Delivery-only graph operations (add_node occurrence / add_edge "
@@ -25,7 +26,7 @@ class DagProposeMechanismInput(input_schema):
             '"node_type": "occurrence", "label": ..., "role": ...}}.'
         ),
     )
-    stage_contracts: dict[str, list[str]] = Field(
+    stage_contracts: dict[str, list[StageKind]] = Field(
         default_factory=dict,
         description=(
             "Element id → ordered stage kinds the element needs. Occurrence "
@@ -85,16 +86,24 @@ class DagProposeMechanism(DagToolBase):
         )
         try:
             proposed = await controller.propose_mechanism(
-                operations=user_input.operations,
-                stage_contracts=user_input.stage_contracts,
+                operations=[op.model_dump(mode="json", exclude_unset=True) for op in user_input.operations],
+                stage_contracts={key: [kind.value for kind in kinds] for key, kinds in user_input.stage_contracts.items()},
                 rationale=user_input.rationale,
                 actor_id=self._actor_id(),
                 claim_spec=user_input.claim_spec,
                 contract_version=user_input.contract_version,
             )
         except Exception as exc:
-            # 契约引用不完整/词表不符/落图被拒等确定性拒绝，原文回报给模型自纠
-            return fail("dag_propose_mechanism", str(exc), accepted=False)
+            # Controller validation errors are already public, field-oriented
+            # feedback. Unexpected faults stay in server logs and never expose
+            # implementation paths or exception internals to the model.
+            import logging
+
+            logging.getLogger(__name__).exception("Mechanism proposal failed")
+            message = str(exc)
+            if not message.startswith(("Invalid tool arguments:", "operations.", "stage contract", "unknown stage", "stage ", "duplicate stage", "draft ", "a mechanism", "mechanism draft")):
+                message = "Mechanism proposal failed validation; check the documented delivery operation shape and stage contracts."
+            return fail("dag_propose_mechanism", message, accepted=False)
         return DagToolOutput(
             is_success=True,
             action="dag_propose_mechanism",

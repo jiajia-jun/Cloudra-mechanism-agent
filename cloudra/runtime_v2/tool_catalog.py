@@ -155,11 +155,18 @@ def javascript_instructions(tool_names: Iterable[str] | None, *, visual_mode: bo
         "a ToolResponse {call_id, is_success, summary, data, duration_ms}. "
         "Arguments and results cross the bridge as plain JSON (no functions, "
         "no undefined, no class instances).\n"
+        "- Check r.is_success even when await succeeds: a tool can return a "
+        "business failure without throwing. Read r.data for structured results "
+        "(for get_skill: text(r.data.content)); use text(r.summary) for a readable "
+        "summary. Do not stringify the whole response and slice it: that duplicates "
+        "content and can hide fields.\n"
         "- A rejected call raises a ToolCallError with {code, message, "
         "call_id, tool_name, effect_state}; catching it grants no authority.\n"
         "- `text(value)` records an explicit program output. Only these "
         "outputs and an aggregate receipt are returned to you; there is no "
         "console.log.\n"
+        "- Use the declared function names and argument fields below. Do not "
+        "probe tools by trial calls or inspect application source to discover schemas.\n"
         "- Backend calls execute serially, one at a time, even under "
         "Promise.all.\n"
         "- Direct controls (stop, ask_user, schedule) are NOT callable inside "
@@ -254,6 +261,8 @@ def _ts(schema: Any, defs: dict, prefix: str) -> str:
         if ref.startswith("#/$defs/") and ref[len("#/$defs/"):] in defs:
             return _def_name(prefix, ref[len("#/$defs/"):])
         return "unknown"
+    if "const" in schema:
+        return json.dumps(schema["const"], ensure_ascii=False)
     if "enum" in schema:
         values = [json.dumps(v, ensure_ascii=False) for v in schema["enum"]]
         return " | ".join(values) if values else "unknown"

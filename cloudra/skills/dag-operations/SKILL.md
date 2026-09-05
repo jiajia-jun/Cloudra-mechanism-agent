@@ -80,6 +80,37 @@ Coordinator-only. Three arguments:
 
 All stages start `pending`; you cannot pre-declare stage states.
 
+The operation envelope is mandatory: `graph` is `"delivery"`; species fields go
+inside `node`, step fields inside `edge`. Do not flatten them beside `op`.
+Each node has `node_type: "occurrence"`; each step has
+`edge_type: "elementary_step"`. TS evidence belongs to a step, not a TS occurrence.
+The smallest complete proposal argument object is:
+
+```json
+{
+  "operations": [
+    {"op": "add_node", "graph": "delivery", "node": {"node_type": "occurrence", "node_id": "r", "label": "Reactant complex", "role": "reactant"}},
+    {"op": "add_node", "graph": "delivery", "node": {"node_type": "occurrence", "node_id": "p", "label": "Product complex", "role": "product"}},
+    {"op": "add_edge", "graph": "delivery", "edge": {"edge_type": "elementary_step", "edge_id": "step1", "source_node_id": "r", "target_node_id": "p", "label": "Elementary reaction"}}
+  ],
+  "stage_contracts": {"r": ["geometry", "frequency"], "p": ["geometry", "frequency"], "step1": ["ts_guess", "ts_opt", "frequency"]},
+  "rationale": "Replace this with the mapping and scientific basis of the proposed step."
+}
+```
+
+This is a format example: replace the species, supply actual SMILES, and choose
+the stages needed for your scientific claim (including IRC/endpoint checks where required).
+Updates use `{"op":"update_node","graph":"delivery","node_id":"r","changes":{"label":"New label"}}`
+or `update_edge` with `edge_id`. Updates do not change species identity or evidence states.
+Use the declared tool schema and this example to correct invalid arguments;
+application source and developer files are not part of the tool documentation.
+
+In JavaScript mode, read the structured result directly:
+`const r = await tools.get_skill({skill_name: "dag-operations"}); text(r.data.content);`
+For proposals, use `text(r.data)` and check `r.is_success`.
+`r.data.result.state` tells you whether the draft is `open` or `accepted`;
+the outer `accepted` field acknowledges submission, not Supervisor approval.
+
 ## Adjusting an accepted mechanism
 
 - `dag_add_species`: new occurrence (`node_id`, `label`, `role`; optional `smiles`, `required`, `metadata`).

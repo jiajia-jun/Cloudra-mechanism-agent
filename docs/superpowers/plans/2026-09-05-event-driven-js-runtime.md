@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Baseline: `322a389`; preserve its DAG-guided review, stop, worker, mailbox and launch-group behavior.
-- Protocol values: `traditional` and `javascript`; default traditional; frozen at run start, never silently switched.
+- Protocol values: `traditional` and `javascript`; default javascript; frozen at run start, never silently switched.
 - Existing Python >=3.11/POSIX requirements remain unchanged; optional JS host requires Node >=22.
 - The only new third-party dependency is optional npm `quickjs-emscripten` exactly `0.32.0`; no Python or frontend dependency additions.
 - All model-facing descriptions, prompts, errors and tool feedback are English.

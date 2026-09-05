@@ -782,7 +782,7 @@ export default function App() {
             yolo: activeProject.settings.defaults?.yolo ?? false,
             visual_mode: activeProject.settings.defaults?.visual_mode ?? true,
             schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
-            invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'traditional',
+            invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'javascript',
           },
         });
         setDraft('');
@@ -828,7 +828,7 @@ export default function App() {
           yolo: activeProject.settings.defaults?.yolo ?? false,
           visual_mode: activeProject.settings.defaults?.visual_mode ?? true,
           schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
-          invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'traditional',
+          invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'javascript',
         },
       });
       await selectAgent(resp.data.id);
@@ -2188,7 +2188,7 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                 invocation protocol
                 <select
                   className="input"
-                  value={activeAgent.settings.invocation_protocol ?? 'traditional'}
+                  value={activeAgent.settings.invocation_protocol ?? 'javascript'}
                   onChange={(e) => onPatchSettings({ invocation_protocol: e.target.value })}
                 >
                   <option value="traditional">traditional (direct tool calls)</option>
@@ -2198,7 +2198,7 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                   applies to the next run; the active run keeps its frozen protocol
                   {activeAgent.current_run?.invocation_protocol &&
                   activeAgent.current_run.invocation_protocol !==
-                    (activeAgent.settings.invocation_protocol ?? 'traditional')
+                    (activeAgent.settings.invocation_protocol ?? 'javascript')
                     ? ` — active run: ${activeAgent.current_run.invocation_protocol}`
                     : ''}
                 </span>

@@ -102,7 +102,7 @@ async def _run(pipeline: TurnPipeline, agent) -> object:
 @pytest.mark.asyncio
 async def test_traditional_rejects_js_exec_without_executing():
     core = RuntimeCore(strict_events=True)
-    agent = await _spawn_agent(core)  # traditional is the default
+    agent = await _spawn_agent(core, InvocationProtocol.TRADITIONAL)
     js = FakeJSRuntime()
     pipeline = _pipeline(
         core, LLMResponse(tool_calls=[ToolCall("t1", "js_exec", {"code": "text(1);"})]),

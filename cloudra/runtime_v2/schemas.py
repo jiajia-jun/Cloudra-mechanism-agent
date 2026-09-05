@@ -98,7 +98,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
     native_search: str = "auto"
     native_search_params: dict[str, Any] = Field(default_factory=dict)
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
-    invocation_protocol: InvocationProtocol = InvocationProtocol.TRADITIONAL
+    invocation_protocol: InvocationProtocol = InvocationProtocol.JAVASCRIPT
 
     api_key: str = Field(default="", repr=False, exclude=True)
 

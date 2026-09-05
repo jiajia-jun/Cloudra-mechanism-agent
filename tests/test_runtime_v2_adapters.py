@@ -193,7 +193,7 @@ async def test_legacy_llm_provider_streams_and_parses_response():
     provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
     agent = SimpleNamespace(
         role_id="coordinator",
-        settings=RuntimeSettings(model="deepseek-v4", base_url="https://api.example/", api_key="sk-x"),
+        settings=RuntimeSettings(model="deepseek-v4", base_url="https://api.example/", api_key="sk-x", invocation_protocol="traditional"),
     )
     deltas: list[tuple[str, str]] = []
 
@@ -341,7 +341,7 @@ def _deepseek_agent():
     return SimpleNamespace(
         role_id="coordinator",
         settings=RuntimeSettings(
-            model="deepseek-v4-flash", base_url="https://api.deepseek.com", api_key="sk-x"
+            model="deepseek-v4-flash", base_url="https://api.deepseek.com", api_key="sk-x", invocation_protocol="traditional"
         ),
     )
 
@@ -436,7 +436,7 @@ async def test_no_native_adapter_keeps_search_tool():
     provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
     agent = SimpleNamespace(
         role_id="coordinator",
-        settings=RuntimeSettings(model="m", base_url="https://api.example/", api_key="sk-x"),
+        settings=RuntimeSettings(model="m", base_url="https://api.example/", api_key="sk-x", invocation_protocol="traditional"),
     )
     await provider.complete(agent, [{"role": "user", "content": "hi"}], ["search"])
 

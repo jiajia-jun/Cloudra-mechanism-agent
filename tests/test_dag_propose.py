@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from cloudra.base.session_class import Session
 from cloudra.core.agent import Coordinator
@@ -210,10 +211,14 @@ async def test_draft_stages_must_be_pending(tmp_path):
         }
     ]
 
-    out = await _propose(agent, session, operations=ops, contracts={})
+    # Public proposals reject evidence states before entering the controller.
+    with pytest.raises(ValidationError, match="stages"):
+        await _propose(agent, session, operations=ops, contracts={})
+    from cloudra.dag.controller import DagController
 
-    assert not out.is_success
-    assert "pending" in out.error
+    # The engine guard still protects callers outside the public tool schema.
+    with pytest.raises(RuntimeError, match="pending"):
+        DagController._validate_draft(ops, {}, "hypothesis")
 
 
 @pytest.mark.asyncio
