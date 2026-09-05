@@ -140,6 +140,8 @@ Cloudra 的执行面由轻量、确定性的 `runtime_v2` 驱动：
 
 进程间的状态同步只走 SQLite（WAL）与文件锁——绝不走内存通道。
 
+`cloudra stop` 是显式全停入口：写入 `daemons.stop` 关停标志（自动拉起失效、守护进程自检退出），通知 API 优雅关停（取消并 await 全部 agent 运行与收尾任务、关闭流/客户端、回收归属的 JS host），并在有界等待内复查。单 agent 取消（`POST /api/v2/agents/{id}/cancel`）只停该 agent 的推理工作、不碰计算作业；已发给 LLM provider 的请求远端不可撤销——本地保证停止读取/重试/新发请求。
+
 ---
 
 ## 三种工作模式：面向科学研究的对照消融边界

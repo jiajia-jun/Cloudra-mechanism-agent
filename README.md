@@ -140,6 +140,8 @@ A running Cloudra deployment is three deliberately separate OS processes:
 
 State synchronization between processes goes through SQLite (WAL) and file locks — never through in-memory channels.
 
+`cloudra stop` is the explicit full-stop entry: it writes the `daemons.stop` marker (auto-spawn is disabled and the daemons exit on their own self-check), asks the API to shut down gracefully (cancelling and awaiting all agent runs and finalization tasks, closing streams/clients, reaping owned JS hosts), and re-checks within a bounded wait. Per-agent cancel (`POST /api/v2/agents/{id}/cancel`) stops that agent's reasoning work without touching compute jobs; requests already sent to the LLM provider cannot be revoked remotely — locally no further reads/retries/new requests are issued.
+
 ---
 
 ## Three Orchestration Modes: Ablation Boundaries for Research
