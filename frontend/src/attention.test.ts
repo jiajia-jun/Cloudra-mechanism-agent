@@ -17,6 +17,16 @@ const approvalRow: Record<string, unknown> = {
   risk_summary: 'rm -rf build/',
   created_at: '2026-08-22T10:00:00',
 };
+const nestedApprovalRow: Record<string, unknown> = {
+  id: 'apv-2',
+  session_id: 's1',
+  agent_name: 'coordinator',
+  tool_name: 'submit_compute_job',
+  risk_summary: 'orca opt',
+  tool_call_id: 'tc_42',
+  execution_id: 'exec_7',
+  created_at: '2026-08-22T10:05:00',
+};
 const interactionRow: Record<string, unknown> = {
   interaction_id: 'ixn-9',
   session_id: 's2',
@@ -26,17 +36,21 @@ const interactionRow: Record<string, unknown> = {
 };
 
 const perProject = new Map<string, ProjectPending>();
-perProject.set('p1', project({ name: 'Alpha', approvals: [approvalRow] }));
+perProject.set('p1', project({ name: 'Alpha', approvals: [approvalRow, nestedApprovalRow] }));
 perProject.set('p2', project({ name: 'Beta', interactions: [interactionRow] }));
 
 const items = collectPending(perProject);
-assert.equal(items.length, 2);
+assert.equal(items.length, 3);
 // Sorted by created_at: the older interaction comes first.
 assert.equal(items[0].key, 'p2:interaction:ixn-9');
 assert.equal(items[0].body, 'Which solvent?');
 assert.equal(items[1].key, 'p1:approval:apv-1');
 assert.equal(items[1].body, 'bash_command — rm -rf build/');
 assert.equal(items[1].projectName, 'Alpha');
+// Host invocation correlation (JavaScript program child) passes through.
+assert.equal(items[2].key, 'p1:approval:apv-2');
+assert.equal(items[2].toolCallId, 'tc_42');
+assert.equal(items[2].executionId, 'exec_7');
 
 // Rows without an id are dropped rather than keyed on "undefined".
 const noIdMap = new Map<string, ProjectPending>();
@@ -47,7 +61,7 @@ assert.equal(collectPending(noIdMap).length, 0);
 // diffNewItems: only unseen keys surface, and it stays pure.
 const seen = new Set<string>(['p2:interaction:ixn-9']);
 const fresh = diffNewItems(items, seen);
-assert.equal(fresh.length, 1);
+assert.equal(fresh.length, 2);
 assert.equal(fresh[0].key, 'p1:approval:apv-1');
 assert.equal(seen.size, 1, 'diffNewItems must not mutate the seen set');
 

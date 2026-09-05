@@ -15,6 +15,61 @@ def _fixtures():
     return project, agent
 
 
+def test_program_events_render_source_outputs_and_receipts():
+    project, agent = _fixtures()
+    log = EventLog()
+    base = dict(project_id=project.id, session_id=agent.id, run_id="run_1")
+    source = "const tick = `back``ticks`;\nconst fence = ```js\nnested```;\ntext(tick);"
+    log.append("program.submitted", stream="agent", **base, data={
+        "execution_id": "exec_1", "outer_tool_call_id": "wire_1",
+        "code": source, "source_hash": "deadbeef",
+    })
+    log.append("tool.requested", stream="agent", **base, data={
+        "tool_call_id": "tc_1", "tool_name": "log_parser",
+        "arguments_summary": {"log_path": "/x.out"}, "execution_id": "exec_1",
+    })
+    log.append("tool.result_recorded", stream="agent", **base, data={
+        "tool_call_id": "tc_1", "tool_name": "log_parser", "execution_id": "exec_1",
+        "result": {"is_success": True, "summary": "ok", "data": {"energy": -40.1}, "duration_ms": 3},
+    })
+    log.append("program.output", stream="agent", **base, data={
+        "execution_id": "exec_1", "output_index": 0, "value": {"energy": -40.1},
+    })
+    log.append("program.finished", stream="agent", **base, data={
+        "execution_id": "exec_1", "outer_tool_call_id": "wire_1", "status": "completed",
+        "duration_ms": 42, "error": None,
+        "calls": [{"call_id": "tc_1", "tool_name": "log_parser", "status": "completed",
+                   "effect_state": "completed", "raw_result_event_id": "evt_raw"}],
+    })
+    transcript = render_project_transcript(project, {agent.id: agent}, list(log))
+    # Source survives verbatim (fence chosen longer than any backtick run).
+    assert source in transcript
+    assert "````" in transcript  # fence longer than the nested ``` run
+    assert "exec `exec_1`" in transcript
+    assert "outer call `wire_1`" in transcript
+    assert "sha256 `deadbeef`" in transcript
+    assert "program output #0" in transcript
+    assert '"energy": -40.1' in transcript  # structured output not summarized away
+    assert "`tc_1` `log_parser` — completed / completed · raw `evt_raw`" in transcript
+    assert "**failed**" not in transcript
+
+
+def test_program_finished_renders_error_and_control_decision():
+    project, agent = _fixtures()
+    log = EventLog()
+    base = dict(project_id=project.id, session_id=agent.id, run_id="run_1")
+    log.append("program.finished", stream="agent", **base, data={
+        "execution_id": "exec_2", "outer_tool_call_id": "wire_2", "status": "failed",
+        "duration_ms": 7,
+        "error": {"code": "policy_wait", "message": "needs approval", "call_id": "tc_9"},
+        "calls": [], "control_decision": "wait_approval",
+    })
+    transcript = render_project_transcript(project, {agent.id: agent}, list(log))
+    assert "**failed**" in transcript
+    assert "policy_wait" in transcript
+    assert "control decision: `wait_approval`" in transcript
+
+
 def _seed_log() -> EventLog:
     log = EventLog()
     base = dict(project_id="prj_1", session_id="as_1", run_id="run_1")

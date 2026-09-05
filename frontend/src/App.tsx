@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, EVENTS_WINDOW, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
@@ -17,6 +17,8 @@ import {
   type TimelineItem,
   type ToolItem,
 } from './timeline';
+import { ToolRow } from './ToolRow';
+import { ProgramCard } from './ProgramCard';
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -780,6 +782,7 @@ export default function App() {
             yolo: activeProject.settings.defaults?.yolo ?? false,
             visual_mode: activeProject.settings.defaults?.visual_mode ?? true,
             schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
+            invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'traditional',
           },
         });
         setDraft('');
@@ -825,6 +828,7 @@ export default function App() {
           yolo: activeProject.settings.defaults?.yolo ?? false,
           visual_mode: activeProject.settings.defaults?.visual_mode ?? true,
           schedule_mode: activeProject.settings.defaults?.schedule_mode ?? false,
+          invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'traditional',
         },
       });
       await selectAgent(resp.data.id);
@@ -1060,7 +1064,18 @@ export default function App() {
     return [...items, ...pendingMessages];
   }, [committedTimeline, thinkingItems, streamView.streamText, pendingMessages, activeAgent?.display_name]);
   const runningTool = useMemo(
-    () => timeline.find((item) => item.kind === 'tool' && item.running) as ToolItem | undefined,
+    () => {
+      for (const item of timeline) {
+        if (item.kind === 'tool' && item.running) return item as ToolItem;
+        // Program children run nested: surface the active child in the
+        // current-working indicator exactly like a top-level tool.
+        if (item.kind === 'program') {
+          const child = item.children.find((c) => c.running);
+          if (child) return child;
+        }
+      }
+      return undefined;
+    },
     [timeline],
   );
   const liveThinking = thinkingItems.some((item) => item.live);
@@ -1396,6 +1411,16 @@ export default function App() {
                       : null
                   }
                 />
+              ) : item.kind === 'program' ? (
+                <ProgramCard
+                  key={item.id}
+                  item={item}
+                  childImageUrl={(child) =>
+                    child.imageArtifactId && activeProject
+                      ? api.artifactDownloadUrl(activeProject.id, child.imageArtifactId)
+                      : null
+                  }
+                />
               ) : item.kind === 'thinking' ? (
                 <details key={item.id} className={`thinking${item.live ? ' live' : ''}`}>
                   <summary>
@@ -1621,54 +1646,6 @@ export default function App() {
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ tool row */
-
-function ToolRowView({ item, imageUrl }: { item: ToolItem; imageUrl?: string | null }) {
-  const [open, setOpen] = useState(false);
-  const icon = item.running ? '▸' : item.ok ? '✓' : '✗';
-  const cls = item.running ? 'running' : item.ok ? 'ok' : 'fail';
-  return (
-    <>
-      <div className={`tool-row ${cls}`} onClick={() => setOpen((v) => !v)}>
-        <span className="tool-icon">{icon}</span>
-        <span className="tool-name">{item.name}</span>
-        <span className="tool-sep">·</span>
-        <span className="tool-summary">
-          {item.running
-            ? short(item.argsSummary, 120) || 'running…'
-            : short(item.resultSummary, 200) || (item.ok ? 'done' : 'failed')}
-        </span>
-        {item.durationMs != null && <span className="tool-sep">{item.durationMs}ms</span>}
-      </div>
-      {imageUrl && !item.running && (
-        <a className="tool-image" href={imageUrl} target="_blank" rel="noreferrer" title={item.imagePath ?? 'image output'}>
-          <img src={imageUrl} alt={`${item.name} output`} loading="lazy" />
-        </a>
-      )}
-      {open && (
-        <div className="tool-detail">
-          {item.argsSummary && (
-            <div className="tool-detail-section">
-              <span className="tool-detail-label">Arguments</span>
-              <pre className="tool-detail-pre">{item.argsSummary}</pre>
-            </div>
-          )}
-          {item.resultSummary && (
-            <div className="tool-detail-section">
-              <span className="tool-detail-label">Output</span>
-              <pre className="tool-detail-pre">{item.resultSummary}</pre>
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-// Memoized so a tool row re-renders only when its own item reference changes
-// (i.e. the persisted timeline rebuilt), not on every streaming token.
-const ToolRow = memo(ToolRowView);
 
 /* ------------------------------------------------------------------ inspector */
 
@@ -2206,6 +2183,25 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                   onChange={(e) => onPatchSettings({ schedule_mode: e.target.checked })}
                 />
                 Schedule mode (autonomous self-wake guard)
+              </label>
+              <label className="field" title="Tool invocation protocol for this agent's NEXT run (frozen once a run starts)">
+                invocation protocol
+                <select
+                  className="input"
+                  value={activeAgent.settings.invocation_protocol ?? 'traditional'}
+                  onChange={(e) => onPatchSettings({ invocation_protocol: e.target.value })}
+                >
+                  <option value="traditional">traditional (direct tool calls)</option>
+                  <option value="javascript">javascript (js_exec programs)</option>
+                </select>
+                <span className="field-hint">
+                  applies to the next run; the active run keeps its frozen protocol
+                  {activeAgent.current_run?.invocation_protocol &&
+                  activeAgent.current_run.invocation_protocol !==
+                    (activeAgent.settings.invocation_protocol ?? 'traditional')
+                    ? ` — active run: ${activeAgent.current_run.invocation_protocol}`
+                    : ''}
+                </span>
               </label>
               <label className="field">
                 temperature

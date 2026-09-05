@@ -50,6 +50,11 @@ class ToolRegistration:
     # tools/capabilities.py; do not keep separate supervisor tool name sets.
     supervisor_access: str = "none"
 
+    # Invocation routing. Direct controls stay top-level wire tools in the
+    # javascript protocol (exposed next to js_exec) and are rejected inside a
+    # guest program; ordinary business tools are the only guest-callable ones.
+    invocation_direct_only: bool = False
+
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
@@ -162,7 +167,12 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_review=True,
         dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
     ),
-    ToolRegistration('cloudra.tools.Interactool.ask_user', 'AskUser'),
+    ToolRegistration(
+        module='cloudra.tools.Interactool.ask_user',
+        class_name='AskUser',
+        tool_name='ask_user',
+        invocation_direct_only=True,
+    ),
     ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
     ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
     ToolRegistration(
@@ -183,6 +193,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='Schedule',
         tool_name='schedule',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        invocation_direct_only=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Managetool.subagent_launcher',
@@ -316,6 +327,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='StopTool',
         tool_name='stop',
         runtime_profiles=frozenset({'desktop', 'android'}),
+        invocation_direct_only=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Writetool.edit',

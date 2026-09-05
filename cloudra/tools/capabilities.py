@@ -68,6 +68,16 @@ def visual_tools() -> frozenset[str]:
     return frozenset(name for name, reg in _named().items() if reg.visual)
 
 
+def is_direct_only(tool_name: str) -> bool:
+    """Whether a tool is a direct wire control barred from JS guest programs.
+
+    Unregistered/test-injected tools default to guest-callable (False), which
+    keeps fake business tools usable in runtime tests.
+    """
+    reg = _named().get(tool_name)
+    return bool(reg.invocation_direct_only) if reg is not None else False
+
+
 def evidence_deriver_for(tool_name: str) -> EvidenceDeriver | None:
     reg = _named().get(tool_name)
     if reg is None or not reg.evidence_deriver:

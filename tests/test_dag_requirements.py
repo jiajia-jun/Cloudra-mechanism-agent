@@ -4,9 +4,6 @@
 的证据乱序绑定。
 """
 
-import asyncio
-import json
-
 import pytest
 
 from cloudra.dag.evidence_facts import EvidenceFact, FactSubject

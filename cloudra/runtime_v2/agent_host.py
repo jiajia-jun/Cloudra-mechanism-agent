@@ -71,6 +71,7 @@ def _settings_summary(settings: RuntimeSettings) -> dict[str, Any]:
         "model": settings.model,
         "yolo": settings.yolo,
         "orchestration_mode": settings.orchestration_mode.value,
+        "invocation_protocol": settings.invocation_protocol.value,
         "temperature": settings.temperature,
     }
 
@@ -118,7 +119,13 @@ def _start_run_drafts(agent: AgentSession, from_state: AgentState, run_id: str) 
             project_id=agent.project_id,
             session_id=agent.id,
             run_id=run_id,
-            data={"settings_summary": _settings_summary(agent.settings)},
+            data={
+                # The invocation protocol is resolved here and frozen onto
+                # CurrentRun by _apply_run_started; mid-run settings changes
+                # only affect the next run.
+                "invocation_protocol": agent.settings.invocation_protocol.value,
+                "settings_summary": _settings_summary(agent.settings),
+            },
         ),
     ]
 

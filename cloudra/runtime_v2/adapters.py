@@ -285,8 +285,30 @@ class LegacyLLMProvider:
         client = self._make_client(settings)
         native_adapter = _native_search_adapter_for(settings)
         rename_search = native_adapter is not None and native_adapter.name == "deepseek"
+        from cloudra.runtime_v2.schemas import (
+            InvocationProtocol,
+            effective_invocation_protocol,
+        )
+        from cloudra.runtime_v2.tool_catalog import (
+            javascript_instructions,
+            wire_tool_schemas,
+        )
+
+        if effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT:
+            # Deterministic JS contract message (envelope, serialization,
+            # serial backend, limits, direct-only controls); generated
+            # declarations use canonical local tool names.
+            messages = [
+                *messages,
+                {
+                    "role": "system",
+                    "content": javascript_instructions(
+                        tools, visual_mode=settings.visual_mode
+                    ),
+                },
+            ]
         tool_schemas = apply_native_search_to_schemas(
-            legacy_tool_schemas(tools),
+            wire_tool_schemas(agent, tools),
             native_adapter is not None,
             rename_search=rename_search,
         )
@@ -520,7 +542,17 @@ class LegacyToolExecutor:
             with use_approval_handler(_approval), use_input_handler(_interaction):
                 output = await tool.safe_call(parsed, Session(id=agent.id, path=""))
         except Exception as exc:
-            return ToolResult(is_success=False, summary=str(exc))
+            # An unexpected safe_call fault is not a business failure: package
+            # it as structured tool_exception metadata so the invocation
+            # service closes the lifecycle with effect_state=unknown.
+            # Validation errors above stay ordinary unsuccessful results.
+            from cloudra.runtime_v2.invocation_types import InvocationError
+
+            return ToolResult(
+                is_success=False,
+                summary=str(exc),
+                error=InvocationError(code="tool_exception", message=str(exc), effect_state="unknown"),
+            )
         finally:
             reset_session_yolo(token)
         data = output.toJson() if hasattr(output, "toJson") else output.model_dump(mode="json")

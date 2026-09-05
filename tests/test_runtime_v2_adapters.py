@@ -23,6 +23,89 @@ def test_legacy_tool_schemas_filters_by_name():
     schemas = legacy_tool_schemas(["stop"])
     names = [s["function"]["name"] for s in schemas]
     assert names == ["stop"]
+
+
+class _EmptyStream:
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        raise StopAsyncIteration
+
+
+def _recording_client(sent: dict):
+    class FakeClient:
+        last_usage = {}
+
+        async def create_with_retry(self, **kwargs):
+            sent.update(kwargs)
+            return _EmptyStream()
+
+    return FakeClient()
+
+
+def _js_agent(protocol, *, current_run=None):
+    return SimpleNamespace(
+        role_id="coordinator",
+        settings=RuntimeSettings(
+            model="m",
+            base_url="https://api.example/",
+            api_key="sk-x",
+            invocation_protocol=protocol,
+        ),
+        current_run=current_run,
+    )
+
+
+@pytest.mark.asyncio
+async def test_js_mode_projects_js_exec_and_appends_instructions():
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    agent = _js_agent(InvocationProtocol.JAVASCRIPT)
+    messages = [{"role": "user", "content": "hi"}]
+    await provider.complete(agent, messages, ["echo", "stop"])
+    names = [s["function"]["name"] for s in sent["tools"]]
+    assert names == ["js_exec", "stop"]  # business tools are guest-only
+    instructions = sent["messages"][-1]
+    assert instructions["role"] == "system"
+    assert "JavaScript invocation protocol" in instructions["content"]
+    assert "ToolResponse" in instructions["content"]
+    assert "declare const tools" in instructions["content"]
+    # The caller's message list is not mutated.
+    assert messages == [{"role": "user", "content": "hi"}]
+
+
+@pytest.mark.asyncio
+async def test_traditional_mode_has_no_js_surface():
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    agent = _js_agent("traditional")
+    messages = [{"role": "user", "content": "hi"}]
+    await provider.complete(agent, messages, ["stop"])
+    names = [s["function"]["name"] for s in sent["tools"]]
+    assert names == ["stop"]
+    assert all(
+        not (m.get("role") == "system" and "JavaScript invocation protocol" in str(m.get("content")))
+        for m in sent["messages"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_frozen_protocol_survives_mid_run_settings_change():
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    # The active run froze javascript; the settings slot already moved on.
+    agent = _js_agent(
+        InvocationProtocol.TRADITIONAL,
+        current_run=SimpleNamespace(invocation_protocol=InvocationProtocol.JAVASCRIPT),
+    )
+    await provider.complete(agent, [{"role": "user", "content": "hi"}], ["echo"])
+    names = [s["function"]["name"] for s in sent["tools"]]
+    assert names == ["js_exec"]
     assert legacy_tool_schemas(["*"]) != []
 
 

@@ -649,9 +649,8 @@ class CommandBus:
                 result = await self._apply_decision(command, decision)
             else:
                 # 薄包装：broker 自带事件流与 future 解析，bus 扫尾发布/持久化
-                before = len(core.event_log)
                 result = await wrapper(core, command)
-                await self._flush(list(core.event_log)[before:])
+                await self._flush()
         except CommandRejected as exc:
             result = await self._reject(command, exc)
         core.remember(command, result)
@@ -670,23 +669,19 @@ class CommandBus:
             data=draft.data,
         )
 
-    async def _flush(self, envelopes: list[EventEnvelope]) -> None:
-        """拍 2：逐事件发布到 hub 并持久化（store 存在时）。
+    async def _flush(self) -> None:
+        """拍 2：经共享 EventWriter 持久化（store 存在时）并发布未发布事件。
 
         bus 直接持久化自己的事件，不再依赖 API 层的 hub 持久化订阅搭车；
         订阅仍在（运行期 turn 内事件靠它），append_event 幂等（INSERT OR
-        IGNORE），重叠写无害。
+        IGNORE），重叠写无害。writer 的游标保证不重发/不重写。
         """
-        core = self.core
-        for envelope in envelopes:
-            await core.event_hub.publish(envelope)
-            if core.store is not None:
-                await asyncio.to_thread(core.store.append_event, envelope)
+        await self.core.event_writer.flush()
 
     async def _apply_decision(self, command: Command, decision: Decision) -> CommandResult:
         core = self.core
         envelopes = [self._append_draft(draft) for draft in decision.events]
-        await self._flush(envelopes)
+        await self._flush()
         # 拍 3：状态投影（唯一应用器；纯通知事件 no-op）
         for envelope in envelopes:
             apply_event(core, envelope)
@@ -731,7 +726,7 @@ class CommandBus:
                 },
             )
         )
-        await self._flush(appended)
+        await self._flush()
         return CommandResult(
             command_id=command.command_id,
             accepted=False,
@@ -759,6 +754,9 @@ class CommandBus:
         core = self.core
         if core.store is None:
             return
+        # 先冲刷事件 writer：快照水位引用的每条事件都必须已持久化，
+        # 否则快照会指向尚未落库的事件。
+        await core.event_writer.flush()
         await asyncio.to_thread(
             core.store.save_snapshot,
             projects=core.projects,

@@ -156,6 +156,38 @@ Modes can be toggled dynamically in the project settings UI.
 
 ---
 
+## Optional JavaScript Tool Invocation Protocol
+
+By default agents issue one tool call per wire exchange (`invocation_protocol: traditional`). An opt-in per-agent setting, `invocation_protocol: javascript` (Web UI agent settings), lets the model instead submit one bounded JavaScript program (`js_exec`) that orchestrates capability-permitted tools and reports results with `text(value)`:
+
+```js
+const result = await tools.log_parser({log_path: '/absolute/path/calculation.out'});
+text({call_id: result.call_id, ok: result.is_success, data: result.data});
+```
+
+- **Same lifecycle, same authority**: nested `tools.*` calls are real invocations through the same durable request → policy → executor → durable raw result pipeline as traditional calls. The protocol grants no extra authority — capabilities are rechecked at admission — and direct controls (`stop`, `ask_user`, `schedule`) remain top-level only.
+- **Uniform ToolResponse**: every nested call resolves `{call_id, is_success, summary, data, duration_ms}`. Business failures resolve with `is_success: false`; policy denials reject with a catchable `ToolCallError` (`code` such as `policy_blocked`, plus `stage` and host call id) — catching it grants no authority.
+- **Run-fixed setting**: the protocol is frozen when a run starts; changing the setting applies to the next run and never restarts or converts the active run.
+- **Serial backend**: the full tool lifecycle runs one call at a time per agent, even if the program uses `Promise.all`. No tool parallelism is claimed.
+- **Receipts, not hidden state**: `program.finished` records per-call receipts (`status`, `effect_state`, `raw_result_event_id`), program outputs and the sanitized error. The UI program card renders these events, and its source download is a snapshot of the durable `program.submitted` event.
+- **No heap recovery, no auto-rerun**: the JS process/heap is never checkpointed. A restart marks unfinished programs and calls interrupted without retrying side effects; a failed program returns one ordinary failed exchange, and a later model turn may submit a repaired program.
+
+### Installation (optional)
+
+The guest runs in QuickJS-WASM inside a separate Node ≥ 22 process. Install the pinned host dependency once:
+
+```bash
+npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
+```
+
+Cloudra never runs npm during execution or server startup. Missing Node or dependency makes JS-mode runs report `runtime_unavailable` with no silent fallback; traditional runs need no JS dependency at all. For an installed (pip) package, run the same command against `<site-packages>/cloudra/runtime_v2/js_host`.
+
+### Security boundary
+
+The supported threat model is a **local single-user runtime** containing untrusted generated JS within QuickJS-WASM, a killable process, and a hostile-input-checked bridge: 64 KiB source cap, bounded JSON-lines transport, 1 MiB tool-result cap, CPU interrupt checks, a 15 s idle watchdog, `--max-old-space-size=128` (a V8 heap hint, not an OS RSS limit), minimal environment, and a fixed cwd outside user workspaces. This is **not a hardened multi-tenant OS sandbox**: Node/engine vulnerabilities are residual risk, and minimal cwd/env cannot stop a compromised host from reading files. OS-level sandboxes/containers are explicitly out of scope — do not run programs you would not trust on this machine.
+
+---
+
 ## Quantum Chemistry & HPC Integration
 
 Cloudra seamlessly bridges local exploratory modeling and remote cluster computing:

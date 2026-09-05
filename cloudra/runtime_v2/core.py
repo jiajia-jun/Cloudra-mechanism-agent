@@ -47,6 +47,16 @@ class RuntimeCore:
     ) -> None:
         self.event_log = EventLog(strict=strict_events)
         self.event_hub = EventHub()
+        # Attached by the API/embedder when durability is desired.
+        self.store = None
+        # Shared write-ahead event writer (persist-before-publish), resolved
+        # against the live store on every flush because the store attaches
+        # after construction.
+        from cloudra.runtime_v2.event_writer import EventWriter
+
+        self.event_writer = EventWriter(
+            self.event_log, self.event_hub, store_provider=lambda: self.store
+        )
         self.mailbox = Mailbox(self.event_log)
         self.agent_host = AgentHost(self)
         self.roles = RoleRegistry(roles if roles is not None else BUILTIN_ROLES)
@@ -75,8 +85,6 @@ class RuntimeCore:
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None
-        # Attached by the API/embedder when durability is desired.
-        self.store = None
         # Optional async review worker (Task 7). It is an ephemeral executor;
         # the authoritative review queue is in each project's DAG store.
         self.review_worker = None

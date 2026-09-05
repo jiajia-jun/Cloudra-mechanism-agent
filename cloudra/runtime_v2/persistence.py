@@ -24,6 +24,7 @@ from cloudra.runtime_v2.apply import (
     _strip_removed_agent_fields,
     apply_event,
 )
+from cloudra.runtime_v2.effects import EventDraft
 from cloudra.runtime_v2.schemas import (
     AgentSession,
     EventEnvelope,
@@ -56,6 +57,137 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 """
+
+
+# ------------------------------------------------------------- recovery scan
+
+# Tool/program lifecycle state is derivable from the event history alone:
+# restore never re-runs an executor, a JS process or a scheduler job — it
+# only appends terminal interruption facts for what the dead process left
+# open.  This pure planner maps one full restored history to those drafts.
+
+_INTERRUPTED_MESSAGE = "interrupted by process restart"
+
+
+def plan_interrupted_invocations(events: list[EventEnvelope]) -> list[EventDraft]:
+    """Pure scan: terminal EventDrafts for unfinished tool/program lifecycles.
+
+    - requested only            -> tool.finished(interrupted, not_started)
+    - started, no raw result    -> tool.finished(interrupted, unknown)
+    - raw result, no finished   -> tool.finished(interrupted, completed) —
+      the effect completed; only postprocessing was interrupted.
+    - submitted, no finished    -> program.finished(interrupted) after every
+      child of that execution is closed (children close first).
+
+    Idempotent by construction: the appended terminals make the next scan
+    empty, so a repeated restore adds nothing.
+    """
+
+    by_call: dict[str, dict[str, EventEnvelope]] = {}
+    programs: dict[str, dict[str, Any]] = {}
+    for envelope in events:
+        data = envelope.data or {}
+        if envelope.type.startswith("tool."):
+            call_id = data.get("tool_call_id")
+            if isinstance(call_id, str) and call_id:
+                by_call.setdefault(call_id, {})[envelope.type] = envelope
+        elif envelope.type == "program.submitted":
+            execution_id = data.get("execution_id")
+            if isinstance(execution_id, str) and execution_id:
+                programs[execution_id] = {"submitted": envelope, "finished": False}
+        elif envelope.type == "program.finished":
+            execution_id = data.get("execution_id")
+            if isinstance(execution_id, str) and execution_id in programs:
+                programs[execution_id]["finished"] = True
+
+    drafts: list[EventDraft] = []
+    closed: dict[str, dict[str, Any]] = {}  # call_id -> terminal projection
+    for call_id, kinds in by_call.items():
+        finished = kinds.get("tool.finished")
+        if finished is not None:
+            data = finished.data
+            closed[call_id] = {
+                "status": data.get("status"),
+                "effect_state": data.get("effect_state"),
+                "raw_result_event_id": data.get("raw_result_event_id"),
+            }
+            continue
+        requested = kinds.get("tool.requested")
+        if requested is None:
+            continue  # orphan mid-lifecycle rows cannot be scoped reliably
+        recorded = kinds.get("tool.result_recorded")
+        started = kinds.get("tool.started")
+        if recorded is not None:
+            effect_state = "completed"
+        elif started is not None:
+            effect_state = "unknown"
+        else:
+            effect_state = "not_started"
+        data = {
+            "tool_call_id": call_id,
+            "tool_name": requested.data.get("tool_name"),
+            "execution_id": requested.data.get("execution_id"),
+            "status": "interrupted",
+            "effect_state": effect_state,
+            "is_success": False,
+            "result_summary": _INTERRUPTED_MESSAGE,
+            "duration_ms": 0,
+            "raw_result_event_id": recorded.event_id if recorded is not None else None,
+            "error": {"code": "interrupted", "message": _INTERRUPTED_MESSAGE},
+        }
+        closed[call_id] = {
+            "status": "interrupted",
+            "effect_state": effect_state,
+            "raw_result_event_id": data["raw_result_event_id"],
+        }
+        drafts.append(
+            EventDraft(
+                "tool.finished",
+                requested.stream,
+                requested.project_id,
+                requested.session_id,
+                requested.run_id,
+                data,
+            )
+        )
+
+    for execution_id, info in programs.items():
+        if info["finished"]:
+            continue
+        submitted = info["submitted"]
+        receipts = []
+        for call_id, kinds in by_call.items():
+            requested = kinds.get("tool.requested")
+            if requested is None or requested.data.get("execution_id") != execution_id:
+                continue
+            terminal = closed.get(call_id) or {}
+            receipts.append(
+                {
+                    "call_id": call_id,
+                    "tool_name": requested.data.get("tool_name"),
+                    "status": terminal.get("status") or "interrupted",
+                    "effect_state": terminal.get("effect_state") or "not_started",
+                    "raw_result_event_id": terminal.get("raw_result_event_id"),
+                }
+            )
+        drafts.append(
+            EventDraft(
+                "program.finished",
+                submitted.stream,
+                submitted.project_id,
+                submitted.session_id,
+                submitted.run_id,
+                {
+                    "execution_id": execution_id,
+                    "outer_tool_call_id": submitted.data.get("outer_tool_call_id"),
+                    "status": "interrupted",
+                    "duration_ms": 0,
+                    "error": {"code": "interrupted", "message": _INTERRUPTED_MESSAGE},
+                    "calls": receipts,
+                },
+            )
+        )
+    return drafts
 
 
 class RuntimeStore:
@@ -237,11 +369,31 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # drive state replay.  restore() keeps seq counters monotonic via max().
     backfill = [EventEnvelope.model_validate(raw) for raw in store.events_after({})]
     core.event_log.restore(backfill)
+    # The backfilled history is already durable and was published by the dead
+    # process: keep the shared writer from re-persisting/re-publishing it.
+    # Recovery events appended below this point stay live for the writer.
+    core.event_writer.mark_restored()
     for envelope in envelopes:
         apply_event(core, envelope)
     # Notice pins are event-sourced too: rebuild them from the full
     # projection (one-shot pushes are intentionally not restored).
     core.notices.restore_from(core.event_log)
+
+    # Unfinished tool/program lifecycles left by the dead process close as
+    # interrupted (children before programs) — facts only, never a replay of
+    # executors, JS processes or scheduler jobs.
+    new_events = []
+    for draft in plan_interrupted_invocations(list(core.event_log)):
+        envelope = core.event_log.append(
+            draft.type,
+            stream=draft.stream,
+            project_id=draft.project_id,
+            session_id=draft.session_id,
+            run_id=draft.run_id,
+            data=draft.data,
+        )
+        apply_event(core, envelope)
+        new_events.append(envelope)
 
     # Runs live in memory only: an agent restored as RUNNING/WAITING died with
     # the previous process and has no runner anymore.  Mark the run failed so
@@ -249,7 +401,6 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # reopens it (message-to-terminal auto-restart).
     from cloudra.runtime_v2.schemas import AgentState
 
-    new_events = []
     for agent in core.agents.values():
         if agent.state not in {
             AgentState.RUNNING,

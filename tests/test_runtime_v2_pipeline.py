@@ -74,7 +74,14 @@ async def test_pipeline_executes_tool_and_emits_ordered_events():
     )
     assert outcome.decision == "continue"
     types = [e.type for e in core.event_log.query_session(agent.id) if e.run_id == run_id]
-    assert types == ["llm.request_started", "llm.completed", "tool.started", "tool.finished"]
+    assert types == [
+        "llm.request_started",
+        "llm.completed",
+        "tool.requested",
+        "tool.started",
+        "tool.result_recorded",
+        "tool.finished",
+    ]
 
 
 class RecordingLLM:
@@ -247,8 +254,10 @@ async def test_permission_stage_blocks_unavailable_tool():
     )
     assert outcome.message.startswith("blocked by permission")
     types = [e.type for e in core.event_log.query_session(agent.id)]
-    # tool.started is always paired: block closes the call with tool.finished.
-    assert types[-2:] == ["tool.blocked", "tool.finished"]
+    # A blocked call is never admitted: tool.requested + diagnostic, closed by
+    # tool.finished — no tool.started is emitted for it.
+    assert types[-3:] == ["tool.requested", "tool.blocked", "tool.finished"]
+    assert "tool.started" not in types
     assert core.event_log.query_session(agent.id)[-1].data["is_success"] is False
 
 

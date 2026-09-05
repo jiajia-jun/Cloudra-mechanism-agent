@@ -12,6 +12,7 @@ export interface RuntimeSettings {
   native_search: string;
   native_search_params: Record<string, unknown>;
   orchestration_mode: 'standard' | 'dag_record' | 'dag_guided';
+  invocation_protocol?: 'traditional' | 'javascript';
 }
 
 export interface PermissionSet {
@@ -39,7 +40,7 @@ export interface Agent {
   settings: RuntimeSettings;
   settings_revision: number;
   capabilities: AgentCapabilities;
-  current_run: { run_id: string; started_at: string } | null;
+  current_run: { run_id: string; started_at: string; invocation_protocol?: string } | null;
   created_at: string;
   updated_at: string;
 }

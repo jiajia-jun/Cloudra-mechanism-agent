@@ -126,6 +126,10 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
     )
     assert result.data.state == "cancelled"
     assert timeline == [
+        # start_run appended out-of-band (no publish); the shared EventWriter
+        # publishes that backlog before this command's own events.
+        ("event", "agent.state_changed"),
+        ("event", "run.started"),
         ("event", "agent.cancel_requested"),
         ("event", "agent.message_injected"),
         ("event", "agent.state_changed"),

@@ -23,9 +23,12 @@ Cross-turn state rules (3d):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from cloudra.runtime_v2.schemas import AgentCapabilities, AgentSession, RuntimeSettings
+
+if TYPE_CHECKING:
+    from cloudra.runtime_v2.invocation_types import InvocationError
 
 
 @dataclass(frozen=True)
@@ -41,6 +44,11 @@ class ToolResult:
     summary: str = ""
     data: dict[str, Any] = field(default_factory=dict)
     duration_ms: int = 0
+    # Set only when the executor caught an unexpected fault and packaged it
+    # as a result (LegacyToolExecutor's safe_call guard): the invocation
+    # service turns this into a terminal unknown-effect outcome.  Explicit
+    # business failures stay plain is_success=False results with error=None.
+    error: "InvocationError | None" = None
 
 
 @dataclass(frozen=True)

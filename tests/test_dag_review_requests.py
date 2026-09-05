@@ -235,7 +235,7 @@ async def test_dag_message_supervisor_structured_request_allows_follower_evidenc
 
 
 def test_claim_review_and_stale_claim_rejected(tmp_path):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timezone
 
     store = _store(tmp_path, "claim-reviews")
     request_id = store.enqueue_review(_req())
@@ -270,7 +270,6 @@ def test_claim_review_and_stale_claim_rejected(tmp_path):
 def test_claim_review_expired_lease_can_be_reclaimed(tmp_path):
     store = _store(tmp_path, "claim-expired")
     request_id = store.enqueue_review(_req())
-    claimed = store.claim_review("worker-old", lease_seconds=-1) if False else None
     # Manually force an expired lease.
     with store.db.connect() as con:
         con.execute(

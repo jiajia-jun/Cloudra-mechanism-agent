@@ -44,7 +44,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         ``artifact_id`` lets the frontend render the bubble from storage.
         """
         from cloudra.persistence.fs_utils import atomic_write_bytes
-        from cloudra.runtime_v2.turn_pipeline import register_workspace_image_artifact
+        from cloudra.runtime_v2.invocation import register_workspace_image_artifact
 
         project = ctx.core.require_project(project_id)
         filename = Path(file.filename or "").name

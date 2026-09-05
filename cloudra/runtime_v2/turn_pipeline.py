@@ -4,22 +4,26 @@ LLM and tool execution are injected protocols, so tests run without network or
 external programs.  Harness behaviour is added exclusively through PolicyStage
 instances; this module never special-cases a tool or orchestration mode.
 
-易失状态（3e）：``_loop_guard``（同一 run 内连续重复调用的计数）是
-**刻意易失**的 per-run 护栏状态——run 不跨进程，重启后计数随进程消失，
-语义正确（新 run 的重复检测从零开始）。
+Tool calls no longer execute here: every call goes through
+``InvocationService`` (durable request -> policy -> executor -> durable raw
+result -> post hooks -> durable finish), so traditional dispatch and the JS
+runtime share one lifecycle.  The loop guard moved with it
+(``invocation.InvocationService``); it stays deliberately volatile per-run
+shell state.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, Protocol
 
+from cloudra.runtime_v2.event_writer import EventWriter
 from cloudra.runtime_v2.events import EventLog
+from cloudra.runtime_v2.invocation import InvocationService
+from cloudra.runtime_v2.js_runtime import JavaScriptRuntime
 from cloudra.runtime_v2.policies.base import (
     PipelineContext,
     PolicyStage,
@@ -31,78 +35,17 @@ from cloudra.runtime_v2.schemas import (
     AgentCapabilities,
     AgentSession,
     EventEnvelope,
+    InvocationProtocol,
     RuntimeSettings,
+    effective_invocation_protocol,
 )
+from cloudra.runtime_v2.tool_catalog import JS_EXEC_NAME, validate_wire_route
+from cloudra.tools.capabilities import is_direct_only
 
 logger = logging.getLogger(__name__)
 
 # Streaming delta sink: (kind, text) where kind is "content" or "reasoning".
 DeltaSink = Callable[[str, str], Awaitable[None]]
-
-# Consecutive identical tool calls (same name + normalized arguments) within
-# one run that trigger the loop.detected guard.  The S1 spec defines the event
-# payload but no threshold; 3 matches the point where a repeated call has
-# demonstrably stopped producing new information.
-LOOP_DETECTION_THRESHOLD = 3
-
-
-def register_workspace_image_artifact(
-    *,
-    project_id: str,
-    session_id: str,
-    agent_id: str | None,
-    workspace_root: str,
-    image_path: str,
-) -> str | None:
-    """Best-effort artifact registration for one workspace image (sync — offload it).
-
-    Returns the artifact_id, or None when the path escapes the workspace, the
-    file is missing, or registration fails (registration must never break the
-    tool loop).  v2 agents have no legacy ``session`` row, so one is ensured
-    first — ArtifactService refuses to register against a missing session.
-    ``conversation_id`` is the project id, matching the v2 artifact reads.
-    """
-    from cloudra.persistence.artifacts import ArtifactService
-    from cloudra.persistence.database import ConversationDB
-    from cloudra.services import session_store
-
-    try:
-        root = Path(workspace_root).expanduser().resolve()
-        source = Path(image_path).expanduser().resolve()
-        if not source.is_file():
-            return None
-        source.relative_to(root)
-    except (OSError, ValueError):
-        return None
-    try:
-        db = ConversationDB(project_id)
-        session_store.ensure_session_record(db, session_id, agent_id)
-        artifact = ArtifactService().register_file(
-            conversation_id=project_id,
-            session_id=session_id,
-            source=source,
-            allowed_root=root,
-        )
-        return artifact.artifact_id
-    except Exception:
-        logger.exception("artifact registration failed for %s", image_path)
-        return None
-
-
-def image_paths_from_tool_result(result: ToolResult) -> list[str]:
-    """Collect every injectable image path from a tool result (no cap).
-
-    ``image_paths`` wins when it is a list; otherwise a non-empty
-    ``image_path`` string is treated as a one-element list.
-    """
-    data = result.data if isinstance(result.data, dict) else {}
-    raw = data.get("image_paths")
-    if isinstance(raw, list):
-        return [p for p in raw if isinstance(p, str) and p]
-    path = data.get("image_path")
-    if isinstance(path, str) and path:
-        return [path]
-    return []
 
 
 @dataclass(frozen=True)
@@ -156,6 +99,9 @@ class TurnPipeline:
         event_hub=None,
         notices=None,
         goal_reader=read_goal,
+        event_writer: EventWriter | None = None,
+        invocations: InvocationService | None = None,
+        js_runtime: JavaScriptRuntime | None = None,
     ) -> None:
         self.event_log = event_log
         self.stages = list(stages)
@@ -171,18 +117,20 @@ class TurnPipeline:
         # The default is the built-in file reader; pass None to disable goal
         # injection entirely, or a custom callable to source it elsewhere.
         self.goal_reader = goal_reader
-        # Loop guard state, keyed by session id (one active run per agent):
-        # (run_id, call signature, consecutive repeat count).  A new run or a
-        # different call resets the streak.
-        self._loop_guard: dict[str, tuple[str, str, int]] = {}
-
-    def _track_tool_call(self, session_id: str, run_id: str, call: ToolCall) -> int:
-        """Count consecutive repeats of the same call within one run."""
-        signature = f"{call.name}:{json.dumps(call.arguments, sort_keys=True, default=str)}"
-        last = self._loop_guard.get(session_id)
-        count = last[2] + 1 if last is not None and last[:2] == (run_id, signature) else 1
-        self._loop_guard[session_id] = (run_id, signature, count)
-        return count
+        # Single tool lifecycle for this pipeline.  Real wiring passes the
+        # shared core EventWriter (API/benchmark); standalone tests get a
+        # memory-only writer on the same log.
+        self.event_writer = event_writer or (invocations.event_writer if invocations else None)
+        if self.event_writer is None:
+            self.event_writer = EventWriter(event_log, event_hub)
+        self.invocations = invocations or InvocationService(
+            event_writer=self.event_writer, stages=self.stages, tools=tools
+        )
+        # JS protocol shell: shares the same writer/lifecycle; js_exec is a
+        # protocol execution request, never registered as a normal tool.
+        self.js_runtime = js_runtime or JavaScriptRuntime(
+            event_writer=self.event_writer, invocations=self.invocations
+        )
 
     def _emitter(self, agent: AgentSession, run_id: str):
         def emit(type: str, data: dict[str, Any] | None = None) -> None:
@@ -363,127 +311,83 @@ class TurnPipeline:
             )
 
         exchanges: list[tuple[ToolCall, ToolResult]] = []
-        for call in response.tool_calls:
-            self.event_log.append(
-                "tool.started",
-                stream="agent",
-                project_id=agent.project_id,
-                session_id=agent.id,
-                run_id=run_id,
-                data={"tool_call_id": call.id, "tool_name": call.name, "arguments_summary": call.arguments},
-            )
-            blocked = await self._apply_before_tool(ctx, call, emit)
-            if blocked is not None:
-                # The call never executed, but its tool.started is already in
-                # the log — close it so timelines never show a phantom
-                # "running" row for a call this turn gave up on.
-                self.event_log.append(
-                    "tool.finished",
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data={
-                        "tool_call_id": call.id,
-                        "tool_name": call.name,
-                        "is_success": False,
-                        "result_summary": blocked.message or "not executed",
-                    },
+        protocol = effective_invocation_protocol(agent)
+        if protocol is InvocationProtocol.JAVASCRIPT and response.tool_calls:
+            names = [call.name for call in response.tool_calls]
+            has_direct = any(is_direct_only(name) for name in names)
+            if JS_EXEC_NAME in names and has_direct:
+                # Never partially execute a mixed program/control response:
+                # every wire call gets matching feedback, nothing runs.
+                reason = (
+                    "protocol_error[mixed_program_and_controls]: a response "
+                    "combining js_exec with direct controls is rejected; "
+                    "issue them in separate responses"
                 )
+                exchanges = [(call, ToolResult(False, reason)) for call in response.tool_calls]
                 return TurnOutcome(
-                    decision=blocked.decision,
-                    content=blocked.content,
-                    message=blocked.message,
-                    blocked_call=call,
+                    decision="continue",
+                    content=response.content,
                     tool_exchanges=tuple(exchanges),
                     reasoning=response.reasoning,
                 )
-            started_call = time.monotonic()
-            repeat = self._track_tool_call(agent.id, run_id, call)
-            if repeat >= LOOP_DETECTION_THRESHOLD:
-                # Soft guard per S1: the call still executes (no hard block),
-                # but the loop is audited and the model is told to change
-                # approach on the next turn.
-                emit("loop.detected", {"tool_name": call.name, "repeat": repeat})
-                if notice_sink is not None:
-                    notice_sink.push(
-                        agent.id,
-                        f"[Guard] Loop detected: `{call.name}` has been called {repeat} "
-                        "times in a row with identical arguments in this run. Repeating "
-                        "the same call will not produce new information — change your "
-                        "approach: vary the arguments, use a different tool, or report "
-                        "the blocker instead of retrying.",
+        js_programs_run = 0
+        for call in response.tool_calls:
+            route_error = validate_wire_route(protocol, call.name)
+            if route_error is not None:
+                # Misrouted calls never execute; the message is model feedback.
+                exchanges.append((call, ToolResult(False, route_error)))
+                continue
+            if protocol is InvocationProtocol.JAVASCRIPT and call.name == JS_EXEC_NAME:
+                js_programs_run += 1
+                if js_programs_run > 1:
+                    exchanges.append((
+                        call,
+                        ToolResult(
+                            False,
+                            "protocol_error[multiple_programs]: only one js_exec "
+                            "call runs per model response; this program was not executed",
+                        ),
+                    ))
+                    continue
+                result = await self.js_runtime.execute(ctx, call)
+                exchanges.append((call, result))
+                control = (result.data or {}).get("control_decision")
+                if control == "wait_approval":
+                    error = (result.data or {}).get("error") or {}
+                    return TurnOutcome(
+                        decision="wait_approval",
+                        message=str(error.get("message") or ""),
+                        tool_exchanges=tuple(exchanges),
+                        reasoning=response.reasoning,
                     )
-            try:
-                result = await self.tools.execute(agent, call)
-            except asyncio.CancelledError:
-                # Run cancelled mid-tool: pair the started event before the
-                # cancellation propagates and the run task dies.
-                self.event_log.append(
-                    "tool.finished",
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data={
-                        "tool_call_id": call.id,
-                        "tool_name": call.name,
-                        "is_success": False,
-                        "result_summary": "interrupted: run cancelled",
-                        "cancelled": True,
-                        "duration_ms": int((time.monotonic() - started_call) * 1000),
-                    },
+                continue
+            # The full lifecycle (requested -> policy -> started -> raw result
+            # -> post hooks -> finished) lives in the InvocationService; this
+            # loop only translates outcomes into turn decisions.
+            outcome = await self.invocations.invoke(ctx, call)
+            if outcome.decision == "wait_approval":
+                return TurnOutcome(
+                    decision="wait_approval",
+                    message=outcome.error.message if outcome.error else "",
+                    blocked_call=outcome.call,
+                    tool_exchanges=tuple(exchanges),
+                    reasoning=response.reasoning,
                 )
-                raise
-            except Exception as exc:
-                self.event_log.append(
-                    "tool.finished",
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data={
-                        "tool_call_id": call.id,
-                        "tool_name": call.name,
-                        "is_success": False,
-                        "result_summary": f"tool crashed: {exc}",
-                        "duration_ms": int((time.monotonic() - started_call) * 1000),
-                    },
+            if outcome.error is not None and outcome.error.code == "policy_blocked":
+                return TurnOutcome(
+                    decision="continue",
+                    content=outcome.error.message,
+                    message=f"blocked by {outcome.error.stage}",
+                    blocked_call=outcome.call,
+                    tool_exchanges=tuple(exchanges),
+                    reasoning=response.reasoning,
                 )
-                raise
-            result = ToolResult(
-                is_success=result.is_success,
-                summary=result.summary,
-                data=result.data,
-                duration_ms=int((time.monotonic() - started_call) * 1000),
-            )
-            exchanges.append((call, result))
-            for stage in self.stages:
-                await stage.after_tool(ctx, call, result)
-            artifact_id = await self._register_tool_image(ctx, result)
-            finished_data: dict[str, Any] = {
-                "tool_call_id": call.id,
-                "tool_name": call.name,
-                "is_success": result.is_success,
-                "result_summary": result.summary,
-                "duration_ms": result.duration_ms,
-            }
-            if artifact_id:
-                # The frontend builds the timeline download URL from this id.
-                finished_data["artifact_id"] = artifact_id
-            image_paths = image_paths_from_tool_result(result)
-            if image_paths:
-                finished_data["image_path"] = image_paths[0]
-                finished_data["image_paths"] = image_paths
-            self.event_log.append(
-                "tool.finished",
-                stream="agent",
-                project_id=agent.project_id,
-                session_id=agent.id,
-                run_id=run_id,
-                data=finished_data,
-            )
-            if call.name == self.stop_tool:
+            result = outcome.result
+            if result is None:
+                # Only wait_approval returns result=None (handled above).
+                continue
+            exchanges.append((outcome.call, result))
+            if outcome.call.name == self.stop_tool:
                 # 用户可见的最终消息是模型自己的陈述；stop 工具的 summary 是
                 # 输出 schema 的 JSON dump，直接当正文会把最终回答吞成工具噪音。
                 # 模型没写正文时回退 stop 输出的 message（含 reason/[ANSWER]）。
@@ -502,67 +406,3 @@ class TurnPipeline:
             tool_exchanges=tuple(exchanges),
             reasoning=response.reasoning,
         )
-
-    async def _register_tool_image(self, ctx: PipelineContext, result: ToolResult) -> str | None:
-        """Register every workspace image on a successful result as an artifact.
-
-        Returns the last registered artifact id so ``tool.finished`` can keep a
-        single ``artifact_id`` slot.
-        """
-        if not result.is_success or not ctx.workspace_dir:
-            return None
-        paths = image_paths_from_tool_result(result)
-        if not paths:
-            return None
-        workspace_root = ctx.workspace_dir
-        project_id = ctx.agent.project_id
-        session_id = ctx.agent.id
-        agent_id = ctx.agent.role_id
-
-        def _register_all() -> str | None:
-            last_id: str | None = None
-            for image_path in paths:
-                artifact_id = register_workspace_image_artifact(
-                    project_id=project_id,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                    workspace_root=workspace_root,
-                    image_path=image_path,
-                )
-                if artifact_id:
-                    last_id = artifact_id
-            return last_id
-
-        return await asyncio.to_thread(_register_all)
-
-    async def _apply_before_tool(self, ctx, call: ToolCall, emit) -> TurnOutcome | None:
-        for stage in self.stages:
-            policy = await stage.before_tool(ctx, call)
-            if policy.outcome == "block":
-                self.event_log.append(
-                    "tool.blocked",
-                    stream="agent",
-                    project_id=ctx.agent.project_id,
-                    session_id=ctx.agent.id,
-                    run_id=ctx.run_id,
-                    data={"tool_call_id": call.id, "tool_name": call.name, "stage": stage.name,
-                          "message": policy.message},
-                )
-                return TurnOutcome(
-                    decision="continue",
-                    content=policy.message,
-                    message=f"blocked by {stage.name}",
-                )
-            if policy.outcome == "ask":
-                self.event_log.append(
-                    "tool.approval_requested",
-                    stream="agent",
-                    project_id=ctx.agent.project_id,
-                    session_id=ctx.agent.id,
-                    run_id=ctx.run_id,
-                    data={"tool_call_id": call.id, "tool_name": call.name, "message": policy.message},
-                )
-                return TurnOutcome(decision="wait_approval", message=policy.message)
-            if policy.outcome == "warn":
-                emit("agent.warning", {"code": f"{stage.name}.warn", "message": policy.message})
-        return None

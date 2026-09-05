@@ -59,6 +59,11 @@ function ApprovalCard({
       </div>
       <div className="attention-body">
         <b>{item.title}</b> wants to run <span className="mono-path">{item.body}</span>
+        {item.toolCallId && (
+          <span className="attention-correlation" title={item.executionId ? `program ${item.executionId}` : undefined}>
+            {' '}· call {item.toolCallId}
+          </span>
+        )}
       </div>
       <div className="attention-actions">
         <button className="btn green sm" disabled={busy !== null} onClick={() => void decide('approve')}>
@@ -110,6 +115,11 @@ function InteractionCard({
       </div>
       <div className="attention-body">
         <b>{item.title}</b> asks: {item.body}
+        {item.toolCallId && (
+          <span className="attention-correlation" title={item.executionId ? `program ${item.executionId}` : undefined}>
+            {' '}· call {item.toolCallId}
+          </span>
+        )}
       </div>
       <div className="attention-actions">
         <textarea

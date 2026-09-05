@@ -23,6 +23,7 @@ class ToolEntry:
     tool_name: str
     tool_id: str
     input_schema: Any = None
+    output_schema: Any = None
 
     def instantiate(self, **kwargs):
         return self.cls(**kwargs)
@@ -43,6 +44,7 @@ def _make_entry(tool_cls: type) -> ToolEntry:
         tool_name=_get_default(tool_cls, "tool_name") or "",
         tool_id=_get_default(tool_cls, "tool_id") or "",
         input_schema=_get_default(tool_cls, "input_schema"),
+        output_schema=_get_default(tool_cls, "output_schema"),
     )
 
 

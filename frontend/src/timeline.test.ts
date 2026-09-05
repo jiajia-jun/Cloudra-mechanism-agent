@@ -5,6 +5,7 @@ import {
   formatToolArgs,
   type MessageItem,
   type NoteItem,
+  type ProgramItem,
   type StreamView,
   type ToolItem,
 } from './timeline.ts';
@@ -207,3 +208,159 @@ assert.equal(
 );
 
 console.log('timeline.tool-args ok');
+
+/* ------------------------------------------------------ program projection */
+
+// One ProgramItem groups its child ToolItems by execution_id; requested
+// creates a queued row, started updates it, the raw-result event adds no
+// row, finished settles it, and duplicate program.finished events are no-ops.
+{
+  const submitted = ev('program.submitted', 1, {
+    execution_id: 'exec1', outer_tool_call_id: 'wire1', code: 'text(1);', source_hash: 'h',
+  });
+  const requestedA = ev('tool.requested', 2, {
+    tool_call_id: 'a', tool_name: 'echo', arguments_summary: { value: 3 }, execution_id: 'exec1',
+  });
+  const startedA = ev('tool.started', 3, {
+    tool_call_id: 'a', tool_name: 'echo', arguments_summary: { value: 3 }, execution_id: 'exec1',
+  });
+  const requestedB = ev('tool.requested', 4, {
+    tool_call_id: 'b', tool_name: 'echo', arguments_summary: { value: 4 }, execution_id: 'exec1',
+  });
+  const finishedA = ev('tool.finished', 5, {
+    tool_call_id: 'a', tool_name: 'echo', execution_id: 'exec1', status: 'completed',
+    effect_state: 'completed', is_success: true, result_summary: 'ok', duration_ms: 2,
+    raw_result_event_id: 'raw-a', error: null,
+  });
+  const startedB = ev('tool.started', 6, {
+    tool_call_id: 'b', tool_name: 'echo', arguments_summary: { value: 4 }, execution_id: 'exec1',
+  });
+  const finishedB = ev('tool.finished', 7, {
+    tool_call_id: 'b', tool_name: 'echo', execution_id: 'exec1', status: 'failed',
+    effect_state: 'completed', is_success: false, result_summary: 'nope', duration_ms: 1,
+    raw_result_event_id: 'raw-b', error: null,
+  });
+  const programFinished = ev('program.finished', 8, {
+    execution_id: 'exec1', outer_tool_call_id: 'wire1', status: 'completed',
+    duration_ms: 9, error: null, calls: [],
+  });
+  const items = buildTimeline(
+    [submitted, requestedA, startedA, requestedB, finishedA, startedB, finishedB, programFinished, programFinished],
+    [],
+  );
+  const program = items.find((item) => item.kind === 'program') as ProgramItem | undefined;
+  assert.equal(program?.kind, 'program');
+  if (program?.kind === 'program') {
+    assert.equal(program.children.length, 2);
+    assert.deepEqual(program.children.map((child) => child.callId), ['a', 'b']);
+    assert.equal(program.status, 'completed');
+    assert.equal(program.source, 'text(1);');
+    assert.deepEqual(program.children.map((child) => child.status), ['completed', 'failed']);
+    assert.equal(program.children[0].effectState, 'completed');
+  }
+  assert.equal(items.filter((item) => item.kind === 'tool').length, 0);
+  console.log('timeline.program-basic ok');
+}
+
+// Queued/running/waiting/blocked child states and program outputs.
+{
+  const items = buildTimeline(
+    [
+      ev('program.submitted', 1, { execution_id: 'e1', outer_tool_call_id: 'w', code: 'x', source_hash: 'h' }),
+      ev('tool.requested', 2, { tool_call_id: 'q', tool_name: 'echo', arguments_summary: {}, execution_id: 'e1' }),
+      ev('tool.requested', 3, { tool_call_id: 'r', tool_name: 'echo', arguments_summary: {}, execution_id: 'e1' }),
+      ev('tool.started', 4, { tool_call_id: 'r', tool_name: 'echo', arguments_summary: {}, execution_id: 'e1' }),
+      ev('tool.requested', 5, { tool_call_id: 'w1', tool_name: 'submit_compute_job', arguments_summary: {}, execution_id: 'e1' }),
+      ev('tool.finished', 6, {
+        tool_call_id: 'w1', tool_name: 'submit_compute_job', execution_id: 'e1',
+        status: 'waiting', effect_state: 'not_started', is_success: false,
+        result_summary: 'needs approval', duration_ms: 0, raw_result_event_id: null,
+        error: { code: 'policy_wait', message: 'needs approval' },
+      }),
+      ev('tool.requested', 7, { tool_call_id: 'blk', tool_name: 'bash', arguments_summary: {}, execution_id: 'e1' }),
+      ev('tool.finished', 8, {
+        tool_call_id: 'blk', tool_name: 'bash', execution_id: 'e1',
+        status: 'blocked', effect_state: 'not_started', is_success: false,
+        result_summary: 'denied', duration_ms: 0, raw_result_event_id: null,
+        error: { code: 'policy_blocked', message: 'denied' },
+      }),
+      ev('program.output', 9, { execution_id: 'e1', output_index: 0, value: { n: 1 } }),
+    ],
+    [],
+  );
+  const program = items.find((item) => item.kind === 'program') as ProgramItem;
+  assert.deepEqual(program.children.map((child) => child.status), ['queued', 'running', 'waiting', 'blocked']);
+  assert.deepEqual(program.outputs, [{ n: 1 }]);
+  console.log('timeline.program-states ok');
+}
+
+// Orphan rows (raw result without a requested, children whose program events
+// were paginated away) get a source-unavailable shell — never dropped.
+{
+  const items = buildTimeline(
+    [
+      ev('tool.finished', 3, {
+        tool_call_id: 'orphan', tool_name: 'echo', execution_id: 'gone',
+        status: 'completed', effect_state: 'completed', is_success: true,
+        result_summary: 'ok', duration_ms: 1, raw_result_event_id: 'raw', error: null,
+      }),
+    ],
+    [],
+  );
+  const program = items.find((item) => item.kind === 'program') as ProgramItem;
+  assert.equal(program.executionId, 'gone');
+  assert.equal(program.source, null);
+  assert.equal(program.status, 'unknown');
+  assert.equal(program.children.length, 1);
+  assert.equal(program.children[0].status, 'completed');
+  assert.equal(items.filter((item) => item.kind === 'tool').length, 0);
+  console.log('timeline.program-orphan ok');
+}
+
+// Two interleaved executions stay grouped per execution_id; duplicate SSE
+// deliveries (same event_id) do not double rows.
+{
+  const requestedA1 = ev('tool.requested', 2, { tool_call_id: 'a1', tool_name: 'echo', arguments_summary: {}, execution_id: 'eA' });
+  const events = [
+    ev('program.submitted', 1, { execution_id: 'eA', outer_tool_call_id: 'wA', code: 'a', source_hash: 'hA' }),
+    requestedA1,
+    requestedA1, // duplicate SSE frame
+    ev('program.submitted', 3, { execution_id: 'eB', outer_tool_call_id: 'wB', code: 'b', source_hash: 'hB' }),
+    ev('tool.requested', 4, { tool_call_id: 'b1', tool_name: 'echo', arguments_summary: {}, execution_id: 'eB' }),
+    ev('tool.finished', 5, {
+      tool_call_id: 'a1', tool_name: 'echo', execution_id: 'eA', status: 'completed',
+      effect_state: 'completed', is_success: true, result_summary: 'ok', duration_ms: 1,
+      raw_result_event_id: null, error: null,
+    }),
+    ev('program.finished', 6, { execution_id: 'eA', outer_tool_call_id: 'wA', status: 'completed', duration_ms: 5, error: null, calls: [] }),
+  ];
+  const items = buildTimeline(events, []);
+  const programs = items.filter((item) => item.kind === 'program') as ProgramItem[];
+  assert.equal(programs.length, 2);
+  const [a, b] = programs;
+  assert.equal(a.executionId, 'eA');
+  assert.deepEqual(a.children.map((c) => c.callId), ['a1']);
+  assert.equal(a.status, 'completed');
+  assert.equal(b.executionId, 'eB');
+  assert.deepEqual(b.children.map((c) => c.callId), ['b1']);
+  assert.equal(b.children[0].status, 'queued');
+  console.log('timeline.program-interleaved ok');
+}
+
+// Run termination interrupts still-open programs and their child rows.
+{
+  const items = buildTimeline(
+    [
+      ev('program.submitted', 1, { execution_id: 'e1', outer_tool_call_id: 'w', code: 'x', source_hash: 'h' }),
+      ev('tool.requested', 2, { tool_call_id: 'a', tool_name: 'echo', arguments_summary: {}, execution_id: 'e1' }),
+      ev('tool.started', 3, { tool_call_id: 'a', tool_name: 'echo', arguments_summary: {}, execution_id: 'e1' }),
+      ev('run.finished', 4, { outcome: 'failed' }),
+    ],
+    [],
+  );
+  const program = items.find((item) => item.kind === 'program') as ProgramItem;
+  assert.equal(program.status, 'interrupted');
+  assert.equal(program.children[0].status, 'interrupted');
+  assert.equal(program.children[0].ok, false);
+  console.log('timeline.program-interrupted ok');
+}

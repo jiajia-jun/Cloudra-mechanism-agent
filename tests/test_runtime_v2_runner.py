@@ -439,10 +439,12 @@ async def test_two_projects_run_agents_concurrently_and_stay_isolated():
 
     for agent in agents:
         events = [e for e in core.event_log.query_session(agent.id) if e.type.startswith(("llm.", "tool."))]
-        assert [e.type for e in events][:4] == [
+        assert [e.type for e in events][:6] == [
             "llm.request_started",
             "llm.completed",
+            "tool.requested",
             "tool.started",
+            "tool.result_recorded",
             "tool.finished",
         ]
         other_project_events = [

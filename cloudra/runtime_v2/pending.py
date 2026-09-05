@@ -72,7 +72,7 @@ class PendingBroker:
         if publish:
             # Mid-turn requests must reach SSE/persistence now; decisions flow
             # through the command bus, which publishes new events itself.
-            await self.core.event_hub.publish(envelope)
+            await self.core.event_writer.flush()
         return envelope
 
     def _run_id(self, session_id: str) -> str | None:
@@ -82,10 +82,8 @@ class PendingBroker:
         return None
 
     async def _flip(self, agent: AgentSession, to: AgentState, reason: str) -> None:
-        before = len(self.core.event_log)
         self.core.agent_host.transition(agent, to, reason=reason, run_id=self._run_id(agent.id))
-        for envelope in list(self.core.event_log)[before:]:
-            await self.core.event_hub.publish(envelope)
+        await self.core.event_writer.flush()
 
     async def _park(self, agent: AgentSession, state: AgentState, reason: str) -> None:
         if agent.state is AgentState.RUNNING:
@@ -110,10 +108,13 @@ class PendingBroker:
         candidate_diff: str,
     ) -> tuple[bool, str]:
         """Hook for Tool.request_approval; returns (approved, denial_reason)."""
+        from cloudra.runtime_v2.invocation_context import current_invocation_scope
+
         approval_id = new_id("apv")
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         self._waiters[approval_id] = future
+        scope = current_invocation_scope()
         await self._emit(
             "approval.requested",
             project_id=agent.project_id,
@@ -126,6 +127,9 @@ class PendingBroker:
                 "risk_summary": risk_summary,
                 "candidate_diff": candidate_diff,
                 "normalized_arguments": normalized_arguments,
+                # Host-stamped invocation correlation (None outside a tool).
+                "tool_call_id": scope.tool_call_id if scope else None,
+                "execution_id": scope.execution_id if scope else None,
             },
             publish=True,
         )
@@ -159,6 +163,8 @@ class PendingBroker:
             data={"approval_id": approval_id, "decision": decision, "reason": reason},
             publish=False,  # the command bus flushes new events after the handler
         )
+        # The decision must be durable before any parked waiter resolves.
+        await self.core.event_writer.flush()
         future = self._waiters.get(approval_id)
         if future is not None and not future.done():
             future.set_result((decision, reason))
@@ -177,6 +183,8 @@ class PendingBroker:
                     "details": env.data.get("details", ""),
                     "risk_summary": env.data.get("risk_summary", ""),
                     "candidate_diff": env.data.get("candidate_diff", ""),
+                    "tool_call_id": env.data.get("tool_call_id"),
+                    "execution_id": env.data.get("execution_id"),
                     "state": "waiting_for_approval",
                     "created_at": env.created_at.isoformat(),
                 }
@@ -188,15 +196,24 @@ class PendingBroker:
 
     async def request_interaction(self, agent: AgentSession, prompt: str) -> str:
         """Hook for ask_user's input handler; returns the raw user answer."""
+        from cloudra.runtime_v2.invocation_context import current_invocation_scope
+
         interaction_id = new_id("ixn")
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         self._waiters[interaction_id] = future
+        scope = current_invocation_scope()
         await self._emit(
             "interaction.requested",
             project_id=agent.project_id,
             session_id=agent.id,
-            data={"interaction_id": interaction_id, "agent_id": agent.role_id, "prompt": prompt},
+            data={
+                "interaction_id": interaction_id,
+                "agent_id": agent.role_id,
+                "prompt": prompt,
+                "tool_call_id": scope.tool_call_id if scope else None,
+                "execution_id": scope.execution_id if scope else None,
+            },
             publish=True,
         )
         await self._park(agent, AgentState.WAITING_INPUT, "ask_user")
@@ -230,6 +247,8 @@ class PendingBroker:
             data={"interaction_id": interaction_id, "response": response},
             publish=False,  # the command bus flushes new events after the handler
         )
+        # The response must be durable before any parked waiter resolves.
+        await self.core.event_writer.flush()
         future = self._waiters.get(interaction_id)
         if future is not None and not future.done():
             future.set_result(response)
@@ -252,6 +271,8 @@ class PendingBroker:
                     "session_id": env.session_id,
                     "agent_id": env.data.get("agent_id", ""),
                     "prompt": env.data.get("prompt", ""),
+                    "tool_call_id": env.data.get("tool_call_id"),
+                    "execution_id": env.data.get("execution_id"),
                     "state": "pending",
                     "created_at": env.created_at.isoformat(),
                 }

@@ -117,14 +117,22 @@ class RuntimeV2Backend:
             self._cores[task.task_id] = core
         core.runtime_defaults = legacy_default_runtime_settings()
         stage = MethodPolicyStage(task.method_policy, base_dir=sandbox)
+        stages = [*default_stages(core), stage]
+        executor = self.tools or LegacyToolExecutor(core)
+        from cloudra.runtime_v2.invocation import InvocationService
+
+        invocations = InvocationService(
+            event_writer=core.event_writer, stages=stages, tools=executor, agents=core.agents
+        )
         pipeline = TurnPipeline(
             event_log=core.event_log,
-            stages=[*default_stages(core), stage],
+            stages=stages,
             llm=self.llm or LegacyLLMProvider(),
-            tools=self.tools or LegacyToolExecutor(core),
+            tools=executor,
             prompt_provider=LegacyPromptProvider(),
             event_hub=core.event_hub,
             notices=core.notices,
+            invocations=invocations,
         )
         core.runner = AgentRunner(core, pipeline, run_summarizer=self.run_summarizer)
         scheduler = None

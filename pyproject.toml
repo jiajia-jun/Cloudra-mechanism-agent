@@ -96,7 +96,14 @@ exclude = ["tests*", "test_*"]
 # 运行时必需的非 Python 资源：prompts、技能文档、计算脚本。
 # 缺失时 pip 安装的包会在 _load_prompt / skill_loader 处报 FileNotFoundError。
 [tool.setuptools.package-data]
-cloudra = ["prompts/*.md", "skills/**/*", "calculator.sh"]
+cloudra = [
+    "prompts/*.md",
+    "skills/**/*",
+    "calculator.sh",
+    "runtime_v2/js_host/*.mjs",
+    "runtime_v2/js_host/package.json",
+    "runtime_v2/js_host/package-lock.json",
+]
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"

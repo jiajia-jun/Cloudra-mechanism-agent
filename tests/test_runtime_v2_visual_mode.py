@@ -346,7 +346,8 @@ async def test_register_tool_image_registers_every_path(tmp_path):
         emit=lambda *_args, **_kwargs: None,
         workspace_dir=str(workspace),
     )
-    last_id = await pipeline._register_tool_image(
+    # The helper moved with the tool lifecycle into the InvocationService.
+    last_id = await pipeline.invocations._register_tool_image(
         ctx,
         ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
     )

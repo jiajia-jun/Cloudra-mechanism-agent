@@ -156,6 +156,38 @@ Cloudra 的执行面由轻量、确定性的 `runtime_v2` 驱动：
 
 ---
 
+## 可选的 JavaScript 工具调用协议
+
+默认情况下，Agent 每次有线交换发起一个工具调用（`invocation_protocol: traditional`）。可选的 per-agent 设置 `invocation_protocol: javascript`（Web 界面 Agent 设置）允许模型改为提交一段有界 JavaScript 程序（`js_exec`），在程序内编排其能力许可的工具，并用 `text(value)` 回传结果：
+
+```js
+const result = await tools.log_parser({log_path: '/absolute/path/calculation.out'});
+text({call_id: result.call_id, ok: result.is_success, data: result.data});
+```
+
+- **同一生命周期、同一权限边界**：嵌套的 `tools.*` 调用与传统调用走同一条"持久化请求 → 策略 → 执行器 → 持久化原始结果"管线，是真实工具调用。选择该协议不授予任何额外权限——准入时重新校验能力——直接控制类工具（`stop`、`ask_user`、`schedule`）仍只能在顶层调用。
+- **统一的 ToolResponse**：每个嵌套调用返回 `{call_id, is_success, summary, data, duration_ms}`。业务失败以 `is_success: false` 正常返回；策略拒绝则以可捕获的 `ToolCallError` 拒绝（`code` 如 `policy_blocked`，附 `stage` 与宿主调用 ID）——捕获它不会获得任何权限。
+- **run 级冻结**：协议在 run 启动时冻结；修改设置只影响下一个 run，绝不重启或中途转换当前 run。
+- **串行后端**：每个 Agent 的完整工具生命周期一次只执行一个调用，即使程序使用 `Promise.all` 也一样。不声明任何工具并行能力。
+- **凭据而非隐藏状态**：`program.finished` 记录逐调用凭据（`status`、`effect_state`、`raw_result_event_id`）、程序输出与脱敏错误。UI 程序卡片直接渲染这些事件，源码下载是持久 `program.submitted` 事件的快照。
+- **不恢复堆、不自动重跑**：JS 进程/堆从不做检查点。重启时将未完成的程序与调用标记为 interrupted，绝不重放副作用；失败的程序只返回一次普通的失败交换，后续模型轮次可提交修复后的程序。
+
+### 安装（可选）
+
+访客程序运行在独立 Node ≥ 22 进程内的 QuickJS-WASM 中。一次性安装锁定的宿主依赖：
+
+```bash
+npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
+```
+
+Cloudra 在执行或服务启动期间绝不运行 npm。缺少 Node 或依赖时，JS 模式的 run 报告 `runtime_unavailable`，不做任何静默回退；传统模式的 run 完全不需要 JS 依赖。对 pip 安装的包，对 `<site-packages>/cloudra/runtime_v2/js_host` 执行同一命令。
+
+### 安全边界
+
+支持的威胁模型是**本地单用户运行时**：在 QuickJS-WASM、可杀死的进程与敌意输入校验的桥接之内遏制不可信的生成 JS——64 KiB 源码上限、有界 JSON 行传输、1 MiB 工具结果上限、CPU 中断检查、15 秒空闲看门狗、`--max-old-space-size=128`（V8 堆提示，不是 OS RSS 限制）、最小环境变量、固定在用户工作区之外的 cwd。这**不是**加固的多租户 OS 沙箱：Node/引擎漏洞属于残余风险，最小 cwd/env 无法阻止被攻陷的宿主读取文件。OS 级沙箱/容器明确不在范围内——请勿运行你不信任的程序。
+
+---
+
 ## 计算生态与基础设施
 
 Cloudra 深度集成了计算化学主流工具链与高性能计算基础设施：

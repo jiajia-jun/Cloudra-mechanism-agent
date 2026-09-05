@@ -91,6 +91,9 @@ frontend/dist/
 # runtime v2 local sqlite
 runtime-v2.db*
 
+# optional JS host local install (installed explicitly via npm ci)
+cloudra/runtime_v2/js_host/node_modules/
+
 # 运行时状态泄漏文件（如 Gaussian 作业 state json）
 state_*.json
 
@@ -111,7 +114,6 @@ ideapool/**/*.pdf
 !ideapool/cloudra_novelty_and_validation_plan.pdf
 ideapool/**/images/
 ideapool/**/img_*/
-
 
 
 

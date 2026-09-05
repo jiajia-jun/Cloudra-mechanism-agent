@@ -46,6 +46,12 @@ def _is_retryable(exc: Exception) -> bool:
     and 5xx / connection errors stay retryable.  Classification is by the
     ``status_code`` attribute so the kernel never imports the LLM SDK.
     """
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+
+    if isinstance(exc, EventPersistenceError):
+        # A store failure means the event stream and the world may have
+        # diverged; replaying the turn could repeat an unaudited effect.
+        return False
     status = getattr(exc, "status_code", None)
     if isinstance(status, int) and 400 <= status < 500 and status not in (408, 429):
         return False
@@ -462,7 +468,7 @@ class AgentRunner:
         can see; otherwise the summary gains one English fallback line per
         path.  There is no N-image cap.
         """
-        from cloudra.runtime_v2.turn_pipeline import image_paths_from_tool_result
+        from cloudra.runtime_v2.invocation import image_paths_from_tool_result
 
         summary = result.summary
         paths = image_paths_from_tool_result(result)
@@ -754,7 +760,7 @@ class AgentRunner:
             if fallback:
                 run_log = fallback_run_summary(run_events)
                 new_handover = None
-            envelope = core.event_log.append(
+            core.event_log.append(
                 "context.run_summarized",
                 stream="agent",
                 project_id=agent.project_id,
@@ -767,11 +773,11 @@ class AgentRunner:
                     "seq_range": seq_range,
                 },
             )
-            # Detached from the runner task, so publish directly — nobody else
+            # Detached from the runner task, so flush directly — nobody else
             # will flush these events to SSE subscribers.
-            await core.event_hub.publish(envelope)
+            await core.event_writer.flush()
             if new_handover:
-                envelope = core.event_log.append(
+                core.event_log.append(
                     "context.handover_updated",
                     stream="agent",
                     project_id=agent.project_id,
@@ -783,7 +789,7 @@ class AgentRunner:
                         "revision": (handover[1] if handover else 0) + 1,
                     },
                 )
-                await core.event_hub.publish(envelope)
+                await core.event_writer.flush()
                 await self._persist_handover(agent, new_handover)
         except Exception:
             logger.exception("agent %s run-context finalization failed", agent.id)
@@ -818,5 +824,6 @@ class AgentRunner:
         return await asyncio.to_thread(write)
 
     async def _publish_new_events(self, before: int) -> None:
-        for event in list(self.core.event_log)[before:]:
-            await self.core.event_hub.publish(event)
+        # The shared writer tracks the unpublished cursor itself; ``before``
+        # is kept for the existing call-site shape.
+        await self.core.event_writer.flush()

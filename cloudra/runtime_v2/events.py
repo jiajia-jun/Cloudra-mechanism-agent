@@ -54,10 +54,16 @@ EVENT_TYPES: dict[str, str] = {
     "llm.completed": "llm request completed",
     "llm.failed": "llm request failed",
     "agent.thinking": "persisted reasoning segment of one LLM call",
-    "tool.started": "tool started",
+    "tool.requested": "tool call requested (durable before any policy/tool effect)",
+    "tool.started": "tool admitted by policy; executor about to run",
+    "tool.result_recorded": "raw tool result durably recorded before postprocessing",
     "tool.blocked": "tool blocked by a policy stage",
     "tool.finished": "tool finished",
     "tool.approval_requested": "tool approval requested",
+    "program.submitted": "js program source submitted (durable before launch)",
+    "program.started": "js host handshook; program about to start",
+    "program.output": "explicit js program output (text value)",
+    "program.finished": "js program finished with child call receipts",
     "dag.gate_blocked": "substantive gate blocked a tool",
     "hub.posted": "agent forum post",
     "hub.notification_consumed": "agent consumed a directed hub notification",
@@ -204,6 +210,11 @@ class EventHub:
 
     def __init__(self) -> None:
         self._subscribers: list[Callable[[EventEnvelope], Awaitable[None]]] = []
+        # Ephemeral idempotency window for persistent events: publication is
+        # deduplicated by event_id so reentrant flushes (a subscriber that
+        # submits commands) never double-deliver.  seq=0 streaming chunks
+        # (llm.chunk / project.synced) are hub-only and never deduplicated.
+        self._delivered_ids: set[str] = set()
 
     def subscribe(self, handler: Callable[[EventEnvelope], Awaitable[None]]) -> Callable:
         self._subscribers.append(handler)
@@ -213,7 +224,17 @@ class EventHub:
         if handler in self._subscribers:
             self._subscribers.remove(handler)
 
+    def mark_delivered(self, event_id: str) -> None:
+        """Record an event as already published (restore backfill)."""
+        self._delivered_ids.add(event_id)
+
     async def publish(self, envelope: EventEnvelope) -> None:
+        if envelope.seq != 0:
+            if envelope.event_id in self._delivered_ids:
+                return
+            # Mark before callbacks: a subscriber re-entering the hub through
+            # a nested command must not re-deliver this envelope.
+            self._delivered_ids.add(envelope.event_id)
         for handler in list(self._subscribers):
             try:
                 await handler(envelope)

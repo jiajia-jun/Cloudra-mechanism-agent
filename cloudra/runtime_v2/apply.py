@@ -54,6 +54,7 @@ from cloudra.runtime_v2.schemas import (
     AgentState,
     CurrentRun,
     EventEnvelope,
+    InvocationProtocol,
     Project,
     ProjectSettings,
     RuntimeSettingsPatch,
@@ -137,7 +138,12 @@ def _apply_agent_state_changed(core: RuntimeCore, envelope: EventEnvelope) -> No
 
 def _apply_run_started(core: RuntimeCore, envelope: EventEnvelope) -> None:
     agent = core.require_agent(envelope.session_id or "")
-    agent.current_run = CurrentRun(run_id=envelope.run_id or "", started_at=envelope.created_at)
+    protocol = envelope.data.get("invocation_protocol") or InvocationProtocol.TRADITIONAL
+    agent.current_run = CurrentRun(
+        run_id=envelope.run_id or "",
+        started_at=envelope.created_at,
+        invocation_protocol=InvocationProtocol(protocol),
+    )
     agent.updated_at = envelope.created_at
     # A new run rebuilds its in-memory history from scratch, so a manual
     # compaction requested against the previous run's history is meaningless:

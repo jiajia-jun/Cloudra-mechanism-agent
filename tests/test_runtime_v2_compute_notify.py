@@ -307,7 +307,7 @@ async def test_terminal_job_snapshots_core_evidence_before_notify(tmp_path):
     assert any(a.source_path == str(inp.resolve()) for a in artifacts)
 
     # 同一路径同一内容的后续作业：复用 hash，不重复拷贝
-    job_id2 = _insert_terminal_job(project.id, session_id=coordinator.id, path=str(inp))
+    _insert_terminal_job(project.id, session_id=coordinator.id, path=str(inp))
     await broker._poll_project(project.id)
     artifacts_after = ArtifactService().list(project.id)
     assert len(artifacts_after) == len(artifacts)

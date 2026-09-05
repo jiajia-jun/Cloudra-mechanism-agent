@@ -28,6 +28,20 @@ class OrchestrationMode(str, Enum):
     DAG_GUIDED = "dag_guided"
 
 
+class InvocationProtocol(str, Enum):
+    """How model tool calls are dispatched for one run.
+
+    ``traditional``: each wire tool call executes directly.  ``javascript``:
+    the model writes one bounded JS program per exchange whose inner tool
+    calls go through the same invocation service.  The protocol is resolved
+    when ``run.started`` is produced and frozen on ``CurrentRun`` — changing
+    the setting affects the next run only, never a live one.
+    """
+
+    TRADITIONAL = "traditional"
+    JAVASCRIPT = "javascript"
+
+
 class AgentState(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -58,6 +72,7 @@ class RuntimeSettingsPatch(BaseModel):
     native_search: Optional[str] = None
     native_search_params: Optional[dict[str, Any]] = None
     orchestration_mode: Optional[OrchestrationMode] = None
+    invocation_protocol: Optional[InvocationProtocol] = None
     api_key: Optional[str] = Field(default=None, repr=False)
 
 
@@ -83,6 +98,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
     native_search: str = "auto"
     native_search_params: dict[str, Any] = Field(default_factory=dict)
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD
+    invocation_protocol: InvocationProtocol = InvocationProtocol.TRADITIONAL
 
     api_key: str = Field(default="", repr=False, exclude=True)
 
@@ -149,6 +165,7 @@ class CurrentRun(BaseModel):
 
     run_id: str
     started_at: datetime
+    invocation_protocol: InvocationProtocol = InvocationProtocol.TRADITIONAL
 
 
 class AgentSession(BaseModel):
@@ -171,6 +188,19 @@ class AgentSession(BaseModel):
 
     def touch(self) -> None:
         self.updated_at = utc_now()
+
+
+def configured_invocation_protocol(agent: AgentSession) -> InvocationProtocol:
+    """The protocol the agent's *next* run will use (settings value)."""
+    return agent.settings.invocation_protocol
+
+
+def effective_invocation_protocol(agent: AgentSession) -> InvocationProtocol:
+    """The protocol in force: frozen on the active run, else the configured one."""
+    current_run = getattr(agent, "current_run", None)
+    if current_run is not None:
+        return current_run.invocation_protocol
+    return agent.settings.invocation_protocol
 
 
 class MethodPolicy(BaseModel):

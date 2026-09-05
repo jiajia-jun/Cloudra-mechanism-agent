@@ -213,14 +213,22 @@ def create_default_v2_app(*, store_path: str | None = None) -> FastAPI:
 
     core = RuntimeCore(strict_events=True)
     core.runtime_defaults = legacy_default_runtime_settings()
+    stages = default_stages(core)
+    executor = LegacyToolExecutor(core)
+    from cloudra.runtime_v2.invocation import InvocationService
+
+    invocations = InvocationService(
+        event_writer=core.event_writer, stages=stages, tools=executor, agents=core.agents
+    )
     pipeline = TurnPipeline(
         event_log=core.event_log,
-        stages=default_stages(core),
+        stages=stages,
         llm=LegacyLLMProvider(),
-        tools=LegacyToolExecutor(core),
+        tools=executor,
         prompt_provider=LegacyPromptProvider(),
         event_hub=core.event_hub,
         notices=core.notices,
+        invocations=invocations,
     )
     app = create_v2_app(core, pipeline=pipeline, store_path=store_path)
     # Attach after the hub/store exist: setup(core) hooks get a fully wired

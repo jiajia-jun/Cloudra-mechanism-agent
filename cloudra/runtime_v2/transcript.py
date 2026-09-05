@@ -115,16 +115,37 @@ def render_project_transcript(
             lines.append(f"### 🧠 {head} thinking — {who}")
             _text_block(lines, str(data.get("content") or ""))
             lines.append("")
+        elif event.type == "tool.requested":
+            call_id = data.get("tool_call_id", "?")
+            name = data.get("tool_name", "?")
+            execution = data.get("execution_id")
+            suffix = f" · exec `{execution}`" if execution else ""
+            lines.append(
+                f"- {head} **tool.requested** `{name}` · call `{call_id}`{suffix} · {who}"
+            )
+        elif event.type == "tool.result_recorded":
+            call_id = data.get("tool_call_id", "?")
+            name = data.get("tool_name", "?")
+            execution = data.get("execution_id")
+            suffix = f" · exec `{execution}`" if execution else ""
+            lines.append(
+                f"### 📥 {head} raw result `{name}` — call `{call_id}`{suffix} · event `{event.event_id}` · {who}"
+            )
+            # The immutable raw snapshot is diagnostic gold: never summarize it.
+            _json_block(lines, data.get("result"))
+            lines.append("")
         elif event.type == "tool.started":
             pending_tools[str(data.get("tool_call_id") or "")] = event
         elif event.type == "tool.finished":
             call_id = str(data.get("tool_call_id") or "")
             started = pending_tools.pop(call_id, None)
             name = data.get("tool_name", "?")
-            status = "ok" if data.get("is_success") else "FAILED"
+            status = data.get("status") or ("ok" if data.get("is_success") else "FAILED")
             duration = data.get("duration_ms")
             suffix = f" · {duration}ms" if duration is not None else ""
-            lines.append(f"### 🔧 {head} `{name}` — {status}{suffix} · {who}")
+            execution = data.get("execution_id")
+            exec_suffix = f" · exec `{execution}`" if execution else ""
+            lines.append(f"### 🔧 {head} `{name}` — {status}{suffix}{exec_suffix} · {who}")
             arguments = (started.data if started else {}).get("arguments_summary")
             if arguments is not None:
                 lines.append("arguments:")
@@ -133,8 +154,58 @@ def render_project_transcript(
             if summary:
                 lines.append("result:")
                 _text_block(lines, summary)
+            if data.get("raw_result_event_id"):
+                lines.append(f"- raw result event: `{data['raw_result_event_id']}`")
+            if data.get("effect_state"):
+                lines.append(f"- effect state: `{data['effect_state']}`")
+            error = data.get("error")
+            if isinstance(error, dict) and error.get("code"):
+                lines.append(f"- error: `{json.dumps(error, ensure_ascii=False, default=str)}`")
             if data.get("artifact_id"):
                 lines.append(f"- artifact: `{data['artifact_id']}`")
+            lines.append("")
+        elif event.type == "program.submitted":
+            execution = data.get("execution_id", "?")
+            lines.append(
+                f"### 📜 {head} program submitted — exec `{execution}` · outer call "
+                f"`{data.get('outer_tool_call_id', '?')}` · sha256 `{data.get('source_hash', '?')}` · {who}"
+            )
+            # Source is an event snapshot: fenced verbatim (backtick-safe).
+            source = str(data.get("code") or "")
+            fence = _fence(source)
+            lines.append(f"{fence}js")
+            lines.append(source)
+            lines.append(fence)
+            lines.append("")
+        elif event.type == "program.output":
+            lines.append(
+                f"### 🖨 {head} program output #{data.get('output_index', '?')} — exec `{data.get('execution_id', '?')}` · {who}"
+            )
+            _json_block(lines, data.get("value"))
+            lines.append("")
+        elif event.type == "program.finished":
+            status = data.get("status", "?")
+            duration = data.get("duration_ms")
+            suffix = f" · {duration}ms" if duration is not None else ""
+            lines.append(
+                f"### 🏁 {head} program finished — **{status}**{suffix} · exec "
+                f"`{data.get('execution_id', '?')}` · outer call `{data.get('outer_tool_call_id', '?')}` · {who}"
+            )
+            error = data.get("error")
+            if isinstance(error, dict) and error.get("code"):
+                lines.append(f"- error: `{json.dumps(error, ensure_ascii=False, default=str)}`")
+            if data.get("control_decision"):
+                lines.append(f"- control decision: `{data['control_decision']}`")
+            receipts = data.get("calls") or []
+            if receipts:
+                lines.append("- child calls:")
+                for receipt in receipts:
+                    raw = receipt.get("raw_result_event_id")
+                    raw_suffix = f" · raw `{raw}`" if raw else ""
+                    lines.append(
+                        f"  - `{receipt.get('call_id', '?')}` `{receipt.get('tool_name', '?')}` — "
+                        f"{receipt.get('status', '?')} / {receipt.get('effect_state', '?')}{raw_suffix}"
+                    )
             lines.append("")
         elif event.type == "tool.blocked":
             lines.append(

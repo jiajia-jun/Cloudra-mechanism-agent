@@ -14,7 +14,34 @@ export interface ToolItem {
    * the tool.finished payload); the render layer turns it into a download URL. */
   imageArtifactId?: string;
   imagePath?: string;
+  /** Wire/host call identity (tool_call_id); present on requested-started rows. */
+  callId?: string;
+  /** Set when this call ran inside a JavaScript program. */
+  executionId?: string | null;
+  /** queued | running | waiting | completed | failed | blocked | cancelled | interrupted */
+  status?: string;
+  /** not_started | completed | unknown — how far the external effect got. */
+  effectState?: string;
 }
+
+export interface ProgramItem {
+  kind: 'program';
+  id: string;
+  seq: number;
+  executionId: string;
+  outerCallId: string | null;
+  /** Original source from program.submitted; null when the event was
+   * paginated away (explicit source-unavailable shell, never fake code). */
+  source: string | null;
+  sourceHash: string | null;
+  /** running | completed | failed | cancelled | interrupted | unknown
+   * (unknown: no program.* event survived, inferred from orphan children). */
+  status: string;
+  children: ToolItem[];
+  outputs: unknown[];
+  error: Record<string, unknown> | null;
+}
+
 export interface MessageItem {
   kind: 'message';
   id: string;
@@ -43,7 +70,7 @@ export interface ThinkingItem {
   text: string;
   live: boolean;
 }
-export type TimelineItem = ToolItem | MessageItem | NoteItem | ThinkingItem;
+export type TimelineItem = ToolItem | ProgramItem | MessageItem | NoteItem | ThinkingItem;
 
 export interface StreamView {
   streamText: string;
@@ -213,11 +240,73 @@ function extractToolImage(data: Record<string, unknown>): { artifactId?: string;
 export function buildTimeline(events: EventEnvelope[], pendingUserMessages: MessageItem[]): TimelineItem[] {
   const items: TimelineItem[] = [];
   const openTools = new Map<string, ToolItem>();
+  // JavaScript program projection: children are ToolItems grouped under one
+  // ProgramItem by execution_id; requested creates a queued row, started
+  // updates it, the raw-result event never adds a row, finished settles it.
+  const programs = new Map<string, ProgramItem>();
+  const programChildren = new Map<string, ToolItem>(); // tool_call_id -> child row
+  const orphanChildren = new Map<string, ToolItem[]>(); // execution_id -> rows awaiting a program event
+  const seenEventIds = new Set<string>();
   // compaction.started shows a live note that compaction.finished rewrites in
   // place (keyed by run); a crash in between is settled by run termination.
   const openCompactions = new Map<string, NoteItem>();
   const sorted = [...events].sort((a, b) => (a.session_seq ?? a.seq) - (b.session_seq ?? b.seq));
+
+  const ensureProgram = (executionId: string, id: string, seq: number): ProgramItem => {
+    let program = programs.get(executionId);
+    if (program) return program;
+    program = {
+      kind: 'program',
+      id,
+      seq,
+      executionId,
+      outerCallId: null,
+      source: null,
+      sourceHash: null,
+      status: 'running',
+      children: [],
+      outputs: [],
+      error: null,
+    };
+    programs.set(executionId, program);
+    items.push(program);
+    const orphans = orphanChildren.get(executionId) ?? [];
+    for (const orphan of orphans) program.children.push(orphan);
+    orphanChildren.delete(executionId);
+    return program;
+  };
+
+  const attachChild = (executionId: string, child: ToolItem) => {
+    const program = programs.get(executionId);
+    if (program) {
+      program.children.push(child);
+      return;
+    }
+    const bucket = orphanChildren.get(executionId) ?? [];
+    bucket.push(child);
+    orphanChildren.set(executionId, bucket);
+  };
+
+  const settleRow = (
+    row: ToolItem,
+    data: Record<string, unknown>,
+    name: string,
+  ) => {
+    const status = typeof data.status === 'string' ? data.status : '';
+    row.running = false;
+    row.ok = status ? status === 'completed' : Boolean(data.is_success);
+    row.status = status || (data.is_success ? 'completed' : 'failed');
+    row.effectState = typeof data.effect_state === 'string' ? data.effect_state : undefined;
+    row.resultSummary = formatToolResult(name, data.result_summary);
+    row.durationMs = typeof data.duration_ms === 'number' ? data.duration_ms : null;
+    const image = extractToolImage(data);
+    row.imageArtifactId = image.artifactId;
+    row.imagePath = image.imagePath;
+  };
+
   for (const event of sorted) {
+    if (seenEventIds.has(event.event_id)) continue; // duplicate SSE/replay rows
+    seenEventIds.add(event.event_id);
     const seq = event.session_seq ?? event.seq;
     if (MESSAGE_TYPES.has(event.type)) {
       const sender = String(event.data.sender ?? 'agent');
@@ -241,8 +330,44 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         text: String(event.data.content ?? ''),
         live: false,
       });
+    } else if (event.type === 'tool.requested') {
+      const toolName = String(event.data.tool_name ?? 'tool');
+      const callId = String(event.data.tool_call_id ?? event.event_id);
+      const executionId = event.data.execution_id ? String(event.data.execution_id) : null;
+      const item: ToolItem = {
+        kind: 'tool',
+        id: event.event_id,
+        seq,
+        name: toolName,
+        argsSummary: formatToolArgs(toolName, event.data.arguments_summary),
+        running: false,
+        ok: null,
+        resultSummary: '',
+        durationMs: null,
+        callId,
+        executionId,
+        status: 'queued',
+      };
+      if (executionId) {
+        programChildren.set(callId, item);
+        attachChild(executionId, item);
+      } else {
+        openTools.set(callId, item);
+        items.push(item);
+      }
     } else if (event.type === 'tool.started') {
       const toolName = String(event.data.tool_name ?? 'tool');
+      const callId = String(event.data.tool_call_id ?? event.event_id);
+      const executionId = event.data.execution_id ? String(event.data.execution_id) : null;
+      const open = executionId ? programChildren.get(callId) : openTools.get(callId);
+      if (open) {
+        open.running = true;
+        open.status = 'running';
+        if (!open.argsSummary) {
+          open.argsSummary = formatToolArgs(toolName, event.data.arguments_summary);
+        }
+        continue;
+      }
       const item: ToolItem = {
         kind: 'tool',
         id: event.event_id,
@@ -253,38 +378,74 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         ok: null,
         resultSummary: '',
         durationMs: null,
+        callId,
+        executionId,
+        status: 'running',
       };
-      openTools.set(String(event.data.tool_call_id ?? event.event_id), item);
-      items.push(item);
+      if (executionId) {
+        programChildren.set(callId, item);
+        attachChild(executionId, item);
+      } else {
+        openTools.set(callId, item);
+        items.push(item);
+      }
     } else if (event.type === 'tool.finished') {
       const callId = String(event.data.tool_call_id ?? '');
       const toolName = String(event.data.tool_name ?? 'tool');
-      const open = openTools.get(callId);
-      const ok = Boolean(event.data.is_success);
-      const image = extractToolImage(event.data);
+      const executionId = event.data.execution_id ? String(event.data.execution_id) : null;
+      const open = executionId ? programChildren.get(callId) : openTools.get(callId);
       if (open) {
-        open.running = false;
-        open.ok = ok;
-        open.resultSummary = formatToolResult(open.name, event.data.result_summary);
-        open.durationMs = typeof event.data.duration_ms === 'number' ? event.data.duration_ms : null;
-        open.imageArtifactId = image.artifactId;
-        open.imagePath = image.imagePath;
-        openTools.delete(callId);
+        settleRow(open, event.data, open.name);
+        if (executionId) programChildren.delete(callId);
+        else openTools.delete(callId);
       } else {
-        items.push({
+        const row: ToolItem = {
           kind: 'tool',
           id: event.event_id,
           seq,
           name: toolName,
           argsSummary: '',
           running: false,
-          ok,
-          resultSummary: formatToolResult(toolName, event.data.result_summary),
-          durationMs: typeof event.data.duration_ms === 'number' ? event.data.duration_ms : null,
-          imageArtifactId: image.artifactId,
-          imagePath: image.imagePath,
-        });
+          ok: null,
+          resultSummary: '',
+          durationMs: null,
+          callId,
+          executionId,
+        };
+        settleRow(row, event.data, toolName);
+        if (executionId) attachChild(executionId, row);
+        else items.push(row);
       }
+    } else if (event.type === 'program.submitted') {
+      const executionId = String(event.data.execution_id ?? '');
+      if (!executionId) continue;
+      const program = ensureProgram(executionId, event.event_id, seq);
+      program.source = typeof event.data.code === 'string' ? event.data.code : null;
+      program.sourceHash = event.data.source_hash ? String(event.data.source_hash) : null;
+      program.outerCallId = event.data.outer_tool_call_id
+        ? String(event.data.outer_tool_call_id)
+        : null;
+    } else if (event.type === 'program.started') {
+      const executionId = String(event.data.execution_id ?? '');
+      if (!executionId) continue;
+      const program = ensureProgram(executionId, event.event_id, seq);
+      if (!program.outerCallId && event.data.outer_tool_call_id) {
+        program.outerCallId = String(event.data.outer_tool_call_id);
+      }
+    } else if (event.type === 'program.output') {
+      const executionId = String(event.data.execution_id ?? '');
+      if (!executionId) continue;
+      const program = ensureProgram(executionId, event.event_id, seq);
+      program.outputs.push(event.data.value);
+    } else if (event.type === 'program.finished') {
+      const executionId = String(event.data.execution_id ?? '');
+      if (!executionId) continue;
+      const program = ensureProgram(executionId, event.event_id, seq);
+      program.status = String(event.data.status ?? 'unknown');
+      program.error =
+        event.data.error && typeof event.data.error === 'object'
+          ? (event.data.error as Record<string, unknown>)
+          : null;
     } else if (event.type === 'compaction.started') {
       const item: NoteItem = {
         kind: 'note',
@@ -332,9 +493,22 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         if (!open.running) continue;
         open.running = false;
         open.ok = false;
+        open.status = 'interrupted';
         open.resultSummary = 'interrupted';
       }
       openTools.clear();
+      for (const child of programChildren.values()) {
+        if (child.running || child.status === 'queued') {
+          child.running = false;
+          child.ok = false;
+          child.status = 'interrupted';
+          child.resultSummary = 'interrupted';
+        }
+      }
+      programChildren.clear();
+      for (const program of programs.values()) {
+        if (program.status === 'running') program.status = 'interrupted';
+      }
       for (const pending of openCompactions.values()) {
         pending.text = 'Context compaction interrupted';
       }
@@ -349,5 +523,25 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
       });
     }
   }
+  // Orphan children whose program events were paginated away still get an
+  // explicit source-unavailable shell — never dropped, never fake code.
+  for (const [executionId, children] of orphanChildren) {
+    if (children.length === 0) continue;
+    const unfinished = children.some((child) => child.running || child.status === 'queued');
+    items.push({
+      kind: 'program',
+      id: `program-shell-${executionId}`,
+      seq: children[0].seq - 0.1,
+      executionId,
+      outerCallId: null,
+      source: null,
+      sourceHash: null,
+      status: unfinished ? 'running' : 'unknown',
+      children,
+      outputs: [],
+      error: null,
+    });
+  }
+  items.sort((a, b) => a.seq - b.seq);
   return [...items, ...pendingUserMessages];
 }

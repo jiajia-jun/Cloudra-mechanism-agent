@@ -26,6 +26,10 @@ export interface PendingAttention {
   /** risk_summary for approvals, the ask_user prompt for interactions. */
   body: string;
   createdAt: string;
+  /** Host invocation correlation when the request came from inside a tool
+   * call (possibly a JavaScript program child); empty when unknown. */
+  toolCallId?: string;
+  executionId?: string;
 }
 
 function str(v: unknown): string {
@@ -48,6 +52,8 @@ export function collectPending(perProject: Map<string, ProjectPending>): Pending
         title: str(row.agent_name),
         body: str(row.tool_name) + (row.risk_summary ? ` — ${str(row.risk_summary)}` : ''),
         createdAt: str(row.created_at),
+        toolCallId: str(row.tool_call_id) || undefined,
+        executionId: str(row.execution_id) || undefined,
       });
     }
     for (const row of pending.interactions) {
@@ -63,6 +69,8 @@ export function collectPending(perProject: Map<string, ProjectPending>): Pending
         title: str(row.agent_id),
         body: str(row.prompt ?? row.message),
         createdAt: str(row.created_at),
+        toolCallId: str(row.tool_call_id) || undefined,
+        executionId: str(row.execution_id) || undefined,
       });
     }
   }

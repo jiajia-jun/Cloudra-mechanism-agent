@@ -1,0 +1,16 @@
+{
+  "name": "cloudra-js-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional QuickJS-WASM host for the Cloudra JavaScript invocation runtime.",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "quickjs-emscripten": "0.32.0"
+  },
+  "scripts": {
+    "test": "node --test host.test.mjs"
+  }
+}
