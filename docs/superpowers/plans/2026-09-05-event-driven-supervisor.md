@@ -255,13 +255,13 @@ async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
 
 ## Task 6：清理、文档与总验收
 
-- [ ] 查找残余同步装配，包括 API user_replan 与 benchmark；迁移现有调用方，删除不再使用的 GraphSupervisorResult、旧独立 session 生命周期和只验证壳状态的测试，不保留隐藏同步回退。
-- [ ] 更新 AGENTS.md、角色说明和相关架构文档：真实独立 Supervisor、信箱事实来源、取消/失败策略、恢复与反馈边界。
-- [ ] 语法检查实际改动 Python 文件：`uv run python -m compileall -q <改动文件>`。
-- [ ] 运行 `uv run ruff check cloudra tests` 和 `uv run pytest -q tests/`。
-- [ ] 若更改 JS host，运行对应 npm 测试；若改前端/API 消费 UI，执行 `npm --prefix frontend run build`。没有这些改动不额外改动依赖。
-- [ ] 审阅 diff：工具后处理无督导 LLM await；不存在壳执行双轨；没有新 review worker、轮询 daemon、合并窗口；权限未放宽；全部新 runtime 状态可重放。
-- [ ] 按完整可测任务提交相关文件；向用户汇报实际测试结果、残余限制及是否需要重启服务，不替用户启动生产运行。
+- [x] 查找残余同步装配，包括 API user_replan 与 benchmark；迁移现有调用方，删除不再使用的 GraphSupervisorResult、旧独立 session 生命周期和只验证壳状态的测试，不保留隐藏同步回退。
+- [x] 更新 AGENTS.md、角色说明和相关架构文档：真实独立 Supervisor、信箱事实来源、取消/失败策略、恢复与反馈边界。
+- [x] 语法检查实际改动 Python 文件：`uv run python -m compileall -q <改动文件>`。
+- [x] 运行 `uv run ruff check cloudra tests` 和 `uv run pytest -q tests/`。
+- [x] 若更改 JS host，运行对应 npm 测试；若改前端/API 消费 UI，执行 `npm --prefix frontend run build`。没有这些改动不额外改动依赖。
+- [x] 审阅 diff：工具后处理无督导 LLM await；不存在壳执行双轨；没有新 review worker、轮询 daemon、合并窗口；权限未放宽；全部新 runtime 状态可重放。
+- [x] 按完整可测任务提交相关文件；向用户汇报实际测试结果、残余限制及是否需要重启服务，不替用户启动生产运行。
 
 ## 最终验收标准
 
