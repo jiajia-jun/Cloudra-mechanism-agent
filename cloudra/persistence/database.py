@@ -668,6 +668,13 @@ _RELATED_EXTRA_COLUMNS = {
         "source_path": "TEXT NOT NULL DEFAULT ''",
         "result_kind": "TEXT NOT NULL DEFAULT ''",
         "suggested_stage": "TEXT NOT NULL DEFAULT ''",
+        # §5 显式送审：主张/理由/提交者/快照身份；旧行全部为空。
+        "claim": "TEXT NOT NULL DEFAULT ''",
+        "rationale": "TEXT NOT NULL DEFAULT ''",
+        "submitter": "TEXT NOT NULL DEFAULT ''",
+        "evidence_id": "TEXT NOT NULL DEFAULT ''",
+        # 旧行无法可靠识别来源 ⇒ 一律 legacy_auto（不消费、审计保留）。
+        "source": "TEXT NOT NULL DEFAULT 'legacy_auto'",
     },
     # 证据登记的反查键（Task 4）：新行写入时从 payload 提取；旧行由
     # _migrate_dag_evidence_source_keys 逐批回填，不可解析行保持 NULL。
@@ -684,7 +691,8 @@ _RELATED_EXTRA_COLUMNS = {
     "dag_drafts": {
         "claim_spec": "TEXT NOT NULL DEFAULT ''",
     },
-    # 结构化审查 worker 的租约与并发令牌（Task 7）：claim_review 独占更新。
+    # 结构化审查请求的历史租约列（Task 7 review worker 已删除）：列保留供
+    # 旧库读取，新代码不再写入/判定 owner/claim_token/lease。
     "dag_review_requests": {
         "owner": "TEXT",
         "claim_token": "INTEGER NOT NULL DEFAULT 0",

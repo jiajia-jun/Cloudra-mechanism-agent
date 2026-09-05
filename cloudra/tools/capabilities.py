@@ -36,10 +36,15 @@ def is_dag_observable(tool_name: str) -> bool:
     return reg.dag_observe if reg is not None else True
 
 
-def is_dag_reviewed(tool_name: str) -> bool:
-    """Whether a finished call enters the CallReview inbox (D5 throttle)."""
+def is_dag_evidence_producer(tool_name: str) -> bool:
+    """Whether a finished call yields computational evidence.
+
+    Registry-level "evidence producer" marker; its remaining consumer is the
+    knowledge stage's compute-tool trigger.  §5: it no longer routes anything
+    into the CallReview inbox — review submission is always explicit.
+    """
     reg = _named().get(tool_name)
-    return bool(reg.dag_review) if reg is not None else False
+    return bool(reg.dag_evidence_producer) if reg is not None else False
 
 
 def is_dag_compute_entry(tool_name: str, arguments: dict[str, Any] | None = None) -> bool:
@@ -122,3 +127,17 @@ def supervisor_allowed_tools() -> dict[str, str]:
         for name, reg in _named().items()
         if reg.supervisor_access and reg.supervisor_access != "none"
     }
+
+
+def supervisor_tool_names() -> list[str]:
+    """The Supervisor role's capability list (AgentCapabilities.tools).
+
+    Business tools come exclusively from the ``supervisor_access`` registry
+    projection above — never re-declared here.  ``stop`` is the run-lifecycle
+    direct control every agent needs to end a turn; it is a runtime control,
+    not a supervised business capability, so it stays outside the access
+    levels and is named here once.  ``ask_user``/``schedule`` are deliberately
+    absent: the Supervisor neither questions the user nor self-schedules —
+    it is woken by mailbox notifications.
+    """
+    return sorted(set(supervisor_allowed_tools()) | {"stop"})

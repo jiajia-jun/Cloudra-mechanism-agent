@@ -114,14 +114,11 @@ class DagReviewEvidence(DagToolBase):
                 findings=user_input.findings,
                 next_action=user_input.next_action,
             )
-            claim = getattr(session, "review_claim", None)
-            claim_token = int(getattr(claim, "claim_token", 0) or 0)
             import asyncio
             current_basis = await asyncio.to_thread(store.review_basis, request)
             resolved = store.resolve_review(
                 decision,
                 expected_basis=request.basis_fingerprint,
-                claim_token=claim_token,
                 current_basis=current_basis,
             )
         except Exception as exc:

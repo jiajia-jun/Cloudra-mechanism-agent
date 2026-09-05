@@ -277,6 +277,16 @@ class AgentHost:
         display_name: str | None,
         settings: RuntimeSettings,
     ) -> AgentSession:
+        # Supervisor 的工具面是 registry 的 supervisor_access 动态投影
+        # （capabilities.supervisor_tool_names），静态 tool_policy 无法表达；
+        # 收窄落在这里（能力与线缆投影同源），执行层另有
+        # dag/supervisor_tools.py 的路径/动作守卫做第二道闸。
+        if role.role_id == "supervisor":
+            from cloudra.tools.capabilities import supervisor_tool_names
+
+            tools = supervisor_tool_names()
+        else:
+            tools = list(role.tool_policy.allow)
         agent = AgentSession(
             id=new_id("as"),
             project_id=project.id,
@@ -288,7 +298,7 @@ class AgentHost:
                 permissions=role.permissions,
                 can_spawn=role.can_spawn,
                 spawn_roles=list(role.spawn_roles) if role.spawn_roles is not None else None,
-                tools=list(role.tool_policy.allow),
+                tools=tools,
             ),
         )
         return agent

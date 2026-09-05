@@ -140,6 +140,11 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 "result_summary": review.result_summary,
                 "compute_job_id": review.compute_job_id,
                 "suggested_target_id": review.suggested_target_id,
+                "suggested_stage": review.suggested_stage,
+                "claim": review.claim,
+                "rationale": review.rationale,
+                "submitter": review.submitter,
+                "source": review.source,
                 "state": review.state,
                 "created_at": review.created_at,
             }
@@ -162,64 +167,68 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.post("/api/v2/projects/{project_id}/dag/replan", dependencies=ctx.protected)
     async def dag_replan(project_id: str, body: DagReplanRequest) -> dict[str, Any]:
-        from cloudra.core.supervisor import GraphSupervisor
-        from cloudra.dag.controller import DagController
-        from cloudra.dag.models import OrchestrationMode
-        from cloudra.persistence.database import ConversationDB
+        """用户 replan：持久化一条结构化督导请求 + 通知 Supervisor，立即返回。
+
+        事件驱动督导（Task 3）后本端点不再现场同步跑督导 LLM：请求落
+        dag_review_requests（kind="exception"，正文保留用户 note），
+        notify_supervisor 按状态表调度，裁决异步到达。返回 queued 语义——
+        绝不伪报草稿已获批或复核已完成。
+        """
+        from cloudra.dag.review_requests import ReviewRequest
+        from cloudra.runtime_v2.supervision import notify_supervisor
 
         context = await asyncio.to_thread(_dag_read_context, ctx, project_id)
         if context is None:
             raise HTTPException(status_code=404, detail="DAG bundle not initialized")
         mode = ctx.core.require_project(project_id).settings.orchestration_mode
-        if mode is not OrchestrationMode.DAG_GUIDED:
+        # schemas 与 dag.models 各有一个 OrchestrationMode 枚举——按 value 比较。
+        if mode.value != "dag_guided":
             raise HTTPException(
                 status_code=422,
                 detail=f"replan is only available in dag_guided mode (current: {mode.value})",
             )
+        store, _engine = context
+        note = (body.note or "").strip()
+        question = note or (
+            "User requested a replan: re-review the current mechanism draft, "
+            "the delivery graph, and the open coverage gaps."
+        )
+        # 裁决通知的收件人：项目 Coordinator（反馈落研究主线）；没有
+        # Coordinator 时落 "user"（无活 agent，通知行直接闭环标记）。
+        coordinator = next(
+            (
+                agent
+                for agent in ctx.core.agents.values()
+                if agent.project_id == project_id and agent.role_id == "coordinator"
+            ),
+            None,
+        )
 
-        def _controller() -> DagController:
-            project = ctx.core.require_project(project_id)
-            from cloudra.persistence.paths import data_dir
-            db = ConversationDB(project_id)
-            db.migrate_if_needed()
-            controller = DagController(
-                db,
-                "user_replan",
-                mode,
-                conversation_id=project_id,
-                supervisor=GraphSupervisor(
-                    conversation_id=project_id,
-                    project_id=project_id,
-                    working_directory=project.workspace_dir,
-                    artifact_root=str(data_dir() / "artifacts"),
-                    core=ctx.core,
-                ),
-                core=ctx.core,
+        def _enqueue() -> str:
+            request = ReviewRequest(
+                kind="exception",
+                requester=coordinator.id if coordinator else "user",
+                target_ids=[],
+                question=question,
+                proposal={"source": "user_replan", "note": note},
+                basis_fingerprint="sha256:pending",
             )
-            controller.contract = controller.store.load_coverage_contract()
-            controller._initialized = True
-            return controller
+            basis = store.review_basis(request)
+            return store.enqueue_review(
+                request.model_copy(update={"basis_fingerprint": basis})
+            )
 
-        controller = await asyncio.to_thread(_controller)
-        result = await controller.maybe_supervise("user_replan", coordinator_request=body.note or None)
-        if result is None:
-            return {
-                "trigger": "user_replan",
-                "supervised": False,
-                "summary": "Supervisor 未产出结果（运行失败或未触发，详见日志）",
-            }
-        accepted = sum(1 for m in result.mutations if m.get("accepted"))
-        summary = f"rounds={result.rounds} mutations={accepted}/{len(result.mutations)}"
-        if result.note:
-            summary += f" note={result.note}"
+        request_id = await asyncio.to_thread(_enqueue)
+        await notify_supervisor(ctx.core, project_id, reason="user replan")
         return {
-            "trigger": result.trigger,
-            "supervised": True,
-            "rounds": result.rounds,
-            "mutations_accepted": accepted,
-            "mutations_total": len(result.mutations),
-            "note": result.note,
-            "summary": summary,
+            "trigger": "user_replan",
+            "queued": True,
+            "request_id": request_id,
+            "summary": (
+                f"Replan request {request_id} queued for the Supervisor. "
+                "The review is asynchronous: this response does NOT mean the "
+                "draft or plan has been approved."
+            ),
         }
 
     @router.post("/api/v2/projects/{project_id}/dag/mutations", dependencies=ctx.protected)

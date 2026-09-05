@@ -70,19 +70,3 @@ def scope_key(request: ReviewRequest) -> tuple[str, tuple[str, ...]]:
     when the human-readable question repeats.
     """
     return (request.kind, tuple(sorted(request.target_ids)))
-
-
-class ClaimedReview(BaseModel):
-    """A queued ReviewRequest leased to one worker for processing.
-
-    The worker supplies an opaque ``claim_token`` to ``resolve_review``.  The
-    token is monotonically increased on each claim; an expired/stale worker
-    cannot resolve a request it no longer owns.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    request: ReviewRequest
-    owner: str
-    claim_token: int = Field(ge=0)
-    expires_at: str = ""

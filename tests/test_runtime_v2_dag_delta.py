@@ -1,8 +1,6 @@
-"""DAG stage delivery delta + sub-agent evidence window."""
+"""DAG stage delivery delta on tool results."""
 
 from __future__ import annotations
-
-from types import SimpleNamespace
 
 import pytest
 
@@ -19,23 +17,10 @@ from cloudra.runtime_v2.schemas import (
 )
 
 
-class _FakeEngine:
-    def __init__(self, revision: int, n_refs: int) -> None:
-        nodes = [SimpleNamespace(refs=[object()] * n_refs)] if n_refs else []
-        self._snapshot = SimpleNamespace(
-            delivery=SimpleNamespace(revision=revision, nodes=nodes, edges=[]),
-        )
-
-    def snapshot(self):
-        return self._snapshot
-
-
 class _FakeController:
     def __init__(self) -> None:
         self.mode = OrchestrationMode.DAG_GUIDED
         self.enabled = True
-        self.engine = _FakeEngine(1, 0)
-        self.supervise_calls: list[str] = []
         self.finished_return: object = None
 
     async def initialize(self) -> None:
@@ -46,9 +31,6 @@ class _FakeController:
 
     async def on_tool_finished(self, *args, **kwargs):
         return self.finished_return
-
-    async def maybe_supervise(self, trigger, coordinator_request=None):
-        self.supervise_calls.append(trigger)
 
 
 def _ctx(notices=None) -> PipelineContext:
@@ -104,28 +86,3 @@ async def test_no_delta_adds_no_noise():
     await stage.after_tool(ctx, ToolCall(id="tc1", name="bash", arguments={}), result)
     assert result.summary == "ok"
     assert ctx.notices.collect(ctx.agent.id) == []
-
-
-@pytest.mark.asyncio
-async def test_subagent_launcher_evidence_change_wakes_supervisor():
-    stage = DagPolicyStage()
-    controller = _FakeController()
-    ctx = _ctx()
-    stage._controllers[ctx.agent.id] = controller
-    call = ToolCall(id="launch1", name="subagent_launcher", arguments={"agent_id": "a-6"})
-    await stage.before_tool(ctx, call)
-    controller.engine = _FakeEngine(revision=2, n_refs=1)
-    await stage.after_tool(ctx, call, ToolResult(is_success=True, summary="done"))
-    assert controller.supervise_calls == ["delivery_updated"]
-
-
-@pytest.mark.asyncio
-async def test_subagent_launcher_no_change_does_not_wake():
-    stage = DagPolicyStage()
-    controller = _FakeController()
-    ctx = _ctx()
-    stage._controllers[ctx.agent.id] = controller
-    call = ToolCall(id="launch1", name="subagent_launcher", arguments={"agent_id": "a-6"})
-    await stage.before_tool(ctx, call)
-    await stage.after_tool(ctx, call, ToolResult(is_success=True, summary="done"))
-    assert controller.supervise_calls == []

@@ -1,4 +1,11 @@
-"""Stop-time delivery coverage audit, approvals, and scientific-outcome separation."""
+"""Stop-time delivery coverage audit, approvals, and scientific-outcome separation.
+
+统一运行结束门禁（Task 4A，计划 2026-09-05-event-driven-supervisor §6）的
+DAG 半边：显式 stop 与无 tool_calls 的纯文本最终回复在 runner 收尾前的同
+一边界调用 ``audit_stop`` 裁决；before_tool 不再做任何带副作用的 stop 预检，
+退出审批请求只在本模块创建一次（``enqueue_review_with_status`` 同 basis 去重，
+复用既有请求时不重复通知 Supervisor）。
+"""
 
 from __future__ import annotations
 
@@ -14,7 +21,7 @@ StopAction = Literal[
     "allow_final",
     "wait_background",
     "wait_review",
-    "needs_work",
+    "continue_work",
 ]
 
 
@@ -26,7 +33,7 @@ class StopGate(BaseModel):
       still active; no delivery disposition is recorded.
     - wait_review: a Supervisor/approval is required before this disposition
       may be recorded.
-    - needs_work: the stop is blocked until concrete gaps are resolved or a
+    - continue_work: the stop is blocked until concrete gaps are resolved or a
       required approval/scope change is granted.
     """
 
@@ -38,54 +45,61 @@ class StopGate(BaseModel):
     reason: str = Field(default="", description="Human-readable audit reason.")
 
 
+async def pending_compute_jobs_exist(*, data_dir, project_id: str) -> bool:
+    """本会话（项目）是否还有未终态的计算作业——compute.db 是唯一权威。"""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import acount_pending_compute_jobs
+
+    return bool(
+        await acount_pending_compute_jobs(ComputeDB(data_dir=data_dir), project_id)
+    )
+
+
+def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
+    """项目内是否还有未终态的其他 agent（纯 core.agents 事件投影读，不查库）。"""
+    terminal = {"succeeded", "failed", "cancelled"}
+    return any(
+        agent.id != session_id
+        and agent.project_id == project_id
+        and agent.state.value not in terminal
+        for agent in core.agents.values()
+    )
+
+
+def format_gate_gaps(report, *, limit: int = 12) -> list[str]:
+    """把 coverage 报告的开放缺口格式化成反馈行（runner 的 continue_work
+    反馈与历史 block 文案共用同一模式）。"""
+    if report is None:
+        return []
+    gaps = [*(report.unresolved or []), *(report.inconclusive or [])]
+    return [
+        f"- {g.code} on {g.target_type} {g.target_id}: {g.detail}" for g in gaps[:limit]
+    ]
+
+
 class StopAuditMixin:
-    """stop 交付门禁（audit_stop）与未审计 partial 落账；由 DagController 组合。"""
+    """stop 交付门禁（audit_stop）；由 DagController 组合。"""
 
     async def _has_pending_background(self) -> bool:
         """会话级后台是否还有未竟工作（子任务/计算/定时提醒）。
 
-        与 runner._count_pending_tasks 同一判定口径：只要后台未排空，
-        stop 就是"挂起等唤醒"而不是交付。D8.2：子 agent 与提醒读
-        v2-native 信号（core.agents 投影 + ReminderBroker 事件投影）——
-        旧 scheduled_reminders/subagent_requests 表已删除，不存在遗留盲区；
-        compute_jobs 仍是权威，但已迁到中央 compute.db（按 conversation_id 过滤本会话）。
+        与 runner 的收件箱复查同一判定口径：只要后台未排空，stop 就是
+        "挂起等唤醒"而不是交付。D8.2：子 agent 与提醒读 v2-native 信号
+        （core.agents 投影 + ReminderBroker 事件投影）；compute_jobs 仍是
+        权威，但已迁到中央 compute.db（按 conversation_id 过滤本会话）。
         """
-        from cloudra.persistence.database import ComputeDB
-        from cloudra.services.compute_store import acount_pending_compute_jobs
-
-        if await acount_pending_compute_jobs(
-            ComputeDB(data_dir=self.db.data_dir), self.conversation_id
+        if await pending_compute_jobs_exist(
+            data_dir=self.db.data_dir, project_id=self.conversation_id
         ):
             return True
         core = self._core
         if core is None:
             return False
-        terminal = {"succeeded", "failed", "cancelled"}
-        if any(
-            agent.id != self.session_id
-            and agent.project_id == self.conversation_id
-            and agent.state.value not in terminal
-            for agent in core.agents.values()
+        if has_running_siblings(
+            core, project_id=self.conversation_id, session_id=self.session_id
         ):
             return True
         return bool(core.reminders.pending(self.session_id))
-
-    async def record_unaudited_partial(self) -> None:
-        """D8.3：非 stop 的运行结束（最终消息路径）自动落 partial。
-
-        complete 只能来自被审计的显式 stop；只对 Coordinator（a-0）记录，
-        子 agent 的运行结束不构成交付。
-        """
-        if not self.enabled or self.agent_id != "a-0":
-            return
-        await self.initialize()
-        report = await asyncio.to_thread(self.delivery_report)
-        await asyncio.to_thread(
-            self.store.record_delivery_disposition,
-            self.session_id,
-            "partial",
-            report,
-        )
 
     async def audit_stop(
         self,
@@ -94,11 +108,11 @@ class StopAuditMixin:
         approval_id: str | None = None,
         user_stop_event_id: str | None = None,
     ) -> StopGate:
-        """Audit an explicit stop and return a :class:`StopGate`.
+        """Audit a stop/final reply and return a :class:`StopGate`.
 
-        Legacy callers that previously unpacked a tuple should use
-        ``gate.action``/``gate.report`` instead.  The delivery disposition is
-        recorded only when ``action == allow_final``.
+        The delivery disposition is recorded only when ``action == allow_final``.
+        判定副作用（记录处置 / 创建退出请求 / 通知 Supervisor）只在本方法
+        发生；调用方（统一结束边界）负责按 action 落运行状态。
         """
         if not self.enabled:
             return StopGate(action="allow_final", report=None)
@@ -116,7 +130,7 @@ class StopAuditMixin:
                 or event.project_id != self.conversation_id
             ):
                 return StopGate(
-                    action="needs_work",
+                    action="continue_work",
                     report=None,
                     reason=(
                         "user_terminated requires a real user stop event id; "
@@ -138,7 +152,7 @@ class StopAuditMixin:
                 reason="background work is still pending; stop only suspends",
             )
 
-        report = self.delivery_report()
+        report = await asyncio.to_thread(self.delivery_report)
         if disposition == "complete" and report.complete:
             await asyncio.to_thread(
                 self.store.record_delivery_disposition,
@@ -153,52 +167,26 @@ class StopAuditMixin:
             )
 
         if disposition == "complete":
-            # Complete with gaps requires a review/approval path.  In guided
-            # mode give the Supervisor one pre-delivery chance; otherwise block.
-            if self.mode is OrchestrationMode.DAG_GUIDED and approval_id is None:
-                await self.maybe_supervise("pre_delivery")
-                report = self.delivery_report()
-                if report.complete:
-                    await asyncio.to_thread(
-                        self.store.record_delivery_disposition,
-                        self.session_id,
-                        disposition,
-                        report,
-                    )
-                    return StopGate(
-                        action="allow_final",
-                        report=report,
-                        reason="coverage became complete after pre-delivery review",
-                    )
-                return StopGate(
-                    action="needs_work",
-                    report=report,
-                    reason="complete was declared but required coverage is still missing",
-                )
-            # A Supervisor cannot waive deterministic completeness.  An exit
-            # approval may authorize partial/method-limited scope only.
+            # Complete with gaps is blocked deterministically.  The audit
+            # report names the missing evidence; the agent may submit it for
+            # review (dag_bind_evidence) — there is no automatic pre-delivery
+            # LLM review round anymore (§1: the stop gate never triggers the
+            # Supervisor itself).  A Supervisor cannot waive deterministic
+            # completeness; an exit approval may authorize partial/
+            # method-limited scope only.
             return StopGate(
-                action="needs_work",
+                action="continue_work",
                 report=report,
                 reason="complete was declared but required coverage is missing",
             )
 
         # partial without approval in dag_guided must wait for a Supervisor
-        # decision; in dag_record partial is the ordinary unaudited stop.
+        # decision; in dag_record partial is the ordinary recorded stop.
         if disposition == "partial":
             if self.mode is OrchestrationMode.DAG_GUIDED:
-                if approval_id is not None:
-                    if not await self._valid_exit_approval(approval_id, disposition, report):
-                        request_id = await self._enqueue_exit_review(disposition, report)
-                        reused = await self._reused_exit_review(request_id, disposition, report)
-                        if reused is not None:
-                            return reused
-                        return StopGate(
-                            action="wait_review",
-                            report=report,
-                            request_id=request_id,
-                            reason="approval is missing, stale, out of scope, or not an accepted Supervisor decision",
-                        )
+                if approval_id is not None and await self._valid_exit_approval(
+                    approval_id, disposition, report
+                ):
                     await asyncio.to_thread(
                         self.store.record_delivery_disposition,
                         self.session_id,
@@ -206,15 +194,25 @@ class StopAuditMixin:
                         report,
                     )
                     return StopGate(action="allow_final", report=report, reason=f"approved by {approval_id}")
-                request_id = await self._enqueue_exit_review(disposition, report)
+                request_id, created = await self._enqueue_exit_review(disposition, report)
                 reused = await self._reused_exit_review(request_id, disposition, report)
                 if reused is not None:
                     return reused
+                if created:
+                    # 同一交付版本/退出声明复用既有请求时不再重复叫醒督导
+                    # （§6 wait_review 契约）；请求是持久化待办，恢复路径由
+                    # reconcile_supervision 补通知。
+                    await self._notify_supervisor("exit review requested")
+                reason = (
+                    "approval is missing, stale, out of scope, or not an accepted Supervisor decision"
+                    if approval_id is not None
+                    else "partial delivery requires Supervisor approval in dag_guided"
+                )
                 return StopGate(
                     action="wait_review",
                     report=report,
                     request_id=request_id,
-                    reason="partial delivery requires Supervisor approval in dag_guided",
+                    reason=reason,
                 )
             await asyncio.to_thread(
                 self.store.record_delivery_disposition,
@@ -229,12 +227,14 @@ class StopAuditMixin:
             )
 
         return StopGate(
-            action="needs_work",
+            action="continue_work",
             report=report,
             reason=f"unsupported delivery disposition {disposition!r}",
         )
 
-    async def _enqueue_exit_review(self, disposition: str, report: Any) -> str:
+    async def _enqueue_exit_review(self, disposition: str, report: Any) -> tuple[str, bool]:
+        """持久化退出审查请求；同 kind+scope+basis 去重。返回 (request_id,
+        是否新建）——只有新建才值得通知 Supervisor。"""
         snapshot = await asyncio.to_thread(self.engine.snapshot)
         target_ids = [
             *(node.node_id for node in snapshot.delivery.nodes),
@@ -257,7 +257,7 @@ class StopAuditMixin:
         )
         basis = await asyncio.to_thread(self.store.review_basis, request)
         request = request.model_copy(update={"basis_fingerprint": basis})
-        return await asyncio.to_thread(self.store.enqueue_review, request)
+        return await asyncio.to_thread(self.store.enqueue_review_with_status, request)
 
     async def _reused_exit_review(self, request_id: str, disposition: str, report: Any) -> StopGate | None:
         """Consume a durable same-basis exit verdict without re-enqueuing it.
@@ -281,7 +281,7 @@ class StopAuditMixin:
         if decision.verdict != "accept":
             next_action = f"; next action: {decision.next_action}" if decision.next_action else ""
             return StopGate(
-                action="needs_work",
+                action="continue_work",
                 report=report,
                 request_id=request.request_id,
                 reason=f"{decision.reason}{next_action}",

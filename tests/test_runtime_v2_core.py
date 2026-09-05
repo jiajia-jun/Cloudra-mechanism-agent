@@ -317,6 +317,62 @@ async def test_api_v2_control_surface_routes():
 
 
 @pytest.mark.asyncio
+async def test_api_v2_replan_queues_request_and_notifies():
+    """Task 3：user replan 不再同步跑督导——持久化请求 + 通知 + queued 语义。
+
+    响应不得伪报裁决结果；请求落 dag_review_requests（kind=exception，
+    正文保留用户 note），项目唯一 Supervisor 被 spawn（无 runner 时 wake
+    只落事件不调度）。
+    """
+    app = create_v2_app(RuntimeCore(strict_events=True))
+    core = app.state.runtime_core
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/v2/projects",
+            json={"name": "replan-q", "settings": {"orchestration_mode": "dag_guided"}},
+        )
+        project = resp.json()["data"]
+        await client.post(
+            f"/api/v2/projects/{project['id']}/agents", json={"role_id": "coordinator"}
+        )
+        # 初始化 DAG bundle（等价于 agent 已进入 dag 模式）。
+        resp = await client.get(f"/api/v2/projects/{project['id']}/dag/delivery")
+        assert resp.status_code == 200
+
+        resp = await client.post(
+            f"/api/v2/projects/{project['id']}/dag/replan",
+            json={"note": "please re-review the TS evidence"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["queued"] is True
+        assert body["request_id"]
+        assert "supervised" not in body and "mutations_accepted" not in body
+
+        from cloudra.dag.store import DagStore
+        from cloudra.persistence.database import ConversationDB
+
+        request = DagStore(ConversationDB(project["id"])).get_review_request(
+            body["request_id"]
+        )
+        assert request is not None
+        assert request.state == "queued"
+        assert request.kind == "exception"
+        assert request.question == "please re-review the TS evidence"
+
+        from cloudra.runtime_v2.supervision import find_project_supervisor
+
+        supervisor = find_project_supervisor(core, project["id"])
+        assert supervisor is not None
+        coordinator = next(
+            a for a in core.agents.values()
+            if a.project_id == project["id"] and a.role_id == "coordinator"
+        )
+        assert supervisor.parent_session_id == coordinator.id
+
+
+@pytest.mark.asyncio
 async def test_api_v2_goal_context_compact_skills_routes():
     app = create_v2_app(RuntimeCore(strict_events=True))
     transport = ASGITransport(app=app)

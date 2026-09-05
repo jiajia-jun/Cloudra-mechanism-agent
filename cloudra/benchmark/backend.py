@@ -136,7 +136,6 @@ class RuntimeV2Backend:
         )
         core.runner = AgentRunner(core, pipeline, run_summarizer=self.run_summarizer)
         scheduler = None
-        review_worker = None
         if self.start_scheduler:
             from cloudra.scheduler.daemon import SchedulerDaemon
 
@@ -176,34 +175,6 @@ class RuntimeV2Backend:
                     )
                 )
                 ).data
-            if task.prompt.orchestration_mode.value == "dag_guided":
-                # Guided benchmark tasks use the same durable review consumer
-                # as the API host.  Without this per-task worker, a partial
-                # stop or evidence review would sit in ConversationDB until
-                # the benchmark's stuck timeout cancels the agent.
-                from cloudra.core.supervisor import GraphSupervisor
-                from cloudra.dag.store import DagStore
-                from cloudra.persistence.database import ConversationDB
-                from cloudra.runtime_v2.review_worker import ReviewWorker
-
-                def review_store(project_id: str):
-                    return DagStore(ConversationDB(project_id).init())
-
-                def review_supervisor(project_id: str):
-                    return GraphSupervisor(
-                        conversation_id=project_id,
-                        project_id=project_id,
-                        working_directory=str(sandbox),
-                        core=core,
-                    )
-
-                review_worker = ReviewWorker(
-                    core=core,
-                    store_factory=review_store,
-                    supervisor_factory=review_supervisor,
-                )
-                core.review_worker = review_worker
-                await review_worker.start()
             await self._wait_terminal(bus, agent)
             message = self._final_message(core, agent.id)
             barrier = extract_reported_barrier(message)
@@ -211,9 +182,6 @@ class RuntimeV2Backend:
                 logger.warning("agent %s final message reports no barrier", agent.id)
             return BackendResult(barrier=barrier, final_message=message)
         finally:
-            if review_worker is not None:
-                await review_worker.close()
-                core.review_worker = None
             if agent is not None and core.runner is not None:
                 await core.runner.cancel(agent.id)
             # benchmark core 默认无 store（不落盘），这里是契约性的关机补快照：

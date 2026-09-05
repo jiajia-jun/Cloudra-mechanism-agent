@@ -61,8 +61,8 @@ def _ctx(notices=None) -> PipelineContext:
 
 def test_is_compute_tool_semantics():
     assert is_compute_tool("submit_compute_job")  # dag_compute_entry
-    assert is_compute_tool("log_parser")  # dag_review
-    assert is_compute_tool("thermo_analysis")  # dag_review
+    assert is_compute_tool("log_parser")  # dag_evidence_producer
+    assert is_compute_tool("thermo_analysis")  # dag_evidence_producer
     assert not is_compute_tool("agent_hub")
     assert not is_compute_tool("stop")
     assert not is_compute_tool("bash")

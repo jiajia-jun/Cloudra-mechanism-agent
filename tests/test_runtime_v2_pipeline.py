@@ -126,6 +126,10 @@ async def test_prompt_provider_messages_are_prepended():
 
 @pytest.mark.asyncio
 async def test_pipeline_stop_without_tool_calls():
+    """无 tool_calls 的纯文本回复在管道层产出 decision="stop"——但这只是结束
+    *意向*：是否允许结束由 runner 收尾前的统一结束门禁裁决（与显式 stop 同一
+    边界，Task 4A；见 tests/test_runtime_v2_completion_gate.py）。管道层不再
+    自行放行，也不再被 dag stage 在 before_tool 拦截 stop。"""
     core = RuntimeCore(strict_events=True)
     _, agent = await _spawn_agent(core)
     pipeline = TurnPipeline(

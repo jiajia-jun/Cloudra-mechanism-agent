@@ -21,9 +21,9 @@ class DagMessageSupervisorInput(input_schema):
     message: str = Field(
         default="",
         description=(
-            "Legacy plain-text note to the Supervisor (Coordinator only). "
-            "Use for simple appeals/blockers; for structured review requests "
-            "provide kind/question/target_ids instead."
+            "Plain-text note to the Supervisor (Coordinator only), persisted as "
+            "a queued exception review request. Use for simple appeals/blockers; "
+            "for structured review requests provide kind/question/target_ids instead."
         ),
     )
     kind: Literal["draft", "evidence", "exception", "exit"] | None = Field(
@@ -100,7 +100,9 @@ class DagMessageSupervisor(DagToolBase):
         is_coordinator = self._is_coordinator(caller_type, caller_id)
         kind = user_input.kind
         if kind is None:
-            # Legacy plain-text path remains Coordinator-only.
+            # Legacy plain-text path remains Coordinator-only.  §4 持久性契约：
+            # 纯文本消息有正文、无法从 draft/review 推导，必须落持久化请求
+            # （复用 ReviewRequest，kind="exception"），禁止只放内存消息。
             if not is_coordinator:
                 return fail(
                     "dag_message_supervisor",
@@ -114,11 +116,35 @@ class DagMessageSupervisor(DagToolBase):
                     "dag_message_supervisor",
                     "message_supervisor requires a non-empty message.",
                 )
+            try:
+                ctx = await self._prepare(session)
+                store = ctx.store
+                request = ReviewRequest(
+                    kind="exception",
+                    requester=session.id,
+                    target_ids=[],
+                    question=msg,
+                    basis_fingerprint="sha256:pending",
+                )
+                basis = await asyncio.to_thread(store.review_basis, request)
+                request = request.model_copy(update={"basis_fingerprint": basis})
+                request_id = await asyncio.to_thread(store.enqueue_review, request)
+            except Exception as exc:
+                return fail("dag_message_supervisor", str(exc), accepted=False)
             return DagToolOutput(
                 is_success=True,
                 action="dag_message_supervisor",
                 accepted=True,
-                result={"delivered": True, "message": msg},
+                # queued 语义：请求已持久化并排队等 Supervisor 裁决；本调用
+                # 返回不代表裁决完成。
+                result={
+                    "request_id": request_id,
+                    "kind": "exception",
+                    "question": msg,
+                    "basis_fingerprint": basis,
+                    "enqueued": True,
+                    "message": msg,
+                },
             )
         # Structured request path.
         if kind in ("draft", "exit") and not is_coordinator:

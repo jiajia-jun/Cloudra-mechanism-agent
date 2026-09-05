@@ -309,8 +309,39 @@ async def test_failed_result_can_be_submitted_for_review(tmp_path):
     """负结果可送审：失败结果不再因 is_success=false 被拒绝入箱；
     但 CallReview.is_success 如实记录 False（不能充作成功计算的支持）。"""
     from cloudra.dag.controller import DagController
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        StageState,
+    )
 
     db = ConversationDB("failed-review", data_dir=tmp_path).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed step1 with a stage contract",
+            operations=[
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="r", label="R", role="reactant")),
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="p", label="P", role="product")),
+                AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
+                    edge_id="step1", source_node_id="r", target_node_id="p",
+                    stages=[StageState(kind="ts_opt")])),
+            ],
+        )
+    )
+    assert seeded.accepted
     controller = DagController(db, "s1", "dag_record")
     await controller.on_tool_finished(
         "tc-fail",
@@ -318,10 +349,13 @@ async def test_failed_result_can_be_submitted_for_review(tmp_path):
         {"input_path": "/work/bad.log"},
         {"is_success": False, "error": "SCF not converged"},
     )
-    submitted = await controller.submit_evidence_for_review(
-        "tc-fail", "step1", "ts_opt"
-    )
-    assert submitted["enqueued"] is True
+    submitted = await controller.submit_evidence_for_review([{
+        "tool_call_id": "tc-fail",
+        "bind_target": "step1",
+        "stage_kind": "ts_opt",
+        "claim": "negative evidence: the SCF did not converge",
+    }])
+    assert submitted["attachments"][0]["enqueued"] is True
     pending = controller.store.list_call_reviews(state="pending")
     assert len(pending) == 1
     assert pending[0].is_success is False

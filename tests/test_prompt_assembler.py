@@ -544,7 +544,7 @@ def test_skill_manifest_collapses_multiline_description(
 def test_supervisor_prompt_follows_mtime_cache(tmp_path, monkeypatch):
     """load_supervisor_prompt 走 load_role_prompt 的 mtime 缓存，改文件即生效。"""
     import cloudra.runtime.prompt_assembler as assembler_mod
-    from cloudra.core.supervisor import load_supervisor_prompt
+    from cloudra.dag.models import load_supervisor_prompt
 
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()

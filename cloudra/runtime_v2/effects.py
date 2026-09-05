@@ -21,6 +21,8 @@
   两处一致。
 - ``PatchApiKey``：api_key 是 write-only 秘密，永不进事件/快照；活对象的
   内存覆盖补挂也是副作用，显式建模而不是藏在 decide 里 mutate。
+- ``ReconcileSupervision``：project.update 把 orchestration_mode 切回
+  dag_guided 时补一次督导待办通知（产出方 ``_decide_update_project``）。
 """
 
 from __future__ import annotations
@@ -72,7 +74,22 @@ class PatchApiKey:
     api_key: str
 
 
-Effect = EnsureDir | ScheduleAgent | CancelRunner | DeliverMessage | PatchApiKey
+@dataclass(frozen=True)
+class ReconcileSupervision:
+    """编排模式切回 dag_guided 后的督导待办补通知（事件驱动督导 Task 4）。
+
+    decide 只表达"该项目可能需要补一次督导通知"的意图；shell 在第四拍执行
+    ``reconcile_supervision``（扫持久化待办并按状态表补通知——failed/
+    cancelled 不复活、待办不清空）。effects 只在在线命令路径执行，重放/
+    恢复不经过，天然满足"恢复扫描零执行副作用"。
+    """
+
+    project_id: str
+
+
+Effect = (
+    EnsureDir | ScheduleAgent | CancelRunner | DeliverMessage | PatchApiKey | ReconcileSupervision
+)
 
 
 @dataclass(frozen=True)

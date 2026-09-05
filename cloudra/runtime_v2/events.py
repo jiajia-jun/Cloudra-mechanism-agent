@@ -49,6 +49,7 @@ EVENT_TYPES: dict[str, str] = {
     "run.started": "run started",
     "run.retry": "crashed turn auto-retried with preserved history",
     "run.finished": "run finished",
+    "agent.completion_gate": "unified run-end gate verdict (explicit stop and plain-text final reply alike)",
     "llm.request_started": "llm request config snapshot",
     "llm.chunk": "streaming delta",
     "llm.completed": "llm request completed",

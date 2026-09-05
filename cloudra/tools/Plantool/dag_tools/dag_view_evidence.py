@@ -89,6 +89,13 @@ class DagViewEvidence(DagToolBase):
                 "result_kind": review.result_kind,
                 "compute_job_id": review.compute_job_id,
                 "state": review.state,
+                # §5：送审主张与快照身份——裁决围绕 claim，内容以提交时的
+                # 不可变快照（evidence_id 指向的 payload）为准。
+                "claim": review.claim,
+                "rationale": review.rationale,
+                "suggested_target_id": review.suggested_target_id,
+                "suggested_stage": review.suggested_stage,
+                "evidence_id": review.evidence_id,
             }
         else:
             if not evidence_id:

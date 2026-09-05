@@ -29,7 +29,7 @@ class DagReviewCallInput(input_schema):
             "advisory and never satisfies ts_opt/frequency."
         ),
     )
-    verdict: Literal["agree", "disagree", "skip", "not_applicable", "ignore"] = Field(
+    verdict: Literal["agree", "disagree", "skip", "not_applicable", "needs_evidence", "ignore"] = Field(
         description=(
             "agree binds the call's evidence to the stage (order and harness "
             "checks apply); disagree marks the stage rejected (reason "
@@ -39,13 +39,21 @@ class DagReviewCallInput(input_schema):
             "not_applicable marks the slot as not applying to this element "
             "(reason required, counts as complete — e.g. a barrierless step "
             "has no ts_opt/frequency, a unimolecular step has no endpoint_b "
-            "complex); ignore means the call is not delivery evidence (no "
-            "stage change)."
+            "complex); needs_evidence closes this round WITHOUT a stage "
+            "change when the submitted snapshot cannot answer the claim "
+            "(reason required — list exactly which evidence is missing; the "
+            "submitter re-submits with the missing material); ignore means "
+            "the call is not delivery evidence (no stage change)."
         ),
     )
     reason: str = Field(
         default="",
-        description="Mandatory for disagree/skip/not_applicable; recorded with the stage.",
+        description=(
+            "Mandatory for disagree/skip/not_applicable/needs_evidence; "
+            "recorded with the stage. For needs_evidence, name the concrete "
+            "missing evidence (which log/calculation/check would answer the "
+            "claim)."
+        ),
     )
 
 
@@ -53,17 +61,24 @@ class DagReviewCall(DagToolBase):
     tool_id: str = "t-dag-review-call"
     tool_name: str = "dag_review_call"
     tool_description: str = (
-        "Adjudicate one finished tool call from the CallReview inbox and bind "
-        "its stage verdict (Supervisor only in dag_guided; disabled in "
-        "dag_record, where the Coordinator self-binds via dag_bind_evidence). "
+        "Adjudicate one pending CallReview — an explicit evidence submission "
+        "carrying the submitter's claim (what the evidence is claimed to "
+        "prove for a specific target + stage) — and bind its stage verdict "
+        "(Supervisor only in dag_guided; disabled in dag_record, where the "
+        "Coordinator self-binds via dag_bind_evidence). The verdict must "
+        "answer the claim AS SUBMITTED (target/stage are fixed by the "
+        "submission) and is judged against the immutable snapshot taken at "
+        "submission time (dag_view_evidence reads that snapshot, never the "
+        "live file). "
         "Use for: reviewing a pending CallReview against a delivery element's "
         "stage contract. "
         "Do not use for: binding submit_compute_job calls (submit is never "
-        "evidence), skipping stages out of order, or treating disagree as a "
+        "evidence), skipping stages out of order, treating disagree as a "
         "disposal — a rejected stage stays an open gap until re-bound or "
-        "explicitly skipped/not_applicable with a reason. "
+        "explicitly skipped/not_applicable with a reason — or re-adjudicating "
+        "a claim with a different target/stage (ask for a re-submission). "
         "Key discipline: the harness resolves and validates the evidence ref "
-        "from the review's tool_call_id; the verdict only decides the stage."
+        "from the review's submitted snapshot; the verdict only decides the stage."
     )
     input_schema: Any = DagReviewCallInput
     output_schema: Any = DagToolOutput

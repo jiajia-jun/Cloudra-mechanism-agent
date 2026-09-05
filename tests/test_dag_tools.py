@@ -14,6 +14,7 @@ from cloudra.tools.Plantool.dag_tools.dag_remove_edge import DagRemoveEdge, DagR
 from cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract import DagSetCoverageContract
 from cloudra.tools.Plantool.dag_tools.dag_update_delivery_element import DagUpdateDeliveryElement
 from cloudra.tools.Plantool.dag_tools.dag_view import DagView
+from tests.dag_identity import call_dag_tool, make_supervisor
 
 
 def _agent(conversation_id, mode):
@@ -24,12 +25,8 @@ def _agent(conversation_id, mode):
     )
 
 
-def _schema(cls):
-    return cls.model_fields["input_schema"].default
-
-
 async def _call(cls, agent, session, **kwargs):
-    return await cls(subagent=agent).tool_call(_schema(cls)(**kwargs), session)
+    return await call_dag_tool(cls, agent, session, **kwargs)
 
 
 _DAG_TOOL_NAMES = {
@@ -168,13 +165,8 @@ async def test_deleted_process_tools_are_unregistered(tmp_path):
 @pytest.mark.asyncio
 async def test_supervisor_actor_cannot_design_delivery(tmp_path):
     """type=supervisor 的调用者被派生为 actor=SUPERVISOR：delivery 只读。"""
-    from cloudra.core.supervisor import SupervisorAgent
-
     get_config().data_dir = tmp_path
-    agent = SupervisorAgent(
-        conversation_id="tool-supervisor-actor",
-        orchestration_mode="dag_guided",
-    )
+    agent = make_supervisor("tool-supervisor-actor", workspace_dir=str(tmp_path))
     session = Session("s1", str(tmp_path / "session.json"))
 
     designed = await _call(
@@ -432,8 +424,6 @@ async def test_remove_edge_requires_rationale_and_process_is_gone(tmp_path):
 
 @pytest.mark.asyncio
 async def test_set_coverage_contract_is_supervisor_only(tmp_path):
-    from cloudra.core.supervisor import SupervisorAgent
-
     get_config().data_dir = tmp_path
     agent = _agent("tool-contract", "dag_guided")
     session = Session("s1", str(tmp_path / "session.json"))
@@ -444,9 +434,7 @@ async def test_set_coverage_contract_is_supervisor_only(tmp_path):
     assert not denied.is_success
     assert "supervisor-only" in denied.error
 
-    supervisor = SupervisorAgent(
-        conversation_id=agent.conversation_id, orchestration_mode="dag_guided"
-    )
+    supervisor = make_supervisor(agent.conversation_id, workspace_dir=str(tmp_path))
     tightened = await _call(
         DagSetCoverageContract, supervisor, session, require_thermochemistry=True
     )
@@ -747,8 +735,8 @@ async def test_bind_evidence_rejected_in_standard_mode(tmp_path):
 
 @pytest.mark.asyncio
 async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
-    """dag_guided 下 dag_bind_evidence 是证据通交通道：把白名单外工具的
-    产物提交进 review 收件箱（不再 disabled）。"""
+    """dag_guided 下 dag_bind_evidence 是显式送审口：带 claim 把任意已完成
+    调用的产物提交进 review 收件箱（§5 起唯一入箱路径，无白名单自动入箱）。"""
     from cloudra.dag.controller import DagController
     from cloudra.dag.store import DagStore
 
@@ -756,7 +744,7 @@ async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
         tmp_path, "tool-bind-guided", _TS_FREQ_RESULT, mode="dag_guided"
     )
     controller = DagController(db, "s1", "dag_guided", conversation_id=agent.conversation_id)
-    # format_converter 只登记证据、不入箱（非 dag_review 白名单）。
+    # format_converter 只登记证据（§5 起任何工具完成都不自动入箱）。
     await controller.on_tool_finished(
         "tc-conv", "format_converter", {"input_path": "irc.log"}, {"is_success": True, "output_path": "irc.csv"}
     )
@@ -764,7 +752,8 @@ async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
 
     bound = await _call(
         DagBindEvidence, agent, session,
-        tool_call_id="tc-conv", bind_target="step1", stage_kind="short_irc",
+        tool_call_id="tc-conv", bind_target="step1", stage_kind="ts_opt",
+        claim="the converted IRC CSV anchors the TS optimization stage",
     )
     assert bound.is_success is True
     assert bound.accepted is True
@@ -773,13 +762,16 @@ async def test_bind_evidence_submits_for_review_in_guided_mode(tmp_path):
         r for r in DagStore(db).list_call_reviews() if r.tool_name == "format_converter"
     )
     assert submitted.suggested_target_id == "step1"
-    assert submitted.suggested_stage == "short_irc"
+    assert submitted.suggested_stage == "ts_opt"
+    assert submitted.claim == "the converted IRC CSV anchors the TS optimization stage"
+    assert submitted.source == "explicit"
     assert submitted.state == "pending"
 
 
 @pytest.mark.asyncio
-async def test_message_supervisor_delivers_without_graph_change(tmp_path):
-    from cloudra.core.supervisor import SupervisorAgent
+async def test_message_supervisor_persists_request_without_graph_change(tmp_path):
+    """§4：纯文本督导消息落持久化 ReviewRequest（kind=exception），返回
+    queued 语义（request_id），不是"已送达/已裁决"。"""
 
     get_config().data_dir = tmp_path
     agent = _agent("tool-msg-supervisor", "dag_guided")
@@ -790,17 +782,26 @@ async def test_message_supervisor_delivers_without_graph_change(tmp_path):
     )
     assert out.is_success
     assert out.accepted is True
-    assert out.result["delivered"] is True
-    assert "请为 TS 补排产" in out.result["message"]
+    assert out.result["enqueued"] is True
+    assert out.result["kind"] == "exception"
+    assert "请为 TS 补排产" in out.result["question"]
+
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    request = DagStore(ConversationDB("tool-msg-supervisor")).get_review_request(
+        out.result["request_id"]
+    )
+    assert request is not None
+    assert request.state == "queued"
+    assert request.question == "请为 TS 补排产"
+    assert request.requester == "s1"
 
     empty = await _call(DagMessageSupervisor, agent, session, message="  ")
     assert empty.is_success is False
     assert "non-empty" in empty.error
 
-    supervisor = SupervisorAgent(
-        conversation_id="tool-msg-supervisor-sv",
-        orchestration_mode="dag_guided",
-    )
+    supervisor = make_supervisor("tool-msg-supervisor-sv", workspace_dir=str(tmp_path))
     blocked = await _call(
         DagMessageSupervisor, supervisor, session, message="nope"
     )
@@ -825,8 +826,9 @@ async def test_message_supervisor_delivers_without_graph_change(tmp_path):
 
 @pytest.mark.asyncio
 async def test_tool_finish_writes_no_graph_telemetry(tmp_path):
-    """证据 b/i-1 回归：工具完成只登记证据 + 收件箱 enqueue，不再写任何
-    process 遥测节点（observed_<hex> 洪泛与 stale_revision 风暴的根因）。"""
+    """证据 b/i-1 回归：工具完成只登记证据（§5 起不再收件箱 enqueue），
+    不写任何 process 遥测节点（observed_<hex> 洪泛与 stale_revision 风暴
+    的根因）。"""
     from cloudra.dag.store import DagStore
 
     _agent, _session, db = await _seed_staged_step(

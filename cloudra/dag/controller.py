@@ -34,10 +34,8 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         *,
         conversation_id: str | None = None,
         working_directory: str | Path | None = None,
-        supervisor=None,
         agent_id: str | None = None,
         role_id: str | None = None,
-        on_supervision=None,
         core=None,
     ):
         self.db = db
@@ -59,10 +57,6 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         self.store = DagStore(db)
         self.engine = DagEngine(self.store)
         self.contract = CoverageContract.mechanism_default()
-        self.supervisor = supervisor
-        # 可选观察钩子：async (phase, trigger, result, error_note)；
-        # runtime_v2 的 dag_stage 用它把督导运行投影成一个壳 agent 会话。
-        self.on_supervision = on_supervision
         self._initialized = False
 
     @property
@@ -73,8 +67,8 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         """加载图存储与覆盖契约；不自动拉起 Supervisor。
 
         用户追加消息/唤醒会重开 agent run，轮管道经 DagPolicyStage 再次调到
-        ``initialize()``。督导唤醒全部由 ``_trigger_supervisor_after_tool`` /
-        收件箱 / ``user_replan`` / ``pre_delivery`` 显式触发。
+        ``initialize()``。督导通知全部由 ``_trigger_supervisor_after_tool`` /
+        显式送审 / 退出审查请求 / ``user_replan`` 在持久化后发出。
         """
         if not self.enabled or self._initialized:
             return
@@ -132,6 +126,14 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
                 "caller": row.caller_legacy_id or row.caller_role_id,
                 "source_path": row.source_path,
                 "result_kind": row.result_kind,
+                # §5：送审主张随投影给 Coordinator/Supervisor——裁决围绕 claim，
+                # 撤销/重提也要对着它说。
+                "claim": row.claim,
+                **(
+                    {"target": f"{row.suggested_target_id}.{row.suggested_stage}"}
+                    if row.suggested_target_id
+                    else {}
+                ),
                 **(
                     {"compute_job_id": row.compute_job_id}
                     if row.compute_job_id

@@ -628,7 +628,9 @@ export default function DagPanel({ project, onError, onToast }: {
     setBusy(true);
     try {
       const result = await api.dagReplan(project.id, replanNote.trim());
-      onToast(result.supervised ? 'ok' : 'info', String(result.summary ?? 'replan finished'));
+      // replan is asynchronous now: the request is persisted and queued for
+      // the Supervisor; the verdict arrives later via the Coordinator.
+      onToast(result.queued ? 'ok' : 'info', String(result.summary ?? 'replan queued'));
       setReplanNote('');
       await load();
     } catch (e) {

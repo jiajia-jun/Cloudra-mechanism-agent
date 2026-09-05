@@ -7,11 +7,11 @@ from pydantic import ValidationError
 
 from cloudra.base.session_class import Session
 from cloudra.core.agent import Coordinator
-from cloudra.core.supervisor import SupervisorAgent
 from cloudra.infra.config import get_config
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.Plantool.dag_tools.dag_accept_mechanism import DagAcceptMechanism
 from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanism
+from tests.dag_identity import call_dag_tool, make_supervisor
 
 _OPS = [
     {
@@ -47,7 +47,7 @@ def _schema(cls):
 
 
 async def _call(cls, agent, session, **kwargs):
-    return await cls(subagent=agent).tool_call(_schema(cls)(**kwargs), session)
+    return await call_dag_tool(cls, agent, session, **kwargs)
 
 
 def _agent(conversation_id, mode):
@@ -127,9 +127,7 @@ async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
     gate = await controller.check_substantive_gate("submit_compute_job", {})
     assert gate is not None and gate[0] == "block"
 
-    supervisor = SupervisorAgent(
-        conversation_id=db.conversation_id, orchestration_mode="dag_guided"
-    )
+    supervisor = make_supervisor(db.conversation_id)
     accepted = await _call(DagAcceptMechanism, supervisor, session, verdict="accept")
     assert accepted.is_success
     assert accepted.result["state"] == "accepted"
@@ -151,9 +149,7 @@ async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
 async def test_supervisor_reject_returns_reason_and_keeps_gate(tmp_path):
     agent, session, db = _setup(tmp_path, "propose-reject", "dag_guided")
     await _propose(agent, session)
-    supervisor = SupervisorAgent(
-        conversation_id=db.conversation_id, orchestration_mode="dag_guided"
-    )
+    supervisor = make_supervisor(db.conversation_id)
 
     no_reason = await _call(DagAcceptMechanism, supervisor, session, verdict="reject")
     assert not no_reason.is_success
@@ -260,27 +256,31 @@ async def test_propose_and_accept_actor_gates(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_propose_in_guided_wakes_supervisor(tmp_path):
-    """mechanism_proposed 唤醒（D14 合并由 maybe_supervise 保证）。"""
+async def test_propose_in_guided_notifies_supervisor(tmp_path):
+    """mechanism_proposed 通知（Task 3 事件驱动语义）：草稿落库后 spawn
+    项目唯一 Supervisor agent 并投递信箱变更消息，不等待裁决。
+
+    guided 模式提案的真实返回形状：草稿落 open 待 supervisor 裁决，
+    accepted=False。通知判定必须认 draft_id，而不是只看 accepted。
+    """
     from cloudra.dag.controller import DagController
-
-    class FakeSupervisor:
-        def __init__(self) -> None:
-            self.calls: list[dict] = []
-
-        async def run(self, trigger, coordinator_request=None, **_kwargs):
-            self.calls.append(
-                {"trigger": trigger, "coordinator_request": coordinator_request}
-            )
-            return None
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.schemas import Command
+    from cloudra.runtime_v2.supervision import find_project_supervisor
 
     get_config().data_dir = tmp_path
-    db = ConversationDB("propose-wake").init()
-    supervisor = FakeSupervisor()
-    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+    core = RuntimeCore(strict_events=True)
+    project = (
+        await CommandBus(core).execute(
+            Command(type="project.create", payload={"name": "propose-notify"})
+        )
+    ).data
+    db = ConversationDB(project.id).init()
+    controller = DagController(
+        db, "s1", "dag_guided", conversation_id=project.id, core=core
+    )
 
-    # guided 模式提案的真实返回形状：草稿落 open 待 supervisor 裁决，
-    # accepted=False。唤醒判定必须认 draft_id，而不是只看 accepted。
     await controller.on_tool_finished(
         "tc-propose",
         "dag_propose_mechanism",
@@ -292,29 +292,29 @@ async def test_propose_in_guided_wakes_supervisor(tmp_path):
         },
     )
 
-    assert [call["trigger"] for call in supervisor.calls] == ["mechanism_proposed"]
-    assert "Claisen" in supervisor.calls[0]["coordinator_request"]
+    assert find_project_supervisor(core, project.id) is not None
 
 
 @pytest.mark.asyncio
-async def test_failed_proposal_does_not_wake_supervisor(tmp_path):
-    """校验失败/被拒的提案不落草稿，不唤醒 supervisor。"""
+async def test_failed_proposal_does_not_notify_supervisor(tmp_path):
+    """校验失败/被拒的提案不落草稿，不通知 supervisor。"""
     from cloudra.dag.controller import DagController
-
-    class FakeSupervisor:
-        def __init__(self) -> None:
-            self.calls: list[dict] = []
-
-        async def run(self, trigger, coordinator_request=None, **_kwargs):
-            self.calls.append(
-                {"trigger": trigger, "coordinator_request": coordinator_request}
-            )
-            return None
+    from cloudra.runtime_v2.commands import CommandBus
+    from cloudra.runtime_v2.core import RuntimeCore
+    from cloudra.runtime_v2.schemas import Command
+    from cloudra.runtime_v2.supervision import find_project_supervisor
 
     get_config().data_dir = tmp_path
-    db = ConversationDB("propose-no-wake").init()
-    supervisor = FakeSupervisor()
-    controller = DagController(db, "s1", "dag_guided", supervisor=supervisor)
+    core = RuntimeCore(strict_events=True)
+    project = (
+        await CommandBus(core).execute(
+            Command(type="project.create", payload={"name": "propose-no-notify"})
+        )
+    ).data
+    db = ConversationDB(project.id).init()
+    controller = DagController(
+        db, "s1", "dag_guided", conversation_id=project.id, core=core
+    )
 
     await controller.on_tool_finished(
         "tc-propose-bad",
@@ -327,4 +327,4 @@ async def test_failed_proposal_does_not_wake_supervisor(tmp_path):
         },
     )
 
-    assert supervisor.calls == []
+    assert find_project_supervisor(core, project.id) is None

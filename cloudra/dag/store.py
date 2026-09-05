@@ -529,6 +529,13 @@ class DagStore:
         New contradictions/evidence produce a new basis_fingerprint, so they
         enqueue a new request even if the question text is identical.
         """
+        request_id, _created = self.enqueue_review_with_status(request)
+        return request_id
+
+    def enqueue_review_with_status(self, request) -> tuple[str, bool]:
+        """enqueue_review 的等价入口，额外返回是否真正新建（dedup 命中为
+        False）。退出审批流程据此只在新建时通知 Supervisor——同一交付版本
+        反复退出不得重复叫醒督导（计划 §6 wait_review 复用契约）。"""
         from cloudra.dag.review_requests import ReviewRequest, scope_key
 
         if not isinstance(request, ReviewRequest):
@@ -543,7 +550,7 @@ class DagStore:
         request_json.pop("state", None)
         request_json.pop("created_at", None)
         request_json.pop("updated_at", None)
-        def operation() -> None:
+        def operation() -> tuple[str, bool]:
             with self.db.connect() as con:
                 # All evidence refs are project-local: they must resolve in this
                 # conversation's evidence store. Cross-project ids are rejected.
@@ -571,7 +578,7 @@ class DagStore:
                     (kind, _canonical_json(list(targets)), request.basis_fingerprint),
                 ).fetchone()
                 if row is not None:
-                    return row[0]
+                    return row[0], False
                 con.execute(
                     """
                     INSERT INTO dag_review_requests(
@@ -596,7 +603,7 @@ class DagStore:
                         request.basis_fingerprint,
                     ),
                 )
-                return request.request_id
+                return request.request_id, True
 
         return retry_on_locked(operation)
 
@@ -710,59 +717,6 @@ class DagStore:
             rows = con.execute(query, params).fetchall()
         return [self._review_request_from_row(row) for row in rows]
 
-    def claim_review(
-        self,
-        owner: str,
-        *,
-        lease_seconds: int,
-    ):
-        """Atomically claim one queued review for a project-local worker.
-
-        Only requests without an active lease are claimable.  The lease is
-        encoded as ``owner`` + ``lease_expires_at``; the token is incremented
-        on each claim so a stale worker cannot resolve a request after losing
-        its lease.
-        """
-        from datetime import datetime, timedelta, timezone
-
-        from cloudra.dag.review_requests import ClaimedReview
-
-        if lease_seconds <= 0:
-            raise ValueError("lease_seconds must be positive")
-
-        def operation():
-            with self.db.connect() as con:
-                now = datetime.now(timezone.utc).isoformat()
-                expires = (
-                    datetime.now(timezone.utc) + timedelta(seconds=lease_seconds)
-                ).isoformat()
-                row = con.execute(
-                    f"SELECT {self._REVIEW_REQUEST_COLUMNS} FROM dag_review_requests "
-                    "WHERE state='queued' AND (owner IS NULL OR lease_expires_at IS NULL "
-                    "OR lease_expires_at < ?) ORDER BY created_at, rowid LIMIT 1",
-                    (now,),
-                ).fetchone()
-                if row is None:
-                    return None
-                request = self._review_request_from_row(row)
-                token = (con.execute(
-                    "SELECT claim_token FROM dag_review_requests WHERE request_id = ?",
-                    (request.request_id,),
-                ).fetchone()[0] or 0) + 1
-                con.execute(
-                    "UPDATE dag_review_requests SET owner=?, claim_token=?, "
-                    "lease_expires_at=? WHERE request_id=? AND state='queued'",
-                    (owner, token, expires, request.request_id),
-                )
-                return ClaimedReview(
-                    request=request,
-                    owner=owner,
-                    claim_token=token,
-                    expires_at=expires,
-                )
-
-        return retry_on_locked(operation)
-
     def pending_review_notifications(self) -> list[dict[str, Any]]:
         """Pending decision notifications (decision_id idempotent)."""
         with self.db.connect() as con:
@@ -800,13 +754,16 @@ class DagStore:
         decision,
         *,
         expected_basis: str,
-        claim_token: int,
         current_basis: str | None = None,
     ) -> dict[str, Any]:
         """Atomic resolve of a ReviewDecision.
 
         The request's stored basis must equal ``expected_basis``; a stale basis
-        means the decision cannot be applied (superseded request).
+        means the decision cannot be applied (superseded request).  Consumer
+        uniqueness comes from the runtime: the project's single Supervisor
+        agent resolves queued requests through the serialized
+        InvocationService path, and the duplicate_decision guard rejects a
+        second resolve of the same request+basis (idempotency).
         """
         from cloudra.dag.review_requests import ReviewDecision
 
@@ -856,37 +813,6 @@ class DagStore:
                         "rejection_reason": "decision basis does not match the request basis",
                         "request_id": decision.request_id,
                     }
-                claim_row = con.execute(
-                    "SELECT owner, claim_token, lease_expires_at FROM dag_review_requests "
-                    "WHERE request_id = ?",
-                    (decision.request_id,),
-                ).fetchone()
-                stored_owner = claim_row[0] if claim_row else None
-                stored_token = int(claim_row[1] or 0) if claim_row else 0
-                lease_expires_at = claim_row[2] if claim_row else None
-                if stored_owner is not None and lease_expires_at:
-                    from datetime import datetime, timezone
-
-                    expires = datetime.fromisoformat(lease_expires_at)
-                    if expires.tzinfo is None:
-                        expires = expires.replace(tzinfo=timezone.utc)
-                    if expires <= datetime.now(timezone.utc):
-                        return {
-                            "accepted": False,
-                            "rejection_code": "stale_claim",
-                            "rejection_reason": "the review lease expired before the decision was submitted",
-                            "request_id": decision.request_id,
-                        }
-                if stored_owner is not None and claim_token != stored_token:
-                    return {
-                        "accepted": False,
-                        "rejection_code": "stale_claim",
-                        "rejection_reason": (
-                            "the request is leased to a different claim_token; "
-                            "the resolving worker no longer owns this request"
-                        ),
-                        "request_id": decision.request_id,
-                    }
                 for ref in decision.evidence_refs:
                     if ref.ref_type != "tool_result":
                         continue
@@ -926,9 +852,8 @@ class DagStore:
                     """
                     INSERT INTO dag_review_decisions(
                         decision_id, request_id, basis_fingerprint, verdict,
-                        reason, evidence_refs, findings, next_action,
-                        claim_token, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                        reason, evidence_refs, findings, next_action, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                     """,
                     (
                         decision.decision_id,
@@ -941,7 +866,6 @@ class DagStore:
                         ),
                         _canonical_json(decision.findings),
                         decision.next_action,
-                        claim_token,
                     ),
                 )
                 con.execute(
@@ -966,40 +890,6 @@ class DagStore:
                     "request_id": decision.request_id,
                     "basis_fingerprint": decision.basis_fingerprint,
                 }
-
-        return retry_on_locked(operation)
-
-    def renew_review_claim(
-        self,
-        request_id: str,
-        owner: str,
-        claim_token: int,
-        *,
-        lease_seconds: int,
-    ) -> bool:
-        """Extend a live review lease; return false after expiry/reclaim."""
-        from datetime import datetime, timedelta, timezone
-
-        if lease_seconds <= 0:
-            raise ValueError("lease_seconds must be positive")
-
-        def operation() -> bool:
-            with self.db.connect() as con:
-                now = datetime.now(timezone.utc)
-                result = con.execute(
-                    "UPDATE dag_review_requests SET lease_expires_at=? "
-                    "WHERE request_id=? AND state='queued' AND owner=? "
-                    "AND claim_token=? AND lease_expires_at IS NOT NULL "
-                    "AND lease_expires_at > ?",
-                    (
-                        (now + timedelta(seconds=lease_seconds)).isoformat(),
-                        request_id,
-                        owner,
-                        claim_token,
-                        now.isoformat(),
-                    ),
-                )
-                return result.rowcount == 1
 
         return retry_on_locked(operation)
 
@@ -1122,8 +1012,9 @@ class DagStore:
                         review_id, tool_call_id, tool_name, is_success,
                         caller_session_id, caller_role_id, caller_legacy_id,
                         arguments_digest, result_summary, source_path, result_kind,
-                        compute_job_id, suggested_target_id, suggested_stage, state, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        compute_job_id, suggested_target_id, suggested_stage, state,
+                        created_at, claim, rationale, submitter, evidence_id, source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         review.review_id,
@@ -1142,13 +1033,104 @@ class DagStore:
                         review.suggested_stage,
                         review.state,
                         review.created_at,
+                        review.claim,
+                        review.rationale,
+                        review.submitter,
+                        review.evidence_id,
+                        review.source,
                     ),
                 )
 
         retry_on_locked(operation)
 
+    def submit_call_reviews(
+        self, reviews: list[CallReview]
+    ) -> list[tuple[str, bool]]:
+        """原子批量入箱（§5 显式送审）：同一事务内逐条按 pending 幂等键
+        (evidence_id, suggested_target_id, suggested_stage, 规范化 claim) 去重——
+        相同 pending 声明返回既有 review_id（created=False），不重复入箱；
+        不同声明（含同证据的不同阶段/不同 claim）各自独立保存。
+
+        校验（目标/阶段存在、调用已结束、证据可解析、项目归属）由调用方在
+        提交前全部完成：本函数只做去重 + 写入，不在中途失败。已裁决的同构
+        重提照常生成新 review（既有产品语义）。
+        返回与输入同序的 (review_id, created) 列表。
+        """
+        from cloudra.dag.models import normalize_claim
+
+        outcomes: list[tuple[str, bool]] = []
+
+        def operation() -> None:
+            with self.db.connect() as con:
+                for review in reviews:
+                    rows = con.execute(
+                        "SELECT review_id, claim FROM dag_call_reviews "
+                        "WHERE evidence_id = ? AND suggested_target_id IS ? "
+                        "AND suggested_stage = ? AND state = 'pending'",
+                        (
+                            review.evidence_id,
+                            review.suggested_target_id,
+                            review.suggested_stage,
+                        ),
+                    ).fetchall()
+                    duplicate = next(
+                        (
+                            review_id
+                            for review_id, stored_claim in rows
+                            if normalize_claim(stored_claim)
+                            == normalize_claim(review.claim)
+                        ),
+                        None,
+                    )
+                    if duplicate is not None:
+                        outcomes.append((duplicate, False))
+                        continue
+                    con.execute(
+                        """
+                        INSERT INTO dag_call_reviews(
+                            review_id, tool_call_id, tool_name, is_success,
+                            caller_session_id, caller_role_id, caller_legacy_id,
+                            arguments_digest, result_summary, source_path,
+                            result_kind, compute_job_id, suggested_target_id,
+                            suggested_stage, state, created_at,
+                            claim, rationale, submitter, evidence_id, source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            review.review_id,
+                            review.tool_call_id,
+                            review.tool_name,
+                            int(review.is_success),
+                            review.caller_session_id,
+                            review.caller_role_id,
+                            review.caller_legacy_id,
+                            review.arguments_digest,
+                            review.result_summary,
+                            review.source_path,
+                            review.result_kind,
+                            review.compute_job_id,
+                            review.suggested_target_id,
+                            review.suggested_stage,
+                            review.state,
+                            review.created_at,
+                            review.claim,
+                            review.rationale,
+                            review.submitter,
+                            review.evidence_id,
+                            review.source,
+                        ),
+                    )
+                    outcomes.append((review.review_id, True))
+
+        if reviews:
+            retry_on_locked(operation)
+        return outcomes
+
     @staticmethod
     def _review_from_row(row) -> CallReview:
+        # 新列（claim/rationale/submitter/evidence_id/source，§5）由
+        # _RELATED_EXTRA_COLUMNS 补在末尾；旧库升级前的行由迁移默认值兜底，
+        # 这里再宽容一次列数（与 _draft_from_row 的 len 检查同款）。
         return CallReview(
             review_id=row[0],
             tool_call_id=row[1],
@@ -1166,46 +1148,40 @@ class DagStore:
             suggested_stage=row[13],
             state=row[14],
             created_at=row[15],
+            claim=row[16] if len(row) > 16 else "",
+            rationale=row[17] if len(row) > 17 else "",
+            submitter=row[18] if len(row) > 18 else "",
+            evidence_id=row[19] if len(row) > 19 else "",
+            source=row[20] if len(row) > 20 and row[20] else "legacy_auto",
         )
 
     _REVIEW_COLUMNS = (
         "review_id, tool_call_id, tool_name, is_success, caller_session_id, "
         "caller_role_id, caller_legacy_id, arguments_digest, result_summary, "
         "source_path, result_kind, compute_job_id, suggested_target_id, suggested_stage, "
-        "state, created_at"
+        "state, created_at, claim, rationale, submitter, evidence_id, source"
     )
 
-    def list_call_reviews(self, state: str | None = "pending") -> list[CallReview]:
+    def list_call_reviews(
+        self, state: str | None = "pending", *, source: str | None = None
+    ) -> list[CallReview]:
+        """收件箱读取；``source="explicit"`` 只取可消费的显式送审行（§5：
+        legacy_auto/auto 的 pending 行保留审计但不进督导待办）。"""
         query = f"SELECT {self._REVIEW_COLUMNS} FROM dag_call_reviews"
-        params: tuple = ()
+        clauses: list[str] = []
+        params: list = []
         if state is not None:
-            query += " WHERE state = ?"
-            params = (state,)
+            clauses.append("state = ?")
+            params.append(state)
+        if source is not None:
+            clauses.append("source = ?")
+            params.append(source)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY created_at, rowid"
         with self.db.connect() as con:
             rows = con.execute(query, params).fetchall()
         return [self._review_from_row(row) for row in rows]
-
-    def find_duplicate_review(
-        self, tool_name: str, arguments_digest: str, result_summary: str
-    ) -> str | None:
-        """返回与 (tool_name, arguments, result) 完全同构的**仍 pending** 的
-        review_id，无则 None。
-
-        只对还在排队中的重复去重——防止同一份 artifact 灌满 inbox；一旦
-        已裁决（reviewed/ignored），Coordinator 有意重提应生成新 review 周期
-        （例如上次裁决后上游已修复）。
-        """
-        with self.db.connect() as con:
-            rows = con.execute(
-                "SELECT review_id, result_summary FROM dag_call_reviews "
-                "WHERE tool_name = ? AND arguments_digest = ? AND state = 'pending'",
-                (tool_name, arguments_digest),
-            ).fetchall()
-        for review_id, stored_summary in rows:
-            if stored_summary == result_summary:
-                return review_id
-        return None
 
     def get_call_review(self, review_id: str) -> CallReview | None:
         with self.db.connect() as con:

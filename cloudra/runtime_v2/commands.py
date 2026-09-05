@@ -31,6 +31,7 @@ benchmark backend finally）显式调 ``flush_snapshot()`` 补一次。
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -47,6 +48,7 @@ from cloudra.runtime_v2.effects import (
     EnsureDir,
     EventDraft,
     PatchApiKey,
+    ReconcileSupervision,
     ResultRef,
     ScheduleAgent,
 )
@@ -57,11 +59,14 @@ from cloudra.runtime_v2.schemas import (
     CommandRejected,
     CommandResult,
     EventEnvelope,
+    OrchestrationMode,
     Project,
     ProjectSettings,
     RuntimeSettingsPatch,
     new_id,
 )
+
+logger = logging.getLogger(__name__)
 
 Decider = Callable[[RuntimeCore, Command], Decision]
 Wrapper = Callable[[RuntimeCore, Command], Awaitable[CommandResult]]
@@ -188,7 +193,7 @@ def _decide_update_project(core: RuntimeCore, command: Command) -> Decision:
         )
     if "settings" in payload:
         # decide 侧校验：非法 settings 必须在事件落日志之前抛错。
-        ProjectSettings.model_validate(payload["settings"])
+        new_settings = ProjectSettings.model_validate(payload["settings"])
         drafts.append(
             EventDraft(
                 "project.settings_changed",
@@ -197,6 +202,15 @@ def _decide_update_project(core: RuntimeCore, command: Command) -> Decision:
                 data={"changes": payload["settings"], "actor": command.actor},
             )
         )
+        # 事件驱动督导（Task 4）：切回 dag_guided 沿补一次待办通知——退出
+        # guided 期间生产端通知口是关闭的，积压在持久化信箱里；只在迁移沿
+        # 触发（guided→guided 重写不重复通知）。shell 侧的 reconcile 按
+        # 状态表补通知：failed/cancelled 的 supervisor 不复活、待办不清空。
+        if (
+            new_settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
+            and project.settings.orchestration_mode is not OrchestrationMode.DAG_GUIDED
+        ):
+            effects.append(ReconcileSupervision(project.id))
     return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("project", project.id))
 
 
@@ -620,6 +634,19 @@ async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
     elif isinstance(effect, CancelRunner):
         if core.runner is not None:
             await core.runner.cancel(effect.session_id)
+    elif isinstance(effect, ReconcileSupervision):
+        # 切回 dag_guided 的补通知（Task 4）。失败不炸模式切换命令本身——
+        # 待办已持久化，下次项目装载的 reconcile 仍会补；记 warning 可诊断。
+        from cloudra.runtime_v2.supervision import reconcile_supervision
+
+        try:
+            await reconcile_supervision(core, effect.project_id)
+        except Exception:
+            logger.warning(
+                "[supervision] reconcile on return to dag_guided failed for %s",
+                effect.project_id,
+                exc_info=True,
+            )
     else:
         raise TypeError(f"unknown effect {effect!r}")
 

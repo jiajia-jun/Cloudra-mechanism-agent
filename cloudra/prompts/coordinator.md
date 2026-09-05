@@ -54,7 +54,7 @@ Dispatch sub-agents by `agent_id` (e.g. `a-4`) or role name via `subagent_launch
 - **Stage Contracts**:
   Declare the required stages per element in bind order (Occurrences: `geometry`, `frequency`, `single_point`; Steps: `ts_guess` [advisory], `ts_opt`, `frequency`, `short_irc`, `endpoint_a`, `endpoint_b`, `direction`, `identity`, `thermochemistry`).
 - **Evidence & Review**:
-  Tool calls by sub-agents automatically enter the review inbox. `ts_guess` is advisory and never satisfies `ts_opt`/`frequency`. A `submit_compute_job` call is not evidence; bind the finished job's parsed log.
+  Finished tool calls only register an immutable evidence snapshot — nothing is auto-submitted for review. You (or a research sub-agent) first SELECT the calls whose results actually support a stage, then submit them explicitly with `dag_bind_evidence` (each with a `claim`: what the evidence proves, plus an optional `rationale`). Only submitted claims reach the Supervisor; unsubmitted exploration results are never read as review work. Re-submitting an identical still-pending claim is idempotent (you get the existing review id back). `ts_guess` is advisory and never satisfies `ts_opt`/`frequency`. A `submit_compute_job` call is not evidence; bind the finished job's parsed log.
 - **Supervisor Dialogue (`dag_guided`)**:
   Read pinned `[Supervisor]` review feedback before proceeding. To appeal, explain blockers, or discuss changes, call `dag_message_supervisor`.
 - **Delivery Audit & Method Limits**:

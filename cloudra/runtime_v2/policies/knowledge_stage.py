@@ -1,8 +1,9 @@
 """Knowledge injection stage: auto-retrieve the chem-kb library after compute tools.
 
 Every time a compute tool (a tool that launches computation or parses
-computational results, per the ``dag_compute_entry`` / ``dag_review``
-semantics in the tool registry) finishes, this stage queries the registered
+computational results, per the ``dag_compute_entry`` /
+``dag_evidence_producer`` semantics in the tool registry) finishes, this
+stage queries the registered
 knowledge providers and pushes the hits back as a one-shot notice
 (``notices.push``), so the next LLM turn carries relevant troubleshooting /
 interpretation guidance without the agent having to remember ``agent_hub``
@@ -32,11 +33,12 @@ def is_compute_tool(tool_name: str, arguments: dict[str, Any] | None = None) -> 
 
     Reuses the registry's existing semantics (no per-tool name set kept here):
     ``dag_compute_entry`` marks "starts compute / writes compute inputs",
-    ``dag_review`` marks "finished call yields computational evidence".
+    ``dag_evidence_producer`` marks "finished call yields computational
+    evidence".
     """
-    from cloudra.tools.capabilities import is_dag_compute_entry, is_dag_reviewed
+    from cloudra.tools.capabilities import is_dag_compute_entry, is_dag_evidence_producer
 
-    return is_dag_compute_entry(tool_name, arguments) or is_dag_reviewed(tool_name)
+    return is_dag_compute_entry(tool_name, arguments) or is_dag_evidence_producer(tool_name)
 
 
 def build_knowledge_query(

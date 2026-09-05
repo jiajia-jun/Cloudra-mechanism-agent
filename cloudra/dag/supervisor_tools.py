@@ -244,7 +244,14 @@ class SupervisorToolExecutor:
                 "Use this tool's flat fields; do not send a mutate operations array."
             )
         session = self._session or SimpleNamespace(id=session_id or "supervisor")
-        output = await entry.instantiate(subagent=self._agent).tool_call(input_obj, session)
+        # Several tool classes narrow the `subagent` field to the legacy Agent
+        # type (dag_* verdict tools among them), so pydantic construction with
+        # a duck-typed runtime_v2 bridge fails; construct bare and attach the
+        # bound agent past validation, exactly like LegacyToolExecutor.
+        tool = entry.instantiate()
+        if self._agent is not None:
+            object.__setattr__(tool, "subagent", self._agent)
+        output = await tool.tool_call(input_obj, session)
         return output.model_dump(mode="json")
 
     async def execute(

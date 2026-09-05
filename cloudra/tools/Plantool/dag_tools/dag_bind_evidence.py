@@ -32,6 +32,20 @@ class DagBindEvidenceAttachment(input_schema):
     )
     bind_target: str = Field(description="Delivery node or edge id to mount onto.")
     stage_kind: str = Field(description=_STAGE_HELP)
+    claim: str = Field(
+        default="",
+        description=(
+            "What this evidence is supposed to prove for that stage "
+            "(REQUIRED in dag_guided: submissions are explicit claims the "
+            "Supervisor adjudicates around). One claim per (evidence, target, "
+            "stage) — submit several attachments when one log supports several "
+            "stages."
+        ),
+    )
+    rationale: str = Field(
+        default="",
+        description="Why this particular call was selected as evidence (optional).",
+    )
 
 
 class DagBindEvidenceInput(input_schema):
@@ -49,6 +63,17 @@ class DagBindEvidenceInput(input_schema):
     stage_kind: Optional[str] = Field(
         default=None,
         description="Legacy single-bind form: stage to bind.",
+    )
+    claim: Optional[str] = Field(
+        default=None,
+        description=(
+            "Legacy single-bind form: what this evidence proves for the stage "
+            "(REQUIRED in dag_guided)."
+        ),
+    )
+    rationale: Optional[str] = Field(
+        default=None,
+        description="Legacy single-bind form: why this call was selected (optional).",
     )
     attachments: Optional[list[DagBindEvidenceAttachment]] = Field(
         default=None,
@@ -94,11 +119,16 @@ class DagBindEvidence(DagToolBase):
     tool_name: str = "dag_bind_evidence"
     tool_description: str = (
         "Bind finished tool calls to declared stages of delivery elements. "
-        "In dag_record the Coordinator binds directly (single or batch); in "
-        "dag_guided this submits the call(s) into the review inbox for the "
-        "Supervisor to adjudicate. "
-        "Use for: attaching a successful compute/parse result to a stage of an "
-        "element's stage contract. "
+        "In dag_record the Coordinator binds directly (single or batch). In "
+        "dag_guided this is the ONLY way evidence reaches the Supervisor: "
+        "finished tool calls are NEVER auto-submitted — first select the calls "
+        "whose result actually supports a stage, then submit each with a claim "
+        "(what it proves) and an optional rationale; unsubmitted exploration "
+        "results are not read as review work. Identical re-submissions of a "
+        "still-pending claim are idempotent (the existing review id comes "
+        "back); a batch is validated as a whole and committed atomically. "
+        "Use for: attaching a compute/parse result to a stage of an element's "
+        "stage contract. "
         "Do not use for: letting a ts_guess result satisfy optimization/frequency "
         "stages, binding a submit_compute_job call (submit is never evidence — "
         "bind the finished job's parser output), or setting evidence levels directly."
@@ -115,6 +145,8 @@ class DagBindEvidence(DagToolBase):
                     "tool_call_id": item.tool_call_id,
                     "bind_target": item.bind_target,
                     "stage_kind": item.stage_kind,
+                    "claim": item.claim,
+                    "rationale": item.rationale,
                 }
                 for item in user_input.attachments
             ]
@@ -123,6 +155,8 @@ class DagBindEvidence(DagToolBase):
                 "tool_call_id": user_input.tool_call_id,
                 "bind_target": user_input.bind_target,
                 "stage_kind": user_input.stage_kind,
+                "claim": user_input.claim or "",
+                "rationale": user_input.rationale or "",
             }
         ]
 
@@ -138,36 +172,20 @@ class DagBindEvidence(DagToolBase):
         )
         attachments = self._legacy_attachments(user_input)
         if mode is OrchestrationMode.DAG_GUIDED:
-            # 证据通交通道：dag_guided 下不直接绑定，而是把调用的产物提交进
-            # review 收件箱，等 Supervisor 复核后绑定（绕过 dag_review 白名单）。
-            results = []
-            for item in attachments:
-                try:
-                    submitted = await controller.submit_evidence_for_review(
-                        item["tool_call_id"],
-                        item["bind_target"],
-                        item["stage_kind"],
-                    )
-                except Exception as exc:
-                    return fail("dag_bind_evidence", str(exc), accepted=False)
-                if not submitted["enqueued"]:
-                    return DagToolOutput(
-                        is_success=False,
-                        action="dag_bind_evidence",
-                        accepted=False,
-                        error=(
-                            f"duplicate of already-queued review "
-                            f"{submitted['duplicate_review_id']}; re-submit only if the "
-                            "evidence changed, or wait for that review's verdict"
-                        ),
-                        result=submitted,
-                    )
-                results.append(submitted)
+            # §5 显式送审口：dag_guided 下不直接绑定——把筛选后的调用产物连同
+            # 提交者主张（claim/rationale）持久化为 pending CallReview，等
+            # Supervisor 围绕 claim 与快照裁决。批量先全部校验再原子提交；
+            # 相同 pending 声明幂等返回既有 review_id（enqueued=False），
+            # 整条调用仍是成功。
+            try:
+                submitted = await controller.submit_evidence_for_review(attachments)
+            except Exception as exc:
+                return fail("dag_bind_evidence", str(exc), accepted=False)
             return DagToolOutput(
                 is_success=True,
                 action="dag_bind_evidence",
                 accepted=True,
-                result={"enqueued": True, "attachments": results},
+                result=submitted,
             )
         if self._actor_id() != "a-0":
             return fail(

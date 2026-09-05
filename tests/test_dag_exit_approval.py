@@ -39,23 +39,23 @@ async def test_partial_in_dag_guided_with_approval_allow_final(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_complete_empty_graph_needs_work(tmp_path):
+async def test_complete_empty_graph_continue_work(tmp_path):
     c = await _controller(tmp_path, "exit-empty", "dag_record")
     gate = await c.audit_stop("complete")
-    assert gate.action == "needs_work"
+    assert gate.action == "continue_work"
 
 
 @pytest.mark.asyncio
 async def test_user_terminated_requires_real_event(tmp_path):
     c = await _controller(tmp_path, "exit-user", "dag_record")
     fake = await c.audit_stop("user_terminated")
-    assert fake.action == "needs_work"
+    assert fake.action == "continue_work"
     real = await c.audit_stop("user_terminated", user_stop_event_id="evt_user_1")
-    assert real.action == "needs_work"
+    assert real.action == "continue_work"
 
 
 @pytest.mark.asyncio
-async def test_rejected_exit_review_is_reused_as_needs_work(tmp_path):
+async def test_rejected_exit_review_is_reused_as_continue_work(tmp_path):
     c = await _controller(tmp_path, "exit-guided-rejected", "dag_guided")
     first = await c.audit_stop("partial")
     request = c.store.get_review_request(first.request_id)
@@ -66,9 +66,9 @@ async def test_rejected_exit_review_is_reused_as_needs_work(tmp_path):
         reason="Missing evidence",
         next_action="Inspect existing log",
     )
-    c.store.resolve_review(decision, expected_basis=request.basis_fingerprint, claim_token=0)
+    c.store.resolve_review(decision, expected_basis=request.basis_fingerprint)
     second = await c.audit_stop("partial")
-    assert second.action == "needs_work"
+    assert second.action == "continue_work"
     assert "Missing evidence" in second.reason
     assert "Inspect existing log" in second.reason
     assert c.store.list_review_requests(state="queued") == []
@@ -86,7 +86,7 @@ async def test_accepted_exit_review_is_reused_for_same_scope(tmp_path):
         reason="Scoped partial is acceptable",
     )
     assert c.store.resolve_review(
-        decision, expected_basis=request.basis_fingerprint, claim_token=0
+        decision, expected_basis=request.basis_fingerprint
     )["accepted"]
     second = await c.audit_stop("partial")
     assert second.action == "allow_final"

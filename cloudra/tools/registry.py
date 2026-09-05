@@ -30,8 +30,10 @@ class ToolRegistration:
     # 事实适配器（contract_version=2）："module:function(payload, source_ref)
     # -> list[EvidenceFact]"；从已登记证据中抽类型化事实（含反证）。
     dag_fact_adapter: str = ""
-    # D5：工具结束是否入 CallReview 收件箱（并唤醒 Supervisor 复核）。
-    dag_review: bool = False
+    # 证据产生工具：完成的调用产出计算证据（知识检索触发语义）。
+    # §5 起不再有"自动入 CallReview 收件箱"的开关——送审只能显式
+    # （dag_bind_evidence with claim）。
+    dag_evidence_producer: bool = False
     # Phase 3 门槛：mechanism 未被接受前拦截的计算入口（开算/写计算输入）。
     dag_compute_entry: bool = False
     dag_compute_predicate: str = ""  # "module:function(arguments)->bool", overrides dag_compute_entry
@@ -111,7 +113,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='log_parser',
         evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:log_parser_facts',
-        dag_review=True,
+        dag_evidence_producer=True,
         supervisor_access='evidence_read',
     ),
     ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
@@ -141,7 +143,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='reaction_mapping',
         evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
-        dag_review=True,
+        dag_evidence_producer=True,
         supervisor_access='evidence_read',
     ),
     ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
@@ -156,7 +158,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='ThermoAnalysis',
         tool_name='thermo_analysis',
         evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
-        dag_review=True,
+        dag_evidence_producer=True,
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.ts_guess',
@@ -164,7 +166,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='ts_guess',
         evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
         dag_fact_adapter='cloudra.dag.fact_adapters:ts_guess_facts',
-        dag_review=True,
+        dag_evidence_producer=True,
         dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
     ),
     ToolRegistration(

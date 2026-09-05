@@ -217,6 +217,12 @@ class CallReview(BaseModel):
     sidecar 字段（caller/tool/arguments_digest/is_success/compute_job_id）只供
     Supervisor 判断，不构成任何自动绑定权威；is_success 对计算作业是作业的
     终态（D11），不是 submit 调用的成败。
+
+    §5 显式送审：只有 agent 经 dag_bind_evidence 显式送审（带 claim/rationale，
+    source="explicit"）的行才进入可消费信箱；claim/rationale 是**提交者主张**
+    （要证明什么），不是已证事实；evidence_id 指向送审时的不可变快照，裁决
+    以其为准。source="auto"（dag_record 计算终态登记）与 "legacy_auto"
+    （升级前的历史自动行）只作审计保留，不被督导消费。
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -237,10 +243,21 @@ class CallReview(BaseModel):
     source_path: str = ""
     result_kind: str = ""
     compute_job_id: str | None = None
-    suggested_target_id: str | None = None  # Coordinator 提示，sidecar only
-    suggested_stage: str = ""  # Coordinator 声明的目标阶段（sidecar only）
+    suggested_target_id: str | None = None  # 送审声明的目标（sidecar only）
+    suggested_stage: str = ""  # 送审声明的目标阶段（sidecar only）
+    # §5 送审主张与快照身份：
+    claim: str = ""  # 提交者主张：这份证据要证明什么
+    rationale: str = ""  # 提交者理由：为什么选这份证据
+    submitter: str = ""  # 提交者（legacy a-N 或 role id）
+    evidence_id: str = ""  # 送审时的证据快照身份（内容寻址）
+    source: Literal["explicit", "auto", "legacy_auto"] = "explicit"
     state: Literal["pending", "reviewed", "ignored"] = "pending"
     created_at: str = ""
+
+
+def normalize_claim(claim: str) -> str:
+    """claim 的幂等键规范化：压缩空白 + 小写，措辞抖动不产生新声明。"""
+    return " ".join(claim.split()).lower()
 
 
 # 旧行读取映射：stages 为空 ⇒ 由存储的 evidence_level 一次性映射出阶段
@@ -1155,6 +1172,25 @@ def normalize_orchestration_mode(
     return OrchestrationMode(value)
 
 
+def load_supervisor_prompt() -> str:
+    """加载 supervisor 角色 prompt（按 mtime 缓存，改 prompt 文件立即生效）。
+
+    与 PromptAssembler 的每请求 (mtime_ns, size) 重校验一致；文件缺失时
+    回退到与当前 delivery-review 角色一致的一句话描述。
+    """
+    from cloudra.runtime.prompt_assembler import load_role_prompt
+
+    try:
+        return load_role_prompt("supervisor")
+    except FileNotFoundError:
+        return (
+            "You are Cloudra's graph-planning Supervisor in dag_guided mode: "
+            "review the Coordinator's delivery mechanism DAG (read-only for you) — "
+            "adjudicate mechanism drafts and evidence call reviews — "
+            "using only the dag_* tool family."
+        )
+
+
 def build_orchestration_config(
     mode: str | OrchestrationMode,
 ) -> dict[str, str]:
@@ -1164,7 +1200,6 @@ def build_orchestration_config(
         return snapshot
     snapshot["graph_policy_revision"] = GRAPH_POLICY_REVISION
     if normalized is OrchestrationMode.DAG_GUIDED:
-        from cloudra.core.supervisor import load_supervisor_prompt
         from cloudra.infra.config import get_config
 
         snapshot["supervisor_model"] = get_config().follower.model

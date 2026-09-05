@@ -287,6 +287,8 @@ class TurnPipeline:
             )
 
         if not response.tool_calls:
+            # 无工具调用的纯文本最终回复只是结束*意向*：是否允许结束由 runner
+            # 收尾前的统一结束门禁裁决（与显式 stop 同一边界，Task 4A）。
             return TurnOutcome(
                 decision="stop", content=response.content, reasoning=response.reasoning
             )

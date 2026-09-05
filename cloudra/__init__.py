@@ -13,7 +13,6 @@ _LAZY_EXPORTS = {
 _LAZY_MODULES = {
     # core
     "agent": "cloudra.core.agent",
-    "supervisor": "cloudra.core.supervisor",
     # services
     "session_store": "cloudra.services.session_store",
     "nodes": "cloudra.services.nodes",

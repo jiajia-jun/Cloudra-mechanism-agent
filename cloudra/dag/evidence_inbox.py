@@ -1,4 +1,11 @@
-"""CallReview inbox (tool calls and compute terminal states) and stage binding."""
+"""CallReview inbox (explicit evidence submissions) and stage binding.
+
+§5 显式送审契约：研究工具完成只登记证据/事实（register_evidence +
+_derive_facts），不创建 review、不通知 Supervisor；计算作业终态只在
+dag_record 留审计行。唯一入箱路径是 agent 筛选后经 dag_bind_evidence →
+submit_evidence_for_review 的显式送审（带 claim/rationale，围绕不可变
+快照裁决）。
+"""
 
 from __future__ import annotations
 
@@ -34,14 +41,13 @@ from cloudra.persistence.database import ConversationDB
 from cloudra.tools.capabilities import (
     evidence_deriver_for,
     is_dag_observable,
-    is_dag_reviewed,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class EvidenceInboxMixin:
-    """工具证据持久化、CallReview 入箱与阶段绑定；由 DagController 组合。"""
+    """工具证据持久化、显式送审入箱与阶段绑定；由 DagController 组合。"""
 
     _SOURCE_PATH_KEYS = (
         "log_path",
@@ -70,7 +76,7 @@ class EvidenceInboxMixin:
         """
         if success:
             return "ok"
-        message = str(result.get("message") or "").lower()
+        message = str(result.get("message") or result.get("error") or "").lower()
         if "not found" in message:
             return "source_missing"
         if "not installed" in message or "no module" in message or "importerror" in message:
@@ -79,7 +85,7 @@ class EvidenceInboxMixin:
             return "parse_failed"
         return "failed"
 
-    async def _enqueue_call_review(
+    def _build_review(
         self,
         tool_call_id: str,
         tool_name: str,
@@ -87,36 +93,16 @@ class EvidenceInboxMixin:
         result: dict[str, Any],
         success: bool,
         *,
-        compute_job_id: str | None = None,
-        suggested_target_id: str | None = None,
-        suggested_stage: str = "",
-        force: bool = False,
-    ) -> tuple[bool, str | None]:
-        """CallReview 收件箱 enqueue（D5 节流、D12 仅追加直连 INSERT）。
-
-        只有 registry 声明 dag_review=True 的工具入箱（计算作业终态走
-        enqueue_compute_review）；普通工具调用不入箱也不唤醒 Supervisor。
-        ``force=True`` 时跳过白名单（显式证据通交）。返回 (是否入新箱, 同构
-        重复的既有 review_id 或 None)。
-        """
-        if not force and not is_dag_reviewed(tool_name):
-            return False, None
+        claim: str,
+        rationale: str,
+        evidence_id: str,
+        suggested_target_id: str,
+        suggested_stage: str,
+    ) -> CallReview:
         from cloudra.subagents.registry import legacy_agent_id_for_role
 
         role_id = self.role_id or ""
-        arguments_digest = "sha256:" + hashlib.sha256(
-            _canonical_json(arguments).encode("utf-8")
-        ).hexdigest()[:16]
-        result_summary = _canonical_json(result)
-        # 同构去重（仅 pending）：内容完全相同的 artifact 且已有排队中的 review
-        # 时不重复入箱——返回既有 review id 让 Coordinator 收到提示。已裁决的
-        # 同构重提照常生成新 review 周期。
-        duplicate = await asyncio.to_thread(
-            self.store.find_duplicate_review, tool_name, arguments_digest, result_summary
-        )
-        if duplicate is not None:
-            return False, duplicate
-        review = CallReview(
+        return CallReview(
             review_id="rev_" + uuid.uuid4().hex,
             tool_call_id=tool_call_id,
             tool_name=tool_name,
@@ -126,18 +112,22 @@ class EvidenceInboxMixin:
             caller_legacy_id=(
                 legacy_agent_id_for_role(role_id) if role_id else (self.agent_id or "")
             ),
-            arguments_digest=arguments_digest,
-            result_summary=result_summary,
+            arguments_digest="sha256:" + hashlib.sha256(
+                _canonical_json(arguments).encode("utf-8")
+            ).hexdigest()[:16],
+            result_summary=_canonical_json(result),
             source_path=self._source_path_from(arguments),
             result_kind=self._result_kind(result, success),
-            compute_job_id=compute_job_id,
             suggested_target_id=suggested_target_id,
             suggested_stage=suggested_stage,
+            claim=claim,
+            rationale=rationale,
+            submitter=self.agent_id or role_id,
+            evidence_id=evidence_id,
+            source="explicit",
             state="pending",
             created_at=datetime.now(timezone.utc).isoformat(),
         )
-        await asyncio.to_thread(self.store.enqueue_call_review, review)
-        return True, None
 
     async def on_tool_finished(
         self,
@@ -156,6 +146,9 @@ class EvidenceInboxMixin:
                 )
             return None
         await self.initialize()
+        # §5：工具完成只登记证据（不可变快照）与派生事实；不创建 review、
+        # 不唤醒 Supervisor——送审是 agent 筛选后的显式动作
+        # （dag_bind_evidence → submit_evidence_for_review）。
         evidence_ref = await asyncio.to_thread(
             self.store.register_evidence,
             self.session_id,
@@ -169,18 +162,9 @@ class EvidenceInboxMixin:
         await self._derive_facts(tool_name, {"tool_call_id": tool_call_id,
                                              "arguments": arguments,
                                              "result": result}, evidence_ref)
-        success = self._result_succeeded(result)
-        # 不再有图上遥测（observed 节点/自动认领/自动绑定，证据 b/i-1）：
-        # 只登记证据 + 收件箱 enqueue；绑定一律走显式阶段绑定。
-        enqueued, duplicate = await self._enqueue_call_review(
-            tool_call_id, tool_name, arguments, result, success
-        )
-        if self.mode is OrchestrationMode.DAG_GUIDED and enqueued:
-            await self._wake_supervisor_for_reviews()
         return DeliveryDelta(
             evidence_ref=evidence_ref,
             tool_name=tool_name,
-            dedup_review_id=duplicate,
         )
 
     async def _derive_facts(
@@ -208,50 +192,117 @@ class EvidenceInboxMixin:
 
     async def submit_evidence_for_review(
         self,
-        tool_call_id: str,
-        target_id: str,
-        stage_kind: str,
+        attachments: list[dict[str, str]],
     ) -> dict[str, Any]:
-        """Coordinator 把任意已完成工具调用的产物显式提交进 review 收件箱。
+        """显式送审的唯一入箱口（§5）：agent 筛选后把已完成调用的证据快照
+        连同主张（claim/rationale）提交为 pending CallReview，Supervisor 围绕
+        明确 claim 与提交时的不可变快照裁决。
 
-        这是白名单（dag_review）之外的证据通交通道：format_converter /
-        internal_coordinates 等产出证据但不会自动入箱的工具，由 Coordinator
-        声明"此调用支撑 target 的 stage"后进箱，Supervisor 照常复核裁决。
+        每条 attachment：tool_call_id / bind_target / stage_kind / claim（必填）
+        / rationale（可选）。先对同一快照**全部校验**（claim 非空、目标存在、
+        阶段在该元素的契约内、调用已结束且证据已登记、证据可解析——证据库是
+        会话级的，跨项目引用在此处天然不可解析而被拒），再经
+        ``store.submit_call_reviews`` 单事务原子提交；任何一项非法则全部不
+        提交。相同 pending 声明（同证据+目标+阶段+规范化 claim）幂等返回既有
+        review_id；失败结果允许作为负证据送审（is_success 如实记录，绑定阶段
+        仍被 engine 的 tool_not_succeeded 拦截）。
         """
         if not self.enabled:
             raise RuntimeError(
                 "evidence submission is disabled in standard orchestration mode"
             )
+        if not attachments:
+            raise RuntimeError(
+                "submit_evidence_for_review requires at least one attachment"
+            )
         await self.initialize()
-        ref = await asyncio.to_thread(self._evidence_for_call, tool_call_id)
-        source_name, payload = await asyncio.to_thread(
-            self.store.resolve_evidence_with_source, ref
-        )
-        result = payload.get("result") or {} if isinstance(payload, dict) else {}
-        arguments = payload.get("arguments") or {} if isinstance(payload, dict) else {}
-        # 失败结果同样可送审：失败日志/错误产物/结构不匹配都是合法审查
-        # 材料（负结果可送审）；但 is_success 如实记录——失败结果不能充作
-        # 对应成功计算的支持（绑定支持仍由 engine 的 tool_not_succeeded 拦）。
-        succeeded = self._result_succeeded(result)
-        enqueued, duplicate = await self._enqueue_call_review(
-            tool_call_id,
-            source_name,
-            arguments,
-            result,
-            succeeded,
-            suggested_target_id=target_id,
-            suggested_stage=stage_kind,
-            force=True,
-        )
-        if self.mode is OrchestrationMode.DAG_GUIDED and enqueued:
-            await self._wake_supervisor_for_reviews()
-        return {
-            "tool_call_id": tool_call_id,
-            "target_id": target_id,
-            "stage_kind": stage_kind,
-            "enqueued": enqueued,
-            "duplicate_review_id": duplicate,
-        }
+
+        def _validate_all() -> list[CallReview]:
+            snapshot = self.engine.snapshot()
+            prepared: list[CallReview] = []
+            for index, item in enumerate(attachments):
+                label = f"attachment #{index}"
+                tool_call_id = str(item.get("tool_call_id") or "").strip()
+                target_id = str(item.get("bind_target") or "").strip()
+                stage_kind = str(item.get("stage_kind") or "").strip()
+                claim = str(item.get("claim") or "").strip()
+                rationale = str(item.get("rationale") or "").strip()
+                if not claim:
+                    raise RuntimeError(
+                        f"{label}: a non-empty claim is required — state what "
+                        "this evidence is supposed to prove"
+                    )
+                try:
+                    kind = StageKind(stage_kind)
+                except ValueError:
+                    raise RuntimeError(
+                        f"{label}: unknown stage_kind {stage_kind!r}; allowed: "
+                        f"{sorted(item.value for item in StageKind)}"
+                    ) from None
+                _target_type, element = self._delivery_target(
+                    snapshot.delivery, target_id
+                )
+                if not any(stage.kind == kind for stage in element.stages):
+                    raise RuntimeError(
+                        f"{label}: stage {kind.value!r} is not declared in the "
+                        f"stage contract of {target_id!r}; declare the stage "
+                        "first or fix the submission"
+                    )
+                # 已结束 + 已登记 + 本项目内可解析（证据库会话级，跨项目
+                # tool_call_id 在此不可解析 ⇒ 拒绝）。
+                ref = self._evidence_for_call(tool_call_id)
+                try:
+                    source_name, payload = self.store.resolve_evidence_with_source(ref)
+                except InvalidGraphReference:
+                    raise RuntimeError(
+                        f"{label}: evidence reference {ref.ref_id!r} does not resolve"
+                    ) from None
+                result_payload = payload.get("result") or {}
+                arguments = payload.get("arguments") or {}
+                prepared.append(
+                    self._build_review(
+                        tool_call_id,
+                        source_name,
+                        arguments if isinstance(arguments, dict) else {},
+                        result_payload if isinstance(result_payload, dict) else {},
+                        self._result_succeeded(
+                            result_payload if isinstance(result_payload, dict) else {}
+                        ),
+                        claim=claim,
+                        rationale=rationale,
+                        evidence_id=ref.ref_id,
+                        suggested_target_id=target_id,
+                        suggested_stage=kind.value,
+                    )
+                )
+            return prepared
+
+        prepared = await asyncio.to_thread(_validate_all)
+        outcomes = await asyncio.to_thread(self.store.submit_call_reviews, prepared)
+        results = [
+            {
+                "tool_call_id": review.tool_call_id,
+                "target_id": review.suggested_target_id,
+                "stage_kind": review.suggested_stage,
+                "claim": review.claim,
+                "review_id": review_id,
+                "enqueued": created,
+            }
+            for review, (review_id, created) in zip(prepared, outcomes)
+        ]
+        if self.mode is OrchestrationMode.DAG_GUIDED and any(
+            created for _rid, created in outcomes
+        ):
+            await self._notify_supervisor_of_submission()
+        return {"attachments": results}
+
+    async def _notify_supervisor_of_submission(self) -> None:
+        """显式送审落库后按状态表通知 Supervisor（非阻塞，不等待裁决）。
+
+        待办已持久化，通知失败不回滚入箱；reconcile 路径会在项目装载时
+        补通知（见 SupervisionMixin._notify_supervisor）。
+        """
+        await self._notify_supervisor("explicit evidence submission")
 
     def _evidence_for_call(self, tool_call_id: str) -> GraphRef:
         """tool_call_id → 已登记的 tool_result 证据引用（证据库反查）。
@@ -266,6 +317,22 @@ class EvidenceInboxMixin:
                 "finished tool call with a recorded tool_result can be bound"
             )
         return ref
+
+    def _ref_for_evidence_id(self, evidence_id: str) -> GraphRef:
+        """送审快照身份 → 带 content_hash 的 GraphRef（engine 校验要求 hash）。"""
+        with self.db.connect() as con:
+            row = con.execute(
+                "SELECT content_hash FROM dag_evidence WHERE evidence_id = ?",
+                (evidence_id,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError(
+                f"the submitted evidence snapshot {evidence_id!r} is missing "
+                "from the evidence store"
+            )
+        return GraphRef(
+            ref_type="tool_result", ref_id=evidence_id, content_hash=row[0]
+        )
 
     def _apply_harness(
         self,
@@ -767,13 +834,18 @@ class EvidenceInboxMixin:
         verdict: str,
         reason: str = "",
     ) -> dict[str, Any]:
-        """Supervisor 的 per-call 复核（D3）：dag_review_call 的 controller 面。
+        """Supervisor 的 per-call 复核（D3 + §5）：dag_review_call 的 controller 面。
 
-        review 行不携带 ref——harness 从 review.tool_call_id 重解析证据
-        （已登记、调用成功、目标存在、非 submit 调用 D11），阶段绑定守卫与
-        dag_bind_evidence 完全同构。ignore = 不是 delivery 证据，不改阶段；
-        disagree/skip/not_applicable 不解析 ref、reason 必填（not_applicable
-        表示该槽位对此元素不成立，如无能垒步无 ts_opt）。
+        §5 起裁决围绕送审的明确 claim：verdict 的目标/阶段必须与送审声明
+        （suggested_target_id/suggested_stage）一致，否则 claim_mismatch
+        （要改目标/阶段就重新送审）。裁决的证据是送审时的不可变快照——
+        agree 时 ref 直接取 review.evidence_id（内容寻址，同名文件被覆盖也
+        不改变快照；旧行无 evidence_id 时回退按 tool_call_id 重解析）。
+        阶段绑定守卫与 dag_bind_evidence 完全同构（含 D11 submit 检查、
+        D7 鞍点检查、tool_not_succeeded）。ignore = 不是 delivery 证据，
+        不改阶段；disagree/skip/not_applicable 不解析 ref、reason 必填；
+        needs_evidence = 缺证据（reason 必填，列出具体缺失），本轮不再审——
+        review 离开 pending 信箱、阶段不动，补充材料后重新送审产生新 review。
         """
         if not self.enabled:
             raise RuntimeError(
@@ -783,12 +855,22 @@ class EvidenceInboxMixin:
         review = await asyncio.to_thread(self.store.get_call_review, review_id)
         if review is None:
             raise RuntimeError(f"call review {review_id!r} does not exist")
+        if review.source != "explicit":
+            raise RuntimeError(
+                f"call review {review_id!r} is a {review.source} audit record, "
+                "not a consumable submission — only explicit re-submission "
+                "(dag_bind_evidence with a claim) enters the reviewable inbox"
+            )
         if review.state == "ignored":
             raise RuntimeError(
                 f"call review {review_id!r} is already ignored"
             )
-        # 一条 review 可依次支撑多个阶段（一次 opt+freq 解析同时供 ts_opt 与
-        # frequency），因此 reviewed 不阻止后续 verdict；state 只是簿记。
+        claim_context = {
+            "claim": review.claim,
+            "rationale": review.rationale,
+            "submitter": review.submitter,
+            "is_success": review.is_success,
+        }
         if verdict == "ignore":
             await asyncio.to_thread(
                 self.store.mark_call_review, review_id, "ignored"
@@ -798,15 +880,50 @@ class EvidenceInboxMixin:
                 "verdict": "ignore",
                 "accepted": True,
                 "stage_changed": False,
+                **claim_context,
+            }
+        # §5：裁决必须落在送审声明的目标/阶段上（显式送审的行总带声明）。
+        if review.suggested_target_id and (
+            target_id != review.suggested_target_id
+            or stage_kind != review.suggested_stage
+        ):
+            raise RuntimeError(
+                f"verdict must answer the submitted claim: review {review_id!r} "
+                f"claims {review.suggested_target_id}.{review.suggested_stage} "
+                f"({review.claim!r}), got {target_id}.{stage_kind} — re-submit "
+                "with a new claim to change the target or stage"
+            )
+        if verdict == "needs_evidence":
+            if not reason.strip():
+                raise RuntimeError(
+                    "needs_evidence requires a reason listing exactly which "
+                    "evidence is missing"
+                )
+            # 本轮不再审：离开 pending 信箱（不 busy-loop），阶段保持不动；
+            # 补齐材料后显式重提产生新 review（已裁决同构重提的既有语义）。
+            await asyncio.to_thread(
+                self.store.mark_call_review, review_id, "reviewed"
+            )
+            return {
+                "review_id": review_id,
+                "verdict": "needs_evidence",
+                "accepted": True,
+                "stage_changed": False,
+                "missing_evidence": reason.strip(),
+                **claim_context,
             }
         ref = None
         tool_succeeded = False
         if verdict == "agree":
-            # D3：ref 由 harness 从 tool_call_id 确定性解析（含 D11 检查，
-            # 在 apply_stage_bind 内）
-            ref = await asyncio.to_thread(
-                self._evidence_for_call, review.tool_call_id
-            )
+            # §5 快照裁决：优先取送审时的 evidence_id（不可变快照）。
+            if review.evidence_id:
+                ref = await asyncio.to_thread(
+                    self._ref_for_evidence_id, review.evidence_id
+                )
+            else:
+                ref = await asyncio.to_thread(
+                    self._evidence_for_call, review.tool_call_id
+                )
             _, payload = await asyncio.to_thread(
                 self.store.resolve_evidence_with_source, ref
             )
@@ -833,19 +950,20 @@ class EvidenceInboxMixin:
             "rejection_reason": mutation.rejection_reason,
             "mutation_id": mutation.mutation_id,
             "stage_changed": mutation.accepted,
+            **claim_context,
         }
 
 
 async def enqueue_compute_review(taskid: int, terminal_state: str) -> None:
-    """计算作业终态入 CallReview 收件箱（D5/D11）：带作业的终态
-    （done/failed），与 submit 调用的成败无关。
+    """计算作业终态的 CallReview 登记（D11）：带作业的终态（done/failed），
+    与 submit 调用的成败无关。
 
-    作业归属从中央 compute.db 读回（session_id/conversation_id），再开
-    对应会话库读 session 的编排模式（CallReview 仍属会话库）。非 dag 模式、
-    无 session 记录或会话库不存在时跳过。review_id 按作业确定
+    §5 起只在 dag_record 登记（纯审计行，source="auto"，无 Supervisor 消费）；
+    dag_guided 不再自动入箱——研究 agent 被 compute_job 事件唤醒后自行解析、
+    筛选，经显式送审（dag_bind_evidence with claim）才产生督导待办。
+    standard / 无 session 记录 / 会话库不存在时跳过。review_id 按作业确定
     （rev_compute_<id>），重复终态回调由 INSERT OR IGNORE 去重。
-    guard/executor 进程内调用：不直接唤醒 Supervisor——提交者已被
-    compute_job 事件唤醒，后续 parser 调用会把证据带进复核流。
+    guard/executor 进程内调用：不直接唤醒 Supervisor。
     """
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_store import aget_compute_job
@@ -868,7 +986,7 @@ async def enqueue_compute_review(taskid: int, terminal_state: str) -> None:
     if row:
         mode = row[0] or "standard"
         role_id = row[1] or ""
-    if mode not in ("dag_record", "dag_guided"):
+    if mode != "dag_record":
         return
     from cloudra.subagents.registry import legacy_agent_id_for_role
 
@@ -882,6 +1000,7 @@ async def enqueue_compute_review(taskid: int, terminal_state: str) -> None:
         caller_legacy_id=legacy_agent_id_for_role(role_id) if role_id else "",
         result_summary=f"compute job {taskid} terminal state: {terminal_state}",
         compute_job_id=str(taskid),
+        source="auto",
         state="pending",
         created_at=datetime.now(timezone.utc).isoformat(),
     )

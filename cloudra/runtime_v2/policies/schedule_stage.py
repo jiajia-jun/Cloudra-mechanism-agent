@@ -2,12 +2,20 @@
 
 When `agent.settings.schedule_mode` is True:
 - Pins an autonomous schedule reminder into system messages via `notices.pin(agent.id, "schedule_mode", ...)`
-- Intercepts `stop` tool calls:
+- Intercepts `stop` tool calls (in-turn nudge, side-effect-free):
   - If a reminder is active (`core.reminders.pending(agent.id)` is truthy): allows `stop` so the agent can sleep until woken.
   - If no reminder is active:
     - On first attempt: blocks `stop`, instructs the model to either call `schedule` (timer or check_command) or verify completion and call `stop` again.
-    - On second consecutive `stop` attempt: allows `stop` as explicit confirmation that the goal is 100% complete.
+    - On second consecutive `stop` attempt: allows `stop` so the run-end gate sees the exit attempt.
   - Calling any tool other than `stop` resets the confirmation tracker.
+- Run-end fact check (`audit_run_end`, Task 4A 统一结束门禁): both explicit
+  stops admitted by the handshake and plain-text final replies reach the same
+  runner-side boundary.  The handshake's second-stop self-confirmation is NOT
+  completion evidence (计划 §6) — the gate re-evaluates verifiable facts:
+  pending reminder → wait_background (a real wake-up source); verifiable
+  background work (running sub-agent / unfinished compute job) without a
+  reminder → continue_work (schedule a wake-up first); nothing pending →
+  allow_final explicitly labelled agent-declared, not independently verified.
 """
 
 from __future__ import annotations
@@ -35,6 +43,20 @@ INTERCEPT_MESSAGE = (
     "schedule with check_command+interval_seconds+timeout_seconds (preferred) or delay_seconds+message "
     "now to schedule your next wake-up.\n"
     "2. If the user's goal is 100% completed and fully verified, call stop again to confirm completion."
+)
+
+BACKGROUND_WITHOUT_WAKEUP_MESSAGE = (
+    "Verifiable background work is still pending (a sub-agent is not terminal or a "
+    "compute job is unfinished) but no wake-up timer or check is scheduled. Call "
+    "`schedule` with a read-only check_command + interval_seconds + timeout_seconds "
+    "(preferred) or delay_seconds + message so you wake when the work is actually "
+    "done, then stop. Re-confirming stop does not mark the goal complete — without "
+    "a scheduled wake-up this run cannot end."
+)
+
+DECLARED_COMPLETION_REASON = (
+    "schedule mode: no verifiable background work pending; the run ends as an "
+    "agent-declared completion (not independently verified)"
 )
 
 
@@ -90,6 +112,51 @@ class ScheduleStage:
         # First stop attempt without a schedule: block it!
         self._intercepted_stops.add(ctx.agent.id)
         return PolicyResult.block(INTERCEPT_MESSAGE)
+
+    async def audit_run_end(
+        self,
+        ctx: PipelineContext,
+        *,
+        explicit_stop: bool,
+        stop_arguments: dict[str, Any] | None = None,
+    ):
+        """统一结束门禁的 schedule 判定（runner 收尾前；纯文本最终回复与显式
+        stop 同边界，计划 §6）。
+
+        唤醒来源必须可核实：有效 reminder（ReminderBroker 事件投影）、未终态
+        子 agent（core.agents 投影）、在算作业（compute.db 权威）。模型的
+        "有后台脚本在跑"声明不算数——没有可核实唤醒来源就要求先 schedule。
+        """
+        if not getattr(ctx.agent.settings, "schedule_mode", False):
+            return None
+        from cloudra.dag.stop_audit import StopGate
+
+        core = self.core
+        if core is not None and core.reminders.pending(ctx.agent.id):
+            return StopGate(
+                action="wait_background",
+                reason="a schedule reminder is pending; the stop suspends until it fires",
+            )
+        if core is not None and await self._verifiable_background_pending(ctx):
+            return StopGate(
+                action="continue_work",
+                reason=BACKGROUND_WITHOUT_WAKEUP_MESSAGE,
+            )
+        return StopGate(action="allow_final", reason=DECLARED_COMPLETION_REASON)
+
+    async def _verifiable_background_pending(self, ctx: PipelineContext) -> bool:
+        from cloudra.dag.stop_audit import has_running_siblings, pending_compute_jobs_exist
+        from cloudra.persistence.database import ConversationDB
+
+        core = self.core
+        if has_running_siblings(
+            core, project_id=ctx.agent.project_id, session_id=ctx.agent.id
+        ):
+            return True
+        return await pending_compute_jobs_exist(
+            data_dir=ConversationDB(ctx.agent.project_id).data_dir,
+            project_id=ctx.agent.project_id,
+        )
 
     async def after_tool(self, ctx: PipelineContext, call: ToolCall, result: ToolResult) -> None:
         return None

@@ -307,3 +307,392 @@ async def test_snapshot_is_throttled_cache_not_per_command(tmp_path, monkeypatch
     core3 = RuntimeCore(strict_events=True)
     restore_core(core3, store)
     assert core3.projects[project.id].name == "t4"
+
+
+@pytest.mark.asyncio
+async def test_legacy_auto_pending_reviews_not_consumed_after_restore(tmp_path):
+    """§5 历史兼容：升级前的自动 pending review（source=legacy_auto 或无标记
+    旧行）恢复后不进入可消费信箱、审计保留；Coordinator 收到一次性提示
+    （pin 幂等，重复调用/重启不重复轰炸）；显式重提才成为可消费待办。"""
+    import uuid
+    from datetime import datetime, timezone
+
+    from cloudra.dag.models import CallReview
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.runtime_v2.supervision import (
+        LEGACY_BACKLOG_PIN_KEY,
+        pending_supervision_summary,
+        reconcile_legacy_backlog_notice,
+    )
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (
+        await bus.execute(Command(type="project.create", payload={"name": "legacy-inbox"}))
+    ).data
+    coordinator = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+
+    def _seed() -> None:
+        db = ConversationDB(project.id).init()
+        store = DagStore(db)
+        store.ensure_bundle("s1")
+        now = datetime.now(timezone.utc).isoformat()
+        # 历史自动行（显式标记 legacy_auto）
+        store.enqueue_call_review(
+            CallReview(
+                review_id="rev_" + uuid.uuid4().hex,
+                tool_call_id="tc_old1",
+                tool_name="log_parser",
+                is_success=True,
+                source="legacy_auto",
+                state="pending",
+                created_at=now,
+            )
+        )
+        # 显式送审行（唯一可消费来源）
+        store.enqueue_call_review(
+            CallReview(
+                review_id="rev_" + uuid.uuid4().hex,
+                tool_call_id="tc_new",
+                tool_name="log_parser",
+                is_success=True,
+                suggested_target_id="step1",
+                suggested_stage="ts_opt",
+                claim="explicit claim",
+                evidence_id="ev_x",
+                source="explicit",
+                state="pending",
+                created_at=now,
+            )
+        )
+        # 无标记旧行：直接 SQL 插入，source 列取库级默认值（legacy_auto）。
+        with db.connect() as con:
+            con.execute(
+                "INSERT INTO dag_call_reviews("
+                "review_id, tool_name, is_success, state, created_at"
+                ") VALUES ('rev_unmarked', 'log_parser', 1, 'pending', ?)",
+                (now,),
+            )
+
+    await asyncio.to_thread(_seed)
+
+    summary = await pending_supervision_summary(project.id)
+    assert summary["call_reviews"] == 1  # 只有 explicit 可消费
+    assert summary["legacy_call_reviews"] == 2
+
+    # store 读路径同样只把 explicit 当可消费；历史行保留（审计）。
+    def _read() -> tuple[int, int]:
+        store = DagStore(ConversationDB(project.id))
+        consumable = store.list_call_reviews("pending", source="explicit")
+        everything = store.list_call_reviews("pending")
+        return len(consumable), len(everything)
+
+    n_consumable, n_all = await asyncio.to_thread(_read)
+    assert (n_consumable, n_all) == (1, 3)
+
+    # 一次性提示：pin 进 Coordinator 上下文；重复调用幂等（无新事件）。
+    await reconcile_legacy_backlog_notice(core, project.id)
+    pin_events = [
+        e
+        for e in core.event_log
+        if e.type == "context.pin_set" and e.data.get("key") == LEGACY_BACKLOG_PIN_KEY
+    ]
+    assert len(pin_events) == 1
+    await reconcile_legacy_backlog_notice(core, project.id)
+    pin_events_again = [
+        e
+        for e in core.event_log
+        if e.type == "context.pin_set" and e.data.get("key") == LEGACY_BACKLOG_PIN_KEY
+    ]
+    assert len(pin_events_again) == 1
+    pins = core.notices._pins.get(coordinator.id, {})
+    assert "2" in pins[LEGACY_BACKLOG_PIN_KEY]
+
+    # 重启（pin 从事件投影恢复）后再 reconcile 也不重复发事件。
+    core.notices.restore_from(core.event_log)
+    await reconcile_legacy_backlog_notice(core, project.id)
+    assert len([e for e in core.event_log
+                if e.type == "context.pin_set"
+                and e.data.get("key") == LEGACY_BACKLOG_PIN_KEY]) == 1
+
+    # 历史行被处置（裁决/显式重提后关闭）后，提示撤下。
+    def _close_legacy() -> None:
+        store = DagStore(ConversationDB(project.id))
+        for row in store.list_call_reviews("pending"):
+            if row.source != "explicit":
+                store.mark_call_review(row.review_id, "reviewed")
+
+    await asyncio.to_thread(_close_legacy)
+    await reconcile_legacy_backlog_notice(core, project.id)
+    assert LEGACY_BACKLOG_PIN_KEY not in core.notices._pins.get(coordinator.id, {})
+    summary = await pending_supervision_summary(project.id)
+    assert summary["legacy_call_reviews"] == 0
+    assert summary["call_reviews"] == 1  # 显式待办不受影响
+
+
+# ------------------------------------------------------------- Task 4 · 恢复矩阵
+# 督导恢复用例（runner-less 纯投影层；需要 runner/LLM 的恢复用例在
+# tests/test_runtime_v2_supervision.py）。
+
+
+async def _seed_structured_request(project_id: str, requester: str, *, question: str) -> str:
+    """结构化督导请求的持久化等价物（basis 与 review_basis 对齐）。"""
+    from cloudra.dag.review_requests import ReviewRequest
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    def _write() -> str:
+        store = DagStore(ConversationDB(project_id).init())
+        store.ensure_bundle("s1")
+        draft = ReviewRequest(
+            kind="evidence",
+            requester=requester,
+            question=question,
+            basis_fingerprint="placeholder",
+        )
+        basis = store.review_basis(draft)
+        return store.enqueue_review(draft.model_copy(update={"basis_fingerprint": basis}))
+
+    return await asyncio.to_thread(_write)
+
+
+def _replay_all_events(store: RuntimeStore):
+    """纯重放路径：空 core + 全量事件逐条 apply_event（不经过快照）。"""
+    from cloudra.runtime_v2.apply import apply_event
+    from cloudra.runtime_v2.schemas import EventEnvelope
+
+    core = RuntimeCore(strict_events=True)
+    envelopes = [EventEnvelope.model_validate(raw) for raw in store.events_after({})]
+    core.event_log.restore(envelopes)
+    for envelope in envelopes:
+        apply_event(core, envelope)
+    core.notices.restore_from(core.event_log)
+    return core
+
+
+@pytest.mark.asyncio
+async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_path):
+    """恢复矩阵·用户取消后重启进程：cancelled 不是僵尸 running——restore
+    原样保留取消终态，reconcile 不复活（零新事件、零投递），持久化待办
+    留在信箱等显式恢复。"""
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.supervision import (
+        find_project_supervisor,
+        notify_supervisor,
+        reconcile_supervision,
+    )
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core1 = RuntimeCore(strict_events=True)
+    core1.store = store
+    bus1 = CommandBus(core1)
+    project = (
+        await bus1.execute(
+            Command(
+                type="project.create",
+                payload={"name": "cancel-restart", "settings": {"orchestration_mode": "dag_guided"}},
+            )
+        )
+    ).data
+    coordinator = (
+        await bus1.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    request_id = await _seed_structured_request(
+        project.id, coordinator.id, question="survives cancel + restart"
+    )
+    await notify_supervisor(core1, project.id, reason="explicit evidence submission")
+    supervisor1 = find_project_supervisor(core1, project.id)
+    assert supervisor1 is not None
+    await bus1.execute(
+        Command(type="agent.cancel", target={"session_id": supervisor1.id}, payload={})
+    )
+    assert supervisor1.state.value == "cancelled"
+
+    # 进程重启：取消终态原样恢复（不是僵尸收尾）。
+    core2 = RuntimeCore(strict_events=True)
+    core2.store = store
+    restore_core(core2, store)
+    supervisor2 = core2.agents[supervisor1.id]
+    assert supervisor2.state is AgentState.CANCELLED
+
+    events_before = len(core2.event_log)
+    await reconcile_supervision(core2, project.id)
+    assert len(core2.event_log) == events_before  # 零新事件：不复活不投递
+    assert supervisor2.state is AgentState.CANCELLED
+    inbox = core2.mailbox.inbox(supervisor2.id)
+    assert inbox is None or inbox.empty()
+
+    # 持久化待办不丢。
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    queued = await asyncio.to_thread(
+        lambda: [r.request_id for r in DagStore(ConversationDB(project.id)).list_review_requests("queued")]
+    )
+    assert queued == [request_id]
+
+
+@pytest.mark.asyncio
+async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
+    """恢复矩阵·重放零副作用：事件重放/restore 路径绝不执行督导逻辑——
+    不 spawn（记录之外的）agent、不发通知、不跑 LLM/工具。reconcile 是
+    restore 之后的显式步骤，对僵尸收尾落 failed 的 supervisor 同样是
+    no-op（不补通知）。"""
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.supervision import (
+        find_project_supervisor,
+        notify_supervisor,
+        reconcile_supervision,
+    )
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core1 = RuntimeCore(strict_events=True)
+    core1.store = store
+    bus1 = CommandBus(core1)
+    project = (
+        await bus1.execute(
+            Command(
+                type="project.create",
+                payload={"name": "replay-purity", "settings": {"orchestration_mode": "dag_guided"}},
+            )
+        )
+    ).data
+    coordinator = (
+        await bus1.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    await _seed_structured_request(project.id, coordinator.id, question="pending at crash")
+    await notify_supervisor(core1, project.id, reason="explicit evidence submission")
+    supervisor1 = find_project_supervisor(core1, project.id)
+    assert supervisor1 is not None and supervisor1.state.value == "running"
+    injections_before = len(
+        [e for e in core1.event_log if e.type == "agent.message_injected"]
+    )
+
+    # 纯重放：状态与"restore 前"的活 core 一致（僵尸仍 running），零副作用。
+    replayed = _replay_all_events(store)
+    assert replayed.agents[supervisor1.id].state is AgentState.RUNNING
+    assert {a.id for a in replayed.agents.values()} == {
+        a.id for a in core1.agents.values()
+    }  # 重放不新增 agent
+
+    # restore：僵尸 running → failed（中断收尾），此外不补通知。
+    core2 = RuntimeCore(strict_events=True)
+    core2.store = store
+    restore_core(core2, store)
+    supervisor2 = core2.agents[supervisor1.id]
+    assert supervisor2.state is AgentState.FAILED
+    injections_after = len(
+        [e for e in core2.event_log if e.type == "agent.message_injected"]
+    )
+    assert injections_after == injections_before  # restore/reconcile 前零新投递
+
+    # 收尾事件已回写 store：纯重放与 restored 逐字段全等（含 failed 收尾）。
+    replayed_post = _replay_all_events(store)
+    assert replayed_post.agents[supervisor1.id].model_dump(
+        mode="json"
+    ) == supervisor2.model_dump(mode="json")
+
+    # reconcile 对 failed 是 no-op；全事件流无任何工具/LLM 执行痕迹。
+    await reconcile_supervision(core2, project.id)
+    executed = [
+        e
+        for e in core2.event_log
+        if e.type in {"tool.requested", "tool.started", "llm.requested"}
+    ]
+    assert executed == []
+
+
+@pytest.mark.asyncio
+async def test_reconcile_after_restore_only_schedules_notification_events(tmp_path):
+    """恢复矩阵·只安排通知：正常休眠（succeeded）的 supervisor 恢复后，
+    reconcile 补通知只产生通知/生命周期事件族（message_injected +
+    wake 的 state_changed/run.started/context_reset），无 LLM/工具执行
+    （无 runner 时 wake 只落事件——调度是 runner 的职责）。"""
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.supervision import reconcile_supervision
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core1 = RuntimeCore(strict_events=True)
+    core1.store = store
+    bus1 = CommandBus(core1)
+    project = (
+        await bus1.execute(
+            Command(
+                type="project.create",
+                payload={"name": "reconcile-schedule", "settings": {"orchestration_mode": "dag_guided"}},
+            )
+        )
+    ).data
+    coordinator = (
+        await bus1.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    supervisor1 = (
+        await bus1.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={
+                    "role_id": "supervisor",
+                    "parent_session_id": coordinator.id,
+                    "settings": {"orchestration_mode": "dag_guided"},
+                },
+            )
+        )
+    ).data
+    # 手动驱动到 succeeded（正常休眠）并落盘。
+    core1.agent_host.start_run(supervisor1)
+    core1.agent_host.finish_run(supervisor1, outcome="succeeded")
+    await core1.event_writer.flush()
+    await _seed_structured_request(project.id, coordinator.id, question="notify me after restart")
+
+    core2 = RuntimeCore(strict_events=True)
+    core2.store = store
+    restore_core(core2, store)
+    supervisor2 = core2.agents[supervisor1.id]
+    assert supervisor2.state is AgentState.SUCCEEDED  # 休眠不是尸体，不收尾
+
+    events_before = len(core2.event_log)
+    await reconcile_supervision(core2, project.id)
+    new_types = {e.type for e in list(core2.event_log)[events_before:]}
+    assert new_types <= {
+        "agent.message_injected",
+        "agent.state_changed",
+        "run.started",
+        "agent.context_reset",
+    }, new_types
+    # wake 开了新 run（事件层），但无 runner → 零执行。
+    assert supervisor2.state is AgentState.RUNNING
+    inbox = core2.mailbox.inbox(supervisor2.id)
+    assert inbox is not None and inbox.qsize() == 1
+    assert not [
+        e
+        for e in list(core2.event_log)[events_before:]
+        if e.type.startswith(("tool.", "llm."))
+    ]

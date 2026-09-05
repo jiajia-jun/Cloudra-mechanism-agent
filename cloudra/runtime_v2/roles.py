@@ -7,7 +7,12 @@ its role_id.  Agent-to-agent privileges are derived from ``can_spawn`` and
 
 from __future__ import annotations
 
-from cloudra.runtime_v2.schemas import PermissionSet, RoleProfile
+from cloudra.runtime_v2.schemas import (
+    OrchestrationMode,
+    PermissionSet,
+    RoleProfile,
+    RuntimeSettingsPatch,
+)
 
 BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     RoleProfile(
@@ -77,9 +82,19 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
     RoleProfile(
         role_id="supervisor",
         display_name="Supervisor",
-        description="DAG 督导运行的壳会话：只在 dag_guided 下由 dag stage 投影，不经 LLM 管线。",
+        description=(
+            "Scientific supervisor in dag_guided mode: a real runtime_v2 agent "
+            "driven by the normal LLM pipeline. Each turn it reads the persisted "
+            "supervision mailbox (pending call reviews / open drafts / queued "
+            "requests) and adjudicates around the submitted claims; an empty "
+            "mailbox ends the turn. Its tool surface is the registry "
+            "supervisor_access projection (read-only on the delivery graph)."
+        ),
         permissions=PermissionSet(read=True),
         can_spawn=False,
+        # 裁决工具（dag_review_call/dag_accept_mechanism）的模式门要求
+        # dag_guided；督导只在 guided 项目里被创建，缺省即 guided。
+        default_settings=RuntimeSettingsPatch(orchestration_mode=OrchestrationMode.DAG_GUIDED),
     ),
 )
 
