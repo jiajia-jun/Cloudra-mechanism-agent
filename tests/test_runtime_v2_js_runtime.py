@@ -102,6 +102,8 @@ async def test_dependency_chain_records_full_lifecycle():
 
     assert result.is_success
     assert result.data["outputs"] == [4]
+    assert "JavaScript program output:" in result.summary
+    assert "Output 1: 4" in result.summary
     assert result.data["error"] is None
     # Two distinct Python-assigned call ids; request order preserved.
     call_ids = [call.id for call in executor.calls]
@@ -181,11 +183,33 @@ async def test_uncaught_error_fails_program_preserving_outputs_and_receipts():
     result = await runtime.execute(ctx, ToolCall("w", "js_exec", {"code": code}))
     assert not result.is_success
     assert result.data["outputs"] == [1]
+    assert "Output 1: 1" in result.summary
     assert result.data["error"]["code"] == "guest_error"
     assert result.data["error"]["line"] == 3
     assert [c["status"] for c in result.data["calls"]] == ["completed"]
     finished = _events(core, "program.finished")[0]
     assert finished.data["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_program_summary_formats_strings_and_json_outputs():
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    ctx = _ctx(agent)
+    runtime = _runtime(core)
+    result = await runtime.execute(
+        ctx,
+        ToolCall(
+            "w",
+            "js_exec",
+            {"code": 'text("hello-orient-53"); text({"answer": 42, "ok": true});'},
+        ),
+    )
+
+    assert result.is_success
+    assert "Output 1: hello-orient-53" in result.summary
+    assert 'Output 2: {"answer": 42, "ok": true}' in result.summary
+    assert result.summary.index("Output 1:") < result.summary.index("Output 2:")
 
 
 @pytest.mark.asyncio
@@ -488,5 +512,7 @@ async def test_output_limit_preserves_prior_outputs():
     assert not result.is_success
     assert result.data["error"]["code"] == "output_limit_exceeded"
     assert result.data["outputs"] == [1, 2]
+    assert "Output 1: 1" in result.summary
+    assert "Output 2: 2" in result.summary
     outputs = _events(core, "program.output")
     assert [e.data["output_index"] for e in outputs] == [0, 1]

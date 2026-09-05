@@ -95,6 +95,30 @@ def _envelope(outcome: InvocationOutcome, call_id: str) -> dict[str, Any]:
     }
 
 
+def _format_program_output(value: Any) -> str:
+    """Render one explicit ``text()`` value for the next model turn.
+
+    Guest strings are already model-readable.  Every other JSON value keeps
+    its structure through JSON serialization so arrays, objects, booleans and
+    null are unambiguous in the plain-text tool history projection.
+    """
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, allow_nan=False, default=str)
+
+
+def _summary_with_program_outputs(summary: str, outputs: list[Any]) -> str:
+    """Append bounded guest output to the single JS result summary boundary."""
+    if not outputs:
+        return summary
+    lines = [summary.rstrip(), "JavaScript program output:"]
+    lines.extend(
+        f"Output {index}: {_format_program_output(value)}"
+        for index, value in enumerate(outputs, start=1)
+    )
+    return "\n".join(lines)
+
+
 class JavaScriptRuntime:
     def __init__(
         self,
@@ -480,6 +504,7 @@ class JavaScriptRuntime:
             + (f" ({failed_children} not completed)" if failed_children else "")
             + (f"; error: {program_error['message']}" if program_error else "")
         )
+        summary = _summary_with_program_outputs(summary, outputs)
         data: dict[str, Any] = {
             "execution_id": execution_id,
             "status": final_status,

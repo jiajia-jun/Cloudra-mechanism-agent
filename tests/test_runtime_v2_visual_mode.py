@@ -262,6 +262,81 @@ async def test_tool_result_injects_all_image_paths(tmp_path):
     assert len(urls) == 3
 
 
+@pytest.mark.asyncio
+async def test_runner_history_includes_javascript_outputs_in_order():
+    from cloudra.runtime_v2.js_runtime import _summary_with_program_outputs
+    from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
+    from cloudra.runtime_v2.turn_pipeline import TurnOutcome
+
+    runner = _injection_runner()
+    history = []
+    outputs = ["hello-orient-53", {"answer": 42}]
+    result = ToolResult(
+        is_success=False,
+        summary=_summary_with_program_outputs(
+            "JavaScript program failed: 2 output(s), 0 tool call(s); error: late boom",
+            outputs,
+        ),
+        data={"outputs": outputs, "status": "failed"},
+    )
+    outcome = TurnOutcome(
+        decision="continue",
+        tool_exchanges=((ToolCall("js-1", "js_exec", {"code": "..."}), result),),
+    )
+
+    await runner._append_history(_visual_agent(False), history, [], outcome)
+
+    content = history[-1]["content"]
+    assert "hello-orient-53" in content
+    assert '{"answer": 42}' in content
+    assert content.index("hello-orient-53") < content.index('{"answer": 42}')
+    assert "late boom" in content
+
+
+@pytest.mark.asyncio
+async def test_runner_history_does_not_project_traditional_tool_data():
+    from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
+    from cloudra.runtime_v2.turn_pipeline import TurnOutcome
+
+    runner = _injection_runner()
+    history = []
+    result = ToolResult(
+        is_success=True,
+        summary="traditional summary",
+        data={"outputs": ["internal payload"], "value": 7},
+    )
+    outcome = TurnOutcome(
+        decision="continue",
+        tool_exchanges=((ToolCall("tool-1", "echo", {}), result),),
+    )
+
+    await runner._append_history(_visual_agent(False), history, [], outcome)
+
+    assert history[-1]["content"] == "traditional summary"
+
+
+@pytest.mark.asyncio
+async def test_runner_history_keeps_no_output_javascript_summary_unchanged():
+    from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
+    from cloudra.runtime_v2.turn_pipeline import TurnOutcome
+
+    runner = _injection_runner()
+    history = []
+    result = ToolResult(
+        is_success=True,
+        summary="JavaScript program completed: 0 output(s), 1 tool call(s)",
+        data={"outputs": [], "status": "completed"},
+    )
+    outcome = TurnOutcome(
+        decision="continue",
+        tool_exchanges=((ToolCall("js-2", "js_exec", {"code": "..."}), result),),
+    )
+
+    await runner._append_history(_visual_agent(False), history, [], outcome)
+
+    assert history[-1]["content"] == result.summary
+
+
 _TINY_PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
     b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
