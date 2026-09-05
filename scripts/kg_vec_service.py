@@ -45,6 +45,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -258,6 +259,27 @@ class Handler(BaseHTTPRequestHandler):
         logger.debug("%s %s", self.address_string(), fmt % args)
 
 
+def _watch_stop_marker(server, lock_file: str) -> None:
+    """显式全停自检：`cloudra stop` 在数据目录写 daemons.stop 后，本线程
+    触发 server.shutdown() 让主线程干净退出（flock 随进程释放）。
+
+    marker 路径由 --lock-file 的父目录（即数据目录）推导；无 lock-file
+    时不启用（手动独立运行的实例不受 Cloudra 全停管辖）。
+    """
+    if not lock_file:
+        return
+    marker = os.path.join(os.path.dirname(os.path.abspath(lock_file)), "daemons.stop")
+    while True:
+        time.sleep(1.0)
+        try:
+            if os.path.isfile(marker):
+                logger.info("检测到 daemons.stop（显式全停），kg_vec 退出。")
+                server.shutdown()
+                return
+        except OSError:
+            return
+
+
 def main() -> int:
     global _model_name
     # cloudra 包在本解释器下不可导入，logging 用 stdlib 自理（见模块 docstring）。
@@ -295,6 +317,9 @@ def main() -> int:
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     logger.info("listening on http://%s:%d  cards=%d  model=%s  library_model=%s",
                 args.host, args.port, len(_cards), _model_name, _lib_model)
+    threading.Thread(
+        target=_watch_stop_marker, args=(server, args.lock_file), daemon=True
+    ).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

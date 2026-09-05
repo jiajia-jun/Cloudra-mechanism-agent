@@ -108,11 +108,21 @@ class SchedulerDaemon:
         self._jobs.clear()
 
     async def serve(self) -> None:
-        """建库（幂等）→ 启动即对账一次 → 进入认领主循环。"""
+        """建库（幂等）→ 启动即对账一次 → 进入认领主循环。
+
+        每 tick 自检显式全停 marker（`cloudra stop` 写入 daemons.stop）：
+        置位即干净退出（flock 随进程释放）。只停调度本身——在跑的
+        guard/calculator 计算进程按铁律跑到终态，绝不连带 kill。
+        """
+        from cloudra.services.daemon_supervisor import daemons_shutdown_requested
+
         await asyncio.to_thread(self.db.init)
         await self._reconcile_all()
         last_reconcile = time.time()
         while not self._stop.is_set():
+            if daemons_shutdown_requested():
+                logger.info("daemons shutdown requested (stop marker); scheduler exiting")
+                return
             claimed = await asyncio.to_thread(self._claim_one)
             if claimed is None:
                 now = time.time()

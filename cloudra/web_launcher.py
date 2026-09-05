@@ -168,9 +168,35 @@ def _wait_healthy(url: str, timeout: float = 30.0) -> None:
     raise RuntimeError(f"runtime did not become healthy at {url}")
 
 
+def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0) -> None:
+    """SIGTERM → 有界等待 → SIGKILL 升级 → reap。
+
+    SIGTERM 让 uvicorn 走优雅关停（lifespan 收尾：停准入 → 取消推理/收尾
+    任务 → 关流/客户端 → 回收 JS host）；不许只发信号假定已回收（停止
+    语义契约 6）。
+    """
+    if runtime.poll() is not None:
+        return
+    runtime.terminate()
+    try:
+        runtime.wait(timeout=grace)
+        return
+    except subprocess.TimeoutExpired:
+        logger.warning("web runtime did not exit within %.0fs of SIGTERM; killing", grace)
+    runtime.kill()
+    try:
+        runtime.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        logger.error("web runtime still alive after SIGKILL")
+
+
 def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     api_port, reused_runtime = _find_api_port(8000, "CLOUDRA_API_PORT")
     _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
+    # 显式启动清除 `cloudra stop` 的持久关停 marker，否则 ensure 拒绝拉起。
+    from cloudra.services.daemon_supervisor import clear_daemons_shutdown
+
+    clear_daemons_shutdown()
     ensure_daemons()
     from cloudra.infra.config import get_config
 
@@ -220,5 +246,5 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
     except KeyboardInterrupt:
         return 0
     finally:
-        if runtime is not None and runtime.poll() is None:
-            runtime.terminate()
+        if runtime is not None:
+            _terminate_runtime(runtime)

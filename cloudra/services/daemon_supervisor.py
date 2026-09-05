@@ -25,6 +25,63 @@ logger = logging.getLogger(__name__)
 # 距上次真实拉起不足该秒数时跳过本轮 spawn（崩溃循环节流）
 MIN_RESPAWN_SECONDS = 60.0
 
+# 进程内关停标志（停止语义契约 5）：置位后 ensure_* 拒绝拉起，
+# api_v2 watchdog 的自愈同步失效。普通 agent.cancel 不触此。
+_SHUTDOWN_REQUESTED = False
+
+
+def daemons_stop_marker_path() -> str:
+    """持久关停 marker（`cloudra stop` 写入）：跨进程生效，scheduler/kg_vec
+    守护自检退出、ensure_* 拒绝拉起；显式启动（web_launcher）清除它。"""
+    from cloudra.persistence import paths
+
+    return str(paths.data_dir() / "daemons.stop")
+
+
+def request_daemons_shutdown(*, persist: bool = False) -> None:
+    """置全局关停标志：ensure_* 自此拒绝拉起（watchdog 自愈同步失效）。
+
+    persist=True 时落持久 marker 文件（显式"停止全部 Cloudra"入口用，
+    跨进程生效）；API lifespan 的正常关停用 persist=False——守护进程
+    刻意长存，不随 API 退出。
+    """
+    global _SHUTDOWN_REQUESTED
+    _SHUTDOWN_REQUESTED = True
+    if persist:
+        from cloudra.persistence.fs_utils import atomic_write_text
+
+        try:
+            marker = Path(daemons_stop_marker_path())
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(str(marker), str(time.time()))
+        except OSError:
+            logger.warning("could not write daemons stop marker", exc_info=True)
+
+
+def daemons_shutdown_requested() -> bool:
+    """关停判定：进程内标志或持久 marker 文件（后者跨进程）。"""
+    if _SHUTDOWN_REQUESTED:
+        return True
+    try:
+        return Path(daemons_stop_marker_path()).is_file()
+    except OSError:
+        return False
+
+
+def clear_daemons_shutdown() -> None:
+    """显式启动（`cloudra`/`cloudra web`）时清除关停标志与持久 marker。"""
+    global _SHUTDOWN_REQUESTED
+    _SHUTDOWN_REQUESTED = False
+    try:
+        Path(daemons_stop_marker_path()).unlink(missing_ok=True)
+    except OSError:
+        logger.warning("could not clear daemons stop marker", exc_info=True)
+
+
+def _reset_shutdown_for_tests() -> None:
+    global _SHUTDOWN_REQUESTED
+    _SHUTDOWN_REQUESTED = False
+
 
 def ensure_daemons() -> None:
     """无活实例则拉起 scheduler 与 kg_vec；单个失败只记警告，互不影响。"""
@@ -62,6 +119,8 @@ def ensure_scheduler() -> None:
     调度守护进程与 Web 服务彻底分家：本进程崩溃/退出不影响它，它崩溃
     也不影响在跑的计算（guard/calculator 本就 detach 且终态直接写库）。
     """
+    if daemons_shutdown_requested():
+        return
     if os.environ.get("CLOUDRA_SCHEDULER", "").strip().lower() in {"off", "0", "false"}:
         return
     try:
@@ -136,6 +195,8 @@ def ensure_kg_vec() -> None:
     服务进程经 ``--lock-file`` 自持 flock 至退出（scheduler.lock 同款范式）；
     端口从 ``CLOUDRA_KG_VEC_URL`` 解析，缺省 8765。
     """
+    if daemons_shutdown_requested():
+        return
     if os.environ.get("CLOUDRA_KG_VEC", "").strip().lower() in {"off", "0", "false"}:
         return
     try:

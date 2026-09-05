@@ -17,6 +17,7 @@ on later; command handlers only talk to this object, never to storage.
 
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from typing import Any
 
@@ -85,15 +86,35 @@ class RuntimeCore:
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None
-        # Optional async review worker (Task 7). It is an ephemeral executor;
-        # the authoritative review queue is in each project's DAG store.
-        self.review_worker = None
         # Optional launch group manager (Task 10). Ephemeral/process-local;
         # child lifecycle remains in the event log.
         self.launch_groups = None
         # Idempotency window: recent command_id -> first CommandResult.
         self._command_results: OrderedDict[str, CommandResult] = OrderedDict()
         self._max_command_results = 1024
+
+    # ------------------------------------------------------------- shutdown
+
+    async def aclose(self) -> None:
+        """服务关闭唯一入口（停止语义契约 3）：取消并 await 全部 runner 与
+        已登记收尾后台任务（含 finalize），再回收本 core 拥有的 JS host。
+
+        准入停止（拒绝新任务/守护拉起）由调用方先行（api_v2 lifespan 停
+        watchdog + ``request_daemons_shutdown``）。已发出的远端 LLM 请求
+        不可撤回（契约 4）；本地读取/重试/新请求随 runner 取消链停止。
+        不触碰 scheduler/guard/QM 计算进程（契约 5 与执行面铁律）。
+        """
+        runner = self.runner
+        if runner is not None:
+            await runner.cancel_all()
+            js_runtime = getattr(getattr(runner, "pipeline", None), "js_runtime", None)
+            if js_runtime is not None:
+                try:
+                    await js_runtime.aclose()
+                except Exception:
+                    logging.getLogger(__name__).warning(
+                        "js runtime shutdown failed", exc_info=True
+                    )
 
     # ------------------------------------------------------------------ lookups
 

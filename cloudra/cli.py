@@ -419,6 +419,40 @@ def scheduler_cmd():
     sys.exit(scheduler_main())
 
 
+@cli.command(name="stop")
+@click.option("--timeout", default=20.0, show_default=True, help="等待各部件退出的总时限（秒）")
+def stop_cmd(timeout):
+    """显式停止全部 Cloudra 服务（API 控制面 + scheduler/kg_vec 守护）。
+
+    只回收有明确归属的执行：API 进程走优雅关停（取消推理/收尾、关流、
+    回收 JS host），守护进程看到 daemons.stop marker 后自行退出。在跑的
+    计算作业（guard/calculator/QM）不会被杀——它们跑到终态自行收尾；
+    Slurm 作业的取消走现有的 cancel_requested → scancel 路径。
+    再次运行 `cloudra`/`cloudra web` 会清除 marker 并重新拉起守护。
+    """
+    from cloudra.services.shutdown import stop_all
+
+    console.print("[cyan]正在停止 Cloudra（写入关停标志并通知各部件）...[/cyan]")
+    report = stop_all(timeout=timeout)
+    port = report["api_port"]
+    if port is None:
+        console.print("  API: 未发现运行中的实例")
+    elif report["api_stopped"]:
+        console.print(f"  API: 已停止（端口 {port}）")
+    else:
+        console.print(f"[yellow]  API: {timeout}s 内未确认退出（端口 {port}），请检查进程[/yellow]")
+    for name, state in report["daemons"].items():
+        mark = "[green]已停止[/green]" if state == "stopped" else "[yellow]仍在运行[/yellow]"
+        console.print(f"  {name}: {mark}")
+    running = report["compute_jobs_running"]
+    if running:
+        console.print(
+            f"[yellow]  注意：仍有 {running} 个计算作业在跑；按可靠性铁律它们不被 kill，"
+            "会运行到终态自行收尾。[/yellow]"
+        )
+    console.print("[green]关停标志已生效：守护进程不会被自动重新拉起；下次 `cloudra` 启动时清除。[/green]")
+
+
 @cli.command()
 def skills():
     """列出可用的 Skills。"""

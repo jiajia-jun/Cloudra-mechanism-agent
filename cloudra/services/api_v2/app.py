@@ -19,8 +19,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from cloudra import __version__
-from cloudra.dag.store import DagStore
-from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import CommandRejected
@@ -29,6 +27,9 @@ from .context import ApiContext
 from .routers import build_routers
 
 logger = logging.getLogger(__name__)
+
+# 服务关闭的有界时间（停止语义契约 3）：推理/收尾任务的取消+回收总额。
+_SHUTDOWN_GRACE_SECONDS = 15.0
 
 
 def _daemon_watchdog_interval() -> float:
@@ -59,18 +60,6 @@ async def _daemon_watchdog_loop(interval: float) -> None:
         await asyncio.sleep(interval)
 
 
-def _review_store(project_id: str) -> Any:
-    """Review worker 的 DAG 存储工厂。
-
-    旧库（早于 dag_review_* 表族建库的会话）必须先补全 schema，否则
-    pending_review_notifications 每 tick 抛 "no such table"。建库/升级
-    统一走 ConversationDB.ensure_schema()（幂等）。
-    """
-    db = ConversationDB(project_id)
-    db.ensure_schema()
-    return DagStore(db)
-
-
 def create_v2_app(
     core: RuntimeCore | None = None,
     pipeline: Any = None,
@@ -99,38 +88,35 @@ def create_v2_app(
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
 
     compute_notify = ComputeNotifyBroker(core)
-    from cloudra.core.supervisor import GraphSupervisor
-    from cloudra.persistence import paths
-    from cloudra.runtime_v2.review_worker import ReviewWorker
-
-    def review_store(project_id: str):
-        return _review_store(project_id)
-
-    def review_supervisor(project_id: str):
-        project = core.projects.get(project_id)
-        if project is None or project.settings.orchestration_mode.value != "dag_guided":
-            return None
-        workspace = project.workspace_dir or str(paths.project_workspace_dir(project_id))
-        return GraphSupervisor(
-            conversation_id=project_id,
-            project_id=project_id,
-            working_directory=workspace,
-            artifact_root=str(Path(getattr(paths, "data_dir")()) / "artifacts"),
-            core=core,
-        )
-
-    core.review_worker = ReviewWorker(
-        core=core,
-        store_factory=review_store,
-        supervisor_factory=review_supervisor,
-    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # 应用启动即显式启动：清除 `cloudra stop` 留下的关停标志/marker，
+        # 守护自愈与拉起从新一轮生命周期重新开始。
+        from cloudra.services.daemon_supervisor import clear_daemons_shutdown
+
+        clear_daemons_shutdown()
         await core.reminders.rearm_all()
         await core.email_listener.start()
         await compute_notify.start()
-        await core.review_worker.start()
+        # 事件驱动督导的恢复接线（Task 3 挂点，Task 4 补测试矩阵）：
+        # 项目装载后扫描持久化督导待办并补通知（覆盖"落库后通知前崩溃"
+        # 窗口），含 legacy_auto 待办的一次性 Coordinator 提示。只在
+        # dag_guided 项目上做；standard/dag_record 不消费督导信箱。
+        # 只安排通知——恢复路径绝不执行 LLM 之外的副作用扩展。
+        from cloudra.runtime_v2.schemas import OrchestrationMode
+        from cloudra.runtime_v2.supervision import reconcile_supervision
+
+        for project in list(core.projects.values()):
+            if project.settings.orchestration_mode is not OrchestrationMode.DAG_GUIDED:
+                continue
+            try:
+                await reconcile_supervision(core, project.id)
+            except Exception:
+                logger.warning(
+                    "supervision reconcile failed for project %s", project.id,
+                    exc_info=True,
+                )
         # 计算认领只由独立守护进程（cloudra scheduler）承担，与 API 分家；
         # web 启动时无活实例会自动 detach 拉起（web_launcher），之后由下面的
         # 自愈巡检兜底重拉起（CLOUDRA_DAEMON_WATCHDOG=off 关闭，测试默认关）。
@@ -142,14 +128,31 @@ def create_v2_app(
         try:
             yield
         finally:
+            # 停止语义契约 3 的固定顺序：
+            # 1) 停止新任务准入与守护自愈拉起：取消 watchdog 任务（本进程
+            #    不再有 ensure 调用方）。正常关停不置全局关停标志——守护
+            #    进程刻意长存，不随 API 退出；显式全停（POST
+            #    /api/v2/runtime/shutdown / cloudra stop）才置标志落 marker。
             if watchdog_task is not None:
                 watchdog_task.cancel()
                 await asyncio.gather(watchdog_task, return_exceptions=True)
+            # 2) 取消并 await 所有注册推理/收尾任务（runner/finalize，含
+            #    停止准入 `_accepting=False`），回收本服务拥有的 JS host——
+            #    有界时间，超时记录后继续关停。
+            try:
+                await asyncio.wait_for(core.aclose(), timeout=_SHUTDOWN_GRACE_SECONDS)
+            except asyncio.TimeoutError:
+                logger.error(
+                    "core.aclose() exceeded %.0fs shutdown grace; continuing teardown",
+                    _SHUTDOWN_GRACE_SECONDS,
+                )
+            except Exception:
+                logger.exception("core.aclose() failed during shutdown")
+            # 3) 关闭 broker/客户端/流与持久化收尾。
             # 快照是缓存不是权威（事件表才是），但关机前补一次让下次 restore
             # 的增量尾巴尽量短；失败不阻断关停。
             await bus.flush_snapshot()
             await compute_notify.close()
-            await core.review_worker.close()
             await core.email_listener.close()
             await core.reminders.close()
 

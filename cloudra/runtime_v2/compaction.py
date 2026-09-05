@@ -18,9 +18,12 @@ user message made the model treat compact as a new turn and stop working.
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from cloudra.runtime_v2.schemas import AgentSession
+
+if TYPE_CHECKING:
+    import asyncio
 
 # messages -> summary text
 Summarizer = Callable[[list[dict[str, Any]]], Awaitable[str]]
@@ -171,9 +174,17 @@ def _serialize(messages: list[dict[str, Any]]) -> str:
 
 
 async def summarize_with_agent_settings(
-    agent: AgentSession, messages: list[dict[str, Any]]
+    agent: AgentSession,
+    messages: list[dict[str, Any]],
+    *,
+    abort_event: asyncio.Event | None = None,
 ) -> str:
-    """Default summarizer: one non-streaming call on the agent's own model."""
+    """Default summarizer: one non-streaming call on the agent's own model.
+
+    每次新建 LLMClient（独立连接池），用完在 finally 里 aclose 回收；
+    abort_event 由调用方在取消语义下传入，置位后传输层发送前/退避后/
+    fallback 前的准入检查抛 CancelledError。
+    """
     from cloudra.infra.llm_client import LLMClient
     from cloudra.runtime_v2.adapters import legacy_default_settings
 
@@ -182,14 +193,18 @@ async def summarize_with_agent_settings(
         api_key=settings.api_key,
         base_url=settings.base_url,
         timeout=settings.timeout,
+        abort_event=abort_event,
     )
-    response = await client.create_with_retry(
-        model=settings.model,
-        messages=messages,
-        # temperature=1: a growing set of models rejects anything else.
-        temperature=1.0,
-        stream=False,
-    )
+    try:
+        response = await client.create_with_retry(
+            model=settings.model,
+            messages=messages,
+            # temperature=1: a growing set of models rejects anything else.
+            temperature=1.0,
+            stream=False,
+        )
+    finally:
+        await client.aclose()
     choices = getattr(response, "choices", None) or []
     if not choices:
         return ""

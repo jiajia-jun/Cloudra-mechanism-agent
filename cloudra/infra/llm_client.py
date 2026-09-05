@@ -15,6 +15,8 @@ import asyncio
 import json
 import random
 import re
+import socket
+import struct
 from types import SimpleNamespace
 from typing import Any, Optional, Union
 
@@ -90,6 +92,114 @@ def is_fallback_trigger(exc: Exception) -> bool:
     return any(p.search(msg) for p in _BLOCKED_PATTERNS)
 
 
+# 流式响应到底层 TCP socket 的属性链（按库版本尽力匹配，命中即停）。
+_STREAM_SOCKET_PATHS = (
+    # openai.AsyncStream -> httpx Response -> httpcore -> anyio -> asyncio transport
+    ("response", "stream", "_stream", "_httpcore_stream", "_stream",
+     "_connection", "_network_stream", "_stream", "_transport", "_sock"),
+    # 裸 httpx Response
+    ("stream", "_stream", "_httpcore_stream", "_stream",
+     "_connection", "_network_stream", "_stream", "_transport", "_sock"),
+    # requests.Response -> urllib3 -> http.client -> socket
+    ("raw", "_fp", "fp", "raw", "_sock"),
+)
+
+
+def _find_stream_socket(stream_or_response: Any) -> Optional[socket.socket]:
+    """尽力定位流式响应底层的 TCP socket；布局随库版本变化，找不到返回 None。"""
+    for path in _STREAM_SOCKET_PATHS:
+        node = stream_or_response
+        for attr in path:
+            node = getattr(node, attr, None)
+            if node is None:
+                break
+        if isinstance(node, socket.socket):
+            return node
+    return None
+
+
+def _arm_abortive_close(stream_or_response: Any) -> None:
+    """为流式响应预设中止式关闭（SO_LINGER(1,0)）：取消消费时各层 finally
+    触发的 close 立即发 RST，对端下一次写即失败——graceful FIN 下对端仍可
+    继续写（取消后连接"看似已关"但服务端无感，Task 0 取证 R4/R5）。
+
+    只在流式响应上启用：正常耗尽时连接归还连接池、socket 不关闭，不产生
+    RST；找不到 socket（库布局变化）时静默退化为普通关闭，语义仍正确。
+    """
+    sock = _find_stream_socket(stream_or_response)
+    if sock is None:
+        return
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    except OSError:
+        pass
+
+
+def _abort_stream_connection(stream_or_response: Any) -> bool:
+    """取消路径的快速断开：直接对底层 socket 做 shutdown+close。
+
+    必须绕过高层 close()：requests/urllib3 的 ``resp.close()`` 会拿到
+    BufferedReader 内部锁，而读线程在阻塞 recv 期间持锁——跨线程 close
+    会卡到读超时（实测 30s，Task 5 调试实证）。socket.shutdown 不受该锁
+    约束：立即唤醒阻塞的读线程（EOF/错误，有界退出），随后的 close 在
+    SO_LINGER 预设下发 RST 断开对端。返回是否找到并处理了 socket。
+    """
+    sock = _find_stream_socket(stream_or_response)
+    if sock is None:
+        return False
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    except OSError:
+        pass
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
+    try:
+        sock.close()
+    except OSError:
+        pass
+    return True
+
+
+class _StreamHandle:
+    """requests 流式响应的可关闭句柄。
+
+    底层 socket 在创建时捕获——此刻属性链完整；读取中/读完后 urllib3 各层
+    会 detach 内部引用，事后遍历拿到的可能是失效对象（实测）。abort 只走
+    socket 层，不碰会跨线程阻塞的高层 close（见 _abort_stream_connection）。
+    """
+
+    __slots__ = ("response", "sock")
+
+    def __init__(self, response: Any) -> None:
+        self.response = response
+        self.sock = _find_stream_socket(response)
+        if self.sock is not None:
+            # 预设中止式关闭：之后的 close 立即 RST 对端（graceful FIN 下
+            # 对端仍能继续写，取消后服务端无感——Task 0 取证 R4/R5）。
+            try:
+                self.sock.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+                )
+            except OSError:
+                pass
+
+    def abort(self) -> None:
+        """socket shutdown（唤醒阻塞读线程，有界退出）+ close（RST）。"""
+        sock = self.sock
+        if sock is None:
+            return
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
 def serialize_openai_payload(kwargs: dict) -> dict:
     """把 kwargs 里的 pydantic/model 对象序列化为纯 dict，供 requests 使用。
 
@@ -144,12 +254,18 @@ class LLMClient:
         model: Optional[str] = None,
         timeout: int = 300,
         max_retries: int = 4,
+        abort_event: "Optional[asyncio.Event]" = None,
     ):
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
         self.timeout = timeout
         self.max_retries = max_retries
+        # 取消准入信号：置位后每次实际发送前 / retry 退避后 / fallback
+        # 切换前的检查抛 CancelledError（停止语义契约 1/4）。
+        self._abort_event = abort_event
+        # aclose 后置位：本客户端不再发任何新请求。
+        self._closed = False
         # 传输层状态回调（见类 docstring）；由 reAct 在任务启动时挂接
         self.on_status = None
         # 兼容被中转站拦截的 OpenAI 客户端：启用后改用 requests 发送请求
@@ -160,8 +276,43 @@ class LLMClient:
         # 惰性创建，保证构造本身不做任何 I/O。
         self._openai_client: Optional[AsyncOpenAI] = None
         self._openai_client_custom: Optional[AsyncOpenAI] = None
+        # requests 路径在飞的流式响应句柄（_StreamHandle）：取消/close 时据此
+        # 断开底层连接（to_thread 工作线程不可取消，断连让它有界退出，不留
+        # 无限悬挂线程）。
+        self._inflight_streams: set = set()
         # 记录最近一次调用返回的真实 token usage（流式/非流式均尝试捕获）
         self._last_usage: Optional[dict] = None
+
+    def _raise_if_aborted(self) -> None:
+        """取消准入检查：每次实际发送前、retry 退避后、fallback 切换前调用。"""
+        if self._closed or (self._abort_event is not None and self._abort_event.is_set()):
+            raise asyncio.CancelledError("LLM client aborted or closed")
+
+    async def aclose(self) -> None:
+        """关闭缓存的 AsyncOpenAI 客户端并断开在飞的 requests 流式连接。
+
+        对已发出的请求：本地停止读取/重试/新请求并尽量关连接；远端计算与
+        账单不可撤销（停止语义契约 4），aclose 不承诺撤回。
+        """
+        self._closed = True
+        for handle in list(self._inflight_streams):
+            try:
+                handle.abort()
+            except Exception:
+                pass
+        self._inflight_streams.clear()
+        clients = [
+            client
+            for client in (self._openai_client, self._openai_client_custom)
+            if client is not None
+        ]
+        self._openai_client = None
+        self._openai_client_custom = None
+        for client in clients:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
 
     @property
     def last_usage(self) -> Optional[dict]:
@@ -317,15 +468,32 @@ class LLMClient:
         return dict(usage) if not isinstance(usage, dict) else usage
 
     async def _wrap_stream(self, stream):
-        """包装 OpenAI AsyncStream，在迭代过程中捕获 usage。"""
-        async for chunk in stream:
-            usage = self._extract_usage(chunk)
-            if usage:
-                self._last_usage = usage
-            yield chunk
+        """包装 OpenAI AsyncStream，在迭代过程中捕获 usage。
+
+        消费者被取消时 CancelledError 在内部 await 点抛入本生成器，
+        finally 确定性关闭底层流/连接——不允许取消后遗弃连接（停止语义
+        契约 4）；正常耗尽后 aclose 是幂等 no-op。预设中止式关闭（见
+        ``_arm_abortive_close``），取消展开时各层的 close 立即 RST 对端。
+        """
+        _arm_abortive_close(stream)
+        try:
+            async for chunk in stream:
+                usage = self._extract_usage(chunk)
+                if usage:
+                    self._last_usage = usage
+                yield chunk
+        finally:
+            _abort_stream_connection(stream)
+            close = getattr(stream, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    pass
 
     async def create(self, **kwargs) -> ChatResponse:
         """单次调用 chat completions，内部完成三级 fallback（不重试瞬时错误）。"""
+        self._raise_if_aborted()
         if self.model is not None:
             kwargs.setdefault("model", self.model)
 
@@ -345,6 +513,7 @@ class LLMClient:
         # Level 2: OpenAI 客户端 + 自定义请求头（之前 fallback 成功过）
         if self._use_custom_headers:
             client = self._openai_client_with_custom_headers()
+            self._raise_if_aborted()
             try:
                 response = await client.chat.completions.create(**kwargs)
                 if kwargs.get("stream"):
@@ -373,6 +542,7 @@ class LLMClient:
             )
         client = self._openai_client
 
+        self._raise_if_aborted()
         try:
             response = await client.chat.completions.create(**kwargs)
             if kwargs.get("stream"):
@@ -385,6 +555,7 @@ class LLMClient:
                 await self._emit_status("llm_fallback", error=str(e), level="custom_headers")
                 self._use_custom_headers = True
                 client2 = self._openai_client_with_custom_headers()
+                self._raise_if_aborted()
                 try:
                     response = await client2.chat.completions.create(**kwargs)
                     if kwargs.get("stream"):
@@ -411,6 +582,9 @@ class LLMClient:
         统一做指数退避重试；其他错误（认证、参数错误等）不重试，直接抛出。
         """
         for attempt in range(self.max_retries + 1):
+            # retry 退避后的准入检查：退避期间被取消则不再增发（CancelledError
+            # 不是 Exception，不会被下面的重试分类吞掉）。
+            self._raise_if_aborted()
             try:
                 return await self.create(**kwargs)
             except (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError) as e:
@@ -436,6 +610,7 @@ class LLMClient:
         复用 Level 1 的客户端缓存；不做 fallback——embedding 失败时
         由调用方自行降级（如 Supervisor 退化为零向量）。
         """
+        self._raise_if_aborted()
         if self._openai_client is None:
             self._openai_client = AsyncOpenAI(
                 api_key=self.api_key,
@@ -517,6 +692,7 @@ class LLMClient:
         stream = bool(payload.get("stream"))
         url = f"{_responses_base_url(self.base_url)}/responses"
 
+        self._raise_if_aborted()
         try:
             if stream:
                 events = await asyncio.to_thread(
@@ -564,7 +740,13 @@ class LLMClient:
         return ResponseDictWrapper(_translate_responses_completion(data))
 
     def _responses_start_stream(self, url: str, payload: dict):
-        """流式：发起 POST /responses 并返回 (事件翻译生成器, 状态收集器)。"""
+        """流式：发起 POST /responses 并返回 (事件翻译生成器, 状态收集器, 句柄)。
+
+        句柄（``_StreamHandle``，创建时捕获底层 socket）登记进
+        ``_inflight_streams``：消费侧被取消时由 ``_wrap_responses_stream``
+        断开底层连接（to_thread 工作线程不可取消，断连让它有界退出），
+        ``aclose`` 兜底全部断开。
+        """
         resp = requests.post(
             url,
             headers=_responses_headers(self.api_key),
@@ -572,9 +754,15 @@ class LLMClient:
             stream=True,
             timeout=self.timeout,
         )
-        self._raise_for_status_with_body(resp)
+        try:
+            self._raise_for_status_with_body(resp)
+        except Exception:
+            resp.close()
+            raise
+        handle = _StreamHandle(resp)
+        self._inflight_streams.add(handle)
         holder = SimpleNamespace(web_search_log=[], usage=None)
-        return _responses_stream_events(resp, holder), holder
+        return _responses_stream_events(resp, holder), holder, handle
 
     def _wrap_responses_stream(self, events_holder):
         """异步包装流式事件生成器：翻译已在生成器内完成。
@@ -582,21 +770,30 @@ class LLMClient:
         联网搜索事件在流中段到达：逐条通过 on_status 上抛（此时 reasoning
         流仍开着），前端可把它并入「思考过程」，而不是等整条流结束后才补一个
         孤立的系统面板。
+
+        取消/耗尽都经 finally 断开底层连接并出登记——消费者被取消时
+        to_thread 里的 next() 线程不可取消，socket 层断开是唯一的确定性
+        本地停止手段（同时唤醒读线程有界退出；高层 resp.close() 跨线程会
+        阻塞到读超时，不能走）。
         """
-        events, holder = events_holder
+        events, holder, handle = events_holder
 
         async def _iterate():
             sentinel = object()
             emitted = 0
-            while True:
-                chunk = await asyncio.to_thread(next, events, sentinel)
-                if chunk is sentinel:
-                    break
-                yield ResponseDictWrapper(chunk["completion"])
+            try:
+                while True:
+                    chunk = await asyncio.to_thread(next, events, sentinel)
+                    if chunk is sentinel:
+                        break
+                    yield ResponseDictWrapper(chunk["completion"])
+                    emitted = await self._emit_new_web_searches(holder, emitted)
                 emitted = await self._emit_new_web_searches(holder, emitted)
-            emitted = await self._emit_new_web_searches(holder, emitted)
-            if holder.usage:
-                self._last_usage = self._extract_usage(holder.usage)
+                if holder.usage:
+                    self._last_usage = self._extract_usage(holder.usage)
+            finally:
+                self._inflight_streams.discard(handle)
+                handle.abort()
 
         return _iterate()
 
@@ -610,6 +807,7 @@ class LLMClient:
     async def create_responses_with_retry(self, **kwargs) -> ChatResponse:
         """Responses API 调用，带瞬时错误退避重试（语义同 create_with_retry）。"""
         for attempt in range(self.max_retries + 1):
+            self._raise_if_aborted()
             try:
                 return await self.create_responses(**kwargs)
             except (openai.APIConnectionError, openai.APITimeoutError, openai.RateLimitError) as e:
@@ -644,6 +842,7 @@ class LLMClient:
 
     async def _chat_completions_via_requests(self, **kwargs) -> ChatResponse:
         """异步包装：把同步的 requests 调用放到线程池执行，避免阻塞事件循环。"""
+        self._raise_if_aborted()
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
@@ -672,8 +871,14 @@ class LLMClient:
                     stream=True,
                     timeout=self.timeout,
                 )
-                resp.raise_for_status()
-                return self._stream_response(resp)
+                try:
+                    resp.raise_for_status()
+                except Exception:
+                    resp.close()
+                    raise
+                handle = _StreamHandle(resp)
+                self._inflight_streams.add(handle)
+                return self._stream_response(resp, handle)
             except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError):
                 # 部分中转站不支持 SSE，退化为非流式返回
                 print("\033[93m[LLM fallback] 流式连接被重置，退化为非流式返回\033[0m")
@@ -698,13 +903,25 @@ class LLMClient:
             )
         return self._openai_client_custom
 
-    def _stream_response(self, resp) -> Any:
-        """解析 SSE 流，生成与 openai 兼容的 chunk 对象，并捕获 usage。"""
-        for chunk in _iter_sse_chunks(resp):
-            usage = self._extract_usage(chunk)
-            if usage:
-                self._last_usage = usage
-            yield chunk
+    def _stream_response(self, resp, handle: "_StreamHandle | None" = None) -> Any:
+        """解析 SSE 流，生成与 openai 兼容的 chunk 对象，并捕获 usage。
+
+        生成器关闭（消费侧取消/结束）时 finally 经句柄断开底层连接并出登记
+        （socket 层断开，不走高层的跨线程阻塞 close）。``handle=None`` 供
+        不经过 Level-3 shim 登记路径的直接复用（测试等）：自携一个未登记
+        句柄，找不到 socket 时 abort 为 no-op。
+        """
+        if handle is None:
+            handle = _StreamHandle(resp)
+        try:
+            for chunk in _iter_sse_chunks(resp):
+                usage = self._extract_usage(chunk)
+                if usage:
+                    self._last_usage = usage
+                yield chunk
+        finally:
+            self._inflight_streams.discard(handle)
+            handle.abort()
 
 
 def _iter_sse_chunks(resp):

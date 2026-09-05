@@ -516,3 +516,164 @@ async def test_output_limit_preserves_prior_outputs():
     assert "Output 2: 2" in result.summary
     outputs = _events(core, "program.output")
     assert [e.data["output_index"] for e in outputs] == [0, 1]
+
+
+@pytest.mark.asyncio
+async def test_active_executions_registered_during_run_and_reaped():
+    """停止语义契约 3/6：host 进程在执行期间登记进 active_executions，
+    结束后出登记并被 reap（returncode 落位）。"""
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    ctx = _ctx(agent)
+
+    class NeverSettles:
+        def __init__(self) -> None:
+            self.entered = asyncio.Event()
+
+        async def execute(self, agent, call, **_kwargs):
+            self.entered.set()
+            await asyncio.Event().wait()
+
+    executor = NeverSettles()
+    runtime = _runtime(core, tools=executor)
+    task = asyncio.create_task(
+        runtime.execute(ctx, ToolCall("w", "js_exec", {"code": "await tools.echo({value: 1});"}))
+    )
+    try:
+        await asyncio.wait_for(executor.entered.wait(), timeout=10)
+        active = runtime.active_executions()
+        assert len(active) == 1
+        proc = next(iter(active.values()))
+        assert proc.returncode is None
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        # 取消路径终止并 reap host，且出登记。
+        assert proc.returncode is not None
+        assert runtime.active_executions() == {}
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        await runtime.aclose()
+
+
+@pytest.mark.asyncio
+async def test_aclose_terminates_registered_hosts():
+    """RuntimeCore 关闭路径（core.aclose -> runtime.aclose）：不取消 execute
+    任务本身也能终止并 reap 全部登记 host；execute 以 host_error 失败返回。"""
+    core = RuntimeCore(strict_events=True)
+    agent = _agent()
+    ctx = _ctx(agent)
+    limits = ProgramLimits(eval_ms=60000, watchdog_ms=60000)
+    runtime = _runtime(core, limits=limits)
+    # 纯计算死循环：host 忙在 guest eval 里，Python 侧停在等帧上。
+    task = asyncio.create_task(
+        runtime.execute(ctx, ToolCall("w", "js_exec", {"code": "while (true) {}"}))
+    )
+    try:
+        deadline = asyncio.get_running_loop().time() + 10
+        while not runtime.active_executions():
+            if asyncio.get_running_loop().time() > deadline:
+                raise AssertionError("host was never registered")
+            await asyncio.sleep(0.01)
+        await runtime.aclose()
+        result = await asyncio.wait_for(task, timeout=10)
+        assert not result.is_success
+        assert result.data["error"]["code"] == "host_error"
+        assert runtime.active_executions() == {}
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        await runtime.aclose()
+
+
+_HOST_ORPHAN_CHILD = r'''
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+host = Path(sys.argv[1])
+proc = subprocess.Popen(
+    ["node", "--max-old-space-size=128", str(host)],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    text=True,
+)
+# handshake
+ready = proc.stdout.readline()
+start = {
+    "type": "start",
+    "version": 1,
+    "execution_id": "orphan-probe",
+    "code": "await tools.sleep({});",
+    "tools": ["sleep"],
+    "limits": {},
+}
+proc.stdin.write(json.dumps(start) + "\n")
+proc.stdin.flush()
+# the host asks for the tool and parks waiting for the reply on stdin
+line = proc.stdout.readline()
+frame = json.loads(line)
+assert frame["type"] == "tool_call", frame
+print(f"HOST_PID {proc.pid}", flush=True)
+proc.wait()
+print(f"HOST_EXITED {proc.returncode}", flush=True)
+'''
+
+
+@pytest.mark.asyncio
+async def test_host_exits_when_parent_is_sigkilled():
+    """父进程被 SIGKILL 时 finally 不会执行——JS host 的兜底自清理是
+    stdin 管道 EOF（宿主在等工具回复时读到 stdin 关闭即退出）。
+
+    本子测试：子进程驱动真实 host 并停在工具回复等待上；SIGKILL 子进程
+    （finally 不执行），断言 host 在有界时间内自行退出。若 host 未退出，
+    测试按 pid 精确 SIGKILL 收束，绝不留孤儿。
+    """
+    import os
+    import signal
+    import sys
+
+    child = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        _HOST_ORPHAN_CHILD,
+        str(HOST_DIR / "host.mjs"),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    host_pid: int | None = None
+    try:
+        line = await asyncio.wait_for(child.stdout.readline(), timeout=15)
+        assert line.startswith(b"HOST_PID"), line
+        host_pid = int(line.split()[1])
+        os.kill(child.pid, signal.SIGKILL)  # finally in the child never runs
+        await asyncio.wait_for(child.wait(), timeout=10)
+
+        def host_gone() -> bool:
+            try:
+                os.kill(host_pid, 0)
+            except ProcessLookupError:
+                return True
+            return False
+
+        deadline = asyncio.get_running_loop().time() + 10
+        while not host_gone():
+            if asyncio.get_running_loop().time() > deadline:
+                raise AssertionError(
+                    "js host survived parent SIGKILL (stdin EOF self-cleanup failed)"
+                )
+            await asyncio.sleep(0.05)
+    finally:
+        if child.returncode is None:
+            child.kill()
+            await child.wait()
+        if host_pid is not None:
+            try:
+                os.kill(host_pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass

@@ -7,6 +7,7 @@ becomes native to runtime_v2.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import inspect
 import json
@@ -26,7 +27,7 @@ from cloudra.persistence.paths import project_workspace_dir
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
-from cloudra.tools.capabilities import visual_tools
+from cloudra.tools.capabilities import is_direct_only, visual_tools
 from cloudra.tools.name_hints import hint_unknown_tool, is_retired_tool_name
 
 
@@ -286,6 +287,27 @@ class LegacyLLMProvider:
     ) -> LLMResponse:
         settings = legacy_default_settings(agent)
         client = self._make_client(settings)
+        try:
+            return await self._complete_with_client(agent, client, settings, messages, tools, on_delta)
+        finally:
+            # _make_client 每次 complete 新建 LLMClient（独立 httpx 连接池）：
+            # 用完必须关闭，否则每个轮次泄漏一个连接池（Task 0 取证 T7）。
+            aclose = getattr(client, "aclose", None)
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception:
+                    pass
+
+    async def _complete_with_client(
+        self,
+        agent: AgentSession,
+        client: LLMClient,
+        settings: RuntimeSettings,
+        messages: list[dict[str, Any]],
+        tools: list[str],
+        on_delta: DeltaSink | None,
+    ) -> LLMResponse:
         native_adapter = _native_search_adapter_for(settings)
         rename_search = native_adapter is not None and native_adapter.name == "deepseek"
         from cloudra.runtime_v2.schemas import (
@@ -399,6 +421,10 @@ class LegacyLLMProvider:
                 if reason == "tool_calls" or (reason == "stop" and tool_call_buffer):
                     tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
                     tool_call_buffer.clear()
+        except asyncio.CancelledError:
+            # 取消不是普通异常：也必须关流（停止语义契约 4），然后原样上抛。
+            await _close_stream(response)
+            raise
         except Exception:
             await _close_stream(response)
             raise
@@ -442,9 +468,14 @@ async def _close_stream(response: Any) -> None:
     close = getattr(response, "aclose", None) or getattr(response, "close", None)
     if close is None:
         return
-    result = close()
-    if inspect.isawaitable(result):
-        await result
+    try:
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+    except Exception:
+        # 关流是尽力而为（同步生成器可能正被 to_thread 消费，close 会抛
+        # ValueError）；绝不能掩盖正在传播的 CancelledError/原异常。
+        pass
 
 
 class _LegacyAgentBridge:
@@ -453,7 +484,15 @@ class _LegacyAgentBridge:
     def __init__(self, agent: AgentSession, workspace_dir: str | None) -> None:
         self.id = agent.id
         self.name = agent.role_id
-        self.type = "coordinator" if agent.role_id == "coordinator" else "follower"
+        # dag_* 工具的 _actor() 依 type=="supervisor" 判 GraphActor.SUPERVISOR
+        # （裁决权限的唯一入口）；督导不再是 follower。
+        self.type = (
+            "coordinator"
+            if agent.role_id == "coordinator"
+            else "supervisor"
+            if agent.role_id == "supervisor"
+            else "follower"
+        )
         self.conversation_id = agent.project_id
         # workspace_dir=None 的存量项目不能落 None：read/write/bash 会把裸相对
         # 路径解析到进程 cwd，串到别的任务目录（GH #24）——统一兜底到
@@ -496,9 +535,46 @@ class LegacyToolExecutor:
     def __init__(self, core) -> None:
         self.core = core
 
+    async def _execute_supervisor(self, agent: AgentSession, call: ToolCall) -> ToolResult:
+        """Route one Supervisor business call through the restricted executor.
+
+        The Supervisor's tools run inside the same InvocationService
+        lifecycle as every agent; only the executor differs:
+        ``dag/supervisor_tools.py`` re-checks the ``supervisor_access``
+        projection and enforces the path/action guards (evidence reads stay
+        inside the workspace/artifact roots, hub actions are whitelisted,
+        hub call never spawns).  Direct controls (stop) are runtime
+        lifecycle, not supervised business tools — they take the normal
+        path below.
+        """
+        from cloudra.dag.supervisor_tools import SupervisorToolExecutor, dumps_result
+        from cloudra.persistence.paths import data_dir
+
+        project = self.core.require_project(agent.project_id)
+        workspace = project.workspace_dir or str(project_workspace_dir(agent.project_id))
+        executor = SupervisorToolExecutor(
+            core=self.core,
+            project_id=agent.project_id,
+            workspace_root=workspace,
+            artifact_root=str(data_dir() / "artifacts"),
+        )
+        executor.bind_run(
+            agent=_LegacyAgentBridge(agent, workspace),
+            session=Session(id=agent.id, path=""),
+        )
+        payload = await executor.execute(call.name, call.arguments, session_id=agent.id)
+        return ToolResult(
+            is_success=bool(payload.get("is_success", True)),
+            summary=dumps_result(payload),
+            data=payload,
+        )
+
     async def execute(self, agent: AgentSession, call: ToolCall) -> ToolResult:
         from cloudra.runtime_v2.subagent_bridge import NATIVE_TOOL_NAMES, handle_native_tool
         from cloudra.tools import get_tools_lst
+
+        if agent.role_id == "supervisor" and not is_direct_only(call.name):
+            return await self._execute_supervisor(agent, call)
 
         if call.name in NATIVE_TOOL_NAMES:
             return await handle_native_tool(self.core, agent, call)

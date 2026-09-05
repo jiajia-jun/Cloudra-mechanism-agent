@@ -304,7 +304,7 @@ def test_stream_events_incomplete_maps_to_length():
 @pytest.mark.asyncio
 async def test_stream_emits_web_search_status_mid_stream():
     """web_search_call 事件应在流中段逐条上抛（query 从 item.action 提取）。"""
-    from cloudra.infra.llm_client import LLMClient
+    from cloudra.infra.llm_client import LLMClient, _StreamHandle
 
     client = LLMClient(api_key="k", base_url="https://api.deepseek.com", model="m")
     statuses = []
@@ -319,10 +319,12 @@ async def test_stream_emits_web_search_status_mid_stream():
         {"type": "response.reasoning_text.delta", "delta": "到了"},
         {"type": "response.completed", "response": {"status": "completed", "output": [], "usage": {}}},
     ]
+    resp = _FakeResp(events)
     holder = SimpleNamespace(web_search_log=[], usage=None)
-    gen = _responses_stream_events(_FakeResp(events), holder)
+    gen = _responses_stream_events(resp, holder)
 
-    async for chunk in client._wrap_responses_stream((gen, holder)):
+    # 句柄对假响应找不到底层 socket，abort 为 no-op（仅测事件上抛语义）。
+    async for chunk in client._wrap_responses_stream((gen, holder, _StreamHandle(resp))):
         pass
 
     assert statuses == [("web_search", {"query": "光子时间晶体 2026"})]

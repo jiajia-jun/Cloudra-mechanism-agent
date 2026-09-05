@@ -134,6 +134,26 @@ class JavaScriptRuntime:
         self.host_path = host_path or Path(__file__).resolve().parent / "js_host" / "host.mjs"
         self.limits = limits or ProgramLimits()
         self.node_binary = node_binary
+        # 活动 host 登记表（execution_id -> process）：取消单个程序走 execute
+        # 的 finally/_converse 取消路径；aclose（服务关闭）据此终止并 reap
+        # 全部剩余 host（停止语义契约 3/6）。
+        self._active: dict[str, asyncio.subprocess.Process] = {}
+
+    def active_executions(self) -> dict[str, asyncio.subprocess.Process]:
+        """当前登记在册的 host 进程快照（execution_id -> process）。"""
+        return dict(self._active)
+
+    async def aclose(self) -> None:
+        """终止并 reap 全部登记 host（走既有 _terminate_process：SIGTERM →
+        有界等待 → SIGKILL → reap）。只碰本 runtime 启动的 JS host，
+        绝不触碰 scheduler/guard/QM 计算进程。"""
+        procs = list(self._active.values())
+        if not procs:
+            return
+        await asyncio.gather(
+            *(self._terminate_process(proc) for proc in procs),
+            return_exceptions=True,
+        )
 
     async def _commit_program(self, ctx: PipelineContext, type_: str, data: dict[str, Any]):
         from cloudra.runtime_v2.effects import EventDraft
@@ -274,6 +294,7 @@ class JavaScriptRuntime:
         child_images: list[str] = []
         tmpdir = tempfile.TemporaryDirectory(prefix="cloudra-js-")
         proc = await self._launch(node, tmpdir.name)
+        self._active[execution_id] = proc
         stderr_tail: list[bytes] = []
 
         async def _drain_stderr() -> None:
@@ -297,6 +318,7 @@ class JavaScriptRuntime:
             )
         finally:
             await self._terminate_process(proc)
+            self._active.pop(execution_id, None)
             stderr_task.cancel()
             try:
                 await stderr_task
