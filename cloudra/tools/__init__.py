@@ -24,6 +24,10 @@ class ToolEntry:
     tool_id: str
     input_schema: Any = None
     output_schema: Any = None
+    # Keep the model-facing workflow description in every protocol projection.
+    # It is declared on the tool class alongside the schemas, so do not make
+    # JS callers reconstruct it from an input model docstring.
+    tool_description: str = ""
 
     def instantiate(self, **kwargs):
         return self.cls(**kwargs)
@@ -45,6 +49,7 @@ def _make_entry(tool_cls: type) -> ToolEntry:
         tool_id=_get_default(tool_cls, "tool_id") or "",
         input_schema=_get_default(tool_cls, "input_schema"),
         output_schema=_get_default(tool_cls, "output_schema"),
+        tool_description=_get_default(tool_cls, "tool_description") or "",
     )
 
 

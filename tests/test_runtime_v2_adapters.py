@@ -68,6 +68,7 @@ async def test_js_mode_projects_js_exec_and_appends_instructions():
     await provider.complete(agent, messages, ["echo", "stop"])
     names = [s["function"]["name"] for s in sent["tools"]]
     assert names == ["js_exec", "stop"]  # business tools are guest-only
+    assert sent["parallel_tool_calls"] is False
     instructions = sent["messages"][-1]
     assert instructions["role"] == "system"
     assert "JavaScript invocation protocol" in instructions["content"]
@@ -75,6 +76,33 @@ async def test_js_mode_projects_js_exec_and_appends_instructions():
     assert "declare const tools" in instructions["content"]
     # The caller's message list is not mutated.
     assert messages == [{"role": "user", "content": "hi"}]
+
+
+@pytest.mark.asyncio
+async def test_clean_context_provider_disables_implicit_project_sources(monkeypatch):
+    captured = {}
+
+    class FakeAssembly:
+        identity_messages = ({"role": "system", "content": "task skill"},)
+        observation_messages = ()
+
+    class FakeAssembler:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def assemble(self, **kwargs):
+            return FakeAssembly()
+
+    import cloudra.runtime.prompt_assembler as prompt_module
+    monkeypatch.setattr(prompt_module, "PromptAssembler", FakeAssembler)
+    agent = _js_agent("traditional")
+    agent.id = "agent"
+    agent.project_id = "project"
+    agent.settings.clean_context = True
+    messages = await LegacyPromptProvider()(agent=agent, workspace_dir=None, tool_names=[])
+    assert messages[0]["content"] == "task skill"
+    assert captured["include_memory"] is False
+    assert captured["include_agents_md"] is False
 
 
 @pytest.mark.asyncio
@@ -86,10 +114,32 @@ async def test_traditional_mode_has_no_js_surface():
     await provider.complete(agent, messages, ["stop"])
     names = [s["function"]["name"] for s in sent["tools"]]
     assert names == ["stop"]
+    assert "parallel_tool_calls" not in sent
     assert all(
         not (m.get("role") == "system" and "JavaScript invocation protocol" in str(m.get("content")))
         for m in sent["messages"]
     )
+
+
+@pytest.mark.asyncio
+async def test_js_mode_retries_without_parallel_flag_for_old_gateway():
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+
+    calls: list[dict] = []
+
+    class LegacyGateway:
+        last_usage = {}
+
+        async def create_with_retry(self, **kwargs):
+            calls.append(dict(kwargs))
+            if "parallel_tool_calls" in kwargs:
+                raise TypeError("unexpected keyword argument 'parallel_tool_calls'")
+            return _EmptyStream()
+
+    provider = LegacyLLMProvider(client_factory=lambda settings: LegacyGateway())
+    await provider.complete(_js_agent(InvocationProtocol.JAVASCRIPT), [{"role": "user", "content": "hi"}], ["echo"])
+    assert "parallel_tool_calls" in calls[0]
+    assert "parallel_tool_calls" not in calls[1]
 
 
 @pytest.mark.asyncio

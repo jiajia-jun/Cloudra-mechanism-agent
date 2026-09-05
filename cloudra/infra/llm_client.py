@@ -810,7 +810,7 @@ def _build_responses_payload(kwargs: dict) -> dict:
 
     - ``messages`` → ``input``（message / function_call / function_call_output /
       reasoning 条目，DeepSeek 会把相邻条目合并回 assistant）
-    - 第一条 system → ``instructions``
+    - system messages → ordered ``instructions`` text
     - ``tools``（function schema）+ ``extra_body.tools``（非 function 的原生
       工具如 web_search）→ ``tools``
     - ``max_tokens`` → ``max_output_tokens``；其余 extra_body 字段透传
@@ -827,14 +827,14 @@ def _build_responses_payload(kwargs: dict) -> dict:
     if kwargs.get("max_tokens"):
         payload["max_output_tokens"] = kwargs["max_tokens"]
 
-    instructions = ""
+    instruction_parts: list[str] = []
     input_items: list[dict] = []
     for msg in kwargs.get("messages") or []:
         role = msg.get("role")
         content = msg.get("content")
         if role == "system":
-            if not instructions and content:
-                instructions = content if isinstance(content, str) else str(content)
+            if content:
+                instruction_parts.append(content if isinstance(content, str) else str(content))
             continue
         if role in ("user", "assistant", "developer"):
             reasoning = msg.get("reasoning_content")
@@ -870,8 +870,10 @@ def _build_responses_payload(kwargs: dict) -> dict:
                     "output": _responses_tool_output(content),
                 }
             )
-    if instructions:
-        payload["instructions"] = instructions
+    if instruction_parts:
+        # Responses has one instructions field; preserve every system layer
+        # and its order instead of silently dropping the JS protocol contract.
+        payload["instructions"] = "\n\n".join(instruction_parts)
     if input_items:
         payload["input"] = input_items
     elif kwargs.get("messages"):
@@ -900,6 +902,8 @@ def _build_responses_payload(kwargs: dict) -> dict:
     if tools:
         payload["tools"] = tools
         payload.setdefault("tool_choice", "auto")
+    if "parallel_tool_calls" in kwargs:
+        payload["parallel_tool_calls"] = bool(kwargs["parallel_tool_calls"])
     for key, value in extra.items():
         if key != "tools":
             payload.setdefault(key, value)

@@ -20,7 +20,7 @@ Record engine/wrapper versions, executable, checkpoint identity, charge/multipli
 - ORCA `ExtOpt` selects the provider; `Opt`, `OptTS`, `NumFreq`, `IRC` select the operation. For a provider supplying energy/gradients but no analytic Hessian, use a numerical initial Hessian for TS refinement and `NumFreq` for final frequencies. Reuse a same-geometry compatible Hessian for IRC. Avoid routine repeated numerical Hessians without a diagnosed need.
 - Gaussian requests derivative orders through External. Check what its installed wrapper returns before using force-constant/frequency options; failure to supply derivatives is an interface problem, not evidence that the reaction is impossible.
 - Use the wrapper's documented precision/device options; the MACE examples use float64 for numerical derivative work. The external process may load a large model or start once per displacement. Do not increase ORCA processes before checking total memory and startup cost.
-- In this repository, `deploy/mace_omol25_orca_external_setup.md` records one host setup and probes. Its paths are local to that host. Cloudra's ORCA job wrapper handles the configured OpenMP environment for external jobs; submit through `submit_compute_job` instead of assembling a new launch environment per job.
+- Verify the external executable and model on the compute host before submitting. Cloudra's ORCA job wrapper handles the configured OpenMP environment for external jobs; submit through `submit_compute_job` instead of assembling a new launch environment per job. Treat host-specific paths and probe results as local operational notes, not as universally available capabilities.
 
 ## Charge, spin and evidence
 

@@ -82,6 +82,46 @@ def test_js_exec_schema_shape_is_stable():
     assert function["name"] == "js_exec"
     assert function["parameters"]["required"] == ["code"]
     assert function["parameters"]["additionalProperties"] is False
+    assert "only tool call" in function["description"]
+
+
+def test_js_declarations_preserve_tool_workflow_description():
+    """JS guests need the same workflow/permission guidance as chat callers."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class Entry:
+        tool_name: str = "demo_tool"
+        tool_description: str = "Use this after validation; do not use for raw guesses."
+        input_schema: object = None
+        output_schema: object = None
+
+    rendered = tool_declarations(["demo_tool"], entries=[Entry()])
+    assert "Use this after validation; do not use for raw guesses." in rendered
+
+
+def test_registry_entries_project_real_tool_description():
+    from cloudra.tools import get_tools_lst
+
+    entry = next(item for item in get_tools_lst() if item.tool_name == "get_skill")
+    rendered = tool_declarations(["get_skill"], entries=[entry])
+    assert "Load the full SOP for a named skill." in rendered
+
+
+def test_js_declarations_project_constraints_and_escape_comments():
+    class Schema(BaseModel):
+        value: int = Field(3, ge=1, le=9, description="value */ safely")
+
+    class Entry:
+        tool_name = "bounded"
+        tool_description = ""
+        input_schema = Schema
+        output_schema = None
+
+    rendered = tool_declarations(["bounded"], entries=[Entry()])
+    assert "default=3" in rendered
+    assert "min 1" in rendered and "max 9" in rendered
+    assert "value */ safely" not in rendered
 
 
 # ----------------------------------------------------------------------- routing

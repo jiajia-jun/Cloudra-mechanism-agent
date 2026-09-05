@@ -38,9 +38,9 @@ JS_EXEC_NAME = "js_exec"
 def js_exec_schema():
     return {"type": "function", "function": {
         "name": "js_exec",
-        "description": "Run bounded JavaScript to orchestrate available tools. "
-                       "Use await tools.NAME(args), then text(value). "
-                       "Backend calls execute serially. Use direct controls to stop or ask the user.",
+        "description": "Run one bounded JavaScript program to orchestrate available tools. "
+                       "The program is the only tool call in this response; use await tools.NAME(args), "
+                       "then text(value). Backend calls execute serially. Direct controls stay top-level.",
         "parameters": {"type": "object", "properties": {
             "code": {"type": "string", "description": "JavaScript with top-level await."}},
             "required": ["code"], "additionalProperties": False}}}
@@ -204,7 +204,15 @@ def tool_declarations(
         entry = by_name.get(name)
         decls, args_type, data_type = _render_tool_types(name, entry)
         sections.extend(decls)
-        description = _schema_description(_input_schema_of(entry))
+        # Tool descriptions carry workflow, permission and failure guidance
+        # that input-schema docstrings often omit. Preserve that contract in
+        # the JS declaration; the schema remains the source for argument types.
+        description = str(getattr(entry, "tool_description", "") or "").strip()
+        if not description:
+            description = _schema_description(_input_schema_of(entry))
+        # Keep generated comments valid even if a tool description contains a
+        # comment terminator.
+        description = description.replace("*/", "* /")
         comment = f"  /** {description} */\n" if description else ""
         functions.append(
             f"{comment}  {_js_ident(name)}(args: {args_type}): Promise<ToolResponse<{data_type}>>;"
@@ -300,6 +308,9 @@ def _object_ts(schema: dict, defs: dict, prefix: str) -> str:
     lines: list[str] = []
     for key, subschema in props.items():
         description = _schema_description(subschema)
+        constraints = _schema_constraints(subschema)
+        if constraints:
+            description = f"{description} ({constraints})" if description else constraints
         if description:
             lines.append(f"  /** {description} */")
         optional = "" if key in required else "?"
@@ -317,6 +328,20 @@ def _schema_description(schema: Any) -> str:
     if not isinstance(schema, dict):
         return ""
     return _escape_comment(str(schema.get("description") or ""))
+
+
+def _schema_constraints(schema: Any) -> str:
+    """Render compact JSON-schema defaults and bounds for JS callers."""
+    if not isinstance(schema, dict):
+        return ""
+    parts: list[str] = []
+    if "default" in schema:
+        parts.append(f"default={json.dumps(schema['default'], ensure_ascii=False)}")
+    for key, label in (("minimum", "min"), ("exclusiveMinimum", "min>"),
+                       ("maximum", "max"), ("exclusiveMaximum", "max<")):
+        if key in schema:
+            parts.append(f"{label} {schema[key]}")
+    return _escape_comment("; ".join(parts))
 
 
 def _escape_comment(text: str) -> str:

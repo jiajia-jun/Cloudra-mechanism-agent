@@ -75,6 +75,21 @@ def test_build_responses_payload_translates_kwargs():
     ]
 
 
+def test_build_responses_payload_preserves_js_system_layers_and_serial_flag():
+    payload = _build_responses_payload({
+        **_kwargs(),
+        "messages": [
+            {"role": "system", "content": "role identity"},
+            {"role": "user", "content": "user must stay input"},
+            {"role": "system", "content": "javascript protocol"},
+        ],
+        "parallel_tool_calls": False,
+    })
+    assert payload["instructions"] == "role identity\n\njavascript protocol"
+    assert "user must stay input" not in payload["instructions"]
+    assert payload["parallel_tool_calls"] is False
+
+
 def test_build_responses_payload_roundtrips_tool_turn():
     """带 reasoning/tool_calls/tool 结果的往返消息应翻译为相邻条目。"""
     payload = _build_responses_payload(

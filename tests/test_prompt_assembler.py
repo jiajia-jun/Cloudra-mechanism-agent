@@ -52,7 +52,7 @@ def isolated_prompt_sources(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     config_dir = tmp_path / "config"
-    config_dir.mkdir()
+    config_dir.mkdir(exist_ok=True)
     config = SimpleNamespace(config_file=config_dir / "config.toml")
 
     monkeypatch.setattr(
@@ -149,6 +149,40 @@ def test_web_search_guidance_gated_by_availability(isolated_prompt_sources):
         ["web_search"], web_search_available=False
     )
     assert "Web search" not in without.identity_messages[0]["content"]
+
+
+def test_clean_context_filters_real_memory_and_agents_but_keeps_role_and_skills(
+    tmp_path, isolated_prompt_sources, monkeypatch
+):
+    from cloudra.runtime import prompt_assembler as module
+    from cloudra.runtime.prompt_assembler import PromptAssembler
+
+    prompts_dir, workspace = isolated_prompt_sources
+    (prompts_dir / "probe.md").write_text("ROLE_SENTINEL", encoding="utf-8")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(exist_ok=True)
+    (config_dir / "AGENTS.md").write_text("GLOBAL_AGENTS_SENTINEL", encoding="utf-8")
+    memory_path = tmp_path / "MEMORY.md"
+    memory_path.write_text("GLOBAL_MEMORY_SENTINEL", encoding="utf-8")
+    monkeypatch.setattr(module, "get_config", lambda: SimpleNamespace(config_file=config_dir / "config.yaml"))
+    monkeypatch.setattr(
+        module, "get_memory_manager", lambda **_: SimpleNamespace(memory_path=memory_path)
+    )
+
+    def assemble(clean: bool):
+        return PromptAssembler(
+            prompt_name="probe", custom_prompt=None, conversation_id="c",
+            working_directory=str(workspace), include_memory=not clean,
+            include_agents_md=not clean,
+        ).assemble(["get_skill"])
+
+    clean = assemble(True).identity_messages[0]["content"]
+    dirty = assemble(False).identity_messages[0]["content"]
+    assert "ROLE_SENTINEL" in clean and "get_skill" in clean
+    assert "GLOBAL_MEMORY_SENTINEL" not in clean
+    assert "GLOBAL_AGENTS_SENTINEL" not in clean
+    assert "GLOBAL_MEMORY_SENTINEL" in dirty
+    assert "GLOBAL_AGENTS_SENTINEL" in dirty
 
 
 def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):

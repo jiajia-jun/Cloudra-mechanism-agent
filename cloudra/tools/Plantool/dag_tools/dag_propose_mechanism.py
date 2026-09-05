@@ -107,7 +107,11 @@ class DagProposeMechanism(DagToolBase):
         return DagToolOutput(
             is_success=True,
             action="dag_propose_mechanism",
-            accepted=True,
+            # ``accepted`` describes the scientific draft admission result.
+            # In guided mode a successful submission is still ``open`` until
+            # the Supervisor accepts it; do not report transport success as
+            # scientific acceptance.
+            accepted=bool(proposed.get("accepted")),
             result=proposed,
         )
 

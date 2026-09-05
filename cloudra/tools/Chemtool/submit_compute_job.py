@@ -86,7 +86,12 @@ class SubmitComputeJob_output_schema(output_schema):
 class SubmitComputeJob(Tool):
     tool_id: str = 't-21'
     tool_name: str = 'submit_compute_job'
-    tool_description: str = description
+    tool_description: str = (
+        "Submit a quantum chemistry job. With is_async=true or a Slurm backend, "
+        "return the queued job id immediately; local jobs with is_async=false "
+        "wait for completion. Provide the prepared input path and explicit "
+        "resource request; inspect the returned status before continuing."
+    )
     input_schema: Any = SubmitComputeJob_input_schema
     output_schema: Any = SubmitComputeJob_output_schema
 

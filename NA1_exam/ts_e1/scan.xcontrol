@@ -1,5 +1,0 @@
-$constrain
-   distance: 1, 9, 1.75
-$scan
-   1: 1.75, 0.95, 20
-$end

@@ -65,6 +65,15 @@ async def _spawn_child(
         raise CommandRejected("forbidden", f"role {parent.role_id!r} cannot spawn sub-agents")
     if parent_role.spawn_roles is not None and role_id not in parent_role.spawn_roles:
         raise CommandRejected("forbidden", f"role {parent.role_id!r} cannot spawn {role_id!r}")
+    # 空任务字段绝不发送：空 query 的 spawn 只会产出永不调度的僵尸子 agent
+    # （只落 agent.spawned，无 run、无 prompt 注入），上层轮询无果即挂死。
+    # 响亮拒绝并留反馈给模型重试，而不是静默造一个空壳。
+    query = _combined_query(query, context)
+    if not query.strip():
+        raise CommandRejected(
+            "invalid_request",
+            "refusing to spawn a sub-agent: task query is empty (expected the 'query' argument); nothing was dispatched",
+        )
     result = await bus.execute(
         Command(
             type="agent.spawn",
@@ -72,13 +81,14 @@ async def _spawn_child(
             payload={
                 "role_id": role_id,
                 "parent_session_id": parent.id,
-                "query": _combined_query(query, context),
+                "query": query,
                 # yolo 是用户对整个任务的信任授权，子 agent 代父行事，spawn 时
                 # 继承父的取值——否则父开了 yolo、子 agent 仍逐项弹审批。
                 "settings": {
                     "orchestration_mode": _child_mode(parent),
                     "yolo": parent.settings.yolo,
                     "schedule_mode": parent.settings.schedule_mode,
+                    "clean_context": parent.settings.clean_context,
                 },
             },
         )

@@ -193,8 +193,8 @@ class LegacyPromptProvider:
                 custom_prompt=None,
                 conversation_id=agent.project_id,
                 working_directory=workspace_dir or str(project_workspace_dir(agent.project_id)),
-                include_memory=is_coordinator,
-                include_agents_md=is_coordinator,
+                include_memory=is_coordinator and not agent.settings.clean_context,
+                include_agents_md=is_coordinator and not agent.settings.clean_context,
                 observer_id=agent.id,
             )
             # 有联网搜索能力（模型端原生搜索或外置 search 工具）时，
@@ -336,11 +336,28 @@ class LegacyLLMProvider:
             kwargs["tools"] = tool_schemas
         if native_adapter is not None:
             kwargs = native_adapter.inject(kwargs, settings.native_search_params)
-        if native_adapter is not None and native_adapter.transport == "responses":
-            # DeepSeek 的原生搜索只在 Responses API 支持
-            response = await client.create_responses_with_retry(**kwargs)
-        else:
-            response = await client.create_with_retry(**kwargs)
+        # JS programs are deliberately single top-level calls. Ask compatible
+        # chat endpoints to enforce that contract server-side as well. Some
+        # OpenAI-compatible gateways reject the newer parameter; retry the
+        # same request without it only when the client rejects the keyword
+        # before sending, preserving traditional protocol behavior.
+        js_protocol = effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT
+        if js_protocol:
+            kwargs["parallel_tool_calls"] = False
+        try:
+            if native_adapter is not None and native_adapter.transport == "responses":
+                # DeepSeek 的原生搜索只在 Responses API 支持
+                response = await client.create_responses_with_retry(**kwargs)
+            else:
+                response = await client.create_with_retry(**kwargs)
+        except TypeError as exc:
+            if not js_protocol or "unexpected keyword argument 'parallel_tool_calls'" not in str(exc):
+                raise
+            kwargs.pop("parallel_tool_calls", None)
+            if native_adapter is not None and native_adapter.transport == "responses":
+                response = await client.create_responses_with_retry(**kwargs)
+            else:
+                response = await client.create_with_retry(**kwargs)
         pumper = None
         if on_delta is not None:
             pumper = _ChunkPumper(lambda _type, data: on_delta(data["stream"], data["delta"]))

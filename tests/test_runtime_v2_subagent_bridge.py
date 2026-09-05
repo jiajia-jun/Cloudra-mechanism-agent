@@ -57,7 +57,11 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
         Command(
             type="agent.spawn",
             target={"project_id": project.id},
-            payload={"role_id": "coordinator", "query": "solve it"},
+            payload={
+                "role_id": "coordinator",
+                "query": "solve it",
+                "settings": {"invocation_protocol": "traditional"},
+            },
         )
     )
     return core, project, result.data
@@ -313,6 +317,29 @@ async def test_swarm_expands_items_and_aggregates():
 
 
 @pytest.mark.asyncio
+async def test_launcher_empty_query_rejected_no_spawn():
+    """GH 回归：字段为空不发送——JS 协议下模型曾传 `prompt`（而非 schema 的
+    `query`），launcher 以空 query 静默 spawn 出永不调度的僵尸子 agent（只落
+    agent.spawned，无 run、无 prompt 注入）。必须响亮拒绝，绝不 spawn。"""
+    core, _, coordinator = await _setup(
+        RoleRoutedLLM([LLMResponse(content="x", stop_requested=True)])
+    )
+    await _wait_state(coordinator, "succeeded")
+
+    for args in (
+        {"agent_id": "a-4", "query": ""},
+        {"agent_id": "a-4", "prompt": "task"},  # 生产事故形状：键名错误
+        {"agent_id": "a-4", "query": "   "},
+    ):
+        result = await handle_native_tool(
+            core, coordinator, ToolCall(id="t1", name="subagent_launcher", arguments=args)
+        )
+        assert result.is_success is False, args
+        assert "nothing was dispatched" in result.summary, args
+    assert _children(core, coordinator.id) == []
+
+
+@pytest.mark.asyncio
 async def test_spawn_permission_enforced_for_roles():
     core, _, coordinator = await _setup(RoleRoutedLLM([LLMResponse(content="x", stop_requested=True)]))
     await _wait_state(coordinator, "succeeded")
@@ -348,11 +375,12 @@ async def test_child_inherits_parent_yolo_at_spawn():
     core, project, coordinator = await _setup(llm)
     # runner 可能已开始跑：在子 agent spawn 前把父的 yolo 打上。
     # 直接改内存快照即可——settings 在每次工具执行时现读。
-    coordinator.settings = coordinator.settings.model_copy(update={"yolo": True})
+    coordinator.settings = coordinator.settings.model_copy(update={"yolo": True, "clean_context": True})
     await _wait_state(coordinator, "succeeded")
 
     child = _children(core, coordinator.id)[0]
     assert child.settings.yolo is True
+    assert child.settings.clean_context is True
     await _wait_state(child, "succeeded")
 
 
@@ -384,7 +412,7 @@ async def test_swarm_and_launcher_spawn_share_legacy_identity():
         ToolCall(
             id="t1",
             name="subagent_launcher",
-            arguments={"agent_id": "a-4", "query": "", "is_wait": False},
+            arguments={"agent_id": "a-4", "query": "rerun P", "is_wait": False},
         ),
     )
     swarmed = await handle_native_tool(

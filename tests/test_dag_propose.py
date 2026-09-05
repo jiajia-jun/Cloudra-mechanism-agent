@@ -117,6 +117,8 @@ async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
     out = await _propose(agent, session)
     assert out.is_success
     assert out.result["state"] == "open"
+    assert out.accepted is False
+    assert out.result["accepted"] is False
     assert _graph(db).delivery.nodes == []
 
     from cloudra.dag.controller import DagController

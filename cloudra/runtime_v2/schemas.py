@@ -69,6 +69,9 @@ class RuntimeSettingsPatch(BaseModel):
     yolo: Optional[bool] = None
     schedule_mode: Optional[bool] = None
     visual_mode: Optional[bool] = None
+    # Disable cross-task implicit context (global memory and AGENTS.md).
+    # Same-agent event history/handover and explicit file reads remain available.
+    clean_context: Optional[bool] = None
     native_search: Optional[str] = None
     native_search_params: Optional[dict[str, Any]] = None
     orchestration_mode: Optional[OrchestrationMode] = None
@@ -95,6 +98,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
     yolo: bool = False
     schedule_mode: bool = False
     visual_mode: bool = True
+    clean_context: bool = False
     native_search: str = "auto"
     native_search_params: dict[str, Any] = Field(default_factory=dict)
     orchestration_mode: OrchestrationMode = OrchestrationMode.STANDARD

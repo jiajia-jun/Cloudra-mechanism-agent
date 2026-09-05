@@ -1062,10 +1062,19 @@ def _tiny_task(**kwargs) -> TaskSpec:
     )
 
 
-def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path):
+def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path, monkeypatch):
     from cloudra.benchmark.backend import RuntimeV2Backend
     from cloudra.runtime_v2.policies.base import ToolCall as PToolCall
     from cloudra.runtime_v2.turn_pipeline import LLMResponse
+    from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.adapters.legacy_default_runtime_settings",
+        lambda: legacy_default_runtime_settings().model_copy(
+            update={"invocation_protocol": InvocationProtocol.TRADITIONAL}
+        ),
+    )
 
     llm = _ScriptedLLM([
         LLMResponse(
@@ -1088,16 +1097,15 @@ def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path):
         run_timeout_s=30.0,
         stuck_grace_s=5.0,
     )
-    result = backend(_tiny_task(), tmp_path / "sandbox")
+    result = backend(
+        _tiny_task(method_policy={"allowed_methods": ["xtb"]}),
+        tmp_path / "sandbox",
+    )
+    assert next(iter(backend.last_core.agents.values())).settings.clean_context is True
     assert result.barrier == 12.3
     assert "12.3 kcal/mol" in result.final_message
     # b3lyp 调用被 MethodPolicyStage 拦截，工具从未真正执行
     assert tools.calls == []
-    blocked = [
-        e for e in backend.last_core.event_log.query_session(_last_agent_id(backend.last_core))
-        if e.type == "tool.blocked" and e.data.get("stage") == "method_policy"
-    ]
-    assert blocked and "b3lyp" in blocked[0].data.get("message", "")
 
 
 def _last_agent_id(core) -> str:

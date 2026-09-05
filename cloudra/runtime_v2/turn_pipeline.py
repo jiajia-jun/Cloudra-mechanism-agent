@@ -344,8 +344,10 @@ class TurnPipeline:
                         call,
                         ToolResult(
                             False,
-                            "protocol_error[multiple_programs]: only one js_exec "
-                            "call runs per model response; this program was not executed",
+                        "protocol_error[multiple_programs]: only one js_exec "
+                        "call runs per model response; the first program was "
+                        "already processed and this later program was not executed. "
+                        "Repair only the unexecuted program; do not replay the first one.",
                         ),
                     ))
                     continue

@@ -168,6 +168,9 @@ class RuntimeV2Backend:
                                 "orchestration_mode": task.prompt.orchestration_mode.value,
                                 # 无人值守：破坏性工具审批走 yolo 自动通道
                                 "yolo": True,
+                                # Each benchmark case is isolated from global
+                                # cross-task memory and AGENTS injection.
+                                "clean_context": True,
                             },
                         },
                     )
