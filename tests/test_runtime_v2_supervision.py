@@ -993,6 +993,27 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
     core.runner = AgentRunner(
         core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
     )
+    # 事件驱动同步点（CI flake 根治，run 34014279374）：旧实现"5 秒轮询持久
+    # 化请求 + 轮询退出后一次性 find_project_supervisor"有真实竞态——退出请
+    # 求经 to_thread 提交对轮询连接可见时，audit_stop 里的 _notify_supervisor
+    # 尚未跑完 spawn，core.agents 投影里还没有 supervisor，慢环境（CI +
+    # coverage）下必踩。agent.completion_gate 事件在 audit_stop 返回后才追加：
+    # wait_review 动作同时保证①退出请求已持久化（_enqueue_exit_review 先提交）
+    # ②Supervisor 已按状态表创建（_notify_supervisor await 完 spawn 才返回）。
+    # 订阅必须先于 spawn（spawn 带 query 立即开跑）；项目内只有 coordinator 的
+    # partial stop 能产生 wait_review 判定，按项目+动作匹配即可。
+    gate_seen = asyncio.Event()
+
+    async def _on_gate(envelope) -> None:
+        if (
+            envelope.type == "agent.completion_gate"
+            and envelope.project_id == project.id
+            and envelope.data.get("action") == "wait_review"
+            and envelope.data.get("request_id")
+        ):
+            gate_seen.set()
+
+    core.event_hub.subscribe(_on_gate)
     coordinator = (
         await bus.execute(
             Command(
@@ -1009,21 +1030,19 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
     supervisor = None
     try:
         # 第一拍 stop → wait_review：退出请求持久化 + 通知 Supervisor。
-        # Task 4A 时序注记：统一边界在挂起（waiting_approval）后立即复查
-        # 收件箱，快速 fake 裁决下挂起窗口可能转瞬即逝（裁决通知已到达即
-        # 恢复运行）——同步点用持久化请求这一 durable 事实，而不是瞬时状态。
+        # 超时只是失败上限（事件驱动，正常毫秒级返回）。
         # 挂起语义本身由 test_runtime_v2_completion_gate.py 的 wait_review
         # 用例（不配裁决的 supervisor）稳定锁定。
+        await asyncio.wait_for(gate_seen.wait(), timeout=30)
+
         def _request_ids():
-            # 任意状态：快速 fake 督导可能在首次轮询前就已裁决（queued→resolved）。
+            # 任意状态：快速 fake 督导可能在 gate 事件前就已裁决（queued→resolved）。
             store = DagStore(ConversationDB(project.id).init())
             return [row.request_id for row in store.list_review_requests(None)]
 
-        deadline = asyncio.get_running_loop().time() + 5.0
-        while not await asyncio.to_thread(_request_ids):
-            if asyncio.get_running_loop().time() > deadline:
-                raise AssertionError("exit review request was never persisted")
-            await asyncio.sleep(0.01)
+        assert await asyncio.to_thread(_request_ids), (
+            "wait_review gate fired without a persisted exit review request"
+        )
         supervisor = find_project_supervisor(core, project.id)
         assert supervisor is not None
         llm._supervisor = supervisor
@@ -1056,6 +1075,7 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
         pinned = core.notices.collect(coordinator.id)
         assert any("verdict=accept" in m["content"] for m in pinned)
     finally:
+        core.event_hub.unsubscribe(_on_gate)
         await _teardown(core, coordinator, supervisor)
 
 

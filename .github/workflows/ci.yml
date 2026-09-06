@@ -39,7 +39,7 @@ jobs:
         run: |
           python -c "import cloudra; print(cloudra.__version__)"
           python -c "from cloudra import cli, runtime"
-          python -c "from cloudra.core import agent, supervisor"
+          python -c "from cloudra.core import agent"
           python -c "from cloudra.services import api_v2, session_store, nodes"
           python -c "from cloudra.persistence import database"
           python -c "from cloudra.core import message_history"
