@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.core.agent import Coordinator, Follower
-from cloudra.core.message_history import SUPERVISOR_ADVICE_MARKER, JsonlMessageHistory
+from cloudra.core.message_history import JsonlMessageHistory
 
 
 def _message_history(tmp_path, *, agent_id="a-prompt", query="继续任务"):
@@ -291,7 +291,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
         {"role": "assistant", "content": "已完成一部分"},
         {
             "role": "system",
-            "content": f"{SUPERVISOR_ADVICE_MARKER} 保留这条建议",
+            "content": "[Supervisor] 保留这条建议",
         },
         {
             "role": "system",
@@ -313,7 +313,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
     assert messages[0] == {"role": "system", "content": "当前身份"}
     assert not any("已经过期的身份" in str(msg.get("content")) for msg in messages)
     assert any("已完成一部分" in str(msg.get("content")) for msg in messages)
-    assert any(SUPERVISOR_ADVICE_MARKER in str(msg.get("content")) for msg in messages)
+    assert any("[Supervisor]" in str(msg.get("content")) for msg in messages)
     assert any("[Context compact]" in str(msg.get("content")) for msg in messages)
 
 
@@ -460,7 +460,7 @@ async def test_tool_schema_change_updates_capability_revision(
 
 
 @pytest.mark.asyncio
-async def test_skill_manifest_and_supervisor_advice_have_revision_semantics(
+async def test_skill_manifest_has_revision_semantics(
     tmp_path,
     isolated_prompt_sources,
     monkeypatch,
@@ -481,9 +481,6 @@ async def test_skill_manifest_and_supervisor_advice_have_revision_semantics(
 
     first_request = await agent._build_request_kwargs()
     first = agent.get_runtime_diagnostics()
-    await agent.message_history.append(
-        {"role": "system", "content": f"{SUPERVISOR_ADVICE_MARKER} 先检查输入。"}
-    )
     skill.write_text(
         "---\nname: review\ndescription: 第二版\n---\n正文 v2",
         encoding="utf-8",
@@ -504,9 +501,6 @@ async def test_skill_manifest_and_supervisor_advice_have_revision_semantics(
     assert first_skill["revision"] != second_skill["revision"]
     assert "第一版" in first_request["messages"][0]["content"]
     assert "第二版" in second_request["messages"][0]["content"]
-    assert second["supervisor_advice_revision"] != (
-        first["supervisor_advice_revision"]
-    )
 
 
 def test_skill_manifest_collapses_multiline_description(

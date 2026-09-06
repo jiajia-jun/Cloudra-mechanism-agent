@@ -5,7 +5,10 @@
 
 - ``notify_supervisor``：项目唯一 Supervisor 的身份确保 + 按状态表通知；
 - ``reconcile_supervision``：项目装载/恢复后的持久化待办扫描与补通知；
-- ``flush_review_notifications``：结构化裁决通知的非轮询投递；
+- ``flush_review_notifications``：三类裁决通知（review_decision /
+  call_verdict / draft_verdict，共用同一张 durable 通知表）的非轮询投递；
+- ``_sync_terminal_supervisor_alert``：D2 督导终态（failed/cancelled）+
+  可消费待办时给 Coordinator 的一次性告警（pin 内容即指纹去重）；
 - ``find_project_supervisor`` / ``pending_supervision_summary`` /
   ``reconcile_legacy_backlog_notice``：纯投影查询与持久化待办只读扫描。
 
@@ -17,13 +20,16 @@
 - Supervisor 是项目内唯一的普通 runtime_v2 agent（``role_id="supervisor"``），
   由 AgentRunner / TurnPipeline / InvocationService 驱动，每轮自读持久信箱裁决，
   空信箱则 stop。身份由 core.agents 的项目+角色投影确定。
-- 生产端（研究工具完成）只登记证据/事实后返回；显式送审（dag_bind_evidence）
-  → 持久化 → notify_supervisor。两条路径都不等待督导 LLM 或裁决完成。
+- 生产端（研究工具完成）只登记证据/事实后返回；显式送审经真实
+  dag_bind_evidence 工具入口持久化后，由 DAG policy 完成钩子按新建
+  review 回执调 notify_supervisor（送审方法本身不通知）。两条路径都不
+  等待督导 LLM 或裁决完成。
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -39,6 +45,10 @@ SUPERVISOR_ROLE_ID = "supervisor"
 # §5 历史 legacy_auto 待办的一次性 Coordinator 提示的 pin key（notices pin
 # 事件溯源且同内容去重：重复调用/重启不会重复轰炸，见 NoticeManager.pin）。
 LEGACY_BACKLOG_PIN_KEY = "supervisor-legacy-backlog"
+
+# D2 督导终态告警的 pin key：内容即指纹（督导状态 + 待办摘要），pin 由事件
+# 投影恢复——跨重启同指纹不重复投递，条件消失撤 pin 后复发可再投。
+TERMINAL_SUPERVISOR_PIN_KEY = "supervisor-terminal-backlog"
 
 
 def find_project_supervisor(
@@ -220,10 +230,10 @@ async def notify_supervisor(
       新 run 属正常首跑，不是 restart）。
     - waiting：审批/输入等待不被普通通知绕过，消息保留投递到信箱。
     - succeeded（正常休眠）：正常 wake 开新 run，重读持久化信箱。
-    - failed：保留待办与失败状态；不由每条系统通知反复 reopen，显式恢复
-      后继续。
-    - cancelled（用户取消）：仅保留待办，不自动复活；明确恢复后重新扫描
-      信箱（走 reconcile_supervision）。
+    - failed / cancelled（用户取消）：不自动复活，但通知照常投递信箱驻留
+      （park-don't-wake，与子 agent 完成回传 / hub mention 同一纪律）——
+      用户显式复活（agent.message / agent.restart）后首轮 drain 即可读到，
+      持久化待办也不会丢。
 
     通知通道是 ``mailbox.deliver`` + 条件 ``agent_host.wake`` 的组合：
     刻意不走 ``agent.message`` 命令——它的 decide 路径对 failed/cancelled
@@ -246,21 +256,25 @@ async def notify_supervisor(
     from cloudra.runtime_v2.schemas import AgentState
 
     state = agent.state
-    if state in {AgentState.FAILED, AgentState.CANCELLED}:
-        # 待办留在持久化信箱；显式恢复（reconcile/用户重启）后再扫描。
-        logger.debug(
-            "[supervision] supervisor %s is %s; backlog stays persisted, no auto-revive",
-            agent.id,
-            state.value,
-        )
-        return
+    # 统一不复活纪律（park-don't-wake）：所有状态都投递（通知是 durable 的
+    # agent.message_injected + 内存队列）；failed/cancelled 只驻留不唤醒——
+    # 用户显式复活后首轮 drain 即可读到。
     core.mailbox.deliver(
         to_session_id=agent.id,
         project_id=project_id,
         content=_notification_text(reason),
         sender="system",
     )
-    if state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+    if state in {AgentState.FAILED, AgentState.CANCELLED}:
+        logger.debug(
+            "[supervision] supervisor %s is %s; notification parked, no auto-revive",
+            agent.id,
+            state.value,
+        )
+        # D2：终态督导 + 可消费待办不再是隐形 wedge——给 Coordinator 发
+        # 一次性告警（指纹去重），点名不自动复活与真实恢复入口。
+        await _sync_terminal_supervisor_alert(core, project_id, agent)
+    elif state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
         core.agent_host.wake(agent, runner=core.runner)
     # RUNNING：下一轮 drain 收件箱；WAITING_*：消息保留，不绕过等待语义。
     await core.event_writer.flush()
@@ -286,6 +300,10 @@ async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
     await flush_review_notifications(core, project_id)
     await reconcile_legacy_backlog_notice(core, project_id)
     summary = await pending_supervision_summary(project_id)
+    # D2：恢复路径同样同步终态督导告警（含条件消失后的撤 pin）。
+    await _sync_terminal_supervisor_alert(
+        core, project_id, find_project_supervisor(core, project_id), summary
+    )
     consumable = (
         summary["call_reviews"] + summary["open_drafts"] + summary["review_requests"]
     )
@@ -296,17 +314,156 @@ async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
     )
 
 
-async def flush_review_notifications(core: RuntimeCore, project_id: str) -> int:
-    """投递项目的 pending 裁决通知（非轮询）。
+_CALL_VERDICT_NEXT_ACTION = {
+    "agree": "stage bound; continue with the remaining stages",
+    "disagree": (
+        "re-bind the stage with corrected evidence, or close it explicitly "
+        "(skip/not_applicable with a reason) — rejected is still an open gap"
+    ),
+    "skip": "stage closed as skipped; no further evidence owed",
+    "not_applicable": "stage closed as not applicable; no further evidence owed",
+    "needs_evidence": (
+        "supply the missing evidence named in reason and re-submit "
+        "via dag_bind_evidence with a claim"
+    ),
+    "ignore": "no action required; the call was ruled not delivery evidence",
+}
 
-    触发点：Supervisor 的 dag_review_evidence 落库裁决后（dag_stage 的
-    after_tool 钩子）与 reconcile_supervision（恢复补投）。通知行是
-    durable 的：pin + mailbox.deliver + 条件 wake 的事件先经
+
+def _call_verdict_text(review_id: str, payload: dict) -> str:
+    verdict = str(payload.get("verdict") or "unknown")
+    target = str(payload.get("target_id") or "")
+    target_type = str(payload.get("target_type") or "")
+    stage = str(payload.get("stage_kind") or "")
+    reason = str(payload.get("reason") or "")
+    next_action = _CALL_VERDICT_NEXT_ACTION.get(
+        verdict, "see the pinned DAG projection for the current stage state"
+    )
+    labeled_target = f"{target_type}:{target}" if target_type else target
+    return (
+        f"[Supervisor call verdict] review_id={review_id} verdict={verdict} "
+        f"stage={stage} target={labeled_target} reason={reason} next={next_action}"
+    )
+
+
+def _draft_verdict_text(draft_id: str, payload: dict) -> str:
+    verdict = str(payload.get("verdict") or "unknown")
+    reason = str(payload.get("reason") or "")
+    next_action = (
+        "revise the mechanism per the reason and re-propose via dag_propose_mechanism"
+        if verdict == "rejected"
+        else "mechanism accepted; the substantive compute gate is open"
+    )
+    return (
+        f"[Supervisor draft verdict] draft_id={draft_id} verdict={verdict} "
+        f"reason={reason} next={next_action}"
+    )
+
+
+def _resolve_recipient_session(
+    core: RuntimeCore, project_id: str, recipient: str
+) -> str:
+    """通知收件人解析：活 session id 直取；legacy a-N 词表（草稿 actor_id）
+    经 D13 唯一映射解析到项目内活 session；都不可解返回原值（投递驻留、
+    不唤醒——与 replan 的 "user" 收件人同一处置）。"""
+    if not recipient:
+        return ""
+    if recipient in core.agents:
+        return recipient
+    from cloudra.subagents.registry import legacy_agent_id_for_role
+
+    for agent in core.agents.values():
+        if agent.project_id != project_id:
+            continue
+        if legacy_agent_id_for_role(agent.role_id) == recipient:
+            return agent.id
+    return recipient
+
+
+async def _sync_terminal_supervisor_alert(
+    core: RuntimeCore,
+    project_id: str,
+    supervisor: AgentSession | None,
+    summary: dict[str, int] | None = None,
+) -> None:
+    """D2：failed/cancelled 督导 + 可消费待办 → Coordinator 的一次性告警。
+
+    不自动复活是既定纪律（恢复 = 显式 agent.message / agent.restart），
+    本告警只解决"项目被死督导无声 wedge"的不可见性：pin + mailbox 一次性
+    投递，内容即指纹（督导终态 + 待办计数摘要）——指纹不变不重复投递
+    （pin 由事件投影恢复，跨重启去重成立）；条件消失（督导非终态或待办
+    清空）撤 pin，同指纹复发可再投。告警本身不复活督导；Coordinator 在
+    queued/succeeded 时另 wake（waiting 不绕过，驻留下轮可见）。
+    """
+    from cloudra.runtime_v2.schemas import AgentState
+
+    coordinator = next(
+        (
+            agent
+            for agent in core.agents.values()
+            if agent.project_id == project_id and agent.role_id == "coordinator"
+        ),
+        None,
+    )
+    if coordinator is None:
+        return
+    terminal = supervisor is not None and supervisor.state in {
+        AgentState.FAILED,
+        AgentState.CANCELLED,
+    }
+    if summary is None:
+        summary = await pending_supervision_summary(project_id)
+    consumable = (
+        summary["call_reviews"] + summary["open_drafts"] + summary["review_requests"]
+    )
+    if not terminal or not consumable:
+        # 条件不成立（含缺失但可建的督导）：撤下可能残留的旧告警。
+        core.notices.unpin(coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY)
+        return
+    content = (
+        f"[Supervision] ALERT: the Supervisor agent ({supervisor.id}) is in "
+        f"terminal state {supervisor.state.value} and will not auto-revive. "
+        f"{consumable} supervision item(s) are pending "
+        f"(call_reviews={summary['call_reviews']}, "
+        f"open_drafts={summary['open_drafts']}, "
+        f"review_requests={summary['review_requests']}). "
+        "Recovery: send the Supervisor an explicit message or restart it "
+        "(agent.message / agent.restart reopen a terminal agent); it drains "
+        "its parked mailbox on the first turn of the new run."
+    )
+    if (
+        core.notices.pin_content(coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY)
+        == content
+    ):
+        return  # 指纹未变：不重复投递
+    core.notices.pin(coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY, content)
+    core.mailbox.deliver(
+        to_session_id=coordinator.id,
+        project_id=project_id,
+        content=content,
+        sender="system",
+    )
+    if coordinator.state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+        core.agent_host.wake(coordinator, runner=core.runner)
+    await core.event_writer.flush()
+
+
+async def flush_review_notifications(core: RuntimeCore, project_id: str) -> int:
+    """投递项目的 pending 裁决通知（非轮询；三类裁决共用同一通道）。
+
+    通知行三类（kind）：review_decision（结构化请求裁决，渲染材料查
+    dag_review_decisions）、call_verdict（per-CallReview 裁决）与
+    draft_verdict（机理草稿裁决）（后两类渲染材料在通知行 payload，
+    裁决与通知行同事务落表）。触发点：Supervisor 的裁决工具
+    （dag_review_evidence / dag_review_call / dag_accept_mechanism）落库
+    后（dag_stage 的 after_tool 钩子）与 reconcile_supervision（恢复补投）。
+    通知行是 durable 的：pin + mailbox.deliver + 条件 wake 的事件先经
     event_writer 落盘/发布，再把通知行标记 sent——投递与标记之间崩溃
     会在下次 flush 重投（pin 按 key 去重，mailbox 重投是一条冗余消息，
-    接受）。recipient 已 cancelled 不复活（用户取消的运行不被迟到裁决
-    唤醒），通知行照样闭环标记 sent；recipient 不是活 agent（如 replan
-    的 "user"）只落标记。返回处理的通知条数。
+    接受）。failed/cancelled 收件人不唤醒（用户取消/失败的运行不被迟到
+    裁决复活），但裁决照常 pin + 投递驻留信箱（park-don't-wake：显式
+    复活后首轮即可读到），通知行照样闭环标记 sent；recipient 不是活
+    agent（如 replan 的 "user"）只落投递不唤醒。返回处理的通知条数。
     """
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
@@ -327,20 +484,37 @@ async def flush_review_notifications(core: RuntimeCore, project_id: str) -> int:
     pending = await asyncio.to_thread(store.pending_review_notifications)
     handled = 0
     for item in pending:
-        decision_id = item["decision_id"]
+        subject_id = item["decision_id"]
+        kind = item.get("kind") or "review_decision"
         try:
-            decision = await asyncio.to_thread(store.get_review_decision, decision_id)
-            content = (
-                f"[Supervisor review decision] decision_id={decision_id} "
-                f"request_id={item['request_id']} "
-                f"verdict={decision.verdict if decision is not None else 'unknown'} "
-                f"reason={decision.reason if decision is not None else ''} "
-                f"next_action={decision.next_action or 'none' if decision is not None else 'none'}"
+            if kind == "call_verdict":
+                content = _call_verdict_text(
+                    subject_id, json.loads(item.get("payload") or "{}")
+                )
+                pin_key = f"call-verdict-{subject_id}"
+            elif kind == "draft_verdict":
+                content = _draft_verdict_text(
+                    subject_id, json.loads(item.get("payload") or "{}")
+                )
+                pin_key = f"draft-verdict-{subject_id}"
+            else:
+                decision = await asyncio.to_thread(
+                    store.get_review_decision, subject_id
+                )
+                content = (
+                    f"[Supervisor review decision] decision_id={subject_id} "
+                    f"request_id={item['request_id']} "
+                    f"verdict={decision.verdict if decision is not None else 'unknown'} "
+                    f"reason={decision.reason if decision is not None else ''} "
+                    f"next_action={decision.next_action or 'none' if decision is not None else 'none'}"
+                )
+                pin_key = f"review-{subject_id}"
+            recipient = _resolve_recipient_session(
+                core, project_id, item["recipient_session_id"]
             )
-            recipient = item["recipient_session_id"]
             agent = core.agents.get(recipient) if recipient else None
-            if recipient and (agent is None or agent.state is not AgentState.CANCELLED):
-                core.notices.pin(recipient, key=f"review-{decision_id}", content=content)
+            if recipient:
+                core.notices.pin(recipient, key=pin_key, content=content)
                 # Mailbox 投递是 durable 唤醒握手；若裁决撞上对方正要进入
                 # WAITING_APPROVAL，AgentRunner 的 transition 后 inbox 复查
                 # 会确定性地观察到这条消息（不靠 timing sleep）。
@@ -350,17 +524,21 @@ async def flush_review_notifications(core: RuntimeCore, project_id: str) -> int:
                     content=content,
                     sender="supervisor",
                 )
-                if agent is not None:
+                # park-don't-wake：failed/cancelled 收件人只驻留，绝不唤醒。
+                if agent is not None and agent.state not in {
+                    AgentState.FAILED,
+                    AgentState.CANCELLED,
+                }:
                     core.agent_host.wake(agent, runner=core.runner)
                 # 本路径在 CommandBus 之外，自己持有 publish+persist 边界：
                 # 事件落盘/发布先于标记 sent，否则崩溃会丢唤醒。
                 await core.event_writer.flush()
-            await asyncio.to_thread(store.mark_review_notification_sent, decision_id)
+            await asyncio.to_thread(store.mark_review_notification_sent, subject_id)
             handled += 1
         except Exception:
             logger.exception(
                 "[supervision] review notification %s delivery failed for project %s",
-                decision_id,
+                subject_id,
                 project_id,
             )
     return handled

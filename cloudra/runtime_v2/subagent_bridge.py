@@ -14,6 +14,7 @@ role name directly is also accepted.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from typing import Any
 
 from cloudra.runtime_v2.commands import CommandBus
@@ -125,7 +126,15 @@ def _final_text(core, agent: AgentSession) -> str:
     if emitted:
         return str(emitted[-1].data.get("content") or "")
     if agent.state is AgentState.FAILED:
-        return f"Sub-agent failed: {agent.current_run or 'see events'}"
+        # run.finished 清空 current_run（apply），但失败原因随事件持久留存——
+        # 把它带出来，而不是给模型一句 "see events" 死信息。
+        finished = core.event_log.query_session(agent.id, types={"run.finished"}, limit=20)
+        for envelope in reversed(finished):
+            if envelope.data.get("outcome") != "failed":
+                continue
+            error = envelope.data.get("error")
+            return f"Sub-agent failed: {error}" if error else "Sub-agent failed (no error recorded)."
+        return "Sub-agent failed (no run record)."
     return f"Sub-agent ended with state {agent.state.value} and no final message."
 
 
@@ -140,14 +149,18 @@ def deliver_child_completion_to_parent(core, child: AgentSession) -> None:
     """Push a finished child's report into the parent's mailbox and wake it.
 
     Async (``is_wait=False``) dispatch otherwise leaves the parent with no
-    signal; the mailbox is the same channel hub mentions already use.  A
-    cancelled parent is left alone so cascade-cancel does not reopen it.
+    signal; the mailbox is the same channel hub mentions already use.
+
+    统一不复活纪律（park-don't-wake）：父处于 failed/cancelled 终态时报告
+    照常投递信箱驻留（durable ``agent.message_injected`` + 内存队列），但
+    绝不唤醒——用户随后用显式消息复活该 agent 时首轮即可读到。succeeded
+    父照常 wake 开新 run（异步派发回传模式）。
     """
     parent_id = child.parent_session_id
     if not parent_id:
         return
     parent = core.agents.get(parent_id)
-    if parent is None or parent.state is AgentState.CANCELLED:
+    if parent is None:
         return
     core.mailbox.deliver(
         to_session_id=parent.id,
@@ -155,6 +168,8 @@ def deliver_child_completion_to_parent(core, child: AgentSession) -> None:
         content=_parent_report_text(core, child),
         sender=child.role_id,
     )
+    if parent.state in {AgentState.FAILED, AgentState.CANCELLED}:
+        return  # parked：终态 agent 绝不自动复活
     core.agent_host.wake(parent, runner=core.runner)
 
 
@@ -196,7 +211,16 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
 def _launch_group_manager(core):
     if getattr(core, "launch_groups", None) is None:
         from cloudra.runtime_v2.launch_groups import LaunchGroupManager
-        core.launch_groups = LaunchGroupManager(spawner=lambda _query: None)
+
+        def _track(parent_session_id: str, task: asyncio.Task, label: str) -> None:
+            # 组 worker 任务登记进 runner 的 session 作用域后台注册表：用户
+            # 取消父 agent / 服务 shutdown 才能取消并 await 它（停止语义契约
+            # 1/3）；runner 后挂时经闭包现读，绝不留裸 create_task。
+            runner = getattr(core, "runner", None)
+            if runner is not None:
+                runner.track_background(parent_session_id, task, label=label)
+
+        core.launch_groups = LaunchGroupManager(spawner=lambda _query: None, track=_track)
     return core.launch_groups
 
 
@@ -220,7 +244,7 @@ async def _handle_swarm(core, parent: AgentSession, args: dict[str, Any]) -> Too
         manager = _launch_group_manager(core)
         async def spawner(query):
             return await _spawn_child(bus, parent, role_id=role_id, query=query, context=context)
-        group_id = "grp_" + asyncio.get_running_loop().time().__str__().replace(".", "_")
+        group_id = "grp_" + uuid.uuid4().hex
         manager.create(
             group_id=group_id,
             parent_session_id=parent.id,

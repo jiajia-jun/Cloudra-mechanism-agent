@@ -287,7 +287,9 @@ class DraftsMixin:
         draft_id: str | None = None,
     ) -> dict[str, Any]:
         """Supervisor 的草稿裁决（guided only）：accept 落图（契约并入
-        add ops）；reject 退回草稿并附理由。"""
+        add ops）；reject 退回草稿并附理由。两种裁决都与落态同事务写一条
+        durable 裁决通知（draft_verdict）给 proposer（legacy actor id，
+        flush 时解析到活 session），由 flush_review_notifications 投递。"""
         if not self.enabled:
             raise RuntimeError(
                 "accept_mechanism is disabled in standard orchestration mode"
@@ -311,6 +313,18 @@ class DraftsMixin:
             if found is None:
                 raise RuntimeError("no open mechanism draft to review")
             resolved_id, draft = found
+        proposer = await asyncio.to_thread(self.store.draft_actor_id, resolved_id)
+
+        def _notification(state: str, reason: str) -> dict[str, Any]:
+            return {
+                "recipient_session_id": proposer,
+                "payload": {
+                    "draft_id": resolved_id,
+                    "verdict": state,
+                    "reason": reason.strip(),
+                },
+            }
+
         if verdict == "reject":
             if not rationale.strip():
                 raise RuntimeError(
@@ -321,6 +335,7 @@ class DraftsMixin:
                 resolved_id,
                 "rejected",
                 reject_reason=rationale,
+                notification=_notification("rejected", rationale),
             )
             return {
                 "draft_id": resolved_id,
@@ -337,7 +352,10 @@ class DraftsMixin:
                 f"{mutation.rejection_reason}"
             )
         await asyncio.to_thread(
-            self.store.set_draft_state, resolved_id, "accepted"
+            self.store.set_draft_state,
+            resolved_id,
+            "accepted",
+            notification=_notification("accepted", ""),
         )
         return {
             "draft_id": resolved_id,

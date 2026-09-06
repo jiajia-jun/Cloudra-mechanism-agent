@@ -109,7 +109,15 @@ def create_v2_app(
 
         for project in list(core.projects.values()):
             if project.settings.orchestration_mode is not OrchestrationMode.DAG_GUIDED:
-                continue
+                # 继承模型下项目字段只是默认值：agent 显式覆盖仍可处在
+                # guided（spawn settings / settings_update 显式钉），其持久
+                # 督导待办同样需要补通知。
+                if not any(
+                    agent.project_id == project.id
+                    and agent.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
+                    for agent in core.agents.values()
+                ):
+                    continue
             try:
                 await reconcile_supervision(core, project.id)
             except Exception:

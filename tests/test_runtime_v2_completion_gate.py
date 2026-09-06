@@ -323,6 +323,41 @@ async def test_plain_text_and_explicit_stop_face_the_same_gate(tmp_path, script)
 
 
 @pytest.mark.asyncio
+async def test_wait_review_parks_with_exit_review_feedback(tmp_path):
+    """guided partial stop 进入 wait_review 时必须给 agent 一条讲清退出审批回路
+    的反馈（诚实回执）：退出审查已提交 Supervisor（带 request_id）、run 挂起
+    等裁决、批准后需带 approval_id=<decision_id> 重新调用 stop。批准到达后
+    同一交付版本复用裁决放行，partial 处置落库一次。"""
+    llm = _RoutingLLM([_stop_call(delivery_disposition="partial", reason="partial")])
+    core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
+    coordinator = await _spawn_coordinator(bus, project, mode="dag_guided")
+    try:
+        await _wait_parked(coordinator, llm)
+        requests = await _review_requests(project.id)
+        assert len(requests) == 1
+        injected = [
+            e
+            for e in core.event_log.query_session(coordinator.id)
+            if e.type == "agent.message_injected"
+            and e.data.get("sender") == "completion_gate"
+        ]
+        assert injected, "wait_review must leave exit-review-loop feedback for the agent"
+        content = str(injected[-1].data["content"])
+        assert requests[0].request_id in content
+        assert "suspended" in content
+        assert "approval_id" in content
+        # 批准到达：挂起期间没有空转，裁决唤醒后复用同一请求放行。
+        await _resolve_exit_request(
+            project.id, requests[0].request_id, verdict="accept", reason="scoped partial is acceptable"
+        )
+        await flush_review_notifications(core, project.id)
+        await _wait_state(coordinator, "succeeded")
+        assert await _dispositions(project.id) == ["partial"]
+    finally:
+        await _teardown(core)
+
+
+@pytest.mark.asyncio
 async def test_complete_delivery_plain_text_finishes(tmp_path):
     """完整 DAG delivery 的纯文本最终回复正常结束：隐式 disposition 由覆盖率
     推导为 complete，审计通过后明确记录，不需要督导退出裁决。"""

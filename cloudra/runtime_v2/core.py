@@ -105,6 +105,12 @@ class RuntimeCore:
         不触碰 scheduler/guard/QM 计算进程（契约 5 与执行面铁律）。
         """
         runner = self.runner
+        launch_groups = self.launch_groups
+        if launch_groups is not None:
+            # 组 worker 任务虽已登记进 runner 的 track_background，这里先按组
+            # 收敛状态（state=cancelled、queued 项落 cancelled、不再 spawn），
+            # 再由 cancel_all 取消并 await 全部 run/后台任务。
+            await launch_groups.cancel_all()
         if runner is not None:
             await runner.cancel_all()
             js_runtime = getattr(getattr(runner, "pipeline", None), "js_runtime", None)

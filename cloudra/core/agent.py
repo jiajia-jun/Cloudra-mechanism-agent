@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from cloudra import __version__
 from cloudra.base.tools_class import Tool
-from cloudra.core.message_history import SUPERVISOR_ADVICE_MARKER, JsonlMessageHistory
+from cloudra.core.message_history import JsonlMessageHistory
 from cloudra.dag.models import OrchestrationMode, normalize_orchestration_mode
 from cloudra.infra.config import get_config
 from cloudra.infra.llm_client import ChatResponse, LLMClient
@@ -533,22 +533,8 @@ class Agent(BaseModel):
         assembly = self._last_prompt_assembly
         diagnostics = assembly.diagnostics() if assembly is not None else {}
         persisted_history = await self._ensure_message_history().load()
-        # supervisor 建议 revision 只哈希带标记的消息（量小），保持
-        # "建议变化则 revision 变化" 的语义；全量历史的 sha256 与逐条 token
-        # 估算只是诊断元数据，默认用廉价近似值，设 CLOUDRA_DEBUG_DIAGNOSTICS
-        # 后才做精确计算。
-        supervisor_payload = json.dumps(
-            [
-                message
-                for message in persisted_history
-                if SUPERVISOR_ADVICE_MARKER
-                in str(message.get("content", ""))
-            ],
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-        )
+        # 全量历史的 sha256 与逐条 token 估算只是诊断元数据，默认用廉价近似值，
+        # 设 CLOUDRA_DEBUG_DIAGNOSTICS 后才做精确计算。
         schema_tokens = self._estimate_tools_schema_tokens(available_tool_classes)
         if os.environ.get("CLOUDRA_DEBUG_DIAGNOSTICS", "").lower() in (
             "1",
@@ -609,12 +595,6 @@ class Agent(BaseModel):
                     self.context_window // 2 if self.context_window else None
                 ),
                 "history_revision": history_revision,
-                "supervisor_advice_revision": (
-                    "sha256:"
-                    + hashlib.sha256(
-                        supervisor_payload.encode("utf-8")
-                    ).hexdigest()
-                ),
             }
         )
         self._last_request_diagnostics = diagnostics

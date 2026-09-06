@@ -345,7 +345,11 @@ class JavaScriptRuntime:
     ) -> ToolResult:
         limits = self.limits
         guest_names = set(
-            guest_tool_names(ctx.capabilities.tools, visual_mode=ctx.settings.visual_mode)
+            guest_tool_names(
+                ctx.capabilities.tools,
+                visual_mode=ctx.settings.visual_mode,
+                orchestration_mode=ctx.settings.orchestration_mode,
+            )
         )
         watchdog_s = limits.watchdog_ms / 1000
         program_error: dict[str, Any] | None = None

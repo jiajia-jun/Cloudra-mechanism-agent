@@ -332,8 +332,10 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     Returns the per-project high watermarks after restore.  Events are
     appended back into the in-memory log with their original seq so new
     events continue monotonically.  Restore also closes what the dead process
-    left open: zombie RUNNING/WAITING agents are finalized as failed, and
-    orphaned pending approvals/interactions get explicit
+    left open: zombie RUNNING/WAITING agents are finalized as failed (and a
+    zombie child's terminal state is delivered to its parent's mailbox,
+    waking the parent unless it is itself terminal), and orphaned pending
+    approvals/interactions get explicit
     approval.expired / interaction.expired terminal events (3c).
     """
 
@@ -401,6 +403,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     # reopens it (message-to-terminal auto-restart).
     from cloudra.runtime_v2.schemas import AgentState
 
+    zombies = []
     for agent in core.agents.values():
         if agent.state not in {
             AgentState.RUNNING,
@@ -417,6 +420,20 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             core.agent_host.transition(
                 agent, AgentState.FAILED, reason="interrupted by process restart"
             )
+        new_events.extend(list(core.event_log)[before:])
+        zombies.append(agent)
+    # 跨重启子终态回传：僵尸子的父还在等它的结果（is_wait=False 派发只有这
+    # 一条通知通道），与普通完成回传同一路径送达父信箱并唤醒；父也是僵尸
+    # （上一轮已落 failed）或已 cancelled 时通知驻留信箱不唤醒
+    # （park-don't-wake，deliver_child_completion_to_parent 的统一纪律）。
+    # 生产路径 restore 在 uvicorn 事件循环内、runner 已装，wake 即真实调度。
+    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+    for agent in zombies:
+        if not agent.parent_session_id:
+            continue
+        before = len(core.event_log)
+        deliver_child_completion_to_parent(core, agent)
         new_events.extend(list(core.event_log)[before:])
     # Orphaned pending entries (a requested approval/interaction whose waiter
     # died with the previous process) get an explicit terminal

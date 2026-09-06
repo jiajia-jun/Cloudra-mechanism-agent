@@ -48,6 +48,15 @@ def test_capability_projection_matches_registry_declarations():
     assert "bash" not in allowed and "get_skill" in allowed
 
 
+def test_dag_message_supervisor_is_not_on_the_supervisor_wire():
+    """dag_message_supervisor 是研究 Agent/Coordinator → Supervisor 的请求入口，
+    工具本身硬拒 Supervisor 调用；它绝不能出现在 Supervisor 的工具投影里
+    （督导的回复路径是裁决工具 + 运行结束报告，不是给自己发消息）。"""
+    assert capabilities.supervisor_access_for("dag_message_supervisor") == "none"
+    assert "dag_message_supervisor" not in capabilities.supervisor_allowed_tools()
+    assert "dag_message_supervisor" not in capabilities.supervisor_tool_names()
+
+
 # --- 拒绝路径：写操作、compute 提交、未知工具 ---
 
 

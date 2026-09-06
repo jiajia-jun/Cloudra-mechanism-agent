@@ -11,12 +11,17 @@ There is exactly one persistent graph — the delivery (mechanism) graph. There 
 - `dag_propose_mechanism`: Coordinator's first delivery artifact — a delivery-graph draft (occurrences + elementary-step edges) plus per-element stage contracts and a rationale. No compute is unlocked until the draft is accepted.
 - `dag_accept_mechanism`: Supervisor only (`dag_guided`): accept commits the draft (all stages start `pending`) and unlocks compute; reject returns it with a mandatory reason. In `dag_record` the harness auto-accepts on proposal.
 - `dag_add_species` / `dag_add_step` / `dag_update_delivery_element`: Coordinator adjusts the accepted mechanism. Each change wakes the Supervisor for audit in `dag_guided`.
-- `dag_review_call`: Supervisor only (`dag_guided`): adjudicate one finished call from the review inbox and bind its stage verdict.
+- `dag_review_call`: Supervisor only (`dag_guided`): adjudicate one explicitly submitted evidence claim from the review inbox and bind its stage verdict.
 - `dag_bind_evidence`: Coordinator binds a finished call to a declared stage. In `dag_record` it binds
-  directly; in `dag_guided` it **submits the call's result into the review inbox** for the Supervisor to
-  adjudicate — use it for evidence-bearing tools that do not auto-review (e.g. `format_converter`,
-  `internal_coordinates`), passing `tool_call_id`, `bind_target`, and `stage_kind`.
-- `dag_message_supervisor`: Coordinator leaves a note for Supervisor (appeal a verdict, explain a contract choice, report a blocker). Does not change the graph. Not available to sub-agents.
+  directly; in `dag_guided` it is the **only** way evidence reaches the Supervisor — finished tool calls
+  are never auto-submitted. Select the calls whose result actually supports a stage and submit each with
+  a `claim` (what it proves) plus an optional `rationale`, passing `tool_call_id`, `bind_target`, and
+  `stage_kind`. Re-submitting an identical still-pending claim is idempotent (the existing review id
+  comes back).
+- `dag_message_supervisor`: send a structured review request (`kind` = evidence/exception for research
+  Agents; draft/exit and plain-text notes are Coordinator-only) to the Supervisor — appeal a verdict,
+  explain a contract choice, report a blocker. Creates a queued ReviewRequest the Supervisor resolves
+  with `dag_review_evidence`; does not change the graph.
 - `dag_remove_edge`: delete a delivery edge; `rationale` is required (deletions stay in the change log). Supervisor is read-only on delivery, so structural cleanup is the Coordinator's job.
 - `dag_set_coverage_contract`: Supervisor only; strengthen the coverage contract (never weaken — waivers are user-only).
 - `dag_delivery_report` / `dag_view`: coverage self-check and graph/review-inbox inspection.
@@ -32,11 +37,11 @@ Every delivery element carries an ordered **stage contract**, chosen by the Coor
 
 Endpoint convention (read this before naming endpoints): **`endpoint_a` is the step's target-node side (the product); `endpoint_b` is the source-node side (the reactant complex).** For a Diels-Alder step that is "reactant complex → product", `endpoint_a` = the product (e.g. cyclohexene) and `endpoint_b` = the reactant complex (e.g. s-cis-butadiene + ethylene). Do not guess — check the edge's source/target nodes with `dag_view`.
 
-Stage status: `pending` → `supported` (bound to a successful call), `skipped` (reason required — the only non-success disposal), or `rejected` (reason required — **an open gap that is still owed**, not a disposal; the only exits are a later re-bind or an explicit skip-with-reason).
+Stage status: `pending` → `supported` (bound to a successful call), `skipped` (reason required — the stage COULD be computed but is deliberately abandoned), `not_applicable` (reason required — the slot does not apply to this element at all, e.g. a barrierless step has no `ts_opt`), or `rejected` (reason required — **an open gap that is still owed**, not a disposal; the only exits are a later re-bind or an explicit skip/not_applicable with reason).
 
-Bind order is strict: binding stage *k* requires every previous **required** stage to be `supported` or `skipped`, else `stage_out_of_order`. A `rejected` previous stage blocks later stages until it is re-bound or skipped. The harness also validates tool success, that the resolved ref is a real post-completion result (a `submit_compute_job` call is never evidence — bind the finished job's parser output), and deriver checks (a TS `frequency` bind requires exactly one imaginary frequency in the parsed log, else `saddle_check_failed`).
+Bind order is strict: binding stage *k* requires every previous **required** stage to be `supported`, `skipped`, or `not_applicable`, else `stage_out_of_order`. A `rejected` previous stage blocks later stages until it is re-bound or disposed. The harness also validates tool success, that the resolved ref is a real post-completion result (a `submit_compute_job` call is never evidence — bind the finished job's parser output), and deriver checks (a TS `frequency` bind requires exactly one imaginary frequency in the parsed log, else `saddle_check_failed`).
 
-Coverage `complete` ⇔ every required stage is `supported`, or `skipped` with a non-empty reason. `pending` and `rejected` are both open gaps. Derived display levels (`structure_supported` / `saddle_supported` / `endpoint_supported` / `thermo_annotated`) are computed from stages only — no one writes them by hand.
+Coverage `complete` ⇔ every required stage is `supported`, or `skipped`/`not_applicable` with a non-empty reason. `pending` and `rejected` are both open gaps. Derived display levels (`structure_supported` / `saddle_supported` / `endpoint_supported` / `thermo_annotated`) are computed from stages only — no one writes them by hand.
 
 ## dag_guided workflow
 
@@ -49,13 +54,16 @@ Advance in this order (the harness hard-blocks skipping ahead; error messages na
 3. **Propose the mechanism**: `dag_propose_mechanism` with the delivery draft, stage contracts, and rationale.
 4. **Supervisor review**: Supervisor is woken (`mechanism_proposed`) and calls `dag_accept_mechanism`.
    Accept unlocks compute; reject sends the draft back with a reason — revise and re-propose.
-   The supervisor conclusion is pinned into your context (`[Supervisor]`); to reply, use
+   A rejected draft's `reject_reason` rides the next pinned DAG projection; to reply, use
    `dag_message_supervisor(message="...")` (Coordinator only).
 5. **Work at your own pace**: dispatch `small_mol` / `dft` (etc.) sub-agents or execute yourself.
    Sub-agents run tools and report; they never write the graph.
-6. **Review inbox**: each finished delivery-relevant call (`log_parser`, `reaction_mapping`,
-   `thermo_analysis`, `ts_guess`, plus compute-job completions/failures) lands in the CallReview inbox
-   and wakes Supervisor (coalesced). Supervisor binds stages with `dag_review_call`; nothing auto-binds.
+6. **Explicit review submission**: nothing lands in the Supervisor's review inbox automatically.
+   You (or a research sub-agent) SELECT the finished calls whose results actually support a stage and
+   submit each with `dag_bind_evidence` (with a `claim`). Only submitted claims reach the Supervisor;
+   it adjudicates each with `dag_review_call`. Verdicts surface as `stage_rejected` gaps in
+   `dag_view` / the pinned projection — a disagree means the stage is still owed: re-run and submit a
+   later call, or ask for an explicit skip/not_applicable with reason.
 7. **Delivery**: only `stop` for delivery after `dag_delivery_report` confirms coverage; if there are gaps, keep
    filling evidence or state partial / ask the user for a waiver.
 
@@ -63,8 +71,9 @@ Advance in this order (the harness hard-blocks skipping ahead; error messages na
 
 Same discipline without the Supervisor: the proposal is auto-accepted by the harness on submission, and the
 Coordinator binds stages itself with `dag_bind_evidence(tool_call_id, bind_target, stage_kind)` as results
-land. Order, success, and deriver checks apply exactly as in guided mode. `dag_accept_mechanism`,
-`dag_review_call`, and `dag_set_coverage_contract` are disabled in this mode.
+land. Order, success, and deriver checks apply exactly as in guided mode. The Supervisor-side verdict tools
+(`dag_accept_mechanism`, `dag_review_call`, `dag_review_evidence`, `dag_set_coverage_contract`) are not
+projected in this mode.
 
 ## Proposing the mechanism: dag_propose_mechanism
 
@@ -128,7 +137,12 @@ One call per pending review: `review_id`, `target_id`, `stage_kind`, `verdict`, 
   `tool_call_id` and enforces order, success, not-a-submit, and deriver checks.
 - `disagree` — the evidence does not support the stage (reason required). The stage becomes `rejected`:
   **still owed work**, an open coverage gap — never a disposal.
-- `skip` — deliberately abandon the stage (reason required); the only non-success disposal.
+- `skip` — the stage COULD be computed but is deliberately abandoned (reason required); counts as disposed.
+- `not_applicable` — the stage slot does not apply to this element at all (reason required); counts as
+  complete — the stage is not owed.
+- `needs_evidence` — the submitted snapshot cannot answer the claim (reason required — name the concrete
+  missing evidence). Closes the review WITHOUT a stage change; the submitter re-submits once the
+  material exists.
 - `ignore` — the call is not delivery evidence; no stage change.
 
 One call may support several stages of the same element (an opt+freq log can support `ts_opt` and
@@ -155,7 +169,8 @@ and resend; you do not need to look up revision numbers or ids again. A `stage_o
 earlier stage (or skip it with a reason) first.
 
 Evidence timing is order-sensitive: a `frequency` bind is rejected until `ts_opt` is bound first. Land the
-evidence in contract order (or bind the earlier stage in the same pass). Re-running the same tool on the same
-unchanged source produces a **duplicate** — an already-queued review is not re-queued; if you are re-submitting
-on purpose, say what changed (new log, re-run job). Only post-completion artifacts count: submit the finished
-job's parser output, not the `submit_compute_job` call.
+evidence in contract order (or bind the earlier stage in the same pass). In `dag_guided`, re-submitting an
+identical still-pending claim is **idempotent** — you get the existing review id back instead of a
+duplicate; if you are re-submitting on purpose, say what changed (new log, re-run job) in the claim or
+rationale. Only post-completion artifacts count: submit the finished job's parser output, not the
+`submit_compute_job` call.

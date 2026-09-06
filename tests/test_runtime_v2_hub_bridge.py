@@ -229,6 +229,64 @@ async def test_to_agent_mention_wakes_sleeping_agent():
 
 
 @pytest.mark.asyncio
+async def test_mention_to_cancelled_agent_parks_without_reopening():
+    """A2：hub mention 不复活用户取消的 agent——通知照常投递信箱驻留
+    （parked），状态保持 cancelled、不开新 run。旧实现 _notify 无终态守卫，
+    mention 会把 cancelled agent 直接 reopen。"""
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    # 子 agent 停在 queued（无 query）再取消——已 terminal 的 agent 不可 cancel。
+    bus = CommandBus(core)
+    child = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": coordinator.project_id},
+                payload={"role_id": "explorer", "parent_session_id": coordinator.id},
+            )
+        )
+    ).data
+    await bus.execute(Command(type="agent.cancel", target={"session_id": child.id}, payload={}))
+    assert child.state.value == "cancelled"
+    runs_before = len([e for e in core.event_log.query_session(child.id) if e.type == "run.started"])
+
+    posted = await handle_hub_tool(
+        core,
+        coordinator,
+        _hub({"action": "post", "topic": "t", "content": "explorer please check", "to_agent": "explorer"}),
+    )
+    assert posted.is_success is True
+    assert "Notified explorer." in posted.summary
+    await asyncio.sleep(0.05)
+    assert child.state.value == "cancelled"
+    assert len([e for e in core.event_log.query_session(child.id) if e.type == "run.started"]) == runs_before
+    texts = _inbox_texts(core, child.id)
+    assert any("mentioned you in AgentHub" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_call_to_failed_agent_parks_without_reopening():
+    """A2：hub call 对 failed agent 同样 parked 不唤醒（统一不复活纪律）。"""
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    child = await _spawn(core, coordinator, "small_mol")
+    core.agent_host.start_run(child)
+    core.agent_host.finish_run(child, outcome="failed", error="boom")
+    assert child.state.value == "failed"
+    runs_before = len([e for e in core.event_log.query_session(child.id) if e.type == "run.started"])
+
+    result = await handle_hub_tool(
+        core, coordinator, _hub({"action": "call", "to": child.id, "message": "ping me back"})
+    )
+    assert result.is_success is True
+    await asyncio.sleep(0.05)
+    assert child.state.value == "failed"
+    assert len([e for e in core.event_log.query_session(child.id) if e.type == "run.started"]) == runs_before
+    texts = _inbox_texts(core, child.id)
+    assert any("[Incoming call]" in t and "ping me back" in t for t in texts)
+
+
+@pytest.mark.asyncio
 async def test_call_to_role_spawns_fresh_child():
     core, _, coordinator = await _setup()
     await _wait_state(coordinator, "succeeded")

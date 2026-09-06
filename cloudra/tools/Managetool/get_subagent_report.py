@@ -6,17 +6,17 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 
 description = (
-    "Fetch the full execution report of a given sub-agent task. Looks up the complete reasoning, "
-    "tool-call log, and final conclusion by Session ID. Use when the brief result from subagent_launcher is not enough to decide."
+    "Fetch the result of a dispatched sub-agent. By session_id: once the sub-agent reaches a terminal "
+    "state (succeeded/failed/cancelled), returns its final emitted assistant message — for a crashed "
+    "sub-agent, the recorded failure reason; while it is still running, only its current state is "
+    "returned (ask again later). By group_id: returns the launch group's counters (state, "
+    "pending/running counts) and per-item status including child session ids. Intermediate reasoning "
+    "and the tool-call log are NOT included."
 )
 
 class GetSubAgentReport_input_schema(input_schema):
     session_id: str = Field(default="", description="Sub-agent Session ID to retrieve")
-    group_id: str = Field(default="", description="Launch group ID to retrieve")
-    detail_level: str = Field(
-        default="full",
-        description="Report detail: 'full' (full context and logs), 'summary' (final conclusion only), 'steps' (reasoning steps and tool calls only)"
-    )
+    group_id: str = Field(default="", description="Launch group ID to retrieve (returns group counters and per-item status)")
 
 class GetSubAgentReport_output_schema(output_schema):
     is_success: bool = Field(description="Whether the report was retrieved")

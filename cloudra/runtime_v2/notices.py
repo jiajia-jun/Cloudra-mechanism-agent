@@ -91,6 +91,14 @@ class NoticeManager:
             self._emit("context.pin_set", session_id, {"key": key, "content": text})
         pins[key] = text
 
+    def pin_content(self, session_id: str, key: str) -> str | None:
+        """当前 pin 内容（无则 None）：一次性告警按内容指纹去重的读取口。
+
+        pin 由事件投影恢复（restore_from），跨重启比较依然成立——内容不变
+        就不应重复投递配套的一次性消息。
+        """
+        return self._pins.get(session_id, {}).get(key)
+
     def unpin(self, session_id: str, key: str) -> None:
         pins = self._pins.get(session_id)
         if pins is None:

@@ -75,10 +75,21 @@ class LaunchGroupManager:
     ``spawner`` is an async callable ``(query) -> AgentSession``.  The worker
     starts at most ``max_concurrency`` children and waits for each to become
     terminal before starting the next queued item.
+
+    ``track``（可选）在 worker 任务创建时回调
+    ``(parent_session_id, task, label)``——生产接线把它登记进 runner 的
+    ``track_background``，使用户取消与 shutdown 都能取消并 await 组任务
+    （裸 create_task 两者都碰不到）。
     """
 
-    def __init__(self, *, spawner: Callable[[str], Any]) -> None:
+    def __init__(
+        self,
+        *,
+        spawner: Callable[[str], Any],
+        track: Callable[[str, asyncio.Task, str], None] | None = None,
+    ) -> None:
         self._spawner = spawner
+        self._track = track
         self._groups: dict[str, LaunchGroup] = {}
 
     def create(
@@ -90,6 +101,9 @@ class LaunchGroupManager:
         max_concurrency: int,
         spawner: Callable[[str], Any] | None = None,
     ) -> LaunchGroup:
+        # group_id 冲突绝不静默覆盖：重复 id 说明派生方有 bug，响亮拒绝。
+        if group_id in self._groups:
+            raise ValueError(f"launch group {group_id!r} already exists; refusing to overwrite it")
         group = LaunchGroup(
             group_id=group_id,
             parent_session_id=parent_session_id,
@@ -101,7 +115,9 @@ class LaunchGroupManager:
             spawner=spawner or self._spawner,
         )
         self._groups[group_id] = group
-        group._task = asyncio.create_task(self._run(group))
+        group._task = asyncio.create_task(self._run(group), name=f"launch_group:{group_id}")
+        if self._track is not None:
+            self._track(parent_session_id, group._task, f"launch_group:{group_id}")
         return group
 
     def get(self, group_id: str) -> LaunchGroup | None:
@@ -168,3 +184,19 @@ class LaunchGroupManager:
             if item.state == "queued":
                 item.state = "cancelled"
         return group
+
+    async def cancel_for_parent(self, parent_session_id: str) -> list[LaunchGroup]:
+        """取消某 agent 持有的全部组（父 agent 取消的级联入口）。"""
+        groups = [
+            group
+            for group in self._groups.values()
+            if group.parent_session_id == parent_session_id
+        ]
+        for group in groups:
+            await self.cancel(group.group_id)
+        return groups
+
+    async def cancel_all(self) -> None:
+        """shutdown 用：取消全部组并 await，逐项落 cancelled。"""
+        for group_id in list(self._groups):
+            await self.cancel(group_id)

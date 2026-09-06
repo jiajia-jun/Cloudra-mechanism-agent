@@ -17,7 +17,10 @@ def test_proposal_wire_schema_describes_nested_operations_without_runtime_fields
     schema = legacy_tool_schemas(["dag_propose_mechanism"])[0]["function"]["parameters"]
     items = schema["properties"]["operations"]["items"]
     assert "oneOf" in items
-    declarations = tool_declarations(["dag_propose_mechanism"])
+    # dag_* 工具只在 DAG 编排模式下投影；声明渲染按 guided 模式取。
+    declarations = tool_declarations(
+        ["dag_propose_mechanism"], orchestration_mode="dag_guided"
+    )
     for field in ('"node"', '"edge"', '"source_node_id"', '"target_node_id"', '"node_type"'):
         assert field in declarations
     for internal in ("evidence_vetoed", "saddle_supported", "ObservedNode", "StageState"):

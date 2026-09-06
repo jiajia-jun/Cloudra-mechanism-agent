@@ -6,9 +6,12 @@ tests/test_runtime_v2_supervision.py 的生命周期用例与反馈矩阵承接�
 本文件保留 DAG 投影侧的驳回理由回环（与督导执行方式无关）。
 """
 
+import asyncio
+
 import pytest
 
 from cloudra.dag.controller import DagController
+from cloudra.dag.models import CallReview
 from cloudra.persistence.database import ConversationDB
 
 
@@ -93,3 +96,30 @@ async def test_prompt_projection_omits_reject_reason_after_new_open_draft(tmp_pa
     text = await controller.prompt_projection()
 
     assert "stale rejection reason" not in text
+
+
+@pytest.mark.asyncio
+async def test_prompt_projection_pending_reviews_are_explicit_only(tmp_path):
+    """投影 pin 的 pending_reviews 与 dag_view 同一口径：只列 source="explicit"
+    的可消费送审行；legacy_auto/auto 历史行保留审计但绝不出现在 pin 里
+    （否则 Coordinator/Supervisor 会对着永远不可消费的"待办"空转）。"""
+    db = _db(tmp_path, "projection-explicit-only")
+    controller = DagController(db, "s1", "dag_guided")
+    await controller.initialize()
+    for source in ("explicit", "legacy_auto"):
+        await asyncio.to_thread(
+            controller.store.enqueue_call_review,
+            CallReview(
+                review_id=source,
+                tool_call_id=source,
+                tool_name="log_parser",
+                is_success=True,
+                source=source,
+                claim=f"claim from {source}",
+            ),
+        )
+
+    text = await controller.prompt_projection()
+
+    assert "explicit" in text
+    assert "legacy_auto" not in text

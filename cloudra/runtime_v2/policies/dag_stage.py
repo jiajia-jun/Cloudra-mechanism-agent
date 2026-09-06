@@ -109,8 +109,10 @@ class DagPolicyStage:
         await controller.initialize()
         if explicit_stop:
             args = stop_arguments or {}
-            # D8.1：缺省不再声称 complete——只有显式 complete 才进入完成审计
-            disposition = str(args.get("delivery_disposition") or "partial")
+            # 缺省与 stop 工具 schema 对齐（default="complete"）：runner 传的是
+            # 原始调用参数，pydantic 默认值不会生效，缺省必须在这里补齐——
+            # 缺省即声明 complete 并进入完成审计；要 partial 必须显式声明。
+            disposition = str(args.get("delivery_disposition") or "complete")
             return await controller.audit_stop(
                 disposition,
                 approval_id=args.get("approval_id"),
@@ -153,9 +155,16 @@ class DagPolicyStage:
 
     async def after_tool(self, ctx: PipelineContext, call: ToolCall, result: ToolResult) -> None:
         if ctx.agent.role_id == "supervisor":
-            # 督导的 dag_review_evidence 落库裁决后，非轮询投递裁决通知
-            # （durable 行 + pin + mailbox + 条件 wake，cancelled 不复活）。
-            if call.name == "dag_review_evidence" and result.is_success and self._core is not None:
+            # 督导裁决落库后非轮询投递裁决通知（durable 行 + pin + mailbox +
+            # 条件 wake，cancelled 不复活）：结构化裁决 dag_review_evidence、
+            # per-call 裁决 dag_review_call、草稿裁决 dag_accept_mechanism
+            # 三类共用同一条 flush 通道。
+            if (
+                call.name
+                in {"dag_review_evidence", "dag_review_call", "dag_accept_mechanism"}
+                and result.is_success
+                and self._core is not None
+            ):
                 from cloudra.runtime_v2.supervision import flush_review_notifications
 
                 await flush_review_notifications(self._core, ctx.agent.project_id)

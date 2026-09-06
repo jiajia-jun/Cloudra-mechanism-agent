@@ -321,14 +321,20 @@ def test_legacy_agent_id_mapping():
 
 
 class StopNoDispositionLLM:
-    """stop 不带 delivery_disposition——D8.1 前会缺省成 complete。"""
+    """stop 不带 delivery_disposition——schema 缺省是 complete，运行时必须对齐。"""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.seen: list[list[dict]] = []
 
     async def complete(self, agent, messages, tools, **_kwargs):
+        self.calls += 1
+        self.seen.append(list(messages))
         return LLMResponse(
             content="",
             tool_calls=[
                 ToolCall(
-                    id="tc1",
+                    id=f"tc{self.calls}",
                     name="stop",
                     arguments={"reason": "done", "final_answer": "x"},
                 )
@@ -337,25 +343,32 @@ class StopNoDispositionLLM:
 
 
 @pytest.mark.asyncio
-async def test_stop_without_disposition_defaults_to_partial(tmp_path):
-    """D8.1：缺省 delivery_disposition 是 partial——不再默认声称 complete，
-    空图上也能放行并按 partial 落库。（Task 4A 迁移：审计在 runner 收尾的
-    统一结束门禁发生，改用 runner 级驱动。）"""
+async def test_stop_without_disposition_is_audited_as_complete(tmp_path):
+    """缺省 delivery_disposition 与 schema 一致（complete）：guided 空图上缺省
+    stop 按 complete 审计——判 continue_work（complete 被确定性拦截，绝不走
+    partial 的 wait_review 审批路径），反馈点名 complete 声明，缺口无进展
+    反复退出耗尽后落 failed，不登记任何交付处置。"""
     core = RuntimeCore(strict_events=True)
     project, agent = await _agent(core)
     project.workspace_dir = str(tmp_path)
-    agent.settings.orchestration_mode = OrchestrationMode.DAG_RECORD
-    await _drive_with_runner(core, agent, StopNoDispositionLLM(), tmp_path)
-    await _wait_terminal(agent)
-    assert agent.state.value == "succeeded"
+    agent.settings.orchestration_mode = OrchestrationMode.DAG_GUIDED
+    llm = StopNoDispositionLLM()
+    await _drive_with_runner(core, agent, llm, tmp_path)
+    await _wait_terminal(agent, states=("failed",))
+    gates = [
+        e
+        for e in core.event_log.query_session(agent.id, types={"agent.completion_gate"})
+    ]
+    assert [e.data["action"] for e in gates] == ["continue_work"] * 3
+    assert all("complete was declared" in e.data["reason"] for e in gates)
+    texts = [str(m.get("content")) for messages in llm.seen for m in messages]
+    assert any("required coverage is missing" in text for text in texts)
     from cloudra.persistence.database import ConversationDB
 
     db = ConversationDB(agent.project_id).init()
     with db.connect() as con:
-        rows = con.execute(
-            "SELECT disposition FROM dag_delivery_dispositions ORDER BY rowid"
-        ).fetchall()
-    assert rows == [("partial",)]
+        count = con.execute("SELECT COUNT(*) FROM dag_delivery_dispositions").fetchone()[0]
+    assert count == 0
 
 
 @pytest.mark.asyncio

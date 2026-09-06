@@ -5,6 +5,12 @@ _derive_facts），不创建 review、不通知 Supervisor；计算作业终态�
 dag_record 留审计行。唯一入箱路径是 agent 筛选后经 dag_bind_evidence →
 submit_evidence_for_review 的显式送审（带 claim/rationale，围绕不可变
 快照裁决）。
+
+通知所有权：``submit_evidence_for_review`` 只验证并持久化 explicit
+review；真实 ``dag_bind_evidence`` 成功返回后，由运行时 DAG policy 的
+完成钩子（``_trigger_supervisor_after_tool``）按新建 review 回执通知
+Supervisor。直接存储调用不启动督导；中断窗口由 reconcile 扫持久信箱
+恢复。工具完成本身不自动筛选研究证据。
 """
 
 from __future__ import annotations
@@ -290,19 +296,7 @@ class EvidenceInboxMixin:
             }
             for review, (review_id, created) in zip(prepared, outcomes)
         ]
-        if self.mode is OrchestrationMode.DAG_GUIDED and any(
-            created for _rid, created in outcomes
-        ):
-            await self._notify_supervisor_of_submission()
         return {"attachments": results}
-
-    async def _notify_supervisor_of_submission(self) -> None:
-        """显式送审落库后按状态表通知 Supervisor（非阻塞，不等待裁决）。
-
-        待办已持久化，通知失败不回滚入箱；reconcile 路径会在项目装载时
-        补通知（见 SupervisionMixin._notify_supervisor）。
-        """
-        await self._notify_supervisor("explicit evidence submission")
 
     def _evidence_for_call(self, tool_call_id: str) -> GraphRef:
         """tool_call_id → 已登记的 tool_result 证据引用（证据库反查）。
@@ -825,6 +819,43 @@ class EvidenceInboxMixin:
             "revisions": mutation.revisions,
         }
 
+    async def _call_verdict_notification(
+        self,
+        review: CallReview,
+        verdict: str,
+        target_id: str,
+        stage_kind: str,
+        reason: str,
+    ) -> dict[str, Any]:
+        """终态裁决的 durable 通知材料（与 mark_call_review 同事务落表）。
+
+        所有六种终态裁决都通知提交者：每条显式送审恰好一条裁决反馈，
+        disagree/needs_evidence 要求行动，agree/skip/not_applicable/ignore
+        闭环等待。渲染材料（verdict/target/stage/reason）全在 payload——
+        裁决行本身不落 verdict 列，flush 不再回查图存储。
+        """
+        target = review.suggested_target_id or target_id
+        stage = review.suggested_stage or stage_kind
+        target_type = ""
+        try:
+            snapshot = await asyncio.to_thread(self.engine.snapshot)
+            target_type, _ = self._delivery_target(snapshot.delivery, target)
+        except Exception:  # 目标已被带理由删除等：通知照常落，target 无前缀
+            logger.debug(
+                "[DagController] verdict notification target %r unresolved", target
+            )
+        return {
+            "recipient_session_id": review.caller_session_id,
+            "payload": {
+                "verdict": verdict,
+                "target_id": target,
+                "target_type": target_type,
+                "stage_kind": stage,
+                "reason": reason.strip(),
+                "claim": review.claim,
+            },
+        }
+
     async def review_call(
         self,
         *,
@@ -846,6 +877,9 @@ class EvidenceInboxMixin:
         不改阶段；disagree/skip/not_applicable 不解析 ref、reason 必填；
         needs_evidence = 缺证据（reason 必填，列出具体缺失），本轮不再审——
         review 离开 pending 信箱、阶段不动，补充材料后重新送审产生新 review。
+        每种终态裁决都与落态同事务写一条 durable 裁决通知（call_verdict），
+        由 flush_review_notifications 投递给提交者（dag_stage 的 after_tool
+        触发；恢复路径 reconcile 补投）。
         """
         if not self.enabled:
             raise RuntimeError(
@@ -873,7 +907,12 @@ class EvidenceInboxMixin:
         }
         if verdict == "ignore":
             await asyncio.to_thread(
-                self.store.mark_call_review, review_id, "ignored"
+                self.store.mark_call_review,
+                review_id,
+                "ignored",
+                notification=await self._call_verdict_notification(
+                    review, "ignore", target_id, stage_kind, reason
+                ),
             )
             return {
                 "review_id": review_id,
@@ -902,7 +941,12 @@ class EvidenceInboxMixin:
             # 本轮不再审：离开 pending 信箱（不 busy-loop），阶段保持不动；
             # 补齐材料后显式重提产生新 review（已裁决同构重提的既有语义）。
             await asyncio.to_thread(
-                self.store.mark_call_review, review_id, "reviewed"
+                self.store.mark_call_review,
+                review_id,
+                "reviewed",
+                notification=await self._call_verdict_notification(
+                    review, "needs_evidence", target_id, stage_kind, reason
+                ),
             )
             return {
                 "review_id": review_id,
@@ -938,7 +982,12 @@ class EvidenceInboxMixin:
         )
         if mutation.accepted:
             await asyncio.to_thread(
-                self.store.mark_call_review, review_id, "reviewed"
+                self.store.mark_call_review,
+                review_id,
+                "reviewed",
+                notification=await self._call_verdict_notification(
+                    review, verdict, target_id, stage_kind, reason
+                ),
             )
         return {
             "review_id": review_id,

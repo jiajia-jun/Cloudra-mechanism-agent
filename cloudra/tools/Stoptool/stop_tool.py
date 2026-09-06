@@ -18,7 +18,7 @@ class StopTool_input_schema(input_schema):
     delivery_disposition: Literal["complete", "partial", "user_terminated"] = Field(
         default="complete",
         description=(
-            "DAG-mode delivery declaration: complete must pass evidence-derived coverage; "
+            "DAG-mode delivery declaration (defaults to complete when omitted): complete must pass evidence-derived coverage; "
             "partial finishes with remaining gaps (this is a final delivery statement, not a pause); "
             "user_terminated means the user asked to stop. "
             "If background jobs/reminders are still pending, stop only suspends — no audit and no disposition is recorded."
@@ -26,7 +26,11 @@ class StopTool_input_schema(input_schema):
     )
     approval_id: str | None = Field(
         default=None,
-        description="Durable Supervisor exit decision id approving a partial result.",
+        description=(
+            "Durable Supervisor exit decision id approving a partial result. "
+            "Exit-review loop (dag_guided): a partial stop without approval submits an exit review and suspends the run; "
+            "when the [Supervisor review decision] notice arrives with verdict=accept, call stop again with this id set to that decision_id."
+        ),
     )
     user_stop_event_id: str | None = Field(
         default=None,
@@ -55,7 +59,9 @@ class StopTool(Tool):
         "the session is persisted as waiting (not completed), and the loop resumes when the reminder fires or an external event arrives — "
         "suspension is not delivery, so DAG mode does not run a delivery audit at this point. "
         "Do not use for: questions that still need the user (use ask_user), or stopping early while later steps remain and no wake-up is scheduled. "
-        "Note: for quiz/eval tasks, put the final concise answer in final_answer."
+        "Note: for quiz/eval tasks, put the final concise answer in final_answer. "
+        "In DAG mode the stop is audited after this call: the run may be kept working (gap feedback), suspended pending a "
+        "Supervisor exit review (dag_guided partial), or accepted — the completion-gate feedback message tells you which."
     )
     input_schema: Any = StopTool_input_schema
     output_schema: Any = StopTool_output_schema

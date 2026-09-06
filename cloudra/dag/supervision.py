@@ -60,7 +60,11 @@ class SupervisionMixin:
            dag_drafts open； guided 模式提案返回 accepted=False，判据是内层
            result.draft_id，不是科学接受）；
         2. dag_message_supervisor 成功 → 通知（纯文本与结构化请求都已落
-           dag_review_requests，见 dag_message_supervisor 工具）。
+           dag_review_requests，见 dag_message_supervisor 工具）；
+        3. dag_bind_evidence 显式送审 → 通知（成功且批量中至少一条新建
+           pending review——回执带 review_id 且 enqueued=True；全幂等重复、
+           失败、无回执的完成都不通知）。送审方法本身只验证并持久化，
+           通知唯一所有权在本钩子。
 
         delivery_updated 不再是触发口（计划 §1/§5）：图变更本身已在 store
         变更日志里持久化，督导信箱只含显式送审/草稿/结构化请求三类；督导
@@ -71,6 +75,16 @@ class SupervisionMixin:
             return
         accepted = bool(result.get("accepted"))
         inner = result.get("result")
+        if tool_name == "dag_bind_evidence" and success and accepted:
+            attachments = inner.get("attachments") if isinstance(inner, dict) else None
+            if isinstance(attachments, list) and any(
+                isinstance(item, dict)
+                and bool(item.get("review_id"))
+                and item.get("enqueued") is True
+                for item in attachments
+            ):
+                await self._notify_supervisor("explicit evidence submission")
+            return
         draft_recorded = accepted or (
             isinstance(inner, dict) and bool(inner.get("draft_id"))
         )

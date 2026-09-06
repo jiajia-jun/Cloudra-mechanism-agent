@@ -57,7 +57,12 @@ class SubAgentSwarm_input_schema(input_schema):
     )
     is_wait: bool = Field(
         default=True,
-        description="Whether to wait for all subtasks and aggregate results. If False, fire the tasks and immediately return all session_ids."
+        description=(
+            "Whether to wait for all subtasks and aggregate results. If False, fire the tasks and return "
+            "immediately: with max_concurrency=0 all session_ids are returned at once; with "
+            "max_concurrency>0 a group_id is returned instead (poll get_subagent_report with that "
+            "group_id for progress counters and per-item child session ids)."
+        )
     )
     max_concurrency: int = Field(
         default=0,
@@ -67,9 +72,21 @@ class SubAgentSwarm_input_schema(input_schema):
 
 class SubAgentSwarm_output_schema(output_schema):
     is_success: bool = Field(default=False, description="Whether the swarm dispatch succeeded")
-    session_ids: list[str] = Field(description="Session ID of each subtask (same order as items)")
-    task_ids: list[int] = Field(description="Task ID of each subtask (same order as items)")
-    result: str = Field(description="Aggregated report (is_wait=True) or dispatch receipt (is_wait=False)")
+    session_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Session ID of each subtask (same order as items). Populated when is_wait=True, and when "
+            "is_wait=False with max_concurrency=0. Empty for grouped dispatch (is_wait=False with "
+            "max_concurrency>0): children spawn lazily under the concurrency cap, so per-item child "
+            "session ids are only available later via get_subagent_report(group_id=...)."
+        ),
+    )
+    group_id: str = Field(
+        default="",
+        description="Launch group ID; returned only for grouped dispatch (is_wait=False with max_concurrency>0)",
+    )
+    pending_count: int = Field(default=0, description="Items still queued at dispatch time (grouped dispatch only)")
+    result: str = Field(default="", description="Aggregated report (is_wait=True) or dispatch receipt (is_wait=False)")
 
 
 class SubAgentSwarm(Tool):
@@ -84,7 +101,7 @@ class SubAgentSwarm(Tool):
         return True
 
     def _error(self, message: str) -> SubAgentSwarm_output_schema:
-        return SubAgentSwarm_output_schema(session_ids=[], task_ids=[], result=message)
+        return SubAgentSwarm_output_schema(result=message)
 
     async def tool_call(
         self,

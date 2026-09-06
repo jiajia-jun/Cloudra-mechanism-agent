@@ -1043,14 +1043,15 @@ _MODE_GUIDANCE = {
         "2. Work at your own pace afterwards — there is no frontier. Sub-agents run tools and report; "
         "they never write the graph. Structural changes (dag_add_species / dag_add_step / "
         "dag_update_delivery_element) wake the Supervisor for audit.\n"
-        "3. Delivery-relevant calls land in the Supervisor's review inbox; it binds stages via "
-        "dag_review_call. A disagree means the stage is still owed — re-run and let a later call be "
-        "bound, or explicitly skip it with a reason. ts_guess is advisory and never satisfies "
-        "ts_opt/frequency; a submit_compute_job call is never evidence.\n"
+        "3. Evidence reaches the Supervisor only when explicitly submitted with dag_bind_evidence "
+        "(with a claim) — finished calls are never auto-submitted. The Supervisor adjudicates each "
+        "claim via dag_review_call. A disagree means the stage is still owed — re-run and submit a "
+        "later call, or close it with an explicit skip/not_applicable with a reason. ts_guess is "
+        "advisory and never satisfies ts_opt/frequency; a submit_compute_job call is never evidence.\n"
         "4. Delivery completeness is decided by stage coverage, not by your declaration; before "
         "stop(delivery_disposition=complete), self-check with dag_delivery_report: every required "
-        "stage must be supported or skipped with a reason. If there are gaps, keep filling evidence "
-        "or explicitly choose partial / user_terminated."
+        "stage must be supported or skipped/not_applicable with a reason. If there are gaps, keep "
+        "filling evidence or explicitly choose partial / user_terminated."
     ),
 }
 

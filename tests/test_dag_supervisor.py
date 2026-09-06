@@ -209,11 +209,15 @@ async def test_research_tool_completions_register_evidence_without_notify():
 
 
 @pytest.mark.asyncio
-async def test_dag_verdict_tool_completions_do_not_notify():
-    """dag_bind_evidence / dag_review_evidence 的工具完成事件不是通知口：
-    送审通知发生在 submit_evidence_for_review 内部（持久化之后），督导自己
-    的裁决工具绝不唤醒督导（无自我复核循环）。"""
-    core, project = await _core_project("supervision-verdict-quiet")
+async def test_bind_completion_without_submission_receipt_does_not_notify():
+    """无入库回执的 dag_bind_evidence 完成不通知 Supervisor。
+
+    通知判据是结果里新建 pending review 的回执（review_id + enqueued=True）：
+    不带 attachments 回执的完成（含 dag_record 直绑形态）与全幂等重复
+    （enqueued=False）都保持安静。送审的持久化+通知链路见
+    tests/test_runtime_v2_dag_submission.py。
+    """
+    core, project = await _core_project("supervision-bind-quiet")
     controller = _guided_controller(project.id, core)
 
     await controller.on_tool_finished(
@@ -222,6 +226,34 @@ async def test_dag_verdict_tool_completions_do_not_notify():
         {"tool_call_id": "tc-x", "bind_target": "step1", "stage_kind": "ts_opt"},
         {"is_success": True, "accepted": True},
     )
+    await controller.on_tool_finished(
+        "tc-bind-dup",
+        "dag_bind_evidence",
+        {
+            "attachments": [
+                {"tool_call_id": "tc-x", "bind_target": "step1", "stage_kind": "ts_opt"}
+            ]
+        },
+        {
+            "is_success": True,
+            "accepted": True,
+            "result": {
+                "attachments": [
+                    {"tool_call_id": "tc-x", "review_id": "rev_1", "enqueued": False}
+                ]
+            },
+        },
+    )
+
+    assert find_project_supervisor(core, project.id) is None
+
+
+@pytest.mark.asyncio
+async def test_supervisor_verdict_tools_do_not_self_notify():
+    """督导自己的裁决工具绝不唤醒督导（无自我复核循环）。"""
+    core, project = await _core_project("supervision-verdict-quiet")
+    controller = _guided_controller(project.id, core)
+
     await controller.on_tool_finished(
         "tc-review",
         "dag_review_evidence",

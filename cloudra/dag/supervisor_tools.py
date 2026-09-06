@@ -241,7 +241,8 @@ class SupervisorToolExecutor:
         except Exception as exc:
             return _error(
                 f"{name} argument validation failed: {exc}. "
-                "Use this tool's flat fields; do not send a mutate operations array."
+                "Arguments are this tool's own flat fields as declared in its "
+                "input schema; resend with those fields."
             )
         session = self._session or SimpleNamespace(id=session_id or "supervisor")
         # Several tool classes narrow the `subagent` field to the legacy Agent

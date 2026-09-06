@@ -299,7 +299,9 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='DagMessageSupervisor',
         tool_name='dag_message_supervisor',
         dag_observe=False,
-        supervisor_access='review_decision',
+        # 无 supervisor_access：这是研究 Agent/Coordinator → Supervisor 的
+        # 请求入口，工具本身硬拒 Supervisor 调用；督导的回复路径是
+        # dag_review_* 裁决工具与运行结束报告。
     ),
     ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
     ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),

@@ -154,6 +154,190 @@ async def test_restore_marks_zombie_running_agents_failed(tmp_path):
     assert len(again.event_log.query_session(agent.id, types={"run.finished"})) == len(finished)
 
 
+# ------------------------------------------------------------- 跨重启子终态回传
+# restore 把僵尸 running/waiting 落 failed 之外，还必须把子的终态按普通完成
+# 回传送达父信箱（否则 is_wait=False 派发的父跨重启永远等不到子结果）。唤醒
+# 遵循统一不复活纪律：父 failed/cancelled 则通知驻留信箱（parked）不唤醒。
+
+
+async def _seed_parent_with_running_child(store):
+    """纯状态构造（无 runner）：父 succeeded 休眠 + 子 running 僵尸，全量落盘。"""
+    from cloudra.runtime_v2.schemas import AgentState  # noqa: F401
+
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    core.event_hub.subscribe(lambda event: _persist_event(store, event))
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "zombie-child"}))
+    project = next(iter(core.projects.values()))
+    parent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator"},
+            )
+        )
+    ).data
+    child = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={
+                    "role_id": "explorer",
+                    "parent_session_id": parent.id,
+                    "query": "long running task",
+                },
+            )
+        )
+    ).data
+    # 父跑完一轮正常休眠；子仍在跑（进程此刻"崩溃"）。
+    core.agent_host.start_run(parent)
+    core.agent_host.finish_run(parent, outcome="succeeded")
+    core.agent_host.start_run(child)
+    for event in list(core.event_log):
+        await _persist_event(store, event)
+    store.save_snapshot(
+        projects=core.projects,
+        agents=core.agents,
+        roles=core.roles._roles,
+        runtime_defaults=core.runtime_defaults,
+        last_seqs=core.event_log.high_watermarks,
+    )
+    return core, project, parent, child
+
+
+@pytest.mark.asyncio
+async def test_restore_delivers_zombie_child_failure_to_parent(tmp_path):
+    """跨重启通知丢失（P0）：子 agent 随进程死掉时，restore 落 failed 之外
+    必须把终态送达父信箱并唤醒父；通知文本明示是重启收尾（state=failed +
+    interrupted by process restart），不是正常完成。"""
+    from cloudra.runtime_v2.schemas import AgentState
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    _, project, parent, child = await _seed_parent_with_running_child(store)
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+
+    rchild = restored.agents[child.id]
+    rparent = restored.agents[parent.id]
+    assert rchild.state is AgentState.FAILED
+    # 父收到子失败通知：durable 事件 + 信箱驻留。
+    reports = [
+        e
+        for e in restored.event_log.query_session(parent.id, types={"agent.message_injected"})
+        if child.id in str(e.data.get("content", ""))
+    ]
+    assert reports, "restore must deliver the zombie child's terminal state to the parent"
+    body = reports[-1].data["content"]
+    assert "[Sub-agent finished]" in body
+    assert "state=failed" in body
+    assert "interrupted by process restart" in body
+    inbox = restored.mailbox.inbox(parent.id)
+    assert inbox is not None and inbox.qsize() == 1
+    # 父被唤醒开新 run（无 runner：只落事件——调度是 runner 的职责，与
+    # reconcile 的恢复通知同一模式）。
+    assert rparent.state is AgentState.RUNNING
+    # 通知事件已回写 store（跨进程 durable，重放可见）。
+    persisted = store.query_project_events(project.id)
+    assert any(
+        row["type"] == "agent.message_injected" and child.id in row["data"]
+        for row in persisted
+    )
+
+
+@pytest.mark.asyncio
+async def test_restore_parks_zombie_child_notification_when_parent_also_zombie(tmp_path):
+    """父子同为僵尸：两者都被 restore 落 failed；子的通知照常投递父信箱
+    驻留（parked），但不唤醒 failed 的父（failed 绝不自动复活）。"""
+    from cloudra.runtime_v2.schemas import AgentState
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core, project, parent, child = await _seed_parent_with_running_child(store)
+    # 把父也变成 running 僵尸：在已休眠的父上再起一个 run，补落盘+快照。
+    core.agent_host.start_run(parent)
+    for event in list(core.event_log):
+        await _persist_event(store, event)
+    store.save_snapshot(
+        projects=core.projects,
+        agents=core.agents,
+        roles=core.roles._roles,
+        runtime_defaults=core.runtime_defaults,
+        last_seqs=core.event_log.high_watermarks,
+    )
+    parent_runs_before = len(
+        [e for e in core.event_log.query_session(parent.id) if e.type == "run.started"]
+    )
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    restore_core(restored, store)
+
+    rparent = restored.agents[parent.id]
+    assert restored.agents[child.id].state is AgentState.FAILED
+    assert rparent.state is AgentState.FAILED  # parked：不唤醒
+    runs = [e for e in restored.event_log.query_session(parent.id) if e.type == "run.started"]
+    assert len(runs) == parent_runs_before  # 没有 reopen 新 run
+    reports = [
+        e
+        for e in restored.event_log.query_session(parent.id, types={"agent.message_injected"})
+        if child.id in str(e.data.get("content", ""))
+    ]
+    assert reports, "notification must still be parked in the failed parent's mailbox"
+    inbox = restored.mailbox.inbox(parent.id)
+    assert inbox is not None and inbox.qsize() == 1
+
+
+@pytest.mark.asyncio
+async def test_restore_zombie_child_notification_schedules_parent_runner(tmp_path):
+    """唤醒真实可调度：带 runner 的 restore（生产路径在 uvicorn 事件循环
+    内、runner 已装）让被唤醒的父立即开跑并消费子失败通知。"""
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.policies import default_stages
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+
+    class StopLLM:
+        async def complete(self, agent, messages, tools, **_kwargs):
+            return LLMResponse(content="ack child failure", stop_requested=True)
+
+    async def _stub_summarizer(messages):
+        return "[RUN LOG]\nstub\n[HANDOVER]\nstub"
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    _, project, parent, child = await _seed_parent_with_running_child(store)
+
+    restored = RuntimeCore(strict_events=True)
+    restored.store = store
+    pipeline = TurnPipeline(
+        event_log=restored.event_log,
+        stages=default_stages(),
+        llm=StopLLM(),
+        tools=LegacyToolExecutor(restored),
+    )
+    restored.runner = AgentRunner(restored, pipeline, run_summarizer=_stub_summarizer)
+    restore_core(restored, store)
+
+    rparent = restored.agents[parent.id]
+    try:
+        deadline = asyncio.get_running_loop().time() + 10.0
+        while rparent.state.value != "succeeded":
+            if asyncio.get_running_loop().time() > deadline:
+                raise AssertionError(f"parent stuck in {rparent.state.value} after restore wake")
+            await asyncio.sleep(0.01)
+        emitted = [
+            e
+            for e in restored.event_log.query_session(parent.id, types={"agent.message_emitted"})
+            if "ack child failure" in str(e.data.get("content", ""))
+        ]
+        assert emitted, "woken parent must run a turn and consume the parked notification"
+    finally:
+        await restored.runner.cancel_all()
+
+
 @pytest.mark.asyncio
 async def test_restore_merges_snapshot_roles_over_builtins(tmp_path):
     """旧快照（缺后加的内置角色，如 supervisor）恢复后，注册表仍包含全部
@@ -482,8 +666,8 @@ def _replay_all_events(store: RuntimeStore):
 @pytest.mark.asyncio
 async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_path):
     """恢复矩阵·用户取消后重启进程：cancelled 不是僵尸 running——restore
-    原样保留取消终态，reconcile 不复活（零新事件、零投递），持久化待办
-    留在信箱等显式恢复。"""
+    原样保留取消终态，reconcile 不复活（park-don't-wake：通知驻留信箱、
+    零状态/run 事件），持久化待办留在信箱等显式恢复。"""
     from cloudra.runtime_v2.schemas import AgentState
     from cloudra.runtime_v2.supervision import (
         find_project_supervisor,
@@ -532,10 +716,30 @@ async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_p
 
     events_before = len(core2.event_log)
     await reconcile_supervision(core2, project.id)
-    assert len(core2.event_log) == events_before  # 零新事件：不复活不投递
+    # park-don't-wake：通知照常投递信箱驻留（用户显式恢复后首轮即可见），
+    # 但不复活——督导自身只有一条投递事件，零状态/run 事件，状态保持
+    # cancelled。D2：cancelled 督导 + 可消费待办同时给 Coordinator 发
+    # 一次性告警（pin + mailbox；告警不复活督导，点名显式恢复入口）。
+    from cloudra.runtime_v2.supervision import TERMINAL_SUPERVISOR_PIN_KEY
+
+    new_events = list(core2.event_log)[events_before:]
+    supervisor_events = [e for e in new_events if e.session_id == supervisor2.id]
+    assert [e.type for e in supervisor_events] == ["agent.message_injected"]
     assert supervisor2.state is AgentState.CANCELLED
     inbox = core2.mailbox.inbox(supervisor2.id)
-    assert inbox is None or inbox.empty()
+    assert inbox is not None and inbox.qsize() == 1
+    assert any(
+        e.type == "context.pin_set"
+        and e.session_id == coordinator.id
+        and e.data.get("key") == TERMINAL_SUPERVISOR_PIN_KEY
+        for e in new_events
+    )
+    assert any(
+        e.type == "agent.message_injected"
+        and e.session_id == coordinator.id
+        and "[Supervision] ALERT" in str(e.data.get("content", ""))
+        for e in new_events
+    )
 
     # 持久化待办不丢。
     from cloudra.dag.store import DagStore
@@ -549,10 +753,11 @@ async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_p
 
 @pytest.mark.asyncio
 async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
-    """恢复矩阵·重放零副作用：事件重放/restore 路径绝不执行督导逻辑——
-    不 spawn（记录之外的）agent、不发通知、不跑 LLM/工具。reconcile 是
-    restore 之后的显式步骤，对僵尸收尾落 failed 的 supervisor 同样是
-    no-op（不补通知）。"""
+    """恢复矩阵·重放零副作用：事件重放绝不产生任何副作用；restore 只做
+    确定性的中断收尾——僵尸落 failed 并把子终态回传父信箱（唯一新增的事
+    件族：完成通知 + 父唤醒生命周期事件），不 spawn（记录之外的）agent、
+    不跑 LLM/工具。reconcile 是 restore 之后的显式步骤，对僵尸收尾落
+    failed 的 supervisor 只 parked 投递、不唤醒。"""
     from cloudra.runtime_v2.schemas import AgentState
     from cloudra.runtime_v2.supervision import (
         find_project_supervisor,
@@ -585,9 +790,6 @@ async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
     await notify_supervisor(core1, project.id, reason="explicit evidence submission")
     supervisor1 = find_project_supervisor(core1, project.id)
     assert supervisor1 is not None and supervisor1.state.value == "running"
-    injections_before = len(
-        [e for e in core1.event_log if e.type == "agent.message_injected"]
-    )
 
     # 纯重放：状态与"restore 前"的活 core 一致（僵尸仍 running），零副作用。
     replayed = _replay_all_events(store)
@@ -596,25 +798,49 @@ async def test_replay_and_restore_have_no_supervision_side_effects(tmp_path):
         a.id for a in core1.agents.values()
     }  # 重放不新增 agent
 
-    # restore：僵尸 running → failed（中断收尾），此外不补通知。
+    # restore：僵尸 running → failed（中断收尾），并把子的终态回传给父
+    # （coordinator 是 queued 非终态：投递 + 唤醒开新 run——无 runner 只落
+    # 事件）。restore 新落盘的事件只许是这一族，绝无任何执行痕迹。
+    persisted_before = {row["event_id"] for row in store.query_project_events(project.id)}
     core2 = RuntimeCore(strict_events=True)
     core2.store = store
     restore_core(core2, store)
     supervisor2 = core2.agents[supervisor1.id]
     assert supervisor2.state is AgentState.FAILED
-    injections_after = len(
-        [e for e in core2.event_log if e.type == "agent.message_injected"]
-    )
-    assert injections_after == injections_before  # restore/reconcile 前零新投递
+    new_rows = [
+        row
+        for row in store.query_project_events(project.id)
+        if row["event_id"] not in persisted_before
+    ]
+    new_types = {row["type"] for row in new_rows}
+    assert new_types <= {
+        "agent.state_changed",
+        "run.finished",
+        "agent.message_injected",
+        "run.started",
+        "agent.context_reset",
+    }, new_types
+    reports = [
+        e
+        for e in core2.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+        if supervisor1.id in str(e.data.get("content", ""))
+    ]
+    assert reports, "zombie supervisor's failure must reach its parent coordinator"
+    assert "interrupted by process restart" in reports[-1].data["content"]
+    assert core2.agents[coordinator.id].state is AgentState.RUNNING  # 唤醒（无 runner 只落事件）
 
-    # 收尾事件已回写 store：纯重放与 restored 逐字段全等（含 failed 收尾）。
+    # 收尾+回传事件已回写 store：纯重放与 restored 逐字段全等。
     replayed_post = _replay_all_events(store)
     assert replayed_post.agents[supervisor1.id].model_dump(
         mode="json"
     ) == supervisor2.model_dump(mode="json")
+    assert replayed_post.agents[coordinator.id].model_dump(
+        mode="json"
+    ) == core2.agents[coordinator.id].model_dump(mode="json")
 
-    # reconcile 对 failed 是 no-op；全事件流无任何工具/LLM 执行痕迹。
+    # reconcile 对 failed 只 parked 投递不唤醒；全事件流无任何工具/LLM 执行痕迹。
     await reconcile_supervision(core2, project.id)
+    assert supervisor2.state is AgentState.FAILED
     executed = [
         e
         for e in core2.event_log

@@ -10,6 +10,7 @@ from cloudra.runtime_v2.schemas import (
     AgentSession,
     CurrentRun,
     InvocationProtocol,
+    OrchestrationMode,
     PermissionSet,
 )
 from cloudra.runtime_v2.tool_catalog import (
@@ -122,6 +123,65 @@ def test_js_declarations_project_constraints_and_escape_comments():
     assert "default=3" in rendered
     assert "min 1" in rendered and "max 9" in rendered
     assert "value */ safely" not in rendered
+
+
+# ------------------------------------------------------- orchestration mode gate
+
+
+def _mode_agent(mode: OrchestrationMode) -> AgentSession:
+    agent = _agent()
+    agent.settings.orchestration_mode = mode
+    return agent
+
+
+def test_dag_tools_hidden_in_standard_mode():
+    from cloudra.tools.capabilities import dag_tools
+
+    assert {"dag_view", "dag_review_call", "dag_bind_evidence"} <= dag_tools()
+    names = set(_names(wire_tool_schemas(_mode_agent(OrchestrationMode.STANDARD), ["*"])))
+    assert "log_parser" in names
+    assert not (names & dag_tools())
+    guest = guest_tool_names(
+        ["dag_view", "log_parser"], orchestration_mode=OrchestrationMode.STANDARD
+    )
+    assert guest == ["log_parser"]
+
+
+def test_supervisor_review_decision_tools_hidden_in_dag_record():
+    from cloudra.tools.capabilities import dag_review_decision_tools
+
+    assert {
+        "dag_accept_mechanism",
+        "dag_review_call",
+        "dag_review_evidence",
+        "dag_set_coverage_contract",
+    } <= dag_review_decision_tools()
+    names = set(_names(wire_tool_schemas(_mode_agent(OrchestrationMode.DAG_RECORD), ["*"])))
+    assert {"dag_view", "dag_bind_evidence", "dag_propose_mechanism"} <= names
+    assert not (names & dag_review_decision_tools())
+
+
+def test_all_dag_tools_visible_in_dag_guided():
+    names = set(_names(wire_tool_schemas(_mode_agent(OrchestrationMode.DAG_GUIDED), ["*"])))
+    assert {
+        "dag_view",
+        "dag_bind_evidence",
+        "dag_review_call",
+        "dag_accept_mechanism",
+        "dag_review_evidence",
+        "dag_set_coverage_contract",
+    } <= names
+
+
+def test_guest_declarations_follow_orchestration_mode():
+    text = tool_declarations(
+        ["dag_view", "log_parser"], orchestration_mode=OrchestrationMode.STANDARD
+    )
+    assert "dag_view(" not in text and "log_parser(" in text
+    text = tool_declarations(
+        ["dag_view", "dag_review_call"], orchestration_mode=OrchestrationMode.DAG_RECORD
+    )
+    assert "dag_view(" in text and "dag_review_call(" not in text
 
 
 # ----------------------------------------------------------------------- routing

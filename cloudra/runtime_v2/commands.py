@@ -41,6 +41,7 @@ from cloudra.runtime_v2.agent_host import _CONTEXT_RESET_NOTE, plan_cancel, plan
 from cloudra.runtime_v2.apply import apply_event
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.effects import (
+    CancelLaunchGroups,
     CancelRunner,
     Decision,
     DeliverMessage,
@@ -54,6 +55,7 @@ from cloudra.runtime_v2.effects import (
 )
 from cloudra.runtime_v2.mailbox import Mailbox
 from cloudra.runtime_v2.schemas import (
+    AgentSession,
     AgentState,
     Command,
     CommandRejected,
@@ -299,6 +301,13 @@ def _decide_patch_agent_settings(core: RuntimeCore, command: Command) -> Decisio
         effects.append(PatchApiKey(agent.id, patch.api_key))
     changes.pop("api_key", None)
     next_revision = agent.settings_revision + 1
+    if (
+        patch.orchestration_mode is OrchestrationMode.DAG_GUIDED
+        and agent.settings.orchestration_mode is not OrchestrationMode.DAG_GUIDED
+    ):
+        # 与 _decide_update_project 同一迁移沿：agent 中途切入 dag_guided 也
+        # 补一次督导待办通知（guided→guided 重补丁不重复触发）。
+        effects.append(ReconcileSupervision(agent.project_id))
     return Decision(
         events=(
             EventDraft(
@@ -357,32 +366,60 @@ def _decide_inject_agent_message(core: RuntimeCore, command: Command) -> Decisio
     )
 
 
-def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
-    agent = core.require_agent(command.target.get("session_id", ""))
-    cancel_drafts = plan_cancel(agent)  # succeeded/failed 抛错；cancelled 幂等空计划
-    if not cancel_drafts:
-        return Decision(result=ResultRef("agent", agent.id))
-    message = command.payload.get("message")
-    drafts: list[EventDraft] = [
+_CANCEL_TERMINAL_STATES = {AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED}
+
+
+def _live_descendants(core: RuntimeCore, session_id: str) -> list[AgentSession]:
+    """全部存活（非终态）后代，父先子后（BFS，深度不设限）。
+
+    今天的 spawn 规则只有 Coordinator 能派生（结构深度 1），但级联按树走，
+    规则放开后无需再改。终态后代自然跳过：succeeded/failed 无可取消，
+    cancelled 幂等。
+    """
+    by_parent: dict[str, list[AgentSession]] = {}
+    for agent in core.agents.values():
+        if agent.parent_session_id:
+            by_parent.setdefault(agent.parent_session_id, []).append(agent)
+    descendants: list[AgentSession] = []
+    visited = {session_id}
+    queue = [session_id]
+    while queue:
+        current = queue.pop(0)
+        for child in by_parent.get(current, ()):
+            if child.id in visited or child.state in _CANCEL_TERMINAL_STATES:
+                continue
+            visited.add(child.id)
+            descendants.append(child)
+            queue.append(child.id)
+    return descendants
+
+
+def _cancel_agent_drafts(
+    agent: AgentSession,
+    *,
+    actor: str | None,
+    message: str | None,
+    cause: str,
+    parent_session_id: str | None = None,
+) -> list[EventDraft]:
+    """一个 agent 的取消事件组：cancel_requested → state_changed → cancelled。
+
+    被级联取消的后代带 ``cause="parent_cancelled"`` 审计标记；终态判定与
+    顶层的差异（succeeded/failed 顶层抛错、后代静默跳过）在调用方。
+    """
+    data: dict[str, Any] = {"message": message, "actor": actor, "cause": cause}
+    if parent_session_id is not None:
+        data["parent_session_id"] = parent_session_id
+    drafts = [
         EventDraft(
             "agent.cancel_requested",
             stream="project",
             project_id=agent.project_id,
             session_id=agent.id,
-            data={"message": message, "actor": command.actor},
+            data=data,
         )
     ]
-    effects: list[Effect] = []
-    if message:
-        message_draft, deliver = _message_drafts(
-            project_id=agent.project_id,
-            session_id=agent.id,
-            sender=command.actor,
-            content=str(message),
-        )
-        drafts.append(message_draft)
-        effects.append(deliver)
-    drafts.extend(cancel_drafts)
+    drafts.extend(plan_cancel(agent))
     drafts.append(
         EventDraft(
             "agent.cancelled",
@@ -392,7 +429,49 @@ def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
             data={"session_id": agent.id},
         )
     )
+    return drafts
+
+
+def _decide_cancel_agent(core: RuntimeCore, command: Command) -> Decision:
+    agent = core.require_agent(command.target.get("session_id", ""))
+    cancel_drafts = plan_cancel(agent)  # succeeded/failed 抛错；cancelled 幂等空计划
+    if not cancel_drafts:
+        return Decision(result=ResultRef("agent", agent.id))
+    message = command.payload.get("message")
+    # 取消级联（C2）：父取消时全部存活后代一并落 cancelled 终态——异步
+    # （is_wait=False）子 agent 不再跑到完成空烧 LLM/计算。子的完成回传按
+    # park-don't-wake 纪律投递信箱驻留，绝不唤醒已取消的父。
+    descendants = _live_descendants(core, agent.id)
+    drafts: list[EventDraft] = _cancel_agent_drafts(
+        agent, actor=command.actor, message=message, cause="explicit"
+    )
+    effects: list[Effect] = []
+    if message:
+        message_draft, deliver = _message_drafts(
+            project_id=agent.project_id,
+            session_id=agent.id,
+            sender=command.actor,
+            content=str(message),
+        )
+        # 投递草稿放在 state_changed/cancelled 之前，与原事件顺序一致
+        # （cancel_requested → message_injected → state_changed → cancelled）。
+        drafts.insert(1, message_draft)
+        effects.append(deliver)
+    for child in descendants:
+        drafts.extend(
+            _cancel_agent_drafts(
+                child,
+                actor=command.actor,
+                message=None,
+                cause="parent_cancelled",
+                parent_session_id=agent.id,
+            )
+        )
+    # 效果顺序：先停 launch group（不再 spawn 新子 agent），再取消父的
+    # run（父轮次不再推进、不再派生），最后逐个取消子的 run。
+    effects.append(CancelLaunchGroups(agent.id))
     effects.append(CancelRunner(agent.id))
+    effects.extend(CancelRunner(child.id) for child in descendants)
     return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("agent", agent.id))
 
 
@@ -634,6 +713,10 @@ async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
     elif isinstance(effect, CancelRunner):
         if core.runner is not None:
             await core.runner.cancel(effect.session_id)
+    elif isinstance(effect, CancelLaunchGroups):
+        manager = getattr(core, "launch_groups", None)
+        if manager is not None:
+            await manager.cancel_for_parent(effect.session_id)
     elif isinstance(effect, ReconcileSupervision):
         # 切回 dag_guided 的补通知（Task 4）。失败不炸模式切换命令本身——
         # 待办已持久化，下次项目装载的 reconcile 仍会补；记 warning 可诊断。

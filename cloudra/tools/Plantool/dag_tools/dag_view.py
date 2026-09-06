@@ -63,6 +63,9 @@ class DagView(DagToolBase):
         "stage contracts), explicit pending call reviews, queued review requests, delivery gaps, and recent mutations; "
         "graph_kind=delivery with node_ids/status_filter to inspect specific elements and their stages. "
         "Do not use for: graph mutations; graph_kind=process (removed — returns a deprecation note). "
+        "Protocol map: dag_bind_evidence (with a claim) creates the CallReviews judged by dag_review_call; "
+        "dag_message_supervisor creates the ReviewRequests resolved by dag_review_evidence; "
+        "dag_view_evidence reads the immutable snapshot behind one CallReview. "
         "Key discipline: prefer the default both projection over paging an entire subgraph."
     )
     input_schema: Any = DagViewInput

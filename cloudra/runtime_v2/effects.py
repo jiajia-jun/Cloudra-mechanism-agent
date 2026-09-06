@@ -21,8 +21,11 @@
   两处一致。
 - ``PatchApiKey``：api_key 是 write-only 秘密，永不进事件/快照；活对象的
   内存覆盖补挂也是副作用，显式建模而不是藏在 decide 里 mutate。
-- ``ReconcileSupervision``：project.update 把 orchestration_mode 切回
-  dag_guided 时补一次督导待办通知（产出方 ``_decide_update_project``）。
+- ``ReconcileSupervision``：编排模式迁移沿（project.update 或
+  agent.settings_update 切回/切入 dag_guided）补一次督导待办通知（产出方
+  ``_decide_update_project`` / ``_decide_patch_agent_settings``）。
+- ``CancelLaunchGroups``：取消 agent 时级联停掉它持有的 launch group
+  （产出方 ``_decide_cancel_agent``）。
 """
 
 from __future__ import annotations
@@ -87,8 +90,27 @@ class ReconcileSupervision:
     project_id: str
 
 
+@dataclass(frozen=True)
+class CancelLaunchGroups:
+    """取消某 agent 持有的全部 launch group（停止继续 spawn，逐项落 cancelled）。
+
+    与 runner 任务取消同级表达：worker 任务登记在 runner 的
+    ``track_background`` 里，本效果负责组级状态收敛（state=cancelled、
+    queued 项不再 spawn）；已 spawn 的子 agent 由 decide 的后代级联
+    （``_decide_cancel_agent``）落 cancelled 终态。
+    """
+
+    session_id: str
+
+
 Effect = (
-    EnsureDir | ScheduleAgent | CancelRunner | DeliverMessage | PatchApiKey | ReconcileSupervision
+    EnsureDir
+    | ScheduleAgent
+    | CancelRunner
+    | DeliverMessage
+    | PatchApiKey
+    | ReconcileSupervision
+    | CancelLaunchGroups
 )
 
 

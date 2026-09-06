@@ -35,6 +35,7 @@ def test_dag_operations_skill_documents_tool_family() -> None:
         "dag_propose_mechanism",
         "dag_accept_mechanism",
         "dag_review_call",
+        "dag_review_evidence",
         "dag_bind_evidence",
         "dag_add_species",
         "dag_add_step",
@@ -49,7 +50,6 @@ def test_dag_operations_skill_documents_tool_family() -> None:
         "dag_schedule_work",
         "dag_update_process_node",
         "dag_init_from_template",
-        "dag_review_evidence",
     ):
         assert deleted not in skill, deleted
     assert "attach_ref" not in skill

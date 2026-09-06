@@ -30,6 +30,7 @@ from cloudra.runtime_v2.schemas import (
     AgentSession,
     AgentState,
     CommandRejected,
+    OrchestrationMode,
     Project,
     RoleProfile,
     RuntimeSettings,
@@ -250,6 +251,33 @@ def plan_wake(agent: AgentSession) -> tuple[list[EventDraft], bool]:
     return drafts, True
 
 
+def resolve_orchestration_mode(
+    project: Project,
+    role: RoleProfile,
+    override: RuntimeSettingsPatch | None,
+) -> OrchestrationMode:
+    """编排模式的唯一解析点：项目字段是可继承默认值，显式 patch 是覆盖。
+
+    优先级（低→高）：``project.settings.defaults`` 里的冗余镜像 →
+    ``project.settings.orchestration_mode``（项目级默认值的事实源）→
+    ``role.default_settings`` → spawn/patch 显式 override。patch 里
+    ``orchestration_mode=None`` 即"未设置"（继承），非 None 即显式覆盖——
+    split-brain 在结构上不可能：只设项目字段的 API-only 客户端也会得到该
+    模式的 agent。解析发生在 spawn（settings 是 agent 的快照，见
+    ``effective_settings``）；切换活 agent 的模式走 ``agent.settings_update``
+    显式 patch。
+    """
+    mode = OrchestrationMode.STANDARD
+    if project.settings.defaults.orchestration_mode is not None:
+        mode = project.settings.defaults.orchestration_mode
+    # 专用字段是项目级默认值，压过 defaults patch 里的冗余镜像。
+    mode = project.settings.orchestration_mode
+    for patch in (role.default_settings, override):
+        if patch is not None and patch.orchestration_mode is not None:
+            mode = patch.orchestration_mode
+    return mode
+
+
 class AgentHost:
     def __init__(self, core: RuntimeCore) -> None:
         self.core = core
@@ -266,6 +294,7 @@ class AgentHost:
         base = base.apply(role.default_settings)
         if override is not None:
             base = base.apply(override)
+        base.orchestration_mode = resolve_orchestration_mode(project, role, override)
         return base
 
     def build(

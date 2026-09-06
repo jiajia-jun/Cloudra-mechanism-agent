@@ -718,25 +718,62 @@ class DagStore:
         return [self._review_request_from_row(row) for row in rows]
 
     def pending_review_notifications(self) -> list[dict[str, Any]]:
-        """Pending decision notifications (decision_id idempotent)."""
+        """Pending verdict notifications (notification_id idempotent).
+
+        三类裁决共用：``kind`` ∈ review_decision / call_verdict /
+        draft_verdict；``decision_id`` 是各类的主体 id（decision_id /
+        review_id / draft_id），``payload`` 是后两类的渲染材料 JSON
+        （review_decision 的渲染材料在 dag_review_decisions 查得）。
+        """
         with self.db.connect() as con:
             rows = con.execute(
-                "SELECT notification_id, decision_id, request_id, "
-                "recipient_session_id, state, created_at "
+                "SELECT notification_id, kind, decision_id, request_id, "
+                "recipient_session_id, payload, state, created_at "
                 "FROM dag_review_notifications WHERE state = 'pending' "
                 "ORDER BY created_at, rowid"
             ).fetchall()
         return [
             {
                 "notification_id": row[0],
-                "decision_id": row[1],
-                "request_id": row[2],
-                "recipient_session_id": row[3],
-                "state": row[4],
-                "created_at": row[5],
+                "kind": row[1],
+                "decision_id": row[2],
+                "request_id": row[3],
+                "recipient_session_id": row[4],
+                "payload": row[5],
+                "state": row[6],
+                "created_at": row[7],
             }
             for row in rows
         ]
+
+    @staticmethod
+    def _insert_notification(
+        con,
+        *,
+        kind: str,
+        subject_id: str,
+        recipient_session_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """在同一事务内落一条 pending 裁决通知（调用方持有连接/事务）。
+
+        必须与裁决状态变更同事务（mark_call_review / set_draft_state），
+        否则崩溃窗口会出现"裁决已落、通知行丢失"——恢复路径只补投通知行，
+        不重推裁决。
+        """
+        con.execute(
+            "INSERT INTO dag_review_notifications("
+            "notification_id, kind, decision_id, request_id, "
+            "recipient_session_id, payload, state, created_at"
+            ") VALUES (?, ?, ?, '', ?, ?, 'pending', datetime('now'))",
+            (
+                "notif_" + uuid.uuid4().hex,
+                kind,
+                subject_id,
+                recipient_session_id,
+                _canonical_json(payload),
+            ),
+        )
 
     def mark_review_notification_sent(self, decision_id: str) -> None:
         def operation() -> None:
@@ -1191,7 +1228,18 @@ class DagStore:
             ).fetchone()
         return self._review_from_row(row) if row else None
 
-    def mark_call_review(self, review_id: str, state: str) -> None:
+    def mark_call_review(
+        self,
+        review_id: str,
+        state: str,
+        *,
+        notification: dict[str, Any] | None = None,
+    ) -> None:
+        """裁决落态；``notification`` 携带的裁决通知同事务入表（call_verdict）。
+
+        notification = {"recipient_session_id": ..., "payload": {...}}——
+        裁决行本身不落 verdict 列，渲染材料全在 payload。
+        """
         if state not in ("pending", "reviewed", "ignored"):
             raise ValueError(f"invalid review state {state!r}")
 
@@ -1201,6 +1249,16 @@ class DagStore:
                     "UPDATE dag_call_reviews SET state = ? WHERE review_id = ?",
                     (state, review_id),
                 )
+                if notification is not None:
+                    self._insert_notification(
+                        con,
+                        kind="call_verdict",
+                        subject_id=review_id,
+                        recipient_session_id=str(
+                            notification.get("recipient_session_id") or ""
+                        ),
+                        payload=notification.get("payload") or {},
+                    )
 
         retry_on_locked(operation)
 
@@ -1295,8 +1353,14 @@ class DagStore:
         return row[0], self._draft_from_row(row[1:])
 
     def set_draft_state(
-        self, draft_id: str, state: str, *, reject_reason: str = ""
+        self,
+        draft_id: str,
+        state: str,
+        *,
+        reject_reason: str = "",
+        notification: dict[str, Any] | None = None,
     ) -> None:
+        """草稿裁决落态；``notification`` 携带的裁决通知同事务入表（draft_verdict）。"""
         if state not in ("accepted", "rejected"):
             raise ValueError(f"invalid draft state {state!r}")
 
@@ -1307,8 +1371,27 @@ class DagStore:
                     "decided_at = datetime('now') WHERE draft_id = ?",
                     (state, reject_reason, draft_id),
                 )
+                if notification is not None:
+                    self._insert_notification(
+                        con,
+                        kind="draft_verdict",
+                        subject_id=draft_id,
+                        recipient_session_id=str(
+                            notification.get("recipient_session_id") or ""
+                        ),
+                        payload=notification.get("payload") or {},
+                    )
 
         retry_on_locked(operation)
+
+    def draft_actor_id(self, draft_id: str) -> str:
+        """草稿的 proposer（legacy a-N actor 词表）；缺失返回空串。"""
+        with self.db.connect() as con:
+            row = con.execute(
+                "SELECT actor_id FROM dag_drafts WHERE draft_id = ?",
+                (draft_id,),
+            ).fetchone()
+        return row[0] if row else ""
 
     def has_accepted_draft(self) -> bool:
         """D4：mechanism_accepted 的唯一判据。"""

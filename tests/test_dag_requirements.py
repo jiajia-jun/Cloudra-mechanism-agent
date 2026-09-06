@@ -1,14 +1,12 @@
-"""Task 5：物种身份与按类型验证，允许乱序绑定。
-
-覆盖 requirements 纯函数、反应映射/解析事实适配器，以及 v2 已接受契约下
-的证据乱序绑定。
+"""Task 5：按类型验证（evaluate_claim）、反应映射/解析事实适配器，以及 v2
+已接受契约下的证据乱序绑定。
 """
 
 import pytest
 
 from cloudra.dag.evidence_facts import EvidenceFact, FactSubject
 from cloudra.dag.models import ClaimSpec, GraphRef
-from cloudra.dag.requirements import evaluate_claim, identity_result
+from cloudra.dag.requirements import evaluate_claim
 
 
 def _ref(ref_id="ev_1", hash_="sha256:aaa"):
@@ -24,27 +22,6 @@ def _fact(check, outcome, *, details=None, target_hint=""):
         source_refs=[_ref()],
         details=details or {},
     )
-
-
-def test_symmetric_mapping_does_not_refute_species():
-    result = identity_result("match", "inconclusive", needs_mapping=False)
-    assert result == {
-        "identity_check": "supports",
-        "mapping_check": "not_required",
-    }
-
-
-def test_identity_mismatch_is_counterevidence():
-    result = identity_result("mismatch", "complete", needs_mapping=True)
-    assert result["identity_check"] == "refutes"
-    # Concrete mapping may be available, but it does not undo a species mismatch.
-    assert result["mapping_check"] == "supports"
-
-
-def test_identity_inconclusive_and_mapping_required_is_unresolved_not_refuted():
-    result = identity_result("inconclusive", "inconclusive", needs_mapping=True)
-    assert result["identity_check"] == "inconclusive"
-    assert result["mapping_check"] == "inconclusive"
 
 
 def test_evaluate_claim_supported():

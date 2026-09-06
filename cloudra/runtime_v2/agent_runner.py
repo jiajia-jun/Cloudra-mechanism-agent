@@ -449,6 +449,17 @@ class AgentRunner:
                                 run_id=run_id,
                             )
                             continue
+                        # 诚实回执（在收件箱复查之后投递，避免自己的反馈触发
+                        # 立刻唤醒空转）：工具的 "Task stopped." 只是回执，
+                        # stop 实际在等 Supervisor 退出裁决——必须把审批回路
+                        # 讲清楚，否则 agent 无法区分 接受/待审/被拒 三种结局。
+                        core.mailbox.deliver(
+                            to_session_id=agent.id,
+                            project_id=agent.project_id,
+                            content=self._wait_review_feedback_text(gate),
+                            sender="completion_gate",
+                            run_id=run_id,
+                        )
                         break
                     # wait_background（有可核实唤醒来源的挂起，不是交付）与
                     # allow_final（审计通过/有效批准/agent 声明）才走到收尾。
@@ -633,6 +644,21 @@ class AgentRunner:
         strike = last[2] + 1 if last is not None and last[:2] == (run_id, fingerprint) else 1
         self._exit_strikes[agent.id] = (run_id, fingerprint, strike)
         return strike, strike >= self.max_exit_strikes
+
+    def _wait_review_feedback_text(self, gate) -> str:
+        """wait_review 挂起前的退出审批回路说明（模型可读的诚实回执）。"""
+        return (
+            "[Completion gate] Stop is pending Supervisor review, not accepted: "
+            f"an exit review for your partial delivery was submitted (request_id={gate.request_id}) "
+            "and this run is now suspended awaiting the decision — the stop tool's "
+            "'Task stopped.' was only the call receipt. What happens next:\n"
+            "- The Supervisor's decision arrives as a [Supervisor review decision] "
+            "notice and wakes you.\n"
+            "- On accept: call stop again with delivery_disposition='partial' and "
+            "approval_id=<decision_id> from that notice to finish.\n"
+            "- On reject: the reason and next action arrive as feedback; resolve "
+            "them (or close the gaps) and stop again."
+        )
 
     def _gate_feedback_text(self, gate, *, strike: int) -> str:
         from cloudra.dag.stop_audit import format_gate_gaps

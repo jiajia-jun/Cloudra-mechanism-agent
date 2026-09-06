@@ -73,6 +73,32 @@ def visual_tools() -> frozenset[str]:
     return frozenset(name for name, reg in _named().items() if reg.visual)
 
 
+def dag_tools() -> frozenset[str]:
+    """DAG orchestration tools (the dag_tools package).
+
+    Meaningful only when the agent's orchestration_mode is not standard; the
+    wire projection hides them otherwise (they hard-fail at call time anyway).
+    """
+    return frozenset(
+        name
+        for name, reg in _named().items()
+        if reg.module.startswith("cloudra.tools.Plantool.dag_tools.")
+    )
+
+
+def dag_review_decision_tools() -> frozenset[str]:
+    """Supervisor verdict tools (supervisor_access="review_decision").
+
+    Usable only in dag_guided — in dag_record the Supervisor is offline and
+    these tools reject every call, so the wire projection hides them there.
+    """
+    return frozenset(
+        name
+        for name, reg in _named().items()
+        if reg.supervisor_access == "review_decision"
+    )
+
+
 def is_direct_only(tool_name: str) -> bool:
     """Whether a tool is a direct wire control barred from JS guest programs.
 

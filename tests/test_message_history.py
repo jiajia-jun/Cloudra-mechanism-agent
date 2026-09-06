@@ -5,7 +5,6 @@ import json
 import pytest
 
 from cloudra.core.message_history import (
-    SUPERVISOR_ADVICE_MARKER,
     JsonlMessageHistory,
     build_llm_messages,
     read_context_file,
@@ -74,7 +73,7 @@ async def test_legacy_identity_is_removed_without_losing_history(tmp_path):
         {"role": "assistant", "content": "已完成一部分"},
         {
             "role": "system",
-            "content": f"{SUPERVISOR_ADVICE_MARKER} 保留这条建议",
+            "content": "[Supervisor] 保留这条建议",
         },
         {
             "role": "system",

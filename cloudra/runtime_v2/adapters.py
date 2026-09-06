@@ -328,7 +328,9 @@ class LegacyLLMProvider:
                 {
                     "role": "system",
                     "content": javascript_instructions(
-                        tools, visual_mode=settings.visual_mode
+                        tools,
+                        visual_mode=settings.visual_mode,
+                        orchestration_mode=settings.orchestration_mode,
                     ),
                 },
             ]

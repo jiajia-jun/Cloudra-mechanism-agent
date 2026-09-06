@@ -34,6 +34,7 @@ from cloudra.runtime_v2.policies import default_stages
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentState, Command, InvocationProtocol
 from cloudra.runtime_v2.supervision import (
+    TERMINAL_SUPERVISOR_PIN_KEY,
     find_project_supervisor,
     flush_review_notifications,
     notify_supervisor,
@@ -285,7 +286,7 @@ async def test_cancelled_supervisor_is_not_resurrected_by_release_or_new_reviews
         assert len(runs) == 1
 
         # 再送新 review：系统通知不复活用户取消的 Supervisor（状态表：
-        # cancelled 仅保留待办，不自动复活）。
+        # cancelled 驻留信箱 parked，不自动复活）。
         await _seed_pending_review(project.id)
         await notify_supervisor(core, project.id, reason="second explicit submission")
         await asyncio.sleep(0.05)
@@ -294,6 +295,9 @@ async def test_cancelled_supervisor_is_not_resurrected_by_release_or_new_reviews
             e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
         ]
         assert len(runs) == 1
+        # parked：通知照常投递信箱驻留（显式恢复后首轮即可见）。
+        inbox = core.mailbox.inbox(supervisor.id)
+        assert inbox is not None and inbox.qsize() == 1
     finally:
         llm.release.set()
         await _teardown(core, supervisor)
@@ -357,6 +361,9 @@ async def test_failed_supervisor_is_not_resurrected_by_notification():
             e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
         ]
         assert len(runs) == 1
+        # parked：通知照常投递信箱驻留（不唤醒、不开新 run）。
+        inbox = core.mailbox.inbox(supervisor.id)
+        assert inbox is not None and inbox.qsize() == 1
         # 待办保留：两条送审 review 都还在信箱里等显式恢复。
         assert len(await _pending_review_ids(project.id)) == 2
     finally:
@@ -408,12 +415,19 @@ class _ScriptedResearchLLM:
 
 
 class _ParseTools:
-    """研究侧解析类工具的执行替身：任何调用都成功返回（带 **_kwargs）。"""
+    """研究侧解析类工具的执行替身：任何调用都成功返回（带 **_kwargs）。
 
-    def __init__(self) -> None:
+    dag_bind_evidence 例外委派给真实 LegacyToolExecutor：显式送审必须经
+    真实工具入口持久化，不由替身伪造回执。
+    """
+
+    def __init__(self, bind_executor=None) -> None:
         self.finished: list[str] = []
+        self._bind_executor = bind_executor
 
     async def execute(self, agent, call: ToolCall, **_kwargs) -> ToolResult:
+        if call.name == "dag_bind_evidence" and self._bind_executor is not None:
+            return await self._bind_executor.execute(agent, call)
         self.finished.append(call.name)
         return ToolResult(is_success=True, summary=f"ok:{call.name}", data={})
 
@@ -732,7 +746,9 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
     llm = _RoutingLLM(responses)
 
     core = RuntimeCore(strict_events=True)
-    executor = _ParseTools()
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+
+    executor = _ParseTools(bind_executor=LegacyToolExecutor(core))
     stages = default_stages(core)
     pipeline = TurnPipeline(
         event_log=core.event_log,
@@ -769,7 +785,6 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
     from cloudra.runtime_v2.schemas import OrchestrationMode
 
     research.settings.orchestration_mode = OrchestrationMode.DAG_GUIDED
-    dag_stage = next(stage for stage in stages if stage.name == "dag")
     # Task 4A：统一结束门禁下 guided 收尾要过交付覆盖审计；阶段契约保留
     # （显式送审绑定 step1.ts_opt 需要它），但全部 supported 使覆盖通过，
     # run1/run2/run3 的纯文本收尾被门禁透明放行。
@@ -787,17 +802,41 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
             )
         )
         await _wait_state(research, "succeeded")
-        controller = dag_stage._controllers[research.id]
-        submitted = await controller.submit_evidence_for_review(
-            [
-                {
-                    "tool_call_id": "tc0",
-                    "bind_target": "step1",
-                    "stage_kind": "ts_opt",
-                    "claim": "seed parse supports the ts_opt stage",
-                }
-            ]
+        # 显式送审走真实工具入口：dag_bind_evidence → InvocationService →
+        # LegacyToolExecutor → submit_evidence_for_review 持久化 →
+        # DagPolicyStage.after_tool 完成钩子按回执通知 Supervisor。
+        # 不补调 _notify_supervisor——通知只能来自运行时完成钩子。
+        from cloudra.runtime_v2.policies.base import PipelineContext
+
+        ctx = PipelineContext(
+            agent=research,
+            run_id="submission",
+            settings_snapshot=research.settings.model_copy(deep=True),
+            capabilities=research.capabilities,
+            inbox_messages=[],
+            emit=lambda *args: None,
+            workspace_dir=project.workspace_dir,
+            notices=core.notices,
         )
+        outcome = await pipeline.invocations.invoke(
+            ctx,
+            ToolCall(
+                id="submit-seed",
+                name="dag_bind_evidence",
+                arguments={
+                    "attachments": [
+                        {
+                            "tool_call_id": "tc0",
+                            "bind_target": "step1",
+                            "stage_kind": "ts_opt",
+                            "claim": "seed parse supports the ts_opt stage",
+                        }
+                    ]
+                },
+            ),
+        )
+        assert outcome.result is not None and outcome.result.is_success
+        submitted = (outcome.result.data or {}).get("result") or {}
         assert submitted["attachments"][0]["enqueued"] is True
 
         # 送审通知 spawn 项目唯一 Supervisor 并挂起其首轮 LLM（门闩）。
@@ -1158,7 +1197,7 @@ async def test_flush_review_notifications_delivers_persists_and_marks_sent(tmp_p
     # coordinator 是 queued（spawn 无 query）：wake 开新 run（无 runner 时只落事件）。
     assert coordinator.state.value == "running"
 
-    # 收件人已 cancelled：不复活，通知行闭环。
+    # 收件人已 cancelled：不复活，但迟到裁决照常驻留信箱（parked），通知行闭环。
     await bus.execute(
         Command(type="agent.cancel", target={"session_id": coordinator.id}, payload={})
     )
@@ -1169,7 +1208,7 @@ async def test_flush_review_notifications_delivers_persists_and_marks_sent(tmp_p
     assert handled == 1
     assert await asyncio.to_thread(_pending) == []
     assert coordinator.state.value == "cancelled"
-    assert inbox.qsize() == 1  # 没有新投递
+    assert inbox.qsize() == 2  # parked：迟到裁决投递驻留，不唤醒
 
 
 @pytest.mark.asyncio
@@ -1529,8 +1568,9 @@ async def test_feedback_wakes_succeeded_coordinator_into_new_run(tmp_path):
 
 @pytest.mark.asyncio
 async def test_feedback_marks_sent_without_resurrecting_cancelled_coordinator(tmp_path):
-    """反馈矩阵·cancelled：用户取消的 Coordinator 不复活——裁决通知跳过
-    投递但闭环标记 sent，完成报告也不投递（subagent_bridge 的取消保护）。"""
+    """反馈矩阵·cancelled：用户取消的 Coordinator 不复活——裁决通知与完成
+    报告都照常投递信箱驻留（parked：显式恢复后可见），通知行闭环标记
+    sent，全程零新 run。"""
     llm = _MailboxAdjudicatorLLM("")
     core, bus, _stages = _full_wiring(llm)
     project = await _guided_project(bus, tmp_path, "feedback-cancelled")
@@ -1554,10 +1594,10 @@ async def test_feedback_marks_sent_without_resurrecting_cancelled_coordinator(tm
         decision = await asyncio.to_thread(_decision_for, project.id, request_id)
         assert decision is not None  # 裁决本身落库
         assert coordinator.state.value == "cancelled"
-        # 不向 cancelled 收件人投递：无裁决消息、无 pin、无完成报告。
-        assert _injections(core, coordinator.id, decision.decision_id) == []
-        assert _pin_events(core, coordinator.id, f"review-{decision.decision_id}") == []
-        assert _injections(core, coordinator.id, "[Sub-agent finished]") == []
+        # parked：裁决消息、pin、完成报告照常投递驻留，但不唤醒不开新 run。
+        assert len(_injections(core, coordinator.id, decision.decision_id)) == 1
+        assert len(_pin_events(core, coordinator.id, f"review-{decision.decision_id}")) == 1
+        assert len(_injections(core, coordinator.id, "[Sub-agent finished]")) == 1
         runs = [
             e for e in core.event_log.query_session(coordinator.id) if e.type == "run.started"
         ]
@@ -1973,10 +2013,9 @@ async def _supervisor_in_state(bus, core, project, coordinator, target_state: st
 )
 async def test_returning_to_guided_notifies_only_runnable_supervisors(target_state):
     """模式切换·返回 guided：project.update 把编排模式切回 dag_guided 时按
-    状态表补一次通知——可运行状态（queued/running/waiting/succeeded）投递
-    信箱变更消息（queued/succeeded 另 wake 开新 run）；failed/cancelled
-    不绕过（不投递不复活）。退出 guided 与 guided→guided 重发都不触发。
-    持久化未决事项全程不清空。"""
+    状态表补一次通知——所有状态都投递信箱变更消息（failed/cancelled 驻留
+    parked 不唤醒）；仅 queued/succeeded 另 wake 开新 run。退出 guided 与
+    guided→guided 重发都不触发。持久化未决事项全程不清空。"""
     core = RuntimeCore(strict_events=True)
     bus = CommandBus(core)
     project = (
@@ -2030,7 +2069,8 @@ async def test_returning_to_guided_notifies_only_runnable_supervisors(target_sta
     assert _inbox_size() == inbox_before
     assert _run_count() == runs_before
 
-    # 返回 guided：按状态表补通知。
+    # 返回 guided：按状态表补通知——所有状态都投递（failed/cancelled 驻留
+    # parked），只有 queued/succeeded 另 wake 开新 run。
     await bus.execute(
         Command(
             type="project.update",
@@ -2038,13 +2078,9 @@ async def test_returning_to_guided_notifies_only_runnable_supervisors(target_sta
             payload={"settings": {"orchestration_mode": "dag_guided"}},
         )
     )
-    runnable = {"queued", "running", "waiting", "succeeded"}
-    if target_state in runnable:
-        assert _inbox_size() == inbox_before + 1
-    else:
-        # failed/cancelled：不投递、不复活。
-        assert _inbox_size() == inbox_before
-        assert supervisor.state.value == target_state
+    assert _inbox_size() == inbox_before + 1
+    if target_state in {"failed", "cancelled"}:
+        assert supervisor.state.value == target_state  # parked：不唤醒不复活
     if target_state in {"queued", "succeeded"}:
         assert _run_count() == runs_before + 1  # wake 开新 run（无 runner：只落事件）
         assert supervisor.state.value == "running"
@@ -2064,7 +2100,7 @@ async def test_returning_to_guided_notifies_only_runnable_supervisors(target_sta
             payload={"settings": {"orchestration_mode": "dag_guided"}},
         )
     )
-    assert _inbox_size() == inbox_before + (1 if target_state in runnable else 0)
+    assert _inbox_size() == inbox_before + 1
 
 
 # ------------------------------------------------------------- Task 4 · 恢复矩阵
@@ -2126,20 +2162,52 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     supervisor1 = find_project_supervisor(core1, project.id)
     assert supervisor1 is not None and supervisor1.state.value == "running"
 
-    # 进程重启：restore 把 running 尸体落 failed。
+    # 进程重启：restore 把 running 尸体落 failed，并把子（supervisor）的
+    # 终态回传给父（coordinator 是 queued 非终态：投递 + 唤醒开新 run，
+    # 无 runner 只落事件——A1 跨重启通知）。
     core2 = RuntimeCore(strict_events=True)
     core2.store = store
     restore_core(core2, store)
     supervisor2 = core2.agents[supervisor1.id]
     assert supervisor2.state is AgentState.FAILED
+    reports = [
+        e
+        for e in core2.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+        if supervisor1.id in str(e.data.get("content", ""))
+    ]
+    assert reports, "restore must deliver the zombie supervisor's failure to its parent"
+    assert "interrupted by process restart" in reports[-1].data["content"]
 
-    # reconcile 不自动复活 failed：零新事件、零投递。
+    # reconcile 不自动复活 failed：park-don't-wake——通知驻留信箱（仅一条
+    # 投递事件），督导自身零状态/run 事件。D2：failed 督导 + 可消费待办
+    # 同时给 Coordinator 发一次性告警（pin + mailbox + wake），这是告警
+    # 本身的既定可见性契约，不是督导复活。
     events_before = len(core2.event_log)
     await reconcile_supervision(core2, project.id)
-    assert len(core2.event_log) == events_before
+    new_events = list(core2.event_log)[events_before:]
+    supervisor_events = [
+        e for e in new_events if e.session_id == supervisor2.id
+    ]
+    assert [e.type for e in supervisor_events] == ["agent.message_injected"]
     assert supervisor2.state is AgentState.FAILED
     inbox = core2.mailbox.inbox(supervisor2.id)
-    assert inbox is None or inbox.empty()
+    assert inbox is not None and inbox.qsize() == 1
+    # D2 告警：Coordinator 收到 pin + 投递（点名终态/不复活/恢复入口）。
+    assert any(
+        e.type == "context.pin_set"
+        and e.session_id == coordinator.id
+        and e.data.get("key") == TERMINAL_SUPERVISOR_PIN_KEY
+        for e in new_events
+    )
+    alerts = [
+        e
+        for e in new_events
+        if e.type == "agent.message_injected"
+        and e.session_id == coordinator.id
+        and "[Supervision] ALERT" in str(e.data.get("content", ""))
+    ]
+    assert len(alerts) == 1
+    assert "will not auto-revive" in alerts[0].data["content"]
 
     # 显式恢复（用户/指令级入口 agent.restart）：重读全部待办。
     llm = _MailboxAdjudicatorLLM(project.id)

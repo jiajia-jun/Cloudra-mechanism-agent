@@ -10,8 +10,6 @@ from typing import Optional
 from cloudra.persistence import paths
 from cloudra.persistence.fs_utils import atomic_write_jsonl
 
-SUPERVISOR_ADVICE_MARKER = "[Supervisor]"
-
 
 def parse_context_text(text: str) -> tuple[list, bool]:
     """Parse JSONL blocks or a legacy single JSON array."""
@@ -147,7 +145,7 @@ class JsonlMessageHistory:
         if not isinstance(content, str):
             return False
         return not content.startswith(
-            (SUPERVISOR_ADVICE_MARKER, "[Context compact]", "[Skill material]")
+            ("[Context compact]", "[Skill material]")
         )
 
     async def load(self) -> list[dict]:

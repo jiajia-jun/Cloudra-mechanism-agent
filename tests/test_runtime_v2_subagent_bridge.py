@@ -385,6 +385,212 @@ async def test_child_inherits_parent_yolo_at_spawn():
 
 
 @pytest.mark.asyncio
+async def test_child_completion_to_failed_parent_parks_without_reopening():
+    """A2 不复活纪律：failed 父不被子的完成回传自动 reopen；报告照常投递
+    信箱驻留（parked），用户显式消息仍可复活（既有行为保留）。"""
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "park-failed"}))
+    project = next(iter(core.projects.values()))
+    parent = (
+        await bus.execute(
+            Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"})
+        )
+    ).data
+    child = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "explorer", "parent_session_id": parent.id, "query": "q"},
+            )
+        )
+    ).data
+    run_id = core.agent_host.start_run(child)
+    core.event_log.append(
+        "agent.message_emitted",
+        stream="agent",
+        project_id=project.id,
+        session_id=child.id,
+        run_id=run_id,
+        data={"sender": "explorer", "content": "explored everything"},
+    )
+    core.agent_host.finish_run(child, outcome="succeeded")
+    core.agent_host.start_run(parent)
+    core.agent_host.finish_run(parent, outcome="failed", error="parent boom")
+    assert parent.state is AgentState.FAILED
+    runs_before = len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"])
+
+    deliver_child_completion_to_parent(core, child)
+
+    assert parent.state is AgentState.FAILED  # 不 reopen
+    assert len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"]) == runs_before
+    inbox = core.mailbox.inbox(parent.id)
+    assert inbox is not None and inbox.qsize() == 1
+    parked = inbox.get_nowait()
+    assert "[Sub-agent finished]" in parked["content"]
+    assert "explored everything" in parked["content"]
+
+    # 用户显式消息仍复活终态 agent（既有行为，不受影响）。
+    await bus.execute(
+        Command(type="agent.message", target={"session_id": parent.id}, payload={"content": "revive"})
+    )
+    assert parent.state is AgentState.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_child_completion_to_cancelled_parent_parks_without_reopening():
+    """A2：cancelled 父同样 parked 不唤醒——旧实现对 cancelled 父连投递都
+    跳过（子的终态通知直接丢失），新纪律是投递驻留但不唤醒。"""
+    from cloudra.runtime_v2.schemas import AgentState
+    from cloudra.runtime_v2.subagent_bridge import deliver_child_completion_to_parent
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "park-cancelled"}))
+    project = next(iter(core.projects.values()))
+    parent = (
+        await bus.execute(
+            Command(type="agent.spawn", target={"project_id": project.id}, payload={"role_id": "coordinator"})
+        )
+    ).data
+    child = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "explorer", "parent_session_id": parent.id, "query": "q"},
+            )
+        )
+    ).data
+    run_id = core.agent_host.start_run(child)
+    core.event_log.append(
+        "agent.message_emitted",
+        stream="agent",
+        project_id=project.id,
+        session_id=child.id,
+        run_id=run_id,
+        data={"sender": "explorer", "content": "explored everything"},
+    )
+    core.agent_host.finish_run(child, outcome="succeeded")
+    await bus.execute(Command(type="agent.cancel", target={"session_id": parent.id}, payload={}))
+    assert parent.state is AgentState.CANCELLED
+    runs_before = len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"])
+
+    deliver_child_completion_to_parent(core, child)
+
+    assert parent.state is AgentState.CANCELLED  # 不复活
+    assert len([e for e in core.event_log.query_session(parent.id) if e.type == "run.started"]) == runs_before
+    inbox = core.mailbox.inbox(parent.id)
+    assert inbox is not None and inbox.qsize() == 1
+    assert "[Sub-agent finished]" in inbox.get_nowait()["content"]
+
+
+@pytest.mark.asyncio
+async def test_final_text_surfaces_recorded_failure_reason():
+    """A4：崩溃子 agent 无最终消息时，回传文本必须带 run.finished 记录的
+    真实失败原因，而不是 'see events' 死信息。"""
+    from cloudra.runtime_v2.subagent_bridge import _final_text
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "fail-text"}))
+    project = next(iter(core.projects.values()))
+    child = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "explorer", "query": "q"},
+            )
+        )
+    ).data
+    core.agent_host.start_run(child)
+    core.agent_host.finish_run(child, outcome="failed", error="kaplam: ts_opt diverged at step 7")
+
+    text = _final_text(core, child)
+    assert "kaplam: ts_opt diverged at step 7" in text
+    assert "see events" not in text
+
+
+def test_managetool_schemas_match_bridge_returns():
+    """A3 schema 诚实：report 不再有被忽略的 detail_level 参数、描述不再
+    承诺完整推理/工具日志；swarm 输出 schema 删掉永不返回的 task_ids，
+    补上 grouped-async 实际返回的 group_id/pending_count。"""
+    from cloudra.tools.Managetool.get_subagent_report import (
+        GetSubAgentReport_input_schema,
+    )
+    from cloudra.tools.Managetool.subagent_swarm import (
+        SubAgentSwarm_output_schema,
+    )
+
+    assert "detail_level" not in GetSubAgentReport_input_schema.model_fields
+    swarm_fields = SubAgentSwarm_output_schema.model_fields
+    assert "task_ids" not in swarm_fields
+    assert "group_id" in swarm_fields
+    assert "session_ids" in swarm_fields
+    assert "pending_count" in swarm_fields
+
+
+@pytest.mark.asyncio
+async def test_swarm_grouped_async_returns_group_handle_and_unique_ids():
+    """grouped-async（is_wait=False + max_concurrency>0）：返回 group_id +
+    pending_count，session_ids 为空（capped 组惰性 spawn，逐项 child id 经
+    group 报告查询）；两次派发的 group_id 绝不相同（A5：无 loop.time() 碰撞）。
+    """
+    llm = RoleRoutedLLM([LLMResponse(content="x", stop_requested=True)])
+    core, _, coordinator = await _setup(llm)
+    await _wait_state(coordinator, "succeeded")
+
+    args = {
+        "agent_id": "a-1",
+        "prompt_template": "scan {{item}}",
+        "items": ["alpha", "beta", "gamma"],
+        "is_wait": False,
+        "max_concurrency": 2,
+    }
+    first = await handle_native_tool(
+        core, coordinator, ToolCall(id="t1", name="subagent_swarm", arguments=args)
+    )
+    assert first.is_success is True
+    gid = first.data["group_id"]
+    assert gid.startswith("grp_")
+    assert first.data["session_ids"] == []
+    assert first.data["pending_count"] == 3
+
+    second = await handle_native_tool(
+        core, coordinator, ToolCall(id="t2", name="subagent_swarm", arguments=args)
+    )
+    assert second.is_success is True
+    assert second.data["group_id"] != gid, "group_id must be unique per dispatch"
+
+    # 组跑完后：报告给状态计数 + 逐项真实 child_session_id。
+    group = core.launch_groups.get(gid)
+    deadline = asyncio.get_running_loop().time() + 15.0
+    while group.state != "finished":
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f"launch group stuck: {group.summary()}")
+        await asyncio.sleep(0.01)
+    report = await handle_native_tool(
+        core, coordinator, ToolCall(id="t3", name="get_subagent_report", arguments={"group_id": gid})
+    )
+    assert report.is_success is True
+    assert report.data["state"] == "finished"
+    assert {item["state"] for item in report.data["items"]} == {"succeeded"}
+    child_ids = [item["child_session_id"] for item in report.data["items"]]
+    assert all(child_ids) and len(set(child_ids)) == 3
+    # 等第二组也落地，避免悬挂任务泄漏到后续用例。
+    group2 = core.launch_groups.get(second.data["group_id"])
+    while group2.state != "finished":
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f"second launch group stuck: {group2.summary()}")
+        await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
 async def test_swarm_and_launcher_spawn_share_legacy_identity():
     """D13 回归：swarm 与 launcher 派生的子 agent 走同一条身份映射——
     DAG 侧的 legacy id 由 role_id 经 legacy_agent_id_for_role 推出，

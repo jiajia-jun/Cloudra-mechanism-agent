@@ -67,8 +67,9 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         """加载图存储与覆盖契约；不自动拉起 Supervisor。
 
         用户追加消息/唤醒会重开 agent run，轮管道经 DagPolicyStage 再次调到
-        ``initialize()``。督导通知全部由 ``_trigger_supervisor_after_tool`` /
-        显式送审 / 退出审查请求 / ``user_replan`` 在持久化后发出。
+        ``initialize()``。督导通知全部由 ``_trigger_supervisor_after_tool``
+        （提案/显式送审/督导消息的完成钩子）/ 退出审查请求 /
+        ``user_replan`` 在持久化后发出。
         """
         if not self.enabled or self._initialized:
             return
@@ -117,7 +118,11 @@ class DagController(SupervisionMixin, StopAuditMixin, EvidenceInboxMixin, Drafts
         # 同步 sqlite 读也走 worker 线程，busy 等待不能占用事件循环
         snapshot = await asyncio.to_thread(self.engine.snapshot)
         history = await asyncio.to_thread(self.engine.history, limit=8)
-        reviews = await asyncio.to_thread(self.store.list_call_reviews)
+        # 与 dag_view 同一口径：只有 source="explicit" 的显式送审行是可消费
+        # 待办；legacy_auto/auto 行保留审计但永不可消费，不能投成"pending"。
+        reviews = await asyncio.to_thread(
+            self.store.list_call_reviews, "pending", source="explicit"
+        )
         pending = [
             {
                 "review_id": row.review_id,

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUSY_TIMEOUT = 60.0
 DEFAULT_LOCK_RETRIES = 4
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 _T = TypeVar("_T")
 
 _warned_sync_sites: set[str] = set()
@@ -698,6 +698,12 @@ _RELATED_EXTRA_COLUMNS = {
         "claim_token": "INTEGER NOT NULL DEFAULT 0",
         "lease_expires_at": "TEXT",
     },
+    # 裁决通知泛化（v17）：三类裁决共用同一投递通道；旧行默认
+    # review_decision + 空 payload（渲染走 dag_review_decisions 查表）。
+    "dag_review_notifications": {
+        "kind": "TEXT NOT NULL DEFAULT 'review_decision'",
+        "payload": "TEXT NOT NULL DEFAULT '{}'",
+    },
 }
 
 # compute_jobs 只住在中央库（ComputeDB，data_dir/compute.db）；会话库不再建此表。
@@ -1039,13 +1045,21 @@ _CREATE_DAG_REVIEW_DECISIONS = """
     )
 """
 
-# 审查裁决通知（Task 7）：decision_id 幂等，恢复后补投不重复影响流程。
+# 审查裁决通知（Task 7）：subject 幂等，恢复后补投不重复影响流程。
+# v17 泛化为三类裁决共用同一通道（flush_review_notifications 唯一投递口）：
+# review_decision（结构化请求裁决，decision_id=decision_id，payload 为空、
+# 文本由 dag_review_decisions 查得）、call_verdict（per-CallReview 裁决，
+# decision_id=review_id）、draft_verdict（机理草稿裁决，decision_id=draft_id）。
+# 后两类的渲染材料全在 payload JSON（裁决行本身不落 verdict 列）。
 _CREATE_DAG_REVIEW_NOTIFICATIONS = """
     CREATE TABLE IF NOT EXISTS dag_review_notifications(
         notification_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL DEFAULT 'review_decision'
+            CHECK(kind IN ('review_decision', 'call_verdict', 'draft_verdict')),
         decision_id TEXT NOT NULL,
-        request_id TEXT NOT NULL,
+        request_id TEXT NOT NULL DEFAULT '',
         recipient_session_id TEXT NOT NULL DEFAULT '',
+        payload TEXT NOT NULL DEFAULT '{}',
         state TEXT NOT NULL DEFAULT 'pending'
             CHECK(state IN ('pending', 'sent')),
         created_at TEXT NOT NULL

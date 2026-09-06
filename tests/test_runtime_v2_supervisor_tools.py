@@ -201,10 +201,16 @@ async def test_supervisor_capabilities_and_wire_projection(tmp_path):
             for schema in wire_tool_schemas(supervisor, supervisor.capabilities.tools)
         }
         assert js_names == {"js_exec", "stop"}
-        guest = guest_tool_names(supervisor.capabilities.tools)
+        guest = guest_tool_names(
+            supervisor.capabilities.tools,
+            orchestration_mode=supervisor.settings.orchestration_mode,
+        )
         assert "log_parser" in guest and "dag_review_call" in guest
         assert "stop" not in guest and "bash" not in guest
-        declarations = tool_declarations(supervisor.capabilities.tools)
+        declarations = tool_declarations(
+            supervisor.capabilities.tools,
+            orchestration_mode=supervisor.settings.orchestration_mode,
+        )
         assert "log_parser(args:" in declarations
         assert "bash(args:" not in declarations  # 工具描述文本里可出现 "bash" 字样
 

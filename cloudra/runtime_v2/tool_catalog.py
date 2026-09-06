@@ -28,11 +28,34 @@ from typing import Any, Iterable
 from cloudra.runtime_v2.schemas import (
     AgentSession,
     InvocationProtocol,
+    OrchestrationMode,
     effective_invocation_protocol,
 )
-from cloudra.tools.capabilities import is_direct_only, visual_tools
+from cloudra.tools.capabilities import (
+    dag_review_decision_tools,
+    dag_tools,
+    is_direct_only,
+    visual_tools,
+)
 
 JS_EXEC_NAME = "js_exec"
+
+
+def _mode_hidden_tools(orchestration_mode: OrchestrationMode | str) -> frozenset[str]:
+    """Tools hidden from the wire under one orchestration mode.
+
+    dag_* tools hard-fail in standard mode and the Supervisor verdict tools
+    hard-fail outside dag_guided (the Supervisor is offline in dag_record), so
+    projecting them would only teach the model to call dead tools.  Mode is
+    per-agent (``agent.settings.orchestration_mode``), exactly like the visual
+    gate; execution-layer mode checks stay as the second line of defense.
+    """
+    mode = OrchestrationMode(orchestration_mode)
+    if mode is OrchestrationMode.STANDARD:
+        return dag_tools()
+    if mode is OrchestrationMode.DAG_RECORD:
+        return dag_review_decision_tools()
+    return frozenset()
 
 
 def js_exec_schema():
@@ -99,31 +122,48 @@ def _resolve_names(tool_names: Iterable[str] | None) -> list[str]:
     return sorted(names)
 
 
-def guest_tool_names(tool_names: Iterable[str] | None, *, visual_mode: bool = True) -> list[str]:
-    """Names callable inside a JS program: no direct controls, visual-gated."""
+def guest_tool_names(
+    tool_names: Iterable[str] | None,
+    *,
+    visual_mode: bool = True,
+    orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
+) -> list[str]:
+    """Names callable inside a JS program: no direct controls, visual-gated,
+    and gated by the run's orchestration mode (dag_* tools are hidden in
+    standard mode; Supervisor verdict tools outside dag_guided)."""
     gated = frozenset() if visual_mode else visual_tools()
+    hidden = _mode_hidden_tools(orchestration_mode)
     return [
         name
         for name in _resolve_names(tool_names)
-        if not is_direct_only(name) and name not in gated
+        if not is_direct_only(name) and name not in gated and name not in hidden
     ]
 
 
 def wire_tool_schemas(agent: AgentSession, tool_names: list[str] | None) -> list[dict]:
-    """Protocol-aware wire projection for one LLM request.
+    """Protocol- and orchestration-mode-aware wire projection for one LLM request.
 
     Traditional: the permitted business schemas (unchanged legacy surface).
-    Javascript: ``js_exec`` plus the permitted direct controls only.
+    Javascript: ``js_exec`` plus the permitted direct controls only.  Tools
+    that hard-fail under the agent's orchestration mode are never projected.
     """
     from cloudra.runtime_v2.adapters import legacy_tool_schemas  # lazy: import cycle
 
     if effective_invocation_protocol(agent) is not InvocationProtocol.JAVASCRIPT:
-        return legacy_tool_schemas(tool_names)
-    schemas = [js_exec_schema()]
-    direct = [name for name in _resolve_names(tool_names) if is_direct_only(name)]
-    if direct:
-        schemas.extend(legacy_tool_schemas(direct))
-    return schemas
+        schemas = legacy_tool_schemas(tool_names)
+    else:
+        schemas = [js_exec_schema()]
+        direct = [name for name in _resolve_names(tool_names) if is_direct_only(name)]
+        if direct:
+            schemas.extend(legacy_tool_schemas(direct))
+    hidden = _mode_hidden_tools(agent.settings.orchestration_mode)
+    if not hidden:
+        return schemas
+    return [
+        schema
+        for schema in schemas
+        if (schema.get("function") or {}).get("name") not in hidden
+    ]
 
 
 # ----------------------------------------------------------------- declarations
@@ -139,14 +179,21 @@ _DECLARATION_HEADER = """interface ToolResponse<T> {
 _DECLARATION_FOOTER = "declare function text(value: unknown): void;"
 
 
-def javascript_instructions(tool_names: Iterable[str] | None, *, visual_mode: bool = True) -> str:
+def javascript_instructions(
+    tool_names: Iterable[str] | None,
+    *,
+    visual_mode: bool = True,
+    orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
+) -> str:
     """Deterministic JS-mode instructions appended to the model request.
 
     Describes the execution envelope, JSON serialization, explicit output,
     the serial backend, the fixed limits and the direct-only controls; the
     generated declarations are documentation, not executable guest input.
     """
-    declarations = tool_declarations(tool_names, visual_mode=visual_mode)
+    declarations = tool_declarations(
+        tool_names, visual_mode=visual_mode, orchestration_mode=orchestration_mode
+    )
     return (
         "This run uses the JavaScript invocation protocol. To use tools, call "
         "js_exec({code}) with an ECMAScript program that uses top-level await.\n"
@@ -190,9 +237,12 @@ def tool_declarations(
     *,
     visual_mode: bool = True,
     entries: list | None = None,
+    orchestration_mode: OrchestrationMode | str = OrchestrationMode.STANDARD,
 ) -> str:
     """Deterministic TypeScript-like declarations for guest-callable tools."""
-    names = guest_tool_names(tool_names, visual_mode=visual_mode)
+    names = guest_tool_names(
+        tool_names, visual_mode=visual_mode, orchestration_mode=orchestration_mode
+    )
     if entries is None:
         from cloudra.tools import get_tools_lst
 

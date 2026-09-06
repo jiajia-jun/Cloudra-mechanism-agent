@@ -11,7 +11,8 @@ exists, so this bridge re-implements the six actions on kernel primitives:
   ``Mailbox.deliver`` — the runner picks the message up at the next turn
   boundary, which is the v2 equivalent of legacy inject_event.  A
   sleeping/idle addressee is woken (``AgentHost.wake``) so the mention or call
-  takes effect immediately instead of sitting in the inbox.
+  takes effect immediately instead of sitting in the inbox; a failed/cancelled
+  addressee is never auto-revived — the message is parked in its mailbox.
 - ``call`` to a role/id spawns a fresh child via the same CommandBus path as
   the launcher bridge.
 
@@ -26,7 +27,7 @@ from typing import Any
 
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import AgentSession, CommandRejected
+from cloudra.runtime_v2.schemas import AgentSession, AgentState, CommandRejected
 from cloudra.runtime_v2.subagent_bridge import _role_id_for, _spawn_child
 from cloudra.tools.Managetool._hub_call import format_incoming_call
 from cloudra.tools.Managetool.agent_hub import _FUZZY_FLOOR, _SEARCH_SCAN_LIMIT, _fuzzy_score
@@ -77,9 +78,11 @@ def _notify(core, project_id: str, target: AgentSession, *, sender: str, content
         sender=sender,
         post_id=post_id,
     )
-    # A sleeping or idle addressee would otherwise leave the message sitting
-    # in the inbox until some unrelated event; wake it so the mention/call
-    # takes effect immediately.
+    # 统一不复活纪律（park-don't-wake）：failed/cancelled 终态 agent 不被
+    # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
+    # 即可读到。其余状态照常唤醒，避免消息躺在收件箱等无关事件。
+    if target.state in {AgentState.FAILED, AgentState.CANCELLED}:
+        return
     core.agent_host.wake(target, runner=core.runner)
 
 

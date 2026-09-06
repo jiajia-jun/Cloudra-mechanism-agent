@@ -135,6 +135,8 @@ async def test_cancel_effects_and_idempotent_noop(tmp_path, monkeypatch):
         ("event", "agent.state_changed"),
         ("event", "agent.cancelled"),
         ("effect", "DeliverMessage"),
+        # 取消级联（C2）：先停 launch group，再取消父/子的 run。
+        ("effect", "CancelLaunchGroups"),
         ("effect", "CancelRunner"),
     ]
     assert runner.cancelled == [agent.id]

@@ -57,6 +57,21 @@ async def test_max_concurrency_covers_child_lifetime():
 
 
 @pytest.mark.asyncio
+async def test_duplicate_group_id_is_rejected_loudly():
+    """group_id 冲突绝不静默覆盖（A5：旧实现从 loop.time() 派生 id，撞车会
+    无声替换整组）。重复 create 必须响亮拒绝。"""
+    manager = LaunchGroupManager(spawner=lambda _query: None)
+    manager.create(
+        group_id="grp_dup", parent_session_id="parent", items=[], max_concurrency=1
+    )
+    with pytest.raises(ValueError, match="grp_dup"):
+        manager.create(
+            group_id="grp_dup", parent_session_id="parent", items=[], max_concurrency=1
+        )
+    assert manager.get("grp_dup") is not None
+
+
+@pytest.mark.asyncio
 async def test_each_group_keeps_its_project_spawner_context():
     seen = []
 
