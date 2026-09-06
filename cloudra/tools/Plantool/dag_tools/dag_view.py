@@ -23,7 +23,7 @@ class DagViewInput(input_schema):
     graph_kind: Literal["both", "process", "delivery"] = Field(
         default="both",
         description=(
-            "both (default) returns the projection: delivery gaps, pending call "
+            "both (default) returns the projection: open drafts with operations and stage contracts, delivery gaps, pending call "
             "reviews, recent mutations. delivery returns a compact paginated "
             "subgraph. process is deprecated (the process graph was removed) "
             "and returns an explanatory note."
@@ -59,7 +59,8 @@ class DagView(DagToolBase):
     tool_name: str = "dag_view"
     tool_description: str = (
         "Read the persistent delivery/mechanism DAG (dag_record or dag_guided; any actor). "
-        "Use for: default graph_kind=both to see delivery gaps, pending call reviews, and recent mutations; "
+        "Use for: default graph_kind=both to read the supervision inbox: open drafts (including operations and "
+        "stage contracts), explicit pending call reviews, queued review requests, delivery gaps, and recent mutations; "
         "graph_kind=delivery with node_ids/status_filter to inspect specific elements and their stages. "
         "Do not use for: graph mutations; graph_kind=process (removed — returns a deprecation note). "
         "Key discipline: prefer the default both projection over paging an entire subgraph."
@@ -77,6 +78,18 @@ class DagView(DagToolBase):
             history = await asyncio.to_thread(lambda: ctx.engine.history(limit=8))
             result = render_projection_view(
                 snapshot, mode=ctx.mode, contract=ctx.contract, history=history
+            )
+            result["open_drafts"] = await asyncio.to_thread(
+                lambda: [
+                    {"draft_id": draft_id, **draft.model_dump(mode="json")}
+                    for draft_id, draft in ctx.store.list_open_drafts()
+                ]
+            )
+            result["pending_reviews"] = await asyncio.to_thread(
+                lambda: [
+                    review.model_dump(mode="json")
+                    for review in ctx.store.list_call_reviews("pending", source="explicit")
+                ]
             )
             review_requests = await asyncio.to_thread(
                 lambda: [

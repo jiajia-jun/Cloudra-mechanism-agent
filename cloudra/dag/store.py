@@ -1275,6 +1275,15 @@ class DagStore:
             ).fetchone()
         return self._draft_from_row(row) if row else None
 
+    def list_open_drafts(self) -> list[tuple[str, MechanismDraft]]:
+        """Read every undecided draft for the persistent supervision inbox."""
+        with self.db.connect() as con:
+            rows = con.execute(
+                "SELECT draft_id, operations, stage_contracts, rationale, state, claim_spec "
+                "FROM dag_drafts WHERE state = 'open' ORDER BY rowid"
+            ).fetchall()
+        return [(row[0], self._draft_from_row(row[1:])) for row in rows]
+
     def latest_open_draft(self) -> tuple[str, MechanismDraft] | None:
         with self.db.connect() as con:
             row = con.execute(

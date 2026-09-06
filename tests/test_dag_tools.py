@@ -876,3 +876,44 @@ async def test_submit_compute_job_call_is_never_stage_evidence(tmp_path):
     )
     assert not bound.is_success
     assert bound.rejection_code == "bind_target_is_submit"
+
+
+@pytest.mark.asyncio
+async def test_supervisor_view_reads_persisted_drafts_and_explicit_reviews(tmp_path):
+    import asyncio
+
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.models import CallReview
+    from tests.test_dag_supervisor_feedback import _OPS
+
+    agent = make_supervisor(conversation_id="view-inbox", orchestration_mode="dag_guided")
+    session = Session("supervisor-view", str(tmp_path / "session.json"))
+    db = await asyncio.to_thread(ConversationDB("view-inbox").init)
+    controller = DagController(db, "coordinator", "dag_guided")
+    await controller.initialize()
+    drafts = []
+    for rationale in ("first hypothesis", "revised hypothesis"):
+        drafts.append(await controller.propose_mechanism(
+            operations=_OPS, stage_contracts={"step1": ["ts_guess"]},
+            rationale=rationale, actor_id="a-0",
+        ))
+    for source in ("explicit", "legacy_auto"):
+        await asyncio.to_thread(controller.store.enqueue_call_review, CallReview(
+            review_id=source, tool_call_id=source, tool_name="read_file",
+            is_success=True, source=source, claim="Evidence supports step1",
+        ))
+
+    viewed = await _call(DagView, agent, session)
+
+    assert {d["draft_id"] for d in viewed.result["open_drafts"]} == {
+        d["draft_id"] for d in drafts
+    }
+    assert viewed.result["open_drafts"][0]["operations"]
+    assert viewed.result["open_drafts"][0]["stage_contracts"]
+    assert [r["review_id"] for r in viewed.result["pending_reviews"]] == ["explicit"]
+    assert viewed.result["pending_reviews"][0]["claim"] == "Evidence supports step1"
+    await asyncio.to_thread(controller.store.set_draft_state, drafts[0]["draft_id"], "rejected")
+    await asyncio.to_thread(controller.store.mark_call_review, "explicit", "reviewed")
+    refreshed = await _call(DagView, agent, session)
+    assert [d["draft_id"] for d in refreshed.result["open_drafts"]] == [drafts[1]["draft_id"]]
+    assert refreshed.result["pending_reviews"] == []
