@@ -131,7 +131,11 @@ async def test_submit_xtb_defaults_persist_params(xtb_workdir):
 
 @pytest.mark.asyncio
 async def test_submit_xtb_explicit_params_persist(xtb_workdir):
-    """显式参数（charge=-1/mult=2/opt/water/cpus=3）原样入库。"""
+    """显式参数（charge=-1/mult=2/opt/water/cpus=2）原样入库。
+
+    cpus 取 2（CI runner 节点容量为 2 核；申请不得超节点硬校验上限，
+    cpus=3 会在 2 核 runner 上被资源校验拒收）。
+    """
     tool = _make_tool()
     result = await tool.tool_call(
         SubmitComputeJob_input_schema(
@@ -142,7 +146,7 @@ async def test_submit_xtb_explicit_params_persist(xtb_workdir):
             multiplicity=2,
             task="opt",
             solvent="water",
-            cpus=3,
+            cpus=2,
         ),
         session=None,
     )
@@ -154,7 +158,7 @@ async def test_submit_xtb_explicit_params_persist(xtb_workdir):
     assert row["multiplicity"] == 2
     assert row["xtb_task"] == "opt"
     assert row["xtb_solvent"] == "water"
-    assert row["req_cpus"] == 3
+    assert row["req_cpus"] == 2
 
 
 def test_submit_xtb_invalid_task_rejected_by_schema():
@@ -301,7 +305,10 @@ def test_build_calculator_cmd_appends_xtb_args(xtb_workdir):
 
 @pytest.mark.asyncio
 async def test_submit_xtb_sync_opt_end_to_end(xtb_workdir):
-    """同步链路：opt + charge=-1 + cpus=3 一路透传到 fake xtb，终态 done。"""
+    """同步链路：opt + charge=-1 + cpus=2 一路透传到 fake xtb，终态 done。
+
+    cpus=2（CI runner 节点容量为 2 核；cpus=3 会在 2 核 runner 上被资源校验拒收）。
+    """
     tool = _make_tool()
     result = await tool.tool_call(
         SubmitComputeJob_input_schema(
@@ -312,7 +319,7 @@ async def test_submit_xtb_sync_opt_end_to_end(xtb_workdir):
             multiplicity=2,
             task="opt",
             solvent="water",
-            cpus=3,
+            cpus=2,
         ),
         session=None,
     )
@@ -325,8 +332,8 @@ async def test_submit_xtb_sync_opt_end_to_end(xtb_workdir):
     assert "--uhf 1" in argv_line
     assert "--opt" in argv_line
     assert "--alpb water" in argv_line
-    assert "--parallel 3" in argv_line
-    assert "omp=3" in spy
+    assert "--parallel 2" in argv_line
+    assert "omp=2" in spy
 
     row = await aget_compute_job(ComputeDB(), result.job_id)
     assert row["state"] == "done"
