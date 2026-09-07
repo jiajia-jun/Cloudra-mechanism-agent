@@ -79,6 +79,7 @@ class QmInputWriter_input_schema(input_schema):
     task_type: list[dict] = Field(
         default=[{"opt": None}],
         description='''List of dicts whose keys are job types and values are their parameters.
+                    Keys: opt/freq/irc/scan/single_point ('sp' accepted as the same single-point task).
                     Gaussian example: [{"opt":"TS,calcfc,noeigen"},{"freq":None}];
                     the same dict works for ORCA (mapped to `! OptTS Freq` etc.).'''
     )
@@ -232,15 +233,19 @@ class QmInputWriter(Tool):
 
         for task in user_input.task_type:
             for key, value in task.items():
-                if key.lower() == "freq" and user_input.frequency_mode != "auto":
+                key_l = key.lower()
+                if key_l == "single_point":
+                    # 规范词汇映射到 Gaussian 原生 sp 关键字（validate 已放行两种拼写）
+                    key_l = "sp"
+                if key_l == "freq" and user_input.frequency_mode != "auto":
                     mode = "numer" if user_input.frequency_mode == "numeric" else "analytic"
                     keywords.append(f"freq={mode}")
                 elif value is None:
-                    keywords.append(key)
+                    keywords.append(key_l)
                 elif "," in str(value):
-                    keywords.append(f"{key}=({value})")
+                    keywords.append(f"{key_l}=({value})")
                 else:
-                    keywords.append(f"{key}={value}")
+                    keywords.append(f"{key_l}={value}")
 
         if user_input.external_program:
             # Gaussian 外部 MLIP 路由：external="engine"，无 method/basis
@@ -281,7 +286,7 @@ class QmInputWriter(Tool):
                 elif key_l == "scan":
                     # 松弛扫描由 orca_blocks 的 %geom Scan 定义驱动，仍需 Opt 关键字
                     keyword = "Opt"
-                elif key_l == "sp":
+                elif key_l in ("sp", "single_point"):
                     continue  # 单点：! 行只留方法/基组
                 else:
                     continue  # 前置校验已拒绝未知键，这里只是防御

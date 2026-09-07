@@ -286,3 +286,9 @@ async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
 ## 给 k3 的执行提示
 
 按 Task 0、1、2、2A、3、4、4A、5、6 顺序执行；Task 0 取证回归最先做，已定位的停止失效可提前修复，Task 5 是不可省略的发布门禁。后续，先用 fake LLM + asyncio.Event 验证因果链。目标是复用现有 agent 系统，不是再造后台复核系统。若当前 checkout 已包含 review-worker 或相近重构，先对照以上验收标准复用/收敛，避免叠加第三条执行路径。遇到与现有语义冲突时在实现报告说明具体冲突与选择，不悄悄放宽取消、权限或持久性要求。
+
+## 修订：显式送审的通知所有权（2026-09-06 追加）
+
+`submit_evidence_for_review` 只验证并持久化 explicit review；真实 `dag_bind_evidence` 成功返回后，由运行时 DAG policy 的完成钩子（`DagPolicyStage.after_tool` → `DagController.on_tool_finished` → `_trigger_supervisor_after_tool`）按新建 review 回执（`review_id` + `enqueued=True`）通知 Supervisor。直接存储调用不启动督导；中断窗口由 reconcile 扫持久信箱恢复。工具完成本身不自动筛选研究证据。
+
+送审方法内部不再持有通知副作用——工具自建的无 core 控制器曾使内部通知静默跳过（真实 bind 成功入库但 Supervisor 不被唤醒的断点，见 `docs/superpowers/plans/2026-09-06-dag-guided-submission-notification.md`），通知唯一所有权收敛到运行时完成钩子后消除。

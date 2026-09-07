@@ -10,3 +10,4 @@
 | `cope_irc_extopt_mace_orca611.out` | 外部 MLIP IRC（ORCA 6.1.1 `! ExtOpt IRC` + MACE-OMol25，能量行只有 `(From external program)` 变体，正常终止） | 按 P1 Cope job22 实测日志结构缩写合成（原始日志随工作区清理删除） | — |
 | `cope_relaxed_scan/` | 松弛扫描逐帧结构 + `relaxscanact.dat`（供 `ts_guess scan_parse` 测试） | P1 Cope 任务实测产物 | — |
 | `extopt_relaxed_scan/scan_extopt_snippet.out` | 外部 MLIP 松弛扫描文本片段（`! ExtOpt`，能量行带 `(From external program)` 后缀，5 帧 × 2 坐标块，内部峰在帧 3） | 按 MACE-OMol25 relaxed scan 实测日志结构缩写合成（GH #23，原日志已随工作区清理删除） | — |
+| `extopt_relaxed_scan/scan_extopt_grouped.out` | 同上内容 + 每个扫描点前的 `RELAXED SURFACE SCAN STEP N` 标记（ts_guess 文本回退按扫描步分组解析所需；帧能量取每步收敛后的最后一条） | 由 `scan_extopt_snippet.out` 加回实测日志中的扫描步标记合成（ts_guess G1 修复配套） | — |

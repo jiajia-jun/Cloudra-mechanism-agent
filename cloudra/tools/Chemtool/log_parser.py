@@ -113,7 +113,7 @@ class LogParser_output_schema(output_schema):
     homo_lumo_gap_ev: Optional[float] = Field(default=None, description="HOMO-LUMO gap (eV)")
     dipole_moment_debye: Optional[float] = Field(default=None, description="Dipole moment (Debye)")
     frequencies_cm: Optional[list[float]] = Field(default=None, description="Vibrational frequencies (cm⁻¹)")
-    imaginary_frequencies: Optional[list[float]] = Field(default=None, description="Imaginary frequencies (cm⁻¹), used to judge a TS")
+    imaginary_frequencies: Optional[list[float]] = Field(default=None, description="Imaginary frequencies (cm⁻¹, negative values), used to judge a TS")
     zero_point_correction_hartree: Optional[float] = Field(default=None, description="Zero-point correction (Hartree)")
     thermal_energy_correction_hartree: Optional[float] = Field(default=None, description="Thermal energy correction (Hartree)")
     thermal_enthalpy_correction_hartree: Optional[float] = Field(default=None, description="Thermal enthalpy correction (Hartree)")
@@ -200,7 +200,10 @@ class LogParser(Tool):
             # 2. 引擎嗅探先于 cclib：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，
             # cclib 常整体解析失败或 metadata.success 失真——ORCA 路径把 cclib
             # 降级为可选数据源，能量/终止判定退回文本权威提取（GH #17）。
-            # xtb 同理：cclib 对 xtb 支持薄弱，全程走 xtb_frames 文本原语（GH #26）。
+            # xtb 则整体跳过 cclib（与 runtime/monitor.py 一致）：cclib 1.8.1
+            # 已有 xtb parser 但结果错误——opt 日志的 scfenergies[-1] 是最后
+            # 一个 opt cycle 的能量而非 boxed TOTAL ENERGY，hess 日志的热化学
+            # 属性是荒谬值——能量/频率/热化学全走 xtb_frames 文本原语（GH #26）。
             from cloudra.tools.core import orca_frames, xtb_frames
             from cloudra.tools.core.qm_engine import detect_qm_engine
 
@@ -211,10 +214,11 @@ class LogParser(Tool):
 
             data = None
             cclib_error: Exception | None = None
-            try:
-                data = cclib.io.ccread(log_path)
-            except Exception as e:
-                cclib_error = e
+            if engine != "xtb":
+                try:
+                    data = cclib.io.ccread(log_path)
+                except Exception as e:
+                    cclib_error = e
 
             if data is None and engine not in ("orca", "xtb"):
                 if cclib_error is not None:
@@ -241,8 +245,8 @@ class LogParser(Tool):
             if data is None:
                 if engine == "xtb":
                     result["message"] = (
-                        "cclib has no xtb parser; energy/termination/convergence/frequency "
-                        "fields come from text extraction (tools.core.xtb_frames)."
+                        "xtb logs are parsed by text extraction (tools.core.xtb_frames); "
+                        "cclib is not consulted for this engine."
                     )
                 else:
                     result["message"] = (
@@ -318,8 +322,10 @@ class LogParser(Tool):
                     # xtb：projected vibrational frequencies 块的 eigval 行
                     vibfreqs = xtb_frames.vibfreqs_from_text(xtb_text) or None
                 if vibfreqs is not None:
+                    # 虚频保留负号（负值=虚频是 frames 原语与下游 DAG/benchmark
+                    # 的原生语义）；frequencies_cm 只存非负实频。
                     result["frequencies_cm"] = [f for f in vibfreqs if f >= 0]
-                    result["imaginary_frequencies"] = [abs(f) for f in vibfreqs if f < 0]
+                    result["imaginary_frequencies"] = [f for f in vibfreqs if f < 0]
 
             thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
             if thermo_fields & requested:
@@ -327,24 +333,31 @@ class LogParser(Tool):
                     thermo = orca_frames.extract_thermochemistry(log_path)
                 elif engine == "gaussian":
                     thermo = _extract_gaussian_thermochemistry(log_path)
+                elif engine == "xtb":
+                    # xtb：THERMODYNAMIC 块/最终块文本（cclib 热化学对 xtb 是
+                    # 荒谬值，永不作为数据源）
+                    thermo = xtb_frames.thermochemistry(xtb_text or "")
                 else:
-                    # xtb/未知引擎：无热化学提取路径，留空（cclib 属性同样缺失）
+                    # 未知引擎：无热化学提取路径，留空
                     thermo = {}
 
                 # cclib correctly exposes these as total quantities. Prefer the
-                # literal Gaussian summary when present and use cclib as fallback.
-                if "total_enthalpy_hartree" not in thermo:
-                    value = getattr(data, "enthalpy", None)
-                    if value is not None:
-                        thermo["total_enthalpy_hartree"] = float(value)
-                if "total_gibbs_free_energy_hartree" not in thermo:
-                    value = getattr(data, "freeenergy", None)
-                    if value is not None:
-                        thermo["total_gibbs_free_energy_hartree"] = float(value)
-                if "zero_point_correction_hartree" not in thermo:
-                    value = getattr(data, "zpve", None)
-                    if value is not None:
-                        thermo["zero_point_correction_hartree"] = float(value)
+                # literal Gaussian/ORCA/xtb summary when present and use cclib as
+                # fallback — gated per engine: xtb never touches cclib (data is
+                # always None for xtb by construction).
+                if data is not None:
+                    if "total_enthalpy_hartree" not in thermo:
+                        value = getattr(data, "enthalpy", None)
+                        if value is not None:
+                            thermo["total_enthalpy_hartree"] = float(value)
+                    if "total_gibbs_free_energy_hartree" not in thermo:
+                        value = getattr(data, "freeenergy", None)
+                        if value is not None:
+                            thermo["total_gibbs_free_energy_hartree"] = float(value)
+                    if "zero_point_correction_hartree" not in thermo:
+                        value = getattr(data, "zpve", None)
+                        if value is not None:
+                            thermo["zero_point_correction_hartree"] = float(value)
 
                 aliases = {
                     "zero_point_energy_hartree": "zero_point_correction_hartree",

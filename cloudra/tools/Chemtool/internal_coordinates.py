@@ -411,7 +411,11 @@ class InternalCoordinates(Tool):
                 try:
                     coords = [positions[a] for a in ordered]
                     big_q, theta, phi = _cremer_pople(coords)
-                    if theta < 15 or theta > 165:
+                    if big_q < 0.05:
+                        # Q≈0（如平面芳香环/苯）：Cremer–Pople 振幅为零，θ 无几何意义——
+                        # 必须标 planar，不得按 θ 数值误判 chair/boat（θ=0 且 Q≈0 常发生）。
+                        hint = "planar (Q≈0)"
+                    elif theta < 15 or theta > 165:
                         hint = "near-chair (chair)"
                     elif 75 <= theta <= 105:
                         hint = "boat/twist-boat"

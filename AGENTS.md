@@ -31,7 +31,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 **`runtime/` — 执行面共享件**（v1 执行核心已删，只剩这些）
 
 - `prompt_assembler.py`（确定性 system prompt 组装，读 `prompts/*.md` 按签名缓存；AGENTS.md 仅注入 Coordinator）、`environment_observer.py`。
-- `monitor.py` — guard 进程：持排他 flock → 拉起 calculator（nice +10 降权保控制面调度份额）→ 解析日志写终态。**终态判定按引擎分派文本终止标记**（ORCA 认 `ORCA TERMINATED NORMALLY`、xtb 认 `normal termination of xtb`，与 log_parser 共用 `tools/core/` 的 frames 原语；优化另有"跑满步数未收敛"第二判据判 failed），**cclib 只取数据不定成败**。
+- `monitor.py` — guard 进程：持排他 flock → 拉起 calculator（nice +10 降权保控制面调度份额）→ 解析日志写终态。**终态判定按引擎分派文本终止标记**（ORCA 认 `ORCA TERMINATED NORMALLY`、xtb 认 `normal termination of xtb`，与 log_parser 共用 `tools/core/` 的 frames 原语；优化另有"跑满步数未收敛"第二判据判 failed，xtb 只对行声明的 opt/ohess 任务生效），**cclib 只取数据不定成败**。xtb 作业的任务参数（`charge`/`multiplicity`/`xtb_task`/`xtb_solvent`/`req_cpus` 列）由 guard 从 compute_jobs 行读出、经 `XtbParams`（`infra/compute_utils.py`）透传给 calculator.sh 拼 `--chrg/--uhf/--opt/--hess/--ohess/--alpb/--parallel`。
 - `compute_executor.py`（共享执行件 `run_compute`，认领方只有 scheduler 守护与 benchmark 进程内实例）、`calc_lock_wrapper.py`、`compute_notify.py`（`build_compute_knowledge_query` 查询构建）。
 
 **`scheduler/` — 计算调度守护进程（进程隔离）**
@@ -66,7 +66,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 **`infra/` — 支撑设施**
 
-- `config.py` — **磁盘 YAML 是唯一事实源**，唯一写入口 `mutate_config(fn)`（flock 排他 → 读磁盘覆盖内存 → 应用 → 原子写回 → 就地刷新单例）；`add_plugin`/`remove_plugin` 幂等；测试重建单例用 `_reset_for_tests()`。
+- `config.py` — **磁盘 YAML 是唯一事实源**，唯一写入口 `mutate_config(fn)`（flock 排他 → 读磁盘覆盖内存 → 应用 → 原子写回 → 就地刷新单例）；`add_plugin`/`remove_plugin` 幂等；测试重建单例用 `_reset_for_tests()`。`LLMConfig.reasoning_effort`（思考强度，None=不传）是 per-agent `RuntimeSettings.reasoning_effort` 为空时的全局回落（`adapters.legacy_default_settings`）；chat 路径顶层透传，Responses 路径由 `_build_responses_payload` 翻译为 `reasoning.effort`。
 - `llm_client.py` — OpenAI 兼容传输层；取消准入 `abort_event`（每次发送前/retry 后/fallback 前检查）；流式取消走 socket 层 shutdown+close 立即 RST，**高层 `resp.close()` 跨线程会卡锁，禁止走**。
 - `flocks.py` — fcntl flock 原语，**执行面唯一的进程存活/互斥判定手段**；`compute_utils.py` — guard 命令构建/detach 拉起、`resolve_log_path`（统一的 log_path 来源）；`logging_setup.py`、`slurm.py`、`operations.py`（备份/恢复）、`yolo_guard.py`、`json_args.py`（LLM 畸形 JSON 工具参数兜底）等。
 

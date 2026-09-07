@@ -24,11 +24,12 @@ interface SlotDraft {
   timeout: string;
   key: string;
   supports_vision: boolean;
+  reasoning_effort: string;
 }
 
 type Slot = 'coordinator' | 'follower';
 
-const EMPTY_DRAFT: SlotDraft = { model: '', url: '', context_window: '', timeout: '', key: '', supports_vision: true };
+const EMPTY_DRAFT: SlotDraft = { model: '', url: '', context_window: '', timeout: '', key: '', supports_vision: true, reasoning_effort: '' };
 
 function draftFrom(cfg: RuntimeConfig, slot: Slot): SlotDraft {
   const s = cfg[slot];
@@ -39,6 +40,7 @@ function draftFrom(cfg: RuntimeConfig, slot: Slot): SlotDraft {
     timeout: String(s.timeout),
     key: '',
     supports_vision: s.supports_vision !== false,
+    reasoning_effort: s.reasoning_effort ?? '',
   };
 }
 
@@ -133,6 +135,23 @@ function SlotSection({
         />
         Supports vision
       </label>
+      <label className="field" title="Reasoning effort passed as the OpenAI-compatible reasoning_effort parameter">
+        reasoning effort
+        <select
+          className="input"
+          value={draft.reasoning_effort}
+          onChange={(e) => onChange({ reasoning_effort: e.target.value })}
+        >
+          <option value="">default (not sent)</option>
+          <option value="minimal">minimal</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+        <span className="field-hint">
+          global fallback for agents without a per-agent override; empty = parameter not sent
+        </span>
+      </label>
       <div className="modal-actions">
         {keySet && (
           <button
@@ -199,6 +218,8 @@ export default function GlobalConfig({ onClose, onToast }: GlobalConfigProps) {
         model: d.model.trim(),
         url: d.url.trim(),
         supports_vision: d.supports_vision,
+        // empty clears the override: the parameter is then not sent at all
+        reasoning_effort: d.reasoning_effort || null,
       };
       const cw = parseInt(d.context_window, 10);
       if (Number.isFinite(cw) && cw >= 1) changes.context_window = cw;

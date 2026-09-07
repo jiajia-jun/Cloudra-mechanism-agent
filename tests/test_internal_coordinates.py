@@ -312,3 +312,44 @@ async def test_zmatrix_collinear_dihedral_ref_recovers(mock_session):
     cos = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
     angle = float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
     assert abs(angle - 109.5) < 0.1
+
+
+# ---------------------------------------------------------------------------
+# F6：平面 6 元环（Q≈0，如苯）必须标 planar，不得误标 near-chair
+# ---------------------------------------------------------------------------
+
+
+def _planar_benzene_xyz() -> str:
+    """苯：6 C 在 xy 平面正六边形（r=1.40 Å），6 H 沿径向向外（C-H 1.09 Å），全平面。"""
+    import math
+
+    lines = ["12", "planar benzene"]
+    rc, rh = 1.40, 1.09
+    for i in range(6):
+        ang = math.pi / 3.0 * i
+        cx, cy = rc * math.cos(ang), rc * math.sin(ang)
+        lines.append(f"C   {cx:>12.6f}  {cy:>12.6f}  0.000000")
+    for i in range(6):
+        ang = math.pi / 3.0 * i
+        hx, hy = (rc + rh) * math.cos(ang), (rc + rh) * math.sin(ang)
+        lines.append(f"H   {hx:>12.6f}  {hy:>12.6f}  0.000000")
+    return "\n".join(lines) + "\n"
+
+
+@pytest.mark.asyncio
+async def test_analyze_planar_benzene_ring(mock_session, tmp_path):
+    """平面苯（CP Q≈0）：必须标 planar，绝不标 near-chair。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="analyze", input_text=_planar_benzene_xyz(),
+            zmat_path=str(tmp_path / "benzene.zmat"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+    rings_section = result.report.split("== Rings ==")[1].split("==")[0]
+    assert "6-membered ring" in rings_section
+    assert "CP:" in rings_section
+    assert "planar" in rings_section
+    assert "near-chair" not in rings_section

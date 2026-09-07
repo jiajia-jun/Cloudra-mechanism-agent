@@ -521,11 +521,14 @@ class Agent(BaseModel):
         # top_p 仅在显式设置时发送：k3 等严格端点只接受特定值（如 0.95），默认不发送
         if self.top_p is not None:
             request_kwargs["top_p"] = self.top_p
+        # reasoning_effort 仅在全局角色槽位配置时发送（取值集随 provider 而异）
+        role_cfg = self._role_llm_config()
+        if role_cfg.reasoning_effort:
+            request_kwargs["reasoning_effort"] = role_cfg.reasoning_effort
         if available_tool_classes:
             request_kwargs["tools"] = available_tool_classes
 
         if native_adapter is not None:
-            role_cfg = self._role_llm_config()
             request_kwargs = native_adapter.inject(
                 request_kwargs, role_cfg.native_search_params
             )

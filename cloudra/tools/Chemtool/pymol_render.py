@@ -93,6 +93,17 @@ def _png_base_path(output_path: str) -> str:
     return output_path
 
 
+def _expected_png_path(output_path: str) -> str:
+    """PyMOL 实际会产出的图片路径：png 命令总是把 .png 加回 basename。
+
+    用户给的 output_path 不带 .png 时，产物在 output_path + '.png'；
+    工具的文件存在性检查与返回路径必须与产物对齐（否则误报"produced no image"）。
+    """
+    if output_path.lower().endswith(".png"):
+        return output_path
+    return output_path + ".png"
+
+
 def _render_commands(structure_path: str, output_path: str, style: str,
                      width: int, height: int, dpi: int, ray: bool) -> list[str]:
     """The PyMOL command sequence shared by the module and CLI fallback paths."""
@@ -207,10 +218,14 @@ class PymolRender(Tool):
                         "or install a system PyMOL, then retry.",
             )
 
+        # PyMOL 的 png 命令总在 basename 后补 .png：产物路径 = output_path 或其 + '.png'
+        abs_output = os.path.abspath(output_path)
+        image_file = _expected_png_path(abs_output)
+
         def render() -> None:
-            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+            os.makedirs(os.path.dirname(abs_output), exist_ok=True)
             commands = _render_commands(
-                os.path.abspath(structure_path), os.path.abspath(output_path), style,
+                os.path.abspath(structure_path), abs_output, style,
                 user_input.width, user_input.height, user_input.dpi, user_input.ray,
             )
             if binary is not None:
@@ -218,7 +233,7 @@ class PymolRender(Tool):
             else:
                 _render_with_module(
                     os.path.abspath(structure_path),
-                    os.path.abspath(output_path),
+                    abs_output,
                     style,
                     user_input.width,
                     user_input.height,
@@ -234,17 +249,17 @@ class PymolRender(Tool):
                 image_path="",
                 message=f"PyMOL rendering raised an exception: {str(e)}",
             )
-        if not os.path.isfile(output_path) or os.path.getsize(output_path) == 0:
+        if not os.path.isfile(image_file) or os.path.getsize(image_file) == 0:
             return PymolRender_output_schema(
                 is_success=False,
                 image_path="",
-                message=f"PyMOL finished but produced no image at {output_path}. "
+                message=f"PyMOL finished but produced no image at {image_file}. "
                         "Check that the structure file is valid and retry.",
             )
         return PymolRender_output_schema(
             is_success=True,
-            image_path=output_path,
-            message=f"Image rendered: {output_path}. Inspect it with read to verify the result.",
+            image_path=image_file,
+            message=f"Image rendered: {image_file}. Inspect it with read to verify the result.",
         )
 
 

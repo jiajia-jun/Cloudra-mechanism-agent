@@ -2,6 +2,7 @@
 # 在导入前为 3.10 环境补上兼容性补丁。
 import datetime
 import os
+import re
 from typing import Any, Dict, List
 
 from pydantic import Field
@@ -20,6 +21,62 @@ def _import_spectrochempy():
         return scp
     except Exception:
         return None
+
+
+def _unit_token(proc) -> str:
+    """单位的小写规范化标签：优先 spectrochempy 的 pretty 表示（percent/
+    transmittance/absorbance），退化为 str()。"""
+    unit = getattr(proc, "units", None)
+    if unit is None:
+        return ""
+    try:
+        return f"{unit:P}".lower()
+    except Exception:
+        return str(unit).lower()
+
+
+def _jcamp_percent_transmittance_hint(path: str) -> bool:
+    """JCAMP-DX 显式声明 PERCENT TRANSMITTANCE 的语义提示。
+
+    spectrochempy 0.12.6 的 JCAMP reader 只把 'ABSORBANCE'/'TRANSMITTANCE'/
+    'ARBITRARY UNITS' 落地为 dataset.units——最常见的 'PERCENT TRANSMITTANCE'
+    不落地（units=None）。这类文件数值是 0..100 的 %T，不是吸光度/任意单位；
+    从文件头补足该语义，避免把 %T 原样当吸光度交给下游（GH I1）。
+    """
+    if not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192)
+    except OSError:
+        return False
+    m = re.search(r"##\s*YUNITS\s*=\s*([^\n#]+)", head, re.IGNORECASE)
+    return bool(m) and "PERCENT TRANSMITTANCE" in m.group(1).upper()
+
+
+def _to_absorbance(proc):
+    """把透过率光谱换算成吸光度（A = -log10(T)），返回 scp 数据集。
+
+    - 单位声明为 'transmittance'：spectrochempy 0.12.6 在该单位下对 0..100 的
+      %T 数值的 .to('absorbance') 数学正确（100→0、10→1），直接复用；
+    - 'percent'/单位丢失（JCAMP %T 提示）等其余透过率输入：scp 的 percent 换算
+      口径不可靠，这里按数值量纲统一换算——数据主要落在 >1.5 视为 0..100 的
+      %T（A = 2 − log10(T%)），否则视为 0..1 的小数 T（A = −log10(T)）。
+      换算只依赖数值与透射声明，不依赖 scp 的内部单位换算。
+    """
+    token = _unit_token(proc)
+    if token == "transmittance":
+        try:
+            return proc.to('absorbance')
+        except Exception:
+            pass  # 落到数值换算路径
+    import numpy as np
+
+    arr = np.asarray(proc.data, dtype=float).ravel()
+    peak_scale = float(np.nanmax(np.abs(arr))) if arr.size else 0.0
+    if peak_scale > 1.5:
+        return 2.0 - proc.log10()  # %T 0..100：A = log10(100) − log10(T) = 2 − log10(T)
+    return -(proc.log10())  # 小数 T 0..1：A = −log10(T)
 
 description = (
     "Infrared (IR) spectrum processing and assignment: SpectroChemPy, supporting JCAMP-DX, Thermo Nicolet (SPA/SPG), CSV, etc., "
@@ -92,12 +149,17 @@ class IRProcessor(Tool):
             proc = dataset.copy()
             adv = user_input.advanced_settings
 
-            # 转换为吸光度 (如果是透过率)
-            try:
-                if str(proc.units) == "percent":
-                    proc = proc.log10()
-            except Exception:
-                pass
+            # 转换为吸光度 (如果是透过率)。%T 换算必须得到向上吸收峰
+            # （T=10% → A=1.0，T=100% → A=0）；log10(%T) 会把谱倒置
+            # （基线 2.0 / 带 1.0），find_peaks 于是去检基线噪声（GH I1）。
+            transmittance_like = (
+                any(tok in _unit_token(proc) for tok in ("transmittance", "percent"))
+                or _jcamp_percent_transmittance_hint(path)
+            )
+            converted_to_absorbance = False
+            if transmittance_like:
+                proc = _to_absorbance(proc)
+                converted_to_absorbance = True
 
             # 平滑 (使用高级方法 smooth)
             if user_input.smooth:
@@ -112,12 +174,24 @@ class IRProcessor(Tool):
                 params = adv.get('baseline_params', {})
                 proc = proc.basc(method=method, **params)
 
-            # 归一化 (使用高级数学运算)
+            # 归一化
             if user_input.normalize == 'snv':
                 # 高级运算会自动处理单位，归一化后变为无单位 (dimensionless)
                 proc = (proc - proc.mean()) / proc.std()
             elif user_input.normalize == 'minmax':
                 proc = (proc - proc.min()) / (proc.max() - proc.min())
+            elif user_input.normalize == 'area':
+                # 面积归一化（schema 承诺的语义）：∫|y| dx → 1，保留相对形状
+                import numpy as np
+
+                x = np.asarray(proc.x.values, dtype=float).ravel()
+                y = np.asarray(proc.data, dtype=float).ravel()
+                area = float(np.trapezoid(np.abs(y), x))
+                if not np.isfinite(area) or abs(area) <= 1e-300:
+                    raise ValueError(
+                        "area normalization failed: the spectral integral is zero or non-finite"
+                    )
+                proc = proc / abs(area)
 
             # 3. 峰提取
             peaks_list = []
@@ -160,7 +234,7 @@ class IRProcessor(Tool):
             return IRProcessor_output_schema(
                 is_success=True,
                 units=str(proc.x.units),
-                y_unit=str(proc.units),
+                y_unit="Absorbance" if converted_to_absorbance else str(proc.units),
                 spectrum={
                     "wavenumber": x_list[::step],
                     "intensity": y_list[::step]

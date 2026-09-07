@@ -1138,7 +1138,7 @@ async def test_guard_marks_failed_for_unconverged_extopt_opt(
     monkeypatch.setattr(
         monitor,
         "build_calculator_cmd",
-        lambda input_file, job_type: (True, [sys.executable, "-c", stdout_code], ""),
+        lambda input_file, job_type, **_kwargs: (True, [sys.executable, "-c", stdout_code], ""),
     )
 
     await monitor.run_guard(
@@ -1199,7 +1199,7 @@ async def test_guard_marks_done_for_extopt_orca_stdout_only(
     monkeypatch.setattr(
         monitor,
         "build_calculator_cmd",
-        lambda input_file, job_type: (True, [sys.executable, "-c", stdout_code], ""),
+        lambda input_file, job_type, **_kwargs: (True, [sys.executable, "-c", stdout_code], ""),
     )
 
     await monitor.run_guard(
@@ -1261,7 +1261,7 @@ async def test_guard_marks_done_via_captured_stdout_for_stdout_only_engine(
     monkeypatch.setattr(
         monitor,
         "build_calculator_cmd",
-        lambda input_file, job_type: (True, [sys.executable, "-c", stdout_code], ""),
+        lambda input_file, job_type, **_kwargs: (True, [sys.executable, "-c", stdout_code], ""),
     )
 
     await monitor.run_guard(

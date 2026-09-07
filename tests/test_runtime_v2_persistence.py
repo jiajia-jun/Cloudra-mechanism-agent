@@ -38,7 +38,7 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
         Command(
             type="agent.settings_update",
             target={"session_id": agent.id},
-            payload={"yolo": True, "temperature": 0.2},
+            payload={"yolo": True, "temperature": 0.2, "reasoning_effort": "high"},
         )
     )
     # 3b 起快照是节流缓存，测试显式冻结快照点。
@@ -53,6 +53,7 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
     assert restored_agent.state == "queued"
     assert restored_agent.settings.yolo is True
     assert restored_agent.settings.temperature == 0.2
+    assert restored_agent.settings.reasoning_effort == "high"
     assert restored_agent.settings_revision == 1
 
     persisted = store.query_project_events(project.id)

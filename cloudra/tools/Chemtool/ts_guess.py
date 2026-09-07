@@ -45,6 +45,8 @@ description = (
     "scan_parse: parse a scan log into a relative-energy profile table, barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
     "and extract the highest-energy geometry as a TS-guess xyz — for ORCA relaxed scans it reads "
     "relaxscanact.dat + ts_scan.NNN.xyz frame files so the TS guess is the energy-maximum frame, not the last frame; "
+    "without the sidecar the log text is grouped per 'RELAXED SURFACE SCAN STEP' and each point's converged "
+    "(last) energy/geometry is used, so per-cycle energies are never misread as scan points; "
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
     "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two optimized intermediates, "
     "and checks that each partial IRC endpoint lies between the TS and the matching intermediate, yielding a path-direction-consistency pass/fail/inconclusive. "
@@ -537,36 +539,67 @@ def _parse_std_orientation_blocks(text: str) -> list[list[tuple[int, float, floa
 # 避免两处对同一日志行的解析规则漂移（GH #23）。
 _ORCA_SPE_RE = orca_frames.FINAL_ENERGY_RE
 
+# ORCA relaxed surface scan 的扫描点边界标记（每个扫描点一次）。
+_SCAN_STEP_MARKER_RE = re.compile(r"RELAXED SURFACE SCAN STEP\s+\d+")
 
-def _parse_orca_scan(text: str) -> tuple[list[float], list[list[tuple[str, float, float, float]]]]:
-    """尽力而为解析 ORCA 扫描输出：各步单点能量（Eh）+ 全部直角坐标块（按出现顺序）。
 
-    坐标块数通常多于扫描帧数（每帧优化含若干块）；由调用方按能量最高帧
-    在块序列上均分定位取帧（同 Gaussian 路径的 Standard orientation 启发式），
-    而不是无脑取 rfind 出来的末帧（GH #16）。
+class _ScanStepsUngroupable(Exception):
+    """ORCA relaxed-scan 日志文本无法按扫描步可靠分组（标记缺失/步内能量或几何
+    缺位）：此时严禁按块均分等启发式把几何拼给某个能量帧（GH G1）。"""
+
+
+def _parse_orca_scan(text: str) -> list[dict]:
+    """按扫描步分组解析 ORCA relaxed-scan 文本回退，返回每步一帧（与扫描点一一对应）：
+
+        [{"index": i, "energy_hartree": Eh, "geom": [(symbol, x, y, z), ...]}, ...]
+
+    relaxed scan 的每个扫描点是一段约束优化，期间每轮优化周期都会打印一条
+    'FINAL SINGLE POINT ENERGY'（实测 ORCA 6.1.1 的 10 点扫描共 55 条）——只有
+    opt 块收敛后的最后一条才是该扫描点的能量。因此按 'RELAXED SURFACE SCAN
+    STEP N' 标记切段，每段取最后一条能量与最后一块直角坐标（即收敛结构的
+    能量与几何），而不是把每个优化周期的能量当扫描点、再按块均分猜几何。
+
+    日志没有扫描步标记、或任一步段缺能量/几何时抛 _ScanStepsUngroupable；
+    调用方走 candidate_unavailable 通道（参照 _SidecarIncomplete 语义），
+    绝不按块均分等启发式发几何（GH #16/#G1）。
     """
-    energies = [float(v.replace("D", "E").replace("d", "e")) for v in _ORCA_SPE_RE.findall(text)]
-    if not energies:
+    energies_all = [float(v.replace("D", "E").replace("d", "e")) for v in _ORCA_SPE_RE.findall(text)]
+    if not energies_all:
         tail = text[-1500:]
         raise ValueError(f"Failed to parse scan energies from ORCA output ('FINAL SINGLE POINT ENERGY' not found).\nOutput tail:\n{tail}")
-    blocks: list[list[tuple[str, float, float, float]]] = []
-    for m in re.finditer(r"CARTESIAN COORDINATES \(ANGSTROEM\)", text):
-        geom: list[tuple[str, float, float, float]] = []
-        for line in text[m.end():].splitlines()[2:]:
-            parts = line.split()
-            if len(parts) >= 4 and parts[0].isalpha():
-                try:
-                    geom.append((parts[0], float(parts[1]), float(parts[2]), float(parts[3])))
-                    continue
-                except ValueError:
-                    pass
-            break
-        if geom:
-            blocks.append(geom)
-    if not blocks:
-        tail = text[-1500:]
-        raise ValueError(f"Failed to parse Cartesian geometry blocks from ORCA output.\nOutput tail:\n{tail}")
-    return energies, blocks
+    markers = list(_SCAN_STEP_MARKER_RE.finditer(text))
+    if not markers:
+        raise _ScanStepsUngroupable(
+            "the log text has no 'RELAXED SURFACE SCAN STEP' markers, so the "
+            f"{len(energies_all)} 'FINAL SINGLE POINT ENERGY' lines (one per optimization "
+            "cycle) cannot be mapped to scan points."
+        )
+    bounds = [m.start() for m in markers] + [len(text)]
+    steps: list[dict] = []
+    for i in range(len(markers)):
+        seg = text[bounds[i]:bounds[i + 1]]
+        seg_energies = [float(v.replace("D", "E").replace("d", "e")) for v in _ORCA_SPE_RE.findall(seg)]
+        geoms: list[list[tuple[str, float, float, float]]] = []
+        for m in re.finditer(r"CARTESIAN COORDINATES \(ANGSTROEM\)", seg):
+            geom: list[tuple[str, float, float, float]] = []
+            for line in seg[m.end():].splitlines()[2:]:
+                parts = line.split()
+                if len(parts) >= 4 and parts[0].isalpha():
+                    try:
+                        geom.append((parts[0], float(parts[1]), float(parts[2]), float(parts[3])))
+                        continue
+                    except ValueError:
+                        pass
+                break
+            if geom:
+                geoms.append(geom)
+        if not seg_energies or not geoms:
+            raise _ScanStepsUngroupable(
+                f"scan step {i + 1} contains no FINAL SINGLE POINT ENERGY or no Cartesian "
+                "geometry block; the per-step energies and geometries cannot be aligned."
+            )
+        steps.append({"index": i, "energy_hartree": seg_energies[-1], "geom": geoms[-1]})
+    return steps
 
 
 _ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
@@ -931,16 +964,23 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
         pass
 
     if vibfreqs is None:
-        # 正则回退：Gaussian "Frequencies --" 行（虚频以负值打印）
-        freqs: list[float] = []
-        for m in _FREQ_LINE_RE.finditer(text):
-            for tok in m.group(1).split():
-                try:
-                    freqs.append(float(tok))
-                except ValueError:
-                    break
-        if freqs:
-            vibfreqs = freqs
+        if engine == "orca":
+            # cclib 1.8.x 解析 ORCA 6.x 日志整体抛 IndexError（实测 ORCA 6.1.1 全灭），
+            # 且 ExtOpt/NumFreq 等外部 MLIP 日志无 SCF 块 cclib 也常失败——文本回退
+            # 走 orca_frames 的 VIBRATIONAL FREQUENCIES 原生解析（Gaussian 的
+            # "Frequencies --" 行在 ORCA 日志里不存在，GH #G2）。
+            vibfreqs = orca_frames.vibfreqs_from_text(text) or None
+        else:
+            # 正则回退：Gaussian "Frequencies --" 行（虚频以负值打印）
+            freqs: list[float] = []
+            for m in _FREQ_LINE_RE.finditer(text):
+                for tok in m.group(1).split():
+                    try:
+                        freqs.append(float(tok))
+                    except ValueError:
+                        break
+            if freqs:
+                vibfreqs = freqs
 
     if vibfreqs is None:
         raise ValueError(f"Failed to parse vibrational frequencies from the frequency log: {log_path}")
@@ -949,8 +989,15 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
         vibdisps = _parse_gaussian_vibdisps(text, len(vibfreqs))
 
     if converged is None:
-        # 文本回退：正常终止且无错误标记视为收敛（含纯 freq 作业沿用已收敛几何的情形）
-        converged = ("Normal termination" in text) and ("Error termination" not in text)
+        if engine == "orca":
+            # ORCA 没有 Gaussian 的 "Normal termination" 标记（自报 "ORCA TERMINATED
+            # NORMALLY"），且跑满最大步数未收敛的优化仍会正常终止——收敛状态优先按
+            # ORCA 自己的优化收敛标记判定，非优化作业回退到正常终止标记（GH #G3）。
+            opt_state = orca_frames.opt_converged(text)
+            converged = opt_state if opt_state is not None else orca_frames.normal_termination(text)
+        else:
+            # 文本回退：正常终止且无错误标记视为收敛（含纯 freq 作业沿用已收敛几何的情形）
+            converged = ("Normal termination" in text) and ("Error termination" not in text)
 
     if positions is None and engine == "gaussian":
         blocks = _parse_std_orientation_blocks(text)
@@ -1382,7 +1429,7 @@ class TsGuess(Tool):
                             "geometry is unavailable; the last frame was NOT substituted. "
                             "Re-run or recover the missing per-frame xyz before extracting a TS guess.",
                         ],
-                        barrier_kcal=round(profile["barrier_kcal"], 4),
+                        barrier_kcal=None,  # 拒发候选（峰值帧不可得）时不报 barrier（G4）
                         candidate=None,
                         candidate_unavailable=True,
                         message=(
@@ -1410,32 +1457,36 @@ class TsGuess(Tool):
                 frame_symbols, ts_coords = sidecar["frames"][ts_index]
                 symbols = frame_symbols
                 candidate_source = "orca_relaxed_scan_sidecar"
-                notes.append(
-                    "ORCA relaxed-scan sidecar used (relaxscanact.dat + per-frame xyz): "
-                    f"TS-guess geometry is the energy-maximum frame {ts_index} (1-based {ts_index + 1}), not the last frame."
-                )
             elif text is not None:
-                energies_eh, blocks = _parse_orca_scan(text)
+                try:
+                    steps = _parse_orca_scan(text)
+                except _ScanStepsUngroupable as exc:
+                    # 日志文本无法按扫描步分组（如缺 RELAXED SURFACE SCAN STEP 标记）：
+                    # 不产候选——绝不把优化周期能量当扫描点、也绝不按块均分取几何。
+                    return TsGuess_output_schema(
+                        is_success=True,
+                        verdicts=[
+                            f"ORCA scan log text cannot be grouped into scan points: {exc}",
+                            "No TS-guess geometry was derived from the log text: per-cycle single-point "
+                            "energies were NOT misread as scan points and no equal-split frame heuristic "
+                            "was applied. Re-run the scan or recover the relaxscanact.dat sidecar "
+                            "(<job>.relaxscanact.dat + <job>.NNN.xyz) for exact per-frame energies/geometries.",
+                        ],
+                        candidate=None,
+                        candidate_unavailable=True,
+                        message=f"ORCA scan text parsing refused (candidate unavailable): {exc}",
+                    )
+                energies_eh = [s["energy_hartree"] for s in steps]
+                step_geoms = [s["geom"] for s in steps]
                 e0 = energies_eh[0]
                 rel_kcal = [(e - e0) * KCAL_PER_HARTREE for e in energies_eh]
                 profile = analyze_scan_profile(rel_kcal)
                 ts_index = profile["ts_index"]
-                # 能量最高帧（TS 候选）通常不是末帧：坐标块按帧均分，取该帧最后一块
-                # （同 Gaussian 路径的 Standard orientation 启发式；GH #16）
-                if len(blocks) >= len(rel_kcal):
-                    per = len(blocks) / len(rel_kcal)
-                    block_idx = min(int(round((ts_index + 1) * per)) - 1, len(blocks) - 1)
-                else:
-                    block_idx = len(blocks) - 1
-                    notes.append("Fewer Cartesian blocks than scan points; taking the last block of the file as an approximation.")
-                geom = blocks[block_idx]
+                # 能量最高帧（TS 候选）的几何 = 该扫描步收敛结构的最后一块直角坐标
+                geom = step_geoms[ts_index]
                 symbols = [g[0] for g in geom]
                 ts_coords = np.asarray([[g[1], g[2], g[3]] for g in geom], dtype=float)
                 candidate_source = "orca_log_text"
-                notes.append("ORCA scan text parsing is best-effort: the TS-guess geometry is the last Cartesian block "
-                             "within the energy-maximum frame's share of the file's coordinate blocks (frames are assumed "
-                             "to contribute equal block counts); prefer the relaxscanact.dat sidecar "
-                             "(<job>.relaxscanact.dat + <job>.NNN.xyz) for exact per-frame geometries.")
             else:
                 raise ValueError(
                     f"Cannot parse the ORCA scan: {user_input.log_path} does not exist and no "
@@ -1456,6 +1507,22 @@ class TsGuess(Tool):
             marker = "  <- internal peak (TS guess)" if has_internal_peak and k == ts_index else ""
             lines.append(f"{k:>4}  {e:>18.4f}{marker}")
         profile_table = "\n".join(lines)
+
+        # 候选来源注释只在真正发出 TS-guess（内部峰存在）时追加；无内部峰/拒发时
+        # 不得声称 "TS-guess geometry is ..."（G4，避免与拒发 verdict 自相矛盾）。
+        if has_internal_peak:
+            if candidate_source == "orca_relaxed_scan_sidecar":
+                notes.append(
+                    "ORCA relaxed-scan sidecar used (relaxscanact.dat + per-frame xyz): "
+                    f"TS-guess geometry is the energy-maximum frame {ts_index} (1-based {ts_index + 1}), not the last frame."
+                )
+            elif candidate_source == "orca_log_text":
+                notes.append(
+                    f"ORCA scan text fallback grouped {len(rel_kcal)} relaxed-scan steps by their "
+                    "'RELAXED SURFACE SCAN STEP' markers and used each step's converged (last) "
+                    "single-point energy, so the TS-guess geometry is the energy-maximum frame "
+                    f"{ts_index} (1-based {ts_index + 1}), not the last frame."
+                )
 
         verdicts = list(profile["verdicts"]) + notes
         if not has_internal_peak:
@@ -1507,7 +1574,9 @@ class TsGuess(Tool):
             is_success=True,
             profile_table=profile_table,
             verdicts=verdicts,
-            barrier_kcal=round(profile["barrier_kcal"], 4),
+            # G4：只有存在内部峰（确实发出 TS 候选）时才填 barrier；端点极大/单调
+            # 剖面（无内部峰）的 "最高点−首点" 不是能垒，置 None。
+            barrier_kcal=(None if not has_internal_peak else round(profile["barrier_kcal"], 4)),
             ts_candidate_index=ts_candidate_index,
             ts_candidate_path=ts_path,
             candidate=candidate,

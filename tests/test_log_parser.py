@@ -217,7 +217,7 @@ async def test_orca_extopt_numfreq_frequencies_from_text_when_cclib_fails(tmp_pa
     assert result.engine == "orca"
     assert result.normal_termination is True
     assert result.frequencies_cm == pytest.approx([289.50, 458.10])
-    assert result.imaginary_frequencies == pytest.approx([294.67])
+    assert result.imaginary_frequencies == pytest.approx([-294.67])
 
 
 @pytest.mark.asyncio

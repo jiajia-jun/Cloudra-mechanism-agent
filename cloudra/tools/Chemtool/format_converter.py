@@ -23,6 +23,90 @@ _ASE_FORMAT_MAP = {
     "gjf": "gaussian-in",
 }
 
+# 能携带化学信息的格式：必须用 RDKit 读写（保留键/形式电荷/立体），
+# ASE 不存键与电荷（其 mol/sdf 读写只搬坐标，会静默丢化学信息）。
+_CHEMICAL_FORMATS = {"mol", "sdf"}
+
+
+def _rdkit():
+    try:
+        from rdkit import Chem
+        return Chem
+    except Exception as exc:  # pragma: no cover - 由调用方转 ImportError 消息
+        raise ImportError(
+            f"RDKit is required for mol/sdf conversion: {exc}. "
+            "Install it with: pip install 'cloudra[chem]'"
+        ) from exc
+
+
+def _read_rdkit_first(path: str, fmt: str):
+    """RDKit 读 mol/sdf 的第一个分子。
+
+    返回 (mol | None, n_molecules, frame_desc)。多分子 SDF 只取第一个，
+    调用方负责在 message 中披露帧数（绝不静默丢其余帧）。
+    """
+    Chem = _rdkit()
+    if fmt == "mol":
+        mol = Chem.MolFromMolFile(path, removeHs=False)
+        return mol, 1, "1 molecule"
+    suppl = Chem.SDMolSupplier(path, removeHs=False, sanitize=True)
+    mols = [m for m in suppl if m is not None]
+    if not mols:
+        return None, 0, "0 molecules"
+    return mols[0], len(mols), f"{len(mols)} molecules"
+
+
+def _rdkit_to_ase(mol):
+    """RDKit mol -> ASE Atoms（坐标面；键/电荷不跨到 ASE 语义中）。"""
+    import ase
+
+    conf = mol.GetConformer()
+    symbols = [a.GetSymbol() for a in mol.GetAtoms()]
+    positions = [
+        (float(conf.GetAtomPosition(i).x),
+         float(conf.GetAtomPosition(i).y),
+         float(conf.GetAtomPosition(i).z))
+        for i in range(mol.GetNumAtoms())
+    ]
+    return ase.Atoms(symbols=symbols, positions=positions)
+
+
+def _ase_to_rdkit_atoms_only(atoms):
+    """ASE Atoms -> RDKit mol（仅原子与坐标，无键）。
+
+    输入本身是坐标面格式（xyz/gjf/pdb/cif），无键/电荷信息可保留——
+    mol/sdf 输出如实反映"只有坐标"。
+    """
+    Chem = _rdkit()
+    mol = Chem.RWMol()
+    conf = Chem.Conformer(atoms.get_global_number_of_atoms())
+    positions = atoms.get_positions()
+    for i, symbol in enumerate(atoms.get_chemical_symbols()):
+        mol.AddAtom(Chem.Atom(symbol))
+        conf.SetAtomPosition(i, tuple(map(float, positions[i])))
+    out = mol.GetMol()
+    out.AddConformer(conf)
+    return out
+
+
+def _mol_total_formal_charge(mol) -> int:
+    return int(sum(a.GetFormalCharge() for a in mol.GetAtoms()))
+
+
+def _mol_block(mol) -> str:
+    """V2000 mol block（带键/电荷/立体）。"""
+    Chem = _rdkit()
+    return Chem.MolToMolBlock(mol, kekulize=True)
+
+
+def _sdf_record(mol) -> str:
+    return _mol_block(mol).rstrip("\n") + "\n$$$$\n"
+
+
+def _write_text(path: str, text: str) -> None:
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
 
 class FormatConverter_input_schema(input_schema):
     input_path: str = Field(
@@ -171,31 +255,98 @@ class FormatConverter(Tool):
             ase_input_fmt = self._to_ase_format(user_input.input_format)
             ase_output_fmt = self._to_ase_format(user_input.output_format)
 
-            # 3. 读取输入文件
-            atoms = ase.io.read(input_path, format=ase_input_fmt)
-            if atoms is None:
-                return FormatConverter_output_schema(
-                    is_success=False,
-                    output_path="",
-                    message=f"Could not read a structure from {input_path}. "
-                            f"Check that the file content matches input_format='{user_input.input_format}'."
-                )
+            chem_input = user_input.input_format in _CHEMICAL_FORMATS
+            chem_output = user_input.output_format in _CHEMICAL_FORMATS
+
+            # 3. 读取输入
+            # mol/sdf 走 RDKit（保留键/形式电荷/立体）；其余走 ASE 坐标面。
+            # 多帧/多分子输入明确取第一帧并在 message 披露（不静默丢帧）。
+            frame_note = ""
+            if chem_input:
+                mol, n_frames, desc = _read_rdkit_first(input_path, user_input.input_format)
+                if mol is None:
+                    return FormatConverter_output_schema(
+                        is_success=False,
+                        output_path="",
+                        message=f"RDKit could not read a structure from {input_path} "
+                                f"(input_format='{user_input.input_format}'). "
+                                "Check that the file is a valid MOL/SDF with at least one molecule.",
+                    )
+                if n_frames > 1:
+                    frame_note = (
+                        f"Input {user_input.input_format} contains {n_frames} frames/molecules; "
+                        "only the first one was converted."
+                    )
+            else:
+                all_frames = ase.io.read(input_path, format=ase_input_fmt, index=slice(None))
+                if isinstance(all_frames, list):
+                    n_frames = len(all_frames)
+                    atoms = all_frames[0] if all_frames else None
+                else:
+                    atoms = all_frames
+                    n_frames = 1
+                if atoms is None:
+                    return FormatConverter_output_schema(
+                        is_success=False,
+                        output_path="",
+                        message=f"Could not read a structure from {input_path}. "
+                                f"Check that the file content matches input_format='{user_input.input_format}'."
+                    )
+                if n_frames > 1:
+                    frame_note = (
+                        f"Input {user_input.input_format} contains {n_frames} coordinate frames; "
+                        "only the first one was converted."
+                    )
 
             # 4. 确保输出目录存在并写入
             output_dir = os.path.dirname(output_path)
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
 
-            if user_input.output_format == "inp":
-                # ASE 的 ORCA writer 不在 io 注册表中，走直接调用分支
-                self._write_orca_inp(atoms, output_path)
+            # 5. 按"能否携带化学信息"选择书写引擎
+            if chem_output:
+                # 输出 mol/sdf 必须保留化学信息：RDKit 侧须有真实分子对象
+                if chem_input:
+                    out_mol = mol
+                    charge_note = ""
+                else:
+                    # 坐标面输入（xyz/pdb/cif/gjf...）本身无键/电荷/立体；
+                    # 转出 mol/sdf 只有坐标，如实写入并在 message 披露。
+                    out_mol = _ase_to_rdkit_atoms_only(atoms)
+                    charge_note = (
+                        f"Input {user_input.input_format} carries only coordinates (no bond/charge/"
+                        "stereochemistry), so the MOL/SDF output contains atoms+coordinates only."
+                    )
+                text = _sdf_record(out_mol) if user_input.output_format == "sdf" else _mol_block(out_mol)
+                _write_text(output_path, text)
             else:
-                ase.io.write(output_path, atoms, format=ase_output_fmt)
+                # 输出为坐标面格式：几何从 RDKit mol（若输入是化学格式）或 ASE 直出
+                if chem_input:
+                    atoms = _rdkit_to_ase(mol)
+                    charge = _mol_total_formal_charge(mol)
+                    if user_input.output_format in ("gjf", "inp") and charge != 0:
+                        charge_note = (
+                            f"Input carries formal charge {charge:+d}; the {user_input.output_format} "
+                            "output records only coordinates (charge/multiplicity are not written here) — "
+                            "re-declare the charge with qm_input_writer for production inputs."
+                        )
+                    else:
+                        charge_note = ""
+                else:
+                    charge_note = ""
+                if user_input.output_format == "inp":
+                    self._write_orca_inp(atoms, output_path)
+                else:
+                    ase.io.write(output_path, atoms, format=ase_output_fmt)
 
+            notes = " ".join(note for note in (frame_note, charge_note) if note)
+            message = f"Converted {user_input.input_format} to {user_input.output_format}: {output_path}"
+            if notes:
+                message += f" NOTE: {notes}"
             return FormatConverter_output_schema(
                 is_success=True,
                 output_path=output_path,
-                message=f"Converted {user_input.input_format} to {user_input.output_format}: {output_path}"
+                message=message,
             )
 
         except FileNotFoundError as e:

@@ -159,6 +159,47 @@ async def test_run_frozen_protocol_survives_mid_run_settings_change():
     assert legacy_tool_schemas(["*"]) != []
 
 
+@pytest.mark.asyncio
+async def test_reasoning_effort_sent_when_set():
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    agent = _js_agent("traditional")
+    agent.settings.reasoning_effort = "high"
+    await provider.complete(agent, [{"role": "user", "content": "hi"}], ["stop"])
+    assert sent["reasoning_effort"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_reasoning_effort_omitted_when_unset():
+    sent: dict = {}
+    provider = LegacyLLMProvider(client_factory=lambda settings: _recording_client(sent))
+    await provider.complete(_js_agent("traditional"), [{"role": "user", "content": "hi"}], ["stop"])
+    assert "reasoning_effort" not in sent
+
+
+def test_legacy_default_settings_reasoning_effort_fallback(monkeypatch):
+    """reasoning_effort 回落规则与其他字段一致：agent 未设时取全局 config
+    对应槽位（coordinator 角色用 coordinator 槽，其余用 follower 槽），
+    agent 显式设置优先。"""
+    from cloudra.infra.config import get_config
+    from cloudra.runtime_v2.adapters import legacy_default_settings
+
+    cfg = get_config()
+    monkeypatch.setattr(cfg.coordinator, "reasoning_effort", "low")
+    monkeypatch.setattr(cfg.follower, "reasoning_effort", "minimal")
+
+    coordinator = SimpleNamespace(role_id="coordinator", settings=RuntimeSettings(model="m"))
+    assert legacy_default_settings(coordinator).reasoning_effort == "low"
+
+    follower = SimpleNamespace(role_id="researcher", settings=RuntimeSettings(model="m"))
+    assert legacy_default_settings(follower).reasoning_effort == "minimal"
+
+    explicit = SimpleNamespace(
+        role_id="coordinator", settings=RuntimeSettings(model="m", reasoning_effort="high")
+    )
+    assert legacy_default_settings(explicit).reasoning_effort == "high"
+
+
 def test_to_api_message_echoes_reasoning_content():
     """Thinking-mode APIs (DeepSeek etc.) 400 if the previous assistant
     turn's reasoning_content is dropped when we send the next request."""

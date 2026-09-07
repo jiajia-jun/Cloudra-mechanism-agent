@@ -138,3 +138,101 @@ def test_tool_metadata():
     assert tool.tool_id == "t-46"
     assert tool.tool_name == "name_to_structure"
     assert tool.is_write() is True
+
+
+# ---------------------------------------------------------------------------
+# F2：PubChem 字段改名（IsomericSMILES/CanonicalSMILES → SMILES/ConnectivitySMILES）
+# ---------------------------------------------------------------------------
+
+
+class _FakePubChemResponse:
+    status_code = 200
+
+    def __init__(self, properties):
+        self._properties = properties
+
+    def json(self):
+        return {"PropertyTable": {"Properties": [self._properties]}}
+
+
+class _FakePubChemClient:
+    """httpx.AsyncClient 的替身：只回应一次 GET。"""
+
+    def __init__(self, properties):
+        self._properties = properties
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url):
+        return _FakePubChemResponse(self._properties)
+
+
+def _patch_pubchem_http(monkeypatch, properties):
+    """把 _resolve_pubchem 的 HTTP 层替换为固定响应的假客户端。"""
+    pytest.importorskip("httpx", reason="未安装 httpx")
+    monkeypatch.setattr(
+        mod.httpx, "AsyncClient",
+        lambda **kwargs: _FakePubChemClient(properties),
+    )
+
+
+def _run_coro(coro):
+    import asyncio
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+def test_pubchem_new_field_names_prefer_stereo_smiles(monkeypatch):
+    """F2：PubChem 新版返回键 SMILES（带立体）/ConnectivitySMILES（不带立体）——
+    链首必须取带立体的 SMILES，不得静默落到 ConnectivitySMILES。"""
+    # 实证响应字段（新版 PubChem）：无 IsomericSMILES/CanonicalSMILES
+    props = {
+        "CID": 3672,
+        "MolecularFormula": "C13H18O2",
+        "SMILES": "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+        "ConnectivitySMILES": "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+        "InChIKey": "SEGJMBWEGXWTJV-UHFFFAOYSA-N",
+        "IUPACName": "ibuprofen",
+    }
+    # 让两条 SMILES 确实不同：给 connectivity 一个无手性变体并断言选中前者
+    props["SMILES"] = "C[C@@H](C)Cc1ccc(cc1)[C@@H](C)C(=O)O"
+    _patch_pubchem_http(monkeypatch, props)
+
+    result = _run_coro(mod._resolve_pubchem("(S)-ibuprofen"))
+    assert result is not None
+    assert result["smiles"] == props["SMILES"]
+    assert "@" in result["smiles"]  # 立体信息必须保留
+    assert result["cid"] == "3672"
+
+
+def test_pubchem_legacy_field_names_still_work(monkeypatch):
+    """老字段（IsomericSMILES/CanonicalSMILES）响应仍能解析。"""
+    props = {
+        "IsomericSMILES": "C[C@H](N)C(=O)O",
+        "CanonicalSMILES": "CC(N)C(=O)O",
+        "InChIKey": "QSJXEFYPDANLFS-UWTATZPHSA-N",
+    }
+    _patch_pubchem_http(monkeypatch, props)
+
+    result = _run_coro(mod._resolve_pubchem("(S)-alanine"))
+    assert result is not None
+    assert result["smiles"] == "C[C@H](N)C(=O)O"
+
+
+def test_pubchem_smiles_priority_helper():
+    """字段优先级：SMILES > IsomericSMILES > CanonicalSMILES > ConnectivitySMILES。"""
+    assert mod._prefer_stereo_smiles({
+        "SMILES": "A", "IsomericSMILES": "B", "CanonicalSMILES": "C", "ConnectivitySMILES": "D",
+    }) == "A"
+    assert mod._prefer_stereo_smiles({"IsomericSMILES": "B", "ConnectivitySMILES": "D"}) == "B"
+    assert mod._prefer_stereo_smiles({"CanonicalSMILES": "C", "ConnectivitySMILES": "D"}) == "C"
+    assert mod._prefer_stereo_smiles({"ConnectivitySMILES": "D"}) == "D"
+    assert mod._prefer_stereo_smiles({}) == ""

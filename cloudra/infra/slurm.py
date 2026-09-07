@@ -11,7 +11,7 @@ import subprocess
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from cloudra.infra.compute_utils import build_calculator_cmd
+from cloudra.infra.compute_utils import XtbParams, build_calculator_cmd
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import (
     acancel_compute_job,
@@ -58,8 +58,12 @@ def build_batch_script(
     job_type: str,
     task_id: int,
     scheduler: dict,
+    *,
+    xtb_params: XtbParams | None = None,
 ) -> str:
-    ok, calculator_cmd, message = build_calculator_cmd(str(input_file), job_type)
+    ok, calculator_cmd, message = build_calculator_cmd(
+        str(input_file), job_type, xtb_params=xtb_params
+    )
     if not ok:
         raise SlurmError(message)
     lines = [
@@ -164,8 +168,14 @@ async def run_slurm_compute(
     input_file = Path(row["path"]).expanduser().resolve(strict=True)
     if not scheduler_job_id:
         script_path = input_file.parent / f".cloudra-slurm-{task_id}.sh"
+        # xtb 任务参数（charge/mult/task/solvent/cpus）从 compute_jobs 行透传
+        xtb_params = (
+            XtbParams.from_row(row) if (row["jobtype"] or "") == "xtb" else None
+        )
         script_path.write_text(
-            build_batch_script(input_file, row["jobtype"], task_id, scheduler),
+            build_batch_script(
+                input_file, row["jobtype"], task_id, scheduler, xtb_params=xtb_params
+            ),
             encoding="utf-8",
         )
         os.chmod(script_path, 0o700)

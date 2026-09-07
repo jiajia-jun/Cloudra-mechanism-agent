@@ -4,9 +4,11 @@
 # 负责根据 job_type 在输入文件所在目录下启动对应的外部计算程序。
 #
 # 用法：
-#   calculator.sh <input_file> <job_type>
+#   calculator.sh <input_file> <job_type> [xtb 任务参数]
 #
 # 其中 job_type 支持：gaussian, vasp, orca, cp2k, xtb
+# job_type=xtb 时透传显式任务参数：
+#   --chrg N --uhf M --task sp|opt|hess|ohess --parallel N [--alpb NAME]
 #
 # 注意：
 # - 本脚本不捕获/重定向 stdout/stderr，计算软件自身会写日志。
@@ -19,7 +21,7 @@ INPUT_FILE="$1"
 JOB_TYPE="$2"
 
 if [ -z "$INPUT_FILE" ] || [ -z "$JOB_TYPE" ]; then
-    echo "用法: calculator.sh <input_file> <job_type>" >&2
+    echo "用法: calculator.sh <input_file> <job_type> [xtb: --chrg N --uhf M --task T --parallel N [--alpb NAME]]" >&2
     exit 1
 fi
 
@@ -27,6 +29,8 @@ if [ ! -f "$INPUT_FILE" ]; then
     echo "输入文件不存在: $INPUT_FILE" >&2
     exit 1
 fi
+
+shift 2
 
 WORKDIR=$(cd "$(dirname "$INPUT_FILE")" && pwd)
 cd "$WORKDIR"
@@ -196,14 +200,43 @@ run_xtb() {
     # 走 stdout、自身不落日志文件，且终止标记（normal termination of xtb）
     # 打印在 stderr——stdout+stderr 一并重定向到 <输入stem>.out，与
     # compute_utils.get_log_path 的推导保持一致（参照 run_cp2k 的 -o 语义）。
-    # 运行级别（--opt/--hess 等标志）的声明途径属输入侧设计（GH #26 后续，
-    # 与 qm_input_writer 的 xtb 支持一并定义），当前按默认单点执行。
+    #
+    # 任务参数由 guard 按 compute_jobs 行的 xtb 列透传（submit 时已校验）：
+    #   --chrg N --uhf M --task sp|opt|hess|ohess --parallel N [--alpb NAME]
+    # 电荷/多重度只认这里的显式声明：xtb 会忽略 xyz 注释行里的 charge/mult
+    # （job 130 静默科学错误的根因），缺省也显式拼 --chrg 0 --uhf 0。
     if ! command -v xtb >/dev/null 2>&1; then
         echo "系统 PATH 中未找到 xtb。请安装 xTB 并确保 xtb 命令在 PATH 中可用。" >&2
         exit 1
     fi
     local output="${INPUT_FILE%.*}.out"
-    xtb "$INPUT_FILE" > "$output" 2>&1
+    local chrg=0 uhf=0 task="sp" parallel=1 alpb=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --chrg) chrg="$2"; shift 2 ;;
+            --uhf) uhf="$2"; shift 2 ;;
+            --task) task="$2"; shift 2 ;;
+            --parallel) parallel="$2"; shift 2 ;;
+            --alpb) alpb="$2"; shift 2 ;;
+            *) echo "run_xtb: 未知参数: $1" >&2; exit 1 ;;
+        esac
+    done
+    local task_flag=""
+    case "$task" in
+        sp) ;;
+        opt) task_flag="--opt" ;;
+        hess) task_flag="--hess" ;;
+        ohess) task_flag="--ohess" ;;
+        *) echo "run_xtb: 不支持的 task: ${task}（支持 sp/opt/hess/ohess）" >&2; exit 1 ;;
+    esac
+    # 资源申请透传：--parallel 钉 xtb 线程数，同时显式 export OMP_NUM_THREADS
+    # 兜底（cpus=1 的申请曾跑出 18 线程，容量记账失效）。
+    export OMP_NUM_THREADS="$parallel"
+    local args=("$INPUT_FILE" "--chrg" "$chrg" "--uhf" "$uhf" "--parallel" "$parallel")
+    [ -n "$task_flag" ] && args+=("$task_flag")
+    [ -n "$alpb" ] && args+=("--alpb" "$alpb")
+    echo "[calculator] xtb ${args[*]}" >&2
+    xtb "${args[@]}" > "$output" 2>&1
 }
 
 case "$JOB_TYPE" in
@@ -220,7 +253,7 @@ case "$JOB_TYPE" in
         run_cp2k
         ;;
     xtb)
-        run_xtb
+        run_xtb "$@"
         ;;
     *)
         echo "不支持的 job_type: $JOB_TYPE" >&2

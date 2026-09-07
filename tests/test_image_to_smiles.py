@@ -1,0 +1,92 @@
+"""image_to_smiles 工具测试。
+
+覆盖审计发现 F3：识别结果零校验——非法 SMILES 与纯空白结果必须 is_success=False，
+不得把 DECIMER 的胡话/空串当成功。全部用 monkeypatch 注入假 DECIMER，不依赖网络/模型。
+"""
+
+import pytest
+
+pytest.importorskip("rdkit", reason="image_to_smiles 校验需要 RDKit")
+
+import cloudra.tools.Chemtool.image_to_smiles as img_mod  # noqa: E402
+from cloudra.tools.Chemtool.image_to_smiles import ImageToSmiles, ImageToSmiles_input_schema  # noqa: E402
+
+
+@pytest.fixture
+def fake_image(tmp_path):
+    p = tmp_path / "struct.png"
+    p.write_bytes(b"\x89PNG\r\n\x1a\nnotreallyapng")
+    return str(p)
+
+
+async def _run(img, monkeypatch, predict_result=None):
+    monkeypatch.setattr(img_mod, "_load_predict_func", lambda: (lambda p: predict_result, ""))
+    return await ImageToSmiles().tool_call(
+        ImageToSmiles_input_schema(image_path=img), session=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_valid_smiles_accepted(fake_image, monkeypatch):
+    result = await _run(fake_image, monkeypatch, "CCO")
+    assert result.is_success is True
+    assert result.smiles == "CCO"
+
+
+@pytest.mark.asyncio
+async def test_invalid_smiles_rejected(fake_image, monkeypatch):
+    """F3：DECIMER 返回非法 SMILES（如 'C(C(C'）必须 is_success=False。"""
+    result = await _run(fake_image, monkeypatch, "C(C(C")
+    assert result.is_success is False
+    assert "not a valid SMILES" in result.message
+    assert result.smiles == ""
+
+
+@pytest.mark.asyncio
+async def test_whitespace_result_rejected(fake_image, monkeypatch):
+    """F3：strip 前判空会让纯空白结果漏过——strip 后再判空。"""
+    for junk in ("", "   ", "\t\n "):
+        result = await _run(fake_image, monkeypatch, junk)
+        assert result.is_success is False
+        assert "empty" in result.message
+        assert result.smiles == ""
+
+
+@pytest.mark.asyncio
+async def test_whitespace_padded_valid_smiles_stripped(fake_image, monkeypatch):
+    """带首尾空白的合法 SMILES 应 strip 后成功。"""
+    result = await _run(fake_image, monkeypatch, "  CCO  ")
+    assert result.is_success is True
+    assert result.smiles == "CCO"
+
+
+@pytest.mark.asyncio
+async def test_non_text_result_rejected(fake_image, monkeypatch):
+    result = await _run(fake_image, monkeypatch, ["CCO"])
+    assert result.is_success is False
+    assert "non-text" in result.message
+
+
+@pytest.mark.asyncio
+async def test_missing_file(fake_image, tmp_path):
+    result = await ImageToSmiles().tool_call(
+        ImageToSmiles_input_schema(image_path=str(tmp_path / "nope.png")), session=None,
+    )
+    assert result.is_success is False
+    assert "does not exist" in result.message
+
+
+@pytest.mark.asyncio
+async def test_decimer_not_installed_message(monkeypatch, fake_image):
+    monkeypatch.setattr(img_mod, "_load_predict_func", lambda: (None, "boom"))
+    result = await ImageToSmiles().tool_call(
+        ImageToSmiles_input_schema(image_path=fake_image), session=None,
+    )
+    assert result.is_success is False
+    assert "DECIMER is not installed" in result.message
+
+
+def test_tool_metadata():
+    tool = ImageToSmiles()
+    assert tool.tool_name == "image_to_smiles"
+    assert tool.is_read() is True

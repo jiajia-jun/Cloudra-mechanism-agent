@@ -59,7 +59,7 @@ def _row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
         if path
         else ""
     )
-    return {
+    out = {
         "job_id": row["id"],
         "state": row["state"],
         "scheduler": row["scheduler"],
@@ -72,6 +72,14 @@ def _row_to_dict(row: Dict[str, Any]) -> Dict[str, Any]:
         "last_error": row["last_error"] or "",
         "attempt_count": row["attempt_count"] or 0,
     }
+    if row["jobtype"] == "xtb":
+        # xtb 显式任务参数（--chrg/--uhf/multiplicity、运行级别、溶剂、并行核数）
+        out["charge"] = row["charge"] if row["charge"] is not None else 0
+        out["multiplicity"] = row["multiplicity"] or 1
+        out["task"] = row["xtb_task"] or "sp"
+        out["solvent"] = row["xtb_solvent"] or ""
+        out["cpus"] = row["req_cpus"] or 1
+    return out
 
 
 class QueryComputeJob(Tool):

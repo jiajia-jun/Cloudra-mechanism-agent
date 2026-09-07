@@ -170,31 +170,38 @@ class ElectronicAnalysis(Tool):
     # ---------- PySCF 后端 ----------
 
     @staticmethod
-    def _mayer_bond_orders(dm, ovlp, ao_slices, natoms: int):
-        """闭壳层 Mayer 键级：BO(A,B) = sum_{μ∈A} sum_{ν∈B} (PS)_{μν}(PS)_{νμ}。"""
+    def _mayer_bond_orders(dm, ovlp, ao_slices, natoms: int, dm_spin=None):
+        """Mayer 键级。闭壳层：BO(A,B) = Σ_{μ∈A}Σ_{ν∈B} (PS)_{μν}(PS)_{νμ}；
+        开壳层必须叠加自旋密度项：BO(A,B) = Σ[(PS)_{μν}(PS)_{νμ} + (PsS)_{μν}(PsS)_{νμ}]，
+        其中 P 为总密度矩阵、Ps = Pα−Pβ 为自旋密度矩阵。缺 Ps 项会系统性低估
+        开壳层键级（O2 三重态缺项时 BO≈1.37，补全后 ≈1.85）。"""
         import numpy as np
 
         ps = np.asarray(dm) @ np.asarray(ovlp)
+        ps_spin = np.asarray(dm_spin) @ np.asarray(ovlp) if dm_spin is not None else None
         bo = np.zeros((natoms, natoms))
         for a in range(natoms):
             pa = slice(ao_slices[a, 2], ao_slices[a, 3])
             for b in range(a + 1, natoms):
                 pb = slice(ao_slices[b, 2], ao_slices[b, 3])
                 block = ps[pa, pb] * ps[pb, pa].T
+                if ps_spin is not None:
+                    block = block + ps_spin[pa, pb] * ps_spin[pb, pa].T
                 bo[a, b] = bo[b, a] = float(block.sum())
         return bo
 
     @staticmethod
     def _core_orbital_count(symbol: str) -> int:
-        """该元素核芯轨道数（闭壳层空间轨道）：H/He 0，第一周期 1（1s），第二周期 5（1s2s2p）。"""
+        """该元素核芯空间轨道数（全电子计数；ECP 基组下定域出的轨道更少，此处仅作
+        IBO 展示的核芯/孤对分类启发，不影响数值）。
+        按周期表电子排布，价层 = 最高主量子数的 s/p：
+        H/He 0；Li–Ne 1（1s）；Na–Ar 5（1s2s2p）；K–Kr 9（+3s3p）；
+        Rb–Xe 18（+3d4s4p）；Cs–Rn 27（+4d5s5p）；Fr–Og 43（+4f5d6s6p）。"""
         z = gto.charge(symbol)
-        if z <= 2:
-            return 0
-        if z <= 10:
-            return 1
-        if z <= 18:
-            return 5
-        return 9
+        for z_max, count in ((2, 0), (10, 1), (18, 5), (36, 9), (54, 18), (86, 27), (118, 43)):
+            if z <= z_max:
+                return count
+        raise ValueError(f"Element beyond Og (Z=118) is not supported: {symbol}")
 
     @staticmethod
     def _ibo_analysis(mol, mf, ovlp, symbols: list[str], spin_channel: Optional[int] = None):
@@ -355,9 +362,9 @@ class ElectronicAnalysis(Tool):
                 for a in range(natoms)
             ], dtype=float)
 
-        # Mayer 键级（总密度定义，开壳层同样适用：实测 O2 三重态 BO≈1.5、CH3· C-H BO≈1.0）
+        # Mayer 键级：开壳层必须叠加自旋密度项（缺项会把 O2 三重态 BO 低估成 ≈1.37）
         ao_slices = mol.aoslice_by_atom()
-        bo = self._mayer_bond_orders(dm_tot, ovlp, ao_slices, natoms)
+        bo = self._mayer_bond_orders(dm_tot, ovlp, ao_slices, natoms, dm_spin=dm_spin)
 
         # IBO Lewis 图像（开壳层按自旋通道分别定域）
         if dm_spin is not None:

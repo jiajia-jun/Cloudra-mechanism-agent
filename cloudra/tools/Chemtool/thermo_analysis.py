@@ -17,6 +17,11 @@ _R_J_MOL_K = 8.31446261815324
 _HARTREE_J_MOL = 2_625_499.6394799
 _R_L_ATM_MOL_K = 0.082057366080960
 
+# GoodVibes 4.x JSON 的 thermo 恒写 sp_energy 键——未做单点修正（SPC）时它与
+# scf_energy 逐位相同。sp_energy 与 scf_energy 的差异超过该容差才算真做了 SPC
+# （sp_energy 是独立高能级单点），否则不得标 goodvibes_spc。
+_SPC_ENERGY_DIFF_EH = 1e-8
+
 # GoodVibes CLI flags verified against GoodVibes 4.2 / 3.x public help:
 #   -q              Grimme mRRHO entropy + Head-Gordon qh enthalpy
 #   --qs {grimme,truhlar}   quasi-harmonic entropy scheme (default grimme)
@@ -206,7 +211,12 @@ def _load_raw_rrho_record(
 ) -> tuple[Optional[dict], Optional[str]]:
     import cclib
 
-    data = cclib.io.ccread(species.log_path)
+    try:
+        data = cclib.io.ccread(species.log_path)
+    except Exception as exc:
+        # cclib 对版本不兼容的日志会抛裸异常（如 cclib 1.8.1 读 ORCA 6.1.1 全抛
+        # IndexError）；解析失败属于"材料不完整"，归入 inconclusive 通道而非逃逸。
+        return None, f"{species.name}: cclib 解析日志失败（{type(exc).__name__}: {exc}）"
     if data is None:
         return None, f"{species.name}: cclib 未解析到数据"
     log_temperature = getattr(data, "temperature", None)
@@ -480,6 +490,26 @@ def _records_from_thermo_maps(
             if species.single_point_energy_hartree is not None
             else base_energy_value
         )
+        # SPC 判据：仅当 sp_energy 与 scf_energy 显著不同（> _SPC_ENERGY_DIFF_EH）时
+        # 才认为该物种真做了独立单点修正；GoodVibes 4.x 未做 SPC 时也恒写 sp_energy
+        #（与 scf_energy 相同），不能凭"sp_energy 键存在"就标 goodvibes_spc。
+        spc_detected = False
+        sp_energy_value = thermo.get("sp_energy")
+        scf_energy_value = thermo.get("scf_energy")
+        if (
+            sp_energy_value is not None
+            and not isinstance(sp_energy_value, bool)
+            and scf_energy_value is not None
+            and not isinstance(scf_energy_value, bool)
+        ):
+            try:
+                spc_detected = (
+                    math.isfinite(float(sp_energy_value))
+                    and math.isfinite(float(scf_energy_value))
+                    and abs(float(sp_energy_value) - float(scf_energy_value)) > _SPC_ENERGY_DIFF_EH
+                )
+            except (TypeError, ValueError):
+                spc_detected = False
         records.append({
             "name": species.name,
             "log_path": os.path.abspath(species.log_path),
@@ -494,11 +524,7 @@ def _records_from_thermo_maps(
             "energy_source": (
                 "supplied_single_point"
                 if species.single_point_energy_hartree is not None
-                else (
-                    "goodvibes_spc"
-                    if thermo.get("sp_energy") is not None
-                    else "frequency_log_scf"
-                )
+                else ("goodvibes_spc" if spc_detected else "frequency_log_scf")
             ),
         })
     return records, None

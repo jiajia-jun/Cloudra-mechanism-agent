@@ -101,6 +101,40 @@ def test_bare_orca_scan_without_geom_block_rejected():
     assert "scan_requires_orca_blocks" in _codes(entries)
 
 
+# --- single_point / sp 拼写统一（规范词汇是 TASK_VOCABULARY 的 single_point） ---
+
+
+def test_single_point_key_accepted_and_normalized():
+    """writer 边界接受 'single_point' 与 'sp' 两种拼写，统一映射到规范词汇
+    'single_point'（TASK_VOCABULARY / DAG 阶段模型同款）。"""
+    assert validate_writer_request({"engine": "orca", "task_type": [{"single_point": None}]}) == []
+    assert validate_writer_request({"engine": "gaussian", "task_type": [{"single_point": None}]}) == []
+    for key in ("single_point", "sp"):
+        intent = intent_from_writer({"engine": "orca", "task_type": [{key: None}]})
+        assert intent.tasks == {"single_point"}
+        assert intent.tasks <= TASK_VOCABULARY
+        assert intent.certainty == "known"
+
+
+def test_unknown_task_key_error_lists_both_sp_spellings():
+    entries = validate_writer_request({"engine": "orca", "task_type": [{"singlepoint": None}]})
+    assert "unknown_task_key" in _codes(entries)
+    assert "single_point" in entries[0]["message"]
+    assert "'sp'" in entries[0]["message"]
+
+
+def test_sp_and_single_point_spelling_conflict_detected():
+    """两种拼写指向同一任务，同请求里参数冲突/重复不能借拼写绕过。"""
+    conflicting = validate_writer_request(
+        {"engine": "gaussian", "task_type": [{"sp": "a"}, {"single_point": "b"}]}
+    )
+    assert "conflicting_task" in _codes(conflicting)
+    duplicate = validate_writer_request(
+        {"engine": "gaussian", "task_type": [{"sp": None}, {"single_point": None}]}
+    )
+    assert "duplicate_task" in _codes(duplicate)
+
+
 # --- writer 行为：拒绝不落盘；成功时 unapplied_options 为空 ---
 
 

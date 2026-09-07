@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from cloudra.infra.compute_utils import (
+    XtbParams,
     build_calculator_cmd,
     calc_lock_path,
     check_job_type,
@@ -17,7 +18,11 @@ from cloudra.infra.flocks import try_acquire_lock
 from cloudra.infra.platform_utils import is_posix
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.fs_utils import atomic_write_json
-from cloudra.services.compute_store import afinalize_compute_job, aupdate_compute_pid
+from cloudra.services.compute_store import (
+    afinalize_compute_job,
+    aget_compute_job,
+    aupdate_compute_pid,
+)
 
 _LOG_TAIL_CHARS = 8000
 _REASON_MAX_CHARS = 500
@@ -84,7 +89,13 @@ def _resolve_log_target(log_path: Path, fallback_log_path: Path | None) -> tuple
     return None, False
 
 
-async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussian", fallback_log_path: Path | None = None):
+async def _parse_log(
+    log_path: Path,
+    parse_timeout: int,
+    job_type: str = "gaussian",
+    fallback_log_path: Path | None = None,
+    xtb_task: str | None = None,
+):
     """尝试解析日志，返回 (data_dic, is_success) 或 (None, None) 表示失败。
 
     Guard 在 calculator 已退出后才调用本函数，日志应已写完；``parse_timeout``
@@ -95,6 +106,9 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
     ``.out``），推导的日志路径会缺失/为空——此时回退解析落盘文件，避免正常
     完成的作业被误判为"日志为空或缺失"。实际解析的日志路径会写进
     ``data_dic["log_file"]``（agent 按惯例路径找不到日志时，从 state json 取它）。
+
+    ``xtb_task`` 是 compute_jobs 行声明的 xtb 运行级别（sp/opt/hess/ohess）：
+    优化收敛第二判据只对 opt/ohess 生效，hess 任务不被"优化未收敛"误伤。
     """
     target, _ = _resolve_log_target(log_path, fallback_log_path)
     if target is None:
@@ -110,7 +124,7 @@ async def _parse_log(log_path: Path, parse_timeout: int, job_type: str = "gaussi
     if job_type == "xtb":
         # xtb 主输出全部走 stdout（calculator.sh 重定向到 .out），cclib 对
         # xtb 支持薄弱——纯文本判定（GH #26），与 CP2K 同款轻量路径。
-        data_dic, is_success = _parse_xtb_log(target)
+        data_dic, is_success = _parse_xtb_log(target, task=xtb_task)
         if data_dic is not None:
             data_dic["log_file"] = str(target)
         return data_dic, is_success
@@ -221,13 +235,15 @@ async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
     return data_dic, is_success
 
 
-def _parse_xtb_log(log_path: Path) -> tuple[dict, bool] | None:
+def _parse_xtb_log(log_path: Path, *, task: str | None = None) -> tuple[dict, bool] | None:
     """轻量解析 xtb 输出日志（calculator stdout 重定向的 .out）。
 
     成功判据：正常终止标记 ``normal termination of xtb``（文本权威，与
     log_parser 共用 tools.core.xtb_frames 原语，GH #26）。优化收敛是独立
     的第二判据（GH #21 同款语义）：未收敛的优化仍打印 normal termination，
-    ``FAILED TO CONVERGE`` 标记即判 failed。能量按文本位置取最后的能量行。
+    ``FAILED TO CONVERGE`` 标记即判 failed——但只对 opt/ohess 任务生效；
+    hess/sp 任务不做几何优化，不适用该判据（``task=None`` 的旧行保持历史
+    行为）。能量按文本位置取最后的能量行。
     """
     from cloudra.tools.core import xtb_frames
 
@@ -251,7 +267,8 @@ def _parse_xtb_log(log_path: Path) -> tuple[dict, bool] | None:
         data_dic["total_energy_hartree"] = energy
         data_dic["scf_energy_hartree"] = energy
         data_dic["scf_energy_ev"] = energy * 27.211386245988
-    if is_success and opt_ok is False:
+    opt_relevant = task in (None, "opt", "ohess")
+    if is_success and opt_ok is False and opt_relevant:
         is_success = False
         data_dic["is_success"] = False
         data_dic["error"] = "xtb 几何优化未收敛（达到最大优化步数），结果不可信"
@@ -328,14 +345,17 @@ async def _finalize(
     job_type: str,
     returncode: int | None,
     fallback_log_path: Path | None = None,
+    xtb_task: str | None = None,
 ):
     """calculator 退出后的统一收尾：解析日志 → 写 state json → CAS 落库 → 入箱。
 
     终态通知由 API 进程的 ComputeNotifyBroker 轮询 compute_jobs 表补投，
-    guard 不再发进程间事件。
+    guard 不再发进程间事件。``xtb_task`` 是行声明的 xtb 运行级别（opt 收敛
+    判据只对 opt/ohess 生效）。
     """
     data_dic, is_success = await _parse_log(
-        log_path, parse_timeout, job_type=job_type, fallback_log_path=fallback_log_path
+        log_path, parse_timeout, job_type=job_type,
+        fallback_log_path=fallback_log_path, xtb_task=xtb_task,
     )
     if data_dic is None:
         # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
@@ -418,13 +438,22 @@ async def run_guard(
     try:
         await _register_pid(db, taskid, "guard_pid", os.getpid())
 
+        # xtb 任务参数的唯一事实来源是 compute_jobs 行（submit 时校验入库）；
+        # guard 据此拼 calculator 命令，charge/mult/task/solvent/cpus 全部透传。
+        xtb_params: XtbParams | None = None
+        if job_type == "xtb":
+            row = await aget_compute_job(db, taskid)
+            xtb_params = XtbParams.from_row(row)
+
         ok, msg = check_job_type(job_type, workdir)
         if not ok:
             print(f'[guard] 环境检查失败：{msg}')
             await _mark_failed(db, taskid, msg)
             return
 
-        ok, calculator_cmd, msg = build_calculator_cmd(path, job_type=job_type)
+        ok, calculator_cmd, msg = build_calculator_cmd(
+            path, job_type=job_type, xtb_params=xtb_params
+        )
         if not ok:
             print(f'[guard] 无法构建 calculator 命令：{msg}')
             await _mark_failed(db, taskid, msg)
@@ -495,6 +524,7 @@ async def run_guard(
             job_type,
             returncode,
             fallback_log_path=_calc_output_log_path(workdir, taskid),
+            xtb_task=xtb_params.task if xtb_params else None,
         )
     finally:
         os.close(guard_fd)
@@ -533,6 +563,11 @@ async def run_adopt(
                 break
             print(f'[guard adopt] calc 锁仍被持有，calculator 还在跑；{_ADOPT_POLL_SECONDS}s 后再探...')
             await asyncio.sleep(_ADOPT_POLL_SECONDS)
+        # xtb 运行级别影响终态判定（opt 收敛判据只对 opt/ohess 生效）
+        xtb_task: str | None = None
+        if job_type == "xtb":
+            row = await aget_compute_job(db, taskid)
+            xtb_task = XtbParams.from_row(row).task
         await _finalize(
             db,
             taskid,
@@ -542,6 +577,7 @@ async def run_adopt(
             job_type,
             None,
             fallback_log_path=_calc_output_log_path(workdir, taskid),
+            xtb_task=xtb_task,
         )
     finally:
         os.close(guard_fd)

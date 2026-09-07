@@ -64,10 +64,27 @@ class NameToStructure_output_schema(output_schema):
     message: str = Field(default="", description="Status or error message")
 
 
+def _prefer_stereo_smiles(p: dict) -> str:
+    """从 PubChem 属性字典取带立体信息的 SMILES。
+
+    PubChem 已把 IsomericSMILES/CanonicalSMILES 改名：IsomericSMILES → SMILES
+    （带立体）、CanonicalSMILES → ConnectivitySMILES（不带立体）。优先键序：
+    SMILES → IsomericSMILES → CanonicalSMILES → ConnectivitySMILES——前两者都
+    带立体，后两者仅连接性。旧键名保留作兼容（任一版本的响应都可用）。
+    """
+    return (
+        p.get("SMILES")
+        or p.get("IsomericSMILES")
+        or p.get("CanonicalSMILES")
+        or p.get("ConnectivitySMILES")
+        or ""
+    )
+
+
 async def _resolve_pubchem(name: str) -> Optional[dict]:
     """PubChem PUG-REST：名称 → 属性 JSON。命中同义词库（通用名/商品名/CAS）。"""
     url = (f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quote(name, safe='')}"
-           "/property/IsomericSMILES,CanonicalSMILES,IUPACName,MolecularFormula,InChIKey/JSON")
+           "/property/SMILES,ConnectivitySMILES,IUPACName,MolecularFormula,InChIKey/JSON")
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         resp = await client.get(url)
     if resp.status_code != 200:
@@ -76,7 +93,7 @@ async def _resolve_pubchem(name: str) -> Optional[dict]:
     if not props:
         return None
     p = props[0]
-    smiles = p.get("IsomericSMILES") or p.get("CanonicalSMILES") or p.get("ConnectivitySMILES", "")
+    smiles = _prefer_stereo_smiles(p)
     if not smiles:
         return None
     return {

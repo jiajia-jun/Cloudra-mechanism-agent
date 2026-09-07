@@ -11,6 +11,7 @@ export interface RuntimeSettings {
   schedule_mode?: boolean;
   native_search: string;
   native_search_params: Record<string, unknown>;
+  reasoning_effort?: string | null;
   orchestration_mode: 'standard' | 'dag_record' | 'dag_guided';
   invocation_protocol?: 'traditional' | 'javascript';
 }
@@ -78,6 +79,7 @@ export interface RuntimeConfigSlot {
   context_window: number;
   timeout: number;
   supports_vision?: boolean;
+  reasoning_effort?: string | null;
 }
 
 export interface RuntimeConfig {

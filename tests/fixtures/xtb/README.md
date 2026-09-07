@@ -7,4 +7,4 @@ xtb stdout 日志（calculator.sh 重定向落盘的 `.out`），供 `cloudra/to
 | `water_sp_xtb.out` | 单点（H2O，含 SUMMARY 块 / TOTAL ENERGY 表 / HOMO-LUMO GAP / 分子偶极 `full:` 行，`normal termination of xtb` 结尾） | 按真实 xtb 6.7.1 SP 输出结构合成 | — |
 | `water_opt_xtb.out` | 几何优化收敛（`GEOMETRY OPTIMIZATION CONVERGED`） | 按真实 xtb 6.7.1 opt 输出结构合成 | — |
 | `water_opt_unconverged_xtb.out` | 几何优化未收敛（`FAILED TO CONVERGE GEOMETRY OPTIMIZATION`，正常终止但应判 failed，GH #21 同款语义） | 按真实 xtb 6.7.1 opt 输出结构合成 | — |
-| `ts_hess_xtb.out` | 频率（hess，含 `projected vibrational frequencies` eigval 块，1 虚频） | 按真实 xtb 6.7.1 hess 输出结构合成 | — |
+| `ts_hess_xtb.out` | 频率（hess，含 `projected vibrational frequencies` eigval 块，1 虚频；THERMODYNAMIC 块含 `:: total free energy` / `:: zero point energy` / `:: G(RRHO) contrib.`，最终块含 `TOTAL ENTHALPY` / `TOTAL FREE ENERGY`） | 按真实 xtb 6.7.1 hess 输出结构合成 | — |

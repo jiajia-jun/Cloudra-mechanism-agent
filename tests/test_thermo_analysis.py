@@ -434,6 +434,90 @@ async def test_goodvibes_rejects_unsupported_json_schema(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_raw_rrho_cclib_parse_crash_is_inconclusive_not_raised(monkeypatch):
+    """cclib 对不兼容日志（如 cclib 1.8.1 读 ORCA 6.1.1 全抛 IndexError）必须归入
+    inconclusive 通道，裸异常不得逃逸 tool_call。"""
+
+    def boom(_path):
+        raise IndexError("list index out of range")
+
+    monkeypatch.setattr("cclib.io.ccread", boom)
+
+    record, error = thermo_mod._load_raw_rrho_record(
+        ThermoSpecies(name="orca", log_path=str(WATER_FREQ), coefficient=1),
+        temperature=298.15,
+        standard_state="gas_1atm",
+        concentration_molar=None,
+    )
+    assert record is None
+    assert error is not None
+    assert "cclib" in error
+    assert "IndexError" in error
+
+    result = await ThermoAnalysis().tool_call(
+        ThermoAnalysis_input_schema(
+            species=[ThermoSpecies(name="orca", log_path=str(WATER_FREQ), coefficient=1)],
+            backend="raw_rrho",
+        ),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.status == "inconclusive"
+    assert result.reaction == {}
+    assert "IndexError" in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("sp_energy", "expected_source"),
+    [
+        # GoodVibes 4.x JSON 恒写 sp_energy；与 scf_energy 相同 = 未做 SPC，不能标 goodvibes_spc
+        (-75.0, "frequency_log_scf"),
+        (-75.000000005, "frequency_log_scf"),  # 数值噪声级差异（<1e-8 Eh）不算 SPC
+        (-75.2, "goodvibes_spc"),              # 显著不同 = 真做了 SPC
+    ],
+)
+async def test_goodvibes_spc_label_only_when_sp_differs_from_scf(
+    monkeypatch, sp_energy, expected_source,
+):
+    def fake_run(command, **kwargs):
+        json_path = Path(command[command.index("--json") + 1])
+        json_path.write_text(
+            json.dumps({
+                "schema_version": "1.0",
+                "goodvibes_version": "4.3.0-test",
+                "results": [
+                    {
+                        "file": str(WATER_FREQ.resolve()),
+                        "name": WATER_FREQ.stem,
+                        "thermo": {
+                            "scf_energy": -75.0,
+                            "sp_energy": sp_energy,
+                            "qh_enthalpy": -74.97,
+                            "qh_gibbs_free_energy": -75.01,
+                        },
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(thermo_mod.shutil, "which", lambda _name: "/usr/bin/goodvibes")
+    monkeypatch.setattr(thermo_mod.subprocess, "run", fake_run)
+    result = await ThermoAnalysis().tool_call(
+        ThermoAnalysis_input_schema(
+            species=[ThermoSpecies(name="water", log_path=str(WATER_FREQ), coefficient=1)],
+            backend="goodvibes",
+        ),
+        session=None,
+    )
+
+    assert result.status == "complete"
+    assert result.species[0]["energy_source"] == expected_source
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("payload", "message_fragment"),
     [

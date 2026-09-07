@@ -1043,6 +1043,9 @@ def _build_responses_payload(kwargs: dict) -> dict:
         payload["top_p"] = kwargs["top_p"]
     if kwargs.get("max_tokens"):
         payload["max_output_tokens"] = kwargs["max_tokens"]
+    # reasoning_effort 不原样透传顶层字段：Responses API 的形态是 reasoning.effort
+    if kwargs.get("reasoning_effort"):
+        payload["reasoning"] = {"effort": kwargs["reasoning_effort"]}
 
     instruction_parts: list[str] = []
     input_items: list[dict] = []

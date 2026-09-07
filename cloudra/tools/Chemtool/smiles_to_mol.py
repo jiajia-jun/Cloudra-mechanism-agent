@@ -83,6 +83,7 @@ class SmilesToMol(Tool):
                 )
 
             # 2. 生成坐标
+            ff_opt_status: Optional[str] = None
             if generate_3d:
                 mol = Chem.AddHs(mol)
                 embed_result = AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
@@ -93,7 +94,18 @@ class SmilesToMol(Tool):
                         message="3D conformer generation failed (EmbedMolecule returned -1). "
                                 "Retry, or set generate_3d=False to get a 2D structure instead."
                     )
-                AllChem.MMFFOptimizeMolecule(mol)
+                # MMFF 优化状态必须反映在 message 中：未收敛时不能静默把
+                # 未优化几何当成品交出去（0=收敛，1=达迭代上限未收敛）。
+                try:
+                    opt_code = AllChem.MMFFOptimizeMolecule(mol)
+                except Exception:
+                    opt_code = -2  # 元素无 MMFF 参数等
+                if opt_code == 0:
+                    ff_opt_status = "3D; MMFF-optimized (converged)"
+                elif opt_code == 1:
+                    ff_opt_status = "3D; MMFF optimization did not converge within the iteration limit — coordinates left as-is"
+                else:
+                    ff_opt_status = "3D; MMFF optimization unavailable for this molecule — coordinates left as-is"
             else:
                 Chem.rdDepictor.Compute2DCoords(mol)
 
@@ -116,13 +128,15 @@ class SmilesToMol(Tool):
                 atomic_write_text(path, mol_block)
                 saved_path = path
 
+            msg = "SMILES converted to MOL successfully."
+            if ff_opt_status:
+                msg += f" ({ff_opt_status})"
             return SmilesToMol_output_schema(
                 is_success=True,
                 mol_content=mol_block,
                 file_path=saved_path,
-                message="SMILES converted to MOL successfully."
+                message=msg
             )
-
         except Exception as e:
             return SmilesToMol_output_schema(
                 is_success=False,

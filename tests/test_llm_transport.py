@@ -505,6 +505,22 @@ class TestAgentDelegation:
         await agent._llm_call_once()
         assert create.call_args.kwargs["top_p"] == 0.95
 
+    async def test_reasoning_effort_sent_when_configured(self, agent, monkeypatch):
+        """reasoning_effort 来自全局 config 角色槽位，配置了才发送。"""
+        from cloudra.infra.config import get_config
+
+        monkeypatch.setattr(get_config().follower, "reasoning_effort", "medium")
+        create = AsyncMock(return_value="RESP")
+        self._stub_llm_client(agent, create=create)
+        await agent._llm_call_once()
+        assert create.call_args.kwargs["reasoning_effort"] == "medium"
+
+    async def test_reasoning_effort_omitted_when_unset(self, agent):
+        create = AsyncMock(return_value="RESP")
+        self._stub_llm_client(agent, create=create)
+        await agent._llm_call_once()
+        assert "reasoning_effort" not in create.call_args.kwargs
+
     async def test_tools_included_when_cache_non_empty(self, agent):
         agent._tools_schema_cache = [{"type": "function", "function": {"name": "t"}}]
         create = AsyncMock(return_value="RESP")

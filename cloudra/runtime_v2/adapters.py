@@ -106,6 +106,7 @@ def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
         settings.native_search = legacy.native_search
     if not settings.native_search_params:
         settings.native_search_params = dict(legacy.native_search_params)
+    settings.reasoning_effort = settings.reasoning_effort or legacy.reasoning_effort
     # Kimi Coding 订阅端点只接受 temperature=1，其余值直接 400 拒绝
     if "kimi-for-coding" in (settings.model or ""):
         settings.temperature = 1.0
@@ -356,6 +357,8 @@ class LegacyLLMProvider:
         }
         if settings.top_p is not None:
             kwargs["top_p"] = settings.top_p
+        if settings.reasoning_effort:
+            kwargs["reasoning_effort"] = settings.reasoning_effort
         if tool_schemas:
             kwargs["tools"] = tool_schemas
         if native_adapter is not None:

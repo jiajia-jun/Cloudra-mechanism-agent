@@ -116,7 +116,12 @@ def _contains_center(big: tuple[float, float, float, float], small: tuple[float,
 
 
 def _arrow_regions(arrow: Any) -> dict[str, tuple[float, float, float, float]]:
-    """Return expanded boxes for tail/head/top/bottom around an arrow."""
+    """Return expanded boxes for tail/head/top/bottom around an arrow.
+
+    方向由 Head3D→Tail3D 的支配轴决定：水平箭头按 x（尾在左/头在右，反之亦然）；
+    垂直箭头（hx==tx）必须按 y 判定——指向上方时反应物在箭尾下方、产物在箭头
+    上方。旧实现对垂直箭头一律落 else 分支把 head 钉在左侧，反应物/产物静默对调。
+    """
     b = _box(arrow.get("BoundingBox"))
     if b is None:
         raise ValueError(f"arrow {arrow.get('id')} has no BoundingBox")
@@ -125,20 +130,42 @@ def _arrow_regions(arrow: Any) -> dict[str, tuple[float, float, float, float]]:
     try:
         hx = float(head[0])
         tx = float(tail[0])
+        hy = float(head[1]) if len(head) > 1 else 0.0
+        ty = float(tail[1]) if len(tail) > 1 else 0.0
     except Exception:
-        hx, tx = b[2], b[0]
-    if hx > tx:
+        hx, tx, hy, ty = b[2], b[0], 0.0, 0.0
+    x0, y0, x1, y1 = b
+    dx, dy = hx - tx, hy - ty
+
+    if abs(dx) >= abs(dy):
+        # 水平箭头：反应物侧=尾部，产物侧=头部
+        if dx > 0:  # 头在右
+            return {
+                "tail": (x0 - 200, y0 - 60, x0, y1 + 60),
+                "head": (x1, y0 - 60, x1 + 200, y1 + 60),
+                "top": (x0, y1, x1, y1 + 80),
+                "bottom": (x0, y0 - 80, x1, y0),
+            }
         return {
-            "tail": (b[0] - 200, b[1] - 60, b[0], b[3] + 60),
-            "head": (b[2], b[1] - 60, b[2] + 200, b[3] + 60),
-            "top": (b[0], b[3], b[2], b[3] + 80),
-            "bottom": (b[0], b[1] - 80, b[2], b[1]),
+            "tail": (x1, y0 - 60, x1 + 200, y1 + 60),
+            "head": (x0 - 200, y0 - 60, x0, y1 + 60),
+            "top": (x0, y1, x1, y1 + 80),
+            "bottom": (x0, y0 - 80, x1, y0),
         }
+    # 垂直箭头：头在上 → 反应物在下（箭尾）/ 产物在上（箭头）；试剂在左右
+    if dy > 0:  # 指向上
+        return {
+            "tail": (x0 - 60, y0 - 200, x1 + 60, y0),
+            "head": (x0 - 60, y1, x1 + 60, y1 + 200),
+            "top": (x0 - 80, y0, x0, y1),
+            "bottom": (x1, y0, x1 + 80, y1),
+        }
+    # 指向下
     return {
-        "tail": (b[2], b[1] - 60, b[2] + 200, b[3] + 60),
-        "head": (b[0] - 200, b[1] - 60, b[0], b[3] + 60),
-        "top": (b[0], b[3], b[2], b[3] + 80),
-        "bottom": (b[0], b[1] - 80, b[2], b[1]),
+        "tail": (x0 - 60, y1, x1 + 60, y1 + 200),
+        "head": (x0 - 60, y0 - 200, x1 + 60, y0),
+        "top": (x0 - 80, y0, x0, y1),
+        "bottom": (x1, y0, x1 + 80, y1),
     }
 
 

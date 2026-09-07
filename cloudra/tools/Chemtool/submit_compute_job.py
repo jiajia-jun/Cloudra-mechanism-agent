@@ -9,7 +9,11 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.infra.compute_utils import check_job_type, launch_compute_processes
+from cloudra.infra.compute_utils import (
+    check_job_type,
+    launch_compute_processes,
+    validate_xtb_params,
+)
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
 from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
@@ -18,11 +22,14 @@ description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
     "and let the framework Compute Scheduler pick it up; returns job_id immediately without waiting for the job to finish. "
     "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; xtb takes a plain .xyz coordinate file). "
+    "For xtb jobs you must also declare charge, multiplicity, task (sp/opt/hess/ohess) and optionally solvent — "
+    "xtb is CLI-flag driven and ignores any charge/multiplicity written inside the .xyz file. "
     "Do not use for: generating the input (use qm_input_writer), querying progress (use query_compute_job), "
     "or inspecting results (parse the log with log_parser after the job finishes). "
     "Resource contract: you write the input file, so declare exactly what it asks for — "
     "if your .gjf sets %nprocshared=16 then request cpus=16; for ORCA, request cpus=<pal nprocs> and "
-    "memory_mb=<nprocs * maxcore>. Under-declaring oversubscribes the node; over-declaring wastes queue time. "
+    "memory_mb=<nprocs * maxcore>; for xtb, cpus is passed to the engine as --parallel. "
+    "Under-declaring oversubscribes the node; over-declaring wastes queue time. "
     "Use query_compute_queue to check node capacity and queue length before choosing how much to request."
 )
 
@@ -71,6 +78,35 @@ class SubmitComputeJob_input_schema(input_schema):
         description=(
             "Queue priority, 0-9; higher runs first among queued jobs (same priority is FIFO). "
             "Use 5+ only for genuinely urgent jobs. Never preempts running jobs."
+        ),
+    )
+    charge: int = Field(
+        default=0,
+        description=(
+            "Molecular charge (xtb jobs only; passed as --chrg). xtb is CLI-flag driven: "
+            "a charge/multiplicity line inside the .xyz comment is ignored by xtb — "
+            "you MUST declare it here. Default 0."
+        ),
+    )
+    multiplicity: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "Spin multiplicity (xtb jobs only; converted to --uhf = multiplicity-1). Default 1."
+        ),
+    )
+    task: Literal["sp", "opt", "hess", "ohess"] = Field(
+        default="sp",
+        description=(
+            "xtb run level (xtb jobs only): 'sp' single point (default), 'opt' geometry "
+            "optimization (--opt), 'hess' frequencies (--hess), 'ohess' opt+freq (--ohess)."
+        ),
+    )
+    solvent: str | None = Field(
+        default=None,
+        description=(
+            "Implicit solvent name for xtb jobs (passed as --alpb NAME, e.g. 'water'). "
+            "Omit for gas phase."
         ),
     )
 
@@ -169,6 +205,18 @@ class SubmitComputeJob(Tool):
                     message=f"Input file does not exist: {f_path}. "
                             "Check the path, or generate the input first with qm_input_writer, then retry.")
 
+        # xtb 任务参数 fail-loud 校验：非法组合在提交时显式报错，
+        # 绝不静默降级为裸 SP（xyz 注释行的 charge/mult 对 xtb 无效）。
+        param_error = validate_xtb_params(
+            job_type=user_input.job_type,
+            charge=user_input.charge,
+            multiplicity=user_input.multiplicity,
+            task=user_input.task,
+            solvent=user_input.solvent,
+        )
+        if param_error:
+            return SubmitComputeJob_output_schema(is_success=False, message=param_error)
+
         scheduler = user_input.execution_backend
         scheduler_options: dict = {"type": scheduler}
         from cloudra.services.nodes import NodeRegistry, default_resources
@@ -251,6 +299,10 @@ class SubmitComputeJob(Tool):
                     priority=user_input.priority,
                     req_cpus=user_input.cpus,
                     req_memory_mb=user_input.memory_mb,
+                    charge=user_input.charge,
+                    multiplicity=user_input.multiplicity,
+                    xtb_task=user_input.task,
+                    xtb_solvent=user_input.solvent,
                 )
                 # 调度守护进程轮询 DB 认领 ready 作业，无需事件通知
                 return self._with_delegation_hint(
@@ -287,6 +339,10 @@ class SubmitComputeJob(Tool):
                     priority=user_input.priority,
                     req_cpus=user_input.cpus,
                     req_memory_mb=user_input.memory_mb,
+                    charge=user_input.charge,
+                    multiplicity=user_input.multiplicity,
+                    xtb_task=user_input.task,
+                    xtb_solvent=user_input.solvent,
                     start_timestamp=time.time(),
                 )
                 # 任务提交是昂贵的，必须在数据库留痕才允许进行。

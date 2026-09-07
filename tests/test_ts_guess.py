@@ -568,9 +568,14 @@ async def test_scan_parse_h2_fixture(tmp_path, mock_session):
     rows = result.profile_table.strip().splitlines()
     assert len(rows) == 102
 
-    # 势垒人工核对值（5 位小数表值）
+    # 势垒人工核对值（5 位小数表值）——H2 均裂剖面的端点间能量跨度仍呈现在表内：
+    # 最高点（末帧，R=1.60 Å，-1.04070）相对首点 = (-1.04070 - (-1.15022)) × 627.5 ≈ 68.72 kcal/mol
     expected = (-1.04070 - (-1.15022)) * 627.5095
-    assert result.barrier_kcal == pytest.approx(expected, abs=1e-3)
+    rel_vals = [float(ln.split()[1]) for ln in rows[1:]]
+    assert max(rel_vals) == pytest.approx(expected, abs=1e-3)
+    # G4：无内部峰（最高点在扫描边界）时 barrier_kcal 置 None——端点"最高点−首点"
+    # 不是能垒，不允许在 barrier 字段里报成势垒。
+    assert result.barrier_kcal is None
 
     # 最高点在末帧 → 边界判定
     assert any("boundary" in v for v in result.verdicts)
@@ -1061,6 +1066,7 @@ async def test_scan_parse_orca_sidecar_picks_energy_max_frame(tmp_path, mock_ses
     guess = Path(result.ts_candidate_path)
     assert guess.exists()
     assert "frame=9" in guess.read_text(encoding="utf-8").splitlines()[1]
+    assert result.barrier_kcal is not None  # 内部峰存在才报 barrier
 
     expected = (tmp_path / "ts_scan.010.xyz").read_text(encoding="utf-8").splitlines()[2:]
     actual = guess.read_text(encoding="utf-8").splitlines()[2:]
@@ -1095,6 +1101,9 @@ async def test_scan_parse_orca_sidecar_monotonic_profile_max_at_last_frame(tmp_p
     assert any("no internal energy peak" in v for v in result.verdicts)
     assert "NOT a TS candidate" in result.message
     assert "TS guess" not in result.profile_table
+    # G4：无内部峰时 barrier_kcal 置 None，且不得声称 "TS-guess geometry is ..."
+    assert result.barrier_kcal is None
+    assert not any("TS-guess geometry" in v for v in result.verdicts)
 
 
 # ---------------------------------------------------------------------------
@@ -1108,7 +1117,8 @@ def _copy_extopt_log(tmp_path: Path, name: str = "extopt_scan.out") -> Path:
     import shutil
 
     dst = tmp_path / name
-    shutil.copy(_EXTOPT_SCAN_FIXTURE / "scan_extopt_snippet.out", dst)
+    # 带 RELAXED SURFACE SCAN STEP 标记的片段：文本回退按扫描步分组解析
+    shutil.copy(_EXTOPT_SCAN_FIXTURE / "scan_extopt_grouped.out", dst)
     return dst
 
 
@@ -1219,7 +1229,7 @@ async def test_scan_parse_orca_sidecar_ambiguous_glob_refuses_to_guess(tmp_path,
     logdir = workdir / ".cloudra"
     logdir.mkdir(parents=True)
     log = logdir / "calc-99.out.log"
-    shutil.copy(_EXTOPT_SCAN_FIXTURE / "scan_extopt_snippet.out", log)
+    shutil.copy(_EXTOPT_SCAN_FIXTURE / "scan_extopt_grouped.out", log)
     # 抹掉 NAME 行，迫使走 glob；两个 sidecar → 不得猜测
     log.write_text(log.read_text(encoding="utf-8").replace("NAME = /work/ts2_scan.inp\n", ""), encoding="utf-8")
     for stem in ("job_a", "job_b"):
@@ -1440,3 +1450,192 @@ async def test_verify_orca_engine_dispatches_native_irc_endpoints(tmp_path, mock
     assert Path(result.irc_end_a_path).exists()
     assert Path(result.irc_end_b_path).exists()
     assert any("NOT reactant/product" in c for c in result.checks)
+
+
+# ---------------------------------------------------------------------------
+# 工具面审计 G1–G4：ORCA 扫描文本回退按步分组、verify 引擎分派、
+# barrier 语义与候选注释一致性（真实日志在 toolfix_verify/orca/）。
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_TOOLFIX_ORCA = _REPO_ROOT / "toolfix_verify" / "orca"
+_ORCA_SCAN_REAL = _TOOLFIX_ORCA / "scan_h2o2" / "scan.out"
+_ORCA_OPTFREQ_WATER = _TOOLFIX_ORCA / "optfreq_water" / "optfreq.out"
+_ORCA_OPTFREQ_ENOLATE = _TOOLFIX_ORCA / "optfreq_enolate" / "optfreq.out"
+_HAS_TOOLFIX_LOGS = all(
+    p.is_file() for p in (_ORCA_SCAN_REAL, _ORCA_OPTFREQ_WATER, _ORCA_OPTFREQ_ENOLATE)
+)
+# 与 scan_h2o2/scan.relaxscanact.dat 逐行对账的真实 10 点剖面（Eh）
+_REAL_SCAN_STEP_ENERGIES_EH = [
+    -151.35505443, -151.35517436, -151.35551226, -151.35588417, -151.35577007,
+    -151.35431781, -151.35113608, -151.34712547, -151.34392136, -151.34271998,
+]
+
+
+@pytest.mark.skipif(not _HAS_TOOLFIX_LOGS, reason="toolfix_verify 真实 ORCA 日志缺失")
+def test_parse_orca_scan_real_relaxed_log_groups_per_scan_step():
+    """G1：真实 ORCA 6.1.1 relaxed scan（10 扫描点）文本回退必须按扫描步分组。
+
+    日志里 'FINAL SINGLE POINT ENERGY' 共 55 条（每步含多个优化周期）；按步取
+    收敛后的最后一条能量，才能还原 10 点剖面（与 relaxscanact.dat 一致），而不是
+    把每个优化周期的能量当扫描点拼出垃圾剖面。
+    """
+    import cloudra.tools.Chemtool.ts_guess as ts_mod
+
+    text = _ORCA_SCAN_REAL.read_text(encoding="utf-8", errors="replace")
+    steps = ts_mod._parse_orca_scan(text)
+    assert len(steps) == 10
+    assert [s["energy_hartree"] for s in steps] == pytest.approx(_REAL_SCAN_STEP_ENERGIES_EH, abs=1e-6)
+    # 每步几何都是该步收敛结构（H2O2：4 原子）
+    assert all(len(s["geom"]) == 4 for s in steps)
+
+
+@pytest.mark.skipif(not _HAS_TOOLFIX_LOGS, reason="toolfix_verify 真实 ORCA 日志缺失")
+@pytest.mark.asyncio
+async def test_scan_parse_orca_real_log_no_sidecar_refuses_endpoint_max(tmp_path, mock_session):
+    """G1/G4：无 sidecar 时真实日志文本回退产出 10 点剖面；真实极大值在扫描端点
+    （180°，末帧）→ 无内部峰 → 不产候选、barrier_kcal=None，注释不得自相矛盾。"""
+    import shutil
+
+    shutil.copy(_ORCA_SCAN_REAL, tmp_path / "scan.out")
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(tmp_path / "scan.out"),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert "10 points" in result.message
+    assert result.ts_candidate_index is None
+    assert result.ts_candidate_path == ""
+    assert result.candidate is None
+    assert result.barrier_kcal is None  # G4：无内部峰不填 barrier
+    assert any("no internal energy peak" in v for v in result.verdicts)
+    # G4：拒发候选时不得再声称 "TS-guess geometry is ..."
+    assert not any("TS-guess geometry" in v for v in result.verdicts)
+    assert not list(tmp_path.glob("*_ts_guess.xyz"))
+    # 剖面表恰好 10 个数据行
+    data_rows = [ln for ln in result.profile_table.splitlines() if ln.strip() and ln.split()[0].isdigit()]
+    assert len(data_rows) == 10
+
+
+def _write_orca_scan_log_with_variable_cycles(tmp_path: Path) -> Path:
+    """合成带 RELAXED SURFACE SCAN STEP 标记、每步优化周期数不等的 ORCA relaxed scan。
+
+    每周期 = 一行几何 + 一条 FINAL SINGLE POINT ENERGY；每步只应取最后（收敛）
+    那条能量：剖面帧能量 = [-100.490, -100.470, -100.485] Eh → 内部峰在帧 1，
+    TS-guess 几何 = 帧 1 收敛几何（C x=2.1）。
+    """
+    log = tmp_path / "scan.out"
+    text: list[str] = []
+
+    def cart(x: float) -> None:
+        text.append("CARTESIAN COORDINATES (ANGSTROEM)")
+        text.append("---------------------------------")
+        text.append(f"  C      {x:.1f}000000    0.000000    0.000000")
+        text.append(f"  H      {x + 1:.1f}000000    0.000000    0.000000")
+        text.append("  N      0.000000    1.500000    0.000000")
+
+    text.append("         *               RELAXED SURFACE SCAN STEP   1               *")
+    cart(0.0)
+    text.append("FINAL SINGLE POINT ENERGY      -100.500000000000")
+    cart(0.1)
+    text.append("FINAL SINGLE POINT ENERGY      -100.490000000000")
+    text.append("         *               RELAXED SURFACE SCAN STEP   2               *")
+    cart(1.0)
+    text.append("FINAL SINGLE POINT ENERGY      -100.480000000000")
+    cart(2.1)
+    text.append("FINAL SINGLE POINT ENERGY      -100.470000000000")
+    text.append("         *               RELAXED SURFACE SCAN STEP   3               *")
+    cart(3.0)
+    text.append("FINAL SINGLE POINT ENERGY      -100.485000000000")
+    log.write_text("\n".join(text) + "\n", encoding="utf-8")
+    return log
+
+
+@pytest.mark.asyncio
+async def test_scan_parse_orca_text_groups_by_step_with_variable_cycles(tmp_path, mock_session):
+    """G1：按扫描步分组 + 每步取收敛后最后一条能量——优化周期能量不算扫描点。"""
+    log = _write_orca_scan_log_with_variable_cycles(tmp_path)
+
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan_parse",
+        "engine": "orca",
+        "log_path": str(log),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert "3 points" in result.message
+    data_rows = [ln for ln in result.profile_table.splitlines() if ln.strip() and ln.split()[0].isdigit()]
+    assert len(data_rows) == 3
+    assert result.ts_candidate_index == 1
+    assert result.barrier_kcal == pytest.approx(0.020 * KCAL_PER_HARTREE, abs=1e-2)
+    guess = Path(result.ts_candidate_path)
+    assert guess.exists()
+    rows = [[float(v) for v in ln.split()[1:]] for ln in guess.read_text(encoding="utf-8").splitlines()[2:]]
+    assert rows[0] == pytest.approx([2.1, 0.0, 0.0], abs=1e-6)
+    assert rows[1] == pytest.approx([3.1, 0.0, 0.0], abs=1e-6)
+    assert rows[2] == pytest.approx([0.0, 1.5, 0.0], abs=1e-6)
+    assert any("TS-guess geometry is the energy-maximum frame 1" in v for v in result.verdicts)
+
+
+@pytest.mark.skipif(not _HAS_TOOLFIX_LOGS, reason="toolfix_verify 真实 ORCA 日志缺失")
+def test_parse_freq_log_orca_real_logs_frequencies_and_convergence(tmp_path):
+    """G2/G3：cclib 1.8.1 对 ORCA 6.1.1 日志全灭（IndexError）时，频率文本回退走
+    orca_frames 原生 VIBRATIONAL FREQUENCIES 块；收敛判定按引擎分派。"""
+    import cloudra.tools.Chemtool.ts_guess as ts_mod
+
+    for path, n_modes in ((_ORCA_OPTFREQ_WATER, 9), (_ORCA_OPTFREQ_ENOLATE, 18)):
+        parsed = ts_mod._parse_freq_log(str(path), "orca")
+        assert parsed["vibfreqs"] is not None
+        assert len(parsed["vibfreqs"]) == n_modes
+        assert all(f >= 0 for f in parsed["vibfreqs"])  # 极小值：0 虚频
+        assert parsed["converged"] is True  # G3：ORCA 标记（非 Gaussian "Normal termination"）
+
+
+@pytest.mark.skipif(not _HAS_TOOLFIX_LOGS, reason="toolfix_verify 真实 ORCA 日志缺失")
+@pytest.mark.asyncio
+async def test_verify_orca_real_water_log_reports_minimum(tmp_path, mock_session):
+    """G2/G3 端到端：真实 ORCA 6.1.1 OptFreq 水（极小值）verify 必须成功并判为无虚频。"""
+    tool = _make_tool()
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "engine": "orca",
+        "freq_log": str(_ORCA_OPTFREQ_WATER),
+    }), mock_session)
+
+    assert result.is_success, result.message
+    assert result.n_imag == 0
+    assert "minimum" in result.verdict
+    assert not any("did not converge" in c for c in result.checks)
+
+
+def test_parse_freq_log_orca_convergence_dispatched_by_engine_markers(tmp_path):
+    """G3：收敛回退不得用 Gaussian 的 'Normal termination' 判 ORCA 日志——ORCA 自报
+    'ORCA TERMINATED NORMALLY'；优化收敛与否另有 'THE OPTIMIZATION HAS CONVERGED' /
+    'The optimization did not converge' 标记。"""
+    import cloudra.tools.Chemtool.ts_guess as ts_mod
+
+    freq_block = (
+        "VIBRATIONAL FREQUENCIES\n"
+        "     0:      -350.00 cm**-1\n"
+        "     1:      1200.00 cm**-1\n"
+    )
+    converged_log = tmp_path / "conv.out"
+    converged_log.write_text(
+        "THE OPTIMIZATION HAS CONVERGED\n" + freq_block + "****ORCA TERMINATED NORMALLY****\n",
+        encoding="utf-8",
+    )
+    parsed = ts_mod._parse_freq_log(str(converged_log), "orca")
+    assert parsed["converged"] is True
+
+    # 跑满最大步数未收敛的优化仍可能正常终止——收敛判定必须为 False
+    unconv_log = tmp_path / "unconv.out"
+    unconv_log.write_text(
+        "The optimization did not converge\n" + freq_block + "****ORCA TERMINATED NORMALLY****\n",
+        encoding="utf-8",
+    )
+    parsed = ts_mod._parse_freq_log(str(unconv_log), "orca")
+    assert parsed["converged"] is False

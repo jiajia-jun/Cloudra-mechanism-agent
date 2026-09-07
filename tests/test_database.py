@@ -111,6 +111,7 @@ def test_compute_db_init_creates_central_schema(isolated_db):
             "scheduler_options", "scheduler_job_id", "scheduler_state",
             "scheduler_script", "last_error", "lease_owner", "lease_expires_at",
             "attempt_count", "priority", "req_cpus", "req_memory_mb",
+            "charge", "multiplicity", "xtb_task", "xtb_solvent",
             "guard_pid", "calc_pid", "notified_at",
         } == columns
         indexes = {

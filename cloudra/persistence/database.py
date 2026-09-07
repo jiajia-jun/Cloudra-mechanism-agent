@@ -730,6 +730,13 @@ _CREATE_COMPUTE_JOBS = """
         priority INTEGER NOT NULL DEFAULT 0,
         req_cpus INTEGER NOT NULL DEFAULT 1,
         req_memory_mb INTEGER,
+        -- xtb 显式任务参数（xtb 是 CLI 标志驱动，.xyz 不携带这些语义）：
+        -- submit 时校验入库，guard/Slurm 据此拼 --chrg/--uhf/--opt/--hess/
+        -- --ohess/--alpb/--parallel，绝不回退裸单点
+        charge INTEGER NOT NULL DEFAULT 0,
+        multiplicity INTEGER NOT NULL DEFAULT 1,
+        xtb_task TEXT NOT NULL DEFAULT 'sp',
+        xtb_solvent TEXT,
         -- 观测/取证用进程号（存活判定的权威是 .cloudra/ 下的 flock，不读 PID）
         guard_pid INTEGER,
         calc_pid INTEGER,

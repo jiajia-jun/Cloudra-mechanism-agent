@@ -196,13 +196,16 @@ async def summarize_with_agent_settings(
         abort_event=abort_event,
     )
     try:
-        response = await client.create_with_retry(
-            model=settings.model,
-            messages=messages,
+        kwargs: dict = {
+            "model": settings.model,
+            "messages": messages,
             # temperature=1: a growing set of models rejects anything else.
-            temperature=1.0,
-            stream=False,
-        )
+            "temperature": 1.0,
+            "stream": False,
+        }
+        if settings.reasoning_effort:
+            kwargs["reasoning_effort"] = settings.reasoning_effort
+        response = await client.create_with_retry(**kwargs)
     finally:
         await client.aclose()
     choices = getattr(response, "choices", None) or []

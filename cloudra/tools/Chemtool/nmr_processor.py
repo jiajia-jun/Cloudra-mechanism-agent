@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from pydantic import Field
 
@@ -34,7 +34,12 @@ class NMRProcessor_input_schema(input_schema):
     # 分析参数
     extract_peaks: bool = Field(default=True, description="Whether to auto-pick peaks")
     peak_threshold: float = Field(default=0.02, description="Peak-detection threshold (relative intensity)")
-    peak_engine: str = Field(default="greedy", description="Peak-detection algorithm: 'greedy' or 'clound'")
+    peak_engine: Literal["connected", "downward", "thres", "thres-fast"] = Field(
+        default="connected",
+        description="Peak-detection algorithm passed to nmrglue ng.peakpick.pick: "
+                    "'connected', 'downward', 'thres', or 'thres-fast' "
+                    "(exactly the algorithm values ng.peakpick.pick accepts).",
+    )
 
     # 专家选项 (JSON 字典)
     advanced_settings: Dict[str, Any] = Field(
@@ -98,6 +103,8 @@ class NMRProcessor(Tool):
                     dic, data = ng.bruker.read(path)
             elif fmt == 'varian':
                 dic, data = ng.varian.read(path)
+            elif fmt == 'pipe':
+                dic, data = ng.pipe.read(path)
             elif fmt == 'jcamp':
                 dic, data = ng.jcampdx.read(path)
             elif fmt == 'jeol':
@@ -115,10 +122,11 @@ class NMRProcessor(Tool):
                 elif user_input.apodization == 'gm':
                     data = ng.proc_base.gm(data, g1=adv.get('g1', 0.01), g2=adv.get('g2', 0.02))
 
-                # B. 补零 (Zero Filling)
+                # B. 补零 (Zero Filling)：zf(data, pad=N) 的 pad 是填充点数；
+                # 传 mid=size 只是把填充量当布尔旗标（truthy），零填充根本不发生。
                 zf_size = adv.get('zf_size', len(data) * user_input.zero_fill)
                 if zf_size > len(data):
-                    data = ng.proc_base.zf(data, mid=zf_size)
+                    data = ng.proc_base.zf(data, pad=zf_size - len(data))
 
                 # C. 傅里叶变换
                 data = ng.proc_base.fft(data)
@@ -136,36 +144,58 @@ class NMRProcessor(Tool):
                     data = ng.proc_base.cbf(data, last=adv.get('bc_last', 10), order=adv.get('bc_order', 1))
 
             # 3. 坐标转换与元数据处理
-            # 尝试各种猜测 udic 的方法
-            udic = None
+            # guess_udic 按读取器模块分派（每个 reader 都自带 guess_udic；
+            # fileiobase 没有 guess_udic，也早已没有 create_udic——旧降级路径
+            # 不存在，且空 udic 会产出无意义的 ppm，属静默错值，不能回退）。
+            guess_udic = {
+                "bruker": ng.bruker.guess_udic,
+                "varian": ng.varian.guess_udic,
+                "pipe": ng.pipe.guess_udic,
+                "jeol": ng.jeol.guess_udic,
+                "jcamp": ng.jcampdx.guess_udic,
+            }.get(fmt)
+            if guess_udic is None:
+                return NMRProcessor_output_schema(
+                    is_success=False,
+                    message=f"Cannot infer spectral parameters for format '{fmt}'.",
+                )
             try:
-                if fmt == 'bruker':
-                    udic = ng.bruker.guess_udic(dic, data)
-                elif fmt == 'varian':
-                    udic = ng.varian.guess_udic(dic, data)
-                else:
-                    udic = ng.fileiobase.guess_udic(dic, data)
-            except Exception:
-                udic = ng.fileiobase.create_udic(len(data), 1.0)  # 降级方案
+                udic = guess_udic(dic, data)
+            except Exception as exc:
+                return NMRProcessor_output_schema(
+                    is_success=False,
+                    message=(
+                        f"Cannot infer spectral parameters (obs/sw/carrier) from the {fmt} "
+                        f"header for the ppm axis: {type(exc).__name__}: {exc}. "
+                        "Supply a readable {fmt} parameter set or a different input format."
+                    ),
+                )
 
             uc = ng.fileiobase.uc_from_udic(udic)
             ppm_axis = uc.ppm_scale()
 
-            # 4. 峰提取
+            # 4. 峰提取：nmrglue 0.12 用 ng.peakpick.pick（ng.analysis.peakpick.
+            # pick_1d 已不存在），返回 recarray，1D 时字段为 X_AXIS / X_LW / VOL
             peaks_found = []
             if user_input.extract_peaks:
-                thres = user_input.peak_threshold * data.max()
-                # 使用 nmrglue 的 peakpick
-                p_indices = ng.analysis.peakpick.pick_1d(data, threshold=thres, method=user_input.peak_engine)
-                for p in p_indices:
-                    idx = int(p['location'])
-                    peaks_found.append({
-                        "ppm": float(ppm_axis[idx]),
-                        "intensity": float(data[idx]),
-                        "width": float(p.get('width', 0.0))
-                    })
-                # 按 ppm 降序排列 (符合化学习惯)
-                peaks_found.sort(key=lambda x: x['ppm'], reverse=True)
+                if float(np.max(data)) > 0:
+                    thres = user_input.peak_threshold * float(np.max(data))
+                    p_indices = ng.peakpick.pick(
+                        data, pthres=thres, algorithm=user_input.peak_engine,
+                    )
+                    for p in p_indices:
+                        idx = int(round(float(p['X_AXIS'])))
+                        idx = max(0, min(idx, len(ppm_axis) - 1))
+                        width = float(p['X_LW'])
+                        if not np.isfinite(width):
+                            width = 0.0
+                        peaks_found.append({
+                            "ppm": float(ppm_axis[idx]),
+                            "intensity": float(data[idx]),
+                            "width": width,
+                        })
+                    # 按 ppm 降序排列 (符合化学习惯)
+                    peaks_found.sort(key=lambda x: x['ppm'], reverse=True)
 
             # 5. 限制返回的谱图点数 (防止上下文爆炸)
             # 采样 1000 个点用于可视化/初步判断，全量数据建议保存为本地文件

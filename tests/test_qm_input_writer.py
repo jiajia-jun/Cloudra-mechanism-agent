@@ -113,6 +113,59 @@ async def test_qm_input_writer_orca_engine_produces_valid_inp(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_qm_input_writer_orca_single_point_key(tmp_path):
+    """task_type=[{"single_point": None}] 被接受并归一化：ORCA 单点的 ! 行
+    只留方法/基组（无任务关键字），回读意图为 single_point。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    out = tmp_path / "water_sp.inp"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            method="b3lyp",
+            basis_set="def2-svp",
+            task_type=[{"single_point": None}],
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+
+    assert result.is_success is True, result.message
+    content = out.read_text(encoding="utf-8")
+    assert content.startswith("! b3lyp def2-svp")
+    assert result.interpreted_intent["tasks"] == ["single_point"]
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_gaussian_single_point_key(tmp_path):
+    """同一 {'single_point': None} 键在 Gaussian 路由上映射为原生 sp 关键字。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    out = tmp_path / "water_sp.gjf"
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="gaussian",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            method="b3lyp",
+            basis_set="6-31g(d)",
+            task_type=[{"single_point": None}],
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+
+    assert result.is_success is True, result.message
+    content = out.read_text(encoding="utf-8")
+    assert "#p sp b3lyp/6-31g(d)" in content
+    assert result.interpreted_intent["tasks"] == ["single_point"]
+
+
+@pytest.mark.asyncio
 async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")

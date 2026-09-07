@@ -3,10 +3,13 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping, Optional
 
 from cloudra.infra.platform_utils import get_bash_path, is_posix
 from cloudra.persistence.database import ComputeDB
@@ -23,6 +26,94 @@ _REQUIRED_BINS = {
 
 # guard 轮询间隔（秒）
 GUARD_POLL_INTERVAL = 1800
+
+
+# ---------------------------------------------------------------------------
+# xtb 显式任务参数（charge/multiplicity/task/solvent + cpus 透传）
+# ---------------------------------------------------------------------------
+
+# xtb 运行级别枚举：sp=单点（无 flag）、opt=--opt、hess=--hess、ohess=--ohess。
+XTB_TASKS = ("sp", "opt", "hess", "ohess")
+
+# 溶剂名字符白名单：合法名字表随 xtb 版本变化（water/h2o/acetonitrile/...），
+# 这里只挡 shell/CLI 危险字符；未知名字由 xtb 运行时报错（fail-loud 不降级）。
+_XTB_SOLVENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+def validate_xtb_params(
+    *,
+    job_type: str,
+    charge: int,
+    multiplicity: int,
+    task: str,
+    solvent: Optional[str],
+) -> Optional[str]:
+    """校验 xtb 任务参数；合法返回 None，非法返回 fail-loud 错误消息。
+
+    charge/multiplicity/task/solvent 是 xtb 专属参数（xtb 是 CLI 标志驱动，
+    .xyz 坐标文件不携带这些语义）：非 xtb 作业带任一非默认值即拒收，
+    绝不静默丢弃（job 130 曾把 charge=-1 的输入跑成中性闭壳层"成功"）。
+    """
+    if job_type != "xtb":
+        if charge != 0 or multiplicity != 1 or task != "sp" or solvent:
+            return (
+                f"charge/multiplicity/task/solvent are xtb-only run parameters; "
+                f"job_type={job_type!r} does not accept them. "
+                "For other engines declare charge/multiplicity inside the input file."
+            )
+        return None
+    if task not in XTB_TASKS:
+        return (
+            f"Unsupported xtb task: {task!r}; supported: {', '.join(XTB_TASKS)}. "
+            "Fix the task value and resubmit."
+        )
+    if not isinstance(multiplicity, int) or isinstance(multiplicity, bool) or multiplicity < 1:
+        return f"Invalid xtb multiplicity: {multiplicity!r}; must be an integer >= 1."
+    if solvent is not None and not _XTB_SOLVENT_RE.fullmatch(solvent):
+        return (
+            f"Invalid xtb solvent name: {solvent!r}; only [A-Za-z0-9._-] characters "
+            "are accepted (mapped to --alpb NAME)."
+        )
+    return None
+
+
+@dataclass(frozen=True)
+class XtbParams:
+    """一条 xtb 作业的显式运行参数；compute_jobs 行是唯一事实来源。
+
+    multiplicity 换算为 xtb 的 --uhf（uhf = multiplicity - 1，即 α−β 电子数）；
+    cpus 来自作业的资源申请（req_cpus），映射 --parallel 并钉住 OMP 线程数。
+    """
+
+    charge: int = 0
+    multiplicity: int = 1
+    task: str = "sp"
+    solvent: Optional[str] = None
+    cpus: int = 1
+
+    @classmethod
+    def from_row(cls, row: Optional[Mapping]) -> "XtbParams":
+        """从 compute_jobs dict 行构建；行缺失/字段为空时回落显式缺省。"""
+        row = row or {}
+        return cls(
+            charge=int(row.get("charge") or 0),
+            multiplicity=int(row.get("multiplicity") or 1),
+            task=str(row.get("xtb_task") or "sp"),
+            solvent=row.get("xtb_solvent") or None,
+            cpus=int(row.get("req_cpus") or 1),
+        )
+
+    def cli_args(self) -> list[str]:
+        """calculator.sh 的透传参数（--task 由 calculator.sh 翻译成运行级别 flag）。"""
+        args = [
+            "--chrg", str(self.charge),
+            "--uhf", str(self.multiplicity - 1),
+            "--task", self.task,
+            "--parallel", str(self.cpus),
+        ]
+        if self.solvent:
+            args += ["--alpb", self.solvent]
+        return args
 
 
 def cloudra_run_dir(workdir: str) -> Path:
@@ -97,8 +188,16 @@ def check_calculator_script(workdir: str) -> tuple[bool, str]:
     return False, ""
 
 
-def build_calculator_cmd(input_file: str, job_type: str) -> tuple[bool, list[str], str]:
+def build_calculator_cmd(
+    input_file: str,
+    job_type: str,
+    *,
+    xtb_params: Optional[XtbParams] = None,
+) -> tuple[bool, list[str], str]:
     """构建 calculator 子进程命令。
+
+    xtb 作业必须带 ``xtb_params``（compute_jobs 行是唯一事实来源），其
+    cli_args() 追加在 job_type 之后由 calculator.sh 翻译成 xtb CLI flag。
 
     Returns:
         (is_ok, cmd, message): is_ok 为 False 时 cmd 为空列表，message 为错误信息。
@@ -112,7 +211,10 @@ def build_calculator_cmd(input_file: str, job_type: str) -> tuple[bool, list[str
             f"You may place an executable calculator.sh in the working directory {workdir}, "
             f"or keep the built-in script {_default_calculator_path()}."
         )
-    return True, [bash_path, script_path, input_file, job_type], ""
+    cmd = [bash_path, script_path, input_file, job_type]
+    if job_type == "xtb":
+        cmd.extend((xtb_params or XtbParams()).cli_args())
+    return True, cmd, ""
 
 
 def build_guard_cmd(

@@ -167,3 +167,43 @@ async def test_no_arrow_returns_standalone_structures(tool, mock_session):
     )
     assert all(n["smiles"] for n in graph["nodes"])
     assert all(n["role"] is None for n in graph["nodes"])
+
+
+# ---------------------------------------------------------------------------
+# F9：垂直箭头（hx==tx）方向判定必须用 y 分量，不能把 head 钉在左侧
+# ---------------------------------------------------------------------------
+
+
+def _arrow(box, head, tail):
+    return {"BoundingBox": box, "Head3D": head, "Tail3D": tail}
+
+
+def test_horizontal_arrow_regions_unaffected():
+    """水平左→右箭头：tail 在左、head 在右（原行为回归）。"""
+    regions = mod._arrow_regions(_arrow("100 100 300 150", "300 120 0", "100 120 0"))
+    left_box = (30, 90, 60, 160)      # 左侧碎片
+    right_box = (330, 90, 360, 160)   # 右侧碎片
+    assert mod._contains_center(regions["tail"], left_box) is True
+    assert mod._contains_center(regions["head"], right_box) is True
+    assert mod._contains_center(regions["tail"], right_box) is False
+    assert mod._contains_center(regions["head"], left_box) is False
+
+
+def test_vertical_upward_arrow_places_head_above_and_tail_below():
+    """垂直向上箭头（hx==tx，hy>ty）：head 必须在箭头上方、tail 在下方。"""
+    regions = mod._arrow_regions(_arrow("100 100 102 300", "100 300 0", "100 100 0"))
+    above = (90, 330, 112, 360)  # 箭头上方的产物区
+    below = (90, 60, 112, 90)    # 箭头下方的反应物区
+    assert mod._contains_center(regions["head"], above) is True
+    assert mod._contains_center(regions["tail"], below) is True
+    # 旧实现把 head 钉在左侧垂直条，上方产物会被误归为试剂（top/bottom）
+    assert mod._contains_center(regions["tail"], above) is False
+
+
+def test_vertical_downward_arrow_flips_sides():
+    """垂直向下箭头：head 在下方、tail 在上方。"""
+    regions = mod._arrow_regions(_arrow("100 100 102 300", "100 100 0", "100 300 0"))
+    below = (90, 30, 112, 60)
+    above = (90, 330, 112, 360)
+    assert mod._contains_center(regions["head"], below) is True
+    assert mod._contains_center(regions["tail"], above) is True

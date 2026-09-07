@@ -38,3 +38,38 @@ async def test_smiles_to_mol_invalid_smiles():
     )
     assert result.is_success is False
     assert "Invalid SMILES" in result.message
+
+
+# ---------------------------------------------------------------------------
+# F7：3D MMFF 优化状态必须反映在 message（未收敛不得静默）
+# ---------------------------------------------------------------------------
+
+import rdkit.Chem.AllChem as _RdkitAllChem  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_3d_mmff_not_converged_reported(monkeypatch):
+    """MMFFOptimizeMolecule 返回 1（达迭代上限未收敛）时，message 必须披露。"""
+    monkeypatch.setattr(_RdkitAllChem, "MMFFOptimizeMolecule", lambda mol, **kw: 1)
+    result = await SmilesToMol().tool_call(
+        SmilesToMol_input_schema(smiles="CCO", generate_3d=True),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    assert "did not converge" in result.message
+
+
+@pytest.mark.asyncio
+async def test_3d_mmff_unavailable_reported(monkeypatch):
+    """MMFF 对分子不可用（抛异常）时披露，不静默。"""
+    def boom(mol, **kw):
+        raise RuntimeError("no MMFF params")
+
+    monkeypatch.setattr(_RdkitAllChem, "MMFFOptimizeMolecule", boom)
+    result = await SmilesToMol().tool_call(
+        SmilesToMol_input_schema(smiles="CCO", generate_3d=True),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    assert "MMFF" in result.message
+    assert "left as-is" in result.message

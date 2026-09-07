@@ -103,6 +103,28 @@ def test_xtb_frames_vibfreqs_from_text():
     assert xtb_frames.vibfreqs_from_text(SP_FIXTURE.read_text()) == []
 
 
+def test_xtb_frames_vibfreqs_i_suffix_parsed_as_imaginary():
+    """eigval 行的虚频若以 ``68.66i`` 后缀形式出现，须解析为负值而非抛
+    ValueError（与负值=虚频的原生语义一致）。"""
+    text = (
+        " projected vibrational frequencies (cm⁻¹)\n"
+        "eigval :        0.00     0.00     0.00    68.66i   218.23\n"
+    )
+    assert xtb_frames.vibfreqs_from_text(text) == pytest.approx([0.0, 0.0, 0.0, -68.66, 218.23])
+
+
+def test_xtb_frames_thermochemistry():
+    """热化学从 THERMODYNAMIC 块与最终块文本提取（cclib 对 xtb hess 日志给出
+    荒谬值，权威值是 :: 块，GH 实锤：cclib freeenergy=-693 Eh vs 文本 -5.01 Eh）。"""
+    thermo = xtb_frames.thermochemistry(HESS_FIXTURE.read_text())
+    assert thermo["total_gibbs_free_energy_hartree"] == pytest.approx(-5.016782875363)
+    assert thermo["total_enthalpy_hartree"] == pytest.approx(-5.045001756720)
+    assert thermo["zero_point_correction_hartree"] == pytest.approx(0.021462987765)
+    assert thermo["thermal_gibbs_correction_hartree"] == pytest.approx(0.052218881357)
+    # 无热化学块的日志返回空 dict（不得编数）
+    assert xtb_frames.thermochemistry(OPT_FIXTURE.read_text()) == {}
+
+
 def test_xtb_frames_detect_job_types():
     assert xtb_frames.detect_job_types_from_text(SP_FIXTURE.read_text()) == {"sp"}
     assert xtb_frames.detect_job_types_from_text(OPT_FIXTURE.read_text()) == {"opt"}
@@ -226,7 +248,7 @@ async def test_log_parser_xtb_unconverged_opt():
 
 @pytest.mark.asyncio
 async def test_log_parser_xtb_hess_frequencies():
-    """频率从 eigval 块文本提取；虚频为负值（取绝对值进 imaginary_frequencies）。"""
+    """频率从 eigval 块文本提取；虚频保留负号（负值=虚频，原生语义）。"""
     from cloudra.tools.Chemtool.log_parser import LogParser, LogParser_input_schema
 
     result = await LogParser().tool_call(
@@ -235,8 +257,65 @@ async def test_log_parser_xtb_hess_frequencies():
     assert result.is_success is True
     assert result.engine == "xtb"
     assert "freq" in result.job_types
-    assert result.imaginary_frequencies == pytest.approx([521.21])
+    assert result.imaginary_frequencies == pytest.approx([-521.21])
     assert result.frequencies_cm == pytest.approx([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 218.23, 436.11])
+
+
+@pytest.mark.asyncio
+async def test_log_parser_xtb_opt_energy_ignores_cclib(monkeypatch):
+    """xtb opt 日志能量权威值是最终 boxed TOTAL ENERGY；cclib 的
+    scfenergies[-1] 是最后一个 opt cycle 的能量（实锤偏差 ~1.1e-6 Eh，
+    真实样本 aldol_selfcond_mech/ts_e1/refine/irc_plus/opt.log）——xtb
+    整体跳过 cclib，与 runtime/monitor.py 一致。"""
+    import types
+
+    import cclib
+
+    from cloudra.tools.Chemtool.log_parser import LogParser, LogParser_input_schema
+
+    # 模拟真实 cclib 行为：能解析但给的是最后 cycle 的能量（≠ boxed 权威值）
+    stub = types.SimpleNamespace(scfenergies=[-137.5])
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: stub)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(OPT_FIXTURE), properties=["energy"]), session=None
+    )
+    assert result.is_success is True
+    assert result.engine == "xtb"
+    # 严格容差：真实样本偏差仅 ~1.1e-6 Eh（cclib -25.585519303 vs boxed
+    # -25.585520428），默认 approx 容差盖不住，必须收紧
+    assert result.scf_energy_hartree == pytest.approx(-5.070320229528, rel=1e-12)
+    assert result.scf_energy_ev == pytest.approx(-5.070320229528 * 27.211386245988)
+
+
+@pytest.mark.asyncio
+async def test_log_parser_xtb_hess_thermochemistry_from_text(monkeypatch):
+    """xtb --hess 日志的热化学走 THERMODYNAMIC 块文本；cclib 的热化学兜底
+    对 xtb 永不生效（实锤：cclib freeenergy=-693.86 Eh 荒谬值）。"""
+    import types
+
+    import cclib
+
+    from cloudra.tools.Chemtool.log_parser import LogParser, LogParser_input_schema
+
+    # cclib 对真实 hess 日志给出的垃圾值（aldol_selfcond_mech/ts_e1/refine/hess_ts19/hess.log）
+    stub = types.SimpleNamespace(
+        freeenergy=-693.8571849416829, enthalpy=-692.5275710158843, zpve=3.156381734019131
+    )
+    monkeypatch.setattr(cclib.io, "ccread", lambda *_args, **_kwargs: stub)
+
+    result = await LogParser().tool_call(
+        LogParser_input_schema(log_path=str(HESS_FIXTURE), properties=["thermochemistry"]),
+        session=None,
+    )
+    assert result.is_success is True
+    assert result.total_gibbs_free_energy_hartree == pytest.approx(-5.016782875363)
+    assert result.total_enthalpy_hartree == pytest.approx(-5.045001756720)
+    assert result.zero_point_correction_hartree == pytest.approx(0.021462987765)
+    assert result.thermal_gibbs_correction_hartree == pytest.approx(0.052218881357)
+    # 兼容别名同步
+    assert result.gibbs_free_energy_hartree == pytest.approx(-5.016782875363)
+    assert result.zero_point_energy_hartree == pytest.approx(0.021462987765)
 
 
 # ---------------------------------------------------------------------------

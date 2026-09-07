@@ -75,6 +75,18 @@ def test_build_responses_payload_translates_kwargs():
     ]
 
 
+def test_build_responses_payload_translates_reasoning_effort():
+    """reasoning_effort 不原样透传顶层字段，翻译为 Responses 的 reasoning.effort。"""
+    payload = _build_responses_payload(_kwargs(reasoning_effort="high"))
+    assert payload["reasoning"] == {"effort": "high"}
+    assert "reasoning_effort" not in payload
+
+
+def test_build_responses_payload_omits_reasoning_when_unset():
+    payload = _build_responses_payload(_kwargs())
+    assert "reasoning" not in payload
+
+
 def test_build_responses_payload_preserves_js_system_layers_and_serial_flag():
     payload = _build_responses_payload({
         **_kwargs(),

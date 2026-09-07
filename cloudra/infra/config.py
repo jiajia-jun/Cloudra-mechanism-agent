@@ -69,6 +69,10 @@ class LLMConfig(BaseSettings):
     context_window: int = 200000
     # 单次 LLM 请求超时秒数（OpenAI SDK 与 requests shim 共用）
     timeout: int = 300
+    # 思考强度（OpenAI 兼容 reasoning_effort）：取值集随 provider 而异
+    # （minimal/low/medium/high 等），None = 不传该参数。空 per-agent
+    # settings 经 legacy_default_settings 回落到本槽位。
+    reasoning_effort: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -228,6 +232,7 @@ class CloudraConfig(BaseSettings):
                     "native_search_params": self.coordinator.native_search_params,
                     "context_window": self.coordinator.context_window,
                     "timeout": self.coordinator.timeout,
+                    "reasoning_effort": self.coordinator.reasoning_effort,
                 },
                 "follower": {
                     "model": self.follower.model,
@@ -238,6 +243,7 @@ class CloudraConfig(BaseSettings):
                     "native_search_params": self.follower.native_search_params,
                     "context_window": self.follower.context_window,
                     "timeout": self.follower.timeout,
+                    "reasoning_effort": self.follower.reasoning_effort,
                 },
             },
             "openalex_api_key": "***" if self.openalex_api_key else "(not set)",

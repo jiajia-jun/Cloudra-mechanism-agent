@@ -31,8 +31,13 @@ TASK_VOCABULARY = frozenset(
 
 # task_type keys the writer understands, mapped to intent tasks. ORCA-specific
 # rejections (Gaussian-style sub-options etc.) are produced by
-# validate_writer_request, not silently dropped.
-_WRITER_TASK_KEYS = frozenset({"opt", "freq", "irc", "scan", "sp"})
+# validate_writer_request, not silently dropped. 'sp' is the historical short
+# spelling of the canonical 'single_point' (TASK_VOCABULARY); both are accepted
+# and normalized to 'single_point'.
+_WRITER_TASK_KEYS = frozenset({"opt", "freq", "irc", "scan", "sp", "single_point"})
+
+# writer 键 -> 规范化键（规范化入口：语义等价拼写在进入 seen/tasks 前统一）
+_WRITER_KEY_CANONICAL = {"sp": "single_point"}
 
 # Gaussian TS sub-options that have no ORCA simple-keyword translation; the
 # ORCA native equivalent is %geom / Hessian source blocks via orca_blocks.
@@ -101,7 +106,7 @@ def _writer_tasks(arguments: dict[str, Any]) -> tuple[set[str], list[str]]:
                 tasks.add("irc")
             elif key_l == "scan":
                 tasks.add("relaxed_scan")
-            elif key_l == "sp":
+            elif key_l in ("sp", "single_point"):
                 tasks.add("single_point")
     return tasks, unknown
 
@@ -176,18 +181,20 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                     f"{sorted(_WRITER_TASK_KEYS)}.{suggestion}",
                 ))
                 continue
-            if key_l in seen and seen[key_l] != value:
+            # 语义等价拼写（sp/single_point）归一后判重，不能借拼写绕过
+            canonical = _WRITER_KEY_CANONICAL.get(key_l, key_l)
+            if canonical in seen and seen[canonical] != value:
                 entries.append(_entry(
                     "conflicting_task", "task_type",
-                    f"Task {key_l!r} given twice with conflicting parameters "
-                    f"({seen[key_l]!r} vs {value!r}); merge them into one entry.",
+                    f"Task {canonical!r} given twice with conflicting parameters "
+                    f"({seen[canonical]!r} vs {value!r}); merge them into one entry.",
                 ))
-            elif key_l in seen:
+            elif canonical in seen:
                 entries.append(_entry(
                     "duplicate_task", "task_type",
-                    f"Task {key_l!r} appears more than once; keep a single entry.",
+                    f"Task {canonical!r} appears more than once; keep a single entry.",
                 ))
-            seen[key_l] = value
+            seen[canonical] = value
 
     tasks, _ = _writer_tasks(arguments)
     mode = str(arguments.get("frequency_mode") or "auto").lower()

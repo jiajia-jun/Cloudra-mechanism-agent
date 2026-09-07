@@ -1,9 +1,11 @@
-"""xtb 输出日志文本原语：终止判定 + 能量/优化收敛/频率提取。
+"""xtb 输出日志文本原语：终止判定 + 能量/优化收敛/频率/热化学提取。
 
 与 orca_frames 对齐的纯函数模块（GH #26）。xtb 主输出全部走 stdout
-（calculator.sh 重定向到 ``<输入stem>.out``），cclib 对 xtb 支持薄弱，
-故终态判定与字段提取一律走文本权威判据；guard（runtime/monitor.py）与
-log_parser 共用本模块，行为与 orca_frames 同款：
+（calculator.sh 重定向到 ``<输入stem>.out``）；cclib 1.8.1 的 xtb parser
+结果错误（opt 能量取到最后 cycle、hess 热化学为荒谬值），故终态判定与
+字段提取一律走文本权威判据，xtb 引擎在 log_parser 中整体跳过 cclib；
+guard（runtime/monitor.py）与 log_parser 共用本模块，行为与 orca_frames
+同款：
 
 - 正常终止标记 ``normal termination of xtb``（引擎自报）；
 - 优化收敛是独立于终止标记的第二判据（GH #21 同款语义）：未收敛的优化
@@ -103,18 +105,82 @@ def dipole_debye(text: str) -> float | None:
 
 
 # ---------------------------------------------------------------------------
+# 热化学（THERMODYNAMIC 块 + 最终块的 ENTHALPY/FREE ENERGY 行）
+# ---------------------------------------------------------------------------
+
+# THERMODYNAMIC 块：":: total free energy  -25.4987... Eh" 等
+_THERMO_FREE_ENERGY_RE = re.compile(rf"::\s*total free energy\s+{_FLOAT}\s+Eh")
+_THERMO_ZPE_RE = re.compile(rf"::\s*zero point energy\s+{_FLOAT}\s+Eh")
+_THERMO_G_RRHO_RE = re.compile(rf"::\s*G\(RRHO\) contrib\.\s+{_FLOAT}\s+Eh")
+# 最终块 "| TOTAL ENTHALPY  -25.4499... Eh"（hess 日志才有；TOTAL ENERGY /
+# TOTAL FREE ENERGY 已由能量/free-energy 正则覆盖，注意前缀不互相误中）
+_FINAL_ENTHALPY_RE = re.compile(rf"\| TOTAL ENTHALPY\s+{_FLOAT}\s+Eh")
+
+
+def _last_float(pattern: re.Pattern, text: str) -> float | None:
+    match = None
+    for match in pattern.finditer(text):
+        pass
+    if match is None:
+        return None
+    return float(match.group(1).replace("D", "E").replace("d", "e"))
+
+
+def thermochemistry(text: str) -> dict[str, float]:
+    """提取 xtb hess 日志的热化学量（Eh），键名与 log_parser 输出字段对齐。
+
+    cclib 对 xtb --hess 日志的热化学属性给出荒谬值（实锤：freeenergy 报
+    -693 Eh），权威值在 THERMODYNAMIC 块与最终块：
+
+    - ``total_gibbs_free_energy_hartree`` ← ``:: total free energy``；
+    - ``total_enthalpy_hartree`` ← 最终块 ``TOTAL ENTHALPY``；
+    - ``zero_point_correction_hartree`` ← ``:: zero point energy``；
+    - ``thermal_gibbs_correction_hartree`` ← ``:: G(RRHO) contrib.``。
+
+    无热化学块（非 freq 任务）时返回空 dict——缺数据保持缺失，不编数。
+    """
+    thermo: dict[str, float] = {}
+    free_energy = _last_float(_THERMO_FREE_ENERGY_RE, text)
+    if free_energy is not None:
+        thermo["total_gibbs_free_energy_hartree"] = free_energy
+    enthalpy = _last_float(_FINAL_ENTHALPY_RE, text)
+    if enthalpy is not None:
+        thermo["total_enthalpy_hartree"] = enthalpy
+    zpe = _last_float(_THERMO_ZPE_RE, text)
+    if zpe is not None:
+        thermo["zero_point_correction_hartree"] = zpe
+    g_rrho = _last_float(_THERMO_G_RRHO_RE, text)
+    if g_rrho is not None:
+        thermo["thermal_gibbs_correction_hartree"] = g_rrho
+    return thermo
+
+
+# ---------------------------------------------------------------------------
 # 频率（projected vibrational frequencies 的 eigval 行）
 # ---------------------------------------------------------------------------
 
 _EIGVAL_LINE_RE = re.compile(r"^\s*eigval\s*:\s*(.*)$")
+# 虚频的另一种写法：数值带 i 后缀（如 "68.66i"），语义等同负值
+_EIGVAL_TOKEN_RE = re.compile(rf"^{_FLOAT}(i?)$", re.IGNORECASE)
+
+
+def _eigval_tokens(line_body: str) -> list[float]:
+    values: list[float] = []
+    for tok in line_body.split():
+        m = _EIGVAL_TOKEN_RE.match(tok)
+        if m is None:
+            continue
+        value = float(m.group(1).replace("D", "E").replace("d", "e"))
+        values.append(-abs(value) if m.group(2) else value)
+    return values
 
 
 def vibfreqs_from_text(text: str) -> list[float]:
     """解析最后一个 projected vibrational frequencies 块的频率（cm⁻¹）。
 
-    负值=虚频；保留打头的平动/转动零频模式（与 orca_frames 同款语义），
-    调用方按符号拆分实频/虚频即可。无频率块时返回空列表——调用方须保持
-    None 语义，不得当成零虚频。
+    负值=虚频（i 后缀写法同样解析为负值）；保留打头的平动/转动零频模式
+    （与 orca_frames 同款语义），调用方按符号拆分实频/虚频即可。无频率块
+    时返回空列表——调用方须保持 None 语义，不得当成零虚频。
     """
     idx = text.rfind("projected vibrational frequencies")
     if idx < 0:
@@ -126,7 +192,7 @@ def vibfreqs_from_text(text: str) -> list[float]:
             if freqs:
                 break  # eigval 行连续成块，块外即停
             continue
-        freqs.extend(float(tok) for tok in m.group(1).split())
+        freqs.extend(_eigval_tokens(m.group(1)))
     return freqs
 
 

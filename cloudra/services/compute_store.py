@@ -25,6 +25,7 @@ _COMPUTE_JOB_COLUMNS = (
     "scheduler_options", "scheduler_job_id", "scheduler_state",
     "scheduler_script", "last_error", "lease_owner", "lease_expires_at",
     "attempt_count", "priority", "req_cpus", "req_memory_mb",
+    "charge", "multiplicity", "xtb_task", "xtb_solvent",
     "guard_pid", "calc_pid", "notified_at",
 )
 _SELECT_COLUMNS = ", ".join(_COMPUTE_JOB_COLUMNS)
@@ -60,8 +61,9 @@ def _row_dict(row) -> dict:
 _INSERT_SQL = """INSERT INTO compute_jobs
     (conversation_id, session_id, path, state, jobtype,
      start_timestamp, end_timestamp, scheduler, scheduler_options,
-     priority, req_cpus, req_memory_mb)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"""
+     priority, req_cpus, req_memory_mb,
+     charge, multiplicity, xtb_task, xtb_solvent)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
 
 
 def _insert_params(
@@ -76,6 +78,10 @@ def _insert_params(
     priority: int,
     req_cpus: int,
     req_memory_mb: Optional[int],
+    charge: int,
+    multiplicity: int,
+    xtb_task: str,
+    xtb_solvent: Optional[str],
     start_timestamp: float,
 ) -> tuple:
     if not conversation_id:
@@ -84,6 +90,7 @@ def _insert_params(
         conversation_id, session_id, path, state, jobtype,
         start_timestamp, -1, scheduler, scheduler_options,
         priority, req_cpus, req_memory_mb,
+        charge, multiplicity, xtb_task, xtb_solvent,
     )
 
 
@@ -100,6 +107,10 @@ def insert_compute_job(
     priority: int = 0,
     req_cpus: int = 1,
     req_memory_mb: Optional[int] = None,
+    charge: int = 0,
+    multiplicity: int = 1,
+    xtb_task: str = "sp",
+    xtb_solvent: Optional[str] = None,
     start_timestamp: float = -1,
 ) -> int:
     """写入一条作业记录，返回 job id。conversation_id 必填（作业归属的项目）。"""
@@ -108,6 +119,8 @@ def insert_compute_job(
         state=state, jobtype=jobtype, scheduler=scheduler,
         scheduler_options=scheduler_options, priority=priority,
         req_cpus=req_cpus, req_memory_mb=req_memory_mb,
+        charge=charge, multiplicity=multiplicity,
+        xtb_task=xtb_task, xtb_solvent=xtb_solvent,
         start_timestamp=start_timestamp,
     )
 
@@ -133,6 +146,10 @@ async def ainsert_compute_job(
     priority: int = 0,
     req_cpus: int = 1,
     req_memory_mb: Optional[int] = None,
+    charge: int = 0,
+    multiplicity: int = 1,
+    xtb_task: str = "sp",
+    xtb_solvent: Optional[str] = None,
     start_timestamp: float = -1,
 ) -> int:
     """异步写入一条作业记录；语义同 :func:`insert_compute_job`。"""
@@ -141,6 +158,8 @@ async def ainsert_compute_job(
         state=state, jobtype=jobtype, scheduler=scheduler,
         scheduler_options=scheduler_options, priority=priority,
         req_cpus=req_cpus, req_memory_mb=req_memory_mb,
+        charge=charge, multiplicity=multiplicity,
+        xtb_task=xtb_task, xtb_solvent=xtb_solvent,
         start_timestamp=start_timestamp,
     )
 

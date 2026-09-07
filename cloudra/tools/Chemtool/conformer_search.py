@@ -94,6 +94,11 @@ class ConformerSearch_input_schema(input_schema):
         description="Structure text (xyz or mol block). If input_path is set, the file is read instead."
     )
     charge: int = Field(default=0, description="Total molecular charge. Used when inferring bond orders from xyz.")
+    multiplicity: int = Field(
+        default=1,
+        description="Spin multiplicity (2S+1). CREST backend: passed to xtb as --uhf = multiplicity - 1. "
+                    "The RDKit backend (MMFF/UFF force fields) is closed-shell only and rejects multiplicity > 1."
+    )
     backend: Literal["rdkit", "crest"] = Field(
         default="rdkit",
         description="Search backend. rdkit: ETKDGv3 sampling + MMFF/UFF optimization; crest: external CREST (GFN2-xTB, --quick)."
@@ -345,22 +350,32 @@ class ConformerSearch(Tool):
         return False
 
     @staticmethod
-    def _optimize_single(mol, cid: int, use_mmff: bool, ignore_interfrag: bool,
+    def _mmff_single_point_energy(mol, cid: int, ignore_interfrag: bool) -> Optional[float]:
+        """指定构象的 MMFF94 单点能量（kcal/mol）；无法构建力场时返回 None。"""
+        props = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94")
+        if props is None:
+            return None
+        ff = AllChem.MMFFGetMoleculeForceField(
+            mol, props, confId=cid, ignoreInterfragInteractions=ignore_interfrag)
+        if ff is None:
+            return None
+        return float(ff.CalcEnergy())
+
+    def _optimize_single(self, mol, cid: int, ignore_interfrag: bool,
                          max_iters: int = 2000) -> Optional[tuple[float, str]]:
-        """优化单个构象：use_mmff 时先试 MMFF（加大迭代次数），不收敛回退 UFF；皆败返回 None。
-        成功返回 (能量 kcal/mol, 力场名)。"""
-        if use_mmff and AllChem.MMFFOptimizeMolecule(
+        """优化单个构象：先试 MMFF（加大迭代次数），不收敛回退 UFF；皆败返回 None。
+        UFF 仅作几何优化引擎：UFF 收敛的几何统一用 MMFF 单点重估能量（MMFF 与 UFF 零点不同，
+        UFF 能量值绝不进入排序/能窗/布居）。成功返回 (MMFF 能量 kcal/mol, 力场名)。"""
+        if AllChem.MMFFOptimizeMolecule(
                 mol, confId=cid, maxIters=max_iters, ignoreInterfragInteractions=ignore_interfrag) == 0:
-            props = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94")
-            ff = AllChem.MMFFGetMoleculeForceField(
-                mol, props, confId=cid, ignoreInterfragInteractions=ignore_interfrag) if props else None
-            if ff is not None:
-                return float(ff.CalcEnergy()), "MMFF"
+            energy = self._mmff_single_point_energy(mol, cid, ignore_interfrag)
+            if energy is not None:
+                return energy, "MMFF"
         if AllChem.UFFOptimizeMolecule(
                 mol, confId=cid, maxIters=max_iters, ignoreInterfragInteractions=ignore_interfrag) == 0:
-            ff = AllChem.UFFGetMoleculeForceField(mol, confId=cid, ignoreInterfragInteractions=ignore_interfrag)
-            if ff is not None:
-                return float(ff.CalcEnergy()), "UFF"
+            energy = self._mmff_single_point_energy(mol, cid, ignore_interfrag)
+            if energy is not None:
+                return energy, "UFF geometry, MMFF single-point"
         return None
 
     @staticmethod
@@ -410,6 +425,15 @@ class ConformerSearch(Tool):
 
     def _run_rdkit(self, user_input: ConformerSearch_input_schema) -> ConformerSearch_output_schema:
         try:
+            if user_input.multiplicity > 1:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message=(
+                        "The RDKit force-field backend (MMFF/UFF) is closed-shell only and cannot model an "
+                        f"open-shell system (multiplicity={user_input.multiplicity}). Refusing to silently run "
+                        "it as a closed-shell molecule — use backend='crest', which passes --uhf = multiplicity - 1."
+                    ),
+                )
             mol = self._load_mol(user_input)
             mol = Chem.AddHs(mol, addCoords=True)
             natoms = mol.GetNumAtoms()
@@ -442,23 +466,38 @@ class ConformerSearch(Tool):
                                 "that re-embedding could not resolve; aborting.",
                     )
 
-            # MMFF 优化；逐构象检查收敛标志，失败者加大迭代次数重试并回退 UFF，两者皆败剔除（0.0 绝不当作能量）
+            # MMFF 优化；逐构象检查收敛标志，失败者加大迭代次数重试并回退 UFF，两者皆败剔除（0.0 绝不当作能量）。
+            # UFF 只作几何优化引擎：MMFF 与 UFF 零点不同（可差 ~17 kcal/mol），UFF 回退构象的几何统一用
+            # MMFF 单点重估能量后再入排序/能窗/Boltzmann；分子缺 MMFF 参数时无法重估，显式拒收而非输出
+            # 不可比的 UFF 能量表。
             use_mmff = AllChem.MMFFHasAllMoleculeParams(mol)
-            ff_name = "MMFF" if use_mmff else "UFF"
-            if use_mmff:
-                opt_results = AllChem.MMFFOptimizeMoleculeConfs(mol, ignoreInterfragInteractions=ignore_interfrag)
-            else:
-                opt_results = AllChem.UFFOptimizeMoleculeConfs(mol, ignoreInterfragInteractions=ignore_interfrag)
+            if not use_mmff:
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message=(
+                        "MMFF94 parameters are missing for at least one atom of this molecule "
+                        "(MMFFHasAllMoleculeParams=False), so UFF-optimized geometries cannot be re-evaluated "
+                        "on the MMFF energy scale. UFF energies use a different zero point and must not enter "
+                        "energy ranking or Boltzmann populations; aborting instead of reporting UFF energies. "
+                        "Use backend='crest' for this system."
+                    ),
+                )
+            ff_name = "MMFF"
+            opt_results = AllChem.MMFFOptimizeMoleculeConfs(mol, ignoreInterfragInteractions=ignore_interfrag)
             energies = {cid: float(e) for cid, (ok, e) in zip(cids, opt_results) if ok == 0}
             failed_cids = [cid for cid in cids if cid not in energies]
             uff_rescued = 0
             for cid in failed_cids:
-                res = self._optimize_single(mol, cid, use_mmff, ignore_interfrag)
+                res = self._optimize_single(mol, cid, ignore_interfrag)
                 if res is not None:
                     energies[cid] = res[0]
-                    uff_rescued += res[1] == "UFF"
-            if use_mmff and uff_rescued:
-                ff_name = f"MMFF (UFF fallback for {uff_rescued} unconverged conformer(s))"
+                    uff_rescued += res[1].startswith("UFF")
+            if uff_rescued:
+                ff_name = (
+                    f"MMFF ({uff_rescued} unconverged conformer(s) optimized with UFF as geometry engine only; "
+                    "their energies are MMFF single-point re-evaluations on the UFF geometries, so all reported "
+                    "energies share the MMFF zero point and UFF energies never enter ranking or populations)"
+                )
             counts["optimized"] = len(energies)
             counts["optimization_failed"] = len(cids) - len(energies)
             if not energies:
@@ -630,6 +669,15 @@ class ConformerSearch(Tool):
             raise ValueError("No conformer frames parsed from crest_conformers.xyz")
         return frames
 
+    @staticmethod
+    def _crest_command(user_input: ConformerSearch_input_schema) -> list[str]:
+        """CREST 命令行：电荷与自旋（--uhf = multiplicity - 1，与 xtb 通道口径一致）显式透传。"""
+        return [
+            "crest", "input.xyz", "-gfn2", "--quick",
+            "--chrg", str(user_input.charge),
+            "--uhf", str(user_input.multiplicity - 1),
+        ]
+
     def _run_crest(self, user_input: ConformerSearch_input_schema) -> ConformerSearch_output_schema:
         if shutil.which("crest") is None:
             return ConformerSearch_output_schema(
@@ -673,7 +721,7 @@ class ConformerSearch(Tool):
                 input_xyz = os.path.join(workdir, "input.xyz")
                 atomic_write_text(input_xyz, xyz_text)
                 proc = subprocess.run(
-                    ["crest", "input.xyz", "-gfn2", "--quick", "--chrg", str(user_input.charge)],
+                    self._crest_command(user_input),
                     cwd=workdir, capture_output=True, text=True, timeout=user_input.timeout,
                 )
                 crest_xyz = os.path.join(workdir, "crest_conformers.xyz")
@@ -776,6 +824,21 @@ class ConformerSearch(Tool):
 
     async def tool_call(self, user_input: ConformerSearch_input_schema, session: Session) -> ConformerSearch_output_schema:
         import asyncio
+
+        # 前置校验：temperature<=0 会让 Boltzmann 布居除零/NaN；multiplicity<1 无物理意义。
+        if user_input.temperature <= 0:
+            return ConformerSearch_output_schema(
+                is_success=False,
+                message=(
+                    f"temperature must be > 0 K for Boltzmann populations, got {user_input.temperature:g}. "
+                    "Negative or zero temperature would produce NaN/non-finite populations."
+                ),
+            )
+        if user_input.multiplicity < 1:
+            return ConformerSearch_output_schema(
+                is_success=False,
+                message=f"multiplicity must be >= 1 (2S+1), got {user_input.multiplicity}.",
+            )
 
         # CREST / RDKit 都是同步 CPU/子进程；必须离开 UI 事件循环，否则 TUI 假死。
         if user_input.backend == "crest":

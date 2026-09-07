@@ -62,6 +62,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 "key_set": bool(role.key),
                 "context_window": role.context_window,
                 "timeout": role.timeout,
+                "reasoning_effort": role.reasoning_effort,
             }
 
         return {

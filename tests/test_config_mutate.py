@@ -108,6 +108,27 @@ def test_concurrent_mutations_do_not_lose_updates(cfg_env, monkeypatch):
     assert cfg.email.user == f"user-{rounds - 1}@example.edu"
 
 
+def test_reasoning_effort_yaml_round_trip(cfg_env, monkeypatch, tmp_path):
+    """reasoning_effort 经 mutate 落盘后可从 YAML 原样读回，且出现在
+    to_display_dict 手抄清单里；默认 None 即"不传"。"""
+    from cloudra.infra.config import CloudraConfig, get_config, mutate_config
+
+    monkeypatch.setattr(cfg_env.coordinator, "reasoning_effort", None)  # teardown 复位
+    assert cfg_env.coordinator.reasoning_effort is None
+
+    mutate_config(lambda work: setattr(work.coordinator, "reasoning_effort", "high"))
+
+    assert _read_yaml(cfg_env.config_file)["llm"]["coordinator"]["reasoning_effort"] == "high"
+    assert get_config().coordinator.reasoning_effort == "high"
+
+    # 磁盘是事实源：从 YAML 重建的实例同样读到 high
+    reloaded = CloudraConfig(config_file=cfg_env.config_file, data_dir=tmp_path / "data")
+    assert reloaded.coordinator.reasoning_effort == "high"
+    display = reloaded.to_display_dict()
+    assert display["llm"]["coordinator"]["reasoning_effort"] == "high"
+    assert display["llm"]["follower"]["reasoning_effort"] is None
+
+
 def test_add_plugin_idempotent(cfg_env):
     from cloudra.infra.config import add_plugin, get_config
 

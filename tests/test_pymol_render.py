@@ -117,3 +117,41 @@ async def test_missing_pymol_reports_install_hint(pdb_file, mock_session, monkey
     )
     assert not result.is_success
     assert "cloudra[visual]" in result.message
+
+
+# ---------------------------------------------------------------------------
+# F8：output_path 不带 .png 时产物路径对齐（PyMOL 会自动补 .png）
+# ---------------------------------------------------------------------------
+
+
+def test_expected_png_path_helper():
+    """产物路径 = 用户路径，或用户路径 + '.png'（大小写无关）。"""
+    assert pymol_render._expected_png_path("/tmp/a.png") == "/tmp/a.png"
+    assert pymol_render._expected_png_path("/tmp/a.PNG") == "/tmp/a.PNG"
+    assert pymol_render._expected_png_path("/tmp/a") == "/tmp/a.png"
+    assert pymol_render._expected_png_path("out") == "out.png"
+
+
+@pytest.mark.asyncio
+async def test_output_without_png_extension_succeeds(tmp_path, pdb_file, mock_session, monkeypatch):
+    """output_path 不带 .png：PyMOL 写到 <path>.png，工具必须按真实产物检查与返回。"""
+    monkeypatch.setattr(pymol_render.shutil, "which", lambda name: "/usr/bin/fake-pymol")
+    out = str(tmp_path / "gly")
+
+    def fake_render(binary, commands):
+        # 从 png 命令行解析目标基名，PyMOL 会在其后加 .png
+        png_line = next(c for c in commands if c.startswith("png "))
+        target = png_line[4:].split(",", 1)[0].strip().strip('"')
+        from pathlib import Path as _Path
+        _Path(target + ".png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+
+    monkeypatch.setattr(pymol_render, "_render_with_binary", fake_render)
+    tool = PymolRender()
+    result = await tool.tool_call(
+        PymolRender_input_schema(structure_path=pdb_file, output_path=out, ray=False),
+        mock_session,
+    )
+    assert result.is_success, result.message
+    assert result.image_path.endswith("gly.png")
+    assert result.image_path != out  # 返回真实产物路径，而非请求的无扩展名路径
+    assert (tmp_path / "gly.png").stat().st_size > 0

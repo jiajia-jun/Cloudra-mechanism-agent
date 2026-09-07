@@ -94,6 +94,7 @@ class GlobalConfigFieldPatch(BaseModel):
     key: Optional[str] = None
     context_window: Optional[int] = Field(default=None, ge=1)
     timeout: Optional[int] = Field(default=None, ge=1)
+    reasoning_effort: Optional[str] = None
 
 
 class GlobalConfigPatch(BaseModel):

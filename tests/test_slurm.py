@@ -19,7 +19,7 @@ def test_batch_script_uses_validated_directives_and_shell_quoting(
     input_file.write_text("# test\n", encoding="utf-8")
     monkeypatch.setattr(
         "cloudra.infra.slurm.build_calculator_cmd",
-        lambda path, job_type: (True, ["/bin/bash", "/opt/cloudra/calculator.sh", path, job_type], ""),
+        lambda path, job_type, **_kwargs: (True, ["/bin/bash", "/opt/cloudra/calculator.sh", path, job_type], ""),
     )
     script = build_batch_script(
         input_file,
@@ -49,7 +49,7 @@ def test_batch_script_rejects_directive_injection(tmp_path, monkeypatch):
     input_file.write_text("# test\n", encoding="utf-8")
     monkeypatch.setattr(
         "cloudra.infra.slurm.build_calculator_cmd",
-        lambda path, job_type: (True, ["/bin/bash", "calculator.sh", path, job_type], ""),
+        lambda path, job_type, **_kwargs: (True, ["/bin/bash", "calculator.sh", path, job_type], ""),
     )
     with pytest.raises(SlurmError, match="partition"):
         build_batch_script(

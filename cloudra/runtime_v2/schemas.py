@@ -74,6 +74,9 @@ class RuntimeSettingsPatch(BaseModel):
     clean_context: Optional[bool] = None
     native_search: Optional[str] = None
     native_search_params: Optional[dict[str, Any]] = None
+    # 思考强度（OpenAI 兼容的 reasoning_effort）：取值集随 provider 而异
+    # （minimal/low/medium/high 等），不做枚举校验，None = 完全不传该参数。
+    reasoning_effort: Optional[str] = None
     orchestration_mode: Optional[OrchestrationMode] = None
     invocation_protocol: Optional[InvocationProtocol] = None
     api_key: Optional[str] = Field(default=None, repr=False)

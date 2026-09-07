@@ -44,21 +44,7 @@ class ImageToSmiles(Tool):
                 message=f"File does not exist: {path}"
             )
 
-        # 尝试导入 DECIMER（支持 GitHub 版大写和 PyPI 版小写两种包名）
-        predict_func = None
-        import_error_msg = ""
-        for module_name, func_name in [("DECIMER", "predict_SMILES"), ("decimer", "predict_SMILES")]:
-            try:
-                mod = __import__(module_name, fromlist=[func_name])
-                predict_func = getattr(mod, func_name)
-                break
-            except ImportError as e:
-                import_error_msg = str(e)
-                continue
-            except AttributeError as e:
-                import_error_msg = str(e)
-                continue
-
+        predict_func, import_error_msg = _load_predict_func()
         if predict_func is None:
             return ImageToSmiles_output_schema(
                 is_success=False,
@@ -74,15 +60,41 @@ class ImageToSmiles(Tool):
 
         try:
             smiles = predict_func(path)
-            if not smiles or not isinstance(smiles, str):
+            if not isinstance(smiles, str):
                 return ImageToSmiles_output_schema(
                     is_success=False,
                     smiles="",
-                    message="DECIMER could not recognize a valid chemical structure from the image."
+                    message="DECIMER returned a non-text result; cannot recognize a chemical structure.",
+                )
+            smiles = smiles.strip()
+            if not smiles:
+                return ImageToSmiles_output_schema(
+                    is_success=False,
+                    smiles="",
+                    message="DECIMER returned an empty result; no chemical structure was recognized from the image.",
+                )
+            # 识别结果零校验是静默错值的来源：必须 RDKit 校验（非法 SMILES 即失败，
+            # 不得把 DECIMER 的胡话当成功结果回给 agent）。
+            try:
+                from rdkit import Chem
+            except Exception as exc:
+                return ImageToSmiles_output_schema(
+                    is_success=False,
+                    smiles="",
+                    message=(
+                        f"Cannot validate the recognized SMILES without RDKit: {exc}. "
+                        "Install it with: pip install 'cloudra[chem]'"
+                    ),
+                )
+            if Chem.MolFromSmiles(smiles) is None:
+                return ImageToSmiles_output_schema(
+                    is_success=False,
+                    smiles="",
+                    message=f"DECIMER output is not a valid SMILES string: {smiles!r} — refusing to report it as a structure.",
                 )
             return ImageToSmiles_output_schema(
                 is_success=True,
-                smiles=smiles.strip(),
+                smiles=smiles,
                 message="Chemical structure recognized successfully."
             )
         except Exception as e:
@@ -91,6 +103,25 @@ class ImageToSmiles(Tool):
                 smiles="",
                 message=f"Recognition raised an exception: {str(e)}"
             )
+
+
+def _load_predict_func():
+    """加载 DECIMER 的 predict_SMILES（支持 GitHub 版大写与 PyPI 版小写两种包名）。
+
+    抽成函数便于测试注入假 DECIMER（识别结果校验单元不依赖真实模型）。
+    """
+    import_error_msg = ""
+    for module_name, func_name in [("DECIMER", "predict_SMILES"), ("decimer", "predict_SMILES")]:
+        try:
+            mod = __import__(module_name, fromlist=[func_name])
+            return getattr(mod, func_name), import_error_msg
+        except ImportError as e:
+            import_error_msg = str(e)
+            continue
+        except AttributeError as e:
+            import_error_msg = str(e)
+            continue
+    return None, import_error_msg
 
 
 def get_class():

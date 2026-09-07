@@ -177,6 +177,61 @@ async def test_o2_triplet_uhf(tool, mock_session):
 
 
 @pytest.mark.asyncio
+async def test_o2_triplet_mayer_bond_order_includes_spin_term(tool, mock_session):
+    """O2 三重态 b3lyp/def2-svp：开壳层 Mayer 键级必须叠加自旋密度项。
+
+    缺 Ps 项时 O-O BO≈1.37（被误判为 TS-like 部分键）；补全后 BO≈1.85（正确双键）。
+    """
+    result = await tool.safe_call(
+        ElectronicAnalysis_input_schema(
+            input_text=O2_TRIPLET_XYZ, spin=3, method="b3lyp", basis="def2-svp",
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+
+    bo_section = result.report.split("=== Bond Orders")[1].split("=== IBO")[0]
+    oo_lines = [ln for ln in bo_section.splitlines() if "O1" in ln and "O2" in ln and "BO=" in ln]
+    assert oo_lines
+    bo = float(oo_lines[0].split("BO=")[1].split()[0])
+    assert 1.7 < bo < 2.0
+    assert "partial bond" not in oo_lines[0]
+    assert "Partial bond (TS-like) detected" not in result.report
+
+
+@pytest.mark.asyncio
+async def test_closed_shell_mayer_bo_regression_water(tool, mock_session):
+    """闭壳层回归：水 O-H Mayer 键级仍接近 1，开壳层公式扩展不影响闭壳层路径。"""
+    result = await tool.safe_call(
+        ElectronicAnalysis_input_schema(input_text=WATER_XYZ, method="hf", basis="sto-3g"),
+        mock_session,
+    )
+    assert result.is_success is True
+    bo_section = result.report.split("=== Bond Orders")[1].split("=== IBO")[0]
+    oh_lines = [ln for ln in bo_section.splitlines() if "O1" in ln and "BO=" in ln]
+    assert len(oh_lines) == 2
+    for ln in oh_lines:
+        bo = float(ln.split("BO=")[1].split()[0])
+        assert 0.8 < bo < 1.2
+        assert "partial bond" not in ln
+
+
+def test_core_orbital_count_heavy_elements(tool):
+    """核芯轨道计数按周期表电子排布：Kr→9、Xe→18、Rn→27、Og→43（旧实现对 Z>36 封顶 9）。"""
+    cases = {
+        "H": 0, "He": 0,
+        "Li": 1, "Ne": 1,
+        "Na": 5, "Ar": 5,
+        "K": 9, "Kr": 9,
+        "Rb": 18, "Xe": 18,
+        "Cs": 27, "Rn": 27,
+        "Fr": 43, "Og": 43,
+    }
+    for symbol, expected in cases.items():
+        assert ElectronicAnalysis._core_orbital_count(symbol) == expected, symbol
+
+
+@pytest.mark.asyncio
 async def test_closed_shell_unaffected_by_openshell_changes(tool, mock_session):
     """闭壳层报告不出现自旋相关字段，且默认启用密度拟合不改变结论。"""
     result = await tool.safe_call(

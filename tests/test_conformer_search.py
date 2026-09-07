@@ -256,6 +256,95 @@ async def test_all_forcefield_failures_return_error(tool, mock_session, tmp_path
 
 
 @pytest.mark.asyncio
+async def test_uff_fallback_energies_rescored_with_mmff(tool, mock_session, tmp_path, monkeypatch):
+    """C1：MMFF 优化不收敛、UFF 回退的构象，其能量必须是 UFF 几何上的 MMFF 单点（同一零点），
+    UFF 能量值不得进入排序/能窗/Boltzmann。"""
+    monkeypatch.setattr(
+        conformer_mod.AllChem, "MMFFOptimizeMoleculeConfs",
+        lambda mol, **kw: [(1, 0.0)] * mol.GetNumConformers(),
+    )
+    monkeypatch.setattr(conformer_mod.AllChem, "MMFFOptimizeMolecule", lambda mol, **kw: 1)
+    out_dir = tmp_path / "uff_rescored"
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCCC", num_confs=30, output_dir=str(out_dir)),
+        mock_session,
+    )
+    assert result.is_success is True
+    assert "UFF" in result.message
+    assert "single-point" in result.message or "single point" in result.message
+
+    # 独立复算：conf0 的落盘几何做 MMFF 单点，必须与表内 abs 能量一致（MMFF 零点）；
+    # 同一几何的 UFF 能量（零点差 ~17 kcal）绝不允许出现。SDF 的 MolToMolBlock 坐标
+    # 只写 ~1e-3 Å 精度，回读几何的 MMFF 单点与表内高精度值允许 0.05 kcal 偏差
+    # （远小于 MMFF/UFF 的 ~17 kcal 零点差）。
+    from rdkit import Chem as _Chem
+    from rdkit.Chem import AllChem as _AllChem
+
+    suppl = _Chem.SDMolSupplier(str(out_dir / "confs.sdf"), removeHs=False)
+    m0 = next(m for m in suppl if m is not None)
+    props = _AllChem.MMFFGetMoleculeProperties(m0, mmffVariant="MMFF94")
+    expected_mmff = float(_AllChem.MMFFGetMoleculeForceField(m0, props).CalcEnergy())
+    uff_e = float(_AllChem.UFFGetMoleculeForceField(m0).CalcEnergy())
+    reported = float(m0.GetProp("energy"))
+    assert abs(reported - expected_mmff) < 0.05
+    assert abs(reported - uff_e) > 1.0
+
+
+@pytest.mark.asyncio
+async def test_missing_mmff_params_fails_loud(tool, mock_session, tmp_path, monkeypatch):
+    """C1：分子缺 MMFF 参数时无法把 UFF 几何重估到同一零点——显式拒收并披露原因，绝不输出 UFF 能量表。"""
+    monkeypatch.setattr(conformer_mod.AllChem, "MMFFHasAllMoleculeParams", lambda mol: False)
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCCC", num_confs=10, output_dir=str(tmp_path / "no_mmff")),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "MMFF" in result.message
+
+
+# ---------- C2：CREST multiplicity 透传 + temperature 校验 ----------
+
+def test_schema_multiplicity_field():
+    """C2：schema 暴露 multiplicity（默认 1），开壳层输入不再被静默按闭壳层处理。"""
+    assert ConformerSearch_input_schema(smiles="CCCC").multiplicity == 1
+    assert ConformerSearch_input_schema(smiles="CCCC", multiplicity=3).multiplicity == 3
+
+
+def test_crest_command_passes_uhf():
+    """C2：CREST 命令行透传 --uhf = multiplicity - 1（与 xtb 通道口径一致）。"""
+    cmd = ConformerSearch._crest_command(ConformerSearch_input_schema(smiles="CCCC", backend="crest"))
+    assert cmd[cmd.index("--uhf") + 1] == "0"
+    cmd = ConformerSearch._crest_command(
+        ConformerSearch_input_schema(smiles="[CH3]", backend="crest", charge=-1, multiplicity=3)
+    )
+    assert cmd[cmd.index("--uhf") + 1] == "2"
+    assert cmd[cmd.index("--chrg") + 1] == "-1"
+
+
+@pytest.mark.asyncio
+async def test_rdkit_backend_rejects_open_shell(tool, mock_session, tmp_path):
+    """C2：RDKit 力场后端无法处理开壳层，multiplicity>1 必须 fail-loud 拒收而非静默当闭壳层。"""
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(smiles="CCCC", multiplicity=2, output_dir=str(tmp_path / "rad")),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "multiplicity" in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_nonpositive_temperature_rejected(tool, mock_session, tmp_path):
+    """C2：temperature<=0 会产生 NaN 布居，必须拒收。"""
+    for t in (0.0, -10.0):
+        result = await tool.safe_call(
+            ConformerSearch_input_schema(smiles="CCCC", temperature=t, output_dir=str(tmp_path / "t0")),
+            mock_session,
+        )
+        assert result.is_success is False
+        assert "temperature" in result.message.lower()
+
+
+@pytest.mark.asyncio
 async def test_unresolvable_overlap_returns_error(tool, mock_session, tmp_path, monkeypatch):
     """碎片叠放且重嵌不可行（EmbedMolecule 失败）时，全部构象剔除后必须 is_success=False。"""
     monkeypatch.setattr(ConformerSearch, "_has_overlap", staticmethod(lambda *a, **kw: True))

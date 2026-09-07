@@ -2217,6 +2217,23 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                 />
                 <span className="field-hint">sampling temperature, 0–2</span>
               </label>
+              <label className="field" title="Reasoning effort passed as the OpenAI-compatible reasoning_effort parameter">
+                reasoning effort
+                <select
+                  className="input"
+                  value={activeAgent.settings.reasoning_effort ?? ''}
+                  onChange={(e) => onPatchSettings({ reasoning_effort: e.target.value || null })}
+                >
+                  <option value="">default (not sent)</option>
+                  <option value="minimal">minimal</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                </select>
+                <span className="field-hint">
+                  thinking strength; empty falls back to the global config slot
+                </span>
+              </label>
               <div className="muted-note">Changes apply to this session on the next LLM request.</div>
             </>
           ) : (
