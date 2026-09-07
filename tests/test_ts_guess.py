@@ -1639,3 +1639,40 @@ def test_parse_freq_log_orca_convergence_dispatched_by_engine_markers(tmp_path):
     )
     parsed = ts_mod._parse_freq_log(str(unconv_log), "orca")
     assert parsed["converged"] is False
+
+
+@pytest.mark.asyncio
+async def test_ts_guess_mode_aliases(tmp_path, mock_session):
+    """测试 xtb_neb 映射至 interpolate，scan 映射至 scan_parse。"""
+    tool = _make_tool()
+
+    # xtb_neb 别名映射到 interpolate
+    out_dir = tmp_path / "imgs_alias"
+    res_neb = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "xtb_neb",
+        "reactant_text": _R_XYZ,
+        "product_text": _P_XYZ,
+        "n_images": 4,
+        "output_dir": str(out_dir),
+    }), mock_session)
+    assert res_neb.is_success, res_neb.message
+    assert res_neb.images_dir == str(out_dir)
+
+    # scan 别名带 log_path 映射到 scan_parse
+    res_scan = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan",
+        "log_path": str(SCAN_LOG),
+    }), mock_session)
+    assert res_scan.is_success, res_scan.message
+    assert len(res_scan.verdicts) > 0
+
+    # scan 别名无 log_path 映射到 scan_prepare
+    out_gjf = tmp_path / "scan.gjf"
+    res_prep = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "scan",
+        "input_text": _R_XYZ,
+        "scans": [{"coord_type": "bond", "atoms": [1, 2], "scan_end": 2.0, "scan_steps": 5}],
+        "output_path": str(out_gjf),
+    }), mock_session)
+    assert res_prep.is_success, res_prep.message
+    assert out_gjf.is_file()

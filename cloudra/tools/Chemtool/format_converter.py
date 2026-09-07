@@ -21,6 +21,8 @@ description = (
 _ASE_FORMAT_MAP = {
     "pdb": "proteindatabank",
     "gjf": "gaussian-in",
+    "poscar": "vasp",
+    "vasp": "vasp",
 }
 
 # 能携带化学信息的格式：必须用 RDKit 读写（保留键/形式电荷/立体），
@@ -112,13 +114,13 @@ class FormatConverter_input_schema(input_schema):
     input_path: str = Field(
         description="Absolute path of the input file."
     )
-    input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log"] = Field(
-        description="Input format. log means a Gaussian or ORCA output log (.log/.out); then output must be csv."
+    input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log", "poscar", "vasp"] = Field(
+        description="Input format. log means a Gaussian or ORCA output log (.log/.out); then output must be csv or xyz."
     )
-    output_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "csv"] = Field(
+    output_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "csv", "poscar", "vasp"] = Field(
         description="Target output format. 'inp' is an ORCA input (coordinates only, charge 0 / "
                     "multiplicity 1 — edit method/charge with qm_input_writer instead for production). "
-                    "csv is only for log→key-frame tables."
+                    "When input_format='log', output can be 'csv' (key-frame table) or 'xyz' (final optimized frame)."
     )
     output_path: str = Field(
         description="Absolute path of the output file."
@@ -164,20 +166,20 @@ class FormatConverter(Tool):
         ase.io.orca.write_orca(output_path, atoms, params)
 
     @staticmethod
-    def _convert_log_to_csv(user_input: "FormatConverter_input_schema") -> FormatConverter_output_schema:
-        """Gaussian 日志 → 关键帧 CSV（优化轨迹/扫描/IRC 曲线）。"""
+    def _convert_log(user_input: "FormatConverter_input_schema") -> FormatConverter_output_schema:
+        """Gaussian/ORCA 日志 → 关键帧 CSV 或最终几何 XYZ。"""
         if user_input.input_format != "log":
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message="output_format='csv' is only supported for Gaussian log input (input_format='log'). "
+                message="output_format='csv' is only supported for log input (input_format='log'). "
                         "For structure files, choose a structure output_format instead."
             )
-        if user_input.output_format != "csv":
+        if user_input.output_format not in ("csv", "xyz"):
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message="When input_format='log', the output format must be 'csv' (key-frame table)."
+                message="When input_format='log', the output format must be 'csv' (key-frame table) or 'xyz' (final optimized frame)."
             )
         if not os.path.isfile(user_input.input_path):
             return FormatConverter_output_schema(
@@ -209,18 +211,31 @@ class FormatConverter(Tool):
                             "convergence and endpoint energies are still available via "
                             "log_parser)."
                 )
-            frames_to_csv(frames, user_input.output_path)
-            return FormatConverter_output_schema(
-                is_success=True,
-                output_path=user_input.output_path,
-                message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
-            )
+            if user_input.output_format == "csv":
+                frames_to_csv(frames, user_input.output_path)
+                return FormatConverter_output_schema(
+                    is_success=True,
+                    output_path=user_input.output_path,
+                    message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
+                )
+            else:
+                last_frame = frames[-1]
+                xyz_text = last_frame.xyz
+                if not xyz_text.endswith("\n"):
+                    xyz_text += "\n"
+                with open(user_input.output_path, "w", encoding="utf-8") as fh:
+                    fh.write(xyz_text)
+                return FormatConverter_output_schema(
+                    is_success=True,
+                    output_path=user_input.output_path,
+                    message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, extracted final frame (frame {last_frame.frame}) -> {user_input.output_path}"
+                )
         except Exception as e:
             return FormatConverter_output_schema(
                 is_success=False,
                 output_path="",
-                message=f"Failed to extract key frames from the log: {str(e)}. "
-                        "Check that the input is a valid Gaussian log; "
+                message=f"Failed to process log: {str(e)}. "
+                        "Check that the input is a valid computational chemistry log; "
                         "you can also read it directly with log_parser."
             )
 
@@ -228,9 +243,9 @@ class FormatConverter(Tool):
         input_path = user_input.input_path
         output_path = user_input.output_path
 
-        # 0. log→csv 走 Gaussian 关键帧提取，与 ASE 格式转换分流
+        # 0. log 输入或 csv 输出分流
         if user_input.input_format == "log" or user_input.output_format == "csv":
-            return self._convert_log_to_csv(user_input)
+            return self._convert_log(user_input)
 
         # 1. 校验输入文件是否存在
         if not os.path.isfile(input_path):
@@ -337,6 +352,8 @@ class FormatConverter(Tool):
                 if user_input.output_format == "inp":
                     self._write_orca_inp(atoms, output_path)
                 else:
+                    if ase_output_fmt == "vasp" and (atoms.cell is None or atoms.cell.volume == 0):
+                        atoms.center(vacuum=10.0)
                     ase.io.write(output_path, atoms, format=ase_output_fmt)
 
             notes = " ".join(note for note in (frame_note, charge_note) if note)

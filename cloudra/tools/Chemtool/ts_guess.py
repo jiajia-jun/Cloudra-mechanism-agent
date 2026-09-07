@@ -56,9 +56,13 @@ description = (
 
 
 class TsGuess_input_schema(input_schema):
-    mode: Literal["interpolate", "scan_prepare", "scan_parse", "verify"] = Field(
+    mode: Literal[
+        "interpolate", "scan_prepare", "scan_parse", "verify",
+        "xtb_neb", "scan",
+    ] = Field(
         description="Sub-function: interpolate (interpolate a path), scan_prepare (write a scan input), "
-                    "scan_parse (parse a scan log and judge), verify (frequency+IRC verification)."
+                    "scan_parse (parse a scan log and judge), verify (frequency+IRC verification). "
+                    "Aliases: 'xtb_neb' maps to 'interpolate'; 'scan' maps to 'scan_prepare' (or 'scan_parse' if log_path given)."
     )
 
     # ---------- interpolate ----------
@@ -1034,6 +1038,12 @@ class TsGuess(Tool):
         return True
 
     async def tool_call(self, user_input: TsGuess_input_schema, session: Session) -> TsGuess_output_schema:
+        mode = user_input.mode
+        if mode == "xtb_neb":
+            mode = "interpolate"
+        elif mode == "scan":
+            mode = "scan_parse" if user_input.log_path else "scan_prepare"
+
         handlers = {
             "interpolate": self._interpolate,
             "scan_prepare": self._scan_prepare,
@@ -1041,7 +1051,7 @@ class TsGuess(Tool):
             "verify": self._verify,
         }
         try:
-            return handlers[user_input.mode](user_input)
+            return handlers[mode](user_input)
         except Exception as e:
             return TsGuess_output_schema(is_success=False, message=f"{user_input.mode} failed: {e}")
 

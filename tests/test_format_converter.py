@@ -191,6 +191,16 @@ async def test_neutral_mol_to_gjf_no_charge_warning(tmp_path):
     assert "charge" not in result.message.lower()
 
 
+@pytest.mark.asyncio
+async def test_xyz_to_poscar_conversion(tmp_path):
+    """验证 xyz 转换到 poscar / vasp 格式。"""
+    result, poscar_path = await _convert(tmp_path, "xyz", "poscar", _WATER_XYZ)
+    assert result.is_success, result.message
+    assert poscar_path.is_file()
+    content = poscar_path.read_text(encoding="utf-8")
+    assert len(content.splitlines()) >= 5
+
+
 def test_tool_metadata():
     tool = FormatConverter()
     assert tool.tool_name == "format_converter"

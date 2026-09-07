@@ -255,6 +255,33 @@ async def test_format_converter_log_to_csv_irc(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_format_converter_log_to_xyz(tmp_path):
+    from cloudra.tools.Chemtool.format_converter import (
+        FormatConverter,
+        FormatConverter_input_schema,
+    )
+
+    out_xyz = tmp_path / "water_final.xyz"
+    result = await FormatConverter().tool_call(
+        FormatConverter_input_schema(
+            input_path=str(OPT_FREQ_LOG),
+            input_format="log",
+            output_format="xyz",
+            output_path=str(out_xyz),
+        ),
+        session=None,
+    )
+    assert result.is_success is True
+    assert "extracted final frame" in result.message
+    assert out_xyz.is_file()
+    content = out_xyz.read_text(encoding="utf-8")
+    lines = content.strip().splitlines()
+    assert lines[0] == "3"
+    assert any("O" in line for line in lines[2:])
+    assert any("H" in line for line in lines[2:])
+
+
+@pytest.mark.asyncio
 async def test_format_converter_log_wrong_output_format(tmp_path):
     from cloudra.tools.Chemtool.format_converter import (
         FormatConverter,
@@ -265,13 +292,13 @@ async def test_format_converter_log_wrong_output_format(tmp_path):
         FormatConverter_input_schema(
             input_path=str(OPT_FREQ_LOG),
             input_format="log",
-            output_format="xyz",
-            output_path=str(tmp_path / "x.xyz"),
+            output_format="pdb",
+            output_path=str(tmp_path / "x.pdb"),
         ),
         session=None,
     )
     assert result.is_success is False
-    assert "csv" in result.message
+    assert "csv" in result.message and "xyz" in result.message
 
 
 @pytest.mark.asyncio

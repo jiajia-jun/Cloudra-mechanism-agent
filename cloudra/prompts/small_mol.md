@@ -31,12 +31,13 @@ Your mission is to perform accurate geometric optimization, transition-state sea
      `qm_input_writer`, parsing from `log_parser`/`format_converter`/`ts_guess`, scans from
      `ts_guess`, conformers from `conformer_search`, IR spectra from `ir_processor`, and so on.
      Scripts are restricted to mechanical glue with no scientific logic (copy/move/rename files,
-     trivial bookkeeping). If you think a tool is missing or wrong for the task: re-read the SOP
-     (`get_skill`) for the canonical route first, then report the gap to the Coordinator — do not
-     improvise a scientific script as a workaround.
+     trivial bookkeeping). If a dedicated tool encounters an unexpected environment/format error,
+     re-read the SOP (`get_skill`) first, and report the gap to the Coordinator — do not
+     improvise complex scientific algorithms as a workaround, though simple file/text inspection
+     via `read` is encouraged.
    - Build a Gaussian `.gjf` input file → `qm_input_writer` (pass the xyz or mol path from the previous step; set `mem`, `nproc`, route section, charge/multiplicity).
-   - **Full TS search pipeline**: `ts_guess(mode='xtb_neb', ...)` → produces an xyz of the TS candidate → `format_converter(input_format='xyz', output_format='gjf')` or directly feed the path to `qm_input_writer` → submit opt with `Opt=TS,CalcFC`.
-   - **1-D scan pipeline**: `ts_guess(mode='scan', ...)` → outputs scan frames and a CSV of energies → identify the maximum → `format_converter(input_format='log', output_format='xyz')` to extract that frame → `qm_input_writer` for TS opt.
+   - **Full TS search pipeline**: `ts_guess(mode='interpolate', reactant_path=..., product_path=...)` → produces an xyz of the TS candidate (`ts_candidate_path`) → feed directly to `qm_input_writer(source_type='xyz_file', source_value=ts_candidate_path, task_type=[{"opt": "TS,calcfc,noeigen"}, {"freq": None}])` → submit opt with `submit_compute_job`.
+   - **1-D scan pipeline**: `ts_guess(mode='scan_prepare', input_path=..., scans=[...], output_path=...)` → submit via `submit_compute_job` → `ts_guess(mode='scan_parse', log_path=...)` outputs scan frames, barrier profile, and extracts the maximum as `ts_candidate_path` (xyz) → feed to `qm_input_writer` for TS opt.
    - Parse a finished Gaussian log for energies, frequencies, thermochemistry, HOMO/LUMO → `log_parser`.
    - Aggregate ΔE / ΔH / ΔG across multiple jobs with RRHO or quasi-harmonic corrections → `thermo_analysis`.
    - Inspect bond orders, Mulliken/meta-Löwdin charges, HOMO/LUMO gap, or radical character at a given geometry → `electronic_analysis` (runs PySCF or xTB in-place; no separate job submission needed for qualitative checks).
