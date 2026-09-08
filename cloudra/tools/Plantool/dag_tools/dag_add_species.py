@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema
@@ -15,19 +15,8 @@ from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput,
 
 
 class DagAddSpeciesInput(input_schema):
-    name: str = Field(default="", description="Human-readable species system name.")
-    label: str | None = Field(default=None, description="Species label (alias for name).")
-    smiles: str | None = Field(default=None, description="Optional SMILES.")
-    node_id: str | None = Field(default=None, description="Optional node id (auto-generated if omitted).")
-    role: str | None = Field(default=None, description="Legacy role (ignored).")
-    required: bool | None = Field(default=None, description="Whether this species is required.")
-    metadata: dict[str, Any] | None = Field(default=None, description="Optional extra attributes.")
-
-    @model_validator(mode="after")
-    def _validate_name(self):
-        if not (self.name or self.label or "").strip():
-            raise ValueError("name is required")
-        return self
+    name: str = Field(min_length=1, description="Human-readable species system name.")
+    smiles: str | None = Field(default=None, description="Optional SMILES for the species.")
 
 
 class DagAddSpecies(DagToolBase):
@@ -47,10 +36,10 @@ class DagAddSpecies(DagToolBase):
     ) -> DagToolOutput:
         if self._mode() is OrchestrationMode.STANDARD:
             return self._standard_disabled()
-        clean_name = (user_input.name or user_input.label or "").strip()
+        clean_name = user_input.name.strip()
         if not clean_name:
             return fail("dag_add_species", "species name cannot be empty")
-        node_id = user_input.node_id or f"sp_{uuid.uuid4().hex[:8]}"
+        node_id = f"sp_{uuid.uuid4().hex[:8]}"
         kwargs: dict[str, Any] = {
             "node_id": node_id,
             "name": clean_name,
@@ -58,10 +47,6 @@ class DagAddSpecies(DagToolBase):
         }
         if user_input.smiles is not None:
             kwargs["smiles"] = user_input.smiles
-        if user_input.required is not None:
-            kwargs["required"] = user_input.required
-        if user_input.metadata:
-            kwargs["metadata"] = user_input.metadata
         _, mutation = await self._apply(
             session,
             [

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field
 
@@ -15,20 +15,11 @@ from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput,
 
 
 class DagRemoveEdgeInput(input_schema):
-    step: str | None = Field(
-        default=None,
+    name: str = Field(
+        min_length=1,
         description="Step name to delete from delivery graph.",
     )
-    edge_id: str | None = Field(
-        default=None,
-        description="Edge id to delete (legacy).",
-    )
-    graph: Literal["process", "delivery"] = Field(
-        default="delivery",
-        description="Which DAG the edge belongs to.",
-    )
-    rationale: str = Field(
-        ...,
+    reason: str = Field(
         min_length=1,
         description="Scientific reason for deletion (mandatory; stays in change log).",
     )
@@ -38,10 +29,10 @@ class DagRemoveEdge(DagToolBase):
     tool_id: str = "t-dag-rm-edge"
     tool_name: str = "dag_remove_edge"
     tool_description: str = (
-        "Delete one step from the delivery DAG with a mandatory rationale "
+        "Delete one step from the delivery DAG with a mandatory reason "
         "(Coordinator in dag_record or dag_guided). "
-        "Input shape: {step: str, rationale: str}. "
-        "Key discipline: deletion requires a non-empty rationale explaining why the step was removed."
+        "Input shape: {name: str, reason: str}. "
+        "Key discipline: deletion requires a non-empty reason explaining why the step was removed."
     )
     input_schema: Any = DagRemoveEdgeInput
     output_schema: Any = DagToolOutput
@@ -52,39 +43,34 @@ class DagRemoveEdge(DagToolBase):
     ) -> DagToolOutput:
         if self._mode() is OrchestrationMode.STANDARD:
             return self._standard_disabled()
-        if not user_input.rationale or not user_input.rationale.strip():
-            return fail(self.tool_name, "remove_edge requires a non-empty rationale explaining the deletion")
+        step_name = user_input.name.strip()
+        rationale = user_input.reason.strip()
+        if not rationale:
+            return fail(self.tool_name, "remove_edge requires a non-empty reason explaining the deletion")
 
         ctx = await self._prepare(session)
-        target_edge_id = user_input.edge_id
-        if user_input.step:
-            step_name = user_input.step.strip()
-            snapshot = await asyncio.to_thread(ctx.engine.snapshot)
-            edge = next(
-                (
-                    e for e in snapshot.delivery.edges
-                    if getattr(e, "name", getattr(e, "label", "")).strip() == step_name
-                    or e.edge_id == step_name
-                ),
-                None,
-            )
-            if edge is None:
-                return fail(self.tool_name, f"step {user_input.step!r} not found on delivery graph")
-            target_edge_id = edge.edge_id
-
-        if not target_edge_id:
-            return fail(self.tool_name, "must specify 'step' to delete")
+        snapshot = await asyncio.to_thread(ctx.engine.snapshot)
+        edge = next(
+            (
+                e for e in snapshot.delivery.edges
+                if getattr(e, "name", getattr(e, "label", "")).strip() == step_name
+                or e.edge_id == step_name
+            ),
+            None,
+        )
+        if edge is None:
+            return fail(self.tool_name, f"step {step_name!r} not found on delivery graph")
 
         _, mutation = await self._apply(
             session,
             [
                 RemoveEdge(
                     op="remove_edge",
-                    graph=GraphKind(user_input.graph),
-                    edge_id=target_edge_id,
+                    graph=GraphKind.DELIVERY,
+                    edge_id=edge.edge_id,
                 )
             ],
-            rationale=user_input.rationale,
+            rationale=rationale,
             prepared=ctx,
         )
         return mutation_output(self.tool_name, mutation)
@@ -92,4 +78,3 @@ class DagRemoveEdge(DagToolBase):
 
 def get_class():
     return DagRemoveEdge
-

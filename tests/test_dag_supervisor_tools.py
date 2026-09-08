@@ -39,7 +39,7 @@ def test_capability_projection_matches_registry_declarations():
     assert capabilities.supervisor_access_for("log_parser") == "evidence_read"
     assert capabilities.supervisor_access_for("reaction_mapping") == "evidence_read"
     assert capabilities.supervisor_access_for("agent_hub") == "hub"
-    assert capabilities.supervisor_access_for("dag_review_call") == "review_decision"
+    assert capabilities.supervisor_access_for("dag_review_step") == "review_decision"
     assert capabilities.supervisor_access_for("bash") == "none"
     assert capabilities.supervisor_access_for("write") == "none"
     assert capabilities.supervisor_access_for("submit_compute_job") == "none"

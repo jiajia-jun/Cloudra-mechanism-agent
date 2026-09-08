@@ -20,31 +20,18 @@ from cloudra.tools.Plantool.dag_tools._common import (
 
 
 class DagUpdateDeliveryElementInput(input_schema):
-    element: str | None = Field(default=None, description="Delivery species or step name to update (or id).")
-    element_id: str | None = Field(default=None, description="Delivery node_id or edge_id to update (legacy).")
+    name: str = Field(min_length=1, description="Delivery species or step name to update.")
     status: str | None = Field(default=None, description="Optional status.")
-    evidence_level: str | None = Field(
-        default=None,
-        description=(
-            "Optional disposition only: proposed, rejected, or inconclusive. "
-            "Cannot set structure_supported, saddle_supported, or endpoint_supported — harness-derived. "
-            "Cannot set smiles or rename here."
-        ),
-    )
-    annotations: Any = Field(default=None, description="Free-text notes.")
     reason: str | None = Field(default=None, description="Reason for the change.")
-    required: bool | None = Field(default=None, description="Whether the element is required.")
-    supersedes: str | None = Field(default=None, description="Id this element supersedes.")
-    label: str | None = Field(default=None, description="Renaming is forbidden.")
 
 
 class DagUpdateDeliveryElement(DagToolBase):
     tool_id: str = "t-dag-upd-deliv"
     tool_name: str = "dag_update_delivery_element"
     tool_description: str = (
-        "Update metadata/disposition on an existing delivery species or step "
+        "Update status/disposition on an existing delivery species or step "
         "(Coordinator in dag_record or dag_guided). "
-        "Use for: status, reason, annotations, required. "
+        "Input shape: {name: str, status: str | None, reason: str | None}. "
         "Do not use for: renaming or patching smiles; identity is fixed at create time."
     )
     input_schema: Any = DagUpdateDeliveryElementInput
@@ -56,24 +43,20 @@ class DagUpdateDeliveryElement(DagToolBase):
     ) -> DagToolOutput:
         if self._mode() is OrchestrationMode.STANDARD:
             return self._standard_disabled()
-        target_name = (user_input.element or user_input.element_id or "").strip()
+        target_name = user_input.name.strip()
         if not target_name:
-            return fail("dag_update_delivery_element", "must specify element to update")
+            return fail("dag_update_delivery_element", "must specify element name to update")
         ctx = await self._prepare(session)
         snapshot = await asyncio.to_thread(ctx.engine.snapshot)
         changes: dict[str, Any] = {}
-        for key in ("status", "evidence_level", "reason", "required", "supersedes"):
-            value = getattr(user_input, key)
-            if value is not None:
-                changes[key] = value
-        if user_input.label is not None:
-            changes["label"] = user_input.label
-        if user_input.annotations is not None:
-            changes["annotations"] = user_input.annotations
+        if user_input.status is not None:
+            changes["status"] = user_input.status
+        if user_input.reason is not None:
+            changes["reason"] = user_input.reason
         if not changes:
             return fail(
                 "dag_update_delivery_element",
-                "dag_update_delivery_element requires at least one field to change",
+                "dag_update_delivery_element requires at least one field to change (status or reason)",
             )
         node = next(
             (

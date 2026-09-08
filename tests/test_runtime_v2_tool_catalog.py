@@ -137,7 +137,7 @@ def _mode_agent(mode: OrchestrationMode) -> AgentSession:
 def test_dag_tools_hidden_in_standard_mode():
     from cloudra.tools.capabilities import dag_tools
 
-    assert {"dag_view", "dag_review_call", "dag_bind_evidence"} <= dag_tools()
+    assert {"dag_view", "dag_submit_step_evidence", "dag_propose_mechanism"} <= dag_tools()
     names = set(_names(wire_tool_schemas(_mode_agent(OrchestrationMode.STANDARD), ["*"])))
     assert "log_parser" in names
     assert not (names & dag_tools())
@@ -152,12 +152,11 @@ def test_supervisor_review_decision_tools_hidden_in_dag_record():
 
     assert {
         "dag_accept_mechanism",
-        "dag_review_call",
-        "dag_review_evidence",
-        "dag_set_coverage_contract",
+        "dag_review_step",
+        "dag_review_species",
     } <= dag_review_decision_tools()
     names = set(_names(wire_tool_schemas(_mode_agent(OrchestrationMode.DAG_RECORD), ["*"])))
-    assert {"dag_view", "dag_bind_evidence", "dag_propose_mechanism"} <= names
+    assert {"dag_view", "dag_submit_step_evidence", "dag_propose_mechanism"} <= names
     assert not (names & dag_review_decision_tools())
 
 
@@ -165,11 +164,12 @@ def test_all_dag_tools_visible_in_dag_guided():
     names = set(_names(wire_tool_schemas(_mode_agent(OrchestrationMode.DAG_GUIDED), ["*"])))
     assert {
         "dag_view",
-        "dag_bind_evidence",
-        "dag_review_call",
+        "dag_submit_step_evidence",
+        "dag_submit_species_evidence",
+        "dag_review_step",
+        "dag_review_species",
         "dag_accept_mechanism",
-        "dag_review_evidence",
-        "dag_set_coverage_contract",
+        "dag_propose_mechanism",
     } <= names
 
 
@@ -179,9 +179,9 @@ def test_guest_declarations_follow_orchestration_mode():
     )
     assert "dag_view(" not in text and "log_parser(" in text
     text = tool_declarations(
-        ["dag_view", "dag_review_call"], orchestration_mode=OrchestrationMode.DAG_RECORD
+        ["dag_view", "dag_review_step"], orchestration_mode=OrchestrationMode.DAG_RECORD
     )
-    assert "dag_view(" in text and "dag_review_call(" not in text
+    assert "dag_view(" in text and "dag_review_step(" not in text
 
 
 # ----------------------------------------------------------------------- routing

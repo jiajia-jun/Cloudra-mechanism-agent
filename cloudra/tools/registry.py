@@ -248,12 +248,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_observe=False,
     ),
     ToolRegistration(
-        module='cloudra.tools.Plantool.dag_tools.dag_bind_evidence',
-        class_name='DagBindEvidence',
-        tool_name='dag_bind_evidence',
-        dag_observe=False,
-    ),
-    ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
         class_name='DagProposeMechanism',
         tool_name='dag_propose_mechanism',
@@ -291,43 +285,6 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         tool_name='dag_accept_mechanism',
         dag_observe=False,
         supervisor_access='review_decision',
-    ),
-    ToolRegistration(
-        module='cloudra.tools.Plantool.dag_tools.dag_review_call',
-        class_name='DagReviewCall',
-        tool_name='dag_review_call',
-        dag_observe=False,
-        supervisor_access='review_decision',
-    ),
-    ToolRegistration(
-        module='cloudra.tools.Plantool.dag_tools.dag_review_evidence',
-        class_name='DagReviewEvidence',
-        tool_name='dag_review_evidence',
-        dag_observe=False,
-        supervisor_access='review_decision',
-    ),
-    ToolRegistration(
-        module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
-        class_name='DagViewEvidence',
-        tool_name='dag_view_evidence',
-        dag_observe=False,
-        supervisor_access='evidence_read',
-    ),
-    ToolRegistration(
-        module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
-        class_name='DagSetCoverageContract',
-        tool_name='dag_set_coverage_contract',
-        dag_observe=False,
-        supervisor_access='review_decision',
-    ),
-    ToolRegistration(
-        module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
-        class_name='DagMessageSupervisor',
-        tool_name='dag_message_supervisor',
-        dag_observe=False,
-        # 无 supervisor_access：这是研究 Agent/Coordinator → Supervisor 的
-        # 请求入口，工具本身硬拒 Supervisor 调用；督导的回复路径是
-        # dag_review_* 裁决工具与运行结束报告。
     ),
     ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
     ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),

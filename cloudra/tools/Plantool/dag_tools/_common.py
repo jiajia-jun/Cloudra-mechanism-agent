@@ -30,18 +30,10 @@ from cloudra.persistence.database import ConversationDB
 # 几乎无用（attach_ref 时另用证据库），却把单页 view 撑到 20k+ 字符。
 # 旧库的派生旗标（saddle_supported 等）仍可能出现在 legacy 元素上，保留展示。
 _VIEW_PAYLOAD_KEYS = (
+    "status",
     "evidence_level",
     "reason",
-    "role",
     "required",
-    "supersedes",
-    "saddle_supported",
-    "short_irc_supported",
-    "endpoint_a_minimum_supported",
-    "endpoint_b_minimum_supported",
-    "endpoint_direction_consistent",
-    "endpoint_identity_matched",
-    "thermochemistry_supported",
 )
 _ANNOTATION_VIEW_CHARS = 240
 
@@ -83,15 +75,6 @@ def _compact_view_edge(edge: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _node_index_entry(node: dict[str, Any]) -> dict[str, Any]:
-    payload = node.get("payload") or {}
-    return {
-        "node_id": node.get("node_id"),
-        "node_type": node.get("node_type"),
-        "status": payload.get("status", "proposed"),
-    }
-
-
 def render_subgraph_view(
     snapshot: Any,
     *,
@@ -130,13 +113,6 @@ def render_subgraph_view(
     total_nodes = len(nodes)
     page = nodes[offset : offset + 50]
     allowed = {node["node_id"] for node in page}
-    # 页外节点的轻量索引（id/type/status），避免为找 id 整图翻页；
-    # 当前页已有完整摘要，不再重复进 index。
-    index = [
-        _node_index_entry(node)
-        for node in nodes
-        if node["node_id"] not in allowed
-    ]
     edges = [
         _compact_view_edge(edge)
         for edge in raw["edges"]
@@ -152,8 +128,6 @@ def render_subgraph_view(
         "total_nodes": total_nodes,
         "offset": offset,
     }
-    if index:
-        result["index"] = index
     if node_ids or status_filter:
         result["filters"] = {
             **({"node_ids": node_ids} if node_ids else {}),

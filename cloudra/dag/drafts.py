@@ -270,9 +270,25 @@ class DraftsMixin:
         if visited != len(name_to_node_id):
             raise RuntimeError("graph contains a cycle")
 
+        contracts: dict[str, StageContract] = {}
+        for sp_op in species_ops:
+            assert isinstance(sp_op, AddNode)
+            contracts[sp_op.node.node_id] = StageContract(
+                stages=[StageState(kind=StageKind.GEOMETRY, status=StageStatus.PENDING)]
+            )
+        for st_op in step_ops:
+            assert isinstance(st_op, AddEdge)
+            contracts[st_op.edge.edge_id] = StageContract(
+                stages=[
+                    StageState(kind=StageKind.TS_GUESS, status=StageStatus.PENDING),
+                    StageState(kind=StageKind.TS_OPT, status=StageStatus.PENDING),
+                    StageState(kind=StageKind.FREQUENCY, status=StageStatus.PENDING),
+                ]
+            )
+
         return MechanismDraft(
             operations=[*species_ops, *step_ops],
-            stage_contracts={},
+            stage_contracts=contracts,
             rationale=rationale,
         )
 

@@ -16,13 +16,9 @@ from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput,
 
 
 class DagAddStepInput(input_schema):
-    name: str = Field(default="", description="Human-readable step name.")
-    from_: str | None = Field(default=None, alias="from", description="Source species name.")
-    to: str | None = Field(default=None, description="Target species name.")
-    edge_id: str | None = Field(default=None, description="Optional step id (auto-generated if omitted).")
-    source_node_id: str | None = Field(default=None, description="Source node id (legacy).")
-    target_node_id: str | None = Field(default=None, description="Target node id (legacy).")
-    label: str | None = Field(default=None, description="Optional step label.")
+    name: str = Field(min_length=1, description="Human-readable step name.")
+    from_: str = Field(alias="from", min_length=1, description="Source species name.")
+    to: str = Field(min_length=1, description="Target species name.")
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -43,7 +39,7 @@ class DagAddStep(DagToolBase):
     ) -> DagToolOutput:
         if self._mode() is OrchestrationMode.STANDARD:
             return self._standard_disabled()
-        clean_name = (user_input.name or user_input.label or user_input.edge_id or "").strip()
+        clean_name = user_input.name.strip()
         if not clean_name:
             return fail("dag_add_step", "step name cannot be empty")
 
@@ -51,34 +47,26 @@ class DagAddStep(DagToolBase):
         snapshot = await asyncio.to_thread(ctx.engine.snapshot)
         nodes = snapshot.delivery.nodes
 
-        if user_input.from_ is not None and user_input.to is not None:
-            from_name = user_input.from_.strip()
-            to_name = user_input.to.strip()
-            if from_name == to_name:
-                return fail("dag_add_step", f"step {clean_name!r} cannot be a self-loop")
-            from_node = next(
-                (n for n in nodes if getattr(n, "name", getattr(n, "label", "")).strip() == from_name),
-                None,
-            )
-            to_node = next(
-                (n for n in nodes if getattr(n, "name", getattr(n, "label", "")).strip() == to_name),
-                None,
-            )
-            if from_node is None:
-                return fail("dag_add_step", f"source species {from_name!r} not found on delivery graph")
-            if to_node is None:
-                return fail("dag_add_step", f"target species {to_name!r} not found on delivery graph")
-            source_id = from_node.node_id
-            target_id = to_node.node_id
-        elif user_input.source_node_id and user_input.target_node_id:
-            source_id = user_input.source_node_id
-            target_id = user_input.target_node_id
-            if source_id == target_id:
-                return fail("dag_add_step", f"step {clean_name!r} cannot be a self-loop")
-        else:
-            return fail("dag_add_step", "endpoints 'from' and 'to' must be specified")
+        from_name = user_input.from_.strip()
+        to_name = user_input.to.strip()
+        if from_name == to_name:
+            return fail("dag_add_step", f"step {clean_name!r} cannot be a self-loop")
+        from_node = next(
+            (n for n in nodes if getattr(n, "name", getattr(n, "label", "")).strip() == from_name),
+            None,
+        )
+        to_node = next(
+            (n for n in nodes if getattr(n, "name", getattr(n, "label", "")).strip() == to_name),
+            None,
+        )
+        if from_node is None:
+            return fail("dag_add_step", f"source species {from_name!r} not found on delivery graph")
+        if to_node is None:
+            return fail("dag_add_step", f"target species {to_name!r} not found on delivery graph")
+        source_id = from_node.node_id
+        target_id = to_node.node_id
 
-        edge_id = user_input.edge_id or f"step_{uuid.uuid4().hex[:8]}"
+        edge_id = f"step_{uuid.uuid4().hex[:8]}"
         edge_kwargs: dict[str, Any] = {
             "edge_id": edge_id,
             "name": clean_name,

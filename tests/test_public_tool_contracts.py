@@ -13,19 +13,19 @@ from cloudra.runtime_v2.schemas import Command, InvocationProtocol, RuntimeSetti
 from cloudra.runtime_v2.tool_catalog import tool_declarations
 
 
-def test_proposal_wire_schema_describes_nested_operations_without_runtime_fields():
+def test_proposal_wire_schema_describes_declarative_species_and_steps():
     schema = legacy_tool_schemas(["dag_propose_mechanism"])[0]["function"]["parameters"]
-    items = schema["properties"]["operations"]["items"]
-    assert "oneOf" in items
-    # dag_* 工具只在 DAG 编排模式下投影；声明渲染按 guided 模式取。
+    assert "species" in schema["properties"]
+    assert "steps" in schema["properties"]
+    assert "operations" not in schema["properties"]
+    assert "stage_contracts" not in schema["properties"]
     declarations = tool_declarations(
         ["dag_propose_mechanism"], orchestration_mode="dag_guided"
     )
-    for field in ('"node"', '"edge"', '"source_node_id"', '"target_node_id"', '"node_type"'):
+    for field in ('"species"', '"steps"', '"from"', '"to"'):
         assert field in declarations
-    for internal in ("evidence_vetoed", "saddle_supported", "ObservedNode", "StageState"):
+    for internal in ("operations", "stage_contracts", "claim_spec", "contract_version", "evidence_vetoed", "saddle_supported"):
         assert internal not in declarations
-    assert '"op": "add_node"' in declarations
 
 
 @pytest.mark.asyncio
@@ -44,10 +44,10 @@ async def test_invalid_proposal_returns_public_field_help_without_internal_excep
     ))
     result = await LegacyToolExecutor(core).execute(spawned.data, ToolCall(
         id="bad-proposal", name="dag_propose_mechanism",
-        arguments={"operations": [{"op": "add_node", "node_id": "r"}], "rationale": "hypothesis"},
+        arguments={"species": [{"invalid": "node"}], "rationale": "hypothesis"},
     ))
     assert not result.is_success
-    assert "operations" in result.summary and "node" in result.summary
+    assert "species" in result.summary
     for internal in ("pydantic", "input_value", "tagged-union", "DagPropose", "Traceback"):
         assert internal not in result.summary
 
@@ -87,17 +87,16 @@ def test_research_prompt_excludes_application_checkout_context(tmp_path, monkeyp
 
 
 def test_documented_proposal_can_be_validated_by_the_real_controller():
-    from cloudra.dag.controller import DagController
     from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanismInput
 
     skill = Path("cloudra/skills/dag-operations/SKILL.md").read_text()
     assert "```json" in skill
     example = json.loads(skill.split("```json\n", 1)[1].split("```", 1)[0])
     parsed = DagProposeMechanismInput.model_validate(example)
-    payload = parsed.model_dump(mode="json", exclude_unset=True)
-    draft = DagController._validate_draft(payload["operations"], payload["stage_contracts"], payload["rationale"])
-    assert len(draft.operations) == 3
-    assert set(draft.stage_contracts) == {"r", "p", "step1"}
+    assert len(parsed.species) == 2
+    assert len(parsed.steps) == 1
+    assert parsed.species[0].name == "Reactant Complex"
+    assert parsed.steps[0].name == "Diels-Alder Cycloaddition"
 
 
 @pytest.mark.asyncio
@@ -117,9 +116,7 @@ async def test_unexpected_tool_failure_logs_details_but_does_not_send_them_to_mo
     ))
     result = await LegacyToolExecutor(core).execute(spawned.data, ToolCall(
         id="failure", name="dag_propose_mechanism", arguments={
-            "operations": [{"op": "add_node", "graph": "delivery", "node": {
-                "node_type": "occurrence", "node_id": "r", "label": "R", "role": "reactant",
-            }}], "rationale": "test",
+            "species": [{"name": "R"}], "steps": [], "rationale": "test",
         },
     ))
     assert not result.is_success and result.error.effect_state == "unknown"

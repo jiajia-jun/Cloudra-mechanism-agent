@@ -188,11 +188,11 @@ async def test_supervisor_capabilities_and_wire_projection(tmp_path):
     try:
         expected = set(capabilities.supervisor_allowed_tools()) | {"stop"}
         assert set(supervisor.capabilities.tools) == expected
-        for name in ("dag_review_call", "dag_accept_mechanism", "log_parser", "read", "stop"):
+        for name in ("dag_review_step", "dag_accept_mechanism", "log_parser", "read", "stop"):
             assert name in supervisor.capabilities.tools
         for name in ("bash", "submit_compute_job", "write", "edit", "qm_input_writer"):
             assert name not in supervisor.capabilities.tools
-        # 裁决工具需要 guided 模式上下文（dag_review_call 在 record/standard 拒绝）。
+        # 裁决工具需要 guided 模式上下文（dag_review_step 在 record/standard 拒绝）。
         assert supervisor.settings.orchestration_mode.value == "dag_guided"
 
         # javascript（默认协议）：js_exec + stop 直接控制类，业务工具只进 guest 声明。
@@ -205,7 +205,7 @@ async def test_supervisor_capabilities_and_wire_projection(tmp_path):
             supervisor.capabilities.tools,
             orchestration_mode=supervisor.settings.orchestration_mode,
         )
-        assert "log_parser" in guest and "dag_review_call" in guest
+        assert "log_parser" in guest and "dag_review_step" in guest
         assert "stop" not in guest and "bash" not in guest
         declarations = tool_declarations(
             supervisor.capabilities.tools,
@@ -370,7 +370,7 @@ async def test_supervisor_js_mode_rejects_top_level_business_call(tmp_path):
                     tool_calls=[
                         ToolCall(
                             id="tc1",
-                            name="dag_review_call",
+                            name="dag_review_step",
                             arguments={"review_id": "rev_x", "target_id": "n1",
                                        "stage_kind": "geometry", "verdict": "agree"},
                         )

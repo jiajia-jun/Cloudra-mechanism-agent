@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 import pytest
-from pydantic import ValidationError
 
 from cloudra.base.session_class import Session
 from cloudra.core.agent import Coordinator
@@ -13,33 +12,13 @@ from cloudra.tools.Plantool.dag_tools.dag_accept_mechanism import DagAcceptMecha
 from cloudra.tools.Plantool.dag_tools.dag_propose_mechanism import DagProposeMechanism
 from tests.dag_identity import call_dag_tool, make_supervisor
 
-_OPS = [
-    {
-        "op": "add_node",
-        "graph": "delivery",
-        "node": {"node_id": "r", "node_type": "occurrence", "label": "R", "role": "reactant"},
-    },
-    {
-        "op": "add_node",
-        "graph": "delivery",
-        "node": {"node_id": "p", "node_type": "occurrence", "label": "P", "role": "product"},
-    },
-    {
-        "op": "add_edge",
-        "graph": "delivery",
-        "edge": {
-            "edge_id": "step1",
-            "edge_type": "elementary_step",
-            "source_node_id": "r",
-            "target_node_id": "p",
-        },
-    },
+_SPECIES = [
+    {"name": "R", "smiles": "C=C"},
+    {"name": "P", "smiles": "CC"},
 ]
-_CONTRACTS = {
-    "r": ["geometry"],
-    "p": ["geometry"],
-    "step1": ["ts_guess", "ts_opt", "frequency"],
-}
+_STEPS = [
+    {"name": "step1", "from": "R", "to": "P"},
+]
 
 
 def _schema(cls):
@@ -72,14 +51,14 @@ def _graph(db):
     return DagStore(db).load_snapshot()
 
 
-async def _propose(agent, session, operations=None, contracts=None):
+async def _propose(agent, session, species=None, steps=None, rationale="Claisen [3,3] chair pathway hypothesis"):
     return await _call(
         DagProposeMechanism,
         agent,
         session,
-        operations=operations or _OPS,
-        stage_contracts=_CONTRACTS if contracts is None else contracts,
-        rationale="Claisen [3,3] chair pathway hypothesis",
+        species=_SPECIES if species is None else species,
+        steps=_STEPS if steps is None else steps,
+        rationale=rationale,
     )
 
 
@@ -138,7 +117,7 @@ async def test_guided_propose_then_supervisor_accept_unlocks_compute(tmp_path):
         ("ts_opt", "pending"),
         ("frequency", "pending"),
     ]
-    node = next(n for n in _graph(db).delivery.nodes if n.node_id == "r")
+    node = next(n for n in _graph(db).delivery.nodes if getattr(n, "name", "") == "R" or n.node_id == "r")
     assert [(s.kind.value, s.status.value) for s in node.stages] == [
         ("geometry", "pending")
     ]
@@ -170,51 +149,21 @@ async def test_supervisor_reject_returns_reason_and_keeps_gate(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_contract_must_resolve_within_the_draft(tmp_path):
-    agent, session, _db = _setup(tmp_path, "propose-dangling", "dag_record")
+async def test_draft_stages_must_be_pending():
+    from cloudra.dag.controller import DagController
 
-    out = await _propose(agent, session, contracts={"ghost": ["geometry"]})
-
-    assert not out.is_success
-    assert "does not resolve" in out.error
-
-
-@pytest.mark.asyncio
-async def test_stage_kind_must_match_element_kind(tmp_path):
-    agent, session, _db = _setup(tmp_path, "propose-kind", "dag_record")
-
-    edge_bad = await _propose(agent, session, contracts={**_CONTRACTS, "step1": ["geometry"]})
-    assert not edge_bad.is_success
-    assert "does not apply" in edge_bad.error
-
-    node_bad = await _propose(agent, session, contracts={"r": ["ts_opt"], "p": ["geometry"]})
-    assert not node_bad.is_success
-    assert "does not apply" in node_bad.error
-
-
-@pytest.mark.asyncio
-async def test_draft_stages_must_be_pending(tmp_path):
-    agent, session, _db = _setup(tmp_path, "propose-pending", "dag_record")
     ops = [
         {
             "op": "add_node",
             "graph": "delivery",
             "node": {
                 "node_id": "r",
-                "node_type": "occurrence",
-                "label": "R",
-                "role": "reactant",
+                "node_type": "species",
+                "name": "R",
                 "stages": [{"kind": "geometry", "status": "supported"}],
             },
         }
     ]
-
-    # Public proposals reject evidence states before entering the controller.
-    with pytest.raises(ValidationError, match="stages"):
-        await _propose(agent, session, operations=ops, contracts={})
-    from cloudra.dag.controller import DagController
-
-    # The engine guard still protects callers outside the public tool schema.
     with pytest.raises(RuntimeError, match="pending"):
         DagController._validate_draft(ops, {}, "hypothesis")
 
@@ -235,8 +184,8 @@ async def test_propose_and_accept_actor_gates(tmp_path):
     object.__setattr__(tool, "subagent", follower)
     denied = await tool.tool_call(
         _schema(DagProposeMechanism)(
-            operations=_OPS,
-            stage_contracts=_CONTRACTS,
+            species=_SPECIES,
+            steps=_STEPS,
             rationale="follower should not propose",
         ),
         session,

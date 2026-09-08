@@ -264,38 +264,6 @@ async def test_supervisor_verdict_tools_do_not_self_notify():
     assert find_project_supervisor(core, project.id) is None
 
 
-@pytest.mark.asyncio
-async def test_message_supervisor_notifies_after_persisted_request():
-    """dag_message_supervisor 成功（纯文本或结构化，均已落
-    dag_review_requests）→ 通知；空消息/失败不通知。"""
-    core, project = await _core_project("supervision-message")
-    controller = _guided_controller(project.id, core)
-
-    await controller.on_tool_finished(
-        "tc-msg-empty", "dag_message_supervisor", {"message": ""}, {"is_success": True}
-    )
-    await controller.on_tool_finished(
-        "tc-msg-fail",
-        "dag_message_supervisor",
-        {"message": "hello"},
-        {"is_success": False, "error": "oops"},
-    )
-    assert find_project_supervisor(core, project.id) is None
-
-    await controller.on_tool_finished(
-        "tc-msg",
-        "dag_message_supervisor",
-        {"message": "frontier 空，请复核 TS 证据"},
-        {
-            "is_success": True,
-            "accepted": True,
-            "result": {"request_id": "req_1", "kind": "exception", "enqueued": True},
-        },
-    )
-    supervisor = find_project_supervisor(core, project.id)
-    assert supervisor is not None
-    assert len(_supervisor_messages(core, supervisor.id)) == 1
-
 
 @pytest.mark.asyncio
 async def test_notify_without_core_handle_is_a_no_op(tmp_path):

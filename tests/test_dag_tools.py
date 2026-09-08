@@ -36,12 +36,9 @@ _DAG_TOOL_NAMES = {
     "dag_add_step",
     "dag_update_delivery_element",
     "dag_remove_edge",
-    "dag_bind_evidence",
     "dag_propose_mechanism",
-    "dag_accept_mechanism",
-    "dag_review_call",
-    "dag_set_coverage_contract",
-    "dag_message_supervisor",
+    "dag_submit_step_evidence",
+    "dag_submit_species_evidence",
 }
 
 
@@ -60,9 +57,7 @@ def test_add_species_schema_requires_core_fields():
     with pytest.raises(ValidationError):
         DagAddSpeciesInput()
     with pytest.raises(ValidationError):
-        DagAddSpeciesInput(node_id="r", role="reactant")
-    with pytest.raises(ValidationError):
-        DagRemoveEdgeInput(graph="process", edge_id="e1", rationale="")
+        DagRemoveEdgeInput(name="step1", reason="")
 
 
 @pytest.mark.asyncio
@@ -87,19 +82,18 @@ async def test_dag_record_agent_can_add_delivery_and_view(tmp_path):
     session = Session("s1", str(tmp_path / "session.json"))
 
     added_r = await _call(
-        DagAddSpecies, agent, session, node_id="r", label="C=COCC=C", role="reactant"
+        DagAddSpecies, agent, session, name="r", smiles="C=COCC=C"
     )
     added_p = await _call(
-        DagAddSpecies, agent, session, node_id="p", label="C=CCCC=O", role="product"
+        DagAddSpecies, agent, session, name="p", smiles="C=CCCC=O"
     )
     added_step = await _call(
         DagAddStep,
         agent,
         session,
-        edge_id="chair",
-        source_node_id="r",
-        target_node_id="p",
-        label="chair [3,3]",
+        name="chair [3,3]",
+        from_="r",
+        to="p",
     )
     viewed = await _call(DagView, agent, session)
 
@@ -139,7 +133,7 @@ async def test_add_species_without_revisions_retries_stale(tmp_path, monkeypatch
     monkeypatch.setattr(DagStore, "load_bundle", stale_first_pin)
 
     mutated = await _call(
-        DagAddSpecies, agent, session, node_id="r", label="CCO", role="reactant"
+        DagAddSpecies, agent, session, name="r", smiles="CCO"
     )
 
     assert mutated.is_success
@@ -156,10 +150,11 @@ async def test_deleted_process_tools_are_unregistered(tmp_path):
         "dag_schedule_work",
         "dag_update_process_node",
         "dag_init_from_template",
+        "dag_review_evidence",
+        "dag_bind_evidence",
+        "dag_review_call",
     ):
         assert name not in record_names
-    # Task 6 reintroduces dag_review_evidence for v2 structured review requests.
-    assert "dag_review_evidence" in record_names
 
 
 @pytest.mark.asyncio
@@ -170,7 +165,7 @@ async def test_supervisor_actor_cannot_design_delivery(tmp_path):
     session = Session("s1", str(tmp_path / "session.json"))
 
     designed = await _call(
-        DagAddSpecies, agent, session, node_id="r", label="reactant", role="reactant"
+        DagAddSpecies, agent, session, name="reactant"
     )
     assert not designed.accepted
     assert designed.rejection_code == "actor_forbidden"
@@ -291,9 +286,7 @@ async def test_view_pagination_reports_total_and_offset(tmp_path):
             DagAddSpecies,
             agent,
             session,
-            node_id=f"n{i}",
-            label=f"candidate {i}",
-            role="intermediate",
+            name=f"candidate {i}",
         )
         assert out.accepted
 
@@ -318,36 +311,42 @@ async def test_view_filters_by_node_ids_and_status(tmp_path):
             DagAddSpecies,
             agent,
             session,
-            node_id=f"n{i}",
-            label=f"candidate {i}",
-            role="intermediate",
-            metadata={"status": "ready" if i % 2 else "proposed"},
+            name=f"candidate {i}",
         )
         assert out.accepted
 
+    for i in (1, 3):
+        await _call(DagUpdateDeliveryElement, agent, session, name=f"candidate {i}", status="ready")
+    for i in (0, 2):
+        await _call(DagUpdateDeliveryElement, agent, session, name=f"candidate {i}", status="proposed")
+
+    view_all = await _call(DagView, agent, session, graph_kind="delivery")
+    id_map = {n["label"]: n["node_id"] for n in view_all.result["nodes"]}
+    n0, n1, n2, n3 = id_map["candidate 0"], id_map["candidate 1"], id_map["candidate 2"], id_map["candidate 3"]
+
     by_id = await _call(
-        DagView, agent, session, graph_kind="delivery", node_ids=["n1", "n3"]
+        DagView, agent, session, graph_kind="delivery", node_ids=[n1, n3]
     )
     assert by_id.result["total_nodes"] == 2
-    assert {node["node_id"] for node in by_id.result["nodes"]} == {"n1", "n3"}
-    assert by_id.result["filters"] == {"node_ids": ["n1", "n3"]}
+    assert {node["node_id"] for node in by_id.result["nodes"]} == {n1, n3}
+    assert by_id.result["filters"] == {"node_ids": [n1, n3]}
 
     by_status = await _call(
         DagView, agent, session, graph_kind="delivery", status_filter="proposed"
     )
     assert by_status.result["total_nodes"] == 2
-    assert {node["node_id"] for node in by_status.result["nodes"]} == {"n0", "n2"}
+    assert {node["node_id"] for node in by_status.result["nodes"]} == {n0, n2}
 
     combined = await _call(
         DagView,
         agent,
         session,
         graph_kind="delivery",
-        node_ids=["n0", "n1"],
+        node_ids=[n0, n1],
         status_filter="ready",
     )
     assert combined.result["total_nodes"] == 1
-    assert combined.result["nodes"][0]["node_id"] == "n1"
+    assert combined.result["nodes"][0]["node_id"] == n1
 
 
 @pytest.mark.asyncio
@@ -366,21 +365,21 @@ async def test_process_view_returns_deprecation_note(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_update_delivery_element_relabels_by_id_lookup(tmp_path):
+async def test_update_delivery_element_status_by_name(tmp_path):
     get_config().data_dir = tmp_path
     agent = _agent("tool-upd-delivery", "dag_record")
     session = Session("s1", str(tmp_path / "session.json"))
     added = await _call(
-        DagAddSpecies, agent, session, node_id="r", label="old", role="reactant"
+        DagAddSpecies, agent, session, name="ethylene"
     )
     assert added.accepted
     updated = await _call(
-        DagUpdateDeliveryElement, agent, session, element_id="r", label="ethylene"
+        DagUpdateDeliveryElement, agent, session, name="ethylene", status="supported"
     )
     assert updated.accepted
     view = await _call(DagView, agent, session, graph_kind="delivery")
-    node = next(n for n in view.result["nodes"] if n["node_id"] == "r")
-    assert node["label"] == "ethylene"
+    node = next(n for n in view.result["nodes"] if (n.get("name") or n.get("label")) == "ethylene")
+    assert node["payload"]["status"] == "supported"
 
 
 @pytest.mark.asyncio
@@ -388,15 +387,15 @@ async def test_remove_edge_requires_rationale_and_process_is_gone(tmp_path):
     get_config().data_dir = tmp_path
     agent = _agent("tool-rm-edge", "dag_record")
     session = Session("s1", str(tmp_path / "session.json"))
-    await _call(DagAddSpecies, agent, session, node_id="r", label="R", role="reactant")
-    await _call(DagAddSpecies, agent, session, node_id="p", label="P", role="product")
+    await _call(DagAddSpecies, agent, session, name="R")
+    await _call(DagAddSpecies, agent, session, name="P")
     step = await _call(
         DagAddStep,
         agent,
         session,
-        edge_id="step1",
-        source_node_id="r",
-        target_node_id="p",
+        name="step1",
+        from_="R",
+        to="P",
     )
     assert step.accepted
 
@@ -404,22 +403,10 @@ async def test_remove_edge_requires_rationale_and_process_is_gone(tmp_path):
         DagRemoveEdge,
         agent,
         session,
-        graph="delivery",
-        edge_id="step1",
-        rationale="chair path ruled out by mapping",
+        name="step1",
+        reason="chair path ruled out by mapping",
     )
     assert removed.accepted is True
-
-    blocked = await _call(
-        DagRemoveEdge,
-        agent,
-        session,
-        graph="process",
-        edge_id="dep_a_b",
-        rationale="no longer needed",
-    )
-    assert not blocked.accepted
-    assert blocked.rejection_code == "process_graph_removed"
 
 
 @pytest.mark.asyncio
@@ -908,8 +895,6 @@ async def test_supervisor_view_reads_persisted_drafts_and_explicit_reviews(tmp_p
     assert {d["draft_id"] for d in viewed.result["open_drafts"]} == {
         d["draft_id"] for d in drafts
     }
-    assert viewed.result["open_drafts"][0]["operations"]
-    assert viewed.result["open_drafts"][0]["stage_contracts"]
     assert [r["review_id"] for r in viewed.result["pending_reviews"]] == ["explicit"]
     assert viewed.result["pending_reviews"][0]["claim"] == "Evidence supports step1"
     await asyncio.to_thread(controller.store.set_draft_state, drafts[0]["draft_id"], "rejected")
