@@ -69,7 +69,7 @@ def test_apply_provider_preset():
     assert cfg.url == "https://openrouter.ai/api/v1"
     assert cfg.model == "anthropic/claude-sonnet-5"
     assert cfg.context_window == 1000000
-    assert cfg.native_search == "openrouter"
+    assert cfg.native_search == "auto"
 
     # Testing opencode_go
     ok2 = apply_provider_preset(cfg, "opencode_go", overwrite_model=True)
