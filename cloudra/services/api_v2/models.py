@@ -89,9 +89,11 @@ class ContextInjectRequest(BaseModel):
 class GlobalConfigFieldPatch(BaseModel):
     """Fields of one global LLM slot; ``key`` is write-only (empty clears)."""
 
+    provider: Optional[str] = None
     model: Optional[str] = None
     url: Optional[str] = None
     key: Optional[str] = None
+    supports_vision: Optional[bool] = None
     context_window: Optional[int] = Field(default=None, ge=1)
     timeout: Optional[int] = Field(default=None, ge=1)
     reasoning_effort: Optional[str] = None
@@ -100,6 +102,12 @@ class GlobalConfigFieldPatch(BaseModel):
 class GlobalConfigPatch(BaseModel):
     slot: Literal["coordinator", "follower"]
     changes: GlobalConfigFieldPatch
+
+
+class OpenRouterExchangeRequest(BaseModel):
+    code: str
+    code_verifier: str
+    slot: Optional[Literal["coordinator", "follower"]] = None
 
 
 class CommandResponse(BaseModel):

@@ -6,6 +6,7 @@ import type {
   KgOverview,
   KgSearchResponse,
   Project,
+  ProviderPreset,
   RuntimeConfig,
 } from './types';
 
@@ -133,6 +134,16 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   listRoles: () => request<Array<{ role_id: string; display_name: string }>>('/api/v2/roles'),
+  providers: () => request<ProviderPreset[]>('/api/v2/runtime/providers'),
+  getOpenRouterPkce: (callbackUrl?: string) =>
+    request<{ auth_url: string; code_verifier: string; code_challenge: string }>(
+      `/api/v2/runtime/providers/openrouter/pkce${callbackUrl ? `?callback_url=${encodeURIComponent(callbackUrl)}` : ''}`
+    ),
+  exchangeOpenRouterCode: (code: string, code_verifier: string, slot?: 'coordinator' | 'follower') =>
+    request<{ key: string; saved: boolean }>('/api/v2/runtime/providers/openrouter/code-exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code, code_verifier, slot }),
+    }),
   runtimeConfig: () => request<RuntimeConfig>('/api/v2/runtime/config'),
   patchRuntimeConfig: (slot: 'coordinator' | 'follower', changes: Record<string, unknown>) =>
     request<RuntimeConfig>('/api/v2/runtime/config', {

@@ -114,14 +114,100 @@ def config_init(force):
 
     console.print("[bold]Cloudra 配置初始化[/bold]\n")
 
-    # Prompt for values (use existing as defaults)
-    coord_model = click.prompt("Coordinator 模型", default=cfg.coordinator.model)
-    coord_url = click.prompt("Coordinator API 地址", default=cfg.coordinator.url)
-    coord_key = click.prompt("Coordinator API Key", default="", hide_input=True)
+    from cloudra.infra.providers import detect_provider_from_url, get_provider_preset, list_provider_presets
+    presets = list_provider_presets()
 
-    follower_model = click.prompt("Follower 模型", default=cfg.follower.model)
-    follower_url = click.prompt("Follower API 地址", default=cfg.follower.url)
-    follower_key = click.prompt("Follower API Key", default="", hide_input=True)
+    def _prompt_slot(role_name: str, current_cfg, allow_same: bool = False):
+        console.print(f"[bold cyan]--- 配置 {role_name} ---[/bold cyan]")
+        if allow_same:
+            console.print("  [bold]0[/bold]) 同 Coordinator 配置")
+        for idx, p in enumerate(presets, 1):
+            console.print(f"  [bold]{idx}[/bold]) {p.name}")
+
+        default_idx = 1
+        detected = None
+        if current_cfg.provider:
+            detected = get_provider_preset(current_cfg.provider)
+        if not detected and current_cfg.url:
+            detected = detect_provider_from_url(current_cfg.url)
+        if detected:
+            for idx, p in enumerate(presets, 1):
+                if p.id == detected.id:
+                    default_idx = idx
+                    break
+
+        choice = click.prompt("供应商序号", default=0 if allow_same else default_idx, type=int)
+        if allow_same and choice == 0:
+            return None
+
+        if 1 <= choice <= len(presets):
+            chosen = presets[choice - 1]
+        else:
+            chosen = presets[-1]
+
+        default_url = chosen.default_url or current_cfg.url
+        default_model = chosen.default_model or current_cfg.model
+        url = click.prompt(f"{role_name} API 地址", default=default_url)
+        if chosen.models:
+            console.print(f"[dim]常见模型候选: {', '.join(chosen.models[:5])}[/dim]")
+        model = click.prompt(f"{role_name} 模型", default=default_model)
+
+        key = ""
+        if chosen.id == "openrouter":
+            console.print("[cyan]OpenRouter 账号授权方式:[/cyan]")
+            console.print("  [bold]1[/bold]) 浏览器一键授权 (OAuth PKCE 自动重定向捕获 - 推荐)")
+            console.print("  [bold]2[/bold]) 手工输入已有 API Key (sk-or-v1-...)")
+            auth_way = click.prompt("选择授权方式", default=1, type=int)
+            if auth_way == 1:
+                import urllib.parse
+
+                from cloudra.infra.providers import (
+                    exchange_openrouter_code,
+                    generate_pkce_pair,
+                    run_local_auth_listener,
+                )
+                verifier, challenge = generate_pkce_pair()
+                callback_url, wait_for_code = run_local_auth_listener(timeout=90.0)
+                params = {
+                    "callback_url": callback_url,
+                    "code_challenge": challenge,
+                    "code_challenge_method": "S256",
+                }
+                auth_url = f"https://openrouter.ai/auth?{urllib.parse.urlencode(params)}"
+                console.print("[bold green]正在打开浏览器进行 OpenRouter 账号授权...[/bold green]")
+                console.print(f"[dim]授权链接: {auth_url}[/dim]")
+                try:
+                    click.launch(auth_url)
+                except Exception:
+                    pass
+                console.print("[dim]本地重定向回调服务已就绪，等待浏览器授权完成...[/dim]")
+                captured = wait_for_code(90.0)
+                if captured:
+                    try:
+                        key = exchange_openrouter_code(captured.strip(), verifier)
+                        console.print("[green]✓ OpenRouter 账号授权成功，已自动获得 API Key！[/green]")
+                    except Exception as exc:
+                        console.print(f"[red]授权交换失败 ({exc})，请改用手动输入 Key[/red]")
+                else:
+                    console.print("[yellow]等待重定向超时，未能自动捕获授权码。[/yellow]")
+
+        if not key:
+            key_hint = f" ({chosen.key_hint})" if chosen.key_hint else ""
+            key = click.prompt(f"{role_name} API Key{key_hint}", default="", hide_input=True)
+
+        return chosen.id, model, url, key
+
+    coord_res = _prompt_slot("Coordinator", cfg.coordinator, allow_same=False)
+    coord_provider, coord_model, coord_url, coord_key = coord_res
+
+    console.print()
+    foll_res = _prompt_slot("Follower", cfg.follower, allow_same=True)
+    if foll_res is None:
+        foll_provider, foll_model, foll_url, foll_key = coord_provider, coord_model, coord_url, coord_key
+    else:
+        foll_provider, foll_model, foll_url, foll_key = foll_res
+
+    console.print()
     openalex_key = click.prompt(
         "OpenAlex API Key（可选，回车跳过；无 key 时匿名检索）",
         default="",
@@ -133,16 +219,23 @@ def config_init(force):
     )
 
     from cloudra.infra.config import mutate_config
+    from cloudra.infra.providers import apply_provider_preset
 
     def _apply(work):
+        if coord_provider and coord_provider != "custom":
+            apply_provider_preset(work.coordinator, coord_provider)
         work.coordinator.model = coord_model
         work.coordinator.url = coord_url
         if coord_key:
             work.coordinator.key = coord_key
-        work.follower.model = follower_model
-        work.follower.url = follower_url
-        if follower_key:
-            work.follower.key = follower_key
+
+        if foll_provider and foll_provider != "custom":
+            apply_provider_preset(work.follower, foll_provider)
+        work.follower.model = foll_model
+        work.follower.url = foll_url
+        if foll_key:
+            work.follower.key = foll_key
+
         if openalex_key:
             work.openalex_api_key = openalex_key
         if openalex_mailto:
@@ -165,18 +258,21 @@ def config_show():
 
     table = Table(title="LLM 配置", show_header=True, header_style="bold magenta")
     table.add_column("角色")
+    table.add_column("供应商")
     table.add_column("模型")
     table.add_column("URL")
     table.add_column("Key")
 
     table.add_row(
         "Coordinator",
+        display['llm']['coordinator'].get('provider', 'custom'),
         display['llm']['coordinator']['model'],
         display['llm']['coordinator']['url'],
         display['llm']['coordinator']['key'],
     )
     table.add_row(
         "Follower",
+        display['llm']['follower'].get('provider', 'custom'),
         display['llm']['follower']['model'],
         display['llm']['follower']['url'],
         display['llm']['follower']['key'],

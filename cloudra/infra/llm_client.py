@@ -31,6 +31,25 @@ ChatResponse = Union[ChatCompletion, AsyncStream[ChatCompletionChunk]]
 FALLBACK_USER_AGENT = "curl/7.68.0"
 
 
+def _default_headers_for_url(base_url: str) -> dict[str, str]:
+    """针对特定 provider 端点的必要默认请求头。
+
+    - OpenRouter (openrouter.ai):
+      - HTTP-Referer: 应用标识 URL（用于排行榜与应用归属）
+      - X-Title: 应用显示名称
+    - Kimi Coding Plan (api.kimi.com/coding):
+      - User-Agent: 经白名单验证的 Agent 标识（如 Roo-Code/3.45.0），避免 403 access_terminated_error
+    """
+    headers: dict[str, str] = {}
+    url_lower = (base_url or "").lower()
+    if "openrouter.ai" in url_lower:
+        headers["HTTP-Referer"] = "https://github.com/yyywaa/Cloudra"
+        headers["X-Title"] = "Cloudra"
+    if "api.kimi.com/coding" in url_lower or "kimi.com/coding" in url_lower:
+        headers["User-Agent"] = "Roo-Code/3.45.0"
+    return headers
+
+
 class ResponseDictWrapper:
     """把 requests 返回的 dict 包装成同时支持属性访问和 model_dump 的对象。"""
 
@@ -389,6 +408,7 @@ class LLMClient:
             "Content-Type": "application/json",
             "User-Agent": FALLBACK_USER_AGENT,
         }
+        headers.update(_default_headers_for_url(self.base_url))
         payloads = [
             {"model": model, "messages": messages},
             {"model": model, "input": messages},
@@ -534,9 +554,11 @@ class LLMClient:
         # max_retries=0：SDK 自带的静默重试关掉，瞬时错误统一交给
         # create_with_retry 处理，保证每次重试都有事件/日志可见。
         if self._openai_client is None:
+            extra_headers = _default_headers_for_url(self.base_url)
             self._openai_client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
+                default_headers=extra_headers if extra_headers else None,
                 timeout=self.timeout,
                 max_retries=0,
             )
@@ -612,9 +634,11 @@ class LLMClient:
         """
         self._raise_if_aborted()
         if self._openai_client is None:
+            extra_headers = _default_headers_for_url(self.base_url)
             self._openai_client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
+                default_headers=extra_headers if extra_headers else None,
                 timeout=self.timeout,
                 max_retries=0,
             )
@@ -859,6 +883,7 @@ class LLMClient:
             "User-Agent": FALLBACK_USER_AGENT,
             "Accept": "application/json",
         }
+        headers.update(_default_headers_for_url(self.base_url))
         payload = serialize_openai_payload(kwargs)
         stream = payload.get("stream", False)
 
@@ -894,10 +919,12 @@ class LLMClient:
     def _openai_client_with_custom_headers(self) -> AsyncOpenAI:
         """返回带自定义 User-Agent 的 OpenAI 客户端（实例级缓存），用于二级 fallback。"""
         if self._openai_client_custom is None:
+            custom_headers = {"User-Agent": FALLBACK_USER_AGENT}
+            custom_headers.update(_default_headers_for_url(self.base_url))
             self._openai_client_custom = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
-                default_headers={"User-Agent": FALLBACK_USER_AGENT},
+                default_headers=custom_headers,
                 timeout=self.timeout,
                 max_retries=0,
             )

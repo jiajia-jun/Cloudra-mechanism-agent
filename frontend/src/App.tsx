@@ -205,7 +205,12 @@ export default function App() {
   const [approvals, setApprovals] = useState<Array<Record<string, unknown>>>([]);
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
-  const [globalOpen, setGlobalOpen] = useState(false);
+  const [globalOpen, setGlobalOpen] = useState(() => {
+    return Boolean(
+      new URLSearchParams(window.location.search).has('code') &&
+        sessionStorage.getItem('openrouter_pkce_verifier')
+    );
+  });
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
@@ -2251,9 +2256,22 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                 <input
                   className="input"
                   key={`model-${activeAgent.id}`}
+                  list="agent-model-suggestions"
                   defaultValue={activeAgent.settings.model}
                   onBlur={(e) => e.target.value !== activeAgent.settings.model && onPatchSettings({ model: e.target.value })}
                 />
+                <datalist id="agent-model-suggestions">
+                  <option value="anthropic/claude-sonnet-5" />
+                  <option value="deepseek-v4-pro" />
+                  <option value="openai/gpt-6-astra" />
+                  <option value="google/gemini-3.8-flash" />
+                  <option value="qwen/qwen3.8-max-0902" />
+                  <option value="kimi-for-coding" />
+                  <option value="kimi-k3" />
+                  <option value="glm-5.3" />
+                  <option value="minimax-m3" />
+                  <option value="deepseek-ai/DeepSeek-V4-Pro" />
+                </datalist>
                 <span className="field-hint">
                   empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
                 </span>
@@ -2263,9 +2281,23 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                 <input
                   className="input"
                   key={`url-${activeAgent.id}`}
+                  list="agent-url-suggestions"
                   defaultValue={activeAgent.settings.base_url}
                   onBlur={(e) => e.target.value !== activeAgent.settings.base_url && onPatchSettings({ base_url: e.target.value })}
                 />
+                <datalist id="agent-url-suggestions">
+                  <option value="https://openrouter.ai/api/v1" label="OpenRouter" />
+                  <option value="https://opencode.ai/zen/go/v1" label="OpenCode Go" />
+                  <option value="https://api.kimi.com/coding/v1" label="Kimi Coding Plan (Kimi Code)" />
+                  <option value="https://api.moonshot.cn/v1" label="Moonshot (Kimi 开放平台)" />
+                  <option value="https://api.deepseek.com" label="DeepSeek" />
+                  <option value="https://api.openai.com/v1" label="OpenAI" />
+                  <option value="https://generativelanguage.googleapis.com/v1beta/openai/" label="Google Gemini" />
+                  <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" label="通义千问 (DashScope)" />
+                  <option value="https://api.siliconflow.cn/v1" label="硅基流动 (SiliconFlow)" />
+                  <option value="https://api.minimaxi.com/v1" label="MiniMax" />
+                  <option value="http://localhost:11434/v1" label="Ollama (Local)" />
+                </datalist>
                 <span className="field-hint">
                   empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
                 </span>

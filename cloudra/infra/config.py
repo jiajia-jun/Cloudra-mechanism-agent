@@ -52,6 +52,9 @@ DEFAULT_DATA_DIR = Path(user_data_dir(APP_NAME))
 
 class LLMConfig(BaseSettings):
     """LLM provider configuration for a single agent type."""
+    # 供应商 ID：openrouter / opencode_go / deepseek / openai / gemini / dashscope /
+    # siliconflow / moonshot / zhipu / ollama / custom 等，可自动补全或探测端点
+    provider: str = ""
     model: str = "deepseek-4-pro"
     url: str = "https://api.deepseek.com/"
     key: str = ""
@@ -148,12 +151,16 @@ class CloudraConfig(BaseSettings):
         """Read COORDINATOR_* / FOLLOWER_* from environment or .env."""
         # These may have been loaded by pydantic-settings from .env already,
         # but we also check them directly to be safe.
+        if os.getenv("COORDINATOR_PROVIDER"):
+            self.coordinator.provider = os.getenv("COORDINATOR_PROVIDER")
         if os.getenv("COORDINATOR_MODEL"):
             self.coordinator.model = os.getenv("COORDINATOR_MODEL")
         if os.getenv("COORDINATOR_URL"):
             self.coordinator.url = os.getenv("COORDINATOR_URL")
         if os.getenv("COORDINATOR_KEY"):
             self.coordinator.key = os.getenv("COORDINATOR_KEY")
+        if os.getenv("FOLLOWER_PROVIDER"):
+            self.follower.provider = os.getenv("FOLLOWER_PROVIDER")
         if os.getenv("FOLLOWER_MODEL"):
             self.follower.model = os.getenv("FOLLOWER_MODEL")
         if os.getenv("FOLLOWER_URL"):
@@ -188,9 +195,18 @@ class CloudraConfig(BaseSettings):
                 for role in ("coordinator", "follower"):
                     if role in data["llm"]:
                         cfg = getattr(self, role)
-                        for k, v in data["llm"][role].items():
+                        role_data = data["llm"][role]
+                        if "provider" in role_data and role_data["provider"]:
+                            from cloudra.infra.providers import apply_provider_preset
+                            apply_provider_preset(cfg, str(role_data["provider"]))
+                        for k, v in role_data.items():
                             if hasattr(cfg, k) and v is not None:
                                 setattr(cfg, k, v)
+                        if not cfg.provider and cfg.url:
+                            from cloudra.infra.providers import detect_provider_from_url
+                            detected = detect_provider_from_url(cfg.url)
+                            if detected:
+                                cfg.provider = detected.id
 
             if "email" in data:
                 for k, v in data["email"].items():
@@ -219,32 +235,31 @@ class CloudraConfig(BaseSettings):
 
     def to_display_dict(self) -> dict:
         """Return a dict for display, masking sensitive keys."""
+        def _slot_dict(role: LLMConfig) -> dict:
+            from cloudra.infra.providers import detect_provider_from_url
+            provider_id = role.provider
+            if not provider_id and role.url:
+                detected = detect_provider_from_url(role.url)
+                provider_id = detected.id if detected else "custom"
+            return {
+                "provider": provider_id or "custom",
+                "model": role.model,
+                "url": role.url,
+                "key": "***" if role.key else "(not set)",
+                "supports_vision": role.supports_vision,
+                "native_search": role.native_search,
+                "native_search_params": role.native_search_params,
+                "context_window": role.context_window,
+                "timeout": role.timeout,
+                "reasoning_effort": role.reasoning_effort,
+            }
+
         return {
             "data_dir": str(self.data_dir),
             "config_file": str(self.config_file),
             "llm": {
-                "coordinator": {
-                    "model": self.coordinator.model,
-                    "url": self.coordinator.url,
-                    "key": "***" if self.coordinator.key else "(not set)",
-                    "supports_vision": self.coordinator.supports_vision,
-                    "native_search": self.coordinator.native_search,
-                    "native_search_params": self.coordinator.native_search_params,
-                    "context_window": self.coordinator.context_window,
-                    "timeout": self.coordinator.timeout,
-                    "reasoning_effort": self.coordinator.reasoning_effort,
-                },
-                "follower": {
-                    "model": self.follower.model,
-                    "url": self.follower.url,
-                    "key": "***" if self.follower.key else "(not set)",
-                    "supports_vision": self.follower.supports_vision,
-                    "native_search": self.follower.native_search,
-                    "native_search_params": self.follower.native_search_params,
-                    "context_window": self.follower.context_window,
-                    "timeout": self.follower.timeout,
-                    "reasoning_effort": self.follower.reasoning_effort,
-                },
+                "coordinator": _slot_dict(self.coordinator),
+                "follower": _slot_dict(self.follower),
             },
             "openalex_api_key": "***" if self.openalex_api_key else "(not set)",
             "openalex_mailto": self.openalex_mailto or "(not set)",
@@ -323,6 +338,21 @@ def set_config_value(key: str, value: str) -> None:
             target, final_key = resolve_config_attr(work, f"follower.{key}")
         if target is None:
             raise ValueError(f"配置项不存在: {key}")
+        if final_key == "provider" and isinstance(target, LLMConfig):
+            from cloudra.infra.providers import apply_provider_preset, get_provider_preset
+            preset = get_provider_preset(value)
+            if preset and preset.id != "custom":
+                apply_provider_preset(target, preset.id)
+            else:
+                target.provider = value
+            return
+        if final_key == "url" and isinstance(target, LLMConfig):
+            from cloudra.infra.providers import detect_provider_from_url
+            target.url = value
+            detected = detect_provider_from_url(value)
+            if detected:
+                target.provider = detected.id
+            return
         setattr(target, final_key, _coerce_value(getattr(target, final_key), value))
 
     mutate_config(_apply)

@@ -72,7 +72,21 @@ export interface EventEnvelope {
   created_at: string;
 }
 
+export interface ProviderPreset {
+  id: string;
+  name: string;
+  default_url: string;
+  default_model: string;
+  models: string[];
+  context_window: number;
+  supports_vision: boolean;
+  native_search: string;
+  key_hint?: string;
+  match_hosts?: string[];
+}
+
 export interface RuntimeConfigSlot {
+  provider?: string;
   model: string;
   url: string;
   key_set: boolean;
