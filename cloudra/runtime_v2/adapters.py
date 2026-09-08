@@ -214,6 +214,42 @@ class LegacyPromptProvider:
         return await asyncio.to_thread(assemble)
 
 
+def _extract_delta_reasoning(delta: Any) -> str | None:
+    """从流式 chunk 的 delta 中兼容提取 reasoning/thinking 文本。
+
+    兼容多服务商与代理网关格式：
+    - DeepSeek / 官方兼容接口: delta.reasoning_content
+    - OpenRouter / vLLM / Ollama: delta.reasoning
+    - Anthropic 第三方网关: delta.thinking
+    - Pydantic v2 model_extra 字典
+    - 字典形态 delta
+    """
+    for attr in ("reasoning_content", "reasoning", "thinking"):
+        val = None
+        if isinstance(delta, dict):
+            val = delta.get(attr)
+        else:
+            val = getattr(delta, attr, None)
+            if val is None and hasattr(delta, "model_extra") and isinstance(delta.model_extra, dict):
+                val = delta.model_extra.get(attr)
+        if val:
+            if isinstance(val, str):
+                return val
+            if isinstance(val, list):
+                parts = []
+                for item in val:
+                    if isinstance(item, str):
+                        parts.append(item)
+                    elif isinstance(item, dict):
+                        text = item.get("text") or item.get("summary") or item.get("content") or ""
+                        if text:
+                            parts.append(str(text))
+                if parts:
+                    return "".join(parts)
+            return str(val)
+    return None
+
+
 def _to_api_message(message: dict[str, Any]) -> dict[str, Any]:
     """Convert internal history entries to valid OpenAI wire messages.
 
@@ -224,7 +260,7 @@ def _to_api_message(message: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"role": message.get("role", "user"), "content": message.get("content") or ""}
     if message.get("name"):
         out["name"] = message["name"]
-    reasoning = message.get("reasoning_content")
+    reasoning = message.get("reasoning_content") or message.get("reasoning")
     if reasoning:
         # Thinking-mode endpoints (DeepSeek etc.) require the previous
         # assistant turn's reasoning_content to be echoed on the next call.
@@ -410,7 +446,7 @@ class LegacyLLMProvider:
                     content += token
                     if pumper is not None:
                         await pumper.add("content", token)
-                reasoning = getattr(delta, "reasoning_content", None)
+                reasoning = _extract_delta_reasoning(delta)
                 if reasoning:
                     reasoning_content += reasoning
                     if pumper is not None:

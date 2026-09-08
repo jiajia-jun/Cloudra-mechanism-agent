@@ -12,40 +12,37 @@ from cloudra.core.agent import Agent
 from cloudra.dag.controller import DagController
 from cloudra.dag.models import OrchestrationMode, StageKind
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail
-from cloudra.tools.Plantool.dag_tools.proposal_inputs import ProposalOperation
+from cloudra.tools.Plantool.dag_tools.proposal_inputs import (
+    ProposalOperation,
+    ProposalSpeciesInput,
+    ProposalStepInput,
+)
 
 
 class DagProposeMechanismInput(input_schema):
-    operations: list[ProposalOperation] = Field(
-        min_length=1,
-        description=(
-            "Delivery-only graph operations (add_node occurrence / add_edge "
-            "elementary_step / update_node / update_edge) describing the "
-            "mechanism hypothesis. Each operation is a plain object like "
-            '{"op": "add_node", "graph": "delivery", "node": {"node_id": ..., '
-            '"node_type": "occurrence", "label": ..., "role": ...}}.'
-        ),
-    )
-    stage_contracts: dict[str, list[StageKind]] = Field(
-        default_factory=dict,
-        description=(
-            "Element id → ordered stage kinds the element needs. Occurrence "
-            "stages: geometry, frequency, single_point. Elementary-step stages: "
-            "ts_guess (advisory), ts_opt, frequency, short_irc, endpoint_a, "
-            "endpoint_b, direction, identity, thermochemistry. List order IS "
-            "the allowed bind order; every id must be added by this draft."
-        ),
-    )
     rationale: str = Field(
         min_length=1,
         description="Mechanism hypothesis reasoning (literature/mapping basis).",
     )
+    species: list[ProposalSpeciesInput] | None = Field(
+        default=None,
+        description="Declarative list of system state species: [{'name': '...', 'smiles': '...'}].",
+    )
+    steps: list[ProposalStepInput] | None = Field(
+        default=None,
+        description="Declarative list of transformation steps: [{'name': '...', 'from': '...', 'to': '...'}].",
+    )
+    operations: list[ProposalOperation] | None = Field(
+        default=None,
+        description="Delivery-only graph operations (legacy).",
+    )
+    stage_contracts: dict[str, list[StageKind]] = Field(
+        default_factory=dict,
+        description="Element id → ordered stage kinds (legacy).",
+    )
     claim_spec: dict[str, Any] | None = Field(
         default=None,
-        description=(
-            "Optional v2 scientific claim contract: kind, quantity, unit, "
-            "reference/scope, required_checks and optional_checks."
-        ),
+        description="Optional scientific claim contract.",
     )
     contract_version: int = Field(default=1, ge=1)
 
@@ -54,15 +51,13 @@ class DagProposeMechanism(DagToolBase):
     tool_id: str = "t-dag-propose"
     tool_name: str = "dag_propose_mechanism"
     tool_description: str = (
-        "Propose the mechanism: a delivery-graph draft plus per-element stage "
-        "contracts (Coordinator in dag_record or dag_guided). "
+        "Propose the mechanism: declarative species states and transformation steps "
+        "(Coordinator in dag_record or dag_guided). "
         "Use for: the first delivery artifact of a mechanism study — no "
         "compute is unlocked until the draft is accepted (Supervisor in "
         "dag_guided; auto-accepted in dag_record). "
-        "Do not use for: process/scheduling writes; pre-declaring stage "
-        "states (all stages start pending and are bound by the harness). "
-        "Key discipline: you choose which stages each element needs; binds "
-        "are sequential in contract order."
+        "Input shape: {rationale: str, species: [{name, smiles}], steps: [{name, from, to}]}. "
+        "Key discipline: species names and step names must be unique within the delivery graph."
     )
     input_schema: Any = DagProposeMechanismInput
     output_schema: Any = DagToolOutput
@@ -85,25 +80,29 @@ class DagProposeMechanism(DagToolBase):
             ctx.db, session.id, ctx.mode, conversation_id=ctx.conversation_id
         )
         try:
-            proposed = await controller.propose_mechanism(
-                operations=[op.model_dump(mode="json", exclude_unset=True) for op in user_input.operations],
-                stage_contracts={key: [kind.value for kind in kinds] for key, kinds in user_input.stage_contracts.items()},
-                rationale=user_input.rationale,
-                actor_id=self._actor_id(),
-                claim_spec=user_input.claim_spec,
-                contract_version=user_input.contract_version,
-            )
+            if user_input.species is not None or user_input.steps is not None:
+                proposed = await controller.propose_mechanism(
+                    rationale=user_input.rationale,
+                    species=[s.model_dump(mode="json", exclude_unset=True) for s in (user_input.species or [])],
+                    steps=[st.model_dump(mode="json", by_alias=True, exclude_unset=True) for st in (user_input.steps or [])],
+                    actor_id=self._actor_id(),
+                    claim_spec=user_input.claim_spec,
+                    contract_version=user_input.contract_version,
+                )
+            else:
+                proposed = await controller.propose_mechanism(
+                    operations=[op.model_dump(mode="json", exclude_unset=True) for op in (user_input.operations or [])],
+                    stage_contracts={key: [kind.value for kind in kinds] for key, kinds in user_input.stage_contracts.items()},
+                    rationale=user_input.rationale,
+                    actor_id=self._actor_id(),
+                    claim_spec=user_input.claim_spec,
+                    contract_version=user_input.contract_version,
+                )
         except Exception as exc:
-            # Controller validation errors are already public, field-oriented
-            # feedback. Unexpected faults stay in server logs and never expose
-            # implementation paths or exception internals to the model.
             import logging
 
             logging.getLogger(__name__).exception("Mechanism proposal failed")
-            message = str(exc)
-            if not message.startswith(("Invalid tool arguments:", "operations.", "stage contract", "unknown stage", "stage ", "duplicate stage", "draft ", "a mechanism", "mechanism draft")):
-                message = "Mechanism proposal failed validation; check the documented delivery operation shape and stage contracts."
-            return fail("dag_propose_mechanism", message, accepted=False)
+            return fail("dag_propose_mechanism", str(exc), accepted=False)
         return DagToolOutput(
             is_success=True,
             action="dag_propose_mechanism",

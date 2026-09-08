@@ -260,6 +260,32 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_observe=False,
     ),
     ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence',
+        class_name='DagSubmitStepEvidence',
+        tool_name='dag_submit_step_evidence',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence',
+        class_name='DagSubmitSpeciesEvidence',
+        tool_name='dag_submit_species_evidence',
+        dag_observe=False,
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_review_step',
+        class_name='DagReviewStep',
+        tool_name='dag_review_step',
+        dag_observe=False,
+        supervisor_access='review_decision',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Plantool.dag_tools.dag_review_species',
+        class_name='DagReviewSpecies',
+        tool_name='dag_review_species',
+        dag_observe=False,
+        supervisor_access='review_decision',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Plantool.dag_tools.dag_accept_mechanism',
         class_name='DagAcceptMechanism',
         tool_name='dag_accept_mechanism',

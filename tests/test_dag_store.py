@@ -281,8 +281,8 @@ def test_legacy_journal_operations_replay_into_typed_graph(tmp_path):
     assert rebuilt.process.nodes == []
     assert rebuilt.process.edges == []
     occurrence = rebuilt.delivery.nodes[0]
-    assert occurrence.node_type == "occurrence"
-    assert occurrence.role == "reactant"
+    assert occurrence.node_type in ("occurrence", "species")
+    assert occurrence.name == "R"
     assert occurrence.evidence_level == "proposed"
     with db.connect() as con:
         ignored = con.execute(
@@ -347,3 +347,58 @@ def test_legacy_rows_without_stages_map_from_evidence_level(tmp_path):
         ("ts_opt", "supported"),
         ("frequency", "supported"),
     ]
+
+
+def test_store_persists_and_loads_species_node_and_step_edge(tmp_path):
+    """Task 1: 持久化与加载 SpeciesNode 与 ElementaryStepEdge（无 occurrence/role）。"""
+    api, db, store = _new_store(tmp_path, "store-species")
+    from cloudra.dag.models import ElementaryStepEdge, SpeciesNode
+
+    store.ensure_bundle("s1")
+    with db.connect() as con:
+        con.execute(
+            """
+            INSERT INTO dag_nodes(
+                graph_id, node_id, node_type, label, refs, payload, created_revision, updated_revision
+            ) VALUES (
+                'dag_delivery', 'sp_01', 'species', '初始络合物体系', '[]',
+                '{"name": "初始络合物体系", "smiles": "CCO"}', 0, 0
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO dag_nodes(
+                graph_id, node_id, node_type, label, refs, payload, created_revision, updated_revision
+            ) VALUES (
+                'dag_delivery', 'sp_02', 'species', '产物络合物体系', '[]',
+                '{"name": "产物络合物体系", "smiles": "CC=O"}', 0, 0
+            )
+            """
+        )
+        con.execute(
+            """
+            INSERT INTO dag_edges(
+                graph_id, edge_id, source_node_id, target_node_id, edge_type,
+                label, refs, payload, created_revision, updated_revision
+            ) VALUES (
+                'dag_delivery', 'step_01', 'sp_01', 'sp_02', 'elementary_step',
+                '脱氢转化', '[]', '{"name": "脱氢转化"}', 0, 0
+            )
+            """
+        )
+
+    snapshot = store.load_snapshot()
+    assert len(snapshot.delivery.nodes) == 2
+    assert len(snapshot.delivery.edges) == 1
+    node1 = next(n for n in snapshot.delivery.nodes if n.node_id == "sp_01")
+    assert isinstance(node1, SpeciesNode)
+    assert node1.name == "初始络合物体系"
+    assert node1.smiles == "CCO"
+    assert not hasattr(node1, "role") or node1.role is None
+    edge1 = snapshot.delivery.edges[0]
+    assert isinstance(edge1, ElementaryStepEdge)
+    assert edge1.name == "脱氢转化"
+    assert edge1.source_node_id == "sp_01"
+    assert edge1.target_node_id == "sp_02"
+

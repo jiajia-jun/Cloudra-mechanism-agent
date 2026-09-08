@@ -30,6 +30,7 @@ from cloudra.dag.models import (
     OccurrenceNode,
     RemoveEdge,
     SetCoverageContract,
+    SpeciesNode,
     StageKind,
     StageState,
     StageStatus,
@@ -524,6 +525,7 @@ class DagEngine:
                     "node_id": row[0],
                     "node_type": row[1],
                     "label": row[2],
+                    "name": row[2],
                     "refs": _assemble_refs(
                         json.loads(row[3]), bindings.get(("node", row[0]), [])
                     ),
@@ -549,6 +551,7 @@ class DagEngine:
                     "target_node_id": row[2],
                     "edge_type": row[3],
                     "label": row[4],
+                    "name": row[4],
                     "refs": _assemble_refs(
                         json.loads(row[5]), bindings.get(("edge", row[0]), [])
                     ),
@@ -695,6 +698,14 @@ class DagEngine:
             node = operation.node
             if node.node_id in state.nodes:
                 raise _Rejected("duplicate_id", f"node {node.node_id!r} already exists")
+            if state.kind is GraphKind.DELIVERY:
+                node_name = getattr(node, "name", getattr(node, "label", "")).strip()
+                if not node_name:
+                    raise _Rejected("invalid_operation", "species name cannot be empty")
+                for existing in state.nodes.values():
+                    existing_name = getattr(existing, "name", getattr(existing, "label", "")).strip()
+                    if existing_name == node_name:
+                        raise _Rejected("duplicate_name", f"species name {node_name!r} already exists")
             state.nodes[node.node_id] = node
             state.node_created[node.node_id] = state.revision + 1
             touched.add(state.kind)
@@ -703,6 +714,13 @@ class DagEngine:
             edge = operation.edge
             if edge.edge_id in state.edges:
                 raise _Rejected("duplicate_id", f"edge {edge.edge_id!r} already exists")
+            if state.kind is GraphKind.DELIVERY:
+                edge_name = getattr(edge, "name", getattr(edge, "label", "")).strip()
+                if edge_name:
+                    for existing in state.edges.values():
+                        existing_name = getattr(existing, "name", getattr(existing, "label", "")).strip()
+                        if existing_name == edge_name:
+                            raise _Rejected("duplicate_name", f"step name {edge_name!r} already exists")
             state.edges[edge.edge_id] = edge
             state.edge_created[edge.edge_id] = state.revision + 1
             touched.add(state.kind)
@@ -733,9 +751,9 @@ class DagEngine:
             element = operation.node
             process_types = "planned|observed_tool_call"
             ok = (
-                isinstance(element, OccurrenceNode)
+                isinstance(element, (SpeciesNode, OccurrenceNode))
                 if kind is GraphKind.DELIVERY
-                else not isinstance(element, OccurrenceNode)
+                else not isinstance(element, (SpeciesNode, OccurrenceNode))
             )
             type_name = element.node_type
         else:
@@ -749,7 +767,7 @@ class DagEngine:
             type_name = element.edge_type
         if not ok:
             expected = (
-                "occurrence/elementary_step"
+                "species/elementary_step"
                 if kind is GraphKind.DELIVERY
                 else process_types
             )
@@ -919,9 +937,26 @@ class DagEngine:
         )
 
     def _validate_structure(self, con: sqlite3.Connection, state: _GraphState) -> None:
+        if state.kind is GraphKind.DELIVERY:
+            seen_nodes: set[str] = set()
+            for node in state.nodes.values():
+                name = getattr(node, "name", getattr(node, "label", "")).strip()
+                if name:
+                    if name in seen_nodes:
+                        raise _Rejected("duplicate_name", f"duplicate species name {name!r}")
+                    seen_nodes.add(name)
+            seen_edges: set[str] = set()
+            for edge in state.edges.values():
+                name = getattr(edge, "name", getattr(edge, "label", "")).strip()
+                if name:
+                    if name in seen_edges:
+                        raise _Rejected("duplicate_name", f"duplicate step name {name!r}")
+                    seen_edges.add(name)
         for edge in state.edges.values():
             if edge.source_node_id not in state.nodes or edge.target_node_id not in state.nodes:
                 raise _Rejected("dangling_edge", f"edge {edge.edge_id!r} has a missing endpoint")
+            if edge.source_node_id == edge.target_node_id:
+                raise _Rejected("cycle", f"edge {edge.edge_id!r} is a self-loop")
         for node in state.nodes.values():
             for ref in node.refs:
                 self._validate_ref(con, ref)
@@ -935,7 +970,7 @@ class DagEngine:
             row = con.execute(
                 "SELECT 1 FROM dag_species WHERE species_id = ?", (ref.ref_id,)
             ).fetchone()
-        elif ref.ref_type == "tool_result":
+        elif ref.ref_type in ("tool_result", "file"):
             row = con.execute(
                 "SELECT content_hash FROM dag_evidence WHERE evidence_id = ?", (ref.ref_id,)
             ).fetchone()

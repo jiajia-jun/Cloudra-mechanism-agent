@@ -110,10 +110,12 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 
 按会话 opt-in：`orchestration_mode` ∈ `standard`（默认，不读不写图）/ `dag_record`（harness 自动接受草稿，Coordinator 自绑阶段，Supervisor 不运行）/ `dag_guided`（Supervisor 接受草稿、逐调用复核绑阶段）。**继承规则（唯一解析点 `agent_host.resolve_orchestration_mode`，spawn 时物化进 agent settings 快照）**：`ProjectSettings.orchestration_mode` 是项目级默认值（压过 `project.settings.defaults` 里的冗余镜像），每个 agent 未显式设置即继承；`RuntimeSettingsPatch.orchestration_mode` 非 None 即显式覆盖（优先级：role default_settings < 显式 patch）。子 agent spawn 复制父的**生效**模式；supervisor 角色默认钉 dag_guided。可经 `agent.settings_update` 中途切换——切入 dag_guided 迁移沿与 `project.update` 一样发 `ReconcileSupervision` 补督导通知；启动 reconcile 也覆盖 standard 项目里带 guided 覆盖的 agent。
 
-- `models.py` — 共享类型：可写图元素只有 delivery（`OccurrenceNode`/`ElementaryStepEdge`）；阶段模型（list 顺序即允许绑定顺序）；`CallReview`（**source=explicit 才可消费**，legacy_auto/auto 仅审计）；`MechanismDraft`；`GraphOperation` 命令联合。
-- `store.py` — 单张 delivery 图持久存储（变更日志 + 物化视图）+ `dag_drafts` + `dag_call_reviews`（append-only）+ `dag_evidence_bindings`（证据引用，读路径以它为准）。
-- `engine.py` — 事务化变更引擎（原子批次、乐观 revision、无环校验）；`apply_stage_verdict()` 执行阶段顺序守卫（前置 required 未决则 out_of_order；rejected 可重绑）；`remove_edge` 必须带 rationale。
-- `completion.py` — 交付覆盖率确定性评估 `evaluate_delivery()`；`substantive_gate.py` — 机理接受前的计算门槛。
+- `models.py` — 共享类型：可写图元素只有 delivery（`SpeciesNode`/`ElementaryStepEdge`，无 occurrence/role）；`CallReview`（**source=explicit 才可消费**，legacy_auto/auto 仅审计）；`MechanismDraft`；`GraphOperation` 命令联合。
+- `store.py` — 单张 delivery 图持久存储（变更日志 + 物化视图）+ `dag_drafts` + `dag_call_reviews`（append-only）+ `dag_evidence_bindings`（证据引用，支持 file/tool_result，读路径以它为准）。
+- `engine.py` — 事务化变更引擎（原子批次、乐观 revision、无环校验、节点/步骤名称唯一性约束）；`apply_stage_verdict()` 执行阶段顺序守卫；`remove_edge` 必须带 rationale。
+- `evidence_ingest.py` — 文件证据沙箱固定与 QM/TS 校验（沙箱边界校验、sha256 计算、.cloudra/evidence 快照与虚频复用现有 Chemtool/core 解析）。
+- `review_context.py` — Supervisor 唯一持久活动审查项绑定与版本一致性检查。
+- `completion.py` — 交付覆盖率确定性评估 `evaluate_delivery()`（支持单一 "supported" 状态及有理由处置）；`substantive_gate.py` — 机理接受前的计算门槛。
 - `controller.py` — harness 集成门面 `DagController`，由四个 mixin 组合：`supervision.py`（待办持久化后经 runtime_v2 的 `notify_supervisor` 按状态表通知；显式送审的通知也在这里的 `_trigger_supervisor_after_tool` 完成钩子按新建 review 回执发出）、`evidence_inbox.py`（**CallReview 唯一来源是显式送审 `submit_evidence_for_review`**——只验证与原子持久化，本身不通知；直接存储调用不启动督导，中断窗口由 reconcile 扫持久信箱恢复；工具完成只登记证据快照/派生事实，不自动入箱；`review_call` 的每种终态裁决与落态同事务写一条 call_verdict 通知给提交者）、`stop_audit.py`（`audit_stop` 四态 StopGate；隐式退出与显式 stop 到达同一结束门禁）、`drafts.py`（`accept_mechanism` 的 accept/reject 与落态同事务写一条 draft_verdict 通知给 proposer——legacy actor id 由 flush 解析到活 session）。裁决通知的 flush 触发口在 dag policy stage 的 after_tool（dag_review_evidence / dag_review_call / dag_accept_mechanism 成功）与 reconcile。
 - `requirements.py`/`review_requests.py`（结构化送审请求与裁决协议，contract_version=2，basis_fingerprint 不匹配不收裁决）/`evidence_facts.py`/`fact_adapters.py`/`supervisor_tools.py` — 支撑件，细节读代码。
 

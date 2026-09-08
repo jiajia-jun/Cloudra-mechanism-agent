@@ -28,7 +28,7 @@ class GraphKind(str, Enum):
     DELIVERY = "delivery"
 
 
-GraphRefType = Literal["artifact", "compute_job", "tool_result", "species"]
+GraphRefType = Literal["artifact", "compute_job", "tool_result", "species", "file"]
 
 
 class GraphRef(BaseModel):
@@ -70,6 +70,7 @@ ProcessStatusValue = Literal[
 # 高于 proposed 的等级只能由 harness 确定性派生写入（见 engine 分权守卫）。
 DeliveryEvidenceLevel = Literal[
     "proposed",
+    "supported",
     "structure_supported",
     "saddle_supported",
     "endpoint_supported",
@@ -389,8 +390,9 @@ _LEGACY_NODE_TYPE_ALIASES = {
     "work": "planned",
     "calculation": "planned",
     "planned_tool_call": "planned",
-    "intermediate_occurrence": "occurrence",
-    "deliverable": "occurrence",
+    "occurrence": "species",
+    "intermediate_occurrence": "species",
+    "deliverable": "species",
 }
 _LEGACY_EDGE_TYPE_ALIASES = {
     "depends_on": "dependency",
@@ -425,6 +427,9 @@ def _map_legacy_status(data: Any) -> Any:
     顶层与嵌套两个位置都要看。
     """
     if not isinstance(data, dict):
+        return data
+
+    if data.get("edge_type") == "elementary_step" or data.get("node_type") in ("species", "occurrence"):
         return data
 
     def _map(value: Any) -> Any:
@@ -550,47 +555,42 @@ class ObservedNode(_ProcessNodeBase):
     arguments_summary: str = ""
 
 
-class OccurrenceNode(_GraphElement):
-    """delivery 图上的物种出现节点（反应物/中间体/产物的一次出现）。"""
+class SpeciesNode(_GraphElement):
+    """delivery 图上的物种体系状态节点（整个络合物体系的状态）。"""
 
     node_id: str
-    node_type: Literal["occurrence"] = "occurrence"
-    label: str
-    role: Literal["reactant", "intermediate", "product"] | None = None
+    node_type: Literal["species", "occurrence"] = "species"
+    name: str = ""
+    label: str = ""
     smiles: str | None = None
+    status: str = "pending"
     evidence_level: DeliveryEvidenceLevel = "proposed"
-    # rejected/inconclusive 处置级必须附 reason（分支处置审计）
     reason: str = ""
     required: bool = False
     supersedes: str | None = None
-    # ts_guess/scan_parse 的建议性来源（不提升证据等级，只留痕）
     advisory_sources: list[str] = Field(default_factory=list)
-    # Supervisor 否决标记（review_evidence 写入）
     evidence_vetoed: bool = False
-    # 阶段契约：Coordinator 建机理时声明；空列表 = 旧元素，读取时按
-    # evidence_level 映射（map_legacy_stages）。状态只由 harness 阶段绑定推进。
     stages: list[StageState] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
-    def _demote_legacy_values(cls, data: Any) -> Any:
-        # 旧自由 payload 里可能有词表外的 role/evidence_level：降级进
-        # metadata 保留原文，字段回默认值，保证旧数据可重放。
+    def _normalize_species(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        metadata = dict(data.get("metadata") or {})
-        role = data.get("role")
-        if role is not None and role not in _DELIVERY_NODE_ROLES:
-            metadata.setdefault("role", role)
-            data["role"] = None
-        level = data.get("evidence_level")
-        if level is not None and level not in _DELIVERY_EVIDENCE_LEVELS:
-            metadata.setdefault("evidence_level", level)
-            data["evidence_level"] = "proposed"
-        if metadata:
-            data["metadata"] = metadata
+        name = data.get("name")
+        label = data.get("label")
+        if not name and label:
+            data["name"] = label
+        elif not label and name:
+            data["label"] = name
+        if data.get("node_type") in ("occurrence", None):
+            data["node_type"] = "species"
+        data.pop("role", None)
         return data
+
+
+OccurrenceNode = SpeciesNode
 
 
 class DependencyEdge(_GraphElement):
@@ -616,8 +616,10 @@ class ElementaryStepEdge(_GraphElement):
     source_node_id: str
     target_node_id: str
     edge_type: Literal["elementary_step"] = "elementary_step"
+    name: str = ""
     label: str = ""
     evidence_level: DeliveryEvidenceLevel = "proposed"
+    status: str = "pending"
     reason: str = ""
     required: bool = False
     supersedes: str | None = None
@@ -637,13 +639,18 @@ class ElementaryStepEdge(_GraphElement):
 
     @model_validator(mode="before")
     @classmethod
-    def _demote_legacy_values(cls, data: Any) -> Any:
-        # 同 OccurrenceNode：词表外的旧 evidence_level 降级进 metadata。
+    def _normalize_edge(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
+        data = dict(data)
+        name = data.get("name")
+        label = data.get("label")
+        if not name and label:
+            data["name"] = label
+        elif not label and name:
+            data["label"] = name
         level = data.get("evidence_level")
         if level is not None and level not in _DELIVERY_EVIDENCE_LEVELS:
-            data = dict(data)
             metadata = dict(data.get("metadata") or {})
             metadata.setdefault("evidence_level", level)
             data["metadata"] = metadata
@@ -652,7 +659,7 @@ class ElementaryStepEdge(_GraphElement):
 
 
 DagNode = Annotated[
-    Union[PlannedNode, ObservedNode, OccurrenceNode],
+    Union[PlannedNode, ObservedNode, SpeciesNode],
     Field(discriminator="node_type"),
 ]
 DagEdge = Annotated[
@@ -668,9 +675,11 @@ def parse_dag_node(data: Any) -> DagNode:
     """解析节点（存储读取路径，新旧格式双兼容）：旧词表/同义词先映射再走判别联合。"""
     if isinstance(data, dict):
         data = _map_legacy_status(data)
+        if data.get("node_type") == "occurrence":
+            data = {**data, "node_type": "species"}
         alias = _LEGACY_NODE_TYPE_ALIASES.get(data.get("node_type"))
         if alias:
-            data = {**data, "node_type": alias}
+            data = {**data, "node_type": "species" if alias == "occurrence" else alias}
     return _NODE_ADAPTER.validate_python(data)
 
 
@@ -747,14 +756,21 @@ class AddNode(_OperationBase):
     @classmethod
     def _migrate_legacy(cls, data: Any) -> Any:
         # 旧形状（data 包裹）才做词表/同义词迁移；新形状写错由 Literal 报错教学。
-        if not (isinstance(data, dict) and "node" not in data and isinstance(data.get("data"), dict)):
+        if not isinstance(data, dict):
             return data
-        node = _map_legacy_status(data["data"])
-        alias = _LEGACY_NODE_TYPE_ALIASES.get(node.get("node_type"))
-        if alias:
-            node = {**node, "node_type": alias}
-        data = {**data, "node": node}
-        del data["data"]
+        if "node" not in data and isinstance(data.get("data"), dict):
+            node = _map_legacy_status(data["data"])
+            alias = _LEGACY_NODE_TYPE_ALIASES.get(node.get("node_type"))
+            if alias:
+                node = {**node, "node_type": alias}
+            data = {**data, "node": node}
+            del data["data"]
+        elif isinstance(data.get("node"), dict):
+            node = _map_legacy_status(data["node"])
+            alias = _LEGACY_NODE_TYPE_ALIASES.get(node.get("node_type"))
+            if alias:
+                node = {**node, "node_type": alias}
+            data = {**data, "node": node}
         return data
 
 

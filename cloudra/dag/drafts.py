@@ -13,6 +13,7 @@ from cloudra.dag.models import (
     AddEdge,
     AddNode,
     ClaimSpec,
+    ElementaryStepEdge,
     GraphActor,
     GraphKind,
     GraphOperation,
@@ -20,6 +21,7 @@ from cloudra.dag.models import (
     MutationBatch,
     MutationResult,
     OrchestrationMode,
+    SpeciesNode,
     StageContract,
     StageKind,
     StageState,
@@ -168,6 +170,113 @@ class DraftsMixin:
         )
 
     @staticmethod
+    def _assemble_declarative_proposal(
+        species: list[dict[str, Any] | Any],
+        steps: list[dict[str, Any] | Any],
+        rationale: str,
+    ) -> MechanismDraft:
+        import uuid
+
+        seen_species_names: set[str] = set()
+        name_to_node_id: dict[str, str] = {}
+        species_ops: list[GraphOperation] = []
+
+        for item in (species or []):
+            raw_name = item.get("name") if isinstance(item, dict) else getattr(item, "name", None)
+            if not raw_name or not str(raw_name).strip():
+                raise RuntimeError("species name cannot be empty")
+            name = str(raw_name).strip()
+            if name in seen_species_names:
+                raise RuntimeError(f"duplicate species name: {name!r}")
+            seen_species_names.add(name)
+            node_id = f"sp_{uuid.uuid4().hex[:8]}"
+            name_to_node_id[name] = node_id
+            smiles = item.get("smiles") if isinstance(item, dict) else getattr(item, "smiles", None)
+            species_ops.append(
+                AddNode(
+                    op="add_node",
+                    graph=GraphKind.DELIVERY,
+                    node=SpeciesNode(
+                        node_id=node_id,
+                        name=name,
+                        label=name,
+                        smiles=smiles,
+                    ),
+                )
+            )
+
+        seen_step_names: set[str] = set()
+        step_ops: list[GraphOperation] = []
+        for item in (steps or []):
+            raw_name = item.get("name") if isinstance(item, dict) else getattr(item, "name", None)
+            if not raw_name or not str(raw_name).strip():
+                raise RuntimeError("step name cannot be empty")
+            step_name = str(raw_name).strip()
+            if step_name in seen_step_names:
+                raise RuntimeError(f"duplicate step name: {step_name!r}")
+            seen_step_names.add(step_name)
+
+            from_raw = (
+                item.get("from") or item.get("from_")
+                if isinstance(item, dict)
+                else getattr(item, "from_", getattr(item, "from", None))
+            )
+            to_raw = (
+                item.get("to") or item.get("to_")
+                if isinstance(item, dict)
+                else getattr(item, "to", getattr(item, "to_", None))
+            )
+            from_name = str(from_raw).strip() if from_raw else ""
+            to_name = str(to_raw).strip() if to_raw else ""
+
+            if not from_name or from_name not in name_to_node_id:
+                raise RuntimeError(f"unknown source species {from_name!r} in step {step_name!r}")
+            if not to_name or to_name not in name_to_node_id:
+                raise RuntimeError(f"unknown target species {to_name!r} in step {step_name!r}")
+            if from_name == to_name:
+                raise RuntimeError(f"step {step_name!r} is a self-loop: {from_name!r} -> {to_name!r}")
+
+            edge_id = f"step_{uuid.uuid4().hex[:8]}"
+            step_ops.append(
+                AddEdge(
+                    op="add_edge",
+                    graph=GraphKind.DELIVERY,
+                    edge=ElementaryStepEdge(
+                        edge_id=edge_id,
+                        name=step_name,
+                        label=step_name,
+                        source_node_id=name_to_node_id[from_name],
+                        target_node_id=name_to_node_id[to_name],
+                    ),
+                )
+            )
+
+        # Acyclicity check
+        indegree: dict[str, int] = {node_id: 0 for node_id in name_to_node_id.values()}
+        outgoing: dict[str, list[str]] = {node_id: [] for node_id in name_to_node_id.values()}
+        for edge_op in step_ops:
+            assert isinstance(edge_op, AddEdge) and isinstance(edge_op.edge, ElementaryStepEdge)
+            indegree[edge_op.edge.target_node_id] += 1
+            outgoing[edge_op.edge.source_node_id].append(edge_op.edge.target_node_id)
+        ready = [nid for nid, deg in indegree.items() if deg == 0]
+        visited = 0
+        while ready:
+            nid = ready.pop(0)
+            visited += 1
+            for tgt in outgoing[nid]:
+                indegree[tgt] -= 1
+                if indegree[tgt] == 0:
+                    ready.append(tgt)
+        if visited != len(name_to_node_id):
+            raise RuntimeError("graph contains a cycle")
+
+        return MechanismDraft(
+            operations=[*species_ops, *step_ops],
+            stage_contracts={},
+            rationale=rationale,
+        )
+
+    @staticmethod
     def _draft_operations(draft: MechanismDraft) -> list[GraphOperation]:
         """把阶段契约并进 add ops（元素 stages 随 add 落图，全 pending）。"""
         operations: list[GraphOperation] = []
@@ -209,29 +318,28 @@ class DraftsMixin:
     async def propose_mechanism(
         self,
         *,
-        operations: list[dict[str, Any]],
-        stage_contracts: dict[str, list[str]],
         rationale: str,
+        species: list[dict[str, Any] | Any] | None = None,
+        steps: list[dict[str, Any] | Any] | None = None,
+        operations: list[dict[str, Any]] | None = None,
+        stage_contracts: dict[str, list[str]] | None = None,
         actor_id: str,
         claim_spec: dict[str, Any] | None = None,
         contract_version: int = 1,
     ) -> dict[str, Any]:
         """Coordinator 的机理草稿（D1）：guided 落 open 草稿等 Supervisor
-        接受；record 由 harness 立即自动接受（actor="harness:auto"）。
-
-        contract_version=2 时草稿按请求量携带 ClaimSpec（检查词受版本化
-        词表校验）；已接受契约存在时的降级/kind 变更/移除目标属于
-        scope_change——record 模式也不自动接受，落 open 草稿待审批，
-        未经同意不改变当前范围。method policy 只从项目设置读取，草稿
-        不另设方法判据来源。"""
+        接受；record 由 harness 立即自动接受（actor="harness:auto"）。"""
         if not self.enabled:
             raise RuntimeError(
                 "propose_mechanism is disabled in standard orchestration mode"
             )
-        if not rationale.strip():
+        if not rationale or not rationale.strip():
             raise RuntimeError("a mechanism proposal requires a non-empty rationale")
         await self.initialize()
-        draft = self._validate_draft(operations, stage_contracts, rationale)
+        if species is not None or steps is not None:
+            draft = self._assemble_declarative_proposal(species or [], steps or [], rationale)
+        else:
+            draft = self._validate_draft(operations or [], stage_contracts or {}, rationale)
         if claim_spec is not None:
             spec = ClaimSpec.model_validate(claim_spec)
             draft = draft.model_copy(

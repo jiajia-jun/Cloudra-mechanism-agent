@@ -23,6 +23,7 @@ _LEVEL_RANK = {
     "structure_supported": 1,
     "saddle_supported": 2,
     "endpoint_supported": 3,
+    "supported": 3,
     "thermo_annotated": 4,
 }
 
@@ -205,6 +206,29 @@ def evaluate_delivery(
         )
 
     for node in delivery.nodes:
+        if getattr(node, "status", None) == "supported" or node.evidence_level == "supported":
+            satisfied.append(
+                CoverageGateResult(
+                    code="intermediate_structure_supported",
+                    target_type="node",
+                    target_id=node.node_id,
+                    detail="status is supported",
+                )
+            )
+            continue
+        if getattr(node, "status", None) == "rejected" or node.evidence_level == "rejected":
+            detail = "intermediate occurrence was rejected"
+            if getattr(node, "reason", "").strip():
+                detail += f": {node.reason.strip()}"
+            record(
+                CoverageGateResult(
+                    code="branch_rejected",
+                    target_type="node",
+                    target_id=node.node_id,
+                    detail=detail,
+                )
+            )
+            continue
         if node.stages:
             evaluate_stages("node", node.node_id, node.stages)
             continue
@@ -269,6 +293,29 @@ def evaluate_delivery(
             )
 
     for edge in delivery.edges:
+        if getattr(edge, "status", None) == "supported" or edge.evidence_level == "supported":
+            satisfied.append(
+                CoverageGateResult(
+                    code="elementary_step_endpoint_supported",
+                    target_type="edge",
+                    target_id=edge.edge_id,
+                    detail="status is supported",
+                )
+            )
+            continue
+        if getattr(edge, "status", None) == "rejected" or edge.evidence_level == "rejected":
+            detail = "elementary-step branch was rejected"
+            if getattr(edge, "reason", "").strip():
+                detail += f": {edge.reason.strip()}"
+            record(
+                CoverageGateResult(
+                    code="branch_rejected",
+                    target_type="edge",
+                    target_id=edge.edge_id,
+                    detail=detail,
+                )
+            )
+            continue
         if edge.stages:
             evaluate_stages("edge", edge.edge_id, edge.stages)
             if contract.require_thermochemistry and not (

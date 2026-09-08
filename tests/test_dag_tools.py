@@ -58,7 +58,7 @@ def test_dag_tools_hidden_in_standard_and_visible_in_dag_modes():
 
 def test_add_species_schema_requires_core_fields():
     with pytest.raises(ValidationError):
-        DagAddSpeciesInput(label="R", role="reactant")
+        DagAddSpeciesInput()
     with pytest.raises(ValidationError):
         DagAddSpeciesInput(node_id="r", role="reactant")
     with pytest.raises(ValidationError):

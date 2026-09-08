@@ -282,6 +282,7 @@ class DagStore:
                 "node_id": row[0],
                 "node_type": row[1],
                 "label": row[2],
+                "name": row[2],
                 "refs": _assemble_refs(
                     json.loads(row[3]), bindings.get(("node", row[0]), [])
                 ),
@@ -299,6 +300,7 @@ class DagStore:
                 "target_node_id": row[2],
                 "edge_type": row[3],
                 "label": row[4],
+                "name": row[4],
                 "refs": _assemble_refs(
                     json.loads(row[5]), bindings.get(("edge", row[0]), [])
                 ),
@@ -324,9 +326,9 @@ class DagStore:
         *,
         source_type: str = "tool_result",
     ) -> GraphRef:
-        if source_type != "tool_result":
+        if source_type not in ("tool_result", "file"):
             raise InvalidGraphReference(
-                "only durable tool_result evidence can be registered here"
+                "only durable tool_result or file evidence can be registered here"
             )
         encoded = _canonical_json(payload, error_type=EvidencePayloadError)
         content_hash = "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -364,14 +366,14 @@ class DagStore:
 
         retry_on_locked(operation)
         return GraphRef(
-            ref_type="tool_result",
+            ref_type="file" if source_type == "file" else "tool_result",
             ref_id=evidence_id,
             content_hash=content_hash,
         )
 
     def resolve_evidence(self, ref: GraphRef) -> Any:
-        if ref.ref_type != "tool_result":
-            raise InvalidGraphReference("reference does not point to tool-result evidence")
+        if ref.ref_type not in ("tool_result", "file"):
+            raise InvalidGraphReference("reference does not point to tool-result or file evidence")
         with self.db.connect() as con:
             row = con.execute(
                 "SELECT content_hash, payload FROM dag_evidence WHERE evidence_id = ?",

@@ -328,3 +328,212 @@ async def test_failed_proposal_does_not_notify_supervisor(tmp_path):
     )
 
     assert find_project_supervisor(core, project.id) is None
+
+
+@pytest.mark.asyncio
+async def test_declarative_proposal_no_ids_or_roles_succeeds(tmp_path):
+    """Task 1: 无 ID/role/type 提案成功；内部装配为 SpeciesNode 与 ElementaryStepEdge。"""
+    agent, session, db = _setup(tmp_path, "propose-decl", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Claisen rearrangement pathway",
+        species=[
+            {"name": "初始络合物体系", "smiles": "C=CCOCC=C"},
+            {"name": "产物络合物体系", "smiles": "O=CCCCCC"},
+        ],
+        steps=[
+            {"name": "关键转化", "from": "初始络合物体系", "to": "产物络合物体系"},
+        ],
+    )
+
+    assert out.is_success
+    assert out.result["state"] == "accepted"
+    snapshot = _graph(db)
+    nodes = snapshot.delivery.nodes
+    edges = snapshot.delivery.edges
+    assert len(nodes) == 2
+    assert len(edges) == 1
+    # 节点无 role 字段，内部为 SpeciesNode
+    node_names = {getattr(n, "name", getattr(n, "label", None)) for n in nodes}
+    assert node_names == {"初始络合物体系", "产物络合物体系"}
+    for n in nodes:
+        assert getattr(n, "node_type", None) == "species"
+        assert not hasattr(n, "role") or getattr(n, "role") is None
+    # 边名称与端点正确绑定
+    edge = edges[0]
+    assert getattr(edge, "name", getattr(edge, "label", None)) == "关键转化"
+    source_node = next(n for n in nodes if n.node_id == edge.source_node_id)
+    target_node = next(n for n in nodes if n.node_id == edge.target_node_id)
+    assert getattr(source_node, "name", getattr(source_node, "label", None)) == "初始络合物体系"
+    assert getattr(target_node, "name", getattr(target_node, "label", None)) == "产物络合物体系"
+
+
+@pytest.mark.asyncio
+async def test_proposal_same_smiles_different_names_not_merged(tmp_path):
+    """Task 1: 相同 SMILES 不自动合并对象，按名称创建不同体系节点。"""
+    agent, session, db = _setup(tmp_path, "propose-same-smiles", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Isomerization pathway",
+        species=[
+            {"name": "体系状态A", "smiles": "CCO"},
+            {"name": "体系状态B", "smiles": "CCO"},
+        ],
+        steps=[
+            {"name": "异构转化", "from": "体系状态A", "to": "体系状态B"},
+        ],
+    )
+
+    assert out.is_success
+    snapshot = _graph(db)
+    nodes = snapshot.delivery.nodes
+    assert len(nodes) == 2
+    assert len({n.node_id for n in nodes}) == 2
+
+
+@pytest.mark.asyncio
+async def test_proposal_duplicate_species_name_rejected(tmp_path):
+    """Task 1: 同批同名写入拒绝（精确字符串比较，去空白）。"""
+    agent, session, db = _setup(tmp_path, "propose-dup-species", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Duplicate test",
+        species=[
+            {"name": "体系状态A", "smiles": "CCO"},
+            {"name": " 体系状态A ", "smiles": "CCN"},
+        ],
+        steps=[],
+    )
+
+    assert not out.is_success
+    assert "duplicate" in (out.error or "").lower() or "unique" in (out.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_proposal_duplicate_step_name_rejected(tmp_path):
+    """Task 1: 同批同名步骤拒绝。"""
+    agent, session, db = _setup(tmp_path, "propose-dup-step", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Duplicate step test",
+        species=[
+            {"name": "体系A"},
+            {"name": "体系B"},
+            {"name": "体系C"},
+        ],
+        steps=[
+            {"name": "转化1", "from": "体系A", "to": "体系B"},
+            {"name": "转化1", "from": "体系B", "to": "体系C"},
+        ],
+    )
+
+    assert not out.is_success
+    assert "duplicate" in (out.error or "").lower() or "unique" in (out.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_proposal_unknown_endpoint_rejected(tmp_path):
+    """Task 1: 未知端点引用拒绝。"""
+    agent, session, db = _setup(tmp_path, "propose-unknown-end", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Unknown endpoint test",
+        species=[
+            {"name": "体系A"},
+        ],
+        steps=[
+            {"name": "转化1", "from": "体系A", "to": "不存在的体系"},
+        ],
+    )
+
+    assert not out.is_success
+    assert "unknown" in (out.error or "").lower() or "not found" in (out.error or "").lower() or "endpoint" in (out.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_proposal_self_loop_rejected(tmp_path):
+    """Task 1: 自环（from == to）拒绝。"""
+    agent, session, db = _setup(tmp_path, "propose-self-loop", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Self loop test",
+        species=[
+            {"name": "体系A"},
+        ],
+        steps=[
+            {"name": "自环步骤", "from": "体系A", "to": "体系A"},
+        ],
+    )
+
+    assert not out.is_success
+
+
+@pytest.mark.asyncio
+async def test_proposal_cycle_rejected(tmp_path):
+    """Task 1: 有环转化拒绝，保持 DAG 无环约束。"""
+    agent, session, db = _setup(tmp_path, "propose-cycle", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Cycle test",
+        species=[
+            {"name": "体系A"},
+            {"name": "体系B"},
+            {"name": "体系C"},
+        ],
+        steps=[
+            {"name": "步骤1", "from": "体系A", "to": "体系B"},
+            {"name": "步骤2", "from": "体系B", "to": "体系C"},
+            {"name": "步骤3", "from": "体系C", "to": "体系A"},
+        ],
+    )
+
+    assert not out.is_success
+    assert "cycle" in (out.error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_proposal_batch_failure_zero_partial_write(tmp_path):
+    """Task 1: 批次失败零部分写入（原子事务保证）。"""
+    agent, session, db = _setup(tmp_path, "propose-atomicity", "dag_record")
+
+    out = await _call(
+        DagProposeMechanism,
+        agent,
+        session,
+        rationale="Atomic rollback test",
+        species=[
+            {"name": "有效体系A"},
+            {"name": "有效体系B"},
+        ],
+        steps=[
+            # 这一步是自环，导致整个批次失败
+            {"name": "坏步骤", "from": "有效体系A", "to": "有效体系A"},
+        ],
+    )
+
+    assert not out.is_success
+    snapshot = _graph(db)
+    assert len(snapshot.delivery.nodes) == 0
+    assert len(snapshot.delivery.edges) == 0
+

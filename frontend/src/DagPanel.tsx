@@ -447,8 +447,7 @@ function AddForms({ nodes, ctx }: { nodes: Json[]; ctx: FormCtx }) {
 
   function addNode() {
     if (!nLabel.trim()) return;
-    const node: Json = { node_id: `n_${Date.now()}`, node_type: 'occurrence', label: nLabel.trim() };
-    if (nRole) node.role = nRole;
+    const node: Json = { node_id: `sp_${Date.now()}`, node_type: 'species', name: nLabel.trim(), label: nLabel.trim() };
     if (nSmiles.trim()) node.smiles = nSmiles.trim();
     ctx.onSave([{ op: 'add_node', graph: 'delivery', node }], '', 'Node added');
     setNLabel('');

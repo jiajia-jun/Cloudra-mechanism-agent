@@ -221,6 +221,43 @@ def test_to_api_message_omits_reasoning_when_absent():
     assert "reasoning_content" not in out
 
 
+def test_to_api_message_supports_reasoning_alias():
+    out = _to_api_message({"role": "assistant", "content": "hi", "reasoning": "step by step"})
+    assert out["reasoning_content"] == "step by step"
+
+
+def test_extract_delta_reasoning_compatibility():
+    from cloudra.runtime_v2.adapters import _extract_delta_reasoning
+
+    # DeepSeek style: reasoning_content attribute
+    d1 = SimpleNamespace(reasoning_content="think deepseek")
+    assert _extract_delta_reasoning(d1) == "think deepseek"
+
+    # OpenRouter / vLLM style: reasoning attribute
+    d2 = SimpleNamespace(reasoning="think openrouter")
+    assert _extract_delta_reasoning(d2) == "think openrouter"
+
+    # Anthropic / custom gateway: thinking attribute
+    d3 = SimpleNamespace(thinking="think claude")
+    assert _extract_delta_reasoning(d3) == "think claude"
+
+    # Pydantic v2 model_extra dictionary
+    d4 = SimpleNamespace(model_extra={"reasoning": "think extra"})
+    assert _extract_delta_reasoning(d4) == "think extra"
+
+    # Dict delta (requests fallback)
+    d5 = {"reasoning": "think dict"}
+    assert _extract_delta_reasoning(d5) == "think dict"
+
+    # Structured reasoning list
+    d6 = SimpleNamespace(reasoning=[{"text": "part1 "}, {"text": "part2"}])
+    assert _extract_delta_reasoning(d6) == "part1 part2"
+
+    # None / empty
+    d7 = SimpleNamespace(content="just content")
+    assert _extract_delta_reasoning(d7) is None
+
+
 def test_parse_tool_calls_handles_json_args():
     raw = SimpleNamespace(
         message=SimpleNamespace(
@@ -308,6 +345,61 @@ async def test_legacy_llm_provider_streams_and_parses_response():
     # on_delta receives the throttled stream; concatenation is lossless.
     assert "".join(d for kind, d in deltas if kind == "content") == "Done."
     assert "".join(d for kind, d in deltas if kind == "reasoning") == "thinking"
+
+
+@pytest.mark.asyncio
+async def test_legacy_llm_provider_streams_openrouter_reasoning():
+    """Verify that delta.reasoning (OpenRouter style) is captured into reasoning_content."""
+    def _chunk_or(content=None, reasoning=None):
+        # OpenRouter sends delta.reasoning, not delta.reasoning_content
+        delta = SimpleNamespace(content=content, tool_calls=None, reasoning=reasoning)
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=None)])
+
+    class FakeStream:
+        def __init__(self, chunks):
+            self._iter = iter(chunks)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
+
+    class FakeClient:
+        last_usage = {}
+
+        async def create_with_retry(self, **kwargs):
+            return FakeStream(
+                [
+                    _chunk_or(reasoning="Thinking with "),
+                    _chunk_or(reasoning="OpenRouter"),
+                    _chunk_or(content="Here is the answer"),
+                ]
+            )
+
+    provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
+    agent = SimpleNamespace(
+        role_id="coordinator",
+        settings=RuntimeSettings(model="anthropic/claude-sonnet-5", base_url="https://openrouter.ai/api/v1", api_key="sk-or-x"),
+    )
+    deltas: list[tuple[str, str]] = []
+
+    async def collect(kind: str, delta: str) -> None:
+        deltas.append((kind, delta))
+
+    response = await provider.complete(
+        agent,
+        [{"role": "user", "content": "hi"}],
+        [],
+        on_delta=collect,
+    )
+    assert response.content == "Here is the answer"
+    assert response.reasoning == "Thinking with OpenRouter"
+    assert "".join(d for kind, d in deltas if kind == "reasoning") == "Thinking with OpenRouter"
+    assert "".join(d for kind, d in deltas if kind == "content") == "Here is the answer"
 
 
 @pytest.mark.asyncio

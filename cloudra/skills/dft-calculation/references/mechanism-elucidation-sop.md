@@ -88,27 +88,25 @@ ORCA 的 `ts_guess scan_prepare` **当前只支持一条扫描坐标**；这不�
 
 ## 3. 证据交付与 DAG
 
-科学上独立的工作可并行，证据按真实依赖复用；绑定顺序不应成为重复计算的理由。**当前代码仍按 stage 契约顺序绑定**，遇到 `stage_out_of_order` 保存已有结果，先处理前置阶段，再绑定原调用。
+科学上独立的工作可并行，证据按真实依赖复用；避免重复计算。
 
-系统仅有 **delivery DAG**（机理图），不存在 process DAG。节点为 species 的 occurrence，边为候选基元步；证据用完整工具结果、完成作业和 artifact 的不可变**指针**保存。催化循环通过重复 occurrence 展开。
+系统仅有 **delivery DAG**（机理图），不存在 process DAG。节点为络合物体系物种（`species`），边为候选基元步（`steps`）；模型无需填写内部 ID、角色（reactant/intermediate/product）或阶段契约数组。证据通过工作区落盘日志文件提交（`dag_submit_step_evidence`、`dag_submit_species_evidence`），由 harness 负责快照固定与虚频合法性复验（TS 需唯一虚频，物种基态需零虚频）。
 
 | 模式 | 当前行为 |
 | --- | --- |
 | `standard` | 同样的科学标准；不调用 DAG/Supervisor |
-| `dag_record` | Coordinator 提交草稿，自动接受；用 `dag_bind_evidence` 自绑 |
-| `dag_guided` | Supervisor 接受草稿后解锁计算，复核入箱证据；Coordinator 可用 `dag_bind_evidence` 提交未自动入箱的成功工具结果 |
+| `dag_record` | Coordinator 提交草稿，自动接受；直接通过文件送审记录确定性证据 |
+| `dag_guided` | Supervisor 接受草稿后解锁计算，逐项定向复核送审证据（`dag_review_step` / `dag_review_species`） |
 
-具体 API 读 `dag-operations`，以当前 schema 为准。当前存在自动入箱和有序绑定；按实际角色与工具权限操作。`submit_compute_job` 只是提交记录，不是完成证据。失败计算/身份矛盾也要保存并在报告中指出；手动提交通道要求成功结果时，不能把失败改写成成功来入箱。
+具体 API 读 `dag-operations`，以当前 schema 为准。`submit_compute_job` 只是提交记录，不是完成证据。失败计算/虚频异常应如实记录；必须是完工解析且符合物理自检的计算结果才支持。
 
-典型 TS 边声明 `ts_opt`、`frequency`、`short_irc`、`endpoint_a`、`endpoint_b`、`direction`、`identity`，`ts_guess` 仅 advisory。`endpoint_a` 是目标/产物侧，`endpoint_b` 是源/反应物侧，与 IRC 的 forward/backward 标签无必然对应。**单分子反应仍有两侧极小点**，不能因此省略 endpoint_b。热化学按任务需要声明。
-
-`supported` 表示相应证据成立；`rejected` 仍是缺口；`skipped` 是明确放弃；`not_applicable` 是该证据槽确实不适用，后两者必须有理由并遵守角色权限。没有找到 TS 不等于证明没有 TS，不能据此写 `not_applicable`。模型不能手写 `endpoint-supported` 等派生等级。
+`supported` 表示该物种或基元步获得充分证据支持；`rejected` 仍是缺口；`skipped` 是明确放弃；`not_applicable` 是该步骤对当前体系不适用，后两者必须附带科学理由。没有找到 TS 不等于证明无 TS，不能据此擅自填写 `not_applicable`。
 
 ### Claisen 示例：`C=COCC=C` → `C=CCCC=O`
 
-R/P 节点保留声明物种，椅式/船式路径是不同候选边。先根据 [3,3] 成断键选映射，再绑定实际坐标；不能照抄固定原子序号。筛选反应构象后，扫描/插值只支持 `ts_guess`。无约束 TS 的收敛与频率证据支持 `ts_opt`/`frequency`；short bidirectional IRC、两侧极小点、方向与身份分别交付。证据齐全才支持 `endpoint-supported`；不能因“教材反应”跳过验证。要求 ΔG‡ 时再交付相应热化学；只要电子能垒则按 ΔE‡ 报告。未算的竞争分支保留原因。
+以命名络合物体系作为物种，椅式/船式路径是不同候选基元步。先根据成断键选反应映射，再定位真实构象。筛选反应构象后，扫描/插值只支持 ts_guess，不能代替收敛过渡态。无约束 TS 的收敛与频率计算（单虚频且振动矢量合理）支撑过渡态转化；short bidirectional IRC 与两侧极小点（optimized endpoint）、方向与身份确认实现 endpoint-supported 级完整连通，并将证据文件指针妥善保存。未计算的竞争分支保留理由。
 
-用 `dag_delivery_report` 检查缺口。coverage complete 仅表示契约处置完毕；skipped 不能被描述成科学验证通过。预算/方法限制下可以明确 `partial`，不需要为了 complete 无限重试。后台仍运行时 stop 是等待；真正结束前处理已有后台工作，避免把暂时休眠写成最终交付。
+用 `dag_delivery_report` 检查交付缺口。coverage complete 表示所有必需元素已充分支撑或妥善处置；skipped 不得描述成科学验证通过。预算/方法限制下可以明确 `partial`，不需要为了 complete 无限盲目重试。后台仍运行时 stop 是等待；真正结束前处理已有后台工作，避免把暂时休眠写成最终交付。
 
 ## 4. 失败后怎么决定
 

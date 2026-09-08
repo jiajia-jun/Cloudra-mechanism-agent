@@ -939,7 +939,7 @@ def test_model_cannot_self_certify_stage_statuses(tmp_path):
         seeded = engine.apply_batch(
             _batch(api, store, [
                 _op(api, "add_node", "delivery", node_id=f"r-{actor}",
-                    node_type="occurrence", label="R", role="reactant"),
+                    node_type="occurrence", label=f"R-{actor}", role="reactant"),
             ], actor="harness")
         )
         assert seeded.accepted
@@ -950,7 +950,7 @@ def test_model_cannot_self_certify_stage_statuses(tmp_path):
                     graph="delivery",
                     node=api["OccurrenceNode"](
                         node_id=f"p-{actor}",
-                        label="P",
+                        label=f"P-{actor}",
                         role="product",
                         stages=[StageState(kind="geometry", status="supported")],
                     ),
@@ -981,3 +981,102 @@ def test_model_cannot_self_certify_stage_statuses(tmp_path):
     assert [(s.kind.value, s.status.value) for s in node.stages] == [
         ("geometry", "pending")
     ]
+
+
+def test_engine_rejects_duplicate_node_name_in_delivery_graph(tmp_path):
+    """Task 1: 同批或增量写入相同体系名称时拒绝（精确匹配、去前后空白）。"""
+    api, db, store, engine = _new_engine(tmp_path, "dup-node-name")
+    from cloudra.dag.models import SpeciesNode
+
+    # 批次内同名
+    batch = _batch(
+        api, store,
+        [
+            api["AddNode"](
+                op="add_node",
+                graph="delivery",
+                node=SpeciesNode(node_id="sp1", name="体系状态A"),
+            ),
+            api["AddNode"](
+                op="add_node",
+                graph="delivery",
+                node=SpeciesNode(node_id="sp2", name=" 体系状态A "),
+            ),
+        ],
+        actor="harness",
+    )
+    res = engine.apply_batch(batch)
+    assert not res.accepted
+    assert res.rejection_code in ("duplicate_name", "duplicate_id", "invalid_operation")
+
+
+def test_engine_rejects_duplicate_step_name_in_delivery_graph(tmp_path):
+    """Task 1: 同批或增量写入相同步骤名称时拒绝。"""
+    api, db, store, engine = _new_engine(tmp_path, "dup-step-name")
+    from cloudra.dag.models import ElementaryStepEdge, SpeciesNode
+
+    batch1 = _batch(
+        api, store,
+        [
+            api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp1", name="A")),
+            api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp2", name="B")),
+            api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp3", name="C")),
+            api["AddEdge"](op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e1", name="步骤一", source_node_id="sp1", target_node_id="sp2")),
+            api["AddEdge"](op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e2", name="步骤一", source_node_id="sp2", target_node_id="sp3")),
+        ],
+        actor="harness",
+    )
+    res = engine.apply_batch(batch1)
+    assert not res.accepted
+    assert res.rejection_code in ("duplicate_name", "duplicate_id", "invalid_operation")
+
+
+def test_engine_remove_edge_without_rationale_rejected(tmp_path):
+    """Task 1: 删边必须有理由，否则事务拒绝。"""
+    api, db, store, engine = _new_engine(tmp_path, "rm-edge-no-rat")
+    from cloudra.dag.models import ElementaryStepEdge, SpeciesNode
+
+    # 先加节点和边
+    engine.apply_batch(
+        _batch(
+            api, store,
+            [
+                api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp1", name="A")),
+                api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp2", name="B")),
+                api["AddEdge"](op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e1", name="步骤一", source_node_id="sp1", target_node_id="sp2")),
+            ],
+            actor="harness",
+        )
+    )
+
+    # 空 rationale 删边
+    rm_batch = _batch(
+        api, store,
+        [api["RemoveEdge"](op="remove_edge", graph="delivery", edge_id="e1")],
+        actor="agent",
+        rationale="",
+    )
+    res = engine.apply_batch(rm_batch)
+    assert not res.accepted
+    assert res.rejection_code == "rationale_required"
+
+
+def test_engine_batch_failure_atomic_rollback(tmp_path):
+    """Task 1: 批次中只要有一项失败，整批零部分写入。"""
+    api, db, store, engine = _new_engine(tmp_path, "atomic-rollback")
+    from cloudra.dag.models import SpeciesNode
+
+    batch = _batch(
+        api, store,
+        [
+            api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp1", name="有效体系")),
+            # 第二项同名导致失败
+            api["AddNode"](op="add_node", graph="delivery", node=SpeciesNode(node_id="sp2", name="有效体系")),
+        ],
+        actor="harness",
+    )
+    res = engine.apply_batch(batch)
+    assert not res.accepted
+    snapshot = engine.snapshot()
+    assert len(snapshot.delivery.nodes) == 0
+

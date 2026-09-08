@@ -5,18 +5,43 @@ Preserve the delivery wire shape without exposing persistence/derived fields.
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProposalFields(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ProposalSpeciesInput(BaseModel):
+    name: str = Field(min_length=1, description="Human-readable species system name.")
+    smiles: str | None = Field(default=None, description="Optional SMILES for the complex system.")
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProposalStepInput(BaseModel):
+    name: str = Field(min_length=1, description="Human-readable transformation step name.")
+    from_: str = Field(alias="from", min_length=1, description="Source species system name.")
+    to: str = Field(min_length=1, description="Target species system name.")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_from_to(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            if "source" in data and "from" not in data and "from_" not in data:
+                data["from"] = data.pop("source")
+            if "target" in data and "to" not in data:
+                data["to"] = data.pop("target")
+        return data
+
+
 class ProposalSpecies(ProposalFields):
-    node_type: Literal["occurrence"]
+    node_type: Literal["species", "occurrence"] = "species"
     node_id: str = Field(min_length=1, description="Unique species occurrence id.")
-    label: str = Field(min_length=1, description="Human-readable species name.")
-    role: Literal["reactant", "intermediate", "product"]
+    label: str = Field(default="", description="Human-readable species name.")
+    name: str = Field(default="", description="Human-readable species name.")
+    role: str | None = None
     smiles: str | None = Field(default=None, description="Species SMILES, including disconnected fragments if needed.")
     required: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict, description="Optional species annotations.")
