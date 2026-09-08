@@ -12,8 +12,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
+from cloudra.benchmark.query_builder import format_allowed_methods_clause
 from cloudra.benchmark.schema import (
     BarrierReference,
     BarrierType,
@@ -32,7 +34,6 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
-from cloudra.benchmark.query_builder import format_allowed_methods_clause
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "easy.md"

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 import html
 import re
+from functools import lru_cache
 
 from fastapi import APIRouter
 from fastapi.responses import Response
