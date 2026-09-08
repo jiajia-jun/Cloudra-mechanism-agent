@@ -107,8 +107,10 @@ function layoutGraph(graph: Json): { nodes: LNode[]; edges: LEdge[]; width: numb
   const edges: Json[] = graph.edges ?? [];
   for (const n of nodes) {
     const label = String(n.label ?? n.node_id);
-    const w = Math.max(120, Math.min(240, label.length * 8 + 24));
-    g.setNode(String(n.node_id), { width: w, height: NODE_H });
+    const hasSmiles = Boolean(n.smiles && String(n.smiles).trim());
+    const h = hasSmiles ? 94 : NODE_H;
+    const w = Math.max(hasSmiles ? 140 : 120, Math.min(240, label.length * 8 + 24));
+    g.setNode(String(n.node_id), { width: w, height: h });
   }
   const ids = new Set(nodes.map((n) => String(n.node_id)));
   const laidOut = new Set<string>();
@@ -125,7 +127,9 @@ function layoutGraph(graph: Json): { nodes: LNode[]; edges: LEdge[]; width: numb
   const ln: LNode[] = nodes.map((n) => {
     const id = String(n.node_id);
     const p = g.node(id);
-    return { id, x: p?.x ?? 0, y: p?.y ?? 0, w: p?.width ?? 120, h: p?.height ?? NODE_H, data: n };
+    const hasSmiles = Boolean(n.smiles && String(n.smiles).trim());
+    const defaultH = hasSmiles ? 94 : NODE_H;
+    return { id, x: p?.x ?? 0, y: p?.y ?? 0, w: p?.width ?? 120, h: p?.height ?? defaultH, data: n };
   });
   const byId = new Map(ln.map((n) => [n.id, n]));
   const le: LEdge[] = [];
@@ -136,12 +140,10 @@ function layoutGraph(graph: Json): { nodes: LNode[]; edges: LEdge[]; width: numb
     const src = byId.get(s);
     const dst = byId.get(t);
     if (!src || !dst) continue;
-    if (laidOut.has(id)) {
-      const pts = (g.edge({ v: s, w: t, name: id }) as { points?: Array<{ x: number; y: number }> })?.points;
-      if (pts && pts.length >= 2) {
-        le.push({ id, points: pts, data: e });
-        continue;
-      }
+    const pts = (g.edge({ v: s, w: t, name: id }) as { points?: Array<{ x: number; y: number }> })?.points;
+    if (pts && pts.length > 0) {
+      le.push({ id, points: pts, data: e });
+      continue;
     }
     // self-loop / fallback: straight line between node centers
     le.push({ id, points: [{ x: src.x, y: src.y }, { x: dst.x, y: dst.y }], data: e });
@@ -190,7 +192,7 @@ function GraphView({ graph, sel, onSelect }: {
                 markerEnd="url(#dag-arrow)"
                 style={{
                   stroke,
-                  strokeWidth: selected ? 2.2 : 1.2,
+                  strokeWidth: selected ? 2.4 : 1.2,
                   strokeDasharray: e.data.evidence_vetoed ? '5 3' : undefined,
                 }}
               />
@@ -213,6 +215,8 @@ function GraphView({ graph, sel, onSelect }: {
           const stages = stageSummary(n.data.stages);
           const sub = stages || String(n.data.evidence_level ?? '-');
           const maxChars = Math.floor((n.w - 16) / 6.8);
+          const smiles = String(n.data.smiles ?? '').trim();
+          const hasSmiles = Boolean(smiles);
           return (
             <g
               key={n.id}
@@ -225,6 +229,7 @@ function GraphView({ graph, sel, onSelect }: {
               style={{ cursor: 'pointer' }}
             >
               <rect
+                className="dag-node-rect"
                 width={n.w}
                 height={n.h}
                 rx={8}
@@ -235,10 +240,31 @@ function GraphView({ graph, sel, onSelect }: {
                   strokeDasharray: n.data.evidence_vetoed ? '5 3' : undefined,
                 }}
               />
-              <text className="dag-node-label" x={n.w / 2} y={n.h / 2 - 3} textAnchor="middle">
+              <text className="dag-node-label" x={n.w / 2} y={hasSmiles ? 16 : n.h / 2 - 3} textAnchor="middle">
                 {trunc(String(n.data.label ?? n.id), maxChars)}
               </text>
-              <text className="dag-node-sub" x={n.w / 2} y={n.h / 2 + 12} textAnchor="middle" style={{ fill: stroke }}>
+              {hasSmiles && (
+                <image
+                  href={api.chemRenderSmilesUrl(smiles, Math.round(n.w - 16), 46, 'dark')}
+                  x={8}
+                  y={22}
+                  width={n.w - 16}
+                  height={46}
+                  preserveAspectRatio="xMidYMid meet"
+                  style={{
+                    pointerEvents: 'none',
+                    opacity: selected ? 1 : 0.88,
+                    transition: 'opacity 0.15s ease',
+                  }}
+                />
+              )}
+              <text
+                className="dag-node-sub"
+                x={n.w / 2}
+                y={hasSmiles ? n.h - 8 : n.h / 2 + 12}
+                textAnchor="middle"
+                style={{ fill: stroke }}
+              >
                 {trunc(sub, maxChars + 8)}
               </text>
             </g>
@@ -297,6 +323,30 @@ function NodeEditForm({ node, ctx }: { node: Json; ctx: FormCtx }) {
         {node.evidence_vetoed ? ' (vetoed)' : ''}
       </div>
       <StageChips stages={(node.stages as Json[] | undefined) ?? []} />
+      {smiles.trim() && (
+        <div className="dag-smiles-preview">
+          <img
+            className="dag-smiles-img"
+            src={api.chemRenderSmilesUrl(smiles.trim(), 280, 160)}
+            alt={`2D structure of ${label || String(node.node_id)}`}
+            loading="lazy"
+          />
+          <div className="dag-smiles-bar">
+            <span className="dag-smiles-code" title={smiles.trim()}>{smiles.trim()}</span>
+            <button
+              type="button"
+              className="btn ghost sm dag-smiles-copy"
+              onClick={() => {
+                void navigator.clipboard.writeText(smiles.trim());
+                ctx.onSave([], '', 'SMILES copied');
+              }}
+              title="Copy SMILES string to clipboard"
+            >
+              Copy SMILES
+            </button>
+          </div>
+        </div>
+      )}
       <Field label="label">
         <input className="input" value={label} onChange={(e) => setLabel(e.target.value)} />
       </Field>

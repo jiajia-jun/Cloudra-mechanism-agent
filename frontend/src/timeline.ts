@@ -75,6 +75,9 @@ export type TimelineItem = ToolItem | ProgramItem | MessageItem | NoteItem | Thi
 export interface StreamView {
   streamText: string;
   frozen: MessageItem[];
+  streamThinking?: string;
+  streamThinkingLive?: boolean;
+  streamThinkingSeq?: number;
 }
 
 const MESSAGE_TYPES = new Set(['agent.message_injected', 'agent.message_emitted']);
@@ -117,28 +120,69 @@ function freezeStream(view: StreamView, seq: number): StreamView {
   };
 }
 
-/** Live streamText vs events that would otherwise wipe it. */
+/** Live streamText and streamThinking vs events that would otherwise wipe it. */
 export function applyStreamEvent(
   view: StreamView,
   event: { type: string; session_seq?: number | null; data: Record<string, unknown> },
+  fallbackSeq = 0,
 ): StreamView {
   if (event.type === 'llm.chunk') {
     const delta = String(event.data.delta ?? '');
-    if (!delta || event.data.kind === 'reasoning') return view;
-    return { ...view, streamText: view.streamText + delta };
+    if (!delta) return view;
+    if (event.data.kind === 'reasoning') {
+      const currentThinking = view.streamThinking ?? '';
+      const baseSeq = (event.session_seq ?? 0) || fallbackSeq;
+      const seq = view.streamThinkingSeq || (baseSeq + 0.3);
+      return {
+        ...view,
+        streamThinking: currentThinking + delta,
+        streamThinkingLive: true,
+        streamThinkingSeq: seq,
+      };
+    }
+    // Content chunks: reasoning has ended
+    return {
+      ...view,
+      streamText: view.streamText + delta,
+      streamThinkingLive: false,
+    };
+  }
+  if (event.type === 'agent.thinking') {
+    // Authoritative persisted thinking event arrived. Clear live transient streamThinking.
+    return {
+      ...view,
+      streamThinking: '',
+      streamThinkingLive: false,
+      streamThinkingSeq: 0,
+    };
+  }
+  if (event.type === 'agent.message_injected') {
+    if (view.streamThinking) {
+      return {
+        ...view,
+        streamThinkingSeq: (event.session_seq ?? 0) + 0.3,
+      };
+    }
+    return view;
   }
   if (
     event.type === 'llm.request_started' ||
     event.type === 'run.finished' ||
     event.type === 'llm.failed'
   ) {
-    return freezeStream(view, event.session_seq ?? 0);
+    const frozenView = freezeStream(view, event.session_seq ?? 0);
+    return {
+      ...frozenView,
+      streamThinkingLive: false,
+    };
   }
   if (event.type === 'agent.message_emitted') {
     const content = String(event.data.content ?? '');
     return {
+      ...view,
       streamText: '',
       frozen: view.frozen.filter((m) => m.content !== content),
+      streamThinkingLive: false,
     };
   }
   return view;

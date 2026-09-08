@@ -157,6 +157,9 @@ export const api = {
   // Full human-readable Markdown dump of the project's event stream.
   projectTranscriptUrl: (projectId: string) =>
     `${runtimeUrl}/api/v2/projects/${projectId}/transcript`,
+  // 2D molecular structure diagram rendered from SMILES.
+  chemRenderSmilesUrl: (smiles: string, width = 200, height = 140, theme = 'dark') =>
+    `${runtimeUrl}/api/v2/chem/render-smiles?smiles=${encodeURIComponent(smiles)}&width=${width}&height=${height}&theme=${theme}&v=w4`,
   dagDelivery: (projectId: string) =>
     request<{ mode: string; graph: Record<string, unknown> | null }>(`/api/v2/projects/${projectId}/dag/delivery`),
   dagReviews: (projectId: string) =>

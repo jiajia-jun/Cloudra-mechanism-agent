@@ -53,6 +53,54 @@ assert.equal(afterPersist.streamText, '');
 
 console.log('timeline.stream-commit ok');
 
+/* ------------------------------------------------------- stream thinking */
+
+const thinkChunk1 = applyStreamEvent(view(), {
+  type: 'llm.chunk',
+  session_seq: 1,
+  data: { kind: 'reasoning', delta: 'Let me think about ' },
+});
+assert.equal(thinkChunk1.streamThinking, 'Let me think about ');
+assert.equal(thinkChunk1.streamThinkingLive, true);
+
+const thinkChunk2 = applyStreamEvent(thinkChunk1, {
+  type: 'llm.chunk',
+  session_seq: 1,
+  data: { kind: 'reasoning', delta: 'reaction mechanism.' },
+});
+assert.equal(thinkChunk2.streamThinking, 'Let me think about reaction mechanism.');
+assert.equal(thinkChunk2.streamThinkingLive, true);
+
+// Other events (e.g. state_changed) do not interrupt streaming thinking
+const stateEv = applyStreamEvent(thinkChunk2, {
+  type: 'agent.state_changed',
+  session_seq: 2,
+  data: { to: 'running' },
+});
+assert.equal(stateEv.streamThinking, 'Let me think about reaction mechanism.');
+assert.equal(stateEv.streamThinkingLive, true);
+
+// When content arrives, thinking live flag transitions to false
+const contentChunk = applyStreamEvent(thinkChunk2, {
+  type: 'llm.chunk',
+  session_seq: 3,
+  data: { kind: 'content', delta: 'Here is the answer.' },
+});
+assert.equal(contentChunk.streamThinking, 'Let me think about reaction mechanism.');
+assert.equal(contentChunk.streamThinkingLive, false);
+assert.equal(contentChunk.streamText, 'Here is the answer.');
+
+// Authoritative agent.thinking clears transient streamThinking
+const afterThinkingPersist = applyStreamEvent(contentChunk, {
+  type: 'agent.thinking',
+  session_seq: 4,
+  data: { content: 'Let me think about reaction mechanism.' },
+});
+assert.equal(afterThinkingPersist.streamThinking, '');
+assert.equal(afterThinkingPersist.streamThinkingLive, false);
+
+console.log('timeline.stream-thinking ok');
+
 /* ------------------------------------------------------- image attachments */
 
 function ev(type: string, sessionSeq: number, data: Record<string, unknown>): EventEnvelope {

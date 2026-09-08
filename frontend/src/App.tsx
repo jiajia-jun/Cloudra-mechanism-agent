@@ -118,6 +118,48 @@ const SLASH_COMMANDS: SlashCommandDef[] = [
   },
 ];
 
+function ThinkingBlock({ item }: { item: ThinkingItem }) {
+  const [open, setOpen] = useState(Boolean(item.live));
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (item.live) setOpen(true);
+  }, [item.live]);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(item.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div className={`thinking-card ${item.live ? 'live' : ''} ${open ? 'open' : ''}`}>
+      <div className="thinking-head" onClick={() => setOpen((prev) => !prev)}>
+        <span className={`thinking-dot ${item.live ? 'live' : ''}`} />
+        <span className="thinking-title">{item.live ? 'Thinking…' : 'Thought process'}</span>
+        <span className="thinking-meta">{item.text.length} chars</span>
+        <div className="thinking-actions">
+          <button
+            type="button"
+            className="btn ghost sm thinking-copy"
+            title="Copy reasoning text"
+            onClick={handleCopy}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <span className="thinking-toggle">{open ? '▼' : '▶'}</span>
+        </div>
+      </div>
+      {open && <div className="thinking-body">{item.text}</div>}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ app */
 
 export default function App() {
@@ -127,7 +169,27 @@ export default function App() {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
   const [streamView, setStreamView] = useState<StreamView>({ streamText: '', frozen: [] });
-  const [thinkingItems, setThinkingItems] = useState<ThinkingItem[]>([]);
+  // Resizing and collapsing state
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('cloudra:sidebar-width');
+    const parsed = saved ? parseInt(saved, 10) : 248;
+    return Number.isFinite(parsed) && parsed >= 180 && parsed <= 500 ? parsed : 248;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('cloudra:sidebar-open');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [inspectorWidth, setInspectorWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('cloudra:inspector-width');
+    const parsed = saved ? parseInt(saved, 10) : 380;
+    return Number.isFinite(parsed) && parsed >= 280 && parsed <= 900 ? parsed : 380;
+  });
+  const [inspectorOpen, setInspectorOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('cloudra:inspector-open');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [resizingSide, setResizingSide] = useState<'sidebar' | 'inspector' | null>(null);
+  const [editingWs, setEditingWs] = useState(false);
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
   const [roles, setRoles] = useState<Array<{ role_id: string; display_name: string }>>([]);
   const [draft, setDraft] = useState('');
@@ -218,10 +280,56 @@ export default function App() {
   // Refs so the long-lived SSE subscription always sees current values.
   const activeAgentIdRef = useRef(activeAgentId);
   activeAgentIdRef.current = activeAgentId;
-  // Highest session_seq seen for the visible agent (chunks carry seq 0, so
-  // thinking segments anchor to the last real event before them).
   const maxSeqRef = useRef(0);
-  const thinkingIdRef = useRef(0);
+
+  // Sync panel widths and visibility to localStorage
+  useEffect(() => {
+    localStorage.setItem('cloudra:sidebar-width', String(sidebarWidth));
+  }, [sidebarWidth]);
+  useEffect(() => {
+    localStorage.setItem('cloudra:sidebar-open', String(sidebarOpen));
+  }, [sidebarOpen]);
+  useEffect(() => {
+    localStorage.setItem('cloudra:inspector-width', String(inspectorWidth));
+  }, [inspectorWidth]);
+  useEffect(() => {
+    localStorage.setItem('cloudra:inspector-open', String(inspectorOpen));
+  }, [inspectorOpen]);
+
+  // Shortcut Cmd+B / Ctrl+B toggles sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        setSidebarOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Window drag listeners for sidebar / inspector resizers
+  useEffect(() => {
+    if (!resizingSide) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      if (resizingSide === 'sidebar') {
+        const next = Math.max(180, Math.min(500, e.clientX));
+        setSidebarWidth(next);
+      } else if (resizingSide === 'inspector') {
+        const next = Math.max(280, Math.min(900, Math.min(window.innerWidth - 300, window.innerWidth - e.clientX)));
+        setInspectorWidth(next);
+      }
+    };
+    const handleMouseUp = () => {
+      setResizingSide(null);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingSide]);
 
   // SSE events arrive in bursts (full history replay on connect, and one
   // llm.*/tool.* event per token/step during a run).  Feeding each event
@@ -283,7 +391,6 @@ export default function App() {
       setActiveAgentId(agentId);
       setPendingMessages([]);
       setStreamView({ streamText: '', frozen: [] });
-      setThinkingItems([]);
       maxSeqRef.current = 0;
       // Drop any buffered events from the previous agent: they must not leak
       // into the freshly loaded transcript.
@@ -319,7 +426,6 @@ export default function App() {
     setActiveAgentId(null);
     setEvents([]);
     setStreamView({ streamText: '', frozen: [] });
-    setThinkingItems([]);
     maxSeqRef.current = 0;
     setPendingMessages([]);
     setPendingImages([]);
@@ -393,68 +499,13 @@ export default function App() {
         // Timeline events for the visible agent.
         if (sessionId && sessionId === activeAgentIdRef.current) {
           // Token-level streaming: llm.chunk never enters the event list.
-          // Reasoning deltas accumulate into per-LLM-call thinking segments
-          // interleaved between tool rows; content deltas feed the live bubble
-          // which applyStreamEvent freezes into the timeline so a later tool
-          // round cannot swallow it.
+          // Reasoning and content deltas feed streamView via applyStreamEvent.
           if (event.type === 'llm.chunk') {
-            const delta = String(event.data.delta ?? '');
-            if (event.data.kind === 'reasoning') {
-              setThinkingItems((prev) => {
-                const last = prev[prev.length - 1];
-                if (last?.live) {
-                  return [...prev.slice(0, -1), { ...last, text: last.text + delta }];
-                }
-                return [
-                  ...prev,
-                  {
-                    kind: 'thinking',
-                    id: `th-${++thinkingIdRef.current}`,
-                    seq: maxSeqRef.current + 0.5,
-                    text: delta,
-                    live: true,
-                  },
-                ];
-              });
-            } else {
-              setStreamView((prev) => applyStreamEvent(prev, event));
-            }
+            setStreamView((prev) => applyStreamEvent(prev, event, maxSeqRef.current));
             return;
           }
           maxSeqRef.current = Math.max(maxSeqRef.current, event.session_seq ?? 0);
-          if (event.type === 'agent.message_injected') {
-            // The triggering user message belongs *before* this turn's
-            // thinking, even when its echo arrives after the first chunks:
-            // re-anchor the open segment just after it instead of closing.
-            const anchor = (event.session_seq ?? 0) + 0.5;
-            setThinkingItems((prev) => {
-              const last = prev[prev.length - 1];
-              return last?.live ? [...prev.slice(0, -1), { ...last, seq: anchor }] : prev;
-            });
-          } else if (event.type === 'agent.thinking') {
-            // The persisted segment replaces its transient streamed copy —
-            // without this the same reasoning would render twice.
-            const persisted = String(event.data.content ?? '');
-            setThinkingItems((prev) => {
-              const last = prev[prev.length - 1];
-              if (
-                last &&
-                (last.text === persisted ||
-                  persisted.startsWith(last.text) ||
-                  last.text.startsWith(persisted))
-              ) {
-                return prev.slice(0, -1);
-              }
-              return prev;
-            });
-          } else {
-            // Any other real event ends the currently streaming segment.
-            setThinkingItems((prev) => {
-              const last = prev[prev.length - 1];
-              return last?.live ? [...prev.slice(0, -1), { ...last, live: false }] : prev;
-            });
-          }
-          setStreamView((prev) => applyStreamEvent(prev, event));
+          setStreamView((prev) => applyStreamEvent(prev, event, maxSeqRef.current));
           bufferEvent(event);
           if (event.type === 'agent.message_injected') {
             const content = String(event.data.content ?? '');
@@ -1046,8 +1097,8 @@ export default function App() {
     return merged;
   }, [persistedTimeline, streamView.frozen]);
   const timeline = useMemo(() => {
-    // Live bubble before the thinking block (seq 0.4 < 0.5), then any
-    // transient thinking segments, then optimistic pending user messages.
+    // Live bubble before thinking/pending messages, transient streaming thinking,
+    // and optimistic pending user messages.
     const items: TimelineItem[] = [...committedTimeline];
     if (streamView.streamText) {
       items.push({
@@ -1060,9 +1111,37 @@ export default function App() {
         streaming: true,
       });
     }
-    items.push(...thinkingItems);
-    return [...items, ...pendingMessages];
-  }, [committedTimeline, thinkingItems, streamView.streamText, pendingMessages, activeAgent?.display_name]);
+    if (streamView.streamThinking) {
+      const st = streamView.streamThinking;
+      const alreadyPersisted = committedTimeline.some(
+        (it) =>
+          it.kind === 'thinking' &&
+          (it.text === st ||
+            it.text.startsWith(st) ||
+            st.startsWith(it.text)),
+      );
+      if (!alreadyPersisted) {
+        items.push({
+          kind: 'thinking',
+          id: 'stream-thinking',
+          seq: streamView.streamThinkingSeq || maxSeqRef.current + 0.3,
+          text: st,
+          live: Boolean(streamView.streamThinkingLive),
+        });
+      }
+    }
+    items.push(...pendingMessages);
+    items.sort((a, b) => a.seq - b.seq);
+    return items;
+  }, [
+    committedTimeline,
+    streamView.streamText,
+    streamView.streamThinking,
+    streamView.streamThinkingLive,
+    streamView.streamThinkingSeq,
+    pendingMessages,
+    activeAgent?.display_name,
+  ]);
   const runningTool = useMemo(
     () => {
       for (const item of timeline) {
@@ -1078,7 +1157,7 @@ export default function App() {
     },
     [timeline],
   );
-  const liveThinking = thinkingItems.some((item) => item.live);
+  const liveThinking = Boolean(streamView.streamThinkingLive);
 
   // Agent tree: sub-agents fold under their parent's chip in the agent bar.
   const childrenOf = useMemo(() => {
@@ -1154,14 +1233,15 @@ export default function App() {
   const connLabel = !activeProject ? 'idle' : connState === 'live' ? 'live' : connState === 'connecting' ? 'connecting' : 'reconnecting…';
 
   return (
-    <div className="app">
+    <div className={`app ${resizingSide ? 'resizing' : ''}`}>
       <datalist id="workspace-dirs">
         {workspaceSuggestions.map((ws) => (
           <option key={ws} value={ws} />
         ))}
       </datalist>
-      <aside className="sidebar">
-        <div className="sidebar-head">
+      {sidebarOpen && (
+        <aside className="sidebar" style={{ width: sidebarWidth }}>
+          <div className="sidebar-head">
           <img className="brand-logo" src="/logo.png" alt="Cloudra" />
         </div>
         <div className="sidebar-new">
@@ -1292,21 +1372,63 @@ export default function App() {
           </button>
         </div>
       </aside>
+      )}
+      {sidebarOpen && (
+        <div
+          className={`resizer resizer-sidebar ${resizingSide === 'sidebar' ? 'active' : ''}`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setResizingSide('sidebar');
+          }}
+          title="Drag to resize sidebar"
+        />
+      )}
 
       <main className="main">
         <div className="agentbar">
+          <button
+            type="button"
+            className="btn ghost sm panel-toggle"
+            title={sidebarOpen ? 'Hide sidebar (Cmd+B)' : 'Show sidebar (Cmd+B)'}
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            {sidebarOpen ? '◀' : '▶'}
+          </button>
           <span className="agentbar-title">{activeProject?.name ?? 'Select a project'}</span>
           {activeProject && (
-            <input
-              key={`ws-${activeProject.id}`}
-              className="input ws-input"
-              defaultValue={activeProject.workspace_dir ?? ''}
-              placeholder="workspace dir…"
-              title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
-              list="workspace-dirs"
-              onBlur={(e) => changeWorkspace(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            />
+            editingWs ? (
+              <input
+                key={`ws-${activeProject.id}`}
+                className="input ws-input"
+                autoFocus
+                defaultValue={activeProject.workspace_dir ?? ''}
+                placeholder="workspace dir…"
+                title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
+                list="workspace-dirs"
+                onBlur={(e) => {
+                  setEditingWs(false);
+                  changeWorkspace(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setEditingWs(false);
+                    changeWorkspace((e.target as HTMLInputElement).value);
+                  } else if (e.key === 'Escape') {
+                    setEditingWs(false);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                className="agentbar-ws-pill"
+                title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory'}
+                onClick={() => setEditingWs(true)}
+              >
+                <span>📁</span>
+                <span>{activeProject.workspace_dir ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir) : 'set workspace'}</span>
+              </button>
+            )
           )}
           {rootAgents.map((a) => renderAgentChip(a, 0))}
           {activeProject && (
@@ -1342,10 +1464,18 @@ export default function App() {
               ))}
             </select>
           )}
-          <span className="conn-status">
+          <span className="conn-status" style={{ marginLeft: 'auto' }}>
             {activeProject && <span className={`state-dot ${connState === 'live' ? 'running' : 'waiting_input'}`} />}
             {connLabel}
           </span>
+          <button
+            type="button"
+            className={`btn ghost sm panel-toggle ${inspectorOpen ? 'active' : ''}`}
+            title={inspectorOpen ? 'Hide inspector' : 'Show inspector'}
+            onClick={() => setInspectorOpen((v) => !v)}
+          >
+            {inspectorOpen ? 'Inspector ▶' : '◀ Inspector'}
+          </button>
         </div>
 
         <div
@@ -1422,13 +1552,7 @@ export default function App() {
                   }
                 />
               ) : item.kind === 'thinking' ? (
-                <details key={item.id} className={`thinking${item.live ? ' live' : ''}`}>
-                  <summary>
-                    <span className="thinking-dot" />
-                    thinking{item.live ? '…' : ''}
-                  </summary>
-                  <div className="thinking-body">{item.text}</div>
-                </details>
+                <ThinkingBlock key={item.id} item={item} />
               ) : (
                 <div
                   key={item.id}
@@ -1606,18 +1730,32 @@ export default function App() {
         </div>
       </main>
 
-      <Inspector
-        activeAgent={activeAgent}
-        activeProject={activeProject}
-        liveEvents={sessionEvents}
-        onPatchSettings={patchSettings}
-        approvals={approvals}
-        interactions={interactions}
-        onRefreshApprovals={() => activeProject && api.approvals(activeProject.id).then(setApprovals).catch(reportError)}
-        onRefreshInteractions={() => activeProject && api.interactions(activeProject.id).then(setInteractions).catch(reportError)}
-        onError={reportError}
-        onToast={pushToast}
-      />
+      {inspectorOpen && (
+        <div
+          className={`resizer resizer-inspector ${resizingSide === 'inspector' ? 'active' : ''}`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setResizingSide('inspector');
+          }}
+          title="Drag to resize inspector"
+        />
+      )}
+
+      {inspectorOpen && (
+        <Inspector
+          width={inspectorWidth}
+          activeAgent={activeAgent}
+          activeProject={activeProject}
+          liveEvents={sessionEvents}
+          onPatchSettings={patchSettings}
+          approvals={approvals}
+          interactions={interactions}
+          onRefreshApprovals={() => activeProject && api.approvals(activeProject.id).then(setApprovals).catch(reportError)}
+          onRefreshInteractions={() => activeProject && api.interactions(activeProject.id).then(setInteractions).catch(reportError)}
+          onError={reportError}
+          onToast={pushToast}
+        />
+      )}
 
       <div className="floating-stack">
         <div className="toasts">
@@ -1750,7 +1888,7 @@ function InteractionCard({
   );
 }
 
-function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, approvals, interactions, onRefreshApprovals, onRefreshInteractions, onError, onToast }: {
+function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, approvals, interactions, onRefreshApprovals, onRefreshInteractions, onError, onToast, width }: {
   activeAgent: Agent | null;
   activeProject: Project | null;
   liveEvents: EventEnvelope[];
@@ -1761,6 +1899,7 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
   onRefreshInteractions: () => void;
   onError: (e: unknown) => void;
   onToast: (kind: ToastKind, text: string) => void;
+  width?: number;
 }) {
   const [tab, setTab] = useState<InspectorTab>('events');
   const [artifacts, setArtifacts] = useState<Array<Record<string, unknown>>>([]);
@@ -1813,7 +1952,7 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
   }
 
   return (
-    <aside className="inspector">
+    <aside className="inspector" style={width ? { width } : undefined}>
       <div className="tabs">
         {(['events', 'dag', 'approvals', 'interactions', 'artifacts', 'settings', 'context', 'skills'] as const).map((t) => (
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => loadTab(t)}>
