@@ -140,10 +140,12 @@ class ComputeNotifyBroker:
         if isinstance(session_id, str) and session_id in self.core.agents:
             await self._send_message(session_id, content)
             delivered.add(session_id)
-
-        coordinator = self._coordinator_for(project_id)
-        if coordinator is not None and coordinator.id not in delivered:
-            await self._send_message(coordinator.id, content)
+        elif not delivered:
+            # 仅当提交会话未指定或不可达（ghost session 回落）时才交付 Coordinator 兜底，
+            # 绝不把子 Agent 负责的底层计算作业无脑广播给 Coordinator。
+            coordinator = self._coordinator_for(project_id)
+            if coordinator is not None:
+                await self._send_message(coordinator.id, content)
 
         await asyncio.to_thread(self._mark_notified, task_id)
 
@@ -347,6 +349,17 @@ class ComputeNotifyBroker:
 
     async def _send_message(self, session_id: str, content: str) -> None:
         body = content if content.startswith("[Compute job]") else f"[Compute job]\n{content}"
+        agent = self.core.agents.get(session_id)
+        if agent is not None and agent.role_id == "coordinator":
+            # Coordinator 绝不被计算任务唤醒（只由 AgentHub / Supervisor 裁决唤醒）：
+            # 终态通知仅静默存入收件箱驻留（park-don't-wake），不发 agent.message 强制 wake。
+            self.core.mailbox.deliver(
+                to_session_id=session_id,
+                project_id=agent.project_id,
+                content=body,
+                sender="system",
+            )
+            return
         await CommandBus(self.core).execute(
             Command(
                 type="agent.message",

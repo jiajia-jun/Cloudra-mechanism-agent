@@ -60,8 +60,8 @@ class SubAgentSwarm_input_schema(input_schema):
         description=(
             "Whether to wait for all subtasks and aggregate results. If False, fire the tasks and return "
             "immediately: with max_concurrency=0 all session_ids are returned at once; with "
-            "max_concurrency>0 a group_id is returned instead (poll get_subagent_report with that "
-            "group_id for progress counters and per-item child session ids)."
+            "max_concurrency>0 a group_id is returned instead (subtasks report progress/completion via agent_hub "
+            "or upon finish, or inspect get_subagent_report with that group_id)."
         )
     )
     max_concurrency: int = Field(

@@ -41,14 +41,23 @@ TERMINAL_STATES = frozenset({AgentState.SUCCEEDED, AgentState.FAILED, AgentState
 # stuck_grace 就取消该题（yolo 已开，正常路径不该出现审批等待）。
 _STUCK_STATE_VALUES = frozenset({AgentState.WAITING_INPUT.value, AgentState.WAITING_APPROVAL.value})
 
-# 最终总结里的能垒抓取：query 要求 agent 以 kcal/mol 报告能垒，取文本中
-# 最后一个 "<number> kcal/mol" 出现（总结陈述通常在最末）。
+# 最终总结里的能垒抓取：优先匹配明确指认的决速步（RDS / rate-determining step）
+# 能垒；未明确标明时取文本中最后一个 "<number> kcal/mol" 出现（总结陈述通常在最末）。
+_RDS_BARRIER_RE = re.compile(
+    r"(?:rds|rate[- ]determining(?:[- ]step)?)\s*(?:barrier|energy|enthalpy)?\s*(?:is|of|:|=)?\s*(-?\d+(?:\.\d+)?)\s*kcal\s*/?\s*mol",
+    re.IGNORECASE,
+)
 _BARRIER_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*kcal\s*/?\s*mol", re.IGNORECASE)
 
 
 def extract_reported_barrier(text: str) -> Optional[float]:
     """Last "<number> kcal/mol" in the agent's final summary, or None."""
-    matches = _BARRIER_RE.findall(text or "")
+    if not text:
+        return None
+    rds_match = _RDS_BARRIER_RE.search(text)
+    if rds_match:
+        return float(rds_match.group(1))
+    matches = _BARRIER_RE.findall(text)
     return float(matches[-1]) if matches else None
 
 

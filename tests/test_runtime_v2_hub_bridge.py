@@ -361,3 +361,41 @@ async def test_notification_consumed_event_emitted_when_context_built():
     ]
     assert consumed
     assert consumed[-1].data.get("post_id")
+
+
+@pytest.mark.asyncio
+async def test_subagent_at_coordinator_wakes_coordinator():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    child = await _spawn(core, coordinator, "small_mol")
+
+    posted = await handle_hub_tool(
+        core,
+        child,
+        _hub({"action": "post", "topic": "TS result", "content": "TS found!", "to_agent": "@coordinator"}),
+    )
+    assert posted.is_success is True
+    assert "Notified @coordinator" in posted.summary
+    # Coordinator wakes up and transitions through runner
+    await _wait_state(coordinator, "succeeded")
+    events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    assert any("TS found!" in e.data.get("content", "") for e in events)
+
+
+@pytest.mark.asyncio
+async def test_subagent_broadcast_defaults_to_coordinator():
+    core, _, coordinator = await _setup()
+    await _wait_state(coordinator, "succeeded")
+    child = await _spawn(core, coordinator, "small_mol")
+
+    posted = await handle_hub_tool(
+        core,
+        child,
+        _hub({"action": "post", "kind": "broadcast", "topic": "milestone", "content": "All jobs complete"}),
+    )
+    assert posted.is_success is True
+    assert "Notified coordinator" in posted.summary
+    # Coordinator wakes up and processes broadcast
+    await _wait_state(coordinator, "succeeded")
+    events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    assert any("All jobs complete" in e.data.get("content", "") for e in events)

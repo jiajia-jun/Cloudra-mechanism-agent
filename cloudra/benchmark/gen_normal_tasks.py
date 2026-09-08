@@ -47,6 +47,7 @@ from cloudra.benchmark.schema import (
     GoldSpec,
     MechanismEdge,
     MechanismNode,
+    MethodPolicy,
     NodeRole,
     PromptSpec,
     ReferenceComputation,
@@ -56,6 +57,7 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
+from cloudra.benchmark.query_builder import format_allowed_methods_clause
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "normal.md"
@@ -265,11 +267,23 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
     return GoldMechanismGraph(nodes=nodes, edges=edges)
 
 
-def _query(pid: str, name: str, reactants: list[str], products: list[str], q: int, mult: int, conditions: str, mapped: str) -> str:
+def _query(
+    pid: str,
+    name: str,
+    reactants: list[str],
+    products: list[str],
+    q: int,
+    mult: int,
+    conditions: str,
+    mapped: str,
+    allowed_methods: Sequence[str] | None = None,
+) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products)
     # 与 easy 同一套交付协议措辞；normal 增量：机理可能是多步网络——要求中间体
     # 节点与逐步边，但不点名步数（不泄题）。
+    methods_clause = format_allowed_methods_clause(allowed_methods)
+    methods_part = f" {methods_clause}" if methods_clause else ""
     return (
         f"Determine the mechanism of the following reaction: {name}. "
         f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
@@ -301,9 +315,7 @@ def _query(pid: str, name: str, reactants: list[str], products: list[str], q: in
         "e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process "
         "this is simply the reactant minimum). "
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
-        "programs' log formats, so output from any other program cannot count as evidence. "
-        "Allowed computational methods are limited to MACE-OMol25 and xTB; "
-        "calls beyond the whitelist are intercepted."
+        f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
     )
 
 
@@ -349,13 +361,27 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         graph = _build_graph(pid, reactants, products, entry)
         name = entry["name_en"]
         conditions = entry["conditions_en"]
+        policy = MethodPolicy()
         tasks.append(
             TaskSpec(
                 task_id=f"N{pid}",
                 tier=Tier.NORMAL,
                 family=pid[0],
                 name=name,
-                prompt=PromptSpec(query=_query(pid, name, reactants, products, q, mult, conditions, entry["mapped_reactants"])),
+                prompt=PromptSpec(
+                    query=_query(
+                        pid,
+                        name,
+                        reactants,
+                        products,
+                        q,
+                        mult,
+                        conditions,
+                        entry["mapped_reactants"],
+                        allowed_methods=policy.allowed_methods,
+                    )
+                ),
+                method_policy=policy,
                 system=SystemSpec(
                     reactants=reactants,
                     products=products,

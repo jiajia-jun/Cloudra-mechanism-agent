@@ -192,7 +192,8 @@ async def _handle_launcher(core, parent: AgentSession, args: dict[str, Any]) -> 
     if not args.get("is_wait"):
         data["result"] = (
             f"Task submitted asynchronously: session_id={child.id}. "
-            f'Retrieve the result later with get_subagent_report(session_id="{child.id}").'
+            f"The sub-agent will notify progress via agent_hub and deliver a completion report upon finish. "
+            f'You may proceed with other work, stop/suspend, or check get_subagent_report(session_id="{child.id}").'
         )
         return ToolResult(is_success=True, summary=data["result"], data=data)
     try:

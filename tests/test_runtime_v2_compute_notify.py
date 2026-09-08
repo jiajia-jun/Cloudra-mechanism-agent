@@ -344,3 +344,59 @@ async def test_unavailable_evidence_retried_without_resending(tmp_path):
     events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
     assert len(events) == events_before + 1
     assert "now available for review" in events[-1].data["content"]
+
+
+@pytest.mark.asyncio
+async def test_subagent_compute_job_does_not_notify_or_wake_coordinator():
+    """子 Agent 提交的计算作业终态通知只投递给该子 Agent，绝不抄送 Coordinator，更不唤醒 Coordinator。"""
+    core, project, coordinator = await _setup_core()
+    bus = CommandBus(core)
+    res = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "small_mol", "parent_session_id": coordinator.id},
+        )
+    )
+    subagent = res.data
+    job_id = _insert_terminal_job(project.id, session_id=subagent.id)
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+
+    await broker._poll_project(project.id)
+
+    # 子 Agent 收到通知
+    sub_events = core.event_log.query_session(subagent.id, types={"agent.message_injected"})
+    assert len(sub_events) == 1
+    assert f"task_id={job_id}" in sub_events[0].data["content"]
+
+    # Coordinator 绝不收到该通知
+    coord_events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    assert len(coord_events) == 0
+    assert _inbox_texts(core, coordinator.id) == []
+
+
+@pytest.mark.asyncio
+async def test_coordinator_compute_job_delivered_silently_without_wake():
+    """Coordinator 自身提交或 fallback 投递的计算通知静默存入信箱，绝不强制 schedule 唤醒。"""
+    core, project, coordinator = await _setup_core()
+    scheduled_sessions = []
+
+    class FakeRunner:
+        def schedule(self, session_id):
+            scheduled_sessions.append(session_id)
+
+    core.runner = FakeRunner()
+
+    job_id = _insert_terminal_job(project.id, session_id=coordinator.id)
+    broker = ComputeNotifyBroker(core, poll_interval=0.05)
+
+    await broker._poll_project(project.id)
+
+    # 存入信箱和事件日志
+    events = core.event_log.query_session(coordinator.id, types={"agent.message_injected"})
+    assert len(events) == 1
+    assert f"task_id={job_id}" in events[0].data["content"]
+    assert any(f"task_id={job_id}" in t for t in _inbox_texts(core, coordinator.id))
+
+    # 绝不唤醒 Coordinator
+    assert coordinator.id not in scheduled_sessions

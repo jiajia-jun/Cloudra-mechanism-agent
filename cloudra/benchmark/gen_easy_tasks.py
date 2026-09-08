@@ -22,6 +22,7 @@ from cloudra.benchmark.schema import (
     GoldSpec,
     MechanismEdge,
     MechanismNode,
+    MethodPolicy,
     NodeRole,
     PromptSpec,
     ReferenceComputation,
@@ -31,6 +32,7 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
+from cloudra.benchmark.query_builder import format_allowed_methods_clause
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "easy.md"
@@ -357,7 +359,16 @@ def _build_graph(task_id: str, reactants: list[str], products: list[str], step_t
     return GoldMechanismGraph(nodes=[r_node, ts_node, p_node], edges=[edge])
 
 
-def _query(task_id: str, name: str, reactants: list[str], products: list[str], q: int, mult: int, conditions: str) -> str:
+def _query(
+    task_id: str,
+    name: str,
+    reactants: list[str],
+    products: list[str],
+    q: int,
+    mult: int,
+    conditions: str,
+    allowed_methods: Sequence[str] | None = None,
+) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products) if products else rs
     mapped = _MAPPED_REACTANTS[task_id]  # 原子映射反应物 SMILES；未登记 KeyError
@@ -366,6 +377,8 @@ def _query(task_id: str, name: str, reactants: list[str], products: list[str], q
     # mechanism" 对合格的 agent 已隐含这些要求。证据文件的 smiles 注释是
     # 交付协议的一部分（评分器据此把图元素绑定到具体计算产物）。映射 SMILES
     # 只定义 bond_changes 的原子编号口径；节点与证据注释仍用无映射 SMILES。
+    methods_clause = format_allowed_methods_clause(allowed_methods)
+    methods_part = f" {methods_clause}" if methods_clause else ""
     return (
         f"Determine the mechanism of the following {kind}: {name}. "
         f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
@@ -394,9 +407,7 @@ def _query(task_id: str, name: str, reactants: list[str], products: list[str], q
         "e.g. the ion-dipole complex of a bimolecular reaction; for a unimolecular process "
         "this is simply the reactant minimum). "
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
-        "programs' log formats, so output from any other program cannot count as evidence. "
-        "Allowed computational methods are limited to MACE-OMol25 and xTB; "
-        "calls beyond the whitelist are intercepted."
+        f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
     )
 
 
@@ -435,12 +446,25 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
         step_type = _STEP_TYPE_EN[task_id]
 
         graph = _build_graph(task_id, reactants, products, step_type)
+        policy = MethodPolicy()
         spec = TaskSpec(
             task_id=task_id,
             tier=Tier.EASY,
             family=task_id[0],
             name=name,
-            prompt=PromptSpec(query=_query(task_id, name, reactants, products, q, mult, conditions)),
+            prompt=PromptSpec(
+                query=_query(
+                    task_id,
+                    name,
+                    reactants,
+                    products,
+                    q,
+                    mult,
+                    conditions,
+                    allowed_methods=policy.allowed_methods,
+                )
+            ),
+            method_policy=policy,
             system=SystemSpec(
                 reactants=reactants,
                 products=products,

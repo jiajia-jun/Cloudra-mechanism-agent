@@ -374,7 +374,7 @@ def test_accuracy_disabled_passthrough():
 @pytest.mark.parametrize(
     "tool,args,allowed",
     [
-        ("qm_input_writer", {"method": "mace-omol25"}, True),
+        ("qm_input_writer", {"method": "mace-omol25"}, False),
         ("qm_input_writer", {"method": "xtb"}, True),
         ("qm_input_writer", {"method": "wb97m-v"}, False),
         ("qm_input_writer", {"method": "ccsd(t)"}, False),
@@ -459,7 +459,7 @@ def test_method_policy_bash_tool_name():
 def test_method_policy_family_granularity():
     """白名单按方法族匹配：xtb2/gfn2-xtb -> xtb，mace-off -> mace；
     族外方法（wb97m-v）仍拦。"""
-    policy = MethodPolicy()  # ["mace-omol25", "xtb"]
+    policy = MethodPolicy(allowed_methods=["mace-omol25", "xtb"])
     assert check_input_content("! XTB2 OPT FREQ\n", policy, "t.inp").allowed
     assert check_input_content("! gfn2-xtb opt\n", policy, "t.inp").allowed
     assert intercept("qm_input_writer", {"method": "mace-off"}, policy).allowed
@@ -469,7 +469,7 @@ def test_method_policy_family_granularity():
 def test_method_policy_gaussian_external_route():
     """Gaussian MLIP 走 external 路由：引擎值即方法候选；裸 external 无值
     保持 fail-closed。"""
-    policy = MethodPolicy()
+    policy = MethodPolicy(allowed_methods=["mace"])
     assert check_input_content(
         '#p opt=(ts,noeigen,calcfc) freq external="mace"\n', policy, "t.gjf"
     ).allowed
@@ -483,7 +483,7 @@ def test_method_policy_orca_extopt_route():
     """ORCA MLIP 走 ExtOpt 路由：%method 块里 ProgExt 的外部程序名即方法候选
     （与 Gaussian external="engine" 对齐）；裸 ExtOpt 无 ProgExt 保持 fail-closed。
     GH #16：否则 MACE 白名单下的合法 ExtOpt 输入会被当成方法不明拦截。"""
-    policy = MethodPolicy()
+    policy = MethodPolicy(allowed_methods=["mace"])
     content = (
         "! ExtOpt Opt\n"
         "%pal nprocs 1 end\n"
@@ -506,7 +506,7 @@ def test_method_policy_orca_extopt_route():
 def test_method_policy_qm_input_writer_external_program():
     """qm_input_writer 结构化拦截：带 external_program 时以外部程序名为方法候选，
     method 字段（工具默认值残留）不再参与判定。"""
-    policy = MethodPolicy()
+    policy = MethodPolicy(allowed_methods=["mace"])
     ok = intercept(
         "qm_input_writer",
         {"method": "b3lyp", "external_program": "/opt/conda/envs/chemai/bin/mace"},
@@ -992,8 +992,8 @@ async def test_method_policy_stage_blocks_and_allows(tmp_path):
     res = await stage.before_tool(ctx, ToolCall(id="c1", name="bash", arguments={"command": cmd}))
     assert res.outcome == "block" and "b3lyp" in res.message
 
-    # 白名单方法（Gaussian external MLIP 路由）-> 放行
-    cmd_ok = "cat > ts.gjf <<'EOF'\n#p external=\"mace\" opt freq\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
+    # 白名单方法（xTB 路由）-> 放行
+    cmd_ok = "cat > ts.inp <<'EOF'\n! XTB2 OPT FREQ\n* xyz 0 1\nC 0 0 0\n*\nEOF\n"
     res = await stage.before_tool(ctx, ToolCall(id="c2", name="bash", arguments={"command": cmd_ok}))
     assert res.outcome == "allow"
 
@@ -1003,8 +1003,8 @@ async def test_method_policy_stage_blocks_and_allows(tmp_path):
     assert res.outcome == "block"
 
     # submit_compute_job 层：按 input_file 内容判定（相对路径基于沙箱解析）
-    (tmp_path / "ok.gjf").write_text("#p external=\"mace\" opt\n\nt\n\n0 1\nC 0 0 0\n")
-    res = await stage.before_tool(ctx, ToolCall(id="c4", name="submit_compute_job", arguments={"input_file": "ok.gjf"}))
+    (tmp_path / "ok.inp").write_text("! XTB2 OPT\n* xyz 0 1\nC 0 0 0\n*\n")
+    res = await stage.before_tool(ctx, ToolCall(id="c4", name="submit_compute_job", arguments={"input_file": "ok.inp"}))
     assert res.outcome == "allow"
     res = await stage.before_tool(ctx, ToolCall(id="c5", name="submit_compute_job", arguments={"input_file": "evil.gjf"}))
     assert res.outcome == "block"
@@ -1119,6 +1119,13 @@ def test_extract_reported_barrier():
     assert extract_reported_barrier("Ea = -1.5 kcal / mol relative to the complex") == -1.5
     # 取最后一次出现（总结陈述通常在末尾）
     assert extract_reported_barrier("first guess 20.0 kcal/mol; final: 8.4 kcal/mol") == 8.4
+    # 明确标有 RDS 时优先提取 RDS，而非后续的通道差值
+    assert (
+        extract_reported_barrier(
+            "RDS barrier is 24.5 kcal/mol. Minor-channel TS minus major-channel TS is 3.2 kcal/mol."
+        )
+        == 24.5
+    )
     assert extract_reported_barrier("no number here") is None
 
 

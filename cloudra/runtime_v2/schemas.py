@@ -222,13 +222,10 @@ class MethodPolicy(BaseModel):
     - `bash`: the *content* of QM input files being written or executed is
       parsed the same way — the raw command text is never keyword-scanned.
 
-    The easy-tier whitelist (MACE-OMol25 / xTB) has no basis-set concept at
-    all, so the policy carries no basis fields. Whitelist matching happens at
-    method-*family* granularity (any `mace-*` token matches the MACE entry, any
-    token containing `xtb` matches the xTB entry): route-card text cannot
-    distinguish MLIP model variants (mace-omol25 vs mace-off), so variant-level
-    enforcement is out of band, at the method-provisioning side. Attempting a
-    non-whitelisted method is intercepted, never penalized.
+    The benchmark whitelist (xTB) has no basis-set concept at all,
+    so the policy carries no basis fields. Whitelist matching happens at
+    method-*family* granularity (any token containing `xtb` matches the xTB entry).
+    Attempting a non-whitelisted method is intercepted, never penalized.
 
     benchmark 任务与 per-project live 设置共用本模型；live 侧项目未显式
     设置（`ProjectSettings.method_policy is None`）时完全不启用拦截。"""
@@ -236,7 +233,7 @@ class MethodPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     allowed_methods: list[str] = Field(
-        default_factory=lambda: ["mace-omol25", "xtb"]
+        default_factory=lambda: ["xtb"]
     )
     intercept_layers: list[str] = Field(
         default_factory=lambda: ["bash", "submit_compute_job", "qm_input_writer"]

@@ -60,6 +60,7 @@ from cloudra.benchmark.schema import (
     GraphSimilarityRubric,
     MechanismEdge,
     MechanismNode,
+    MethodPolicy,
     NodeRole,
     PromptSpec,
     ReferenceComputation,
@@ -70,6 +71,7 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
+from cloudra.benchmark.query_builder import format_allowed_methods_clause
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "hard.md"
@@ -215,12 +217,24 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
     return GoldMechanismGraph(nodes=nodes, edges=edges)
 
 
-def _query(pid: str, name: str, reactants: list[str], products: list[str], q: int, mult: int, conditions: str, mapped: str) -> str:
+def _query(
+    pid: str,
+    name: str,
+    reactants: list[str],
+    products: list[str],
+    q: int,
+    mult: int,
+    conditions: str,
+    mapped: str,
+    allowed_methods: Sequence[str] | None = None,
+) -> str:
     rs = ".".join(reactants)
     ps = ".".join(products)
     # 与 easy/normal 同一套交付协议措辞；hard 增量：立体化学结果是交付本体——
     # 竞争立体化学通道的两条 TS 都要查，报告能垒排序与差值（选择性锚点据此评分）。
     # 不点名具体构型/几何归属（不泄题）。
+    methods_clause = format_allowed_methods_clause(allowed_methods)
+    methods_part = f" {methods_clause}" if methods_clause else ""
     return (
         f"Determine the mechanism of the following reaction: {name}. "
         f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
@@ -258,9 +272,7 @@ def _query(pid: str, name: str, reactants: list[str], products: list[str], q: in
         "also report the barrier difference (minor-channel TS minus major-channel TS) in "
         "kcal/mol and which channel it favors. "
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
-        "programs' log formats, so output from any other program cannot count as evidence. "
-        "Allowed computational methods are limited to MACE-OMol25 and xTB; "
-        "calls beyond the whitelist are intercepted."
+        f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
     )
 
 
@@ -341,13 +353,27 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             accuracy = AccuracyRubric(enabled=True, sigma_kcal_mol=_BARRIER_SIGMA)
 
         graph = _build_graph(pid, reactants, products, entry)
+        policy = MethodPolicy()
         tasks.append(
             TaskSpec(
                 task_id=f"H{pid}",
                 tier=Tier.HARD,
                 family=pid[0],
                 name=entry["name_en"],
-                prompt=PromptSpec(query=_query(pid, entry["name_en"], reactants, products, q, mult, entry["conditions_en"], entry["mapped_reactants"])),
+                prompt=PromptSpec(
+                    query=_query(
+                        pid,
+                        entry["name_en"],
+                        reactants,
+                        products,
+                        q,
+                        mult,
+                        entry["conditions_en"],
+                        entry["mapped_reactants"],
+                        allowed_methods=policy.allowed_methods,
+                    )
+                ),
+                method_policy=policy,
                 system=SystemSpec(
                     reactants=reactants,
                     products=products,

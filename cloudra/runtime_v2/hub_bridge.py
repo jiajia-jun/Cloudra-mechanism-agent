@@ -60,12 +60,13 @@ def _resolve_live_target(core, project_id: str, target: str) -> AgentSession | N
     if not t:
         return None
     sessions = _live_sessions(core, project_id)
-    if t.lower() in _COORDINATOR_ALIASES:
+    clean = t.lstrip("@").lower()
+    if clean in _COORDINATOR_ALIASES:
         return next((a for a in sessions if a.role_id == "coordinator"), None)
     by_id = core.agents.get(t)
     if by_id is not None and by_id.project_id == project_id:
         return by_id
-    role_id = _role_id_for(t)
+    role_id = _role_id_for(t.lstrip("@"))
     matches = [a for a in sessions if a.role_id == role_id]
     return matches[-1] if matches else None
 
@@ -111,6 +112,9 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     # A valid name may have no live session in this project; the post is still
     # public, so an unresolved addressee just means no notification.
     addressee = _resolve_live_target(core, author.project_id, to_agent) if to_agent else None
+    if addressee is None and kind == "broadcast" and author.role_id != "coordinator":
+        # 广播类帖子默认触达项目统筹者 Coordinator，确保全局关键进展不漏唤醒负责人
+        addressee = next((a for a in _live_sessions(core, author.project_id) if a.role_id == "coordinator"), None)
 
     envelope = core.event_log.append(
         "hub.posted",
@@ -129,6 +133,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
     )
     notices = []
     if addressee is not None and addressee.id != author.id:
+        target_name = to_agent or addressee.role_id
         _notify(
             core,
             author.project_id,
@@ -140,7 +145,7 @@ def _post(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
             ),
             post_id=envelope.event_id,
         )
-        notices.append(f"Notified {to_agent}.")
+        notices.append(f"Notified {target_name}.")
     if parent_id:
         parent = next((p for p in _posts(core, author.project_id) if p["id"] == parent_id), None)
         if parent is not None and parent["author_session"] != author.id:
