@@ -60,6 +60,31 @@ def test_add_species_schema_requires_core_fields():
         DagRemoveEdgeInput(name="step1", reason="")
 
 
+def test_review_and_deletion_tools_register_with_real_schemas():
+    """六个送审/裁决工具与两个删除工具从真实工具类加载，schema 来自类本身。"""
+    from cloudra.tools import get_tools_lst
+
+    entries = {entry.tool_name: entry for entry in get_tools_lst()}
+    expected = {
+        "dag_bind_evidence": "DagBindEvidence",
+        "dag_review_call": "DagReviewCall",
+        "dag_review_evidence": "DagReviewEvidence",
+        "dag_view_evidence": "DagViewEvidence",
+        "dag_set_coverage_contract": "DagSetCoverageContract",
+        "dag_message_supervisor": "DagMessageSupervisor",
+        "dag_remove_node": "DagRemoveNode",
+        "dag_remove_edge": "DagRemoveEdge",
+    }
+    for name, class_name in expected.items():
+        assert name in entries, name
+        entry = entries[name]
+        assert entry.cls.__name__ == class_name, name
+        assert entry.input_schema is not None, name
+        assert entry.input_schema is entry.cls.model_fields["input_schema"].default, name
+        # schema 是真实 pydantic 模型（有 model_fields 可供 JSON schema 投影）
+        assert hasattr(entry.input_schema, "model_fields"), name
+
+
 @pytest.mark.asyncio
 async def test_direct_standard_tool_call_fails_without_initializing_graphs(tmp_path):
     get_config().data_dir = tmp_path
@@ -150,11 +175,10 @@ async def test_deleted_process_tools_are_unregistered(tmp_path):
         "dag_schedule_work",
         "dag_update_process_node",
         "dag_init_from_template",
-        "dag_review_evidence",
-        "dag_bind_evidence",
-        "dag_review_call",
     ):
         assert name not in record_names
+    # Task 6 reintroduces dag_review_evidence for v2 structured review requests.
+    assert "dag_review_evidence" in record_names
 
 
 @pytest.mark.asyncio
@@ -407,6 +431,372 @@ async def test_remove_edge_requires_rationale_and_process_is_gone(tmp_path):
         reason="chair path ruled out by mapping",
     )
     assert removed.accepted is True
+
+
+# ---------------------------------------------------------------------------
+# Task 3: dag_remove_node（研究 agent 删节点 / 删边）
+# ---------------------------------------------------------------------------
+
+from cloudra.tools.Plantool.dag_tools.dag_remove_node import DagRemoveNode  # noqa: E402
+
+
+def _follower(conversation_id, mode):
+    from cloudra.core.agent import Follower
+
+    return Follower(
+        id="a-4",
+        name="small_mol",
+        query="run an optimization",
+        conversation_id=conversation_id,
+        orchestration_mode=mode,
+    )
+
+
+async def _seed_lone_species(agent, session, name="orphan"):
+    added = await _call(DagAddSpecies, agent, session, name=name)
+    assert added.accepted
+    # 用 dag_view 取回 node_id（name→id 由工具内部解析，这里只为断言存在）。
+    view = await _call(DagView, agent, session, graph_kind="delivery")
+    node = next(n for n in view.result["nodes"] if n["label"] == name)
+    return node["node_id"]
+
+
+@pytest.mark.asyncio
+async def test_remove_node_visible_and_executable_by_coordinator(tmp_path):
+    """Coordinator 在 record/guided 下可见且能执行 dag_remove_node。"""
+    get_config().data_dir = tmp_path
+    for mode in ("dag_record", "dag_guided"):
+        agent = _agent(f"rm-node-visible-{mode}", mode)
+        names = {e.tool_name for e in agent.get_available_tools()}
+        assert "dag_remove_node" in names
+        session = Session("s1", str(tmp_path / "session.json"))
+        node_id = await _seed_lone_species(agent, session, f"orphan-{mode}")
+        removed = await _call(
+            DagRemoveNode, agent, session, name=node_id, reason="not on the path"
+        )
+        assert removed.accepted is True
+        assert removed.result["target_id"] == node_id
+        assert "delivery" in removed.result["revisions"]
+
+
+@pytest.mark.asyncio
+async def test_remove_node_executable_by_research_follower(tmp_path):
+    """普通研究子 agent（type=follower, actor=AGENT）在 record/guided 可删节点。"""
+    get_config().data_dir = tmp_path
+    for mode in ("dag_record", "dag_guided"):
+        follower = _follower(f"rm-node-follower-{mode}", mode)
+        session = Session("s1", str(tmp_path / "session.json"))
+        node_id = await _seed_lone_species(follower, session, f"orphan-f-{mode}")
+        removed = await _call(
+            DagRemoveNode, follower, session, name=node_id, reason="superseded"
+        )
+        assert removed.accepted is True
+
+
+@pytest.mark.asyncio
+async def test_remove_edge_executable_by_research_follower(tmp_path):
+    """删边同样对研究子 agent 开放（与删节点同权限面）。"""
+    get_config().data_dir = tmp_path
+    follower = _follower("rm-edge-follower", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    await _call(DagAddSpecies, follower, session, name="R")
+    await _call(DagAddSpecies, follower, session, name="P")
+    await _call(DagAddStep, follower, session, name="step1", from_="R", to="P")
+    removed = await _call(
+        DagRemoveEdge, follower, session, name="step1", reason="not the path"
+    )
+    assert removed.accepted is True
+
+
+@pytest.mark.asyncio
+async def test_remove_node_rejected_in_standard_and_for_supervisor(tmp_path):
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-node-standard", "standard")
+    session = Session("s1", str(tmp_path / "session.json"))
+    denied = await _call(DagRemoveNode, agent, session, name="x", reason="cleanup")
+    assert not denied.is_success
+    assert "standard" in denied.error
+
+    # 先由 Coordinator 在 guided 下种一个节点，再让同会话的 Supervisor 删除
+    # → 解析命中后引擎按 actor=SUPERVISOR 拒绝。
+    coordinator = _agent("rm-node-supervisor", "dag_guided")
+    node_id = await _seed_lone_species(coordinator, session, "kept")
+    supervisor = make_supervisor("rm-node-supervisor", workspace_dir=str(tmp_path))
+    denied_sv = await _call(
+        DagRemoveNode, supervisor, session, name=node_id, reason="cleanup"
+    )
+    assert not denied_sv.is_success
+    assert denied_sv.rejection_code == "actor_forbidden"
+
+
+@pytest.mark.asyncio
+async def test_remove_node_resolves_by_name_and_id(tmp_path):
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-node-resolve", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    await _seed_lone_species(agent, session, "ethylene")
+
+    # 名称解析
+    by_name = await _call(
+        DagRemoveNode, agent, session, name="ethylene", reason="stale"
+    )
+    assert by_name.accepted is True
+    # ID 解析（重新种一个）
+    node_id2 = await _seed_lone_species(agent, session, "propene")
+    by_id = await _call(
+        DagRemoveNode, agent, session, name=node_id2, reason="stale"
+    )
+    assert by_id.accepted is True
+
+
+@pytest.mark.asyncio
+async def test_remove_node_blank_inputs_rejected(tmp_path):
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-node-blank", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    await _seed_lone_species(agent, session, "blank-check")
+
+    blank_name = await _call(DagRemoveNode, agent, session, name="   ", reason="cleanup")
+    assert not blank_name.is_success
+    assert "name" in blank_name.error
+
+    blank_reason = await _call(DagRemoveNode, agent, session, name="blank-check", reason="  ")
+    assert not blank_reason.is_success
+    assert "reason" in blank_reason.error
+
+
+@pytest.mark.asyncio
+async def test_remove_node_missing_and_duplicate_delete(tmp_path):
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-node-missing-dup", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+
+    missing = await _call(DagRemoveNode, agent, session, name="ghost", reason="cleanup")
+    assert not missing.is_success
+    assert "not found" in missing.error
+
+    node_id = await _seed_lone_species(agent, session, "once")
+    first = await _call(DagRemoveNode, agent, session, name=node_id, reason="cleanup")
+    assert first.accepted is True
+    second = await _call(DagRemoveNode, agent, session, name=node_id, reason="again")
+    assert not second.is_success
+    assert "not found" in second.error
+
+
+@pytest.mark.asyncio
+async def test_remove_node_with_edges_returns_actionable_error(tmp_path):
+    """节点有连线时返回 node_has_edges 与关联边标识，可操作。"""
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-node-linked", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    await _call(DagAddSpecies, agent, session, name="R")
+    await _call(DagAddSpecies, agent, session, name="P")
+    await _call(DagAddStep, agent, session, name="step1", from_="R", to="P")
+
+    view = await _call(DagView, agent, session, graph_kind="delivery")
+    r_id = next(n["node_id"] for n in view.result["nodes"] if n["label"] == "R")
+
+    blocked = await _call(DagRemoveNode, agent, session, name=r_id, reason="cleanup")
+    assert not blocked.is_success
+    assert blocked.rejection_code == "node_has_edges"
+    assert "step1" in blocked.error
+
+
+@pytest.mark.asyncio
+async def test_remove_node_cross_project_target_not_found(tmp_path):
+    """跨项目目标：本会话图上不存在的名称/ID 解析为 not found。"""
+    get_config().data_dir = tmp_path
+    other = _agent("rm-node-other", "dag_record")
+    other_session = Session("s1", str(tmp_path / "session.json"))
+    other_id = await _seed_lone_species(other, other_session, "foreign")
+
+    agent = _agent("rm-node-here", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    denied = await _call(DagRemoveNode, agent, session, name=other_id, reason="cleanup")
+    assert not denied.is_success
+    assert "not found" in denied.error
+
+
+@pytest.mark.asyncio
+async def test_remove_tools_share_resolution_rules(tmp_path):
+    """删节点/删边使用一致解析规则：精确 ID 优先、名称兜底、歧义防护。"""
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-resolve-shared", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    await _call(DagAddSpecies, agent, session, name="R")
+    await _call(DagAddSpecies, agent, session, name="P")
+    await _call(DagAddStep, agent, session, name="chair", from_="R", to="P")
+
+    view = await _call(DagView, agent, session, graph_kind="delivery")
+    edge_id = next(e["edge_id"] for e in view.result["edges"] if e["label"] == "chair")
+    # 用 ID 删边成功
+    by_id = await _call(DagRemoveEdge, agent, session, name=edge_id, reason="cleanup")
+    assert by_id.accepted is True
+    assert by_id.result["target_id"] == edge_id
+
+
+# ---------------------------------------------------------------------------
+# Task 5: issue #28 真实工具链（确定性 fixture / 阶段处置链）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_remove_misbuilt_element_relieves_gap_keeps_others(tmp_path):
+    """确定性交付图：额外节点缺 geometry 制造缺口；经 dag_remove_node 删除后
+    该缺口消失，其余必需阶段缺口仍阻止完成。"""
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        StageState,
+    )
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    get_config().data_dir = tmp_path
+    agent = _agent("rm-gap-relief", "dag_record")
+    session = Session("s1", str(tmp_path / "session.json"))
+    db = ConversationDB(agent.conversation_id).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.HARNESS,
+            actor_id="harness",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed research target plus a misbuilt extra node",
+            operations=[
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="r", label="R", evidence_level="structure_supported")),
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="p", label="P", evidence_level="structure_supported")),
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="extra", label="misbuilt extra",
+                    stages=[StageState(kind="geometry")])),
+                AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
+                    edge_id="step1", source_node_id="r", target_node_id="p",
+                    stages=[StageState(kind="ts_opt"), StageState(kind="frequency")])),
+            ],
+        )
+    )
+    assert seeded.accepted
+
+    before = await _call(DagDeliveryReport, agent, session)
+    assert before.result["complete"] is False
+    before_targets = {g["target_id"] for g in before.result["unresolved"]}
+    assert {"extra", "step1"} <= before_targets
+
+    removed = await _call(
+        DagRemoveNode, agent, session, name="extra", reason="not on the mechanism path"
+    )
+    assert removed.accepted is True
+
+    after = await _call(DagDeliveryReport, agent, session)
+    assert after.result["complete"] is False
+    after_targets = {g["target_id"] for g in after.result["unresolved"]}
+    assert "extra" not in after_targets
+    assert "step1" in after_targets
+
+
+@pytest.mark.asyncio
+async def test_stage_disposition_chain_via_real_tools(tmp_path):
+    """显式送审 → dag_view_evidence → dag_review_call(not_applicable) →
+    dag_delivery_report：阶段处置链真实可调用，满足已有完成规则。"""
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        StageState,
+    )
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+    from cloudra.tools.Plantool.dag_tools.dag_review_call import DagReviewCall
+    from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
+
+    get_config().data_dir = tmp_path
+    agent = _agent("chain-disposition", "dag_guided")
+    session = Session("s1", str(tmp_path / "session.json"))
+    db = ConversationDB(agent.conversation_id).init()
+    store = DagStore(db)
+    store.ensure_bundle("s1")
+    # 物种出现节点由 harness 落 structure_supported（模型不能伪造派生等级）。
+    nodes_seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.HARNESS,
+            actor_id="harness",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed supported species occurrences",
+            operations=[
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="r", label="R", evidence_level="structure_supported")),
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(
+                    node_id="p", label="P", evidence_level="structure_supported")),
+            ],
+        )
+    )
+    assert nodes_seeded.accepted
+    # 阶段契约由 Coordinator（actor=AGENT）以全 pending 声明。
+    seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="declare the stage contract for step1",
+            operations=[
+                AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
+                    edge_id="step1", source_node_id="r", target_node_id="p",
+                    stages=[StageState(kind="ts_opt"), StageState(kind="frequency")])),
+            ],
+        )
+    )
+    assert seeded.accepted
+    controller = DagController(db, "s1", "dag_guided", conversation_id=agent.conversation_id)
+    await controller.on_tool_finished(
+        "tc-bind", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT
+    )
+    submitted = await controller.submit_evidence_for_review([
+        {"tool_call_id": "tc-bind", "bind_target": "step1", "stage_kind": "ts_opt",
+         "claim": "the optimization converged"},
+        {"tool_call_id": "tc-bind", "bind_target": "step1", "stage_kind": "frequency",
+         "claim": "exactly one imaginary frequency"},
+    ])
+    assert all(a["enqueued"] for a in submitted["attachments"])
+
+    reviews = DagStore(db).list_call_reviews("pending")
+    assert len(reviews) == 2
+    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
+
+    # dag_view_evidence 读回送审快照（含 claim/arguments/result）
+    view = await _call(
+        DagViewEvidence, supervisor, session, review_id=reviews[0].review_id
+    )
+    assert view.is_success
+    assert view.result["source_name"] == "log_parser"
+
+    # dag_review_call not_applicable：无能垒步，无 TS 槽
+    for review in reviews:
+        out = await _call(
+            DagReviewCall, supervisor, session,
+            review_id=review.review_id, target_id="step1",
+            stage_kind=review.suggested_stage, verdict="not_applicable",
+            reason="barrierless association, no first-order saddle on this PES",
+        )
+        assert out.is_success and out.accepted is True
+
+    report = await _call(DagDeliveryReport, agent, session)
+    assert report.result["complete"] is True
 
 
 @pytest.mark.asyncio

@@ -632,6 +632,48 @@ def test_not_applicable_does_not_block_stage_order_or_derive():
     assert derived == "endpoint_supported"
 
 
+def test_status_update_does_not_override_pending_stages():
+    """只更新节点/边的 status 不盖过 pending 阶段：带 stage 契约的元素以阶段
+    为准（模型不能靠写 status='supported' 绕过缺失的阶段证据）。"""
+    api = _load_completion_api()
+    StageState = api["StageState"]
+    node = api["OccurrenceNode"](
+        node_id="n0",
+        label="intermediate 0",
+        role="intermediate",
+        status="supported",
+        stages=[StageState(kind="geometry", status="pending")],
+    )
+    node2 = api["OccurrenceNode"](
+        node_id="n1",
+        label="intermediate 1",
+        role="intermediate",
+        evidence_level="structure_supported",
+    )
+    edge = api["ElementaryStepEdge"](
+        edge_id="e0",
+        source_node_id="n0",
+        target_node_id="n1",
+        label="step 0",
+        status="supported",
+        stages=[StageState(kind="ts_opt", status="pending")],
+    )
+    delivery = api["GraphData"](
+        graph_id="dag_delivery",
+        graph_kind="delivery",
+        revision=1,
+        nodes=[node, node2],
+        edges=[edge],
+    )
+
+    report = api["evaluate_delivery"](
+        delivery, api["CoverageContract"].mechanism_default()
+    )
+
+    assert not report.complete
+    assert "missing_stage_evidence" in {g.code for g in report.unresolved}
+
+
 def test_not_applicable_verdict_requires_reason():
     """apply_stage_verdict 的 not_applicable verdict 与 skip/disagree 一样 reason 必填。"""
     api = _load_completion_api()

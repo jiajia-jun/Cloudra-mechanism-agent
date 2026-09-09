@@ -815,6 +815,18 @@ class RemoveEdge(_OperationBase):
     edge_id: str
 
 
+class RemoveNode(_OperationBase):
+    """删除节点：批次必须带 rationale，删除留在变更日志供审计。
+
+    节点还有入边或出边时引擎拒绝（返回关联边标识），须先在同一原子批次
+    内删掉相关边再删节点；不提供隐式级联删除。
+    """
+
+    op: Literal["remove_node"]
+    graph: GraphKind
+    node_id: str
+
+
 class UpdateNode(_OperationBase):
     """更新节点：``changes`` 是部分字段字典（键为节点显式字段名，未知键入 metadata）。"""
 
@@ -926,6 +938,7 @@ GraphOperation = Annotated[
         AddNode,
         AddEdge,
         RemoveEdge,
+        RemoveNode,
         UpdateNode,
         UpdateEdge,
         AttachRef,

@@ -453,3 +453,108 @@ async def test_supervisor_js_program_executes_allowed_guest_calls(tmp_path):
         assert await _pending_counts(project.id) == {"call_reviews": 0, "review_requests": 0}
     finally:
         await _teardown(core, supervisor)
+
+
+@pytest.mark.skipif(not HOST_AVAILABLE, reason="node>=22 + quickjs-emscripten required")
+@pytest.mark.asyncio
+async def test_research_agent_js_program_removes_node(tmp_path):
+    """真实 JS 宿主：研究 agent（dag_record）的 guest 程序调用新删节点工具
+    dag_remove_node，经 InvocationService 串行执行、不被误拦截；节点被真实
+    删除。"""
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import AddNode, GraphActor, MutationBatch, OccurrenceNode
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    llm = ScriptedLLM(
+        [
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCall(
+                        id="tc1",
+                        name="js_exec",
+                        arguments={
+                            "code": (
+                                'const r = await tools.dag_remove_node({name: "orphan", '
+                                'reason: "misbuilt element"});\n'
+                                "const report = await tools.dag_delivery_report({});\n"
+                                "text(r.is_success ? 'removed' : 'rejected');"
+                            )
+                        },
+                    )
+                ],
+            ),
+            LLMResponse(
+                content="done",
+                tool_calls=[
+                    ToolCall(
+                        id="tc2",
+                        name="stop",
+                        arguments={"reason": "done", "delivery_disposition": "partial"},
+                    )
+                ],
+            ),
+        ]
+    )
+    core, bus, project, _ = await _setup(llm, workspace)
+
+    def _seed():
+        db = ConversationDB(project.id)
+        db.init()
+        store = DagStore(db)
+        store.ensure_bundle("seed")
+        result = DagEngine(store).apply_batch(
+            MutationBatch(
+                session_id="seed",
+                actor=GraphActor.AGENT,
+                actor_id="a-0",
+                base_revisions=store.load_bundle().revisions,
+                rationale="seed a misbuilt node",
+                operations=[
+                    AddNode(
+                        op="add_node",
+                        graph="delivery",
+                        node=OccurrenceNode(node_id="orphan", label="orphan"),
+                    )
+                ],
+            )
+        )
+        assert result.accepted
+
+    await asyncio.to_thread(_seed)
+    coordinator = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={
+                    "role_id": "coordinator",
+                    "query": "remove the misbuilt node",
+                    "settings": {"orchestration_mode": "dag_record"},
+                },
+            )
+        )
+    ).data
+    try:
+        await _wait_state(coordinator, "succeeded")
+        child_calls = [
+            e
+            for e in core.event_log.query_session(coordinator.id)
+            if e.type == "tool.started" and e.data.get("tool_name") == "dag_remove_node"
+        ]
+        assert len(child_calls) == 1
+        child_id = child_calls[0].data["tool_call_id"]
+        assert _tool_events(core, coordinator.id, child_id) == [
+            "tool.requested",
+            "tool.started",
+            "tool.result_recorded",
+            "tool.finished",
+        ]
+        # 节点被真实删除
+        snapshot = DagStore(ConversationDB(project.id)).load_snapshot()
+        assert snapshot.delivery.nodes == []
+    finally:
+        await _teardown(core, coordinator)

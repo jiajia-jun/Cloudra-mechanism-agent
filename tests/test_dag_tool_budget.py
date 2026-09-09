@@ -41,6 +41,7 @@ def test_dag_operations_skill_documents_tool_family() -> None:
         "dag_add_step",
         "dag_update_delivery_element",
         "dag_remove_edge",
+        "dag_remove_node",
         "dag_set_coverage_contract",
         "dag_message_supervisor",
         "dag_delivery_report",

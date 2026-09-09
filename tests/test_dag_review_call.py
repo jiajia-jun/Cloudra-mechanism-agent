@@ -720,3 +720,200 @@ async def test_legacy_auto_review_is_not_adjudicable(tmp_path):
     assert "legacy_auto" in out.error
     # 审计保留：行还在，状态不变。
     assert DagStore(db).get_call_review("rev_legacy").state == "pending"
+
+
+# ---------------------------------------------------------------------------
+# Task 4: 删除与审查待办、通知收敛
+# ---------------------------------------------------------------------------
+
+
+def _delete_edge(db, edge_id, *, rationale="hypothesis ruled out"):
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import GraphActor, MutationBatch, RemoveEdge
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    return DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale=rationale,
+            operations=[RemoveEdge(op="remove_edge", graph="delivery", edge_id=edge_id)],
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_deleting_review_target_ignores_pending_review(tmp_path):
+    """删掉有 pending CallReview 的边：待办不再出现；历史行保留为 ignored，
+    原始 claim/evidence_id 保留；target_deleted 通知同事务落库告知提交者。"""
+    import json
+
+    from cloudra.dag.store import DagStore
+
+    _agent, _session, db = await _seed_guided(
+        tmp_path,
+        "review-delete-target",
+        calls=[("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT)],
+        submissions=[("tc-opt", "step1", "ts_opt", "the optimization converged")],
+    )
+    store = DagStore(db)
+    review = store.list_call_reviews("pending")[0]
+    assert review.suggested_target_id == "step1"
+
+    result = _delete_edge(db, "step1", rationale="step1 hypothesis ruled out by mapping")
+    assert result.accepted
+
+    # 待办退出；历史行保留为 ignored，claim/evidence_id 原样保留
+    assert store.list_call_reviews("pending") == []
+    ignored = store.get_call_review(review.review_id)
+    assert ignored is not None
+    assert ignored.state == "ignored"
+    assert ignored.claim == "the optimization converged"
+    assert ignored.evidence_id == review.evidence_id
+
+    # target_deleted 通知落库（与删除同事务）
+    notifs = store.pending_review_notifications()
+    call_notifs = [n for n in notifs if n["decision_id"] == review.review_id]
+    assert len(call_notifs) == 1
+    assert call_notifs[0]["kind"] == "call_verdict"
+    payload = json.loads(call_notifs[0]["payload"])
+    assert payload["verdict"] == "target_deleted"
+    assert payload["target_id"] == "step1"
+    assert payload["target_type"] == "edge"
+    assert "ruled out" in payload["reason"]
+
+
+@pytest.mark.asyncio
+async def test_verdict_after_target_deleted_fails(tmp_path):
+    """先删图则后续裁决失败：已 ignored 的 review 不能再提交裁决。"""
+    from cloudra.dag.store import DagStore
+
+    _agent, session, db = await _seed_guided(
+        tmp_path,
+        "review-delete-then-verdict",
+        calls=[("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT)],
+        submissions=[("tc-opt", "step1", "ts_opt", "the optimization converged")],
+    )
+    review = DagStore(db).list_call_reviews("pending")[0]
+    assert _delete_edge(db, "step1").accepted
+
+    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
+    out = await _call(
+        DagReviewCall, supervisor, session,
+        review_id=review.review_id, target_id="step1",
+        stage_kind="ts_opt", verdict="agree",
+    )
+    assert not out.is_success
+    assert "ignored" in out.error
+
+
+@pytest.mark.asyncio
+async def test_decide_then_delete_keeps_history_and_deletes_graph(tmp_path):
+    """先裁决（reviewed）则历史保留，随后正常删图；reviewed 行不变。"""
+    from cloudra.dag.store import DagStore
+
+    _agent, session, db = await _seed_guided(
+        tmp_path,
+        "review-decide-then-delete",
+        calls=[("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT)],
+        submissions=[("tc-opt", "step1", "ts_opt", "the optimization converged")],
+    )
+    supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
+    review = DagStore(db).list_call_reviews("pending")[0]
+    out = await _call(
+        DagReviewCall, supervisor, session,
+        review_id=review.review_id, target_id="step1",
+        stage_kind="ts_opt", verdict="agree",
+    )
+    assert out.is_success and out.accepted is True
+
+    result = _delete_edge(db, "step1", rationale="path replaced")
+    assert result.accepted
+    # reviewed 历史保留，不被删除收敛改动
+    assert DagStore(db).get_call_review(review.review_id).state == "reviewed"
+    assert all(e.edge_id != "step1" for e in DagStore(db).load_snapshot().delivery.edges)
+
+
+@pytest.mark.asyncio
+async def test_resubmit_after_deletion_fails_on_old_target_id(tmp_path):
+    """删除后重新提交到旧 ID 明确失败：目标不存在，不能绑定或复活。"""
+    from cloudra.dag.controller import DagController
+
+    agent, session, db = await _seed_guided(
+        tmp_path,
+        "review-resubmit-after-delete",
+        calls=[("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT)],
+        submissions=[],
+    )
+    assert _delete_edge(db, "step1").accepted
+    controller = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id)
+    with pytest.raises(RuntimeError) as exc:
+        await controller.submit_evidence_for_review(
+            [{"tool_call_id": "tc-opt", "bind_target": "step1",
+              "stage_kind": "ts_opt", "claim": "resubmit against dead target"}]
+        )
+    assert "does not exist" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_deletion_notification_marked_sent_is_not_redelivered(tmp_path):
+    """target_deleted 通知投递后标记 sent，不重复出现在 pending 待投队列。"""
+    from cloudra.dag.store import DagStore
+
+    _agent, _session, db = await _seed_guided(
+        tmp_path,
+        "review-delete-notif-sent",
+        calls=[("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT)],
+        submissions=[("tc-opt", "step1", "ts_opt", "the optimization converged")],
+    )
+    store = DagStore(db)
+    review = store.list_call_reviews("pending")[0]
+    assert _delete_edge(db, "step1").accepted
+
+    notif = next(
+        n for n in store.pending_review_notifications()
+        if n["decision_id"] == review.review_id
+    )
+    assert notif["kind"] == "call_verdict"
+    store.mark_review_notification_sent(review.review_id)
+    remaining = [
+        n for n in store.pending_review_notifications()
+        if n["decision_id"] == review.review_id
+    ]
+    assert remaining == []
+
+
+@pytest.mark.asyncio
+async def test_failed_deletion_produces_no_notification(tmp_path):
+    """删除事务失败不产生 target_deleted 通知（rollback 到收敛之前）。"""
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import GraphActor, MutationBatch, RemoveNode
+    from cloudra.dag.store import DagStore
+
+    _agent, _session, db = await _seed_guided(
+        tmp_path,
+        "review-delete-fail",
+        calls=[("tc-opt", "log_parser", {"log_path": "ts.log"}, _TS_FREQ_RESULT)],
+        submissions=[("tc-opt", "step1", "ts_opt", "the optimization converged")],
+    )
+    store = DagStore(db)
+    before = store.pending_review_notifications()
+    # 删除一个有连线的节点（r 连着 step1）→ node_has_edges，事务回滚
+    result = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="attempt invalid node deletion",
+            operations=[RemoveNode(op="remove_node", graph="delivery", node_id="r")],
+        )
+    )
+    assert not result.accepted
+    assert result.rejection_code == "node_has_edges"
+    # 待办未被扰动，通知无新增
+    assert store.list_call_reviews("pending")
+    assert store.pending_review_notifications() == before

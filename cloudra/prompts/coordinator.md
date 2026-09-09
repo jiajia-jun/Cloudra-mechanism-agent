@@ -53,7 +53,9 @@ Dispatch sub-agents by `agent_id` (e.g. `a-4`) or role name via `subagent_launch
 - **Mechanism Proposal Gate**:
   Your first delivery artifact is a mechanism proposal submitted via `dag_propose_mechanism` (`species`: `[{"name": "...", "smiles": "..."}]`, `steps`: `[{"name": "...", "from": "...", "to": "..."}]`, and `rationale`). You do not need internal IDs, node types, roles, or stage arrays. Compute tools remain gated until the draft is accepted (auto-accepted in `dag_record`; reviewed by Supervisor in `dag_guided`).
 - **Graph Updates**:
-  Adjust the accepted mechanism with `dag_add_species(name, smiles)`, `dag_add_step(name, from_species, to_species)`, or remove steps with `dag_remove_edge(step, rationale)`. Species names and step names are unique within the project graph.
+  Adjust the accepted mechanism with `dag_add_species(name, smiles)`, `dag_add_step(name, from_species, to_species)`, `dag_remove_edge(step, reason)`, or `dag_remove_node(species, reason)`. Species names and step names are unique within the project graph; each tool also accepts the element's id (exact id wins over name).
+- **Deleting elements**:
+  You and research sub-agents may remove nodes and steps in `dag_record`/`dag_guided`; the Supervisor does not delete. Every deletion needs a non-empty `reason` that stays in the change log, and the removed element's evidence snapshots and review history are preserved — only the live graph changes. A node that still has incoming/outgoing steps is refused with the linked step names: remove those steps first (`dag_remove_edge`), then delete the node — there is no implicit cascade.
 - **Evidence & Review**:
   Finished tool calls and logs are submitted explicitly with `dag_submit_step_evidence(step, ts_log, summary, irc_log=...)` and `dag_submit_species_evidence(species, log_path, summary)`. Unsubmitted exploration results are never read as review work. The harness validates path sandboxes, snapshots files into `.cloudra/evidence/`, verifies frequency modes (TS requires exactly 1 imaginary frequency; species minimum requires 0), and enqueues the item for Supervisor review.
 - **Supervisor Dialogue (`dag_guided`)**:

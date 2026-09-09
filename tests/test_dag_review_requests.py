@@ -47,6 +47,57 @@ def test_new_basis_is_new_request(tmp_path):
     assert len(store.list_review_requests(state="queued")) == 2
 
 
+def test_deleting_request_target_supersedes_queued_request(tmp_path):
+    """定向到被删目标的 queued 结构化请求退出待办（superseded），不删历史行。"""
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.models import (
+        AddEdge,
+        AddNode,
+        ElementaryStepEdge,
+        GraphActor,
+        MutationBatch,
+        OccurrenceNode,
+        RemoveEdge,
+    )
+
+    store = _store(tmp_path, "review-req-delete")
+    # 种一个带 step1 边的图
+    seeded = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="seed",
+            operations=[
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(node_id="r", label="R")),
+                AddNode(op="add_node", graph="delivery", node=OccurrenceNode(node_id="p", label="P")),
+                AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
+                    edge_id="step1", source_node_id="r", target_node_id="p")),
+            ],
+        )
+    )
+    assert seeded.accepted
+    request_id = store.enqueue_review(_req(target_ids=["step1"]))
+    assert store.get_review_request(request_id).state == "queued"
+
+    removed = DagEngine(store).apply_batch(
+        MutationBatch(
+            session_id="s1",
+            actor=GraphActor.AGENT,
+            actor_id="a-0",
+            base_revisions=store.load_bundle().revisions,
+            rationale="path removed",
+            operations=[RemoveEdge(op="remove_edge", graph="delivery", edge_id="step1")],
+        )
+    )
+    assert removed.accepted
+
+    # 待办退出；历史行保留为 superseded
+    assert store.list_review_requests("queued") == []
+    assert store.get_review_request(request_id).state == "superseded"
+
+
 def test_resolve_review_valid_basis_marks_request_resolved(tmp_path):
     store = _store(tmp_path)
     request_id = store.enqueue_review(_req())

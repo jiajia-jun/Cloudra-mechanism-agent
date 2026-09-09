@@ -327,6 +327,10 @@ _CALL_VERDICT_NEXT_ACTION = {
         "via dag_bind_evidence with a claim"
     ),
     "ignore": "no action required; the call was ruled not delivery evidence",
+    "target_deleted": (
+        "the target this evidence was submitted for was deleted from the "
+        "delivery graph; re-submit against a live target if still relevant"
+    ),
 }
 
 

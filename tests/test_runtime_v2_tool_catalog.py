@@ -170,7 +170,38 @@ def test_all_dag_tools_visible_in_dag_guided():
         "dag_review_species",
         "dag_accept_mechanism",
         "dag_propose_mechanism",
+        # Task 1/3：删除与送审/裁决/证据工具同样在 guided 全量可见。
+        "dag_remove_node",
+        "dag_remove_edge",
+        "dag_bind_evidence",
+        "dag_review_call",
+        "dag_review_evidence",
+        "dag_view_evidence",
+        "dag_set_coverage_contract",
+        "dag_message_supervisor",
     } <= names
+
+
+def test_research_agent_guest_declarations_include_removal_tools():
+    """dag_guided 下研究 agent 的 JS guest 声明里实际出现删节点/删边函数。"""
+    text = tool_declarations(
+        ["*"], orchestration_mode=OrchestrationMode.DAG_GUIDED
+    )
+    assert "dag_remove_node(" in text
+    assert "dag_remove_edge(" in text
+    assert "dag_review_call(" in text
+    assert "dag_bind_evidence(" in text
+
+
+def test_supervisor_cannot_discover_removal_tools():
+    """删图工具不授予 supervisor_access：督导的能力投影里没有删除工具。"""
+    from cloudra.tools.capabilities import supervisor_allowed_tools
+
+    allowed = supervisor_allowed_tools()
+    assert "dag_remove_node" not in allowed
+    assert "dag_remove_edge" not in allowed
+    assert "dag_view_evidence" in allowed  # evidence_read
+    assert allowed["dag_view_evidence"] == "evidence_read"
 
 
 def test_guest_declarations_follow_orchestration_mode():

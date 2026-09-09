@@ -29,6 +29,7 @@ from cloudra.dag.models import (
     MutationResult,
     OccurrenceNode,
     RemoveEdge,
+    RemoveNode,
     SetCoverageContract,
     SpeciesNode,
     StageKind,
@@ -456,15 +457,14 @@ class DagEngine:
                 )
 
             links = self._load_links(con)
-            # 删边必须给理由：删除要能在变更日志里被人读懂，空 rationale 的
-            # remove_edge 批次直接拒绝。理由是否成立由 Supervisor/用户判断。
-            if (
-                any(op.op == "remove_edge" for op in batch.operations)
-                and not batch.rationale.strip()
-            ):
+            # 删边/删节点必须给理由：删除要能在变更日志里被人读懂，空
+            # rationale 的删除批次直接拒绝。理由是否成立由 Supervisor/用户判断。
+            if any(
+                op.op in ("remove_edge", "remove_node") for op in batch.operations
+            ) and not batch.rationale.strip():
                 raise _Rejected(
                     "rationale_required",
-                    "remove_edge requires a non-empty rationale explaining the deletion",
+                    "deletion requires a non-empty rationale explaining the removal",
                 )
             touched: set[GraphKind] = set()
             for operation in batch.operations:
@@ -474,6 +474,13 @@ class DagEngine:
 
             for state in states.values():
                 self._validate_structure(con, state)
+
+            # 删除收敛审查待办（同一事务）：被删目标上的 pending CallReview →
+            # ignored + call_verdict 通知（target_deleted，告知提交者）；定向到
+            # 被删目标的 queued 结构化请求 → superseded。历史裁决与证据行保留。
+            self._converge_deleted_reviews(
+                con, self._collect_deleted_targets(batch), batch.rationale
+            )
 
             resulting = dict(current)
             for kind in touched:
@@ -587,6 +594,74 @@ class DagEngine:
                 for row in rows
             },
         }
+
+    @staticmethod
+    def _collect_deleted_targets(batch: MutationBatch) -> list[tuple[str, str]]:
+        """本批次实际删除的 delivery 元素：``(target_type, target_id)``。"""
+        deleted: list[tuple[str, str]] = []
+        for operation in batch.operations:
+            if isinstance(operation, RemoveNode) and operation.graph is GraphKind.DELIVERY:
+                deleted.append(("node", operation.node_id))
+            elif isinstance(operation, RemoveEdge) and operation.graph is GraphKind.DELIVERY:
+                deleted.append(("edge", operation.edge_id))
+        return deleted
+
+    def _converge_deleted_reviews(
+        self,
+        con: sqlite3.Connection,
+        deleted: list[tuple[str, str]],
+        rationale: str,
+    ) -> None:
+        """删除后收敛待审项（与图删除同一事务）。
+
+        - pending CallReview 且 ``suggested_target_id`` 指向被删目标 → ``ignored``
+          （复用既有终态；reason 区分"目标已删除"与科学驳回），并同事务落一条
+          ``call_verdict`` 通知（verdict="target_deleted"）告知提交者。审查历史行
+          不删除，原始 claim / evidence_id 保留在行内。
+        - queued 结构化 ReviewRequest 且 ``target_ids`` 含被删目标 → ``superseded``
+          （复用既有终态），退出待办。裁决按目标 ID 关联：同名新建节点是新 ID，
+          不会继承旧裁决。
+        """
+        for target_type, target_id in deleted:
+            review_rows = con.execute(
+                "SELECT review_id, caller_session_id, suggested_stage, claim "
+                "FROM dag_call_reviews WHERE suggested_target_id = ? AND state = 'pending'",
+                (target_id,),
+            ).fetchall()
+            for review_id, caller_session_id, suggested_stage, claim in review_rows:
+                con.execute(
+                    "UPDATE dag_call_reviews SET state = 'ignored' WHERE review_id = ?",
+                    (review_id,),
+                )
+                self.store._insert_notification(
+                    con,
+                    kind="call_verdict",
+                    subject_id=review_id,
+                    recipient_session_id=str(caller_session_id or ""),
+                    payload={
+                        "verdict": "target_deleted",
+                        "target_id": target_id,
+                        "target_type": target_type,
+                        "stage_kind": suggested_stage or "",
+                        "reason": (rationale or "").strip(),
+                        "claim": claim or "",
+                    },
+                )
+            request_rows = con.execute(
+                "SELECT request_id, target_ids FROM dag_review_requests "
+                "WHERE state = 'queued'"
+            ).fetchall()
+            for request_id, target_ids_json in request_rows:
+                try:
+                    target_ids = json.loads(target_ids_json)
+                except ValueError:
+                    continue
+                if target_id in target_ids:
+                    con.execute(
+                        "UPDATE dag_review_requests SET state = 'superseded', "
+                        "updated_at = datetime('now') WHERE request_id = ?",
+                        (request_id,),
+                    )
 
     def _apply_operation(
         self,
@@ -727,6 +802,10 @@ class DagEngine:
             return
         if isinstance(operation, RemoveEdge):
             self._remove_edge(state, operation)
+            touched.add(state.kind)
+            return
+        if isinstance(operation, RemoveNode):
+            self._remove_node(state, operation)
             touched.add(state.kind)
             return
         if isinstance(operation, (UpdateNode, UpdateEdge)):
@@ -899,6 +978,29 @@ class DagEngine:
             raise _Rejected("missing_target", f"edge {operation.edge_id!r} does not exist")
         del state.edges[operation.edge_id]
         state.edge_created.pop(operation.edge_id, None)
+
+    @staticmethod
+    def _remove_node(state: _GraphState, operation: RemoveNode) -> None:
+        # 删节点前必须已无连线：有入边或出边时拒绝并列出关联边标识，让
+        # agent 先在同一原子批次内删相关边再删节点——不提供隐式级联删除。
+        if operation.node_id not in state.nodes:
+            raise _Rejected("missing_target", f"node {operation.node_id!r} does not exist")
+        linked = sorted(
+            {
+                getattr(edge, "name", "") or edge.edge_id
+                for edge in state.edges.values()
+                if edge.source_node_id == operation.node_id
+                or edge.target_node_id == operation.node_id
+            }
+        )
+        if linked:
+            raise _Rejected(
+                "node_has_edges",
+                f"node {operation.node_id!r} still has edges; remove them first "
+                f"in the same batch: {', '.join(linked)}",
+            )
+        del state.nodes[operation.node_id]
+        state.node_created.pop(operation.node_id, None)
 
     @staticmethod
     def _attach_ref(

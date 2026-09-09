@@ -22,6 +22,7 @@ def _load_engine_api():
             OccurrenceNode,
             PlannedNode,
             RemoveEdge,
+            RemoveNode,
             SetCoverageContract,
             UpdateEdge,
             UpdateNode,
@@ -40,6 +41,7 @@ def _load_engine_api():
         "AddNode": AddNode,
         "AddEdge": AddEdge,
         "RemoveEdge": RemoveEdge,
+        "RemoveNode": RemoveNode,
         "UpdateNode": UpdateNode,
         "UpdateEdge": UpdateEdge,
         "AttachRef": AttachRef,
@@ -115,6 +117,8 @@ def _op(api, name, graph=None, **data):
         return api["AddEdge"](op="add_edge", graph=graph, edge=_edge(api, edge_type, **data))
     if name == "remove_edge":
         return api["RemoveEdge"](op="remove_edge", graph=graph, edge_id=data["edge_id"])
+    if name == "remove_node":
+        return api["RemoveNode"](op="remove_node", graph=graph, node_id=data["node_id"])
     if name == "update_node":
         return api["UpdateNode"](
             op="update_node", graph=graph, node_id=data["node_id"], changes=data["changes"]
@@ -1079,4 +1083,183 @@ def test_engine_batch_failure_atomic_rollback(tmp_path):
     assert not res.accepted
     snapshot = engine.snapshot()
     assert len(snapshot.delivery.nodes) == 0
+
+
+# ---------------------------------------------------------------------------
+# Task 2: remove_node（事务化删节点）
+# ---------------------------------------------------------------------------
+
+
+def _seed_isolated_node(api, store, engine, node_id="lone", label="LONE"):
+    """种一个孤立节点，返回 (bundle_revisions_before)。"""
+    result = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "delivery", node_id=node_id,
+                node_type="occurrence", label=label),
+        ], actor="agent")
+    )
+    assert result.accepted
+    return result
+
+
+def test_remove_node_isolated_node_deletable(tmp_path):
+    """孤立节点可由设计者 agent 带理由删除。"""
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-iso")
+    _seed_isolated_node(api, store, engine)
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
+               actor="agent", rationale="ruled out by mapping")
+    )
+    assert result.accepted
+    assert engine.snapshot().delivery.nodes == []
+
+
+def test_remove_node_requires_nonempty_rationale(tmp_path):
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-rationale")
+    _seed_isolated_node(api, store, engine)
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
+               actor="agent", rationale="   ")
+    )
+    assert not result.accepted
+    assert result.rejection_code == "rationale_required"
+
+
+def test_remove_node_missing_target_rejected(tmp_path):
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-missing")
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="ghost")],
+               actor="agent", rationale="cleanup")
+    )
+    assert not result.accepted
+    assert result.rejection_code == "missing_target"
+
+
+def test_remove_node_with_edges_rejected(tmp_path):
+    """节点有入边或出边时拒绝，返回 node_has_edges 与关联边标识。"""
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-linked")
+    engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
+            _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
+            _op(api, "add_edge", "delivery", edge_id="step",
+                source_node_id="r", target_node_id="p", edge_type="elementary_step"),
+        ], actor="agent")
+    )
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="r")],
+               actor="agent", rationale="cleanup")
+    )
+    assert not result.accepted
+    assert result.rejection_code == "node_has_edges"
+    assert "step" in (result.rejection_reason or "")
+    # 图未变
+    assert {n.node_id for n in engine.snapshot().delivery.nodes} == {"r", "p"}
+
+
+def test_remove_node_supervisor_rejected(tmp_path):
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-supervisor")
+    _seed_isolated_node(api, store, engine)
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
+               actor="supervisor", rationale="cleanup")
+    )
+    assert not result.accepted
+    assert result.rejection_code == "actor_forbidden"
+
+
+def test_remove_node_stale_revision_rejected(tmp_path):
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-stale")
+    _seed_isolated_node(api, store, engine)
+    stale = {"delivery": 0}
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="lone")],
+               actor="agent", rationale="cleanup", base_revisions=stale)
+    )
+    assert not result.accepted
+    assert result.rejection_code == "stale_revision"
+
+
+def test_remove_node_batch_removes_edges_then_node(tmp_path):
+    """同一原子批次内先删相关边再删节点成功。"""
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-batch")
+    engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
+            _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
+            _op(api, "add_edge", "delivery", edge_id="step",
+                source_node_id="r", target_node_id="p", edge_type="elementary_step"),
+        ], actor="agent")
+    )
+    result = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "remove_edge", "delivery", edge_id="step"),
+            _op(api, "remove_node", "delivery", node_id="r"),
+        ], actor="agent", rationale="path removed entirely")
+    )
+    assert result.accepted
+    snapshot = engine.snapshot().delivery
+    assert {n.node_id for n in snapshot.nodes} == {"p"}
+
+
+def test_remove_node_batch_failure_rolls_back_everything(tmp_path):
+    """批次任一步失败时，图、revision 全部回滚。"""
+    api, _db, store, engine = _new_engine(tmp_path, "remove-node-rollback")
+    engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "delivery", node_id="r", node_type="occurrence", label="R"),
+            _op(api, "add_node", "delivery", node_id="p", node_type="occurrence", label="P"),
+            _op(api, "add_edge", "delivery", edge_id="step",
+                source_node_id="r", target_node_id="p", edge_type="elementary_step"),
+        ], actor="agent")
+    )
+    before = engine.snapshot().bundle.revisions
+    result = engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "remove_edge", "delivery", edge_id="step"),
+            _op(api, "remove_node", "delivery", node_id="ghost"),
+        ], actor="agent", rationale="partial cleanup")
+    )
+    assert not result.accepted
+    assert result.rejection_code == "missing_target"
+    snapshot = engine.snapshot()
+    assert snapshot.bundle.revisions == before
+    assert {n.node_id for n in snapshot.delivery.nodes} == {"r", "p"}
+    assert {e.edge_id for e in snapshot.delivery.edges} == {"step"}
+
+
+def test_remove_node_with_evidence_clears_bindings_keeps_evidence(tmp_path):
+    """节点有证据时仍可删：当前绑定清理，原始证据与历史 journal 保留；
+    重建快照不恢复已删节点。"""
+    api, db, store, engine = _new_engine(tmp_path, "remove-node-evidence")
+    evidence = store.register_evidence("s1", "reaction_mapping", {"mapping_status": "unique"})
+    engine.apply_batch(
+        _batch(api, store, [
+            _op(api, "add_node", "delivery", node_id="mapped",
+                node_type="occurrence", label="mapped", refs=[evidence.model_dump()]),
+        ], actor="harness")
+    )
+    with db.connect() as con:
+        n_bindings = con.execute(
+            "SELECT COUNT(*) FROM dag_evidence_bindings WHERE target_id = 'mapped'"
+        ).fetchone()[0]
+    assert n_bindings == 1
+
+    result = engine.apply_batch(
+        _batch(api, store, [_op(api, "remove_node", "delivery", node_id="mapped")],
+               actor="agent", rationale="mapping evidence superseded")
+    )
+    assert result.accepted
+    assert engine.snapshot().delivery.nodes == []
+    with db.connect() as con:
+        assert con.execute(
+            "SELECT COUNT(*) FROM dag_evidence_bindings WHERE target_id = 'mapped'"
+        ).fetchone()[0] == 0
+        # 原始证据仍在证据库
+        assert con.execute(
+            "SELECT COUNT(*) FROM dag_evidence WHERE evidence_id = ?", (evidence.ref_id,)
+        ).fetchone()[0] == 1
+    # 重放（重建物化视图）不恢复已删节点
+    engine.rebuild_materialized()
+    assert engine.snapshot().delivery.nodes == []
 

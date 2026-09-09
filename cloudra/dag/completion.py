@@ -206,6 +206,11 @@ def evaluate_delivery(
         )
 
     for node in delivery.nodes:
+        if node.stages:
+            # 带阶段契约的元素以 stages 为权威：模型写 status='supported'
+            # 不能盖过仍 pending 的阶段证据缺口（只更新 status 不改变阶段）。
+            evaluate_stages("node", node.node_id, node.stages)
+            continue
         if getattr(node, "status", None) == "supported" or node.evidence_level == "supported":
             satisfied.append(
                 CoverageGateResult(
@@ -228,9 +233,6 @@ def evaluate_delivery(
                     detail=detail,
                 )
             )
-            continue
-        if node.stages:
-            evaluate_stages("node", node.node_id, node.stages)
             continue
         level = node.evidence_level
         if level == "rejected":
@@ -293,6 +295,25 @@ def evaluate_delivery(
             )
 
     for edge in delivery.edges:
+        if edge.stages:
+            # 带阶段契约的元素以 stages 为权威：模型写 status='supported'
+            # 不能盖过仍 pending 的阶段证据缺口（只更新 status 不改变阶段）。
+            evaluate_stages("edge", edge.edge_id, edge.stages)
+            if contract.require_thermochemistry and not (
+                derive_evidence_level(edge.stages, is_edge=True)
+                == "thermo_annotated"
+                or edge.thermochemistry_supported is True
+            ):
+                # f2：契约级检查对每个元素都生效，不因 skipped 处置而跳过。
+                record(
+                    CoverageGateResult(
+                        code="missing_thermochemistry",
+                        target_type="edge",
+                        target_id=edge.edge_id,
+                        detail="thermochemistry was requested but no supported energy annotation is linked",
+                    )
+                )
+            continue
         if getattr(edge, "status", None) == "supported" or edge.evidence_level == "supported":
             satisfied.append(
                 CoverageGateResult(
@@ -315,23 +336,6 @@ def evaluate_delivery(
                     detail=detail,
                 )
             )
-            continue
-        if edge.stages:
-            evaluate_stages("edge", edge.edge_id, edge.stages)
-            if contract.require_thermochemistry and not (
-                derive_evidence_level(edge.stages, is_edge=True)
-                == "thermo_annotated"
-                or edge.thermochemistry_supported is True
-            ):
-                # f2：契约级检查对每个元素都生效，不因 skipped 处置而跳过。
-                record(
-                    CoverageGateResult(
-                        code="missing_thermochemistry",
-                        target_type="edge",
-                        target_id=edge.edge_id,
-                        detail="thermochemistry was requested but no supported energy annotation is linked",
-                    )
-                )
             continue
         level = edge.evidence_level
         if level == "rejected":

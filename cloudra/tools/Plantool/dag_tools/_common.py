@@ -136,6 +136,36 @@ def render_subgraph_view(
     return result
 
 
+def resolve_delivery_target(
+    snapshot: Any,
+    kind: str,
+    name: str,
+) -> tuple[Any, str | None]:
+    """在 delivery 图上按"精确 ID 优先、否则唯一名称"解析节点/边。
+
+    ``kind`` ∈ {"node", "edge"}；``name`` 是用户输入（先 trim）。
+    返回 ``(element, None)`` 命中、``(None, "not_found")`` 未命中、
+    ``(None, "ambiguous")`` 名称命中多个元素（ID 唯一、名称可能因旧数据
+    重复，故只在名称路径上歧义防护）。两个删除工具共用本规则。
+    """
+    name = name.strip()
+    elements = snapshot.delivery.nodes if kind == "node" else snapshot.delivery.edges
+    id_attr = "node_id" if kind == "node" else "edge_id"
+    exact = next((item for item in elements if getattr(item, id_attr) == name), None)
+    if exact is not None:
+        return exact, None
+    matches = [
+        item
+        for item in elements
+        if getattr(item, "name", getattr(item, "label", "")).strip() == name
+    ]
+    if len(matches) > 1:
+        return None, "ambiguous"
+    if matches:
+        return matches[0], None
+    return None, "not_found"
+
+
 def render_projection_view(
     snapshot: Any,
     *,

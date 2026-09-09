@@ -15,6 +15,7 @@ There is exactly one persistent graph — the delivery (mechanism) graph. There 
 - `dag_add_species`: Add a new complex species (`name`, `smiles`). Species name must be unique within the graph.
 - `dag_add_step`: Add a new elementary step (`name`, `from`, `to`). Step name must be unique; `from` and `to` refer to existing species names.
 - `dag_remove_edge`: Delete an elementary step (`step`, mandatory `rationale`). Deletions are permanently recorded in the change log.
+- `dag_remove_node`: Delete a species node (`name` or id, mandatory `reason`). A node that still has incoming/outgoing steps is refused with the linked step names — remove those steps first, then delete the node (no implicit cascade).
 - `dag_update_delivery_element`: Update metadata or disposition (`status`, `reason`, `annotations`, `required`). Does not rename elements or change SMILES.
 - `dag_submit_step_evidence`: Explicitly submit finished QM logs for a step (`step`, `ts_log`, `summary`, optional `irc_log`). The harness checks the workspace sandbox, computes sha256, snapshots into `.cloudra/evidence/`, verifies TS mode (exactly 1 imaginary frequency), and enqueues the item for review.
 - `dag_submit_species_evidence`: Explicitly submit finished QM logs for a species (`species`, `log_path`, `summary`). The harness snapshots evidence and verifies ground-state minimum mode (0 imaginary frequencies).
@@ -83,6 +84,7 @@ Coordinator-only. Input structure:
 - `dag_add_species`: Add a new species (`name`, `smiles`).
 - `dag_add_step`: Add a new elementary step (`name`, `from`, `to`).
 - `dag_remove_edge`: Delete a step (`step`, `rationale`). Mandatory scientific rationale explaining the removal.
+- `dag_remove_node`: Delete a species node (`name` or id, `reason`). If the node still has steps attached, the call is refused with those step names — delete the steps first, then the node.
 - `dag_update_delivery_element`: Update metadata (`status`, `reason`, `annotations`, `required`).
 
 ## File Evidence Submission
