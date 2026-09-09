@@ -1,26 +1,16 @@
-"""D/E 族登记：D2 环氧开环立体专一 + E1–E3 羰基 π-面选择性（硼氢化/CBS）。
+"""D/E 族登记（v3 缩减后）：D2 环氧开环立体专一 + E2/E3 羰基 π-面选择性。
 
-D2 为立体专一体（构象锁死，无竞争通道进 gold）；E1–E3 均为单基元步氢负
+D2 为立体专一体（构象锁死，无竞争通道进 gold）；E2/E3 均为单基元步氢负
 转移的面选择性竞争题：主线 = 优势面，competing = 另一面（同一反应物络合物
 出发，产物互为非对映体/对映体）。转移的 H 一律显式 [H:2]（map 2）。
+v3（2026-09-09）由 20 条缩至 10 条：E1（Felkin–Anh π-面，ΔΔ 0.7–0.9 过小）
+剔出定稿名单留档池（条目见 hard.md），registry 只留定稿条目。
 
 芳香环映射约定：带 H 的芳香碳写 [cH:n]，取代的 ipso 碳写 [c:n]——[c:n]
 （无 H 计数）或 Kekulé [C:n] 写法在去映射规范化后与池内 SMILES 不一致，已
 实测排除。BH4- 写 [BH3-:1]([H:2])（去映射 canon = [BH4-]），BH3 写
 [BH2:1]([H:2])（canon = B），产物侧游离 BH3 写 [BH3:1]（裸 [B:n] 去映射后
 canon 为 [B]，不等于池内 B，已实测排除）。
-
-E1 归属勘误（2026-08-31 已修正池 SMILES，登记按修正后主线）：
-- 独立 Felkin–Anh 分析：(S)-3-苯基-2-丁酮，C3 取代基 Ph（σ* 最低，垂直
-  羰基平面）/ Me / H。沿 C3→C2 轴 Newman：优选构象为 back-Me 与 front-O
-  相邻（避开 back-Me/front-Me 的 A 应变），亲核试剂沿 Bürgi–Dunitz 反式
-  于 C–Ph 键、从小基团 H 侧进入。行列式判定产物新中心 = (2R)，即
-  (2R,3S)——与 Cram 1952 对该底物的经典实验结果一致。
-- 池初稿主线产物 `C[C@H]([O-])[C@H](C)c1ccccc1` 经 RDKit CIP 判定为
-  (2S,3R)：C3 相对 (S)-反应物发生了反转，而氢负转移不动 C3 的任何键，
-  该构型从 (S)-反应物不可达。hard.md 已勘误为 (2R,3S) =
-  `C[C@@H]([O-])[C@@H](C)c1ccccc1`；副通道 (2S,3S) =
-  `C[C@H]([O-])[C@@H](C)c1ccccc1` 为真正的 anti-Felkin 非对映体。
 
 E3 归属核对：池写 (S)-催化剂 → (R)-烷氧基硼烷，与 Corey 助记一致
 （(S)-oxazaborolidine 催化 BH3 还原苯乙酮实验给 (R)-1-苯乙醇 96–97% ee，
@@ -42,28 +32,6 @@ TASKS = {
             {
                 "out": "[OH:1][C@@H:2]1[CH2:5][CH2:6][CH2:7][CH2:8][C@H:4]1[O-:3]",
                 "type": "backside SN2 attack of hydroxide on one epoxide carbon, trans-diaxial ring opening with C-O cleavage at the attacked carbon -> trans-1,2-diolate (stereospecific, no competing channel)",
-            },
-        ],
-    },
-    # [BH4-].CC(=O)[C@@H](C)c1ccccc1>>C[C@@H]([O-])[C@@H](C)c1ccccc1.B  (−1/1)
-    # Felkin–Anh π-面选择：断 B1-H2 与 C4=O5 π，成 C4-H2。主线 (2R,3S)、副线
-    # (2S,3S)；池初稿主线 (2S,3R) 的 C3 反转错误已勘误（见模块 docstring）。
-    "E1": {
-        "name_en": "(S)-3-phenyl-2-butanone borohydride reduction: Felkin-Anh pi-face selection",
-        "conditions_en": "NaBH4/MeOH or LiAlH4/Et2O, 0 degC to rt",
-        "anchor": "selectivity",
-        "minor_channel_en": "hydride attack on the opposite (anti-Felkin-Anh) pi-face -> (2S,3S)-3-phenylbutan-2-olate diastereomer",
-        "mapped_reactants": "[BH3-:1]([H:2]).[CH3:3][C:4](=[O:5])[C@@H:6]([CH3:7])[c:8]1[cH:9][cH:10][cH:11][cH:12][cH:13]1",
-        "steps": [
-            {
-                "out": "[CH3:3][C@@:4]([H:2])([O-:5])[C@@H:6]([CH3:7])[c:8]1[cH:9][cH:10][cH:11][cH:12][cH:13]1.[BH3:1]",
-                "type": "single-step hydride transfer from BH4- to the Felkin-Anh favored carbonyl pi-face (Ph perpendicular, nucleophile passes the small H substituent) -> (2R,3S) alkoxide; C3 configuration retained from the (S) substrate",
-            },
-        ],
-        "competing": [
-            {
-                "out": "[CH3:3][C@:4]([H:2])([O-:5])[C@@H:6]([CH3:7])[c:8]1[cH:9][cH:10][cH:11][cH:12][cH:13]1.[BH3:1]",
-                "type": "hydride transfer to the opposite pi-face -> (2S,3S) diastereomer (anti-Felkin-Anh minor channel)",
             },
         ],
     },

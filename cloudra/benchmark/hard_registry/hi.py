@@ -1,4 +1,5 @@
-"""H/I 族登记：H1 联萘阻转消旋（绝对能垒锚点）+ I1 脯氨酸 Aldol / I4 硫脲 Strecker（选择性锚点）。
+"""H/I 族登记（v3 缩减后）：H1 联萘阻转消旋（绝对能垒锚点）+ I1 脯氨酸 Aldol（选择性锚点）。
+v3（2026-09-09）由 20 条缩至 10 条：I4（硫脲 Strecker）剔出定稿名单留档池（条目见 hard.md）。
 
 H1：池 SMILES 左右相同（消旋体表示，轴手性由 query 文本与 gold 3D 锚定），20 个碳全部
 映射、无键变化——登记为单步纯构象过程（conformational: True）；两条 peri-H 对穿路径
@@ -74,30 +75,6 @@ TASKS = {
                 "type": "opposite-face enamine attack via the minor Houk-List chair TS -> (R)-configured iminium-aldolate (minor intermediate, hydrolysis not traced in the reference graph)",
                 "from_step": 1,
                 "is_product": False,
-            },
-        ],
-    },
-    # C#N.C/N=C/c1ccccc1.CC[C@H](C)NC(=S)NC>>CN[C@H](C#N)c1ccccc1.CC[C@H](C)NC(=S)NC  (0/1)
-    # 手性硫脲催化 Strecker 简化模型；HCN 的 H（H2）参与键变化、全程显式；
-    # 截短硫脲催化剂（13-21）旁观写两侧、映射不变。池主产物经 RDKit 核为 (R)，副面为 (S)
-    "I4": {
-        "name_en": "chiral thiourea-catalyzed Strecker reaction (truncated catalyst model): HCN + N-benzylidenemethylamine -> alpha-aminonitrile",
-        "conditions_en": "low temperature, toluene (the truncated model catalyst complex is the computational object)",
-        "anchor": "selectivity",
-        "minor_channel_en": "opposite-face cyanide transfer to the thiourea-bound imine -> (S)-alpha-aminonitrile (minor enantiomer channel)",
-        "mapped_reactants": "[C:1]([H:2])#[N:3].[CH3:4]/[N:5]=[CH:6]/[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[CH3:13][CH2:14][C@H:15]([CH3:16])[NH:17][C:18](=[S:19])[NH:20][CH3:21]",
-        "steps": [
-            {
-                # 协同氰基转移：成 C1-C6、成 N5-H2，断 C1-H2、断 N5=C6 pi（C≡N 不动）→ 池主构型氨基腈
-                "out": "[CH3:4][N:5]([H:2])[C@H:6]([C:1]#[N:3])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[CH3:13][CH2:14][C@H:15]([CH3:16])[NH:17][C:18](=[S:19])[NH:20][CH3:21]",
-                "type": "concerted cyanide transfer: the HCN carbon attacks the major face of the thiourea-bound imine while the HCN proton transfers to the imine nitrogen (C-C and N-H form; C-H and C=N pi break; C≡N untouched) -> pooled major enantiomer of the alpha-aminonitrile",
-            },
-        ],
-        "competing": [
-            {
-                # 副面氰基转移 → 对映体氨基腈（与主产物仅 C6 构型相反）
-                "out": "[CH3:4][N:5]([H:2])[C@@H:6]([C:1]#[N:3])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[CH3:13][CH2:14][C@H:15]([CH3:16])[NH:17][C:18](=[S:19])[NH:20][CH3:21]",
-                "type": "opposite-face cyanide transfer to the thiourea-bound imine -> minor enantiomer of the alpha-aminonitrile",
             },
         ],
     },

@@ -8,7 +8,8 @@ and emits two TaskSpec JSONs per task into ideapool/tasks/impossible/:
 - ``S<id>.json``  — the sibling control task（同反应族、单参考可解，
   expected_outcome=mechanism_found——本档信号 = 本题拒答 × 兄弟题正常作答）。
 
-只读 impossible.md "定稿圈定"段的正选 20 条（TASK_IDS；池子其余 50 条留档）。
+只读 impossible.md "定稿圈定"段的 v3 正选 10 个池 id（TASK_IDS；池子其余留档；
+每个池 id 产 I+S 两 JSON，共 20）。
 md 是人策事实源（条目化学与判分哲学），机器契约在
 ``cloudra/benchmark/impossible_registry/``（按族分文件）；生成器做 fail-loud
 校验：登记标题与 md 头行全等、逐步原子映射号/形式电荷守恒、末步产物去映射
@@ -66,10 +67,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "impossible.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "impossible"
 
-# impossible.md "定稿圈定"段的正选名单（20 条）；池子其余 50 条留档不生成。
+# impossible.md "定稿圈定"段的正选名单（v3 缩减：20 → 10 个池 id，每个产 I+S 两题；
+# 池子其余 60 条留档）。v3 保留 10 对（I/S）：A1 环丁二烯 / A5 反旋开环 / A7 Bergman /
+# A8 CH2OO / A9 二氧环丁烷 / C3 苯基氮烯 / D2 FOOF / E2 N2 / F3 三角烯 / G8 Cr2。
+# 灰区 6 条（G7/H7/H8/I8/J6/J7）与 ¹O2/苯炔等边缘对全数剔除，避免"拒答正确性"统计污染。
 TASK_IDS = (
-    "A1 A5 A7 A8 A9 A11 B5 C3 D2 E2 "
-    "F3 G6 G7 G8 H7 H8 I2 I8 J6 J7"
+    "A1 A5 A7 A8 A9 C3 D2 E2 F3 G8"
 ).split()
 
 _HEADER_RE = re.compile(r"^### ([A-J]\d+)\.\s*(.+)$")
@@ -430,9 +433,9 @@ def main() -> None:
                 f"OK {t.task_id}: {len(t.gold.mechanism_graph.nodes)} nodes, {n_edges} edges, "
                 f"outcome={t.rubric.expected_outcome.value}, inaccessible={len(inacc)}"
             )
-        print(f"check passed: {len(tasks)} tasks (20 impossible + 20 siblings expected)")
+        print(f"check passed: {len(tasks)} tasks (10 impossible + 10 siblings expected)")
         return
-    assert len(tasks) == 40, f"expected 40 tasks, got {len(tasks)}"
+    assert len(tasks) == 20, f"expected 20 tasks, got {len(tasks)}"
     args.out.mkdir(parents=True, exist_ok=True)
     for t in tasks:
         out = args.out / f"{t.task_id}.json"

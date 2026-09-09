@@ -31,7 +31,7 @@ BANDS: dict[str, list[str]] = {
 }
 # 2026-08-31 打标定稿名单（hard.md"定稿圈定"段为权威；此处只作打标台初始默认值）。
 # 收录规则：C 族（1,3-偶极）整体剔除；多参考体系划归 impossible 档。
-SUGGESTED_PICK = "A1 A2 A6 B7 D2 E1 E2 E3 F1 G1 G2 H1 I1 I4 J1 J2 J4 K1 L1 L4".split()
+SUGGESTED_PICK = "A1 A6 D2 E2 E3 F1 G2 H1 I1 L1".split()  # v3 2026-09-09 (20 -> 10)
 SUGGESTED_ALT = "A5 B1 B5 B9 D1 H3 I3 J3 J5 K2 L3".split()
 SUGGESTED_DROP = "C1 C2 C3".split()
 
@@ -81,7 +81,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <header>
   <h1>Hard 档打标台（立体化学）· __N__ 条候选 · 已定稿：正选 20 / 替补 11 / 剔除 3（打标存 localStorage，不回写 hard.md）</h1>
   <div class="bar">
-    <span class="counter" id="c-pick">正选 <b>0</b>/20</span>
+    <span class="counter" id="c-pick">正选 <b>0</b>/10</span>
     <span class="counter" id="c-alt">替补 <b>0</b>/11</span>
     <span class="counter" id="c-drop">剔除 <b>0</b></span>
     <span class="counter" id="c-todo">未定 <b>0</b></span>
@@ -158,8 +158,8 @@ function render() {
     tb.appendChild(tr);
   }
   const cp = document.getElementById("c-pick");
-  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/20`;
-  cp.className = "counter" + ((counts.pick || 0) > 20 ? " over" : "");
+  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/10`;
+  cp.className = "counter" + ((counts.pick || 0) > 10 ? " over" : "");
   document.getElementById("c-alt").innerHTML = `替补 <b>${counts.alt || 0}</b>/11`;
   document.getElementById("c-drop").innerHTML = `剔除 <b>${counts.drop || 0}</b>`;
   document.getElementById("c-todo").innerHTML = `未定 <b>${counts.todo || 0}</b>`;

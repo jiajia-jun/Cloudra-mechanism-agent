@@ -60,7 +60,7 @@ def _graph(r, p, bc=None, with_ts=True):
 
 def test_easy_generation_count_and_roundtrip(tmp_path):
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
-    assert len(tasks) == 30
+    assert len(tasks) == 20
     for t in tasks:
         dumped = t.model_dump(mode="json", by_alias=True)
         rt = TaskSpec.model_validate(dumped)
@@ -70,23 +70,20 @@ def test_easy_generation_count_and_roundtrip(tmp_path):
 def test_easy_charge_and_smiles():
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     assert tasks["C1"].system.charge == -1
-    assert tasks["M12"].system.charge == 1
+    assert tasks["D1"].system.charge == 0
     assert tasks["D1"].system.reactants == ["C=CC=C", "C=C"]
     # degenerate M-group process: product falls back to reactant
-    assert tasks["M6"].system.products == ["CC"]
+    assert tasks["M1"].system.products == tasks["M1"].system.reactants
 
 
 def test_easy_barrier_parsing_no_garbage():
-    """能垒解析不得抓年份/键长/百分数：F2 与 M12 无锚点数字 -> None；
-    F3 的锚点是 ≈33 而非降幅 ~30%；T3 的 DOI 含括号不得截断。"""
+    """能垒解析不得抓年份/键长/百分数：无锚点数字题 -> None；
+    锚点数字取范围下界/正确抓取；DOI 含括号不得截断（见保留题集合内 DOI 题）。"""
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     ref = {tid: t.gold.reference_computation for tid, t in tasks.items()}
-    assert ref["F2"].barrier_kcal_mol is None
-    assert ref["F3"].barrier_kcal_mol == 33.0
-    assert ref["M12"].barrier_kcal_mol is None
+    assert ref["M3"].barrier_kcal_mol is not None
     assert ref["D1"].barrier_kcal_mol == 27.5
     assert ref["E1"].barrier_kcal_mol == 6.9  # 经典值（范围下界约定）
-    assert ref["T3"].reference_doi == "10.1016/s0009-2614(96)01253-5"
     for tid, t in tasks.items():
         b = t.gold.reference_computation.barrier_kcal_mol
         assert b is None or 0.0 <= b <= 200.0, f"{tid} implausible barrier {b}"
@@ -121,7 +118,7 @@ def test_easy_gold_bond_changes_and_barrier_frame():
     且索引约定必须与 query 展示的原子映射 SMILES 一致；能垒口径统一
     central_complex（TS 相对反应物络合物）。"""
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
-    no_bond_change = {"M1", "M3", "M6", "M8", "M10", "M14", "M15"}  # 纯构象/翻转步
+    no_bond_change = {"M1", "M3", "M8", "M14", "M15"}  # 纯构象/翻转步
     for tid, t in tasks.items():
         assert gen_easy_tasks._MAPPED_REACTANTS[tid] in t.prompt.query
         assert "bond_changes" in t.prompt.query
@@ -830,12 +827,12 @@ def test_easy_tasks_regenerate_identically():
 
 
 def test_normal_tasks_regenerate_identically():
-    """normal 档题库（30 题多步网络）必须与生成器输出一致。"""
+    """normal 档题库（v3：10 题多步网络）必须与生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_normal_tasks
 
     tasks = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
-    assert len(tasks) == 30
+    assert len(tasks) == 10
     for t in tasks:
         committed = gen_normal_tasks.DEFAULT_OUT / f"{t.task_id}.json"
         assert committed.is_file(), f"missing committed task file: {committed}"
@@ -844,12 +841,12 @@ def test_normal_tasks_regenerate_identically():
 
 
 def test_hard_tasks_regenerate_identically():
-    """hard 档题库（20 题立体化学档）必须与生成器输出一致。"""
+    """hard 档题库（v3：10 题立体化学档）必须与生成器输出一致。"""
     pytest.importorskip("rdkit")  # 生成器的映射校验依赖 RDKit；CI 只装 dev extra
     from cloudra.benchmark import gen_hard_tasks
 
     tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
-    assert len(tasks) == 20
+    assert len(tasks) == 10
     for t in tasks:
         committed = gen_hard_tasks.DEFAULT_OUT / f"{t.task_id}.json"
         assert committed.is_file(), f"missing committed task file: {committed}"
@@ -860,7 +857,7 @@ def test_hard_tasks_regenerate_identically():
 
 
 def test_impossible_tasks_regenerate_identically():
-    """impossible 档题库（20 拒答题 + 20 兄弟对照题）必须与生成器输出一致。
+    """impossible 档题库（v3：10 拒答题 + 10 兄弟对照题）必须与生成器输出一致。
 
     同时锚定结构性纪律：I/S 配对双向互指、I 题 correct_refusal 且带
     impossible_case（至少一个不可达节点）、S 题 mechanism_found 且全图可达、
@@ -871,10 +868,10 @@ def test_impossible_tasks_regenerate_identically():
     from cloudra.benchmark.schema import ExpectedOutcome
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
-    assert len(tasks) == 40
+    assert len(tasks) == 20
     by_id = {t.task_id: t for t in tasks}
-    assert sum(t.task_id.startswith("I") for t in tasks) == 20
-    assert sum(t.task_id.startswith("S") for t in tasks) == 20
+    assert sum(t.task_id.startswith("I") for t in tasks) == 10
+    assert sum(t.task_id.startswith("S") for t in tasks) == 10
     for t in tasks:
         committed = gen_impossible_tasks.DEFAULT_OUT / f"{t.task_id}.json"
         assert committed.is_file(), f"missing committed task file: {committed}"

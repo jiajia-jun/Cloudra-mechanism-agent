@@ -2,10 +2,11 @@
 
 Reads the curated hard-tier markdown (stereochemistry tier) and emits one
 TaskSpec JSON per task into ideapool/tasks/hard/H<id>.json for the finalized
-20-task list (TASK_IDS; the pool keeps 51 entries but only the finalized list
-is generated — 见 hard.md "定稿圈定"段). The markdown is the human-curated
-source of truth for SMILES / charges / anchors; this generator is
-deterministic and re-runnable.
+10-task list (TASK_IDS; the pool keeps 51 entries but only the finalized list
+is generated — 见 hard.md "定稿圈定"段)。v3（2026-09-09）将 20 条缩至 10 条并为
+hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP）白名单。The markdown is the
+human-curated source of truth for SMILES / charges / anchors; this generator
+is deterministic and re-runnable.
 
 Hard-tier specifics vs normal (gen_normal_tasks):
 
@@ -78,10 +79,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "hard.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "hard"
 
-# hard.md "定稿圈定"段的权威名单（20 条）；池子其余 31 条留档不生成。
+# hard.md "定稿圈定"段的权威名单（v3 缩减：20 → 10；池子其余条目留档不生成）。
+# v3 保留：A1 torqueselection / A6 WH×torqueselection / D2 Fürst–Plattner /
+# E2 轴向进攻 / E3 CBS / F1 Henbest / G2 Claisen 椅-船 / H1 联萘消旋 /
+# I1 脯氨酸 aldol / L1 肟 Beckmann（全 ≤20 重原子，开放 B3LYP-D3(BJ)/def2-SVP）。
 TASK_IDS = (
-    "A1 A2 A6 B7 D2 E1 E2 E3 F1 G1 "
-    "G2 H1 I1 I4 J1 J2 J4 K1 L1 L4"
+    "A1 A6 D2 E2 E3 F1 G2 H1 I1 L1"
 ).split()
 
 # H1 消旋阻垒是绝对能垒锚点（ΔG‡ 23.5，部分核实），挂 reference_computation 且
@@ -354,7 +357,9 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             accuracy = AccuracyRubric(enabled=True, sigma_kcal_mol=_BARRIER_SIGMA)
 
         graph = _build_graph(pid, reactants, products, entry)
-        policy = MethodPolicy()
+        # v3：hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 引擎）。白名单按方法族
+        # 粒度匹配且基组 token 在路线卡解析中被忽略，故 "b3lyp" 一词即可放行 b3lyp/def2-svp。
+        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp"])
         tasks.append(
             TaskSpec(
                 task_id=f"H{pid}",
@@ -422,7 +427,7 @@ def main() -> None:
             print(f"OK {t.task_id}: {len(t.gold.mechanism_graph.nodes)} nodes, {n_edges} edges")
         print(f"check passed: {len(tasks)} tasks")
         return
-    assert len(tasks) == 20, f"expected 20 tasks, got {len(tasks)}"
+    assert len(tasks) == 10, f"expected 10 tasks, got {len(tasks)}"
     args.out.mkdir(parents=True, exist_ok=True)
     for t in tasks:
         out = args.out / f"{t.task_id}.json"

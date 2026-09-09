@@ -1,10 +1,12 @@
 """Generate normal-tier benchmark task JSONs from ideapool/reaction_candidates/normal.md.
 
 Reads the curated normal-tier markdown and emits one TaskSpec JSON per task into
-ideapool/tasks/normal/N<id>.json for the finalized 30-task list (TASK_IDS; the
+ideapool/tasks/normal/N<id>.json for the finalized 10-task list (TASK_IDS; the
 pool keeps 48 entries but only the finalized list is generated — 见 normal.md
-"定稿圈定"段). The markdown is the human-curated source of truth for SMILES /
-charges / barriers; this generator is deterministic and re-runnable.
+"定稿圈定"段)。v3（2026-09-09）将 30 条缩至 10 条并按"多步网络 + 尽量 xtb 友好"重选，
+新收 Q1（芳香 Claisen）与 U3（Wittig）。The markdown is the human-curated
+source of truth for SMILES / charges / barriers; this generator is deterministic
+and re-runnable.
 
 Unlike the easy generator (single-step R->TS->P), normal tasks are multi-step
 networks: gold graphs carry intermediate nodes and one edge per elementary step.
@@ -64,10 +66,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "normal.md"
 DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "normal"
 
-# normal.md "定稿圈定"段的权威名单（30 条）；池子其余 18 条留档不生成。
+# normal.md "定稿圈定"段的权威名单（v3 缩减：30 → 10；池子其余 38 条留档不生成）。
+# v3 保留（多步网络 + 尽量 xtb 友好）：A2 丙酮 aldol 缩合 / A5 Mannich / I1 亚胺 /
+# O3 Baeyer–Villiger / R1 pinacol / U5 Passerini / U6 Staudinger / Y3 BAC2 皂化，
+# 另新收 Q1 芳香 Claisen 与 U3 Wittig（池内被裁条目回归，registry 新增登记）。
 TASK_IDS = (
-    "A1 A2 A4 A5 A7 I1 I3 Y2 Y3 O2 O3 O4 O5 X1 X2 "
-    "X3 X4 R1 R2 R3 U1 U5 U6 U7 Q2 Q3 H1 H2 H3 H5"
+    "A2 A5 I1 O3 R1 U5 U6 Y3 Q1 U3"
 ).split()
 
 # 口径核对登记（normal.md 文末）：锚点非 central_complex 标准口径的题，数值保留、
@@ -440,7 +444,7 @@ def main() -> None:
             print(f"OK {t.task_id}: {len(t.gold.mechanism_graph.nodes)} nodes, {n_edges} steps")
         print(f"check passed: {len(tasks)} tasks")
         return
-    assert len(tasks) == 30, f"expected 30 tasks, got {len(tasks)}"
+    assert len(tasks) == 10, f"expected 10 tasks, got {len(tasks)}"
     args.out.mkdir(parents=True, exist_ok=True)
     for t in tasks:
         out = args.out / f"{t.task_id}.json"

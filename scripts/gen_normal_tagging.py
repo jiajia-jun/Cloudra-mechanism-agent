@@ -27,8 +27,8 @@ BANDS: dict[str, list[str]] = {
     "N3 复杂人名网络": "A2 A3 A4 A5 I2 R1 R2 R4 U2 U4 U5 H1 H2 Q3".split(),
     "待裁决": "S1 R5 U3 S2 Q4".split(),
 }
-# 2026-08-30 定稿名单（normal.md"定稿圈定"段为权威；此处只作打标台初始默认值）。
-SUGGESTED_PICK = "A1 A2 A4 A5 A7 I1 I3 Y2 Y3 O2 O3 O4 O5 X1 X2 X3 X4 R1 R2 R3 U1 U5 U6 U7 Q2 Q3 H1 H2 H3 H5".split()
+# v3 定稿名单（normal.md"定稿圈定"段为权威，2026-09-09 30 → 10；此处只作打标台初始默认值）。
+SUGGESTED_PICK = "A2 A5 I1 O3 R1 U5 U6 Y3 Q1 U3".split()
 SUGGESTED_ALT: list[str] = []
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -75,9 +75,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <h1>Normal 档打标台 · __N__ 条候选 · 目标正选 30 / 替补 10（打标存 localStorage，不回写 normal.md）</h1>
+  <h1>Normal 档打标台 · __N__ 条候选 · 目标正选 10（v3 2026-09-09；打标存 localStorage，不回写 normal.md）</h1>
   <div class="bar">
-    <span class="counter" id="c-pick">正选 <b>0</b>/30</span>
+    <span class="counter" id="c-pick">正选 <b>0</b>/10</span>
     <span class="counter" id="c-alt">替补 <b>0</b>/10</span>
     <span class="counter" id="c-drop">剔除 <b>0</b></span>
     <span class="counter" id="c-todo">未定 <b>0</b></span>
@@ -155,8 +155,8 @@ function render() {
     tb.appendChild(tr);
   }
   const cp = document.getElementById("c-pick");
-  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/30`;
-  cp.className = "counter" + ((counts.pick || 0) > 30 ? " over" : "");
+  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/10`;
+  cp.className = "counter" + ((counts.pick || 0) > 10 ? " over" : "");
   document.getElementById("c-alt").innerHTML = `替补 <b>${counts.alt || 0}</b>/10`;
   document.getElementById("c-drop").innerHTML = `剔除 <b>${counts.drop || 0}</b>`;
   document.getElementById("c-todo").innerHTML = `未定 <b>${counts.todo || 0}</b>`;
@@ -198,7 +198,7 @@ function importJSON() {
 }
 
 function resetDefaults() {
-  if (!confirm("把所有条目的打标重置为旧建议名单（正选 30 / 替补 10，新条目未定）？")) return;
+  if (!confirm("把所有条目的打标重置为 v3 建议名单（正选 10，新条目未定）？")) return;
   tags = {};
   for (const e of ENTRIES) if (e.def) tags[e.id] = e.def;
   save(); render();

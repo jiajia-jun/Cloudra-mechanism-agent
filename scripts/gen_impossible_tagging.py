@@ -29,7 +29,7 @@ SMILES_RE = re.compile(r"`([^`]+)`")
 FIELD_ORDER = ["体系", "结构", "多参考性质", "诊断证据", "兄弟题", "权威性依据", "拒答判据"]
 
 # 2026-09-01 打标定稿名单（impossible.md"定稿圈定"段为权威；此处只作打标台初始默认值）。
-SUGGESTED_PICK = "A1 A5 A7 A8 A9 A11 B5 C3 D2 E2 F3 G6 G7 G8 H7 H8 I2 I8 J6 J7".split()
+SUGGESTED_PICK = "A1 A5 A7 A8 A9 C3 D2 E2 F3 G8".split()  # v3 2026-09-09 (20 -> 10 pool ids)
 SUGGESTED_DROP = "A2 A3 A4 A6 B1 H2".split()
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -82,7 +82,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <header>
   <h1>Impossible 档打标台（强多参考/近简并双自由基）· __N__ 条候选 · 已定稿：正选 20 / 剔除 6（打标存 localStorage，不回写 impossible.md）</h1>
   <div class="bar">
-    <span class="counter" id="c-pick">正选 <b>0</b>/20</span>
+    <span class="counter" id="c-pick">正选 <b>0</b>/10</span>
     <span class="counter" id="c-alt">替补 <b>0</b></span>
     <span class="counter" id="c-drop">剔除 <b>0</b></span>
     <span class="counter" id="c-todo">未定 <b>0</b></span>
@@ -175,8 +175,8 @@ function render() {
     tb.appendChild(dr);
   }
   const cp = document.getElementById("c-pick");
-  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/20`;
-  cp.className = "counter" + ((counts.pick || 0) > 20 ? " over" : "");
+  cp.innerHTML = `正选 <b>${counts.pick || 0}</b>/10`;
+  cp.className = "counter" + ((counts.pick || 0) > 10 ? " over" : "");
   document.getElementById("c-alt").innerHTML = `替补 <b>${counts.alt || 0}</b>`;
   document.getElementById("c-drop").innerHTML = `剔除 <b>${counts.drop || 0}</b>`;
   document.getElementById("c-todo").innerHTML = `未定 <b>${counts.todo || 0}</b>`;

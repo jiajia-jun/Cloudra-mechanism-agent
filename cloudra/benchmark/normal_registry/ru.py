@@ -1,7 +1,8 @@
-"""R 族（重排：R1–R3）与 U 族（多组分/其他：U1, U5–U7）登记。
+"""R 族 + U 族登记（v3 缩减后）：R1 pinacol、U3 Wittig（新收）、U5 Passerini、U6 Staudinger。
 
-竞争通道（R1 分步碳正离子路径、R2 碎裂副反应、R3 分步酰基氮宾、U6 协同
-[2+2]、U7 [1,2]-Stevens）按 normal.md 约定不进 gold，由 agent 自行探索。
+v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定稿名单留档池
+（条目见 normal.md）。竞争通道（R1 分步碳正离子路径、U6 协同 [2+2] 等）按
+normal.md 约定不进 gold，由 agent 自行探索。
 """
 
 TASKS = {
@@ -33,78 +34,9 @@ TASKS = {
     },
     # [OH3+].CC(C)=NO>>[OH3+].CNC(C)=O  (+1/1)  Beckmann 重排
     # 映射：1=H3O+ 的 O，2/9/10=其三个 H；3=保留甲基，4=肟 C，5=anti 迁移甲基，
-    # 6=N，7=肟 OH 的 O，8=肟 OH 的 H。
-    "R2": {
-        "name_en": "Beckmann rearrangement: acetone oxime -> N-methylacetamide (acid-catalyzed)",
-        "conditions_en": "concentrated H2SO4 or PCl5; industrial oleum (caprolactam process)",
-        "mapped_reactants": "[O+:1]([H:2])([H:9])[H:10].[CH3:3][C:4]([CH3:5])=[N:6][O:7][H:8]",
-        "steps": [
-            {
-                # PT：H3O+ 质子化肟 OH
-                "out": "[O:1]([H:9])[H:10].[CH3:3][C:4]([CH3:5])=[N:6][O+:7]([H:8])[H:2]",
-                "type": "proton transfer from H3O+ to the oxime OH (leaving-group activation)",
-            },
-            {
-                # 决速：断 N6-O7 与 C4-C5，成 C5-N6（anti 甲基迁移）与 C4≡N6 π → nitrilium + H2O
-                "out": "[O:1]([H:9])[H:10].[O:7]([H:8])[H:2].[CH3:3][C:4]#[N+:6][CH3:5]",
-                "type": "concerted Beckmann rearrangement (rate-determining): N-O cleavage with anti 1,2-methyl migration from C to N and C-N pi bond formation -> nitrilium ion + water",
-            },
-            {
-                # 水 O1 进攻 nitrilium 碳：成 C4-O1，断一根 C≡N π → O-质子化亚胺酸
-                "out": "[O+:1]([H:9])([H:10])[C:4](=[N:6][CH3:5])[CH3:3].[O:7]([H:8])[H:2]",
-                "type": "water attack on the nitrilium carbon: C-O formation with one C-N pi bond broken -> O-protonated imidic acid",
-            },
-            {
-                # PT：另一分子水拔掉 OH2+ 的一个质子 → 中性亚胺酸 + H3O+
-                "out": "[O:1]([H:10])[C:4](=[N:6][CH3:5])[CH3:3].[O+:7]([H:8])([H:2])[H:9]",
-                "type": "proton transfer from the imidic acid OH2+ to water -> neutral imidic acid + H3O+",
-            },
-            {
-                # 亚胺酸→酰胺互变异构：分子内 O→N 质子迁移，C=N π 断、C=O π 成
-                "out": "[O:1]=[C:4]([CH3:3])[N:6]([H:10])[CH3:5].[O+:7]([H:8])([H:2])[H:9]",
-                "type": "imidic acid -> amide tautomerization: intramolecular O-to-N proton shift with C=N pi to C=O pi migration",
-            },
-        ],
-    },
     # CC(=O)N=[N+]=[N-]>>CN=C=O.N#N  (0/1)  Curtius 重排（单步协同）
-    # 映射：1=甲基，2=酰基 C，3=羰基 O，4=Nα，5=Nβ，6=Nγ。
-    "R3": {
-        "name_en": "Curtius rearrangement: acetyl azide -> methyl isocyanate + N2",
-        "conditions_en": "heated to ca. 80 degC, inert solvent",
-        "mapped_reactants": "[CH3:1][C:2](=[O:3])[N:4]=[N+:5]=[N-:6]",
-        "steps": [
-            {
-                # 断 C1-C2 与 Nα-Nβ，成 C1-Nα 与 Nβ≡Nγ 第三根键；C=O 不动
-                "out": "[CH3:1][N:4]=[C:2]=[O:3].[N:5]#[N:6]",
-                "type": "concerted Curtius rearrangement: 1,2-methyl migration from the acyl carbon to N(alpha) with simultaneous N2 extrusion (C-C and N(alpha)-N(beta) cleavage, C-N(alpha) formation, N(beta)=N(gamma) -> N#N)",
-            },
-        ],
-    },
     # [OH-].C=O.C=O>>CO.O=C[O-]  (−1/1)  Cannizzaro
     # 映射：1=OH- 的 O，7=其 H；2=受体醛 C，3=其 O，6=转移的氢负 H；
-    # 4=第二醛 C，5=其 O。
-    "U1": {
-        "name_en": "Cannizzaro reaction: 2 formaldehyde + OH- -> methanol + formate",
-        "conditions_en": "concentrated aqueous NaOH",
-        "mapped_reactants": "[O-:1][H:7].[CH:2]([H:6])=[O:3].[CH2:4]=[O:5]",
-        "steps": [
-            {
-                # OH- 加成第一个甲醛：成 C2-O1，断 C2=O3 π → HOCH2O-
-                "out": "[O:1]([H:7])[CH:2]([H:6])[O-:3].[CH2:4]=[O:5]",
-                "type": "hydroxide addition to the first formaldehyde -> tetrahedral alkoxide HOCH2O-",
-            },
-            {
-                # 决速：分子间氢负转移——断 C2-H6，成 C4-H6，第一碳回塌 C=O π，第二碳断 C=O π
-                "out": "[O:1]([H:7])[CH:2]=[O:3].[CH2:4]([H:6])[O-:5]",
-                "type": "rate-determining intermolecular hydride transfer from the alkoxide carbon to the second formaldehyde -> formic acid + methoxide",
-            },
-            {
-                # PT：CH3O- 拔甲酸质子 → 甲酸根 + 甲醇
-                "out": "[O-:1][CH:2]=[O:3].[CH2:4]([H:6])[O:5][H:7]",
-                "type": "proton transfer from formic acid to methoxide -> formate + methanol",
-            },
-        ],
-    },
     # C=O.O=CO.C[N+]#[C-]>>CNC(=O)COC=O  (0/1)  Passerini
     # 映射：1=醛 C，2=醛 O；3=甲酸羰基 C，4=其羰基 O，5=其羟基 O，6=酸性 H；
     # 7=异腈甲基，8=N，9=异腈 C。
@@ -154,18 +86,25 @@ TASKS = {
             },
         ],
     },
-    # [CH2-][N+](C)(C)CC=CC>>CN(C)CC(C)C=C  (0/1)  铵叶立德 [2,3]-σ 迁移（单步）
-    # 映射：1=叶立德 C，2=N，3/4=N-甲基，5=烯丙基 α-C，6=β-C，7=γ-C，8=γ 上甲基。
-    "U7": {
-        "name_en": "ammonium ylide [2,3]-sigmatropic rearrangement (Sommelet-Hauser type) vs [1,2]-Stevens competition: crotyltrimethylammonium ylide (written line: [2,3] product)",
+    # [CH2-][PH3+].C=O>>C=C.O=[PH3]  (0/1)  Wittig 简化版（两步：oxaphosphetane 中间体）
+    # 映射：1=叶立德 C（CH2-），2=P（PH3+），3=甲醛 C，4=甲醛 O。
+    # 步①异步 [2+2]：成 C1-C3 与 P2-O4（断 C3=O4 π）→ 氧磷杂环丁烷；步②环消除：成
+    # C1=C3 与 P2=O4（断 P2-C1、C3-O4）→ 乙烯 + H3P=O。电荷账：反应物 -1/+1（净 0）
+    # → 中间体中性磷烷 → 产物中性。betaine 路径为背景通道不进 gold。
+    "U3": {
+        "name_en": "Wittig reaction simplified model: H3P=CH2 ylide + formaldehyde -> ethylene + H3P=O (via oxaphosphetane)",
         "conditions_en": "salt-free model conditions (gas-phase ylide, closest to model chemistry)",
-        "mapped_reactants": "[CH2-:1][N+:2]([CH3:3])([CH3:4])[CH2:5][CH:6]=[CH:7][CH3:8]",
+        "mapped_reactants": "[CH2-:1][PH3+:2].[CH2:3]=[O:4]",
         "steps": [
             {
-                # 成 C1-C7（叶立德 C 到 γ 位），断 N2-C5（α 位），π 迁移 β=γ → α=β
-                "out": "[CH3:3][N:2]([CH3:4])[CH2:1][CH:7]([CH3:8])[CH:6]=[CH2:5]",
-                "type": "concerted closed-shell [2,3]-sigmatropic rearrangement: new C-C bond between the ylide carbon and the allyl gamma-carbon, N-C(alpha) cleavage, pi shift to the terminal alkene (competing [1,2]-Stevens channel not in gold)",
+                "out": "[PH3:2]1[O:4][CH2:3][CH2:1]1",
+                "type": "asynchronous [2+2] addition of the ylide carbon to the aldehyde carbon with P-O bond formation -> oxaphosphetane intermediate (four-membered ring; betaine is the bypassed background channel)",
+            },
+            {
+                "out": "[CH2:1]=[CH2:3].[O:4]=[PH3:2]",
+                "type": "oxaphosphetane cycloreversion: P-C and C-O ring cleavage with C=C and P=O pi formation -> ethylene + phosphine oxide",
             },
         ],
     },
+    # [CH2-][N+](C)(C)CC=CC>>CN(C)CC(C)C=C  (0/1)  铵叶立德 [2,3]-σ 迁移（单步）
 }
