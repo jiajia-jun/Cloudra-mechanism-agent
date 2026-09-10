@@ -198,3 +198,25 @@ async def test_resume_budget_exhaustion_lands_terminal_search_failed(tmp_path):
     assert third.terminal == "search_failed"
     assert "NOT a claim" in third.message or "not a claim" in third.message.lower()
     del second
+
+
+@pytest.mark.asyncio
+async def test_resume_after_a_compute_wake_needs_no_adjustment(tmp_path):
+    """计算通知唤醒后 agent 调 ts_resume 时**没有什么要改**——空 adjustment 必须合法。
+
+    这是 wait→wake→resume 这条主路径的契约：等待期间没有决策可做，唤醒后只是让流程
+    重新读一次作业那一行继续推进。空 adjustment 非法的话，这条路径就走不通了。
+    """
+    first = await _prepare(tmp_path)
+    assert first.waiting_for.startswith("job:")
+    out = await TsResume().tool_call(
+        TsResume_input_schema(
+            run_id=first.run_id, adjustment=TsAdjustment(), workspace_dir=str(tmp_path),
+        ),
+        session=None,
+    )
+    assert out.is_success is True, out.message
+    assert out.intervention_count == 1
+    # 作业还没到终态（测试里没有调度守护），所以仍是 waiting，没有伪造终态
+    assert out.terminal is None
+    assert out.waiting_for.startswith("job:")
