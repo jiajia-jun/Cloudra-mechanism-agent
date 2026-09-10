@@ -46,7 +46,7 @@ function ApprovalCard({
   return (
     <div className="attention-card approval">
       <div className="attention-card-head">
-        <span className="attention-kind">⚠ approval</span>
+        <span className="attention-kind">APPROVAL</span>
         <span className="attention-project">{item.projectName}</span>
         <button
           type="button"
@@ -175,13 +175,13 @@ export default function AttentionDock({
             title="Enable desktop notifications for new approval/question requests"
             onClick={onEnableNotifications}
           >
-            🔔 enable alerts
+            enable alerts
           </button>
         )}
-        {notifPermission === 'granted' && <span className="attention-notif-state on">🔔 on</span>}
+        {notifPermission === 'granted' && <span className="attention-notif-state on">alerts on</span>}
         {notifPermission === 'denied' && (
           <span className="attention-notif-state" title="Desktop notifications are blocked in browser settings">
-            🔔 blocked
+            alerts blocked
           </span>
         )}
       </div>

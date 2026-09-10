@@ -1182,6 +1182,34 @@ export default function App() {
   );
   const liveThinking = Boolean(streamView.streamThinkingLive);
 
+  const currentAgentActivity = useMemo<{
+    type: 'generating' | 'running_tool' | 'waiting' | 'thinking' | 'running' | 'idle';
+    label: string;
+  }>(() => {
+    if (streamView.streamText) {
+      return { type: 'generating', label: 'Streaming response…' };
+    }
+    if (runningTool) {
+      return {
+        type: 'running_tool',
+        label: `Running ${runningTool.name}${runningTool.argsSummary ? `: ${runningTool.argsSummary.slice(0, 50)}` : '…'}`,
+      };
+    }
+    if (liveThinking) {
+      return { type: 'thinking', label: 'Reasoning / Thinking…' };
+    }
+    if (activeAgent?.state === 'running') {
+      return { type: 'running', label: 'Processing turn…' };
+    }
+    if (activeAgent?.state === 'waiting_approval') {
+      return { type: 'waiting', label: 'Waiting for approval' };
+    }
+    if (activeAgent?.state === 'waiting_input') {
+      return { type: 'waiting', label: 'Waiting for user input' };
+    }
+    return { type: 'idle', label: 'Ready' };
+  }, [streamView.streamText, runningTool, liveThinking, activeAgent?.state]);
+
   // Agent tree: sub-agents fold under their parent's chip in the agent bar.
   const childrenOf = useMemo(() => {
     const ids = new Set(agents.map((a) => a.id));
@@ -1221,15 +1249,18 @@ export default function App() {
     const children = childrenOf.get(a.id) ?? [];
     const childCount = children.length;
     const expanded = expandedAgents.has(a.id);
+    const isCoordinator = a.role_id === 'coordinator';
     return (
       <Fragment key={a.id}>
         <span className={`agent-chip-wrap${depth > 0 ? ' child' : ''}`}>
           <button
-            className={`agent-chip ${a.id === activeAgentId ? 'active' : ''}`}
+            className={`agent-chip ${a.id === activeAgentId ? 'active' : ''} ${isCoordinator ? 'coordinator' : ''}`}
             onClick={() => selectAgent(a.id)}
+            title={`Agent: ${a.display_name} (${a.role_id}) · state: ${a.state}`}
           >
             <span className={`state-dot ${a.state}`} />
-            {a.display_name}
+            {isCoordinator && <span className="role-tag-coord" title="Coordinator">COORD</span>}
+            <span className="agent-name">{a.display_name}</span>
           </button>
           {childCount > 0 && (
             <button
@@ -1254,6 +1285,7 @@ export default function App() {
   }, [timeline, streamView, activeAgent?.state]);
 
   const connLabel = !activeProject ? 'idle' : connState === 'live' ? 'live' : connState === 'connecting' ? 'connecting' : 'reconnecting…';
+  const totalPending = approvals.length + interactions.length;
 
   return (
     <div className={`app ${resizingSide ? 'resizing' : ''}`}>
@@ -1382,27 +1414,27 @@ export default function App() {
         <div className="sidebar-foot">
           <button
             type="button"
-            className="btn outline sm sidebar-global"
+            className={`sidebar-foot-item sidebar-global ${globalOpen ? 'active' : ''}`}
             title="Global LLM config: the fallback slots behind empty per-agent settings"
             onClick={() => setGlobalOpen(true)}
           >
-            ⚙ Global settings
+            <span className="sidebar-foot-label">Global Settings</span>
           </button>
           <button
             type="button"
-            className="btn outline sm sidebar-knowledge"
+            className={`sidebar-foot-item sidebar-knowledge ${knowledgeOpen ? 'active' : ''}`}
             title="chem-kb knowledge base: overview, entity search and ego graph"
             onClick={() => setKnowledgeOpen(true)}
           >
-            ⌘ Knowledge
+            <span className="sidebar-foot-label">Knowledge Base</span>
           </button>
           <button
             type="button"
-            className="btn outline sm sidebar-benchmark"
+            className={`sidebar-foot-item sidebar-benchmark ${benchmarkOpen ? 'active' : ''}`}
             title="Benchmark cockpit: run task batches and drill into per-task scores"
             onClick={() => setBenchmarkOpen(true)}
           >
-            📊 Benchmark
+            <span className="sidebar-foot-label">Benchmark</span>
           </button>
         </div>
       </aside>
@@ -1420,96 +1452,128 @@ export default function App() {
 
       <main className="main">
         <div className="agentbar">
-          <button
-            type="button"
-            className="btn ghost sm panel-toggle"
-            title={sidebarOpen ? 'Hide sidebar (Cmd+B)' : 'Show sidebar (Cmd+B)'}
-            onClick={() => setSidebarOpen((v) => !v)}
-          >
-            {sidebarOpen ? '◀' : '▶'}
-          </button>
-          <span className="agentbar-title">{activeProject?.name ?? 'Select a project'}</span>
+          <div className="agentbar-group project-scope">
+            <button
+              type="button"
+              className="btn ghost sm panel-toggle"
+              title={sidebarOpen ? 'Hide sidebar (Cmd+B)' : 'Show sidebar (Cmd+B)'}
+              onClick={() => setSidebarOpen((v) => !v)}
+            >
+              {sidebarOpen ? '◀' : '▶'}
+            </button>
+            <div className="agentbar-project-info">
+              <span className="agentbar-title" title={activeProject?.name}>{activeProject?.name ?? 'Select a project'}</span>
+            </div>
+            {activeProject && (
+              editingWs ? (
+                <input
+                  key={`ws-${activeProject.id}`}
+                  className="input ws-input"
+                  autoFocus
+                  defaultValue={activeProject.workspace_dir ?? ''}
+                  placeholder="workspace dir…"
+                  title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
+                  list="workspace-dirs"
+                  onBlur={(e) => {
+                    setEditingWs(false);
+                    changeWorkspace(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setEditingWs(false);
+                      changeWorkspace((e.target as HTMLInputElement).value);
+                    } else if (e.key === 'Escape') {
+                      setEditingWs(false);
+                    }
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={`agentbar-ws-pill ${!activeProject.workspace_dir ? 'empty' : ''}`}
+                  title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory (click to edit)'}
+                  onClick={() => setEditingWs(true)}
+                >
+                  <span className="ws-pill-icon">WS:</span>
+                  <span className="ws-pill-text">{activeProject.workspace_dir ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir) : 'bind workspace'}</span>
+                </button>
+              )
+            )}
+          </div>
+
+          {activeProject && <div className="agentbar-divider" />}
+
           {activeProject && (
-            editingWs ? (
-              <input
-                key={`ws-${activeProject.id}`}
-                className="input ws-input"
-                autoFocus
-                defaultValue={activeProject.workspace_dir ?? ''}
-                placeholder="workspace dir…"
-                title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
-                list="workspace-dirs"
-                onBlur={(e) => {
-                  setEditingWs(false);
-                  changeWorkspace(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    setEditingWs(false);
-                    changeWorkspace((e.target as HTMLInputElement).value);
-                  } else if (e.key === 'Escape') {
-                    setEditingWs(false);
-                  }
-                }}
-              />
-            ) : (
+            <div className="agentbar-group agent-swarm">
+              {rootAgents.length > 0 && (
+                <div className="agentbar-tree">
+                  {rootAgents.map((a) => renderAgentChip(a, 0))}
+                </div>
+              )}
+              <div className="agentbar-spawn-wrap">
+                <select
+                  className="select agentbar-select spawn-select"
+                  value=""
+                  onChange={(e) => spawnRole(e.target.value)}
+                  title="Spawn a new specialized subagent for this project"
+                >
+                  <option value="">+ Spawn Agent…</option>
+                  {roles.map((r) => (
+                    <option key={r.role_id} value={r.role_id}>{r.display_name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="agentbar-group system-controls">
+            {activeAgent && (
+              <div
+                className={`agentbar-activity-pill ${currentAgentActivity.type}`}
+                title={`Active agent: ${activeAgent.display_name} · ${currentAgentActivity.label}`}
+              >
+                <span className={`state-dot ${currentAgentActivity.type === 'idle' ? 'idle' : currentAgentActivity.type === 'waiting' ? 'waiting_input' : 'running'}`} />
+                <span className="activity-label">{currentAgentActivity.label}</span>
+              </div>
+            )}
+            {activeProject && (
+              <div className="agentbar-control-item" title="Orchestration mode: Controls DAG generation and supervision workflow">
+                <span className="control-label">Mode</span>
+                <select
+                  className="select agentbar-select mode"
+                  value={activeProject.settings.orchestration_mode}
+                  onChange={(e) => changeOrchestrationMode(e.target.value)}
+                >
+                  <option value="standard">standard (Direct)</option>
+                  <option value="dag_record">dag_record (Record)</option>
+                  <option value="dag_guided">dag_guided (Supervised)</option>
+                </select>
+              </div>
+            )}
+            {activeProject && (
               <button
                 type="button"
-                className="agentbar-ws-pill"
-                title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory'}
-                onClick={() => setEditingWs(true)}
+                className={`yolo-toggle-badge ${activeProject.settings.defaults?.yolo === true ? 'active' : 'guarded'}`}
+                title="Safety Policy: YOLO mode auto-approves destructive shell & compute actions via guard model. Click to toggle project-wide."
+                onClick={() => toggleProjectYolo(!(activeProject.settings.defaults?.yolo === true))}
               >
-                <span>📁</span>
-                <span>{activeProject.workspace_dir ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir) : 'set workspace'}</span>
+                <span className="yolo-tag">{activeProject.settings.defaults?.yolo === true ? 'YOLO' : 'SAFE'}</span>
               </button>
-            )
-          )}
-          {rootAgents.map((a) => renderAgentChip(a, 0))}
-          {activeProject && (
-            <select
-              className="select agentbar-select mode"
-              title="orchestration mode (project default for new agents)"
-              value={activeProject.settings.orchestration_mode}
-              onChange={(e) => changeOrchestrationMode(e.target.value)}
+            )}
+            <span className="conn-status" title={`SSE stream status: ${connLabel}`}>
+              {activeProject && <span className={`state-dot ${connState === 'live' ? 'running' : 'waiting_input'}`} />}
+              <span className="conn-label">{connLabel}</span>
+            </span>
+            <button
+              type="button"
+              className={`btn ghost sm panel-toggle inspector-toggle-btn ${inspectorOpen ? 'active' : ''} ${totalPending > 0 ? 'attention' : ''}`}
+              title={inspectorOpen ? 'Hide inspector' : `Show inspector${totalPending > 0 ? ` (${totalPending} action required)` : ''}`}
+              onClick={() => setInspectorOpen((v) => !v)}
             >
-              <option value="standard">standard</option>
-              <option value="dag_record">dag_record</option>
-              <option value="dag_guided">dag_guided</option>
-            </select>
-          )}
-          {activeProject && (
-            <label
-              className="agentbar-yolo"
-              title="YOLO: auto-approve destructive ops via the guard LLM, project-wide. Stored as the project default for new agents and cascaded to all existing agents; per-agent override lives in the Inspector."
-            >
-              <input
-                type="checkbox"
-                checked={activeProject.settings.defaults?.yolo === true}
-                onChange={(e) => toggleProjectYolo(e.target.checked)}
-              />
-              YOLO
-            </label>
-          )}
-          {activeProject && (
-            <select className="select agentbar-select" value="" onChange={(e) => spawnRole(e.target.value)}>
-              <option value="">+ spawn…</option>
-              {roles.map((r) => (
-                <option key={r.role_id} value={r.role_id}>{r.display_name}</option>
-              ))}
-            </select>
-          )}
-          <span className="conn-status" style={{ marginLeft: 'auto' }}>
-            {activeProject && <span className={`state-dot ${connState === 'live' ? 'running' : 'waiting_input'}`} />}
-            {connLabel}
-          </span>
-          <button
-            type="button"
-            className={`btn ghost sm panel-toggle ${inspectorOpen ? 'active' : ''}`}
-            title={inspectorOpen ? 'Hide inspector' : 'Show inspector'}
-            onClick={() => setInspectorOpen((v) => !v)}
-          >
-            {inspectorOpen ? 'Inspector ▶' : '◀ Inspector'}
-          </button>
+              <span>{inspectorOpen ? 'Inspector ▶' : '◀ Inspector'}</span>
+              {totalPending > 0 && <span className="badge attention-badge">{totalPending}</span>}
+            </button>
+          </div>
         </div>
 
         <div
@@ -1749,7 +1813,7 @@ export default function App() {
                     disabled={uploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    {uploading ? 'Uploading…' : '📎 Image'}
+                    {uploading ? 'Uploading…' : 'Attach Image'}
                   </button>
                 </>
               )}
@@ -1788,6 +1852,10 @@ export default function App() {
           onRefreshInteractions={() => activeProject && api.interactions(activeProject.id).then(setInteractions).catch(reportError)}
           onError={reportError}
           onToast={pushToast}
+          onClose={() => setInspectorOpen(false)}
+          currentAgentActivity={currentAgentActivity}
+          onToggleYolo={(yolo) => toggleProjectYolo(yolo)}
+          onChangeMode={(mode) => changeOrchestrationMode(mode)}
         />
       )}
 
@@ -1828,7 +1896,17 @@ export default function App() {
 
 /* ------------------------------------------------------------------ inspector */
 
-type InspectorTab = 'events' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'context' | 'skills';
+type InspectorTab = 'overview' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
+
+const TAB_CONFIG: Record<InspectorTab, { label: string; title: string }> = {
+  overview: { label: 'Status', title: 'Project status, active agent & quick controls' },
+  dag: { label: 'DAG', title: 'Mechanism DAG graph and verification status' },
+  approvals: { label: 'Approvals', title: 'Pending sensitive tool approvals' },
+  interactions: { label: 'Prompts', title: 'Agent questions and input requests' },
+  artifacts: { label: 'Artifacts', title: 'Generated files, figures and outputs' },
+  settings: { label: 'Settings', title: 'Agent LLM overrides, context memory & skills' },
+  events: { label: 'Events', title: 'Live execution audit log & tool calls' },
+};
 
 interface GoalForm {
   objective: string;
@@ -1929,7 +2007,23 @@ function InteractionCard({
   );
 }
 
-function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, approvals, interactions, onRefreshApprovals, onRefreshInteractions, onError, onToast, width }: {
+function Inspector({
+  activeAgent,
+  activeProject,
+  liveEvents,
+  onPatchSettings,
+  approvals,
+  interactions,
+  onRefreshApprovals,
+  onRefreshInteractions,
+  onError,
+  onToast,
+  width,
+  onClose,
+  currentAgentActivity,
+  onToggleYolo,
+  onChangeMode,
+}: {
   activeAgent: Agent | null;
   activeProject: Project | null;
   liveEvents: EventEnvelope[];
@@ -1941,8 +2035,13 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
   onError: (e: unknown) => void;
   onToast: (kind: ToastKind, text: string) => void;
   width?: number;
+  onClose?: () => void;
+  currentAgentActivity?: { type: string; label: string };
+  onToggleYolo?: (yolo: boolean) => void;
+  onChangeMode?: (mode: string) => void;
 }) {
-  const [tab, setTab] = useState<InspectorTab>('events');
+  const [tab, setTab] = useState<InspectorTab>('overview');
+  const [settingsSubTab, setSettingsSubTab] = useState<'model' | 'context' | 'skills'>('model');
   const [artifacts, setArtifacts] = useState<Array<Record<string, unknown>>>([]);
   const [deciding, setDeciding] = useState<string | null>(null);
   const [goal, setGoal] = useState<GoalForm>(EMPTY_GOAL);
@@ -1950,18 +2049,70 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
   const [stats, setStats] = useState<ContextStats | null>(null);
   const [keepRecent, setKeepRecent] = useState(20);
   const [skills, setSkills] = useState<Array<Record<string, unknown>>>([]);
+  const [dagSummary, setDagSummary] = useState<{
+    mode: string;
+    nodeCount: number;
+    edgeCount: number;
+    draftAccepted: boolean;
+    hasDraft: boolean;
+  } | null>(null);
+
+  const loadDagSummary = useCallback(async () => {
+    if (!activeProject) {
+      setDagSummary(null);
+      return;
+    }
+    try {
+      const [deliv, draft] = await Promise.allSettled([
+        api.dagDelivery(activeProject.id),
+        api.dagDraft(activeProject.id),
+      ]);
+      const graph = deliv.status === 'fulfilled' ? deliv.value.graph : null;
+      const nodes = graph && Array.isArray((graph as any).nodes) ? (graph as any).nodes.length : 0;
+      const edges = graph && Array.isArray((graph as any).edges) ? (graph as any).edges.length : 0;
+      const isAccepted = draft.status === 'fulfilled' ? Boolean(draft.value?.mechanism_accepted) : false;
+      const hasDraft = draft.status === 'fulfilled' ? Boolean(draft.value?.draft) : false;
+      setDagSummary({
+        mode: activeProject.settings.orchestration_mode ?? 'standard',
+        nodeCount: nodes,
+        edgeCount: edges,
+        draftAccepted: isAccepted,
+        hasDraft,
+      });
+    } catch {
+      // ignore
+    }
+  }, [activeProject]);
+
+  useEffect(() => {
+    if (tab === 'overview') {
+      void loadDagSummary();
+      if (activeAgent) {
+        api.getContextStats(activeAgent.id).then(setStats).catch(() => {});
+      }
+    }
+  }, [tab, activeProject?.id, activeAgent?.id, loadDagSummary]);
 
   async function loadTab(next: InspectorTab) {
     setTab(next);
     try {
-      if (next === 'artifacts' && activeProject) {
+      if (next === 'overview') {
+        void loadDagSummary();
+        if (activeAgent) {
+          api.getContextStats(activeAgent.id).then(setStats).catch(() => {});
+        }
+      } else if (next === 'artifacts' && activeProject) {
         setArtifacts(await api.artifacts(activeProject.id));
-      } else if (next === 'context' && activeAgent) {
-        const [goalResp, statsResp] = await Promise.all([api.getGoal(activeAgent.id), api.getContextStats(activeAgent.id)]);
-        setGoal(goalResp.goal ?? EMPTY_GOAL);
-        setGoalLoaded(true);
-        setStats(statsResp);
-      } else if (next === 'skills') {
+      } else if (next === 'settings') {
+        if (activeAgent) {
+          const [goalResp, statsResp] = await Promise.all([
+            api.getGoal(activeAgent.id),
+            api.getContextStats(activeAgent.id),
+          ]);
+          setGoal(goalResp.goal ?? EMPTY_GOAL);
+          setGoalLoaded(true);
+          setStats(statsResp);
+        }
         setSkills(await api.listSkills());
       }
     } catch (e) {
@@ -1994,36 +2145,253 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
 
   return (
     <aside className="inspector" style={width ? { width } : undefined}>
-      <div className="tabs">
-        {(['events', 'dag', 'approvals', 'interactions', 'artifacts', 'settings', 'context', 'skills'] as const).map((t) => (
-          <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => loadTab(t)}>
-            {t}
-            {t === 'approvals' && approvals.length > 0 && <span className="badge">{approvals.length}</span>}
-            {t === 'interactions' && interactions.length > 0 && <span className="badge">{interactions.length}</span>}
+      <div className="inspector-header">
+        <div className="inspector-title-wrap">
+          <span className="inspector-title">Inspector</span>
+          {activeAgent ? (
+            <span className="inspector-target-badge" title={`Inspecting agent ${activeAgent.display_name} (${activeAgent.role_id})`}>
+              <span className={`state-dot ${activeAgent.state}`} />
+              <span className="badge-name">{activeAgent.display_name}</span>
+            </span>
+          ) : activeProject ? (
+            <span className="inspector-target-badge" title={`Inspecting project ${activeProject.name}`}>
+              <span className="badge-name">{activeProject.name}</span>
+            </span>
+          ) : null}
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            className="inspector-close-btn"
+            title="Close inspector"
+            onClick={onClose}
+          >
+            ✕
           </button>
-        ))}
+        )}
+      </div>
+      <div className="tabs">
+        {(['overview', 'dag', 'approvals', 'interactions', 'artifacts', 'settings', 'events'] as const).map((t) => {
+          const cfg = TAB_CONFIG[t];
+          const hasBadge = (t === 'approvals' && approvals.length > 0) || (t === 'interactions' && interactions.length > 0);
+          const badgeCount = t === 'approvals' ? approvals.length : interactions.length;
+          return (
+            <button
+              key={t}
+              className={`tab ${tab === t ? 'active' : ''} ${hasBadge ? 'has-badge' : ''}`}
+              title={cfg.title}
+              onClick={() => loadTab(t)}
+            >
+              <span className="tab-label">{cfg.label}</span>
+              {hasBadge && <span className="badge">{badgeCount}</span>}
+            </button>
+          );
+        })}
       </div>
       <div className="inspector-body">
-        {tab === 'events' && (
-          <AuditLog
-            agentId={activeAgent?.id ?? null}
-            projectId={activeProject?.id ?? null}
-            liveEvents={liveEvents}
-            onError={onError}
-          />
+        {tab === 'overview' && (
+          <div className="overview-dashboard">
+            {/* 1. Active Agent Status */}
+            <div className="card overview-card">
+              <div className="card-header-row">
+                <span className="card-section-label">Active Agent</span>
+                {activeAgent && (
+                  <span className={`state-badge ${activeAgent.state}`} style={{ marginLeft: 'auto' }}>
+                    {activeAgent.state}
+                  </span>
+                )}
+              </div>
+              {activeAgent ? (
+                <div className="overview-agent-body">
+                  <div className="overview-agent-title-row">
+                    <span className="overview-agent-name">{activeAgent.display_name}</span>
+                    <span className="badge role-badge">{activeAgent.role_id}</span>
+                    {activeAgent.settings.model && (
+                      <span className="badge model-badge">{activeAgent.settings.model}</span>
+                    )}
+                  </div>
+                  <div className="overview-activity-desc">
+                    <span className="activity-label-bold">Status:</span>{' '}
+                    <span className="activity-text">{currentAgentActivity?.label ?? activeAgent.state}</span>
+                  </div>
+                  {stats && (
+                    <div className="overview-metrics-strip">
+                      <div className="overview-metric">
+                        <span className="metric-val">{stats.messages}</span>
+                        <span className="metric-lbl">Messages</span>
+                      </div>
+                      <div className="overview-metric">
+                        <span className="metric-val">{stats.tokens.toLocaleString()}</span>
+                        <span className="metric-lbl">Est. Tokens</span>
+                      </div>
+                      {stats.last_prompt_tokens != null && (
+                        <div className="overview-metric">
+                          <span className="metric-val">{stats.last_prompt_tokens.toLocaleString()}</span>
+                          <span className="metric-lbl">Last Prompt</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="empty-hint">No active agent selected</div>
+              )}
+            </div>
+
+            {/* 2. Pending Actions (Approvals & Prompts) */}
+            {(approvals.length > 0 || interactions.length > 0) && (
+              <div className="overview-attention-section">
+                <div className="overview-section-title">
+                  <span>Action Required ({approvals.length + interactions.length})</span>
+                </div>
+                {approvals.map((approval) => {
+                  const id = approval.id as number | string;
+                  const tool = String(approval.tool_name ?? approval.tool ?? 'tool');
+                  const details = String(approval.details ?? '');
+                  const risk = String(approval.risk_summary ?? '');
+                  return (
+                    <div key={`overview-app-${id}`} className="card approval-card">
+                      <div className="card-header-row">
+                        <span className="badge tool-badge">{tool}</span>
+                        <span className="card-meta" style={{ marginLeft: 'auto', marginBottom: 0 }}>#{String(id)}</span>
+                      </div>
+                      {risk && <div className="approval-risk-banner">[Risk] {risk}</div>}
+                      {details && <div className="approval-details-text">{details}</div>}
+                      <div className="card-actions">
+                        <button className="btn green sm" disabled={deciding !== null} onClick={() => decide(id, 'approve')}>
+                          {deciding === `${id}:approve` ? 'Approving…' : 'Approve'}
+                        </button>
+                        <button className="btn yellow sm" disabled={deciding !== null} onClick={() => decide(id, 'deny')}>
+                          {deciding === `${id}:deny` ? 'Denying…' : 'Deny'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {interactions.map((item) => (
+                  <InteractionCard
+                    key={`overview-prompt-${String(item.interaction_id ?? item.id ?? '')}`}
+                    item={item}
+                    projectId={activeProject?.id ?? null}
+                    onRefresh={onRefreshInteractions}
+                    onError={onError}
+                    onToast={onToast}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* 3. Mechanism & DAG Summary */}
+            {activeProject && (
+              <div className="card overview-card">
+                <div className="card-header-row">
+                  <span className="card-section-label">Mechanism DAG</span>
+                  <span className="badge mode-badge" style={{ marginLeft: 'auto' }}>
+                    {activeProject.settings.orchestration_mode}
+                  </span>
+                </div>
+                <div className="overview-dag-body">
+                  {dagSummary ? (
+                    <div className="overview-dag-stats">
+                      <div className="overview-dag-status-pill">
+                        <span className="dag-status-label">Status:</span>
+                        <span className={`dag-status-val ${dagSummary.draftAccepted ? 'ok' : dagSummary.hasDraft ? 'pending' : 'neutral'}`}>
+                          {dagSummary.draftAccepted ? 'Mechanism Accepted' : dagSummary.hasDraft ? 'Draft Proposed (Pending Review)' : 'No Draft Yet'}
+                        </span>
+                      </div>
+                      <div className="overview-metrics-strip">
+                        <div className="overview-metric">
+                          <span className="metric-val">{dagSummary.nodeCount}</span>
+                          <span className="metric-lbl">Species Nodes</span>
+                        </div>
+                        <div className="overview-metric">
+                          <span className="metric-val">{dagSummary.edgeCount}</span>
+                          <span className="metric-lbl">Elementary Steps</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="empty-hint">Loading DAG summary…</div>
+                  )}
+                  <div className="card-actions" style={{ marginTop: '0.6rem' }}>
+                    <button
+                      type="button"
+                      className="btn outline sm"
+                      onClick={() => loadTab('dag')}
+                    >
+                      Open Interactive DAG →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Quick Project Controls */}
+            {activeProject && (
+              <div className="card overview-card">
+                <div className="card-header-row">
+                  <span className="card-section-label">Quick Controls</span>
+                </div>
+                <div className="overview-controls-grid">
+                  <div className="overview-control-row">
+                    <span className="control-name">Safety Policy</span>
+                    <button
+                      type="button"
+                      className={`btn sm ${activeProject.settings.defaults?.yolo === true ? 'yellow' : 'outline'}`}
+                      onClick={() => onToggleYolo?.(!(activeProject.settings.defaults?.yolo === true))}
+                    >
+                      {activeProject.settings.defaults?.yolo === true ? 'YOLO: ON (Auto-approve)' : 'Guarded (Require Approval)'}
+                    </button>
+                  </div>
+                  <div className="overview-control-row">
+                    <span className="control-name">Orchestration Mode</span>
+                    <select
+                      className="select sm"
+                      value={activeProject.settings.orchestration_mode}
+                      onChange={(e) => onChangeMode?.(e.target.value)}
+                    >
+                      <option value="standard">standard (Direct)</option>
+                      <option value="dag_record">dag_record (Record)</option>
+                      <option value="dag_guided">dag_guided (Supervised)</option>
+                    </select>
+                  </div>
+                  {activeProject.workspace_dir && (
+                    <div className="overview-control-row">
+                      <span className="control-name">Workspace</span>
+                      <span className="mono-path" title={activeProject.workspace_dir}>
+                        {activeProject.workspace_dir}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {tab === 'dag' && (
           activeProject ? (
             <DagPanel project={activeProject} onError={onError} onToast={onToast} />
           ) : (
-            <div className="empty-hint">Select a project first.</div>
+            <div className="inspector-empty-guide">
+              <span className="badge sm">DAG</span>
+              <div className="empty-title">No Project Selected</div>
+              <div className="empty-desc">Select a project on the left to view and edit its mechanism DAG graph.</div>
+            </div>
           )
         )}
 
         {tab === 'approvals' && (
           <>
-            {approvals.length === 0 && <div className="empty-hint">No pending approvals.</div>}
+            {approvals.length === 0 && (
+              <div className="inspector-empty-guide">
+                <span className="badge sm">Approvals</span>
+                <div className="empty-title">No Pending Approvals</div>
+                <div className="empty-desc">
+                  When an agent requests potentially destructive operations (e.g. bash commands or file writes), approval requests will appear here for review.
+                </div>
+              </div>
+            )}
             {approvals.map((approval) => {
               const id = approval.id as number | string;
               const tool = String(approval.tool_name ?? approval.tool ?? 'tool');
@@ -2041,7 +2409,7 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                       #{String(id)}{createdAt ? ` · ${stamp(createdAt)}` : ''}
                     </span>
                   </div>
-                  {risk && <div className="approval-risk-banner">⚠️ {risk}</div>}
+                  {risk && <div className="approval-risk-banner">[Risk] {risk}</div>}
                   {details && <div className="approval-details-text">{details}</div>}
                   {diff && (
                     <div className="approval-diff-wrap">
@@ -2051,10 +2419,10 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
                   )}
                   <div className="card-actions">
                     <button className="btn green sm" disabled={deciding !== null} onClick={() => decide(id, 'approve')}>
-                      {deciding === `${id}:approve` ? 'Approving…' : '✓ Approve'}
+                      {deciding === `${id}:approve` ? 'Approving…' : 'Approve'}
                     </button>
                     <button className="btn yellow sm" disabled={deciding !== null} onClick={() => decide(id, 'deny')}>
-                      {deciding === `${id}:deny` ? 'Denying…' : '✕ Deny'}
+                      {deciding === `${id}:deny` ? 'Denying…' : 'Deny'}
                     </button>
                   </div>
                 </div>
@@ -2065,7 +2433,15 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
 
         {tab === 'interactions' && (
           <>
-            {interactions.length === 0 && <div className="empty-hint">No pending interactions.</div>}
+            {interactions.length === 0 && (
+              <div className="inspector-empty-guide">
+                <span className="badge sm">Prompts</span>
+                <div className="empty-title">No Pending Prompts</div>
+                <div className="empty-desc">
+                  When an agent requires clarification, parameter inputs, or guidance, interactive prompt cards will appear here.
+                </div>
+              </div>
+            )}
             {interactions.map((item) => (
               <InteractionCard
                 key={String(item.interaction_id ?? item.id ?? '')}
@@ -2081,7 +2457,15 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
 
         {tab === 'artifacts' && (
           <>
-            {artifacts.length === 0 && <div className="empty-hint">No artifacts yet.</div>}
+            {artifacts.length === 0 && (
+              <div className="inspector-empty-guide">
+                <span className="badge sm">Artifacts</span>
+                <div className="empty-title">No Artifacts Yet</div>
+                <div className="empty-desc">
+                  Files, molecular structures, and figures generated in this project will appear here for preview and download.
+                </div>
+              </div>
+            )}
             {artifacts.map((artifact) => (
               <div key={String(artifact.artifact_id)} className="card">
                 <div className="card-title">{String(artifact.name)}</div>
@@ -2118,334 +2502,373 @@ function Inspector({ activeAgent, activeProject, liveEvents, onPatchSettings, ap
           </>
         )}
 
-        {tab === 'context' &&
-          (activeAgent ? (
-            <>
-              <div className="ctx-section">
-                <div className="ctx-title">Goal anchor</div>
-                {goalLoaded ? (
-                  <>
+        {tab === 'settings' && (
+          <div className="settings-panel">
+            <div className="settings-subtabs">
+              <button
+                type="button"
+                className={`tab sm ${settingsSubTab === 'model' ? 'active' : ''}`}
+                onClick={() => setSettingsSubTab('model')}
+              >
+                Model & LLM
+              </button>
+              <button
+                type="button"
+                className={`tab sm ${settingsSubTab === 'context' ? 'active' : ''}`}
+                onClick={() => setSettingsSubTab('context')}
+              >
+                Memory & Context
+              </button>
+              <button
+                type="button"
+                className={`tab sm ${settingsSubTab === 'skills' ? 'active' : ''}`}
+                onClick={() => setSettingsSubTab('skills')}
+              >
+                Skills ({skills.length})
+              </button>
+            </div>
+
+            {settingsSubTab === 'model' && (
+              activeAgent ? (
+                <>
+                  <div className="settings-hierarchy-card">
+                    <div className="hierarchy-title">Agent Level Override</div>
+                    <div className="hierarchy-desc">
+                      Settings applied to <b>{activeAgent.display_name}</b> alone. Values left empty inherit from the global config (<b>{activeAgent.role_id === 'coordinator' ? 'Coordinator' : 'Follower'}</b> slot).
+                    </div>
+                  </div>
+                  <label className="field">
+                    model
+                    <input
+                      className="input"
+                      key={`model-${activeAgent.id}`}
+                      list="agent-model-suggestions"
+                      defaultValue={activeAgent.settings.model}
+                      onBlur={(e) => e.target.value !== activeAgent.settings.model && onPatchSettings({ model: e.target.value })}
+                    />
+                    <datalist id="agent-model-suggestions">
+                      <option value="anthropic/claude-sonnet-5" />
+                      <option value="deepseek-v4-pro" />
+                      <option value="openai/gpt-6-astra" />
+                      <option value="google/gemini-3.8-flash" />
+                      <option value="qwen/qwen3.8-max-0902" />
+                      <option value="kimi-for-coding" />
+                      <option value="kimi-k3" />
+                      <option value="glm-5.3" />
+                      <option value="minimax-m3" />
+                      <option value="deepseek-ai/DeepSeek-V4-Pro" />
+                    </datalist>
+                    <span className="field-hint">
+                      empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
+                    </span>
+                  </label>
+                  <label className="field">
+                    base_url
+                    <input
+                      className="input"
+                      key={`url-${activeAgent.id}`}
+                      list="agent-url-suggestions"
+                      defaultValue={activeAgent.settings.base_url}
+                      onBlur={(e) => e.target.value !== activeAgent.settings.base_url && onPatchSettings({ base_url: e.target.value })}
+                    />
+                    <datalist id="agent-url-suggestions">
+                      <option value="https://openrouter.ai/api/v1" label="OpenRouter" />
+                      <option value="https://opencode.ai/zen/go/v1" label="OpenCode Go" />
+                      <option value="https://api.kimi.com/coding/v1" label="Kimi Coding Plan (Kimi Code)" />
+                      <option value="https://api.moonshot.cn/v1" label="Moonshot (Kimi 开放平台)" />
+                      <option value="https://api.deepseek.com" label="DeepSeek" />
+                      <option value="https://api.openai.com/v1" label="OpenAI" />
+                      <option value="https://generativelanguage.googleapis.com/v1beta/openai/" label="Google Gemini" />
+                      <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" label="通义千问 (DashScope)" />
+                      <option value="https://api.siliconflow.cn/v1" label="硅基流动 (SiliconFlow)" />
+                      <option value="https://api.minimaxi.com/v1" label="MiniMax" />
+                      <option value="http://localhost:11434/v1" label="Ollama (Local)" />
+                    </datalist>
+                    <span className="field-hint">
+                      empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
+                    </span>
+                  </label>
+                  <div className="field">
+                    api key
+                    <div className="api-key-row">
+                      <span className={`api-key-state ${activeAgent.settings.api_key_set ? 'ok' : ''}`}>
+                        {activeAgent.settings.api_key_set ? 'overriding' : 'not set'}
+                      </span>
+                      {activeAgent.settings.api_key_set && (
+                        <button className="btn ghost sm" onClick={() => onPatchSettings({ api_key: '' })}>
+                          clear override
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      className="input"
+                      type="password"
+                      autoComplete="off"
+                      key={`key-${activeAgent.id}`}
+                      placeholder={
+                        activeAgent.settings.api_key_set
+                          ? 'type a new key to replace the override…'
+                          : 'type to override the global key for this agent…'
+                      }
+                      onBlur={(e) => {
+                        const value = e.target.value;
+                        e.target.value = '';
+                        if (value) onPatchSettings({ api_key: value });
+                      }}
+                    />
+                    <span className="field-hint">
+                      write-only: the stored key is never shown. Leave the box empty to keep the
+                      current setting; use “clear override” to fall back to the global key.
+                    </span>
+                  </div>
+                  <label className="field-row">
+                    <input type="checkbox" checked={activeAgent.settings.yolo} onChange={(e) => onPatchSettings({ yolo: e.target.checked })} />
+                    YOLO (this agent only; project-wide toggle is in the top bar)
+                  </label>
+                  <label className="field-row" title="Vision tools + image input for this agent">
+                    <input
+                      type="checkbox"
+                      checked={activeAgent.settings.visual_mode !== false}
+                      onChange={(e) => onPatchSettings({ visual_mode: e.target.checked })}
+                    />
+                    Visual (this agent only; project-wide toggle via /visual)
+                  </label>
+                  <label className="field-row" title="Enforce autonomous wake-up timers before stopping">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(activeAgent.settings.schedule_mode)}
+                      onChange={(e) => onPatchSettings({ schedule_mode: e.target.checked })}
+                    />
+                    Schedule mode (autonomous self-wake guard)
+                  </label>
+                  <label className="field" title="Tool invocation protocol for this agent's NEXT run (frozen once a run starts)">
+                    invocation protocol
+                    <select
+                      className="input"
+                      value={activeAgent.settings.invocation_protocol ?? 'javascript'}
+                      onChange={(e) => onPatchSettings({ invocation_protocol: e.target.value })}
+                    >
+                      <option value="traditional">traditional (direct tool calls)</option>
+                      <option value="javascript">javascript (js_exec programs)</option>
+                    </select>
+                    <span className="field-hint">
+                      applies to the next run; the active run keeps its frozen protocol
+                      {activeAgent.current_run?.invocation_protocol &&
+                      activeAgent.current_run.invocation_protocol !==
+                        (activeAgent.settings.invocation_protocol ?? 'javascript')
+                        ? ` — active run: ${activeAgent.current_run.invocation_protocol}`
+                        : ''}
+                    </span>
+                  </label>
+                  <label className="field">
+                    temperature
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="2"
+                      key={`temp-${activeAgent.id}`}
+                      defaultValue={activeAgent.settings.temperature}
+                      onBlur={(e) => Number(e.target.value) !== activeAgent.settings.temperature && onPatchSettings({ temperature: Number(e.target.value) })}
+                    />
+                    <span className="field-hint">sampling temperature, 0–2</span>
+                  </label>
+                  <label className="field" title="Reasoning effort passed as the OpenAI-compatible reasoning_effort parameter">
+                    reasoning effort
+                    <select
+                      className="input"
+                      value={activeAgent.settings.reasoning_effort ?? ''}
+                      onChange={(e) => onPatchSettings({ reasoning_effort: e.target.value || null })}
+                    >
+                      <option value="">default (not sent)</option>
+                      <option value="minimal">minimal</option>
+                      <option value="low">low</option>
+                      <option value="medium">medium</option>
+                      <option value="high">high</option>
+                    </select>
+                    <span className="field-hint">
+                      thinking strength; empty falls back to the global config slot
+                    </span>
+                  </label>
+                  <div className="muted-note">Changes apply to this session on the next LLM request.</div>
+                </>
+              ) : (
+                <div className="inspector-empty-guide">
+                  <span className="badge sm">Settings</span>
+                  <div className="empty-title">Select an Agent</div>
+                  <div className="empty-desc">Pick an agent from the top bar to inspect or override its model and LLM credentials.</div>
+                </div>
+              )
+            )}
+
+            {settingsSubTab === 'context' && (
+              activeAgent ? (
+                <>
+                  <div className="ctx-section">
+                    <div className="ctx-title">Goal anchor</div>
+                    {goalLoaded ? (
+                      <>
+                        <label className="field">
+                          objective
+                          <input
+                            className="input"
+                            value={goal.objective}
+                            onChange={(e) => setGoal((g) => ({ ...g, objective: e.target.value }))}
+                          />
+                        </label>
+                        <label className="field">
+                          completion_criteria
+                          <input
+                            className="input"
+                            value={goal.completion_criteria}
+                            onChange={(e) => setGoal((g) => ({ ...g, completion_criteria: e.target.value }))}
+                          />
+                        </label>
+                        <label className="field">
+                          current_focus
+                          <input
+                            className="input"
+                            value={goal.current_focus}
+                            onChange={(e) => setGoal((g) => ({ ...g, current_focus: e.target.value }))}
+                          />
+                        </label>
+                        <button
+                          className="btn primary sm"
+                          onClick={async () => {
+                            try {
+                              await api.setGoal(activeAgent.id, goal);
+                              onToast('ok', 'Goal saved');
+                            } catch (e) {
+                              onError(e);
+                            }
+                          }}
+                        >
+                          Save
+                        </button>
+                      </>
+                    ) : (
+                      <div className="empty-hint">Loading goal…</div>
+                    )}
+                  </div>
+
+                  <div className="ctx-section">
+                    <div className="ctx-title">
+                      Context stats
+                      <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={refreshStats}>
+                        Refresh
+                      </button>
+                    </div>
+                    {stats ? (
+                      <>
+                        <div className="stats-metric-grid">
+                          <div className="stat-metric-card">
+                            <span className="stat-metric-val">{stats.messages}</span>
+                            <span className="stat-metric-lbl">Messages</span>
+                          </div>
+                          <div className="stat-metric-card">
+                            <span className="stat-metric-val">{stats.tokens.toLocaleString()}</span>
+                            <span className="stat-metric-lbl">Est. Tokens</span>
+                          </div>
+                          <div className="stat-metric-card">
+                            <span className="stat-metric-val">{stats.last_prompt_tokens != null ? stats.last_prompt_tokens.toLocaleString() : '—'}</span>
+                            <span className="stat-metric-lbl">Last Prompt</span>
+                          </div>
+                        </div>
+                        <table className="ctx-table">
+                          <thead>
+                            <tr>
+                              <th>role</th>
+                              <th>messages</th>
+                              <th>tokens</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(stats.by_role).map(([role, s]) => (
+                              <tr key={role}>
+                                <td>{role}</td>
+                                <td>{s.messages}</td>
+                                <td>{s.tokens}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className="muted-note">
+                          tokens estimated from persisted events; last_prompt_tokens is the exact value from the latest LLM call
+                        </div>
+                      </>
+                    ) : (
+                      <div className="empty-hint">Loading stats…</div>
+                    )}
+                  </div>
+
+                  <div className="ctx-section">
+                    <div className="ctx-title">Compact context</div>
                     <label className="field">
-                      objective
+                      keep_recent
                       <input
                         className="input"
-                        value={goal.objective}
-                        onChange={(e) => setGoal((g) => ({ ...g, objective: e.target.value }))}
-                      />
-                    </label>
-                    <label className="field">
-                      completion_criteria
-                      <input
-                        className="input"
-                        value={goal.completion_criteria}
-                        onChange={(e) => setGoal((g) => ({ ...g, completion_criteria: e.target.value }))}
-                      />
-                    </label>
-                    <label className="field">
-                      current_focus
-                      <input
-                        className="input"
-                        value={goal.current_focus}
-                        onChange={(e) => setGoal((g) => ({ ...g, current_focus: e.target.value }))}
+                        type="number"
+                        min={1}
+                        value={keepRecent}
+                        onChange={(e) => setKeepRecent(Math.max(1, Number(e.target.value) || 1))}
                       />
                     </label>
                     <button
-                      className="btn primary sm"
+                      className="btn outline sm"
                       onClick={async () => {
                         try {
-                          await api.setGoal(activeAgent.id, goal);
-                          onToast('ok', 'Goal saved');
+                          await api.compactAgent(activeAgent.id, keepRecent);
+                          onToast('ok', 'Compaction queued — applies on the next turn');
                         } catch (e) {
                           onError(e);
                         }
                       }}
                     >
-                      Save
+                      Compact
                     </button>
-                  </>
-                ) : (
-                  <div className="empty-hint">Loading goal…</div>
-                )}
-              </div>
-
-              <div className="ctx-section">
-                <div className="ctx-title">
-                  Context stats
-                  <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={refreshStats}>
-                    Refresh
-                  </button>
+                  </div>
+                </>
+              ) : (
+                <div className="inspector-empty-guide">
+                  <span className="badge sm">Context</span>
+                  <div className="empty-title">Select an Agent</div>
+                  <div className="empty-desc">Pick an agent from the top bar to inspect its goal anchor, token stats, and context memory.</div>
                 </div>
-                {stats ? (
-                  <>
-                    <div className="ctx-row">
-                      <span>messages</span>
-                      <span>{stats.messages}</span>
-                    </div>
-                    <div className="ctx-row">
-                      <span>tokens</span>
-                      <span>{stats.tokens}</span>
-                    </div>
-                    <div className="ctx-row">
-                      <span>last prompt tokens</span>
-                      <span>{stats.last_prompt_tokens ?? '—'}</span>
-                    </div>
-                    <table className="ctx-table">
-                      <thead>
-                        <tr>
-                          <th>role</th>
-                          <th>messages</th>
-                          <th>tokens</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(stats.by_role).map(([role, s]) => (
-                          <tr key={role}>
-                            <td>{role}</td>
-                            <td>{s.messages}</td>
-                            <td>{s.tokens}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="muted-note">
-                      tokens estimated from persisted events; last_prompt_tokens is the exact value from the latest LLM call
-                    </div>
-                  </>
-                ) : (
-                  <div className="empty-hint">Loading stats…</div>
+              )
+            )}
+
+            {settingsSubTab === 'skills' && (
+              <>
+                {skills.length === 0 && (
+                  <div className="inspector-empty-guide">
+                    <span className="badge sm">Skills</span>
+                    <div className="empty-title">No Skills Found</div>
+                    <div className="empty-desc">No specialized skills are registered for the current agent or environment.</div>
+                  </div>
                 )}
-              </div>
-
-              <div className="ctx-section">
-                <div className="ctx-title">Compact context</div>
-                <label className="field">
-                  keep_recent
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={keepRecent}
-                    onChange={(e) => setKeepRecent(Math.max(1, Number(e.target.value) || 1))}
-                  />
-                </label>
-                <button
-                  className="btn outline sm"
-                  onClick={async () => {
-                    try {
-                      await api.compactAgent(activeAgent.id, keepRecent);
-                      onToast('ok', 'Compaction queued — applies on the next turn');
-                    } catch (e) {
-                      onError(e);
-                    }
-                  }}
-                >
-                  Compact
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="empty-hint">Select an agent…</div>
-          ))}
-
-        {tab === 'skills' && (
-          <>
-            {skills.length === 0 && <div className="empty-hint">No skills found.</div>}
-            {skills.map((skill) => (
-              <details key={String(skill.name)} className="skill-item">
-                <summary>
-                  <span className="skill-name">{String(skill.name ?? '(unnamed)')}</span>
-                  {skill.description != null && <span className="skill-desc">{String(skill.description)}</span>}
-                </summary>
-                <div className="skill-body">{String(skill.content ?? '')}</div>
-              </details>
-            ))}
-          </>
+                {skills.map((skill) => (
+                  <details key={String(skill.name)} className="skill-item">
+                    <summary>
+                      <span className="skill-name">{String(skill.name ?? '(unnamed)')}</span>
+                      {skill.description != null && <span className="skill-desc">{String(skill.description)}</span>}
+                    </summary>
+                    <div className="skill-body">{String(skill.content ?? '')}</div>
+                  </details>
+                ))}
+              </>
+            )}
+          </div>
         )}
 
-        {tab === 'settings' &&
-          (activeAgent ? (
-            <>
-              <div className="settings-note">
-                <div className="settings-note-title">Agent override — this session only</div>
-                <ul>
-                  <li>
-                    Edits the effective settings of <b>{activeAgent.display_name}</b> alone: a
-                    field-level override layered on top of project defaults and role defaults.
-                  </li>
-                  <li>
-                    Other agents — including sub-agents spawned later — are <b>not</b> affected
-                    and do not inherit these overrides.
-                  </li>
-                  <li>
-                    Empty model / base_url / api key fall back to the global config (
-                    <b>{activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'}</b>{' '}
-                    slot for this role).
-                  </li>
-                  <li>
-                    Effective on the next LLM request. The api key can be overridden per agent
-                    (write-only: the stored value is never shown).
-                  </li>
-                </ul>
-              </div>
-              <label className="field">
-                model
-                <input
-                  className="input"
-                  key={`model-${activeAgent.id}`}
-                  list="agent-model-suggestions"
-                  defaultValue={activeAgent.settings.model}
-                  onBlur={(e) => e.target.value !== activeAgent.settings.model && onPatchSettings({ model: e.target.value })}
-                />
-                <datalist id="agent-model-suggestions">
-                  <option value="anthropic/claude-sonnet-5" />
-                  <option value="deepseek-v4-pro" />
-                  <option value="openai/gpt-6-astra" />
-                  <option value="google/gemini-3.8-flash" />
-                  <option value="qwen/qwen3.8-max-0902" />
-                  <option value="kimi-for-coding" />
-                  <option value="kimi-k3" />
-                  <option value="glm-5.3" />
-                  <option value="minimax-m3" />
-                  <option value="deepseek-ai/DeepSeek-V4-Pro" />
-                </datalist>
-                <span className="field-hint">
-                  empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
-                </span>
-              </label>
-              <label className="field">
-                base_url
-                <input
-                  className="input"
-                  key={`url-${activeAgent.id}`}
-                  list="agent-url-suggestions"
-                  defaultValue={activeAgent.settings.base_url}
-                  onBlur={(e) => e.target.value !== activeAgent.settings.base_url && onPatchSettings({ base_url: e.target.value })}
-                />
-                <datalist id="agent-url-suggestions">
-                  <option value="https://openrouter.ai/api/v1" label="OpenRouter" />
-                  <option value="https://opencode.ai/zen/go/v1" label="OpenCode Go" />
-                  <option value="https://api.kimi.com/coding/v1" label="Kimi Coding Plan (Kimi Code)" />
-                  <option value="https://api.moonshot.cn/v1" label="Moonshot (Kimi 开放平台)" />
-                  <option value="https://api.deepseek.com" label="DeepSeek" />
-                  <option value="https://api.openai.com/v1" label="OpenAI" />
-                  <option value="https://generativelanguage.googleapis.com/v1beta/openai/" label="Google Gemini" />
-                  <option value="https://dashscope.aliyuncs.com/compatible-mode/v1" label="通义千问 (DashScope)" />
-                  <option value="https://api.siliconflow.cn/v1" label="硅基流动 (SiliconFlow)" />
-                  <option value="https://api.minimaxi.com/v1" label="MiniMax" />
-                  <option value="http://localhost:11434/v1" label="Ollama (Local)" />
-                </datalist>
-                <span className="field-hint">
-                  empty → global config ({activeAgent.role_id === 'coordinator' ? 'coordinator' : 'follower'} slot)
-                </span>
-              </label>
-              <div className="field">
-                api key
-                <div className="api-key-row">
-                  <span className={`api-key-state ${activeAgent.settings.api_key_set ? 'ok' : ''}`}>
-                    {activeAgent.settings.api_key_set ? 'overriding' : 'not set'}
-                  </span>
-                  {activeAgent.settings.api_key_set && (
-                    <button className="btn ghost sm" onClick={() => onPatchSettings({ api_key: '' })}>
-                      clear override
-                    </button>
-                  )}
-                </div>
-                <input
-                  className="input"
-                  type="password"
-                  autoComplete="off"
-                  key={`key-${activeAgent.id}`}
-                  placeholder={
-                    activeAgent.settings.api_key_set
-                      ? 'type a new key to replace the override…'
-                      : 'type to override the global key for this agent…'
-                  }
-                  onBlur={(e) => {
-                    const value = e.target.value;
-                    e.target.value = '';
-                    if (value) onPatchSettings({ api_key: value });
-                  }}
-                />
-                <span className="field-hint">
-                  write-only: the stored key is never shown. Leave the box empty to keep the
-                  current setting; use “clear override” to fall back to the global key.
-                </span>
-              </div>
-              <label className="field-row">
-                <input type="checkbox" checked={activeAgent.settings.yolo} onChange={(e) => onPatchSettings({ yolo: e.target.checked })} />
-                YOLO (this agent only; project-wide toggle is in the top bar)
-              </label>
-              <label className="field-row" title="Vision tools + image input for this agent">
-                <input
-                  type="checkbox"
-                  checked={activeAgent.settings.visual_mode !== false}
-                  onChange={(e) => onPatchSettings({ visual_mode: e.target.checked })}
-                />
-                Visual (this agent only; project-wide toggle via /visual)
-              </label>
-              <label className="field-row" title="Enforce autonomous wake-up timers before stopping">
-                <input
-                  type="checkbox"
-                  checked={Boolean(activeAgent.settings.schedule_mode)}
-                  onChange={(e) => onPatchSettings({ schedule_mode: e.target.checked })}
-                />
-                Schedule mode (autonomous self-wake guard)
-              </label>
-              <label className="field" title="Tool invocation protocol for this agent's NEXT run (frozen once a run starts)">
-                invocation protocol
-                <select
-                  className="input"
-                  value={activeAgent.settings.invocation_protocol ?? 'javascript'}
-                  onChange={(e) => onPatchSettings({ invocation_protocol: e.target.value })}
-                >
-                  <option value="traditional">traditional (direct tool calls)</option>
-                  <option value="javascript">javascript (js_exec programs)</option>
-                </select>
-                <span className="field-hint">
-                  applies to the next run; the active run keeps its frozen protocol
-                  {activeAgent.current_run?.invocation_protocol &&
-                  activeAgent.current_run.invocation_protocol !==
-                    (activeAgent.settings.invocation_protocol ?? 'javascript')
-                    ? ` — active run: ${activeAgent.current_run.invocation_protocol}`
-                    : ''}
-                </span>
-              </label>
-              <label className="field">
-                temperature
-                <input
-                  className="input"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="2"
-                  key={`temp-${activeAgent.id}`}
-                  defaultValue={activeAgent.settings.temperature}
-                  onBlur={(e) => Number(e.target.value) !== activeAgent.settings.temperature && onPatchSettings({ temperature: Number(e.target.value) })}
-                />
-                <span className="field-hint">sampling temperature, 0–2</span>
-              </label>
-              <label className="field" title="Reasoning effort passed as the OpenAI-compatible reasoning_effort parameter">
-                reasoning effort
-                <select
-                  className="input"
-                  value={activeAgent.settings.reasoning_effort ?? ''}
-                  onChange={(e) => onPatchSettings({ reasoning_effort: e.target.value || null })}
-                >
-                  <option value="">default (not sent)</option>
-                  <option value="minimal">minimal</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                </select>
-                <span className="field-hint">
-                  thinking strength; empty falls back to the global config slot
-                </span>
-              </label>
-              <div className="muted-note">Changes apply to this session on the next LLM request.</div>
-            </>
-          ) : (
-            <div className="empty-hint">Select an agent to edit settings.</div>
-          ))}
+        {tab === 'events' && (
+          <AuditLog
+            agentId={activeAgent?.id ?? null}
+            projectId={activeProject?.id ?? null}
+            liveEvents={liveEvents}
+            onError={onError}
+          />
+        )}
       </div>
     </aside>
   );

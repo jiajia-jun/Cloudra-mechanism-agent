@@ -197,7 +197,7 @@ function SlotSection({
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             onClick={() => onConnectOpenRouter(slot)}
           >
-            <span>🔗</span> 登录 OpenRouter 账号授权 (OAuth PKCE)
+            登录 OpenRouter 账号授权 (OAuth PKCE)
           </button>
           <span className="field-hint" style={{ display: 'inline-block', marginLeft: '0.6rem' }}>
             无需手动查找或粘贴 Key，跳转 OpenRouter 官网一键授权绑定

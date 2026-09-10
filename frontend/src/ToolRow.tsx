@@ -16,9 +16,9 @@ function statusView(item: ToolItem): { icon: string; cls: string } {
     case 'running':
       return { icon: '▸', cls: 'running' };
     case 'waiting':
-      return { icon: '⏸', cls: 'waiting' };
+      return { icon: '||', cls: 'waiting' };
     case 'blocked':
-      return { icon: '⛔', cls: 'fail' };
+      return { icon: '!', cls: 'fail' };
     case 'completed':
       return { icon: '✓', cls: 'ok' };
     case 'failed':

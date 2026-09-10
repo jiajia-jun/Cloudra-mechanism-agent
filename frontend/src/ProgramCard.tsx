@@ -74,6 +74,65 @@ function SourcePanel({
   );
 }
 
+function getProgramSummary(item: ProgramItem): { title: string; summary: string; tag: string } {
+  const activeChild =
+    item.children.find((c) => c.running || c.status === 'running' || c.status === 'waiting') ??
+    item.children[item.children.length - 1];
+
+  if (activeChild) {
+    if (activeChild.running || activeChild.status === 'running') {
+      return {
+        tag: 'JS',
+        title: activeChild.name,
+        summary: `running: ${activeChild.argsSummary || 'executing…'}`,
+      };
+    }
+    if (activeChild.status === 'waiting') {
+      return {
+        tag: 'JS',
+        title: activeChild.name,
+        summary: `waiting for approval: ${activeChild.argsSummary || ''}`,
+      };
+    }
+  }
+
+  if (item.children.length === 1) {
+    const c = item.children[0];
+    return {
+      tag: 'JS',
+      title: c.name,
+      summary: c.argsSummary ? `${c.argsSummary} (${c.status ?? 'done'})` : (c.resultSummary || c.status || 'done'),
+    };
+  }
+
+  if (item.children.length > 1) {
+    const toolNames = Array.from(new Set(item.children.map((c) => c.name))).join(', ');
+    const completed = item.children.filter((c) => c.status === 'completed').length;
+    return {
+      tag: 'JS',
+      title: `${item.children.length} operations`,
+      summary: `${completed}/${item.children.length} completed: ${toolNames}`,
+    };
+  }
+
+  if (item.source) {
+    const callMatch = item.source.match(/call\s*\(\s*['"]([a-zA-Z0-9_]+)['"]/);
+    if (callMatch) {
+      return {
+        tag: 'JS',
+        title: callMatch[1],
+        summary: item.status === 'running' ? `initializing ${callMatch[1]}…` : item.status,
+      };
+    }
+  }
+
+  return {
+    tag: 'JS',
+    title: 'Script',
+    summary: item.status === 'running' ? 'running…' : item.status,
+  };
+}
+
 export function ProgramCardView({
   item,
   childImageUrl,
@@ -82,10 +141,6 @@ export function ProgramCardView({
   childImageUrl?: (child: ToolItem) => string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const completed = item.children.filter((child) => child.status === 'completed').length;
-  const failed = item.children.filter(
-    (child) => child.status != null && !['completed', 'queued', 'running', 'waiting'].includes(child.status),
-  ).length;
   const waiting = item.children.find((child) => child.status === 'waiting');
   const icon = STATUS_ICON[item.status] ?? '?';
   const cls = item.status === 'running' ? 'running' : item.status === 'completed' ? 'ok' : item.status === 'unknown' ? 'queued' : 'fail';
@@ -93,24 +148,48 @@ export function ProgramCardView({
     item.error && typeof item.error.line === 'number' && item.source
       ? Math.min(Math.max(1, item.error.line), item.source.split('\n').length)
       : null;
+
+  const headerInfo = getProgramSummary(item);
+
   return (
     <div className={`program-card ${cls}`}>
       <div className="tool-row program-head" onClick={() => setOpen((v) => !v)}>
         <span className="tool-icon">{icon}</span>
-        <span className="tool-name">JavaScript program</span>
+        <span className="program-tag">{headerInfo.tag}</span>
+        <span className="tool-name">{headerInfo.title}</span>
         <span className="tool-sep">·</span>
-        <span className="tool-summary">
-          {item.status === 'running'
-            ? `running… ${completed}/${item.children.length} calls completed`
-            : `${item.status} · ${completed}/${item.children.length} calls completed${failed > 0 ? ` · ${failed} failed` : ''}`}
-        </span>
+        <span className="tool-summary">{headerInfo.summary}</span>
         {item.sourceHash && <span className="tool-sep">sha {item.sourceHash.slice(0, 8)}</span>}
+        <button
+          type="button"
+          className="btn ghost sm program-code-toggle"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          title="Toggle JavaScript source code and execution output"
+        >
+          {open ? 'Hide Code' : 'View Code'}
+        </button>
       </div>
+
       {waiting && (
         <div className="program-waiting">
-          ⏸ <code>{waiting.name}</code> is waiting for approval — see the approvals tab
+          <span className="badge warning sm" style={{ marginRight: '6px' }}>Review Required</span>
+          <code>{waiting.name}</code> is waiting for approval — review in Approvals tab
         </div>
       )}
+
+      {/* Child tool rows are transparent and displayed directly */}
+      {item.children.length > 0 && (
+        <div className="program-children-direct">
+          {item.children.map((child) => (
+            <ToolRow key={child.id} item={child} imageUrl={childImageUrl ? childImageUrl(child) : null} />
+          ))}
+        </div>
+      )}
+
+      {/* Collapsible raw JS code & execution details */}
       {open && (
         <div className="program-body">
           {item.source != null ? (
@@ -139,13 +218,6 @@ export function ProgramCardView({
                   .filter(Boolean)
                   .join(' — ')}
               </pre>
-            </div>
-          )}
-          {item.children.length > 0 && (
-            <div className="program-children">
-              {item.children.map((child) => (
-                <ToolRow key={child.id} item={child} imageUrl={childImageUrl ? childImageUrl(child) : null} />
-              ))}
             </div>
           )}
         </div>

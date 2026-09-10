@@ -29,18 +29,18 @@ interface BenchmarkPanelProps {
 const TIERS = ['easy', 'normal', 'hard', 'impossible'];
 
 const STATUS_BADGES: Record<string, { glyph: string; label: string; cls: string }> = {
-  queued: { glyph: '⏸', label: 'Queued', cls: 'queued' },
-  running: { glyph: '⏳', label: 'Running', cls: 'running' },
-  scored: { glyph: '✅', label: 'Scored', cls: 'scored' },
-  cancelled: { glyph: '🚫', label: 'Cancelled', cls: 'cancelled' },
-  error: { glyph: '❌', label: 'Error', cls: 'error' },
+  queued: { glyph: '·', label: 'Queued', cls: 'queued' },
+  running: { glyph: '▸', label: 'Running', cls: 'running' },
+  scored: { glyph: '✓', label: 'Scored', cls: 'scored' },
+  cancelled: { glyph: '—', label: 'Cancelled', cls: 'cancelled' },
+  error: { glyph: '✗', label: 'Error', cls: 'error' },
 };
 
 function badge(row: BenchmarkTaskRow): { glyph: string; label: string; cls: string } {
   if (row.status === 'scored' && row.outcome === 'refused') {
-    return { glyph: '🚫', label: 'Refused', cls: 'cancelled' };
+    return { glyph: '—', label: 'Refused', cls: 'cancelled' };
   }
-  return STATUS_BADGES[row.status] ?? { glyph: '•', label: row.status, cls: 'queued' };
+  return STATUS_BADGES[row.status] ?? { glyph: '·', label: row.status, cls: 'queued' };
 }
 
 function fmtNum(v: number | null | undefined, digits = 3): string {
