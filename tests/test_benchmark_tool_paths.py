@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,10 @@ _METHANE_XYZ = (
 
 
 _RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
+
+# 计算资源由 agent 显式申请、节点按容量硬校验：CI runner 只 2 核，写死 cpus=4
+# 会在 2 核 runner 上被合法拒收（同 tests/test_xtb_channel.py 的口径）。
+_TEST_CPUS = max(1, min(2, os.cpu_count() or 1))
 # qm_input_writer 在缺 RDKit 时整体拒工（工具首个前置检查），因此走 writer 的
 # 用例需要 chem extra；盘点类/原语类用例不依赖 RDKit，始终运行。
 _REQUIRES_RDKIT = pytest.mark.skipif(
@@ -222,7 +227,7 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
         {
             "source_type": "xyz_file",
             "source_value": "xyz/water.xyz",
-            "engine": "gaussian",
+            "engine": "gaussian", "nproc": _TEST_CPUS,
             "output_dir": "calc/input.gjf",
         },
     )
@@ -232,7 +237,7 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
         executor,
         agent,
         "submit_compute_job",
-        {"input_file": "calc/input.gjf", "job_type": "gaussian", "is_async": False, "cpus": 4},
+        {"input_file": "calc/input.gjf", "job_type": "gaussian", "is_async": False, "cpus": _TEST_CPUS},
     )
     assert submitted.is_success, submitted.summary
     assert submitted.data["state"] == "done"
@@ -295,7 +300,7 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
             {
                 "source_type": "xyz_file",
                 "source_value": str(workspace / "src.xyz"),
-                "engine": "gaussian",
+                "engine": "gaussian", "nproc": _TEST_CPUS,
                 "output_dir": "calc/input.gjf",
             },
         )
@@ -304,7 +309,7 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
             executor,
             agent,
             "submit_compute_job",
-            {"input_file": "calc/input.gjf", "job_type": "gaussian", "is_async": False, "cpus": 4},
+            {"input_file": "calc/input.gjf", "job_type": "gaussian", "is_async": False, "cpus": _TEST_CPUS},
         )
         assert submitted.is_success, submitted.summary
         return submitted

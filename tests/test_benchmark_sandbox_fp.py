@@ -91,17 +91,29 @@ _BARRIER = "Done. The computed barrier is 5.0 kcal/mol."
 # CLI 子 agent 完整链（smiles → writer → 同步 submit → query → parser）。
 # 同步 submit 由真实 guard 阻塞到终态（确定性同步点：monitor 启动耗时不参与
 # 竞速），parse 必然读到已完成的日志。
-_CHILD_SYNC_CHAIN_PROGRAM = r"""
+# 计算资源由 agent 显式申请、节点按容量硬校验：申请超过本机核数会被合法拒收
+# （那是 submit 工具的正确行为，不是被测的链路行为）。CI runner 只有 2 核，
+# 所以脚本申请 min(2, 本机核数)，与 tests/test_xtb_channel.py 的既有口径一致。
+_TEST_CPUS = max(1, min(2, os.cpu_count() or 1))
+_CPUS_TOKEN = "__CPUS__"
+
+
+def _fit_cpus(program: str) -> str:
+    """把脚本里的 __CPUS__ 占位换成这台机器真能申请到的核数。"""
+    return program.replace(_CPUS_TOKEN, str(_TEST_CPUS))
+
+_CHILD_SYNC_CHAIN_PROGRAM = _fit_cpus(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
+  nproc: __CPUS__,
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
   const s = await tools.submit_compute_job({
-    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: 4,
+    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: __CPUS__,
   });
   if (!s.is_success) { text("SUBMIT FAIL: " + s.summary); }
   else {
@@ -114,48 +126,50 @@ else {
     }
   }
 }
-"""
+""")
 
 # 父 agent（run2）：异步提交同一输入（真实 scheduler 认领 → guard → 引擎），
 # 随后按真实门禁挂起等唤醒；终态由 watcher 的 compute.db 判定收口。
-_PARENT_ASYNC_SUBMIT_PROGRAM = r"""
+_PARENT_ASYNC_SUBMIT_PROGRAM = _fit_cpus(r"""
 const s = await tools.submit_compute_job({
-  input_file: "calc/input.gjf", job_type: "gaussian", is_async: true, cpus: 4,
+  input_file: "calc/input.gjf", job_type: "gaussian", is_async: true, cpus: __CPUS__,
 });
 if (!s.is_success) { text("PARENT SUBMIT FAIL: " + s.summary); }
 else { text("PARENT SUBMITTED job=" + s.data.job_id + " state=" + s.data.state); }
-"""
+""")
 
 # 引擎失败 → 修正后重提：第一次同步提交必须带回 failed 回执（含编号），
 # 第二次同输入成功，两个编号不同、旧失败记录保留。
-_CHILD_FAIL_THEN_RESUBMIT_PROGRAM = r"""
+_CHILD_FAIL_THEN_RESUBMIT_PROGRAM = _fit_cpus(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
+  nproc: __CPUS__,
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
   const first = await tools.submit_compute_job({
-    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: 4,
+    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: __CPUS__,
   });
   text("FIRST ok=" + first.is_success + " job=" + first.data.job_id +
        " state=" + first.data.state);
 }
-"""
+""")
 
-_CHILD_RESUBMIT_CHAIN_PROGRAM = r"""
+_CHILD_RESUBMIT_CHAIN_PROGRAM = _fit_cpus(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
+  nproc: __CPUS__,
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
   const s = await tools.submit_compute_job({
-    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: 4,
+    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: __CPUS__,
   });
   if (!s.is_success) { text("SECOND STILL FAILED: " + s.summary); }
   else {
@@ -165,7 +179,7 @@ else {
          " engine=" + p.data.engine);
   }
 }
-"""
+""")
 
 # 非法输入 → 可解释失败且无半成品；纠正后继续。
 _CHILD_MALFORMED_THEN_CORRECTED_PROGRAM = r"""
@@ -193,17 +207,18 @@ text("WRITTEN bad=" + badWrite.is_success + " good=" + goodWrite.is_success +
      " | BAD OPTION ok=" + badOption.is_success);
 """
 
-_CHILD_CORRECTED_CHAIN_PROGRAM = r"""
+_CHILD_CORRECTED_CHAIN_PROGRAM = _fit_cpus(r"""
 const w = await tools.qm_input_writer({
   source_type: "xyz_file", source_value: "xyz/water.xyz",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
+  nproc: __CPUS__,
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
   const s = await tools.submit_compute_job({
-    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: 4,
+    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: __CPUS__,
   });
   if (!s.is_success) { text("SUBMIT FAIL: " + s.summary); }
   else {
@@ -211,7 +226,7 @@ else {
     text("CORRECTED job=" + s.data.job_id + " engine=" + p.data.engine);
   }
 }
-"""
+""")
 
 # JS 业务失败 envelope：工具 is_success=false 时后续脚本不得当成成功。
 _CHILD_BUSINESS_FAILURE_PROGRAM = r"""
@@ -224,17 +239,18 @@ if (parsed.is_success) {
 """
 
 # Web 路径子 agent：提交后不轮询——ComputeNotifyBroker 回传唤醒后 query+parser。
-_CHILD_PREP_PROGRAM = r"""
+_CHILD_PREP_PROGRAM = _fit_cpus(r"""
 const w = await tools.qm_input_writer({
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
+  nproc: __CPUS__,
   output_dir: "calc/input.gjf",
 });
 if (!w.is_success) { text("WRITER FAIL: " + w.summary); }
 else {
   const s = await tools.submit_compute_job({
-    input_file: w.data.input_path, job_type: "gaussian", is_async: true, cpus: 4,
+    input_file: w.data.input_path, job_type: "gaussian", is_async: true, cpus: __CPUS__,
   });
   if (!s.is_success) { text("SUBMIT FAIL: " + s.summary); }
   else {
@@ -242,7 +258,7 @@ else {
     text("SUBMITTED job=" + s.data.job_id + " state=" + q.data.jobs[0].state);
   }
 }
-"""
+""")
 
 _CHILD_QUERY_PARSE_PROGRAM = r"""
 const q = await tools.query_compute_job({});
@@ -710,11 +726,12 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
         calls(1, [("qm_input_writer", {
             "source_type": "smiles", "source_value": "O",
             "method": "b3lyp", "basis_set": "6-31g(d)",
-            "task_type": [{"sp": None}], "output_dir": "calc/input.gjf",
+            "task_type": [{"sp": None}], "nproc": _TEST_CPUS,
+            "output_dir": "calc/input.gjf",
         })]),
         calls(2, [("submit_compute_job", {
             "input_file": "calc/input.gjf", "job_type": "gaussian",
-            "is_async": True, "cpus": 4,
+            "is_async": True, "cpus": _TEST_CPUS,
         })], expect=Receipt(tool="qm_input_writer", is_success=True)),
         calls(3, [("query_compute_job", job_id_of)], expect=Receipt(
             tool="submit_compute_job", is_success=True)),
@@ -960,12 +977,14 @@ const w = await tools.qm_input_writer({{
   source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{{ "freq": null }}],
+  nproc: {_TEST_CPUS},
   output_dir: "calc/input.gjf",
 }});
 if (!w.is_success) {{ text("WRITER FAIL: " + w.summary); }}
 else {{
   const s = await tools.submit_compute_job({{
-    input_file: w.data.input_path, job_type: "gaussian", is_async: false, cpus: 4,
+    input_file: w.data.input_path, job_type: "gaussian", is_async: false,
+    cpus: {_TEST_CPUS},
   }});
   if (!s.is_success) {{ text("SUBMIT FAIL: " + s.summary); }}
   else {{

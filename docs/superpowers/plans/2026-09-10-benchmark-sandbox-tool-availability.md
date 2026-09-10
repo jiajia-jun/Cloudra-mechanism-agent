@@ -317,3 +317,29 @@ CI 的"模块不存在"）跑全套。修复后该模拟环境全套 **0 失败*
 
 教训：**可选依赖（chem extra / 外部二进制）在测试里只能探测、不能假设**；CI 的依赖集合
 （`.[dev]`）与新用例的隐含依赖必须对齐，否则本地全绿、CI 全红。
+
+#### 第二轮：独立 `js-host` job 暴露的两类"环境假设"缺陷（已根治）
+
+把宿主门禁拆成独立 job（node 22 + 宿主依赖 + rdkit）后，CI 又红了两次，根因都不在
+被测代码，而在测试对环境的**隐含假设**：
+
+1. **申请的计算资源超过 runner 容量**：脚本化 agent 写死 `cpus: 4`，GitHub runner
+   只有 2 核，`submit_compute_job` 按节点容量硬校验 → 合法拒收（`job_id: -1`），
+   8 个全链路用例全红；把 cpus 降到 2 后又触发另一道**正确**的校验：
+   `qm_input_writer` 默认 `nproc=4` 写进 `%nprocshared`，而申请 `cpus=2` 属于
+   "under-declaring oversubscribes the node"。修法是让脚本按本机真实容量申请
+   （`_TEST_CPUS = max(1, min(2, os.cpu_count() or 1))`，与
+   `tests/test_xtb_channel.py` 的既有口径一致），并让 writer 的 `nproc` 与 submit
+   的 `cpus` 同源。复现手段：`os.cpu_count` 打桩成 2 的 pytest 插件（节点容量正是
+   由 `nodes.default_resources()` 按 `os.cpu_count()` 推导），本地 10 核机上就能
+   精确复现 2 核 runner 的行为——修前必红、修后全绿。
+2. **`--cov` 在 Python 3.12 上把解析型用例拖慢 3~4 倍**：同一 venv、
+   3.11 1m50s / 3.12 6m44s；去掉 `--cov` 两版都 ~2min（`COVERAGE_CORE=ctrace`
+   无效，`--durations` 显示 `test_scoring_ignores_prose_barrier` 等从 <2s 涨到
+   26~29s）。矩阵三格都出覆盖率会让 3.12 顶破 15 分钟 job 超时（实测在 93%、100%
+   处被 cancel）。修法：**覆盖率只在 3.11 那一格出**（覆盖数字与解释器版本无关），
+   3.12/3.13 只跑 `pytest -q`。
+
+教训（与正则那条同源）：**测试里任何"环境必然如此"的假设都是假门禁**——可选依赖要
+探测、资源申请要按本机容量、工具链开销要按解释器版本核对；本地全绿不等于 CI 全绿，
+因为 CI 的依赖集合、核数与工具版本都与开发机不同。
