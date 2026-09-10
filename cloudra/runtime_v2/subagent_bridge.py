@@ -88,6 +88,8 @@ async def _spawn_child(
                 "settings": {
                     "orchestration_mode": _child_mode(parent),
                     "yolo": parent.settings.yolo,
+                    # 无人值守继承：子 agent 同样没有可对话的人（GH #31）。
+                    "unattended": parent.settings.unattended,
                     "schedule_mode": parent.settings.schedule_mode,
                     "clean_context": parent.settings.clean_context,
                 },

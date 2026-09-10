@@ -2,11 +2,12 @@
 
 Per task this spins up an in-process runtime_v2 kernel (RuntimeCore +
 TurnPipeline + AgentRunner), spawns the task's coordinator agent with the task
-query against the per-task sandbox as the project workspace, waits for a
-terminal state, then returns the agent's final message plus the barrier
-extracted from it (the final message is the input to refusal classification —
-see `refusal.py`). The method whitelist is enforced by appending
-`MethodPolicyStage` to the pipeline; compute jobs submitted via
+query against the per-task sandbox as the project workspace, waits for the
+task to genuinely finish (see ``watch.py`` for the wait_background /
+wait_review state machine, GH #30), then returns the agent's final message
+plus the barrier extracted from it (the final message is the input to refusal
+classification — see `refusal.py`). The method whitelist is enforced by
+appending `MethodPolicyStage` to the pipeline; compute jobs submitted via
 `submit_compute_job` are claimed and executed by a per-task in-process
 `SchedulerDaemon` (production runs it as a separate `cloudra scheduler`
 process instead).
@@ -31,15 +32,9 @@ from typing import Any, Awaitable, Callable, Optional
 from cloudra.benchmark.policy_stage import MethodPolicyStage
 from cloudra.benchmark.runner import BackendResult
 from cloudra.benchmark.schema import TaskSpec
-from cloudra.runtime_v2.schemas import AgentState
+from cloudra.benchmark.watch import RunWatcher
 
 logger = logging.getLogger(__name__)
-
-TERMINAL_STATES = frozenset({AgentState.SUCCEEDED, AgentState.FAILED, AgentState.CANCELLED})
-
-# waiting_input / waiting_approval 不是终态：benchmark 无人值守，挂起超过
-# stuck_grace 就取消该题（yolo 已开，正常路径不该出现审批等待）。
-_STUCK_STATE_VALUES = frozenset({AgentState.WAITING_INPUT.value, AgentState.WAITING_APPROVAL.value})
 
 # 最终总结里的能垒抓取：优先匹配明确指认的决速步（RDS / rate-determining step）
 # 能垒；未明确标明时取文本中最后一个 "<number> kcal/mol" 出现（总结陈述通常在最末）。
@@ -176,6 +171,9 @@ class RuntimeV2Backend:
                                 "orchestration_mode": task.prompt.orchestration_mode.value,
                                 # 无人值守：破坏性工具审批走 yolo 自动通道
                                 "yolo": True,
+                                # 无人值守（GH #31）：隐藏并 fail-closed 拦截
+                                # ask_user，绝不允许挂进 waiting_input
+                                "unattended": True,
                                 # Each benchmark case is isolated from global
                                 # cross-task memory and AGENTS injection.
                                 "clean_context": True,
@@ -200,33 +198,42 @@ class RuntimeV2Backend:
                 await scheduler.close()
 
     async def _wait_terminal(self, bus, agent) -> None:
+        """等题目真正结束（watch.RunWatcher 的 wait_background/wait_review
+        语义，GH #30），卡死/超时则取消该题。"""
+        from cloudra.persistence.database import ComputeDB
         from cloudra.runtime_v2.schemas import Command
+        from cloudra.services.compute_store import acount_pending_compute_jobs
 
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + self.run_timeout_s
-        stuck_since: float | None = None
-        while agent.state not in TERMINAL_STATES:
-            now = loop.time()
-            reason = ""
-            if now > deadline:
-                reason = f"benchmark run timeout ({self.run_timeout_s}s)"
-            elif agent.state.value in _STUCK_STATE_VALUES:
-                stuck_since = stuck_since if stuck_since is not None else now
-                if now - stuck_since > self.stuck_grace_s:
-                    reason = f"agent stuck in {agent.state.value} with nobody to answer"
-            else:
-                stuck_since = None
-            if reason:
-                logger.warning("cancelling benchmark agent %s: %s", agent.id, reason)
-                await bus.execute(
-                    Command(
-                        type="agent.cancel",
-                        target={"session_id": agent.id},
-                        payload={"message": f"[benchmark] cancelled: {reason}"},
-                    )
+        core = bus.core
+        compute_db = ComputeDB()
+
+        async def background_pending() -> bool:
+            # compute.db 是计算作业的唯一权威；reminders 与子 agent 存活由
+            # watcher 的 core 投影承担（子 agent 见 has_running_peers）。
+            if bool(core.reminders.pending(agent.id)):
+                return True
+            return bool(
+                await acount_pending_compute_jobs(compute_db, agent.project_id)
+            )
+
+        watcher = RunWatcher(
+            run_timeout_s=self.run_timeout_s,
+            stuck_grace_s=self.stuck_grace_s,
+            poll_interval_s=self.poll_interval_s,
+            pending_background=background_pending,
+        )
+
+        async def cancel(reason: str) -> None:
+            logger.warning("cancelling benchmark agent %s: %s", agent.id, reason)
+            await bus.execute(
+                Command(
+                    type="agent.cancel",
+                    target={"session_id": agent.id},
+                    payload={"message": f"[benchmark] cancelled: {reason}"},
                 )
-                break
-            await asyncio.sleep(self.poll_interval_s)
+            )
+
+        await watcher.wait(core, agent, cancel)
 
     def _final_message(self, core, session_id: str) -> str:
         """agent 最后一条 message_emitted 的原文（无则空串）。

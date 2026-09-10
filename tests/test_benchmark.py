@@ -712,6 +712,43 @@ def test_integrity_delivered_graph_lenient_loading(tmp_path):
     assert rep.passed
 
 
+def test_integrity_delivered_graph_postel_aliases(tmp_path):
+    """GH #29：agent 按常规图论字段交付（type/source/target、字符串 SMILES）也
+    必须可解析：type→role、source→from、target→to、str smiles→[smiles]。"""
+    g = {
+        "nodes": [
+            {"id": "rc", "type": "reactant", "label": "pre-reaction complex", "smiles": "[F-].CCl"},
+            {"id": "pc", "type": "product", "smiles": "[Cl-].CF"},
+        ],
+        "edges": [
+            {"source": "rc", "target": "pc", "type": "elementary_step", "via": "ts_walden"},
+            {"id": "e2", "from": "pc", "to": "pc", "via": None},
+        ],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    rep = audit_integrity(tmp_path)
+    assert rep.graph_parseable, rep.notes
+    assert rep.delivered_graph is not None
+    nodes = {n.id: n for n in rep.delivered_graph.nodes}
+    assert nodes["rc"].role.value == "reactant"
+    assert nodes["rc"].smiles == ["[F-].CCl"]
+    edges = rep.delivered_graph.edges
+    assert (edges[0].from_node, edges[0].to_node, edges[0].via) == ("rc", "pc", "ts_walden")
+    assert edges[1].id == "e2"  # 显式 id 原样保留
+
+
+def test_integrity_delivered_graph_unknown_node_type_fails_loud(tmp_path):
+    """Postel 只映射可识别的 type 别名；无法识别的内容照旧 fail-loud 判不可解析。"""
+    g = {
+        "nodes": [{"id": "rc", "type": "quantum_vortex", "smiles": "C"}],
+        "edges": [],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    rep = audit_integrity(tmp_path)
+    assert not rep.graph_parseable
+    assert "present but not parseable" in rep.notes[0]
+
+
 def test_integrity_fallback_graph_cannot_self_bind(tmp_path):
     """兜底发现的交付图（sub/my_graph.json）不得充当自身证据：图内嵌 SMILES
     不构成计算证据，零计算证据的交付必须判负。"""
@@ -1018,8 +1055,34 @@ async def test_method_policy_stage_blocks_and_allows(tmp_path):
     assert res.outcome == "allow"
 
 
-# --- runtime_v2 后端端到端（FakeLLM，无网络） ---
+@pytest.mark.asyncio
+async def test_unattended_stage_blocks_ask_user_fail_closed(tmp_path):
+    """GH #31：unattended 下 ask_user 被 fail-closed 拦截（block 反馈，绝不进
+    waiting_input）；其他工具与未开 unattended 的 agent 不受影响。"""
+    from cloudra.runtime_v2.policies.base import ToolCall
+    from cloudra.runtime_v2.policies.unattended import UnattendedStage
 
+    ctx = _stage_ctx(tmp_path)
+    ctx.settings.unattended = True
+    stage = UnattendedStage()
+
+    res = await stage.before_tool(
+        ctx, ToolCall(id="a1", name="ask_user", arguments={"question": "which?"})
+    )
+    assert res.outcome == "block"
+    assert "unattended" in res.message
+
+    res = await stage.before_tool(ctx, ToolCall(id="a2", name="stop", arguments={}))
+    assert res.outcome == "allow"
+
+    ctx.settings.unattended = False
+    res = await stage.before_tool(
+        ctx, ToolCall(id="a3", name="ask_user", arguments={"question": "which?"})
+    )
+    assert res.outcome == "allow"
+
+
+# --- runtime_v2 后端端到端（FakeLLM，无网络） ---
 
 class _ScriptedLLM:
     def __init__(self, responses):
@@ -1103,6 +1166,56 @@ def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path, monkeypatch):
     assert "12.3 kcal/mol" in result.final_message
     # b3lyp 调用被 MethodPolicyStage 拦截，工具从未真正执行
     assert tools.calls == []
+
+
+def test_backend_unattended_ask_user_blocked_without_parking(tmp_path, monkeypatch):
+    """GH #31 端到端：agent 调 ask_user → UnattendedStage 拦截并以 block 反馈
+    继续，全程绝不进入 waiting_input，最终消息与能垒正常提取。"""
+    from cloudra.benchmark.backend import RuntimeV2Backend
+    from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+    from cloudra.runtime_v2.policies.base import ToolCall as PToolCall
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.adapters.legacy_default_runtime_settings",
+        lambda: legacy_default_runtime_settings().model_copy(
+            update={"invocation_protocol": InvocationProtocol.TRADITIONAL}
+        ),
+    )
+
+    llm = _ScriptedLLM([
+        LLMResponse(
+            content="",
+            tool_calls=[PToolCall(
+                id="a1",
+                name="ask_user",
+                arguments={"question": "Which pathway should I follow?"},
+            )],
+        ),
+        LLMResponse(content="Proceeded autonomously. The barrier is 9.8 kcal/mol."),
+    ])
+    backend = RuntimeV2Backend(
+        llm=llm,
+        tools=_RecordingTools(),
+        run_summarizer=_stub_summarizer,
+        start_scheduler=False,
+        poll_interval_s=0.01,
+        run_timeout_s=30.0,
+        stuck_grace_s=5.0,
+    )
+    result = backend(_tiny_task(), tmp_path / "sandbox")
+
+    core = backend.last_core
+    agent = next(iter(core.agents.values()))
+    assert agent.settings.unattended is True
+    states = [
+        e.data.get("to")
+        for e in core.event_log.query_session(agent.id, types={"agent.state_changed"})
+    ]
+    assert "waiting_input" not in states
+    assert result.barrier == 9.8
+    assert "Proceeded autonomously" in result.final_message
 
 
 def _last_agent_id(core) -> str:

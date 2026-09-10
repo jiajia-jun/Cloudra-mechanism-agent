@@ -67,6 +67,11 @@ class RuntimeSettingsPatch(BaseModel):
     presence_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
     timeout: Optional[int] = Field(default=None, ge=1)
     yolo: Optional[bool] = None
+    # 无人值守运行（benchmark 评测等）：没有任何人类交互端。线缆投影隐藏
+    # ask_user（tool_catalog._settings_hidden_tools），执行层由
+    # policies/unattended.py 的 UnattendedStage fail-closed 拦截——绝不允许
+    # 状态机流转到 waiting_input。yolo 只覆盖审批通道，不覆盖 ask_user。
+    unattended: Optional[bool] = None
     schedule_mode: Optional[bool] = None
     visual_mode: Optional[bool] = None
     # Disable cross-task implicit context (global memory and AGENTS.md).
@@ -99,6 +104,7 @@ class RuntimeSettings(RuntimeSettingsPatch):
     presence_penalty: float = 0.0
     timeout: int = 300
     yolo: bool = False
+    unattended: bool = False
     schedule_mode: bool = False
     visual_mode: bool = True
     clean_context: bool = False

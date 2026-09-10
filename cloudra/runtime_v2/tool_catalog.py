@@ -58,6 +58,18 @@ def _mode_hidden_tools(orchestration_mode: OrchestrationMode | str) -> frozenset
     return frozenset()
 
 
+# 无人值守（benchmark）下没有可对话的人：ask_user 投影出来只会教模型调一个
+# 必然失败的交互工具（GH #31）。执行层 UnattendedStage 是 fail-closed 兜底。
+_UNATTENDED_HIDDEN_TOOLS = frozenset({"ask_user"})
+
+
+def _settings_hidden_tools(agent: AgentSession) -> frozenset[str]:
+    """Tools hidden from the wire by agent settings (not orchestration mode)."""
+    if getattr(agent.settings, "unattended", False):
+        return _UNATTENDED_HIDDEN_TOOLS
+    return frozenset()
+
+
 def js_exec_schema():
     return {"type": "function", "function": {
         "name": "js_exec",
@@ -156,7 +168,7 @@ def wire_tool_schemas(agent: AgentSession, tool_names: list[str] | None) -> list
         direct = [name for name in _resolve_names(tool_names) if is_direct_only(name)]
         if direct:
             schemas.extend(legacy_tool_schemas(direct))
-    hidden = _mode_hidden_tools(agent.settings.orchestration_mode)
+    hidden = _mode_hidden_tools(agent.settings.orchestration_mode) | _settings_hidden_tools(agent)
     if not hidden:
         return schemas
     return [

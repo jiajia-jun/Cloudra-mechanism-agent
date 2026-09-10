@@ -64,6 +64,21 @@ def test_js_projection_returns_js_exec_and_direct_controls_only():
     assert set(names) == {JS_EXEC_NAME, "stop", "ask_user", "schedule"}
 
 
+def test_unattended_agent_wire_hides_ask_user():
+    """GH #31：无人值守评测下 ask_user 不得出现在线缆投影；其他 direct
+    controls（stop/schedule）不受影响。"""
+    agent = _agent(protocol=InvocationProtocol.JAVASCRIPT)
+    agent.settings.unattended = True
+    names = _names(wire_tool_schemas(agent, ["*"]))
+    assert "ask_user" not in names
+    assert {"stop", "schedule"} <= set(names)
+
+
+def test_attended_agent_wire_keeps_ask_user():
+    names = _names(wire_tool_schemas(_agent(protocol=InvocationProtocol.JAVASCRIPT), ["*"]))
+    assert "ask_user" in names
+
+
 def test_js_projection_with_empty_capabilities_exposes_no_business_tools():
     schemas = wire_tool_schemas(_agent(protocol=InvocationProtocol.JAVASCRIPT), [])
     assert _names(schemas) == [JS_EXEC_NAME]

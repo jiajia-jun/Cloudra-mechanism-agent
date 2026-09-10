@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 
 from cloudra.benchmark.graph_similarity import (
     GedConfig,
@@ -39,19 +39,63 @@ from cloudra.benchmark.schema import (
     NodeRole,
 )
 
+# 交付侧识别的常规图论 type 别名 → 系统 NodeRole。未知 type 不做猜测映射：
+# 留原样让校验 fail-loud（无法识别的声明不该被静默吞成另一个角色）。
+_NODE_TYPE_ALIASES = {
+    "reactant": NodeRole.REACTANT.value,
+    "product": NodeRole.PRODUCT.value,
+    "intermediate": NodeRole.INTERMEDIATE.value,
+    "transition_state": NodeRole.TRANSITION_STATE.value,
+    "ts": NodeRole.TRANSITION_STATE.value,
+}
+
 
 class _DeliveredNode(MechanismNode):
-    """交付侧节点：忽略 agent 多写的键。"""
+    """交付侧节点：Postel 宽松加载（GH #29）。
+
+    常规图节点字段（``type``、字符串 ``smiles``）在字段校验前规范化到本系统
+    的 schema（``role``、``smiles: list[str]``）；多写的键忽略。"""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_delivery_fields(cls, data):
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "role" not in data and "type" in data:
+            alias = _NODE_TYPE_ALIASES.get(str(data.get("type") or "").strip().lower())
+            if alias is not None:
+                data["role"] = alias
+        smiles = data.get("smiles")
+        if isinstance(smiles, str):
+            data["smiles"] = [smiles]
+        elif smiles is None:
+            data["smiles"] = []
+        return data
+
 
 class _DeliveredEdge(MechanismEdge):
-    """交付侧边：忽略多写的键，id 可缺省（加载时补）。"""
+    """交付侧边：忽略多写的键，id 可缺省（加载时补）。
+
+    Postel 规范化：常规图论字段 ``source``/``target`` 映射到 ``from``/``to``。"""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     id: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_delivery_fields(cls, data):
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "from" not in data and "source" in data:
+            data["from"] = data["source"]
+        if "to" not in data and "target" in data:
+            data["to"] = data["target"]
+        return data
 
 # file extensions we treat as computational evidence worth parsing for SMILES
 _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".mol", ".json"}
