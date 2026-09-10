@@ -206,7 +206,8 @@ ts/<run_id>/
 |---|---|
 | `declare` / `build` / `map` / `assemble` / `guess` / `validate` | **已实现**（测试 `tests/test_ts_process.py`） |
 | `submit` | **已实现**：写精修输入 → **复用**唯一一份准入校验 → 入库为 `ready` |
-| `refine` / `verdict` | **未接线**：标 `not_implemented` 并停下，不伪造终态。`refine` 要等作业终态（走既有 compute 通知/唤醒，不轮询）；`verdict` 做频率 + IRC 的四态判定 |
+| `refine` | **已实现**：作业序列 TS 优化 → 频率 → IRC，每步都等终态；**从不轮询**——未到终态时本阶段置 `waiting` 且**不推事件**，作业终态由既有 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整）继续 |
+| `verdict` | **已实现**：四态判定只读交付物。频率数据缺失 → `candidate_only`（UNVERIFIED）；虚频数 ≠ 1 → `candidate_only` 并说明是极小值还是高阶鞍点（且注明"不等于反应不可能"）；恰好 1 个虚频但 IRC 未双向收敛 → 仍 `candidate_only`；两者都满足才 `verified` |
 
 `submit` 的准入与 `submit_compute_job` **共用** `services/compute_admission.admit_job`
 （唯一实现：输入存在、xtb 参数、节点/调度器解析、资源硬校验、申请量不得低于输入自述、
@@ -214,6 +215,12 @@ ts/<run_id>/
 `inspect_input` 一致性核对——**没有第二套输入语法**。引擎各自的 TS 写法照
 `skills/dft-calculation/references/{orca,gaussian}-inputs.md`：ORCA 用 `{"opt":"ts"}` +
 `%geom Calc_Hess true`；**频率是后续独立作业**，因此归 `refine`，不和 TS 优化挤在一个作业里。
+
+`refine` 的三步输入都复用 `qm_input_writer` 的构建器，配方照
+`skills/dft-calculation/references/{orca,gaussian}-inputs.md`：频率是**独立作业**且几何取
+TS 优化末帧；IRC 复用**同一几何**的 Hessian——Hessian 分支由**证据**决定（频率作业真的落下了
+同名 `.hess` 就用 `InitHess read` + `Hess_Filename`，否则按 skill 用 `InitHess calc_numfreq`），
+不是偏好；Gaussian 走 `irc=(calcfc,maxpoints=80)`。
 
 已实现的部分含：内化校验（失败即阻塞并点名到原子）、只推阻塞/终态两类事件、四态终态、
 按声明预算的有界推进（干预次数耗尽即落 `search_failed` 并注明"搜索失败 ≠ 反应不可能"）、

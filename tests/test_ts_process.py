@@ -446,3 +446,115 @@ def test_verdict_cannot_reach_verified_without_irc(tmp_path):
     record = _verdict(record)
     assert record.terminal == "candidate_only"
     assert "no frequency job was run" in record.stage_record("verdict").detail
+
+
+# ---------------------------------------------------------------------------
+# refine 作业序列：TS 优化 → 频率 → IRC（第二道闸）
+# ---------------------------------------------------------------------------
+
+
+def test_refine_submits_the_irc_job_after_frequency(tmp_path):
+    """频率完成后自动提交 IRC：顺带验证它在同一几何上用 %irc 原生块。
+
+    这条守的是"verified 可达"：只跑频率的流程最高只能到 candidate_only。
+    """
+    from cloudra.tools.core.ts_process import TsJobStep, _refine
+
+    record = _start(tmp_path)
+    # 把 TS 优化与频率两步都标记为已完成，并把频率的优化几何放好
+    job2 = Path(record.run_dir) / "jobs" / "job_0002"
+    job2.mkdir(parents=True, exist_ok=True)
+    optimized = job2 / "optimized.xyz"
+    optimized.write_text(
+        "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8"
+    )
+    freq_input = job2 / "frequency.inp"
+    freq_input.write_text("! Freq\n", encoding="utf-8")
+    # 作业状态是**从库里读的**，所以必须真的插一行 done（手写 state 会被覆盖）
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import insert_compute_job
+
+    db = ComputeDB().init()
+    for step, path in ((record.job_steps[0], record.job_steps[0].input_path),
+                       (None, str(freq_input))):
+        job_id = insert_compute_job(
+            db, conversation_id="test", session_id=None, path=path, state="done",
+            jobtype="orca",
+        )
+        if step is not None:
+            step.job_id = job_id
+            step.state = "done"
+        else:
+            record.job_steps.append(TsJobStep(
+                purpose="frequency", job_id=job_id, input_path=path, state="done",
+            ))
+    record.waiting_for = ""
+
+    record = _refine(record)
+    assert record.blocked is None, record.blocked and record.blocked.message
+    assert [step.purpose for step in record.job_steps] == ["ts_opt", "frequency", "irc"]
+    irc_step = record.job_steps[-1]
+    assert irc_step.job_id is not None
+    content = Path(irc_step.input_path).read_text(encoding="utf-8")
+    # ORCA：! IRC + 原生 %irc 块，双向，且 Hessian 分支由证据决定
+    assert "IRC" in content
+    assert "%irc" in content
+    assert "Direction both" in content
+    assert ("InitHess read" in content) or ("InitHess calc_numfreq" in content)
+    assert record.waiting_for == f"job:{irc_step.job_id}"
+
+
+def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_path):
+    """Hessian 分支由**证据**决定：文件在就用 read+Hess_Filename，不在就 calc_numfreq。"""
+    from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
+
+    record = _start(tmp_path)
+    job2 = Path(record.run_dir) / "jobs" / "job_0002"
+    job2.mkdir(parents=True, exist_ok=True)
+    (job2 / "optimized.xyz").write_text(
+        "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8"
+    )
+    freq_input = job2 / "frequency.inp"
+    freq_input.write_text("! Freq\n", encoding="utf-8")
+    record.job_steps.append(TsJobStep(
+        purpose="frequency", job_id=9002, input_path=str(freq_input), state="done",
+    ))
+
+    job3 = Path(record.run_dir) / "jobs" / "job_0003"
+    job3.mkdir(parents=True, exist_ok=True)
+    # 没有 .hess -> 数值评估
+    error, path = _write_irc_input(record, str(job3))
+    assert error == ""
+    assert "InitHess calc_numfreq" in Path(path).read_text(encoding="utf-8")
+
+    # 落下 .hess -> 复用同一几何的 Hessian
+    (job2 / "frequency.hess").write_text("$hessian\n", encoding="utf-8")
+    error, path = _write_irc_input(record, str(job3))
+    assert error == ""
+    content = Path(path).read_text(encoding="utf-8")
+    assert "InitHess read" in content
+    assert str(job2 / "frequency.hess") in content
+
+
+def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
+    """Gaussian 走 skill 表格里的原生写法（含 calcfc / maxpoints），不拼 ORCA 的 %irc 块。"""
+    from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
+
+    record = _start(tmp_path, engine="gaussian")
+    job2 = Path(record.run_dir) / "jobs" / "job_0002"
+    job2.mkdir(parents=True, exist_ok=True)
+    (job2 / "optimized.xyz").write_text(
+        "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n", encoding="utf-8"
+    )
+    freq_input = job2 / "frequency.gjf"
+    freq_input.write_text("#p freq\n", encoding="utf-8")
+    record.job_steps.append(TsJobStep(
+        purpose="frequency", job_id=9002, input_path=str(freq_input), state="done",
+    ))
+    job3 = Path(record.run_dir) / "jobs" / "job_0003"
+    job3.mkdir(parents=True, exist_ok=True)
+    error, path = _write_irc_input(record, str(job3))
+    assert error == ""
+    content = Path(path).read_text(encoding="utf-8")
+    assert "irc=(calcfc,maxpoints=80)" in content
+    assert "%irc" not in content

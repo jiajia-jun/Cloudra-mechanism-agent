@@ -708,7 +708,7 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
 class TsJobStep(BaseModel):
     """精修作业序列里的一步（TS 优化 → 频率）。"""
 
-    purpose: Literal["ts_opt", "frequency"]
+    purpose: Literal["ts_opt", "frequency", "irc"]
     job_id: Optional[int] = None
     input_path: str = ""
     state: str = Field(default="", description="compute_jobs 里的状态；终态见 TERMINAL_STATES")
@@ -847,6 +847,104 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     return "", input_path
 
 
+def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
+    """写 IRC 作业输入；返回 ``(错误, 输入路径)``。
+
+    几何与频率作业**同一帧**（TS 优化末帧）——skill 要求"reuse its same-geometry frequency
+    Hessian for both IRC directions"。两个引擎的原生写法照
+    ``references/{orca,gaussian}-inputs.md``：
+
+    - Gaussian：``task_type=[{"irc":"calcfc,maxpoints=80"}]``（默认双向）。
+    - ORCA：``task_type=[{"irc": None}]`` + 原生 ``%irc`` 块。Hessian 走哪个分支由**证据**决定，
+      不是偏好：频率作业真的落下了同名 ``.hess`` 就用 ``InitHess read`` + ``Hess_Filename``；
+      没有就按 skill 说的 ``InitHess calc_numfreq``（数值评估），绝不默认请求解析外部 Hessian。
+    """
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.calculation_intent import (
+        inspect_input,
+        intent_from_writer,
+        validate_writer_request,
+    )
+
+    declaration = record.declaration
+    frequency_step = next(
+        (step for step in record.job_steps if step.purpose == "frequency"), None
+    )
+    if frequency_step is None:
+        return "no frequency job was run, so its same-geometry Hessian cannot be reused", ""
+    geometry = os.path.join(os.path.dirname(frequency_step.input_path), "optimized.xyz")
+    if not os.path.isfile(geometry):
+        return (
+            f"the optimised geometry kept next to the frequency job ({geometry}) is missing; "
+            "refusing to start IRC from an unverified geometry",
+            "",
+        )
+
+    method = declaration.method.strip()
+    head, _sep, basis = method.partition("/")
+    input_path = os.path.join(job_dir, f"irc.{'inp' if declaration.engine == 'orca' else 'gjf'}")
+
+    if declaration.engine == "orca":
+        task_type: list[dict] = [{"irc": None}]
+        hess_path = os.path.splitext(frequency_step.input_path)[0] + ".hess"
+        if os.path.isfile(hess_path):
+            # 频率作业真的落下了 Hessian：复用同一几何的 Hessian（skill 的首选做法）
+            irca = (
+                "%irc\n  Direction both\n  MaxIter 80\n  InitHess read\n"
+                f'  Hess_Filename "{hess_path}"\nend'
+            )
+        else:
+            irca = "%irc\n  Direction both\n  MaxIter 80\n  InitHess calc_numfreq\nend"
+        orca_blocks: Optional[str] = irca
+    else:
+        task_type = [{"irc": "calcfc,maxpoints=80"}]
+        orca_blocks = None
+
+    request = QmInputWriter_input_schema(
+        engine=declaration.engine,
+        source_type="xyz_file",
+        source_value=geometry,
+        method=head.strip(),
+        basis_set=basis.strip(),
+        task_type=task_type,
+        orca_blocks=orca_blocks,
+        charge=declaration.charge,
+        multiplicity=declaration.multiplicity,
+        title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles}",
+        output_dir=input_path,
+    )
+    conflicts = validate_writer_request(request.model_dump())
+    if conflicts:
+        return "IRC input refused: " + " | ".join(
+            f"[{c['code']}] {c['message']}" for c in conflicts
+        ), ""
+    content = (
+        QmInputWriter._build_orca_input(request, _xyz_coords(geometry))
+        if declaration.engine == "orca"
+        else QmInputWriter._build_gjf(request, _xyz_coords(geometry))
+    )
+    inspected = inspect_input(content, engine=declaration.engine)
+    requested = intent_from_writer(request.model_dump())
+    if inspected.tasks != requested.tasks:
+        return (
+            f"IRC input internal mismatch: generated {sorted(inspected.tasks)} but "
+            f"{sorted(requested.tasks)} were requested",
+            "",
+        )
+    atomic_write_text(input_path, content)
+    return "", input_path
+
+
+def _xyz_coords(path: str) -> str:
+    """把单帧 xyz 渲染成引擎坐标块（与精修/频率输入同一格式）。"""
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    return "\n".join(
+        f"{symbol:<4} {position[0]:>14.8f} {position[1]:>14.8f} {position[2]:>14.8f}"
+        for symbol, position in read_xyz_atoms(path)
+    )
+
+
 def _refine(record: TsProcessRecord) -> TsProcessRecord:
     """推进精修作业序列：TS 优化 → 频率。**从不轮询**。
 
@@ -923,6 +1021,34 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         )
         return record
 
+    if current.purpose == "frequency":
+        # 频率完成：TS 已由频率数据支持，接着跑 IRC（第二道闸），复用同一几何的 Hessian
+        jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
+        job_dir = os.path.join(jobs_root, f"job_{len(record.job_steps) + 1:04d}")
+        os.makedirs(job_dir, exist_ok=True)
+        error, input_path = _write_irc_input(record, job_dir)
+        if error:
+            return _block(record, "refine", "irc_input_failed", error, needs=["method", "engine"])
+        job_type = "orca" if record.declaration.engine == "orca" else "gaussian"
+        error, job_id = _submit_step(record, "irc", input_path, job_type)
+        if error:
+            return _block(
+                record, "refine", "compute_admission_rejected", error,
+                needs=["method", "engine", "budget"],
+            )
+        record.job_steps.append(TsJobStep(
+            purpose="irc", job_id=job_id, input_path=input_path, state="ready",
+        ))
+        record.waiting_for = f"job:{job_id}"
+        _record_stage(
+            record, "refine", "waiting",
+            f"frequency job {current.job_id} finished; IRC job {job_id} submitted (both "
+            "directions) from the same optimised geometry. Waiting for its terminal state via the "
+            "existing notification path",
+            [input_path],
+        )
+        return record
+
     _record_stage(
         record, "refine", "done",
         f"refinement sequence complete: {[step.purpose for step in record.job_steps]}",
@@ -973,7 +1099,9 @@ def _verdict(record: TsProcessRecord) -> TsProcessRecord:
         )
 
     # 频率支持一阶鞍点。IRC 是第二道闸：没有 IRC 就只能到 candidate_only，绝不升格成 verified。
-    irc_log = record.declaration.irc_log.strip()
+    # IRC 日志优先取本流程自己提交的 IRC 作业（声明里的 irc_log 只是兜底，供外部先跑好 IRC 的情形）
+    irc_step = next((step for step in reversed(record.job_steps) if step.purpose == "irc"), None)
+    irc_log = _refinement_log_path(record, irc_step) if irc_step else record.declaration.irc_log.strip()
     if not irc_log:
         return _terminal(
             record, "verdict", "candidate_only",
