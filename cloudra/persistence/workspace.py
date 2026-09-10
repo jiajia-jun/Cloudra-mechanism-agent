@@ -12,7 +12,7 @@ import threading
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 from uuid import uuid4
 
 MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
@@ -27,6 +27,29 @@ def resolve_working_directory(value: str | None = None) -> str:
     """
     raw = (value or "").strip() or os.getcwd()
     return str(Path(raw).expanduser().resolve())
+
+
+def resolve_tool_path(tool: Any, value: str) -> str:
+    """把工具收到的文件路径参数统一到 agent 工作目录语义。
+
+    绝对路径原样保留（科研节点上的显式访问是既有权限语义，不擅自收紧）；
+    相对路径解析到绑定 agent 的 working_directory（per-project 沙箱），
+    与 read/write/bash 的既有契约一致——修复相对路径落到进程 cwd 串目录
+    的缺陷（C1：qm_input_writer/submit_compute_job 未走此原语）。仅在没有
+    agent 桥（直接 CLI/单测调用）时回退进程 cwd。
+
+    只对“文件路径字段”调用本函数；SMILES、文件名透传串等非路径语义由
+    调用方自行甄别，禁止混用。
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return value or ""
+    p = Path(raw)
+    if p.is_absolute():
+        return str(p)
+    subagent = getattr(tool, "subagent", None)
+    root = getattr(subagent, "working_directory", None) or os.getcwd()
+    return str((Path(root) / p).resolve())
 
 
 class WorkspaceError(ValueError):

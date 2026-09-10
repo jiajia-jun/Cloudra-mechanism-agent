@@ -558,17 +558,28 @@ class ComputeDB:
         return self
 
     async def ainit(self) -> "ComputeDB":
-        """异步初始化数据库（语义同 :meth:`init`）。"""
+        """异步初始化数据库（语义同 :meth:`init`）。
+
+        与 init() 共用同一把 per-path 进程内锁：compute.db 是全部 agent 共
+        写的单库，两个并发 submit 同时 ainit 会在 WAL 切换上撞
+        ``database is locked``（并发项目测试测红）。异步路径把 acquire 卸载
+        到线程，绝不在事件循环上同步等锁。
+        """
         self.ensure_dir()
-        async with self.aconnect() as con:
-            cur = await con.execute("PRAGMA journal_mode;")
-            row = await cur.fetchone()
-            if not row or str(row[0]).lower() != "wal":
-                await con.execute("PRAGMA journal_mode=WAL;")
-            await con.execute(_CREATE_COMPUTE_JOBS)
-            await con.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
-            await con.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
-            await con.commit()
+        lock = _lock_for_init(self.path)
+        await asyncio.to_thread(lock.acquire)
+        try:
+            async with self.aconnect() as con:
+                cur = await con.execute("PRAGMA journal_mode;")
+                row = await cur.fetchone()
+                if not row or str(row[0]).lower() != "wal":
+                    await con.execute("PRAGMA journal_mode=WAL;")
+                await con.execute(_CREATE_COMPUTE_JOBS)
+                await con.execute(_CREATE_COMPUTE_JOBS_CLAIM_INDEX)
+                await con.execute(_CREATE_COMPUTE_JOBS_NOTIFY_INDEX)
+                await con.commit()
+        finally:
+            lock.release()
         return self
 
     @contextlib.contextmanager

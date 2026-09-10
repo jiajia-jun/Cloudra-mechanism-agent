@@ -6,6 +6,7 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_tool_path
 
 description = (
     "Deep-parse a quantum-chemistry output log (Gaussian .log/.out, ORCA .out, or xtb .out; engine auto-detected) "
@@ -91,7 +92,8 @@ def _extract_gaussian_thermochemistry(log_path: str) -> dict[str, float]:
 
 class LogParser_input_schema(input_schema):
     log_path: str = Field(
-        description="Absolute path of the output log (Gaussian .log/.out, ORCA .out, or xtb .out)."
+        description="Path of the output log (Gaussian .log/.out, ORCA .out, or xtb .out): "
+                    "absolute as-is, or relative to the Agent working directory."
     )
     properties: Optional[list[str]] = Field(
         default=None,
@@ -186,6 +188,8 @@ class LogParser(Tool):
         return fields
 
     async def tool_call(self, user_input: LogParser_input_schema, session: Session) -> LogParser_output_schema:
+        # 路径语义收口：相对路径解析到 agent 工作目录（沙箱）。
+        user_input.log_path = resolve_tool_path(self, user_input.log_path)
         log_path = user_input.log_path
 
         # 1. 校验日志文件是否存在

@@ -15,6 +15,7 @@ from cloudra.infra.compute_utils import (
     validate_xtb_params,
 )
 from cloudra.persistence.database import ComputeDB
+from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
 from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 
@@ -36,7 +37,8 @@ description = (
 
 class SubmitComputeJob_input_schema(input_schema):
     input_file: str = Field(
-        description="Absolute path of the input file (e.g. a .gjf file)."
+        description="Path of the input file (e.g. a .gjf file): absolute as-is, "
+                    "or relative to the Agent working directory."
     )
     job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb"] = Field(
         default="gaussian",
@@ -194,8 +196,9 @@ class SubmitComputeJob(Tool):
     async def tool_call(self, user_input: SubmitComputeJob_input_schema, session: Session) -> SubmitComputeJob_output_schema:
         # 兼容测试或旧调用中 session 为 None 的情况。
         session_id = getattr(session, "id", None) if session else None
-        # 1. 校验 input_file 是否存在
-        f_path = user_input.input_file
+        # 1. 校验 input_file 是否存在。路径语义与 read/write 一致：相对路径
+        # 解析到 agent 工作目录（沙箱），绝不读进程 cwd 的同名文件（C1 缺陷）。
+        f_path = resolve_tool_path(self, user_input.input_file)
         workdir = os.path.dirname(f_path)
         conv_id = getattr(self.subagent, 'conversation_id', None) or 'default'
 
@@ -326,6 +329,7 @@ class SubmitComputeJob(Tool):
 
         else:
             # 直接写入 running，并开始计算
+            job_id = -1
             try:
                 job_id = await ainsert_compute_job(
                     db,
@@ -358,9 +362,22 @@ class SubmitComputeJob(Tool):
                 )
 
             except Exception as e:
+                # 已入库的作业不得丢编号：执行失败是"已提交作业失败"，回执必须
+                # 带 job_id/job_dir/state 让调用方 query 同一编号拿到失败详情
+                # （guard 已写终态与 last_error）。入库前失败的 job_id 保持 -1，
+                # 与"提交失败"区分开，绝不按异常路径再插一条作业。
+                if job_id is None or job_id < 0:
+                    return SubmitComputeJob_output_schema(
+                            is_success=False,
+                            message=f"Job submission hit an error: {e}. "
+                                    "Next: check whether a partial job record was created with query_compute_job; "
+                                    "fix the cause and resubmit with submit_compute_job.")
                 return SubmitComputeJob_output_schema(
                         is_success=False,
-                        message=f"Job submission hit an error: {e}. "
+                        job_id=job_id,
+                        job_dir=workdir,
+                        state="failed",
+                        message=f"Job {job_id} failed during execution: {e}. "
                                 "Next: use query_compute_job to inspect the job state and last_error, "
                                 "read the log to locate the failure, then fix the input and resubmit.")
 

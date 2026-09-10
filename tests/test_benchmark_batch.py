@@ -187,3 +187,78 @@ async def test_router_status_start_stop_history(tmp_path):
         history = (await client.get("/api/v2/benchmark/runs")).json()
         assert history["batches"][0]["status"] == "stopped"
         assert [r["task_id"] for r in history["batches"][0]["runs"]] == ["T1"]
+
+
+# ---------------------------------------------------------------------------
+# Task 5（P1）：沙箱生命周期契约（失败即基建失败；占用目录拒绝复用）
+# ---------------------------------------------------------------------------
+
+async def _insert_job(path, state="running", conversation_id="prj_old"):
+    """直接落一条 compute_jobs 行（DB 事实，不是假执行）。"""
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import ainsert_compute_job
+
+    db = await ComputeDB().ainit()
+    return await ainsert_compute_job(
+        db, conversation_id=conversation_id, session_id="as_old", path=str(path),
+        state=state, jobtype="gaussian", scheduler="local", scheduler_options="{}",
+    )
+
+
+@pytest.mark.asyncio
+async def test_batch_sandbox_reset_failure_is_infrastructure_error(tmp_path, monkeypatch):
+    """沙箱清理失败必须落明确的基建失败：不在旧目录继续 spawn、不评分。"""
+    core, bus, service = _service(tmp_path)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+
+    import cloudra.benchmark.batch as batch_mod
+
+    def _boom(self, sandbox):
+        raise OSError("sandbox is not removable")
+
+    monkeypatch.setattr(batch_mod.BenchmarkBatch, "_reset_sandbox", _boom)
+    await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=30.0)
+    batch = service._batch
+    await asyncio.wait_for(batch._task, timeout=10.0)
+
+    final = service.status()
+    task = final["tasks"][0]
+    assert task["status"] == "error", task
+    assert "sandbox" in task["error"].lower(), task["error"]
+    # 没有 spawn（无 agent、无项目），也没有评分落库
+    assert not task["agent_id"] and not task["project_id"], task
+    db = BenchmarkDB(tmp_path / "bench" / "benchmark.db")
+    runs = db.list_runs_for(final["batch_id"])
+    assert len(runs) == 1 and runs[0]["outcome"] == "failed"
+    assert any("sandbox" in note.lower() for note in runs[0]["notes"]), runs[0]["notes"]
+
+
+@pytest.mark.asyncio
+async def test_batch_refuses_sandbox_with_live_compute(tmp_path):
+    """同 task_id 复跑时旧沙箱仍有未竟计算：拒绝复用该目录（不删旧输入/输出、
+    不 kill 旧计算），落明确基建失败而不是静默清空。"""
+    core, bus, service = _service(tmp_path)
+    sandbox = service._data_dir() / "sandboxes" / "T1"
+    sandbox.mkdir(parents=True)
+    in_use = sandbox / "calc" / "input.gjf"
+    in_use.parent.mkdir(parents=True)
+    in_use.write_text("#p HF/3-21G\n\nH2\n\n0 1\nH 0 0 0\nH 0 0 0.74\n", encoding="utf-8")
+    job_id = await _insert_job(in_use, state="running")
+
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+    await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=30.0)
+    batch = service._batch
+    await asyncio.wait_for(batch._task, timeout=10.0)
+
+    final = service.status()
+    task = final["tasks"][0]
+    assert task["status"] == "error", task
+    assert "live compute" in task["error"].lower() or "占用" in task["error"], task["error"]
+    # 旧输入/输出未被删除，旧作业仍在册（绝不 kill 计算）
+    assert in_use.is_file()
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import list_compute_jobs
+
+    rows = list_compute_jobs(ComputeDB())
+    assert [r["id"] for r in rows] == [job_id]
+    assert rows[0]["state"] == "running"

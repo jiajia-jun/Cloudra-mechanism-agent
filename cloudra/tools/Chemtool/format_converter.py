@@ -5,6 +5,7 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_tool_path
 
 description = (
     "Convert among common computational-chemistry file formats (mol, xyz, gjf, inp (ORCA), pdb, SDF, cif, etc.) via ASE; "
@@ -112,7 +113,8 @@ def _write_text(path: str, text: str) -> None:
 
 class FormatConverter_input_schema(input_schema):
     input_path: str = Field(
-        description="Absolute path of the input file."
+        description="Path of the input file: absolute as-is, or relative to the "
+                    "Agent working directory."
     )
     input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log", "poscar", "vasp"] = Field(
         description="Input format. log means a Gaussian or ORCA output log (.log/.out); then output must be csv or xyz."
@@ -123,7 +125,8 @@ class FormatConverter_input_schema(input_schema):
                     "When input_format='log', output can be 'csv' (key-frame table) or 'xyz' (final optimized frame)."
     )
     output_path: str = Field(
-        description="Absolute path of the output file."
+        description="Path of the output file: absolute as-is, or relative to the "
+                    "Agent working directory."
     )
 
 
@@ -240,6 +243,10 @@ class FormatConverter(Tool):
             )
 
     async def tool_call(self, user_input: FormatConverter_input_schema, session: Session) -> FormatConverter_output_schema:
+        # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），与
+        # read/write/qm_input_writer 的契约一致。
+        user_input.input_path = resolve_tool_path(self, user_input.input_path)
+        user_input.output_path = resolve_tool_path(self, user_input.output_path)
         input_path = user_input.input_path
         output_path = user_input.output_path
 

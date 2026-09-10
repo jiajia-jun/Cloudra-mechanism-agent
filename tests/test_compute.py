@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,6 +18,17 @@ from cloudra.tools.Chemtool.submit_compute_job import (
 )
 
 _GAUSSIAN_MOCK_LOG = Path(__file__).resolve().parent / "fixtures" / "gaussian" / "water_opt_freq_g16.out"
+
+
+def _all_compute_jobs(db) -> list:
+    """读路径不建库：中央库不存在/空文件（从未提交过作业）视为无行。"""
+    from cloudra.services.compute_store import list_compute_jobs
+
+    try:
+        ready = os.path.isfile(db.path) and os.path.getsize(db.path) > 0
+    except OSError:
+        ready = False
+    return list_compute_jobs(db) if ready else []
 
 
 @pytest.fixture
@@ -454,6 +466,37 @@ async def test_submit_compute_job_sync_failure(isolated_db, mock_calc_workdir_fa
 
     assert result.is_success is False
     assert "Compute job failed" in result.message
+    # 已提交作业的失败回执不得丢编号：同编号 query 拿同一终态与日志（C1 缺陷 3）
+    assert result.job_id > 0
+    assert result.state == "failed"
+    assert result.job_dir == mock_calc_workdir_fail
+
+    from cloudra.tools.Chemtool.query_compute_job import (
+        QueryComputeJob,
+        QueryComputeJob_input_schema,
+    )
+
+    query = QueryComputeJob()
+    query.subagent = MockAgent("a-0", "test_conv")
+    queried = await query.tool_call(
+        QueryComputeJob_input_schema(job_id=result.job_id), session=None,
+    )
+    assert queried.is_success is True
+    assert len(queried.jobs) == 1
+    job = queried.jobs[0]
+    assert job["job_id"] == result.job_id
+    assert job["state"] == "failed"
+    assert job["path"] == gjf
+    # 失败日志可取证：捕获的 calculator stdout/stderr（引擎未自写日志）落在作业目录
+    assert str(job["log_path"]).startswith(mock_calc_workdir_fail + os.sep)
+    assert os.path.isfile(job["log_path"])
+
+    # 失败不插第二条作业：库里只有这一条
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import list_compute_jobs
+
+    rows = list_compute_jobs(ComputeDB())
+    assert [r["id"] for r in rows] == [result.job_id]
 
 
 @pytest.mark.asyncio
@@ -476,6 +519,12 @@ async def test_submit_compute_job_missing_executable(isolated_db, tmp_path, monk
 
     assert result.is_success is False
     assert "missing" in result.message
+    # 入库前拒绝 = 提交失败：无编号、无状态、无 DB 行、无子进程
+    assert result.job_id == -1
+    assert result.state == ""
+    from cloudra.persistence.database import ComputeDB
+
+    assert _all_compute_jobs(ComputeDB()) == []
 
 
 @pytest.mark.asyncio
@@ -493,6 +542,63 @@ async def test_submit_compute_job_async_creates_record(isolated_db, mock_calc_wo
     assert result.is_success is True
     assert result.state == "ready"
     assert result.job_id > 0
+
+
+@pytest.mark.asyncio
+async def test_submit_async_then_execution_failure_same_id(isolated_db, mock_calc_workdir_fail):
+    """异步提交先 ready；执行（认领 → 真实 guard → calculator 失败）后同编号
+    变 failed；全程只有一条作业行，query 同编号取同终态。"""
+    from cloudra.infra.compute_utils import launch_compute_processes
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import (
+        claim_ready_compute_job_with_capacity,
+        list_compute_jobs,
+    )
+    from cloudra.tools.Chemtool.query_compute_job import (
+        QueryComputeJob,
+        QueryComputeJob_input_schema,
+    )
+
+    gjf = os.path.join(mock_calc_workdir_fail, "h2.gjf")
+    tool = SubmitComputeJob()
+    tool.subagent = MockAgent("a-0", "test_conv")
+
+    submitted = await tool.tool_call(
+        SubmitComputeJob_input_schema(input_file=gjf, job_type="gaussian", is_async=True),
+        session=None,
+    )
+    assert submitted.is_success is True
+    assert submitted.state == "ready"
+    job_id = submitted.job_id
+
+    db = ComputeDB()
+    claimed = claim_ready_compute_job_with_capacity(
+        db, worker_id="test-worker", capacity={"max_concurrent": 1, "cpus": 4, "memory_mb": 4096}
+    )
+    assert claimed == job_id
+
+    ok, msg = await launch_compute_processes(
+        task_id=job_id,
+        input_file=gjf,
+        job_type="gaussian",
+        conv_id="test_conv",
+        db_path=db.path,
+        wait_for_calculator=True,
+    )
+    assert ok is False
+
+    query = QueryComputeJob()
+    query.subagent = MockAgent("a-0", "test_conv")
+    queried = await query.tool_call(
+        QueryComputeJob_input_schema(job_id=job_id), session=None,
+    )
+    assert queried.is_success is True
+    job = queried.jobs[0]
+    assert job["job_id"] == job_id
+    assert job["state"] == "failed"
+
+    rows = list_compute_jobs(db)
+    assert [r["id"] for r in rows] == [job_id]
 
 
 @pytest.mark.asyncio
@@ -1368,6 +1474,11 @@ async def test_submit_rejects_over_capacity_request(isolated_db, mock_calc_workd
     )
     assert result.is_success is False
     assert "exceeds node capacity" in result.message
+    # 超容拒收发生在入库前：无编号，且库中无任何行（与执行失败区分）
+    assert result.job_id == -1
+    from cloudra.persistence.database import ComputeDB
+
+    assert _all_compute_jobs(ComputeDB()) == []
 
 
 @pytest.mark.asyncio
@@ -1396,3 +1507,127 @@ async def test_submit_records_resource_request(isolated_db, mock_calc_workdir):
             (result.job_id,),
         ).fetchone()
     assert tuple(row) == (3, 2, 1024, "ready")
+
+
+# ---------------------------------------------------------------------------
+# ORCA 输入参数安全执行名（C1 167/168 复现：含空格路径被 ORCA 内部拆词截断）
+# ---------------------------------------------------------------------------
+
+_ORCA_SP_INPUT = "! B3LYP def2-SVP\n%pal nprocs 1 end\n* xyz 0 1\n" \
+                 "O  0.000000  0.000000  0.117300\n" \
+                 "H  0.000000  0.757200 -0.469200\n" \
+                 "H  0.000000 -0.757200 -0.469200\n*\n"
+
+
+def _run_calculator_orca(inp: Path, workdir: Path):
+    """用内置 calculator.sh 跑一次 orca 作业，返回 CompletedProcess。"""
+    from cloudra.infra.compute_utils import _default_calculator_path
+    from cloudra.infra.platform_utils import get_bash_path
+
+    return subprocess.run(
+        [get_bash_path(), _default_calculator_path(), str(inp), "orca"],
+        capture_output=True,
+        text=True,
+        cwd=workdir,
+    )
+
+
+@pytest.mark.skipif(
+    not __import__("cloudra.infra.platform_utils", fromlist=["is_posix"]).is_posix(),
+    reason="calculator.sh 需要 POSIX bash",
+)
+def test_calculator_sh_orca_space_parent_dir_uses_safe_argument(tmp_path, monkeypatch):
+    """含空格父目录：传给 ORCA 的参数不得包含空白（真机对照确认 ORCA 按空白
+    拆词截断路径），且引擎实际读到的输入与原始文件一致。"""
+    import hashlib
+
+    from tests.fixtures.benchmark_engines.engine import install_engine
+
+    engine = install_engine(monkeypatch, tmp_path / "bin", "orca")
+    workdir = tmp_path / "Application Support" / "job"
+    workdir.mkdir(parents=True)
+    inp = workdir / "water.inp"
+    inp.write_text(_ORCA_SP_INPUT, encoding="utf-8")
+
+    result = _run_calculator_orca(inp, workdir)
+    assert result.returncode == 0, result.stderr
+    assert "ORCA TERMINATED NORMALLY" in result.stdout
+
+    runs = engine.runs()
+    assert len(runs) == 1, runs
+    argv = runs[0]["argv"]
+    assert argv and not any(ch.isspace() for ch in argv[0])
+    assert argv[0] == "water.inp"
+    assert runs[0]["cwd"] == str(workdir)
+    assert runs[0]["input_sha256"] == hashlib.sha256(inp.read_bytes()).hexdigest()
+
+
+@pytest.mark.skipif(
+    not __import__("cloudra.infra.platform_utils", fromlist=["is_posix"]).is_posix(),
+    reason="calculator.sh 需要 POSIX bash",
+)
+def test_calculator_sh_orca_space_in_basename_uses_hardlink_safe_name(tmp_path, monkeypatch):
+    """basename 本身含空格：作业目录内建硬链接安全名执行，运行后删除；
+    原始用户文件一字不改，映射关系打印进捕获日志（stderr）保追踪。"""
+    import hashlib
+
+    from tests.fixtures.benchmark_engines.engine import install_engine
+
+    engine = install_engine(monkeypatch, tmp_path / "bin", "orca")
+    workdir = tmp_path / "Application Support" / "job"
+    workdir.mkdir(parents=True)
+    inp = workdir / "my water.inp"
+    inp.write_text(_ORCA_SP_INPUT, encoding="utf-8")
+    original_sha = hashlib.sha256(inp.read_bytes()).hexdigest()
+
+    result = _run_calculator_orca(inp, workdir)
+    assert result.returncode == 0, result.stderr
+    assert "ORCA TERMINATED NORMALLY" in result.stdout
+    assert "mapped to safe execution name" in result.stderr
+    assert str(inp) in result.stderr  # 映射关系可追踪到原始输入
+
+    runs = engine.runs()
+    assert len(runs) == 1, runs
+    argv = runs[0]["argv"]
+    assert argv and not any(ch.isspace() for ch in argv[0])
+    assert argv[0].startswith(".cloudra_orasafe_")
+    assert runs[0]["input_sha256"] == original_sha
+
+    # 原文件未动，硬链接已清理
+    assert hashlib.sha256(inp.read_bytes()).hexdigest() == original_sha
+    leftovers = [p.name for p in workdir.iterdir() if p.name.startswith(".cloudra_orasafe_")]
+    assert leftovers == []
+
+
+@pytest.mark.skipif(
+    not __import__("cloudra.infra.platform_utils", fromlist=["is_posix"]).is_posix(),
+    reason="calculator.sh 需要 POSIX bash",
+)
+@pytest.mark.skipif(
+    shutil.which("orca") is None,
+    reason="real ORCA not on PATH — real-engine interface not verified",
+)
+def test_calculator_sh_real_orca_space_parent_directory_control(tmp_path):
+    """本机引擎契约（第 3 层验证）：同一输入、同一 cwd，对照绝对参数与
+    calculator.sh 安全参数。真实 ORCA 6.1.1 会把含空格父路径拆词截断
+    （C1 症状）且错误地以 0 退出；calculator.sh 修复后正常终止。"""
+    import shutil as _shutil
+
+    workdir = tmp_path / "Application Support" / "job"
+    workdir.mkdir(parents=True)
+    inp = workdir / "water.inp"
+    inp.write_text(_ORCA_SP_INPUT, encoding="utf-8")
+    orca_bin = _shutil.which("orca")
+
+    # 对照：原始绝对参数调用（记录 ORCA 真实支持边界，不作修复断言）
+    raw = subprocess.run(
+        [orca_bin, str(inp)], capture_output=True, text=True, cwd=workdir,
+    )
+    assert "ORCA TERMINATED NORMALLY" not in raw.stdout
+    assert "Cannot open input file" in raw.stdout
+
+    # calculator.sh（修复后）
+    fixed = _run_calculator_orca(inp, workdir)
+    assert fixed.returncode == 0, fixed.stdout + fixed.stderr
+    assert "ORCA TERMINATED NORMALLY" in fixed.stdout
+    assert "ORCA" in fixed.stdout  # 版本横幅在 stdout 中留证

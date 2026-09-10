@@ -19,6 +19,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.tools.Chemtool.internal_coordinates import (
     _COVALENT_RADII,
     _angle_deg,
@@ -69,7 +70,7 @@ class TsGuess_input_schema(input_schema):
     reactant_path: Optional[str] = Field(
         default=None,
         description="Reactant xyz file path; in strict verify, an intermediate from one endpoint optimization. "
-                    "Absolute path, or relative to the agent process's current working directory.",
+                    "Absolute as-is, or relative to the Agent working directory.",
     )
     reactant_text: Optional[str] = Field(
         default=None,
@@ -78,7 +79,7 @@ class TsGuess_input_schema(input_schema):
     product_path: Optional[str] = Field(
         default=None,
         description="Product xyz file path; in strict verify, an intermediate from the other endpoint optimization. "
-                    "Absolute path, or relative to the agent process's current working directory.",
+                    "Absolute as-is, or relative to the Agent working directory.",
     )
     product_text: Optional[str] = Field(
         default=None,
@@ -102,11 +103,11 @@ class TsGuess_input_schema(input_schema):
     output_dir: Optional[str] = Field(
         default=None,
         description="interpolate: image output directory (default ./ts_interp/); verify: directory to write IRC endpoints (default <freq_log_stem>_verify/). "
-                    "Relative paths resolve against the agent process's current working directory.",
+                    "Relative paths resolve against the Agent working directory.",
     )
 
     # ---------- scan_prepare ----------
-    input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute path, or relative to the agent process's current working directory.")
+    input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
     input_text: Optional[str] = Field(default=None, description="scan_prepare: input structure xyz text.")
     engine: Literal["gaussian", "orca"] = Field(default="gaussian", description="Target QM program.")
     scans: Optional[list[dict]] = Field(
@@ -126,7 +127,7 @@ class TsGuess_input_schema(input_schema):
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
     nprocs: int = Field(default=4, description="Parallel cores (Gaussian %nprocshared / ORCA %pal).")
-    output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the input file (gjf/inp, required). Absolute path, or relative to the agent process's current working directory.")
+    output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the input file (gjf/inp, required). Absolute as-is, or relative to the Agent working directory.")
     job_name: str = Field(default="scan", description="Job name (used for chk file and title).")
     orca_blocks: Optional[str] = Field(
         default=None,
@@ -134,17 +135,17 @@ class TsGuess_input_schema(input_schema):
     )
 
     # ---------- scan_parse ----------
-    log_path: Optional[str] = Field(default=None, description="scan_parse: scan log file path. Absolute path, or relative to the agent process's current working directory.")
+    log_path: Optional[str] = Field(default=None, description="scan_parse: scan log file path. Absolute as-is, or relative to the Agent working directory.")
     ts_candidate_path: Optional[str] = Field(
-        default=None, description="scan_parse: path to write the TS-guess xyz (default <log_stem>_ts_guess.xyz). Absolute path, or relative to the agent process's current working directory."
+        default=None, description="scan_parse: path to write the TS-guess xyz (default <log_stem>_ts_guess.xyz). Absolute as-is, or relative to the Agent working directory."
     )
 
     # ---------- verify ----------
-    freq_log: Optional[str] = Field(default=None, description="verify: frequency-calculation log path. Absolute path, or relative to the agent process's current working directory.")
+    freq_log: Optional[str] = Field(default=None, description="verify: frequency-calculation log path. Absolute as-is, or relative to the Agent working directory.")
     irc_log: Optional[str] = Field(
         default=None,
         description="verify: IRC log path; optional in default mode, required in strict mode with valid frames on both rx<0 and rx>0 sides. "
-                    "Absolute path, or relative to the agent process's current working directory.",
+                    "Absolute as-is, or relative to the Agent working directory.",
     )
     strict: bool = Field(
         default=False,
@@ -1038,6 +1039,25 @@ class TsGuess(Tool):
         return True
 
     async def tool_call(self, user_input: TsGuess_input_schema, session: Session) -> TsGuess_output_schema:
+        # 路径语义收口：所有文件路径字段的相对路径统一解析到 agent 工作
+        # 目录（沙箱）；绝对路径保持既有权限语义。
+        user_input = user_input.model_copy(
+            update={
+                field: resolve_tool_path(self, value)
+                for field, value in {
+                    "reactant_path": user_input.reactant_path,
+                    "product_path": user_input.product_path,
+                    "input_path": user_input.input_path,
+                    "output_path": user_input.output_path,
+                    "log_path": user_input.log_path,
+                    "ts_candidate_path": user_input.ts_candidate_path,
+                    "freq_log": user_input.freq_log,
+                    "irc_log": user_input.irc_log,
+                    "output_dir": user_input.output_dir,
+                }.items()
+                if value
+            }
+        )
         mode = user_input.mode
         if mode == "xtb_neb":
             mode = "interpolate"
@@ -1116,7 +1136,7 @@ class TsGuess(Tool):
             images = _idpp_relax(images)
 
         # 落盘
-        out_dir = user_input.output_dir or "./ts_interp"
+        out_dir = user_input.output_dir or resolve_tool_path(self, "./ts_interp")
         os.makedirs(out_dir, exist_ok=True)
         for k in range(n_img):
             atomic_write_text(

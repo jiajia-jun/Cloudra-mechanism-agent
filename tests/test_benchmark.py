@@ -106,11 +106,13 @@ def test_task_id_rejects_path_traversal():
     assert TaskSpec.model_validate(dumped).task_id == "ok_TASK-1"
 
 
-def test_easy_query_requests_barrier():
-    """accuracy 层按 agent 报告的能垒评分：query 必须显式要求报告能垒。"""
+def test_easy_query_requires_structured_barrier_declaration():
+    """accuracy 只读交付物：query 必须要求把每步能垒声明进交付 JSON，
+    不再有"在最终总结里报数"这类散文契约。"""
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
     for t in tasks:
-        assert "report the computed barrier in kcal/mol" in t.prompt.query
+        assert "as `barrier_kcal_mol` in mechanism_graph.json" in t.prompt.query
+        assert "In your final summary you must report" not in t.prompt.query
 
 
 def test_easy_gold_bond_changes_and_barrier_frame():
@@ -178,7 +180,7 @@ def test_runner_rerun_over_symlink_or_file_sandbox(tmp_path):
 
 def test_run_all_isolates_task_failure(tmp_path, capsys):
     """单题后端异常不拖垮整批：失败题落 notes 带原因的零分行并继续。"""
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:2]
 
@@ -186,7 +188,7 @@ def test_run_all_isolates_task_failure(tmp_path, capsys):
         if task.task_id == tasks[0].task_id:
             raise RuntimeError("backend exploded")
         sandbox.mkdir(parents=True, exist_ok=True)
-        return BackendResult()
+        return None
 
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     results = runner.run_all(tasks)
@@ -346,23 +348,77 @@ def test_subgraph_missing_and_mismatch_still_cost():
 # --- accuracy ---
 
 
-def test_accuracy_gaussian_and_cap():
+def _evidence(steps):
+    from cloudra.benchmark.barrier_evidence import BarrierEvidence, StepBarrier
+
+    return BarrierEvidence(
+        steps=[
+            StepBarrier(
+                edge_id=edge_id,
+                ts_path=f"{edge_id}_ts.log",
+                base_path=f"{edge_id}_r.log",
+                base_node_id="r1",
+                barrier_kcal_mol=derived,
+                declared_kcal_mol=declared,
+            )
+            for edge_id, derived, declared in steps
+        ],
+        graph_found=True,
+    )
+
+
+def test_accuracy_requires_both_sources_and_agreement():
+    """交付物双来源门禁：log 推算值与交付 JSON 声明值都必须存在且一致。"""
     gold = ReferenceComputation(barrier_kcal_mol=27.5)
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
-    assert score_accuracy(27.5, gold, r).gaussian_score == pytest.approx(1.0)
-    near = score_accuracy(28.0, gold, r)
+
+    exact = score_accuracy(evidence=_evidence([("E1", 27.5, 27.5)]), gold=gold, rubric=r)
+    assert exact.gaussian_score == pytest.approx(1.0)
+    assert exact.final_score == pytest.approx(1.0)
+
+    near = score_accuracy(evidence=_evidence([("E1", 28.0, 28.4)]), gold=gold, rubric=r)
     assert near.gaussian_score > 0.95
-    far = score_accuracy(100.0, gold, r)
+
+    far = score_accuracy(evidence=_evidence([("E1", 100.0, 100.0)]), gold=gold, rubric=r)
     assert far.capped_penalty == pytest.approx(0.3)  # capped
     assert far.final_score == pytest.approx(0.7)
-    missing = score_accuracy(None, gold, r)
-    assert missing.final_score == pytest.approx(0.7)
+
+    from cloudra.benchmark.barrier_evidence import BarrierEvidence
+
+    assert score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=r).final_score == 0.0
+    undeclared = score_accuracy(evidence=_evidence([("E1", 27.5, None)]), gold=gold, rubric=r)
+    assert undeclared.final_score == 0.0
+    assert any("declares no barrier_kcal_mol" in n for n in undeclared.notes), undeclared.notes
+    conflict = score_accuracy(evidence=_evidence([("E1", 27.5, 40.0)]), gold=gold, rubric=r)
+    assert conflict.final_score == 0.0
+    assert any("disagreement" in n for n in conflict.notes), conflict.notes
+
+
+def test_accuracy_per_step_gate_and_rds_selection():
+    """逐步门禁：任一步声明与日志冲突即 0；全部一致时 RDS（最高垒）对 gold 评分。"""
+    gold = ReferenceComputation(barrier_kcal_mol=22.0)
+    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
+
+    rds = score_accuracy(
+        evidence=_evidence([("E1", 12.0, 12.0), ("E2", 22.0, 22.2), ("E3", 5.0, 5.0)]),
+        gold=gold,
+        rubric=r,
+    )
+    assert rds.rds_edge_id == "E2"
+    assert rds.log_barrier_kcal == pytest.approx(22.0)
+    assert rds.final_score == pytest.approx(1.0)
+
+    polluted = score_accuracy(
+        evidence=_evidence([("E1", 12.0, 30.0), ("E2", 22.0, 22.0)]), gold=gold, rubric=r
+    )
+    assert polluted.final_score == 0.0
+    assert any("E1" in n for n in polluted.notes), polluted.notes
 
 
 def test_accuracy_disabled_passthrough():
     gold = ReferenceComputation(barrier_kcal_mol=27.5)
     r = AccuracyRubric(enabled=False)
-    assert score_accuracy(None, gold, r).final_score == 1.0
+    assert score_accuracy(evidence=_evidence([]), gold=gold, rubric=r).final_score == 1.0
 
 
 # --- method policy ---
@@ -1122,7 +1178,7 @@ def _tiny_task(**kwargs) -> TaskSpec:
     )
 
 
-def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path, monkeypatch):
+def test_backend_runs_to_terminal_and_scores_from_deliverables(tmp_path, monkeypatch):
     from cloudra.benchmark.backend import RuntimeV2Backend
     from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
     from cloudra.runtime_v2.policies.base import ToolCall as PToolCall
@@ -1162,8 +1218,17 @@ def test_backend_runs_to_terminal_and_extracts_barrier(tmp_path, monkeypatch):
         tmp_path / "sandbox",
     )
     assert next(iter(backend.last_core.agents.values())).settings.clean_context is True
-    assert result.barrier == 12.3
-    assert "12.3 kcal/mol" in result.final_message
+    # 后端不再回传任何供评分的文本/数字：评分输入只有沙箱交付物
+    assert result is None
+    core = backend.last_core
+    agent = next(iter(core.agents.values()))
+    assert agent.state.value == "succeeded"
+    messages = [
+        str((e.data or {}).get("content") or "")
+        for e in core.event_log.query_session(agent.id)
+        if e.type == "agent.message_emitted"
+    ]
+    assert any("12.3 kcal/mol" in m for m in messages)  # 仅作审计留痕
     # b3lyp 调用被 MethodPolicyStage 拦截，工具从未真正执行
     assert tools.calls == []
 
@@ -1214,29 +1279,19 @@ def test_backend_unattended_ask_user_blocked_without_parking(tmp_path, monkeypat
         for e in core.event_log.query_session(agent.id, types={"agent.state_changed"})
     ]
     assert "waiting_input" not in states
-    assert result.barrier == 9.8
-    assert "Proceeded autonomously" in result.final_message
+    assert result is None
+    core = backend.last_core
+    agent = next(iter(core.agents.values()))
+    messages = [
+        str((e.data or {}).get("content") or "")
+        for e in core.event_log.query_session(agent.id)
+        if e.type == "agent.message_emitted"
+    ]
+    assert any("Proceeded autonomously" in m for m in messages)
 
 
 def _last_agent_id(core) -> str:
     return next(iter(core.agents))
-
-
-def test_extract_reported_barrier():
-    from cloudra.benchmark.backend import extract_reported_barrier
-
-    assert extract_reported_barrier("The barrier is 12.3 kcal/mol.") == 12.3
-    assert extract_reported_barrier("Ea = -1.5 kcal / mol relative to the complex") == -1.5
-    # 取最后一次出现（总结陈述通常在末尾）
-    assert extract_reported_barrier("first guess 20.0 kcal/mol; final: 8.4 kcal/mol") == 8.4
-    # 明确标有 RDS 时优先提取 RDS，而非后续的通道差值
-    assert (
-        extract_reported_barrier(
-            "RDS barrier is 24.5 kcal/mol. Minor-channel TS minus major-channel TS is 3.2 kcal/mol."
-        )
-        == 24.5
-    )
-    assert extract_reported_barrier("no number here") is None
 
 
 # --- 证据绑定的 partial credit（质子化/电荷态变体） ---
@@ -1292,7 +1347,7 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
     """端到端：质子化变体证据 -> integrity 通过但 binding_quality<1，
     runner composite 被乘性扣减而不是判零。"""
     pytest.importorskip("rdkit")  # 同上：质子化 partial 通道依赖 RDKit
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
     from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec, TaskSpec
 
     graph = _graph_with_ts(["[OH3+]"], ["CC(=O)[O-]"])
@@ -1314,7 +1369,7 @@ def test_integrity_report_binding_quality_and_runner_multiplier(tmp_path):
         gold=GoldSpec(mechanism_graph=graph),
     )
     runner = BenchmarkRunner(tmp_path / "data")
-    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
+    res = runner.score_sandbox(task, tmp_path)
     # graph=1.0（交付=gold），sc 无 QM 证据判负，accuracy 无 gold barrier 记 1.0
     # blend = 0.5*1.0 + 0.2*0 + 0.3*1.0 = 0.8；× 0.75 = 0.6
     assert res.integrity_passed
@@ -1375,27 +1430,27 @@ def test_selfconsistency_skips_oversized_logs(tmp_path, monkeypatch):
 
 def test_composite_no_evidence_penalty(tmp_path):
     """图缺失 / 图在但零证据绑定 -> 倒扣 no_evidence_penalty（默认 -1）。"""
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
 
     task = _runner_task(_graph_with_ts(["C"], ["O"]))
     runner = BenchmarkRunner(tmp_path / "data")
 
     # 图缺失
-    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
+    res = runner.score_sandbox(task, tmp_path)
     assert res.final_score == -1.0
 
     # 图可解析但没有任何证据
     sb2 = tmp_path / "sb2"
     sb2.mkdir()
     (sb2 / "mechanism_graph.json").write_text(task.gold.mechanism_graph.model_dump_json(by_alias=True))
-    res2 = runner.score_sandbox(task, sb2, agent=BackendResult())
+    res2 = runner.score_sandbox(task, sb2)
     assert res2.final_score == -1.0
     assert any("no evidence bound" in n for n in res2.notes)
 
 
 def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     """缺部分证据：按 binding_quality 比例扣，不是判零也不是倒扣。"""
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
     task = _runner_task(graph)
@@ -1403,7 +1458,7 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     (tmp_path / "rc.log").write_text("gaussian log\n# smiles: C\n")  # 只绑上 R
 
     runner = BenchmarkRunner(tmp_path / "data")
-    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
+    res = runner.score_sandbox(task, tmp_path)
     # R 全绑 1.0，P/TS 未绑 0 -> quality = 1/3；blend = 0.5*1 + 0 + 0.3*1 = 0.8
     assert res.final_score == pytest.approx(0.8 / 3, abs=1e-4)
     assert res.final_score > 0.0
@@ -1411,7 +1466,7 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
 
 def test_composite_full_evidence_full_blend(tmp_path):
     """证据完整 + 机理正确（交付=gold）-> 满分通道不受新语义影响。"""
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
     task = _runner_task(graph)
@@ -1420,7 +1475,7 @@ def test_composite_full_evidence_full_blend(tmp_path):
     (tmp_path / "pc.log").write_text("gaussian log\n# smiles: O\n")
 
     runner = BenchmarkRunner(tmp_path / "data")
-    res = runner.score_sandbox(task, tmp_path, agent=BackendResult())
+    res = runner.score_sandbox(task, tmp_path)
     assert res.final_score == pytest.approx(0.8, abs=1e-4)  # sc 无频率证据判负，其余满
 
 
@@ -1433,7 +1488,7 @@ def test_run_all_parallel_controlled(tmp_path):
     import sqlite3
     import time
 
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:5]
 
@@ -1442,7 +1497,7 @@ def test_run_all_parallel_controlled(tmp_path):
         if task.task_id == tasks[1].task_id:
             raise RuntimeError("boom")
         time.sleep(0.3)
-        return BackendResult()
+        return None
 
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     t0 = time.monotonic()
@@ -1459,7 +1514,7 @@ def test_run_all_parallel_controlled(tmp_path):
 
 def test_run_all_serial_default_unchanged(tmp_path):
     """concurrency=1（默认）保持串行语义：逐题顺序执行。"""
-    from cloudra.benchmark.runner import BackendResult, BenchmarkRunner
+    from cloudra.benchmark.runner import BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)[:3]
     order: list[str] = []
@@ -1467,7 +1522,7 @@ def test_run_all_serial_default_unchanged(tmp_path):
     def backend(task, sandbox):
         order.append(task.task_id)
         sandbox.mkdir(parents=True, exist_ok=True)
-        return BackendResult()
+        return None
 
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     results = runner.run_all(tasks)
@@ -1588,3 +1643,546 @@ async def test_api_pool_empty_pool_passthrough(monkeypatch):
     monkeypatch.setattr(api_pool.LegacyLLMProvider, "complete", fake_complete)
     resp = await PooledLLMProvider([]).complete(None, [], [])
     assert resp.content == "plain"
+
+
+# ---------------------------------------------------------------------------
+# Task 6（P1）：从可执行到可评分的证据闭环（本机引擎契约 + 评分现状特征化）
+# ---------------------------------------------------------------------------
+
+_FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+_GAUSSIAN_FIXTURE = _FIXTURE_DIR / "gaussian" / "water_opt_freq_g16.out"
+_ORCA_MIN_FIXTURE = _FIXTURE_DIR / "orca" / "co2_freq_orca42.out"
+_ORCA_OPT_FIXTURE = _FIXTURE_DIR / "orca" / "dvb_opt_orca42.out"
+_XTB_FIXTURE = _FIXTURE_DIR / "xtb" / "water_sp_xtb.out"
+_MACE_MODEL = Path("/Users/cloudrayyy/opt/mace-omol25/MACE-omol-0-extra-large-1024.model")
+
+
+def _evidence_task(**rubric_overrides):
+    """带显式 rubric 的任务：只断言当前评分定义，不引入新标准。"""
+    from cloudra.benchmark.schema import (
+        AccuracyRubric,
+        IntegrityRubric,
+        ReferenceComputation,
+        SelfConsistencyRubric,
+    )
+
+    task = _tiny_task()
+    sc = SelfConsistencyRubric(
+        ts_first_order_saddle=rubric_overrides.get("ts_first_order_saddle", False),
+        irc_connects_endpoints=rubric_overrides.get("irc_connects_endpoints", False),
+    )
+    return task.model_copy(
+        update={
+            "rubric": task.rubric.model_copy(
+                update={
+                    "integrity": IntegrityRubric(
+                        require_graph_json=True, require_evidence_files=True
+                    ),
+                    "self_consistency": sc,
+                    "accuracy": AccuracyRubric(),
+                }
+            ),
+            "gold": task.gold.model_copy(
+                update={
+                    "reference_computation": ReferenceComputation(
+                        barrier_kcal_mol=10.0, level_of_theory="b3lyp/test"
+                    )
+                }
+            ),
+        }
+    )
+
+
+def test_evidence_loop_engine_output_to_score(tmp_path):
+    """真实日志 fixture 走"引擎输出 → 证据文件 → 沙箱扫描 → 评分"闭环：
+    只断言当前评分定义（图相似度 + 物理自检 + 能垒容差）。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    task = _evidence_task()
+    sandbox = tmp_path / "sandbox"
+    (sandbox / "calc").mkdir(parents=True)
+    (sandbox / "mechanism_graph.json").write_text(json.dumps({
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P", "bond_changes": {"break": [], "form": []}, "accessible": True}],
+    }))
+    # 计算产物：真实 Gaussian 引擎输出 + 携带协议注释行的证据文件
+    (sandbox / "calc" / "r_min.log").write_bytes(_GAUSSIAN_FIXTURE.read_bytes())
+    (sandbox / "r_evidence.log").write_text(
+        f"smiles: O\n{_GAUSSIAN_FIXTURE.read_text(encoding='utf-8', errors='replace')}",
+        encoding="utf-8",
+    )
+
+    runner = BenchmarkRunner(tmp_path / "bench")
+    result = runner.score_sandbox(task, sandbox)
+    # Layer 1：证据绑定到交付图（smiles 注释行是唯一绑定来源）
+    assert result.integrity_passed, result.notes
+    # Layer 2：真实 opt+freq 日志被物理自检读成极小值（rubric 未要求鞍点）
+    assert result.selfconsistency_passed, result.notes
+    # Layer 3：本条交付没有 via/TS 日志 → 能垒不可评分（fail-loud 0 分）
+    assert result.accuracy_score == 0.0, result.notes
+    assert any("no step barrier" in n for n in result.notes), result.notes
+    assert result.graph_score > 0.0, result.notes
+    # 落库（每题一行；score_sandbox 只算不落库，落库由 runner/批次负责）
+    runner.db.record(result)
+    rows = runner.db.list_runs_for("")
+    assert [r["task_id"] for r in rows] == [task.task_id]
+
+
+def test_captured_stdout_log_is_scanned_and_failed_log_is_not_enough(tmp_path):
+    """guard 捕获的 .cloudra/calc-<id>.out.log 必须被证据扫描发现；但"文件存在"
+    不等于满足物理验证——未完成/无频率的日志不得判为极小值。"""
+    from cloudra.benchmark.integrity import scan_evidence_files
+    from cloudra.benchmark.selfconsistency import audit_self_consistency
+
+    sandbox = tmp_path / "sandbox"
+    (sandbox / ".cloudra").mkdir(parents=True)
+    captured = sandbox / ".cloudra" / "calc-7.out.log"
+    captured.write_bytes(_ORCA_MIN_FIXTURE.read_bytes())
+
+    files = scan_evidence_files(sandbox)
+    paths = {f.path for f in files}
+    assert ".cloudra/calc-7.out.log" in paths, paths
+    kinds = {f.path: f.kind for f in files}
+    assert kinds[".cloudra/calc-7.out.log"] == "orca"
+
+    report = audit_self_consistency(files, sandbox)
+    assert report.min_checks, report.notes
+    assert report.min_checks[0].is_minimum is True, report.notes
+
+    # 反例：同一位置放"未完成/无频率"的日志（opt 日志截断），不得满足物理验证
+    bad_sandbox = tmp_path / "bad"
+    (bad_sandbox / ".cloudra").mkdir(parents=True)
+    (bad_sandbox / ".cloudra" / "calc-8.out.log").write_bytes(
+        _ORCA_OPT_FIXTURE.read_bytes()
+    )
+    bad_files = scan_evidence_files(bad_sandbox)
+    assert any(f.path.startswith(".cloudra/") for f in bad_files)
+    bad_report = audit_self_consistency(bad_files, bad_sandbox)
+    assert not any(
+        c.is_minimum is True for c in bad_report.min_checks
+    ), bad_report.notes
+    assert bad_report.passed is False
+
+
+def test_input_and_graph_files_cannot_masquerade_as_evidence(tmp_path):
+    """手写输入文件/机理图形状的 JSON 不是成功计算证据：图 JSON 被排除在
+    证据集外，输入文件不满足物理自检。"""
+    from cloudra.benchmark.integrity import audit_integrity, scan_evidence_files
+    from cloudra.benchmark.selfconsistency import audit_self_consistency
+
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    graph = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P", "bond_changes": {"break": [], "form": []}, "accessible": True}],
+    }
+    (sandbox / "mechanism_graph.json").write_text(json.dumps(graph))
+    (sandbox / "sub").mkdir()
+    (sandbox / "sub" / "my_graph.json").write_text(json.dumps(graph))
+    (sandbox / "input.gjf").write_text(
+        "%nproc=4\n#p sp b3lyp/6-31g(d)\n\nt\n\n0 1\nO 0 0 0\nH 0 0.757 -0.469\nH 0 -0.757 -0.469\n\n"
+    )
+
+    files = scan_evidence_files(sandbox)
+    paths = {f.path for f in files}
+    assert "mechanism_graph.json" not in paths
+    assert "sub/my_graph.json" not in paths          # 图 JSON 不得自我绑定
+    assert "input.gjf" in paths                      # 输入文件在扫描范围内……
+    report = audit_self_consistency(files, sandbox)
+    assert not any(c.is_minimum is True for c in report.min_checks), report.notes
+    assert report.min_checks or report.notes         # ……但物理自检不通过
+
+    integ = audit_integrity(sandbox)
+    # 手写输入文件的 smiles 注释不构成协议证据（gjf 由 writer 写 expected_smiles 注释）
+    assert integ.graph_found and integ.graph_parseable
+
+
+def test_xyz_smiles_annotation_second_line_binds(tmp_path):
+    """XYZ 的 smiles 注释放合法第二行即绑定；缺失注释的文件不产生绑定。"""
+    from cloudra.benchmark.integrity import audit_integrity
+
+    graph = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [],
+    }
+    ok_sandbox = tmp_path / "ok"
+    ok_sandbox.mkdir()
+    (ok_sandbox / "mechanism_graph.json").write_text(json.dumps(graph))
+    (ok_sandbox / "r.xyz").write_text(
+        "3\nsmiles: O\nO 0.0 0.0 0.1173\nH 0.0 0.7572 -0.4692\nH 0.0 -0.7572 -0.4692\n"
+    )
+    ok = audit_integrity(ok_sandbox)
+    assert ok.fraction_bound == 1.0, ok.notes
+    assert ok.passed
+
+    missing_sandbox = tmp_path / "missing"
+    missing_sandbox.mkdir()
+    (missing_sandbox / "mechanism_graph.json").write_text(json.dumps(graph))
+    (missing_sandbox / "r.xyz").write_text(
+        "3\nwater\nO 0.0 0.0 0.1173\nH 0.0 0.7572 -0.4692\nH 0.0 -0.7572 -0.4692\n"
+    )
+    missing = audit_integrity(missing_sandbox)
+    assert missing.fraction_bound == 0.0, missing.notes
+    assert missing.passed is False
+
+
+def test_native_xtb_run_capability_vs_scoring_gap(tmp_path):
+    """原生 xTB：运行能力已具备（真实引擎 + guard/calculator 透传），但评分侧
+    物理自检只覆盖 gaussian/orca——现状特征化（是否扩展属科学验收，需用户确认）。"""
+    from cloudra.benchmark.integrity import scan_evidence_files
+    from cloudra.benchmark.selfconsistency import audit_self_consistency
+
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    (sandbox / "xtb_sp.out").write_bytes(_XTB_FIXTURE.read_bytes())
+    files = scan_evidence_files(sandbox)
+    kinds = {f.path: f.kind for f in files}
+    # 现状：xtb 日志被归类为通用 "log"（引擎嗅探只认 Gaussian/ORCA）
+    assert kinds["xtb_sp.out"] == "log", kinds
+    report = audit_self_consistency(files, sandbox)
+    # 缺口记录：xtb 证据不进任何物理自检集合（只收 gaussian/orca）
+    assert report.ts_checks == [] and report.min_checks == [], report.notes
+    assert report.passed is False
+
+
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None,
+    reason="native xtb not installed — run capability unverified",
+)
+def test_real_xtb_engine_run(tmp_path):
+    """第 3 层本机引擎契约：真实 xtb 通过 calculator.sh 跑通并写下终止标记。"""
+    import subprocess
+
+    from cloudra.infra.compute_utils import _default_calculator_path
+    from cloudra.infra.platform_utils import get_bash_path
+
+    workdir = tmp_path / "xtb job"
+    workdir.mkdir()
+    xyz = workdir / "water.xyz"
+    xyz.write_text(
+        "3\nwater\nO 0.000000 0.000000 0.117300\n"
+        "H 0.000000 0.757200 -0.469200\nH 0.000000 -0.757200 -0.469200\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [get_bash_path(), _default_calculator_path(), str(xyz), "xtb",
+         "--chrg", "0", "--uhf", "0", "--task", "sp", "--parallel", "1"],
+        capture_output=True, text=True, cwd=workdir, timeout=300,
+    )
+    assert proc.returncode == 0, proc.stderr[-500:]
+    out = (workdir / "water.out").read_text(encoding="utf-8", errors="replace")
+    assert "normal termination of xtb" in out, out[-500:]
+
+
+@pytest.mark.skipif(
+    not Path("/Users/cloudrayyy/opt/orca_6_1_1/orca").exists()
+    or __import__("shutil").which("mace") is None
+    or not _MACE_MODEL.is_file(),
+    reason="external ProgExt stack (ORCA + mace + model) absent — external interface unverified",
+)
+def test_real_orca_progext_external_interface(tmp_path):
+    """外部 MLIP 路由（ORCA `! ExtOpt` + %method ProgExt）的真实接口验收：
+    与原生 xTB 运行能力是两项独立能力，不能互相替代。"""
+    import subprocess
+
+    from cloudra.infra.compute_utils import _default_calculator_path
+    from cloudra.infra.platform_utils import get_bash_path
+
+    workdir = tmp_path / "progext job"
+    workdir.mkdir()
+    mace_bin = __import__("shutil").which("mace")
+    inp = workdir / "water_ext.inp"
+    inp.write_text(
+        "! ExtOpt\n"
+        "%pal nprocs 1 end\n"
+        "%method\n"
+        f'  ProgExt "{mace_bin}"\n'
+        f'  Ext_Params "--model {_MACE_MODEL} --device cpu --dtype float64"\n'
+        "end\n"
+        "* xyz 0 1\n"
+        "O  0.000000  0.000000  0.117300\n"
+        "H  0.000000  0.757200 -0.469200\n"
+        "H  0.000000 -0.757200 -0.469200\n"
+        "*\n",
+        encoding="utf-8",
+    )
+    # 输出重定向到文件而不是管道：ORCA 拉起的外部 MACE 进程会继承管道且迟迟
+    # 不退出，管道方式会让父进程读不到 EOF 而永久阻塞（首次实测即卡住 30 分钟
+    # ——ORCA 其实早已算完并写下 property/bibtex）。文件重定向 + 直接子进程
+    # 超时是唯一稳的写法，绝不能靠"等管道关闭"判定引擎结束。
+    capture = workdir / "engine_stdout.log"
+    with capture.open("wb") as sink:
+        completed = subprocess.run(
+            [get_bash_path(), _default_calculator_path(), str(inp), "orca"],
+            stdout=sink, stderr=subprocess.STDOUT, cwd=workdir, timeout=1800,
+        )
+    assert completed.returncode == 0, completed.returncode
+    combined = capture.read_text(encoding="utf-8", errors="replace")
+    assert "ORCA TERMINATED NORMALLY" in combined, combined[-2000:]
+    assert "ProgExt" in combined or "EXTERNAL" in combined.upper(), combined[-2000:]
+    assert (workdir / "water_ext.property.txt").is_file()
+
+
+# ---------------------------------------------------------------------------
+# 评分口径整改：交付物（log + 交付 JSON）是唯一评分来源，散文一律不参与
+# ---------------------------------------------------------------------------
+
+_SYNTHETIC_DIR = _FIXTURE_DIR / "benchmark_synthetic"
+_MIN_LOG = _SYNTHETIC_DIR / "minimum_freq.out"
+_TS_LOG = _SYNTHETIC_DIR / "ts_freq.out"
+
+
+def _delivery_task(gold_barrier: float) -> TaskSpec:
+    """单步交付任务：R → P 经 TS，gold 能垒由调用方按合成日志推算值给出。"""
+    from cloudra.benchmark.schema import (
+        AccuracyRubric,
+        GoldSpec,
+        IntegrityRubric,
+        ReferenceComputation,
+        RubricSpec,
+        SelfConsistencyRubric,
+    )
+
+    graph = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [
+            {
+                "id": "E1",
+                "from": "R",
+                "to": "P",
+                "via": "TS",
+                "bond_changes": {"break": [], "form": []},
+                "accessible": True,
+            }
+        ],
+    }
+    return _tiny_task().model_copy(
+        update={
+            "gold": GoldSpec(
+                mechanism_graph=GoldMechanismGraph.model_validate(graph),
+                reference_computation=ReferenceComputation(barrier_kcal_mol=gold_barrier),
+            ),
+            "rubric": RubricSpec(
+                integrity=IntegrityRubric(),
+                self_consistency=SelfConsistencyRubric(
+                    ts_first_order_saddle=False, irc_connects_endpoints=False
+                ),
+                accuracy=AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3),
+            ),
+        }
+    )
+
+
+def _write_delivery(sandbox: Path, *, declared: float | None) -> None:
+    """写出合成交付：TS 日志（1 虚频）+ 最小值日志 + 声明能垒的交付图。"""
+    sandbox.mkdir(parents=True, exist_ok=True)
+    (sandbox / "ts_freq.out").write_bytes(_TS_LOG.read_bytes())
+    (sandbox / "minimum_freq.out").write_bytes(_MIN_LOG.read_bytes())
+    edge = {
+        "id": "E1",
+        "from": "R",
+        "to": "P",
+        "via": "TS",
+        "bond_changes": {"break": [], "form": []},
+        "accessible": True,
+    }
+    if declared is not None:
+        edge["barrier_kcal_mol"] = declared
+    graph = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [edge],
+    }
+    (sandbox / "mechanism_graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+
+def _derived_barrier(sandbox: Path) -> float:
+    from cloudra.benchmark.barrier_evidence import collect_barrier_evidence
+
+    evidence = collect_barrier_evidence(sandbox)
+    assert len(evidence.steps) == 1, (evidence.steps, evidence.notes)
+    return evidence.steps[0].barrier_kcal_mol
+
+
+def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
+    """能垒来自交付日志（TS 与起点最小值），且交付 JSON 必须逐条声明。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    probe = tmp_path / "probe"
+    _write_delivery(probe, declared=None)
+    derived = _derived_barrier(probe)
+    assert derived == pytest.approx(19.955, abs=0.05)  # 合成平移量 ≈ +0.0318 Ha
+
+    # 未声明 → 0 分并写明原因
+    undeclared = BenchmarkRunner(tmp_path / "bench_u").score_sandbox(
+        _delivery_task(derived), probe
+    )
+    assert undeclared.accuracy_score == 0.0
+    assert any("declares no barrier_kcal_mol" in n for n in undeclared.notes)
+
+    # 逐条声明且与日志一致 → 与 gold（同值）满分
+    ok_dir = tmp_path / "ok"
+    _write_delivery(ok_dir, declared=derived)
+    ok = BenchmarkRunner(tmp_path / "bench_ok").score_sandbox(
+        _delivery_task(derived), ok_dir
+    )
+    assert ok.accuracy_score == 1.0, ok.notes
+    assert any("RDS E1" in n for n in ok.notes), ok.notes
+
+
+def test_declared_barrier_must_match_logs(tmp_path):
+    """声明值与日志推算值冲突（超过 sigma）→ accuracy 记 0（不给部分分）。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    probe = tmp_path / "probe"
+    _write_delivery(probe, declared=None)
+    derived = _derived_barrier(probe)
+
+    sandbox = tmp_path / "conflict"
+    _write_delivery(sandbox, declared=derived + 25.0)
+    res = BenchmarkRunner(tmp_path / "bench").score_sandbox(
+        _delivery_task(derived), sandbox
+    )
+    assert res.accuracy_score == 0.0
+    assert any("disagreement" in n for n in res.notes), res.notes
+
+
+def test_scoring_ignores_prose_barrier(tmp_path):
+    """散文里的能垒数字既不参与判定也不能替代声明（本次整改的核心回归）。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    probe = tmp_path / "probe"
+    _write_delivery(probe, declared=None)
+    derived = _derived_barrier(probe)
+
+    # 交付里只有散文在喊能垒（无 JSON 声明）→ 0 分，散文不被采信
+    prose_only = tmp_path / "prose"
+    _write_delivery(prose_only, declared=None)
+    (prose_only / "notes.md").write_text(
+        "RDS barrier is 19.96 kcal/mol (I stand behind this number).", encoding="utf-8"
+    )
+    res = BenchmarkRunner(tmp_path / "bench_p").score_sandbox(
+        _delivery_task(derived), prose_only
+    )
+    assert res.accuracy_score == 0.0
+    assert any("declares no barrier_kcal_mol" in n for n in res.notes), res.notes
+
+    # 声明正确、散文献乱数 → 仍按交付物满分（散文不污染评分）
+    polluted = tmp_path / "polluted"
+    _write_delivery(polluted, declared=derived)
+    (polluted / "final_summary.txt").write_text(
+        "The barrier is 999.0 kcal/mol.", encoding="utf-8"
+    )
+    good = BenchmarkRunner(tmp_path / "bench_g").score_sandbox(
+        _delivery_task(derived), polluted
+    )
+    assert good.accuracy_score == 1.0, good.notes
+
+
+def test_barrier_requires_a_saddle_log(tmp_path):
+    """没有一阶鞍点日志（只有最小值）→ 能垒不可推 → 0 分并写明原因。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    sandbox = tmp_path / "no_ts"
+    sandbox.mkdir()
+    (sandbox / "minimum_freq.out").write_bytes(_MIN_LOG.read_bytes())
+    (sandbox / "mechanism_graph.json").write_text(json.dumps({
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [{
+            "id": "E1", "from": "R", "to": "P", "via": "TS",
+            "bond_changes": {"break": [], "form": []}, "accessible": True,
+            "barrier_kcal_mol": 20.0,
+        }],
+    }))
+    res = BenchmarkRunner(tmp_path / "bench").score_sandbox(
+        _delivery_task(20.0), sandbox
+    )
+    assert res.accuracy_score == 0.0
+    assert any("no step barrier" in n for n in res.notes), res.notes
+
+
+def test_scoring_modules_do_not_import_regex():
+    """护栏：评分/校验链路不得引入正则（AGENTS.md 禁止校验路径用正则）。"""
+    import ast
+    from pathlib import Path as _Path
+
+    modules = [
+        "cloudra/benchmark/accuracy.py",
+        "cloudra/benchmark/refusal.py",
+        "cloudra/benchmark/runner.py",
+        "cloudra/benchmark/backend.py",
+        "cloudra/benchmark/barrier_evidence.py",
+        "cloudra/benchmark/batch.py",
+    ]
+    root = _Path(__file__).resolve().parents[1]
+    offenders = []
+    for rel in modules:
+        tree = ast.parse((root / rel).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import) and any(a.name == "re" for a in node.names):
+                offenders.append(f"{rel}: import re")
+            if isinstance(node, ast.ImportFrom) and node.module == "re":
+                offenders.append(f"{rel}: from re import ...")
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if isinstance(node.func.value, ast.Name) and node.func.value.id == "re":
+                    offenders.append(f"{rel}: re.{node.func.attr}()")
+    assert offenders == [], offenders
+
+
+def test_relative_evidence_reference_does_not_cross_tasks(tmp_path):
+    """相对证据引用不跨题：同一沙箱内的相对引用解析到本题，`../` 或指向别的
+    题目目录的引用（含绝对路径）一律拒绝，评分侧同样按不可用处理。"""
+    from cloudra.benchmark.barrier_evidence import _engine_energy_kcal
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    task_a = tmp_path / "sandbox" / "T1"
+    task_b = tmp_path / "sandbox" / "T2"
+    for sandbox in (task_a, task_b):
+        (sandbox / "calc").mkdir(parents=True)
+        (sandbox / "calc" / "input.log").write_bytes(_ORCA_MIN_FIXTURE.read_bytes())
+
+    # 1) 生产 ingestion：相对引用只在本题目录内解析
+    snapshot = snapshot_evidence_file("calc/input.log", workspace_root=task_a)
+    assert snapshot.sha256 and snapshot.file_size > 0
+
+    # 2) 相对逃逸与指向另一题的绝对路径都被拒（即便文件真实存在）
+    with pytest.raises(ValueError):
+        snapshot_evidence_file("../T2/calc/input.log", workspace_root=task_a)
+    with pytest.raises(ValueError):
+        snapshot_evidence_file(str(task_b / "calc" / "input.log"), workspace_root=task_a)
+
+    # 3) 符号链接引用被拒（不得借链接把别的题目的产物当成本题证据）
+    link = task_a / "calc" / "linked.log"
+    try:
+        link.symlink_to(task_b / "calc" / "input.log")
+    except OSError:
+        link = None  # 环境不允许 symlink：跳过这一条（其余断言仍生效）
+    if link is not None:
+        with pytest.raises(ValueError):
+            snapshot_evidence_file("calc/linked.log", workspace_root=task_a)
+
+    # 4) 评分侧防线：越界引用按不可用处理，且不读取别的题目的日志
+    energy, reason = _engine_energy_kcal(task_a, "../T2/calc/input.log")
+    assert energy is None
+    assert "escapes this task's sandbox" in reason, reason
+    inside, _ = _engine_energy_kcal(task_a, "calc/input.log")
+    assert inside is not None

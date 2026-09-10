@@ -11,10 +11,14 @@ the (pluggable) agent backend, then scores. The agent backend is injected so
 the runner stays decoupled from runtime_v2 wiring; a default no-op backend is
 provided for dry-run / pipeline testing.
 
-Every run is also classified into a refusal outcome (answered/refused/failed,
-see `refusal.py`) — refusal is a first-class, tier-agnostic outcome: agents may
-refuse on any tier, and the impossible tier's main metric is the cross-tier
-refusal precision/recall, not a per-tier refusal rate.
+Scoring reads **only deliverables** (the delivered mechanism graph JSON, the
+`smiles:`-annotated logs in the sandbox, and the optional structured refusal
+declaration) — never the LLM's prose. Every run is classified into a
+behaviour outcome (answered/refused/failed, see `refusal.py`): a parseable
+delivered graph is an answer, an explicit structured refusal declaration is a
+refusal, anything else is failed. Refusal is a first-class, tier-agnostic
+outcome, and the impossible tier's main metric is the cross-tier refusal
+precision/recall, not a per-tier refusal rate.
 """
 
 from __future__ import annotations
@@ -30,27 +34,21 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from cloudra.benchmark.accuracy import AccuracyReport, score_accuracy
+from cloudra.benchmark.barrier_evidence import (
+    BarrierEvidence,
+    collect_barrier_evidence,
+    load_refusal_declaration,
+)
 from cloudra.benchmark.graph_similarity import GedConfig, GedResult, mechanism_similarity
 from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
 from cloudra.benchmark.refusal import RunOutcome, classify_outcome
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
 
-
-@dataclass
-class BackendResult:
-    """Agent backend 的结构化产出：最终消息全文 + 从中提取的能垒。
-
-    最终消息是拒答分类的唯一文本来源（v1 启发式见 refusal.classify_outcome），
-    必须原样保留，不能只回传能垒数字。"""
-
-    barrier: Optional[float] = None
-    final_message: str = ""
-
-
-# Agent backend signature: given (task, sandbox_dir) it runs the agent and
-# returns a BackendResult (final message + agent-reported barrier, if any).
-AgentBackend = Callable[[TaskSpec, Path], BackendResult]
+# Agent backend signature: given (task, sandbox_dir) it runs the agent to
+# completion.  It returns nothing: every scoring input is a deliverable on
+# disk (交付物是唯一事实来源), so the backend cannot feed the scorer.
+AgentBackend = Callable[[TaskSpec, Path], None]
 
 
 @dataclass
@@ -225,11 +223,10 @@ class BenchmarkDB:
         return out
 
 
-def _default_backend(task: TaskSpec, sandbox: Path) -> BackendResult:
-    """No-op backend: creates the sandbox and returns nothing. Used for
-    pipeline dry-runs; real runs inject a runtime_v2-backed backend."""
+def _default_backend(task: TaskSpec, sandbox: Path) -> None:
+    """No-op backend: creates the sandbox and returns. Used for pipeline
+    dry-runs; real runs inject a runtime_v2-backed backend."""
     sandbox.mkdir(parents=True, exist_ok=True)
-    return BackendResult()
 
 
 class BenchmarkRunner:
@@ -271,7 +268,8 @@ class BenchmarkRunner:
             morgan_nbits=base.morgan_nbits,
         )
 
-    def score_sandbox(self, task: TaskSpec, sandbox: Path, agent: BackendResult) -> RunResult:
+    def score_sandbox(self, task: TaskSpec, sandbox: Path) -> RunResult:
+        """按交付物评分：图（JSON）+ 日志 + 结构化拒答声明，不读任何散文。"""
         res = RunResult(task_id=task.task_id, sandbox=str(sandbox))
         ged_config = self._ged_config_for(task)
 
@@ -294,8 +292,12 @@ class BenchmarkRunner:
         res.selfconsistency_passed = sc.passed
         res.notes.extend(sc.notes)
 
+        barriers: BarrierEvidence = collect_barrier_evidence(sandbox)
+        res.notes.extend(barriers.notes)
         acc: AccuracyReport = score_accuracy(
-            agent.barrier, task.gold.reference_computation, task.rubric.accuracy
+            evidence=barriers,
+            gold=task.gold.reference_computation,
+            rubric=task.rubric.accuracy,
         )
         res.accuracy_score = acc.final_score
         res.notes.extend(acc.notes)
@@ -325,8 +327,12 @@ class BenchmarkRunner:
                     f"binding quality {integ.binding_quality:.2f} applied as composite multiplier"
                 )
 
+        # 行为分类只认可解析的交付图（损坏或只带拒答声明的文件不算作答）与
+        # 显式结构化拒答声明；散文一律不参与判定。
+        delivered_graph = integ.delivered_graph
         res.outcome = classify_outcome(
-            graph_found=integ.graph_found, final_message=agent.final_message
+            graph_found=delivered_graph is not None and bool(delivered_graph.nodes),
+            refusal_declared=load_refusal_declaration(sandbox) is not None,
         ).value
         return res
 
@@ -338,8 +344,8 @@ class BenchmarkRunner:
             sandbox.unlink()
         elif sandbox.exists():
             shutil.rmtree(sandbox)
-        agent = self.backend(task, sandbox)
-        result = self.score_sandbox(task, sandbox, agent)
+        self.backend(task, sandbox)
+        result = self.score_sandbox(task, sandbox)
         self.db.record(result)
         return result
 

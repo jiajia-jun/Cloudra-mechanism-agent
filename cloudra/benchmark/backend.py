@@ -24,37 +24,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import re
 import threading
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from cloudra.benchmark.policy_stage import MethodPolicyStage
-from cloudra.benchmark.runner import BackendResult
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.watch import RunWatcher
 
 logger = logging.getLogger(__name__)
-
-# 最终总结里的能垒抓取：优先匹配明确指认的决速步（RDS / rate-determining step）
-# 能垒；未明确标明时取文本中最后一个 "<number> kcal/mol" 出现（总结陈述通常在最末）。
-_RDS_BARRIER_RE = re.compile(
-    r"(?:rds|rate[- ]determining(?:[- ]step)?)\s*(?:barrier|energy|enthalpy)?\s*(?:is|of|:|=)?\s*(-?\d+(?:\.\d+)?)\s*kcal\s*/?\s*mol",
-    re.IGNORECASE,
-)
-_BARRIER_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*kcal\s*/?\s*mol", re.IGNORECASE)
-
-
-def extract_reported_barrier(text: str) -> Optional[float]:
-    """Last "<number> kcal/mol" in the agent's final summary, or None."""
-    if not text:
-        return None
-    rds_match = _RDS_BARRIER_RE.search(text)
-    if rds_match:
-        return float(rds_match.group(1))
-    matches = _BARRIER_RE.findall(text)
-    return float(matches[-1]) if matches else None
-
 
 class RuntimeV2Backend:
     """`AgentBackend` implementation: run each task on the real runtime_v2.
@@ -96,10 +74,10 @@ class RuntimeV2Backend:
         with self._cores_lock:
             return self._cores.get(task_id)
 
-    def __call__(self, task: TaskSpec, sandbox: Path) -> BackendResult:
-        return asyncio.run(self._run_task(task, Path(sandbox)))
+    def __call__(self, task: TaskSpec, sandbox: Path) -> None:
+        asyncio.run(self._run_task(task, Path(sandbox)))
 
-    async def _run_task(self, task: TaskSpec, sandbox: Path) -> BackendResult:
+    async def _run_task(self, task: TaskSpec, sandbox: Path) -> None:
         from cloudra.runtime_v2.adapters import (
             LegacyLLMProvider,
             LegacyPromptProvider,
@@ -183,11 +161,8 @@ class RuntimeV2Backend:
                 )
                 ).data
             await self._wait_terminal(bus, agent)
-            message = self._final_message(core, agent.id)
-            barrier = extract_reported_barrier(message)
-            if message and barrier is None:
-                logger.warning("agent %s final message reports no barrier", agent.id)
-            return BackendResult(barrier=barrier, final_message=message)
+            # 评分只读交付物（图 + 日志 + 结构化拒答声明）：后端不回传任何
+            # 供评分使用的文本/数字，杜绝"拿模型自述给自己打分"。
         finally:
             if agent is not None and core.runner is not None:
                 await core.runner.cancel(agent.id)
@@ -236,9 +211,7 @@ class RuntimeV2Backend:
         await watcher.wait(core, agent, cancel)
 
     def _final_message(self, core, session_id: str) -> str:
-        """agent 最后一条 message_emitted 的原文（无则空串）。
-
-        拒答分类与能垒抓取共用这一条消息：拒答声明通常就是收尾陈述。"""
+        """agent 最后一条 message_emitted 的原文——**仅作诊断日志**，不参与评分。"""
         events = core.event_log.query_session(session_id)
         for envelope in reversed(events):
             if envelope.type == "agent.message_emitted":

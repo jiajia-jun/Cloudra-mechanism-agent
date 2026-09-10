@@ -250,6 +250,39 @@ async def test_qm_input_writer_gaussian_external_route(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_qm_input_writer_relative_paths_use_agent_workspace(tmp_path, monkeypatch):
+    """相对 output_dir/source_value 解析到绑定 agent 的 working_directory，
+    绝不落到进程 cwd（C1 沙箱路径缺陷的直接单测）。"""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "water.xyz").write_text(_WATER_XYZ, encoding="utf-8")
+    server_cwd = tmp_path / "cwd"
+    server_cwd.mkdir()
+    monkeypatch.chdir(server_cwd)
+
+    class _Bridge:
+        working_directory = str(workspace)
+
+    tool = QmInputWriter()
+    tool.subagent = _Bridge()
+
+    result = await tool.tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file",
+            source_value="water.xyz",
+            output_dir="calc/water.gjf",
+        ),
+        session=None,
+    )
+
+    assert result.is_success is True, result.message
+    written = workspace / "calc" / "water.gjf"
+    assert written.is_file()
+    assert result.input_path == str(written.resolve())
+    assert not (server_cwd / "calc" / "water.gjf").exists()
+
+
+@pytest.mark.asyncio
 async def test_qm_input_writer_external_params_requires_external_program(tmp_path):
     """external_params 单独出现（无 external_program）是配置错误，fail-loud。"""
     xyz = tmp_path / "water.xyz"

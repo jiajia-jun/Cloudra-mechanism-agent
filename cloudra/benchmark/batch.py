@@ -25,16 +25,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import time
 from collections import deque
 from pathlib import Path
 from typing import Callable, Optional
 
-from cloudra.benchmark.backend import extract_reported_barrier
 from cloudra.benchmark.refusal import RunOutcome, refusal_stats, should_refuse
 from cloudra.benchmark.runner import (
-    BackendResult,
     BenchmarkDB,
     BenchmarkRunner,
     RunResult,
@@ -223,11 +222,27 @@ class BenchmarkBatch:
             await self._mark_cancelled(st)
             return
         try:
+            live = await asyncio.to_thread(self._live_compute_in, sandbox)
+            if live:
+                # 上一轮（或其它批次）的作业仍在跑：复跑会清空它正在使用的
+                # 输入/输出。按"拒绝占用目录"的生命周期契约落明确基建失败，
+                # 绝不静默清空、绝不 kill 旧计算（执行面铁律）。
+                await self._mark_infra_failure(
+                    st,
+                    f"sandbox {sandbox} still has live compute job(s) {live}; "
+                    "refusing to reuse the directory (old compute is never killed)",
+                )
+                return
             await asyncio.to_thread(self._reset_sandbox, sandbox)
-        except Exception:
-            # 沙箱清理失败属基建故障：仍尝试运行（backend 契约是干净沙箱，
-            # 但失败的清理不该静默吞掉运行机会）。
-            logger.warning("sandbox reset failed for %s", task.task_id, exc_info=True)
+        except OSError as exc:
+            # 沙箱清理失败属基建故障：不在旧目录继续 spawn/评分（残留证据会
+            # 污染取证，旧产物也不该被当成本题产出）。
+            await self._mark_infra_failure(
+                st,
+                f"sandbox reset failed for {task.task_id}: {exc}; "
+                "refusing to run in the previous directory",
+            )
+            return
 
         st.status = "running"
         st.started_at = time.time()
@@ -305,13 +320,11 @@ class BenchmarkBatch:
                 await self._mark_cancelled(st)
                 return
 
-            message = self._final_message(agent.id)
-            barrier = extract_reported_barrier(message)
+            # 评分只读交付物：图 JSON + 日志 + 结构化拒答声明（不读最终消息）
             result = await asyncio.to_thread(
                 self._runner.score_sandbox,
                 task,
                 sandbox,
-                BackendResult(barrier=barrier, final_message=message),
             )
             result.batch_id = self.batch_id
             st.result = result
@@ -363,6 +376,45 @@ class BenchmarkBatch:
         elif sandbox.exists():
             shutil.rmtree(sandbox)
         sandbox.mkdir(parents=True, exist_ok=True)
+
+    def _live_compute_in(self, sandbox: Path) -> list[int]:
+        """该沙箱目录下是否还有未终态的计算作业（中央 compute.db 是唯一权威）。
+
+        读失败按"无占用"处理（下轮清理失败仍会落基建失败），绝不因诊断读
+        失败阻断批次；只读，不改状态。
+        """
+        from cloudra.persistence.database import ComputeDB
+        from cloudra.services.compute_store import list_compute_jobs
+
+        try:
+            rows = list_compute_jobs(ComputeDB(), states=("ready", "running"))
+        except Exception:
+            return []
+        root = str(Path(sandbox).resolve())
+        return [
+            int(row["id"])
+            for row in rows
+            if str(row.get("path") or "").startswith(root + os.sep)
+        ]
+
+    async def _mark_infra_failure(self, st: _TaskRunState, message: str) -> None:
+        """基建失败终态：不 spawn、不评分，落一行带原因的失败记录并广播。"""
+        st.status = "error"
+        st.error = message
+        result = RunResult(
+            task_id=st.task.task_id,
+            sandbox=str(self.sandboxes / st.task.task_id),
+            outcome=RunOutcome.FAILED.value,
+            batch_id=self.batch_id,
+        )
+        result.notes.append(f"infrastructure failure: {message}")
+        st.result = result
+        await asyncio.to_thread(self._runner.db.record, result)
+        logger.warning("benchmark task %s failed before start: %s", st.task.task_id, message)
+        self.emit(
+            "benchmark.task_error",
+            {"batch_id": self.batch_id, "task_id": st.task.task_id, "error": message},
+        )
 
     def _cancelled_result(self, task: TaskSpec, sandbox: Path) -> RunResult:
         result = RunResult(

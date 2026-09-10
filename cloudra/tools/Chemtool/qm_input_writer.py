@@ -15,6 +15,7 @@ except Exception:
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.tools.core.calculation_intent import (
     inspect_input,
     intent_from_writer,
@@ -49,7 +50,8 @@ class QmInputWriter_input_schema(input_schema):
     source_value: str = Field(
         description="Molecular-structure source value. "
                     "When source_type='smiles', a SMILES string (e.g. 'CC(=O)O'); "
-                    "when source_type='xyz_file' or 'mol_file', the file's absolute path."
+                    "when source_type='xyz_file' or 'mol_file', the file's path — "
+                    "absolute as-is, or relative to the Agent working directory."
     )
     method: str = Field(
         default="b3lyp",
@@ -128,7 +130,8 @@ class QmInputWriter_input_schema(input_schema):
                     "Example: B 1 34 S 15 0.02"
     )
     output_dir: str = Field(
-        description="Absolute path of the .gjf file (including filename)."
+        description="Path of the .gjf file (including filename): absolute as-is, "
+                    "or relative to the Agent working directory."
     )
     chk_name: Optional[str] = Field(
         default=None,
@@ -406,6 +409,11 @@ class QmInputWriter(Tool):
                 message="external_params is ORCA-only; for the Gaussian external route fold program "
                         "arguments into external_program (e.g. external_program='mace --model x.model').",
             )
+        # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径
+        # 保持既有权限语义。SMILES 源不经过路径解析（绝不把 SMILES 当路径）。
+        if user_input.source_type in ("xyz_file", "mol_file"):
+            user_input.source_value = resolve_tool_path(self, user_input.source_value)
+        user_input.output_dir = resolve_tool_path(self, user_input.output_dir)
         try:
             coords = self._get_coordinates(user_input.source_type, user_input.source_value)
             # 输入冲突前置校验：无法实现的选项明确报错，绝不写出看似成功

@@ -181,3 +181,80 @@ async def test_project_without_policy_unaffected(tmp_path):
     assert outcome.decision == "continue"
     assert tools.calls == ["bash"]
     assert _blocked_events(core, agent.id) == []
+
+
+# ---------------------------------------------------------------------------
+# Task 4（P1）：白名单三入口与原生 xTB 词表契约（现状特征化）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("method", "allowed"),
+    [
+        ("xtb", True),
+        ("xTB2", True),          # 族粒度匹配：含 xtb 即命中（原生 xTB2 关键字）
+        ("XTB GFN2", True),
+        ("GFN2-xTB", True),
+        ("xtb --gfn 2", True),
+        ("b3lyp", False),
+        ("wB97X-V", False),
+        ("mace-omol25", False),  # 不在白名单的 MLIP 同样拦
+        ("???", False),          # 无法解析的方法 fail-closed
+        ("", False),
+    ],
+)
+def test_method_whitelist_token_contract(method, allowed):
+    """白名单按方法族匹配；无法解析的方法一律 fail-closed。"""
+    from cloudra.runtime_v2.method_policy import check_method
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["xtb"])
+    assert check_method(method, policy).allowed is allowed
+
+
+def test_method_whitelist_three_layers_fail_closed(tmp_path):
+    """三个拦截层（qm_input_writer / submit_compute_job / bash 内容）对无法
+    解析的方法一致 fail-closed，且带空格目录里的磁盘输入同样被解析到。"""
+    from cloudra.runtime_v2.method_policy import intercept
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["xtb"], intercept_layers=[
+        "bash", "submit_compute_job", "qm_input_writer",
+    ])
+    space_dir = tmp_path / "Application Support" / "中文 C1"
+    space_dir.mkdir(parents=True)
+
+    # 1) qm_input_writer：显式方法字段
+    assert intercept("qm_input_writer", {"method": "b3lyp"}, policy).allowed is False
+    assert intercept("qm_input_writer", {"method": "xTB2"}, policy).allowed is True
+    assert intercept("qm_input_writer", {"method": "???"}, policy).allowed is False
+    assert intercept("qm_input_writer", {"external_program": "/opt/mace"}, policy).allowed is False
+
+    # 2) submit_compute_job：按磁盘文件内容判定（含空格目录的相对/绝对引用）
+    good = space_dir / "ok.inp"
+    good.write_text("! XTB2 OPT FREQ\n* xyz 0 1\nC 0 0 0\n*\n", encoding="utf-8")
+    bad = space_dir / "bad.gjf"
+    bad.write_text("#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\n", encoding="utf-8")
+    unparseable = space_dir / "weird.inp"
+    unparseable.write_text("! ???\n* xyz 0 1\nC 0 0 0\n*\n", encoding="utf-8")
+
+    assert intercept("submit_compute_job", {"input_file": str(good)}, policy).allowed is True
+    assert intercept("submit_compute_job", {"input_file": str(bad)}, policy).allowed is False
+    verdict = intercept("submit_compute_job", {"input_file": str(unparseable)}, policy)
+    assert verdict.allowed is False and "not in allowed_methods" in verdict.reason
+    # 相对路径按 sandbox root 解析（带空格目录）
+    assert intercept(
+        "submit_compute_job", {"input_file": "ok.inp"}, policy, base_dir=space_dir
+    ).allowed is True
+    assert intercept(
+        "submit_compute_job", {"input_file": "bad.gjf"}, policy, base_dir=space_dir
+    ).allowed is False
+
+    # 3) bash：只按它写出的 QM 输入内容判定，不扫命令文本
+    bash_ok = "cat > ts.inp <<'EOF'\n! XTB2 OPT\n* xyz 0 1\nC 0 0 0\n*\nEOF\n"
+    bash_bad = "cat > ts.gjf <<'EOF'\n#p b3lyp/6-31g* opt\n\nt\n\n0 1\nC 0 0 0\nEOF\n"
+    bash_unparseable = "cat > ts.inp <<'EOF'\n! ???\n* xyz 0 1\nC 0 0 0\n*\nEOF\n"
+    assert intercept("bash", {"command": bash_ok}, policy).allowed is True
+    assert intercept("bash", {"command": bash_bad}, policy).allowed is False
+    assert intercept("bash", {"command": bash_unparseable}, policy).allowed is False
+    # 与拦截层无关的工具不受影响
+    assert intercept("write", {"path": "x.txt", "content": "b3lyp"}, policy).allowed is True

@@ -80,6 +80,8 @@ fort.*
 !tests/fixtures/orca/extopt_relaxed_scan/*.out
 # xtb 日志样本同理（GH #26）
 !tests/fixtures/xtb/*.out
+# 合成契约 fixture（交付物评分测试用；README 明确标注非科学计算结果）
+!tests/fixtures/benchmark_synthetic/*.out
 
 # 测试泄漏的 mock 数据目录
 MagicMock/

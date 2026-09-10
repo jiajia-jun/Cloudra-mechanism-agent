@@ -121,7 +121,14 @@ class BondChangeSet(BaseModel):
 
 
 class MechanismEdge(BaseModel):
-    """One elementary step connecting two species nodes via a TS node."""
+    """One elementary step connecting two species nodes via a TS node.
+
+    ``barrier_kcal_mol`` 是**交付侧声明字段**：agent 在 mechanism_graph.json
+    里为决速步（RDS）那条边声明能垒（kcal/mol，相对该步起点最小值；easy 单步
+    题即"相对反应物络合物"）。评分不读最终消息散文：harness 从交付日志推出
+    逐步能垒并取 RDS，再要求声明值与推算值都存在且一致（复用 accuracy 容差），
+    两者缺一或冲突一律 fail-loud 记 0 分。
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
 
@@ -132,6 +139,22 @@ class MechanismEdge(BaseModel):
     step_type: str = ""        # e.g. "concerted_[4+2]", "SN2_backside"
     bond_changes: BondChangeSet = Field(default_factory=BondChangeSet)
     accessible: bool = True
+    barrier_kcal_mol: Optional[float] = None
+
+
+class RefusalDeclaration(BaseModel):
+    """交付的拒答声明（可选字段）。
+
+    impossible 档与兄弟题共用同一句协议：无法可信计算时，交付
+    ``mechanism_graph.json`` 且内容为 ``{"refusal": {"refused": true,
+    "reason": "..."}}``，而不是机理图。拒答分类只读这个结构化声明与交付图
+    是否存在，绝不解析最终消息散文。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    refused: bool = False
+    reason: str = ""
 
 
 class GoldMechanismGraph(BaseModel):

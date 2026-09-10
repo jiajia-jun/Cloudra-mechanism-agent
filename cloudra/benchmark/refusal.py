@@ -18,18 +18,19 @@
 拒答理由是否成立；理由质量留给后续 LLM judge 诊断层（先只进报告不进
 composite）。
 
-v1 分类是纯确定性启发式：
-- 交付了机理图文件（哪怕损坏/零分）→ answered——尝试交付就是作答；
-- 无交付且最终消息含明确拒答声明（中英双语，_REFUSAL_RE）→ refused；
-- 其余（无交付也无拒答声明、后端崩溃、超时取消）→ failed。
-已知局限：模板套话也能过 regex——这正是不能用 rubric 给拒答质量评分的理由，
-但对"是否拒答"的行为分类足够；借口型拒答（"工具坏了算不了"）若无明确声明
-会落 failed。将来接 judge 时只替换 classify_outcome 的实现，统计层不变。
+分类是纯结构化的（不解析任何 LLM 散文）：
+
+- 交付了可解析的机理图 → answered（尝试交付就是作答，无论得分高低）；
+- 未交付图、但交付 ``mechanism_graph.json`` 里带合法的拒答声明
+  （``{"refusal": {"refused": true, "reason": "..."}}``）→ refused；
+- 其余（无图、无声明、后端崩溃、超时取消）→ failed。
+
+协议句要求 agent 用结构化声明表达拒答（prose 不再参与判定），因此
+"借口型拒答"若不落声明即落 failed——这正是 fail-loud 的预期。
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable, Optional
@@ -38,49 +39,20 @@ from cloudra.benchmark.schema import ExpectedOutcome, TaskSpec
 
 
 class RunOutcome(str, Enum):
-    ANSWERED = "answered"  # 尝试交付（无论得分高低）
-    REFUSED = "refused"    # 无交付 + 明确拒答声明
-    FAILED = "failed"      # 无交付也无拒答声明 / 崩溃 / 超时
-
-
-# 明确拒答声明（中英双语）。判定目标是"行为上拒绝了作答"，故意不收
-# "multireference"/"CASSCF" 这类理由词——单提理由词不等于拒答，收了会误判
-# 正常作答里的方法讨论。
-_REFUSAL_RE = re.compile(
-    r"(?:"
-    r"\bi\s+(?:must|have\s+to|will|would|shall|choose\s+to|decide\s+to|can\s+only)\s+"
-    r"(?:refuse|decline|abstain)\b"
-    r"|\b(?:refuse|decline|abstain)\s+to\s+(?:report|provide|give|compute|answer|deliver)\b"
-    r"|\bcannot\s+(?:in\s+good\s+conscience\s+|responsibly\s+|reliably\s+|credibly\s+)?"
-    r"(?:report|provide|give|offer|compute|deliver)\b"
-    r"|\bwould\s+not\s+be\s+(?:meaningful|trustworthy|reliable|defensible|responsible)\s+to\s+"
-    r"(?:report|give|provide|compute)\b"
-    r"|\bnot\s+(?:meaningful|trustworthy|reliable)\s+to\s+(?:report|give|provide)\b"
-    r"|\brefrain\s+from\s+(?:reporting|giving|providing|computing)\b"
-    r"|\bwill\s+not\s+(?:report|provide|give)\s+a?\s*(?:single-reference\s+)?(?:number|value|barrier|answer)\b"
-    r"|科学?拒答|拒绝回答|拒绝(?:给出|报告|提供|计算)"
-    r"|不予(?:给出|报告|提供)"
-    r"|无法(?:给出|提供|报告)?可信(?:的)?(?:数值|数字|结果|答案|能垒)"
-    r"|不能(?:给出|提供|报告)(?:可信|可靠)(?:的)?(?:数值|数字|结果|答案|能垒)"
-    r"|不宜(?:给出|报告|提供)(?:数值|数字|结果|能垒)"
-    r"|不应(?:给出|报告|提供)(?:该|此|单一参考)?(?:数值|数字|结果|能垒)"
-    r")",
-    re.IGNORECASE,
-)
+    ANSWERED = "answered"  # 交付了可解析的机理图（无论得分高低）
+    REFUSED = "refused"    # 无图 + 结构化拒答声明
+    FAILED = "failed"      # 无图也无声明 / 崩溃 / 超时
 
 
 def classify_outcome(
     *,
     graph_found: bool,
-    final_message: str,
-    crashed: bool = False,
+    refusal_declared: bool = False,
 ) -> RunOutcome:
-    """单题拒答分类（v1 确定性启发式，语义见模块 docstring）。"""
-    if crashed:
-        return RunOutcome.FAILED
+    """单题行为分类：只看交付物（图是否可解析 / 是否有结构化拒答声明）。"""
     if graph_found:
         return RunOutcome.ANSWERED
-    if final_message and _REFUSAL_RE.search(final_message):
+    if refusal_declared:
         return RunOutcome.REFUSED
     return RunOutcome.FAILED
 
