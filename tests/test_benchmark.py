@@ -15,6 +15,7 @@ hold).
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -1649,6 +1650,8 @@ async def test_api_pool_empty_pool_passthrough(monkeypatch):
 # Task 6（P1）：从可执行到可评分的证据闭环（本机引擎契约 + 评分现状特征化）
 # ---------------------------------------------------------------------------
 
+_RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
+
 _FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
 _GAUSSIAN_FIXTURE = _FIXTURE_DIR / "gaussian" / "water_opt_freq_g16.out"
 _ORCA_MIN_FIXTURE = _FIXTURE_DIR / "orca" / "co2_freq_orca42.out"
@@ -1724,7 +1727,10 @@ def test_evidence_loop_engine_output_to_score(tmp_path):
     # Layer 3：本条交付没有 via/TS 日志 → 能垒不可评分（fail-loud 0 分）
     assert result.accuracy_score == 0.0, result.notes
     assert any("no step barrier" in n for n in result.notes), result.notes
-    assert result.graph_score > 0.0, result.notes
+    # 图相似度的化学指纹依赖 RDKit（可选依赖）：缺失时该层退化，CI（只装
+    # dev extra）就属于这种情况，因此只在 RDKit 可用时断言图分
+    if _RDKIT_AVAILABLE:
+        assert result.graph_score > 0.0, result.notes
     # 落库（每题一行；score_sandbox 只算不落库，落库由 runner/批次负责）
     runner.db.record(result)
     rows = runner.db.list_runs_for("")

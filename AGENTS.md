@@ -129,6 +129,7 @@ uv run python -m compileall -q <改动文件>   # 改完先做语法检查
 - `conftest.py` autouse 隔离 data_dir 到 tmp_path；不要在测试里写真实数据目录。
 - 跳过均按环境探测：缺 `crest`/`xtb` 二进制、无 symlink 权限、非 POSIX。无需要真实 LLM key 的测试。JS 宿主集成测试额外探测 node>=22 + `js_host/node_modules/quickjs-emscripten`，缺失才 skip（最终验收要求真实 Node 跑通，不允许全 skip）；宿主侧自身测试用 `npm --prefix cloudra/runtime_v2/js_host test`。
 - 测试替身（fake/stub）签名要对齐真实接口，建议带 `**_kwargs` 防接口加参后变红。
+- 可选依赖同样要探测、不许硬断言：CI 只装 `.[dev]`（**没有 RDKit / chem extra**），JS 宿主依赖则由 CI 显式 `npm ci` 装上并钉 node 22。凡经 `qm_input_writer` 或 RDKit 化学指纹的用例先 `importlib.util.find_spec("rdkit")` 再 skip（先例：`tests/test_benchmark_sandbox_fp.py` 的 `_REQUIRES_RDKIT`/`_REQUIRES_HOST_AND_RDKIT`、`tests/test_benchmark_tool_paths.py` 的 `_REQUIRES_RDKIT`、`tests/test_conformer_search.py::test_crest_backend`）；本地装了 chem extra 时，用屏蔽 RDKit 的 pytest 插件复现 CI 环境跑全套，是提交前自检手段。
 
 ## 顶层散件
 

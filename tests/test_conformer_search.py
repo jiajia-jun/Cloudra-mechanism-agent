@@ -142,9 +142,10 @@ async def test_missing_rdkit_message(mock_session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_crest_backend(mock_session, tmp_path):
-    """CREST 后端集成测试：环境无 crest 时跳过。"""
+    """CREST 后端集成测试：环境无 crest 或 chem 额外依赖（rdkit）时跳过。"""
     if shutil.which("crest") is None:
         pytest.skip("未安装 crest，跳过 CREST 后端集成测试")
+    pytest.importorskip("rdkit", reason="未安装 chem 额外依赖（rdkit）")
     tool = ConformerSearch()
     result = await tool.safe_call(
         ConformerSearch_input_schema(

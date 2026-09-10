@@ -28,6 +28,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      # JS 宿主是默认调用协议：CI 也真跑（node>=22 显式钉版本），否则
+      # tests/test_benchmark_sandbox_fp.py 的 JS 链路用例会全数 skip，
+      # 默认协议在 CI 里就没有门禁。唯一依赖 quickjs-emscripten 手动安装。
+      - name: Set up Node.js for the JS host
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install JS host dependencies
+        run: npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
+
       - name: Run ruff
         run: ruff check cloudra
 

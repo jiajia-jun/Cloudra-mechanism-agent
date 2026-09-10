@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib.util
 import json
 import os
 import threading
@@ -44,12 +45,45 @@ from tests.fixtures.benchmark_engines.engine import install_engine
 
 _HERE = Path(__file__).resolve().parent
 _HOST_DIR = _HERE.parent / "cloudra" / "runtime_v2" / "js_host"
+
+
+def _node_major() -> int | None:
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        return None
+    try:
+        out = subprocess.run(
+            [node, "--version"], capture_output=True, text=True, timeout=30
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return int(out.lstrip("v").split(".")[0]) if out.lstrip("v")[:1].isdigit() else None
+
+
+_NODE_MAJOR = _node_major()
 _HOST_AVAILABLE = (
-    __import__("shutil").which("node") is not None
+    _NODE_MAJOR is not None
+    and _NODE_MAJOR >= 22
     and (_HOST_DIR / "node_modules" / "quickjs-emscripten" / "package.json").is_file()
 )
+_RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
 _REQUIRES_HOST = pytest.mark.skipif(
-    not _HOST_AVAILABLE, reason="optional JS host prerequisites missing (node >= 22 or quickjs-emscripten)"
+    not _HOST_AVAILABLE,
+    reason=(
+        "optional JS host prerequisites missing: need node >= 22 "
+        f"(found {_NODE_MAJOR}) and js_host/node_modules/quickjs-emscripten "
+        "(install with: npm ci --prefix cloudra/runtime_v2/js_host)"
+    ),
+)
+_REQUIRES_RDKIT = pytest.mark.skipif(
+    not _RDKIT_AVAILABLE,
+    reason="qm_input_writer requires RDKit (install the chem extra: pip install -e .[chem])",
+)
+_REQUIRES_HOST_AND_RDKIT = pytest.mark.skipif(
+    not (_HOST_AVAILABLE and _RDKIT_AVAILABLE), reason="JS host and/or RDKit unavailable"
 )
 
 _BARRIER = "Done. The computed barrier is 5.0 kcal/mol."
@@ -437,7 +471,7 @@ def _assert_job_chain(core, *, engine, workspace: Path, project_id: str,
 # CLI 入口：BenchmarkRunner + RuntimeV2Backend（默认 javascript 协议）
 # ---------------------------------------------------------------------------
 
-@_REQUIRES_HOST
+@_REQUIRES_HOST_AND_RDKIT
 def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
     engine = install_engine(monkeypatch, tmp_path / "bin", "gaussian")
     llm = ScriptedLLM()
@@ -528,7 +562,7 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
 # Web 入口：BenchmarkService.start（live RuntimeCore + 测试 scheduler + broker）
 # ---------------------------------------------------------------------------
 
-@_REQUIRES_HOST
+@_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.asyncio
 async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
     from cloudra.benchmark.batch import BenchmarkService
@@ -634,6 +668,7 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
 # traditional 协议等价补充用例（CLI 入口，一条）
 # ---------------------------------------------------------------------------
 
+@_REQUIRES_RDKIT
 def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
     """traditional 协议等价补充用例：同一链路在传统线缆上跑通。
 
@@ -749,7 +784,7 @@ def _run_cli_task(tmp_path, monkeypatch, llm, *, task_id: str = "T1",
     return runner, result, core
 
 
-@_REQUIRES_HOST
+@_REQUIRES_HOST_AND_RDKIT
 def test_cli_engine_failure_then_resubmit(tmp_path, monkeypatch):
     """固定第一次失败、第二次成功：两次编号不同、旧失败记录保留、
     失败回执带回 job_id/state（Task 2 修复在完整链路上的验证）。"""
@@ -799,7 +834,7 @@ def test_cli_engine_failure_then_resubmit(tmp_path, monkeypatch):
     assert failed["session_id"] == child.id
 
 
-@_REQUIRES_HOST
+@_REQUIRES_HOST_AND_RDKIT
 def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
     """非法输入（XYZ 首行原子数与内容不符 + ORCA 用 Gaussian 子选项）第一
     步可解释失败且无半成品；纠正后继续到最后一步。写文件走真实 write 工具与
@@ -1023,7 +1058,7 @@ def _exit_stop_arguments(core, agent) -> dict:
     return {"delivery_disposition": "partial"}
 
 
-@_REQUIRES_HOST
+@_REQUIRES_HOST_AND_RDKIT
 def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
     """dag_guided 主场景（四个事实源 + 真实督导裁决回路）。
 
@@ -1279,7 +1314,7 @@ def test_cli_child_inherits_unattended_and_ask_user_blocked(tmp_path, monkeypatc
     assert child.state is AgentState.SUCCEEDED
 
 
-@_REQUIRES_HOST
+@_REQUIRES_HOST_AND_RDKIT
 def test_cli_method_policy_blocks_before_compute(tmp_path, monkeypatch):
     """白名单在链路上先于入库：非白名单方法（含外部 MLIP 路由）被拦截且不创建
     计算作业行；白名单方法照常产出输入文件。"""
@@ -1343,6 +1378,7 @@ async def _web_harness(core, llm, tmp_path, *, concurrency=1, timeout=90.0):
     return bus, scheduler, broker, service
 
 
+@_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.asyncio
 async def test_web_concurrent_mixed_success_and_failure(tmp_path, monkeypatch):
     """两题并发：一题的推理崩溃不终止另一题；沙箱、作业与记录彼此独立。"""
@@ -1398,6 +1434,7 @@ async def test_web_concurrent_mixed_success_and_failure(tmp_path, monkeypatch):
         await scheduler.close()
 
 
+@_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.asyncio
 async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
     """batch stop：级联取消推理子树并停止新请求；已提交的计算继续登记与运行
@@ -1463,6 +1500,7 @@ async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
         await scheduler.close()
 
 
+@_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.asyncio
 async def test_web_shutdown_reaps_real_js_host(tmp_path, monkeypatch):
     """关闭口径：以持有的 host 进程句柄等待真实退出（不扫 PID 文本），

@@ -13,6 +13,7 @@ cwd、submit_compute_job 直接 exists(input_file) 读进程 cwd 的同名文件
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,15 @@ _METHANE_XYZ = (
     "H -0.631000 -0.631000  0.631000\n"
     "H  0.631000 -0.631000 -0.631000\n"
     "H -0.631000  0.631000 -0.631000\n"
+)
+
+
+_RDKIT_AVAILABLE = importlib.util.find_spec("rdkit") is not None
+# qm_input_writer 在缺 RDKit 时整体拒工（工具首个前置检查），因此走 writer 的
+# 用例需要 chem extra；盘点类/原语类用例不依赖 RDKit，始终运行。
+_REQUIRES_RDKIT = pytest.mark.skipif(
+    not _RDKIT_AVAILABLE,
+    reason="qm_input_writer requires RDKit (install the chem extra: pip install -e .[chem])",
 )
 
 
@@ -90,6 +100,7 @@ async def _execute(executor: LegacyToolExecutor, agent, name: str, arguments: di
 
 
 @pytest.mark.asyncio
+@_REQUIRES_RDKIT
 async def test_writer_relative_output_uses_project_workspace(core, server_cwd, tmp_path):
     """已确认缺陷：绝对合法 XYZ + 相对输出。成功后文件必须在 workspace，
     且 server cwd 不存在同名文件（旧行为把 calc/input.gjf 写到进程 cwd）。"""
@@ -119,6 +130,7 @@ async def test_writer_relative_output_uses_project_workspace(core, server_cwd, t
 
 
 @pytest.mark.asyncio
+@_REQUIRES_RDKIT
 async def test_writer_relative_source_reads_workspace_not_cwd(core, server_cwd, tmp_path):
     """相对源路径解析到沙箱；server cwd 预放内容不同的同名 xyz 不被读取。"""
     workspace = tmp_path / "ws B"
@@ -159,6 +171,7 @@ async def test_writer_relative_source_reads_workspace_not_cwd(core, server_cwd, 
     ],
 )
 @pytest.mark.asyncio
+@_REQUIRES_RDKIT
 async def test_writer_relative_output_parametrized_dirs(core, server_cwd, tmp_path, workspace):
     """含空格与中文的目录同样走 workspace 语义。"""
     ws = tmp_path / workspace
@@ -186,6 +199,7 @@ async def test_writer_relative_output_parametrized_dirs(core, server_cwd, tmp_pa
 
 
 @pytest.mark.asyncio
+@_REQUIRES_RDKIT
 async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, tmp_path, monkeypatch):
     """写入 → writer → submit（同步）→ query → parser 全用同一沙箱相对路径；
     server cwd 预放内容不同的同名输入，检查引擎实际读到的 sha256 防假成功。"""
@@ -258,6 +272,7 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
 
 
 @pytest.mark.asyncio
+@_REQUIRES_RDKIT
 async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path, monkeypatch):
     """C1/C2 并发生成 calc/input.gjf（不同固定源内容）：文件、引擎输入与
     compute_jobs 归属各自隔离，互不污染。"""

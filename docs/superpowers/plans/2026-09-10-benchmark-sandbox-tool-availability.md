@@ -274,3 +274,39 @@ agent/LLM 输出），等价于"拿模型自述给自己打分"。
   能垒推算属科学验收范围，待用户批准。
 - normal/hard 两档 `rubric.accuracy.enabled=false` 且 gold 无能垒数字：新口径下这些题
   的 accuracy 不评分（与现状一致，未改动）。
+
+### CI 修复（推送后首跑变红 → 已根治）
+
+首次推送（`ca79328`）后 CI 三档 Python 全红，共 11 例失败，根因是**CI 只装 `.[dev]`，
+没有 chem extra（RDKit）**，而新用例里有几处把 RDKit 当成了必然存在的环境：
+
+- `qm_input_writer` 的第一道前置检查就是 RDKit，缺依赖时整体拒工（返回
+  "RDKit is not installed"），因此所有走 writer 的链路用例在 CI 里必然红。
+- RDKit 化学指纹缺失时 `graph_score` 退化为 0，`assert graph_score > 0.0` 在 CI 里必然红。
+
+修复口径（**环境探测，而不是放宽容差**）：
+
+- `tests/test_benchmark_sandbox_fp.py`：新增 `_RDKIT_AVAILABLE`（`importlib.util.find_spec`）
+  与 `_REQUIRES_RDKIT` / `_REQUIRES_HOST_AND_RDKIT` 标记；13 个用例按依赖精确分类
+  （writer 链 8 例 host+RDKit；`method_policy` 除了 host 还要 writer 产出白名单输入文件，
+  同样是 host+RDKit；`js_business_failure_envelope` / `guest_fail_closed` /
+  `child_inherits_unattended` 三例只需 host；`traditional_equivalent` 只需 RDKit），
+  并把 host 探测从"有 node 就算"改成 **node 主版本 ≥ 22 + `quickjs-emscripten` 存在**，
+  skip 原因里直接给出安装命令。
+- `tests/test_benchmark.py`：`graph_score > 0.0` 只在 RDKit 可用时断言（图相似度是
+  可选依赖，回归风险落在其它不依赖 RDKit 的断言上）。
+- `tests/test_benchmark_tool_paths.py`：走 writer 的 5 个用例加 `_REQUIRES_RDKIT`
+  （盘点类/`resolve_tool_path` 原语类用例照旧无条件运行）。
+- `tests/test_conformer_search.py::test_crest_backend`：本机有 crest 无 RDKit 时也会红，
+  照既有 `pytest.importorskip("rdkit")` 约定补探测。
+- `.github/workflows/ci.yml`：**CI 现在真跑 JS 宿主**——`actions/setup-node@v4` 钉 node 22
+  + `npm ci --prefix cloudra/runtime_v2/js_host`，否则默认调用协议（javascript）在 CI 里
+  全数 skip、等于没有门禁。
+
+自检手段（本机带 chem extra，与 CI 环境不同）：用屏蔽 RDKit 的 pytest 插件
+（meta_path finder 抛 `ModuleNotFoundError` + `find_spec("rdkit")` 返回 None，等价于
+CI 的"模块不存在"）跑全套。修复后该模拟环境全套 **0 失败**，JS 宿主用例真实执行
+（6 个宿主套件合计 70 passed / 10 skipped，仅 RDKit 相关用例按探测跳过）。
+
+教训：**可选依赖（chem extra / 外部二进制）在测试里只能探测、不能假设**；CI 的依赖集合
+（`.[dev]`）与新用例的隐含依赖必须对齐，否则本地全绿、CI 全红。
