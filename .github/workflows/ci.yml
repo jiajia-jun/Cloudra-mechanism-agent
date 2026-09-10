@@ -28,17 +28,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      # JS 宿主是默认调用协议：CI 也真跑（node>=22 显式钉版本），否则
-      # tests/test_benchmark_sandbox_fp.py 的 JS 链路用例会全数 skip，
-      # 默认协议在 CI 里就没有门禁。唯一依赖 quickjs-emscripten 手动安装。
-      - name: Set up Node.js for the JS host
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install JS host dependencies
-        run: npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
-
       - name: Run ruff
         run: ruff check cloudra
 
@@ -59,6 +48,51 @@ jobs:
           python -c "import cloudra.runtime_v2.schemas, cloudra.runtime_v2.core, cloudra.runtime_v2.commands, cloudra.runtime_v2.agent_host, cloudra.runtime_v2.apply, cloudra.runtime_v2.effects"
           python -c "import cloudra.dag.models, cloudra.dag.store, cloudra.dag.engine, cloudra.dag.controller"
           python -c "import cloudra.scheduler.daemon, cloudra.services.compute_store, cloudra.knowledge.health"
+
+  # JS 宿主是默认调用协议（invocation_protocol=javascript），必须真跑，否则该协议
+  # 在 CI 里等于没有门禁。刻意独立成 job 而不是塞进上面的矩阵：宿主用例每个都要
+  # spawn 真实 node（QuickJS-WASM），比纯 Python 用例慢一个量级，乘上三个 Python
+  # 版本会直接顶破 job 超时；这里只跑一遍 node 22 + 宿主依赖。
+  # 同时装 rdkit（chem extra 的第一项）：qm_input_writer 的首道前置检查就是 RDKit，
+  # 缺它则 JS 全链路用例只会空跑，装它才覆盖 writer → submit → query → parser。
+  js-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev] "rdkit>=2023.0"
+          npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
+
+      - name: Run the JS host's own tests
+        run: npm --prefix cloudra/runtime_v2/js_host test
+
+      - name: Run the host-dependent test suites
+        run: |
+          pytest -q -o faulthandler_timeout=300 --junitxml=/tmp/js-host-junit.xml \
+            tests/test_benchmark_sandbox_fp.py \
+            tests/test_runtime_v2_js_runtime.py \
+            tests/test_runtime_v2_js_pipeline.py \
+            tests/test_runtime_v2_js_acceptance.py \
+            tests/test_runtime_v2_dag_submission.py \
+            tests/test_runtime_v2_supervisor_tools.py
+
+      - name: Fail if the host suites skipped for missing dependencies
+        # 宿主依赖装好了就不许因缺依赖 skip：那说明探测逻辑与环境脱节，门禁是假的
+        run: python scripts/check_js_host_gate.py /tmp/js-host-junit.xml
 
   frontend:
     runs-on: ubuntu-latest

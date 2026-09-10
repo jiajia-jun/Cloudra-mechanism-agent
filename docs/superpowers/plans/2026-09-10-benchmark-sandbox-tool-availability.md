@@ -299,9 +299,16 @@ agent/LLM 输出），等价于"拿模型自述给自己打分"。
   （盘点类/`resolve_tool_path` 原语类用例照旧无条件运行）。
 - `tests/test_conformer_search.py::test_crest_backend`：本机有 crest 无 RDKit 时也会红，
   照既有 `pytest.importorskip("rdkit")` 约定补探测。
-- `.github/workflows/ci.yml`：**CI 现在真跑 JS 宿主**——`actions/setup-node@v4` 钉 node 22
-  + `npm ci --prefix cloudra/runtime_v2/js_host`，否则默认调用协议（javascript）在 CI 里
-  全数 skip、等于没有门禁。
+- `.github/workflows/ci.yml`：**CI 现在真跑 JS 宿主**，但刻意**独立成 `js-host` job**
+  （node 22 + `npm ci --prefix cloudra/runtime_v2/js_host` + `rdkit`），而不是塞进
+  Python 版本矩阵：第一版把宿主依赖装进矩阵后，宿主用例每个都要 spawn 真实 node
+  （QuickJS-WASM），全套在 CI 上要 ~16 分钟，py3.12 那一格在 93% 处被 15 分钟 job
+  超时取消（py3.11/3.13 反而绿）。矩阵 job 因而不装宿主依赖（宿主用例按探测 skip），
+  保持 ~5 分钟；协议门禁只在 `js-host` job 跑一遍。
+- `scripts/check_js_host_gate.py`（新）：**门禁不许是假的**——宿主依赖既然装好了，
+  就不允许用例因"缺 JS host / 缺 RDKit"而 skip。它先直接探测前提（node >= 22 +
+  `quickjs-emscripten`），再读 pytest 的 `--junitxml`（机器可读，不解析散文）把
+  依赖类 skip 判成失败；已验证有牙：屏蔽 RDKit 的模拟环境里 80 用例 / 10 skip → 退出码 1。
 
 自检手段（本机带 chem extra，与 CI 环境不同）：用屏蔽 RDKit 的 pytest 插件
 （meta_path finder 抛 `ModuleNotFoundError` + `find_spec("rdkit")` 返回 None，等价于
