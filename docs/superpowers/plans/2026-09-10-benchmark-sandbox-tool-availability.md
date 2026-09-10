@@ -299,16 +299,10 @@ agent/LLM 输出），等价于"拿模型自述给自己打分"。
   （盘点类/`resolve_tool_path` 原语类用例照旧无条件运行）。
 - `tests/test_conformer_search.py::test_crest_backend`：本机有 crest 无 RDKit 时也会红，
   照既有 `pytest.importorskip("rdkit")` 约定补探测。
-- `.github/workflows/ci.yml`：**CI 现在真跑 JS 宿主**，但刻意**独立成 `js-host` job**
-  （node 22 + `npm ci --prefix cloudra/runtime_v2/js_host` + `rdkit`），而不是塞进
-  Python 版本矩阵：第一版把宿主依赖装进矩阵后，宿主用例每个都要 spawn 真实 node
-  （QuickJS-WASM），全套在 CI 上要 ~16 分钟，py3.12 那一格在 93% 处被 15 分钟 job
-  超时取消（py3.11/3.13 反而绿）。矩阵 job 因而不装宿主依赖（宿主用例按探测 skip），
-  保持 ~5 分钟；协议门禁只在 `js-host` job 跑一遍。
-- `scripts/check_js_host_gate.py`（新）：**门禁不许是假的**——宿主依赖既然装好了，
-  就不允许用例因"缺 JS host / 缺 RDKit"而 skip。它先直接探测前提（node >= 22 +
-  `quickjs-emscripten`），再读 pytest 的 `--junitxml`（机器可读，不解析散文）把
-  依赖类 skip 判成失败；已验证有牙：屏蔽 RDKit 的模拟环境里 80 用例 / 10 skip → 退出码 1。
+- `.github/workflows/ci.yml`：**CI 不装宿主依赖**——宿主用例按既有约定「缺失才 skip」
+  整片跳过（曾试着把 node 22 + `npm ci` + `rdkit` 装进 CI 真跑一遍，先塞矩阵导致
+  3.12 顶破 15 分钟超时，后拆成独立 job 仍持续暴露"环境假设"缺陷并抬高分钟数；
+  按用户口径回退：没环境就 skip，真实 Node 的验收在开发机手动跑）。
 
 自检手段（本机带 chem extra，与 CI 环境不同）：用屏蔽 RDKit 的 pytest 插件
 （meta_path finder 抛 `ModuleNotFoundError` + `find_spec("rdkit")` 返回 None，等价于
@@ -316,12 +310,13 @@ CI 的"模块不存在"）跑全套。修复后该模拟环境全套 **0 失败*
 （6 个宿主套件合计 70 passed / 10 skipped，仅 RDKit 相关用例按探测跳过）。
 
 教训：**可选依赖（chem extra / 外部二进制）在测试里只能探测、不能假设**；CI 的依赖集合
-（`.[dev]`）与新用例的隐含依赖必须对齐，否则本地全绿、CI 全红。
+（`.[dev]`）与新用例的隐含依赖必须对齐，否则本地全绿、CI 全红。CI 只保证"探测正确的
+跳过"，不负责把可选环境补齐。
 
-#### 第二轮：独立 `js-host` job 暴露的两类"环境假设"缺陷（已根治）
+#### 第二轮：真跑宿主依赖期间暴露的两类"环境假设"缺陷（已根治；CI 侧已回退为 skip）
 
-把宿主门禁拆成独立 job（node 22 + 宿主依赖 + rdkit）后，CI 又红了两次，根因都不在
-被测代码，而在测试对环境的**隐含假设**：
+靠"在 CI 里真装宿主依赖"来补门禁的尝试，又红了两次；根因都不在被测代码，而在测试对
+环境的**隐含假设**（两处缺陷本身都值得修，与 CI 是否装依赖无关）：
 
 1. **申请的计算资源超过 runner 容量**：脚本化 agent 写死 `cpus: 4`，GitHub runner
    只有 2 核，`submit_compute_job` 按节点容量硬校验 → 合法拒收（`job_id: -1`），
@@ -338,7 +333,7 @@ CI 的"模块不存在"）跑全套。修复后该模拟环境全套 **0 失败*
    无效，`--durations` 显示 `test_scoring_ignores_prose_barrier` 等从 <2s 涨到
    26~29s）。矩阵三格都出覆盖率会让 3.12 顶破 15 分钟 job 超时（实测在 93%、100%
    处被 cancel）。修法：**覆盖率只在 3.11 那一格出**（覆盖数字与解释器版本无关），
-   3.12/3.13 只跑 `pytest -q`。
+   3.12/3.13 只跑 `pytest -q`。这一条与"装不装宿主依赖"无关，保留。
 
 教训（与正则那条同源）：**测试里任何"环境必然如此"的假设都是假门禁**——可选依赖要
 探测、资源申请要按本机容量、工具链开销要按解释器版本核对；本地全绿不等于 CI 全绿，
