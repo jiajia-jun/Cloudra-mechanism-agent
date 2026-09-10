@@ -325,3 +325,47 @@ def test_neb_ts_log_still_extracts_the_ts_optimisation_frames(tmp_path):
     # 没有优化循环块 → 没有帧可提，但**不应**因为 neb 而被提前拦掉
     assert orca_frames.extract_frames(str(log)) == []
     assert orca_frames.detect_job_types(str(log)) == {"neb", "opt"}
+
+
+# ---------------------------------------------------------------------------
+# NEB：逐图像几何在边文件里，读不到必须给出**具体原因**（不许静默返回空）
+# ---------------------------------------------------------------------------
+
+NEB_FIXTURE = ORCA_FIXTURES / "neb_hcn" / "neb.out"
+
+
+def test_neb_frames_come_from_the_per_image_side_files():
+    """真实 ORCA NEB-TS 运行：逐图像几何从 <作业名>_im<N>.xyz 边文件读出来。
+
+    主输出里只有迭代表，几何在边文件里——"日志里读不到几何"不等于"作业没有几何"。
+    """
+    frames = orca_frames.extract_frames(str(NEB_FIXTURE))
+    assert [f.frame for f in frames] == [0, 4, 8]
+    # 真实能量（Eh），来自边文件注释行 `Coordinates from ORCA-job neb_im8 E -93.03...`
+    assert frames[0].scf_energy_hartree == pytest.approx(-93.300300911883, abs=1e-9)
+    assert frames[-1].scf_energy_hartree == pytest.approx(-93.031209778059, abs=1e-9)
+    for frame in frames:
+        assert frame.xyz.splitlines()[0].strip() == "3"
+
+
+def test_neb_reason_is_none_when_frames_are_actually_available():
+    assert orca_frames.frames_unavailable_reason(str(NEB_FIXTURE)) is None
+
+
+def test_neb_missing_side_files_yields_an_explicit_reason(tmp_path):
+    """边文件缺失时：返回空 + **说明是 NEB、几何在边文件里**，而不是一句"没有关键帧"。"""
+    log = tmp_path / "neb.out"
+    log.write_text(NEB_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    assert orca_frames.extract_frames(str(log)) == []
+    reason = orca_frames.frames_unavailable_reason(str(log))
+    assert reason is not None
+    assert "ORCA NEB job" in reason
+    assert "_im<N>.xyz" in reason
+
+
+def test_irc_reason_explains_where_the_path_points_live():
+    """IRC 同理：主输出没有逐点坐标，原因里要指明边文件与可用的替代入口。"""
+    reason = orca_frames.frames_unavailable_reason(str(ORCA_FIXTURES / "hcn_irc_orca60.out"))
+    assert reason is not None
+    assert "IRC" in reason
+    assert "extract_irc_endpoints" in reason
