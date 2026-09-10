@@ -6,6 +6,7 @@ import type { Agent, EventEnvelope, Project } from './types';
 import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
 import KnowledgePanel from './KnowledgePanel';
+import BenchmarkPanel from './BenchmarkPanel';
 import AttentionDock, { type NotifPermission } from './AttentionDock';
 import { collectPending, diffNewItems, type PendingAttention, type ProjectPending } from './attention';
 import {
@@ -212,6 +213,7 @@ export default function App() {
     );
   });
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [benchmarkOpen, setBenchmarkOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -388,6 +390,22 @@ export default function App() {
     api.listProjects(true).then(setProjects).catch(reportError);
     api.listRoles().then(setRoles).catch(reportError);
   }, [reportError]);
+
+  /* ---------------------------------------------------- benchmark drill-down */
+
+  const openBenchmarkProject = useCallback(
+    (projectId: string) => {
+      setBenchmarkOpen(false);
+      // 批次运行期间新项目可能尚未进入侧边栏缓存：先刷新再定位。
+      api.listProjects(true)
+        .then((list) => {
+          setProjects(list);
+          setActiveProjectId(projectId);
+        })
+        .catch(reportError);
+    },
+    [reportError],
+  );
 
   /* ---------------------------------------------------- project switching */
 
@@ -1315,7 +1333,10 @@ export default function App() {
                   onClick={() => setActiveProjectId(p.id)}
                 >
                   <div className="project-name">{p.name}</div>
-                  <div className="project-meta">{p.settings.orchestration_mode}</div>
+                  <div className="project-meta">
+                    {p.name.startsWith('benchmark:') ? '[Benchmark] ' : ''}
+                    {p.settings.orchestration_mode}
+                  </div>
                   <button
                     type="button"
                     className="btn ghost sm project-archive"
@@ -1374,6 +1395,14 @@ export default function App() {
             onClick={() => setKnowledgeOpen(true)}
           >
             ⌘ Knowledge
+          </button>
+          <button
+            type="button"
+            className="btn outline sm sidebar-benchmark"
+            title="Benchmark cockpit: run task batches and drill into per-task scores"
+            onClick={() => setBenchmarkOpen(true)}
+          >
+            📊 Benchmark
           </button>
         </div>
       </aside>
@@ -1786,6 +1815,13 @@ export default function App() {
       </div>
         {globalOpen && <GlobalConfig onClose={() => setGlobalOpen(false)} onToast={pushToast} />}
         {knowledgeOpen && <KnowledgePanel onClose={() => setKnowledgeOpen(false)} onToast={pushToast} />}
+        {benchmarkOpen && (
+          <BenchmarkPanel
+            onClose={() => setBenchmarkOpen(false)}
+            onOpenProject={openBenchmarkProject}
+            onToast={pushToast}
+          />
+        )}
     </div>
   );
 }

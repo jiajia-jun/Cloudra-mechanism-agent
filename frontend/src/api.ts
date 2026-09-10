@@ -227,7 +227,86 @@ export const api = {
     request<KgGraph>(
       `/api/v2/knowledge/graph?focus=${encodeURIComponent(focus)}&hops=${hops}`,
     ),
+  benchmarkStatus: () => request<BenchmarkStatus>('/api/v2/benchmark/status'),
+  benchmarkStart: (body: { tasks_dirs?: string[]; only?: string; concurrency?: number; timeout?: number }) =>
+    request<BenchmarkStatus>('/api/v2/benchmark/start', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  benchmarkStop: () =>
+    request<BenchmarkStatus>('/api/v2/benchmark/stop', {
+      method: 'POST',
+      body: '{}',
+    }),
+  benchmarkRuns: () => request<BenchmarkHistory>('/api/v2/benchmark/runs'),
+  benchmarkStreamUrl: () => `${runtimeUrl}/api/v2/benchmark/stream`,
 };
+
+// ---- benchmark (GH #32) ----
+
+export interface BenchmarkTaskRow {
+  task_id: string;
+  tier: string;
+  family: string;
+  name: string;
+  status: 'queued' | 'running' | 'scored' | 'cancelled' | 'error' | string;
+  project_id: string;
+  agent_id: string;
+  started_at: number | null;
+  finished_at: number | null;
+  error: string;
+  final_score: number | null;
+  graph_score: number | null;
+  integrity_passed: boolean | null;
+  selfconsistency_passed: boolean | null;
+  accuracy_score: number | null;
+  outcome: string | null;
+  notes: string[];
+}
+
+export interface BenchmarkRefusalStats {
+  tp: number;
+  fp: number;
+  fn: number;
+  tn: number;
+  precision: number | null;
+  recall: number | null;
+  f1: number | null;
+}
+
+export interface BenchmarkStatus {
+  batch_id: string | null;
+  status: 'idle' | 'running' | 'stopping' | 'stopped' | 'done' | 'error' | string;
+  started_at: number | null;
+  finished_at: number | null;
+  config: Record<string, unknown>;
+  tasks: BenchmarkTaskRow[];
+  refusal: BenchmarkRefusalStats | Record<string, never>;
+}
+
+export interface BenchmarkRunRow {
+  task_id: string;
+  sandbox: string;
+  integrity_passed: boolean;
+  graph_score: number;
+  selfconsistency_passed: boolean;
+  accuracy_score: number;
+  final_score: number;
+  outcome: string;
+  notes: string[];
+  ts: number;
+}
+
+export interface BenchmarkHistory {
+  batches: Array<{
+    batch_id: string;
+    status: string;
+    config: Record<string, unknown>;
+    started_at: number;
+    finished_at: number | null;
+    runs: BenchmarkRunRow[];
+  }>;
+}
 
 // Must stay in sync with cloudra/runtime_v2/events.py EVENT_TYPES: the server
 // sends every event with an `event: <type>` line, and EventSource.onmessage

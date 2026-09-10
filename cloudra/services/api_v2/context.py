@@ -25,6 +25,9 @@ class ApiContext:
     core: RuntimeCore
     bus: CommandBus
     protected: list[Any]  # [Depends(authorize)] — shared auth dependency
+    # Hosted benchmark batch service (GH #32); None only in minimal test apps
+    # that never exercise the benchmark router.
+    benchmark: Any = None
 
     async def execute(self, command: Command) -> CommandResponse:
         try:

@@ -70,6 +70,15 @@ class DagReplanRequest(BaseModel):
     note: str = ""
 
 
+class BenchmarkStart(BaseModel):
+    """启动一批 benchmark 评测（GH #32）。tasks_dirs 空 = 内置 easy 档。"""
+
+    tasks_dirs: list[str] = Field(default_factory=list)
+    only: str = ""
+    concurrency: int = Field(default=1, ge=1, le=8)
+    timeout: float = Field(default=7200.0, ge=60.0)
+
+
 class GoalSetRequest(BaseModel):
     objective: str = ""
     completion_criteria: str = ""

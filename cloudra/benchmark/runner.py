@@ -67,6 +67,8 @@ class RunResult:
     # 跨档拒答 precision/recall 统计。
     outcome: str = RunOutcome.FAILED.value
     notes: list[str] = field(default_factory=list)
+    # 批次归属（Web 控制面；CLI 单批跑时为空串）。
+    batch_id: str = ""
 
     def to_row(self) -> tuple:
         return (
@@ -80,6 +82,7 @@ class RunResult:
             self.outcome,
             json.dumps(self.notes, ensure_ascii=False),
             int(time.time()),
+            self.batch_id,
         )
 
 
@@ -87,8 +90,21 @@ _RUNS_DDL = """CREATE TABLE IF NOT EXISTS runs (
     task_id TEXT, sandbox TEXT,
     integrity_passed INTEGER, graph_score REAL,
     selfconsistency_passed INTEGER, accuracy_score REAL,
-    final_score REAL, outcome TEXT, notes TEXT, ts INTEGER
+    final_score REAL, outcome TEXT, notes TEXT, ts INTEGER,
+    batch_id TEXT
 )"""
+
+_BATCHES_DDL = """CREATE TABLE IF NOT EXISTS batches (
+    batch_id TEXT PRIMARY KEY, status TEXT, config TEXT,
+    started_at INTEGER, finished_at INTEGER
+)"""
+
+# runs 表的既有列序（batch_id 之前的部分）：旧库缺新列时整表按新列序重建。
+_RUNS_LEGACY_COLS = (
+    "task_id", "sandbox", "integrity_passed", "graph_score",
+    "selfconsistency_passed", "accuracy_score", "final_score",
+    "outcome", "notes", "ts",
+)
 
 
 class BenchmarkDB:
@@ -109,20 +125,25 @@ class BenchmarkDB:
         # sqlite3 的 with 块只管 commit/rollback、不管关闭，外层套 closing
         with closing(self._connect()) as c, c:
             c.execute(_RUNS_DDL)
-            # outcome 列是后加的：旧库按新列序整表重建（ALTER ADD COLUMN 会把
-            # 新列追加到末尾，与 to_row 的位置序不一致）。旧行没有拒答分类
-            # 信息，按 'failed'（未知）记——refused 统计只看 outcome='refused'，
-            # 不受影响。
+            c.execute(_BATCHES_DDL)
+            # outcome / batch_id 列是后加的：旧库按新列序整表重建（ALTER ADD
+            # COLUMN 会把新列追加到末尾，与 to_row 的位置序不一致）。旧行没有
+            # 拒答分类信息，按 'failed'（未知）记——refused 统计只看
+            # outcome='refused'，不受影响；batch_id 按空串记。
             cols = {row[1] for row in c.execute("PRAGMA table_info(runs)")}
-            if "outcome" not in cols:
+            if "outcome" not in cols or "batch_id" not in cols:
                 c.execute("ALTER TABLE runs RENAME TO runs_old")
                 c.execute(_RUNS_DDL)
+                insert_cols = [name for name in _RUNS_LEGACY_COLS if name in cols]
+                select_exprs = list(insert_cols)
+                if "outcome" not in cols:
+                    # 旧行没有拒答分类信息：按 'failed'（未知）记
+                    insert_cols.append("outcome")
+                    select_exprs.append("'failed'")
+                # batch_id 缺省时旧行保持 NULL（不挂任何批次）
                 c.execute(
-                    """INSERT INTO runs SELECT
-                        task_id, sandbox, integrity_passed, graph_score,
-                        selfconsistency_passed, accuracy_score, final_score,
-                        'failed', notes, ts
-                    FROM runs_old"""
+                    f"INSERT INTO runs ({', '.join(insert_cols)}) "
+                    f"SELECT {', '.join(select_exprs)} FROM runs_old"
                 )
                 c.execute("DROP TABLE runs_old")
 
@@ -131,8 +152,77 @@ class BenchmarkDB:
         with self._lock, closing(self._connect()) as c, c:
             c.execute("DELETE FROM runs WHERE task_id = ?", (result.task_id,))
             c.execute(
-                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?)", result.to_row()
+                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?)", result.to_row()
             )
+
+    def record_batch(self, batch_id: str, status: str, config: dict) -> None:
+        """批次 upsert（Web 控制面）：config 是启动参数快照。"""
+        with self._lock, closing(self._connect()) as c, c:
+            c.execute(
+                """INSERT INTO batches (batch_id, status, config, started_at, finished_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(batch_id) DO UPDATE SET status=excluded.status""",
+                (batch_id, status, json.dumps(config, ensure_ascii=False), int(time.time()), None),
+            )
+
+    def finish_batch(self, batch_id: str, status: str) -> None:
+        with self._lock, closing(self._connect()) as c, c:
+            c.execute(
+                "UPDATE batches SET status = ?, finished_at = ? WHERE batch_id = ?",
+                (status, int(time.time()), batch_id),
+            )
+
+    def list_batches(self, limit: int = 20) -> list[dict]:
+        with self._lock, closing(self._connect()) as c:
+            rows = c.execute(
+                "SELECT batch_id, status, config, started_at, finished_at "
+                "FROM batches ORDER BY started_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        out = []
+        for batch_id, status, config, started_at, finished_at in rows:
+            cfg = {}
+            try:
+                cfg = json.loads(config or "{}")
+            except Exception:
+                pass
+            out.append({
+                "batch_id": batch_id,
+                "status": status,
+                "config": cfg,
+                "started_at": started_at,
+                "finished_at": finished_at,
+            })
+        return out
+
+    def list_runs_for(self, batch_id: str) -> list[dict]:
+        with self._lock, closing(self._connect()) as c:
+            rows = c.execute(
+                "SELECT task_id, sandbox, integrity_passed, graph_score, "
+                "selfconsistency_passed, accuracy_score, final_score, outcome, "
+                "notes, ts FROM runs WHERE batch_id = ? ORDER BY task_id",
+                (batch_id,),
+            ).fetchall()
+        out = []
+        for task_id, sandbox, integrity, graph, selfc, acc, final, outcome, notes, ts in rows:
+            parsed = []
+            try:
+                parsed = json.loads(notes or "[]")
+            except Exception:
+                pass
+            out.append({
+                "task_id": task_id,
+                "sandbox": sandbox,
+                "integrity_passed": bool(integrity),
+                "graph_score": graph,
+                "selfconsistency_passed": bool(selfc),
+                "accuracy_score": acc,
+                "final_score": final,
+                "outcome": outcome,
+                "notes": parsed,
+                "ts": ts,
+            })
+        return out
 
 
 def _default_backend(task: TaskSpec, sandbox: Path) -> BackendResult:

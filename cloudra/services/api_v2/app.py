@@ -88,6 +88,11 @@ def create_v2_app(
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
 
     compute_notify = ComputeNotifyBroker(core)
+    # Hosted benchmark batch service (GH #32)：题目跑在 live core 上，
+    # 启动/停止/状态/历史 + SSE 由 routers/benchmark.py 暴露。
+    from cloudra.benchmark.batch import BenchmarkService
+
+    benchmark_service = BenchmarkService(core, bus)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -146,7 +151,12 @@ def create_v2_app(
                 await asyncio.gather(watchdog_task, return_exceptions=True)
             # 2) 取消并 await 所有注册推理/收尾任务（runner/finalize，含
             #    停止准入 `_accepting=False`），回收本服务拥有的 JS host——
-            #    有界时间，超时记录后继续关停。
+            #    有界时间，超时记录后继续关停。benchmark 批次先优雅终止
+            #    （级联取消题目 agent，不碰计算），core.aclose() 兜底。
+            try:
+                await benchmark_service.shutdown()
+            except Exception:
+                logger.exception("benchmark batch shutdown failed")
             try:
                 await asyncio.wait_for(core.aclose(), timeout=_SHUTDOWN_GRACE_SECONDS)
             except asyncio.TimeoutError:
@@ -199,7 +209,7 @@ def create_v2_app(
             content={"detail": {"code": exc.code, "message": exc.message}},
         )
 
-    ctx = ApiContext(core=core, bus=bus, protected=protected)
+    ctx = ApiContext(core=core, bus=bus, protected=protected, benchmark=benchmark_service)
     for router in build_routers(ctx):
         app.include_router(router)
 

@@ -9,7 +9,19 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from ..context import ApiContext
-from . import agents, artifacts, chem, dag, events, knowledge, pending, projects, roles, runtime
+from . import (
+    agents,
+    artifacts,
+    benchmark,
+    chem,
+    dag,
+    events,
+    knowledge,
+    pending,
+    projects,
+    roles,
+    runtime,
+)
 
 
 def build_routers(ctx: ApiContext) -> list[APIRouter]:
@@ -24,4 +36,5 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         dag.build_router(ctx),
         chem.build_router(ctx),
         events.build_router(ctx),
+        benchmark.build_router(ctx),
     ]
