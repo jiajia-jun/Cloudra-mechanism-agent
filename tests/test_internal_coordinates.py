@@ -353,3 +353,237 @@ async def test_analyze_planar_benzene_ring(mock_session, tmp_path):
     assert "CP:" in rings_section
     assert "planar" in rings_section
     assert "near-chair" not in rings_section
+
+
+# ---------------------------------------------------------------------------
+# Task 5：路径收口、几何/Z-matrix 状态分离、结构化 Z-matrix 校验
+# ---------------------------------------------------------------------------
+
+from cloudra.persistence.workspace import resolve_tool_path  # noqa: E402
+
+
+class _AgentBridge:
+    def __init__(self, working_directory: str):
+        self.working_directory = working_directory
+
+
+def _bound_tool(working_directory: str) -> InternalCoordinates:
+    """把工具绑定到一个 agent 工作目录（等价于运行时注入的 subagent 桥）。"""
+    tool = InternalCoordinates()
+    tool.subagent = _AgentBridge(working_directory)
+    return tool
+
+
+def test_tool_path_fields_go_through_resolve_tool_path(tmp_path):
+    """路径字段必须走同一个原语：相对路径解析到 agent 工作目录，绝对路径原样。"""
+    ws = tmp_path / "ws-a"
+    ws.mkdir()
+    tool = _bound_tool(str(ws))
+    assert resolve_tool_path(tool, "x.zmat") == str((ws / "x.zmat").resolve())
+    assert resolve_tool_path(tool, "/abs/x.zmat") == "/abs/x.zmat"
+
+
+@pytest.mark.asyncio
+async def test_two_agents_with_same_named_files_do_not_cross_directories(mock_session, tmp_path):
+    """两个 agent 工作目录下同名文件互不串目录（读、写、默认 zmat 路径都要隔开）。"""
+    ws_a = tmp_path / "agent_a"
+    ws_b = tmp_path / "agent_b"
+    ws_a.mkdir()
+    ws_b.mkdir()
+    (ws_a / "structure.xyz").write_text(WATER_XYZ, encoding="utf-8")
+    (ws_b / "structure.xyz").write_text(BUTANE_XYZ, encoding="utf-8")
+
+    results = {}
+    for name, ws in (("a", ws_a), ("b", ws_b)):
+        tool = _bound_tool(str(ws))
+        result = await tool.safe_call(
+            InternalCoordinates_input_schema(mode="analyze", input_path="structure.xyz"),
+            mock_session,
+        )
+        assert result.is_success is True, result.message
+        results[name] = result
+
+    # 各自读到了自己的工作目录里的文件（原子数不同）
+    assert "Atoms: 3" in results["a"].report
+    assert "Atoms: 14" in results["b"].report
+    # 默认 zmat 路径落在各自的工作目录里，且两个输出文件互不覆盖
+    assert results["a"].zmat_path == str(ws_a / "structure.zmat")
+    assert results["b"].zmat_path == str(ws_b / "structure.zmat")
+    assert os.path.isfile(results["a"].zmat_path)
+    assert os.path.isfile(results["b"].zmat_path)
+    assert "O1" in open(results["a"].zmat_path, encoding="utf-8").read()
+    assert "C1" in open(results["b"].zmat_path, encoding="utf-8").read()
+
+
+@pytest.mark.asyncio
+async def test_text_only_analyze_writes_zmat_into_the_agent_workspace(mock_session, tmp_path):
+    """纯文本输入时的默认 zmat 路径也必须落在 agent 工作目录（不是进程 cwd）。"""
+    ws = tmp_path / "ws_text"
+    ws.mkdir()
+    tool = _bound_tool(str(ws))
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(mode="analyze", input_text=WATER_XYZ), mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert result.zmat_path == str(ws / "structure.zmat")
+    assert os.path.isfile(result.zmat_path)
+
+
+@pytest.mark.asyncio
+async def test_missing_zmatrix_file_reports_the_resolved_target(mock_session, tmp_path):
+    """读取失败必须报出**解析后的目标路径**与具体错误，不得说成"没提供参数"。"""
+    ws = tmp_path / "ws_missing"
+    ws.mkdir()
+    tool = _bound_tool(str(ws))
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="zmatrix_to_cartesian", zmatrix_path="absent.zmat",
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert str(ws / "absent.zmat") in result.message
+    assert "No such file" in result.message or "not found" in result.message.lower()
+    assert "requires zmatrix_path or zmatrix_text" not in result.message
+
+
+@pytest.mark.asyncio
+async def test_geometry_report_survives_zmatrix_export_failure(mock_session, tmp_path, monkeypatch):
+    """故意让 Z-matrix 导出失败：已完成的距离/角度测量必须仍然可用。"""
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+
+    def boom(self, zmat_frame):
+        raise RuntimeError("simulated chemcoord z-matrix failure")
+
+    monkeypatch.setattr(ic_mod.InternalCoordinates, "_render_zmatrix", boom)
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="analyze", input_text=FAKE_TS_XYZ, zmat_path=str(tmp_path / "boom.zmat"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+    assert result.zmat_status == "failed"
+    assert "simulated chemcoord z-matrix failure" in result.zmat_error
+    assert result.zmat_path == ""
+    assert result.zmat_lines == 0
+    # 几何报告仍在，且异常（假 TS 的拉长 C-O）依然可用
+    assert "== Summary ==" in result.report
+    assert "Atoms: 7" in result.report
+    assert "== Abnormal Bonds ==" in result.report
+    assert result.anomalies, "几何异常清单必须仍然可用"
+    assert any("Z-matrix export failed" in line for line in result.report.splitlines())
+    assert "Z-matrix export FAILED" in result.message
+    assert not (tmp_path / "boom.zmat").exists()
+
+
+@pytest.mark.asyncio
+async def test_successful_analyze_reports_zmat_written(mock_session, tmp_path):
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="analyze", input_text=WATER_XYZ, zmat_path=str(tmp_path / "ok.zmat"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is True
+    assert result.zmat_status == "written"
+    assert result.zmat_error == ""
+    assert result.zmat_lines > 0
+
+
+# ---------- Z-matrix 输入的逐 token 校验 ----------
+
+_LEGAL_PARTIAL_ZMAT = """# 合法绝对参考：第 1 行可省 b/a/d，第 2 行可省 a/d，第 3 行可省 d
+  1  O1    | origin   r=0.0000
+  2  H2    | O1       r=0.9570
+  3  H3    | O1       r=0.9570 | H2     a=104.50
+"""
+
+
+@pytest.mark.asyncio
+async def test_legal_absolute_reference_omissions_are_filled_by_position(mock_session):
+    """合法绝对参考规则：前三个数据行按位置补 origin/e_z/e_x，坐标可重建。"""
+    import numpy as np
+
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="zmatrix_to_cartesian", zmatrix_text=_LEGAL_PARTIAL_ZMAT,
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    atoms = _parse_xyz_positions(result.xyz_text)
+    assert [s for s, _ in atoms] == ["O", "H", "H"]
+    pos = np.array([p for _, p in atoms])
+    assert abs(float(np.linalg.norm(pos[1] - pos[0])) - 0.957) < 1e-3
+    assert abs(float(np.linalg.norm(pos[2] - pos[0])) - 0.957) < 1e-3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case,expected", [
+    # 第 4 行起缺数值 / 缺父原子 = 非法缺字段
+    ("  1  O1    | origin   r=0.0000\n  2  H2    | O1       r=0.9570\n"
+     "  3  H3    | O1       r=0.9570 | H2     a=104.50\n  4  H4    | O1       r=0.9570\n",
+     "missing"),
+    # 未知引用（既不是 magic、也不是已声明标签/行号）
+    ("  1  O1    | origin   r=0.0000\n  2  H2    | O1       r=0.9570\n"
+     "  3  H3    | O1       r=0.9570 | H2     a=104.50 | NOPE   d=0.00\n",
+     "unknown"),
+    # 非有限数值
+    ("  1  O1    | origin   r=0.0000\n  2  H2    | O1       r=nan\n",
+     "not a finite number"),
+    # 数值根本不是数字
+    ("  1  O1    | origin   r=0.0000\n  2  H2    | O1       r=abc\n",
+     "is not a number"),
+    # 段位置与 key 不匹配
+    ("  1  O1    | origin   r=0.0000\n  2  H2    | O1       a=0.9570\n",
+     "'r=<number>'"),
+    # 标签编号与行号不一致
+    ("  1  O1    | origin   r=0.0000\n  2  H9    | O1       r=0.9570\n",
+     "disagrees with the row index"),
+    # 重复行号
+    ("  1  O1    | origin   r=0.0000\n  1  H2    | O1       r=0.9570\n",
+     "duplicate atom index"),
+    # 标签不是元素符号
+    ("  1  12    | origin   r=0.0000\n", "does not start with an element symbol"),
+])
+async def test_illegal_zmatrix_input_is_rejected(mock_session, case, expected):
+    """非法 Z-matrix 输入一律明确拒绝，绝不静默补零/猜参考。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(mode="zmatrix_to_cartesian", zmatrix_text=case),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert expected.lower() in result.message.lower(), result.message
+
+
+def test_zmatrix_module_has_no_regex():
+    """校验路径一律不准有正则：本模块不得再 import re（AGENTS.md 硬约束）。"""
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+
+    source = open(ic_mod.__file__, encoding="utf-8").read()
+    import_lines = [
+        line.strip() for line in source.splitlines()
+        if line.strip().startswith(("import ", "from "))
+    ]
+    assert not any(
+        line == "import re" or line.startswith("import re ") or line == "from re import"
+        or line.startswith("from re import ")
+        for line in import_lines
+    ), import_lines
+    assert "re.sub(" not in source and "re.search(" not in source and "re.match(" not in source
+    assert not hasattr(ic_mod, "re")
+
+
+def test_chemistry_thresholds_unchanged():
+    """本任务不改动既有化学异常阈值（只改路径/解析/状态表达）。"""
+    tool = InternalCoordinates()
+    schema = InternalCoordinates_input_schema(mode="analyze", input_text=WATER_XYZ)
+    assert schema.bond_tolerance == 0.15
+    assert schema.angle_tolerance == 12.0
+    assert schema.charge == 0
+    assert tool._covalent_radius("C") == pytest.approx(0.76, abs=0.05)

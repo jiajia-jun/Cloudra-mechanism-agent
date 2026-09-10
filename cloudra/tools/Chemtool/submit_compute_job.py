@@ -1,8 +1,5 @@
 import json
-import os
-import re
 import time
-from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field
@@ -10,12 +7,11 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.infra.compute_utils import (
-    check_job_type,
     launch_compute_processes,
-    validate_xtb_params,
 )
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.services.compute_admission import admit_job
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
 from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 
@@ -136,52 +132,6 @@ class SubmitComputeJob(Tool):
     def is_write(self) -> bool:
         return True
 
-    @staticmethod
-    def _resource_underestimate(
-        job_type: str, input_file: str, cpus: int, memory_mb: int | None
-    ) -> str | None:
-        """申请量低于输入文件自述需求的诊断（ORCA %pal/%maxcore、Gaussian
-        %nprocshared/%mem）。输入未声明的资源不猜；ORCA maxcore 是每核值，
-        总需求 = nprocs * maxcore。外部程序的资源占用未知时不推断其内存。"""
-        try:
-            with open(input_file, encoding="utf-8", errors="replace") as handle:
-                content = handle.read(200_000)
-        except OSError:
-            return None
-        required_cpus = required_mem_mb = None
-        if job_type == "orca":
-            pal = re.search(r"%pal\s+nprocs\s+(\d+)", content, re.I)
-            maxcore = re.search(r"%maxcore\s+(\d+)", content, re.I)
-            if pal:
-                required_cpus = int(pal.group(1))
-            if pal and maxcore:
-                required_mem_mb = int(pal.group(1)) * int(maxcore.group(1))
-        elif job_type == "gaussian":
-            nproc = re.search(r"%nprocshared=(\d+)|%nproc=(\d+)", content, re.I)
-            mem = re.search(r"%mem=(\d+(?:\.\d+)?)([GgMm][Bb]?)", content, re.I)
-            if nproc:
-                required_cpus = int(nproc.group(1) or nproc.group(2))
-            if mem:
-                amount = float(mem.group(1))
-                required_mem_mb = int(amount * 1024) if mem.group(2).lower().startswith("g") else int(amount)
-        if required_cpus is not None and cpus < required_cpus:
-            return (
-                f"Resource under-provisioned: the input asks for {required_cpus} cores "
-                f"but cpus={cpus} was requested. Request cpus={required_cpus} to match "
-                "the input (under-declaring oversubscribes the node)."
-            )
-        if (
-            required_mem_mb is not None
-            and memory_mb is not None
-            and memory_mb < required_mem_mb
-        ):
-            return (
-                f"Resource under-provisioned: the input asks for {required_mem_mb} MB total "
-                f"but memory_mb={memory_mb} was requested. Request memory_mb={required_mem_mb} "
-                "to match the input (ORCA maxcore is per-core: total = nprocs * maxcore)."
-            )
-        return None
-
     def _with_delegation_hint(
         self, out: SubmitComputeJob_output_schema
     ) -> SubmitComputeJob_output_schema:
@@ -196,94 +146,30 @@ class SubmitComputeJob(Tool):
     async def tool_call(self, user_input: SubmitComputeJob_input_schema, session: Session) -> SubmitComputeJob_output_schema:
         # 兼容测试或旧调用中 session 为 None 的情况。
         session_id = getattr(session, "id", None) if session else None
-        # 1. 校验 input_file 是否存在。路径语义与 read/write 一致：相对路径
-        # 解析到 agent 工作目录（沙箱），绝不读进程 cwd 的同名文件（C1 缺陷）。
+        # 路径语义与 read/write 一致：相对路径解析到 agent 工作目录（沙箱），绝不读进程
+        # cwd 的同名文件（C1 缺陷）。准入校验（输入存在、xtb 参数、节点/调度器解析、资源
+        # 硬校验、申请量不得低于输入自述、引擎可用性）是**唯一实现**，在
+        # services/compute_admission；TS 搜索 SOP 的 submit 阶段复用同一份，
+        # 否则同一份作业会在两条入口下得出不同准入结论。
         f_path = resolve_tool_path(self, user_input.input_file)
-        workdir = os.path.dirname(f_path)
         conv_id = getattr(self.subagent, 'conversation_id', None) or 'default'
 
-        if not os.path.exists(f_path):
-            return SubmitComputeJob_output_schema(
-                    is_success=False,
-                    message=f"Input file does not exist: {f_path}. "
-                            "Check the path, or generate the input first with qm_input_writer, then retry.")
-
-        # xtb 任务参数 fail-loud 校验：非法组合在提交时显式报错，
-        # 绝不静默降级为裸 SP（xyz 注释行的 charge/mult 对 xtb 无效）。
-        param_error = validate_xtb_params(
+        admission = admit_job(
+            input_file=f_path,
             job_type=user_input.job_type,
+            cpus=user_input.cpus,
+            memory_mb=user_input.memory_mb,
             charge=user_input.charge,
             multiplicity=user_input.multiplicity,
             task=user_input.task,
             solvent=user_input.solvent,
+            execution_backend=user_input.execution_backend,
         )
-        if param_error:
-            return SubmitComputeJob_output_schema(is_success=False, message=param_error)
-
-        scheduler = user_input.execution_backend
-        scheduler_options: dict = {"type": scheduler}
-        from cloudra.services.nodes import NodeRegistry, default_resources
-
-        node_resources: dict | None = None
-        if scheduler == "auto":
-            try:
-                node, _workspace = NodeRegistry.from_environment().route_for_path(
-                    Path(f_path)
-                )
-                scheduler_options = dict(node.scheduler)
-                scheduler = str(scheduler_options.get("type", "local"))
-                node_resources = dict(node.resources)
-            except Exception as exc:
-                if os.getenv("CLOUDRA_NODE_REGISTRY_FILE"):
-                    return SubmitComputeJob_output_schema(
-                        is_success=False,
-                        message=f"Could not resolve a node scheduler for the input file: {exc}",
-                    )
-                scheduler = "local"
-                scheduler_options = {"type": "local"}
-        if node_resources is None:
-            try:
-                node_resources = dict(NodeRegistry.from_environment().node(None).resources)
-            except Exception:
-                node_resources = default_resources()
-
-        # 资源硬校验（唯一校验点）：申请量超过节点总量直接拒收，让调用方改小重报
-        if user_input.cpus > int(node_resources.get("cpus", 1)):
-            return SubmitComputeJob_output_schema(
-                is_success=False,
-                message=(
-                    f"Requested cpus={user_input.cpus} exceeds node capacity "
-                    f"({node_resources.get('cpus')} cores). Reduce cpus to fit the node "
-                    "(check query_compute_queue for current capacity) and resubmit."
-                ),
-            )
-        if user_input.memory_mb is not None and user_input.memory_mb > int(node_resources.get("memory_mb", 0)):
-            return SubmitComputeJob_output_schema(
-                is_success=False,
-                message=(
-                    f"Requested memory_mb={user_input.memory_mb} exceeds node capacity "
-                    f"({node_resources.get('memory_mb')} MB). Reduce memory_mb to fit the node "
-                    "(check query_compute_queue for current capacity) and resubmit."
-                ),
-            )
-
-        # 显式申请低于输入自述需求：返回诊断，不静默超额占用节点。
-        underestimate = self._resource_underestimate(
-            user_input.job_type, f_path, user_input.cpus, user_input.memory_mb
-        )
-        if underestimate:
-            return SubmitComputeJob_output_schema(is_success=False, message=underestimate)
-
-        if scheduler == "local":
-            ok, msg = check_job_type(user_input.job_type, workdir)
-        elif scheduler == "slurm":
-            from cloudra.infra.slurm import check_slurm_tools
-
-            ok, msg = check_slurm_tools()
-        else:
-            ok, msg = False, f"Unsupported execution backend: {scheduler}"
-        if not ok:
-            return SubmitComputeJob_output_schema(is_success=False, message=msg)
+        if not admission.ok:
+            return SubmitComputeJob_output_schema(is_success=False, message=admission.message)
+        workdir = admission.workdir
+        scheduler = admission.scheduler
+        scheduler_options = admission.scheduler_options
 
         # compute_jobs 住中央库（data_dir/compute.db）；ainit 幂等，保证表存在
         db = await ComputeDB().ainit()

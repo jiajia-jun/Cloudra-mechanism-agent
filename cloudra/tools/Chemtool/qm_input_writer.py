@@ -21,6 +21,25 @@ from cloudra.tools.core.calculation_intent import (
     intent_from_writer,
     validate_writer_request,
 )
+from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+from cloudra.tools.core.structure_builder import (
+    BuildStrategy,
+    PreparationRequest,
+    StructureInput,
+    build_artifact_dir,
+    prepare_structure,
+)
+
+
+class StructureBuildRefused(Exception):
+    """SMILES → 坐标 由共享构建器拒绝（带显式构建状态，不冒充路径/参数错误）。"""
+
+    def __init__(self, status: str, message: str, diagnostics: list[str], artifact_path: str):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+        self.diagnostics = diagnostics
+        self.artifact_path = artifact_path
 
 description = (
     "Generate a complete quantum-chemistry input file (Gaussian .gjf or ORCA .inp, selected by `engine`) "
@@ -57,6 +76,8 @@ class QmInputWriter_input_schema(input_schema):
         default="b3lyp",
         description="Electronic-structure method, e.g. 'b3lyp', 'hf', 'mp2', 'wb97xd', 'pbe0' "
                     "(written as-is; ORCA expects e.g. 'wB97X-V', Gaussian 'wb97xd'). "
+                    "Honor project/session MethodPolicy first (production often xtb + b3lyp); "
+                    "do not pick a freer functional from this list unless policy/budget allows a comparison. "
                     "Ignored when external_program is set (external potentials carry no method/basis)."
     )
     basis_set: str = Field(
@@ -133,6 +154,13 @@ class QmInputWriter_input_schema(input_schema):
         description="Path of the .gjf file (including filename): absolute as-is, "
                     "or relative to the Agent working directory."
     )
+    artifact_dir: Optional[str] = Field(
+        default=None,
+        description="Directory for the SMILES-source build artifacts (per-component structures, "
+                    "optimization trajectories, prepared_structure.json). Default: "
+                    "'<output_dir parent>/structure_build/<stem>/' next to the generated input file. "
+                    "Relative paths resolve against the Agent working directory."
+    )
     chk_name: Optional[str] = Field(
         default=None,
         description="chk filename, e.g. H2O.chk. By convention point it into the same directory "
@@ -190,28 +218,50 @@ class QmInputWriter(Tool):
         return True
 
     @staticmethod
-    def _get_coordinates(source_type: str, source_value: str) -> str:
+    def _gaussian_style_lines(atoms) -> str:
+        """把 ``(元素, [x, y, z])`` 列表渲染成 Gaussian/ORCA 坐标块。"""
+        lines = []
+        for symbol, position in atoms:
+            x, y, z = position
+            lines.append(f"{symbol:<4} {x:>14.8f} {y:>14.8f} {z:>14.8f}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _smiles_coordinates(user_input: QmInputWriter_input_schema, artifact_dir: str) -> str:
+        """SMILES 源：坐标由共享结构构建器产生（本工具不再自带 Embed/MMFF 快捷路径）。
+
+        构建器拒绝时抛 ``StructureBuildRefused``：既不是"路径不存在"，也不是"参数非法"，
+        而是结构层面的事实（多组分待组装、电荷不符、力场缺参数、未收敛……），必须原样报出。
+        """
+        prepared = prepare_structure(PreparationRequest(
+            structure=StructureInput(kind="smiles", value=user_input.source_value),
+            output_dir=artifact_dir,
+            total_charge=user_input.charge,
+            multiplicity=user_input.multiplicity,
+            strategy=BuildStrategy(name="per_component", embed=True, optimize=True),
+        ))
+        if prepared.status != "ok" or not prepared.has_coordinates:
+            raise StructureBuildRefused(
+                prepared.status, prepared.message, list(prepared.diagnostics),
+                prepared.artifact_path,
+            )
+        return QmInputWriter._gaussian_style_lines(
+            read_xyz_atoms(prepared.candidate_path(".xyz"))
+        )
+
+    @staticmethod
+    def _get_coordinates(user_input: QmInputWriter_input_schema, artifact_dir: str) -> str:
         """根据来源类型返回 Gaussian 格式的坐标文本。"""
-        if source_type == "smiles":
-            mol = Chem.MolFromSmiles(source_value)
-            if mol is None:
-                raise ValueError(f"Could not parse a molecule from SMILES: {source_value}")
-            mol = Chem.AddHs(mol)
-            AllChem.EmbedMolecule(mol, randomSeed=42)
-            AllChem.MMFFOptimizeMolecule(mol)
-            xyz_block = Chem.MolToXYZBlock(mol)
-            # XYZ 格式前两行为原子数与标题，从第三行开始为坐标
-            return "\n".join(xyz_block.strip().split("\n")[2:])
+        if user_input.source_type == "smiles":
+            return QmInputWriter._smiles_coordinates(user_input, artifact_dir)
 
         # xyz_file / mol_file 统一通过 ase 读取（惰性导入，避免拖慢工具模块加载）
         import ase.io
 
-        atoms = ase.io.read(source_value)
-        lines = []
-        for symbol, position in zip(atoms.symbols, atoms.positions):
-            x, y, z = position
-            lines.append(f"{symbol:<4} {x:>14.8f} {y:>14.8f} {z:>14.8f}")
-        return "\n".join(lines)
+        atoms = ase.io.read(user_input.source_value)
+        return QmInputWriter._gaussian_style_lines(
+            zip(atoms.symbols, (list(p) for p in atoms.positions))
+        )
 
     @staticmethod
     def _build_link0(user_input: QmInputWriter_input_schema) -> str:
@@ -414,8 +464,15 @@ class QmInputWriter(Tool):
         if user_input.source_type in ("xyz_file", "mol_file"):
             user_input.source_value = resolve_tool_path(self, user_input.source_value)
         user_input.output_dir = resolve_tool_path(self, user_input.output_dir)
+        if user_input.artifact_dir:
+            user_input.artifact_dir = resolve_tool_path(self, user_input.artifact_dir)
+        else:
+            base = os.path.dirname(user_input.output_dir)
+            stem = os.path.splitext(os.path.basename(user_input.output_dir))[0]
+            # 与 smiles_to_mol / conformer_search 同一命名规则：<父目录>/structure_build/<stem>/
+            user_input.artifact_dir = build_artifact_dir(base or ".", stem)
         try:
-            coords = self._get_coordinates(user_input.source_type, user_input.source_value)
+            coords = self._get_coordinates(user_input, user_input.artifact_dir)
             # 输入冲突前置校验：无法实现的选项明确报错，绝不写出看似成功
             # 的计算文件（成功时 unapplied_options 必为空）。
             conflicts = validate_writer_request(user_input.model_dump())
@@ -475,6 +532,18 @@ class QmInputWriter(Tool):
                 interpreted_intent=inspected.model_dump(mode="json"),
                 unapplied_options=[],
                 generation_path=generation_path,
+            )
+        except StructureBuildRefused as e:
+            details = " | ".join(e.diagnostics) if e.diagnostics else e.message
+            return QmInputWriter_output_schema(
+                is_success=False,
+                input_path="",
+                message=(
+                    f"qm_input_writer refused to write the file: the SMILES source could not be "
+                    f"turned into a usable structure (build status: {e.status}). {e.message}"
+                    + (f" Diagnostics: {details}" if details and details != e.message else "")
+                    + f" Build artifacts: {e.artifact_path}"
+                ),
             )
         except FileNotFoundError as e:
             missing = e.filename or user_input.source_value

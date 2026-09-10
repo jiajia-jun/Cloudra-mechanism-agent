@@ -146,6 +146,13 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         dag_evidence_producer=True,
         supervisor_access='evidence_read',
     ),
+    # TS 搜索 SOP 的 agent 可见接口（只有这两个函数；刻意没有 status/查询接口）
+    ToolRegistration(
+        'cloudra.tools.Chemtool.ts_search_process', 'TsPrepare', tool_name='ts_prepare',
+    ),
+    ToolRegistration(
+        'cloudra.tools.Chemtool.ts_search_process', 'TsResume', tool_name='ts_resume',
+    ),
     ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
     ToolRegistration(
         module='cloudra.tools.Chemtool.submit_compute_job',

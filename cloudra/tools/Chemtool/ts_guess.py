@@ -43,7 +43,7 @@ description = (
     "(bond/angle/dihedral, modredundant or %geom Scan); for MLIP/external potentials pass "
     "method='ExtOpt' (ORCA, plus orca_blocks with the %method ProgExt block) or method='external' "
     "(Gaussian, plus extra_route='external=\"mace\"'); "
-    "scan_parse: parse a scan log into a relative-energy profile table, barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
+    "scan_parse: parse a scan log into a relative-energy profile table, constrained-scan diagnostic barrier, and monotonicity/discontinuity/boundary-extremum/multipeak verdicts, "
     "and extract the highest-energy geometry as a TS-guess xyz — for ORCA relaxed scans it reads "
     "relaxscanact.dat + ts_scan.NNN.xyz frame files so the TS guess is the energy-maximum frame, not the last frame; "
     "without the sidecar the log text is grouped per 'RELAXED SURFACE SCAN STEP' and each point's converged "
@@ -51,19 +51,29 @@ description = (
     "verify: by default, frequency plus rough IRC-endpoint connectivity yields candidate/unlikely/inconclusive; "
     "with strict=True, requires one imaginary frequency, valid bidirectional IRC endpoints, and two optimized intermediates, "
     "and checks that each partial IRC endpoint lies between the TS and the matching intermediate, yielding a path-direction-consistency pass/fail/inconclusive. "
-    "This tool does no QM calculation itself — it only writes inputs, parses outputs, and issues verdicts; submit jobs with submit_compute_job. "
+    "DEFAULT seed path when one reaction coordinate is clear: scan_prepare (after internal_coordinates) → submit → scan_parse → fresh unconstrained OptTS; "
+    "xtb_path/interpolate are fallbacks and never a saddle. This tool does no QM calculation itself — it only writes inputs, parses outputs, and issues verdicts; submit jobs with submit_compute_job. "
     "Coordinates never enter context; only numeric tables, verdicts, and file paths are returned."
 )
 
 
 class TsGuess_input_schema(input_schema):
     mode: Literal[
-        "interpolate", "scan_prepare", "scan_parse", "verify",
-        "xtb_neb", "scan",
+        "xtb_path", "interpolate", "scan_prepare", "scan_parse", "verify", "scan",
     ] = Field(
-        description="Sub-function: interpolate (interpolate a path), scan_prepare (write a scan input), "
+        default="xtb_path",
+        description="Sub-function. DEFAULT SEED PATH when one forming/breaking bond/angle is known: "
+                    "scan_prepare → submit → scan_parse (relaxed scan), then unconstrained OptTS from the peak. "
+                    "Do NOT default to xtb_path/interpolate just because they are cheap. "
+                    "xtb_path: xTB metadynamics path search between endpoints (needs `xtb`); falls back to "
+                    "interpolate with path_kind='idpp_fallback' when xtb is absent (never silently). "
+                    "interpolate: IDPP/linear images — only when both endpoints and the all-atom map are already "
+                    "trustworthy; it is not the default TS-seed start. "
+                    "scan_prepare (write a scan input; atom indices should come from internal_coordinates first), "
                     "scan_parse (parse a scan log and judge), verify (frequency+IRC verification). "
-                    "Aliases: 'xtb_neb' maps to 'interpolate'; 'scan' maps to 'scan_prepare' (or 'scan_parse' if log_path given)."
+                    "Alias: 'scan' maps to 'scan_prepare' (or 'scan_parse' if log_path is given). "
+                    "NOTE: xtb_path/interpolate return a PATH AND A GUESS, never a saddle point — "
+                    "unconstrained OptTS + frequency + IRC are still required. The former 'xtb_neb' alias is gone: xTB has no NEB."
     )
 
     # ---------- interpolate ----------
@@ -105,6 +115,11 @@ class TsGuess_input_schema(input_schema):
         description="interpolate: image output directory (default ./ts_interp/); verify: directory to write IRC endpoints (default <freq_log_stem>_verify/). "
                     "Relative paths resolve against the Agent working directory.",
     )
+    timeout: int = Field(
+        default=900,
+        description="xtb_path: subprocess timeout in seconds. On expiry only this run's own "
+                    "process group is terminated; its logs and intermediate files are kept.",
+    )
 
     # ---------- scan_prepare ----------
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
@@ -122,7 +137,7 @@ class TsGuess_input_schema(input_schema):
             "coupled coordinate (e.g. both the forming and the breaking bond) to see a barrier."
         )
     )
-    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'. For an MLIP/external potential pass 'ExtOpt' (ORCA external engine; pair with orca_blocks carrying the %method ProgExt block) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
+    method: str = Field(default="b3lyp/def2svp", description="Method/basis, e.g. 'b3lyp/def2svp'. Honor the project/session MethodPolicy first (production often xtb + b3lyp); do not invent a freer functional unless policy/budget allows. For MLIP/external pass 'ExtOpt' (ORCA; pair with orca_blocks %method ProgExt) or 'external' (Gaussian; pair with extra_route='external=\"<prog>\"').")
     charge: int = Field(default=0, description="Total charge.")
     spin: int = Field(default=1, description="Spin multiplicity (2S+1).")
     extra_route: str = Field(default="", description="Extra route keywords (e.g. 'scrf=(solvent=water)' for Gaussian, or the external-program keyword for method='external').")
@@ -164,6 +179,13 @@ class TsGuess_output_schema(output_schema):
     ts_candidate_index: Optional[int] = Field(default=None, description="TS candidate frame index (0-based)")
     # scan_parse 也复用 ts_candidate_path
     ts_candidate_path: str = Field(default="", description="TS-guess xyz path")
+    path_kind: Literal["", "xtb_path", "idpp_fallback"] = Field(
+        default="",
+        description="How the path guess was produced. 'xtb_path' = xTB metadynamics path search; "
+                    "'idpp_fallback' = xtb was unavailable so IDPP interpolation was used instead "
+                    "(a degraded route, reported explicitly); '' = this mode does not produce a path. "
+                    "Never treat a guess as a verified saddle point.",
+    )
 
     # scan_prepare
     input_file_path: str = Field(default="", description="scan_prepare: generated input file path")
@@ -172,10 +194,11 @@ class TsGuess_output_schema(output_schema):
     # scan_parse
     profile_table: str = Field(default="", description="scan_parse: per-point relative-energy text table (kcal/mol)")
     verdicts: list[str] = Field(default_factory=list, description="scan_parse: profile verdicts")
-    barrier_kcal: Optional[float] = Field(default=None, description="scan_parse: barrier (highest point − first point, kcal/mol)")
+    barrier_kcal: Optional[float] = Field(default=None, description="scan_parse: constrained-scan diagnostic only (highest point − first point, kcal/mol) — NOT a verified ΔE‡/ΔG‡; unconstrained OptTS + freq + IRC still required before any barrier claim")
     candidate: Optional[dict] = Field(
         default=None,
-        description="scan_parse: TS candidate as {scan_index, energy, geometry_ref, source}; "
+        description="scan_parse: constrained-scan peak candidate as {scan_index, energy, geometry_ref, source} — "
+                    "a seed for a fresh unconstrained OptTS, NOT a validated TS; "
                     "null when no internal peak exists or its geometry is unavailable.",
     )
     candidate_unavailable: bool = Field(
@@ -270,6 +293,30 @@ def _dist_matrix(coords):
     pos = np.asarray(coords, dtype=float)
     diff = pos[:, None, :] - pos[None, :, :]
     return np.linalg.norm(diff, axis=-1)
+
+
+def _select_watch_pairs(symbols, d_start, d_end, watch_pairs) -> list[tuple[int, int]]:
+    """选监测原子对：给了 watch_pairs 就用它（1-based 输入，越界即报错）；否则取两端距离
+    变化最大的 5 对。interpolate 与 xtb_path 共用这一份实现。"""
+    import numpy as np
+
+    n = len(symbols)
+    if watch_pairs:
+        pairs: list[tuple[int, int]] = []
+        for pair in watch_pairs:
+            if len(pair) != 2:
+                raise ValueError(f"Each watch_pairs entry must contain 2 atom indices: {pair}")
+            i, j = pair[0] - 1, pair[1] - 1
+            if not (0 <= i < n and 0 <= j < n) or i == j:
+                raise ValueError(
+                    f"watch_pairs atom indices out of range: {pair} (system has {n} atoms)"
+                )
+            pairs.append((min(i, j), max(i, j)))
+        return pairs
+    iu = np.triu_indices(n, k=1)
+    deltas = np.abs(d_end[iu] - d_start[iu])
+    order = np.argsort(-deltas)[:5]
+    return sorted({(int(iu[0][o]), int(iu[1][o])) for o in order})
 
 
 def _evaluate_endpoint_between(symbols: Sequence[str], ts_pos, end_pos,
@@ -1059,12 +1106,11 @@ class TsGuess(Tool):
             }
         )
         mode = user_input.mode
-        if mode == "xtb_neb":
-            mode = "interpolate"
-        elif mode == "scan":
+        if mode == "scan":
             mode = "scan_parse" if user_input.log_path else "scan_prepare"
 
         handlers = {
+            "xtb_path": self._xtb_path,
             "interpolate": self._interpolate,
             "scan_prepare": self._scan_prepare,
             "scan_parse": self._scan_parse,
@@ -1147,20 +1193,7 @@ class TsGuess(Tool):
         # 监测原子对
         d_r = _dist_matrix(images[0])
         d_p = _dist_matrix(images[-1])
-        if user_input.watch_pairs:
-            pairs = []
-            for pair in user_input.watch_pairs:
-                if len(pair) != 2:
-                    raise ValueError(f"Each watch_pairs entry must contain 2 atom indices: {pair}")
-                i, j = pair[0] - 1, pair[1] - 1
-                if not (0 <= i < n and 0 <= j < n) or i == j:
-                    raise ValueError(f"watch_pairs atom indices out of range: {pair} (system has {n} atoms)")
-                pairs.append((min(i, j), max(i, j)))
-        else:
-            iu = np.triu_indices(n, k=1)
-            deltas = np.abs(d_p[iu] - d_r[iu])
-            order = np.argsort(-deltas)[:5]
-            pairs = sorted({(int(iu[0][o]), int(iu[1][o])) for o in order})
+        pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs)
 
         # 距离表
         header = f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr):>12}" for pr in pairs)
@@ -1196,6 +1229,118 @@ class TsGuess(Tool):
                 f"TS candidate frame: img_{ts_index:02d}.xyz (watched pair {_pair_label(r_syms, key_pair)} crosses the endpoint midpoint). "
                 "These images can serve directly as a NEB initial path, or be optimized frame by frame with constraints to find a TS guess; "
                 "you can also use scan_prepare to generate a constrained-scan input to further locate the barrier top."
+            ),
+        )
+
+    # ---------- mode=xtb_path ----------
+
+    def _xtb_path(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
+        """xTB 元动力学路径搜索出 TS 初猜（SOP `guess` 阶段的便宜端）。
+
+        **这个模式返回的是路径与初猜，不是鞍点**：``xtbpath_ts.xyz`` 是 MTD 采到的最高点附近
+        结构，验证仍归 ``verify``（频率 + IRC）。两条纪律：
+
+        - xTB **不存在**时退回 IDPP 插值，并把 ``path_kind`` 标成 ``idpp_fallback``、
+          在 message 里写明走了降级路线——绝不静默降级。
+        - xTB **存在但跑失败**时**不**换兜底充数：报出分层分类与持久运行目录，让调用方决定。
+        """
+        import numpy as np
+
+        from cloudra.tools.core.xtb_path_runner import XtbPathRequest, run_xtb_path
+
+        r_atoms = _load_xyz(user_input.reactant_path, user_input.reactant_text)
+        p_atoms = _load_xyz(user_input.product_path, user_input.product_text)
+        r_syms = r_atoms.get_chemical_symbols()
+        p_syms = p_atoms.get_chemical_symbols()
+        if sorted(r_syms) != sorted(p_syms):
+            raise ValueError(
+                "xtb_path needs one consistent atom set: the reactant and product element "
+                f"multisets differ ({sorted(r_syms)} vs {sorted(p_syms)})"
+            )
+        r_pos = np.asarray(r_atoms.get_positions(), dtype=float)
+        p_pos = np.asarray(p_atoms.get_positions(), dtype=float)
+
+        out_dir = user_input.output_dir or resolve_tool_path(self, "./ts_path")
+        os.makedirs(out_dir, exist_ok=True)
+
+        run = run_xtb_path(XtbPathRequest(
+            reactant_xyz=_atoms_to_xyz_block(r_syms, r_pos, "ts_guess reactant"),
+            product_xyz=_atoms_to_xyz_block(p_syms, p_pos, "ts_guess product"),
+            output_dir=out_dir,
+            charge=user_input.charge,
+            multiplicity=user_input.spin,
+            timeout=user_input.timeout,
+            run_label="guess",
+        ))
+
+        if run.termination_reason == "executable_missing":
+            fallback = self._interpolate(user_input)
+            fallback.path_kind = "idpp_fallback"
+            fallback.message += (
+                "\nNOTE: the `xtb` executable was not found on PATH, so this path guess fell back "
+                f"to {user_input.interp_method.upper()} interpolation (path_kind='idpp_fallback'). "
+                "That is a degraded route: an interpolation between the two endpoints, NOT a "
+                "metadynamics path search. Install xtb to get path_kind='xtb_path'."
+            )
+            return fallback
+
+        if not run.usable_as_guess:
+            return TsGuess_output_schema(
+                is_success=False,
+                path_kind="",
+                message=(
+                    f"the xTB path search did not produce a usable guess (termination="
+                    f"{run.termination_reason}, returncode={run.returncode}). No fallback was "
+                    "substituted: a failed xTB run is reported, not silently replaced by an "
+                    f"interpolation. Persistent run directory: {run.run_dir}"
+                ),
+            )
+
+        # 帧与 interpolate 同名，下游不必区分来源；能量标注单位（相对 kcal/mol）
+        for frame in run.frames:
+            comment = f"ts_guess xtb_path frame {frame.frame_index}"
+            if frame.rel_energy_kcal is not None:
+                comment += f" rel_energy_kcal={frame.rel_energy_kcal:.3f}"
+            atomic_write_text(
+                os.path.join(out_dir, f"img_{frame.frame_index:02d}.xyz"),
+                _atoms_to_xyz_block(run.symbols, np.asarray(frame.positions, dtype=float), comment),
+            )
+
+        ts_path = os.path.join(out_dir, "ts_candidate_xtbpath.xyz")
+        atomic_write_text(
+            ts_path,
+            _atoms_to_xyz_block(
+                run.symbols, np.asarray(run.ts_candidate_positions, dtype=float),
+                f"ts_guess xtb_path MTD TS candidate energy_eh={run.ts_candidate_energy_eh:.8f}",
+            ),
+        )
+
+        # 距离表：与 interpolate 同一套监测对选择
+        d_r = _dist_matrix(r_pos)
+        d_p = _dist_matrix(p_pos)
+        pairs = _select_watch_pairs(r_syms, d_r, d_p, user_input.watch_pairs)
+        lines = [f"{'frame':>4}" + "".join(f"  {_pair_label(r_syms, pr):>12}" for pr in pairs)]
+        for frame in run.frames:
+            d_k = _dist_matrix(np.asarray(frame.positions, dtype=float))
+            lines.append(
+                f"{frame.frame_index:>4}" + "".join(f"  {d_k[i, j]:>12.4f}" for i, j in pairs)
+            )
+        distance_table = "\n".join(lines)
+
+        return TsGuess_output_schema(
+            is_success=True,
+            path_kind="xtb_path",
+            images_dir=out_dir,
+            distance_table=distance_table,
+            ts_candidate_index=None,
+            ts_candidate_path=ts_path,
+            message=(
+                f"xTB metadynamics path search finished: {len(run.frames)} path frames "
+                f"(img_00..img_{len(run.frames) - 1:02d}.xyz) plus a TS CANDIDATE. "
+                "The candidate is the highest point sampled along the MTD path — it is a GUESS, "
+                "not a saddle point and NOT verified; run mode='verify' with a frequency job to "
+                "judge it. Metadynamics is stochastic: a rerun gives a different path, so the "
+                f"whole run is kept for inspection at {run.run_dir}."
             ),
         )
 

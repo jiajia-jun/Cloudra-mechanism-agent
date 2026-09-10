@@ -1,0 +1,1 @@
+crest input.xyz -gfn2 --quick --chrg -1 --uhf 0

@@ -288,3 +288,40 @@ def test_read_endpoint_geometry_trajectory_returns_last_frame(tmp_path):
     assert xyz is not None
     assert "trj frame 2" in xyz
     assert "trj frame 0" not in xyz
+
+
+# ---------------------------------------------------------------------------
+# NEB：必须被识别，但只跑路径搜索的 NEB 不得退化成单点
+# ---------------------------------------------------------------------------
+
+
+def test_neb_is_recognised_from_the_keyword_echo():
+    """ORCA 在输出开头回显输入文件的 `!` 行；NEB 由该关键字识别。
+
+    测试用的是关键字回显片段（ORCA 的既有格式，本目录其它 fixture 已覆盖），
+    **不是伪造的引擎输出**：这里只验证关键字扫描这一纯函数。
+    """
+    assert orca_frames.detect_job_types_from_text("|  1> ! NEB\n") == {"neb"}
+    # NEB-TS 后面还会做 TS 优化：两个类型都要给出来
+    assert orca_frames.detect_job_types_from_text("|  1> ! NEB-TS\n|  2> ! OPT\n") == {"neb", "opt"}
+    # 普通单点不受影响
+    assert orca_frames.detect_job_types_from_text("|  1> ! wB97X-D def2-SVP\n") == {"sp"}
+
+
+def test_neb_only_log_yields_no_frames_instead_of_a_fake_single_point(tmp_path):
+    """只跑路径搜索的 NEB：逐图像几何尚未解析 → 返回空，绝不退化成"一个结构"。
+
+    把一条路径报成一个单点比什么都不报更糟：下游会把路径当成一个几何来用。
+    """
+    log = tmp_path / "neb_only.out"
+    log.write_text("|  1> ! NEB\n", encoding="utf-8")
+    assert orca_frames.extract_frames(str(log)) == []
+
+
+def test_neb_ts_log_still_extracts_the_ts_optimisation_frames(tmp_path):
+    """NEB-TS：带优化段，逐帧几何应照常由优化段解析（不因识别出 neb 而丢帧）。"""
+    log = tmp_path / "neb_ts.out"
+    log.write_text("|  1> ! NEB-TS\n|  2> ! OPT\n", encoding="utf-8")
+    # 没有优化循环块 → 没有帧可提，但**不应**因为 neb 而被提前拦掉
+    assert orca_frames.extract_frames(str(log)) == []
+    assert orca_frames.detect_job_types(str(log)) == {"neb", "opt"}

@@ -219,7 +219,10 @@ class FormatConverter(Tool):
                 return FormatConverter_output_schema(
                     is_success=True,
                     output_path=user_input.output_path,
-                    message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
+                    message=(
+                        f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} "
+                        f"frames from {user_input.input_path} -> {user_input.output_path}"
+                    )
                 )
             else:
                 last_frame = frames[-1]
@@ -231,7 +234,13 @@ class FormatConverter(Tool):
                 return FormatConverter_output_schema(
                     is_success=True,
                     output_path=user_input.output_path,
-                    message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, extracted final frame (frame {last_frame.frame}) -> {user_input.output_path}"
+                    message=(
+                        f"Detected {engine or 'unknown'} {'+'.join(ordered)}, extracted final frame "
+                        f"(frame {last_frame.frame}) from {user_input.input_path} -> "
+                        f"{user_input.output_path}. NOTE: an extracted geometry is a coordinate "
+                        "artifact only — it does not imply the source job terminated normally, and "
+                        "requesting a geometry never validates frequencies/TS."
+                    )
                 )
         except Exception as e:
             return FormatConverter_output_schema(

@@ -44,7 +44,13 @@ def _collect_keyword_lines(text: str) -> str:
 
 
 def detect_job_types(log_path: str) -> set[str]:
-    """识别 ORCA 日志的任务类型，返回 {"opt","ts","freq","scan","irc","sp"} 的子集。"""
+    """识别 ORCA 日志的任务类型，返回 {"opt","ts","freq","scan","irc","neb","sp"} 的子集。
+
+    ``neb`` 由输入回显的 ``!`` 关键字行识别（``! NEB`` / ``! NEB-TS``）。识别它是为了
+    **不让 NEB 日志掉进 ``sp``**：``NEB-TS`` 后续的 TS 优化会让本函数同时给出 ``ts``
+    （那时逐帧几何由优化段解析），而只跑路径搜索的 ``! NEB`` 没有优化循环，若不识别就会
+    被当成单点——把一整条路径说成一个结构比不报更糟。
+    """
     return detect_job_types_from_text(_read_text(log_path))
 
 
@@ -61,6 +67,8 @@ def detect_job_types_from_text(text: str) -> set[str]:
         or "Relaxed Surface Scan" in text
     ):
         jobs.add("scan")
+    if re.search(r"\bneb(-ts)?\b", keywords):
+        jobs.add("neb")
     if re.search(r"\bopt(ts)?\b", keywords) or "GEOMETRY OPTIMIZATION CYCLE" in text:
         jobs.add("opt")
     if re.search(r"\boptts\b", keywords) or "SADDLE POINT SEARCH" in text.upper():
@@ -70,7 +78,7 @@ def detect_job_types_from_text(text: str) -> set[str]:
         or "VIBRATIONAL FREQUENCIES" in text
     ):
         jobs.add("freq")
-    if not jobs & {"irc", "scan", "opt", "ts"}:
+    if not jobs & {"irc", "scan", "opt", "ts", "neb"}:
         jobs.add("sp")
     return jobs
 
@@ -326,10 +334,18 @@ def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
 
 
 def extract_frames(log_path: str) -> list[FrameRecord]:
-    """按识别到的任务类型提取关键帧。IRC 的逐点坐标在 trj 边文件（主输出无），
-    这里对 IRC 返回空；IRC 的点数/收敛/能量走 extract_irc。"""
+    """按识别到的任务类型提取关键帧。
+
+    - IRC 的逐点坐标在 trj 边文件（主输出无）：返回空；点数/收敛/能量走 ``extract_irc``。
+    - 只跑路径搜索的 NEB（``! NEB``）**逐图像几何尚未解析**：那段几何在 ORCA 的路径输出里，
+      主输出只有逐迭代能量表。这里返回空并保留该事实，**绝不退化成单点**——把一条路径报成
+      一个结构比什么都不报更糟。带 ``-TS`` 的 NEB-TS 会同时被识别为 ``ts``，其逐帧几何由
+      后面的 TS 优化段正常解析。
+    """
     jobs = detect_job_types(log_path)
     if "irc" in jobs:
+        return []
+    if "neb" in jobs and not (jobs & {"opt", "ts", "scan"}):
         return []
     if "scan" in jobs:
         return _extract_scan_frames(log_path)

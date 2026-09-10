@@ -369,12 +369,23 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     "qm_input_writer": {
         "source_value": "conditional_path",
         "output_dir": "workspace_output",
+        "artifact_dir": "workspace_output",
         "chk_name": "verbatim",
         "rwf_name": "verbatim",
         "fchk_name": "verbatim",
     },
     "submit_compute_job": {"input_file": "workspace_input"},
     "format_converter": {"input_path": "workspace_input", "output_path": "workspace_output"},
+    "smiles_to_mol": {"output_path": "workspace_output", "artifact_dir": "workspace_output"},
+    "internal_coordinates": {
+        "input_path": "workspace_input",
+        "zmat_path": "workspace_output",
+        "zmatrix_path": "workspace_input",
+        "output_path": "workspace_output",
+    },
+    "conformer_search": {"input_path": "workspace_input", "output_dir": "workspace_dir"},
+    "ts_prepare": {"workspace_dir": "workspace_dir"},
+    "ts_resume": {"workspace_dir": "workspace_dir"},
     "log_parser": {"log_path": "workspace_input"},
     "ts_guess": {
         "reactant_path": "workspace_input",
@@ -400,20 +411,12 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     # --- 现状记录（未扩展契约） ---
     "molecule_drawer": {"output_path": "cwd_output"},
     "name_to_structure": {"output_path": "cwd_output"},
-    "smiles_to_mol": {"output_path": "cwd_output"},
     "image_to_smiles": {"image_path": "cwd_input"},
     # cdxml_path 的描述自称 workspace-relative 但实现按 cwd 读取——现状记录，
     # 与本次契约扩展范围（read/write/format_converter/log_parser/ts_guess）不符。
     "cdxml_to_graph": {"cdxml_path": "cwd_input"},
-    "internal_coordinates": {
-        "input_path": "cwd_input",
-        "zmat_path": "cwd_output",
-        "zmatrix_path": "cwd_input",
-        "output_path": "cwd_output",
-    },
     "ir_processor": {"data_path": "cwd_input"},
     "nmr_processor": {"data_path": "cwd_input"},
-    "conformer_search": {"input_path": "cwd_input", "output_dir": "cwd_dir"},
     "electronic_analysis": {"input_path": "cwd_input", "output_dir": "cwd_dir"},
     "pymol_render": {"structure_path": "cwd_input", "output_path": "cwd_output"},
     "reaction_mapping": {"reactant_path": "cwd_input", "product_path": "cwd_input"},
