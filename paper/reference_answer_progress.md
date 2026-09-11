@@ -1,7 +1,9 @@
-# P1 参考能垒标定 — 进度与环境诊断
+# 参考能垒标定 — 进度与环境诊断
 
-> 依据：`paper/reference_answer_task_P1.md`（计算者 P1 任务单）、`paper/reference_calc_plan.md`。
-> 本文件记录 P1 的逐题进度与环境状态；数值结论以工具输出为准。
+> 依据：`paper/reference_answer_task_甲.md` / `paper/reference_answer_task_乙.md`（2026-09-12 重分，
+> 计算者甲/乙任务单）、`paper/reference_calc_plan.md`。
+> 本文件记录两侧的逐题进度与环境状态；数值结论以工具输出为准。
+> （历史章节中的「P0/P1」指 2026-09-03 旧 120 题分工，已失效。）
 
 ## 统一口径（must-follow）
 - 方法：**MACE-OMol25**（唯一金标准，2026-08-25 决策）；驱动层等价二选一：ORCA `ExtOpt`（本机路径）/ Gaussian `external="mace"`（g16 环境）。
@@ -75,10 +77,10 @@
 
 - 背景：`7bb318d`（2026-09-09）把题集从 120 缩到 60（easy/normal/hard/impossible = 20/10/10/20），
   旧 P0/P1 任务单中 27/40 个 task_id 已失效；试点题 NA1 已删除。
-- 已按当前 60 题重分：`paper/reference_answer_task_P0.md`（31 题，工作分 ~325）与
-  `paper/reference_answer_task_P1.md`（29 题，~318）。工作分模型不变（Σ(TS数 × 体系重原子数)，
-  family 不可分）；impossible 档 P0 承担非 A 族 5 对、P1 承担 A 族 5 对。
-- 新试点：P0 先 X1（打通流程）再 NQ1（30.0 [partial] 锚点交叉校验）；P1 先 P3。
+- 已按当前 60 题重分：`paper/reference_answer_task_甲.md`（31 题，工作分 ~325）与
+  `paper/reference_answer_task_乙.md`（29 题，~318）。工作分模型不变（Σ(TS数 × 体系重原子数)，
+  family 不可分）；impossible 档甲承担非 A 族 5 对、乙承担 A 族 5 对。
+- 新试点：甲先 X1（打通流程）再 NQ1（30.0 [partial] 锚点交叉校验）；乙先 P3。
 - 逐题完成数仍为 0（全部 `computed_by_us=false`）；计算栈状态不变（H2O Opt/NumFreq 已验证，
   OptTS/IRC 端到端待试点探明）。
 - 注意：回填 JSON 后不要重跑 `gen_*_tasks.py`（确定性重生会覆盖手工回填，见两份任务单 §2 末尾）。
