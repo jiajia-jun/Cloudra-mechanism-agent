@@ -30,6 +30,18 @@
 
 **随机性**：MTD 是随机的，同一次输入重跑路径不同。因此结果按**采样**看待，命令与
 stdout 全部落盘以备复查。
+
+**路径精修必须跑到引擎自己判收敛**（本机 xtb 6.7.1 实测，逐字证据与可重跑脚本在
+``docs/evidence/ts_guess_mtd_artifact/``）：xTB 的路径是**迭代精修**的，而它的内建上限只有
+3 轮，3 轮后会打印 ``terminated because max. # cycles reached`` —— 那不是收敛，是**被截断**。
+截断路径的最高帧落在反应物自己的盆地里（实测：最高帧离起点只有 21°，相对能 44.865 kcal/mol，
+拿去做 ORCA ``OptTS`` 跑 56 轮不收敛、一路滑回极小值）。把上限放开后，同一个端点对在第 31 轮
+由引擎自己判收敛（``terminated because grad at TS <threshold``），barrier 降到 18.299 kcal/mol，
+最高帧落在扭转极大上，``OptTS`` 9 轮即收敛到一阶鞍点。因此本模块：
+
+- **总是**写一份 ``$path`` 输入并把 ``nrun`` 上限显式传给引擎（内建默认 3 轮不能用）；
+- 把这两句终止语**分开分类**：``converged`` / ``cycles_exhausted``；
+- 触到上限一律报 ``path_not_converged`` 且 ``usable_as_guess=False``，绝不把截断路径当可用初猜。
 """
 
 from __future__ import annotations
@@ -52,6 +64,18 @@ MAX_EVIDENCE_LINES = 20
 MARKER_NORMAL_TERMINATION = "normal termination of xtb"
 MARKER_FINISHED_RUN = " * finished run on"
 MARKER_PATH_FINDER = " path finder:"
+#: 路径精修的两句终止语。前者是引擎判的收敛，后者是**触到轮数上限被截断**，二者绝不等价。
+MARKER_PATH_CONVERGED = "terminated because grad at TS <threshold"
+MARKER_PATH_CYCLES_EXHAUSTED = "terminated because max. # cycles reached"
+#: 每轮精修打印的 barrier（第一列是空格对齐，逐字保留）
+MARKER_FORWARD_BARRIER = "forward  barrier (kcal)"
+MARKER_BACKWARD_BARRIER = "backward barrier (kcal)"
+
+#: 路径精修的轮数上限（``$path nrun``）。这**不是**收敛判据，只是机时上限：收敛由引擎自己判
+#: （见模块 docstring 的实测）。默认给足，让引擎跑到自己的收敛判据为止。
+DEFAULT_REFINEMENT_RUNS = 100
+#: ``$path`` 输入文件名（与命令行一起落盘备查）
+PATH_INPUT_NAME = "path.inp"
 
 #: 初猜来源标识（SOP §2：初猜是怎么来的必须写明，不许静默降级）。
 PATH_KIND_XTB = "xtb_path"
@@ -63,9 +87,13 @@ PathTermination = Literal[
     "timeout",
     "invalid_endpoints",
     "incomplete_artifacts",
+    "path_not_converged",
     "failed",
     "unknown_failure",
 ]
+
+#: 引擎自己报的路径精修结局。``""`` = 日志里没有这两句终止语（本模块按未知处理，不默认成功）。
+RefinementTermination = Literal["", "converged", "cycles_exhausted"]
 
 
 class XtbPathRequest(BaseModel):
@@ -76,7 +104,13 @@ class XtbPathRequest(BaseModel):
     output_dir: str = Field(description="持久运行目录的父目录；每次运行在其 xtb_path_runs/ 下新建")
     charge: int = Field(default=0, description="总电荷（--chrg）")
     multiplicity: int = Field(default=1, description="自旋多重度 2S+1，透传为 --uhf = multiplicity-1")
-    timeout: int = Field(default=900, description="子进程超时（秒）；超时只终止本次运行自己的进程组")
+    timeout: int = Field(default=900, description="子进程耗时上限（秒）；超时只终止本次运行自己的进程组")
+    refinement_runs: int = Field(
+        default=DEFAULT_REFINEMENT_RUNS, ge=1,
+        description="路径精修的轮数上限（$path nrun）。**只是机时上限**：收敛由引擎自己判，"
+                    "触到这个上限即报 path_not_converged。实测内建默认 3 轮远不够收敛，"
+                    "不要把它调小",
+    )
     run_label: str = Field(default="xtbpath", description="运行目录前缀")
     extra_args: list[str] = Field(default_factory=list, description="追加到命令行的原生选项")
 
@@ -106,6 +140,11 @@ class XtbPathResult(BaseModel):
     returncode: Optional[int] = None
     path_kind: Literal["xtb_path"] = PATH_KIND_XTB
     termination_reason: PathTermination = "unknown_failure"
+    refinement_runs: int = Field(default=0, description="本次传给引擎的路径精修轮数上限")
+    refinement_termination: RefinementTermination = Field(
+        default="",
+        description="引擎自己报的精修结局：converged（引擎判收敛）/ cycles_exhausted（触顶截断）",
+    )
     usable_as_guess: bool = Field(
         default=False,
         description="是否产出了可用的初猜（路径 + TS 候选齐全且几何自洽）。"
@@ -120,6 +159,7 @@ class XtbPathResult(BaseModel):
     reactant_path: str = ""
     product_path: str = ""
     command_path: str = ""
+    path_input_path: str = ""
     versions_path: str = ""
     stdout_path: str = ""
     stderr_path: str = ""
@@ -131,12 +171,24 @@ class XtbPathResult(BaseModel):
     message: str = ""
 
 
+def build_path_input(refinement_runs: int) -> str:
+    """``$path`` 输入块：把精修轮数上限显式交给引擎，**不使用内建默认 3 轮**。
+
+    本机 6.7.1 实测：``$path`` 块被读取；它认得的键是 ``nrun`` / ``npoint`` / ``kpush`` /
+    ``kpull``，其余（``npoints`` / ``alpha`` / ``step`` / ``time`` / ``seed`` 等）会被逐字拒掉
+    （``the key '...' is not recognized by path``），因此这里只写实测可用的键。
+    """
+    if refinement_runs < 1:
+        raise ValueError(f"refinement_runs must be >= 1, got {refinement_runs}")
+    return f"$path\n   nrun={refinement_runs}\n$end\n"
+
+
 def build_xtb_path_command(request: XtbPathRequest) -> list[str]:
     """构造命令行。电荷与自旋显式透传，绝不依赖引擎默认推断。"""
     if request.multiplicity < 1:
         raise ValueError(f"multiplicity must be >= 1 (2S+1), got {request.multiplicity}")
     return [
-        "xtb", "reactant.xyz", "--path", "product.xyz",
+        "xtb", "reactant.xyz", "--path", "product.xyz", "--input", PATH_INPUT_NAME,
         "--chrg", str(request.charge), "--uhf", str(request.multiplicity - 1),
         *request.extra_args,
     ]
@@ -268,22 +320,48 @@ def _list_artifacts(run_dir: str) -> list[XtbArtifact]:
     return artifacts
 
 
-def _scan_markers(lines: list[str]) -> tuple[list[str], bool, bool]:
-    """精确 token 扫描：``(命中行, 是否正常终止, 是否跑了路径搜索)``。"""
-    hits: list[str] = []
-    normal = False
-    path_finder = False
+class PathMarkers(BaseModel):
+    """日志里命中的逐字标记。"""
+
+    evidence: list[str] = Field(default_factory=list)
+    normal_termination: bool = False
+    path_finder: bool = False
+    refinement_termination: RefinementTermination = ""
+
+
+def _scan_markers(lines: list[str]) -> PathMarkers:
+    """精确 token 扫描。两条终止语**分开**判定：收敛与触顶绝不等价。
+
+    barrier 行每轮精修都打印一次，只保留**最后一次**（更靠后的那个才是当前精修程度）。
+    """
+    markers = PathMarkers()
+    last_forward = ""
+    last_backward = ""
     for line in lines:
         stripped = line.strip()
         if MARKER_NORMAL_TERMINATION in stripped:
-            hits.append(stripped)
-            normal = True
+            markers.evidence.append(stripped)
+            markers.normal_termination = True
         elif stripped.startswith(MARKER_FINISHED_RUN.strip()):
-            hits.append(stripped)
+            markers.evidence.append(stripped)
         elif MARKER_PATH_FINDER.strip() in stripped:
-            hits.append(stripped)
-            path_finder = True
-    return hits[:MAX_EVIDENCE_LINES], normal, path_finder
+            markers.evidence.append(stripped)
+            markers.path_finder = True
+        elif MARKER_PATH_CONVERGED in stripped:
+            markers.evidence.append(stripped)
+            markers.refinement_termination = "converged"
+        elif MARKER_PATH_CYCLES_EXHAUSTED in stripped:
+            markers.evidence.append(stripped)
+            markers.refinement_termination = "cycles_exhausted"
+        elif MARKER_FORWARD_BARRIER in stripped:
+            last_forward = stripped
+        elif MARKER_BACKWARD_BARRIER in stripped:
+            last_backward = stripped
+    for extra in (last_forward, last_backward):
+        if extra:
+            markers.evidence.append(extra)
+    markers.evidence = markers.evidence[:MAX_EVIDENCE_LINES]
+    return markers
 
 
 def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
@@ -310,6 +388,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     reactant_path = os.path.join(run_dir, "reactant.xyz")
     product_path = os.path.join(run_dir, "product.xyz")
     command_path = os.path.join(run_dir, "command.txt")
+    path_input_path = os.path.join(run_dir, PATH_INPUT_NAME)
     versions_path = os.path.join(run_dir, "versions.txt")
     stdout_path = os.path.join(run_dir, "stdout.log")
     stderr_path = os.path.join(run_dir, "stderr.log")
@@ -317,12 +396,14 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     atomic_write_text(reactant_path, request.reactant_xyz)
     atomic_write_text(product_path, request.product_xyz)
     atomic_write_text(command_path, " ".join(command) + "\n")
+    atomic_write_text(path_input_path, build_path_input(request.refinement_runs))
     atomic_write_text(versions_path, _capture_versions())
 
     result = XtbPathResult(
         run_dir=run_dir, command=command, symbols=reactant_symbols,
         reactant_path=reactant_path, product_path=product_path,
-        command_path=command_path, versions_path=versions_path,
+        command_path=command_path, path_input_path=path_input_path, versions_path=versions_path,
+        refinement_runs=request.refinement_runs,
         stdout_path=stdout_path, stderr_path=stderr_path,
         path_xyz_path=os.path.join(run_dir, PATH_XYZ_NAME),
         ts_xyz_path=os.path.join(run_dir, TS_XYZ_NAME),
@@ -377,10 +458,11 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
 
     # 实测（本机 xtb 6.7.1）：``normal termination of xtb`` 落在 **stderr**，而计时块落在
     # stdout。因此标记必须在两个流上一起扫——只看 stdout 会把正常的运行判成失败。
-    hits, normal, path_finder = _scan_markers(
+    markers = _scan_markers(
         (stdout or "").splitlines() + (stderr or "").splitlines()
     )
-    result.evidence = hits
+    result.evidence = markers.evidence
+    result.refinement_termination = markers.refinement_termination
 
     if timed_out:
         result.termination_reason = "timeout"
@@ -402,7 +484,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         )
         return result
 
-    if not normal:
+    if not markers.normal_termination:
         result.termination_reason = "unknown_failure"
         result.diagnostics.append(
             f"xtb exited 0 but never printed its normal-termination marker "
@@ -412,7 +494,7 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
         result.message = f"xtb did not report normal termination. Full log: {stdout_path}"
         return result
 
-    if not path_finder:
+    if not markers.path_finder:
         result.termination_reason = "unknown_failure"
         result.diagnostics.append(
             f"xtb exited 0 but never printed its path-finder timing block "
@@ -462,6 +544,44 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     result.frames = frames
     result.ts_candidate_energy_eh = ts_energy
     result.ts_candidate_positions = ts_positions
+
+    if markers.refinement_termination == "cycles_exhausted":
+        # **被截断的路径不是初猜**：实测这种路径的最高帧落在反应物自己的盆地里
+        # （离起点只有 21°、相对能 44.865 kcal/mol，做 OptTS 跑 56 轮不收敛）。
+        # 这里把截断的现场（路径帧 + TS 候选）保留下来供复查，但明确标成不可用。
+        result.termination_reason = "path_not_converged"
+        result.usable_as_guess = False
+        result.diagnostics.append(
+            f"the engine stopped its path refinement at the {request.refinement_runs}-run cap "
+            f"({MARKER_PATH_CYCLES_EXHAUSTED!r}); that is a truncated path, not a converged one. "
+            "The frames and TS candidate are kept for inspection only. Measured consequence of "
+            "accepting a truncated path (docs/evidence/ts_guess_mtd_artifact/): its highest frame "
+            "sits in the reactant's own basin, 21 deg from the start, and an ORCA OptTS started "
+            "from it never converged (56 cycles, slid back to the minimum). Raise "
+            "`refinement_runs` and rerun"
+        )
+        result.message = (
+            f"the xTB path refinement hit its {request.refinement_runs}-run cap before the engine "
+            f"declared convergence, so no usable TS guess was produced. Raise `refinement_runs` and "
+            f"rerun. Run directory (truncated path kept for inspection): {run_dir}"
+        )
+        return result
+
+    if markers.refinement_termination != "converged":
+        result.termination_reason = "unknown_failure"
+        result.usable_as_guess = False
+        result.diagnostics.append(
+            "xtb exited 0 and produced path artifacts, but its log carries neither refinement "
+            f"termination line ({MARKER_PATH_CONVERGED!r} / {MARKER_PATH_CYCLES_EXHAUSTED!r}); "
+            "whether the path refinement converged cannot be established from this output, and a "
+            "non-converged path must not be handed over as a TS guess"
+        )
+        result.message = (
+            f"the xTB path search reported no path-refinement termination line, so convergence "
+            f"could not be confirmed. Full log: {stdout_path}"
+        )
+        return result
+
     result.termination_reason = "completed"
     result.usable_as_guess = True
     result.diagnostics.append(
@@ -472,6 +592,10 @@ def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
     result.diagnostics.append(
         "the TS candidate is a guess sampled by metadynamics, NOT a saddle point and NOT verified; "
         "frequency/IRC judgement still has to run"
+    )
+    result.diagnostics.append(
+        f"the engine declared the path refinement converged ({MARKER_PATH_CONVERGED!r}) within the "
+        f"{request.refinement_runs}-run cap"
     )
     result.message = (
         f"xtb path search completed: {len(frames)} path frames and a TS candidate "

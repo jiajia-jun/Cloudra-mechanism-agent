@@ -1,0 +1,1 @@
+xtb reactant.xyz --path product.xyz --chrg 0 --uhf 0

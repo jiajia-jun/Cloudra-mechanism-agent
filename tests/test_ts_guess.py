@@ -1705,6 +1705,11 @@ open("xtbpath.xyz", "w", encoding="utf-8").write(
     frame("0.000000000000") + frame("52.271000000000") + frame("0.500000000000")
 )
 open("xtbpath_ts.xyz", "w", encoding="utf-8").write(frame("-4.987083865354"))
+print("forward  barrier (kcal)  :    18.299")
+if mode == "path_truncated":
+    print("terminated because max. # cycles reached")
+else:
+    print("terminated because grad at TS <threshold")
 print("normal termination of xtb", file=sys.stderr)
 print(" * finished run on 2026/01/01 at 00:00:00.000")
 print(" path finder:")
@@ -1744,6 +1749,7 @@ async def test_guess_defaults_to_xtb_path_and_reports_path_kind(fake_xtb_for_ts,
     }), mock_session)
     assert res.is_success, res.message
     assert res.path_kind == "xtb_path"
+    assert res.refinement_termination == "converged"
     assert res.images_dir == str(out_dir)
     assert res.ts_candidate_path and Path(res.ts_candidate_path).is_file()
     # 路径帧落盘
@@ -1770,6 +1776,30 @@ async def test_xtb_missing_falls_back_to_idpp_and_says_so(tmp_path, monkeypatch,
     assert res.path_kind == "idpp_fallback"
     assert "fallback" in res.message.lower() or "idpp" in res.message.lower()
     assert res.ts_candidate_path and Path(res.ts_candidate_path).is_file()
+
+
+@pytest.mark.asyncio
+async def test_truncated_path_refinement_is_reported_with_the_remedy(
+    fake_xtb_for_ts, tmp_path, mock_session
+):
+    """触到精修轮数上限 = 路径被截断：不许当可用初猜交出去，并**点名补救办法**。
+
+    实测（docs/evidence/ts_guess_mtd_artifact/）：内建默认 3 轮的路径最高帧落在反应物自己的
+    盆地里（离起点 21°），拿去做 ORCA OptTS 跑 56 轮都不收敛；把上限放开后引擎自己判收敛，
+    同一帧 9 轮即收敛到一阶鞍点。所以这里必须报出来，并叫调用方把 refinement_runs 调大。
+    """
+    fake_xtb_for_ts("path_truncated")
+    out_dir = tmp_path / "guess_truncated"
+    res = await _make_tool().safe_call(TsGuess_input_schema(**{
+        "reactant_text": _R_XYZ,
+        "product_text": _P_XYZ,
+        "output_dir": str(out_dir),
+    }), mock_session)
+    assert not res.is_success
+    assert res.refinement_termination == "cycles_exhausted"
+    assert res.path_kind == ""
+    assert "refinement_runs" in res.message
+    assert "truncated" in res.message.lower()
 
 
 @pytest.mark.asyncio

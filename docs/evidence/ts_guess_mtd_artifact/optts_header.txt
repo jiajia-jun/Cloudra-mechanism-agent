@@ -1,0 +1,120 @@
+    1: 
+    2:                                  *****************
+    3:                                  * O   R   C   A *
+    4:                                  *****************
+    5: 
+    6:                                             #,                                       
+    7:                                             ###                                      
+    8:                                             ####                                     
+    9:                                             #####                                    
+   10:                                             ######                                   
+   11:                                            ########,                                 
+   12:                                      ,,################,,,,,                         
+   13:                                ,,#################################,,                 
+   14:                           ,,##########################################,,             
+   15:                        ,#########################################, ''#####,          
+   16:                     ,#############################################,,   '####,        
+   17:                   ,##################################################,,,,####,       
+   18:                 ,###########''''           ''''###############################       
+   19:               ,#####''   ,,,,##########,,,,          '''####'''          '####       
+   20:             ,##' ,,,,###########################,,,                        '##       
+   21:            ' ,,###''''                  '''############,,,                           
+   22:          ,,##''                                '''############,,,,        ,,,,,,###''
+   23:       ,#''                                            '''#######################'''  
+   24:      '                                                          ''''####''''         
+   25:              ,#######,   #######,   ,#######,      ##                                
+   26:             ,#'     '#,  ##    ##  ,#'     '#,    #''#        ,####,    ,#,          
+   27:             ##       ##  ##   ,#'  ##            #'  '#       #'       ,# #          
+   28:             ##       ##  #######   ##           ,######,      #####,      #          
+   29:             '#,     ,#'  ##    ##  '#,     ,#' ,#      #,     #,   #      #          
+   30:              '#######'   ##     ##  '#######'  #'      '#     '####' #    #          
+   31: 
+   32: 
+   33: 
+   34:                 #########################################################
+   35:                 #                        -***-                          #
+   36:                 #          Department of theory and spectroscopy        #
+   37:                 #                                                       #
+   38:                 #                      Frank Neese                      #
+   39:                 #                                                       #
+   40:                 #     Directorship, Architecture, Infrastructure        #
+   41:                 #                    SHARK, DRIVERS                     #
+   42:                 #        Core code/Algorithms in most modules           #
+   43:                 #                                                       #
+   44:                 #        Max Planck Institute fuer Kohlenforschung      #
+   45:                 #                Kaiser Wilhelm Platz 1                 #
+   46:                 #                 D-45470 Muelheim/Ruhr                 #
+   47:                 #                      Germany                          #
+   48:                 #                                                       #
+   49:                 #                  All rights reserved                  #
+   50:                 #                        -***-                          #
+   51:                 #########################################################
+   52: 
+   53: 
+   54:                          Program Version 6.1.1  -  RELEASE   -
+   55:                                 (GIT: $487d211cc3$)
+   56:                           ($2025-11-21 10:33:24 +0100$)
+   57: 
+   58: 
+   59:  With contributions from (in alphabetic order):
+   60: [Max-Planck-Institut fuer Kohlenforschung]                               
+   61:   Daniel Aravena         : Magnetic Suceptibility                        
+   62:   Michael Atanasov       : Ab Initio Ligand Field Theory (pilot matlab implementation)
+   63:   Alexander A. Auer      : GIAO ZORA, VPT2 properties, NMR spectrum      
+   64:   Ute Becker             : All parallelization in ORCA, NUMFREQ, NUMCALC 
+   65:   Giovanni Bistoni       : ED, misc. LED, open-shell LED, HFLD           
+   66:   Dmytro Bykov           : pre 5.0 version of the SCF Hessian            
+   67:   Marcos Casanova-Páez   : Triplet and SCS-CIS(D). UHF-(DLPNO)-IP/EA/STEOM-CCSD. UHF-CVS-IP/STEOM-CCSD   
+   68:   Vijay G. Chilkuri      : MRCI spin determinant printing, contributions to CSF-ICE 
+   69:   Pauline Colinet        : FMM embedding                                 
+   70:   Dipayan Datta          : RHF DLPNO-CCSD density                        
+   71:   Achintya Kumar Dutta   : EOM-CC, STEOM-CC                              
+   72:   Nicolas Foglia         : Exact transition moments, OPA infrastructure, MCD improvements    
+   73:   Dmitry Ganyushin       : Spin-Orbit,Spin-Spin,Magnetic field MRCI      
+   74:   Miquel Garcia-Rates    : C-PCM and meta-GGA Hessian, CCSD/C-PCM, Gaussian charge scheme 
+   75:   Tiago L. C. Gouveia    : GS-ROHF, GS-ROCIS                             
+   76:   Yang Guo               : DLPNO-NEVPT2, F12-NEVPT2, CIM, IAO-localization        
+   77:   Andreas Hansen         : Spin unrestricted coupled pair/coupled cluster methods 
+   78:   Ingolf Harden          : AUTO-CI MPn and infrastructure                
+   79:   Benjamin Helmich-Paris : MC-RPA, TRAH-(SCF,CASSCF), AVAS, COSX integrals, SCF dyn. polar., MC-PDFT, srDFT 
+   80:   Lee Huntington         : MR-EOM, pCC                                   
+   81:   Robert Izsak           : Overlap fitted RIJCOSX, COSX-SCS-MP3, EOM     
+   82:   Riya Kayal             : Wick's Theorem for AUTO-CI, AUTO-CI UHF-CCSDT 
+   83:   Emily Kempfer          : AUTO-CI RHF CISDT and CCSDT, approximate NEVPT4
+   84:   Christian Kollmar      : KDIIS, OOCD, Brueckner-CCSD(T), CCSD density, CASPT2, CASPT2-K, improved NEVPT2 
+   85:   Axel Koslowski         : Symmetry handling                             
+   86:   Simone Kossmann        : meta-GGA functionals, TD-DFT gradient, OOMP2, (MP2 Hessian; deprecated post 5.0) 
+   87:   Lucas Lang             : DCDCAS, Hyperfine gauge corrections, ICE-SOC+SSC
+   88:   Marvin Lechner         : AUTO-CI (C++ implementation), FIC-MRCC        
+   89:   Spencer Leger          : CASSCF response                               
+   90:   Dagmar Lenk            : GEPOL surface, SMD, ORCA-2-JSON               
+   91:   Dimitrios Liakos       : Extrapolation schemes; Compound Job, Property file
+   92:   Dimitrios Manganas     : Further ROCIS development; embedding schemes. LFT, Crystal Embedding 
+   93:   Dimitrios Pantazis     : SARC Basis sets                               
+   94:   Anastasios Papadopoulos: AUTO-CI, single reference methods and gradients 
+   95:   Taras Petrenko         : pre 6.0 DFT Hessian and TD-DFT gradient,  ECA, NRVS 
+   96:   Petra Pikulova         : Analytic Raman intensities                    
+   97:   Peter Pinski           : DLPNO-MP2, DLPNO-MP2 Gradient                 
+   98:   Shashank Vittal Rao    : ES-AILFT, MagRelax                            
+   99:   Christoph Reimann      : Effective Core Potentials                     
+  100:   Marius Retegan         : Local ZFS, SOC                                
+  101:   Christoph Riplinger    : Optimizer, TS searches, QM/MM, DLPNO-CCSD(T), (RO)-DLPNO pert. Triples 
+  102:   Michael Roemelt        : Original ROCIS implementation, recursive CI coupling coefficients
+  103:   Masaaki Saitow         : Open-shell DLPNO-CCSD energy and density      
+  104:   Barbara Sandhoefer     : DKH picture change effects                    
+  105:   Yorick L. A. Schmerwitz: GMF and freeze-and-release deltaSCF, NEB S-IDPP initial path                    
+  106:   Kantharuban Sivalingam : CASSCF convergence/infrastructure, NEVPT2, NEVPT3, NEVPT4(SD), FIC-MRCI and CEPA variants
+  107:   Bernardo de Souza      : ESD, SOC TD-DFT                               
+  108:   Georgi L. Stoychev     : AutoAux, RI-MP2 NMR, DLPNO-MP2 response, X2C  
+  109:   Van Anh Tran           : RI-MP2 g-tensors                              
+  110:   Willem Van den Heuvel  : Paramagnetic NMR                              
+  111:   Zikuan Wang            : NOTCH, Electric field optimization            
+  112:   Frank Wennmohs         : Technical directorship and infrastructure     
+  113:   Hang Xu                : AUTO-CI-Response properties                   
+  114:                                                                          
+  115: [FACCTs GmbH]                                                            
+  116:   Markus Bursch, Nicolas Foglia, Miquel Garcia-Rates, Ingolf Harden, Hagen Neugebauer, Anastasios Papadopoulos, 
+  117:   Christoph Riplinger, Bernardo de Souza, Georgi L. Stoychev                                                    
+  118:                                                                  
+  119:   APM, various basis sets, CI-OPT, improved COSX, DLPNO-Multilevel,           
+  120:   DOCKER, DRACO, updates on ESD, Fragmentator, GOAT, IRC, LR-CPCM, L-BFGS, MBIS, meta-GGA TD-DFT gradient, ML-optimized integration grids, 

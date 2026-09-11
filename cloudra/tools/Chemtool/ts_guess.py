@@ -26,6 +26,7 @@ from cloudra.tools.Chemtool.internal_coordinates import (
     _dihedral_deg,
 )
 from cloudra.tools.core import orca_frames
+from cloudra.tools.core.xtb_path_runner import DEFAULT_REFINEMENT_RUNS
 
 KCAL_PER_HARTREE = 627.5095
 _STRICT_PAIR_DELTA_MIN_ANG = 0.15
@@ -120,6 +121,16 @@ class TsGuess_input_schema(input_schema):
         description="xtb_path: subprocess timeout in seconds. On expiry only this run's own "
                     "process group is terminated; its logs and intermediate files are kept.",
     )
+    refinement_runs: int = Field(
+        default=DEFAULT_REFINEMENT_RUNS, ge=1,
+        description="xtb_path: ceiling on the number of path-refinement cycles handed to xTB "
+                    "($path nrun). This is a COMPUTE ceiling, not a convergence criterion: the "
+                    "engine stops by itself when its own criterion is met. Do NOT lower it: the "
+                    "engine's built-in default is 3 cycles, which measurably truncates the path "
+                    "(the highest frame then sits in the reactant's own basin, 21 deg from the "
+                    "start, and an OptTS started from it never converges). If a run reports "
+                    "termination='path_not_converged', raise this and rerun.",
+    )
 
     # ---------- scan_prepare ----------
     input_path: Optional[str] = Field(default=None, description="scan_prepare: input structure file path (xyz). Absolute as-is, or relative to the Agent working directory.")
@@ -179,6 +190,13 @@ class TsGuess_output_schema(output_schema):
     ts_candidate_index: Optional[int] = Field(default=None, description="TS candidate frame index (0-based)")
     # scan_parse 也复用 ts_candidate_path
     ts_candidate_path: str = Field(default="", description="TS-guess xyz path")
+    refinement_termination: Literal["", "converged", "cycles_exhausted"] = Field(
+        default="",
+        description="xtb_path: what the engine's own path-refinement loop reported. 'converged' = "
+                    "xTB declared its convergence criterion met (the only state in which the TS "
+                    "candidate is handed over); 'cycles_exhausted' = the refinement hit the "
+                    "`refinement_runs` ceiling and the path is TRUNCATED, so is_success is False.",
+    )
     path_kind: Literal["", "xtb_path", "idpp_fallback"] = Field(
         default="",
         description="How the path guess was produced. 'xtb_path' = xTB metadynamics path search; "
@@ -1270,6 +1288,7 @@ class TsGuess(Tool):
             charge=user_input.charge,
             multiplicity=user_input.spin,
             timeout=user_input.timeout,
+            refinement_runs=user_input.refinement_runs,
             run_label="guess",
         ))
 
@@ -1285,9 +1304,24 @@ class TsGuess(Tool):
             return fallback
 
         if not run.usable_as_guess:
+            if run.termination_reason == "path_not_converged":
+                return TsGuess_output_schema(
+                    is_success=False,
+                    path_kind="",
+                    refinement_termination=run.refinement_termination,
+                    message=(
+                        f"the xTB path refinement hit its {run.refinement_runs}-cycle ceiling "
+                        "before the engine declared convergence, so no usable TS guess was "
+                        "produced. A truncated path's highest frame is not a transition-state "
+                        "guess (measured: it sits in the reactant's own basin and an OptTS started "
+                        "from it never converges). Call again with a larger `refinement_runs` and "
+                        f"rerun. Persistent run directory (truncated path kept): {run.run_dir}"
+                    ),
+                )
             return TsGuess_output_schema(
                 is_success=False,
                 path_kind="",
+                refinement_termination=run.refinement_termination,
                 message=(
                     f"the xTB path search did not produce a usable guess (termination="
                     f"{run.termination_reason}, returncode={run.returncode}). No fallback was "
@@ -1330,6 +1364,7 @@ class TsGuess(Tool):
         return TsGuess_output_schema(
             is_success=True,
             path_kind="xtb_path",
+            refinement_termination=run.refinement_termination,
             images_dir=out_dir,
             distance_table=distance_table,
             ts_candidate_index=None,

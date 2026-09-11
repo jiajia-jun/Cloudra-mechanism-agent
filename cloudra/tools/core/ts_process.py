@@ -663,6 +663,19 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
         return record
     if not run.usable_as_guess:
         record.path_kind = "not_attempted"
+        if run.termination_reason == "path_not_converged":
+            # 触顶 = 路径被截断（引擎没判收敛）。实测：这种路径的最高帧落在反应物自己的盆地里
+            # （离起点 21°），拿去做 OptTS 不收敛。因此**不**把它当初猜交出去。
+            return _block(
+                record, "guess", run.termination_reason,
+                f"the xTB path refinement hit its {run.refinement_runs}-cycle ceiling before the "
+                f"engine declared convergence, so the path's highest frame is a truncated sample "
+                f"and must not be used as a TS guess ({run.refinement_runs} is a compute ceiling, "
+                f"not a convergence criterion). Persistent run directory (truncated path kept for "
+                f"inspection): {run.run_dir}",
+                atom_details=list(run.diagnostics),
+                needs=["budget"],
+            )
         return _block(
             record, "guess", run.termination_reason,
             f"the xTB path search did not produce a usable guess ({run.termination_reason}, "

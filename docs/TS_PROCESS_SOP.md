@@ -81,6 +81,10 @@ ts.resume(run_id, adjusted)
 | `map` | 流程 | 核对声明的 `atom_map` 能把产物**重排到与反应物同序**；缺映射/错映射则**阻塞** | 校验结果 |
 | `assemble` | 流程 | `complex_assembly` 反应模式：反应中心引导的预组织复合物 | 组装候选 |
 | `guess` | 流程 | 路径初猜：优先 xTB `--path`（MTD，**需目标几何**），xTB 缺失退回 IDPP 插值 | 多帧路径 + 随机种子 + `path_kind` |
+| `validate` | 流程 | 第 4 节的校验；失败则**阻塞** | 校验报告（进 process 记录） |
+| `submit` | 流程 | 经 `submit_compute_job` 提交精修作业（OptTS / NEB-TS） | `job_id` |
+| `refine` | 计算链 | 计算中 | 引擎日志、末帧几何 |
+| `verdict` | 流程（自动） | 频率判定 → IRC 双向 → 端点绑回声明的极小值 | 终态 + 证据引用 |
 
 ### 为什么 `map` 是必需的，不是形式
 
@@ -105,10 +109,26 @@ ts.resume(run_id, adjusted)
 - 成功标记 `normal termination of xtb` 落在 **stderr**，计时块落在 stdout：
   标记必须在两个流上一起扫，只看 stdout 会把正常运行判成失败。
 - MTD 随机：结果按采样看待，命令与 stdout 全量落盘备查。
-| `validate` | 流程 | 第 4 节的校验；失败则**阻塞** | 校验报告（进 process 记录） |
-| `submit` | 流程 | 经 `submit_compute_job` 提交精修作业（OptTS / NEB-TS） | `job_id` |
-| `refine` | 计算链 | 计算中 | 引擎日志、末帧几何 |
-| `verdict` | 流程（自动） | 频率判定 → IRC 双向 → 端点绑回声明的极小值 | 终态 + 证据引用 |
+- **路径精修必须跑到引擎自己判收敛，不能沿用内建默认 3 轮**（这条是实测踩出来的坑，改动见
+  `xtb_path_runner` 的 `DEFAULT_REFINEMENT_RUNS` / `RefinementTermination`）：xTB 的路径是
+  **迭代精修**的，内建上限只有 3 轮，3 轮后打印的 `terminated because max. # cycles reached`
+  是**被截断**、不是收敛。M1（2,2'-二甲基联苯，声明 `product_geometry = rotate_about_bond(_, 180°)`）
+  实测：
+
+  | 精修轮数上限 | 引擎结局 | barrier (kcal/mol) | 最高帧 θ | 送去 ORCA `OptTS` |
+  |---|---|---|---|---|
+  | 3（内建默认） | 触顶截断 | **44.865** | −108°（离起点仅 21°，仍在反应物盆地里） | 56 轮不收敛，滑回极小值 |
+  | 10 | 触顶截断 | 26.629 | — | — |
+  | 30 | 触顶截断 | 18.290 | — | — |
+  | 100 | **引擎自判收敛**（第 31 轮） | **18.299** | **−5.7°（平面构型，正是扭转极大）** | **9 轮收敛到一阶鞍点，+16.03 kcal/mol** |
+
+  即：**"MTD 生成不了接近过渡态的初猜"是机时上限造成的假象，不是方法本身的问题**；把上限放开到
+  引擎自判收敛，同一对端点就给出可用的初猜（barrier 落进独立弛豫扫描给出的 14.3–18.3 区间）。
+  因此运行器**总是**写一份 `$path`（`nrun=<上限>`）传给引擎，并把 `converged` /
+  `cycles_exhausted` **分开分类**：触顶一律报 `path_not_converged` 且 `usable_as_guess=False`
+  （现场保留供复查），绝不把截断路径当初猜。`$path` 认得的键实测只有 `nrun` / `npoint` /
+  `kpush` / `kpull`（`alpha` 要用 `alp`）；`$scan` / `$fix` 在本 build 被**静默忽略**。
+  全套逐字证据 + 可重跑脚本 + 自查脚本在 `docs/evidence/ts_guess_mtd_artifact/`。
 
 ## 4. 校验：流程自己的职责
 
