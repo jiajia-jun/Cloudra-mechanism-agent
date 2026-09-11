@@ -93,6 +93,40 @@ def rotate_about_centroid(positions, atom_indices, rotation):
     return out
 
 
+def rotate_about_axis(positions, atom_indices, point_a, point_b, degrees):
+    """把 ``atom_indices`` 这些原子绕通过 ``point_a``/``point_b`` 的轴**刚体旋转**。
+
+    用于阻转异构这种"同一个分子绕某根键转一个角"的第二端点：片内（轴两侧各自）几何完全
+    不变，只有两侧的相对取向改变——这正是"绕轴旋转"的化学含义，也是它与"重新嵌入一个
+    构象"的区别（后者会连片内几何一起变）。
+    """
+    import math
+
+    import numpy as np
+
+    positions = np.asarray(positions, dtype=float)
+    a = np.asarray(point_a, dtype=float)
+    b = np.asarray(point_b, dtype=float)
+    axis = b - a
+    norm = float(np.linalg.norm(axis))
+    if norm < 1e-12:
+        raise ValueError("rotate_about_axis needs two distinct axis points")
+    axis = axis / norm
+    angle = math.radians(float(degrees))
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    kx = np.array([
+        [0.0, -axis[2], axis[1]],
+        [axis[2], 0.0, -axis[0]],
+        [-axis[1], axis[0], 0.0],
+    ])
+    rotation = cos_a * np.eye(3) + sin_a * kx + (1.0 - cos_a) * np.outer(axis, axis)
+
+    out = positions.copy()
+    block = positions[list(atom_indices)]
+    out[list(atom_indices)] = (block - a) @ rotation.T + a
+    return out
+
+
 def min_distance(positions, group_a, group_b) -> float:
     """两组原子之间的最小原子间距。"""
     import numpy as np

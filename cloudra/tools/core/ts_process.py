@@ -82,6 +82,26 @@ class TsBudget(BaseModel):
     )
 
 
+class ProductGeometry(BaseModel):
+    """第二端点的**几何来源**声明。
+
+    为什么需要它：``bond_changes`` 为空的题型（阻转异构、构象异构）里，两端 SMILES 是同一个
+    分子——**"产物"只能由几何而不是由 SMILES 区分**。只从 SMILES 各建一次，两端会得到同一个
+    构象，路径退化。这里让调用方声明"第二端 = 第一端绕这根键转这个角"，由工具生成几何，
+    agent 不需要手写坐标。
+    """
+
+    kind: Literal["rotate_about_bond"] = Field(
+        default="rotate_about_bond",
+        description="几何生成方式。rotate_about_bond：把第一端几何绕指定键的轴刚体旋转一个角"
+                    "（片内几何完全不变，只有两侧相对取向改变）——阻转异构/联芳旋转就是这种",
+    )
+    atoms: tuple[int, int] = Field(
+        description="绕哪根键旋转（完整结构的输出原子序号，0-based，顺序无关）",
+    )
+    degrees: float = Field(description="旋转角（度）。180 = 转到对面的阻转异构体")
+
+
 class TsDeclaration(BaseModel):
     """一次 TS 搜索的声明。**这些是化学决策，由 agent/人给出，工具不猜。**"""
 
@@ -103,6 +123,13 @@ class TsDeclaration(BaseModel):
         default_factory=list,
         description="反应物/产物映射得到的反应中心原子对（完整结构的输出原子序号）；"
                     "给出即按反应模式组装",
+    )
+    product_geometry: Optional[ProductGeometry] = Field(
+        default=None,
+        description="第二端的几何来源。给了它就**不再从 product_smiles 单独建结构**，而是按声明"
+                    "从第一端几何生成——两端 SMILES 相同的题型（阻转异构/外消旋）必须用这个，"
+                    "否则两端会建出同一个构象、路径退化。此时原子对应关系是恒等（由构造保证），"
+                    "不需要 atom_map",
     )
     irc_log: str = Field(
         default="",
@@ -288,8 +315,12 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
     """建两端结构。多组分会被组装，因此这里要求 embed=True。"""
     declaration = record.declaration
     out_dir = os.path.join(record.run_dir, BUILD_STAGE_DIR)
-    for role, smiles in (("reactant", declaration.reactant_smiles),
-                         ("product", declaration.product_smiles)):
+    endpoints = [("reactant", declaration.reactant_smiles)]
+    if declaration.product_geometry is None:
+        endpoints.append(("product", declaration.product_smiles))
+    # 第二端几何由声明派生（绕键旋转）时**不单独建**：那一端就是第一端的一个刚体旋转，
+    # 另外建一个构象既浪费又可能被误当成"产物"（两端 SMILES 相同的题型必然踩这个坑）
+    for role, smiles in endpoints:
         prepared = prepare_structure(PreparationRequest(
             structure=StructureInput(kind="smiles", value=smiles),
             output_dir=os.path.join(out_dir, role),
@@ -318,7 +349,10 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
                 needs=[f"{role}_smiles"],
             )
         record.evidence_candidates.extend(prepared.candidate_paths)
-    _record_stage(record, "build", "done", "both endpoints built", record.evidence_candidates)
+    detail = "both endpoints built" if len(endpoints) == 2 else (
+        "first endpoint built; the second endpoint is derived from it by the declared rotation"
+    )
+    _record_stage(record, "build", "done", detail, record.evidence_candidates)
     return record
 
 
@@ -341,8 +375,68 @@ def _read_built_xyz(record: TsProcessRecord, role: str):
     for path in candidates:
         if os.path.isfile(path):
             atoms = read_xyz_atoms(path)
-            return [symbol for symbol, _ in atoms], [position for _, position in atoms], path
+            mol_path = os.path.splitext(path)[0] + ".mol"
+            return (
+                [symbol for symbol, _ in atoms],
+                [position for _, position in atoms],
+                path,
+                mol_path if os.path.isfile(mol_path) else "",
+            )
     return None
+
+
+def _derive_product_geometry(record: TsProcessRecord, built):
+    """按声明的旋转从第一端几何生成第二端几何；返回 ``(错误, positions)``。
+
+    分组用**真实键图**：读第一端构建产物的 MOL，去掉被旋转的那根键，取连通分量——
+    不用距离启发式（那等于把"哪些原子属于哪一侧"交给一个阈值）。旋转的是**含 atoms[1]
+    的那一侧**（绕同一根轴转，两侧等价，取一个确定的规则即可）。
+    """
+    from rdkit import Chem
+
+    from cloudra.tools.core.geometry import rotate_about_axis
+
+    declaration = record.declaration
+    geometry = declaration.product_geometry
+    if geometry is None:
+        return "", []
+    symbols, positions, _xyz_path, mol_path = built
+    if not mol_path:
+        return (
+            "the built endpoint's MOL file is missing, so the bond to rotate about cannot be "
+            "identified from the real bond graph",
+            [],
+        )
+    mol = Chem.MolFromMolBlock(Path(mol_path).read_text(encoding="utf-8"), removeHs=False)
+    if mol is None:
+        return f"the built endpoint's MOL file could not be parsed: {mol_path}", []
+    left, right = int(geometry.atoms[0]), int(geometry.atoms[1])
+    n = len(symbols)
+    if not (0 <= left < n and 0 <= right < n) or left == right:
+        return (
+            f"rotation axis atoms {geometry.atoms} are out of range for a {n}-atom structure",
+            [],
+        )
+    if mol.GetBondBetweenAtoms(left, right) is None:
+        return (
+            f"atoms {left} and {right} are not bonded in the built structure, so there is no bond "
+            "to rotate about",
+            [],
+        )
+    editable = Chem.RWMol(mol)
+    editable.RemoveBond(left, right)
+    fragments = [sorted(frag) for frag in Chem.GetMolFrags(editable)]
+    if len(fragments) != 2:
+        return (
+            f"removing the bond {left}-{right} left {len(fragments)} fragment(s) instead of 2, so "
+            "the rotation would not split the molecule into two rigid sides",
+            [],
+        )
+    side = fragments[0] if right in fragments[0] else fragments[1]
+    rotated = rotate_about_axis(
+        positions, side, positions[left], positions[right], geometry.degrees,
+    )
+    return "", [[float(v) for v in row] for row in rotated]
 
 
 def _map(record: TsProcessRecord) -> TsProcessRecord:
@@ -353,6 +447,35 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
     路径搜索要求两端是同一套、同序的原子。歧义与错映射必须**点名到原子**地报出来。
     """
     declaration = record.declaration
+    if declaration.product_geometry is not None:
+        # 第二端几何由第一端绕键旋转而来 -> 原子对应关系是**恒等**（构造保证），不需要 atom_map
+        built = _read_built_xyz(record, "reactant")
+        if built is None:
+            return _block(
+                record, "map", "missing_built_geometry",
+                "the first endpoint has no built geometry, so the declared rotation cannot be "
+                "applied",
+                needs=["reactant_smiles"],
+            )
+        error, positions = _derive_product_geometry(record, built)
+        if error:
+            return _block(
+                record, "map", "product_geometry_failed", error, needs=["product_geometry"],
+            )
+        if len(positions) != len(built[0]):
+            return _block(
+                record, "map", "product_geometry_failed",
+                f"the derived second endpoint has {len(positions)} atoms but the first endpoint has "
+                f"{len(built[0])}",
+                needs=["product_geometry"],
+            )
+        _record_stage(
+            record, "map", "done",
+            "the second endpoint is the first endpoint rotated about the declared bond "
+            f"({declaration.product_geometry.atoms}, {declaration.product_geometry.degrees} deg), so "
+            "the atom correspondence is the identity by construction; no atom_map is needed",
+        )
+        return record
     if not declaration.atom_map:
         return _block(
             record, "map", "atom_map_missing",
@@ -371,8 +494,8 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
             "could not be checked",
             needs=["reactant_smiles", "product_smiles"],
         )
-    r_symbols, _r_pos, _r_path = reactant
-    p_symbols, _p_pos, _p_path = product
+    r_symbols = reactant[0]
+    p_symbols = product[0]
     n = len(r_symbols)
     if len(p_symbols) != n:
         return _block(
@@ -411,12 +534,36 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
 
 def _assemble(record: TsProcessRecord) -> TsProcessRecord:
     """反应中心引导的组装。组装本身在 build 阶段由 structure_builder 完成，这里只核对声明。"""
+    # 组装只对**多组分**体系有意义：单组分（分子内重排、阻转异构、环翻转）没有片间取向可采样，
+    # 因此不要求 reaction_center——这是"反应中心"这个概念本身不适用，不是调用方漏填
+    import json as _json
+
+    prepared_path = os.path.join(record.run_dir, BUILD_STAGE_DIR, "reactant", "prepared_structure.json")
+    components = 1
+    if os.path.isfile(prepared_path):
+        with open(prepared_path, encoding="utf-8") as handle:
+            components = len(_json.load(handle).get("components", []))
+    if components <= 1 and record.declaration.product_geometry is not None:
+        _record_stage(
+            record, "assemble", "done",
+            "single-component process whose second endpoint is a declared rotation of the first: "
+            "there is no inter-fragment orientation to sample, so no reaction_center applies — the "
+            "declared rotation is the reaction coordinate",
+        )
+        return record
+    if components <= 1:
+        _record_stage(
+            record, "assemble", "done",
+            "single component: nothing to assemble (no inter-fragment orientation). The reaction "
+            "coordinate is whatever the path guess explores",
+        )
+        return record
     if not record.declaration.reaction_center:
         return _block(
             record, "assemble", "reaction_center_missing",
-            "no reaction_center was declared: complex mode would sample relative orientations "
-            "without any bonding centre, which is not a reactive complex. Declare the atom pairs "
-            "that form/break, or accept that the guess will not be reaction-guided",
+            "no reaction_center was declared for a MULTI-component input: complex mode would sample "
+            "relative orientations without any bonding centre, which is not a reactive complex. "
+            "Declare the atom pairs that form/break",
             needs=["reaction_center"],
         )
     _record_stage(
@@ -440,33 +587,48 @@ def _guess(record: TsProcessRecord) -> TsProcessRecord:
     os.makedirs(out_dir, exist_ok=True)
 
     reactant = _read_built_xyz(record, "reactant")
-    product = _read_built_xyz(record, "product")
-    if reactant is None or product is None:
+    if reactant is None:
         return _block(
             record, "guess", "missing_built_geometry",
-            "the built endpoint geometries are missing from the run directory, so no path guess "
+            "the built first endpoint geometry is missing from the run directory, so no path guess "
             "could be constructed",
-            needs=["reactant_smiles", "product_smiles"],
+            needs=["reactant_smiles"],
         )
-    r_symbols, r_pos, _r_path = reactant
-    p_symbols, p_pos, _p_path = product
-    atom_map = record.declaration.atom_map
-    if len(atom_map) != len(r_symbols):
-        return _block(
-            record, "guess", "atom_map_length_mismatch",
-            f"atom_map has {len(atom_map)} entries for {len(r_symbols)} atoms",
-            needs=["atom_map"],
-        )
-    # 产物第 k 个原子 → 反应物第 atom_map[k]-1 个位置
-    reordered = [None] * len(r_symbols)
-    for product_index, target in enumerate(atom_map):
-        reordered[target - 1] = list(p_pos[product_index])
-    if any(position is None for position in reordered):
-        return _block(
-            record, "guess", "atom_map_not_a_permutation",
-            "the atom_map does not cover every reordered position; reordering would leave holes",
-            needs=["atom_map"],
-        )
+    r_symbols, r_pos = reactant[0], reactant[1]
+    if record.declaration.product_geometry is not None:
+        # 第二端 = 第一端绕声明的键旋转（阻转异构等"两端同一分子"的题型走这条）
+        error, reordered = _derive_product_geometry(record, reactant)
+        if error:
+            return _block(
+                record, "guess", "product_geometry_failed", error, needs=["product_geometry"],
+            )
+    else:
+        product = _read_built_xyz(record, "product")
+        if product is None:
+            return _block(
+                record, "guess", "missing_built_geometry",
+                "the built second endpoint geometry is missing from the run directory, so no path "
+                "guess could be constructed",
+                needs=["product_smiles"],
+            )
+        p_pos = product[1]
+        atom_map = record.declaration.atom_map
+        if len(atom_map) != len(r_symbols):
+            return _block(
+                record, "guess", "atom_map_length_mismatch",
+                f"atom_map has {len(atom_map)} entries for {len(r_symbols)} atoms",
+                needs=["atom_map"],
+            )
+        # 产物第 k 个原子 → 反应物第 atom_map[k]-1 个位置
+        reordered = [None] * len(r_symbols)
+        for product_index, target in enumerate(atom_map):
+            reordered[target - 1] = list(p_pos[product_index])
+        if any(position is None for position in reordered):
+            return _block(
+                record, "guess", "atom_map_not_a_permutation",
+                "the atom_map does not cover every reordered position; reordering would leave holes",
+                needs=["atom_map"],
+            )
 
     def xyz_block(symbols, positions, comment: str) -> str:
         lines = [str(len(symbols)), comment]

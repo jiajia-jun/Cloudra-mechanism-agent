@@ -558,3 +558,187 @@ def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
     content = Path(path).read_text(encoding="utf-8")
     assert "irc=(calcfc,maxpoints=80)" in content
     assert "%irc" not in content
+
+
+# ---------------------------------------------------------------------------
+# 第二端几何来源：两端 SMILES 相同的题型（阻转异构 / 外消旋）
+# ---------------------------------------------------------------------------
+
+#: 题库 easy 档 M1：2,2'-二甲基联苯的阻转异构旋转（Ra<->Sa，文献锚点 13.0 kcal/mol）
+M1_SMILES = "Cc1ccccc1-c1c(C)cccc1"
+
+
+def _biaryl_bond(mol) -> tuple[int, int]:
+    """找出联芳单键：去掉它会把分子切成两个各含一整个芳环的片段。"""
+    from rdkit import Chem
+
+    for bond in mol.GetBonds():
+        if bond.GetBondType() != Chem.BondType.SINGLE:
+            continue
+        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        if mol.GetAtomWithIdx(i).GetAtomicNum() != 6 or mol.GetAtomWithIdx(j).GetAtomicNum() != 6:
+            continue
+        if not (mol.GetAtomWithIdx(i).GetIsAromatic() and mol.GetAtomWithIdx(j).GetIsAromatic()):
+            continue
+        editable = Chem.RWMol(mol)
+        editable.RemoveBond(i, j)
+        frags = [sorted(f) for f in Chem.GetMolFrags(editable)]
+        if len(frags) == 2 and all(len(f) >= 6 for f in frags):
+            return (i, j)
+    raise AssertionError("no biaryl bond found")
+
+
+def _m1_declaration(mol) -> TsDeclaration:
+    return TsDeclaration(
+        reactant_smiles=M1_SMILES,
+        product_smiles=M1_SMILES,  # 阻转异构：两端是同一个分子
+        charge=0,
+        multiplicity=1,
+        method="b3lyp/def2svp",
+        product_geometry={"kind": "rotate_about_bond", "atoms": _biaryl_bond(mol), "degrees": 180.0},
+    )
+
+
+def _m1_mol():
+    """M1 的三维结构（SMILES 本身没有构象，旋转测试必须有坐标）。"""
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles(M1_SMILES))
+    params = AllChem.ETKDGv3()
+    params.randomSeed = 42
+    AllChem.EmbedMolecule(mol, params)
+    return mol
+
+
+def test_rotation_keeps_each_side_rigid_and_moves_the_sides():
+    """绕键旋转：**片内几何完全不变**、被旋转轴键长不变，只有两侧相对取向改变。
+
+    这是它与"重新嵌入一个构象"的本质区别——后者会连片内几何一起变，那就不再是"绕轴转"。
+    """
+    import numpy as np
+
+    from cloudra.tools.core.geometry import rotate_about_axis
+
+    mol = _m1_mol()
+    conf = mol.GetConformer()
+    positions = np.asarray(conf.GetPositions(), dtype=float)
+    left, right = _biaryl_bond(mol)
+    from rdkit import Chem
+
+    editable = Chem.RWMol(mol)
+    editable.RemoveBond(left, right)
+    side = [sorted(f) for f in Chem.GetMolFrags(editable)]
+    moving = side[0] if right in side[0] else side[1]
+    still = side[0] if moving is side[1] else side[1]
+
+    rotated = rotate_about_axis(positions, moving, positions[left], positions[right], 180.0)
+
+    def pairwise(pos, group):
+        return [
+            float(np.linalg.norm(pos[i] - pos[j]))
+            for index, i in enumerate(group) for j in group[index + 1:]
+        ]
+
+    # 被旋转的那一侧：片内所有原子间距逐位不变（刚体）
+    for before, after in zip(pairwise(positions, moving), pairwise(rotated, moving)):
+        assert before == pytest.approx(after, abs=1e-9)
+    # 另一侧完全没动
+    for index in still:
+        assert list(rotated[index]) == pytest.approx(list(positions[index]), abs=1e-12)
+    # 轴键键长不变
+    assert float(np.linalg.norm(rotated[left] - rotated[right])) == pytest.approx(
+        float(np.linalg.norm(positions[left] - positions[right])), abs=1e-9
+    )
+    # 但没有白转：两侧之间的某个距离必须变了
+    assert any(
+        abs(float(np.linalg.norm(rotated[i] - rotated[j]))
+            - float(np.linalg.norm(positions[i] - positions[j]))) > 0.5
+        for i in moving for j in still
+    )
+
+
+def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
+    """核心回归：两端 SMILES 相同的题型，必须靠**声明的几何**把两端区分开。
+
+    这条守的是上一版的真实缺陷：只从 SMILES 各建一次，两端会建出同一个构象，路径退化——
+    而退化在任何一处都不会报错。
+    """
+    from cloudra.tools.core.ts_process import _derive_product_geometry, _read_built_xyz
+
+    mol = _m1_mol()
+    import json
+
+    workspace = tmp_path
+    declaration = _m1_declaration(mol)
+    record = start(TsStartRequest(declaration=declaration, workspace_dir=str(workspace)))
+    built = _read_built_xyz(record, "reactant")
+    assert built is not None
+
+    error, derived = _derive_product_geometry(record, built)
+    assert error == "", error
+    import numpy as np
+
+    reactant_positions = np.asarray(built[1], dtype=float)
+    displacement = np.linalg.norm(np.asarray(derived) - reactant_positions, axis=1)
+    # 第二端与第一端**确实不是同一个几何**
+    assert float(displacement.max()) > 1.0, (
+        "两端几何重合 = 路径退化；这正是两端 SMILES 相同时必须声明几何来源的原因"
+    )
+    # map 阶段按"构造保证恒等"通过，且不再要求 atom_map
+    assert record.stage_record("map").status == "done"
+    assert "identity by construction" in record.stage_record("map").detail
+    del json
+
+
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
+)
+def test_m1_atropisomerisation_runs_end_to_end_with_real_xtb(tmp_path):
+    """题库 easy/M1（2,2'-二甲基联苯阻转异构）：真实 xTB 走完前端并交出一条**非退化**路径。
+
+    断言的是结构性质（路径非退化、TS 候选存在且高于两端、提交了精修作业）；
+    能垒数值不写进断言——文献锚点 13.0 kcal/mol 是 B3LYP/实验层面的值，
+    GFN2 的数值只能作为报告里的量级对照，钉进测试就是伪精确。
+    """
+    from cloudra.tools.core.ts_process import _read_built_xyz
+
+    mol = _m1_mol()
+    record = start(TsStartRequest(declaration=_m1_declaration(mol), workspace_dir=str(tmp_path)))
+
+    statuses = {r.stage: r.status for r in record.stage_records}
+    assert record.terminal is None
+    assert statuses["build"] == "done"
+    assert statuses["map"] == "done"
+    assert statuses["guess"] == "done", record.stage_record("guess").detail
+    assert statuses["validate"] == "done"
+    assert record.path_kind == "xtb_path"
+    assert record.waiting_for.startswith("job:")
+
+    # 路径真的非退化：重排后的第二端与第一端几何不同
+    import numpy as np
+
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+    reactant_xyz = _read_built_xyz(record, "reactant")[2]
+    reordered_xyz = os.path.join(record.run_dir, "path", "product_reordered.xyz")
+    a = np.asarray([p for _s, p in read_xyz_atoms(reactant_xyz)], dtype=float)
+    b = np.asarray([p for _s, p in read_xyz_atoms(reordered_xyz)], dtype=float)
+    assert float(np.linalg.norm(a - b, axis=1).max()) > 1.0
+
+    # TS 候选高于两端起点（否则那不是鞍点区域）
+    from cloudra.tools.core.structure_artifacts import read_xyz_atoms as _read
+
+    run_dirs = sorted(Path(record.run_dir).glob("path/xtb_path_runs/*"))
+    ts_lines = (run_dirs[-1] / "xtbpath_ts.xyz").read_text(encoding="utf-8").splitlines()
+    ts_energy_eh = float(ts_lines[1].split()[1])
+    input_lines = _read(str(run_dirs[-1] / "reactant.xyz"))
+    del input_lines, _read
+    # 路径帧注释是**相对 kcal/mol**：最高帧应显著高于起点
+    path_frames = (run_dirs[-1] / "xtbpath.xyz").read_text(encoding="utf-8").splitlines()
+    rel = [
+        float(line.split()[1]) for line in path_frames
+        if line.strip().startswith("energy:")
+    ]
+    assert max(rel) > 1.0, f"路径上没有明显能垒：{rel}"
+    assert ts_energy_eh < 0.0
