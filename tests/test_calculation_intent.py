@@ -7,8 +7,8 @@ pytest.importorskip("rdkit", reason="qm_input_writer requires RDKit (chem extra)
 
 from cloudra.runtime_v2.method_policy import check_input_content
 from cloudra.runtime_v2.schemas import MethodPolicy
+from cloudra.services.compute_admission import resource_underestimate
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-from cloudra.tools.Chemtool.submit_compute_job import SubmitComputeJob
 from cloudra.tools.core.calculation_intent import (
     TASK_VOCABULARY,
     inspect_input,
@@ -327,16 +327,16 @@ def test_submit_resource_underestimate_diagnostic(tmp_path):
     inp.write_text(
         "! Opt b3lyp def2-svp\n%pal nprocs 8 end\n%maxcore 2048\n* xyz 0 1\nO 0 0 0\n*\n"
     )
-    low_cpus = SubmitComputeJob._resource_underestimate("orca", str(inp), cpus=4, memory_mb=None)
+    low_cpus = resource_underestimate("orca", str(inp), cpus=4, memory_mb=None)
     assert low_cpus and "8 cores" in low_cpus
-    low_mem = SubmitComputeJob._resource_underestimate("orca", str(inp), cpus=8, memory_mb=8192)
+    low_mem = resource_underestimate("orca", str(inp), cpus=8, memory_mb=8192)
     assert low_mem and "16384 MB" in low_mem
-    assert SubmitComputeJob._resource_underestimate("orca", str(inp), cpus=8, memory_mb=16384) is None
+    assert resource_underestimate("orca", str(inp), cpus=8, memory_mb=16384) is None
     gjf = tmp_path / "job.gjf"
     gjf.write_text("%nprocshared=16\n%mem=32GB\n#p opt b3lyp/6-31g(d)\n\nt\n\n0 1\nO 0 0 0\n\n")
-    assert SubmitComputeJob._resource_underestimate("gaussian", str(gjf), cpus=4, memory_mb=None)
-    assert SubmitComputeJob._resource_underestimate("gaussian", str(gjf), cpus=16, memory_mb=32768) is None
+    assert resource_underestimate("gaussian", str(gjf), cpus=4, memory_mb=None)
+    assert resource_underestimate("gaussian", str(gjf), cpus=16, memory_mb=32768) is None
     # 未声明资源的输入不猜
     plain = tmp_path / "plain.inp"
     plain.write_text("! Opt b3lyp def2-svp\n* xyz 0 1\nO 0 0 0\n*\n")
-    assert SubmitComputeJob._resource_underestimate("orca", str(plain), cpus=1, memory_mb=None) is None
+    assert resource_underestimate("orca", str(plain), cpus=1, memory_mb=None) is None

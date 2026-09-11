@@ -1,0 +1,274 @@
+src_id,dst_id,rel_type,evidence_level,source,falsified,note
+reaction:Wagner-Meerwein rearrangement,condition:mineral_acid,requires,L0,org:rearrangement:1,false,W-M 重排典型条件
+reaction:Wagner-Meerwein rearrangement,condition:lewis_acid,requires,L0,org:rearrangement:1,false,W-M 重排典型条件
+reaction:Wagner-Meerwein rearrangement,condition:reflux_organic,requires,L0,org:rearrangement:1,false,W-M 重排典型条件
+reaction:Wagner-Meerwein rearrangement,condition:low_temp,requires,L0,org:rearrangement:1,false,W-M 重排典型条件
+reaction:Wagner-Meerwein rearrangement,mechanism_step:Wagner-Meerwein#1_leaving_group_departure,proceeds_via,L0,org:rearrangement:1,false,第一步电离
+mechanism_step:Wagner-Meerwein#1_leaving_group_departure,mechanism_step:Wagner-Meerwein#2_12_shift,step_next,L0,org:rearrangement:1,false,电离后迁移
+mechanism_step:Wagner-Meerwein#2_12_shift,mechanism_step:Wagner-Meerwein#3_elimination_or_trapping,step_next,L0,org:rearrangement:1,false,迁移后终止
+side_pathway:Wagner-Meerwein#E1_elimination,reaction:Wagner-Meerwein rearrangement,competes_with,L0,org:rearrangement:1,false,消除竞争重排
+side_pathway:Wagner-Meerwein#E1_elimination,condition:low_temp,suppressed_by,L0,org:rearrangement:1,false,低温抑制消除
+reaction:Wagner-Meerwein rearrangement,molecule:camphene,produces,L0,org:rearrangement:1,false,重排烯烃产物
+reaction:Wagner-Meerwein rearrangement,functional_group:alcohol,applies_to,L0,org:rearrangement:1,false,醇底物
+mechanism_step:Wagner-Meerwein#1_leaving_group_departure,molecule:isoborneol,involves,L0,org:rearrangement:1,false,底物电离
+reaction:Beckmann rearrangement,condition:mineral_acid,requires,L0,org:rearrangement:2,false,Beckmann 条件
+reaction:Beckmann rearrangement,condition:beckmann_solution,requires,L0,org:rearrangement:2,false,Beckmann 条件
+reaction:Beckmann rearrangement,condition:tosyl_chloride,requires,L0,org:rearrangement:2,false,Beckmann 条件
+reaction:Beckmann rearrangement,condition:water_workup,requires,L0,org:rearrangement:2,false,Beckmann 条件
+reaction:Beckmann rearrangement,mechanism_step:Beckmann#1_oh_activation,proceeds_via,L0,org:rearrangement:2,false,活化步
+mechanism_step:Beckmann#1_oh_activation,mechanism_step:Beckmann#2_anti_migration_nitrilium,step_next,L0,org:rearrangement:2,false,迁移步
+mechanism_step:Beckmann#2_anti_migration_nitrilium,mechanism_step:Beckmann#3_hydrolysis_tautomerization,step_next,L0,org:rearrangement:2,false,水解步
+side_pathway:Beckmann#fragmentation,reaction:Beckmann rearrangement,competes_with,L0,org:rearrangement:2,false,碎裂竞争重排
+side_pathway:Beckmann#fragmentation,condition:beckmann_solution,suppressed_by,L0,org:rearrangement:2,false,条件选择可抑制碎裂
+reaction:Beckmann rearrangement,molecule:caprolactam,produces,L0,org:rearrangement:2,false,内酰胺产物
+reaction:Beckmann rearrangement,functional_group:oxime,applies_to,L0,org:rearrangement:2,false,肟底物
+reaction:Curtius rearrangement,condition:nan3,requires,L0,org:rearrangement:3,false,Curtius 条件
+reaction:Curtius rearrangement,condition:inert_reflux,requires,L0,org:rearrangement:3,false,Curtius 条件
+reaction:Curtius rearrangement,condition:dppa,requires,L0,org:rearrangement:3,false,Curtius 条件
+reaction:Curtius rearrangement,condition:anhydrous,requires,L0,org:rearrangement:3,false,Curtius 条件
+reaction:Curtius rearrangement,mechanism_step:Curtius#1_acyl_azide_formation,proceeds_via,L0,org:rearrangement:3,false,叠氮制备
+mechanism_step:Curtius#1_acyl_azide_formation,mechanism_step:Curtius#2_thermal_rearrangement,step_next,L0,org:rearrangement:3,false,热重排
+mechanism_step:Curtius#2_thermal_rearrangement,mechanism_step:Curtius#3_isocyanate_trapping,step_next,L0,org:rearrangement:3,false,捕获
+side_pathway:Curtius#carbene_insertion,reaction:Curtius rearrangement,competes_with,L0,org:rearrangement:3,false,氮宾副反应
+side_pathway:Curtius#carbene_insertion,condition:inert_reflux,suppressed_by,L0,org:rearrangement:3,false,热协同抑制氮宾
+reaction:Curtius rearrangement,molecule:aniline,produces,L0,org:rearrangement:3,false,脱羧胺产物
+reaction:Curtius rearrangement,functional_group:azide,applies_to,L0,org:rearrangement:3,false,酰基叠氮
+mechanism_step:Curtius#2_thermal_rearrangement,molecule:isocyanate_intermediate,involves,L0,org:rearrangement:3,false,异氰酸酯
+reaction:Hofmann rearrangement,condition:halogen_alkaline,requires,L0,org:rearrangement:4,false,Hofmann 条件
+reaction:Hofmann rearrangement,condition:low_temp,requires,L0,org:rearrangement:4,false,Hofmann 条件
+reaction:Hofmann rearrangement,condition:water_workup,requires,L0,org:rearrangement:4,false,Hofmann 条件
+reaction:Hofmann rearrangement,condition:dppa_naome,requires,L0,org:rearrangement:4,false,Hofmann 条件
+reaction:Hofmann rearrangement,mechanism_step:Hofmann#1_n_halogenation,proceeds_via,L0,org:rearrangement:4,false,卤代
+mechanism_step:Hofmann#1_n_halogenation,mechanism_step:Hofmann#2_rearrangement,step_next,L0,org:rearrangement:4,false,重排
+mechanism_step:Hofmann#2_rearrangement,mechanism_step:Hofmann#3_hydrolysis_decarboxylation,step_next,L0,org:rearrangement:4,false,水解
+side_pathway:Hofmann#urea_formation,reaction:Hofmann rearrangement,competes_with,L0,org:rearrangement:4,false,脲竞争
+side_pathway:Hofmann#urea_formation,condition:water_workup,suppressed_by,L0,org:rearrangement:4,false,水性碱抑制脲
+reaction:Hofmann rearrangement,molecule:methylamine,produces,L0,org:rearrangement:4,false,少一碳胺
+reaction:Hofmann rearrangement,functional_group:amide,applies_to,L0,org:rearrangement:4,false,伯酰胺
+reaction:Lossen rearrangement,condition:ac2o_or_edc,requires,L0,org:rearrangement:5,false,Lossen 条件
+reaction:Lossen rearrangement,condition:low_temp,requires,L0,org:rearrangement:5,false,Lossen 条件
+reaction:Lossen rearrangement,condition:anhydrous,requires,L0,org:rearrangement:5,false,Lossen 条件
+reaction:Lossen rearrangement,condition:strong_base,requires,L0,org:rearrangement:5,false,Lossen 条件
+reaction:Lossen rearrangement,mechanism_step:Lossen#1_o_activation,proceeds_via,L0,org:rearrangement:5,false,O-活化
+mechanism_step:Lossen#1_o_activation,mechanism_step:Lossen#2_base_promoted_rearrangement,step_next,L0,org:rearrangement:5,false,重排
+mechanism_step:Lossen#2_base_promoted_rearrangement,mechanism_step:Lossen#3_trapping,step_next,L0,org:rearrangement:5,false,捕获
+side_pathway:Lossen#hydrolysis_back_to_acid,reaction:Lossen rearrangement,competes_with,L0,org:rearrangement:5,false,水解竞争
+side_pathway:Lossen#hydrolysis_back_to_acid,condition:anhydrous,suppressed_by,L0,org:rearrangement:5,false,无水抑制水解
+reaction:Lossen rearrangement,functional_group:hydroxamic_acid,applies_to,L0,org:rearrangement:5,false,羟肟酸
+reaction:Lossen rearrangement,molecule:aniline,produces,L0,org:rearrangement:5,false,胺产物
+reaction:Schmidt reaction,condition:fuming_sulfuric,requires,L0,org:rearrangement:6,false,Schmidt 条件
+reaction:Schmidt reaction,condition:nan3,requires,L0,org:rearrangement:6,false,Schmidt 条件
+reaction:Schmidt reaction,condition:lewis_catalysis_intramol,requires,L0,org:rearrangement:6,false,Schmidt 条件
+reaction:Schmidt reaction,condition:low_temp,requires,L0,org:rearrangement:6,false,Schmidt 条件
+reaction:Schmidt reaction,mechanism_step:Schmidt#1_azide_addition,proceeds_via,L0,org:rearrangement:6,false,加成
+mechanism_step:Schmidt#1_azide_addition,mechanism_step:Schmidt#2_migration_n2_loss,step_next,L0,org:rearrangement:6,false,迁移
+mechanism_step:Schmidt#2_migration_n2_loss,mechanism_step:Schmidt#3_product_formation,step_next,L0,org:rearrangement:6,false,水解
+side_pathway:Schmidt#migration_aptitude_mixtures,reaction:Schmidt reaction,competes_with,L0,org:rearrangement:6,false,区域混合
+side_pathway:Schmidt#migration_aptitude_mixtures,condition:fuming_sulfuric,suppressed_by,L0,org:rearrangement:6,false,酸浓度调控选择性
+reaction:Schmidt reaction,molecule:benzanilide,produces,L0,org:rearrangement:6,false,酮 Schmidt 酰胺
+reaction:Schmidt reaction,functional_group:ketone,applies_to,L0,org:rearrangement:6,false,酮底物
+reaction:Claisen rearrangement,condition:thermal_claisen,requires,L0,org:rearrangement:7,false,Claisen 条件
+reaction:Claisen rearrangement,condition:lewis_accel,requires,L0,org:rearrangement:7,false,Claisen 条件
+reaction:Claisen rearrangement,condition:ireland_lda,requires,L0,org:rearrangement:7,false,Claisen 条件
+reaction:Claisen rearrangement,condition:heat_high,requires,L0,org:rearrangement:7,false,Claisen 条件
+reaction:Claisen rearrangement,mechanism_step:Claisen#1_chair_ts_sigmatropic,proceeds_via,L0,org:rearrangement:7,false,协同重排
+mechanism_step:Claisen#1_chair_ts_sigmatropic,mechanism_step:Claisen#2_keto_enol_aromatization,step_next,L0,org:rearrangement:7,false,芳构化
+mechanism_step:Claisen#2_keto_enol_aromatization,mechanism_step:Claisen#3_product_isolation,step_next,L0,org:rearrangement:7,false,分离
+side_pathway:Claisen#para_via_double_rearrangement,reaction:Claisen rearrangement,competes_with,L0,org:rearrangement:7,false,对位副路径
+side_pathway:Claisen#para_via_double_rearrangement,condition:thermal_claisen,favored_by,L0,org:rearrangement:7,false,热条件促进
+reaction:Claisen rearrangement,molecule:2_allylphenol,produces,L0,org:rearrangement:7,false,邻烯丙基酚
+reaction:Claisen rearrangement,functional_group:aryl_ether,applies_to,L0,org:rearrangement:7,false,芳基烯丙基醚
+reaction:Claisen rearrangement,functional_group:allyl_ether,applies_to,L0,org:rearrangement:7,false,脂族烯丙基醚
+reaction:Cope rearrangement,condition:cope_high_temp,requires,L0,org:rearrangement:8,false,Cope 热条件
+reaction:Cope rearrangement,condition:heat_high,requires,L0,org:rearrangement:8,false,Cope 热条件
+reaction:Cope rearrangement,condition:anhydrous,requires,L0,org:rearrangement:8,false,Cope 热条件
+reaction:Cope rearrangement,mechanism_step:Cope#1_chair_33,proceeds_via,L0,org:rearrangement:8,false,协同重排
+mechanism_step:Cope#1_chair_33,mechanism_step:Cope#2_product_diene,step_next,L0,org:rearrangement:8,false,产物
+side_pathway:Cope#thermal_decomposition,reaction:Cope rearrangement,competes_with,L0,org:rearrangement:8,false,分解竞争
+side_pathway:Cope#thermal_decomposition,condition:anhydrous,suppressed_by,L0,org:rearrangement:8,false,控制气氛与浓度
+reaction:Cope rearrangement,functional_group:diene,applies_to,L0,org:rearrangement:8,false,"1,5-二烯"
+reaction:oxy-Cope rearrangement,condition:oxy_cope_heat,requires,L0,org:rearrangement:9,false,中性 oxy-Cope 条件
+reaction:oxy-Cope rearrangement,condition:heat_high,requires,L0,org:rearrangement:9,false,中性 oxy-Cope 条件
+reaction:oxy-Cope rearrangement,condition:water_workup,requires,L0,org:rearrangement:9,false,中性 oxy-Cope 条件
+reaction:oxy-Cope rearrangement,mechanism_step:oxy-Cope#1_neutral_33,proceeds_via,L0,org:rearrangement:9,false,重排
+mechanism_step:oxy-Cope#1_neutral_33,mechanism_step:oxy-Cope#2_keto_tautomerization,step_next,L0,org:rearrangement:9,false,互变
+side_pathway:oxy-Cope#dehydration_eneal,reaction:oxy-Cope rearrangement,competes_with,L0,org:rearrangement:9,false,脱水竞争
+side_pathway:oxy-Cope#dehydration_eneal,condition:oxy_cope_heat,favored_by,L0,org:rearrangement:9,false,高温促消除
+reaction:oxy-Cope rearrangement,molecule:hex_5_enal,produces,L0,org:rearrangement:9,false,烯醛产物
+reaction:oxy-Cope rearrangement,functional_group:alcohol,applies_to,L0,org:rearrangement:9,false,3-OH 二烯
+reaction:anionic oxy-Cope rearrangement,condition:kh_crown,requires,L0,org:rearrangement:10,false,负离子 oxy-Cope 条件
+reaction:anionic oxy-Cope rearrangement,condition:low_temp,requires,L0,org:rearrangement:10,false,负离子 oxy-Cope 条件
+reaction:anionic oxy-Cope rearrangement,condition:anhydrous,requires,L0,org:rearrangement:10,false,负离子 oxy-Cope 条件
+reaction:anionic oxy-Cope rearrangement,condition:water_workup,requires,L0,org:rearrangement:10,false,负离子 oxy-Cope 条件
+reaction:anionic oxy-Cope rearrangement,mechanism_step:anionic-oxy-Cope#1_alkoxide_formation,proceeds_via,L0,org:rearrangement:10,false,成盐
+mechanism_step:anionic-oxy-Cope#1_alkoxide_formation,mechanism_step:anionic-oxy-Cope#2_anionic_33,step_next,L0,org:rearrangement:10,false,重排
+mechanism_step:anionic-oxy-Cope#2_anionic_33,mechanism_step:anionic-oxy-Cope#3_hydrolysis,step_next,L0,org:rearrangement:10,false,水解
+side_pathway:anionic-oxy-Cope#E2_elimination,reaction:anionic oxy-Cope rearrangement,competes_with,L0,org:rearrangement:10,false,消除竞争
+side_pathway:anionic-oxy-Cope#E2_elimination,condition:low_temp,suppressed_by,L0,org:rearrangement:10,false,低温抑消除
+reaction:anionic oxy-Cope rearrangement,functional_group:alcohol,applies_to,L0,org:rearrangement:10,false,3-OH 二烯
+mechanism_step:anionic-oxy-Cope#2_anionic_33,molecule:potassium_alkoxide_intermediate,involves,L0,org:rearrangement:10,false,钾烯醇盐
+reaction:Fries rearrangement,condition:alcl3,requires,L0,org:rearrangement:11,false,Fries 条件
+reaction:Fries rearrangement,condition:low_temp_fries,requires,L0,org:rearrangement:11,false,Fries 条件
+reaction:Fries rearrangement,condition:high_temp_fries,requires,L0,org:rearrangement:11,false,Fries 条件
+reaction:Fries rearrangement,condition:photo_fries,requires,L0,org:rearrangement:11,false,Fries 条件
+reaction:Fries rearrangement,mechanism_step:Fries#1_acylium_generation,proceeds_via,L0,org:rearrangement:11,false,酰基解离
+mechanism_step:Fries#1_acylium_generation,mechanism_step:Fries#2_sear_acylation,step_next,L0,org:rearrangement:11,false,SEAr
+mechanism_step:Fries#2_sear_acylation,mechanism_step:Fries#3_hydrolysis,step_next,L0,org:rearrangement:11,false,水解
+side_pathway:Fries#ortho_para_mixture,reaction:Fries rearrangement,competes_with,L0,org:rearrangement:11,false,邻对混合
+side_pathway:Fries#ortho_para_mixture,condition:low_temp_fries,suppressed_by,L0,org:rearrangement:11,false,低温偏向对位
+reaction:Fries rearrangement,molecule:4_hydroxyacetophenone,produces,L0,org:rearrangement:11,false,对位羟基芳酮
+reaction:Fries rearrangement,functional_group:ester,applies_to,L0,org:rearrangement:11,false,酚酯
+reaction:benzilic acid rearrangement,condition:naoh_reflux,requires,L0,org:rearrangement:12,false,碱性重排条件
+reaction:benzilic acid rearrangement,condition:reflux_organic,requires,L0,org:rearrangement:12,false,碱性重排条件
+reaction:benzilic acid rearrangement,condition:water_workup,requires,L0,org:rearrangement:12,false,碱性重排条件
+reaction:benzilic acid rearrangement,mechanism_step:benzilic#1_hydroxide_addition,proceeds_via,L0,org:rearrangement:12,false,加成
+mechanism_step:benzilic#1_hydroxide_addition,mechanism_step:benzilic#2_ary_migration,step_next,L0,org:rearrangement:12,false,迁移
+mechanism_step:benzilic#2_ary_migration,mechanism_step:benzilic#3_protonation,step_next,L0,org:rearrangement:12,false,质子化
+side_pathway:benzilic#benzoin_side,reaction:benzilic acid rearrangement,competes_with,L0,org:rearrangement:12,false,安息香副反应
+side_pathway:benzilic#benzoin_side,condition:naoh_reflux,suppressed_by,L0,org:rearrangement:12,false,纯碱性条件
+reaction:benzilic acid rearrangement,molecule:benzilic_acid,produces,L0,org:rearrangement:12,false,羟基酸产物
+reaction:benzilic acid rearrangement,functional_group:ketone,applies_to,L0,org:rearrangement:12,false,α-二酮
+reaction:pinacol rearrangement,condition:pinacol_acid,requires,L0,org:rearrangement:13,false,Pinacol 酸条件
+reaction:pinacol rearrangement,condition:mineral_acid,requires,L0,org:rearrangement:13,false,Pinacol 酸条件
+reaction:pinacol rearrangement,condition:reflux_organic,requires,L0,org:rearrangement:13,false,Pinacol 酸条件
+reaction:pinacol rearrangement,mechanism_step:pinacol#1_protonation_cation,proceeds_via,L0,org:rearrangement:13,false,电离
+mechanism_step:pinacol#1_protonation_cation,mechanism_step:pinacol#2_12_shift_oxonium,step_next,L0,org:rearrangement:13,false,迁移
+mechanism_step:pinacol#2_12_shift_oxonium,mechanism_step:pinacol#3_deprotonation,step_next,L0,org:rearrangement:13,false,得酮
+side_pathway:pinacol#ring_contraction_or_over_rearrange,reaction:pinacol rearrangement,competes_with,L0,org:rearrangement:13,false,过度重排
+side_pathway:pinacol#ring_contraction_or_over_rearrange,condition:low_temp,suppressed_by,L0,org:rearrangement:13,false,低温抑制
+reaction:pinacol rearrangement,molecule:pinacolone,produces,L0,org:rearrangement:13,false,酮产物
+reaction:pinacol rearrangement,functional_group:diol,applies_to,L0,org:rearrangement:13,false,邻二醇
+reaction:semipinacol rearrangement,condition:epoxide_lewis,requires,L0,org:rearrangement:14,false,半 pinacol 条件
+reaction:semipinacol rearrangement,condition:lewis_acid,requires,L0,org:rearrangement:14,false,半 pinacol 条件
+reaction:semipinacol rearrangement,condition:low_temp,requires,L0,org:rearrangement:14,false,半 pinacol 条件
+reaction:semipinacol rearrangement,condition:anhydrous,requires,L0,org:rearrangement:14,false,半 pinacol 条件
+reaction:semipinacol rearrangement,mechanism_step:semipinacol#1_leaving_or_epoxide_open,proceeds_via,L0,org:rearrangement:14,false,开环
+mechanism_step:semipinacol#1_leaving_or_epoxide_open,mechanism_step:semipinacol#2_12_shift,step_next,L0,org:rearrangement:14,false,迁移
+mechanism_step:semipinacol#2_12_shift,mechanism_step:semipinacol#3_carbonyl,step_next,L0,org:rearrangement:14,false,羰基
+side_pathway:semipinacol#elimination_allylic,reaction:semipinacol rearrangement,competes_with,L0,org:rearrangement:14,false,消除竞争
+side_pathway:semipinacol#elimination_allylic,condition:low_temp,suppressed_by,L0,org:rearrangement:14,false,低温抑消除
+reaction:semipinacol rearrangement,functional_group:epoxide,applies_to,L0,org:rearrangement:14,false,环氧化物底物
+reaction:Nametkin rearrangement,condition:terpene_acid,requires,L0,org:rearrangement:15,false,Nametkin 条件
+reaction:Nametkin rearrangement,condition:mineral_acid,requires,L0,org:rearrangement:15,false,Nametkin 条件
+reaction:Nametkin rearrangement,condition:low_temp,requires,L0,org:rearrangement:15,false,Nametkin 条件
+reaction:Nametkin rearrangement,mechanism_step:Nametkin#1_terpene_cation,proceeds_via,L0,org:rearrangement:15,false,成阳离子
+mechanism_step:Nametkin#1_terpene_cation,mechanism_step:Nametkin#2_methyl_migration,step_next,L0,org:rearrangement:15,false,甲基迁移
+mechanism_step:Nametkin#2_methyl_migration,mechanism_step:Nametkin#3_quench,step_next,L0,org:rearrangement:15,false,终止
+side_pathway:Nametkin#over_rearrangement,reaction:Nametkin rearrangement,competes_with,L0,org:rearrangement:15,false,过度重排
+side_pathway:Nametkin#over_rearrangement,condition:low_temp,suppressed_by,L0,org:rearrangement:15,false,动力学控制
+reaction:Nametkin rearrangement,functional_group:alcohol,applies_to,L0,org:rearrangement:15,false,萜醇
+reaction:demjanov rearrangement,condition:dilute_acid_nitrite,requires,L0,org:rearrangement:16,false,Demjanov 条件
+reaction:demjanov rearrangement,condition:naoh_no2,requires,L0,org:rearrangement:16,false,Demjanov 条件
+reaction:demjanov rearrangement,condition:low_temp,requires,L0,org:rearrangement:16,false,Demjanov 条件
+reaction:demjanov rearrangement,mechanism_step:demjanov#1_diazotization,proceeds_via,L0,org:rearrangement:16,false,重氮化
+mechanism_step:demjanov#1_diazotization,mechanism_step:demjanov#2_n2_loss_shift,step_next,L0,org:rearrangement:16,false,迁移
+mechanism_step:demjanov#2_n2_loss_shift,mechanism_step:demjanov#3_water_capture,step_next,L0,org:rearrangement:16,false,捕获
+side_pathway:demjanov#unrearranged_sn1,reaction:demjanov rearrangement,competes_with,L0,org:rearrangement:16,false,未重排竞争
+side_pathway:demjanov#unrearranged_sn1,condition:low_temp,suppressed_by,L0,org:rearrangement:16,false,低温控制
+reaction:demjanov rearrangement,functional_group:amine,applies_to,L0,org:rearrangement:16,false,伯胺
+mechanism_step:demjanov#1_diazotization,molecule:aminomethyl_cyclopentanol,involves,L0,org:rearrangement:16,false,底物
+reaction:Tiffeneau-Demjanov rearrangement,condition:dilute_acid_nitrite,requires,L0,org:rearrangement:17,false,T-D 条件
+reaction:Tiffeneau-Demjanov rearrangement,condition:low_temp,requires,L0,org:rearrangement:17,false,T-D 条件
+reaction:Tiffeneau-Demjanov rearrangement,condition:water_workup,requires,L0,org:rearrangement:17,false,T-D 条件
+reaction:Tiffeneau-Demjanov rearrangement,mechanism_step:Tiffeneau-Demjanov#1_diazotization,proceeds_via,L0,org:rearrangement:17,false,重氮化
+mechanism_step:Tiffeneau-Demjanov#1_diazotization,mechanism_step:Tiffeneau-Demjanov#2_semi_pinacol_shift,step_next,L0,org:rearrangement:17,false,扩环
+mechanism_step:Tiffeneau-Demjanov#2_semi_pinacol_shift,mechanism_step:Tiffeneau-Demjanov#3_ring_ketone,step_next,L0,org:rearrangement:17,false,酮
+side_pathway:Tiffeneau-Demjanov#decomposition,reaction:Tiffeneau-Demjanov rearrangement,competes_with,L0,org:rearrangement:17,false,分解竞争
+side_pathway:Tiffeneau-Demjanov#decomposition,condition:low_temp,suppressed_by,L0,org:rearrangement:17,false,低温稳定重氮盐
+reaction:Tiffeneau-Demjanov rearrangement,functional_group:amine,applies_to,L0,org:rearrangement:17,false,β-氨基醇
+reaction:Tiffeneau-Demjanov rearrangement,functional_group:alcohol,applies_to,L0,org:rearrangement:17,false,β-羟基
+"reaction:[2,3]-Wittig rearrangement",condition:s_buli,requires,L0,org:rearrangement:18,false,"Wittig [2,3] 条件"
+"reaction:[2,3]-Wittig rearrangement",condition:cold_thf,requires,L0,org:rearrangement:18,false,"Wittig [2,3] 条件"
+"reaction:[2,3]-Wittig rearrangement",condition:strong_base,requires,L0,org:rearrangement:18,false,"Wittig [2,3] 条件"
+"reaction:[2,3]-Wittig rearrangement",condition:low_temp,requires,L0,org:rearrangement:18,false,"Wittig [2,3] 条件"
+"reaction:[2,3]-Wittig rearrangement",condition:water_workup,requires,L0,org:rearrangement:18,false,"Wittig [2,3] 条件"
+"reaction:[2,3]-Wittig rearrangement","mechanism_step:[2,3]-Wittig#1_deprotonation",proceeds_via,L0,org:rearrangement:18,false,去质子
+"mechanism_step:[2,3]-Wittig#1_deprotonation","mechanism_step:[2,3]-Wittig#2_23_shift",step_next,L0,org:rearrangement:18,false,迁移
+"mechanism_step:[2,3]-Wittig#2_23_shift","mechanism_step:[2,3]-Wittig#3_protonation",step_next,L0,org:rearrangement:18,false,质子化
+"side_pathway:[2,3]-Wittig#12_wittig","reaction:[2,3]-Wittig rearrangement",competes_with,L0,org:rearrangement:18,false,"[1,2] 竞争"
+"side_pathway:[2,3]-Wittig#12_wittig",condition:low_temp,suppressed_by,L0,org:rearrangement:18,false,低温抑制分步路径
+"reaction:[2,3]-Wittig rearrangement",functional_group:alcohol,applies_to,L0,org:rearrangement:18,false,醚/醇底物
+"reaction:[2,3]-Wittig rearrangement",functional_group:allyl_ether,applies_to,L0,org:rearrangement:18,false,烯丙基醚
+reaction:Wolff rearrangement,condition:photo_wolff,requires,L0,org:rearrangement:19,false,Wolff 条件
+reaction:Wolff rearrangement,condition:ag_wolff,requires,L0,org:rearrangement:19,false,Wolff 条件
+reaction:Wolff rearrangement,condition:arndt_eistert,requires,L0,org:rearrangement:19,false,Wolff 条件
+reaction:Wolff rearrangement,condition:uv_light,requires,L0,org:rearrangement:19,false,Wolff 条件
+reaction:Wolff rearrangement,condition:silver_catalyst,requires,L0,org:rearrangement:19,false,Wolff 条件
+reaction:Wolff rearrangement,mechanism_step:Wolff#1_diazo_excitation_or_heat,proceeds_via,L0,org:rearrangement:19,false,活化
+mechanism_step:Wolff#1_diazo_excitation_or_heat,mechanism_step:Wolff#2_concerted_or_carbene_to_ketene,step_next,L0,org:rearrangement:19,false,重排
+mechanism_step:Wolff#2_concerted_or_carbene_to_ketene,mechanism_step:Wolff#3_ketene_trapping,step_next,L0,org:rearrangement:19,false,捕获
+side_pathway:Wolff#carbene_insertion,reaction:Wolff rearrangement,competes_with,L0,org:rearrangement:19,false,插入竞争
+side_pathway:Wolff#carbene_insertion,condition:ag_wolff,suppressed_by,L0,org:rearrangement:19,false,Ag 催化抑制插入
+reaction:Wolff rearrangement,molecule:phenylacetic_acid,produces,L0,org:rearrangement:19,false,同系化羧酸
+reaction:Wolff rearrangement,functional_group:diazo,applies_to,L0,org:rearrangement:19,false,α-重氮羰基
+mechanism_step:Wolff#2_concerted_or_carbene_to_ketene,molecule:ketene_intermediate,involves,L0,org:rearrangement:19,false,烯酮
+reaction:Beckmann rearrangement,reaction:Curtius rearrangement,alternative_to,L0,org:rearrangement:2,false,均经缺电子氮中间体重排
+reaction:Curtius rearrangement,reaction:Hofmann rearrangement,alternative_to,L0,org:rearrangement:3,false,异氰酸酯途径兄弟反应
+reaction:Hofmann rearrangement,reaction:Lossen rearrangement,alternative_to,L0,org:rearrangement:4,false,酰胺/羟肟酸重排替代
+reaction:Lossen rearrangement,reaction:Curtius rearrangement,alternative_to,L0,org:rearrangement:5,false,温和替代 Curtius
+reaction:Schmidt reaction,reaction:Beckmann rearrangement,alternative_to,L0,org:rearrangement:6,false,酮→酰胺两法竞争
+reaction:pinacol rearrangement,reaction:semipinacol rearrangement,alternative_to,L0,org:rearrangement:13,false,离去基来源不同
+reaction:demjanov rearrangement,reaction:Tiffeneau-Demjanov rearrangement,alternative_to,L0,org:rearrangement:16,false,T-D 为改进版
+reaction:Cope rearrangement,reaction:oxy-Cope rearrangement,alternative_to,L0,org:rearrangement:8,false,3-OH 取代变体
+reaction:oxy-Cope rearrangement,reaction:anionic oxy-Cope rearrangement,alternative_to,L0,org:rearrangement:9,false,负离子加速变体
+reaction:Claisen rearrangement,reaction:Cope rearrangement,alternative_to,L0,org:rearrangement:7,false,"同为 [3,3]"
+molecule:co2_side,reaction:Hofmann rearrangement,common_side_of,L0,org:rearrangement:4,false,水解脱羧副产 CO2
+molecule:co2_side,reaction:Curtius rearrangement,common_side_of,L0,org:rearrangement:3,false,异氰酸酯水解脱羧
+molecule:co2_side,reaction:Lossen rearrangement,common_side_of,L0,org:rearrangement:5,false,异氰酸酯水解
+molecule:co2_side,reaction:Schmidt reaction,common_side_of,L0,org:rearrangement:6,false,酸 Schmidt 胺化副产
+molecule:n2_gas,reaction:Curtius rearrangement,common_side_of,L0,org:rearrangement:3,false,脱氮
+molecule:n2_gas,reaction:Hofmann rearrangement,common_side_of,L0,org:rearrangement:4,false,若经氮宾则放 N2
+molecule:n2_gas,reaction:Wolff rearrangement,common_side_of,L0,org:rearrangement:19,false,脱氮
+molecule:n2_gas,reaction:demjanov rearrangement,common_side_of,L0,org:rearrangement:16,false,重氮脱氮
+molecule:n2_gas,reaction:Tiffeneau-Demjanov rearrangement,common_side_of,L0,org:rearrangement:17,false,重氮脱氮
+molecule:n2_gas,reaction:Schmidt reaction,common_side_of,L0,org:rearrangement:6,false,Schmidt 脱氮
+mechanism_step:Beckmann#3_hydrolysis_tautomerization,molecule:caprolactam,involves,L0,org:rearrangement:2,false,内酰胺
+mechanism_step:Claisen#2_keto_enol_aromatization,molecule:2_allylphenol,involves,L0,org:rearrangement:7,false,芳构化产物
+mechanism_step:pinacol#2_12_shift_oxonium,molecule:pinacolone,involves,L0,org:rearrangement:13,false,频哪酮
+side_pathway:Beckmann#fragmentation,functional_group:oxime,applies_to,L0,org:rearrangement:2,false,碎裂发生在肟体系
+side_pathway:Wolff#carbene_insertion,functional_group:diazo,applies_to,L0,org:rearrangement:19,false,重氮酮竞争
+reaction:Fries rearrangement,condition:high_temp_fries,favored_by,L0,org:rearrangement:11,false,高温偏邻位
+reaction:Fries rearrangement,condition:low_temp_fries,favored_by,L0,org:rearrangement:11,false,低温偏对位
+reaction:Wolff rearrangement,condition:photo_wolff,favored_by,L0,org:rearrangement:19,false,光解路径
+reaction:Wolff rearrangement,condition:ag_wolff,favored_by,L0,org:rearrangement:19,false,Ag 催化
+reaction:anionic oxy-Cope rearrangement,condition:kh_crown,favored_by,L0,org:rearrangement:10,false,解离钾盐加速
+reaction:Wagner-Meerwein rearrangement,mechanism_step:Wagner-Meerwein#2_12_shift,proceeds_via,L0,org:rearrangement:1,false,经由该机理步
+reaction:Wagner-Meerwein rearrangement,mechanism_step:Wagner-Meerwein#3_elimination_or_trapping,proceeds_via,L0,org:rearrangement:1,false,经由该机理步
+reaction:Beckmann rearrangement,mechanism_step:Beckmann#2_anti_migration_nitrilium,proceeds_via,L0,org:rearrangement:2,false,经由该机理步
+reaction:Beckmann rearrangement,mechanism_step:Beckmann#3_hydrolysis_tautomerization,proceeds_via,L0,org:rearrangement:2,false,经由该机理步
+reaction:Curtius rearrangement,mechanism_step:Curtius#2_thermal_rearrangement,proceeds_via,L0,org:rearrangement:3,false,经由该机理步
+reaction:Curtius rearrangement,mechanism_step:Curtius#3_isocyanate_trapping,proceeds_via,L0,org:rearrangement:3,false,经由该机理步
+reaction:Hofmann rearrangement,mechanism_step:Hofmann#2_rearrangement,proceeds_via,L0,org:rearrangement:4,false,经由该机理步
+reaction:Hofmann rearrangement,mechanism_step:Hofmann#3_hydrolysis_decarboxylation,proceeds_via,L0,org:rearrangement:4,false,经由该机理步
+reaction:Lossen rearrangement,mechanism_step:Lossen#2_base_promoted_rearrangement,proceeds_via,L0,org:rearrangement:5,false,经由该机理步
+reaction:Lossen rearrangement,mechanism_step:Lossen#3_trapping,proceeds_via,L0,org:rearrangement:5,false,经由该机理步
+reaction:Schmidt reaction,mechanism_step:Schmidt#2_migration_n2_loss,proceeds_via,L0,org:rearrangement:6,false,经由该机理步
+reaction:Schmidt reaction,mechanism_step:Schmidt#3_product_formation,proceeds_via,L0,org:rearrangement:6,false,经由该机理步
+reaction:Claisen rearrangement,mechanism_step:Claisen#2_keto_enol_aromatization,proceeds_via,L0,org:rearrangement:7,false,经由该机理步
+reaction:Claisen rearrangement,mechanism_step:Claisen#3_product_isolation,proceeds_via,L0,org:rearrangement:7,false,经由该机理步
+reaction:Cope rearrangement,mechanism_step:Cope#2_product_diene,proceeds_via,L0,org:rearrangement:8,false,经由该机理步
+reaction:oxy-Cope rearrangement,mechanism_step:oxy-Cope#2_keto_tautomerization,proceeds_via,L0,org:rearrangement:9,false,经由该机理步
+reaction:anionic oxy-Cope rearrangement,mechanism_step:anionic-oxy-Cope#2_anionic_33,proceeds_via,L0,org:rearrangement:10,false,经由该机理步
+reaction:anionic oxy-Cope rearrangement,mechanism_step:anionic-oxy-Cope#3_hydrolysis,proceeds_via,L0,org:rearrangement:10,false,经由该机理步
+reaction:Fries rearrangement,mechanism_step:Fries#2_sear_acylation,proceeds_via,L0,org:rearrangement:11,false,经由该机理步
+reaction:Fries rearrangement,mechanism_step:Fries#3_hydrolysis,proceeds_via,L0,org:rearrangement:11,false,经由该机理步
+reaction:benzilic acid rearrangement,mechanism_step:benzilic#2_ary_migration,proceeds_via,L0,org:rearrangement:12,false,经由该机理步
+reaction:benzilic acid rearrangement,mechanism_step:benzilic#3_protonation,proceeds_via,L0,org:rearrangement:12,false,经由该机理步
+reaction:pinacol rearrangement,mechanism_step:pinacol#2_12_shift_oxonium,proceeds_via,L0,org:rearrangement:13,false,经由该机理步
+reaction:pinacol rearrangement,mechanism_step:pinacol#3_deprotonation,proceeds_via,L0,org:rearrangement:13,false,经由该机理步
+reaction:semipinacol rearrangement,mechanism_step:semipinacol#2_12_shift,proceeds_via,L0,org:rearrangement:14,false,经由该机理步
+reaction:semipinacol rearrangement,mechanism_step:semipinacol#3_carbonyl,proceeds_via,L0,org:rearrangement:14,false,经由该机理步
+reaction:Nametkin rearrangement,mechanism_step:Nametkin#2_methyl_migration,proceeds_via,L0,org:rearrangement:15,false,经由该机理步
+reaction:Nametkin rearrangement,mechanism_step:Nametkin#3_quench,proceeds_via,L0,org:rearrangement:15,false,经由该机理步
+reaction:demjanov rearrangement,mechanism_step:demjanov#2_n2_loss_shift,proceeds_via,L0,org:rearrangement:16,false,经由该机理步
+reaction:demjanov rearrangement,mechanism_step:demjanov#3_water_capture,proceeds_via,L0,org:rearrangement:16,false,经由该机理步
+reaction:Tiffeneau-Demjanov rearrangement,mechanism_step:Tiffeneau-Demjanov#2_semi_pinacol_shift,proceeds_via,L0,org:rearrangement:17,false,经由该机理步
+reaction:Tiffeneau-Demjanov rearrangement,mechanism_step:Tiffeneau-Demjanov#3_ring_ketone,proceeds_via,L0,org:rearrangement:17,false,经由该机理步
+"reaction:[2,3]-Wittig rearrangement","mechanism_step:[2,3]-Wittig#2_23_shift",proceeds_via,L0,org:rearrangement:18,false,经由该机理步
+"reaction:[2,3]-Wittig rearrangement","mechanism_step:[2,3]-Wittig#3_protonation",proceeds_via,L0,org:rearrangement:18,false,经由该机理步
+reaction:Wolff rearrangement,mechanism_step:Wolff#2_concerted_or_carbene_to_ketene,proceeds_via,L0,org:rearrangement:19,false,经由该机理步
+reaction:Wolff rearrangement,mechanism_step:Wolff#3_ketene_trapping,proceeds_via,L0,org:rearrangement:19,false,经由该机理步
+mechanism_step:Cope#2_product_diene,mechanism_step:Cope#3_conformational_selection,step_next,L0,org:rearrangement:8,false,立体化学确定
+reaction:Cope rearrangement,mechanism_step:Cope#3_conformational_selection,proceeds_via,L0,org:rearrangement:8,false,经由该机理步
+mechanism_step:oxy-Cope#2_keto_tautomerization,mechanism_step:oxy-Cope#3_isolation_of_carbonyl,step_next,L0,org:rearrangement:9,false,分离
+reaction:oxy-Cope rearrangement,mechanism_step:oxy-Cope#3_isolation_of_carbonyl,proceeds_via,L0,org:rearrangement:9,false,经由该机理步

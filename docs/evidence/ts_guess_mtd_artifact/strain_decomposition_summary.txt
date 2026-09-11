@@ -1,0 +1,22 @@
+all energies relative to the xTB minimum -37.106620806098 Eh
+
+A  frame 10 (the SOP's TS candidate), single point        :  +47.400 kcal/mol
+B  relaxed reactant rotated to the same torsion (-108.03 deg):   +3.949 kcal/mol
+   -> cost of that torsion alone                          :   +3.949 kcal/mol
+C  frame 10 heavy skeleton + MMFF-relaxed hydrogens       :  +42.131 kcal/mol
+   -> strain stored in the hydrogen positions             :   +5.269 kcal/mol
+   -> strain left in the heavy skeleton                   :  +38.182 kcal/mol
+D  free relaxation of frame 10                            :   -0.008 kcal/mol
+   -> torsion after free relaxation                        :   -84.33 deg
+
+control (method bias of the MMFF hydrogen probe):
+   rigid reference as built                                :   +3.949 kcal/mol
+   rigid reference + MMFF-relaxed hydrogens                :   +1.885 kcal/mol
+   -> probe bias                                           :   -2.064 kcal/mol
+
+geometric facts for the same three structures:
+   frame 10         torsion  -108.03 deg   methyl C..C 3.050   min H..H 1.932
+   rigid reference  torsion  -108.03 deg   methyl C..C 3.281   min H..H 1.683
+   h-only           torsion  -108.03 deg   methyl C..C 3.050   min H..H 2.130
+   h-only           max hydrogen displacement vs frame 10: 0.426 A
+   h-only           max heavy-atom displacement vs frame 10: 0.0000 A

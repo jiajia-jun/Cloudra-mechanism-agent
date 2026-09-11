@@ -1,0 +1,32 @@
+# issue #33 复现所用的引擎与代码版本（工具输出，不含密钥或环境变量）
+
+## 引擎版本
+
+### CREST (`crest --version`)
+    Version 2.12,   Thu 19. Mai 16:32:32 CEST 2022
+    Using the xTB program. Compatible with xTB version 6.4.0
+
+### xTB (`xtb --version`)
+
+    * xtb version 6.7.1 (edcfbbe) compiled by 'runner@sat12-gn217-0cbadaec-b866-44ae-a866-732403219ae3-6E01A8DFFD18.local' on 2026-06-10
+
+### ORCA (`orca --version`)
+
+    Program Version 6.1.1  -  RELEASE   -
+    Ute Becker             : All parallelization in ORCA, NUMFREQ, NUMCALC
+    Dagmar Lenk            : GEPOL surface, SMD, ORCA-2-JSON
+
+## 库版本
+
+    rdkit 2026.03.5
+
+## 复现命令行
+
+    crest input.xyz -gfn2 --quick --chrg <charge> --uhf 0
+
+输入 xyz 由与 conformer_search(backend='crest') 当时等价的前置流程生成：
+
+    Chem.AddHs(Chem.MolFromSmiles(smiles))  ->  AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
+    ->  AllChem.MMFFOptimizeMolecule(mol)   ->  Chem.MolToXYZBlock(mol)
+
+（`--uhf 0` 即 multiplicity=1；`--chrg` 等于各体系的报告电荷。）

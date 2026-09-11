@@ -1,0 +1,152 @@
+### target 0.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 0.0
+   force constant=5.0
+$end
+  achieved dihedral = -179.45 deg   E = -37.077413237094 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 63 ITERATIONS ***
+  | | TOTAL ENERGY              -37.077413237094 Eh   |
+### target 10.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 10.0
+   force constant=5.0
+$end
+  achieved dihedral = 170.60 deg   E = -37.068613379901 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 27 ITERATIONS ***
+  | | TOTAL ENERGY              -37.068613379901 Eh   |
+### target 20.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 20.0
+   force constant=5.0
+$end
+  achieved dihedral = 159.61 deg   E = -37.091751013176 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 90 ITERATIONS ***
+  | | TOTAL ENERGY              -37.091751013176 Eh   |
+### target 30.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 30.0
+   force constant=5.0
+$end
+  achieved dihedral = 149.69 deg   E = -37.097060918907 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 29 ITERATIONS ***
+  | | TOTAL ENERGY              -37.097060918907 Eh   |
+### target 40.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 40.0
+   force constant=5.0
+$end
+  achieved dihedral = 139.78 deg   E = -37.101093636859 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 29 ITERATIONS ***
+  | | TOTAL ENERGY              -37.101093636859 Eh   |
+### target 50.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 50.0
+   force constant=5.0
+$end
+  achieved dihedral = 129.85 deg   E = -37.103874363756 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 31 ITERATIONS ***
+  | | TOTAL ENERGY              -37.103874363756 Eh   |
+### target 60.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 60.0
+   force constant=5.0
+$end
+  achieved dihedral = 119.93 deg   E = -37.105487309559 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 31 ITERATIONS ***
+  | | TOTAL ENERGY              -37.105487309559 Eh   |
+### target 70.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 70.0
+   force constant=5.0
+$end
+  achieved dihedral = 109.99 deg   E = -37.106138676452 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 32 ITERATIONS ***
+  | | TOTAL ENERGY              -37.106138676452 Eh   |
+### target 80.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 80.0
+   force constant=5.0
+$end
+  achieved dihedral = 100.01 deg   E = -37.106232007594 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 38 ITERATIONS ***
+  | | TOTAL ENERGY              -37.106232007594 Eh   |
+### target 90.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 90.0
+   force constant=5.0
+$end
+  achieved dihedral = 90.00 deg   E = -37.106224186834 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 39 ITERATIONS ***
+  | | TOTAL ENERGY              -37.106224186834 Eh   |
+### target 100.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 100.0
+   force constant=5.0
+$end
+  achieved dihedral = 80.01 deg   E = -37.106600646319 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 45 ITERATIONS ***
+  | | TOTAL ENERGY              -37.106600646319 Eh   |
+### target 110.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 110.0
+   force constant=5.0
+$end
+  achieved dihedral = 70.02 deg   E = -37.106364891726 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 32 ITERATIONS ***
+  | | TOTAL ENERGY              -37.106364891726 Eh   |
+### target 120.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 120.0
+   force constant=5.0
+$end
+  achieved dihedral = 60.04 deg   E = -37.105946276097 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 33 ITERATIONS ***
+  | | TOTAL ENERGY              -37.105946276097 Eh   |
+### target 130.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 130.0
+   force constant=5.0
+$end
+  achieved dihedral = 50.08 deg   E = -37.105060153710 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 29 ITERATIONS ***
+  | | TOTAL ENERGY              -37.105060153710 Eh   |
+### target 140.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 140.0
+   force constant=5.0
+$end
+  achieved dihedral = 40.15 deg   E = -37.103298826053 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 25 ITERATIONS ***
+  | | TOTAL ENERGY              -37.103298826053 Eh   |
+### target 150.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 150.0
+   force constant=5.0
+$end
+  achieved dihedral = 30.23 deg   E = -37.100411440491 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 24 ITERATIONS ***
+  | | TOTAL ENERGY              -37.100411440491 Eh   |
+### target 160.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 160.0
+   force constant=5.0
+$end
+  achieved dihedral = 20.32 deg   E = -37.096245046837 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 26 ITERATIONS ***
+  | | TOTAL ENERGY              -37.096245046837 Eh   |
+### target 170.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 170.0
+   force constant=5.0
+$end
+  achieved dihedral = 10.41 deg   E = -37.090715818815 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 26 ITERATIONS ***
+  | | TOTAL ENERGY              -37.090715818815 Eh   |
+### target 180.0 deg   (constraint block)
+$constrain
+   dihedral: 2, 7, 8, 9, 180.0
+   force constant=5.0
+$end
+  achieved dihedral = 0.49 deg   E = -37.083889026179 Eh   converged=True
+  | *** GEOMETRY OPTIMIZATION CONVERGED AFTER 26 ITERATIONS ***
+  | | TOTAL ENERGY              -37.083889026179 Eh   |

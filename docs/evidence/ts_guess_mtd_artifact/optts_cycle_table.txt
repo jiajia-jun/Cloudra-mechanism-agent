@@ -1,0 +1,670 @@
+# verbatim extraction from .tscheck/ts/ts_0001/jobs/job_0002/refine.stdout.log
+# (left column = line number in that file)
+# the run was interrupted by PID after cycle 56; ORCA never printed a convergence banner
+   253: Initial Hessian          InHess   .... Almloef's Model
+   430:          *                GEOMETRY OPTIMIZATION CYCLE   1            *
+  1683: FINAL SINGLE POINT ENERGY      -541.094225213831
+  2209: Current Energy                          ....  -541.094225214 Eh
+  2210: Current gradient norm                   ....     0.070272569 Eh/bohr
+  2211: Maximum allowed component of the step   ....  0.300
+  2212: Current trust radius                    ....  0.300
+  2218: Projecting the Hessian                  .... done
+  2220: Dimension of the hessian                .... 139
+  2221: Lowest eigenvalues of the Hessian:
+  2222:     -0.022794786 -0.003796174 -0.003120180 -0.000293969  0.013315086
+  2223: Hessian has   4 negative eigenvalues
+  2226: TS mode is mode number   0 with eigenvalue  -0.02279479 and components:
+  2398: The optimization has not yet converged - more geometry cycles are needed
+  2564:          *                GEOMETRY OPTIMIZATION CYCLE   2            *
+  2964: FINAL SINGLE POINT ENERGY      -541.142611874729
+  3054: Current Energy                          ....  -541.142611875 Eh
+  3055: Current gradient norm                   ....     0.040261882 Eh/bohr
+  3056: Maximum allowed component of the step   ....  0.300
+  3057: Current trust radius                    ....  0.300
+  3060: Dimension of the hessian                .... 139
+  3061: Lowest eigenvalues of the Hessian:
+  3062:     -0.022771835 -0.003376027 -0.002168031  0.006061017  0.013348766
+  3063: Hessian has   3 negative eigenvalues
+  3066: TS mode is mode number   0 with eigenvalue  -0.02277183 and components:
+  3244: The optimization has not yet converged - more geometry cycles are needed
+  3410:          *                GEOMETRY OPTIMIZATION CYCLE   3            *
+  3810: FINAL SINGLE POINT ENERGY      -541.165748227901
+  3900: Current Energy                          ....  -541.165748228 Eh
+  3901: Current gradient norm                   ....     0.021355386 Eh/bohr
+  3902: Maximum allowed component of the step   ....  0.300
+  3903: Current trust radius                    ....  0.450
+  3906: Dimension of the hessian                .... 139
+  3907: Lowest eigenvalues of the Hessian:
+  3908:     -0.022379059 -0.003374651 -0.002549795  0.003090747  0.013348140
+  3909: Hessian has   3 negative eigenvalues
+  3912: TS mode is mode number   0 with eigenvalue  -0.02237906 and components:
+  4091: The optimization has not yet converged - more geometry cycles are needed
+  4257:          *                GEOMETRY OPTIMIZATION CYCLE   4            *
+  4657: FINAL SINGLE POINT ENERGY      -541.179330887623
+  4747: Current Energy                          ....  -541.179330888 Eh
+  4748: Current gradient norm                   ....     0.015720210 Eh/bohr
+  4749: Maximum allowed component of the step   ....  0.300
+  4750: Current trust radius                    ....  0.675
+  4753: Dimension of the hessian                .... 139
+  4754: Lowest eigenvalues of the Hessian:
+  4755:     -0.022051463 -0.003452610 -0.001847304  0.013344990  0.014258727
+  4756: Hessian has   3 negative eigenvalues
+  4759: TS mode is mode number   0 with eigenvalue  -0.02205146 and components:
+  4936: The optimization has not yet converged - more geometry cycles are needed
+  5102:          *                GEOMETRY OPTIMIZATION CYCLE   5            *
+  5502: FINAL SINGLE POINT ENERGY      -541.186687250998
+  5592: Current Energy                          ....  -541.186687251 Eh
+  5593: Current gradient norm                   ....     0.009320314 Eh/bohr
+  5594: Maximum allowed component of the step   ....  0.300
+  5595: Current trust radius                    ....  0.700
+  5598: Dimension of the hessian                .... 139
+  5599: Lowest eigenvalues of the Hessian:
+  5600:     -0.018227847 -0.002658276 -0.001874636  0.013314437  0.014332872
+  5601: Hessian has   3 negative eigenvalues
+  5604: TS mode is mode number   0 with eigenvalue  -0.01822785 and components:
+  5757: TS mode is mode number   0 with eigenvalue  -0.01536957 and components:
+  5936: The optimization has not yet converged - more geometry cycles are needed
+  6102:          *                GEOMETRY OPTIMIZATION CYCLE   6            *
+  6502: FINAL SINGLE POINT ENERGY      -541.184225569742
+  6592: Current Energy                          ....  -541.184225570 Eh
+  6593: Current gradient norm                   ....     0.015817556 Eh/bohr
+  6594: Maximum allowed component of the step   ....  0.300
+  6595: Current trust radius                    ....  0.700
+  6598: Dimension of the hessian                .... 139
+  6599: Lowest eigenvalues of the Hessian:
+  6600:     -0.012709036 -0.002025923  0.005946426  0.013241901  0.014332874
+  6601: Hessian has   2 negative eigenvalues
+  6604: TS mode is mode number   0 with eigenvalue  -0.01270904 and components:
+  6784: The optimization has not yet converged - more geometry cycles are needed
+  6950:          *                GEOMETRY OPTIMIZATION CYCLE   7            *
+  7350: FINAL SINGLE POINT ENERGY      -541.187183848151
+  7440: Current Energy                          ....  -541.187183848 Eh
+  7441: Current gradient norm                   ....     0.009662723 Eh/bohr
+  7442: Maximum allowed component of the step   ....  0.300
+  7443: Current trust radius                    ....  0.467
+  7446: Dimension of the hessian                .... 139
+  7447: Lowest eigenvalues of the Hessian:
+  7448:     -0.009605540 -0.001858235  0.006803350  0.013241491  0.014337521
+  7449: Hessian has   2 negative eigenvalues
+  7452: TS mode is mode number   0 with eigenvalue  -0.00960554 and components:
+  7632: The optimization has not yet converged - more geometry cycles are needed
+  7798:          *                GEOMETRY OPTIMIZATION CYCLE   8            *
+  8197: FINAL SINGLE POINT ENERGY      -541.187225783340
+  8287: Current Energy                          ....  -541.187225783 Eh
+  8288: Current gradient norm                   ....     0.009731419 Eh/bohr
+  8289: Maximum allowed component of the step   ....  0.300
+  8290: Current trust radius                    ....  0.700
+  8293: Dimension of the hessian                .... 139
+  8294: Lowest eigenvalues of the Hessian:
+  8295:     -0.002387026 -0.001309783  0.000743026  0.013276050  0.014334739
+  8296: Hessian has   2 negative eigenvalues
+  8299: TS mode is mode number   0 with eigenvalue  -0.00238703 and components:
+  8481: The optimization has not yet converged - more geometry cycles are needed
+  8647:          *                GEOMETRY OPTIMIZATION CYCLE   9            *
+  9045: FINAL SINGLE POINT ENERGY      -541.187431410385
+  9135: Current Energy                          ....  -541.187431410 Eh
+  9136: Current gradient norm                   ....     0.015597885 Eh/bohr
+  9137: Maximum allowed component of the step   ....  0.300
+  9138: Current trust radius                    ....  0.467
+  9141: Dimension of the hessian                .... 139
+  9142: Lowest eigenvalues of the Hessian:
+  9143:     -0.003631340  0.000371019  0.002688598  0.013271882  0.014469345
+  9144: Hessian has   1 negative eigenvalues
+  9147: TS mode is mode number   0 with eigenvalue  -0.00363134 and components:
+  9328: The optimization has not yet converged - more geometry cycles are needed
+  9494:          *                GEOMETRY OPTIMIZATION CYCLE  10            *
+  9892: FINAL SINGLE POINT ENERGY      -541.186755668218
+  9982: Current Energy                          ....  -541.186755668 Eh
+  9983: Current gradient norm                   ....     0.012100100 Eh/bohr
+  9984: Maximum allowed component of the step   ....  0.300
+  9985: Current trust radius                    ....  0.311
+  9988: Dimension of the hessian                .... 139
+  9989: Lowest eigenvalues of the Hessian:
+  9990:     -0.006261186  0.000645895  0.007035331  0.013322566  0.014441351
+  9991: Hessian has   1 negative eigenvalues
+  9994: TS mode is mode number   0 with eigenvalue  -0.00626119 and components:
+ 10174: The optimization has not yet converged - more geometry cycles are needed
+ 10340:          *                GEOMETRY OPTIMIZATION CYCLE  11            *
+ 10736: FINAL SINGLE POINT ENERGY      -541.187411395866
+ 10826: Current Energy                          ....  -541.187411396 Eh
+ 10827: Current gradient norm                   ....     0.010712956 Eh/bohr
+ 10828: Maximum allowed component of the step   ....  0.300
+ 10829: Current trust radius                    ....  0.207
+ 10832: Dimension of the hessian                .... 139
+ 10833: Lowest eigenvalues of the Hessian:
+ 10834:     -0.003133580  0.000967121  0.005374826  0.013293193  0.014429850
+ 10835: Hessian has   1 negative eigenvalues
+ 10838: TS mode is mode number   0 with eigenvalue  -0.00313358 and components:
+ 11017: The optimization has not yet converged - more geometry cycles are needed
+ 11183:          *                GEOMETRY OPTIMIZATION CYCLE  12            *
+ 11579: FINAL SINGLE POINT ENERGY      -541.187411043991
+ 11669: Current Energy                          ....  -541.187411044 Eh
+ 11670: Current gradient norm                   ....     0.010547762 Eh/bohr
+ 11671: Maximum allowed component of the step   ....  0.300
+ 11672: Current trust radius                    ....  0.311
+ 11675: Dimension of the hessian                .... 139
+ 11676: Lowest eigenvalues of the Hessian:
+ 11677:     0.000349821  0.001209463  0.002623136  0.013301540  0.014469360
+ 11678: Hessian has   0 negative eigenvalues
+ 11681: TS mode is mode number   0 with eigenvalue   0.00034982 and components:
+ 11861: The optimization has not yet converged - more geometry cycles are needed
+ 12027:          *                GEOMETRY OPTIMIZATION CYCLE  13            *
+ 12423: FINAL SINGLE POINT ENERGY      -541.187595217148
+ 12513: Current Energy                          ....  -541.187595217 Eh
+ 12514: Current gradient norm                   ....     0.009869745 Eh/bohr
+ 12515: Maximum allowed component of the step   ....  0.300
+ 12516: Current trust radius                    ....  0.207
+ 12519: Dimension of the hessian                .... 139
+ 12520: Lowest eigenvalues of the Hessian:
+ 12521:     -0.003736272  0.001211609  0.006599290  0.013304481  0.014468932
+ 12522: Hessian has   1 negative eigenvalues
+ 12525: TS mode is mode number   0 with eigenvalue  -0.00373627 and components:
+ 12703: The optimization has not yet converged - more geometry cycles are needed
+ 12869:          *                GEOMETRY OPTIMIZATION CYCLE  14            *
+ 13265: FINAL SINGLE POINT ENERGY      -541.187501732438
+ 13355: Current Energy                          ....  -541.187501732 Eh
+ 13356: Current gradient norm                   ....     0.009392812 Eh/bohr
+ 13357: Maximum allowed component of the step   ....  0.300
+ 13358: Current trust radius                    ....  0.138
+ 13361: Dimension of the hessian                .... 139
+ 13362: Lowest eigenvalues of the Hessian:
+ 13363:     0.000362393  0.001477177  0.002964553  0.013296295  0.014477266
+ 13364: Hessian has   0 negative eigenvalues
+ 13367: TS mode is mode number   0 with eigenvalue   0.00036239 and components:
+ 13546: The optimization has not yet converged - more geometry cycles are needed
+ 13712:          *                GEOMETRY OPTIMIZATION CYCLE  15            *
+ 14109: FINAL SINGLE POINT ENERGY      -541.187867543181
+ 14199: Current Energy                          ....  -541.187867543 Eh
+ 14200: Current gradient norm                   ....     0.008463515 Eh/bohr
+ 14201: Maximum allowed component of the step   ....  0.300
+ 14202: Current trust radius                    ....  0.100
+ 14205: Dimension of the hessian                .... 139
+ 14206: Lowest eigenvalues of the Hessian:
+ 14207:     -0.008014365  0.001480722  0.012404705  0.013472453  0.014554174
+ 14208: Hessian has   1 negative eigenvalues
+ 14211: TS mode is mode number   0 with eigenvalue  -0.00801436 and components:
+ 14388: The optimization has not yet converged - more geometry cycles are needed
+ 14554:          *                GEOMETRY OPTIMIZATION CYCLE  16            *
+ 14950: FINAL SINGLE POINT ENERGY      -541.188065201166
+ 15040: Current Energy                          ....  -541.188065201 Eh
+ 15041: Current gradient norm                   ....     0.007086196 Eh/bohr
+ 15042: Maximum allowed component of the step   ....  0.300
+ 15043: Current trust radius                    ....  0.100
+ 15046: Dimension of the hessian                .... 139
+ 15047: Lowest eigenvalues of the Hessian:
+ 15048:     -0.004030836  0.000980293  0.010852450  0.013317333  0.014519885
+ 15049: Hessian has   1 negative eigenvalues
+ 15052: TS mode is mode number   0 with eigenvalue  -0.00403084 and components:
+ 15229: The optimization has not yet converged - more geometry cycles are needed
+ 15395:          *                GEOMETRY OPTIMIZATION CYCLE  17            *
+ 15791: FINAL SINGLE POINT ENERGY      -541.188114045277
+ 15881: Current Energy                          ....  -541.188114045 Eh
+ 15882: Current gradient norm                   ....     0.006439629 Eh/bohr
+ 15883: Maximum allowed component of the step   ....  0.300
+ 15884: Current trust radius                    ....  0.150
+ 15887: Dimension of the hessian                .... 139
+ 15888: Lowest eigenvalues of the Hessian:
+ 15889:     -0.001475307  0.001177591  0.008947119  0.013347090  0.014526680
+ 15890: Hessian has   1 negative eigenvalues
+ 15893: TS mode is mode number   0 with eigenvalue  -0.00147531 and components:
+ 16070: The optimization has not yet converged - more geometry cycles are needed
+ 16236:          *                GEOMETRY OPTIMIZATION CYCLE  18            *
+ 16632: FINAL SINGLE POINT ENERGY      -541.188039615525
+ 16722: Current Energy                          ....  -541.188039616 Eh
+ 16723: Current gradient norm                   ....     0.005897192 Eh/bohr
+ 16724: Maximum allowed component of the step   ....  0.300
+ 16725: Current trust radius                    ....  0.225
+ 16728: Dimension of the hessian                .... 139
+ 16729: Lowest eigenvalues of the Hessian:
+ 16730:     0.000384218  0.001098336  0.007323237  0.013348689  0.014528123
+ 16731: Hessian has   0 negative eigenvalues
+ 16734: TS mode is mode number   0 with eigenvalue   0.00038422 and components:
+ 16912: The optimization has not yet converged - more geometry cycles are needed
+ 17078:          *                GEOMETRY OPTIMIZATION CYCLE  19            *
+ 17476: FINAL SINGLE POINT ENERGY      -541.188095015447
+ 17566: Current Energy                          ....  -541.188095015 Eh
+ 17567: Current gradient norm                   ....     0.004998375 Eh/bohr
+ 17568: Maximum allowed component of the step   ....  0.300
+ 17569: Current trust radius                    ....  0.150
+ 17572: Dimension of the hessian                .... 139
+ 17573: Lowest eigenvalues of the Hessian:
+ 17574:     -0.003190595  0.001265920  0.011004278  0.013376827  0.014540584
+ 17575: Hessian has   1 negative eigenvalues
+ 17578: TS mode is mode number   0 with eigenvalue  -0.00319059 and components:
+ 17754: The optimization has not yet converged - more geometry cycles are needed
+ 17920:          *                GEOMETRY OPTIMIZATION CYCLE  20            *
+ 18316: FINAL SINGLE POINT ENERGY      -541.187977501632
+ 18406: Current Energy                          ....  -541.187977502 Eh
+ 18407: Current gradient norm                   ....     0.004221107 Eh/bohr
+ 18408: Maximum allowed component of the step   ....  0.300
+ 18409: Current trust radius                    ....  0.100
+ 18412: Dimension of the hessian                .... 139
+ 18413: Lowest eigenvalues of the Hessian:
+ 18414:     -0.000143746  0.001271860  0.009008426  0.013366929  0.014539987
+ 18415: Hessian has   1 negative eigenvalues
+ 18418: TS mode is mode number   0 with eigenvalue  -0.00014375 and components:
+ 18594: The optimization has not yet converged - more geometry cycles are needed
+ 18760:          *                GEOMETRY OPTIMIZATION CYCLE  21            *
+ 19156: FINAL SINGLE POINT ENERGY      -541.187950081082
+ 19246: Current Energy                          ....  -541.187950081 Eh
+ 19247: Current gradient norm                   ....     0.003867533 Eh/bohr
+ 19248: Maximum allowed component of the step   ....  0.300
+ 19249: Current trust radius                    ....  0.100
+ 19252: Dimension of the hessian                .... 139
+ 19253: Lowest eigenvalues of the Hessian:
+ 19254:     -0.002327663  0.001326865  0.011682951  0.013409365  0.014547571
+ 19255: Hessian has   1 negative eigenvalues
+ 19258: TS mode is mode number   0 with eigenvalue  -0.00232766 and components:
+ 19434: The optimization has not yet converged - more geometry cycles are needed
+ 19600:          *                GEOMETRY OPTIMIZATION CYCLE  22            *
+ 19996: FINAL SINGLE POINT ENERGY      -541.187877012916
+ 20086: Current Energy                          ....  -541.187877013 Eh
+ 20087: Current gradient norm                   ....     0.003619751 Eh/bohr
+ 20088: Maximum allowed component of the step   ....  0.300
+ 20089: Current trust radius                    ....  0.100
+ 20092: Dimension of the hessian                .... 139
+ 20093: Lowest eigenvalues of the Hessian:
+ 20094:     -0.000504438  0.001017041  0.010863544  0.013390938  0.014546622
+ 20095: Hessian has   1 negative eigenvalues
+ 20098: TS mode is mode number   0 with eigenvalue  -0.00050444 and components:
+ 20275: The optimization has not yet converged - more geometry cycles are needed
+ 20441:          *                GEOMETRY OPTIMIZATION CYCLE  23            *
+ 20837: FINAL SINGLE POINT ENERGY      -541.187895178101
+ 20927: Current Energy                          ....  -541.187895178 Eh
+ 20928: Current gradient norm                   ....     0.003427688 Eh/bohr
+ 20929: Maximum allowed component of the step   ....  0.300
+ 20930: Current trust radius                    ....  0.100
+ 20933: Dimension of the hessian                .... 139
+ 20934: Lowest eigenvalues of the Hessian:
+ 20935:     -0.001877277  0.000819878  0.012651014  0.013473592  0.014551312
+ 20936: Hessian has   1 negative eigenvalues
+ 20939: TS mode is mode number   0 with eigenvalue  -0.00187728 and components:
+ 21116: The optimization has not yet converged - more geometry cycles are needed
+ 21282:          *                GEOMETRY OPTIMIZATION CYCLE  24            *
+ 21678: FINAL SINGLE POINT ENERGY      -541.187940170847
+ 21768: Current Energy                          ....  -541.187940171 Eh
+ 21769: Current gradient norm                   ....     0.003248164 Eh/bohr
+ 21770: Maximum allowed component of the step   ....  0.300
+ 21771: Current trust radius                    ....  0.100
+ 21774: Dimension of the hessian                .... 139
+ 21775: Lowest eigenvalues of the Hessian:
+ 21776:     -0.001263597  0.000232656  0.012502285  0.013454826  0.014550684
+ 21777: Hessian has   1 negative eigenvalues
+ 21780: TS mode is mode number   0 with eigenvalue  -0.00126360 and components:
+ 21959: The optimization has not yet converged - more geometry cycles are needed
+ 22125:          *                GEOMETRY OPTIMIZATION CYCLE  25            *
+ 22520: FINAL SINGLE POINT ENERGY      -541.187961460311
+ 22610: Current Energy                          ....  -541.187961460 Eh
+ 22611: Current gradient norm                   ....     0.003075263 Eh/bohr
+ 22612: Maximum allowed component of the step   ....  0.300
+ 22613: Current trust radius                    ....  0.150
+ 22616: Dimension of the hessian                .... 139
+ 22617: Lowest eigenvalues of the Hessian:
+ 22618:     -0.001115599 -0.000023746  0.012442467  0.013447405  0.014550331
+ 22620: Hessian has   2 negative eigenvalues
+ 22623: TS mode is mode number   0 with eigenvalue  -0.00111560 and components:
+ 22781: TS mode is mode number   0 with eigenvalue  -0.00081560 and components:
+ 22960: The optimization has not yet converged - more geometry cycles are needed
+ 23126:          *                GEOMETRY OPTIMIZATION CYCLE  26            *
+ 23522: FINAL SINGLE POINT ENERGY      -541.187994468957
+ 23612: Current Energy                          ....  -541.187994469 Eh
+ 23613: Current gradient norm                   ....     0.002921547 Eh/bohr
+ 23614: Maximum allowed component of the step   ....  0.300
+ 23615: Current trust radius                    ....  0.100
+ 23618: Dimension of the hessian                .... 139
+ 23619: Lowest eigenvalues of the Hessian:
+ 23620:     -0.001146846 -0.000123603  0.012430932  0.013445579  0.014550241
+ 23621: Hessian has   2 negative eigenvalues
+ 23624: TS mode is mode number   0 with eigenvalue  -0.00114685 and components:
+ 23782: TS mode is mode number   0 with eigenvalue  -0.00082324 and components:
+ 23961: The optimization has not yet converged - more geometry cycles are needed
+ 24127:          *                GEOMETRY OPTIMIZATION CYCLE  27            *
+ 24522: FINAL SINGLE POINT ENERGY      -541.188032297833
+ 24612: Current Energy                          ....  -541.188032298 Eh
+ 24613: Current gradient norm                   ....     0.002713573 Eh/bohr
+ 24614: Maximum allowed component of the step   ....  0.300
+ 24615: Current trust radius                    ....  0.100
+ 24618: Dimension of the hessian                .... 139
+ 24619: Lowest eigenvalues of the Hessian:
+ 24620:     -0.001470936  0.000077229  0.012507255  0.013447801  0.014550855
+ 24622: Hessian has   1 negative eigenvalues
+ 24625: TS mode is mode number   0 with eigenvalue  -0.00147094 and components:
+ 24805: The optimization has not yet converged - more geometry cycles are needed
+ 24971:          *                GEOMETRY OPTIMIZATION CYCLE  28            *
+ 25367: FINAL SINGLE POINT ENERGY      -541.188096810788
+ 25457: Current Energy                          ....  -541.188096811 Eh
+ 25458: Current gradient norm                   ....     0.002540098 Eh/bohr
+ 25459: Maximum allowed component of the step   ....  0.300
+ 25460: Current trust radius                    ....  0.100
+ 25463: Dimension of the hessian                .... 139
+ 25464: Lowest eigenvalues of the Hessian:
+ 25465:     -0.001721476  0.000444514  0.012708024  0.013469556  0.014547742
+ 25466: Hessian has   1 negative eigenvalues
+ 25469: TS mode is mode number   0 with eigenvalue  -0.00172148 and components:
+ 25647: The optimization has not yet converged - more geometry cycles are needed
+ 25813:          *                GEOMETRY OPTIMIZATION CYCLE  29            *
+ 26209: FINAL SINGLE POINT ENERGY      -541.188164499764
+ 26299: Current Energy                          ....  -541.188164500 Eh
+ 26300: Current gradient norm                   ....     0.002465399 Eh/bohr
+ 26301: Maximum allowed component of the step   ....  0.300
+ 26302: Current trust radius                    ....  0.100
+ 26305: Dimension of the hessian                .... 139
+ 26306: Lowest eigenvalues of the Hessian:
+ 26307:     -0.001663593  0.000489502  0.012697821  0.013467955  0.014547481
+ 26308: Hessian has   1 negative eigenvalues
+ 26311: TS mode is mode number   0 with eigenvalue  -0.00166359 and components:
+ 26489: The optimization has not yet converged - more geometry cycles are needed
+ 26655:          *                GEOMETRY OPTIMIZATION CYCLE  30            *
+ 27051: FINAL SINGLE POINT ENERGY      -541.188225308093
+ 27141: Current Energy                          ....  -541.188225308 Eh
+ 27142: Current gradient norm                   ....     0.002346799 Eh/bohr
+ 27143: Maximum allowed component of the step   ....  0.300
+ 27144: Current trust radius                    ....  0.100
+ 27147: Dimension of the hessian                .... 139
+ 27148: Lowest eigenvalues of the Hessian:
+ 27149:     -0.001586255  0.000466876  0.012676116  0.013463547  0.014547342
+ 27150: Hessian has   1 negative eigenvalues
+ 27153: TS mode is mode number   0 with eigenvalue  -0.00158626 and components:
+ 27331: The optimization has not yet converged - more geometry cycles are needed
+ 27497:          *                GEOMETRY OPTIMIZATION CYCLE  31            *
+ 27893: FINAL SINGLE POINT ENERGY      -541.188280862665
+ 27983: Current Energy                          ....  -541.188280863 Eh
+ 27984: Current gradient norm                   ....     0.002208837 Eh/bohr
+ 27985: Maximum allowed component of the step   ....  0.300
+ 27986: Current trust radius                    ....  0.150
+ 27989: Dimension of the hessian                .... 139
+ 27990: Lowest eigenvalues of the Hessian:
+ 27991:     -0.001559977  0.000362307  0.012669492  0.013461459  0.014547268
+ 27992: Hessian has   1 negative eigenvalues
+ 27995: TS mode is mode number   0 with eigenvalue  -0.00155998 and components:
+ 28174: The optimization has not yet converged - more geometry cycles are needed
+ 28340:          *                GEOMETRY OPTIMIZATION CYCLE  32            *
+ 28736: FINAL SINGLE POINT ENERGY      -541.188362414143
+ 28826: Current Energy                          ....  -541.188362414 Eh
+ 28827: Current gradient norm                   ....     0.002089882 Eh/bohr
+ 28828: Maximum allowed component of the step   ....  0.300
+ 28829: Current trust radius                    ....  0.225
+ 28832: Dimension of the hessian                .... 139
+ 28833: Lowest eigenvalues of the Hessian:
+ 28834:     -0.001581694  0.000389859  0.012681670  0.013461903  0.014547285
+ 28835: Hessian has   1 negative eigenvalues
+ 28838: TS mode is mode number   0 with eigenvalue  -0.00158169 and components:
+ 29017: The optimization has not yet converged - more geometry cycles are needed
+ 29183:          *                GEOMETRY OPTIMIZATION CYCLE  33            *
+ 29580: FINAL SINGLE POINT ENERGY      -541.188474153548
+ 29670: Current Energy                          ....  -541.188474154 Eh
+ 29671: Current gradient norm                   ....     0.001945785 Eh/bohr
+ 29672: Maximum allowed component of the step   ....  0.300
+ 29673: Current trust radius                    ....  0.150
+ 29676: Dimension of the hessian                .... 139
+ 29677: Lowest eigenvalues of the Hessian:
+ 29678:     -0.001575286  0.000637518  0.012687271  0.013461398  0.014547245
+ 29679: Hessian has   1 negative eigenvalues
+ 29682: TS mode is mode number   0 with eigenvalue  -0.00157529 and components:
+ 29860: The optimization has not yet converged - more geometry cycles are needed
+ 30026:          *                GEOMETRY OPTIMIZATION CYCLE  34            *
+ 30422: FINAL SINGLE POINT ENERGY      -541.188532491820
+ 30512: Current Energy                          ....  -541.188532492 Eh
+ 30513: Current gradient norm                   ....     0.001802659 Eh/bohr
+ 30514: Maximum allowed component of the step   ....  0.300
+ 30515: Current trust radius                    ....  0.100
+ 30518: Dimension of the hessian                .... 139
+ 30519: Lowest eigenvalues of the Hessian:
+ 30520:     -0.001531709  0.001057789  0.012680423  0.013459618  0.014547291
+ 30521: Hessian has   1 negative eigenvalues
+ 30524: TS mode is mode number   0 with eigenvalue  -0.00153171 and components:
+ 30700: The optimization has not yet converged - more geometry cycles are needed
+ 30866:          *                GEOMETRY OPTIMIZATION CYCLE  35            *
+ 31262: FINAL SINGLE POINT ENERGY      -541.188557148398
+ 31352: Current Energy                          ....  -541.188557148 Eh
+ 31353: Current gradient norm                   ....     0.001587480 Eh/bohr
+ 31354: Maximum allowed component of the step   ....  0.300
+ 31355: Current trust radius                    ....  0.150
+ 31358: Dimension of the hessian                .... 139
+ 31359: Lowest eigenvalues of the Hessian:
+ 31360:     -0.001350180  0.001212262  0.012662476  0.013455240  0.014547177
+ 31361: Hessian has   1 negative eigenvalues
+ 31364: TS mode is mode number   0 with eigenvalue  -0.00135018 and components:
+ 31540: The optimization has not yet converged - more geometry cycles are needed
+ 31706:          *                GEOMETRY OPTIMIZATION CYCLE  36            *
+ 32102: FINAL SINGLE POINT ENERGY      -541.188577278263
+ 32192: Current Energy                          ....  -541.188577278 Eh
+ 32193: Current gradient norm                   ....     0.001200619 Eh/bohr
+ 32194: Maximum allowed component of the step   ....  0.300
+ 32195: Current trust radius                    ....  0.225
+ 32198: Dimension of the hessian                .... 139
+ 32199: Lowest eigenvalues of the Hessian:
+ 32200:     -0.000817283  0.000711003  0.012637086  0.013449578  0.014546862
+ 32201: Hessian has   1 negative eigenvalues
+ 32204: TS mode is mode number   0 with eigenvalue  -0.00081728 and components:
+ 32381: The optimization has not yet converged - more geometry cycles are needed
+ 32547:          *                GEOMETRY OPTIMIZATION CYCLE  37            *
+ 32943: FINAL SINGLE POINT ENERGY      -541.188580430722
+ 33033: Current Energy                          ....  -541.188580431 Eh
+ 33034: Current gradient norm                   ....     0.001063326 Eh/bohr
+ 33035: Maximum allowed component of the step   ....  0.300
+ 33036: Current trust radius                    ....  0.338
+ 33039: Dimension of the hessian                .... 139
+ 33040: Lowest eigenvalues of the Hessian:
+ 33041:     -0.000240235  0.000333990  0.012627906  0.013447141  0.014546731
+ 33042: Hessian has   1 negative eigenvalues
+ 33045: TS mode is mode number   0 with eigenvalue  -0.00024023 and components:
+ 33221: The optimization has not yet converged - more geometry cycles are needed
+ 33387:          *                GEOMETRY OPTIMIZATION CYCLE  38            *
+ 33783: FINAL SINGLE POINT ENERGY      -541.188510786670
+ 33873: Current Energy                          ....  -541.188510787 Eh
+ 33874: Current gradient norm                   ....     0.002739319 Eh/bohr
+ 33875: Maximum allowed component of the step   ....  0.300
+ 33876: Current trust radius                    ....  0.225
+ 33879: Dimension of the hessian                .... 139
+ 33880: Lowest eigenvalues of the Hessian:
+ 33881:     -0.000235143  0.000516179  0.012827688  0.013470957  0.014547964
+ 33882: Hessian has   1 negative eigenvalues
+ 33885: TS mode is mode number   0 with eigenvalue  -0.00023514 and components:
+ 34062: The optimization has not yet converged - more geometry cycles are needed
+ 34228:          *                GEOMETRY OPTIMIZATION CYCLE  39            *
+ 34624: FINAL SINGLE POINT ENERGY      -541.188571366562
+ 34714: Current Energy                          ....  -541.188571367 Eh
+ 34715: Current gradient norm                   ....     0.001035318 Eh/bohr
+ 34716: Maximum allowed component of the step   ....  0.300
+ 34717: Current trust radius                    ....  0.150
+ 34720: Dimension of the hessian                .... 139
+ 34721: Lowest eigenvalues of the Hessian:
+ 34722:     -0.001059251  0.000810695  0.013196843  0.013628188  0.014554628
+ 34723: Hessian has   1 negative eigenvalues
+ 34726: TS mode is mode number   0 with eigenvalue  -0.00105925 and components:
+ 34900: The optimization has not yet converged - more geometry cycles are needed
+ 35066:          *                GEOMETRY OPTIMIZATION CYCLE  40            *
+ 35462: FINAL SINGLE POINT ENERGY      -541.188561875651
+ 35552: Current Energy                          ....  -541.188561876 Eh
+ 35553: Current gradient norm                   ....     0.001506292 Eh/bohr
+ 35554: Maximum allowed component of the step   ....  0.300
+ 35555: Current trust radius                    ....  0.225
+ 35558: Dimension of the hessian                .... 139
+ 35559: Lowest eigenvalues of the Hessian:
+ 35560:     -0.000539334  0.000823289  0.013290234  0.013887637  0.014566570
+ 35561: Hessian has   1 negative eigenvalues
+ 35564: TS mode is mode number   0 with eigenvalue  -0.00053933 and components:
+ 35738: The optimization has not yet converged - more geometry cycles are needed
+ 35904:          *                GEOMETRY OPTIMIZATION CYCLE  41            *
+ 36299: FINAL SINGLE POINT ENERGY      -541.188576422418
+ 36389: Current Energy                          ....  -541.188576422 Eh
+ 36390: Current gradient norm                   ....     0.000910988 Eh/bohr
+ 36391: Maximum allowed component of the step   ....  0.300
+ 36392: Current trust radius                    ....  0.150
+ 36395: Dimension of the hessian                .... 139
+ 36396: Lowest eigenvalues of the Hessian:
+ 36397:     -0.002012599  0.000829634  0.013367860  0.014523891  0.014916225
+ 36398: Hessian has   1 negative eigenvalues
+ 36401: TS mode is mode number   0 with eigenvalue  -0.00201260 and components:
+ 36575: The optimization has not yet converged - more geometry cycles are needed
+ 36741:          *                GEOMETRY OPTIMIZATION CYCLE  42            *
+ 37136: FINAL SINGLE POINT ENERGY      -541.188573101316
+ 37226: Current Energy                          ....  -541.188573101 Eh
+ 37227: Current gradient norm                   ....     0.001198149 Eh/bohr
+ 37228: Maximum allowed component of the step   ....  0.300
+ 37229: Current trust radius                    ....  0.150
+ 37232: Dimension of the hessian                .... 139
+ 37233: Lowest eigenvalues of the Hessian:
+ 37234:     -0.000490158  0.000799054  0.013372042  0.014516463  0.015020748
+ 37235: Hessian has   1 negative eigenvalues
+ 37238: TS mode is mode number   0 with eigenvalue  -0.00049016 and components:
+ 37412: The optimization has not yet converged - more geometry cycles are needed
+ 37578:          *                GEOMETRY OPTIMIZATION CYCLE  43            *
+ 37974: FINAL SINGLE POINT ENERGY      -541.188582819466
+ 38064: Current Energy                          ....  -541.188582819 Eh
+ 38065: Current gradient norm                   ....     0.000773348 Eh/bohr
+ 38066: Maximum allowed component of the step   ....  0.300
+ 38067: Current trust radius                    ....  0.100
+ 38070: Dimension of the hessian                .... 139
+ 38071: Lowest eigenvalues of the Hessian:
+ 38072:     -0.001063083  0.001467011  0.013383091  0.014495970  0.015153104
+ 38073: Hessian has   1 negative eigenvalues
+ 38076: TS mode is mode number   0 with eigenvalue  -0.00106308 and components:
+ 38250: The optimization has not yet converged - more geometry cycles are needed
+ 38416:          *                GEOMETRY OPTIMIZATION CYCLE  44            *
+ 38811: FINAL SINGLE POINT ENERGY      -541.188585254868
+ 38901: Current Energy                          ....  -541.188585255 Eh
+ 38902: Current gradient norm                   ....     0.000862688 Eh/bohr
+ 38903: Maximum allowed component of the step   ....  0.300
+ 38904: Current trust radius                    ....  0.150
+ 38907: Dimension of the hessian                .... 139
+ 38908: Lowest eigenvalues of the Hessian:
+ 38909:     -0.000390737  0.001396434  0.013383464  0.014491768  0.015158360
+ 38910: Hessian has   1 negative eigenvalues
+ 38913: TS mode is mode number   0 with eigenvalue  -0.00039074 and components:
+ 39087: The optimization has not yet converged - more geometry cycles are needed
+ 39253:          *                GEOMETRY OPTIMIZATION CYCLE  45            *
+ 39648: FINAL SINGLE POINT ENERGY      -541.188588396898
+ 39738: Current Energy                          ....  -541.188588397 Eh
+ 39739: Current gradient norm                   ....     0.000585481 Eh/bohr
+ 39740: Maximum allowed component of the step   ....  0.300
+ 39741: Current trust radius                    ....  0.100
+ 39744: Dimension of the hessian                .... 139
+ 39745: Lowest eigenvalues of the Hessian:
+ 39746:     -0.000911389  0.002493258  0.013375393  0.014473137  0.015160128
+ 39747: Hessian has   1 negative eigenvalues
+ 39750: TS mode is mode number   0 with eigenvalue  -0.00091139 and components:
+ 39924: The optimization has not yet converged - more geometry cycles are needed
+ 40090:          *                GEOMETRY OPTIMIZATION CYCLE  46            *
+ 40485: FINAL SINGLE POINT ENERGY      -541.188589436942
+ 40575: Current Energy                          ....  -541.188589437 Eh
+ 40576: Current gradient norm                   ....     0.000695531 Eh/bohr
+ 40577: Maximum allowed component of the step   ....  0.300
+ 40578: Current trust radius                    ....  0.150
+ 40581: Dimension of the hessian                .... 139
+ 40582: Lowest eigenvalues of the Hessian:
+ 40583:     -0.000327371  0.002575368  0.013373602  0.014467484  0.015160106
+ 40584: Hessian has   1 negative eigenvalues
+ 40587: TS mode is mode number   0 with eigenvalue  -0.00032737 and components:
+ 40761: The optimization has not yet converged - more geometry cycles are needed
+ 40927:          *                GEOMETRY OPTIMIZATION CYCLE  47            *
+ 41324: FINAL SINGLE POINT ENERGY      -541.188592527485
+ 41414: Current Energy                          ....  -541.188592527 Eh
+ 41415: Current gradient norm                   ....     0.000532713 Eh/bohr
+ 41416: Maximum allowed component of the step   ....  0.300
+ 41417: Current trust radius                    ....  0.100
+ 41420: Dimension of the hessian                .... 139
+ 41421: Lowest eigenvalues of the Hessian:
+ 41422:     -0.000141433  0.002468584  0.013373088  0.014456293  0.015160150
+ 41423: Hessian has   1 negative eigenvalues
+ 41426: TS mode is mode number   0 with eigenvalue  -0.00014143 and components:
+ 41601: The optimization has not yet converged - more geometry cycles are needed
+ 41767:          *                GEOMETRY OPTIMIZATION CYCLE  48            *
+ 42163: FINAL SINGLE POINT ENERGY      -541.188588809999
+ 42253: Current Energy                          ....  -541.188588810 Eh
+ 42254: Current gradient norm                   ....     0.000751259 Eh/bohr
+ 42255: Maximum allowed component of the step   ....  0.300
+ 42256: Current trust radius                    ....  0.100
+ 42259: Dimension of the hessian                .... 139
+ 42260: Lowest eigenvalues of the Hessian:
+ 42261:     -0.000172437  0.002475190  0.013374286  0.014456183  0.015160376
+ 42262: Hessian has   1 negative eigenvalues
+ 42265: TS mode is mode number   0 with eigenvalue  -0.00017244 and components:
+ 42439: The optimization has not yet converged - more geometry cycles are needed
+ 42605:          *                GEOMETRY OPTIMIZATION CYCLE  49            *
+ 43002: FINAL SINGLE POINT ENERGY      -541.188595435578
+ 43092: Current Energy                          ....  -541.188595436 Eh
+ 43093: Current gradient norm                   ....     0.000792139 Eh/bohr
+ 43094: Maximum allowed component of the step   ....  0.300
+ 43095: Current trust radius                    ....  0.100
+ 43098: Dimension of the hessian                .... 139
+ 43099: Lowest eigenvalues of the Hessian:
+ 43100:     -0.000998300  0.002115221  0.013418059  0.014438706  0.015172706
+ 43101: Hessian has   1 negative eigenvalues
+ 43104: TS mode is mode number   0 with eigenvalue  -0.00099830 and components:
+ 43279: The optimization has not yet converged - more geometry cycles are needed
+ 43445:          *                GEOMETRY OPTIMIZATION CYCLE  50            *
+ 43841: FINAL SINGLE POINT ENERGY      -541.188586854907
+ 43931: Current Energy                          ....  -541.188586855 Eh
+ 43932: Current gradient norm                   ....     0.000758203 Eh/bohr
+ 43933: Maximum allowed component of the step   ....  0.300
+ 43934: Current trust radius                    ....  0.100
+ 43937: Dimension of the hessian                .... 139
+ 43938: Lowest eigenvalues of the Hessian:
+ 43939:     -0.000633292  0.002070602  0.013425567  0.014438090  0.015174737
+ 43940: Hessian has   1 negative eigenvalues
+ 43943: TS mode is mode number   0 with eigenvalue  -0.00063329 and components:
+ 44117: The optimization has not yet converged - more geometry cycles are needed
+ 44283:          *                GEOMETRY OPTIMIZATION CYCLE  51            *
+ 44679: FINAL SINGLE POINT ENERGY      -541.188588418622
+ 44769: Current Energy                          ....  -541.188588419 Eh
+ 44770: Current gradient norm                   ....     0.000620516 Eh/bohr
+ 44771: Maximum allowed component of the step   ....  0.300
+ 44772: Current trust radius                    ....  0.100
+ 44775: Dimension of the hessian                .... 139
+ 44776: Lowest eigenvalues of the Hessian:
+ 44777:     -0.000645604  0.001976319  0.013472507  0.014440052  0.015187140
+ 44778: Hessian has   1 negative eigenvalues
+ 44781: TS mode is mode number   0 with eigenvalue  -0.00064560 and components:
+ 44955: The optimization has not yet converged - more geometry cycles are needed
+ 45121:          *                GEOMETRY OPTIMIZATION CYCLE  52            *
+ 45517: FINAL SINGLE POINT ENERGY      -541.188592515052
+ 45607: Current Energy                          ....  -541.188592515 Eh
+ 45608: Current gradient norm                   ....     0.000593218 Eh/bohr
+ 45609: Maximum allowed component of the step   ....  0.300
+ 45610: Current trust radius                    ....  0.150
+ 45613: Dimension of the hessian                .... 139
+ 45614: Lowest eigenvalues of the Hessian:
+ 45615:     -0.000841688  0.001804731  0.013481405  0.014414181  0.015190196
+ 45616: Hessian has   1 negative eigenvalues
+ 45619: TS mode is mode number   0 with eigenvalue  -0.00084169 and components:
+ 45793: The optimization has not yet converged - more geometry cycles are needed
+ 45959:          *                GEOMETRY OPTIMIZATION CYCLE  53            *
+ 46355: FINAL SINGLE POINT ENERGY      -541.188589208757
+ 46445: Current Energy                          ....  -541.188589209 Eh
+ 46446: Current gradient norm                   ....     0.000608332 Eh/bohr
+ 46447: Maximum allowed component of the step   ....  0.300
+ 46448: Current trust radius                    ....  0.100
+ 46451: Dimension of the hessian                .... 139
+ 46452: Lowest eigenvalues of the Hessian:
+ 46453:     -0.000592468  0.001761036  0.013500291  0.014414452  0.015195202
+ 46454: Hessian has   1 negative eigenvalues
+ 46457: TS mode is mode number   0 with eigenvalue  -0.00059247 and components:
+ 46631: The optimization has not yet converged - more geometry cycles are needed
+ 46797:          *                GEOMETRY OPTIMIZATION CYCLE  54            *
+ 47188: FINAL SINGLE POINT ENERGY      -541.188593363138
+ 47278: Current Energy                          ....  -541.188593363 Eh
+ 47279: Current gradient norm                   ....     0.000506745 Eh/bohr
+ 47280: Maximum allowed component of the step   ....  0.300
+ 47281: Current trust radius                    ....  0.100
+ 47286: Dimension of the hessian                .... 139
+ 47287: Lowest eigenvalues of the Hessian:
+ 47288:     -0.000592468  0.001761036  0.013500291  0.014414452  0.015195202
+ 47289: Hessian has   1 negative eigenvalues
+ 47292: TS mode is mode number   0 with eigenvalue  -0.00059247 and components:
+ 47466: The optimization has not yet converged - more geometry cycles are needed
+ 47632:          *                GEOMETRY OPTIMIZATION CYCLE  55            *
+ 48025: FINAL SINGLE POINT ENERGY      -541.188596766321
+ 48115: Current Energy                          ....  -541.188596766 Eh
+ 48116: Current gradient norm                   ....     0.000445451 Eh/bohr
+ 48117: Maximum allowed component of the step   ....  0.300
+ 48118: Current trust radius                    ....  0.100
+ 48121: Dimension of the hessian                .... 139
+ 48122: Lowest eigenvalues of the Hessian:
+ 48123:     -0.000172239  0.001572904  0.013513973  0.014376417  0.015200016
+ 48124: Hessian has   1 negative eigenvalues
+ 48127: TS mode is mode number   0 with eigenvalue  -0.00017224 and components:
+ 48302: The optimization has not yet converged - more geometry cycles are needed
+ 48468:          *                GEOMETRY OPTIMIZATION CYCLE  56            *
+ 48864: FINAL SINGLE POINT ENERGY      -541.188591245441

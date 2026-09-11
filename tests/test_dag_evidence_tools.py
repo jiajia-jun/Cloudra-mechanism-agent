@@ -118,7 +118,9 @@ async def test_submit_invalid_ts_rejected(tmp_path):
         reaction_coordinate_description="False TS",
     )
     assert not step_out.is_success
-    assert "TS validation failed" in step_out.error
+    # 有频率数据但不合格 → "failed validation"（区别于"没有频率数据 → 未验证"）
+    assert "TS failed validation" in step_out.error
+    assert "not a transition state saddle point" in step_out.error
 
 
 @pytest.mark.asyncio

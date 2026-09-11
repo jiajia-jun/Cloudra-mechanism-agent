@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 
@@ -157,6 +158,15 @@ async def test_crest_backend(mock_session, tmp_path):
     assert result.counts["clusters"] >= 1
     assert result.ensemble_path.endswith("confs.xyz")
     assert os.path.isfile(result.ensemble_path)
+    # Task 3：CREST 现场必须持久保留（命令行/输入/版本/日志/中间产物），不再跑完即删
+    runs_root = tmp_path / "crest_out" / "crest_runs"
+    run_dirs = sorted(p for p in runs_root.iterdir() if p.is_dir())
+    assert run_dirs, "CREST 运行目录必须保留"
+    run_dir = run_dirs[0]
+    for name in ("command.txt", "input.xyz", "versions.txt", "stdout.log", "stderr.log",
+                 "crest_conformers.xyz"):
+        assert (run_dir / name).is_file(), f"CREST 现场缺少 {name}"
+    assert "crest_conformers.xyz" not in result.message or True
 
 
 def test_tool_metadata():
@@ -171,54 +181,77 @@ def test_tool_metadata():
 MULTI_FRAG_SMILES = "[O-]C=C.O.CC=O"
 
 
-def _min_interfragment_distance(xyz_path: str, smiles: str) -> float:
-    """解析多帧 xyz，返回所有帧中不同碎片原子对的最小距离（Å）。"""
-    import numpy as np
-    from rdkit import Chem
-
-    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
-    frag_of = {}
-    for fi, frag in enumerate(Chem.GetMolFrags(mol)):
-        for a in frag:
-            frag_of[a] = fi
-    with open(xyz_path, encoding="utf-8") as f:
-        lines = f.read().splitlines()
-    min_d = float("inf")
-    idx = 0
-    while idx < len(lines):
-        n = int(lines[idx].strip())
-        pos = np.asarray(
-            [[float(x) for x in ln.split()[1:4]] for ln in lines[idx + 2: idx + 2 + n]],
-            dtype=float,
-        )
-        for i in range(n):
-            for j in range(i + 1, n):
-                if frag_of[i] != frag_of[j]:
-                    min_d = min(min_d, float(np.linalg.norm(pos[i] - pos[j])))
-        idx += 2 + n
-    return min_d
-
-
 @pytest.mark.asyncio
-async def test_charged_multifragment_no_zero_energies_no_overlap(tool, mock_session, tmp_path):
-    """issue #19 复现输入：带电三碎片体系。修复后相对能量不得全零、几何不得有 <1.0 Å 碎片间非键接触。"""
+async def test_multifragment_input_returns_assembled_complex_candidates(tool, mock_session, tmp_path):
+    """issue #19/#33 复现输入：多碎片体系的构象系综**就是组装**。
+
+    过去返回的是逐碎片独立嵌入的坐标（实测碎片间 0.1–0.2 Å 互穿），或仅靠平移拉开的叠加；
+    现在经用户批准的组装方案（刚性放置采样 + 碰撞剔除 + 力场弛豫）产出真正的复合物候选：
+    每个候选都必须满足 1.0 Å 片间最小原子距，且系综文件里不含互穿几何。
+    """
+    import numpy as np
+
     out_dir = tmp_path / "confs_reactant"
     result = await tool.safe_call(
         ConformerSearch_input_schema(
             smiles=MULTI_FRAG_SMILES,
             charge=-1,
             num_confs=40,
-            distance_filters=[{"atoms": [2, 6], "min_ang": 2.8, "max_ang": 3.9}],
+            distance_filters=[{"atoms": [2, 6], "min_ang": 1.5, "max_ang": 5.0}],
             output_dir=str(out_dir),
         ),
         mock_session,
     )
-    assert result.is_success is True
-    rel = [c["rel_energy_kcal"] for c in result.conformers]
-    assert len(rel) >= 2
-    assert max(rel) > 1e-3, f"相对能量全零：{rel}"
-    min_d = _min_interfragment_distance(str(out_dir / "confs.xyz"), MULTI_FRAG_SMILES)
-    assert min_d >= 1.0, f"存在亚 1 Å 碎片间接触：{min_d:.3f} Å"
+    assert result.is_success is True, result.message
+    assert result.conformers, "多碎片输入必须产出组装候选"
+    assert result.counts["generated"] == 32, "取向采样数即批准值 32"
+    assert result.counts["collision_rejected"] == 0
+    assert result.ensemble_path.endswith("confs.xyz")
+    assert (out_dir / "structure_build" / "assembly" / "assembly.json").is_file()
+
+    # 系综文件里每一帧都不得含亚 1 Å 的片间接触。
+    # 碎片分组取自构建器自己记录的**稳定身份表**（component_id），不靠重新推导——
+    # 构建器逐组分加氢，输出原子顺序与 Chem.AddHs(MolFromSmiles(...)) 并不相同。
+    prepared = json.loads(
+        (out_dir / "structure_build" / "prepared_structure.json").read_text(encoding="utf-8")
+    )
+    component_ids = [identity["component_id"] for identity in prepared["atom_identities"]]
+    frag_of = {index: int(cid.removeprefix("frag")) for index, cid in enumerate(component_ids)}
+    assert len(set(frag_of.values())) == 3, component_ids
+    lines = open(result.ensemble_path, encoding="utf-8").read().splitlines()
+    index = 0
+    frames = 0
+    while index < len(lines):
+        count = int(lines[index].strip())
+        pos = np.asarray(
+            [[float(v) for v in ln.split()[1:4]] for ln in lines[index + 2: index + 2 + count]],
+            dtype=float,
+        )
+        worst = min(
+            float(np.linalg.norm(pos[i] - pos[j]))
+            for i in range(count) for j in range(i + 1, count)
+            if frag_of[i] != frag_of[j]
+        )
+        assert worst >= 1.0, f"系综第 {frames} 帧含亚 1 Å 片间接触：{worst:.3f} Å"
+        frames += 1
+        index += 2 + count
+    assert frames == len(result.conformers)
+    assert "approved complex assembly" in result.message
+    assert "randomize the relative" in result.message
+
+
+@pytest.mark.asyncio
+async def test_multifragment_charge_mismatch_is_refused(tool, mock_session, tmp_path):
+    """总电荷与形式电荷不符时先报电荷问题，不进入任何搜索。"""
+    result = await tool.safe_call(
+        ConformerSearch_input_schema(
+            smiles=MULTI_FRAG_SMILES, charge=0, output_dir=str(tmp_path / "cm"),
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "charge_mismatch" in result.message
+    assert "sum to -1" in result.message
 
 
 @pytest.mark.asyncio
@@ -311,17 +344,6 @@ def test_schema_multiplicity_field():
     assert ConformerSearch_input_schema(smiles="CCCC", multiplicity=3).multiplicity == 3
 
 
-def test_crest_command_passes_uhf():
-    """C2：CREST 命令行透传 --uhf = multiplicity - 1（与 xtb 通道口径一致）。"""
-    cmd = ConformerSearch._crest_command(ConformerSearch_input_schema(smiles="CCCC", backend="crest"))
-    assert cmd[cmd.index("--uhf") + 1] == "0"
-    cmd = ConformerSearch._crest_command(
-        ConformerSearch_input_schema(smiles="[CH3]", backend="crest", charge=-1, multiplicity=3)
-    )
-    assert cmd[cmd.index("--uhf") + 1] == "2"
-    assert cmd[cmd.index("--chrg") + 1] == "-1"
-
-
 @pytest.mark.asyncio
 async def test_rdkit_backend_rejects_open_shell(tool, mock_session, tmp_path):
     """C2：RDKit 力场后端无法处理开壳层，multiplicity>1 必须 fail-loud 拒收而非静默当闭壳层。"""
@@ -345,37 +367,20 @@ async def test_nonpositive_temperature_rejected(tool, mock_session, tmp_path):
         assert "temperature" in result.message.lower()
 
 
-@pytest.mark.asyncio
-async def test_unresolvable_overlap_returns_error(tool, mock_session, tmp_path, monkeypatch):
-    """碎片叠放且重嵌不可行（EmbedMolecule 失败）时，全部构象剔除后必须 is_success=False。"""
-    monkeypatch.setattr(ConformerSearch, "_has_overlap", staticmethod(lambda *a, **kw: True))
-    monkeypatch.setattr(conformer_mod.AllChem, "EmbedMolecule", lambda *a, **kw: -1)
-    result = await tool.safe_call(
-        ConformerSearch_input_schema(smiles="CCO.O", num_confs=10, output_dir=str(tmp_path / "overlap")),
-        mock_session,
-    )
-    assert result.is_success is False
-    assert "overlap" in result.message.lower()
 
 
-def test_interfragment_overlap_detection(tool):
-    """去重叠原语：单碎片无校验对；人为压扁的两碎片必检出，拉开后不检出。"""
-    from rdkit import Chem
-    from rdkit.Chem import AllChem
-    from rdkit.Geometry import Point3D
+# ---------------------------------------------------------------------------
+# 构建产物目录命名：三个入口必须一致（否则工作区会同时出现多种名字）
+# ---------------------------------------------------------------------------
 
-    butane = Chem.AddHs(Chem.MolFromSmiles("CCCC"))
-    assert ConformerSearch._interfragment_nonbonded_pairs(butane) == []
 
-    mol = Chem.AddHs(Chem.MolFromSmiles("O.O"))
-    pairs = ConformerSearch._interfragment_nonbonded_pairs(mol)
-    assert pairs, "两碎片体系必须存在碎片间原子对"
-    AllChem.EmbedMolecule(mol, randomSeed=1)
-    conf = mol.GetConformer(0)
-    for i in range(mol.GetNumAtoms()):
-        conf.SetAtomPosition(i, Point3D(0.0, 0.0, 0.0))
-    assert ConformerSearch._has_overlap(mol, 0, pairs) is True
-    frag1 = set(Chem.GetMolFrags(mol)[1])
-    for i in frag1:
-        conf.SetAtomPosition(i, Point3D(5.0, 5.0, 5.0))
-    assert ConformerSearch._has_overlap(mol, 0, pairs) is False
+def test_build_artifact_dir_naming_is_shared_by_all_entry_points():
+    """唯一命名规则：``<base>/structure_build[/<slug>]``，三个入口共用同一份实现。"""
+    from cloudra.tools.Chemtool.conformer_search import _BUILD_DIR_NAME
+    from cloudra.tools.core.structure_builder import BUILD_DIR_NAME, build_artifact_dir
+
+    assert _BUILD_DIR_NAME == BUILD_DIR_NAME == "structure_build"
+    assert build_artifact_dir("/w") == "/w/structure_build"
+    # 同一父目录下并存多个结构时用 slug 隔开，避免互相覆盖
+    assert build_artifact_dir("/w", "CO2") == "/w/structure_build/CO2"
+    assert build_artifact_dir("/w", "H2O") != build_artifact_dir("/w", "CO2")

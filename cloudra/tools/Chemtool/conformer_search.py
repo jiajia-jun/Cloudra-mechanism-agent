@@ -1,8 +1,4 @@
 import os
-import re
-import shutil
-import subprocess
-import tempfile
 from typing import Any, Literal, Optional
 
 from pydantic import Field
@@ -10,15 +6,25 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.core.crest_runner import CrestRunRequest, run_crest
+from cloudra.tools.core.geometry import kabsch_rmsd as _kabsch_rmsd
+from cloudra.tools.core.structure_builder import (
+    BUILD_DIR_NAME,
+    BuildStrategy,
+    PreparationRequest,
+    PreparedStructure,
+    StructureInput,
+    prepare_structure,
+)
 
 try:
     from rdkit import Chem
-    from rdkit.Chem import AllChem, rdDetermineBonds, rdMolAlign
+    from rdkit.Chem import AllChem, rdMolAlign
     _RDKIT_AVAILABLE = True
 except Exception:
     Chem = None
     AllChem = None
-    rdDetermineBonds = None
     rdMolAlign = None
     _RDKIT_AVAILABLE = False
 
@@ -26,6 +32,8 @@ except Exception:
 _KB_KCAL = 0.0019872041
 # 1 Hartree = 627.5095 kcal/mol（CREST 输出为 Eh）
 _EH_TO_KCAL = 627.5095
+# 构建产物目录名（相对 output_dir）——与另外两个入口共用同一个常量，不要各写一份
+_BUILD_DIR_NAME = BUILD_DIR_NAME
 
 
 def _select_energy_window_candidates(
@@ -70,10 +78,15 @@ def _select_cluster_representatives(
                 selected.add(min(reactive, key=lambda cid: (rel_energies[cid], cid)))
     return sorted(selected, key=lambda cid: (rel_energies[cid], cid))
 
+
 description = (
     "Conformer-ensemble search: from SMILES or xyz/sdf, generate an ensemble and an energy/Boltzmann-population table, "
     "with optional reaction-distance filters (distance_filters) to keep reactive conformers whose bonding-atom distances fall in a preorganization window. "
     "All coordinates go to ensemble files (confs.sdf / confs.xyz); context only gets the numeric table. "
+    "The input structure is resolved by the shared structure builder. For a multi-component input (SMILES "
+    "with dots) the ensemble IS the approved complex assembly (rigid placement sampling + collision "
+    "rejection + force-field relaxation): candidates are assembled complexes, never overlapping or "
+    "translated-apart fragment coordinates. "
     "Use for: locating reactive conformers before organic-mechanism calculations, assessing conformational energy contributions, picking a starting geometry for a TS guess. "
     "Do not use for: high-accuracy single points (use submit_compute_job) or format conversion (use format_converter)."
 )
@@ -82,18 +95,24 @@ description = (
 class ConformerSearch_input_schema(input_schema):
     smiles: Optional[str] = Field(
         default=None,
-        description="Input molecule SMILES. One of smiles/input_path/input_text; smiles is preferred."
+        description="Input molecule SMILES. One of smiles/input_path/input_text; smiles is preferred. "
+                    "Must be a single connected component; a dot-separated multi-component input is refused."
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="Input structure file path (xyz/sdf/mol). xyz input infers bond orders via rdDetermineBonds. "
-                    "Absolute path, or relative to the agent process's current working directory; absolute paths are recommended."
+        description="Input structure file path (xyz/sdf/mol). xyz input infers bond orders via "
+                    "rdDetermineBonds. Absolute path, or relative to the agent process's current "
+                    "working directory; absolute paths are recommended."
     )
     input_text: Optional[str] = Field(
         default=None,
         description="Structure text (xyz or mol block). If input_path is set, the file is read instead."
     )
-    charge: int = Field(default=0, description="Total molecular charge. Used when inferring bond orders from xyz.")
+    charge: int = Field(
+        default=0,
+        description="Total molecular charge. Must equal the structure's formal-charge sum; used when "
+                    "inferring bond orders from xyz, and passed to CREST as --chrg."
+    )
     multiplicity: int = Field(
         default=1,
         description="Spin multiplicity (2S+1). CREST backend: passed to xtb as --uhf = multiplicity - 1. "
@@ -103,7 +122,12 @@ class ConformerSearch_input_schema(input_schema):
         default="rdkit",
         description="Search backend. rdkit: ETKDGv3 sampling + MMFF/UFF optimization; crest: external CREST (GFN2-xTB, --quick)."
     )
-    num_confs: int = Field(default=50, description="Initial conformer count for the RDKit backend.")
+    num_confs: int = Field(
+        default=50,
+        description="Initial conformer count for the RDKit backend on a **single-component** "
+                    "structure. Ignored for a multi-component input, whose ensemble is the approved "
+                    "complex assembly (its orientation-sampling count governs instead).",
+    )
     energy_window_kcal: float = Field(
         default=6.0,
         description="Relative energy window (kcal/mol). With distance_filters, the lowest-energy reactive conformer is kept even if it is outside the window, "
@@ -124,7 +148,8 @@ class ConformerSearch_input_schema(input_schema):
     output_dir: Optional[str] = Field(
         default=None,
         description="Ensemble output directory. Default: <stem>_confs/ next to input_path, else ./confs_output/. "
-                    "Relative paths resolve against the agent process's current working directory."
+                    "Relative paths resolve against the agent process's current working directory. The shared "
+                    "builder writes its artifacts under <output_dir>/structure_build/."
     )
     timeout: int = Field(default=600, description="CREST backend subprocess timeout (seconds).")
 
@@ -144,23 +169,6 @@ class ConformerSearch_output_schema(output_schema):
     message: str = Field(default="", description="Status or error message")
 
 
-def _kabsch_rmsd(pos_a, pos_b) -> float:
-    """两个坐标集（已按质心对齐前）的 Kabsch 最优 RMSD，用于无键级信息时的构象比较。"""
-    import numpy as np
-
-    a = np.asarray(pos_a, dtype=float)
-    b = np.asarray(pos_b, dtype=float)
-    a = a - a.mean(axis=0)
-    b = b - b.mean(axis=0)
-    cov = a.T @ b
-    v, _, wt = np.linalg.svd(cov)
-    d = np.sign(np.linalg.det(v @ wt))
-    diag = np.diag([1.0, 1.0, d])
-    rot = v @ diag @ wt
-    diff = a @ rot - b
-    return float(np.sqrt((diff ** 2).sum() / len(a)))
-
-
 class ConformerSearch(Tool):
     tool_id: str = 't-43'
     tool_name: str = 'conformer_search'
@@ -171,58 +179,28 @@ class ConformerSearch(Tool):
     def is_write(self) -> bool:
         return True
 
-    # ---------- 输入解析 ----------
+    # ---------- 输入解析（唯一实现：共享结构构建器） ----------
 
     @staticmethod
-    def _read_input_text(user_input: ConformerSearch_input_schema) -> tuple[str, str]:
-        """返回 (结构文本, 来源后缀)。来源后缀为 'xyz' 或 'sdf'。"""
+    def _structure_input(user_input: ConformerSearch_input_schema) -> StructureInput:
+        """把三种输入归一成构建器的声明式来源；来源无法判定即 fail-loud。"""
+        if user_input.smiles:
+            return StructureInput(kind="smiles", value=user_input.smiles)
         if user_input.input_path:
             if not os.path.isfile(user_input.input_path):
                 raise ValueError(f"Input file does not exist: {user_input.input_path}")
-            with open(user_input.input_path, encoding="utf-8", errors="replace") as f:
-                text = f.read()
+            with open(user_input.input_path, encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
             ext = os.path.splitext(user_input.input_path)[1].lower()
-            fmt = "sdf" if ext in (".sdf", ".mol", ".sd") else "xyz"
-            return text, fmt
+            kind = "mol_block" if ext in (".sdf", ".mol", ".sd") else "xyz_text"
+            return StructureInput(kind=kind, value=text)
         if user_input.input_text:
             text = user_input.input_text
-            first = text.strip().splitlines()[0].strip() if text.strip() else ""
-            fmt = "sdf" if ("V2000" in text or "V3000" in text or "$$$$" in text) else "xyz"
-            if first.isdigit() and fmt == "sdf":
-                fmt = "xyz"
-            return text, fmt
+            is_mol = "V2000" in text or "V3000" in text or "$$$$" in text
+            if is_mol and text.strip().splitlines()[0].strip().isdigit():
+                is_mol = False
+            return StructureInput(kind="mol_block" if is_mol else "xyz_text", value=text)
         raise ValueError("Must provide one of smiles, input_path, or input_text")
-
-    def _load_mol(self, user_input: ConformerSearch_input_schema):
-        """构建带键级信息的 RDKit Mol（未加氢优化前）。"""
-        if user_input.smiles:
-            mol = Chem.MolFromSmiles(user_input.smiles)
-            if mol is None:
-                raise ValueError(f"Invalid SMILES string: {user_input.smiles}")
-            return mol
-
-        text, fmt = self._read_input_text(user_input)
-        if fmt == "sdf":
-            mol = Chem.MolFromMolBlock(text, removeHs=False)
-            if mol is None:
-                raise ValueError("Could not parse the input sdf/mol text")
-            return mol
-
-        mol = Chem.MolFromXYZBlock(text)
-        if mol is None:
-            raise ValueError("Could not parse the input xyz text")
-        try:
-            rdDetermineBonds.DetermineBonds(mol, charge=user_input.charge)
-        except Exception as e:
-            raise ValueError(
-                f"Bond-order inference (rdDetermineBonds) failed for the xyz input: {e}. "
-                "MMFF optimization depends on bond perception; check the charge setting or use sdf/mol input instead."
-            ) from e
-        if mol.GetNumBonds() == 0 and mol.GetNumAtoms() > 1:
-            raise ValueError("No chemical bonds could be inferred from the xyz input; MMFF optimization is not possible.")
-        return mol
-
-    # ---------- 通用输出 ----------
 
     @staticmethod
     def _resolve_output_dir(user_input: ConformerSearch_input_schema) -> str:
@@ -233,6 +211,49 @@ class ConformerSearch(Tool):
             stem = os.path.splitext(os.path.basename(user_input.input_path))[0]
             return os.path.join(base, f"{stem}_confs")
         return os.path.abspath("confs_output")
+
+    @staticmethod
+    def _build_dir(out_dir: str) -> str:
+        return os.path.join(out_dir, _BUILD_DIR_NAME)
+
+    def _prepare(self, user_input: ConformerSearch_input_schema, out_dir: str,
+                 *, embed: bool, optimize: bool) -> PreparedStructure:
+        """调用共享构建器解析/构建结构（本工具不再自带解析与 Embed/MMFF 快捷路径）。"""
+        return prepare_structure(PreparationRequest(
+            structure=self._structure_input(user_input),
+            output_dir=self._build_dir(out_dir),
+            total_charge=user_input.charge,
+            multiplicity=user_input.multiplicity,
+            random_seed=user_input.random_seed,
+            strategy=BuildStrategy(name="per_component", embed=embed, optimize=optimize),
+        ))
+
+    @staticmethod
+    def _build_failure(prepared: PreparedStructure) -> ConformerSearch_output_schema:
+        details = " | ".join(prepared.diagnostics) if prepared.diagnostics else prepared.message
+        return ConformerSearch_output_schema(
+            is_success=False,
+            message=(
+                f"Conformer search refused by the shared structure builder "
+                f"(build status: {prepared.status}). {prepared.message}"
+                + (f" Diagnostics: {details}" if details and details != prepared.message else "")
+                + f" Build artifacts: {prepared.artifact_path}"
+            ),
+        )
+
+    @staticmethod
+    def _load_built_mol(prepared: PreparedStructure):
+        """从构建器的组分 MOL 文件读回单组分结构（连接表/立体化学/电荷的交换格式）。"""
+        component = prepared.components[0]
+        with open(component.mol_path, encoding="utf-8") as handle:
+            mol = Chem.MolFromMolBlock(handle.read(), removeHs=False)
+        if mol is None:
+            raise ValueError(
+                f"the builder's component file could not be re-read as a mol: {component.mol_path}"
+            )
+        return mol, component
+
+    # ---------- 通用输出 ----------
 
     @staticmethod
     def _check_filters(user_input: ConformerSearch_input_schema, natoms: int):
@@ -327,29 +348,6 @@ class ConformerSearch(Tool):
     # ---------- RDKit 后端 ----------
 
     @staticmethod
-    def _interfragment_nonbonded_pairs(mol) -> list[tuple[int, int]]:
-        """不同碎片原子对清单（碎片叠放校验用；键不跨碎片，故不同碎片即未成键）。单碎片体系返回空。"""
-        frags = Chem.GetMolFrags(mol)
-        if len(frags) <= 1:
-            return []
-        frag_of = {}
-        for fi, frag in enumerate(frags):
-            for a in frag:
-                frag_of[a] = fi
-        n = mol.GetNumAtoms()
-        return [(i, j) for i in range(n) for j in range(i + 1, n) if frag_of[i] != frag_of[j]]
-
-    @staticmethod
-    def _has_overlap(mol, cid: int, pairs: list[tuple[int, int]], cutoff: float = 1.0) -> bool:
-        """指定构象中是否存在 <cutoff Å 的碎片间非键接触（视为碎片叠放）。"""
-        pos = mol.GetConformer(cid).GetPositions()
-        for i, j in pairs:
-            d = pos[i] - pos[j]
-            if float((d * d).sum()) < cutoff * cutoff:
-                return True
-        return False
-
-    @staticmethod
     def _mmff_single_point_energy(mol, cid: int, ignore_interfrag: bool) -> Optional[float]:
         """指定构象的 MMFF94 单点能量（kcal/mol）；无法构建力场时返回 None。"""
         props = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94")
@@ -378,64 +376,110 @@ class ConformerSearch(Tool):
                 return energy, "UFF geometry, MMFF single-point"
         return None
 
-    @staticmethod
-    def _separate_fragment_centroids(mol, cid: int, gap: float = 1.5):
-        """把各碎片沿 x 轴按质心拉开（相邻碎片间距 = 半径和 + gap），确定性消除碎片叠放。"""
+    def _run_complex(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
+        """多组分输入：以**组装结果**作为复合物构象候选（组装参数由用户批准）。
+
+        不再对整体做 ETKDG 系综嵌入——那会把碎片相对取向随机化，等于把"复合物"退回随机叠加。
+        组装自身的能窗与 RMSD 聚类已按批准参数执行；这里只额外应用调用方显式给出的
+        ``distance_filters``（作为反应中心/预组织窗口的可选筛选），并如实报告每个候选。
+        """
+        from cloudra.tools.core.structure_artifacts import read_xyz_atoms
+
+        prepared = self._prepare(user_input, out_dir, embed=True, optimize=True)
+        if prepared.status != "ok" or not prepared.has_coordinates or prepared.assembly is None:
+            return self._build_failure(prepared)
+
+        assembly = prepared.assembly
+        if not assembly.candidates:
+            return ConformerSearch_output_schema(
+                is_success=False,
+                message=(
+                    "Assembly produced no complex candidate for this multi-component input "
+                    f"(assembly status: {assembly.status}). {assembly.message}"
+                ),
+            )
+
         import numpy as np
 
-        conf = mol.GetConformer(cid)
-        pos = conf.GetPositions()
-        frags = Chem.GetMolFrags(mol)
-        offset = 0.0
-        for fi, frag in enumerate(frags):
-            pts = pos[list(frag)]
-            center = pts.mean(axis=0)
-            radius = float(np.linalg.norm(pts - center, axis=1).max())
-            shift = np.array([offset, 0.0, 0.0]) - center
-            for a in frag:
-                conf.SetAtomPosition(a, pos[a] + shift)
-            if fi + 1 < len(frags):
-                next_pts = pos[list(frags[fi + 1])]
-                next_radius = float(np.linalg.norm(next_pts - next_pts.mean(axis=0), axis=1).max())
-                offset += radius + gap + next_radius
+        frames = []
+        for candidate in assembly.candidates:
+            atoms = read_xyz_atoms(candidate.xyz_path)
+            frames.append({
+                "conf_id": candidate.candidate_id,
+                "rel_energy_kcal": candidate.rel_energy_kcal,
+                "abs_energy": candidate.energy_kcal,
+                "positions": np.asarray([position for _symbol, position in atoms], dtype=float),
+                "cluster_id": candidate.cluster_id,
+                "min_interfragment_distance": candidate.min_interfragment_distance,
+                "trajectory_id": candidate.trajectory_id,
+            })
 
-    def _resolve_overlap(self, mol, cid: int, overlap_pairs: list[tuple[int, int]],
-                         base_seed: int, max_attempts: int = 3) -> bool:
-        """解除碎片叠放：useRandomCoords 加大盒子原位重嵌 max_attempts 次，仍叠放则质心分离兜底。
-        返回最终是否无叠放。"""
-        if not self._has_overlap(mol, cid, overlap_pairs):
-            return True
-        target = mol.GetConformer(cid)
-        for attempt in range(max_attempts):
-            params = AllChem.ETKDGv3()
-            params.randomSeed = base_seed + 1000 * (attempt + 1) + cid
-            params.useRandomCoords = True
-            params.boxSizeMult = 8.0
-            params.clearConfs = False
-            new_id = AllChem.EmbedMolecule(mol, params=params)
-            if new_id >= 0:
-                new_conf = mol.GetConformer(new_id)
-                for i in range(mol.GetNumAtoms()):
-                    target.SetAtomPosition(i, new_conf.GetAtomPosition(i))
-                mol.RemoveConformer(new_id)
-                if not self._has_overlap(mol, cid, overlap_pairs):
-                    return True
-        self._separate_fragment_centroids(mol, cid)
-        return not self._has_overlap(mol, cid, overlap_pairs)
+        natoms = len(frames[0]["positions"])
+        self._check_filters(user_input, natoms)
+        has_filters = bool(user_input.distance_filters)
+        for frame in frames:
+            frame["passes_filters"] = (
+                self._filter_pass(frame["positions"], user_input.distance_filters)
+                if has_filters else True
+            )
 
-    def _run_rdkit(self, user_input: ConformerSearch_input_schema) -> ConformerSearch_output_schema:
+        pops = self._boltzmann([f["rel_energy_kcal"] for f in frames], user_input.temperature)
+        for frame, population in zip(frames, pops):
+            frame["boltzmann_pct"] = round(population, 1)
+
+        ref_pos = frames[0]["positions"]
+        for frame in frames:
+            frame["rmsd_to_conf0"] = _kabsch_rmsd(frame["positions"], ref_pos)
+
+        # 落盘多帧系综（与单组分路径同一文件契约）
+        xyz_path = os.path.join(out_dir, "confs.xyz")
+        chunks = []
+        for frame in frames:
+            lines = [
+                str(natoms),
+                f"conf_id={frame['conf_id']} rel_energy_kcal={frame['rel_energy_kcal']:.4f} "
+                f"cluster_id={frame['cluster_id']} "
+                f"min_interfragment_distance={frame['min_interfragment_distance']:.4f}",
+            ]
+            for symbol, position in zip(prepared.symbols, frame["positions"]):
+                lines.append(f"{symbol:<3} {position[0]:>14.6f} {position[1]:>14.6f} {position[2]:>14.6f}")
+            chunks.append("\n".join(lines) + "\n")
+        atomic_write_text(xyz_path, "".join(chunks))
+
+        counts = {
+            "generated": assembly.sampled_placements,
+            "optimized": assembly.optimized_placements,
+            "collision_rejected": assembly.collision_rejected,
+            "collapsed_after_relaxation": assembly.collapsed_after_relaxation,
+            "within_window": len(assembly.candidates),
+            "clusters": len({f["cluster_id"] for f in frames}),
+        }
+        extra = (
+            f"Multi-component input: candidates come from the approved complex assembly "
+            f"({assembly.mode} mode, {assembly.parameters.orientations} relative orientations, "
+            f"{assembly.parameters.min_interfragment_distance} Å inter-fragment collision criterion, "
+            f"{assembly.parameters.energy_window_kcal} kcal/mol window, "
+            f"{assembly.parameters.rmsd_threshold} Å heavy-atom RMSD clustering). "
+            f"Assembly artifacts: {assembly.artifact_path}. "
+            "No whole-complex ETKDG ensemble was embedded: that would randomize the relative "
+            "fragment orientations and reduce the complex to a random overlay."
+        )
+        return self._finalize(user_input, frames, counts, xyz_path, extra_message=extra)
+
+    def _run_rdkit(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
         try:
-            if user_input.multiplicity > 1:
-                return ConformerSearch_output_schema(
-                    is_success=False,
-                    message=(
-                        "The RDKit force-field backend (MMFF/UFF) is closed-shell only and cannot model an "
-                        f"open-shell system (multiplicity={user_input.multiplicity}). Refusing to silently run "
-                        "it as a closed-shell molecule — use backend='crest', which passes --uhf = multiplicity - 1."
-                    ),
-                )
-            mol = self._load_mol(user_input)
-            mol = Chem.AddHs(mol, addCoords=True)
+            # 结构解析（含拆分自检、形式电荷自检、自旋自检）统一走共享构建器；
+            # 系综嵌入由本后端的 ETKDGv3 批量采样承担，故 embed=False。
+            prepared = self._prepare(user_input, out_dir, embed=False, optimize=False)
+            if len(prepared.components) > 1:
+                # 多组分输入的"构象系综"就是**组装**：ETKDG 对整体系综重新嵌入会把碎片相对取向
+                # 随机化，得到的是无意义的叠加。因此这里改走已批准的组装方案（complex_assembly），
+                # 候选即组装结果。
+                return self._run_complex(user_input, out_dir)
+            if prepared.status != "ok":
+                return self._build_failure(prepared)
+
+            mol, component = self._load_built_mol(prepared)
             natoms = mol.GetNumAtoms()
             self._check_filters(user_input, natoms)
 
@@ -447,24 +491,8 @@ class ConformerSearch(Tool):
                 return ConformerSearch_output_schema(is_success=False, message="RDKit conformer generation failed (no conformers embedded).")
             counts = {"generated": len(cids)}
 
-            # 多碎片体系需要碎片间相互作用参与优化（RDKit 默认 ignoreInterfragInteractions=True 会让各碎片
-            # 独立收敛到各自极小值：叠放不修复、能量全同、相对能量全零，见 issue #19）
-            overlap_pairs = self._interfragment_nonbonded_pairs(mol)
-            ignore_interfrag = not overlap_pairs
-
-            # 碎片间去重叠校验：ETKDG 逐碎片嵌入随机摆放，多碎片输入常互相叠放；先解除叠放再优化
-            counts["overlap_dropped"] = 0
-            if overlap_pairs:
-                n_before = len(cids)
-                cids = [cid for cid in cids
-                        if self._resolve_overlap(mol, cid, overlap_pairs, user_input.random_seed)]
-                counts["overlap_dropped"] = n_before - len(cids)
-                if not cids:
-                    return ConformerSearch_output_schema(
-                        is_success=False,
-                        message="All conformers showed inter-fragment overlap (<1.0 Å non-bonded contacts) "
-                                "that re-embedding could not resolve; aborting.",
-                    )
+            # 单组分体系不涉及碎片间相互作用：构建器已保证多组分输入在进入本后端之前被拒。
+            ignore_interfrag = True
 
             # MMFF 优化；逐构象检查收敛标志，失败者加大迭代次数重试并回退 UFF，两者皆败剔除（0.0 绝不当作能量）。
             # UFF 只作几何优化引擎：MMFF 与 UFF 零点不同（可差 ~17 kcal/mol），UFF 回退构象的几何统一用
@@ -505,19 +533,6 @@ class ConformerSearch(Tool):
                     is_success=False,
                     message="Force-field optimization failed for all conformers (MMFF and UFF); no valid energies, aborting.",
                 )
-
-            # 优化后复查叠放（分离起点 + 碎片间相互作用理论上不会叠放，仍出现则剔除）
-            if overlap_pairs:
-                n_before = len(energies)
-                energies = {cid: e for cid, e in energies.items()
-                            if not self._has_overlap(mol, cid, overlap_pairs)}
-                counts["overlap_dropped"] += n_before - len(energies)
-                if not energies:
-                    return ConformerSearch_output_schema(
-                        is_success=False,
-                        message="All conformers showed inter-fragment overlap (<1.0 Å non-bonded contacts) "
-                                "after optimization; aborting.",
-                    )
 
             valid_cids = [cid for cid in cids if cid in energies]
             e_min = min(energies.values())
@@ -594,7 +609,6 @@ class ConformerSearch(Tool):
             for k, p in zip(kept, pops):
                 k["boltzmann_pct"] = round(p, 1)
 
-            out_dir = self._resolve_output_dir(user_input)
             os.makedirs(out_dir, exist_ok=True)
             sdf_path = os.path.join(out_dir, "confs.sdf")
             xyz_path = os.path.join(out_dir, "confs.xyz")
@@ -621,7 +635,11 @@ class ConformerSearch(Tool):
             atomic_write_text(sdf_path, "".join(sdf_chunks))
             atomic_write_text(xyz_path, "".join(xyz_chunks))
 
-            extra = f"Force field: {ff_name} (energies in kcal/mol)."
+            extra = (
+                f"Force field: {ff_name} (energies in kcal/mol). "
+                f"Structure resolved by the shared builder (component {component.component_id}, "
+                f"build artifacts: {prepared.artifact_path})."
+            )
             if counts["reactive_rescued"]:
                 extra += (
                     f"{counts['reactive_rescued']} lowest-energy reactive conformer(s) outside the energy window were "
@@ -634,129 +652,59 @@ class ConformerSearch(Tool):
 
     # ---------- CREST 后端 ----------
 
-    @staticmethod
-    def _parse_crest_xyz(path: str) -> list[dict]:
-        """解析 crest_conformers.xyz：每帧注释行含 Eh 能量。返回 [{'energy_eh':..., 'positions':...}]。"""
-        frames = []
-        with open(path, encoding="utf-8", errors="replace") as f:
-            content = f.read()
-        lines = [ln for ln in content.splitlines()]
-        idx = 0
-        while idx < len(lines):
-            if not lines[idx].strip():
-                idx += 1
-                continue
-            try:
-                natoms = int(lines[idx].strip())
-            except ValueError:
-                idx += 1
-                continue
-            comment = lines[idx + 1] if idx + 1 < len(lines) else ""
-            m = re.search(r"-?\d+\.\d+", comment)
-            if m is None:
-                raise ValueError(f"crest output frame missing energy annotation: {comment!r}")
-            energy_eh = float(m.group(0))
-            coords = []
-            for ln in lines[idx + 2: idx + 2 + natoms]:
-                parts = ln.split()
-                if len(parts) >= 4:
-                    coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
-            if len(coords) != natoms:
-                raise ValueError("crest output frame has an incomplete atom count")
-            frames.append({"energy_eh": energy_eh, "positions": coords, "comment": comment})
-            idx += 2 + natoms
-        if not frames:
-            raise ValueError("No conformer frames parsed from crest_conformers.xyz")
-        return frames
-
-    @staticmethod
-    def _crest_command(user_input: ConformerSearch_input_schema) -> list[str]:
-        """CREST 命令行：电荷与自旋（--uhf = multiplicity - 1，与 xtb 通道口径一致）显式透传。"""
-        return [
-            "crest", "input.xyz", "-gfn2", "--quick",
-            "--chrg", str(user_input.charge),
-            "--uhf", str(user_input.multiplicity - 1),
-        ]
-
-    def _run_crest(self, user_input: ConformerSearch_input_schema) -> ConformerSearch_output_schema:
-        if shutil.which("crest") is None:
-            return ConformerSearch_output_schema(
-                is_success=False,
-                message="crest executable not found. Install CREST (https://crest-lab.github.io/crest-docs/) "
-                        "and ensure it is on PATH, or use backend='rdkit'."
-            )
-
+    def _run_crest(self, user_input: ConformerSearch_input_schema, out_dir: str) -> ConformerSearch_output_schema:
         try:
-            # 组装输入 xyz：优先复用已有结构文本；smiles 先用 RDKit 生成一个 3D 结构
-            if user_input.smiles:
-                if not _RDKIT_AVAILABLE:
-                    return ConformerSearch_output_schema(
-                        is_success=False,
-                        message="smiles input requires RDKit to generate an initial 3D structure. Install it with: pip install 'cloudra[chem]'"
-                    )
-                mol = Chem.AddHs(Chem.MolFromSmiles(user_input.smiles))
-                if AllChem.EmbedMolecule(mol, AllChem.ETKDGv3()) == -1:
-                    return ConformerSearch_output_schema(is_success=False, message="Failed to generate an initial 3D structure from SMILES.")
-                AllChem.MMFFOptimizeMolecule(mol)
-                xyz_text = Chem.MolToXYZBlock(mol)
-            else:
-                text, fmt = self._read_input_text(user_input)
-                if fmt == "sdf":
-                    if not _RDKIT_AVAILABLE:
-                        return ConformerSearch_output_schema(
-                            is_success=False,
-                            message="sdf input requires RDKit to convert coordinates. Install it with: pip install 'cloudra[chem]'"
-                        )
-                    mol = Chem.MolFromMolBlock(text, removeHs=False)
-                    if mol is None:
-                        return ConformerSearch_output_schema(is_success=False, message="Could not parse the input sdf/mol text")
-                    xyz_text = Chem.MolToXYZBlock(mol)
-                else:
-                    xyz_text = text
+            # 种子结构由共享构建器产出（embed+optimize）：多组分输入在这里就被拒，
+            # 互穿几何绝不会被喂给 CREST/xTB（issue #33 的直接病因）。
+            prepared = self._prepare(user_input, out_dir, embed=True, optimize=True)
+            if prepared.status != "ok" or not prepared.has_coordinates:
+                return self._build_failure(prepared)
 
-            out_dir = self._resolve_output_dir(user_input)
-            os.makedirs(out_dir, exist_ok=True)
+            seed_path = prepared.candidate_path(".xyz")
+            with open(seed_path, encoding="utf-8") as handle:
+                seed_xyz = handle.read()
 
-            with tempfile.TemporaryDirectory(prefix="crest_", dir=out_dir) as workdir:
-                input_xyz = os.path.join(workdir, "input.xyz")
-                atomic_write_text(input_xyz, xyz_text)
-                proc = subprocess.run(
-                    self._crest_command(user_input),
-                    cwd=workdir, capture_output=True, text=True, timeout=user_input.timeout,
+            # 用户批准（Task 4 门）：多碎片输入默认加 --noreftopo，只关搜索前的初始拓扑检查。
+            # 单组分输入不加该选项（没有片间拓扑可变化，加了只会掩盖真实问题）。
+            multi_fragment = len(prepared.components) > 1
+            run = run_crest(CrestRunRequest(
+                xyz_text=seed_xyz,
+                output_dir=out_dir,
+                charge=user_input.charge,
+                multiplicity=user_input.multiplicity,
+                timeout=user_input.timeout,
+                run_label="crest",
+                noreftopo=multi_fragment,
+            ))
+            if not run.scientific_success:
+                details = " | ".join(run.diagnostics) if run.diagnostics else ""
+                return ConformerSearch_output_schema(
+                    is_success=False,
+                    message=(
+                        f"CREST backend did not produce a usable ensemble "
+                        f"(termination={run.termination_reason}, stage={run.stage}, "
+                        f"returncode={run.returncode}). {run.message}"
+                        + (f" Diagnostics: {details}" if details else "")
+                        + " A failed or partial run never enters the conformer ranking."
+                    ),
                 )
-                crest_xyz = os.path.join(workdir, "crest_conformers.xyz")
-                if not os.path.isfile(crest_xyz):
-                    tail = (proc.stdout or "")[-2000:]
-                    err_tail = (proc.stderr or "")[-1000:]
-                    return ConformerSearch_output_schema(
-                        is_success=False,
-                        message=f"CREST did not produce crest_conformers.xyz (returncode={proc.returncode}).\n"
-                                f"stdout tail:\n{tail}\nstderr tail:\n{err_tail}"
-                    )
-                try:
-                    frames = self._parse_crest_xyz(crest_xyz)
-                except Exception as e:
-                    tail = (proc.stdout or "")[-2000:]
-                    return ConformerSearch_output_schema(
-                        is_success=False,
-                        message=f"Failed to parse crest_conformers.xyz: {e}\nstdout tail:\n{tail}"
-                    )
 
-            natoms = len(frames[0]["positions"])
+            frames = run.conformers
+            natoms = len(frames[0].positions)
             self._check_filters(user_input, natoms)
 
-            e_min = min(f["energy_eh"] for f in frames)
+            e_min = min(f.energy_eh for f in frames)
             counts = {
                 "generated": len(frames),
                 "optimized": len(frames),
             }
             frame_rows = []
-            for frame_id, f in enumerate(frames):
-                rel_kcal = (f["energy_eh"] - e_min) * _EH_TO_KCAL
+            for f in frames:
+                rel_kcal = (f.energy_eh - e_min) * _EH_TO_KCAL
                 import numpy as np
-                pos = np.asarray(f["positions"], dtype=float)
+                pos = np.asarray(f.positions, dtype=float)
                 frame_rows.append({
-                    "frame_id": frame_id,
+                    "frame_id": f.frame_index,
                     "rel_energy_kcal": rel_kcal,
                     "positions": pos,
                     "passes_filters": (self._filter_pass(pos, user_input.distance_filters)
@@ -796,7 +744,7 @@ class ConformerSearch(Tool):
                 k["rmsd_to_conf0"] = _kabsch_rmsd(k["positions"], ref_pos)
 
             # 拷贝系综到 output_dir（多帧 xyz，注释行带 kcal/mol 相对能量）
-            symbols = [ln.split()[0] for ln in xyz_text.splitlines()[2: 2 + natoms]]
+            symbols = prepared.symbols
             xyz_path = os.path.join(out_dir, "confs.xyz")
             chunks = []
             for k in kept:
@@ -806,7 +754,18 @@ class ConformerSearch(Tool):
                 chunks.append("\n".join(lines) + "\n")
             atomic_write_text(xyz_path, "".join(chunks))
 
-            extra = "Backend: CREST (GFN2-xTB, --quick). The ensemble was deduplicated by CREST; no further RMSD clustering was applied."
+            extra = (
+                "Backend: CREST (GFN2-xTB, --quick). The ensemble was deduplicated by CREST; "
+                "no further RMSD clustering was applied. "
+                f"CREST run directory (persistent): {run.run_dir}"
+            )
+            if multi_fragment:
+                extra += (
+                    " NOTE: this input has multiple components, so --noreftopo was passed: the initial "
+                    "topology check before the search was disabled (CREGEN's in-search topology checks "
+                    "were NOT disabled). Any topology change is recorded in the run result's "
+                    "topology_change field."
+                )
             if counts["reactive_rescued"]:
                 extra += (
                     f"{counts['reactive_rescued']} lowest-energy reactive conformer(s) outside the energy window were "
@@ -814,11 +773,6 @@ class ConformerSearch(Tool):
                 )
             return self._finalize(user_input, kept, counts, xyz_path, extra_message=extra)
 
-        except subprocess.TimeoutExpired:
-            return ConformerSearch_output_schema(
-                is_success=False,
-                message=f"CREST run timed out (>{user_input.timeout}s). Increase timeout or use backend='rdkit'."
-            )
         except Exception as e:
             return ConformerSearch_output_schema(is_success=False, message=f"CREST backend failed: {e}")
 
@@ -840,16 +794,22 @@ class ConformerSearch(Tool):
                 message=f"multiplicity must be >= 1 (2S+1), got {user_input.multiplicity}.",
             )
 
+        # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径保持既有权限语义。
+        out_dir = self._resolve_output_dir(user_input)
+        if user_input.input_path:
+            user_input.input_path = resolve_tool_path(self, user_input.input_path)
+        user_input.output_dir = resolve_tool_path(self, out_dir)
+
         # CREST / RDKit 都是同步 CPU/子进程；必须离开 UI 事件循环，否则 TUI 假死。
         if user_input.backend == "crest":
-            return await asyncio.to_thread(self._run_crest, user_input)
+            return await asyncio.to_thread(self._run_crest, user_input, user_input.output_dir)
 
         if not _RDKIT_AVAILABLE:
             return ConformerSearch_output_schema(
                 is_success=False,
                 message="RDKit is not installed. Install it with: pip install 'cloudra[chem]'"
             )
-        return await asyncio.to_thread(self._run_rdkit, user_input)
+        return await asyncio.to_thread(self._run_rdkit, user_input, user_input.output_dir)
 
 
 def get_class():

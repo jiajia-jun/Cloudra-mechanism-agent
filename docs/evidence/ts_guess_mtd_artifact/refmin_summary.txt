@@ -1,0 +1,16 @@
+# verbatim extraction from .tscheck/m1_eval/min_frame0/min.stdout.log
+  426:          *                GEOMETRY OPTIMIZATION CYCLE   1            *
+ 1680: FINAL SINGLE POINT ENERGY      -541.187550419849
+ 1970:          *                GEOMETRY OPTIMIZATION CYCLE   2            *
+ 2375: FINAL SINGLE POINT ENERGY      -541.189238420780
+ 2670:          *                GEOMETRY OPTIMIZATION CYCLE   3            *
+ 3065: FINAL SINGLE POINT ENERGY      -541.189561547960
+ 3360:          *                GEOMETRY OPTIMIZATION CYCLE   4            *
+ 3754: FINAL SINGLE POINT ENERGY      -541.189603719633
+ 4049:          *                GEOMETRY OPTIMIZATION CYCLE   5            *
+ 4444: FINAL SINGLE POINT ENERGY      -541.189616766134
+ 4739:          *                GEOMETRY OPTIMIZATION CYCLE   6            *
+ 5132: FINAL SINGLE POINT ENERGY      -541.189616361148
+ 6661: FINAL SINGLE POINT ENERGY      -541.189617864318
+ 6664:                                 *** OPTIMIZATION RUN DONE ***
+ 6870:                              ****ORCA TERMINATED NORMALLY****

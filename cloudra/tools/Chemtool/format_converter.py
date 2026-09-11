@@ -203,23 +203,32 @@ class FormatConverter(Tool):
             # 按规范顺序展示（opt+ts+freq 风格，而非字母序）
             ordered = [j for j in ("opt", "ts", "freq", "scan", "irc", "sp") if j in job_types]
             if not frames:
+                # 空帧必须带上**具体原因**：IRC 的路径点在边文件里、NEB 的几何在逐图像边文件里，
+                # 两者都是"主输出没有但作业确实产出了几何"的情形，笼统一句"没有关键帧"没有信息量
+                reason = None
+                if engine == "orca":
+                    reason = orca_frames.frames_unavailable_reason(user_input.input_path)
+                explanation = f" Reason: {reason}." if reason else (
+                    " Check that the log contains a finished opt/scan job."
+                )
                 return FormatConverter_output_schema(
                     is_success=False,
                     output_path="",
-                    message=f"No key frames could be extracted from the {engine or 'unknown'}-engine log "
-                            f"(detected as {'+'.join(ordered) or 'unknown'}): {user_input.input_path}. "
-                            "Check that the log contains a finished opt/scan job "
-                            "(ORCA IRC per-point coordinates live in the *_trj.xyz side "
-                            "files, so no coordinate frames here; IRC point counts, "
-                            "convergence and endpoint energies are still available via "
-                            "log_parser)."
+                    message=(
+                        f"No key frames could be extracted from the {engine or 'unknown'}-engine log "
+                        f"(detected as {'+'.join(ordered) or 'unknown'}): {user_input.input_path}."
+                        f"{explanation}"
+                    ),
                 )
             if user_input.output_format == "csv":
                 frames_to_csv(frames, user_input.output_path)
                 return FormatConverter_output_schema(
                     is_success=True,
                     output_path=user_input.output_path,
-                    message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} frames -> {user_input.output_path}"
+                    message=(
+                        f"Detected {engine or 'unknown'} {'+'.join(ordered)}, wrote {len(frames)} "
+                        f"frames from {user_input.input_path} -> {user_input.output_path}"
+                    )
                 )
             else:
                 last_frame = frames[-1]
@@ -231,7 +240,13 @@ class FormatConverter(Tool):
                 return FormatConverter_output_schema(
                     is_success=True,
                     output_path=user_input.output_path,
-                    message=f"Detected {engine or 'unknown'} {'+'.join(ordered)}, extracted final frame (frame {last_frame.frame}) -> {user_input.output_path}"
+                    message=(
+                        f"Detected {engine or 'unknown'} {'+'.join(ordered)}, extracted final frame "
+                        f"(frame {last_frame.frame}) from {user_input.input_path} -> "
+                        f"{user_input.output_path}. NOTE: an extracted geometry is a coordinate "
+                        "artifact only — it does not imply the source job terminated normally, and "
+                        "requesting a geometry never validates frequencies/TS."
+                    )
                 )
         except Exception as e:
             return FormatConverter_output_schema(

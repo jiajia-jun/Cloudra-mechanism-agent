@@ -301,3 +301,107 @@ async def test_qm_input_writer_external_params_requires_external_program(tmp_pat
     )
     assert result.is_success is False
     assert "external_program" in result.message
+
+
+# ---------------------------------------------------------------------------
+# issue #33：SMILES 源不得写出含互穿片段坐标的输入文件
+# 复现材料见 tests/fixtures/chemtool_issue33/（实测 F–C 0.1392 Å）
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_smiles_source_multifragment_writes_an_assembled_complex(tmp_path):
+    """多碎片 SMILES 源：写入的必须是**已组装**的复合物坐标，不得是互穿几何。
+
+    旧行为是把逐碎片独立嵌入的坐标（实测 F–C 0.1392 Å）逐字写进 .gjf；现在经已批准的
+    组装方案（刚性放置 + 碰撞剔除 + 力场弛豫）产出候选后，再从中取坐标写文件。
+    """
+    import json as _json
+
+    import numpy as np
+
+    gjf = tmp_path / "complex.gjf"
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="gaussian",
+            source_type="smiles",
+            source_value="[F-].CCl",
+            charge=-1,
+            task_type=[{"opt": None}],
+            output_dir=str(gjf),
+        ),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    assert gjf.exists()
+    text = gjf.read_text(encoding="utf-8")
+    # 碎片划分取自构建器记录的稳定身份表（逐组分加氢，顺序不能靠重新推导）
+    prepared = _json.loads(
+        (tmp_path / "structure_build" / "complex" / "prepared_structure.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    frag_of = {
+        index: int(identity["component_id"].removeprefix("frag"))
+        for index, identity in enumerate(prepared["atom_identities"])
+    }
+    assert len(set(frag_of.values())) == 2
+
+    # 从 .gjf 里解析坐标块（charge/multiplicity 行之后的原子行）
+    lines = text.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.strip() == "-1 1") + 1
+    coords = []
+    for ln in lines[start:]:
+        parts = ln.split()
+        if len(parts) != 4:
+            break
+        coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
+    assert len(coords) == 6
+    pos = np.asarray(coords, dtype=float)
+    worst = min(
+        float(np.linalg.norm(pos[i] - pos[j]))
+        for i in range(len(pos)) for j in range(i + 1, len(pos))
+        if frag_of[i] != frag_of[j]
+    )
+    assert worst >= 1.0, f"写出的输入仍含亚 1 Å 碎片间接触：{worst:.3f} Å"
+    assert (tmp_path / "structure_build" / "complex" / "assembly" / "assembly.json").is_file()
+
+
+@pytest.mark.asyncio
+async def test_smiles_source_single_molecule_uses_shared_builder(tmp_path):
+    """单分子 SMILES 源经共享构建器产出坐标，并留下轨迹现场。"""
+    gjf = tmp_path / "acetic.gjf"
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="gaussian",
+            source_type="smiles",
+            source_value="CC(=O)O",
+            task_type=[{"opt": None}],
+            output_dir=str(gjf),
+        ),
+        session=None,
+    )
+    assert result.is_success is True, result.message
+    text = gjf.read_text(encoding="utf-8")
+    assert "expected_smiles: CC(=O)O" in text
+    assert (tmp_path / "structure_build" / "acetic" / "trajectories.json").is_file()
+
+
+@pytest.mark.asyncio
+async def test_smiles_source_charge_mismatch_is_refused(tmp_path):
+    """SMILES 形式电荷与 charge 不符时必须拒绝，不得按错误电子态写文件。"""
+    gjf = tmp_path / "wrong.gjf"
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="gaussian",
+            source_type="smiles",
+            source_value="[F-].CCl",
+            charge=0,
+            task_type=[{"opt": None}],
+            output_dir=str(gjf),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert not gjf.exists()
+    assert "charge_mismatch" in result.message

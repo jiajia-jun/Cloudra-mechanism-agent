@@ -1,0 +1,18 @@
+guess (frame 10) vs reactant (frame 0):
+  torsion C1-C6-C7-C8      : -108.03 deg  vs -86.62 deg  (delta -21.41)
+  all-atom RMSD (no fit)   : 0.780 A
+  max atom displacement    : 1.292 A (atom 14, H)
+  heavy-atom RMSD (no fit) : 0.534 A
+  max heavy-atom displ.    : 0.900 A (atom 0)
+  methyl H..H (min)        : 1.932 A  vs 2.685 A
+
+free relaxation of the guess (no constraint):
+  E = -37.106634240067 Eh  (xTB minimum -0.008 kcal/mol)
+  lands at torsion -84.33 deg, methyl H..H 2.690 A
+
+relaxation with the guess's own torsion held (target 288.0 deg):
+  E = -37.105037245407 Eh  (xTB minimum +0.994 kcal/mol)
+  achieved torsion -107.90 deg, methyl H..H 2.188 A
+
+the guess frame's own single point, for reference:
+  E = -37.031083940530 Eh  (xTB minimum +47.400 kcal/mol)

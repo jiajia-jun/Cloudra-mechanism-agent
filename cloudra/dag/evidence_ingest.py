@@ -37,6 +37,11 @@ class TSValidationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     is_valid: bool
+    verified: bool = Field(
+        description="Whether the verdict is backed by actual frequency data. False means "
+                    "'unverified': there was nothing to judge, so this result must never be used "
+                    "to mark a step complete.",
+    )
     n_imag: int
     imaginary_frequencies: list[float] = Field(default_factory=list)
     mode_matched: bool = True
@@ -49,6 +54,11 @@ class SpeciesValidationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     is_valid: bool
+    verified: bool = Field(
+        description="Whether the verdict is backed by actual frequency data. False means "
+                    "'unverified': no frequency analysis was provided, so the species is NOT a "
+                    "verified stationary minimum and must never be marked complete.",
+    )
     n_imag: int
     imaginary_frequencies: list[float] = Field(default_factory=list)
     message: str = ""
@@ -175,9 +185,13 @@ def validate_ts_mode(
     if freqs is None and imaginary_freqs is None:
         return TSValidationResult(
             is_valid=False,
+            verified=False,
             n_imag=0,
             imaginary_frequencies=[],
-            message="No frequency data available in the provided calculation output.",
+            message=(
+                "No frequency data available in the provided calculation output; the transition "
+                "state is UNVERIFIED (submit a freq job for this structure)."
+            ),
         )
 
     if imaginary_freqs is not None:
@@ -192,6 +206,7 @@ def validate_ts_mode(
             msg += f" Mode description: {description}."
         return TSValidationResult(
             is_valid=True,
+            verified=True,
             n_imag=1,
             imaginary_frequencies=imag,
             mode_matched=True,
@@ -200,6 +215,7 @@ def validate_ts_mode(
     elif n_imag == 0:
         return TSValidationResult(
             is_valid=False,
+            verified=True,
             n_imag=0,
             imaginary_frequencies=[],
             mode_matched=False,
@@ -208,6 +224,7 @@ def validate_ts_mode(
     else:
         return TSValidationResult(
             is_valid=False,
+            verified=True,
             n_imag=n_imag,
             imaginary_frequencies=imag,
             mode_matched=False,
@@ -221,11 +238,18 @@ def validate_species_minimum(
 ) -> SpeciesValidationResult:
     """校验稳定中间体/物种是否为驻点极小值（0 个虚频）。"""
     if freqs is None and imaginary_freqs is None:
+        # 三分量：verified-minimum / verified-not-minimum / unverified（无数据）。
+        # 单个 bool 承载不了第三态，曾导致"没做频率分析"被判成 is_valid=True，
+        # 于是 opt-only（甚至中途崩溃）的作业被当成已验证的驻点极小值登记进图。
         return SpeciesValidationResult(
-            is_valid=True,
+            is_valid=False,
+            verified=False,
             n_imag=0,
             imaginary_frequencies=[],
-            message="No vibrational frequency analysis provided (unverified stationary point).",
+            message=(
+                "No vibrational frequency analysis provided: the stationary point is UNVERIFIED "
+                "(submit a freq job for this structure, then resubmit the evidence)."
+            ),
         )
 
     if imaginary_freqs is not None:
@@ -237,6 +261,7 @@ def validate_species_minimum(
     if n_imag == 0:
         return SpeciesValidationResult(
             is_valid=True,
+            verified=True,
             n_imag=0,
             imaginary_frequencies=[],
             message="Valid stationary local minimum (0 imaginary frequencies).",
@@ -244,6 +269,7 @@ def validate_species_minimum(
     else:
         return SpeciesValidationResult(
             is_valid=False,
+            verified=True,
             n_imag=n_imag,
             imaginary_frequencies=imag,
             message=f"Invalid local minimum: found {n_imag} imaginary frequencies ({imag}).",

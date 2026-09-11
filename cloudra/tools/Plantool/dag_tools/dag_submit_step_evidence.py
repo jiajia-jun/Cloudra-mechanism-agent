@@ -111,9 +111,10 @@ class DagSubmitStepEvidence(DagToolBase):
             imaginary_freqs=ts_snap.imaginary_frequencies,
         )
         if not ts_val.is_valid:
+            kind = "was not verified" if not ts_val.verified else "failed validation"
             return fail(
                 "dag_submit_step_evidence",
-                f"TS validation failed: {ts_val.message}",
+                f"TS {kind}: {ts_val.message}",
                 accepted=False,
             )
 

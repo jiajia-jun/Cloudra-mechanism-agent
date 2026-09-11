@@ -26,7 +26,12 @@ from cloudra.benchmark import gen_easy_tasks, selfconsistency
 from cloudra.benchmark.accuracy import score_accuracy
 from cloudra.benchmark.graph_similarity import GedConfig, mechanism_similarity
 from cloudra.benchmark.integrity import EvidenceFile, audit_integrity, scan_evidence_files
-from cloudra.benchmark.method_policy import check_input_content, check_input_files, intercept
+from cloudra.benchmark.method_policy import (
+    check_input_content,
+    check_input_files,
+    check_method,
+    intercept,
+)
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BarrierReference,
@@ -613,6 +618,34 @@ def test_method_policy_content_whitelisted_method():
     assert check_input_content("hello world", policy, "notes.txt").allowed
 
 
+def test_method_policy_combo_entries_pin_basis():
+    """组合条目 `functional/basis` 把基组钉进许可：错基组或缺基组一律
+    fail-closed；ORCA `def2-SVP` 与 Gaussian `def2svp` 拼写归一；裸族条目
+    （xtb/mace，无基组概念）不约束基组。"""
+    policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+    # qm_input_writer 结构化路径：method 与 basis_set 分字段
+    assert check_method("b3lyp", policy, basis="def2svp").allowed
+    assert check_method("b3lyp", policy, basis="def2-SVP").allowed
+    assert not check_method("b3lyp", policy, basis="6-31g*").allowed
+    assert not check_method("b3lyp", policy).allowed  # 缺基组 fail-closed
+    assert check_method("b3lyp/def2svp", policy).allowed  # 方法字符串自带 slash
+    assert not check_method("b3lyp/def2tzvp", policy).allowed
+    assert check_method("xtb", policy).allowed  # 裸族条目无基组概念
+    # intercept 层接线：basis_set 字段参与判定
+    assert intercept("qm_input_writer", {"method": "b3lyp", "basis_set": "def2svp"}, policy).allowed
+    assert not intercept("qm_input_writer", {"method": "b3lyp", "basis_set": "sto-3g"}, policy).allowed
+    assert not intercept("qm_input_writer", {"method": "b3lyp"}, policy).allowed
+    # Gaussian 路由卡：slash 权威声明带基组
+    assert check_input_content("#p b3lyp/def2svp opt freq", policy, "t.gjf").allowed
+    assert not check_input_content("#p b3lyp/6-31g* opt", policy, "t.gjf").allowed
+    assert not check_input_content("# b3lyp opt", policy, "t.gjf").allowed
+    # ORCA 关键字行：同行基组与泛函配对；d3bj 是色散修饰不是方法
+    assert check_input_content("! b3lyp def2-SVP optts", policy, "t.inp").allowed
+    assert check_input_content("! b3lyp D3BJ def2-svp opt", policy, "t.inp").allowed
+    assert not check_input_content("! b3lyp def2-TZVP opt", policy, "t.inp").allowed
+    assert not check_input_content("! b3lyp opt", policy, "t.inp").allowed
+
+
 def test_method_policy_files_on_disk(tmp_path):
     """`g16 foo.gjf` 这类引用磁盘已有输入的调用由 check_input_files 覆盖。"""
     (tmp_path / "ok.gjf").write_text("# b3lyp/6-31g(d) opt\n")
@@ -918,6 +951,8 @@ def test_easy_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+        # easy/normal/hard 共用 xtb+b3lyp/def2svp 组合白名单（基组钉进许可）；impossible 保持 xtb-only
+        assert t.method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
 
 
 def test_normal_tasks_regenerate_identically():
@@ -932,6 +967,7 @@ def test_normal_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+        assert t.method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
 
 
 def test_hard_tasks_regenerate_identically():
@@ -948,6 +984,7 @@ def test_hard_tasks_regenerate_identically():
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
         # hard 档一律 stereo 计代价
         assert t.rubric.graph_similarity.stereo_tier_rule == "hard_stereo_costly"
+        assert t.method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
 
 
 def test_impossible_tasks_regenerate_identically():
@@ -971,6 +1008,8 @@ def test_impossible_tasks_regenerate_identically():
         assert committed.is_file(), f"missing committed task file: {committed}"
         regenerated = json.loads(json.dumps(t.model_dump(mode="json", by_alias=True)))
         assert json.loads(committed.read_text(encoding="utf-8")) == regenerated
+        # impossible 保持 xtb-only：I 系靠单参考方法边界触发科学拒答，开 DFT 会破坏该校准
+        assert t.method_policy.allowed_methods == ["xtb"]
         # 配对双向互指
         assert by_id[t.pair_id].pair_id == t.task_id
         graph = t.gold.mechanism_graph

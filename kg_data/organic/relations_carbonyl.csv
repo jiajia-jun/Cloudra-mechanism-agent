@@ -1,0 +1,369 @@
+src_id,dst_id,rel_type,evidence_level,source,falsified,note
+reaction:Aldol addition,mechanism_step:Aldol#1_enolate_formation,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+reaction:Aldol addition,mechanism_step:Aldol#2_carbonyl_addition,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+reaction:Aldol addition,mechanism_step:Aldol#3_alkoxide_protonation,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+mechanism_step:Aldol#1_enolate_formation,mechanism_step:Aldol#2_carbonyl_addition,step_next,L0,org:carbonyl:1,false,步骤顺序
+mechanism_step:Aldol#2_carbonyl_addition,mechanism_step:Aldol#3_alkoxide_protonation,step_next,L0,org:carbonyl:1,false,步骤顺序
+reaction:Aldol addition,condition:LDA THF -78C,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,condition:NaHMDS THF,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,condition:NaOMe MeOH reflux,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,condition:THF solvent,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,condition:-78C temperature,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,condition:inert atmosphere,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,condition:proline catalyst,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Aldol addition,molecule:beta-hydroxy aldol product,produces,L0,org:carbonyl:1,false,生成主产物
+reaction:Aldol addition,functional_group:aldehyde,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Aldol addition,functional_group:ketone,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Aldol addition,functional_group:enolate,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Aldol addition,functional_group:beta_hydroxy_carbonyl,applies_to,L0,org:carbonyl:1,false,适用官能团
+side_pathway:Aldol#retro_aldol,reaction:Aldol addition,competes_with,L0,org:carbonyl:1,false,副路径与主反应竞争
+side_pathway:Aldol#retro_aldol,condition:-78C temperature,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+side_pathway:Aldol#retro_aldol,condition:acidic workup,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+side_pathway:Aldol#self_condensation,reaction:Aldol addition,competes_with,L0,org:carbonyl:1,false,副路径与主反应竞争
+side_pathway:Aldol#self_condensation,condition:LDA THF -78C,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+side_pathway:Aldol#polymerization,reaction:Aldol addition,competes_with,L0,org:carbonyl:1,false,副路径与主反应竞争
+side_pathway:Aldol#polymerization,condition:-78C temperature,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+side_pathway:Aldol#polymerization,condition:high dilution,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+reaction:Aldol addition,mechanism_step:Aldol#4_dehydration,proceeds_via,L0,org:carbonyl:1,false,脱水缩合为aldol condensation支路
+reaction:Mukaiyama aldol,mechanism_step:Mukaiyama aldol#1_LA_activation,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+reaction:Mukaiyama aldol,mechanism_step:Mukaiyama aldol#2_silyl_transfer_addition,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+reaction:Mukaiyama aldol,mechanism_step:Mukaiyama aldol#3_hydrolysis,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+mechanism_step:Mukaiyama aldol#1_LA_activation,mechanism_step:Mukaiyama aldol#2_silyl_transfer_addition,step_next,L0,org:carbonyl:1,false,步骤顺序
+mechanism_step:Mukaiyama aldol#2_silyl_transfer_addition,mechanism_step:Mukaiyama aldol#3_hydrolysis,step_next,L0,org:carbonyl:1,false,步骤顺序
+reaction:Mukaiyama aldol,condition:BF3 etherate Lewis acid,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Mukaiyama aldol,condition:TiCl4 Lewis acid,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Mukaiyama aldol,condition:BF3 catalytic Mukaiyama,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Mukaiyama aldol,condition:dichloromethane solvent,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Mukaiyama aldol,condition:-78C temperature,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Mukaiyama aldol,molecule:beta-hydroxy aldol product,produces,L0,org:carbonyl:1,false,生成主产物
+reaction:Mukaiyama aldol,functional_group:aldehyde,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Mukaiyama aldol,functional_group:silyl_enol_ether,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Mukaiyama aldol,functional_group:beta_hydroxy_carbonyl,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Mukaiyama aldol,molecule:BF3 etherate,uses_catalyst,L0,org:carbonyl:1,false,使用催化剂
+side_pathway:Mukaiyama aldol#silyl_ether_polymerization,reaction:Mukaiyama aldol,competes_with,L0,org:carbonyl:1,false,副路径与主反应竞争
+side_pathway:Mukaiyama aldol#silyl_ether_polymerization,condition:-78C temperature,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+side_pathway:Mukaiyama aldol#silyl_ether_polymerization,condition:TiCl4 Lewis acid,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+reaction:Directed aldol,mechanism_step:Directed aldol#1_kinetic_enolate,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+reaction:Directed aldol,mechanism_step:Directed aldol#2_ZT_addition,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+reaction:Directed aldol,mechanism_step:Directed aldol#3_quench,proceeds_via,L0,org:carbonyl:1,false,反应经该基元步骤
+mechanism_step:Directed aldol#1_kinetic_enolate,mechanism_step:Directed aldol#2_ZT_addition,step_next,L0,org:carbonyl:1,false,步骤顺序
+mechanism_step:Directed aldol#2_ZT_addition,mechanism_step:Directed aldol#3_quench,step_next,L0,org:carbonyl:1,false,步骤顺序
+reaction:Directed aldol,condition:LDA THF -78C,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Directed aldol,condition:LDA boron enolate,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Directed aldol,condition:THF solvent,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Directed aldol,condition:-78C temperature,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Directed aldol,condition:acidic workup,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Directed aldol,condition:inert atmosphere,requires,L0,org:carbonyl:1,false,反应需要该条件
+reaction:Directed aldol,molecule:beta-hydroxy aldol product,produces,L0,org:carbonyl:1,false,生成主产物
+reaction:Directed aldol,functional_group:aldehyde,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Directed aldol,functional_group:enolate,applies_to,L0,org:carbonyl:1,false,适用官能团
+reaction:Directed aldol,functional_group:beta_hydroxy_carbonyl,applies_to,L0,org:carbonyl:1,false,适用官能团
+side_pathway:Directed aldol#enolate_scrambling,reaction:Directed aldol,competes_with,L0,org:carbonyl:1,false,副路径与主反应竞争
+side_pathway:Directed aldol#enolate_scrambling,condition:-78C temperature,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+side_pathway:Directed aldol#enolate_scrambling,condition:LDA THF -78C,suppressed_by,L0,org:carbonyl:1,false,该条件抑制此副路径
+reaction:Directed aldol,reaction:Aldol addition,alternative_to,L0,org:carbonyl:1,false,定向控制是羟醛的变体路线
+reaction:Mukaiyama aldol,reaction:Aldol addition,alternative_to,L0,org:carbonyl:1,false,硅基烯醇醚路径是羟醛的掩蔽烯醇变体
+reaction:Aldol addition,method:DFT,relevant_to_compchem,L0,org:carbonyl:1,false,DFT研究烯醇负离子加成TS与syn/anti
+reaction:Directed aldol,concept:过渡态,relevant_to_compchem,L0,org:carbonyl:1,false,Zimmermann-Traxler椅式TS可计算比较
+reaction:Mukaiyama aldol,method:opt=TS,relevant_to_compchem,L0,org:carbonyl:1,false,开/闭环TS搜索解释选择性
+side_pathway:Aldol#retro_aldol,method:DFT,relevant_to_compchem,L0,org:carbonyl:1,false,逆羟醛能垒与可逆性计算
+reaction:Aldol addition,molecule:LDA,uses_catalyst,L0,org:carbonyl:1,false,LDA当量碱生成动力学烯醇负离子
+reaction:Directed aldol,molecule:LDA,uses_catalyst,L0,org:carbonyl:1,false,LDA动力学去质子
+reaction:Claisen condensation,mechanism_step:Claisen#1_enolization,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+reaction:Claisen condensation,mechanism_step:Claisen#2_addition_tetrahedral,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+reaction:Claisen condensation,mechanism_step:Claisen#3_elimination_alkoxide,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+reaction:Claisen condensation,mechanism_step:Claisen#4_product_deprotonation,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+mechanism_step:Claisen#1_enolization,mechanism_step:Claisen#2_addition_tetrahedral,step_next,L0,org:carbonyl:2,false,步骤顺序
+mechanism_step:Claisen#2_addition_tetrahedral,mechanism_step:Claisen#3_elimination_alkoxide,step_next,L0,org:carbonyl:2,false,步骤顺序
+mechanism_step:Claisen#3_elimination_alkoxide,mechanism_step:Claisen#4_product_deprotonation,step_next,L0,org:carbonyl:2,false,步骤顺序
+reaction:Claisen condensation,condition:NaOEt ethanol,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Claisen condensation,condition:sodium hydride base,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Claisen condensation,condition:THF solvent,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Claisen condensation,condition:methanol solvent,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Claisen condensation,condition:inert atmosphere,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Claisen condensation,condition:acidic workup,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Claisen condensation,molecule:ethyl benzoylacetate,produces,L0,org:carbonyl:2,false,生成主产物
+reaction:Claisen condensation,functional_group:ester,applies_to,L0,org:carbonyl:2,false,适用官能团
+reaction:Claisen condensation,functional_group:beta_keto_ester,applies_to,L0,org:carbonyl:2,false,适用官能团
+reaction:Claisen condensation,functional_group:enolate,applies_to,L0,org:carbonyl:2,false,适用官能团
+side_pathway:Claisen#transesterification,reaction:Claisen condensation,competes_with,L0,org:carbonyl:2,false,副路径与主反应竞争
+side_pathway:Claisen#transesterification,condition:NaOEt ethanol,suppressed_by,L0,org:carbonyl:2,false,该条件抑制此副路径
+side_pathway:Claisen#retro_claisen,reaction:Claisen condensation,competes_with,L0,org:carbonyl:2,false,副路径与主反应竞争
+side_pathway:Claisen#retro_claisen,condition:acidic workup,suppressed_by,L0,org:carbonyl:2,false,该条件抑制此副路径
+reaction:Dieckmann condensation,mechanism_step:Dieckmann#1_mono_enolate,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+reaction:Dieckmann condensation,mechanism_step:Dieckmann#2_ring_closing_addition,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+reaction:Dieckmann condensation,mechanism_step:Dieckmann#3_elimination,proceeds_via,L0,org:carbonyl:2,false,反应经该基元步骤
+mechanism_step:Dieckmann#1_mono_enolate,mechanism_step:Dieckmann#2_ring_closing_addition,step_next,L0,org:carbonyl:2,false,步骤顺序
+mechanism_step:Dieckmann#2_ring_closing_addition,mechanism_step:Dieckmann#3_elimination,step_next,L0,org:carbonyl:2,false,步骤顺序
+reaction:Dieckmann condensation,condition:NaOEt ethanol,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Dieckmann condensation,condition:high dilution,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Dieckmann condensation,condition:toluene solvent,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Dieckmann condensation,condition:THF solvent,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Dieckmann condensation,condition:inert atmosphere,requires,L0,org:carbonyl:2,false,反应需要该条件
+reaction:Dieckmann condensation,molecule:diethyl 2-oxocyclopentane-1-carboxylate,produces,L0,org:carbonyl:2,false,生成主产物
+reaction:Dieckmann condensation,functional_group:ester,applies_to,L0,org:carbonyl:2,false,适用官能团
+reaction:Dieckmann condensation,functional_group:beta_keto_ester,applies_to,L0,org:carbonyl:2,false,适用官能团
+side_pathway:Dieckmann#intermolecular_polymerization,reaction:Dieckmann condensation,competes_with,L0,org:carbonyl:2,false,副路径与主反应竞争
+side_pathway:Dieckmann#intermolecular_polymerization,condition:high dilution,suppressed_by,L0,org:carbonyl:2,false,该条件抑制此副路径
+side_pathway:Dieckmann#regioisomer_mixture,reaction:Dieckmann condensation,competes_with,L0,org:carbonyl:2,false,副路径与主反应竞争
+side_pathway:Dieckmann#regioisomer_mixture,condition:high dilution,suppressed_by,L0,org:carbonyl:2,false,该条件抑制此副路径
+reaction:Dieckmann condensation,reaction:Claisen condensation,alternative_to,L0,org:carbonyl:2,false,分子内变体
+reaction:Claisen condensation,method:DFT,relevant_to_compchem,L0,org:carbonyl:2,false,四面体中间体与消除步能垒
+reaction:Dieckmann condensation,concept:过渡态,relevant_to_compchem,L0,org:carbonyl:2,false,环化熵与构象采样
+side_pathway:Claisen#retro_claisen,method:DFT,relevant_to_compchem,L0,org:carbonyl:2,false,逆克莱森可逆性
+reaction:Wittig reaction,mechanism_step:Wittig#1_ylide_formation,proceeds_via,L0,org:carbonyl:3,false,反应经该基元步骤
+reaction:Wittig reaction,mechanism_step:Wittig#2_oxaphosphetane,proceeds_via,L0,org:carbonyl:3,false,反应经该基元步骤
+reaction:Wittig reaction,mechanism_step:Wittig#3_cycloreversion,proceeds_via,L0,org:carbonyl:3,false,反应经该基元步骤
+mechanism_step:Wittig#1_ylide_formation,mechanism_step:Wittig#2_oxaphosphetane,step_next,L0,org:carbonyl:3,false,步骤顺序
+mechanism_step:Wittig#2_oxaphosphetane,mechanism_step:Wittig#3_cycloreversion,step_next,L0,org:carbonyl:3,false,步骤顺序
+reaction:Wittig reaction,condition:THF solvent,requires,L0,org:carbonyl:3,false,反应需要该条件
+reaction:Wittig reaction,condition:diethyl ether solvent,requires,L0,org:carbonyl:3,false,反应需要该条件
+reaction:Wittig reaction,condition:-78C temperature,requires,L0,org:carbonyl:3,false,反应需要该条件
+reaction:Wittig reaction,condition:inert atmosphere,requires,L0,org:carbonyl:3,false,反应需要该条件
+reaction:Wittig reaction,condition:toluene solvent,requires,L0,org:carbonyl:3,false,反应需要该条件
+reaction:Wittig reaction,molecule:stilbene,produces,L0,org:carbonyl:3,false,生成主产物
+reaction:Wittig reaction,molecule:triphenylphosphine oxide,produces,L0,org:carbonyl:3,false,生成主产物
+reaction:Wittig reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:3,false,适用官能团
+reaction:Wittig reaction,functional_group:ketone,applies_to,L0,org:carbonyl:3,false,适用官能团
+reaction:Wittig reaction,functional_group:phosphonium_ylide,applies_to,L0,org:carbonyl:3,false,适用官能团
+reaction:Wittig reaction,functional_group:alkene,applies_to,L0,org:carbonyl:3,false,适用官能团
+side_pathway:Wittig#ylide_decomposition,reaction:Wittig reaction,competes_with,L0,org:carbonyl:3,false,副路径与主反应竞争
+side_pathway:Wittig#ylide_decomposition,condition:inert atmosphere,suppressed_by,L0,org:carbonyl:3,false,该条件抑制此副路径
+side_pathway:Wittig#alkene_isomerization,reaction:Wittig reaction,competes_with,L0,org:carbonyl:3,false,副路径与主反应竞争
+side_pathway:Wittig#alkene_isomerization,condition:-78C temperature,suppressed_by,L0,org:carbonyl:3,false,该条件抑制此副路径
+side_pathway:Wittig#o_alkylation,reaction:Wittig reaction,competes_with,L0,org:carbonyl:3,false,副路径与主反应竞争
+side_pathway:Wittig#o_alkylation,condition:toluene solvent,suppressed_by,L0,org:carbonyl:3,false,该条件抑制此副路径
+side_pathway:Wittig#aldehyde_self_condensation,reaction:Wittig reaction,competes_with,L0,org:carbonyl:3,false,副路径与主反应竞争
+side_pathway:Wittig#aldehyde_self_condensation,condition:-78C temperature,suppressed_by,L0,org:carbonyl:3,false,该条件抑制此副路径
+reaction:Wittig reaction,condition:n-BuLi THF,requires,L0,org:carbonyl:3,false,非稳定叶立德制备用强碱
+reaction:Wittig reaction,molecule:triphenylphosphine,uses_catalyst,L0,org:carbonyl:3,false,Ph3P计量制备鏻盐（非催化）
+reaction:Wittig reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:3,false,oxaphosphetane TS与E/Z
+side_pathway:Wittig#alkene_isomerization,method:DFT,relevant_to_compchem,L0,org:carbonyl:3,false,烯烃异构化势垒
+reaction:Horner-Wadsworth-Emmons reaction,mechanism_step:HWE#1_carbanion_formation,proceeds_via,L0,org:carbonyl:4,false,反应经该基元步骤
+reaction:Horner-Wadsworth-Emmons reaction,mechanism_step:HWE#2_addition_rate_limiting,proceeds_via,L0,org:carbonyl:4,false,反应经该基元步骤
+reaction:Horner-Wadsworth-Emmons reaction,mechanism_step:HWE#3_oxaphosphetane_elimination,proceeds_via,L0,org:carbonyl:4,false,反应经该基元步骤
+mechanism_step:HWE#1_carbanion_formation,mechanism_step:HWE#2_addition_rate_limiting,step_next,L0,org:carbonyl:4,false,步骤顺序
+mechanism_step:HWE#2_addition_rate_limiting,mechanism_step:HWE#3_oxaphosphetane_elimination,step_next,L0,org:carbonyl:4,false,步骤顺序
+reaction:Horner-Wadsworth-Emmons reaction,condition:sodium hydride base,requires,L0,org:carbonyl:4,false,反应需要该条件
+reaction:Horner-Wadsworth-Emmons reaction,condition:THF solvent,requires,L0,org:carbonyl:4,false,反应需要该条件
+reaction:Horner-Wadsworth-Emmons reaction,condition:DBU LiCl mild,requires,L0,org:carbonyl:4,false,反应需要该条件
+reaction:Horner-Wadsworth-Emmons reaction,condition:KHMDS 18-crown-6 THF,requires,L0,org:carbonyl:4,false,反应需要该条件
+reaction:Horner-Wadsworth-Emmons reaction,condition:reflux temperature,requires,L0,org:carbonyl:4,false,反应需要该条件
+reaction:Horner-Wadsworth-Emmons reaction,condition:inert atmosphere,requires,L0,org:carbonyl:4,false,反应需要该条件
+reaction:Horner-Wadsworth-Emmons reaction,molecule:(E)-ethyl cinnamate,produces,L0,org:carbonyl:4,false,生成主产物
+reaction:Horner-Wadsworth-Emmons reaction,molecule:diethyl phosphate,produces,L0,org:carbonyl:4,false,生成主产物
+reaction:Horner-Wadsworth-Emmons reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:4,false,适用官能团
+reaction:Horner-Wadsworth-Emmons reaction,functional_group:phosphonate,applies_to,L0,org:carbonyl:4,false,适用官能团
+reaction:Horner-Wadsworth-Emmons reaction,functional_group:alkene,applies_to,L0,org:carbonyl:4,false,适用官能团
+side_pathway:HWE#stalled_hydroxyphosphonate,reaction:Horner-Wadsworth-Emmons reaction,competes_with,L0,org:carbonyl:4,false,副路径与主反应竞争
+side_pathway:HWE#stalled_hydroxyphosphonate,condition:reflux temperature,suppressed_by,L0,org:carbonyl:4,false,该条件抑制此副路径
+side_pathway:HWE#SN2_on_carbanion,reaction:Horner-Wadsworth-Emmons reaction,competes_with,L0,org:carbonyl:4,false,副路径与主反应竞争
+side_pathway:HWE#SN2_on_carbanion,condition:DBU LiCl mild,suppressed_by,L0,org:carbonyl:4,false,该条件抑制此副路径
+side_pathway:HWE#aldehyde_aldol,reaction:Horner-Wadsworth-Emmons reaction,competes_with,L0,org:carbonyl:4,false,副路径与主反应竞争
+side_pathway:HWE#aldehyde_aldol,condition:-78C temperature,suppressed_by,L0,org:carbonyl:4,false,该条件抑制此副路径
+reaction:Horner-Wadsworth-Emmons reaction,molecule:diethyl phosphonoacetate,uses_catalyst,L0,org:carbonyl:4,false,经典膦酸酯试剂
+reaction:Horner-Wadsworth-Emmons reaction,reaction:Wittig reaction,alternative_to,L0,org:carbonyl:4,false,膦酸酯烯化互补默认E/Z
+reaction:Horner-Wadsworth-Emmons reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:4,false,加成决速步与E/Z TS
+reaction:Horner-Wadsworth-Emmons reaction,concept:过渡态,relevant_to_compchem,L0,org:carbonyl:4,false,Still-Gennari中K+配位TS
+reaction:Grignard addition,mechanism_step:Grignard#1_oxidative_insertion,proceeds_via,L0,org:carbonyl:5,false,反应经该基元步骤
+reaction:Grignard addition,mechanism_step:Grignard#2_carbonyl_addition,proceeds_via,L0,org:carbonyl:5,false,反应经该基元步骤
+reaction:Grignard addition,mechanism_step:Grignard#3_hydrolysis,proceeds_via,L0,org:carbonyl:5,false,反应经该基元步骤
+mechanism_step:Grignard#1_oxidative_insertion,mechanism_step:Grignard#2_carbonyl_addition,step_next,L0,org:carbonyl:5,false,步骤顺序
+mechanism_step:Grignard#2_carbonyl_addition,mechanism_step:Grignard#3_hydrolysis,step_next,L0,org:carbonyl:5,false,步骤顺序
+reaction:Grignard addition,condition:diethyl ether solvent,requires,L0,org:carbonyl:5,false,反应需要该条件
+reaction:Grignard addition,condition:THF solvent,requires,L0,org:carbonyl:5,false,反应需要该条件
+reaction:Grignard addition,condition:magnesium metal,requires,L0,org:carbonyl:5,false,反应需要该条件
+reaction:Grignard addition,condition:-78C temperature,requires,L0,org:carbonyl:5,false,反应需要该条件
+reaction:Grignard addition,condition:inert atmosphere,requires,L0,org:carbonyl:5,false,反应需要该条件
+reaction:Grignard addition,condition:acidic workup,requires,L0,org:carbonyl:5,false,反应需要该条件
+reaction:Grignard addition,molecule:2-methylpropan-2-ol,produces,L0,org:carbonyl:5,false,生成主产物
+reaction:Grignard addition,functional_group:aldehyde,applies_to,L0,org:carbonyl:5,false,适用官能团
+reaction:Grignard addition,functional_group:ketone,applies_to,L0,org:carbonyl:5,false,适用官能团
+reaction:Grignard addition,functional_group:ester,applies_to,L0,org:carbonyl:5,false,适用官能团
+reaction:Grignard addition,functional_group:carboxylic_acid,applies_to,L0,org:carbonyl:5,false,适用官能团
+side_pathway:Grignard#enolization,reaction:Grignard addition,competes_with,L0,org:carbonyl:5,false,副路径与主反应竞争
+side_pathway:Grignard#enolization,condition:-78C temperature,suppressed_by,L0,org:carbonyl:5,false,该条件抑制此副路径
+side_pathway:Grignard#Wurtz_coupling,reaction:Grignard addition,competes_with,L0,org:carbonyl:5,false,副路径与主反应竞争
+side_pathway:Grignard#Wurtz_coupling,condition:inert atmosphere,suppressed_by,L0,org:carbonyl:5,false,该条件抑制此副路径
+side_pathway:Grignard#conjugate_addition,reaction:Grignard addition,competes_with,L0,org:carbonyl:5,false,副路径与主反应竞争
+side_pathway:Grignard#conjugate_addition,condition:-78C temperature,suppressed_by,L0,org:carbonyl:5,false,该条件抑制此副路径
+side_pathway:Grignard#double_addition_ester,reaction:Grignard addition,competes_with,L0,org:carbonyl:5,false,副路径与主反应竞争
+side_pathway:Grignard#double_addition_ester,condition:-78C temperature,suppressed_by,L0,org:carbonyl:5,false,该条件抑制此副路径
+reaction:Grignard addition,molecule:ethyl magnesium bromide,uses_catalyst,L0,org:carbonyl:5,false,典型格氏试剂
+reaction:Grignard addition,method:DFT,relevant_to_compchem,L0,org:carbonyl:5,false,四中心加成TS与Felkin-Anh
+side_pathway:Grignard#Wurtz_coupling,method:DFT,relevant_to_compchem,L0,org:carbonyl:5,false,SET偶联自由基路径
+reaction:Grignard addition,reaction:Barbier reaction,alternative_to,L0,org:carbonyl:5,false,一锅Barbier可替代分步格氏
+reaction:Barbier reaction,mechanism_step:Barbier#1_metal_activation,proceeds_via,L0,org:carbonyl:6,false,反应经该基元步骤
+reaction:Barbier reaction,mechanism_step:Barbier#2_carbonyl_addition,proceeds_via,L0,org:carbonyl:6,false,反应经该基元步骤
+reaction:Barbier reaction,mechanism_step:Barbier#3_quench,proceeds_via,L0,org:carbonyl:6,false,反应经该基元步骤
+mechanism_step:Barbier#1_metal_activation,mechanism_step:Barbier#2_carbonyl_addition,step_next,L0,org:carbonyl:6,false,步骤顺序
+mechanism_step:Barbier#2_carbonyl_addition,mechanism_step:Barbier#3_quench,step_next,L0,org:carbonyl:6,false,步骤顺序
+reaction:Barbier reaction,condition:magnesium metal,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,condition:zinc metal,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,condition:indium aqueous,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,condition:ultrasound activation,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,condition:diethyl ether solvent,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,condition:THF solvent,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,condition:acidic workup,requires,L0,org:carbonyl:6,false,反应需要该条件
+reaction:Barbier reaction,molecule:allyl alcohol,produces,L0,org:carbonyl:6,false,生成主产物
+reaction:Barbier reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:6,false,适用官能团
+reaction:Barbier reaction,functional_group:ketone,applies_to,L0,org:carbonyl:6,false,适用官能团
+reaction:Barbier reaction,functional_group:alkene,applies_to,L0,org:carbonyl:6,false,适用官能团
+side_pathway:Barbier#Wurtz_coupling,reaction:Barbier reaction,competes_with,L0,org:carbonyl:6,false,副路径与主反应竞争
+side_pathway:Barbier#Wurtz_coupling,condition:-78C temperature,suppressed_by,L0,org:carbonyl:6,false,该条件抑制此副路径
+side_pathway:Barbier#Wurtz_coupling,condition:indium aqueous,suppressed_by,L0,org:carbonyl:6,false,该条件抑制此副路径
+side_pathway:Barbier#pinacol_coupling,reaction:Barbier reaction,competes_with,L0,org:carbonyl:6,false,副路径与主反应竞争
+side_pathway:Barbier#pinacol_coupling,condition:-78C temperature,suppressed_by,L0,org:carbonyl:6,false,该条件抑制此副路径
+side_pathway:Barbier#dehalogenation,reaction:Barbier reaction,competes_with,L0,org:carbonyl:6,false,副路径与主反应竞争
+side_pathway:Barbier#dehalogenation,condition:inert atmosphere,suppressed_by,L0,org:carbonyl:6,false,该条件抑制此副路径
+reaction:Barbier reaction,reaction:Grignard addition,alternative_to,L0,org:carbonyl:6,false,一锅法替代分步格氏
+reaction:Barbier reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:6,false,金属表面活化与SET路径
+side_pathway:Barbier#pinacol_coupling,method:DFT,relevant_to_compchem,L0,org:carbonyl:6,false,ketyl偶联
+reaction:Reformatsky reaction,mechanism_step:Reformatsky#1_zinc_insertion,proceeds_via,L0,org:carbonyl:7,false,反应经该基元步骤
+reaction:Reformatsky reaction,mechanism_step:Reformatsky#2_addition,proceeds_via,L0,org:carbonyl:7,false,反应经该基元步骤
+reaction:Reformatsky reaction,mechanism_step:Reformatsky#3_hydrolysis,proceeds_via,L0,org:carbonyl:7,false,反应经该基元步骤
+mechanism_step:Reformatsky#1_zinc_insertion,mechanism_step:Reformatsky#2_addition,step_next,L0,org:carbonyl:7,false,步骤顺序
+mechanism_step:Reformatsky#2_addition,mechanism_step:Reformatsky#3_hydrolysis,step_next,L0,org:carbonyl:7,false,步骤顺序
+reaction:Reformatsky reaction,condition:zinc metal,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,condition:toluene solvent,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,condition:THF solvent,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,condition:reflux temperature,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,condition:ultrasound activation,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,condition:acidic workup,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,condition:inert atmosphere,requires,L0,org:carbonyl:7,false,反应需要该条件
+reaction:Reformatsky reaction,molecule:ethyl 3-hydroxy-3-phenylpropanoate,produces,L0,org:carbonyl:7,false,生成主产物
+reaction:Reformatsky reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:7,false,适用官能团
+reaction:Reformatsky reaction,functional_group:ketone,applies_to,L0,org:carbonyl:7,false,适用官能团
+reaction:Reformatsky reaction,functional_group:alpha_haloester,applies_to,L0,org:carbonyl:7,false,适用官能团
+reaction:Reformatsky reaction,functional_group:ester,applies_to,L0,org:carbonyl:7,false,适用官能团
+side_pathway:Reformatsky#self_coupling,reaction:Reformatsky reaction,competes_with,L0,org:carbonyl:7,false,副路径与主反应竞争
+side_pathway:Reformatsky#self_coupling,condition:-78C temperature,suppressed_by,L0,org:carbonyl:7,false,该条件抑制此副路径
+side_pathway:Reformatsky#dehydration,reaction:Reformatsky reaction,competes_with,L0,org:carbonyl:7,false,副路径与主反应竞争
+side_pathway:Reformatsky#dehydration,condition:acidic workup,suppressed_by,L0,org:carbonyl:7,false,该条件抑制此副路径
+side_pathway:Reformatsky#pinacol,reaction:Reformatsky reaction,competes_with,L0,org:carbonyl:7,false,副路径与主反应竞争
+side_pathway:Reformatsky#pinacol,condition:toluene solvent,suppressed_by,L0,org:carbonyl:7,false,该条件抑制此副路径
+reaction:Reformatsky reaction,molecule:ethyl bromoacetate,uses_catalyst,L0,org:carbonyl:7,false,经典α-溴代酯
+reaction:Reformatsky reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:7,false,锌试剂TS与syn/anti
+reaction:Reformatsky reaction,reaction:Grignard addition,alternative_to,L0,org:carbonyl:7,false,温和有机锌替代格氏
+reaction:Henry reaction,mechanism_step:Henry#1_nitronate,proceeds_via,L0,org:carbonyl:8,false,反应经该基元步骤
+reaction:Henry reaction,mechanism_step:Henry#2_addition,proceeds_via,L0,org:carbonyl:8,false,反应经该基元步骤
+reaction:Henry reaction,mechanism_step:Henry#3_protonation,proceeds_via,L0,org:carbonyl:8,false,反应经该基元步骤
+mechanism_step:Henry#1_nitronate,mechanism_step:Henry#2_addition,step_next,L0,org:carbonyl:8,false,步骤顺序
+mechanism_step:Henry#2_addition,mechanism_step:Henry#3_protonation,step_next,L0,org:carbonyl:8,false,步骤顺序
+reaction:Henry reaction,condition:DBU base,requires,L0,org:carbonyl:8,false,反应需要该条件
+reaction:Henry reaction,condition:triethylamine base,requires,L0,org:carbonyl:8,false,反应需要该条件
+reaction:Henry reaction,condition:methanol solvent,requires,L0,org:carbonyl:8,false,反应需要该条件
+reaction:Henry reaction,condition:-78C temperature,requires,L0,org:carbonyl:8,false,反应需要该条件
+reaction:Henry reaction,condition:acidic workup,requires,L0,org:carbonyl:8,false,反应需要该条件
+reaction:Henry reaction,molecule:2-nitroethanol,produces,L0,org:carbonyl:8,false,生成主产物
+reaction:Henry reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:8,false,适用官能团
+reaction:Henry reaction,functional_group:nitroalkane,applies_to,L0,org:carbonyl:8,false,适用官能团
+reaction:Henry reaction,functional_group:beta_nitro_alcohol,applies_to,L0,org:carbonyl:8,false,适用官能团
+side_pathway:Henry#dehydration_to_nitroalkene,reaction:Henry reaction,competes_with,L0,org:carbonyl:8,false,副路径与主反应竞争
+side_pathway:Henry#dehydration_to_nitroalkene,condition:reflux temperature,suppressed_by,L0,org:carbonyl:8,false,该条件抑制此副路径
+side_pathway:Henry#conjugate_addition,reaction:Henry reaction,competes_with,L0,org:carbonyl:8,false,副路径与主反应竞争
+side_pathway:Henry#conjugate_addition,condition:-78C temperature,suppressed_by,L0,org:carbonyl:8,false,该条件抑制此副路径
+side_pathway:Henry#retro_nitroaldol,reaction:Henry reaction,competes_with,L0,org:carbonyl:8,false,副路径与主反应竞争
+side_pathway:Henry#retro_nitroaldol,condition:-78C temperature,suppressed_by,L0,org:carbonyl:8,false,该条件抑制此副路径
+reaction:Henry reaction,molecule:nitromethane,uses_catalyst,L0,org:carbonyl:8,false,最简硝基烷烃底物
+reaction:Henry reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:8,false,nitronate几何与加成TS
+side_pathway:Henry#retro_nitroaldol,method:opt=TS,relevant_to_compchem,L0,org:carbonyl:8,false,可逆性能垒
+reaction:Knoevenagel condensation,mechanism_step:Knoevenagel#1_deprotonation,proceeds_via,L0,org:carbonyl:9,false,反应经该基元步骤
+reaction:Knoevenagel condensation,mechanism_step:Knoevenagel#2_addition,proceeds_via,L0,org:carbonyl:9,false,反应经该基元步骤
+reaction:Knoevenagel condensation,mechanism_step:Knoevenagel#3_dehydration,proceeds_via,L0,org:carbonyl:9,false,反应经该基元步骤
+mechanism_step:Knoevenagel#1_deprotonation,mechanism_step:Knoevenagel#2_addition,step_next,L0,org:carbonyl:9,false,步骤顺序
+mechanism_step:Knoevenagel#2_addition,mechanism_step:Knoevenagel#3_dehydration,step_next,L0,org:carbonyl:9,false,步骤顺序
+reaction:Knoevenagel condensation,condition:DABCO catalyst,requires,L0,org:carbonyl:9,false,反应需要该条件
+reaction:Knoevenagel condensation,condition:toluene solvent,requires,L0,org:carbonyl:9,false,反应需要该条件
+reaction:Knoevenagel condensation,condition:reflux temperature,requires,L0,org:carbonyl:9,false,反应需要该条件
+reaction:Knoevenagel condensation,condition:molecular sieves,requires,L0,org:carbonyl:9,false,反应需要该条件
+reaction:Knoevenagel condensation,molecule:ethylidenemalononitrile,produces,L0,org:carbonyl:9,false,生成主产物
+reaction:Knoevenagel condensation,functional_group:aldehyde,applies_to,L0,org:carbonyl:9,false,适用官能团
+reaction:Knoevenagel condensation,functional_group:active_methylene,applies_to,L0,org:carbonyl:9,false,适用官能团
+reaction:Knoevenagel condensation,functional_group:alkene,applies_to,L0,org:carbonyl:9,false,适用官能团
+reaction:Knoevenagel condensation,molecule:piperidine,uses_catalyst,L0,org:carbonyl:9,false,使用催化剂
+side_pathway:Knoevenagel#polymerization,reaction:Knoevenagel condensation,competes_with,L0,org:carbonyl:9,false,副路径与主反应竞争
+side_pathway:Knoevenagel#polymerization,condition:high dilution,suppressed_by,L0,org:carbonyl:9,false,该条件抑制此副路径
+side_pathway:Knoevenagel#aldol_competition,reaction:Knoevenagel condensation,competes_with,L0,org:carbonyl:9,false,副路径与主反应竞争
+side_pathway:Knoevenagel#aldol_competition,condition:DABCO catalyst,suppressed_by,L0,org:carbonyl:9,false,该条件抑制此副路径
+side_pathway:Knoevenagel#incomplete_dehydration,reaction:Knoevenagel condensation,competes_with,L0,org:carbonyl:9,false,副路径与主反应竞争
+side_pathway:Knoevenagel#incomplete_dehydration,condition:reflux temperature,suppressed_by,L0,org:carbonyl:9,false,该条件抑制此副路径
+side_pathway:Knoevenagel#incomplete_dehydration,condition:molecular sieves,suppressed_by,L0,org:carbonyl:9,false,该条件抑制此副路径
+reaction:Knoevenagel condensation,molecule:malononitrile,uses_catalyst,L0,org:carbonyl:9,false,高活性活泼亚甲基
+reaction:Knoevenagel condensation,method:DFT,relevant_to_compchem,L0,org:carbonyl:9,false,胺活化路径与脱水决速
+reaction:Knoevenagel condensation,reaction:Aldol addition,alternative_to,L0,org:carbonyl:9,false,弱碱高酸性CH2路线
+reaction:Mannich reaction,mechanism_step:Mannich#1_iminium_formation,proceeds_via,L0,org:carbonyl:10,false,反应经该基元步骤
+reaction:Mannich reaction,mechanism_step:Mannich#2_enolization,proceeds_via,L0,org:carbonyl:10,false,反应经该基元步骤
+reaction:Mannich reaction,mechanism_step:Mannich#3_C-C_addition,proceeds_via,L0,org:carbonyl:10,false,反应经该基元步骤
+mechanism_step:Mannich#1_iminium_formation,mechanism_step:Mannich#2_enolization,step_next,L0,org:carbonyl:10,false,步骤顺序
+mechanism_step:Mannich#2_enolization,mechanism_step:Mannich#3_C-C_addition,step_next,L0,org:carbonyl:10,false,步骤顺序
+reaction:Mannich reaction,condition:reflux temperature,requires,L0,org:carbonyl:10,false,反应需要该条件
+reaction:Mannich reaction,condition:methanol solvent,requires,L0,org:carbonyl:10,false,反应需要该条件
+reaction:Mannich reaction,condition:acidic workup,requires,L0,org:carbonyl:10,false,反应需要该条件
+reaction:Mannich reaction,condition:proline catalyst,requires,L0,org:carbonyl:10,false,反应需要该条件
+reaction:Mannich reaction,molecule:acetone diethylamine Mannich product,produces,L0,org:carbonyl:10,false,生成主产物
+reaction:Mannich reaction,functional_group:ketone,applies_to,L0,org:carbonyl:10,false,适用官能团
+reaction:Mannich reaction,functional_group:imine,applies_to,L0,org:carbonyl:10,false,适用官能团
+reaction:Mannich reaction,functional_group:alpha_amino_carbonyl,applies_to,L0,org:carbonyl:10,false,适用官能团
+reaction:Mannich reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:10,false,适用官能团
+side_pathway:Mannich#double_mannich,reaction:Mannich reaction,competes_with,L0,org:carbonyl:10,false,副路径与主反应竞争
+side_pathway:Mannich#double_mannich,condition:-78C temperature,suppressed_by,L0,org:carbonyl:10,false,该条件抑制此副路径
+side_pathway:Mannich#elimination_to_enaminone,reaction:Mannich reaction,competes_with,L0,org:carbonyl:10,false,副路径与主反应竞争
+side_pathway:Mannich#elimination_to_enaminone,condition:acidic workup,suppressed_by,L0,org:carbonyl:10,false,该条件抑制此副路径
+side_pathway:Mannich#Knoevenagel_competition,reaction:Mannich reaction,competes_with,L0,org:carbonyl:10,false,副路径与主反应竞争
+side_pathway:Mannich#Knoevenagel_competition,condition:DABCO catalyst,suppressed_by,L0,org:carbonyl:10,false,该条件抑制此副路径
+reaction:Mannich reaction,molecule:formaldehyde,uses_catalyst,L0,org:carbonyl:10,false,标准C1组分
+reaction:Mannich reaction,molecule:diethylamine,uses_catalyst,L0,org:carbonyl:10,false,仲胺组分
+reaction:Mannich reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:10,false,亚胺离子形成与烯胺催化TS
+reaction:Mannich reaction,reaction:Aldol addition,alternative_to,L0,org:carbonyl:10,false,N亲电体版类似羟醛
+reaction:Baylis-Hillman reaction,mechanism_step:Baylis-Hillman#1_amine_addition,proceeds_via,L0,org:carbonyl:11,false,反应经该基元步骤
+reaction:Baylis-Hillman reaction,mechanism_step:Baylis-Hillman#2_aldol_addition,proceeds_via,L0,org:carbonyl:11,false,反应经该基元步骤
+reaction:Baylis-Hillman reaction,mechanism_step:Baylis-Hillman#3_E1cb_elimination,proceeds_via,L0,org:carbonyl:11,false,反应经该基元步骤
+mechanism_step:Baylis-Hillman#1_amine_addition,mechanism_step:Baylis-Hillman#2_aldol_addition,step_next,L0,org:carbonyl:11,false,步骤顺序
+mechanism_step:Baylis-Hillman#2_aldol_addition,mechanism_step:Baylis-Hillman#3_E1cb_elimination,step_next,L0,org:carbonyl:11,false,步骤顺序
+reaction:Baylis-Hillman reaction,condition:DABCO catalyst,requires,L0,org:carbonyl:11,false,反应需要该条件
+reaction:Baylis-Hillman reaction,condition:toluene solvent,requires,L0,org:carbonyl:11,false,反应需要该条件
+reaction:Baylis-Hillman reaction,condition:-78C temperature,requires,L0,org:carbonyl:11,false,反应需要该条件
+reaction:Baylis-Hillman reaction,condition:inert atmosphere,requires,L0,org:carbonyl:11,false,反应需要该条件
+reaction:Baylis-Hillman reaction,condition:triethylamine base,requires,L0,org:carbonyl:11,false,反应需要该条件
+reaction:Baylis-Hillman reaction,molecule:ethyl 2-(hydroxy(phenyl)methyl)acrylate,produces,L0,org:carbonyl:11,false,生成主产物
+reaction:Baylis-Hillman reaction,functional_group:aldehyde,applies_to,L0,org:carbonyl:11,false,适用官能团
+reaction:Baylis-Hillman reaction,functional_group:alkene,applies_to,L0,org:carbonyl:11,false,适用官能团
+reaction:Baylis-Hillman reaction,functional_group:ester,applies_to,L0,org:carbonyl:11,false,适用官能团
+reaction:Baylis-Hillman reaction,molecule:DABCO,uses_catalyst,L0,org:carbonyl:11,false,使用催化剂
+side_pathway:Baylis-Hillman#product_polymerization,reaction:Baylis-Hillman reaction,competes_with,L0,org:carbonyl:11,false,副路径与主反应竞争
+side_pathway:Baylis-Hillman#product_polymerization,condition:-78C temperature,suppressed_by,L0,org:carbonyl:11,false,该条件抑制此副路径
+side_pathway:Baylis-Hillman#product_polymerization,condition:high dilution,suppressed_by,L0,org:carbonyl:11,false,该条件抑制此副路径
+side_pathway:Baylis-Hillman#DABCO_oxidation,reaction:Baylis-Hillman reaction,competes_with,L0,org:carbonyl:11,false,副路径与主反应竞争
+side_pathway:Baylis-Hillman#DABCO_oxidation,condition:inert atmosphere,suppressed_by,L0,org:carbonyl:11,false,该条件抑制此副路径
+side_pathway:Baylis-Hillman#second_MBH,reaction:Baylis-Hillman reaction,competes_with,L0,org:carbonyl:11,false,副路径与主反应竞争
+side_pathway:Baylis-Hillman#second_MBH,condition:-78C temperature,suppressed_by,L0,org:carbonyl:11,false,该条件抑制此副路径
+reaction:Baylis-Hillman reaction,method:DFT,relevant_to_compchem,L0,org:carbonyl:11,false,质子转移网络与决速步
+side_pathway:Baylis-Hillman#product_polymerization,method:DFT,relevant_to_compchem,L0,org:carbonyl:11,false,聚合驱动力与共轭稳定
+reaction:Acyloin condensation,mechanism_step:Acyloin#1_SET_ketyl,proceeds_via,L0,org:carbonyl:12,false,反应经该基元步骤
+reaction:Acyloin condensation,mechanism_step:Acyloin#2_radical_coupling,proceeds_via,L0,org:carbonyl:12,false,反应经该基元步骤
+reaction:Acyloin condensation,mechanism_step:Acyloin#3_rearrangement_hydrolysis,proceeds_via,L0,org:carbonyl:12,false,反应经该基元步骤
+mechanism_step:Acyloin#1_SET_ketyl,mechanism_step:Acyloin#2_radical_coupling,step_next,L0,org:carbonyl:12,false,步骤顺序
+mechanism_step:Acyloin#2_radical_coupling,mechanism_step:Acyloin#3_rearrangement_hydrolysis,step_next,L0,org:carbonyl:12,false,步骤顺序
+reaction:Acyloin condensation,condition:sodium metal,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,condition:toluene solvent,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,condition:reflux temperature,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,condition:high dilution,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,condition:TMSCl additive,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,condition:inert atmosphere,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,condition:acidic workup,requires,L0,org:carbonyl:12,false,反应需要该条件
+reaction:Acyloin condensation,"molecule:cyclotetradecane-1,2-dione pinacol product",produces,L0,org:carbonyl:12,false,生成主产物
+reaction:Acyloin condensation,functional_group:ester,applies_to,L0,org:carbonyl:12,false,适用官能团
+reaction:Acyloin condensation,functional_group:acyloin,applies_to,L0,org:carbonyl:12,false,适用官能团
+side_pathway:Acyloin#pinacol_accumulation,reaction:Acyloin condensation,competes_with,L0,org:carbonyl:12,false,副路径与主反应竞争
+side_pathway:Acyloin#pinacol_accumulation,condition:TMSCl additive,suppressed_by,L0,org:carbonyl:12,false,该条件抑制此副路径
+side_pathway:Acyloin#intermolecular_polymerization,reaction:Acyloin condensation,competes_with,L0,org:carbonyl:12,false,副路径与主反应竞争
+side_pathway:Acyloin#intermolecular_polymerization,condition:high dilution,suppressed_by,L0,org:carbonyl:12,false,该条件抑制此副路径
+side_pathway:Acyloin#wurtz,reaction:Acyloin condensation,competes_with,L0,org:carbonyl:12,false,副路径与主反应竞争
+side_pathway:Acyloin#wurtz,condition:toluene solvent,suppressed_by,L0,org:carbonyl:12,false,该条件抑制此副路径
+side_pathway:Acyloin#McMurry_over_reduction,reaction:Acyloin condensation,competes_with,L0,org:carbonyl:12,false,副路径与主反应竞争
+side_pathway:Acyloin#McMurry_over_reduction,condition:TMSCl additive,suppressed_by,L0,org:carbonyl:12,false,该条件抑制此副路径
+reaction:Acyloin condensation,condition:sodium metal,uses_catalyst,L0,org:carbonyl:12,false,计量电子源Na
+reaction:Acyloin condensation,method:DFT,relevant_to_compchem,L0,org:carbonyl:12,false,开壳层ketyl偶联与大环熵
+side_pathway:Acyloin#McMurry_over_reduction,method:DFT,relevant_to_compchem,L0,org:carbonyl:12,false,McMurry分叉点
+reaction:Acyloin condensation,reaction:Claisen condensation,alternative_to,L0,org:carbonyl:12,false,羰基偶联构建C-C的还原路线

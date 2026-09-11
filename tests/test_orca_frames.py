@@ -288,3 +288,93 @@ def test_read_endpoint_geometry_trajectory_returns_last_frame(tmp_path):
     assert xyz is not None
     assert "trj frame 2" in xyz
     assert "trj frame 0" not in xyz
+
+
+# ---------------------------------------------------------------------------
+# NEB：必须被识别，但只跑路径搜索的 NEB 不得退化成单点
+# ---------------------------------------------------------------------------
+
+
+def test_neb_is_recognised_from_the_keyword_echo():
+    """ORCA 在输出开头回显输入文件的 `!` 行；NEB 由该关键字识别。
+
+    测试用的是关键字回显片段（ORCA 的既有格式，本目录其它 fixture 已覆盖），
+    **不是伪造的引擎输出**：这里只验证关键字扫描这一纯函数。
+    """
+    assert orca_frames.detect_job_types_from_text("|  1> ! NEB\n") == {"neb"}
+    # NEB-TS 后面还会做 TS 优化：两个类型都要给出来
+    assert orca_frames.detect_job_types_from_text("|  1> ! NEB-TS\n|  2> ! OPT\n") == {"neb", "opt"}
+    # 普通单点不受影响
+    assert orca_frames.detect_job_types_from_text("|  1> ! wB97X-D def2-SVP\n") == {"sp"}
+
+
+def test_neb_only_log_yields_no_frames_instead_of_a_fake_single_point(tmp_path):
+    """只跑路径搜索的 NEB：逐图像几何尚未解析 → 返回空，绝不退化成"一个结构"。
+
+    把一条路径报成一个单点比什么都不报更糟：下游会把路径当成一个几何来用。
+    """
+    log = tmp_path / "neb_only.out"
+    log.write_text("|  1> ! NEB\n", encoding="utf-8")
+    assert orca_frames.extract_frames(str(log)) == []
+
+
+def test_neb_ts_log_still_extracts_the_ts_optimisation_frames(tmp_path):
+    """NEB-TS：带优化段，逐帧几何应照常由优化段解析（不因识别出 neb 而丢帧）。
+
+    这里**不能**用"只有关键字、没有任何 ORCA 内容"的桩日志：cclib 对桩的行为取决于可选的
+    Open Babel 兜底装没装（装了 → 返回空 ccData，于是得到 []；没装 → 返回 None，本模块按
+    fail-loud 抛 `cclib 未能解析日志`）。CI 没装 Open Babel，桩日志上的断言只在开发机成立。
+    改成在**真实**优化日志上注入 `! NEB-TS` 关键字：内容真实，帧提取与 cclib 兜底无关。
+    """
+    source = ORCA_FIXTURES / "dvb_opt_orca42.out"
+    log = tmp_path / "neb_ts.out"
+    log.write_text("|  1> ! NEB-TS\n" + source.read_text(encoding="utf-8"), encoding="utf-8")
+    assert orca_frames.detect_job_types(str(log)) == {"neb", "opt"}
+    # neb 不接管：有优化段时几何仍走优化段，帧数与非 NEB 的同一份日志一致
+    assert len(orca_frames.extract_frames(str(log))) == len(
+        orca_frames.extract_frames(str(source))
+    ) != 0
+
+
+# ---------------------------------------------------------------------------
+# NEB：逐图像几何在边文件里，读不到必须给出**具体原因**（不许静默返回空）
+# ---------------------------------------------------------------------------
+
+NEB_FIXTURE = ORCA_FIXTURES / "neb_hcn" / "neb.out"
+
+
+def test_neb_frames_come_from_the_per_image_side_files():
+    """真实 ORCA NEB-TS 运行：逐图像几何从 <作业名>_im<N>.xyz 边文件读出来。
+
+    主输出里只有迭代表，几何在边文件里——"日志里读不到几何"不等于"作业没有几何"。
+    """
+    frames = orca_frames.extract_frames(str(NEB_FIXTURE))
+    assert [f.frame for f in frames] == [0, 4, 8]
+    # 真实能量（Eh），来自边文件注释行 `Coordinates from ORCA-job neb_im8 E -93.03...`
+    assert frames[0].scf_energy_hartree == pytest.approx(-93.300300911883, abs=1e-9)
+    assert frames[-1].scf_energy_hartree == pytest.approx(-93.031209778059, abs=1e-9)
+    for frame in frames:
+        assert frame.xyz.splitlines()[0].strip() == "3"
+
+
+def test_neb_reason_is_none_when_frames_are_actually_available():
+    assert orca_frames.frames_unavailable_reason(str(NEB_FIXTURE)) is None
+
+
+def test_neb_missing_side_files_yields_an_explicit_reason(tmp_path):
+    """边文件缺失时：返回空 + **说明是 NEB、几何在边文件里**，而不是一句"没有关键帧"。"""
+    log = tmp_path / "neb.out"
+    log.write_text(NEB_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
+    assert orca_frames.extract_frames(str(log)) == []
+    reason = orca_frames.frames_unavailable_reason(str(log))
+    assert reason is not None
+    assert "ORCA NEB job" in reason
+    assert "_im<N>.xyz" in reason
+
+
+def test_irc_reason_explains_where_the_path_points_live():
+    """IRC 同理：主输出没有逐点坐标，原因里要指明边文件与可用的替代入口。"""
+    reason = orca_frames.frames_unavailable_reason(str(ORCA_FIXTURES / "hcn_irc_orca60.out"))
+    assert reason is not None
+    assert "IRC" in reason
+    assert "extract_irc_endpoints" in reason

@@ -112,9 +112,10 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         check_imag = freq_snap.imaginary_frequencies if freq_snap and freq_snap.imaginary_frequencies is not None else opt_snap.imaginary_frequencies
         val = validate_species_minimum(check_freqs, imaginary_freqs=check_imag)
         if not val.is_valid:
+            kind = "was not verified" if not val.verified else "failed validation"
             return fail(
                 "dag_submit_species_evidence",
-                f"Stationary point validation failed: {val.message}",
+                f"Stationary point {kind}: {val.message}",
                 accepted=False,
             )
 

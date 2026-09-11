@@ -215,8 +215,13 @@ def test_full_repo_import_seconds_level(project_root):
         pytest.skip("repo KG CSVs not present")
     db = Path(tempfile.mkdtemp()) / "kg.db"
     rep = store.import_csv(db, e, r)
-    assert rep["entities"] == 14203
-    assert rep["relations"] == 10266
+    # 数量**不写死**：知识库在持续长大，钉死具体数字只会让每次扩充都无谓地点红一个测试。
+    # 这里断言的是结构性质——导入结果与 CSV 的实际行数一致、且没有坏行。
+    entity_rows = sum(1 for line in e.read_text(encoding="utf-8").splitlines() if line.strip()) - 1
+    relation_rows = sum(1 for line in r.read_text(encoding="utf-8").splitlines() if line.strip()) - 1
+    assert rep["entities"] == entity_rows
+    assert rep["relations"] == relation_rows
+    assert rep["entities"] > 0 and rep["relations"] > 0
     assert rep["bad_rows"] == []
     assert rep["seconds"] < 60  # 秒级
     for q in ("过渡态", "TS", "def2-TZVP"):

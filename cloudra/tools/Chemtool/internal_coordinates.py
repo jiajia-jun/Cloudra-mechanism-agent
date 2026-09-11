@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import os
-import re
 from collections import deque
 from io import StringIO
 from typing import TYPE_CHECKING, Any, Literal, Optional
@@ -16,6 +15,7 @@ if TYPE_CHECKING:
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.workspace import resolve_tool_path
 
 try:
     from rdkit import Chem
@@ -97,7 +97,10 @@ description = (
     "detect anomalous bond lengths (compressed/elongated/breaking_suspect/forming/atomic overlap) and anomalous angles; "
     "and write a Z-matrix internal-coordinate file along a spanning tree of the molecular graph. Can also convert a Z-matrix back to Cartesian. "
     "Gives the model accurate structural facts without looking at a picture. "
-    "Use for: TS inspection (locating breaking/forming bonds), conformational analysis, stereo confirmation, geometry sanity checks. "
+    "REQUIRED before ts_guess scan_prepare/interpolate or any TS/scan work: scan/watch atom indices and reaction coordinates must come from this "
+    "analyze report (forming/breaking bonds, dihedrals, clashes) — never from guessing XYZ indices or reading a picture. "
+    "Also required to verify dihedral/angle preorganization that distance_filters cannot express. "
+    "Use for: TS inspection (locating breaking/forming bonds), conformational analysis, stereo confirmation, geometry sanity checks, Z-matrix edits. "
     "Do not use for: plain format conversion (use format_converter) or generating a structure from SMILES (use smiles_to_mol)."
 )
 
@@ -168,9 +171,51 @@ class InternalCoordinates_output_schema(output_schema):
     )
     zmat_path: str = Field(default="", description="Z-matrix file path written when mode=analyze")
     zmat_lines: int = Field(default=0, description="Line count of the Z-matrix file when mode=analyze")
+    zmat_status: Literal["written", "failed", "not_requested"] = Field(
+        default="not_requested",
+        description="Z-matrix export status, reported separately from the geometry analysis: "
+                    "'written' = file produced; 'failed' = export failed while the analysis "
+                    "succeeded (see zmat_error); 'not_requested' = other mode.",
+    )
+    zmat_error: str = Field(
+        default="",
+        description="Why the Z-matrix export failed (only set when zmat_status='failed'). A failed "
+                    "export never hides the completed distance/angle measurements.",
+    )
     xyz_text: str = Field(default="", description="xyz text returned when mode=zmatrix_to_cartesian")
     output_path: str = Field(default="", description="xyz file path written when mode=zmatrix_to_cartesian")
     message: str = Field(default="", description="Status or error message")
+
+
+def _expected_bond_length(sym_i: str, sym_j: str) -> float:
+    """两个原子间的经验共价键长上限（Cordero 共价半径和）。"""
+    return _COVALENT_RADII.get(sym_i, 1.2) + _COVALENT_RADII.get(sym_j, 1.2)
+
+
+#: 距离判据的默认容差系数：r ≤ factor × 共价半径和 判为成键。
+#: 这是本模块既有的判据（原先内嵌在 InternalCoordinates._distance_connectivity 里），
+#: 抽成模块级公开原语是为了让拓扑变更报告（crest_runner）复用**同一套**判据，
+#: 而不是各写一份阈值。
+DISTANCE_CONNECTIVITY_FACTOR = 1.25
+
+
+def distance_connectivity(symbols, positions,
+                          factor: float = DISTANCE_CONNECTIVITY_FACTOR) -> dict[tuple[int, int], float]:
+    """距离判据连接表：``r ≤ factor × 共价半径和`` 判为单键。
+
+    返回 ``{(i, j): 1.0}``，``i < j``。纯函数，供几何分析与拓扑对比共用。
+    """
+    import numpy as np
+
+    n = len(symbols)
+    bond_orders: dict[tuple[int, int], float] = {}
+    for i in range(n):
+        for j in range(i + 1, n):
+            r = float(np.linalg.norm(np.asarray(positions[i], dtype=float)
+                                     - np.asarray(positions[j], dtype=float)))
+            if r <= factor * _expected_bond_length(symbols[i], symbols[j]):
+                bond_orders[(i, j)] = 1.0
+    return bond_orders
 
 
 def _angle_deg(p0, p1, p2) -> float:
@@ -302,17 +347,8 @@ class InternalCoordinates(Tool):
 
     @classmethod
     def _distance_connectivity(cls, symbols, positions) -> dict[tuple[int, int], float]:
-        """距离判据回退连接表：r ≤ 1.25 × 共价半径和 判为单键。"""
-        import numpy as np
-
-        n = len(symbols)
-        bond_orders: dict[tuple[int, int], float] = {}
-        for i in range(n):
-            for j in range(i + 1, n):
-                r = float(np.linalg.norm(positions[i] - positions[j]))
-                if r <= 1.25 * cls._expected_bond_length(symbols[i], symbols[j]):
-                    bond_orders[(i, j)] = 1.0
-        return bond_orders
+        """距离判据回退连接表（实现见模块级 ``distance_connectivity``）。"""
+        return distance_connectivity(symbols, positions)
 
     @staticmethod
     def _build_adjacency(n: int, bond_orders: dict[tuple[int, int], float]):
@@ -1050,15 +1086,18 @@ class InternalCoordinates(Tool):
         notes.append("forming_candidate/breaking_suspect are geometric-criteria hints only; interpret them against the reaction mechanism.")
         report.extend(f"  - {t}" for t in notes)
 
-        # 4. Z-matrix 文件
+        # 4. Z-matrix 文件。导出与几何报告**分别给状态**：Z-matrix 失败（chemcoord 缺失、
+        #    构造表退化等）绝不能让已完成的键长/键角/异常测量变得不可用。
         zmat_path = user_input.zmat_path
         if not zmat_path:
             if user_input.input_path:
                 stem = os.path.splitext(user_input.input_path)[0]
                 zmat_path = stem + ".zmat"
             else:
-                zmat_path = "./structure.zmat"
+                zmat_path = resolve_tool_path(self, "./structure.zmat")
 
+        zmat_status: Literal["written", "failed"] = "written"
+        zmat_error = ""
         zmat_lines = 0
         try:
             cart = self._ase_to_chemcoord_cart(atoms)
@@ -1078,111 +1117,231 @@ class InternalCoordinates(Tool):
             os.makedirs(os.path.dirname(zmat_path) or ".", exist_ok=True)
             atomic_write_text(zmat_path, zmatrix_text)
             zmat_lines = zmatrix_text.count("\n")
-        except Exception as e:
-            import traceback
-            return InternalCoordinates_output_schema(
-                is_success=False,
-                report="\n".join(report),
-                message=f"Failed to generate Z-matrix: {e}\n{traceback.format_exc()}",
+        except Exception as e:  # noqa: BLE001 - 导出失败只降级导出，不丢几何报告
+            zmat_status = "failed"
+            zmat_error = f"{type(e).__name__}: {e}"
+            report.append(
+                f"  - Z-matrix export failed ({zmat_error}); the distance/angle measurements above "
+                "are unaffected and remain valid."
             )
 
         anomalies = bond_anomalies + angle_anomalies
+        if zmat_status == "written":
+            message = (
+                f"Structure analysis complete: {len(bond_anomalies)} bond anomalies, "
+                f"{len(angle_anomalies)} angle anomalies. "
+                f"Z-matrix written to {zmat_path} ({zmat_lines} lines); its content is not included "
+                "in context — restore coordinates with mode=zmatrix_to_cartesian."
+            )
+        else:
+            message = (
+                f"Structure analysis complete: {len(bond_anomalies)} bond anomalies, "
+                f"{len(angle_anomalies)} angle anomalies. "
+                f"Z-matrix export FAILED ({zmat_error}); request a Z-matrix from a different structure "
+                "or install the chemcoord extra, then retry."
+            )
         return InternalCoordinates_output_schema(
             is_success=True,
             report="\n".join(report),
             anomalies=anomalies,
-            zmat_path=zmat_path,
+            zmat_path=zmat_path if zmat_status == "written" else "",
             zmat_lines=zmat_lines,
-            message=(
-                f"Structure analysis complete: {len(bond_anomalies)} bond anomalies, {len(angle_anomalies)} angle anomalies. "
-                f"Z-matrix written to {zmat_path} ({zmat_lines} lines); its content is not included in context — "
-                f"restore coordinates with mode=zmatrix_to_cartesian."
-            ),
+            zmat_status=zmat_status,
+            zmat_error=zmat_error,
+            message=message,
         )
 
     # ---------- Z-matrix -> Cartesian ----------
 
     @staticmethod
+    def _zmat_symbol_from_label(label: str) -> str:
+        """从原子标签取元素符号（``C12`` → ``C``，``Cl3`` → ``Cl``）。
+
+        只剥尾部的十进制数字，不做任何模式匹配；剥完不是纯字母即拒绝——标签必须真的以
+        元素符号开头，否则后续按元素算键长/半径时会静默用错元素。
+        """
+        end = len(label)
+        while end > 0 and label[end - 1].isdigit():
+            end -= 1
+        symbol = label[:end]
+        if not symbol or not symbol.isalpha():
+            raise ValueError(
+                f"Z-matrix atom label {label!r} does not start with an element symbol"
+            )
+        return symbol
+
+    @staticmethod
+    def _zmat_number(token: str, context: str) -> float:
+        """逐 token 数值校验：必须可解析为**有限**浮点数，NaN/Inf 一律拒绝。"""
+        try:
+            value = float(token)
+        except ValueError as exc:
+            raise ValueError(f"{context}: {token!r} is not a number") from exc
+        if not math.isfinite(value):
+            raise ValueError(f"{context}: {token!r} is not a finite number")
+        return value
+
+    @staticmethod
     def _parse_zmatrix_text(zmatrix_text: str) -> pd.DataFrame:
+        """结构化解析 Z-matrix 文本（逐 token 校验，本模块不含正则）。
+
+        接受的格式与 ``_render_zmatrix`` 的输出一致::
+
+            1  C1     | origin  r=0.0000  | e_z     a=0.00  | e_x     d=-0.00
+
+        校验规则（全部 fail-loud，绝不静默补零/猜测）：
+
+        - 数据行形如 ``<序号> <标签>`` 后跟最多三段 ``| <父原子> <key>=<数值>``；
+          ``key`` 必须是 ``r``/``a``/``d`` 且与所在段位置一致。
+        - 序号是**原始原子序号**（不要求 1..N 连续，生成器按构造顺序打印），但必须为正且唯一；
+          标签内部编号必须与序号一致（生成器如此打印，手写输入也照此校验）。
+        - 父原子只能是 magic 绝对参考（origin/e_x/e_y/e_z）、**前面已声明**行的标签、或该行的序号。
+          未知引用、引用自身或引用后面的行一律拒绝。
+        - 数值必须有限。
+        - **合法绝对参考规则**：只允许文件前三个数据行按位置省略参考——
+          第 1 行可省 b/a/d（补 origin/e_z/e_x），第 2 行可省 a/d（补 e_z/e_x），
+          第 3 行可省 d（补 e_x）。第 4 行起缺任何一个父原子或数值都是**非法缺字段**，直接报错。
+
+        行索引：1-based 原子序号（Z-matrix 顺序），经 chemcoord 的 ``index`` 语义。
         """
-        解析本工具输出的 Z-matrix 文本，返回 chemcoord 风格的 DataFrame。
-        列：atom(str), b(str), bond(float), a(str), angle(float), d(str), dihedral(float)
-        行索引：1-based 原子序号（Z-matrix 顺序）。父原子可以是原子标签（C2）或 magic 参考。
-        """
-        import numpy as np
         import pandas as pd
 
-        lines = [ln for ln in zmatrix_text.splitlines()
-                 if ln.strip() and not ln.strip().startswith("#")]
+        data_lines = [
+            line.strip() for line in zmatrix_text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if not data_lines:
+            raise ValueError("the Z-matrix text contains no data lines")
 
-        records = []
-        name_to_index: dict[str, int] = {}
+        #: 按行位置允许省略的绝对参考（唯一合法的省略位置）
+        absolute_defaults = {
+            1: {"r": "origin", "a": "e_z", "d": "e_x"},
+            2: {"a": "e_z", "d": "e_x"},
+            3: {"d": "e_x"},
+        }
 
-        # 第一遍：收集序号和名字
-        for line in lines:
-            tokens = [t.strip() for t in line.split("|")]
-            head = tokens[0].split()
-            if len(head) < 2:
-                raise ValueError(f"Could not parse Z-matrix line: {line}")
-            idx = int(head[0])
-            name = head[1]
-            symbol = re.sub(r"\d+", "", name)
-            name_to_index[name] = idx
+        records: list[dict] = []
+        label_to_index: dict[str, int] = {}
+        seen_indices: set[int] = set()
+
+        for position, line in enumerate(data_lines, start=1):
+            segments = [segment.strip() for segment in line.split("|")]
+            head = segments[0].split()
+            if len(head) != 2:
+                raise ValueError(
+                    f"Z-matrix data line {position} ({line!r}): expected '<index> <label>' "
+                    "before the first '|'"
+                )
+            try:
+                atom_index = int(head[0])
+            except ValueError as exc:
+                raise ValueError(
+                    f"Z-matrix data line {position}: {head[0]!r} is not an integer atom index"
+                ) from exc
+            if atom_index < 1:
+                raise ValueError(
+                    f"Z-matrix data line {position}: atom index must be >= 1, got {atom_index}"
+                )
+            if atom_index in seen_indices:
+                raise ValueError(
+                    f"Z-matrix data line {position}: duplicate atom index {atom_index}"
+                )
+            label = head[1]
+            if label in label_to_index:
+                raise ValueError(f"Z-matrix data line {position}: duplicate atom label {label!r}")
+            symbol = InternalCoordinates._zmat_symbol_from_label(label)
+            if label[len(symbol):] and int(label[len(symbol):]) != atom_index:
+                raise ValueError(
+                    f"Z-matrix data line {position}: label {label!r} disagrees with the row index "
+                    f"{atom_index}; the label must be <element><row index>"
+                )
+
+            allowed_defaults = absolute_defaults.get(position, {})
+            parents: dict[str, str] = {}
+            values: dict[str, float] = {}
+
+            for key_position, key in enumerate(("r", "a", "d")):
+                segment = segments[key_position + 1] if key_position + 1 < len(segments) else ""
+                tokens = segment.split()
+                if len(tokens) > 2:
+                    raise ValueError(
+                        f"Z-matrix data line {position}: segment {segment!r} has more than a "
+                        "parent atom and one '<key>=<value>' pair"
+                    )
+                parent = ""
+                value_token = ""
+                if len(tokens) == 2:
+                    parent, value_token = tokens
+                elif len(tokens) == 1:
+                    if "=" in tokens[0]:
+                        value_token = tokens[0]
+                    else:
+                        parent = tokens[0]
+
+                if value_token:
+                    prefix, separator, raw_value = value_token.partition("=")
+                    if separator != "=" or prefix != key:
+                        raise ValueError(
+                            f"Z-matrix data line {position}: segment {key_position + 1} must be "
+                            f"'{key}=<number>', got {value_token!r}"
+                        )
+                    values[key] = InternalCoordinates._zmat_number(
+                        raw_value, f"Z-matrix data line {position} '{key}=' value",
+                    )
+                elif key in allowed_defaults:
+                    values[key] = 0.0
+                else:
+                    raise ValueError(
+                        f"Z-matrix data line {position} (atom {atom_index}) is missing '{key}='; "
+                        "only the first three data lines may omit absolute references"
+                    )
+
+                if parent:
+                    parents[key] = parent
+                elif key in allowed_defaults:
+                    parents[key] = allowed_defaults[key]
+                else:
+                    raise ValueError(
+                        f"Z-matrix data line {position} (atom {atom_index}) is missing the parent "
+                        f"atom for '{key}='; only the first three data lines may omit it"
+                    )
+
+            resolved: dict[str, str] = {}
+            for key in ("r", "a", "d"):
+                parent = parents[key]
+                if parent in _MAGIC_REFS:
+                    resolved[key] = parent
+                    continue
+                if parent in label_to_index:
+                    resolved[key] = str(label_to_index[parent])
+                    continue
+                if parent.isdigit() and int(parent) in seen_indices:
+                    resolved[key] = str(int(parent))
+                    continue
+                raise ValueError(
+                    f"Z-matrix data line {position} (atom {atom_index}): parent reference "
+                    f"{parent!r} for '{key}=' is unknown — it is not a magic reference "
+                    f"({', '.join(_MAGIC_REFS)}), not a label declared on an earlier line, and not "
+                    "an earlier row index"
+                )
+
             records.append({
-                'index': idx, 'name': name, 'symbol': symbol, 'tokens': tokens
+                "index": atom_index,
+                "atom": symbol,
+                "b": resolved["r"],
+                "bond": values["r"],
+                "a": resolved["a"],
+                "angle": values["a"],
+                "d": resolved["d"],
+                "dihedral": values["d"],
             })
+            label_to_index[label] = atom_index
+            seen_indices.add(atom_index)
 
-        parent_pattern = r"(origin|e_x|e_y|e_z|[A-Za-z]{1,3}\d+)"
-
-        # 第二遍：解析父原子与几何参数
-        def resolve(name: str) -> str:
-            if name in _MAGIC_REFS:
-                return name
-            if name in name_to_index:
-                return str(name_to_index[name])
-            m = re.search(r"\d+", name)
-            if m:
-                return str(int(m.group()))
-            raise ValueError(f"Could not parse parent atom name: {name}")
-
-        rows = []
-        for rec in records:
-            tokens = rec['tokens']
-            p1 = p2 = p3 = None
-            r = a = d = None
-
-            if len(tokens) > 1 and "root" not in tokens[1]:
-                m = re.search(parent_pattern + r"\s+r=([\d.eE+-]+)", tokens[1])
-                if m:
-                    p1 = resolve(m.group(1))
-                    r = float(m.group(2))
-            if len(tokens) > 2:
-                m = re.search(parent_pattern + r"\s+a=([\d.eE+-]+)", tokens[2])
-                if m:
-                    p2 = resolve(m.group(1))
-                    a = float(m.group(2))
-            if len(tokens) > 3:
-                m = re.search(parent_pattern + r"\s+d=([\d.eE+-]+)", tokens[3])
-                if m:
-                    p3 = resolve(m.group(1))
-                    d = float(m.group(2))
-
-            rows.append({
-                'atom': rec['symbol'],
-                'b': p1 if p1 is not None else np.nan,
-                'bond': 0.0 if r is None else r,
-                'a': p2 if p2 is not None else np.nan,
-                'angle': 0.0 if a is None else a,
-                'd': p3 if p3 is not None else np.nan,
-                'dihedral': 0.0 if d is None else d,
-            })
-
-        df = pd.DataFrame(rows)
-        df.index = [rec['index'] for rec in records]
-        # 确保 b/a/d 为 object dtype，允许字符串与 NaN 混合
-        for col in ['atom', 'b', 'a', 'd']:
-            df[col] = df[col].astype(object)
-        return df
+        frame = pd.DataFrame(records).set_index("index")
+        for column in ("atom", "b", "a", "d"):
+            frame[column] = frame[column].astype(object)
+        return frame
 
     @staticmethod
     def _zmat_dataframe_to_xyz(zmat_frame: pd.DataFrame) -> str:
@@ -1201,39 +1360,28 @@ class InternalCoordinates(Tool):
             'e_y': np.array([0.0, 1.0, 0.0]), 'e_z': np.array([0.0, 0.0, 1.0]),
         }
 
+        # 父原子与数值由 _parse_zmatrix_text 逐 token 校验后保证齐全（合法的绝对参考
+        # 省略已在解析阶段按位置补成 origin/e_z/e_x），因此这里**不做**任何默认填充：
+        # 出现 NaN 说明上游解析被绕过，必须报错而不是静默当 origin。
         c_table = zmat_frame.loc[:, ['b', 'a', 'd']].copy()
-
-        # 补全缺失的绝对参考：
-        # 第 0 行：b=origin, a=e_z, d=e_x
-        # 第 1 行：a=e_z, d=e_x
-        # 第 2 行：d=e_x
-        defaults = [
-            ['origin', 'e_z', 'e_x'],
-            [np.nan, 'e_z', 'e_x'],
-            [np.nan, np.nan, 'e_x'],
-        ]
-        for i, (def_b, def_a, def_d) in enumerate(defaults):
-            if i >= len(c_table):
-                break
-            if pd.isna(c_table.iloc[i, 0]):
-                c_table.iloc[i, 0] = def_b
-            if pd.isna(c_table.iloc[i, 1]):
-                c_table.iloc[i, 1] = def_a
-            if pd.isna(c_table.iloc[i, 2]):
-                c_table.iloc[i, 2] = def_d
-
-        # 剩余 NaN（如多碎片根的 magic 参考未被解析到时）回退绝对参考
-        c_table = c_table.fillna({'b': 'origin', 'a': 'e_z', 'd': 'e_x'})
 
         name_to_col = {idx: col for col, idx in enumerate(zmat_frame.index)}
 
         def to_ref(x):
-            s = str(x) if pd.notna(x) else 'origin'
-            if s in dummy:
-                return s
-            col = name_to_col.get(int(s), -1)
+            if not pd.notna(x):
+                raise ValueError(
+                    "Z-matrix reference atom is missing (NaN); the parser must resolve every "
+                    "parent reference before coordinates are rebuilt"
+                )
+            text = str(x)
+            if text in dummy:
+                return text
+            try:
+                col = name_to_col.get(int(text), -1)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Could not parse reference atom: {text}") from exc
             if col < 0:
-                raise ValueError(f"Could not parse reference atom: {s}")
+                raise ValueError(f"Could not parse reference atom: {text}")
             return col
 
         n = len(zmat_frame)
@@ -1293,12 +1441,20 @@ class InternalCoordinates(Tool):
     def _zmatrix_to_cartesian(self, user_input: InternalCoordinates_input_schema) -> InternalCoordinates_output_schema:
         zmatrix_text = None
         if user_input.zmatrix_path:
+            # 与 analyze/format_converter/log_parser 同一套路径语义：相对路径解析到 agent 工作
+            # 目录；读取失败时报出**解析后的目标**与具体错误，绝不把"文件不存在"说成"没给参数"。
+            target = resolve_tool_path(self, user_input.zmatrix_path)
             try:
-                with open(user_input.zmatrix_path, encoding="utf-8") as f:
+                with open(target, encoding="utf-8") as f:
                     zmatrix_text = f.read()
-            except Exception as e:
+            except OSError as e:
                 return InternalCoordinates_output_schema(
-                    is_success=False, message=f"Failed to read Z-matrix file: {e}"
+                    is_success=False,
+                    message=(
+                        f"Failed to read the Z-matrix file at the resolved path {target!r} "
+                        f"(requested zmatrix_path={user_input.zmatrix_path!r}): "
+                        f"{type(e).__name__}: {e}"
+                    ),
                 )
         elif user_input.zmatrix_text:
             zmatrix_text = user_input.zmatrix_text
@@ -1306,7 +1462,11 @@ class InternalCoordinates(Tool):
         if not zmatrix_text:
             return InternalCoordinates_output_schema(
                 is_success=False,
-                message="mode=zmatrix_to_cartesian requires zmatrix_path or zmatrix_text"
+                message=(
+                    "mode=zmatrix_to_cartesian requires zmatrix_path or zmatrix_text; neither was "
+                    f"provided (zmatrix_path={user_input.zmatrix_path!r}, "
+                    f"zmatrix_text={'set' if user_input.zmatrix_text else 'unset'})"
+                )
             )
 
         try:
@@ -1333,6 +1493,20 @@ class InternalCoordinates(Tool):
             )
 
     async def tool_call(self, user_input: InternalCoordinates_input_schema, session: Session) -> InternalCoordinates_output_schema:
+        # 路径语义收口：文件路径字段的相对路径统一解析到 agent 工作目录（沙箱）；
+        # 绝对路径保持既有权限语义。zmatrix_text/input_text 是文本，不做路径解析。
+        user_input = user_input.model_copy(
+            update={
+                field: resolve_tool_path(self, value)
+                for field, value in {
+                    "input_path": user_input.input_path,
+                    "zmat_path": user_input.zmat_path,
+                    "zmatrix_path": user_input.zmatrix_path,
+                    "output_path": user_input.output_path,
+                }.items()
+                if value
+            }
+        )
         if not _CHEMCOORD_AVAILABLE:
             return InternalCoordinates_output_schema(
                 is_success=False,

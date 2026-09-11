@@ -228,8 +228,11 @@ class MethodPolicy(BaseModel):
     - `bash`: the *content* of QM input files being written or executed is
       parsed the same way — the raw command text is never keyword-scanned.
 
-    The benchmark whitelist (xTB) has no basis-set concept at all,
-    so the policy carries no basis fields. Whitelist matching happens at
+    The benchmark xTB entry has no basis-set concept, so bare family entries
+    (`xtb`, `mace`) match at family granularity without constraining basis;
+    combo entries (`b3lyp/def2svp`) additionally pin the basis — a request must
+    declare the same basis (spellings normalized) and a basis-less request is
+    blocked fail-closed. Whitelist matching for the family part stays at
     method-*family* granularity (any token containing `xtb` matches the xTB entry).
     Attempting a non-whitelisted method is intercepted, never penalized.
 

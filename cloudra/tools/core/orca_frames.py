@@ -44,7 +44,13 @@ def _collect_keyword_lines(text: str) -> str:
 
 
 def detect_job_types(log_path: str) -> set[str]:
-    """识别 ORCA 日志的任务类型，返回 {"opt","ts","freq","scan","irc","sp"} 的子集。"""
+    """识别 ORCA 日志的任务类型，返回 {"opt","ts","freq","scan","irc","neb","sp"} 的子集。
+
+    ``neb`` 由输入回显的 ``!`` 关键字行识别（``! NEB`` / ``! NEB-TS``）。识别它是为了
+    **不让 NEB 日志掉进 ``sp``**：``NEB-TS`` 后续的 TS 优化会让本函数同时给出 ``ts``
+    （那时逐帧几何由优化段解析），而只跑路径搜索的 ``! NEB`` 没有优化循环，若不识别就会
+    被当成单点——把一整条路径说成一个结构比不报更糟。
+    """
     return detect_job_types_from_text(_read_text(log_path))
 
 
@@ -61,6 +67,8 @@ def detect_job_types_from_text(text: str) -> set[str]:
         or "Relaxed Surface Scan" in text
     ):
         jobs.add("scan")
+    if re.search(r"\bneb(-ts)?\b", keywords):
+        jobs.add("neb")
     if re.search(r"\bopt(ts)?\b", keywords) or "GEOMETRY OPTIMIZATION CYCLE" in text:
         jobs.add("opt")
     if re.search(r"\boptts\b", keywords) or "SADDLE POINT SEARCH" in text.upper():
@@ -70,7 +78,7 @@ def detect_job_types_from_text(text: str) -> set[str]:
         or "VIBRATIONAL FREQUENCIES" in text
     ):
         jobs.add("freq")
-    if not jobs & {"irc", "scan", "opt", "ts"}:
+    if not jobs & {"irc", "scan", "opt", "ts", "neb"}:
         jobs.add("sp")
     return jobs
 
@@ -326,11 +334,22 @@ def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
 
 
 def extract_frames(log_path: str) -> list[FrameRecord]:
-    """按识别到的任务类型提取关键帧。IRC 的逐点坐标在 trj 边文件（主输出无），
-    这里对 IRC 返回空；IRC 的点数/收敛/能量走 extract_irc。"""
+    """按识别到的任务类型提取关键帧。
+
+    - IRC 的逐点坐标在 trj 边文件（主输出无）：返回空；点数/收敛/能量走 ``extract_irc``。
+    - NEB（``! NEB`` / ``! NEB-TS``）：逐图像几何在 ``<作业名>_im<N>.xyz`` 边文件里（主输出
+      只有迭代表），这里读那些边文件，并把收敛的 ``<作业名>_NEB-TS_converged.xyz`` 作为带
+      ``converged=True`` 的末帧。**读不到边文件时返回空但绝不退化成单点**——把一条路径报成
+      一个结构比什么都不报更糟；原因见 ``frames_unavailable_reason``。
+    """
     jobs = detect_job_types(log_path)
     if "irc" in jobs:
         return []
+    if "neb" in jobs and not (jobs & {"opt", "ts", "scan"}):
+        # 逐图像几何在 <作业名>_im<N>.xyz 边文件里；读不到就返回空，但调用方可用
+        # frames_unavailable_reason 拿到**具体原因**（不是静默的"没有帧"）
+        frames, _reason = _neb_image_frames(_orca_sidecar_roots(log_path, _read_text(log_path)))
+        return frames
     if "scan" in jobs:
         return _extract_scan_frames(log_path)
     if "opt" in jobs or "ts" in jobs:
@@ -428,15 +447,115 @@ def extract_irc(log_path: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# NEB 路径几何（逐图像边文件 + 收敛 TS）
+# ---------------------------------------------------------------------------
+
+#: ORCA NEB 逐图像边文件注释行：``Coordinates from ORCA-job <job> E <Eh>``
+_NEB_IMAGE_SUFFIX = "_im"
+#: NEB-TS 收敛的鞍点几何
+_NEB_TS_SUFFIX = "_NEB-TS_converged.xyz"
+
+
+def _neb_image_frames(roots: list[tuple[str, str]]) -> tuple[list[FrameRecord], str | None]:
+    """读 NEB 的逐图像边文件，返回 ``(帧, 失败原因)``。
+
+    与 IRC 同一个道理：路径几何**不在主输出里**，而是每个图像一个
+    ``<作业名>_im<N>.xyz`` 边文件。日志里读不到几何不等于没有几何——所以这里去找边文件，
+    找不到时**带出原因**，绝不静默返回空列表。
+    """
+    for directory, job in roots:
+        if not os.path.isdir(directory):
+            continue
+        images: list[tuple[int, str]] = []
+        for name in os.listdir(directory):
+            if not name.startswith(job + _NEB_IMAGE_SUFFIX) or not name.endswith(".xyz"):
+                continue
+            middle = name[len(job) + len(_NEB_IMAGE_SUFFIX):-len(".xyz")]
+            if not middle.isdigit():
+                continue
+            images.append((int(middle), os.path.join(directory, name)))
+        if not images:
+            continue
+        frames: list[FrameRecord] = []
+        for index, path in sorted(images):
+            try:
+                text = _read_text(path)
+            except OSError as exc:
+                return [], f"could not read the NEB image file {path}: {exc}"
+            lines = text.splitlines()
+            if len(lines) < 3:
+                return [], f"the NEB image file {path} is too short to be a frame"
+            # 原子数在这一节只用来判"是不是一帧"，几何整段原样交出去（下游按 xyz 解析）
+            try:
+                int(lines[0].strip())
+            except ValueError:
+                return [], f"the NEB image file {path} does not start with an atom count"
+            energy: float | None = None
+            tokens = lines[1].split()
+            for position, token in enumerate(tokens[:-1]):
+                if token == "E":
+                    try:
+                        energy = float(tokens[position + 1])
+                    except ValueError:
+                        energy = None
+                    break
+            frames.append(FrameRecord(
+                frame=index, scf_energy_hartree=energy, xyz="\n".join(lines) + "\n",
+            ))
+        # 收敛的鞍点几何单独作为末帧（converged=True）：那是 NEB-TS 真正交出来的东西
+        converged = os.path.join(directory, job + _NEB_TS_SUFFIX)
+        if os.path.isfile(converged):
+            try:
+                text = _read_text(converged)
+            except OSError:
+                text = ""
+            if text:
+                frames.append(FrameRecord(
+                    frame=len(frames), scf_energy_hartree=None, xyz=text, converged=True,
+                ))
+        return frames, None
+    return [], (
+        "no ORCA NEB image file (<job>_im<N>.xyz) was found next to the job; the path geometries "
+        "live in those side files, not in the main output"
+    )
+
+
+def frames_unavailable_reason(log_path: str) -> str | None:
+    """`extract_frames` 返回空时的**具体原因**；有帧可取或原因不明时返回 None。
+
+    给出这个入口是因为"返回空列表"本身对调用方没有信息量：IRC 的路径点在边文件里、NEB 的
+    几何在逐图像边文件里——两者都是"主输出没有但作业确实产出了几何"的情形。调用方需要能把
+    这层区分讲给用户，而不是笼统地说"没有关键帧"。
+    """
+    try:
+        text = _read_text(log_path)
+    except OSError as exc:
+        return f"the log could not be read: {exc}"
+    jobs = detect_job_types_from_text(text)
+    if "irc" in jobs:
+        return (
+            "this is an IRC job: its per-point coordinates live in the *_IRC_F_trj.xyz / "
+            "*_IRC_B_trj.xyz side files, and the converged endpoints in *_IRC_F.xyz / *_IRC_B.xyz "
+            "(use extract_irc_endpoints or ts_guess strict=True)"
+        )
+    if "neb" in jobs and not (jobs & {"opt", "ts", "scan"}):
+        _frames, reason = _neb_image_frames(_orca_sidecar_roots(log_path, text))
+        if reason:
+            return f"this is an ORCA NEB job, but {reason}"
+    return None
+
+
+# ---------------------------------------------------------------------------
 # IRC 端点几何（final endpoint 文件 / F/B trajectory 末帧）
 # ---------------------------------------------------------------------------
 
 _ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
 
 
-def _irc_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
-    """IRC 边文件的 (目录, 作业名) 候选：优先日志开头输入回显的 NAME 记录
-    （harness 日志名与 ORCA 作业名无关），其次日志自身 stem。"""
+def _orca_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
+    """ORCA 边文件（IRC 轨迹/端点、NEB 逐图像）的 (目录, 作业名) 候选：优先日志开头输入回显
+    的 NAME 记录（harness 捕获的日志名 ``calc-<id>.out.log`` 与 ORCA 作业名无关），
+    其次日志自身 stem。"""
     roots: list[tuple[str, str]] = []
     m = _ORCA_NAME_RE.search(text[:200_000])
     if m:
@@ -477,7 +596,7 @@ def extract_irc_endpoints(log_path: str) -> dict:
       未收敛时端点缺口保持开放，不按固定点数要求补点。
     """
     text = _read_text(log_path)
-    roots = _irc_sidecar_roots(log_path, text)
+    roots = _orca_sidecar_roots(log_path, text)
     converged: dict[str, bool | None] = {"FORWARD": None, "BACKWARD": None}
     try:
         meta = extract_irc(log_path)
