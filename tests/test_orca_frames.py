@@ -319,12 +319,21 @@ def test_neb_only_log_yields_no_frames_instead_of_a_fake_single_point(tmp_path):
 
 
 def test_neb_ts_log_still_extracts_the_ts_optimisation_frames(tmp_path):
-    """NEB-TS：带优化段，逐帧几何应照常由优化段解析（不因识别出 neb 而丢帧）。"""
+    """NEB-TS：带优化段，逐帧几何应照常由优化段解析（不因识别出 neb 而丢帧）。
+
+    这里**不能**用"只有关键字、没有任何 ORCA 内容"的桩日志：cclib 对桩的行为取决于可选的
+    Open Babel 兜底装没装（装了 → 返回空 ccData，于是得到 []；没装 → 返回 None，本模块按
+    fail-loud 抛 `cclib 未能解析日志`）。CI 没装 Open Babel，桩日志上的断言只在开发机成立。
+    改成在**真实**优化日志上注入 `! NEB-TS` 关键字：内容真实，帧提取与 cclib 兜底无关。
+    """
+    source = ORCA_FIXTURES / "dvb_opt_orca42.out"
     log = tmp_path / "neb_ts.out"
-    log.write_text("|  1> ! NEB-TS\n|  2> ! OPT\n", encoding="utf-8")
-    # 没有优化循环块 → 没有帧可提，但**不应**因为 neb 而被提前拦掉
-    assert orca_frames.extract_frames(str(log)) == []
+    log.write_text("|  1> ! NEB-TS\n" + source.read_text(encoding="utf-8"), encoding="utf-8")
     assert orca_frames.detect_job_types(str(log)) == {"neb", "opt"}
+    # neb 不接管：有优化段时几何仍走优化段，帧数与非 NEB 的同一份日志一致
+    assert len(orca_frames.extract_frames(str(log))) == len(
+        orca_frames.extract_frames(str(source))
+    ) != 0
 
 
 # ---------------------------------------------------------------------------
