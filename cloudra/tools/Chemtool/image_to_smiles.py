@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any
 
@@ -44,7 +45,9 @@ class ImageToSmiles(Tool):
                 message=f"File does not exist: {path}"
             )
 
-        predict_func, import_error_msg = _load_predict_func()
+        # DECIMER 的 import 即在进程内加载 TensorFlow SavedModel，predict 是同步推理，
+        # 两者都是分钟级 CPU 工作——必须离开事件循环线程，否则整个 API 饿死。
+        predict_func, import_error_msg = await asyncio.to_thread(_load_predict_func)
         if predict_func is None:
             return ImageToSmiles_output_schema(
                 is_success=False,
@@ -59,7 +62,7 @@ class ImageToSmiles(Tool):
             )
 
         try:
-            smiles = predict_func(path)
+            smiles = await asyncio.to_thread(predict_func, path)
             if not isinstance(smiles, str):
                 return ImageToSmiles_output_schema(
                     is_success=False,

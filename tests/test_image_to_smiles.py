@@ -53,6 +53,42 @@ async def test_whitespace_result_rejected(fake_image, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_blocking_model_load_does_not_freeze_event_loop(fake_image, monkeypatch):
+    """DECIMER 的 import 即在进程内加载 TF SavedModel（分钟级同步 CPU 工作），
+    tool_call 必须把它卸载出事件循环——曾把整个 API 冻结到所有请求超时。
+    用阻塞 loader + 并发 ticker 探测：ticker 停滞即事件循环被冻结。"""
+    import asyncio
+    import time
+
+    def blocking_loader():
+        time.sleep(0.4)
+        return (lambda p: "CCO"), ""
+
+    monkeypatch.setattr(img_mod, "_load_predict_func", blocking_loader)
+
+    ticks = 0
+    stop = False
+
+    async def ticker():
+        nonlocal ticks
+        while not stop:
+            ticks += 1
+            await asyncio.sleep(0.02)
+
+    ticker_task = asyncio.create_task(ticker())
+    try:
+        result = await ImageToSmiles().tool_call(
+            ImageToSmiles_input_schema(image_path=fake_image), session=None,
+        )
+    finally:
+        stop = True
+        await ticker_task
+    assert result.is_success is True
+    # 若阻塞发生在事件循环线程上，0.4s 的冻结期里 ticker 只会前进寥寥几步
+    assert ticks > 5, f"event loop was frozen during tool_call (ticks={ticks})"
+
+
+@pytest.mark.asyncio
 async def test_whitespace_padded_valid_smiles_stripped(fake_image, monkeypatch):
     """带首尾空白的合法 SMILES 应 strip 后成功。"""
     result = await _run(fake_image, monkeypatch, "  CCO  ")
