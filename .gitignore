@@ -72,16 +72,11 @@ fort.*
 *.gjf
 *.log
 *.out
-# 测试用的真实 Gaussian 输出样本仍需入库
-!tests/fixtures/gaussian/*.log
-!tests/fixtures/gaussian/*.out
-# ORCA 日志样本同理
-!tests/fixtures/orca/*.out
-!tests/fixtures/orca/extopt_relaxed_scan/*.out
-# xtb 日志样本同理（GH #26）
-!tests/fixtures/xtb/*.out
-# 合成契约 fixture（交付物评分测试用；README 明确标注非科学计算结果）
-!tests/fixtures/benchmark_synthetic/*.out
+# 测试用的真实引擎输出样本仍需入库。**按目录逐个列白名单已经漏过一次**（子目录里的
+# `.out`/`.log` 样本没被覆盖，于是在本地能跑、到 CI 就 FileNotFoundError）：这里改成
+# 整棵 fixtures 树的通配白名单，新加 fixture 目录不再需要回来改本文件。
+!tests/fixtures/**/*.log
+!tests/fixtures/**/*.out
 
 # 测试泄漏的 mock 数据目录
 MagicMock/

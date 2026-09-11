@@ -426,6 +426,7 @@ def test_real_xtb_path_energies_match_single_points(tmp_path):
     )
 
 
+@pytest.mark.skipif(shutil.which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收")
 def test_real_xtb_path_invariant_usable_iff_converged(tmp_path):
     """真实引擎上的不变量：``usable_as_guess`` **当且仅当**引擎自判收敛。
 

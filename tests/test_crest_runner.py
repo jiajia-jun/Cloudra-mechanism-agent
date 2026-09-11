@@ -26,6 +26,16 @@ from cloudra.tools.core.crest_runner import (
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "chemtool_issue33")
 
+# CI 只装 .[dev]，没有 RDKit：经 RDKit 的用例一律先探测再 skip（不硬断言）
+try:  # noqa: SIM105 - 缺 RDKit 是合法环境，不是错误
+    import rdkit  # noqa: F401
+
+    _HAS_RDKIT = True
+except ImportError:
+    _HAS_RDKIT = False
+
+requires_rdkit = pytest.mark.skipif(not _HAS_RDKIT, reason="未安装 RDKit（chem extra），跳过")
+
 _FAKE_CREST = '''#!{python}
 """假 CREST：按 FAKE_CREST_MODE 复现本机 2.12 的各类输出与退出码。"""
 import os
@@ -329,6 +339,7 @@ def test_scan_markers_classifies_recorded_real_logs():
         assert stage == expected_stage, f"{case}: stage {stage}"
 
 
+@requires_rdkit
 def test_fixture_inputs_still_show_the_reported_overlap():
     """Task 1 的复现事实：两个失败输入的碎片间接触 < 0.2 Å，单分子对照无碎片。"""
     import numpy as np
