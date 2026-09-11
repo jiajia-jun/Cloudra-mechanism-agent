@@ -1,0 +1,393 @@
+# chem-kb 知识卡片标签词表（受控词表，人工维护）
+#
+# 结构：5 个 facet（维度）。domain 由 cards.jsonl 既有 `domain` 字段继承，
+# 不参与打标；method / software / problem / error 由 LLM 打标
+# （`cloudra knowledge tag build`），并受本词表 id 约束——LLM 提议词表外的
+# tag 会进 pending 清单，审核后手工加进来。
+#
+# 字段约定：
+#   id       ASCII snake_case，写进 cards.jsonl 的 tags 字段与 kg_entity_tags 表
+#   label    中文规范名（展示用）
+#   label_en 英文名（展示用）
+#   aliases  别名/同义词（LLM prompt 与确定性签名匹配共用；ASCII 匹配不区分大小写）
+#   source   仅 error facet：active=活跃语料挖掘 / archive=归档区仅挖词 /
+#            manual=人工经验补充
+#
+# 匹配语义：error facet 的 aliases 同时用于查询侧报错签名检测
+# （knowledge/plugin.py），命中即触发报错优先检索路径。
+
+version: 1
+
+facets:
+  # ------------------------------------------------------------------
+  # 体系（一级分类）：继承 cards.jsonl 的 domain 字段，此处仅作枚举登记
+  # ------------------------------------------------------------------
+  domain:
+    - {id: quantum_chemistry, label: 量子化学方法, label_en: Quantum Chemistry Methods}
+    - {id: wavefunction_analysis, label: 波函数与电子结构分析, label_en: Wavefunction & Electronic Structure Analysis}
+    - {id: excited_states, label: 激发态与光谱, label_en: Excited States & Spectroscopy}
+    - {id: reaction_mechanism, label: 反应机理与过渡态, label_en: Reaction Mechanism & Transition States}
+    - {id: md_forcefields, label: 分子动力学与力场, label_en: Molecular Dynamics & Force Fields}
+    - {id: semiempirical, label: 半经验与构象搜索, label_en: Semi-Empirical Methods & Conformational Search}
+    - {id: gaussian_usage, label: Gaussian使用, label_en: Using Gaussian}
+    - {id: other_software, label: 其他量化软件, label_en: Other QC Software}
+    - {id: visualization, label: 可视化与制图, label_en: Visualization & Plotting}
+    - {id: cheminformatics, label: 化学信息学与脚本, label_en: Cheminformatics & Scripting}
+
+  # ------------------------------------------------------------------
+  # 方法
+  # ------------------------------------------------------------------
+  method:
+    - id: dft
+      label: 密度泛函（通用）
+      label_en: DFT (generic)
+      aliases: [DFT, 密度泛函, 泛函, functional, Kohn-Sham]
+    - id: b3lyp
+      label: B3LYP
+      label_en: B3LYP
+      aliases: [B3LYP]
+    - id: wb97x
+      label: ωB97X 系列
+      label_en: omega-B97X family
+      aliases: [ωB97XD, wB97XD, ωB97X-D, wB97X-D, omegaB97XD, ωB97X-V, wb97x]
+    - id: m06_2x
+      label: M06-2X
+      label_en: M06-2X
+      aliases: [M06-2X, M062X, M06]
+    - id: cam_b3lyp
+      label: CAM-B3LYP
+      label_en: CAM-B3LYP
+      aliases: [CAM-B3LYP]
+    - id: comb_3c
+      label: 低成本组合法（3c 系列）
+      label_en: composite 3c methods
+      aliases: [B97-3c, r2SCAN-3c, SCS-ωPBEPP86, B973c, scan-3c, pwB6-3c]
+    - id: double_hybrid
+      label: 双杂化泛函
+      label_en: double-hybrid functionals
+      aliases: [双杂化, B2PLYP, DSD-BLYP, ωB2PLYP, PWPB95, double hybrid]
+    - id: dft_dispersion
+      label: 色散校正（DFT-D）
+      label_en: DFT dispersion correction
+      aliases: [DFT-D3, DFT-D4, D3(BJ), D3BJ, 色散校正, Grimme, empirical dispersion, 弥散校正]
+    - id: hf
+      label: Hartree-Fock
+      label_en: Hartree-Fock
+      aliases: [HF, Hartree-Fock, 哈特里-福克, 哈特里福克]
+    - id: mp2
+      label: MP2
+      label_en: MP2
+      aliases: [MP2, 二阶Møller-Plesset, 二阶微扰, SCS-MP2, RI-MP2]
+    - id: ccsd
+      label: CCSD / 耦合簇
+      label_en: CCSD & coupled cluster
+      aliases: [CCSD, CCSD(T), 耦合簇, coupled cluster, CC3, CR-CC]
+    - id: multireference
+      label: 多参考方法
+      label_en: multireference methods
+      aliases: [CASSCF, CASPT2, NEVPT2, MRCI, 多参考, active space, 活性空间, DMRG]
+    - id: semiempirical
+      label: 半经验方法（NDDO）
+      label_en: semi-empirical NDDO
+      aliases: [PM6, PM7, PM3, AM1, RM1, 半经验, NDDO, MOPAC]
+    - id: gfn_xtb
+      label: GFN-xTB 紧束缚
+      label_en: GFN-xTB
+      aliases: [GFN-xTB, GFN2, GFN1, xTB, 紧束缚, tight binding]
+    - id: solvent_model
+      label: 溶剂模型
+      label_en: solvation models
+      aliases: [IEFPCM, CPCM, PCM, SMD, COSMO, ddCOSMO, 溶剂模型, 隐式溶剂, 连续介质, solvation model, Onsager]
+    - id: relaxed_scan
+      label: 势能面扫描
+      label_en: relaxed / rigid scan
+      aliases: [柔性扫描, 刚性扫描, 势能面扫描, relaxed scan, rigid scan, opt=modredundant, 扫描]
+    - id: nci_analysis
+      label: 非共价相互作用分析（RDG/IGM/IRI）
+      label_en: noncovalent interaction analysis
+      aliases: [RDG, IGM, IGMH, IGM-IR, mIGM, IRI, 非共价相互作用, 独立梯度模型, 约化密度梯度, sign(λ2)ρ, NCI, 散点图填色]
+    - id: qtaim
+      label: QTAIM 拓扑分析
+      label_en: QTAIM / Bader analysis
+      aliases: [QTAIM, AIM, Bader, 拓扑分析, 临界点, 电子密度拓扑, Laplacian]
+    - id: charge_analysis
+      label: 原子电荷分析
+      label_en: atomic charge analysis
+      aliases: [Mulliken, NPA, CHELPG, Hirshfeld, ADCH, CM5, Becke, 原子电荷, 电荷分析, 电荷分解, DDEC, RESP]
+    - id: bond_order
+      label: 键级分析
+      label_en: bond order analysis
+      aliases: [键级, Mayer键级, Mayer bond order, Wiberg, 多中心键级, 拉普拉斯键级]
+    - id: excited_analysis
+      label: 激发态/空穴-电子分析
+      label_en: excited-state & hole-electron analysis
+      aliases: [空穴-电子, hole-electron, NTO, 自然跃迁轨道, 跃迁分析, 激发态分析, EDMA, Sr/R指数]
+    - id: spectral_simulation
+      label: 光谱模拟方法
+      label_en: spectral simulation
+      aliases: [光谱模拟, ECD, VCD, ROA, 旋轨耦合谱, 模拟光谱, broadening, 展宽, 红移, 蓝移]
+    - id: md_method
+      label: 分子动力学方法
+      label_en: molecular dynamics methods
+      aliases: [分子动力学, MD模拟, MD simulation, 力场, GAFF, CGenFF, OPLS, MARTELLI, AIMD, 从头算动力学, 系综, NVT, NPT, 周期性边界]
+    - id: qmmm
+      label: QM/MM 与 ONIOM
+      label_en: QM/MM & ONIOM
+      aliases: [QM/MM, ONIOM, our own n-layered, MM区, 电嵌入, EE]
+    - id: basis_set
+      label: 基组
+      label_en: basis sets
+      aliases: [基组, 6-31G, 6-311G, def2-SVP, def2-TZVP, def2-QZVP, cc-pVDZ, cc-pVTZ, aug-, 弥散函数, 极化函数, basis set, jul-3z, ma-TZVP]
+
+  # ------------------------------------------------------------------
+  # 软件
+  # ------------------------------------------------------------------
+  software:
+    - id: gaussian
+      label: Gaussian
+      label_en: Gaussian
+      aliases: [Gaussian, G09, G16, Gaussian 16, Gaussian 09, 高斯, gauss, formchk, unfchk, cubegen, cubman, gaussview, GaussView, gv]
+    - id: multiwfn
+      label: Multiwfn
+      label_en: Multiwfn
+      aliases: [Multiwfn, multiwfn]
+    - id: vmd
+      label: VMD
+      label_en: VMD
+      aliases: [VMD, tcl脚本]
+    - id: orca
+      label: ORCA
+      label_en: ORCA
+      aliases: [ORCA, orca]
+    - id: cp2k
+      label: CP2K
+      label_en: CP2K
+      aliases: [CP2K, QUICKSTEP]
+    - id: gromacs
+      label: GROMACS
+      label_en: GROMACS
+      aliases: [GROMACS, Gromacs, gromacs, gmx, grompp, mdrun, trjconv, editconf, pdb2gmx, xpm2ps]
+    - id: amber
+      label: AMBER
+      label_en: AMBER
+      aliases: [AMBER, Amber, ambertools, tleap, Antechamber, sander, pmemd]
+    - id: openbabel
+      label: Open Babel
+      label_en: Open Babel
+      aliases: [OpenBabel, Open Babel, obabel, babel]
+    - id: gamess
+      label: GAMESS-US
+      label_en: GAMESS-US
+      aliases: [GAMESS, GAMESS-US, firefly]
+    - id: nwchem
+      label: NWChem
+      label_en: NWChem
+      aliases: [NWChem]
+    - id: psi4
+      label: PSI4
+      label_en: PSI4
+      aliases: [PSI4, Psi4]
+    - id: dalton
+      label: Dalton
+      label_en: Dalton
+      aliases: [Dalton, DALTON]
+    - id: xtb_prog
+      label: xtb 程序
+      label_en: xtb program
+      aliases: [xtb, stda, xtb4ff]
+    - id: sobtop
+      label: Sobtop
+      label_en: Sobtop
+      aliases: [Sobtop, sobTOP]
+    - id: molclus
+      label: Molclus
+      label_en: Molclus
+      aliases: [Molclus, gentor, isostat]
+    - id: chemcraft
+      label: Chemcraft
+      label_en: Chemcraft
+      aliases: [Chemcraft]
+    - id: pymol
+      label: PyMOL
+      label_en: PyMOL
+      aliases: [PyMOL, pymol]
+    - id: python_chem
+      label: Python 化学生态
+      label_en: Python chemistry stack
+      aliases: [RDKit, rdkit, pyscf, ASE, cclib, openmm]
+
+  # ------------------------------------------------------------------
+  # 问题种类（任务/排障类型）
+  # ------------------------------------------------------------------
+  problem:
+    - id: geometry_optimization
+      label: 几何优化
+      label_en: geometry optimization
+      aliases: [几何优化, 结构优化, opt优化, optimization, 极小点, 势能面极小]
+    - id: opt_not_converged
+      label: 优化不收敛
+      label_en: optimization not converged
+      aliases: [优化不收敛, 几何优化不收敛, 收敛失败, not converged, 步数上限, maxcyc, 步长过大, newton line search, 收敛标准]
+    - id: scf_not_converged
+      label: SCF 不收敛
+      label_en: SCF convergence failure
+      aliases: [SCF不收敛, SCF收敛, 自洽场不收敛, scf convergence, scf not converged, smearing, fermi展宽, damping, DIIS]
+    - id: imaginary_frequency
+      label: 虚频确认与处置
+      label_en: imaginary frequencies
+      aliases: [虚频, imaginary frequency, NImag, 多个虚频, 一个虚频]
+    - id: ts_search
+      label: 过渡态搜索
+      label_en: transition state search
+      aliases: [过渡态, TS, QST2, QST3, opt=ts, transition state, 鞍点, trial TS, 过渡态猜测]
+    - id: irc
+      label: IRC 反应路径
+      label_en: IRC path
+      aliases: [IRC, 内禀反应坐标, reaction path, 反应路径]
+    - id: freq_thermochem
+      label: 频率与热力学量
+      label_en: frequencies & thermochemistry
+      aliases: [振动频率, 频率分析, 红外, 拉曼光谱, 零点能, ZPE, 焓, 熵, 自由能, thermochemistry, 热校正, 同位素效应]
+    - id: uv_vis_spectrum
+      label: 紫外-可见/荧光光谱
+      label_en: UV-Vis & fluorescence
+      aliases: [紫外, 吸收光谱, 荧光, 磷光, 发射光谱, 振子强度, oscillator strength, 吸收峰, 激发能, Stokes位移]
+    - id: nmr_property
+      label: NMR 性质
+      label_en: NMR properties
+      aliases: [NMR, 磁屏蔽, 化学位移, 自旋耦合, J耦合, spin-spin, shielding tensor]
+    - id: conformer_search
+      label: 构象搜索与分布
+      label_en: conformer search & distribution
+      aliases: [构象搜索, 构象分布, 构象, 玻尔兹曼加权, boltzmann, 构型筛选, 柔性分子]
+    - id: noncovalent_binding
+      label: 弱相互作用与结合能
+      label_en: noncovalent interactions & binding energy
+      aliases: [非共价, 氢键, π-π, 范德华, 相互作用能, 结合能, 解离能, 堆积, host-guest, 主客体]
+    - id: charge_spin_setting
+      label: 电荷与自旋多重度设置
+      label_en: charge & multiplicity setting
+      aliases: [自旋多重度, 多重度, 电荷设置, 自旋态, 高自旋, 单重态, 三重态, 开壳层, 闭壳层, charge and multiplicity]
+    - id: basis_selection
+      label: 基组选择与弥散
+      label_en: basis set selection
+      aliases: [基组选择, 基组怎么选, 弥散, anion阴离子基组, 赝势, ECP, effective core potential, 基组平衡]
+    - id: memory_parallel
+      label: 内存与并行设置
+      label_en: memory & parallel setup
+      aliases: [内存, 并行, 核数, "%mem", "%nproc", nprocshared, 超线程, MPI, openmp, 节点, slurm, 作业调度]
+    - id: file_conversion
+      label: 文件格式转换
+      label_en: file format conversion
+      aliases: [格式转换, chk文件, fch, molden, wfn, wfx, cube, 高斯格点文件, 轨道文件, extractcub, molden输入]
+    - id: solvent_effect
+      label: 溶剂效应
+      label_en: solvent effects
+      aliases: [溶剂效应, 溶剂化, 溶解自由能, solvation energy, 显式溶剂, 溶剂盒, 热溶剂冷溶质]
+    - id: reaction_energetics
+      label: 反应能与能垒
+      label_en: reaction energetics
+      aliases: [能垒, 势垒, 活化能, 反应焓, 反应自由能, reaction energy, 能量分解, isodesmic, 同键反应]
+    - id: accuracy_precision
+      label: 精度与数值误差控制
+      label_en: accuracy & numerical precision
+      aliases: [积分精度, 数值积分, 格点, grid, 精度, SCF=tight, 收敛限, 数值噪声, 基组重叠误差, BSSE, counterpoise]
+    - id: unit_conversion
+      label: 单位与换算
+      label_en: units & conversions
+      aliases: [单位换算, hartree, bohr, kcal/mol, kJ/mol, eV, cm-1, 德拜, 单位]
+
+  # ------------------------------------------------------------------
+  # 报错类型（程序输出签名；aliases 用于查询侧确定性检测）
+  # ------------------------------------------------------------------
+  error:
+    - id: err_l502
+      label: L502（SCF 收敛失败）
+      label_en: L502 SCF convergence failure
+      source: active
+      aliases: ["L502", "Convergence failure", "Convergence failure -- L502", "incomplete convergence"]
+    - id: err_l9999
+      label: L9999（优化到步数上限未收敛）
+      label_en: L9999 max optimizer cycles
+      source: active
+      aliases: ["L9999", "Link 9999", "Error termination via Lnk1e", "Error termination request processed by link 9999"]
+    - id: err_l103
+      label: L103（SCF/积分相关失败）
+      label_en: L103 failure
+      source: active
+      aliases: ["L103"]
+    - id: err_l123
+      label: L123
+      label_en: L123
+      source: active
+      aliases: ["L123"]
+    - id: err_scf_not_converged
+      label: SCF has not converged
+      label_en: SCF has not converged
+      source: active
+      aliases: ["SCF has not converged", "Convergence failure -- run", "SCF Done"]
+    - id: err_erroneous_wavefunction
+      label: Erroneous wavefunction（波函数异常）
+      label_en: erroneous wavefunction
+      source: active
+      aliases: ["Erroneous wavefunction", "wavefunction has an error"]
+    - id: err_bend_formbx
+      label: Bend failed / FormBX（内坐标优化失败）
+      label_en: Bend failed / FormBX problem
+      source: manual
+      aliases: ["Bend failed", "FormBX had a problem", "Linear search skipped"]
+    - id: err_linear_structure
+      label: 线性构型报错
+      label_en: linear structure error
+      source: archive
+      aliases: ["Linear? bent", "linear structure", "直线型报错", "线性构型导致的报错"]
+    - id: err_galloc
+      label: galloc 内存分配失败
+      label_en: galloc could not allocate memory
+      source: archive
+      aliases: ["galloc", "could not allocate memory", "galloc: could not allocate memory"]
+    - id: err_out_of_memory
+      label: 内存不足
+      label_en: out of memory
+      source: archive
+      aliases: ["out of memory", "Out-of-memory", "内存不足", "rQMOUT of memory"]
+    - id: err_pgfio
+      label: PGFIO/stdio（磁盘/文件 IO）
+      label_en: PGFIO/stdio IO error
+      source: archive
+      aliases: ["PGFIO/stdio", "PGFIO-F-", "No space left on device", "磁盘写满"]
+    - id: err_illegal_instruction
+      label: Illegal instruction（指令集不兼容）
+      label_en: illegal instruction
+      source: archive
+      aliases: ["illegal instruction", "ILL_ILLOPC", "AVX512", "指令集"]
+    - id: err_segfault
+      label: Segmentation fault
+      label_en: segmentation fault
+      source: active
+      aliases: ["Segmentation fault", "segfault", "段错误"]
+    - id: err_world_accessible
+      label: Gaussian 目录权限告警
+      label_en: files world accessible
+      source: archive
+      aliases: ["world accessible", "files in the gaussian directory"]
+    - id: err_no_executable
+      label: No executable for file l*.exe
+      label_en: no executable for link
+      source: active
+      aliases: ["No executable for file", "l1.exe", "l502.exe", "Missing or badly formatted"]
+    - id: err_formchk_not_found
+      label: formchk 命令未找到
+      label_en: formchk not found
+      source: archive
+      aliases: ["formchk命令未找到", "formchk命令找不到", "formchk: command not found"]
+    - id: err_license
+      label: 许可证/授权失败
+      label_en: license failure
+      source: manual
+      aliases: ["license", "Gaussian Site Number", "g09.user", "licgen", "授权"]
+    - id: err_input_syntax
+      label: 输入文件语法错误
+      label_en: input syntax error
+      source: active
+      aliases: ["input error", "general error", "read error in", "unreadable", "语法错误", "关键词错误", "QPErr", "NtrErr"]

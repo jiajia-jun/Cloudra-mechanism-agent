@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from ..context import ApiContext
 
@@ -29,8 +29,18 @@ def build_router(ctx: ApiContext) -> APIRouter:
         return await asyncio.to_thread(aggregate)
 
     @router.get("/api/v2/knowledge/search", dependencies=ctx.protected)
-    async def knowledge_search(q: str = "", limit: int = 10) -> dict[str, Any]:
-        """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域）。"""
+    async def knowledge_search(
+        q: str = "",
+        limit: int = 10,
+        tag: list[str] = Query(default=[]),
+        type: str | None = None,
+    ) -> dict[str, Any]:
+        """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域；v13 支持 tag/type 分面）。
+
+        ``tag`` 可重复，格式 ``facet:tag_id``（如 ``error:err_l502``）；裸
+        ``tag_id`` 按 error 惯例处理。``type`` 为 KG 实体类型
+        （concept/method/software/pitfall/...）。
+        """
         from cloudra.knowledge import store
         from cloudra.persistence.paths import knowledge_graph_db_path
 
@@ -38,7 +48,18 @@ def build_router(ctx: ApiContext) -> APIRouter:
         if not q:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing q")
         limit = max(1, min(50, limit))
-        rows = await asyncio.to_thread(store.search_graph, knowledge_graph_db_path(), q, limit)
+        facets: dict[str, list[str]] = {}
+        for item in tag:
+            facet, _, tag_id = str(item).partition(":")
+            facet, tag_id = facet.strip(), tag_id.strip()
+            if facet and tag_id:
+                facets.setdefault(facet, []).append(tag_id)
+            elif tag_id:
+                facets.setdefault("error", []).append(tag_id)
+        rows = await asyncio.to_thread(
+            store.search_graph, knowledge_graph_db_path(), q, limit,
+            facets or None, (type or None),
+        )
         return {
             "query": q,
             "fallback": rows[0]["fallback"] if rows else None,

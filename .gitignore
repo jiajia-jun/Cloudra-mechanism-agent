@@ -119,3 +119,6 @@ ideapool/**/img_*/
 
 
 
+
+# 知识库打标运行时产物（LLM 打标缓存与 pending 审核清单，机器本地）
+vector_store/_tag_state/

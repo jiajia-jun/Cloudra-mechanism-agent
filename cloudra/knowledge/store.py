@@ -43,6 +43,15 @@ _DDL = [
     "CREATE INDEX IF NOT EXISTS idx_rel_dst ON kg_relations(dst_id)",
     # 混合 provider 的"卡→图缝合"查询（relations_of_source）走这枚索引。
     "CREATE INDEX IF NOT EXISTS idx_rel_source ON kg_relations(source)",
+    # 实体标签派生表（v13）：由卡片 tags 经 relations.source 反贴，唯一写路径
+    # 是 rebuild_entity_tags（整表重建，幂等）；导入路径不做任何填充。
+    """
+    CREATE TABLE IF NOT EXISTS kg_entity_tags(
+      entity_id TEXT NOT NULL REFERENCES kg_entities(id),
+      facet TEXT NOT NULL, tag TEXT NOT NULL,
+      PRIMARY KEY(entity_id, facet, tag)) WITHOUT ROWID
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_ent_tags_tag ON kg_entity_tags(facet, tag)",
     """
     CREATE VIRTUAL TABLE IF NOT EXISTS kg_entities_fts USING fts5(
       label, smiles, props, content='kg_entities', content_rowid='rowid', tokenize='trigram')
@@ -221,11 +230,22 @@ def _bm25_score(raw: Any, n_sources: int) -> float:
     return -r / (1.0 + abs(r)) + 0.1 * min(n_sources, 5) / 5.0
 
 
-def search_graph(db_path: PathLike, query: str, limit: int = 8) -> list[dict[str, Any]]:
+def search_graph(
+    db_path: PathLike, query: str, limit: int = 8,
+    facets: Optional[dict[str, list[str]]] = None,
+    entity_type: Optional[str] = None,
+) -> list[dict[str, Any]]:
     """FTS(→LIKE) 直接命中 + 1~2 跳邻域扩展，确定性排序后返回条目列表。
 
     缺库时返回 ``[]``（绝不建库）。返回 dict 字段：id/type/label/content/
-    score/hop/fallback/source（首个 kb: 关系指针，兜底 "chem-kb"）。
+    score/hop/fallback/source（首个 kb: 关系指针，兜底 "chem-kb"）/tags
+    （kg_entity_tags 派生标签，库未建时为 {}）。
+
+    ``facets``（v13）可选标签过滤，形如 ``{"error": ["err_l502"], ...}``：
+    只保留打了任一指定标签的实体。``entity_type`` 可选实体类型过滤
+    （concept/method/software/pitfall/...）。两者过滤发生在邻域扩展之后
+    （种子与邻居同一约束），可能减少甚至清空结果——由调用方（plugin）
+    决定是否回退无过滤。
     """
     con = _open_ro(db_path)
     if con is None:
@@ -241,6 +261,24 @@ def search_graph(db_path: PathLike, query: str, limit: int = 8) -> list[dict[str
             seed_score = {k: 0.5 + 0.1 * min(s, 5) / 5.0 for k, s in
                           ((str(r["id"]), r["n_sources"] or 1) for r in seeds)}
         placeholders = ",".join("?" * len(seed_ids))
+        # facet 过滤：每个 facet 一个 EXISTS 子查询（tag 任一命中即可）
+        facet_clauses: list[str] = []
+        facet_params: list[Any] = []
+        for facet, tags in (facets or {}).items():
+            tag_list = [str(t) for t in (tags or []) if t]
+            if not tag_list:
+                continue
+            facet_clauses.append(
+                "EXISTS (SELECT 1 FROM kg_entity_tags t WHERE t.entity_id = e.id"
+                " AND t.facet = ? AND t.tag IN (%s))" % ",".join("?" * len(tag_list))
+            )
+            facet_params.append(facet)
+            facet_params.extend(tag_list)
+        facet_where = (" WHERE " + " AND ".join(facet_clauses)) if facet_clauses else ""
+        type_param: list[Any] = []
+        if entity_type:
+            facet_where += (" AND " if facet_where else " WHERE ") + "e.type = ?"
+            type_param.append(str(entity_type))
         rows = con.execute(
             f"""
             WITH RECURSIVE walk(id, hop) AS (
@@ -253,25 +291,45 @@ def search_graph(db_path: PathLike, query: str, limit: int = 8) -> list[dict[str
             SELECT e.id, e.type, e.label, e.smiles, e.n_sources, e.props,
                    MIN(w.hop) AS hop, COALESCE(d.degree, 0) AS degree
             FROM walk w JOIN kg_entities e ON e.id = w.id LEFT JOIN deg d ON d.id = e.id
+            """ + facet_where + """
             GROUP BY e.id
             ORDER BY hop, degree DESC, label
             LIMIT ?
             """,
-            (*seed_ids, limit),
+            (*seed_ids, *facet_params, *type_param, limit),
         ).fetchall()
         # 直接命中的相关性分要排在邻居前面（hop=0 优先由 ORDER BY 保证）；
         # 同 hop 内按 FTS/LIKE 原始分（邻居无原始分，用度数先验）。
         out: list[dict[str, Any]] = []
+        has_tags_table = bool(con.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='kg_entity_tags'").fetchone())
         for r in rows:
             eid = str(r["id"])
             score = seed_score.get(eid)
             if score is None:
                 score = 0.1 * min(r["n_sources"] or 1, 5) / 5.0
             src_row = con.execute(
-                "SELECT source FROM kg_relations WHERE src_id = ? OR dst_id = ? LIMIT 1",
+                """
+                SELECT source, note FROM kg_relations
+                WHERE src_id = ? OR dst_id = ? ORDER BY id LIMIT 6
+                """,
                 (eid, eid),
-            ).fetchone()
-            content = _fold(f"{r['label']}（{r['type']}，度 {r['degree']}，源 {r['n_sources']}）")
+            ).fetchall()
+            src = next((str(x["source"]) for x in src_row if x["source"]), "chem-kb")
+            # note 上送（v13）：relations.note 是抽取期留下的因果解释句，是图谱
+            # 条目里最有信息量的部分，此前一直被丢弃。最多带 2 条，总长仍受
+            # _fold(200) 约束。
+            notes = [str(x["note"]).strip() for x in src_row
+                     if x["note"] and str(x["note"]).strip()][:2]
+            base = f"{r['label']}（{r['type']}，度 {r['degree']}，源 {r['n_sources']}）"
+            content = _fold(base + (" ‖ " + "；".join(notes)) if notes else base)
+            ent_tags: dict[str, list[str]] = {}
+            if has_tags_table:
+                for facet, tag in con.execute(
+                    "SELECT facet, tag FROM kg_entity_tags"
+                    " WHERE entity_id = ? ORDER BY facet, tag", (eid,)
+                ):
+                    ent_tags.setdefault(str(facet), []).append(str(tag))
             out.append({
                 "id": eid,
                 "type": r["type"],
@@ -281,7 +339,8 @@ def search_graph(db_path: PathLike, query: str, limit: int = 8) -> list[dict[str
                 "score": score,
                 "hop": int(r["hop"] or 0),
                 "fallback": fallback,
-                "source": str(src_row["source"]) if src_row else "chem-kb",
+                "source": src,
+                "tags": ent_tags,
             })
         out.sort(key=lambda x: (x["hop"], -x["score"]))
         return out
@@ -570,5 +629,86 @@ def import_csv(
         report["smiles_invalid"] = smiles_bad
         report["seconds"] = round(time.perf_counter() - started, 2)
         return report
+    finally:
+        con.close()
+
+
+# --------------------------------------------------------------------------
+# 实体标签派生（v13：卡片 tags → 关系两端实体）
+# --------------------------------------------------------------------------
+
+def rebuild_entity_tags(
+    db_path: PathLike, source_tags: dict[str, dict[str, list[str]]],
+    batch_size: int = 5000,
+) -> dict[str, Any]:
+    """按 relations.source 把卡片 tags 反贴到关系两端实体（整表重建，幂等）。
+
+    ``source_tags``：relations.source 值（"kb:422" / "kb:dyn01"）→
+    {facet: [tag id]}。上游 kg_data CSV 是外部管线产物、不做任何改动——
+    本表是纯派生数据，可随时由 cards.jsonl 重建。要求先 ``ensure_schema``
+    （kg_entity_tags 表在 _DDL 里，随导入/本函数建表路径创建）。
+    """
+    started = time.perf_counter()
+    _probe_sqlite()
+    ensure_schema(db_path)
+    con = _open_rw(db_path)
+    report: dict[str, Any] = {"sources": len(source_tags), "rows": 0, "entities": 0}
+    try:
+        con.execute("BEGIN")
+        con.execute("DELETE FROM kg_entity_tags")
+        con.execute("""
+            CREATE TEMP TABLE _src_tags(
+              source_key TEXT NOT NULL, facet TEXT NOT NULL, tag TEXT NOT NULL,
+              PRIMARY KEY(source_key, facet, tag)) WITHOUT ROWID""")
+        flat = [
+            (str(src), facet, str(t))
+            for src, facets in source_tags.items()
+            for facet, tags in (facets or {}).items()
+            for t in (tags or [])
+        ]
+        for i in range(0, len(flat), batch_size):
+            con.executemany(
+                "INSERT OR IGNORE INTO _src_tags(source_key, facet, tag) VALUES (?,?,?)",
+                flat[i : i + batch_size],
+            )
+        # 关系两端都吃标签：边的语义就是"该卡支撑这两个实体间的陈述"
+        for side in ("r.src_id", "r.dst_id"):
+            con.execute(
+                f"""
+                INSERT OR IGNORE INTO kg_entity_tags(entity_id, facet, tag)
+                SELECT {side}, t.facet, t.tag
+                FROM kg_relations r JOIN _src_tags t ON r.source = t.source_key
+                """
+            )
+        con.commit()
+        report["rows"] = con.execute("SELECT COUNT(*) FROM kg_entity_tags").fetchone()[0]
+        report["entities"] = con.execute(
+            "SELECT COUNT(DISTINCT entity_id) FROM kg_entity_tags").fetchone()[0]
+        report["seconds"] = round(time.perf_counter() - started, 2)
+        return report
+    finally:
+        con.close()
+
+
+def tag_distribution(db_path: PathLike) -> dict[str, Any]:
+    """库内实体标签分布（facet → tag → 实体数），只读；缺库返回 db_present=False。"""
+    con = _open_ro(db_path)
+    if con is None:
+        return {"db_present": False}
+    try:
+        has_table = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='kg_entity_tags'").fetchone()
+        if not has_table:
+            return {"db_present": True, "entities": 0, "rows": 0, "facets": {}}
+        rows_count = con.execute("SELECT COUNT(*) FROM kg_entity_tags").fetchone()[0]
+        entities = con.execute(
+            "SELECT COUNT(DISTINCT entity_id) FROM kg_entity_tags").fetchone()[0]
+        facets: dict[str, list[tuple[str, int]]] = {}
+        for facet, tag, n in con.execute(
+            "SELECT facet, tag, COUNT(*) FROM kg_entity_tags"
+            " GROUP BY facet, tag ORDER BY facet, COUNT(*) DESC"
+        ):
+            facets.setdefault(str(facet), []).append((str(tag), int(n)))
+        return {"db_present": True, "entities": entities, "rows": rows_count, "facets": facets}
     finally:
         con.close()

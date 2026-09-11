@@ -52,12 +52,14 @@ def _parse(path: Path) -> list[dict[str, Any]]:
             heading = str(row.get("heading") or "")
             content = str(row.get("content") or "")
             # ASCII 部分预 lower（CJK 不受影响）：ASCII token 两侧 lower 子串匹配。
+            # tags（v13）透传：plugin 的模糊补位条目据此携带分类，无 tags 的旧库为 {}。
             rows.append({
                 "card_id": str(row.get("card_id") or ""),
                 "domain": str(row.get("domain") or ""),
                 "heading": heading,
                 "content": content,
                 "lang": str(row.get("lang") or "zh"),
+                "tags": row.get("tags") if isinstance(row.get("tags"), dict) else {},
                 "text": heading + "\n" + content,
                 "text_low": (heading + "\n" + content).lower(),
             })
@@ -74,7 +76,7 @@ def _ensure_cards() -> list[dict[str, Any]]:
 
 
 def search(query: str, limit: int = 5) -> list[dict[str, Any]]:
-    """确定性子串匹配。返回 [{card_id, domain, heading, content, score}]。
+    """确定性子串匹配。返回 [{card_id, domain, heading, content, tags, score}]。
 
     - 查询按空白分 token（>200 码点截断；空查询 → ``[]``）
     - ASCII token 两侧 lower 子串匹配；中文 token 原样子串匹配
@@ -132,6 +134,7 @@ def search(query: str, limit: int = 5) -> list[dict[str, Any]]:
             "heading": c["heading"],
             "content": c["content"],
             "lang": c["lang"],
+            "tags": c["tags"],
             "score": s,
         })
         if len(out) >= limit:

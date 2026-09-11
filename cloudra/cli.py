@@ -396,14 +396,27 @@ def knowledge_stats(db_path):
 @knowledge_cmd.command(name="search")
 @click.argument("query")
 @click.option("--limit", type=int, default=8, show_default=True)
+@click.option("--tag", "tag_filters", multiple=True,
+              help="标签过滤，格式 facet:tag（可多次，如 --tag error:err_l502 --tag problem:ts_search）")
+@click.option("--type", "entity_type", default=None,
+              help="实体类型过滤（concept/method/software/pitfall/...）")
 @click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
-def knowledge_search(query, limit, db_path):
-    """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域）。"""
+def knowledge_search(query, limit, tag_filters, entity_type, db_path):
+    """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域，支持标签/类型分面）。"""
     from cloudra.knowledge import store
     from cloudra.persistence.paths import knowledge_graph_db_path
 
+    facets: dict[str, list[str]] = {}
+    for item in tag_filters:
+        facet, _, tag = str(item).partition(":")
+        facet, tag = facet.strip(), tag.strip()
+        if facet and tag:
+            facets.setdefault(facet, []).append(tag)
+        elif tag:  # 裸 tag 无 facet 前缀：按 error 惯例放行报错签名检索
+            facets.setdefault("error", []).append(tag)
     db = db_path or knowledge_graph_db_path()
-    rows = store.search_graph(db, query, limit=limit)
+    rows = store.search_graph(db, query, limit=limit,
+                              facets=facets or None, entity_type=entity_type)
     if not rows:
         console.print("[yellow]无命中。[/yellow]" if db.exists() else f"[yellow]库不存在: {db}[/yellow]")
         return
@@ -411,11 +424,134 @@ def knowledge_search(query, limit, db_path):
     table.add_column("hop", justify="right")
     table.add_column("label")
     table.add_column("type")
+    table.add_column("tags")
     table.add_column("source")
     table.add_column("score", justify="right")
     for r in rows:
-        table.add_row(str(r["hop"]), r["label"], r["type"], r["source"], f"{r['score']:.3f}")
+        tags = ",".join(t for vals in (r.get("tags") or {}).values() for t in vals)
+        table.add_row(str(r["hop"]), r["label"], r["type"], tags, r["source"], f"{r['score']:.3f}")
     console.print(table)
+
+
+@knowledge_cmd.group(name="tag")
+def tag_cmd():
+    """卡片标签（v13）：LLM 打标 → 实体反贴 → 覆盖率统计。"""
+    pass
+
+
+@tag_cmd.command(name="build")
+@click.option("--limit", type=int, default=0, help="只打前 N 张卡（0=全部；试跑/控费用用）")
+@click.option("--batch-size", type=int, default=15, show_default=True, help="每次 LLM 请求的卡片数")
+@click.option("--concurrency", type=int, default=4, show_default=True, help="并发 LLM 请求数")
+@click.option("--refresh", is_flag=True, help="忽略缓存，全部重打（内容未变的卡也会重调 LLM）")
+@click.option("--dry-run", is_flag=True, help="只调 LLM 并报告，不写 cards.jsonl / 缓存 / pending")
+@click.option("--model", default=None, help="覆盖 config.coordinator.model")
+@click.option("--url", "base_url", default=None, help="覆盖 config.coordinator.url")
+@click.option("--key", "api_key", default=None, help="覆盖 config.coordinator.key（不会回显）")
+def tag_build(limit, batch_size, concurrency, refresh, dry_run, model, base_url, api_key):
+    """LLM 批量打标：cards.jsonl 加 tags 字段（行对齐，向量库无需重编码）。
+
+    断点安全：已打过的卡（内容哈希命中缓存）自动跳过。词表外的 LLM 提议
+    进 vector_store/_tag_state/pending_tags.json，人工审核后补进词表。
+    """
+    from cloudra.knowledge import tagging
+
+    if not (api_key or get_config().coordinator.key):
+        console.print("[red]未配置 LLM key：先 cloudra config set coordinator.key …"
+                      "（或用 --key/--url/--model 覆盖）[/red]")
+        sys.exit(1)
+    report = tagging.tag_cards(
+        model=model, base_url=base_url, api_key=api_key,
+        batch_size=batch_size, concurrency=concurrency,
+        limit=limit, refresh=refresh, dry_run=dry_run,
+    )
+    mode = "（dry-run，未写盘）" if dry_run else ""
+    console.print(Panel(f"[bold]打标完成[/bold] {mode}", style="cyan"))
+    console.print(f"卡片 {report['cards_total']}  本次打标 {report['cards_with_tags']}  "
+                  f"缓存命中 {report['from_cache']}  LLM 调用 {report['llm_batches']} 批"
+                  f"/{report['llm_called']} 卡  耗时 {report['seconds']}s")
+    if report["llm_errors"]:
+        console.print(f"[yellow]LLM 失败 {len(report['llm_errors'])} 批（下轮重跑自动补）:[/yellow]")
+        for err in report["llm_errors"][:5]:
+            console.print(f"  {err}")
+    if report["pending"]:
+        console.print(f"[yellow]词表外提议 {len(report['pending'])} 条 → "
+                      f"vector_store/_tag_state/pending_tags.json（审核后补进 tag_vocab.yaml）[/yellow]")
+    if report["write"]:
+        console.print(f"写回: {report['write']['cards']}/{report['write']['rows']} 行携带 tags")
+
+
+@tag_cmd.command(name="apply-db")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
+@click.option("--cards", "cards_path", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              default=None, help="cards.jsonl 路径（默认仓库内 vector_store/cards.jsonl）")
+def tag_apply_db(db_path, cards_path):
+    """把卡片 tags 经 relations.source 反贴到实体（整表重建，幂等）。"""
+    from cloudra.knowledge import store, tagging
+    from cloudra.persistence.paths import knowledge_graph_db_path
+
+    rows = tagging.read_cards(cards_path)
+    source_map = tagging.source_tag_map(rows)
+    if not source_map:
+        console.print("[yellow]cards.jsonl 里还没有 tags——先跑 cloudra knowledge tag build。[/yellow]")
+        return
+    report = store.rebuild_entity_tags(db_path or knowledge_graph_db_path(), source_map)
+    console.print(f"[green]实体标签已重建:[/green] 来源 {report['sources']} 个博客 → "
+                  f"{report['entities']} 实体 / {report['rows']} 行标签（{report['seconds']}s）")
+
+
+@tag_cmd.command(name="stats")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
+def tag_stats(db_path):
+    """打标覆盖率（卡片侧）与标签分布（图谱侧）。"""
+    from cloudra.knowledge import store, tagging
+    from cloudra.persistence.paths import knowledge_graph_db_path
+
+    cov = tagging.coverage_report()
+    console.print(Panel("[bold]卡片覆盖率（cards.jsonl）[/bold]", style="cyan"))
+    console.print(f"已打 {cov['tagged_cards']}/{cov['cards']} 卡（{cov['coverage_pct']}%）  "
+                  f"维度覆盖: " + "  ".join(f"{f} {pct}%" for f, pct in cov["facet_cards"].items()))
+    for facet, top in cov["top"].items():
+        if top:
+            tops = "  ".join(f"{t}×{n}" for t, n in top[:8])
+            console.print(f"  [dim]{facet}[/dim] {tops}")
+    dist = store.tag_distribution(db_path or knowledge_graph_db_path())
+    if not dist.get("db_present"):
+        console.print("[yellow]chem_kg.db 不存在（先 cloudra knowledge import）。[/yellow]")
+        return
+    console.print(Panel("[bold]图谱实体标签（kg_entity_tags）[/bold]", style="cyan"))
+    if not dist.get("rows"):
+        console.print("库内暂无实体标签（先 cloudra knowledge tag apply-db）。")
+        return
+    console.print(f"{dist['entities']} 实体 / {dist['rows']} 行标签")
+    for facet, items in dist.get("facets", {}).items():
+        tops = "  ".join(f"{t}×{n}" for t, n in items[:8])
+        console.print(f"  [dim]{facet}[/dim] {tops}")
+
+
+@knowledge_cmd.command(name="tags")
+@click.option("--facet", "facet_filter", default=None, help="只列某个维度（method/software/problem/error/domain）")
+def knowledge_tags(facet_filter):
+    """列出标签词表（vector_store/tag_vocab.yaml）。"""
+    import yaml
+
+    from cloudra.knowledge.tagging import VOCAB_FILE, TAG_FACETS
+
+    raw = yaml.safe_load(VOCAB_FILE.read_text(encoding="utf-8"))
+    facets = raw.get("facets") or {}
+    wanted = [facet_filter] if facet_filter else list(facets)
+    console.print(f"[bold]词表 v{raw.get('version', 1)}[/bold]  {VOCAB_FILE}")
+    for facet in wanted:
+        items = facets.get(facet) or []
+        console.print(Panel(f"[bold]{facet}[/bold]（{len(items)} 个值"
+                            + ("，继承字段不打标" if facet not in TAG_FACETS else "，LLM 打标")
+                            + "）", style="cyan"))
+        for item in items:
+            aliases = "/".join(str(a) for a in (item.get("aliases") or [])[:5])
+            line = f"{item.get('id')}: {item.get('label')}"
+            if aliases:
+                line += f"  [dim]({aliases})[/dim]"
+            console.print(f"  {line}")
 
 
 @knowledge_cmd.command(name="export")

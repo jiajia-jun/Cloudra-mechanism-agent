@@ -36,6 +36,24 @@ class _FakeProvider:
                 content="switch to quadratically convergent SCF",
                 evidence_level="L0",
                 source="kb:1",
+                score=0.9,  # v13：成功路径要求 top 分过阈值才注入
+            )
+        ]
+
+
+class _LowScoreProvider:
+    """成功但低置信：模拟"查询与库毫无关系，向量通道硬凑的近邻"。"""
+
+    name = "low-score-kb"
+
+    def search(self, query, *, limit=5):
+        return [
+            KnowledgeEntry(
+                title="weak match",
+                content="barely related",
+                evidence_level="L0",
+                source="kb:2",
+                score=0.31,
             )
         ]
 
@@ -68,11 +86,35 @@ def test_is_compute_tool_semantics():
     assert not is_compute_tool("bash")
 
 
-def test_build_knowledge_query_includes_tool_and_summary():
-    query = build_knowledge_query("log_parser", {"path": "/tmp/x.log"}, "imaginary frequency 1")
-    assert query.startswith("log_parser")
-    assert "/tmp/x.log" in query
-    assert "imaginary frequency 1" in query
+def test_build_knowledge_query_short_and_focused():
+    # v13：短参数保留，>120 字符长串与纯数字丢弃，不 dump 整个 summary
+    query = build_knowledge_query(
+        "submit_compute_job",
+        {"input_file": "/tmp/TS1_gaussian.gjf", "nproc": "16",
+         "blob": "x" * 300},
+        "job submitted ok",
+    )
+    assert query.startswith("submit_compute_job")
+    assert "/tmp/TS1_gaussian.gjf" in query
+    assert "16" not in query.split("/tmp")[0]  # 纯数字参数不进查询
+    assert "xxxx" not in query and "job submitted ok" not in query
+    assert len(query) <= 200
+
+
+def test_build_knowledge_query_keeps_error_window():
+    summary = ('{"scf_energy_hartree": -231.4, "note": "x" * 40} Convergence failure '
+               'after 50 cycles, L502 in link — try scf=xqc and tighter grid')
+    query = build_knowledge_query("log_parser", {"log_path": "/tmp/TS1.log"}, summary)
+    assert "Convergence failure" in query
+    assert "L502" in query
+    # 报错窗口之外的 JSON 头部不整体进查询
+    assert "scf_energy_hartree" not in query
+    assert len(query) <= 200
+
+
+def test_build_knowledge_query_capped_at_200():
+    query = build_knowledge_query("log_parser", {"p": "y" * 100}, "failed " + "z" * 500)
+    assert len(query) <= 200
 
 
 @pytest.mark.asyncio
@@ -192,3 +234,40 @@ async def test_empty_results_degrade_and_later_hits_still_work():
     )
     pushed = notices.collect(ctx.agent.id)
     assert len(pushed) == 1 and "SCF convergence fix" in pushed[0]["content"]
+
+
+# ---------------------------------------------------------------------------
+# v13 注入分级：失败必注入；成功仅高分注入（压上下文噪声）
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_success_with_low_score_not_pushed():
+    """成功 + 低置信命中：宁可错过也不注入近似噪声。"""
+    register_knowledge_provider(_LowScoreProvider())
+    stage = KnowledgeStage()
+    notices = NoticeManager()
+    ctx = _ctx(notices)
+
+    await stage.after_tool(
+        ctx,
+        ToolCall(id="t1", name="log_parser", arguments={"log_path": "x.log"}),
+        ToolResult(is_success=True, summary="parsed cleanly"),
+    )
+    assert notices.collect(ctx.agent.id) == []
+
+
+@pytest.mark.asyncio
+async def test_failure_pushes_even_with_low_score():
+    """失败必注入：排障价值最高，低置信也值得让 agent 看一眼。"""
+    register_knowledge_provider(_LowScoreProvider())
+    stage = KnowledgeStage()
+    notices = NoticeManager()
+    ctx = _ctx(notices)
+
+    await stage.after_tool(
+        ctx,
+        ToolCall(id="t1", name="log_parser", arguments={"log_path": "x.log"}),
+        ToolResult(is_success=False, summary="Error termination via Lnk1e (L502)"),
+    )
+    pushed = notices.collect(ctx.agent.id)
+    assert len(pushed) == 1 and "weak match" in pushed[0]["content"]

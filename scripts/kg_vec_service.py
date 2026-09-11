@@ -25,9 +25,16 @@ cloudra/services/daemon_supervisor.py 的 ensure_kg_vec。平台无 fcntl（Wind
 
 端点：
     GET /health          → {"ok": true, "model": ..., "library_model": ..., "count": 14986}
-    GET /search?q=&k=[&lang=zh|en] → {"hits": [{card_id, lang, blog_id, domain, heading, content, score}]}
-    POST /search {"query": "...", "k": 5, "lang": "en"}
+    GET /search?q=&k=[&lang=zh|en][&domain=...][&tags=a,b] → {"hits": [{card_id, lang, blog_id, domain, tags, heading, content, score}]}
+    POST /search {"query": "...", "k": 5, "lang": "en",
+                  "domain": "波函数与电子结构分析" | [...],
+                  "tags": ["scf_not_converged"] | {"problem": ["scf_not_converged"]}}
                          → 同上（chem-kb 混合 provider 走这条；GET 供人工/脚本调试）
+
+过滤（v13）：domain 精确匹配行值（zh/en 任一形式）；tags 过滤——扁平列表
+= 任一 tag 命中即可，dict = facet 间 AND、facet 内任一命中。过滤是
+top-k 后过滤（扫完整 order 直到凑满 k 或耗尽），因此"过滤后不足 k 条"
+不会用不相关行凑数。
 
 双语库（cards.jsonl 每卡 zh+en 两行，"lang" 字段区分）：lang 缺省混合检索；
 指定 zh/en 只在该语言行上排名。同 card_id 的双行**去重**——按分数序保留
@@ -157,15 +164,66 @@ def _try_hold_lock(path: str):
     return fd  # 故意不关闭：进程退出（含 kill -9）时内核自动放锁
 
 
+def _norm_domain_filter(raw: Any) -> set[str] | None:
+    """domain 过滤归一：str 或 list → 精确匹配值集合；空 → None。"""
+    if isinstance(raw, str) and raw.strip():
+        return {raw.strip()}
+    if isinstance(raw, list):
+        vals = {str(v).strip() for v in raw if str(v).strip()}
+        return vals or None
+    return None
+
+
+def _norm_tag_filter(raw: Any) -> dict[str, set[str]] | None:
+    """tags 过滤归一：扁平 list → {"_any": ids}（任一命中）；dict {facet: ids}
+    → facet 间 AND、facet 内任一命中；空/畸形 → None。"""
+    if isinstance(raw, dict):
+        out = {str(f): {str(i) for i in (ids or []) if i}
+               for f, ids in raw.items() if ids}
+        return {f: s for f, s in out.items() if s} or None
+    if isinstance(raw, list):
+        s = {str(i) for i in raw if i}
+        return {"_any": s} if s else None
+    return None
+
+
+def _row_matches(row: dict, domains: set[str] | None, tag_filter: dict[str, set[str]] | None) -> bool:
+    if domains and str(row.get("domain") or "") not in domains:
+        return False
+    if tag_filter:
+        tags = row.get("tags") if isinstance(row.get("tags"), dict) else {}
+
+        def _facet_ids(facet: str) -> set[str]:
+            vals = tags.get(facet)
+            return {str(v) for v in vals} if isinstance(vals, list) else set()
+
+        if "_any" in tag_filter:
+            row_tags = {t for f in tags for t in _facet_ids(f)}
+            if not (row_tags & tag_filter["_any"]):
+                return False
+        else:
+            for facet, want in tag_filter.items():
+                if not (_facet_ids(facet) & want):
+                    return False
+    return True
+
+
 def _select_hits(cards: list[dict], scores, order, k: int,
-                 lang: str | None) -> list[dict]:
-    """按分数序选 top-k：语言过滤 + 同 card_id 去重（保留高分行）。"""
+                 lang: str | None, domains: set[str] | None = None,
+                 tag_filter: dict[str, set[str]] | None = None) -> list[dict]:
+    """按分数序选 top-k：语言/标签过滤 + 同 card_id 去重（保留高分行）。
+
+    过滤是"继续扫"语义：当前行被滤掉不终止扫描，直到凑满 k 或耗尽全库——
+    耗尽时宁缺毋滥，不回填被滤掉的行。
+    """
     hits: list[dict] = []
     seen: set[str] = set()
     for i in order:
         row = cards[int(i)]
         row_lang = row.get("lang") or "zh"  # 单语旧库无 lang 字段 → zh
         if lang and row_lang != lang:
+            continue
+        if not _row_matches(row, domains, tag_filter):
             continue
         cid = row.get("card_id", "")
         if cid in seen:
@@ -176,6 +234,7 @@ def _select_hits(cards: list[dict], scores, order, k: int,
             "lang": row_lang,
             "blog_id": row.get("blog_id", ""),
             "domain": row.get("domain", ""),
+            "tags": row.get("tags", {}),
             "heading": row.get("heading", ""),
             "content": row.get("content", "")[:CONTENT_CAP],
             "score": float(scores[int(i)]),
@@ -185,7 +244,9 @@ def _select_hits(cards: list[dict], scores, order, k: int,
     return hits
 
 
-def _search(query: str, k: int, lang: str | None = None) -> list[dict]:
+def _search(query: str, k: int, lang: str | None = None,
+            domains: set[str] | None = None,
+            tag_filter: dict[str, set[str]] | None = None) -> list[dict]:
     import numpy as np
 
     model = _get_model()
@@ -195,7 +256,7 @@ def _search(query: str, k: int, lang: str | None = None) -> list[dict]:
     m_norm = np.linalg.norm(_mat, axis=1)
     m_norm[m_norm == 0] = 1.0
     scores = (_mat @ q) / m_norm  # 库侧再归一化 → 严格余弦
-    return _select_hits(_cards, scores, np.argsort(-scores), k, lang)
+    return _select_hits(_cards, scores, np.argsort(-scores), k, lang, domains, tag_filter)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -226,7 +287,11 @@ class Handler(BaseHTTPRequestHandler):
             q = (qs.get("q") or [""])[0].strip()
             k = _clamp_k((qs.get("k") or ["5"])[0])
             lang = _clamp_lang((qs.get("lang") or [None])[0])
-            self._handle_search(q, k, lang)
+            domains = _norm_domain_filter((qs.get("domain") or [None])[0])
+            tags_raw = (qs.get("tags") or [None])[0]
+            tag_filter = _norm_tag_filter(
+                [t for t in tags_raw.split(",") if t.strip()] if tags_raw else None)
+            self._handle_search(q, k, lang, domains, tag_filter)
             return
         self._send_json({"error": "not found"}, code=404)
 
@@ -239,19 +304,23 @@ class Handler(BaseHTTPRequestHandler):
                 q = str(body.get("query") or "").strip()
                 k = _clamp_k(body.get("k", 5))
                 lang = _clamp_lang(body.get("lang"))
+                domains = _norm_domain_filter(body.get("domain"))
+                tag_filter = _norm_tag_filter(body.get("tags"))
             except Exception:
                 self._send_json({"error": "bad request"}, code=400)
                 return
-            self._handle_search(q, k, lang)
+            self._handle_search(q, k, lang, domains, tag_filter)
             return
         self._send_json({"error": "not found"}, code=404)
 
-    def _handle_search(self, q: str, k: int, lang: str | None = None) -> None:
+    def _handle_search(self, q: str, k: int, lang: str | None = None,
+                       domains: set[str] | None = None,
+                       tag_filter: dict[str, set[str]] | None = None) -> None:
         if not q:
             self._send_json({"error": "missing q"}, code=400)
             return
         try:
-            self._send_json({"hits": _search(q, k, lang)})
+            self._send_json({"hits": _search(q, k, lang, domains, tag_filter)})
         except Exception as exc:  # noqa: BLE001
             self._send_json({"error": str(exc)}, code=500)
 

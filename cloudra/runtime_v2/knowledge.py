@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,9 @@ _LEVEL_RANK = {"L1": 0, "L0": 1, "L2": 2}
 class KnowledgeEntry:
     """One library hit.  ``source`` is a provenance pointer (paper, project,
     run id, artifact…) so claims stay traceable; ``falsified`` marks
-    refuted entries — kept for audit but demoted."""
+    refuted entries — kept for audit but demoted.  ``tags`` (v13) carries
+    controlled-vocabulary tag ids (vector_store/tag_vocab.yaml) flattened
+    from the per-facet map, for agent-visible categorization."""
 
     title: str
     content: str
@@ -52,6 +54,20 @@ class KnowledgeEntry:
     source: str = ""
     falsified: bool = False
     score: float = 0.0
+    tags: list[str] = field(default_factory=list)
+
+
+def flatten_tags(raw: Any) -> list[str]:
+    """tags 载荷 → 扁平 id 列表。接受 dict {facet: [ids]} / list / None。"""
+    if isinstance(raw, dict):
+        out: list[str] = []
+        for vals in raw.values():
+            if isinstance(vals, list):
+                out.extend(str(v) for v in vals if v)
+        return out
+    if isinstance(raw, list):
+        return [str(v) for v in raw if v]
+    return []
 
 
 @runtime_checkable
@@ -90,6 +106,7 @@ def _normalize(raw: Any, provider_name: str) -> dict[str, Any] | None:
             "source": raw.source,
             "falsified": raw.falsified,
             "score": raw.score,
+            "tags": flatten_tags(raw.tags),
         }
     elif isinstance(raw, dict):
         entry = {
@@ -99,6 +116,7 @@ def _normalize(raw: Any, provider_name: str) -> dict[str, Any] | None:
             "source": str(raw.get("source") or ""),
             "falsified": bool(raw.get("falsified")),
             "score": float(raw.get("score") or 0.0),
+            "tags": flatten_tags(raw.get("tags")),
         }
     else:
         return None
@@ -108,7 +126,6 @@ def _normalize(raw: Any, provider_name: str) -> dict[str, Any] | None:
         entry["evidence_level"] = "L0"
     entry["provider"] = provider_name
     return entry
-
 
 async def search_library(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
     """Query every registered provider; merge, rank, and cap the hits.
@@ -157,9 +174,11 @@ def render_library_hits(hits: list[dict[str, Any]]) -> str:
     for entry in hits:
         flag = " [FALSIFIED — refuted, kept for audit]" if entry.get("falsified") else ""
         source = f" — source: {entry['source']}" if entry.get("source") else ""
+        tags = [str(t) for t in (entry.get("tags") or [])][:4]
+        tag_s = f" [tags: {'|'.join(tags)}]" if tags else ""
         snippet = " ".join(str(entry.get("content") or "").split())[:200]
         lines.append(
-            f"- [{entry.get('evidence_level', 'L0')}]{flag} {entry.get('title') or ''}: "
+            f"- [{entry.get('evidence_level', 'L0')}]{flag}{tag_s} {entry.get('title') or ''}: "
             f"{snippet} (provider: {entry.get('provider', '?')}){source}"
         )
     return "\n".join(lines)

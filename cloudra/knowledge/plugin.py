@@ -18,6 +18,13 @@
 近似（bm25 / 余弦 / 子串分不同量纲），最终排序以 ``runtime_v2/knowledge.py``
 的 (level, falsified, -score) 为准。
 
+v13 报错优先路由：查询文本经词表 aliases 做确定性报错签名检测
+（``tagging.detect_error_tags``，只认 verbatim 程序输出，宁漏勿误）。命中
+时两通道都带 error tag 过滤重查一遍——语义通道过滤空则回退无过滤重试，
+图谱通道同理（词表/打标缺失时行为与 v12 完全一致，优雅降级）。另外按
+_ascii_dominant 启发把 lang 传给语义通道（v11 启发复用，zh 查询维持混合）。
+命中条目携带受控 tags，经 render_library_hits 对 agent 可见。
+
 本模块禁止模块级/构造期的 DB/网络操作：provider 可能被 uvicorn 事件循环
 线程实例化（``plugins`` 配置列表在 app 启动时加载），一切资源都在
 ``search()`` 调用期惰性获取。``search`` 为同步方法，宿主
@@ -36,7 +43,7 @@ import httpx
 
 from cloudra.knowledge import fuzzy, store
 from cloudra.persistence.paths import knowledge_graph_db_path
-from cloudra.runtime_v2.knowledge import KnowledgeEntry
+from cloudra.runtime_v2.knowledge import KnowledgeEntry, flatten_tags
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +87,22 @@ class ChemKBPlugin:
         # 语义通道最近一次检索调用的健康记录：
         # {"ok": bool, "at": iso, "error"?: str}；尚无检索调用时为 None。
         self.last_health: dict[str, Any] | None = None
+        # 报错路由词表（TagVocab | False 负缓存 | None 未加载）；search 期惰性读。
+        self._vocab: Any = None
+
+    def _detect_errors(self, query: str) -> list[str]:
+        """查询 → 命中的报错签名 tag（词表缺失/损坏时静默禁用路由）。"""
+        if self._vocab is None:
+            try:
+                from cloudra.knowledge.tagging import TagVocab
+                self._vocab = TagVocab.load()
+            except Exception:
+                logger.warning("tag vocab unavailable, error routing disabled", exc_info=True)
+                self._vocab = False
+        if not self._vocab:
+            return []
+        from cloudra.knowledge.tagging import detect_error_tags
+        return detect_error_tags(query, self._vocab)
 
     def _record_health(self, ok: bool, error: str | None = None) -> None:
         record: dict[str, Any] = {
@@ -122,8 +145,11 @@ class ChemKBPlugin:
             graph_quota = limit - sem_quota  # floor(limit*2/5)
 
         db_path = knowledge_graph_db_path()
-        sem = self._semantic_channel(query, sem_quota)
-        graph = self._graph_channel(db_path, query, graph_quota)
+        # v13：报错签名检测 + 查询语言启发；两通道带过滤检索，空则各自回退。
+        err_tags = self._detect_errors(query)
+        lang = "en" if _ascii_dominant(query) else None
+        sem = self._semantic_channel(query, sem_quota, error_tags=err_tags, lang=lang)
+        graph = self._graph_channel(db_path, query, graph_quota, error_tags=err_tags)
 
         # 卡片通道补位（优先级链：语义 > 模糊 > 图谱补位，见模块 docstring）。
         # 图谱通道死 → 卡片槽目标扩到 limit（先放大 k 重取语义，与 v9.1 补位
@@ -174,6 +200,7 @@ class ChemKBPlugin:
                 source=card_id,
                 falsified=False,
                 score=score,
+                tags=flatten_tags(h.get("tags")),
             ))
             if len(out) >= need:
                 break
@@ -181,10 +208,15 @@ class ChemKBPlugin:
             logger.debug("chem-kb fuzzy fallback: +%d card(s) for %r", len(out), query)
         return out
 
-    def _graph_channel(self, db_path, query: str, quota: int) -> list[KnowledgeEntry]:
+    def _graph_channel(
+        self, db_path, query: str, quota: int, error_tags: list[str] | None = None,
+    ) -> list[KnowledgeEntry]:
         if quota <= 0 or not db_path.exists():
             return []
-        rows = store.search_graph(db_path, query, limit=quota)
+        facets = {"error": error_tags} if error_tags else None
+        rows = store.search_graph(db_path, query, limit=quota, facets=facets)
+        if not rows and facets:  # 打标未建/签名不沾边 → 回退无过滤（优雅降级）
+            rows = store.search_graph(db_path, query, limit=quota)
         en = _ascii_dominant(query)
         out: list[KnowledgeEntry] = []
         for r in rows:
@@ -197,20 +229,31 @@ class ChemKBPlugin:
                 source=str(r["source"]),
                 falsified=False,
                 score=float(r["score"]),
+                tags=flatten_tags(r.get("tags")),
             ))
         return out
 
-    def _semantic_channel(self, query: str, quota: int) -> list[KnowledgeEntry]:
+    def _semantic_channel(
+        self, query: str, quota: int, error_tags: list[str] | None = None,
+        lang: str | None = None,
+    ) -> list[KnowledgeEntry]:
         if quota <= 0:
             return []
+        payload: dict[str, Any] = {"query": query, "k": quota}
+        if lang:
+            payload["lang"] = lang
+        if error_tags:
+            payload["tags"] = {"error": error_tags}
         try:
-            resp = httpx.post(
-                f"{_vec_url()}/search",
-                json={"query": query, "k": quota},
-                timeout=_VEC_TIMEOUT,
-            )
+            resp = httpx.post(f"{_vec_url()}/search", json=payload, timeout=_VEC_TIMEOUT)
             resp.raise_for_status()
             hits = resp.json().get("hits") or []
+            if not hits and error_tags:
+                # 报错过滤空（tags 未建/库里没有该签名）→ 无过滤重试一次
+                payload.pop("tags")
+                resp = httpx.post(f"{_vec_url()}/search", json=payload, timeout=_VEC_TIMEOUT)
+                resp.raise_for_status()
+                hits = resp.json().get("hits") or []
         except Exception as exc:
             # 服务不在 / 超时 / 响应畸形：该通道为空，绝不抛——但不再静默：
             # 告警日志 + 实例健康记录（health() 与 /api/v2/knowledge/health 可见）。
@@ -241,6 +284,7 @@ class ChemKBPlugin:
                 source=str(h.get("card_id") or "chem-kb"),
                 falsified=False,
                 score=score,
+                tags=flatten_tags(h.get("tags")),
             ))
         return out
 
