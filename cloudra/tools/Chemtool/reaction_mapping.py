@@ -14,6 +14,7 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_existing_tool_path
 
 _MAX_EXHAUSTIVE_MAPPINGS = 100_000
 _MAX_RETURNED_CANDIDATES = 16
@@ -882,6 +883,10 @@ class ReactionMapping(Tool):
         self, user_input: ReactionMapping_input_schema, session: Session,
     ) -> ReactionMapping_output_schema:
         try:
+            for field in ("reactant_path", "product_path"):
+                value = getattr(user_input, field, None)
+                if value:
+                    setattr(user_input, field, resolve_existing_tool_path(self, value))
             result = analyze_reaction_mapping(
                 user_input.reactant_smiles,
                 user_input.product_smiles,

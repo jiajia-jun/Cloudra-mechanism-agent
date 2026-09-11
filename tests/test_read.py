@@ -20,14 +20,42 @@ async def test_read_text_relative_path_returns_sha256(tmp_path, mock_session):
     assert result.offset == 1
 
 @pytest.mark.asyncio
-async def test_read_rejects_absolute_path(tmp_path, mock_session):
+async def test_read_absolute_path_inside_workspace_accepted(tmp_path, mock_session):
+    """工作区内的绝对路径经兜底解析回落为相对读取（不再一刀切拒绝）。"""
     (tmp_path / "readme.md").write_text("hello\n", encoding="utf-8")
     tool = Read(subagent=_subagent(tmp_path))
-    rejected = await tool.tool_call(
+    result = await tool.tool_call(
         Read_input_schema(path=str(tmp_path / "readme.md")), mock_session
     )
-    assert rejected.is_success is False
-    assert "relative" in rejected.message.lower()
+    assert result.is_success
+    assert result.content == "hello\n"
+
+
+@pytest.mark.asyncio
+async def test_read_absolute_path_outside_workspace_refused(tmp_path, mock_session):
+    """工作区外的绝对路径仍拒绝（沙箱不变），但报错要说清文件在哪。"""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.md").write_text("x\n", encoding="utf-8")
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    tool = Read(subagent=_subagent(ws))
+    result = await tool.tool_call(
+        Read_input_schema(path=str(outside / "secret.md")), mock_session
+    )
+    assert result.is_success is False
+    assert "outside the working directory" in result.message
+    assert str(outside / "secret.md") in result.message
+
+
+@pytest.mark.asyncio
+async def test_read_missing_file_lists_tried_candidates(tmp_path, mock_session):
+    """找不到时列出全部尝试过的候选，agent 不必换基准目录盲试。"""
+    tool = Read(subagent=_subagent(tmp_path))
+    result = await tool.tool_call(Read_input_schema(path="nope.md"), mock_session)
+    assert result.is_success is False
+    assert "Tried:" in result.message
+    assert str((tmp_path / "nope.md").resolve()) in result.message
 
 @pytest.mark.asyncio
 async def test_read_offset_limit_are_one_based(tmp_path, mock_session):

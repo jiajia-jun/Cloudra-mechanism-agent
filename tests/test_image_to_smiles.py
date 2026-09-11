@@ -109,7 +109,8 @@ async def test_missing_file(fake_image, tmp_path):
         ImageToSmiles_input_schema(image_path=str(tmp_path / "nope.png")), session=None,
     )
     assert result.is_success is False
-    assert "does not exist" in result.message
+    assert "File not found" in result.message
+    assert str(tmp_path / "nope.png") in result.message
 
 
 @pytest.mark.asyncio
@@ -126,3 +127,36 @@ def test_tool_metadata():
     tool = ImageToSmiles()
     assert tool.tool_name == "image_to_smiles"
     assert tool.is_read() is True
+
+
+@pytest.mark.asyncio
+async def test_relative_image_path_resolves_against_working_directory(tmp_path, monkeypatch):
+    """路径兜底：相对路径同时试工作目录与 cwd；工作目录候选优先。"""
+    from types import SimpleNamespace
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "struct.png").write_bytes(b"\x89PNG\r\n\x1a\nx")
+    monkeypatch.setattr(img_mod, "_load_predict_func", lambda: (lambda p: "CCO", ""))
+    tool = ImageToSmiles()
+    tool.subagent = SimpleNamespace(working_directory=str(ws))
+    result = await tool.tool_call(
+        ImageToSmiles_input_schema(image_path="struct.png"), session=None,
+    )
+    assert result.is_success is True
+    assert result.smiles == "CCO"
+
+
+@pytest.mark.asyncio
+async def test_missing_image_lists_tried_candidates(tmp_path):
+    """找不到时列出全部尝试过的候选路径，不再只回一句 does not exist。"""
+    from types import SimpleNamespace
+
+    tool = ImageToSmiles()
+    tool.subagent = SimpleNamespace(working_directory=str(tmp_path))
+    result = await tool.tool_call(
+        ImageToSmiles_input_schema(image_path="nope.png"), session=None,
+    )
+    assert result.is_success is False
+    assert "Tried:" in result.message
+    assert str((tmp_path / "nope.png").resolve()) in result.message

@@ -1,11 +1,11 @@
 import asyncio
-import os
 from typing import Any
 
 from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_existing_tool_path
 
 description = (
     "Chemical structure image recognition (OCSR): convert printed or hand-drawn structure figures (PNG/JPG screenshots, etc.) to SMILES using the DECIMER deep-learning model. "
@@ -37,12 +37,13 @@ class ImageToSmiles(Tool):
         return True
 
     async def tool_call(self, user_input: ImageToSmiles_input_schema, session: Session) -> ImageToSmiles_output_schema:
-        path = user_input.image_path
-        if not os.path.exists(path):
+        try:
+            path = resolve_existing_tool_path(self, user_input.image_path)
+        except FileNotFoundError as exc:
             return ImageToSmiles_output_schema(
                 is_success=False,
                 smiles="",
-                message=f"File does not exist: {path}"
+                message=str(exc),
             )
 
         # DECIMER 的 import 即在进程内加载 TensorFlow SavedModel，predict 是同步推理，

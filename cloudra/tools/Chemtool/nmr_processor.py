@@ -5,6 +5,7 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_existing_tool_path
 
 try:
     import nmrglue as ng
@@ -71,9 +72,10 @@ class NMRProcessor(Tool):
                 message="nmrglue is not installed. Install it with: pip install 'cloudra[chem]'"
             )
 
-        path = user_input.data_path
-        if not os.path.exists(path):
-            return NMRProcessor_output_schema(is_success=False, message="Input path does not exist.")
+        try:
+            path = resolve_existing_tool_path(self, user_input.data_path)
+        except FileNotFoundError as exc:
+            return NMRProcessor_output_schema(is_success=False, message=str(exc))
 
         import numpy as np
 

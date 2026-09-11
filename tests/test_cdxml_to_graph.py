@@ -93,7 +93,7 @@ async def test_missing_file(tool, mock_session, tmp_path):
         mock_session,
     )
     assert result.is_success is False
-    assert "does not exist" in result.message
+    assert "File not found" in result.message
 
 
 def test_build_graph_handles_cycle_detection():

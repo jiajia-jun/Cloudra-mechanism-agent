@@ -52,6 +52,37 @@ def resolve_tool_path(tool: Any, value: str) -> str:
     return str((Path(root) / p).resolve())
 
 
+def resolve_existing_tool_path(tool: Any, value: str) -> str:
+    """输入文件路径的存在性兜底解析（只用于“必须已存在”的输入路径字段）。
+
+    候选按序展开为绝对路径：
+    1. value 本身是绝对路径 → 唯一候选（保持既有绝对路径权限语义）
+    2. agent 工作目录 / value —— resolve_tool_path 的既有语义，优先
+    3. 进程 cwd / value       —— agent 从引擎日志/输出抄来的相对路径常相对它
+
+    返回第一个存在的候选；两个候选都存在时取工作目录版（既有语义优先）。
+    都不存在抛 FileNotFoundError，消息列出全部尝试过的候选，让 agent 一次
+    说清“哪里没有这个文件”，不再盲目换基准目录重试。
+    """
+    raw = (value or "").strip()
+    p = Path(raw)
+    subagent = getattr(tool, "subagent", None)
+    root = getattr(subagent, "working_directory", None) or os.getcwd()
+    if p.is_absolute():
+        candidates = [str(p)]
+    else:
+        candidates = [
+            str((Path(root) / p).resolve()),
+            str((Path(os.getcwd()) / p).resolve()),
+        ]
+    candidates = list(dict.fromkeys(candidates))
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    tried = "\n".join(f"  - {c}" for c in candidates)
+    raise FileNotFoundError(f"File not found: {raw!r}. Tried:\n{tried}")
+
+
 class WorkspaceError(ValueError):
     """工作区操作不满足路径、文本或编辑约束。"""
 

@@ -9,6 +9,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.workspace import resolve_existing_tool_path
 from cloudra.tools.Chemtool.internal_coordinates import _COVALENT_RADII
 
 try:
@@ -86,11 +87,10 @@ class ElectronicAnalysis_output_schema(output_schema):
     message: str = Field(default="", description="Status or error message")
 
 
-def _load_xyz_text(user_input: ElectronicAnalysis_input_schema) -> str:
+def _load_xyz_text(tool, user_input: ElectronicAnalysis_input_schema) -> str:
     if user_input.input_path:
-        if not os.path.isfile(user_input.input_path):
-            raise ValueError(f"Input file does not exist: {user_input.input_path}")
-        with open(user_input.input_path, encoding="utf-8", errors="replace") as f:
+        input_path = resolve_existing_tool_path(tool, user_input.input_path)
+        with open(input_path, encoding="utf-8", errors="replace") as f:
             return f.read()
     if user_input.input_text:
         return user_input.input_text
@@ -682,7 +682,7 @@ class ElectronicAnalysis(Tool):
         import asyncio
 
         try:
-            xyz_text = _load_xyz_text(user_input)
+            xyz_text = _load_xyz_text(self, user_input)
         except Exception as e:
             return ElectronicAnalysis_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
 

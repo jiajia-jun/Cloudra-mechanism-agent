@@ -10,6 +10,7 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_existing_tool_path
 
 try:
     import pymol
@@ -187,11 +188,13 @@ class PymolRender(Tool):
                 message=f"Error: unsupported structure format {ext or '(none)'}. "
                         f"Supported: {', '.join(sorted(_SUPPORTED_FORMATS))}.",
             )
-        if not os.path.isfile(structure_path):
+        try:
+            structure_path = resolve_existing_tool_path(self, structure_path)
+        except FileNotFoundError as exc:
             return PymolRender_output_schema(
                 is_success=False,
                 image_path="",
-                message=f"Error: structure file does not exist at path {structure_path}",
+                message=f"Error: {exc}",
             )
         style = (user_input.style or "sticks").lower()
         if style not in _STYLE_COMMANDS:

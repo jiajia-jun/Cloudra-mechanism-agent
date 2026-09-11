@@ -25,6 +25,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.persistence.workspace import resolve_existing_tool_path
 
 try:
     import molli as ml
@@ -698,11 +699,12 @@ class CdxmlToGraph(Tool):
                 message="molli and RDKit are required. Install with: pip install 'cloudra[chem]' (molli>=1.3.0).",
             )
 
-        path = user_input.cdxml_path
-        if not os.path.isfile(path):
+        try:
+            path = resolve_existing_tool_path(self, user_input.cdxml_path)
+        except FileNotFoundError as exc:
             return CdxmlToGraph_output_schema(
                 is_success=False,
-                message=f"cdxml_path does not exist or is not a file: {path}",
+                message=str(exc),
             )
 
         mol2_files: dict[str, str] = {}

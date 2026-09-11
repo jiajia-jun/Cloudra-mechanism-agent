@@ -92,7 +92,7 @@ async def test_missing_file_rejected(tmp_path, mock_session):
         mock_session,
     )
     assert not result.is_success
-    assert "does not exist" in result.message
+    assert "File not found" in result.message
 
 
 @pytest.mark.asyncio

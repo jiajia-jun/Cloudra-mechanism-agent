@@ -6,7 +6,7 @@ from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.persistence.workspace import WorkspaceError
+from cloudra.persistence.workspace import WorkspaceError, resolve_existing_tool_path
 from cloudra.tools.Searchtool._document import OFFICE_EXTS, read_pdf
 from cloudra.tools.Searchtool._image import read_image
 from cloudra.tools.Searchtool._text import IMAGE_EXTS, PDF_EXTS, read_text
@@ -21,7 +21,9 @@ description = (
 
 
 class Read_input_schema(input_schema):
-    path: str = Field(description="File path relative to the Agent working directory")
+    path: str = Field(description="File path. Relative paths resolve against the Agent working directory "
+                                  "(falling back to the process cwd); absolute paths inside the working "
+                                  "directory are accepted. Missing files report every candidate tried.")
     offset: int | None = Field(
         default=None,
         description="1-based start line; omit to start at the first line",
@@ -74,6 +76,20 @@ class Read(Tool):
         path = user_input.path
         suffix = Path(path).suffix.lower()
         root = self._root()
+        # 存在性兜底：相对路径同时试工作目录与进程 cwd，绝对路径原样；
+        # 命中工作区外的候选不读取（read 保持工作区沙箱），但报错要说清它在哪。
+        try:
+            absolute = Path(resolve_existing_tool_path(self, path))
+        except FileNotFoundError as exc:
+            return self._fail(path, str(exc))
+        try:
+            path = absolute.relative_to(Path(root).resolve()).as_posix()
+        except ValueError:
+            return self._fail(
+                path,
+                f"File exists at {absolute} but is outside the working directory "
+                f"{root}; move it into the working directory first.",
+            )
         try:
             if suffix in IMAGE_EXTS:
                 absolute = read_image(root, path)

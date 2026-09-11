@@ -12,6 +12,7 @@ if not hasattr(datetime, "UTC"):
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_existing_tool_path
 
 
 def _import_spectrochempy():
@@ -134,9 +135,10 @@ class IRProcessor(Tool):
 
         import numpy as np
 
-        path = user_input.data_path
-        if not os.path.exists(path):
-            return IRProcessor_output_schema(is_success=False, message=f"File does not exist: {path}")
+        try:
+            path = resolve_existing_tool_path(self, user_input.data_path)
+        except FileNotFoundError as exc:
+            return IRProcessor_output_schema(is_success=False, message=str(exc))
 
         try:
             # 1. 读取数据

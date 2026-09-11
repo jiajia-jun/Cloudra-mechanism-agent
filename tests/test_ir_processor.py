@@ -175,7 +175,7 @@ async def test_normalize_area_integrates_to_unity(tmp_path):
 async def test_missing_file_returns_clean_failure(tmp_path):
     result = await _run_ir(tmp_path / "does_not_exist.jdx")
     assert result.is_success is False
-    assert "does not exist" in result.message
+    assert "File not found" in result.message
 
 
 def test_tool_metadata():
