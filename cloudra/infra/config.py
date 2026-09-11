@@ -95,6 +95,21 @@ class EmailConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
 
+class FlowerConfig(BaseSettings):
+    """FlowER mechanism-prediction external environment.
+
+    总开关 enabled 默认关：置 true 前必须先用 scripts/setup_flower.sh 装好
+    独立 conda env 并填好 repo_dir/env_python/checkpoint。开关关闭时
+    mechanism_predict 工具对模型隐藏（wire 投影）且执行层硬失败。
+    """
+    enabled: bool = False
+    repo_dir: str = ""
+    env_python: str = ""
+    checkpoint: str = ""
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+
 class CloudraConfig(BaseSettings):
     """Global Cloudra configuration."""
 
@@ -116,6 +131,9 @@ class CloudraConfig(BaseSettings):
 
     # Email config
     email: EmailConfig = Field(default_factory=EmailConfig)
+
+    # FlowER 机理推断外部环境（默认关闭）
+    flower: FlowerConfig = Field(default_factory=FlowerConfig)
 
     # OpenAlex 文献检索。空则匿名调用（额度更低）；可设 CLOUDRA_OPENALEX_API_KEY / OPENALEX_API_KEY。
     openalex_api_key: str = ""
@@ -212,6 +230,11 @@ class CloudraConfig(BaseSettings):
                 for k, v in data["email"].items():
                     if hasattr(self.email, k) and v is not None:
                         setattr(self.email, k, v)
+
+            if "flower" in data:
+                for k, v in data["flower"].items():
+                    if hasattr(self.flower, k) and v is not None:
+                        setattr(self.flower, k, v)
 
             if "data_dir" in data and data["data_dir"] is not None:
                 self.data_dir = Path(data["data_dir"])

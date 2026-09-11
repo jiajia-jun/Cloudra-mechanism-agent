@@ -32,6 +32,7 @@ from cloudra.runtime_v2.schemas import (
     effective_invocation_protocol,
 )
 from cloudra.tools.capabilities import (
+    config_disabled_tools,
     dag_review_decision_tools,
     dag_tools,
     is_direct_only,
@@ -144,7 +145,7 @@ def guest_tool_names(
     and gated by the run's orchestration mode (dag_* tools are hidden in
     standard mode; Supervisor verdict tools outside dag_guided)."""
     gated = frozenset() if visual_mode else visual_tools()
-    hidden = _mode_hidden_tools(orchestration_mode)
+    hidden = _mode_hidden_tools(orchestration_mode) | config_disabled_tools()
     return [
         name
         for name in _resolve_names(tool_names)
@@ -168,7 +169,11 @@ def wire_tool_schemas(agent: AgentSession, tool_names: list[str] | None) -> list
         direct = [name for name in _resolve_names(tool_names) if is_direct_only(name)]
         if direct:
             schemas.extend(legacy_tool_schemas(direct))
-    hidden = _mode_hidden_tools(agent.settings.orchestration_mode) | _settings_hidden_tools(agent)
+    hidden = (
+        _mode_hidden_tools(agent.settings.orchestration_mode)
+        | _settings_hidden_tools(agent)
+        | config_disabled_tools()
+    )
     if not hidden:
         return schemas
     return [

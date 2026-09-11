@@ -68,6 +68,30 @@ def android_tools() -> frozenset[str]:
     )
 
 
+def config_disabled_tools() -> frozenset[str]:
+    """Tools whose declared config gate (``config_gate``) is currently false.
+
+    The wire projection hides them; the tool's own call path hard-fails as
+    the second line of defense.  Gate resolution is the registry entry's
+    ``"<section>.<field>"`` dot-path evaluated against ``get_config()``.
+    """
+    if not any(reg.config_gate for reg in TOOL_REGISTRY):
+        return frozenset()
+    from cloudra.infra.config import get_config, resolve_config_attr
+    cfg = get_config()
+    disabled = set()
+    for name, reg in _named().items():
+        if not reg.config_gate:
+            continue
+        target, final_key = resolve_config_attr(cfg, reg.config_gate)
+        if target is None:
+            # Gate references a non-existent config path: fail closed.
+            disabled.add(name)
+        elif not bool(getattr(target, final_key)):
+            disabled.add(name)
+    return frozenset(disabled)
+
+
 def visual_tools() -> frozenset[str]:
     """Tools gated behind the per-agent visual_mode setting."""
     return frozenset(name for name, reg in _named().items() if reg.visual)

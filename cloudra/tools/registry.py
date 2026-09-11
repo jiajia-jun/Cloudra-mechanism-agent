@@ -57,6 +57,11 @@ class ToolRegistration:
     # guest program; ordinary business tools are the only guest-callable ones.
     invocation_direct_only: bool = False
 
+    # Config gate: "<section>.<field>" naming a boolean on CloudraConfig.
+    # When the flag is false the tool is hidden from the wire projection and
+    # hard-fails at call time (the tool itself must check the flag too).
+    config_gate: str = ""
+
 
 TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
     ToolRegistration(
@@ -117,6 +122,14 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         supervisor_access='evidence_read',
     ),
     ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.mechanism_predict',
+        class_name='MechanismPredict',
+        tool_name='mechanism_predict',
+        # ML 机理假设生成器（FlowER 外部 conda env）：不是计算证据，默认
+        # 由 flower.enabled 开关关闭。
+        config_gate='flower.enabled',
+    ),
     ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
     ToolRegistration(
         module='cloudra.tools.Chemtool.nmr_processor',
