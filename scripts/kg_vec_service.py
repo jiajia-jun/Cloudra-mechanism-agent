@@ -176,14 +176,23 @@ def _norm_domain_filter(raw: Any) -> set[str] | None:
 
 def _norm_tag_filter(raw: Any) -> dict[str, set[str]] | None:
     """tags 过滤归一：扁平 list → {"_any": ids}（任一命中）；dict {facet: ids}
-    → facet 间 AND、facet 内任一命中；空/畸形 → None。"""
+    → facet 间 AND、facet 内任一命中；单字符串值包成单元素列表（调试端点
+    的自然写法 {"error": "err_l502"} 不逐字符迭代）；空/畸形 → None。"""
     if isinstance(raw, dict):
-        out = {str(f): {str(i) for i in (ids or []) if i}
-               for f, ids in raw.items() if ids}
-        return {f: s for f, s in out.items() if s} or None
+        out: dict[str, set[str]] = {}
+        for f, ids in raw.items():
+            if isinstance(ids, str):
+                ids = [ids]
+            vals = {str(i).strip() for i in (ids or [])
+                    if isinstance(i, str) and i.strip()}
+            if vals:
+                out[str(f)] = vals
+        return out or None
     if isinstance(raw, list):
-        s = {str(i) for i in raw if i}
+        s = {str(i).strip() for i in raw if isinstance(i, str) and i.strip()}
         return {"_any": s} if s else None
+    if isinstance(raw, str) and raw.strip():
+        return {"_any": {raw.strip()}}
     return None
 
 
@@ -290,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
             domains = _norm_domain_filter((qs.get("domain") or [None])[0])
             tags_raw = (qs.get("tags") or [None])[0]
             tag_filter = _norm_tag_filter(
-                [t for t in tags_raw.split(",") if t.strip()] if tags_raw else None)
+                [t.strip() for t in tags_raw.split(",") if t.strip()] if tags_raw else None)
             self._handle_search(q, k, lang, domains, tag_filter)
             return
         self._send_json({"error": "not found"}, code=404)

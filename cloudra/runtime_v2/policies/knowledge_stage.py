@@ -40,9 +40,13 @@ _HIT_LIMIT = 3
 _SUCCESS_SCORE_THRESHOLD = 0.55
 _ERROR_WINDOW = 160  # 报错命中点附近截取的上下文窗口
 
-# 报错/诊断信号：中英文失败词 + Gaussian Link 错误码（L####）
+# 报错/诊断信号：中英文失败词 + Gaussian Link 错误码（L103/L502 三位、L9999 四位）。
+# 量词 {1,4} 保 l1.exe（Link 1 可执行文件缺失场景）；代价是 "L1 norm"/"L2 缓存"
+# 这类正常短码也会命中——只多带一点窗口文本，无害（该正则仅用于摘要截窗口）。
+# 已知漏检：\b 在中文与 L 码之间不成立（"出现L502怎么办" 误→L 无边界）——
+# 真实 summary 的 L 码几乎总伴随其他失败词兜底，故不为此放宽。
 _ERROR_MARKERS = re.compile(
-    r"(error|fail(?:ed|ure)?|converg\w*|erroneous|exception|segfault|L\d{4}"
+    r"(error|fail(?:ed|ure)?|converg\w*|erroneous|exception|segfault|\bL\d{1,4}\b"
     r"|不收敛|失败|报错|错误|虚频|异常)",
     re.IGNORECASE,
 )

@@ -210,3 +210,59 @@ def test_fuzzy_bilingual_prefers_zh_for_chinese_query(tmp_path, monkeypatch):
     hits = fuzzy.search("过渡态", 5)
     assert len(hits) == 1
     assert hits[0]["lang"] == "zh"
+
+
+# ---------------------------------------------------------------- v13 filters
+
+def test_service_norm_tag_filter_accepts_string_values():
+    """P2 回归：dict 值传单字符串（调试端点自然写法）不得逐字符迭代。"""
+    svc = _svc()
+    assert svc._norm_tag_filter({"error": "err_l502"}) == {"error": {"err_l502"}}
+    assert svc._norm_tag_filter(["err_l502", "err_l9999"]) == \
+        {"_any": {"err_l502", "err_l9999"}}
+    assert svc._norm_tag_filter("err_l502") == {"_any": {"err_l502"}}
+    assert svc._norm_tag_filter({"error": []}) is None
+    assert svc._norm_tag_filter(None) is None
+    # 值两端空白要 strip（GET 逗号分隔的常见残留）
+    assert svc._norm_tag_filter([" err_l502 "]) == {"_any": {"err_l502"}}
+
+
+def test_service_norm_domain_filter():
+    svc = _svc()
+    assert svc._norm_domain_filter("Gaussian使用") == {"Gaussian使用"}
+    assert svc._norm_domain_filter(["a", " b ", ""]) == {"a", "b"}
+    assert svc._norm_domain_filter(None) is None
+
+
+def test_service_select_hits_applies_domain_and_tag_filters():
+    svc = _svc()
+
+    class Scores:
+        def __init__(self, d):
+            self.d = d
+
+        def __getitem__(self, i):
+            return self.d[int(i)]
+
+    cards = [
+        {"card_id": "kb:1:1", "lang": "zh", "domain": "Gaussian使用",
+         "tags": {"error": ["err_l502"], "problem": ["scf_not_converged"]}},
+        {"card_id": "kb:2:1", "lang": "zh", "domain": "量子化学方法", "tags": {}},
+        {"card_id": "kb:3:1", "lang": "zh", "domain": "Gaussian使用",
+         "tags": {"error": ["err_l9999"]}},
+    ]
+    scores = Scores({0: 0.9, 1: 0.8, 2: 0.7})
+    order = [0, 1, 2]
+
+    # error facet 过滤：只留带 err_l502/err_l9999 的卡（任一命中）
+    hits = svc._select_hits(cards, scores, order, 5, None, None, {"error": {"err_l502"}})
+    assert [h["card_id"] for h in hits] == ["kb:1:1"]
+    # 扁平 _any：跨 facet 任一命中
+    hits_any = svc._select_hits(cards, scores, order, 5, None, None,
+                                {"_any": {"err_l9999", "nonexistent"}})
+    assert [h["card_id"] for h in hits_any] == ["kb:3:1"]
+    # domain 过滤 + 不足 k 宁缺勿滥
+    hits_dom = svc._select_hits(cards, scores, order, 5, None, {"Gaussian使用"}, None)
+    assert [h["card_id"] for h in hits_dom] == ["kb:1:1", "kb:3:1"]
+    # 无 tags 字段的旧库行：过滤为 None 时照常返回
+    assert svc._select_hits(cards, scores, order, 5, None, None, None)

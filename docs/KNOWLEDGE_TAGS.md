@@ -19,7 +19,7 @@ chem-kb 知识库的多维标签系统：给 8,594 张知识卡片按 **方法 /
 要点：
 
 - **归档区护栏**：`知识卡片/_ARCHIVE_NOTICE.md` 禁止归档区作为管线输入。v13 只从归档区**挖掘报错签名词表**（"错误提示：XXX" 标题等 verbatim 原文），卡片库仍只用活跃区 01–10 目录。挖掘脚本：`scripts/tag_vocab_mine.py`。
-- **词表生长闭环**：LLM 提议的词表外 tag 不落库，聚合写入 `vector_store/_tag_state/pending_tags.json`，人工审核后手工补进 YAML（改完无需重启检索——provider 在进程内缓存词表，重启 uvicorn 生效）。
+- **词表生长闭环**：LLM 提议的词表外 tag 不落库，聚合写入 `vector_store/_tag_state/pending_tags.json`，人工审核后手工补进 YAML。词表在 provider 进程内缓存，**改完需重启 uvicorn 才生效**。
 - 列出词表：`cloudra knowledge tags [--facet error]`。
 
 ## 二、打标流水线：`cloudra knowledge tag build`

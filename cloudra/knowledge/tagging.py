@@ -197,6 +197,13 @@ def writeback_tags(
     行数与顺序严格不变——vectors.f16.npy 按行对齐，这是硬约束。
     """
     p = Path(path) if path else CARDS_FILE
+    # 行对齐硬守卫：vectors.f16.npy 按物理行对齐。原文件若含空行（read_cards
+    # 会跳过），全量重写会静默吞掉它们导致行数减少 → 向量错位。此处硬失败。
+    raw_lines = p.read_text(encoding="utf-8").splitlines()
+    if len(raw_lines) != len(rows):
+        raise RuntimeError(
+            f"{p} 物理行数 {len(raw_lines)} 与解析行数 {len(rows)} 不一致"
+            "（疑似空行/损坏行）——为保向量库行对齐拒绝写回")
     tagged_cids: set[str] = set()
     out_lines: list[str] = []
     for row in rows:
@@ -207,7 +214,7 @@ def writeback_tags(
             new_row["tags"] = {k: list(v) for k, v in tags.items() if v}
             tagged_cids.add(cid)
         out_lines.append(json.dumps(new_row, ensure_ascii=False))
-    tmp = p.with_suffix(".jsonl.tmp")
+    tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")  # 唯一名：并行 build 不互踩
     tmp.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
     os.replace(tmp, p)
     return {"rows": len(rows), "cards": len(tagged_cids)}
@@ -437,6 +444,27 @@ def source_tag_map(rows: list[dict[str, Any]]) -> dict[str, dict[str, list[str]]
                     if v not in slot:
                         slot.append(v)
     return out
+
+
+def parse_tag_filters(items: list[str]) -> dict[str, list[str]]:
+    """CLI/API 的 ``--tag``/``?tag=`` 参数串 → facets 过滤字典。
+
+    每项 ``facet:tag_id``；裸串（不含冒号，如 ``err_l502``）按 error 惯例
+    处理（报错签名是裸用最高频的维度）。畸形项静默丢弃。
+    """
+    facets: dict[str, list[str]] = {}
+    for item in items:
+        s = str(item).strip()
+        if not s:
+            continue
+        if ":" in s:
+            facet, _, tag_id = s.partition(":")
+            facet, tag_id = facet.strip(), tag_id.strip()
+        else:
+            facet, tag_id = "error", s
+        if facet and tag_id:
+            facets.setdefault(facet, []).append(tag_id)
+    return facets
 
 
 # --------------------------------------------------------------------------

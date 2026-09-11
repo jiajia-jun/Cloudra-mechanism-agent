@@ -154,15 +154,19 @@ class ChemKBPlugin:
         # 卡片通道补位（优先级链：语义 > 模糊 > 图谱补位，见模块 docstring）。
         # 图谱通道死 → 卡片槽目标扩到 limit（先放大 k 重取语义，与 v9.1 补位
         # 行为一致）；语义槽未满（服务停/命中少）→ 模糊层按 card_id 去重补足。
+        # 放大重取透传 lang 与 error_tags：报错查询下过滤命中是高相关信息，
+        # 只因配额不足就被无过滤重取整体覆盖（赋值替换）会把它们换成泛化卡。
         card_target = limit if not graph else sem_quota
         if len(sem) < card_target:
             if not graph:
-                sem = self._semantic_channel(query, card_target)
+                sem = self._semantic_channel(query, card_target,
+                                             error_tags=err_tags, lang=lang)
             if len(sem) < card_target:
                 sem = sem + self._fuzzy_topup(query, card_target - len(sem), sem)
-        # 模糊层也没填满语义槽 → KG 补满全部配额。
+        # 模糊层也没填满语义槽 → KG 补满全部配额（error_tags 维持——通道内部
+        # 自带过滤空回退，语义与首轮一致）。
         if graph and len(sem) < sem_quota:
-            graph = self._graph_channel(db_path, query, limit)
+            graph = self._graph_channel(db_path, query, limit, error_tags=err_tags)
 
         entries = sorted(sem + graph, key=lambda e: -e.score)
         return entries[:limit]

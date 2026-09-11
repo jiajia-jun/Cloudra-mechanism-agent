@@ -325,7 +325,7 @@ facets:
       label: SCF has not converged
       label_en: SCF has not converged
       source: active
-      aliases: ["SCF has not converged", "Convergence failure -- run", "SCF Done"]
+      aliases: ["SCF has not converged", "Convergence failure -- run"]
     - id: err_erroneous_wavefunction
       label: Erroneous wavefunction（波函数异常）
       label_en: erroneous wavefunction
@@ -350,7 +350,7 @@ facets:
       label: 内存不足
       label_en: out of memory
       source: archive
-      aliases: ["out of memory", "Out-of-memory", "内存不足", "rQMOUT of memory"]
+      aliases: ["out of memory", "Out-of-memory", "内存不足"]
     - id: err_pgfio
       label: PGFIO/stdio（磁盘/文件 IO）
       label_en: PGFIO/stdio IO error
@@ -360,7 +360,7 @@ facets:
       label: Illegal instruction（指令集不兼容）
       label_en: illegal instruction
       source: archive
-      aliases: ["illegal instruction", "ILL_ILLOPC", "AVX512", "指令集"]
+      aliases: ["illegal instruction", "ILL_ILLOPC"]
     - id: err_segfault
       label: Segmentation fault
       label_en: segmentation fault
@@ -385,7 +385,7 @@ facets:
       label: 许可证/授权失败
       label_en: license failure
       source: manual
-      aliases: ["license", "Gaussian Site Number", "g09.user", "licgen", "授权"]
+      aliases: ["license failure", "Gaussian Site Number", "not licensed", "licgen"]
     - id: err_input_syntax
       label: 输入文件语法错误
       label_en: input syntax error

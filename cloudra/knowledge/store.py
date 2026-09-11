@@ -261,19 +261,25 @@ def search_graph(
             seed_score = {k: 0.5 + 0.1 * min(s, 5) / 5.0 for k, s in
                           ((str(r["id"]), r["n_sources"] or 1) for r in seeds)}
         placeholders = ",".join("?" * len(seed_ids))
-        # facet 过滤：每个 facet 一个 EXISTS 子查询（tag 任一命中即可）
+        # facet 过滤：每个 facet 一个 EXISTS 子查询（tag 任一命中即可）。
+        # kg_entity_tags 表可能不存在（v12 旧库未重建 / 打标未跑）——SQL
+        # prepare 阶段就会报 no such table，必须在这里先探测、表缺失时整体
+        # 跳过 facet 过滤（自然降级为无过滤查询），而不是等 execute 抛错。
+        has_tags_table = bool(con.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='kg_entity_tags'").fetchone())
         facet_clauses: list[str] = []
         facet_params: list[Any] = []
-        for facet, tags in (facets or {}).items():
-            tag_list = [str(t) for t in (tags or []) if t]
-            if not tag_list:
-                continue
-            facet_clauses.append(
-                "EXISTS (SELECT 1 FROM kg_entity_tags t WHERE t.entity_id = e.id"
-                " AND t.facet = ? AND t.tag IN (%s))" % ",".join("?" * len(tag_list))
-            )
-            facet_params.append(facet)
-            facet_params.extend(tag_list)
+        if has_tags_table:
+            for facet, tags in (facets or {}).items():
+                tag_list = [str(t) for t in (tags or []) if t]
+                if not tag_list:
+                    continue
+                facet_clauses.append(
+                    "EXISTS (SELECT 1 FROM kg_entity_tags t WHERE t.entity_id = e.id"
+                    " AND t.facet = ? AND t.tag IN (%s))" % ",".join("?" * len(tag_list))
+                )
+                facet_params.append(facet)
+                facet_params.extend(tag_list)
         facet_where = (" WHERE " + " AND ".join(facet_clauses)) if facet_clauses else ""
         type_param: list[Any] = []
         if entity_type:
@@ -301,8 +307,6 @@ def search_graph(
         # 直接命中的相关性分要排在邻居前面（hop=0 优先由 ORDER BY 保证）；
         # 同 hop 内按 FTS/LIKE 原始分（邻居无原始分，用度数先验）。
         out: list[dict[str, Any]] = []
-        has_tags_table = bool(con.execute(
-            "SELECT 1 FROM sqlite_master WHERE name='kg_entity_tags'").fetchone())
         for r in rows:
             eid = str(r["id"])
             score = seed_score.get(eid)
@@ -647,7 +651,12 @@ def rebuild_entity_tags(
     {facet: [tag id]}。上游 kg_data CSV 是外部管线产物、不做任何改动——
     本表是纯派生数据，可随时由 cards.jsonl 重建。要求先 ``ensure_schema``
     （kg_entity_tags 表在 _DDL 里，随导入/本函数建表路径创建）。
+    缺库（未跑 knowledge import）时抛 FileNotFoundError——不静默建空库，
+    否则之后的知识库检索会显示"无命中"而非"库不存在"，误导排障。
     """
+    if not Path(db_path).exists():
+        raise FileNotFoundError(
+            f"{db_path} 不存在——先运行 cloudra knowledge import 建库再反贴标签")
     started = time.perf_counter()
     _probe_sqlite()
     ensure_schema(db_path)

@@ -200,7 +200,7 @@ plugin = KeyNodeTrigger()
 
 ### 零部署兜底（v10：模糊匹配 fallback）
 
-微服务没起也能有基础检索：语义通道不可用或返回不足配额时，provider 用**确定性子串匹配**扫仓库内 `vector_store/cards.jsonl`（7,497 卡）补位卡片槽——**克隆仓库零操作即用**。退化矩阵：
+微服务没起也能有基础检索：语义通道不可用或返回不足配额时，provider 用**确定性子串匹配**扫仓库内 `vector_store/cards.jsonl`（8,594 卡）补位卡片槽——**克隆仓库零操作即用**。退化矩阵：
 
 | 微服务 | KG 库 | cards.jsonl | 行为 |
 | --- | --- | --- | --- |
@@ -228,7 +228,7 @@ plugin = KeyNodeTrigger()
 
 ### 标签体系与分面检索（v13）
 
-知识库新增受控标签层：8,594 卡按 **方法/软件/问题种类/报错类型** 四维 LLM 打标（词表 `vector_store/tag_vocab.yaml` 人工维护），标签贯通整条检索链——向量服务 `/search` 支持 `domain`/`tags` 过滤、图谱条目携带 `kg_entity_tags` 派生标签并上送关系 `note` 因果解释、provider 按词表 aliases 做确定性**报错签名检测**触发报错优先检索（过滤空自动回退，词表缺失时行为与 v11 一致）、自动注入的查询从 800 字符 blob 重写为 ≤200 字符的"工具名+短参数+报错窗口"（修复 FTS/模糊通道对 blob 恒空的问题），注入策略改为**失败必注入、成功高分才注入**。部署在建库三步之后追加：`knowledge tag build` → `knowledge tag apply-db`。详见 **docs/KNOWLEDGE_TAGS.md**。
+知识库新增受控标签层：8,594 卡按 **方法/软件/问题种类/报错类型** 四维 LLM 打标（词表 `vector_store/tag_vocab.yaml` 人工维护），标签贯通整条检索链——向量服务 `/search` 支持 `domain`/`tags` 过滤、图谱条目携带 `kg_entity_tags` 派生标签并上送关系 `note` 因果解释、provider 按词表 aliases 做确定性**报错签名检测**触发报错优先检索（过滤空自动回退；词表/打标/派生表缺失时自动降级为无过滤，检索语义与 v12 一致）、自动注入的查询从 800 字符 blob 重写为 ≤200 字符的"工具名+短参数+报错窗口"（修复 FTS/模糊通道对 blob 恒空的问题），注入策略改为**失败必注入、成功高分才注入**。部署在建库三步之后追加：`knowledge tag build` → `knowledge tag apply-db`。详见 **docs/KNOWLEDGE_TAGS.md**。
 
 ### 卸载
 

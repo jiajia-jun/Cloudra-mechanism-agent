@@ -33,7 +33,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         q: str = "",
         limit: int = 10,
         tag: list[str] = Query(default=[]),
-        type: str | None = None,
+        entity_type: str | None = Query(default=None, alias="type"),
     ) -> dict[str, Any]:
         """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域；v13 支持 tag/type 分面）。
 
@@ -41,24 +41,17 @@ def build_router(ctx: ApiContext) -> APIRouter:
         ``tag_id`` 按 error 惯例处理。``type`` 为 KG 实体类型
         （concept/method/software/pitfall/...）。
         """
-        from cloudra.knowledge import store
+        from cloudra.knowledge import store, tagging
         from cloudra.persistence.paths import knowledge_graph_db_path
 
         q = q.strip()
         if not q:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing q")
         limit = max(1, min(50, limit))
-        facets: dict[str, list[str]] = {}
-        for item in tag:
-            facet, _, tag_id = str(item).partition(":")
-            facet, tag_id = facet.strip(), tag_id.strip()
-            if facet and tag_id:
-                facets.setdefault(facet, []).append(tag_id)
-            elif tag_id:
-                facets.setdefault("error", []).append(tag_id)
+        facets = tagging.parse_tag_filters([str(t) for t in tag])
         rows = await asyncio.to_thread(
             store.search_graph, knowledge_graph_db_path(), q, limit,
-            facets or None, (type or None),
+            facets or None, entity_type,
         )
         return {
             "query": q,

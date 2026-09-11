@@ -47,8 +47,14 @@ def test_detect_error_tags_hits_verbatim_and_avoids_false_positives():
         "log_parser /tmp/TS1.log Convergence failure -- L502", vocab)
     assert "err_galloc" in detect_error_tags(
         "galloc: could not allocate memory", vocab)
-    # 干净的成功输出不得误报
+    # 干净的成功输出不得误报（P1-1 回归：这些曾是会误命中的别名）
     assert detect_error_tags("log_parser done, frequencies all positive", vocab) == []
+    assert detect_error_tags("SCF Done: E(RB3LYP) = -390.02 after 13 cycles", vocab) == []
+    assert detect_error_tags("Gaussian license 文件放在哪个目录", vocab) == []
+    assert detect_error_tags("服务器是 AVX512 CPU，编译参数如何选", vocab) == []
+    assert detect_error_tags("指令集架构的说明文档", vocab) == []
+    assert detect_error_tags("如何申请软件授权", vocab) == []
+    assert detect_error_tags("g09.user 配置说明", vocab) == []
     assert detect_error_tags("", vocab) == []
 
 
@@ -122,6 +128,18 @@ def test_writeback_preserves_row_order_and_shares_tags_across_langs(tmp_path):
     assert after[0]["tags"] == {"error": ["err_l502"]}
     assert after[1]["tags"] == {"error": ["err_l502"]}
     assert "tags" not in after[2]
+
+
+def test_writeback_rejects_file_with_stray_blank_lines(tmp_path):
+    """行对齐硬守卫：原文件含中间空行（会被 read_cards 吞掉）时必须硬失败，
+    而不是静默重写出更少的行导致 vectors.f16.npy 错位。"""
+    cards = tmp_path / "cards.jsonl"
+    rows = [_row("kb:1:1", "zh"), _row("kb:2:1", "zh")]
+    cards.write_text(
+        json.dumps(rows[0], ensure_ascii=False) + "\n\n"
+        + json.dumps(rows[1], ensure_ascii=False) + "\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="行数"):
+        writeback_tags(read_cards(cards), {"kb:1:1": {"error": ["err_l502"]}}, cards)
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +303,12 @@ def test_store_entity_tag_rebuild_and_facet_search(tmp_path):
     assert store.search_graph(db, "%oldchk", entity_type="software") == []
 
 
+def test_rebuild_entity_tags_missing_db_raises(tmp_path):
+    """缺库不得静默建空库（否则后续检索显示'无命中'而非'库不存在'）。"""
+    with pytest.raises(FileNotFoundError, match="knowledge import"):
+        store.rebuild_entity_tags(tmp_path / "nope.db", {"kb:1": {"error": ["err_l502"]}})
+
+
 # ---------------------------------------------------------------------------
 # 覆盖率统计
 # ---------------------------------------------------------------------------
@@ -315,3 +339,15 @@ def test_repo_vocab_yaml_is_wellformed():
             ids.add(item["id"])
             if facet in TAG_FACETS:
                 assert item.get("aliases"), f"{item['id']} 缺 aliases（匹配靠它）"
+
+
+def test_parse_tag_filters_bare_tag_goes_to_error():
+    from cloudra.knowledge.tagging import parse_tag_filters
+    # facet:tag_id 形式
+    assert parse_tag_filters(["error:err_l502", "problem:ts_search"]) == \
+        {"error": ["err_l502"], "problem": ["ts_search"]}
+    # 裸 tag（无冒号）按 error 惯例——文档与 CLI help 承诺的行为
+    assert parse_tag_filters(["err_l502"]) == {"error": ["err_l502"]}
+    # 前导冒号 / 空串 / 空位 畸形项静默丢弃
+    assert parse_tag_filters([":err_l502", "", " : ", "error:"]) == {}
+    assert parse_tag_filters([]) == {}

@@ -397,23 +397,18 @@ def knowledge_stats(db_path):
 @click.argument("query")
 @click.option("--limit", type=int, default=8, show_default=True)
 @click.option("--tag", "tag_filters", multiple=True,
-              help="标签过滤，格式 facet:tag（可多次，如 --tag error:err_l502 --tag problem:ts_search）")
+              help="标签过滤，格式 facet:tag（可多次，如 --tag error:err_l502 --tag problem:ts_search）；"
+                   "裸 tag_id 按 error 维度处理")
 @click.option("--type", "entity_type", default=None,
               help="实体类型过滤（concept/method/software/pitfall/...）")
 @click.option("--db", "db_path", type=click.Path(path_type=Path), default=None)
 def knowledge_search(query, limit, tag_filters, entity_type, db_path):
     """图谱检索（FTS→LIKE 回退 + 1~2 跳邻域，支持标签/类型分面）。"""
-    from cloudra.knowledge import store
+    from cloudra.knowledge import store, tagging
     from cloudra.persistence.paths import knowledge_graph_db_path
 
-    facets: dict[str, list[str]] = {}
-    for item in tag_filters:
-        facet, _, tag = str(item).partition(":")
-        facet, tag = facet.strip(), tag.strip()
-        if facet and tag:
-            facets.setdefault(facet, []).append(tag)
-        elif tag:  # 裸 tag 无 facet 前缀：按 error 惯例放行报错签名检索
-            facets.setdefault("error", []).append(tag)
+    facets = tagging.parse_tag_filters(list(tag_filters))
+    limit = max(1, min(50, limit))  # SQLite 负 LIMIT = 无限制，必须钳制
     db = db_path or knowledge_graph_db_path()
     rows = store.search_graph(db, query, limit=limit,
                               facets=facets or None, entity_type=entity_type)
@@ -495,7 +490,11 @@ def tag_apply_db(db_path, cards_path):
     if not source_map:
         console.print("[yellow]cards.jsonl 里还没有 tags——先跑 cloudra knowledge tag build。[/yellow]")
         return
-    report = store.rebuild_entity_tags(db_path or knowledge_graph_db_path(), source_map)
+    try:
+        report = store.rebuild_entity_tags(db_path or knowledge_graph_db_path(), source_map)
+    except FileNotFoundError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        return
     console.print(f"[green]实体标签已重建:[/green] 来源 {report['sources']} 个博客 → "
                   f"{report['entities']} 实体 / {report['rows']} 行标签（{report['seconds']}s）")
 

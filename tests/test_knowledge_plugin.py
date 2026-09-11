@@ -34,17 +34,25 @@ def _clear_plugins(tmp_path, monkeypatch):
 
 class _VecHandler(BaseHTTPRequestHandler):
     hits = []  # class 级注入，测试可改
+    requests: list[dict] = []  # 记录每个 POST /search 的请求体（v13 路由断言用）
+    respond = None  # 可选 callable(body)->hits：按请求体动态应答，优先于静态 hits
 
     def do_POST(self) -> None:  # noqa: N802  # 插件走 POST /search
         if self.path.startswith("/search"):
             length = int(self.headers.get("Content-Length") or 0)
-            self.rfile.read(length)
-            body = json.dumps({"hits": _VecHandler.hits}).encode("utf-8")
+            raw = self.rfile.read(length)
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:  # noqa: BLE001 — 畸形体不阻断假服务
+                body = {}
+            _VecHandler.requests.append(body)
+            hits = _VecHandler.respond(body) if _VecHandler.respond else _VecHandler.hits
+            payload = json.dumps({"hits": hits}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
-            self.wfile.write(body)
+            self.wfile.write(payload)
         else:
             self.send_response(404)
             self.end_headers()
@@ -59,8 +67,14 @@ def vec_server(monkeypatch):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     monkeypatch.setenv("CLOUDRA_KG_VEC_URL", f"http://127.0.0.1:{server.server_address[1]}")
+    _VecHandler.requests = []
+    _VecHandler.hits = []
+    _VecHandler.respond = None
     yield server
     server.shutdown()
+    _VecHandler.requests = []
+    _VecHandler.hits = []
+    _VecHandler.respond = None
 
 
 @pytest.fixture
@@ -215,3 +229,102 @@ def test_activated_plugin_search_library_hits(vec_server, kg_db):
     assert providers == {"chem-kb"}
     assert hits, "激活后 search_library 必须命中"
     assert all(h["source"] for h in hits)
+
+
+# ---------------------------------------------------------------------------
+# v13：报错签名路由 / lang 传递 / 回退 / 旧库降级
+# ---------------------------------------------------------------------------
+
+def test_error_query_routes_tags_to_both_channels(vec_server, kg_db):
+    """查询含报错签名（L502）→ 语义请求带 tags 过滤，不抛、照常返回。"""
+    _VecHandler.hits = [
+        {"card_id": "kb:164:1", "blog_id": "164", "heading": "SCF不收敛解决",
+         "content": "c", "score": 0.9, "tags": {"error": ["err_l502"]}},
+    ]
+    entries = ChemKBPlugin().search("opt 失败 Convergence failure -- L502", limit=5)
+    assert entries, "报错路由下仍必须有结果"
+    sem_reqs = [r for r in _VecHandler.requests if r.get("query")]
+    assert sem_reqs and sem_reqs[0].get("tags") == {"error": ["err_l502"]}
+
+
+def test_error_filtered_semantic_empty_retries_once_without_tags(vec_server, kg_db):
+    """报错过滤命中为空（服务忽略 tags 返回 []）→ 每个"带 tags 且空"的语义
+    请求后必须紧跟一个同 k 的无 tags 内部回退（放大重取会再次带 tags，
+    同样适用该契约）。"""
+    _VecHandler.hits = []
+    ChemKBPlugin().search("SCF has not converged during opt", limit=5)
+    reqs = [r for r in _VecHandler.requests if r.get("query")]
+    assert len(reqs) >= 2, "过滤空必须触发无 tags 回退重试"
+    assert reqs[0].get("tags") == {"error": ["err_scf_not_converged"]}
+    for i, req in enumerate(reqs):
+        if req.get("tags"):
+            assert i + 1 < len(reqs), "带 tags 请求返回空后必须有回退请求"
+            nxt = reqs[i + 1]
+            assert not nxt.get("tags") and nxt.get("k") == req.get("k"), \
+                "回退请求不得带 tags 且 k 必须一致"
+
+
+def test_ascii_query_passes_lang_and_zh_query_does_not(vec_server, kg_db):
+    _VecHandler.hits = []
+    ChemKBPlugin().search("SCF convergence failure troubleshooting", limit=5)
+    en_reqs = [r for r in _VecHandler.requests if r.get("query")]
+    assert en_reqs and en_reqs[0].get("lang") == "en"
+
+    _VecHandler.requests = []
+    ChemKBPlugin().search("过渡态搜索", limit=5)
+    zh_reqs = [r for r in _VecHandler.requests if r.get("query")]
+    assert zh_reqs and not zh_reqs[0].get("lang")
+
+
+def test_vocab_missing_disables_routing_gracefully(vec_server, kg_db, monkeypatch):
+    """词表损坏/缺失 → 路由静默禁用：请求不带 tags，不抛异常。"""
+    import cloudra.knowledge.tagging as tagging_mod
+
+    def _boom(_path=None):
+        raise OSError("vocab gone")
+
+    monkeypatch.setattr(tagging_mod.TagVocab, "load", staticmethod(_boom))
+    p = ChemKBPlugin()
+    entries = p.search("L502 convergence failure", limit=5)
+    assert isinstance(entries, list)  # 不抛即通过
+    reqs = [r for r in _VecHandler.requests if r.get("query")]
+    assert reqs and not reqs[0].get("tags"), "词表缺失时不得带 tags 过滤"
+
+
+def test_old_schema_db_with_facets_degrades_to_unfiltered(kg_db, monkeypatch):
+    """P0 回归：v12 旧库（无 kg_entity_tags 表）+ 报错签名查询 → 不抛，
+    降级为无过滤图谱检索（与 v12 行为一致）。"""
+    from cloudra.knowledge import store
+
+    con = store._open_rw(kg_db)
+    con.execute("DROP TABLE kg_entity_tags")
+    con.commit()
+    con.close()
+
+    rows = store.search_graph(kg_db, "过渡态", limit=5,
+                              facets={"error": ["err_l502"]})
+    assert rows, "旧库 facet 查询必须降级为无过滤并正常返回"
+
+    monkeypatch.setenv("CLOUDRA_KG_VEC_URL", "http://127.0.0.1:1")  # 语义通道死
+    p = ChemKBPlugin()
+    p._vocab = False  # 跳过词表加载，单测图谱路径
+    entries = p._graph_channel(kg_db, "过渡态", 2, error_tags=["err_l502"])
+    assert entries, "plugin 图谱通道在旧库 + error_tags 下不得抛错"
+
+
+def test_error_filtered_hits_survive_graph_empty_enlarged_refetch(vec_server, kg_db):
+    """P1 回归（轮 2）：图谱通道空 → 放大重取语义时必须保留报错过滤——
+    带 tags 请求返回 1 条高相关卡（0.95），无 tags 请求返回 5 条泛化卡（0.3）。
+    修复前：无 tags 放大重取整体覆盖 sem，高相关卡被泛化卡顶掉。"""
+    def _respond(body: dict) -> list:
+        if body.get("tags"):
+            return [{"card_id": "kb:164:1", "blog_id": "164", "heading": "SCF不收敛高相关",
+                     "content": "c", "score": 0.95, "tags": {"error": ["err_scf_not_converged"]}}]
+        return [{"card_id": f"kb:9:{i}", "blog_id": "9", "heading": f"泛化卡{i}",
+                 "content": "c", "score": 0.3, "tags": {}} for i in range(5)]
+
+    _VecHandler.respond = _respond
+    # 英文报错查询：kg_db 的中文实体对它 0 命中 → 走"图谱死"补位路径
+    entries = ChemKBPlugin().search("SCF has not converged during opt", limit=5)
+    assert any("SCF不收敛高相关" in e.title for e in entries), \
+        "报错过滤命中的高相关卡不得被无 tags 放大重取覆盖"
