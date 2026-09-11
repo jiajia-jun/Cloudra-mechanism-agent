@@ -1,5 +1,11 @@
 # 参考答案（能垒标定）计算分工计划
 
+> **2026-09-12 更新**：题集已于 2026-09-09（`7bb318d`）缩为 60 题（easy/normal/hard/impossible =
+> 20/10/10/20），本文件「一、题集范围」的 120 题口径仅作历史记录；**当前有效的分工以
+> `reference_answer_task_P0.md` / `reference_answer_task_P1.md`（2026-09-12 重分，工作分 ~325/~318）为准**。
+> 原先计划 80 题能垒标定 → 现为 40 题（easy 20 + normal 10 + hard 10）；impossible 档 20 题
+> 维持「确不可算」验证、不算能垒，P0/P1 各承担 5 对。
+
 > 目标：为 benchmark 题集生成**自算标定的参考答案能垒**（`gold.reference_computation`），
 > 依据 `paper/benchmark_construction_narrative.md` 的锁定约定 ——
 > **全档统一以 MACE-OMol25 为唯一物理计算金标准**（2026-08-25 决策），

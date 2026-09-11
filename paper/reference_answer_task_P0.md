@@ -1,5 +1,7 @@
-# 参考答案计算任务单 — 计算者 P0（工作分 ~420）
+# 参考答案计算任务单 — 计算者 P0（工作分 ~325 / 643）
 
+> **2026-09-12 重分**：本单按**当前 60 题集**重新分桶（`7bb318d` 把 easy/normal/hard/impossible
+> 缩为 20/10/10/20），取代 2026-09-03 版按 120 题集写的 P0/P1 单（旧单中 27/40 个 task_id 已不存在）。
 > 依据：`paper/reference_calc_plan.md`（能垒标定分工），任务定义见 `ideapool/tasks/<tier>/<task_id>.json`。
 > **统一口径**：全档以 **MACE-OMol25** 为唯一物理计算金标准（2026-08-25 决策）；参考值=我们自算标定，
 > **不把文献二手数字当 ground truth**。`xTB` 仅作快速构象/结构预筛与 TS 猜测辅助，**不计入参考能垒**。
@@ -11,7 +13,7 @@
 
 ## 0. 开工前提（环境已就绪，先读再算）
 
-**本机计算栈（2026-09-03 复查，H2O Opt/NumFreq 端到端已跑通；同 P1 任务单 §0，详见 `paper/reference_answer_progress.md`「计算栈验证」与 `deploy/mace_omol25_orca_external_setup.md`）：**
+**本机计算栈（2026-09-03 复查，H2O Opt/NumFreq 端到端已跑通；详见 `paper/reference_answer_progress.md`「计算栈验证」与 `deploy/mace_omol25_orca_external_setup.md`）：**
 
 | 成分 | 状态 | 配置 |
 |:--|:--|:--|
@@ -52,7 +54,7 @@
    - MLIP PES 反复振荡不收敛时**回退标准 DFT 路径**（skill Fallback discipline），不要无限调参。
 4. **双向 IRC**（ts_guess `verify` 或两次 IRC 作业）：
    - 确认 TS 正确地连接 **reactant⟷product / intermediate** 两端。**仅"找到鞍点"不算完成**，必须 IRC 连通性通过。
-   - **试点必探**：`ExtOpt OptTS` / `ExtOpt` IRC 尚未端到端验证（只验证过 Opt/NumFreq）——NH1 试点先探明；
+   - **试点必探**：`ExtOpt OptTS` / `ExtOpt` IRC 尚未端到端验证（只验证过 Opt/NumFreq）——试点题先探明；
      不通则改用 **ASE 直驱 MACE**（MACECalculator + RFO 鞍点优化 + 双向 IRC）作为同等级金标准路径。
 5. **提取能垒**（log_parser / thermo_analysis）：
    - 电子能垒 ΔE‡ = E(TS) − E(central_complex)。需要 ΔG‡ 时叠加 RRHO 热校正。
@@ -86,77 +88,76 @@
   ```
   绝不要把 ΔΔ 塞进 `barrier_kcal_mol`。
 - 多步网络：**建议逐边记录**能垒（便于 graph/self-consistency 层校验）——每条边对应的 TS 能垒写进边或单独日志，RDS 值写 `barrier_kcal_mol`。
+- **回填后不要再跑生成器**：`gen_*_tasks.py` 的输出由题源确定性生成（`test_*_tasks_regenerate_identically` 守卫），
+  重跑会**覆盖**手工回填的 `computed_by_us` 值；若必须重生，先把已算数值同步回题源/registry。
 
 ---
 
-## 3. P0 分配题单（task_id 列表）
+## 3. P0 分配题单（31 题，工作分 ~325）
 
-> 工作分模型：`题分 = Σ(TS数 × 体系重原子数)`，family 为不可分单元。P0 总计 ~420。
+> 工作分模型：`题分 = Σ(TS数 × 体系重原子数)`，family 为不可分单元。
 
-### normal（17 题，最重）
-| family | task_id | TS 数 | 备注 |
+### hard（7 题，194 分，立体化学核心；HI1 是全题集最重单题）
+| family | task_id | TS×重原子 | 分 | 备注 |
+|:--|:--|:--|:--|:--|
+| I | HI1 | 4×20 | 80 | 脯氨酸催化 direct aldol；**selectivity ΔΔ 也要算** |
+| E | HE2, HE3 | 2×12 + 2×16 | 56 | 硼氢化/CBS 还原面选择性；均有 ΔΔ |
+| A | HA1, HA6 | 2×5 + 2×6 | 22 | 环丁烯开环 torquoselectivity；均有 ΔΔ |
+| G | HG2 | 2×8 | 16 | crotyl Claisen 椅式偏好；有 ΔΔ |
+| H | HH1 | 1×20 | 20 | BINAP 消旋；有 23.5 kcal/mol [partial] 锚点做交叉核对 |
+
+### normal（4 题，70 分）
+| family | task_id | TS×重原子 | 分 | 备注 |
+|:--|:--|:--|:--|:--|
+| R | NR1 | 3×9 | 27 | pinacol 重排 |
+| Q | NQ1 | 2×10 | 20 | 芳香 Claisen；有 30.0 [partial] 锚点，**锚点交叉校验题** |
+| Y | NY3 | 3×5 | 15 | 酯皂化 BAC2 |
+| I | NI1 | 2×4 | 8 | 亚胺生成 |
+
+### easy（10 题，61 分）
+| family | task_id | 分 | 备注 |
 |:--|:--|:--|:--|
-| H | NH1, NH2, NH3, NH5 | 4+4+4+1 | NH1=试点题，最重族 |
-| R | NR1, NR2, NR3 | 3+5+1 | |
-| O | NO2, NO3, NO4, NO5 | 1+4+1+3 | |
-| I | NI1, NI3 | 2+5 | |
-| Y | NY2, NY3 | 4+3 | |
-| Q | NQ2, NQ3 | 1+3 | |
+| M | M1, M14, M15, M16, M3, M8 | 31 | 旋转/翻转/异构化单步 |
+| D | D1, D3, D4 | 25 | Diels-Alder 系列 |
+| X | X1 | 5 | β-丙内酯脱羧挤出 |
 
-### hard（7 题，立体化学核心）
-| family | task_id | TS 数 | 选择性 |
-|:--|:--|:--|:--|
-| L | HL1, HL4 | 5+2 | 无 |
-| A | HA1, HA2, HA6 | 2+2+2 | 有（ΔΔ） |
-| F | HF1 | 2 | 有 |
-| D | HD2 | 1 | 无 |
-
-### easy（13 题，轻量补充）
-| family | task_id |
-|:--|:--|
-| P | P1, P2, P3 |
-| D | D1, D3, D4 |
-| G | G1, G2, G3 |
-| F | F1, F2, F3 |
-| E | E1 |
+> easy 全部题原有文献锚点 barrier 保留在 `reference_doi` 做交叉核对。
 
 ---
 
 ## 4. 执行顺序（P0）
 
-1. **试点**：先跑 **NH1**（normal H 最重族），跑通「TS 搜索 → n_imag==1 → 双向 IRC → 提取能垒 → 回填 JSON」全流程，产出 1 个 `computed_by_us=True` 样例。
-2. 按 family 批量推进（正常 H→R→O→I→Y→Q；hard L→A→F→D；easy P→D→G→F→E）。
-3. 每完成一个 family，把进度与数值记到本文件下方或 `paper/reference_answer_progress.md`。
+1. **试点**：先跑 **X1**（easy 单 TS 小分子）打通「TS 搜索 → n_imag==1 → 双向 IRC → 提取能垒 → 回填 JSON」全流程，
+   产出本侧第 1 个 `computed_by_us=True` 样例；随即跑 **NQ1**（有 30.0 [partial] 文献锚点）做锚点交叉校验。
+2. 按 family 批量推进（normal R→Q→Y→I；hard I→E→A→G→H；easy M→D→X）。
+3. 每完成一个 family，把进度与数值记到 `paper/reference_answer_progress.md`。
 
 ---
 
-## 5. impossible I/S「确不可算」验证（P0 承担 10 对，P1 承担另 10 对）
+## 5. impossible I/S「确不可算」验证（P0 承担 5 对非 A 族，P1 承担 5 对 A 族）
 
-> 本档 40 题**不走能垒计算**（拒答验证档）。参考答案本质 = **确认 I 题确不可算 + S 兄弟题可达对照**。
-> 每对共享同一反应；I 题用 `accessible=False` 标记不可信路径（`expected_outcome=correct_refusal`，
-> `wrongly_solve_penalty` 多为 high，`evidence_strength` ironclad/gray_zone），S 题是单参考可达对照
-> （`expected_outcome=mechanism_found`）。判据来自 `rubric.impossible_case`。
+> 本档 20 题**不走能垒计算**（拒答验证档）。参考答案本质 = **确认 I 题确不可算 + S 兄弟题可达对照**。
+> 每对共享同一反应；I 题用 `accessible=False` 标记不可信节点（`expected_outcome=correct_refusal`），
+> S 题是单参考可达对照（`expected_outcome=mechanism_found`）。判据来自 `rubric.impossible_case`。
 
 ### 5.1 每对 I/S 的执行步骤
 
-1. **S 兄弟题对照验证（可达性证明）**：用 MACE-OMol25 跑 **S 题**（同一族、单参考可算）的 TS 搜索 + 频率 + 双向 IRC，确认能正常走通（n_imag==1 + IRC 前后连通）——证明"该族用 MACE 可算、题目本身不难"，这是拒答信号成立的对照前提。
+1. **S 兄弟题对照验证（可达性证明）**：用 MACE-OMol25 跑 **S 题**（同一族、单参考可算）的优化/频率
+   （S 题有 TS 的走 TS 搜索 + 双向 IRC），确认能正常走通——证明"该族用 MACE 可算、题目本身不难"，
+   这是拒答信号成立的对照前提。
 2. **I 题不可算性诊断**：对 I 题标注 `accessible=False` 的节点/TS 做电子结构诊断——`electronic_analysis` 检查
-   <S^2>/Mulliken 自旋布居/IBO Lewis 图，看强静态关联/近简并双自由基特征；尝试单参考 TS 优化，若 MACE-OMol25 在该区输出错误态序、虚假对称破缺、n_imag≠1、能垒偏差数十 kcal/mol 或 SCF/优化不收敛，即坐实"单参考不可信"。引用 `impossible.md` 中该题诊断证据（T1/D1/%TAE/C0²/y0）佐证。
+   <S^2>/Mulliken 自旋布居/IBO Lewis 图，看强静态关联/近简并双自由基特征；尝试单参考 TS 优化，若 MACE-OMol25 在该区输出错误态序、虚假对称破缺、n_imag≠1、能垒偏差数十 kcal/mol 或 SCF/优化不收敛，即坐实"单参考不可信"。引用 `impossible.md` 中该题诊断证据佐证。
 3. **判拒答**：若确不可信，记录该 I 题应**正确拒答**、给出所需高等级方法（CASSCF/CASPT2/MRCI）、回填 `impossible_case.evidence_strength`；**若发现某题其实单参考可算，标记回退并说明理由**，不强行凑拒答。
 
-### 5.2 P0 负责的 impossible I/S 对（10 对）
+### 5.2 P0 负责的 impossible I/S 对（5 对，非 A 族）
 
-| I 题 | S 兄弟（对照） | 关键不可信节点 |
-|:--|:--|:--|
-| IA1 | SA1 | TS |
-| IA5 | SA5 | TS |
-| IA9 | SA9 | TS |
-| IB5 | SB5 | —(单节点) |
-| IC3 | SC3 | —(单节点) |
-| ID2 | SD2 | —(单节点) |
-| IF3 | SF3 | —(单节点) |
-| IG6 | SG6 | —(单节点) |
-| IG8 | SG8 | —(单节点) |
-| IH7 | SH7 | —(单节点) |
+| I 题 | S 兄弟（对照） | 关键不可信节点 | 体系 |
+|:--|:--|:--|:--|
+| IC3 | SC3 | product | 苯氮宾开壳层单重态 / 三重态平衡几何 |
+| ID2 | SD2 | reactant | FOOF 反常键合 / H2O2 O–O 键解离 |
+| IE2 | SE2 | product | N2 三键解离曲线 / N2 平衡键长 |
+| IF3 | SF3 | product | triangulene 三重态基态与 S–T 隙 / 芘平衡结构（22 重原子，诊断较重） |
+| IG8 | SG8 | reactant+product | Cr2 解离曲线 / Na2 键解离能 |
 
-> 跨档校准：impossible 档主指标是**跨档拒答 precision/recall**（不是单档拒答率）——本题拒答 × 兄弟题作答的合取才是信号。P1 承担另 10 对（见任务单 P1 §4），P0/P1 各挑对方 1 个 family 交叉校验方法一致性。
+> 跨档校准：impossible 档主指标是**跨档拒答 precision/recall**——本题拒答 × 兄弟题作答的合取才是信号。
+> P1 承担 A 族 5 对（见任务单 P1 §5）；P0/P1 各挑对方 1 个 family 交叉校验方法一致性。

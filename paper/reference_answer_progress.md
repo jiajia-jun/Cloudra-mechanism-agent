@@ -70,3 +70,15 @@
 ## 试点准备（NA1）
 下一步：对 NA1（normal A 族，最重族，含 3 个 TS 的 Cope/重排网络）跑通「构象预筛 → TS guess → OptTS → NumFreq(n_imag==1) → 双向 IRC → 能垒提取 → 回填」。
 - NA1 任务定义：`ideapool/tasks/normal/NA1.json`。
+
+## 2026-09-12 分工重排（60 题集）
+
+- 背景：`7bb318d`（2026-09-09）把题集从 120 缩到 60（easy/normal/hard/impossible = 20/10/10/20），
+  旧 P0/P1 任务单中 27/40 个 task_id 已失效；试点题 NA1 已删除。
+- 已按当前 60 题重分：`paper/reference_answer_task_P0.md`（31 题，工作分 ~325）与
+  `paper/reference_answer_task_P1.md`（29 题，~318）。工作分模型不变（Σ(TS数 × 体系重原子数)，
+  family 不可分）；impossible 档 P0 承担非 A 族 5 对、P1 承担 A 族 5 对。
+- 新试点：P0 先 X1（打通流程）再 NQ1（30.0 [partial] 锚点交叉校验）；P1 先 P3。
+- 逐题完成数仍为 0（全部 `computed_by_us=false`）；计算栈状态不变（H2O Opt/NumFreq 已验证，
+  OptTS/IRC 端到端待试点探明）。
+- 注意：回填 JSON 后不要重跑 `gen_*_tasks.py`（确定性重生会覆盖手工回填，见两份任务单 §2 末尾）。
