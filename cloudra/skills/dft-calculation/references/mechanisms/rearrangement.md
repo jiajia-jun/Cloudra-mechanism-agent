@@ -92,7 +92,7 @@
 - **预组织**（A4）：烯丙基与碳负离子需构成五元环几何。`distance_filters`：C_carbanion–C_allyl_末端 ≤ 3.2 Å；envelope 取向决定立体化学，多个 envelope 构象各建边。
 - **TS 期望**（A4）：forming C–C 与 breaking O–C 典型均 2.0–2.4 Å（漂移）；阴离子加速，能垒通常明显低于对应中性 [2,3]。A3 **不要建协同 [1,2] 边**（suprafacial 对称性禁阻，交叉引用 `mechanisms/pericyclic.md` [1,5]-H 与禁阻的 [1,2]/[1,3] σ 迁移节）；建模走 C–O 均裂扫描 + 自由基对重组，`electronic_analysis` spin≥2 验证自旋布居与 `<S²>`。
 - **竞争边**：A3 vs A4（烯丙基醚两类都建，能垒裁决）；A3 笼内重组 vs 自由基逃逸（溶剂笼效应用系综/显式溶剂粗评）；阴离子稳定性差时 [2,3] 可走异裂分步（Haeffner 等 DFT 工作）。
-- **误诊信号**：A4 TS 出现显著自旋布居/双自由基特征 → 机制滑向 A3；`<S²>` 偏差 > 0.1 → 自旋污染，能垒标注不确定性。
+- **误诊信号**：A4 TS 出现显著自旋布居/双自由基特征 → 机制滑向 A3；`⟨S²⟩` 偏差 ≳0.1 → 按 `method-selection.md` 打折能垒结论并诊断（实用触发器，非自动 fail）。
 
 ## A5 Benzilic acid 重排
 

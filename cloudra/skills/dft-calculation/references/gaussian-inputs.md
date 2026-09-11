@@ -43,6 +43,8 @@ Submit `input_file="/work/step/ts.gjf"`, `job_type="gaussian"`, `cpus=4`, `memor
 
 ## 3. Scans and constraints
 
+**TS-seed hierarchy:** `ts_prepare` first; the relaxed scan below is the agent-side fallback when the process cannot take the case. Either way, read real atom indices with `internal_coordinates` first — do not start from a SMILES minimum and hope OptTS finds a saddle.
+
 Use `ts_guess mode=scan_prepare` with `engine="gaussian"`, `input_path`, `scans`, `method="b3lyp/def2svp"`, `charge`, `spin`, `nprocs`, `output_path`. Each scan entry has `coord_type`, 1-based `atoms`, `scan_end` and `scan_steps`. **Omit `scan_start` for Gaussian**: the current generator uses it to calculate the increment but does not move the input geometry to that value. Gaussian starts from the actual XYZ coordinate. To start elsewhere, prepare that geometry using the supported structure tools first. The tool handles modredundant formatting and supports one or two scan coordinates. It has no memory argument and emits no `%mem`: add the intended Link 0 memory setting with an authorized file edit before submission, and match the scheduler reservation.
 
 For a relaxed scan, unscanned degrees of freedom optimize at each point. The resulting constrained maximum is a seed. Extract it, build a fresh TS job, and remove `Opt=ModRedundant`/freeze lines. Do not use the scan's convergence to claim an unconstrained stationary point. Read scan notes and structural continuity, not only the maximum energy.

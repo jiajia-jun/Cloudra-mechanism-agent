@@ -23,22 +23,38 @@ When planning and executing periodic first-principles calculations (VASP / CP2K)
 
 ---
 
-## 2. Core Constraints & Physical Red Lines
+## 2. Starting Values & Convergence Gates (not universal laws)
+
+Numeric settings below are **production starting points**. A number is accepted only when its **convergence metric** is met and recorded; if the metric fails, stop and do not deliver that quantity.
 
 1. **Slab & Vacuum Dimensions**:
-   - For 2D materials, surface slabs, and adsorption systems, the vacuum-direction (usually $Z$) k-point **must strictly be 1** (e.g. `4 4 1` or `5 5 1`).
-   - Vacuum thickness must be $\ge 15 \sim 20\text{ \AA}$ to ensure electron density decays to $< 10^{-5}\ e/\text{\AA}^3$ and electrostatic potential plateaus in the vacuum center.
+   - For 2D materials, surface slabs, and adsorption systems, the vacuum-direction (usually $Z$) k-point **must be 1** (e.g. `4 4 1` or `5 5 1`).
+   - **Start** vacuum at $15\text{–}20\text{ \AA}$; accept a smaller vacuum (metals often OK at $12\text{–}15\text{ \AA}$) only if electron density in the vacuum center decays to $< 10^{-5}\ e/\text{\AA}^3$ **and** the electrostatic potential plateaus ($V(z)$ flat within a few meV). Otherwise increase vacuum.
 2. **Selective Dynamics on Slabs**:
-   - Slabs must contain $\ge 4 \sim 6$ atomic layers. Bottom $2 \sim 3$ layers must be fixed (`F F F`) to simulate bulk constraints; top $2 \sim 3$ layers and adsorbates must be relaxed (`T T T`).
+   - **Start** with $\ge 4$ atomic layers for close-packed metals and $\ge 6$ for oxides/2D (system-dependent). Fix the bottom $2$ layers (more if needed); relax the rest and adsorbates. **Acceptance:** forces on fixed layers stay small and key observables (lattice parameter of the slab, $E_{\text{ads}}$, barrier) change $\lesssim 0.05$ eV when adding another relaxed layer or extending vacuum — otherwise thicken.
 3. **Dipole Correction**:
-   - Asymmetric slabs (different top/bottom terminations) and single-sided adsorption models **must enable dipole correction** (`LDIPOL = .TRUE.`, `IDIPOL = 3`) to remove periodic dipole field artifacts.
+   - Asymmetric slabs (different top/bottom terminations) and single-sided adsorption models **enable dipole correction** (`LDIPOL = .TRUE.`, `IDIPOL = 3`). Symmetric slabs usually omit it; report the choice.
 4. **Smearing (ISMEAR) Selection**:
-   - **Metals / semimetals**: `ISMEAR = 1` or `2` (Methfessel-Paxton), `SIGMA = 0.1 ~ 0.2 eV`. Always verify that the entropy term `entropy TS` is $< 1\text{ meV/atom}$.
-   - **Semiconductors / insulators**: `ISMEAR = 0` (Gaussian, `SIGMA = 0.05 eV`) for relaxation; `ISMEAR = -5` (tetrahedron method with Blöchl corrections) for high-accuracy static DOS and single points.
+   - **Metals / semimetals**: start `ISMEAR = 1` or `2`, `SIGMA = 0.1 ~ 0.2 eV`. **Gate:** `entropy T S` $< 1\text{ meV/atom}$ (tighten SIGMA or switch method if not).
+   - **Semiconductors / insulators**: `ISMEAR = 0` (Gaussian, `SIGMA = 0.05 eV`) for relaxation; `ISMEAR = -5` for high-accuracy static DOS/single points on gapped systems.
 5. **POTCAR Ordering & Concatenation**:
-   - When assembling POTCARs, concatenate strictly in the elemental order declared in the `POSCAR` header line. Never mix pseudopotential versions or LDA/GGA families.
+   - Concatenate strictly in the elemental order declared in the `POSCAR` header. Never mix pseudopotential versions or LDA/GGA families. Record the POTCAR set in the delivery.
 6. **Strongly Correlated Systems (DFT+U)**:
-   - For open-shell $3d$ transition metal oxides/sulfides and $4f$ lanthanides/actinides, GGA systematically underestimates band gaps and electron localization — **always apply DFT+U** (`LDAU = .TRUE.`, `LDAUTYPE = 2`, `LMAXMIX = 4` for d-electrons, `6` for f-electrons).
+   - For open-shell $3d$ TM oxides/sulfides and $4f$ systems, plain GGA often underestimates gaps/localization — **default to DFT+U** (`LDAU=.TRUE.`, `LDAUTYPE=2`, `LMAXMIX=4` for d, `6` for f).
+   - **Do not reuse a U table blindly.** Cite the U source for **this system / oxidation state / property** (literature or a documented U-raster). Report U values and a short sensitivity note when barriers or $E_{\text{vac}}$ matter (U shifts can exceed 0.5 eV). Blind table reuse is not delivery-grade.
+
+### 2.1 Accept / refuse gates (periodic analog of the molecular SOP)
+
+| Observation | Action |
+| --- | --- |
+| Vacuum $V(z)$ not flat / density not decayed | Increase vacuum; do not deliver $E_{\text{ads}}$ or barriers. |
+| Slab thickness not converged | Thicken; do not quote absolute surface energies. |
+| CI-NEB end states not at minima, or climbing image has 2+ significant imaginaries in the PHVA subspace | Fix path/ends first; do not quote a barrier. |
+| Polar Tasker III surface without compensation | Model compensation or refuse that surface energy. |
+| Functional / U / dispersion outside session method policy | Fail closed; do not “improve” the method silently. |
+| CO/CO₂/O₂ empirical correction needed but scheme/functional mismatched | Do not apply a foreign offset; state the scheme or refuse the thermodynamic cycle. |
+
+**Literature-backed judgment:** for U values, empirical corrections, and scaling relations, search literature (researcher) before inventing numbers. Record functional + correction scheme in every thermodynamic cycle.
 
 ---
 
@@ -63,15 +79,15 @@ When planning and executing periodic first-principles calculations (VASP / CP2K)
 - **Electrochemical Potential Coupling**: $\mu(\text{H}^+ + \text{e}^-) = \frac{1}{2} \mu(\text{H}_2(\text{g})) - eU$.
 - **Standard Gibbs Free Energy Step**:
   $$\Delta G(U) = \Delta E_{\text{DFT}} + \Delta \text{ZPE} - T\Delta S - neU + \Delta G_{\text{pH}} + \Delta G_{\text{solv}}$$
-- **Gas-Phase Reference Artifacts**:
-  - **$\text{O}_2$ triplet overbinding**: Never use computed gas-phase $\text{O}_2$ energy directly. Anchor $G(\text{O}_2)$ via liquid water splitting: $G(\text{O}_2) = 2 G(\text{H}_2\text{O}(\text{l})) - 2 G(\text{H}_2) + 4.92\text{ eV}$.
-  - **$\text{CO} / \text{CO}_2$ gas errors**: Apply empirical corrections ($E_{\text{CO}} \leftarrow E_{\text{DFT}} - 0.33\text{ eV}$; $E_{\text{CO}_2} \leftarrow E_{\text{DFT}} + 0.45\text{ eV}$).
-- **Universal Scaling Relations**:
-  - OER intermediate scaling: $\Delta G_{*\text{OOH}} = \Delta G_{*\text{OH}} + 3.20\ (\pm 0.20)\text{ eV}$, creating the theoretical minimum overpotential $\eta_{\text{min}} = 0.37\text{ V}$.
+- **Gas-Phase Reference Artifacts (scheme-specific — never “universal offsets”)**:
+  - **$\text{O}_2$ triplet overbinding**: Never use computed gas-phase $\text{O}_2$ energy directly on the DFT surface. One common water-splitting anchor is $G(\text{O}_2) = 2 G(\text{H}_2\text{O}(\text{l})) - 2 G(\text{H}_2) + 4.92\text{ eV}$ — **state that you used this scheme**; other experimental anchors exist.
+  - **$\text{CO} / \text{CO}_2$ gas errors**: Literature empirical shifts (e.g. $E_{\text{CO}} \leftarrow E_{\text{DFT}} - 0.33\text{ eV}$; $E_{\text{CO}_2} \leftarrow E_{\text{DFT}} + 0.45\text{ eV}$) are **PBE-era values**. Use only when the functional/scheme matches the source; otherwise re-derive or refuse the cycle. Always print the functional and the correction in the report.
+- **Scaling Relations (associative CHE assumption)**:
+  - OER intermediate scaling $\Delta G_{*\text{OOH}} = \Delta G_{*\text{OH}} + 3.20\ (\pm 0.20)\text{ eV}$ and $\eta_{\text{min}} = 0.37\text{ V}$ hold for **associative** OER pathways where that linear relation is valid. Lattice-oxygen / broken-scaling mechanisms (MvK) can violate it — do not treat 0.37 V as a universal ceiling without checking the pathway.
 
 ### 3.5 Surface Transition States: CI-NEB & Partial Hessian
 - **Climbing Image NEB (CI-NEB)**: Interpolate initial path using IDPP across 4–8 images. Enable `LCLIMB = .TRUE.` and `SPRING = -5.0` with VTST optimizers (`IOPT = 1`, L-BFGS).
-- **Partial Hessian Frequency Verification (`IBRION=5`)**: Fix all substrate atoms (`F F F`); unfreeze only adsorbate atoms and coordinating surface atoms (`T T T`). Verify exactly **one significant imaginary frequency** whose eigenvector aligns with the reaction coordinate.
+- **Partial Hessian Frequency Verification (`IBRION=5`)**: Fix all substrate atoms (`F F F`); unfreeze only adsorbate atoms and coordinating surface atoms (`T T T`). Verify **exactly one significant imaginary frequency in the PHVA subspace** whose eigenvector aligns with the reaction coordinate (this is not a full-crystal Hessian claim).
 
 ---
 

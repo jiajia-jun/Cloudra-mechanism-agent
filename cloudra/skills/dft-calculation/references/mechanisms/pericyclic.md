@@ -28,7 +28,7 @@
 - 预组织：二烯中心单键二面角 ≈ 0°（s-cis）；`distance_filters` 设两组端基对距离均 < 3.2 Å 筛 reactive conformer（典型区间，随底物漂移）。
 - TS 期望：forming 键典型 2.1–2.3 Å（典型区间，Hammond：给-受体组合放热强则更早、键更长）。同步性判据 |Δr|：< 0.3 Å 同步协同；0.3–1.0 Å 异步协同（仍允许，常见于不对称取代）；> 1.0 Å 警惕逐步。
 - 必须并建的竞争边：endo/exo（Alder 内型规则：次级轨道相互作用使内型通常低 1–3 kcal/mol，位阻大时有例外）；两种区域取向（regioisomeric TS）；逐步双自由基边（尤其非极性底物，如丙烯腈 + 非极性二烯体系计算显示协同与 diradical 能垒差可小至 2–8 kcal/mol，见参考来源）；ambimodal 可能（[6+4]/bis-pericyclic 体系，单个 TS 后势能面分叉——IRC 只能到一种产物，产物比须动力学方法，标注单参考局限）。
-- 误诊信号：① TS 两根 forming 键差 > 1.0 Å 且 IRC 中途落入极小点 → 实为逐步，回假设图补 diradical/zwitterion 节点；② `electronic_analysis` 报 `<S^2>` 偏差 > 0.1 → 双自由基特征，闭壳层能垒要打折（spin 投影校正可改变协同/逐步排序 2–5 kcal/mol，待核实具体体系）；③ 频率出现 2+ 虚频且第二虚频是另一根 forming 键的伸缩 → 高阶鞍点，沿该模式位移重搜异步 TS。
+- 误诊信号：① TS 两根 forming 键差 > 1.0 Å 且 IRC 中途落入极小点 → 实为逐步，回假设图补 diradical/zwitterion 节点；② `electronic_analysis` 报 `⟨S²⟩` 偏差 ≳0.1 → 按 `method-selection.md` 打折闭壳层能垒并诊断双自由基特征（spin 投影校正可改变协同/逐步排序 2–5 kcal/mol，待核实具体体系；实用触发器，非自动 fail）；③ 频率出现 2+ 虚频且第二虚频是另一根 forming 键的伸缩 → 高阶鞍点，沿该模式位移重搜异步 TS。
 
 ## [2+2] 环加成：热禁阻 vs 逐步 vs 光化学
 

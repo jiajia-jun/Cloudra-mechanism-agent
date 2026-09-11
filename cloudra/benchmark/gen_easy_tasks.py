@@ -4,6 +4,8 @@ Reads the curated easy-tier markdown and emits one TaskSpec JSON per task into
 ideapool/tasks/easy/<task_id>.json. The markdown is the human-curated source
 of truth; this generator is deterministic and re-runnable.
 v3（2026-09-09）：题源由 30 行缩至 20 行（10 条被剔留档），生成 assert 20。
+方法白名单与 hard 对齐：`MethodPolicy(allowed_methods=["xtb", "b3lyp"])`
+（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian；基组 token 在路线卡解析中被忽略）。
 
 Usage:  python -m cloudra.benchmark.gen_easy_tasks [--out DIR]
 """
@@ -415,7 +417,8 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
         step_type = _STEP_TYPE_EN[task_id]
 
         graph = _build_graph(task_id, reactants, products, step_type)
-        policy = MethodPolicy()
+        # 与 hard 同一白名单：xtb 可作廉价路径探索，b3lyp 作能垒/驻点验证。
+        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp"])
         spec = TaskSpec(
             task_id=task_id,
             tier=Tier.EASY,
