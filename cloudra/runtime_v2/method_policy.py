@@ -20,11 +20,15 @@ always be bypassed, so every layer does positive (whitelist) matching:
   (`g16 foo.gjf`) is covered by `check_input_files`, which the caller runs with
   sandbox access.
 
-Whitelist matching is at method-*family* granularity: any token containing
-`xtb` (`xtb2`, `gfn2-xtb`, `xtbff`) matches an `xtb` entry, and any `mace-*`
-token matches a `mace` entry. Route text cannot distinguish MLIP model
-variants (mace-omol25 vs mace-off), so variant-level enforcement is out of
-band, at the method-provisioning side. Gaussian MLIP runs go through the
+Whitelist matching has two entry shapes: a bare family entry (`xtb`, `mace` —
+families with no basis-set concept) matches at family granularity, i.e. any
+token containing `xtb` (`xtb2`, `gfn2-xtb`, `xtbff`) matches an `xtb` entry and
+any `mace-*` token matches a `mace` entry; a combo entry (`b3lyp/def2svp`)
+additionally pins the basis — the request must declare the same basis
+(spellings normalized: ORCA `def2-SVP` ≡ Gaussian `def2svp`), and a request
+without a basis fails closed against combo entries. Route text cannot
+distinguish MLIP model variants (mace-omol25 vs mace-off), so variant-level
+enforcement is out of band, at the method-provisioning side. Gaussian MLIP runs go through the
 `external="engine"` route keyword; the engine value is the method candidate,
 and a bare `external` with no value stays fail-closed. The ORCA equivalent is
 `! ExtOpt` + `%method ProgExt "<exe>"`: the executable basename is the method
@@ -65,7 +69,7 @@ _GAUSSIAN_JOB_TOKENS = {
 _ORCA_JOB_TOKENS = {
     "opt", "freq", "irc", "scan", "sp", "ts", "optts", "numfreq", "tightscf",
     "verytightscf", "slowconv", "normalprint", "smallprint", "largeprint",
-    "noproperty", "d3", "d4", "ri", "rijcosx", "noautostart", "enzym",
+    "noproperty", "d3", "d3bj", "d3zero", "d4", "ri", "rijcosx", "noautostart", "enzym",
     # 波函数类型修饰符，不是方法本身
     "rks", "uks", "roks", "rhf", "uhf", "rohf", "hf",
 }
@@ -110,6 +114,32 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip().lower())
 
 
+def _norm_basis(b: str) -> str:
+    """基组拼写归一：ORCA `def2-SVP` 与 Gaussian `def2svp` 是同一基组。"""
+    return b.strip().lower().replace("-", "")
+
+
+def _split_method_basis(token: str) -> tuple[str, str]:
+    """`functional/basis` 组合拆成 (functional, 归一化基组)；无 slash 时基组为空。"""
+    t = token.strip().lower()
+    fam, sep, basis = t.partition("/")
+    return fam.strip(), _norm_basis(basis) if sep else ""
+
+
+def _entry_matches(family: str, req_basis: str, entries: Iterable[str]) -> bool:
+    """白名单条目两种形态：裸族条目（`xtb`/`mace`，无基组概念，不约束基组）与
+    组合条目（`b3lyp/def2svp`，请求必须带同一基组——缺基组即不命中，
+    fail-closed）。"""
+    for entry in entries:
+        efam, ebasis = _split_method_basis(entry)
+        if _family(efam) != family:
+            continue
+        if ebasis and req_basis != ebasis:
+            continue
+        return True
+    return False
+
+
 def _family(token: str) -> str:
     """方法族归一：白名单按方法族粒度匹配（`xtb2`/`gfn2-xtb`/`xtbff` → `xtb`，
     `mace-*` → `mace`）。路线卡文本无法区分 MLIP 模型变体（mace-omol25 vs
@@ -122,12 +152,16 @@ def _family(token: str) -> str:
     return t
 
 
-def check_method(method: str, policy: MethodPolicy) -> MethodVerdict:
+def check_method(method: str, policy: MethodPolicy, basis: str = "") -> MethodVerdict:
     """Structured check for an explicit method string (qm_input_writer path):
-    whitelist membership at method-family granularity after normalization."""
-    nm = _family(_normalize(method))
-    allowed = {_family(_normalize(a)) for a in policy.allowed_methods}
-    if nm in allowed:
+    whitelist membership at method-family granularity after normalization.
+    `method` 可自带 slash 基组（`b3lyp/def2svp`），或由 `basis` 参数（工具的
+    `basis_set` 字段）补上；组合条目要求基组精确一致（拼写归一后），请求缺
+    基组时 fail-closed。"""
+    fam_raw, inline_basis = _split_method_basis(_normalize(method))
+    fam = _family(fam_raw)
+    req_basis = _norm_basis(basis) or inline_basis
+    if _entry_matches(fam, req_basis, policy.allowed_methods):
         return MethodVerdict(allowed=True, method=method)
     return MethodVerdict(
         allowed=False,
@@ -205,9 +239,10 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
                     bare.append(t)  # 裸 external：留候选，白名单外 fail-closed
                 continue
             if "/" in t:
-                head = t.split("/", 1)[0]
+                head, _, bset = t.partition("/")
                 if head:
-                    slashed.append(head)
+                    # 权威 slash 声明：方法+基组组合候选（`b3lyp/def2svp`）
+                    slashed.append(f"{head}/{_norm_basis(bset)}" if bset else head)
                 continue
             if "=" in t or "(" in t or _is_basis_token(t) or t in _GAUSSIAN_JOB_TOKENS:
                 continue
@@ -218,9 +253,11 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
 
 
 def _extract_orca_methods(content: str) -> list[str]:
-    """ORCA 关键字行的方法候选：跳过 `%` 块（maxcore/pal 等控制段），候选 =
-    `!` 行上既非作业类型/波函数修饰也非基组形状的 token。ORCA 每个输入只有
-    一个电子结构方法，多个候选即异常。
+    """ORCA 关键字行的方法候选：跳过 `%` 块（maxcore/pal 等控制段）。每行
+    `!` 上既非作业类型/波函数修饰也非基组形状的 token 是泛函候选；同行的
+    基组 token 与泛函配对成组合候选（`b3lyp/def2svp`）——ORCA 每个输入只有
+    一个电子结构方法，同行恰好一个基组时配对，零个或多个则泛函保持无基组
+    （组合条目下 fail-closed）。
 
     `! ExtOpt` 是外部 MLIP 路由：能量/梯度由 `%method` 块里 ProgExt 指定的
     外部程序给出，方法候选取该程序的 basename（如 mace）——与 Gaussian
@@ -234,14 +271,22 @@ def _extract_orca_methods(content: str) -> list[str]:
             continue
         if not s.startswith("!"):
             continue
+        fns: list[str] = []
+        bases: list[str] = []
         for tok in s[1:].split():
             t = tok.lower()
             if t == "extopt":
                 has_extopt = True
                 continue  # 路由标记不是方法本身；真正的候选来自 ProgExt
-            if t in _ORCA_JOB_TOKENS or _is_basis_token(t):
+            if t in _ORCA_JOB_TOKENS:
                 continue
-            candidates.append(t)
+            if _is_basis_token(t):
+                bases.append(_norm_basis(t))
+                continue
+            fns.append(t)
+        basis = bases[0] if len(bases) == 1 else ""
+        for f in fns:
+            candidates.append(f"{f}/{basis}" if basis else f)
     if has_extopt:
         m = _PROGEXT_RE.search(content)
         if m is not None:
@@ -304,7 +349,6 @@ def check_input_content(
                 f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
             )
         return MethodVerdict(allowed=True)
-    allowed = {_family(_normalize(a)) for a in policy.allowed_methods}
     if engine == "gaussian":
         cards = _extract_gaussian_methods(content)
         if not cards or any(not c for c in cards):
@@ -322,7 +366,11 @@ def check_input_content(
                 reason="orca input has no parseable method directive; "
                 f"whitelist cannot be verified (allowed: {policy.allowed_methods})",
             )
-    bad = [c for c in candidates if _family(c) not in allowed]
+    bad = []
+    for c in candidates:
+        cfam, cbasis = _split_method_basis(c)
+        if not _entry_matches(_family(cfam), cbasis, policy.allowed_methods):
+            bad.append(c)
     if bad:
         return MethodVerdict(
             allowed=False,
@@ -463,7 +511,8 @@ def intercept(
                 reason="qm_input_writer call carries no method; whitelist requires an "
                 f"explicit whitelisted method {policy.allowed_methods}",
             )
-        return check_method(method, policy)
+        basis = str(arguments.get("basis_set") or arguments.get("basis") or "")
+        return check_method(method, policy, basis=basis)
     if tool_name == "submit_compute_job" and "submit_compute_job" in layers:
         # xtb 作业（GH #26）：输入是纯坐标 .xyz，不携带方法信息——按提交声明的
         # job_type 方法族判定；白名单无 xtb 时依旧 fail-closed，语义不弱化。

@@ -14,6 +14,8 @@ def format_allowed_methods_clause(allowed_methods: Sequence[str] | None) -> str:
     Otherwise, maps known method tokens to standard display names and formats
     a trailing clause:
     "Allowed computational methods are limited to <methods>; calls beyond the whitelist are intercepted."
+    Combo entries (`b3lyp/def2svp`) render with their basis (`B3LYP/def2-SVP`):
+    the basis is part of the allowance, so it must be visible in the query.
     """
     if not allowed_methods:
         return ""
@@ -30,7 +32,22 @@ def format_allowed_methods_clause(allowed_methods: Sequence[str] | None) -> str:
         "wb97m-v": "ωB97M-V",
         "dft": "DFT",
     }
-    names = [display_map.get(m.lower(), m) for m in allowed_methods]
+    basis_display = {
+        "def2svp": "def2-SVP",
+        "def2sv(p)": "def2-SV(P)",
+        "def2tzvp": "def2-TZVP",
+        "def2tzvpp": "def2-TZVPP",
+        "def2qzvp": "def2-QZVP",
+    }
+
+    def _display(m: str) -> str:
+        fam, sep, basis = m.partition("/")
+        name = display_map.get(fam.lower(), fam)
+        if sep:
+            name = f"{name}/{basis_display.get(basis.lower(), basis)}"
+        return name
+
+    names = [_display(m) for m in allowed_methods]
     if len(names) == 1:
         joined = names[0]
     elif len(names) == 2:

@@ -181,7 +181,7 @@
 
 > 2026-09-09 依用户口径重配：总量 ~120 → ~60；normal 以**多步网络**为标准从 48 池重选 10 条，
 > 优先"气相/闭壳可闭环、无体相水氢键依赖"的多步体系。方法白名单与 hard/easy 对齐：
-> **开放 B3LYP-D3(BJ)/def2-SVP**（`MethodPolicy(allowed_methods=["xtb","b3lyp"])`）——xtb
+> **开放 B3LYP-D3(BJ)/def2-SVP**（`MethodPolicy(allowed_methods=["xtb","b3lyp/def2svp"])`）——xtb
 > 做路径探索，b3lyp 做驻点/能垒验证；多步网络作业数会明显上升，属已知成本。
 > v2 定稿 30 条中未入选的（A1/A4/A7/I3/Y2/O2/O4/O5/X1–X4/
 > R2/R3/U1/U7/Q2/Q3/H1/H2/H3/H5）全部留档池内只增不删。

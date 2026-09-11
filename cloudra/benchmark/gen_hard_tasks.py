@@ -365,9 +365,9 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             accuracy = AccuracyRubric(enabled=True, sigma_kcal_mol=_BARRIER_SIGMA)
 
         graph = _build_graph(pid, reactants, products, entry)
-        # v3：hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 引擎）。白名单按方法族
-        # 粒度匹配且基组 token 在路线卡解析中被忽略，故 "b3lyp" 一词即可放行 b3lyp/def2-svp。
-        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp"])
+        # v3：hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 引擎）。白名单为组合
+        # 条目：基组是许可的一部分，b3lyp 配其他基组（或缺基组）一律 fail-closed 拦截。
+        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
         tasks.append(
             TaskSpec(
                 task_id=f"H{pid}",
