@@ -535,7 +535,7 @@ def knowledge_tags(facet_filter):
     """列出标签词表（vector_store/tag_vocab.yaml）。"""
     import yaml
 
-    from cloudra.knowledge.tagging import VOCAB_FILE, TAG_FACETS
+    from cloudra.knowledge.tagging import TAG_FACETS, VOCAB_FILE
 
     raw = yaml.safe_load(VOCAB_FILE.read_text(encoding="utf-8"))
     facets = raw.get("facets") or {}
