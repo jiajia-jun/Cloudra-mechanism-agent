@@ -1,17 +1,11 @@
 {
   "model": "BAAI/bge-m3",
   "dim": 1024,
-  "count": 17188,
+  "count": 17836,
   "batch_size": 64,
-  "created_at": "2026-08-31 07:41:00",
+  "created_at": "2026-09-12 01:54:00",
   "backend": "local",
   "device": "cpu",
-  "elapsed_s": 4047.8,
-  "text_recipe": "heading\\n+content, L2-normalized, float16",
-  "langs": {
-    "zh": 8594,
-    "en": 8594
-  },
-  "v12_note": "dynamics training cards added bilingually (8 lectures, 1569 cards x2); 10 rows surgically re-embedded after forum/blog reference scrub",
-  "v12_1_note": "category 11 (software installation & environment, 37 files / 468 cards) removed bilingually; vectors surgically row-deleted"
+  "elapsed_s": 1741.8,
+  "text_recipe": "heading\\n+content, L2-normalized, float16"
 }
