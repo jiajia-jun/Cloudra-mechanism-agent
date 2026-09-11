@@ -14,8 +14,8 @@
 \captionsetup{labelsep=quad}
 \usepackage{xcolor}
 \usepackage{listings}
-\setmonofont{DejaVu Sans Mono}
-\setCJKmonofont{WenQuanYi Zen Hei}
+\setmonofont{Menlo}
+\setCJKmonofont{Songti SC}
 \lstset{
   basicstyle=\ttfamily\small,
   frame=single,
@@ -33,7 +33,7 @@
 
 \title{\bfseries Cloudra 软件使用说明书\\[6pt] \large V2.0}
 \author{Cloudra Team}
-\date{2026年8月17日}
+\date{2026年9月11日}
 
 \begin{document}
 
@@ -50,12 +50,11 @@
   \item 软件全称：Cloudra自主有机小分子机理计算Agent软件
   \item 软件简称：Cloudra
   \item 版本号：V2.0
-  \item 开发完成日期：2026年8月17日
+  \item 开发完成日期：2026年9月11日
 \end{itemize}
 
 \subsection{软件用途}
-Cloudra 是一款面向有机小分子反应机理研究的自主计算 Agent 软件。它以事件驱动运行时协调总控 Agent（Coordinator）与领域子 Agent，从反应物出发自主提出机理假设、编排 DFT 验证链（原子映射、构象采样、过渡态搜索、IRC、热化学），并以机理证据图（DAG）与分阶段复核保证结论可审计。内置几何与电子感知工具禁止手写坐标，支持本地与 Slurm 计算监视、危险操作审批与不可变产物快照。
-
+Cloudra 是一款面向均相有机小分子反应机理研究的自主计算 Agent 软件。系统承袭「职责清晰、先算后核」的设计，以事件驱动运行时协调总控 Agent 与领域子 Agent：从反应物／产物等化学信息出发提出机理假设，自动完成结构准备、过渡态初猜与搜索、虚频确认、反应路径连通及热化学等环节；以机理图承载物种状态与转化关系，并配套几何／电子结构感知、计算任务调度、危险操作审批与过程材料留存，支撑可复查的机理解析流程。
 \subsection{运行环境}
 \begin{itemize}[leftmargin=4em,itemsep=2pt]
   \item 操作系统：Linux、macOS、Windows
@@ -100,7 +99,7 @@ Cloudra 是一款面向有机小分子反应机理研究的自主计算 Agent �
     Researcher & a-3 & 学术文献检索与专业数据调研 \\
     small\_mol & a-4 & 小分子建模、构象与结构文件处理 \\
     md & a-5 & 分子动力学模拟、力场与轨迹分析 \\
-    dft & a-6 & 量子化学（Gaussian）输入输出与计算流程 \\
+    dft & a-6 & 量子化学计算（ORCA／Gaussian／xTB 等）输入输出与流程编排 \\
     experiment & a-7 & 实验数据处理与操作辅助 \\
     env & a-8 & 系统环境配置与软件安装管理 \\
     \bottomrule
@@ -118,23 +117,25 @@ Cloudra 是一款面向有机小分子反应机理研究的自主计算 Agent �
 
 \subsection{工具套件}
 \begin{itemize}[itemsep=2pt]
-  \item \textbf{Chemtool 化学工具}：SMILES 生成与转换（smiles\_to\_mol）、Gaussian 输入文件编写（gjf\_writer）、量子化学输出解析（SCF 能量、振动频率、过渡态虚频判别等）、NMR/IR 光谱处理与格式转换。
-  \item \textbf{Searchtool 检索工具}：arXiv、OpenAlex（含 ChemRxiv 聚合）学术文献检索，原生联网搜索适配。
+  \item \textbf{Chemtool 化学工具}：结构构建与 SMILES 转换、量子化学输入编写与日志解析（能量、频率、虚频判别等）、光谱与格式转换；集成过渡态初猜（插值／路径搜索）、结构与电子结构感知，减少对手写三维坐标的依赖。
+  \item \textbf{自动过渡态搜索管线}：将结构准备、原子映射、路径初猜、校验、鞍点优化、频率与 IRC 判定等步骤封装为可自动推进的流程；Agent 启动后跟踪进度，并在异常断点处调整后再续跑。
+  \item \textbf{Searchtool 检索工具}：arXiv、OpenAlex 等学术文献检索，以及原生联网搜索适配。
   \item \textbf{Bashtool 命令工具}：跨平台 Shell 执行，内置命令分级、文件变更审批与危险命令守卫。
   \item \textbf{Writetool 写作工具}：结构化文档、实验记录与报告写入。
-  \item \textbf{Plantool 计划工具}：研究计划与机理图（DAG）操作，提供机理草稿、证据绑定等十余种图操作指令。
+  \item \textbf{Plantool 计划工具}：研究计划与机理图操作，提供机理草稿、证据绑定等图操作指令。
   \item \textbf{Managetool 管理工具}：子 Agent 调度、蜂群展开、AgentHub 论坛、定时提醒。
-  \item \textbf{Skilltool 技能工具}：加载科研方法技能包（DFT 计算、文献综述、论文写作等）。
+  \item \textbf{Skilltool 技能工具}：加载科研方法技能包（第一性原理计算、文献综述、论文写作等）。
   \item \textbf{Stoptool 终止工具}：按目标完成度门禁终止会话，防止过早收尾。
 \end{itemize}
 
-\subsection{DAG 机理图引导编排}
-软件支持按会话开启的 DAG 引导编排模式，用于有机反应机理研究：
+\subsection{机理图引导编排与自动过渡态搜索}
+软件支持按会话开启的机理图（DAG）引导模式，用于均相有机反应机理解析：
 \begin{itemize}[itemsep=2pt]
-  \item \textbf{机理草稿与阶段契约}：模型提出机理草稿（节点与基元步骤边），经接受后落为交付图；阶段按契约顺序绑定。
-  \item \textbf{调用复核}：声明为证据源的工具调用完成后自动进入复核收件箱，由机制检查器（如过渡态虚频数 $n_{\text{imag}}=1$）确定性派生证据等级。
-  \item \textbf{覆盖率审计}：停止会话时审计交付覆盖率，存在未决缺口时阻止提交，保证机理闭环。
-  \item \textbf{督导模式}：可选的科学督导 Agent 接受/驳回草稿、逐调用复核并绑定阶段。
+  \item \textbf{化学信息机理图}：以物种节点与转化关系承载化学状态与约束，模型提出机理草稿后经接受落为交付图。
+  \item \textbf{自动过渡态搜索}：关键基元步骤可走声明驱动的搜索管线，自动完成初猜、优化与路径确认；失败时给出可操作反馈并由 Agent 调整后续跑。
+  \item \textbf{计算复核}：声明为证据源的工具调用完成后进入复核流程，对虚频数目、路径连通等结果做检查后再绑定到对应步骤。
+  \item \textbf{交付检查}：结束任务时检查机理图覆盖与关键证据是否齐备，未完成则提示继续，避免过早交卷。
+  \item \textbf{督导模式}：可选科学督导角色，用于接受／驳回草稿并对关键绑定做复核。
 \end{itemize}
 
 \subsection{安全与权限系统}
@@ -201,11 +202,11 @@ cloudra backup restore # 恢复到空目录
 
 \section{典型使用场景}
 
-\subsection{反应机理研究（DAG 模式）}
-用户在项目设置中开启 DAG 引导编排，向 Coordinator 提出 D-A 环加成机理研究目标。系统引导模型提出机理草稿，经接受后按阶段契约绑定证据：DFT 子 Agent 提交过渡态计算，计算作业完成后自动进入复核收件箱，由虚频检查器确定证据等级；全部必需阶段达成后经覆盖率审计交付完整机理图。
+\subsection{反应机理研究（机理图模式）}
+用户在项目设置中开启机理图引导，向 Coordinator 提出反应机理解析目标（例如环加成或轴手性相关扭转能垒）。系统引导提出机理草稿并落图；对关键步骤启动自动过渡态搜索管线，计算完成后进行虚频与路径连通复核，再将结果绑定到对应节点／边，最终交付完整机理图与能垒信息。
 
-\subsection{DFT 计算全流程}
-用户描述目标分子与计算需求，Coordinator 调度 dft 子 Agent：先生成 Gaussian 输入文件（经坐标守卫校验来源），提交计算后由监视进程实时解析输出，自动提取 SCF 能量、HOMO--LUMO 能隙、振动频率等关键指标并写入报告。
+\subsection{量子化学计算流程}
+用户描述目标分子与计算需求，Coordinator 调度 dft／small\_mol 等子 Agent：生成合法输入并提交计算，由监视进程解析输出，提取能量、轨道能级、振动频率等指标并写入报告；涉及过渡态时优先走自动搜索管线而非仅手写输入文件。
 
 \subsection{文献调研与综述}
 用户要求调研某课题最新进展，Researcher 子 Agent 检索 arXiv 与 OpenAlex 数据库，Writer 子 Agent 依据检索结果撰写综述，产出结构与引用规范的 Markdown 报告。

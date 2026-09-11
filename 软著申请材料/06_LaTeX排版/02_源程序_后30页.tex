@@ -5,8 +5,8 @@
 \usepackage{listings}
 \usepackage{fancyhdr}
 \usepackage{fontspec}
-\setmonofont{DejaVu Sans Mono}
-\setCJKmonofont{WenQuanYi Zen Hei}
+\setmonofont{Menlo}
+\setCJKmonofont{Songti SC}
 \lstset{
   basicstyle=\ttfamily\fontsize{6.5}{8.3}\selectfont,
   columns=fullflexible,
@@ -29,708 +29,8 @@
 \renewcommand{\headrulewidth}{0.4pt}
 \setlength{\headheight}{14pt}
 \begin{document}
-\setcounter{page}{1242}
-\begin{lstlisting}[firstnumber=200,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:200	            values["thermal_gibbs_correction_hartree"] = gibbs - e_el
-cloudra/tools/core/orca_frames.py:201	        energy_corr = values.get("thermal_energy_correction_hartree")
-cloudra/tools/core/orca_frames.py:202	        if energy_corr is not None and "total_thermal_energy_hartree" not in values:
-cloudra/tools/core/orca_frames.py:203	            values["total_thermal_energy_hartree"] = e_el + energy_corr
-cloudra/tools/core/orca_frames.py:204	    return values
-cloudra/tools/core/orca_frames.py:205	
-cloudra/tools/core/orca_frames.py:206	
-cloudra/tools/core/orca_frames.py:207	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:208	# 频率（VIBRATIONAL FREQUENCIES 块，文本权威回退）
-cloudra/tools/core/orca_frames.py:209	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:210	
-cloudra/tools/core/orca_frames.py:211	# 模式行："   5:       289.50 cm**-1"；虚频为负值，尾部或带 ***imaginary mode***
-cloudra/tools/core/orca_frames.py:212	# 标记。NORMAL MODES 等后续章节的行不匹配此模式，全局 finditer 天然只命中
-cloudra/tools/core/orca_frames.py:213	# 频率块内的模式行。
-cloudra/tools/core/orca_frames.py:214	_VIBFREQ_LINE_RE = re.compile(rf"^\s*\d+:\s*{_FLOAT}\s+cm\*\*-1", re.M)
-cloudra/tools/core/orca_frames.py:215	
-cloudra/tools/core/orca_frames.py:216	
-cloudra/tools/core/orca_frames.py:217	def vibfreqs_from_text(text: str) -> list[float]:
-cloudra/tools/core/orca_frames.py:218	    """解析最后一个 VIBRATIONAL FREQUENCIES 块的频率（cm⁻¹，负值=虚频）。
-cloudra/tools/core/orca_frames.py:219	
-cloudra/tools/core/orca_frames.py:220	    外部 MLIP（ExtOpt NumFreq）日志无 SCF 块，cclib 常整体解析失败，
-cloudra/tools/core/orca_frames.py:221	    频率只能从文本回退（GH #16）。只取最后一个频率块（Opt+NumFreq 的
-cloudra/tools/core/orca_frames.py:222	    日志可能逐周期多次打印）；与 cclib 的差异是保留打头的平动/转动
-cloudra/tools/core/orca_frames.py:223	    零频模式（cclib 会裁掉），调用方按符号拆分实频/虚频即可。无频率块
-cloudra/tools/core/orca_frames.py:224	    时返回空列表——调用方须保持 None 语义，不得当成零虚频。
-cloudra/tools/core/orca_frames.py:225	    """
-cloudra/tools/core/orca_frames.py:226	    idx = text.rfind("VIBRATIONAL FREQUENCIES")
-cloudra/tools/core/orca_frames.py:227	    if idx < 0:
-cloudra/tools/core/orca_frames.py:228	        return []
-cloudra/tools/core/orca_frames.py:229	    return [float(m.group(1)) for m in _VIBFREQ_LINE_RE.finditer(text, idx)]
-cloudra/tools/core/orca_frames.py:230	
-cloudra/tools/core/orca_frames.py:231	
-cloudra/tools/core/orca_frames.py:232	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:233	# 帧提取
-cloudra/tools/core/orca_frames.py:234	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:235	
-cloudra/tools/core/orca_frames.py:236	def _extract_opt_frames(log_path: str) -> list[FrameRecord]:
-cloudra/tools/core/orca_frames.py:237	    data = _ccread(log_path)
-cloudra/tools/core/orca_frames.py:238	    energies = getattr(data, "scfenergies", None)
-cloudra/tools/core/orca_frames.py:239	    atomcoords = getattr(data, "atomcoords", None)
-cloudra/tools/core/orca_frames.py:240	    atomnos = getattr(data, "atomnos", None)
-cloudra/tools/core/orca_frames.py:241	    if energies is None or atomcoords is None or atomnos is None:
-cloudra/tools/core/orca_frames.py:242	        return []
-cloudra/tools/core/orca_frames.py:243	    energies_ev = _as_float_list(energies)
-cloudra/tools/core/orca_frames.py:244	    n = min(len(energies_ev), len(atomcoords))
-cloudra/tools/core/orca_frames.py:245	    converged = _opt_converged(data)
-cloudra/tools/core/orca_frames.py:246	    freqs = _get_vibfreqs(data)
-cloudra/tools/core/orca_frames.py:247	
-cloudra/tools/core/orca_frames.py:248	    frames = []
-cloudra/tools/core/orca_frames.py:249	    for i in range(n):
-cloudra/tools/core/orca_frames.py:250	        is_last = i == n - 1
-cloudra/tools/core/orca_frames.py:251	        frames.append(FrameRecord(
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=252,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:252	            frame=i,
-cloudra/tools/core/orca_frames.py:253	            scf_energy_hartree=energies_ev[i] / EV_PER_HARTREE,
-cloudra/tools/core/orca_frames.py:254	            frequencies_cm=freqs if (is_last and freqs) else [],
-cloudra/tools/core/orca_frames.py:255	            xyz=_coords_to_xyz(atomnos, atomcoords[i], comment=f"opt step={i}"),
-cloudra/tools/core/orca_frames.py:256	            converged=converged if is_last else None,
-cloudra/tools/core/orca_frames.py:257	        ))
-cloudra/tools/core/orca_frames.py:258	    return frames
-cloudra/tools/core/orca_frames.py:259	
-cloudra/tools/core/orca_frames.py:260	
-cloudra/tools/core/orca_frames.py:261	def _extract_scan_frames(log_path: str) -> list[FrameRecord]:
-cloudra/tools/core/orca_frames.py:262	    """ORCA 扫描：unrelaxed 时 scanparm 给出逐点参数；relaxed 扫描的
-cloudra/tools/core/orca_frames.py:263	
-cloudra/tools/core/orca_frames.py:264	    逐点几何在 cclib 1.8.x 不暴露（scancoords 为 None），能量取
-cloudra/tools/core/orca_frames.py:265	    scfenergies 序列（cclib 会把扫描各点的最终 SCF 记入）。
-cloudra/tools/core/orca_frames.py:266	    逐点参数值：cclib 的 scanparm 对 unrelaxed 扫描只有初值，
-cloudra/tools/core/orca_frames.py:267	    故回退解析 "TRAJECTORY STEP N / <param> : value" 文本标记。
-cloudra/tools/core/orca_frames.py:268	    """
-cloudra/tools/core/orca_frames.py:269	    data = _ccread(log_path)
-cloudra/tools/core/orca_frames.py:270	    energies = getattr(data, "scfenergies", None)
-cloudra/tools/core/orca_frames.py:271	    parm = getattr(data, "scanparm", None)
-cloudra/tools/core/orca_frames.py:272	    if energies is None:
-cloudra/tools/core/orca_frames.py:273	        return []
-cloudra/tools/core/orca_frames.py:274	    energies_ev = _as_float_list(energies)
-cloudra/tools/core/orca_frames.py:275	    n = len(energies_ev)
-cloudra/tools/core/orca_frames.py:276	
-cloudra/tools/core/orca_frames.py:277	    parm_values: list[float] = []
-cloudra/tools/core/orca_frames.py:278	    if parm is not None and len(parm) > 0:
-cloudra/tools/core/orca_frames.py:279	        parm_values = _as_float_list(parm[0])
-cloudra/tools/core/orca_frames.py:280	    if len(parm_values) < n:
-cloudra/tools/core/orca_frames.py:281	        # 文本兜底：TRAJECTORY STEP 块内的 "D7 : 32.72727273" 参数行
-cloudra/tools/core/orca_frames.py:282	        step_params = re.findall(
-cloudra/tools/core/orca_frames.py:283	            r"TRAJECTORY STEP\s+\d+\s*\n\s*\S+\s*:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][+-]?\d+)?)",
-cloudra/tools/core/orca_frames.py:284	            _read_text(log_path),
-cloudra/tools/core/orca_frames.py:285	        )
-cloudra/tools/core/orca_frames.py:286	        if len(step_params) >= n:
-cloudra/tools/core/orca_frames.py:287	            parm_values = [float(v) for v in step_params[:n]]
-cloudra/tools/core/orca_frames.py:288	
-cloudra/tools/core/orca_frames.py:289	    coords = getattr(data, "scancoords", None)
-cloudra/tools/core/orca_frames.py:290	    atomcoords = getattr(data, "atomcoords", None)
-cloudra/tools/core/orca_frames.py:291	    atomnos = getattr(data, "atomnos", None)
-cloudra/tools/core/orca_frames.py:292	    frames_source = coords if coords is not None else atomcoords
-cloudra/tools/core/orca_frames.py:293	    has_coords = frames_source is not None and atomnos is not None and len(frames_source) == n
-cloudra/tools/core/orca_frames.py:294	
-cloudra/tools/core/orca_frames.py:295	    frames = []
-cloudra/tools/core/orca_frames.py:296	    for i in range(n):
-cloudra/tools/core/orca_frames.py:297	        rx = parm_values[i] if i < len(parm_values) else None
-cloudra/tools/core/orca_frames.py:298	        xyz = ""
-cloudra/tools/core/orca_frames.py:299	        if has_coords:
-cloudra/tools/core/orca_frames.py:300	            xyz = _coords_to_xyz(atomnos, frames_source[i], comment=f"scan point={i} parm={rx}")
-cloudra/tools/core/orca_frames.py:301	        frames.append(FrameRecord(
-cloudra/tools/core/orca_frames.py:302	            frame=i,
-cloudra/tools/core/orca_frames.py:303	            reaction_coordinate=rx,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=304,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:304	            scf_energy_hartree=energies_ev[i] / EV_PER_HARTREE,
-cloudra/tools/core/orca_frames.py:305	            xyz=xyz,
-cloudra/tools/core/orca_frames.py:306	        ))
-cloudra/tools/core/orca_frames.py:307	    return frames
-cloudra/tools/core/orca_frames.py:308	
-cloudra/tools/core/orca_frames.py:309	
-cloudra/tools/core/orca_frames.py:310	def _extract_sp_frames(log_path: str) -> list[FrameRecord]:
-cloudra/tools/core/orca_frames.py:311	    data = _ccread(log_path)
-cloudra/tools/core/orca_frames.py:312	    energies = getattr(data, "scfenergies", None)
-cloudra/tools/core/orca_frames.py:313	    atomcoords = getattr(data, "atomcoords", None)
-cloudra/tools/core/orca_frames.py:314	    atomnos = getattr(data, "atomnos", None)
-cloudra/tools/core/orca_frames.py:315	    if atomcoords is None or atomnos is None or len(atomcoords) == 0:
-cloudra/tools/core/orca_frames.py:316	        return []
-cloudra/tools/core/orca_frames.py:317	    energy_hartree = None
-cloudra/tools/core/orca_frames.py:318	    if energies is not None and len(energies) > 0:
-cloudra/tools/core/orca_frames.py:319	        energy_hartree = _as_float_list(energies)[-1] / EV_PER_HARTREE
-cloudra/tools/core/orca_frames.py:320	    return [FrameRecord(
-cloudra/tools/core/orca_frames.py:321	        frame=0,
-cloudra/tools/core/orca_frames.py:322	        scf_energy_hartree=energy_hartree,
-cloudra/tools/core/orca_frames.py:323	        frequencies_cm=_get_vibfreqs(data),
-cloudra/tools/core/orca_frames.py:324	        xyz=_coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
-cloudra/tools/core/orca_frames.py:325	    )]
-cloudra/tools/core/orca_frames.py:326	
-cloudra/tools/core/orca_frames.py:327	
-cloudra/tools/core/orca_frames.py:328	def extract_frames(log_path: str) -> list[FrameRecord]:
-cloudra/tools/core/orca_frames.py:329	    """按识别到的任务类型提取关键帧。IRC 的逐点坐标在 trj 边文件（主输出无），
-cloudra/tools/core/orca_frames.py:330	    这里对 IRC 返回空；IRC 的点数/收敛/能量走 extract_irc。"""
-cloudra/tools/core/orca_frames.py:331	    jobs = detect_job_types(log_path)
-cloudra/tools/core/orca_frames.py:332	    if "irc" in jobs:
-cloudra/tools/core/orca_frames.py:333	        return []
-cloudra/tools/core/orca_frames.py:334	    if "scan" in jobs:
-cloudra/tools/core/orca_frames.py:335	        return _extract_scan_frames(log_path)
-cloudra/tools/core/orca_frames.py:336	    if "opt" in jobs or "ts" in jobs:
-cloudra/tools/core/orca_frames.py:337	        return _extract_opt_frames(log_path)
-cloudra/tools/core/orca_frames.py:338	    return _extract_sp_frames(log_path)
-cloudra/tools/core/orca_frames.py:339	
-cloudra/tools/core/orca_frames.py:340	
-cloudra/tools/core/orca_frames.py:341	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:342	# IRC 主输出解析（点数 / 收敛 / 能量）
-cloudra/tools/core/orca_frames.py:343	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:344	
-cloudra/tools/core/orca_frames.py:345	# 迭代行：" 0 -1967.123694 -0.987880 0.009347 0.001949"
-cloudra/tools/core/orca_frames.py:346	_IRCA_ITER_RE = re.compile(
-cloudra/tools/core/orca_frames.py:347	    r"^\s*(\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s*$"
-cloudra/tools/core/orca_frames.py:348	)
-cloudra/tools/core/orca_frames.py:349	# PATH SUMMARY 行，TS 行尾部带 "<= TS"
-cloudra/tools/core/orca_frames.py:350	_IRCA_SUMMARY_RE = re.compile(
-cloudra/tools/core/orca_frames.py:351	    r"^\s*(\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)(?:\s*<=\s*TS)?\s*$"
-cloudra/tools/core/orca_frames.py:352	)
-cloudra/tools/core/orca_frames.py:353	_IRCA_BLOCK_RE = re.compile(r"\*\s*(FORWARD|BACKWARD)\s+IRC\s*\*")
-cloudra/tools/core/orca_frames.py:354	_IRCA_CONVERGED_RE = re.compile(r"THE IRC HAS CONVERGED")
-cloudra/tools/core/orca_frames.py:355	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=356,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:356	
-cloudra/tools/core/orca_frames.py:357	def _parse_irc_direction_block(text: str) -> tuple[int, bool]:
-cloudra/tools/core/orca_frames.py:358	    """解析一个 FORWARD/BACKWARD IRC 块，返回 (点数, 是否收敛)。
-cloudra/tools/core/orca_frames.py:359	
-cloudra/tools/core/orca_frames.py:360	    点数为迭代行数（不含表头/阈值行）；收敛以块尾 "THE IRC HAS CONVERGED"
-cloudra/tools/core/orca_frames.py:361	    （HURRAY 段）为准——步数耗尽而终止的块没有该标记。
-cloudra/tools/core/orca_frames.py:362	    """
-cloudra/tools/core/orca_frames.py:363	    n_points = 0
-cloudra/tools/core/orca_frames.py:364	    for line in text.splitlines():
-cloudra/tools/core/orca_frames.py:365	        if _IRCA_ITER_RE.match(line):
-cloudra/tools/core/orca_frames.py:366	            n_points += 1
-cloudra/tools/core/orca_frames.py:367	    return n_points, bool(_IRCA_CONVERGED_RE.search(text))
-cloudra/tools/core/orca_frames.py:368	
-cloudra/tools/core/orca_frames.py:369	
-cloudra/tools/core/orca_frames.py:370	def extract_irc(log_path: str) -> dict:
-cloudra/tools/core/orca_frames.py:371	    """从 ORCA 主输出解析 IRC 元数据，对齐 gaussian_frames.extract_irc 的 meta dict。
-cloudra/tools/core/orca_frames.py:372	
-cloudra/tools/core/orca_frames.py:373	    ORCA 把 IRC 逐点的能量/梯度直接打在主输出（FORWARD IRC / BACKWARD IRC
-cloudra/tools/core/orca_frames.py:374	    迭代块 + 结尾 IRC PATH SUMMARY），无需追 `_IRC.log`/`*_trj.xyz` 边文件
-cloudra/tools/core/orca_frames.py:375	    （边文件只额外提供逐点坐标，这里不取）。返回键：
-cloudra/tools/core/orca_frames.py:376	    num_points_forward/backward、forward_converged/backward_converged、
-cloudra/tools/core/orca_frames.py:377	    endpoint_energies_hartree（PATH SUMMARY 首/末行能量）、ts_energy_hartree
-cloudra/tools/core/orca_frames.py:378	    （带 "<= TS" 标记行的能量）。找不到 IRC 段时抛 ValueError。
-cloudra/tools/core/orca_frames.py:379	    """
-cloudra/tools/core/orca_frames.py:380	    text = _read_text(log_path)
-cloudra/tools/core/orca_frames.py:381	    blocks = list(_IRCA_BLOCK_RE.finditer(text))
-cloudra/tools/core/orca_frames.py:382	    if not blocks:
-cloudra/tools/core/orca_frames.py:383	        raise ValueError("ORCA 日志中未找到 FORWARD/BACKWARD IRC 段。")
-cloudra/tools/core/orca_frames.py:384	
-cloudra/tools/core/orca_frames.py:385	    num_points: dict[str, int] = {"FORWARD": 0, "BACKWARD": 0}
-cloudra/tools/core/orca_frames.py:386	    converged: dict[str, bool] = {"FORWARD": False, "BACKWARD": False}
-cloudra/tools/core/orca_frames.py:387	    for i, m in enumerate(blocks):
-cloudra/tools/core/orca_frames.py:388	        direction = m.group(1)
-cloudra/tools/core/orca_frames.py:389	        seg_end = blocks[i + 1].start() if i + 1 < len(blocks) else len(text)
-cloudra/tools/core/orca_frames.py:390	        # 截到 PATH SUMMARY 之前，避免把汇总表行也数进迭代点
-cloudra/tools/core/orca_frames.py:391	        segment = text[m.end():seg_end]
-cloudra/tools/core/orca_frames.py:392	        summary_idx = segment.find("IRC PATH SUMMARY")
-cloudra/tools/core/orca_frames.py:393	        if summary_idx >= 0:
-cloudra/tools/core/orca_frames.py:394	            segment = segment[:summary_idx]
-cloudra/tools/core/orca_frames.py:395	        n, conv = _parse_irc_direction_block(segment)
-cloudra/tools/core/orca_frames.py:396	        num_points[direction] = n
-cloudra/tools/core/orca_frames.py:397	        converged[direction] = conv
-cloudra/tools/core/orca_frames.py:398	
-cloudra/tools/core/orca_frames.py:399	    meta: dict = {
-cloudra/tools/core/orca_frames.py:400	        "num_points_forward": num_points["FORWARD"],
-cloudra/tools/core/orca_frames.py:401	        "num_points_backward": num_points["BACKWARD"],
-cloudra/tools/core/orca_frames.py:402	        "forward_converged": converged["FORWARD"],
-cloudra/tools/core/orca_frames.py:403	        "backward_converged": converged["BACKWARD"],
-cloudra/tools/core/orca_frames.py:404	        "ts_energy_hartree": None,
-cloudra/tools/core/orca_frames.py:405	        "rx_coord_range": None,
-cloudra/tools/core/orca_frames.py:406	        "endpoint_energies_hartree": None,
-cloudra/tools/core/orca_frames.py:407	    }
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=408,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:408	
-cloudra/tools/core/orca_frames.py:409	    # PATH SUMMARY：首行=反应物端、末行=产物端、"<= TS" 行=TS 能量。
-cloudra/tools/core/orca_frames.py:410	    # 用 rfind 取最后一次出现（真实输出在文件尾部；避免命中开头注释/回显里的
-cloudra/tools/core/orca_frames.py:411	    # 同名字样），且从该段标题的分隔线之后开始读数据行。
-cloudra/tools/core/orca_frames.py:412	    summary_idx = text.rfind("IRC PATH SUMMARY")
-cloudra/tools/core/orca_frames.py:413	    if summary_idx >= 0:
-cloudra/tools/core/orca_frames.py:414	        summary_rows = []
-cloudra/tools/core/orca_frames.py:415	        for line in text[summary_idx:].splitlines():
-cloudra/tools/core/orca_frames.py:416	            m = _IRCA_SUMMARY_RE.match(line)
-cloudra/tools/core/orca_frames.py:417	            if m:
-cloudra/tools/core/orca_frames.py:418	                summary_rows.append((float(m.group(2)), "<=" in line and "TS" in line))
-cloudra/tools/core/orca_frames.py:419	        if summary_rows:
-cloudra/tools/core/orca_frames.py:420	            meta["endpoint_energies_hartree"] = (
-cloudra/tools/core/orca_frames.py:421	                summary_rows[0][0],
-cloudra/tools/core/orca_frames.py:422	                summary_rows[-1][0],
-cloudra/tools/core/orca_frames.py:423	            )
-cloudra/tools/core/orca_frames.py:424	            ts_rows = [e for e, is_ts in summary_rows if is_ts]
-cloudra/tools/core/orca_frames.py:425	            if ts_rows:
-cloudra/tools/core/orca_frames.py:426	                meta["ts_energy_hartree"] = ts_rows[0]
-cloudra/tools/core/orca_frames.py:427	    return meta
-cloudra/tools/core/orca_frames.py:428	
-cloudra/tools/core/orca_frames.py:429	
-cloudra/tools/core/orca_frames.py:430	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:431	# IRC 端点几何（final endpoint 文件 / F/B trajectory 末帧）
-cloudra/tools/core/orca_frames.py:432	# ---------------------------------------------------------------------------
-cloudra/tools/core/orca_frames.py:433	
-cloudra/tools/core/orca_frames.py:434	_ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
-cloudra/tools/core/orca_frames.py:435	
-cloudra/tools/core/orca_frames.py:436	
-cloudra/tools/core/orca_frames.py:437	def _irc_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
-cloudra/tools/core/orca_frames.py:438	    """IRC 边文件的 (目录, 作业名) 候选：优先日志开头输入回显的 NAME 记录
-cloudra/tools/core/orca_frames.py:439	    （harness 日志名与 ORCA 作业名无关），其次日志自身 stem。"""
-cloudra/tools/core/orca_frames.py:440	    roots: list[tuple[str, str]] = []
-cloudra/tools/core/orca_frames.py:441	    m = _ORCA_NAME_RE.search(text[:200_000])
-cloudra/tools/core/orca_frames.py:442	    if m:
-cloudra/tools/core/orca_frames.py:443	        job = os.path.splitext(m.group("path"))[0]
-cloudra/tools/core/orca_frames.py:444	        roots.append((os.path.dirname(job), os.path.basename(job)))
-cloudra/tools/core/orca_frames.py:445	    stem = os.path.splitext(os.path.basename(log_path))[0]
-cloudra/tools/core/orca_frames.py:446	    roots.append((os.path.dirname(os.path.abspath(log_path)), stem))
-cloudra/tools/core/orca_frames.py:447	    return roots
-cloudra/tools/core/orca_frames.py:448	
-cloudra/tools/core/orca_frames.py:449	
-cloudra/tools/core/orca_frames.py:450	def _irc_endpoint_sidecar(
-cloudra/tools/core/orca_frames.py:451	    roots: list[tuple[str, str]], suffix: str
-cloudra/tools/core/orca_frames.py:452	) -> tuple[str | None, str | None]:
-cloudra/tools/core/orca_frames.py:453	    """定位一个方向的端点来源：final endpoint 文件优先，trajectory 末帧其次。
-cloudra/tools/core/orca_frames.py:454	
-cloudra/tools/core/orca_frames.py:455	    返回 (geometry_ref, origin)；都找不到返回 (None, None)。
-cloudra/tools/core/orca_frames.py:456	    """
-cloudra/tools/core/orca_frames.py:457	    for directory, stem in roots:
-cloudra/tools/core/orca_frames.py:458	        final = os.path.join(directory, f"{stem}{suffix}.xyz")
-cloudra/tools/core/orca_frames.py:459	        if os.path.isfile(final):
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=460,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:460	            return final, "final_endpoint_file"
-cloudra/tools/core/orca_frames.py:461	    for directory, stem in roots:
-cloudra/tools/core/orca_frames.py:462	        trajectory = os.path.join(directory, f"{stem}{suffix}_trj.xyz")
-cloudra/tools/core/orca_frames.py:463	        if os.path.isfile(trajectory):
-cloudra/tools/core/orca_frames.py:464	            return trajectory, "trajectory_last_frame"
-cloudra/tools/core/orca_frames.py:465	    return None, None
-cloudra/tools/core/orca_frames.py:466	
-cloudra/tools/core/orca_frames.py:467	
-cloudra/tools/core/orca_frames.py:468	def extract_irc_endpoints(log_path: str) -> dict:
-cloudra/tools/core/orca_frames.py:469	    """定位 ORCA IRC forward/backward 端点几何（不命名 reactant/product）。
-cloudra/tools/core/orca_frames.py:470	
-cloudra/tools/core/orca_frames.py:471	    返回 {"forward": {...}, "backward": {...}}，每方向含：
-cloudra/tools/core/orca_frames.py:472	    - geometry_ref：端点几何来源路径（final endpoint 文件或 F/B trajectory），
-cloudra/tools/core/orca_frames.py:473	      无来源时 None；
-cloudra/tools/core/orca_frames.py:474	    - origin：final_endpoint_file / trajectory_last_frame / None；
-cloudra/tools/core/orca_frames.py:475	    - availability：available / unavailable；
-cloudra/tools/core/orca_frames.py:476	    - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）——块已终止但
-cloudra/tools/core/orca_frames.py:477	      未收敛时端点缺口保持开放，不按固定点数要求补点。
-cloudra/tools/core/orca_frames.py:478	    """
-cloudra/tools/core/orca_frames.py:479	    text = _read_text(log_path)
-cloudra/tools/core/orca_frames.py:480	    roots = _irc_sidecar_roots(log_path, text)
-cloudra/tools/core/orca_frames.py:481	    converged: dict[str, bool | None] = {"FORWARD": None, "BACKWARD": None}
-cloudra/tools/core/orca_frames.py:482	    try:
-cloudra/tools/core/orca_frames.py:483	        meta = extract_irc(log_path)
-cloudra/tools/core/orca_frames.py:484	        converged["FORWARD"] = bool(meta.get("forward_converged"))
-cloudra/tools/core/orca_frames.py:485	        converged["BACKWARD"] = bool(meta.get("backward_converged"))
-cloudra/tools/core/orca_frames.py:486	    except ValueError:
-cloudra/tools/core/orca_frames.py:487	        pass
-cloudra/tools/core/orca_frames.py:488	
-cloudra/tools/core/orca_frames.py:489	    result: dict[str, dict] = {}
-cloudra/tools/core/orca_frames.py:490	    for direction, suffix in (("forward", "_IRC_F"), ("backward", "_IRC_B")):
-cloudra/tools/core/orca_frames.py:491	        geometry_ref, origin = _irc_endpoint_sidecar(roots, suffix)
-cloudra/tools/core/orca_frames.py:492	        result[direction] = {
-cloudra/tools/core/orca_frames.py:493	            "geometry_ref": geometry_ref,
-cloudra/tools/core/orca_frames.py:494	            "origin": origin,
-cloudra/tools/core/orca_frames.py:495	            "availability": "available" if geometry_ref else "unavailable",
-cloudra/tools/core/orca_frames.py:496	            "converged": converged["FORWARD" if direction == "forward" else "BACKWARD"],
-cloudra/tools/core/orca_frames.py:497	        }
-cloudra/tools/core/orca_frames.py:498	    return result
-cloudra/tools/core/orca_frames.py:499	
-cloudra/tools/core/orca_frames.py:500	
-cloudra/tools/core/orca_frames.py:501	def read_endpoint_geometry(endpoint: dict) -> str | None:
-cloudra/tools/core/orca_frames.py:502	    """读取 extract_irc_endpoints 返回的一个端点几何（xyz 文本）。
-cloudra/tools/core/orca_frames.py:503	
-cloudra/tools/core/orca_frames.py:504	    final_endpoint_file 直接读取；trajectory_last_frame 取多帧 xyz 的最后一帧。
-cloudra/tools/core/orca_frames.py:505	    解析规则只住在这里，调用方（ts_guess strict 等）不复制。"""
-cloudra/tools/core/orca_frames.py:506	    ref = endpoint.get("geometry_ref")
-cloudra/tools/core/orca_frames.py:507	    if not ref:
-cloudra/tools/core/orca_frames.py:508	        return None
-cloudra/tools/core/orca_frames.py:509	    try:
-cloudra/tools/core/orca_frames.py:510	        with open(ref, encoding="utf-8", errors="replace") as handle:
-cloudra/tools/core/orca_frames.py:511	            text = handle.read()
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=512,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/orca_frames.py:512	    except OSError:
-cloudra/tools/core/orca_frames.py:513	        return None
-cloudra/tools/core/orca_frames.py:514	    if endpoint.get("origin") != "trajectory_last_frame":
-cloudra/tools/core/orca_frames.py:515	        return text if text.strip() else None
-cloudra/tools/core/orca_frames.py:516	    frames: list[str] = []
-cloudra/tools/core/orca_frames.py:517	    lines = text.splitlines(keepends=True)
-cloudra/tools/core/orca_frames.py:518	    i = 0
-cloudra/tools/core/orca_frames.py:519	    while i < len(lines):
-cloudra/tools/core/orca_frames.py:520	        stripped = lines[i].strip()
-cloudra/tools/core/orca_frames.py:521	        if stripped.isdigit() and i + 1 < len(lines):
-cloudra/tools/core/orca_frames.py:522	            count = int(stripped)
-cloudra/tools/core/orca_frames.py:523	            block = lines[i : i + 2 + count]
-cloudra/tools/core/orca_frames.py:524	            if len(block) == 2 + count:
-cloudra/tools/core/orca_frames.py:525	                frames.append("".join(block))
-cloudra/tools/core/orca_frames.py:526	            i += 2 + count
-cloudra/tools/core/orca_frames.py:527	        else:
-cloudra/tools/core/orca_frames.py:528	            i += 1
-cloudra/tools/core/orca_frames.py:529	    if frames:
-cloudra/tools/core/orca_frames.py:530	        return frames[-1]
-cloudra/tools/core/orca_frames.py:531	    return text if text.strip() else None
-cloudra/tools/core/permission_model.py:1	"""
-cloudra/tools/core/permission_model.py:2	Permission Model for Cloudra Tools.
-cloudra/tools/core/permission_model.py:3	
-cloudra/tools/core/permission_model.py:4	Replaces the fragile list[bool] permission system with a robust IntFlag-based model.
-cloudra/tools/core/permission_model.py:5	"""
-cloudra/tools/core/permission_model.py:6	
-cloudra/tools/core/permission_model.py:7	from enum import IntFlag
-cloudra/tools/core/permission_model.py:8	
-cloudra/tools/core/permission_model.py:9	
-cloudra/tools/core/permission_model.py:10	class Permission(IntFlag):
-cloudra/tools/core/permission_model.py:11	    """Bit-flag permissions for tools and agents."""
-cloudra/tools/core/permission_model.py:12	    NONE = 0
-cloudra/tools/core/permission_model.py:13	    READ = 1
-cloudra/tools/core/permission_model.py:14	    WRITE = 2
-cloudra/tools/core/permission_model.py:15	    MANAGE = 4
-cloudra/tools/core/permission_model.py:16	    SCRIPT = 8
-cloudra/tools/core/permission_model.py:17	    DESTRUCTIVE = 16
-cloudra/tools/core/permission_model.py:18	
-cloudra/tools/core/permission_model.py:19	    # Common composites
-cloudra/tools/core/permission_model.py:20	    ALL = READ | WRITE | MANAGE | SCRIPT | DESTRUCTIVE
-cloudra/tools/core/permission_model.py:21	
-cloudra/tools/core/permission_model.py:22	
-cloudra/tools/core/permission_model.py:23	def check_permission(agent_perms: Permission, tool_perms: Permission) -> bool:
-cloudra/tools/core/permission_model.py:24	    """
-cloudra/tools/core/permission_model.py:25	    Check if an agent has sufficient permissions for a tool.
-cloudra/tools/core/permission_model.py:26	
-cloudra/tools/core/permission_model.py:27	    Logic: tool_perms must be a subset of agent_perms.
-cloudra/tools/core/permission_model.py:28	    i.e. every bit set in tool_perms must also be set in agent_perms.
-cloudra/tools/core/permission_model.py:29	    """
-cloudra/tools/core/permission_model.py:30	    if tool_perms == Permission.NONE:
-cloudra/tools/core/permission_model.py:31	        return True
-cloudra/tools/core/permission_model.py:32	    return (tool_perms & agent_perms) == tool_perms
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=33,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/permission_model.py:33	
-cloudra/tools/core/permission_model.py:34	
-cloudra/tools/core/permission_model.py:35	def permission_to_dict(perms: Permission) -> dict[str, bool]:
-cloudra/tools/core/permission_model.py:36	    """Convert Permission flags to a human-readable dict."""
-cloudra/tools/core/permission_model.py:37	    return {
-cloudra/tools/core/permission_model.py:38	        'is_read': bool(perms & Permission.READ),
-cloudra/tools/core/permission_model.py:39	        'is_write': bool(perms & Permission.WRITE),
-cloudra/tools/core/permission_model.py:40	        'is_manage': bool(perms & Permission.MANAGE),
-cloudra/tools/core/permission_model.py:41	        'is_script': bool(perms & Permission.SCRIPT),
-cloudra/tools/core/permission_model.py:42	        'is_destructive': bool(perms & Permission.DESTRUCTIVE),
-cloudra/tools/core/permission_model.py:43	    }
-cloudra/tools/core/qm_engine.py:1	"""量子化学日志引擎嗅探：区分 Gaussian / ORCA / xtb 输出。
-cloudra/tools/core/qm_engine.py:2	
-cloudra/tools/core/qm_engine.py:3	供 log_parser / format_converter 选择后端解析器。检测基于头部横幅，
-cloudra/tools/core/qm_engine.py:4	纯文本、不做完整解析，开销为读取前 16 KiB。
-cloudra/tools/core/qm_engine.py:5	"""
-cloudra/tools/core/qm_engine.py:6	
-cloudra/tools/core/qm_engine.py:7	from __future__ import annotations
-cloudra/tools/core/qm_engine.py:8	
-cloudra/tools/core/qm_engine.py:9	_HEAD_BYTES = 16384
-cloudra/tools/core/qm_engine.py:10	
-cloudra/tools/core/qm_engine.py:11	_GAUSSIAN_MARKERS = (
-cloudra/tools/core/qm_engine.py:12	    "Entering Gaussian System",
-cloudra/tools/core/qm_engine.py:13	    "Gaussian, Inc.",
-cloudra/tools/core/qm_engine.py:14	    "Gaussian 09",
-cloudra/tools/core/qm_engine.py:15	    "Gaussian 16",
-cloudra/tools/core/qm_engine.py:16	)
-cloudra/tools/core/qm_engine.py:17	_ORCA_MARKERS = (
-cloudra/tools/core/qm_engine.py:18	    "O   R   C   A",
-cloudra/tools/core/qm_engine.py:19	    "O  R  C  A",
-cloudra/tools/core/qm_engine.py:20	    "* O   R   C   A *",
-cloudra/tools/core/qm_engine.py:21	    "ORCA VERSION",
-cloudra/tools/core/qm_engine.py:22	    "An ab initio, DFT and semiempirical SCF-MO package",
-cloudra/tools/core/qm_engine.py:23	)
-cloudra/tools/core/qm_engine.py:24	_XTB_MARKERS = (
-cloudra/tools/core/qm_engine.py:25	    "xtb version",
-cloudra/tools/core/qm_engine.py:26	    "x T B",
-cloudra/tools/core/qm_engine.py:27	    "Mulliken Center for Theoretical Chemistry",
-cloudra/tools/core/qm_engine.py:28	)
-cloudra/tools/core/qm_engine.py:29	
-cloudra/tools/core/qm_engine.py:30	
-cloudra/tools/core/qm_engine.py:31	def _read_head(log_path: str) -> str:
-cloudra/tools/core/qm_engine.py:32	    with open(log_path, encoding="utf-8", errors="replace") as f:
-cloudra/tools/core/qm_engine.py:33	        return f.read(_HEAD_BYTES)
-cloudra/tools/core/qm_engine.py:34	
-cloudra/tools/core/qm_engine.py:35	
-cloudra/tools/core/qm_engine.py:36	def detect_qm_engine(log_path: str) -> str:
-cloudra/tools/core/qm_engine.py:37	    """识别日志来源程序，返回 "gaussian" / "orca" / "xtb" / "unknown"。"""
-cloudra/tools/core/qm_engine.py:38	    try:
-cloudra/tools/core/qm_engine.py:39	        head = _read_head(log_path)
-cloudra/tools/core/qm_engine.py:40	    except OSError:
-cloudra/tools/core/qm_engine.py:41	        return "unknown"
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=42,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/qm_engine.py:42	    for marker in _GAUSSIAN_MARKERS:
-cloudra/tools/core/qm_engine.py:43	        if marker in head:
-cloudra/tools/core/qm_engine.py:44	            return "gaussian"
-cloudra/tools/core/qm_engine.py:45	    for marker in _ORCA_MARKERS:
-cloudra/tools/core/qm_engine.py:46	        if marker in head:
-cloudra/tools/core/qm_engine.py:47	            return "orca"
-cloudra/tools/core/qm_engine.py:48	    for marker in _XTB_MARKERS:
-cloudra/tools/core/qm_engine.py:49	        if marker in head:
-cloudra/tools/core/qm_engine.py:50	            return "xtb"
-cloudra/tools/core/qm_engine.py:51	    return "unknown"
-cloudra/tools/core/workspace_mutation.py:1	"""文件变更工具共享的审批、应用与事件流水线。"""
-cloudra/tools/core/workspace_mutation.py:2	
-cloudra/tools/core/workspace_mutation.py:3	from __future__ import annotations
-cloudra/tools/core/workspace_mutation.py:4	
-cloudra/tools/core/workspace_mutation.py:5	import asyncio
-cloudra/tools/core/workspace_mutation.py:6	import sqlite3
-cloudra/tools/core/workspace_mutation.py:7	from typing import TypeVar
-cloudra/tools/core/workspace_mutation.py:8	
-cloudra/tools/core/workspace_mutation.py:9	from pydantic import Field
-cloudra/tools/core/workspace_mutation.py:10	
-cloudra/tools/core/workspace_mutation.py:11	from cloudra.base.session_class import Session
-cloudra/tools/core/workspace_mutation.py:12	from cloudra.base.tools_class import Tool, output_schema
-cloudra/tools/core/workspace_mutation.py:13	from cloudra.persistence.workspace import (
-cloudra/tools/core/workspace_mutation.py:14	    PreparedFileChange,
-cloudra/tools/core/workspace_mutation.py:15	    WorkspaceConflictError,
-cloudra/tools/core/workspace_mutation.py:16	    WorkspaceError,
-cloudra/tools/core/workspace_mutation.py:17	    WorkspaceService,
-cloudra/tools/core/workspace_mutation.py:18	    turn_diff_tracker,
-cloudra/tools/core/workspace_mutation.py:19	)
-cloudra/tools/core/workspace_mutation.py:20	
-cloudra/tools/core/workspace_mutation.py:21	
-cloudra/tools/core/workspace_mutation.py:22	class WorkspaceMutationOutput(output_schema):
-cloudra/tools/core/workspace_mutation.py:23	    is_written: bool = Field(description="Whether the file write completed")
-cloudra/tools/core/workspace_mutation.py:24	    filepath: str = Field(description="File path relative to the working directory")
-cloudra/tools/core/workspace_mutation.py:25	    status: str = Field(description="applied, declined, conflict, or failed")
-cloudra/tools/core/workspace_mutation.py:26	    change_id: str = Field(default="", description="ID of this file change")
-cloudra/tools/core/workspace_mutation.py:27	    before_sha256: str | None = Field(default=None, description="File hash before the change")
-cloudra/tools/core/workspace_mutation.py:28	    after_sha256: str | None = Field(default=None, description="Candidate or post-write file hash")
-cloudra/tools/core/workspace_mutation.py:29	    diff: str = Field(default="", description="Unified diff of this change")
-cloudra/tools/core/workspace_mutation.py:30	    message: str = Field(default="", description="Status or error message")
-cloudra/tools/core/workspace_mutation.py:31	
-cloudra/tools/core/workspace_mutation.py:32	
-cloudra/tools/core/workspace_mutation.py:33	_OutputT = TypeVar("_OutputT", bound=WorkspaceMutationOutput)
-cloudra/tools/core/workspace_mutation.py:34	
-cloudra/tools/core/workspace_mutation.py:35	
-cloudra/tools/core/workspace_mutation.py:36	def workspace_for_tool(tool: Tool) -> WorkspaceService:
-cloudra/tools/core/workspace_mutation.py:37	    root = getattr(tool.subagent, "working_directory", None)
-cloudra/tools/core/workspace_mutation.py:38	    if not root:
-cloudra/tools/core/workspace_mutation.py:39	        import os
-cloudra/tools/core/workspace_mutation.py:40	
-cloudra/tools/core/workspace_mutation.py:41	        root = os.getcwd()
-cloudra/tools/core/workspace_mutation.py:42	    return WorkspaceService(root)
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=43,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/workspace_mutation.py:43	
-cloudra/tools/core/workspace_mutation.py:44	
-cloudra/tools/core/workspace_mutation.py:45	def _approval_details(action: str, change: PreparedFileChange) -> str:
-cloudra/tools/core/workspace_mutation.py:46	    diff_preview = change.diff
-cloudra/tools/core/workspace_mutation.py:47	    if len(diff_preview) > 12_000:
-cloudra/tools/core/workspace_mutation.py:48	        diff_preview = diff_preview[:12_000] + "\n... diff preview truncated ...\n"
-cloudra/tools/core/workspace_mutation.py:49	    return (
-cloudra/tools/core/workspace_mutation.py:50	        f"Action: {action}\n"
-cloudra/tools/core/workspace_mutation.py:51	        f"Path: {change.relative_path}\n"
-cloudra/tools/core/workspace_mutation.py:52	        f"Scale: +{change.additions} lines, -{change.deletions} lines\n"
-cloudra/tools/core/workspace_mutation.py:53	        f"SHA256: {change.after_sha256[:12]} (before: {change.before_sha256[:12] if change.before_sha256 else 'new file'})\n"
-cloudra/tools/core/workspace_mutation.py:54	        f"Unified Diff:\n{diff_preview}"
-cloudra/tools/core/workspace_mutation.py:55	    )
-cloudra/tools/core/workspace_mutation.py:56	
-cloudra/tools/core/workspace_mutation.py:57	
-cloudra/tools/core/workspace_mutation.py:58	async def record_preparation_failure(
-cloudra/tools/core/workspace_mutation.py:59	    tool: Tool,
-cloudra/tools/core/workspace_mutation.py:60	    session: Session,
-cloudra/tools/core/workspace_mutation.py:61	    relative_path: str,
-cloudra/tools/core/workspace_mutation.py:62	    status: str,
-cloudra/tools/core/workspace_mutation.py:63	    message: str,
-cloudra/tools/core/workspace_mutation.py:64	) -> None:
-cloudra/tools/core/workspace_mutation.py:65	    await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:66	        session,
-cloudra/tools/core/workspace_mutation.py:67	        "file_change_failed",
-cloudra/tools/core/workspace_mutation.py:68	        {
-cloudra/tools/core/workspace_mutation.py:69	            "path": relative_path,
-cloudra/tools/core/workspace_mutation.py:70	            "status": status,
-cloudra/tools/core/workspace_mutation.py:71	            "diff": "",
-cloudra/tools/core/workspace_mutation.py:72	            "message": message,
-cloudra/tools/core/workspace_mutation.py:73	        },
-cloudra/tools/core/workspace_mutation.py:74	    )
-cloudra/tools/core/workspace_mutation.py:75	
-cloudra/tools/core/workspace_mutation.py:76	
-cloudra/tools/core/workspace_mutation.py:77	async def execute_prepared_change(
-cloudra/tools/core/workspace_mutation.py:78	    tool: Tool,
-cloudra/tools/core/workspace_mutation.py:79	    service: WorkspaceService,
-cloudra/tools/core/workspace_mutation.py:80	    change: PreparedFileChange,
-cloudra/tools/core/workspace_mutation.py:81	    session: Session,
-cloudra/tools/core/workspace_mutation.py:82	    action: str,
-cloudra/tools/core/workspace_mutation.py:83	    tool_args: dict,
-cloudra/tools/core/workspace_mutation.py:84	    output_class: type[_OutputT],
-cloudra/tools/core/workspace_mutation.py:85	) -> _OutputT:
-cloudra/tools/core/workspace_mutation.py:86	    await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:87	        session,
-cloudra/tools/core/workspace_mutation.py:88	        "file_change_proposed",
-cloudra/tools/core/workspace_mutation.py:89	        change.event_data("proposed"),
-cloudra/tools/core/workspace_mutation.py:90	    )
-cloudra/tools/core/workspace_mutation.py:91	    approved, denial_reason = await tool.ensure_safety(
-cloudra/tools/core/workspace_mutation.py:92	        session,
-cloudra/tools/core/workspace_mutation.py:93	        details=_approval_details(action, change),
-cloudra/tools/core/workspace_mutation.py:94	        tool_args=tool_args,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=95,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/workspace_mutation.py:95	    )
-cloudra/tools/core/workspace_mutation.py:96	    if not approved:
-cloudra/tools/core/workspace_mutation.py:97	        message = denial_reason or (
-cloudra/tools/core/workspace_mutation.py:98	            "User declined the file change. "
-cloudra/tools/core/workspace_mutation.py:99	            "Next: explain to the user why the change was needed, adjust the content, "
-cloudra/tools/core/workspace_mutation.py:100	            "or choose a different approach."
-cloudra/tools/core/workspace_mutation.py:101	        )
-cloudra/tools/core/workspace_mutation.py:102	        await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:103	            session,
-cloudra/tools/core/workspace_mutation.py:104	            "file_change_declined",
-cloudra/tools/core/workspace_mutation.py:105	            change.event_data("declined", message),
-cloudra/tools/core/workspace_mutation.py:106	        )
-cloudra/tools/core/workspace_mutation.py:107	        return output_class(
-cloudra/tools/core/workspace_mutation.py:108	            is_written=False,
-cloudra/tools/core/workspace_mutation.py:109	            filepath=change.relative_path,
-cloudra/tools/core/workspace_mutation.py:110	            status="declined",
-cloudra/tools/core/workspace_mutation.py:111	            change_id=change.change_id,
-cloudra/tools/core/workspace_mutation.py:112	            before_sha256=change.before_sha256,
-cloudra/tools/core/workspace_mutation.py:113	            after_sha256=change.after_sha256,
-cloudra/tools/core/workspace_mutation.py:114	            diff=change.diff,
-cloudra/tools/core/workspace_mutation.py:115	            message=message,
-cloudra/tools/core/workspace_mutation.py:116	        )
-cloudra/tools/core/workspace_mutation.py:117	
-cloudra/tools/core/workspace_mutation.py:118	    try:
-cloudra/tools/core/workspace_mutation.py:119	        await asyncio.to_thread(service.apply, change)
-cloudra/tools/core/workspace_mutation.py:120	    except WorkspaceConflictError as exc:
-cloudra/tools/core/workspace_mutation.py:121	        message = str(exc)
-cloudra/tools/core/workspace_mutation.py:122	        await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:123	            session,
-cloudra/tools/core/workspace_mutation.py:124	            "file_change_failed",
-cloudra/tools/core/workspace_mutation.py:125	            change.event_data("conflict", message),
-cloudra/tools/core/workspace_mutation.py:126	        )
-cloudra/tools/core/workspace_mutation.py:127	        return output_class(
-cloudra/tools/core/workspace_mutation.py:128	            is_written=False,
-cloudra/tools/core/workspace_mutation.py:129	            filepath=change.relative_path,
-cloudra/tools/core/workspace_mutation.py:130	            status="conflict",
-cloudra/tools/core/workspace_mutation.py:131	            change_id=change.change_id,
-cloudra/tools/core/workspace_mutation.py:132	            before_sha256=change.before_sha256,
-cloudra/tools/core/workspace_mutation.py:133	            after_sha256=change.after_sha256,
-cloudra/tools/core/workspace_mutation.py:134	            diff=change.diff,
-cloudra/tools/core/workspace_mutation.py:135	            message=message,
-cloudra/tools/core/workspace_mutation.py:136	        )
-cloudra/tools/core/workspace_mutation.py:137	    except (OSError, WorkspaceError) as exc:
-cloudra/tools/core/workspace_mutation.py:138	        message = str(exc)
-cloudra/tools/core/workspace_mutation.py:139	        await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:140	            session,
-cloudra/tools/core/workspace_mutation.py:141	            "file_change_failed",
-cloudra/tools/core/workspace_mutation.py:142	            change.event_data("failed", message),
-cloudra/tools/core/workspace_mutation.py:143	        )
-cloudra/tools/core/workspace_mutation.py:144	        return output_class(
-cloudra/tools/core/workspace_mutation.py:145	            is_written=False,
-cloudra/tools/core/workspace_mutation.py:146	            filepath=change.relative_path,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=147,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/workspace_mutation.py:147	            status="failed",
-cloudra/tools/core/workspace_mutation.py:148	            change_id=change.change_id,
-cloudra/tools/core/workspace_mutation.py:149	            before_sha256=change.before_sha256,
-cloudra/tools/core/workspace_mutation.py:150	            after_sha256=change.after_sha256,
-cloudra/tools/core/workspace_mutation.py:151	            diff=change.diff,
-cloudra/tools/core/workspace_mutation.py:152	            message=message,
-cloudra/tools/core/workspace_mutation.py:153	        )
-cloudra/tools/core/workspace_mutation.py:154	
-cloudra/tools/core/workspace_mutation.py:155	    await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:156	        session,
-cloudra/tools/core/workspace_mutation.py:157	        "file_change_applied",
-cloudra/tools/core/workspace_mutation.py:158	        change.event_data("applied"),
-cloudra/tools/core/workspace_mutation.py:159	    )
-cloudra/tools/core/workspace_mutation.py:160	    conversation_id = getattr(tool.subagent, "conversation_id", "default")
-cloudra/tools/core/workspace_mutation.py:161	    from cloudra.persistence.database import ConversationDB
-cloudra/tools/core/workspace_mutation.py:162	    from cloudra.services import session_store
-cloudra/tools/core/workspace_mutation.py:163	
-cloudra/tools/core/workspace_mutation.py:164	    try:
-cloudra/tools/core/workspace_mutation.py:165	        def register() -> None:
-cloudra/tools/core/workspace_mutation.py:166	            db = ConversationDB(conversation_id)
-cloudra/tools/core/workspace_mutation.py:167	            # 文件存在 ≠ 表存在（裸 connect 会留下空库文件），v2 agent 也没有
-cloudra/tools/core/workspace_mutation.py:168	            # legacy session 行——两者都先补齐，ArtifactService 才肯登记。
-cloudra/tools/core/workspace_mutation.py:169	            session_store.ensure_session_record(
-cloudra/tools/core/workspace_mutation.py:170	                db, session.id, getattr(tool.subagent, "agent_id", None)
-cloudra/tools/core/workspace_mutation.py:171	            )
-cloudra/tools/core/workspace_mutation.py:172	            from cloudra.persistence.artifacts import ArtifactService
-cloudra/tools/core/workspace_mutation.py:173	
-cloudra/tools/core/workspace_mutation.py:174	            ArtifactService().register_file(
-cloudra/tools/core/workspace_mutation.py:175	                conversation_id=conversation_id,
-cloudra/tools/core/workspace_mutation.py:176	                session_id=session.id,
-cloudra/tools/core/workspace_mutation.py:177	                source=change.absolute_path,
-cloudra/tools/core/workspace_mutation.py:178	                allowed_root=service.root,
-cloudra/tools/core/workspace_mutation.py:179	                name=change.relative_path,
-cloudra/tools/core/workspace_mutation.py:180	            )
-cloudra/tools/core/workspace_mutation.py:181	
-cloudra/tools/core/workspace_mutation.py:182	        await asyncio.to_thread(register)
-cloudra/tools/core/workspace_mutation.py:183	    except (OSError, ValueError, sqlite3.Error) as exc:
-cloudra/tools/core/workspace_mutation.py:184	        await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:185	            session,
-cloudra/tools/core/workspace_mutation.py:186	            "artifact_registration_failed",
-cloudra/tools/core/workspace_mutation.py:187	            {
-cloudra/tools/core/workspace_mutation.py:188	                "path": change.relative_path,
-cloudra/tools/core/workspace_mutation.py:189	                "message": str(exc),
-cloudra/tools/core/workspace_mutation.py:190	            },
-cloudra/tools/core/workspace_mutation.py:191	        )
-cloudra/tools/core/workspace_mutation.py:192	    session_key = f"{conversation_id}:{session.id}"
-cloudra/tools/core/workspace_mutation.py:193	    aggregate_diff = turn_diff_tracker.record_applied(session_key, service, change)
-cloudra/tools/core/workspace_mutation.py:194	    await tool.record_session_event(
-cloudra/tools/core/workspace_mutation.py:195	        session,
-cloudra/tools/core/workspace_mutation.py:196	        "turn_diff_updated",
-cloudra/tools/core/workspace_mutation.py:197	        {
-cloudra/tools/core/workspace_mutation.py:198	            "change_id": change.change_id,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=199,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/core/workspace_mutation.py:199	            "path": change.relative_path,
-cloudra/tools/core/workspace_mutation.py:200	            "status": "updated",
-cloudra/tools/core/workspace_mutation.py:201	            "diff": aggregate_diff,
-cloudra/tools/core/workspace_mutation.py:202	        },
-cloudra/tools/core/workspace_mutation.py:203	    )
-cloudra/tools/core/workspace_mutation.py:204	    return output_class(
-cloudra/tools/core/workspace_mutation.py:205	        is_written=True,
-cloudra/tools/core/workspace_mutation.py:206	        filepath=change.relative_path,
-cloudra/tools/core/workspace_mutation.py:207	        status="applied",
-cloudra/tools/core/workspace_mutation.py:208	        change_id=change.change_id,
-cloudra/tools/core/workspace_mutation.py:209	        before_sha256=change.before_sha256,
-cloudra/tools/core/workspace_mutation.py:210	        after_sha256=change.after_sha256,
-cloudra/tools/core/workspace_mutation.py:211	        diff=change.diff,
-cloudra/tools/core/workspace_mutation.py:212	        message="File change written atomically",
-cloudra/tools/core/workspace_mutation.py:213	    )
-cloudra/tools/core/xtb_frames.py:1	"""xtb 输出日志文本原语：终止判定 + 能量/优化收敛/频率/热化学提取。
-cloudra/tools/core/xtb_frames.py:2	
-cloudra/tools/core/xtb_frames.py:3	与 orca_frames 对齐的纯函数模块（GH #26）。xtb 主输出全部走 stdout
-cloudra/tools/core/xtb_frames.py:4	（calculator.sh 重定向到 ``<输入stem>.out``）；cclib 1.8.1 的 xtb parser
-cloudra/tools/core/xtb_frames.py:5	结果错误（opt 能量取到最后 cycle、hess 热化学为荒谬值），故终态判定与
-cloudra/tools/core/xtb_frames.py:6	字段提取一律走文本权威判据，xtb 引擎在 log_parser 中整体跳过 cclib；
-cloudra/tools/core/xtb_frames.py:7	guard（runtime/monitor.py）与 log_parser 共用本模块，行为与 orca_frames
-cloudra/tools/core/xtb_frames.py:8	同款：
-cloudra/tools/core/xtb_frames.py:9	
-cloudra/tools/core/xtb_frames.py:10	- 正常终止标记 ``normal termination of xtb``（引擎自报）；
-cloudra/tools/core/xtb_frames.py:11	- 优化收敛是独立于终止标记的第二判据（GH #21 同款语义）：未收敛的优化
-cloudra/tools/core/xtb_frames.py:12	  仍打印 normal termination，以 ``GEOMETRY OPTIMIZATION CONVERGED`` /
-cloudra/tools/core/xtb_frames.py:13	  ``FAILED TO CONVERGE GEOMETRY OPTIMIZATION`` 文本标记为准；
-cloudra/tools/core/xtb_frames.py:14	- 能量按文本位置取最后出现的能量行（GH #22 同款语义）：最终
-cloudra/tools/core/xtb_frames.py:15	  ``TOTAL ENERGY`` 块 > SUMMARY 的 ``:: total energy`` > opt 周期能量行
-cloudra/tools/core/xtb_frames.py:16	  （截断日志时最后的周期能量是最佳估计）。
-cloudra/tools/core/xtb_frames.py:17	"""
-cloudra/tools/core/xtb_frames.py:18	
-cloudra/tools/core/xtb_frames.py:19	from __future__ import annotations
-cloudra/tools/core/xtb_frames.py:20	
-cloudra/tools/core/xtb_frames.py:21	import re
-cloudra/tools/core/xtb_frames.py:22	
-cloudra/tools/core/xtb_frames.py:23	_FLOAT = r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?)"
-cloudra/tools/core/xtb_frames.py:24	
-cloudra/tools/core/xtb_frames.py:25	# ---------------------------------------------------------------------------
+\setcounter{page}{1398}
+\begin{lstlisting}[firstnumber=26,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:26	# 终止判定与优化收敛（文本权威）
 cloudra/tools/core/xtb_frames.py:27	# ---------------------------------------------------------------------------
 cloudra/tools/core/xtb_frames.py:28	
@@ -743,9 +43,6 @@ cloudra/tools/core/xtb_frames.py:34	    """xtb 日志文本是否含正常终止
 cloudra/tools/core/xtb_frames.py:35	    return NORMAL_TERMINATION_MARKER in text
 cloudra/tools/core/xtb_frames.py:36	
 cloudra/tools/core/xtb_frames.py:37	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=38,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:38	# 优化收敛标记：未收敛（跑满最大步数）时 xtb 仍打印 normal termination，
 cloudra/tools/core/xtb_frames.py:39	# 终止标记不构成收敛判据（GH #21 同款语义）。两个标记互斥：FAILED 行是
 cloudra/tools/core/xtb_frames.py:40	# "CONVERGE GEOMETRY OPTIMIZATION"，
@@ -786,6 +83,9 @@ cloudra/tools/core/xtb_frames.py:74	    优先级由位置自然给出：最终 
 cloudra/tools/core/xtb_frames.py:75	    日志没有最终块时，最后的 SUMMARY 能量或 opt 周期能量行是最佳估计
 cloudra/tools/core/xtb_frames.py:76	    （GH #22 同款语义）。
 cloudra/tools/core/xtb_frames.py:77	    """
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=78,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:78	    best_pos = -1
 cloudra/tools/core/xtb_frames.py:79	    energy: float | None = None
 cloudra/tools/core/xtb_frames.py:80	    for pattern in (_FINAL_ENERGY_RE, _SUMMARY_ENERGY_RE, _CYCLE_ENERGY_RE):
@@ -798,9 +98,6 @@ cloudra/tools/core/xtb_frames.py:86
 cloudra/tools/core/xtb_frames.py:87	
 cloudra/tools/core/xtb_frames.py:88	_HOMO_LUMO_GAP_RE = re.compile(rf"HOMO-LUMO GAP\s+{_FLOAT}\s+eV", re.IGNORECASE)
 cloudra/tools/core/xtb_frames.py:89	
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=90,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:90	
 cloudra/tools/core/xtb_frames.py:91	def homo_lumo_gap_ev(text: str) -> float | None:
 cloudra/tools/core/xtb_frames.py:92	    """HOMO-LUMO gap（eV；最终块/SUMMARY 同值，取第一个命中）。"""
@@ -841,6 +138,9 @@ cloudra/tools/core/xtb_frames.py:126	    return float(match.group(1).replace("D"
 cloudra/tools/core/xtb_frames.py:127	
 cloudra/tools/core/xtb_frames.py:128	
 cloudra/tools/core/xtb_frames.py:129	def thermochemistry(text: str) -> dict[str, float]:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=130,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:130	    """提取 xtb hess 日志的热化学量（Eh），键名与 log_parser 输出字段对齐。
 cloudra/tools/core/xtb_frames.py:131	
 cloudra/tools/core/xtb_frames.py:132	    cclib 对 xtb --hess 日志的热化学属性给出荒谬值（实锤：freeenergy 报
@@ -853,9 +153,6 @@ cloudra/tools/core/xtb_frames.py:138	    - ``thermal_gibbs_correction_hartree`` 
 cloudra/tools/core/xtb_frames.py:139	
 cloudra/tools/core/xtb_frames.py:140	    无热化学块（非 freq 任务）时返回空 dict——缺数据保持缺失，不编数。
 cloudra/tools/core/xtb_frames.py:141	    """
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=142,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:142	    thermo: dict[str, float] = {}
 cloudra/tools/core/xtb_frames.py:143	    free_energy = _last_float(_THERMO_FREE_ENERGY_RE, text)
 cloudra/tools/core/xtb_frames.py:144	    if free_energy is not None:
@@ -896,6 +193,9 @@ cloudra/tools/core/xtb_frames.py:178	def vibfreqs_from_text(text: str) -> list[f
 cloudra/tools/core/xtb_frames.py:179	    """解析最后一个 projected vibrational frequencies 块的频率（cm⁻¹）。
 cloudra/tools/core/xtb_frames.py:180	
 cloudra/tools/core/xtb_frames.py:181	    负值=虚频（i 后缀写法同样解析为负值）；保留打头的平动/转动零频模式
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=182,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:182	    （与 orca_frames 同款语义），调用方按符号拆分实频/虚频即可。无频率块
 cloudra/tools/core/xtb_frames.py:183	    时返回空列表——调用方须保持 None 语义，不得当成零虚频。
 cloudra/tools/core/xtb_frames.py:184	    """
@@ -908,9 +208,6 @@ cloudra/tools/core/xtb_frames.py:190	        m = _EIGVAL_LINE_RE.match(line)
 cloudra/tools/core/xtb_frames.py:191	        if m is None:
 cloudra/tools/core/xtb_frames.py:192	            if freqs:
 cloudra/tools/core/xtb_frames.py:193	                break  # eigval 行连续成块，块外即停
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=194,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/core/xtb_frames.py:194	            continue
 cloudra/tools/core/xtb_frames.py:195	        freqs.extend(_eigval_tokens(m.group(1)))
 cloudra/tools/core/xtb_frames.py:196	    return freqs
@@ -943,6 +240,666 @@ cloudra/tools/core/xtb_frames.py:222	        jobs.add("freq")
 cloudra/tools/core/xtb_frames.py:223	    if "opt" not in jobs:
 cloudra/tools/core/xtb_frames.py:224	        jobs.add("sp")
 cloudra/tools/core/xtb_frames.py:225	    return jobs
+cloudra/tools/core/xtb_path_runner.py:1	"""xTB MTD 路径搜索运行器：TS 初猜的便宜端（SOP `guess` 阶段）。
+cloudra/tools/core/xtb_path_runner.py:2	
+cloudra/tools/core/xtb_path_runner.py:3	**事实核对（本机 xtb 6.7.1 实测，不是推断）**
+cloudra/tools/core/xtb_path_runner.py:4	
+cloudra/tools/core/xtb_path_runner.py:5	- xTB **没有 NEB**。它有 ``--path [FILE]``：元动力学（MTD）路径搜索，从输入几何走到
+cloudra/tools/core/xtb_path_runner.py:6	  给定的产物几何。所以本模块叫 path 不叫 neb。
+cloudra/tools/core/xtb_path_runner.py:7	- 调用形式：``xtb reactant.xyz --path product.xyz``。**两个几何必需**，元素序列必须一致。
+cloudra/tools/core/xtb_path_runner.py:8	- 产出（持久运行目录里原地保留）：
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=9,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:9	
+cloudra/tools/core/xtb_path_runner.py:10	  ====================  ==================================================
+cloudra/tools/core/xtb_path_runner.py:11	  文件                   内容
+cloudra/tools/core/xtb_path_runner.py:12	  ====================  ==================================================
+cloudra/tools/core/xtb_path_runner.py:13	  ``xtbpath.xyz``        路径的逐帧几何（含起点）。注释行 ``energy: X`` 是
+cloudra/tools/core/xtb_path_runner.py:14	                         **相对输入几何的能量，单位 kcal/mol**
+cloudra/tools/core/xtb_path_runner.py:15	  ``xtbpath_ts.xyz``     MTD 找到的 TS **候选**。注释行 ``energy: X`` 是
+cloudra/tools/core/xtb_path_runner.py:16	                         **绝对能量，单位 Eh**
+cloudra/tools/core/xtb_path_runner.py:17	  ``xtbopt.log``         产物侧预优化的轨迹
+cloudra/tools/core/xtb_path_runner.py:18	  ``xtbopt.xyz`` 等      引擎其余中间产物
+cloudra/tools/core/xtb_path_runner.py:19	  ====================  ==================================================
+cloudra/tools/core/xtb_path_runner.py:20	
+cloudra/tools/core/xtb_path_runner.py:21	  **两个文件的注释行单位不同，这是最容易静默出错的地方**：实测
+cloudra/tools/core/xtb_path_runner.py:22	  ``xtbpath_ts.xyz`` 的 ``-4.987083865354`` 与单点 ``TOTAL ENERGY -4.987083865355 Eh``
+cloudra/tools/core/xtb_path_runner.py:23	  一致到 1e-12；而 ``xtbpath.xyz`` 里某帧注释 ``52.271`` 对应的真实能量差是
+cloudra/tools/core/xtb_path_runner.py:24	  ``-4.987083865354 − (−5.070383095108) = 0.083299 Eh = 52.272 kcal/mol``。
+cloudra/tools/core/xtb_path_runner.py:25	  因此本模块把两者**分别标注**（``rel_energy_kcal`` / ``ts_candidate_energy_eh``），
+cloudra/tools/core/xtb_path_runner.py:26	  绝不放进同一个字段。
+cloudra/tools/core/xtb_path_runner.py:27	
+cloudra/tools/core/xtb_path_runner.py:28	**这个结果只是初猜**：``xtbpath_ts.xyz`` 是 MTD 采到的最高点附近结构，不是鞍点，
+cloudra/tools/core/xtb_path_runner.py:29	更不是"已验证"。验证仍归频率/IRC 判定。
+cloudra/tools/core/xtb_path_runner.py:30	
+cloudra/tools/core/xtb_path_runner.py:31	**随机性**：MTD 是随机的，同一次输入重跑路径不同。因此结果按**采样**看待，命令与
+cloudra/tools/core/xtb_path_runner.py:32	stdout 全部落盘以备复查。
+cloudra/tools/core/xtb_path_runner.py:33	
+cloudra/tools/core/xtb_path_runner.py:34	**路径精修必须跑到引擎自己判收敛**（本机 xtb 6.7.1 实测，逐字证据与可重跑脚本在
+cloudra/tools/core/xtb_path_runner.py:35	``docs/evidence/ts_guess_mtd_artifact/``）：xTB 的路径是**迭代精修**的，而它的内建上限只有
+cloudra/tools/core/xtb_path_runner.py:36	3 轮，3 轮后会打印 ``terminated because max. # cycles reached`` —— 那不是收敛，是**被截断**。
+cloudra/tools/core/xtb_path_runner.py:37	截断路径的最高帧落在反应物自己的盆地里（实测：最高帧离起点只有 21°，相对能 44.865 kcal/mol，
+cloudra/tools/core/xtb_path_runner.py:38	拿去做 ORCA ``OptTS`` 跑 56 轮不收敛、一路滑回极小值）。把上限放开后，同一个端点对在第 31 轮
+cloudra/tools/core/xtb_path_runner.py:39	由引擎自己判收敛（``terminated because grad at TS <threshold``），barrier 降到 18.299 kcal/mol，
+cloudra/tools/core/xtb_path_runner.py:40	最高帧落在扭转极大上，``OptTS`` 9 轮即收敛到一阶鞍点。因此本模块：
+cloudra/tools/core/xtb_path_runner.py:41	
+cloudra/tools/core/xtb_path_runner.py:42	- **总是**写一份 ``$path`` 输入并把 ``nrun`` 上限显式传给引擎（内建默认 3 轮不能用）；
+cloudra/tools/core/xtb_path_runner.py:43	- 把这两句终止语**分开分类**：``converged`` / ``cycles_exhausted``；
+cloudra/tools/core/xtb_path_runner.py:44	- 触到上限一律报 ``path_not_converged`` 且 ``usable_as_guess=False``，绝不把截断路径当可用初猜。
+cloudra/tools/core/xtb_path_runner.py:45	"""
+cloudra/tools/core/xtb_path_runner.py:46	
+cloudra/tools/core/xtb_path_runner.py:47	from __future__ import annotations
+cloudra/tools/core/xtb_path_runner.py:48	
+cloudra/tools/core/xtb_path_runner.py:49	import os
+cloudra/tools/core/xtb_path_runner.py:50	import signal
+cloudra/tools/core/xtb_path_runner.py:51	import subprocess
+cloudra/tools/core/xtb_path_runner.py:52	from typing import Literal, Optional
+cloudra/tools/core/xtb_path_runner.py:53	
+cloudra/tools/core/xtb_path_runner.py:54	from pydantic import BaseModel, Field
+cloudra/tools/core/xtb_path_runner.py:55	
+cloudra/tools/core/xtb_path_runner.py:56	from cloudra.persistence.fs_utils import atomic_write_text
+cloudra/tools/core/xtb_path_runner.py:57	
+cloudra/tools/core/xtb_path_runner.py:58	PATH_XYZ_NAME = "xtbpath.xyz"
+cloudra/tools/core/xtb_path_runner.py:59	TS_XYZ_NAME = "xtbpath_ts.xyz"
+cloudra/tools/core/xtb_path_runner.py:60	RUNS_DIR_NAME = "xtb_path_runs"
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=61,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:61	MAX_EVIDENCE_LINES = 20
+cloudra/tools/core/xtb_path_runner.py:62	
+cloudra/tools/core/xtb_path_runner.py:63	# --- xtb 6.7.1 的逐字标记（精确比对，不做模糊匹配；本模块不含正则） ---
+cloudra/tools/core/xtb_path_runner.py:64	MARKER_NORMAL_TERMINATION = "normal termination of xtb"
+cloudra/tools/core/xtb_path_runner.py:65	MARKER_FINISHED_RUN = " * finished run on"
+cloudra/tools/core/xtb_path_runner.py:66	MARKER_PATH_FINDER = " path finder:"
+cloudra/tools/core/xtb_path_runner.py:67	#: 路径精修的两句终止语。前者是引擎判的收敛，后者是**触到轮数上限被截断**，二者绝不等价。
+cloudra/tools/core/xtb_path_runner.py:68	MARKER_PATH_CONVERGED = "terminated because grad at TS <threshold"
+cloudra/tools/core/xtb_path_runner.py:69	MARKER_PATH_CYCLES_EXHAUSTED = "terminated because max. # cycles reached"
+cloudra/tools/core/xtb_path_runner.py:70	#: 每轮精修打印的 barrier（第一列是空格对齐，逐字保留）
+cloudra/tools/core/xtb_path_runner.py:71	MARKER_FORWARD_BARRIER = "forward  barrier (kcal)"
+cloudra/tools/core/xtb_path_runner.py:72	MARKER_BACKWARD_BARRIER = "backward barrier (kcal)"
+cloudra/tools/core/xtb_path_runner.py:73	
+cloudra/tools/core/xtb_path_runner.py:74	#: 路径精修的轮数上限（``$path nrun``）。这**不是**收敛判据，只是机时上限：收敛由引擎自己判
+cloudra/tools/core/xtb_path_runner.py:75	#: （见模块 docstring 的实测）。默认给足，让引擎跑到自己的收敛判据为止。
+cloudra/tools/core/xtb_path_runner.py:76	DEFAULT_REFINEMENT_RUNS = 100
+cloudra/tools/core/xtb_path_runner.py:77	#: ``$path`` 输入文件名（与命令行一起落盘备查）
+cloudra/tools/core/xtb_path_runner.py:78	PATH_INPUT_NAME = "path.inp"
+cloudra/tools/core/xtb_path_runner.py:79	
+cloudra/tools/core/xtb_path_runner.py:80	#: 初猜来源标识（SOP §2：初猜是怎么来的必须写明，不许静默降级）。
+cloudra/tools/core/xtb_path_runner.py:81	PATH_KIND_XTB = "xtb_path"
+cloudra/tools/core/xtb_path_runner.py:82	PATH_KIND_IDPP = "idpp_fallback"
+cloudra/tools/core/xtb_path_runner.py:83	
+cloudra/tools/core/xtb_path_runner.py:84	PathTermination = Literal[
+cloudra/tools/core/xtb_path_runner.py:85	    "completed",
+cloudra/tools/core/xtb_path_runner.py:86	    "executable_missing",
+cloudra/tools/core/xtb_path_runner.py:87	    "timeout",
+cloudra/tools/core/xtb_path_runner.py:88	    "invalid_endpoints",
+cloudra/tools/core/xtb_path_runner.py:89	    "incomplete_artifacts",
+cloudra/tools/core/xtb_path_runner.py:90	    "path_not_converged",
+cloudra/tools/core/xtb_path_runner.py:91	    "failed",
+cloudra/tools/core/xtb_path_runner.py:92	    "unknown_failure",
+cloudra/tools/core/xtb_path_runner.py:93	]
+cloudra/tools/core/xtb_path_runner.py:94	
+cloudra/tools/core/xtb_path_runner.py:95	#: 引擎自己报的路径精修结局。``""`` = 日志里没有这两句终止语（本模块按未知处理，不默认成功）。
+cloudra/tools/core/xtb_path_runner.py:96	RefinementTermination = Literal["", "converged", "cycles_exhausted"]
+cloudra/tools/core/xtb_path_runner.py:97	
+cloudra/tools/core/xtb_path_runner.py:98	
+cloudra/tools/core/xtb_path_runner.py:99	class XtbPathRequest(BaseModel):
+cloudra/tools/core/xtb_path_runner.py:100	    """一次 MTD 路径搜索的请求。"""
+cloudra/tools/core/xtb_path_runner.py:101	
+cloudra/tools/core/xtb_path_runner.py:102	    reactant_xyz: str = Field(description="反应物几何（单帧 xyz 文本）")
+cloudra/tools/core/xtb_path_runner.py:103	    product_xyz: str = Field(description="产物几何（单帧 xyz 文本）；元素序列必须与反应物一致")
+cloudra/tools/core/xtb_path_runner.py:104	    output_dir: str = Field(description="持久运行目录的父目录；每次运行在其 xtb_path_runs/ 下新建")
+cloudra/tools/core/xtb_path_runner.py:105	    charge: int = Field(default=0, description="总电荷（--chrg）")
+cloudra/tools/core/xtb_path_runner.py:106	    multiplicity: int = Field(default=1, description="自旋多重度 2S+1，透传为 --uhf = multiplicity-1")
+cloudra/tools/core/xtb_path_runner.py:107	    timeout: int = Field(default=900, description="子进程耗时上限（秒）；超时只终止本次运行自己的进程组")
+cloudra/tools/core/xtb_path_runner.py:108	    refinement_runs: int = Field(
+cloudra/tools/core/xtb_path_runner.py:109	        default=DEFAULT_REFINEMENT_RUNS, ge=1,
+cloudra/tools/core/xtb_path_runner.py:110	        description="路径精修的轮数上限（$path nrun）。**只是机时上限**：收敛由引擎自己判，"
+cloudra/tools/core/xtb_path_runner.py:111	                    "触到这个上限即报 path_not_converged。实测内建默认 3 轮远不够收敛，"
+cloudra/tools/core/xtb_path_runner.py:112	                    "不要把它调小",
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=113,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:113	    )
+cloudra/tools/core/xtb_path_runner.py:114	    run_label: str = Field(default="xtbpath", description="运行目录前缀")
+cloudra/tools/core/xtb_path_runner.py:115	    extra_args: list[str] = Field(default_factory=list, description="追加到命令行的原生选项")
+cloudra/tools/core/xtb_path_runner.py:116	
+cloudra/tools/core/xtb_path_runner.py:117	
+cloudra/tools/core/xtb_path_runner.py:118	class XtbArtifact(BaseModel):
+cloudra/tools/core/xtb_path_runner.py:119	    name: str
+cloudra/tools/core/xtb_path_runner.py:120	    path: str
+cloudra/tools/core/xtb_path_runner.py:121	    size_bytes: int
+cloudra/tools/core/xtb_path_runner.py:122	
+cloudra/tools/core/xtb_path_runner.py:123	
+cloudra/tools/core/xtb_path_runner.py:124	class PathFrame(BaseModel):
+cloudra/tools/core/xtb_path_runner.py:125	    """路径上的一帧。"""
+cloudra/tools/core/xtb_path_runner.py:126	
+cloudra/tools/core/xtb_path_runner.py:127	    frame_index: int
+cloudra/tools/core/xtb_path_runner.py:128	    rel_energy_kcal: Optional[float] = Field(
+cloudra/tools/core/xtb_path_runner.py:129	        default=None,
+cloudra/tools/core/xtb_path_runner.py:130	        description="文件注释里的能量，单位**已核实为 kcal/mol**，相对输入几何；取不到时为 None",
+cloudra/tools/core/xtb_path_runner.py:131	    )
+cloudra/tools/core/xtb_path_runner.py:132	    positions: list[list[float]]
+cloudra/tools/core/xtb_path_runner.py:133	
+cloudra/tools/core/xtb_path_runner.py:134	
+cloudra/tools/core/xtb_path_runner.py:135	class XtbPathResult(BaseModel):
+cloudra/tools/core/xtb_path_runner.py:136	    """路径搜索结果。进程退出与"能不能用来当初猜"分开表达。"""
+cloudra/tools/core/xtb_path_runner.py:137	
+cloudra/tools/core/xtb_path_runner.py:138	    run_dir: str
+cloudra/tools/core/xtb_path_runner.py:139	    command: list[str] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:140	    returncode: Optional[int] = None
+cloudra/tools/core/xtb_path_runner.py:141	    path_kind: Literal["xtb_path"] = PATH_KIND_XTB
+cloudra/tools/core/xtb_path_runner.py:142	    termination_reason: PathTermination = "unknown_failure"
+cloudra/tools/core/xtb_path_runner.py:143	    refinement_runs: int = Field(default=0, description="本次传给引擎的路径精修轮数上限")
+cloudra/tools/core/xtb_path_runner.py:144	    refinement_termination: RefinementTermination = Field(
+cloudra/tools/core/xtb_path_runner.py:145	        default="",
+cloudra/tools/core/xtb_path_runner.py:146	        description="引擎自己报的精修结局：converged（引擎判收敛）/ cycles_exhausted（触顶截断）",
+cloudra/tools/core/xtb_path_runner.py:147	    )
+cloudra/tools/core/xtb_path_runner.py:148	    usable_as_guess: bool = Field(
+cloudra/tools/core/xtb_path_runner.py:149	        default=False,
+cloudra/tools/core/xtb_path_runner.py:150	        description="是否产出了可用的初猜（路径 + TS 候选齐全且几何自洽）。"
+cloudra/tools/core/xtb_path_runner.py:151	                    "**这不等于已验证**：初猜仍需频率/IRC 判定",
+cloudra/tools/core/xtb_path_runner.py:152	    )
+cloudra/tools/core/xtb_path_runner.py:153	    symbols: list[str] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:154	    frames: list[PathFrame] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:155	    ts_candidate_energy_eh: Optional[float] = Field(
+cloudra/tools/core/xtb_path_runner.py:156	        default=None, description="TS 候选的**绝对**能量（Eh）；与路径帧的相对 kcal/mol 不是一个字段"
+cloudra/tools/core/xtb_path_runner.py:157	    )
+cloudra/tools/core/xtb_path_runner.py:158	    ts_candidate_positions: list[list[float]] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:159	    reactant_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:160	    product_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:161	    command_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:162	    path_input_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:163	    versions_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:164	    stdout_path: str = ""
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=165,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:165	    stderr_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:166	    path_xyz_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:167	    ts_xyz_path: str = ""
+cloudra/tools/core/xtb_path_runner.py:168	    artifacts: list[XtbArtifact] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:169	    evidence: list[str] = Field(default_factory=list, description="命中的逐字标记行（原样保留）")
+cloudra/tools/core/xtb_path_runner.py:170	    diagnostics: list[str] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:171	    message: str = ""
+cloudra/tools/core/xtb_path_runner.py:172	
+cloudra/tools/core/xtb_path_runner.py:173	
+cloudra/tools/core/xtb_path_runner.py:174	def build_path_input(refinement_runs: int) -> str:
+cloudra/tools/core/xtb_path_runner.py:175	    """``$path`` 输入块：把精修轮数上限显式交给引擎，**不使用内建默认 3 轮**。
+cloudra/tools/core/xtb_path_runner.py:176	
+cloudra/tools/core/xtb_path_runner.py:177	    本机 6.7.1 实测：``$path`` 块被读取；它认得的键是 ``nrun`` / ``npoint`` / ``kpush`` /
+cloudra/tools/core/xtb_path_runner.py:178	    ``kpull``，其余（``npoints`` / ``alpha`` / ``step`` / ``time`` / ``seed`` 等）会被逐字拒掉
+cloudra/tools/core/xtb_path_runner.py:179	    （``the key '...' is not recognized by path``），因此这里只写实测可用的键。
+cloudra/tools/core/xtb_path_runner.py:180	    """
+cloudra/tools/core/xtb_path_runner.py:181	    if refinement_runs < 1:
+cloudra/tools/core/xtb_path_runner.py:182	        raise ValueError(f"refinement_runs must be >= 1, got {refinement_runs}")
+cloudra/tools/core/xtb_path_runner.py:183	    return f"$path\n   nrun={refinement_runs}\n$end\n"
+cloudra/tools/core/xtb_path_runner.py:184	
+cloudra/tools/core/xtb_path_runner.py:185	
+cloudra/tools/core/xtb_path_runner.py:186	def build_xtb_path_command(request: XtbPathRequest) -> list[str]:
+cloudra/tools/core/xtb_path_runner.py:187	    """构造命令行。电荷与自旋显式透传，绝不依赖引擎默认推断。"""
+cloudra/tools/core/xtb_path_runner.py:188	    if request.multiplicity < 1:
+cloudra/tools/core/xtb_path_runner.py:189	        raise ValueError(f"multiplicity must be >= 1 (2S+1), got {request.multiplicity}")
+cloudra/tools/core/xtb_path_runner.py:190	    return [
+cloudra/tools/core/xtb_path_runner.py:191	        "xtb", "reactant.xyz", "--path", "product.xyz", "--input", PATH_INPUT_NAME,
+cloudra/tools/core/xtb_path_runner.py:192	        "--chrg", str(request.charge), "--uhf", str(request.multiplicity - 1),
+cloudra/tools/core/xtb_path_runner.py:193	        *request.extra_args,
+cloudra/tools/core/xtb_path_runner.py:194	    ]
+cloudra/tools/core/xtb_path_runner.py:195	
+cloudra/tools/core/xtb_path_runner.py:196	
+cloudra/tools/core/xtb_path_runner.py:197	def _next_run_dir(output_dir: str, run_label: str) -> str:
+cloudra/tools/core/xtb_path_runner.py:198	    safe_label = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in run_label) or "run"
+cloudra/tools/core/xtb_path_runner.py:199	    runs_root = os.path.join(output_dir, RUNS_DIR_NAME)
+cloudra/tools/core/xtb_path_runner.py:200	    os.makedirs(runs_root, exist_ok=True)
+cloudra/tools/core/xtb_path_runner.py:201	    used = set()
+cloudra/tools/core/xtb_path_runner.py:202	    for name in os.listdir(runs_root):
+cloudra/tools/core/xtb_path_runner.py:203	        head, _, tail = name.rpartition("_")
+cloudra/tools/core/xtb_path_runner.py:204	        if head == safe_label and tail.isdigit():
+cloudra/tools/core/xtb_path_runner.py:205	            used.add(int(tail))
+cloudra/tools/core/xtb_path_runner.py:206	    index = 1
+cloudra/tools/core/xtb_path_runner.py:207	    while index in used:
+cloudra/tools/core/xtb_path_runner.py:208	        index += 1
+cloudra/tools/core/xtb_path_runner.py:209	    run_dir = os.path.join(runs_root, f"{safe_label}_{index:04d}")
+cloudra/tools/core/xtb_path_runner.py:210	    os.makedirs(run_dir, exist_ok=False)
+cloudra/tools/core/xtb_path_runner.py:211	    return run_dir
+cloudra/tools/core/xtb_path_runner.py:212	
+cloudra/tools/core/xtb_path_runner.py:213	
+cloudra/tools/core/xtb_path_runner.py:214	def _capture_versions() -> str:
+cloudra/tools/core/xtb_path_runner.py:215	    try:
+cloudra/tools/core/xtb_path_runner.py:216	        proc = subprocess.run(["xtb", "--version"], capture_output=True, text=True, timeout=60)
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=217,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:217	    except Exception as exc:  # noqa: BLE001 - 版本取不到不阻塞运行，如实记录
+cloudra/tools/core/xtb_path_runner.py:218	        return f"xtb --version failed: {type(exc).__name__}: {exc}\n"
+cloudra/tools/core/xtb_path_runner.py:219	    text = (proc.stdout or "") + (proc.stderr or "")
+cloudra/tools/core/xtb_path_runner.py:220	    lines = [line.strip() for line in text.splitlines() if "xtb version" in line]
+cloudra/tools/core/xtb_path_runner.py:221	    return "xtb --version (returncode=%d):\n%s\n" % (
+cloudra/tools/core/xtb_path_runner.py:222	        proc.returncode, "\n".join(f"    {line}" for line in (lines or ["<no version line found>"])),
+cloudra/tools/core/xtb_path_runner.py:223	    )
+cloudra/tools/core/xtb_path_runner.py:224	
+cloudra/tools/core/xtb_path_runner.py:225	
+cloudra/tools/core/xtb_path_runner.py:226	def _symbols_and_positions(xyz_text: str, *, label: str) -> tuple[list[str], list[list[float]]]:
+cloudra/tools/core/xtb_path_runner.py:227	    """解析单帧 xyz；不完整即 fail-loud。"""
+cloudra/tools/core/xtb_path_runner.py:228	    lines = xyz_text.splitlines()
+cloudra/tools/core/xtb_path_runner.py:229	    if not lines:
+cloudra/tools/core/xtb_path_runner.py:230	        raise ValueError(f"{label}: empty xyz text")
+cloudra/tools/core/xtb_path_runner.py:231	    try:
+cloudra/tools/core/xtb_path_runner.py:232	        count = int(lines[0].strip())
+cloudra/tools/core/xtb_path_runner.py:233	    except ValueError as exc:
+cloudra/tools/core/xtb_path_runner.py:234	        raise ValueError(f"{label}: first line must be the atom count, got {lines[0]!r}") from exc
+cloudra/tools/core/xtb_path_runner.py:235	    if count < 1:
+cloudra/tools/core/xtb_path_runner.py:236	        raise ValueError(f"{label}: declares {count} atoms")
+cloudra/tools/core/xtb_path_runner.py:237	    if len(lines) < 2 + count:
+cloudra/tools/core/xtb_path_runner.py:238	        raise ValueError(f"{label}: declares {count} atoms but has too few lines")
+cloudra/tools/core/xtb_path_runner.py:239	    symbols: list[str] = []
+cloudra/tools/core/xtb_path_runner.py:240	    positions: list[list[float]] = []
+cloudra/tools/core/xtb_path_runner.py:241	    for line in lines[2: 2 + count]:
+cloudra/tools/core/xtb_path_runner.py:242	        parts = line.split()
+cloudra/tools/core/xtb_path_runner.py:243	        if len(parts) < 4:
+cloudra/tools/core/xtb_path_runner.py:244	            raise ValueError(f"{label}: malformed coordinate line {line!r}")
+cloudra/tools/core/xtb_path_runner.py:245	        symbols.append(parts[0])
+cloudra/tools/core/xtb_path_runner.py:246	        positions.append([float(parts[1]), float(parts[2]), float(parts[3])])
+cloudra/tools/core/xtb_path_runner.py:247	    return symbols, positions
+cloudra/tools/core/xtb_path_runner.py:248	
+cloudra/tools/core/xtb_path_runner.py:249	
+cloudra/tools/core/xtb_path_runner.py:250	def _parse_path_frames(path: str) -> list[PathFrame]:
+cloudra/tools/core/xtb_path_runner.py:251	    """解析 ``xtbpath.xyz``。注释里的能量是**相对 kcal/mol**，取不到就留 None，不猜。"""
+cloudra/tools/core/xtb_path_runner.py:252	    with open(path, encoding="utf-8", errors="replace") as handle:
+cloudra/tools/core/xtb_path_runner.py:253	        lines = handle.read().splitlines()
+cloudra/tools/core/xtb_path_runner.py:254	    frames: list[PathFrame] = []
+cloudra/tools/core/xtb_path_runner.py:255	    index = 0
+cloudra/tools/core/xtb_path_runner.py:256	    while index < len(lines):
+cloudra/tools/core/xtb_path_runner.py:257	        if not lines[index].strip():
+cloudra/tools/core/xtb_path_runner.py:258	            index += 1
+cloudra/tools/core/xtb_path_runner.py:259	            continue
+cloudra/tools/core/xtb_path_runner.py:260	        try:
+cloudra/tools/core/xtb_path_runner.py:261	            count = int(lines[index].strip())
+cloudra/tools/core/xtb_path_runner.py:262	        except ValueError:
+cloudra/tools/core/xtb_path_runner.py:263	            break
+cloudra/tools/core/xtb_path_runner.py:264	        comment = lines[index + 1] if index + 1 < len(lines) else ""
+cloudra/tools/core/xtb_path_runner.py:265	        rel: Optional[float] = None
+cloudra/tools/core/xtb_path_runner.py:266	        tokens = comment.split()
+cloudra/tools/core/xtb_path_runner.py:267	        # 形如 ``energy: <float> xtb: <version>``；逐 token 取，不做模糊匹配
+cloudra/tools/core/xtb_path_runner.py:268	        if len(tokens) >= 2 and tokens[0] == "energy:":
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=269,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:269	            try:
+cloudra/tools/core/xtb_path_runner.py:270	                rel = float(tokens[1])
+cloudra/tools/core/xtb_path_runner.py:271	            except ValueError:
+cloudra/tools/core/xtb_path_runner.py:272	                rel = None
+cloudra/tools/core/xtb_path_runner.py:273	        block = lines[index + 2: index + 2 + count]
+cloudra/tools/core/xtb_path_runner.py:274	        if len(block) != count:
+cloudra/tools/core/xtb_path_runner.py:275	            break
+cloudra/tools/core/xtb_path_runner.py:276	        positions = []
+cloudra/tools/core/xtb_path_runner.py:277	        for line in block:
+cloudra/tools/core/xtb_path_runner.py:278	            parts = line.split()
+cloudra/tools/core/xtb_path_runner.py:279	            if len(parts) < 4:
+cloudra/tools/core/xtb_path_runner.py:280	                raise ValueError(f"{path}: malformed coordinate line {line!r}")
+cloudra/tools/core/xtb_path_runner.py:281	            positions.append([float(parts[1]), float(parts[2]), float(parts[3])])
+cloudra/tools/core/xtb_path_runner.py:282	        frames.append(PathFrame(frame_index=len(frames), rel_energy_kcal=rel, positions=positions))
+cloudra/tools/core/xtb_path_runner.py:283	        index += 2 + count
+cloudra/tools/core/xtb_path_runner.py:284	    if not frames:
+cloudra/tools/core/xtb_path_runner.py:285	        raise ValueError(f"{path}: no complete frame could be read")
+cloudra/tools/core/xtb_path_runner.py:286	    return frames
+cloudra/tools/core/xtb_path_runner.py:287	
+cloudra/tools/core/xtb_path_runner.py:288	
+cloudra/tools/core/xtb_path_runner.py:289	def _parse_ts_candidate(path: str) -> tuple[float, list[list[float]]]:
+cloudra/tools/core/xtb_path_runner.py:290	    """解析 ``xtbpath_ts.xyz``。注释里的能量是**绝对 Eh**——与路径帧的单位不同。"""
+cloudra/tools/core/xtb_path_runner.py:291	    with open(path, encoding="utf-8", errors="replace") as handle:
+cloudra/tools/core/xtb_path_runner.py:292	        lines = handle.read().splitlines()
+cloudra/tools/core/xtb_path_runner.py:293	    if len(lines) < 3:
+cloudra/tools/core/xtb_path_runner.py:294	        raise ValueError(f"{path}: too few lines for a single frame")
+cloudra/tools/core/xtb_path_runner.py:295	    count = int(lines[0].strip())
+cloudra/tools/core/xtb_path_runner.py:296	    tokens = lines[1].split()
+cloudra/tools/core/xtb_path_runner.py:297	    if len(tokens) < 2 or tokens[0] != "energy:":
+cloudra/tools/core/xtb_path_runner.py:298	        raise ValueError(
+cloudra/tools/core/xtb_path_runner.py:299	            f"{path}: comment line must start with 'energy: <Eh>', got {lines[1]!r}"
+cloudra/tools/core/xtb_path_runner.py:300	        )
+cloudra/tools/core/xtb_path_runner.py:301	    energy = float(tokens[1])
+cloudra/tools/core/xtb_path_runner.py:302	    block = lines[2: 2 + count]
+cloudra/tools/core/xtb_path_runner.py:303	    if len(block) != count:
+cloudra/tools/core/xtb_path_runner.py:304	        raise ValueError(f"{path}: declares {count} atoms but only {len(block)} coordinates follow")
+cloudra/tools/core/xtb_path_runner.py:305	    positions = []
+cloudra/tools/core/xtb_path_runner.py:306	    for line in block:
+cloudra/tools/core/xtb_path_runner.py:307	        parts = line.split()
+cloudra/tools/core/xtb_path_runner.py:308	        if len(parts) < 4:
+cloudra/tools/core/xtb_path_runner.py:309	            raise ValueError(f"{path}: malformed coordinate line {line!r}")
+cloudra/tools/core/xtb_path_runner.py:310	        positions.append([float(parts[1]), float(parts[2]), float(parts[3])])
+cloudra/tools/core/xtb_path_runner.py:311	    return energy, positions
+cloudra/tools/core/xtb_path_runner.py:312	
+cloudra/tools/core/xtb_path_runner.py:313	
+cloudra/tools/core/xtb_path_runner.py:314	def _list_artifacts(run_dir: str) -> list[XtbArtifact]:
+cloudra/tools/core/xtb_path_runner.py:315	    artifacts: list[XtbArtifact] = []
+cloudra/tools/core/xtb_path_runner.py:316	    for name in sorted(os.listdir(run_dir)):
+cloudra/tools/core/xtb_path_runner.py:317	        path = os.path.join(run_dir, name)
+cloudra/tools/core/xtb_path_runner.py:318	        if os.path.isfile(path):
+cloudra/tools/core/xtb_path_runner.py:319	            artifacts.append(XtbArtifact(name=name, path=path, size_bytes=os.path.getsize(path)))
+cloudra/tools/core/xtb_path_runner.py:320	    return artifacts
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=321,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:321	
+cloudra/tools/core/xtb_path_runner.py:322	
+cloudra/tools/core/xtb_path_runner.py:323	class PathMarkers(BaseModel):
+cloudra/tools/core/xtb_path_runner.py:324	    """日志里命中的逐字标记。"""
+cloudra/tools/core/xtb_path_runner.py:325	
+cloudra/tools/core/xtb_path_runner.py:326	    evidence: list[str] = Field(default_factory=list)
+cloudra/tools/core/xtb_path_runner.py:327	    normal_termination: bool = False
+cloudra/tools/core/xtb_path_runner.py:328	    path_finder: bool = False
+cloudra/tools/core/xtb_path_runner.py:329	    refinement_termination: RefinementTermination = ""
+cloudra/tools/core/xtb_path_runner.py:330	
+cloudra/tools/core/xtb_path_runner.py:331	
+cloudra/tools/core/xtb_path_runner.py:332	def _scan_markers(lines: list[str]) -> PathMarkers:
+cloudra/tools/core/xtb_path_runner.py:333	    """精确 token 扫描。两条终止语**分开**判定：收敛与触顶绝不等价。
+cloudra/tools/core/xtb_path_runner.py:334	
+cloudra/tools/core/xtb_path_runner.py:335	    barrier 行每轮精修都打印一次，只保留**最后一次**（更靠后的那个才是当前精修程度）。
+cloudra/tools/core/xtb_path_runner.py:336	    """
+cloudra/tools/core/xtb_path_runner.py:337	    markers = PathMarkers()
+cloudra/tools/core/xtb_path_runner.py:338	    last_forward = ""
+cloudra/tools/core/xtb_path_runner.py:339	    last_backward = ""
+cloudra/tools/core/xtb_path_runner.py:340	    for line in lines:
+cloudra/tools/core/xtb_path_runner.py:341	        stripped = line.strip()
+cloudra/tools/core/xtb_path_runner.py:342	        if MARKER_NORMAL_TERMINATION in stripped:
+cloudra/tools/core/xtb_path_runner.py:343	            markers.evidence.append(stripped)
+cloudra/tools/core/xtb_path_runner.py:344	            markers.normal_termination = True
+cloudra/tools/core/xtb_path_runner.py:345	        elif stripped.startswith(MARKER_FINISHED_RUN.strip()):
+cloudra/tools/core/xtb_path_runner.py:346	            markers.evidence.append(stripped)
+cloudra/tools/core/xtb_path_runner.py:347	        elif MARKER_PATH_FINDER.strip() in stripped:
+cloudra/tools/core/xtb_path_runner.py:348	            markers.evidence.append(stripped)
+cloudra/tools/core/xtb_path_runner.py:349	            markers.path_finder = True
+cloudra/tools/core/xtb_path_runner.py:350	        elif MARKER_PATH_CONVERGED in stripped:
+cloudra/tools/core/xtb_path_runner.py:351	            markers.evidence.append(stripped)
+cloudra/tools/core/xtb_path_runner.py:352	            markers.refinement_termination = "converged"
+cloudra/tools/core/xtb_path_runner.py:353	        elif MARKER_PATH_CYCLES_EXHAUSTED in stripped:
+cloudra/tools/core/xtb_path_runner.py:354	            markers.evidence.append(stripped)
+cloudra/tools/core/xtb_path_runner.py:355	            markers.refinement_termination = "cycles_exhausted"
+cloudra/tools/core/xtb_path_runner.py:356	        elif MARKER_FORWARD_BARRIER in stripped:
+cloudra/tools/core/xtb_path_runner.py:357	            last_forward = stripped
+cloudra/tools/core/xtb_path_runner.py:358	        elif MARKER_BACKWARD_BARRIER in stripped:
+cloudra/tools/core/xtb_path_runner.py:359	            last_backward = stripped
+cloudra/tools/core/xtb_path_runner.py:360	    for extra in (last_forward, last_backward):
+cloudra/tools/core/xtb_path_runner.py:361	        if extra:
+cloudra/tools/core/xtb_path_runner.py:362	            markers.evidence.append(extra)
+cloudra/tools/core/xtb_path_runner.py:363	    markers.evidence = markers.evidence[:MAX_EVIDENCE_LINES]
+cloudra/tools/core/xtb_path_runner.py:364	    return markers
+cloudra/tools/core/xtb_path_runner.py:365	
+cloudra/tools/core/xtb_path_runner.py:366	
+cloudra/tools/core/xtb_path_runner.py:367	def run_xtb_path(request: XtbPathRequest) -> XtbPathResult:
+cloudra/tools/core/xtb_path_runner.py:368	    """在持久运行目录里跑一次 MTD 路径搜索。
+cloudra/tools/core/xtb_path_runner.py:369	
+cloudra/tools/core/xtb_path_runner.py:370	    同步函数（子进程 + 文件 IO）；异步调用方必须经 ``asyncio.to_thread`` 卸载。
+cloudra/tools/core/xtb_path_runner.py:371	    """
+cloudra/tools/core/xtb_path_runner.py:372	    try:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=373,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:373	        reactant_symbols, _ = _symbols_and_positions(request.reactant_xyz, label="reactant")
+cloudra/tools/core/xtb_path_runner.py:374	        product_symbols, _ = _symbols_and_positions(request.product_xyz, label="product")
+cloudra/tools/core/xtb_path_runner.py:375	    except ValueError as exc:
+cloudra/tools/core/xtb_path_runner.py:376	        # 端点先自检：几何不完整或元素序列不一致时，跑引擎只会浪费机时
+cloudra/tools/core/xtb_path_runner.py:377	        output_dir = request.output_dir
+cloudra/tools/core/xtb_path_runner.py:378	        os.makedirs(output_dir, exist_ok=True)
+cloudra/tools/core/xtb_path_runner.py:379	        run_dir = _next_run_dir(output_dir, request.run_label)
+cloudra/tools/core/xtb_path_runner.py:380	        return XtbPathResult(
+cloudra/tools/core/xtb_path_runner.py:381	            run_dir=run_dir, termination_reason="invalid_endpoints",
+cloudra/tools/core/xtb_path_runner.py:382	            message=f"the endpoints were rejected before starting xtb: {exc}",
+cloudra/tools/core/xtb_path_runner.py:383	            diagnostics=[str(exc)],
+cloudra/tools/core/xtb_path_runner.py:384	        )
+cloudra/tools/core/xtb_path_runner.py:385	
+cloudra/tools/core/xtb_path_runner.py:386	    command = build_xtb_path_command(request)
+cloudra/tools/core/xtb_path_runner.py:387	    run_dir = _next_run_dir(request.output_dir, request.run_label)
+cloudra/tools/core/xtb_path_runner.py:388	    reactant_path = os.path.join(run_dir, "reactant.xyz")
+cloudra/tools/core/xtb_path_runner.py:389	    product_path = os.path.join(run_dir, "product.xyz")
+cloudra/tools/core/xtb_path_runner.py:390	    command_path = os.path.join(run_dir, "command.txt")
+cloudra/tools/core/xtb_path_runner.py:391	    path_input_path = os.path.join(run_dir, PATH_INPUT_NAME)
+cloudra/tools/core/xtb_path_runner.py:392	    versions_path = os.path.join(run_dir, "versions.txt")
+cloudra/tools/core/xtb_path_runner.py:393	    stdout_path = os.path.join(run_dir, "stdout.log")
+cloudra/tools/core/xtb_path_runner.py:394	    stderr_path = os.path.join(run_dir, "stderr.log")
+cloudra/tools/core/xtb_path_runner.py:395	
+cloudra/tools/core/xtb_path_runner.py:396	    atomic_write_text(reactant_path, request.reactant_xyz)
+cloudra/tools/core/xtb_path_runner.py:397	    atomic_write_text(product_path, request.product_xyz)
+cloudra/tools/core/xtb_path_runner.py:398	    atomic_write_text(command_path, " ".join(command) + "\n")
+cloudra/tools/core/xtb_path_runner.py:399	    atomic_write_text(path_input_path, build_path_input(request.refinement_runs))
+cloudra/tools/core/xtb_path_runner.py:400	    atomic_write_text(versions_path, _capture_versions())
+cloudra/tools/core/xtb_path_runner.py:401	
+cloudra/tools/core/xtb_path_runner.py:402	    result = XtbPathResult(
+cloudra/tools/core/xtb_path_runner.py:403	        run_dir=run_dir, command=command, symbols=reactant_symbols,
+cloudra/tools/core/xtb_path_runner.py:404	        reactant_path=reactant_path, product_path=product_path,
+cloudra/tools/core/xtb_path_runner.py:405	        command_path=command_path, path_input_path=path_input_path, versions_path=versions_path,
+cloudra/tools/core/xtb_path_runner.py:406	        refinement_runs=request.refinement_runs,
+cloudra/tools/core/xtb_path_runner.py:407	        stdout_path=stdout_path, stderr_path=stderr_path,
+cloudra/tools/core/xtb_path_runner.py:408	        path_xyz_path=os.path.join(run_dir, PATH_XYZ_NAME),
+cloudra/tools/core/xtb_path_runner.py:409	        ts_xyz_path=os.path.join(run_dir, TS_XYZ_NAME),
+cloudra/tools/core/xtb_path_runner.py:410	    )
+cloudra/tools/core/xtb_path_runner.py:411	
+cloudra/tools/core/xtb_path_runner.py:412	    if reactant_symbols != product_symbols:
+cloudra/tools/core/xtb_path_runner.py:413	        result.termination_reason = "invalid_endpoints"
+cloudra/tools/core/xtb_path_runner.py:414	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:415	            f"reactant and product element sequences differ ({reactant_symbols} vs "
+cloudra/tools/core/xtb_path_runner.py:416	            f"{product_symbols}); the path search needs one consistent atom set"
+cloudra/tools/core/xtb_path_runner.py:417	        )
+cloudra/tools/core/xtb_path_runner.py:418	        result.message = "Endpoints rejected: the element sequences differ."
+cloudra/tools/core/xtb_path_runner.py:419	        result.artifacts = _list_artifacts(run_dir)
+cloudra/tools/core/xtb_path_runner.py:420	        return result
+cloudra/tools/core/xtb_path_runner.py:421	
+cloudra/tools/core/xtb_path_runner.py:422	    import shutil
+cloudra/tools/core/xtb_path_runner.py:423	
+cloudra/tools/core/xtb_path_runner.py:424	    if not shutil.which("xtb"):
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=425,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:425	        result.termination_reason = "executable_missing"
+cloudra/tools/core/xtb_path_runner.py:426	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:427	            "the 'xtb' executable was not found on PATH; no run was started. The caller should "
+cloudra/tools/core/xtb_path_runner.py:428	            f"fall back to IDPP interpolation and report path_kind={PATH_KIND_IDPP!r}"
+cloudra/tools/core/xtb_path_runner.py:429	        )
+cloudra/tools/core/xtb_path_runner.py:430	        atomic_write_text(stdout_path, "")
+cloudra/tools/core/xtb_path_runner.py:431	        atomic_write_text(stderr_path, "")
+cloudra/tools/core/xtb_path_runner.py:432	        result.artifacts = _list_artifacts(run_dir)
+cloudra/tools/core/xtb_path_runner.py:433	        result.message = "xtb executable not found; no path search was started."
+cloudra/tools/core/xtb_path_runner.py:434	        return result
+cloudra/tools/core/xtb_path_runner.py:435	
+cloudra/tools/core/xtb_path_runner.py:436	    timed_out = False
+cloudra/tools/core/xtb_path_runner.py:437	    proc = subprocess.Popen(
+cloudra/tools/core/xtb_path_runner.py:438	        command, cwd=run_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+cloudra/tools/core/xtb_path_runner.py:439	        text=True, start_new_session=True,
+cloudra/tools/core/xtb_path_runner.py:440	    )
+cloudra/tools/core/xtb_path_runner.py:441	    try:
+cloudra/tools/core/xtb_path_runner.py:442	        stdout, stderr = proc.communicate(timeout=request.timeout)
+cloudra/tools/core/xtb_path_runner.py:443	        returncode = proc.returncode
+cloudra/tools/core/xtb_path_runner.py:444	    except subprocess.TimeoutExpired:
+cloudra/tools/core/xtb_path_runner.py:445	        timed_out = True
+cloudra/tools/core/xtb_path_runner.py:446	        _terminate_process_group(proc)
+cloudra/tools/core/xtb_path_runner.py:447	        stdout, stderr = proc.communicate()
+cloudra/tools/core/xtb_path_runner.py:448	        returncode = proc.returncode
+cloudra/tools/core/xtb_path_runner.py:449	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:450	            f"the xtb path search exceeded the {request.timeout}s timeout; this run's own process "
+cloudra/tools/core/xtb_path_runner.py:451	            "group was terminated (its logs and intermediate files are kept)"
+cloudra/tools/core/xtb_path_runner.py:452	        )
+cloudra/tools/core/xtb_path_runner.py:453	
+cloudra/tools/core/xtb_path_runner.py:454	    atomic_write_text(stdout_path, stdout or "")
+cloudra/tools/core/xtb_path_runner.py:455	    atomic_write_text(stderr_path, stderr or "")
+cloudra/tools/core/xtb_path_runner.py:456	    result.returncode = returncode
+cloudra/tools/core/xtb_path_runner.py:457	    result.artifacts = _list_artifacts(run_dir)
+cloudra/tools/core/xtb_path_runner.py:458	
+cloudra/tools/core/xtb_path_runner.py:459	    # 实测（本机 xtb 6.7.1）：``normal termination of xtb`` 落在 **stderr**，而计时块落在
+cloudra/tools/core/xtb_path_runner.py:460	    # stdout。因此标记必须在两个流上一起扫——只看 stdout 会把正常的运行判成失败。
+cloudra/tools/core/xtb_path_runner.py:461	    markers = _scan_markers(
+cloudra/tools/core/xtb_path_runner.py:462	        (stdout or "").splitlines() + (stderr or "").splitlines()
+cloudra/tools/core/xtb_path_runner.py:463	    )
+cloudra/tools/core/xtb_path_runner.py:464	    result.evidence = markers.evidence
+cloudra/tools/core/xtb_path_runner.py:465	    result.refinement_termination = markers.refinement_termination
+cloudra/tools/core/xtb_path_runner.py:466	
+cloudra/tools/core/xtb_path_runner.py:467	    if timed_out:
+cloudra/tools/core/xtb_path_runner.py:468	        result.termination_reason = "timeout"
+cloudra/tools/core/xtb_path_runner.py:469	        result.message = (
+cloudra/tools/core/xtb_path_runner.py:470	            f"the xtb path search timed out after {request.timeout}s (returncode={returncode}). "
+cloudra/tools/core/xtb_path_runner.py:471	            f"Full log: {stdout_path}"
+cloudra/tools/core/xtb_path_runner.py:472	        )
+cloudra/tools/core/xtb_path_runner.py:473	        return result
+cloudra/tools/core/xtb_path_runner.py:474	
+cloudra/tools/core/xtb_path_runner.py:475	    if returncode != 0:
+cloudra/tools/core/xtb_path_runner.py:476	        result.termination_reason = "failed"
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=477,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:477	        tail = "\n".join((stdout or "").splitlines()[-15:]) or (stderr or "")[-2000:]
+cloudra/tools/core/xtb_path_runner.py:478	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:479	            "xtb exited non-zero; raw log tail follows (no cause is guessed)"
+cloudra/tools/core/xtb_path_runner.py:480	        )
+cloudra/tools/core/xtb_path_runner.py:481	        result.diagnostics.append(tail)
+cloudra/tools/core/xtb_path_runner.py:482	        result.message = (
+cloudra/tools/core/xtb_path_runner.py:483	            f"the xtb path search failed (returncode={returncode}). Full log: {stdout_path}"
+cloudra/tools/core/xtb_path_runner.py:484	        )
+cloudra/tools/core/xtb_path_runner.py:485	        return result
+cloudra/tools/core/xtb_path_runner.py:486	
+cloudra/tools/core/xtb_path_runner.py:487	    if not markers.normal_termination:
+cloudra/tools/core/xtb_path_runner.py:488	        result.termination_reason = "unknown_failure"
+cloudra/tools/core/xtb_path_runner.py:489	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:490	            f"xtb exited 0 but never printed its normal-termination marker "
+cloudra/tools/core/xtb_path_runner.py:491	            f"({MARKER_NORMAL_TERMINATION!r}, which this build writes to stderr); refusing to treat "
+cloudra/tools/core/xtb_path_runner.py:492	            "the exit code alone as success"
+cloudra/tools/core/xtb_path_runner.py:493	        )
+cloudra/tools/core/xtb_path_runner.py:494	        result.message = f"xtb did not report normal termination. Full log: {stdout_path}"
+cloudra/tools/core/xtb_path_runner.py:495	        return result
+cloudra/tools/core/xtb_path_runner.py:496	
+cloudra/tools/core/xtb_path_runner.py:497	    if not markers.path_finder:
+cloudra/tools/core/xtb_path_runner.py:498	        result.termination_reason = "unknown_failure"
+cloudra/tools/core/xtb_path_runner.py:499	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:500	            f"xtb exited 0 but never printed its path-finder timing block "
+cloudra/tools/core/xtb_path_runner.py:501	            f"({MARKER_PATH_FINDER.strip()!r}); refusing to treat the exit code alone as success"
+cloudra/tools/core/xtb_path_runner.py:502	        )
+cloudra/tools/core/xtb_path_runner.py:503	        result.message = f"xtb did not report a completed path search. Full log: {stdout_path}"
+cloudra/tools/core/xtb_path_runner.py:504	        return result
+cloudra/tools/core/xtb_path_runner.py:505	
+cloudra/tools/core/xtb_path_runner.py:506	    # 产物完整性：路径与 TS 候选都要在，且几何自洽——"文件在"不构成成功判据
+cloudra/tools/core/xtb_path_runner.py:507	    try:
+cloudra/tools/core/xtb_path_runner.py:508	        frames = _parse_path_frames(result.path_xyz_path)
+cloudra/tools/core/xtb_path_runner.py:509	        ts_energy, ts_positions = _parse_ts_candidate(result.ts_xyz_path)
+cloudra/tools/core/xtb_path_runner.py:510	    except (OSError, ValueError) as exc:
+cloudra/tools/core/xtb_path_runner.py:511	        result.termination_reason = "incomplete_artifacts"
+cloudra/tools/core/xtb_path_runner.py:512	        result.diagnostics.append(f"path artifacts are unusable: {exc}")
+cloudra/tools/core/xtb_path_runner.py:513	        result.message = (
+cloudra/tools/core/xtb_path_runner.py:514	            f"xtb reported normal termination but its path artifacts are unusable ({exc}). "
+cloudra/tools/core/xtb_path_runner.py:515	            f"Full log: {stdout_path}"
+cloudra/tools/core/xtb_path_runner.py:516	        )
+cloudra/tools/core/xtb_path_runner.py:517	        return result
+cloudra/tools/core/xtb_path_runner.py:518	
+cloudra/tools/core/xtb_path_runner.py:519	    for frame in frames:
+cloudra/tools/core/xtb_path_runner.py:520	        if len(frame.positions) != len(reactant_symbols):
+cloudra/tools/core/xtb_path_runner.py:521	            result.termination_reason = "incomplete_artifacts"
+cloudra/tools/core/xtb_path_runner.py:522	            result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:523	                f"frame {frame.frame_index} has {len(frame.positions)} atoms but the endpoints have "
+cloudra/tools/core/xtb_path_runner.py:524	                f"{len(reactant_symbols)}"
+cloudra/tools/core/xtb_path_runner.py:525	            )
+cloudra/tools/core/xtb_path_runner.py:526	            result.message = "xtb reported normal termination but the path frames are inconsistent."
+cloudra/tools/core/xtb_path_runner.py:527	            return result
+cloudra/tools/core/xtb_path_runner.py:528	    if len(frames) < 2:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=529,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:529	        result.termination_reason = "incomplete_artifacts"
+cloudra/tools/core/xtb_path_runner.py:530	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:531	            f"the path has only {len(frames)} frame(s); a path needs at least the two endpoints"
+cloudra/tools/core/xtb_path_runner.py:532	        )
+cloudra/tools/core/xtb_path_runner.py:533	        result.message = "xtb reported normal termination but produced no usable path."
+cloudra/tools/core/xtb_path_runner.py:534	        return result
+cloudra/tools/core/xtb_path_runner.py:535	    if len(ts_positions) != len(reactant_symbols):
+cloudra/tools/core/xtb_path_runner.py:536	        result.termination_reason = "incomplete_artifacts"
+cloudra/tools/core/xtb_path_runner.py:537	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:538	            f"the TS candidate has {len(ts_positions)} atoms but the endpoints have "
+cloudra/tools/core/xtb_path_runner.py:539	            f"{len(reactant_symbols)}"
+cloudra/tools/core/xtb_path_runner.py:540	        )
+cloudra/tools/core/xtb_path_runner.py:541	        result.message = "xtb reported normal termination but the TS candidate is inconsistent."
+cloudra/tools/core/xtb_path_runner.py:542	        return result
+cloudra/tools/core/xtb_path_runner.py:543	
+cloudra/tools/core/xtb_path_runner.py:544	    result.frames = frames
+cloudra/tools/core/xtb_path_runner.py:545	    result.ts_candidate_energy_eh = ts_energy
+cloudra/tools/core/xtb_path_runner.py:546	    result.ts_candidate_positions = ts_positions
+cloudra/tools/core/xtb_path_runner.py:547	
+cloudra/tools/core/xtb_path_runner.py:548	    if markers.refinement_termination == "cycles_exhausted":
+cloudra/tools/core/xtb_path_runner.py:549	        # **被截断的路径不是初猜**：实测这种路径的最高帧落在反应物自己的盆地里
+cloudra/tools/core/xtb_path_runner.py:550	        # （离起点只有 21°、相对能 44.865 kcal/mol，做 OptTS 跑 56 轮不收敛）。
+cloudra/tools/core/xtb_path_runner.py:551	        # 这里把截断的现场（路径帧 + TS 候选）保留下来供复查，但明确标成不可用。
+cloudra/tools/core/xtb_path_runner.py:552	        result.termination_reason = "path_not_converged"
+cloudra/tools/core/xtb_path_runner.py:553	        result.usable_as_guess = False
+cloudra/tools/core/xtb_path_runner.py:554	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:555	            f"the engine stopped its path refinement at the {request.refinement_runs}-run cap "
+cloudra/tools/core/xtb_path_runner.py:556	            f"({MARKER_PATH_CYCLES_EXHAUSTED!r}); that is a truncated path, not a converged one. "
+cloudra/tools/core/xtb_path_runner.py:557	            "The frames and TS candidate are kept for inspection only. Measured consequence of "
+cloudra/tools/core/xtb_path_runner.py:558	            "accepting a truncated path (docs/evidence/ts_guess_mtd_artifact/): its highest frame "
+cloudra/tools/core/xtb_path_runner.py:559	            "sits in the reactant's own basin, 21 deg from the start, and an ORCA OptTS started "
+cloudra/tools/core/xtb_path_runner.py:560	            "from it never converged (56 cycles, slid back to the minimum). Raise "
+cloudra/tools/core/xtb_path_runner.py:561	            "`refinement_runs` and rerun"
+cloudra/tools/core/xtb_path_runner.py:562	        )
+cloudra/tools/core/xtb_path_runner.py:563	        result.message = (
+cloudra/tools/core/xtb_path_runner.py:564	            f"the xTB path refinement hit its {request.refinement_runs}-run cap before the engine "
+cloudra/tools/core/xtb_path_runner.py:565	            f"declared convergence, so no usable TS guess was produced. Raise `refinement_runs` and "
+cloudra/tools/core/xtb_path_runner.py:566	            f"rerun. Run directory (truncated path kept for inspection): {run_dir}"
+cloudra/tools/core/xtb_path_runner.py:567	        )
+cloudra/tools/core/xtb_path_runner.py:568	        return result
+cloudra/tools/core/xtb_path_runner.py:569	
+cloudra/tools/core/xtb_path_runner.py:570	    if markers.refinement_termination != "converged":
+cloudra/tools/core/xtb_path_runner.py:571	        result.termination_reason = "unknown_failure"
+cloudra/tools/core/xtb_path_runner.py:572	        result.usable_as_guess = False
+cloudra/tools/core/xtb_path_runner.py:573	        result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:574	            "xtb exited 0 and produced path artifacts, but its log carries neither refinement "
+cloudra/tools/core/xtb_path_runner.py:575	            f"termination line ({MARKER_PATH_CONVERGED!r} / {MARKER_PATH_CYCLES_EXHAUSTED!r}); "
+cloudra/tools/core/xtb_path_runner.py:576	            "whether the path refinement converged cannot be established from this output, and a "
+cloudra/tools/core/xtb_path_runner.py:577	            "non-converged path must not be handed over as a TS guess"
+cloudra/tools/core/xtb_path_runner.py:578	        )
+cloudra/tools/core/xtb_path_runner.py:579	        result.message = (
+cloudra/tools/core/xtb_path_runner.py:580	            f"the xTB path search reported no path-refinement termination line, so convergence "
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=581,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/core/xtb_path_runner.py:581	            f"could not be confirmed. Full log: {stdout_path}"
+cloudra/tools/core/xtb_path_runner.py:582	        )
+cloudra/tools/core/xtb_path_runner.py:583	        return result
+cloudra/tools/core/xtb_path_runner.py:584	
+cloudra/tools/core/xtb_path_runner.py:585	    result.termination_reason = "completed"
+cloudra/tools/core/xtb_path_runner.py:586	    result.usable_as_guess = True
+cloudra/tools/core/xtb_path_runner.py:587	    result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:588	        "path-frame comment energies are RELATIVE kcal/mol; the TS candidate's comment energy is "
+cloudra/tools/core/xtb_path_runner.py:589	        "ABSOLUTE Eh — the two are reported in separate fields on purpose "
+cloudra/tools/core/xtb_path_runner.py:590	        "(verified against single points on this machine)"
+cloudra/tools/core/xtb_path_runner.py:591	    )
+cloudra/tools/core/xtb_path_runner.py:592	    result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:593	        "the TS candidate is a guess sampled by metadynamics, NOT a saddle point and NOT verified; "
+cloudra/tools/core/xtb_path_runner.py:594	        "frequency/IRC judgement still has to run"
+cloudra/tools/core/xtb_path_runner.py:595	    )
+cloudra/tools/core/xtb_path_runner.py:596	    result.diagnostics.append(
+cloudra/tools/core/xtb_path_runner.py:597	        f"the engine declared the path refinement converged ({MARKER_PATH_CONVERGED!r}) within the "
+cloudra/tools/core/xtb_path_runner.py:598	        f"{request.refinement_runs}-run cap"
+cloudra/tools/core/xtb_path_runner.py:599	    )
+cloudra/tools/core/xtb_path_runner.py:600	    result.message = (
+cloudra/tools/core/xtb_path_runner.py:601	        f"xtb path search completed: {len(frames)} path frames and a TS candidate "
+cloudra/tools/core/xtb_path_runner.py:602	        f"({ts_energy:.6f} Eh). Run directory: {run_dir}"
+cloudra/tools/core/xtb_path_runner.py:603	    )
+cloudra/tools/core/xtb_path_runner.py:604	    return result
+cloudra/tools/core/xtb_path_runner.py:605	
+cloudra/tools/core/xtb_path_runner.py:606	
+cloudra/tools/core/xtb_path_runner.py:607	def _terminate_process_group(proc: subprocess.Popen) -> None:
+cloudra/tools/core/xtb_path_runner.py:608	    """先 SIGTERM 再 SIGKILL **本进程组**，并 wait/reap，绝不只发信号不回收。"""
+cloudra/tools/core/xtb_path_runner.py:609	    try:
+cloudra/tools/core/xtb_path_runner.py:610	        pgid = os.getpgid(proc.pid)
+cloudra/tools/core/xtb_path_runner.py:611	    except ProcessLookupError:
+cloudra/tools/core/xtb_path_runner.py:612	        proc.wait()
+cloudra/tools/core/xtb_path_runner.py:613	        return
+cloudra/tools/core/xtb_path_runner.py:614	    for sig in (signal.SIGTERM, signal.SIGKILL):
+cloudra/tools/core/xtb_path_runner.py:615	        try:
+cloudra/tools/core/xtb_path_runner.py:616	            os.killpg(pgid, sig)
+cloudra/tools/core/xtb_path_runner.py:617	        except ProcessLookupError:
+cloudra/tools/core/xtb_path_runner.py:618	            break
+cloudra/tools/core/xtb_path_runner.py:619	        try:
+cloudra/tools/core/xtb_path_runner.py:620	            proc.wait(timeout=10)
+cloudra/tools/core/xtb_path_runner.py:621	            return
+cloudra/tools/core/xtb_path_runner.py:622	        except subprocess.TimeoutExpired:
+cloudra/tools/core/xtb_path_runner.py:623	            continue
+cloudra/tools/core/xtb_path_runner.py:624	    proc.wait()
 cloudra/tools/name_hints.py:1	"""Retired wire names → hint only. Never executed."""
 cloudra/tools/name_hints.py:2	
 cloudra/tools/name_hints.py:3	_RETIRED: dict[str, str] = {
@@ -951,6 +908,9 @@ cloudra/tools/name_hints.py:5	    "image_reader": "read",
 cloudra/tools/name_hints.py:6	    "pdf2md": "read",
 cloudra/tools/name_hints.py:7	    "pdf2image": "read",
 cloudra/tools/name_hints.py:8	    "read_file": "read",
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=9,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/name_hints.py:9	    "web_search": "search (source=web)",
 cloudra/tools/name_hints.py:10	    "paper_searcher": "search (source=arxiv)",
 cloudra/tools/name_hints.py:11	    "openalex_searcher": "search (source=openalex)",
@@ -963,9 +923,6 @@ cloudra/tools/name_hints.py:17	    "str_replace": "edit",
 cloudra/tools/name_hints.py:18	    "getskill": "get_skill",
 cloudra/tools/name_hints.py:19	    "web_fetcher": "web_fetch",
 cloudra/tools/name_hints.py:20	    "headless_browser": "browser",
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=21,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/name_hints.py:21	    "SubAgentLauncher": "subagent_launcher",
 cloudra/tools/name_hints.py:22	    "SubAgentSwarm": "subagent_swarm",
 cloudra/tools/name_hints.py:23	}
@@ -1006,6 +963,9 @@ cloudra/tools/registry.py:17	@dataclass(frozen=True)
 cloudra/tools/registry.py:18	class ToolRegistration:
 cloudra/tools/registry.py:19	    module: str
 cloudra/tools/registry.py:20	    class_name: str
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=21,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:21	
 cloudra/tools/registry.py:22	    # Declared wire name. Only needed when the tool has non-default semantics
 cloudra/tools/registry.py:23	    # (or a tool_name that differs from class_name); capabilities only projects
@@ -1018,9 +978,6 @@ cloudra/tools/registry.py:29	    evidence_deriver: str = ""  # "module:function(
 cloudra/tools/registry.py:30	    # 事实适配器（contract_version=2）："module:function(payload, source_ref)
 cloudra/tools/registry.py:31	    # -> list[EvidenceFact]"；从已登记证据中抽类型化事实（含反证）。
 cloudra/tools/registry.py:32	    dag_fact_adapter: str = ""
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=33,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:33	    # 证据产生工具：完成的调用产出计算证据（知识检索触发语义）。
 cloudra/tools/registry.py:34	    # §5 起不再有"自动入 CallReview 收件箱"的开关——送审只能显式
 cloudra/tools/registry.py:35	    # （dag_bind_evidence with claim）。
@@ -1048,345 +1005,376 @@ cloudra/tools/registry.py:56	    # javascript protocol (exposed next to js_exec)
 cloudra/tools/registry.py:57	    # guest program; ordinary business tools are the only guest-callable ones.
 cloudra/tools/registry.py:58	    invocation_direct_only: bool = False
 cloudra/tools/registry.py:59	
-cloudra/tools/registry.py:60	
-cloudra/tools/registry.py:61	TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
-cloudra/tools/registry.py:62	    ToolRegistration(
-cloudra/tools/registry.py:63	        module='cloudra.tools.Bashtool.bash',
-cloudra/tools/registry.py:64	        class_name='Bash',
-cloudra/tools/registry.py:65	        tool_name='bash',
-cloudra/tools/registry.py:66	        dag_compute_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
-cloudra/tools/registry.py:67	    ),
-cloudra/tools/registry.py:68	    ToolRegistration(
-cloudra/tools/registry.py:69	        module='cloudra.tools.Browsertool.browser',
-cloudra/tools/registry.py:70	        class_name='HeadlessBrowser',
-cloudra/tools/registry.py:71	        tool_name='browser',
+cloudra/tools/registry.py:60	    # Config gate: "<section>.<field>" naming a boolean on CloudraConfig.
+cloudra/tools/registry.py:61	    # When the flag is false the tool is hidden from the wire projection and
+cloudra/tools/registry.py:62	    # hard-fails at call time (the tool itself must check the flag too).
+cloudra/tools/registry.py:63	    config_gate: str = ""
+cloudra/tools/registry.py:64	
+cloudra/tools/registry.py:65	
+cloudra/tools/registry.py:66	TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
+cloudra/tools/registry.py:67	    ToolRegistration(
+cloudra/tools/registry.py:68	        module='cloudra.tools.Bashtool.bash',
+cloudra/tools/registry.py:69	        class_name='Bash',
+cloudra/tools/registry.py:70	        tool_name='bash',
+cloudra/tools/registry.py:71	        dag_compute_predicate='cloudra.tools.core.bash_habit_guard:is_substantive_bash_command',
 cloudra/tools/registry.py:72	    ),
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=73,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/tools/registry.py:73	    ToolRegistration(
-cloudra/tools/registry.py:74	        module='cloudra.tools.Browsertool.web_fetch',
-cloudra/tools/registry.py:75	        class_name='WebFetcher',
-cloudra/tools/registry.py:76	        tool_name='web_fetch',
-cloudra/tools/registry.py:77	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:78	    ),
-cloudra/tools/registry.py:79	    ToolRegistration(
-cloudra/tools/registry.py:80	        module='cloudra.tools.Chemtool.conformer_search',
-cloudra/tools/registry.py:81	        class_name='ConformerSearch',
-cloudra/tools/registry.py:82	        tool_name='conformer_search',
-cloudra/tools/registry.py:83	        dag_compute_entry=True,
-cloudra/tools/registry.py:84	    ),
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=85,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/registry.py:85	    ToolRegistration(
-cloudra/tools/registry.py:86	        module='cloudra.tools.Chemtool.electronic_analysis',
-cloudra/tools/registry.py:87	        class_name='ElectronicAnalysis',
-cloudra/tools/registry.py:88	        tool_name='electronic_analysis',
-cloudra/tools/registry.py:89	        dag_compute_entry=True,
-cloudra/tools/registry.py:90	    ),
-cloudra/tools/registry.py:91	    ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
-cloudra/tools/registry.py:92	    ToolRegistration(
-cloudra/tools/registry.py:93	        module='cloudra.tools.Chemtool.qm_input_writer',
-cloudra/tools/registry.py:94	        class_name='QmInputWriter',
-cloudra/tools/registry.py:95	        tool_name='qm_input_writer',
-cloudra/tools/registry.py:96	        dag_compute_entry=True,
-cloudra/tools/registry.py:97	    ),
-cloudra/tools/registry.py:98	    ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
-cloudra/tools/registry.py:99	    ToolRegistration(
-cloudra/tools/registry.py:100	        module='cloudra.tools.Chemtool.cdxml_to_graph',
-cloudra/tools/registry.py:101	        class_name='CdxmlToGraph',
-cloudra/tools/registry.py:102	        tool_name='cdxml_to_graph',
-cloudra/tools/registry.py:103	    ),
-cloudra/tools/registry.py:104	    ToolRegistration('cloudra.tools.Chemtool.internal_coordinates', 'InternalCoordinates'),
-cloudra/tools/registry.py:105	    ToolRegistration(
-cloudra/tools/registry.py:106	        module='cloudra.tools.Chemtool.ir_processor',
-cloudra/tools/registry.py:107	        class_name='IRProcessor',
-cloudra/tools/registry.py:108	        tool_name='ir_processor',
-cloudra/tools/registry.py:109	    ),
+cloudra/tools/registry.py:74	        module='cloudra.tools.Browsertool.browser',
+cloudra/tools/registry.py:75	        class_name='HeadlessBrowser',
+cloudra/tools/registry.py:76	        tool_name='browser',
+cloudra/tools/registry.py:77	    ),
+cloudra/tools/registry.py:78	    ToolRegistration(
+cloudra/tools/registry.py:79	        module='cloudra.tools.Browsertool.web_fetch',
+cloudra/tools/registry.py:80	        class_name='WebFetcher',
+cloudra/tools/registry.py:81	        tool_name='web_fetch',
+cloudra/tools/registry.py:82	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:83	    ),
+cloudra/tools/registry.py:84	    ToolRegistration(
+cloudra/tools/registry.py:85	        module='cloudra.tools.Chemtool.conformer_search',
+cloudra/tools/registry.py:86	        class_name='ConformerSearch',
+cloudra/tools/registry.py:87	        tool_name='conformer_search',
+cloudra/tools/registry.py:88	        dag_compute_entry=True,
+cloudra/tools/registry.py:89	    ),
+cloudra/tools/registry.py:90	    ToolRegistration(
+cloudra/tools/registry.py:91	        module='cloudra.tools.Chemtool.electronic_analysis',
+cloudra/tools/registry.py:92	        class_name='ElectronicAnalysis',
+cloudra/tools/registry.py:93	        tool_name='electronic_analysis',
+cloudra/tools/registry.py:94	        dag_compute_entry=True,
+cloudra/tools/registry.py:95	    ),
+cloudra/tools/registry.py:96	    ToolRegistration('cloudra.tools.Chemtool.format_converter', 'FormatConverter'),
+cloudra/tools/registry.py:97	    ToolRegistration(
+cloudra/tools/registry.py:98	        module='cloudra.tools.Chemtool.qm_input_writer',
+cloudra/tools/registry.py:99	        class_name='QmInputWriter',
+cloudra/tools/registry.py:100	        tool_name='qm_input_writer',
+cloudra/tools/registry.py:101	        dag_compute_entry=True,
+cloudra/tools/registry.py:102	    ),
+cloudra/tools/registry.py:103	    ToolRegistration('cloudra.tools.Chemtool.image_to_smiles', 'ImageToSmiles'),
+cloudra/tools/registry.py:104	    ToolRegistration(
+cloudra/tools/registry.py:105	        module='cloudra.tools.Chemtool.cdxml_to_graph',
+cloudra/tools/registry.py:106	        class_name='CdxmlToGraph',
+cloudra/tools/registry.py:107	        tool_name='cdxml_to_graph',
+cloudra/tools/registry.py:108	    ),
+cloudra/tools/registry.py:109	    ToolRegistration('cloudra.tools.Chemtool.internal_coordinates', 'InternalCoordinates'),
 cloudra/tools/registry.py:110	    ToolRegistration(
-cloudra/tools/registry.py:111	        module='cloudra.tools.Chemtool.log_parser',
-cloudra/tools/registry.py:112	        class_name='LogParser',
-cloudra/tools/registry.py:113	        tool_name='log_parser',
-cloudra/tools/registry.py:114	        evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
-cloudra/tools/registry.py:115	        dag_fact_adapter='cloudra.dag.fact_adapters:log_parser_facts',
-cloudra/tools/registry.py:116	        dag_evidence_producer=True,
-cloudra/tools/registry.py:117	        supervisor_access='evidence_read',
-cloudra/tools/registry.py:118	    ),
-cloudra/tools/registry.py:119	    ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
-cloudra/tools/registry.py:120	    ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
-cloudra/tools/registry.py:121	    ToolRegistration(
-cloudra/tools/registry.py:122	        module='cloudra.tools.Chemtool.nmr_processor',
-cloudra/tools/registry.py:123	        class_name='NMRProcessor',
-cloudra/tools/registry.py:124	        tool_name='nmr_processor',
-cloudra/tools/registry.py:125	    ),
-cloudra/tools/registry.py:126	    ToolRegistration(
-cloudra/tools/registry.py:127	        module='cloudra.tools.Chemtool.pymol_render',
-cloudra/tools/registry.py:128	        class_name='PymolRender',
-cloudra/tools/registry.py:129	        tool_name='pymol_render',
-cloudra/tools/registry.py:130	        visual=True,
-cloudra/tools/registry.py:131	    ),
-cloudra/tools/registry.py:132	    ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
-cloudra/tools/registry.py:133	    ToolRegistration('cloudra.tools.Chemtool.query_compute_queue', 'QueryComputeQueue'),
+cloudra/tools/registry.py:111	        module='cloudra.tools.Chemtool.ir_processor',
+cloudra/tools/registry.py:112	        class_name='IRProcessor',
+cloudra/tools/registry.py:113	        tool_name='ir_processor',
+cloudra/tools/registry.py:114	    ),
+cloudra/tools/registry.py:115	    ToolRegistration(
+cloudra/tools/registry.py:116	        module='cloudra.tools.Chemtool.log_parser',
+cloudra/tools/registry.py:117	        class_name='LogParser',
+cloudra/tools/registry.py:118	        tool_name='log_parser',
+cloudra/tools/registry.py:119	        evidence_deriver='cloudra.tools.Chemtool.log_parser:derive_delivery_changes',
+cloudra/tools/registry.py:120	        dag_fact_adapter='cloudra.dag.fact_adapters:log_parser_facts',
+cloudra/tools/registry.py:121	        dag_evidence_producer=True,
+cloudra/tools/registry.py:122	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:123	    ),
+cloudra/tools/registry.py:124	    ToolRegistration('cloudra.tools.Chemtool.molecule_drawer', 'MoleculeDrawer'),
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=125,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/registry.py:125	    ToolRegistration(
+cloudra/tools/registry.py:126	        module='cloudra.tools.Chemtool.mechanism_predict',
+cloudra/tools/registry.py:127	        class_name='MechanismPredict',
+cloudra/tools/registry.py:128	        tool_name='mechanism_predict',
+cloudra/tools/registry.py:129	        # ML 机理假设生成器（FlowER 外部 conda env）：不是计算证据，默认
+cloudra/tools/registry.py:130	        # 由 flower.enabled 开关关闭。
+cloudra/tools/registry.py:131	        config_gate='flower.enabled',
+cloudra/tools/registry.py:132	    ),
+cloudra/tools/registry.py:133	    ToolRegistration('cloudra.tools.Chemtool.name_to_structure', 'NameToStructure'),
 cloudra/tools/registry.py:134	    ToolRegistration(
-cloudra/tools/registry.py:135	        module='cloudra.tools.Chemtool.mark_compute_job_failed',
-cloudra/tools/registry.py:136	        class_name='MarkComputeJobFailed',
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=137,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/registry.py:137	        tool_name='mark_compute_job_failed',
-cloudra/tools/registry.py:138	        dag_observe=False,
-cloudra/tools/registry.py:139	    ),
-cloudra/tools/registry.py:140	    ToolRegistration(
-cloudra/tools/registry.py:141	        module='cloudra.tools.Chemtool.reaction_mapping',
-cloudra/tools/registry.py:142	        class_name='ReactionMapping',
-cloudra/tools/registry.py:143	        tool_name='reaction_mapping',
-cloudra/tools/registry.py:144	        evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
-cloudra/tools/registry.py:145	        dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
-cloudra/tools/registry.py:146	        dag_evidence_producer=True,
-cloudra/tools/registry.py:147	        supervisor_access='evidence_read',
-cloudra/tools/registry.py:148	    ),
-cloudra/tools/registry.py:149	    ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
-cloudra/tools/registry.py:150	    ToolRegistration(
-cloudra/tools/registry.py:151	        module='cloudra.tools.Chemtool.submit_compute_job',
-cloudra/tools/registry.py:152	        class_name='SubmitComputeJob',
-cloudra/tools/registry.py:153	        tool_name='submit_compute_job',
-cloudra/tools/registry.py:154	        dag_compute_entry=True,
-cloudra/tools/registry.py:155	    ),
-cloudra/tools/registry.py:156	    ToolRegistration(
-cloudra/tools/registry.py:157	        module='cloudra.tools.Chemtool.thermo_analysis',
-cloudra/tools/registry.py:158	        class_name='ThermoAnalysis',
-cloudra/tools/registry.py:159	        tool_name='thermo_analysis',
-cloudra/tools/registry.py:160	        evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
-cloudra/tools/registry.py:161	        dag_evidence_producer=True,
-cloudra/tools/registry.py:162	    ),
+cloudra/tools/registry.py:135	        module='cloudra.tools.Chemtool.nmr_processor',
+cloudra/tools/registry.py:136	        class_name='NMRProcessor',
+cloudra/tools/registry.py:137	        tool_name='nmr_processor',
+cloudra/tools/registry.py:138	    ),
+cloudra/tools/registry.py:139	    ToolRegistration(
+cloudra/tools/registry.py:140	        module='cloudra.tools.Chemtool.pymol_render',
+cloudra/tools/registry.py:141	        class_name='PymolRender',
+cloudra/tools/registry.py:142	        tool_name='pymol_render',
+cloudra/tools/registry.py:143	        visual=True,
+cloudra/tools/registry.py:144	    ),
+cloudra/tools/registry.py:145	    ToolRegistration('cloudra.tools.Chemtool.query_compute_job', 'QueryComputeJob'),
+cloudra/tools/registry.py:146	    ToolRegistration('cloudra.tools.Chemtool.query_compute_queue', 'QueryComputeQueue'),
+cloudra/tools/registry.py:147	    ToolRegistration(
+cloudra/tools/registry.py:148	        module='cloudra.tools.Chemtool.mark_compute_job_failed',
+cloudra/tools/registry.py:149	        class_name='MarkComputeJobFailed',
+cloudra/tools/registry.py:150	        tool_name='mark_compute_job_failed',
+cloudra/tools/registry.py:151	        dag_observe=False,
+cloudra/tools/registry.py:152	    ),
+cloudra/tools/registry.py:153	    ToolRegistration(
+cloudra/tools/registry.py:154	        module='cloudra.tools.Chemtool.reaction_mapping',
+cloudra/tools/registry.py:155	        class_name='ReactionMapping',
+cloudra/tools/registry.py:156	        tool_name='reaction_mapping',
+cloudra/tools/registry.py:157	        evidence_deriver='cloudra.tools.Chemtool.reaction_mapping:derive_delivery_changes',
+cloudra/tools/registry.py:158	        dag_fact_adapter='cloudra.dag.fact_adapters:reaction_mapping_facts',
+cloudra/tools/registry.py:159	        dag_evidence_producer=True,
+cloudra/tools/registry.py:160	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:161	    ),
+cloudra/tools/registry.py:162	    # TS 搜索 SOP 的 agent 可见接口（只有这两个函数；刻意没有 status/查询接口）
 cloudra/tools/registry.py:163	    ToolRegistration(
-cloudra/tools/registry.py:164	        module='cloudra.tools.Chemtool.ts_guess',
-cloudra/tools/registry.py:165	        class_name='TsGuess',
-cloudra/tools/registry.py:166	        tool_name='ts_guess',
-cloudra/tools/registry.py:167	        evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
-cloudra/tools/registry.py:168	        dag_fact_adapter='cloudra.dag.fact_adapters:ts_guess_facts',
-cloudra/tools/registry.py:169	        dag_evidence_producer=True,
-cloudra/tools/registry.py:170	        dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
-cloudra/tools/registry.py:171	    ),
-cloudra/tools/registry.py:172	    ToolRegistration(
-cloudra/tools/registry.py:173	        module='cloudra.tools.Interactool.ask_user',
-cloudra/tools/registry.py:174	        class_name='AskUser',
-cloudra/tools/registry.py:175	        tool_name='ask_user',
-cloudra/tools/registry.py:176	        invocation_direct_only=True,
-cloudra/tools/registry.py:177	    ),
-cloudra/tools/registry.py:178	    ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
-cloudra/tools/registry.py:179	    ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
-cloudra/tools/registry.py:180	    ToolRegistration(
-cloudra/tools/registry.py:181	        module='cloudra.tools.Managetool.agent_hub',
-cloudra/tools/registry.py:182	        class_name='AgentHub',
-cloudra/tools/registry.py:183	        tool_name='agent_hub',
-cloudra/tools/registry.py:184	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:185	        supervisor_access='hub',
-cloudra/tools/registry.py:186	    ),
-cloudra/tools/registry.py:187	    ToolRegistration(
-cloudra/tools/registry.py:188	        module='cloudra.tools.Managetool.get_subagent_report',
+cloudra/tools/registry.py:164	        'cloudra.tools.Chemtool.ts_search_process', 'TsPrepare', tool_name='ts_prepare',
+cloudra/tools/registry.py:165	    ),
+cloudra/tools/registry.py:166	    ToolRegistration(
+cloudra/tools/registry.py:167	        'cloudra.tools.Chemtool.ts_search_process', 'TsResume', tool_name='ts_resume',
+cloudra/tools/registry.py:168	    ),
+cloudra/tools/registry.py:169	    ToolRegistration('cloudra.tools.Chemtool.smiles_to_mol', 'SmilesToMol'),
+cloudra/tools/registry.py:170	    ToolRegistration(
+cloudra/tools/registry.py:171	        module='cloudra.tools.Chemtool.submit_compute_job',
+cloudra/tools/registry.py:172	        class_name='SubmitComputeJob',
+cloudra/tools/registry.py:173	        tool_name='submit_compute_job',
+cloudra/tools/registry.py:174	        dag_compute_entry=True,
+cloudra/tools/registry.py:175	    ),
+cloudra/tools/registry.py:176	    ToolRegistration(
 \end{lstlisting}
 \clearpage
-\begin{lstlisting}[firstnumber=189,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/registry.py:189	        class_name='GetSubAgentReport',
-cloudra/tools/registry.py:190	        tool_name='get_subagent_report',
-cloudra/tools/registry.py:191	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:192	    ),
-cloudra/tools/registry.py:193	    ToolRegistration(
-cloudra/tools/registry.py:194	        module='cloudra.tools.Managetool.schedule',
-cloudra/tools/registry.py:195	        class_name='Schedule',
-cloudra/tools/registry.py:196	        tool_name='schedule',
-cloudra/tools/registry.py:197	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:198	        invocation_direct_only=True,
-cloudra/tools/registry.py:199	    ),
+\begin{lstlisting}[firstnumber=177,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/registry.py:177	        module='cloudra.tools.Chemtool.thermo_analysis',
+cloudra/tools/registry.py:178	        class_name='ThermoAnalysis',
+cloudra/tools/registry.py:179	        tool_name='thermo_analysis',
+cloudra/tools/registry.py:180	        evidence_deriver='cloudra.tools.Chemtool.thermo_analysis:derive_delivery_changes',
+cloudra/tools/registry.py:181	        dag_evidence_producer=True,
+cloudra/tools/registry.py:182	    ),
+cloudra/tools/registry.py:183	    ToolRegistration(
+cloudra/tools/registry.py:184	        module='cloudra.tools.Chemtool.ts_guess',
+cloudra/tools/registry.py:185	        class_name='TsGuess',
+cloudra/tools/registry.py:186	        tool_name='ts_guess',
+cloudra/tools/registry.py:187	        evidence_deriver='cloudra.tools.Chemtool.ts_guess:derive_delivery_changes',
+cloudra/tools/registry.py:188	        dag_fact_adapter='cloudra.dag.fact_adapters:ts_guess_facts',
+cloudra/tools/registry.py:189	        dag_evidence_producer=True,
+cloudra/tools/registry.py:190	        dag_compute_predicate='cloudra.tools.Chemtool.ts_guess:is_compute_entry_call',
+cloudra/tools/registry.py:191	    ),
+cloudra/tools/registry.py:192	    ToolRegistration(
+cloudra/tools/registry.py:193	        module='cloudra.tools.Interactool.ask_user',
+cloudra/tools/registry.py:194	        class_name='AskUser',
+cloudra/tools/registry.py:195	        tool_name='ask_user',
+cloudra/tools/registry.py:196	        invocation_direct_only=True,
+cloudra/tools/registry.py:197	    ),
+cloudra/tools/registry.py:198	    ToolRegistration('cloudra.tools.Interactool.email_reader', 'EmailReader'),
+cloudra/tools/registry.py:199	    ToolRegistration('cloudra.tools.Interactool.email_sender', 'EmailSender'),
 cloudra/tools/registry.py:200	    ToolRegistration(
-cloudra/tools/registry.py:201	        module='cloudra.tools.Managetool.subagent_launcher',
-cloudra/tools/registry.py:202	        class_name='SubAgentLauncher',
-cloudra/tools/registry.py:203	        tool_name='subagent_launcher',
+cloudra/tools/registry.py:201	        module='cloudra.tools.Managetool.agent_hub',
+cloudra/tools/registry.py:202	        class_name='AgentHub',
+cloudra/tools/registry.py:203	        tool_name='agent_hub',
 cloudra/tools/registry.py:204	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:205	    ),
-cloudra/tools/registry.py:206	    ToolRegistration(
-cloudra/tools/registry.py:207	        module='cloudra.tools.Managetool.subagent_swarm',
-cloudra/tools/registry.py:208	        class_name='SubAgentSwarm',
-cloudra/tools/registry.py:209	        tool_name='subagent_swarm',
-cloudra/tools/registry.py:210	    ),
-cloudra/tools/registry.py:211	    ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
-cloudra/tools/registry.py:212	    ToolRegistration(
-cloudra/tools/registry.py:213	        module='cloudra.tools.Plantool.dag_tools.dag_view',
-cloudra/tools/registry.py:214	        class_name='DagView',
-cloudra/tools/registry.py:215	        tool_name='dag_view',
-cloudra/tools/registry.py:216	        dag_observe=False,
-cloudra/tools/registry.py:217	        supervisor_access='evidence_read',
-cloudra/tools/registry.py:218	    ),
-cloudra/tools/registry.py:219	    ToolRegistration(
-cloudra/tools/registry.py:220	        module='cloudra.tools.Plantool.dag_tools.dag_delivery_report',
-cloudra/tools/registry.py:221	        class_name='DagDeliveryReport',
-cloudra/tools/registry.py:222	        tool_name='dag_delivery_report',
-cloudra/tools/registry.py:223	        dag_observe=False,
-cloudra/tools/registry.py:224	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:205	        supervisor_access='hub',
+cloudra/tools/registry.py:206	    ),
+cloudra/tools/registry.py:207	    ToolRegistration(
+cloudra/tools/registry.py:208	        module='cloudra.tools.Managetool.get_subagent_report',
+cloudra/tools/registry.py:209	        class_name='GetSubAgentReport',
+cloudra/tools/registry.py:210	        tool_name='get_subagent_report',
+cloudra/tools/registry.py:211	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:212	    ),
+cloudra/tools/registry.py:213	    ToolRegistration(
+cloudra/tools/registry.py:214	        module='cloudra.tools.Managetool.schedule',
+cloudra/tools/registry.py:215	        class_name='Schedule',
+cloudra/tools/registry.py:216	        tool_name='schedule',
+cloudra/tools/registry.py:217	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:218	        invocation_direct_only=True,
+cloudra/tools/registry.py:219	    ),
+cloudra/tools/registry.py:220	    ToolRegistration(
+cloudra/tools/registry.py:221	        module='cloudra.tools.Managetool.subagent_launcher',
+cloudra/tools/registry.py:222	        class_name='SubAgentLauncher',
+cloudra/tools/registry.py:223	        tool_name='subagent_launcher',
+cloudra/tools/registry.py:224	        runtime_profiles=frozenset({'desktop', 'android'}),
 cloudra/tools/registry.py:225	    ),
 cloudra/tools/registry.py:226	    ToolRegistration(
-cloudra/tools/registry.py:227	        module='cloudra.tools.Plantool.dag_tools.dag_add_species',
-cloudra/tools/registry.py:228	        class_name='DagAddSpecies',
-cloudra/tools/registry.py:229	        tool_name='dag_add_species',
-cloudra/tools/registry.py:230	        dag_observe=False,
-cloudra/tools/registry.py:231	    ),
+cloudra/tools/registry.py:227	        module='cloudra.tools.Managetool.subagent_swarm',
+cloudra/tools/registry.py:228	        class_name='SubAgentSwarm',
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=229,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/registry.py:229	        tool_name='subagent_swarm',
+cloudra/tools/registry.py:230	    ),
+cloudra/tools/registry.py:231	    ToolRegistration('cloudra.tools.Plantool.goal', 'GoalSet'),
 cloudra/tools/registry.py:232	    ToolRegistration(
-cloudra/tools/registry.py:233	        module='cloudra.tools.Plantool.dag_tools.dag_add_step',
-cloudra/tools/registry.py:234	        class_name='DagAddStep',
-cloudra/tools/registry.py:235	        tool_name='dag_add_step',
+cloudra/tools/registry.py:233	        module='cloudra.tools.Plantool.dag_tools.dag_view',
+cloudra/tools/registry.py:234	        class_name='DagView',
+cloudra/tools/registry.py:235	        tool_name='dag_view',
 cloudra/tools/registry.py:236	        dag_observe=False,
-cloudra/tools/registry.py:237	    ),
-cloudra/tools/registry.py:238	    ToolRegistration(
-cloudra/tools/registry.py:239	        module='cloudra.tools.Plantool.dag_tools.dag_update_delivery_element',
-cloudra/tools/registry.py:240	        class_name='DagUpdateDeliveryElement',
+cloudra/tools/registry.py:237	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:238	    ),
+cloudra/tools/registry.py:239	    ToolRegistration(
+cloudra/tools/registry.py:240	        module='cloudra.tools.Plantool.dag_tools.dag_delivery_report',
+cloudra/tools/registry.py:241	        class_name='DagDeliveryReport',
+cloudra/tools/registry.py:242	        tool_name='dag_delivery_report',
+cloudra/tools/registry.py:243	        dag_observe=False,
+cloudra/tools/registry.py:244	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:245	    ),
+cloudra/tools/registry.py:246	    ToolRegistration(
+cloudra/tools/registry.py:247	        module='cloudra.tools.Plantool.dag_tools.dag_add_species',
+cloudra/tools/registry.py:248	        class_name='DagAddSpecies',
+cloudra/tools/registry.py:249	        tool_name='dag_add_species',
+cloudra/tools/registry.py:250	        dag_observe=False,
+cloudra/tools/registry.py:251	    ),
+cloudra/tools/registry.py:252	    ToolRegistration(
+cloudra/tools/registry.py:253	        module='cloudra.tools.Plantool.dag_tools.dag_add_step',
+cloudra/tools/registry.py:254	        class_name='DagAddStep',
+cloudra/tools/registry.py:255	        tool_name='dag_add_step',
+cloudra/tools/registry.py:256	        dag_observe=False,
+cloudra/tools/registry.py:257	    ),
+cloudra/tools/registry.py:258	    ToolRegistration(
+cloudra/tools/registry.py:259	        module='cloudra.tools.Plantool.dag_tools.dag_update_delivery_element',
+cloudra/tools/registry.py:260	        class_name='DagUpdateDeliveryElement',
+cloudra/tools/registry.py:261	        tool_name='dag_update_delivery_element',
+cloudra/tools/registry.py:262	        dag_observe=False,
+cloudra/tools/registry.py:263	    ),
+cloudra/tools/registry.py:264	    ToolRegistration(
+cloudra/tools/registry.py:265	        module='cloudra.tools.Plantool.dag_tools.dag_remove_edge',
+cloudra/tools/registry.py:266	        class_name='DagRemoveEdge',
+cloudra/tools/registry.py:267	        tool_name='dag_remove_edge',
+cloudra/tools/registry.py:268	        dag_observe=False,
+cloudra/tools/registry.py:269	    ),
+cloudra/tools/registry.py:270	    ToolRegistration(
+cloudra/tools/registry.py:271	        module='cloudra.tools.Plantool.dag_tools.dag_remove_node',
+cloudra/tools/registry.py:272	        class_name='DagRemoveNode',
+cloudra/tools/registry.py:273	        tool_name='dag_remove_node',
+cloudra/tools/registry.py:274	        dag_observe=False,
+cloudra/tools/registry.py:275	        # 无 supervisor_access：删图是研究侧（Coordinator/子 agent）的修改
+cloudra/tools/registry.py:276	        # 权限；Supervisor 保留审查职责、不顺带获得直接删图能力。
+cloudra/tools/registry.py:277	    ),
+cloudra/tools/registry.py:278	    ToolRegistration(
+cloudra/tools/registry.py:279	        module='cloudra.tools.Plantool.dag_tools.dag_bind_evidence',
+cloudra/tools/registry.py:280	        class_name='DagBindEvidence',
 \end{lstlisting}
 \clearpage
-\begin{lstlisting}[firstnumber=241,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/registry.py:241	        tool_name='dag_update_delivery_element',
-cloudra/tools/registry.py:242	        dag_observe=False,
-cloudra/tools/registry.py:243	    ),
-cloudra/tools/registry.py:244	    ToolRegistration(
-cloudra/tools/registry.py:245	        module='cloudra.tools.Plantool.dag_tools.dag_remove_edge',
-cloudra/tools/registry.py:246	        class_name='DagRemoveEdge',
-cloudra/tools/registry.py:247	        tool_name='dag_remove_edge',
-cloudra/tools/registry.py:248	        dag_observe=False,
-cloudra/tools/registry.py:249	    ),
-cloudra/tools/registry.py:250	    ToolRegistration(
-cloudra/tools/registry.py:251	        module='cloudra.tools.Plantool.dag_tools.dag_bind_evidence',
-cloudra/tools/registry.py:252	        class_name='DagBindEvidence',
-cloudra/tools/registry.py:253	        tool_name='dag_bind_evidence',
-cloudra/tools/registry.py:254	        dag_observe=False,
-cloudra/tools/registry.py:255	    ),
-cloudra/tools/registry.py:256	    ToolRegistration(
-cloudra/tools/registry.py:257	        module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
-cloudra/tools/registry.py:258	        class_name='DagProposeMechanism',
-cloudra/tools/registry.py:259	        tool_name='dag_propose_mechanism',
-cloudra/tools/registry.py:260	        dag_observe=False,
-cloudra/tools/registry.py:261	    ),
-cloudra/tools/registry.py:262	    ToolRegistration(
-cloudra/tools/registry.py:263	        module='cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence',
-cloudra/tools/registry.py:264	        class_name='DagSubmitStepEvidence',
-cloudra/tools/registry.py:265	        tool_name='dag_submit_step_evidence',
-cloudra/tools/registry.py:266	        dag_observe=False,
-cloudra/tools/registry.py:267	    ),
-cloudra/tools/registry.py:268	    ToolRegistration(
-cloudra/tools/registry.py:269	        module='cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence',
-cloudra/tools/registry.py:270	        class_name='DagSubmitSpeciesEvidence',
-cloudra/tools/registry.py:271	        tool_name='dag_submit_species_evidence',
-cloudra/tools/registry.py:272	        dag_observe=False,
-cloudra/tools/registry.py:273	    ),
-cloudra/tools/registry.py:274	    ToolRegistration(
-cloudra/tools/registry.py:275	        module='cloudra.tools.Plantool.dag_tools.dag_review_step',
-cloudra/tools/registry.py:276	        class_name='DagReviewStep',
-cloudra/tools/registry.py:277	        tool_name='dag_review_step',
-cloudra/tools/registry.py:278	        dag_observe=False,
-cloudra/tools/registry.py:279	        supervisor_access='review_decision',
-cloudra/tools/registry.py:280	    ),
-cloudra/tools/registry.py:281	    ToolRegistration(
-cloudra/tools/registry.py:282	        module='cloudra.tools.Plantool.dag_tools.dag_review_species',
-cloudra/tools/registry.py:283	        class_name='DagReviewSpecies',
-cloudra/tools/registry.py:284	        tool_name='dag_review_species',
-cloudra/tools/registry.py:285	        dag_observe=False,
-cloudra/tools/registry.py:286	        supervisor_access='review_decision',
-cloudra/tools/registry.py:287	    ),
-cloudra/tools/registry.py:288	    ToolRegistration(
-cloudra/tools/registry.py:289	        module='cloudra.tools.Plantool.dag_tools.dag_accept_mechanism',
-cloudra/tools/registry.py:290	        class_name='DagAcceptMechanism',
-cloudra/tools/registry.py:291	        tool_name='dag_accept_mechanism',
-cloudra/tools/registry.py:292	        dag_observe=False,
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=293,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/registry.py:293	        supervisor_access='review_decision',
-cloudra/tools/registry.py:294	    ),
-cloudra/tools/registry.py:295	    ToolRegistration(
-cloudra/tools/registry.py:296	        module='cloudra.tools.Plantool.dag_tools.dag_review_call',
-cloudra/tools/registry.py:297	        class_name='DagReviewCall',
-cloudra/tools/registry.py:298	        tool_name='dag_review_call',
-cloudra/tools/registry.py:299	        dag_observe=False,
-cloudra/tools/registry.py:300	        supervisor_access='review_decision',
+\begin{lstlisting}[firstnumber=281,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/registry.py:281	        tool_name='dag_bind_evidence',
+cloudra/tools/registry.py:282	        dag_observe=False,
+cloudra/tools/registry.py:283	    ),
+cloudra/tools/registry.py:284	    ToolRegistration(
+cloudra/tools/registry.py:285	        module='cloudra.tools.Plantool.dag_tools.dag_propose_mechanism',
+cloudra/tools/registry.py:286	        class_name='DagProposeMechanism',
+cloudra/tools/registry.py:287	        tool_name='dag_propose_mechanism',
+cloudra/tools/registry.py:288	        dag_observe=False,
+cloudra/tools/registry.py:289	    ),
+cloudra/tools/registry.py:290	    ToolRegistration(
+cloudra/tools/registry.py:291	        module='cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence',
+cloudra/tools/registry.py:292	        class_name='DagSubmitStepEvidence',
+cloudra/tools/registry.py:293	        tool_name='dag_submit_step_evidence',
+cloudra/tools/registry.py:294	        dag_observe=False,
+cloudra/tools/registry.py:295	    ),
+cloudra/tools/registry.py:296	    ToolRegistration(
+cloudra/tools/registry.py:297	        module='cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence',
+cloudra/tools/registry.py:298	        class_name='DagSubmitSpeciesEvidence',
+cloudra/tools/registry.py:299	        tool_name='dag_submit_species_evidence',
+cloudra/tools/registry.py:300	        dag_observe=False,
 cloudra/tools/registry.py:301	    ),
 cloudra/tools/registry.py:302	    ToolRegistration(
-cloudra/tools/registry.py:303	        module='cloudra.tools.Plantool.dag_tools.dag_review_evidence',
-cloudra/tools/registry.py:304	        class_name='DagReviewEvidence',
-cloudra/tools/registry.py:305	        tool_name='dag_review_evidence',
+cloudra/tools/registry.py:303	        module='cloudra.tools.Plantool.dag_tools.dag_review_step',
+cloudra/tools/registry.py:304	        class_name='DagReviewStep',
+cloudra/tools/registry.py:305	        tool_name='dag_review_step',
 cloudra/tools/registry.py:306	        dag_observe=False,
 cloudra/tools/registry.py:307	        supervisor_access='review_decision',
 cloudra/tools/registry.py:308	    ),
 cloudra/tools/registry.py:309	    ToolRegistration(
-cloudra/tools/registry.py:310	        module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
-cloudra/tools/registry.py:311	        class_name='DagViewEvidence',
-cloudra/tools/registry.py:312	        tool_name='dag_view_evidence',
+cloudra/tools/registry.py:310	        module='cloudra.tools.Plantool.dag_tools.dag_review_species',
+cloudra/tools/registry.py:311	        class_name='DagReviewSpecies',
+cloudra/tools/registry.py:312	        tool_name='dag_review_species',
 cloudra/tools/registry.py:313	        dag_observe=False,
-cloudra/tools/registry.py:314	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:314	        supervisor_access='review_decision',
 cloudra/tools/registry.py:315	    ),
 cloudra/tools/registry.py:316	    ToolRegistration(
-cloudra/tools/registry.py:317	        module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
-cloudra/tools/registry.py:318	        class_name='DagSetCoverageContract',
-cloudra/tools/registry.py:319	        tool_name='dag_set_coverage_contract',
+cloudra/tools/registry.py:317	        module='cloudra.tools.Plantool.dag_tools.dag_accept_mechanism',
+cloudra/tools/registry.py:318	        class_name='DagAcceptMechanism',
+cloudra/tools/registry.py:319	        tool_name='dag_accept_mechanism',
 cloudra/tools/registry.py:320	        dag_observe=False,
 cloudra/tools/registry.py:321	        supervisor_access='review_decision',
 cloudra/tools/registry.py:322	    ),
 cloudra/tools/registry.py:323	    ToolRegistration(
-cloudra/tools/registry.py:324	        module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
-cloudra/tools/registry.py:325	        class_name='DagMessageSupervisor',
-cloudra/tools/registry.py:326	        tool_name='dag_message_supervisor',
+cloudra/tools/registry.py:324	        module='cloudra.tools.Plantool.dag_tools.dag_review_call',
+cloudra/tools/registry.py:325	        class_name='DagReviewCall',
+cloudra/tools/registry.py:326	        tool_name='dag_review_call',
 cloudra/tools/registry.py:327	        dag_observe=False,
-cloudra/tools/registry.py:328	        # 无 supervisor_access：这是研究 Agent/Coordinator → Supervisor 的
-cloudra/tools/registry.py:329	        # 请求入口，工具本身硬拒 Supervisor 调用；督导的回复路径是
-cloudra/tools/registry.py:330	        # dag_review_* 裁决工具与运行结束报告。
-cloudra/tools/registry.py:331	    ),
-cloudra/tools/registry.py:332	    ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
-cloudra/tools/registry.py:333	    ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
-cloudra/tools/registry.py:334	    ToolRegistration(
-cloudra/tools/registry.py:335	        module='cloudra.tools.Searchtool.read',
-cloudra/tools/registry.py:336	        class_name='Read',
-cloudra/tools/registry.py:337	        tool_name='read',
-cloudra/tools/registry.py:338	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:339	        supervisor_access='evidence_read',
-cloudra/tools/registry.py:340	    ),
-cloudra/tools/registry.py:341	    ToolRegistration(
-cloudra/tools/registry.py:342	        module='cloudra.tools.Searchtool.search',
-cloudra/tools/registry.py:343	        class_name='Search',
-cloudra/tools/registry.py:344	        tool_name='search',
+cloudra/tools/registry.py:328	        supervisor_access='review_decision',
+cloudra/tools/registry.py:329	    ),
+cloudra/tools/registry.py:330	    ToolRegistration(
+cloudra/tools/registry.py:331	        module='cloudra.tools.Plantool.dag_tools.dag_review_evidence',
+cloudra/tools/registry.py:332	        class_name='DagReviewEvidence',
 \end{lstlisting}
 \clearpage
-\begin{lstlisting}[firstnumber=345,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
-cloudra/tools/registry.py:345	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:346	    ),
-cloudra/tools/registry.py:347	    ToolRegistration(
-cloudra/tools/registry.py:348	        module='cloudra.tools.Skilltool.get_skill',
-cloudra/tools/registry.py:349	        class_name='GetSkill',
-cloudra/tools/registry.py:350	        tool_name='get_skill',
-cloudra/tools/registry.py:351	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:352	        dag_observe=False,
-cloudra/tools/registry.py:353	        supervisor_access='skill_read',
-cloudra/tools/registry.py:354	    ),
-cloudra/tools/registry.py:355	    ToolRegistration(
-cloudra/tools/registry.py:356	        module='cloudra.tools.Stoptool.stop_tool',
-cloudra/tools/registry.py:357	        class_name='StopTool',
-cloudra/tools/registry.py:358	        tool_name='stop',
-cloudra/tools/registry.py:359	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:360	        invocation_direct_only=True,
-cloudra/tools/registry.py:361	    ),
+\begin{lstlisting}[firstnumber=333,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/registry.py:333	        tool_name='dag_review_evidence',
+cloudra/tools/registry.py:334	        dag_observe=False,
+cloudra/tools/registry.py:335	        supervisor_access='review_decision',
+cloudra/tools/registry.py:336	    ),
+cloudra/tools/registry.py:337	    ToolRegistration(
+cloudra/tools/registry.py:338	        module='cloudra.tools.Plantool.dag_tools.dag_view_evidence',
+cloudra/tools/registry.py:339	        class_name='DagViewEvidence',
+cloudra/tools/registry.py:340	        tool_name='dag_view_evidence',
+cloudra/tools/registry.py:341	        dag_observe=False,
+cloudra/tools/registry.py:342	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:343	    ),
+cloudra/tools/registry.py:344	    ToolRegistration(
+cloudra/tools/registry.py:345	        module='cloudra.tools.Plantool.dag_tools.dag_set_coverage_contract',
+cloudra/tools/registry.py:346	        class_name='DagSetCoverageContract',
+cloudra/tools/registry.py:347	        tool_name='dag_set_coverage_contract',
+cloudra/tools/registry.py:348	        dag_observe=False,
+cloudra/tools/registry.py:349	        supervisor_access='review_decision',
+cloudra/tools/registry.py:350	    ),
+cloudra/tools/registry.py:351	    ToolRegistration(
+cloudra/tools/registry.py:352	        module='cloudra.tools.Plantool.dag_tools.dag_message_supervisor',
+cloudra/tools/registry.py:353	        class_name='DagMessageSupervisor',
+cloudra/tools/registry.py:354	        tool_name='dag_message_supervisor',
+cloudra/tools/registry.py:355	        dag_observe=False,
+cloudra/tools/registry.py:356	        # 无 supervisor_access：这是研究 Agent/Coordinator → Supervisor 的
+cloudra/tools/registry.py:357	        # 请求入口，工具本身硬拒 Supervisor 调用；督导的回复路径是
+cloudra/tools/registry.py:358	        # dag_review_* 裁决工具与运行结束报告。
+cloudra/tools/registry.py:359	    ),
+cloudra/tools/registry.py:360	    ToolRegistration('cloudra.tools.Plantool.todo', 'TodoWrite'),
+cloudra/tools/registry.py:361	    ToolRegistration('cloudra.tools.Plantool.todo_read', 'TodoRead'),
 cloudra/tools/registry.py:362	    ToolRegistration(
-cloudra/tools/registry.py:363	        module='cloudra.tools.Writetool.edit',
-cloudra/tools/registry.py:364	        class_name='Edit',
-cloudra/tools/registry.py:365	        tool_name='edit',
+cloudra/tools/registry.py:363	        module='cloudra.tools.Searchtool.read',
+cloudra/tools/registry.py:364	        class_name='Read',
+cloudra/tools/registry.py:365	        tool_name='read',
 cloudra/tools/registry.py:366	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:367	    ),
-cloudra/tools/registry.py:368	    ToolRegistration(
-cloudra/tools/registry.py:369	        module='cloudra.tools.Writetool.write',
-cloudra/tools/registry.py:370	        class_name='Write',
-cloudra/tools/registry.py:371	        tool_name='write',
-cloudra/tools/registry.py:372	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:373	    ),
-cloudra/tools/registry.py:374	    ToolRegistration(
-cloudra/tools/registry.py:375	        module='cloudra.tools.Writetool.update_memory',
-cloudra/tools/registry.py:376	        class_name='UpdateMemory',
-cloudra/tools/registry.py:377	        tool_name='update_memory',
-cloudra/tools/registry.py:378	        runtime_profiles=frozenset({'desktop', 'android'}),
-cloudra/tools/registry.py:379	    ),
-cloudra/tools/registry.py:380	)
+cloudra/tools/registry.py:367	        supervisor_access='evidence_read',
+cloudra/tools/registry.py:368	    ),
+cloudra/tools/registry.py:369	    ToolRegistration(
+cloudra/tools/registry.py:370	        module='cloudra.tools.Searchtool.search',
+cloudra/tools/registry.py:371	        class_name='Search',
+cloudra/tools/registry.py:372	        tool_name='search',
+cloudra/tools/registry.py:373	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:374	    ),
+cloudra/tools/registry.py:375	    ToolRegistration(
+cloudra/tools/registry.py:376	        module='cloudra.tools.Skilltool.get_skill',
+cloudra/tools/registry.py:377	        class_name='GetSkill',
+cloudra/tools/registry.py:378	        tool_name='get_skill',
+cloudra/tools/registry.py:379	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:380	        dag_observe=False,
+cloudra/tools/registry.py:381	        supervisor_access='skill_read',
+cloudra/tools/registry.py:382	    ),
+cloudra/tools/registry.py:383	    ToolRegistration(
+cloudra/tools/registry.py:384	        module='cloudra.tools.Stoptool.stop_tool',
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=385,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
+cloudra/tools/registry.py:385	        class_name='StopTool',
+cloudra/tools/registry.py:386	        tool_name='stop',
+cloudra/tools/registry.py:387	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:388	        invocation_direct_only=True,
+cloudra/tools/registry.py:389	    ),
+cloudra/tools/registry.py:390	    ToolRegistration(
+cloudra/tools/registry.py:391	        module='cloudra.tools.Writetool.edit',
+cloudra/tools/registry.py:392	        class_name='Edit',
+cloudra/tools/registry.py:393	        tool_name='edit',
+cloudra/tools/registry.py:394	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:395	    ),
+cloudra/tools/registry.py:396	    ToolRegistration(
+cloudra/tools/registry.py:397	        module='cloudra.tools.Writetool.write',
+cloudra/tools/registry.py:398	        class_name='Write',
+cloudra/tools/registry.py:399	        tool_name='write',
+cloudra/tools/registry.py:400	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:401	    ),
+cloudra/tools/registry.py:402	    ToolRegistration(
+cloudra/tools/registry.py:403	        module='cloudra.tools.Writetool.update_memory',
+cloudra/tools/registry.py:404	        class_name='UpdateMemory',
+cloudra/tools/registry.py:405	        tool_name='update_memory',
+cloudra/tools/registry.py:406	        runtime_profiles=frozenset({'desktop', 'android'}),
+cloudra/tools/registry.py:407	    ),
+cloudra/tools/registry.py:408	)
 cloudra/web_launcher.py:1	"""Web frontend launcher used by the `cloudra` command.
 cloudra/web_launcher.py:2	
 cloudra/web_launcher.py:3	Keeps Node/npm knowledge out of the CLI module.  The launcher works for source
@@ -1403,9 +1391,6 @@ cloudra/web_launcher.py:13	import socket
 cloudra/web_launcher.py:14	import subprocess
 cloudra/web_launcher.py:15	import sys
 cloudra/web_launcher.py:16	import time
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=17,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:17	import urllib.request
 cloudra/web_launcher.py:18	import webbrowser
 cloudra/web_launcher.py:19	from pathlib import Path
@@ -1418,6 +1403,9 @@ cloudra/web_launcher.py:25
 cloudra/web_launcher.py:26	def _frontend_dir() -> Path:
 cloudra/web_launcher.py:27	    override = os.environ.get("CLOUDRA_FRONTEND_DIR", "").strip()
 cloudra/web_launcher.py:28	    candidates = []
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=29,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:29	    if override:
 cloudra/web_launcher.py:30	        candidates.append(Path(override))
 cloudra/web_launcher.py:31	    # cloudra/web_launcher.py -> cloudra/.. == repository root (source checkout)
@@ -1458,9 +1446,6 @@ cloudra/web_launcher.py:65	            "npm not found on PATH; install Node.js >
 cloudra/web_launcher.py:66	        )
 cloudra/web_launcher.py:67	    if os.name == "nt":
 cloudra/web_launcher.py:68	        return ["cmd", "/c", npm]
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=69,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:69	    return [npm]
 cloudra/web_launcher.py:70	
 cloudra/web_launcher.py:71	
@@ -1473,6 +1458,9 @@ cloudra/web_launcher.py:77	    for root in (frontend / "src", frontend / "public
 cloudra/web_launcher.py:78	        if not root.is_dir():
 cloudra/web_launcher.py:79	            continue
 cloudra/web_launcher.py:80	        for path in root.rglob("*"):
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=81,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:81	            if path.is_file() and path.stat().st_mtime > dist_mtime:
 cloudra/web_launcher.py:82	                return True
 cloudra/web_launcher.py:83	    for name in ("index.html", "vite.config.ts", "package.json"):
@@ -1513,9 +1501,6 @@ cloudra/web_launcher.py:117
 cloudra/web_launcher.py:118	def _runtime_is_healthy(port: int) -> bool:
 cloudra/web_launcher.py:119	    try:
 cloudra/web_launcher.py:120	        with urllib.request.urlopen(
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=121,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:121	            f"http://127.0.0.1:{port}/api/v2/runtime/health", timeout=1.0
 cloudra/web_launcher.py:122	        ) as resp:
 cloudra/web_launcher.py:123	            return 200 <= resp.status < 300
@@ -1528,6 +1513,9 @@ cloudra/web_launcher.py:129	    try:
 cloudra/web_launcher.py:130	        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1.0) as resp:
 cloudra/web_launcher.py:131	            body = resp.read(4096).decode("utf-8", "ignore")
 cloudra/web_launcher.py:132	            return 200 <= resp.status < 300 and '<div id="root"></div>' in body
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=133,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:133	    except Exception:
 cloudra/web_launcher.py:134	        return False
 cloudra/web_launcher.py:135	
@@ -1568,9 +1556,6 @@ cloudra/web_launcher.py:169
 cloudra/web_launcher.py:170	
 cloudra/web_launcher.py:171	def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0) -> None:
 cloudra/web_launcher.py:172	    """SIGTERM → 有界等待 → SIGKILL 升级 → reap。
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=173,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:173	
 cloudra/web_launcher.py:174	    SIGTERM 让 uvicorn 走优雅关停（lifespan 收尾：停准入 → 取消推理/收尾
 cloudra/web_launcher.py:175	    任务 → 关流/客户端 → 回收 JS host）；不许只发信号假定已回收（停止
@@ -1583,6 +1568,9 @@ cloudra/web_launcher.py:181	    try:
 cloudra/web_launcher.py:182	        runtime.wait(timeout=grace)
 cloudra/web_launcher.py:183	        return
 cloudra/web_launcher.py:184	    except subprocess.TimeoutExpired:
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=185,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:185	        logger.warning("web runtime did not exit within %.0fs of SIGTERM; killing", grace)
 cloudra/web_launcher.py:186	    runtime.kill()
 cloudra/web_launcher.py:187	    try:
@@ -1623,9 +1611,6 @@ cloudra/web_launcher.py:221	                "--factory",
 cloudra/web_launcher.py:222	                "--host",
 cloudra/web_launcher.py:223	                "127.0.0.1",
 cloudra/web_launcher.py:224	                "--port",
-\end{lstlisting}
-\clearpage
-\begin{lstlisting}[firstnumber=225,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:225	                str(api_port),
 cloudra/web_launcher.py:226	                "--log-level",
 cloudra/web_launcher.py:227	                "warning",
@@ -1638,6 +1623,9 @@ cloudra/web_launcher.py:233	            # 加载，报 "unknown location"）。f
 cloudra/web_launcher.py:234	            # 含 cloudra 子目录，是确定无遮蔽的工作目录。
 cloudra/web_launcher.py:235	            cwd=frontend,
 cloudra/web_launcher.py:236	        )
+\end{lstlisting}
+\clearpage
+\begin{lstlisting}[firstnumber=237,numbers=left,numberstyle=\tiny\ttfamily,numbersep=5pt]
 cloudra/web_launcher.py:237	    try:
 cloudra/web_launcher.py:238	        _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
 cloudra/web_launcher.py:239	        url = f"http://127.0.0.1:{api_port}"

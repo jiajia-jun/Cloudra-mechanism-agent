@@ -23,7 +23,11 @@ LINES_PER_PAGE = 52
 PAGES_PER_FILE = 30
 SEP = "-" * 70
 
-TECTONIC = Path.home() / "anaconda3/envs/tectonic/bin/tectonic"
+TECTONIC_CANDIDATES = [
+    Path("/opt/homebrew/bin/tectonic"),
+    Path.home() / "anaconda3/envs/tectonic/bin/tectonic",
+]
+TECTONIC = next((p for p in TECTONIC_CANDIDATES if p.exists()), TECTONIC_CANDIDATES[0])
 
 
 def display_width(text: str) -> int:
@@ -77,8 +81,8 @@ def write_latex(path: Path, pages: list[list[tuple[str, int, str]]], start_page:
 \usepackage{listings}
 \usepackage{fancyhdr}
 \usepackage{fontspec}
-\setmonofont{DejaVu Sans Mono}
-\setCJKmonofont{WenQuanYi Zen Hei}
+\setmonofont{Menlo}
+\setCJKmonofont{Songti SC}
 \lstset{
   basicstyle=\ttfamily\fontsize{6.5}{8.3}\selectfont,
   columns=fullflexible,
