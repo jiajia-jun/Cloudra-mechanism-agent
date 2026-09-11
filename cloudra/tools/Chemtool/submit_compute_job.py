@@ -18,10 +18,13 @@ from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 description = (
     "Submit a compute job: take a prepared input-file path, insert a record in compute_jobs, "
     "and let the framework Compute Scheduler pick it up; returns job_id immediately without waiting for the job to finish. "
+    "Terminal states are PUSHED to you: when the job reaches done/failed you are notified and woken automatically — "
+    "do not poll query_compute_job or re-parse the log to wait. If you need an interim checkpoint, call `schedule` "
+    "with a read-only check_command instead of polling in a loop. "
     "Use for: formally running long Gaussian, CP2K, VASP, ORCA, or xtb jobs; prepare the input first with qm_input_writer or similar (CP2K uses .inp; xtb takes a plain .xyz coordinate file). "
     "For xtb jobs you must also declare charge, multiplicity, task (sp/opt/hess/ohess) and optionally solvent — "
     "xtb is CLI-flag driven and ignores any charge/multiplicity written inside the .xyz file. "
-    "Do not use for: generating the input (use qm_input_writer), querying progress (use query_compute_job), "
+    "Do not use for: generating the input (use qm_input_writer), failure diagnosis (use query_compute_job), "
     "or inspecting results (parse the log with log_parser after the job finishes). "
     "Resource contract: you write the input file, so declare exactly what it asks for — "
     "if your .gjf sets %nprocshared=16 then request cpus=16; for ORCA, request cpus=<pal nprocs> and "
@@ -201,7 +204,8 @@ class SubmitComputeJob(Tool):
                         job_dir=workdir,
                         state="ready",
                         message=(
-                            f"Job submitted to the {scheduler} backend; you will be woken at the terminal state."
+                            f"Job submitted to the {scheduler} backend; you will be woken at the terminal state. "
+                            "Do not poll for status — the terminal state is pushed to you automatically."
                         ),
                     )
                 )

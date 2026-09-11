@@ -51,7 +51,8 @@ class DagView(DagToolBase):
         "Read the persistent delivery/mechanism DAG (dag_record or dag_guided; any actor; read-only). "
         "Returns the declarative mechanism view: species (name and status), "
         "elementary steps (name, endpoints, and status), unresolved gaps, and summaries "
-        "of pending drafts or reviews."
+        "of pending drafts or reviews. For the Supervisor this also lists queued structured "
+        "review requests (`queued_requests`, each with its `request_id` for dag_review_evidence)."
     )
     input_schema: Any = DagViewInput
     output_schema: Any = DagToolOutput
@@ -129,12 +130,30 @@ class DagView(DagToolBase):
                 ]
             )
 
+            # 结构化送审请求（dag_message_supervisor 入箱）：supervision 唤醒通知
+            # 点名"queued review requests"，本视图是 Supervisor 唯一能读到它们的
+            # 入口——不投影出来，被唤醒的 Supervisor 会在 DAG store 里找不到它。
+            queued_requests = await asyncio.to_thread(
+                lambda: [
+                    {
+                        "request_id": req.request_id,
+                        "kind": str(req.kind),
+                        "requester": req.requester,
+                        "target_ids": [name_map.get(t, t) for t in req.target_ids],
+                        "question": req.question,
+                        "created_at": req.created_at,
+                    }
+                    for req in ctx.store.list_review_requests("queued")
+                ]
+            )
+
             result: dict[str, Any] = {
                 "species": species_list,
                 "steps": step_list,
                 "unresolved_gaps": unresolved_gaps,
                 "open_drafts": open_drafts,
                 "pending_reviews": pending_reviews,
+                "queued_requests": queued_requests,
                 "revisions": dict(snapshot.bundle.revisions),
             }
             return DagToolOutput(is_success=True, action="dag_view", result=result)

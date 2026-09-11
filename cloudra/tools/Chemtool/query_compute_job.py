@@ -12,9 +12,11 @@ from cloudra.services.compute_store import aget_compute_job, alist_compute_jobs
 description = (
     "Query compute-job status: by job_id, show the current state, working directory, start/end times, and failure reason of a job submitted with submit_compute_job; "
     "without job_id, list recent jobs in this session. "
-    "Use for: confirming an async job is ready/running/done/failed, or reading last_error on failure. "
+    "Use for: diagnosing a FAILED job (reading last_error) or confirming a job record exists after a submission error. "
     "Do not use for: submitting a new job (use submit_compute_job), queue/capacity overview (use query_compute_queue), "
     "or parsing a finished log (use log_parser). "
+    "Do NOT use this to wait on a running job: terminal states are pushed to you automatically (you are woken), "
+    "so polling wastes turns; if you need an interim checkpoint, `schedule` a read-only check_command instead. "
     "Note: the scheduler daemon reconciles crashed workers automatically (lock-based, it never kills processes), "
     "so a dead worker's job is adopted and finalized deterministically; mark_compute_job_failed remains the manual "
     "escape hatch when you have out-of-band proof a job is truly gone."

@@ -1292,3 +1292,27 @@ async def test_supervisor_view_reads_persisted_drafts_and_explicit_reviews(tmp_p
     refreshed = await _call(DagView, agent, session)
     assert [d["draft_id"] for d in refreshed.result["open_drafts"]] == [drafts[1]["draft_id"]]
     assert refreshed.result["pending_reviews"] == []
+
+
+@pytest.mark.asyncio
+async def test_dag_view_lists_queued_structured_requests(tmp_path):
+    """dag_message_supervisor 入箱的结构化请求必须能在 dag_view 读到——
+    supervision 唤醒通知点名"queued review requests"，视图不投影的话被唤醒的
+    Supervisor 在 store 里找不到待裁决请求（benchmark C1 实测死循环根因）。"""
+    get_config().data_dir = tmp_path
+    agent = _agent("tool-view-queued-requests", "dag_guided")
+    session = Session("s1", str(tmp_path / "session.json"))
+
+    sent = await _call(
+        DagMessageSupervisor, agent, session,
+        kind="exception",
+        question="dispose barrierless step TS stages as not_applicable?",
+    )
+    assert sent.is_success
+
+    view = await _call(DagView, agent, session, graph_kind="both")
+    queued = view.result["queued_requests"]
+    assert len(queued) == 1
+    assert queued[0]["kind"] == "exception"
+    assert "not_applicable" in queued[0]["question"]
+    assert queued[0]["request_id"]
