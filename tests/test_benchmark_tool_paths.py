@@ -384,6 +384,7 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
         "output_path": "workspace_output",
     },
     "conformer_search": {"input_path": "workspace_input", "output_dir": "workspace_dir"},
+    "mechanism_predict": {"output_dir": "workspace_dir"},
     "ts_prepare": {"workspace_dir": "workspace_dir"},
     "ts_resume": {"workspace_dir": "workspace_dir"},
     "log_parser": {"log_path": "workspace_input"},

@@ -137,6 +137,7 @@ async def test_tool_call_refused_when_disabled(mock_session):
     assert "disabled" in result.message
 
 
+@_REQUIRES_RDKIT
 @pytest.mark.asyncio
 async def test_tool_call_unconfigured_points_to_setup(monkeypatch, mock_session):
     _enable_flower(monkeypatch, configured=False)
