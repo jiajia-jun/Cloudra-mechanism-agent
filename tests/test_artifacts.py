@@ -232,3 +232,17 @@ def test_register_file_migrates_schema_before_session_check(artifact_environment
             source=source,
             allowed_root=env["workspace"],
         )
+
+
+def test_download_missing_artifact_returns_404(artifact_environment):
+    """下载不存在 artifact 必须是 404，不是未捕获的 ArtifactNotFound 500。"""
+    from fastapi.testclient import TestClient
+
+    from cloudra.services.api_v2 import create_v2_app
+
+    client = TestClient(create_v2_app())
+    resp = client.get(
+        "/api/v2/artifacts/art_missing/download",
+        params={"project_id": artifact_environment["conversation_id"]},
+    )
+    assert resp.status_code == 404

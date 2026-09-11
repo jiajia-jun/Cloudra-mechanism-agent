@@ -90,13 +90,20 @@ def build_router(ctx: ApiContext) -> APIRouter:
     async def download_artifact(artifact_id: str, project_id: str) -> StreamingResponse:
         from fastapi.responses import FileResponse
 
+        from cloudra.persistence.artifacts import ArtifactDownloadDenied, ArtifactNotFound
+
         artifacts = _artifacts_service()
-        token, _ = await asyncio.to_thread(
-            artifacts.issue_download_token, project_id, artifact_id
-        )
-        artifact, source = await asyncio.to_thread(
-            artifacts.resolve_download, project_id, artifact_id, token
-        )
+        try:
+            token, _ = await asyncio.to_thread(
+                artifacts.issue_download_token, project_id, artifact_id
+            )
+            artifact, source = await asyncio.to_thread(
+                artifacts.resolve_download, project_id, artifact_id, token
+            )
+        except ArtifactNotFound:
+            raise HTTPException(status_code=404, detail="artifact not found") from None
+        except ArtifactDownloadDenied as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from None
         return FileResponse(source, filename=artifact.name)
 
     return router
