@@ -210,23 +210,34 @@ def test_turn_diff_uses_first_agent_touch_as_base(tmp_path):
 
 @pytest.mark.asyncio
 async def test_read_tool_uses_relative_workspace_path(tmp_path, mock_session):
-    (tmp_path / "readme.md").write_text("hello\n", encoding="utf-8")
-    tool = Read(subagent=_subagent(tmp_path))
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "readme.md").write_text("hello\n", encoding="utf-8")
+    tool = Read(subagent=_subagent(ws))
 
     result = await tool.tool_call(
         Read_input_schema(path="readme.md"),
         mock_session,
     )
+    # 工作区内的绝对路径经兜底解析正常读取；工作区外的仍拒绝
+    in_workspace_abs = await tool.tool_call(
+        Read_input_schema(path=str(ws / "readme.md")),
+        mock_session,
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.md").write_text("y\n", encoding="utf-8")
     rejected = await tool.tool_call(
-        Read_input_schema(path=str(tmp_path / "readme.md")),
+        Read_input_schema(path=str(outside / "x.md")),
         mock_session,
     )
 
     assert result.content == "hello\n"
     assert result.path == "readme.md"
     assert len(result.sha256) == 64
+    assert in_workspace_abs.content == "hello\n"
     assert rejected.content == ""
-    assert "relative" in rejected.message
+    assert "outside the working directory" in rejected.message
 
 
 @pytest.mark.asyncio
