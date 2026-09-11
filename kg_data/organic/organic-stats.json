@@ -1,0 +1,49 @@
+{
+  "merged_at": "2026-09-11T04:24:22",
+  "entities_org": 1152,
+  "relations_org": 1835,
+  "cards_org": 648,
+  "type_distribution": {
+    "functional_group": 65,
+    "condition": 251,
+    "molecule": 309,
+    "reaction": 82,
+    "mechanism_step": 280,
+    "side_pathway": 165
+  },
+  "rel_distribution": {
+    "proceeds_via": 280,
+    "step_next": 200,
+    "requires": 366,
+    "produces": 103,
+    "applies_to": 181,
+    "competes_with": 169,
+    "suppressed_by": 175,
+    "uses_catalyst": 39,
+    "alternative_to": 31,
+    "relevant_to_compchem": 24,
+    "involves": 246,
+    "favored_by": 11,
+    "common_side_of": 10
+  },
+  "card_langs": {
+    "zh": 648
+  },
+  "entity_files": [
+    "entities_carbonyl.csv",
+    "entities_coupling.csv",
+    "entities_frontier.csv",
+    "entities_ox_red.csv",
+    "entities_rearrangement.csv",
+    "entities_sub_elim.csv"
+  ],
+  "relation_files": [
+    "relations_carbonyl.csv",
+    "relations_coupling.csv",
+    "relations_frontier.csv",
+    "relations_ox_red.csv",
+    "relations_rearrangement.csv",
+    "relations_sub_elim.csv"
+  ],
+  "problems": 0
+}

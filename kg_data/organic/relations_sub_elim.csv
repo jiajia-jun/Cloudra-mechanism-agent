@@ -1,0 +1,308 @@
+src_id,dst_id,rel_type,evidence_level,source,falsified,note
+reaction:SN1,mechanism_step:SN1#1_ionization,proceeds_via,L0,org:sub_elim:1,false,主反应经由该基元步骤
+reaction:SN1,mechanism_step:SN1#2_nucleophilic_attack,proceeds_via,L0,org:sub_elim:1,false,主反应经由该基元步骤
+reaction:SN1,mechanism_step:SN1#3_deprotonation,proceeds_via,L0,org:sub_elim:1,false,主反应经由该基元步骤
+mechanism_step:SN1#1_ionization,mechanism_step:SN1#2_nucleophilic_attack,step_next,L0,org:sub_elim:1,false,步骤顺序衔接
+mechanism_step:SN1#2_nucleophilic_attack,mechanism_step:SN1#3_deprotonation,step_next,L0,org:sub_elim:1,false,步骤顺序衔接
+mechanism_step:SN1#1_ionization,molecule:tert_butyl_chloride,involves,L0,org:sub_elim:1,false,底物发生异裂
+mechanism_step:SN1#1_ionization,molecule:tert_butyl_cation,involves,L0,org:sub_elim:1,false,生成碳正离子中间体
+mechanism_step:SN1#1_ionization,molecule:chloride,involves,L0,org:sub_elim:1,false,离去基团以氯离子离开
+mechanism_step:SN1#2_nucleophilic_attack,molecule:tert_butyl_cation,involves,L0,org:sub_elim:1,false,碳正离子被亲核进攻
+mechanism_step:SN1#2_nucleophilic_attack,molecule:water_nucleophile,involves,L0,org:sub_elim:1,false,水作为亲核体
+mechanism_step:SN1#3_deprotonation,molecule:tert_butyl_alcohol,involves,L0,org:sub_elim:1,false,质子转移后得叔丁醇
+reaction:SN1,condition:SN1_polar_protic_solvent,requires,L0,org:sub_elim:1,false,SN1 典型条件要求
+reaction:SN1,condition:SN1_good_leaving_group,requires,L0,org:sub_elim:1,false,SN1 典型条件要求
+reaction:SN1,condition:SN1_elevated_temperature,requires,L0,org:sub_elim:1,false,SN1 典型条件要求
+reaction:SN1,condition:SN1_no_strong_base,requires,L0,org:sub_elim:1,false,SN1 典型条件要求
+reaction:SN1,molecule:tert_butyl_chloride,produces,L0,org:sub_elim:1,false,以叔丁基氯为典型底物示例
+reaction:SN1,molecule:tert_butyl_alcohol,produces,L0,org:sub_elim:1,false,水解主产物为叔丁醇
+reaction:SN1,molecule:chloride,produces,L0,org:sub_elim:1,false,离去基团生成氯离子
+reaction:SN1,functional_group:alkyl_halide,applies_to,L0,org:sub_elim:1,false,适用于烷基卤底物
+reaction:SN1,functional_group:alcohol,applies_to,L0,org:sub_elim:1,false,醇在酸性条件下可质子化为易离去水而走 SN1
+side_pathway:SN1#E1_elimination,reaction:SN1,competes_with,L0,org:sub_elim:1,false,E1 与 SN1 共享碳正离子竞争
+side_pathway:SN1#E1_elimination,condition:SN1_no_strong_base,suppressed_by,L0,org:sub_elim:1,false,无强碱减少 E1/E2
+side_pathway:SN1#E1_elimination,condition:SN1_elevated_temperature,favored_by,L0,org:sub_elim:1,false,升温利于消除熵增
+side_pathway:SN1#rearrangement,reaction:SN1,competes_with,L0,org:sub_elim:1,false,重排与直接捕获竞争
+side_pathway:SN1#rearrangement,condition:SN1_elevated_temperature,favored_by,L0,org:sub_elim:1,false,升温给重排更多时间
+reaction:SN2,mechanism_step:SN2#1_backside_approach,proceeds_via,L0,org:sub_elim:2,false,主反应经由该基元步骤
+reaction:SN2,mechanism_step:SN2#2_concerted_transition_state,proceeds_via,L0,org:sub_elim:2,false,主反应经由该基元步骤
+reaction:SN2,mechanism_step:SN2#3_walden_inversion,proceeds_via,L0,org:sub_elim:2,false,主反应经由该基元步骤
+mechanism_step:SN2#1_backside_approach,mechanism_step:SN2#2_concerted_transition_state,step_next,L0,org:sub_elim:2,false,步骤顺序衔接
+mechanism_step:SN2#2_concerted_transition_state,mechanism_step:SN2#3_walden_inversion,step_next,L0,org:sub_elim:2,false,步骤顺序衔接
+mechanism_step:SN2#1_backside_approach,molecule:iodomethane,involves,L0,org:sub_elim:2,false,底物碘甲烷
+mechanism_step:SN2#1_backside_approach,molecule:hydroxide,involves,L0,org:sub_elim:2,false,氢氧根亲核体
+mechanism_step:SN2#2_concerted_transition_state,molecule:methanol,involves,L0,org:sub_elim:2,false,TS 后生成甲醇
+mechanism_step:SN2#3_walden_inversion,molecule:methanol,involves,L0,org:sub_elim:2,false,翻转后产物
+mechanism_step:SN2#3_walden_inversion,molecule:iodide,involves,L0,org:sub_elim:2,false,碘离子离去
+reaction:SN2,condition:SN2_polar_aprotic_solvent,requires,L0,org:sub_elim:2,false,SN2 条件要求
+reaction:SN2,condition:SN2_good_nucleophile,requires,L0,org:sub_elim:2,false,SN2 条件要求
+reaction:SN2,condition:SN2_good_leaving_group,requires,L0,org:sub_elim:2,false,SN2 条件要求
+reaction:SN2,condition:SN2_moderate_temperature,requires,L0,org:sub_elim:2,false,SN2 条件要求
+reaction:SN2,molecule:iodomethane,produces,L0,org:sub_elim:2,false,以碘甲烷为典型底物
+reaction:SN2,molecule:methanol,produces,L0,org:sub_elim:2,false,甲醇为水解示例产物
+reaction:SN2,molecule:iodide,produces,L0,org:sub_elim:2,false,碘离子为离去产物
+reaction:SN2,functional_group:alkyl_halide,applies_to,L0,org:sub_elim:2,false,烷基卤为经典底物
+reaction:SN2,functional_group:amine,applies_to,L0,org:sub_elim:2,false,胺亲核体烷基化得更高取代胺
+side_pathway:SN2#E2_competition,reaction:SN2,competes_with,L0,org:sub_elim:2,false,SN2 与 E2 于二级底物竞争
+side_pathway:SN2#E2_competition,condition:SN2_polar_aprotic_solvent,suppressed_by,L0,org:sub_elim:2,false,非质子溶剂偏取代
+side_pathway:SN2#E2_competition,molecule:propene,competes_with,L0,org:sub_elim:2,false,消除副产烯烃示例丙烯
+side_pathway:SN2#SN1_solvolysis,reaction:SN2,competes_with,L0,org:sub_elim:2,false,机理切换竞争
+side_pathway:SN2#SN1_solvolysis,condition:SN2_polar_aprotic_solvent,suppressed_by,L0,org:sub_elim:2,false,非质子溶剂抑制电离
+reaction:E1,mechanism_step:E1#1_ionization,proceeds_via,L0,org:sub_elim:3,false,主反应经由该基元步骤
+reaction:E1,mechanism_step:E1#2_beta_deprotonation,proceeds_via,L0,org:sub_elim:3,false,主反应经由该基元步骤
+reaction:E1,mechanism_step:E1#3_alkene_formation,proceeds_via,L0,org:sub_elim:3,false,主反应经由该基元步骤
+mechanism_step:E1#1_ionization,mechanism_step:E1#2_beta_deprotonation,step_next,L0,org:sub_elim:3,false,步骤顺序衔接
+mechanism_step:E1#2_beta_deprotonation,mechanism_step:E1#3_alkene_formation,step_next,L0,org:sub_elim:3,false,步骤顺序衔接
+mechanism_step:E1#1_ionization,molecule:tert_butyl_bromide,involves,L0,org:sub_elim:3,false,底物异裂
+mechanism_step:E1#1_ionization,molecule:tert_butyl_cation,involves,L0,org:sub_elim:3,false,碳正离子中间体
+mechanism_step:E1#2_beta_deprotonation,molecule:solvent_base,involves,L0,org:sub_elim:3,false,弱碱夺质子
+mechanism_step:E1#2_beta_deprotonation,molecule:isobutene,involves,L0,org:sub_elim:3,false,生成异丁烯
+mechanism_step:E1#3_alkene_formation,molecule:isobutene,involves,L0,org:sub_elim:3,false,Zaitsev 主产物
+mechanism_step:E1#1_ionization,molecule:bromide,involves,L0,org:sub_elim:3,false,溴离子离去
+reaction:E1,condition:E1_polar_protic_solvent,requires,L0,org:sub_elim:3,false,E1 条件
+reaction:E1,condition:E1_weak_or_no_base,requires,L0,org:sub_elim:3,false,E1 条件
+reaction:E1,condition:E1_high_temperature,requires,L0,org:sub_elim:3,false,E1 条件
+reaction:E1,molecule:tert_butyl_bromide,produces,L0,org:sub_elim:3,false,叔丁基溴典型底物
+reaction:E1,molecule:isobutene,produces,L0,org:sub_elim:3,false,主产物异丁烯
+reaction:E1,molecule:bromide,produces,L0,org:sub_elim:3,false,离去基生成溴离子
+reaction:E1,functional_group:alkyl_halide,applies_to,L0,org:sub_elim:3,false,烷基卤
+reaction:E1,functional_group:alkene,applies_to,L0,org:sub_elim:3,false,产物为烯烃
+side_pathway:E1#SN1_substitution,reaction:E1,competes_with,L0,org:sub_elim:3,false,E1/SN1 并行
+side_pathway:E1#SN1_substitution,condition:E1_high_temperature,suppressed_by,L0,org:sub_elim:3,false,相对降温减少消除
+side_pathway:E1#rearrangement,reaction:E1,competes_with,L0,org:sub_elim:3,false,重排竞争
+reaction:E2,mechanism_step:E2#1_anti_periplanar_setup,proceeds_via,L0,org:sub_elim:4,false,主反应经由该基元步骤
+reaction:E2,mechanism_step:E2#2_concerted_elimination_TS,proceeds_via,L0,org:sub_elim:4,false,主反应经由该基元步骤
+reaction:E2,mechanism_step:E2#3_alkene_and_hbx,proceeds_via,L0,org:sub_elim:4,false,主反应经由该基元步骤
+mechanism_step:E2#1_anti_periplanar_setup,mechanism_step:E2#2_concerted_elimination_TS,step_next,L0,org:sub_elim:4,false,步骤顺序衔接
+mechanism_step:E2#2_concerted_elimination_TS,mechanism_step:E2#3_alkene_and_hbx,step_next,L0,org:sub_elim:4,false,步骤顺序衔接
+mechanism_step:E2#1_anti_periplanar_setup,molecule:tert_butyl_bromide,involves,L0,org:sub_elim:4,false,底物构象
+mechanism_step:E2#2_concerted_elimination_TS,molecule:tert_butoxide,involves,L0,org:sub_elim:4,false,强碱参与 TS
+mechanism_step:E2#2_concerted_elimination_TS,molecule:tert_butyl_bromide,involves,L0,org:sub_elim:4,false,底物在 TS 中
+mechanism_step:E2#3_alkene_and_hbx,molecule:isobutene,involves,L0,org:sub_elim:4,false,烯烃产物
+mechanism_step:E2#3_alkene_and_hbx,molecule:bromide,involves,L0,org:sub_elim:4,false,离去基
+reaction:E2,condition:E2_strong_base,requires,L0,org:sub_elim:4,false,E2 条件
+reaction:E2,condition:E2_polar_aprotic,requires,L0,org:sub_elim:4,false,E2 条件
+reaction:E2,condition:E2_elevated_temperature,requires,L0,org:sub_elim:4,false,E2 条件
+reaction:E2,condition:E2_good_leaving_group,requires,L0,org:sub_elim:4,false,E2 条件
+reaction:E2,molecule:tert_butyl_bromide,produces,L0,org:sub_elim:4,false,卤代烷底物
+reaction:E2,molecule:isobutene,produces,L0,org:sub_elim:4,false,Zaitsev/Hofmann 烯烃
+reaction:E2,molecule:bromide,produces,L0,org:sub_elim:4,false,卤离子副产
+reaction:E2,functional_group:alkyl_halide,applies_to,L0,org:sub_elim:4,false,烷基卤
+reaction:E2,functional_group:alkene,applies_to,L0,org:sub_elim:4,false,产物烯烃
+side_pathway:E2#SN2_competition,reaction:E2,competes_with,L0,org:sub_elim:4,false,E2/SN2 竞争
+side_pathway:E2#SN2_competition,condition:E2_strong_base,suppressed_by,L0,org:sub_elim:4,false,位阻碱偏消除
+side_pathway:E2#SN2_competition,condition:E2_elevated_temperature,favored_by,L0,org:sub_elim:4,false,升温偏消除
+side_pathway:E2#E1cb_leakage,reaction:E2,competes_with,L0,org:sub_elim:4,false,机理连续谱竞争
+reaction:E1cb,mechanism_step:E1cb#1_rapid_deprotonation,proceeds_via,L0,org:sub_elim:5,false,主反应经由该基元步骤
+reaction:E1cb,mechanism_step:E1cb#2_carbanion_intermediate,proceeds_via,L0,org:sub_elim:5,false,主反应经由该基元步骤
+reaction:E1cb,mechanism_step:E1cb#3_leaving_group_loss,proceeds_via,L0,org:sub_elim:5,false,主反应经由该基元步骤
+mechanism_step:E1cb#1_rapid_deprotonation,mechanism_step:E1cb#2_carbanion_intermediate,step_next,L0,org:sub_elim:5,false,步骤顺序衔接
+mechanism_step:E1cb#2_carbanion_intermediate,mechanism_step:E1cb#3_leaving_group_loss,step_next,L0,org:sub_elim:5,false,步骤顺序衔接
+mechanism_step:E1cb#1_rapid_deprotonation,molecule:2_chloronitroethane,involves,L0,org:sub_elim:5,false,底物
+mechanism_step:E1cb#1_rapid_deprotonation,molecule:sodium_hydroxide,involves,L0,org:sub_elim:5,false,碱夺质子
+mechanism_step:E1cb#1_rapid_deprotonation,molecule:nitro_carbanion,involves,L0,org:sub_elim:5,false,生成碳负离子
+mechanism_step:E1cb#2_carbanion_intermediate,molecule:nitro_carbanion,involves,L0,org:sub_elim:5,false,中间体驻留
+mechanism_step:E1cb#3_leaving_group_loss,molecule:nitro_carbanion,involves,L0,org:sub_elim:5,false,中间体失 LG
+mechanism_step:E1cb#3_leaving_group_loss,molecule:nitroethylene,involves,L0,org:sub_elim:5,false,共轭烯烃产物
+reaction:E1cb,condition:E1cb_activated_beta_H,requires,L0,org:sub_elim:5,false,E1cb 条件
+reaction:E1cb,condition:E1cb_moderate_base,requires,L0,org:sub_elim:5,false,E1cb 条件
+reaction:E1cb,condition:E1cb_poor_leaving_group,requires,L0,org:sub_elim:5,false,E1cb 条件
+reaction:E1cb,condition:E1cb_polar_solvent,requires,L0,org:sub_elim:5,false,E1cb 条件
+reaction:E1cb,molecule:2_chloronitroethane,produces,L0,org:sub_elim:5,false,硝基卤代烷底物
+reaction:E1cb,molecule:nitroethylene,produces,L0,org:sub_elim:5,false,硝基烯烃产物
+reaction:E1cb,functional_group:alkene,applies_to,L0,org:sub_elim:5,false,产物为共轭烯烃
+reaction:E1cb,functional_group:alkyl_halide,applies_to,L0,org:sub_elim:5,false,卤代烷底物
+side_pathway:E1cb#intramolecular_closure,reaction:E1cb,competes_with,L0,org:sub_elim:5,false,环化与消除竞争
+side_pathway:E1cb#intramolecular_closure,condition:E1cb_polar_solvent,suppressed_by,L0,org:sub_elim:5,false,极性溶剂溶解离子抑制内返
+side_pathway:E1cb#intramolecular_closure,molecule:ethylene_oxide,competes_with,L0,org:sub_elim:5,false,环化副产环氧
+side_pathway:E1cb#epimerization,reaction:E1cb,competes_with,L0,org:sub_elim:5,false,消旋回收原料
+reaction:Anchimeric_Assistance,mechanism_step:Anchimeric_Assistance#1_ionization_assisted,proceeds_via,L0,org:sub_elim:6,false,主反应经由该基元步骤
+reaction:Anchimeric_Assistance,mechanism_step:Anchimeric_Assistance#2_bridge_ion_formation,proceeds_via,L0,org:sub_elim:6,false,主反应经由该基元步骤
+reaction:Anchimeric_Assistance,mechanism_step:Anchimeric_Assistance#3_external_ring_opening,proceeds_via,L0,org:sub_elim:6,false,主反应经由该基元步骤
+mechanism_step:Anchimeric_Assistance#1_ionization_assisted,mechanism_step:Anchimeric_Assistance#2_bridge_ion_formation,step_next,L0,org:sub_elim:6,false,步骤顺序衔接
+mechanism_step:Anchimeric_Assistance#2_bridge_ion_formation,mechanism_step:Anchimeric_Assistance#3_external_ring_opening,step_next,L0,org:sub_elim:6,false,步骤顺序衔接
+mechanism_step:Anchimeric_Assistance#1_ionization_assisted,molecule:2_bromoethyl_ethyl_sulfide,involves,L0,org:sub_elim:6,false,底物含邻位硫参与基
+mechanism_step:Anchimeric_Assistance#1_ionization_assisted,molecule:thiiranium_ion,involves,L0,org:sub_elim:6,false,生成硫鎓桥
+mechanism_step:Anchimeric_Assistance#2_bridge_ion_formation,molecule:thiiranium_ion,involves,L0,org:sub_elim:6,false,桥中间体
+mechanism_step:Anchimeric_Assistance#3_external_ring_opening,molecule:thiiranium_ion,involves,L0,org:sub_elim:6,false,桥被外 Nu 开环
+mechanism_step:Anchimeric_Assistance#3_external_ring_opening,molecule:azide,involves,L0,org:sub_elim:6,false,叠氮亲核体
+mechanism_step:Anchimeric_Assistance#3_external_ring_opening,molecule:2_azidoethyl_ethyl_sulfide,involves,L0,org:sub_elim:6,false,净保留构型产物
+reaction:Anchimeric_Assistance,condition:NGA_polar_solvent,requires,L0,org:sub_elim:6,false,邻基参与条件
+reaction:Anchimeric_Assistance,condition:NGA_anti_periplanar_geometry,requires,L0,org:sub_elim:6,false,邻基参与条件
+reaction:Anchimeric_Assistance,condition:NGA_external_nucleophile,requires,L0,org:sub_elim:6,false,邻基参与条件
+reaction:Anchimeric_Assistance,condition:NGA_no_strong_base,requires,L0,org:sub_elim:6,false,邻基参与条件
+reaction:Anchimeric_Assistance,molecule:2_bromoethyl_ethyl_sulfide,produces,L0,org:sub_elim:6,false,含硫邻基底物
+reaction:Anchimeric_Assistance,molecule:2_azidoethyl_ethyl_sulfide,produces,L0,org:sub_elim:6,false,保留构型取代产物
+reaction:Anchimeric_Assistance,functional_group:alkyl_halide,applies_to,L0,org:sub_elim:6,false,卤代烷受邻基协助
+reaction:Anchimeric_Assistance,functional_group:amine,applies_to,L0,org:sub_elim:6,false,糖化学 2-酰氨基参与决定苷构型
+side_pathway:Anchimeric_Assistance#bridge_opening_isomers,reaction:Anchimeric_Assistance,competes_with,L0,org:sub_elim:6,false,开环方向竞争
+side_pathway:Anchimeric_Assistance#bridge_opening_isomers,condition:NGA_external_nucleophile,suppressed_by,L0,org:sub_elim:6,false,高选择性 Nu 控制方向
+side_pathway:Anchimeric_Assistance#acyl_migration,reaction:Anchimeric_Assistance,competes_with,L0,org:sub_elim:6,false,迁移与净取代竞争
+reaction:Fischer_Esterification_Amidation,mechanism_step:Fischer_Esterification_Amidation#1_carbonyl_protonation,proceeds_via,L0,org:sub_elim:7,false,主反应经由该基元步骤
+reaction:Fischer_Esterification_Amidation,mechanism_step:Fischer_Esterification_Amidation#2_nucleophilic_addition,proceeds_via,L0,org:sub_elim:7,false,主反应经由该基元步骤
+reaction:Fischer_Esterification_Amidation,mechanism_step:Fischer_Esterification_Amidation#3_dehydration,proceeds_via,L0,org:sub_elim:7,false,主反应经由该基元步骤
+mechanism_step:Fischer_Esterification_Amidation#1_carbonyl_protonation,mechanism_step:Fischer_Esterification_Amidation#2_nucleophilic_addition,step_next,L0,org:sub_elim:7,false,步骤顺序衔接
+mechanism_step:Fischer_Esterification_Amidation#2_nucleophilic_addition,mechanism_step:Fischer_Esterification_Amidation#3_dehydration,step_next,L0,org:sub_elim:7,false,步骤顺序衔接
+mechanism_step:Fischer_Esterification_Amidation#1_carbonyl_protonation,molecule:acetic_acid,involves,L0,org:sub_elim:7,false,羧酸被质子化
+mechanism_step:Fischer_Esterification_Amidation#1_carbonyl_protonation,molecule:p_toluenesulfonic_acid,involves,L0,org:sub_elim:7,false,酸催化剂
+mechanism_step:Fischer_Esterification_Amidation#2_nucleophilic_addition,molecule:ethanol_reagent,involves,L0,org:sub_elim:7,false,醇亲核体
+mechanism_step:Fischer_Esterification_Amidation#2_nucleophilic_addition,molecule:acetic_acid,involves,L0,org:sub_elim:7,false,羰基被加成
+mechanism_step:Fischer_Esterification_Amidation#3_dehydration,molecule:ethyl_acetate,involves,L0,org:sub_elim:7,false,酯产物
+mechanism_step:Fischer_Esterification_Amidation#3_dehydration,molecule:water_byproduct,involves,L0,org:sub_elim:7,false,脱水副产
+reaction:Fischer_Esterification_Amidation,condition:Fischer_acid_catalyst,requires,L0,org:sub_elim:7,false,Fischer 条件
+reaction:Fischer_Esterification_Amidation,condition:Fischer_dehydration_drive,requires,L0,org:sub_elim:7,false,Fischer 条件
+reaction:Fischer_Esterification_Amidation,condition:Fischer_moderate_heat,requires,L0,org:sub_elim:7,false,Fischer 条件
+reaction:Fischer_Esterification_Amidation,condition:Fischer_toluene,requires,L0,org:sub_elim:7,false,Fischer 条件
+reaction:Fischer_Esterification_Amidation,molecule:acetic_acid,produces,L0,org:sub_elim:7,false,乙酸为典型酸底物
+reaction:Fischer_Esterification_Amidation,molecule:ethyl_acetate,produces,L0,org:sub_elim:7,false,乙酸乙酯典型产物
+reaction:Fischer_Esterification_Amidation,molecule:acetamide,produces,L0,org:sub_elim:7,false,氨解热得乙酰胺示例
+reaction:Fischer_Esterification_Amidation,molecule:water_byproduct,produces,L0,org:sub_elim:7,false,水为缩合副产
+reaction:Fischer_Esterification_Amidation,functional_group:carboxylic_acid,applies_to,L0,org:sub_elim:7,false,羧酸底物
+reaction:Fischer_Esterification_Amidation,functional_group:ester,applies_to,L0,org:sub_elim:7,false,产物酯
+reaction:Fischer_Esterification_Amidation,functional_group:amide,applies_to,L0,org:sub_elim:7,false,酰胺化产物
+side_pathway:Fischer_Esterification_Amidation#ether_formation,reaction:Fischer_Esterification_Amidation,competes_with,L0,org:sub_elim:7,false,醚化竞争
+side_pathway:Fischer_Esterification_Amidation#ether_formation,condition:Fischer_acid_catalyst,suppressed_by,L0,org:sub_elim:7,false,催化量酸
+side_pathway:Fischer_Esterification_Amidation#ether_formation,molecule:diethyl_ether,competes_with,L0,org:sub_elim:7,false,副产乙醚
+side_pathway:Fischer_Esterification_Amidation#alcohol_elimination,reaction:Fischer_Esterification_Amidation,competes_with,L0,org:sub_elim:7,false,消除竞争
+side_pathway:Fischer_Esterification_Amidation#alcohol_elimination,condition:Fischer_moderate_heat,favored_by,L0,org:sub_elim:7,false,高温促消除
+reaction:Amide_Coupling,mechanism_step:Amide_Coupling#1_carboxyl_activation,proceeds_via,L0,org:sub_elim:8,false,主反应经由该基元步骤
+reaction:Amide_Coupling,mechanism_step:Amide_Coupling#2_active_ester_formation,proceeds_via,L0,org:sub_elim:8,false,主反应经由该基元步骤
+reaction:Amide_Coupling,mechanism_step:Amide_Coupling#3_aminolysis,proceeds_via,L0,org:sub_elim:8,false,主反应经由该基元步骤
+mechanism_step:Amide_Coupling#1_carboxyl_activation,mechanism_step:Amide_Coupling#2_active_ester_formation,step_next,L0,org:sub_elim:8,false,步骤顺序衔接
+mechanism_step:Amide_Coupling#2_active_ester_formation,mechanism_step:Amide_Coupling#3_aminolysis,step_next,L0,org:sub_elim:8,false,步骤顺序衔接
+mechanism_step:Amide_Coupling#1_carboxyl_activation,molecule:EDC,involves,L0,org:sub_elim:8,false,碳二亚胺活化剂
+mechanism_step:Amide_Coupling#1_carboxyl_activation,molecule:acetic_acid,involves,L0,org:sub_elim:8,false,羧酸底物示例（泛指）
+mechanism_step:Amide_Coupling#2_active_ester_formation,molecule:HOBt,involves,L0,org:sub_elim:8,false,添加剂生成活性酯
+mechanism_step:Amide_Coupling#2_active_ester_formation,molecule:HATU,involves,L0,org:sub_elim:8,false,鎓盐直接给活性酯
+mechanism_step:Amide_Coupling#3_aminolysis,molecule:benzylamine,involves,L0,org:sub_elim:8,false,胺亲核体
+mechanism_step:Amide_Coupling#3_aminolysis,molecule:benzamide,involves,L0,org:sub_elim:8,false,酰胺产物
+mechanism_step:Amide_Coupling#1_carboxyl_activation,molecule:DIPEA,involves,L0,org:sub_elim:8,false,碱中和
+reaction:Amide_Coupling,condition:Amide_DIPEA_base,requires,L0,org:sub_elim:8,false,酰胺缩合条件
+reaction:Amide_Coupling,condition:Amide_DMF_DCM,requires,L0,org:sub_elim:8,false,酰胺缩合条件
+reaction:Amide_Coupling,condition:Amide_pre_activation,requires,L0,org:sub_elim:8,false,酰胺缩合条件
+reaction:Amide_Coupling,condition:Amide_0C_to_rt,requires,L0,org:sub_elim:8,false,酰胺缩合条件
+reaction:Amide_Coupling,molecule:benzamide,produces,L0,org:sub_elim:8,false,酰胺产物示例
+reaction:Amide_Coupling,molecule:dicyclohexylurea,produces,L0,org:sub_elim:8,false,DCC 类副产脲
+reaction:Amide_Coupling,functional_group:carboxylic_acid,applies_to,L0,org:sub_elim:8,false,羧酸底物
+reaction:Amide_Coupling,functional_group:amine,applies_to,L0,org:sub_elim:8,false,胺亲核体
+reaction:Amide_Coupling,functional_group:amide,applies_to,L0,org:sub_elim:8,false,产物酰胺/肽键
+side_pathway:Amide_Coupling#N_acylurea,reaction:Amide_Coupling,competes_with,L0,org:sub_elim:8,false,与活性酯路径竞争
+side_pathway:Amide_Coupling#N_acylurea,condition:Amide_0C_to_rt,suppressed_by,L0,org:sub_elim:8,false,低温
+side_pathway:Amide_Coupling#N_acylurea,condition:Amide_pre_activation,suppressed_by,L0,org:sub_elim:8,false,预活化加添加剂控制
+side_pathway:Amide_Coupling#epimerization,reaction:Amide_Coupling,competes_with,L0,org:sub_elim:8,false,消旋降低 ee
+side_pathway:Amide_Coupling#guanidine_byproduct,reaction:Amide_Coupling,competes_with,L0,org:sub_elim:8,false,胍副产竞争
+side_pathway:Amide_Coupling#guanidine_byproduct,condition:Amide_pre_activation,suppressed_by,L0,org:sub_elim:8,false,加料顺序控制
+reaction:Reductive_Amination,mechanism_step:Reductive_Amination#1_imine_formation,proceeds_via,L0,org:sub_elim:9,false,主反应经由该基元步骤
+reaction:Reductive_Amination,mechanism_step:Reductive_Amination#2_dehydration_equilibrium,proceeds_via,L0,org:sub_elim:9,false,主反应经由该基元步骤
+reaction:Reductive_Amination,mechanism_step:Reductive_Amination#3_hydride_reduction,proceeds_via,L0,org:sub_elim:9,false,主反应经由该基元步骤
+mechanism_step:Reductive_Amination#1_imine_formation,mechanism_step:Reductive_Amination#2_dehydration_equilibrium,step_next,L0,org:sub_elim:9,false,步骤顺序衔接
+mechanism_step:Reductive_Amination#2_dehydration_equilibrium,mechanism_step:Reductive_Amination#3_hydride_reduction,step_next,L0,org:sub_elim:9,false,步骤顺序衔接
+mechanism_step:Reductive_Amination#1_imine_formation,molecule:acetone_sub_elim,involves,L0,org:sub_elim:9,false,酮底物
+mechanism_step:Reductive_Amination#1_imine_formation,molecule:methylamine,involves,L0,org:sub_elim:9,false,伯胺
+mechanism_step:Reductive_Amination#1_imine_formation,molecule:acetone_imine,involves,L0,org:sub_elim:9,false,亚胺中间体
+mechanism_step:Reductive_Amination#2_dehydration_equilibrium,molecule:acetic_acid_catalyst,involves,L0,org:sub_elim:9,false,弱酸催化脱水
+mechanism_step:Reductive_Amination#3_hydride_reduction,molecule:triacetoxyborohydride,involves,L0,org:sub_elim:9,false,选择性硼氢化物还原剂
+mechanism_step:Reductive_Amination#3_hydride_reduction,molecule:N_methyl_isopropylamine,involves,L0,org:sub_elim:9,false,叔胺产物
+reaction:Reductive_Amination,condition:RA_mild_acid_pH,requires,L0,org:sub_elim:9,false,还原胺化条件
+reaction:Reductive_Amination,condition:RA_NaBH_OAc_3,requires,L0,org:sub_elim:9,false,还原胺化条件
+reaction:Reductive_Amination,condition:RA_DCM_MeOH,requires,L0,org:sub_elim:9,false,还原胺化条件
+reaction:Reductive_Amination,condition:RA_low_to_rt,requires,L0,org:sub_elim:9,false,还原胺化条件
+reaction:Reductive_Amination,condition:RA_catalytic_hydrogenation,requires,L0,org:sub_elim:9,false,催化路径可选条件
+reaction:Reductive_Amination,molecule:acetone_sub_elim,produces,L0,org:sub_elim:9,false,酮底物
+reaction:Reductive_Amination,molecule:N_methyl_isopropylamine,produces,L0,org:sub_elim:9,false,目标胺
+reaction:Reductive_Amination,molecule:water_byproduct,produces,L0,org:sub_elim:9,false,缩合副产水
+reaction:Reductive_Amination,functional_group:imine_C_N,applies_to,L0,org:sub_elim:9,false,亚胺中间体
+reaction:Reductive_Amination,functional_group:amine,applies_to,L0,org:sub_elim:9,false,胺产物
+side_pathway:Reductive_Amination#over_alkylation,reaction:Reductive_Amination,competes_with,L0,org:sub_elim:9,false,多烷基化竞争
+side_pathway:Reductive_Amination#over_alkylation,condition:RA_low_to_rt,suppressed_by,L0,org:sub_elim:9,false,控温与当量
+side_pathway:Reductive_Amination#direct_carbonyl_reduction,reaction:Reductive_Amination,competes_with,L0,org:sub_elim:9,false,化学选择性竞争
+side_pathway:Reductive_Amination#direct_carbonyl_reduction,condition:RA_NaBH_OAc_3,suppressed_by,L0,org:sub_elim:9,false,选择性还原剂
+side_pathway:Reductive_Amination#direct_carbonyl_reduction,molecule:isopropanol,competes_with,L0,org:sub_elim:9,false,副产醇
+reaction:Mitsunobu,mechanism_step:Mitsunobu#1_betaine_formation,proceeds_via,L0,org:sub_elim:10,false,主反应经由该基元步骤
+reaction:Mitsunobu,mechanism_step:Mitsunobu#2_alkoxyphosphonium,proceeds_via,L0,org:sub_elim:10,false,主反应经由该基元步骤
+reaction:Mitsunobu,mechanism_step:Mitsunobu#3_sn2_displacement,proceeds_via,L0,org:sub_elim:10,false,主反应经由该基元步骤
+mechanism_step:Mitsunobu#1_betaine_formation,mechanism_step:Mitsunobu#2_alkoxyphosphonium,step_next,L0,org:sub_elim:10,false,步骤顺序衔接
+mechanism_step:Mitsunobu#2_alkoxyphosphonium,mechanism_step:Mitsunobu#3_sn2_displacement,step_next,L0,org:sub_elim:10,false,步骤顺序衔接
+mechanism_step:Mitsunobu#1_betaine_formation,molecule:triphenylphosphine_mitsunobu,involves,L0,org:sub_elim:10,false,膦亲核体
+mechanism_step:Mitsunobu#1_betaine_formation,molecule:DEAD,involves,L0,org:sub_elim:10,false,偶氮试剂
+mechanism_step:Mitsunobu#2_alkoxyphosphonium,molecule:benzoic_acid,involves,L0,org:sub_elim:10,false,羧酸形成离子对
+mechanism_step:Mitsunobu#2_alkoxyphosphonium,molecule:cis_2_methylcyclohexanol,involves,L0,org:sub_elim:10,false,醇生成烷氧基鏻
+mechanism_step:Mitsunobu#3_sn2_displacement,molecule:cis_2_methylcyclohexanol,involves,L0,org:sub_elim:10,false,醇碳被 Nu 进攻
+mechanism_step:Mitsunobu#3_sn2_displacement,molecule:menthyl_benzoate_analog,involves,L0,org:sub_elim:10,false,翻转酯产物
+mechanism_step:Mitsunobu#3_sn2_displacement,molecule:triphenylphosphine_oxide,involves,L0,org:sub_elim:10,false,OPPh3 副产
+reaction:Mitsunobu,condition:Mits_THF,requires,L0,org:sub_elim:10,false,Mitsunobu 条件
+reaction:Mitsunobu,condition:Mits_0C_to_rt,requires,L0,org:sub_elim:10,false,Mitsunobu 条件
+reaction:Mitsunobu,condition:Mits_nu_pKa_below_15,requires,L0,org:sub_elim:10,false,Mitsunobu 条件
+reaction:Mitsunobu,condition:Mits_1_1_1_stoichiometry,requires,L0,org:sub_elim:10,false,Mitsunobu 条件
+reaction:Mitsunobu,condition:Mits_anhydrous,requires,L0,org:sub_elim:10,false,Mitsunobu 条件
+reaction:Mitsunobu,molecule:cis_2_methylcyclohexanol,produces,L0,org:sub_elim:10,false,仲醇底物
+reaction:Mitsunobu,molecule:menthyl_benzoate_analog,produces,L0,org:sub_elim:10,false,翻转酯产物
+reaction:Mitsunobu,molecule:triphenylphosphine_oxide,produces,L0,org:sub_elim:10,false,OPPh3 驱动副产
+reaction:Mitsunobu,molecule:diethyl_hydrazine_dicarboxylate,produces,L0,org:sub_elim:10,false,肼二甲酸酯副产
+reaction:Mitsunobu,functional_group:alcohol,applies_to,L0,org:sub_elim:10,false,醇底物
+reaction:Mitsunobu,functional_group:ester,applies_to,L0,org:sub_elim:10,false,酯化产物
+reaction:Mitsunobu,molecule:anisole,produces,L0,org:sub_elim:10,false,酚醚化产物示例
+side_pathway:Mitsunobu#acylhydrazine,reaction:Mitsunobu,competes_with,L0,org:sub_elim:10,false,酰化 vs 烷基化竞争
+side_pathway:Mitsunobu#acylhydrazine,condition:Mits_1_1_1_stoichiometry,suppressed_by,L0,org:sub_elim:10,false,计量与顺序控制
+side_pathway:Mitsunobu#allylic_rearrangement,reaction:Mitsunobu,competes_with,L0,org:sub_elim:10,false,重排竞争
+side_pathway:Mitsunobu#allylic_rearrangement,condition:Mits_0C_to_rt,suppressed_by,L0,org:sub_elim:10,false,低温
+side_pathway:Mitsunobu#DEAD_as_nucleophile,reaction:Mitsunobu,competes_with,L0,org:sub_elim:10,false,试剂自竞争
+reaction:SNAr,mechanism_step:SNAr#1_nucleophilic_addition,proceeds_via,L0,org:sub_elim:11,false,主反应经由该基元步骤
+reaction:SNAr,mechanism_step:SNAr#2_meisenheimer_complex,proceeds_via,L0,org:sub_elim:11,false,主反应经由该基元步骤
+reaction:SNAr,mechanism_step:SNAr#3_leaving_group_elimination,proceeds_via,L0,org:sub_elim:11,false,主反应经由该基元步骤
+mechanism_step:SNAr#1_nucleophilic_addition,mechanism_step:SNAr#2_meisenheimer_complex,step_next,L0,org:sub_elim:11,false,步骤顺序衔接
+mechanism_step:SNAr#2_meisenheimer_complex,mechanism_step:SNAr#3_leaving_group_elimination,step_next,L0,org:sub_elim:11,false,步骤顺序衔接
+mechanism_step:SNAr#1_nucleophilic_addition,molecule:1_chloro_2_4_dinitrobenzene,involves,L0,org:sub_elim:11,false,活化芳卤底物
+mechanism_step:SNAr#1_nucleophilic_addition,molecule:hydroxide,involves,L0,org:sub_elim:11,false,亲核体示例 OH-
+mechanism_step:SNAr#1_nucleophilic_addition,molecule:meisenheimer_complex_dncb,involves,L0,org:sub_elim:11,false,生成 Meisenheimer
+mechanism_step:SNAr#2_meisenheimer_complex,molecule:meisenheimer_complex_dncb,involves,L0,org:sub_elim:11,false,中间体
+mechanism_step:SNAr#3_leaving_group_elimination,molecule:2_4_dinitrophenol,involves,L0,org:sub_elim:11,false,消除得硝基酚
+mechanism_step:SNAr#3_leaving_group_elimination,molecule:chloride,involves,L0,org:sub_elim:11,false,氯离子离去
+reaction:SNAr,condition:SNAr_DMSO_DMFA,requires,L0,org:sub_elim:11,false,SNAr 条件
+reaction:SNAr,condition:SNAr_carbonate_base,requires,L0,org:sub_elim:11,false,SNAr 条件
+reaction:SNAr,condition:SNAr_moderate_heat,requires,L0,org:sub_elim:11,false,SNAr 条件
+reaction:SNAr,condition:SNAr_ortho_para_EWG,requires,L0,org:sub_elim:11,false,SNAr 条件
+reaction:SNAr,condition:SNAr_fluoride_leaving,requires,L0,org:sub_elim:11,false,SNAr 条件
+reaction:SNAr,molecule:1_chloro_2_4_dinitrobenzene,produces,L0,org:sub_elim:11,false,二硝基氯苯底物
+reaction:SNAr,molecule:2_4_dinitrophenol,produces,L0,org:sub_elim:11,false,二硝基苯酚产物
+reaction:SNAr,molecule:aniline,produces,L0,org:sub_elim:11,false,芳胺偶联产物可由胺 Nu 得到
+reaction:SNAr,functional_group:arene,applies_to,L0,org:sub_elim:11,false,活化芳环
+reaction:SNAr,functional_group:amine,applies_to,L0,org:sub_elim:11,false,胺 Nu 芳化
+side_pathway:SNAr#benzyne_pathway,reaction:SNAr,competes_with,L0,org:sub_elim:11,false,苯炔竞争通道
+side_pathway:SNAr#benzyne_pathway,condition:SNAr_ortho_para_EWG,suppressed_by,L0,org:sub_elim:11,false,EWG 活化锁定加成机理
+side_pathway:SNAr#SRN1_radical,reaction:SNAr,competes_with,L0,org:sub_elim:11,false,自由基通道竞争
+side_pathway:SNAr#polysubstitution,reaction:SNAr,competes_with,L0,org:sub_elim:11,false,过度取代竞争
+side_pathway:SNAr#polysubstitution,condition:SNAr_moderate_heat,suppressed_by,L0,org:sub_elim:11,false,控温控时
+reaction:Nucleophilic_Acyl_Substitution,mechanism_step:Nucleophilic_Acyl_Substitution#1_tetrahedral_addition,proceeds_via,L0,org:sub_elim:12,false,主反应经由该基元步骤
+reaction:Nucleophilic_Acyl_Substitution,mechanism_step:Nucleophilic_Acyl_Substitution#2_tetrahedral_intermediate,proceeds_via,L0,org:sub_elim:12,false,主反应经由该基元步骤
+reaction:Nucleophilic_Acyl_Substitution,mechanism_step:Nucleophilic_Acyl_Substitution#3_elimination_rearomatize,proceeds_via,L0,org:sub_elim:12,false,主反应经由该基元步骤
+mechanism_step:Nucleophilic_Acyl_Substitution#1_tetrahedral_addition,mechanism_step:Nucleophilic_Acyl_Substitution#2_tetrahedral_intermediate,step_next,L0,org:sub_elim:12,false,步骤顺序衔接
+mechanism_step:Nucleophilic_Acyl_Substitution#2_tetrahedral_intermediate,mechanism_step:Nucleophilic_Acyl_Substitution#3_elimination_rearomatize,step_next,L0,org:sub_elim:12,false,步骤顺序衔接
+mechanism_step:Nucleophilic_Acyl_Substitution#1_tetrahedral_addition,molecule:acetyl_chloride,involves,L0,org:sub_elim:12,false,高活性酰氯底物
+mechanism_step:Nucleophilic_Acyl_Substitution#1_tetrahedral_addition,molecule:ethanol_reagent,involves,L0,org:sub_elim:12,false,醇亲核体
+mechanism_step:Nucleophilic_Acyl_Substitution#2_tetrahedral_intermediate,molecule:acetyl_chloride,involves,L0,org:sub_elim:12,false,四面体中间体来自酰氯
+mechanism_step:Nucleophilic_Acyl_Substitution#3_elimination_rearomatize,molecule:methyl_acetate,involves,L0,org:sub_elim:12,false,酯产物
+mechanism_step:Nucleophilic_Acyl_Substitution#3_elimination_rearomatize,molecule:chloride,involves,L0,org:sub_elim:12,false,氯离子离去
+reaction:Nucleophilic_Acyl_Substitution,condition:NAC_activity_order,requires,L0,org:sub_elim:12,false,NAcyl 通论条件
+reaction:Nucleophilic_Acyl_Substitution,condition:NAC缚酸碱,requires,L0,org:sub_elim:12,false,NAcyl 通论条件
+reaction:Nucleophilic_Acyl_Substitution,condition:NAC_acid_base_enzyme_catalysis,requires,L0,org:sub_elim:12,false,NAcyl 通论条件
+reaction:Nucleophilic_Acyl_Substitution,condition:NAC_controlled_temperature,requires,L0,org:sub_elim:12,false,NAcyl 通论条件
+reaction:Nucleophilic_Acyl_Substitution,molecule:acetyl_chloride,produces,L0,org:sub_elim:12,false,酰氯为高活性底物
+reaction:Nucleophilic_Acyl_Substitution,molecule:methyl_acetate,produces,L0,org:sub_elim:12,false,酯交换/醇解产物示例
+reaction:Nucleophilic_Acyl_Substitution,molecule:acetamide,produces,L0,org:sub_elim:12,false,氨解得酰胺
+reaction:Nucleophilic_Acyl_Substitution,functional_group:ester,applies_to,L0,org:sub_elim:12,false,酯衍生物
+reaction:Nucleophilic_Acyl_Substitution,functional_group:amide,applies_to,L0,org:sub_elim:12,false,酰胺衍生物
+reaction:Nucleophilic_Acyl_Substitution,functional_group:carboxylic_acid,applies_to,L0,org:sub_elim:12,false,水解最终得羧酸
+side_pathway:Nucleophilic_Acyl_Substitution#overaddition_ketone,reaction:Nucleophilic_Acyl_Substitution,competes_with,L0,org:sub_elim:12,false,过度加成竞争
+side_pathway:Nucleophilic_Acyl_Substitution#acyl_migration,reaction:Nucleophilic_Acyl_Substitution,competes_with,L0,org:sub_elim:12,false,迁移竞争
+side_pathway:Nucleophilic_Acyl_Substitution#unwanted_hydrolysis,reaction:Nucleophilic_Acyl_Substitution,competes_with,L0,org:sub_elim:12,false,水解失活竞争
+side_pathway:Nucleophilic_Acyl_Substitution#unwanted_hydrolysis,condition:NAC_controlled_temperature,suppressed_by,L0,org:sub_elim:12,false,低温与无水
+reaction:Fischer_Esterification_Amidation,reaction:Amide_Coupling,alternative_to,L0,org:sub_elim:8,false,高温酸催化 vs 缩合试剂温和酰胺化
+reaction:Amide_Coupling,reaction:Fischer_Esterification_Amidation,alternative_to,L0,org:sub_elim:7,false,缩合试剂 vs Fischer 热法
+reaction:Nucleophilic_Acyl_Substitution,reaction:Fischer_Esterification_Amidation,alternative_to,L0,org:sub_elim:7,false,通论包含 Fischer 端元
+reaction:Mitsunobu,reaction:SN2,alternative_to,L0,org:sub_elim:2,false,Mitsunobu 用烷氧基鏻实现翻转取代
+reaction:E2,reaction:E1,alternative_to,L0,org:sub_elim:3,false,E2 强碱协同 vs E1 碳正离子
+reaction:E1cb,reaction:E2,alternative_to,L0,org:sub_elim:4,false,E1cb 两步碳负 vs E2 协同
+reaction:SNAr,reaction:SN2,alternative_to,L0,org:sub_elim:11,false,SNAr 加成-消除 vs 脂肪 SN2 背面进攻
+reaction:Anchimeric_Assistance,reaction:SN1,alternative_to,L0,org:sub_elim:6,false,邻基参与改写 SN1 图景为双翻转保留
+reaction:Reductive_Amination,reaction:Amide_Coupling,alternative_to,L0,org:sub_elim:9,false,还原胺化得 sp3 胺 vs 酰胺缩合得酰胺

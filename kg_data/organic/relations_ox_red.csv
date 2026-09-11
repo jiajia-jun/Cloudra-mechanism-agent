@@ -1,0 +1,333 @@
+src_id,dst_id,rel_type,evidence_level,source,falsified,note
+reaction:Swern oxidation,mechanism_step:Swern oxidation#1_DMSO活化成锍盐,proceeds_via,L0,org:ox_red:1,false,Swern 主机理步骤
+reaction:Swern oxidation,mechanism_step:Swern oxidation#2_醇进攻生成烷氧基锍,proceeds_via,L0,org:ox_red:1,false,Swern 主机理步骤
+reaction:Swern oxidation,mechanism_step:Swern oxidation#3_碱夺取与五元环消除,proceeds_via,L0,org:ox_red:1,false,Swern 主机理步骤
+mechanism_step:Swern oxidation#1_DMSO活化成锍盐,mechanism_step:Swern oxidation#2_醇进攻生成烷氧基锍,step_next,L0,org:ox_red:1,false,锍盐形成后醇才进攻
+mechanism_step:Swern oxidation#2_醇进攻生成烷氧基锍,mechanism_step:Swern oxidation#3_碱夺取与五元环消除,step_next,L0,org:ox_red:1,false,烷氧基锍经碱消除
+mechanism_step:Swern oxidation#1_DMSO活化成锍盐,molecule:DMSO,involves,L0,org:ox_red:1,false,DMSO 为底物被活化
+mechanism_step:Swern oxidation#1_DMSO活化成锍盐,molecule:草酰氯,involves,L0,org:ox_red:1,false,草酰氯活化 DMSO
+mechanism_step:Swern oxidation#2_醇进攻生成烷氧基锍,molecule:苯甲醇,involves,L0,org:ox_red:1,false,醇进攻锍盐
+mechanism_step:Swern oxidation#3_碱夺取与五元环消除,molecule:三乙胺,involves,L0,org:ox_red:1,false,胺夺取 α-H
+mechanism_step:Swern oxidation#3_碱夺取与五元环消除,molecule:苯甲醛,involves,L0,org:ox_red:1,false,消除生成醛
+mechanism_step:Swern oxidation#3_碱夺取与五元环消除,molecule:二甲硫醚,involves,L0,org:ox_red:1,false,同步释放 Me2S
+reaction:Swern oxidation,condition:Swern oxidation低温-78C,requires,L0,org:ox_red:1,false,Swern 必要条件
+reaction:Swern oxidation,condition:Swern oxidation草酰氯2当量,requires,L0,org:ox_red:1,false,Swern 必要条件
+reaction:Swern oxidation,condition:Swern oxidation三乙胺2当量,requires,L0,org:ox_red:1,false,Swern 必要条件
+reaction:Swern oxidation,condition:Swern oxidation二氯甲烷溶剂,requires,L0,org:ox_red:1,false,Swern 必要条件
+reaction:Swern oxidation,molecule:苯甲醛,produces,L0,org:ox_red:1,false,伯醇氧化产物为醛
+side_pathway:Swern oxidation#Pummerer重排,reaction:Swern oxidation,competes_with,L0,org:ox_red:1,false,升温/错序导致 Pummerer 型副产物
+side_pathway:Swern oxidation#Pummerer重排,condition:Swern oxidation低温-78C,suppressed_by,L0,org:ox_red:1,false,低温抑制 Pummerer 分解
+side_pathway:Swern oxidation#α位差向异构化,reaction:Swern oxidation,competes_with,L0,org:ox_red:1,false,碱性导致 α-差向异构
+side_pathway:Swern oxidation#α位差向异构化,condition:Swern oxidation三乙胺2当量,suppressed_by,L0,org:ox_red:1,false,可用 DIPEA 替代降低该路径
+reaction:Swern oxidation,functional_group:伯醇,applies_to,L0,org:ox_red:1,false,伯醇氧化为醛
+reaction:Swern oxidation,functional_group:仲醇,applies_to,L0,org:ox_red:1,false,仲醇氧化为酮
+reaction:Dess-Martin oxidation,mechanism_step:Dess-Martin oxidation#1_配体交换,proceeds_via,L0,org:ox_red:2,false,DMP 主机理
+reaction:Dess-Martin oxidation,mechanism_step:Dess-Martin oxidation#2_醋酸根协同消除,proceeds_via,L0,org:ox_red:2,false,DMP 主机理
+mechanism_step:Dess-Martin oxidation#1_配体交换,mechanism_step:Dess-Martin oxidation#2_醋酸根协同消除,step_next,L0,org:ox_red:2,false,配体交换后协同消除
+mechanism_step:Dess-Martin oxidation#1_配体交换,molecule:Dess-Martin periodinane,involves,L0,org:ox_red:2,false,DMP 提供碘(V)
+mechanism_step:Dess-Martin oxidation#2_醋酸根协同消除,molecule:乙酸,involves,L0,org:ox_red:2,false,消除生成乙酸
+mechanism_step:Dess-Martin oxidation#2_醋酸根协同消除,molecule:碘烷还原副产,involves,L0,org:ox_red:2,false,碘从 V 降至 III
+reaction:Dess-Martin oxidation,condition:Dess-Martin氧化室温DCM,requires,L0,org:ox_red:2,false,DMP 关键条件
+reaction:Dess-Martin oxidation,condition:Dess-Martin氧化1.2当量,requires,L0,org:ox_red:2,false,DMP 关键条件
+reaction:Dess-Martin oxidation,condition:Dess-Martin氧化微量水加速,requires,L0,org:ox_red:2,false,DMP 关键条件
+reaction:Dess-Martin oxidation,condition:Dess-Martin氧化乙酸清除,requires,L0,org:ox_red:2,false,DMP 关键条件
+reaction:Dess-Martin oxidation,molecule:苯甲醛,produces,L0,org:ox_red:2,false,伯醇得醛
+side_pathway:Dess-Martin oxidation#亲核官能团进攻分解,reaction:Dess-Martin oxidation,competes_with,L0,org:ox_red:2,false,亲核基团消耗 DMP
+side_pathway:Dess-Martin oxidation#亲核官能团进攻分解,condition:Dess-Martin氧化1.2当量,suppressed_by,L0,org:ox_red:2,false,控量与位阻 DMP 缓解
+side_pathway:Dess-Martin oxidation#脱肟过快,reaction:Dess-Martin oxidation,competes_with,L0,org:ox_red:2,false,肟竞争消耗氧化剂
+side_pathway:Dess-Martin oxidation#脱肟过快,condition:Dess-Martin氧化1.2当量,suppressed_by,L0,org:ox_red:2,false,低温控量抑制
+reaction:Dess-Martin oxidation,functional_group:伯醇,applies_to,L0,org:ox_red:2,false,伯醇→醛
+reaction:Dess-Martin oxidation,functional_group:仲醇,applies_to,L0,org:ox_red:2,false,仲醇→酮
+reaction:Dess-Martin oxidation,functional_group:烯丙醇,applies_to,L0,org:ox_red:2,false,烯丙醇高效氧化
+reaction:PCC-PDC oxidation,mechanism_step:PCC-PDC oxidation#1_铬酸酯形成,proceeds_via,L0,org:ox_red:3,false,铬氧化主机理
+reaction:PCC-PDC oxidation,mechanism_step:PCC-PDC oxidation#2_E2式消除,proceeds_via,L0,org:ox_red:3,false,铬氧化主机理
+reaction:PCC-PDC oxidation,mechanism_step:PCC-PDC oxidation#3_铬价态歧化,proceeds_via,L0,org:ox_red:3,false,铬氧化主机理
+mechanism_step:PCC-PDC oxidation#1_铬酸酯形成,mechanism_step:PCC-PDC oxidation#2_E2式消除,step_next,L0,org:ox_red:3,false,铬酸酯后消除
+mechanism_step:PCC-PDC oxidation#2_E2式消除,mechanism_step:PCC-PDC oxidation#3_铬价态歧化,step_next,L0,org:ox_red:3,false,消除产 Cr(IV)
+mechanism_step:PCC-PDC oxidation#1_铬酸酯形成,molecule:氯铬酸吡啶鎓,involves,L0,org:ox_red:3,false,PCC 提供 Cr(VI)
+mechanism_step:PCC-PDC oxidation#2_E2式消除,molecule:吡啶,involves,L0,org:ox_red:3,false,吡啶鎓/吡啶碱协助夺氢
+reaction:PCC-PDC oxidation,condition:PCC二氯甲烷,requires,L0,org:ox_red:3,false,PCC/PDC 条件
+reaction:PCC-PDC oxidation,condition:PDC二氯甲烷停在醛,requires,L0,org:ox_red:3,false,PCC/PDC 条件
+reaction:PCC-PDC oxidation,condition:PDC-DMF氧化到酸,requires,L0,org:ox_red:3,false,PCC/PDC 条件
+reaction:PCC-PDC oxidation,condition:铬废物处理,requires,L0,org:ox_red:3,false,PCC/PDC 条件
+reaction:PCC-PDC oxidation,molecule:苯甲醛,produces,L0,org:ox_red:3,false,伯醇→醛
+side_pathway:PCC-PDC oxidation#过度氧化成酸,reaction:PCC-PDC oxidation,competes_with,L0,org:ox_red:3,false,醛继续氧化成酸
+side_pathway:PCC-PDC oxidation#过度氧化成酸,condition:PCC二氯甲烷,suppressed_by,L0,org:ox_red:3,false,PCC/DCM+MS 抑制到酸
+side_pathway:PCC-PDC oxidation#酸敏骨架重排,reaction:PCC-PDC oxidation,competes_with,L0,org:ox_red:3,false,酸致重排竞争
+side_pathway:PCC-PDC oxidation#酸敏骨架重排,condition:PCC二氯甲烷,suppressed_by,L0,org:ox_red:3,false,分子筛除水抑制
+reaction:PCC-PDC oxidation,functional_group:伯醇,applies_to,L0,org:ox_red:3,false,伯醇氧化
+reaction:PCC-PDC oxidation,functional_group:仲醇,applies_to,L0,org:ox_red:3,false,仲醇氧化为酮
+reaction:PCC-PDC oxidation,functional_group:羧酸,applies_to,L0,org:ox_red:3,false,PDC/DMF 产物为酸
+reaction:TPAP-NMO oxidation,mechanism_step:TPAP-NMO oxidation#1_攫氢,proceeds_via,L0,org:ox_red:4,false,Ley 氧化循环
+reaction:TPAP-NMO oxidation,mechanism_step:TPAP-NMO oxidation#2_羰基形成,proceeds_via,L0,org:ox_red:4,false,Ley 氧化循环
+reaction:TPAP-NMO oxidation,mechanism_step:TPAP-NMO oxidation#3_NMO再氧化,proceeds_via,L0,org:ox_red:4,false,Ley 氧化循环
+mechanism_step:TPAP-NMO oxidation#1_攫氢,mechanism_step:TPAP-NMO oxidation#2_羰基形成,step_next,L0,org:ox_red:4,false,攫氢后羰基化
+mechanism_step:TPAP-NMO oxidation#2_羰基形成,mechanism_step:TPAP-NMO oxidation#3_NMO再氧化,step_next,L0,org:ox_red:4,false,低价 Ru 被 NMO 再氧化
+mechanism_step:TPAP-NMO oxidation#3_NMO再氧化,mechanism_step:TPAP-NMO oxidation#1_攫氢,step_next,L0,org:ox_red:4,false,再生 Ru(VII) 闭合循环
+mechanism_step:TPAP-NMO oxidation#1_攫氢,molecule:四丙基铵过钌酸盐,involves,L0,org:ox_red:4,false,TPAP 为活性氧化剂
+mechanism_step:TPAP-NMO oxidation#3_NMO再氧化,molecule:N-甲基吗啉N-氧化物,involves,L0,org:ox_red:4,false,NMO 再氧化 Ru
+mechanism_step:TPAP-NMO oxidation#1_攫氢,molecule:四氧化钌,involves,L0,org:ox_red:4,false,RuO4 型活性种
+reaction:TPAP-NMO oxidation,condition:TPAP催化量1-5mol,requires,L0,org:ox_red:4,false,TPAP 关键条件
+reaction:TPAP-NMO oxidation,condition:NMO1.2-1.7当量,requires,L0,org:ox_red:4,false,TPAP 关键条件
+reaction:TPAP-NMO oxidation,condition:TPAP分子筛除水,requires,L0,org:ox_red:4,false,TPAP 关键条件
+reaction:TPAP-NMO oxidation,condition:TPAP二氯甲烷或乙腈,requires,L0,org:ox_red:4,false,TPAP 关键条件
+reaction:TPAP-NMO oxidation,molecule:苯甲醛,produces,L0,org:ox_red:4,false,醇→醛
+reaction:TPAP-NMO oxidation,molecule:分子筛4A,produces,L0,org:ox_red:4,false,除水添加剂
+side_pathway:TPAP-NMO oxidation#过度氧化与裂解,reaction:TPAP-NMO oxidation,competes_with,L0,org:ox_red:4,false,RuO4 裂解竞争
+side_pathway:TPAP-NMO oxidation#过度氧化与裂解,condition:TPAP催化量1-5mol,suppressed_by,L0,org:ox_red:4,false,低载量抑制裂解
+side_pathway:TPAP-NMO oxidation#过度氧化与裂解,condition:NMO1.2-1.7当量,suppressed_by,L0,org:ox_red:4,false,NMO 充足避免局部 RuO4 过剩
+side_pathway:TPAP-NMO oxidation#催化剂失活,reaction:TPAP-NMO oxidation,competes_with,L0,org:ox_red:4,false,RuO2 失活
+side_pathway:TPAP-NMO oxidation#催化剂失活,condition:TPAP分子筛除水,suppressed_by,L0,org:ox_red:4,false,无水抑制失活
+reaction:TPAP-NMO oxidation,functional_group:伯醇,applies_to,L0,org:ox_red:4,false,伯醇→醛
+reaction:TPAP-NMO oxidation,functional_group:仲醇,applies_to,L0,org:ox_red:4,false,仲醇→酮
+reaction:Luche reduction,mechanism_step:Luche reduction#1_铈活化羰基,proceeds_via,L0,org:ox_red:5,false,Luche 主机理
+reaction:Luche reduction,mechanism_step:Luche reduction#2_硬氢负体生成,proceeds_via,L0,org:ox_red:5,false,Luche 主机理
+reaction:Luche reduction,"mechanism_step:Luche reduction#3_1,2-氢负加成",proceeds_via,L0,org:ox_red:5,false,Luche 主机理
+mechanism_step:Luche reduction#1_铈活化羰基,mechanism_step:Luche reduction#2_硬氢负体生成,step_next,L0,org:ox_red:5,false,活化后生成硬氢负体
+mechanism_step:Luche reduction#2_硬氢负体生成,"mechanism_step:Luche reduction#3_1,2-氢负加成",step_next,L0,org:ox_red:5,false,"1,2-加成"
+mechanism_step:Luche reduction#1_铈活化羰基,molecule:氯化铈,involves,L0,org:ox_red:5,false,Ce3+ 活化
+mechanism_step:Luche reduction#2_硬氢负体生成,molecule:硼氢化钠,involves,L0,org:ox_red:5,false,BH4- 提供氢
+"mechanism_step:Luche reduction#3_1,2-氢负加成",molecule:环己烯酮,involves,L0,org:ox_red:5,false,enone 底物
+"mechanism_step:Luche reduction#3_1,2-氢负加成",molecule:2-环己烯醇,involves,L0,org:ox_red:5,false,生成烯丙醇
+reaction:Luche reduction,condition:Luche_CeCl3_7H2O,requires,L0,org:ox_red:5,false,Luche 条件
+reaction:Luche reduction,condition:Luche_NaBH4,requires,L0,org:ox_red:5,false,Luche 条件
+reaction:Luche reduction,condition:Luche_MeOH_THF低温,requires,L0,org:ox_red:5,false,Luche 条件
+reaction:Luche reduction,molecule:2-环己烯醇,produces,L0,org:ox_red:5,false,主产物烯丙醇
+"side_pathway:Luche reduction#共轭1,4还原",reaction:Luche reduction,competes_with,L0,org:ox_red:5,false,"1,4-还原竞争"
+"side_pathway:Luche reduction#共轭1,4还原",condition:Luche_CeCl3_7H2O,suppressed_by,L0,org:ox_red:5,false,"CeCl3 抑制 1,4 路径"
+side_pathway:Luche reduction#醛保护成缩醛,reaction:Luche reduction,competes_with,L0,org:ox_red:5,false,醛缩醛化竞争/利用
+side_pathway:Luche reduction#醛保护成缩醛,condition:Luche_MeOH_THF低温,suppressed_by,L0,org:ox_red:5,false,MeOH 促进缩醛形成
+reaction:Luche reduction,functional_group:共轭烯酮,applies_to,L0,org:ox_red:5,false,"enone 1,2-选择性"
+reaction:Luche reduction,functional_group:醛,applies_to,L0,org:ox_red:5,false,醛可被缩醛保护
+reaction:LiAlH4 reduction,mechanism_step:LiAlH4 reduction#1_氢负加成,proceeds_via,L0,org:ox_red:6,false,LAH 主机理
+reaction:LiAlH4 reduction,mechanism_step:LiAlH4 reduction#2_烷氧基铝中间体,proceeds_via,L0,org:ox_red:6,false,LAH 主机理
+reaction:LiAlH4 reduction,mechanism_step:LiAlH4 reduction#3_酸性水解,proceeds_via,L0,org:ox_red:6,false,LAH 主机理
+mechanism_step:LiAlH4 reduction#1_氢负加成,mechanism_step:LiAlH4 reduction#2_烷氧基铝中间体,step_next,L0,org:ox_red:6,false,加成后得铝酸盐
+mechanism_step:LiAlH4 reduction#2_烷氧基铝中间体,mechanism_step:LiAlH4 reduction#3_酸性水解,step_next,L0,org:ox_red:6,false,水解释放醇
+mechanism_step:LiAlH4 reduction#1_氢负加成,molecule:氢化铝锂,involves,L0,org:ox_red:6,false,LAH 供氢
+mechanism_step:LiAlH4 reduction#2_烷氧基铝中间体,molecule:乙酸乙酯,involves,L0,org:ox_red:6,false,酯底物
+mechanism_step:LiAlH4 reduction#3_酸性水解,molecule:乙醇,involves,L0,org:ox_red:6,false,酯还原得醇
+reaction:LiAlH4 reduction,condition:LAH无水乙醚THF,requires,L0,org:ox_red:6,false,LAH 必要条件
+reaction:LiAlH4 reduction,condition:LAH低温缓慢加料,requires,L0,org:ox_red:6,false,LAH 必要条件
+reaction:LiAlH4 reduction,condition:LAH_Fieser水解,requires,L0,org:ox_red:6,false,LAH 必要条件
+reaction:LiAlH4 reduction,condition:LAH惰性气氛,requires,L0,org:ox_red:6,false,LAH 必要条件
+reaction:LiAlH4 reduction,molecule:乙醇,produces,L0,org:ox_red:6,false,主产物为醇
+side_pathway:LiAlH4 reduction#质子分解放氢,reaction:LiAlH4 reduction,competes_with,L0,org:ox_red:6,false,质子分解放 H2
+side_pathway:LiAlH4 reduction#质子分解放氢,condition:LAH惰性气氛,suppressed_by,L0,org:ox_red:6,false,无水惰气抑制
+side_pathway:LiAlH4 reduction#选择性过度还原,reaction:LiAlH4 reduction,competes_with,L0,org:ox_red:6,false,过度还原竞争
+side_pathway:LiAlH4 reduction#选择性过度还原,condition:LAH低温缓慢加料,suppressed_by,L0,org:ox_red:6,false,低温控化学计量缓解
+reaction:LiAlH4 reduction,functional_group:酯,applies_to,L0,org:ox_red:6,false,酯→醇
+reaction:LiAlH4 reduction,functional_group:酰胺,applies_to,L0,org:ox_red:6,false,酰胺→胺
+reaction:LiAlH4 reduction,functional_group:羧酸,applies_to,L0,org:ox_red:6,false,羧酸→醇
+reaction:LiAlH4 reduction,functional_group:酮,applies_to,L0,org:ox_red:6,false,酮→仲醇
+reaction:LiAlH4 reduction,functional_group:醛,applies_to,L0,org:ox_red:6,false,醛→伯醇
+reaction:DIBAL reduction,mechanism_step:DIBAL reduction#1_配位活化,proceeds_via,L0,org:ox_red:7,false,DIBAL 主机理
+reaction:DIBAL reduction,mechanism_step:DIBAL reduction#2_单次氢负转移,proceeds_via,L0,org:ox_red:7,false,DIBAL 主机理
+reaction:DIBAL reduction,mechanism_step:DIBAL reduction#3_水解释醛,proceeds_via,L0,org:ox_red:7,false,DIBAL 主机理
+mechanism_step:DIBAL reduction#1_配位活化,mechanism_step:DIBAL reduction#2_单次氢负转移,step_next,L0,org:ox_red:7,false,配位后氢负转移
+mechanism_step:DIBAL reduction#2_单次氢负转移,mechanism_step:DIBAL reduction#3_水解释醛,step_next,L0,org:ox_red:7,false,中间体水解
+mechanism_step:DIBAL reduction#1_配位活化,molecule:二异丁基氢化铝,involves,L0,org:ox_red:7,false,DIBAL 为试剂
+mechanism_step:DIBAL reduction#2_单次氢负转移,molecule:肉豆蔻酸甲酯,involves,L0,org:ox_red:7,false,酯底物
+mechanism_step:DIBAL reduction#3_水解释醛,molecule:十四碳醛,involves,L0,org:ox_red:7,false,水解释醛
+reaction:DIBAL reduction,condition:DIBAL低温-78C,requires,L0,org:ox_red:7,false,DIBAL 关键条件
+reaction:DIBAL reduction,condition:DIBAL甲苯己烷,requires,L0,org:ox_red:7,false,DIBAL 关键条件
+reaction:DIBAL reduction,condition:DIBAL_1当量,requires,L0,org:ox_red:7,false,DIBAL 关键条件
+reaction:DIBAL reduction,molecule:十四碳醛,produces,L0,org:ox_red:7,false,主产物醛
+side_pathway:DIBAL reduction#升温继续还原到醇,reaction:DIBAL reduction,competes_with,L0,org:ox_red:7,false,过度还原到醇
+side_pathway:DIBAL reduction#升温继续还原到醇,condition:DIBAL低温-78C,suppressed_by,L0,org:ox_red:7,false,低温抑制到醇
+side_pathway:DIBAL reduction#酰胺到胺,reaction:DIBAL reduction,competes_with,L0,org:ox_red:7,false,酰胺/腈到胺
+reaction:DIBAL reduction,functional_group:酯,applies_to,L0,org:ox_red:7,false,酯→醛
+reaction:DIBAL reduction,functional_group:内酯,applies_to,L0,org:ox_red:7,false,内酯→内半缩醛/二醇
+reaction:DIBAL reduction,functional_group:腈,applies_to,L0,org:ox_red:7,false,腈→醛(水解)或胺
+reaction:Catalytic hydrogenation,mechanism_step:Catalytic hydrogenation#1_氢吸附活化,proceeds_via,L0,org:ox_red:8,false,氢化 Horiuti-Polanyi 链
+reaction:Catalytic hydrogenation,mechanism_step:Catalytic hydrogenation#2_烯烃配位,proceeds_via,L0,org:ox_red:8,false,氢化 Horiuti-Polanyi 链
+reaction:Catalytic hydrogenation,mechanism_step:Catalytic hydrogenation#3_分步氢转移,proceeds_via,L0,org:ox_red:8,false,氢化 Horiuti-Polanyi 链
+mechanism_step:Catalytic hydrogenation#1_氢吸附活化,mechanism_step:Catalytic hydrogenation#2_烯烃配位,step_next,L0,org:ox_red:8,false,活化 H 后烯烃吸附
+mechanism_step:Catalytic hydrogenation#2_烯烃配位,mechanism_step:Catalytic hydrogenation#3_分步氢转移,step_next,L0,org:ox_red:8,false,分步加氢
+mechanism_step:Catalytic hydrogenation#1_氢吸附活化,molecule:氢气,involves,L0,org:ox_red:8,false,H2 被活化
+mechanism_step:Catalytic hydrogenation#1_氢吸附活化,molecule:钯碳,involves,L0,org:ox_red:8,false,多相 Pd 表面
+mechanism_step:Catalytic hydrogenation#2_烯烃配位,molecule:1-辛烯,involves,L0,org:ox_red:8,false,烯烃吸附
+mechanism_step:Catalytic hydrogenation#3_分步氢转移,molecule:辛烷,involves,L0,org:ox_red:8,false,生成烷烃
+reaction:Catalytic hydrogenation,condition:Pd_C多相氢气,requires,L0,org:ox_red:8,false,氢化条件
+reaction:Catalytic hydrogenation,condition:Wilkinson催化剂,requires,L0,org:ox_red:8,false,氢化条件
+reaction:Catalytic hydrogenation,condition:Ru_BINAP不对称,requires,L0,org:ox_red:8,false,氢化条件
+reaction:Catalytic hydrogenation,condition:氢化毒性安全,requires,L0,org:ox_red:8,false,氢化条件
+reaction:Catalytic hydrogenation,molecule:辛烷,produces,L0,org:ox_red:8,false,烯烃加氢产物
+side_pathway:Catalytic hydrogenation#氢解脱保护,reaction:Catalytic hydrogenation,competes_with,L0,org:ox_red:8,false,氢解竞争
+side_pathway:Catalytic hydrogenation#氢解脱保护,condition:Pd_C多相氢气,suppressed_by,L0,org:ox_red:8,false,Pd/C 最易氢解
+side_pathway:Catalytic hydrogenation#半氢化异构化,reaction:Catalytic hydrogenation,competes_with,L0,org:ox_red:8,false,异构化/半氢化竞争
+side_pathway:Catalytic hydrogenation#半氢化异构化,condition:Wilkinson催化剂,suppressed_by,L0,org:ox_red:8,false,均相 Rh 异构化倾向
+side_pathway:Catalytic hydrogenation#催化剂中毒,reaction:Catalytic hydrogenation,competes_with,L0,org:ox_red:8,false,毒化失活
+side_pathway:Catalytic hydrogenation#催化剂中毒,condition:Ru_BINAP不对称,suppressed_by,L0,org:ox_red:8,false,换金属/配体可抗毒
+reaction:Catalytic hydrogenation,functional_group:烯烃,applies_to,L0,org:ox_red:8,false,C=C 加氢
+reaction:Catalytic hydrogenation,functional_group:炔烃,applies_to,L0,org:ox_red:8,false,C≡C 加氢
+reaction:Catalytic hydrogenation,functional_group:硝基,applies_to,L0,org:ox_red:8,false,硝基还原为胺
+reaction:Transfer hydrogenation,mechanism_step:Transfer hydrogenation#1_MPV六元环TS,proceeds_via,L0,org:ox_red:9,false,转移氢化机理要点
+reaction:Transfer hydrogenation,mechanism_step:Transfer hydrogenation#2_Noyori外层协同,proceeds_via,L0,org:ox_red:9,false,转移氢化机理要点
+reaction:Transfer hydrogenation,mechanism_step:Transfer hydrogenation#3_甲酸脱羧驱动,proceeds_via,L0,org:ox_red:9,false,转移氢化机理要点
+mechanism_step:Transfer hydrogenation#1_MPV六元环TS,mechanism_step:Transfer hydrogenation#2_Noyori外层协同,step_next,L0,org:ox_red:9,false,从 MPV 到 Noyori 体系对照
+mechanism_step:Transfer hydrogenation#1_MPV六元环TS,molecule:异丙醇,involves,L0,org:ox_red:9,false,MPV 氢源
+mechanism_step:Transfer hydrogenation#1_MPV六元环TS,molecule:丙酮,involves,L0,org:ox_red:9,false,MPV 副产丙酮
+mechanism_step:Transfer hydrogenation#3_甲酸脱羧驱动,molecule:甲酸三乙胺,involves,L0,org:ox_red:9,false,甲酸氢源
+reaction:Transfer hydrogenation,condition:MPV异丙醇铝回流,requires,L0,org:ox_red:9,false,转移氢化条件
+reaction:Transfer hydrogenation,condition:Noyori甲酸三乙胺,requires,L0,org:ox_red:9,false,转移氢化条件
+reaction:Transfer hydrogenation,condition:Noyori_Ru_TsDPEN,requires,L0,org:ox_red:9,false,转移氢化条件
+reaction:Transfer hydrogenation,condition:转移氢化惰气,requires,L0,org:ox_red:9,false,转移氢化条件
+reaction:Transfer hydrogenation,molecule:二苯甲醇,produces,L0,org:ox_red:9,false,酮还原产物
+side_pathway:Transfer hydrogenation#MPV醛选择与酮慢,reaction:Transfer hydrogenation,competes_with,L0,org:ox_red:9,false,MPV 速率限制
+side_pathway:Transfer hydrogenation#MPV醛选择与酮慢,condition:Noyori_Ru_TsDPEN,suppressed_by,L0,org:ox_red:9,false,Noyori 替代提速
+side_pathway:Transfer hydrogenation#碱致消除,reaction:Transfer hydrogenation,competes_with,L0,org:ox_red:9,false,碱性副反应
+side_pathway:Transfer hydrogenation#碱致消除,condition:Noyori甲酸三乙胺,suppressed_by,L0,org:ox_red:9,false,温和 pH 缓解
+reaction:Transfer hydrogenation,functional_group:酮,applies_to,L0,org:ox_red:9,false,酮→仲醇
+reaction:Transfer hydrogenation,functional_group:醛,applies_to,L0,org:ox_red:9,false,醛→伯醇
+reaction:Sharpless asymmetric dihydroxylation,mechanism_step:Sharpless AD#1_催化剂复合物,proceeds_via,L0,org:ox_red:10,false,SAD 催化循环
+reaction:Sharpless asymmetric dihydroxylation,mechanism_step:Sharpless AD#2_3+2环加成,proceeds_via,L0,org:ox_red:10,false,SAD 催化循环
+reaction:Sharpless asymmetric dihydroxylation,mechanism_step:Sharpless AD#3_水解释二醇,proceeds_via,L0,org:ox_red:10,false,SAD 催化循环
+reaction:Sharpless asymmetric dihydroxylation,mechanism_step:Sharpless AD#4_铁氰化钾再氧化,proceeds_via,L0,org:ox_red:10,false,SAD 催化循环
+mechanism_step:Sharpless AD#1_催化剂复合物,mechanism_step:Sharpless AD#2_3+2环加成,step_next,L0,org:ox_red:10,false,口袋内环加成
+mechanism_step:Sharpless AD#2_3+2环加成,mechanism_step:Sharpless AD#3_水解释二醇,step_next,L0,org:ox_red:10,false,水解
+mechanism_step:Sharpless AD#3_水解释二醇,mechanism_step:Sharpless AD#4_铁氰化钾再氧化,step_next,L0,org:ox_red:10,false,再氧化
+mechanism_step:Sharpless AD#4_铁氰化钾再氧化,mechanism_step:Sharpless AD#1_催化剂复合物,step_next,L0,org:ox_red:10,false,再生 OsO4-L
+mechanism_step:Sharpless AD#1_催化剂复合物,molecule:四氧化锇,involves,L0,org:ox_red:10,false,OsO4 活性氧源
+mechanism_step:Sharpless AD#1_催化剂复合物,molecule:二氢奎尼丁酞嗪,involves,L0,org:ox_red:10,false,AD-mix-β 配体
+mechanism_step:Sharpless AD#2_3+2环加成,molecule:反式二苯乙烯,involves,L0,org:ox_red:10,false,烯烃底物
+mechanism_step:Sharpless AD#3_水解释二醇,molecule:甲磺酰胺,involves,L0,org:ox_red:10,false,加速水解
+mechanism_step:Sharpless AD#4_铁氰化钾再氧化,molecule:铁氰化钾,involves,L0,org:ox_red:10,false,共氧化剂
+reaction:Sharpless asymmetric dihydroxylation,condition:AD_mix预混,requires,L0,org:ox_red:10,false,SAD 条件
+reaction:Sharpless asymmetric dihydroxylation,condition:AD_tBuOH水0C,requires,L0,org:ox_red:10,false,SAD 条件
+reaction:Sharpless asymmetric dihydroxylation,condition:AD_甲磺酰胺,requires,L0,org:ox_red:10,false,SAD 条件
+reaction:Sharpless asymmetric dihydroxylation,molecule:手性邻二苯乙二醇,produces,L0,org:ox_red:10,false,手性二醇产物
+side_pathway:Sharpless AD#次级循环降ee,reaction:Sharpless asymmetric dihydroxylation,competes_with,L0,org:ox_red:10,false,次级循环降 ee
+side_pathway:Sharpless AD#次级循环降ee,condition:AD_tBuOH水0C,suppressed_by,L0,org:ox_red:10,false,溶剂比例控制水解
+side_pathway:Sharpless AD#底物氧化不足,reaction:Sharpless asymmetric dihydroxylation,competes_with,L0,org:ox_red:10,false,内烯慢
+side_pathway:Sharpless AD#底物氧化不足,condition:AD_甲磺酰胺,suppressed_by,L0,org:ox_red:10,false,MeSO2NH2 补救
+reaction:Sharpless asymmetric dihydroxylation,functional_group:烯烃,applies_to,L0,org:ox_red:10,false,烯烃双羟化
+reaction:Sharpless epoxidation,mechanism_step:Sharpless epoxidation#1_手性Ti活性物种,proceeds_via,L0,org:ox_red:11,false,Sharpless 环氧化机理
+reaction:Sharpless epoxidation,mechanism_step:Sharpless epoxidation#2_氧从面传递,proceeds_via,L0,org:ox_red:11,false,Sharpless 环氧化机理
+reaction:Sharpless epoxidation,mechanism_step:Sharpless epoxidation#3_产物解离再组装,proceeds_via,L0,org:ox_red:11,false,Sharpless 环氧化机理
+mechanism_step:Sharpless epoxidation#1_手性Ti活性物种,mechanism_step:Sharpless epoxidation#2_氧从面传递,step_next,L0,org:ox_red:11,false,组装后氧传递
+mechanism_step:Sharpless epoxidation#2_氧从面传递,mechanism_step:Sharpless epoxidation#3_产物解离再组装,step_next,L0,org:ox_red:11,false,产物释放循环
+mechanism_step:Sharpless epoxidation#1_手性Ti活性物种,molecule:钛酸四异丙酯,involves,L0,org:ox_red:11,false,Ti 源
+mechanism_step:Sharpless epoxidation#1_手性Ti活性物种,molecule:酒石酸二乙酯,involves,L0,org:ox_red:11,false,手性配体
+mechanism_step:Sharpless epoxidation#2_氧从面传递,molecule:叔丁基过氧化氢,involves,L0,org:ox_red:11,false,氧源
+mechanism_step:Sharpless epoxidation#2_氧从面传递,molecule:烯丙醇底物,involves,L0,org:ox_red:11,false,烯丙醇底物
+mechanism_step:Sharpless epoxidation#3_产物解离再组装,molecule:手性烯丙基环氧化物,involves,L0,org:ox_red:11,false,手性环氧化物
+reaction:Sharpless epoxidation,condition:Sharpless_TI_DET,requires,L0,org:ox_red:11,false,Sharpless 条件
+reaction:Sharpless epoxidation,condition:Sharpless_TBHP,requires,L0,org:ox_red:11,false,Sharpless 条件
+reaction:Sharpless epoxidation,condition:Sharpless低温分子筛,requires,L0,org:ox_red:11,false,Sharpless 条件
+reaction:Sharpless epoxidation,molecule:手性烯丙基环氧化物,produces,L0,org:ox_red:11,false,主产物
+side_pathway:Sharpless epoxidation#DET构型错配,reaction:Sharpless epoxidation,competes_with,L0,org:ox_red:11,false,错配降 ee
+side_pathway:Sharpless epoxidation#DET构型错配,condition:Sharpless_TI_DET,suppressed_by,L0,org:ox_red:11,false,DET 构型选择关键
+side_pathway:Sharpless epoxidation#非导向烯不反应,reaction:Sharpless epoxidation,competes_with,L0,org:ox_red:11,false,底物限制
+side_pathway:Sharpless epoxidation#非导向烯不反应,condition:Sharpless_TBHP,suppressed_by,L0,org:ox_red:11,false,延长/TBHP 过量也难救非导向
+reaction:Sharpless epoxidation,functional_group:烯丙醇,applies_to,L0,org:ox_red:11,false,烯丙醇导向环氧化
+reaction:Sharpless epoxidation,functional_group:烯烃,applies_to,L0,org:ox_red:11,false,活化 C=C
+reaction:Jacobsen epoxidation,mechanism_step:Jacobsen epoxidation#1_MnV氧代形成,proceeds_via,L0,org:ox_red:12,false,Jacobsen 催化循环
+reaction:Jacobsen epoxidation,mechanism_step:Jacobsen epoxidation#2_氧转移,proceeds_via,L0,org:ox_red:12,false,Jacobsen 催化循环
+reaction:Jacobsen epoxidation,mechanism_step:Jacobsen epoxidation#3_催化剂再生,proceeds_via,L0,org:ox_red:12,false,Jacobsen 催化循环
+mechanism_step:Jacobsen epoxidation#1_MnV氧代形成,mechanism_step:Jacobsen epoxidation#2_氧转移,step_next,L0,org:ox_red:12,false,高价氧代后转移
+mechanism_step:Jacobsen epoxidation#2_氧转移,mechanism_step:Jacobsen epoxidation#3_催化剂再生,step_next,L0,org:ox_red:12,false,释放产物再生
+mechanism_step:Jacobsen epoxidation#1_MnV氧代形成,molecule:Mn_III_salen催化剂,involves,L0,org:ox_red:12,false,Mn-salen 前体
+mechanism_step:Jacobsen epoxidation#1_MnV氧代形成,molecule:次氯酸钠,involves,L0,org:ox_red:12,false,NaOCl 氧化剂
+mechanism_step:Jacobsen epoxidation#2_氧转移,molecule:顺式二取代烯底物,involves,L0,org:ox_red:12,false,顺式烯底物
+reaction:Jacobsen epoxidation,condition:Jacobsen_NaOCl,requires,L0,org:ox_red:12,false,Jacobsen 条件
+reaction:Jacobsen epoxidation,condition:Jacobsen_低温,requires,L0,org:ox_red:12,false,Jacobsen 条件
+reaction:Jacobsen epoxidation,condition:Jacobsen_吗啉添加剂,requires,L0,org:ox_red:12,false,Jacobsen 条件
+side_pathway:Jacobsen epoxidation#自由基路径,reaction:Jacobsen epoxidation,competes_with,L0,org:ox_red:12,false,自由基竞争
+side_pathway:Jacobsen epoxidation#自由基路径,condition:Jacobsen_低温,suppressed_by,L0,org:ox_red:12,false,低温偏向协同路径
+side_pathway:Jacobsen epoxidation#反式烯低ee,reaction:Jacobsen epoxidation,competes_with,L0,org:ox_red:12,false,trans 烯局限
+side_pathway:Jacobsen epoxidation#反式烯低ee,condition:Jacobsen_吗啉添加剂,suppressed_by,L0,org:ox_red:12,false,轴向配体部分改善
+reaction:Jacobsen epoxidation,functional_group:非官能化烯烃,applies_to,L0,org:ox_red:12,false,非导向烯底物
+reaction:Jacobsen epoxidation,functional_group:三取代烯烃,applies_to,L0,org:ox_red:12,false,三取代烯高 ee
+reaction:CBS reduction,mechanism_step:CBS reduction#1_BH3配位活化,proceeds_via,L0,org:ox_red:13,false,CBS 主机理
+reaction:CBS reduction,mechanism_step:CBS reduction#2_酮低位阻面配位,proceeds_via,L0,org:ox_red:13,false,CBS 主机理
+reaction:CBS reduction,mechanism_step:CBS reduction#3_六元环氢负转移,proceeds_via,L0,org:ox_red:13,false,CBS 主机理
+reaction:CBS reduction,mechanism_step:CBS reduction#4_水解得醇,proceeds_via,L0,org:ox_red:13,false,CBS 主机理
+mechanism_step:CBS reduction#1_BH3配位活化,mechanism_step:CBS reduction#2_酮低位阻面配位,step_next,L0,org:ox_red:13,false,机理顺序
+mechanism_step:CBS reduction#2_酮低位阻面配位,mechanism_step:CBS reduction#3_六元环氢负转移,step_next,L0,org:ox_red:13,false,机理顺序
+mechanism_step:CBS reduction#3_六元环氢负转移,mechanism_step:CBS reduction#4_水解得醇,step_next,L0,org:ox_red:13,false,机理顺序
+mechanism_step:CBS reduction#1_BH3配位活化,molecule:硼烷络合物,involves,L0,org:ox_red:13,false,BH3 氢源
+mechanism_step:CBS reduction#1_BH3配位活化,molecule:CBS噁唑硼烷催化剂,involves,L0,org:ox_red:13,false,手性催化剂
+mechanism_step:CBS reduction#2_酮低位阻面配位,molecule:苯乙酮,involves,L0,org:ox_red:13,false,酮底物
+mechanism_step:CBS reduction#4_水解得醇,molecule:1-苯基乙醇,involves,L0,org:ox_red:13,false,手性醇
+reaction:CBS reduction,condition:CBS_无水THF,requires,L0,org:ox_red:13,false,CBS 条件
+reaction:CBS reduction,condition:CBS_低温,requires,L0,org:ox_red:13,false,CBS 条件
+reaction:CBS reduction,condition:CBS_催化剂5mol,requires,L0,org:ox_red:13,false,CBS 条件
+reaction:CBS reduction,molecule:1-苯基乙醇,produces,L0,org:ox_red:13,false,主产物
+side_pathway:CBS reduction#硼氢化钠杂质路径,reaction:CBS reduction,competes_with,L0,org:ox_red:13,false,杂质路径
+side_pathway:CBS reduction#硼氢化钠杂质路径,condition:CBS_催化剂5mol,suppressed_by,L0,org:ox_red:13,false,足量催化剂压制背景
+side_pathway:CBS reduction#水分破坏,reaction:CBS reduction,competes_with,L0,org:ox_red:13,false,水致失活
+side_pathway:CBS reduction#水分破坏,condition:CBS_无水THF,suppressed_by,L0,org:ox_red:13,false,无水条件抑制
+reaction:CBS reduction,functional_group:前手性酮,applies_to,L0,org:ox_red:13,false,前手性酮对映还原
+reaction:DDQ oxidation,mechanism_step:DDQ oxidation#1_电荷转移复合,proceeds_via,L0,org:ox_red:14,false,DDQ 主机理
+reaction:DDQ oxidation,mechanism_step:DDQ oxidation#2_氢负或SET转移,proceeds_via,L0,org:ox_red:14,false,DDQ 主机理
+reaction:DDQ oxidation,mechanism_step:DDQ oxidation#3_苄正离子捕获,proceeds_via,L0,org:ox_red:14,false,DDQ 主机理
+mechanism_step:DDQ oxidation#1_电荷转移复合,mechanism_step:DDQ oxidation#2_氢负或SET转移,step_next,L0,org:ox_red:14,false,络合后转移
+mechanism_step:DDQ oxidation#2_氢负或SET转移,mechanism_step:DDQ oxidation#3_苄正离子捕获,step_next,L0,org:ox_red:14,false,捕获得产物
+mechanism_step:DDQ oxidation#1_电荷转移复合,molecule:DDQ,involves,L0,org:ox_red:14,false,DDQ 为氧化剂
+mechanism_step:DDQ oxidation#3_苄正离子捕获,molecule:DDQ氢醌,involves,L0,org:ox_red:14,false,DDQ 还原为氢醌
+mechanism_step:DDQ oxidation#2_氢负或SET转移,molecule:PMP保护苄醚,involves,L0,org:ox_red:14,false,PMB 底物
+reaction:DDQ oxidation,condition:DDQ_DCE或DCM,requires,L0,org:ox_red:14,false,DDQ 条件
+reaction:DDQ oxidation,condition:DDQ_1当量,requires,L0,org:ox_red:14,false,DDQ 条件
+reaction:DDQ oxidation,condition:DDQ_HFIP促进,requires,L0,org:ox_red:14,false,DDQ 条件
+side_pathway:DDQ oxidation#过度氧化成酸酯,reaction:DDQ oxidation,competes_with,L0,org:ox_red:14,false,过度氧化
+side_pathway:DDQ oxidation#过度氧化成酸酯,condition:DDQ_1当量,suppressed_by,L0,org:ox_red:14,false,控量抑制
+side_pathway:DDQ oxidation#贫电子底物不反应,reaction:DDQ oxidation,competes_with,L0,org:ox_red:14,false,底物惰性
+side_pathway:DDQ oxidation#贫电子底物不反应,condition:DDQ_HFIP促进,suppressed_by,L0,org:ox_red:14,false,HFIP 提速但仍限富电子
+reaction:DDQ oxidation,functional_group:苄位C-H,applies_to,L0,org:ox_red:14,false,苄位氧化
+reaction:DDQ oxidation,functional_group:烯丙位C-H,applies_to,L0,org:ox_red:14,false,烯丙位氧化
+reaction:DDQ oxidation,functional_group:富电子芳环,applies_to,L0,org:ox_red:14,false,富电子芳环氧化
+reaction:Wacker oxidation,mechanism_step:Wacker oxidation#1_烯烃配位,proceeds_via,L0,org:ox_red:15,false,Wacker 催化循环
+reaction:Wacker oxidation,mechanism_step:Wacker oxidation#2_羟钯化,proceeds_via,L0,org:ox_red:15,false,Wacker 催化循环
+reaction:Wacker oxidation,mechanism_step:Wacker oxidation#3_β-H消除,proceeds_via,L0,org:ox_red:15,false,Wacker 催化循环
+reaction:Wacker oxidation,mechanism_step:Wacker oxidation#4_Cu再氧化Pd,proceeds_via,L0,org:ox_red:15,false,Wacker 催化循环
+mechanism_step:Wacker oxidation#1_烯烃配位,mechanism_step:Wacker oxidation#2_羟钯化,step_next,L0,org:ox_red:15,false,循环顺序
+mechanism_step:Wacker oxidation#2_羟钯化,mechanism_step:Wacker oxidation#3_β-H消除,step_next,L0,org:ox_red:15,false,循环顺序
+mechanism_step:Wacker oxidation#3_β-H消除,mechanism_step:Wacker oxidation#4_Cu再氧化Pd,step_next,L0,org:ox_red:15,false,循环顺序
+mechanism_step:Wacker oxidation#4_Cu再氧化Pd,mechanism_step:Wacker oxidation#1_烯烃配位,step_next,L0,org:ox_red:15,false,Pd(II) 再生
+mechanism_step:Wacker oxidation#1_烯烃配位,molecule:氯化钯,involves,L0,org:ox_red:15,false,Pd 源
+mechanism_step:Wacker oxidation#2_羟钯化,molecule:乙烯,involves,L0,org:ox_red:15,false,乙烯底物
+mechanism_step:Wacker oxidation#3_β-H消除,molecule:乙醛,involves,L0,org:ox_red:15,false,工业产物乙醛
+mechanism_step:Wacker oxidation#4_Cu再氧化Pd,molecule:氯化铜,involves,L0,org:ox_red:15,false,Cu 共催化剂
+reaction:Wacker oxidation,condition:Tsuji_Wacker条件,requires,L0,org:ox_red:15,false,Wacker 条件
+reaction:Wacker oxidation,condition:Wacker工业条件,requires,L0,org:ox_red:15,false,Wacker 条件
+reaction:Wacker oxidation,condition:Wacker氯浓度窗口,requires,L0,org:ox_red:15,false,Wacker 条件
+reaction:Wacker oxidation,molecule:2-辛酮,produces,L0,org:ox_red:15,false,末端烯→甲基酮
+side_pathway:Wacker oxidation#氯醇生成,reaction:Wacker oxidation,competes_with,L0,org:ox_red:15,false,氯醇竞争
+side_pathway:Wacker oxidation#氯醇生成,condition:Wacker氯浓度窗口,suppressed_by,L0,org:ox_red:15,false,控 Cl- 抑制
+side_pathway:Wacker oxidation#Pd黑沉积,reaction:Wacker oxidation,competes_with,L0,org:ox_red:15,false,Pd 沉积失活
+side_pathway:Wacker oxidation#Pd黑沉积,condition:Tsuji_Wacker条件,suppressed_by,L0,org:ox_red:15,false,Cu/O2 再氧化抑制
+side_pathway:Wacker oxidation#双键异构化,reaction:Wacker oxidation,competes_with,L0,org:ox_red:15,false,异构化竞争
+side_pathway:Wacker oxidation#双键异构化,condition:Tsuji_Wacker条件,suppressed_by,L0,org:ox_red:15,false,温和条件+导向配体缓解
+reaction:Wacker oxidation,functional_group:末端烯烃,applies_to,L0,org:ox_red:15,false,末端烯甲基酮化
+reaction:Wacker oxidation,functional_group:烯烃,applies_to,L0,org:ox_red:15,false,烯烃氧化
+reaction:Autoxidation,mechanism_step:Autoxidation#1_引发,proceeds_via,L0,org:ox_red:16,false,自氧化链步骤
+reaction:Autoxidation,mechanism_step:Autoxidation#2_增长循环,proceeds_via,L0,org:ox_red:16,false,自氧化链步骤
+reaction:Autoxidation,mechanism_step:Autoxidation#3_过氧化物分解支链,proceeds_via,L0,org:ox_red:16,false,自氧化链步骤
+reaction:Autoxidation,mechanism_step:Autoxidation#4_终止,proceeds_via,L0,org:ox_red:16,false,自氧化链步骤
+mechanism_step:Autoxidation#1_引发,mechanism_step:Autoxidation#2_增长循环,step_next,L0,org:ox_red:16,false,引发进增长
+mechanism_step:Autoxidation#2_增长循环,mechanism_step:Autoxidation#3_过氧化物分解支链,step_next,L0,org:ox_red:16,false,ROOH 支链
+mechanism_step:Autoxidation#3_过氧化物分解支链,mechanism_step:Autoxidation#2_增长循环,step_next,L0,org:ox_red:16,false,支链回馈增长
+mechanism_step:Autoxidation#2_增长循环,mechanism_step:Autoxidation#4_终止,step_next,L0,org:ox_red:16,false,终止通道
+mechanism_step:Autoxidation#1_引发,molecule:氧气,involves,L0,org:ox_red:16,false,O2 参与增长步
+mechanism_step:Autoxidation#3_过氧化物分解支链,molecule:氢过氧化异丙苯,involves,L0,org:ox_red:16,false,ROOH 中间体
+reaction:Autoxidation,condition:自氧化引发剂,requires,L0,org:ox_red:16,false,自氧化条件
+reaction:Autoxidation,condition:自氧化钴锰催化剂,requires,L0,org:ox_red:16,false,自氧化条件
+reaction:Autoxidation,condition:自氧化抗氧化剂,requires,L0,org:ox_red:16,false,自氧化条件
+reaction:Autoxidation,condition:自氧化惰气避光,requires,L0,org:ox_red:16,false,自氧化条件
+reaction:Autoxidation,molecule:异丙苯,produces,L0,org:ox_red:16,false,工业底物
+side_pathway:Autoxidation#深度断链,reaction:Autoxidation,competes_with,L0,org:ox_red:16,false,断链酸败
+side_pathway:Autoxidation#深度断链,condition:自氧化抗氧化剂,suppressed_by,L0,org:ox_red:16,false,BHT 抑制
+side_pathway:Autoxidation#过氧化物积累爆燃,reaction:Autoxidation,competes_with,L0,org:ox_red:16,false,过氧化物危险
+side_pathway:Autoxidation#过氧化物积累爆燃,condition:自氧化惰气避光,suppressed_by,L0,org:ox_red:16,false,惰气低温防积累
+reaction:Autoxidation,functional_group:苄位C-H,applies_to,L0,org:ox_red:16,false,苄位优先
+reaction:Autoxidation,functional_group:烯丙位C-H,applies_to,L0,org:ox_red:16,false,烯丙位优先
+reaction:Autoxidation,functional_group:醚溶剂,applies_to,L0,org:ox_red:16,false,醚自氧化风险
+reaction:Jacobsen epoxidation,molecule:顺式甲基苯乙烯环氧化物,produces,L0,org:ox_red:12,false,顺式烯环氧化主产物
+reaction:DDQ oxidation,molecule:对甲氧基苯甲醇,produces,L0,org:ox_red:14,false,PMB 醚脱保护得到苄醇
+mechanism_step:Jacobsen epoxidation#2_氧转移,molecule:顺式甲基苯乙烯环氧化物,involves,L0,org:ox_red:12,false,氧转移直接生成环氧化物
+mechanism_step:DDQ oxidation#3_苄正离子捕获,molecule:对甲氧基苯甲醇,involves,L0,org:ox_red:14,false,水捕获得苄醇
+reaction:Dess-Martin oxidation,mechanism_step:Dess-Martin oxidation#3_碘烷解离与乙酸释放,proceeds_via,L0,org:ox_red:2,false,消除后碘烷解离
+mechanism_step:Dess-Martin oxidation#2_醋酸根协同消除,mechanism_step:Dess-Martin oxidation#3_碘烷解离与乙酸释放,step_next,L0,org:ox_red:2,false,消除后解离
+mechanism_step:Dess-Martin oxidation#3_碘烷解离与乙酸释放,molecule:碘烷还原副产,involves,L0,org:ox_red:2,false,生成碘烷
+mechanism_step:Dess-Martin oxidation#3_碘烷解离与乙酸释放,molecule:乙酸,involves,L0,org:ox_red:2,false,释放乙酸
