@@ -1,4 +1,0 @@
- * ratio c/w:     4.139 speedup
-
-normal termination of xtb
-Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG

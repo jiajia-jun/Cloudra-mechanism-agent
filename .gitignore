@@ -114,3 +114,25 @@ ideapool/**/img_*/
 
 
 
+# 本地计算/campaign 运行现场（引擎中间产物与调度残留，不入库）
+NA1_run/
+NA1_sim_20260905/
+NA2_aldol_20260905/
+NA1_exam/
+AA_aldol_3HB_20260905/
+calc/
+benchmark_smoke_data/
+frontend/calc/
+frontend/confs_output/
+frontend/cope_xtb/
+frontend/pc_confs/
+frontend/rc_confs/
+frontend/rc_confs2/
+frontend/rcHB_confs/
+frontend/xtbtest/
+frontend/*.mol
+frontend/*.zmat
+
+# 工具缓存
+.numba-cache/
+.tscheck/

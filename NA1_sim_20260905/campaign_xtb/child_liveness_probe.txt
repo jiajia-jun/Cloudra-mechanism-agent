@@ -1,1 +1,0 @@
-child-probe-ok /Users/cloudrayyy/Desktop/Cloudra-mechanism-agent-master
