@@ -15,8 +15,11 @@ description = (
     "Use for: diagnosing a FAILED job (reading last_error) or confirming a job record exists after a submission error. "
     "Do not use for: submitting a new job (use submit_compute_job), queue/capacity overview (use query_compute_queue), "
     "or parsing a finished log (use log_parser). "
-    "Do NOT use this to wait on a running job: terminal states are pushed to you automatically (you are woken), "
-    "so polling wastes turns; if you need an interim checkpoint, `schedule` a read-only check_command instead. "
+    "NEVER call this tool to wait on a running/queued job. Terminal states are PUSHED to you automatically — you are "
+    "woken the moment the job finishes, so a poll can only ever return information you already had while burning a "
+    "model turn each time. Polling to wait is a protocol violation: the only acceptable reason to query a "
+    "non-terminal job is diagnosing a broken submission. If you genuinely need an interim checkpoint, `schedule` a "
+    "one-shot read-only check_command and stop. "
     "Note: the scheduler daemon reconciles crashed workers automatically (lock-based, it never kills processes), "
     "so a dead worker's job is adopted and finalized deterministically; mark_compute_job_failed remains the manual "
     "escape hatch when you have out-of-band proof a job is truly gone."
@@ -123,10 +126,14 @@ class QueryComputeJob(Tool):
         message = f"{len(jobs)} job record(s)."
         if any(job["state"] not in TERMINAL_STATES for job in jobs):
             message += (
-                " Some jobs are still in a non-terminal state; terminal states "
-                "(done/failed/cancelled) are pushed to you automatically, so wait for "
-                "the push notification instead of polling this tool. If you truly need "
-                "to re-check later, use schedule to set a one-shot reminder."
+                " STOP POLLING. Some jobs are still in a non-terminal state, and re-querying "
+                "will NOT change that: terminal states (done/failed/cancelled) are PUSHED to you "
+                "automatically and will wake you the instant the job finishes. Every additional "
+                "query_compute_job call before the push arrives returns nothing new and burns a "
+                "model turn; ending your turn repeatedly with no new progress is strike-counted "
+                "by the completion gate and FAILS your run. Your only correct actions now: do "
+                "other work, or end your turn and wait for the push. If you genuinely need an "
+                "interim checkpoint, use schedule once with a one-shot read-only check_command."
             )
         return QueryComputeJob_output_schema(
             is_success=True,

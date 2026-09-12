@@ -15,8 +15,10 @@ description = (
     "Use for: checking free capacity before deciding how many cpus/memory_mb to request in submit_compute_job, "
     "or understanding why a submitted job is still queued. "
     "Do not use for: reading a specific job's result (use query_compute_job), or canceling jobs. "
-    "Do NOT poll this to wait on jobs: terminal states (succeeded/failed) are pushed to you automatically; "
-    "query only when you need an on-demand capacity or queue check. "
+    "NEVER poll this to wait on jobs. Terminal states are pushed to the owning agent automatically and wake it, "
+    "so re-querying the queue while you wait can only return information you already had — each poll burns a "
+    "model turn, and repeated no-progress turn endings are strike-counted by the completion gate (strikes FAIL "
+    "the run). Query ONLY for an on-demand capacity/queue check right before submitting. "
     "Scheduling is FIFO within the same priority; running jobs are never preempted."
 )
 
@@ -141,9 +143,13 @@ class QueryComputeQueue(Tool):
         )
         if running or queued:
             message += (
-                " Terminal states are pushed to the owning agent automatically, so wait "
-                "for the push notification instead of polling this tool; if you truly need "
-                "to re-check later, use schedule to set a one-shot reminder."
+                " STOP POLLING. Terminal states are pushed to the owning agent automatically and "
+                "will wake it — re-querying this queue does not make jobs finish faster and never "
+                "tells you anything new about completion. Every poll burns a model turn, and "
+                "repeated no-progress turn endings are strike-counted by the completion gate "
+                "(strikes FAIL the run). Do other work or end your turn and wait for the push. "
+                "If you genuinely need an interim checkpoint, use schedule once with a one-shot "
+                "read-only check_command."
             )
         return QueryComputeQueue_output_schema(
             is_success=True,

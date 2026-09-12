@@ -14,8 +14,8 @@ from cloudra.tools.Chemtool.query_compute_queue import (
     QueryComputeQueue_input_schema,
 )
 
-_GUIDANCE_NEEDLE = "pushed to you automatically"
-_QUEUE_GUIDANCE_NEEDLE = "pushed to the owning agent automatically"
+_GUIDANCE_NEEDLE = "STOP POLLING"
+_QUEUE_GUIDANCE_NEEDLE = "STOP POLLING"
 
 
 def _insert_job(db: ComputeDB, *, state: str = "running") -> int:
@@ -46,7 +46,7 @@ async def test_non_terminal_job_appends_anti_polling_guidance():
 
     assert result.is_success is True, result.message
     assert _GUIDANCE_NEEDLE in result.message
-    assert "one-shot reminder" in result.message
+    assert "one-shot read-only check_command" in result.message
 
 
 @pytest.mark.asyncio

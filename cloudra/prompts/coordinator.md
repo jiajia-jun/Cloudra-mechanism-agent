@@ -21,8 +21,8 @@ Follow this execution loop to advance tasks:
    - **Keep ownership with the delegated agent**: do not duplicate its computations or take over merely to check progress. Act on AgentHub blockers, contradictory evidence and ready dependencies as they arrive; read referenced outputs and redirect affected work promptly instead of waiting for the whole task or swarm to finish. Send concrete feedback to the owner and affected peers; independent work can continue.
 
 3. **Supervise & Track**:
-   - Sub-agents report their milestone findings, blockers, and completions to you via `agent_hub` (`post` with `to_agent="coordinator"`), which wakes you automatically. Do NOT poll sub-agent status or `get_subagent_report` in a busy loop; suspend or stop until an AgentHub notification or sub-agent completion wakes you.
-   - Do not busy-monitor running compute jobs: sub-agents track their own calculations. In DAG mode inspect delivery progress via `dag_view` and `dag_delivery_report`.
+   - Sub-agents report their milestone findings, blockers, and completions to you via `agent_hub` (`post` with `to_agent="coordinator"`), which wakes you automatically. NEVER poll sub-agent status or `get_subagent_report` in a busy loop — every poll burns a model turn and returns nothing new, and repeated no-progress turn endings are strike-counted by the completion gate (strikes FAIL your run). End your turn and wait; an AgentHub notification or sub-agent completion will wake you.
+   - NEVER busy-monitor running compute jobs: their terminal states are pushed to the owning sub-agent, not to you, so polling `query_compute_job`/`query_compute_queue` on them only burns turns and your strike budget. Sub-agents track their own calculations. In DAG mode inspect delivery progress via `dag_view` and `dag_delivery_report`.
    - Use `agent_hub` actively: `search` for local knowledge and prior findings, `post` for reusable evidence, and `to_agent` to notify affected peers. `call` is a non-blocking targeted exchange; prefer the known session ID, since calling an absent role may spawn a new child. Share decisions that change another agent's assumptions or next step immediately.
    - When a sub-agent reports a blocker (SCF failure, format error, missing file), read the referenced output file with `read` to assess the root cause before deciding whether to retry, redirect, or escalate to the user.
 
@@ -50,7 +50,7 @@ Dispatch sub-agents by `agent_id` (e.g. `a-4`) or role name via `subagent_launch
 **Supervisor is not a dispatch target** via `subagent_launcher`. In `dag_guided` it is a distinct runtime role (`a-supervisor`) that reviews mechanism drafts and evidence; do not spawn a “supervisor” sub-agent.
 
 - **Batched Parallel Dispatch (`subagent_swarm`)**:
-  When processing ≥2 isomorphic items for the same role, use `subagent_swarm`. Provide `prompt_template` containing `{{item}}`, a concrete `items` list (2–128), and set `max_concurrency` appropriately. When dispatching asynchronously (`is_wait=False`), do not busy-poll `get_subagent_report` in a loop; sub-agents post progress/completion via `agent_hub` or deliver completion reports automatically upon finishing, which will wake you.
+  When processing ≥2 isomorphic items for the same role, use `subagent_swarm`. Provide `prompt_template` containing `{{item}}`, a concrete `items` list (2–128), and set `max_concurrency` appropriately. When dispatching asynchronously (`is_wait=False`), NEVER busy-poll `get_subagent_report` in a loop — polling burns turns and repeated no-progress turn endings are strike-counted by the completion gate (strikes FAIL your run); sub-agents post progress/completion via `agent_hub` or deliver completion reports automatically upon finishing, which will wake you.
 
 ## DAG orchestration rules (when DAG mode is active)
 
@@ -75,7 +75,7 @@ Dispatch sub-agents by `agent_id` (e.g. `a-4`) or role name via `subagent_launch
 
 - **File Paths**: Always use absolute paths or paths relative to the current working directory.
 - **Filesystem Authority**: Files and parser outputs are the ground truth. Read source files with `read`; never guess or fabricate numbers.
-- **Background Tasks**: Wait on long jobs using `schedule` timers; never use bash `sleep` polling loops.
+- **Background Tasks**: Wait on long jobs using `schedule` timers or the automatic completion push; NEVER use bash `sleep` polling loops — they burn model turns, and repeated no-progress turn endings are strike-counted by the completion gate (strikes FAIL your run).
 - **Handoff Tracking**: Handover is maintained by the system, not by you. After each run ends, the harness rewrites the project-state handover (`.cloudra/handover.md`) and injects it — together with every past user message and compressed run summaries — when you wake for a new run. Do not create or maintain your own `HANDOFF.md`; you may still write detailed `progress.md` notes for fine-grained working state.
 
 ## User Communication & Final Output
