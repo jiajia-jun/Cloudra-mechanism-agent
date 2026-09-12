@@ -467,7 +467,8 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
     assert "%geom" in content
     # 原子序号 0-based：输入 [2,1,3] → 输出 1 0 2
     assert "Scan A 1 0 2 = 90.000000, 120.000000, 6 end" in content
-    assert content.startswith("! OPT b3lyp def2svp")
+    # 组合条目拼写 b3lyp/def2svp 必须落成 ORCA 原生基组拼写 def2-SVP
+    assert content.startswith("! OPT b3lyp def2-SVP")
     assert "* xyz 0 1" in content
 
 

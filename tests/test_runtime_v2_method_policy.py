@@ -337,6 +337,19 @@ def test_orca_grid_modifier_out_of_whitelist_basis_still_blocked():
     assert "b3lyp/def2tzvp" in verdict.matched_forbidden
 
 
+def test_orca_dashless_basis_spelling_pairs_with_functional():
+    """Gaussian 风格的无连字符基组拼写（`def2svp`）出现在 ORCA `!` 行时同样
+    识别为基组、与泛函配对成组合候选——否则 `! OPT b3lyp def2svp`（组合条目
+    拼写直接进输入文件）会被拆成 b3lyp + def2svp 两个未授权候选而误杀。"""
+    from cloudra.runtime_v2.method_policy import _extract_orca_methods, check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    content = "! OPT b3lyp def2svp\n* xyz 0 1\nC 0 0 0\n*\n"
+    assert _extract_orca_methods(content) == ["b3lyp/def2svp"]
+    policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+    assert check_input_content(content, policy, filename="t.inp").allowed is True
+
+
 def test_orca_non_whitelisted_functional_still_blocked():
     """真正的非法泛函（pbe0）在修饰词扩充后仍被拦：白名单只放行 b3lyp/def2svp。"""
     from cloudra.runtime_v2.method_policy import check_input_content

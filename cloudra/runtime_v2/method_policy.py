@@ -84,9 +84,11 @@ _ORCA_JOB_TOKENS = {
 }
 # basis-set tokens never carry method information; ignored while locating the
 # method token. Regex covers prefixed families; the alias set covers ORCA's
-# bare aliases (svp/tzvp/qzvpp/lanl2dz/...) that have no prefix.
+# bare aliases (svp/tzvp/qzvpp/lanl2dz/...) that have no prefix. def2 的连字符
+# 可选：归一化组合拼写 `def2svp`（Gaussian 风格）与 ORCA 原生 `def2-SVP` 是
+# 同一基组，漏识别会把基组当独立方法候选误杀。
 _BASIS_RE = re.compile(
-    r"^(?:def2-|cc-pv|aug-|sto-|pcseg|pc-\d|ano|minao|ma-|jun-|jul-|\d+-\d+)"
+    r"^(?:def2-?|cc-pv|aug-|sto-|pcseg|pc-\d|ano|minao|ma-|jun-|jul-|\d+-\d+)"
 )
 _BASIS_ALIAS = {
     "sv", "svp", "sv(p)", "dz", "dzp", "tz", "tzp", "tzvp", "tzvpp",

@@ -265,6 +265,20 @@ def _load_xyz(input_path: Optional[str], input_text: Optional[str]):
     raise ValueError("Must provide one of path or text")
 
 
+def _orca_keyword_method(method: str) -> str:
+    """组合拼写转 ORCA `!` 关键字行形式：slash 拆成空格；def2 基组补 ORCA
+    原生连字符（归一拼写 `def2svp` 不是合法 ORCA 基组关键字，照写会让
+    ORCA 报未知基组，也会被 method_policy 误拆成两个方法候选）。"""
+    toks = []
+    for tok in method.replace("/", " ").split():
+        t = tok.lower()
+        if t.startswith("def2") and not t.startswith("def2-"):
+            toks.append("def2-" + t[4:].upper())
+        else:
+            toks.append(tok)
+    return " ".join(toks)
+
+
 def _atoms_to_xyz_block(symbols, positions, comment: str = "") -> str:
     lines = [str(len(symbols)), comment]
     for s, p in zip(symbols, positions):
@@ -1510,7 +1524,7 @@ class TsGuess(Tool):
                 "scanned coordinate."
             )
         else:
-            orca_method = method.replace("/", " ")
+            orca_method = _orca_keyword_method(method)
             header = f"! OPT {orca_method}"
             if extra:
                 header += f" {extra}"
