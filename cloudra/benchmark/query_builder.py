@@ -6,6 +6,21 @@ computational methods or engines into template strings.
 
 from collections.abc import Sequence
 
+# mechanism_graph.json 的字段级契约示例：题面 prompt 里给出具体键名，agent 不再
+# 靠猜（生产教训：type/role 双写撞 NodeRole 枚举 → 整图被评成 unparseable）。
+GRAPH_JSON_EXAMPLE = (
+    "Use exactly this JSON shape (key names matter: nodes carry `id`, `role` "
+    "(one of reactant/intermediate/product/transition_state) and `smiles` (a list "
+    "of SMILES strings); edges carry `id`, `from`, `to`, `via`, `bond_changes` and "
+    "optionally `barrier_kcal_mol`): "
+    '{"nodes": [{"id": "RC", "role": "reactant", "smiles": ["..."]}, '
+    '{"id": "TS1", "role": "transition_state", "smiles": []}, '
+    '{"id": "P", "role": "product", "smiles": ["..."]}], '
+    '"edges": [{"id": "e1", "from": "RC", "to": "P", "via": "TS1", '
+    '"bond_changes": {"break": [[1, 2]], "form": [[1, 5]]}, '
+    '"barrier_kcal_mol": 21.3}]}. '
+)
+
 
 def format_allowed_methods_clause(allowed_methods: Sequence[str] | None) -> str:
     """Format the method whitelist clause dynamically from allowed_methods.

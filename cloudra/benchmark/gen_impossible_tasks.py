@@ -42,7 +42,7 @@ from cloudra.benchmark.gen_normal_tasks import (
     _unmap_canonical,
 )
 from cloudra.benchmark.impossible_registry import REGISTRY
-from cloudra.benchmark.query_builder import format_allowed_methods_clause
+from cloudra.benchmark.query_builder import GRAPH_JSON_EXAMPLE, format_allowed_methods_clause
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BondChangeSet,
@@ -288,7 +288,9 @@ def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
             "mechanism graph: nodes (reactant/intermediate/product/transition_state, with "
             "SMILES) and elementary-step edges (with `via` pointing to the TS node id). "
             "Start the graph at the reactant complex (the pre-reaction complex), not at "
-            "the separated reactants. The scorer checks that your graph covers the "
+            "the separated reactants. "
+            + GRAPH_JSON_EXAMPLE +
+            "The scorer checks that your graph covers the "
             "reference mechanism as a subgraph: extra nodes or edges beyond the reference "
             "are never penalized, so record every step you actually investigated."
         )
@@ -298,7 +300,9 @@ def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
             "`mechanism_graph.json` in the sandbox root: nodes for every species or "
             "electronic state you characterize (with SMILES) and edges for the state "
             "changes or transformations between them (with `via` pointing to the TS node "
-            "id when a transition state was located). Extra nodes or edges beyond the "
+            "id when a transition state was located). "
+            + GRAPH_JSON_EXAMPLE +
+            "Extra nodes or edges beyond the "
             "reference are never penalized, so record every state you actually "
             "characterized."
         )

@@ -43,7 +43,7 @@ from cloudra.benchmark.gen_easy_tasks import (
     _parse_barrier,
 )
 from cloudra.benchmark.normal_registry import REGISTRY
-from cloudra.benchmark.query_builder import format_allowed_methods_clause
+from cloudra.benchmark.query_builder import GRAPH_JSON_EXAMPLE, format_allowed_methods_clause
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BarrierReference,
@@ -304,6 +304,7 @@ def _query(
         "You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: "
         "nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges "
         "(with `via` pointing to the TS node id). Start the graph at the reactant complex "
+        + GRAPH_JSON_EXAMPLE +
         "(the pre-reaction complex), not at the separated reactants. The scorer checks that "
         "your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond "
         "the reference are never penalized, so record every step you actually investigated. "
