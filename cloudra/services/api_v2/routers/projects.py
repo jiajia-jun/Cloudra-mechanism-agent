@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 
+from cloudra.persistence.database import ComputeDB
 from cloudra.runtime_v2.schemas import Command
+from cloudra.services.compute_store import acount_active_compute_jobs
 
 from ..context import ApiContext
 from ..models import AgentSpawn, CommandResponse, ProjectCreate, ProjectPatch, _command_payload
@@ -42,12 +44,30 @@ def build_router(ctx: ApiContext) -> APIRouter:
         return await ctx.execute(command)
 
     @router.delete("/api/v2/projects/{project_id}", dependencies=ctx.protected)
-    async def archive_project(project_id: str) -> CommandResponse:
-        command = Command(
-            type="project.update",
-            target={"project_id": project_id},
-            payload={"archived": True},
-        )
+    async def delete_project(project_id: str, hard: bool = False) -> CommandResponse:
+        if not hard:
+            command = Command(
+                type="project.update",
+                target={"project_id": project_id},
+                payload={"archived": True},
+            )
+            return await ctx.execute(command)
+        # 硬删除前置门禁：有非终态 compute job（ready/running/cancel_requested）
+        # 的项目拒绝删除——绝不杀计算进程，提示先走 cancel-all。
+        # 状态机校验（必须已归档、无存活 agent）在 project.delete 的 decider。
+        active = await acount_active_compute_jobs(ComputeDB(), project_id)
+        if active:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "state_conflict",
+                    "message": (
+                        f"project has {active} active compute job(s); "
+                        "run POST /api/v2/compute/cancel-all first"
+                    ),
+                },
+            )
+        command = Command(type="project.delete", target={"project_id": project_id})
         return await ctx.execute(command)
 
     @router.get("/api/v2/projects/{project_id}/workspace", dependencies=ctx.protected)

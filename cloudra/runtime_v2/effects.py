@@ -26,6 +26,9 @@
   ``_decide_update_project`` / ``_decide_patch_agent_settings``）。
 - ``CancelLaunchGroups``：取消 agent 时级联停掉它持有的 launch group
   （产出方 ``_decide_cancel_agent``）。
+- ``DeleteProjectData``：项目硬删除的磁盘清理（产出方
+  ``_decide_delete_project``）；artifact id 枚举在执行期做，decide 只
+  表达意图。
 """
 
 from __future__ import annotations
@@ -103,6 +106,17 @@ class CancelLaunchGroups:
     session_id: str
 
 
+@dataclass(frozen=True)
+class DeleteProjectData:
+    """硬删除项目的支撑数据清理（conversations/<pid>/ 整树 + 该项目 artifact 文件）。
+
+    artifact id 枚举在 shell 执行期做（decide 纯，不碰 DB）。workspace_dir
+    是用户数据永不删；compute.db 历史行与 runtime-v2.db 事件（权威）不动。
+    """
+
+    project_id: str
+
+
 Effect = (
     EnsureDir
     | ScheduleAgent
@@ -111,6 +125,7 @@ Effect = (
     | PatchApiKey
     | ReconcileSupervision
     | CancelLaunchGroups
+    | DeleteProjectData
 )
 
 

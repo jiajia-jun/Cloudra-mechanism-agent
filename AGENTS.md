@@ -20,7 +20,7 @@ npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --
 
 入口：`cloudra` CLI（`cloudra/cli.py`；执行面已收敛到 runtime_v2，CLI 不直接跑任务）。Python >= 3.11，POSIX-only。
 
-**停止语义边界**：取消单个 agent（`POST /api/v2/agents/{id}/cancel`）级联取消其存活后代，**永不触碰 scheduler/guard/QM 计算**；没有项目级一键取消，全停只能 `cloudra stop`；只终止有明确归属的任务/进程，禁止按进程名宽匹配杀进程，子进程必须 wait/reap；已发给 provider 的请求远端不可撤销。
+**停止语义边界**：取消单个 agent（`POST /api/v2/agents/{id}/cancel`）级联取消其存活后代，**永不触碰 scheduler/guard/QM 计算**；计算作业的一键取消是 `POST /api/v2/compute/cancel-all`（账本级：ready 直接落 cancelled、Slurm 置 `cancel_requested` 由既有 poll 循环走 scancel、本地不杀进程只落 cancelled），全停只能 `cloudra stop`；只终止有明确归属的任务/进程，禁止按进程名宽匹配杀进程，子进程必须 wait/reap；已发给 provider 的请求远端不可撤销。
 
 **v1 已删除**：旧 `services/api*.py`、旧 `runtime/` 执行核心、`core/react.py`、Flet `ui/`、legacy 会话表等均已移除，无兼容回退，别再引用这些名字。
 
@@ -29,7 +29,7 @@ npm --prefix cloudra/runtime_v2/js_host test   # JS 宿主测试；先 npm ci --
 - `core/` — `Agent`/`Coordinator`/`Follower` 基类与权限模型宿主；`message_history.py` JSONL 消息历史。
 - `runtime/` — 执行面共享件：`prompt_assembler.py`（AGENTS.md 仅注入 Coordinator）、`monitor.py`（guard 进程：持 flock 拉起 calculator、解析日志写终态；**终态按引擎文本终止标记判定，cclib 只取数据不定成败**）、`compute_executor.py`（`run_compute`，认领方只有 scheduler 与 benchmark）、`compute_notify.py`。
 - `scheduler/` — `cloudra scheduler` 守护（与 API 分家，状态只走中央 `compute.db`）：容量感知认领、对账器（探 guard 锁；adopt guard 重拉起按作业 60s 节流，时间戳落 `<guard锁>.adopt_last_spawn`）、孤儿 reap；单实例 flock。资源由 agent 提交时显式申请（`cpus`/`memory_mb`），超容拒收，**核心链路零输入文件解析**。完成通知 `ComputeNotifyBroker`（`runtime_v2/compute_notify.py`）纯 DB 轮询投递，宕机窗口不丢。
-- `services/` — `api_v2/`（HTTP 控制面唯一实现；薄路由，写操作一律走 CommandBus；**本地 API 默认强制 bearer 认证**：`api_token.py` 是唯一 token 解析点——`CLOUDRA_API_TOKEN` 非空用它、`=off` 显式关闭（测试/CI，conftest 默认）、否则读/生成 `data_dir/.api_token`（0600）；Host 头限回环白名单 + testserver，伪造 Host 一律 400；无法带头的 EventSource/`<img>`/下载链接走 `?token=` query 兜底）、`daemon_supervisor.py`（守护拉起判定链唯一事实源；崩溃循环节流为指数退避 `min(60*2^n, 1800)`，连续失败计数落 `<lock>.spawn_fail_count`，健康观测归零；spawn 抛异常也落时间戳计入退避）、`shutdown.py`（`cloudra stop`）、`session_store.py`/`compute_store.py`（SQL 入口）、`nodes.py`（多节点/Slurm 注册表）。
+- `services/` — `api_v2/`（HTTP 控制面唯一实现；薄路由，写操作一律走 CommandBus——例外：`routers/compute.py` 的 `POST /api/v2/compute/cancel-all` 直写中央 compute.db（账本级取消，不走命令），`DELETE /api/v2/projects/{id}?hard=true` 是项目硬删除（路由层先查非终态 compute job 门禁 409，再走 `project.delete` 命令：tombstone 事件 + 清 conversations 整树/artifact 文件，workspace 与 compute.db 历史不动）；**本地 API 默认强制 bearer 认证**：`api_token.py` 是唯一 token 解析点——`CLOUDRA_API_TOKEN` 非空用它、`=off` 显式关闭（测试/CI，conftest 默认）、否则读/生成 `data_dir/.api_token`（0600）；Host 头限回环白名单 + testserver，伪造 Host 一律 400；无法带头的 EventSource/`<img>`/下载链接走 `?token=` query 兜底）、`daemon_supervisor.py`（守护拉起判定链唯一事实源；崩溃循环节流为指数退避 `min(60*2^n, 1800)`，连续失败计数落 `<lock>.spawn_fail_count`，健康观测归零；spawn 抛异常也落时间戳计入退避）、`shutdown.py`（`cloudra stop`）、`session_store.py`/`compute_store.py`（SQL 入口）、`nodes.py`（多节点/Slurm 注册表）。
 - `persistence/` — `database.py`（`ConversationDB` 会话级 + `ComputeDB` 中央计算库 `data_dir/compute.db`）、`artifacts.py`、`memory.py`、`paths.py`（**data_dir 下所有路径唯一事实来源**）、`fs_utils.py`（原子写）、`workspace.py`（`resolve_tool_path` 路径收口原语；`resolve_existing_tool_path` 输入路径存在性兜底——相对路径同时试工作目录与进程 cwd，失败列出全部候选，吃外部输入路径的工具一律走它）。
 - `knowledge/` — chem-kb 存储与检索：`store.py`（**读路径只读、缺库返回空绝不建库**；实体 props 挂 `label_en`，英文查询自动可搜图谱）、`plugin.py`（语义+图谱+模糊三通道混合 provider）、`health.py`、`installer.py`。
 - `base/` — skill/tools 加载器与基类；审批钩子 `use_approval_handler`（ContextVar），未设置时 `request_approval` 直接抛错（ask_user 同理走 `use_input_handler`）。

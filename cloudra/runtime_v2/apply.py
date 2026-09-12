@@ -18,7 +18,8 @@
   ``tests/test_runtime_v2_replay_equivalence.py`` 守的就是这条）。
 
 状态承载事件（本模块处理）：
-- project.created / project.updated / project.settings_changed
+- project.created / project.updated / project.settings_changed /
+  project.deleted（硬删除 tombstone：项目与其 agent 从投影移除）
 - role.updated
 - agent.spawned / agent.settings_changed / agent.state_changed
 - run.started（顺带作废该 agent 的 pending_compactions 投影——新 run 的
@@ -107,6 +108,19 @@ def _apply_project_settings_changed(core: RuntimeCore, envelope: EventEnvelope) 
     core.projects[project.id] = project
 
 
+def _apply_project_deleted(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    """硬删除 tombstone：项目与其全部 agent 从内存投影移除。
+
+    幂等（重放安全）：全部 pop-with-default。事件日志（权威）不动——重放
+    后 core 同样不含该项目；inbox 是刻意易失的内存队列，随 agent 一并丢弃。
+    """
+    project_id = envelope.project_id
+    core.projects.pop(project_id, None)
+    for session_id in [sid for sid, a in core.agents.items() if a.project_id == project_id]:
+        core.agents.pop(session_id, None)
+        core.mailbox.drop_inbox(session_id)
+
+
 def _apply_role_updated(core: RuntimeCore, envelope: EventEnvelope) -> None:
     core.roles.update(envelope.data["role_id"], envelope.data["changes"])
 
@@ -170,6 +184,7 @@ _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "project.created": _apply_project_created,
     "project.updated": _apply_project_updated,
     "project.settings_changed": _apply_project_settings_changed,
+    "project.deleted": _apply_project_deleted,
     "role.updated": _apply_role_updated,
     "agent.spawned": _apply_agent_spawned,
     "agent.settings_changed": _apply_agent_settings_changed,

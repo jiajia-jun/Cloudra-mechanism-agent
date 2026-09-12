@@ -32,11 +32,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shutil
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from cloudra.persistence.paths import project_workspace_dir
+from cloudra.persistence.paths import conversation_db_path, conversation_dir, data_dir, project_workspace_dir
 from cloudra.runtime_v2.agent_host import _CONTEXT_RESET_NOTE, plan_cancel, plan_restart, plan_wake
 from cloudra.runtime_v2.apply import apply_event
 from cloudra.runtime_v2.core import RuntimeCore
@@ -44,6 +46,7 @@ from cloudra.runtime_v2.effects import (
     CancelLaunchGroups,
     CancelRunner,
     Decision,
+    DeleteProjectData,
     DeliverMessage,
     Effect,
     EnsureDir,
@@ -214,6 +217,42 @@ def _decide_update_project(core: RuntimeCore, command: Command) -> Decision:
         ):
             effects.append(ReconcileSupervision(project.id))
     return Decision(events=tuple(drafts), effects=tuple(effects), result=ResultRef("project", project.id))
+
+
+def _decide_delete_project(core: RuntimeCore, command: Command) -> Decision:
+    """硬删除（两步道安全语义）：只允许删已归档且无存活 agent 的项目。
+
+    非终态 compute job 的门禁在 API 路由层（需要查中央 compute.db，decide
+    保持纯）。删除本体是 tombstone 事件 ``project.deleted``——事件日志
+    （权威）不物理删，重放后 core 同样不含该项目；磁盘支撑数据的清理由
+    DeleteProjectData 效果承担。
+    """
+    project = core.require_project(_project_id(core, command))
+    if not project.archived:
+        raise CommandRejected("state_conflict", "archive the project before deleting")
+    live = [
+        agent
+        for agent in core.agents.values()
+        if agent.project_id == project.id and agent.state not in _CANCEL_TERMINAL_STATES
+    ]
+    if live:
+        raise CommandRejected(
+            "state_conflict",
+            f"project has {len(live)} live agent(s); cancel them before deleting",
+        )
+    return Decision(
+        events=(
+            EventDraft(
+                "project.deleted",
+                stream="project",
+                project_id=project.id,
+                data={"actor": command.actor},
+            ),
+        ),
+        effects=(DeleteProjectData(project.id),),
+        # 字面量结果：apply 后项目已从 core 移除，ResultRef 解析不到活对象。
+        result={"deleted": project.id},
+    )
 
 
 def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
@@ -587,6 +626,7 @@ def _decide_update_role(core: RuntimeCore, command: Command) -> Decision:
 DECIDERS: dict[str, Decider] = {
     "project.create": _decide_create_project,
     "project.update": _decide_update_project,
+    "project.delete": _decide_delete_project,
     "agent.spawn": _decide_spawn_agent,
     "agent.settings_update": _decide_patch_agent_settings,
     "agent.message": _decide_inject_agent_message,
@@ -699,6 +739,29 @@ def _mkdir(path: str) -> None:
     Path(path).mkdir(parents=True, exist_ok=True)
 
 
+def _delete_project_data(project_id: str) -> None:
+    """硬删除的磁盘清理：conversations/<pid>/ 整树 + 该项目 artifact 文件。
+
+    artifact id 从 per-project 库的 artifacts 表枚举（表可能不存在，按空
+    处理）；workspace_dir（用户数据）、compute.db 历史行、runtime-v2.db
+    事件（权威）一律不动。全程 ignore_errors/按空处理：重放或部分清理后
+    的重试必须幂等。
+    """
+    artifact_ids: list[str] = []
+    db_path = conversation_db_path(project_id)
+    if db_path.is_file():
+        try:
+            with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as con:
+                rows = con.execute("SELECT artifact_id FROM artifacts").fetchall()
+            artifact_ids = [str(row[0]) for row in rows]
+        except sqlite3.OperationalError:
+            pass  # artifacts 表不存在（从未登记过 artifact）按空处理
+    artifacts_root = data_dir() / "artifacts"
+    for artifact_id in artifact_ids:
+        shutil.rmtree(artifacts_root / artifact_id, ignore_errors=True)
+    shutil.rmtree(conversation_dir(project_id), ignore_errors=True)
+
+
 async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
     """执行单个效果。只在第四拍被 CommandBus 调用（事件与状态均已落地）。"""
     if isinstance(effect, EnsureDir):
@@ -717,6 +780,8 @@ async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
         manager = getattr(core, "launch_groups", None)
         if manager is not None:
             await manager.cancel_for_parent(effect.session_id)
+    elif isinstance(effect, DeleteProjectData):
+        await asyncio.to_thread(_delete_project_data, effect.project_id)
     elif isinstance(effect, ReconcileSupervision):
         # 切回 dag_guided 的补通知（Task 4）。失败不炸模式切换命令本身——
         # 待办已持久化，下次项目装载的 reconcile 仍会补；记 warning 可诊断。

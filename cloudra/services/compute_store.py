@@ -354,6 +354,27 @@ async def acount_pending_compute_jobs(db: ComputeDB, conversation_id: str) -> in
     return await aretry_on_locked(read)
 
 
+async def acount_active_compute_jobs(db: ComputeDB, conversation_id: str) -> int:
+    """指定会话的非终态作业数（ready/running/cancel_requested）——项目硬删除的门禁口径。
+
+    读路径不建库：中央库不存在（从未提交过作业）即 0。
+    """
+    if not _db_ready(db):
+        return 0
+
+    async def read() -> int:
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                "SELECT COUNT(*) FROM compute_jobs "
+                "WHERE state IN ('ready', 'running', 'cancel_requested') AND conversation_id = ?",
+                (conversation_id,),
+            )
+            row = await cur.fetchone()
+            return int(row[0]) if row else 0
+
+    return await aretry_on_locked(read)
+
+
 def compute_inflight_usage(
     db: ComputeDB,
     *,
@@ -554,6 +575,52 @@ def reap_exhausted_compute_leases(
     retry_on_locked(write)
     # 终态已落库：由 ComputeNotifyBroker 轮询补投，不再发进程间事件。
     return compute_ids
+
+
+# ---------------------------------------------------------------------------
+# 取消（账本级，绝不杀计算进程）
+# ---------------------------------------------------------------------------
+
+async def acancel_all_compute_jobs(db: ComputeDB) -> dict[str, int]:
+    """一键取消全部未竟作业，返回分桶计数。任何路径都不杀计算进程：
+
+    - ready → 直接落 cancelled（无进程；认领查询只选 ready，永不会被认领）；
+    - running + slurm → cancel_requested，由租约持有方的既有 poll 循环
+      （infra/slurm.py）走 scancel 收尾——写入端正是这里；
+    - running + 其它 → cancelled（账本级）：calculator 物理跑完，guard 的
+      终态 CAS（only_running=True）自然 no-op，不会覆盖已落的 cancelled。
+
+    中央库不存在（从未提交过作业）即全零，不建库。
+    """
+    counts = {"ready_cancelled": 0, "slurm_cancel_requested": 0, "local_cancelled": 0}
+    if not _db_ready(db):
+        return counts
+    now = time.time()
+
+    async def write() -> dict[str, int]:
+        async with db.aconnect() as con:
+            cur = await con.execute(
+                "UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
+                "last_error='cancelled by cancel-all' WHERE state='ready'",
+                (now,),
+            )
+            counts["ready_cancelled"] = cur.rowcount
+            cur = await con.execute(
+                "UPDATE compute_jobs SET state='cancel_requested' "
+                "WHERE state='running' AND scheduler='slurm'"
+            )
+            counts["slurm_cancel_requested"] = cur.rowcount
+            cur = await con.execute(
+                "UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
+                "last_error='cancelled by cancel-all (ledger-only; process runs on)' "
+                "WHERE state='running' AND scheduler!='slurm'",
+                (now,),
+            )
+            counts["local_cancelled"] = cur.rowcount
+            await con.commit()
+            return counts
+
+    return await aretry_on_locked(write)
 
 
 # ---------------------------------------------------------------------------

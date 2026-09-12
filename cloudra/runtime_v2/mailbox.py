@@ -34,6 +34,10 @@ class Mailbox:
     def inbox(self, session_id: str) -> asyncio.Queue[dict[str, Any]] | None:
         return self._inboxes.get(session_id)
 
+    def drop_inbox(self, session_id: str) -> None:
+        """丢弃指定 inbox（项目硬删除时清理；幂等，无此 inbox 也安全）。"""
+        self._inboxes.pop(session_id, None)
+
     # ------------------------------------------------------- payload builders
 
     @staticmethod

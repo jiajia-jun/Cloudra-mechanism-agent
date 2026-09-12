@@ -113,6 +113,18 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ archived: false }),
     }),
+  // Hard delete (archived projects only): tombstone event + on-disk support data
+  // cleanup.  The workspace directory and compute.db history are always kept.
+  deleteProject: (projectId: string) =>
+    request<CommandResponse<{ deleted: string }>>(`/api/v2/projects/${projectId}?hard=true`, {
+      method: 'DELETE',
+    }),
+  // Ledger-level cancel of every unfinished compute job; never kills processes.
+  cancelAllComputeJobs: () =>
+    request<{ ready_cancelled: number; slurm_cancel_requested: number; local_cancelled: number }>(
+      '/api/v2/compute/cancel-all',
+      { method: 'POST' },
+    ),
   listAgents: (projectId: string) => request<Agent[]>(`/api/v2/projects/${projectId}/agents`),
   spawnAgent: (
     projectId: string,

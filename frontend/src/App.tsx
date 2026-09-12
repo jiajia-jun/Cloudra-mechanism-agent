@@ -771,6 +771,48 @@ export default function App() {
     }
   }
 
+  async function deleteProject(p: Project) {
+    if (
+      !window.confirm(
+        `Permanently delete project "${p.name}"?\n\nThis cannot be undone: the conversation history and artifacts are erased. The workspace directory is kept.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const resp = await api.deleteProject(p.id);
+      if (!resp.accepted) {
+        const err = (resp.data as { error?: { message?: string } } | null)?.error;
+        pushToast('error', err?.message ?? 'Delete rejected');
+        return;
+      }
+      setProjects((prev) => prev.filter((x) => x.id !== p.id));
+      if (activeProjectId === p.id) setActiveProjectId(null);
+      pushToast('ok', `Project "${p.name}" permanently deleted`);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function cancelAllComputeJobs() {
+    if (
+      !window.confirm(
+        'Cancel ALL unfinished compute jobs?\n\nQueued jobs are cancelled immediately; Slurm jobs are scancelled via their poll loop; local jobs are ledger-cancelled (processes are never killed).',
+      )
+    ) {
+      return;
+    }
+    try {
+      const counts = await api.cancelAllComputeJobs();
+      pushToast(
+        'ok',
+        `Compute jobs cancelled: ${counts.ready_cancelled} queued, ${counts.slurm_cancel_requested} slurm (cancel requested), ${counts.local_cancelled} local`,
+      );
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function sendMessage() {
     const content = draft.trim();
     if (!content || !activeProject || sending) return;
@@ -1406,6 +1448,17 @@ export default function App() {
                   >
                     ⬆
                   </button>
+                  <button
+                    type="button"
+                    className="btn ghost sm project-archive"
+                    title={`Delete "${p.name}" permanently (workspace directory is kept)`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void deleteProject(p);
+                    }}
+                  >
+                    🗑
+                  </button>
                 </div>
               ))}
             </details>
@@ -1435,6 +1488,14 @@ export default function App() {
             onClick={() => setBenchmarkOpen(true)}
           >
             <span className="sidebar-foot-label">Benchmark</span>
+          </button>
+          <button
+            type="button"
+            className="sidebar-foot-item sidebar-compute-cancel"
+            title="Cancel all unfinished compute jobs (ledger-level; never kills processes)"
+            onClick={() => void cancelAllComputeJobs()}
+          >
+            <span className="sidebar-foot-label">Cancel All Compute Jobs</span>
           </button>
         </div>
       </aside>

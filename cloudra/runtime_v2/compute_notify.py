@@ -5,8 +5,9 @@
 纯 DB 轮询：每 tick 一条带 LIMIT 的小 SELECT 扫"终态且 notified_at IS NULL"
 的作业（限 7 天窗口防历史刷屏），只投递 ``conversation_id in core.projects``
 的行（未加载项目跳过、不落 notified_at，项目打开时 ``ensure_project`` 立即
-扫该项目），逐作业投递 ``agent.message`` 后落 ``notified_at``。投递失败不落
-notified_at，下一 tick 自然重试。
+扫该项目；**已硬删除的项目**——事件日志里有 project.deleted tombstone——
+永不加载，记 warning 并落 notified_at 终结），逐作业投递 ``agent.message``
+后落 ``notified_at``。投递失败不落 notified_at，下一 tick 自然重试。
 
 锁纪律（细粒度，防跨进程 "database is locked"）：同步 SQLite 全部经
 ``asyncio.to_thread`` 卸载出事件循环，逐作业单行 UPDATE，不持长事务。
@@ -73,10 +74,28 @@ class ComputeNotifyBroker:
             await asyncio.sleep(self.poll_interval)
 
     async def _poll_all(self) -> None:
-        """每 tick 一条全局扫描；未加载项目的行跳过（不落 notified_at）。"""
+        """每 tick 一条全局扫描；未加载项目的行跳过（不落 notified_at）。
+
+        例外：已被硬删除的项目（事件日志里有 project.deleted tombstone）永远
+        不会再加载，其行不再"等打开"，记 warning 并落 notified_at 终结——
+        park-don't-wake 纪律的延伸，避免每 tick 重扫死信。
+        """
         rows = await asyncio.to_thread(self._pending_terminal_jobs)
+        deleted_ids: set[str] | None = None
         for conversation_id, task_id, state, session_id in rows:
             if conversation_id not in self.core.projects:
+                if deleted_ids is None:
+                    deleted_ids = {
+                        e.project_id for e in self.core.event_log if e.type == "project.deleted"
+                    }
+                if conversation_id in deleted_ids:
+                    logger.warning(
+                        "compute job %s belongs to deleted project %s; marking notified "
+                        "without delivery",
+                        task_id,
+                        conversation_id,
+                    )
+                    await asyncio.to_thread(self._mark_notified, task_id)
                 continue  # 项目未加载无投递目标
             try:
                 await self._deliver(

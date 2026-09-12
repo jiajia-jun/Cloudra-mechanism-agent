@@ -25,6 +25,7 @@ EVENT_TYPES: dict[str, str] = {
     "project.created": "project established",
     "project.updated": "project name/workspace/archive changed",
     "project.settings_changed": "project defaults changed",
+    "project.deleted": "project hard-deleted (tombstone; support data cleaned)",
     "role.updated": "role profile changed",
     "agent.spawn_requested": "spawn accepted",
     "agent.spawned": "agent session created",
