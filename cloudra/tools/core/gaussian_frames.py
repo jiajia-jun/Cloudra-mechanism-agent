@@ -351,7 +351,14 @@ def extract_irc(log_path: str):
 def _ccread(log_path: str):
     import cclib
 
-    data = cclib.io.ccread(log_path)
+    try:
+        data = cclib.io.ccread(log_path)
+    except IndexError as exc:
+        # cclib 内部对截断/畸形日志会裸抛 "list index out of range"——翻译成
+        # 有语义的解析失败，调用方（format_converter 等）才能给出可读指引
+        raise ValueError(
+            f"日志解析器内部索引越界（疑似截断或损坏的计算日志）: {log_path}"
+        ) from exc
     if data is None:
         raise ValueError(f"cclib 未能解析日志: {log_path}")
     return data

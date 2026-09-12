@@ -72,6 +72,15 @@ _ORCA_JOB_TOKENS = {
     "noproperty", "d3", "d3bj", "d3zero", "d4", "ri", "rijcosx", "noautostart", "enzym",
     # 波函数类型修饰符，不是方法本身
     "rks", "uks", "roks", "rhf", "uhf", "rohf", "hf",
+    # 以下为计算控制修饰词，不是方法（本行注释即语义依据）：
+    # 优化收敛等级
+    "looseopt", "normalopt", "tightopt", "verytightopt",
+    # 积分网格
+    "grid", "grid0", "grid1", "grid2", "grid3", "grid4", "grid5", "grid6", "grid7",
+    "finalgrid", "finalgrid1", "finalgrid2", "finalgrid3", "finalgrid4", "finalgrid5",
+    "finalgrid6", "finalgrid7", "nofinalgrid", "gridx", "nogridx",
+    # 轨道读取与输出级别
+    "moread", "printgap", "noinpop",
 }
 # basis-set tokens never carry method information; ignored while locating the
 # method token. Regex covers prefixed families; the alias set covers ORCA's

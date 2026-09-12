@@ -827,6 +827,35 @@ def test_integrity_delivered_graph_postel_aliases(tmp_path):
     assert edges[1].id == "e2"  # 显式 id 原样保留
 
 
+def test_integrity_delivered_graph_free_text_role_falls_back_to_type(tmp_path):
+    """生产实锤（benchmark D3）：节点同写 type（合法枚举别名）与 role（自由文本
+    描述）时，自由文本 role 不得撞 NodeRole 枚举校验毁掉整图——以 type 的映射值
+    为 role，原文本并进 label；role 本身是合法枚举值时不动。"""
+    g = {
+        "nodes": [
+            {"id": "R", "type": "reactant", "role": "starting materials complex",
+             "label": "substrates", "smiles": ["CC=O"]},
+            {"id": "TS", "type": "transition_state", "role": "C-C bond forming saddle",
+             "smiles": []},
+            {"id": "P", "type": "product", "role": "product", "smiles": ["CC(=O)C"]},
+        ],
+        "edges": [{"id": "E1", "from": "R", "to": "P", "via": "TS"}],
+    }
+    (tmp_path / "mechanism_graph.json").write_text(json.dumps(g))
+    rep = audit_integrity(tmp_path)
+    assert rep.graph_parseable, rep.notes
+    assert rep.delivered_graph is not None
+    nodes = {n.id: n for n in rep.delivered_graph.nodes}
+    assert nodes["R"].role.value == "reactant"
+    assert "substrates" in nodes["R"].label
+    assert "starting materials complex" in nodes["R"].label
+    assert nodes["TS"].role.value == "transition_state"
+    assert "C-C bond forming saddle" in nodes["TS"].label
+    # role 本身是合法枚举：不改写、不进 label
+    assert nodes["P"].role.value == "product"
+    assert nodes["P"].label == ""
+
+
 def test_integrity_delivered_graph_unknown_node_type_fails_loud(tmp_path):
     """Postel 只映射可识别的 type 别名；无法识别的内容照旧 fail-loud 判不可解析。"""
     g = {

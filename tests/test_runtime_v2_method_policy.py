@@ -305,3 +305,45 @@ def test_orca_progext_basename_prefix_impostor_rejected(tmp_path):
         "* xyz 0 1\nC 0 0 0\n*\n"
     )
     assert check_input_content(content, policy, filename="t.inp").allowed is False
+
+
+# ---------------------------------------------------------------------------
+# 误杀修复：ORCA 计算控制修饰词（优化等级/积分网格）不是方法候选
+# ---------------------------------------------------------------------------
+
+
+def test_orca_control_modifiers_not_method_candidates():
+    """`! OptTS Freq TightOpt b3lyp def2-svp` 的唯一方法候选是 b3lyp/def2svp：
+    OptTS/Freq/TightOpt 与基组 token 都不产出候选，白名单内放行。"""
+    from cloudra.runtime_v2.method_policy import _extract_orca_methods, check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    content = "! OptTS Freq TightOpt b3lyp def2-svp\n* xyz 0 1\nC 0 0 0\n*\n"
+    assert _extract_orca_methods(content) == ["b3lyp/def2svp"]
+    policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+    assert check_input_content(content, policy, filename="t.inp").allowed is True
+
+
+def test_orca_grid_modifier_out_of_whitelist_basis_still_blocked():
+    """Grid5 不算方法候选，但 def2-tzvp 超白名单（只许 def2svp）仍 fail-closed。"""
+    from cloudra.runtime_v2.method_policy import _extract_orca_methods, check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    content = "! Opt Grid5 B3LYP def2-TZVP\n* xyz 0 1\nC 0 0 0\n*\n"
+    assert _extract_orca_methods(content) == ["b3lyp/def2tzvp"]
+    policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+    verdict = check_input_content(content, policy, filename="t.inp")
+    assert verdict.allowed is False
+    assert "b3lyp/def2tzvp" in verdict.matched_forbidden
+
+
+def test_orca_non_whitelisted_functional_still_blocked():
+    """真正的非法泛函（pbe0）在修饰词扩充后仍被拦：白名单只放行 b3lyp/def2svp。"""
+    from cloudra.runtime_v2.method_policy import check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    content = "! Opt PBE0 def2-svp\n* xyz 0 1\nC 0 0 0\n*\n"
+    policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+    verdict = check_input_content(content, policy, filename="t.inp")
+    assert verdict.allowed is False
+    assert "pbe0/def2svp" in verdict.matched_forbidden

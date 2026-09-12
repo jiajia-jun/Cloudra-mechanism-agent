@@ -589,8 +589,48 @@ class QmInputWriter(Tool):
 
             output_dir = os.path.dirname(user_input.output_dir)
             if output_dir:
-                os.makedirs(output_dir, exist_ok=True)
+                try:
+                    os.makedirs(output_dir, exist_ok=True)
+                except FileExistsError:
+                    # exist_ok=True 仍会在叶子已存在且不是目录时炸 Errno 17——
+                    # 必须翻译成有指引的报错，不把裸 errno 抛给调用方
+                    return QmInputWriter_output_schema(
+                        is_success=False,
+                        input_path="",
+                        message=(
+                            f"Cannot create the output directory {output_dir}: a non-directory "
+                            "file already exists at that path. Choose a different output_dir, "
+                            "or remove the conflicting file, then retry."
+                        ),
+                    )
             input_path = user_input.output_dir
+
+            # 同路径重复生成：内容逐字节相同 → 幂等复用；不同 → fail-loud 给指引，
+            # 绝不静默覆盖一份来源不明的既有文件。
+            if os.path.isfile(input_path):
+                with open(input_path, "rb") as fh:
+                    existing = fh.read()
+                if existing == content.encode("utf-8"):
+                    return QmInputWriter_output_schema(
+                        is_success=True,
+                        input_path=input_path,
+                        message=(
+                            f"{engine_label} input file already exists with identical content; "
+                            f"reused it as-is.{limitation}"
+                        ),
+                        interpreted_intent=inspected.model_dump(mode="json"),
+                        unapplied_options=[],
+                        generation_path=generation_path,
+                    )
+                return QmInputWriter_output_schema(
+                    is_success=False,
+                    input_path="",
+                    message=(
+                        f"Refused to overwrite {input_path}: a file already exists there with "
+                        "different content. Choose a different output_dir, or delete the "
+                        "existing file first, then retry."
+                    ),
+                )
 
             atomic_write_text(input_path, content)
 
@@ -621,6 +661,14 @@ class QmInputWriter(Tool):
                 input_path="",
                 message=f"Coordinate source file not found: {missing}. "
                         "Check the path, or generate the structure first with smiles_to_mol / format_converter."
+            )
+        except FileExistsError as e:
+            return QmInputWriter_output_schema(
+                is_success=False,
+                input_path="",
+                message=f"Output path conflict: {e.filename or user_input.output_dir} already exists "
+                        "and cannot be created as a directory. Choose a different output_dir, "
+                        "or remove the conflicting file, then retry."
             )
         except ValueError as e:
             return QmInputWriter_output_schema(

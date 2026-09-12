@@ -7,7 +7,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.database import ComputeDB
-from cloudra.services.compute_store import aget_compute_job, alist_compute_jobs
+from cloudra.services.compute_store import TERMINAL_STATES, aget_compute_job, alist_compute_jobs
 
 description = (
     "Query compute-job status: by job_id, show the current state, working directory, start/end times, and failure reason of a job submitted with submit_compute_job; "
@@ -120,10 +120,18 @@ class QueryComputeJob(Tool):
             return QueryComputeJob_output_schema(is_success=False, jobs=[], message=f"Query failed: {e}")
 
         jobs = [_row_to_dict(row) for row in rows]
+        message = f"{len(jobs)} job record(s)."
+        if any(job["state"] not in TERMINAL_STATES for job in jobs):
+            message += (
+                " Some jobs are still in a non-terminal state; terminal states "
+                "(done/failed/cancelled) are pushed to you automatically, so wait for "
+                "the push notification instead of polling this tool. If you truly need "
+                "to re-check later, use schedule to set a one-shot reminder."
+            )
         return QueryComputeJob_output_schema(
             is_success=True,
             jobs=jobs,
-            message=f"{len(jobs)} job record(s).",
+            message=message,
         )
 
 

@@ -79,6 +79,8 @@ Coordinator-only. Input structure:
 - No `occurrence`, `role`, or stage arrays are required.
 - `rationale` is mandatory.
 
+Step stage contracts may include `ts_guess`, but it is an advisory stage: never `required`, and it never blocks binding `ts_opt`/`frequency` evidence (a passing TS gate — ts_opt + frequency — is what counts).
+
 ## Adjusting an accepted mechanism
 
 - `dag_add_species`: Add a new species (`name`, `smiles`).

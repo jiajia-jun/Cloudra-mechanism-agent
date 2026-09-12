@@ -543,3 +543,78 @@ async def test_gaussian_external_malformed_values_refused(tmp_path):
         assert result.is_success is False, bad
         assert "external engine value" in result.message or "refused" in result.message, bad
         assert not (tmp_path / "bad.gjf").exists()
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_same_path_identical_content_reused(tmp_path):
+    """同路径重复生成且内容逐字节相同：幂等复用（返回成功并注明 reused），
+    不得炸出裸 Errno 17。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    out = tmp_path / "water_opt.gjf"
+    kwargs = dict(
+        source_type="xyz_file",
+        source_value=str(xyz),
+        task_type=[{"opt": None}, {"freq": None}],
+        output_dir=str(out),
+    )
+    first = await QmInputWriter().tool_call(QmInputWriter_input_schema(**kwargs), session=None)
+    assert first.is_success is True, first.message
+    content_before = out.read_bytes()
+
+    second = await QmInputWriter().tool_call(QmInputWriter_input_schema(**kwargs), session=None)
+    assert second.is_success is True, second.message
+    assert "identical" in second.message
+    assert "reused" in second.message
+    assert second.input_path == str(out)
+    assert out.read_bytes() == content_before
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_refuses_overwrite_with_different_content(tmp_path):
+    """目标已存在且内容不同：fail-loud 并给出指引（换 output_dir 或先删除），
+    绝不静默覆盖、也不抛裸 Errno 17。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    out = tmp_path / "water_opt.gjf"
+    out.write_text("# unrelated pre-existing content\n", encoding="utf-8")
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file",
+            source_value=str(xyz),
+            task_type=[{"opt": None}],
+            output_dir=str(out),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "Errno 17" not in result.message
+    assert "already exists" in result.message
+    assert "different content" in result.message
+    assert "output_dir" in result.message
+    # 既有文件原样保留，未被覆盖
+    assert out.read_text(encoding="utf-8") == "# unrelated pre-existing content\n"
+
+
+@pytest.mark.asyncio
+async def test_qm_input_writer_output_dir_blocked_by_file_fails_loud(tmp_path):
+    """输出目录路径被同名普通文件占用：os.makedirs(exist_ok=True) 也会炸
+    Errno 17，必须翻译成有指引的报错。"""
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    blocker = tmp_path / "jobs"
+    blocker.write_text("i am a file, not a directory\n", encoding="utf-8")
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            source_type="xyz_file",
+            source_value=str(xyz),
+            task_type=[{"opt": None}],
+            output_dir=str(blocker / "water_opt.gjf"),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "Errno 17" not in result.message
+    assert "output_dir" in result.message

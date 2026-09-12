@@ -389,3 +389,20 @@ async def test_log_parser_job_type_opt_freq():
     )
     assert result.is_success is True
     assert result.job_types == ["freq", "opt"]
+
+
+def test_ccread_translates_cclib_internal_index_error(tmp_path, monkeypatch):
+    """cclib 对截断/畸形日志内部裸抛 IndexError 时，_ccread 必须翻译成带语义的
+    ValueError（疑似截断/损坏），调用方据此给出可读指引而非裸 errno 文案。"""
+    import cclib
+
+    from cloudra.tools.core.gaussian_frames import _ccread
+
+    def _boom(path):
+        raise IndexError("list index out of range")
+
+    monkeypatch.setattr(cclib.io, "ccread", _boom)
+    log = tmp_path / "truncated.log"
+    log.write_text("garbage\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="截断"):
+        _ccread(str(log))

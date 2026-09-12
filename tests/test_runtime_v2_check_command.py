@@ -98,6 +98,13 @@ class TestReject:
         _bad("find . -exec rm {} ;", ";")  # semicolon already banned
         _bad("find . -exec rm {} +", "-exec")
 
+    def test_redirect_error_shows_correct_usage(self):
+        _bad(
+            "tail job.log > copy.log",
+            "must not redirect output to a file",
+            "grep -q 'Normal termination' job.log",
+        )
+
     def test_unclosed_quote(self):
         _bad("test -f 'oops", "parsed")
 

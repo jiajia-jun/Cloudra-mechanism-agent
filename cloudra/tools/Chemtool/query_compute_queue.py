@@ -15,6 +15,8 @@ description = (
     "Use for: checking free capacity before deciding how many cpus/memory_mb to request in submit_compute_job, "
     "or understanding why a submitted job is still queued. "
     "Do not use for: reading a specific job's result (use query_compute_job), or canceling jobs. "
+    "Do NOT poll this to wait on jobs: terminal states (succeeded/failed) are pushed to you automatically; "
+    "query only when you need an on-demand capacity or queue check. "
     "Scheduling is FIFO within the same priority; running jobs are never preempted."
 )
 
@@ -133,6 +135,16 @@ class QueryComputeQueue(Tool):
             }
             for r in terminal_rows
         ]
+        message = (
+            f"{len(running)} running, {len(queued)} queued. "
+            "In-flight usage is node-global (the scheduler accounts all projects from the central compute.db)."
+        )
+        if running or queued:
+            message += (
+                " Terminal states are pushed to the owning agent automatically, so wait "
+                "for the push notification instead of polling this tool; if you truly need "
+                "to re-check later, use schedule to set a one-shot reminder."
+            )
         return QueryComputeQueue_output_schema(
             is_success=True,
             capacity={
@@ -142,10 +154,7 @@ class QueryComputeQueue(Tool):
             running=running,
             queued=queued,
             terminal=terminal,
-            message=(
-                f"{len(running)} running, {len(queued)} queued. "
-                "In-flight usage is node-global (the scheduler accounts all projects from the central compute.db)."
-            ),
+            message=message,
         )
 
 

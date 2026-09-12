@@ -486,3 +486,62 @@ async def test_proposal_batch_failure_zero_partial_write(tmp_path):
     assert len(snapshot.delivery.nodes) == 0
     assert len(snapshot.delivery.edges) == 0
 
+
+
+@pytest.mark.asyncio
+async def test_ts_guess_contract_normalized_to_advisory_on_accept(tmp_path):
+    """ts_guess 按定义是 advisory 阶段：契约生效收口处一律规范化为
+    required=False（required 的 ts_guess 会把合格的 ts_opt 绑定卡在
+    stage_out_of_order），接受返回里带逐条规范化痕迹（fail-loud，不静默改写）。"""
+    agent, session, db = _setup(tmp_path, "propose-advisory", "dag_record")
+
+    out = await _propose(agent, session)
+
+    assert out.is_success
+    notes = out.result["normalized_advisory_stages"]
+    assert any("ts_guess" in note for note in notes)
+    edge = _graph(db).delivery.edges[0]
+    assert {s.kind.value: s.required for s in edge.stages} == {
+        "ts_guess": False,
+        "ts_opt": True,
+        "frequency": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_guided_accept_normalizes_legacy_open_draft(tmp_path):
+    """存量 open 草稿（修复前落库，ts_guess required=True）在 guided accept
+    落图时同样被规范化为 advisory，痕迹随接受返回带出。"""
+    _agent, session, db = _setup(tmp_path, "propose-legacy-guided", "dag_guided")
+
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.store import DagStore
+
+    store = DagStore(db)
+    # 绕过 propose（修复后的 propose 会先规范化），直接落一条修复前形态的草稿。
+    legacy = DagController._assemble_declarative_proposal(
+        _SPECIES, _STEPS, "legacy pre-fix draft with required ts_guess"
+    )
+    edge_id = next(
+        op.edge.edge_id
+        for op in legacy.operations
+        if op.op == "add_edge"
+    )
+    legacy_contract = legacy.stage_contracts[edge_id]
+    assert any(
+        s.kind.value == "ts_guess" and s.required for s in legacy_contract.stages
+    )
+    store.save_draft(legacy, actor_id="a-0")
+
+    supervisor = make_supervisor(db.conversation_id)
+    accepted = await _call(DagAcceptMechanism, supervisor, session, verdict="accept")
+
+    assert accepted.is_success
+    notes = accepted.result["normalized_advisory_stages"]
+    assert any("ts_guess" in note for note in notes)
+    edge = _graph(db).delivery.edges[0]
+    assert {s.kind.value: s.required for s in edge.stages} == {
+        "ts_guess": False,
+        "ts_opt": True,
+        "frequency": True,
+    }

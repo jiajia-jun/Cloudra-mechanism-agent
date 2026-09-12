@@ -74,6 +74,59 @@ class DraftsMixin:
     """机理草稿（Phase 3：propose → accept → 解锁计算）；由 DagController 组合。"""
 
     @staticmethod
+    def _normalize_ts_guess_advisory(
+        draft: MechanismDraft,
+    ) -> tuple[MechanismDraft, list[str]]:
+        """ts_guess 按定义是 advisory 阶段（models.StageKind：永远不充抵
+        ts_opt/frequency），不可被 required。契约生效（落图/落库）前一律
+        规范化为 required=False，并返回逐条规范化痕迹——fail-loud，不静默
+        改写。契约既可能在 stage_contracts 里，也可能直接嵌在 add op 的
+        元素 stages 里，两处都收口。"""
+        notes: list[str] = []
+
+        def _fix(stages: list[StageState], element_id: str) -> list[StageState]:
+            fixed: list[StageState] = []
+            for stage in stages:
+                if stage.kind is StageKind.TS_GUESS and stage.required:
+                    stage = stage.model_copy(update={"required": False})
+                    notes.append(
+                        f"{element_id}: ts_guess normalized to advisory "
+                        "(required=False); an advisory stage can never be "
+                        "required and never blocks ts_opt/frequency binds"
+                    )
+                fixed.append(stage)
+            return fixed
+
+        contracts = {
+            element_id: contract.model_copy(
+                update={"stages": _fix(list(contract.stages), element_id)}
+            )
+            for element_id, contract in draft.stage_contracts.items()
+        }
+        operations: list[GraphOperation] = []
+        for op in draft.operations:
+            if isinstance(op, (AddNode, AddEdge)):
+                element = op.node if isinstance(op, AddNode) else op.edge
+                element_id = (
+                    op.node.node_id if isinstance(op, AddNode) else op.edge.edge_id
+                )
+                embedded = list(getattr(element, "stages", []) or [])
+                if embedded:
+                    element = element.model_copy(
+                        update={"stages": _fix(embedded, element_id)}
+                    )
+                    op = op.model_copy(
+                        update={"node" if isinstance(op, AddNode) else "edge": element}
+                    )
+            operations.append(op)
+        return (
+            draft.model_copy(
+                update={"operations": operations, "stage_contracts": contracts}
+            ),
+            notes,
+        )
+
+    @staticmethod
     def _validate_draft(
         operations_raw: list[dict[str, Any]],
         stage_contracts_raw: dict[str, list[str]],
@@ -356,6 +409,8 @@ class DraftsMixin:
             draft = self._assemble_declarative_proposal(species or [], steps or [], rationale)
         else:
             draft = self._validate_draft(operations or [], stage_contracts or {}, rationale)
+        # 契约生效收口：ts_guess 一律 advisory（required=False），痕迹随返回带出。
+        draft, ts_guess_notes = self._normalize_ts_guess_advisory(draft)
         if claim_spec is not None:
             spec = ClaimSpec.model_validate(claim_spec)
             draft = draft.model_copy(
@@ -378,6 +433,7 @@ class DraftsMixin:
                     "accepted": False,
                     "pending_approval": True,
                     "scope_change": True,
+                    "normalized_advisory_stages": ts_guess_notes,
                 }
         if self.mode is OrchestrationMode.DAG_RECORD:
             mutation = await asyncio.to_thread(
@@ -397,11 +453,17 @@ class DraftsMixin:
                 "state": "accepted",
                 "accepted": True,
                 "revisions": mutation.revisions,
+                "normalized_advisory_stages": ts_guess_notes,
             }
         draft_id = await asyncio.to_thread(
             self.store.save_draft, draft, actor_id=actor_id
         )
-        return {"draft_id": draft_id, "state": "open", "accepted": False}
+        return {
+            "draft_id": draft_id,
+            "state": "open",
+            "accepted": False,
+            "normalized_advisory_stages": ts_guess_notes,
+        }
 
     async def accept_mechanism(
         self,
@@ -438,6 +500,9 @@ class DraftsMixin:
                 raise RuntimeError("no open mechanism draft to review")
             resolved_id, draft = found
         proposer = await asyncio.to_thread(self.store.draft_actor_id, resolved_id)
+        # 契约生效收口（guided 在 accept 时才落图）：ts_guess 一律 advisory，
+        # 同时覆盖修复前已落库的 open 草稿；痕迹随接受返回带出。
+        draft, ts_guess_notes = self._normalize_ts_guess_advisory(draft)
 
         def _notification(state: str, reason: str) -> dict[str, Any]:
             return {
@@ -486,4 +551,5 @@ class DraftsMixin:
             "state": "accepted",
             "accepted": True,
             "revisions": mutation.revisions,
+            "normalized_advisory_stages": ts_guess_notes,
         }

@@ -249,6 +249,17 @@ class FormatConverter(Tool):
                         "requesting a geometry never validates frequencies/TS."
                     )
                 )
+        except IndexError:
+            # 帧解析链路任何一环对空列表的裸索引都不能漏成 "list index out of range"——
+            # 统一翻成有指引的解析失败
+            return FormatConverter_output_schema(
+                is_success=False,
+                output_path="",
+                message=f"No key frames could be extracted from {user_input.input_path}: the parser "
+                        "hit an empty section (the file is likely truncated or not a valid "
+                        "Gaussian/ORCA computation log). Check that the job wrote a complete log; "
+                        "you can also inspect it directly with log_parser.",
+            )
         except Exception as e:
             return FormatConverter_output_schema(
                 is_success=False,

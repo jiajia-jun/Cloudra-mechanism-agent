@@ -205,3 +205,51 @@ def test_tool_metadata():
     tool = FormatConverter()
     assert tool.tool_name == "format_converter"
     assert tool.is_write() is True
+
+
+# ---------------------------------------------------------------------------
+# 日志帧解析的裸 IndexError 收口（生产实锤：截断日志炸 "list index out of range"）
+# ---------------------------------------------------------------------------
+
+
+async def _convert_log(tmp_path, monkeypatch=None, extract_frames_result=None):
+    """log→csv 转换；extract_frames_result 非 None 时 monkeypatch 帧提取。"""
+    log = tmp_path / "job.log"
+    log.write_text("not a real computation log\n", encoding="utf-8")
+    if monkeypatch is not None:
+        from cloudra.tools.core import gaussian_frames
+
+        def _stub(log_path):
+            if isinstance(extract_frames_result, Exception):
+                raise extract_frames_result
+            return extract_frames_result
+
+        monkeypatch.setattr(gaussian_frames, "extract_frames", _stub)
+    return await FormatConverter().tool_call(
+        FormatConverter_input_schema(
+            input_path=str(log), input_format="log",
+            output_format="csv", output_path=str(tmp_path / "out.csv"),
+        ),
+        session=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_log_parser_index_error_returns_clean_failure(tmp_path, monkeypatch):
+    """帧解析链路裸抛 IndexError（截断/畸形日志的空列表索引）时，必须翻成
+    有指引的 is_success=False，不把 "list index out of range" 漏给调用方。"""
+    result = await _convert_log(
+        tmp_path, monkeypatch, extract_frames_result=IndexError("list index out of range"),
+    )
+    assert result.is_success is False
+    assert "list index out of range" not in result.message
+    assert "truncated" in result.message or "not a valid" in result.message
+
+
+@pytest.mark.asyncio
+async def test_log_with_no_parseable_frames_fails_cleanly(tmp_path, monkeypatch):
+    """空帧（日志里没有任何可提取的关键帧）：干净的 is_success=False + 原因说明。"""
+    result = await _convert_log(tmp_path, monkeypatch, extract_frames_result=[])
+    assert result.is_success is False
+    assert "No key frames" in result.message
+    assert "list index out of range" not in result.message

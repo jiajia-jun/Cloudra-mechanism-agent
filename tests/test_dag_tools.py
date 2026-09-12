@@ -991,6 +991,59 @@ async def test_ts_guess_agree_never_supports_saddle_stages(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_pending_ts_guess_never_blocks_ts_opt_bind(tmp_path):
+    """ts_guess 是 advisory 阶段：即使存量 v1 契约把它落库为 required=True，
+    顺序门禁也不把它算作 blocker（生产 bug：stage_out_of_order 误拒合格的
+    ts_opt 绑定）；ts_guess 自己仍可带理由跳过。"""
+    from cloudra.dag.controller import DagController
+
+    agent, session, db = await _seed_staged_step(
+        tmp_path, "tool-stage-advisory", _TS_FREQ_RESULT,
+        stage_kinds=("ts_guess", "ts_opt"),
+    )
+
+    bound = await _call(
+        DagBindEvidence, agent, session,
+        tool_call_id="tc-bind", bind_target="step1", stage_kind="ts_opt",
+    )
+    assert bound.is_success
+    assert bound.accepted is True
+    by_kind = {s.kind.value: s.status.value for s in _delivery_edge(db).stages}
+    assert by_kind == {"ts_guess": "pending", "ts_opt": "supported"}
+
+    controller = DagController(db, "s1", "dag_record", conversation_id=db.conversation_id)
+    skipped = await controller.apply_stage_bind(
+        element_id="step1", stage_kind="ts_guess", ref=None,
+        verdict="skip", reason="ts_opt already converged to the saddle",
+        tool_succeeded=True,
+    )
+    assert skipped.accepted
+    by_kind = {s.kind.value: s.status.value for s in _delivery_edge(db).stages}
+    assert by_kind["ts_guess"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_ts_guess_advisory_keeps_other_order_gates(tmp_path):
+    """顺序门禁对其他阶段保持：frequency 仍要求 ts_opt 先 supported，
+    且 blocker 列表只含 ts_opt，不含 advisory 的 ts_guess。"""
+    agent, session, db = await _seed_staged_step(
+        tmp_path, "tool-stage-order-kept", _TS_FREQ_RESULT,
+        stage_kinds=("ts_guess", "ts_opt", "frequency"),
+    )
+
+    bound = await _call(
+        DagBindEvidence, agent, session,
+        tool_call_id="tc-bind", bind_target="step1", stage_kind="frequency",
+    )
+
+    assert not bound.is_success
+    assert bound.rejection_code == "stage_out_of_order"
+    assert "ts_opt" in bound.error
+    assert "ts_guess" not in bound.error
+    assert all(s.status.value == "pending" for s in _delivery_edge(db).stages)
+
+
+@pytest.mark.asyncio
 async def test_agree_with_failed_call_is_a_rejected_bind(tmp_path):
     """tool_succeeded=False 的 agree 直接被拒，阶段保持 pending。"""
     from cloudra.dag.controller import DagController

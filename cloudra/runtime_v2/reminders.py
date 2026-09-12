@@ -498,7 +498,9 @@ def _parse_create_timing(
         deadline_count = sum(x is not None for x in (wake_at, delay_seconds, timeout_seconds))
         if deadline_count != 1:
             raise CheckCommandError(
-                "check_command requires exactly one of timeout_seconds, delay_seconds, or wake_at."
+                "check_command requires exactly one of timeout_seconds, delay_seconds, or wake_at. "
+                "Example: schedule(action=\"create\", message=\"check job 12\", "
+                "check_command=\"test -f job.done\", interval_seconds=30, timeout_seconds=600)."
             )
         if interval_seconds is None:
             raise CheckCommandError("check_command requires interval_seconds.")

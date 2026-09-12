@@ -169,9 +169,15 @@ def _strip_redirects(seg: list[str]) -> list[str]:
             i += 2
             continue
         if _WRITE_REDIRECT_RE.fullmatch(tok) or tok in {">", ">>", "&>", ">&", ">>&"}:
-            raise CheckCommandError("check_command must not redirect output to a file.")
+            raise CheckCommandError(
+                "check_command must not redirect output to a file. "
+                "Use a plain read-only check instead, e.g. grep -q 'Normal termination' job.log."
+            )
         if ">" in tok and tok not in _ALLOWED_REDIRECTS:
-            raise CheckCommandError("check_command must not redirect output to a file.")
+            raise CheckCommandError(
+                "check_command must not redirect output to a file. "
+                "Use a plain read-only check instead, e.g. grep -q 'Normal termination' job.log."
+            )
         if "$" in tok:
             raise CheckCommandError("check_command must not expand variables or substitutions; bake values in at create.")
         out.append(tok)

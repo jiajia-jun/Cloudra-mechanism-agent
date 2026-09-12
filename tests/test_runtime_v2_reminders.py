@@ -242,6 +242,28 @@ async def test_check_command_cancel_prevents_fire(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_check_command_deadline_error_shows_correct_usage():
+    core = RuntimeCore(strict_events=True)
+    _project, agent = await _spawn_ready(core)
+    agent.settings = agent.settings.model_copy(update={"yolo": True})
+    created = await core.reminders.handle(
+        agent,
+        _schedule_call(
+            "create",
+            message="bad timing",
+            check_command="true",
+            interval_seconds=5,
+            timeout_seconds=60,
+            delay_seconds=10,
+        ),
+    )
+    assert created.is_success is False
+    assert "exactly one of timeout_seconds, delay_seconds, or wake_at" in created.summary
+    assert "interval_seconds=30" in created.summary
+    assert not any(e.type == "reminder.scheduled" for e in core.event_log)
+
+
+@pytest.mark.asyncio
 async def test_check_command_rejected_is_not_scheduled():
     core = RuntimeCore(strict_events=True)
     _project, agent = await _spawn_ready(core)

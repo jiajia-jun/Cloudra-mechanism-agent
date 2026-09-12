@@ -137,7 +137,9 @@ def apply_stage_verdict(
       supported（stage_out_of_order），rejected 阶段可被后来的 agree 重绑
       （D2）。contract_version=2（allow_out_of_order=True）允许证据乱序到
       达/绑定；缺失的依赖由 requirements 层计算，不再拒绝绑定本身。
-      ts_guess 只推进它自己那个阶段，永远不能充抵 ts_opt/frequency。
+      ts_guess 只推进它自己那个阶段，永远不能充抵 ts_opt/frequency；它是
+      advisory 阶段，即使存量契约把它落库为 required=True 也不构成顺序
+      门禁的 blocker。
     """
     index = next(
         (i for i, stage in enumerate(stages) if stage.kind == stage_kind), None
@@ -179,6 +181,10 @@ def apply_stage_verdict(
             stage.kind.value
             for stage in stages[:index]
             if stage.required
+            # ts_guess 语义上永远是 advisory 阶段（models.StageKind），从不
+            # 充抵也不前置卡 ts_opt/frequency；存量 v1 契约可能仍把它落库
+            # 为 required=True，这里按语义排除而不是信任落库值。
+            and stage.kind is not StageKind.TS_GUESS
             and stage.status
             not in {
                 StageStatus.SUPPORTED,

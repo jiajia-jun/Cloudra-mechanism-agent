@@ -1060,7 +1060,8 @@ _MODE_GUIDANCE = {
         "per-element stage contracts you choose). The harness auto-accepts it; no compute before that.\n"
         "- Run the task as usual afterwards; tool and compute results are recorded as evidence automatically.\n"
         "- Bind a finished call to a stage with dag_bind_evidence (tool_call_id, bind_target, stage_kind); "
-        "stages bind strictly in contract order, ts_guess never satisfies ts_opt/frequency, and a "
+        "stages bind strictly in contract order, ts_guess is advisory (never required) — it never "
+        "satisfies nor blocks ts_opt/frequency — and a "
         "submit_compute_job call is never evidence (bind the finished job's parser output)."
     ),
     OrchestrationMode.DAG_GUIDED: (
@@ -1076,7 +1077,8 @@ _MODE_GUIDANCE = {
         "(with a claim) — finished calls are never auto-submitted. The Supervisor adjudicates each "
         "claim via dag_review_call. A disagree means the stage is still owed — re-run and submit a "
         "later call, or close it with an explicit skip/not_applicable with a reason. ts_guess is "
-        "advisory and never satisfies ts_opt/frequency; a submit_compute_job call is never evidence.\n"
+        "advisory (never required): it never satisfies nor blocks ts_opt/frequency binds; a "
+        "submit_compute_job call is never evidence.\n"
         "4. Delivery completeness is decided by stage coverage, not by your declaration; before "
         "stop(delivery_disposition=complete), self-check with dag_delivery_report: every required "
         "stage must be supported or skipped/not_applicable with a reason. If there are gaps, keep "

@@ -64,10 +64,16 @@ class _DeliveredNode(MechanismNode):
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        if "role" not in data and "type" in data:
-            alias = _NODE_TYPE_ALIASES.get(str(data.get("type") or "").strip().lower())
-            if alias is not None:
-                data["role"] = alias
+        # role 缺失，或 role 是自由文本（不是合法 NodeRole 枚举值）而 type 能映射
+        # 时，以 type 的映射值为 role；自由文本并进 label，不丢信息。role 本身
+        # 是合法枚举值时不动；type 也映射不了则留原样，让校验 fail-loud。
+        alias = _NODE_TYPE_ALIASES.get(str(data.get("type") or "").strip().lower())
+        if alias is not None and data.get("role") not in {r.value for r in NodeRole}:
+            free_text = str(data["role"]).strip() if data.get("role") is not None else ""
+            if free_text:
+                label = str(data.get("label") or "").strip()
+                data["label"] = f"{label} | {free_text}" if label else free_text
+            data["role"] = alias
         smiles = data.get("smiles")
         if isinstance(smiles, str):
             data["smiles"] = [smiles]
