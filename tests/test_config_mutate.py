@@ -189,3 +189,19 @@ def test_knowledge_install_uninstall_roundtrip(cfg_env):
 
     _, removed_again = uninstall_plugin_spec()
     assert removed_again is False
+
+
+def test_method_policy_yaml_round_trip(cfg_env, tmp_path):
+    """method_policy 白名单默认 xtb+b3lyp/def2svp（impossible xtb-only）；
+    经 mutate 落盘后从 YAML 原样读回。"""
+    from cloudra.infra.config import CloudraConfig, get_config, mutate_config
+
+    assert get_config().method_policy.allowed_methods == ["xtb", "b3lyp/def2svp"]
+    assert get_config().method_policy.allowed_methods_impossible == ["xtb"]
+
+    mutate_config(lambda work: setattr(work.method_policy, "allowed_methods", ["xtb"]))
+
+    assert _read_yaml(cfg_env.config_file)["method_policy"]["allowed_methods"] == ["xtb"]
+    reloaded = CloudraConfig(config_file=cfg_env.config_file, data_dir=tmp_path / "data")
+    assert reloaded.method_policy.allowed_methods == ["xtb"]
+    assert reloaded.method_policy.allowed_methods_impossible == ["xtb"]

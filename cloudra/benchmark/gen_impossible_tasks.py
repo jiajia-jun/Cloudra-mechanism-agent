@@ -62,6 +62,7 @@ from cloudra.benchmark.schema import (
     TaskSpec,
     Tier,
 )
+from cloudra.infra.config import get_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "impossible.md"
@@ -363,7 +364,9 @@ def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
         if impossible
         else RubricSpec(accuracy=AccuracyRubric(enabled=False))
     )
-    policy = MethodPolicy()
+    policy = MethodPolicy(
+        allowed_methods=get_config().method_policy.allowed_methods_impossible
+    )
     return TaskSpec(
         task_id=tid,
         tier=Tier.IMPOSSIBLE,

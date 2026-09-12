@@ -62,6 +62,7 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
+from cloudra.infra.config import get_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "normal.md"
@@ -375,7 +376,8 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         name = entry["name_en"]
         conditions = entry["conditions_en"]
         # 与 hard 同一白名单：多步网络里 xtb 做路径探索，b3lyp 做驻点/能垒验证。
-        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+        # 内容源是全局 config（method_policy.allowed_methods），不是这里的字面量。
+        policy = MethodPolicy(allowed_methods=get_config().method_policy.allowed_methods)
         tasks.append(
             TaskSpec(
                 task_id=f"N{pid}",

@@ -74,6 +74,7 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
+from cloudra.infra.config import get_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "hard.md"
@@ -367,7 +368,8 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         graph = _build_graph(pid, reactants, products, entry)
         # v3：hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 引擎）。白名单为组合
         # 条目：基组是许可的一部分，b3lyp 配其他基组（或缺基组）一律 fail-closed 拦截。
-        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+        # 内容源是全局 config（method_policy.allowed_methods），不是这里的字面量。
+        policy = MethodPolicy(allowed_methods=get_config().method_policy.allowed_methods)
         tasks.append(
             TaskSpec(
                 task_id=f"H{pid}",

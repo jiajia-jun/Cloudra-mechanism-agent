@@ -2231,3 +2231,15 @@ def test_relative_evidence_reference_does_not_cross_tasks(tmp_path):
     assert "escapes this task's sandbox" in reason, reason
     inside, _ = _engine_energy_kcal(task_a, "calc/input.log")
     assert inside is not None
+
+
+def test_generators_read_whitelist_from_global_config(monkeypatch):
+    """方法白名单的内容源是全局 config：覆盖 method_policy.allowed_methods 后，
+    easy 生成器产出的任务白名单跟随（默认路径被 regenerate 守卫钉死）。"""
+    from cloudra.benchmark import gen_easy_tasks
+    from cloudra.infra.config import get_config
+
+    monkeypatch.setattr(get_config().method_policy, "allowed_methods", ["xtb"])
+    tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    assert tasks, "generator produced no tasks"
+    assert all(t.method_policy.allowed_methods == ["xtb"] for t in tasks)

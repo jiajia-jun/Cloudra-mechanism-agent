@@ -122,6 +122,21 @@ class ComputeConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
 
+class MethodPolicyConfig(BaseSettings):
+    """benchmark 方法白名单的内容源（唯一事实源；生成器从这里读）。
+
+    拦截仍只在 benchmark 强制（普通项目 ProjectSettings.method_policy=None 不启用）。
+    改这里之后必须重跑 gen_*_tasks.py 重新生成题集；regenerate-identically 守卫
+    会核对题集与本配置的默认值一致（测试环境走默认值）。
+    """
+    # easy/normal/hard 档共用（组合条目把基组钉进许可）
+    allowed_methods: list[str] = Field(default_factory=lambda: ["xtb", "b3lyp/def2svp"])
+    # impossible 档保持 xtb-only
+    allowed_methods_impossible: list[str] = Field(default_factory=lambda: ["xtb"])
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+
 class CloudraConfig(BaseSettings):
     """Global Cloudra configuration."""
 
@@ -146,6 +161,9 @@ class CloudraConfig(BaseSettings):
 
     # FlowER 机理推断外部环境（默认关闭）
     flower: FlowerConfig = Field(default_factory=FlowerConfig)
+
+    # benchmark 方法白名单内容源（生成器读取；拦截只在 benchmark 强制）
+    method_policy: MethodPolicyConfig = Field(default_factory=MethodPolicyConfig)
 
     # 计算执行面开关（本地 calculator.sh 通道默认关闭）
     compute: ComputeConfig = Field(default_factory=ComputeConfig)
@@ -250,6 +268,11 @@ class CloudraConfig(BaseSettings):
                 for k, v in data["flower"].items():
                     if hasattr(self.flower, k) and v is not None:
                         setattr(self.flower, k, v)
+
+            if "method_policy" in data:
+                for k, v in data["method_policy"].items():
+                    if hasattr(self.method_policy, k) and v is not None:
+                        setattr(self.method_policy, k, v)
 
             if "compute" in data:
                 for k, v in data["compute"].items():

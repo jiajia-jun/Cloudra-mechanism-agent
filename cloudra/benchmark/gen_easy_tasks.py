@@ -37,6 +37,7 @@ from cloudra.benchmark.schema import (
     Tier,
     VerificationStatus,
 )
+from cloudra.infra.config import get_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "ideapool" / "reaction_candidates" / "easy.md"
@@ -418,7 +419,8 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
 
         graph = _build_graph(task_id, reactants, products, step_type)
         # 与 hard 同一白名单：xtb 可作廉价路径探索，b3lyp 作能垒/驻点验证。
-        policy = MethodPolicy(allowed_methods=["xtb", "b3lyp/def2svp"])
+        # 内容源是全局 config（method_policy.allowed_methods），不是这里的字面量。
+        policy = MethodPolicy(allowed_methods=get_config().method_policy.allowed_methods)
         spec = TaskSpec(
             task_id=task_id,
             tier=Tier.EASY,
