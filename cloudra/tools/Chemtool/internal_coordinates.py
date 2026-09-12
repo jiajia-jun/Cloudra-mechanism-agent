@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import os
 from collections import deque
@@ -1513,7 +1514,8 @@ class InternalCoordinates(Tool):
                 message="chemcoord is not installed. Install it with: pip install 'cloudra[chem]'"
             )
         if user_input.mode == "analyze":
-            return self._analyze(user_input)
+            # chemcoord 解析/分析是同步重活，卸载出事件循环。
+            return await asyncio.to_thread(self._analyze, user_input)
         return self._zmatrix_to_cartesian(user_input)
 
 

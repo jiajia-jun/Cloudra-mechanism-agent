@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any, Literal
 
@@ -265,9 +266,9 @@ class FormatConverter(Tool):
         input_path = user_input.input_path
         output_path = user_input.output_path
 
-        # 0. log 输入或 csv 输出分流
+        # 0. log 输入或 csv 输出分流（大日志帧提取是同步重活，卸载出事件循环）
         if user_input.input_format == "log" or user_input.output_format == "csv":
-            return self._convert_log(user_input)
+            return await asyncio.to_thread(self._convert_log, user_input)
 
         # 1. 校验输入文件是否存在
         if not os.path.isfile(input_path):

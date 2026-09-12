@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any, Dict, List, Literal
 
@@ -77,6 +78,11 @@ class NMRProcessor(Tool):
         except FileNotFoundError as exc:
             return NMRProcessor_output_schema(is_success=False, message=str(exc))
 
+        # 整条 nmrglue 处理流水线是同步重活，卸载出事件循环，避免冻结整个 API。
+        return await asyncio.to_thread(self._process, path, user_input)
+
+    def _process(self, path: str, user_input: NMRProcessor_input_schema) -> NMRProcessor_output_schema:
+        """同步处理流水线主体；只经 to_thread 调用。"""
         import numpy as np
 
         try:

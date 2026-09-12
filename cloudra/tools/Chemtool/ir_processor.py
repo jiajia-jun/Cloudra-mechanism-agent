@@ -1,5 +1,6 @@
 # spectrochempy 在 Python 3.10 中会引用 datetime.UTC（3.11 新增），
 # 在导入前为 3.10 环境补上兼容性补丁。
+import asyncio
 import datetime
 import os
 import re
@@ -126,6 +127,17 @@ class IRProcessor(Tool):
         return True
 
     async def tool_call(self, user_input: IRProcessor_input_schema, session: Session) -> IRProcessor_output_schema:
+        try:
+            path = resolve_existing_tool_path(self, user_input.data_path)
+        except FileNotFoundError as exc:
+            return IRProcessor_output_schema(is_success=False, message=str(exc))
+
+        # spectrochempy 冷 import 与整条处理流水线都是同步重活，
+        # 卸载出事件循环，避免冻结整个 API。
+        return await asyncio.to_thread(self._process, path, user_input)
+
+    def _process(self, path: str, user_input: IRProcessor_input_schema) -> IRProcessor_output_schema:
+        """同步处理流水线主体；只经 to_thread 调用。"""
         scp = _import_spectrochempy()
         if scp is None:
             return IRProcessor_output_schema(
@@ -134,11 +146,6 @@ class IRProcessor(Tool):
             )
 
         import numpy as np
-
-        try:
-            path = resolve_existing_tool_path(self, user_input.data_path)
-        except FileNotFoundError as exc:
-            return IRProcessor_output_schema(is_success=False, message=str(exc))
 
         try:
             # 1. 读取数据

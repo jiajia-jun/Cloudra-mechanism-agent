@@ -4,6 +4,7 @@
 排列包装成唯一机理结论。
 """
 
+import asyncio
 import itertools
 import math
 import os
@@ -887,12 +888,14 @@ class ReactionMapping(Tool):
                 value = getattr(user_input, field, None)
                 if value:
                     setattr(user_input, field, resolve_existing_tool_path(self, value))
-            result = analyze_reaction_mapping(
+            result = await asyncio.to_thread(
+                analyze_reaction_mapping,
                 user_input.reactant_smiles,
                 user_input.product_smiles,
                 selected_candidate=user_input.selected_candidate,
             )
-            binding = _bind_concrete_structures(user_input, result)
+            # 具体结构绑定（3D 生成/比对）同样是同步重活，一并卸载出事件循环。
+            binding = await asyncio.to_thread(_bind_concrete_structures, user_input, result)
             result["graph_watch_pairs"] = list(result["watch_pairs"])
             result.update(binding)
             if binding["binding_status"] == "complete":

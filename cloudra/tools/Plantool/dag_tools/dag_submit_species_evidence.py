@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from pathlib import Path
@@ -87,8 +88,10 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         species = matching_nodes[0]
 
         # 2. Snapshot optimization and optional frequency files
+        # snapshot_evidence_file 全量读文件 + cclib 解析（同步重活），卸载出事件循环。
         try:
-            opt_snap = snapshot_evidence_file(
+            opt_snap = await asyncio.to_thread(
+                snapshot_evidence_file,
                 user_input.opt_file,
                 workspace_root=workspace_root,
                 conversation_id=ctx.conversation_id,
@@ -99,7 +102,8 @@ class DagSubmitSpeciesEvidence(DagToolBase):
         freq_snap = None
         if user_input.freq_file:
             try:
-                freq_snap = snapshot_evidence_file(
+                freq_snap = await asyncio.to_thread(
+                    snapshot_evidence_file,
                     user_input.freq_file,
                     workspace_root=workspace_root,
                     conversation_id=ctx.conversation_id,

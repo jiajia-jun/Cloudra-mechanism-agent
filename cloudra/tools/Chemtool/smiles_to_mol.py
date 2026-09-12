@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any, Optional
 
@@ -180,7 +181,8 @@ class SmilesToMol(Tool):
                 # 3D 语义统一由共享构建器承担（分片、原子身份、力场轨迹、可用性判定）。
                 if path:
                     user_input.output_path = resolve_tool_path(self, path)
-                return self._build_3d(user_input)
+                # 力场优化是同步重活，卸载出事件循环。
+                return await asyncio.to_thread(self._build_3d, user_input)
 
             Chem.rdDepictor.Compute2DCoords(mol)
             mol_block = Chem.MolToMolBlock(mol, kekulize=kekulize)

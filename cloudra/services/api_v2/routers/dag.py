@@ -233,18 +233,25 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.post("/api/v2/projects/{project_id}/dag/mutations", dependencies=ctx.protected)
     async def dag_mutations(project_id: str, body: DagMutationRequest) -> dict[str, Any]:
+        from pydantic import ValidationError
+
         from cloudra.dag.models import GraphActor, MutationBatch, parse_graph_operation
 
         context = await asyncio.to_thread(_dag_read_context, ctx, project_id)
         if context is None:
             raise HTTPException(status_code=404, detail="DAG bundle not initialized")
         _store, engine = context
+        try:
+            operations = [parse_graph_operation(op) for op in body.operations]
+        except ValidationError as exc:
+            # 请求体里的畸形 operation 是客户端校验错误，不是服务端故障。
+            raise HTTPException(status_code=422, detail=f"Invalid graph operation: {exc}") from exc
         batch = MutationBatch(
             session_id="user",
             actor=GraphActor.USER,
             actor_id="user",
             base_revisions=body.base_revisions,
-            operations=[parse_graph_operation(op) for op in body.operations],
+            operations=operations,
             rationale=body.rationale,
         )
         result = await asyncio.to_thread(engine.apply_batch, batch)

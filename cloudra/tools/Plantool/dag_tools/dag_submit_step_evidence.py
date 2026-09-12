@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from pathlib import Path
@@ -95,8 +96,10 @@ class DagSubmitStepEvidence(DagToolBase):
         step = matching_edges[0]
 
         # 2. Snapshot TS file and validate vibration mode
+        # snapshot_evidence_file 全量读文件 + cclib 解析（同步重活），卸载出事件循环。
         try:
-            ts_snap = snapshot_evidence_file(
+            ts_snap = await asyncio.to_thread(
+                snapshot_evidence_file,
                 user_input.ts_file,
                 workspace_root=workspace_root,
                 conversation_id=ctx.conversation_id,
@@ -127,7 +130,8 @@ class DagSubmitStepEvidence(DagToolBase):
         ]:
             if path:
                 try:
-                    snap = snapshot_evidence_file(
+                    snap = await asyncio.to_thread(
+                        snapshot_evidence_file,
                         path,
                         workspace_root=workspace_root,
                         conversation_id=ctx.conversation_id,

@@ -19,6 +19,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 from cloudra.infra.compute_utils import (
     build_guard_cmd,
@@ -44,10 +45,32 @@ _RECONCILE_INTERVAL = 30.0
 _LEASE_RENEW_AFTER_CHECK = 3600
 # adopt guard 刚拉起时的占位租约（它自持 guard 锁，下轮对账即转为保活续租）
 _LEASE_AFTER_ADOPT_SPAWN = 300
+# 同一作业的 adopt guard 重拉起最小间隔：adopt guard 崩溃（还没抢到 guard 锁
+# 就退出）时每轮对账都会重拉起，落 ``<guard锁>.adopt_last_spawn`` 时间戳节流。
+_ADOPT_RESPAWN_SECONDS = 60.0
 
 
 def scheduler_lock_path() -> str:
     return str(paths.data_dir() / "scheduler.lock")
+
+
+def _adopt_last_spawn_path(lock_path: str) -> str:
+    return lock_path + ".adopt_last_spawn"
+
+
+def _adopt_spawn_throttled(lock_path: str) -> bool:
+    """距上次 adopt guard 拉起 < _ADOPT_RESPAWN_SECONDS。时间戳缺失/损坏视为可拉起。"""
+    try:
+        last = float(Path(_adopt_last_spawn_path(lock_path)).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return False
+    return time.time() - last < _ADOPT_RESPAWN_SECONDS
+
+
+def _record_adopt_spawn(lock_path: str) -> None:
+    from cloudra.persistence.fs_utils import atomic_write_text
+
+    atomic_write_text(_adopt_last_spawn_path(lock_path), f"{time.time():.3f}")
 
 
 def _node_capacity() -> dict:
@@ -191,10 +214,13 @@ class SchedulerDaemon:
             workdir = os.path.dirname(path)
             if not workdir:
                 continue
-            if is_lock_held(guard_lock_path(workdir, task_id)):
+            lock_path = guard_lock_path(workdir, task_id)
+            if is_lock_held(lock_path):
                 # guard 活着：续租防重领（租约只剩认领语义，存活以锁为准）
                 extend_compute_lease(self.db, task_id, _LEASE_RENEW_AFTER_CHECK)
                 continue
+            if _adopt_spawn_throttled(lock_path):
+                continue  # 60s 内已拉起过 adopt guard，等下轮对账（防崩溃循环轰炸）
             # guard 已死：spawn adopt guard 接管。calc 还在跑它会阻塞等锁；
             # calc 已结束它直接解析收尾；无日志则置 failed。conv_id 从行里取。
             logger.warning(
@@ -212,6 +238,7 @@ class SchedulerDaemon:
                     ),
                     guard_log_path(workdir, task_id),
                 )
+                _record_adopt_spawn(lock_path)
                 extend_compute_lease(self.db, task_id, _LEASE_AFTER_ADOPT_SPAWN)
             except Exception:
                 logger.exception("could not spawn adopt guard for job %s", task_id)

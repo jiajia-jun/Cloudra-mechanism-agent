@@ -174,3 +174,97 @@ async def test_watchdog_off_by_default_in_tests():
     async with app.router.lifespan_context(app):
         names = {task.get_name() for task in asyncio.all_tasks()}
         assert "daemon-watchdog" not in names
+
+
+# ------------------------------------------------------------- 指数退避（崩溃循环熔断）
+
+
+def _scheduler_fail_count() -> Path:
+    from cloudra.scheduler.daemon import scheduler_lock_path
+
+    return Path(daemon_supervisor.spawn_fail_count_path(scheduler_lock_path()))
+
+
+def _backoff_spawn_to_past(seconds: float) -> None:
+    _scheduler_last_spawn().write_text(f"{time.time() - seconds:.3f}", encoding="utf-8")
+
+
+def test_spawn_exception_is_throttled_and_backoff_grows(monkeypatch):
+    """Popen 抛异常原先完全不限速（崩溃配置下 30s 无限重试）；
+    现在失败也落时间戳并计入退避，间隔按 2^n 翻倍。"""
+    attempts: list[tuple[list[str], str]] = []
+
+    def boom(cmd, log_path):
+        attempts.append((list(cmd), str(log_path)))
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr("cloudra.infra.compute_utils.spawn_detached", boom)
+
+    daemon_supervisor.ensure_scheduler()  # 第一次失败：n=1 → 退避 120s
+    assert len(attempts) == 1
+    assert _scheduler_last_spawn().is_file()  # 失败路径也落了时间戳
+    assert _scheduler_fail_count().read_text(encoding="utf-8") == "1"
+
+    daemon_supervisor.ensure_scheduler()  # 节流跳过，不再尝试
+    assert len(attempts) == 1
+
+    _backoff_spawn_to_past(61)  # n=1 → 间隔 120s，61s 前仍节流
+    daemon_supervisor.ensure_scheduler()
+    assert len(attempts) == 1
+
+    _backoff_spawn_to_past(121)  # 超过 120s：重试 → 再失败 n=2 → 间隔 240s
+    daemon_supervisor.ensure_scheduler()
+    assert len(attempts) == 2
+    assert _scheduler_fail_count().read_text(encoding="utf-8") == "2"
+
+    _backoff_spawn_to_past(121)  # n=2 → 间隔 240s，121s 前仍节流
+    daemon_supervisor.ensure_scheduler()
+    assert len(attempts) == 2
+
+
+def test_backoff_capped_at_max(spawn_calls):
+    """退避封顶 MAX_RESPAWN_SECONDS：n 再大也不超过 1800s。"""
+    _scheduler_fail_count().write_text("10", encoding="utf-8")
+    _backoff_spawn_to_past(daemon_supervisor.MAX_RESPAWN_SECONDS - 1)
+    daemon_supervisor.ensure_scheduler()
+    assert spawn_calls == []  # 差 1s 仍节流
+
+    _backoff_spawn_to_past(daemon_supervisor.MAX_RESPAWN_SECONDS + 1)
+    daemon_supervisor.ensure_scheduler()
+    assert len(spawn_calls) == 1
+
+
+def test_successful_spawn_does_not_increment_fail_count(spawn_calls):
+    """spawn 成功只刷新时间戳，不计失败（计数只由健康观测归零）。"""
+    daemon_supervisor.ensure_scheduler()
+    assert len(spawn_calls) == 1
+    assert not _scheduler_fail_count().exists()
+
+
+def test_kg_vec_health_success_resets_backoff(spawn_calls, monkeypatch, tmp_path):
+    """健康探测成功 = 崩溃循环结束：残留失败计数归零，且不拉起。"""
+    monkeypatch.setattr(get_config(), "plugins", [PLUGIN_SPEC])
+    monkeypatch.setattr(daemon_supervisor, "kg_vec_is_healthy", lambda url: True)
+    fail_count = Path(daemon_supervisor.spawn_fail_count_path(daemon_supervisor.kg_vec_lock_path()))
+    fail_count.write_text("5", encoding="utf-8")
+
+    daemon_supervisor.ensure_kg_vec()
+    assert spawn_calls == []
+    assert not fail_count.exists()
+
+
+def test_live_scheduler_instance_resets_backoff(spawn_calls):
+    """scheduler 没有 /health：锁被活实例持有就是它的健康观测，归零退避。"""
+    from cloudra.infra.flocks import try_acquire_lock
+    from cloudra.scheduler.daemon import scheduler_lock_path
+
+    fd = try_acquire_lock(scheduler_lock_path())
+    assert fd is not None
+    try:
+        fail_count = _scheduler_fail_count()
+        fail_count.write_text("3", encoding="utf-8")
+        daemon_supervisor.ensure_scheduler()
+        assert spawn_calls == []
+        assert not fail_count.exists()
+    finally:
+        os.close(fd)

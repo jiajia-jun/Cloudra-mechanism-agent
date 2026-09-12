@@ -160,7 +160,7 @@ async def test_command_idempotency_returns_first_result():
 async def test_api_v2_basic_flow():
     app = create_v2_app(RuntimeCore(strict_events=True))
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post("/api/v2/projects", json={"name": "web project"})
         assert resp.status_code == 201
         project = resp.json()["data"]
@@ -228,7 +228,7 @@ async def test_default_v2_app_wires_runtime_without_network(tmp_path):
     assert core.store is not None
     assert core.runtime_defaults.model != ""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/api/v2/roles")
         assert resp.status_code == 200
         assert {role["role_id"] for role in resp.json()} >= {"coordinator", "small_mol"}
@@ -253,7 +253,7 @@ async def test_default_v2_app_wires_runtime_without_network(tmp_path):
 async def test_api_v2_control_surface_routes():
     app = create_v2_app(RuntimeCore(strict_events=True))
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post(
             "/api/v2/projects",
             json={"name": "dag", "settings": {"orchestration_mode": "dag_record"}},
@@ -327,7 +327,7 @@ async def test_api_v2_replan_queues_request_and_notifies():
     app = create_v2_app(RuntimeCore(strict_events=True))
     core = app.state.runtime_core
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post(
             "/api/v2/projects",
             json={"name": "replan-q", "settings": {"orchestration_mode": "dag_guided"}},
@@ -376,7 +376,7 @@ async def test_api_v2_replan_queues_request_and_notifies():
 async def test_api_v2_goal_context_compact_skills_routes():
     app = create_v2_app(RuntimeCore(strict_events=True))
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.post("/api/v2/projects", json={"name": "cmd-demo"})
         project = resp.json()["data"]
         resp = await client.post(
@@ -422,7 +422,7 @@ async def test_api_v2_goal_context_compact_skills_routes():
 async def test_api_error_mapping():
     app = create_v2_app(RuntimeCore(strict_events=True))
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/api/v2/agents/as_missing")
         assert resp.status_code == 404
         assert resp.json()["detail"]["code"] == "not_found"
@@ -571,7 +571,7 @@ async def test_runtime_config_endpoints_read_patch_and_persist(tmp_path, monkeyp
     monkeypatch.setattr(cfg.coordinator, "key", "old-key")
 
     app = create_v2_app()
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
         resp = await client.get("/api/v2/runtime/config")
         assert resp.status_code == 200
         body = resp.json()
@@ -603,3 +603,26 @@ async def test_runtime_config_endpoints_read_patch_and_persist(tmp_path, monkeyp
             json={"slot": "other", "changes": {"model": "x"}},
         )
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_api_v2_dag_mutations_malformed_operation_is_422():
+    """请求体里的畸形 operation 是客户端校验错误（422），不得冒 500。"""
+    app = create_v2_app(RuntimeCore(strict_events=True))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post(
+            "/api/v2/projects",
+            json={"name": "dag-422", "settings": {"orchestration_mode": "dag_record"}},
+        )
+        project = resp.json()["data"]
+        # 初始化 DAG bundle（等价于 agent 已进入 dag 模式）。
+        resp = await client.get(f"/api/v2/projects/{project['id']}/dag/delivery")
+        assert resp.status_code == 200
+
+        resp = await client.post(
+            f"/api/v2/projects/{project['id']}/dag/mutations",
+            json={"operations": [{"op": "definitely_not_an_op"}], "rationale": "bad"},
+        )
+        assert resp.status_code == 422
+        assert "Invalid graph operation" in resp.json()["detail"]

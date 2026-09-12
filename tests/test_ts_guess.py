@@ -1827,3 +1827,39 @@ def test_legacy_xtb_neb_alias_is_gone():
             "reactant_text": _R_XYZ,
             "product_text": _P_XYZ,
         })
+
+
+@pytest.mark.asyncio
+async def test_blocking_handler_does_not_freeze_event_loop(monkeypatch, mock_session):
+    """xtb_path 等 handler 会同步等 xTB 子进程（proc.communicate(timeout=900)），
+    tool_call 必须把 handler 分发卸载出事件循环（image_to_smiles 同款事故的审计同类）。
+    用 time.sleep(0.4) 的假 handler + 并发 ticker 探活：ticker 停滞即事件循环被冻结。"""
+    import asyncio
+    import time
+
+    from cloudra.tools.Chemtool.ts_guess import TsGuess_output_schema
+
+    def fake_handler(self, user_input):
+        time.sleep(0.4)
+        return TsGuess_output_schema(is_success=True, message="ok")
+
+    monkeypatch.setattr(TsGuess, "_xtb_path", fake_handler)
+
+    ticks = 0
+    stop = False
+
+    async def ticker():
+        nonlocal ticks
+        while not stop:
+            ticks += 1
+            await asyncio.sleep(0.02)
+
+    ticker_task = asyncio.create_task(ticker())
+    try:
+        result = await _make_tool().tool_call(TsGuess_input_schema(), mock_session)
+    finally:
+        stop = True
+        await ticker_task
+    assert result.is_success is True
+    # 若阻塞发生在事件循环线程上，0.4s 的冻结期里 ticker 只会前进寥寥几步
+    assert ticks > 5, f"event loop was frozen during tool_call (ticks={ticks})"

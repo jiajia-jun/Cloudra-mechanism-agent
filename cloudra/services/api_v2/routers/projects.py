@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Response, status
@@ -65,8 +66,9 @@ def build_router(ctx: ApiContext) -> APIRouter:
         from cloudra.runtime_v2.transcript import render_project_transcript
 
         project = ctx.core.require_project(project_id)
-        events = ctx.core.event_log.query_project(project_id, limit=1_000_000)
-        text = render_project_transcript(project, ctx.core.agents, events)
+        # 事件查询 + 全文渲染是同步 DB/CPU 重活，卸载出事件循环。
+        events = await asyncio.to_thread(ctx.core.event_log.query_project, project_id, limit=1_000_000)
+        text = await asyncio.to_thread(render_project_transcript, project, ctx.core.agents, events)
         safe = "".join(
             ch if ch.isascii() and (ch.isalnum() or ch in "-_") else "-"
             for ch in (project.name or project.id)

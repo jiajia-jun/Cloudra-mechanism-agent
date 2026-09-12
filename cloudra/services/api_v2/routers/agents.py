@@ -177,26 +177,33 @@ def build_router(ctx: ApiContext) -> APIRouter:
         from cloudra.infra.token_estimator import TokenEstimator
 
         ctx.core.require_agent(session_id)
-        by_role: dict[str, dict[str, int]] = {
-            role: {"messages": 0, "tokens": 0} for role in ("user", "assistant", "tool")
-        }
-        last_prompt_tokens: int | None = None
-        for event in ctx.core.event_log.query_session(session_id, limit=100000):
-            if event.type in {"agent.message_injected", "agent.message_emitted"}:
-                role = "user" if event.type == "agent.message_injected" else "assistant"
-                text = str(event.data.get("content") or "")
-            elif event.type == "tool.finished":
-                role = "tool"
-                text = str(event.data.get("result_summary") or "")
-            elif event.type == "llm.completed":
-                usage = event.data.get("usage") or {}
-                if usage.get("prompt_tokens"):
-                    last_prompt_tokens = int(usage["prompt_tokens"])
-                continue
-            else:
-                continue
-            by_role[role]["messages"] += 1
-            by_role[role]["tokens"] += TokenEstimator.count_text(text)
+
+        def _collect() -> tuple[dict[str, dict[str, int]], int | None]:
+            """逐事件 token 估算（同步 DB 查询 + 计数循环），只经 to_thread 调用。"""
+            by_role: dict[str, dict[str, int]] = {
+                role: {"messages": 0, "tokens": 0} for role in ("user", "assistant", "tool")
+            }
+            last_prompt_tokens: int | None = None
+            for event in ctx.core.event_log.query_session(session_id, limit=100000):
+                if event.type in {"agent.message_injected", "agent.message_emitted"}:
+                    role = "user" if event.type == "agent.message_injected" else "assistant"
+                    text = str(event.data.get("content") or "")
+                elif event.type == "tool.finished":
+                    role = "tool"
+                    text = str(event.data.get("result_summary") or "")
+                elif event.type == "llm.completed":
+                    usage = event.data.get("usage") or {}
+                    if usage.get("prompt_tokens"):
+                        last_prompt_tokens = int(usage["prompt_tokens"])
+                    continue
+                else:
+                    continue
+                by_role[role]["messages"] += 1
+                by_role[role]["tokens"] += TokenEstimator.count_text(text)
+            return by_role, last_prompt_tokens
+
+        # 全量事件扫描 + 逐条计数是同步重活，卸载出事件循环。
+        by_role, last_prompt_tokens = await asyncio.to_thread(_collect)
         return {
             "session_id": session_id,
             "messages": sum(bucket["messages"] for bucket in by_role.values()),

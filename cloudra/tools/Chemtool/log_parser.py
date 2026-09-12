@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 from typing import Any, Optional
@@ -200,6 +201,13 @@ class LogParser(Tool):
                         "Check the path, or locate the log with query_compute_job, then retry."
             )
 
+        requested = self._resolve_requested_fields(user_input.properties)
+        # 大日志的 cclib 解析与文本回退是分钟级同步 CPU 工作，整条流水线
+        # 卸载出事件循环，避免冻结整个 API。
+        return await asyncio.to_thread(self._parse_log, log_path, requested)
+
+    def _parse_log(self, log_path: str, requested: set[str]) -> LogParser_output_schema:
+        """同步解析流水线主体（cclib + ORCA/xtb 文本回退）；只经 to_thread 调用。"""
         try:
             # 2. 引擎嗅探先于 cclib：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，
             # cclib 常整体解析失败或 metadata.success 失真——ORCA 路径把 cclib
@@ -244,7 +252,6 @@ class LogParser(Tool):
                     else:
                         xtb_text = handle.read()
 
-            requested = self._resolve_requested_fields(user_input.properties)
             result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully.", "engine": engine}
             if data is None:
                 if engine == "xtb":

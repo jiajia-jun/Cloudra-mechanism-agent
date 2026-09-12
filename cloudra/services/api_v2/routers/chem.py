@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 from functools import lru_cache
@@ -194,7 +195,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
         if not cleaned:
             return Response(content=_fallback_svg("(empty)", w, h), media_type="image/svg+xml")
 
-        svg = _render_smiles_to_svg(cleaned, w, h, theme, "w4")
+        # RDKit 渲染是同步 CPU 工作，卸载出事件循环。
+        svg = await asyncio.to_thread(_render_smiles_to_svg, cleaned, w, h, theme, "w4")
         return Response(
             content=svg,
             media_type="image/svg+xml",

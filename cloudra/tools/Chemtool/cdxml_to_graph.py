@@ -15,6 +15,7 @@ ready-to-use ``dag_propose_mechanism`` payload for the Coordinator.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from dataclasses import dataclass
@@ -714,6 +715,17 @@ class CdxmlToGraph(Tool):
             mol2_dir = base_dir
             os.makedirs(mol2_dir, exist_ok=True)
 
+        # molli/RDKit 解析是同步重活，卸载出事件循环，避免冻结整个 API。
+        return await asyncio.to_thread(self._parse_cdxml, path, user_input, mol2_dir, mol2_files)
+
+    def _parse_cdxml(
+        self,
+        path: str,
+        user_input: CdxmlToGraph_input_schema,
+        mol2_dir: str | None,
+        mol2_files: dict[str, str],
+    ) -> CdxmlToGraph_output_schema:
+        """CDXML 解析主体；只经 to_thread 调用。"""
         try:
             cdxml_file = ml.CDXMLFile(path)
             # Reparse fragments with optional mol2 persistence (first pass was for layout).

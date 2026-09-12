@@ -4,10 +4,13 @@
 lifespan 的 watchdog 循环周期 ensure（守护崩溃退出后自动重拉起）。存活判定
 只信 flock 探测（kg_vec 另有 /health 探测），任何路径都不 kill 进程。
 
-崩溃循环防护：每次真实 ``spawn_detached`` 前查 ``<lock_path>.last_spawn``
-持久时间戳（原子写、进程重启不丢），距上次拉起不足 ``MIN_RESPAWN_SECONDS``
-则本轮跳过并记 warning——防止配置错误导致的每秒 fork 轰炸。节流只作用于
-"锁空闲、要拉起"路径：锁被持有（活实例）时不读时间戳直接返回。
+崩溃循环防护：每次真实 ``spawn_detached`` 尝试（含 Popen 抛异常的失败路径）
+前查 ``<lock_path>.last_spawn`` 持久时间戳（原子写、进程重启不丢），距上次拉起
+不足当前退避间隔则本轮跳过并记 warning——防止配置错误导致的 fork 轰炸。退避
+为指数：连续失败次数 n 持久化在 ``<lock_path>.spawn_fail_count``，间隔 =
+``min(MIN_RESPAWN_SECONDS * 2**n, MAX_RESPAWN_SECONDS)``；健康观测（kg_vec
+/health 200、scheduler 锁被活实例持有）把 n 归零。节流只作用于"锁空闲、要拉起"
+路径：锁被持有（活实例）时不读时间戳直接返回。
 """
 
 from __future__ import annotations
@@ -22,8 +25,10 @@ from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-# 距上次真实拉起不足该秒数时跳过本轮 spawn（崩溃循环节流）
+# 距上次真实拉起不足当前退避间隔时跳过本轮 spawn（崩溃循环节流）：
+# 连续失败 n 次后间隔 = min(MIN_RESPAWN_SECONDS * 2**n, MAX_RESPAWN_SECONDS)。
 MIN_RESPAWN_SECONDS = 60.0
+MAX_RESPAWN_SECONDS = 1800.0
 
 # 进程内关停标志（停止语义契约 5）：置位后 ensure_* 拒绝拉起，
 # api_v2 watchdog 的自愈同步失效。普通 agent.cancel 不触此。
@@ -94,19 +99,50 @@ def last_spawn_path(lock_path: str) -> str:
     return lock_path + ".last_spawn"
 
 
+def spawn_fail_count_path(lock_path: str) -> str:
+    """连续拉起失败计数文件：``<lock_path>.spawn_fail_count``，内容十进制整数。"""
+    return lock_path + ".spawn_fail_count"
+
+
+def _read_spawn_fail_count(lock_path: str) -> int:
+    """计数缺失/损坏一律视为 0（基础间隔）。"""
+    try:
+        return int(Path(spawn_fail_count_path(lock_path)).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0
+
+
+def reset_spawn_fail_count(lock_path: str) -> None:
+    """健康观测成功后归零退避计数（守护已恢复，回到基础间隔）。"""
+    try:
+        Path(spawn_fail_count_path(lock_path)).unlink(missing_ok=True)
+    except OSError:
+        logger.warning("could not reset spawn fail count for %s", lock_path, exc_info=True)
+
+
+def _respawn_interval_seconds(lock_path: str) -> float:
+    """当前退避间隔：min(MIN_RESPAWN_SECONDS * 2**n, MAX_RESPAWN_SECONDS)。"""
+    return min(MIN_RESPAWN_SECONDS * (2 ** _read_spawn_fail_count(lock_path)), MAX_RESPAWN_SECONDS)
+
+
 def _respawn_throttled(lock_path: str) -> bool:
-    """距上次真实拉起 < MIN_RESPAWN_SECONDS。时间戳缺失/损坏一律视为可拉起。"""
+    """距上次真实拉起不足当前退避间隔。时间戳缺失/损坏一律视为可拉起。"""
     try:
         last = float(Path(last_spawn_path(lock_path)).read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return False
-    return time.time() - last < MIN_RESPAWN_SECONDS
+    return time.time() - last < _respawn_interval_seconds(lock_path)
 
 
-def _record_spawn(lock_path: str) -> None:
+def _record_spawn(lock_path: str, *, failed: bool = False) -> None:
+    """每次真实 spawn 尝试都落时间戳——含 Popen 抛异常的失败路径（原先失败
+    完全不限速，崩溃配置下会无限重试）；failed=True 递增连续失败计数，
+    成功只刷新时间戳（计数由健康观测归零）。"""
     from cloudra.persistence.fs_utils import atomic_write_text
 
     atomic_write_text(last_spawn_path(lock_path), f"{time.time():.3f}")
+    if failed:
+        atomic_write_text(spawn_fail_count_path(lock_path), str(_read_spawn_fail_count(lock_path) + 1))
 
 
 def _repo_root() -> Path:
@@ -132,19 +168,25 @@ def ensure_scheduler() -> None:
         lock_path = scheduler_lock_path()
         fd = try_acquire_lock(lock_path)
         if fd is None:
+            reset_spawn_fail_count(lock_path)  # 活实例持锁 = 健康观测，退避归零
             return  # 已有活实例
         os.close(fd)  # 只探测；守护进程启动后自己持锁
         if _respawn_throttled(lock_path):
             logger.warning(
-                "compute scheduler respawn throttled (last spawn < %ss ago)", MIN_RESPAWN_SECONDS
+                "compute scheduler respawn throttled (backoff %.0fs not elapsed)",
+                _respawn_interval_seconds(lock_path),
             )
             return
         log_dir = paths.logs_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
-        spawn_detached(
-            [sys.executable, "-m", "cloudra.scheduler"],
-            str(log_dir / "scheduler.log"),
-        )
+        try:
+            spawn_detached(
+                [sys.executable, "-m", "cloudra.scheduler"],
+                str(log_dir / "scheduler.log"),
+            )
+        except Exception:
+            _record_spawn(lock_path, failed=True)  # Popen 失败同样限速并计入退避
+            raise
         _record_spawn(lock_path)
         logger.info("compute scheduler daemon started (detached)")
     except Exception as exc:
@@ -210,7 +252,9 @@ def ensure_kg_vec() -> None:
         if PLUGIN_SPEC not in cfg.plugins:
             return
         url = (os.environ.get(VEC_URL_ENV) or VEC_URL_DEFAULT).rstrip("/")
+        lock_path = kg_vec_lock_path()
         if kg_vec_is_healthy(url):
+            reset_spawn_fail_count(lock_path)  # 健康探测成功，退避归零
             return  # 已有健康服务
         vec_python = resolve_vec_python(cfg.knowledge_vec_python)
         if vec_python is None:
@@ -219,22 +263,28 @@ def ensure_kg_vec() -> None:
                 "set knowledge_vec_python in config.yaml or CLOUDRA_KNOWLEDGE_VEC_PYTHON"
             )
             return
-        lock_path = kg_vec_lock_path()
         fd = try_acquire_lock(lock_path)
         if fd is None:
             return  # 已有活实例持锁
         os.close(fd)  # 只探测；服务启动后自己持锁
         if _respawn_throttled(lock_path):
-            logger.warning("kg_vec respawn throttled (last spawn < %ss ago)", MIN_RESPAWN_SECONDS)
+            logger.warning(
+                "kg_vec respawn throttled (backoff %.0fs not elapsed)",
+                _respawn_interval_seconds(lock_path),
+            )
             return
         log_dir = paths.logs_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         script = _repo_root() / "scripts" / "kg_vec_service.py"
         port = urlparse(url).port or 8765
-        spawn_detached(
-            [vec_python, str(script), "--port", str(port), "--lock-file", lock_path],
-            str(log_dir / "kg_vec.log"),
-        )
+        try:
+            spawn_detached(
+                [vec_python, str(script), "--port", str(port), "--lock-file", lock_path],
+                str(log_dir / "kg_vec.log"),
+            )
+        except Exception:
+            _record_spawn(lock_path, failed=True)  # Popen 失败同样限速并计入退避
+            raise
         _record_spawn(lock_path)
         logger.info("kg_vec service started (detached, port %s)", port)
     except Exception as exc:

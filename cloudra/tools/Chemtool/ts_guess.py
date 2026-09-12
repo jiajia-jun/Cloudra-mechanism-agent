@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from io import StringIO
@@ -1135,7 +1136,9 @@ class TsGuess(Tool):
             "verify": self._verify,
         }
         try:
-            return handlers[mode](user_input)
+            # handler 是同步重活（xtb_path 会 proc.communicate 等 xTB 子进程、
+            # scan_parse 逐帧啃大日志）：卸载出事件循环，避免冻结整个 API。
+            return await asyncio.to_thread(handlers[mode], user_input)
         except Exception as e:
             return TsGuess_output_schema(is_success=False, message=f"{user_input.mode} failed: {e}")
 
