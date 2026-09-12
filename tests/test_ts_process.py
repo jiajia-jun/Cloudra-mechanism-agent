@@ -150,6 +150,38 @@ def test_missing_atom_map_blocks_with_an_actionable_request(tmp_path):
     assert "ambiguous" in blocked.message
 
 
+def test_missing_atom_map_block_carries_endpoint_numbering(tmp_path):
+    """缺 atom_map 的阻塞必须自诊断：atom_details 直接给出两端 built XYZ 的
+    路径与 1-based 元素序列（atom_map 的编号参照系），并指向 reaction_mapping
+    草稿通道——agent 不该靠猜编号再试一轮。"""
+    record = _start(tmp_path, atom_map=[])
+    blocked = record.blocked
+    details = "\n".join(blocked.atom_details)
+    assert "reactant atoms (1-based): 1=F, 2=C, 3=Cl, 4=H, 5=H, 6=H" in details
+    assert "product atoms (1-based): 1=C, 2=F, 3=H, 4=H, 5=H, 6=Cl" in details
+    assert ".xyz" in details
+    assert "reaction_mapping" in blocked.message
+    assert "hydrogen" in blocked.message.lower()
+
+
+def test_zero_based_atom_map_is_diagnosed(tmp_path):
+    """含 0 的映射点名 0-based 笔误：重试引导必须说清错在哪，不只是"不对"。"""
+    record = _start(tmp_path, atom_map=[1, 0, 3, 4, 5, 2])
+    blocked = record.blocked
+    assert blocked.failure_class == "atom_map_not_a_permutation"
+    assert "0-based" in blocked.message
+
+
+def test_heavy_atom_only_map_is_diagnosed(tmp_path):
+    """只覆盖重原子的映射（reaction_mapping 的 heavy_atom_map 形态）被点名：
+    atom_map 必须覆盖每个氢。"""
+    record = _start(tmp_path, atom_map=[2, 1, 3])
+    blocked = record.blocked
+    assert blocked.failure_class == "atom_map_not_a_permutation"
+    assert "heavy-atom" in blocked.message
+    assert "hydrogen" in blocked.message.lower()
+
+
 def test_missing_reaction_center_blocks_with_a_reason(tmp_path):
     """没有反应中心 → 普通复合物模式；不能当成"反应复合物已生成"，因此阻塞。"""
     record = _start(tmp_path, reaction_center=[])

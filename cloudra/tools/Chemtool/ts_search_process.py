@@ -51,9 +51,11 @@ class TsPrepare_input_schema(input_schema):
     declaration: TsDeclaration = Field(
         description="The reaction declaration. Every field here is a scientific decision you make; "
                     "the tool never guesses one. `method` is REQUIRED (no default). "
-                    "Provide `atom_map` (product atom k, 1-based, corresponds to reactant atom "
-                    "atom_map[k]) — without it the process blocks at the map stage because the "
-                    "correspondence is ambiguous. Provide `reaction_center` (pairs of atoms that "
+                    "Provide `atom_map` (full 1-based correspondence: atom_map[k-1] = reactant "
+                    "atom for product atom k, EVERY atom including hydrogens; numbering follows "
+                    "the built endpoint XYZs, not raw SMILES order) — without it the process "
+                    "blocks at the map stage and returns the built XYZ numbering to write it "
+                    "against. Provide `reaction_center` (pairs of atoms that "
                     "form/break) to get a reaction-guided assembly instead of an ordinary complex."
     )
     workspace_dir: Optional[str] = Field(

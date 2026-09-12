@@ -45,7 +45,7 @@
 
 ### 2.2 选一个能回答问题的初猜路线
 
-**首选自动 TS 搜索流程 `ts_prepare`**：声明两端 SMILES + `atom_map` + `reaction_center`，流程自主完成建结构 → 映射 → 组装 → 路径初猜 → 校验 → 提交 → 精修 → 判定。校验失败会**阻塞并点名到原子**，按点名修订声明后 `ts_resume` 续跑；不要轮询状态（状态变更会回流给你）。**柔性（relaxed）扫描是回退手段，不是默认起点**：只有流程接不住的情形（端点声明不齐、需要手工控制的耦合坐标等）才手工扫——扫描恰好是流程不做、只有 agent 能做的一档。手工路线：`internal_coordinates` 读出原子序号 → `ts_guess scan_prepare` → 提交 → `scan_parse`；扫描给出的是**受限极大附近的候选几何**，不是已验证 TS，导出峰帧后建**新作业**做无约束 `OptTS`（见 §2.3）。项目**不使用** Gaussian QST2/QST3。
+**首选自动 TS 搜索流程 `ts_prepare`**：声明两端 SMILES + `atom_map` + `reaction_center`，流程自主完成建结构 → 映射 → 组装 → 路径初猜 → 校验 → 提交 → 精修 → 判定。校验失败会**阻塞并点名到原子**，按点名修订声明后 `ts_resume` 续跑；不要轮询状态（状态变更会回流给你）。`atom_map` 是**全原子（含每个氢）1-based** 映射，`atom_map[k-1]` = 产物第 k 个原子对应的反应物原子号；序号以**流程构建的两端 XYZ** 为准（按组分拼装，不是 SMILES/RDKit 序），也**不是** `reaction_mapping` 的 `heavy_atom_map`。map 阶段阻塞时负载自带两端 built XYZ 路径与 1-based 元素序列，照它写映射；草稿可用 `reaction_mapping` 生成再逐元素核对。**柔性（relaxed）扫描是回退手段，不是默认起点**：只有流程接不住的情形（端点声明不齐、需要手工控制的耦合坐标等）才手工扫——扫描恰好是流程不做、只有 agent 能做的一档。手工路线：`internal_coordinates` 读出原子序号 → `ts_guess scan_prepare` → 提交 → `scan_parse`；扫描给出的是**受限极大附近的候选几何**，不是已验证 TS，导出峰帧后建**新作业**做无约束 `OptTS`（见 §2.3）。项目**不使用** Gaussian QST2/QST3。
 
 | 已知信息 | 主路线 | 检查什么 |
 | --- | --- | --- |

@@ -140,8 +140,13 @@ class TsDeclaration(BaseModel):
     )
     atom_map: list[int] = Field(
         default_factory=list,
-        description="产物第 k 个原子对应反应物第 atom_map[k] 个（1-based）的映射。"
-                    "为空则 map 阶段阻塞并要求显式给出——原子映射歧义必须显式呈现",
+        description="Full 1-based atom correspondence: atom_map[k-1] is the reactant atom "
+                    "corresponding to product atom k, covering EVERY atom including hydrogens "
+                    "(a heavy-atom-only map is rejected). Atom numbers refer to the endpoint "
+                    "XYZs built by this process (component-wise assembly order, NOT raw SMILES "
+                    "order). If empty, the map stage blocks and returns the built XYZ paths "
+                    "with their 1-based element sequences; reaction_mapping on the built "
+                    "structures can draft a candidate for you to verify",
     )
 
 
@@ -357,7 +362,8 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
 
 
 def _read_built_xyz(record: TsProcessRecord, role: str):
-    """读回某端已构建的几何，返回 ``(symbols, positions, path)``；找不到返回 ``None``。
+    """读回某端已构建的几何，返回 ``(symbols, positions, xyz_path, mol_path)``；
+    找不到返回 ``None``。
 
     多组分输入建出来的是**组装候选**（已按能量排序，取第一个）；单组分是 ``prepared.xyz``。
     """
@@ -439,6 +445,26 @@ def _derive_product_geometry(record: TsProcessRecord, built):
     return "", [[float(v) for v in row] for row in rotated]
 
 
+def _endpoint_numbering(record: TsProcessRecord) -> list[str]:
+    """map 阶段自诊断负载：两端已建几何的 XYZ 路径与 1-based 元素序列。
+
+    atom_map 的序号以**流程构建的 XYZ**为准（按连通分量拼装，H 跟在各自组分
+    后面），既不是 SMILES 序也不是 RDKit AddHs 序——agent 看不见这个参照系
+    就只能猜编号，所以阻塞时必须把它直接给出来。"""
+    lines: list[str] = []
+    for role in ("reactant", "product"):
+        built = _read_built_xyz(record, role)
+        if built is None:
+            continue
+        symbols, _, path, _mol = built
+        lines.append(f"{role} built geometry: {path}")
+        lines.append(
+            f"{role} atoms (1-based): "
+            + ", ".join(f"{i}={s}" for i, s in enumerate(symbols, start=1))
+        )
+    return lines
+
+
 def _map(record: TsProcessRecord) -> TsProcessRecord:
     """原子映射：校验声明的映射能把产物重排到**与反应物同一原子序列**。
 
@@ -481,7 +507,13 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
             record, "map", "atom_map_missing",
             "no atom_map was declared: the reactant→product atom correspondence is ambiguous, and "
             "an ambiguous mapping must be declared rather than guessed (a wrong mapping produces a "
-            "non-physical path no matter how good the path search is)",
+            "non-physical path no matter how good the path search is). To fix: declare the FULL "
+            "1-based map — atom_map[k-1] is the reactant atom corresponding to product atom k, "
+            "covering EVERY atom including hydrogens (a heavy-atom-only map is rejected). Atom "
+            "numbers refer to the built endpoint XYZs listed in atom_details (component-wise "
+            "assembly order, NOT raw SMILES order): read them, or call reaction_mapping on the "
+            "built structures for a draft and verify it element-wise before ts_resume.",
+            atom_details=_endpoint_numbering(record),
             needs=["atom_map"],
         )
 
@@ -506,10 +538,23 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
             needs=["reactant_smiles", "product_smiles"],
         )
     if sorted(declaration.atom_map) != list(range(1, n + 1)):
+        got = declaration.atom_map
+        diagnosis = ""
+        if got and min(got) < 1:
+            diagnosis = (" The map contains values below 1 — it looks 0-based; atom_map is "
+                         "1-based (reactant atoms are numbered 1..N).")
+        elif 0 < len(got) < n and sorted(got) == list(range(1, len(got) + 1)):
+            heavy = sum(1 for s in p_symbols if s != "H")
+            if len(got) == heavy:
+                diagnosis = (f" The map has {len(got)} entries, exactly the heavy-atom count — "
+                             "this is a heavy-atom map (e.g. reaction_mapping's heavy_atom_map); "
+                             "atom_map must cover EVERY atom including hydrogens.")
         return _block(
             record, "map", "atom_map_not_a_permutation",
             f"atom_map must be a permutation of 1..{n} (one reactant atom per product atom); got "
-            f"{declaration.atom_map}",
+            f"{got}.{diagnosis} Atom numbering refers to the built endpoint XYZs listed in "
+            "atom_details.",
+            atom_details=_endpoint_numbering(record),
             needs=["atom_map"],
         )
 
@@ -524,8 +569,10 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
         return _block(
             record, "map", "atom_map_element_mismatch",
             "the declared atom_map does not line up the two endpoints element-wise; reordering the "
-            "product by it would put the wrong element on the wrong atom",
-            atom_details=mismatches[:10],
+            "product by it would put the wrong element on the wrong atom. The full 1-based element "
+            "sequences of both built endpoints are in atom_details — rebuild the whole map against "
+            "them (do not patch single entries by trial and error).",
+            atom_details=mismatches[:10] + _endpoint_numbering(record),
             needs=["atom_map"],
         )
     _record_stage(record, "map", "done", f"{n} atoms mapped and element-consistent")
