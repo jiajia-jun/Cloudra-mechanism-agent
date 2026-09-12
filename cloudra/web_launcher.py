@@ -236,10 +236,16 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
         )
     try:
         _wait_healthy(f"http://127.0.0.1:{api_port}/api/v2/runtime/health")
+        from cloudra.services.api_token import resolve_api_token
+
+        token = resolve_api_token()
         url = f"http://127.0.0.1:{api_port}"
-        print(f"[cloudra] web UI: {url}", flush=True)
+        # 认证开启时把 token 放在 URL fragment 里交给浏览器：fragment 不进
+        # HTTP 请求，前端启动时读入 sessionStorage 后从地址栏抹掉。
+        shown_url = f"{url}/#token={token}" if token is not None else url
+        print(f"[cloudra] web UI: {shown_url}", flush=True)
         if os.environ.get("CLOUDRA_NO_BROWSER", "").strip().lower() not in {"1", "true", "yes"}:
-            webbrowser.open(url)
+            webbrowser.open(shown_url)
         if runtime is None:
             return 0
         return runtime.wait()

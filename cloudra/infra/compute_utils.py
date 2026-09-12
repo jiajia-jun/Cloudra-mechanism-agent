@@ -166,20 +166,25 @@ def check_job_type(job_type: str, workdir: str) -> tuple[bool, str]:
 def check_calculator_script(workdir: str) -> tuple[bool, str]:
     """检查 calculator.sh 是否可用。
 
-    优先查找工作目录下的 calculator.sh，允许用户按任务目录定制；
-    找不到时回退到项目内置的 calculator.sh。
+    工作目录下的 calculator.sh（按任务目录定制）只在
+    ``compute.allow_local_calculator`` 显式开启时生效——工作目录是 agent
+    可写区，默认忽略可防止 agent 放置的同名脚本被提升为计算执行入口；
+    默认直接使用项目内置的 calculator.sh。
     Windows/Android 等没有 shebang 执行语义的环境需要同时找到 bash。
 
     Returns:
         (is_ok, script_path): is_ok 为 False 时 script_path 为空字符串。
     """
+    from cloudra.infra.config import get_config
+
     bash_path = get_bash_path()
     if bash_path is None:
         return False, ""
 
-    local_script = os.path.join(workdir, "calculator.sh")
-    if os.access(local_script, os.X_OK):
-        return True, local_script
+    if get_config().compute.allow_local_calculator:
+        local_script = os.path.join(workdir, "calculator.sh")
+        if os.access(local_script, os.X_OK):
+            return True, local_script
 
     default_script = _default_calculator_path()
     if os.access(default_script, os.X_OK):
@@ -208,8 +213,8 @@ def build_calculator_cmd(
     if bash_path is None or not ok:
         return False, [], (
             f"calculator.sh or a usable bash was not found; confirm the script is installed and bash is on PATH. "
-            f"You may place an executable calculator.sh in the working directory {workdir}, "
-            f"or keep the built-in script {_default_calculator_path()}."
+            f"The built-in script is {_default_calculator_path()}; a custom calculator.sh in the working "
+            f"directory {workdir} is only honored when compute.allow_local_calculator is enabled."
         )
     cmd = [bash_path, script_path, input_file, job_type]
     if job_type == "xtb":

@@ -34,6 +34,12 @@ def _all_compute_jobs(db) -> list:
 @pytest.fixture
 def mock_calc_workdir(tmp_path, monkeypatch):
     """构造一个带 mock 计算程序的任务目录。"""
+    from cloudra.infra.config import get_config
+
+    # 本 fixture 专测工作目录定制 calculator.sh 通道：显式打开开关
+    #（默认关，见 test_check_calculator_script_local_disabled_by_default）。
+    monkeypatch.setattr(get_config().compute, "allow_local_calculator", True)
+
     workdir = tmp_path / "calc_task"
     workdir.mkdir()
 
@@ -83,6 +89,10 @@ fi
 @pytest.fixture
 def mock_calc_workdir_fail(tmp_path, monkeypatch):
     """构造一个 calculator 会失败的任务目录。"""
+    from cloudra.infra.config import get_config
+
+    monkeypatch.setattr(get_config().compute, "allow_local_calculator", True)
+
     workdir = tmp_path / "calc_task_fail"
     workdir.mkdir()
 
@@ -116,6 +126,10 @@ g16 \"$INPUT_FILE\"
 @pytest.fixture
 def mock_cp2k_workdir(tmp_path, monkeypatch):
     """构造一个带 mock cp2k.popt 的任务目录，cp2k 会写出可解析的 .out。"""
+    from cloudra.infra.config import get_config
+
+    monkeypatch.setattr(get_config().compute, "allow_local_calculator", True)
+
     workdir = tmp_path / "calc_cp2k"
     workdir.mkdir()
 
@@ -225,10 +239,41 @@ def test_check_job_type_with_executable(mock_calc_workdir):
 
 
 def test_check_calculator_script_local(mock_calc_workdir):
-    """优先使用工作目录下的 calculator.sh。"""
+    """开关开启时优先使用工作目录下的 calculator.sh（fixture 已显式开启）。"""
     ok, path = check_calculator_script(mock_calc_workdir)
     assert ok is True
     assert path == os.path.join(mock_calc_workdir, "calculator.sh")
+
+
+def test_check_calculator_script_local_disabled_by_default(mock_calc_workdir, monkeypatch):
+    """默认（allow_local_calculator=False）忽略工作目录里的 calculator.sh，
+    直接用项目内置脚本——agent 可写目录不能成为计算执行入口。"""
+    from cloudra.infra.config import get_config
+
+    monkeypatch.setattr(get_config().compute, "allow_local_calculator", False)
+    ok, path = check_calculator_script(mock_calc_workdir)
+    assert ok is True
+    assert path != os.path.join(mock_calc_workdir, "calculator.sh")
+    assert path.endswith("calculator.sh")
+
+
+def test_resource_underestimate_derives_memory_from_input(tmp_path):
+    """未显式申请 memory_mb 时按输入自述派生（declared_memory_mb），派生后照旧做低估比对——
+    500GB 级自述不再是漏记账，而是成为申请值并被容量校验拦截。"""
+    from cloudra.services.compute_admission import declared_memory_mb, resource_underestimate
+
+    gjf = tmp_path / "big.gjf"
+    gjf.write_text(
+        "%nprocshared=4\n%mem=500GB\n#p opt b3lyp/6-31g(d)\n\nt\n\n0 1\nO 0 0 0\n\n",
+        encoding="utf-8",
+    )
+    # 省略申请 → 派生为自述值（500GB = 512000MB），不再静默跳过
+    assert declared_memory_mb(str(gjf), "gaussian") == 512000
+    # None 在低估比对中等价于派生值：不低估、不误报
+    assert resource_underestimate("gaussian", str(gjf), cpus=4, memory_mb=None) is None
+    # 显式足额申请通过；不足额照旧拒
+    assert resource_underestimate("gaussian", str(gjf), cpus=4, memory_mb=512000) is None
+    assert resource_underestimate("gaussian", str(gjf), cpus=4, memory_mb=4096)
 
 
 def test_build_calculator_cmd(mock_calc_workdir):

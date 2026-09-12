@@ -128,7 +128,7 @@ async def test_runtime_providers_endpoint():
     from cloudra.services.api_v2.app import create_v2_app
 
     app = create_v2_app()
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
         resp = await client.get("/api/v2/runtime/providers")
         assert resp.status_code == 200
         providers = resp.json()
@@ -185,7 +185,7 @@ async def test_openrouter_pkce_and_callback_endpoints(monkeypatch):
 
     # 3. Test API endpoints
     app = create_v2_app()
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
         # GET PKCE
         pkce_resp = await client.get("/api/v2/runtime/providers/openrouter/pkce")
         assert pkce_resp.status_code == 200

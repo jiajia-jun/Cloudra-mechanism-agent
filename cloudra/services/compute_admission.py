@@ -33,17 +33,15 @@ class AdmissionOutcome(BaseModel):
     message: str = ""
 
 
-def resource_underestimate(
-    job_type: str, input_file: str, cpus: int, memory_mb: Optional[int]
-) -> Optional[str]:
-    """申请量低于输入文件自述需求的诊断（ORCA %pal/%maxcore、Gaussian
-    %nprocshared/%mem）。输入未声明的资源不猜；ORCA maxcore 是每核值，
-    总需求 = nprocs * maxcore。外部程序的资源占用未知时不推断其内存。"""
+def _read_declared_requirements(
+    job_type: str, input_file: str
+) -> tuple[Optional[int], Optional[int]]:
+    """读输入文件自述的资源需求 ``(cpus, memory_mb)``；未声明的项返回 None（不猜）。"""
     try:
         with open(input_file, encoding="utf-8", errors="replace") as handle:
             content = handle.read(200_000)
     except OSError:
-        return None
+        return None, None
     required_cpus = required_mem_mb = None
     if job_type == "orca":
         pal = re.search(r"%pal\s+nprocs\s+(\d+)", content, re.I)
@@ -62,12 +60,36 @@ def resource_underestimate(
             required_mem_mb = (
                 int(amount * 1024) if mem.group(2).lower().startswith("g") else int(amount)
             )
+    return required_cpus, required_mem_mb
+
+
+def declared_memory_mb(input_file: str, job_type: str) -> Optional[int]:
+    """输入文件自述的内存需求（MB）；未声明返回 None。
+
+    供提交路径在调用方未显式申请 ``memory_mb`` 时派生申请值——省略申请不再
+    等于脱账（输入说什么就按什么记账），超容量声明随即被容量硬校验拒收。
+    """
+    _, required_mem_mb = _read_declared_requirements(job_type, input_file)
+    return required_mem_mb
+
+
+def resource_underestimate(
+    job_type: str, input_file: str, cpus: int, memory_mb: Optional[int]
+) -> Optional[str]:
+    """申请量低于输入文件自述需求的诊断（ORCA %pal/%maxcore、Gaussian
+    %nprocshared/%mem）。输入未声明的资源不猜；ORCA maxcore 是每核值，
+    总需求 = nprocs * maxcore。外部程序的资源占用未知时不推断其内存。
+    调用方未申请 memory_mb 时应先用 ``declared_memory_mb`` 派生申请值，
+    再走到这里做低估比对。"""
+    required_cpus, required_mem_mb = _read_declared_requirements(job_type, input_file)
     if required_cpus is not None and cpus < required_cpus:
         return (
             f"Resource under-provisioned: the input asks for {required_cpus} cores "
             f"but cpus={cpus} was requested. Request cpus={required_cpus} to match "
             "the input (under-declaring oversubscribes the node)."
         )
+    if memory_mb is None:
+        memory_mb = required_mem_mb
     if (
         required_mem_mb is not None
         and memory_mb is not None

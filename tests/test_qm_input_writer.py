@@ -193,10 +193,15 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
 @pytest.mark.asyncio
 async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
     """外部 MLIP 路由（GH #16）：! ExtOpt + %method ProgExt/Ext_Params 块；
-    method/basis_set 不进入输入（外部势没有基组概念）。"""
+    method/basis_set 不进入输入（外部势没有基组概念）。
+    ProgExt 可执行文件必须真实存在、可执行、且在 agent 可写范围之外。"""
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     out = tmp_path / "ts_opt.inp"
+    fake_mace = tmp_path / "sysbin" / "mace"
+    fake_mace.parent.mkdir()
+    fake_mace.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_mace.chmod(0o755)
 
     # TS 初始 Hessian 控制走原生 orca_blocks；Gaussian 子选项 calcfc/noeigen
     # 对 ORCA 是配置错误（见 test_orca_rejects_gaussian_opt_suboptions）。
@@ -205,7 +210,7 @@ async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
             engine="orca",
             source_type="xyz_file",
             source_value=str(xyz),
-            external_program="/opt/conda/envs/chemai/bin/mace",
+            external_program=str(fake_mace),
             external_params="--model /opt/MACE-omol-0.model --device cpu --dtype float64",
             task_type=[{"opt": "ts"}, {"freq": None}],
             nproc=1,
@@ -217,7 +222,7 @@ async def test_qm_input_writer_orca_extopt_external_mlip(tmp_path):
     assert result.is_success is True, result.message
     content = out.read_text(encoding="utf-8")
     assert content.startswith("! ExtOpt OptTS Freq")
-    assert 'ProgExt "/opt/conda/envs/chemai/bin/mace"' in content
+    assert f'ProgExt "{fake_mace}"' in content
     assert 'Ext_Params "--model /opt/MACE-omol-0.model --device cpu --dtype float64"' in content
     assert "b3lyp" not in content and "6-31g" not in content
     assert "\n* xyz 0 1\n" in content
@@ -405,3 +410,136 @@ async def test_smiles_source_charge_mismatch_is_refused(tmp_path):
     assert result.is_success is False
     assert not gjf.exists()
     assert "charge_mismatch" in result.message
+
+
+# ---------------------------------------------------------------------------
+# external_program 安全闸门：ORCA ProgExt 必须在 agent 可写范围之外的可执行
+# 文件；Gaussian 引擎值必须能被 method_policy 词法解析
+# ---------------------------------------------------------------------------
+
+
+class _WsBridge:
+    def __init__(self, root):
+        self.working_directory = str(root)
+
+
+def _xyz(tmp_path):
+    xyz = tmp_path / "water.xyz"
+    xyz.write_text(_WATER_XYZ, encoding="utf-8")
+    return xyz
+
+
+@pytest.mark.asyncio
+async def test_orca_external_program_inside_workdir_refused(tmp_path):
+    """工作目录里的同名可执行文件（假 mace）不得作为 ProgExt 通过——
+    method_policy 只比 basename，区内文件会被 agent 偷换成任意脚本。"""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    xyz = _xyz(workspace)
+    fake_mace = workspace / "mace"
+    fake_mace.write_text("#!/bin/sh\nrm -rf ~\n", encoding="utf-8")
+    fake_mace.chmod(0o755)
+
+    tool = QmInputWriter()
+    tool.subagent = _WsBridge(workspace)
+    result = await tool.tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_program=str(fake_mace),
+            task_type=[{"opt": None}],
+            output_dir=str(workspace / "job.inp"),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "agent-writable" in result.message
+    assert not (workspace / "job.inp").exists()
+
+
+@pytest.mark.asyncio
+async def test_orca_external_program_inside_data_dir_refused(tmp_path):
+    from cloudra.infra.config import get_config
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    xyz = _xyz(tmp_path)
+    fake_mace = data_dir / "mace"
+    fake_mace.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_mace.chmod(0o755)
+    assert str(fake_mace).startswith(str(get_config().data_dir))  # conftest 隔离确认
+
+    result = await QmInputWriter().tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_program=str(fake_mace),
+            task_type=[{"opt": None}],
+            output_dir=str(tmp_path / "job.inp"),
+        ),
+        session=None,
+    )
+    assert result.is_success is False
+    assert "agent-writable" in result.message
+
+
+@pytest.mark.asyncio
+async def test_orca_external_program_missing_or_not_executable_refused(tmp_path):
+    xyz = _xyz(tmp_path)
+    tool = QmInputWriter()
+
+    missing = await tool.tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_program=str(tmp_path / "no_such_mace"),
+            task_type=[{"opt": None}],
+            output_dir=str(tmp_path / "a.inp"),
+        ),
+        session=None,
+    )
+    assert missing.is_success is False
+    assert "existing regular file" in missing.message
+
+    not_exec = tmp_path / "mace"
+    not_exec.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")  # 无执行位
+    not_exec.chmod(0o644)
+    denied = await tool.tool_call(
+        QmInputWriter_input_schema(
+            engine="orca",
+            source_type="xyz_file",
+            source_value=str(xyz),
+            external_program=str(not_exec),
+            task_type=[{"opt": None}],
+            output_dir=str(tmp_path / "b.inp"),
+        ),
+        session=None,
+    )
+    assert denied.is_success is False
+    assert "not executable" in denied.message
+
+
+@pytest.mark.asyncio
+async def test_gaussian_external_malformed_values_refused(tmp_path):
+    """Gaussian external= 引擎值必须是单个 [a-z0-9_.-] token：带空格参数或
+    引号/壳字符的写法会让策略层解析不出同一个值，一律拒绝。"""
+    xyz = _xyz(tmp_path)
+    tool = QmInputWriter()
+    for bad in ("mace --model x.model", 'mace" opt=(read)', "mace;rm -rf /"):
+        result = await tool.tool_call(
+            QmInputWriter_input_schema(
+                engine="gaussian",
+                source_type="xyz_file",
+                source_value=str(xyz),
+                external_program=bad,
+                task_type=[{"opt": None}],
+                output_dir=str(tmp_path / "bad.gjf"),
+            ),
+            session=None,
+        )
+        assert result.is_success is False, bad
+        assert "external engine value" in result.message or "refused" in result.message, bad
+        assert not (tmp_path / "bad.gjf").exists()

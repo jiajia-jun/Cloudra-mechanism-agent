@@ -109,14 +109,26 @@ def test_allowlist_entries_exist():
 
 
 def test_yolo_guard_tolerates_missing_message_history():
-    """v2 的 LegacyToolExecutor 传入壳 bridge（无 message_history），
+    """v2 的 LegacyToolExecutor 传入壳 bridge（无 message_history 等属性），
     YOLO 守卫必须容错而不是 AttributeError。"""
     import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
 
-    from cloudra.infra.yolo_guard import _format_recent_context_multimodal
+    from cloudra.infra.yolo_guard import YoloGuard
 
     class Shell:
         pass
 
-    parts = asyncio.run(_format_recent_context_multimodal(Shell()))
-    assert parts == [{"type": "text", "text": "<无上下文>"}]
+    guard = YoloGuard.__new__(YoloGuard)
+    guard.model = "test-model"
+    mock_response = MagicMock()
+    tool_call = MagicMock()
+    tool_call.function.arguments = json.dumps({"approved": True, "reason": "ok"})
+    mock_response.choices[0].message.tool_calls = [tool_call]
+
+    with patch.object(guard, "_client") as mock_client:
+        mock_client.return_value.create = AsyncMock(return_value=mock_response)
+        approved, _ = asyncio.run(guard.judge("bash", {"command": "ls"}, Shell(), None))
+
+    assert approved is True

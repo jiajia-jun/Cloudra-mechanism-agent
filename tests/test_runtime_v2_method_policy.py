@@ -258,3 +258,50 @@ def test_method_whitelist_three_layers_fail_closed(tmp_path):
     assert intercept("bash", {"command": bash_unparseable}, policy).allowed is False
     # 与拦截层无关的工具不受影响
     assert intercept("write", {"path": "x.txt", "content": "b3lyp"}, policy).allowed is True
+
+
+# ---------------------------------------------------------------------------
+# 安全修复：mace 前缀撞名不再命中；畸形 external= 值 fail-closed
+# ---------------------------------------------------------------------------
+
+
+def test_family_mace_prefix_impostor_rejected():
+    """`macefoo` 之类的前缀撞名不属于 mace 族（候选是外部程序 basename，
+    startswith 会让同名恶意二进制过审）；连字符变体（mace-off 等）仍按族放行。"""
+    from cloudra.runtime_v2.method_policy import check_method
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["mace", "xtb"])
+    assert check_method("mace", policy).allowed is True
+    assert check_method("mace-off", policy).allowed is True
+    assert check_method("macefoo", policy).allowed is False
+    assert check_method("macemania", policy).allowed is False
+
+
+def test_malformed_gaussian_external_value_fail_closed():
+    """畸形 external= 值（空格/引号注入）计入占位候选：即使同一张路由卡带
+    合法 slash 方法也整体拦截，绝不静默丢弃后 fail-open。"""
+    from cloudra.runtime_v2.method_policy import check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["mace", "b3lyp/def2svp"])
+    good = '#p external="mace" opt\n\nt\n\n0 1\nC 0 0 0\n'
+    assert check_input_content(good, policy, filename="t.gjf").allowed is True
+    injected = '#p b3lyp/def2svp external="mace --model x" opt\n\nt\n\n0 1\nC 0 0 0\n'
+    verdict = check_input_content(injected, policy, filename="t.gjf")
+    assert verdict.allowed is False
+    assert "external" in verdict.matched_forbidden
+
+
+def test_orca_progext_basename_prefix_impostor_rejected(tmp_path):
+    """ORCA ExtOpt 路由：ProgExt basename 为 macefoo 时不再按 mace 放行。"""
+    from cloudra.runtime_v2.method_policy import check_input_content
+    from cloudra.runtime_v2.schemas import MethodPolicy
+
+    policy = MethodPolicy(allowed_methods=["mace"])
+    content = (
+        "! ExtOpt Opt\n"
+        '%method\n  ProgExt "/opt/bin/macefoo"\nend\n'
+        "* xyz 0 1\nC 0 0 0\n*\n"
+    )
+    assert check_input_content(content, policy, filename="t.inp").allowed is False

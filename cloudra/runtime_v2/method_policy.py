@@ -95,8 +95,10 @@ _ARITH_RE = re.compile(r"\$\(\(.*?\)\)")
 # 嵌套脚本载荷的递归解析深度上限
 _MAX_EMBED_DEPTH = 2
 # Gaussian `external="mace"` / `external='mace'` / `external=mace`：外部引擎值
-# 才是方法候选；裸 `external`（无值）保持 fail-closed
-_EXTERNAL_VALUE_RE = re.compile(r"^external=[\"']?([a-z0-9_.-]+)[\"']?$")
+# 才是方法候选；裸 `external`（无值）保持 fail-closed。引号必须成对——
+# `external="mace`（未闭合）不匹配，否则 `external="mace --inject x"` 这类
+# 注入会被截断成合法引擎值而 fail-open。
+_EXTERNAL_VALUE_RE = re.compile(r"^external=([\"']?)([a-z0-9_.-]+)\1$")
 # ORCA `%method` 块里的 ProgExt 外部程序（ExtOpt 路由）：程序路径的 basename
 # 才是方法候选；裸 `ExtOpt`（无 ProgExt）保持 fail-closed
 _PROGEXT_RE = re.compile(r'^\s*ProgExt\s+"?([^"\s]+)"?', re.I | re.M)
@@ -142,12 +144,14 @@ def _entry_matches(family: str, req_basis: str, entries: Iterable[str]) -> bool:
 
 def _family(token: str) -> str:
     """方法族归一：白名单按方法族粒度匹配（`xtb2`/`gfn2-xtb`/`xtbff` → `xtb`，
-    `mace-*` → `mace`）。路线卡文本无法区分 MLIP 模型变体（mace-omol25 vs
-    mace-off），变体级管控在带外（方法供给端），不在本层。"""
+    `mace`/`mace-*` → `mace`）。路线卡文本无法区分 MLIP 模型变体（mace-omol25 vs
+    mace-off），变体级管控在带外（方法供给端），不在本层。
+    mace 只认确切名字与连字符变体：`macefoo` 之类的前缀撞名不命中（候选是
+    外部程序 basename，前缀匹配会让同名恶意二进制过审）。"""
     t = token.lower()
     if "xtb" in t:
         return "xtb"
-    if t.startswith("mace"):
+    if t == "mace" or t.startswith("mace-"):
         return "mace"
     return t
 
@@ -224,7 +228,8 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
     """每张路由卡的方法候选列表。`method/basis` slash 形式是权威声明；无
     slash 时（半经验如 `# am1 opt`）取非作业类型/非 key=value/非基组的裸
     token。`external="engine"` 是 MLIP 外部路由：引擎值（小写）作为方法候选
-    计入权威声明位；裸 `external` 无引擎值时保留为候选（白名单外必拦）。"""
+    计入权威声明位；裸 `external` 与畸形 `external=` 值（不匹配引擎值词法）
+    都保留占位候选，白名单外必拦（fail-closed）。"""
     per_card: list[list[str]] = []
     for tokens in _gaussian_route_cards(content):
         slashed: list[str] = []
@@ -234,9 +239,13 @@ def _extract_gaussian_methods(content: str) -> list[list[str]]:
             if t == "external" or t.startswith("external="):
                 m = _EXTERNAL_VALUE_RE.match(t)
                 if m is not None:
-                    slashed.append(m.group(1))
+                    slashed.append(m.group(2))  # group(1) 是引号，group(2) 是引擎值
                 elif t == "external":
                     bare.append(t)  # 裸 external：留候选，白名单外 fail-closed
+                else:
+                    # 畸形 external= 值（空格/引号注入等）：计入占位候选，
+                    # 白名单外必拦——静默丢弃会让它在其他合法候选旁 fail-open。
+                    slashed.append("external")
                 continue
             if "/" in t:
                 head, _, bset = t.partition("/")

@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +22,7 @@ from cloudra import __version__
 from cloudra.runtime_v2.commands import CommandBus
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import CommandRejected
+from cloudra.services.api_token import resolve_api_token
 
 from .context import ApiContext
 from .routers import build_routers
@@ -30,6 +31,34 @@ logger = logging.getLogger(__name__)
 
 # 服务关闭的有界时间（停止语义契约 3）：推理/收尾任务的取消+回收总额。
 _SHUTDOWN_GRACE_SECONDS = 15.0
+
+# Host 校验白名单：本地 API 只接受回环地址与 TestClient 的 testserver；
+# 其它 Host（DNS rebinding 的域名）一律 400，挡掉浏览器跨域页面重绑定访问。
+_ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
+
+
+class _HostCheckMiddleware:
+    """纯 ASGI Host 校验：hostname 不在白名单 → 400（不进入路由）。"""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] == "http":
+            host = ""
+            for name, value in scope.get("headers") or []:
+                if name == b"host":
+                    host = value.decode("latin-1").strip()
+                    break
+            if host.startswith("[") and "]" in host:
+                hostname = host[1:host.index("]")]
+            else:
+                hostname = host.split(":", 1)[0]
+            if hostname not in _ALLOWED_HOSTS:
+                response = JSONResponse({"detail": "invalid host"}, status_code=400)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 def _daemon_watchdog_interval() -> float:
@@ -187,14 +216,23 @@ def create_v2_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # 最后添加的中间件最先执行：Host 校验先于 CORS/路由。
+    app.add_middleware(_HostCheckMiddleware)
 
-    api_token = os.getenv("CLOUDRA_API_TOKEN", "").strip()
+    # CLOUDRA_API_TOKEN=off 显式关闭认证；未设环境变量时回退到
+    # data_dir/.api_token（首次启动自动生成，0600）。None 表示全放行。
+    api_token = resolve_api_token()
 
-    async def authorize(authorization: Optional[str] = Header(default=None)) -> None:
-        if not api_token:
+    async def authorize(
+        authorization: Optional[str] = Header(default=None),
+        token: Optional[str] = Query(default=None),
+    ) -> None:
+        if api_token is None:
             return
-        if authorization != f"Bearer {api_token}":
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
+        # query 参数兜底：EventSource / <img> / 下载链接无法带 Authorization 头。
+        if authorization == f"Bearer {api_token}" or (token is not None and token == api_token):
+            return
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
 
     protected = [Depends(authorize)]
 

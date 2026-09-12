@@ -1,18 +1,64 @@
+import asyncio
+import ipaddress
 import os
+import socket
 from html.parser import HTMLParser
-from typing import Any
-from urllib.parse import urlparse
+from pathlib import Path
+from typing import Any, Optional
+from urllib.parse import urljoin, urlparse
 
 from pydantic import Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
+from cloudra.persistence.workspace import resolve_tool_path
+
+_MAX_REDIRECTS = 5
+
+
+def _host_rejection(hostname: str) -> Optional[str]:
+    """公网主机闸门：返回拒绝原因，可放行返回 None。
+
+    hostname 一律先解析成 IP 再判定（防 DNS 指向内网）；loopback / link-local /
+    私网 / 保留 / 组播等非公网地址一律拒绝。判定只用 ipaddress 模块，无正则。
+    """
+    host = (hostname or "").strip().rstrip(".")
+    if not host:
+        return "URL has no host."
+    # urlparse 的 hostname 已小写化；IPv6 字面量在 netloc 里带方括号
+    candidate = host.strip("[]").lower()
+    if candidate == "localhost" or candidate.endswith(".localhost"):
+        return f"Refused: host {hostname!r} is a local address."
+    try:
+        ips = [ipaddress.ip_address(candidate.split("%", 1)[0])]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(candidate, None)
+        except (socket.gaierror, UnicodeError, OSError) as exc:
+            return f"Refused: cannot resolve host {hostname!r} ({exc})."
+        ips = []
+        for info in infos:
+            try:
+                ips.append(ipaddress.ip_address(info[4][0].split("%", 1)[0]))
+            except (ValueError, IndexError):
+                continue
+        if not ips:
+            return f"Refused: host {hostname!r} resolved to no usable IP address."
+    for addr in ips:
+        if not addr.is_global:
+            return (
+                f"Refused: host {hostname!r} resolves to a non-public address "
+                f"({addr}); only public internet hosts are allowed."
+            )
+    return None
 
 description = (
     "Generic HTTP fetch/download tool: fetch page HTML and extract body text, or save the response bytes to a local file. "
     "Use for: fetching known-URL literature pages, web content, or data files; binary downloads must set download_path. "
     "Do not use for: JS-rendered dynamic pages (use browser) or keyword search (use search with source=web). "
-    "Note: do not fetch PDFs in text mode (you will get garbage); download with download_path and pass the file to read."
+    "Note: do not fetch PDFs in text mode (you will get garbage); download with download_path and pass the file to read. "
+    "Only public internet hosts are reachable (local/private/reserved addresses are refused, redirects re-validated); "
+    "non-GET/HEAD methods require user approval; download_path must stay inside the working directory."
 )
 
 
@@ -28,7 +74,8 @@ class WebFetcher_input_schema(input_schema):
     )
     download_path: str = Field(
         default="",
-        description="If an absolute path is given, save the response bytes as-is to that file (for PDFs, images, archives, and other binaries)"
+        description="Save the response bytes as-is to this file (for PDFs, images, archives, and other binaries); "
+                    "must resolve inside the agent working directory"
     )
     timeout: int = Field(
         default=30,
@@ -114,9 +161,56 @@ class WebFetcher(Tool):
         parsed = urlparse(url)
         if not parsed.scheme or not parsed.netloc:
             return WebFetcher_output_schema(is_success=False, error=f"Invalid URL: {url}")
+        if parsed.scheme.lower() not in ("http", "https"):
+            return WebFetcher_output_schema(
+                is_success=False, error=f"Unsupported URL scheme: {parsed.scheme} (only http/https)."
+            )
 
         if method not in ('GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'):
             return WebFetcher_output_schema(is_success=False, error=f"Unsupported HTTP method: {method}")
+
+        # SSRF 闸门：目标主机必须是公网地址（DNS 解析后判定，防内网指向）。
+        rejection = await asyncio.to_thread(_host_rejection, parsed.hostname or "")
+        if rejection:
+            return WebFetcher_output_schema(is_success=False, error=rejection)
+
+        # 下载目标必须落在 agent 工作目录内（区外任意写拒绝）。
+        resolved_download = ""
+        if download_path:
+            workdir = Path(
+                getattr(self.subagent, "working_directory", None) or os.getcwd()
+            ).resolve()
+            resolved_download = str(Path(resolve_tool_path(self, download_path)).resolve())
+            try:
+                Path(resolved_download).relative_to(workdir)
+            except ValueError:
+                return WebFetcher_output_schema(
+                    is_success=False,
+                    error=(
+                        f"Refused: download_path {download_path!r} resolves to {resolved_download}, "
+                        f"outside the working directory {workdir}. Choose a path inside it."
+                    ),
+                )
+
+        # 非 GET/HEAD 是向外写操作，必须经审批。
+        if method not in ("GET", "HEAD"):
+            details = (
+                f"Action: HTTP {method} request to {url}\n"
+                f"Timeout: {timeout}s"
+            )
+            approved, denial_reason = await self.ensure_safety(
+                session,
+                details=details,
+                tool_args=user_input.model_dump(mode="json"),
+            )
+            if not approved:
+                error = (
+                    f"[Safety block] The {method} request was rejected and was not sent. "
+                    "Next: explain to the user why the request was needed, or use GET."
+                )
+                if denial_reason:
+                    error += f"\nRejection reason: {denial_reason}"
+                return WebFetcher_output_schema(is_success=False, error=error)
 
         try:
             import httpx
@@ -126,32 +220,60 @@ class WebFetcher(Tool):
                 error="Missing HTTP dependency httpx. Install with: pip install httpx"
             )
 
+        # 手动跟随重定向（≤5 跳）：每一跳重新过主机闸门，防 302 跳进内网。
         try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-                response = await client.request(
-                    method=method,
-                    url=url,
-                    headers={
-                        'User-Agent': (
-                            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
-                            '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+                current_url = url
+                response = None
+                for _hop in range(_MAX_REDIRECTS + 1):
+                    response = await client.request(
+                        method=method,
+                        url=current_url,
+                        headers={
+                            'User-Agent': (
+                                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+                                '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                            )
+                        }
+                    )
+                    location = response.headers.get('location')
+                    if not response.is_redirect or not location:
+                        break
+                    next_url = urljoin(current_url, location)
+                    next_parsed = urlparse(next_url)
+                    if next_parsed.scheme.lower() not in ("http", "https") or not next_parsed.netloc:
+                        return WebFetcher_output_schema(
+                            is_success=False,
+                            status_code=response.status_code,
+                            error=f"Refused: redirect to an invalid or non-http(s) URL: {next_url}",
                         )
-                    }
-                )
+                    rejection = await asyncio.to_thread(_host_rejection, next_parsed.hostname or "")
+                    if rejection:
+                        return WebFetcher_output_schema(
+                            is_success=False,
+                            status_code=response.status_code,
+                            error=f"Refused redirect target: {rejection}",
+                        )
+                    current_url = next_url
+                else:
+                    return WebFetcher_output_schema(
+                        is_success=False,
+                        error=f"Refused: more than {_MAX_REDIRECTS} redirects.",
+                    )
                 response.raise_for_status()
         except Exception as e:
             return WebFetcher_output_schema(is_success=False, error=f"Request failed: {str(e)}")
 
-        # 下载模式：原样保存字节到本地
-        if download_path:
+        # 下载模式：原样保存字节到本地（路径已过工作区闸门）
+        if resolved_download:
             try:
-                os.makedirs(os.path.dirname(download_path), exist_ok=True)
-                with open(download_path, 'wb') as f:
+                os.makedirs(os.path.dirname(resolved_download), exist_ok=True)
+                with open(resolved_download, 'wb') as f:
                     f.write(response.content)
                 return WebFetcher_output_schema(
                     is_success=True,
                     status_code=response.status_code,
-                    downloaded_path=download_path
+                    downloaded_path=resolved_download
                 )
             except Exception as e:
                 return WebFetcher_output_schema(

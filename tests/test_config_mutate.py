@@ -129,6 +129,19 @@ def test_reasoning_effort_yaml_round_trip(cfg_env, monkeypatch, tmp_path):
     assert display["llm"]["follower"]["reasoning_effort"] is None
 
 
+def test_compute_allow_local_calculator_yaml_round_trip(cfg_env, tmp_path):
+    """compute.allow_local_calculator 默认关；经 mutate 落盘后从 YAML 原样读回。"""
+    from cloudra.infra.config import CloudraConfig, get_config, mutate_config
+
+    assert get_config().compute.allow_local_calculator is False
+
+    mutate_config(lambda work: setattr(work.compute, "allow_local_calculator", True))
+
+    assert _read_yaml(cfg_env.config_file)["compute"]["allow_local_calculator"] is True
+    reloaded = CloudraConfig(config_file=cfg_env.config_file, data_dir=tmp_path / "data")
+    assert reloaded.compute.allow_local_calculator is True
+
+
 def test_add_plugin_idempotent(cfg_env):
     from cloudra.infra.config import add_plugin, get_config
 

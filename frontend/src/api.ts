@@ -16,6 +16,36 @@ const runtimeUrl: string =
   new URLSearchParams(window.location.search).get('runtime') ??
   (import.meta.env.VITE_RUNTIME_URL ?? '');
 
+// ---- bearer token ----
+// The launcher hands the token over via the URL fragment (#token=...): a
+// fragment is never sent to the server.  We move it into sessionStorage and
+// scrub the address bar so it does not leak via screenshots/history.
+const TOKEN_STORAGE_KEY = 'cloudra.api_token';
+
+function bootstrapToken(): string {
+  const match = window.location.hash.match(/^#token=(.+)$/);
+  if (match) {
+    const token = decodeURIComponent(match[1]);
+    sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    return token;
+  }
+  return sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? '';
+}
+
+const apiToken: string = bootstrapToken();
+
+function authHeaders(): Record<string, string> {
+  return apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
+}
+
+// URL-bearing surfaces that cannot carry headers (EventSource, <img src>,
+// download <a href>) authenticate via the ?token= query fallback instead.
+function withToken(url: string): string {
+  if (!apiToken) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(apiToken)}`;
+}
+
 export class ApiError extends Error {
   code: string;
   constructor(code: string, message: string) {
@@ -26,12 +56,16 @@ export class ApiError extends Error {
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${runtimeUrl}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      ...(init?.headers ? {} : { 'Content-Type': 'application/json' }),
+      ...(init?.headers as Record<string, string> | undefined),
+      ...authHeaders(),
+    },
   });
   if (!resp.ok) {
-    let code = 'http_error';
-    let message = resp.statusText;
+    let code = resp.status === 401 ? 'unauthorized' : 'http_error';
+    let message = resp.status === 401 ? '需要 API token（用启动时打印的 #token= URL 打开）' : resp.statusText;
     try {
       const body = await resp.json();
       code = body.detail?.code ?? code;
@@ -164,13 +198,13 @@ export const api = {
     }),
   artifacts: (projectId: string) => request<Array<Record<string, unknown>>>(`/api/v2/projects/${projectId}/artifacts`),
   artifactDownloadUrl: (projectId: string, artifactId: string) =>
-    `${runtimeUrl}/api/v2/artifacts/${artifactId}/download?project_id=${encodeURIComponent(projectId)}`,
+    withToken(`${runtimeUrl}/api/v2/artifacts/${artifactId}/download?project_id=${encodeURIComponent(projectId)}`),
   // Full human-readable Markdown dump of the project's event stream.
   projectTranscriptUrl: (projectId: string) =>
-    `${runtimeUrl}/api/v2/projects/${projectId}/transcript`,
+    withToken(`${runtimeUrl}/api/v2/projects/${projectId}/transcript`),
   // 2D molecular structure diagram rendered from SMILES.
   chemRenderSmilesUrl: (smiles: string, width = 200, height = 140, theme = 'dark') =>
-    `${runtimeUrl}/api/v2/chem/render-smiles?smiles=${encodeURIComponent(smiles)}&width=${width}&height=${height}&theme=${theme}&v=w4`,
+    withToken(`${runtimeUrl}/api/v2/chem/render-smiles?smiles=${encodeURIComponent(smiles)}&width=${width}&height=${height}&theme=${theme}&v=w4`),
   dagDelivery: (projectId: string) =>
     request<{ mode: string; graph: Record<string, unknown> | null }>(`/api/v2/projects/${projectId}/dag/delivery`),
   dagReviews: (projectId: string) =>
@@ -239,7 +273,7 @@ export const api = {
       body: '{}',
     }),
   benchmarkRuns: () => request<BenchmarkHistory>('/api/v2/benchmark/runs'),
-  benchmarkStreamUrl: () => `${runtimeUrl}/api/v2/benchmark/stream`,
+  benchmarkStreamUrl: () => withToken(`${runtimeUrl}/api/v2/benchmark/stream`),
 };
 
 // ---- benchmark (GH #32) ----
@@ -340,7 +374,7 @@ export interface StreamHandlers {
 }
 
 export function streamProject(projectId: string, cursor: number, handlers: StreamHandlers) {
-  const source = new EventSource(`${runtimeUrl}/api/v2/projects/${projectId}/stream?cursor=${cursor}`);
+  const source = new EventSource(withToken(`${runtimeUrl}/api/v2/projects/${projectId}/stream?cursor=${cursor}`));
   const deliver = (msg: MessageEvent) => {
     try {
       handlers.onEvent(JSON.parse(msg.data) as EventEnvelope);

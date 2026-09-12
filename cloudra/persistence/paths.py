@@ -47,6 +47,11 @@ def compute_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "compute.db"
 
 
+def api_token_path(data_dir: Optional[PathLike] = None) -> Path:
+    """本地 API bearer token 文件路径（.api_token，0600）。"""
+    return _root(data_dir) / ".api_token"
+
+
 def contexts_dir(conv_id: Optional[str] = None, data_dir: Optional[PathLike] = None) -> Path:
     """会话级 contexts 目录；conv_id 为空或 'default' 时回退到全局 contexts。"""
     if conv_id and conv_id != "default":

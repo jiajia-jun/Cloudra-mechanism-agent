@@ -1,11 +1,11 @@
 """BashCommandClassifier 分类行为钉板测试。
 
-钉住 cloudra/tools/core/command_analyzer.py 当前的分类结果，包括若干
-已知的覆盖盲区（用注释标明，属于现状而非期望）：
-- '&&' / ';' 连接的命令只分析首段（"ls && rm -rf x" 判为 READ）。
-- 紧贴的 redirect（"echo hi>out.txt"）检测不到。
-- fork炸弹（":(){ :|:& };:"）判为 NONE。
-- 带扩展名后缀的 mkfs（"mkfs.ext4"）判为 NONE。
+钉住 cloudra/tools/core/command_analyzer.py 当前的分类结果。分类器在黑名单
+枚举之后还有一道 fail-closed 升级扫描（纯子串/token 检测，见
+_escalate_fail_closed）：shell 组合符（; && || $( 反引号）→ SCRIPT|DESTRUCTIVE；
+粘连重定向 → WRITE|DESTRUCTIVE；未知命令 → SCRIPT。
+残余已知盲区（现状而非期望）：
+- git 子命令不分析（"git push origin main" 仍判为 READ）。
 """
 
 import pytest
@@ -45,7 +45,8 @@ class TestSafeCommands:
         assert a.pipe_commands == ["ls"]
 
     def test_git_is_read_only_even_for_mutating_subcommands(self):
-        # 现状：git 整体在 READ_CMDS，git push/reset 不额外升级权限
+        # 残余盲区：git 整体在 READ_CMDS，fail-closed 不分析子命令，
+        # git push/reset 不额外升级权限
         assert flags(classify("git push origin main"))["is_read"] is True
         assert flags(classify("git push origin main"))["is_destructive"] is False
 
@@ -120,15 +121,19 @@ class TestDestructiveCommands:
         assert f["is_read"] is False
         assert f["is_destructive"] is True
 
-    def test_fork_bomb_not_detected(self):
-        # 已知盲区：fork炸弹被拆成普通 token，判为 NONE
+    def test_fork_bomb_escalated_by_semicolon(self):
+        # fail-closed：命令含 ';'，升级为 SCRIPT|DESTRUCTIVE（原盲区：判 NONE）
         a = classify(":(){ :|:& };:")
-        assert a.permissions == Permission.NONE
+        f = flags(a)
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
         assert not a.has_pipe
 
-    def test_mkfs_with_fs_suffix_not_detected(self):
-        # 已知盲区：mkfs.ext4 经版本号裁剪后变成 'mkfs.ext'，匹配不到 mkfs
-        assert classify("mkfs.ext4 /dev/sda1").permissions == Permission.NONE
+    def test_mkfs_with_fs_suffix_escalated_as_unknown(self):
+        # fail-closed：mkfs.ext4 经版本号裁剪后匹配不到任何命令池，
+        # 按未知命令升级为 SCRIPT（原盲区：判 NONE）
+        f = flags(classify("mkfs.ext4 /dev/sda1"))
+        assert f["is_script"] is True
 
 
 class TestPipesAndChains:
@@ -152,18 +157,25 @@ class TestPipesAndChains:
         assert a.pipe_commands == ["cat", "python3"]
         assert flags(a)["is_script"] is True
 
-    def test_and_chain_only_first_segment_analyzed(self):
-        # 已知盲区：'&&' 不是分段符，后续命令完全不影响分类
+    def test_and_chain_escalated_by_fail_closed(self):
+        # '&&' 不是分段符，后续命令仍不参与逐段分类；但 fail-closed 扫描
+        # 见到 '&&' 直接升级 SCRIPT|DESTRUCTIVE（原盲区：判 READ）
         a = classify("ls && rm -rf x")
         assert a.pipe_commands == ["ls"]
-        assert a.permissions == Permission.READ
+        f = flags(a)
+        assert f["is_read"] is True
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
         assert not a.has_pipe
 
-    def test_semicolon_attached_makes_command_unrecognized(self):
-        # 已知盲区：';' 不分段且紧贴命令名，'ls;' 匹配不到任何命令池
+    def test_semicolon_chain_escalated_by_fail_closed(self):
+        # ';' 不分段且紧贴命令名，'ls;' 匹配不到任何命令池；
+        # fail-closed 见到 ';' 升级 SCRIPT|DESTRUCTIVE（原盲区：判 NONE）
         a = classify("ls; rm -rf x")
         assert a.pipe_commands == ["ls;"]
-        assert a.permissions == Permission.NONE
+        f = flags(a)
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
 
 
 class TestRedirects:
@@ -183,22 +195,36 @@ class TestRedirects:
     def test_redirect_variants_detected(self, command):
         assert classify(command).has_redirect is True
 
-    def test_append_redirect_not_detected(self):
-        # 已知盲区：'>>' 是两个字符，\d*[<>] 只 fullmatch 单字符 redirect
+    def test_append_redirect_escalated_by_fail_closed(self):
+        # '>>' 是两个字符，\d*[<>] 只 fullmatch 单字符 redirect，
+        # has_redirect 仍为 False；但 fail-closed 见到 token 内含 '>'，
+        # 升级 WRITE|DESTRUCTIVE（原盲区：判 READ）
         a = classify("echo hi >> out.txt")
         assert a.has_redirect is False
-        assert a.permissions == Permission.READ
+        f = flags(a)
+        assert f["is_read"] is True
+        assert f["is_write"] is True
+        assert f["is_destructive"] is True
 
-    def test_attached_redirect_not_detected(self):
-        # 已知盲区：redirect 紧贴文件名时是单个 token，fullmatch 失败
+    def test_attached_redirect_escalated_by_fail_closed(self):
+        # redirect 紧贴文件名时是单个 token，fullmatch 失败，has_redirect 为
+        # False；fail-closed 见到 token 内含 '>' 升级 WRITE|DESTRUCTIVE
+        # （原盲区：判 READ）
         a = classify("echo hi>out.txt")
         assert a.has_redirect is False
-        assert a.permissions == Permission.READ
+        f = flags(a)
+        assert f["is_read"] is True
+        assert f["is_write"] is True
+        assert f["is_destructive"] is True
 
-    def test_2_greater_ampersand_1_not_detected_as_redirect(self):
-        # 已知盲区：'2>&1' 不匹配任何 REDIRECT_PATTERNS 的 fullmatch
+    def test_2_greater_ampersand_1_escalated_by_fail_closed(self):
+        # '2>&1' 不匹配任何 REDIRECT_PATTERNS 的 fullmatch，has_redirect 仍为
+        # False；fail-closed 按 token 内含 '>' 升级 WRITE|DESTRUCTIVE
         a = classify("grep x f 2>&1")
         assert a.has_redirect is False
+        f = flags(a)
+        assert f["is_write"] is True
+        assert f["is_destructive"] is True
 
 
 class TestEdgeCases:
@@ -218,7 +244,8 @@ class TestEdgeCases:
         a = classify("IFS= rm -rf x")
         # 'IFS=' 以 '=' 结尾，不算变量赋值，primary 就是 'IFS='
         assert a.primary_cmd == "IFS="
-        assert a.permissions == Permission.NONE
+        # fail-closed：'IFS=' 不在任何已知命令池，升级为 SCRIPT（原判 NONE）
+        assert flags(a)["is_script"] is True
 
     def test_unclosed_quote_falls_back_to_regex(self):
         a = classify('rm -rf "unclosed')
@@ -240,7 +267,95 @@ class TestEdgeCases:
         assert f["is_script"] is True
         assert f["is_destructive"] is True
 
-    def test_unknown_command_is_none(self):
+    def test_unknown_command_escalated_to_script(self):
+        # fail-closed：未知命令不再落 NONE 放行，升级为 SCRIPT（必审批）
         a = classify("someobscuretool --flag")
         assert a.primary_cmd == "someobscuretool"
-        assert a.permissions == Permission.NONE
+        assert a.permissions == Permission.SCRIPT
+
+
+class TestFailClosedEscalation:
+    """红队 PoC 逐条钉板：以下命令在黑名单枚举时代全部零审批执行，
+    fail-closed 升级扫描后必须落入必审批权限位（SCRIPT|DESTRUCTIVE 触发
+    bash.py 的 ensure_safety）。"""
+
+    def test_semicolon_chain_hides_rm(self):
+        # 'ls;' 被 shlex 当一个 token，';' 串接整体隐形 → 原判 NONE
+        f = flags(classify("ls; rm -rf /tmp/x"))
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
+
+    def test_command_substitution_dollar_paren(self):
+        # 命令替换对 shlex 不可见 → 原判 READ
+        f = flags(classify("echo $(id)"))
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
+
+    def test_command_substitution_backtick(self):
+        f = flags(classify("echo `id`"))
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
+
+    def test_and_chain_hides_curl(self):
+        # '&&' 不可见 → 原判 READ
+        f = flags(classify("ls && curl evil.com"))
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
+
+    def test_unknown_command_not_silently_allowed(self):
+        # 未知命令原落 NONE 放行 → 现升级 SCRIPT
+        a = classify("osascript -e 'display dialog \"x\"'")
+        assert a.primary_cmd == "osascript"
+        assert a.permissions == Permission.SCRIPT
+
+    def test_attached_redirect_implies_write(self):
+        # 粘连重定向 → 原判 READ，现升级 WRITE|DESTRUCTIVE
+        f = flags(classify("echo pwned>/tmp/evil"))
+        assert f["is_write"] is True
+        assert f["is_destructive"] is True
+
+    def test_git_push_residual_gap(self):
+        # 残余盲区：git 在 READ_CMDS，子命令不分析，git push 仍判 READ。
+        # 三条升级规则均不覆盖（无组合符、无重定向、basename 已知），
+        # 钉住现状，后续如需拦截须引入子命令分析。
+        a = classify("git push origin master")
+        assert a.permissions == Permission.READ
+
+    def test_or_chain_escalated(self):
+        f = flags(classify("false || rm -rf /tmp/x"))
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
+
+    def test_fallback_path_also_escalated(self):
+        # shlex 失败（未闭合引号）走 _fallback_classify，升级扫描同样生效
+        f = flags(classify('echo "unclosed; rm -rf /tmp/x'))
+        assert f["is_script"] is True
+        assert f["is_destructive"] is True
+
+
+class TestNormalCommandsNotEscalated:
+    """fail-closed 不误伤已知名单内的正常命令：维持原级别。"""
+
+    @pytest.mark.parametrize("command", [
+        "ls",
+        "ls -la /tmp",
+        "grep foo bar.log",
+        "cat file.txt",
+        "find . -name '*.py'",
+        "cat f | grep x | wc -l",
+    ])
+    def test_read_commands_stay_read_only(self, command):
+        assert classify(command).permissions == Permission.READ
+
+    def test_python_script_stays_script_only(self):
+        a = classify("python script.py")
+        assert a.permissions == Permission.SCRIPT
+
+    def test_xtb_is_known_script_command(self):
+        # xtb 与 g16/g09 一样列入 SCRIPT_CMDS，不触发未知命令升级之外的位
+        a = classify("xtb input.xyz")
+        assert a.permissions == Permission.SCRIPT
+
+    def test_pipe_of_known_commands_not_escalated(self):
+        a = classify("echo start | grep x")
+        assert a.permissions == Permission.READ

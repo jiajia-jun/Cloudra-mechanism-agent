@@ -1,4 +1,6 @@
+import asyncio
 import os
+from pathlib import Path
 from typing import Any, Literal, Optional
 
 from pydantic import Field
@@ -90,8 +92,10 @@ class QmInputWriter_input_schema(input_schema):
         default=None,
         description="External MLIP route (replaces method/basis_set). ORCA: absolute path of the "
                     "ProgExt executable — emits '! ExtOpt <tasks>' plus a %method ProgExt block, "
-                    "e.g. '/opt/conda/envs/chemai/bin/mace'. Gaussian: engine value of the "
-                    "external=\"...\" route keyword, e.g. 'mace' (may include program arguments)."
+                    "e.g. '/opt/conda/envs/chemai/bin/mace'; the file must exist, be executable, "
+                    "and live outside the working directory/data dir. Gaussian: engine value of the "
+                    "external=\"...\" route keyword, e.g. 'mace' — a single [a-z0-9_.-] token, no "
+                    "spaces or program arguments (they would bypass method-policy parsing)."
     )
     external_params: Optional[str] = Field(
         default=None,
@@ -216,6 +220,58 @@ class QmInputWriter(Tool):
 
     def is_write(self) -> bool:
         return True
+
+    def _validate_external_program(self, user_input: QmInputWriter_input_schema) -> Optional[str]:
+        """external_program 安全校验：返回 None 放行，否则返回拒绝原因（fail-loud）。
+
+        ORCA：ProgExt 值是可执行文件的绝对路径——必须存在、是普通文件、可执行，
+        且**不在 agent 工作目录或 data_dir 内**（method_policy 只按 basename 比对
+        白名单，agent 在自己工作目录放个同名恶意脚本即可过审，故路径必须在
+        agent 可写范围之外）。
+        Gaussian：值是 external="..." 路由关键字的引擎名——写入前用
+        method_policy 的引擎值词法（_EXTERNAL_VALUE_RE）校验，写出的 token
+        必须能被策略层解析回同一个值，畸形值直接拒绝。
+        """
+        value = (user_input.external_program or "").strip()
+        if user_input.engine == "gaussian":
+            from cloudra.runtime_v2.method_policy import _EXTERNAL_VALUE_RE
+
+            token = f'external="{value}"'.lower()
+            if _EXTERNAL_VALUE_RE.match(token) is None:
+                return (
+                    f"external_program {value!r} is not a valid Gaussian external engine value: "
+                    "only a single [a-z0-9_.-] token is accepted (e.g. 'mace'); values with "
+                    "spaces, quotes or shell characters would bypass method-policy parsing."
+                )
+            return None
+
+        # ORCA ProgExt 可执行文件
+        path = Path(value).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            return (
+                f"external_program {value!r} does not resolve to an existing regular file "
+                f"(resolved: {path}). Point it at the installed MLIP executable."
+            )
+        if not os.access(path, os.X_OK):
+            return f"external_program {value!r} is not executable (resolved: {path})."
+        from cloudra.infra.config import get_config
+
+        workdir = Path(
+            getattr(self.subagent, "working_directory", None) or os.getcwd()
+        ).resolve()
+        data_dir = Path(get_config().data_dir).resolve()
+        for root in (workdir, data_dir):
+            try:
+                path.relative_to(root)
+            except ValueError:
+                continue
+            return (
+                f"external_program {value!r} resolves to {path}, which is inside {root} — "
+                "agent-writable locations are not trusted as external executables "
+                "(method-policy matches on the basename only). Install the engine in a "
+                "system location and reference that path."
+            )
+        return None
 
     @staticmethod
     def _gaussian_style_lines(atoms) -> str:
@@ -456,9 +512,19 @@ class QmInputWriter(Tool):
             return QmInputWriter_output_schema(
                 is_success=False,
                 input_path="",
-                message="external_params is ORCA-only; for the Gaussian external route fold program "
-                        "arguments into external_program (e.g. external_program='mace --model x.model').",
+                message="external_params is ORCA-only; for the Gaussian external route the engine "
+                        "value goes into external_program (e.g. external_program='mace').",
             )
+        # 外部程序本身的安全校验：ORCA 可执行路径必须在 agent 可写范围之外，
+        # Gaussian 引擎值必须能被 method_policy 词法解析（防白名单绕过）。
+        if user_input.external_program:
+            ext_error = self._validate_external_program(user_input)
+            if ext_error:
+                return QmInputWriter_output_schema(
+                    is_success=False,
+                    input_path="",
+                    message=f"qm_input_writer refused: {ext_error}",
+                )
         # 路径语义收口：相对路径解析到 agent 工作目录（沙箱），绝对路径
         # 保持既有权限语义。SMILES 源不经过路径解析（绝不把 SMILES 当路径）。
         if user_input.source_type in ("xyz_file", "mol_file"):
@@ -472,7 +538,10 @@ class QmInputWriter(Tool):
             # 与 smiles_to_mol / conformer_search 同一命名规则：<父目录>/structure_build/<stem>/
             user_input.artifact_dir = build_artifact_dir(base or ".", stem)
         try:
-            coords = self._get_coordinates(user_input, user_input.artifact_dir)
+            # 结构构建是重活（Embed/优化），离开事件循环线程
+            coords = await asyncio.to_thread(
+                self._get_coordinates, user_input, user_input.artifact_dir
+            )
             # 输入冲突前置校验：无法实现的选项明确报错，绝不写出看似成功
             # 的计算文件（成功时 unapplied_options 必为空）。
             conflicts = validate_writer_request(user_input.model_dump())

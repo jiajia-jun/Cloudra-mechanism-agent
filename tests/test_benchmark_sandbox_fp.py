@@ -858,7 +858,7 @@ def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
     工作区路径语义（审批 LLM 是外部服务，用替身自动放行）。"""
     from cloudra.infra.yolo_guard import YoloGuard
 
-    async def _approve(self, tool_name, tool_args, agent, session):
+    async def _approve(self, tool_name, tool_args, agent, session, **_kwargs):
         return True, ""
 
     monkeypatch.setattr(YoloGuard, "judge", _approve)

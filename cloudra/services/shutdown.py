@@ -54,8 +54,10 @@ def request_api_shutdown(port: int, *, timeout: float = 5.0) -> bool:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/v2/runtime/shutdown", method="POST"
     )
-    token = os.environ.get("CLOUDRA_API_TOKEN", "").strip()
-    if token:
+    from cloudra.services.api_token import resolve_api_token
+
+    token = resolve_api_token()
+    if token is not None:
         req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:

@@ -155,7 +155,7 @@ async def test_router_status_start_stop_history(tmp_path):
     app = create_v2_app(core)
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
         idle = (await client.get("/api/v2/benchmark/status")).json()
         assert idle["status"] == "idle"
 

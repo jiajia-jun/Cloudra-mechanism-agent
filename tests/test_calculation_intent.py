@@ -27,6 +27,16 @@ _MACE = "/opt/conda/envs/chemai/bin/mace"
 _MACE_PARAMS = "--model /opt/MACE-omol-0.model --device cpu --dtype float64"
 
 
+@pytest.fixture(scope="module")
+def mace_exe(tmp_path_factory):
+    """writer 层现在要求 ProgExt 可执行文件真实存在、可执行、且在 agent 工作目录
+    与 data_dir 之外——造一个真文件代替过去的虚构 /opt 路径。"""
+    exe = tmp_path_factory.mktemp("sysbin") / "mace"
+    exe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    exe.chmod(0o755)
+    return str(exe)
+
+
 def _codes(entries):
     return [e["code"] for e in entries]
 
@@ -158,10 +168,10 @@ async def test_writer_success_reports_intent_and_empty_unapplied(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_numeric_frequency_generates_numfreq_without_default_opt(tmp_path):
+async def test_numeric_frequency_generates_numfreq_without_default_opt(tmp_path, mace_exe):
     result = await _writer(
         tmp_path,
-        external_program=_MACE,
+        external_program=mace_exe,
         external_params=_MACE_PARAMS,
         task_type=[{"freq": None}],
         frequency_mode="numeric",
@@ -187,10 +197,10 @@ async def test_numeric_frequency_generates_numfreq_without_default_opt(tmp_path)
         ([{"irc": None}], "auto", "IRC"),
     ],
 )
-async def test_extopt_golden_inputs(tmp_path, task_type, frequency_mode, expected):
+async def test_extopt_golden_inputs(tmp_path, mace_exe, task_type, frequency_mode, expected):
     result = await _writer(
         tmp_path,
-        external_program=_MACE,
+        external_program=mace_exe,
         external_params=_MACE_PARAMS,
         task_type=task_type,
         frequency_mode=frequency_mode,
@@ -203,7 +213,7 @@ async def test_extopt_golden_inputs(tmp_path, task_type, frequency_mode, expecte
     # 外部势路由不带默认 DFT method/basis
     assert "b3lyp" not in content.lower()
     assert "6-31g" not in content.lower()
-    assert f'ProgExt "{_MACE}"' in content
+    assert f'ProgExt "{mace_exe}"' in content
     # 无继承的扫描约束
     assert "Constraints" not in content
     # 回读意图一致
@@ -213,10 +223,10 @@ async def test_extopt_golden_inputs(tmp_path, task_type, frequency_mode, expecte
 
 
 @pytest.mark.asyncio
-async def test_constrained_ts_declares_limitation(tmp_path):
+async def test_constrained_ts_declares_limitation(tmp_path, mace_exe):
     result = await _writer(
         tmp_path,
-        external_program=_MACE,
+        external_program=mace_exe,
         task_type=[{"opt": "ts"}],
         orca_blocks="%geom\n  Constraints\n    { B 0 1 1.30 C }\n  end\nend",
         nproc=1,

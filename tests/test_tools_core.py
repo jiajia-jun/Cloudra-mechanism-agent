@@ -181,6 +181,7 @@ class TestWebFetcherGuards:
             text=content.decode("utf-8", errors="replace"),
             headers={"content-type": content_type},
             status_code=status,
+            is_redirect=False,
             raise_for_status=lambda: None,
         )
 
@@ -204,6 +205,10 @@ class TestWebFetcherGuards:
 
         resp = self._resp(b"%PDF-1.7 fake\n" + b"\x00" * 100, "application/pdf")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
+        # 本组测的是内容防护不是主机闸门；本机 DNS 可能把 x.com 解析到 fake-ip 段
+        monkeypatch.setattr(
+            "cloudra.tools.Browsertool.web_fetch._host_rejection", lambda hostname: None
+        )
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/a.pdf"), None
         )
@@ -214,6 +219,9 @@ class TestWebFetcherGuards:
     async def test_pdf_detected_by_magic_bytes(self, monkeypatch):
         resp = self._resp(b"%PDF-1.3 xxx\n" + b"0" * 50, "application/octet-stream")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
+        monkeypatch.setattr(
+            "cloudra.tools.Browsertool.web_fetch._host_rejection", lambda hostname: None
+        )
         from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/download?id=1"), None
@@ -225,6 +233,9 @@ class TestWebFetcherGuards:
         html = ("<html><body><p>" + "x" * 250_000 + "</p></body></html>").encode()
         resp = self._resp(html, "text/html; charset=utf-8")
         monkeypatch.setattr("httpx.AsyncClient", lambda **kw: self._client(resp)())
+        monkeypatch.setattr(
+            "cloudra.tools.Browsertool.web_fetch._host_rejection", lambda hostname: None
+        )
         from cloudra.tools.Browsertool.web_fetch import WebFetcher, WebFetcher_input_schema
         result = await WebFetcher().tool_call(
             WebFetcher_input_schema(url="https://x.com/page"), None

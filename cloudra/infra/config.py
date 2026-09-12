@@ -110,6 +110,18 @@ class FlowerConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
 
+class ComputeConfig(BaseSettings):
+    """计算执行面开关。
+
+    allow_local_calculator 默认关：关闭时只用项目内置 calculator.sh，忽略作业
+    工作目录里的同名脚本——工作目录是 agent 可写区，本地优先通道会把 agent
+    放置的任意脚本提升为计算执行入口。确需按任务目录定制时显式置 true。
+    """
+    allow_local_calculator: bool = False
+
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+
+
 class CloudraConfig(BaseSettings):
     """Global Cloudra configuration."""
 
@@ -134,6 +146,9 @@ class CloudraConfig(BaseSettings):
 
     # FlowER 机理推断外部环境（默认关闭）
     flower: FlowerConfig = Field(default_factory=FlowerConfig)
+
+    # 计算执行面开关（本地 calculator.sh 通道默认关闭）
+    compute: ComputeConfig = Field(default_factory=ComputeConfig)
 
     # OpenAlex 文献检索。空则匿名调用（额度更低）；可设 CLOUDRA_OPENALEX_API_KEY / OPENALEX_API_KEY。
     openalex_api_key: str = ""
@@ -235,6 +250,11 @@ class CloudraConfig(BaseSettings):
                 for k, v in data["flower"].items():
                     if hasattr(self.flower, k) and v is not None:
                         setattr(self.flower, k, v)
+
+            if "compute" in data:
+                for k, v in data["compute"].items():
+                    if hasattr(self.compute, k) and v is not None:
+                        setattr(self.compute, k, v)
 
             if "data_dir" in data and data["data_dir"] is not None:
                 self.data_dir = Path(data["data_dir"])

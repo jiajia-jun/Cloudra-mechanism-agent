@@ -58,7 +58,7 @@ class BashCommandClassifier:
     SCRIPT_CMDS = {
         'python', 'python3', 'python2', 'bash', 'sh', 'zsh', 'fish',
         'cargo', 'yarn', 'go', 'g16', 'g09', 'perl', 'ruby', 'node', 'nodejs',
-        'npm', 'npx', 'conda', 'pip', 'pip3',
+        'npm', 'npx', 'conda', 'pip', 'pip3', 'xtb',
         # Windows equivalents
         'powershell', 'pwsh', 'cmd', 'cscript', 'wscript', 'batch',
     }
@@ -87,6 +87,10 @@ class BashCommandClassifier:
         re.compile(r'\d*[<>]'),        # >, >>, <, 2>, etc.
         re.compile(r'\d*>&'),          # >&
     ]
+
+    # Fail-closed: 原始命令串里出现这些子串说明存在 shlex 分段看不见的 shell
+    # 组合（串接 / 命令替换），一律升级为必审批。纯子串检测，不引入正则。
+    SHELL_COMPOSITION_MARKERS = (';', '&&', '||', '$(', '`')
 
     @classmethod
     def classify(cls, command: str) -> CommandAnalysis:
@@ -188,7 +192,33 @@ class BashCommandClassifier:
             perms |= Permission.WRITE | Permission.DESTRUCTIVE
 
         analysis.permissions = perms
+        cls._escalate_fail_closed(command, tokens, analysis)
         return analysis
+
+    @classmethod
+    def _escalate_fail_closed(cls, command: str, tokens: list[str], analysis: CommandAnalysis) -> None:
+        """Fail-closed 兜底升级：黑名单枚举漏判的可疑形态一律抬高权限（必审批）。
+
+        纯子串/token 检测，不引入正则：
+        1. 原始命令含 shell 组合符（; && || $( 反引号）→ SCRIPT|DESTRUCTIVE；
+        2. token 内含 > 或 < 但未识别为独立重定向 token（粘连重定向）→ WRITE|DESTRUCTIVE；
+        3. 主命令/管道命令 basename 不在全部已知命令池（如 osascript）→ SCRIPT。
+        """
+        if any(marker in command for marker in cls.SHELL_COMPOSITION_MARKERS):
+            analysis.permissions |= Permission.SCRIPT | Permission.DESTRUCTIVE
+
+        if not analysis.has_redirect:
+            for tok in tokens:
+                if '>' in tok or '<' in tok:
+                    analysis.permissions |= Permission.WRITE | Permission.DESTRUCTIVE
+                    break
+
+        known = cls.READ_CMDS | cls.WRITE_CMDS | cls.SCRIPT_CMDS | cls.DESTRUCTIVE_CMDS
+        for cmd in analysis.pipe_commands:
+            cmd_lower = cmd.lower()
+            if cmd_lower in known or cmd_lower.rstrip('0123456789.') in known:
+                continue
+            analysis.permissions |= Permission.SCRIPT
 
     @classmethod
     def _fallback_classify(cls, command: str) -> CommandAnalysis:
@@ -244,4 +274,5 @@ class BashCommandClassifier:
 
             analysis.permissions = perms
 
+        cls._escalate_fail_closed(command, command.split(), analysis)
         return analysis

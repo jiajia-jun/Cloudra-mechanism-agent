@@ -95,27 +95,6 @@ def _format_content(content: Any, max_len: int = 1000) -> str:
     return "\n".join(text_parts)
 
 
-async def _format_recent_context_multimodal(agent, limit: int = 5, max_len_per_msg: int = 1000) -> list:
-    """Format the last N persisted messages for YOLO guard (legacy supervisor path)."""
-    message_history = getattr(agent, "message_history", None)
-    if message_history is None:
-        return [{"type": "text", "text": "<无上下文>"}]
-
-    try:
-        context = await message_history.load()
-    except Exception:
-        return [{"type": "text", "text": "<读取上下文失败>"}]
-
-    messages = context[-limit:] if len(context) > limit else context
-    final_parts = []
-    for msg in messages:
-        role = msg.get("role", "unknown")
-        final_parts.append({"type": "text", "text": f"\n[{role}] "})
-        final_parts.extend(_format_content_multimodal(msg.get("content"), max_len=max_len_per_msg))
-
-    return final_parts
-
-
 class YoloGuard:
     """独立的安全判断 Agent。"""
 
@@ -143,10 +122,14 @@ class YoloGuard:
         tool_args: dict,
         agent,
         session,
+        risk_summary: str = "",
     ) -> tuple[bool, str]:
-        """判断当前工具调用是否应该被允许执行。"""
-        # 提取多模态上下文
-        recent_context_parts = await _format_recent_context_multimodal(agent)
+        """判断当前工具调用是否应该被允许执行。
+
+        审批官只看结构化输入（任务、执行者、工具名、序列化参数、风险摘要），
+        不接收 agent 的近期消息历史——工具输出等外部文本可能携带提示词注入，
+        喂给审批官会让执行者与审批官同源失效。
+        """
         args_summary = _format_content(tool_args, max_len=1000)
 
         prefix_text = (
@@ -154,13 +137,11 @@ class YoloGuard:
             f"[执行者]\n{getattr(agent, 'name', 'Unknown Agent')}\n\n"
             f"[待审批操作]\n"
             f"工具: {tool_name}\n"
-            f"参数: {args_summary}\n\n"
-            f"[最近 5 条上下文]\n"
+            f"参数: {args_summary}\n"
+            f"风险摘要: {risk_summary or '（未提供）'}"
         )
 
-        # 组装最终的 user content 数组（支持图文混排）
         user_content = [{"type": "text", "text": prefix_text}]
-        user_content.extend(recent_context_parts)
 
         tools = [{
             "type": "function",

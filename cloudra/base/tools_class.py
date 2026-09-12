@@ -206,11 +206,6 @@ class Tool(BaseModel):
         '''
         from cloudra.infra.yolo_guard import YoloGuard, is_yolo_enabled
 
-        if is_yolo_enabled():
-            guard = YoloGuard()
-            return await self._yolo_judge(session, tool_args or {}, guard)
-
-        db_path = _tool_db_path(self.subagent)
         risk_summary = next(
             (
                 line.partition(":")[2].strip()
@@ -219,6 +214,12 @@ class Tool(BaseModel):
             ),
             details.splitlines()[0] if details.splitlines() else "Dangerous tool call",
         )
+
+        if is_yolo_enabled():
+            guard = YoloGuard()
+            return await self._yolo_judge(session, tool_args or {}, guard, risk_summary=risk_summary)
+
+        db_path = _tool_db_path(self.subagent)
         candidate_diff = ""
         for marker in ("Unified Diff:\n", "【Unified Diff】:\n"):
             if marker in details:
@@ -255,10 +256,11 @@ class Tool(BaseModel):
         session: Session,
         tool_args: dict,
         guard: 'YoloGuard',
+        risk_summary: str = "",
     ) -> tuple[bool, str]:
         """调用 YoloGuard 做自动判断。"""
         approved, reason = await guard.judge(
-            self.tool_name, tool_args, self.subagent, session
+            self.tool_name, tool_args, self.subagent, session, risk_summary=risk_summary
         )
         if approved:
             print("\033[92m[安全审计/YOLO]\033[0m 自动审批通过。")

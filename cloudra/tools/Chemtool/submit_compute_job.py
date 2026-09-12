@@ -11,7 +11,7 @@ from cloudra.infra.compute_utils import (
 )
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.services.compute_admission import admit_job
+from cloudra.services.compute_admission import admit_job, declared_memory_mb
 from cloudra.services.compute_store import afinalize_compute_job, ainsert_compute_job
 from cloudra.tools.core.delegation_guard import coordinator_self_compute_warning
 
@@ -157,11 +157,17 @@ class SubmitComputeJob(Tool):
         f_path = resolve_tool_path(self, user_input.input_file)
         conv_id = getattr(self.subagent, 'conversation_id', None) or 'default'
 
+        # 未显式申请内存时按输入文件自述（%mem/%maxcore）派生申请值——省略申请不再
+        # 等于脱账，超容量声明会被 admit_job 的容量硬校验拒收。
+        memory_mb = user_input.memory_mb
+        if memory_mb is None:
+            memory_mb = declared_memory_mb(f_path, user_input.job_type)
+
         admission = admit_job(
             input_file=f_path,
             job_type=user_input.job_type,
             cpus=user_input.cpus,
-            memory_mb=user_input.memory_mb,
+            memory_mb=memory_mb,
             charge=user_input.charge,
             multiplicity=user_input.multiplicity,
             task=user_input.task,
@@ -190,7 +196,7 @@ class SubmitComputeJob(Tool):
                     scheduler_options=json.dumps(scheduler_options, ensure_ascii=False),
                     priority=user_input.priority,
                     req_cpus=user_input.cpus,
-                    req_memory_mb=user_input.memory_mb,
+                    req_memory_mb=memory_mb,
                     charge=user_input.charge,
                     multiplicity=user_input.multiplicity,
                     xtb_task=user_input.task,
@@ -232,7 +238,7 @@ class SubmitComputeJob(Tool):
                     scheduler_options=json.dumps(scheduler_options, ensure_ascii=False),
                     priority=user_input.priority,
                     req_cpus=user_input.cpus,
-                    req_memory_mb=user_input.memory_mb,
+                    req_memory_mb=memory_mb,
                     charge=user_input.charge,
                     multiplicity=user_input.multiplicity,
                     xtb_task=user_input.task,
