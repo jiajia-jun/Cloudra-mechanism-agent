@@ -30,6 +30,19 @@ from cloudra.tools.core.ts_process import (  # noqa: E402
     start,
 )
 
+
+@pytest.fixture(autouse=True)
+def _path_stage_uses_fast_idpp_fallback(monkeypatch, tmp_path, request):
+    """本文件测的是流程逻辑，默认把 xtb 藏出 PATH、path 阶段走 IDPP 回退——
+    否则本机装有 xtb 时每个过 path 阶段的测试都真跑一遍 xTB 路径精修
+    （~20s/条，全文件 10+ 分钟）。真实引擎验收测试标 @pytest.mark.real_xtb
+    豁免（skipif 仍按收集时的真实 PATH 判定）。"""
+    if request.node.get_closest_marker("real_xtb") is not None:
+        return
+    empty = tmp_path / "_no_xtb_on_path"
+    empty.mkdir(exist_ok=True)
+    monkeypatch.setenv("PATH", str(empty))
+
 # 简单可用的两端：SN2 类（F- + CH3Cl → CH3F + Cl-）。原子序号与 SMILES 顺序一致。
 REACTANT = "[F-].CCl"
 PRODUCT = "CF.[Cl-]"
@@ -211,6 +224,10 @@ def test_built_endpoints_are_delivered_through_the_shared_builder(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.real_xtb
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
+)
 def test_resume_supplies_the_missing_declaration_and_continues(tmp_path):
     """resume 只接受局部覆盖：补上 atom_map 后从阻塞处继续。"""
     record = _start(tmp_path, atom_map=[])
@@ -281,6 +298,10 @@ def test_terminal_event_carries_evidence_candidates(tmp_path):
     assert events[0][1]["terminal"] == "invalid_input"
 
 
+@pytest.mark.real_xtb
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
+)
 def test_waiting_on_compute_emits_no_event(tmp_path):
     """等计算**不算阻塞**：不推事件，agent 不该被叫醒来做没有决策的事。"""
     events: list[tuple[str, dict]] = []
@@ -302,6 +323,10 @@ def test_waiting_on_compute_emits_no_event(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.real_xtb
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
+)
 def test_submit_submits_a_ready_job_and_refine_waits_for_it(tmp_path):
     """submit 阶段真的提交一个 ready 作业；refine 进入 waiting 等它的终态（不轮询）。"""
     record = _start(tmp_path)
@@ -320,6 +345,10 @@ def test_submit_submits_a_ready_job_and_refine_waits_for_it(tmp_path):
     assert "verdict" not in statuses
 
 
+@pytest.mark.real_xtb
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
+)
 def test_submitted_job_is_in_ready_state_in_the_central_queue(tmp_path):
     """submit 之后作业真的躺在中央 compute_jobs 里且状态为 ready（调度守护去认领）。"""
     from cloudra.persistence.database import ComputeDB
@@ -342,6 +371,7 @@ def test_submitted_job_is_in_ready_state_in_the_central_queue(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.real_xtb
 @pytest.mark.skipif(
     __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
 )
@@ -485,6 +515,10 @@ def test_verdict_cannot_reach_verified_without_irc(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.real_xtb
+@pytest.mark.skipif(
+    __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
+)
 def test_refine_submits_the_irc_job_after_frequency(tmp_path):
     """频率完成后自动提交 IRC：顺带验证它在同一几何上用 %irc 原生块。
 
@@ -723,6 +757,7 @@ def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
     del json
 
 
+@pytest.mark.real_xtb
 @pytest.mark.skipif(
     __import__("shutil").which("xtb") is None, reason="未安装 xtb，跳过真实引擎验收"
 )

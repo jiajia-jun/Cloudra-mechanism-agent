@@ -111,6 +111,9 @@ testpaths = ["tests"]
 # no:dash — 用户级 site-packages 里残缺的 dash（pytest11 插件）会让收集阶段
 # 直接 ImportError；本仓库不用 dash.testing，显式禁掉（无 dash 的机器无影响）。
 addopts = "-q -p no:dash"
+markers = [
+    "real_xtb: 真实 xTB 引擎验收（tests 默认把 xtb 藏出 PATH 走 IDPP 回退，带此标记的测试豁免）",
+]
 
 [tool.ruff]
 line-length = 120
