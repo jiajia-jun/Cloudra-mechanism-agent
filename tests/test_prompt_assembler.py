@@ -176,13 +176,27 @@ def test_clean_context_filters_real_memory_and_agents_but_keeps_role_and_skills(
             include_agents_md=not clean,
         ).assemble(["get_skill"])
 
-    clean = assemble(True).identity_messages[0]["content"]
-    dirty = assemble(False).identity_messages[0]["content"]
+    def observed(assembly) -> str:
+        return "\n\n".join(
+            str(message.get("content") or "")
+            for message in assembly.observation_messages
+        )
+
+    clean_asm = assemble(True)
+    dirty_asm = assemble(False)
+    clean = clean_asm.identity_messages[0]["content"]
+    dirty = dirty_asm.identity_messages[0]["content"]
     assert "ROLE_SENTINEL" in clean and "get_skill" in clean
+    # MEMORY/AGENTS.md 是带来源的动态快照（observation 侧），不进 identity。
     assert "GLOBAL_MEMORY_SENTINEL" not in clean
     assert "GLOBAL_AGENTS_SENTINEL" not in clean
-    assert "GLOBAL_MEMORY_SENTINEL" in dirty
-    assert "GLOBAL_AGENTS_SENTINEL" in dirty
+    assert "GLOBAL_MEMORY_SENTINEL" not in observed(clean_asm)
+    assert "GLOBAL_AGENTS_SENTINEL" not in observed(clean_asm)
+    assert "GLOBAL_MEMORY_SENTINEL" not in dirty
+    assert "GLOBAL_AGENTS_SENTINEL" not in dirty
+    assert "GLOBAL_MEMORY_SENTINEL" in observed(dirty_asm)
+    assert "GLOBAL_AGENTS_SENTINEL" in observed(dirty_asm)
+    assert [s.kind for s in dirty_asm.observation_sources][:2] == ["memory", "agents_md"]
 
 
 def test_agent_hub_guidance_injected_when_tool_present(isolated_prompt_sources):
@@ -246,22 +260,37 @@ async def test_agents_md_change_applies_to_existing_conversation(
     tmp_path,
     isolated_prompt_sources,
 ):
+    """新契约（Task 2）：AGENTS.md 是带来源的动态快照——变化更新 observation
+    快照消息，静态 identity 与 prompt_revision 保持不变（不再重写前缀）。"""
     _, workspace = isolated_prompt_sources
     agents_file = workspace / "AGENTS.md"
     agents_file.write_text("策略第一版", encoding="utf-8")
     agent = _coordinator(tmp_path, workspace, prompt="固定角色")
 
+    def agents_snapshot(messages) -> str:
+        snapshots = [
+            str(message.get("content") or "")
+            for message in messages
+            if str(message.get("content") or "").startswith(
+                "[User instructions — snapshot of AGENTS.md]"
+            )
+        ]
+        assert len(snapshots) == 1
+        return snapshots[0]
+
     first = await agent._build_request_kwargs()
     first_revision = agent.get_runtime_diagnostics()["prompt_revision"]
-    assert "策略第一版" in first["messages"][0]["content"]
+    assert "策略第一版" not in first["messages"][0]["content"]
+    assert "策略第一版" in agents_snapshot(first["messages"])
 
     agents_file.write_text("策略第二版", encoding="utf-8")
     second = await agent._build_request_kwargs()
     second_revision = agent.get_runtime_diagnostics()["prompt_revision"]
 
-    assert second_revision != first_revision
-    assert "策略第二版" in second["messages"][0]["content"]
-    assert "策略第一版" not in second["messages"][0]["content"]
+    assert second_revision == first_revision
+    assert second["messages"][0]["content"] == first["messages"][0]["content"]
+    assert "策略第二版" in agents_snapshot(second["messages"])
+    assert "策略第一版" not in agents_snapshot(second["messages"])
 
 
 @pytest.mark.asyncio
@@ -274,12 +303,23 @@ async def test_follower_skips_agents_md_injection(
     (workspace / "AGENTS.md").write_text("开发者策略", encoding="utf-8")
 
     follower = await _agent(tmp_path, workspace, prompt="固定角色")._build_request_kwargs()
-    assert "开发者策略" not in follower["messages"][0]["content"]
+    assert not any(
+        "开发者策略" in str(message.get("content") or "")
+        for message in follower["messages"]
+    )
 
     coordinator = await _coordinator(
         tmp_path, workspace, prompt="固定角色"
     )._build_request_kwargs()
-    assert "开发者策略" in coordinator["messages"][0]["content"]
+    # Coordinator 的 AGENTS.md 以带来源的动态快照消息注入（不在 identity 里）。
+    assert "开发者策略" not in coordinator["messages"][0]["content"]
+    assert any(
+        "开发者策略" in str(message.get("content") or "")
+        and str(message.get("content") or "").startswith(
+            "[User instructions — snapshot of AGENTS.md]"
+        )
+        for message in coordinator["messages"]
+    )
 
 
 @pytest.mark.asyncio

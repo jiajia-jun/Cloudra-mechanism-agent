@@ -31,6 +31,7 @@ from cloudra.runtime_v2.schemas import (
     Project,
     RoleProfile,
     RuntimeSettings,
+    SessionContext,
 )
 
 _SCHEMA = """
@@ -232,6 +233,7 @@ class RuntimeStore:
         agents: dict[str, AgentSession],
         roles: dict[str, RoleProfile],
         runtime_defaults: RuntimeSettings,
+        session_contexts: dict[str, SessionContext] | None = None,
         last_seqs: dict[str, int],
     ) -> None:
         payload = _strip_computed_fields(
@@ -240,6 +242,12 @@ class RuntimeStore:
                 "agents": {k: v.model_dump(mode="json") for k, v in agents.items()},
                 "roles": {k: v.model_dump(mode="json") for k, v in roles.items()},
                 "runtime_defaults": runtime_defaults.model_dump(mode="json"),
+                # 会话级 LLM 上下文投影（Task 4）：快照是缓存，权威是 events
+                # 表——快照点之前的 context.* 事件不参与增量重放，必须随快照
+                # 落地，否则重启后投影丢失。
+                "session_contexts": {
+                    k: v.model_dump(mode="json") for k, v in (session_contexts or {}).items()
+                },
             }
         )
         with self._connect() as con:
@@ -361,6 +369,12 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
         core.runtime_defaults = RuntimeSettings.model_validate(
             snapshot.get("runtime_defaults", {})
         )
+        # 会话级 LLM 上下文投影随快照恢复（快照点之后的 context.* 事件由
+        # 下面的增量重放经 apply_event 补上）。
+        core.session_contexts = {
+            sid: SessionContext.model_validate(data)
+            for sid, data in snapshot.get("session_contexts", {}).items()
+        }
         for agent in core.agents.values():
             core.mailbox.ensure_inbox(agent.id)
 
@@ -378,7 +392,8 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
     for envelope in envelopes:
         apply_event(core, envelope)
     # Notice pins are event-sourced too: rebuild them from the full
-    # projection (one-shot pushes are intentionally not restored).
+    # projection (未消费的 push 变更同样恢复；已消费的由游标挡回——见
+    # notices.restore_from 的批次/游标语义）。
     core.notices.restore_from(core.event_log)
 
     # Unfinished tool/program lifecycles left by the dead process close as
@@ -450,6 +465,7 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             agents=core.agents,
             roles=core.roles._roles,
             runtime_defaults=core.runtime_defaults,
+            session_contexts=core.session_contexts,
             last_seqs=core.event_log.high_watermarks,
         )
     return core.event_log.high_watermarks

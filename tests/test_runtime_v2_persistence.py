@@ -64,6 +64,92 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_restored_session_context_is_reused_byte_identical(tmp_path):
+    """Task 4 恢复契约：会话上下文投影随快照/事件持久化；重启恢复后
+    （running/waiting 仍按既有规则落 failed，本用例 agent 是 succeeded），
+    显式新消息唤醒的下个 run 以恢复出的上下文为完整前缀——不悄悄换成
+    摘要 seed。"""
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.policies import default_stages
+    from cloudra.runtime_v2.policies.base import ToolResult
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+
+    class RecordingLLM:
+        def __init__(self, responses) -> None:
+            self.responses = list(responses)
+            self.calls: list[list[dict]] = []
+
+        async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls.append(list(messages))
+            return self.responses.pop(0)
+
+    class EchoTools:
+        async def execute(self, agent, call, **_kwargs):
+            return ToolResult(is_success=True, summary="ok", data={})
+
+    async def wait_succeeded(agent, timeout=5.0):
+        deadline = asyncio.get_running_loop().time() + timeout
+        while agent.state.value != "succeeded":
+            assert asyncio.get_running_loop().time() < deadline, "agent did not finish"
+            await asyncio.sleep(0.01)
+
+    store = RuntimeStore(tmp_path / "runtime.db")
+    core = RuntimeCore(strict_events=True)
+    core.store = store
+    core.event_hub.subscribe(lambda event: _persist_event(store, event))
+    bus = CommandBus(core)
+    llm1 = RecordingLLM([LLMResponse(content="first done", stop_requested=True)])
+    pipeline = TurnPipeline(
+        event_log=core.event_log, stages=default_stages(), llm=llm1, tools=EchoTools()
+    )
+    core.runner = AgentRunner(core, pipeline)
+    await bus.execute(Command(type="project.create", payload={"name": "ctx"}))
+    project = next(iter(core.projects.values()))
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator", "query": "solve it"},
+            )
+        )
+    ).data
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    await wait_succeeded(agent)
+    assert llm1.calls, "first run never called the LLM"
+    await bus.flush_snapshot()
+
+    # 模拟重启：同一 store 恢复新 core，接上新 runner 后用新消息唤醒。
+    restored = RuntimeCore(strict_events=True)
+    restore_core(restored, store)
+    assert restored.session_contexts[agent.id].messages, "context projection lost across restore"
+    llm2 = RecordingLLM([LLMResponse(content="second done", stop_requested=True)])
+    restored_pipeline = TurnPipeline(
+        event_log=restored.event_log,
+        stages=default_stages(),
+        llm=llm2,
+        tools=EchoTools(),
+    )
+    restored.runner = AgentRunner(restored, restored_pipeline)
+    bus2 = CommandBus(restored)
+    await bus2.execute(
+        Command(
+            type="agent.message",
+            target={"session_id": agent.id},
+            payload={"content": "continue"},
+        )
+    )
+    await wait_succeeded(restored.agents[agent.id])
+    assert llm2.calls, "resumed run never called the LLM"
+    first_request = llm1.calls[-1]
+    resumed_request = llm2.calls[0]
+    assert resumed_request[: len(first_request)] == first_request
+    assert resumed_request[-1]["role"] == "user"
+    assert resumed_request[-1]["content"] == "continue"
+
+
+@pytest.mark.asyncio
 async def test_events_after_snapshot_are_replayed(tmp_path):
     store = RuntimeStore(tmp_path / "runtime.db")
     core = RuntimeCore(strict_events=True)
@@ -305,9 +391,6 @@ async def test_restore_zombie_child_notification_schedules_parent_runner(tmp_pat
         async def complete(self, agent, messages, tools, **_kwargs):
             return LLMResponse(content="ack child failure", stop_requested=True)
 
-    async def _stub_summarizer(messages):
-        return "[RUN LOG]\nstub\n[HANDOVER]\nstub"
-
     store = RuntimeStore(tmp_path / "runtime.db")
     _, project, parent, child = await _seed_parent_with_running_child(store)
 
@@ -319,7 +402,7 @@ async def test_restore_zombie_child_notification_schedules_parent_runner(tmp_pat
         llm=StopLLM(),
         tools=LegacyToolExecutor(restored),
     )
-    restored.runner = AgentRunner(restored, pipeline, run_summarizer=_stub_summarizer)
+    restored.runner = AgentRunner(restored, pipeline)
     restore_core(restored, store)
 
     rparent = restored.agents[parent.id]

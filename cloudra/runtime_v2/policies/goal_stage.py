@@ -4,7 +4,9 @@ The legacy ``goal_set`` tool persists the goal to ``plan/{key}_goal.json``
 (via ``agent_store_path``), but PromptAssembler never reads that file — in
 legacy the goal reached the model only because the TUI also pinned it into the
 legacy Agent message list.  runtime_v2 has no JSONL history file, so the goal
-is re-read each turn and injected as a fresh ``[Task goal]`` system message.
+is re-read each turn and pinned into ``notices``；通知按「未应用变更按顺序
+追加」进入上下文（Task 3）：未变化的 goal 不重复，更新/撤销以追加消息
+表达，旧消息不重写。
 Replace semantics come free: the file holds exactly one goal.
 
 IO boundary (3d): the file read is shell-side — ``TurnPipeline``'s
@@ -78,20 +80,11 @@ class GoalStage:
         return None
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict[str, Any]]) -> None:
-        from cloudra.tools.Plantool.goal import GOAL_MARKER
-
-        # Defensive dedup: the anchor must appear exactly once in history.
-        messages[:] = [
-            m
-            for m in messages
-            if not (
-                m.get("role") == "system"
-                and str(m.get("content", "")).startswith(GOAL_MARKER)
-            )
-        ]
         content = resolve_goal_content(ctx.goal)
         notices = getattr(ctx, "notices", None)
         if notices is not None:
+            # 已撤销/更新的 goal 通过 notices 的追加消息表达（替代/撤销说明），
+            # 不再过滤重写 history 里的旧 goal 消息（缓存前缀不变量）。
             if content:
                 notices.pin(ctx.agent.id, "goal", content)
             else:

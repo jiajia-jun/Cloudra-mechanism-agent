@@ -203,6 +203,20 @@ class AgentSession(BaseModel):
         self.updated_at = utc_now()
 
 
+class SessionContext(BaseModel):
+    """会话级 LLM 上下文投影（Task 4：一个 session 一份上下文）。
+
+    由 apply_event 从 context.prefix_installed / context.appended /
+    context.compacted 事件重建；``messages`` 是实际发送进模型上下文的
+    消息序列（文本、工具配对、reasoning、稳定媒体引用 image_ref——不是
+    base64 重嵌），``prefix_meta`` 是前缀安装元数据（ContextPrefix owner
+    跨 run/重启回灌用）。run 只是执行生命周期，不再各自重建对话。
+    """
+
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    prefix_meta: Optional[dict[str, Any]] = None
+
+
 def configured_invocation_protocol(agent: AgentSession) -> InvocationProtocol:
     """The protocol the agent's *next* run will use (settings value)."""
     return agent.settings.invocation_protocol

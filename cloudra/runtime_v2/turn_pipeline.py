@@ -48,6 +48,70 @@ logger = logging.getLogger(__name__)
 DeltaSink = Callable[[str, str], Awaitable[None]]
 
 
+class ContextPrefix(Protocol):
+    """Per-context owner of the installed prompt prefix and dynamic snapshots.
+
+    缓存连续性契约（计划 2026-09-13-harness-cache-continuity Task 2/4）：
+    ``install()`` 在上下文初始化时恰好运行一次（静态协议 + 首份动态快照），
+    产出的消息经 context.prefix_installed 事件进会话级上下文投影，成为
+    后续请求的完整前缀；``refresh()`` 每轮只读复查动态源，变化只以追加
+    消息表达。owner 由 runner 按 run 创建，但状态从会话投影回灌
+    （``restored``），跨 run/重启不重装。
+    """
+
+    def matches(self, history: list[dict[str, Any]]) -> bool: ...
+
+    async def install(self) -> list[dict[str, Any]]: ...
+
+    async def refresh(self) -> list[dict[str, Any]]: ...
+
+
+async def resolve_media_references(
+    messages: list[dict[str, Any]], *, vision_enabled: bool
+) -> list[dict[str, Any]]:
+    """把上下文投影里的 ``image_ref`` 部件解析为发送形态（返回新列表）。
+
+    投影只存稳定引用（路径 + 创建时写入的 fallback 文本），不重嵌 base64：
+    vision 开且文件可读 → ``image_url``（data URL）；否则 → 文本 fallback。
+    解析后全部是文本部件时内容坍缩回纯字符串（与历史线缆形态一致）。
+    同一文件内容解析结果逐字节稳定（缓存前缀安全）；文件变化/删除属于
+    真实内容变化，不伪称连续。不含 image_ref 的消息原样共享（不拷贝）。
+    """
+    from cloudra.infra.media import encode_image_data_url
+
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list) or not any(
+            isinstance(part, dict) and part.get("type") == "image_ref" for part in content
+        ):
+            out.append(message)
+            continue
+        parts: list[dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "image_ref":
+                parts.append(part)
+                continue
+            fallback = str(part.get("fallback") or f"[Image: {part.get('path')}]")
+            url = None
+            if vision_enabled:
+                url = await asyncio.to_thread(
+                    encode_image_data_url, str(part.get("path") or "")
+                )
+            if url:
+                parts.append({"type": "image_url", "image_url": {"url": url}})
+            else:
+                parts.append({"type": "text", "text": fallback})
+        if all(isinstance(part, dict) and part.get("type") == "text" for part in parts):
+            # 全部降级为文本时坍缩回纯字符串（与视觉关闭时的历史线缆形态一致）
+            out.append(
+                {**message, "content": "\n".join(str(part.get("text") or "") for part in parts)}
+            )
+            continue
+        out.append({**message, "content": parts})
+    return out
+
+
 @dataclass(frozen=True)
 class LLMResponse:
     content: str = ""
@@ -165,6 +229,9 @@ class TurnPipeline:
         history: list[dict[str, Any]] | None = None,
         workspace_dir: str | None = None,
         notices=None,
+        context_prefix: ContextPrefix | None = None,
+        context_broker=None,
+        vision_enabled: bool = True,
     ) -> TurnOutcome:
         emit = self._emitter(agent, run_id)
         notice_sink = notices if notices is not None else self.notices
@@ -184,18 +251,58 @@ class TurnPipeline:
         )
 
         messages: list[dict[str, Any]] = []
-        if self.prompt_provider is not None:
-            prompt_messages = await self.prompt_provider(
-                agent=agent,
-                workspace_dir=workspace_dir,
-                tool_names=capabilities.tools,
-            )
-            messages.extend(prompt_messages or [])
-        messages.extend(history or [])
-        messages.extend(
-            {"role": "user", "content": item.get("content", "")}
+        prefix_owner = context_prefix
+        if prefix_owner is None and self.prompt_provider is not None:
+            # 不经 runner 的直接调用方（测试等）：按次建立 owner，单轮调用
+            # 等价于初始安装；跨轮前缀稳定需要调用方持有同一个 owner 并
+            # 把 install/refresh 产出的消息持久化进 history（runner 的做法）。
+            begin_context = getattr(self.prompt_provider, "begin_context", None)
+            if begin_context is not None:
+                prefix_owner = begin_context(
+                    agent=agent,
+                    workspace_dir=workspace_dir,
+                    tool_names=capabilities.tools,
+                )
+        if context_broker is not None:
+            # 会话级上下文投影（Task 4）：历史来自投影而非调用方；已进入
+            # 投影的 inbox 消息（重试/重启重放）按 message_id 剔除。
+            history = context_broker.current_messages(agent.id)
+            inbox_messages = context_broker.filter_pending_input(agent.id, inbox_messages)
+        history = history or []
+        # context_fresh：本轮是否处于新上下文边界（初始安装 / compact 后前缀
+        # 不在 history 头部 / 无前缀 owner 时的空 history 起点）。通知批次
+        # 据此在全量渲染与增量变更间切换（见 NoticeManager.collect_batch）。
+        context_fresh = False
+        if prefix_owner is not None:
+            if prefix_owner.matches(history):
+                # 前缀已安装：动态源变化只以追加消息出现在尾部。
+                messages.extend(history)
+                messages.extend(await prefix_owner.refresh())
+            else:
+                # 上下文初始化（或 compact/重试后前缀不在 history 头部）：
+                # 静态协议与首份动态快照整体安装到最前。
+                context_fresh = True
+                messages.extend(await prefix_owner.install())
+                messages.extend(history)
+        else:
+            context_fresh = not history
+            messages.extend(history)
+        # 输入消息只成形一次：请求与会话上下文投影里的条目逐字节一致
+        # （message_id 是重试/重启去重锚点，随条目进投影；线缆投影由
+        # adapters._to_api_message 丢弃该内部键）。
+        input_user_messages = [
+            {
+                "role": "user",
+                "content": item.get("content", ""),
+                **(
+                    {"message_id": str(item["message_id"])}
+                    if item.get("message_id")
+                    else {}
+                ),
+            }
             for item in inbox_messages
-        )
+        ]
+        messages.extend(input_user_messages)
         # Only messages that are actually entering the model context count as
         # consumed.  AgentHub-targeted mentions/replies carry a text marker.
         for item in inbox_messages:
@@ -220,7 +327,24 @@ class TurnPipeline:
         for stage in self.stages:
             await stage.before_llm(ctx, messages)
         if notice_sink is not None:
-            messages.extend(notice_sink.collect(agent.id))
+            # 通知按「未应用变更按顺序追加」消费：批次 park 为 pending，
+            # 消息写进上下文投影（commit_input）后才推进消费游标。
+            messages.extend(notice_sink.collect_batch(agent.id, fresh=context_fresh))
+
+        if context_broker is not None:
+            # 发送前：本轮输入（前缀安装/动态增量/inbox/通知批次）原子落进
+            # 会话上下文投影并持久化；持久化失败抛 EventPersistenceError，
+            # 请求不会发出（不发送未持久化的状态）。
+            await context_broker.commit_input(
+                agent=agent,
+                run_id=run_id,
+                context_prefix=prefix_owner,
+                notices=notice_sink,
+                user_messages=input_user_messages,
+            )
+        # 投影里的媒体是稳定引用（image_ref：路径 + fallback 文本）；
+        # 发送前解析为 data URL 或文本降级，投影不重嵌 base64。
+        messages = await resolve_media_references(messages, vision_enabled=vision_enabled)
 
         self.event_log.append(
             "llm.request_started",

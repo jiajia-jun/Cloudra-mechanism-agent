@@ -80,10 +80,6 @@ def _stop_call(call_id: str = "tc-stop", **arguments) -> LLMResponse:
     )
 
 
-async def _stub_summarizer(messages, **_kwargs):
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _new_core(llm, *, workspace_dir=None, extra_stages=(), **runner_kwargs):
     core = RuntimeCore(strict_events=True)
     stages = [*extra_stages, *default_stages(core)]
@@ -98,7 +94,6 @@ async def _new_core(llm, *, workspace_dir=None, extra_stages=(), **runner_kwargs
         core,
         pipeline,
         retry_backoff=(0.01, 0.01),
-        run_summarizer=_stub_summarizer,
         **runner_kwargs,
     )
     bus = CommandBus(core)
@@ -404,7 +399,7 @@ async def test_valid_exit_approval_allows_finish(tmp_path):
         all_requests = await _review_requests(project.id, state=None)
         assert len(all_requests) == 1
         # 裁决通知确实进了 coordinator 的上下文通道（pin）。
-        pinned = core.notices.collect(coordinator.id)
+        pinned = core.notices.collect_batch(coordinator.id, fresh=True)
         assert any("verdict=accept" in m["content"] for m in pinned)
     finally:
         await _teardown(core)
@@ -755,7 +750,7 @@ async def test_message_arriving_during_gate_evaluation_is_not_lost(tmp_path):
         notices=core.notices,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     try:
         await bus.execute(
@@ -822,7 +817,7 @@ async def test_cancel_during_gate_evaluation_wins_and_late_approval_does_not_rev
         notices=core.notices,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     try:
         await bus.execute(

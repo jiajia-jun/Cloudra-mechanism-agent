@@ -26,9 +26,11 @@
 - api_key 是 write-only 秘密，不进事件/快照（api_key_set 是 computed
   field，dump 恒反映内存秘密有无）——脚本全程不使用 api_key，等价比较
   才能对 computed dump 成立。
-- pending_compactions 已由 compaction.requested 事件承载（3c），但其
-  消费/作废含 shell 侧动作（runner 消费、resume 作废），不是纯事件投影，
-  故仍不在比较集内。
+- pending_compactions 已由 compaction.requested 事件承载（3c），消费在
+  runner 的轮次边界（shell 侧动作；Task 4 起跨 run 存活、不再作废），
+  不是纯事件投影，故仍不在比较集内。
+- session_contexts 由 context.prefix_installed/appended/compacted 承载，
+  快照载荷随 save_snapshot 落地——在比较集内（_contexts_dump）。
 
 任何新增状态承载事件若绕过 apply_event，或拍序倒退回"状态先于事件"，
 本文件必须转红。
@@ -72,6 +74,14 @@ def _state_dump(core: RuntimeCore) -> dict:
 
 def _pins_dump(core: RuntimeCore) -> dict:
     return {sid: dict(pins) for sid, pins in core.notices._pins.items()}
+
+
+def _contexts_dump(core: RuntimeCore) -> dict:
+    """会话级 LLM 上下文投影（Task 4 状态承载事件：context.prefix_installed /
+    appended / compacted）——必须在三路径上逐字段全等。"""
+    return {
+        sid: ctx.model_dump(mode="json") for sid, ctx in core.session_contexts.items()
+    }
 
 
 def _replay_all(store: RuntimeStore) -> RuntimeCore:
@@ -195,7 +205,7 @@ async def test_quiescent_state_snapshot_restore_equals_pure_replay(tmp_path):
         Command(type="agent.restart", target={"session_id": coord.id}, payload={})
     )
     assert not rejected.accepted
-    # notices 投影：pin + unpin + push（push 是一次性的，不参与恢复比较）
+    # notices 投影：pin + unpin + push
     await bus.execute(
         Command(
             type="context.inject",
@@ -242,6 +252,64 @@ async def test_quiescent_state_snapshot_restore_equals_pure_replay(tmp_path):
     # notices pins 也是事件投影：三路径一致
     assert _pins_dump(restored) == _pins_dump(core)
     assert _pins_dump(replayed) == _pins_dump(core)
+    # 会话上下文投影（context.* 事件 + 快照载荷）：三路径一致
+    assert _contexts_dump(restored) == _contexts_dump(core)
+    assert _contexts_dump(replayed) == _contexts_dump(core)
+
+
+@pytest.mark.asyncio
+async def test_live_run_context_events_replay_equal(tmp_path):
+    """场景 E：真实 runner 产出的 context.* 事件（prefix_installed/appended）
+    在三路径上逐字段全等——live / 快照恢复 / 纯重放。"""
+    from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.policies import default_stages
+    from cloudra.runtime_v2.policies.base import ToolResult
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+
+    class _ScriptedLLM:
+        async def complete(self, agent, messages, tools, **_kwargs):
+            return LLMResponse(content="done", stop_requested=True)
+
+    class _EchoTools:
+        async def execute(self, agent, call, **_kwargs):
+            return ToolResult(is_success=True, summary="ok", data={})
+
+    core, store, bus = _wire(tmp_path, "contexts.db")
+    pipeline = TurnPipeline(
+        event_log=core.event_log, stages=default_stages(), llm=_ScriptedLLM(), tools=_EchoTools()
+    )
+    core.runner = AgentRunner(core, pipeline)
+    project = (await bus.execute(Command(type="project.create", payload={"name": "live"}))).data
+    agent = (
+        await bus.execute(
+            Command(
+                type="agent.spawn",
+                target={"project_id": project.id},
+                payload={"role_id": "coordinator", "query": "solve it"},
+            )
+        )
+    ).data
+    # 纯文本回复在两种调用协议下都直接收尾，无需改协议设置（设置改动必须
+    # 走事件，否则活 core 与重放 core 的 agent 投影分叉）。
+    deadline = asyncio.get_running_loop().time() + 5.0
+    while agent.state.value != "succeeded":
+        assert asyncio.get_running_loop().time() < deadline, "agent did not finish"
+        await asyncio.sleep(0.01)
+    # 上下文事件确实产生过（否则本场景是空守）
+    types = {e.type for e in core.event_log.query_session(agent.id)}
+    assert "context.appended" in types
+    await bus.flush_snapshot()
+    _assert_quiescent(core)
+
+    restored = RuntimeCore(strict_events=True)
+    restore_core(restored, store)
+    replayed = _replay_all(store)
+    live_dump = _state_dump(core)
+    assert _state_dump(restored) == live_dump
+    assert _state_dump(replayed) == live_dump
+    assert _contexts_dump(core), "live core has no session context"
+    assert _contexts_dump(restored) == _contexts_dump(core)
+    assert _contexts_dump(replayed) == _contexts_dump(core)
 
 
 @pytest.mark.asyncio
@@ -390,6 +458,8 @@ async def test_interleaved_projects_snapshot_tail_zero_loss(tmp_path):
     assert _state_dump(restored) == live_dump
     assert _state_dump(replayed) == live_dump
     assert _pins_dump(restored) == _pins_dump(core)
+    assert _contexts_dump(restored) == _contexts_dump(core)
+    assert _contexts_dump(replayed) == _contexts_dump(core)
 
 
 @pytest.mark.asyncio

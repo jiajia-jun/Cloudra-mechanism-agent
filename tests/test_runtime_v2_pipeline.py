@@ -100,11 +100,33 @@ class RecordingLLM:
 
 @pytest.mark.asyncio
 async def test_prompt_provider_messages_are_prepended():
+    """新契约（Task 2）：prompt provider vend per-run ContextPrefix owner，
+    首轮转 install（静态前缀置于请求最前），同一上下文恰好安装一次。"""
     core = RuntimeCore(strict_events=True)
     _, agent = await _spawn_agent(core)
-    async def provider(**kwargs):
-        return [{"role": "system", "content": "ROLE PROMPT"}]
 
+    class StaticPrefix:
+        def __init__(self):
+            self.installs = 0
+
+        def matches(self, history):
+            return False
+
+        async def install(self):
+            self.installs += 1
+            return [{"role": "system", "content": "ROLE PROMPT"}]
+
+        async def refresh(self):
+            return []
+
+    class PrefixProvider:
+        def __init__(self):
+            self.prefix = StaticPrefix()
+
+        def begin_context(self, **_kwargs):
+            return self.prefix
+
+    provider = PrefixProvider()
     pipeline = TurnPipeline(
         event_log=core.event_log,
         stages=default_stages(),
@@ -122,6 +144,7 @@ async def test_prompt_provider_messages_are_prepended():
     messages = pipeline.llm.messages
     assert messages[0] == {"role": "system", "content": "ROLE PROMPT"}
     assert messages[1] == {"role": "user", "content": "hello"}
+    assert provider.prefix.installs == 1
 
 
 @pytest.mark.asyncio
@@ -486,7 +509,7 @@ async def test_loop_detected_after_threshold_identical_calls():
     events = core.event_log.query_session(agent.id, types={"loop.detected"})
     assert len(events) == 1
     assert events[0].data == {"tool_name": "echo", "repeat": 3}
-    warnings = notices.collect(agent.id)
+    warnings = notices.collect_batch(agent.id, fresh=False)
     assert len(warnings) == 1
     assert "Loop detected" in warnings[0]["content"]
 

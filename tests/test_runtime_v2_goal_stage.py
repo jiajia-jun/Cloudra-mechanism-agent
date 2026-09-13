@@ -109,6 +109,76 @@ async def test_goal_replaced_across_turns():
     assert notices._pins[agent.id]["goal"].startswith("[Task goal] v2")
 
 
+@pytest.mark.asyncio
+async def test_goal_update_and_clear_are_append_only():
+    """Task 3 契约：goal 设置注入一次；更新追加标明替代关系的新版本；
+    清除追加撤销说明；history 里的旧 goal 消息不被过滤重写。"""
+    notices = NoticeManager()
+    llm = _FakeLLM()
+    current = {"goal": {"objective": "v1"}}
+    pipeline = TurnPipeline(
+        event_log=EventLog(strict=True),
+        stages=[GoalStage()],
+        llm=llm,
+        tools=_FakeTools(),
+        goal_reader=lambda agent: current["goal"],
+    )
+    agent = _agent()
+
+    history: list[dict] = []
+
+    async def turn():
+        await pipeline.run_turn(
+            agent=agent,
+            run_id="run1",
+            settings=RuntimeSettings(),
+            capabilities=AgentCapabilities(permissions=PermissionSet(), tools=[]),
+            inbox_messages=[] if history else [{"content": "hi"}],
+            history=history,
+            notices=notices,
+        )
+        notice_messages = notices.confirm_consumed(agent.id)
+        if not any(m.get("role") == "user" for m in history):
+            history.append({"role": "user", "content": "hi"})
+        history.extend(notice_messages)
+        history.append({"role": "assistant", "content": "ok"})
+
+    await turn()  # goal v1 进入上下文
+    goal_positions = [
+        i for i, m in enumerate(llm.seen[0]) if "[Task goal] v1" in str(m.get("content"))
+    ]
+    assert len(goal_positions) == 1
+
+    await turn()  # 未变化：不重复
+    assert llm.seen[1][: len(llm.seen[0])] == llm.seen[0]
+    assert not any(
+        "[Task goal]" in str(m.get("content")) for m in llm.seen[1][len(llm.seen[0]):]
+    )
+
+    current["goal"] = {"objective": "v2"}
+    await turn()  # 更新：追加新版本，旧版本在历史里原位保留
+    v1_in_third = [
+        i for i, m in enumerate(llm.seen[2]) if "[Task goal] v1" in str(m.get("content"))
+    ]
+    assert v1_in_third == goal_positions
+    updates = [
+        m
+        for m in llm.seen[2]
+        if str(m.get("content") or "").startswith("[Updated context notice: goal]")
+    ]
+    assert len(updates) == 1 and "[Task goal] v2" in updates[0]["content"]
+
+    current["goal"] = None
+    await turn()  # 清除：追加撤销说明，不过滤任何旧消息
+    assert llm.seen[3][: len(llm.seen[2])] == llm.seen[2]
+    retractions = [
+        m
+        for m in llm.seen[3][len(llm.seen[2]):]
+        if str(m.get("content") or "").startswith("[Context notice retracted: goal]")
+    ]
+    assert len(retractions) == 1
+
+
 def test_resolve_goal_content_pure():
     """纯决策函数：goal 载荷 → 注入文本（与旧 stage 内联逻辑逐分支一致）。"""
     assert resolve_goal_content(None) == ""

@@ -12,6 +12,7 @@
 """
 
 import asyncio
+import hashlib
 import json
 import random
 import re
@@ -1159,11 +1160,55 @@ def _build_responses_payload(kwargs: dict) -> dict:
 
 def _translate_responses_usage(data: dict) -> dict:
     usage = data.get("usage") or {}
-    return {
+    translated = {
         "prompt_tokens": usage.get("input_tokens"),
         "completion_tokens": usage.get("output_tokens"),
         "total_tokens": (usage.get("input_tokens") or 0) + (usage.get("output_tokens") or 0),
     }
+    # 缓存细项原样保留：命中率统计依赖 input_tokens_details.cached_tokens。
+    # 缺失的字段不补 0——「provider 未报告」与「报告为 0」必须可区分。
+    for key in ("input_tokens_details", "output_tokens_details"):
+        details = usage.get(key)
+        if isinstance(details, dict):
+            translated[key] = dict(details)
+    return translated
+
+
+def _hash_wire_item(item: Any) -> str:
+    canonical = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def request_fingerprint(kwargs: dict) -> dict:
+    """最终线缆请求的结构指纹（诊断用）：逐条消息哈希 + 工具协议哈希。
+
+    只含哈希、计数与模型名——绝不输出消息原文、工具参数或 API key。
+    """
+    messages = kwargs.get("messages") or []
+    tools = kwargs.get("tools") or []
+    return {
+        "message_count": len(messages),
+        "message_hashes": [_hash_wire_item(message) for message in messages],
+        "tools_hash": _hash_wire_item(tools),
+        "model": str(kwargs.get("model") or ""),
+    }
+
+
+def first_prefix_divergence(
+    previous_hashes: list[str], current_hashes: list[str]
+) -> Optional[int]:
+    """两条请求的逐消息哈希比对：返回首个前缀分歧下标，无分歧返回 None。
+
+    当前请求是上一条的完整前缀延长时返回 None；一方是另一方的真前缀
+    （变长/变短）或同下标内容变化时返回该下标。
+    """
+    common = min(len(previous_hashes), len(current_hashes))
+    for index in range(common):
+        if previous_hashes[index] != current_hashes[index]:
+            return index
+    if len(previous_hashes) > len(current_hashes):
+        return common
+    return None
 
 
 def _translate_responses_completion(data: dict) -> dict:

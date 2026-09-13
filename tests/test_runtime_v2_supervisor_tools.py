@@ -57,10 +57,6 @@ class ScriptedLLM:
         return self.responses.pop(0)
 
 
-async def _stub_summarizer(messages):
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(llm, workspace: Path) -> tuple[RuntimeCore, CommandBus, object, object]:
     """生产同款装配（LegacyToolExecutor + 全量策略阶段），工作区指向 tmp。"""
     core = RuntimeCore(strict_events=True)
@@ -78,7 +74,7 @@ async def _setup(llm, workspace: Path) -> tuple[RuntimeCore, CommandBus, object,
         invocations=invocations,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     project = (

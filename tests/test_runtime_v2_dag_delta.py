@@ -71,7 +71,7 @@ async def test_delivery_delta_appended_to_tool_result_and_pushed():
         result,
     )
     assert "[DAG] evidence bound: log_parser → e_da_step (proposed→computed)" in result.summary
-    pushed = ctx.notices.collect(ctx.agent.id)
+    pushed = ctx.notices.collect_batch(ctx.agent.id, fresh=False)
     assert any("[DAG] evidence bound" in m["content"] for m in pushed)
 
 
@@ -85,4 +85,4 @@ async def test_no_delta_adds_no_noise():
     result = ToolResult(is_success=True, summary="ok")
     await stage.after_tool(ctx, ToolCall(id="tc1", name="bash", arguments={}), result)
     assert result.summary == "ok"
-    assert ctx.notices.collect(ctx.agent.id) == []
+    assert ctx.notices.collect_batch(ctx.agent.id, fresh=False) == []

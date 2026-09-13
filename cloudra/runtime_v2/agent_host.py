@@ -61,9 +61,8 @@ _TRANSITIONS: dict[AgentState, frozenset[AgentState]] = {
 }
 
 _CONTEXT_RESET_NOTE = (
-    "dialogue history was reset; continuity via "
-    "context tree (handover + run summaries), "
-    "goal/memory/workspace files"
+    "session dialogue context was reset by an explicit restart; "
+    "continuity via goal/memory/workspace files"
 )
 
 
@@ -196,9 +195,8 @@ def plan_wake(agent: AgentSession) -> tuple[list[EventDraft], bool]:
     succeeded/queued agents start a new run, and waiting agents resume the
     current one.
 
-    Reopening a terminal agent resets the run-local dialogue history, so an
-    ``agent.context_reset`` event marks the boundary explicitly: continuity
-    now comes from the goal pin, memory, DAG and workspace files.
+    跨 run 不再重置对话（Task 4）：会话上下文是 session 级投影，重开/唤醒
+    沿用同一投影；只有显式 restart 命令才落 agent.context_reset 清投影。
 
     注意草稿是针对 agent 当前快照一次算全的（restart 后再 start_run 的中间
     态由本函数内部推导），调用方落日志前不得改动 agent。
@@ -206,7 +204,6 @@ def plan_wake(agent: AgentSession) -> tuple[list[EventDraft], bool]:
     state = agent.state
     if state is AgentState.RUNNING:
         return [], False
-    previous = state
     drafts: list[EventDraft] = []
     if state in {AgentState.FAILED, AgentState.CANCELLED}:
         drafts.append(
@@ -216,25 +213,6 @@ def plan_wake(agent: AgentSession) -> tuple[list[EventDraft], bool]:
     if state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
         run_id = new_id("run")
         drafts.extend(_start_run_drafts(agent, state, run_id))
-        if previous in {
-            AgentState.FAILED,
-            AgentState.CANCELLED,
-            AgentState.SUCCEEDED,
-        }:
-            drafts.append(
-                EventDraft(
-                    "agent.context_reset",
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data={
-                        "reason": "auto_reopen",
-                        "previous_outcome": previous.value,
-                        "note": _CONTEXT_RESET_NOTE,
-                    },
-                )
-            )
         return drafts, True
     # WAITING_INPUT / WAITING_APPROVAL: resume the parked run.
     if agent.current_run is None:

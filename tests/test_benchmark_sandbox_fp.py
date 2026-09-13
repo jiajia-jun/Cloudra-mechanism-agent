@@ -37,7 +37,6 @@ from tests.benchmark_support import (
     calls,
     crash,
     js,
-    stub_run_summarizer,
     text,
     wait_until,
 )
@@ -495,7 +494,6 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
 
     backend = RuntimeV2Backend(
         llm=llm,
-        run_summarizer=stub_run_summarizer,
         start_scheduler=True,
         poll_interval_s=0.05,
         run_timeout_s=60.0,
@@ -741,7 +739,6 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
     backend = RuntimeV2Backend(
         llm=llm, start_scheduler=True, poll_interval_s=0.05,
         run_timeout_s=60.0, stuck_grace_s=10.0,
-        run_summarizer=stub_run_summarizer,
     )
 
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
@@ -786,7 +783,7 @@ def _run_cli_task(tmp_path, monkeypatch, llm, *, task_id: str = "T1",
                   method_allowed: tuple[str, ...] = ("b3lyp",)):
     """CLI 入口跑一题（引擎由调用方先 install_engine 并设好控制文件）。"""
     backend = RuntimeV2Backend(
-        llm=llm, run_summarizer=stub_run_summarizer, start_scheduler=True,
+        llm=llm, start_scheduler=True,
         poll_interval_s=0.05, run_timeout_s=60.0, stuck_grace_s=10.0,
     )
     tasks_dir = _write_tasks(
@@ -1118,6 +1115,14 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
         coordinator_steps.append(
             calls(turn, [("stop", _exit_stop_arguments)], run=4, content=_BARRIER)
         )
+    # 多出的收尾 run 的幂等补位（Task 4 注：per-run finalize 摘要管线删除后
+    # run 间不再夹着一次摘要 LLM 调用，通知与 run 边界的交错窗口随之移动，
+    # 收尾通知可能多驱动一个 run——内容同为幂等 stop，未用到的条目无害）。
+    for extra_run in range(5, 9):
+        for turn in range(1, 5):
+            coordinator_steps.append(
+                calls(turn, [("stop", _exit_stop_arguments)], run=extra_run, content=_BARRIER)
+            )
     llm.script("coordinator", coordinator_steps)
 
     # 子 agent：run1 = 确定性 compute 链 + 显式送审；run2 = 收到 call verdict 后收尾
@@ -1130,11 +1135,15 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch):
         child_steps.append(text(turn, "evidence submitted for review", run=1))
     for turn in range(1, 5):
         child_steps.append(text(turn, "call verdict received", run=2))
+    # 多出的收尾 run 的幂等补位（同 coordinator 注：run 边界交错窗口移动）
+    for extra_run in range(3, 7):
+        for turn in range(1, 4):
+            child_steps.append(text(turn, "call verdict received", run=extra_run))
     llm.script("small_mol", child_steps)
 
     # Supervisor：真实 agent；每轮自读持久信箱裁决当前待办（run 键控脚本）
     supervisor_steps = []
-    for run_index in range(1, 6):
+    for run_index in range(1, 9):
         supervisor_steps.append(js(1, _supervisor_catchup_program, run=run_index))
         for turn in range(2, 6):
             supervisor_steps.append(

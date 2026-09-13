@@ -21,26 +21,32 @@
 - project.created / project.updated / project.settings_changed /
   project.deleted（硬删除 tombstone：项目与其 agent 从投影移除）
 - role.updated
-- agent.spawned / agent.settings_changed / agent.state_changed
-- run.started（顺带作废该 agent 的 pending_compactions 投影——新 run 的
-  内存 history 与旧压缩请求无关）/ run.finished / agent.cancelled
-- compaction.requested（``pending_compactions`` 投影的唯一写入点）
+- agent.spawned / agent.settings_changed / agent.state_changed /
+  agent.context_reset（显式 restart 的上下文重置：清空该 session 的
+  上下文投影；自动唤醒重开 run 不再重置上下文）
+- run.started / run.finished / agent.cancelled
+- compaction.requested（``pending_compactions`` 投影的唯一写入点；
+  跨 run 存活，由 runner 在下个轮次边界应用到会话上下文）
+- context.prefix_installed / context.appended / context.compacted
+  （``session_contexts`` 会话级 LLM 上下文投影，Task 4）
 
 纯通知/投影类事件（明确 no-op，与 projects/agents/roles 状态无关）：
 - 意图与审计标记：agent.spawn_requested / agent.spawn_rejected /
   agent.cancel_requested / agent.restart_requested / agent.restarted /
-  agent.context_reset / command.rejected /
+  command.rejected /
   agent.message_emitted / agent.warning / loop.detected / project.synced
 - 消息与对话：agent.message_injected / agent.thinking（inbox 内容不重建：
-  run 只活在内存，恢复后由新发消息驱动）
+  输入消息由 context.appended 进会话上下文投影；mailbox 队列是易失 shell）
 - 运行过程流：llm.* / tool.* / run.retry / dag.gate_blocked /
   hub.posted / compaction.started / compaction.finished
 - 自有恢复通道的投影（不经本函数）：approval.* / interaction.*
   （pending 投影直接查事件日志；孤儿由 restore 落 approval.expired /
   interaction.expired 显式闭合）、reminder.*（reminders 投影 + rearm）、
-  context.pin_set / context.pin_cleared / context.injected
-  （``notices.restore_from``）、context.run_summarized /
-  context.handover_updated（context tree）、email.received
+  context.pin_set / context.pin_cleared / context.injected /
+  context.notices_consumed（``notices.restore_from`` 重放重建 pin 状态、
+  变更日志与消费游标）、email.received；
+  context.run_summarized / context.handover_updated 已随 per-run 自动
+  摘要管线删除（Task 4），只剩历史日志里的旧事件（transcript 只读渲染）。
 
 不在事件模型内的状态：``runtime_defaults``（只由 API/嵌入方直接赋值，
 无事件承载）、api_key（write-only 秘密，永不进事件/快照）。
@@ -59,6 +65,7 @@ from cloudra.runtime_v2.schemas import (
     Project,
     ProjectSettings,
     RuntimeSettingsPatch,
+    SessionContext,
 )
 
 if TYPE_CHECKING:
@@ -159,11 +166,8 @@ def _apply_run_started(core: RuntimeCore, envelope: EventEnvelope) -> None:
         invocation_protocol=InvocationProtocol(protocol),
     )
     agent.updated_at = envelope.created_at
-    # A new run rebuilds its in-memory history from scratch, so a manual
-    # compaction requested against the previous run's history is meaningless:
-    # the projection entry expires here (resume has no run.started; the runner
-    # shell discards the entry itself there — see agent_runner._run).
-    core.pending_compactions.pop(agent.id, None)
+    # 上下文是 session 级投影（Task 4），跨 run 连续：pending 压缩请求
+    # 不再随 run.started 作废，由 runner 在下个轮次边界应用到会话上下文。
 
 
 def _apply_run_cleared(core: RuntimeCore, envelope: EventEnvelope) -> None:
@@ -180,6 +184,49 @@ def _apply_compaction_requested(core: RuntimeCore, envelope: EventEnvelope) -> N
     core.pending_compactions[session_id] = int(envelope.data.get("keep_recent") or 20)
 
 
+def _context_of(core: RuntimeCore, session_id: str) -> SessionContext:
+    ctx = core.session_contexts.get(session_id)
+    if ctx is None:
+        ctx = SessionContext()
+        core.session_contexts[session_id] = ctx
+    return ctx
+
+
+def _apply_context_prefix_installed(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    """上下文初始安装：静态前缀消息位于已有内容（如 compact 残留）之前。"""
+    if not envelope.session_id:
+        return
+    ctx = _context_of(core, envelope.session_id)
+    data = envelope.data or {}
+    installed = [dict(message) for message in data.get("messages") or []]
+    ctx.messages = [*installed, *ctx.messages]
+    ctx.prefix_meta = dict(data.get("meta") or {})
+
+
+def _apply_context_appended(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    if not envelope.session_id:
+        return
+    ctx = _context_of(core, envelope.session_id)
+    ctx.messages.extend(dict(message) for message in (envelope.data or {}).get("messages") or [])
+
+
+def _apply_context_compacted(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    """compact 候选原子安装：整条会话上下文一次替换；事件携带的新头部
+    （重新装配的前缀）元数据一并更新 prefix_meta。"""
+    if not envelope.session_id:
+        return
+    ctx = _context_of(core, envelope.session_id)
+    data = envelope.data or {}
+    ctx.messages = [dict(message) for message in data.get("messages") or []]
+    ctx.prefix_meta = dict(data["prefix_meta"]) if data.get("prefix_meta") else None
+
+
+def _apply_context_reset(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    """显式 restart 的上下文重置：会话上下文投影随之清空（新边界）。"""
+    if envelope.session_id:
+        core.session_contexts.pop(envelope.session_id, None)
+
+
 _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "project.created": _apply_project_created,
     "project.updated": _apply_project_updated,
@@ -192,7 +239,11 @@ _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "run.started": _apply_run_started,
     "run.finished": _apply_run_cleared,
     "agent.cancelled": _apply_run_cleared,
+    "agent.context_reset": _apply_context_reset,
     "compaction.requested": _apply_compaction_requested,
+    "context.prefix_installed": _apply_context_prefix_installed,
+    "context.appended": _apply_context_appended,
+    "context.compacted": _apply_context_compacted,
 }
 
 

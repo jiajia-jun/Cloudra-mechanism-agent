@@ -195,8 +195,9 @@ async def test_compaction_request_event_rebuilds_projection(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_run_started_clears_pending_compaction_projection(tmp_path):
-    """新 run 的内存 history 与旧压缩请求无关：run.started 应用时清投影，
+async def test_pending_compaction_survives_run_boundaries(tmp_path):
+    """Task 4 新契约：上下文是 session 级投影、跨 run 连续——压缩请求不再随
+    run.started 作废，存活到 runner 的下个轮次边界应用到会话上下文；
     活 core 与重放 core 一致。"""
     core, store, bus = _wire(tmp_path, "compact_clear.db")
     project, agent = await _project_and_agent(core, bus)
@@ -205,12 +206,13 @@ async def test_run_started_clears_pending_compaction_projection(tmp_path):
         Command(type="agent.compact", target={"session_id": agent.id}, payload={"keep_recent": 5})
     )
     assert core.pending_compactions == {agent.id: 5}
-    # message → wake → run.started：投影由 apply_event 清除
+    # message → wake → run.started：投影**保留**（无 runner 的纯状态模式下
+    # 没有轮次边界消费，条目继续等待）。
     await bus.execute(
         Command(type="agent.message", target={"session_id": agent.id}, payload={"content": "go"})
     )
-    assert core.pending_compactions == {}
+    assert core.pending_compactions == {agent.id: 5}
 
     restored = RuntimeCore(strict_events=True)
     restore_core(restored, store)
-    assert restored.pending_compactions == {}
+    assert restored.pending_compactions == {agent.id: 5}

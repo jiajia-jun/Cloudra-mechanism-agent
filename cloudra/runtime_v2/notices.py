@@ -1,28 +1,31 @@
 """Unified per-session context injection for the v2 turn pipeline.
 
-Two channels, collected only when ``TurnPipeline`` assembles the LLM
-request:
+Two channels (call surface unchanged):
 
 - ``pin(session_id, key, content)`` / ``unpin``: idempotent-by-key resident
-  injections rebuilt every turn (goal anchor, DAG projection, supervisor
-  advice).  Re-pinning the same key replaces content and keeps registration
-  order.
-- ``push(session_id, content)``: one-shot; drained the next time
-  ``collect`` runs, then gone.
+  injections (goal anchor, DAG projection, supervisor advice).  Re-pinning
+  identical content is a no-op — no event, no change record, no message.
+- ``push(session_id, content)``: one-shot hint.
 
-``collect`` renders pins first (registration order), then drained pushes,
-each as ``{"role": "system", "content": ...}``.  Tool-result attachments
-(``[DAG]`` lines inside a ToolResult) stay on that channel.
+Consumption model（计划 2026-09-13-harness-cache-continuity Task 3）：
+从「每轮重建快照」改为「未应用变更按顺序追加」。每个变更先落事件
+（``context.pin_set`` / ``context.pin_cleared`` / ``context.injected``），
+变更身份即事件的 per-session 序号（``session_seq``）。``TurnPipeline``
+每轮调 ``collect_batch`` 取回自消费游标以来的变更批次——批次立即 park
+为 pending：LLM 重试拿到同一批已准备消息，绝不再次 drain 出不同请求。
+只有消息真正写进 history 后，runner 调 ``confirm_consumed`` 推进游标
+（落 ``context.notices_consumed`` 事件）——失败/取消不确认，变更留在
+pending 里随下一批重发：不重复、不丢失。
 
-Event sourcing: when ``attach``ed (RuntimeCore does this), every *change*
-is also an event — ``context.pin_set`` / ``context.pin_cleared`` /
-``context.injected`` — so injections are auditable, replayable, and
-reachable from outside the process (the ``context.inject`` command).
-Stages re-pin identical content every turn; those no-op writes are
-deduplicated and produce no events, keeping the log sparse.  Pins are
-restored from the event projection on startup (``restore_from``); pushes
-are not restored — a one-shot hint that died unconsumed with the process
-is gone, and its event remains as the audit record.
+上下文边界（``fresh=True``：run 起点、compact 重装、无前缀 owner 时的空
+history）：当前 pin 状态全量渲染 + 未消费 push，游标推进到全部已表达
+变更。同上下文内（``fresh=False``）只渲染增量：pin 更新渲染为标明替代
+关系的更新消息，unpin 渲染为撤销说明。
+
+Event sourcing: ``restore_from`` 重放事件日志重建 pin 当前状态、变更日志
+与消费游标；游标之后的变更（从未进入任何上下文）跨重启保持 pending
+（不丢失）。已消费的 push 不恢复——它的消息只存在于旧进程的内存
+history；重启后的新上下文边界会重新表达 pin 的当前状态。
 """
 
 from __future__ import annotations
@@ -36,7 +39,14 @@ from cloudra.runtime_v2.events import EventLog
 class NoticeManager:
     def __init__(self) -> None:
         self._pins: dict[str, OrderedDict[str, str]] = defaultdict(OrderedDict)
-        self._pushes: dict[str, list[str]] = defaultdict(list)
+        # 变更日志：session_id -> [{seq, kind, key, content, is_update?}]，
+        # seq 是变更事件的 session_seq（未挂事件日志时为本地递增序号）。
+        self._changes: dict[str, list[dict]] = defaultdict(list)
+        # 消费游标：session_id -> 已进入上下文的最后一个变更 seq。
+        self._consumed: dict[str, int] = {}
+        # 已准备未确认的批次：session_id -> (messages, through_seq)。
+        self._pending_batches: dict[str, tuple[list[dict], int]] = {}
+        self._local_seqs: dict[str, int] = defaultdict(int)
         self._event_log: EventLog | None = None
         self._project_of: Callable[[str], str | None] | None = None
 
@@ -53,13 +63,13 @@ class NoticeManager:
         self._event_log = event_log
         self._project_of = project_of
 
-    def _emit(self, type: str, session_id: str, data: dict) -> None:
+    def _emit(self, type: str, session_id: str, data: dict):
         if self._event_log is None or self._project_of is None:
-            return
+            return None
         project_id = self._project_of(session_id)
         if project_id is None:
-            return
-        self._event_log.append(
+            return None
+        return self._event_log.append(
             type,
             stream="agent",
             project_id=project_id,
@@ -67,28 +77,93 @@ class NoticeManager:
             data=data,
         )
 
+    def _record_change(self, session_id: str, envelope, change: dict) -> None:
+        seq = getattr(envelope, "session_seq", None) if envelope is not None else None
+        if seq is None:
+            seq = self._local_seqs[session_id] + 1
+        self._local_seqs[session_id] = seq
+        self._changes[session_id].append({**change, "seq": seq})
+
     def restore_from(self, event_log: EventLog) -> None:
-        """Rebuild pins from the event projection (see module docstring)."""
+        """Rebuild pins, the change log and the consumption cursor from events.
+
+        游标之后的变更保持 pending（跨重启不丢）；已消费变更裁剪掉（与
+        ``confirm_consumed`` 的裁剪一致），pin 重建为当前状态。
+        """
         self._pins.clear()
+        self._changes.clear()
+        self._consumed.clear()
+        self._pending_batches.clear()
+        self._local_seqs.clear()
         for event in event_log:
             if event.session_id is None:
                 continue
+            session_id = event.session_id
+            seq = event.session_seq or 0
+            if seq:
+                self._local_seqs[session_id] = max(self._local_seqs[session_id], seq)
             if event.type == "context.pin_set":
                 key = str(event.data.get("key") or "")
-                if key:
-                    self._pins[event.session_id][key] = str(event.data.get("content") or "")
+                if not key:
+                    continue
+                content = str(event.data.get("content") or "")
+                pins = self._pins[session_id]
+                self._changes[session_id].append(
+                    {
+                        "seq": seq,
+                        "kind": "pin_set",
+                        "key": key,
+                        "content": content,
+                        "is_update": key in pins,
+                    }
+                )
+                pins[key] = content
             elif event.type == "context.pin_cleared":
-                pins = self._pins.get(event.session_id)
-                if pins is not None:
-                    pins.pop(str(event.data.get("key") or ""), None)
+                key = str(event.data.get("key") or "")
+                pins = self._pins.get(session_id)
+                if pins is None or key not in pins:
+                    continue
+                pins.pop(key, None)
+                if not pins:
+                    self._pins.pop(session_id, None)
+                self._changes[session_id].append(
+                    {"seq": seq, "kind": "pin_cleared", "key": key, "content": ""}
+                )
+            elif event.type == "context.injected":
+                content = str(event.data.get("content") or "")
+                if content:
+                    self._changes[session_id].append(
+                        {"seq": seq, "kind": "push", "key": "", "content": content}
+                    )
+            elif event.type == "context.notices_consumed":
+                through = int(event.data.get("through") or 0)
+                if through > self._consumed.get(session_id, 0):
+                    self._consumed[session_id] = through
+        for session_id, cursor in self._consumed.items():
+            self._changes[session_id] = [
+                change
+                for change in self._changes.get(session_id, [])
+                if change["seq"] > cursor
+            ]
 
     def pin(self, session_id: str, key: str, content: str) -> None:
         text = content if content is not None else ""
         pins = self._pins[session_id]
         # Dedup: stages re-pin identical content every turn; only actual
-        # changes are worth an event.
-        if pins.get(key) != text:
-            self._emit("context.pin_set", session_id, {"key": key, "content": text})
+        # changes are worth an event, a change record and a message.
+        if pins.get(key) == text:
+            return
+        envelope = self._emit("context.pin_set", session_id, {"key": key, "content": text})
+        self._record_change(
+            session_id,
+            envelope,
+            {
+                "kind": "pin_set",
+                "key": key,
+                "content": text,
+                "is_update": key in pins,
+            },
+        )
         pins[key] = text
 
     def pin_content(self, session_id: str, key: str) -> str | None:
@@ -101,26 +176,117 @@ class NoticeManager:
 
     def unpin(self, session_id: str, key: str) -> None:
         pins = self._pins.get(session_id)
-        if pins is None:
+        if pins is None or key not in pins:
             return
-        if key in pins:
-            self._emit("context.pin_cleared", session_id, {"key": key})
+        envelope = self._emit("context.pin_cleared", session_id, {"key": key})
         pins.pop(key, None)
         if not pins:
             self._pins.pop(session_id, None)
+        self._record_change(
+            session_id, envelope, {"kind": "pin_cleared", "key": key, "content": ""}
+        )
 
     def push(self, session_id: str, content: str) -> None:
         if content:
-            self._emit("context.injected", session_id, {"content": content})
-            self._pushes[session_id].append(content)
+            envelope = self._emit("context.injected", session_id, {"content": content})
+            self._record_change(
+                session_id, envelope, {"kind": "push", "key": "", "content": content}
+            )
 
-    def collect(self, session_id: str) -> list[dict[str, str]]:
-        messages: list[dict[str, str]] = []
-        for content in self._pins.get(session_id, {}).values():
-            if content:
-                messages.append({"role": "system", "content": content})
-        pushed = self._pushes.pop(session_id, [])
-        for content in pushed:
-            if content:
-                messages.append({"role": "system", "content": content})
+    def render_current(self, session_id: str) -> list[dict]:
+        """当前 pin 状态的纯渲染（compact 重建上下文头部用）：不 park 批次、
+        不动游标。未消费的 push 不在这里——它们走正常的增量批次通道。"""
+        return [
+            {"role": "system", "content": content}
+            for content in self._pins.get(session_id, {}).values()
+            if content
+        ]
+
+    # ------------------------------------------------------- consumption
+
+    @staticmethod
+    def _render_change(change: dict) -> dict:
+        kind = change["kind"]
+        if kind == "pin_set":
+            if change.get("is_update"):
+                return {
+                    "role": "system",
+                    "content": (
+                        f"[Updated context notice: {change['key']}]\n\n"
+                        f"This replaces the earlier notice pinned as "
+                        f"'{change['key']}' above:\n\n{change['content']}"
+                    ),
+                }
+            return {"role": "system", "content": change["content"]}
+        if kind == "pin_cleared":
+            return {
+                "role": "system",
+                "content": (
+                    f"[Context notice retracted: {change['key']}]\n\n"
+                    f"The earlier notice pinned as '{change['key']}' above is "
+                    "retracted; do not follow it."
+                ),
+            }
+        return {"role": "system", "content": change["content"]}
+
+    def collect_batch(self, session_id: str, *, fresh: bool) -> list[dict]:
+        """本轮要追加进上下文的通知批次（不推进消费游标）。
+
+        批次立即 park 为 pending：未确认前再次调用（LLM 重试）原样返回
+        同一批，绝不重新 drain 出不同请求。``fresh=True`` 是新上下文边界：
+        丢弃可能残留的过期 pending 批次（其覆盖的变更游标未推进，会被
+        下面的全量渲染重新覆盖），渲染当前 pin 状态 + 未消费 push。
+        """
+        pending = self._pending_batches.get(session_id)
+        if pending is not None and pending[0] and not fresh:
+            # 上一批非空且未确认（LLM 重试/崩溃）：同一批已准备消息原样返回。
+            # 空批次不锁定：什么都没发出去，新到达的变更可以立刻进下一批。
+            return [dict(message) for message in pending[0]]
+        cursor = self._consumed.get(session_id, 0)
+        changes = self._changes.get(session_id, [])
+        if fresh:
+            messages = [
+                {"role": "system", "content": content}
+                for content in self._pins.get(session_id, {}).values()
+                if content
+            ]
+            messages.extend(
+                {"role": "system", "content": change["content"]}
+                for change in changes
+                if change["kind"] == "push"
+                and change["seq"] > cursor
+                and change["content"]
+            )
+            # 当前 pin 状态已表达全部 pin 变更：游标推进到最大变更序号。
+            through = max((change["seq"] for change in changes), default=cursor)
+        else:
+            pending_changes = [change for change in changes if change["seq"] > cursor]
+            messages = [
+                message
+                for message in (self._render_change(change) for change in pending_changes)
+                if message["content"]
+            ]
+            through = max((change["seq"] for change in pending_changes), default=cursor)
+        self._pending_batches[session_id] = (messages, through)
+        return [dict(message) for message in messages]
+
+    def confirm_consumed(self, session_id: str) -> list[dict]:
+        """确认 pending 批次已进入上下文：返回批次消息并推进消费游标。
+
+        游标推进落 ``context.notices_consumed`` 事件（事件先于内存游标，
+        严格模式下未注册类型直接抛错，不伪造已消费）。无 pending 批次时是
+        幂等 no-op。已消费变更随即裁剪，变更日志有界。
+        """
+        pending = self._pending_batches.pop(session_id, None)
+        if pending is None:
+            return []
+        messages, through = pending
+        if through > self._consumed.get(session_id, 0):
+            self._emit("context.notices_consumed", session_id, {"through": through})
+            self._consumed[session_id] = through
+            self._changes[session_id] = [
+                change
+                for change in self._changes.get(session_id, [])
+                if change["seq"] > through
+            ]
         return messages

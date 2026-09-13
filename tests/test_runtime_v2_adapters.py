@@ -58,7 +58,10 @@ def _js_agent(protocol, *, current_run=None):
 
 
 @pytest.mark.asyncio
-async def test_js_mode_projects_js_exec_and_appends_instructions():
+async def test_js_mode_projects_js_exec_and_does_not_append_instructions():
+    """Task 2 新契约：adapter 不再把 JS instructions 追加到请求尾部；
+    它由 LegacyContextPrefix 在上下文初始化时安装一次（见
+    test_js_instructions_installed_once_via_context_prefix）。"""
     from cloudra.runtime_v2.schemas import InvocationProtocol
 
     sent: dict = {}
@@ -69,13 +72,46 @@ async def test_js_mode_projects_js_exec_and_appends_instructions():
     names = [s["function"]["name"] for s in sent["tools"]]
     assert names == ["js_exec", "stop"]  # business tools are guest-only
     assert sent["parallel_tool_calls"] is False
-    instructions = sent["messages"][-1]
-    assert instructions["role"] == "system"
-    assert "JavaScript invocation protocol" in instructions["content"]
-    assert "ToolResponse" in instructions["content"]
-    assert "declare const tools" in instructions["content"]
+    assert all(
+        "JavaScript invocation protocol" not in str(m.get("content"))
+        for m in sent["messages"]
+    )
     # The caller's message list is not mutated.
     assert messages == [{"role": "user", "content": "hi"}]
+
+
+@pytest.mark.asyncio
+async def test_js_instructions_installed_once_via_context_prefix(tmp_path):
+    """JS 调用协议是静态前缀的一部分：install 恰好安装一次，refresh 不重发。"""
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+
+    agent = SimpleNamespace(
+        id="as_js_prefix",
+        role_id="coordinator",
+        project_id="prj_js_prefix",
+        current_run=None,
+        settings=RuntimeSettings(
+            model="m",
+            base_url="https://api.example/",
+            api_key="sk-x",
+            invocation_protocol=InvocationProtocol.JAVASCRIPT,
+            clean_context=True,
+        ),
+    )
+    prefix = LegacyPromptProvider().begin_context(
+        agent=agent, workspace_dir=str(tmp_path), tool_names=["echo", "stop"]
+    )
+    installed = await prefix.install()
+    js_messages = [
+        m for m in installed if "JavaScript invocation protocol" in str(m.get("content"))
+    ]
+    assert len(js_messages) == 1
+    assert "ToolResponse" in js_messages[0]["content"]
+    assert "declare const tools" in js_messages[0]["content"]
+    assert prefix.matches(installed)
+    assert not prefix.matches([{"role": "user", "content": "unrelated"}])
+    # 动态源无变化：refresh 静默，JS instructions 不重复发送。
+    assert await prefix.refresh() == []
 
 
 @pytest.mark.asyncio
@@ -85,6 +121,9 @@ async def test_clean_context_provider_disables_implicit_project_sources(monkeypa
     class FakeAssembly:
         identity_messages = ({"role": "system", "content": "task skill"},)
         observation_messages = ()
+        observation_sources = ()
+        prompt_revision = "sha256:fake"
+        capability_revision = "sha256:fakecaps"
 
     class FakeAssembler:
         def __init__(self, **kwargs):
@@ -99,7 +138,8 @@ async def test_clean_context_provider_disables_implicit_project_sources(monkeypa
     agent.id = "agent"
     agent.project_id = "project"
     agent.settings.clean_context = True
-    messages = await LegacyPromptProvider()(agent=agent, workspace_dir=None, tool_names=[])
+    prefix = LegacyPromptProvider().begin_context(agent=agent, workspace_dir=None, tool_names=[])
+    messages = await prefix.install()
     assert messages[0]["content"] == "task skill"
     assert captured["include_memory"] is False
     assert captured["include_agents_md"] is False
@@ -638,6 +678,9 @@ async def test_prompt_provider_marks_web_search_available_with_native_adapter(mo
     class FakeAssembly:
         identity_messages = [{"role": "system", "content": "id"}]
         observation_messages = []
+        observation_sources = ()
+        prompt_revision = "sha256:fake"
+        capability_revision = "sha256:fakecaps"
 
     class FakeAssembler:
         def __init__(self, **_kwargs):
@@ -652,9 +695,11 @@ async def test_prompt_provider_marks_web_search_available_with_native_adapter(mo
         role_id="coordinator",
         project_id="p",
         id="as_x",
+        current_run=None,
         settings=_deepseek_agent().settings,
     )
-    messages = await LegacyPromptProvider()(agent=agent, workspace_dir=str(tmp_path), tool_names=["stop"])
+    prefix = LegacyPromptProvider().begin_context(agent=agent, workspace_dir=str(tmp_path), tool_names=["stop"])
+    messages = await prefix.install()
     assert captured["web_search_available"] is True
     assert messages[0]["content"] == "id"
 
@@ -682,3 +727,25 @@ def test_legacy_agent_bridge_falls_back_to_default_workspace():
     assert Path(bridge.working_directory).parent == Path(get_config().data_dir) / "workspaces"
     explicit = _LegacyAgentBridge(agent, "/tmp/explicit-ws")
     assert explicit.working_directory == "/tmp/explicit-ws"
+
+
+@pytest.mark.asyncio
+async def test_usage_cache_details_pass_through_to_response():
+    """LLMResponse.usage 保留 client.last_usage 的原始缓存细项（不丢
+    input_tokens_details.cached_tokens），缺失也不补 0。"""
+
+    class FakeClient:
+        last_usage = {
+            "prompt_tokens": 100,
+            "completion_tokens": 5,
+            "total_tokens": 105,
+            "input_tokens_details": {"cached_tokens": 80},
+        }
+
+        async def create_with_retry(self, **kwargs):
+            return _FakeStream([_chunk(content="ok", finish_reason="stop")])
+
+    provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
+    response = await provider.complete(_js_agent("traditional"), [{"role": "user", "content": "hi"}], ["stop"])
+    assert response.usage["input_tokens_details"]["cached_tokens"] == 80
+    assert response.usage["prompt_tokens"] == 100

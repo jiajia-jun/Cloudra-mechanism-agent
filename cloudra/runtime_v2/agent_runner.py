@@ -9,12 +9,20 @@ deliver inbox messages; execution concurrency lives here.
 wait_background / wait_review / allow_final 的处置（反馈下一轮 / 挂起等唤醒 /
 挂起等裁决 / 落终态）只在这里发生，门禁不阻止结束时绝不 finish_run(succeeded)。
 
-易失状态（3e）：``history``（本 run 的 LLM 对话原文）、``_tasks`` 与
-``_exit_strikes``（无进展退出计数）都是**刻意易失**的——对话原文不跨 run、
-不跨进程；计数器是 per-run shell 状态（run 只活在内存，重启后 running 的
-agent 由恢复路径落 failed），耗尽后的 failed 终态本身是持久事件，恢复语义
-不丢。跨 run 连续性由 context tree（handover + run 摘要）与
-goal/DAG/memory/工作区的外化状态承载，重启恢复靠事件投影重建后由新消息驱动。
+上下文模型（Task 4，计划 2026-09-13-harness-cache-continuity）：LLM 上下文
+是 **session 级事件溯源投影**（core.session_contexts，经 context.
+prefix_installed/appended/compacted 由 apply_event 重建），跨 run、跨重启
+连续；run 只是执行生命周期，不再各自重建对话。每个 run 创建自己的
+ContextPrefix owner，但 owner 状态从会话投影回灌（restored），跨 run 不重装
+前缀。发送 LLM 请求前，本轮输入（前缀增量/inbox/通知）经
+ContextBroker.commit_input 落事件并持久化；响应后 assistant/tool 消息经
+append_output 落事件——恰好一次。compact 的候选上下文经
+ContextBroker.install_compacted 一条事件原子安装。
+
+易失状态（3e）：``_tasks`` 与 ``_exit_strikes``（无进展退出计数）是
+**刻意易失**的 per-run shell 状态——run 只活在内存，重启后 running 的
+agent 由恢复路径落 failed；耗尽后的 failed 终态本身是持久事件，恢复语义
+不丢。
 """
 
 from __future__ import annotations
@@ -23,17 +31,8 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
-from cloudra.runtime_v2.context_tree import (
-    SEED_MARKER,
-    SUMMARY_EVENT_CAP,
-    build_seed_context,
-    build_summary_messages,
-    fallback_run_summary,
-    latest_handover,
-    parse_summary_output,
-)
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
 
 if TYPE_CHECKING:
@@ -41,9 +40,6 @@ if TYPE_CHECKING:
     from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 
 logger = logging.getLogger(__name__)
-
-# messages -> generated text; injected in tests, defaults to the agent's model.
-RunSummarizer = Callable[[list[dict[str, Any]]], Awaitable[str]]
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -106,10 +102,11 @@ def _is_context_length_error(exc: Exception) -> bool:
 class AgentRunner:
     """One async task per running agent.
 
-    A crashed turn is retried in place with the accumulated history (the crash
-    means the turn never returned, so nothing was appended — retrying is a
-    clean redo of the LLM request).  Only after ``max_turn_retries`` does the
-    run finish as failed; users should never have to retry transient failures
+    A crashed turn is retried in place: the input was committed to the
+    session context projection before the request was sent (and the failed
+    turn appended no output), so the retry rebuilds an identical request
+    from the projection.  Only after ``max_turn_retries`` does the run
+    finish as failed; users should never have to retry transient failures
     by hand.
     """
 
@@ -120,23 +117,21 @@ class AgentRunner:
         *,
         max_turn_retries: int = 2,
         retry_backoff: tuple[float, ...] = (2.0, 4.0),
-        run_summarizer: RunSummarizer | None = None,
         max_exit_strikes: int = DEFAULT_MAX_EXIT_STRIKES,
     ) -> None:
         self.core = core
         self.pipeline = pipeline
         self.max_turn_retries = max_turn_retries
         self.retry_backoff = retry_backoff
-        self.run_summarizer = run_summarizer
         self.max_exit_strikes = max_exit_strikes
         self._tasks: dict[str, asyncio.Task] = {}
         # 停止准入：cancel_all（shutdown）后拒绝一切 schedule/唤醒重排——
         # 否则取消收尾期间投递的消息会经 _task_finished 竞态关闭逻辑重新
         # 拉起新 run，关停后仍发新 LLM 请求（停止语义契约 3）。
         self._accepting = True
-        # session 作用域的后台任务登记（finalize 等）：session_id -> tasks。
-        # 刻意易失（与 _tasks 同理）；用户取消/shutdown 据此取消并 await
-        # 同作用域收尾（停止语义契约 1/3）。
+        # session 作用域的后台任务登记（子 agent 终态回报、launch group 等）：
+        # session_id -> tasks。刻意易失（与 _tasks 同理）；用户取消/shutdown
+        # 据此取消并 await 同作用域收尾（停止语义契约 1/3）。
         self._background: dict[str, set[asyncio.Task]] = {}
         # 无进展退出计数：session_id -> (run_id, 缺口指纹, 连续次数)。
         # 刻意易失（见模块 docstring）。
@@ -177,10 +172,11 @@ class AgentRunner:
     def track_background(
         self, session_id: str, task: asyncio.Task, *, label: str
     ) -> asyncio.Task:
-        """登记 session 作用域的后台任务（finalize 等）；完成自动出登记。
+        """登记 session 作用域的后台任务；完成自动出登记。
 
-        ``_schedule_run_finalize`` 必须走这里，禁止裸 create_task——未登记的
-        后台任务用户取消/shutdown 都碰不到（Task 0 取证 R1/R2）。
+        后台任务（子 agent 回报、launch group worker 等）必须走这里，禁止
+        裸 create_task——未登记的后台任务用户取消/shutdown 都碰不到
+        （Task 0 取证 R1/R2）。
         """
         self._background.setdefault(session_id, set()).add(task)
         task.add_done_callback(lambda done: self._background_finished(session_id, done))
@@ -197,10 +193,8 @@ class AgentRunner:
     async def cancel(self, session_id: str) -> None:
         """取消 run task + 该 session 全部已登记后台任务并 await。
 
-        作用域为 session（取消任一 run 即收掉该 session 的未完成收尾）。
-        先快照并取消既有后台任务再取消 run task：run task 的取消收尾会补
-        登记一个 cancelled 结局的 finalize（纯本地确定性收尾，不发 LLM），
-        它不在快照内、不被取消，随后由 drain 等它写完本地终态。
+        作用域为 session（取消任一 run 即收掉该 session 的未完成后台工作）。
+        先快照并取消既有后台任务再取消 run task，随后 drain 等本地收尾写完。
         """
         background = [t for t in self._background.get(session_id, ()) if not t.done()]
         for task in background:
@@ -221,9 +215,9 @@ class AgentRunner:
             await self.cancel(session_id)
 
     async def _drain_background(self, session_id: str) -> None:
-        """等掉取消收尾期间补登记的后台任务（cancelled 结局的确定性 finalize）。
+        """等掉取消收尾期间补登记的后台任务。
 
-        这些任务无 LLM 调用、有界完成；轮次上限只是防回归的保险。
+        这些任务有界完成；轮次上限只是防回归的保险。
         """
         for _ in range(5):
             pending = [
@@ -249,51 +243,63 @@ class AgentRunner:
             }:
                 run_id = agent.current_run.run_id
                 core.agent_host.resume(agent)
-                # A fresh run starts with empty history; any compaction
-                # requested against the previous in-memory history is
-                # meaningless now.  resume has no run.started event (whose
-                # apply clears the projection on the other two paths), so the
-                # shell discards the entry here.
-                core.pending_compactions.pop(agent.id, None)
+                # 上下文是 session 级投影：resume 不重置它；pending 压缩请求
+                # 跨 run 存活，由下面的主循环应用到会话上下文。
             elif agent.current_run is not None and agent.state is AgentState.RUNNING:
                 # The command layer already started/resumed this run and only
                 # scheduled the task afterwards.
                 run_id = agent.current_run.run_id
             else:
                 run_id = core.agent_host.start_run(agent)
-            history: list[dict] = []
-            seed_count = 0
-            seeded = False
+            contexts = core.contexts
+            # 上下文前缀 owner（Task 2/4）：每个 run 创建一个，但状态从会话
+            # 级上下文投影回灌（restored）——跨 run/重启不重装前缀，
+            # 静态协议与动态快照只在真实变化时以追加消息表达。
+            context_prefix = None
+            prompt_provider = getattr(self.pipeline, "prompt_provider", None)
+            if prompt_provider is not None:
+                context_prefix = prompt_provider.begin_context(
+                    agent=agent,
+                    workspace_dir=core.require_project(agent.project_id).workspace_dir,
+                    tool_names=agent.capabilities.tools,
+                    restored=contexts.prefix_state(agent.id),
+                )
+            turns = 0
+            from cloudra.runtime_v2.compaction import context_over_budget
+
             while agent.state is AgentState.RUNNING:
                 inbox_messages = self._drain_inbox(agent)
-                if not history and not inbox_messages:
+                if turns == 0 and not inbox_messages:
                     inbox = core.mailbox.ensure_inbox(agent.id)
                     message = await inbox.get()
                     inbox_messages.append(message)
-                if not seeded:
-                    # Continuity comes from the context tree: the newest
-                    # HANDOVER plus every verbatim instruction message paired
-                    # with compressed summaries of past runs.  Empty on the
-                    # very first run.  The messages this turn is about to
-                    # receive are excluded — they arrive via the inbox and
-                    # must not appear twice.
-                    seeded = True
-                    exclude = frozenset(
-                        str(m.get("message_id")) for m in inbox_messages if m.get("message_id")
-                    )
-                    seed = build_seed_context(
-                        core.event_log, agent.id, exclude_message_ids=exclude
-                    )
-                    history.extend(seed)
-                    seed_count = len(seed)
-                inbox_messages = await self._prepare_inbox_messages(agent, inbox_messages)
-                if history:
+                turns += 1
+                inbox_messages = self._prepare_inbox_messages(agent, inbox_messages)
+                if contexts.current_messages(agent.id):
                     keep_recent = core.pending_compactions.get(agent.id)
                     if keep_recent is not None:
                         core.pending_compactions.pop(agent.id, None)
-                        await self._apply_compaction(agent, run_id, history, keep_recent)
+                        await self._apply_compaction(
+                            agent, run_id, keep_recent, context_prefix=context_prefix
+                        )
+                # 预算触发（Task 5）：达到上下文预算即压缩——估算用现有
+                # context_window 与输出预算并留余量；压缩被拒（不缩短/校验
+                # 失败/容量不足）时保留原上下文，下个轮次边界重新评估。
+                current = contexts.current_messages(agent.id)
+                if current and context_over_budget(
+                    current,
+                    context_window=agent.settings.context_window,
+                    max_output=agent.settings.max_tokens,
+                ):
+                    await self._apply_compaction(
+                        agent,
+                        run_id,
+                        EMERGENCY_COMPACT_KEEP_RECENT,
+                        trigger="budget",
+                        context_prefix=context_prefix,
+                    )
                 attempt = 0
-                overflow_phase = 0
+                overflow_compacted = False
                 while True:
                     try:
                         project = core.require_project(agent.project_id)
@@ -303,44 +309,31 @@ class AgentRunner:
                             settings=agent.settings.model_copy(deep=True),
                             capabilities=agent.capabilities,
                             inbox_messages=inbox_messages,
-                            history=history,
                             workspace_dir=project.workspace_dir,
                             notices=core.notices,
+                            context_prefix=context_prefix,
+                            context_broker=contexts,
+                            vision_enabled=self._vision_enabled(agent),
                         )
                         break
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:
-                        if history and _is_context_length_error(exc) and overflow_phase < 2:
-                            from cloudra.runtime_v2.compaction import (
-                                can_compact_completed_user_turns,
-                            )
-
-                            # Phase 0: fold earlier completed user turns.
-                            # Empty prior tails skip straight to the current
-                            # chapter so a first overflow still emits one compact.
-                            if overflow_phase == 0 and can_compact_completed_user_turns(
-                                history
-                            ):
-                                await self._apply_compaction(
-                                    agent,
-                                    run_id,
-                                    history,
-                                    keep_recent=0,
-                                    trigger="context_overflow",
-                                    unit="prior_turns",
-                                )
-                                overflow_phase = 1
-                                continue
-                            await self._apply_compaction(
+                        current = contexts.current_messages(agent.id)
+                        if current and _is_context_length_error(exc) and not overflow_compacted:
+                            # 统一的一次全量压缩（Task 5：不再分上一章节/当前
+                            # 尾部两套策略）；压缩被拒（不缩短/校验失败/容量
+                            # 不足）= 同一输入无进展，不重复压缩。
+                            stats = await self._apply_compaction(
                                 agent,
                                 run_id,
-                                history,
                                 keep_recent=EMERGENCY_COMPACT_KEEP_RECENT,
                                 trigger="context_overflow",
+                                context_prefix=context_prefix,
                             )
-                            overflow_phase = 2
-                            continue
+                            overflow_compacted = True
+                            if stats.get("compacted"):
+                                continue
                         attempt += 1
                         if attempt > self.max_turn_retries or not _is_retryable(exc):
                             raise
@@ -362,7 +355,9 @@ class AgentRunner:
                     finally:
                         await self._publish_new_events(cursor)
                         cursor = len(core.event_log)
-                await self._append_history(agent, history, inbox_messages, outcome)
+                # 响应落上下文：完整 assistant/tool 消息（恰好一次；输入已在
+                # 发送前经 commit_input 入投影）。
+                await self._commit_turn_output(agent, run_id, outcome)
                 if outcome.decision == "stop":
                     # 不变量"RUNNING 的下个轮次 drain 收件箱"只在还有下个轮次时
                     # 成立：轮次中途到达的消息（如异步子 agent 终态回报，其 wake
@@ -415,9 +410,6 @@ class AgentRunner:
                                 ),
                             )
                             self._deliver_child_completion(agent)
-                            self._schedule_run_finalize(
-                                agent, run_id, history, seed_count, outcome="failed"
-                            )
                             break
                         # 缺口/下一步反馈进下一轮（mailbox 投递即持久审计
                         # agent.message_injected + 下一轮 drain 消费）。
@@ -463,15 +455,8 @@ class AgentRunner:
                         break
                     # wait_background（有可核实唤醒来源的挂起，不是交付）与
                     # allow_final（审计通过/有效批准/agent 声明）才走到收尾。
-                    # Schedule polls compact on stop; user-turn stops keep the
-                    # tool trajectory.  400 overflow compact (above) is the
-                    # fallback for a user conversation that outgrew the window.
-                    from cloudra.runtime_v2.compaction import last_instruction_is_reminder
-
-                    if last_instruction_is_reminder(history):
-                        await self._apply_compaction(
-                            agent, run_id, history, keep_recent=0, trigger="stop"
-                        )
+                    # Task 5 起 schedule stop 不再无条件 compact——压缩触发只有
+                    # 手动 compact / 达到上下文预算 / 真实 overflow 三种。
                     if outcome.content:
                         self._emit_run_message(agent, run_id, outcome.content)
                     for stage in getattr(self.pipeline, "stages", ()):
@@ -485,9 +470,6 @@ class AgentRunner:
                     if self._inbox_has_pending(agent):
                         core.agent_host.wake(agent, runner=core.runner)
                     self._deliver_child_completion(agent)
-                    self._schedule_run_finalize(
-                        agent, run_id, history, seed_count, outcome="succeeded"
-                    )
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
                     core.agent_host.transition(
@@ -520,17 +502,16 @@ class AgentRunner:
                 # "continue" (including blocked-tool feedback) loops again
         except asyncio.CancelledError:
             # Command handler already transitioned the agent and emitted
-            # agent.cancelled after host.cancel().  Still record the partial
-            # trajectory in the context tree (deterministic summary only).
+            # agent.cancelled after host.cancel().  会话上下文投影里已落
+            # 的内容（发送前的输入、已完成的轮次输出）保持原样——投影只
+            # 记录真实进入过上下文的消息，无需收尾摘要。
             self._deliver_child_completion(agent)
-            self._schedule_run_finalize(agent, run_id, history, seed_count, outcome="cancelled")
             raise
         except Exception as exc:  # pipeline crash becomes a durable failure
             logger.exception("agent %s pipeline failed", agent.id)
             if agent.state is AgentState.RUNNING:
                 core.agent_host.finish_run(agent, outcome="failed", error=str(exc))
             self._deliver_child_completion(agent)
-            self._schedule_run_finalize(agent, run_id, history, seed_count, outcome="failed")
         finally:
             # Flush the tail events (message_emitted, finish_run's
             # state_changed/run.finished, or a crashed turn's partial events)
@@ -713,23 +694,12 @@ class AgentRunner:
         # change; until then the default is on.
         return bool(getattr(agent.settings, "visual_mode", True)) and self._provider_supports_vision(agent)
 
-    @staticmethod
-    async def _image_part(path: str) -> dict | None:
-        """Encode a workspace image as an OpenAI image_url part (None on failure)."""
-        from cloudra.infra.media import encode_image_data_url
+    def _prepare_inbox_messages(self, agent: AgentSession, messages: list[dict]) -> list[dict]:
+        """Normalize user-attached images into stable ``image_ref`` parts.
 
-        url = await asyncio.to_thread(encode_image_data_url, path)
-        if url is None:
-            return None
-        return {"type": "image_url", "image_url": {"url": url}}
-
-    async def _prepare_inbox_messages(self, agent: AgentSession, messages: list[dict]) -> list[dict]:
-        """Normalize user-attached images into the message content.
-
-        Vision on → content becomes a parts list (text + image_url parts);
-        vision off → one English fallback line per image.  The pipeline and
-        the history append both consume ``item["content"]``, so this single
-        normalization covers the current turn and later turns identically.
+        进上下文投影的消息只存稳定引用（路径 + fallback 文本），不重嵌
+        base64；发送前由 turn_pipeline.resolve_media_references 按当前
+        vision 能力解析为 data URL 或文本降级。
         """
         prepared = []
         for item in messages:
@@ -737,28 +707,24 @@ class AgentRunner:
             if not images:
                 prepared.append(item)
                 continue
-            content = str(item.get("content") or "")
-            if not self._vision_enabled(agent):
-                fallback = "".join(f"\n[User attached image: {path}]" for path in images)
-                prepared.append({**item, "content": content + fallback})
-                continue
-            parts: list[dict] = [{"type": "text", "text": content}]
-            for path in images:
-                part = await self._image_part(path)
-                if part is not None:
-                    parts.append(part)
-                else:
-                    parts.append({"type": "text", "text": f"[User attached image: {path} (could not be loaded)]"})
+            parts: list[dict] = [{"type": "text", "text": str(item.get("content") or "")}]
+            parts.extend(
+                {
+                    "type": "image_ref",
+                    "path": path,
+                    "fallback": f"[User attached image: {path}]",
+                }
+                for path in images
+            )
             prepared.append({**item, "content": parts})
         return prepared
 
-    async def _tool_result_content(self, agent: AgentSession, result) -> object:
-        """History content for one tool result, with image re-injection.
+    def _tool_result_content(self, agent: AgentSession, result) -> object:
+        """Context content for one tool result, with image re-injection.
 
-        A result carrying ``image_paths`` (or a single ``image_path``) is
-        re-injected as image_url parts when visual mode is on and the model
-        can see; otherwise the summary gains one English fallback line per
-        path.  There is no N-image cap.
+        A result carrying ``image_paths`` (or a single ``image_path``) gets one
+        stable ``image_ref`` part per path (no base64 in the projection);
+        resolution to data URLs happens at send time.  There is no N-image cap.
         """
         from cloudra.runtime_v2.invocation import image_paths_from_tool_result
 
@@ -766,25 +732,29 @@ class AgentRunner:
         paths = image_paths_from_tool_result(result)
         if not paths:
             return summary
-        if not self._vision_enabled(agent):
-            extra = "".join(
-                f"\n[Image rendered at: {path} — the configured model has no "
-                "vision support; inspect the file directly if needed.]"
-                for path in paths
-            )
-            return (summary or "") + extra
         parts: list[dict] = [{"type": "text", "text": summary or ""}]
-        for path in paths:
-            part = await self._image_part(path)
-            if part is not None:
-                parts.append(part)
-        if len(parts) == 1:
-            return summary
+        parts.extend(
+            {
+                "type": "image_ref",
+                "path": path,
+                "fallback": (
+                    f"[Image rendered at: {path} — the configured model has no "
+                    "vision support or the file is unavailable; inspect the "
+                    "file directly if needed.]"
+                ),
+            }
+            for path in paths
+        )
         return parts
 
-    async def _append_history(self, agent: AgentSession, history: list[dict], inbox_messages: list[dict], outcome) -> None:
-        for item in inbox_messages:
-            history.append({"role": "user", "content": item.get("content", "")})
+    async def _commit_turn_output(self, agent: AgentSession, run_id: str, outcome) -> None:
+        """响应消息恰好一次落进会话上下文投影（context.appended）。
+
+        输入（前缀增量/inbox/通知）已在发送前由 ContextBroker.commit_input
+        入投影；这里只追加 assistant/tool 输出。run_turn 失败/取消时不调用，
+        已提交的输入留在投影里（它确实进入过已发送的请求）。
+        """
+        entries: list[dict] = []
         tool_calls = [call for call, _ in outcome.tool_exchanges]
         if outcome.blocked_call is not None:
             tool_calls.append(outcome.blocked_call)
@@ -799,41 +769,48 @@ class AgentRunner:
                     {"id": call.id, "name": call.name, "arguments": call.arguments}
                     for call in tool_calls
                 ]
-            history.append(entry)
+            entries.append(entry)
         for call, result in outcome.tool_exchanges:
-            history.append(
+            entries.append(
                 {
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": await self._tool_result_content(agent, result),
+                    "content": self._tool_result_content(agent, result),
                 }
             )
         if outcome.blocked_call is not None:
-            history.append(
+            entries.append(
                 {
                     "role": "tool",
                     "tool_call_id": outcome.blocked_call.id,
                     "content": outcome.message or "blocked by policy",
                 }
             )
+        await self.core.contexts.append_output(agent=agent, run_id=run_id, messages=entries)
 
     async def _apply_compaction(
         self,
         agent: AgentSession,
         run_id: str,
-        history: list[dict],
         keep_recent: int,
         trigger: str = "manual",
         *,
-        unit: str = "tail",
+        context_prefix=None,
     ) -> dict:
         from cloudra.runtime_v2.compaction import (
-            compact_completed_user_turns,
-            compact_history,
+            SUMMARY_EVENT_CAP,
+            compact_context,
             summarize_with_agent_settings,
         )
 
         core = self.core
+        # 压缩对象是 session 级上下文投影（跨 run 连续）：候选输入冻结时
+        # 记录投影版本，install_compacted 只在版本未变时原子安装——压缩
+        # 期间到达的新消息绝不丢（版本不符即放弃候选，不覆盖新增纠正）。
+        history = core.contexts.current_messages(agent.id)
+        expected_version = len(history)
+        ctx = core.session_contexts.get(agent.id)
+        old_head_len = int((((ctx.prefix_meta if ctx else None) or {})).get("prefix_len") or 0)
         core.event_log.append(
             "compaction.started",
             stream="agent",
@@ -844,7 +821,6 @@ class AgentRunner:
                 "keep_recent": keep_recent,
                 "history_messages": len(history),
                 "trigger": trigger,
-                "unit": unit,
             },
         )
         handoff_path: str | None = None
@@ -853,57 +829,82 @@ class AgentRunner:
         async def summarizer(messages):
             return await summarize_with_agent_settings(agent, messages)
 
+        # 压缩是上下文边界：harness 前缀按当前状态重新装配（动态快照取最新），
+        # 当前 pin 通知重渲染进新上下文的头部。
+        head: list[dict] = []
+        head_meta = None
+        if context_prefix is not None:
+            head, head_meta = await context_prefix.current_prefix()
+        notices_render = (
+            core.notices.render_current(agent.id) if core.notices is not None else []
+        )
+        settings = agent.settings
+
         try:
-            if unit == "prior_turns":
-                new_history, stats = await compact_completed_user_turns(
-                    history, summarizer, trigger=trigger
-                )
-            else:
-                new_history, stats = await compact_history(
-                    history,
-                    keep_recent,
-                    summarizer,
-                    trigger=trigger,
-                )
+            new_context, stats = await compact_context(
+                history,
+                head=head,
+                notices=notices_render,
+                keep_recent=keep_recent,
+                summarize=summarizer,
+                context_window=settings.context_window,
+                max_output=settings.max_tokens,
+                trigger=trigger,
+                old_head_len=old_head_len,
+            )
         except Exception as exc:
             # Compaction is best-effort: a summarization failure must never
-            # kill the run; the uncompacted history stays in place.
+            # kill the run; the uncompacted context stays in place (no event,
+            # no projection change).
             logger.exception("agent %s compaction failed", agent.id)
             stats = {"compacted": False, "error": str(exc)}
         else:
             if stats.get("compacted"):
-                history[:] = new_history
-                # The in-memory handoff dies with the run; append it to a
-                # workspace file so later runs and human auditors still have
-                # the summary.  Best-effort: a write failure only skips the
-                # file and the pointer note.
+                # 压缩摘要同时落工作区审计文件，供人与后续会话回读。
+                # Best-effort: a write failure only skips the file and the
+                # pointer note.
                 handoff_idx = int(stats.get("handoff_index") or 0)
-                handoff_text = str(history[handoff_idx].get("content") or "")
+                handoff_text = str(new_context[handoff_idx].get("content") or "")
                 handoff_path = await self._persist_compaction_handoff(
                     agent, stats, handoff_text
                 )
                 if handoff_path:
-                    history[handoff_idx]["content"] = str(
-                        history[handoff_idx].get("content") or ""
+                    new_context[handoff_idx]["content"] = str(
+                        new_context[handoff_idx].get("content") or ""
                     ) + (
                         f"\n\n(The full compaction summary was appended to the "
                         f"workspace file: {handoff_path})"
                     )
-                if trigger == "context_overflow" and core.notices is not None:
+                installed = await core.contexts.install_compacted(
+                    agent=agent,
+                    run_id=run_id,
+                    messages=new_context,
+                    prefix_meta=head_meta,
+                    expected_version=expected_version,
+                    trigger=trigger,
+                )
+                if installed and context_prefix is not None:
+                    # owner 采纳新头部：后续轮次 matches() 命中，不重装。
+                    context_prefix.adopt(head, head_meta)
+                if not installed:
+                    stats = {
+                        **stats,
+                        "compacted": False,
+                        "reason": "context_changed",
+                    }
+                elif trigger == "context_overflow" and core.notices is not None:
                     core.notices.push(
                         agent.id,
-                        "[Context compact] History after the last user/schedule "
-                        "message was compacted because the context window overflowed. "
-                        "Continue the current task by calling tools. This is not a "
-                        "new user request — do not stop just to acknowledge the compact.",
+                        "[Context compact] Earlier work was compacted because the "
+                        "context window overflowed. Continue the current task by "
+                        "calling tools. This is not a new user request — do not "
+                        "stop just to acknowledge the compact.",
                     )
         finished: dict = dict(stats)
         finished["trigger"] = trigger
         if handoff_path:
             finished["handoff_path"] = handoff_path
         if handoff_text:
-            # Keep the compaction change itself in the context tree: the full
-            # summary text rides on the event, not just the workspace file.
             finished["summary"] = handoff_text[:SUMMARY_EVENT_CAP]
         core.event_log.append(
             "compaction.finished",
@@ -941,185 +942,14 @@ class AgentRunner:
                     fh.write(
                         f"\n## {stamp} — agent {agent.id}\n"
                         f"before_messages={stats.get('before_messages')} "
-                        f"after_messages={stats.get('after_messages')}\n\n"
+                        f"after_messages={stats.get('after_messages')} "
+                        f"segments={len(stats.get('segments') or [])} "
+                        f"instruction_messages={stats.get('instruction_messages')}\n\n"
                         f"{handoff_text}\n"
                     )
                 return rel_path
             except OSError:
                 logger.exception("compaction handoff write failed for %s", agent.id)
-                return None
-
-        return await asyncio.to_thread(write)
-
-    def _schedule_run_finalize(
-        self,
-        agent: AgentSession,
-        run_id: str,
-        history: list[dict],
-        seed_count: int,
-        *,
-        outcome: str,
-    ) -> None:
-        """Detach run-context finalization from the runner task.
-
-        Finalization makes an LLM call; if it ran inline, the runner task
-        would outlive the state transition and ``schedule()`` would dedupe a
-        newly woken run against the still-alive old task — the wake would be
-        swallowed.  The detached task publishes its own events to the hub.
-        Registered via ``track_background`` so user cancel / shutdown can
-        cancel and await it (停止语义契约 1/3).
-        """
-        task = asyncio.create_task(
-            self._finalize_run_context(agent, run_id, history, seed_count, outcome=outcome),
-            name=f"finalize:{agent.id}",
-        )
-        self.track_background(agent.id, task, label=f"finalize:{outcome}")
-
-    async def _finalize_run_context(
-        self,
-        agent: AgentSession,
-        run_id: str,
-        history: list[dict],
-        seed_count: int,
-        *,
-        outcome: str,
-    ) -> None:
-        """Fold a finished run into the context tree.  Best-effort throughout.
-
-        succeeded runs get one LLM call producing the run trajectory summary
-        plus a rewritten HANDOVER; failed/cancelled runs (or a broken
-        summarizer) degrade to a deterministic event-derived summary and keep
-        the previous handover.  Nothing here may break run teardown.
-        """
-        core = self.core
-        try:
-            # Exclude an intact seed block so summaries never summarize
-            # earlier summaries; a mid-run compaction already folded the seed
-            # into its handoff, in which case the whole history is new work.
-            body = history
-            if (
-                seed_count
-                and len(history) > seed_count
-                and str(history[0].get("content") or "").startswith(SEED_MARKER)
-            ):
-                body = history[seed_count:]
-            run_events = [
-                event
-                for event in core.event_log
-                if event.session_id == agent.id
-                and event.run_id == run_id
-                and event.type in {"tool.finished", "agent.message_emitted", "run.finished"}
-            ]
-            # A succeeded run with no work beyond the seed leaves nothing to
-            # record; failed/cancelled runs always record — even an empty one
-            # documents the crash through its run.finished event.
-            if not body and outcome == "succeeded":
-                return
-            session_seqs = [
-                event.session_seq
-                for event in core.event_log
-                if event.session_id == agent.id
-                and event.run_id == run_id
-                and event.session_seq is not None
-            ]
-            seq_range = (
-                {"start": min(session_seqs), "end": max(session_seqs)} if session_seqs else None
-            )
-            handover = latest_handover(core.event_log, agent.id)
-            fallback = outcome != "succeeded"
-            if not fallback and agent.state is AgentState.CANCELLED:
-                # 停止语义契约 1：用户取消后，该 session 的收尾禁止新发 LLM
-                # 摘要请求——退化为本地可确定的摘要（取消发生在 finalize
-                # 已调度未发请求窗口时的准入检查；已登记的 finalize 同时会
-                # 被 cancel/cancel_all 直接取消）。
-                fallback = True
-            run_log = ""
-            new_handover: str | None = None
-            if not fallback:
-                try:
-                    from cloudra.runtime_v2.compaction import (
-                        _serialize,
-                        summarize_with_agent_settings,
-                    )
-
-                    summarizer = self.run_summarizer or (
-                        lambda messages: summarize_with_agent_settings(agent, messages)
-                    )
-                    output = await summarizer(
-                        build_summary_messages(
-                            handover[0] if handover else None, _serialize(body)
-                        )
-                    )
-                    run_log, new_handover = parse_summary_output(output or "")
-                    if not run_log:
-                        fallback = True
-                except Exception:
-                    # The summary must never kill teardown; fall back to the
-                    # deterministic trajectory and keep the old handover.
-                    logger.exception("agent %s run summarization failed", agent.id)
-                    fallback = True
-            if fallback:
-                run_log = fallback_run_summary(run_events)
-                new_handover = None
-            core.event_log.append(
-                "context.run_summarized",
-                stream="agent",
-                project_id=agent.project_id,
-                session_id=agent.id,
-                run_id=run_id,
-                data={
-                    "summary": run_log[:SUMMARY_EVENT_CAP],
-                    "outcome": outcome,
-                    "fallback": fallback,
-                    "seq_range": seq_range,
-                },
-            )
-            # Detached from the runner task, so flush directly — nobody else
-            # will flush these events to SSE subscribers.
-            await core.event_writer.flush()
-            if new_handover:
-                core.event_log.append(
-                    "context.handover_updated",
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data={
-                        "handover": new_handover,
-                        "based_on_run_id": run_id,
-                        "revision": (handover[1] if handover else 0) + 1,
-                    },
-                )
-                await core.event_writer.flush()
-                await self._persist_handover(agent, new_handover)
-        except Exception:
-            logger.exception("agent %s run-context finalization failed", agent.id)
-
-    async def _persist_handover(self, agent: AgentSession, handover_text: str) -> str | None:
-        """Overwrite the workspace handover file with the latest snapshot.
-
-        Returns the workspace-relative path on success, ``None`` otherwise —
-        never raises.  The file is an audit/readable copy; the authoritative
-        handover is the newest ``context.handover_updated`` event.
-        """
-        try:
-            project = self.core.require_project(agent.project_id)
-        except Exception:
-            return None
-        workspace = project.workspace_dir
-        if not workspace:
-            return None
-        rel_path = ".cloudra/handover.md"
-        path = os.path.join(workspace, rel_path)
-
-        def write() -> str | None:
-            try:
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(f"# Handover — agent {agent.id}\n\n{handover_text}\n")
-                return rel_path
-            except OSError:
-                logger.exception("handover write failed for %s", agent.id)
                 return None
 
         return await asyncio.to_thread(write)

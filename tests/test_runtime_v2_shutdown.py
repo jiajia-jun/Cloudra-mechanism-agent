@@ -32,7 +32,7 @@ from cloudra.runtime_v2.schemas import AgentState, Command, InvocationProtocol
 from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 from cloudra.services import daemon_supervisor
 from tests.test_llm_cancellation import _FakeLLMServer
-from tests.test_runtime_v2_cancellation import GatedSummarizer, _wait_until
+from tests.test_runtime_v2_cancellation import _wait_until
 
 
 @pytest.fixture(autouse=True)
@@ -127,15 +127,16 @@ async def _wait_state(agent, state: AgentState, timeout: float = 5.0):
 
 @pytest.mark.asyncio
 async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
-    """Shutdown with four live activity classes: two parked runner SSE turns
-    (coordinator + supervisor), one detached finalize mid-summary, and the
-    open SSE connections themselves.  After the lifespan exits: no registered
-    runner/background execution survives, the SSE connections are closed
-    (server tail writes fail), and no new LLM request fires afterwards."""
+    """Shutdown with live activity classes: two parked runner SSE turns
+    (coordinator + supervisor) and the open SSE connections themselves.
+    After the lifespan exits: no registered runner/background execution
+    survives, the SSE connections are closed (server tail writes fail),
+    and no new LLM request fires afterwards.
+
+    （Task 4 注：原先的「detached finalize mid-summary」活动类随 per-run
+    自动摘要管线一并删除——run 收尾不再发 LLM 摘要请求。）"""
     server = _FakeLLMServer()
     sse_gate = threading.Event()
-    summarizer_gate = asyncio.Event()
-    summarizer = GatedSummarizer(gate=summarizer_gate)
     core = RuntimeCore(strict_events=True)
 
     def factory(settings, **_kwargs):
@@ -151,7 +152,6 @@ async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
 
     app = create_v2_app(core, pipeline=pipeline)
     assert isinstance(core.runner, AgentRunner)
-    core.runner.run_summarizer = summarizer
     bus = CommandBus(core)
     try:
         async with app.router.lifespan_context(app):
@@ -169,11 +169,9 @@ async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
                 agent = result.data
                 agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
                 agents.append(agent)
-            # Both agents complete run 1 (ungated stream) and their detached
-            # finalizes park inside the gated summarizer.
+            # Both agents complete run 1 (ungated stream).
             for agent in agents:
                 await _wait_state(agent, AgentState.SUCCEEDED)
-            await _wait_until(lambda: summarizer.calls == 2, what="two parked finalizes")
             assert server.total_requests() == 2
             # Arm the SSE gate and re-wake both agents: run 2 parks mid-stream.
             server.sse_gate = sse_gate
@@ -194,16 +192,10 @@ async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
         assert core.runner._background == {}
         # 停止准入：shutdown 后 runner 拒绝一切 schedule/唤醒重排。
         assert core.runner._accepting is False
-        assert not [
-            task
-            for task in asyncio.all_tasks()
-            if task.get_name().startswith("finalize:") and not task.done()
-        ]
         # The parked SSE connections were closed abortively: once the gate
         # opens, the server's tail writes fail instead of succeeding.  The
         # wait must ignore run-1's already-completed tails (baseline above).
         sse_gate.set()
-        summarizer_gate.set()
         await _wait_until(
             lambda: len(server.write_failures) >= 2
             or len(server.tail_done) > tail_baseline,
@@ -220,13 +212,8 @@ async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
         while asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.02)
         assert server.total_requests() == counts
-        assert summarizer.calls == 2
     finally:
         sse_gate.set()
-        summarizer_gate.set()
-        for task in asyncio.all_tasks():
-            if task.get_name().startswith("finalize:") and not task.done():
-                task.cancel()
         server.close()
 
 

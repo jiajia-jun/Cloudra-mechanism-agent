@@ -653,10 +653,10 @@ async def _compact_agent(core: RuntimeCore, command: Command) -> CommandResult:
         run_id=agent.current_run.run_id if agent.current_run else None,
         data={"keep_recent": keep_recent, "actor": command.actor},
     )
-    # The runner picks this up at the next turn boundary; history is
-    # in-memory, so compaction only has meaning while a run is alive.
+    # The runner picks this up at the next turn boundary; the session context
+    # 跨 run 连续（Task 4），压缩请求跨 run 存活、应用到会话上下文投影。
     # pending_compactions 是 compaction.requested 的事件投影：唯一写入点是
-    # apply_event（这里），消费/作废在 runner 与 run.started 的 apply。
+    # apply_event（这里），消费在 runner 的轮次边界。
     apply_event(core, envelope)
     return CommandResult(command_id=command.command_id, event_id=_last_event_id(core), data=agent)
 
@@ -938,6 +938,7 @@ class CommandBus:
             agents=core.agents,
             roles=core.roles._roles,
             runtime_defaults=core.runtime_defaults,
+            session_contexts=core.session_contexts,
             last_seqs=core.event_log.high_watermarks,
         )
         self._snapshot_event_mark = len(core.event_log)

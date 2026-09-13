@@ -144,16 +144,45 @@ class PromptAssembly:
     tool_names: tuple[str, ...]
     working_directory: str
     environment_revisions: dict[str, object]
+    # 与 observation_messages 按位对齐的来源/版本：动态快照（MEMORY.md、
+    # AGENTS.md、工作区观察）的变更检测只读这些 revision，不重写旧消息。
+    observation_sources: tuple[PromptSource, ...] = ()
 
     def diagnostics(self) -> dict:
         return {
             "prompt_revision": self.prompt_revision,
             "capability_revision": self.capability_revision,
             "prompt_sources": [source.to_dict() for source in self.sources],
+            "observation_sources": [source.to_dict() for source in self.observation_sources],
             "tool_names": list(self.tool_names),
             "working_directory": self.working_directory,
             "environment_revisions": self.environment_revisions,
         }
+
+
+# 动态快照的消息标签：install 与 refresh 共用同一组构造器，内容不变时
+# 逐字节一致；更新消息在原文标签前加替代关系说明（见 ContextPrefix.refresh）。
+MEMORY_SNAPSHOT_LABEL = "[Long-term memory — snapshot of MEMORY.md]"
+AGENTS_SNAPSHOT_LABEL = "[User instructions — snapshot of AGENTS.md]"
+WORKSPACE_OBSERVATION_LABEL = "[Workspace observation]"
+
+
+def memory_snapshot_content(text: str) -> str:
+    return (
+        f"{MEMORY_SNAPSHOT_LABEL}\n\n"
+        "The following comes from MEMORY.md; follow it while working:\n\n"
+        f"{text}\n\n"
+        "If you learn a new reusable principle from this work, call "
+        "`update_memory` to update memory."
+    )
+
+
+def agents_snapshot_content(rendered: str) -> str:
+    return (
+        f"{AGENTS_SNAPSHOT_LABEL}\n\n"
+        "The following comes from user-written AGENTS.md; follow it while working:\n\n"
+        f"{rendered}"
+    )
 
 
 def load_role_prompt(prompt_name: str) -> str:
@@ -393,7 +422,7 @@ class PromptAssembler:
             return ({
                 "role": "system",
                 "content": (
-                    "[Workspace observation]\n"
+                    f"{WORKSPACE_OBSERVATION_LABEL}\n"
                     f"working_directory={self.working_directory}\n"
                     "Use explicit task paths for your own inputs and results. "
                     "Use the public tool schemas and skills to learn tool usage. "
@@ -432,7 +461,7 @@ class PromptAssembler:
             {
                 "role": "system",
                 "content": (
-                "[Workspace observation]\n"
+                f"{WORKSPACE_OBSERVATION_LABEL}\n"
                 f"workspace_revision={workspace_revision}\n"
                 f"working_directory={self.working_directory}\n"
                 f"{scan_note}\n"
@@ -473,29 +502,30 @@ class PromptAssembler:
         identity_sections = [base_prompt.strip()]
         sources = [base_source]
 
+        # MEMORY.md / AGENTS.md 是**动态**指令快照：不进 identity（否则每次
+        # 内容变化都重写请求前缀、缓存全废），作为带来源的 observation 消息
+        # 返回；跨轮变化由 ContextPrefix.refresh 以追加消息表达。
+        observation_messages: list[dict] = []
+        observation_sources: list[PromptSource] = []
+
         memory = self._memory_section()
         if memory is not None:
             memory_text, memory_source = memory
-            identity_sections.append(
-                "## Long-term memory (lessons from past tasks)\n\n"
-                "The following comes from MEMORY.md; follow it while working:\n\n"
-                f"{memory_text}\n\n"
-                "If you learn a new reusable principle from this work, call "
-                "`update_memory` to update memory."
+            observation_messages.append(
+                {"role": "system", "content": memory_snapshot_content(memory_text)}
             )
-            sources.append(memory_source)
+            observation_sources.append(memory_source)
 
         agents_sections = self._agents_md_sections()
         if agents_sections:
-            rendered_agents = []
-            for label, content, source in agents_sections:
-                rendered_agents.append(f"### {label} AGENTS.md\n\n{content}")
-                sources.append(source)
-            identity_sections.append(
-                "## User instructions (AGENTS.md)\n\n"
-                "The following comes from user-written AGENTS.md; follow it while working:\n\n"
-                + "\n\n".join(rendered_agents)
+            rendered_agents = "\n\n".join(
+                f"### {label} AGENTS.md\n\n{content}"
+                for label, content, _source in agents_sections
             )
+            observation_messages.append(
+                {"role": "system", "content": agents_snapshot_content(rendered_agents)}
+            )
+            observation_sources.append(self._source("agents_md", rendered_agents))
 
         skills = self._skill_manifest()
         if skills is not None:
@@ -599,6 +629,10 @@ class PromptAssembler:
         workspace_observation, workspace_revision = (
             self._workspace_observation(device_environment)
         )
+        observation_messages.append(workspace_observation)
+        observation_sources.append(
+            PromptSource(kind="workspace", revision=workspace_revision)
+        )
         config_path = Path(get_config().config_file)
         try:
             config_revision = (
@@ -611,7 +645,7 @@ class PromptAssembler:
             prompt_revision=prompt_revision,
             capability_revision=capability_revision,
             identity_messages=(identity_message,),
-            observation_messages=(workspace_observation,),
+            observation_messages=tuple(observation_messages),
             sources=tuple(sources),
             tool_names=tool_names,
             working_directory=self.working_directory,
@@ -627,4 +661,5 @@ class PromptAssembler:
                     for item in device_environment
                 ],
             },
+            observation_sources=tuple(observation_sources),
         )

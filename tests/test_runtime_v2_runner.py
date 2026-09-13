@@ -34,12 +34,6 @@ class EchoTools:
         return ToolResult(is_success=True, summary=f"echo:{call.arguments.get('x')}", data={})
 
 
-async def _stub_summarizer(messages):
-    # Tests never hit the network; run-end summarization is covered in
-    # test_runtime_v2_context_tree.py with dedicated fakes.
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(llm) -> tuple[RuntimeCore, object, object]:
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -48,7 +42,7 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
         llm=llm,
         tools=EchoTools(),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "runner demo"}))
     project = next(iter(core.projects.values()))
@@ -71,6 +65,14 @@ async def _wait_state(agent, state: str, timeout: float = 2.0):
     while agent.state.value != state:
         if asyncio.get_running_loop().time() > deadline:
             raise AssertionError(f"agent stuck in {agent.state.value}, expected {state}")
+        await asyncio.sleep(0.01)
+
+
+async def _wait_until(predicate, timeout: float = 2.0, what: str = "condition"):
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not predicate():
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f"timed out waiting for {what}")
         await asyncio.sleep(0.01)
 
 
@@ -129,12 +131,31 @@ async def test_runner_executes_tool_then_stops():
 
 @pytest.mark.asyncio
 async def test_manual_compaction_rewrites_history(monkeypatch):
-    async def fake_summarize(agent, messages):
-        return "SUMMARY"
+    """compact 命令在 run 进行中到达：下个轮次边界统一压缩全部轮次并原子
+    安装；压缩后轮次的请求带 assistant 角色的 [Context compact] handoff。"""
+    import json as _json
+
+    async def fake_summarize(*args, **_kwargs):
+        return _json.dumps(
+            {
+                "objective": {"text": "SUMMARY", "sources": []},
+                "active_requests": [],
+                "corrections": [],
+                "constraints": [],
+                "pending": [],
+                "completed": [],
+                "failed_attempts": [],
+                "evidence": [],
+                "next_actions": [],
+            },
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(
         "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
     )
+
+    core = RuntimeCore(strict_events=True)
 
     class GatedLLM:
         def __init__(self) -> None:
@@ -143,18 +164,57 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
 
         async def complete(self, agent, messages, tools, **_kwargs):
             self.calls.append(list(messages))
-            if len(self.calls) == 1:
+            if len(self.calls) == 2:
                 await self.gate.wait()
+            if len(self.calls) <= 2:
                 return LLMResponse(
                     content="",
-                    tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+                    tool_calls=[
+                        ToolCall(id=f"tc{len(self.calls)}", name="echo", arguments={"x": 1})
+                    ],
                 )
             return LLMResponse(content="done", stop_requested=True)
 
+    class BigTools:
+        """大工具结果（让轨迹真实长于摘要）；首轮调用时投递第二个用户消息。"""
+
+        def __init__(self) -> None:
+            self.delivered = False
+
+        async def execute(self, agent, call, **_kwargs):
+            if not self.delivered:
+                self.delivered = True
+                core.mailbox.deliver(
+                    to_session_id=agent.id,
+                    project_id=agent.project_id,
+                    content="second task",
+                    sender="user",
+                )
+            return ToolResult(is_success=True, summary="x" * 5000, data={})
+
     llm = GatedLLM()
-    core, _, agent = await _setup(llm)
-    await asyncio.sleep(0.02)  # first LLM call is in flight, gated
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=default_stages(),
+        llm=llm,
+        tools=BigTools(),
+    )
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "runner demo"}))
+    project = next(iter(core.projects.values()))
+    result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator", "query": "solve it"},
+        )
+    )
+    agent = result.data
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    await _wait_state(agent, "running")
+    await _wait_until(lambda: len(llm.calls) >= 2, what="second LLM call in flight")
+    # turn 2 在 gate 中：此时压缩命令到达，应在 turn 3 的轮次边界应用
     await bus.execute(
         Command(
             type="agent.compact",
@@ -167,11 +227,12 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
     types = [e.type for e in core.event_log.query_session(agent.id)]
     assert "compaction.requested" in types
     assert types.index("compaction.requested") < types.index("compaction.started")
-    assert "compaction.finished" in types
-    # The second turn still runs (compact is not a new user message that
+    finished = [e for e in core.event_log.query_session(agent.id) if e.type == "compaction.finished"]
+    assert finished[-1].data["compacted"] is True
+    # The next turn still runs (compact is not a new user message that
     # ends the run).  The handoff is an assistant summary, not role=user.
-    second_turn = llm.calls[1]
-    compact_msgs = [m for m in second_turn if "[Context compact]" in str(m.get("content"))]
+    third_turn = llm.calls[2]
+    compact_msgs = [m for m in third_turn if "[Context compact]" in str(m.get("content"))]
     assert compact_msgs
     assert compact_msgs[0]["role"] == "assistant"
     assert any("SUMMARY" in str(m.get("content")) for m in compact_msgs)
@@ -196,81 +257,6 @@ def test_instruction_message_includes_user_and_schedule_reminder():
 
 
 @pytest.mark.asyncio
-async def test_compact_history_folds_agent_tail_after_last_instruction():
-    from cloudra.runtime_v2.compaction import compact_history
-
-    history = [
-        {"role": "user", "content": "q1"},
-        {"role": "assistant", "content": "", "tool_calls": [{"id": "t1", "name": "echo", "arguments": {}}]},
-        {"role": "tool", "tool_call_id": "t1", "content": "r1"},
-        {"role": "assistant", "content": "a1"},
-        {"role": "user", "content": "[Reminder] check job"},
-        {"role": "assistant", "content": "", "tool_calls": [{"id": "t2", "name": "echo", "arguments": {}}]},
-        {"role": "tool", "tool_call_id": "t2", "content": "r2"},
-        {"role": "assistant", "content": "a2"},
-    ]
-
-    async def summarize(messages):
-        return "SUM"
-
-    # keep_recent=0: compact every agent message after the last instruction.
-    new_history, stats = await compact_history(history, 0, summarize)
-    assert stats["compacted"] is True
-    assert new_history[0] == history[0]
-    assert new_history[4]["content"] == "[Reminder] check job"
-    assert new_history[5]["role"] == "assistant"
-    assert "[Context compact]" in new_history[5]["content"]
-    assert "SUM" in new_history[5]["content"]
-    assert len(new_history) == 6
-
-    # keep_recent large enough to cover the agent tail: nothing to fold.
-    same, stats = await compact_history(history, 10, summarize)
-    assert same is history
-    assert stats["compacted"] is False
-
-    # keep_recent landing on a tool message still slides forward so the
-    # assistant tool_calls / tool response pair stays intact.
-    new_history, stats = await compact_history(history, 1, summarize)
-    assert stats["compacted"] is True
-    assert new_history[-1] == history[-1]
-
-
-@pytest.mark.asyncio
-async def test_compact_completed_user_turns_keeps_current_chapter():
-    from cloudra.runtime_v2.compaction import compact_completed_user_turns
-
-    history = [
-        {"role": "user", "content": "q1"},
-        {"role": "assistant", "content": "a1"},
-        {"role": "tool", "tool_call_id": "t1", "content": "r1"},
-        {"role": "user", "content": "q2"},
-        {"role": "assistant", "content": "a2"},
-        {"role": "tool", "tool_call_id": "t2", "content": "r2"},
-        {"role": "user", "content": "q3"},
-        {"role": "assistant", "content": "a3"},
-    ]
-
-    async def summarize(messages):
-        return "PRIOR TURNS"
-
-    new_history, stats = await compact_completed_user_turns(history, summarize)
-    assert stats["compacted"] is True
-    users = [m["content"] for m in new_history if m["role"] == "user"]
-    assert users == ["q1", "q2", "q3"]
-    assert new_history[-2] == history[-2]
-    assert new_history[-1] == history[-1]
-    handoffs = [m for m in new_history if "[Context compact]" in str(m.get("content"))]
-    assert len(handoffs) == 1
-    assert "PRIOR TURNS" in handoffs[0]["content"]
-    assert not any(m.get("tool_call_id") == "t1" for m in new_history)
-
-    current = history[-2:]
-    same, stats = await compact_completed_user_turns(current, summarize)
-    assert stats["compacted"] is False
-    assert same is current
-
-
-@pytest.mark.asyncio
 async def test_spawn_without_query_stays_queued_until_first_message():
     llm = ScriptedLLM([LLMResponse(content="done", stop_requested=True)])
     core = RuntimeCore(strict_events=True)
@@ -280,7 +266,7 @@ async def test_spawn_without_query_stays_queued_until_first_message():
         llm=llm,
         tools=EchoTools(),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "queued spawn"}))
     project = next(iter(core.projects.values()))
@@ -421,7 +407,7 @@ async def test_two_projects_run_agents_concurrently_and_stay_isolated():
         llm=RoutedLLM(),
         tools=EchoTools(),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     agents = []
     for name in ("A", "B"):
@@ -521,8 +507,18 @@ async def test_context_length_error_classification():
 
 @pytest.mark.asyncio
 async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeypatch):
-    async def fake_summarize(agent, messages):
-        return "SUMMARY"
+    async def fake_summarize(*args, **_kwargs):
+        import json as _json
+
+        return _json.dumps(
+            {
+                "objective": {"text": "SUMMARY", "sources": []},
+                "active_requests": [], "corrections": [], "constraints": [],
+                "pending": [], "completed": [], "failed_attempts": [],
+                "evidence": [], "next_actions": [],
+            },
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(
         "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
@@ -583,9 +579,10 @@ async def test_context_overflow_triggers_emergency_compaction_then_retry(monkeyp
 
 @pytest.mark.asyncio
 async def test_stop_does_not_compact_after_user(monkeypatch):
-    """User-turn stops keep the tool trajectory; schedule stops are the cadence."""
+    """stop 不再是压缩触发（Task 5）：用户轮次收尾只保留轨迹——压缩只由
+    手动 compact / 预算 / overflow 触发。"""
 
-    async def fake_summarize(agent, messages):
+    async def fake_summarize(*args, **_kwargs):
         return "AGENT TAIL SUMMARY"
 
     monkeypatch.setattr(
@@ -612,49 +609,19 @@ async def test_stop_does_not_compact_after_user(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_stop_compacts_after_schedule_reminder(monkeypatch):
-    async def fake_summarize(agent, messages):
-        return "POLL TAIL SUMMARY"
-
-    monkeypatch.setattr(
-        "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
-    )
-
-    llm = ScriptedLLM(
-        [
-            LLMResponse(content="watching", stop_requested=True),
-            LLMResponse(
-                content="",
-                tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
-            ),
-            LLMResponse(content="still running", stop_requested=True),
-        ]
-    )
-    core, _, agent = await _setup(llm)
-    await _wait_state(agent, "succeeded")
-    bus = CommandBus(core)
-    await bus.execute(
-        Command(
-            type="agent.message",
-            target={"session_id": agent.id},
-            payload={"content": "[Reminder] check the gaussian log"},
-        )
-    )
-    await _wait_state(agent, "succeeded")
-    finished = [
-        e
-        for e in core.event_log.query_session(agent.id)
-        if e.type == "compaction.finished" and e.data.get("trigger") == "stop"
-    ]
-    assert len(finished) == 1
-    assert finished[0].data["compacted"] is True
-    assert "POLL TAIL SUMMARY" in (finished[0].data.get("summary") or "")
-
-
-@pytest.mark.asyncio
 async def test_second_overflow_after_emergency_compaction_fails_run(monkeypatch):
-    async def fake_summarize(agent, messages):
-        return "SUMMARY"
+    async def fake_summarize(*args, **_kwargs):
+        import json as _json
+
+        return _json.dumps(
+            {
+                "objective": {"text": "SUMMARY", "sources": []},
+                "active_requests": [], "corrections": [], "constraints": [],
+                "pending": [], "completed": [], "failed_attempts": [],
+                "evidence": [], "next_actions": [],
+            },
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(
         "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
@@ -691,8 +658,18 @@ async def test_second_overflow_after_emergency_compaction_fails_run(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path):
-    async def fake_summarize(agent, messages):
-        return "SUMMARY OF EVERYTHING"
+    async def fake_summarize(*args, **_kwargs):
+        import json as _json
+
+        return _json.dumps(
+            {
+                "objective": {"text": "SUMMARY OF EVERYTHING", "sources": []},
+                "active_requests": [], "corrections": [], "constraints": [],
+                "pending": [], "completed": [], "failed_attempts": [],
+                "evidence": [], "next_actions": [],
+            },
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(
         "cloudra.runtime_v2.compaction.summarize_with_agent_settings", fake_summarize
@@ -705,17 +682,56 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
 
         async def complete(self, agent, messages, tools, **_kwargs):
             self.calls.append(list(messages))
-            if len(self.calls) == 1:
+            if len(self.calls) == 2:
                 await self.gate.wait()
+            if len(self.calls) <= 2:
                 return LLMResponse(
                     content="",
-                    tool_calls=[ToolCall(id="tc1", name="echo", arguments={"x": 1})],
+                    tool_calls=[
+                        ToolCall(id=f"tc{len(self.calls)}", name="echo", arguments={"x": 1})
+                    ],
                 )
             return LLMResponse(content="done", stop_requested=True)
 
+    core = RuntimeCore(strict_events=True)
+
+    class BigTools:
+        """大工具结果（让轨迹真实长于摘要）；首轮调用时投递第二个用户消息。"""
+
+        def __init__(self) -> None:
+            self.delivered = False
+
+        async def execute(self, agent, call, **_kwargs):
+            if not self.delivered:
+                self.delivered = True
+                core.mailbox.deliver(
+                    to_session_id=agent.id,
+                    project_id=agent.project_id,
+                    content="second task",
+                    sender="user",
+                )
+            return ToolResult(is_success=True, summary="x" * 5000, data={})
+
     llm = GatedLLM()
-    core, _, agent = await _setup(llm)
+    pipeline = TurnPipeline(
+        event_log=core.event_log,
+        stages=default_stages(),
+        llm=llm,
+        tools=BigTools(),
+    )
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
+    await bus.execute(Command(type="project.create", payload={"name": "runner demo"}))
+    project = next(iter(core.projects.values()))
+    result = await bus.execute(
+        Command(
+            type="agent.spawn",
+            target={"project_id": project.id},
+            payload={"role_id": "coordinator", "query": "solve it"},
+        )
+    )
+    agent = result.data
+    agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
     await bus.execute(
         Command(
             type="project.update",
@@ -723,7 +739,8 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
             payload={"workspace_dir": str(tmp_path)},
         )
     )
-    await asyncio.sleep(0.02)  # first LLM call in flight, gated
+    # turn 2 的 LLM 调用在 gate 中：此时压缩命令到达，turn 3 轮次边界应用
+    await _wait_until(lambda: len(llm.calls) >= 2, what="second LLM call in flight")
     await bus.execute(
         Command(
             type="agent.compact",
@@ -739,18 +756,30 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
     text = handoff_file.read_text(encoding="utf-8")
     assert "SUMMARY OF EVERYTHING" in text
     # The pointer note reached the model on the next turn.
-    assert any(".cloudra/context_compacts.md" in str(m.get("content")) for m in llm.calls[1])
+    assert any(
+        ".cloudra/context_compacts.md" in str(m.get("content")) for m in llm.calls[2]
+    )
 
 
 @pytest.mark.asyncio
-async def test_message_reopen_emits_context_reset_event():
+async def test_message_reopen_preserves_session_context():
+    """Task 4 契约：终态 agent 收到新消息自动重开 run 时**不再**重置上下文
+    （不再落 agent.context_reset）；会话上下文投影跨 run 连续——新 run 的
+    请求以上一 run 的实际发送内容为完整前缀。"""
     llm = ScriptedLLM(
         [
             LLMResponse(content="first done", stop_requested=True),
             LLMResponse(content="second done", stop_requested=True),
         ]
     )
-    core, _, agent = await _setup(llm)
+    llm_calls: list[list[dict]] = []
+
+    class RecordingLLM:
+        async def complete(self, agent, messages, tools, **_kwargs):
+            llm_calls.append(list(messages))
+            return llm.responses.pop(0)
+
+    core, _, agent = await _setup(RecordingLLM())
     await _wait_state(agent, "succeeded")
     await CommandBus(core).execute(
         Command(
@@ -760,13 +789,22 @@ async def test_message_reopen_emits_context_reset_event():
         )
     )
     await _wait_state(agent, "succeeded")
+    # 自动重开不落 context_reset（只有显式 restart 命令才重置投影）。
     resets = [
         e for e in core.event_log.query_session(agent.id) if e.type == "agent.context_reset"
     ]
-    assert len(resets) == 1
-    assert resets[0].data["reason"] == "auto_reopen"
-    assert resets[0].data["previous_outcome"] == "succeeded"
-    assert resets[0].run_id is not None
+    assert resets == []
+    # 跨 run 前缀连续：第二次请求以第一次请求为完整前缀。
+    assert len(llm_calls) == 2
+    first, second = llm_calls
+    assert second[: len(first)] == first
+    assert second[-1]["role"] == "user"
+    assert second[-1]["content"] == "continue"
+    # 投影里的用户消息带 message_id（重试/重启去重锚点）。
+    ctx = core.session_contexts[agent.id]
+    assert any(
+        m.get("role") == "user" and m.get("message_id") for m in ctx.messages
+    )
 
 
 @pytest.mark.asyncio

@@ -1229,10 +1229,6 @@ class _RecordingTools:
         return ToolResult(is_success=True, summary="ok")
 
 
-async def _stub_summarizer(messages):
-    return "[RUN LOG]\nstub\n[HANDOVER]\nstub"
-
-
 def _tiny_task(**kwargs) -> TaskSpec:
     from cloudra.benchmark.schema import GoldSpec, PromptSpec, SystemSpec
     from cloudra.runtime_v2.schemas import OrchestrationMode
@@ -1276,7 +1272,6 @@ def test_backend_runs_to_terminal_and_scores_from_deliverables(tmp_path, monkeyp
     backend = RuntimeV2Backend(
         llm=llm,
         tools=tools,
-        run_summarizer=_stub_summarizer,
         start_scheduler=False,
         poll_interval_s=0.01,
         run_timeout_s=30.0,
@@ -1332,7 +1327,6 @@ def test_backend_unattended_ask_user_blocked_without_parking(tmp_path, monkeypat
     backend = RuntimeV2Backend(
         llm=llm,
         tools=_RecordingTools(),
-        run_summarizer=_stub_summarizer,
         start_scheduler=False,
         poll_interval_s=0.01,
         run_timeout_s=30.0,

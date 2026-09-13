@@ -22,12 +22,6 @@ class StopLLM:
         return LLMResponse(content=f"{agent.role_id} done", stop_requested=True)
 
 
-async def _stub_summarizer(messages):
-    # Tests never hit the network; run-end summarization is covered in
-    # test_runtime_v2_context_tree.py with dedicated fakes.
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup() -> tuple[RuntimeCore, object, object]:
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -36,7 +30,7 @@ async def _setup() -> tuple[RuntimeCore, object, object]:
         llm=StopLLM(),
         tools=LegacyToolExecutor(core),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "hub"}))
     project = next(iter(core.projects.values()))

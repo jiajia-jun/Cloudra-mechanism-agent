@@ -35,12 +35,6 @@ class RoleRoutedLLM:
         return self.plan.pop(0)
 
 
-async def _stub_summarizer(messages):
-    # Tests never hit the network; run-end summarization is covered in
-    # test_runtime_v2_context_tree.py with dedicated fakes.
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(llm) -> tuple[RuntimeCore, object, object]:
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -49,7 +43,7 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
         llm=llm,
         tools=LegacyToolExecutor(core),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "dispatch"}))
     project = next(iter(core.projects.values()))
@@ -256,7 +250,7 @@ async def test_stop_with_pending_inbox_continues_instead_of_finishing():
         llm=llm,
         tools=LegacyToolExecutor(core),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "race"}))
     project = next(iter(core.projects.values()))

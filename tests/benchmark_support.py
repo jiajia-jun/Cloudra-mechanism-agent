@@ -120,7 +120,8 @@ class ScriptedLLM:
             return candidate
         raise AssertionError(
             f"no scripted step for run={run_index} turn={turn}; "
-            f"pool={[(s.run, s.turn) for s in steps]}"
+            f"pool={[(s.run, s.turn) for s in steps]}; "
+            f"calls_seen={[(c['role'], c['run_index'], c['turn']) for c in self.calls_seen[-24:]]}"
         )
 
     async def complete(self, agent: AgentSession, messages: list[dict], tools, **_kwargs) -> LLMResponse:
@@ -232,17 +233,13 @@ class ScriptedLLM:
 
 
 # ---------------------------------------------------------------------------
-# 生产 pipeline 装配（app.py 同源接线；LLM/摘要器替换为测试脚本）
+# 生产 pipeline 装配（app.py 同源接线；LLM 替换为测试脚本）
 # ---------------------------------------------------------------------------
-
-async def stub_run_summarizer(messages: list[dict]) -> str:
-    """确定性 run 摘要：finalize 阶段不碰真实 LLM。"""
-    return "[RUN LOG]\nscripted benchmark run\n[HANDOVER]\nscripted handover\n"
 
 
 def assemble_live_pipeline(core: Any, llm: ScriptedLLM) -> tuple[Any, Any]:
     """生产接线：default_stages + LegacyToolExecutor + InvocationService +
-    TurnPipeline + AgentRunner（摘要器替换为确定性 stub）。"""
+    TurnPipeline + AgentRunner。"""
     from cloudra.runtime_v2.adapters import (
         LegacyPromptProvider,
         LegacyToolExecutor,
@@ -269,10 +266,7 @@ def assemble_live_pipeline(core: Any, llm: ScriptedLLM) -> tuple[Any, Any]:
         notices=core.notices,
         invocations=invocations,
     )
-    runner = AgentRunner(
-        core, pipeline, run_summarizer=stub_run_summarizer,
-        max_turn_retries=0, retry_backoff=(),
-    )
+    runner = AgentRunner(core, pipeline, max_turn_retries=0, retry_backoff=())
     core.runner = runner
     return pipeline, runner
 

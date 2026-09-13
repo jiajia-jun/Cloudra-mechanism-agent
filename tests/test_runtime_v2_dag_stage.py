@@ -159,7 +159,7 @@ async def _drive_with_runner(core, agent, llm, tmp_path):
         llm=llm,
         tools=FakeTools(),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     await CommandBus(core).execute(
         Command(
             type="agent.message",
@@ -415,12 +415,6 @@ async def test_stop_suspends_while_reminder_pending(tmp_path):
         await core.reminders.close()
 
 
-async def _stub_summarizer(messages):
-    # Tests never hit the network; run-end summarization is covered in
-    # test_runtime_v2_context_tree.py with dedicated fakes.
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 @pytest.mark.asyncio
 async def test_non_stop_run_end_records_partial(tmp_path):
     """Task 4A：未调用 stop 的运行结束（纯文本最终回复）与显式 stop 到达同一
@@ -441,7 +435,7 @@ async def test_non_stop_run_end_records_partial(tmp_path):
         llm=FinalMessageLLM(),
         tools=FakeTools(),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(
         Command(
@@ -497,7 +491,7 @@ async def test_explicit_stop_does_not_double_record_partial(tmp_path):
         llm=StopLLM("partial"),
         tools=FakeTools(),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(
         Command(

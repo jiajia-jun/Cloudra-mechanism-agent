@@ -1,0 +1,193 @@
+{
+  "recorded_at": "2026-09-13",
+  "implementation": "current code before Tasks 2-4 (harness rewrites prefixes)",
+  "model": "cache-fixture-model",
+  "base_url": "https://api.example/",
+  "protocol": {
+    "runner_scenarios": "traditional",
+    "js_instructions_tail": "javascript"
+  },
+  "transport": "chat.completions streaming（fake client 捕获实际发送的 kwargs）",
+  "usage_fields": "unavailable: fake 传输不上报 provider 缓存统计（按验收 8 记 unavailable，不记 0）",
+  "fixed_inputs": {
+    "query": "solve it",
+    "reminder": "[Reminder] check the gaussian log",
+    "workspace_file": "result.txt",
+    "memory_text": "# Memory\n\n- Keep the cache prefix stable across turns.\n",
+    "pin": "[Task goal] keep the cache prefix stable",
+    "push": "one-shot: first turn only"
+  },
+  "notes": "message_chars 含临时工作区绝对路径，逐环境变化；messages/tools 计数与 first_divergence 是稳定部分。",
+  "scenarios": {
+    "two_tool_rounds": {
+      "requests": [
+        {
+          "messages": 3,
+          "message_chars": 17879,
+          "tools": 44
+        },
+        {
+          "messages": 5,
+          "message_chars": 18087,
+          "tools": 44
+        },
+        {
+          "messages": 7,
+          "message_chars": 18295,
+          "tools": 44
+        }
+      ],
+      "pairs": [
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "tools_equal": true,
+          "first_divergence": null,
+          "prefix_holds": true
+        },
+        {
+          "pair": [
+            1,
+            2
+          ],
+          "tools_equal": true,
+          "first_divergence": null,
+          "prefix_holds": true
+        }
+      ],
+      "cadence": "单 run 内 3 次连续 LLM 调用：echo 工具轮、echo 工具轮、stop 收尾"
+    },
+    "pin_push": {
+      "requests": [
+        {
+          "messages": 5,
+          "message_chars": 18009,
+          "tools": 1
+        },
+        {
+          "messages": 6,
+          "message_chars": 18203,
+          "tools": 1
+        }
+      ],
+      "pairs": [
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "tools_equal": true,
+          "first_divergence": 3,
+          "prefix_holds": false
+        }
+      ],
+      "cadence": "管线级 2 次调用：第 1 轮尾部带 pin+push，第 2 轮 pin 重放、push 已排空"
+    },
+    "workspace_change": {
+      "requests": [
+        {
+          "messages": 3,
+          "message_chars": 17879,
+          "tools": 44
+        },
+        {
+          "messages": 5,
+          "message_chars": 18058,
+          "tools": 44
+        }
+      ],
+      "pairs": [
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "tools_equal": true,
+          "first_divergence": 1,
+          "prefix_holds": false
+        }
+      ],
+      "cadence": "单 run 2 次调用：第 1 轮工具调用期间写入 result.txt，第 2 轮重渲工作区快照"
+    },
+    "schedule_rewake": {
+      "requests": [
+        {
+          "messages": 3,
+          "message_chars": 17879,
+          "tools": 44
+        },
+        {
+          "messages": 6,
+          "message_chars": 18474,
+          "tools": 44
+        }
+      ],
+      "pairs": [
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "tools_equal": true,
+          "first_divergence": 1,
+          "prefix_holds": false
+        }
+      ],
+      "cadence": "run1 stop  succeeded 后投递 [Reminder] 唤醒 run2；跨 run 各 1 次调用"
+    },
+    "js_instructions_tail": {
+      "requests": [
+        {
+          "messages": 2,
+          "message_chars": 2285,
+          "tools": 2
+        },
+        {
+          "messages": 3,
+          "message_chars": 2326,
+          "tools": 2
+        }
+      ],
+      "pairs": [
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "tools_equal": true,
+          "first_divergence": 1,
+          "prefix_holds": false
+        }
+      ],
+      "cadence": "管线级 2 次调用（javascript 协议）：JS instructions 每轮追加在请求尾部"
+    },
+    "memory_update": {
+      "requests": [
+        {
+          "messages": 3,
+          "message_chars": 17879,
+          "tools": 44
+        },
+        {
+          "messages": 5,
+          "message_chars": 18356,
+          "tools": 44
+        }
+      ],
+      "pairs": [
+        {
+          "pair": [
+            0,
+            1
+          ],
+          "tools_equal": true,
+          "first_divergence": 0,
+          "prefix_holds": false
+        }
+      ],
+      "cadence": "单 run 2 次调用：第 1 轮工具调用期间写入 MEMORY.md，第 2 轮身份提示并入记忆"
+    }
+  }
+}

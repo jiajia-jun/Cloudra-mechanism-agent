@@ -84,10 +84,6 @@ class _ResearchTools:
         return ToolResult(is_success=True, summary=f"ok:{call.name}", data={})
 
 
-async def _stub_summarizer(messages):
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(llm) -> tuple[RuntimeCore, CommandBus, object]:
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -98,7 +94,7 @@ async def _setup(llm) -> tuple[RuntimeCore, CommandBus, object]:
     )
     # 小退避让 failed 用例确定性快速到位（默认 (2.0, 4.0) 是纯耗时）。
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     project = (
@@ -468,7 +464,7 @@ async def test_research_tool_completions_create_no_reviews_and_no_supervisor():
         notices=core.notices,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     project = (
@@ -758,7 +754,7 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
         notices=core.notices,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     project = (
@@ -1030,7 +1026,7 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
         invocations=invocations,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     # 事件驱动同步点（CI flake 根治，run 34014279374）：旧实现"5 秒轮询持久
     # 化请求 + 轮询退出后一次性 find_project_supervisor"有真实竞态——退出请
@@ -1111,7 +1107,7 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
         assert dispositions
         assert set(dispositions) == {("partial",)}
         # 裁决通知确实进了 coordinator 的上下文通道（pin）。
-        pinned = core.notices.collect(coordinator.id)
+        pinned = core.notices.collect_batch(coordinator.id, fresh=True)
         assert any("verdict=accept" in m["content"] for m in pinned)
     finally:
         core.event_hub.unsubscribe(_on_gate)
@@ -1396,7 +1392,7 @@ def _full_wiring(llm, *, extra_stages=()):
         invocations=invocations,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     return core, bus, stages
@@ -1825,7 +1821,7 @@ async def test_new_review_arriving_between_stop_decision_and_finish_wakes_new_ru
         invocations=invocations,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     supervisor = None
@@ -2228,7 +2224,7 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
         invocations=invocations,
     )
     core2.runner = AgentRunner(
-        core2, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core2, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus2 = CommandBus(core2)
     try:

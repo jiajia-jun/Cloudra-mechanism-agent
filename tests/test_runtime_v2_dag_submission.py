@@ -100,10 +100,6 @@ class _LatchedRoutingLLM:
         return self.coordinator_responses.pop(0)
 
 
-async def _stub_summarizer(messages):
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(
     llm, workspace, *, executor=None, project_settings: dict | None = None
 ) -> tuple[RuntimeCore, CommandBus, object, object, InvocationService]:
@@ -124,7 +120,7 @@ async def _setup(
         invocations=invocations,
     )
     core.runner = AgentRunner(
-        core, pipeline, retry_backoff=(0.01, 0.01), run_summarizer=_stub_summarizer
+        core, pipeline, retry_backoff=(0.01, 0.01)
     )
     bus = CommandBus(core)
     settings = {"orchestration_mode": "dag_guided", **(project_settings or {})}

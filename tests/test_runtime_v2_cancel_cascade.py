@@ -46,10 +46,6 @@ class CascadeLLM:
         await asyncio.Event().wait()  # parent parks once the plan is exhausted
 
 
-async def _stub_summarizer(messages, **_kwargs):
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(llm) -> tuple[RuntimeCore, object, object]:
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -58,7 +54,7 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
         llm=llm,
         tools=LegacyToolExecutor(core),
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     await bus.execute(Command(type="project.create", payload={"name": "cascade"}))
     project = next(iter(core.projects.values()))

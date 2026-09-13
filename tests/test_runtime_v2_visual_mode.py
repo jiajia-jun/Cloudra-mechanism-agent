@@ -101,6 +101,8 @@ class _FakeClient:
 
 def _visual_agent(visual_mode: bool):
     return SimpleNamespace(
+        id="as_visual",
+        project_id="prj_visual",
         role_id="coordinator",
         settings=RuntimeSettings(
             model="m",
@@ -241,7 +243,6 @@ def test_supports_vision_yaml_round_trip(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_tool_result_injects_all_image_paths(tmp_path):
-    from cloudra.runtime_v2.agent_runner import AgentRunner
     from cloudra.runtime_v2.policies.base import ToolResult
     pngs = []
     for i in range(3):
@@ -252,17 +253,22 @@ async def test_tool_result_injects_all_image_paths(tmp_path):
             b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
         )
         pngs.append(str(p))
-    runner = AgentRunner(
-        core=SimpleNamespace(),
-        pipeline=SimpleNamespace(llm=SimpleNamespace(supports_vision=lambda _a: True)),
-    )
+    runner = _injection_runner()
     agent = _visual_agent(True)
-    content = await runner._tool_result_content(
+    content = runner._tool_result_content(
         agent,
         ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
     )
+    # 投影里只存稳定引用（image_ref），不重嵌 base64；发送前才解析。
     assert isinstance(content, list)
-    urls = [p for p in content if p.get("type") == "image_url"]
+    refs = [p for p in content if p.get("type") == "image_ref"]
+    assert [p["path"] for p in refs] == pngs
+    from cloudra.runtime_v2.turn_pipeline import resolve_media_references
+
+    resolved = await resolve_media_references(
+        [{"role": "tool", "content": content}], vision_enabled=True
+    )
+    urls = [p for p in resolved[0]["content"] if p.get("type") == "image_url"]
     assert len(urls) == 3
 
 
@@ -273,7 +279,6 @@ async def test_runner_history_includes_javascript_outputs_in_order():
     from cloudra.runtime_v2.turn_pipeline import TurnOutcome
 
     runner = _injection_runner()
-    history = []
     outputs = ["hello-orient-53", {"answer": 42}]
     result = ToolResult(
         is_success=False,
@@ -288,9 +293,10 @@ async def test_runner_history_includes_javascript_outputs_in_order():
         tool_exchanges=((ToolCall("js-1", "js_exec", {"code": "..."}), result),),
     )
 
-    await runner._append_history(_visual_agent(False), history, [], outcome)
+    agent = _visual_agent(False)
+    await runner._commit_turn_output(agent, "run1", outcome)
 
-    content = history[-1]["content"]
+    content = runner.core.session_contexts[agent.id].messages[-1]["content"]
     assert "hello-orient-53" in content
     assert '{"answer": 42}' in content
     assert content.index("hello-orient-53") < content.index('{"answer": 42}')
@@ -303,7 +309,6 @@ async def test_runner_history_does_not_project_traditional_tool_data():
     from cloudra.runtime_v2.turn_pipeline import TurnOutcome
 
     runner = _injection_runner()
-    history = []
     result = ToolResult(
         is_success=True,
         summary="traditional summary",
@@ -314,9 +319,10 @@ async def test_runner_history_does_not_project_traditional_tool_data():
         tool_exchanges=((ToolCall("tool-1", "echo", {}), result),),
     )
 
-    await runner._append_history(_visual_agent(False), history, [], outcome)
+    agent = _visual_agent(False)
+    await runner._commit_turn_output(agent, "run1", outcome)
 
-    assert history[-1]["content"] == "traditional summary"
+    assert runner.core.session_contexts[agent.id].messages[-1]["content"] == "traditional summary"
 
 
 @pytest.mark.asyncio
@@ -325,7 +331,6 @@ async def test_runner_history_keeps_no_output_javascript_summary_unchanged():
     from cloudra.runtime_v2.turn_pipeline import TurnOutcome
 
     runner = _injection_runner()
-    history = []
     result = ToolResult(
         is_success=True,
         summary="JavaScript program completed: 0 output(s), 1 tool call(s)",
@@ -336,9 +341,10 @@ async def test_runner_history_keeps_no_output_javascript_summary_unchanged():
         tool_exchanges=((ToolCall("js-2", "js_exec", {"code": "..."}), result),),
     )
 
-    await runner._append_history(_visual_agent(False), history, [], outcome)
+    agent = _visual_agent(False)
+    await runner._commit_turn_output(agent, "run1", outcome)
 
-    assert history[-1]["content"] == result.summary
+    assert runner.core.session_contexts[agent.id].messages[-1]["content"] == result.summary
 
 
 _TINY_PNG = (
@@ -359,9 +365,10 @@ def _write_pngs(directory, n=3):
 
 def _injection_runner(*, supports_vision=True):
     from cloudra.runtime_v2.agent_runner import AgentRunner
+    from cloudra.runtime_v2.core import RuntimeCore
 
     return AgentRunner(
-        core=SimpleNamespace(),
+        core=RuntimeCore(strict_events=True),
         pipeline=SimpleNamespace(
             llm=SimpleNamespace(supports_vision=lambda _a: supports_vision)
         ),
@@ -370,33 +377,49 @@ def _injection_runner(*, supports_vision=True):
 
 @pytest.mark.asyncio
 async def test_tool_result_fallback_line_per_path_when_visual_off(tmp_path):
+    """视觉关闭：投影存 image_ref；发送前解析把每条路径降级成一行 fallback
+    文本，全部文本部件坍缩为纯字符串。"""
     from cloudra.runtime_v2.policies.base import ToolResult
+    from cloudra.runtime_v2.turn_pipeline import resolve_media_references
 
     pngs = _write_pngs(tmp_path)
-    content = await _injection_runner()._tool_result_content(
+    content = _injection_runner()._tool_result_content(
         _visual_agent(False),
         ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
     )
-    assert isinstance(content, str)
-    assert content.startswith("scan")
-    assert content.count("Image rendered at:") == 3
+    assert isinstance(content, list)
+    assert [p.get("type") for p in content].count("image_ref") == 3
+    resolved = await resolve_media_references(
+        [{"role": "tool", "content": content}], vision_enabled=False
+    )
+    text = resolved[0]["content"]
+    assert isinstance(text, str)
+    assert text.startswith("scan")
+    assert text.count("Image rendered at:") == 3
     for path in pngs:
-        assert path in content
+        assert path in text
 
 
 @pytest.mark.asyncio
 async def test_tool_result_fallback_line_per_path_when_no_vision(tmp_path):
+    """模型不支持视觉（provider supports_vision=False）走同一条发送时降级
+    路径：resolve_media_references(vision_enabled=False)。"""
     from cloudra.runtime_v2.policies.base import ToolResult
+    from cloudra.runtime_v2.turn_pipeline import resolve_media_references
 
     pngs = _write_pngs(tmp_path)
-    content = await _injection_runner(supports_vision=False)._tool_result_content(
+    content = _injection_runner(supports_vision=False)._tool_result_content(
         _visual_agent(True),
         ToolResult(is_success=True, summary="scan", data={"image_paths": pngs, "image_path": pngs[0]}),
     )
-    assert isinstance(content, str)
-    assert content.count("Image rendered at:") == 3
+    resolved = await resolve_media_references(
+        [{"role": "tool", "content": content}], vision_enabled=False
+    )
+    text = resolved[0]["content"]
+    assert isinstance(text, str)
+    assert text.count("Image rendered at:") == 3
     for path in pngs:
-        assert path in content
+        assert path in text
 
 
 @pytest.mark.asyncio

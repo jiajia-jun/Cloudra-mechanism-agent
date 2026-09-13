@@ -7,10 +7,13 @@ on later; command handlers only talk to this object, never to storage.
 - 事件可推导（重启可重建）：projects/agents/roles/pending_compactions 由
   apply_event 投影（状态承载事件清单见 apply.py docstring）；notices pins、
   pending、reminders 由各 broker 对事件日志的投影重建（pending 孤儿由
-  restore 落 approval.expired / interaction.expired 显式闭合）。
-- 刻意易失（shell 私有，重启即弃）：mailbox 的 inbox 队列、runner 的 LLM
-  history（对话原文不跨 run）、pipeline 的 loop_guard 计数、notices 的
-  one-shot pushes、pending._waiters 的 future、reminders/email_listener 的
+  restore 落 approval.expired / interaction.expired 显式闭合）；
+  ``session_contexts``（会话级 LLM 上下文投影，Task 4）同样由
+  apply_event 从 context.prefix_installed/appended/compacted 重建——
+  一个 session 一份上下文，run 只是执行生命周期。
+- 刻意易失（shell 私有，重启即弃）：mailbox 的 inbox 队列、pipeline 的
+  loop_guard 计数、notices 的 pending 批次（park 未确认，重启后由事件
+  游标重算）、pending._waiters 的 future、reminders/email_listener 的
   asyncio 任务、policy stage 声明为易失的缓存（规则见 policies/base.py）。
 明细见各宿主模块 docstring；write-only 秘密 api_key 永不进事件/快照。
 """
@@ -36,7 +39,146 @@ from cloudra.runtime_v2.schemas import (
     CommandResult,
     Project,
     RuntimeSettings,
+    SessionContext,
 )
+
+
+class ContextBroker:
+    """会话级 LLM 上下文投影的唯一写口（Task 4：一个 session 一份上下文）。
+
+    写路径拍序与 CommandBus 一致：event_log.append → apply_event →
+    event_writer.flush（持久化失败抛 EventPersistenceError，调用方不得
+    继续发送未持久化的状态）。恢复路径经 restore_core（快照 + 增量重放）
+    走同一批 applier 重建投影，绝不执行工具/JS/计算。
+    """
+
+    def __init__(self, core: "RuntimeCore") -> None:
+        self.core = core
+
+    def current_messages(self, session_id: str) -> list[dict]:
+        ctx = self.core.session_contexts.get(session_id)
+        return list(ctx.messages) if ctx is not None else []
+
+    def prefix_state(self, session_id: str) -> dict | None:
+        """ContextPrefix owner 跨 run/重启回灌素材：安装元数据 + 投影全文。"""
+        ctx = self.core.session_contexts.get(session_id)
+        if ctx is None or ctx.prefix_meta is None:
+            return None
+        return {"meta": dict(ctx.prefix_meta), "messages": list(ctx.messages)}
+
+    def filter_pending_input(
+        self, session_id: str, inbox_messages: list[dict]
+    ) -> list[dict]:
+        """剔除已进入投影的输入消息（按 message_id）：LLM 重试/重启恢复后
+        同一条 inbox 消息不重复进上下文；无 message_id 的条目（测试）原样保留。"""
+        ctx = self.core.session_contexts.get(session_id)
+        if ctx is None:
+            return list(inbox_messages)
+        known = {
+            str(message.get("message_id"))
+            for message in ctx.messages
+            if message.get("role") == "user" and message.get("message_id")
+        }
+        return [
+            item
+            for item in inbox_messages
+            if not item.get("message_id") or str(item["message_id"]) not in known
+        ]
+
+    async def commit_input(
+        self, *, agent: AgentSession, run_id: str, context_prefix, notices, user_messages: list[dict]
+    ) -> None:
+        """发送 LLM 请求前，把本轮输入落进会话上下文投影（恰好一次）。
+
+        顺序：前缀 install/refresh 增量 → inbox 用户消息 → 通知批次。
+        ``user_messages`` 由 TurnPipeline 成形（与请求里的条目逐字节一致，
+        含 message_id 锚点）。drain_pending / confirm_consumed 在这里调用，
+        使 owner/notices 的内存游标与投影同步推进；事件全部持久化（flush）
+        后调用方才发送请求。
+        """
+        core = self.core
+        install: tuple = ()
+        appends: tuple = ()
+        if context_prefix is not None:
+            install, appends = context_prefix.drain_pending()
+        notice_messages = notices.confirm_consumed(agent.id) if notices is not None else []
+        events: list[tuple[str, dict]] = []
+        if install:
+            events.append(
+                (
+                    "context.prefix_installed",
+                    {"messages": list(install), "meta": context_prefix.snapshot_meta()},
+                )
+            )
+        appended = [*appends, *user_messages, *notice_messages]
+        if appended:
+            events.append(("context.appended", {"messages": appended}))
+        if not events:
+            return
+        from cloudra.runtime_v2.apply import apply_event
+
+        for event_type, data in events:
+            envelope = core.event_log.append(
+                event_type,
+                stream="agent",
+                project_id=agent.project_id,
+                session_id=agent.id,
+                run_id=run_id,
+                data=data,
+            )
+            apply_event(core, envelope)
+        await core.event_writer.flush()
+
+    async def append_output(self, *, agent: AgentSession, run_id: str, messages: list[dict]) -> None:
+        """响应落上下文：完整的 assistant/tool 消息（文本、工具配对、
+        reasoning、稳定媒体引用）追加进投影。"""
+        if not messages:
+            return
+        from cloudra.runtime_v2.apply import apply_event
+
+        envelope = self.core.event_log.append(
+            "context.appended",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data={"messages": list(messages)},
+        )
+        apply_event(self.core, envelope)
+        await self.core.event_writer.flush()
+
+    async def install_compacted(
+        self, *, agent: AgentSession, run_id: str, messages: list[dict],
+        prefix_meta: dict | None, expected_version: int, trigger: str,
+    ) -> bool:
+        """compact 候选的原子安装：一条事件整体替换会话上下文投影。
+
+        版本守卫：``expected_version`` 是候选输入冻结时的投影长度；不一致
+        说明压缩期间有新消息进入投影——放弃候选（返回 False，不落事件），
+        绝不覆盖新增的用户纠正。调用方只在摘要完整成功时调用本方法。
+        """
+        ctx = self.core.session_contexts.get(agent.id)
+        current_version = len(ctx.messages) if ctx is not None else 0
+        if current_version != expected_version:
+            return False
+        from cloudra.runtime_v2.apply import apply_event
+
+        envelope = self.core.event_log.append(
+            "context.compacted",
+            stream="agent",
+            project_id=agent.project_id,
+            session_id=agent.id,
+            run_id=run_id,
+            data={
+                "messages": list(messages),
+                "prefix_meta": dict(prefix_meta) if prefix_meta else None,
+                "expected_version": expected_version,
+                "trigger": trigger,
+            },
+        )
+        apply_event(self.core, envelope)
+        await self.core.event_writer.flush()
+        return True
 
 
 class RuntimeCore:
@@ -83,6 +225,10 @@ class RuntimeCore:
         # Event-sourced: pin/push changes land in the log (deduplicated), so
         # injections are auditable, replayable, and reachable via commands.
         self.notices.attach(self.event_log, self._project_of_session)
+        # 会话级 LLM 上下文投影（Task 4）：session_id -> SessionContext，
+        # 由 apply_event 从 context.* 事件重建；ContextBroker 是唯一写口。
+        self.session_contexts: dict[str, SessionContext] = {}
+        self.contexts = ContextBroker(self)
         # Attached by the API/embedder when live execution is desired; command
         # handlers keep working without a runner (pure state mode for tests).
         self.runner = None

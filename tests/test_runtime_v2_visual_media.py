@@ -58,12 +58,6 @@ class ImageTools:
         return ToolResult(is_success=True, summary=f"rendered: {self.image_path}", data=data)
 
 
-async def _stub_summarizer(messages):
-    # Tests never hit the network; run-end summarization is covered in
-    # test_runtime_v2_context_tree.py with dedicated fakes.
-    return "[RUN LOG]\nstub trajectory\n[HANDOVER]\nstub state"
-
-
 async def _setup(llm, tools, *, workspace_dir: str | None = None):
     core = RuntimeCore(strict_events=True)
     pipeline = TurnPipeline(
@@ -72,7 +66,7 @@ async def _setup(llm, tools, *, workspace_dir: str | None = None):
         llm=llm,
         tools=tools,
     )
-    core.runner = AgentRunner(core, pipeline, run_summarizer=_stub_summarizer)
+    core.runner = AgentRunner(core, pipeline)
     bus = CommandBus(core)
     payload = {"name": "visual demo"}
     if workspace_dir:
@@ -237,11 +231,18 @@ async def test_user_images_text_fallback_when_no_vision(tmp_path):
 
 @pytest.mark.asyncio
 async def test_compaction_downgrades_image_parts():
-    from cloudra.runtime_v2.compaction import compact_history
+    """图像在摘要输入里降级为既有文本描述/可回读引用——base64 绝不进
+    摘要调用；投影里的 image_ref 用创建时写入的 fallback 文本。"""
+    from cloudra.runtime_v2.compaction import compact_context
 
     data_url = "data:image/png;base64," + base64.b64encode(_PNG_BYTES).decode()
     history = [
         {"role": "user", "content": "render the molecule"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "tc1", "name": "render", "arguments": {}}],
+        },
         {
             "role": "tool",
             "tool_call_id": "tc1",
@@ -250,22 +251,57 @@ async def test_compaction_downgrades_image_parts():
                 {"type": "image_url", "image_url": {"url": data_url}},
             ],
         },
+        {
+            "role": "tool",
+            "tool_call_id": "tc2",
+            "content": [
+                {"type": "text", "text": "rendered again"},
+                {
+                    "type": "image_ref",
+                    "path": "/tmp/render2.png",
+                    "fallback": "[Image rendered at: /tmp/render2.png]",
+                },
+            ],
+        },
         {"role": "assistant", "content": "done"},
     ]
+    # 让轨迹真实长于摘要：大 assistant 段 + 第二条指令（把尾部收窄到最后
+    # 一章），否则活动章节覆盖一切、没有可压缩的轨迹
+    history.insert(1, {"role": "assistant", "content": "y" * 5000})
+    history.insert(-1, {"role": "user", "content": "next step"})
     seen: list[list[dict]] = []
 
-    async def fake_summarize(messages):
-        seen.append(messages)
-        return "SUMMARY"
+    async def fake_summarize(messages, **_kwargs):
+        import json as _json
 
-    new_history, stats = await compact_history(history, keep_recent=1, summarize=fake_summarize)
+        seen.append(messages)
+        return _json.dumps(
+            {
+                "objective": {"text": "SUMMARY", "sources": []},
+                "active_requests": [], "corrections": [], "constraints": [],
+                "pending": [], "completed": [], "failed_attempts": [],
+                "evidence": [], "next_actions": [],
+            },
+            ensure_ascii=False,
+        )
+
+    new_context, stats = await compact_context(
+        history,
+        head=[],
+        notices=[],
+        keep_recent=1,
+        summarize=fake_summarize,
+        context_window=200_000,
+        max_output=32_768,
+    )
     assert stats["compacted"] is True
     serialized = seen[0][1]["content"]
     assert "base64" not in serialized
     assert "[Image: image/png attachment omitted during compaction]" in serialized
+    assert "[Image rendered at: /tmp/render2.png]" in serialized
     assert "rendered: /tmp/render.png" in serialized
-    # The verbatim tail keeps its parts (only the summarized head is degraded).
-    assert new_history[-1]["content"] == "done"
+    # 逐字尾部保持部件原样（只有被摘要的轨迹段做文本降级）
+    assert new_context[-1]["content"] == "done"
 
 
 @pytest.mark.asyncio

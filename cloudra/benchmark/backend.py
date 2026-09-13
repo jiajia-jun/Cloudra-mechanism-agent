@@ -26,7 +26,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from cloudra.benchmark.policy_stage import MethodPolicyStage
 from cloudra.benchmark.schema import TaskSpec
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 class RuntimeV2Backend:
     """`AgentBackend` implementation: run each task on the real runtime_v2.
 
-    `llm` / `tools` / `run_summarizer` are injectable so tests can run the
+    `llm` / `tools` are injectable so tests can run the
     whole wiring hermetically; production defaults are the legacy bridges.
     """
 
@@ -49,7 +49,6 @@ class RuntimeV2Backend:
         poll_interval_s: float = 2.0,
         llm: Any = None,
         tools: Any = None,
-        run_summarizer: Optional[Callable[[list[dict]], Awaitable[str]]] = None,
         start_scheduler: bool = True,
     ) -> None:
         self.run_timeout_s = run_timeout_s
@@ -57,7 +56,6 @@ class RuntimeV2Backend:
         self.poll_interval_s = poll_interval_s
         self.llm = llm
         self.tools = tools
-        self.run_summarizer = run_summarizer
         self.start_scheduler = start_scheduler
         # 每次任务的 RuntimeCore 按 task_id 留存，供测试与调试内省事件日志；
         # 并行跑题时多线程并发写，用锁保护。
@@ -116,7 +114,7 @@ class RuntimeV2Backend:
             notices=core.notices,
             invocations=invocations,
         )
-        core.runner = AgentRunner(core, pipeline, run_summarizer=self.run_summarizer)
+        core.runner = AgentRunner(core, pipeline)
         scheduler = None
         if self.start_scheduler:
             from cloudra.scheduler.daemon import SchedulerDaemon

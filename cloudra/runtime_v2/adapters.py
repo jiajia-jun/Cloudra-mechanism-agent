@@ -19,16 +19,25 @@ from pydantic import ValidationError
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema as LegacyInputSchema
 from cloudra.infra.config import get_config
-from cloudra.infra.llm_client import LLMClient
+from cloudra.infra.llm_client import LLMClient, first_prefix_divergence, request_fingerprint
 from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.infra.tool_errors import validation_feedback
 from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
 from cloudra.persistence.paths import project_workspace_dir
+from cloudra.runtime import prompt_assembler as prompt_assembler_labels
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
+from cloudra.runtime_v2.schemas import (
+    AgentSession,
+    InvocationProtocol,
+    RuntimeSettings,
+    effective_invocation_protocol,
+)
+from cloudra.runtime_v2.tool_catalog import javascript_instructions
 from cloudra.runtime_v2.turn_pipeline import DeltaSink, LLMResponse
 from cloudra.tools.capabilities import is_direct_only, visual_tools
 from cloudra.tools.name_hints import hint_unknown_tool, is_retired_tool_name
+
+logger = logging.getLogger(__name__)
 
 
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
@@ -174,44 +183,301 @@ def legacy_default_runtime_settings() -> RuntimeSettings:
     )
 
 
-class LegacyPromptProvider:
-    """Build identity/observation messages with the existing PromptAssembler."""
+# 动态源更新/撤销消息的标签：在原快照标签前标明来源与替代关系。
+# 键对应 PromptSource.kind（memory / agents_md / workspace）。
+_SNAPSHOT_UPDATE_LABELS = {
+    "memory": (
+        "[Updated long-term memory — MEMORY.md changed]",
+        "This snapshot replaces the earlier MEMORY.md snapshot above; follow this version.",
+    ),
+    "agents_md": (
+        "[Updated user instructions — AGENTS.md changed]",
+        "This snapshot replaces the earlier AGENTS.md snapshot above; the user's "
+        "instructions keep full authority — follow this version.",
+    ),
+    "workspace": (
+        "[Workspace observation — update]",
+        "The workspace changed since the earlier observation; this is the current "
+        "observation data and replaces the earlier one above.",
+    ),
+}
 
-    async def __call__(
+_SNAPSHOT_RETRACTIONS = {
+    "memory": (
+        "[Long-term memory retracted — MEMORY.md no longer exists]\n\n"
+        "The earlier MEMORY.md snapshot above is retracted; do not follow it."
+    ),
+    "agents_md": (
+        "[User instructions retracted — AGENTS.md no longer exists]\n\n"
+        "The earlier AGENTS.md snapshot above is retracted; do not follow it."
+    ),
+}
+
+# 动态源快照的原标签（与 prompt_assembler 的快照构造器一一对应）。
+_SNAPSHOT_BASE_LABELS = {
+    "memory": prompt_assembler_labels.MEMORY_SNAPSHOT_LABEL,
+    "agents_md": prompt_assembler_labels.AGENTS_SNAPSHOT_LABEL,
+    "workspace": prompt_assembler_labels.WORKSPACE_OBSERVATION_LABEL,
+}
+
+
+class LegacyContextPrefix:
+    """Per-run owner of the installed prompt prefix and dynamic source snapshots.
+
+    缓存连续性契约：``install()`` 只在上下文初始化（或 compact/重置后前缀
+    不在投影头部）时运行一次，产出静态协议（角色身份、JS 调用协议）与
+    首份动态快照；``refresh()`` 每轮只读复查动态源，只有真实变化才追加
+    标明来源与替代关系的新消息，无变化返回空——已发送的旧消息绝不重写。
+
+    跨 run/重启：runner 每个 run 重建本对象，但经 ``restored``（会话投影
+    的 prefix_meta + 头部消息）回灌后 matches() 直接命中，前缀不重装。
+    ``pending_install`` / ``pending_appends`` 记录最近一次 install/refresh
+    产出但尚未由 ContextBroker 持久化进投影的消息；``drain_pending`` 在
+    commit_input 里被调用恰好一次。
+    """
+
+    def __init__(
         self,
         *,
         agent: AgentSession,
         workspace_dir: str | None,
-        tool_names: list[str],
-    ) -> list[dict[str, Any]]:
-        import asyncio
-
+        tool_names: Iterable[str],
+        restored: dict | None = None,
+    ) -> None:
+        self._agent = agent
+        self._tool_names = [name for name in tool_names if name]
+        settings = legacy_default_settings(agent)
+        self._settings = settings
+        is_coordinator = agent.role_id == "coordinator"
         from cloudra.runtime.prompt_assembler import PromptAssembler
 
-        def assemble() -> list[dict[str, Any]]:
-            is_coordinator = agent.role_id == "coordinator"
-            assembler = PromptAssembler(
-                prompt_name=agent.role_id,
-                custom_prompt=None,
-                conversation_id=agent.project_id,
-                working_directory=workspace_dir or str(project_workspace_dir(agent.project_id)),
-                include_memory=is_coordinator and not agent.settings.clean_context,
-                include_agents_md=is_coordinator and not agent.settings.clean_context,
-                observer_id=agent.id,
-            )
-            # 有联网搜索能力（模型端原生搜索或外置 search 工具）时，
-            # system prompt 注入「联网搜索（重要）」段，要求先搜再答。
-            settings = legacy_default_settings(agent)
-            web_search_available = (
-                _native_search_adapter_for(settings) is not None or "search" in tool_names
-            )
-            assembly = assembler.assemble(
-                capability_names=tool_names,
-                web_search_available=web_search_available,
-            )
-            return [*assembly.identity_messages, *assembly.observation_messages]
+        # 构造只做纯字段记录与 is_application_checkout 的两个 is_file 探测
+        # （与 PromptAssembler 既有构造开销相同）；真正读盘在 install/refresh
+        # 的 to_thread 里。
+        self._assembler = PromptAssembler(
+            prompt_name=agent.role_id,
+            custom_prompt=None,
+            conversation_id=agent.project_id,
+            working_directory=workspace_dir or str(project_workspace_dir(agent.project_id)),
+            include_memory=is_coordinator and not agent.settings.clean_context,
+            include_agents_md=is_coordinator and not agent.settings.clean_context,
+            observer_id=agent.id,
+        )
+        # 有联网搜索能力（模型端原生搜索或外置 search 工具）时，
+        # system prompt 注入「联网搜索（重要）」段，要求先搜再答。
+        self._web_search_available = (
+            _native_search_adapter_for(settings) is not None or "search" in self._tool_names
+        )
+        self._initial: list[dict[str, Any]] | None = None
+        self._revisions: dict[str, str | None] = {}
+        self._prompt_revision = ""
+        self._capability_revision = ""
+        self._pending_install: tuple[dict[str, Any], ...] = ()
+        self._pending_appends: tuple[dict[str, Any], ...] = ()
+        # 跨 run/重启回灌（Task 4）：会话上下文投影的头部即上次安装的前缀，
+        # 安装元数据（revisions/静态 revision/前缀长度）随
+        # context.prefix_installed 事件持久化。回灌后 matches() 直接命中
+        # 投影头部，跨 run 不重装、不重发。
+        if restored:
+            meta = dict(restored.get("meta") or {})
+            prefix_len = int(meta.get("prefix_len") or 0)
+            messages = list(restored.get("messages") or [])
+            if prefix_len and len(messages) >= prefix_len:
+                self._initial = [dict(message) for message in messages[:prefix_len]]
+                self._revisions = dict(meta.get("revisions") or {})
+                self._prompt_revision = str(meta.get("prompt_revision") or "")
+                self._capability_revision = str(meta.get("capability_revision") or "")
 
-        return await asyncio.to_thread(assemble)
+    # ------------------------------------------------------------- pipeline 协议
+
+    def matches(self, history: list[dict[str, Any]]) -> bool:
+        """history 以本 owner 安装的初始前缀开头（逐字节相等）。"""
+        initial = self._initial
+        if initial is None or len(history) < len(initial):
+            return False
+        return list(history[: len(initial)]) == initial
+
+    async def install(self) -> list[dict[str, Any]]:
+        """上下文初始化：安装静态协议与首份动态快照（同一上下文恰好一次）。"""
+        assembly, js_message = await asyncio.to_thread(self._assemble)
+        messages = [*assembly.identity_messages]
+        if js_message is not None:
+            messages.append(js_message)
+        messages.extend(assembly.observation_messages)
+        self._initial = messages
+        self._revisions = self._dynamic_revisions(assembly)
+        self._prompt_revision = assembly.prompt_revision
+        self._capability_revision = assembly.capability_revision
+        self._pending_install = tuple(messages)
+        self._pending_appends = ()
+        return messages
+
+    async def refresh(self) -> list[dict[str, Any]]:
+        """每轮只读复查动态源：变化追加带来源/替代关系的新消息，不变返回空。"""
+        assembly, _js = await asyncio.to_thread(self._assemble)
+        appends: list[dict[str, Any]] = []
+        # 静态边界：角色 prompt / 技能清单 / 工具协议在 run 内真实变化时是
+        # 新的冷启动边界——记录原因并以追加消息表达，不重写已发送的前缀，
+        # 也不为了冻结前缀向模型隐瞒最新规则。
+        if (
+            assembly.prompt_revision != self._prompt_revision
+            or assembly.capability_revision != self._capability_revision
+        ):
+            logger.info(
+                "context prefix static boundary agent=%s prompt_revision %s -> %s "
+                "capability_revision %s -> %s",
+                getattr(self._agent, "id", "?"),
+                self._prompt_revision[:20],
+                assembly.prompt_revision[:20],
+                self._capability_revision[:20],
+                assembly.capability_revision[:20],
+            )
+            appends.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "[Protocol boundary — static prompt changed]\n\n"
+                        "The role prompt, skill manifest, or tool protocol changed "
+                        "during this run (the reason is recorded in the server logs). "
+                        "The updated static protocol snapshot below supersedes the "
+                        "earlier one above:\n\n"
+                        + str(assembly.identity_messages[0].get("content") or "")
+                    ),
+                }
+            )
+            self._prompt_revision = assembly.prompt_revision
+            self._capability_revision = assembly.capability_revision
+        new_revisions = self._dynamic_revisions(assembly)
+        new_messages = {
+            source.kind: message
+            for source, message in zip(
+                assembly.observation_sources, assembly.observation_messages
+            )
+        }
+        for kind in ("memory", "agents_md", "workspace"):
+            old_revision = self._revisions.get(kind)
+            new_revision = new_revisions.get(kind)
+            if new_revision == old_revision:
+                # 无实际观察变化：不发消息（避免「上一轮变化列表→本轮无新
+                # 变化」的无价值消息模式）。
+                continue
+            message = new_messages.get(kind)
+            if message is not None:
+                appends.append(
+                    {"role": "system", "content": self._as_update(kind, str(message.get("content") or ""))}
+                    if old_revision is not None
+                    else dict(message)
+                )
+            elif kind in _SNAPSHOT_RETRACTIONS:
+                appends.append(
+                    {"role": "system", "content": _SNAPSHOT_RETRACTIONS[kind]}
+                )
+            self._revisions[kind] = new_revision
+        self._pending_install = ()
+        self._pending_appends = tuple(appends)
+        return appends
+
+    def drain_pending(self) -> tuple[tuple[dict[str, Any], ...], tuple[dict[str, Any], ...]]:
+        """取出并清空待持久化消息（install, appends）；由 ContextBroker 在
+        commit_input 里恰好调用一次。"""
+        pending = (self._pending_install, self._pending_appends)
+        self._pending_install = ()
+        self._pending_appends = ()
+        return pending
+
+    def snapshot_meta(self) -> dict:
+        """随 context.prefix_installed 事件持久化的安装元数据（回灌用）。"""
+        return {
+            "prefix_len": len(self._initial or []),
+            "revisions": dict(self._revisions),
+            "prompt_revision": self._prompt_revision,
+            "capability_revision": self._capability_revision,
+        }
+
+    async def current_prefix(self) -> tuple[list[dict[str, Any]], dict]:
+        """compact 边界用：按当前状态重新装配前缀（动态快照取最新），
+        返回 (消息, 安装元数据)；不触碰 pending/游标。"""
+        assembly, js_message = await asyncio.to_thread(self._assemble)
+        messages = [*assembly.identity_messages]
+        if js_message is not None:
+            messages.append(js_message)
+        messages.extend(assembly.observation_messages)
+        meta = {
+            "prefix_len": len(messages),
+            "revisions": self._dynamic_revisions(assembly),
+            "prompt_revision": assembly.prompt_revision,
+            "capability_revision": assembly.capability_revision,
+        }
+        return messages, meta
+
+    def adopt(self, messages: list[dict[str, Any]], meta: dict) -> None:
+        """compact 安装后采纳新头部：后续轮次 matches() 命中，不重装。"""
+        self._initial = list(messages)
+        self._revisions = dict(meta.get("revisions") or {})
+        self._prompt_revision = str(meta.get("prompt_revision") or "")
+        self._capability_revision = str(meta.get("capability_revision") or "")
+
+    # ------------------------------------------------------------------ 内部
+
+    def _assemble(self):
+        """同步装配（install/refresh 的调用方负责 to_thread）。"""
+        assembly = self._assembler.assemble(
+            capability_names=self._tool_names,
+            web_search_available=self._web_search_available,
+        )
+        js_message = None
+        if effective_invocation_protocol(self._agent) is InvocationProtocol.JAVASCRIPT:
+            # JS 调用协议是静态前缀的一部分：上下文初始化时安装一次，
+            # adapter 不再每轮追加到请求尾部。
+            js_message = {
+                "role": "system",
+                "content": javascript_instructions(
+                    self._tool_names,
+                    visual_mode=self._settings.visual_mode,
+                    orchestration_mode=self._settings.orchestration_mode,
+                ),
+            }
+        return assembly, js_message
+
+    @staticmethod
+    def _dynamic_revisions(assembly) -> dict[str, str | None]:
+        return {
+            source.kind: source.revision for source in assembly.observation_sources
+        }
+
+    @staticmethod
+    def _as_update(kind: str, content: str) -> str:
+        """把 initial 形态的快照内容换成更新形态（标签替换，其余逐字节保留）。"""
+        base_label = _SNAPSHOT_BASE_LABELS[kind]
+        if not content.startswith(base_label):
+            raise ValueError(f"snapshot content for {kind} lacks its base label")
+        label, note = _SNAPSHOT_UPDATE_LABELS[kind]
+        return f"{label}\n\n{note}\n\n{content[len(base_label):]}"
+
+
+class LegacyPromptProvider:
+    """Vend per-run context-prefix owners backed by the existing PromptAssembler.
+
+    缓存连续性要求静态前缀在同一会话上下文内只安装一次：runner 每个 run
+    调 ``begin_context`` 建立一个 owner，并以会话投影的 prefix_meta 回灌
+    （``restored``），跨 run/重启不重装；TurnPipeline 每轮经 owner 区分
+    「初始安装」与「增量复查」。
+    """
+
+    def begin_context(
+        self,
+        *,
+        agent: AgentSession,
+        workspace_dir: str | None,
+        tool_names: Iterable[str],
+        restored: dict | None = None,
+    ) -> LegacyContextPrefix:
+        return LegacyContextPrefix(
+            agent=agent,
+            workspace_dir=workspace_dir,
+            tool_names=tool_names,
+            restored=restored,
+        )
 
 
 def _extract_delta_reasoning(delta: Any) -> str | None:
@@ -295,6 +561,10 @@ class LegacyLLMProvider:
 
     def __init__(self, client_factory=None) -> None:
         self._client_factory = client_factory
+        # 前缀连续性诊断：agent.id -> 上一条实际发送请求的逐消息哈希/模型。
+        # 只存哈希与模型名，绝不存消息原文。
+        self._request_hashes: dict[str, list[str]] = {}
+        self._request_models: dict[str, str] = {}
 
     def _make_client(self, settings: RuntimeSettings) -> LLMClient:
         if self._client_factory is not None:
@@ -336,6 +606,47 @@ class LegacyLLMProvider:
                 except Exception:
                     pass
 
+    def _log_request_fingerprint(
+        self, agent: AgentSession, kwargs: dict[str, Any], *, kind: str
+    ) -> None:
+        """请求指纹/首差异诊断：只记哈希与下标，不记原文、参数或密钥。
+
+        ``kind`` 区分主 agent 请求与摘要请求（摘要路径在
+        ``compaction.summarize_with_agent_settings`` 单独打 kind="summary"），
+        便于分组统计缓存连续性。
+        """
+        fingerprint = request_fingerprint(kwargs)
+        agent_id = str(getattr(agent, "id", "") or "?")
+        previous = self._request_hashes.get(agent_id)
+        previous_model = self._request_models.get(agent_id)
+        if previous is None:
+            # 首请求/重启后首请求是冷启动，不参与前缀分歧统计。
+            diff: Any = "cold"
+        else:
+            divergence = first_prefix_divergence(previous, fingerprint["message_hashes"])
+            diff = divergence if divergence is not None else "-"
+        self._request_hashes[agent_id] = fingerprint["message_hashes"]
+        self._request_models[agent_id] = fingerprint["model"]
+        logger.info(
+            "llm request fingerprint kind=%s agent=%s model=%s messages=%d "
+            "tools=%s first_diff=%s",
+            kind,
+            agent_id,
+            fingerprint["model"],
+            fingerprint["message_count"],
+            fingerprint["tools_hash"][:12],
+            diff,
+        )
+        if previous_model is not None and previous_model != fingerprint["model"]:
+            # 模型变化是新的冷启动边界：记录原因，不伪称跨模型缓存连续。
+            logger.info(
+                "llm request boundary kind=%s agent=%s reason=model_changed %s -> %s",
+                kind,
+                agent_id,
+                previous_model,
+                fingerprint["model"],
+            )
+
     async def _complete_with_client(
         self,
         agent: AgentSession,
@@ -347,30 +658,10 @@ class LegacyLLMProvider:
     ) -> LLMResponse:
         native_adapter = _native_search_adapter_for(settings)
         rename_search = native_adapter is not None and native_adapter.name == "deepseek"
-        from cloudra.runtime_v2.schemas import (
-            InvocationProtocol,
-            effective_invocation_protocol,
-        )
-        from cloudra.runtime_v2.tool_catalog import (
-            javascript_instructions,
-            wire_tool_schemas,
-        )
+        from cloudra.runtime_v2.tool_catalog import wire_tool_schemas
 
-        if effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT:
-            # Deterministic JS contract message (envelope, serialization,
-            # serial backend, limits, direct-only controls); generated
-            # declarations use canonical local tool names.
-            messages = [
-                *messages,
-                {
-                    "role": "system",
-                    "content": javascript_instructions(
-                        tools,
-                        visual_mode=settings.visual_mode,
-                        orchestration_mode=settings.orchestration_mode,
-                    ),
-                },
-            ]
+        # JS 调用协议消息不再在这里追加到请求尾部：它属于静态前缀，由
+        # LegacyContextPrefix 在上下文初始化时安装一次（见 begin_context）。
         tool_schemas = apply_native_search_to_schemas(
             wire_tool_schemas(agent, tools),
             native_adapter is not None,
@@ -407,6 +698,7 @@ class LegacyLLMProvider:
         js_protocol = effective_invocation_protocol(agent) is InvocationProtocol.JAVASCRIPT
         if js_protocol:
             kwargs["parallel_tool_calls"] = False
+        self._log_request_fingerprint(agent, kwargs, kind="agent")
         try:
             if native_adapter is not None and native_adapter.transport == "responses":
                 # DeepSeek 的原生搜索只在 Responses API 支持

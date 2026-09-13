@@ -130,7 +130,7 @@ async def test_compute_tool_finish_pushes_library_hits():
         ToolResult(is_success=True, summary="job submitted"),
     )
 
-    pushed = notices.collect(ctx.agent.id)
+    pushed = notices.collect_batch(ctx.agent.id, fresh=False)
     assert len(pushed) == 1
     assert "SCF convergence fix" in pushed[0]["content"]
     assert "submit_compute_job" in pushed[0]["content"]
@@ -149,7 +149,7 @@ async def test_non_compute_tool_does_not_push():
         ToolResult(is_success=True, summary="ok"),
     )
 
-    assert notices.collect(ctx.agent.id) == []
+    assert notices.collect_batch(ctx.agent.id, fresh=False) == []
 
 
 @pytest.mark.asyncio
@@ -164,7 +164,7 @@ async def test_no_provider_no_push():
         ToolResult(is_success=True, summary="ok"),
     )
 
-    assert notices.collect(ctx.agent.id) == []
+    assert notices.collect_batch(ctx.agent.id, fresh=False) == []
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +206,7 @@ async def test_provider_failure_degrades_without_blocking_or_disabling_stage():
         ToolCall(id="t1", name="submit_compute_job", arguments={"input_file": "x.gjf"}),
         ToolResult(is_success=True, summary="job submitted"),
     )
-    assert notices.collect(ctx.agent.id) == []
+    assert notices.collect_batch(ctx.agent.id, fresh=False) == []
 
 
 @pytest.mark.asyncio
@@ -223,7 +223,7 @@ async def test_empty_results_degrade_and_later_hits_still_work():
         ToolCall(id="t1", name="log_parser", arguments={"log_path": "x.log"}),
         ToolResult(is_success=False, summary="parse failed"),
     )
-    assert notices.collect(ctx.agent.id) == []
+    assert notices.collect_batch(ctx.agent.id, fresh=False) == []
 
     clear_knowledge_providers()
     register_knowledge_provider(_FakeProvider())
@@ -232,7 +232,7 @@ async def test_empty_results_degrade_and_later_hits_still_work():
         ToolCall(id="t2", name="log_parser", arguments={"log_path": "y.log"}),
         ToolResult(is_success=True, summary="ok"),
     )
-    pushed = notices.collect(ctx.agent.id)
+    pushed = notices.collect_batch(ctx.agent.id, fresh=False)
     assert len(pushed) == 1 and "SCF convergence fix" in pushed[0]["content"]
 
 
@@ -253,7 +253,7 @@ async def test_success_with_low_score_not_pushed():
         ToolCall(id="t1", name="log_parser", arguments={"log_path": "x.log"}),
         ToolResult(is_success=True, summary="parsed cleanly"),
     )
-    assert notices.collect(ctx.agent.id) == []
+    assert notices.collect_batch(ctx.agent.id, fresh=False) == []
 
 
 @pytest.mark.asyncio
@@ -269,5 +269,5 @@ async def test_failure_pushes_even_with_low_score():
         ToolCall(id="t1", name="log_parser", arguments={"log_path": "x.log"}),
         ToolResult(is_success=False, summary="Error termination via Lnk1e (L502)"),
     )
-    pushed = notices.collect(ctx.agent.id)
+    pushed = notices.collect_batch(ctx.agent.id, fresh=False)
     assert len(pushed) == 1 and "weak match" in pushed[0]["content"]
