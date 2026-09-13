@@ -210,20 +210,12 @@ class DagSubmitSpeciesEvidence(DagToolBase):
             },
             basis_fingerprint=opt_snap.sha256,
         )
-        ReviewContextManager.set_active_review(ctx.conversation_id, review, db=ctx.db)
+        enqueued = ReviewContextManager.set_active_review(
+            ctx.conversation_id, review, db=ctx.db
+        )
 
-        # Notify supervisor if runtime core available
-        core = getattr(self.subagent, "_core", None)
-        if core is not None:
-            try:
-                from cloudra.runtime_v2.supervision import notify_supervisor
-
-                await notify_supervisor(
-                    core, ctx.conversation_id, reason=f"species evidence submitted for {user_input.species_name}"
-                )
-            except Exception:
-                pass
-
+        # 督导唤醒不在工具内做：queued review 落库后由 DAG policy 完成钩子
+        # （_trigger_supervisor_after_tool）按这里的回执统一 notify_supervisor。
         return DagToolOutput(
             is_success=True,
             action="dag_submit_species_evidence",
@@ -232,6 +224,8 @@ class DagSubmitSpeciesEvidence(DagToolBase):
                 "species_name": user_input.species_name,
                 "status": "submitted_for_review",
                 "validation": val.model_dump(),
+                "review_id": review.review_id,
+                "enqueued": enqueued,
                 "message": f"Species '{user_input.species_name}' evidence submitted for Supervisor review.",
             },
         )

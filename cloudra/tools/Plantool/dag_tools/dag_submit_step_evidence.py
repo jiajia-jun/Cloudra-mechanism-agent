@@ -227,20 +227,12 @@ class DagSubmitStepEvidence(DagToolBase):
             },
             basis_fingerprint=ts_snap.sha256,
         )
-        ReviewContextManager.set_active_review(ctx.conversation_id, review, db=ctx.db)
+        enqueued = ReviewContextManager.set_active_review(
+            ctx.conversation_id, review, db=ctx.db
+        )
 
-        # Notify supervisor if runtime core available
-        core = getattr(self.subagent, "_core", None)
-        if core is not None:
-            try:
-                from cloudra.runtime_v2.supervision import notify_supervisor
-
-                await notify_supervisor(
-                    core, ctx.conversation_id, reason=f"step evidence submitted for {user_input.step_name}"
-                )
-            except Exception:
-                pass
-
+        # 督导唤醒不在工具内做：queued review 落库后由 DAG policy 完成钩子
+        # （_trigger_supervisor_after_tool）按这里的回执统一 notify_supervisor。
         return DagToolOutput(
             is_success=True,
             action="dag_submit_step_evidence",
@@ -249,6 +241,8 @@ class DagSubmitStepEvidence(DagToolBase):
                 "step_name": user_input.step_name,
                 "status": "submitted_for_review",
                 "ts_validation": ts_val.model_dump(),
+                "review_id": review.review_id,
+                "enqueued": enqueued,
                 "message": f"Step '{user_input.step_name}' evidence submitted for Supervisor review.",
             },
         )

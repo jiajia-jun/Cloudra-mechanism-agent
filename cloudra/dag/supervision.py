@@ -65,6 +65,10 @@ class SupervisionMixin:
            pending review——回执带 review_id 且 enqueued=True；全幂等重复、
            失败、无回执的完成都不通知）。送审方法本身只验证并持久化，
            通知唯一所有权在本钩子。
+        4. dag_submit_species_evidence / dag_submit_step_evidence 显式送审 →
+           通知，回执判据与 dag_bind_evidence 相同（review_id +
+           enqueued=True；enqueued 由 set_active_review 的落库结果给出，
+           持久化落空的完成不空唤醒）。
 
         delivery_updated 不再是触发口（计划 §1/§5）：图变更本身已在 store
         变更日志里持久化，督导信箱只含显式送审/草稿/结构化请求三类；督导
@@ -82,6 +86,19 @@ class SupervisionMixin:
                 and bool(item.get("review_id"))
                 and item.get("enqueued") is True
                 for item in attachments
+            ):
+                await self._notify_supervisor("explicit evidence submission")
+            return
+        if tool_name in {
+            "dag_submit_species_evidence",
+            "dag_submit_step_evidence",
+        }:
+            if (
+                success
+                and accepted
+                and isinstance(inner, dict)
+                and bool(inner.get("review_id"))
+                and inner.get("enqueued") is True
             ):
                 await self._notify_supervisor("explicit evidence submission")
             return

@@ -42,34 +42,39 @@ class ReviewContextManager:
         conversation_id: str,
         review: ActiveReview,
         db: ConversationDB | None = None,
-    ) -> None:
+    ) -> bool:
+        """登记活跃送审上下文；返回 queued review 是否已持久化（唤醒督导的
+        回执判据——只在落库成功时才允许通知，空唤醒必须可诊断）。"""
         cls._active_reviews[conversation_id] = review
-        if db is not None:
-            try:
-                now = datetime.now(timezone.utc).isoformat()
-                with db.connect() as con:
-                    con.execute(
-                        """
-                        INSERT OR REPLACE INTO dag_review_requests(
-                            request_id, kind, requester, target_ids, question,
-                            supporting_refs, counterevidence_refs, proposal,
-                            basis_fingerprint, state, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, '[]', '[]', ?, ?, 'queued', ?, ?)
-                        """,
-                        (
-                            review.review_id,
-                            "evidence" if review.kind in ("step", "species") else "draft",
-                            review.requester,
-                            json.dumps([review.target_name]),
-                            f"Review {review.kind} '{review.target_name}'",
-                            json.dumps(review.details),
-                            review.basis_fingerprint or "default",
-                            review.created_at or now,
-                            now,
-                        ),
-                    )
-            except Exception as exc:
-                logger.warning("Failed persisting review request to db: %s", exc)
+        if db is None:
+            return False
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            with db.connect() as con:
+                con.execute(
+                    """
+                    INSERT OR REPLACE INTO dag_review_requests(
+                        request_id, kind, requester, target_ids, question,
+                        supporting_refs, counterevidence_refs, proposal,
+                        basis_fingerprint, state, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, '[]', '[]', ?, ?, 'queued', ?, ?)
+                    """,
+                    (
+                        review.review_id,
+                        "evidence" if review.kind in ("step", "species") else "draft",
+                        review.requester,
+                        json.dumps([review.target_name]),
+                        f"Review {review.kind} '{review.target_name}'",
+                        json.dumps(review.details),
+                        review.basis_fingerprint or "default",
+                        review.created_at or now,
+                        now,
+                    ),
+                )
+        except Exception as exc:
+            logger.warning("Failed persisting review request to db: %s", exc)
+            return False
+        return True
 
     @classmethod
     def get_active_review(

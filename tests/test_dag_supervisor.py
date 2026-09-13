@@ -249,6 +249,85 @@ async def test_bind_completion_without_submission_receipt_does_not_notify():
 
 
 @pytest.mark.asyncio
+async def test_submit_evidence_tools_with_review_receipt_notify():
+    """dag_submit_species_evidence / dag_submit_step_evidence 的 guided 送审
+    与 dag_bind_evidence 同一纪律：新建 queued review 的回执
+    （review_id + enqueued=True）触达项目唯一 Supervisor。"""
+    core, project = await _core_project("supervision-submit-evidence")
+    controller = _guided_controller(project.id, core)
+
+    await controller.on_tool_finished(
+        "tc-submit-species",
+        "dag_submit_species_evidence",
+        {"species_name": "ReactantComplex", "opt_file": "runs/rc/opt.log"},
+        {
+            "is_success": True,
+            "accepted": True,
+            "result": {
+                "species_name": "ReactantComplex",
+                "status": "submitted_for_review",
+                "review_id": "rev_sp1",
+                "enqueued": True,
+            },
+        },
+    )
+
+    supervisor = find_project_supervisor(core, project.id)
+    assert supervisor is not None
+    assert len(_supervisor_messages(core, supervisor.id)) == 1
+
+    await controller.on_tool_finished(
+        "tc-submit-step",
+        "dag_submit_step_evidence",
+        {"step_name": "SN2_F_attack_CH3Cl", "ts_file": "ts/ts1.log"},
+        {
+            "is_success": True,
+            "accepted": True,
+            "result": {
+                "step_name": "SN2_F_attack_CH3Cl",
+                "status": "submitted_for_review",
+                "review_id": "rev_st1",
+                "enqueued": True,
+            },
+        },
+    )
+
+    assert len(_supervisor_messages(core, supervisor.id)) == 2
+
+
+@pytest.mark.asyncio
+async def test_submit_evidence_without_receipt_does_not_notify():
+    """无新建 review 回执的 submit 完成（持久化落空 enqueued=False、调用
+    失败）保持安静——与 bind 的回执判据同一纪律。"""
+    core, project = await _core_project("supervision-submit-quiet")
+    controller = _guided_controller(project.id, core)
+
+    await controller.on_tool_finished(
+        "tc-submit-not-persisted",
+        "dag_submit_species_evidence",
+        {"species_name": "P", "opt_file": "runs/p/opt.log"},
+        {
+            "is_success": True,
+            "accepted": True,
+            "result": {
+                "species_name": "P",
+                "status": "submitted_for_review",
+                "review_id": "rev_sp2",
+                "enqueued": False,
+            },
+        },
+    )
+    await controller.on_tool_finished(
+        "tc-submit-failed",
+        "dag_submit_step_evidence",
+        {"step_name": "s1", "ts_file": "ts/bad.log"},
+        {"is_success": False, "accepted": False, "error": "validation failed"},
+    )
+
+    assert find_project_supervisor(core, project.id) is None
+
+
+@pytest.mark.asyncio
 async def test_supervisor_verdict_tools_do_not_self_notify():
     """督导自己的裁决工具绝不唤醒督导（无自我复核循环）。"""
     core, project = await _core_project("supervision-verdict-quiet")
