@@ -7,7 +7,7 @@
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-[English](README.md) · [文档索引](docs/README.md) · [DAG 编排规范](docs/DAG_ORCHESTRATION.md)
+[English](README.md) · [文档中心](docs/README.md) · [核心创新点](docs/novelty.md) · [DAG 编排规范](docs/DAG_ORCHESTRATION.md) · [过渡态 SOP](docs/TS_PROCESS_SOP.md) · [插件系统](docs/PLUGINS.md)
 
 > Cloudra 是一套面向计算化学机理探索的科研 Agent 系统。我们不声称能替代人类化学家给出绝对真理，也不盲目追求打榜指标；我们的核心目标是为长程、复杂的反应机理计算建立一套**不可造假、可确定性复核、能真正感知微观分子**的严密研究底座。
 
@@ -213,9 +213,12 @@ cloudra/
 ├── runtime/                     确定性 prompt 组装、工作区快照、计算 guard 与日志监视
 ├── scheduler/                   进程隔离的计算调度守护进程（排队/容量记账/flock 崩溃对账）
 ├── runtime_v2/                  事件驱动推理新内核（Pipeline, Commands, PolicyStages, Bridges）
+├── benchmark/                   评测生成器、三层证据评分与批量测试运行器
 ├── tools/, subagents/           几何与电子感知工具库、领域专长 Agent（dft, md, explorer 等）
 ├── skills/, prompts/            实验方法学技能包与经过版本控制的角色策略
 └── frontend/                    React + TypeScript + Vite 现代化 Web 控制台
+docs/                            系统架构规范、SOP 规格、实验门禁、基准调研与设计规格
+paper/                           学术论文手稿、文献缺口分析与基准构建叙事
 ```
 
 ---

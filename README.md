@@ -7,7 +7,7 @@
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A53.11-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](pyproject.toml)
 
-[中文文档](README_CN.md) · [Documentation](docs/README.md) · [DAG Orchestration Spec](docs/DAG_ORCHESTRATION.md)
+[中文文档](README_CN.md) · [Documentation Hub](docs/README.md) · [Core Novelty](docs/novelty.md) · [DAG Orchestration Spec](docs/DAG_ORCHESTRATION.md) · [TS Process SOP](docs/TS_PROCESS_SOP.md) · [Plugin Guide](docs/PLUGINS.md)
 
 > Cloudra is an autonomous research agent system for computational organic chemistry. It does not claim to replace human insight with absolute truth, nor does it aim for superficial benchmark numbers. Its purpose is to provide a rigorous, non-hallucinatory, and deterministically auditable foundation for long-horizon mechanistic elucidation.
 
@@ -213,9 +213,12 @@ cloudra/
 ├── runtime/                     Deterministic prompt assembly, workspace observer, compute guard & monitoring
 ├── scheduler/                   Process-isolated compute scheduler daemon (queueing, capacity accounting, flock-based crash reconciliation)
 ├── runtime_v2/                  Event-driven reasoning kernel (Pipeline, Commands, PolicyStages, Bridges)
+├── benchmark/                   Task generators, 3-layer evidence scoring, and batch evaluation runner
 ├── tools/, subagents/           Perception toolboxes and specialized domain roles (dft, md, explorer, etc.)
 ├── skills/, prompts/            Domain methodology skills and version-controlled role prompts
 └── frontend/                    Modern React + TypeScript + Vite web console
+docs/                            System architecture specs, SOPs, experimental gates, benchmark surveys
+paper/                           Academic paper manuscripts, literature gap analysis, and benchmark construction
 ```
 
 ---
