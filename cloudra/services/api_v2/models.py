@@ -128,3 +128,36 @@ class CommandResponse(BaseModel):
 
 def _command_payload(body: BaseModel) -> dict[str, Any]:
     return body.model_dump(exclude_unset=True)
+
+
+class FsBrowseEntry(BaseModel):
+    name: str
+    path: str
+    is_dir: bool = True
+    mtime: Optional[float] = None
+
+
+class FsBrowseShortcut(BaseModel):
+    name: str
+    path: str
+
+
+class FsBrowseResponse(BaseModel):
+    current: str
+    parent: Optional[str] = None
+    home: str
+    cwd: str
+    shortcuts: list[FsBrowseShortcut] = Field(default_factory=list)
+    entries: list[FsBrowseEntry] = Field(default_factory=list)
+    writable: bool = True
+
+
+class FsMkdirRequest(BaseModel):
+    path: str = Field(min_length=1)
+
+
+class FsSystemPickerResponse(BaseModel):
+    supported: bool
+    path: Optional[str] = None
+    canceled: bool = False
+

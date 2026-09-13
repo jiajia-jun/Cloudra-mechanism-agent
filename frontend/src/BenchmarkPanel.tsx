@@ -19,6 +19,7 @@ import {
   type BenchmarkStatus,
   type BenchmarkTaskRow,
 } from './api';
+import { PathPickerModal } from './PathPickerModal';
 
 interface BenchmarkPanelProps {
   onClose: () => void;
@@ -82,6 +83,7 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
   const [history, setHistory] = useState<BenchmarkHistory | null>(null);
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [tasksDirs, setTasksDirs] = useState('');
+  const [dirPickerOpen, setDirPickerOpen] = useState(false);
   const [only, setOnly] = useState('');
   const [concurrency, setConcurrency] = useState('1');
   const [timeout, setTimeoutS] = useState('7200');
@@ -189,14 +191,26 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
 
         <div className="bm-body">
           <div className="bm-controls">
-            <input
-              className="input bm-dirs"
-              value={tasksDirs}
-              onChange={(e) => setTasksDirs(e.target.value)}
-              placeholder="tasks dirs (comma separated; empty = built-in easy tier)"
-              title="One or more task JSON directories; relative paths resolve against cwd then the repo root"
-              disabled={running}
-            />
+            <div className="bm-dirs-wrap">
+              <input
+                className="input bm-dirs"
+                value={tasksDirs}
+                onChange={(e) => setTasksDirs(e.target.value)}
+                placeholder="tasks dirs (comma separated; empty = built-in easy tier)"
+                title="One or more task JSON directories; relative paths resolve against cwd then the repo root"
+                disabled={running}
+              />
+              <button
+                type="button"
+                className="btn ghost sm"
+                style={{ height: 30, padding: '0 8px' }}
+                title="Browse tasks directory"
+                disabled={running}
+                onClick={() => setDirPickerOpen(true)}
+              >
+                📁
+              </button>
+            </div>
             <input
               className="input bm-only"
               value={only}
@@ -341,6 +355,15 @@ export default function BenchmarkPanel({ onClose, onOpenProject, onToast }: Benc
           </details>
         </div>
       </div>
+      <PathPickerModal
+        isOpen={dirPickerOpen}
+        title="Select Tasks Directory"
+        initialPath={tasksDirs ? tasksDirs.split(',')[0].trim() : undefined}
+        onSelect={(dir) => {
+          setTasksDirs((prev) => (prev ? `${prev}, ${dir}` : dir));
+        }}
+        onClose={() => setDirPickerOpen(false)}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ from . import (
     compute,
     dag,
     events,
+    fs,
     knowledge,
     pending,
     projects,
@@ -41,4 +42,6 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         benchmark.build_router(ctx),
         compute.build_router(ctx),
         reminders.build_router(ctx),
+        fs.build_router(ctx),
     ]
+

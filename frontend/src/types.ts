@@ -200,3 +200,26 @@ export interface PendingReminder {
   check_command: string | null;
   interval_seconds: number | null;
 }
+
+export interface FsBrowseEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  mtime?: number | null;
+}
+
+export interface FsBrowseShortcut {
+  name: string;
+  path: string;
+}
+
+export interface FsBrowseResponse {
+  current: string;
+  parent: string | null;
+  home: string;
+  cwd: string;
+  shortcuts: FsBrowseShortcut[];
+  entries: FsBrowseEntry[];
+  writable: boolean;
+}
+

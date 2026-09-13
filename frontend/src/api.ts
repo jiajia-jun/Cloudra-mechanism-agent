@@ -2,6 +2,7 @@ import type {
   Agent,
   ComputeJob,
   EventEnvelope,
+  FsBrowseResponse,
   KgGraph,
   KgHealth,
   KgOverview,
@@ -125,6 +126,23 @@ export const api = {
   cancelAllComputeJobs: () =>
     request<{ ready_cancelled: number; slurm_cancel_requested: number; local_cancelled: number }>(
       '/api/v2/compute/cancel-all',
+      { method: 'POST' },
+    ),
+  browseFs: (path?: string, showHidden = false) => {
+    const params = new URLSearchParams();
+    if (path) params.set('path', path);
+    if (showHidden) params.set('show_hidden', 'true');
+    const query = params.toString();
+    return request<FsBrowseResponse>(`/api/v2/fs/browse${query ? `?${query}` : ''}`);
+  },
+  mkdirFs: (path: string) =>
+    request<{ success: boolean; path: string }>('/api/v2/fs/mkdir', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }),
+  systemPickerFs: () =>
+    request<{ supported: boolean; path: string | null; canceled?: boolean }>(
+      '/api/v2/fs/system-picker',
       { method: 'POST' },
     ),
   listAgents: (projectId: string) => request<Agent[]>(`/api/v2/projects/${projectId}/agents`),

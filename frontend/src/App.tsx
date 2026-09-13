@@ -21,6 +21,7 @@ import {
 } from './timeline';
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
+import { PathPickerModal } from './PathPickerModal';
 
 export type InspectorTab = 'overview' | 'ops' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
 
@@ -305,6 +306,41 @@ export default function App() {
         (a, b) => a.localeCompare(b),
       ),
     [projects],
+  );
+
+  const [pathPicker, setPathPicker] = useState<{
+    isOpen: boolean;
+    title?: string;
+    initialPath?: string;
+    onSelect: (path: string) => void;
+  }>({
+    isOpen: false,
+    onSelect: () => {},
+  });
+
+  const openPathPicker = useCallback(
+    (options: {
+      title?: string;
+      initialPath?: string;
+      onSelect: (path: string) => void;
+    }) => {
+      setPathPicker({
+        isOpen: true,
+        title: options.title,
+        initialPath: options.initialPath,
+        onSelect: options.onSelect,
+      });
+    },
+    [],
+  );
+
+  const extraPickerShortcuts = useMemo(
+    () =>
+      workspaceSuggestions.map((ws) => ({
+        name: ws.split('/').filter(Boolean).pop() || ws,
+        path: ws,
+      })),
+    [workspaceSuggestions],
   );
 
   // Refs so the long-lived SSE subscription always sees current values.
@@ -1456,41 +1492,75 @@ export default function App() {
                     {activeProject.name}
                   </div>
                   {editingWs ? (
-                    <input
-                      key={`sidebar-ws-${activeProject.id}`}
-                      className="input ws-input"
-                      autoFocus
-                      defaultValue={activeProject.workspace_dir ?? ''}
-                      placeholder="workspace dir…"
-                      title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
-                      list="workspace-dirs"
-                      onBlur={(e) => {
-                        setEditingWs(false);
-                        changeWorkspace(e.target.value);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                    <div className="ws-edit-row">
+                      <input
+                        key={`sidebar-ws-${activeProject.id}`}
+                        className="input ws-input"
+                        autoFocus
+                        defaultValue={activeProject.workspace_dir ?? ''}
+                        placeholder="workspace dir…"
+                        title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
+                        list="workspace-dirs"
+                        onBlur={(e) => {
                           setEditingWs(false);
-                          changeWorkspace((e.target as HTMLInputElement).value);
-                        } else if (e.key === 'Escape') {
+                          changeWorkspace(e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setEditingWs(false);
+                            changeWorkspace((e.target as HTMLInputElement).value);
+                          } else if (e.key === 'Escape') {
+                            setEditingWs(false);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn ghost sm ws-browse-btn"
+                        title="Browse directory"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
                           setEditingWs(false);
-                        }
-                      }}
-                    />
+                          openPathPicker({
+                            title: `Select Workspace for ${activeProject.name}`,
+                            initialPath: activeProject.workspace_dir ?? undefined,
+                            onSelect: (p) => changeWorkspace(p),
+                          });
+                        }}
+                      >
+                        📁
+                      </button>
+                    </div>
                   ) : (
-                    <button
-                      type="button"
-                      className={`agentbar-ws-pill ${!activeProject.workspace_dir ? 'empty' : ''}`}
-                      title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory (click to edit)'}
-                      onClick={() => setEditingWs(true)}
-                    >
-                      <span className="ws-pill-icon">WS:</span>
-                      <span className="ws-pill-text">
-                        {activeProject.workspace_dir
-                          ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir)
-                          : 'bind workspace'}
-                      </span>
-                    </button>
+                    <div className="ws-pill-row">
+                      <button
+                        type="button"
+                        className={`agentbar-ws-pill ${!activeProject.workspace_dir ? 'empty' : ''}`}
+                        title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory (click to edit)'}
+                        onClick={() => setEditingWs(true)}
+                      >
+                        <span className="ws-pill-icon">WS:</span>
+                        <span className="ws-pill-text">
+                          {activeProject.workspace_dir
+                            ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir)
+                            : 'bind workspace'}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost sm ws-pill-browse"
+                        title="Browse and select workspace folder"
+                        onClick={() =>
+                          openPathPicker({
+                            title: `Select Workspace for ${activeProject.name}`,
+                            initialPath: activeProject.workspace_dir ?? undefined,
+                            onSelect: (p) => changeWorkspace(p),
+                          })
+                        }
+                      >
+                        📁
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1656,15 +1726,31 @@ export default function App() {
                 <button className="btn primary sm" style={{ height: 30 }} onClick={createProjectAndSelect} disabled={!newProject.trim()}>
                   +
                 </button>
-                <input
-                  className="input ws-path"
-                  value={newProjectWs}
-                  onChange={(e) => setNewProjectWs(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
-                  placeholder="workspace dir (optional)…"
-                  title="Workspace directory: agents read/write within it"
-                  list="workspace-dirs"
-                />
+                <div className="ws-input-wrap">
+                  <input
+                    className="input ws-path"
+                    value={newProjectWs}
+                    onChange={(e) => setNewProjectWs(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                    placeholder="workspace dir (optional)…"
+                    title="Workspace directory: agents read/write within it"
+                    list="workspace-dirs"
+                  />
+                  <button
+                    type="button"
+                    className="btn ghost sm ws-browse-btn"
+                    title="Browse and select workspace folder"
+                    onClick={() =>
+                      openPathPicker({
+                        title: 'Select Workspace Directory',
+                        initialPath: newProjectWs,
+                        onSelect: (p) => setNewProjectWs(p),
+                      })
+                    }
+                  >
+                    📁
+                  </button>
+                </div>
               </div>
               <div className="project-list">
                 {projects.length === 0 && <div className="empty-hint">No projects yet — create one above.</div>}
@@ -2183,6 +2269,8 @@ export default function App() {
           currentAgentActivity={currentAgentActivity}
           onToggleYolo={(yolo) => toggleProjectYolo(yolo)}
           onChangeMode={(mode) => changeOrchestrationMode(mode)}
+          onChangeWorkspace={(ws) => changeWorkspace(ws)}
+          onOpenPathPicker={openPathPicker}
           tab={inspectorTab}
           onSelectTab={setInspectorTab}
         />
@@ -2219,6 +2307,14 @@ export default function App() {
             onToast={pushToast}
           />
         )}
+        <PathPickerModal
+          isOpen={pathPicker.isOpen}
+          title={pathPicker.title}
+          initialPath={pathPicker.initialPath}
+          extraShortcuts={extraPickerShortcuts}
+          onSelect={pathPicker.onSelect}
+          onClose={() => setPathPicker((prev) => ({ ...prev, isOpen: false }))}
+        />
     </div>
   );
 }
@@ -2352,6 +2448,8 @@ function Inspector({
   currentAgentActivity,
   onToggleYolo,
   onChangeMode,
+  onChangeWorkspace,
+  onOpenPathPicker,
   tab: controlledTab,
   onSelectTab,
 }: {
@@ -2371,6 +2469,12 @@ function Inspector({
   currentAgentActivity?: { type: string; label: string };
   onToggleYolo?: (yolo: boolean) => void;
   onChangeMode?: (mode: string) => void;
+  onChangeWorkspace?: (ws: string) => void;
+  onOpenPathPicker?: (options: {
+    title?: string;
+    initialPath?: string;
+    onSelect: (path: string) => void;
+  }) => void;
   tab?: InspectorTab;
   onSelectTab?: (tab: InspectorTab) => void;
 }) {
@@ -2691,14 +2795,31 @@ function Inspector({
                       <option value="dag_guided">dag_guided (Supervised)</option>
                     </select>
                   </div>
-                  {activeProject.workspace_dir && (
-                    <div className="overview-control-row">
-                      <span className="control-name">Workspace</span>
-                      <span className="mono-path" title={activeProject.workspace_dir}>
-                        {activeProject.workspace_dir}
+                  <div className="overview-control-row">
+                    <span className="control-name">Workspace</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+                      <span className="mono-path" title={activeProject.workspace_dir ?? undefined}>
+                        {activeProject.workspace_dir || '(none)'}
                       </span>
+                      {onOpenPathPicker && (
+                        <button
+                          type="button"
+                          className="btn ghost sm"
+                          style={{ height: 22, padding: '0 6px', fontSize: 11 }}
+                          title="Browse and set workspace directory"
+                          onClick={() =>
+                            onOpenPathPicker({
+                              title: `Change Workspace for ${activeProject.name}`,
+                              initialPath: activeProject.workspace_dir ?? undefined,
+                              onSelect: (p) => onChangeWorkspace?.(p),
+                            })
+                          }
+                        >
+                          📁 Change
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}
