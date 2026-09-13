@@ -11,16 +11,16 @@ threshold. Species identity (SMILES consistency) is Layer 1's evidence-binding
 job and is not re-checked here. Operates on the evidence files the integrity
 layer bound to each graph node/step.
 
-File roles are decided by filename token: a `ts` token in the stem
-(`ts.log`, `M6_ts_opt.out`) marks TS evidence; other Gaussian/ORCA logs are
-treated as species evidence and checked for a minimum (no imaginary
-frequencies). Files without a frequency block (SP logs, inputs) yield no
-verdict instead of a spurious failure.
+File roles are decided by **content**, not filename: a frequency block with
+imaginary frequencies marks TS evidence (saddle check); a clean block marks
+species evidence (minimum check); IRC-only logs yield only a connectivity
+verdict. Filename tokens are deliberately ignored — harness-produced compute
+logs are always named `calc-<jobid>.out.log`, so name-based roles would
+misroute every real TS log into the minimum check.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -28,10 +28,6 @@ from typing import Optional
 from cloudra.benchmark.integrity import MAX_SCAN_BYTES, EvidenceFile
 from cloudra.benchmark.schema import SelfConsistencyRubric
 from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
-
-# "ts" 必须作为独立 token 出现（可带编号后缀如 ts1/ts2），否则
-# "reactants"/"products" 这类以 ts 结尾的文件名会被误判为 TS 证据。
-_TS_TOKEN_RE = re.compile(r"(?:^|[^a-z0-9])ts\d*(?:[^a-z0-9]|$)")
 
 
 @dataclass
@@ -61,10 +57,6 @@ class SelfConsistencyReport:
     all_irc_connect: bool = False
     passed: bool = False
     notes: list[str] = field(default_factory=list)
-
-
-def _is_ts_path(stem: str) -> bool:
-    return bool(_TS_TOKEN_RE.search(stem.lower()))
 
 
 def _frames_for(path: Path):
@@ -98,41 +90,46 @@ def _last_freqs(frames) -> list[float]:
     return []
 
 
+def _freqs_for(path: Path, frames) -> list[float]:
+    """末帧频率；cclib 对 ORCA 6.1 日志裸抛 IndexError（帧为空）时回退
+    文本权威 VIBRATIONAL FREQUENCIES 块（统一入口在 orca_frames）。"""
+    freqs = _last_freqs(frames)
+    if freqs:
+        return freqs
+    if qm_engine.detect_qm_engine(str(path)) == "orca":
+        return orca_frames.frequencies_with_text_fallback(str(path))
+    return []
+
+
 def _imag_freqs(freqs: list[float]) -> list[float]:
     return [f for f in freqs if f < 0]
 
 
-def check_ts_file(path: Path, rubric: SelfConsistencyRubric) -> TsCheck:
-    chk = TsCheck(source=path.name)
-    frames, irc_meta = _frames_for(path)
-    freqs = _last_freqs(frames)
+def _classify_and_check(path: Path, frames, irc_meta, rubric: SelfConsistencyRubric):
+    """按**内容**判定文件角色并出检查项：频率块含虚频 → TS 证据（鞍点
+    检查）；频率块零虚频 → 物种证据（极小值通过）；无频率块但有 IRC
+    数据 → 只对 IRC 连通性出判；其余（输入文件、SP）不出判，返回 None。
+
+    文件名 token 不作数：harness 产出的计算日志统一命名
+    ``calc-<jobid>.out.log``，agent 无法决定文件名，按文件名分角色会把
+    真 TS 日志错送进极小值检查（1 个虚频必然判负）。"""
+    freqs = _freqs_for(path, frames)
     imag = _imag_freqs(freqs)
-    chk.imag_freqs_cm = imag
-    if freqs:
-        # 只有真的含频率块时才给鞍点判定；纯 IRC 日志没有频率块，跳过
-        chk.n_imag = len(imag)
+    if imag:
+        chk = TsCheck(source=path.name, n_imag=len(imag), imag_freqs_cm=imag)
         if rubric.ts_first_order_saddle:
             chk.is_first_order_saddle = len(imag) == 1
-    if rubric.irc_connects_endpoints:
-        chk.irc_connects = _irc_connects(irc_meta)
-    if not freqs and irc_meta is None:
-        chk.notes.append("no frequency or IRC data parsed")
-    return chk
-
-
-def check_minimum_file(path: Path) -> MinimumCheck:
-    """Species evidence: the final frequency block must show no imaginary
-    frequencies. Files without a frequency block (SP, inputs) give no verdict."""
-    chk = MinimumCheck(source=path.name)
-    frames, _ = _frames_for(path)
-    freqs = _last_freqs(frames)
-    if not freqs:
-        chk.notes.append("no frequency block")
+        if rubric.irc_connects_endpoints:
+            chk.irc_connects = _irc_connects(irc_meta)
         return chk
-    imag = _imag_freqs(freqs)
-    chk.n_imag = len(imag)
-    chk.is_minimum = not imag
-    return chk
+    if freqs:
+        return MinimumCheck(source=path.name, n_imag=0, is_minimum=True)
+    if irc_meta is not None:
+        chk = TsCheck(source=path.name)
+        if rubric.irc_connects_endpoints:
+            chk.irc_connects = _irc_connects(irc_meta)
+        return chk
+    return None
 
 
 def _irc_connects(meta) -> Optional[bool]:
@@ -165,13 +162,14 @@ def audit_self_consistency(
         f for f in evidence_files
         if f.kind in ("gaussian", "orca") and f.size <= MAX_SCAN_BYTES
     ]
-    ts_files = [f for f in qm_files if _is_ts_path(Path(f.path).stem)]
-    species_files = [f for f in qm_files if not _is_ts_path(Path(f.path).stem)]
-
-    for f in ts_files:
-        report.ts_checks.append(check_ts_file(sandbox / f.path, rubric))
-    for f in species_files:
-        report.min_checks.append(check_minimum_file(sandbox / f.path))
+    for f in qm_files:
+        path = sandbox / f.path
+        frames, irc_meta = _frames_for(path)
+        chk = _classify_and_check(path, frames, irc_meta, rubric)
+        if isinstance(chk, TsCheck):
+            report.ts_checks.append(chk)
+        elif isinstance(chk, MinimumCheck):
+            report.min_checks.append(chk)
 
     saddle_verdicts = [
         c.is_first_order_saddle
@@ -187,7 +185,10 @@ def audit_self_consistency(
     else:
         report.all_first_order = True
     report.all_minima = all(minima) if minima else True
-    report.all_irc_connect = (all(ircs) if ircs else (not rubric.irc_connects_endpoints))
+    # IRC 连通：存在至少一条双向收敛的 IRC 即支撑 TS 连通性声明——沙箱刻意
+    # 保留失败/未收敛的先期尝试（structure_artifacts 纪律），all() 会把
+    # 已被后续成功作业取代的重试记录误判为交付不合格。
+    report.all_irc_connect = (any(ircs) if ircs else (not rubric.irc_connects_endpoints))
     report.passed = report.all_first_order and report.all_minima and report.all_irc_connect
     if not report.ts_checks:
         report.notes.append("no TS evidence files found to check")

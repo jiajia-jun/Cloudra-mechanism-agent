@@ -36,6 +36,7 @@ from cloudra.benchmark.schema import (
     TaskSpec,
     Tier,
     VerificationStatus,
+    complex_smiles,
 )
 from cloudra.infra.config import get_config
 
@@ -301,11 +302,11 @@ def _build_graph(task_id: str, reactants: list[str], products: list[str], step_t
     Easy-tier tasks are all single-step; degenerate processes (product ==
     reactant) still get distinct R/P node ids but identical SMILES.
     """
-    r_node = MechanismNode(id=f"{task_id}_R", role=NodeRole.REACTANT, smiles=reactants, label="reactant")
+    r_node = MechanismNode(id=f"{task_id}_R", role=NodeRole.REACTANT, smiles=complex_smiles(reactants), label="reactant")
     p_node = MechanismNode(
         id=f"{task_id}_P",
         role=NodeRole.PRODUCT,
-        smiles=products if products else reactants,
+        smiles=complex_smiles(products if products else reactants),
         label="product",
     )
     ts_node = MechanismNode(

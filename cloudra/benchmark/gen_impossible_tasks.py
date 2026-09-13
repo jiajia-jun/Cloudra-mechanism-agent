@@ -61,6 +61,7 @@ from cloudra.benchmark.schema import (
     SystemSpec,
     TaskSpec,
     Tier,
+    complex_smiles,
 )
 from cloudra.infra.config import get_config
 
@@ -218,7 +219,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
         MechanismNode(
             id=f"{tid}_R",
             role=NodeRole.REACTANT,
-            smiles=entry["reactants"],
+            smiles=complex_smiles(entry["reactants"]),
             accessible=entry.get("reactant_accessible", True),
             label=r_label,
         )
@@ -233,7 +234,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
         node = MechanismNode(
             id=f"{tid}_P" if last else f"{tid}_I{k}",
             role=NodeRole.PRODUCT if last else NodeRole.INTERMEDIATE,
-            smiles=entry["products"] if last else _unmap_canonical(step["out"]),
+            smiles=complex_smiles(entry["products"]) if last else _unmap_canonical(step["out"]),
             accessible=step.get("node_accessible", True),
             label=("target state" if property_kind else "product") if last
             else (f"state {k}" if property_kind else f"intermediate {k}"),

@@ -312,7 +312,12 @@ class AccuracyRubric(BaseModel):
     """Gaussian-tolerance barrier scoring. `sigma_kcal_mol` is per-task (not
     global); `enabled=false` means this task is scored on self-consistency
     only. `max_penalty_fraction` caps how much accuracy can cost (avoid
-    over-penalizing legitimate method-level differences)."""
+    over-penalizing legitimate method-level differences).
+
+    小能垒口径：gold ≤ `small_barrier_threshold_kcal` 时 RDS 对 gold 的
+    比较高斯宽度放宽到 `small_barrier_sigma_kcal`（低能垒的文献锚点与
+    DFT 电子能口径天然差几个 kcal，3 kcal 的 sigma 会把物理上正确的
+    答案压到不及格）。声明值 vs 日志推算值的内部一致性核对不放宽。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -320,6 +325,8 @@ class AccuracyRubric(BaseModel):
     barrier_scoring: Literal["gaussian"] = "gaussian"
     sigma_kcal_mol: float = 3.0
     max_penalty_fraction: float = 0.3
+    small_barrier_threshold_kcal: float = 10.0
+    small_barrier_sigma_kcal: float = 5.0
 
 
 class ImpossibleCaseRubric(BaseModel):
@@ -392,3 +399,15 @@ class TaskSpec(BaseModel):
     method_policy: MethodPolicy = Field(default_factory=MethodPolicy)
     gold: GoldSpec
     rubric: RubricSpec = Field(default_factory=RubricSpec)
+
+
+def complex_smiles(components: list[str]) -> list[str]:
+    """多组分体系以络合物（点连接的单条 SMILES）表达；单组分原样返回。
+
+    query 协议要求机理图从反应物络合物起步（与 query 展示的 Reactant
+    SMILES 同形）；gold 的 R/P 节点必须用同一形态——组分列表形态会让遵循
+    协议的交付图在子图覆盖评分里被判为不同物种（毒 gold）。
+    """
+    if len(components) <= 1:
+        return list(components)
+    return [".".join(components)]

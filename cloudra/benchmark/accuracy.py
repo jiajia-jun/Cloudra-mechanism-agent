@@ -46,6 +46,14 @@ def gaussian_barrier_score(agent: float, gold: float, sigma: float) -> float:
     return math.exp(-(d * d) / (2.0 * sigma * sigma))
 
 
+def _effective_sigma(rubric: AccuracyRubric, gold_barrier_kcal: float) -> float:
+    """RDS 对 gold 比较的高斯宽度：小能垒放宽（rubric 小能垒口径），
+    大能垒用基准 sigma。只用于对 gold 的比较，不动内部一致性核对。"""
+    if gold_barrier_kcal <= rubric.small_barrier_threshold_kcal:
+        return max(rubric.sigma_kcal_mol, rubric.small_barrier_sigma_kcal)
+    return rubric.sigma_kcal_mol
+
+
 def score_accuracy(
     *,
     evidence: "BarrierEvidence",
@@ -114,7 +122,10 @@ def score_accuracy(
         rep.notes.append("no rate-determining step could be derived from the logs")
         return rep
 
-    g = gaussian_barrier_score(rds.barrier_kcal_mol, gold.barrier_kcal_mol, rubric.sigma_kcal_mol)
+    g = gaussian_barrier_score(
+        rds.barrier_kcal_mol, gold.barrier_kcal_mol, _effective_sigma(rubric, gold.barrier_kcal_mol)
+    )
+    rep.sigma_kcal = _effective_sigma(rubric, gold.barrier_kcal_mol)
     rep.gaussian_score = g
     raw_penalty = 1.0 - g
     rep.capped_penalty = min(raw_penalty, rubric.max_penalty_fraction)

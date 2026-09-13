@@ -51,9 +51,7 @@
           "id": "HE3_R",
           "role": "reactant",
           "smiles": [
-            "B",
-            "CC(=O)c1ccccc1",
-            "C[C@H]1COBN1"
+            "B.CC(=O)c1ccccc1.C[C@H]1COBN1"
           ],
           "accessible": true,
           "label": "reactant"
@@ -69,8 +67,7 @@
           "id": "HE3_P",
           "role": "product",
           "smiles": [
-            "C[C@@H](OB)c1ccccc1",
-            "C[C@H]1COBN1"
+            "C[C@@H](OB)c1ccccc1.C[C@H]1COBN1"
           ],
           "accessible": true,
           "label": "product"
@@ -207,7 +204,9 @@
       "enabled": false,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

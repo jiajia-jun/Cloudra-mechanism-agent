@@ -48,8 +48,7 @@
           "id": "NY3_R",
           "role": "reactant",
           "smiles": [
-            "[OH-]",
-            "COC=O"
+            "[OH-].COC=O"
           ],
           "accessible": true,
           "label": "reactant"
@@ -98,8 +97,7 @@
           "id": "NY3_P",
           "role": "product",
           "smiles": [
-            "O=C[O-]",
-            "CO"
+            "O=C[O-].CO"
           ],
           "accessible": true,
           "label": "product"
@@ -219,7 +217,9 @@
       "enabled": false,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

@@ -378,3 +378,27 @@ def test_irc_reason_explains_where_the_path_points_live():
     assert reason is not None
     assert "IRC" in reason
     assert "extract_irc_endpoints" in reason
+
+
+def test_frequencies_with_text_fallback_survives_cclib_failure(tmp_path):
+    """cclib 对 ORCA 6.1 日志裸抛 IndexError 时，评分链路的频率判定走
+    文本权威 VIBRATIONAL FREQUENCIES 块——虚频个数必须仍然可判定。"""
+    log = tmp_path / "calc-296.out.log"
+    log.write_text(
+        "not a parseable ORCA log for cclib\n"
+        "VIBRATIONAL FREQUENCIES\n"
+        "-----------------------\n"
+        "   0:         0.00 cm**-1\n"
+        "   1:         0.00 cm**-1\n"
+        "   2:      -164.95 cm**-1  ***imaginary mode***\n"
+        "   3:       150.30 cm**-1\n"
+        "   4:       264.86 cm**-1\n",
+        encoding="utf-8",
+    )
+    freqs = orca_frames.frequencies_with_text_fallback(str(log))
+    assert sum(1 for f in freqs if f < 0) == 1
+    assert freqs[2] == -164.95
+
+    no_block = tmp_path / "sp.out.log"
+    no_block.write_text("no frequency block here\n", encoding="utf-8")
+    assert orca_frames.frequencies_with_text_fallback(str(no_block)) == []

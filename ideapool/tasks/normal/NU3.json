@@ -49,8 +49,7 @@
           "id": "NU3_R",
           "role": "reactant",
           "smiles": [
-            "[CH2-][PH3+]",
-            "C=O"
+            "[CH2-][PH3+].C=O"
           ],
           "accessible": true,
           "label": "reactant"
@@ -82,8 +81,7 @@
           "id": "NU3_P",
           "role": "product",
           "smiles": [
-            "C=C",
-            "O=[PH3]"
+            "C=C.O=[PH3]"
           ],
           "accessible": true,
           "label": "product"
@@ -192,7 +190,9 @@
       "enabled": false,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

@@ -151,7 +151,16 @@ def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
     engine, frames = _frames_for(sandbox, rel_path)
     if engine not in _SCORING_ENGINES:
         return None
-    freqs = _last_frequencies(frames)
+    if engine == "orca":
+        # cclib 对 ORCA 6.1 日志裸抛 IndexError——走带文本回退的统一入口
+        path = _resolve_in_sandbox(sandbox, rel_path)
+        if path is None or not path.is_file():
+            return None
+        from cloudra.tools.core import orca_frames
+
+        freqs = orca_frames.frequencies_with_text_fallback(str(path))
+    else:
+        freqs = _last_frequencies(frames)
     if not freqs:
         return None
     return sum(1 for f in freqs if f < 0)
@@ -202,16 +211,6 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                 f"edge {edge.id}: base node {edge.from_node} has no bound evidence"
             )
             continue
-        minima = [
-            p for p in base_candidates if _imaginary_frequency_count(sandbox, p) == 0
-        ]
-        base_path = (minima or base_candidates)[0]
-        if len(minima) > 1:
-            report.notes.append(
-                f"edge {edge.id}: several minimum-looking logs for {edge.from_node}; "
-                f"using {base_path} (deterministic first by path)"
-            )
-
         # TS 证据：从两端点绑定文件的并集里按内容找一阶鞍点；多步题优先用
         # 文件名携带该步 TS 身份（edge id / TS 节点 id / 步名）的那一个——
         # 这是确定性偏好，不是猜谜；无法唯一确定时记 note 说明所用文件。
@@ -240,10 +239,36 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
         ts_path = saddles[0]
 
         ts_energy, ts_reason = _engine_energy_kcal(sandbox, ts_path)
-        base_energy, base_reason = _engine_energy_kcal(sandbox, base_path)
-        if ts_energy is None or base_energy is None:
-            report.notes.append(f"edge {edge.id}: {ts_reason or base_reason}")
+        if ts_energy is None:
+            report.notes.append(f"edge {edge.id}: {ts_reason}")
             continue
+
+        # 起点最小值的选择：鞍点连通的是它正下方**最浅**的那个阱（能量最高
+        # 但仍低于 TS 的极小值）——拿更深的远端极小值当起点会把别的阱的
+        # 稳定化能错算进能垒（如把产物侧深阱当 RC，2 kcal 被读成 35 kcal）。
+        minima = [
+            p for p in base_candidates if _imaginary_frequency_count(sandbox, p) == 0
+        ]
+        below: list[tuple[float, str]] = []
+        for candidate in minima:
+            energy, _reason = _engine_energy_kcal(sandbox, candidate)
+            if energy is not None and energy < ts_energy:
+                below.append((energy, candidate))
+        if not below:
+            report.notes.append(
+                f"edge {edge.id}: no bound minimum of {edge.from_node} lies "
+                "below the saddle; barrier not derivable from evidence"
+            )
+            continue
+        below.sort(key=lambda item: (-item[0], item[1]))
+        base_energy, base_path = below[0]
+        if len(below) > 1:
+            report.notes.append(
+                f"edge {edge.id}: several minima of {edge.from_node} below the "
+                f"saddle; using {base_path} (highest-energy minimum below the "
+                "saddle — the basin the saddle connects to)"
+            )
+
         report.steps.append(
             StepBarrier(
                 edge_id=edge.id,

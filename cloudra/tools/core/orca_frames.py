@@ -237,6 +237,24 @@ def vibfreqs_from_text(text: str) -> list[float]:
     return [float(m.group(1)) for m in _VIBFREQ_LINE_RE.finditer(text, idx)]
 
 
+def frequencies_with_text_fallback(log_path: str) -> list[float]:
+    """末帧频率（cm⁻¹，负值=虚频）：cclib 帧解析优先，失败或无频率块时
+    回退文本权威 VIBRATIONAL FREQUENCIES 块。
+
+    cclib 对 ORCA 6.1 的日志会在 SCF 收敛段裸抛 IndexError（评分链路的
+    鞍点/极小值判定不能因此不可判定）。无频率块返回空列表——调用方须
+    保持"不可判定"语义，不得当成零虚频。
+    """
+    try:
+        frames = extract_frames(log_path)
+    except Exception:
+        frames = []
+    for frame in reversed(frames):
+        if frame.frequencies_cm:
+            return list(frame.frequencies_cm)
+    return vibfreqs_from_text(_read_text(log_path))
+
+
 # ---------------------------------------------------------------------------
 # 帧提取
 # ---------------------------------------------------------------------------

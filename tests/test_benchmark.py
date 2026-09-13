@@ -400,6 +400,23 @@ def test_accuracy_requires_both_sources_and_agreement():
     assert any("disagreement" in n for n in conflict.notes), conflict.notes
 
 
+def test_accuracy_small_barrier_widens_sigma():
+    """小能垒口径：gold ≤ 阈值时 RDS 对 gold 的比较放宽到小能垒 sigma
+    （2.01 vs 5.0 在 sigma=3 下 ~0.61，放宽到 5 后 ~0.84）；大能垒仍用
+    基准 sigma。声明值 vs 日志的内部一致性核对不放宽。"""
+    import math
+
+    gold = ReferenceComputation(barrier_kcal_mol=5.0)
+    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.5)
+    rep = score_accuracy(evidence=_evidence([("E1", 2.01, 2.01)]), gold=gold, rubric=r)
+    assert rep.sigma_kcal == 5.0
+    assert rep.gaussian_score == pytest.approx(math.exp(-((2.99) ** 2) / (2 * 25.0)))
+
+    big = ReferenceComputation(barrier_kcal_mol=27.5)
+    rep_big = score_accuracy(evidence=_evidence([("E1", 28.0, 28.4)]), gold=big, rubric=r)
+    assert rep_big.sigma_kcal == 3.0
+
+
 def test_accuracy_per_step_gate_and_rds_selection():
     """逐步门禁：任一步声明与日志冲突即 0；全部一致时 RDS（最高垒）对 gold 评分。"""
     gold = ReferenceComputation(barrier_kcal_mol=22.0)
@@ -952,21 +969,25 @@ def test_selfconsistency_saddle_logic(monkeypatch, imag_freqs, irc_meta, want_sa
     assert rep.passed is (want_saddle and want_irc)
 
 
-def test_selfconsistency_ts_numbered_filenames(monkeypatch):
-    """ts1.log / TS2.out 这类编号命名也是 TS 证据（reactants/products 不算）。"""
-    monkeypatch.setattr(
-        selfconsistency, "_frames_for",
-        lambda path: _fake_ts_frames([-500.0], None),
-    )
+def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
+    """文件角色按频率块内容判定：harness 日志命名（calc-N.out.log）不携带
+    角色信息——含虚频的即 TS 证据，无论文件名是否有 ts token。"""
+    def fake_frames(path):
+        # calc-296 是真 TS 日志（1 虚频），calc-292 是极小值（0 虚频）
+        if "296" in str(path):
+            return _fake_ts_frames([-164.95], None)
+        return _fake_ts_frames([], None)
+
+    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames)
     files = [
-        EvidenceFile(path="ts1.log", kind="gaussian"),
-        EvidenceFile(path="TS2.out", kind="orca"),
-        EvidenceFile(path="reactants.log", kind="gaussian"),
-        EvidenceFile(path="products.log", kind="orca"),
+        EvidenceFile(path="runs/rc/.cloudra/calc-296.out.log", kind="orca"),
+        EvidenceFile(path="runs/rc/.cloudra/calc-292.out.log", kind="orca"),
     ]
     rep = audit_self_consistency(files, Path("."))
-    assert len(rep.ts_checks) == 2
-    assert len(rep.min_checks) == 2  # reactants/products 按极小值检查
+    assert len(rep.ts_checks) == 1
+    assert rep.ts_checks[0].is_first_order_saddle is True
+    assert len(rep.min_checks) == 1
+    assert rep.min_checks[0].is_minimum is True
 
 
 # --- 题库可复现性 ---

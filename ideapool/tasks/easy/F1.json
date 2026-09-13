@@ -49,8 +49,7 @@
           "id": "F1_R",
           "role": "reactant",
           "smiles": [
-            "[BH4-]",
-            "C=O"
+            "[BH4-].C=O"
           ],
           "accessible": true,
           "label": "reactant"
@@ -66,8 +65,7 @@
           "id": "F1_P",
           "role": "product",
           "smiles": [
-            "C[O-]",
-            "B"
+            "C[O-].B"
           ],
           "accessible": true,
           "label": "product"
@@ -145,7 +143,9 @@
       "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 3.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

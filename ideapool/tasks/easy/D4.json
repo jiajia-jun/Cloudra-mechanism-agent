@@ -47,8 +47,7 @@
           "id": "D4_R",
           "role": "reactant",
           "smiles": [
-            "C1=CCC=C1",
-            "C=CC=O"
+            "C1=CCC=C1.C=CC=O"
           ],
           "accessible": true,
           "label": "reactant"
@@ -154,7 +153,9 @@
       "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 3.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

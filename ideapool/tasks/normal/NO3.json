@@ -50,9 +50,7 @@
           "id": "NO3_R",
           "role": "reactant",
           "smiles": [
-            "[OH3+]",
-            "CC(C)=O",
-            "O=COO"
+            "[OH3+].CC(C)=O.O=COO"
           ],
           "accessible": true,
           "label": "reactant"
@@ -121,9 +119,7 @@
           "id": "NO3_P",
           "role": "product",
           "smiles": [
-            "[OH3+]",
-            "CC(=O)OC",
-            "O=CO"
+            "[OH3+].CC(=O)OC.O=CO"
           ],
           "accessible": true,
           "label": "product"
@@ -282,7 +278,9 @@
       "enabled": false,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

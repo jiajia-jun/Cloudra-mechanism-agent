@@ -49,8 +49,7 @@
           "id": "HE2_R",
           "role": "reactant",
           "smiles": [
-            "[BH4-]",
-            "CC(C)(C)C1CCC(=O)CC1"
+            "[BH4-].CC(C)(C)C1CCC(=O)CC1"
           ],
           "accessible": true,
           "label": "reactant"
@@ -66,8 +65,7 @@
           "id": "HE2_P",
           "role": "product",
           "smiles": [
-            "CC(C)(C)[C@H]1CC[C@H]([O-])CC1",
-            "B"
+            "CC(C)(C)[C@H]1CC[C@H]([O-])CC1.B"
           ],
           "accessible": true,
           "label": "product"
@@ -196,7 +194,9 @@
       "enabled": false,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }

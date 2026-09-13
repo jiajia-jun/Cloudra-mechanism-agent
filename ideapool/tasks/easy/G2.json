@@ -48,8 +48,7 @@
           "id": "G2_R",
           "role": "reactant",
           "smiles": [
-            "N=N",
-            "C=C"
+            "N=N.C=C"
           ],
           "accessible": true,
           "label": "reactant"
@@ -65,8 +64,7 @@
           "id": "G2_P",
           "role": "product",
           "smiles": [
-            "N#N",
-            "CC"
+            "N#N.CC"
           ],
           "accessible": true,
           "label": "product"
@@ -156,7 +154,9 @@
       "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 3.0,
-      "max_penalty_fraction": 0.3
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
     },
     "impossible_case": null
   }
