@@ -1,0 +1,46 @@
+{
+  "task_id": "HI1",
+  "edges": [
+    {
+      "edge_id": "HI1_E1",
+      "barrier_kcal_mol": 19.2,
+      "barrier_type": "dG-ddagger",
+      "frame": "step's own min (proline/iminium)",
+      "source": "Yu, Blyth, Coote 2022 Top. Catal. 65, 354-365 (SI Table S2)",
+      "doi": "10.1007/s11244-021-01501-5",
+      "verification": "verified",
+      "method": "G3(MP2,CC)//M062X/6-31+G(d)/SMD(acetone)",
+      "note": "analogue p-NO2-benzaldehyde; enamine formation 80.4 kJ/mol"
+    },
+    {
+      "edge_id": "HI1_E2",
+      "barrier_kcal_mol": 9.1,
+      "barrier_type": "dG-ddagger",
+      "frame": "enamine-aldehyde complex",
+      "source": "Yu, Blyth, Coote 2022 (SI Table S2 step16)",
+      "doi": "10.1007/s11244-021-01501-5",
+      "verification": "verified",
+      "note": "stereo-determining major face, 38.1 kJ/mol"
+    },
+    {
+      "edge_id": "HI1_E3",
+      "barrier_kcal_mol": 16.9,
+      "barrier_type": "dG-ddagger",
+      "frame": "C-C adduct-water complex",
+      "source": "Yu, Blyth, Coote 2022 (SI Table S2 step18)",
+      "doi": "10.1007/s11244-021-01501-5",
+      "verification": "verified",
+      "note": "hydrolysis 70.6 kJ/mol"
+    },
+    {
+      "edge_id": "HI1_EM1",
+      "barrier_kcal_mol": 11.5,
+      "barrier_type": "dG-ddagger",
+      "frame": "enamine-aldehyde complex",
+      "source": "Yu, Blyth, Coote 2022 (derived, ~10 kJ/mol offset)",
+      "doi": "10.1007/s11244-021-01501-5",
+      "verification": "estimated",
+      "note": "minor face; ddG ~2.4 vs exp 1.2"
+    }
+  ]
+}

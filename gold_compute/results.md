@@ -131,3 +131,7 @@
 - value=26.2 | type=ΔE‡ | frame=microsolvated (H3O+·12H2O) | verification=unverified (frame-set override) / source partial
 - source: Yamabe, Tsuchida & Yamazaki 2007 J. Comput. Chem. 28(9), 1561-1571, DOI 10.1002/jcc.20690 (closed; number via Google Scholar full-text snippets; F5-2 ΔE=26.20 vs experiment 26.2-27.1; competing path ≈32.65; substrate ambiguity parent pinacol vs diphenyl analogue). Do NOT use 24.82 (neopentyl SN TS).
 - applied cell + added R1 to gen_normal frame set.
+
+
+## NI1 per-edge (from edge-swarm) — reconciliation
+- NI1_E1 (addition) = 3.5 kcal/mol (14.7 kJ/mol, Hall & Smith 1998); NI1_E2 (dehydration, RDS) = 26.7 (111.9 kJ/mol). The later sub-agent mis-mapped 26.7 to E1; correct mapping per Hall & Smith: addition low (3.5), dehydration is RDS (26.7).

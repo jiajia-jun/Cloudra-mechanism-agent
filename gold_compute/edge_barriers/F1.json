@@ -1,0 +1,16 @@
+{
+  "task_id": "F1",
+  "edges": [
+    {
+      "edge_id": "F1_E1",
+      "barrier_kcal_mol": 30.4,
+      "barrier_type": "dE-ddagger",
+      "frame": "separated reactants (BH4- + H2CO); central_complex-frame est ~39-40",
+      "source": "Eisenstein, Schlegel & Kayser 1982 J. Org. Chem. 47(15) 2886-2891",
+      "doi": "10.1021/jo00136a015",
+      "verification": "verified",
+      "method": "ab initio HF/6-31G*//HF/3-21G, gas phase",
+      "note": "3-21G 32.6; ion-dipole complex well 9.3 (3-21G); experimental ICR Kayser & McMahon 1984 saw no hydride transfer; replaces retracted maleic-anhydride citation"
+    }
+  ]
+}

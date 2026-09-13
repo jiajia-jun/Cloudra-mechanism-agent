@@ -1,0 +1,52 @@
+{
+  "task_id": "HL1",
+  "edges": [
+    {
+      "edge_id": "HL1_E1",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "verification": "unverified",
+      "note": "oxime O protonation PT; ~barrierless; compute"
+    },
+    {
+      "edge_id": "HL1_E2",
+      "barrier_kcal_mol": 39.9,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex",
+      "source": "Yamabe, Tsuchida, Yamazaki 2005 J. Org. Chem. 70(26) 10638-10644",
+      "doi": "10.1021/jo0508346",
+      "verification": "verified",
+      "method": "RB3LYP, H3O+(H2O)6",
+      "note": "RDS: concerted N-O cleavage + anti-ethyl migration; analogue oximes (not 2-butanone oxime); SI-direct"
+    },
+    {
+      "edge_id": "HL1_E3",
+      "barrier_kcal_mol": 18,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex (nitrilium+H2O)",
+      "source": "Ronchin, Bortoluzzi, Vavasori 2008 J. Mol. Struct. THEOCHEM 858(1-3) 46-51",
+      "doi": "10.1016/j.theochem.2008.02.015",
+      "verification": "verified",
+      "method": "B3LYP/6-311G** ZPVE, Onsager 1,2-DCE",
+      "note": "analogue capronitrilium hydration; gas phase 11.0"
+    },
+    {
+      "edge_id": "HL1_E4",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "verification": "unverified",
+      "note": "proton transfer; ~barrierless; compute"
+    },
+    {
+      "edge_id": "HL1_E5",
+      "barrier_kcal_mol": 30.5,
+      "barrier_type": "dE-ddagger",
+      "frame": "gas phase isolated imidic acid",
+      "source": "Kerkeni & Simmie 2023 J. Phys. Chem. A 127(25) 5382-5389",
+      "doi": "10.1021/acs.jpca.3c00719",
+      "verification": "verified",
+      "method": "DFT + B3LYP/cc-pVTZ SCT",
+      "note": "imidic acid -> amide 1,3-H transfer R=CH3 (127.6 kJ/mol); cluster 33.8"
+    }
+  ]
+}

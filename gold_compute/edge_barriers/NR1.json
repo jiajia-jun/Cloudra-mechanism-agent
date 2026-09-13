@@ -1,0 +1,32 @@
+{
+  "task_id": "NR1",
+  "edges": [
+    {
+      "edge_id": "NR1_E1",
+      "barrier_kcal_mol": null,
+      "source": "none (concerted; aqueous-acid PT ~barrierless)",
+      "doi": "",
+      "verification": "unverified",
+      "note": "PT H3O+->R-OH; compute"
+    },
+    {
+      "edge_id": "NR1_E2",
+      "barrier_kcal_mol": 26.2,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex (H3O+(H2O)12 acidic aqueous)",
+      "source": "Yamabe, Tsuchida & Yamazaki 2007 J. Comput. Chem. 28(9), 1561-1571",
+      "doi": "10.1002/jcc.20690",
+      "verification": "unverified",
+      "method": "DFT microsolvated",
+      "note": "concerted semipinacol 1,2-Me shift RDS; same substrate pinacol; source closed-access"
+    },
+    {
+      "edge_id": "NR1_E3",
+      "barrier_kcal_mol": null,
+      "source": "none (concerted; ~barrierless)",
+      "doi": "",
+      "verification": "unverified",
+      "note": "deprotonation; compute"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "task_id": "NA5",
+  "edges": [
+    {
+      "edge_id": "NA5_E1",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "doi": "",
+      "verification": "unverified",
+      "note": "carbinolamine formation; compute"
+    },
+    {
+      "edge_id": "NA5_E2",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "doi": "",
+      "verification": "unverified",
+      "note": "iminium formation; compute"
+    },
+    {
+      "edge_id": "NA5_E3",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "doi": "",
+      "verification": "unverified",
+      "note": "acetaldehyde enolisation; compute"
+    },
+    {
+      "edge_id": "NA5_E4",
+      "barrier_kcal_mol": 8.9,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex",
+      "source": "Petrović et al. 2018 R. Soc. Open Sci. 5, 181232",
+      "doi": "10.1098/rsos.181232",
+      "verification": "partial",
+      "method": "DFT/CPCM",
+      "note": "C-C formation RDS; ANALOGUE substrate (acetophenone enol+iminium)"
+    },
+    {
+      "edge_id": "NA5_E5",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "doi": "",
+      "verification": "unverified",
+      "note": "oxocarbenium deprotonation; compute"
+    }
+  ]
+}

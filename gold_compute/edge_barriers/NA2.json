@@ -1,0 +1,48 @@
+{
+  "task_id": "NA2",
+  "edges": [
+    {
+      "edge_id": "NA2_E1",
+      "barrier_kcal_mol": null,
+      "source": "analogue Pranata 1996 / Saunders 1994",
+      "doi": "",
+      "verification": "unverified",
+      "note": "enolate formation; no same-substrate number -> compute"
+    },
+    {
+      "edge_id": "NA2_E2",
+      "barrier_kcal_mol": 5,
+      "barrier_type": "dE-ddagger",
+      "frame": "analogue (Li-enolate + aldehyde, gas)",
+      "source": "Pratt, Văn Nguyễn & Ramachandran 2005 J. Org. Chem. 70, 4279",
+      "doi": "10.1021/jo0503409",
+      "verification": "partial",
+      "method": "B3LYP + MP2//",
+      "note": "ANALOGUE substrate; C-C addition (or E5 dehydration) RDS region -> compute preferred"
+    },
+    {
+      "edge_id": "NA2_E3",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "doi": "",
+      "verification": "unverified",
+      "note": "alkoxide reprotonation; no source -> compute"
+    },
+    {
+      "edge_id": "NA2_E4",
+      "barrier_kcal_mol": null,
+      "source": "analogue Saunders 1994",
+      "doi": "",
+      "verification": "unverified",
+      "note": "E1cb deprotonation; compute"
+    },
+    {
+      "edge_id": "NA2_E5",
+      "barrier_kcal_mol": null,
+      "source": "only solution/surface studies (frame mismatch)",
+      "doi": "",
+      "verification": "unverified",
+      "note": "E1cb elimination; compute"
+    }
+  ]
+}

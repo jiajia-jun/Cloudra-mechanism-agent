@@ -1,0 +1,26 @@
+{
+  "task_id": "HE2",
+  "edges": [
+    {
+      "edge_id": "HE2_E1",
+      "barrier_kcal_mol": 16.1,
+      "barrier_type": "dG-ddagger",
+      "frame": "central_complex (pre-reaction complex)",
+      "source": "Neufeldt, Jimenez-Oses, Comins, Houk 2014 J. Org. Chem. 79(23) 11609-11618 (SI Table S7)",
+      "doi": "10.1021/jo5022635",
+      "verification": "verified",
+      "method": "SMD(THF)/B3LYP/6-311+G(2d,p)//B3LYP/6-31G(d,p) 298K",
+      "note": "same substrate (4-tBu-cyclohexanone); donor LiAlH4 analogue; axial->major"
+    },
+    {
+      "edge_id": "HE2_EM1",
+      "barrier_kcal_mol": 17.3,
+      "barrier_type": "dG-ddagger",
+      "frame": "central_complex (pre-reaction complex)",
+      "source": "Neufeldt et al. 2014 (SI Table S7)",
+      "doi": "10.1021/jo5022635",
+      "verification": "verified",
+      "note": "equatorial->minor; ddG 1.1 matches gold spread 1.3"
+    }
+  ]
+}

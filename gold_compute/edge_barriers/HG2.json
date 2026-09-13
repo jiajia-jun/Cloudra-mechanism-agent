@@ -1,0 +1,25 @@
+{
+  "task_id": "HG2",
+  "edges": [
+    {
+      "edge_id": "HG2_E1",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "source": "no same-substrate value; parent allyl vinyl ether analogue ~19-25 dG‡ (Zhang 2017 ACS Cent. Sci. 3, 407-414)",
+      "doi": "10.1021/acscentsci.7b00037",
+      "verification": "unverified",
+      "note": "chair TS / syn major; compute (Aviyente-Houk 1997 JOC 62,6121 lead)"
+    },
+    {
+      "edge_id": "HG2_EM1",
+      "barrier_kcal_mol": null,
+      "barrier_type": "dG-ddagger (relative)",
+      "frame": "central_complex (relative)",
+      "source": "chair/boat ΔΔG‡=2.0 anchor Vance et al. 1988 JACS 110, 2314",
+      "doi": "10.1021/ja00215a059",
+      "verification": "unverified",
+      "note": "boat/anti minor = E1 + 2.0; absolute value compute"
+    }
+  ],
+  "note": "selectivity ΔΔG‡ 2.0 chair(syn) favored; no pre-anchored RDS barrier in task"
+}

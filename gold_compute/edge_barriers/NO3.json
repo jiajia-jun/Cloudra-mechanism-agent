@@ -1,0 +1,49 @@
+{
+  "task_id": "NO3",
+  "edges": [
+    {
+      "edge_id": "NO3_E1",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "frame": "",
+      "source": "Mora-Diez 2009 OBC 7, 3682 (DOI 10.1039/b906058h)",
+      "doi": "",
+      "verification": "verified",
+      "method": "MPWB1K/6-311++G(d,p)-IEF-PCM",
+      "note": "acid-base PT pre-equilibrium; no TS barrier (protonation endergonic +8.4)"
+    },
+    {
+      "edge_id": "NO3_E2",
+      "barrier_kcal_mol": 14.3,
+      "barrier_type": "dG-ddagger",
+      "frame": "step's own starting minimum (protonated acetone); water",
+      "source": "Mora-Diez, Keller, Alvarez-Idaboy 2009 Org. Biomol. Chem. 7, 3682, DOI 10.1039/b906058h (Table 2, TS1)",
+      "doi": "10.1039/b906058h",
+      "verification": "verified",
+      "method": "MPWB1K/6-311++G(d,p)-IEF-PCM",
+      "note": "addition RDS; 22.7 vs isolated reactants; anchor DOI 10.1021/ol060261z concerns this addition step"
+    },
+    {
+      "edge_id": "NO3_E3",
+      "barrier_kcal_mol": 11.4,
+      "barrier_type": "dG-ddagger",
+      "frame": "protonated Criegee (own minimum); water",
+      "source": "Mora-Diez 2009 OBC 7, 3682 (TS2(i))",
+      "doi": "10.1039/b906058h",
+      "verification": "verified",
+      "method": "MPWB1K/6-311++G(d,p)-IEF-PCM",
+      "note": "1,2-Me migration + O-O cleavage"
+    },
+    {
+      "edge_id": "NO3_E4",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "frame": "",
+      "source": "Mora-Diez 2009 OBC 7, 3682",
+      "doi": "",
+      "verification": "verified",
+      "method": "",
+      "note": "PT concerted with migration; no separate barrier"
+    }
+  ]
+}

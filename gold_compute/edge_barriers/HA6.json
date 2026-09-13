@@ -1,0 +1,22 @@
+{
+  "task_id": "HA6",
+  "edges": [
+    {
+      "edge_id": "HA6_E1",
+      "barrier_kcal_mol": null,
+      "source": "Morales-Bayuelo 2013 Int. J. Quantum Chem. 113, 1534 (same substrate, closed; only dE 11.3 differential)",
+      "doi": "10.1002/qua.24354",
+      "verification": "unverified",
+      "note": "outward major; compute"
+    },
+    {
+      "edge_id": "HA6_EM1",
+      "barrier_kcal_mol": null,
+      "source": "same; analogue Heliyon 2021 TSIC 38.2",
+      "doi": "10.1016/j.heliyon.2021.e06675",
+      "verification": "unverified",
+      "note": "inward minor; constrained +11.3 vs outward; compute"
+    }
+  ],
+  "note": "gold selectivity.spread=2.0 conflicts with same-substrate lit 11.3 kcal/mol"
+}

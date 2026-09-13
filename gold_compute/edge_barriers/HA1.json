@@ -1,0 +1,22 @@
+{
+  "task_id": "HA1",
+  "selectivity_note": "selectivity ΔΔ=2.0 kcal/mol favoring E1 (Rondan & Houk 1985 JACS 107, 2099, DOI 10.1021/ja00293a046) — record only, no numeric ΔΔ scoring",
+  "edges": [
+    {
+      "edge_id": "HA1_E1",
+      "barrier_kcal_mol": null,
+      "source": "leads: Lee/Zhang/Houk 2003 JACS DOI 10.1021/ja0287635; Akilandeswari 2015 J. Chem. Sci. DOI 10.1007/s12039-015-0936-5",
+      "doi": "",
+      "verification": "unverified",
+      "note": "outward (major); no absolute barrier retrievable -> compute"
+    },
+    {
+      "edge_id": "HA1_EM1",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "doi": "",
+      "verification": "unverified",
+      "note": "inward (minor); compute"
+    }
+  ]
+}

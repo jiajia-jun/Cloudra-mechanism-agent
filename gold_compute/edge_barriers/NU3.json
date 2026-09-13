@@ -1,0 +1,24 @@
+{
+  "task_id": "NU3",
+  "edges": [
+    {
+      "edge_id": "NU3_E1",
+      "barrier_kcal_mol": null,
+      "source": "leads: RSC Adv. 2016 DOI 10.1039/c5ra25747f; Byrne & Gilheany 2013 Chem. Soc. Rev. 42, 6670, DOI 10.1039/c3cs60105f",
+      "doi": "",
+      "verification": "unverified",
+      "note": "async [2+2] addition -> oxaphosphetane; no open-access number (addition is near-barrierless per Robiette) -> compute"
+    },
+    {
+      "edge_id": "NU3_E2",
+      "barrier_kcal_mol": 19.1,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex (step's own starting minimum)",
+      "source": "Chem. Eur. J. 2024, DOI 10.1002/chem.202400173 (Bofill et al.)",
+      "doi": "10.1002/chem.202400173",
+      "verification": "partial",
+      "method": "B3LYP/6-31G*+D3BJ",
+      "note": "OPA ring-opening RDS (model ylide Me3P); source number not independently re-verified"
+    }
+  ]
+}

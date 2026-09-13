@@ -1,0 +1,44 @@
+{
+  "task_id": "NU5",
+  "edges": [
+    {
+      "edge_id": "NU5_E1",
+      "barrier_kcal_mol": null,
+      "source": "",
+      "verification": "unverified",
+      "note": "PT formic acid->HCHO, concerted with C-C addition; compute"
+    },
+    {
+      "edge_id": "NU5_E2",
+      "barrier_kcal_mol": 19.9,
+      "barrier_type": "dG-ddagger",
+      "frame": "separated reactants DCM (analogue)",
+      "source": "Ferdeghini et al. 2025 J. Org. Chem. 90, 5000-5007",
+      "doi": "10.1021/acs.joc.5c00236",
+      "verification": "verified",
+      "method": "COSMO(DCM)-BLYP-D3/TZ2P",
+      "note": "alpha-addition/nitrilium; analogue acetaldehyde+tBuNC+AcOH; RDS per anchor paper"
+    },
+    {
+      "edge_id": "NU5_E3",
+      "barrier_kcal_mol": 16.6,
+      "barrier_type": "dG-ddagger",
+      "frame": "separated reactants DCM (analogue)",
+      "source": "Ferdeghini et al. 2025 J. Org. Chem. 90, 5000-5007",
+      "doi": "10.1021/acs.joc.5c00236",
+      "verification": "verified",
+      "note": "AcOH O-attack on nitrilium -> imidate"
+    },
+    {
+      "edge_id": "NU5_E4",
+      "barrier_kcal_mol": 13.8,
+      "barrier_type": "dG-ddagger",
+      "frame": "central_complex (rel imidate)",
+      "source": "Santos et al. 2026 ACS Omega 11, 24281-24297",
+      "doi": "10.1021/acsomega.5c13327",
+      "verification": "verified",
+      "method": "X3LYP/def2-SVP + M06-2X SP, SMD",
+      "note": "analogue; Mumm acyl transfer; 11.8 (R) other face"
+    }
+  ]
+}

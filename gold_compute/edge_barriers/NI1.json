@@ -1,0 +1,27 @@
+{
+  "task_id": "NI1",
+  "edges": [
+    {
+      "edge_id": "NI1_E1",
+      "barrier_kcal_mol": 3.5,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex",
+      "source": "Hall & Smith 1998 J. Phys. Chem. A 102, 4930",
+      "doi": "10.1021/jp9810825",
+      "verification": "partial",
+      "method": "G2(MP2,SVP), two explicit waters",
+      "note": "14.7 kJ/mol for carbinolamine formation above the amine+formaldehyde+2H2O complex"
+    },
+    {
+      "edge_id": "NI1_E2",
+      "barrier_kcal_mol": 26.7,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex",
+      "source": "Hall & Smith 1998 J. Phys. Chem. A 102, 4930",
+      "doi": "10.1021/jp9810825",
+      "verification": "partial",
+      "method": "G2(MP2,SVP), two explicit waters",
+      "note": "111.9 kJ/mol dehydration of carbinolamine (RDS); acid-catalysed variant 16.2"
+    }
+  ]
+}

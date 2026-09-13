@@ -1,0 +1,27 @@
+{
+  "task_id": "NQ1",
+  "edges": [
+    {
+      "edge_id": "NQ1_E1",
+      "barrier_kcal_mol": 30,
+      "barrier_type": "dE-ddagger",
+      "frame": "central_complex",
+      "source": "Eur. J. Org. Chem. 2012, DOI 10.1002/ejoc.201201738 (task anchor; not independently resolvable in sandbox)",
+      "doi": "10.1002/ejoc.201201738",
+      "verification": "partial",
+      "method": "DFT (source method unconfirmed)",
+      "note": "[3,3]-sigmatropic RDS"
+    },
+    {
+      "edge_id": "NQ1_E2",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "frame": "step minimum (I1)",
+      "source": "none (JOC 2025 DOI 10.1021/acs.joc.5c01268 gives mechanism but no number)",
+      "doi": "",
+      "verification": "unverified",
+      "method": "",
+      "note": "fast rearomatisation; no verified literature barrier -> compute gap"
+    }
+  ]
+}

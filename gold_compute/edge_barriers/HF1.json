@@ -1,0 +1,26 @@
+{
+  "task_id": "HF1",
+  "edges": [
+    {
+      "edge_id": "HF1_E1",
+      "barrier_kcal_mol": 9.2,
+      "barrier_type": "dE-ddagger",
+      "frame": "separated reactants (analogue)",
+      "source": "Koskowich, Johnson, Paley, Rablen 2008 J. Org. Chem. 73, 3492-3496",
+      "doi": "10.1021/jo702722g",
+      "verification": "partial",
+      "method": "B3LYP/6-31G(d)",
+      "note": "analogue carene + peroxyformic acid; syn/major; no same-substrate value exists"
+    },
+    {
+      "edge_id": "HF1_EM1",
+      "barrier_kcal_mol": 10.9,
+      "barrier_type": "dE-ddagger",
+      "frame": "separated reactants (analogue)",
+      "source": "Koskowich et al. 2008",
+      "doi": "10.1021/jo702722g",
+      "verification": "partial",
+      "note": "anti/minor; dd 1.7 vs gold spread 1.4"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "task_id": "HE3",
+  "edges": [
+    {
+      "edge_id": "HE3_E1",
+      "barrier_kcal_mol": null,
+      "barrier_type": null,
+      "source": "no absolute value; selectivity anchor ΔΔG‡=2.0 Corey, Bakshi & Shibata 1987 JACS 109, 5551-5553",
+      "doi": "10.1021/ja00252a056",
+      "verification": "unverified",
+      "note": "Si face major -> (R); leads Quallich 1994 JACS 116,8516; Alagona 2003 DOI 10.1021/ja034928d; compute"
+    },
+    {
+      "edge_id": "HE3_EM1",
+      "barrier_kcal_mol": null,
+      "barrier_type": "dG-ddagger (relative)",
+      "source": "same anchor",
+      "doi": "10.1021/ja00252a056",
+      "verification": "unverified",
+      "note": "Re face minor = E1 + 2.0 (constant unknown); compute"
+    }
+  ],
+  "note": "CBS oxazaborolidine reduction; no absolute per-edge value in literature"
+}

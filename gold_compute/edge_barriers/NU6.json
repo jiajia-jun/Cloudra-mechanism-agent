@@ -1,0 +1,24 @@
+{
+  "task_id": "NU6",
+  "edges": [
+    {
+      "edge_id": "NU6_E1",
+      "barrier_kcal_mol": null,
+      "source": "ZANCO 2021 33(4)1-10 DOI 10.21271/zjpas.33.4.1 (same substrate, numeric not retrievable)",
+      "doi": "",
+      "verification": "unverified",
+      "note": "imine N attack -> zwitterion; compute"
+    },
+    {
+      "edge_id": "NU6_E2",
+      "barrier_kcal_mol": 9.2,
+      "barrier_type": "dG-ddagger",
+      "frame": "solution DCM, rel zwitterion (analogue)",
+      "source": "Komjati et al. 2018 Period. Polytech. Chem. Eng. 62(4) 503-509",
+      "doi": "10.3311/ppch.12527",
+      "verification": "verified",
+      "method": "M06-2X/6-31+G** IEF-PCM",
+      "note": "analogue (D-glyceraldehyde-derived imine); range 8.6-9.8; conrotatory closure RDS"
+    }
+  ]
+}
