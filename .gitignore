@@ -139,3 +139,6 @@ frontend/*.zmat
 # 工具缓存
 .numba-cache/
 .tscheck/
+
+# 一次性实验/运行残留（从根目录归拢）
+/archive/
