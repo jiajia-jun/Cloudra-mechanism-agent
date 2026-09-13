@@ -81,6 +81,11 @@ class MechanismNode(BaseModel):
     (reactant complex, ion-dipole complex). `accessible=false` is the
     impossible-tier annotation: the species/TS is physically unreachable at the
     allowed level of theory.
+
+    `properties` 是交付侧结构化性质声明（impossible 性质/态序题）：键自带单位
+    （如 ``bond_length_angstrom``、``singlet_triplet_gap_kcal_mol``），值为数值
+    或字符串（``state_ordering`` 等描述性条目）。评分器只读这个字典，不解析
+    最终消息散文。
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -90,6 +95,7 @@ class MechanismNode(BaseModel):
     smiles: list[str] = Field(default_factory=list)
     accessible: bool = True
     label: str = ""
+    properties: dict[str, float | str] = Field(default_factory=dict)
 
 
 class BondChangeSet(BaseModel):
@@ -128,6 +134,10 @@ class MechanismEdge(BaseModel):
     题即"相对反应物络合物"）。评分不读最终消息散文：harness 从交付日志推出
     逐步能垒并取 RDS，再要求声明值与推算值都存在且一致（复用 accuracy 容差），
     两者缺一或冲突一律 fail-loud 记 0 分。
+
+    ``channel``/``favored`` 是 hard 档选择性交付字段：竞争立体化学通道的每条
+    边声明通道标签（``channel``）与该通道是否被计算能垒支持为优势通道
+    （``favored``）；favored-channel 归属定性计分（对错），能垒差数值只记录。
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
@@ -140,6 +150,8 @@ class MechanismEdge(BaseModel):
     bond_changes: BondChangeSet = Field(default_factory=BondChangeSet)
     accessible: bool = True
     barrier_kcal_mol: Optional[float] = None
+    channel: Optional[str] = None
+    favored: Optional[bool] = None
 
 
 class RefusalDeclaration(BaseModel):
@@ -211,6 +223,9 @@ class ReferenceComputation(BaseModel):
     verification: VerificationStatus = VerificationStatus.UNVERIFIED
     reference_doi: str = ""
     computed_by_us: bool = False
+    # 性质类锚点（impossible 性质/态序题）：键自带单位，与交付侧
+    # MechanismNode.properties 同构；缺值的键待文献调研回填，留空不编造
+    properties: dict[str, float | str] = Field(default_factory=dict)
 
 
 class SelectivityReference(BaseModel):
@@ -219,13 +234,16 @@ class SelectivityReference(BaseModel):
     （类型记号仍是 ΔΔG‡/ΔΔE‡ 等差值）。gold 机理图把两条竞争通道都带上，
     accuracy 层对该差值的高斯容差评分待 runner 支持；当前只作参考记录。
 
-    `minor_channel` 描述副通道（如 "inward rotation -> (Z)-diene"）。"""
+    `minor_channel` 描述副通道（如 "inward rotation -> (Z)-diene"）。
+    `favored_channel` 是 gold 侧优势通道标签，与交付边 ``channel`` 字段同口径
+    （定性计分：agent 声明的 favored 边标签与它对齐即对）。"""
 
     model_config = ConfigDict(extra="forbid")
 
     spread_kcal_mol: Optional[float] = None
     spread_type: Optional[BarrierType] = None
     minor_channel: str = ""
+    favored_channel: str = ""
     verification: VerificationStatus = VerificationStatus.UNVERIFIED
     reference_doi: str = ""
     computed_by_us: bool = False

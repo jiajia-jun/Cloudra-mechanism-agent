@@ -20,6 +20,7 @@ TASKS = {
             "the automerization barrier in kcal/mol (transition state relative to the "
             "rectangular ground-state minimum)"
         ),
+        "deliverable_kind": "mechanism",
         "conditions_en": "gas phase, low temperature (matrix isolation regime)",
         "charge": 0,
         "multiplicity": 1,
@@ -52,6 +53,7 @@ TASKS = {
                 "the bond-shift barrier in kcal/mol (transition state relative to the tub "
                 "ground-state minimum)"
             ),
+            "deliverable_kind": "mechanism",
             "conditions_en": "gas phase, room temperature",
             "charge": 0,
             "multiplicity": 1,
@@ -83,6 +85,7 @@ TASKS = {
             "the activation barrier in kcal/mol for the disrotatory ring-opening pathway "
             "(transition state relative to the cyclobutene minimum)"
         ),
+        "deliverable_kind": "mechanism",
         "conditions_en": "gas phase, thermal",
         "charge": 0,
         "multiplicity": 1,
@@ -115,6 +118,7 @@ TASKS = {
                 "the activation barrier in kcal/mol for the conrotatory ring-opening "
                 "pathway (transition state relative to the cyclobutene minimum)"
             ),
+            "deliverable_kind": "mechanism",
             "conditions_en": "gas phase, thermal",
             "charge": 0,
             "multiplicity": 1,
@@ -143,8 +147,11 @@ TASKS = {
         ),
         "deliverable_en": (
             "the cyclization barrier in kcal/mol (transition state relative to the "
-            "enediyne minimum) and the reaction energy to the p-benzyne product"
+            "enediyne minimum)"
         ),
+        "deliverable_kind": "mechanism",
+        # 反应能（→ p-苯炔产物）挂在产物节点 properties 上，不塞进边能垒
+        "product_property_keys": ["reaction_energy_kcal_mol"],
         "conditions_en": "gas phase, thermal",
         "charge": 0,
         "multiplicity": 1,
@@ -176,6 +183,7 @@ TASKS = {
                 "the ring-closure barrier in kcal/mol (transition state relative to the "
                 "hexatriene minimum)"
             ),
+            "deliverable_kind": "mechanism",
             "conditions_en": "gas phase, thermal",
             "charge": 0,
             "multiplicity": 1,
@@ -204,8 +212,11 @@ TASKS = {
         ),
         "deliverable_en": (
             "the isomerization barrier in kcal/mol (transition state relative to the "
-            "CH2OO minimum) and the isomerization energy"
+            "CH2OO minimum)"
         ),
+        "deliverable_kind": "mechanism",
+        # 异构化能（→ 二氧杂环甲烷）挂在产物节点 properties 上
+        "product_property_keys": ["isomerization_energy_kcal_mol"],
         "conditions_en": "gas phase, thermal",
         "charge": 0,
         "multiplicity": 1,
@@ -237,6 +248,15 @@ TASKS = {
                 "the energy difference in kcal/mol between dioxirane and formic acid "
                 "(state which isomer is the global minimum)"
             ),
+            "deliverable_kind": "state_order",
+            # 相对能挂在目标态（二氧杂环甲烷）节点：相对反应物（甲酸）的电子能差
+            "property_node": "product",
+            "property_keys": ["energy_relative_to_reactant_kcal_mol", "state_ordering"],
+            # 0 K 相对能，ATcT v1.140（DOI 10.17038/CSE/2440250）：甲酸为全局最小
+            "gold_properties": {
+                "energy_relative_to_reactant_kcal_mol": 90.9,
+                "state_ordering": "formic acid below dioxirane",
+            },
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 1,
@@ -266,6 +286,7 @@ TASKS = {
             "the activation barrier in kcal/mol (transition state relative to the "
             "1,2-dioxetane minimum)"
         ),
+        "deliverable_kind": "mechanism",
         "conditions_en": "gas phase, thermal",
         "charge": 0,
         "multiplicity": 1,
@@ -296,6 +317,15 @@ TASKS = {
             "deliverable_en": (
                 "the ring strain energy and heat of formation of oxetane in kcal/mol"
             ),
+            "deliverable_kind": "property",
+            "property_keys": ["ring_strain_energy_kcal_mol", "heat_of_formation_kcal_mol"],
+            # 环应变：Planells et al. 2025（PMC12728934，homodesmotic RCC4 口径；
+            # 定义与文献区间 25.0–25.4）。生成热：298 K，Pell & Pilcher 1965，
+            # NIST WebBook −80.54±0.63 kJ/mol = −19.25 kcal/mol
+            "gold_properties": {
+                "ring_strain_energy_kcal_mol": 25.0,
+                "heat_of_formation_kcal_mol": -19.25,
+            },
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 1,
@@ -319,6 +349,12 @@ TASKS = {
             "the singlet-triplet gap of phenylnitrene in kcal/mol, which state lies "
             "lower, and the character of the lowest singlet state"
         ),
+        "deliverable_kind": "state_order",
+        "property_keys": [
+            "singlet_triplet_gap_kcal_mol",
+            "state_ordering",
+            "lowest_singlet_character",
+        ],
         "conditions_en": "gas phase",
         "charge": 0,
         "multiplicity": 3,
@@ -346,10 +382,15 @@ TASKS = {
                 "of triplet phenylnitrene (the ground state of C6H5N)."
             ),
             "deliverable_en": (
-                "the principal geometric parameters (in Angstrom and degrees) and a "
-                "characterization of the harmonic vibrational frequencies of triplet "
-                "phenylnitrene"
+                "the principal geometric parameters (in Angstrom and degrees) of "
+                "triplet phenylnitrene"
             ),
+            "deliverable_kind": "property",
+            # C–N 键长：计算锚点 CASSCF(8,8)/6-31G*，Karney & Borden 1997 JACS 119,
+            # 1378（DOI 10.1021/ja963809g）；无实验气相几何。频率键已移除——无实验值，
+            # 描述性字符串锚在精确匹配评分下永远 0 分
+            "property_keys": ["c_n_bond_length_angstrom"],
+            "gold_properties": {"c_n_bond_length_angstrom": 1.28},
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 3,

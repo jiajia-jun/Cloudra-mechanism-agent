@@ -24,7 +24,7 @@ TASKS = {
     # 烷氧负离子。椅式构象锁定下反式双轴向开环唯一，cis/双赤道为禁阻背景通道，
     # 不进 gold（无 competing）。池产物 CIP 已核对 = (1R,2R)。
     "D2": {
-        "name_en": "cyclohexene oxide + hydroxide: SN2 epoxide opening under Furst-Plattner trans-diaxial control -> trans-cyclohexane-1,2-diolate",
+        "name_en": "cyclohexene oxide + hydroxide: determine the stereochemical outcome of the SN2 epoxide opening",
         "conditions_en": "aqueous NaOH, heat",
         "anchor": "barrier",
         "mapped_reactants": "[OH-:1].[O:3]1[CH:4]2[CH2:8][CH2:7][CH2:6][CH2:5][CH:2]12",
@@ -50,12 +50,14 @@ TASKS = {
             {
                 "out": "[CH3:3][C:4]([CH3:5])([CH3:6])[C@H:7]1[CH2:8][CH2:9][C@:10]([H:2])([O-:11])[CH2:12][CH2:13]1.[BH3:1]",
                 "type": "axial hydride attack on the locked chair (torsional-strain control for the small hydride donor) -> equatorial alkoxide = trans-4-tert-butylcyclohexan-1-olate",
+                "channel": "axial_attack",
             },
         ],
         "competing": [
             {
                 "out": "[CH3:3][C:4]([CH3:5])([CH3:6])[C@H:7]1[CH2:8][CH2:9][C@@:10]([H:2])([O-:11])[CH2:12][CH2:13]1.[BH3:1]",
                 "type": "equatorial hydride attack -> axial alkoxide = cis diastereomer (minor channel)",
+                "channel": "equatorial_attack",
             },
         ],
     },
@@ -73,12 +75,14 @@ TASKS = {
             {
                 "out": "[CH3:3][C@@:4]([H:2])([O:5][BH2:1])[c:6]1[cH:7][cH:8][cH:9][cH:10][cH:11]1.[CH3:12][C@H:13]1[CH2:14][O:15][BH:16][NH:17]1",
                 "type": "single-step hydride transfer from N-coordinated BH3 to the Si face of B-coordinated acetophenone via the six-membered chair TS ((S)-catalyst -> (R)-alkoxyborane, Corey mnemonic); oxazaborolidine catalyst is a spectator",
+                "channel": "si_face",
             },
         ],
         "competing": [
             {
                 "out": "[CH3:3][C@:4]([H:2])([O:5][BH2:1])[c:6]1[cH:7][cH:8][cH:9][cH:10][cH:11]1.[CH3:12][C@H:13]1[CH2:14][O:15][BH:16][NH:17]1",
                 "type": "hydride delivery to the opposite (Re) face -> (S)-alkoxyborane enantiomer (minor channel)",
+                "channel": "re_face",
             },
         ],
     },

@@ -21,7 +21,14 @@ Hard-tier specifics vs normal (gen_normal_tasks):
   `competing` 列出副通道（默认从反应物络合物出发到副产物/副中间体节点），
   子图打分据此要求 agent 两条 TS 都交付才算覆盖。立体专一题（副通道被
   禁阻）不带 competing 边——stereo_tier_rule="hard_stereo_costly" 下的节点
-  立体匹配本身就是判别器。
+  立体匹配本身就是判别器。选择性题（anchor="selectivity"）的主线立体决定步
+  与每条副通道步必须带 `channel` 标签（校验强制）：gold 边据此写
+  channel/favored（主线 True、副通道 False），交付契约对 favored-channel
+  归属定性计分（对错），能垒差数值只记录不数值计分。
+- 防泄题：题面与 system.products 用去立体（constitution-only）产物 SMILES
+  （`_strip_stereo_canonical`；产物立体化学本身是答案），题名只保留反应身份
+  与"要测什么"；gold 图节点保留池内立体 SMILES 不动，原子映射反应物 SMILES
+  的立体标记是给定条件、不受影响。
 - rubric.graph_similarity.stereo_tier_rule 一律 "hard_stereo_costly"
   （runner 据此把 GedConfig.stereo_free 关掉）。
 - bond_changes 同 normal：由相邻步映射 SMILES 差集推导，禁止手填；映射
@@ -50,10 +57,17 @@ from cloudra.benchmark.gen_normal_tasks import (
     _derive_bond_changes,
     _formal_charge,
     _map_numbers,
+    _rdkit,
     _unmap_canonical,
 )
 from cloudra.benchmark.hard_registry import REGISTRY
-from cloudra.benchmark.query_builder import GRAPH_JSON_EXAMPLE, format_allowed_methods_clause
+from cloudra.benchmark.query_builder import (
+    BARRIER_DECLARATION_CLAUSE,
+    GRAPH_JSON_EXAMPLE,
+    TS_EVIDENCE_CLAUSE,
+    conditions_modeling_guidance,
+    format_allowed_methods_clause,
+)
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BarrierReference,
@@ -95,6 +109,28 @@ _BARRIER_SIGMA = 2.0
 
 
 # ---------------------------------------------------------------------------
+# 产物 SMILES 去立体（题面防泄露）
+# ---------------------------------------------------------------------------
+
+
+def _strip_stereo_canonical(smiles: str) -> str:
+    """constitution-only canonical SMILES：去掉 @/@@ 与 E/Z 标记（题面展示用）。
+
+    gold 图节点保留立体 SMILES 不动；只有 agent 可见的 query 文本与
+    system.products 用去立体形式——产物立体化学本身就是 hard 档要考的答案。
+    """
+    Chem = _rdkit()
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"产物 SMILES 无法解析: {smiles!r}")
+    Chem.RemoveStereochemistry(mol)
+    out = Chem.MolToSmiles(mol)
+    # RDKit canonical 把 [BH3] 归一成裸 "B"（题面歧义写法，hard.md 已统一改
+    # [BH3]）：题面展示侧保持 [BH3]
+    return "[BH3]" if out == "B" else out
+
+
+# ---------------------------------------------------------------------------
 # registry 校验（fail-loud；--check / --only 供分族登记时自检）
 # ---------------------------------------------------------------------------
 
@@ -126,6 +162,15 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
         errors.append(f"anchor 取值非法: {entry['anchor']!r}")
     if entry["anchor"] == "selectivity" and not entry.get("minor_channel_en"):
         errors.append("selectivity 锚点缺 minor_channel_en")
+    if entry["anchor"] == "selectivity":
+        # 选择性定性计分：主线有且仅有一条带 channel 标签的立体决定边（gold 侧
+        # favored=True），每条副通道边也必须有 channel（gold 侧 favored=False）
+        main_channels = [s.get("channel") for s in entry["steps"] if s.get("channel")]
+        if len(main_channels) != 1:
+            errors.append("selectivity 题主线必须有且仅有一步带 channel 标签")
+        for k, step in enumerate(entry.get("competing", []), 1):
+            if not step.get("channel"):
+                errors.append(f"副通道 {k} 缺 channel 标签")
     try:
         pool_r = sorted(_canonical_pool(pool_reactants))
         pool_p = sorted(_canonical_pool(pool_products))
@@ -191,6 +236,9 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 via=ts.id,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                # 带 channel 标签的主线步是立体决定边（gold 侧 favored=True）
+                channel=step.get("channel"),
+                favored=True if step.get("channel") else None,
             )
         )
         nodes.extend([ts, node])
@@ -217,6 +265,9 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 via=ts.id,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                # 副通道边：gold 侧 favored=False（优势归属由定性计分核对）
+                channel=step.get("channel"),
+                favored=False if step.get("channel") else None,
             )
         )
         nodes.extend([ts, minor])
@@ -237,29 +288,32 @@ def _query(
     rs = ".".join(reactants)
     ps = ".".join(products)
     # 与 easy/normal 同一套交付协议措辞；hard 增量：立体化学结果是交付本体——
-    # 竞争立体化学通道的两条 TS 都要查，报告能垒排序与差值（选择性锚点据此评分）。
-    # 不点名具体构型/几何归属（不泄题）。
+    # 竞争立体化学通道的两条 TS 都要查，favored-channel 归属定性计分（对错），
+    # 能垒差数值只记录不数值计分。题面产物 SMILES 已去立体（不泄题），不点名
+    # 具体构型/几何归属。
     methods_clause = format_allowed_methods_clause(allowed_methods)
     methods_part = f" {methods_clause}" if methods_clause else ""
     return (
         f"Determine the mechanism of the following reaction: {name}. "
         f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
         f"conditions: {conditions}. "
+        f"{conditions_modeling_guidance(conditions)} "
         f"Atom-mapped reactant SMILES: {mapped}. "
         "The 1-based map numbers in it are the indexing convention for `bond_changes` "
         "(keep using the plain SMILES above for graph nodes and evidence annotations). "
-        "This task probes stereochemistry: resolving the stereochemical outcome is part of "
-        "the deliverable. Investigate the competing stereochemical channels (not only the "
-        "major one), and make sure the stereochemistry of every product and intermediate "
-        "node is stated in its SMILES. "
+        "The product SMILES above state connectivity only: resolving the stereochemical "
+        "outcome is part of the deliverable. Investigate the competing stereochemical "
+        "channels (not only the major one), and make sure the stereochemistry of every "
+        "product and intermediate node is stated in its SMILES. "
         "The reaction may proceed through a multi-step network: represent each intermediate "
         "you identify as a node and each elementary step as an edge; competing pathways you "
         "investigate deserve their own edges. "
         "You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: "
         "nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges "
         "(with `via` pointing to the TS node id). Start the graph at the reactant complex "
+        "(the pre-reaction complex), not at the separated reactants. "
         + GRAPH_JSON_EXAMPLE +
-        "(the pre-reaction complex), not at the separated reactants. The scorer checks that "
+        "The scorer checks that "
         "your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond "
         "the reference are never penalized, so record every step you actually investigated. "
         "Every elementary-step edge must carry "
@@ -272,20 +326,15 @@ def _query(
         "Every computational evidence file you produce for a species or step (QM input or log) "
         "must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer "
         "can bind each graph element to concrete evidence. "
-        "Declare every barrier you actually compute in kcal/mol on that elementary "
-        "step's edge as `barrier_kcal_mol` in mechanism_graph.json (each barrier is "
-        "relative to that step's own starting minimum; for a bimolecular reaction "
-        "that minimum is the reactant complex (e.g. the ion-dipole complex), and for "
-        "a unimolecular process it is simply the reactant minimum). The scorer derives every declared step barrier "
-        "from your log files and takes the highest as the rate-determining step; a "
-        "barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with "
-        "those logs is not scorable. A transition-state evidence file must carry "
-        "`smiles: <the SMILES of that step's reactant>` so the scorer can attach "
-        "the saddle to the step it belongs to. For each competing stereochemical "
-        "channel also "
-        "state the barrier difference (minor-channel TS minus major-channel TS) in "
-        "kcal/mol and which channel it favors (recorded for the report, not scored "
-        "numerically). "
+        + BARRIER_DECLARATION_CLAUSE
+        + TS_EVIDENCE_CLAUSE +
+        "For each competing stereochemical channel, declare on that channel's edge a "
+        "`channel` field (a short label identifying the channel) and `favored: true` on "
+        "exactly the one channel your computed barriers favor (`favored: false` on the "
+        "other channels); the favored-channel assignment is scored qualitatively (right "
+        "or wrong). Also record the barrier difference (minor-channel TS minus "
+        "major-channel TS) in kcal/mol in your report; the numeric difference is "
+        "recorded but not scored numerically. "
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
         f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
     )
@@ -312,6 +361,9 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         reactants_s, products_s = rxn.split(">>", 1)
         reactants = [s for s in reactants_s.split(".") if s]
         products = [s for s in products_s.split(".") if s]
+        # 题面/system 用 constitution-only 产物 SMILES（去立体防泄露——产物立体
+        # 化学是 hard 档要考的答案）；gold 图节点保留池内立体 SMILES 不动
+        agent_products = [_strip_stereo_canonical(p) for p in products]
         anchor_val, anchor_type, verification, doi = _parse_barrier(cells[5])
         elem_m = ELEMENTS_RE.match(cells[6])
         elements = elem_m.group(1).split(",") if elem_m else []
@@ -344,10 +396,12 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         )
         accuracy = AccuracyRubric(enabled=False, sigma_kcal_mol=_BARRIER_SIGMA)
         if anchor == "selectivity":
+            favored = next(s["channel"] for s in entry["steps"] if s.get("channel"))
             selectivity = SelectivityReference(
                 spread_kcal_mol=anchor_val,
                 spread_type=anchor_type,
                 minor_channel=entry["minor_channel_en"],
+                favored_channel=favored,
                 verification=verification,
                 reference_doi=doi,
             )
@@ -383,7 +437,7 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                         pid,
                         entry["name_en"],
                         reactants,
-                        products,
+                        agent_products,
                         q,
                         mult,
                         entry["conditions_en"],
@@ -394,7 +448,7 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                 method_policy=policy,
                 system=SystemSpec(
                     reactants=reactants,
-                    products=products,
+                    products=agent_products,
                     charge=q,
                     multiplicity=mult,
                     conditions=entry["conditions_en"],

@@ -135,3 +135,16 @@
 
 ## NI1 per-edge (from edge-swarm) — reconciliation
 - NI1_E1 (addition) = 3.5 kcal/mol (14.7 kJ/mol, Hall & Smith 1998); NI1_E2 (dehydration, RDS) = 26.7 (111.9 kJ/mol). The later sub-agent mis-mapped 26.7 to E1; correct mapping per Hall & Smith: addition low (3.5), dehydration is RDS (26.7).
+
+## F1 (easy) — BH4- + formaldehyde 调研终结论（两轮调研汇总）
+- 维持 null（诚实缺测）。两轮文献调研结论：无开放数据库值（GMTKN55/BH9/RDB7 均无该反应；原 Can. J. Chem. 1988 引用系误引——该文为取代马来酸酐 FT-ICR 研究）。
+- central-complex 口径下该反应很可能是沉没垒（barrierless），不适合做锚点；同反应类无可换题。建议保持诚实缺测。
+
+## NA2 (normal) — acetone self-aldol 补充
+- 维持 null。类似物值存在但不采用：乙醛锂烯醇盐 QCISD ΔU‡=5.01 kcal/mol（Pratt 2005 JOC 70, 4279, DOI 10.1021/jo0503409）——非本体系（Li 烯醇盐 vs OH- 催化丙酮），不转录。
+
+## NO3 (normal) — Baeyer-Villiger 酸催化加成 补充
+- 维持 null。Grein 2006 J. Org. Chem. 71, 861（DOI 10.1021/jo0513966）的酸催化加成 TS 表格需机构权限阅读；拿到前保持 null。
+
+## NU6 (normal) — Staudinger 补充机理备注
+- 维持 null。母体有 Zhou/Birney 2004 博士论文 CCSD(T)//B3LYP ΔE‡ 24.9 kcal/mol（分离反应物口径；且气相 IRC 显示协同、无两性离子中间体）——仅作机理备注，不入锚点。

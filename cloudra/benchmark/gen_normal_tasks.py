@@ -43,7 +43,13 @@ from cloudra.benchmark.gen_easy_tasks import (
     _parse_barrier,
 )
 from cloudra.benchmark.normal_registry import REGISTRY
-from cloudra.benchmark.query_builder import GRAPH_JSON_EXAMPLE, format_allowed_methods_clause
+from cloudra.benchmark.query_builder import (
+    BARRIER_DECLARATION_CLAUSE,
+    GRAPH_JSON_EXAMPLE,
+    TS_EVIDENCE_CLAUSE,
+    conditions_modeling_guidance,
+    format_allowed_methods_clause,
+)
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BarrierReference,
@@ -298,6 +304,7 @@ def _query(
         f"Determine the mechanism of the following reaction: {name}. "
         f"Reactant SMILES: {rs}; product SMILES: {ps}; total charge {q}, multiplicity {mult}; "
         f"conditions: {conditions}. "
+        f"{conditions_modeling_guidance(conditions)} "
         f"Atom-mapped reactant SMILES: {mapped}. "
         "The 1-based map numbers in it are the indexing convention for `bond_changes` "
         "(keep using the plain SMILES above for graph nodes and evidence annotations). "
@@ -307,8 +314,9 @@ def _query(
         "You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: "
         "nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges "
         "(with `via` pointing to the TS node id). Start the graph at the reactant complex "
+        "(the pre-reaction complex), not at the separated reactants. "
         + GRAPH_JSON_EXAMPLE +
-        "(the pre-reaction complex), not at the separated reactants. The scorer checks that "
+        "The scorer checks that "
         "your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond "
         "the reference are never penalized, so record every step you actually investigated. "
         "Every elementary-step edge must carry "
@@ -321,17 +329,8 @@ def _query(
         "Every computational evidence file you produce for a species or step (QM input or log) "
         "must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer "
         "can bind each graph element to concrete evidence. "
-        "Declare every barrier you actually compute in kcal/mol on that elementary "
-        "step's edge as `barrier_kcal_mol` in mechanism_graph.json (each barrier is "
-        "relative to that step's own starting minimum; for a bimolecular reaction "
-        "that minimum is the reactant complex (e.g. the ion-dipole complex), and for "
-        "a unimolecular process it is simply the reactant minimum). The scorer derives every declared step barrier "
-        "from your log files and takes the highest as the rate-determining step; a "
-        "barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with "
-        "those logs is not scorable. "
-        "A transition-state evidence file must carry `smiles: <the SMILES of that "
-        "step's reactant>` so the scorer can attach the saddle to the step it "
-        "belongs to. "
+        + BARRIER_DECLARATION_CLAUSE
+        + TS_EVIDENCE_CLAUSE +
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
         f"programs' log formats, so output from any other program cannot count as evidence.{methods_part}"
     )

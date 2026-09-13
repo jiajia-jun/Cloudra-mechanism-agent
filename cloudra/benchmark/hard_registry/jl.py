@@ -15,7 +15,7 @@ TASKS = {
     # (E)-肟：乙基与 OH 反式 → 乙基 anti 迁移 → N-乙基乙酰胺；(Z)-肟是另一
     # 底物（非本底物通道），syn 甲基迁移被立体专一性排除 → 无 competing。
     "L1": {
-        "name_en": "Beckmann rearrangement of (E)-butanone oxime (oxime geometry selects the migrating group -> N-ethylacetamide)",
+        "name_en": "Beckmann rearrangement of (E)-butanone oxime: determine which group migrates",
         "conditions_en": "concentrated H2SO4 or acid catalysis, heated",
         "anchor": "barrier",
         "mapped_reactants": "[O+:1]([H:2])([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O:7][H:8])/[CH3:3]",

@@ -2,10 +2,10 @@
   "task_id": "HL1",
   "tier": "hard",
   "family": "L",
-  "name": "Beckmann rearrangement of (E)-butanone oxime (oxime geometry selects the migrating group -> N-ethylacetamide)",
+  "name": "Beckmann rearrangement of (E)-butanone oxime: determine which group migrates",
   "pair_id": null,
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: Beckmann rearrangement of (E)-butanone oxime (oxime geometry selects the migrating group -> N-ethylacetamide). Reactant SMILES: [OH3+].CC/C(=N/O)/C; product SMILES: [OH3+].CCNC(C)=O; total charge 1, multiplicity 1; conditions: concentrated H2SO4 or acid catalysis, heated. Atom-mapped reactant SMILES: [O+:1]([H:2])([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O:7][H:8])/[CH3:3]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). This task probes stereochemistry: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings); edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json (each barrier is relative to that step's own starting minimum; for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum). The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. For each competing stereochemical channel also state the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol and which channel it favors (recorded for the report, not scored numerically). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and B3LYP/def2-SVP; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: Beckmann rearrangement of (E)-butanone oxime: determine which group migrates. Reactant SMILES: [OH3+].CC/C(=N/O)/C; product SMILES: [OH3+].CCNC(C)=O; total charge 1, multiplicity 1; conditions: concentrated H2SO4 or acid catalysis, heated. Include the corresponding implicit solvent model (e.g. CPCM for B3LYP, ALPB/GBSA for xTB) in all energies you declare. Atom-mapped reactant SMILES: [O+:1]([H:2])([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O:7][H:8])/[CH3:3]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. For each competing stereochemical channel, declare on that channel's edge a `channel` field (a short label identifying the channel) and `favored: true` on exactly the one channel your computed barriers favor (`favored: false` on the other channels); the favored-channel assignment is scored qualitatively (right or wrong). Also record the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol in your report; the numeric difference is recorded but not scored numerically. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and B3LYP/def2-SVP; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -52,14 +52,16 @@
             "[OH3+].CC/C(=N/O)/C"
           ],
           "accessible": true,
-          "label": "reactant"
+          "label": "reactant",
+          "properties": {}
         },
         {
           "id": "HL1_TS1",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS1"
+          "label": "TS1",
+          "properties": {}
         },
         {
           "id": "HL1_I1",
@@ -69,14 +71,16 @@
             "CC/C(C)=N/[OH2+]"
           ],
           "accessible": true,
-          "label": "intermediate 1"
+          "label": "intermediate 1",
+          "properties": {}
         },
         {
           "id": "HL1_TS2",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS2"
+          "label": "TS2",
+          "properties": {}
         },
         {
           "id": "HL1_I2",
@@ -87,14 +91,16 @@
             "CC#[N+]CC"
           ],
           "accessible": true,
-          "label": "intermediate 2"
+          "label": "intermediate 2",
+          "properties": {}
         },
         {
           "id": "HL1_TS3",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS3"
+          "label": "TS3",
+          "properties": {}
         },
         {
           "id": "HL1_I3",
@@ -104,14 +110,16 @@
             "O"
           ],
           "accessible": true,
-          "label": "intermediate 3"
+          "label": "intermediate 3",
+          "properties": {}
         },
         {
           "id": "HL1_TS4",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS4"
+          "label": "TS4",
+          "properties": {}
         },
         {
           "id": "HL1_I4",
@@ -121,14 +129,16 @@
             "[OH3+]"
           ],
           "accessible": true,
-          "label": "intermediate 4"
+          "label": "intermediate 4",
+          "properties": {}
         },
         {
           "id": "HL1_TS5",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS5"
+          "label": "TS5",
+          "properties": {}
         },
         {
           "id": "HL1_P",
@@ -137,7 +147,8 @@
             "[OH3+].CCNC(C)=O"
           ],
           "accessible": true,
-          "label": "product"
+          "label": "product",
+          "properties": {}
         }
       ],
       "edges": [
@@ -162,7 +173,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "HL1_E2",
@@ -193,7 +206,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "HL1_E3",
@@ -216,7 +231,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "HL1_E4",
@@ -239,7 +256,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "HL1_E5",
@@ -270,7 +289,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         }
       ]
     },
@@ -281,7 +302,8 @@
       "barrier_reference": "central_complex",
       "verification": "verified",
       "reference_doi": "10.1021/jo0508346",
-      "computed_by_us": false
+      "computed_by_us": false,
+      "properties": {}
     },
     "selectivity": null
   },

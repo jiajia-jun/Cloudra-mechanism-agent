@@ -5,7 +5,7 @@
   "name": "Baeyer-Villiger oxidation: acetone + performic acid -> methyl acetate + formic acid (acid-catalyzed)",
   "pair_id": null,
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: Baeyer-Villiger oxidation: acetone + performic acid -> methyl acetate + formic acid (acid-catalyzed). Reactant SMILES: [OH3+].CC(C)=O.O=COO; product SMILES: [OH3+].CC(=O)OC.O=CO; total charge 1, multiplicity 1; conditions: peracid, inert solvent; acid-catalyzed (H3O+ written into the SMILES on both sides). Atom-mapped reactant SMILES: [OH2+:1]([H:10]).[CH3:2][C:3](=[O:4])[CH3:5].[CH:6](=[O:7])[O:8][O:9][H:11]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings); edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json (each barrier is relative to that step's own starting minimum; for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum). The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and B3LYP/def2-SVP; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: Baeyer-Villiger oxidation: acetone + performic acid -> methyl acetate + formic acid (acid-catalyzed). Reactant SMILES: [OH3+].CC(C)=O.O=COO; product SMILES: [OH3+].CC(=O)OC.O=CO; total charge 1, multiplicity 1; conditions: peracid, inert solvent; acid-catalyzed (H3O+ written into the SMILES on both sides). Include the corresponding implicit solvent model (e.g. CPCM for B3LYP, ALPB/GBSA for xTB) in all energies you declare. Atom-mapped reactant SMILES: [OH2+:1]([H:10]).[CH3:2][C:3](=[O:4])[CH3:5].[CH:6](=[O:7])[O:8][O:9][H:11]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and B3LYP/def2-SVP; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -53,14 +53,16 @@
             "[OH3+].CC(C)=O.O=COO"
           ],
           "accessible": true,
-          "label": "reactant"
+          "label": "reactant",
+          "properties": {}
         },
         {
           "id": "NO3_TS1",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS1"
+          "label": "TS1",
+          "properties": {}
         },
         {
           "id": "NO3_I1",
@@ -71,14 +73,16 @@
             "O=COO"
           ],
           "accessible": true,
-          "label": "intermediate 1"
+          "label": "intermediate 1",
+          "properties": {}
         },
         {
           "id": "NO3_TS2",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS2"
+          "label": "TS2",
+          "properties": {}
         },
         {
           "id": "NO3_I2",
@@ -88,14 +92,16 @@
             "CC(C)(O)[OH+]OC=O"
           ],
           "accessible": true,
-          "label": "intermediate 2"
+          "label": "intermediate 2",
+          "properties": {}
         },
         {
           "id": "NO3_TS3",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS3"
+          "label": "TS3",
+          "properties": {}
         },
         {
           "id": "NO3_I3",
@@ -106,14 +112,16 @@
             "O=CO"
           ],
           "accessible": true,
-          "label": "intermediate 3"
+          "label": "intermediate 3",
+          "properties": {}
         },
         {
           "id": "NO3_TS4",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS4"
+          "label": "TS4",
+          "properties": {}
         },
         {
           "id": "NO3_P",
@@ -122,7 +130,8 @@
             "[OH3+].CC(=O)OC.O=CO"
           ],
           "accessible": true,
-          "label": "product"
+          "label": "product",
+          "properties": {}
         }
       ],
       "edges": [
@@ -147,7 +156,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "NO3_E2",
@@ -170,7 +181,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "NO3_E3",
@@ -209,7 +222,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         },
         {
           "id": "NO3_E4",
@@ -232,7 +247,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         }
       ]
     },
@@ -243,7 +260,8 @@
       "barrier_reference": null,
       "verification": "verified",
       "reference_doi": "10.1021/ol060261z",
-      "computed_by_us": false
+      "computed_by_us": false,
+      "properties": {}
     },
     "selectivity": null
   },

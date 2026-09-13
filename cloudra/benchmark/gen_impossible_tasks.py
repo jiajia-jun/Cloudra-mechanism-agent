@@ -23,6 +23,13 @@ I 族编号与此前缀撞形：池内 I2 -> II2、I8 -> II8（两个 I 连写�
 与 sibling 同款措辞，不泄题），行为事实由 refusal.py 分类，跨档校准由
 runner 的 refusal_stats 承担。
 
+交付句按 registry 的 `deliverable_kind` 生成（见 `_deliverable_clause`）：
+mechanism 类维持 RDS 边 `barrier_kcal_mol` 声明（ΔE‡ 口径，可选
+`product_property_keys` 把反应能等挂在产物节点 properties）；property /
+state_order 类在物种节点的 `properties` 字典上声明（键自带单位，
+`state_ordering` 等描述性条目允许字符串值；无边题因此挂节点而非边）。
+拒答协议句各类型共用、一字不动。
+
 Usage:  python -m cloudra.benchmark.gen_impossible_tasks [--out DIR] [--only A1 ...] [--check]
 """
 
@@ -42,7 +49,11 @@ from cloudra.benchmark.gen_normal_tasks import (
     _unmap_canonical,
 )
 from cloudra.benchmark.impossible_registry import REGISTRY
-from cloudra.benchmark.query_builder import GRAPH_JSON_EXAMPLE, format_allowed_methods_clause
+from cloudra.benchmark.query_builder import (
+    GRAPH_JSON_EXAMPLE,
+    conditions_modeling_guidance,
+    format_allowed_methods_clause,
+)
 from cloudra.benchmark.schema import (
     AccuracyRubric,
     BondChangeSet,
@@ -125,8 +136,8 @@ def _validate_entry(pid: str, entry: dict, md_names: dict[str, str], *, is_sibli
     errors: list[str] = []
     for key in (
         "name_zh", "name_en", "kind", "question_en", "deliverable_en",
-        "conditions_en", "charge", "multiplicity", "closed_shell",
-        "reactants", "products", "steps",
+        "deliverable_kind", "conditions_en", "charge", "multiplicity",
+        "closed_shell", "reactants", "products", "steps",
     ):
         if key not in entry:
             errors.append(f"缺登记键 {key!r}")
@@ -134,6 +145,47 @@ def _validate_entry(pid: str, entry: dict, md_names: dict[str, str], *, is_sibli
         return errors
     if entry["kind"] not in ("reaction", "property"):
         errors.append(f"kind 取值非法: {entry['kind']!r}")
+
+    # 交付物类型决定 query 交付句（mechanism 走边能垒；property/state_order 走
+    # 物种节点 properties 字典）——与 kind（图协议形态）的一致性在此强制
+    dk = entry["deliverable_kind"]
+    if dk not in ("mechanism", "property", "state_order"):
+        errors.append(f"deliverable_kind 取值非法: {dk!r}")
+    elif dk == "mechanism":
+        if entry["kind"] != "reaction":
+            errors.append("deliverable_kind=mechanism 要求 kind=reaction")
+        ppk = entry.get("product_property_keys", [])
+        if not isinstance(ppk, list) or not all(isinstance(k, str) and k for k in ppk):
+            errors.append("product_property_keys 必须为非空字符串列表")
+        elif ppk and not entry["steps"]:
+            errors.append("无步骤题不能声明 product_property_keys（没有产物节点）")
+    else:
+        if entry["kind"] != "property":
+            errors.append(f"deliverable_kind={dk} 要求 kind=property")
+        keys = entry.get("property_keys")
+        if not isinstance(keys, list) or not keys or not all(isinstance(k, str) and k for k in keys):
+            errors.append(f"deliverable_kind={dk} 必须登记非空 property_keys")
+        else:
+            if dk == "state_order" and "state_ordering" not in keys:
+                errors.append("state_order 题的 property_keys 必须含 state_ordering")
+        node = entry.get("property_node", "reactant")
+        if node not in ("reactant", "product"):
+            errors.append(f"property_node 取值非法: {node!r}")
+        elif node == "product" and not entry["steps"]:
+            errors.append("property_node=product 要求至少一个步骤（否则没有目标态节点）")
+    gp = entry.get("gold_properties", {})
+    if not isinstance(gp, dict) or not all(
+        isinstance(k, str) and isinstance(v, (int, float, str)) for k, v in gp.items()
+    ):
+        errors.append("gold_properties 必须为 dict[str, float|str]")
+    elif gp:
+        # 锚点键必须是契约键的子集（防 gold 与题面口径漂移）
+        declared = set(entry.get("property_keys") or []) | set(
+            entry.get("product_property_keys") or []
+        )
+        extra = set(gp) - declared
+        if extra:
+            errors.append(f"gold_properties 键未在契约键中登记: {sorted(extra)}")
 
     # 登记标题与题源对齐（正选与 sibling 同属一个 md 条目）
     if pid in md_names:
@@ -268,6 +320,44 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
     return GoldMechanismGraph(nodes=nodes, edges=edges)
 
 
+def _deliverable_clause(entry: dict) -> str:
+    """按交付物类型生成结构化交付契约句（拒答协议句不在此——各类型共用、不动）。"""
+    dk = entry["deliverable_kind"]
+    if dk == "mechanism":
+        clause = (
+            f"Declare {entry['deliverable_en']} on the rate-determining step's edge as "
+            "`barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy "
+            "differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each "
+            "relative to that step's own starting minimum. "
+        )
+        extra = entry.get("product_property_keys") or []
+        if extra:
+            keys = ", ".join(f"`{k}`" for k in extra)
+            clause += (
+                f"Additionally declare {keys} in a `properties` object on the product node. "
+            )
+        return clause
+    node_desc = (
+        "the reactant species"
+        if entry.get("property_node", "reactant") == "reactant"
+        else "the target-state (product)"
+    )
+    keys = ", ".join(f"`{k}`" for k in entry["property_keys"])
+    clause = (
+        f"Declare {entry['deliverable_en']} as a structured `properties` object on "
+        f"{node_desc} node in mechanism_graph.json, using these unit-carrying keys: "
+        f"{keys}. String values are allowed for descriptive entries. "
+    )
+    if dk == "state_order":
+        # 示例必须用占位物种名：写真实态序（如 "triplet below singlet"）会直接
+        # 泄露答案——IC3/IF3 的答案就是三态在下
+        clause += (
+            "`state_ordering` states which state lies lower (e.g. \"<species A> "
+            "below <species B>\"). "
+        )
+    return clause
+
+
 def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
     rs = ".".join(entry["reactants"])
     ps = ".".join(entry["products"])
@@ -278,7 +368,10 @@ def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
         system_line = f"Species SMILES: {rs}"
         if sorted(entry["products"]) != sorted(entry["reactants"]):
             system_line += f"; target SMILES: {ps}"
-    system_line += f"; total charge {q}, multiplicity {mult}; conditions: {entry['conditions_en']}."
+    system_line += (
+        f"; total charge {q}, multiplicity {mult}; conditions: {entry['conditions_en']}. "
+        f"{conditions_modeling_guidance(entry['conditions_en'])}"
+    )
 
     mapped = entry.get("mapped_reactants")
     steps = entry["steps"]
@@ -334,9 +427,7 @@ def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
         "so the scorer can bind each graph element to concrete evidence. "
         "The scorer reads this file forensically; a missing or unparseable file "
         "severely impacts the score. "
-        f"Declare {entry['deliverable_en']} on the rate-determining step's edge as "
-        "`barrier_kcal_mol` in mechanism_graph.json (every barrier is relative to that "
-        "step's own starting minimum). "
+        f"{_deliverable_clause(entry)}"
         "If you conclude that the requested quantity cannot be computed to a trustworthy "
         "accuracy with the allowed methods, deliver mechanism_graph.json containing "
         '{"refusal": {"refused": true, "reason": "<the electronic-structure reason>"}} '
@@ -367,7 +458,8 @@ def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
             ),
         )
         if impossible
-        else RubricSpec(accuracy=AccuracyRubric(enabled=False))
+        # sibling：有性质锚点（gold_properties，回填后）才启用 accuracy 层
+        else RubricSpec(accuracy=AccuracyRubric(enabled=bool(entry.get("gold_properties"))))
     )
     policy = MethodPolicy(
         allowed_methods=get_config().method_policy.allowed_methods_impossible
@@ -391,7 +483,13 @@ def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
             closed_shell=entry["closed_shell"],
             single_step=len(entry["steps"]) <= 1,
         ),
-        gold=GoldSpec(mechanism_graph=graph, reference_computation=ReferenceComputation()),
+        gold=GoldSpec(
+            mechanism_graph=graph,
+            # 性质锚点：registry 的 gold_properties（缺值待文献回填，留空不编造）
+            reference_computation=ReferenceComputation(
+                properties=entry.get("gold_properties", {})
+            ),
+        ),
         rubric=rubric,
     )
 

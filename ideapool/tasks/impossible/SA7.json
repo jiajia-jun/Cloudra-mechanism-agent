@@ -5,7 +5,7 @@
   "name": "6pi electrocyclic ring closure of 1,3,5-hexatriene",
   "pair_id": "IA7",
   "prompt": {
-    "query": "Determine the mechanism and activation barrier of the thermal 6pi electrocyclic ring closure of 1,3,5-hexatriene to 1,3-cyclohexadiene. Reactant SMILES: C=CC=CC=C; product SMILES: C1=CCCC=C1; total charge 0, multiplicity 1; conditions: gas phase, thermal. Atom-mapped reactant SMILES: [CH2:1]=[CH:2][CH:3]=[CH:4][CH:5]=[CH2:6]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings); edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare the ring-closure barrier in kcal/mol (transition state relative to the hexatriene minimum) on the rate-determining step's edge as `barrier_kcal_mol` in mechanism_graph.json (every barrier is relative to that step's own starting minimum). If you conclude that the requested quantity cannot be computed to a trustworthy accuracy with the allowed methods, deliver mechanism_graph.json containing {\"refusal\": {\"refused\": true, \"reason\": \"<the electronic-structure reason>\"}} instead of a mechanism graph. The scorer reads that structured declaration, not prose; do not declare a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism and activation barrier of the thermal 6pi electrocyclic ring closure of 1,3,5-hexatriene to 1,3-cyclohexadiene. Reactant SMILES: C=CC=CC=C; product SMILES: C1=CCCC=C1; total charge 0, multiplicity 1; conditions: gas phase, thermal. Model the reaction in the gas phase. Atom-mapped reactant SMILES: [CH2:1]=[CH:2][CH:3]=[CH:4][CH:5]=[CH2:6]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare the ring-closure barrier in kcal/mol (transition state relative to the hexatriene minimum) on the rate-determining step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum. If you conclude that the requested quantity cannot be computed to a trustworthy accuracy with the allowed methods, deliver mechanism_graph.json containing {\"refusal\": {\"refused\": true, \"reason\": \"<the electronic-structure reason>\"}} instead of a mechanism graph. The scorer reads that structured declaration, not prose; do not declare a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -46,14 +46,16 @@
             "C=CC=CC=C"
           ],
           "accessible": true,
-          "label": "reactant"
+          "label": "reactant",
+          "properties": {}
         },
         {
           "id": "SA7_TS1",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS1"
+          "label": "TS1",
+          "properties": {}
         },
         {
           "id": "SA7_P",
@@ -62,7 +64,8 @@
             "C1=CCCC=C1"
           ],
           "accessible": true,
-          "label": "product"
+          "label": "product",
+          "properties": {}
         }
       ],
       "edges": [
@@ -103,7 +106,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": null,
+          "favored": null
         }
       ]
     },
@@ -114,7 +119,8 @@
       "barrier_reference": null,
       "verification": "unverified",
       "reference_doi": "",
-      "computed_by_us": false
+      "computed_by_us": false,
+      "properties": {}
     },
     "selectivity": null
   },

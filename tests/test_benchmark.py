@@ -43,6 +43,7 @@ from cloudra.benchmark.schema import (
     NodeRole,
     ReferenceComputation,
     TaskSpec,
+    VerificationStatus,
 )
 from cloudra.benchmark.selfconsistency import audit_self_consistency
 from cloudra.tools.core.gaussian_frames import FrameRecord
@@ -88,14 +89,16 @@ def test_easy_barrier_parsing_no_garbage():
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     ref = {tid: t.gold.reference_computation for tid, t in tasks.items()}
     assert ref["M3"].barrier_kcal_mol is not None
-    assert ref["D1"].barrier_kcal_mol == 27.5
+    assert ref["D1"].barrier_kcal_mol == 22.3  # W1/W2-F12 计算值（分离反应物口径，unverified 不参与 accuracy）
     assert ref["E1"].barrier_kcal_mol == 6.9  # 经典值（范围下界约定）
     for tid, t in tasks.items():
         b = t.gold.reference_computation.barrier_kcal_mol
         assert b is None or 0.0 <= b <= 200.0, f"{tid} implausible barrier {b}"
         assert t.name.isascii(), f"{tid} name not English: {t.name!r}"
         assert t.system.conditions.isascii()
-        assert t.prompt.query.isascii() and "Determine the mechanism" in t.prompt.query
+        # query 允许 ΔE‡ 记号（电子能垒契约句），其余一律 ASCII（挡中文混入）
+        assert all(ord(c) < 128 or c in "Δ‡" for c in t.prompt.query), f"{tid} query non-ASCII"
+        assert "Determine the mechanism" in t.prompt.query
 
 
 def test_task_id_rejects_path_traversal():
@@ -375,7 +378,7 @@ def _evidence(steps):
 
 def test_accuracy_requires_both_sources_and_agreement():
     """交付物双来源门禁：log 推算值与交付 JSON 声明值都必须存在且一致。"""
-    gold = ReferenceComputation(barrier_kcal_mol=27.5)
+    gold = ReferenceComputation(barrier_kcal_mol=27.5, verification=VerificationStatus.VERIFIED)
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
 
     exact = score_accuracy(evidence=_evidence([("E1", 27.5, 27.5)]), gold=gold, rubric=r)
@@ -406,20 +409,20 @@ def test_accuracy_small_barrier_widens_sigma():
     基准 sigma。声明值 vs 日志的内部一致性核对不放宽。"""
     import math
 
-    gold = ReferenceComputation(barrier_kcal_mol=5.0)
+    gold = ReferenceComputation(barrier_kcal_mol=5.0, verification=VerificationStatus.VERIFIED)
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.5)
     rep = score_accuracy(evidence=_evidence([("E1", 2.01, 2.01)]), gold=gold, rubric=r)
     assert rep.sigma_kcal == 5.0
     assert rep.gaussian_score == pytest.approx(math.exp(-((2.99) ** 2) / (2 * 25.0)))
 
-    big = ReferenceComputation(barrier_kcal_mol=27.5)
+    big = ReferenceComputation(barrier_kcal_mol=27.5, verification=VerificationStatus.VERIFIED)
     rep_big = score_accuracy(evidence=_evidence([("E1", 28.0, 28.4)]), gold=big, rubric=r)
     assert rep_big.sigma_kcal == 3.0
 
 
 def test_accuracy_per_step_gate_and_rds_selection():
     """逐步门禁：任一步声明与日志冲突即 0；全部一致时 RDS（最高垒）对 gold 评分。"""
-    gold = ReferenceComputation(barrier_kcal_mol=22.0)
+    gold = ReferenceComputation(barrier_kcal_mol=22.0, verification=VerificationStatus.VERIFIED)
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
 
     rds = score_accuracy(
@@ -1075,6 +1078,108 @@ def test_impossible_tasks_regenerate_identically():
             assert t.rubric.impossible_case is None
             assert all(n.accessible for n in graph.nodes)
             assert not should_refuse(t)
+
+
+def test_query_declares_electronic_barrier_type():
+    """四档题面统一声明能垒为电子能差 ΔE‡（不含 ZPE/热校正），各自相对该步
+    起点最小值（双分子：预反应络合物）。"""
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_hard_tasks, gen_impossible_tasks, gen_normal_tasks
+
+    clause = "electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections"
+    easy = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
+    normal = gen_normal_tasks.parse_normal_md(gen_normal_tasks.DEFAULT_SRC)
+    hard = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
+    impossible = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
+    for t in (*easy, *normal, *hard):
+        assert clause in t.prompt.query, t.task_id
+        assert "that step's own starting minimum" in t.prompt.query, t.task_id
+    # impossible 机理类同样声明；性质/态序类走 properties 交付（见下）
+    assert clause in next(t for t in impossible if t.task_id == "IA1").prompt.query
+
+
+def test_conditions_modeling_guidance():
+    """条件建模指引：默认气相；含溶剂名（结构化子串，非正则）改述隐式溶剂；
+    含明确温度追加"只报电子能垒"。"""
+    from cloudra.benchmark.query_builder import conditions_modeling_guidance
+
+    assert conditions_modeling_guidance("gas phase") == "Model the reaction in the gas phase."
+    g = conditions_modeling_guidance("20-30 mol% (S)-proline, DMSO, room temperature")
+    assert "implicit solvent model" in g and "thermal corrections" not in g
+    g = conditions_modeling_guidance("gas phase, 403-448 K")
+    assert g.startswith("Model the reaction in the gas phase.") and "do not add thermal corrections" in g
+    g = conditions_modeling_guidance("THF, -20 degC to rt, catalytic")
+    assert "implicit solvent model" in g and "do not add thermal corrections" in g
+    # "kinetics" 等含 k 的词不得误判为开尔文温度
+    assert "do not add thermal corrections" not in conditions_modeling_guidance("gas phase kinetics")
+
+
+def test_hard_query_does_not_leak_stereo_answers():
+    """hard 泄题守卫：题面/system 产物 SMILES 去立体（constitution-only），
+    题名不含答案词；gold 图节点保留立体 SMILES 不动。"""
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_hard_tasks
+
+    tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
+    leaked_names = ("outward", "inward", " cis", " trans-di", ", cis", ", syn", "chair preference")
+    for t in tasks:
+        assert t.system.products, t.task_id
+        for p in t.system.products:
+            assert "@" not in p and "/" not in p and "\\" not in p, (t.task_id, p)
+        assert f"product SMILES: {'.'.join(t.system.products)}" in t.prompt.query
+        for w in leaked_names:
+            assert w not in t.name, (t.task_id, w)
+    by_id = {t.task_id: t for t in tasks}
+    gold_smiles = [s for n in by_id["HA1"].gold.mechanism_graph.nodes for s in n.smiles]
+    assert any("/" in s or "\\" in s for s in gold_smiles)
+    # 反应物立体是给定条件（HA6 底物 trans-3,4-二甲基），不在去立体范围
+    assert any("@" in r for r in by_id["HA6"].system.reactants)
+
+
+def test_hard_selectivity_qualitative_contract():
+    """hard 选择性契约：query 要求 channel/favored 结构化声明并声明定性计分；
+    gold selectivity 带 favored_channel，与主线立体决定边的 channel 对齐。"""
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_hard_tasks
+
+    tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
+    for t in tasks:
+        assert "`channel`" in t.prompt.query and "`favored: true`" in t.prompt.query
+        assert "scored qualitatively" in t.prompt.query
+        assert "not scored numerically" in t.prompt.query
+        if t.gold.selectivity is None:
+            continue
+        assert t.gold.selectivity.favored_channel
+        edges = t.gold.mechanism_graph.edges
+        favored = [e for e in edges if e.favored is True]
+        unfavored = [e for e in edges if e.favored is False]
+        assert len(favored) == 1
+        assert favored[0].channel == t.gold.selectivity.favored_channel
+        assert unfavored and all(e.channel for e in unfavored)
+
+
+def test_impossible_deliverable_clause_by_kind():
+    """impossible 交付句按 deliverable_kind 生成：机理类走 RDS 边能垒，性质/
+    态序类走物种节点 properties（键带单位，字符串值允许）；拒答协议句全档不变。"""
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_impossible_tasks
+
+    tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
+    by_id = {t.task_id: t for t in tasks}
+    for t in tasks:
+        assert '{"refusal": {"refused": true' in t.prompt.query, t.task_id
+    # 机理类（IA1/SA5 等）：维持边能垒声明
+    assert "as `barrier_kcal_mol`" in by_id["IA1"].prompt.query
+    assert "rate-determining step's edge" in by_id["IA1"].prompt.query
+    # 机理类附带产物节点性质（IA7 反应能）
+    assert "`reaction_energy_kcal_mol` in a `properties` object on the product node" in by_id["IA7"].prompt.query
+    # 性质类无边题（ID2 FOOF）：挂物种节点而非边
+    assert "`properties` object on the reactant species node" in by_id["ID2"].prompt.query
+    assert "`bond_length_angstrom`" in by_id["SE2"].prompt.query
+    # 态序类：state_ordering 字符串
+    assert "`state_ordering`" in by_id["IC3"].prompt.query
+    # 相对能挂目标态节点（SA8）
+    assert "target-state (product) node" in by_id["SA8"].prompt.query
 
 
 def test_runner_wires_stereo_tier_rule():
@@ -1781,7 +1886,8 @@ def _evidence_task(**rubric_overrides):
             "gold": task.gold.model_copy(
                 update={
                     "reference_computation": ReferenceComputation(
-                        barrier_kcal_mol=10.0, level_of_theory="b3lyp/test"
+                        barrier_kcal_mol=10.0, level_of_theory="b3lyp/test",
+                        verification=VerificationStatus.VERIFIED,
                     )
                 }
             ),
@@ -2071,7 +2177,10 @@ def _delivery_task(gold_barrier: float) -> TaskSpec:
         update={
             "gold": GoldSpec(
                 mechanism_graph=GoldMechanismGraph.model_validate(graph),
-                reference_computation=ReferenceComputation(barrier_kcal_mol=gold_barrier),
+                reference_computation=ReferenceComputation(
+                    barrier_kcal_mol=gold_barrier,
+                    verification=VerificationStatus.VERIFIED,
+                ),
             ),
             "rubric": RubricSpec(
                 integrity=IntegrityRubric(),
@@ -2231,6 +2340,7 @@ def test_scoring_modules_do_not_import_regex():
         "cloudra/benchmark/backend.py",
         "cloudra/benchmark/barrier_evidence.py",
         "cloudra/benchmark/batch.py",
+        "cloudra/benchmark/impossible.py",
     ]
     root = _Path(__file__).resolve().parents[1]
     offenders = []

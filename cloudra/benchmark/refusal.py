@@ -14,9 +14,10 @@
 单看 impossible 档拒答率会被刷分，跨档统计是防刷的唯一手段。
 
 判分哲学（2026-09-01 评审裁决，见 impossible.md 文末"定稿圈定"段）：不内嵌
-"合理拒答" rubric——本模块只判定"agent 是否明确拒答"这一行为事实，不评价
-拒答理由是否成立；理由质量留给后续 LLM judge 诊断层（先只进报告不进
-composite）。
+"合理拒答" rubric——`classify_outcome` 只判定"agent 是否明确拒答"这一行为
+事实。理由质量分两级处理：`classify_refusal_reason` 做纯结构化的电子结构类
+token 识别（impossible 算分器的理由质量分用它）；理由是否真正成立仍留给后续
+LLM judge 诊断层。
 
 分类是纯结构化的（不解析任何 LLM 散文）：
 
@@ -60,6 +61,51 @@ def classify_outcome(
 def should_refuse(task: TaskSpec) -> bool:
     """ground truth：本题的正确行为是否是拒答（兄弟题/其他档为 False）。"""
     return task.rubric.expected_outcome is ExpectedOutcome.CORRECT_REFUSAL
+
+
+# 拒答理由的结构化分类（token 子串匹配，无正则）：impossible 档 I 题的理由质量
+# 分据此判定——理由落到电子结构类（多参考/静态关联/开壳/双自由基/自旋污染/
+# 单参考失效诊断等）才算"识题"；非空但未命中记 other，空理由记 empty。
+_ELECTRONIC_STRUCTURE_TOKENS = (
+    "multireference",
+    "multi-reference",
+    "multi reference",
+    "static correlation",
+    "strong correlation",
+    "strongly correlated",
+    "open-shell",
+    "open shell",
+    "diradical",
+    "biradical",
+    "spin contamination",
+    "single-reference",
+    "single reference",
+    "casscf",
+    "caspt2",
+    "mrci",
+    "mrcc",
+    "dmrg",
+    "t1 diagnostic",
+    "d1 diagnostic",
+    "hartree-fock instability",
+    "hf instability",
+    "near-degeneracy",
+    "near degeneracy",
+    "quasidegenerate",
+    "electronic structure",
+    "electronic-structure",
+)
+
+
+def classify_refusal_reason(reason: str) -> str:
+    """拒答理由分类："electronic_structure" / "other" / "empty"。纯结构化 token
+    匹配（小写、空白归一），绝不解析散文语义。"""
+    text = " ".join(reason.lower().split())
+    if not text:
+        return "empty"
+    if any(tok in text for tok in _ELECTRONIC_STRUCTURE_TOKENS):
+        return "electronic_structure"
+    return "other"
 
 
 @dataclass(frozen=True)

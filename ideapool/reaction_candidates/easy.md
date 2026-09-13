@@ -23,8 +23,8 @@
 
 | # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | Ea 27.5 kcal/mol（实验，Rowley & Steiner 1951 Discuss. Faraday Soc. 10, 198, DOI 10.1039/df9511000198；经 Huang, Tsai & Hu 2001 J. Phys. Chem. A 105, 9945, DOI 10.1021/jp012740f 引用；同文献计算经典能垒 21.9 kcal/mol）[已核实] | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
-| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | ΔH‡ 14.9–16.6 kcal/mol（实验气相区间，标准化至 ΔH‡(0 K)；Güner, Khuong, Leach, Lee, Bartberger & Houk 2003 J. Phys. Chem. A 107, 11445, DOI 10.1021/jp035501w；具体数值未获全文复核）[部分核实] | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
+| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | ΔE‡ 22.3 kcal/mol（计算值，W1/W2-F12，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #7；分离反应物口径，与题面络合物口径未对齐——维持 unverified 不参与 accuracy 评分，升级与否留待决策）[已核实] | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
+| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | ΔE‡ 14.5 kcal/mol（计算值，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #9/TS11，endo 电子垒——取代原 14.9–16.6 实验区间；分离反应物口径，维持 unverified）[已核实] | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
 | D4 | 环戊二烯 + 丙烯醛 DA（含杂原子亲双烯体）| `C1=CCC=C1.C=CC=O>>O=CC1CC2C=CC1C2`，0/1 | 气相/烃溶剂加热 | 协同 [4+2]，endo/exo 选择性，醛基亲双烯体 | ΔE‡ 13.6（endo）/14.1（exo）kcal/mol（理论 ωB97X-D/6-311G(d,p)，气相，相对分离反应物；Domingo, Pérez, Ríos-Gutiérrez & Aurell 2024 Tetrahedron Chem 10, 100064, DOI 10.1016/j.tchem.2024.100064）[已核实] | C,H,O；9 重原子；✅ | 含杂原子 DA，endo/exo 选择性范例 |
 
 ## P. σ 迁移重排（2 个）
@@ -68,7 +68,7 @@
 
 | # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| F1 | BH₄⁻ + 甲醛 → 甲氧基负离子 + BH₃ | `[BH4-].C=O>>C[O-].B`，−1/1 | 气相 | 氢负转移，经非同步 TS 单步 | 能垒数值未核（原引 Can. J. Chem. 1988 文献经核查为取代马来酸酐 FT-ICR 研究，与 BH4- + CH2O 无关；未找到可靠来源）[未核实]；**电子相关敏感校准题** | C,H,O,B；3 重原子；✅ | 硼氢化还原最小模型 |
+| F1 | BH₄⁻ + 甲醛 → 甲氧基负离子 + BH₃ | `[BH4-].C=O>>C[O-].B`，−1/1 | 气相 | 氢负转移，经非同步 TS 单步 | 能垒数值未核（原引 Can. J. Chem. 1988 文献经核查为取代马来酸酐 FT-ICR 研究，与 BH4- + CH2O 无关；两轮文献调研结论：无开放数据库值——GMTKN55/BH9/RDB7 均无该反应；central-complex 口径下很可能是沉没垒，不适合做锚点；同反应类无可换题，保持诚实缺测）[未核实]；**电子相关敏感校准题** | C,H,O,B；3 重原子；✅ | 硼氢化还原最小模型 |
 
 ## T. 质子转移 / 互变异构 / 1,2-迁移（0 个；v3 全剔留档）
 

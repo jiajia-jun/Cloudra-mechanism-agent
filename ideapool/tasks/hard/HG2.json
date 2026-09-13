@@ -2,10 +2,10 @@
   "task_id": "HG2",
   "tier": "hard",
   "family": "G",
-  "name": "(E,E)-crotyl propenyl ether Claisen rearrangement (chair preference, syn)",
+  "name": "(E,E)-crotyl propenyl ether Claisen rearrangement: determine the preferred TS geometry and diastereoselectivity",
   "pair_id": null,
   "prompt": {
-    "query": "Determine the mechanism of the following reaction: (E,E)-crotyl propenyl ether Claisen rearrangement (chair preference, syn). Reactant SMILES: C/C=C/CO/C=C/C; product SMILES: C=C[C@H](C)[C@H](C)C=O; total charge 0, multiplicity 1; conditions: thermal, ~150-200 degC. Atom-mapped reactant SMILES: [CH3:1]/[CH:2]=[CH:3]/[CH2:4][O:5]/[CH:6]=[CH:7]/[CH3:8]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). This task probes stereochemistry: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings); edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. (the pre-reaction complex), not at the separated reactants. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json (each barrier is relative to that step's own starting minimum; for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum). The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. For each competing stereochemical channel also state the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol and which channel it favors (recorded for the report, not scored numerically). Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and B3LYP/def2-SVP; calls beyond the whitelist are intercepted.",
+    "query": "Determine the mechanism of the following reaction: (E,E)-crotyl propenyl ether Claisen rearrangement: determine the preferred TS geometry and diastereoselectivity. Reactant SMILES: C/C=C/CO/C=C/C; product SMILES: C=CC(C)C(C)C=O; total charge 0, multiplicity 1; conditions: thermal, ~150-200 degC. Model the reaction in the gas phase. Report electronic barriers only; do not add thermal corrections for the stated temperature. Atom-mapped reactant SMILES: [CH3:1]/[CH:2]=[CH:3]/[CH2:4][O:5]/[CH:6]=[CH:7]/[CH3:8]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"...\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. A transition-state evidence file must carry `smiles: <the SMILES of that step's reactant>` so the scorer can attach the saddle to the step it belongs to. For each competing stereochemical channel, declare on that channel's edge a `channel` field (a short label identifying the channel) and `favored: true` on exactly the one channel your computed barriers favor (`favored: false` on the other channels); the favored-channel assignment is scored qualitatively (right or wrong). Also record the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol in your report; the numeric difference is recorded but not scored numerically. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and B3LYP/def2-SVP; calls beyond the whitelist are intercepted.",
     "role": "coordinator",
     "orchestration_mode": "dag_guided"
   },
@@ -14,7 +14,7 @@
       "C/C=C/CO/C=C/C"
     ],
     "products": [
-      "C=C[C@H](C)[C@H](C)C=O"
+      "C=CC(C)C(C)C=O"
     ],
     "charge": 0,
     "multiplicity": 1,
@@ -49,14 +49,16 @@
             "C/C=C/CO/C=C/C"
           ],
           "accessible": true,
-          "label": "reactant"
+          "label": "reactant",
+          "properties": {}
         },
         {
           "id": "HG2_TS1",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS1"
+          "label": "TS1",
+          "properties": {}
         },
         {
           "id": "HG2_P",
@@ -65,14 +67,16 @@
             "C=C[C@H](C)[C@H](C)C=O"
           ],
           "accessible": true,
-          "label": "product"
+          "label": "product",
+          "properties": {}
         },
         {
           "id": "HG2_TSM1",
           "role": "transition_state",
           "smiles": [],
           "accessible": true,
-          "label": "TS minor 1"
+          "label": "TS minor 1",
+          "properties": {}
         },
         {
           "id": "HG2_M1",
@@ -81,7 +85,8 @@
             "C=C[C@H](C)[C@@H](C)C=O"
           ],
           "accessible": true,
-          "label": "minor product 1"
+          "label": "minor product 1",
+          "properties": {}
         }
       ],
       "edges": [
@@ -122,7 +127,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": "chair_ts",
+          "favored": true
         },
         {
           "id": "HG2_EM1",
@@ -161,7 +168,9 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null
+          "barrier_kcal_mol": null,
+          "channel": "boat_ts",
+          "favored": false
         }
       ]
     },
@@ -172,12 +181,14 @@
       "barrier_reference": null,
       "verification": "unverified",
       "reference_doi": "",
-      "computed_by_us": false
+      "computed_by_us": false,
+      "properties": {}
     },
     "selectivity": {
       "spread_kcal_mol": 2.0,
       "spread_type": "ΔG‡",
       "minor_channel": "boat TS -> anti-2,3-dimethylpent-4-enal",
+      "favored_channel": "chair_ts",
       "verification": "partial",
       "reference_doi": "10.1021/ja00215a059",
       "computed_by_us": false

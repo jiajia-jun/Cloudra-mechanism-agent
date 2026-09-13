@@ -20,6 +20,12 @@ TASKS = {
             "the equilibrium F-O and O-O bond lengths in Angstrom and the F-O bond "
             "dissociation energy in kcal/mol"
         ),
+        "deliverable_kind": "property",
+        "property_keys": [
+            "f_o_bond_length_angstrom",
+            "o_o_bond_length_angstrom",
+            "f_o_bond_dissociation_energy_kcal_mol",
+        ],
         "conditions_en": "gas phase, low temperature",
         "charge": 0,
         "multiplicity": 1,
@@ -41,6 +47,11 @@ TASKS = {
             "deliverable_en": (
                 "the O-O bond dissociation energy of H2O2 in kcal/mol"
             ),
+            "deliverable_kind": "property",
+            "property_keys": ["o_o_bond_dissociation_energy_kcal_mol"],
+            # 298 K ΔrH°，JANAF 导出（2×38.99−(−136.11) kJ/mol，两组分 NIST
+            # WebBook 可复算）；0 K D0 ≈ 49.5，口径差在 σ 内
+            "gold_properties": {"o_o_bond_dissociation_energy_kcal_mol": 51.2},
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 1,
@@ -69,6 +80,9 @@ TASKS = {
             "the N2 bond dissociation energy in kcal/mol, together with the computed "
             "dissociation curve (energy vs bond length)"
         ),
+        "deliverable_kind": "property",
+        # 曲线本身经图与证据文件交付；数值交付物是 BDE
+        "property_keys": ["bond_dissociation_energy_kcal_mol"],
         "conditions_en": "gas phase",
         "charge": 0,
         "multiplicity": 1,
@@ -98,6 +112,13 @@ TASKS = {
                 "the equilibrium bond length in Angstrom and the harmonic vibrational "
                 "frequency in cm-1 of N2"
             ),
+            "deliverable_kind": "property",
+            "property_keys": ["bond_length_angstrom", "harmonic_frequency_cm-1"],
+            # 实验值，Huber & Herzberg 1979（经 NIST CCCBDB 确认）
+            "gold_properties": {
+                "bond_length_angstrom": 1.0977,
+                "harmonic_frequency_cm-1": 2358.57,
+            },
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 1,
@@ -120,6 +141,8 @@ TASKS = {
             "the singlet-triplet gap of triangulene in kcal/mol and which spin state is "
             "the ground state"
         ),
+        "deliverable_kind": "state_order",
+        "property_keys": ["singlet_triplet_gap_kcal_mol", "state_ordering"],
         "conditions_en": "gas phase (surface-synthesis analogue)",
         "charge": 0,
         "multiplicity": 3,
@@ -154,9 +177,13 @@ TASKS = {
                 "pyrene (a closed-shell Kekulen PAH of comparable size)."
             ),
             "deliverable_en": (
-                "the heat of formation of pyrene in kcal/mol and its principal "
-                "equilibrium geometric parameters"
+                "the heat of formation of pyrene in kcal/mol"
             ),
+            "deliverable_kind": "property",
+            # 生成热：298 K，Roux et al. 2008 JPCRD 评估值（DOI 10.1063/1.2955570）。
+            # 几何汇总键已移除——无权威气相几何锚点
+            "property_keys": ["heat_of_formation_kcal_mol"],
+            "gold_properties": {"heat_of_formation_kcal_mol": 53.9},
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 1,
@@ -181,6 +208,9 @@ TASKS = {
             "the Cr2 bond dissociation energy in kcal/mol, together with the computed "
             "potential energy curve (energy vs bond length)"
         ),
+        "deliverable_kind": "property",
+        # 曲线本身经图与证据文件交付；数值交付物是 BDE
+        "property_keys": ["bond_dissociation_energy_kcal_mol"],
         "conditions_en": "gas phase",
         "charge": 0,
         "multiplicity": 1,
@@ -210,6 +240,14 @@ TASKS = {
                 "the Na2 bond dissociation energy in kcal/mol and its equilibrium bond "
                 "length in Angstrom"
             ),
+            "deliverable_kind": "property",
+            "property_keys": ["bond_dissociation_energy_kcal_mol", "bond_length_angstrom"],
+            # D0 (0 K)：Huber & Herzberg 0.747 eV = 17.2 kcal/mol；
+            # Re：Huber & Herzberg / NIST CCCBDB
+            "gold_properties": {
+                "bond_dissociation_energy_kcal_mol": 17.2,
+                "bond_length_angstrom": 3.079,
+            },
             "conditions_en": "gas phase",
             "charge": 0,
             "multiplicity": 1,

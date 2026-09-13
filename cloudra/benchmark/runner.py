@@ -19,6 +19,14 @@ delivered graph is an answer, an explicit structured refusal declaration is a
 refusal, anything else is failed. Refusal is a first-class, tier-agnostic
 outcome, and the impossible tier's main metric is the cross-tier refusal
 precision/recall, not a per-tier refusal rate.
+
+Tier routing: the impossible tier bypasses the standard composite — I tasks are
+scored by decision + reason quality and siblings by the standard composite with
+a wrong-refusal gate (see `impossible.py`). Hard-tier tasks with a
+``gold.selectivity.favored_channel`` anchor put the qualitative selectivity
+score in the accuracy slot (barrier spread is recorded, not scored). Accuracy
+anchors with ``verification=unverified`` are excluded from accuracy scoring
+(the slot follows the same passthrough path as a disabled accuracy rubric).
 """
 
 from __future__ import annotations
@@ -33,16 +41,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from cloudra.benchmark.accuracy import AccuracyReport, score_accuracy
+from cloudra.benchmark.accuracy import (
+    AccuracyReport,
+    score_accuracy,
+    score_qualitative_selectivity,
+)
 from cloudra.benchmark.barrier_evidence import (
     BarrierEvidence,
     collect_barrier_evidence,
     load_refusal_declaration,
 )
 from cloudra.benchmark.graph_similarity import GedConfig, GedResult, mechanism_similarity
+from cloudra.benchmark.impossible import apply_impossible_scoring
 from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
 from cloudra.benchmark.refusal import RunOutcome, classify_outcome
-from cloudra.benchmark.schema import TaskSpec
+from cloudra.benchmark.schema import TaskSpec, Tier
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
 
 # Agent backend signature: given (task, sandbox_dir) it runs the agent to
@@ -294,13 +307,24 @@ class BenchmarkRunner:
 
         barriers: BarrierEvidence = collect_barrier_evidence(sandbox)
         res.notes.extend(barriers.notes)
-        acc: AccuracyReport = score_accuracy(
-            evidence=barriers,
-            gold=task.gold.reference_computation,
-            rubric=task.rubric.accuracy,
-        )
-        res.accuracy_score = acc.final_score
-        res.notes.extend(acc.notes)
+        # hard 档定性选择性：gold.selectivity 带 favored_channel 时替代 accuracy
+        # 槽位（composite 的 0.3 权重给选择性分；barrier spread 数值不评分）
+        selectivity = task.gold.selectivity
+        if selectivity is not None and selectivity.favored_channel:
+            sel_score, sel_note = score_qualitative_selectivity(
+                integ.delivered_graph, selectivity
+            )
+            res.accuracy_score = sel_score
+            res.notes.append(sel_note)
+        else:
+            acc: AccuracyReport = score_accuracy(
+                evidence=barriers,
+                gold=task.gold.reference_computation,
+                rubric=task.rubric.accuracy,
+                delivered_graph=integ.delivered_graph,
+            )
+            res.accuracy_score = acc.final_score
+            res.notes.extend(acc.notes)
 
         # composite: integrity 不再一票否决，证据质量是分级因子——
         # 证据完整且机理正确得满分；缺证据按 binding_quality 比例扣（缺一个
@@ -330,10 +354,16 @@ class BenchmarkRunner:
         # 行为分类只认可解析的交付图（损坏或只带拒答声明的文件不算作答）与
         # 显式结构化拒答声明；散文一律不参与判定。
         delivered_graph = integ.delivered_graph
+        refusal = load_refusal_declaration(sandbox)
         res.outcome = classify_outcome(
             graph_found=delivered_graph is not None and bool(delivered_graph.nodes),
-            refusal_declared=load_refusal_declaration(sandbox) is not None,
+            refusal_declared=refusal is not None,
         ).value
+
+        # impossible 档路由到专门算分器（I 题决策/理由质量公式，S 题标准
+        # composite + 错误拒答闸门），就地覆盖 final_score
+        if task.tier is Tier.IMPOSSIBLE:
+            apply_impossible_scoring(res, task, refusal)
         return res
 
     def run_task(self, task: TaskSpec) -> RunResult:

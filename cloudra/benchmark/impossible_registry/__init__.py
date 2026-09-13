@@ -11,6 +11,18 @@ impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约�
 - `question_en`: 题面英文（问什么；不泄漏"本题多参考"的答案）。
 - `deliverable_en`: 最终摘要必须报告的量（含单位与参考态；后接统一的话
   语允许在方法不可信时明确拒答——impossible 与 sibling 同款措辞，不泄题）。
+- `deliverable_kind`: 交付物类型，决定 query 交付句的生成方式：
+    - "mechanism"（机理/能垒类，有 TS 有边）：能垒声明在决速步边的
+      `barrier_kcal_mol` 上；可选 `product_property_keys`（list[str]，如
+      反应能 `reaction_energy_kcal_mol`）声明额外的产物节点 `properties` 数值；
+    - "property"（键长/频率/BDE 等性质类）：在物种节点的 `properties` 字典上
+      声明，键自带单位（如 `bond_length_angstrom`）；
+    - "state_order"（态序/相对能量类）：同上，但必含字符串值条目
+      `state_ordering`（哪个态更低）。
+  性质/态序类必须给 `property_keys`（list[str]，单位在键名里）；可选
+  `property_node`（"reactant" 默认 / "product"，后者要求有步骤）。
+- `gold_properties`: 可选 dict[str, float|str]——gold 侧性质锚点，填入
+  ReferenceComputation.properties（缺值留空待文献回填，不编造）。
 - `conditions_en` / `charge` / `multiplicity` / `closed_shell`: 系统规格。
 - `reactants` / `products`: 无映射 canonical SMILES 列表（节点身份；property
   单节点题 products == reactants）。

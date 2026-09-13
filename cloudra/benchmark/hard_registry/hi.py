@@ -42,7 +42,7 @@ TASKS = {
     # 脯氨酸催化直接 Aldol；脯氨酸 N-H（H21）与丙酮 alpha-H（H22）参与键变化、全程显式，
     # 两质子先在步①随羰基 O4 成副产水，步③水裂解时分别归还 N20 与醇盐 O5
     "I1": {
-        "name_en": "(S)-proline-catalyzed direct aldol reaction: acetone + benzaldehyde -> (S)-4-hydroxy-4-phenylbutan-2-one",
+        "name_en": "(S)-proline-catalyzed direct aldol reaction of acetone with benzaldehyde: determine the enantioselectivity",
         "conditions_en": "20-30 mol% (S)-proline, DMSO, room temperature",
         "anchor": "selectivity",
         "minor_channel_en": "opposite-face enamine attack on benzaldehyde via the minor Houk-List chair TS -> (R)-iminium-aldolate (the (R)-aldol channel)",
@@ -59,6 +59,7 @@ TASKS = {
                 # 成 C3-C6，断 C2=C3 pi、断 C6=O5 pi，成 C2=N20 pi → (S)-构型亚铵-醇盐
                 "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
                 "type": "stereo-determining C-C addition: enamine beta-carbon attacks benzaldehyde through the major-face Houk-List chair TS (carboxyl H-bond network positions the aldehyde) -> (S)-configured iminium-aldolate",
+                "channel": "major_face",
             },
             {
                 # 水解：水 O4 进攻亚铵 C2 并裂解，成 C2=O4，断 C2-N20、断 O4-H21/O4-H22，
@@ -75,6 +76,7 @@ TASKS = {
                 "type": "opposite-face enamine attack via the minor Houk-List chair TS -> (R)-configured iminium-aldolate (minor intermediate, hydrolysis not traced in the reference graph)",
                 "from_step": 1,
                 "is_product": False,
+                "channel": "minor_face",
             },
         ],
     },
