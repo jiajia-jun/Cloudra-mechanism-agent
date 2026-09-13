@@ -13,9 +13,9 @@ Consumption model（计划 2026-09-13-harness-cache-continuity Task 3）：
 变更身份即事件的 per-session 序号（``session_seq``）。``TurnPipeline``
 每轮调 ``collect_batch`` 取回自消费游标以来的变更批次——批次立即 park
 为 pending：LLM 重试拿到同一批已准备消息，绝不再次 drain 出不同请求。
-只有消息真正写进 history 后，runner 调 ``confirm_consumed`` 推进游标
-（落 ``context.notices_consumed`` 事件）——失败/取消不确认，变更留在
-pending 里随下一批重发：不重复、不丢失。
+消费游标与消息正文一起写入 ``context.appended``；apply_event 同时应用
+正文和游标。持久化边界之前退出，恢复后批次仍待消费；之后退出，正文
+与游标同时恢复：不重复、不丢失。
 
 上下文边界（``fresh=True``：run 起点、compact 重装、无前缀 owner 时的空
 history）：当前 pin 状态全量渲染 + 未消费 push，游标推进到全部已表达
@@ -24,8 +24,7 @@ history）：当前 pin 状态全量渲染 + 未消费 push，游标推进到全
 
 Event sourcing: ``restore_from`` 重放事件日志重建 pin 当前状态、变更日志
 与消费游标；游标之后的变更（从未进入任何上下文）跨重启保持 pending
-（不丢失）。已消费的 push 不恢复——它的消息只存在于旧进程的内存
-history；重启后的新上下文边界会重新表达 pin 的当前状态。
+（不丢失）。已消费的 push 不重投——它的消息由会话上下文投影恢复。
 """
 
 from __future__ import annotations
@@ -88,7 +87,7 @@ class NoticeManager:
         """Rebuild pins, the change log and the consumption cursor from events.
 
         游标之后的变更保持 pending（跨重启不丢）；已消费变更裁剪掉（与
-        ``confirm_consumed`` 的裁剪一致），pin 重建为当前状态。
+        ``apply_consumed`` 的裁剪一致），pin 重建为当前状态。
         """
         self._pins.clear()
         self._changes.clear()
@@ -135,8 +134,8 @@ class NoticeManager:
                     self._changes[session_id].append(
                         {"seq": seq, "kind": "push", "key": "", "content": content}
                     )
-            elif event.type == "context.notices_consumed":
-                through = int(event.data.get("through") or 0)
+            elif event.type == "context.appended":
+                through = int(event.data.get("notices_through") or 0)
                 if through > self._consumed.get(session_id, 0):
                     self._consumed[session_id] = through
         for session_id, cursor in self._consumed.items():
@@ -270,23 +269,31 @@ class NoticeManager:
         self._pending_batches[session_id] = (messages, through)
         return [dict(message) for message in messages]
 
-    def confirm_consumed(self, session_id: str) -> list[dict]:
-        """确认 pending 批次已进入上下文：返回批次消息并推进消费游标。
-
-        游标推进落 ``context.notices_consumed`` 事件（事件先于内存游标，
-        严格模式下未注册类型直接抛错，不伪造已消费）。无 pending 批次时是
-        幂等 no-op。已消费变更随即裁剪，变更日志有界。
-        """
-        pending = self._pending_batches.pop(session_id, None)
+    def pending_batch(self, session_id: str) -> tuple[list[dict], int | None]:
+        """Read the prepared messages and cursor without acknowledging them."""
+        pending = self._pending_batches.get(session_id)
         if pending is None:
-            return []
+            return [], None
         messages, through = pending
-        if through > self._consumed.get(session_id, 0):
-            self._emit("context.notices_consumed", session_id, {"through": through})
-            self._consumed[session_id] = through
-            self._changes[session_id] = [
-                change
-                for change in self._changes.get(session_id, [])
-                if change["seq"] > through
-            ]
+        if not messages and through <= self._consumed.get(session_id, 0):
+            return [], None
+        return [dict(message) for message in messages], through
+
+    def apply_consumed(self, session_id: str, through: int) -> None:
+        """Apply the cursor carried by the same event as the context messages."""
+        cursor = max(through, self._consumed.get(session_id, 0))
+        self._consumed[session_id] = cursor
+        pending = self._pending_batches.get(session_id)
+        if pending is not None and pending[1] <= cursor:
+            self._pending_batches.pop(session_id)
+        self._changes[session_id] = [
+            change for change in self._changes.get(session_id, [])
+            if change["seq"] > cursor
+        ]
+
+    def confirm_consumed(self, session_id: str) -> list[dict]:
+        """Compatibility helper for in-memory callers; durable callers use ContextBroker."""
+        messages, through = self.pending_batch(session_id)
+        if through is not None:
+            self.apply_consumed(session_id, through)
         return messages

@@ -262,7 +262,8 @@ async def test_tool_result_injects_all_image_paths(tmp_path):
     # 投影里只存稳定引用（image_ref），不重嵌 base64；发送前才解析。
     assert isinstance(content, list)
     refs = [p for p in content if p.get("type") == "image_ref"]
-    assert [p["path"] for p in refs] == pngs
+    assert all(p["path"] not in pngs for p in refs)
+    assert all(p["sha256"] for p in refs)
     from cloudra.runtime_v2.turn_pipeline import resolve_media_references
 
     resolved = await resolve_media_references(

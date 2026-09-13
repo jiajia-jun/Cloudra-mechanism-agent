@@ -42,9 +42,9 @@
 - 自有恢复通道的投影（不经本函数）：approval.* / interaction.*
   （pending 投影直接查事件日志；孤儿由 restore 落 approval.expired /
   interaction.expired 显式闭合）、reminder.*（reminders 投影 + rearm）、
-  context.pin_set / context.pin_cleared / context.injected /
-  context.notices_consumed（``notices.restore_from`` 重放重建 pin 状态、
-  变更日志与消费游标）、email.received；
+  context.pin_set / context.pin_cleared / context.injected
+  （``notices.restore_from`` 重放重建 pin 状态和变更日志，消费游标随
+  context.appended 正文原子落地）、email.received；
   context.run_summarized / context.handover_updated 已随 per-run 自动
   摘要管线删除（Task 4），只剩历史日志里的旧事件（transcript 只读渲染）。
 
@@ -207,7 +207,10 @@ def _apply_context_appended(core: RuntimeCore, envelope: EventEnvelope) -> None:
     if not envelope.session_id:
         return
     ctx = _context_of(core, envelope.session_id)
-    ctx.messages.extend(dict(message) for message in (envelope.data or {}).get("messages") or [])
+    data = envelope.data or {}
+    ctx.messages.extend(dict(message) for message in data.get("messages") or [])
+    if data.get("notices_through") is not None:
+        core.notices.apply_consumed(envelope.session_id, int(data["notices_through"]))
 
 
 def _apply_context_compacted(core: RuntimeCore, envelope: EventEnvelope) -> None:

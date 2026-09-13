@@ -92,16 +92,18 @@ class ContextBroker:
 
         顺序：前缀 install/refresh 增量 → inbox 用户消息 → 通知批次。
         ``user_messages`` 由 TurnPipeline 成形（与请求里的条目逐字节一致，
-        含 message_id 锚点）。drain_pending / confirm_consumed 在这里调用，
-        使 owner/notices 的内存游标与投影同步推进；事件全部持久化（flush）
-        后调用方才发送请求。
+        含 message_id 锚点）。通知正文与消费游标在同一 context.appended
+        事件内提交，避免恢复时只看到消费标记。事件全部持久化（flush）后
+        调用方才发送请求。
         """
         core = self.core
         install: tuple = ()
         appends: tuple = ()
         if context_prefix is not None:
             install, appends = context_prefix.drain_pending()
-        notice_messages = notices.confirm_consumed(agent.id) if notices is not None else []
+        notice_messages, notices_through = (
+            notices.pending_batch(agent.id) if notices is not None else ([], None)
+        )
         events: list[tuple[str, dict]] = []
         if install:
             events.append(
@@ -111,8 +113,11 @@ class ContextBroker:
                 )
             )
         appended = [*appends, *user_messages, *notice_messages]
-        if appended:
-            events.append(("context.appended", {"messages": appended}))
+        if appended or notices_through is not None:
+            data = {"messages": appended}
+            if notices_through is not None:
+                data["notices_through"] = notices_through
+            events.append(("context.appended", data))
         if not events:
             return
         from cloudra.runtime_v2.apply import apply_event

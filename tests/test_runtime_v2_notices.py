@@ -19,6 +19,7 @@ from cloudra.runtime_v2.schemas import (
     RuntimeSettings,
 )
 from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+from tests.notice_support import commit_notices
 
 
 def test_unchanged_pin_is_not_repeated():
@@ -26,7 +27,7 @@ def test_unchanged_pin_is_not_repeated():
     notices.pin("s1", "goal", "first")
     first = notices.collect_batch("s1", fresh=True)
     assert [m["content"] for m in first] == ["first"]
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     # 未变化 pin 不重复：增量批次为空
     assert notices.collect_batch("s1", fresh=False) == []
     # stage 每轮同内容重 pin 是 no-op：无变更、无消息
@@ -38,13 +39,13 @@ def test_updated_pin_appends_new_version():
     notices = NoticeManager()
     notices.pin("s1", "goal", "v1")
     notices.collect_batch("s1", fresh=True)
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     notices.pin("s1", "goal", "v2")
     batch = notices.collect_batch("s1", fresh=False)
     assert len(batch) == 1
     assert batch[0]["content"].startswith("[Updated context notice: goal]")
     assert "v2" in batch[0]["content"]
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     assert notices.collect_batch("s1", fresh=False) == []
     # 新上下文边界渲染的是当前状态 v2（不是 v1 + 更新）
     assert [m["content"] for m in notices.collect_batch("s1", fresh=True)] == ["v2"]
@@ -54,12 +55,12 @@ def test_unpin_appends_retraction():
     notices = NoticeManager()
     notices.pin("s1", "goal", "G")
     notices.collect_batch("s1", fresh=True)
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     notices.unpin("s1", "goal")
     batch = notices.collect_batch("s1", fresh=False)
     assert len(batch) == 1
     assert batch[0]["content"].startswith("[Context notice retracted: goal]")
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     assert notices.collect_batch("s1", fresh=True) == []
 
 
@@ -83,7 +84,7 @@ def test_pending_batch_is_fixed_for_retry():
     notices.push("s1", "later")
     still = notices.collect_batch("s1", fresh=False)
     assert [m["content"] for m in still] == ["hint"]
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     assert [m["content"] for m in notices.collect_batch("s1", fresh=False)] == ["later"]
 
 
@@ -96,7 +97,7 @@ def test_two_distinct_pushes_are_both_delivered():
         "alpha",
         "beta",
     ]
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     assert notices.collect_batch("s1", fresh=False) == []
 
 
@@ -105,7 +106,7 @@ def test_fresh_boundary_renders_current_pins_and_unconsumed_pushes():
     notices.pin("s1", "goal", "G")
     notices.push("s1", "old push")
     notices.collect_batch("s1", fresh=True)
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     notices.push("s1", "new push")
     # 新上下文：pin 当前状态重渲染；已消费 push 不重现，未消费 push 不丢
     assert [m["content"] for m in notices.collect_batch("s1", fresh=True)] == [
@@ -122,9 +123,9 @@ def test_restore_keeps_unconsumed_changes_pending():
     notices.pin("s1", "goal", "G")
     notices.push("s1", "delivered")
     notices.collect_batch("s1", fresh=True)
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     notices.push("s1", "never-sent")
-    assert [e.type for e in log].count("context.notices_consumed") == 1
+    assert [e.type for e in log].count("context.appended") == 1
 
     restored = NoticeManager()
     restored.attach(log, lambda session_id: "prj")
@@ -215,7 +216,7 @@ async def test_pipeline_consumes_notices_once_across_turns():
     assert any(m["content"] == "once" for m in system)
 
     # runner 的做法：通知消息写进 history 后 confirm
-    notice_messages = notices.confirm_consumed(agent.id)
+    notice_messages = commit_notices(notices, agent.id)
     history = [
         {"role": "user", "content": "hi"},
         *notice_messages,

@@ -453,3 +453,75 @@ def test_upload_endpoint_without_workspace_falls_back_to_default_workspace(tmp_p
 
     default_ws = Path(get_config().data_dir) / "workspaces" / project_id
     assert path.parent == default_ws / ".cloudra" / "uploads"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("origin", ["user", "tool"])
+async def test_historical_image_survives_source_changes_and_restart(tmp_path, origin):
+    from cloudra.runtime_v2.persistence import RuntimeStore, restore_core
+    from cloudra.runtime_v2.turn_pipeline import resolve_media_references
+
+    image = _write_png(tmp_path)
+    llm = RecordingLLM([LLMResponse(content="done", stop_requested=True)])
+    if origin == "tool":
+        llm.responses.clear()
+        _scripted_tool_turn(llm)
+    core, _, agent = await _setup(llm, ImageTools(image))
+    await _wait_for(lambda: agent.state.value == "succeeded")
+    if origin == "user":
+        llm.responses.append(LLMResponse(content="seen", stop_requested=True))
+        await CommandBus(core).execute(Command(
+            type="agent.message", target={"session_id": agent.id},
+            payload={"content": "look", "images": [image]},
+        ))
+        await _wait_for(lambda: len(llm.calls) == 2 and agent.state.value == "succeeded")
+    history = core.contexts.current_messages(agent.id)
+    first = await resolve_media_references(history, vision_enabled=True)
+    Path(image).write_bytes(b"changed image bytes")
+    assert await resolve_media_references(history, vision_enabled=True) == first
+    Path(image).unlink()
+    store = RuntimeStore(tmp_path / "media-runtime.db")
+    await asyncio.to_thread(store.save_snapshot, projects=core.projects, agents=core.agents,
+                            roles={role.role_id: role for role in core.roles.list()}, runtime_defaults=core.runtime_defaults,
+                            session_contexts=core.session_contexts, last_seqs={})
+    restored = RuntimeCore(strict_events=True)
+    await asyncio.to_thread(restore_core, restored, store)
+    restored_history = restored.contexts.current_messages(agent.id)
+    assert await resolve_media_references(restored_history, vision_enabled=True) == first
+    import json
+    assert "base64," not in json.dumps(restored_history)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("damage", ["overwrite", "delete"])
+async def test_damaged_context_image_snapshot_refuses_silent_history_change(tmp_path, damage):
+    from cloudra.infra.media import snapshot_image_reference
+    from cloudra.runtime_v2.turn_pipeline import resolve_media_references
+
+    image = _write_png(tmp_path)
+    ref = await asyncio.to_thread(
+        snapshot_image_reference, image, conv_id="media-test", fallback="image unavailable"
+    )
+    snapshot = Path(ref["path"])
+    if damage == "overwrite":
+        snapshot.write_bytes(b"damaged")
+    else:
+        snapshot.unlink()
+    with pytest.raises((OSError, ValueError)):
+        await resolve_media_references([{"role": "user", "content": [ref]}], vision_enabled=True)
+
+
+@pytest.mark.asyncio
+async def test_missing_image_at_entry_stays_text_when_source_appears(tmp_path):
+    from cloudra.infra.media import snapshot_image_reference
+    from cloudra.runtime_v2.turn_pipeline import resolve_media_references
+
+    image = tmp_path / "later.png"
+    ref = await asyncio.to_thread(
+        snapshot_image_reference, str(image), conv_id="media-test", fallback="image unavailable"
+    )
+    messages = [{"role": "user", "content": [ref]}]
+    first = await resolve_media_references(messages, vision_enabled=True)
+    image.write_bytes(_PNG_BYTES)
+    assert await resolve_media_references(messages, vision_enabled=True) == first
+    assert ref == {"type": "text", "text": "image unavailable"}

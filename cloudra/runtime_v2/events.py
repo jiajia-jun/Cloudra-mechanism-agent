@@ -83,7 +83,6 @@ EVENT_TYPES: dict[str, str] = {
     "context.pin_set": "resident context notice pinned or replaced",
     "context.pin_cleared": "resident context notice unpinned",
     "context.injected": "one-shot context notice injected",
-    "context.notices_consumed": "notice batch entered the LLM context; consumption cursor advanced",
     "context.prefix_installed": "session context prefix installed (static protocol + initial dynamic snapshots)",
     "context.appended": "messages appended to the session LLM context (input before send, output after response)",
     "context.compacted": "session context atomically replaced by a compacted candidate",

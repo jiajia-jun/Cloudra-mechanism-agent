@@ -72,12 +72,12 @@ async def resolve_media_references(
     """把上下文投影里的 ``image_ref`` 部件解析为发送形态（返回新列表）。
 
     投影只存稳定引用（路径 + 创建时写入的 fallback 文本），不重嵌 base64：
-    vision 开且文件可读 → ``image_url``（data URL）；否则 → 文本 fallback。
+    vision 开时校验快照并解析为 ``image_url``（data URL）；关闭时使用文本 fallback。
     解析后全部是文本部件时内容坍缩回纯字符串（与历史线缆形态一致）。
-    同一文件内容解析结果逐字节稳定（缓存前缀安全）；文件变化/删除属于
-    真实内容变化，不伪称连续。不含 image_ref 的消息原样共享（不拷贝）。
+    引用指向入历史时保存的不可变快照；原文件变化/删除不改变历史。
+    快照缺失或损坏时拒绝发送。不含 image_ref 的消息原样共享（不拷贝）。
     """
-    from cloudra.infra.media import encode_image_data_url
+    from cloudra.infra.media import encode_image_reference
 
     out: list[dict[str, Any]] = []
     for message in messages:
@@ -96,7 +96,7 @@ async def resolve_media_references(
             url = None
             if vision_enabled:
                 url = await asyncio.to_thread(
-                    encode_image_data_url, str(part.get("path") or "")
+                    encode_image_reference, part
                 )
             if url:
                 parts.append({"type": "image_url", "image_url": {"url": url}})

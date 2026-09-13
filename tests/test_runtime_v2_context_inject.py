@@ -9,6 +9,7 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.events import EventLog
 from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.schemas import Command
+from tests.notice_support import commit_notices
 
 
 def _attached() -> tuple[NoticeManager, EventLog]:
@@ -61,14 +62,14 @@ def test_unattached_manager_stays_silent():
 def test_restore_rebuilds_pins_and_unconsumed_pushes():
     """新契约（Task 3）：不丢失优先——未消费（从未进入上下文）的 push
     随事件重放保持 pending；已消费的不重现。游标由
-    context.notices_consumed 事件恢复。"""
+    context.appended 事件恢复。"""
     notices, log = _attached()
     notices.pin("s1", "goal", "G")
     notices.pin("s1", "dag", "D")
     notices.unpin("s1", "goal")
     notices.push("s1", "consumed-push")
     notices.collect_batch("s1", fresh=True)
-    notices.confirm_consumed("s1")
+    commit_notices(notices, "s1")
     notices.push("s1", "never-consumed")
 
     restored = NoticeManager()
@@ -78,8 +79,8 @@ def test_restore_rebuilds_pins_and_unconsumed_pushes():
         "D",
         "never-consumed",
     ]
-    restored.confirm_consumed("s1")
-    # 消费游标随 context.notices_consumed 事件落地，重启后不重复
+    commit_notices(restored, "s1")
+    # 消费游标随 context.appended 事件落地，重启后不重复
     assert restored.collect_batch("s1", fresh=False) == []
 
 
@@ -119,7 +120,7 @@ async def test_context_inject_command_roundtrip():
         "pinned hint",
         "one-shot hint",
     ]
-    core.notices.confirm_consumed(agent.id)
+    commit_notices(core.notices, agent.id)
     types = [e.type for e in core.event_log if e.session_id == agent.id]
     assert "context.pin_set" in types and "context.injected" in types
 
@@ -134,7 +135,7 @@ async def test_context_inject_command_roundtrip():
     batch = core.notices.collect_batch(agent.id, fresh=False)
     assert len(batch) == 1
     assert batch[0]["content"].startswith("[Context notice retracted: library]")
-    core.notices.confirm_consumed(agent.id)
+    commit_notices(core.notices, agent.id)
     assert core.notices.collect_batch(agent.id, fresh=True) == []
 
 

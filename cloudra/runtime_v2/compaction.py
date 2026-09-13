@@ -11,9 +11,9 @@
    模型压缩的对象；摘要模型拿到这些完整指令作背景；
 4. 一条 assistant「[Context compact]」结构化摘要消息（字段经结构化校验，
    带来源消息序号）；
-5. 逐字尾部：最后一条指令之后的活动章节完整保留（``keep_recent`` 可再
-   向前多留逐字消息；尾部不吞并指令消息、不拆散 assistant tool_calls 与
-   tool 响应配对）。
+5. 逐字尾部：最后指令之后最多保留 ``keep_recent`` 条最近消息，边界
+   向前扩展以完整保留 assistant tool_calls 与 tool 响应配对；指令只在
+   指令区保留一次。
 
 摘要输入按现有模型容量（settings.context_window − 输出预算，留余量）
 分段：消息逐字完整，单条超预算消息的文本跨段切块；每个区段成功并通过
@@ -391,20 +391,15 @@ async def compact_context(
         index for index, message in enumerate(middle) if is_instruction_message(message)
     ]
     instructions = [middle[index] for index in instruction_indexes]
-    last_instruction = instruction_indexes[-1] if instruction_indexes else None
-    active_len = (
-        len(middle) - last_instruction - 1 if last_instruction is not None else len(middle)
-    )
-    # 逐字尾部 = 完整活动章节（最后指令之后）；keep_recent 可再向前多留，
-    # 但尾部不跨越最后一条指令（指令在指令区逐字保留）、不从 tool 消息
-    # 开始（保持 assistant tool_calls 配对完整）。
-    keep_target = max(active_len, max(0, keep_recent))
+    # 当前用户任务的已完成调用也可压缩；尾部只按 keep_recent 保留，
+    # 边界落在 tool 响应内时向前保留整个调用组，不能截断配对。
+    keep_target = max(0, keep_recent)
     start = len(middle) - min(keep_target, len(middle))
-    if last_instruction is not None:
-        start = max(start, last_instruction + 1)
-    while start < len(middle) and middle[start].get("role") == "tool":
-        start += 1
-    tail = middle[start:]
+    if instruction_indexes:
+        start = max(start, instruction_indexes[-1] + 1)
+    while 0 < start < len(middle) and middle[start].get("role") == "tool":
+        start -= 1
+    tail = [message for message in middle[start:] if not is_instruction_message(message)]
     trajectory = middle[:start]
 
     # 容量闸门：逐字指令区本身就超可用容量 → 明确报告无法无损压缩，

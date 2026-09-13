@@ -66,6 +66,36 @@ class RecordingSummarizer:
         return _summary_json()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("keep_recent, expected_tail", [(0, 0), (1, 3), (2, 3), (3, 3)])
+async def test_single_user_run_compacts_completed_tools_with_paired_recent_tail(
+    keep_recent, expected_tail
+):
+    instruction = {"role": "user", "content": "finish the entire task", "message_id": "u1"}
+    messages = [instruction]
+    for index in range(12):
+        messages.extend([
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": f"a{index}", "name": "bash", "arguments": {}},
+                {"id": f"b{index}", "name": "bash", "arguments": {}},
+            ]},
+            {"role": "tool", "tool_call_id": f"a{index}", "content": "old log " * 500},
+            {"role": "tool", "tool_call_id": f"b{index}", "content": "other log " * 500},
+        ])
+    summarizer = RecordingSummarizer()
+    result, stats = await compact_context(
+        messages, head=[], notices=[], keep_recent=keep_recent,
+        summarize=summarizer, context_window=200_000, max_output=32_768,
+    )
+    assert stats["compacted"] is True
+    assert result[0] == instruction
+    assert stats["tail_messages"] == expected_tail
+    assert len(result) == 2 + expected_tail
+    if expected_tail:
+        assert result[-expected_tail:] == messages[-expected_tail:]
+    assert "old log " * 500 in summarizer.calls[0][-1]["content"]
+
+
 def _context_window_for(budget_chars: int) -> tuple[int, int]:
     """反推一个可用容量约为 budget_chars 的 (context_window, max_output)。"""
     window = int(budget_chars / 4 / 0.85) + 100
@@ -90,7 +120,7 @@ def _trajectory_context() -> list[dict]:
         {"role": "user", "content": "second correction: report barriers in kcal/mol", "message_id": "msg-u3"},
         {"role": "assistant", "content": "will report in kcal/mol"},
         {"role": "user", "content": big_constraint, "message_id": "msg-u4"},
-        # 活动尾部（最后指令之后）必须完整保留
+        # 最近工具调用按 keep_recent 保留，调用与响应不可拆散
         {"role": "assistant", "content": "", "tool_calls": [{"id": "t2", "name": "bash", "arguments": {"cmd": "tail"}}]},
         {"role": "tool", "tool_call_id": "t2", "content": "job done, barrier 5.0"},
     ]
@@ -107,7 +137,7 @@ async def test_all_rounds_enter_summary_input_and_instructions_stay_verbatim():
         messages,
         head=[],
         notices=[],
-        keep_recent=0,
+        keep_recent=2,
         summarize=summarizer,
         context_window=200_000,
         max_output=32_768,
@@ -172,11 +202,11 @@ async def test_single_overlong_message_fully_covered_by_segmentation():
         max_output=output,
     )
     assert stats["compacted"] is True
-    # 无首条指令前的活动尾部是最后一条 assistant；轨迹含大消息与全部前文
+    # keep_recent=0 时，包括最后一条 assistant 在内的全部轨迹进入摘要
     covered = sorted(
         index for seg in stats["segments"] for index in seg["message_indexes"]
     )
-    assert set(covered) == {0, 1, 2, 3}
+    assert set(covered) == {0, 1, 2, 3, 4}
     segment_calls = summarizer.calls[: len(stats["segments"])]
     # 多段 → 段数 + 一次 merge 调用
     assert len(stats["segments"]) >= 2
@@ -763,4 +793,3 @@ async def test_budget_compact_refusal_keeps_context_and_records_reason(monkeypat
     assert sum(
         1 for m in core.session_contexts[agent.id].messages if m.get("role") == "tool"
     ) == 2
-

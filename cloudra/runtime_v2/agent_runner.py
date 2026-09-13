@@ -274,7 +274,9 @@ class AgentRunner:
                     message = await inbox.get()
                     inbox_messages.append(message)
                 turns += 1
-                inbox_messages = self._prepare_inbox_messages(agent, inbox_messages)
+                inbox_messages = await asyncio.to_thread(
+                    self._prepare_inbox_messages, agent, inbox_messages
+                )
                 if contexts.current_messages(agent.id):
                     keep_recent = core.pending_compactions.get(agent.id)
                     if keep_recent is not None:
@@ -701,6 +703,8 @@ class AgentRunner:
         base64；发送前由 turn_pipeline.resolve_media_references 按当前
         vision 能力解析为 data URL 或文本降级。
         """
+        from cloudra.infra.media import snapshot_image_reference
+
         prepared = []
         for item in messages:
             images = [p for p in (item.get("images") or []) if isinstance(p, str) and p]
@@ -709,11 +713,10 @@ class AgentRunner:
                 continue
             parts: list[dict] = [{"type": "text", "text": str(item.get("content") or "")}]
             parts.extend(
-                {
-                    "type": "image_ref",
-                    "path": path,
-                    "fallback": f"[User attached image: {path}]",
-                }
+                snapshot_image_reference(
+                    path, conv_id=agent.project_id,
+                    fallback=f"[User attached image: {path}]",
+                )
                 for path in images
             )
             prepared.append({**item, "content": parts})
@@ -726,6 +729,7 @@ class AgentRunner:
         stable ``image_ref`` part per path (no base64 in the projection);
         resolution to data URLs happens at send time.  There is no N-image cap.
         """
+        from cloudra.infra.media import snapshot_image_reference
         from cloudra.runtime_v2.invocation import image_paths_from_tool_result
 
         summary = result.summary
@@ -734,15 +738,14 @@ class AgentRunner:
             return summary
         parts: list[dict] = [{"type": "text", "text": summary or ""}]
         parts.extend(
-            {
-                "type": "image_ref",
-                "path": path,
-                "fallback": (
+            snapshot_image_reference(
+                path, conv_id=agent.project_id,
+                fallback=(
                     f"[Image rendered at: {path} — the configured model has no "
                     "vision support or the file is unavailable; inspect the "
                     "file directly if needed.]"
                 ),
-            }
+            )
             for path in paths
         )
         return parts
@@ -775,7 +778,7 @@ class AgentRunner:
                 {
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": self._tool_result_content(agent, result),
+                    "content": await asyncio.to_thread(self._tool_result_content, agent, result),
                 }
             )
         if outcome.blocked_call is not None:

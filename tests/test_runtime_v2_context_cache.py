@@ -11,7 +11,7 @@ deepcopy，不丢 role、工具参数、reasoning 或图像字段），对每对
 Task 2 后：静态协议（身份/技能/工具协议/JS instructions）在上下文初始化时
 安装一次；MEMORY.md、AGENTS.md、工作区观察是带来源的动态快照，跨轮变化
 只以追加消息出现在尾部。Task 3 后：pin/push 通知按「未应用变更按顺序追加」
-真实进入 history，消费游标由 context.notices_consumed 事件承载，LLM 重试
+真实进入 history，消费游标由 context.appended 事件承载，LLM 重试
 逐字节重发同一批已准备请求。Task 4 后：上下文是 session 级事件溯源投影
 （context.prefix_installed/appended/compacted），跨 run、跨重启连续——
 全部前缀场景为绿。Task 1 记录的旧版基线（各场景首处分歧位置与完整计数）在
@@ -46,6 +46,7 @@ from cloudra.runtime_v2.schemas import (
     PermissionSet,
 )
 from cloudra.runtime_v2.turn_pipeline import TurnPipeline
+from tests.notice_support import commit_notices
 
 # ---------------------------------------------------------------------------
 # 固定场景输入（基线记录的事实源；改动必须同步重生成 baseline JSON）
@@ -378,7 +379,7 @@ async def _scenario_pin_push() -> list[dict]:
     # history 条目为内部形态（arguments 结构化 dict、reasoning_content
     # 保留），adapter 负责转线缆格式。
     install, appends = prefix.drain_pending()
-    notice_messages = notices.confirm_consumed(agent.id)
+    notice_messages = commit_notices(notices, agent.id)
     assert [m["content"] for m in notice_messages] == [FIXTURE_PIN, FIXTURE_PUSH]
     history = [
         *install,
@@ -677,8 +678,15 @@ async def test_retry_reuses_identical_prepared_request():
     assert capture[0]["messages"][-1]["content"] == FIXTURE_PUSH
     types = [e.type for e in core.event_log.query_session(agent.id)]
     assert "run.retry" in types
-    # 消费游标只在成功的那次推进（恰好一条 context.notices_consumed）。
-    assert types.count("context.notices_consumed") == 1
+    # 重试复用已提交输入，消费游标与正文只落一次。
+    consumed = [
+        event for event in core.event_log.query_session(agent.id)
+        if event.type == "context.appended" and "notices_through" in event.data
+    ]
+    assert len(consumed) == 1
+    assert [m["content"] for m in consumed[0].data["messages"]][-2:] == [
+        FIXTURE_PIN, FIXTURE_PUSH
+    ]
 
 
 @pytest.mark.asyncio
@@ -713,7 +721,7 @@ async def test_cancel_never_confirms_notice_consumption():
     assert [m["content"] for m in notices.collect_batch(agent.id, fresh=False)] == [
         FIXTURE_PUSH
     ]
-    confirmed = notices.confirm_consumed(agent.id)
+    confirmed = commit_notices(notices, agent.id)
     assert [m["content"] for m in confirmed] == [FIXTURE_PUSH]
     assert notices.collect_batch(agent.id, fresh=False) == []
 

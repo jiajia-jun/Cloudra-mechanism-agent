@@ -109,3 +109,7 @@ def project_workspace_dir(project_id: str, data_dir: Optional[PathLike] = None) 
     return workspaces_dir(data_dir) / project_id
 
 
+
+def context_media_dir(conv_id: str, data_dir: Optional[PathLike] = None) -> Path:
+    """Immutable images referenced by the conversation context."""
+    return conversation_dir(conv_id, data_dir) / "media"
