@@ -17,6 +17,7 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.core.geometry import rotate_about_axis, rotation_matrix_between
 
 try:
     from rdkit import Chem
@@ -97,6 +98,9 @@ description = (
     "Molecular-structure perception: from Cartesian coordinates (xyz/mol/pdb/sdf/cif), infer bond orders, stereochemistry, rings, and rotatable dihedrals; "
     "detect anomalous bond lengths (compressed/elongated/breaking_suspect/forming/atomic overlap) and anomalous angles; "
     "and write a Z-matrix internal-coordinate file along a spanning tree of the molecular graph. Can also convert a Z-matrix back to Cartesian. "
+    "mode=transform applies rigid internal-coordinate edits to the Cartesian coordinates — rotate a group about an axis/bond, "
+    "stretch or compress a bond by translating one fragment, invert a chiral center by swapping two branches — "
+    "then re-validates the edited geometry (bond/angle anomaly detection) and returns the transformed xyz. "
     "Gives the model accurate structural facts without looking at a picture. "
     "REQUIRED before ts_guess scan_prepare/interpolate or any TS/scan work: scan/watch atom indices and reaction coordinates must come from this "
     "analyze report (forming/breaking bonds, dihedrals, clashes) — never from guessing XYZ indices or reading a picture. "
@@ -107,14 +111,16 @@ description = (
 
 
 class InternalCoordinates_input_schema(input_schema):
-    mode: Literal["analyze", "zmatrix_to_cartesian"] = Field(
+    mode: Literal["analyze", "zmatrix_to_cartesian", "transform"] = Field(
         default="analyze",
         description="analyze: structure-perception analysis and write a Z-matrix file (default); "
-                    "zmatrix_to_cartesian: restore Cartesian coordinates from Z-matrix text/file."
+                    "zmatrix_to_cartesian: restore Cartesian coordinates from Z-matrix text/file; "
+                    "transform: apply rigid internal-coordinate operations (see 'operations') to the Cartesian "
+                    "coordinates, validate the edited geometry, and return the transformed xyz."
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="Input file path (xyz/mol/pdb/sdf/cif, etc., ASE-readable). Used when mode=analyze."
+        description="Input file path (xyz/mol/pdb/sdf/cif, etc., ASE-readable). Used when mode=analyze or transform."
     )
     input_text: Optional[str] = Field(
         default=None,
@@ -159,7 +165,25 @@ class InternalCoordinates_input_schema(input_schema):
     )
     output_path: Optional[str] = Field(
         default=None,
-        description="xyz output path when mode=zmatrix_to_cartesian."
+        description="xyz output path when mode=zmatrix_to_cartesian or transform."
+    )
+    operations: Optional[list[dict]] = Field(
+        default=None,
+        description="Transform operations, required when mode=transform (rejected in other modes). Applied in order "
+                    "on a copy of the coordinates; all atom indices are 1-based, matching the analyze report; "
+                    "fragment selection uses the connectivity perceived from the input structure. "
+                    "Three operation types: "
+                    "(1) rotate — 'axis_atoms': [i, j] defines the rotation axis, 'degrees': angle in degrees, plus "
+                    "exactly one group selector: 'atoms': [...] (explicit 1-based atom list) or 'side_of_bond': [a, b] "
+                    "(rotate the fragment on the b side of bond a-b; fails when a-b is on a ring). "
+                    "Example: {\"type\": \"rotate\", \"axis_atoms\": [3, 7], \"side_of_bond\": [3, 7], \"degrees\": 120}. "
+                    "(2) stretch — 'atoms': [i, j] (must be a bonded pair), plus exactly one of 'delta': d (relative "
+                    "change) or 'new_length': L (absolute target), both in Angstrom; the fragment on the j side of "
+                    "bond i-j is translated along the i->j direction. "
+                    "Example: {\"type\": \"stretch\", \"atoms\": [3, 7], \"new_length\": 2.10}. "
+                    "(3) invert_chirality — 'center': c, 'swap': [n1, n2] (n1/n2 must both be bonded neighbors of c); "
+                    "the two branches are rigidly swapped, inverting the stereocenter. "
+                    "Example: {\"type\": \"invert_chirality\", \"center\": 5, \"swap\": [6, 9]}."
     )
 
 
@@ -168,7 +192,17 @@ class InternalCoordinates_output_schema(output_schema):
     report: str = Field(default="", description="Structured analysis report when mode=analyze (sectioned text)")
     anomalies: list[dict] = Field(
         default_factory=list,
-        description="Machine-readable list of bond/angle anomalies; each item has type/atoms/value/reference/status"
+        description="Machine-readable list of bond/angle anomalies; each item has type/atoms/value/reference/status. "
+                    "When mode=transform, these are measured on the transformed coordinates."
+    )
+    operations_applied: list[dict] = Field(
+        default_factory=list,
+        description="Per-operation summaries when mode=transform: type, target atoms, parameters, and the "
+                    "1-based list/count of atoms moved"
+    )
+    anomalies_before: list[dict] = Field(
+        default_factory=list,
+        description="Bond/angle anomalies of the input structure before the transform (mode=transform)"
     )
     zmat_path: str = Field(default="", description="Z-matrix file path written when mode=analyze")
     zmat_lines: int = Field(default=0, description="Line count of the Z-matrix file when mode=analyze")
@@ -183,8 +217,8 @@ class InternalCoordinates_output_schema(output_schema):
         description="Why the Z-matrix export failed (only set when zmat_status='failed'). A failed "
                     "export never hides the completed distance/angle measurements.",
     )
-    xyz_text: str = Field(default="", description="xyz text returned when mode=zmatrix_to_cartesian")
-    output_path: str = Field(default="", description="xyz file path written when mode=zmatrix_to_cartesian")
+    xyz_text: str = Field(default="", description="xyz text returned when mode=zmatrix_to_cartesian or transform")
+    output_path: str = Field(default="", description="xyz file path written when mode=zmatrix_to_cartesian or transform")
     message: str = Field(default="", description="Status or error message")
 
 
@@ -1152,6 +1186,322 @@ class InternalCoordinates(Tool):
             message=message,
         )
 
+    # ---------- transform ----------
+
+    @staticmethod
+    def _transform_atom_index(value, n: int, context: str) -> int:
+        """transform op 的 1-based 原子索引校验，非法一律 fail-loud。"""
+        if not isinstance(value, int) or isinstance(value, bool) or not (1 <= value <= n):
+            raise ValueError(f"{context}: atom index {value!r} is not a valid 1-based index (1..{n})")
+        return value - 1
+
+    @staticmethod
+    def _bfs_group(adj: dict[int, set[int]], start: int) -> set[int]:
+        seen = {start}
+        stack = [start]
+        while stack:
+            x = stack.pop()
+            for y in adj.get(x, ()):
+                if y not in seen:
+                    seen.add(y)
+                    stack.append(y)
+        return seen
+
+    @staticmethod
+    def _adjacency_without_edge(adj: dict[int, set[int]], i: int, j: int) -> dict[int, set[int]]:
+        cut = {k: set(v) for k, v in adj.items()}
+        cut[i].discard(j)
+        cut[j].discard(i)
+        return cut
+
+    @staticmethod
+    def _op_finite_number(value, context: str) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            raise ValueError(f"{context} must be a finite number, got {value!r}")
+        return float(value)
+
+    @classmethod
+    def _op_rotate(cls, op: dict, positions, adj: dict[int, set[int]], n: int) -> dict:
+        axis_raw = op.get("axis_atoms")
+        if not (isinstance(axis_raw, list) and len(axis_raw) == 2):
+            raise ValueError("rotate requires axis_atoms: [i, j] (1-based indices of the two axis atoms)")
+        ia = cls._transform_atom_index(axis_raw[0], n, "rotate axis_atoms")
+        ib = cls._transform_atom_index(axis_raw[1], n, "rotate axis_atoms")
+        if ia == ib:
+            raise ValueError("rotate axis_atoms must be two distinct atoms")
+        degrees = cls._op_finite_number(op.get("degrees"), "rotate 'degrees'")
+
+        has_atoms = op.get("atoms") is not None
+        has_side = op.get("side_of_bond") is not None
+        if has_atoms == has_side:
+            raise ValueError(
+                "rotate requires exactly one of 'atoms' (explicit group) or 'side_of_bond' "
+                "([a, b]: rotate the fragment on the b side of bond a-b)"
+            )
+        if has_atoms:
+            if not isinstance(op["atoms"], list) or not op["atoms"]:
+                raise ValueError("rotate 'atoms' must be a non-empty list of 1-based atom indices")
+            group = {cls._transform_atom_index(x, n, "rotate atoms") for x in op["atoms"]}
+            selection = f"explicit atoms {sorted(x + 1 for x in group)}"
+        else:
+            side_raw = op["side_of_bond"]
+            if not (isinstance(side_raw, list) and len(side_raw) == 2):
+                raise ValueError("rotate 'side_of_bond' must be [a, b] (1-based bonded pair)")
+            a = cls._transform_atom_index(side_raw[0], n, "rotate side_of_bond")
+            b = cls._transform_atom_index(side_raw[1], n, "rotate side_of_bond")
+            if b not in adj.get(a, set()):
+                raise ValueError(f"rotate side_of_bond: atoms {a + 1} and {b + 1} are not bonded")
+            group = cls._bfs_group(cls._adjacency_without_edge(adj, a, b), b)
+            if a in group:
+                raise ValueError(
+                    f"rotate side_of_bond: bond {a + 1}-{b + 1} lies on a ring (the graph stays "
+                    "connected after cutting it); cannot select a side — pass explicit 'atoms' instead"
+                )
+            selection = f"side of bond {a + 1}-{b + 1} from atom {b + 1}"
+        positions[:] = rotate_about_axis(positions, sorted(group), positions[ia], positions[ib], degrees)
+        moved = sorted(x + 1 for x in group if x not in (ia, ib))
+        return {
+            "type": "rotate",
+            "axis_atoms": [ia + 1, ib + 1],
+            "degrees": degrees,
+            "selection": selection,
+            "moved_atoms": moved,
+            "n_moved": len(moved),
+        }
+
+    @classmethod
+    def _op_stretch(cls, op: dict, positions, adj: dict[int, set[int]], n: int) -> dict:
+        import numpy as np
+
+        atoms_raw = op.get("atoms")
+        if not (isinstance(atoms_raw, list) and len(atoms_raw) == 2):
+            raise ValueError("stretch requires atoms: [i, j] (1-based indices of a bonded pair)")
+        i = cls._transform_atom_index(atoms_raw[0], n, "stretch atoms")
+        j = cls._transform_atom_index(atoms_raw[1], n, "stretch atoms")
+        if i == j:
+            raise ValueError("stretch atoms must be two distinct atoms")
+        if j not in adj.get(i, set()):
+            raise ValueError(f"stretch: atoms {i + 1} and {j + 1} are not bonded")
+        delta, new_length = op.get("delta"), op.get("new_length")
+        if (delta is None) == (new_length is None):
+            raise ValueError("stretch requires exactly one of 'delta' or 'new_length' (Angstrom)")
+        vec = positions[j] - positions[i]
+        current = float(np.linalg.norm(vec))
+        if current < 1e-9:
+            raise ValueError(f"stretch: atoms {i + 1} and {j + 1} coincide; the direction is undefined")
+        target = current + cls._op_finite_number(delta, "stretch 'delta'") if delta is not None \
+            else cls._op_finite_number(new_length, "stretch 'new_length'")
+        if target <= 0.0:
+            raise ValueError(f"stretch: target bond length must be > 0 Angstrom, got {target:.3f}")
+        group = cls._bfs_group(cls._adjacency_without_edge(adj, i, j), j)
+        if i in group:
+            raise ValueError(
+                f"stretch: bond {i + 1}-{j + 1} lies on a ring (the graph stays connected after "
+                "cutting it); stretching it is not a rigid-fragment operation"
+            )
+        idx = sorted(group)
+        positions[idx] = positions[idx] + (target - current) * vec / current
+        return {
+            "type": "stretch",
+            "atoms": [i + 1, j + 1],
+            "old_length": round(current, 4),
+            "new_length": round(target, 4),
+            "moved_atoms": [x + 1 for x in idx],
+            "n_moved": len(idx),
+        }
+
+    @classmethod
+    def _op_invert_chirality(cls, op: dict, positions, adj: dict[int, set[int]], n: int) -> dict:
+        if "center" not in op:
+            raise ValueError("invert_chirality requires 'center' (1-based index of the stereocenter)")
+        c = cls._transform_atom_index(op["center"], n, "invert_chirality center")
+        swap_raw = op.get("swap")
+        if not (isinstance(swap_raw, list) and len(swap_raw) == 2):
+            raise ValueError("invert_chirality requires swap: [n1, n2] (two bonded neighbors of the center, 1-based)")
+        n1 = cls._transform_atom_index(swap_raw[0], n, "invert_chirality swap")
+        n2 = cls._transform_atom_index(swap_raw[1], n, "invert_chirality swap")
+        if n1 == n2:
+            raise ValueError("invert_chirality swap atoms must be distinct")
+        neighbors = adj.get(c, set())
+        if n1 not in neighbors or n2 not in neighbors:
+            raise ValueError(
+                f"invert_chirality: swap atoms {n1 + 1} and {n2 + 1} must both be bonded neighbors "
+                f"of the center atom {c + 1}"
+            )
+        cut = {k: (set(v) - {c}) for k, v in adj.items()}
+        cut[c] = set()
+        branch1 = cls._bfs_group(cut, n1)
+        branch2 = cls._bfs_group(cut, n2)
+        if branch1 & branch2:
+            raise ValueError(
+                "invert_chirality: the two swap branches stay connected without the center (ring); "
+                "cannot swap them rigidly"
+            )
+        rotation = rotation_matrix_between(positions[n1] - positions[c], positions[n2] - positions[c])
+        center_pos = positions[c]
+        idx1, idx2 = sorted(branch1), sorted(branch2)
+        positions[idx1] = (positions[idx1] - center_pos) @ rotation.T + center_pos
+        positions[idx2] = (positions[idx2] - center_pos) @ rotation + center_pos
+        moved = [x + 1 for x in sorted(branch1 | branch2)]
+        return {
+            "type": "invert_chirality",
+            "center": c + 1,
+            "swap": [n1 + 1, n2 + 1],
+            "moved_atoms": moved,
+            "n_moved": len(moved),
+        }
+
+    @classmethod
+    def _apply_transform_op(cls, op, positions, adj: dict[int, set[int]], n: int) -> dict:
+        """在 positions（调用方持有的 numpy 副本）上原地应用一个 op，返回该 op 的摘要。"""
+        if not isinstance(op, dict):
+            raise ValueError(f"each transform operation must be an object, got {type(op).__name__}")
+        op_type = op.get("type")
+        if op_type == "rotate":
+            return cls._op_rotate(op, positions, adj, n)
+        if op_type == "stretch":
+            return cls._op_stretch(op, positions, adj, n)
+        if op_type == "invert_chirality":
+            return cls._op_invert_chirality(op, positions, adj, n)
+        raise ValueError(
+            f"unknown transform operation type {op_type!r}; supported types: "
+            "'rotate', 'stretch', 'invert_chirality'"
+        )
+
+    @staticmethod
+    def _transform_summary_line(k: int, s: dict) -> str:
+        if s["type"] == "rotate":
+            return (f"{k}. rotate {s['degrees']:g}° about axis atoms "
+                    f"{s['axis_atoms'][0]}-{s['axis_atoms'][1]} ({s['selection']}): "
+                    f"moved {s['n_moved']} atoms")
+        if s["type"] == "stretch":
+            return (f"{k}. stretch bond {s['atoms'][0]}-{s['atoms'][1]} "
+                    f"{s['old_length']:.3f} -> {s['new_length']:.3f} Å: moved {s['n_moved']} atoms")
+        return (f"{k}. invert_chirality at center {s['center']} "
+                f"(swap {s['swap'][0]}/{s['swap'][1]}): moved {s['n_moved']} atoms")
+
+    def _transform(self, user_input: InternalCoordinates_input_schema) -> InternalCoordinates_output_schema:
+        import numpy as np
+
+        if not user_input.operations:
+            return InternalCoordinates_output_schema(
+                is_success=False,
+                message=(
+                    "mode=transform requires 'operations': a non-empty list of transform operations "
+                    "({'type': 'rotate'|'stretch'|'invert_chirality', ...})"
+                ),
+            )
+        try:
+            atoms = self._load_atoms_from_path_or_text(
+                user_input.input_path, user_input.input_text, user_input.input_format,
+            )
+        except Exception as e:
+            return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
+
+        symbols = atoms.get_chemical_symbols()
+        positions = np.asarray(atoms.get_positions(), dtype=float)
+        n = len(symbols)
+        notes: list[str] = []
+
+        if _RDKIT_AVAILABLE:
+            try:
+                _, bond_orders = self._perceive_bonds_rdkit(
+                    self._atoms_to_xyz_block(atoms), user_input.charge,
+                )
+            except Exception as e:
+                bond_orders = self._distance_connectivity(symbols, positions)
+                notes.append(f"RDKit bond perception failed ({e}); bond orders were not perceived — bonds are distance-inferred (all treated as single bonds).")
+        else:
+            bond_orders = self._distance_connectivity(symbols, positions)
+            notes.append("RDKit is not installed; bond orders were not perceived — bonds are distance-inferred (all treated as single bonds).")
+
+        adj = self._build_adjacency(n, bond_orders)
+        before_bonds, _ = self._abnormal_bonds(
+            symbols, positions, adj, bond_orders, user_input.bond_tolerance,
+        )
+        before_angles, _ = self._abnormal_angles(
+            symbols, positions, adj, bond_orders, user_input.angle_tolerance,
+        )
+        anomalies_before = before_bonds + before_angles
+
+        # 图划分与校验都用初始键感知拓扑：transform op 是刚体操作，共价拓扑不变；
+        # 对新坐标重新感知会把被拉断的键/新接触静默改写成分子身份的一部分，校验失去意义。
+        work = positions.copy()
+        adj_sets = {i: set(adj[i]) for i in range(n)}
+        summaries: list[dict] = []
+        try:
+            for op in user_input.operations:
+                summaries.append(self._apply_transform_op(op, work, adj_sets, n))
+        except ValueError as e:
+            return InternalCoordinates_output_schema(is_success=False, message=f"Invalid transform operation: {e}")
+
+        after_bonds, after_bond_lines = self._abnormal_bonds(
+            symbols, work, adj, bond_orders, user_input.bond_tolerance,
+        )
+        after_angles, after_angle_lines = self._abnormal_angles(
+            symbols, work, adj, bond_orders, user_input.angle_tolerance,
+        )
+        anomalies_after = after_bonds + after_angles
+        reactive_lines: list[str] = []
+        if user_input.reactive_atoms or user_input.watch_pairs:
+            reactive_lines = self._reactive_center_report(
+                symbols, work, adj, bond_orders,
+                user_input.reactive_atoms, user_input.watch_pairs,
+            )
+
+        report: list[str] = ["== Operations Applied =="]
+        for k, s in enumerate(summaries, start=1):
+            report.append("  " + self._transform_summary_line(k, s))
+        report.append("== Validation After Transform ==")
+        report.append(f"  Bond anomalies: {len(after_bonds)}  Angle anomalies: {len(after_angles)}")
+        report.append("  [Abnormal Bonds]")
+        report.extend(after_bond_lines if after_bond_lines
+                      else ["  No abnormal bond lengths (normal bonds are not listed)"])
+        report.append("  [Abnormal Angles]")
+        report.extend(after_angle_lines if after_angle_lines
+                      else [f"  No bond angles deviating by more than {user_input.angle_tolerance:.1f}°"])
+        if user_input.reactive_atoms or user_input.watch_pairs:
+            report.append("  [Reactive Center]")
+            report.extend(reactive_lines if reactive_lines else ["  (no valid input)"])
+        before_keys = {(a["type"], tuple(a["atoms"]), a["status"]) for a in anomalies_before}
+        after_keys = {(a["type"], tuple(a["atoms"]), a["status"]) for a in anomalies_after}
+        new_count = len(after_keys - before_keys)
+        resolved_count = len(before_keys - after_keys)
+        report.append("== Transform Comparison ==")
+        report.append(f"  Anomalies before transform: {len(anomalies_before)}  after: {len(anomalies_after)}")
+        report.append(f"  New anomalies introduced: {new_count}  anomalies resolved: {resolved_count}")
+        if notes:
+            report.append("== Notes ==")
+            report.extend(f"  - {t}" for t in notes)
+
+        from ase import Atoms
+
+        xyz_text = self._atoms_to_xyz_block(Atoms(symbols=symbols, positions=work))
+        output_path = ""
+        if user_input.output_path:
+            os.makedirs(os.path.dirname(user_input.output_path) or ".", exist_ok=True)
+            atomic_write_text(user_input.output_path, xyz_text)
+            output_path = user_input.output_path
+
+        message = (
+            f"Applied {len(summaries)} transform operation(s). Validation after transform: "
+            f"{len(after_bonds)} bond anomalies, {len(after_angles)} angle anomalies "
+            f"(before: {len(before_bonds)} bond, {len(before_angles)} angle); "
+            f"{new_count} new, {resolved_count} resolved."
+        )
+        if output_path:
+            message += f" Transformed coordinates written to {output_path}."
+        return InternalCoordinates_output_schema(
+            is_success=True,
+            report="\n".join(report),
+            anomalies=anomalies_after,
+            operations_applied=summaries,
+            anomalies_before=anomalies_before,
+            xyz_text=xyz_text,
+            output_path=output_path,
+            message=message,
+        )
+
     # ---------- Z-matrix -> Cartesian ----------
 
     @staticmethod
@@ -1513,9 +1863,16 @@ class InternalCoordinates(Tool):
                 is_success=False,
                 message="chemcoord is not installed. Install it with: pip install 'cloudra[chem]'"
             )
+        if user_input.operations and user_input.mode != "transform":
+            return InternalCoordinates_output_schema(
+                is_success=False,
+                message="'operations' is only valid with mode=transform",
+            )
         if user_input.mode == "analyze":
             # chemcoord 解析/分析是同步重活，卸载出事件循环。
             return await asyncio.to_thread(self._analyze, user_input)
+        if user_input.mode == "transform":
+            return await asyncio.to_thread(self._transform, user_input)
         return self._zmatrix_to_cartesian(user_input)
 
 

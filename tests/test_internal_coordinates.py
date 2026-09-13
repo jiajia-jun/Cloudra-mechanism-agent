@@ -587,3 +587,332 @@ def test_chemistry_thresholds_unchanged():
     assert schema.angle_tolerance == 12.0
     assert schema.charge == 0
     assert tool._covalent_radius("C") == pytest.approx(0.76, abs=0.05)
+
+
+# ---------------------------------------------------------------------------
+# mode=transform：rotate / stretch / invert_chirality + 变换后校验
+# ---------------------------------------------------------------------------
+
+
+def _embed_xyz(smiles: str, seed: int = 42) -> str:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+    AllChem.EmbedMolecule(mol, randomSeed=seed)
+    AllChem.MMFFOptimizeMolecule(mol)
+    return Chem.MolToXYZBlock(mol)
+
+
+def _parse_xyz_block(xyz_text: str):
+    """按 xyz 结构解析（第 1 行原子数、第 2 行注释可能为空），返回 [(symbol, (x, y, z)), ...]。"""
+    lines = xyz_text.splitlines()
+    out = []
+    for ln in lines[2:2 + int(lines[0])]:
+        tok = ln.split()
+        out.append((tok[0], tuple(float(v) for v in tok[1:4])))
+    return out
+
+
+def _chiral_labels(xyz_text: str) -> list:
+    from rdkit import Chem
+    from rdkit.Chem import rdDetermineBonds
+
+    mol = Chem.MolFromXYZBlock(xyz_text)
+    rdDetermineBonds.DetermineConnectivity(mol)
+    rdDetermineBonds.DetermineBonds(mol, charge=0)
+    Chem.AssignStereochemistryFrom3D(mol)
+    return Chem.FindMolChiralCenters(mol, includeUnassigned=True, useLegacyImplementation=False)
+
+
+# 人工重叠夹具：C3 绕 C1-C2 轴（z 轴）转 120° 后精确落到 C4 上。
+# 初始时全部原子对间距 > 0.75×vdW，无任何异常。
+CLASH_SETUP_XYZ = """4
+artificial overlap fixture
+C   0.000000  0.000000  -2.000000
+C   0.000000  0.000000   2.000000
+C   1.600000  0.000000   0.000000
+C  -0.800000  1.385641   0.000000
+"""
+
+
+@pytest.mark.asyncio
+async def test_transform_rotate_side_of_bond(mock_session):
+    """乙烷绕 C-C 键旋转甲基 60°：二面角变化 60°，无 clash，op 摘要正确。"""
+    import numpy as np
+
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+
+    xyz = _embed_xyz("CC")
+    p0 = np.array([p for _, p in _parse_xyz_block(xyz)])
+    h1 = min(range(2, 8), key=lambda i: np.linalg.norm(p0[i] - p0[0]))
+    h2 = min(range(2, 8), key=lambda i: np.linalg.norm(p0[i] - p0[1]))
+    dih_before = ic_mod._dihedral_deg(p0[h1], p0[0], p0[1], p0[h2])
+
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz,
+            operations=[{"type": "rotate", "axis_atoms": [1, 2], "degrees": 60.0,
+                         "side_of_bond": [1, 2]}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert len(result.operations_applied) == 1
+    op = result.operations_applied[0]
+    assert op["type"] == "rotate"
+    assert op["axis_atoms"] == [1, 2]
+    assert op["degrees"] == 60.0
+    # 甲基侧 = C2 + 3 H，轴上原子 C2 不计入 moved
+    assert op["n_moved"] == 3
+    assert 2 not in op["moved_atoms"]
+
+    p1 = np.array([p for _, p in _parse_xyz_block(result.xyz_text)])
+    dih_after = ic_mod._dihedral_deg(p1[h1], p1[0], p1[1], p1[h2])
+    delta = (dih_after - dih_before + 180.0) % 360.0 - 180.0
+    assert abs(abs(delta) - 60.0) < 1.0
+    # 轴另一侧（C1 及其 H）不动
+    assert np.allclose(p1[0], p0[0], atol=1e-8)
+    assert np.allclose(p1[h1], p0[h1], atol=1e-8)
+    # 刚体旋转不引入 clash
+    assert not any(a["status"] == "clash" for a in result.anomalies)
+    assert "== Operations Applied ==" in result.report
+    assert "== Validation After Transform ==" in result.report
+    assert "== Transform Comparison ==" in result.report
+
+
+@pytest.mark.asyncio
+async def test_transform_rotate_explicit_atoms(mock_session):
+    """丁烷：显式原子组绕 C3-C4 轴旋转 120°，组外原子完全不动，片内键长保持。"""
+    import numpy as np
+
+    p0 = np.array([p for _, p in _parse_xyz_block(BUTANE_XYZ)])
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=BUTANE_XYZ,
+            operations=[{"type": "rotate", "axis_atoms": [3, 4], "degrees": 120.0,
+                         "atoms": [4, 12, 13, 14]}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    op = result.operations_applied[0]
+    assert op["moved_atoms"] == [12, 13, 14]
+
+    p1 = np.array([p for _, p in _parse_xyz_block(result.xyz_text)])
+    # 组外原子（含轴原子 C3/C4）不动
+    assert np.allclose(p1[:4], p0[:4], atol=1e-8)
+    assert np.allclose(p1[4:11], p0[4:11], atol=1e-8)
+    # 甲基 H 明显移动，C4-H 键长保持（刚体旋转）
+    assert np.linalg.norm(p1[11] - p0[11]) > 0.5
+    assert abs(np.linalg.norm(p1[3] - p1[11]) - np.linalg.norm(p0[3] - p0[11])) < 1e-6
+
+
+@pytest.mark.asyncio
+async def test_transform_stretch_elongated_and_compressed(mock_session):
+    """乙烷 C-C 拉长到 2.6 Å → breaking_suspect；压缩到 1.2 Å → compressed。"""
+    import numpy as np
+
+    xyz = _embed_xyz("CC")
+    tool = InternalCoordinates()
+    stretched = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz, watch_pairs=[[1, 2]],
+            operations=[{"type": "stretch", "atoms": [1, 2], "new_length": 2.6}],
+        ),
+        mock_session,
+    )
+    assert stretched.is_success is True, stretched.message
+    assert any(a["status"] == "breaking_suspect" and set(a["atoms"]) == {"C1", "C2"}
+               for a in stretched.anomalies), stretched.anomalies
+    p1 = np.array([p for _, p in _parse_xyz_block(stretched.xyz_text)])
+    assert abs(np.linalg.norm(p1[1] - p1[0]) - 2.6) < 1e-6
+    assert "== Validation After Transform ==" in stretched.report
+    assert "[Reactive Center]" in stretched.report
+
+    compressed = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz,
+            operations=[{"type": "stretch", "atoms": [1, 2], "delta": -0.34}],
+        ),
+        mock_session,
+    )
+    assert compressed.is_success is True, compressed.message
+    assert any(a["status"] == "compressed" and set(a["atoms"]) == {"C1", "C2"}
+               for a in compressed.anomalies), compressed.anomalies
+    # 变换前无异常、变换后引入异常 → comparison 段计数
+    assert stretched.anomalies_before == []
+    comp = compressed.report.split("== Transform Comparison ==")[1]
+    assert "New anomalies introduced:" in comp
+
+
+@pytest.mark.asyncio
+async def test_transform_invert_chirality_flips_center(mock_session):
+    """CHFClBr：交换 F/H 两分支，RDKit 判定手性翻转，且所有键长保持（刚体）。"""
+    import numpy as np
+
+    xyz = _embed_xyz("FC(Cl)Br")
+    before = _chiral_labels(xyz)
+    assert len(before) == 1 and before[0][1] in ("R", "S"), before
+
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz,
+            operations=[{"type": "invert_chirality", "center": 2, "swap": [1, 5]}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    op = result.operations_applied[0]
+    assert op["type"] == "invert_chirality"
+    assert op["center"] == 2 and op["swap"] == [1, 5]
+
+    after = _chiral_labels(result.xyz_text)
+    assert len(after) == 1 and after[0][1] in ("R", "S"), after
+    assert after[0][1] != before[0][1]
+
+    # 刚体性：中心到每个取代基的键长在变换前后不变
+    p0 = np.array([p for _, p in _parse_xyz_block(xyz)])
+    p1 = np.array([p for _, p in _parse_xyz_block(result.xyz_text)])
+    for k in (0, 2, 3, 4):
+        assert abs(np.linalg.norm(p1[k] - p1[1]) - np.linalg.norm(p0[k] - p0[1])) < 1e-6
+    # 中心不动
+    assert np.allclose(p1[1], p0[1], atol=1e-8)
+
+
+@pytest.mark.asyncio
+async def test_transform_rotate_creates_clash(mock_session):
+    """rotate 使非键原子重叠 → 变换后 anomalies 出现 clash，变换前没有。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=CLASH_SETUP_XYZ,
+            operations=[{"type": "rotate", "axis_atoms": [1, 2], "degrees": 120.0,
+                         "atoms": [3]}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert result.anomalies_before == []
+    assert any(a["status"] == "clash" and set(a["atoms"]) == {"C3", "C4"}
+               for a in result.anomalies), result.anomalies
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("xyz,ops,expected", [
+    # 环上 side_of_bond：删边后图仍连通
+    (CYCLOHEXANE_XYZ,
+     [{"type": "rotate", "axis_atoms": [1, 2], "degrees": 60.0, "side_of_bond": [1, 2]}],
+     "ring"),
+    # side_of_bond 不成键
+    (WATER_XYZ,
+     [{"type": "rotate", "axis_atoms": [1, 2], "degrees": 60.0, "side_of_bond": [2, 3]}],
+     "not bonded"),
+    # 环上 stretch
+    (CYCLOHEXANE_XYZ,
+     [{"type": "stretch", "atoms": [1, 2], "delta": 0.5}],
+     "ring"),
+    # stretch 不存在的键
+    (WATER_XYZ,
+     [{"type": "stretch", "atoms": [2, 3], "delta": 0.5}],
+     "not bonded"),
+    # delta 与 new_length 同时给 / 都不给
+    (WATER_XYZ,
+     [{"type": "stretch", "atoms": [1, 2], "delta": 0.5, "new_length": 1.5}],
+     "exactly one"),
+    (WATER_XYZ,
+     [{"type": "stretch", "atoms": [1, 2]}],
+     "exactly one"),
+    # 目标长度非正
+    (WATER_XYZ,
+     [{"type": "stretch", "atoms": [1, 2], "new_length": -0.5}],
+     "> 0"),
+    # 未知 op 类型
+    (WATER_XYZ,
+     [{"type": "fly", "atoms": [1, 2]}],
+     "unknown transform operation type"),
+    # atoms 与 side_of_bond 同时给
+    (WATER_XYZ,
+     [{"type": "rotate", "axis_atoms": [1, 2], "degrees": 30.0,
+       "atoms": [2], "side_of_bond": [1, 2]}],
+     "exactly one"),
+    # 原子索引越界
+    (WATER_XYZ,
+     [{"type": "rotate", "axis_atoms": [1, 9], "degrees": 30.0, "atoms": [2]}],
+     "not a valid 1-based index"),
+    # swap 原子不是 center 的成键邻居（H10 属于 C3 而非 C2）
+    (BUTANE_XYZ,
+     [{"type": "invert_chirality", "center": 2, "swap": [1, 10]}],
+     "bonded neighbors"),
+])
+async def test_transform_invalid_operations_fail_loud(mock_session, xyz, ops, expected):
+    """非法 op 一律 fail-loud：is_success=False 且 message 含关键信息。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(mode="transform", input_text=xyz, operations=ops),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert expected.lower() in result.message.lower(), result.message
+
+
+@pytest.mark.asyncio
+async def test_transform_requires_operations(mock_session):
+    """mode=transform 不给 operations → 明确报错。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(mode="transform", input_text=WATER_XYZ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "operations" in result.message
+
+
+@pytest.mark.asyncio
+async def test_operations_rejected_in_analyze_mode(mock_session):
+    """operations 只在 mode=transform 合法，其余模式 fail-loud。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="analyze", input_text=WATER_XYZ,
+            operations=[{"type": "rotate", "axis_atoms": [1, 2], "degrees": 30.0, "atoms": [2]}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "mode=transform" in result.message
+
+
+@pytest.mark.asyncio
+async def test_transform_output_roundtrip(mock_session, tmp_path):
+    """transform 的 xyz_text/output_path 能被本工具再次读取并 analyze。"""
+    tool = InternalCoordinates()
+    out_file = tmp_path / "rotated.xyz"
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=_embed_xyz("CC"),
+            operations=[{"type": "rotate", "axis_atoms": [1, 2], "degrees": 60.0,
+                         "side_of_bond": [1, 2]}],
+            output_path=str(out_file),
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert result.output_path == str(out_file)
+    assert out_file.read_text(encoding="utf-8") == result.xyz_text
+
+    atoms = InternalCoordinates._load_atoms_from_path_or_text(None, result.xyz_text, "auto")
+    assert len(atoms) == 8
+
+    analyze = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="analyze", input_path=str(out_file),
+            zmat_path=str(tmp_path / "rotated.zmat"),
+        ),
+        mock_session,
+    )
+    assert analyze.is_success is True, analyze.message
+    assert "Atoms: 8" in analyze.report
