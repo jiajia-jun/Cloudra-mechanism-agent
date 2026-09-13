@@ -67,7 +67,12 @@ def _declaration(**overrides) -> TsDeclaration:
 
 
 def _start(tmp_path, **overrides):
-    return start(TsStartRequest(declaration=_declaration(**overrides), workspace_dir=str(tmp_path)))
+    return start(TsStartRequest(
+        declaration=_declaration(**overrides),
+        workspace_dir=str(tmp_path),
+        owner_conversation_id="test_project",
+        owner_session_id="test_session",
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -306,7 +311,12 @@ def test_waiting_on_compute_emits_no_event(tmp_path):
     """等计算**不算阻塞**：不推事件，agent 不该被叫醒来做没有决策的事。"""
     events: list[tuple[str, dict]] = []
     record = start(
-        TsStartRequest(declaration=_declaration(), workspace_dir=str(tmp_path)),
+        TsStartRequest(
+            declaration=_declaration(),
+            workspace_dir=str(tmp_path),
+            owner_conversation_id="test_project",
+            owner_session_id="test_session",
+        ),
         event_sink=lambda name, payload: events.append((name, payload)),
     )
     # declare/build/map/assemble/guess/validate/submit 跑完后在 refine 等作业终态
@@ -357,13 +367,29 @@ def test_submitted_job_is_in_ready_state_in_the_central_queue(tmp_path):
     db = ComputeDB().init()
     with db.connect() as con:
         row = con.execute(
-            "SELECT state, path, jobtype FROM compute_jobs WHERE id = ?", (record.job_id,),
+            "SELECT state, path, jobtype, conversation_id, session_id FROM compute_jobs WHERE id = ?",
+            (record.job_id,),
         ).fetchone()
     assert row[0] == "ready"
     assert row[1] == record.job_input_path
     assert row[2] == "orca"
+    # 归属与 submit_compute_job 同一纪律：终态推送只认这两个字段
+    assert row[3] == "test_project"
+    assert row[4] == "test_session"
     # 现场落在 jobs/<job_dir>/ 下，与作业现场同处
     assert "jobs" in Path(record.job_input_path).parts
+
+
+def test_submit_without_owner_is_refused(tmp_path):
+    """无归属的 run 到 submit 阶段 fail-loud 拒收：归属缺失的作业是投递不到
+    的死信（ComputeNotifyBroker 只按 conversation/session 路由），宁可阻塞。"""
+    record = start(TsStartRequest(
+        declaration=_declaration(), workspace_dir=str(tmp_path),
+    ))
+    assert record.blocked is not None
+    assert record.blocked.failure_class == "owner_missing"
+    assert record.blocked.stage == "submit"
+    assert "owner" in record.blocked.message
 
 
 # ---------------------------------------------------------------------------
@@ -737,7 +763,12 @@ def test_same_smiles_endpoints_are_distinguished_by_declared_geometry(tmp_path):
 
     workspace = tmp_path
     declaration = _m1_declaration(mol)
-    record = start(TsStartRequest(declaration=declaration, workspace_dir=str(workspace)))
+    record = start(TsStartRequest(
+        declaration=declaration,
+        workspace_dir=str(workspace),
+        owner_conversation_id="test_project",
+        owner_session_id="test_session",
+    ))
     built = _read_built_xyz(record, "reactant")
     assert built is not None
 

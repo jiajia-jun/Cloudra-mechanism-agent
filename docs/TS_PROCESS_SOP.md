@@ -225,7 +225,7 @@ ts/<run_id>/
 | 阶段 | 状态 |
 |---|---|
 | `declare` / `build` / `map` / `assemble` / `guess` / `validate` | **已实现**（测试 `tests/test_ts_process.py`） |
-| `submit` | **已实现**：写精修输入 → **复用**唯一一份准入校验 → 入库为 `ready` |
+| `submit` | **已实现**：写精修输入 → **复用**唯一一份准入校验 → 入库为 `ready`（归属随 `TsStartRequest` 盖章：项目 conversation_id + 发起 agent 的 session_id，缺归属 fail-loud 拒收） |
 | `refine` | **已实现**：作业序列 TS 优化 → 频率 → IRC，每步都等终态；**从不轮询**——未到终态时本阶段置 `waiting` 且**不推事件**，作业终态由既有 compute 通知路径投递，agent 收到后调 `ts_resume`（无需调整）继续 |
 | `verdict` | **已实现**：四态判定只读交付物。频率数据缺失 → `candidate_only`（UNVERIFIED）；虚频数 ≠ 1 → `candidate_only` 并说明是极小值还是高阶鞍点（且注明"不等于反应不可能"）；恰好 1 个虚频但 IRC 未双向收敛 → 仍 `candidate_only`；两者都满足才 `verified` |
 

@@ -43,8 +43,17 @@ def _declaration(**overrides) -> TsDeclaration:
     return TsDeclaration(**payload)
 
 
+class _OwnerStub:
+    """工具归属来源的最小替身（生产上是 _LegacyAgentBridge）。"""
+
+    conversation_id = "test_project"
+    working_directory = None
+
+
 async def _prepare(tmp_path, **overrides):
-    return await TsPrepare().tool_call(
+    tool = TsPrepare()
+    object.__setattr__(tool, "subagent", _OwnerStub())
+    return await tool.tool_call(
         TsPrepare_input_schema(
             declaration=_declaration(**overrides), workspace_dir=str(tmp_path)
         ),

@@ -192,7 +192,14 @@ class TsPrepare(Tool):
         try:
             # 工作区解析失败（没给也没绑定工作目录）属调用错误，必须回 schema 而不是抛出去
             workspace = _resolve_workspace(self, user_input.workspace_dir)
-            request = TsStartRequest(declaration=user_input.declaration, workspace_dir=workspace)
+            # 归属与 submit_compute_job 同一来源：项目 conversation_id + 调用 agent 的
+            # session.id——作业终态推送只认这两个字段
+            request = TsStartRequest(
+                declaration=user_input.declaration,
+                workspace_dir=workspace,
+                owner_conversation_id=getattr(self.subagent, "conversation_id", None) or "",
+                owner_session_id=getattr(session, "id", None) if session else None,
+            )
             # 阶段推进是 CPU + 子进程 + 文件 IO，必须离开事件循环
             record = await asyncio.to_thread(start, request)
         except Exception as exc:  # noqa: BLE001 - 起不来就是工具调用失败，如实返回

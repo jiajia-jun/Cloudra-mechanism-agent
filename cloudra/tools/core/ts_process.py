@@ -173,6 +173,12 @@ class TsProcessRecord(BaseModel):
     run_id: str
     run_dir: str
     workspace_dir: str = Field(default="", description="工作区根（证据快照的沙箱边界）")
+    owner_conversation_id: str = Field(
+        default="", description="发起项目的 conversation_id（compute_jobs 归属，随记录持久化）"
+    )
+    owner_session_id: Optional[str] = Field(
+        default=None, description="发起 agent 的 session_id（作业终态推送收件人）"
+    )
     declaration: TsDeclaration
     stage: TsStage = "declare"
     stage_records: list[TsStageRecord] = Field(default_factory=list)
@@ -213,6 +219,12 @@ class TsStartRequest(BaseModel):
 
     declaration: TsDeclaration
     workspace_dir: str = Field(description="工作区根目录；运行目录建在 <workspace_dir>/ts/<run_id>/")
+    owner_conversation_id: str = Field(
+        default="", description="发起项目的 conversation_id（计算作业归属；缺失时 submit 阶段拒收）"
+    )
+    owner_session_id: Optional[str] = Field(
+        default=None, description="发起 agent 的 session_id（作业终态推送的收件人）"
+    )
 
 
 class TsAdjustment(BaseModel):
@@ -891,6 +903,14 @@ def _submit(record: TsProcessRecord) -> TsProcessRecord:
     否则同一份作业会在两条入口下得出不同的准入结论。
     """
     declaration = record.declaration
+    if not record.owner_conversation_id:
+        # 归属缺失不是声明能修的：直接点名死因，别让 agent 去改 method/budget
+        return _block(
+            record, "submit", "owner_missing",
+            "this run carries no owner identity, so its compute jobs would be undeliverable "
+            "dead letters; refusing to submit. Start the run through ts_prepare so the "
+            "calling project/agent is stamped.",
+        )
     jobs_root = os.path.join(record.run_dir, JOBS_STAGE_DIR)
     os.makedirs(jobs_root, exist_ok=True)
     existing = [name for name in os.listdir(jobs_root) if name.startswith("job_")]
@@ -950,10 +970,23 @@ def _read_job_state(record: TsProcessRecord, job_id: Optional[int]) -> str:
 
 def _submit_step(record: TsProcessRecord, purpose: str, input_path: str,
                  job_type: str) -> tuple[str, int]:
-    """准入 + 入库为 ready，并把这一步登记进作业序列。返回 ``(错误, job_id)``。"""
+    """准入 + 入库为 ready，并把这一步登记进作业序列。返回 ``(错误, job_id)``。
+
+    归属与 ``submit_compute_job`` 同一纪律：conversation_id 是发起项目、
+    session_id 是发起 agent——终态推送（ComputeNotifyBroker）只认这两个字段，
+    缺归属的作业是投递不到的死信，宁可拒收也不入库。
+    """
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_admission import admit_job
     from cloudra.services.compute_store import insert_compute_job
+
+    if not record.owner_conversation_id:
+        return (
+            "this run carries no owner identity (owner_conversation_id is empty), so its "
+            "compute jobs would be undeliverable dead letters; refusing to submit. Start the "
+            "run through ts_prepare so the calling project/agent is stamped.",
+            -1,
+        )
 
     # charge/multiplicity 是 xtb 专属运行参数，orca/gaussian 作业必须留默认——电荷/自旋已经
     # 写在输入文件里，再传一次会被准入 fail-loud 拒收（"绝不静默丢弃"那道门）
@@ -970,8 +1003,8 @@ def _submit_step(record: TsProcessRecord, purpose: str, input_path: str,
     db = ComputeDB().init()
     job_id = int(insert_compute_job(
         db,
-        conversation_id=f"ts_process:{record.run_id}",
-        session_id=None,
+        conversation_id=record.owner_conversation_id,
+        session_id=record.owner_session_id,
         path=input_path,
         state="ready",
         jobtype=job_type,
@@ -1430,6 +1463,8 @@ def start(request: TsStartRequest,
     _make_stage_dirs(run_dir)
     record = TsProcessRecord(
         run_id=run_id, run_dir=run_dir, workspace_dir=request.workspace_dir,
+        owner_conversation_id=request.owner_conversation_id,
+        owner_session_id=request.owner_session_id,
         declaration=request.declaration,
     )
     save_record(record)
