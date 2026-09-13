@@ -154,9 +154,9 @@
     },
     "reference_computation": {
       "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
+      "barrier_kcal_mol": 26.7,
+      "barrier_type": "ΔE‡",
+      "barrier_reference": "central_complex",
       "verification": "partial",
       "reference_doi": "10.1021/jp9810825",
       "computed_by_us": false
@@ -191,7 +191,7 @@
       ]
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,

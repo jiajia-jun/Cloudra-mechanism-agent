@@ -111,12 +111,12 @@
       ]
     },
     "reference_computation": {
-      "level_of_theory": "literature anchor (curated in easy.md; no DOI on record)",
+      "level_of_theory": "literature anchor (see reference_doi)",
       "barrier_kcal_mol": 14.9,
-      "barrier_type": "Ea",
+      "barrier_type": "ΔH‡",
       "barrier_reference": "central_complex",
       "verification": "unverified",
-      "reference_doi": "",
+      "reference_doi": "10.1021/jp035501w",
       "computed_by_us": false
     },
     "selectivity": null

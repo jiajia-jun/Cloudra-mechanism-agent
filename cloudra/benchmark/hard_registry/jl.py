@@ -17,7 +17,7 @@ TASKS = {
     "L1": {
         "name_en": "Beckmann rearrangement of (E)-butanone oxime (oxime geometry selects the migrating group -> N-ethylacetamide)",
         "conditions_en": "concentrated H2SO4 or acid catalysis, heated",
-        "anchor": None,
+        "anchor": "barrier",
         "mapped_reactants": "[O+:1]([H:2])([H:9])[H:10].[CH3:11][CH2:5]/[C:4](=[N:6]/[O:7][H:8])/[CH3:3]",
         "steps": [
             {

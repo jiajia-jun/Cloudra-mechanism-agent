@@ -85,11 +85,11 @@
     },
     "reference_computation": {
       "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 13.0,
-      "barrier_type": null,
+      "barrier_kcal_mol": 18.1,
+      "barrier_type": "ΔG‡",
       "barrier_reference": "central_complex",
       "verification": "partial",
-      "reference_doi": "10.1039/c3ob26704k",
+      "reference_doi": "10.1002/anie.196702511",
       "computed_by_us": false
     },
     "selectivity": null

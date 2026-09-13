@@ -23,9 +23,9 @@
 
 | # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | Ea 27.5±2 kcal/mol（实验，Rowley & Steiner 1951 Discuss. Faraday Soc.；经 Tsai & Hu 2001 JPCA 105, DOI 10.1021/jp012740f 引用）[已核实] | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
-| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | Ea 14.9–16.6 kcal/mol（气相实验区间，Guner 2003 集反应9 采用 16.6）[已核实] | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
-| D4 | 环戊二烯 + 丙烯醛 DA（含杂原子亲双烯体）| `C1=CCC=C1.C=CC=O>>O=CC1CC2C=CC1C2`，0/1 | 气相/烃溶剂加热 | 协同 [4+2]，endo/exo 选择性，醛基亲双烯体 | ΔE‡ ≈ 17–20（理论，丙烯醛亲双烯体活性高于乙烯）[部分核实] | C,H,O；9 重原子；✅ | 含杂原子 DA，endo/exo 选择性范例 |
+| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | Ea 27.5 kcal/mol（实验，Rowley & Steiner 1951 Discuss. Faraday Soc. 10, 198, DOI 10.1039/df9511000198；经 Huang, Tsai & Hu 2001 J. Phys. Chem. A 105, 9945, DOI 10.1021/jp012740f 引用；同文献计算经典能垒 21.9 kcal/mol）[已核实] | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
+| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | ΔH‡ 14.9–16.6 kcal/mol（实验气相区间，标准化至 ΔH‡(0 K)；Güner, Khuong, Leach, Lee, Bartberger & Houk 2003 J. Phys. Chem. A 107, 11445, DOI 10.1021/jp035501w；具体数值未获全文复核）[部分核实] | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
+| D4 | 环戊二烯 + 丙烯醛 DA（含杂原子亲双烯体）| `C1=CCC=C1.C=CC=O>>O=CC1CC2C=CC1C2`，0/1 | 气相/烃溶剂加热 | 协同 [4+2]，endo/exo 选择性，醛基亲双烯体 | ΔE‡ 13.6（endo）/14.1（exo）kcal/mol（理论 ωB97X-D/6-311G(d,p)，气相，相对分离反应物；Domingo, Pérez, Ríos-Gutiérrez & Aurell 2024 Tetrahedron Chem 10, 100064, DOI 10.1016/j.tchem.2024.100064）[已核实] | C,H,O；9 重原子；✅ | 含杂原子 DA，endo/exo 选择性范例 |
 
 ## P. σ 迁移重排（2 个）
 
@@ -68,7 +68,7 @@
 
 | # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| F1 | BH₄⁻ + 甲醛 → 甲氧基负离子 + BH₃ | `[BH4-].C=O>>C[O-].B`，−1/1 | 气相 | 氢负转移，经非同步 TS 单步 | 气相无催化 TS 相对反应物渐近线 ≈ 30（127 kJ/mol，Canadian J. Chem., DOI 10.1139/v88-406）[已核实存在]；**电子相关敏感校准题** | C,H,O,B；3 重原子；✅ | 硼氢化还原最小模型 |
+| F1 | BH₄⁻ + 甲醛 → 甲氧基负离子 + BH₃ | `[BH4-].C=O>>C[O-].B`，−1/1 | 气相 | 氢负转移，经非同步 TS 单步 | 能垒数值未核（原引 Can. J. Chem. 1988 文献经核查为取代马来酸酐 FT-ICR 研究，与 BH4- + CH2O 无关；未找到可靠来源）[未核实]；**电子相关敏感校准题** | C,H,O,B；3 重原子；✅ | 硼氢化还原最小模型 |
 
 ## T. 质子转移 / 互变异构 / 1,2-迁移（0 个；v3 全剔留档）
 
@@ -86,8 +86,8 @@
 
 | # | 反应（中/EN） | SMILES，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| G2 | 二亚胺 N₂H₂ 顺式还原乙烯（双 H 转移）| `N=N.C=C>>N#N.CC`（cis-HN=NH 供体），0/1 | 气相 | 协同 [σ2s+σ2s+π2s] 双氢转移，syn 立体专一，放出 N₂ | 同步双 H 转移 ΔE‡ ~18.8（cis-diimide，理论；Organic Reactions 综述 DOI 10.1002/0471264180.or040.02）[已核实] | N,C,H；4 重原子；✅ | **金属-free 氢化原型**，立体专一 |
-| G3 | 丙烯 + 乙烯 ene 反应（Alder-ene）| `C=CC.C=C>>C=CCCC`，0/1 | 气相高温 | 协同 [σ2s+π2s+π2s]，烯丙基 H 迁移 + C-C 形成 + π 迁移 | ΔE‡ ~33（138 kJ/mol，气相；CASSCF 显示分步路径低 ~4，协同/分步竞争；原始出处待补）[未核实] | C,H；5 重原子；✅ | ene 反应原型，补全周环类型；⚠ 协同 vs 分步判别 |
+| G2 | 二亚胺 N₂H₂ 顺式还原乙烯（双 H 转移）| `N=N.C=C>>N#N.CC`（cis-HN=NH 供体），0/1 | 气相 | 协同 [σ2s+σ2s+π2s] 双氢转移，syn 立体专一，放出 N₂ | ΔE‡ 18.8 kcal/mol（cis-diimide 同步双 H 转移，相对分离反应物；Flood & Skancke 1978 Chem. Phys. Lett. 54, 53-56, DOI 10.1016/0009-2614(78)85662-0）[已核实] | N,C,H；4 重原子；✅ | **金属-free 氢化原型**，立体专一 |
+| G3 | 丙烯 + 乙烯 ene 反应（Alder-ene）| `C=CC.C=C>>C=CCCC`，0/1 | 气相高温 | 协同 [σ2s+π2s+π2s]，烯丙基 H 迁移 + C-C 形成 + π 迁移 | ΔE‡ 33 kcal/mol（138 kJ/mol，气相，相对分离反应物；M06-2X/def2-TZVPP，Fernández & Bickelhaupt 2012 J. Comput. Chem. 33, 509-516, DOI 10.1002/jcc.22877；CASSCF 分步路径低约 4 kcal/mol：Sakai 2006 J. Phys. Chem. A 110, 12891-12899, DOI 10.1021/jp064588t）[部分核实] | C,H；5 重原子；✅ | ene 反应原型，补全周环类型；⚠ 协同 vs 分步判别 |
 
 ## M. 分子内过程（旋转 / 翻转 / 构象 / 异构化 / 脱氢，6 个）
 
@@ -95,12 +95,12 @@
 
 | # | 过程（中/EN） | SMILES (起点>>终点)，q / mult | 类型 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| M1 | 2,2'-二甲基联苯 轴手性旋转 | `Cc1ccccc1-c1c(C)cccc1>>Cc1ccccc1-c1c(C)cccc1`，0/1 | 轴手性阻转 | 邻位甲基阻转，Ra↔Sa 经近共平面 TS | ~13（Class I；取代联苯阻转 benchmark，OBC 2013, 11, 2859, DOI 10.1039/c3ob26704k；数值为回忆值待核）[部分核实] | C,H；14 重原子（轴手性特例）；✅ | **轴手性入门**（你组方向） |
+| M1 | 2,2'-二甲基联苯 轴手性旋转 | `Cc1ccccc1-c1c(C)cccc1>>Cc1ccccc1-c1c(C)cccc1`，0/1 | 轴手性阻转 | 邻位甲基阻转，Ra↔Sa 经近共平面 TS | ΔG‡ 18.1 kcal/mol（实验，25 °C 溶液消旋动力学；Theilacker & Böhm 1967 Angew. Chem. Int. Ed. Engl. 6, 251, DOI 10.1002/anie.196702511；经 Bednářová et al. 2018 Adv. Synth. Catal. 360, 2869 转引核对；计算佐证 Karton 2020 J. Phys. Chem. A 124, 6977）[部分核实] | C,H；14 重原子（轴手性特例）；✅ | **轴手性入门**（你组方向） |
 | M3 | NH₃ 伞形翻转 | `N>>N`，0/1 | N 翻转 | 经平面 D₃h TS 的双阱翻转，隧穿分裂 | 5.8（实验；Rauk/Allen/Clementi 1970 JCP 52, 4133）[已核实] | N,H；1 重原子；✅ | 翻转原型，maser 基础 |
-| M8 | 环己烷椅式翻转 | `C1CCCCC1>>C1CCCCC1`，0/1 | 构象翻转 | 经半椅 TS 的椅-椅互变 | ΔG‡ ~10（half-chair TS；NMR 实验教科书值，原始出处待补）[部分核实] | C,H；6 重原子；✅ | A 值/构象分析基础 |
+| M8 | 环己烷椅式翻转 | `C1CCCCC1>>C1CCCCC1`，0/1 | 构象翻转 | 经半椅 TS 的椅-椅互变 | ΔG‡ 10.3 kcal/mol（实验，VT-1H NMR 线形分析；Anet & Bourn 1967 J. Am. Chem. Soc. 89, 760-768, DOI 10.1021/ja00980a006；half-chair TS）[已核实] | C,H；6 重原子；✅ | A 值/构象分析基础 |
 | M14 | 丙烯醛 s-trans ↔ s-cis 旋转 | `C=CC=O>>C=CC=O`，0/1 | 构象旋转 | C(sp2)-C(sp2) 单键扭转，trans 较稳定 | 垒 ~7（trans→cis；实验/理论，Can. J. Chem. 1985 DOI 10.1139/v85-280）[已核实] | C,H,O；4 重原子；✅ | 共轭醛构象旋转基准 |
 | M15 | HONO 顺反异构化 | `O=NO>>O=NO`（cis/trans），0/1 | 构象异构化 | N-O 扭转，trans 为基态，cis 高 ~0.5-0.6 | 垒 ~9.7-11.6（trans→cis 扭转垒，实验/IR；Darsey 1987 JPC DOI 10.1021/j100296a013）[已核实] | N,O,H；3 重原子；✅ | 极小 N,O 体系扭转基准 |
-| M16 | 甲酸脱氢 HCOOH → CO₂ + H₂ | `OC=O>>C(=O)=O.[H][H]`，0/1 | 脱氢反应 | 协同脱 H₂ 出 CO₂（与脱水 →CO+H₂O 竞争）| ΔE‡ ~65–68（气相计算，Scuseria & Schaefer，具体出处待补；⚠ 偏高）[部分核实] | C,H,O；3 重原子；✅ | 脱氢原型；⚠ 能垒偏高 |
+| M16 | 甲酸脱氢 HCOOH → CO₂ + H₂ | `OC=O>>C(=O)=O.[H][H]`，0/1 | 脱氢反应 | 协同脱 H₂ 出 CO₂（与脱水 →CO+H₂O 竞争）| ΔE‡ ≈ 71 kcal/mol（气相静态 PES，CCSD(TZ2P)/CCSDT-1//DZP，Goddard, Yamaguchi & Schaefer 1992 J. Chem. Phys. 96, 1158, DOI 10.1063/1.462203；HCOOH→CO2+H2 通道；竞争脱水 ≈68）[已核实] | C,H,O；3 重原子；✅ | 脱氢原型；⚠ 能垒偏高 |
 
 ---
 

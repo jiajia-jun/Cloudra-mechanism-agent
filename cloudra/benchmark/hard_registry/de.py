@@ -26,7 +26,7 @@ TASKS = {
     "D2": {
         "name_en": "cyclohexene oxide + hydroxide: SN2 epoxide opening under Furst-Plattner trans-diaxial control -> trans-cyclohexane-1,2-diolate",
         "conditions_en": "aqueous NaOH, heat",
-        "anchor": None,
+        "anchor": "barrier",
         "mapped_reactants": "[OH-:1].[O:3]1[CH:4]2[CH2:8][CH2:7][CH2:6][CH2:5][CH:2]12",
         "steps": [
             {

@@ -1,0 +1,86 @@
+# gold_compute — 工作进度（Coordinator）
+
+## 用户指令（2026-09-13）
+- 下一步：为 benchmark 补齐 gold 参考答案。
+- **填充方式：文献调研**（不跑计算）。
+- **以 JSON 题（ideapool/tasks/**/*.json）为准**；计划类文档（paper/reference_*.md、旧 README）基本过时。
+- 计划与用户说法不一致处，由 Coordinator 改计划。
+
+## 权威产物
+- bench 题：`ideapool/tasks/{easy,normal,hard,impossible}/*.json`
+- 生成器仍以题源 md 为输入；`tests/test_benchmark.py -k regenerate_identically` 当前**通过**。
+  → 填值时同时改题源 md 单元格并重跑生成器，保持 JSON==generator（守卫绿）。
+- 生成器：`cloudra/benchmark/gen_{easy,normal,hard}_tasks.py`；能垒解析 `gen_easy_tasks._parse_barrier`。
+
+## 口径
+- barrier_reference = central_complex（默认）；非该口径须在 md 括号注明并登记
+  `_BARRIER_FRAME_UNVERIFIED`（easy 在 gen_easy_tasks.py，normal 在 gen_normal_tasks.py）。
+- barrier_type ∈ Ea/ΔE‡/ΔH‡/ΔG‡，源未注明则 None。
+- verification ∈ verified/partial/unverified/已核实存在→verified。
+
+## 缺口清单（JSON 实测）
+- normal 缺 barrier（9）：NA2 NA5 NI1 NO3 NR1 NU3 NU5 NU6 NY3
+- hard 缺 barrier（2）：HD2 HL1（registry anchor 现为 None，需改 "barrier"）
+- hard selectivity（ΔΔ 已有值，7）：HA1 HA6 HE2 HE3 HF1 HG2 HI1 —— 绝对能垒**不在本轮范围**
+- easy 待核（10）：C3 D1 D3 D4 F1 G2 G3 M1 M16 M8
+
+## 已派发文献调研（researcher a-3，异步 swarm）
+- Swarm A（缺锚点 11 题）group_id = `grp_7d0b3c75236f4aadae3e8e260d4abd1f`，max_concurrency=4
+- Swarm B（easy 复核 10 题）group_id = `grp_64873805d57f4a5294d96359f1a4c1f9`，max_concurrency=4
+- 每题要求：barrier_kcal_mol / type / frame / DOI / verification / method / justification / proposed_md_cell。
+
+## 下一步
+1. 收齐 21 份文献结论（agent_hub 通知 / get_subagent_report(group_id)）。
+2. 汇总 → 编辑 `ideapool/reaction_candidates/{normal,hard,easy}.md` 能垒单元格。
+3. HD2/HL1：改 `hard_registry/de.py`、`jl.py` 的 anchor None→"barrier"。
+4. 重跑生成器 → 断言 regenerate_identically + 相关 benchmark 测试通过。
+5. 交付总结（哪些题填了值、哪些仍缺测）。
+
+
+## 修正（2026-09-13，用户指正）
+- **以 JSON 题为准**：`ideapool/tasks/**/*.json` 是权威题面与 gold 机理图；md 池文档的「gold 机理概要」散文列已过时。
+- 确认 NA2 确实在 JSON 中（`ideapool/tasks/normal/NA2.json`，丙酮自缩合 aldol → mesityl oxide），
+  但其 gold 机理已**重构为 5 个基元步**（E1 烯醇盐生成 / E2 C–C 加成 / E3 烷氧负离子再质子化 / E4 E1cb 去质子 / E5 E1cb 消除），
+  md 散文写的 3 步为过时描述。
+- 因此文献调研必须锚定 JSON 的逐步机理；RDS 以 JSON gold 图为准，不引用 md 散文步数。
+- JSON gold 逐步机理（目标题，已抽取）：
+  - NA2: E1 enolate / E2 C–C addition / E3 reprotonation / E4 E1cb deprotonation / E5 E1cb elimination
+  - NA5: E1 carbinolamine / E2 iminium / E3 enolization / E4 **RDS C–C formation (enol→iminium)** / E5 deprotonation
+  - NI1: E1 carbinolamine / E2 **direct dehydration (RDS)**
+  - NO3: E1 carbonyl protonation / E2 peracid addition→Criegee / E3 **1,2-Me migration + O–O cleavage (RDS)** / E4 deprotonation
+  - NR1: E1 OH protonation / E2 **concerted semipinacol 1,2-Me shift (RDS)** / E3 deprotonation
+  - NU3: E1 **async [2+2] addition→oxaphosphetane** / E2 cycloreversion
+  - NU5: E1 PT / E2 isocyanide α-addition→nitrilium / E3 imidate / E4 **Mumm rearrangement**
+  - NU6: E1 N attack→zwitterion / E2 **conrotatory 4π closure**
+  - NY3: E1 OH⁻ addition→tetrahedral / E2 MeO⁻ elimination / E3 PT
+  - HL1: E1 OH protonation / E2 **concerted Beckmann: N–O cleavage + anti-1,2-ethyl migration (RDS)** / E3–E5
+  - HD2: E1 **backside SN2 trans-diaxial opening (single step)**
+
+
+## 删除过时反应候选文档（2026-09-13，用户选项 A）
+已删除 8 个无代码读取引用的历史产物（write-only，生成器输出，删后不影响任何测试/管线）：
+- hard_tagging.html, hard_tags.json
+- impossible_tagging.html, impossible_tags.json
+- normal_tagging.html
+- normal_essence_mining.json, normal_essence_mining.md
+- normal_research_notes.md
+保留（生成器输入源，删除会破坏 gen_*_tasks + regenerate_identically 守卫）：
+easy.md / normal.md / hard.md / impossible.md
+遗留：scripts/{gen_hard_tagging,gen_impossible_tagging,gen_normal_tagging,normal_essence_mining}.py 仍会把这些文档再生出来（未删，用户只要求删文档）。
+
+
+## 回填完成（2026-09-13）
+- 已编辑题源 md 能垒单元格：easy.md（D1/D3/D4/F1/G2/G3/M1/M8/M16）、normal.md（A5/I1/U3/U5/Y3）、hard.md（D2/L1）。
+- 代码改动：gen_normal_tasks._BARRIER_FRAME_UNVERIFIED 增 {U3,U5,Y3}（非 central_complex 口径降 unverified）；
+  hard_registry/de.py(D2)、jl.py(L1) anchor None→"barrier"。
+- 已重跑 gen_{easy,normal,hard}_tasks；JSON 已更新。
+- `uv run pytest -q tests/test_benchmark.py` = 113 passed（含 regenerate_identically 守卫）。
+- compileall + ruff 干净。
+- 新增/修正 gold：normal A5=8.9, I1=26.7, U3=19.1, U5=12.4, Y3=15.5；hard D2=14.3, L1=39.9；
+  easy D4 17→13.6, M1 13→18.1, M8 10→10.3, M16 65→71, D1 去 ±2/补 DOI, D3 Ea→ΔH‡, G2/G3 补真实出处, F1 撤销失实引用（→无值）。
+- 仍无可靠数值（barrier=null，诚实缺测）：normal NA2, NO3, NU6；NR1（待最新文献结论）；easy F1。
+- 仍未在本轮范围：hard 选择性题（HA1/HA6/HE2/HE3/HF1/HG2/HI1）仅保留 ΔΔ 锚点，绝对能垒未补。
+
+- NR1 结论：NO RELIABLE VALUE（相关一手计算文献闭源、摘要无数值）→ barrier 保持 null。所有 21 份文献调研已收齐。
+- 最终覆盖：normal 5/9 有值（NA5,I1,U3,U5,Y3），4/9 诚实缺测（NA2,NO3,NR1,NU6）；hard 2/2 有值（D2,L1）；
+  easy 19/20 有值（F1 撤销失实引用后缺测）。守卫与全部 benchmark 测试通过。

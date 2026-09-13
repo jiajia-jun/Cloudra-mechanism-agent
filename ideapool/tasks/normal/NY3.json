@@ -177,11 +177,11 @@
     },
     "reference_computation": {
       "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "verified",
-      "reference_doi": "10.1021/ja993311m",
+      "barrier_kcal_mol": 15.5,
+      "barrier_type": "ΔG‡",
+      "barrier_reference": "central_complex",
+      "verification": "unverified",
+      "reference_doi": "10.1002/1521-3765(20020415)8:8<1945::aid-chem1945>3.0.co;2-t",
       "computed_by_us": false
     },
     "selectivity": null
@@ -214,7 +214,7 @@
       ]
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,

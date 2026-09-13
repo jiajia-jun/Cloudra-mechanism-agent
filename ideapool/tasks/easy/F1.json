@@ -102,12 +102,12 @@
       ]
     },
     "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 30.0,
+      "level_of_theory": "literature anchor (curated in easy.md; no DOI on record)",
+      "barrier_kcal_mol": null,
       "barrier_type": null,
-      "barrier_reference": "central_complex",
+      "barrier_reference": null,
       "verification": "unverified",
-      "reference_doi": "10.1139/v88-406",
+      "reference_doi": "",
       "computed_by_us": false
     },
     "selectivity": null
