@@ -86,7 +86,7 @@ easy.md / normal.md / hard.md / impossible.md
   easy 19/20 有值（F1 撤销失实引用后缺测）。守卫与全部 benchmark 测试通过。
 
 ## 逐边能垒补全战役（2026-09-13，用户升级目标）
-要求：gold 机理**每条有效边**都要有参考能垒；来源方案 B：**文献优先，缺口用计算补**（白名单 xtb / b3lyp-def2svp；本机 ORCA 6.1.1 + xtb + MACE-OMol25 就绪）。
+要求：gold 机理**每条有效边**都要有参考能垒；来源方案 B：**文献优先，缺口用计算补**（gold 值一律 b3lyp/def2svp；本机 ORCA 6.1.1 就绪）。
 - 规模：40 题共 75 条 gold 基元边（69 条有键变化）；初始约 27 有值 → 约 48 待补。
 - 逐边文献 swarm：group `grp_fb61a32a712f4ed3a0d3ecaf2ccf5d9b`（19 项）；结果落盘 `gold_compute/edge_barriers/<TASK>.json`。
 - 已记录（15 文件）：NA2 NA5 NI1 NO3 NQ1 NR1 NU3 HA1 NY3 NU5 NU6 HA6 HE2 HF1 HI1。
@@ -98,6 +98,6 @@ easy.md / normal.md / hard.md / impossible.md
 ## 逐边文献调研收尾 + 计算计划（2026-09-13）
 - 19 份逐边文献报告全部收齐，落盘 gold_compute/edge_barriers/*.json（19 文件）。
 - 汇总：gold_compute/edge_gap_summary.md（55 边：26 有文献值，29 缺值）。
-- **计算战役计划已写**：gold_compute/compute_campaign.md（14 体系/29 边，Tier-1 xTB + Tier-2 b3lyp/def2svp）。
+- **计算战役计划已写**：gold_compute/compute_campaign.md（14 体系/29 边，gold 值一律 b3lyp/def2svp）。
 - **用户指示：先写计划，不启动计算。** → 等待用户对计划确认后再开跑。
 - 修正 HA1.json：把误置于 edges 的 _note 提为 selectivity_note（非坏边）。
