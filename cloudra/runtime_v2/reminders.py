@@ -119,9 +119,9 @@ class ReminderBroker:
         agent = self.core.agents.get(session_id)
         if agent is None:
             return []
-        return self._pending_in_project(agent.project_id, session_id=session_id)
+        return self.pending_in_project(agent.project_id, session_id=session_id)
 
-    def _pending_in_project(
+    def pending_in_project(
         self, project_id: str, *, session_id: str | None = None
     ) -> list[dict[str, Any]]:
         live: dict[int, dict[str, Any]] = {}
@@ -145,7 +145,7 @@ class ReminderBroker:
             if agent.project_id in seen:
                 continue
             seen.add(agent.project_id)
-            rows.extend(self._pending_in_project(agent.project_id))
+            rows.extend(self.pending_in_project(agent.project_id))
         return rows
 
     # ------------------------------------------------------------------ events
@@ -280,7 +280,7 @@ class ReminderBroker:
 
     async def _abandon(self, project_id: str, session_id: str, schedule_id: int) -> None:
         async with self._fire_lock:
-            pending = self._pending_in_project(project_id, session_id=session_id)
+            pending = self.pending_in_project(project_id, session_id=session_id)
             if not any(item["schedule_id"] == schedule_id for item in pending):
                 self._cancel_timer(project_id, schedule_id)
                 return
@@ -302,7 +302,7 @@ class ReminderBroker:
         output: str = "",
     ) -> None:
         async with self._fire_lock:
-            pending = self._pending_in_project(project_id, session_id=session_id)
+            pending = self.pending_in_project(project_id, session_id=session_id)
             row = next((item for item in pending if item["schedule_id"] == schedule_id), None)
             if row is None:
                 return

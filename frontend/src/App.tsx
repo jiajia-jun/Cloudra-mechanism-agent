@@ -2,7 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { api, EVENTS_WINDOW, streamProject } from './api';
 import Markdown from './Markdown';
 import DagPanel from './DagPanel';
-import type { Agent, EventEnvelope, Project } from './types';
+import OpsPanel from './OpsPanel';
+import type { Agent, ComputeJob, EventEnvelope, PendingReminder, Project } from './types';
 import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
 import KnowledgePanel from './KnowledgePanel';
@@ -21,12 +22,30 @@ import {
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 
+export type InspectorTab = 'overview' | 'ops' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
+
 /* ------------------------------------------------------------------ helpers */
 
 type ToastKind = 'error' | 'ok' | 'info';
 interface Toast { id: number; kind: ToastKind; text: string }
 
 let toastSeq = 0;
+
+function elapsed(startTs: number | null): string {
+  if (!startTs || startTs <= 0) return '—';
+  const secs = Math.max(0, Math.floor(Date.now() / 1000 - startTs));
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m${secs % 60}s`;
+  return `${Math.floor(secs / 3600)}h${Math.floor((secs % 3600) / 60)}m`;
+}
+
+function wakeCountdown(wakeTs: number): string {
+  const secs = Math.floor(wakeTs - Date.now() / 1000);
+  if (secs <= 0) return '已到期';
+  if (secs < 60) return `${secs}s 后`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m 后`;
+  return `${Math.floor(secs / 3600)}h 后`;
+}
 
 function short(text: unknown, max = 80): string {
   const s = typeof text === 'string' ? text : JSON.stringify(text);
@@ -170,11 +189,15 @@ export default function App() {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
   const [streamView, setStreamView] = useState<StreamView>({ streamText: '', frozen: [] });
+  const [sidebarView, setSidebarView] = useState<'ops' | 'projects'>('ops');
+  const [sidebarJobs, setSidebarJobs] = useState<ComputeJob[] | null>(null);
+  const [sidebarReminders, setSidebarReminders] = useState<PendingReminder[] | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('overview');
   // Resizing and collapsing state
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const saved = localStorage.getItem('cloudra:sidebar-width');
-    const parsed = saved ? parseInt(saved, 10) : 248;
-    return Number.isFinite(parsed) && parsed >= 180 && parsed <= 500 ? parsed : 248;
+    const parsed = saved ? parseInt(saved, 10) : 260;
+    return Number.isFinite(parsed) && parsed >= 180 && parsed <= 500 ? parsed : 260;
   });
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('cloudra:sidebar-open');
@@ -408,6 +431,40 @@ export default function App() {
   );
 
   /* ---------------------------------------------------- project switching */
+
+  const selectProject = useCallback((projectId: string) => {
+    setActiveProjectId(projectId);
+    setSidebarView('ops');
+  }, []);
+
+  const loadSidebarOps = useCallback(async () => {
+    if (!activeProjectId) {
+      setSidebarJobs(null);
+      setSidebarReminders(null);
+      return;
+    }
+    try {
+      const [jobs, reminders] = await Promise.all([
+        api.listComputeJobs(activeProjectId, true),
+        api.listPendingReminders(activeProjectId),
+      ]);
+      setSidebarJobs(jobs);
+      setSidebarReminders(reminders);
+    } catch {
+      // ignore transient poll error
+    }
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId || !sidebarOpen || sidebarView !== 'ops') {
+      return;
+    }
+    void loadSidebarOps();
+    const timer = setInterval(() => {
+      void loadSidebarOps();
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [activeProjectId, sidebarOpen, sidebarView, loadSidebarOps]);
 
   const selectAgent = useCallback(
     async (agentId: string) => {
@@ -804,6 +861,7 @@ export default function App() {
     }
     try {
       const counts = await api.cancelAllComputeJobs();
+      void loadSidebarOps();
       pushToast(
         'ok',
         `Compute jobs cancelled: ${counts.ready_cancelled} queued, ${counts.slurm_cancel_requested} slurm (cancel requested), ${counts.local_cancelled} local`,
@@ -989,12 +1047,14 @@ export default function App() {
     }
   }
 
-  async function cancelAgent() {
-    if (!activeAgent) return;
+  async function cancelAgent(targetId?: string, displayName?: string) {
+    const id = targetId ?? activeAgent?.id;
+    const name = displayName ?? (targetId ? (agents.find((a) => a.id === targetId)?.display_name ?? targetId) : activeAgent?.display_name);
+    if (!id) return;
     try {
-      const resp = await api.cancel(activeAgent.id);
+      const resp = await api.cancel(id);
       setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === resp.data.id ? resp.data : a))));
-      pushToast('ok', `Cancelled ${activeAgent.display_name}`);
+      pushToast('ok', `Cancelled ${name ?? id}`);
     } catch (e) {
       reportError(e);
     }
@@ -1287,34 +1347,66 @@ export default function App() {
     return collectPending(others);
   }, [attention, activeProjectId]);
 
-  const renderAgentChip = (a: Agent, depth: number): React.ReactNode => {
+  const renderSidebarAgentItem = (a: Agent, depth: number): React.ReactNode => {
     const children = childrenOf.get(a.id) ?? [];
     const childCount = children.length;
     const expanded = expandedAgents.has(a.id);
     const isCoordinator = a.role_id === 'coordinator';
+    const isActive = a.id === activeAgentId;
+    const isRunning = a.state === 'running';
+    const isWaiting = a.state === 'waiting_approval' || a.state === 'waiting_input';
+
     return (
       <Fragment key={a.id}>
-        <span className={`agent-chip-wrap${depth > 0 ? ' child' : ''}`}>
-          <button
-            className={`agent-chip ${a.id === activeAgentId ? 'active' : ''} ${isCoordinator ? 'coordinator' : ''}`}
-            onClick={() => selectAgent(a.id)}
-            title={`Agent: ${a.display_name} (${a.role_id}) · state: ${a.state}`}
-          >
-            <span className={`state-dot ${a.state}`} />
-            {isCoordinator && <span className="role-tag-coord" title="Coordinator">COORD</span>}
-            <span className="agent-name">{a.display_name}</span>
-          </button>
-          {childCount > 0 && (
+        <div
+          className={`sidebar-agent-row ${isActive ? 'active' : ''} ${isRunning ? 'is-running' : ''}`}
+          style={{ paddingLeft: 8 + depth * 14 }}
+          onClick={() => void selectAgent(a.id)}
+          title={`Agent: ${a.display_name} (${a.role_id}) · state: ${a.state}`}
+        >
+          {childCount > 0 ? (
             <button
-              className="chip-caret"
-              title={expanded ? 'Collapse sub-agents' : `${childCount} sub-agent(s) — click to expand`}
-              onClick={() => toggleAgentExpanded(a.id)}
+              type="button"
+              className="sidebar-agent-caret"
+              title={expanded ? 'Collapse sub-agents' : `Expand ${childCount} sub-agent(s)`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleAgentExpanded(a.id);
+              }}
             >
-              {expanded ? '▾' : '▸'}{childCount}
+              {expanded ? '▾' : '▸'}
+            </button>
+          ) : (
+            <span className="sidebar-agent-spacer" />
+          )}
+
+          <span className={`state-dot ${a.state}`} />
+          {isCoordinator ? (
+            <span className="sidebar-agent-role coordinator" title="Coordinator">COORD</span>
+          ) : (
+            <span className="sidebar-agent-role" title={a.role_id}>{a.role_id}</span>
+          )}
+          <span className="sidebar-agent-name">{a.display_name}</span>
+
+          {isWaiting && (
+            <span className="sidebar-agent-badge waiting" title="Waiting for approval / input">!</span>
+          )}
+
+          {isRunning && (
+            <button
+              type="button"
+              className="sidebar-agent-cancel"
+              title={`Cancel ${a.display_name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                void cancelAgent(a.id, a.display_name);
+              }}
+            >
+              ✕
             </button>
           )}
-        </span>
-        {expanded && children.map((c) => renderAgentChip(c, depth + 1))}
+        </div>
+        {expanded && children.map((c) => renderSidebarAgentItem(c, depth + 1))}
       </Fragment>
     );
   };
@@ -1338,167 +1430,381 @@ export default function App() {
       </datalist>
       {sidebarOpen && (
         <aside className="sidebar" style={{ width: sidebarWidth }}>
-          <div className="sidebar-head">
-          <img className="brand-logo" src="/logo.png" alt="Cloudra" />
-        </div>
-        <div className="sidebar-new">
-          <input
-            className="input"
-            value={newProject}
-            onChange={(e) => setNewProject(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
-            placeholder="New project…"
-          />
-          <button className="btn primary sm" style={{ height: 30 }} onClick={createProjectAndSelect} disabled={!newProject.trim()}>
-            +
-          </button>
-          <input
-            className="input ws-path"
-            value={newProjectWs}
-            onChange={(e) => setNewProjectWs(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
-            placeholder="workspace dir (optional)…"
-            title="Workspace directory: agents read/write within it"
-            list="workspace-dirs"
-          />
-        </div>
-        <div className="project-list">
-          {projects.length === 0 && <div className="empty-hint">No projects yet — create one above.</div>}
-          {groupedProjects.map(([ws, list]) => (
-            <div key={ws || '__none'} className="ws-group">
-              <div className="ws-header-row">
-                <div className="ws-header" title={ws || undefined}>{ws || 'no workspace'}</div>
+          {activeProject && sidebarView === 'ops' ? (
+            <>
+              <div className="sidebar-ops-header">
+                <div className="sidebar-nav-row">
+                  <button
+                    type="button"
+                    className="sidebar-back-btn"
+                    onClick={() => setSidebarView('projects')}
+                    title="Switch project / view all projects"
+                  >
+                    ← All Projects
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost sm project-archive"
+                    title={`Archive "${activeProject.name}"`}
+                    onClick={() => void archiveProject(activeProject)}
+                  >
+                    ⬇ Archive
+                  </button>
+                </div>
+                <div className="sidebar-project-info">
+                  <div className="sidebar-project-title" title={activeProject.name}>
+                    {activeProject.name}
+                  </div>
+                  {editingWs ? (
+                    <input
+                      key={`sidebar-ws-${activeProject.id}`}
+                      className="input ws-input"
+                      autoFocus
+                      defaultValue={activeProject.workspace_dir ?? ''}
+                      placeholder="workspace dir…"
+                      title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
+                      list="workspace-dirs"
+                      onBlur={(e) => {
+                        setEditingWs(false);
+                        changeWorkspace(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setEditingWs(false);
+                          changeWorkspace((e.target as HTMLInputElement).value);
+                        } else if (e.key === 'Escape') {
+                          setEditingWs(false);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={`agentbar-ws-pill ${!activeProject.workspace_dir ? 'empty' : ''}`}
+                      title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory (click to edit)'}
+                      onClick={() => setEditingWs(true)}
+                    >
+                      <span className="ws-pill-icon">WS:</span>
+                      <span className="ws-pill-text">
+                        {activeProject.workspace_dir
+                          ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir)
+                          : 'bind workspace'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="sidebar-ops-content">
+                {/* Agent Swarm Section */}
+                <div className="sidebar-section">
+                  <div className="sidebar-section-header">
+                    <span className="sidebar-section-title">Agent Swarm ({agents.length})</span>
+                    <div className="sidebar-spawn-wrap">
+                      <select
+                        className="select sidebar-spawn-select"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) void spawnRole(e.target.value);
+                        }}
+                        title="Spawn specialized subagent"
+                      >
+                        <option value="">+ Spawn…</option>
+                        {roles.map((r) => (
+                          <option key={r.role_id} value={r.role_id}>{r.display_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {agents.length === 0 ? (
+                    <div className="sidebar-empty-hint">No agents spawned yet.</div>
+                  ) : (
+                    <div className="sidebar-agent-tree">
+                      {rootAgents.map((a) => renderSidebarAgentItem(a, 0))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Ops Telemetry Section */}
+                <div className="sidebar-section sidebar-ops-section">
+                  <div className="sidebar-section-header">
+                    <span className="sidebar-section-title">
+                      Compute Queue {sidebarJobs && sidebarJobs.length > 0 ? `(${sidebarJobs.length})` : ''}
+                    </span>
+                    {sidebarJobs && sidebarJobs.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn ghost xs sidebar-cancel-all-btn"
+                        title="Cancel all active compute jobs"
+                        onClick={() => void cancelAllComputeJobs()}
+                      >
+                        Cancel All
+                      </button>
+                    )}
+                  </div>
+                  {sidebarJobs === null ? (
+                    <div className="sidebar-ops-empty">Loading jobs…</div>
+                  ) : sidebarJobs.length === 0 ? (
+                    <div className="sidebar-ops-empty">No active compute jobs</div>
+                  ) : (
+                    <div className="sidebar-jobs-list">
+                      {sidebarJobs.slice(0, 5).map((j) => (
+                        <div key={j.id} className="sidebar-job-row" title={`#${j.id} ${j.jobtype} - ${j.path}`}>
+                          <span className="sidebar-job-id">#{j.id}</span>
+                          <span className="sidebar-job-type">{j.jobtype}</span>
+                          <span className={`state-badge xs ${j.state}`}>{j.state}</span>
+                          <span className="sidebar-job-time">{elapsed(j.start_timestamp)}</span>
+                        </div>
+                      ))}
+                      {sidebarJobs.length > 5 && (
+                        <div className="sidebar-ops-more">+{sidebarJobs.length - 5} more jobs</div>
+                      )}
+                    </div>
+                  )}
+
+                  {sidebarReminders && sidebarReminders.length > 0 && (
+                    <>
+                      <div className="sidebar-section-header" style={{ marginTop: 10 }}>
+                        <span className="sidebar-section-title">
+                          Reminders ({sidebarReminders.length})
+                        </span>
+                      </div>
+                      <div className="sidebar-reminders-list">
+                        {sidebarReminders.slice(0, 3).map((r) => (
+                          <div key={r.schedule_id} className="sidebar-reminder-row" title={r.message}>
+                            <span className="sidebar-reminder-time">{wakeCountdown(r.wake_ts)}</span>
+                            <span className="sidebar-reminder-msg">{r.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    className="sidebar-open-ops-btn"
+                    onClick={() => {
+                      setInspectorOpen(true);
+                      setInspectorTab('ops');
+                    }}
+                  >
+                    Open Ops in Inspector →
+                  </button>
+                </div>
+              </div>
+
+              <div className="sidebar-foot">
                 <button
                   type="button"
-                  className="btn ghost sm ws-add"
-                  title={ws ? `New project in ${ws}` : 'New project without workspace'}
-                  onClick={() => setInlineCreate({ ws, name: '' })}
+                  className="sidebar-foot-item"
+                  onClick={() => setSidebarView('projects')}
+                  title="Switch to another project"
                 >
-                  +
+                  <span className="sidebar-foot-label">Switch Project</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-global ${globalOpen ? 'active' : ''}`}
+                  title="Global LLM config"
+                  onClick={() => setGlobalOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Global Settings</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-knowledge ${knowledgeOpen ? 'active' : ''}`}
+                  title="chem-kb knowledge base"
+                  onClick={() => setKnowledgeOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Knowledge Base</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-benchmark ${benchmarkOpen ? 'active' : ''}`}
+                  title="Benchmark cockpit"
+                  onClick={() => setBenchmarkOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Benchmark</span>
                 </button>
               </div>
-              {inlineCreate?.ws === ws && (
-                <div className="ws-inline-create">
-                  <input
-                    className="input"
-                    autoFocus
-                    value={inlineCreate.name}
-                    onChange={(e) => setInlineCreate({ ws, name: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void submitInlineCreate();
-                      if (e.key === 'Escape') setInlineCreate(null);
-                    }}
-                    placeholder="Project name…"
-                  />
-                  <button
-                    type="button"
-                    className="btn primary sm"
-                    disabled={!inlineCreate.name.trim()}
-                    onClick={() => void submitInlineCreate()}
-                  >
-                    Create
-                  </button>
-                </div>
+            </>
+          ) : (
+            <>
+              <div className="sidebar-head">
+                <img className="brand-logo" src="/logo.png" alt="Cloudra" />
+              </div>
+              {activeProject && (
+                <button
+                  type="button"
+                  className="sidebar-back-to-active"
+                  onClick={() => setSidebarView('ops')}
+                  title={`Return to active project: ${activeProject.name}`}
+                >
+                  <span>← Current:</span>
+                  <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeProject.name}</strong>
+                </button>
               )}
-              {list.map((p) => (
-                <div
-                  key={p.id}
-                  className={`project-item ${p.id === activeProjectId ? 'active' : ''}`}
-                  onClick={() => setActiveProjectId(p.id)}
-                >
-                  <div className="project-name">{p.name}</div>
-                  <div className="project-meta">
-                    {p.name.startsWith('benchmark:') ? '[Benchmark] ' : ''}
-                    {p.settings.orchestration_mode}
+              <div className="sidebar-new">
+                <input
+                  className="input"
+                  value={newProject}
+                  onChange={(e) => setNewProject(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                  placeholder="New project…"
+                />
+                <button className="btn primary sm" style={{ height: 30 }} onClick={createProjectAndSelect} disabled={!newProject.trim()}>
+                  +
+                </button>
+                <input
+                  className="input ws-path"
+                  value={newProjectWs}
+                  onChange={(e) => setNewProjectWs(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                  placeholder="workspace dir (optional)…"
+                  title="Workspace directory: agents read/write within it"
+                  list="workspace-dirs"
+                />
+              </div>
+              <div className="project-list">
+                {projects.length === 0 && <div className="empty-hint">No projects yet — create one above.</div>}
+                {groupedProjects.map(([ws, list]) => (
+                  <div key={ws || '__none'} className="ws-group">
+                    <div className="ws-header-row">
+                      <div className="ws-header" title={ws || undefined}>{ws || 'no workspace'}</div>
+                      <button
+                        type="button"
+                        className="btn ghost sm ws-add"
+                        title={ws ? `New project in ${ws}` : 'New project without workspace'}
+                        onClick={() => setInlineCreate({ ws, name: '' })}
+                      >
+                        +
+                      </button>
+                    </div>
+                    {inlineCreate?.ws === ws && (
+                      <div className="ws-inline-create">
+                        <input
+                          className="input"
+                          autoFocus
+                          value={inlineCreate.name}
+                          onChange={(e) => setInlineCreate({ ws, name: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void submitInlineCreate();
+                            if (e.key === 'Escape') setInlineCreate(null);
+                          }}
+                          placeholder="Project name…"
+                        />
+                        <button
+                          type="button"
+                          className="btn primary sm"
+                          disabled={!inlineCreate.name.trim()}
+                          onClick={() => void submitInlineCreate()}
+                        >
+                          Create
+                        </button>
+                      </div>
+                    )}
+                    {list.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`project-item ${p.id === activeProjectId ? 'active' : ''}`}
+                        onClick={() => selectProject(p.id)}
+                      >
+                        <div className="project-name">{p.name}</div>
+                        <div className="project-meta">
+                          {p.name.startsWith('benchmark:') ? '[Benchmark] ' : ''}
+                          {p.settings.orchestration_mode}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn ghost sm project-archive"
+                          title={`Archive "${p.name}"`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void archiveProject(p);
+                          }}
+                        >
+                          ⬇
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <button
-                    type="button"
-                    className="btn ghost sm project-archive"
-                    title={`Archive "${p.name}"`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void archiveProject(p);
-                    }}
-                  >
-                    ⬇
-                  </button>
-                </div>
-              ))}
-            </div>
-          ))}
-          {archivedProjects.length > 0 && (
-            <details className="archived-group">
-              <summary>Archived ({archivedProjects.length})</summary>
-              {archivedProjects.map((p) => (
-                <div
-                  key={p.id}
-                  className={`project-item archived ${p.id === activeProjectId ? 'active' : ''}`}
-                  onClick={() => setActiveProjectId(p.id)}
+                ))}
+                {archivedProjects.length > 0 && (
+                  <details className="archived-group">
+                    <summary>Archived ({archivedProjects.length})</summary>
+                    {archivedProjects.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`project-item archived ${p.id === activeProjectId ? 'active' : ''}`}
+                        onClick={() => selectProject(p.id)}
+                      >
+                        <div className="project-name">{p.name}</div>
+                        <div className="project-meta">archived · {p.settings.orchestration_mode}</div>
+                        <button
+                          type="button"
+                          className="btn ghost sm project-archive"
+                          title={`Restore "${p.name}"`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void unarchiveProject(p);
+                          }}
+                        >
+                          ⬆
+                        </button>
+                        <button
+                          type="button"
+                          className="btn ghost sm project-archive"
+                          title={`Delete "${p.name}" permanently (workspace directory is kept)`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void deleteProject(p);
+                          }}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    ))}
+                  </details>
+                )}
+              </div>
+              <div className="sidebar-foot">
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-global ${globalOpen ? 'active' : ''}`}
+                  title="Global LLM config: the fallback slots behind empty per-agent settings"
+                  onClick={() => setGlobalOpen(true)}
                 >
-                  <div className="project-name">{p.name}</div>
-                  <div className="project-meta">archived · {p.settings.orchestration_mode}</div>
-                  <button
-                    type="button"
-                    className="btn ghost sm project-archive"
-                    title={`Restore "${p.name}"`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void unarchiveProject(p);
-                    }}
-                  >
-                    ⬆
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost sm project-archive"
-                    title={`Delete "${p.name}" permanently (workspace directory is kept)`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteProject(p);
-                    }}
-                  >
-                    🗑
-                  </button>
-                </div>
-              ))}
-            </details>
+                  <span className="sidebar-foot-label">Global Settings</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-knowledge ${knowledgeOpen ? 'active' : ''}`}
+                  title="chem-kb knowledge base: overview, entity search and ego graph"
+                  onClick={() => setKnowledgeOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Knowledge Base</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-benchmark ${benchmarkOpen ? 'active' : ''}`}
+                  title="Benchmark cockpit: run task batches and drill into per-task scores"
+                  onClick={() => setBenchmarkOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Benchmark</span>
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-foot-item sidebar-compute-cancel"
+                  title="Cancel all unfinished compute jobs (ledger-level; never kills processes)"
+                  onClick={() => void cancelAllComputeJobs()}
+                >
+                  <span className="sidebar-foot-label">Cancel All Compute Jobs</span>
+                </button>
+              </div>
+            </>
           )}
-        </div>
-        <div className="sidebar-foot">
-          <button
-            type="button"
-            className={`sidebar-foot-item sidebar-global ${globalOpen ? 'active' : ''}`}
-            title="Global LLM config: the fallback slots behind empty per-agent settings"
-            onClick={() => setGlobalOpen(true)}
-          >
-            <span className="sidebar-foot-label">Global Settings</span>
-          </button>
-          <button
-            type="button"
-            className={`sidebar-foot-item sidebar-knowledge ${knowledgeOpen ? 'active' : ''}`}
-            title="chem-kb knowledge base: overview, entity search and ego graph"
-            onClick={() => setKnowledgeOpen(true)}
-          >
-            <span className="sidebar-foot-label">Knowledge Base</span>
-          </button>
-          <button
-            type="button"
-            className={`sidebar-foot-item sidebar-benchmark ${benchmarkOpen ? 'active' : ''}`}
-            title="Benchmark cockpit: run task batches and drill into per-task scores"
-            onClick={() => setBenchmarkOpen(true)}
-          >
-            <span className="sidebar-foot-label">Benchmark</span>
-          </button>
-          <button
-            type="button"
-            className="sidebar-foot-item sidebar-compute-cancel"
-            title="Cancel all unfinished compute jobs (ledger-level; never kills processes)"
-            onClick={() => void cancelAllComputeJobs()}
-          >
-            <span className="sidebar-foot-label">Cancel All Compute Jobs</span>
-          </button>
-        </div>
-      </aside>
+        </aside>
       )}
       {sidebarOpen && (
         <div
@@ -1513,7 +1819,7 @@ export default function App() {
 
       <main className="main">
         <div className="agentbar">
-          <div className="agentbar-group project-scope">
+          <div className="agentbar-left">
             <button
               type="button"
               className="btn ghost sm panel-toggle"
@@ -1522,70 +1828,29 @@ export default function App() {
             >
               {sidebarOpen ? '◀' : '▶'}
             </button>
-            <div className="agentbar-project-info">
-              <span className="agentbar-title" title={activeProject?.name}>{activeProject?.name ?? 'Select a project'}</span>
-            </div>
-            {activeProject && (
-              editingWs ? (
-                <input
-                  key={`ws-${activeProject.id}`}
-                  className="input ws-input"
-                  autoFocus
-                  defaultValue={activeProject.workspace_dir ?? ''}
-                  placeholder="workspace dir…"
-                  title="Workspace directory: this project's agents read/write within it. Edit and press Enter to change; clear to unset."
-                  list="workspace-dirs"
-                  onBlur={(e) => {
-                    setEditingWs(false);
-                    changeWorkspace(e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setEditingWs(false);
-                      changeWorkspace((e.target as HTMLInputElement).value);
-                    } else if (e.key === 'Escape') {
-                      setEditingWs(false);
-                    }
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className={`agentbar-ws-pill ${!activeProject.workspace_dir ? 'empty' : ''}`}
-                  title={activeProject.workspace_dir ? `Workspace: ${activeProject.workspace_dir} (click to edit)` : 'Set workspace directory (click to edit)'}
-                  onClick={() => setEditingWs(true)}
-                >
-                  <span className="ws-pill-icon">WS:</span>
-                  <span className="ws-pill-text">{activeProject.workspace_dir ? (activeProject.workspace_dir.split('/').filter(Boolean).pop() || activeProject.workspace_dir) : 'bind workspace'}</span>
-                </button>
-              )
-            )}
-          </div>
-
-          {activeProject && <div className="agentbar-divider" />}
-
-          {activeProject && (
-            <div className="agentbar-group agent-swarm">
-              {rootAgents.length > 0 && (
-                <div className="agentbar-tree">
-                  {rootAgents.map((a) => renderAgentChip(a, 0))}
-                </div>
+            <div className="header-breadcrumb">
+              <span
+                className="breadcrumb-project"
+                title={activeProject?.name ? `Project: ${activeProject.name} (click to view in sidebar)` : 'Select a project'}
+                onClick={() => {
+                  if (!sidebarOpen) setSidebarOpen(true);
+                  if (activeProject) setSidebarView('ops');
+                }}
+              >
+                {activeProject?.name ?? 'Select a project'}
+              </span>
+              {activeAgent && (
+                <>
+                  <span className="breadcrumb-separator">/</span>
+                  <span className="breadcrumb-agent" title={`Active Agent: ${activeAgent.display_name} (${activeAgent.role_id}) · state: ${activeAgent.state}`}>
+                    <span className={`state-dot ${activeAgent.state}`} />
+                    <span className="breadcrumb-agent-name">{activeAgent.display_name}</span>
+                    <span className="badge role-badge">{activeAgent.role_id}</span>
+                  </span>
+                </>
               )}
-              <div className="agentbar-spawn-wrap">
-                <select
-                  className="select agentbar-select spawn-select"
-                  value=""
-                  onChange={(e) => spawnRole(e.target.value)}
-                  title="Spawn a new specialized subagent for this project"
-                >
-                  <option value="">+ Spawn Agent…</option>
-                  {roles.map((r) => (
-                    <option key={r.role_id} value={r.role_id}>{r.display_name}</option>
-                  ))}
-                </select>
-              </div>
             </div>
-          )}
+          </div>
 
           <div className="agentbar-group system-controls">
             {activeAgent && (
@@ -1905,6 +2170,7 @@ export default function App() {
           width={inspectorWidth}
           activeAgent={activeAgent}
           activeProject={activeProject}
+          agents={agents}
           liveEvents={sessionEvents}
           onPatchSettings={patchSettings}
           approvals={approvals}
@@ -1917,6 +2183,8 @@ export default function App() {
           currentAgentActivity={currentAgentActivity}
           onToggleYolo={(yolo) => toggleProjectYolo(yolo)}
           onChangeMode={(mode) => changeOrchestrationMode(mode)}
+          tab={inspectorTab}
+          onSelectTab={setInspectorTab}
         />
       )}
 
@@ -1957,10 +2225,9 @@ export default function App() {
 
 /* ------------------------------------------------------------------ inspector */
 
-type InspectorTab = 'overview' | 'dag' | 'approvals' | 'interactions' | 'artifacts' | 'settings' | 'events';
-
 const TAB_CONFIG: Record<InspectorTab, { label: string; title: string }> = {
   overview: { label: 'Status', title: 'Project status, active agent & quick controls' },
+  ops: { label: 'Ops', title: 'Agent tree, compute queue & pending reminders' },
   dag: { label: 'DAG', title: 'Mechanism DAG graph and verification status' },
   approvals: { label: 'Approvals', title: 'Pending sensitive tool approvals' },
   interactions: { label: 'Prompts', title: 'Agent questions and input requests' },
@@ -2071,6 +2338,7 @@ function InteractionCard({
 function Inspector({
   activeAgent,
   activeProject,
+  agents,
   liveEvents,
   onPatchSettings,
   approvals,
@@ -2084,9 +2352,12 @@ function Inspector({
   currentAgentActivity,
   onToggleYolo,
   onChangeMode,
+  tab: controlledTab,
+  onSelectTab,
 }: {
   activeAgent: Agent | null;
   activeProject: Project | null;
+  agents: Agent[];
   liveEvents: EventEnvelope[];
   onPatchSettings: (patch: Record<string, unknown>) => void;
   approvals: Array<Record<string, unknown>>;
@@ -2100,8 +2371,12 @@ function Inspector({
   currentAgentActivity?: { type: string; label: string };
   onToggleYolo?: (yolo: boolean) => void;
   onChangeMode?: (mode: string) => void;
+  tab?: InspectorTab;
+  onSelectTab?: (tab: InspectorTab) => void;
 }) {
-  const [tab, setTab] = useState<InspectorTab>('overview');
+  const [internalTab, setInternalTab] = useState<InspectorTab>('overview');
+  const tab = controlledTab ?? internalTab;
+  const setTab = onSelectTab ?? setInternalTab;
   const [settingsSubTab, setSettingsSubTab] = useState<'model' | 'context' | 'skills'>('model');
   const [artifacts, setArtifacts] = useState<Array<Record<string, unknown>>>([]);
   const [deciding, setDeciding] = useState<string | null>(null);
@@ -2232,7 +2507,7 @@ function Inspector({
         )}
       </div>
       <div className="tabs">
-        {(['overview', 'dag', 'approvals', 'interactions', 'artifacts', 'settings', 'events'] as const).map((t) => {
+        {(['overview', 'ops', 'dag', 'approvals', 'interactions', 'artifacts', 'settings', 'events'] as const).map((t) => {
           const cfg = TAB_CONFIG[t];
           const hasBadge = (t === 'approvals' && approvals.length > 0) || (t === 'interactions' && interactions.length > 0);
           const badgeCount = t === 'approvals' ? approvals.length : interactions.length;
@@ -2438,6 +2713,18 @@ function Inspector({
               <span className="badge sm">DAG</span>
               <div className="empty-title">No Project Selected</div>
               <div className="empty-desc">Select a project on the left to view and edit its mechanism DAG graph.</div>
+            </div>
+          )
+        )}
+
+        {tab === 'ops' && (
+          activeProject ? (
+            <OpsPanel project={activeProject} agents={agents} onError={onError} />
+          ) : (
+            <div className="inspector-empty-guide">
+              <span className="badge sm">Ops</span>
+              <div className="empty-title">No Project Selected</div>
+              <div className="empty-desc">Select a project on the left to view its agent tree, compute queue and pending reminders.</div>
             </div>
           )
         )}

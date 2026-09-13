@@ -1,10 +1,12 @@
 import type {
   Agent,
+  ComputeJob,
   EventEnvelope,
   KgGraph,
   KgHealth,
   KgOverview,
   KgSearchResponse,
+  PendingReminder,
   Project,
   ProviderPreset,
   RuntimeConfig,
@@ -126,6 +128,14 @@ export const api = {
       { method: 'POST' },
     ),
   listAgents: (projectId: string) => request<Agent[]>(`/api/v2/projects/${projectId}/agents`),
+  // Read-only ops queries: project compute queue (active states by default)
+  // and pending reminders. Rows carry session_id = owning agent.
+  listComputeJobs: (projectId: string, activeOnly = true) =>
+    request<ComputeJob[]>(
+      `/api/v2/projects/${projectId}/compute/jobs?active_only=${activeOnly}`,
+    ),
+  listPendingReminders: (projectId: string) =>
+    request<PendingReminder[]>(`/api/v2/projects/${projectId}/reminders/pending`),
   spawnAgent: (
     projectId: string,
     body: { role_id: string; query?: string; parent_session_id?: string | null; settings?: Record<string, unknown> },

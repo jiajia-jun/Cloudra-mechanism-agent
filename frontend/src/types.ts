@@ -171,3 +171,32 @@ export interface KgHealth {
   graph: KgHealthChannel;
   fuzzy: KgHealthChannel;
 }
+
+export interface ComputeJob {
+  id: number;
+  conversation_id: string;
+  session_id: string | null;
+  state: string;
+  path: string;
+  start_timestamp: number | null;
+  end_timestamp: number | null;
+  jobtype: string;
+  scheduler: string;
+  scheduler_state: string | null;
+  last_error: string | null;
+  priority: number;
+  req_cpus: number;
+  req_memory_mb: number | null;
+  attempt_count: number;
+}
+
+export interface PendingReminder {
+  schedule_id: number;
+  session_id: string;
+  project_id: string;
+  message: string;
+  wake_at: string;
+  wake_ts: number;
+  check_command: string | null;
+  interval_seconds: number | null;
+}

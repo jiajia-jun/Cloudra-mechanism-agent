@@ -1,4 +1,7 @@
-"""Compute job 控制面：一键取消全部（账本级取消，绝不杀计算进程）。
+"""Compute job 控制面：项目作业队列只读查询 + 一键取消全部（账本级取消，绝不杀计算进程）。
+
+查询口径：活跃态 = ready/running/cancel_requested（与项目硬删除门禁同一口径）；
+行投影里的 ``session_id`` 即归属 agent（终态推送的收件人）。
 
 取消语义按作业状态分桶（``acancel_all_compute_jobs``）：ready 直接落
 cancelled；running + Slurm 置 cancel_requested，由租约持有方的既有 poll
@@ -11,13 +14,32 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from cloudra.persistence.database import ComputeDB
-from cloudra.services.compute_store import acancel_all_compute_jobs
+from cloudra.services.compute_store import (
+    acancel_all_compute_jobs,
+    alist_compute_jobs,
+)
 
 from ..context import ApiContext
+
+_ACTIVE_STATES = ("ready", "running", "cancel_requested")
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
+
+    @router.get("/api/v2/projects/{project_id}/compute/jobs", dependencies=ctx.protected)
+    async def list_project_compute_jobs(
+        project_id: str, active_only: bool = True
+    ) -> list[dict]:
+        """项目作业队列（默认只活跃态；active_only=false 取最近 100 条含终态）。"""
+        ctx.core.require_project(project_id)
+        return await alist_compute_jobs(
+            ComputeDB(),
+            states=_ACTIVE_STATES if active_only else None,
+            conversation_id=project_id,
+            order="recent",
+            limit=None if active_only else 100,
+        )
 
     @router.post("/api/v2/compute/cancel-all", dependencies=ctx.protected)
     async def cancel_all_compute_jobs() -> dict[str, int]:
