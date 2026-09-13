@@ -1583,6 +1583,14 @@ def test_run_all_parallel_controlled(tmp_path):
         time.sleep(0.3)
         return None
 
+    # 先用同一台机器、同一批任务测一个串行基线：绝对墙钟阈值在慢/高负载 CI
+    # 上会误报，改成同机串行 vs 并行的相对比较，容差留足 CI 抖动余量。
+    serial_runner = BenchmarkRunner(tmp_path / "bench_serial", backend=backend)
+    ts0 = time.monotonic()
+    serial_results = serial_runner.run_all(tasks, concurrency=1)
+    serial_dt = time.monotonic() - ts0
+    assert [r.task_id for r in serial_results] == [t.task_id for t in tasks]
+
     runner = BenchmarkRunner(tmp_path / "bench", backend=backend)
     t0 = time.monotonic()
     results = runner.run_all(tasks, concurrency=3)
@@ -1590,8 +1598,10 @@ def test_run_all_parallel_controlled(tmp_path):
     assert [r.task_id for r in results] == [t.task_id for t in tasks]
     assert any("boom" in n for n in results[1].notes)
     assert results[1].final_score == 0.0  # 崩溃题 0 分，不是 no_evidence_penalty
-    # 串行 4×0.3s=1.2s+；并发 3 应明显更快（阈值留足 CI 抖动余量）
-    assert dt < 1.0
+    # 串行 4×0.3s≈1.2s+，并发 3 应显著更快：并行耗时须低于同机串行基线的
+    # 80%（相对判据，不受 CI 绝对速度影响）。
+    assert serial_dt > 0.0
+    assert dt < serial_dt * 0.8, f"parallel {dt:.3f}s vs serial {serial_dt:.3f}s"
     with sqlite3.connect(runner.db.db_path) as c:
         assert c.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 5
 
