@@ -198,11 +198,11 @@ def launch_browser(frontend: Path, *, rebuild: bool, skip_build: bool) -> int:
 
     clear_daemons_shutdown()
     ensure_daemons()
-    from cloudra.infra.config import get_config
+    from cloudra.persistence import paths
 
     store_path = os.environ.get(
         "CLOUDRA_RUNTIME_STORE",
-        str(Path(get_config().data_dir) / "runtime-v2.db"),
+        str(paths.runtime_db_path()),
     )
     env = os.environ.copy()
     env["CLOUDRA_RUNTIME_STORE"] = store_path

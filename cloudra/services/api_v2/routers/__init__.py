@@ -24,6 +24,7 @@ from . import (
     reminders,
     roles,
     runtime,
+    telemetry,
 )
 
 
@@ -43,5 +44,6 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         compute.build_router(ctx),
         reminders.build_router(ctx),
         fs.build_router(ctx),
+        telemetry.build_router(ctx),
     ]
 

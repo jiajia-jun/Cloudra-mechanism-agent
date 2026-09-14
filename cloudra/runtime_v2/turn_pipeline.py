@@ -126,6 +126,9 @@ class LLMResponse:
 
 
 class LLMProvider(Protocol):
+    """LLM 调用面；可选钩子 ``resolve_effective_settings(agent)`` 供遥测
+    解析生效模型（空快照模型由 provider 桥接补全的场合）。"""
+
     async def complete(
         self,
         agent: AgentSession,
@@ -346,13 +349,22 @@ class TurnPipeline:
         # 发送前解析为 data URL 或文本降级，投影不重嵌 base64。
         messages = await resolve_media_references(messages, vision_enabled=vision_enabled)
 
+        # settings 是 spawn 快照：model 未显式覆盖时为空串，真实生效值由
+        # provider 侧桥接填充（LegacyLLMProvider 从 config 槽位补全）。遥测
+        # 要记的是生效模型，经 provider 的可选钩子解析；无钩子的 provider
+        # （测试 fake 等）原样记快照值。
+        model = settings.model
+        if not model:
+            resolver = getattr(self.llm, "resolve_effective_settings", None)
+            if resolver is not None:
+                model = resolver(agent).model
         self.event_log.append(
             "llm.request_started",
             stream="agent",
             project_id=agent.project_id,
             session_id=agent.id,
             run_id=run_id,
-            data={"model": settings.model},
+            data={"model": model},
         )
         started = time.monotonic()
         on_delta: DeltaSink | None = None
@@ -393,6 +405,7 @@ class TurnPipeline:
             session_id=agent.id,
             run_id=run_id,
             data={
+                "model": model,
                 "usage": response.usage,
                 "finish_reason": response.finish_reason,
                 "latency_ms": int((time.monotonic() - started) * 1000),

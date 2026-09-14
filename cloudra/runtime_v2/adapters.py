@@ -585,6 +585,15 @@ class LegacyLLMProvider:
         legacy = cfg.coordinator if agent.role_id == "coordinator" else cfg.follower
         return bool(legacy.supports_vision)
 
+    def resolve_effective_settings(self, agent: AgentSession) -> RuntimeSettings:
+        """``complete()`` 实际使用的 settings（legacy 槽位补全空字段）。
+
+        遥测钩子：turn pipeline 的 llm.request_started / llm.completed 用它
+        记录生效模型——agent.settings 是 spawn 快照，未显式覆盖时 model 为
+        空串，而真实模型在这个桥接层才解析出来。
+        """
+        return legacy_default_settings(agent)
+
     async def complete(
         self,
         agent: AgentSession,

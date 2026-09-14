@@ -642,6 +642,172 @@ def knowledge_uninstall():
     console.print("重启 uvicorn 后生效（插件在 app 启动时加载）。")
 
 
+@cli.group(name="stats")
+def stats_cmd():
+    """LLM 遥测：token 用量聚合、缓存分析、全量 context 导出（只读 runtime-v2.db）。"""
+    pass
+
+
+def _stats_db(db_path):
+    from cloudra.persistence import paths
+
+    return db_path or paths.runtime_db_path()
+
+
+def _print_usage_table(table, rows, name_header):
+    table.add_column(name_header)
+    table.add_column("requests", justify="right")
+    table.add_column("prompt", justify="right")
+    table.add_column("completion", justify="right")
+    table.add_column("cached", justify="right")
+    table.add_column("hit%", justify="right")
+    table.add_column("first request")
+    table.add_column("last request")
+    for row in rows:
+        key = row.get("session_id") or row.get("project_id") or row.get("model") or ""
+        first = (row.get("first_request_at") or "")[:19]
+        last = (row.get("last_request_at") or "")[:19]
+        table.add_row(
+            str(key),
+            str(row["requests"]),
+            str(row["prompt_tokens"]),
+            str(row["completion_tokens"]),
+            str(row["cached_tokens"]),
+            f"{row['hit_rate'] * 100:.1f}",
+            first,
+            last,
+        )
+
+
+@stats_cmd.command(name="tokens")
+@click.option("--since", default=None, help="只统计该时间（ISO）之后的请求")
+@click.option("--until", default=None, help="只统计该时间（ISO）之前的请求")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None,
+              help="runtime-v2.db 路径（默认 data_dir 下）")
+@click.option("--top", type=int, default=20, show_default=True, help="agent/project 表各列前 N 行")
+def stats_tokens(since, until, db_path, top):
+    """Token 用量聚合：按 agent（session）与 project 两视图。"""
+    from cloudra.services import telemetry
+
+    try:
+        report = telemetry.token_summary(_stats_db(db_path), since=since, until=until)
+    except telemetry.TelemetryError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        sys.exit(1)
+    totals = report["totals"]
+    console.print(
+        f"[bold]Totals[/bold]  requests={totals['requests']}  sessions={totals['sessions']}  "
+        f"projects={totals['projects']}  prompt={totals['prompt_tokens']}  "
+        f"completion={totals['completion_tokens']}  cached={totals['cached_tokens']}  "
+        f"hit={totals['hit_rate'] * 100:.1f}%"
+    )
+    agents_table = Table(title="By agent (session)", show_header=True, header_style="bold magenta")
+    _print_usage_table(agents_table, report["agents"][:top], "session")
+    console.print(agents_table)
+    projects_table = Table(title="By project", show_header=True, header_style="bold magenta")
+    projects_table.add_column("project")
+    projects_table.add_column("sessions", justify="right")
+    projects_table.add_column("requests", justify="right")
+    projects_table.add_column("prompt", justify="right")
+    projects_table.add_column("cached", justify="right")
+    projects_table.add_column("hit%", justify="right")
+    for row in report["projects"][:top]:
+        projects_table.add_row(
+            str(row["project_id"]), str(row["sessions"]), str(row["requests"]),
+            str(row["prompt_tokens"]), str(row["cached_tokens"]),
+            f"{row['hit_rate'] * 100:.1f}",
+        )
+    console.print(projects_table)
+
+
+@stats_cmd.command(name="cache")
+@click.option("--since", default=None, help="只统计该时间（ISO）之后的请求")
+@click.option("--until", default=None, help="只统计该时间（ISO）之前的请求")
+@click.option("--top-misses", type=int, default=10, show_default=True, help="未命中 top-N 明细")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None,
+              help="runtime-v2.db 路径（默认 data_dir 下）")
+def stats_cache(since, until, top_misses, db_path):
+    """缓存命中分析：总体/按日/按 session 请求数分桶/按模型 + 未命中分布。"""
+    from cloudra.services import telemetry
+
+    try:
+        report = telemetry.cache_summary(_stats_db(db_path), since=since, until=until, top_n=top_misses)
+    except telemetry.TelemetryError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        sys.exit(1)
+    overall = report["overall"]
+    console.print(
+        f"[bold]Overall[/bold]  requests={overall['requests']}  prompt={overall['prompt_tokens']}  "
+        f"cached={overall['cached_tokens']}  hit={overall['hit_rate'] * 100:.1f}%"
+    )
+    dist = report["miss_distribution"]
+    console.print(
+        f"[bold]Per-request missed tokens[/bold]  count={dist['count']}  "
+        f"median={dist['median']:.0f}  p90={dist['p90']:.0f}  p99={dist['p99']:.0f}  max={dist['max']}"
+    )
+
+    def _hit_table(title, key_header, rows, key_field):
+        table = Table(title=title, show_header=True, header_style="bold magenta")
+        table.add_column(key_header)
+        table.add_column("requests", justify="right")
+        table.add_column("prompt", justify="right")
+        table.add_column("cached", justify="right")
+        table.add_column("hit%", justify="right")
+        for row in rows:
+            table.add_row(
+                str(row[key_field]), str(row["requests"]), str(row["prompt_tokens"]),
+                str(row["cached_tokens"]), f"{row['hit_rate'] * 100:.1f}",
+            )
+        return table
+
+    console.print(_hit_table("By day", "day", report["by_day"], "day"))
+    bucket_table = _hit_table("By session request count", "bucket", report["by_request_bucket"], "bucket")
+    console.print(bucket_table)
+    console.print(_hit_table("By model", "model", report["by_model"], "model"))
+    if report["top_misses"]:
+        misses_table = Table(title=f"Top {len(report['top_misses'])} cache misses",
+                             show_header=True, header_style="bold magenta")
+        misses_table.add_column("time")
+        misses_table.add_column("session")
+        misses_table.add_column("model")
+        misses_table.add_column("missed", justify="right")
+        misses_table.add_column("prompt", justify="right")
+        for row in report["top_misses"]:
+            misses_table.add_row(
+                str(row.get("created_at") or "")[:19], str(row.get("session_id") or ""),
+                str(row["model"]), str(row["missed_tokens"]), str(row["prompt_tokens"]),
+            )
+        console.print(misses_table)
+
+
+@stats_cmd.command(name="export")
+@click.argument("ident")
+@click.option("-o", "out_path", type=click.Path(path_type=Path), default=None,
+              help="输出路径（session 默认 <id>.jsonl，project 默认 <id>.zip）")
+@click.option("--db", "db_path", type=click.Path(path_type=Path), default=None,
+              help="runtime-v2.db 路径（默认 data_dir 下）")
+def stats_export(ident, out_path, db_path):
+    """导出全量 context 分析包：session → 单 JSONL；project → 全部 session 的 zip。"""
+    from cloudra.services import telemetry
+
+    db = _stats_db(db_path)
+    try:
+        kind = telemetry.resolve_export_target(db, ident)
+        if kind == "session":
+            out = out_path or Path(f"{ident}.jsonl")
+            count = telemetry.write_session_jsonl(db, ident, out)
+            console.print(f"[green]session export written:[/green] {out.resolve()} ({count} records)")
+        else:
+            out = out_path or Path(f"{ident}.zip")
+            report = telemetry.write_project_zip(db, ident, out)
+            console.print(
+                f"[green]project export written:[/green] {out.resolve()} ({report['sessions']} sessions)"
+            )
+    except telemetry.TelemetryError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
+        sys.exit(1)
+
+
 @cli.command(name="scheduler")
 def scheduler_cmd():
     """前台运行计算调度守护进程（排队/容量/对账；单实例 flock）。"""

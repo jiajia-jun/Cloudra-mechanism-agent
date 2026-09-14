@@ -47,6 +47,11 @@ def compute_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "compute.db"
 
 
+def runtime_db_path(data_dir: Optional[PathLike] = None) -> Path:
+    """runtime_v2 事件溯源库路径（events/objects/meta 表的唯一宿主）。"""
+    return _root(data_dir) / "runtime-v2.db"
+
+
 def api_token_path(data_dir: Optional[PathLike] = None) -> Path:
     """本地 API bearer token 文件路径（.api_token，0600）。"""
     return _root(data_dir) / ".api_token"
