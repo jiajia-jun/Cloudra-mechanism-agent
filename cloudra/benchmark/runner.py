@@ -6,6 +6,14 @@ three-layer forensic pipeline (integrity -> self-consistency -> accuracy) and
 persists results to a dedicated benchmark SQLite database. The runner never
 touches the live conversation store.
 
+Persistence is append-only and batch-scoped, because benchmark data is
+precious: every scored run is a new row in ``runs`` (reruns never delete
+history), every CLI/Web run carries a ``batch_id`` with a provenance snapshot
+in ``batches.config`` (backend, per-task orchestration modes, model names,
+plugins — never API keys), and sandboxes live under
+``sandboxes/<task_id>/<batch_id>/`` so a rerun never wipes a previous run's
+deliverables. Cleanup of old data is always an explicit user action.
+
 This is the orchestration skeleton: `run_task` prepares the sandbox, invokes
 the (pluggable) agent backend, then scores. The agent backend is injected so
 the runner stays decoupled from runtime_v2 wiring; a default no-op backend is
@@ -31,7 +39,6 @@ scored per gold reference edge (see `accuracy.py`).
 from __future__ import annotations
 
 import json
-import shutil
 import sqlite3
 import threading
 import time
@@ -77,8 +84,10 @@ class RunResult:
     # 跨档拒答 precision/recall 统计。
     outcome: str = RunOutcome.FAILED.value
     notes: list[str] = field(default_factory=list)
-    # 批次归属（Web 控制面；CLI 单批跑时为空串）。
+    # 批次归属（Web 控制面；CLI 每次调用也是一个批次）。空串 = 旧的未挂批记录。
     batch_id: str = ""
+    # 行级消融臂标识（task.prompt.orchestration_mode）；旧行迁移为 ''。
+    orchestration_mode: str = ""
 
     def to_row(self) -> tuple:
         return (
@@ -93,6 +102,7 @@ class RunResult:
             json.dumps(self.notes, ensure_ascii=False),
             int(time.time()),
             self.batch_id,
+            self.orchestration_mode,
         )
 
 
@@ -101,7 +111,7 @@ _RUNS_DDL = """CREATE TABLE IF NOT EXISTS runs (
     integrity_passed INTEGER, graph_score REAL,
     selfconsistency_passed INTEGER, accuracy_score REAL,
     final_score REAL, outcome TEXT, notes TEXT, ts INTEGER,
-    batch_id TEXT
+    batch_id TEXT, orchestration_mode TEXT
 )"""
 
 _BATCHES_DDL = """CREATE TABLE IF NOT EXISTS batches (
@@ -115,6 +125,25 @@ _RUNS_LEGACY_COLS = (
     "selfconsistency_passed", "accuracy_score", "final_score",
     "outcome", "notes", "ts",
 )
+
+
+def provenance_config(backend: str, tasks: list[TaskSpec]) -> dict:
+    """批次溯源快照（CLI 与 Web 批次共用）：消融臂事后区分靠它。
+
+    只记模型提供方/模型名，绝不记 API key。
+    """
+    from cloudra.infra.config import get_config
+
+    cfg = get_config()
+    return {
+        "backend": backend,
+        "orchestration_modes": {t.task_id: t.prompt.orchestration_mode.value for t in tasks},
+        "models": {
+            "coordinator": {"provider": cfg.coordinator.provider, "model": cfg.coordinator.model},
+            "follower": {"provider": cfg.follower.provider, "model": cfg.follower.model},
+        },
+        "plugins": list(cfg.plugins),
+    }
 
 
 class BenchmarkDB:
@@ -136,21 +165,27 @@ class BenchmarkDB:
         with closing(self._connect()) as c, c:
             c.execute(_RUNS_DDL)
             c.execute(_BATCHES_DDL)
-            # outcome / batch_id 列是后加的：旧库按新列序整表重建（ALTER ADD
-            # COLUMN 会把新列追加到末尾，与 to_row 的位置序不一致）。旧行没有
-            # 拒答分类信息，按 'failed'（未知）记——refused 统计只看
-            # outcome='refused'，不受影响；batch_id 按空串记。
+            # outcome / batch_id / orchestration_mode 列是后加的：旧库按新列序
+            # 整表重建（ALTER ADD COLUMN 会把新列追加到末尾，与 to_row 的位置序
+            # 不一致）。迁移只增不删：全部旧行原样保留，缺失信息按占位值记——
+            # outcome 记 'failed'（未知；refused 统计只看 outcome='refused'，
+            # 不受影响），batch_id/orchestration_mode 记空串。
             cols = {row[1] for row in c.execute("PRAGMA table_info(runs)")}
-            if "outcome" not in cols or "batch_id" not in cols:
+            missing = [name for name in ("outcome", "batch_id", "orchestration_mode") if name not in cols]
+            if missing:
                 c.execute("ALTER TABLE runs RENAME TO runs_old")
                 c.execute(_RUNS_DDL)
                 insert_cols = [name for name in _RUNS_LEGACY_COLS if name in cols]
                 select_exprs = list(insert_cols)
-                if "outcome" not in cols:
-                    # 旧行没有拒答分类信息：按 'failed'（未知）记
-                    insert_cols.append("outcome")
-                    select_exprs.append("'failed'")
-                # batch_id 缺省时旧行保持 NULL（不挂任何批次）
+                for name in missing:
+                    insert_cols.append(name)
+                    select_exprs.append("'failed'" if name == "outcome" else "''")
+                # 已存在但不在 legacy 列序里的列（如只有 batch_id 缺 outcome 的库）
+                # 也要随迁，不能丢。
+                for name in ("batch_id", "orchestration_mode"):
+                    if name in cols and name not in insert_cols:
+                        insert_cols.append(name)
+                        select_exprs.append(name)
                 c.execute(
                     f"INSERT INTO runs ({', '.join(insert_cols)}) "
                     f"SELECT {', '.join(select_exprs)} FROM runs_old"
@@ -158,11 +193,11 @@ class BenchmarkDB:
                 c.execute("DROP TABLE runs_old")
 
     def record(self, result: RunResult) -> None:
-        # latest-result-per-task：复跑先删该题旧行再插入，runs 表每题恒一行
+        # append-only：benchmark 数据珍贵，历史行永不由框架删除；"每题最新"
+        # 只是查询语义（按 ts 取），不落为破坏性写。
         with self._lock, closing(self._connect()) as c, c:
-            c.execute("DELETE FROM runs WHERE task_id = ?", (result.task_id,))
             c.execute(
-                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?)", result.to_row()
+                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", result.to_row()
             )
 
     def record_batch(self, batch_id: str, status: str, config: dict) -> None:
@@ -210,11 +245,12 @@ class BenchmarkDB:
             rows = c.execute(
                 "SELECT task_id, sandbox, integrity_passed, graph_score, "
                 "selfconsistency_passed, accuracy_score, final_score, outcome, "
-                "notes, ts FROM runs WHERE batch_id = ? ORDER BY task_id",
+                "notes, ts, orchestration_mode FROM runs WHERE batch_id = ? "
+                "ORDER BY task_id, ts",
                 (batch_id,),
             ).fetchall()
         out = []
-        for task_id, sandbox, integrity, graph, selfc, acc, final, outcome, notes, ts in rows:
+        for task_id, sandbox, integrity, graph, selfc, acc, final, outcome, notes, ts, orch in rows:
             parsed = []
             try:
                 parsed = json.loads(notes or "[]")
@@ -231,6 +267,7 @@ class BenchmarkDB:
                 "outcome": outcome,
                 "notes": parsed,
                 "ts": ts,
+                "orchestration_mode": orch or "",
             })
         return out
 
@@ -247,6 +284,7 @@ class BenchmarkRunner:
         data_dir: Path,
         backend: Optional[AgentBackend] = None,
         ged_config: Optional[GedConfig] = None,
+        batch_id: str = "",
     ):
         self.data_dir = Path(data_dir)
         self.sandboxes = self.data_dir / "sandboxes"
@@ -254,9 +292,13 @@ class BenchmarkRunner:
         self.db = BenchmarkDB(self.data_dir / "benchmark.db")
         self.backend = backend or _default_backend
         self.ged_config = ged_config or GedConfig()
+        self.batch_id = batch_id
 
-    def sandbox_for(self, task_id: str) -> Path:
-        return self.sandboxes / task_id
+    def sandbox_for(self, task_id: str, batch_id: str = "") -> Path:
+        """题目沙箱：带批次 id 时按批分目录（``<task_id>/<batch_id>``）——
+        每批新目录天然干净，上一批的交付物永久保留，复跑不再清空历史。"""
+        base = self.sandboxes / task_id
+        return base / batch_id if batch_id else base
 
     def _ged_config_for(self, task: TaskSpec) -> GedConfig:
         """Per-task GED 参数（rubric.graph_similarity）覆盖 runner 默认值。"""
@@ -282,7 +324,11 @@ class BenchmarkRunner:
 
     def score_sandbox(self, task: TaskSpec, sandbox: Path) -> RunResult:
         """按交付物评分：图（JSON）+ 日志 + 结构化拒答声明，不读任何散文。"""
-        res = RunResult(task_id=task.task_id, sandbox=str(sandbox))
+        res = RunResult(
+            task_id=task.task_id,
+            sandbox=str(sandbox),
+            orchestration_mode=task.prompt.orchestration_mode.value,
+        )
         ged_config = self._ged_config_for(task)
 
         integ: IntegrityReport = audit_integrity(sandbox, task.rubric.integrity, ged_config)
@@ -366,15 +412,13 @@ class BenchmarkRunner:
         return res
 
     def run_task(self, task: TaskSpec) -> RunResult:
-        sandbox = self.sandbox_for(task.task_id)
-        # 复跑从干净沙箱开始：上一轮的证据文件残留会污染取证扫描。
-        # 沙箱路径可能是上一轮后端留下的 symlink 或普通文件（rmtree 会抛 OSError）。
-        if sandbox.is_symlink() or sandbox.is_file():
-            sandbox.unlink()
-        elif sandbox.exists():
-            shutil.rmtree(sandbox)
+        # 沙箱按批次分目录：本批目录天然干净，不做任何删除——上一批的交付物
+        # 与证据文件永久保留（benchmark 数据珍贵，清理永由用户显式执行）。
+        sandbox = self.sandbox_for(task.task_id, self.batch_id)
+        sandbox.mkdir(parents=True, exist_ok=True)
         self.backend(task, sandbox)
         result = self.score_sandbox(task, sandbox)
+        result.batch_id = self.batch_id
         self.db.record(result)
         return result
 
@@ -387,8 +431,10 @@ class BenchmarkRunner:
             print(f"[benchmark] task {task.task_id} crashed: {exc!r}")
             res = RunResult(
                 task_id=task.task_id,
-                sandbox=str(self.sandbox_for(task.task_id)),
+                sandbox=str(self.sandbox_for(task.task_id, self.batch_id)),
                 outcome=RunOutcome.FAILED.value,
+                batch_id=self.batch_id,
+                orchestration_mode=task.prompt.orchestration_mode.value,
             )
             res.notes.append(f"task crashed: {exc!r}")
             self.db.record(res)

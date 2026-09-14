@@ -26,7 +26,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import shutil
 import time
 from collections import deque
 from pathlib import Path
@@ -38,6 +37,7 @@ from cloudra.benchmark.runner import (
     BenchmarkRunner,
     RunResult,
     load_tasks,
+    provenance_config,
 )
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.watch import RunWatcher
@@ -118,6 +118,7 @@ class BenchmarkBatch:
         self.started_at: Optional[float] = None
         self.finished_at: Optional[float] = None
         self.config = {
+            **provenance_config("web", tasks),
             "tasks_dirs": [str(d) for d in tasks_dirs],
             "task_ids": [t.task_id for t in tasks],
             "concurrency": self.concurrency,
@@ -216,7 +217,7 @@ class BenchmarkBatch:
 
     async def _run_one(self, st: _TaskRunState) -> None:
         task = st.task
-        sandbox = self.sandboxes / task.task_id
+        sandbox = self._sandbox_for(task.task_id)
         if self._stop.is_set():
             # 排队中被停：不 spawn、不评分，照常落 cancelled 行保证历史完整。
             await self._mark_cancelled(st)
@@ -224,23 +225,21 @@ class BenchmarkBatch:
         try:
             live = await asyncio.to_thread(self._live_compute_in, sandbox)
             if live:
-                # 上一轮（或其它批次）的作业仍在跑：复跑会清空它正在使用的
-                # 输入/输出。按"拒绝占用目录"的生命周期契约落明确基建失败，
-                # 绝不静默清空、绝不 kill 旧计算（执行面铁律）。
+                # 该目录下还有未终态的作业在跑（理论上新批目录不会有，防呆）：
+                # 绝不复用、绝不 kill 旧计算（执行面铁律）。
                 await self._mark_infra_failure(
                     st,
                     f"sandbox {sandbox} still has live compute job(s) {live}; "
                     "refusing to reuse the directory (old compute is never killed)",
                 )
                 return
-            await asyncio.to_thread(self._reset_sandbox, sandbox)
+            await asyncio.to_thread(self._prepare_sandbox, sandbox)
         except OSError as exc:
-            # 沙箱清理失败属基建故障：不在旧目录继续 spawn/评分（残留证据会
-            # 污染取证，旧产物也不该被当成本题产出）。
+            # 沙箱创建失败属基建故障：不在旧目录继续 spawn/评分。
             await self._mark_infra_failure(
                 st,
-                f"sandbox reset failed for {task.task_id}: {exc}; "
-                "refusing to run in the previous directory",
+                f"sandbox preparation failed for {task.task_id}: {exc}; "
+                "refusing to run without a clean directory",
             )
             return
 
@@ -356,6 +355,10 @@ class BenchmarkBatch:
 
     # ------------------------------------------------------------------ helpers
 
+    def _sandbox_for(self, task_id: str) -> Path:
+        """本题在本批次下的沙箱：按批分目录，上一批交付物永久保留。"""
+        return self.sandboxes / task_id / self.batch_id
+
     def _pending_background_factory(self, project_id: str, session_id: str):
         from cloudra.persistence.database import ComputeDB
         from cloudra.services.compute_store import acount_pending_compute_jobs
@@ -369,12 +372,9 @@ class BenchmarkBatch:
 
         return pending_background
 
-    def _reset_sandbox(self, sandbox: Path) -> None:
-        # 复跑从干净沙箱开始（与 runner.run_task 同语义）：残留证据会污染取证。
-        if sandbox.is_symlink() or sandbox.is_file():
-            sandbox.unlink()
-        elif sandbox.exists():
-            shutil.rmtree(sandbox)
+    def _prepare_sandbox(self, sandbox: Path) -> None:
+        # 沙箱按批分目录：本批目录天然干净，只建不删——上一批的交付物永久保留
+        # （benchmark 数据珍贵，清理永由用户显式执行）。
         sandbox.mkdir(parents=True, exist_ok=True)
 
     def _live_compute_in(self, sandbox: Path) -> list[int]:
@@ -403,7 +403,7 @@ class BenchmarkBatch:
         st.error = message
         result = RunResult(
             task_id=st.task.task_id,
-            sandbox=str(self.sandboxes / st.task.task_id),
+            sandbox=str(self._sandbox_for(st.task.task_id)),
             outcome=RunOutcome.FAILED.value,
             batch_id=self.batch_id,
         )
@@ -428,7 +428,7 @@ class BenchmarkBatch:
 
     async def _mark_cancelled(self, st: _TaskRunState) -> None:
         st.status = "cancelled"
-        result = self._cancelled_result(st.task, self.sandboxes / st.task.task_id)
+        result = self._cancelled_result(st.task, self._sandbox_for(st.task.task_id))
         st.result = result
         await asyncio.to_thread(self._runner.db.record, result)
         self.emit(

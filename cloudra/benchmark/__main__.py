@@ -75,10 +75,34 @@ def main(argv: list[str] | None = None) -> int:
             llm = PooledLLMProvider(load_endpoints(args.api_pool))
         from cloudra.benchmark.backend import RuntimeV2Backend
 
-        backend = RuntimeV2Backend(run_timeout_s=args.timeout, llm=llm)
+        backend = RuntimeV2Backend(
+            run_timeout_s=args.timeout,
+            llm=llm,
+            store_path=args.data_dir / "runtime" / "runtime-v2.db",
+        )
 
-    runner = BenchmarkRunner(args.data_dir, backend=backend)
-    results = runner.run_all(tasks, concurrency=max(1, args.concurrency))
+    # CLI 每次调用也是一个批次：batches 行 + 溯源快照（模型/模式/插件）+
+    # runs 行带 batch_id——CLI 与 Web 结果在同一 schema 下可并排比较。
+    from cloudra.benchmark.runner import provenance_config
+    from cloudra.runtime_v2.schemas import new_id
+
+    batch_id = new_id("batch")
+    runner = BenchmarkRunner(args.data_dir, backend=backend, batch_id=batch_id)
+    runner.db.record_batch(batch_id, "running", {
+        **provenance_config("cli", tasks),
+        "tasks_dirs": [str(d) for d in (args.tasks_dir or [Path("ideapool/tasks/easy")])],
+        "task_ids": [t.task_id for t in tasks],
+        "concurrency": max(1, args.concurrency),
+        "run_timeout_s": args.timeout,
+    })
+    status = "done"
+    try:
+        results = runner.run_all(tasks, concurrency=max(1, args.concurrency))
+    except BaseException:
+        status = "error"
+        raise
+    finally:
+        runner.db.finish_batch(batch_id, status)
     for r in results:
         print(
             f"{r.task_id:>6}  final={r.final_score:.3f}  outcome={r.outcome:<8} "

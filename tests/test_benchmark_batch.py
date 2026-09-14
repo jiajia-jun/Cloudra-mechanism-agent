@@ -207,16 +207,16 @@ async def _insert_job(path, state="running", conversation_id="prj_old"):
 
 @pytest.mark.asyncio
 async def test_batch_sandbox_reset_failure_is_infrastructure_error(tmp_path, monkeypatch):
-    """沙箱清理失败必须落明确的基建失败：不在旧目录继续 spawn、不评分。"""
+    """沙箱创建失败必须落明确的基建失败：不 spawn、不评分。"""
     core, bus, service = _service(tmp_path)
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
 
     import cloudra.benchmark.batch as batch_mod
 
     def _boom(self, sandbox):
-        raise OSError("sandbox is not removable")
+        raise OSError("sandbox is not creatable")
 
-    monkeypatch.setattr(batch_mod.BenchmarkBatch, "_reset_sandbox", _boom)
+    monkeypatch.setattr(batch_mod.BenchmarkBatch, "_prepare_sandbox", _boom)
     await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=30.0)
     batch = service._batch
     await asyncio.wait_for(batch._task, timeout=10.0)
@@ -234,16 +234,21 @@ async def test_batch_sandbox_reset_failure_is_infrastructure_error(tmp_path, mon
 
 
 @pytest.mark.asyncio
-async def test_batch_refuses_sandbox_with_live_compute(tmp_path):
-    """同 task_id 复跑时旧沙箱仍有未竟计算：拒绝复用该目录（不删旧输入/输出、
-    不 kill 旧计算），落明确基建失败而不是静默清空。"""
+async def test_batch_refuses_sandbox_with_live_compute(tmp_path, monkeypatch):
+    """沙箱目录下仍有未竟计算时：拒绝复用该目录（不删旧输入/输出、不 kill
+    旧计算），落明确基建失败。沙箱已按批分目录（不复用旧批目录），本用例
+    钉住的是这层防呆守卫本身——把目标目录指到带活在跑的作业的目录上。"""
     core, bus, service = _service(tmp_path)
-    sandbox = service._data_dir() / "sandboxes" / "T1"
+    sandbox = service._data_dir() / "sandboxes" / "occupied"
     sandbox.mkdir(parents=True)
     in_use = sandbox / "calc" / "input.gjf"
     in_use.parent.mkdir(parents=True)
     in_use.write_text("#p HF/3-21G\n\nH2\n\n0 1\nH 0 0 0\nH 0 0 0.74\n", encoding="utf-8")
     job_id = await _insert_job(in_use, state="running")
+
+    import cloudra.benchmark.batch as batch_mod
+
+    monkeypatch.setattr(batch_mod.BenchmarkBatch, "_sandbox_for", lambda self, task_id: sandbox)
 
     tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
     await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1, timeout=30.0)

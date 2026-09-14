@@ -50,6 +50,7 @@ class RuntimeV2Backend:
         llm: Any = None,
         tools: Any = None,
         start_scheduler: bool = True,
+        store_path: Any = None,
     ) -> None:
         self.run_timeout_s = run_timeout_s
         self.stuck_grace_s = stuck_grace_s
@@ -57,6 +58,10 @@ class RuntimeV2Backend:
         self.llm = llm
         self.tools = tools
         self.start_scheduler = start_scheduler
+        # 事件级持久化（可选但 CLI 默认开）：全战役共享一个 runtime-v2.db，
+        # 只 append 不 restore——benchmark core 是一次性的，恢复语义无意义；
+        # 崩溃后事件历史与 token 遥测（cloudra stats tokens）仍可查。
+        self.store_path = Path(store_path) if store_path is not None else None
         # 每次任务的 RuntimeCore 按 task_id 留存，供测试与调试内省事件日志；
         # 并行跑题时多线程并发写，用锁保护。
         self._cores: dict[str, Any] = {}
@@ -95,6 +100,20 @@ class RuntimeV2Backend:
         core = RuntimeCore(strict_events=True)
         with self._cores_lock:
             self._cores[task.task_id] = core
+        if self.store_path is not None:
+            from cloudra.runtime_v2.persistence import RuntimeStore
+
+            # 与 services/api_v2/app.py 同款接法；多题共享一个库文件，append
+            # 经 to_thread 卸载，WAL + busy_timeout 由 RuntimeStore 自带。
+            core.store = RuntimeStore(self.store_path)
+
+            async def persist_event(envelope) -> None:
+                # llm.chunk deltas 是瞬时 hub 事件：无回放价值，落库会灌爆事件表。
+                if envelope.type == "llm.chunk":
+                    return
+                await asyncio.to_thread(core.store.append_event, envelope)
+
+            core.event_hub.subscribe(persist_event)
         core.runtime_defaults = legacy_default_runtime_settings()
         stage = MethodPolicyStage(task.method_policy, base_dir=sandbox)
         stages = [*default_stages(core), stage]
@@ -164,8 +183,7 @@ class RuntimeV2Backend:
         finally:
             if agent is not None and core.runner is not None:
                 await core.runner.cancel(agent.id)
-            # benchmark core 默认无 store（不落盘），这里是契约性的关机补快照：
-            # 将来接入持久化时无需再改。
+            # 契约性关机补快照：core 接了 store 时把会话上下文投影落盘。
             await bus.flush_snapshot()
             if scheduler is not None:
                 await scheduler.close()

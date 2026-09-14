@@ -637,7 +637,7 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
         assert final["tasks"][0]["project_id"].startswith("prj")
         assert final["tasks"][0]["agent_id"]
         project_id = final["tasks"][0]["project_id"]
-        sandbox = batch.sandboxes / "T1"
+        sandbox = batch.sandboxes / "T1" / batch.batch_id
 
         _assert_job_chain(core, engine=engine, workspace=sandbox.resolve(), project_id=project_id)
 
@@ -1443,8 +1443,8 @@ async def test_web_concurrent_mixed_success_and_failure(tmp_path, monkeypatch):
         assert by_task["T2"]["status"] == "scored", by_task["T2"]
         assert by_task["T1"]["status"] in {"error", "scored"}, by_task["T1"]
         # T1 失败不终止 T2：T2 有独立沙箱与自己的作业
-        t1_sandbox = batch.sandboxes / "T1"
-        t2_sandbox = batch.sandboxes / "T2"
+        t1_sandbox = batch.sandboxes / "T1" / batch.batch_id
+        t2_sandbox = batch.sandboxes / "T2" / batch.batch_id
         assert t1_sandbox != t2_sandbox
         rows = _compute_rows()
         assert len(rows) == 1

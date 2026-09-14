@@ -149,43 +149,40 @@ def test_easy_gold_bond_changes_and_edge_barrier():
 
 
 def test_runner_rerun_starts_from_clean_sandbox(tmp_path):
-    """复跑同一 task 时上一轮残留文件必须清掉，否则污染取证扫描。"""
+    """复跑不清空旧目录：新批次拿到全新干净沙箱（无残留污染取证），
+    上一批的残留文件原样保留（数据珍贵，框架永不删）。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
-    runner = BenchmarkRunner(tmp_path / "bench")
-    sandbox = runner.sandbox_for(tasks[0].task_id)
-    sandbox.mkdir(parents=True)
-    (sandbox / "stale_evidence.log").write_text("smiles: C=CC=C\n")  # 上一轮残留
-    runner.run_task(tasks[0])  # 默认 no-op backend
-    assert not (sandbox / "stale_evidence.log").exists()
+    r1 = BenchmarkRunner(tmp_path / "bench", batch_id="batch_A")
+    sandbox_a = r1.sandbox_for(tasks[0].task_id, "batch_A")
+    sandbox_a.mkdir(parents=True)
+    (sandbox_a / "stale_evidence.log").write_text("smiles: C=CC=C\n")  # 上一批残留
+    r1.run_task(tasks[0])  # 默认 no-op backend
+
+    r2 = BenchmarkRunner(tmp_path / "bench", batch_id="batch_B")
+    r2.run_task(tasks[0])
+    sandbox_b = r2.sandbox_for(tasks[0].task_id, "batch_B")
+    # 新批目录干净：上一批的残留不在其中
+    assert not (sandbox_b / "stale_evidence.log").exists()
+    # 旧批目录原样保留
+    assert (sandbox_a / "stale_evidence.log").exists()
 
 
 def test_runner_rerun_over_symlink_or_file_sandbox(tmp_path):
-    """上一轮后端若在沙箱路径留下 symlink 或普通文件，复跑不得抛 OSError。"""
-    import shutil
-
+    """沙箱路径被 symlink/普通文件占位时 run_task 不传播 OSError：
+    单题落失败行，整批继续（清理永远不做，占位也永不强拆）。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
     runner = BenchmarkRunner(tmp_path / "bench")
     sandbox = runner.sandbox_for(tasks[0].task_id)
-
-    target = tmp_path / "real_target"
-    target.mkdir()
-    (target / "stale.txt").write_text("x")
-    try:
-        sandbox.symlink_to(target, target_is_directory=True)
-    except OSError:
-        pytest.skip("当前平台不允许创建符号链接")
-    runner.run_task(tasks[0])
-    assert sandbox.is_dir() and not sandbox.is_symlink()
-    assert (target / "stale.txt").exists()  # unlink 只删链接，不碰目标目录
-
-    shutil.rmtree(sandbox)
-    sandbox.write_text("leftover")  # 普通文件占位同理
-    runner.run_task(tasks[0])
-    assert sandbox.is_dir() and not sandbox.is_symlink()
+    sandbox.parent.mkdir(parents=True, exist_ok=True)
+    sandbox.write_text("leftover")  # 普通文件占位
+    results = runner.run_all(tasks[:1])
+    assert results[0].outcome == "failed"
+    assert any("crashed" in n for n in results[0].notes)
+    assert sandbox.is_file()  # 占位文件未被强拆
 
 
 def test_run_all_isolates_task_failure(tmp_path, capsys):
@@ -210,8 +207,8 @@ def test_run_all_isolates_task_failure(tmp_path, capsys):
     assert any("mechanism_graph.json not found" in n for n in results[1].notes)
 
 
-def test_runner_rerun_keeps_single_runs_row(tmp_path):
-    """runs 表是 latest-result-per-task：复跑同题只保留一行。"""
+def test_runner_rerun_appends_runs_rows(tmp_path):
+    """runs 表 append-only：复跑同题累计多行，历史永不覆写。"""
     import sqlite3
 
     from cloudra.benchmark.runner import BenchmarkRunner
@@ -224,7 +221,7 @@ def test_runner_rerun_keeps_single_runs_row(tmp_path):
         rows = c.execute(
             "SELECT task_id FROM runs WHERE task_id = ?", (tasks[0].task_id,)
         ).fetchall()
-    assert len(rows) == 1
+    assert len(rows) == 2
 
 
 # --- GED anchors ---
@@ -1708,7 +1705,7 @@ def test_composite_full_evidence_full_blend(tmp_path):
 
 
 def test_run_all_parallel_controlled(tmp_path):
-    """concurrency>1：结果按提交顺序返回、崩溃隔离保持、DB 每题一行、
+    """concurrency>1：结果按提交顺序返回、崩溃隔离保持、DB 每题落一行（append-only）、
     并行确实比串行快。"""
     import sqlite3
     import time
@@ -1969,7 +1966,7 @@ def test_evidence_loop_engine_output_to_score(tmp_path):
     # dev extra）就属于这种情况，因此只在 RDKit 可用时断言图分
     if _RDKIT_AVAILABLE:
         assert result.graph_score > 0.0, result.notes
-    # 落库（每题一行；score_sandbox 只算不落库，落库由 runner/批次负责）
+    # 落库（append-only；score_sandbox 只算不落库，落库由 runner/批次负责）
     runner.db.record(result)
     rows = runner.db.list_runs_for("")
     assert [r["task_id"] for r in rows] == [task.task_id]
@@ -2442,3 +2439,143 @@ def test_generators_read_whitelist_from_global_config(monkeypatch):
     tasks = gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)
     assert tasks, "generator produced no tasks"
     assert all(t.method_policy.allowed_methods == ["xtb"] for t in tasks)
+
+
+# --- 持久化：append-only / 批次溯源 / 沙箱按批保留 ---
+
+
+def test_runs_are_append_only(tmp_path):
+    """同一 task_id 复跑只增不删：两次 record 两行俱在（benchmark 数据珍贵，
+    "每题最新"只是查询语义，不落为破坏性写）。"""
+    from cloudra.benchmark.runner import BenchmarkRunner, RunResult
+
+    runner = BenchmarkRunner(tmp_path / "bench")
+    for score in (0.5, 0.8):
+        runner.db.record(RunResult(
+            task_id="T1", sandbox="s", final_score=score,
+            orchestration_mode="dag_guided",
+        ))
+    rows = runner.db.list_runs_for("")
+    assert len(rows) == 2
+    assert sorted(r["final_score"] for r in rows) == [0.5, 0.8]
+    assert all(r["orchestration_mode"] == "dag_guided" for r in rows)
+
+
+def test_runs_migration_preserves_old_rows(tmp_path):
+    """旧 schema（无 orchestration_mode 列）的库重开：旧行原样保留、新列补 ''，
+    迁移后新旧行可共存写入。"""
+    import sqlite3
+
+    db_path = tmp_path / "bench" / "benchmark.db"
+    db_path.parent.mkdir(parents=True)
+    with sqlite3.connect(str(db_path)) as c:
+        c.execute("""CREATE TABLE runs (
+            task_id TEXT, sandbox TEXT,
+            integrity_passed INTEGER, graph_score REAL,
+            selfconsistency_passed INTEGER, accuracy_score REAL,
+            final_score REAL, outcome TEXT, notes TEXT, ts INTEGER,
+            batch_id TEXT
+        )""")
+        c.execute(
+            "INSERT INTO runs VALUES ('T9','s',1,0.9,1,0.8,0.87,'answered','[]',123,'batch_old')"
+        )
+    from cloudra.benchmark.runner import BenchmarkDB, RunResult
+
+    db = BenchmarkDB(db_path)
+    rows = db.list_runs_for("batch_old")
+    assert len(rows) == 1
+    assert rows[0]["task_id"] == "T9"
+    assert rows[0]["final_score"] == 0.87
+    assert rows[0]["orchestration_mode"] == ""
+
+    db.record(RunResult(task_id="T9", sandbox="s2", orchestration_mode="standard"))
+    assert len(db.list_runs_for("batch_old")) == 1
+    new_rows = db.list_runs_for("")
+    assert len(new_rows) == 1
+    assert new_rows[0]["orchestration_mode"] == "standard"
+
+
+def test_sandbox_scoped_by_batch_and_preserved(tmp_path):
+    """沙箱按批分目录；复跑（新批次）不删上一批交付物。"""
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    def _backend(task, sandbox):
+        (sandbox / "deliverable.txt").write_text(f"run in {sandbox.name}", encoding="utf-8")
+
+    task = _tiny_task()
+    r1 = BenchmarkRunner(tmp_path / "bench", backend=_backend, batch_id="batch_A")
+    r2 = BenchmarkRunner(tmp_path / "bench", backend=_backend, batch_id="batch_B")
+    res1 = r1.run_task(task)
+    res2 = r2.run_task(task)
+
+    assert res1.sandbox != res2.sandbox
+    assert res1.batch_id == "batch_A" and res2.batch_id == "batch_B"
+    assert (r1.sandboxes / "BENCH_T" / "batch_A" / "deliverable.txt").is_file()
+    assert (r1.sandboxes / "BENCH_T" / "batch_B" / "deliverable.txt").is_file()
+
+
+def test_cli_records_batch_with_provenance(tmp_path):
+    """CLI 每次调用也是一个批次：batches 行带溯源快照（backend/models/
+    orchestration_modes），runs 行带同一 batch_id——CLI 与 Web 结果可并排。"""
+    from cloudra.benchmark.__main__ import main
+
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
+    (tasks_dir / "BENCH_T.json").write_text(_tiny_task().model_dump_json(), encoding="utf-8")
+    data_dir = tmp_path / "bench"
+    rc = main(["--tasks-dir", str(tasks_dir), "--data-dir", str(data_dir)])
+    assert rc == 0
+
+    from cloudra.benchmark.runner import BenchmarkDB
+
+    db = BenchmarkDB(data_dir / "benchmark.db")
+    batches = db.list_batches()
+    assert len(batches) == 1
+    batch = batches[0]
+    assert batch["status"] == "done"
+    assert batch["config"]["backend"] == "cli"
+    assert batch["config"]["orchestration_modes"] == {"BENCH_T": "standard"}
+    # 溯源只记 provider/model，绝不记 API key
+    for slot in ("coordinator", "follower"):
+        assert set(batch["config"]["models"][slot]) == {"provider", "model"}
+    runs = db.list_runs_for(batch["batch_id"])
+    assert [r["task_id"] for r in runs] == ["BENCH_T"]
+    assert runs[0]["orchestration_mode"] == "standard"
+
+
+def test_backend_persists_events_to_store(tmp_path, monkeypatch):
+    """CLI 后端接 RuntimeStore：题目事件落盘（llm.chunk 除外），崩溃后事件
+    历史与 token 遥测仍可查。"""
+    import sqlite3
+
+    from cloudra.benchmark.backend import RuntimeV2Backend
+    from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+    from cloudra.runtime_v2.schemas import InvocationProtocol
+    from cloudra.runtime_v2.turn_pipeline import LLMResponse
+
+    monkeypatch.setattr(
+        "cloudra.runtime_v2.adapters.legacy_default_runtime_settings",
+        lambda: legacy_default_runtime_settings().model_copy(
+            update={"invocation_protocol": InvocationProtocol.TRADITIONAL}
+        ),
+    )
+    llm = _ScriptedLLM([LLMResponse(content="done")])
+    store_path = tmp_path / "runtime" / "runtime-v2.db"
+    backend = RuntimeV2Backend(
+        llm=llm,
+        tools=_RecordingTools(),
+        start_scheduler=False,
+        poll_interval_s=0.01,
+        run_timeout_s=30.0,
+        stuck_grace_s=5.0,
+        store_path=store_path,
+    )
+    backend(_tiny_task(), tmp_path / "sandbox")
+
+    with sqlite3.connect(str(store_path)) as c:
+        n_events = c.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        n_chunks = c.execute(
+            "SELECT COUNT(*) FROM events WHERE type = 'llm.chunk'"
+        ).fetchone()[0]
+    assert n_events > 0
+    assert n_chunks == 0
