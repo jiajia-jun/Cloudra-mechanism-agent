@@ -197,11 +197,21 @@ class RuntimeStore:
         self._init()
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.path, timeout=30.0)
+        con = sqlite3.connect(self.path, timeout=30.0)
+        con.execute("PRAGMA busy_timeout=30000;")
+        con.execute("PRAGMA synchronous=NORMAL;")
+        return con
 
     def _init(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as con:
+            # journal_mode 是持久设置：只在当前不是 WAL 时才切换，避免多进程
+            # 并发时无谓的重复切换引发锁竞争（与 ConversationDB 同理）。
+            # 回滚日志模式下 telemetry 只读全表扫会堵死事件写入（"database is
+            # locked"），WAL 下读写不互斥。
+            row = con.execute("PRAGMA journal_mode;").fetchone()
+            if not row or str(row[0]).lower() != "wal":
+                con.execute("PRAGMA journal_mode=WAL;")
             con.executescript(_SCHEMA)
 
     def append_event(self, envelope: EventEnvelope) -> None:

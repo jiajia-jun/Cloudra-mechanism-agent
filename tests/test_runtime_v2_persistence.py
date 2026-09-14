@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 
 import pytest
 
@@ -14,6 +15,17 @@ from cloudra.runtime_v2.schemas import Command
 
 async def _persist_event(store, event):
     await asyncio.to_thread(store.append_event, event)
+
+
+def test_store_uses_wal_and_busy_timeout(tmp_path):
+    """回滚日志模式下 telemetry 全表扫会堵死事件写入（database is locked）；
+    RuntimeStore 必须 WAL + busy_timeout（与 ConversationDB/ComputeDB 一致）。"""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    with sqlite3.connect(store.path) as con:
+        mode = con.execute("PRAGMA journal_mode;").fetchone()[0]
+    assert str(mode).lower() == "wal"
+    with store._connect() as con:
+        assert con.execute("PRAGMA busy_timeout;").fetchone()[0] == 30000
 
 
 @pytest.mark.asyncio

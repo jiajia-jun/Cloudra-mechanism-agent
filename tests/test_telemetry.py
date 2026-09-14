@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
 import zipfile
 from datetime import datetime, timezone
 
@@ -349,6 +350,28 @@ def test_readonly_connection_does_not_create_db(tmp_path):
     with pytest.raises(telemetry.TelemetryError):
         telemetry.load_events(missing)
     assert not missing.exists()
+
+
+def test_readonly_connection_sets_busy_timeout(store):
+    """只读连接也要 busy_timeout：库被写者短暂持锁时等待而非 5s 后报
+    database is locked。"""
+    con = telemetry._connect_readonly(store.path)
+    try:
+        assert con.execute("PRAGMA busy_timeout").fetchone()[0] == 60000
+    finally:
+        con.close()
+
+
+def test_reader_not_blocked_by_open_write_transaction(store):
+    """WAL 下只读全表扫不被未提交写事务阻塞（回滚日志模式会 database is
+    locked，正是 telemetry 面板拖垮会话的机理）。"""
+    writer = sqlite3.connect(store.path, timeout=5.0)
+    try:
+        writer.execute("BEGIN IMMEDIATE")
+        assert telemetry.load_events(store.path) == []
+    finally:
+        writer.rollback()
+        writer.close()
 
 
 # ---------------------------------------------------------------------------
