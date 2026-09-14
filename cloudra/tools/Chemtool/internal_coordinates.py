@@ -100,6 +100,7 @@ description = (
     "and write a Z-matrix internal-coordinate file along a spanning tree of the molecular graph. Can also convert a Z-matrix back to Cartesian. "
     "mode=transform applies rigid internal-coordinate edits to the Cartesian coordinates — rotate a group about an axis/bond, "
     "stretch or compress a bond by translating one fragment, invert a chiral center by swapping two branches — "
+    "or edits the covalent topology by replacing a substituent with a new group given as SMILES, "
     "then re-validates the edited geometry (bond/angle anomaly detection) and returns the transformed xyz. "
     "Gives the model accurate structural facts without looking at a picture. "
     "REQUIRED before ts_guess scan_prepare/interpolate or any TS/scan work: scan/watch atom indices and reaction coordinates must come from this "
@@ -172,7 +173,7 @@ class InternalCoordinates_input_schema(input_schema):
         description="Transform operations, required when mode=transform (rejected in other modes). Applied in order "
                     "on a copy of the coordinates; all atom indices are 1-based, matching the analyze report; "
                     "fragment selection uses the connectivity perceived from the input structure. "
-                    "Three operation types: "
+                    "Four operation types: "
                     "(1) rotate — 'axis_atoms': [i, j] defines the rotation axis, 'degrees': angle in degrees, plus "
                     "exactly one group selector: 'atoms': [...] (explicit 1-based atom list) or 'side_of_bond': [a, b] "
                     "(rotate the fragment on the b side of bond a-b; fails when a-b is on a ring). "
@@ -183,7 +184,16 @@ class InternalCoordinates_input_schema(input_schema):
                     "Example: {\"type\": \"stretch\", \"atoms\": [3, 7], \"new_length\": 2.10}. "
                     "(3) invert_chirality — 'center': c, 'swap': [n1, n2] (n1/n2 must both be bonded neighbors of c); "
                     "the two branches are rigidly swapped, inverting the stereocenter. "
-                    "Example: {\"type\": \"invert_chirality\", \"center\": 5, \"swap\": [6, 9]}."
+                    "Example: {\"type\": \"invert_chirality\", \"center\": 5, \"swap\": [6, 9]}. "
+                    "(4) replace_group — topology edit: 'bond': [a, b] (1-based bonded pair, not on a ring) cuts bond "
+                    "a-b, removes the whole fragment on the b side, and attaches a new substituent to atom a; "
+                    "'smiles': the new group with exactly one [*] dummy atom marking the attachment point "
+                    "(e.g. '[*]C(=O)O' for -COOH, '[*]c1ccccc1' for phenyl, '[*]F' for -F). The substituent's 3D "
+                    "geometry is embedded and force-field optimized, then docked along the old a->b direction at the "
+                    "reference bond length; the new bond order comes from the [*] bond in the SMILES (default single). "
+                    "Surviving atoms keep their order and the new atoms are appended; operations listed after a "
+                    "replace_group use the NEW atom numbering. "
+                    "Example: {\"type\": \"replace_group\", \"bond\": [3, 7], \"smiles\": \"[*]C(=O)O\"}."
     )
 
 
@@ -1351,6 +1361,147 @@ class InternalCoordinates(Tool):
             "n_moved": len(moved),
         }
 
+    @staticmethod
+    def _embed_substituent_3d(smiles: str):
+        """取代基 SMILES（恰好一个 ``[*]`` 假原子标记连接点）→ 力场优化过的 3D 片段。
+
+        返回 ``(symbols, coords, attach_idx, bond_order, out_dir)``：
+        ``symbols``/``coords`` 不含假原子和"连接氢"；``attach_idx`` 是连接原子在返回数组中的
+        局部索引；``out_dir`` 是连接原子指向被删连接氢的单位向量——即片段朝"核心一侧"的方向，
+        对接时对齐到旧键方向的反向。所有失败一律 fail-loud。
+        """
+        import numpy as np
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
+
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            raise ValueError(f"replace_group: invalid substituent SMILES {smiles!r}")
+        dummies = [at.GetIdx() for at in mol.GetAtoms() if at.GetAtomicNum() == 0]
+        if len(dummies) != 1:
+            raise ValueError(
+                f"replace_group: substituent SMILES must contain exactly one [*] dummy atom "
+                f"marking the attachment point, got {len(dummies)}"
+            )
+        dummy_neighbors = mol.GetAtomWithIdx(dummies[0]).GetNeighbors()
+        if len(dummy_neighbors) != 1:
+            raise ValueError("replace_group: the [*] dummy atom must have exactly one bond (the attachment)")
+        attach_heavy = dummy_neighbors[0].GetIdx()
+        bond_order = float(mol.GetBondBetweenAtoms(dummies[0], attach_heavy).GetBondTypeAsDouble())
+
+        rw = Chem.RWMol(mol)
+        rw.RemoveAtom(dummies[0])
+        frag = rw.GetMol()
+        attach_local = attach_heavy - 1 if attach_heavy > dummies[0] else attach_heavy
+        # RemoveAtom 后必须重算隐式氢（去掉假原子空出的价态才会被 AddHs 补成氢），
+        # 并重建 RingInfo（UpdatePropertyCache 不负责，后续嵌入/力场会用到）。
+        frag.UpdatePropertyCache(strict=False)
+        Chem.FastFindRings(frag)
+        frag = Chem.AddHs(frag)
+        # 连接原子因去掉假原子空出的价态由 AddHs 补氢；这些氢彼此等价，任取其一标记
+        # "朝核心一侧"的方向即可（替掉哪个氢化学上是同一个分子）。连接原子无氢可替说明
+        # 价态本已饱和，无从对接，fail-loud。
+        h_neighbors = [nb.GetIdx() for nb in frag.GetAtomWithIdx(attach_local).GetNeighbors()
+                       if nb.GetAtomicNum() == 1]
+        if not h_neighbors:
+            raise ValueError(
+                "replace_group: the attachment atom has no hydrogen to vacate after removing [*] "
+                "(its valence is saturated by other substituents)"
+            )
+        marker_h = h_neighbors[0]
+
+        params = AllChem.ETKDGv3()
+        params.randomSeed = 20260914
+        if AllChem.EmbedMolecule(frag, params) != 0:
+            raise ValueError(f"replace_group: 3D embedding failed for substituent {smiles!r}")
+        if AllChem.MMFFHasAllMoleculeParams(frag):
+            AllChem.MMFFOptimizeMolecule(frag)
+        elif AllChem.UFFHasAllMoleculeParams(frag):
+            AllChem.UFFOptimizeMolecule(frag)
+        else:
+            raise ValueError(f"replace_group: no MMFF/UFF force-field parameters for substituent {smiles!r}")
+
+        coords = np.asarray(frag.GetConformer().GetPositions(), dtype=float)
+        out_vec = coords[marker_h] - coords[attach_local]
+        norm = float(np.linalg.norm(out_vec))
+        if norm < 1e-9:
+            raise ValueError("replace_group: degenerate substituent geometry (attachment hydrogen coincides with the attachment atom)")
+        out_dir = out_vec / norm
+
+        keep = [i for i in range(frag.GetNumAtoms()) if i != marker_h]
+        symbols = [frag.GetAtomWithIdx(i).GetSymbol() for i in keep]
+        attach_idx = keep.index(attach_local)
+        return symbols, coords[keep], attach_idx, bond_order, out_dir
+
+    @classmethod
+    def _op_replace_group(cls, op: dict, symbols: list[str], positions, adj: dict[int, set[int]], n: int):
+        """拓扑编辑 op：切断 bond a-b、移除 b 侧片段、把 SMILES 新基团对接到 a 上。
+
+        与刚性 op 不同，它不改坐标数组而是返回 ``(summary, new_symbols, new_positions)``；
+        新结构的原子顺序 = 存活者原序 + 新基团追加，调用方负责重建邻接表。
+        """
+        import numpy as np
+
+        bond_raw = op.get("bond")
+        if not (isinstance(bond_raw, list) and len(bond_raw) == 2):
+            raise ValueError(
+                "replace_group requires bond: [a, b] (1-based bonded pair; the fragment on the "
+                "b side is removed and the new group attaches to a)"
+            )
+        a = cls._transform_atom_index(bond_raw[0], n, "replace_group bond")
+        b = cls._transform_atom_index(bond_raw[1], n, "replace_group bond")
+        if a == b:
+            raise ValueError("replace_group bond atoms must be distinct")
+        if b not in adj.get(a, set()):
+            raise ValueError(f"replace_group: atoms {a + 1} and {b + 1} are not bonded")
+        removed = cls._bfs_group(cls._adjacency_without_edge(adj, a, b), b)
+        if a in removed:
+            raise ValueError(
+                f"replace_group: bond {a + 1}-{b + 1} lies on a ring (the graph stays connected "
+                "after cutting it); cannot cut it for substitution"
+            )
+
+        smiles = op.get("smiles")
+        if not isinstance(smiles, str) or not smiles.strip():
+            raise ValueError(
+                "replace_group requires 'smiles': the new substituent with exactly one [*] dummy "
+                "atom marking the attachment point (e.g. '[*]C(=O)O')"
+            )
+        frag_symbols, frag_coords, attach_idx, bond_order, out_dir = cls._embed_substituent_3d(smiles.strip())
+
+        vec = positions[b] - positions[a]
+        old_len = float(np.linalg.norm(vec))
+        if old_len < 1e-9:
+            raise ValueError(
+                f"replace_group: atoms {a + 1} and {b + 1} coincide; the attachment direction is undefined"
+            )
+        v_hat = vec / old_len
+        new_len = cls._reference_bond_length(symbols[a], frag_symbols[attach_idx], bond_order)
+
+        # out_dir 在片段内是 b′→核心方向；目标构型中它必须指向 a，即 -v_hat。
+        rot = rotation_matrix_between(out_dir, -v_hat)
+        frag_placed = frag_coords @ rot.T
+        frag_placed = frag_placed - frag_placed[attach_idx] + positions[a] + new_len * v_hat
+
+        survivors = [i for i in range(n) if i not in removed]
+        new_symbols = [symbols[i] for i in survivors] + list(frag_symbols)
+        new_positions = np.vstack([positions[survivors], frag_placed])
+        n_after = len(new_symbols)
+        first_new = n_after - len(frag_symbols)  # 0-based
+        summary = {
+            "type": "replace_group",
+            "bond": [a + 1, b + 1],
+            "smiles": smiles.strip(),
+            "bond_order": bond_order,
+            "attachment_atoms": [a + 1, first_new + attach_idx + 1],
+            "removed_atoms": sorted(x + 1 for x in removed),
+            "n_removed": len(removed),
+            "n_added": len(frag_symbols),
+            "n_atoms_before": n,
+            "n_atoms_after": n_after,
+        }
+        return summary, new_symbols, new_positions
+
     @classmethod
     def _apply_transform_op(cls, op, positions, adj: dict[int, set[int]], n: int) -> dict:
         """在 positions（调用方持有的 numpy 副本）上原地应用一个 op，返回该 op 的摘要。"""
@@ -1365,7 +1516,7 @@ class InternalCoordinates(Tool):
             return cls._op_invert_chirality(op, positions, adj, n)
         raise ValueError(
             f"unknown transform operation type {op_type!r}; supported types: "
-            "'rotate', 'stretch', 'invert_chirality'"
+            "'rotate', 'stretch', 'invert_chirality', 'replace_group'"
         )
 
     @staticmethod
@@ -1377,6 +1528,11 @@ class InternalCoordinates(Tool):
         if s["type"] == "stretch":
             return (f"{k}. stretch bond {s['atoms'][0]}-{s['atoms'][1]} "
                     f"{s['old_length']:.3f} -> {s['new_length']:.3f} Å: moved {s['n_moved']} atoms")
+        if s["type"] == "replace_group":
+            return (f"{k}. replace_group on bond {s['bond'][0]}-{s['bond'][1]}: removed "
+                    f"{s['n_removed']} atoms, attached {s['smiles']} ({s['n_added']} atoms, "
+                    f"bond order {s['bond_order']:g}, new bond {s['attachment_atoms'][0]}-"
+                    f"{s['attachment_atoms'][1]}); atoms {s['n_atoms_before']} -> {s['n_atoms_after']}")
         return (f"{k}. invert_chirality at center {s['center']} "
                 f"(swap {s['swap'][0]}/{s['swap'][1]}): moved {s['n_moved']} atoms")
 
@@ -1388,7 +1544,7 @@ class InternalCoordinates(Tool):
                 is_success=False,
                 message=(
                     "mode=transform requires 'operations': a non-empty list of transform operations "
-                    "({'type': 'rotate'|'stretch'|'invert_chirality', ...})"
+                    "({'type': 'rotate'|'stretch'|'invert_chirality'|'replace_group', ...})"
                 ),
             )
         try:
@@ -1424,28 +1580,55 @@ class InternalCoordinates(Tool):
         )
         anomalies_before = before_bonds + before_angles
 
-        # 图划分与校验都用初始键感知拓扑：transform op 是刚体操作，共价拓扑不变；
-        # 对新坐标重新感知会把被拉断的键/新接触静默改写成分子身份的一部分，校验失去意义。
+        # 图划分与校验都用初始键感知拓扑：刚性 transform op（rotate/stretch/invert_chirality）
+        # 共价拓扑不变；对新坐标重新感知会把被拉断的键/新接触静默改写成分子身份的一部分，校验失去意义。
+        # replace_group 是有意的拓扑编辑：它之后的 op 与最终校验改用替换后重新感知的拓扑。
+        from ase import Atoms
+
         work = positions.copy()
+        cur_symbols = list(symbols)
+        cur_n = n
+        cur_bond_orders = bond_orders
+        cur_adj = adj
         adj_sets = {i: set(adj[i]) for i in range(n)}
         summaries: list[dict] = []
         try:
             for op in user_input.operations:
-                summaries.append(self._apply_transform_op(op, work, adj_sets, n))
+                if isinstance(op, dict) and op.get("type") == "replace_group":
+                    summary, cur_symbols, work = self._op_replace_group(
+                        op, cur_symbols, work, adj_sets, cur_n,
+                    )
+                    cur_n = len(cur_symbols)
+                    if _RDKIT_AVAILABLE:
+                        try:
+                            _, cur_bond_orders = self._perceive_bonds_rdkit(
+                                self._atoms_to_xyz_block(Atoms(symbols=cur_symbols, positions=work)),
+                                user_input.charge,
+                            )
+                        except Exception as e:
+                            cur_bond_orders = self._distance_connectivity(cur_symbols, work)
+                            notes.append(f"RDKit bond perception failed on the substituted structure ({e}); bonds after the replacement are distance-inferred (all treated as single bonds).")
+                    else:
+                        cur_bond_orders = self._distance_connectivity(cur_symbols, work)
+                    cur_adj = self._build_adjacency(cur_n, cur_bond_orders)
+                    adj_sets = {i: set(cur_adj[i]) for i in range(cur_n)}
+                    summaries.append(summary)
+                else:
+                    summaries.append(self._apply_transform_op(op, work, adj_sets, cur_n))
         except ValueError as e:
             return InternalCoordinates_output_schema(is_success=False, message=f"Invalid transform operation: {e}")
 
         after_bonds, after_bond_lines = self._abnormal_bonds(
-            symbols, work, adj, bond_orders, user_input.bond_tolerance,
+            cur_symbols, work, cur_adj, cur_bond_orders, user_input.bond_tolerance,
         )
         after_angles, after_angle_lines = self._abnormal_angles(
-            symbols, work, adj, bond_orders, user_input.angle_tolerance,
+            cur_symbols, work, cur_adj, cur_bond_orders, user_input.angle_tolerance,
         )
         anomalies_after = after_bonds + after_angles
         reactive_lines: list[str] = []
         if user_input.reactive_atoms or user_input.watch_pairs:
             reactive_lines = self._reactive_center_report(
-                symbols, work, adj, bond_orders,
+                cur_symbols, work, cur_adj, cur_bond_orders,
                 user_input.reactive_atoms, user_input.watch_pairs,
             )
 
@@ -1474,9 +1657,7 @@ class InternalCoordinates(Tool):
             report.append("== Notes ==")
             report.extend(f"  - {t}" for t in notes)
 
-        from ase import Atoms
-
-        xyz_text = self._atoms_to_xyz_block(Atoms(symbols=symbols, positions=work))
+        xyz_text = self._atoms_to_xyz_block(Atoms(symbols=cur_symbols, positions=work))
         output_path = ""
         if user_input.output_path:
             os.makedirs(os.path.dirname(user_input.output_path) or ".", exist_ok=True)

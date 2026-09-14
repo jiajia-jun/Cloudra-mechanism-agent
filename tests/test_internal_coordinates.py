@@ -916,3 +916,149 @@ async def test_transform_output_roundtrip(mock_session, tmp_path):
     )
     assert analyze.is_success is True, analyze.message
     assert "Atoms: 8" in analyze.report
+
+
+# ---------- replace_group（拓扑编辑） ----------
+
+
+@pytest.mark.asyncio
+async def test_transform_replace_group_methanol_to_ch3f(mock_session):
+    """甲醇切 C-O 移除 OH、接 [*]F → CH3F：原子数 6→5，新 C-F 键长 ≈ 参考值。"""
+    import numpy as np
+
+    import cloudra.tools.Chemtool.internal_coordinates as ic_mod
+
+    xyz = _embed_xyz("CO")  # C1 O2 H3-6（重原子在前，O 上的 H 是 6 号）
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz,
+            operations=[{"type": "replace_group", "bond": [1, 2], "smiles": "[*]F"}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    op = result.operations_applied[0]
+    assert op["type"] == "replace_group"
+    assert op["bond"] == [1, 2]
+    assert op["n_removed"] == 2  # O + 其 H
+    assert op["n_added"] == 1
+    assert op["n_atoms_before"] == 6
+    assert op["n_atoms_after"] == 5
+    assert op["attachment_atoms"] == [1, 5]  # 新编号：存活者保序（C1 H2-4）+ F 追加为 5
+
+    parsed = _parse_xyz_block(result.xyz_text)
+    assert [s for s, _ in parsed] == ["C", "H", "H", "H", "F"]
+    p = np.array([c for _, c in parsed])
+    cf = np.linalg.norm(p[4] - p[0])
+    ref = ic_mod._REFERENCE_BOND_LENGTHS[("C", "F")][1]
+    assert abs(cf - ref) < 0.2
+    # 对接方向沿旧 C->O 键
+    p0 = np.array([c for _, c in _parse_xyz_block(xyz)])
+    old_dir = (p0[1] - p0[0]) / np.linalg.norm(p0[1] - p0[0])
+    new_dir = (p[4] - p[0]) / cf
+    assert float(np.dot(old_dir, new_dir)) > 0.99
+    assert "replace_group" in result.report
+
+
+@pytest.mark.asyncio
+async def test_transform_replace_group_ethanol_to_acetic_acid(mock_session):
+    """乙醇切 C-C 移除甲基、接 [*]C(=O)O → 乙酸：原子数对，无 breaking_suspect 新键。"""
+    xyz = _embed_xyz("CCO")  # C1 C2 O3 + H（重原子在前）
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz,
+            operations=[{"type": "replace_group", "bond": [1, 2], "smiles": "[*]C(=O)O"}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    op = result.operations_applied[0]
+    # C2 侧片段 = CH2OH（C2+2H+O+OH 共 5 原子）；接入 -C(=O)O = C,O,O,H 4 原子；9 -> 8
+    assert op["n_removed"] == 5
+    assert op["n_added"] == 4
+    assert op["n_atoms_after"] == 8
+    symbols = [s for s, _ in _parse_xyz_block(result.xyz_text)]
+    assert symbols == ["C", "H", "H", "H", "C", "O", "O", "H"]
+    assert not any(a["status"] == "breaking_suspect" for a in result.anomalies), result.anomalies
+    assert not any(a["status"] == "clash" for a in result.anomalies), result.anomalies
+
+
+@pytest.mark.asyncio
+async def test_transform_replace_group_then_rotate_uses_new_numbering(mock_session, tmp_path):
+    """replace_group 后续 op 用新编号：存活者保序 + 新基团追加；output_path 写盘。"""
+    import numpy as np
+
+    xyz = _embed_xyz("CO")
+    out_file = tmp_path / "ch3f_rotated.xyz"
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=xyz,
+            operations=[
+                {"type": "replace_group", "bond": [1, 2], "smiles": "[*]F"},
+                # 新编号：C=1, H=2..4, F=5；绕 C1-F5 轴转甲基 H
+                {"type": "rotate", "axis_atoms": [1, 5], "degrees": 60.0,
+                 "atoms": [2, 3, 4]},
+            ],
+            output_path=str(out_file),
+        ),
+        mock_session,
+    )
+    assert result.is_success is True, result.message
+    assert [s["type"] for s in result.operations_applied] == ["replace_group", "rotate"]
+    rot = result.operations_applied[1]
+    assert rot["n_moved"] == 3
+    assert out_file.read_text(encoding="utf-8") == result.xyz_text
+    p1 = np.array([c for _, c in _parse_xyz_block(result.xyz_text)])
+    # 绕轴刚体旋转：C-H 键长保持
+    for h in (1, 2, 3):
+        assert abs(np.linalg.norm(p1[h] - p1[0]) - 1.09) < 0.15
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ops,expected", [
+    # SMILES 里没有 [*]
+    ([{"type": "replace_group", "bond": [1, 2], "smiles": "F"}],
+     "exactly one [*]"),
+    # 两个 [*]
+    ([{"type": "replace_group", "bond": [1, 2], "smiles": "[*]C[*]"}],
+     "exactly one [*]"),
+    # 非法 SMILES
+    ([{"type": "replace_group", "bond": [1, 2], "smiles": "C(("}],
+     "invalid substituent SMILES"),
+    # 缺 smiles
+    ([{"type": "replace_group", "bond": [1, 2]}],
+     "requires 'smiles'"),
+    # bond 不是两个原子
+    ([{"type": "replace_group", "bond": [1], "smiles": "[*]F"}],
+     "bond: [a, b]"),
+    # bond 不成键
+    ([{"type": "replace_group", "bond": [2, 3], "smiles": "[*]F"}],
+     "not bonded"),
+])
+async def test_transform_replace_group_fail_loud(mock_session, ops, expected):
+    """replace_group 的非法输入一律 fail-loud。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(mode="transform", input_text=WATER_XYZ, operations=ops),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert expected.lower() in result.message.lower(), result.message
+
+
+@pytest.mark.asyncio
+async def test_transform_replace_group_ring_bond_rejected(mock_session):
+    """环上的键不能切断做替换（删边后图仍连通）。"""
+    tool = InternalCoordinates()
+    result = await tool.safe_call(
+        InternalCoordinates_input_schema(
+            mode="transform", input_text=CYCLOHEXANE_XYZ,
+            operations=[{"type": "replace_group", "bond": [1, 2], "smiles": "[*]F"}],
+        ),
+        mock_session,
+    )
+    assert result.is_success is False
+    assert "ring" in result.message.lower(), result.message
