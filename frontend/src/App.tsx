@@ -8,6 +8,7 @@ import AuditLog from './AuditLog';
 import GlobalConfig from './GlobalConfig';
 import KnowledgePanel from './KnowledgePanel';
 import BenchmarkPanel from './BenchmarkPanel';
+import TelemetryPanel from './TelemetryPanel';
 import AttentionDock, { type NotifPermission } from './AttentionDock';
 import { collectPending, diffNewItems, type PendingAttention, type ProjectPending } from './attention';
 import {
@@ -238,6 +239,7 @@ export default function App() {
   });
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [benchmarkOpen, setBenchmarkOpen] = useState(false);
+  const [telemetryOpen, setTelemetryOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1697,6 +1699,14 @@ export default function App() {
                 >
                   <span className="sidebar-foot-label">Benchmark</span>
                 </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-telemetry ${telemetryOpen ? 'active' : ''}`}
+                  title="LLM telemetry: token usage, prompt cache analysis, context export"
+                  onClick={() => setTelemetryOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Telemetry</span>
+                </button>
               </div>
             </>
           ) : (
@@ -1878,6 +1888,14 @@ export default function App() {
                   onClick={() => setBenchmarkOpen(true)}
                 >
                   <span className="sidebar-foot-label">Benchmark</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-foot-item sidebar-telemetry ${telemetryOpen ? 'active' : ''}`}
+                  title="LLM telemetry: token usage, prompt cache analysis, context export"
+                  onClick={() => setTelemetryOpen(true)}
+                >
+                  <span className="sidebar-foot-label">Telemetry</span>
                 </button>
                 <button
                   type="button"
@@ -2306,6 +2324,9 @@ export default function App() {
             onOpenProject={openBenchmarkProject}
             onToast={pushToast}
           />
+        )}
+        {telemetryOpen && (
+          <TelemetryPanel onClose={() => setTelemetryOpen(false)} onToast={pushToast} />
         )}
         <PathPickerModal
           isOpen={pathPicker.isOpen}

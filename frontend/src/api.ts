@@ -314,7 +314,77 @@ export const api = {
     }),
   benchmarkRuns: () => request<BenchmarkHistory>('/api/v2/benchmark/runs'),
   benchmarkStreamUrl: () => withToken(`${runtimeUrl}/api/v2/benchmark/stream`),
+  // ---- LLM telemetry (read-only; routers/telemetry.py) ----
+  telemetryTokens: (since?: string, until?: string) => {
+    const params = new URLSearchParams();
+    if (since) params.set('since', since);
+    if (until) params.set('until', until);
+    const query = params.toString();
+    return request<TelemetryTokensResponse>(`/api/v2/telemetry/tokens${query ? `?${query}` : ''}`);
+  },
+  telemetryCache: (since?: string, until?: string, topN = 20) => {
+    const params = new URLSearchParams();
+    if (since) params.set('since', since);
+    if (until) params.set('until', until);
+    params.set('top_n', String(topN));
+    return request<TelemetryCacheResponse>(`/api/v2/telemetry/cache?${params.toString()}`);
+  },
+  // Downloads cannot carry headers -> ?token= query fallback, like artifacts.
+  telemetrySessionExportUrl: (sessionId: string) =>
+    withToken(`${runtimeUrl}/api/v2/telemetry/export/session/${encodeURIComponent(sessionId)}`),
+  telemetryProjectExportUrl: (projectId: string) =>
+    withToken(`${runtimeUrl}/api/v2/telemetry/export/project/${encodeURIComponent(projectId)}`),
 };
+
+// ---- telemetry ----
+
+export interface TelemetryTotals {
+  requests: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cached_tokens: number;
+  total_tokens: number;
+  hit_rate: number;
+  first_request_at: string | null;
+  last_request_at: string | null;
+}
+
+export interface TelemetryAgentRow extends TelemetryTotals {
+  session_id: string;
+  project_id: string | null;
+}
+
+export interface TelemetryProjectRow extends TelemetryTotals {
+  project_id: string;
+  sessions: number;
+}
+
+export interface TelemetryTokensResponse {
+  since: string | null;
+  until: string | null;
+  totals: TelemetryTotals & { sessions: number; projects: number };
+  agents: TelemetryAgentRow[];
+  projects: TelemetryProjectRow[];
+}
+
+export interface TelemetryCacheResponse {
+  since: string | null;
+  until: string | null;
+  overall: TelemetryTotals;
+  by_day: Array<TelemetryTotals & { day: string }>;
+  by_request_bucket: Array<TelemetryTotals & { bucket: string; sessions: number }>;
+  by_model: Array<TelemetryTotals & { model: string }>;
+  miss_distribution: { count: number; median: number; p90: number; p99: number; max: number };
+  top_misses: Array<{
+    created_at: string | null;
+    session_id: string | null;
+    project_id: string | null;
+    model: string;
+    prompt_tokens: number;
+    cached_tokens: number;
+    missed_tokens: number;
+  }>;
+}
 
 // ---- benchmark (GH #32) ----
 
