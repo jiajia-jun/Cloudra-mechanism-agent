@@ -36,17 +36,20 @@
 
 候选机理先用 `mechanism_predict` 出假设：给反应物 SMILES（可选目标产物），FlowER ML 网络搜索返回按概率排序的基元步候选网络。**验证或证伪一条已预测的路径比凭空推导机理便宜得多**——从网络中抽出候选边当作待验证假设，逐条走 §2.2–2.5 的证据链。它是 ML 假设生成器（需 config `flower.enabled` 开启，未开启时工具不投影）；**网络输出不是计算证据**，每条边仍须完成驻点/频率/IRC 验证，也不替代端点身份核对。示例：`{"reactants":"C=COCC=C","products":"C=CCCC=O","max_depth":6}`。
 
-用可靠工具生成/提取结构，**先**用 `internal_coordinates` 做结构体检与反应坐标读出（成/断键距离、关键二面角、clash、质子化态、立体化学、异常键长），再决定优化/扫描/构象策略。**不要跳过内坐标直接扫笛卡尔或盲改 XYZ**；几何微调走 Z-matrix 流程或 **`mode="transform"` 内坐标式几何编辑**——绕轴旋转基团、拉伸/压缩键、交换两个取代基分支反转手性中心，编辑后工具自动对新几何重跑 clash/异常键角校验，原子序号为 analyze 报告的 1-based 编号。示例：
+用可靠工具生成/提取结构，**先**用 `internal_coordinates` 做结构体检与反应坐标读出（成/断键距离、关键二面角、clash、质子化态、立体化学、异常键长），再决定优化/扫描/构象策略。**不要跳过内坐标直接扫笛卡尔或盲改 XYZ**；几何微调走 Z-matrix 流程或 **`mode="transform"` 内坐标式几何编辑**——绕轴旋转基团、拉伸/压缩键、交换两个取代基分支反转手性中心、切断一根键换掉整个取代基（`replace_group`，拓扑编辑），编辑后工具自动对新几何重跑 clash/异常键角校验，原子序号为 analyze 报告的 1-based 编号。示例：
 
 ```json
 {"mode":"transform","input_path":"a.xyz","output_path":"b.xyz",
  "operations":[
    {"type":"rotate","axis_atoms":[3,7],"side_of_bond":[3,7],"degrees":120},
    {"type":"stretch","atoms":[3,7],"new_length":2.10},
-   {"type":"invert_chirality","center":5,"swap":[6,9]}]}
+   {"type":"invert_chirality","center":5,"swap":[6,9]},
+   {"type":"replace_group","bond":[3,7],"smiles":"[*]C(=O)O"}]}
 ```
 
-典型场景：把某个甲基转到反应构象（`rotate`）、预组织成/断键距离（`stretch`）、修正立体化学错误的中心（`invert_chirality`）。初始普通极小点连接正确、无明显冲突即可优化；柔性体系在影响路径/选择性时筛选 reactive conformers，并保留相对参照构象的能量代价。构象谓词能写成距离就写进 `distance_filters`；**二面角/角度约束 `distance_filters` 表达不了**——距离筛近接后必须用 `internal_coordinates` 复核，不满足就换构象，不要在错误预组织上硬扫。
+`replace_group` 规则：切断 `bond` 指定的 1-based 键 a-b（不能在环上），移除 b 侧整个片段，把新基团接到 a 上；`smiles` 用**恰好一个 `[*]` 假原子**标记连接点（`[*]C(=O)O` = 羧基、`[*]c1ccccc1` = 苯基、`[*]F` = 氟），新键级取 `[*]` 键的键级；新基团 3D 几何由工具嵌入并力场优化后沿旧 a→b 键方向对接（取向确定，不做构象采样，交给后续优化）。存活原子保序、新原子追加在末尾——**replace_group 之后的操作一律用新编号**。
+
+典型场景：把某个甲基转到反应构象（`rotate`）、预组织成/断键距离（`stretch`）、修正立体化学错误的中心（`invert_chirality`）、把底物上的取代基换成同系物/衍生物做系列对比（`replace_group`）。初始普通极小点连接正确、无明显冲突即可优化；柔性体系在影响路径/选择性时筛选 reactive conformers，并保留相对参照构象的能量代价。构象谓词能写成距离就写进 `distance_filters`；**二面角/角度约束 `distance_filters` 表达不了**——距离筛近接后必须用 `internal_coordinates` 复核，不满足就换构象，不要在错误预组织上硬扫。
 
 对每条候选边写出成断键变化。`reaction_mapping` 的两个判断要分开读取：
 
