@@ -401,16 +401,21 @@ async def test_restore_parks_zombie_child_notification_when_parent_also_zombie(t
 
 
 @pytest.mark.asyncio
-async def test_restore_zombie_child_notification_schedules_parent_runner(tmp_path):
-    """唤醒真实可调度：带 runner 的 restore（生产路径在 uvicorn 事件循环
-    内、runner 已装）让被唤醒的父立即开跑并消费子失败通知。"""
+async def test_restore_parks_zombie_child_until_explicit_resume(tmp_path):
+    """生产路径 runner 已装时，restore 也不得把休眠父打进 LLM（issue #35）。
+    子失败通知驻留信箱；显式 message 才开跑并消费。"""
     from cloudra.runtime_v2.adapters import LegacyToolExecutor
     from cloudra.runtime_v2.agent_runner import AgentRunner
     from cloudra.runtime_v2.policies import default_stages
+    from cloudra.runtime_v2.schemas import AgentState
     from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
 
     class StopLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
         async def complete(self, agent, messages, tools, **_kwargs):
+            self.calls += 1
             return LLMResponse(content="ack child failure", stop_requested=True)
 
     store = RuntimeStore(tmp_path / "runtime.db")
@@ -418,28 +423,49 @@ async def test_restore_zombie_child_notification_schedules_parent_runner(tmp_pat
 
     restored = RuntimeCore(strict_events=True)
     restored.store = store
+    llm = StopLLM()
     pipeline = TurnPipeline(
         event_log=restored.event_log,
         stages=default_stages(),
-        llm=StopLLM(),
+        llm=llm,
         tools=LegacyToolExecutor(restored),
     )
     restored.runner = AgentRunner(restored, pipeline)
     restore_core(restored, store)
 
     rparent = restored.agents[parent.id]
+    assert rparent.state is AgentState.SUCCEEDED
+    assert llm.calls == 0
+    inbox = restored.mailbox.inbox(rparent.id)
+    assert inbox is not None and inbox.qsize() == 1
+    await asyncio.sleep(0.05)
+    assert rparent.state is AgentState.SUCCEEDED
+    assert llm.calls == 0
+
+    bus = CommandBus(restored)
     try:
+        await bus.execute(
+            Command(
+                type="agent.message",
+                target={"session_id": rparent.id},
+                payload={"content": "resume after restart"},
+            )
+        )
         deadline = asyncio.get_running_loop().time() + 10.0
-        while rparent.state.value != "succeeded":
+        while rparent.state.value != "succeeded" or llm.calls == 0:
             if asyncio.get_running_loop().time() > deadline:
-                raise AssertionError(f"parent stuck in {rparent.state.value} after restore wake")
+                raise AssertionError(
+                    f"parent stuck in {rparent.state.value} after explicit resume "
+                    f"(llm.calls={llm.calls})"
+                )
             await asyncio.sleep(0.01)
         emitted = [
             e
-            for e in restored.event_log.query_session(parent.id, types={"agent.message_emitted"})
+            for e in restored.event_log.query_session(rparent.id, types={"agent.message_emitted"})
             if "ack child failure" in str(e.data.get("content", ""))
         ]
-        assert emitted, "woken parent must run a turn and consume the parked notification"
+        assert emitted, "explicit resume must run a turn and consume the parked notification"
+        assert llm.calls >= 1
     finally:
         await restored.runner.cancel_all()
 

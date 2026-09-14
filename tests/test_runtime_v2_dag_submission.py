@@ -263,13 +263,13 @@ async def test_real_bind_tool_notifies_after_persistence(tmp_path, monkeypatch):
 
     real_notify = supervision_mod.notify_supervisor
 
-    async def _wrapped_notify(core_, project_id_, *, reason=""):
+    async def _wrapped_notify(core_, project_id_, *, reason="", **_kwargs):
         # 通知执行时，送审必须已经持久化（持久化先于通知的所有权边界）。
         pending = await asyncio.to_thread(_pending_reviews)
         assert any(review.source == "explicit" for review in pending), (
             "notification fired before the explicit review was persisted"
         )
-        await real_notify(core_, project_id_, reason=reason)
+        await real_notify(core_, project_id_, reason=reason, **_kwargs)
         notified.set()
 
     notify = AsyncMock(side_effect=_wrapped_notify)
@@ -1097,10 +1097,10 @@ async def test_notification_failure_keeps_backlog_for_reconcile(tmp_path, monkey
     real_notify = supervision_mod.notify_supervisor
     channel = {"down": True}
 
-    async def _flaky_notify(core_, project_id_, *, reason=""):
+    async def _flaky_notify(core_, project_id_, *, reason="", **_kwargs):
         if channel["down"]:
             raise RuntimeError("notification channel down")
-        await real_notify(core_, project_id_, reason=reason)
+        await real_notify(core_, project_id_, reason=reason, **_kwargs)
 
     monkeypatch.setattr(supervision_mod, "notify_supervisor", _flaky_notify)
     try:
