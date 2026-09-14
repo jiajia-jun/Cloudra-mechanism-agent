@@ -9,7 +9,9 @@
   反应物 SMILES）。
 - `steps`: 主写出线的基元步列表，每步 {"out": <该步产物的映射 SMILES>,
   "type": <step_type 英译>}；末步 out 去映射后必须等于池内产物。
-  纯构象步（无键级变化）另加 "conformational": True。
+  纯构象步（无键级变化）另加 "conformational": True。可选键 "barrier"
+  （该步参考答案能垒 kcal/mol，逐边承载；缺省 None = 无参考值、不评分）与
+  "weight"（该边 accuracy 加权平均的权重，缺省 1.0；越难算准的边越小）。
 
 粒度规则：gold 边 = normal.md 机理概要中每个造成重原子骨架键变化的事件；
 质子转移凡涉及显式写入 SMILES 的催化剂/水（[OH-]/[OH3+]/CNC/CN- 等）一律

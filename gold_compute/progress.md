@@ -101,3 +101,18 @@ easy.md / normal.md / hard.md / impossible.md
 - **计算战役计划已写**：gold_compute/compute_campaign.md（14 体系/29 边，gold 值一律 b3lyp/def2svp）。
 - **用户指示：先写计划，不启动计算。** → 等待用户对计划确认后再开跑。
 - 修正 HA1.json：把误置于 edges 的 _note 提为 selectivity_note（非坏边）。
+
+
+## 2026 逐边能垒重构（用户指令）
+- 用户决定：废弃整题 reference_computation.barrier 锚点；能垒只在边上；逐边加权平均评分（越难算准的边权重越小）；不再保留 provenance（DOI/level_of_theory/verification/type/frame）。
+- 规格：gold_compute/edge_barrier_refactor_spec.md
+- 实施：a-8 env session as_15beb475334f4cde（is_wait=false），按规格重构 schema/生成器/registry/accuracy/barrier_evidence/runner/tests 并重跑 60 JSON。
+- 待办：重跑后跑 tests/test_benchmark.py + ruff，接入 26 条逐边文献值，补缺口边。
+
+
+## 收尾完成（env 收尾会话虽报 failed，实际改动一致且已验收）
+- md 过时文字已清理（easy/normal/hard.md 中 barrier_reference/verification/unverified/_BARRIER_FRAME_UNVERIFIED/computed_by_us/central_complex 口径声明与"口径核对登记"节已删/改写；stale grep = 0）。
+- 权重按"越难算准越小"落地：frame 不匹配/类似物/部分核实边 weight=0.5（easy D1/D3/D4/C3/G2/G3 等）；分布 = {1.0: 62, 0.5: 28}。
+- 全部 60 JSON 经生成器重跑；gold 已无 reference_computation；90 条 gold 边中 45 条带参考值。
+- 独立验收：tests/test_benchmark.py 120 passed；4 个 regenerate_identically 守卫 passing；ruff 通过。
+- 剩余缺口：约45条边无参考值（多步机理非决速步/质子转移/选择性题），关键边 NA2、HA1/HA6/HE3/HG2；待启动计算战役（gold_compute/compute_campaign.md，b3lyp/def2svp）。

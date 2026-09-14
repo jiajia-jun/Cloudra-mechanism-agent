@@ -174,6 +174,7 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         },
@@ -206,7 +207,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 39.9,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         },
@@ -231,7 +233,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 18.0,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         },
@@ -257,6 +260,7 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         },
@@ -289,22 +293,14 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 30.5,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 39.9,
-      "barrier_type": "ΔE‡",
-      "barrier_reference": "central_complex",
-      "verification": "verified",
-      "reference_doi": "10.1021/jo0508346",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": null
   },
   "rubric": {

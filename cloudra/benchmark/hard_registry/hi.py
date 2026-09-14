@@ -24,7 +24,7 @@ I4：单基元步协同氰基转移（C–C 成、N–H 成、C–H 断、C=N π
 
 TASKS = {
     # C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43>>同左  (0/1)
-    # 1,1′-联萘消旋化：无键变化的纯构象步，anchor="barrier"（ΔG‡ ≈ 23.5 挂 reference_computation）
+    # 1,1′-联萘消旋化：无键变化的纯构象步，anchor="barrier"（ΔG‡ ≈ 23.5 逐边承载）
     "H1": {
         "name_en": "1,1'-binaphthyl atropisomerization (thermal racemization)",
         "conditions_en": "thermal racemization, ~50 degC, polar solvent",
@@ -34,6 +34,8 @@ TASKS = {
             {
                 "out": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
                 "type": "atropisomerization via peri-H squeeze through a double-leaf flip TS (syn/anti peri-H paths differ by ~1 kcal/mol)",
+                "barrier": 23.5,
+                "weight": 0.5,
                 "conformational": True,
             },
         ],
@@ -53,12 +55,16 @@ TASKS = {
                 # 成 C2=C3 pi，两质子经羧基接力转到离去的 O4 成水 → 烯胺 + H2O（苯甲醛旁观）
                 "out": "[CH3:1][C:2](=[CH2:3])[N:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15].[O:4]([H:21])([H:22]).[O:5]=[CH:6][c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1",
                 "type": "enamine condensation (merged edge): proline N attacks the acetone carbonyl, C-O cleaves and the N-H/alpha-C-H protons are relayed onto the departing oxygen by the carboxyl shuttle -> enamine + water (carbinolamine/iminium not separate nodes)",
+                "barrier": 19.2,
+                "weight": 0.5,
             },
             {
                 # 立体决定步：烯胺 beta-C（C3）经 Houk-List 椅式 TS 从主面进攻苯甲醛 C6，
                 # 成 C3-C6，断 C2=C3 pi、断 C6=O5 pi，成 C2=N20 pi → (S)-构型亚铵-醇盐
                 "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
                 "type": "stereo-determining C-C addition: enamine beta-carbon attacks benzaldehyde through the major-face Houk-List chair TS (carboxyl H-bond network positions the aldehyde) -> (S)-configured iminium-aldolate",
+                "barrier": 9.1,
+                "weight": 0.5,
                 "channel": "major_face",
             },
             {
@@ -66,6 +72,8 @@ TASKS = {
                 # 成 N20-H21（脯氨酸再生）、成 O5-H22（醇盐质子化）→ (S)-aldol + (S)-脯氨酸
                 "out": "[CH3:1][C:2](=[O:4])[CH2:3][C@H:6]([O:5][H:22])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:13]=[C:14]([OH:15])[C@@H:16]1[CH2:17][CH2:18][CH2:19][N:20]1([H:21])",
                 "type": "hydrolysis: water cleaves the iminium (C=O restored, C-N breaks), one water proton regenerates the proline N-H and the other protonates the aldolate -> (S)-aldol + (S)-proline",
+                "barrier": 16.9,
+                "weight": 0.5,
             },
         ],
         "competing": [
@@ -74,6 +82,8 @@ TASKS = {
                 # (R)-构型亚铵-醇盐副中间体（is_product=false，仅 C6 构型相反）
                 "out": "[CH3:1][C:2](=[N+:20]2[CH2:19][CH2:18][CH2:17][C@@H:16]2[C:14](=[O:13])[OH:15])[CH2:3][C@@H:6]([O-:5])[c:7]1[cH:8][cH:9][cH:10][cH:11][cH:12]1.[O:4]([H:21])([H:22])",
                 "type": "opposite-face enamine attack via the minor Houk-List chair TS -> (R)-configured iminium-aldolate (minor intermediate, hydrolysis not traced in the reference graph)",
+                "barrier": 11.5,
+                "weight": 0.5,
                 "from_step": 1,
                 "is_product": False,
                 "channel": "minor_face",

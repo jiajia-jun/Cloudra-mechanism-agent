@@ -111,22 +111,14 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 18.8,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 18.8,
-      "barrier_type": "ΔE‡",
-      "barrier_reference": "central_complex",
-      "verification": "unverified",
-      "reference_doi": "10.1016/0009-2614(78)85662-0",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": null
   },
   "rubric": {

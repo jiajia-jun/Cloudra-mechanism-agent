@@ -40,7 +40,6 @@ from cloudra.benchmark.gen_easy_tasks import (
     HEAVY_RE,
     ROW_RE,
     SMILES_RE,
-    _parse_barrier,
 )
 from cloudra.benchmark.normal_registry import REGISTRY
 from cloudra.benchmark.query_builder import (
@@ -52,7 +51,6 @@ from cloudra.benchmark.query_builder import (
 )
 from cloudra.benchmark.schema import (
     AccuracyRubric,
-    BarrierReference,
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
@@ -61,12 +59,10 @@ from cloudra.benchmark.schema import (
     MethodPolicy,
     NodeRole,
     PromptSpec,
-    ReferenceComputation,
     RubricSpec,
     SystemSpec,
     TaskSpec,
     Tier,
-    VerificationStatus,
     complex_smiles,
 )
 from cloudra.infra.config import get_config
@@ -82,23 +78,6 @@ DEFAULT_OUT = REPO_ROOT / "ideapool" / "tasks" / "normal"
 TASK_IDS = (
     "A2 A5 I1 O3 R1 U5 U6 Y3 Q1 U3"
 ).split()
-
-# 口径核对登记（normal.md 文末）：锚点非 central_complex 标准口径的题，数值保留、
-# verification 一律降 unverified 待核，不按新口径编造数值（easy 同款机制）。
-_BARRIER_FRAME_UNVERIFIED = {
-    "A7",   # 锚点来自类似底物（肉桂醛而非丙烯醛）
-    "Y2",   # 数值经学位论文对比表二手转录，一级出处待补
-    "O4", "O5",  # 微溶剂化团簇口径（非纯气相络合物基准）
-    "U1",   # 锚点为中性水助通道，题设为 OH- 催化通道
-    "Q2",   # 双分子，文献垒相对分离反应物渐近线（同 easy D1 情形）
-    "X1",   # 锚点来自二级氯代物 iPrCl，按最近体系转录
-    "X3",   # 溶液相自由能垒，参考态未明
-    "H3",   # 学位论文二手转录，参考点为路径中间体络合物
-    "H5",   # 文献垒相对分离反应物渐近线
-    "U3", "U5", "Y3",  # 文献垒口径为分离反应物/溶液自由能（非 central_complex）
-    "R1",   # 微溶剂化水簇口径（非纯气相络合物基准）
-}
-
 
 # ---------------------------------------------------------------------------
 # 原子映射 SMILES 解析与键变化推导（RDKit；chem extra，生成器为开发期工具）
@@ -237,6 +216,12 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
                 errors.append(f"第 {k} 步无键级变化且未声明 conformational")
             if not step.get("type"):
                 errors.append(f"第 {k} 步缺 step_type 英译")
+            barrier = step.get("barrier")
+            if barrier is not None and not (0.0 <= float(barrier) <= 200.0):
+                errors.append(f"第 {k} 步 barrier 数值非法: {barrier}")
+            weight = step.get("weight", 1.0)
+            if not float(weight) > 0:
+                errors.append(f"第 {k} 步 weight 必须为正: {weight}")
             prev = out
         if sorted(_unmap_canonical(steps[-1]["out"])) != pool_p:
             errors.append(
@@ -276,6 +261,8 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 via=ts.id,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                barrier_kcal_mol=step.get("barrier"),
+                weight=step.get("weight", 1.0),
             )
         )
         nodes.extend([ts, node])
@@ -357,10 +344,6 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         reactants_s, products_s = rxn.split(">>", 1)
         reactants = [s for s in reactants_s.split(".") if s]
         products = [s for s in products_s.split(".") if s]
-        barrier, btype, verification, doi = _parse_barrier(cells[5])
-        if pid in _BARRIER_FRAME_UNVERIFIED:
-            verification = VerificationStatus.UNVERIFIED
-        barrier_ref = BarrierReference.CENTRAL if barrier is not None else None
         elem_m = ELEMENTS_RE.match(cells[6])
         elements = elem_m.group(1).split(",") if elem_m else []
         heavy_m = HEAVY_RE.search(cells[6])
@@ -412,25 +395,17 @@ def parse_normal_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                     closed_shell=True,
                     single_step=False,
                 ),
-                gold=GoldSpec(
-                    mechanism_graph=graph,
-                    reference_computation=ReferenceComputation(
-                        level_of_theory=(
-                            "literature anchor (see reference_doi)"
-                            if doi
-                            else "literature anchor (curated in normal.md; no DOI on record)"
-                        ),
-                        barrier_kcal_mol=barrier,
-                        barrier_type=btype,
-                        barrier_reference=barrier_ref,
-                        verification=verification,
-                        reference_doi=doi,
-                        computed_by_us=False,
-                    ),
-                ),
+                gold=GoldSpec(mechanism_graph=graph),
                 # normal 档 accuracy 层高斯容差 σ=2.0（plan 2026-08-29 定稿）；
-                # 无锚点题只评自洽性（enabled=false）
-                rubric=RubricSpec(accuracy=AccuracyRubric(enabled=barrier is not None, sigma_kcal_mol=2.0)),
+                # 无参考边的题只评自洽性（enabled=false）
+                rubric=RubricSpec(
+                    accuracy=AccuracyRubric(
+                        enabled=any(
+                            e.barrier_kcal_mol is not None for e in graph.edges
+                        ),
+                        sigma_kcal_mol=2.0,
+                    )
+                ),
             )
         )
     if all_errors:

@@ -82,22 +82,14 @@
             "form": []
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 5.8,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "literature anchor (curated in easy.md; no DOI on record)",
-      "barrier_kcal_mol": 5.8,
-      "barrier_type": null,
-      "barrier_reference": "central_complex",
-      "verification": "verified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": null
   },
   "rubric": {

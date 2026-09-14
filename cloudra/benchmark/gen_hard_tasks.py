@@ -12,11 +12,11 @@ Hard-tier specifics vs normal (gen_normal_tasks):
 
 - task_id 加 "H" 前缀（池内 A1 -> HA1），family 保留池内族字母。
 - 选择性锚点（ΔΔG‡/ΔΔE‡ 竞争非对映 TS 能垒差）走 `gold.selectivity`
-  （SelectivityReference），绝不塞进 reference_computation.barrier_kcal_mol；
-  绝对能垒锚点（H1 消旋阻垒 ΔG‡）仍走 reference_computation 且 accuracy 层
-  照常评分（σ=2.0，同 normal）。选择性锚点题的 accuracy 暂 disable
-  （runner 尚不支持 spread 评分），锚点仅作记录。每题的锚点路由由登记表
-  `anchor` 键声明显式给出："selectivity" / "barrier" / None。
+  （SelectivityReference），只是定性记录（spread 数值不评分）。绝对能垒**逐边
+  承载**在 gold 边 `barrier_kcal_mol` 上（来源为 registry 各步 `barrier` 键），
+  accuracy 逐边加权评分（σ=2.0，同 normal）。题级锚点路由由登记表 `anchor` 键给：
+  "selectivity" / "barrier" / None（"barrier" 仅用于校验题源格锚点与 registry
+  逐边最大能垒一致；不再写任何题级 reference_computation）。
 - gold 机理图带竞争立体化学通道：主写出线照旧为主线边列，登记表
   `competing` 列出副通道（默认从反应物络合物出发到副产物/副中间体节点），
   子图打分据此要求 agent 两条 TS 都交付才算覆盖。立体专一题（副通道被
@@ -70,7 +70,6 @@ from cloudra.benchmark.query_builder import (
 )
 from cloudra.benchmark.schema import (
     AccuracyRubric,
-    BarrierReference,
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
@@ -80,13 +79,11 @@ from cloudra.benchmark.schema import (
     MethodPolicy,
     NodeRole,
     PromptSpec,
-    ReferenceComputation,
     RubricSpec,
     SelectivityReference,
     SystemSpec,
     TaskSpec,
     Tier,
-    VerificationStatus,
     complex_smiles,
 )
 from cloudra.infra.config import get_config
@@ -103,8 +100,9 @@ TASK_IDS = (
     "A1 A6 D2 E2 E3 F1 G2 H1 I1 L1"
 ).split()
 
-# H1 消旋阻垒是绝对能垒锚点（ΔG‡ 23.5，部分核实），挂 reference_computation 且
-# accuracy 照常评分（σ=2.0 同 normal）；selectivity 题与无锚点题 accuracy disable。
+# 绝对能垒逐边承载在 gold 边 barrier_kcal_mol（H1 消旋阻垒 ΔG‡ 23.5 等），
+# accuracy 逐边加权评分（σ=2.0 同 normal）；有参考边才 enabled（selectivity 题
+# 的 accuracy 槽位由定性选择性评分占用）。
 _BARRIER_SIGMA = 2.0
 
 
@@ -148,6 +146,12 @@ def _validate_step_conservation(tag: str, prev: str, step: dict) -> list[str]:
         errors.append(f"{tag} 无键级变化且未声明 conformational")
     if not step.get("type"):
         errors.append(f"{tag} 缺 step_type 英译")
+    barrier = step.get("barrier")
+    if barrier is not None and not (0.0 <= float(barrier) <= 200.0):
+        errors.append(f"{tag} barrier 数值非法: {barrier}")
+    weight = step.get("weight", 1.0)
+    if not float(weight) > 0:
+        errors.append(f"{tag} weight 必须为正: {weight}")
     return errors
 
 
@@ -236,6 +240,8 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 via=ts.id,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                barrier_kcal_mol=step.get("barrier"),
+                weight=step.get("weight", 1.0),
                 # 带 channel 标签的主线步是立体决定边（gold 侧 favored=True）
                 channel=step.get("channel"),
                 favored=True if step.get("channel") else None,
@@ -265,6 +271,8 @@ def _build_graph(pid: str, reactants: list[str], products: list[str], entry: dic
                 via=ts.id,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                barrier_kcal_mol=step.get("barrier"),
+                weight=step.get("weight", 1.0),
                 # 副通道边：gold 侧 favored=False（优势归属由定性计分核对）
                 channel=step.get("channel"),
                 favored=False if step.get("channel") else None,
@@ -364,7 +372,7 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
         # 题面/system 用 constitution-only 产物 SMILES（去立体防泄露——产物立体
         # 化学是 hard 档要考的答案）；gold 图节点保留池内立体 SMILES 不动
         agent_products = [_strip_stereo_canonical(p) for p in products]
-        anchor_val, anchor_type, verification, doi = _parse_barrier(cells[5])
+        anchor_val = _parse_barrier(cells[5])
         elem_m = ELEMENTS_RE.match(cells[6])
         elements = elem_m.group(1).split(",") if elem_m else []
         heavy_m = HEAVY_RE.search(cells[6])
@@ -379,8 +387,9 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             all_errors[pid] = errors
             continue
 
-        # 锚点路由：selectivity -> gold.selectivity（accuracy 暂不评分）；
-        # barrier -> reference_computation（accuracy σ=2.0）；None -> 只评自洽。
+        # 锚点路由：selectivity -> gold.selectivity（ΔΔ 仅定性记录）；
+        # barrier -> 逐边绝对能垒（registry 各步 barrier 承载）；None -> 只评自洽。
+        # 已无整题能垒锚点：绝对能垒逐边承载，不再写任何题级 reference_computation。
         anchor = entry["anchor"]
         if anchor in ("selectivity", "barrier") and anchor_val is None:
             all_errors[pid] = [f"登记 anchor={anchor!r} 但能垒格无数值锚点"]
@@ -389,39 +398,33 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
             all_errors[pid] = [f"能垒格有数值锚点（{anchor_val}）但登记 anchor=None"]
             continue
 
+        graph = _build_graph(pid, reactants, products, entry)
+        edge_barriers = [
+            e.barrier_kcal_mol for e in graph.edges if e.barrier_kcal_mol is not None
+        ]
+        if anchor == "barrier":
+            # 题源格的绝对能垒锚点必须与 registry 逐边值一致（决速步 = 最大逐边值）
+            if not edge_barriers:
+                all_errors[pid] = ["anchor='barrier' 但 registry 未给出任何逐边能垒"]
+                continue
+            if abs(max(edge_barriers) - anchor_val) > 1e-9:
+                all_errors[pid] = [
+                    f"题源能垒锚点 {anchor_val} 与 registry 逐边最大能垒 "
+                    f"{max(edge_barriers)} 不一致"
+                ]
+                continue
+
         selectivity = None
-        reference = ReferenceComputation(
-            level_of_theory="",
-            verification=VerificationStatus.UNVERIFIED,
-        )
-        accuracy = AccuracyRubric(enabled=False, sigma_kcal_mol=_BARRIER_SIGMA)
         if anchor == "selectivity":
             favored = next(s["channel"] for s in entry["steps"] if s.get("channel"))
             selectivity = SelectivityReference(
                 spread_kcal_mol=anchor_val,
-                spread_type=anchor_type,
                 minor_channel=entry["minor_channel_en"],
                 favored_channel=favored,
-                verification=verification,
-                reference_doi=doi,
             )
-        elif anchor == "barrier":
-            reference = ReferenceComputation(
-                level_of_theory=(
-                    "literature anchor (see reference_doi)"
-                    if doi
-                    else "literature anchor (curated in hard.md; no DOI on record)"
-                ),
-                barrier_kcal_mol=anchor_val,
-                barrier_type=anchor_type,
-                # 单分子消旋：反应物阱即络合物口径（CENTRAL）
-                barrier_reference=BarrierReference.CENTRAL,
-                verification=verification,
-                reference_doi=doi,
-            )
-            accuracy = AccuracyRubric(enabled=True, sigma_kcal_mol=_BARRIER_SIGMA)
-
-        graph = _build_graph(pid, reactants, products, entry)
+        accuracy = AccuracyRubric(
+            enabled=bool(edge_barriers), sigma_kcal_mol=_BARRIER_SIGMA
+        )
         # v3：hard 开放 DFT（B3LYP-D3(BJ)/def2-SVP，ORCA/Gaussian 引擎）。白名单为组合
         # 条目：基组是许可的一部分，b3lyp 配其他基组（或缺基组）一律 fail-closed 拦截。
         # 内容源是全局 config（method_policy.allowed_methods），不是这里的字面量。
@@ -459,7 +462,6 @@ def parse_hard_md(src: Path, only: set[str] | None = None) -> list[TaskSpec]:
                 ),
                 gold=GoldSpec(
                     mechanism_graph=graph,
-                    reference_computation=reference,
                     selectivity=selectivity,
                 ),
                 rubric=RubricSpec(

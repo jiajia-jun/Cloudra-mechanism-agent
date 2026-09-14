@@ -53,17 +53,8 @@
       ],
       "edges": []
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {
-        "c_n_bond_length_angstrom": 1.28
-      }
+    "reference_properties": {
+      "c_n_bond_length_angstrom": 1.28
     },
     "selectivity": null
   },

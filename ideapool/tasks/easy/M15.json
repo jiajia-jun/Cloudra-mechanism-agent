@@ -83,22 +83,14 @@
             "form": []
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 9.7,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 9.7,
-      "barrier_type": null,
-      "barrier_reference": "central_complex",
-      "verification": "verified",
-      "reference_doi": "10.1021/j100296a013",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": null
   },
   "rubric": {

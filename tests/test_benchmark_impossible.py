@@ -1,4 +1,4 @@
-"""impossible 档算分器 + accuracy 新语义（verification 门禁 / 性质锚点 /
+"""impossible 档算分器 + accuracy 新语义（逐边能垒 / 性质锚点 /
 hard 定性选择性）的测试。
 
 无 LLM、无网络；评分路径是纯结构化 JSON/文件取证，不需要可选依赖。
@@ -33,14 +33,12 @@ from cloudra.benchmark.schema import (
     MechanismNode,
     NodeRole,
     PromptSpec,
-    ReferenceComputation,
     RefusalDeclaration,
     RubricSpec,
     SelectivityReference,
     SystemSpec,
     TaskSpec,
     Tier,
-    VerificationStatus,
 )
 
 
@@ -49,6 +47,13 @@ def _graph_with_node_properties(props: dict) -> GoldMechanismGraph:
         nodes=[
             MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"], properties=props)
         ]
+    )
+
+
+def _gold_properties(props: dict) -> GoldSpec:
+    """gold 侧性质参考答案（GoldSpec.reference_properties）。"""
+    return GoldSpec(
+        mechanism_graph=GoldMechanismGraph(nodes=[]), reference_properties=props
     )
 
 
@@ -89,56 +94,39 @@ def test_reason_quality():
     assert reason_quality(None)[0] == 0.0
 
 
-# --- accuracy：verification 门禁 ---
+# --- accuracy：逐边能垒门禁（无参考边直通 / 有参考边缺证据记 0） ---
 
 
-def test_accuracy_unverified_anchor_excluded():
-    """verification=unverified 的锚点不参与 accuracy 评分（直通 1.0 + 注明）。"""
-    gold = ReferenceComputation(
-        barrier_kcal_mol=27.5, verification=VerificationStatus.UNVERIFIED
-    )
-    rep = score_accuracy(
-        evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric()
-    )
+def test_accuracy_no_reference_edge_not_scored():
+    """gold 机理图无可参考边 -> accuracy 直通（final_score=1.0 + 注明）。"""
+    gold = GoldSpec(mechanism_graph=GoldMechanismGraph(nodes=[]))
+    rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
     assert rep.final_score == 1.0
-    assert any("accuracy excluded: anchor unverified" in n for n in rep.notes)
+    assert any("no gold edge carries a reference barrier" in n for n in rep.notes)
 
 
-def test_accuracy_partial_anchor_still_scored():
-    """partial/verified 锚点照常评分（只有 unverified 被排除）。"""
-    for status in (VerificationStatus.PARTIAL, VerificationStatus.VERIFIED):
-        gold = ReferenceComputation(barrier_kcal_mol=27.5, verification=status)
-        rep = score_accuracy(
-            evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric()
+def test_accuracy_reference_edge_without_evidence_scored_zero():
+    """gold 参考边找不到对应交付步 -> 该边 fail-loud 0 分。"""
+    gold = GoldSpec(
+        mechanism_graph=GoldMechanismGraph(
+            nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["N#N"])],
+            edges=[
+                MechanismEdge.model_validate(
+                    {"id": "E1", "from": "R", "to": "R", "barrier_kcal_mol": 27.5}
+                )
+            ],
         )
-        # 无证据 -> fail-loud 0 分（说明进入了评分路径而非直通）
-        assert rep.final_score == 0.0, (status, rep.notes)
-        assert any("no step barrier" in n for n in rep.notes)
-
-
-def test_accuracy_unverified_properties_excluded():
-    gold = ReferenceComputation(
-        properties={"bond_length_angstrom": 1.098},
-        verification=VerificationStatus.UNVERIFIED,
     )
-    rep = score_accuracy(
-        evidence=BarrierEvidence(),
-        gold=gold,
-        rubric=AccuracyRubric(),
-        delivered_graph=_graph_with_node_properties({"bond_length_angstrom": 1.098}),
-    )
-    assert rep.final_score == 1.0
-    assert any("accuracy excluded: anchor unverified" in n for n in rep.notes)
+    rep = score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric())
+    assert rep.final_score == 0.0
+    assert any("no matching step" in n for n in rep.notes)
 
 
 # --- accuracy：性质锚点 ---
 
 
 def test_property_anchor_numeric_gaussian():
-    gold = ReferenceComputation(
-        properties={"bond_length_angstrom": 1.098},
-        verification=VerificationStatus.VERIFIED,
-    )
+    gold = _gold_properties({"bond_length_angstrom": 1.098})
     good = score_accuracy(
         evidence=BarrierEvidence(),
         gold=gold,
@@ -158,10 +146,7 @@ def test_property_anchor_numeric_gaussian():
 
 
 def test_property_anchor_string_exact_match():
-    gold = ReferenceComputation(
-        properties={"state_ordering": "triplet below singlet"},
-        verification=VerificationStatus.VERIFIED,
-    )
+    gold = _gold_properties({"state_ordering": "triplet below singlet"})
     match = score_accuracy(
         evidence=BarrierEvidence(),
         gold=gold,
@@ -183,12 +168,11 @@ def test_property_anchor_string_exact_match():
 
 
 def test_property_anchor_multi_key_mean_and_missing():
-    gold = ReferenceComputation(
-        properties={
+    gold = _gold_properties(
+        {
             "bond_length_angstrom": 1.098,
             "harmonic_frequency_cm-1": 2359.0,
-        },
-        verification=VerificationStatus.VERIFIED,
+        }
     )
     rep = score_accuracy(
         evidence=BarrierEvidence(),
@@ -203,10 +187,7 @@ def test_property_anchor_multi_key_mean_and_missing():
 
 
 def test_property_anchor_no_delivered_graph_scores_zero():
-    gold = ReferenceComputation(
-        properties={"bond_length_angstrom": 1.098},
-        verification=VerificationStatus.VERIFIED,
-    )
+    gold = _gold_properties({"bond_length_angstrom": 1.098})
     rep = score_accuracy(
         evidence=BarrierEvidence(), gold=gold, rubric=AccuracyRubric(),
         delivered_graph=None,
@@ -217,10 +198,7 @@ def test_property_anchor_no_delivered_graph_scores_zero():
 
 def test_property_sigma_table_fail_loud():
     """表外数值性质键：fail-loud 抛错，逼显式登记 σ（不静默兜底）。"""
-    gold = ReferenceComputation(
-        properties={"mystery_property": 1.0},
-        verification=VerificationStatus.VERIFIED,
-    )
+    gold = _gold_properties({"mystery_property": 1.0})
     with pytest.raises(ValueError, match="no sigma registered"):
         score_accuracy(
             evidence=BarrierEvidence(),
@@ -437,30 +415,6 @@ def test_runner_hard_selectivity_slot(tmp_path):
     assert res2.accuracy_score == 0.0
 
 
-def test_runner_unverified_anchor_passthrough(tmp_path):
-    """runner 级：unverified 锚点题 accuracy 直通（记 1.0 + 注明），不进入
-    能垒双来源门禁。"""
-    task = TaskSpec(
-        task_id="UNV_T",
-        tier=Tier.EASY,
-        prompt=PromptSpec(query="q"),
-        system=SystemSpec(reactants=["C"]),
-        gold=GoldSpec(
-            mechanism_graph=GoldMechanismGraph(
-                nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"])]
-            ),
-            reference_computation=ReferenceComputation(
-                barrier_kcal_mol=27.5, verification=VerificationStatus.UNVERIFIED
-            ),
-        ),
-    )
-    empty = tmp_path / "empty"
-    empty.mkdir()
-    res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, empty)
-    assert res.accuracy_score == 1.0
-    assert any("accuracy excluded: anchor unverified" in n for n in res.notes)
-
-
 # --- sibling 性质锚点回填（gold_properties）与泄题守卫 ---
 
 
@@ -475,18 +429,18 @@ def test_sibling_property_anchors_backfilled():
     anchored = {"SE2", "SD2", "SA9", "SF3", "SG8", "SC3", "SA8"}
     for tid in anchored:
         t = tasks[tid]
-        props = t.gold.reference_computation.properties
+        props = t.gold.reference_properties
         assert props, f"{tid} 缺 gold 性质锚点"
         assert t.rubric.accuracy.enabled, f"{tid} 有锚点但 accuracy 未启用"
         for key, val in props.items():
             if not isinstance(val, str):
                 _property_sigma(key)  # 表外键在此即抛（fail-loud 前置）
     # 抽查回填值（出处见 registry 注释）
-    assert tasks["SE2"].gold.reference_computation.properties == {
+    assert tasks["SE2"].gold.reference_properties == {
         "bond_length_angstrom": 1.0977,
         "harmonic_frequency_cm-1": 2358.57,
     }
-    assert tasks["SA8"].gold.reference_computation.properties == {
+    assert tasks["SA8"].gold.reference_properties == {
         "energy_relative_to_reactant_kcal_mol": 90.9,
         "state_ordering": "formic acid below dioxirane",
     }
@@ -500,7 +454,7 @@ def test_state_order_anchor_not_leaked_in_query():
 
     tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
     for t in tasks:
-        for key, val in t.gold.reference_computation.properties.items():
+        for key, val in t.gold.reference_properties.items():
             if isinstance(val, str) and val:
                 assert val not in t.prompt.query, f"{t.task_id} 泄露锚点 {key}={val!r}"
         # 占位示例而不是真实态序

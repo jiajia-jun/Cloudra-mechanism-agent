@@ -24,6 +24,8 @@ TASKS = {
                 # 成 C4-C8 与 C7=O10 π → 质子化频哪酮 + H2O
                 "out": "[OH2:1].[OH:6][H:2].[CH3:3][C:4]([CH3:5])([CH3:8])[C:7](=[O+:10][H:11])[CH3:9]",
                 "type": "concerted semipinacol rearrangement (rate-determining): C-OH2+ cleavage with simultaneous 1,2-methyl shift and C=O pi formation; no free carbocation",
+                "barrier": 26.2,
+                "weight": 0.5,
             },
             {
                 # PT：质子化羰基把质子还给水，再生 H3O+
@@ -54,16 +56,22 @@ TASKS = {
                 # 异腈 C α-加成醛碳：成 C9-C1，断 C1=O2 π → nitrilium
                 "out": "[CH2:1]([O:2][H:6])[C:9]#[N+:8][CH3:7].[O-:5][CH:3]=[O:4]",
                 "type": "alpha-addition of the isocyanide carbon to the aldehyde carbon -> nitrilium ion",
+                "barrier": 19.9,
+                "weight": 0.5,
             },
             {
                 # 甲酸根 O 捕获 nitrilium C：成 O5-C9，断一根 C≡N π → 亚氨酸酯
                 "out": "[CH2:1]([O:2][H:6])[C:9](=[N:8][CH3:7])[O:5][CH:3]=[O:4]",
                 "type": "formate oxygen capture of the nitrilium carbon -> imidate (acyloxyimine) intermediate",
+                "barrier": 16.6,
+                "weight": 0.5,
             },
             {
                 # Mumm 重排：断 C3-O5，成 O2-C3，断 N=C π，成 C9=O5 π，O2-H 迁到 N8
                 "out": "[CH3:7][N:8]([H:6])[C:9](=[O:5])[CH2:1][O:2][CH:3]=[O:4]",
                 "type": "Mumm rearrangement: acyl transfer from the imidate oxygen to the alkoxy oxygen (C-O cleavage/formation, C=N pi to C=O pi) with intramolecular O-H -> N-H proton shift",
+                "barrier": 13.8,
+                "weight": 0.5,
             },
         ],
     },
@@ -103,6 +111,8 @@ TASKS = {
             {
                 "out": "[CH2:1]=[CH2:3].[O:4]=[PH3:2]",
                 "type": "oxaphosphetane cycloreversion: P-C and C-O ring cleavage with C=C and P=O pi formation -> ethylene + phosphine oxide",
+                "barrier": 19.1,
+                "weight": 0.5,
             },
         ],
     },

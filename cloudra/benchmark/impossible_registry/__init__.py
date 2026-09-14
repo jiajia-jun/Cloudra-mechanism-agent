@@ -21,8 +21,8 @@ impossible 正选题与其兄弟题（sibling 对照题）的全部机器契约�
       `state_ordering`（哪个态更低）。
   性质/态序类必须给 `property_keys`（list[str]，单位在键名里）；可选
   `property_node`（"reactant" 默认 / "product"，后者要求有步骤）。
-- `gold_properties`: 可选 dict[str, float|str]——gold 侧性质锚点，填入
-  ReferenceComputation.properties（缺值留空待文献回填，不编造）。
+- `gold_properties`: 可选 dict[str, float|str]——gold 侧性质参考答案，填入
+  GoldSpec.reference_properties（缺值留空待文献回填，不编造）。
 - `conditions_en` / `charge` / `multiplicity` / `closed_shell`: 系统规格。
 - `reactants` / `products`: 无映射 canonical SMILES 列表（节点身份；property
   单节点题 products == reactants）。

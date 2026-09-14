@@ -24,9 +24,8 @@ Tier routing: the impossible tier bypasses the standard composite — I tasks ar
 scored by decision + reason quality and siblings by the standard composite with
 a wrong-refusal gate (see `impossible.py`). Hard-tier tasks with a
 ``gold.selectivity.favored_channel`` anchor put the qualitative selectivity
-score in the accuracy slot (barrier spread is recorded, not scored). Accuracy
-anchors with ``verification=unverified`` are excluded from accuracy scoring
-(the slot follows the same passthrough path as a disabled accuracy rubric).
+score in the accuracy slot (barrier spread is recorded, not scored). Accuracy is
+scored per gold reference edge (see `accuracy.py`).
 """
 
 from __future__ import annotations
@@ -319,7 +318,7 @@ class BenchmarkRunner:
         else:
             acc: AccuracyReport = score_accuracy(
                 evidence=barriers,
-                gold=task.gold.reference_computation,
+                gold=task.gold,
                 rubric=task.rubric.accuracy,
                 delivered_graph=integ.delivered_graph,
             )

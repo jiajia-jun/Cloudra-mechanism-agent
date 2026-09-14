@@ -119,7 +119,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 16.1,
+          "weight": 1.0,
           "channel": "axial_attack",
           "favored": true
         },
@@ -148,30 +149,18 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 17.3,
+          "weight": 1.0,
           "channel": "equatorial_attack",
           "favored": false
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": {
       "spread_kcal_mol": 1.3,
-      "spread_type": "ΔG‡",
       "minor_channel": "equatorial hydride attack -> cis-4-tert-butylcyclohexan-1-olate (axial alkoxide)",
-      "favored_channel": "axial_attack",
-      "verification": "verified",
-      "reference_doi": "10.1021/ja00013a042",
-      "computed_by_us": false
+      "favored_channel": "axial_attack"
     }
   },
   "rubric": {
@@ -202,7 +191,7 @@
       ]
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,

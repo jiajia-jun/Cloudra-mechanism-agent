@@ -34,16 +34,14 @@ from cloudra.benchmark.method_policy import (
 )
 from cloudra.benchmark.schema import (
     AccuracyRubric,
-    BarrierReference,
     BondChangeSet,
     GoldMechanismGraph,
+    GoldSpec,
     MechanismEdge,
     MechanismNode,
     MethodPolicy,
     NodeRole,
-    ReferenceComputation,
     TaskSpec,
-    VerificationStatus,
 )
 from cloudra.benchmark.selfconsistency import audit_self_consistency
 from cloudra.tools.core.gaussian_frames import FrameRecord
@@ -87,12 +85,15 @@ def test_easy_barrier_parsing_no_garbage():
     """能垒解析不得抓年份/键长/百分数：无锚点数字题 -> None；
     锚点数字取范围下界/正确抓取；DOI 含括号不得截断（见保留题集合内 DOI 题）。"""
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
-    ref = {tid: t.gold.reference_computation for tid, t in tasks.items()}
-    assert ref["M3"].barrier_kcal_mol is not None
-    assert ref["D1"].barrier_kcal_mol == 22.3  # W1/W2-F12 计算值（分离反应物口径，unverified 不参与 accuracy）
-    assert ref["E1"].barrier_kcal_mol == 6.9  # 经典值（范围下界约定）
+
+    def _edge_barrier(t):
+        return t.gold.mechanism_graph.edges[0].barrier_kcal_mol
+
+    assert _edge_barrier(tasks["M3"]) is not None
+    assert _edge_barrier(tasks["D1"]) == 22.3  # W1/W2-F12 计算值
+    assert _edge_barrier(tasks["E1"]) == 6.9  # 经典值（范围下界约定）
     for tid, t in tasks.items():
-        b = t.gold.reference_computation.barrier_kcal_mol
+        b = _edge_barrier(t)
         assert b is None or 0.0 <= b <= 200.0, f"{tid} implausible barrier {b}"
         assert t.name.isascii(), f"{tid} name not English: {t.name!r}"
         assert t.system.conditions.isascii()
@@ -124,10 +125,10 @@ def test_easy_query_requires_structured_barrier_declaration():
         assert "In your final summary you must report" not in t.prompt.query
 
 
-def test_easy_gold_bond_changes_and_barrier_frame():
+def test_easy_gold_bond_changes_and_edge_barrier():
     """gold 边必须携带键变化（否则 agent 填了 bond_changes 反而被对称差扣分），
-    且索引约定必须与 query 展示的原子映射 SMILES 一致；能垒口径统一
-    central_complex（TS 相对反应物络合物）。"""
+    且索引约定必须与 query 展示的原子映射 SMILES 一致；easy 单步题的整题参考
+    能垒逐边承载在该唯一边上。"""
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     no_bond_change = {"M1", "M3", "M8", "M14", "M15"}  # 纯构象/翻转步
     for tid, t in tasks.items():
@@ -139,9 +140,9 @@ def test_easy_gold_bond_changes_and_barrier_frame():
             assert not bc.break_ and not bc.form, f"{tid} 纯构象/翻转步应为空键变化"
         else:
             assert bc.break_ or bc.form, f"{tid} gold edge missing bond_changes"
-        ref = t.gold.reference_computation
-        if ref.barrier_kcal_mol is not None:
-            assert ref.barrier_reference == BarrierReference.CENTRAL, f"{tid} barrier frame"
+        # 逐边权重：分离反应物口径/部分核实题 0.5，其余同底物可核实题 1.0
+        downgraded = {"D1", "D3", "D4", "C3", "G2", "G3", "M1"}
+        assert edge.weight == (0.5 if tid in downgraded else 1.0), (tid, edge.weight)
 
 
 # --- runner ---
@@ -376,9 +377,28 @@ def _evidence(steps):
     )
 
 
-def test_accuracy_requires_both_sources_and_agreement():
-    """交付物双来源门禁：log 推算值与交付 JSON 声明值都必须存在且一致。"""
-    gold = ReferenceComputation(barrier_kcal_mol=27.5, verification=VerificationStatus.VERIFIED)
+def _gold_edges(spec):
+    """spec: list of (edge_id, barrier_kcal_mol, weight) -> GoldSpec（gold 参考边）。"""
+
+    return GoldSpec(
+        mechanism_graph=GoldMechanismGraph(
+            nodes=[MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["C"])],
+            edges=[
+                MechanismEdge(
+                    id=edge_id,
+                    **{"from": "R", "to": "R"},
+                    barrier_kcal_mol=barrier,
+                    weight=weight,
+                )
+                for edge_id, barrier, weight in spec
+            ],
+        )
+    )
+
+
+def test_accuracy_per_edge_requires_both_sources_and_agreement():
+    """逐边双来源门禁：log 推算值与交付 JSON 声明值都必须存在且一致，缺一该边即 0。"""
+    gold = _gold_edges([("E1", 27.5, 1.0)])
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
 
     exact = score_accuracy(evidence=_evidence([("E1", 27.5, 27.5)]), gold=gold, rubric=r)
@@ -394,6 +414,7 @@ def test_accuracy_requires_both_sources_and_agreement():
 
     from cloudra.benchmark.barrier_evidence import BarrierEvidence
 
+    # gold 参考边找不到对应交付步 -> 该边 0 分（fail-loud）
     assert score_accuracy(evidence=BarrierEvidence(), gold=gold, rubric=r).final_score == 0.0
     undeclared = score_accuracy(evidence=_evidence([("E1", 27.5, None)]), gold=gold, rubric=r)
     assert undeclared.final_score == 0.0
@@ -404,45 +425,61 @@ def test_accuracy_requires_both_sources_and_agreement():
 
 
 def test_accuracy_small_barrier_widens_sigma():
-    """小能垒口径：gold ≤ 阈值时 RDS 对 gold 的比较放宽到小能垒 sigma
+    """小能垒口径：gold 边 ≤ 阈值时对 gold 的比较放宽到小能垒 sigma
     （2.01 vs 5.0 在 sigma=3 下 ~0.61，放宽到 5 后 ~0.84）；大能垒仍用
     基准 sigma。声明值 vs 日志的内部一致性核对不放宽。"""
     import math
 
-    gold = ReferenceComputation(barrier_kcal_mol=5.0, verification=VerificationStatus.VERIFIED)
+    gold = _gold_edges([("E1", 5.0, 1.0)])
     r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.5)
     rep = score_accuracy(evidence=_evidence([("E1", 2.01, 2.01)]), gold=gold, rubric=r)
-    assert rep.sigma_kcal == 5.0
     assert rep.gaussian_score == pytest.approx(math.exp(-((2.99) ** 2) / (2 * 25.0)))
 
-    big = ReferenceComputation(barrier_kcal_mol=27.5, verification=VerificationStatus.VERIFIED)
+    big = _gold_edges([("E1", 27.5, 1.0)])
     rep_big = score_accuracy(evidence=_evidence([("E1", 28.0, 28.4)]), gold=big, rubric=r)
-    assert rep_big.sigma_kcal == 3.0
-
-
-def test_accuracy_per_step_gate_and_rds_selection():
-    """逐步门禁：任一步声明与日志冲突即 0；全部一致时 RDS（最高垒）对 gold 评分。"""
-    gold = ReferenceComputation(barrier_kcal_mol=22.0, verification=VerificationStatus.VERIFIED)
-    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=0.3)
-
-    rds = score_accuracy(
-        evidence=_evidence([("E1", 12.0, 12.0), ("E2", 22.0, 22.2), ("E3", 5.0, 5.0)]),
-        gold=gold,
-        rubric=r,
+    assert rep_big.gaussian_score == pytest.approx(
+        math.exp(-((28.0 - 27.5) ** 2) / (2 * 3.0 ** 2))
     )
-    assert rds.rds_edge_id == "E2"
-    assert rds.log_barrier_kcal == pytest.approx(22.0)
-    assert rds.final_score == pytest.approx(1.0)
 
-    polluted = score_accuracy(
-        evidence=_evidence([("E1", 12.0, 30.0), ("E2", 22.0, 22.0)]), gold=gold, rubric=r
+
+def test_accuracy_weighted_average_uses_edge_weights():
+    """全部参考边通过一致性门禁时：汇总 = 逐边高斯分按 gold 边 weight 加权平均。"""
+    import math
+
+    gold = _gold_edges([("E1", 10.0, 1.0), ("E2", 20.0, 0.5)])
+    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=1.0)
+    rep = score_accuracy(
+        evidence=_evidence([("E1", 10.0, 10.0), ("E2", 22.0, 22.0)]), gold=gold, rubric=r
     )
-    assert polluted.final_score == 0.0
-    assert any("E1" in n for n in polluted.notes), polluted.notes
+    g1 = 1.0
+    g2 = math.exp(-((22.0 - 20.0) ** 2) / (2 * 3.0 ** 2))
+    assert rep.edge_scores["E1"] == pytest.approx(g1)
+    assert rep.edge_scores["E2"] == pytest.approx(g2)
+    assert rep.gaussian_score == pytest.approx((1.0 * g1 + 0.5 * g2) / 1.5)
+
+
+def test_accuracy_missing_reference_edge_fails_loud():
+    """gold 参考边在交付 evidence 里找不到对应步 -> 整题 accuracy 记 0（fail-loud）。"""
+    gold = _gold_edges([("E1", 10.0, 1.0), ("E2", 20.0, 0.5)])
+    r = AccuracyRubric(sigma_kcal_mol=3.0, max_penalty_fraction=1.0)
+    rep = score_accuracy(
+        evidence=_evidence([("E1", 10.0, 10.0)]), gold=gold, rubric=r
+    )
+    assert rep.edge_scores["E2"] == 0.0
+    assert rep.final_score == 0.0
+    assert any("no matching step" in n for n in rep.notes)
+
+
+def test_accuracy_no_reference_edge_not_scored():
+    """gold 机理图没有任何带参考值的边 -> accuracy 不评分（final_score=1.0）。"""
+    gold = _gold_edges([("E1", None, 1.0)])
+    rep = score_accuracy(evidence=_evidence([]), gold=gold, rubric=AccuracyRubric())
+    assert rep.final_score == 1.0
+    assert any("no gold edge carries a reference barrier" in n for n in rep.notes)
 
 
 def test_accuracy_disabled_passthrough():
-    gold = ReferenceComputation(barrier_kcal_mol=27.5)
+    gold = _gold_edges([("E1", 27.5, 1.0)])
     r = AccuracyRubric(enabled=False)
     assert score_accuracy(evidence=_evidence([]), gold=gold, rubric=r).final_score == 1.0
 
@@ -1204,20 +1241,19 @@ def test_runner_wires_stereo_tier_rule():
 
 def test_gold_selectivity_reference_roundtrip():
     """SelectivityReference（hard 档 ΔΔ 选择性锚点）schema 往返与默认值。"""
-    from cloudra.benchmark.schema import BarrierType, GoldSpec, SelectivityReference
+    from cloudra.benchmark.schema import GoldSpec, SelectivityReference
 
     gold = GoldSpec(
         mechanism_graph=GoldMechanismGraph(nodes=[]),
         selectivity=SelectivityReference(
             spread_kcal_mol=2.0,
-            spread_type=BarrierType.DE,
             minor_channel="inward rotation -> (Z)-diene",
         ),
     )
     dumped = gold.model_dump(mode="json")
     assert dumped["selectivity"]["spread_kcal_mol"] == 2.0
-    assert dumped["selectivity"]["spread_type"] == "ΔE‡"
-    assert dumped["reference_computation"]["barrier_kcal_mol"] is None
+    assert dumped["selectivity"]["minor_channel"] == "inward rotation -> (Z)-diene"
+    assert dumped["reference_properties"] == {}
     back = GoldSpec.model_validate(dumped)
     assert back.selectivity.spread_kcal_mol == 2.0
     # 无选择性锚点时默认 None
@@ -1863,7 +1899,6 @@ def _evidence_task(**rubric_overrides):
     from cloudra.benchmark.schema import (
         AccuracyRubric,
         IntegrityRubric,
-        ReferenceComputation,
         SelfConsistencyRubric,
     )
 
@@ -1885,9 +1920,13 @@ def _evidence_task(**rubric_overrides):
             ),
             "gold": task.gold.model_copy(
                 update={
-                    "reference_computation": ReferenceComputation(
-                        barrier_kcal_mol=10.0, level_of_theory="b3lyp/test",
-                        verification=VerificationStatus.VERIFIED,
+                    "mechanism_graph": task.gold.mechanism_graph.model_copy(
+                        update={
+                            "edges": [
+                                e.model_copy(update={"barrier_kcal_mol": 10.0})
+                                for e in task.gold.mechanism_graph.edges
+                            ]
+                        }
                     )
                 }
             ),
@@ -2151,7 +2190,6 @@ def _delivery_task(gold_barrier: float) -> TaskSpec:
         AccuracyRubric,
         GoldSpec,
         IntegrityRubric,
-        ReferenceComputation,
         RubricSpec,
         SelfConsistencyRubric,
     )
@@ -2173,14 +2211,11 @@ def _delivery_task(gold_barrier: float) -> TaskSpec:
             }
         ],
     }
+    graph["edges"][0]["barrier_kcal_mol"] = gold_barrier
     return _tiny_task().model_copy(
         update={
             "gold": GoldSpec(
                 mechanism_graph=GoldMechanismGraph.model_validate(graph),
-                reference_computation=ReferenceComputation(
-                    barrier_kcal_mol=gold_barrier,
-                    verification=VerificationStatus.VERIFIED,
-                ),
             ),
             "rubric": RubricSpec(
                 integrity=IntegrityRubric(),
@@ -2250,7 +2285,7 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
         _delivery_task(derived), ok_dir
     )
     assert ok.accuracy_score == 1.0, ok.notes
-    assert any("RDS E1" in n for n in ok.notes), ok.notes
+    assert any("edge E1" in n for n in ok.notes), ok.notes
 
 
 def test_declared_barrier_must_match_logs(tmp_path):

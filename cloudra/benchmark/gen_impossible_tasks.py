@@ -67,7 +67,6 @@ from cloudra.benchmark.schema import (
     MethodPolicy,
     NodeRole,
     PromptSpec,
-    ReferenceComputation,
     RubricSpec,
     SystemSpec,
     TaskSpec,
@@ -485,10 +484,8 @@ def _assemble(pid: str, entry: dict, prefix: str) -> TaskSpec:
         ),
         gold=GoldSpec(
             mechanism_graph=graph,
-            # 性质锚点：registry 的 gold_properties（缺值待文献回填，留空不编造）
-            reference_computation=ReferenceComputation(
-                properties=entry.get("gold_properties", {})
-            ),
+            # 性质类参考答案：registry 的 gold_properties（缺值待文献回填，留空不编造）
+            reference_properties=entry.get("gold_properties", {}),
         ),
         rubric=rubric,
     )

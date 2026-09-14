@@ -26,11 +26,9 @@ from cloudra.benchmark.schema import (  # noqa: F401
     MethodPolicy,
     NodeRole,
     PromptSpec,
-    ReferenceComputation,
     RubricSpec,
     SelfConsistencyRubric,
     SystemSpec,
     TaskSpec,
     Tier,
-    VerificationStatus,
 )

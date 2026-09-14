@@ -26,8 +26,7 @@ from cloudra.benchmark.query_builder import (
     format_allowed_methods_clause,
 )
 from cloudra.benchmark.schema import (
-    BarrierReference,
-    BarrierType,
+    AccuracyRubric,
     BondChangeSet,
     GoldMechanismGraph,
     GoldSpec,
@@ -36,12 +35,10 @@ from cloudra.benchmark.schema import (
     MethodPolicy,
     NodeRole,
     PromptSpec,
-    ReferenceComputation,
     RubricSpec,
     SystemSpec,
     TaskSpec,
     Tier,
-    VerificationStatus,
     complex_smiles,
 )
 from cloudra.infra.config import get_config
@@ -55,42 +52,8 @@ ROW_RE = re.compile(r"^\|\s*([A-Z]\d+)\s*\|")
 # charge may use the Unicode minus '−'; SMILES may carry a trailing note
 # like `O=NO>>O=NO`（cis/trans），0/1 before the q/mult separator.
 SMILES_RE = re.compile(r"`([^`]+)`(?:（[^）]*）)?\s*[，,]\s*([+−\-]?\d+)\s*/\s*(\d+)")
-VERIFY_RE = re.compile(r"\[(已核实存在|已核实|部分核实|未核实)\]")
 ELEMENTS_RE = re.compile(r"^([A-Z][a-z]?(?:,[A-Z][a-z]?)*)")
 HEAVY_RE = re.compile(r"(\d+)\s*重原子")
-
-_VERIFY_MAP = {
-    "已核实": VerificationStatus.VERIFIED,
-    "已核实存在": VerificationStatus.VERIFIED,
-    "部分核实": VerificationStatus.PARTIAL,
-    "未核实": VerificationStatus.UNVERIFIED,
-}
-
-_BARRIER_TYPE_MAP = {
-    "ΔH‡": BarrierType.DH,
-    "ΔE‡": BarrierType.DE,
-    "ΔG‡": BarrierType.DG,
-    "Ea": BarrierType.EA,
-}
-
-# 能垒口径（barrier_reference）统一为 CENTRAL（central_complex：TS 相对反应物
-# 络合物/预反应络合物——双分子离子-分子反应即离子-偶极络合物；单分子与分子内
-# 过程的反应物阱本身就是"反应物络合物"）。easy 档不采用相对分离反应物渐近线
-# 的口径；个别题若日后确需 reactants 口径，在此按 task_id 显式登记覆盖。能垒
-# 缺测时 barrier_reference 记 None。
-_BARRIER_REFERENCE: dict[str, BarrierReference] = {}
-
-# 口径核对登记：下列题的文献锚点明确是相对分离反应物渐近线的数值，且无络合物
-# 口径的文献值可替换——数值原样保留（中性预反应络合物的 vdW 阱深一般只有
-# ~1-3 kcal/mol，锚点在 accuracy 层高斯容差内仍有参考意义），verification
-# 一律降为 unverified 待核，绝不按新口径编造数值。其余题的反应物阱即络合物
-# 口径（单分子/分子内题）或出处本来就是中央能垒（C1/E1），直接挂 CENTRAL。
-_BARRIER_FRAME_UNVERIFIED = {
-    "D1", "D3", "D4",   # 双分子 DA：实验 Ea / 理论 ΔE‡ 均为分离反应物口径
-    "C2", "C3", "F1",   # 题源单元格明确写"TS 相对反应物渐近线"
-    "F3", "T1",         # 微溶剂化：文献能垒相对分离单体（"能垒降 ~30%"的口径）
-    "G1", "G2", "G3",   # 双分子协同：文献值相对分离反应物（G3 题源本就未核实）
-}
 
 # 条件列中译英（按原字符串映射；新增条件必须在此登记，否则生成直接报错）。
 # M 组表第 4 列是过程类型而非条件，Easy 档统一定义为气相可算，故 M 题
@@ -236,6 +199,18 @@ _BOND_CHANGES: dict[str, tuple[list[list[int]], list[list[int]]]] = {
     "M16": ([[1, 4], [2, 5]], [[1, 2], [4, 5]]),
 }
 
+# 逐边参考能垒权重（越难算准的边越小）：锚点属分离反应物渐近线口径或"部分核实"
+# 的题记 0.5，同底物且可核实的题默认 1.0；未登记题一律 1.0。
+_BARRIER_WEIGHT: dict[str, float] = {
+    "D1": 0.5,   # 分离反应物口径
+    "D3": 0.5,   # 分离反应物口径
+    "D4": 0.5,   # 相对分离反应物
+    "C3": 0.5,   # TS 相对反应物渐近线
+    "G2": 0.5,   # 相对分离反应物
+    "G3": 0.5,   # 相对分离反应物 + 部分核实
+    "M1": 0.5,   # 部分核实（数值经二手转引）
+}
+
 
 def _split_cells(line: str) -> list[str]:
     cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -259,28 +234,13 @@ def _parse_smiles_cell(cell: str) -> tuple[list[str], list[str], int, int] | Non
     return r, p, q, mult
 
 
-def _parse_barrier(cell: str) -> tuple[float | None, BarrierType | None, VerificationStatus, str]:
-    """Return (barrier_kcal, barrier_type, verification, doi).
+def _parse_barrier(cell: str) -> float | None:
+    """Return the barrier-like anchor number (kcal/mol) parsed from a table cell.
 
     能垒锚点只取引用括号之前的文本——括号里是文献出处（年份、卷页、DOI），
     从整格抓第一个数字会把年份（2023）或键长（2.4 Å）当成能垒。百分数
     （"能垒降 ~30%"）跳过。找不到锚点数字时返回 None（诚实缺测），并拒绝
-    >200 kcal/mol 的离谱值（fail-loud 防回归）。类型只认单元格里显式写的
-    Ea/ΔH‡/ΔE‡/ΔG‡ 记号；没写就是 None，不默认贴 Ea 标签。"""
-    vtag = VERIFY_RE.search(cell)
-    verification = _VERIFY_MAP.get(vtag.group(1), VerificationStatus.UNVERIFIED) if vtag else VerificationStatus.UNVERIFIED
-    doi_m = re.search(r"DOI\s+([0-9.]+/\S*?)(?=[\s，。；）]|$)", cell)
-    doi = doi_m.group(1).rstrip("）") if doi_m else ""
-    # DOI 可以合法含括号（如 10.1016/s0009-2614(96)01253-5）：只剥不平衡的尾部 ")"
-    while doi.endswith(")") and doi.count(")") > doi.count("("):
-        doi = doi[:-1]
-
-    btype: BarrierType | None = None
-    for k, v in _BARRIER_TYPE_MAP.items():
-        if k in cell:
-            btype = v
-            break
-
+    >200 kcal/mol 的离谱值（fail-loud 防回归）。"""
     # 引用信息从第一个括号开始；锚点在括号之前。范围取第一个数（下界）。
     head = re.split(r"[（(]", cell, maxsplit=1)[0]
     barrier = None
@@ -291,7 +251,7 @@ def _parse_barrier(cell: str) -> tuple[float | None, BarrierType | None, Verific
         break
     if barrier is not None and not (0.0 <= barrier <= 200.0):
         raise ValueError(f"implausible barrier {barrier} parsed from cell: {cell!r}")
-    return barrier, btype, verification, doi
+    return barrier
 
 
 def _parse_comfort(cell: str) -> tuple[list[str], int | None]:
@@ -302,11 +262,19 @@ def _parse_comfort(cell: str) -> tuple[list[str], int | None]:
     return elements, heavy
 
 
-def _build_graph(task_id: str, reactants: list[str], products: list[str], step_type: str) -> GoldMechanismGraph:
+def _build_graph(
+    task_id: str,
+    reactants: list[str],
+    products: list[str],
+    step_type: str,
+    barrier: float | None = None,
+    weight: float = 1.0,
+) -> GoldMechanismGraph:
     """Build a minimal single-step mechanism graph (reactant -> TS -> product).
 
     Easy-tier tasks are all single-step; degenerate processes (product ==
-    reactant) still get distinct R/P node ids but identical SMILES.
+    reactant) still get distinct R/P node ids but identical SMILES. The single
+    gold edge carries the whole-task reference barrier (from the source cell).
     """
     r_node = MechanismNode(id=f"{task_id}_R", role=NodeRole.REACTANT, smiles=complex_smiles(reactants), label="reactant")
     p_node = MechanismNode(
@@ -327,6 +295,8 @@ def _build_graph(task_id: str, reactants: list[str], products: list[str], step_t
         via=ts_node.id,
         step_type=step_type,
         bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+        barrier_kcal_mol=barrier,
+        weight=weight,
     )
     return GoldMechanismGraph(nodes=[r_node, ts_node, p_node], edges=[edge])
 
@@ -403,12 +373,7 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
         if parsed is None:
             continue
         reactants, products, q, mult = parsed
-        barrier, btype, verification, doi = _parse_barrier(barrier_cell)
-        # 口径统一 CENTRAL（见 _BARRIER_REFERENCE 注释）；锚点属渐近线口径的题
-        # 按 _BARRIER_FRAME_UNVERIFIED 登记降为 unverified，数值保留不编造
-        barrier_ref = _BARRIER_REFERENCE.get(task_id, BarrierReference.CENTRAL) if barrier is not None else None
-        if task_id in _BARRIER_FRAME_UNVERIFIED:
-            verification = VerificationStatus.UNVERIFIED
+        barrier = _parse_barrier(barrier_cell)
         elements, heavy = _parse_comfort(comfort_cell)
         # M 组第 4 列是过程类型而非条件（类型已并入 step_type 英译）；
         # 映射表未收录的条件/概要直接 KeyError 报错，防止静默漏译。
@@ -418,7 +383,8 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
             conditions = _CONDITIONS_EN[conditions_cell]
         step_type = _STEP_TYPE_EN[task_id]
 
-        graph = _build_graph(task_id, reactants, products, step_type)
+        weight = _BARRIER_WEIGHT.get(task_id, 1.0)
+        graph = _build_graph(task_id, reactants, products, step_type, barrier, weight)
         # 与 hard 同一白名单：xtb 可作廉价路径探索，b3lyp 作能垒/驻点验证。
         # 内容源是全局 config（method_policy.allowed_methods），不是这里的字面量。
         policy = MethodPolicy(allowed_methods=get_config().method_policy.allowed_methods)
@@ -451,23 +417,9 @@ def parse_easy_md(src: Path) -> list[TaskSpec]:
                 closed_shell=True,
                 single_step=True,
             ),
-            gold=GoldSpec(
-                mechanism_graph=graph,
-                reference_computation=ReferenceComputation(
-                    level_of_theory=(
-                        "literature anchor (see reference_doi)"
-                        if doi
-                        else "literature anchor (curated in easy.md; no DOI on record)"
-                    ),
-                    barrier_kcal_mol=barrier,
-                    barrier_type=btype,
-                    barrier_reference=barrier_ref,
-                    verification=verification,
-                    reference_doi=doi,
-                    computed_by_us=False,
-                ),
-            ),
-            rubric=RubricSpec(),
+            gold=GoldSpec(mechanism_graph=graph),
+            # accuracy 启用语义 = gold 机理图存在任一带参考值的边（无锚点题只评自洽）
+            rubric=RubricSpec(accuracy=AccuracyRubric(enabled=barrier is not None)),
         )
         tasks.append(spec)
     return tasks

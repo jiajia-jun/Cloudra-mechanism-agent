@@ -119,6 +119,7 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": "double_outward_rotation",
           "favored": true
         },
@@ -152,29 +153,17 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": "double_inward_rotation",
           "favored": false
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": {
       "spread_kcal_mol": 2.0,
-      "spread_type": "ΔE‡",
       "minor_channel": "double inward methyl rotation -> (Z,Z)-2,4-hexadiene",
-      "favored_channel": "double_outward_rotation",
-      "verification": "verified",
-      "reference_doi": "",
-      "computed_by_us": false
+      "favored_channel": "double_outward_rotation"
     }
   },
   "rubric": {

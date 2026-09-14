@@ -28,6 +28,8 @@ TASKS = {
             {
                 "out": "[OH:2][C@H:1]1[C@H:3]2[O:11][C@H:4]2[CH2:5][CH2:6][CH2:7]1.[O:9]=[CH:8][O:10][H:12]",
                 "type": "concerted epoxidation via butterfly TS, allylic OH...OOH hydrogen bond directs O delivery to the syn face: O-O and terminal O-H cleavage with internal proton transfer to the carbonyl-side oxygen, C=C pi cleavage, two epoxide C-O formations -> cis-2,3-epoxycyclohexanol",
+                "barrier": 9.2,
+                "weight": 0.5,
                 "channel": "directed_face",
             },
         ],
@@ -35,6 +37,8 @@ TASKS = {
             {
                 "out": "[OH:2][C@H:1]1[C@@H:3]2[O:11][C@H:4]2[CH2:5][CH2:6][CH2:7]1.[O:9]=[CH:8][O:10][H:12]",
                 "type": "same concerted epoxidation on the undirected (opposite) face -> trans-2,3-epoxycyclohexanol (minor channel)",
+                "barrier": 10.9,
+                "weight": 0.5,
                 "channel": "opposite_face",
             },
         ],

@@ -38,30 +38,6 @@ class Tier(str, Enum):
     IMPOSSIBLE = "impossible"
 
 
-class BarrierType(str, Enum):
-    EA = "Ea"          # Arrhenius activation energy
-    DH = "ΔH‡"         # activation enthalpy
-    DE = "ΔE‡"         # electronic barrier
-    DG = "ΔG‡"         # activation free energy
-
-
-class BarrierReference(str, Enum):
-    """能垒锚点的参考系。双阱型离子-分子反应里"中央能垒"（TS 相对离子-偶极
-    络合物）与"TS 相对反应物渐近线"相差一个络合物阱深，必须分开记录，
-    否则同一体系的两个口径会被误判成 ~10 kcal/mol 的偏差。easy 档统一记
-    CENTRAL（反应物络合物口径；登记细节见 gen_easy_tasks）。"""
-
-    CENTRAL = "central_complex"  # TS relative to the ion-dipole complex
-    REACTANTS = "reactants"      # TS relative to the separated reactants
-
-
-class VerificationStatus(str, Enum):
-    VERIFIED = "verified"          # literature confirmed via web search
-    PARTIAL = "partial"            # literature exists, numbers from memory
-    UNVERIFIED = "unverified"      # source from memory, must recheck
-    COMPUTED_BY_US = "computed_by_us"  # we computed the reference ourselves
-
-
 # ---------------------------------------------------------------------------
 # Mechanism graph (shared by gold reference and the agent-delivered graph)
 # ---------------------------------------------------------------------------
@@ -129,11 +105,13 @@ class BondChangeSet(BaseModel):
 class MechanismEdge(BaseModel):
     """One elementary step connecting two species nodes via a TS node.
 
-    ``barrier_kcal_mol`` 是**交付侧声明字段**：agent 在 mechanism_graph.json
-    里为决速步（RDS）那条边声明能垒（kcal/mol，相对该步起点最小值；easy 单步
-    题即"相对反应物络合物"）。评分不读最终消息散文：harness 从交付日志推出
-    逐步能垒并取 RDS，再要求声明值与推算值都存在且一致（复用 accuracy 容差），
-    两者缺一或冲突一律 fail-loud 记 0 分。
+    ``barrier_kcal_mol`` 逐边承载能垒（kcal/mol，相对该步起点最小值；easy 单步
+    题即"相对反应物络合物"）：gold 侧 = 参考答案能垒，交付侧 = agent 声明的值。
+    评分不读最终消息散文：harness 从交付日志逐边推出能垒，逐条要求声明值与推算
+    值都存在且一致（复用 accuracy 容差），缺一或冲突的边 fail-loud 记 0 分。
+
+    ``weight`` 是 gold 侧逐边评分权重（越难算准/越不可核实的边权重越小，逐边
+    分数按此加权平均）；交付侧忽略。
 
     ``channel``/``favored`` 是 hard 档选择性交付字段：竞争立体化学通道的每条
     边声明通道标签（``channel``）与该通道是否被计算能垒支持为优势通道
@@ -150,6 +128,7 @@ class MechanismEdge(BaseModel):
     bond_changes: BondChangeSet = Field(default_factory=BondChangeSet)
     accessible: bool = True
     barrier_kcal_mol: Optional[float] = None
+    weight: float = 1.0
     channel: Optional[str] = None
     favored: Optional[bool] = None
 
@@ -212,27 +191,11 @@ class SystemSpec(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ReferenceComputation(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    level_of_theory: str = ""
-    barrier_kcal_mol: Optional[float] = None
-    # 源文档未显式注明类型/口径时保持 None（诚实缺测），不默认贴 Ea 标签
-    barrier_type: Optional[BarrierType] = None
-    barrier_reference: Optional[BarrierReference] = None
-    verification: VerificationStatus = VerificationStatus.UNVERIFIED
-    reference_doi: str = ""
-    computed_by_us: bool = False
-    # 性质类锚点（impossible 性质/态序题）：键自带单位，与交付侧
-    # MechanismNode.properties 同构；缺值的键待文献调研回填，留空不编造
-    properties: dict[str, float | str] = Field(default_factory=dict)
-
-
 class SelectivityReference(BaseModel):
     """Hard 档选择性锚点：两个竞争非对映过渡态的能垒差（副通道 TS − 主通道 TS，
     同一反应物络合物基准），不是绝对能垒——绝不要塞进 barrier_kcal_mol
-    （类型记号仍是 ΔΔG‡/ΔΔE‡ 等差值）。gold 机理图把两条竞争通道都带上，
-    accuracy 层对该差值的高斯容差评分待 runner 支持；当前只作参考记录。
+    （类型记号仍是 ΔΔG‡/ΔΔE‡ 等差值）。gold 机理图把两条竞争通道都带上；
+    当前只作参考记录（spread 数值不评分）。
 
     `minor_channel` 描述副通道（如 "inward rotation -> (Z)-diene"）。
     `favored_channel` 是 gold 侧优势通道标签，与交付边 ``channel`` 字段同口径
@@ -241,22 +204,18 @@ class SelectivityReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     spread_kcal_mol: Optional[float] = None
-    spread_type: Optional[BarrierType] = None
     minor_channel: str = ""
     favored_channel: str = ""
-    verification: VerificationStatus = VerificationStatus.UNVERIFIED
-    reference_doi: str = ""
-    computed_by_us: bool = False
 
 
 class GoldSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mechanism_graph: GoldMechanismGraph
-    reference_computation: ReferenceComputation = Field(
-        default_factory=ReferenceComputation
-    )
-    # hard 档选择性锚点（ΔΔ）；绝对能垒锚点仍走 reference_computation
+    # 性质类参考答案（impossible 性质/态序题）：键自带单位，与交付侧
+    # MechanismNode.properties 同构；缺值留空待文献回填，不编造
+    reference_properties: dict[str, float | str] = Field(default_factory=dict)
+    # hard 档选择性锚点（ΔΔ，仅作定性记录）
     selectivity: Optional[SelectivityReference] = None
 
 

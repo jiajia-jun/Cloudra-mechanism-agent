@@ -22,6 +22,8 @@ TASKS = {
                 # 烯醇盐 C2 进攻第二分子丙酮羰基 C8：成 C2-C8，断 C8=O9 pi、C2=C4 pi，成 C4=O5 pi → 双丙酮醇烷氧盐
                 "out": "[OH:1]([H:3]).[CH3:7][C:8]([O-:9])([CH3:10])[CH:2]([H:11])[C:4](=[O:5])[CH3:6]",
                 "type": "C-C addition: enolate carbon attacks the second acetone carbonyl -> diacetone alcohol alkoxide (capturable)",
+                "barrier": 5.0,
+                "weight": 0.5,
             },
             {
                 # 烷氧盐 O9 从水夺回 H3：断 O1-H3，成 O9-H3 → 双丙酮醇 + OH-
@@ -69,6 +71,8 @@ TASKS = {
                 # 烯醇 alpha-C（C8）进攻亚铵 C3（决速）：成 C3-C8，断 C8=C9 pi、C3=N5 pi，成 C9=O10+ pi（氧鎓，N 变中性）
                 "out": "[OH2:1].[O:4]([H:2])([H:7]).[CH3:6][NH:5][CH2:3][CH2:8][CH:9]=[O+:10][H:11]",
                 "type": "rate-determining C-C formation: enol alpha-carbon attacks the iminium carbon -> oxocarbenium (neutral amine)",
+                "barrier": 8.9,
+                "weight": 0.5,
             },
             {
                 # 水拔氧鎓质子：断 O10-H11，成 O1-H11，再生 H3O+ → Mannich 碱
@@ -88,11 +92,15 @@ TASKS = {
                 # 加成 + 分子内 PT 并入：成 C1-N3，断 C1=O2 pi、断 N3-H5、成 O2-H5 → 羟胺 HOCH2NHMe
                 "out": "[O:2]([H:5])[CH2:1][N:3]([H:6])[CH3:4]",
                 "type": "amine addition to the carbonyl with merged intramolecular N-H -> O-H proton transfer -> carbinolamine (capturable)",
+                "barrier": 3.5,
+                "weight": 0.5,
             },
             {
                 # 直接脱水：断 C1-O2、断 N3-H6，成 C1=N3 pi、成 O2-H6 → 亚胺 + 水
                 "out": "[O:2]([H:5])([H:6]).[CH2:1]=[N:3][CH3:4]",
                 "type": "direct dehydration of the carbinolamine: C-O cleavage with the second N-H transferring to the departing oxygen -> N-methylmethanimine + water",
+                "barrier": 26.7,
+                "weight": 0.5,
             },
         ],
     },

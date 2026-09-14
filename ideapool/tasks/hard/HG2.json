@@ -128,6 +128,7 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": "chair_ts",
           "favored": true
         },
@@ -169,29 +170,17 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": "boat_ts",
           "favored": false
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": {
       "spread_kcal_mol": 2.0,
-      "spread_type": "ΔG‡",
       "minor_channel": "boat TS -> anti-2,3-dimethylpent-4-enal",
-      "favored_channel": "chair_ts",
-      "verification": "partial",
-      "reference_doi": "10.1021/ja00215a059",
-      "computed_by_us": false
+      "favored_channel": "chair_ts"
     }
   },
   "rubric": {

@@ -136,6 +136,7 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         },
@@ -168,7 +169,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 26.2,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         },
@@ -194,21 +196,13 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "literature anchor (see reference_doi)",
-      "barrier_kcal_mol": 26.2,
-      "barrier_type": "ΔE‡",
-      "barrier_reference": "central_complex",
-      "verification": "unverified",
-      "reference_doi": "10.1002/jcc.20690",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": null
   },
   "rubric": {

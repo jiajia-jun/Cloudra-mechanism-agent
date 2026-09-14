@@ -175,7 +175,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 19.2,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         },
@@ -208,7 +209,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 9.1,
+          "weight": 0.5,
           "channel": "major_face",
           "favored": true
         },
@@ -249,7 +251,8 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 16.9,
+          "weight": 0.5,
           "channel": null,
           "favored": null
         },
@@ -282,30 +285,18 @@
             ]
           },
           "accessible": true,
-          "barrier_kcal_mol": null,
+          "barrier_kcal_mol": 11.5,
+          "weight": 0.5,
           "channel": "minor_face",
           "favored": false
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": {
       "spread_kcal_mol": 1.2,
-      "spread_type": "ΔG‡",
       "minor_channel": "opposite-face enamine attack on benzaldehyde via the minor Houk-List chair TS -> (R)-iminium-aldolate (the (R)-aldol channel)",
-      "favored_channel": "major_face",
-      "verification": "verified",
-      "reference_doi": "10.1021/ja994280y",
-      "computed_by_us": false
+      "favored_channel": "major_face"
     }
   },
   "rubric": {
@@ -336,7 +327,7 @@
       ]
     },
     "accuracy": {
-      "enabled": false,
+      "enabled": true,
       "barrier_scoring": "gaussian",
       "sigma_kcal_mol": 2.0,
       "max_penalty_fraction": 0.3,

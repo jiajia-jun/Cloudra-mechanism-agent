@@ -15,6 +15,8 @@ TASKS = {
                 # OH- 加成：成 O1-C4，断 C4=O5 π → 四面体烷氧盐
                 "out": "[CH3:2][O:3][CH:4]([O:1][H:6])[O-:5]",
                 "type": "hydroxide addition to the carbonyl carbon -> tetrahedral alkoxide intermediate (capturable)",
+                "barrier": 15.5,
+                "weight": 1.0,
             },
             {
                 # 消除 MeO-：断 C4-O3，成 C4=O5 π → 甲酸 + 甲醇盐
@@ -43,11 +45,15 @@ TASKS = {
                 # 过甲酸端基 O9 进攻羰基 C3：成 O9-C3，断 C3=O4 π → 质子化 Criegee 四面体中间体
                 "out": "[OH2:1].[CH3:2][C:3]([O:4][H:10])([CH3:5])[O+:9]([H:11])[O:8][CH:6]=[O:7]",
                 "type": "performic acid terminal oxygen addition to the protonated carbonyl -> protonated Criegee tetrahedral intermediate (rate-determining per computation)",
+                "barrier": 14.3,
+                "weight": 1.0,
             },
             {
                 # 1,2-甲基迁移伴 O-O 断裂：断 C3-C2、O8-O9、O9-H11；成 C2-O9、O8-H11、C3=O4 π → 质子化乙酸甲酯 + 甲酸
                 "out": "[OH2:1].[CH3:5][C:3](=[O+:4][H:10])[O:9][CH3:2].[CH:6](=[O:7])[O:8][H:11]",
                 "type": "1,2-methyl migration to the terminal oxygen concerted with O-O cleavage and proton shuffle onto the departing formate oxygen -> protonated methyl acetate + formic acid",
+                "barrier": 11.4,
+                "weight": 1.0,
             },
             {
                 # 质子归还：断 O4-H10，成 O1-H10，再生 H3O+

@@ -119,6 +119,7 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": "outward_rotation",
           "favored": true
         },
@@ -152,29 +153,17 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": "inward_rotation",
           "favored": false
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {}
-    },
+    "reference_properties": {},
     "selectivity": {
       "spread_kcal_mol": 2.0,
-      "spread_type": "ΔE‡",
       "minor_channel": "inward methyl rotation -> (Z)-1,3-pentadiene",
-      "favored_channel": "outward_rotation",
-      "verification": "verified",
-      "reference_doi": "10.1021/ja00293a046",
-      "computed_by_us": false
+      "favored_channel": "outward_rotation"
     }
   },
   "rubric": {

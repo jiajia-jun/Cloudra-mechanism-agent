@@ -79,23 +79,15 @@
           },
           "accessible": true,
           "barrier_kcal_mol": null,
+          "weight": 1.0,
           "channel": null,
           "favored": null
         }
       ]
     },
-    "reference_computation": {
-      "level_of_theory": "",
-      "barrier_kcal_mol": null,
-      "barrier_type": null,
-      "barrier_reference": null,
-      "verification": "unverified",
-      "reference_doi": "",
-      "computed_by_us": false,
-      "properties": {
-        "bond_dissociation_energy_kcal_mol": 17.2,
-        "bond_length_angstrom": 3.079
-      }
+    "reference_properties": {
+      "bond_dissociation_energy_kcal_mol": 17.2,
+      "bond_length_angstrom": 3.079
     },
     "selectivity": null
   },

@@ -12,9 +12,9 @@
 >
 > **能垒锚点标注约定**：
 > - [已核实] = 经 WebSearch 确认文献真实存在且关键数值被核对；[部分核实] = 文献存在已确认、但具体数值或卷页为回忆值待二次核对；[未核实] = 出处凭记忆，使用前必须复查；[已核实存在] = 文献真实存在已确认、数值按所引报道转录、未独立复核。
-> - 能垒口径统一为 `central_complex`（TS 相对反应物络合物/预反应络合物；双分子离子-分子反应即离子-偶极络合物，单分子与分子内过程的反应物阱即络合物）。JSON 中由 `barrier_reference` 字段记录。文献锚点本身是分离反应物渐近线口径且无络合物口径数值的题（D1、D3、D4、C3、F1、G2、G3），数值原样保留、JSON 的 `verification` 一律降为 `unverified` 待核（登记于生成器 `_BARRIER_FRAME_UNVERIFIED`），不按新口径编造数值；单元格括号内的口径注明（如"TS 相对反应物渐近线"）是该锚点数值的出处属性，予以保留。
+> - 能垒口径统一为 `central_complex`（TS 相对反应物络合物/预反应络合物；双分子离子-分子反应即离子-偶极络合物，单分子与分子内过程的反应物阱即络合物）；单元格括号内的口径注明（如"TS 相对反应物渐近线"）是该锚点数值的出处属性，予以保留。参考能垒逐边承载于 gold 边。
 > - gold 机理图边的 `bond_changes`（原子映射的断键/成键对）与 query 展示给 agent 的原子映射反应物 SMILES 登记在生成器 `gen_easy_tasks.py` 的 `_BOND_CHANGES`/`_MAPPED_REACTANTS`（口径：键级下降=break、键级上升=form；纯构象/翻转步两空）。
-> - 能垒类型：Ea = Arrhenius 活化能，ΔH‡ = 活化焓，ΔE‡ = 电子能垒，ΔG‡ = 活化自由能。**评分绑定 agent 实际计算证据（TS 搜索 + IRC + 频率），锚点只作 ±2 kcal/mol 参考，不作 pass/fail 硬线**——Easy 档考"自洽的机理闭环"，不追绝对真值。单元格未显式写类型记号时 JSON 记 `barrier_type: null`，不默认贴 Ea 标签。
+> - **评分绑定 agent 实际计算证据（TS 搜索 + IRC + 频率），锚点只作 ±2 kcal/mol 参考，不作 pass/fail 硬线**——Easy 档考"自洽的机理闭环"，不追绝对真值。
 > - 对分子内过程（M 类），"产物"= 互变后的构型/构象（常为等价构型或另一极小），同样走 TS + IRC + 频率闭环。
 
 ---
@@ -23,8 +23,8 @@
 
 | # | 反应（中/EN） | SMILES (reactant>>product)，q / mult | 典型条件 | gold 机理概要 | gold 能垒锚点 | 舒适区自查 | 经典性依据 |
 |---|---|---|---|---|---|---|---|
-| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | ΔE‡ 22.3 kcal/mol（计算值，W1/W2-F12，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #7；分离反应物口径，与题面络合物口径未对齐——维持 unverified 不参与 accuracy 评分，升级与否留待决策）[已核实] | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
-| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | ΔE‡ 14.5 kcal/mol（计算值，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #9/TS11，endo 电子垒——取代原 14.9–16.6 实验区间；分离反应物口径，维持 unverified）[已核实] | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
+| D1 | 丁二烯+乙烯 Diels-Alder（parent DA）| `C=CC=C.C=C>>C1CC=CCC1`，0/1 | 气相 487–648 °C 动力学 | 协同 [4+2] 环加成，单步过对称 TS | ΔE‡ 22.3 kcal/mol（计算值，W1/W2-F12，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #7；分离反应物口径）[已核实] | C,H；6 重原子；✅ | 整个 benchmark 的"定标星"；Transition-1x/RDB7 均含 |
+| D3 | 环戊二烯二聚（endo，自身 DA）| `C1=CCC=C1.C1=CCC=C1>>C12C=CC(C1)C1C=CCC12`，0/1 | 气相/液相室温慢 | 协同 [4+2]，bispericyclic TS，一分子作二烯一分子作亲双烯体 | ΔE‡ 14.5 kcal/mol（计算值，Karton & Goerigk 2015 J. Comput. Chem. 36, 622，DOI 10.1002/jcc.23837，GMTKN55/BHPERI #9/TS11，endo 电子垒——取代原 14.9–16.6 实验区间；分离反应物口径）[已核实] | C,H；10 重原子；✅ | 低能垒 DA，二聚经典体系 |
 | D4 | 环戊二烯 + 丙烯醛 DA（含杂原子亲双烯体）| `C1=CCC=C1.C=CC=O>>O=CC1CC2C=CC1C2`，0/1 | 气相/烃溶剂加热 | 协同 [4+2]，endo/exo 选择性，醛基亲双烯体 | ΔE‡ 13.6（endo）/14.1（exo）kcal/mol（理论 ωB97X-D/6-311G(d,p)，气相，相对分离反应物；Domingo, Pérez, Ríos-Gutiérrez & Aurell 2024 Tetrahedron Chem 10, 100064, DOI 10.1016/j.tchem.2024.100064）[已核实] | C,H,O；9 重原子；✅ | 含杂原子 DA，endo/exo 选择性范例 |
 
 ## P. σ 迁移重排（2 个）
@@ -140,7 +140,7 @@
 
 - M 组为**分子内过程**，产物多为等价构型/构象——评分以 TS + IRC 连通到等价极小 + 频率闭环计，不要求区分对称等价端点。
 - **G 组为协同加成/氢转移**：G3（ene 反应，协同 vs 分步竞争）含机理判别成分，评分时留意其判别属性。
-- 能垒口径统一为**中央能垒**（TS 相对反应物络合物，JSON `barrier_reference = central_complex`）；锚点数值属分离反应物渐近线口径的题（D1、D3、D4、C3、F1、G2、G3）在 JSON 中记 `unverified` 待核；锚点只作 ±2 kcal/mol 参考，不作 pass/fail 硬线。
+- 锚点只作 ±2 kcal/mol 参考，不作 pass/fail 硬线；参考能垒逐边承载于 gold 边（越难算准的边权重越小）。
 - X1（脱羧 43）、M16（脱氢 65）能垒偏高，超出常规 easy 窗口（~7-35），已收录但评分时注意其非常规性。
 - M1 重原子 14 超出常规 ≤7，但为**轴手性特例**且 C,H 组成，已确认在 MACE 舒适区边缘；作为"放宽边界"示例保留。
 - 评分绑 agent 计算证据自洽性（TS + IRC + 频率），不以锚点数值作 pass/fail 硬线。

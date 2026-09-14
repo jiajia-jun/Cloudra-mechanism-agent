@@ -4,19 +4,23 @@
 
 - `name_en`: 题名英译（漏登记在校验阶段报错）。
 - `conditions_en`: 条件列英译。
-- `anchor`: 锚点路由——"selectivity"（能垒格数值为竞争 TS 能垒差 ΔΔ，
-  入 gold.selectivity）/ "barrier"（绝对能垒，入 reference_computation，
-  accuracy 照常评分）/ None（无数值锚点，accuracy disable）。selectivity
-  必须同时给 `minor_channel_en`（副通道英文一句话）。
+- `anchor`: 题级锚点路由——"selectivity"（能垒格数值为竞争 TS 能垒差 ΔΔ，
+  入 gold.selectivity，仅定性记录）/ "barrier"（题源格给绝对能垒锚点，用于校验
+  registry 逐边最大能垒一致——绝对能垒本身**逐边**承载在 gold 边
+  barrier_kcal_mol）/ None（无数值锚点）。selectivity 必须同时给
+  `minor_channel_en`（副通道英文一句话）。
 - `mapped_reactants`: query 展示的原子映射反应物 SMILES（1-based 映射号；
   **保留立体标记**（@/@@、/、\\）；参与键变化的 H 以显式 [H:n] 给出，其余
   H 保持隐式；去映射后必须等于池内反应物 SMILES——规范化对比是立体敏感
   的，立体标错会在这里被 fail-loud 拦住）。
 - `steps`: 主写出线的基元步列表，每步 {"out": <该步产物的映射 SMILES>,
   "type": <step_type 英译>}；末步 out 去映射后必须等于池内产物。
-  纯构象步（无键级变化）另加 "conformational": True。
+  纯构象步（无键级变化）另加 "conformational": True。可选键 "barrier"
+  （该步参考答案能垒 kcal/mol，逐边承载；缺省 None = 无参考值、不评分）与
+  "weight"（该边 accuracy 加权平均的权重，缺省 1.0；越难算准的边越小）。
 - `competing`（可选）: 竞争立体化学副通道列表，每步 {"out": <副通道产物/
-  中间体的映射 SMILES>, "type": ...}；可选键 "from_step": k（默认 0 =
+  中间体的映射 SMILES>, "type": ..., 可选 "barrier"/"weight"}；可选键
+  "from_step": k（默认 0 =
   从反应物络合物出发；k≥1 = 从主线第 k 步的输出节点出发，用于立体决定步
   在多步网络中段的情形，如 I1）与 "is_product": bool（默认 True；False 时
   副通道终点为中间体节点，如 I1 的副面 aldolate）。
