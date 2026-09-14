@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -440,6 +441,105 @@ async def test_legacy_llm_provider_streams_openrouter_reasoning():
     assert response.reasoning == "Thinking with OpenRouter"
     assert "".join(d for kind, d in deltas if kind == "reasoning") == "Thinking with OpenRouter"
     assert "".join(d for kind, d in deltas if kind == "content") == "Here is the answer"
+
+
+@pytest.mark.asyncio
+async def test_legacy_llm_provider_captures_reasoning_from_final_message():
+    """DeepSeek thinking mode may put reasoning_content on choice.message of
+    the last chunk (delta empty). Missing that 400s the next tool turn."""
+
+    class FakeStream:
+        def __init__(self, chunks):
+            self._iter = iter(chunks)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration:
+                raise StopAsyncIteration
+
+    class FakeClient:
+        last_usage = {}
+
+        async def create_with_retry(self, **kwargs):
+            return FakeStream(
+                [
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(
+                                delta=SimpleNamespace(
+                                    content="checking",
+                                    tool_calls=None,
+                                    reasoning_content=None,
+                                ),
+                                message=None,
+                                finish_reason=None,
+                            )
+                        ]
+                    ),
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(
+                                delta=None,
+                                message=SimpleNamespace(
+                                    content="checking",
+                                    reasoning_content="need the file first",
+                                ),
+                                finish_reason="stop",
+                            )
+                        ]
+                    ),
+                ]
+            )
+
+    provider = LegacyLLMProvider(client_factory=lambda settings: FakeClient())
+    agent = SimpleNamespace(
+        role_id="coordinator",
+        settings=RuntimeSettings(
+            model="deepseek-v4-flash",
+            base_url="https://api.example/",
+            api_key="sk-x",
+            invocation_protocol="traditional",
+        ),
+    )
+    response = await provider.complete(
+        agent, [{"role": "user", "content": "hi"}], [], on_delta=None
+    )
+    assert response.content == "checking"
+    assert response.reasoning == "need the file first"
+    assert response.finish_reason == "stop"
+
+
+@pytest.mark.asyncio
+async def test_legacy_llm_provider_complete_times_out_loudly():
+    """A hung provider must fail the complete() call instead of blocking the
+    event loop / starving a fresh NI1 coordinator indefinitely."""
+
+    class HungClient:
+        last_usage = {}
+
+        async def create_with_retry(self, **kwargs):
+            await asyncio.Event().wait()
+
+    provider = LegacyLLMProvider(client_factory=lambda settings: HungClient())
+    agent = SimpleNamespace(
+        id="as_timeout",
+        role_id="coordinator",
+        settings=RuntimeSettings(
+            model="deepseek-v4-flash",
+            base_url="https://api.example/",
+            api_key="sk-x",
+            timeout=1,
+            invocation_protocol="traditional",
+        ),
+    )
+    with pytest.raises(TimeoutError, match="timed out after 1s"):
+        await provider.complete(
+            agent, [{"role": "user", "content": "hi"}], [], on_delta=None
+        )
 
 
 @pytest.mark.asyncio

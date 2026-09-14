@@ -147,7 +147,9 @@ def _parent_report_text(core, child: AgentSession) -> str:
     )
 
 
-def deliver_child_completion_to_parent(core, child: AgentSession) -> None:
+def deliver_child_completion_to_parent(
+    core, child: AgentSession, *, wake: bool = True
+) -> None:
     """Push a finished child's report into the parent's mailbox and wake it.
 
     Async (``is_wait=False``) dispatch otherwise leaves the parent with no
@@ -156,7 +158,10 @@ def deliver_child_completion_to_parent(core, child: AgentSession) -> None:
     统一不复活纪律（park-don't-wake）：父处于 failed/cancelled 终态时报告
     照常投递信箱驻留（durable ``agent.message_injected`` + 内存队列），但
     绝不唤醒——用户随后用显式消息复活该 agent 时首轮即可读到。succeeded
-    父照常 wake 开新 run（异步派发回传模式）。
+    父在*在线*完成回传时照常 wake 开新 run（异步派发回传模式）。
+
+    ``wake=False`` 给进程恢复：只投递信箱，不把休眠父打进新的 LLM run
+    （issue #35）。显式 message / restart 才开跑，届时首轮 drain 可读到。
     """
     parent_id = child.parent_session_id
     if not parent_id:
@@ -170,8 +175,8 @@ def deliver_child_completion_to_parent(core, child: AgentSession) -> None:
         content=_parent_report_text(core, child),
         sender=child.role_id,
     )
-    if parent.state in {AgentState.FAILED, AgentState.CANCELLED}:
-        return  # parked：终态 agent 绝不自动复活
+    if not wake or parent.state in {AgentState.FAILED, AgentState.CANCELLED}:
+        return  # parked：恢复路径 / 终态父绝不自动复活
     core.agent_host.wake(parent, runner=core.runner)
 
 

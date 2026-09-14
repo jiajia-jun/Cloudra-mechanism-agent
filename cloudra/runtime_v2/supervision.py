@@ -57,23 +57,32 @@ def find_project_supervisor(
     """返回项目内唯一的 Supervisor AgentSession（纯投影查询），无则 None。
 
     身份的唯一事实来源是 core.agents 的 项目+角色 投影。多于一个匹配属于
-    不变量破坏：记 warning 并返回第一个（创建侧的去重由 notify_supervisor
-    经 CommandBus 序列化边界保证，本函数不做修复）。
+    不变量破坏：记 warning；优先返回非 failed/cancelled 的那个（创建侧的
+    去重由 notify_supervisor 经 CommandBus 序列化边界保证，本函数不做删除
+    修复，只避免把死督导当成身份）。
     """
     matches = [
         agent
         for agent in core.agents.values()
         if agent.project_id == project_id and agent.role_id == SUPERVISOR_ROLE_ID
     ]
+    if not matches:
+        return None
+    chosen = matches[0]
     if len(matches) > 1:
+        from cloudra.runtime_v2.schemas import AgentState
+
+        terminal = {AgentState.FAILED, AgentState.CANCELLED}
+        live = [agent for agent in matches if agent.state not in terminal]
+        chosen = (live or matches)[0]
         logger.warning(
             "[supervision] project %s has %d supervisor agents; identity "
             "invariant violated, using %s",
             project_id,
             len(matches),
-            matches[0].id,
+            chosen.id,
         )
-    return matches[0] if matches else None
+    return chosen
 
 
 async def pending_supervision_summary(project_id: str) -> dict[str, int]:
@@ -211,7 +220,7 @@ async def _spawn_supervisor(core: RuntimeCore, project_id: str) -> AgentSession 
 
 
 async def notify_supervisor(
-    core: RuntimeCore, project_id: str, *, reason: str = ""
+    core: RuntimeCore, project_id: str, *, reason: str = "", auto_wake: bool = True
 ) -> None:
     """确保项目唯一 Supervisor agent 身份并按状态表通知；不等待裁决。
 
@@ -239,12 +248,23 @@ async def notify_supervisor(
     刻意不走 ``agent.message`` 命令——它的 decide 路径对 failed/cancelled
     终态 agent 自动 reopen（plan_wake），会违反状态表。``reason`` 只用于
     通知消息的可诊断标注，不构成路由或去重依据。
+
+    ``auto_wake=False``（API 装载 / 进程重启）：只把通知驻留信箱，不 spawn
+    新督导、不 wake 任何已有 agent。待办仍在 DAG store，显式 resume /
+    在线 notify 才开 LLM。
     """
     if project_id not in core.projects:
         logger.debug("[supervision] notify for unknown project %s ignored", project_id)
         return
     agent = find_project_supervisor(core, project_id)
     if agent is None:
+        if not auto_wake:
+            logger.info(
+                "[supervision] project %s has backlog but no supervisor; "
+                "load path will not spawn",
+                project_id,
+            )
+            return
         lock = _SPAWN_LOCKS.setdefault(project_id, asyncio.Lock())
         async with lock:
             agent = find_project_supervisor(core, project_id)
@@ -273,14 +293,19 @@ async def notify_supervisor(
         )
         # D2：终态督导 + 可消费待办不再是隐形 wedge——给 Coordinator 发
         # 一次性告警（指纹去重），点名不自动复活与真实恢复入口。
-        await _sync_terminal_supervisor_alert(core, project_id, agent)
-    elif state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+        await _sync_terminal_supervisor_alert(
+            core, project_id, agent, auto_wake=auto_wake
+        )
+    elif auto_wake and state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
         core.agent_host.wake(agent, runner=core.runner)
     # RUNNING：下一轮 drain 收件箱；WAITING_*：消息保留，不绕过等待语义。
+    # auto_wake=False：任何状态都只驻留，由显式 resume 开跑。
     await core.event_writer.flush()
 
 
-async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
+async def reconcile_supervision(
+    core: RuntimeCore, project_id: str, *, auto_wake: bool = True
+) -> None:
     """项目装载/显式恢复后扫描持久化待办，非空则按状态表补通知。
 
     覆盖"证据入库成功、通知前崩溃"的窗口（计划 §4）：以
@@ -296,13 +321,21 @@ async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
     执行任何 LLM 副作用。历史 legacy_auto 来源的 pending 不自动消费
     （计划 §5）：可消费待办只算 ``pending_supervision_summary`` 的
     ``call_reviews``（source="explicit"）等三类显式来源。
+
+    ``auto_wake=False`` 给 API 装载：补投递/pin 但不 spawn、不 wake，避免
+    重启把休眠督导/协调者重新打进 LLM（issue #35）。在线切回 dag_guided
+    仍用默认 ``auto_wake=True``。
     """
-    await flush_review_notifications(core, project_id)
+    await flush_review_notifications(core, project_id, auto_wake=auto_wake)
     await reconcile_legacy_backlog_notice(core, project_id)
     summary = await pending_supervision_summary(project_id)
     # D2：恢复路径同样同步终态督导告警（含条件消失后的撤 pin）。
     await _sync_terminal_supervisor_alert(
-        core, project_id, find_project_supervisor(core, project_id), summary
+        core,
+        project_id,
+        find_project_supervisor(core, project_id),
+        summary,
+        auto_wake=auto_wake,
     )
     consumable = (
         summary["call_reviews"] + summary["open_drafts"] + summary["review_requests"]
@@ -310,7 +343,10 @@ async def reconcile_supervision(core: RuntimeCore, project_id: str) -> None:
     if not consumable:
         return
     await notify_supervisor(
-        core, project_id, reason="persisted backlog found on project load"
+        core,
+        project_id,
+        reason="persisted backlog found on project load",
+        auto_wake=auto_wake,
     )
 
 
@@ -389,6 +425,8 @@ async def _sync_terminal_supervisor_alert(
     project_id: str,
     supervisor: AgentSession | None,
     summary: dict[str, int] | None = None,
+    *,
+    auto_wake: bool = True,
 ) -> None:
     """D2：failed/cancelled 督导 + 可消费待办 → Coordinator 的一次性告警。
 
@@ -447,12 +485,14 @@ async def _sync_terminal_supervisor_alert(
         content=content,
         sender="system",
     )
-    if coordinator.state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+    if auto_wake and coordinator.state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
         core.agent_host.wake(coordinator, runner=core.runner)
     await core.event_writer.flush()
 
 
-async def flush_review_notifications(core: RuntimeCore, project_id: str) -> int:
+async def flush_review_notifications(
+    core: RuntimeCore, project_id: str, *, auto_wake: bool = True
+) -> int:
     """投递项目的 pending 裁决通知（非轮询；三类裁决共用同一通道）。
 
     通知行三类（kind）：review_decision（结构化请求裁决，渲染材料查
@@ -529,10 +569,16 @@ async def flush_review_notifications(core: RuntimeCore, project_id: str) -> int:
                     sender="supervisor",
                 )
                 # park-don't-wake：failed/cancelled 收件人只驻留，绝不唤醒。
-                if agent is not None and agent.state not in {
-                    AgentState.FAILED,
-                    AgentState.CANCELLED,
-                }:
+                # auto_wake=False（装载）：succeeded/queued 同样只驻留。
+                if (
+                    auto_wake
+                    and agent is not None
+                    and agent.state
+                    not in {
+                        AgentState.FAILED,
+                        AgentState.CANCELLED,
+                    }
+                ):
                     core.agent_host.wake(agent, runner=core.runner)
                 # 本路径在 CommandBus 之外，自己持有 publish+persist 边界：
                 # 事件落盘/发布先于标记 sent，否则崩溃会丢唤醒。

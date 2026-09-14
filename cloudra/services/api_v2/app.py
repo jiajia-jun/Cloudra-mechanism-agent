@@ -137,7 +137,8 @@ def create_v2_app(
         # 项目装载后扫描持久化督导待办并补通知（覆盖"落库后通知前崩溃"
         # 窗口），含 legacy_auto 待办的一次性 Coordinator 提示。只在
         # dag_guided 项目上做；standard/dag_record 不消费督导信箱。
-        # 只安排通知——恢复路径绝不执行 LLM 之外的副作用扩展。
+        # auto_wake=False：只驻留信箱/pin，不 spawn、不把休眠督导或协调者
+        # 打进 LLM（issue #35）。显式 resume / 在线切回 guided 才开跑。
         from cloudra.runtime_v2.schemas import OrchestrationMode
         from cloudra.runtime_v2.supervision import reconcile_supervision
 
@@ -153,7 +154,7 @@ def create_v2_app(
                 ):
                     continue
             try:
-                await reconcile_supervision(core, project.id)
+                await reconcile_supervision(core, project.id, auto_wake=False)
             except Exception:
                 logger.warning(
                     "supervision reconcile failed for project %s", project.id,

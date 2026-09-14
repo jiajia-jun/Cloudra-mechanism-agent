@@ -416,7 +416,7 @@ async def test_reconcile_after_restart_flushes_unsent_call_verdict(tmp_path):
     restore_core(core2, store)
     coordinator2 = core2.agents[coordinator.id]
 
-    await reconcile_supervision(core2, project.id)
+    await reconcile_supervision(core2, project.id, auto_wake=False)
 
     assert await asyncio.to_thread(_pending_notifications, project.id) == []
     injections = _injections(core2, coordinator2.id, "[Supervisor call verdict]")
@@ -424,7 +424,7 @@ async def test_reconcile_after_restart_flushes_unsent_call_verdict(tmp_path):
     assert "verdict=disagree" in injections[0].data["content"]
     assert len(_pin_events(core2, coordinator2.id, f"call-verdict-{review_id}")) == 1
     # 恢复补投幂等：再 reconcile 不重投。
-    await reconcile_supervision(core2, project.id)
+    await reconcile_supervision(core2, project.id, auto_wake=False)
     assert len(_injections(core2, coordinator2.id, "[Supervisor call verdict]")) == 1
 
 

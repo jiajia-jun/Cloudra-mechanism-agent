@@ -148,10 +148,10 @@ async def test_startup_reconcile_covers_guided_agents_in_standard_project(monkey
     just like a guided project's."""
     from cloudra.services.api_v2.app import create_v2_app
 
-    calls: list[str] = []
+    calls: list[tuple[str, bool]] = []
 
-    async def fake_reconcile(core, project_id):
-        calls.append(project_id)
+    async def fake_reconcile(core, project_id, *, auto_wake=True):
+        calls.append((project_id, auto_wake))
 
     monkeypatch.setattr(
         "cloudra.runtime_v2.supervision.reconcile_supervision", fake_reconcile
@@ -162,4 +162,4 @@ async def test_startup_reconcile_covers_guided_agents_in_standard_project(monkey
     app = create_v2_app(core)
     async with app.router.lifespan_context(app):
         pass
-    assert project.id in calls
+    assert (project.id, False) in calls

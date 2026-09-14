@@ -604,7 +604,23 @@ class LegacyLLMProvider:
         settings = legacy_default_settings(agent)
         client = self._make_client(settings)
         try:
-            return await self._complete_with_client(agent, client, settings, messages, tools, on_delta)
+            return await asyncio.wait_for(
+                self._complete_with_client(
+                    agent, client, settings, messages, tools, on_delta
+                ),
+                timeout=settings.timeout,
+            )
+        except TimeoutError as exc:
+            logger.error(
+                "llm complete timed out after %ss agent=%s model=%s",
+                settings.timeout,
+                getattr(agent, "id", "?"),
+                settings.model,
+            )
+            raise TimeoutError(
+                f"LLM request timed out after {settings.timeout}s "
+                f"(agent={getattr(agent, 'id', '?')} model={settings.model})"
+            ) from exc
         finally:
             # _make_client 每次 complete 新建 LLMClient（独立 httpx 连接池）：
             # 用完必须关闭，否则每个轮次泄漏一个连接池（Task 0 取证 T7）。
@@ -727,6 +743,7 @@ class LegacyLLMProvider:
             pumper = _ChunkPumper(lambda _type, data: on_delta(data["stream"], data["delta"]))
         content = ""
         reasoning_content = ""
+        final_message_reasoning = ""
         tool_call_buffer: dict[int, dict[str, Any]] = {}
         tool_calls: list[ToolCall] = []
         finish_reason = None
@@ -736,12 +753,21 @@ class LegacyLLMProvider:
                 if not choices:
                     continue
                 choice = choices[0]
-                delta = getattr(choice, "delta", None)
-                if delta is None:
-                    continue
+                # Some thinking-mode endpoints (DeepSeek) put reasoning_content
+                # on choice.message of the last chunk, not on delta. Skip that
+                # and the next tool turn 400s: "reasoning_content ... must be
+                # passed back to the API."
+                message = getattr(choice, "message", None)
+                if message is not None:
+                    extracted = _extract_delta_reasoning(message)
+                    if extracted:
+                        final_message_reasoning = extracted
                 reason = getattr(choice, "finish_reason", None)
                 if reason:
                     finish_reason = reason
+                delta = getattr(choice, "delta", None)
+                if delta is None:
+                    continue
                 token = getattr(delta, "content", None)
                 if token:
                     content += token
@@ -776,6 +802,8 @@ class LegacyLLMProvider:
         # mid-stream; parse what arrived (broken JSON degrades to {}).
         if tool_call_buffer:
             tool_calls.extend(_parse_merged_tool_calls(tool_call_buffer.values()))
+        if not reasoning_content and final_message_reasoning:
+            reasoning_content = final_message_reasoning
         usage = client.last_usage or {}
         return LLMResponse(
             content=content,

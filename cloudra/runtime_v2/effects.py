@@ -86,8 +86,8 @@ class ReconcileSupervision:
 
     decide 只表达"该项目可能需要补一次督导通知"的意图；shell 在第四拍执行
     ``reconcile_supervision``（扫持久化待办并按状态表补通知——failed/
-    cancelled 不复活、待办不清空）。effects 只在在线命令路径执行，重放/
-    恢复不经过，天然满足"恢复扫描零执行副作用"。
+    cancelled 不复活、待办不清空；API 装载另传 auto_wake=False）。effects
+    只在在线命令路径执行，重放/恢复不经过，天然满足"恢复扫描零执行副作用"。
     """
 
     project_id: str

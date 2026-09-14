@@ -2159,8 +2159,7 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     assert supervisor1 is not None and supervisor1.state.value == "running"
 
     # 进程重启：restore 把 running 尸体落 failed，并把子（supervisor）的
-    # 终态回传给父（coordinator 是 queued 非终态：投递 + 唤醒开新 run，
-    # 无 runner 只落事件——A1 跨重启通知）。
+    # 终态回传给父（coordinator 是 queued：投递驻留信箱，恢复路径不 wake）。
     core2 = RuntimeCore(strict_events=True)
     core2.store = store
     restore_core(core2, store)
@@ -2175,11 +2174,10 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     assert "interrupted by process restart" in reports[-1].data["content"]
 
     # reconcile 不自动复活 failed：park-don't-wake——通知驻留信箱（仅一条
-    # 投递事件），督导自身零状态/run 事件。D2：failed 督导 + 可消费待办
-    # 同时给 Coordinator 发一次性告警（pin + mailbox + wake），这是告警
-    # 本身的既定可见性契约，不是督导复活。
+    # 投递事件），督导自身零状态/run 事件。装载路径 auto_wake=False：D2
+    # 告警仍 pin + mailbox，但不把 Coordinator 打进 LLM。
     events_before = len(core2.event_log)
-    await reconcile_supervision(core2, project.id)
+    await reconcile_supervision(core2, project.id, auto_wake=False)
     new_events = list(core2.event_log)[events_before:]
     supervisor_events = [
         e for e in new_events if e.session_id == supervisor2.id
@@ -2308,3 +2306,105 @@ async def test_duplicate_notification_after_decision_does_not_rerun_review(tmp_p
     finally:
         llm.release.set()
         await _teardown(core, coordinator, supervisor)
+
+
+@pytest.mark.asyncio
+async def test_reconcile_without_auto_wake_parks_succeeded_supervisor():
+    """API 装载：休眠督导只收信箱通知，不开新 LLM run（issue #35）。"""
+    llm = _LatchedSupervisorLLM()
+    core, bus, project = await _setup(llm)
+    supervisor = None
+    try:
+        await _seed_pending_review(project.id)
+        supervisor = (
+            await bus.execute(
+                Command(
+                    type="agent.spawn",
+                    target={"project_id": project.id},
+                    payload={
+                        "role_id": SUPERVISOR_ROLE_ID,
+                        "settings": {"orchestration_mode": "dag_guided"},
+                    },
+                )
+            )
+        ).data
+        core.agent_host.start_run(supervisor)
+        core.agent_host.finish_run(supervisor, outcome="succeeded")
+        assert supervisor.state.value == "succeeded"
+        calls_before = llm.supervisor_calls
+
+        await reconcile_supervision(core, project.id, auto_wake=False)
+        await asyncio.sleep(0.05)
+        assert supervisor.state.value == "succeeded"
+        assert llm.supervisor_calls == calls_before
+        inbox = core.mailbox.inbox(supervisor.id)
+        assert inbox is not None and inbox.qsize() == 1
+        injected = [
+            e
+            for e in core.event_log.query_session(supervisor.id)
+            if e.type == "agent.message_injected"
+        ]
+        assert injected
+        assert "persisted backlog found on project load" in str(
+            injected[-1].data.get("content", "")
+        )
+    finally:
+        llm.release.set()
+        await _teardown(core, supervisor)
+
+
+@pytest.mark.asyncio
+async def test_reconcile_without_auto_wake_does_not_spawn_supervisor():
+    """API 装载：有待办但还没有督导时不 spawn（等显式 resume / 在线 notify）。"""
+    llm = _LatchedSupervisorLLM()
+    core, _bus, project = await _setup(llm)
+    try:
+        await _seed_pending_review(project.id)
+        await reconcile_supervision(core, project.id, auto_wake=False)
+        assert find_project_supervisor(core, project.id) is None
+        assert llm.supervisor_calls == 0
+    finally:
+        llm.release.set()
+        await _teardown(core)
+
+
+@pytest.mark.asyncio
+async def test_find_project_supervisor_prefers_non_terminal_when_duplicate():
+    """身份不变量破坏时优先用还活着的督导，避免把 failed 尸体当成身份。"""
+    llm = _LatchedSupervisorLLM()
+    core, bus, project = await _setup(llm)
+    try:
+        first = (
+            await bus.execute(
+                Command(
+                    type="agent.spawn",
+                    target={"project_id": project.id},
+                    payload={
+                        "role_id": SUPERVISOR_ROLE_ID,
+                        "settings": {"orchestration_mode": "dag_guided"},
+                    },
+                )
+            )
+        ).data
+        second = (
+            await bus.execute(
+                Command(
+                    type="agent.spawn",
+                    target={"project_id": project.id},
+                    payload={
+                        "role_id": SUPERVISOR_ROLE_ID,
+                        "settings": {"orchestration_mode": "dag_guided"},
+                    },
+                )
+            )
+        ).data
+        core.agent_host.start_run(first)
+        core.agent_host.finish_run(first, outcome="failed", error="old")
+        found = find_project_supervisor(core, project.id)
+        assert found is not None
+        assert found.id == second.id
+        assert first.state.value == "failed"
+        assert second.state.value == "queued"
+    finally:
+        llm.release.set()
+        await _teardown(core, first, second)
