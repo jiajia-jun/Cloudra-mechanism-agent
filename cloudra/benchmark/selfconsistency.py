@@ -49,7 +49,11 @@ from cloudra.benchmark.schema import (
     SelfConsistencyRubric,
 )
 from cloudra.tools.core import gaussian_frames, orca_frames, qm_engine
-from cloudra.tools.core.irc_path import assign_irc_endpoints, parse_xyz
+from cloudra.tools.core.irc_path import (
+    align_atom_order,
+    assign_irc_endpoints,
+    parse_xyz,
+)
 
 
 @dataclass
@@ -248,11 +252,16 @@ def _strict_irc_proof(
     pool: list[str],
     from_files: list[str],
     to_files: list[str],
+    charge: int = 0,
 ) -> Optional[str]:
     """在绑定证据里完成 ts_guess strict 同口径的路径方向证明：找一组
     (TS 几何, 双侧 IRC 端点, 两端物种的验证极小值几何)，使两个 IRC 端点
-    各自位于 TS 与对应极小值之间（direct/swapped 配对，watch_pairs 缺省走
-    自动选取）。任一组合成立即返回用作证据的 IRC 日志路径，否则 None。"""
+    各自位于 TS 与对应极小值之间（direct/swapped 配对）。任一组合成立即
+    返回用作证据的 IRC 日志路径，否则 None。
+
+    原子序无关：每组几何经 align_atom_order 重排进 TS 坐标序（距离指纹 +
+    Hungarian，元素多重集不符的组合才跳过）——agent 用不同原子序重优化的
+    端点极小值不再被误拒。"""
     ts_geos = []
     for p in sorted(pool):
         if probe.n_imag(p) == 1:
@@ -279,16 +288,28 @@ def _strict_irc_proof(
             continue
         (syms_a, pos_a), (syms_b, pos_b) = ends
         for ts_syms, ts_pos in ts_geos:
-            if syms_a != ts_syms or syms_b != ts_syms:
+            aligned_ends = []
+            for syms, pos in ((syms_a, pos_a), (syms_b, pos_b)):
+                res = align_atom_order(ts_syms, ts_pos, syms, pos)
+                if res is None:
+                    break
+                aligned_ends.append([pos[k] for k in res[0]])
+            if len(aligned_ends) != 2:
                 continue
             for from_syms, from_pos in from_geos:
-                if from_syms != ts_syms:
+                from_res = align_atom_order(ts_syms, ts_pos, from_syms, from_pos)
+                if from_res is None:
                     continue
+                aligned_from = [from_pos[k] for k in from_res[0]]
                 for to_syms, to_pos in to_geos:
-                    if to_syms != ts_syms:
+                    to_res = align_atom_order(ts_syms, ts_pos, to_syms, to_pos)
+                    if to_res is None:
                         continue
+                    aligned_to = [to_pos[k] for k in to_res[0]]
                     verdict = assign_irc_endpoints(
-                        ts_syms, ts_pos, pos_a, pos_b, from_pos, to_pos, []
+                        ts_syms, ts_pos,
+                        aligned_ends[0], aligned_ends[1],
+                        aligned_from, aligned_to, [], charge,
                     )
                     if verdict["is_decidable"] and verdict["is_match"]:
                         return p
@@ -301,6 +322,7 @@ def audit_self_consistency(
     evidence_files: list[EvidenceFile],
     sandbox: Path,
     rubric: Optional[SelfConsistencyRubric] = None,
+    charge: int = 0,
 ) -> SelfConsistencyReport:
     rubric = rubric or SelfConsistencyRubric()
     report = SelfConsistencyReport()
@@ -396,7 +418,7 @@ def audit_self_consistency(
                 list(to_binding.bound_files)
                 if to_binding and to_binding.matched else []
             )
-            proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files)
+            proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files, charge)
             if proof is not None:
                 irc_ok = True
                 if proof not in chk.evidence_used:

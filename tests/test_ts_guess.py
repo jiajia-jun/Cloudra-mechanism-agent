@@ -887,8 +887,9 @@ async def test_verify_strict_rejects_non_first_order_stationary_points(
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_atom_order_mismatch_is_inconclusive(tmp_path, mock_session):
-    """距离坐标依赖原子映射；结构原子序不一致时不能武断判错路径。"""
+async def test_verify_strict_reordered_intermediate_is_aligned(tmp_path, mock_session):
+    """原子序重排但组成相同的中间体：距离指纹 + Hungarian 对齐后照常判定
+    （对应层就是为此存在的，重排不再是 inconclusive 的理由）。"""
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_with_geometry.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -904,8 +905,30 @@ async def test_verify_strict_atom_order_mismatch_is_inconclusive(tmp_path, mock_
     }), mock_session)
 
     assert result.is_success, result.message
+    assert result.verdict.startswith("pass"), result.verdict
+    assert any("aligned to TS atom order" in check for check in result.checks)
+
+
+@pytest.mark.asyncio
+async def test_verify_strict_element_mismatch_is_inconclusive(tmp_path, mock_session):
+    """元素组成不同（原子数/元素多重集不等）的结构进不了判定层。"""
+    tool = _make_tool()
+    freq_log = tmp_path / "ts_freq_with_geometry.log"
+    freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
+
+    result = await tool.safe_call(TsGuess_input_schema(**{
+        "mode": "verify",
+        "strict": True,
+        "freq_log": str(freq_log),
+        "irc_log": str(IRC_LOG),
+        "reactant_text": "2\n\nO 0.0 0.0 0.0\nO 0.0 0.0 1.2\n",
+        "product_text": _HNC_XYZ,
+        "output_dir": str(tmp_path / "strict_element_mismatch"),
+    }), mock_session)
+
+    assert result.is_success, result.message
     assert result.verdict.startswith("inconclusive")
-    assert any("atom order" in check for check in result.checks)
+    assert any("elements or atom counts" in check for check in result.checks)
 
 
 @pytest.mark.asyncio

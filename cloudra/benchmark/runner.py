@@ -350,6 +350,7 @@ class BenchmarkRunner:
             integ.evidence_files,
             sandbox,
             task.rubric.self_consistency,
+            charge=task.system.charge,
         )
         res.selfconsistency_passed = sc.passed
         res.notes.extend(sc.notes)

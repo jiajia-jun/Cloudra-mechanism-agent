@@ -4,7 +4,9 @@
 正则解析全部封装在本模块内部，agent 无需啃日志格式。
 
 默认 verify 只给 agent 提供方向建议；strict verify 只证明部分 IRC 的行进方向与两侧优化
-中间体一致，不宣称一个 TS 因此“绝对正确”。
+中间体一致，不宣称一个 TS 因此“绝对正确”。strict 的监测对与原子对应实现唯一，
+住 cloudra/tools/core/irc_path（键图 diff 硬证据 + 启发提名软证据分层，
+距离指纹 + Hungarian 对齐，任意原子序输入可判）。
 """
 
 from __future__ import annotations
@@ -22,13 +24,18 @@ from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.tools.Chemtool.internal_coordinates import (
-    _COVALENT_RADII,
     _angle_deg,
     _dihedral_deg,
 )
 from cloudra.tools.core import orca_frames
 from cloudra.tools.core.irc_path import (
+    align_atom_order as _align_atom_order,
+)
+from cloudra.tools.core.irc_path import (
     assign_irc_endpoints as _assign_irc_endpoints,
+)
+from cloudra.tools.core.irc_path import (
+    bond_pairs as _bond_pairs,
 )
 from cloudra.tools.core.irc_path import (
     dist_matrix as _dist_matrix,
@@ -289,21 +296,6 @@ def _atoms_to_xyz_block(symbols, positions, comment: str = "") -> str:
     for s, p in zip(symbols, positions):
         lines.append(f"{s:<4} {p[0]:>14.8f} {p[1]:>14.8f} {p[2]:>14.8f}")
     return "\n".join(lines) + "\n"
-
-
-def _bond_pairs(symbols, positions, scale: float = 1.25) -> set[tuple[int, int]]:
-    """共价半径距离判据成键对集合（0-based，i<j）。"""
-    import numpy as np
-
-    pos = np.asarray(positions, dtype=float)
-    pairs: set[tuple[int, int]] = set()
-    for i in range(len(symbols)):
-        ri = _COVALENT_RADII.get(symbols[i], 1.2)
-        for j in range(i + 1, len(symbols)):
-            rj = _COVALENT_RADII.get(symbols[j], 1.2)
-            if float(np.linalg.norm(pos[i] - pos[j])) <= scale * (ri + rj):
-                pairs.add((i, j))
-    return pairs
 
 
 # ---------------------------------------------------------------------------
@@ -1965,25 +1957,40 @@ class TsGuess(Tool):
                 checks.append("Neither the frequency log nor the IRC provides a usable TS geometry.")
                 return "inconclusive: missing TS geometry.", info
 
-        symbol_sets = [
-            list(ts_symbols),
-            end_a_atoms.get_chemical_symbols(),
-            end_b_atoms.get_chemical_symbols(),
-            intermediate_a.get_chemical_symbols(),
-            intermediate_b.get_chemical_symbols(),
+        # 原子对应：元素多重集必须一致（原子数不等进不了这一层），但不要求
+        # 原子序相同——任意原子序的几何经距离指纹 + Hungarian 指派重排进
+        # TS 坐标序（重排过的输入不再是障碍，irc_path 唯一实现）。
+        geoms = [
+            ("IRC endpoint A", end_a_atoms),
+            ("IRC endpoint B", end_b_atoms),
+            ("intermediate A", intermediate_a),
+            ("intermediate B", intermediate_b),
         ]
-        if any(symbols != symbol_sets[0] for symbols in symbol_sets[1:]):
-            checks.append("The TS, both IRC outer frames, and the two optimized intermediates differ in elements or atom order.")
-            return "inconclusive: the structures differ in elements or atom order.", info
+        aligned_positions: list = []
+        for label, atoms in geoms:
+            perm_result = _align_atom_order(
+                list(ts_symbols), np.asarray(ts_positions, dtype=float),
+                atoms.get_chemical_symbols(), np.asarray(atoms.get_positions(), dtype=float),
+            )
+            if perm_result is None:
+                checks.append(
+                    f"{label} differs from the TS in elements or atom counts; "
+                    "structures with different compositions cannot enter this layer."
+                )
+                return "inconclusive: the structures differ in elements or atom counts.", info
+            perm, rmsd = perm_result
+            aligned_positions.append(np.asarray(atoms.get_positions(), dtype=float)[perm])
+            checks.append(f"{label} aligned to TS atom order (distance-matrix rmsd={rmsd:.3f} Å).")
 
         assignment = _assign_irc_endpoints(
-            symbol_sets[0],
+            list(ts_symbols),
             np.asarray(ts_positions, dtype=float),
-            np.asarray(end_a_atoms.get_positions(), dtype=float),
-            np.asarray(end_b_atoms.get_positions(), dtype=float),
-            np.asarray(intermediate_a.get_positions(), dtype=float),
-            np.asarray(intermediate_b.get_positions(), dtype=float),
+            aligned_positions[0],
+            aligned_positions[1],
+            aligned_positions[2],
+            aligned_positions[3],
             user_input.watch_pairs,
+            user_input.charge,
         )
         checks.extend(assignment["details"])
         if not assignment["is_decidable"]:
@@ -1995,9 +2002,16 @@ class TsGuess(Tool):
 
         mapping = "direct pairing" if assignment["assignment"] == "direct" else "pairing after swapping sides"
         checks.append(f"{mapping} holds: both IRC outer frames lie between the TS and the corresponding optimized intermediates.")
+        n_warnings = len(assignment.get("warnings", []))
+        warning_note = (
+            f" ({n_warnings} weak-contact warning(s): hydrogen-bond/non-covalent "
+            "pairs the IRC need not preserve)"
+            if n_warnings else ""
+        )
         return (
-            "pass: the bidirectional path of the partial IRC is consistent with the two optimized intermediates; "
-            "this conclusion only proves path direction and does not make the TS absolutely correct in every chemical sense.",
+            "pass: the bidirectional path of the partial IRC is consistent with the two optimized intermediates"
+            + warning_note
+            + "; this conclusion only proves path direction and does not make the TS absolutely correct in every chemical sense.",
             info,
         )
 
