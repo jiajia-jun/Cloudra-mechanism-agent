@@ -464,12 +464,16 @@ def test_accuracy_per_edge_requires_both_sources_and_agreement():
     )
     assert undeclared.final_score == 0.0
     assert any("declares no barrier_kcal_mol" in n for n in undeclared.notes), undeclared.notes
+    # 声明值与日志推算值冲突、但证据里含有与参考一致的组合 → 答案定义差异，
+    # 按固定小扣分记（不归零；见 _DEFINITION_MISMATCH_EDGE_SCORE）
     conflict = score_accuracy(
         evidence=_evidence([("E1", 27.5, 40.0)]), gold=gold, rubric=r,
         delivered_graph=delivered,
     )
-    assert conflict.final_score == 0.0
-    assert any("disagreement" in n for n in conflict.notes), conflict.notes
+    # gaussian_score = 0.9 → raw penalty 0.1（未触封顶）→ final 0.9
+    assert conflict.edge_scores["E1"] == pytest.approx(0.9)
+    assert conflict.final_score == pytest.approx(0.9)
+    assert any("answer-definition mismatch" in n for n in conflict.notes), conflict.notes
 
 
 def test_accuracy_matches_gold_edge_by_endpoint_species_not_edge_id():
@@ -2792,20 +2796,114 @@ def test_barrier_is_derived_from_logs_and_must_be_declared(tmp_path):
 
 
 def test_declared_barrier_must_match_logs(tmp_path):
-    """声明值与日志推算值冲突（超过 sigma）→ accuracy 记 0（不给部分分）。"""
+    """无据声明且证据对不上参考 → accuracy 记 0（fail-loud，不给部分分）；
+    若证据里有能对上参考的组合，则按答案定义差异小扣分（另一用例覆盖）。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     probe = tmp_path / "probe"
     _write_delivery(probe, declared=None)
     derived = _derived_barrier(probe)
 
+    # gold = derived（证据能对上参考）→ 声明错但答案在证据里 → 小扣分
+    evidence_ok = tmp_path / "definition_mismatch"
+    _write_delivery(evidence_ok, declared=derived + 25.0)
+    res_ok = BenchmarkRunner(tmp_path / "bench_ok").score_sandbox(
+        _delivery_task(derived), evidence_ok
+    )
+    assert res_ok.accuracy_score == pytest.approx(0.9)
+    assert any("answer-definition mismatch" in n for n in res_ok.notes), res_ok.notes
+
+    # gold 与证据相差 30 → 声明既不成立、证据也對不上参考 → fail-loud 归零
     sandbox = tmp_path / "conflict"
     _write_delivery(sandbox, declared=derived + 25.0)
     res = BenchmarkRunner(tmp_path / "bench").score_sandbox(
-        _delivery_task(derived), sandbox
+        _delivery_task(derived + 30.0), sandbox
     )
     assert res.accuracy_score == 0.0
     assert any("disagreement" in n for n in res.notes), res.notes
+
+
+def test_declared_node_energy_identifies_the_delivered_minimum(tmp_path):
+    """同物种多份合法极小值日志：节点声明的 energy_hartree 指认交付的是哪一份，
+    即使它与"鞍点下方能量最高者"启发式相反。"""
+    from cloudra.benchmark.barrier_evidence import collect_barrier_evidence
+
+    sandbox = tmp_path / "sb"
+    sandbox.mkdir()
+    (sandbox / "ts_freq.out").write_bytes(_TS_LOG.read_bytes())
+    text = _MIN_LOG.read_text()
+    folded, open_conf = "-184.757766163554", "-184.740000000000"  # 折叠(深) / 舒展(浅)
+    assert text.count(folded) == 1
+    (sandbox / "min_folded.out").write_text(text, encoding="utf-8")
+    (sandbox / "min_open.out").write_text(text.replace(folded, open_conf), encoding="utf-8")
+    graph = {
+        "nodes": [
+            {
+                "id": "R", "role": "reactant", "smiles": ["O"], "accessible": True,
+                # 声明交的是折叠构象（min_folded）；启发式会选鞍点下方较浅的 min_open
+                "properties": {"energy_hartree": float(folded)},
+            },
+            {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True},
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [
+            {
+                "id": "E1", "from": "R", "to": "P", "via": "TS",
+                "bond_changes": {"break": [], "form": []}, "accessible": True,
+            }
+        ],
+    }
+    (sandbox / "mechanism_graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    evidence = collect_barrier_evidence(sandbox)
+    assert len(evidence.steps) == 1, (evidence.steps, evidence.notes)
+    step = evidence.steps[0]
+    assert step.base_path.endswith("min_folded.out"), step.base_path
+    assert any("matches the node's declared energy_hartree" in n for n in evidence.notes)
+    # 用声明的那份 → 19.96 kcal；若按启发式（min_open）则只有 8.81 kcal
+    assert step.barrier_kcal_mol == pytest.approx(19.955, abs=0.05)
+
+
+def test_declared_ts_energy_identifies_the_delivered_saddle(tmp_path):
+    """同节点绑定多份鞍点日志：TS 节点声明的 energy_hartree 指认交付的那一份
+    （优先于文件名/路径序启发式）。"""
+    from cloudra.benchmark.barrier_evidence import collect_barrier_evidence
+
+    sandbox = tmp_path / "sb_ts"
+    sandbox.mkdir()
+    (sandbox / "min_freq.out").write_bytes(_MIN_LOG.read_bytes())
+    ts_text = _TS_LOG.read_text()
+    ts_energy = "-184.72596616"
+    assert ts_text.count(ts_energy) >= 1
+    # 名字序上 "aaa" 在前（旧规则会选它），声明指向 "zzz"
+    (sandbox / "aaa_ts.out").write_text(
+        ts_text.replace(ts_energy, "-184.60000000"), encoding="utf-8"
+    )
+    (sandbox / "zzz_ts.out").write_text(ts_text, encoding="utf-8")
+    graph = {
+        "nodes": [
+            {"id": "R", "role": "reactant", "smiles": ["O"], "accessible": True},
+            {
+                "id": "TS", "role": "transition_state", "smiles": [], "accessible": True,
+                "properties": {"energy_hartree": float(ts_energy)},
+            },
+            {"id": "P", "role": "product", "smiles": ["O"], "accessible": True},
+        ],
+        "edges": [
+            {
+                "id": "E1", "from": "R", "to": "P", "via": "TS",
+                "bond_changes": {"break": [], "form": []}, "accessible": True,
+            }
+        ],
+    }
+    (sandbox / "mechanism_graph.json").write_text(json.dumps(graph), encoding="utf-8")
+
+    evidence = collect_barrier_evidence(sandbox)
+    assert len(evidence.steps) == 1, (evidence.steps, evidence.notes)
+    assert evidence.steps[0].ts_path.endswith("zzz_ts.out")
+    assert any(
+        "saddle logs bound to TS" in n and "declared" in n for n in evidence.notes
+    )
 
 
 def test_scoring_ignores_prose_barrier(tmp_path):

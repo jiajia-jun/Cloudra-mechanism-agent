@@ -33,6 +33,11 @@ HARTREE_TO_KCAL_MOL = 627.5094740631
 # 评分只认 ORCA/Gaussian 日志（题库协议句明示；其他程序输出不算证据）
 _SCORING_ENGINES = ("gaussian", "orca")
 
+# 声明能量用于"指认交付日志"（同节点绑定多份合法日志时选哪一份）的容差：
+# 声明值与日志解析值来自同一份日志，正常应严格一致；留 1e-4 Ha（≈0.06 kcal）
+# 吸收交付侧的舍入。
+_DECLARED_ENERGY_TOL_HARTREE = 1e-4
+
 
 @dataclass(frozen=True)
 class StepBarrier:
@@ -48,11 +53,17 @@ class StepBarrier:
 
 @dataclass
 class BarrierEvidence:
-    """交付物的能垒证据集合（steps 为空即无法从交付物推出能垒）。"""
+    """交付物的能垒证据集合（steps 为空即无法从交付物推出能垒）。
+
+    ``steps`` 是策略选中的组合（声明能量指认优先、否则启发式）；
+    ``alternatives[edge_id]`` 保留该边**全部合法组合**（TS 日志 × 起点极小值
+    日志）——当交付声明的是一个构象、而参考答案对应另一个已算好的构象时，
+    评分侧需要看到这些组合才能区分"指认/定义差异"与"无据声明"。"""
 
     steps: list[StepBarrier] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     graph_found: bool = False
+    alternatives: dict[str, list[StepBarrier]] = field(default_factory=dict)
 
     def rds(self) -> Optional[StepBarrier]:
         """决速步 = 推算能垒最大的一步；并列按 edge id 取最小者（确定性）。"""
@@ -174,6 +185,42 @@ def _is_step_ts(sandbox: Path, rel_path: str) -> Optional[bool]:
     return imag == 1
 
 
+def _declared_node_energy_hartree(node) -> Optional[float]:
+    """节点 `properties.energy_hartree`（交付声明）→ Ha；缺失/非法 None。
+
+    只用于**指认交付日志**：同一物种/节点绑定了多份合法日志时，告诉系统
+    交付的到底是哪一份。数值本身不作证据——能量仍从日志解析。"""
+    if node is None:
+        return None
+    raw = node.properties.get("energy_hartree")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _log_energy_hartree(sandbox: Path, rel_path: str) -> Optional[float]:
+    kcal, _reason = _engine_energy_kcal(sandbox, rel_path)
+    return None if kcal is None else kcal / HARTREE_TO_KCAL_MOL
+
+
+def _identify_by_declared_energy(
+    sandbox: Path, candidates: list[str], declared: Optional[float]
+) -> Optional[str]:
+    """候选日志里最终能量与声明值最接近（容差内）的那份；无声明/无命中 None。"""
+    if declared is None:
+        return None
+    best: Optional[tuple[float, str]] = None
+    for path in candidates:
+        energy = _log_energy_hartree(sandbox, path)
+        if energy is None:
+            continue
+        delta = abs(energy - declared)
+        if delta <= _DECLARED_ENERGY_TOL_HARTREE and (best is None or delta < best[0]):
+            best = (delta, path)
+    return best[1] if best else None
+
+
 def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
     """从交付图 + 绑定日志推出逐步能垒（不做任何散文解析）。"""
     sandbox = Path(sandbox)
@@ -225,6 +272,25 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                 f"{edge.via}; barrier not derivable from evidence"
             )
             continue
+        all_saddles = list(saddles)
+        # TS 日志指认：节点声明的 energy_hartree 直接钉住交付的是哪一份鞍点
+        # 日志（同物种/同节点可绑定多份）；无声明或未命中时退回名字/路径序。
+        declared_ts_energy = _declared_node_energy_hartree(ts_node)
+        matched_ts = _identify_by_declared_energy(sandbox, saddles, declared_ts_energy)
+        if matched_ts is not None:
+            if len(saddles) > 1:
+                report.notes.append(
+                    f"edge {edge.id}: {len(saddles)} saddle logs bound to TS "
+                    f"{edge.via}; using {matched_ts} (matches the node's declared "
+                    "energy_hartree)"
+                )
+            saddles = [matched_ts]
+        elif declared_ts_energy is not None and len(saddles) > 1:
+            report.notes.append(
+                f"edge {edge.id}: TS {edge.via} declares energy_hartree "
+                f"{declared_ts_energy:.6f} but no bound saddle log matches it; "
+                "falling back to name/deterministic selection"
+            )
         if len(saddles) > 1:
             tokens = [t.lower() for t in (edge.id, edge.via, ts_node_name) if t]
             preferred = [
@@ -238,36 +304,93 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
             saddles = preferred or saddles
         ts_path = saddles[0]
 
-        ts_energy, ts_reason = _engine_energy_kcal(sandbox, ts_path)
+        # 全部合法组合（TS 日志 × 起点极小值日志）都要留给评分侧：交付声明的
+        # 是一个构象、而参考答案对应另一个已算好的构象时，只有看到全部组合
+        # 才能区分"指认/答案定义差异"与"无据声明"。
+        saddle_energies: dict[str, float] = {}
+        for candidate in all_saddles:
+            energy, _reason = _engine_energy_kcal(sandbox, candidate)
+            if energy is not None:
+                saddle_energies[candidate] = energy
+        ts_energy = saddle_energies.get(ts_path)
         if ts_energy is None:
+            _energy, ts_reason = _engine_energy_kcal(sandbox, ts_path)
             report.notes.append(f"edge {edge.id}: {ts_reason}")
             continue
 
-        # 起点最小值的选择：鞍点连通的是它正下方**最浅**的那个阱（能量最高
-        # 但仍低于 TS 的极小值）——拿更深的远端极小值当起点会把别的阱的
-        # 稳定化能错算进能垒（如把产物侧深阱当 RC，2 kcal 被读成 35 kcal）。
+        # 起点最小值的选择：节点声明的 energy_hartree 优先指认交付的是哪份
+        # 极小值日志（同一中间体的不同构象都是合法极小值）；无声明或未命中时
+        # 退回启发式——鞍点连通的是它正下方**最浅**的那个阱（拿更深的远端极小值
+        # 当起点会把别的阱的稳定化能错算进能垒）。
         minima = [
             p for p in base_candidates if _imaginary_frequency_count(sandbox, p) == 0
         ]
-        below: list[tuple[float, str]] = []
+        minima_energies: dict[str, float] = {}
         for candidate in minima:
             energy, _reason = _engine_energy_kcal(sandbox, candidate)
-            if energy is not None and energy < ts_energy:
-                below.append((energy, candidate))
+            if energy is not None:
+                minima_energies[candidate] = energy
+        below: list[tuple[float, str]] = [
+            (energy, path)
+            for path, energy in sorted(minima_energies.items())
+            if energy < ts_energy
+        ]
         if not below:
             report.notes.append(
                 f"edge {edge.id}: no bound minimum of {edge.from_node} lies "
                 "below the saddle; barrier not derivable from evidence"
             )
             continue
-        below.sort(key=lambda item: (-item[0], item[1]))
-        base_energy, base_path = below[0]
-        if len(below) > 1:
-            report.notes.append(
-                f"edge {edge.id}: several minima of {edge.from_node} below the "
-                f"saddle; using {base_path} (highest-energy minimum below the "
-                "saddle — the basin the saddle connects to)"
+        report.alternatives[edge.id] = [
+            StepBarrier(
+                edge_id=edge.id,
+                ts_path=ts_candidate,
+                base_path=base_candidate,
+                base_node_id=edge.from_node,
+                barrier_kcal_mol=ts_e - base_e,
+                declared_kcal_mol=edge.barrier_kcal_mol,
             )
+            for ts_candidate, ts_e in sorted(saddle_energies.items())
+            for base_candidate, base_e in sorted(minima_energies.items())
+            if base_e < ts_e
+        ]
+        declared_base_energy = _declared_node_energy_hartree(base_node)
+        matched_base = None
+        if declared_base_energy is not None:
+            target_kcal = declared_base_energy * HARTREE_TO_KCAL_MOL
+            tol_kcal = _DECLARED_ENERGY_TOL_HARTREE * HARTREE_TO_KCAL_MOL
+            matches = sorted(
+                (abs(energy - target_kcal), path)
+                for energy, path in below
+                if abs(energy - target_kcal) <= tol_kcal
+            )
+            if matches:
+                matched_base = matches[0][1]
+        if matched_base is not None:
+            base_energy, base_path = next(
+                (energy, path) for energy, path in below if path == matched_base
+            )
+            if len(below) > 1:
+                report.notes.append(
+                    f"edge {edge.id}: {len(below)} minima of {edge.from_node} below "
+                    f"the saddle; using {base_path} (matches the node's declared "
+                    "energy_hartree)"
+                )
+        else:
+            if declared_base_energy is not None and len(below) > 1:
+                report.notes.append(
+                    f"edge {edge.id}: {edge.from_node} declares energy_hartree "
+                    f"{declared_base_energy:.6f} but no bound minimum matches it; "
+                    "falling back to the highest minimum below the saddle"
+                )
+            below.sort(key=lambda item: (-item[0], item[1]))
+            base_energy, base_path = below[0]
+            if len(below) > 1:
+                report.notes.append(
+                    f"edge {edge.id}: several minima of {edge.from_node} below the "
+                    f"saddle; using {base_path} (highest-energy minimum below the "
+                    "saddle — the basin the saddle connects to)"
+                )
 
         report.steps.append(
             StepBarrier(

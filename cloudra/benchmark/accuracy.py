@@ -8,8 +8,12 @@
 - ``declared_barrier_kcal``：交付 ``mechanism_graph.json`` 里该边声明的
   ``barrier_kcal_mol``。
 
-该边缺日志推算、缺声明、或两者偏差超过本题 sigma（``rubric.sigma_kcal_mol``）
-→ 该边 0 分（fail-loud，绝不用最终消息里的数字兜底）。一致后与 gold 边值比，
+该边缺日志推算、缺声明、或声明在**任何合法组合**下都得不到支撑且证据也对
+不上参考 → 该边 0 分并 fail-loud 归零整题（绝不用最终消息里的数字兜底）。
+声明支撑得住（或虽支撑不住、但交付证据里另有与参考一致的组合——即 agent
+选了另一个构象/参考系定义、而正确的计算已在它的日志里）→ 走正常数值路径或
+按「答案定义差异」固定小扣分（`_DEFINITION_MISMATCH_EDGE_SCORE`），**不归零**
+（用户口径：这是答案定义问题，不是科学错误）。一致后与 gold 边值比，
 用高斯容差评分；逐边分数按 gold 边 ``weight`` 加权平均（权重越大 = 该边越
 容易算准/越可核实）。汇总后仍按 ``max_penalty_fraction`` 封顶。
 
@@ -50,6 +54,11 @@ _PROPERTY_SIGMAS = (
     ("cm-1", 50.0),
     ("kcal_mol", 2.0),
 )
+
+# 「答案定义差异」的逐边记分：证据里已经含有与参考一致的组合（agent 只是
+# 报/选了另一个构象或参考系定义），属定义层面的不一致而非科学错误——按此
+# 固定小扣分计入加权，绝不走 fail-loud 归零（用户口径）。
+_DEFINITION_MISMATCH_EDGE_SCORE = 0.9
 
 
 @dataclass
@@ -321,22 +330,82 @@ def score_accuracy(
                 f"step edge {edge.id}"
             )
             continue
-        if abs(step.declared_kcal_mol - step.barrier_kcal_mol) > rubric.sigma_kcal_mol:
-            rep.edge_scores[edge.id] = 0.0
-            failures.append(
-                "declared vs log-derived barrier disagreement on edge "
-                f"{edge.id} beyond sigma {rubric.sigma_kcal_mol}: declared "
-                f"{step.declared_kcal_mol:.3f} vs logs {step.barrier_kcal_mol:.3f}"
+        declared = step.declared_kcal_mol
+        # 该边全部合法组合（TS 日志 × 起点极小值日志；含策略选中的那组）。
+        # 声明支撑得住哪一组、哪一组能对上参考，决定这条边怎么算分：
+        # 支撑得住 → 正常数值路径；支撑不住但证据里有能对参考的 → 答案定义/
+        # 构象指认差异（小扣分，不是科学错误）；两者皆无 → 无据声明 fail-loud。
+        candidates = evidence.alternatives.get(step.edge_id) or [step]
+        sigma_eff = _effective_sigma(rubric, edge.barrier_kcal_mol)
+        supported = [
+            c for c in candidates
+            if abs(declared - c.barrier_kcal_mol) <= rubric.sigma_kcal_mol
+        ]
+        matches_ref = [
+            c for c in candidates
+            if abs(c.barrier_kcal_mol - edge.barrier_kcal_mol) <= sigma_eff
+        ]
+
+        if supported:
+            same_as_ref = any(
+                (c.ts_path, c.base_path) in {(m.ts_path, m.base_path) for m in matches_ref}
+                for c in supported
+            )
+            if matches_ref and not same_as_ref:
+                rep.edge_scores[edge.id] = _DEFINITION_MISMATCH_EDGE_SCORE
+                weighted_sum += weights[edge.id] * _DEFINITION_MISMATCH_EDGE_SCORE
+                ref = min(
+                    matches_ref,
+                    key=lambda c: (abs(c.barrier_kcal_mol - edge.barrier_kcal_mol),
+                                   c.ts_path, c.base_path),
+                )
+                rep.notes.append(
+                    f"edge {edge.id}: declared {declared:.3f} is supported by "
+                    f"{supported[0].ts_path} / {supported[0].base_path}, but the "
+                    f"delivered evidence also contains a combination consistent "
+                    f"with the reference ({ref.barrier_kcal_mol:.3f} vs gold "
+                    f"{edge.barrier_kcal_mol:.3f}, {ref.ts_path} / {ref.base_path}) "
+                    "-> answer-definition mismatch, scored "
+                    f"{_DEFINITION_MISMATCH_EDGE_SCORE}"
+                )
+                continue
+            chosen = step if step in supported else min(
+                supported,
+                key=lambda c: (abs(declared - c.barrier_kcal_mol), c.ts_path, c.base_path),
+            )
+            g = gaussian_barrier_score(chosen.barrier_kcal_mol, edge.barrier_kcal_mol, sigma_eff)
+            rep.edge_scores[edge.id] = g
+            weighted_sum += weights[edge.id] * g
+            rep.notes.append(
+                f"edge {edge.id}: log-derived {chosen.barrier_kcal_mol:.3f} vs gold "
+                f"{edge.barrier_kcal_mol:.3f} (sigma {sigma_eff:.1f}) -> {g:.4f} "
+                f"(weight {weights[edge.id]})"
             )
             continue
-        sigma = _effective_sigma(rubric, edge.barrier_kcal_mol)
-        g = gaussian_barrier_score(step.barrier_kcal_mol, edge.barrier_kcal_mol, sigma)
-        rep.edge_scores[edge.id] = g
-        weighted_sum += weights[edge.id] * g
-        rep.notes.append(
-            f"edge {edge.id}: log-derived {step.barrier_kcal_mol:.3f} vs gold "
-            f"{edge.barrier_kcal_mol:.3f} (sigma {sigma:.1f}) -> {g:.4f} "
-            f"(weight {weights[edge.id]})"
+
+        if matches_ref:
+            ref = min(
+                matches_ref,
+                key=lambda c: (abs(c.barrier_kcal_mol - edge.barrier_kcal_mol),
+                               c.ts_path, c.base_path),
+            )
+            rep.edge_scores[edge.id] = _DEFINITION_MISMATCH_EDGE_SCORE
+            weighted_sum += weights[edge.id] * _DEFINITION_MISMATCH_EDGE_SCORE
+            rep.notes.append(
+                f"edge {edge.id}: declared {declared:.3f} is not supported by any "
+                "delivered log combination, but the evidence contains one "
+                f"consistent with the reference ({ref.barrier_kcal_mol:.3f} vs gold "
+                f"{edge.barrier_kcal_mol:.3f}, {ref.ts_path} / {ref.base_path}) "
+                "-> answer-definition mismatch, scored "
+                f"{_DEFINITION_MISMATCH_EDGE_SCORE}"
+            )
+            continue
+
+        rep.edge_scores[edge.id] = 0.0
+        failures.append(
+            "declared vs log-derived barrier disagreement on edge "
+            f"{edge.id} beyond sigma {rubric.sigma_kcal_mol}: declared "
+            f"{declared:.3f} vs logs {step.barrier_kcal_mol:.3f}"
         )
 
     if failures:
